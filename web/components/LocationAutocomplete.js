@@ -359,7 +359,13 @@ function LocationAutocompleteCore({
         {showButton ? (
           <button
             type="button"
-            onClick={submitFreeText}
+            // NOT onClick={submitFreeText} — that hands the click's
+            // SyntheticEvent to submitFreeText's first parameter
+            // (`overrideText`, added for the suggestion-chip case below),
+            // which then got String()'d into the literal text "[object
+            // Object]" and submitted as `q`. Reproduced and confirmed as
+            // the exact cause of the "[object Object]" search results bug.
+            onClick={() => submitFreeText()}
             className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-blue px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-deep sm:rounded-full"
           >
             <Search strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />

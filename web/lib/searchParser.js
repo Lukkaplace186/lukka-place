@@ -70,7 +70,13 @@ function escapeRegExp(value) {
  * }}
  */
 export function parseSearchQuery(text) {
-  let remaining = String(text || '');
+  // typeof-checked rather than String(text || '') — the latter happily
+  // stringifies a stray non-string (a React SyntheticEvent, an object) into
+  // literal text like "[object Object]" instead of failing safe. That
+  // exact class of bug reached production once already (a bare
+  // `onClick={submitFreeText}` handing its click event to this function) —
+  // this is the second layer of defense, not just the onClick fix.
+  let remaining = typeof text === 'string' ? text : '';
   const result = {};
 
   for (const pattern of PRICE_MAX_PATTERNS) {

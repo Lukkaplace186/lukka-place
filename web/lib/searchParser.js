@@ -35,14 +35,40 @@ const PRICE_MIN_PATTERNS = [
   /\bmin(?:imum)?\s+\$?\s*([\d.,]+)\s*\$?/i,
 ];
 
-const BEDS_PATTERN = /\b(\d+)\s*(?:chambres?|ch\.?)\b/i;
-const BATH_PATTERN = /\b(\d+)\s*(?:salles?\s+de\s+bain|sdb)\b/i;
+// Bilingual on purpose — the diaspora audience CurrencyToggle.js's own
+// comment already calls out as a headline consideration searches in
+// English too ("2 bedroom apartment"), not just French. Real report:
+// that phrase produced 0 results because only French room/type words were
+// recognized, so the whole English phrase fell through to a literal ILIKE
+// search against French-language descriptions.
+const BEDS_PATTERN = /\b(\d+)\s*(?:chambres?|ch\.?|bedrooms?|beds?|bd)\b/i;
+const BATH_PATTERN = /\b(\d+)\s*(?:salles?\s+de\s+bain|sdb|bathrooms?|baths?)\b/i;
 
 const TRANSACTION_TYPE_PATTERNS = [
   [/(?:^|\s)[àa]\s+louer\b/i, 'location'],
   [/\blocation\b/i, 'location'],
+  [/\bto\s+rent\b/i, 'location'],
+  [/\bfor\s+rent\b/i, 'location'],
+  [/\brent\b/i, 'location'],
   [/(?:^|\s)[àa]\s+vendre\b/i, 'vente'],
   [/\bvente\b/i, 'vente'],
+  [/\bfor\s+sale\b/i, 'vente'],
+  [/\bto\s+buy\b/i, 'vente'],
+];
+
+// Mapped only to real, currently-queryable values — checked directly
+// against the live category_content table before writing this, not
+// assumed: today only "appartement" and "maison" have real approved
+// listings, and "villa"/"terrain" only exist as PARCELLE_SUBTYPES
+// (lib/constants.js), never as a top-level property_type on their own.
+// "villa"/"terrain nu" therefore resolve through parcelle_subtype, matching
+// exactly how root CLAUDE.md's classification rules define them — mapping
+// "villa" straight to property_type=maison would be a real, wrong guess.
+const PROPERTY_TYPE_PATTERNS = [
+  [/\b(?:appartements?|apartments?|flats?|studios?)\b/i, { property_type: 'appartement' }],
+  [/\bvillas?\b/i, { property_type: 'parcelle', parcelle_subtype: 'villa' }],
+  [/\b(?:terrains?|plots?|land)\b/i, { property_type: 'parcelle', parcelle_subtype: 'terrain_nu' }],
+  [/\b(?:maisons?|houses?)\b/i, { property_type: 'maison' }],
 ];
 
 /** "1.500" / "1,500" / "1500" -> 1500. Returns null if not a finite number. */
@@ -60,6 +86,8 @@ function escapeRegExp(value) {
  * @param {string} text
  * @returns {{
  *   transaction_type: ('location'|'vente')|undefined,
+ *   property_type: ('appartement'|'maison'|'parcelle')|undefined,
+ *   parcelle_subtype: ('villa'|'terrain_nu')|undefined,
  *   price_min: number|undefined,
  *   price_max: number|undefined,
  *   beds_min: number|undefined,
@@ -121,6 +149,14 @@ export function parseSearchQuery(text) {
     break;
   }
 
+  for (const [pattern, values] of PROPERTY_TYPE_PATTERNS) {
+    const match = remaining.match(pattern);
+    if (!match) continue;
+    Object.assign(result, values);
+    remaining = remaining.replace(match[0], ' ');
+    break;
+  }
+
   // Real communes/quartiers/landmarks (lib/gazetteer.js — the same curated
   // data LocationAutocomplete.js's dropdown uses), not a guess: "à
   // Ngaliema" resolves to a real `commune` filter the same way picking it
@@ -146,7 +182,12 @@ export function parseSearchQuery(text) {
       // actually appears in the text — stripping it would be a no-op and
       // leave the typo itself sitting in `keywords`, polluting the ILIKE
       // fallback with a literal misspelling no real listing would contain.
-      const pattern = new RegExp(`(?:(?:^|\\s)(?:[àa]|au|aux|en|dans|de|du|des)\\s+)?${escapeRegExp(location.matchedText)}`, 'i');
+      // English prepositions (in/at/near) alongside the French ones — a
+      // real case this surfaced: "house for rent in Ngaliema" left a
+      // dangling "in" in keywords, which as a bare ILIKE term matches
+      // almost any description (a near-universal 2-letter substring),
+      // silently over-broadening rather than failing loudly.
+      const pattern = new RegExp(`(?:(?:^|\\s)(?:[àa]|au|aux|en|dans|de|du|des|in|at|near)\\s+)?${escapeRegExp(location.matchedText)}`, 'i');
       remaining = remaining.replace(pattern, ' ');
     }
   }

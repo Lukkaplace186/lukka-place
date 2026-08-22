@@ -268,6 +268,11 @@ function LocationAutocompleteCore({
     if (parsed.price_max != null) params.set('price_max', String(parsed.price_max));
     if (parsed.beds_min != null) params.set('beds_min', String(parsed.beds_min));
     if (parsed.bath_min != null) params.set('bath_min', String(parsed.bath_min));
+    if (parsed.property_type) {
+      params.set('property_type', parsed.property_type);
+      if (parsed.parcelle_subtype) params.set('parcelle_subtype', parsed.parcelle_subtype);
+      else params.delete('parcelle_subtype');
+    }
     if (parsed.commune) {
       params.set('commune', parsed.commune);
       if (parsed.quartier) params.set('quartier', parsed.quartier);

@@ -52,20 +52,15 @@ const SEARCH_MODES = [
   { value: 'ai', label: '✨ Recherche IA' },
 ];
 
-// Every example here is real and verified live against the actual parser
-// (lib/searchParser.js) and gazetteer (lib/data/kinshasa-gazetteer.json).
-// "Groupe"/"bord de route" stay as free-text keywords on purpose (see the
-// note at the top of searchParser.js) — they ride the real ILIKE
-// description fallback rather than a `has_generator`/`on_main_road` column
-// that doesn't exist yet, same reasoning as the last two passes on this
-// feature. "Ma Campagne" (a quartier of Ngaliema, not a commune) resolves
-// via lib/gazetteer.js's findLocationMention exactly like a landmark does.
-const AI_SUGGESTIONS = [
-  'Appartement 2 chambres à Gombe avec groupe',
-  'Studio meublé sous 600$ à Ma Campagne',
-  'Villa avec piscine à Ngaliema',
-  'Maison 3 chambres bord de route à Kintambo',
-];
+// Short, one-tap-friendly on purpose (mobile discovery) — every one still
+// real and verified live against the actual parser (lib/searchParser.js)
+// and gazetteer (lib/data/kinshasa-gazetteer.json). "Groupe" stays a
+// free-text keyword (see the note at the top of searchParser.js) — it rides
+// the real ILIKE description fallback rather than a `has_generator` column
+// that doesn't exist yet. "Ma Campagne" (a quartier of Ngaliema, not a
+// commune) resolves via lib/gazetteer.js's findLocationMention exactly like
+// a landmark does.
+const AI_SUGGESTIONS = ['Gombe 2 chambres', 'Studio meublé', 'Ma Campagne', 'avec groupe'];
 
 export default function SearchBar() {
   const [transaction, setTransaction] = useState('location');

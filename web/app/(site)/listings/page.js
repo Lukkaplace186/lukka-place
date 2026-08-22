@@ -83,7 +83,7 @@ export default async function ListingsPage({ searchParams }) {
         />
 
         {count === 0 ? (
-          <ListingsEmptyState popularCommunes={popularCommunes} />
+          <ListingsEmptyState popularCommunes={popularCommunes} params={params} propertyTypeLabel={propertyTypeLabel} />
         ) : (
           <ListingsSplitView
             listings={data}

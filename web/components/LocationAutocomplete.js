@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { MapPin, Landmark, Search, Sparkles, X } from 'lucide-react';
+import { MapPin, Landmark, Search, Sparkles, X, Clock } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { parseSearchQuery } from '@/lib/searchParser';
@@ -12,6 +12,41 @@ const DEBOUNCE_MS = 150;
 // Below this much room, flip the panel above the input instead of letting
 // it get clipped against the viewport edge — see updatePosition().
 const MIN_SPACE_FOR_BELOW = 200;
+
+// AI-mode search history, local to this browser only — no server-side
+// "search history" feature exists (there's no accounts-backed search log),
+// same honesty principle as lib/localFavorites.js's localStorage-only
+// favorites. Read/written directly rather than through a hook: it's two
+// small helpers used from exactly one place (submitFreeText below).
+const SEARCH_HISTORY_KEY = 'lukka_search_history';
+const SEARCH_HISTORY_MAX = 3;
+
+function readSearchHistory() {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(SEARCH_HISTORY_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.filter((v) => typeof v === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function pushSearchHistory(text) {
+  if (typeof window === 'undefined' || !text || !text.trim()) return readSearchHistory();
+  const trimmed = text.trim();
+  const next = [trimmed, ...readSearchHistory().filter((v) => v.toLowerCase() !== trimmed.toLowerCase())].slice(
+    0,
+    SEARCH_HISTORY_MAX,
+  );
+  try {
+    window.localStorage.setItem(SEARCH_HISTORY_KEY, JSON.stringify(next));
+  } catch {
+    // Storage full/disabled — history just doesn't persist this time, not
+    // worth failing the actual search over.
+  }
+  return next;
+}
 
 function stripDiacritics(value) {
   return value.normalize('NFD').replace(/\p{Diacritic}/gu, '');
@@ -134,6 +169,14 @@ function LocationAutocompleteCore({
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [position, setPosition] = useState(null);
+  // Starts empty (not read synchronously) so server and first client render
+  // match — localStorage doesn't exist server-side, same pattern
+  // FavoriteButton.js/CurrencyToggle.js already use for this exact reason.
+  const [history, setHistory] = useState([]);
+
+  useEffect(() => {
+    if (hideDropdown) setHistory(readSearchHistory());
+  }, [hideDropdown]);
 
   const containerRef = useRef(null);
   const listboxRef = useRef(null);
@@ -255,6 +298,13 @@ function LocationAutocompleteCore({
   function submitFreeText(overrideText) {
     const text = overrideText != null ? overrideText : value;
     const params = buildParams();
+
+    // AI-mode natural-language searches only — classic mode's free text is
+    // "Enter to search «X»" fallback for an unmatched place name, not the
+    // kind of sentence "recent searches" is meant to help someone repeat.
+    if (hideDropdown && typeof text === 'string' && text.trim()) {
+      setHistory(pushSearchHistory(text));
+    }
 
     // "2 chambres à louer sous 800$" -> real price_max/beds_min/transaction_
     // type filters, not a doomed literal-substring search for the whole
@@ -413,6 +463,25 @@ function LocationAutocompleteCore({
             >
               {showSuggestions ? (
                 <>
+                  {history.length > 0 ? (
+                    <>
+                      <p className="u-eyebrow px-4 pb-1.5 pt-1 !normal-case !tracking-normal text-ink-25">
+                        Recherches récentes
+                      </p>
+                      {history.map((item) => (
+                        <button
+                          key={item}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => submitFreeText(item)}
+                          className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-[0.875rem] text-ink-70 transition-colors hover:bg-canvas-alt"
+                        >
+                          <Clock strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0 text-ink-45" />
+                          <span className="min-w-0 flex-1 truncate">{item}</span>
+                        </button>
+                      ))}
+                    </>
+                  ) : null}
                   <p className="u-eyebrow px-4 pb-1.5 pt-1 !normal-case !tracking-normal text-ink-25">Exemples</p>
                   {suggestions.map((suggestion) => (
                     <button

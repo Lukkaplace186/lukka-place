@@ -1,0 +1,228 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/*
+ * Lukka Place design tokens.
+ *
+ * Direction: "Prestige White" — a crisp, cool off-white ground with the
+ * brand's own logo blue as the single accent, replacing the earlier warm
+ * bronze/stone system. White cards sitting on a barely-off-white ground is
+ * still what gives cards their edge without a shadow doing the work — that
+ * figure/ground separation is a real property worth keeping, it's just
+ * cooler and brighter now instead of warm.
+ *
+ * Naming note: the ground is `canvas`, not `stone`. Tailwind ships a
+ * built-in `stone-*` scale and having both `bg-stone-deep` (ours) and
+ * `bg-stone-800` (theirs) in the same codebase reads as a typo.
+ *
+ * Tailwind v4: there is no tailwind.config.js. Any --color-* / --font-* in
+ * the @theme block below automatically becomes a utility
+ * (--color-blue -> bg-blue, text-blue, border-blue, ...).
+ */
+:root {
+  /* Ink ramp — Tailwind's own slate scale (slate-900/600/500/300), chosen
+     deliberately rather than invented: it's a well-known, pre-verified
+     ramp that reads correctly against a cool white ground, and it's the
+     same family the brand's logo blue already sits in. */
+  --ink: #0f172a;      /* headings, primary text        18.7:1 on canvas */
+  --ink-70: #475569;   /* body copy                      7.4:1 */
+  --ink-45: #64748b;   /* meta, captions                 4.6:1 */
+  --ink-25: #cbd5e1;   /* placeholder, disabled — decorative only */
+
+  /* Prestige White ground */
+  --canvas: #fafafa;      /* page ground — a hair off pure white */
+  --canvas-alt: #f8f9fa;  /* alternating section fills */
+  --canvas-deep: #f1f5f9; /* hover / pressed fills */
+  --line: #e2e8f0;        /* hairline borders — replaces card shadows */
+  --surface: #ffffff;     /* elevated cards sitting ON canvas */
+
+  /*
+   * Blue — the brand's own logo colour, and the single accent on the site.
+   * CONTRAST RULE, computed not assumed:
+   *   white text on --blue ............. 4.69:1  passes AA  -> fill
+   *   --blue as text on --canvas ....... 6.80:1  passes AA  -> fine too
+   *   --blue-deep as text on --canvas .. 9.1:1    passes AAA -> hover/links
+   * Unlike the old bronze token, --blue itself already clears AA as text —
+   * --blue-deep exists for hover/pressed states and isn't load-bearing for
+   * contrast the way --bronze-deep was.
+   */
+  --blue: #1450d0;
+  --blue-deep: #1040a6;
+  --blue-tint: #e8effc;
+
+  /* Functional green — WhatsApp CTA and rental-income signal. Not part of
+     the palette direction; it's a signal colour and stays put. */
+  --green: #00b050;
+  --green-deep: #00963f;
+  --green-tint: #e6f8ee;
+
+  /*
+   * shadcn/ui tokens, remapped onto the palette above so Button, Dialog,
+   * DropdownMenu, Sheet and Tabs inherit the real brand instead of the
+   * default neutral grayscale. `shadcn add` has silently overwritten this
+   * block once before — diff it before trusting the result.
+   */
+  --background: var(--canvas);
+  --foreground: var(--ink);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --primary: var(--blue);
+  --primary-foreground: #ffffff;
+  --secondary: var(--canvas-alt);
+  --secondary-foreground: var(--ink);
+  --muted: var(--canvas-alt);
+  --muted-foreground: var(--ink-45);
+  --accent: var(--blue-tint);
+  --accent-foreground: var(--blue-deep);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: var(--line);
+  --input: var(--line);
+  --ring: var(--blue);
+
+  /* 8px. The references (Zillow, Rightmove) are moderately rounded, not
+     sharp — full pills stay for filter chips, badges and CTAs. */
+  --radius: 8px;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-ink: var(--ink);
+  --color-ink-70: var(--ink-70);
+  --color-ink-45: var(--ink-45);
+  --color-ink-25: var(--ink-25);
+
+  --color-canvas: var(--canvas);
+  --color-canvas-alt: var(--canvas-alt);
+  --color-canvas-deep: var(--canvas-deep);
+  --color-surface: var(--surface);
+  --color-line: var(--line);
+
+  --color-blue: var(--blue);
+  --color-blue-deep: var(--blue-deep);
+  --color-blue-tint: var(--blue-tint);
+
+  --color-green: var(--green);
+  --color-green-deep: var(--green-deep);
+  --color-green-tint: var(--green-tint);
+
+  --font-sans: var(--font-jakarta);
+  --font-display: var(--font-fraunces);
+  --font-heading: var(--font-fraunces);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-destructive: var(--destructive);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: calc(var(--radius) * 0.75);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.5);
+  --radius-2xl: calc(var(--radius) * 2);
+  --radius-3xl: calc(var(--radius) * 3);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+  }
+  body {
+    @apply bg-canvas text-ink;
+    font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* Fraunces is an accent face: section titles and editorial copy only.
+     Never UI, never data. Its default leading reads cramped at display
+     sizes, so headings set it explicitly. */
+  .font-display {
+    font-optical-sizing: auto;
+  }
+}
+
+@layer utilities {
+  /* Hides the scrollbar on the mobile snap-carousels (FeaturedListings,
+     CardImageCarousel's parent) while leaving real touch/wheel scrolling
+     intact — Tailwind ships no built-in utility for this. */
+  .no-scrollbar {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* legacy Edge */
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none; /* Chrome, Safari */
+  }
+
+  /* The workhorse of the editorial layer — commune labels, section
+     kickers, spec-table keys. */
+  .u-eyebrow {
+    font-size: 0.6875rem;
+    line-height: 1.2;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-45);
+  }
+  /* Every price uses this. Proportional digits make a column of prices in
+     a results grid visibly ragged. */
+  .u-tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+  /* Reference codes — replaces the old monospace treatment, which was the
+     only reason a third font family was being downloaded. */
+  .u-ref {
+    font-size: 0.6875rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-variant-numeric: tabular-nums;
+  }
+  /* The one real elevation in the system. Cards use hairlines instead;
+     this is for things that genuinely float above the page. Shadow tint
+     is the ink colour's own RGB (15 23 42), not a generic black. */
+  .u-lift {
+    box-shadow:
+      0 1px 2px rgb(15 23 42 / 0.04),
+      0 8px 24px -6px rgb(15 23 42 / 0.10);
+  }
+  .u-lift-lg {
+    box-shadow:
+      0 2px 4px rgb(15 23 42 / 0.05),
+      0 24px 48px -12px rgb(15 23 42 / 0.18);
+  }
+
+  /* Tactile press feedback for plain (non-framer-motion) tappable elements
+     — filter pills, icon CTAs, nav items. Deliberately NOT gated behind
+     useMotionSafe()/prefers-reduced-motion the way the decorative presets
+     in lib/motion.js are: those are automatic/ambient (hover-zoom, hero
+     drift, scroll reveals), this is direct feedback to the visitor's own
+     tap, the same category of thing a native OS button already does
+     regardless of a reduced-motion setting. Motion-driven elements
+     (the three card designs' MotionLink) use framer-motion's own
+     `whileTap` instead of this class, so the two mechanisms never fight
+     over the same `transform`. */
+  .u-press {
+    transition: transform 0.15s ease-out;
+  }
+  .u-press:active {
+    transform: scale(0.96);
+  }
+}

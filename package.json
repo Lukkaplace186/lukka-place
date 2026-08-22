@@ -1,0 +1,32 @@
+{
+  "name": "lukka-place-engine",
+  "version": "1.0.0",
+  "description": "WhatsApp webhook engine for Lukka Place — AI parsing of property listings sent by agents in Kinshasa.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "start:prod": "pm2 start ecosystem.config.js",
+    "dev": "node --watch index.js",
+    "verify": "node scripts/verify-pipeline.js"
+  },
+  "keywords": [
+    "whatsapp",
+    "webhook",
+    "proptech",
+    "gemini",
+    "kinshasa"
+  ],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@google/genai": "^2.16.0",
+    "@supabase/supabase-js": "^2.112.3",
+    "axios": "^1.19.0",
+    "better-sqlite3": "^13.0.3",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "openai": "^7.4.0",
+    "pg": "^8.23.0"
+  }
+}

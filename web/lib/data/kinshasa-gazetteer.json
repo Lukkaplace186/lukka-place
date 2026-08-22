@@ -1,0 +1,326 @@
+[
+  {
+    "commune": "Gombe",
+    "quartiers": [
+      "Batetela",
+      "Botour",
+      "Cliniques",
+      "Commerce",
+      "Fleuve",
+      "Gare",
+      "Golf",
+      "Hôpital",
+      "Industriel",
+      "Lutumba",
+      "Palais de la Nation",
+      "Place Royale",
+      "Tshatshi"
+    ],
+    "landmarks": [
+      "Boulevard du 30 Juin",
+      "Forescom",
+      "Shoprite",
+      "Hôtel Memling",
+      "Pullman Kinshasa Grand Hôtel",
+      "Gare Centrale",
+      "Place du 30 Juin",
+      "Utexafrica",
+      "Kin Plaza Mall",
+      "Premier Shopping Mall",
+      "Ambassade de France",
+      "Ambassade des Etats-Unis",
+      "Banque Centrale du Congo (BCC)",
+      "REGIDESO",
+      "SNEL",
+      "Maison de France",
+      "Place de l'Indépendance"
+    ]
+  },
+  {
+    "commune": "Ngaliema",
+    "quartiers": [
+      "Binza-Delvaux",
+      "Binza-IPN",
+      "Binza-Météo",
+      "Binza-Pigeon",
+      "Bumba",
+      "CPA",
+      "Djelo-Binza",
+      "Joli-Parc",
+      "Kinsuka-Pêcheurs",
+      "Lukunga",
+      "Ma Campagne",
+      "Mama Yemo",
+      "Mangengenge",
+      "Mont-Fleury",
+      "Mumosho",
+      "O.U.A.",
+      "Sanga-Mamba"
+    ],
+    "landmarks": [
+      "Place Commerciale Ma Campagne",
+      "Paroisse Saint Luc",
+      "St Luc",
+      "Cité de l'O.U.A.",
+      "Mont Ngaliema",
+      "Dumez",
+      "TASOK (The American School of Kinshasa)",
+      "Rond-Point Delvaux",
+      "Pigeon",
+      "Kinsuka Pêcheurs",
+      "Camp Tshatshi",
+      "Bâtiment de l'OTRACO",
+      "Lycée Albert Premier",
+      "Hôpital de Binza"
+    ]
+  },
+  {
+    "commune": "Kintambo",
+    "quartiers": ["Babu", "Itaga", "Jamaique", "Kilimani", "Lisala", "Luka", "Tshikapa", "Wenze"],
+    "landmarks": [
+      "Kintambo Magasin",
+      "Rond-Point Magasin",
+      "Hôpital Général de Kintambo",
+      "Stade Vélodrome",
+      "Pont Kintambo",
+      "Baie de Ngaliema"
+    ]
+  },
+  {
+    "commune": "Lingwala",
+    "quartiers": ["Kalunga", "Lokole", "Moutho", "Paka-Adjuma", "Singa-Mopepe", "Tshatshi", "Voix du Peuple"],
+    "landmarks": [
+      "Palais du Peuple",
+      "RTNC (Télévision Nationale)",
+      "Cathédrale Notre-Dame du Congo",
+      "Avenue Huileries",
+      "Avenue Liberation (ex-24 Novembre)",
+      "Hôpital Chinois"
+    ]
+  },
+  {
+    "commune": "Barumbu",
+    "quartiers": ["Bon Marché", "Funa", "Kabida", "Kalamu", "Kaziama", "Kazangba", "Mososo", "Ndolo", "Njia"],
+    "landmarks": [
+      "Bon Marché",
+      "Aéroport de Ndolo",
+      "Aéroclub de Ndolo",
+      "Avenue Flambeau",
+      "Bracongo",
+      "Port de Barumbu"
+    ]
+  },
+  {
+    "commune": "Kinshasa",
+    "quartiers": ["Aketi", "Camp Militaire Saio", "Ding-Ding", "Lowa", "Madimba", "Mobili", "Mongala", "Penza", "Scaillons"],
+    "landmarks": [
+      "Marché Central (Zando)",
+      "Grande Mosquée de Kinshasa",
+      "Avenue Bokassa",
+      "Avenue Luambo Makiadi (ex-Okey)",
+      "Jardin Botanique de Kinshasa"
+    ]
+  },
+  {
+    "commune": "Kasa-Vubu",
+    "quartiers": ["Katanga", "Lubudi", "Onatra", "Salongo", "Saio", "Tshibangu"],
+    "landmarks": [
+      "Place Victoire",
+      "Rond-Point Victoire",
+      "Maison Communale de Kasa-Vubu",
+      "Avenue Assossa",
+      "Eglise Saint-Joseph"
+    ]
+  },
+  {
+    "commune": "Kalamu",
+    "quartiers": ["Immo-Congo", "Kabuya", "Kauka", "Kimbangu", "Matonge 1", "Matonge 2", "Pinzi", "Yolo-Nord", "Yolo-Sud"],
+    "landmarks": [
+      "Matonge",
+      "Stade Tata Raphaël",
+      "YMCA",
+      "Rond-Point Victoire (border)",
+      "Place YMCA",
+      "Avenue Victoria",
+      "Eglise Kimbanguiste"
+    ]
+  },
+  {
+    "commune": "Bandalungwa",
+    "quartiers": ["Adoula", "Bisengo", "Kimbangu", "Lubudi", "Lumumba", "Makelele", "Moulaert", "Tshibangu"],
+    "landmarks": [
+      "Block 10",
+      "Rond-Point Moulaert",
+      "Bakayawu",
+      "Maison Communale de Bandal",
+      "Terrain Synthétique de Bandal",
+      "Avenue Kasa-Vubu"
+    ]
+  },
+  {
+    "commune": "Limete",
+    "quartiers": ["Agri-Congo", "Industriel", "Kingabwa", "Mateba", "Mombele", "Mososo", "Ndanu", "Résidentiel", "Salongo"],
+    "landmarks": [
+      "Echangeur de Limete",
+      "7ème Rue Résidentiel",
+      "10ème Rue Résidentiel",
+      "FIKIN (Foire Internationale de Kinshasa)",
+      "Boulevard Lumumba",
+      "Port de Kingabwa",
+      "Hôpital Saint-Joseph",
+      "Sodeico",
+      "Brasseries du Congo (Bralima)"
+    ]
+  },
+  {
+    "commune": "Lemba",
+    "quartiers": ["Commercial", "Echangeur", "Gombele", "Kianza", "Livulu", "Mbanza-Lemba", "Molo", "Righini", "Salongo", "Super"],
+    "landmarks": [
+      "Université de Kinshasa (UNIKIN)",
+      "Terminus Lemba",
+      "Rond-Point Super",
+      "Echangeur de Lemba",
+      "Sous-Région de Lemba",
+      "Cliniques Universitaires de Kinshasa",
+      "Cité CNPP"
+    ]
+  },
+  {
+    "commune": "Mont-Ngafula",
+    "quartiers": [
+      "Dweru",
+      "Kimbondo",
+      "Kimwenza",
+      "Kindele",
+      "Kinsuka-Sanga",
+      "Kiziba",
+      "Lukaya",
+      "Mama Yemo",
+      "Masanga-Mbila",
+      "Matadi-Mayo",
+      "Mitendi",
+      "Ngansele",
+      "Nouveau Village",
+      "Cité-Verte"
+    ],
+    "landmarks": [
+      "Cité-Verte",
+      "Kimwenza Gare",
+      "Lola ya Bonobos (Sanctuaire)",
+      "Lac de Ma Vallée",
+      "Petites Sœurs des Pauvres",
+      "Université Loyola du Congo (ULC)",
+      "Péage de Mitendi",
+      "Mont-Ngafula Zero"
+    ]
+  },
+  {
+    "commune": "Ngaba",
+    "quartiers": ["Baobab", "Bulambemba", "Luyi", "Mateba", "Mukungu", "Mpoke"],
+    "landmarks": ["Rond-Point Ngaba", "Avenue de l'Université", "Marché de Ngaba", "Maison Communale de Ngaba"]
+  },
+  {
+    "commune": "Ngiri-Ngiri",
+    "quartiers": ["Elengesa", "Kartono", "Luyunu", "Ngbaka", "Saio", "Tshulu"],
+    "landmarks": ["Avenue Assossa", "Avenue Saio", "Marché Ngiri-Ngiri", "Maison Communale de Ngiri-Ngiri"]
+  },
+  {
+    "commune": "Selembao",
+    "quartiers": ["Badiadingi", "Bumbu", "Inga", "Kalunga", "Kingu", "Madiata", "Ndanu", "Nfumu-Nkento", "Ngunza"],
+    "landmarks": ["Prison Centrale de Makala", "Rond-Point Badiadingi", "Avenue Libération", "Cimetière de Badiadingi"]
+  },
+  {
+    "commune": "Bumbu",
+    "quartiers": ["Kwanango", "Lokandu", "Lufuna", "Mbandaka", "Ntomba", "Ntsio"],
+    "landmarks": ["Avenue Kwango", "Avenue Landu", "Marché de Bumbu", "Maison Communale de Bumbu"]
+  },
+  {
+    "commune": "Makala",
+    "quartiers": ["Bambole", "Mabulu", "Mawanga", "Mboloko", "Mikasi", "Suka-Voteke"],
+    "landmarks": ["Rond-Point Elengesa", "Avenue Elengesa", "Marché Makala"]
+  },
+  {
+    "commune": "Kisenso",
+    "quartiers": ["Amba", "Bikanga", "Gare", "Kabila", "Kikimi", "Kitomesa", "Regideso"],
+    "landmarks": ["Gare de Kisenso", "Mission Catholique de Kisenso", "Ravin Kisenso"]
+  },
+  {
+    "commune": "Matete",
+    "quartiers": [
+      "Anunga",
+      "Bahumbu",
+      "Batende",
+      "Debonhomme",
+      "Kinsioni",
+      "Kutu",
+      "Lokoro",
+      "Lutondo",
+      "Maindombe",
+      "Mazinga",
+      "Mpokolo",
+      "Sumu",
+      "Totokani"
+    ],
+    "landmarks": [
+      "Marché de Matete",
+      "Pont Matete",
+      "Debonhomme",
+      "Maison Communale de Matete",
+      "TGI Matete (Tribunal de Grande Instance)"
+    ]
+  },
+  {
+    "commune": "Masina",
+    "quartiers": ["Abattoir", "Eucalyptus", "Kimbangu", "Lutondo", "Mapela", "Masina-Centre", "Mokali", "Petro-Congo", "Sans-Fil", "Tshangu"],
+    "landmarks": [
+      "Marché de la Liberté",
+      "Pascal",
+      "Petro-Congo",
+      "Abattoir de Masina",
+      "Marché Sans-Fil",
+      "Boulevard Lumumba (Saut-de-mouton Pascal)"
+    ]
+  },
+  {
+    "commune": "Ndjili",
+    "quartiers": [
+      "Quartier 1", "Quartier 2", "Quartier 3", "Quartier 4", "Quartier 5", "Quartier 6",
+      "Quartier 7", "Quartier 8", "Quartier 9", "Quartier 10", "Quartier 11", "Quartier 12", "Quartier 13"
+    ],
+    "landmarks": [
+      "Terrain Sainte-Thérèse",
+      "Maison Communale de N'djili",
+      "Sainte-Thérèse",
+      "Rond-Point N'djili (Banque)",
+      "Hôpital Général de N'djili (Pavillon)"
+    ]
+  },
+  {
+    "commune": "Kimbanseke",
+    "quartiers": ["Bambous", "Biyela", "Kingasani", "Kutuba", "Mikondo", "Mokali", "Molu", "Mpassa", "Ngoma", "Sakombi"],
+    "landmarks": ["Kingasani ya Suka", "Rond-Point Kingasani", "Marché Mokali", "Marché Biyela", "Hôpital Roi Baudouin"]
+  },
+  {
+    "commune": "Nsele",
+    "quartiers": ["Bibwa", "Dingi-Dingi", "Kinkole", "Kinsana", "Mikonga", "Mpasa 1", "Mpasa 2", "Mpasa 3", "Mpasa 4", "Nsele"],
+    "landmarks": [
+      "Aéroport International de N'djili (FIH)",
+      "Kinkole (Marché aux poissons)",
+      "DAIPN (Domaine Agro-Industriel de la N'sele)",
+      "Port de Kinkole",
+      "Saut-de-mouton Mikonga",
+      "Cité de la Nsele"
+    ]
+  },
+  {
+    "commune": "Maluku",
+    "quartiers": ["Dumi", "Kingankati", "Makar", "Maluku", "Menkao", "Moni", "Nguma", "Yuo"],
+    "landmarks": [
+      "Port de Maluku",
+      "Menkao",
+      "Parc Agro-Industriel de Maluku",
+      "Domain de Kingankati",
+      "Fleuve Congo (Rive Maluku)"
+    ]
+  }
+]

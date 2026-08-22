@@ -1,0 +1,29 @@
+node_modules/
+.env
+*.log
+.DS_Store
+
+# Deploy tarballs (services/postgres.js's documented tar/scp deploy flow
+# produces these) and ad hoc terminal-output scratch dumps — build
+# artifacts/local scratch, not source.
+*.tar.gz
+v*.txt
+
+# Claude Code: settings.json (enabled plugins etc.) is shared project config
+# and stays tracked; settings.local.json is per-machine permission state
+# (WinGet paths, one-off script allowlists) — not meant to be shared.
+.claude/settings.local.json
+
+# Local SQLite database (plus WAL sidecar files)
+lukka_place.db
+lukka_place.db-shm
+lukka_place.db-wal
+
+# Downloaded listing photos (services/mediaStorage.js)
+uploads/
+
+# scripts/verify-pipeline.js scratch files
+_verify.db
+_verify.db-shm
+_verify.db-wal
+_verify_uploads/

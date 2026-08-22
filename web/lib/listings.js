@@ -125,7 +125,7 @@ const LISTINGS_LIMIT_MAX = 60;
  *     path has parcelle_subtype set. Filtering on parcelle_subtype is the
  *     precise match for "this is a parcelle listing".
  */
-function buildFilters({ transactionType, propertyType, parcelleSubtype, commune, quartier, priceMin, priceMax, bedsMin, bathMin, areaMin, search, excludeId }) {
+function buildFilters({ transactionType, propertyType, parcelleSubtype, commune, quartier, reference, priceMin, priceMax, bedsMin, bathMin, areaMin, search, excludeId }) {
   const where = [APPROVED_FILTER];
   const params = [];
 
@@ -203,6 +203,17 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
   if (quartier) {
     params.push(quartier);
     where.push(`p.quartier = $${params.length}`);
+  }
+
+  // lib/searchParser.js's reference-code extraction ("LKP-2026-0091", or a
+  // bare remembered number like "réf 91") — ILIKE, not an exact match:
+  // "réf 91" only carries the trailing digits, with no way to reconstruct
+  // the real LKP-YYYY-NNNN code from that alone, so a partial match is the
+  // honest behaviour rather than requiring the visitor to have the exact
+  // full code.
+  if (reference) {
+    params.push(`%${reference}%`);
+    where.push(`p.reference ILIKE $${params.length}`);
   }
 
   // Free-text search box (Zillow-style sticky pill on /listings): real

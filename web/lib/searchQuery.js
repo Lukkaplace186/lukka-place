@@ -16,6 +16,7 @@ export function parseListingsSearchParams(searchParamsLike) {
     parcelleSubtype: get('parcelle_subtype'),
     commune: get('commune'),
     quartier: get('quartier'),
+    reference: get('reference'),
     priceMin: get('price_min'),
     priceMax: get('price_max'),
     bedsMin: get('beds_min'),

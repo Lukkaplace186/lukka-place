@@ -3,10 +3,61 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { MapPin, Landmark, Search, Sparkles, X, Clock } from 'lucide-react';
+import { MapPin, Landmark, Search, Sparkles, X, Clock, BedDouble, Bath, Home, DollarSign, Hash } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { cn } from '@/lib/utils';
-import { parseSearchQuery } from '@/lib/searchParser';
+import { parseSearchQuery, escapeRegExp } from '@/lib/searchParser';
+
+const PROPERTY_TYPE_LABELS = {
+  appartement: 'Appartement',
+  maison: 'Maison',
+  parcelle: 'Parcelle',
+};
+
+/**
+ * Turns a parseSearchQuery() result into the ordered list of live-preview
+ * pills — one source of truth for both what's shown and what a pill's ×
+ * button removes (`field`, matched against `parsed.spans`).
+ */
+function buildPreviewPills(parsed) {
+  if (!parsed) return [];
+  const pills = [];
+
+  if (parsed.reference) {
+    pills.push({ field: 'reference', icon: Hash, label: `Réf ${parsed.reference}` });
+  }
+  if (parsed.commune) {
+    const place = parsed.quartier ? `${parsed.quartier} (${parsed.commune})` : parsed.commune;
+    pills.push({ field: 'commune', icon: MapPin, label: place });
+  }
+  if (parsed.beds_min != null) {
+    pills.push({ field: 'beds_min', icon: BedDouble, label: `${parsed.beds_min}+ Chambres` });
+  }
+  if (parsed.bath_min != null) {
+    pills.push({ field: 'bath_min', icon: Bath, label: `${parsed.bath_min}+ SDB` });
+  }
+  if (parsed.property_type) {
+    const typeLabel = PROPERTY_TYPE_LABELS[parsed.property_type] || parsed.property_type;
+    const subtypeLabel = parsed.parcelle_subtype === 'villa' ? ' (Villa)' : parsed.parcelle_subtype === 'terrain_nu' ? ' (Terrain)' : '';
+    pills.push({ field: 'property_type', icon: Home, label: `${typeLabel}${subtypeLabel}` });
+  }
+  if (parsed.price_min != null || parsed.price_max != null) {
+    const label =
+      parsed.price_min != null && parsed.price_max != null
+        ? `${parsed.price_min}$ - ${parsed.price_max}$`
+        : parsed.price_max != null
+          ? `Max ${parsed.price_max}$`
+          : `Dès ${parsed.price_min}$`;
+    // Both price_min and price_max share one "Prix" pill/× action (removing
+    // whichever span(s) are actually present) since they render as a single
+    // combined label — two separate pills for one price phrase would be a
+    // confusing UI, and searchParser.js only ever fills one of the two from
+    // a single price phrase in practice anyway.
+    pills.push({ field: 'price', icon: DollarSign, label, spanFields: ['price_min', 'price_max'] });
+  }
+
+  return pills;
+}
 
 const DEBOUNCE_MS = 150;
 // Below this much room, flip the panel above the input instead of letting
@@ -178,6 +229,35 @@ function LocationAutocompleteCore({
     if (hideDropdown) setHistory(readSearchHistory());
   }, [hideDropdown]);
 
+  // Live "as-you-type" intent preview (AI mode only) — the same real
+  // parseSearchQuery() the actual submit uses, just run continuously on a
+  // debounce rather than once on Enter, so a visitor sees what's being
+  // understood before committing to it.
+  const [livePreview, setLivePreview] = useState(null);
+
+  useEffect(() => {
+    if (!hideDropdown) return undefined;
+    if (!value.trim()) {
+      setLivePreview(null);
+      return undefined;
+    }
+    const timer = setTimeout(() => setLivePreview(parseSearchQuery(value)), DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [value, hideDropdown]);
+
+  function removePreviewField(pill) {
+    const fields = pill.spanFields || [pill.field];
+    let next = value;
+    for (const field of fields) {
+      const span = livePreview?.spans?.[field];
+      if (!span) continue;
+      next = next.replace(new RegExp(escapeRegExp(span), 'i'), ' ');
+    }
+    next = next.replace(/\s+/g, ' ').trim();
+    setValue(next);
+    setLivePreview(next ? parseSearchQuery(next) : null);
+  }
+
   const containerRef = useRef(null);
   const listboxRef = useRef(null);
   const debounceRef = useRef(null);
@@ -313,6 +393,7 @@ function LocationAutocompleteCore({
     // alone; whatever wasn't recognized as a structured filter (like
     // "meublé") stays in `q` and still reaches the real description search.
     const parsed = parseSearchQuery(text);
+    if (parsed.reference) params.set('reference', parsed.reference);
     if (parsed.transaction_type) params.set('transaction_type', parsed.transaction_type);
     if (parsed.price_min != null) params.set('price_min', String(parsed.price_min));
     if (parsed.price_max != null) params.set('price_max', String(parsed.price_max));
@@ -369,6 +450,7 @@ function LocationAutocompleteCore({
   const showEmpty = !hideDropdown && open && value.trim() && results.length === 0;
   const showSuggestions = hideDropdown && open && suggestions.length > 0;
   const showPanel = Boolean(position) && (hideDropdown ? showSuggestions : open && (results.length > 0 || showEmpty));
+  const previewPills = hideDropdown ? buildPreviewPills(livePreview) : [];
 
   return (
     <div ref={containerRef} className={cn('relative', className)}>
@@ -428,6 +510,28 @@ function LocationAutocompleteCore({
           </button>
         ) : null}
       </div>
+
+      {previewPills.length > 0 ? (
+        <div className="mt-2 flex flex-wrap gap-1.5" aria-live="polite">
+          {previewPills.map((pill) => (
+            <span
+              key={pill.field}
+              className="inline-flex items-center gap-1.5 rounded-full bg-blue-tint py-1 pl-3 pr-1.5 text-[0.75rem] font-medium text-blue-deep"
+            >
+              <pill.icon strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5 shrink-0" />
+              {pill.label}
+              <button
+                type="button"
+                onClick={() => removePreviewField(pill)}
+                aria-label={`Retirer le filtre ${pill.label}`}
+                className="rounded-full p-0.5 text-blue-deep/70 transition-colors hover:bg-blue/15 hover:text-blue-deep"
+              >
+                <X strokeWidth={ICON_STROKE_WIDTH} className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : null}
 
       {showPanel
         ? createPortal(

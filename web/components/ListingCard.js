@@ -96,7 +96,7 @@ export default function ListingCard({ listing }) {
       <div className="flex min-w-0 flex-1 flex-col gap-2.5 p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
           <p className="u-tabular text-2xl font-bold leading-none text-ink">
-            <Price amount={price} purpose={purpose} pricePeriod={pricePeriod} />
+            <Price amount={price} purpose={purpose} pricePeriod={pricePeriod} showSubtext />
           </p>
           <div className="flex flex-wrap items-center gap-2.5">
             <div className="flex flex-wrap items-center gap-1.5">

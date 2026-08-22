@@ -52,7 +52,7 @@ export default function EnquiryCard({ listing }) {
         <div className="min-w-0">
           {where ? <p className="u-eyebrow mb-2">{where}</p> : null}
           <p className="u-tabular text-[1.75rem] font-bold leading-none text-ink">
-            <Price amount={price} purpose={purpose} pricePeriod={pricePeriod} />
+            <Price amount={price} purpose={purpose} pricePeriod={pricePeriod} showSubtext />
           </p>
         </div>
         <CurrencyToggle />

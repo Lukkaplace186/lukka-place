@@ -1,4 +1,5 @@
 import Hero from '@/components/Hero';
+import CommuneShortcuts from '@/components/CommuneShortcuts';
 import FeaturedListings from '@/components/FeaturedListings';
 import ExploreCommunes from '@/components/ExploreCommunes';
 import TransactionTypesGrid from '@/components/TransactionTypesGrid';
@@ -22,6 +23,7 @@ export default async function HomePage() {
   return (
     <>
       <Hero />
+      <CommuneShortcuts />
       <FeaturedListings />
       <ExploreCommunes communes={communes} />
       <TransactionTypesGrid />

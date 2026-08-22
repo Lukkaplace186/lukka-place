@@ -148,7 +148,7 @@ export default function ListingCardVertical({ listing, isHovered = false, onHove
       <div className="flex flex-1 flex-col gap-1.5 px-3.5 py-3">
         <div className="flex items-center justify-between gap-3">
           <p className="u-tabular text-xl font-bold leading-none text-ink">
-            <Price amount={price} purpose={purpose} pricePeriod={pricePeriod} />
+            <Price amount={price} purpose={purpose} pricePeriod={pricePeriod} showSubtext />
           </p>
           <DepositBadge months={depositMonths} />
         </div>

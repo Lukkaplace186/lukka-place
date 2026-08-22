@@ -53,15 +53,18 @@ const SEARCH_MODES = [
 ];
 
 // Every example here is real and verified live against the actual parser
-// (lib/searchParser.js) and gazetteer (lib/data/kinshasa-gazetteer.json) —
-// "St Luc" specifically, not "Saint Luc": the gazetteer indexes the
-// abbreviated form (and "Paroisse Saint Luc"), and ILIKE/substring matching
-// means the unabbreviated form alone would silently resolve to nothing.
+// (lib/searchParser.js) and gazetteer (lib/data/kinshasa-gazetteer.json).
+// "Groupe"/"bord de route" stay as free-text keywords on purpose (see the
+// note at the top of searchParser.js) — they ride the real ILIKE
+// description fallback rather than a `has_generator`/`on_main_road` column
+// that doesn't exist yet, same reasoning as the last two passes on this
+// feature. "Ma Campagne" (a quartier of Ngaliema, not a commune) resolves
+// via lib/gazetteer.js's findLocationMention exactly like a landmark does.
 const AI_SUGGESTIONS = [
+  'Appartement 2 chambres à Gombe avec groupe',
+  'Studio meublé sous 600$ à Ma Campagne',
   'Villa avec piscine à Ngaliema',
-  'Studio meublé sous 500$',
-  'Appartement 2 chambres près de St Luc',
-  'Maison 3 chambres à vendre à Limete',
+  'Maison 3 chambres bord de route à Kintambo',
 ];
 
 export default function SearchBar() {

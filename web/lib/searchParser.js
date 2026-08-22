@@ -141,7 +141,12 @@ export function parseSearchQuery(text) {
       // (?:^|\s) rather than \b before the preposition group: same ASCII-only
       // \b limitation as the price/transaction patterns above — \bà never
       // matches.
-      const pattern = new RegExp(`(?:(?:^|\\s)(?:[àa]|au|aux|en|dans|de|du|des)\\s+)?${escapeRegExp(location.label)}`, 'i');
+      // matchedText, not location.label: for a fuzzy/typo match ("limite"
+      // resolving to the real commune "Limete") the canonical label never
+      // actually appears in the text — stripping it would be a no-op and
+      // leave the typo itself sitting in `keywords`, polluting the ILIKE
+      // fallback with a literal misspelling no real listing would contain.
+      const pattern = new RegExp(`(?:(?:^|\\s)(?:[àa]|au|aux|en|dans|de|du|des)\\s+)?${escapeRegExp(location.matchedText)}`, 'i');
       remaining = remaining.replace(pattern, ' ');
     }
   }

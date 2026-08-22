@@ -34,6 +34,36 @@ function normalize(value) {
   return stripDiacritics(String(value || '')).toLowerCase().trim();
 }
 
+/** Same as normalize(), plus spaces/hyphens/apostrophes stripped — so
+ *  "macampagne" (one word, how it's commonly typed and even how the root
+ *  kinshasa_locations.json itself spells it) lines up with this gazetteer's
+ *  "Ma Campagne" without needing a second hardcoded spelling on file. */
+function looseNormalize(value) {
+  return normalize(value).replace(/[\s'-]/g, '');
+}
+
+/** Classic edit distance (insert/delete/substitute), O(a.length * b.length).
+ *  Both inputs here are always short place names, so this is cheap even run
+ *  per-candidate. Used only as a last-resort tier below, after exact and
+ *  loose matching have both failed. */
+function editDistance(a, b) {
+  if (a === b) return 0;
+  const m = a.length;
+  const n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  let prev = Array.from({ length: n + 1 }, (_, i) => i);
+  for (let i = 1; i <= m; i++) {
+    const cur = [i];
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + cost);
+    }
+    prev = cur;
+  }
+  return prev[n];
+}
+
 // Flattened once at module load — every commune, quartier and landmark as
 // one searchable row. ~600 short strings; a linear scan per request is
 // well under a millisecond, no search index needed.
@@ -49,6 +79,61 @@ const INDEX = gazetteer.flatMap(({ commune, quartiers, landmarks }) => {
 });
 
 const TYPE_WEIGHT = { commune: 0, quartier: 1, landmark: 2 };
+
+/**
+ * Fallback for when exact substring matching finds nothing — catches
+ * spelling variants that are still real place names, not fabricated ones:
+ *
+ *   - Spacing/apostrophe variants ("macampagne" for "Ma Campagne", how the
+ *     root kinshasa_locations.json itself spells it as one word) — checked
+ *     against every type (commune/quartier/landmark).
+ *   - Small typos ("limite" for "Limete", "kitambo" for "Kintambo") via
+ *     edit-distance tolerance — restricted to communes only (24 entries,
+ *     low false-positive risk; there are hundreds of quartiers/landmarks,
+ *     many short, where this would misfire more than it would help).
+ *   - Abbreviations ("bandal" for "Bandalungwa") via a loose prefix check,
+ *     same pass as the spacing variants above.
+ *
+ * Deliberately not a hand-maintained per-commune alias list (the kind that
+ * needs a new entry for every new typo someone happens to type) — this is
+ * the generic mechanism that already covers all of the above.
+ */
+function fuzzyLocationMatch(text) {
+  // Word-based (not whole-text) so the caller always knows exactly which
+  // original word triggered the match, and can strip *that* — not the
+  // canonical label, which for a real typo ("limite") never appears
+  // verbatim in the text at all. Every case this exists for (a misspelled
+  // commune, a spaced-out one typed as one word, an abbreviation) is a
+  // single token anyway.
+  const words = normalize(text).split(/[\s-]+/).filter(Boolean);
+  if (!words.length) return null;
+
+  for (const word of words) {
+    const looseWord = word.replace(/'/g, '');
+    if (looseWord.length < 4) continue;
+    for (const row of INDEX) {
+      const looseLabel = looseNormalize(row.label);
+      if (looseLabel.length < 4) continue;
+      if (looseWord === looseLabel || looseLabel.startsWith(looseWord)) {
+        return { ...row, matchedText: word };
+      }
+    }
+  }
+
+  for (const word of words) {
+    if (word.length < 4) continue;
+    for (const row of INDEX) {
+      if (row.type !== 'commune') continue;
+      const looseLabel = looseNormalize(row.label);
+      if (looseLabel.length < 4) continue;
+      const maxDist = looseLabel.length >= 8 ? 2 : 1;
+      if (Math.abs(word.length - looseLabel.length) > maxDist) continue;
+      if (editDistance(word, looseLabel) <= maxDist) return { ...row, matchedText: word };
+    }
+  }
+
+  return null;
+}
 
 /**
  * @param {string} query
@@ -69,6 +154,15 @@ export function searchGazetteer(query, limit = 8) {
     // already narrowed to real substring hits.
     const isWordStart = matchIndex === 0 || row.norm[matchIndex - 1] === ' ' || row.norm[matchIndex - 1] === '-';
     matches.push({ ...row, matchIndex, rank: isWordStart ? 0 : 1 });
+  }
+
+  // No exact substring hit at all (not even a mid-word one) — try the
+  // typo/spacing/abbreviation fallback before giving up. Only when matches
+  // is empty: a query that already has real substring hits shouldn't have
+  // an unrelated fuzzy guess muscling in above them.
+  if (matches.length === 0) {
+    const fuzzy = fuzzyLocationMatch(query);
+    if (fuzzy) matches.push({ ...fuzzy, matchIndex: 0, rank: 2 });
   }
 
   matches.sort((a, b) => {
@@ -123,7 +217,15 @@ export function findLocationMention(text) {
     if (!best || row.norm.length > best.norm.length) best = row;
   }
 
-  return best ? { type: best.type, label: best.label, commune: best.commune } : null;
+  // `matchedText` is what the caller (lib/searchParser.js) actually strips
+  // out of the free text — the real label for an exact match (it appears
+  // verbatim), but the literal typed word for a fuzzy one, since the
+  // canonical label ("Limete") never appears in a text that only contains
+  // the typo ("limite").
+  if (best) return { type: best.type, label: best.label, commune: best.commune, matchedText: best.label };
+
+  const fuzzy = fuzzyLocationMatch(text);
+  return fuzzy ? { type: fuzzy.type, label: fuzzy.label, commune: fuzzy.commune, matchedText: fuzzy.matchedText } : null;
 }
 
 /** @returns {string[]} every real commune name, in gazetteer order */

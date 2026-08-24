@@ -806,6 +806,10 @@ async function runBuyerTurn({
 module.exports = {
   parseMessage,
   toImagePart,
+  // Exposed so services/embeddings.js can reuse the same lazy client/auth
+  // (same OPENAI_API_KEY, same lazy-throw-if-missing behaviour) for
+  // embedding calls rather than a second client implementation.
+  getClient,
   SYSTEM_PROMPT,
   RESPONSE_FORMAT,
   KINSHASA_COMMUNES,

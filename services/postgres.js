@@ -463,6 +463,30 @@ async function syncListingToPostgres(row) {
 
     await client.query('COMMIT');
 
+    // Semantic-search groundwork (services/embeddings.js) — best-effort and
+    // deliberately isolated from the transaction above, same posture as the
+    // photo upload just below: an OpenAI-side failure here must never risk
+    // or roll back an otherwise-successful property sync (that's exactly
+    // the historical price_period/deposit_months bug class — a write that
+    // silently never happened because it shared a fate with something
+    // unrelated). Embedding stays NULL on failure and gets picked up by
+    // scripts/backfill-embeddings.js's next sweep (`WHERE embedding IS
+    // NULL`); the real property_id is already committed and returned either
+    // way. Required lazily (not at module top) to avoid a require() cycle —
+    // services/embeddings.js itself imports buildTitle/buildAddress/
+    // buildDescription from this module.
+    try {
+      const { buildEmbeddingInput, generateEmbedding } = require('./embeddings');
+      const pgvector = require('pgvector');
+      const embedding = await generateEmbedding(buildEmbeddingInput(row));
+      await client.query('UPDATE properties SET embedding = $1::vector WHERE id = $2', [
+        pgvector.toSql(embedding),
+        propertyId,
+      ]);
+    } catch (err) {
+      console.error(`[embeddings] generation failed for property #${propertyId}: ${err.message}`);
+    }
+
     // Photo upload is network I/O against a different service — deliberately
     // outside the DB transaction above, and best-effort: a Storage hiccup
     // must not undo an otherwise-successful property sync.

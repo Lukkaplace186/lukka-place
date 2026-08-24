@@ -55,3 +55,66 @@ export const TRANSACTION_OPTIONS = [
   { value: 'vente', label: 'À vendre' },
   { value: 'location', label: 'À louer' },
 ];
+
+/**
+ * "Plus de filtres" amenity checkboxes — DRC/Kinshasa-specific priorities
+ * (generator, solar, borehole, security, etc.). No structured column exists
+ * for any of these on `properties` (see web/CLAUDE.md's "No fabricated
+ * data" section): services/openai.js's intake parser extracts a free-text
+ * `amenities` array and a `furnished` boolean, but services/postgres.js's
+ * sync path never writes either to a real column on the public table.
+ * lib/listings.js's buildFilters therefore matches these against the real
+ * title/description text (word-boundary regex, not a verified structured
+ * flag) — the same honesty posture the existing free-text search fallback
+ * already uses for "avec piscine"/"meublé" style queries. A checkbox here
+ * can have real false negatives (a listing that has a feature but never
+ * mentioned it) — it is a real, working filter, just not a database-verified
+ * one, and the drawer says so.
+ *
+ * `key` here must match a key in lib/listings.js's AMENITY_KEYWORDS exactly
+ * — that's where the actual keyword list per amenity lives, so it doesn't
+ * need duplicating here and can't drift silently: buildFilters ignores any
+ * key it doesn't recognise, and this file's keys are the only ones the UI
+ * can ever send.
+ */
+export const AMENITY_GROUPS = [
+  {
+    title: 'Énergie & Eau',
+    options: [
+      { key: 'generator', label: 'Groupe électrogène' },
+      { key: 'solar', label: 'Panneaux solaires / Inverseur' },
+      { key: 'borehole', label: "Forage / Citerne d'eau" },
+    ],
+  },
+  {
+    title: 'Accessibilité & Sécurité',
+    options: [
+      { key: 'paved_road', label: 'Route asphaltée / pavée' },
+      { key: 'security', label: 'Clôture / Gardiennage' },
+      { key: 'parking', label: 'Parking intérieur' },
+    ],
+  },
+  {
+    title: 'Conditions de location',
+    options: [
+      { key: 'ac', label: 'Climatisation' },
+      { key: 'furnished', label: 'Meublé' },
+    ],
+  },
+];
+
+/**
+ * "Max Garantie / Avance" — deposit_months IS a real, structured column
+ * (added 2026-08-19, see web/CLAUDE.md's Known Gaps section), so unlike
+ * AMENITY_GROUPS above this filters on real, verified data. A listing whose
+ * deposit_months is still unknown (NULL — most rows synced before that
+ * migration, or never republished since) is excluded rather than silently
+ * counted as a match: lib/listings.js requires `deposit_months IS NOT NULL`
+ * whenever this filter is active.
+ */
+export const DEPOSIT_MAX_OPTIONS = [
+  { value: '', label: 'Toutes' },
+  { value: '3', label: '3 mois' },
+  { value: '6', label: '6 mois' },
+  { value: '10', label: '10+ mois' },
+];

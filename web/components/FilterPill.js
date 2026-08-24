@@ -54,7 +54,7 @@ export default function FilterPill({ label, value, active, children, align: alig
     <Popover onOpenChange={handleOpenChange}>
       <PopoverTrigger
         ref={triggerRef}
-        className={`u-press inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 py-2 text-[0.8125rem] font-medium transition-colors ${
+        className={`u-press inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-3.5 py-2 text-[0.8125rem] font-medium transition-colors ${
           active
             ? 'border-blue bg-blue-tint text-blue-deep'
             : 'border-line bg-surface text-ink-70 hover:border-ink-25 hover:text-ink'

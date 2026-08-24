@@ -1,9 +1,10 @@
 import FilterBar from '@/components/FilterBar';
+import ActiveFilterChips from '@/components/ActiveFilterChips';
 import FloatingControlBar from '@/components/FloatingControlBar';
 import ListingsSplitView from '@/components/ListingsSplitView';
 import ResultsHeader from '@/components/ResultsHeader';
 import ListingsEmptyState from '@/components/ListingsEmptyState';
-import { getListings, getPopularCommunes, getCommuneShowcase, getPropertyTypeFacets } from '@/lib/listings';
+import { getListings, getPopularCommunes, getCommuneShowcase, getPropertyTypeFacets, getPriceRange } from '@/lib/listings';
 import { getLocationHierarchySafe } from '@/lib/locations';
 import { parseListingsSearchParams } from '@/lib/searchQuery';
 import { PROPERTY_TYPE_PLURALS } from '@/lib/constants';
@@ -21,11 +22,18 @@ export default async function ListingsPage({ searchParams }) {
   // failure there degrades the filters rather than 500-ing a page whose
   // actual results come from Postgres. Communes then fall back to the ones
   // the database can prove have approved listings.
-  const [hierarchy, { total, count, data, locationRelaxed, relaxedFromCommune }, popularCommunes, showcase] = await Promise.all([
+  const [
+    hierarchy,
+    { total, count, data, locationRelaxed, relaxedFromCommune, requestedRadius, radiusExpanded, effectiveRadius },
+    popularCommunes,
+    showcase,
+    { maxPrice },
+  ] = await Promise.all([
     getLocationHierarchySafe(),
     getListings({ ...filters, limit, offset }),
     getPopularCommunes(),
     getCommuneShowcase(24),
+    getPriceRange(),
   ]);
   const propertyTypes = await getPropertyTypeFacets();
 
@@ -42,26 +50,34 @@ export default async function ListingsPage({ searchParams }) {
   return (
     <div>
       <FilterBar
-        communes={communes}
         locations={locations}
         propertyTypes={propertyTypes}
         initialTotal={total}
+        priceCeiling={maxPrice}
         defaults={{
           transactionType: params.transaction_type,
           commune: params.commune,
           quartier: params.quartier,
+          radius: params.radius,
           propertyType: params.property_type,
           parcelleSubtype: params.parcelle_subtype,
           priceMin: params.price_min,
           priceMax: params.price_max,
           bedsMin: params.beds_min,
           bathMin: params.bath_min,
-          areaMin: params.area_min,
+          depositMax: params.deposit_max,
+          // Same comma-separated-string -> array parsing as lib/searchQuery.js's
+          // parseListingsSearchParams (kept in step with it manually since this
+          // object is FilterBar's *initial client state* seed, not the query
+          // options passed to getListings()).
+          amenities: params.amenities ? params.amenities.split(',').filter(Boolean) : [],
           search: params.q,
           sort: params.sort,
           view: params.view,
         }}
       />
+
+      <ActiveFilterChips params={params} propertyTypeLabel={propertyTypeLabel} />
 
       {/* pb-36 (144px), not pb-20: FloatingControlBar is `fixed bottom-
           [4.75rem]` (76px) with its own ~44px pill height, so its top edge
@@ -80,6 +96,11 @@ export default async function ListingsPage({ searchParams }) {
           propertyTypeLabel={propertyTypeLabel}
           locationRelaxed={locationRelaxed}
           relaxedFromCommune={relaxedFromCommune}
+          citywide={params.radius === 'citywide'}
+          communeWide={params.radius === 'commune'}
+          radiusExpanded={radiusExpanded}
+          requestedRadius={requestedRadius}
+          effectiveRadius={effectiveRadius}
         />
 
         {count === 0 ? (

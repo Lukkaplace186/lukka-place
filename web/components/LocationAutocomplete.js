@@ -59,6 +59,27 @@ function buildPreviewPills(parsed) {
   return pills;
 }
 
+/** Merges every structured filter parseSearchQuery() found — except location,
+ *  which each caller (submitFreeText, navigateTo) resolves its own way —
+ *  into `params`. Shared so a suggestion click no longer discards beds/
+ *  price/type/reference that the identical text already parses correctly
+ *  through submitFreeText(): confirmed live, typing "2 chambres kasavubu
+ *  moins de 1000" and clicking the "Kasa-Vubu" suggestion used to produce
+ *  `?commune=Kasa-Vubu` alone, silently dropping the other two. */
+function applyParsedFilters(params, parsed) {
+  if (parsed.reference) params.set('reference', parsed.reference);
+  if (parsed.transaction_type) params.set('transaction_type', parsed.transaction_type);
+  if (parsed.price_min != null) params.set('price_min', String(parsed.price_min));
+  if (parsed.price_max != null) params.set('price_max', String(parsed.price_max));
+  if (parsed.beds_min != null) params.set('beds_min', String(parsed.beds_min));
+  if (parsed.bath_min != null) params.set('bath_min', String(parsed.bath_min));
+  if (parsed.property_type) {
+    params.set('property_type', parsed.property_type);
+    if (parsed.parcelle_subtype) params.set('parcelle_subtype', parsed.parcelle_subtype);
+    else params.delete('parcelle_subtype');
+  }
+}
+
 const DEBOUNCE_MS = 150;
 // Below this much room, flip the panel above the input instead of letting
 // it get clipped against the viewport edge — see updatePosition().
@@ -210,6 +231,12 @@ function LocationAutocompleteCore({
   // suggestion to show once free text is the whole point of the mode.
   hideDropdown = false,
   suggestions = [],
+  // Classic mode only (FilterBar.js) — {label, href} entries from
+  // lib/searchHistory.js, shown above the normal place-suggestion list
+  // while the box is focused and still empty. A distinct, structured-filter
+  // history from AI mode's own raw-sentence `history` state below; the two
+  // never mix.
+  recentSearches = [],
 }) {
   const router = useRouter();
   const listboxId = useId();
@@ -363,9 +390,19 @@ function LocationAutocompleteCore({
     const params = buildParams();
     params.delete('quartier');
     params.delete('q');
+
+    // The rest of what was typed can carry real structured filters too
+    // (beds/price/type/reference) — clicking a place suggestion previously
+    // discarded all of that, keeping only the clicked location. Location
+    // itself still comes from `result` (the more authoritative signal — a
+    // fuzzy-corrected pick, say) rather than parseSearchQuery's own guess.
+    const parsed = parseSearchQuery(value);
+    applyParsedFilters(params, parsed);
+
     if (result.commune) params.set('commune', result.commune);
     if (result.type === 'quartier') params.set('quartier', result.label);
     if (result.type === 'landmark') params.set('q', result.label);
+    else if (parsed.keywords) params.set('q', parsed.keywords);
 
     setOpen(false);
     router.push(`/listings?${params.toString()}`);
@@ -393,17 +430,7 @@ function LocationAutocompleteCore({
     // alone; whatever wasn't recognized as a structured filter (like
     // "meublé") stays in `q` and still reaches the real description search.
     const parsed = parseSearchQuery(text);
-    if (parsed.reference) params.set('reference', parsed.reference);
-    if (parsed.transaction_type) params.set('transaction_type', parsed.transaction_type);
-    if (parsed.price_min != null) params.set('price_min', String(parsed.price_min));
-    if (parsed.price_max != null) params.set('price_max', String(parsed.price_max));
-    if (parsed.beds_min != null) params.set('beds_min', String(parsed.beds_min));
-    if (parsed.bath_min != null) params.set('bath_min', String(parsed.bath_min));
-    if (parsed.property_type) {
-      params.set('property_type', parsed.property_type);
-      if (parsed.parcelle_subtype) params.set('parcelle_subtype', parsed.parcelle_subtype);
-      else params.delete('parcelle_subtype');
-    }
+    applyParsedFilters(params, parsed);
     if (parsed.commune) {
       params.set('commune', parsed.commune);
       if (parsed.quartier) params.set('quartier', parsed.quartier);
@@ -449,7 +476,9 @@ function LocationAutocompleteCore({
   const activeOptionId = activeIndex >= 0 ? `${reactId}-option-${activeIndex}` : undefined;
   const showEmpty = !hideDropdown && open && value.trim() && results.length === 0;
   const showSuggestions = hideDropdown && open && suggestions.length > 0;
-  const showPanel = Boolean(position) && (hideDropdown ? showSuggestions : open && (results.length > 0 || showEmpty));
+  const showRecentSearches = !hideDropdown && open && !value.trim() && recentSearches.length > 0;
+  const showPanel =
+    Boolean(position) && (hideDropdown ? showSuggestions : open && (results.length > 0 || showEmpty || showRecentSearches));
   const previewPills = hideDropdown ? buildPreviewPills(livePreview) : [];
 
   return (
@@ -533,6 +562,17 @@ function LocationAutocompleteCore({
         </div>
       ) : null}
 
+      {/* One area can be filtered on at a time today (getListings() takes a
+          single `commune`) — this says so honestly instead of quietly
+          keeping only the first place mentioned and dropping the second
+          without a trace, which is what happened before this existed. */}
+      {hideDropdown && livePreview?.secondaryLocation ? (
+        <p className="mt-1.5 text-[0.75rem] text-ink-45" aria-live="polite">
+          « {livePreview.secondaryLocation.label} » a aussi été repéré — la recherche sur plusieurs zones à la fois
+          n&apos;est pas encore possible. Essayez-la séparément pour l&apos;instant.
+        </p>
+      ) : null}
+
       {showPanel
         ? createPortal(
             <div
@@ -605,39 +645,63 @@ function LocationAutocompleteCore({
                   Aucun lieu ne correspond — Entrée pour rechercher &laquo;&nbsp;{value}&nbsp;&raquo;.
                 </p>
               ) : (
-                results.map((result, i) => {
-                  const Icon = TYPE_ICON[result.type] || MapPin;
-                  const active = i === activeIndex;
-                  return (
-                    <button
-                      key={`${result.type}-${result.commune}-${result.label}`}
-                      id={`${reactId}-option-${i}`}
-                      type="button"
-                      role="option"
-                      aria-selected={active}
-                      onMouseDown={(e) => e.preventDefault()}
-                      onMouseEnter={() => setActiveIndex(i)}
-                      onClick={() => navigateTo(result)}
-                      className={cn(
-                        'flex w-full items-center gap-3 px-4 py-2.5 text-left text-[0.875rem] transition-colors',
-                        active ? 'bg-blue-tint text-blue-deep' : 'text-ink-70 hover:bg-canvas-alt',
-                      )}
-                    >
-                      <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0 text-ink-45" />
-                      <span className="min-w-0 flex-1 truncate">
-                        <HighlightedLabel label={result.label} query={value} />
-                        {result.type !== 'commune' ? <span className="ml-1.5 text-ink-45">— {result.commune}</span> : null}
-                      </span>
-                      {result.type === 'commune' && result.count != null ? (
-                        <span className="u-tabular shrink-0 text-xs text-ink-45">{result.count}</span>
-                      ) : (
-                        <span className="u-eyebrow shrink-0 !normal-case !tracking-normal text-ink-25">
-                          {TYPE_LABEL_FR[result.type]}
+                <>
+                  {showRecentSearches ? (
+                    <>
+                      <p className="u-eyebrow px-4 pb-1.5 pt-1 !normal-case !tracking-normal text-ink-25">
+                        Recherches récentes
+                      </p>
+                      {recentSearches.map((entry) => (
+                        <button
+                          key={entry.href}
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setOpen(false);
+                            router.push(entry.href);
+                          }}
+                          className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-[0.875rem] text-ink-70 transition-colors hover:bg-canvas-alt"
+                        >
+                          <Clock strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0 text-ink-45" />
+                          <span className="min-w-0 flex-1 truncate">{entry.label}</span>
+                        </button>
+                      ))}
+                    </>
+                  ) : null}
+                  {results.map((result, i) => {
+                    const Icon = TYPE_ICON[result.type] || MapPin;
+                    const active = i === activeIndex;
+                    return (
+                      <button
+                        key={`${result.type}-${result.commune}-${result.label}`}
+                        id={`${reactId}-option-${i}`}
+                        type="button"
+                        role="option"
+                        aria-selected={active}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onMouseEnter={() => setActiveIndex(i)}
+                        onClick={() => navigateTo(result)}
+                        className={cn(
+                          'flex w-full items-center gap-3 px-4 py-2.5 text-left text-[0.875rem] transition-colors',
+                          active ? 'bg-blue-tint text-blue-deep' : 'text-ink-70 hover:bg-canvas-alt',
+                        )}
+                      >
+                        <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0 text-ink-45" />
+                        <span className="min-w-0 flex-1 truncate">
+                          <HighlightedLabel label={result.label} query={value} />
+                          {result.type !== 'commune' ? <span className="ml-1.5 text-ink-45">— {result.commune}</span> : null}
                         </span>
-                      )}
-                    </button>
-                  );
-                })
+                        {result.type === 'commune' && result.count != null ? (
+                          <span className="u-tabular shrink-0 text-xs text-ink-45">{result.count}</span>
+                        ) : (
+                          <span className="u-eyebrow shrink-0 !normal-case !tracking-normal text-ink-25">
+                            {TYPE_LABEL_FR[result.type]}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </>
               )}
             </div>,
             document.body,

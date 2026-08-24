@@ -258,6 +258,21 @@ export function parseSearchQuery(text) {
       if (prepositionMatch) spans.commune = prepositionMatch[0].trim();
       remaining = remaining.replace(prepositionPattern, ' ');
     }
+
+    // A second, distinct real place named in the same sentence ("Gombe ou
+    // Limete", "villa à Gombe ou à Limete sous 2000$") — there is no
+    // structural multi-area filter yet (getListings() only ever takes one
+    // `commune`), so this can't widen the actual query. Real report from
+    // testing: "3 bedroom villa gombe or limete under 2000" silently kept
+    // only Limete with zero trace of Gombe anywhere — not even in
+    // `keywords`, since findLocationMention already only returns its single
+    // best match. Surfacing it here lets the caller (LocationAutocomplete.js)
+    // at least tell the visitor what was left out instead of staying silent
+    // about it, which is the actually misleading part.
+    const second = findLocationMention(remaining);
+    if (second && (second.commune !== location.commune || second.label !== location.label)) {
+      result.secondaryLocation = { label: second.label, commune: second.commune, type: second.type };
+    }
   }
 
   result.keywords = remaining.replace(/\s+/g, ' ').trim();

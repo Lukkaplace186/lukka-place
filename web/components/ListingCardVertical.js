@@ -12,7 +12,7 @@ import Price from './Price';
 import { NewBadge, TypeBadge, DepositBadge } from './ListingBadges';
 import SpecItem from './SpecItem';
 import {
-  listingImages, isNewListing, formatAddedOn, typeLabel, specItems, feedLocationLine,
+  listingImages, isNewListing, formatAddedOn, typeLabel, specItems, feedLocationLine, matchSnippet,
 } from '@/lib/listingView';
 import { cn } from '@/lib/utils';
 
@@ -84,9 +84,9 @@ const MotionLink = motion.create(Link);
  * FeaturedListingCard (homepage teaser) per web/CLAUDE.md — one visual
  * language, three layouts, not one component with three modes.
  */
-export default function ListingCardVertical({ listing, isHovered = false, onHoverStart, onHoverEnd }) {
+export default function ListingCardVertical({ listing, isHovered = false, onHoverStart, onHoverEnd, searchTerm }) {
   const {
-    id, title, price, purpose, reference, created_at: createdAt,
+    id, title, price, purpose, reference, description, created_at: createdAt,
     deposit_months: depositMonths, price_period: pricePeriod,
     agency_logo_url: agencyLogoUrl, agency_name: agencyName,
   } = listing;
@@ -96,6 +96,12 @@ export default function ListingCardVertical({ listing, isHovered = false, onHove
   const where = feedLocationLine(listing);
   const type = typeLabel(listing);
   const addedOn = formatAddedOn(createdAt);
+  // Only set when *this* listing's own description genuinely contains the
+  // active free-text search term (or a real spelling variant of it) — see
+  // matchSnippet's doc comment. A listing that matched the page's overall
+  // search via title/address/quartier/reference/commune instead gets no
+  // snippet, rather than implying a description match that isn't real.
+  const snippet = matchSnippet(description, searchTerm);
 
   return (
     <MotionLink
@@ -172,6 +178,13 @@ export default function ListingCardVertical({ listing, isHovered = false, onHove
         {where && <p className="truncate text-[0.8125rem] text-ink-70">{where}</p>}
         {addedOn && <p className="text-[0.75rem] text-ink-45">Ajouté le {addedOn}</p>}
         {reference && <p className="u-ref text-ink-25">Réf: {reference}</p>}
+        {snippet ? (
+          <p className="line-clamp-2 text-[0.75rem] italic leading-snug text-ink-45">
+            {snippet.before}
+            <mark className="rounded-sm bg-blue-tint px-0.5 not-italic text-blue-deep">{snippet.match}</mark>
+            {snippet.after}
+          </p>
+        ) : null}
 
         <div className="mt-2 flex items-center gap-2 border-t border-line pt-3">
           <CallCTA listing={listing} variant="icon" />

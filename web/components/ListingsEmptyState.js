@@ -1,21 +1,7 @@
 import Link from 'next/link';
 import { SearchX } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
-
-/** Current query minus exactly one key — every other active filter is
- *  preserved. The sample this was built from built its "remove beds
- *  filter" link from `commune` alone, silently dropping property_type/
- *  price/quartier/sort/view too; this reads the real current params
- *  instead of reconstructing a guessed subset. */
-function hrefWithout(params, key) {
-  const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(params || {})) {
-    if (k === key || v == null || v === '') continue;
-    qs.set(k, Array.isArray(v) ? v[0] : v);
-  }
-  const s = qs.toString();
-  return s ? `/listings?${s}` : '/listings';
-}
+import { hrefWithoutKeys, hrefWithParam } from '@/lib/urlParams';
 
 const BEDS_LABEL = { beds_min: (v) => `${v}+ chambres`, property_type: (v) => v, bath_min: (v) => `${v}+ sdb` };
 
@@ -36,6 +22,7 @@ const BEDS_LABEL = { beds_min: (v) => `${v}+ chambres`, property_type: (v) => v,
  */
 export default function ListingsEmptyState({ popularCommunes = [], params = {}, propertyTypeLabel }) {
   const commune = params.commune;
+  const quartier = params.quartier;
   const relaxable = [
     params.beds_min ? { key: 'beds_min', label: `Retirer le filtre ${BEDS_LABEL.beds_min(params.beds_min)}` } : null,
     params.bath_min ? { key: 'bath_min', label: `Retirer le filtre ${BEDS_LABEL.bath_min(params.bath_min)}` } : null,
@@ -53,9 +40,22 @@ export default function ListingsEmptyState({ popularCommunes = [], params = {}, 
       <h2 className="font-display text-xl font-normal tracking-[-0.01em] text-ink">Aucun bien ne correspond</h2>
       <p className="mx-auto mt-2 max-w-sm text-[0.875rem] leading-relaxed text-ink-45">
         {commune ? (
-          <>
-            Aucun bien ne correspond exactement à votre recherche à <span className="font-semibold">{commune}</span>.
-          </>
+          // ['1','3','5'] km having all failed (getListings()'s radius ladder
+          // in lib/listings.js already tried them all before landing here
+          // with total still 0) is worth saying honestly — otherwise the
+          // "Élargir à {commune}" link right below reads as the first thing
+          // offered, when a 5km real-distance search already ran and found
+          // nothing.
+          ['1', '3', '5'].includes(params.radius) ? (
+            <>
+              Aucun bien trouvé même en élargissant jusqu&rsquo;à 5 km autour de{' '}
+              <span className="font-semibold">{commune}</span>.
+            </>
+          ) : (
+            <>
+              Aucun bien ne correspond exactement à votre recherche à <span className="font-semibold">{commune}</span>.
+            </>
+          )
         ) : (
           "Essayez d'élargir votre recherche — moins de filtres, une fourchette de prix plus large, ou une autre commune."
         )}
@@ -63,6 +63,22 @@ export default function ListingsEmptyState({ popularCommunes = [], params = {}, 
 
       {commune || relaxable.length > 0 ? (
         <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+          {quartier && commune && params.radius !== 'commune' && params.radius !== 'citywide' ? (
+            <Link
+              href={hrefWithParam(params, 'radius', 'commune')}
+              className="u-press inline-flex items-center rounded-full border border-blue bg-blue-tint px-3.5 py-1.5 text-[0.8125rem] font-medium text-blue-deep transition-colors hover:bg-blue hover:text-white"
+            >
+              Élargir à {commune} entière
+            </Link>
+          ) : null}
+          {commune && params.radius !== 'citywide' ? (
+            <Link
+              href={hrefWithParam(params, 'radius', 'citywide')}
+              className="u-press inline-flex items-center rounded-full border border-blue bg-blue-tint px-3.5 py-1.5 text-[0.8125rem] font-medium text-blue-deep transition-colors hover:bg-blue hover:text-white"
+            >
+              Élargir à Kinshasa entière
+            </Link>
+          ) : null}
           {commune ? (
             <Link
               href={`/listings?commune=${encodeURIComponent(commune)}`}
@@ -74,7 +90,7 @@ export default function ListingsEmptyState({ popularCommunes = [], params = {}, 
           {relaxable.map(({ key, label }) => (
             <Link
               key={key}
-              href={hrefWithout(params, key)}
+              href={hrefWithoutKeys(params, key)}
               className="u-press inline-flex items-center rounded-full border border-line bg-canvas px-3.5 py-1.5 text-[0.8125rem] font-medium text-ink-70 transition-colors hover:border-blue hover:text-blue-deep"
             >
               {label}

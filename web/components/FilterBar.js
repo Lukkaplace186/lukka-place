@@ -1,20 +1,35 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { SlidersHorizontal } from 'lucide-react';
 import FilterPill, { PillFieldLabel, PillOption } from './FilterPill';
 import FiltersDrawer from './FiltersDrawer';
 import LocationAutocomplete from './LocationAutocomplete';
+import SaveSearchButton from './SaveSearchButton';
 import { Slider } from './ui/slider';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { buildSearchLabel } from '@/lib/searchLabel';
+import { pushRecentSearch, readRecentSearches, subscribeRecentSearches } from '@/lib/searchHistory';
 
 const FORM_ID = 'listings-filter-form';
-const ADVANCED_KEYS = ['quartier', 'parcelleSubtype', 'bathMin', 'areaMin'];
-// A fixed UI ceiling for the budget slider, not a claim about real listing
-// extremes — there's no live min/max-price aggregate query today. Typing a
-// higher value into the Max input still filters correctly; the slider just
-// visually caps at this range.
-const PRICE_SLIDER_MAX = 500000;
+const ADVANCED_KEYS = ['quartier', 'parcelleSubtype', 'bathMin'];
+// Recording a "recent search" only makes sense once at least one of these
+// is set — a bare /listings visit with none of them isn't a search worth
+// remembering. sort/view/page deliberately excluded: they don't filter the
+// result set, so changing only those shouldn't spawn a new history entry.
+const FILTER_PARAM_KEYS = [
+  'transaction_type', 'commune', 'quartier', 'radius', 'property_type', 'parcelle_subtype',
+  'price_min', 'price_max', 'beds_min', 'bath_min', 'deposit_max', 'amenities', 'q', 'reference',
+];
+// Fallback only for the genuinely-empty-catalog case (lib/listings.js's
+// getPriceRange() returns null) — otherwise the real ceiling comes from
+// `priceCeiling` below, derived live from the highest approved-listing
+// price (same "don't hardcode what the database can answer" principle as
+// getPropertyTypeFacets()). Typing a higher value into the Max input still
+// filters correctly regardless; this only sets where the slider's own top
+// end sits.
+const PRICE_SLIDER_FALLBACK_MAX = 500000;
 
 const numberInputClass =
   'w-full rounded-md border border-line bg-canvas px-3 py-2 text-sm text-ink placeholder:text-ink-25 focus:border-blue focus:outline-none';
@@ -37,20 +52,57 @@ const numberInputClass =
  *
  * Sticks at top-16 to sit directly under the fixed h-16 Header.
  */
-export default function FilterBar({ communes, locations, propertyTypes = [], initialTotal, defaults = {} }) {
+export default function FilterBar({ locations, propertyTypes = [], initialTotal, priceCeiling, defaults = {} }) {
   const formRef = useRef(null);
 
-  const [transaction, setTransaction] = useState(defaults.transactionType || '');
-  const [commune, setCommune] = useState(defaults.commune || '');
+  // Real max price, rounded up to a clean $10,000 step for a tidy slider —
+  // not padded with invented headroom above it, and never below what's
+  // already visible in `defaults.priceMax` (a saved/bookmarked search for
+  // more than today's current max shouldn't render its own value off the
+  // end of the slider).
+  const PRICE_SLIDER_MAX = Math.max(
+    priceCeiling ? Math.ceil(priceCeiling / 10000) * 10000 : PRICE_SLIDER_FALLBACK_MAX,
+    Number(defaults.priceMax) || 0,
+  );
+
+  const [transaction] = useState(defaults.transactionType || '');
+  // No local setter: commune is no longer chosen via a pill in this bar — it
+  // only ever comes from the location input above (a full navigation that
+  // remounts this component with a new `defaults.commune`) or the URL.
+  const [commune] = useState(defaults.commune || '');
   const [quartier, setQuartier] = useState(defaults.quartier || '');
+  const [radius, setRadius] = useState(defaults.radius || '');
   const [propertyType, setPropertyType] = useState(defaults.propertyType || '');
   const [parcelleSubtype, setParcelleSubtype] = useState(defaults.parcelleSubtype || '');
   const [bedsMin, setBedsMin] = useState(defaults.bedsMin || '');
   const [bathMin, setBathMin] = useState(defaults.bathMin || '');
-  const [areaMin, setAreaMin] = useState(defaults.areaMin || '');
   const [priceMin, setPriceMin] = useState(defaults.priceMin || '');
   const [priceMax, setPriceMax] = useState(defaults.priceMax || '');
+  const [depositMax, setDepositMax] = useState(defaults.depositMax || '');
+  const [amenities, setAmenities] = useState(defaults.amenities || []);
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Recent searches (lib/searchHistory.js) — a real, local-only history of
+  // whatever filter combination was actually applied here, distinct from
+  // LocationAutocomplete.js's own AI-mode-only history (raw typed
+  // sentences for the homepage hero box; this is structured-filter
+  // summaries for this page). useSyncExternalStore, not
+  // useState+useEffect+readRecentSearches(): same pattern lib/
+  // localFavorites.js/SaveSearchButton.js already use for this exact kind
+  // of "read a browser-only store, re-render when it changes" case — it
+  // also means the write effect below never needs to call setState itself,
+  // since the CustomEvent it dispatches on write is what this subscription
+  // reacts to. `() => []` server snapshot: localStorage doesn't exist
+  // server-side, same reasoning FavoriteButton.js already documents.
+  const recentSearches = useSyncExternalStore(subscribeRecentSearches, readRecentSearches, () => []);
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const hasActiveFilter = FILTER_PARAM_KEYS.some((key) => searchParams.get(key));
+    if (!hasActiveFilter) return;
+    const href = `/listings?${searchParams.toString()}`;
+    pushRecentSearch({ label: buildSearchLabel(searchParams), href });
+  }, [searchParams]);
 
   // Live "Voir N biens" count for the Prix popover's and the "Plus de
   // filtres" drawer's CTA buttons — both stage several field changes before
@@ -83,9 +135,11 @@ export default function FilterBar({ communes, locations, propertyTypes = [], ini
       if (propertyType === 'parcelle' && parcelleSubtype) qs.set('parcelle_subtype', parcelleSubtype);
       if (bedsMin) qs.set('beds_min', bedsMin);
       if (bathMin) qs.set('bath_min', bathMin);
-      if (areaMin) qs.set('area_min', areaMin);
       if (priceMin) qs.set('price_min', priceMin);
       if (priceMax) qs.set('price_max', priceMax);
+      if (commune && radius) qs.set('radius', radius);
+      if (depositMax) qs.set('deposit_max', depositMax);
+      if (amenities.length) qs.set('amenities', amenities.join(','));
 
       fetch(`/api/listings/count?${qs.toString()}`, { signal: controller.signal })
         .then((res) => res.json())
@@ -105,13 +159,31 @@ export default function FilterBar({ communes, locations, propertyTypes = [], ini
       controller.abort();
       setResultPending(false);
     };
-  }, [transaction, commune, quartier, propertyType, parcelleSubtype, bedsMin, bathMin, areaMin, priceMin, priceMax]);
+  }, [
+    transaction,
+    commune,
+    quartier,
+    radius,
+    propertyType,
+    parcelleSubtype,
+    bedsMin,
+    bathMin,
+    priceMin,
+    priceMax,
+    depositMax,
+    amenities,
+  ]);
 
   const resultCountLabel =
     resultCount == null ? null : `Voir ${resultCount.toLocaleString('fr-FR')} bien${resultCount === 1 ? '' : 's'}`;
 
   const quartiers = commune ? locations[commune] || [] : [];
-  const advancedCount = ADVANCED_KEYS.filter((key) => defaults[key]).length;
+  // amenities is always an array (never absent) — counted by length, not by
+  // ADVANCED_KEYS' plain truthiness check, since `Boolean([])` is true and
+  // would otherwise always count as "1 active filter" even with nothing
+  // checked.
+  const advancedCount =
+    ADVANCED_KEYS.filter((key) => defaults[key]).length + (defaults.amenities?.length || 0) + (defaults.depositMax ? 1 : 0);
 
   function submit() {
     formRef.current?.requestSubmit();
@@ -131,22 +203,26 @@ export default function FilterBar({ communes, locations, propertyTypes = [], ini
     // Carries the current free-text search forward across every other pill
     // action. LocationAutocomplete's own box does its own client-side
     // navigation for *changing* `q` (see the comment on it below), but this
-    // form's requestSubmit() (every price/beds/type/commune pill) only
-    // submits the named fields listed here — `q` was missing, so toggling
-    // any other pill silently dropped whatever the visitor had typed.
-    // Confirmed live: `?q=appartement&price_max=2000` -> click "Louer" ->
-    // `?transaction_type=location&price_max=2000`, `q` gone.
+    // form's requestSubmit() (every price/beds/type pill) only submits the
+    // named fields listed here — `q` was missing, so toggling any other pill
+    // silently dropped whatever the visitor had typed. Confirmed live:
+    // `?q=appartement&price_max=2000` -> click "Chambres" -> 1+ ->
+    // `?beds_min=1&price_max=2000`, `q` gone.
     ['q', defaults.search || ''],
     ['transaction_type', transaction],
     ['commune', commune],
     ['quartier', quartier],
+    // Only meaningful once a commune is picked — lib/listings.js's
+    // buildFilters ignores it otherwise.
+    ['radius', commune ? radius : ''],
     ['property_type', propertyType],
     ['parcelle_subtype', propertyType === 'parcelle' ? parcelleSubtype : ''],
     ['beds_min', bedsMin],
     ['bath_min', bathMin],
-    ['area_min', areaMin],
     ['price_min', priceMin],
     ['price_max', priceMax],
+    ['deposit_max', depositMax],
+    ['amenities', amenities.join(',')],
     ['sort', defaults.sort || ''],
     ['view', defaults.view || ''],
   ];
@@ -160,11 +236,22 @@ export default function FilterBar({ communes, locations, propertyTypes = [], ini
         : null;
   const typeLabel = propertyTypes.find((o) => o.value === propertyType)?.label;
 
-  // Tapping the already-active pill clears it back to '' (both shown) —
-  // real toggle behaviour, not just a one-way select.
-  function toggleTransaction(value) {
-    apply(setTransaction)(transaction === value ? '' : value);
-  }
+  // Hierarchy tiers (quartier -> commune -> Kinshasa) plus, since the
+  // 2026-08-23 geocoding backfill (scripts/geocode-listings.js), real
+  // kilometer options — Haversine-measured in lib/listings.js from the
+  // commune's real Google-geocoded centroid against each listing's own real
+  // coordinates. A third hierarchy tier only appears once a quartier is
+  // actually selected (via "Plus de filtres"): dropping straight from
+  // quartier to city would silently skip past the commune-wide option a
+  // visitor might actually want.
+  const KM_OPTIONS = [1, 3, 5];
+  const radiusLabel = KM_OPTIONS.includes(Number(radius))
+    ? `+${radius} km`
+    : radius === 'citywide'
+      ? 'Toute la ville'
+      : radius === 'commune'
+        ? 'Toute la commune'
+        : null;
 
   return (
     <div className="sticky top-16 z-40 border-b border-line bg-canvas/95 backdrop-blur-md">
@@ -179,13 +266,21 @@ export default function FilterBar({ communes, locations, propertyTypes = [], ini
           value ? <input key={name} type="hidden" name={name} value={value} /> : null,
         )}
 
-        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-3">
+        <div className="flex w-full flex-col gap-2 lg:flex-row lg:items-center lg:gap-3">
           {/* preserveParams: this box does its own client-side navigation
               (see LocationAutocomplete) rather than participating in this
               form's hidden-input/requestSubmit machinery — picking a
               location or pressing Enter here starts from the *current* URL's
               params, so price/beds/type/sort filters already set on the page
-              survive a new location pick. */}
+              survive a new location pick.
+
+              No lg:max-w-md cap (Zoopla-width pass): capping this while the
+              pill row next to it has no flex-grow of its own left dead space
+              between "Sauvegarder" and the container's right edge on wide
+              viewports — nothing was claiming the slack. flex-1 with no cap
+              means this box now absorbs all remaining row width itself, so
+              the pill row (already shrink-0 per control, see FilterPill.js)
+              lands flush against the real right edge instead. */}
           <LocationAutocomplete
             preserveParams
             initialValue={defaults.search || ''}
@@ -193,25 +288,74 @@ export default function FilterBar({ communes, locations, propertyTypes = [], ini
             ariaLabel="Rechercher"
             showIcon
             showClear
-            className="min-w-0 flex-1 rounded-full border border-line bg-surface px-4 py-2 lg:max-w-md lg:py-2.5"
+            recentSearches={recentSearches}
+            className="min-w-0 w-full flex-1 rounded-lg border border-line bg-surface px-4 py-2 lg:min-w-[15rem] lg:py-2.5"
           />
 
-          <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-0.5 lg:mx-0 lg:px-0">
-            {/* Single-tap toggle pills, not a popover — a visitor picks
-                Louer/Acheter directly with one tap, no "open panel then pick
-                option" detour. Real PillOption styling (same primitive every
-                other pill panel uses), just rendered outside a FilterPill
-                popover this time. TRANSACTION_OPTIONS (lib/constants.js)
-                still owns the real underlying values/labels used elsewhere
-                (e.g. ResultsHeader); only this trigger UI changed. */}
-            <div className="flex shrink-0 items-center gap-1.5">
-              <PillOption selected={transaction === 'location'} onClick={() => toggleTransaction('location')}>
-                Louer
-              </PillOption>
-              <PillOption selected={transaction === 'vente'} onClick={() => toggleTransaction('vente')}>
-                Acheter
-              </PillOption>
-            </div>
+          <div className="-mx-4 flex w-full items-center gap-2 overflow-x-auto px-4 pb-0.5 lg:mx-0 lg:w-auto lg:px-0">
+            {/* Zoopla's own bar order: Location -> Radius -> Bedrooms ->
+                Price -> Property type -> More filters -> Save. Rent/Buy is
+                already handled by the header nav and the URL's
+                transaction_type param (see Header.js), and "Commune" as a
+                separate structured pill was dropped — it duplicated the
+                location input above, which already resolves a typed/picked
+                place to a real commune (see LocationAutocomplete/
+                searchParser and FiltersDrawer's own hint pointing here). */}
+            {commune ? (
+              <FilterPill label="Rayon" value={radiusLabel} active={Boolean(radius)}>
+                <PillFieldLabel>Rayon de recherche</PillFieldLabel>
+                <div className="flex flex-wrap gap-2">
+                  {quartier ? (
+                    <PillOption selected={!radius} onClick={() => apply(setRadius)('')}>
+                      Ce quartier uniquement
+                    </PillOption>
+                  ) : (
+                    <PillOption selected={!radius} onClick={() => apply(setRadius)('')}>
+                      Cette commune uniquement
+                    </PillOption>
+                  )}
+                  {KM_OPTIONS.map((km) => (
+                    <PillOption key={km} selected={radius === String(km)} onClick={() => apply(setRadius)(String(km))}>
+                      +{km} km
+                    </PillOption>
+                  ))}
+                  {quartier ? (
+                    <PillOption selected={radius === 'commune'} onClick={() => apply(setRadius)('commune')}>
+                      Toute la commune
+                    </PillOption>
+                  ) : null}
+                  <PillOption selected={radius === 'citywide'} onClick={() => apply(setRadius)('citywide')}>
+                    Toute la ville
+                  </PillOption>
+                </div>
+                <p className="mt-3 text-[0.75rem] leading-relaxed text-ink-45">
+                  {KM_OPTIONS.includes(Number(radius))
+                    ? `Distance réelle depuis le centre de la commune — mesurée pour les biens géolocalisés, complétée par les biens de ${commune} non encore géolocalisés.`
+                    : 'Basé sur les communes/quartiers renseignés. Les options en km ci-dessus utilisent une distance réelle depuis le centre de la commune.'}
+                </p>
+              </FilterPill>
+            ) : (
+              <span
+                aria-disabled="true"
+                className="inline-flex shrink-0 items-center whitespace-nowrap rounded-lg border border-line bg-canvas-alt px-3.5 py-2 text-[0.8125rem] font-medium text-ink-25"
+              >
+                Rayon
+              </span>
+            )}
+
+            <FilterPill label="Chambres" value={bedsMin ? `${bedsMin}+ ch` : null} active={Boolean(bedsMin)}>
+              <PillFieldLabel>Chambres (minimum)</PillFieldLabel>
+              <div className="flex flex-wrap gap-2">
+                <PillOption selected={!bedsMin} onClick={() => apply(setBedsMin)('')}>
+                  Toutes
+                </PillOption>
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <PillOption key={n} selected={String(bedsMin) === String(n)} onClick={() => apply(setBedsMin)(String(n))}>
+                    {n}+
+                  </PillOption>
+                ))}
+              </div>
+            </FilterPill>
 
             <FilterPill label="Prix" value={priceLabel} active={Boolean(priceMin || priceMax)}>
               <PillFieldLabel>Prix en USD</PillFieldLabel>
@@ -270,20 +414,6 @@ export default function FilterBar({ communes, locations, propertyTypes = [], ini
               </button>
             </FilterPill>
 
-            <FilterPill label="Chambres" value={bedsMin ? `${bedsMin}+ ch` : null} active={Boolean(bedsMin)}>
-              <PillFieldLabel>Chambres (minimum)</PillFieldLabel>
-              <div className="flex flex-wrap gap-2">
-                <PillOption selected={!bedsMin} onClick={() => apply(setBedsMin)('')}>
-                  Toutes
-                </PillOption>
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <PillOption key={n} selected={String(bedsMin) === String(n)} onClick={() => apply(setBedsMin)(String(n))}>
-                    {n}+
-                  </PillOption>
-                ))}
-              </div>
-            </FilterPill>
-
             <FilterPill label="Type de bien" value={typeLabel} active={Boolean(propertyType)}>
               <PillFieldLabel>Type de bien</PillFieldLabel>
               <div className="flex flex-wrap gap-2">
@@ -301,43 +431,10 @@ export default function FilterBar({ communes, locations, propertyTypes = [], ini
               </div>
             </FilterPill>
 
-            <FilterPill label="Commune" value={commune} active={Boolean(commune)}>
-              <PillFieldLabel>Commune</PillFieldLabel>
-              <div className="max-h-60 overflow-y-auto">
-                <div className="flex flex-wrap gap-2">
-                  <PillOption
-                    selected={!commune}
-                    onClick={() => {
-                      setQuartier('');
-                      apply(setCommune)('');
-                    }}
-                  >
-                    Toutes
-                  </PillOption>
-                  {communes.map((c) => (
-                    <PillOption
-                      key={c}
-                      selected={commune === c}
-                      onClick={() => {
-                        // Quartier is scoped to a commune, so changing the
-                        // commune must clear it — otherwise the query filters
-                        // on a quartier that does not exist in the new one and
-                        // always returns zero results.
-                        setQuartier('');
-                        apply(setCommune)(c);
-                      }}
-                    >
-                      {c}
-                    </PillOption>
-                  ))}
-                </div>
-              </div>
-            </FilterPill>
-
             <button
               type="button"
               onClick={() => setDrawerOpen(true)}
-              className={`u-press inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 py-2 text-[0.8125rem] font-medium transition-colors ${
+              className={`u-press inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-3.5 py-2 text-[0.8125rem] font-medium transition-colors ${
                 advancedCount > 0
                   ? 'border-blue bg-blue-tint text-blue-deep'
                   : 'border-line bg-surface text-ink-70 hover:border-ink-25 hover:text-ink'
@@ -351,6 +448,12 @@ export default function FilterBar({ communes, locations, propertyTypes = [], ini
                 </span>
               ) : null}
             </button>
+
+            {/* Zoopla's final toolbar slot. Real, already-built local-only
+                save (see SaveSearchButton.js/lib/favorites.js) — moved here
+                from ResultsHeader.js to match the reference layout; it's
+                type="button" so it can't trigger this form's submit. */}
+            <SaveSearchButton />
           </div>
         </div>
 
@@ -361,8 +464,8 @@ export default function FilterBar({ communes, locations, propertyTypes = [], ini
           quartiers={quartiers}
           commune={commune}
           propertyType={propertyType}
-          values={{ quartier, parcelleSubtype, bathMin, areaMin }}
-          setters={{ setQuartier, setParcelleSubtype, setBathMin, setAreaMin }}
+          values={{ quartier, parcelleSubtype, bedsMin, bathMin, depositMax, amenities }}
+          setters={{ setQuartier, setParcelleSubtype, setBedsMin, setBathMin, setDepositMax, setAmenities }}
           resultCountLabel={resultCountLabel}
           resultPending={resultPending}
         />

@@ -15,17 +15,30 @@ import SectionHeading from './SectionHeading';
  * copy rather than hidden, so the rail never implies these are in the same
  * commune when they are not — the same honesty the buyer-assistant's
  * property matching applies to a widened search.
+ *
+ * `mode: 'similar'` is set by the caller when the rail was actually filled
+ * by lib/listings.js's getSimilarListings() (real pgvector cosine distance
+ * against the listing's own stored embedding) rather than the commune/
+ * citywide fallback — labelled honestly as "Biens similaires" rather than
+ * implied to be a location match, since a semantically similar listing can
+ * easily sit in a different commune.
  */
-export default function RelatedListings({ listings, commune, widened = false }) {
+export default function RelatedListings({ listings, commune, widened = false, mode = 'commune' }) {
   if (!listings || listings.length === 0) return null;
 
-  const title = widened || !commune ? 'Autres biens à Kinshasa' : `Autres biens à ${commune}`;
+  const title =
+    mode === 'similar'
+      ? 'Biens similaires'
+      : widened || !commune
+        ? 'Autres biens à Kinshasa'
+        : `Autres biens à ${commune}`;
+  const eyebrow = mode === 'similar' ? 'Recommandé' : 'À proximité';
   const lead = widened && commune ? `Aucun autre bien disponible à ${commune} pour le moment.` : undefined;
 
   return (
     <section className="border-t border-line bg-canvas-alt py-16">
       <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8">
-        <SectionHeading eyebrow="À proximité" title={title} lead={lead} href="/listings" className="mb-8" />
+        <SectionHeading eyebrow={eyebrow} title={title} lead={lead} href="/listings" className="mb-8" />
         <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4">
           {listings.map((listing) => (
             <FeaturedListingCard key={listing.id} listing={listing} />

@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from './ui/sheet';
-import { PARCELLE_SUBTYPES } from '@/lib/constants';
+import { PillOption } from './FilterPill';
+import { PARCELLE_SUBTYPES, AMENITY_GROUPS, DEPOSIT_MAX_OPTIONS } from '@/lib/constants';
 
 const selectClass =
   'w-full rounded-md border border-line bg-canvas px-3 py-2.5 text-sm text-ink ' +
@@ -12,9 +13,12 @@ const selectClass =
  * "Plus de filtres" — the fields that do not earn their own top-bar pill.
  *
  * Quartier depends on a commune being chosen first; Sous-type only exists
- * once Type de bien is Parcelle; Salles de bain and Surface are secondary
- * refinements. The last two are newly filterable: `bath` and `area` are real
- * columns that no part of the UI could previously search on.
+ * once Type de bien is Parcelle; Salles de bain is a secondary refinement
+ * (`bath` is a real column FilterBar.js's top bar has no pill for). Chambres
+ * here is a second, redundant entry point to the exact same `bedsMin` state
+ * FilterBar.js's own top-bar "Chambres" pill already owns — not a separate
+ * field — for a visitor who opens "Plus de filtres" without noticing the
+ * pill; changing either one updates both instantly since they share state.
  *
  * Values and setters come from FilterBar, which owns all filter state. This
  * sheet renders through a Radix portal to document.body, so it is outside
@@ -43,14 +47,20 @@ export default function FiltersDrawer({
   resultCountLabel,
   resultPending,
 }) {
-  const { quartier = '', parcelleSubtype = '', bathMin = '', areaMin = '' } = values;
-  const { setQuartier, setParcelleSubtype, setBathMin, setAreaMin } = setters;
+  const { quartier = '', parcelleSubtype = '', bedsMin = '', bathMin = '', depositMax = '', amenities = [] } = values;
+  const { setQuartier, setParcelleSubtype, setBedsMin, setBathMin, setDepositMax, setAmenities } = setters;
 
   function reset() {
     setQuartier?.('');
     setParcelleSubtype?.('');
+    setBedsMin?.('');
     setBathMin?.('');
-    setAreaMin?.('');
+    setDepositMax?.('');
+    setAmenities?.([]);
+  }
+
+  function toggleAmenity(key) {
+    setAmenities?.(amenities.includes(key) ? amenities.filter((k) => k !== key) : [...amenities, key]);
   }
 
   return (
@@ -110,18 +120,66 @@ export default function FiltersDrawer({
               </select>
             </Field>
 
-            <Field label="Surface min." hint="En mètres carrés.">
-              <input
-                type="number"
-                min="0"
-                inputMode="numeric"
-                value={areaMin}
-                onChange={(e) => setAreaMin?.(e.target.value)}
-                placeholder="ex. 120"
-                className={selectClass}
-              />
+            {/* Same bedsMin state as FilterBar.js's top-bar "Chambres" pill
+                (1-5, same options) — a second entry point, not a second
+                field. See the doc comment at the top of this file. */}
+            <Field label="Chambres">
+              <select value={bedsMin} onChange={(e) => setBedsMin?.(e.target.value)} className={selectClass}>
+                <option value="">Toutes</option>
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <option key={n} value={n}>
+                    {n}+
+                  </option>
+                ))}
+              </select>
             </Field>
           </div>
+
+          {/* Énergie & Eau / Accessibilité & Sécurité — no structured column
+              backs any of these (see lib/constants.js's AMENITY_GROUPS doc
+              comment); each chip ANDs in a real word-boundary text match
+              against the listing's own title/description in
+              lib/listings.js. Real, working filters — just not
+              database-verified ones, hence the caption below rather than
+              silently implying otherwise. */}
+          {AMENITY_GROUPS.slice(0, 2).map((group) => (
+            <Field key={group.title} label={group.title}>
+              <div className="flex flex-wrap gap-2">
+                {group.options.map(({ key, label }) => (
+                  <PillOption key={key} selected={amenities.includes(key)} onClick={() => toggleAmenity(key)}>
+                    {label}
+                  </PillOption>
+                ))}
+              </div>
+            </Field>
+          ))}
+
+          <Field label="Conditions de location">
+            <div className="flex flex-col gap-3">
+              <div>
+                <span className="mb-2 block text-xs font-medium text-ink-70">Garantie / avance maximum</span>
+                <select value={depositMax} onChange={(e) => setDepositMax?.(e.target.value)} className={selectClass}>
+                  {DEPOSIT_MAX_OPTIONS.map(({ value, label }) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {AMENITY_GROUPS[2].options.map(({ key, label }) => (
+                  <PillOption key={key} selected={amenities.includes(key)} onClick={() => toggleAmenity(key)}>
+                    {label}
+                  </PillOption>
+                ))}
+              </div>
+            </div>
+          </Field>
+
+          <p className="text-xs text-ink-45">
+            Ces critères recherchent une mention réelle dans le titre ou la description de l&rsquo;annonce — un bien peut
+            avoir cet équipement sans l&rsquo;avoir précisé.
+          </p>
         </div>
 
         <div className="flex shrink-0 items-center gap-3 border-t border-line px-4 py-3">

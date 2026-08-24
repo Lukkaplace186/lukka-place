@@ -1,22 +1,21 @@
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import SortDropdown from './SortDropdown';
-import SaveSearchButton from './SaveSearchButton';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 
 /**
- * Results header — breadcrumb, real result count, save-search and sort,
- * following the reference (Rightmove puts exactly this row above its
- * results and it is the clearest orientation device on the page).
+ * Results header — breadcrumb, real result count and sort, following the
+ * reference (Rightmove puts exactly this row above its results and it is
+ * the clearest orientation device on the page).
  *
  * The heading is built from the filters actually applied, never a static or
- * invented location. SaveSearchButton moved here out of the filter bar: it
- * is an action on the result set, not a filter, and inside the filter form
- * it sat among controls that change the query it would be saving.
+ * invented location. SaveSearchButton now lives in FilterBar.js instead, at
+ * the end of the toolbar to match Zoopla's own layout — it's `type="button"`
+ * there so it still can't trigger the surrounding filter form's submit.
  */
-function buildHeading({ commune, quartier, transactionType, propertyTypeLabel }) {
+function buildHeading({ commune, quartier, transactionType, propertyTypeLabel, citywide, communeWide }) {
   const subject = propertyTypeLabel || 'Biens';
-  const place = quartier || commune || 'Kinshasa';
+  const place = citywide ? 'Kinshasa' : communeWide ? commune : quartier || commune || 'Kinshasa';
   const label = transactionType === 'location' ? 'à louer' : transactionType === 'vente' ? 'à vendre' : 'disponibles';
   return `${subject} ${label} à ${place}`;
 }
@@ -29,8 +28,24 @@ export default function ResultsHeader({
   propertyTypeLabel,
   locationRelaxed = false,
   relaxedFromCommune = null,
+  // FilterBar.js's "Rayon" dropdown — commune/quartier are still selected
+  // (the pill/breadcrumb should keep showing them as the search's starting
+  // point) but the query itself no longer filters on one or both of them, so
+  // the heading and result count must say so, not silently keep claiming
+  // "à {quartier}" for a result set that's actually commune- or city-wide.
+  citywide = false,
+  communeWide = false,
+  // Km-radius auto-expand ladder (getListings()'s RADIUS_LADDER, lib/
+  // listings.js): fires only when the visitor explicitly picked a narrow km
+  // tier on FilterBar.js's Rayon pill and it returned zero results.
+  // requestedRadius keeps matching what the pill itself still shows
+  // ("+1 km") — this caption is what makes the wider data honest instead of
+  // silently mixing distances.
+  radiusExpanded = false,
+  requestedRadius = null,
+  effectiveRadius = null,
 }) {
-  const heading = buildHeading({ commune, quartier, transactionType, propertyTypeLabel });
+  const heading = buildHeading({ commune, quartier, transactionType, propertyTypeLabel, citywide, communeWide });
 
   const crumbs = [{ label: 'Accueil', href: '/' }, { label: 'Annonces', href: '/listings' }];
   if (commune) crumbs.push({ label: commune, href: `/listings?commune=${encodeURIComponent(commune)}` });
@@ -67,14 +82,24 @@ export default function ResultsHeader({
               Aucun résultat exact à {relaxedFromCommune} — recherche élargie à Kinshasa pour ces mots-clés.
             </p>
           ) : null}
+          {citywide && (commune || quartier) ? (
+            <p className="mt-1 text-[0.8125rem] text-ink-45">
+              Rayon élargi à Kinshasa entière depuis {quartier || commune}.
+            </p>
+          ) : communeWide && quartier ? (
+            <p className="mt-1 text-[0.8125rem] text-ink-45">
+              Rayon élargi à {commune} entière depuis {quartier}.
+            </p>
+          ) : radiusExpanded ? (
+            <p className="mt-1 text-[0.8125rem] text-ink-45">
+              Aucun résultat à moins de {requestedRadius} km — élargi automatiquement à {effectiveRadius} km.
+            </p>
+          ) : null}
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
-          <SaveSearchButton />
-          <span className="hidden sm:block">
-            <SortDropdown />
-          </span>
-        </div>
+        <span className="hidden shrink-0 sm:block">
+          <SortDropdown />
+        </span>
       </div>
     </div>
   );

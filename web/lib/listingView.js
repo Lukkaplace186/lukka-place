@@ -1,4 +1,5 @@
 import { PARCELLE_SUBTYPES } from './constants';
+import { abbreviationVariants } from './textVariants';
 
 /**
  * Derived view values shared by the three listing card designs.
@@ -136,4 +137,53 @@ export function descriptionSnippet(description, maxLength = 180) {
   if (!flat) return null;
   if (flat.length <= maxLength) return flat;
   return flat.slice(0, maxLength).replace(/\s+\S*$/, '') + '…';
+}
+
+/**
+ * Real match context for a listing card: finds the first place the current
+ * free-text search term (or one of its known real spelling variants — see
+ * lib/textVariants.js's abbreviationVariants, the exact same set the
+ * server-side ILIKE fallback in lib/listings.js already searched with)
+ * actually appears in *this listing's own* description, and returns the
+ * real surrounding text with the match isolated so a card can highlight it.
+ *
+ * Returns null — render nothing — when this listing's description doesn't
+ * actually contain the term. A listing can satisfy the page's overall
+ * search via title/address/quartier/reference/commune instead of its
+ * description (see lib/listings.js's free-text fallback, which checks all
+ * of those); this must never imply a description match that isn't real.
+ *
+ * @param {string} description
+ * @param {string} searchTerm
+ * @param {number} [contextChars=40]
+ * @returns {{before: string, match: string, after: string}|null}
+ */
+export function matchSnippet(description, searchTerm, contextChars = 40) {
+  const term = typeof searchTerm === 'string' ? searchTerm.trim() : '';
+  if (!description || !term) return null;
+
+  const flat = description.replace(/\s+/g, ' ').trim();
+  if (!flat) return null;
+  const lower = flat.toLowerCase();
+
+  let matchIndex = -1;
+  let matchLength = 0;
+  for (const candidate of abbreviationVariants(term)) {
+    const idx = lower.indexOf(candidate.toLowerCase());
+    if (idx !== -1) {
+      matchIndex = idx;
+      matchLength = candidate.length;
+      break;
+    }
+  }
+  if (matchIndex === -1) return null;
+
+  const start = Math.max(0, matchIndex - contextChars);
+  const end = Math.min(flat.length, matchIndex + matchLength + contextChars);
+
+  return {
+    before: (start > 0 ? '…' : '') + flat.slice(start, matchIndex),
+    match: flat.slice(matchIndex, matchIndex + matchLength),
+    after: flat.slice(matchIndex + matchLength, end) + (end < flat.length ? '…' : ''),
+  };
 }

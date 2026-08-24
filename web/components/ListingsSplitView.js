@@ -80,6 +80,7 @@ export default function ListingsSplitView({ listings, isMapView, page, totalPage
               isHovered={hoveredId === listing.id}
               onHoverStart={() => setHoveredId(listing.id)}
               onHoverEnd={() => setHoveredId((current) => (current === listing.id ? null : current))}
+              searchTerm={params.q}
             />
           ))}
         </div>

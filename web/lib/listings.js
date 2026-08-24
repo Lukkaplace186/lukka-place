@@ -1,5 +1,8 @@
 import 'server-only';
 import { getPool } from './db';
+import { KINSHASA_COMMUNE_CENTROIDS } from './geocoding';
+import { AMENITY_GROUPS } from './constants';
+import { abbreviationVariants } from './textVariants';
 
 /**
  * Every read against `properties` filters on this — no exceptions. There is
@@ -86,30 +89,54 @@ const FROM_JOINS = `
 
 const TRANSACTION_TYPE_TO_PURPOSE = { location: 'rent', vente: 'sale' };
 
-/**
- * "St"/"Ste" <-> "Saint"/"Sainte" is a generic French abbreviation, not a
- * fact about any one place — an agent writing a listing description might
- * spell a landmark either way ("paroisse St Luc" vs "paroisse Saint Luc"),
- * and `ILIKE '%St Luc%'` does not substring-match "Saint Luc" or vice versa.
- * Expanding both directions here means the search box doesn't need a
- * hand-maintained alias table per landmark — it works for any "St ___" name
- * a landmark's real gazetteer label (lib/data/kinshasa-gazetteer.json) or a
- * visitor's typed query happens to use.
- */
-function abbreviationVariants(term) {
-  const variants = new Set([term]);
-
-  const expanded = term.replace(/\bste\.?(?=\s|$)/gi, 'Sainte').replace(/\bst\.?(?=\s|$)/gi, 'Saint');
-  if (expanded !== term) variants.add(expanded);
-
-  const abbreviated = term.replace(/\bsainte\b/gi, 'Ste').replace(/\bsaint\b/gi, 'St');
-  if (abbreviated !== term) variants.add(abbreviated);
-
-  return Array.from(variants);
+/** Escape regex metacharacters so a keyword is matched literally by `~*` below. */
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
+
+/**
+ * "Plus de filtres" amenity checkboxes (lib/constants.js's AMENITY_GROUPS
+ * owns the UI labels/keys — this owns the actual keyword list per key, kept
+ * here rather than in constants.js since it's a query-building detail the
+ * UI doesn't need). Matched with a leading-word-boundary regex (`~* '\y...'`,
+ * no trailing boundary), not plain ILIKE substring matching — confirmed
+ * while writing this that a plain `ILIKE '%meuble%'` (furnished) matches
+ * inside "immeuble" (building), a real false-positive substring collision,
+ * not a hypothetical one. The trailing boundary is deliberately omitted,
+ * also confirmed live against real data: `p.description ~* '\yclimatisé\y'`
+ * does NOT match a real listing's actual text ("...chambres bien
+ * CLIMATISÉES...") because French adjectives inflect for gender/number —
+ * requiring a boundary immediately after the keyword rejects any suffixed
+ * form. A leading-only boundary matches "climatisé" as a live word-start
+ * prefix (so "climatisées"/"climatisé" both match) while still correctly
+ * failing to match "meuble" inside "immeuble" (no boundary exists between
+ * the second "m" and "meuble" there — confirmed with the same live query).
+ */
+const AMENITY_KEYWORDS = {
+  generator: ['groupe électrogène', 'groupe electrogene', 'générateur', 'generateur'],
+  solar: ['panneau solaire', 'panneaux solaires', 'inverseur', 'onduleur'],
+  borehole: ['forage', 'citerne'],
+  paved_road: ['route asphaltée', 'route asphaltee', 'route pavée', 'route pavee', 'asphalté', 'asphalte', 'bitumé', 'bitume'],
+  security: ['clôture', 'cloture', 'gardiennage', 'gardien'],
+  parking: ['parking', 'garage'],
+  ac: ['climatisation', 'climatisé', 'climatise', 'climatiseur'],
+  furnished: ['meublé', 'meuble', 'meublée', 'meublee'],
+};
+
+// Derived, not hand-duplicated, from lib/constants.js's AMENITY_GROUPS — the
+// UI can only ever send a key that's actually offered as a checkbox.
+const VALID_AMENITY_KEYS = new Set(AMENITY_GROUPS.flatMap((group) => group.options.map((o) => o.key)));
 
 const LISTINGS_LIMIT_DEFAULT = 12; // 12 cards per feed page
 const LISTINGS_LIMIT_MAX = 60;
+
+// FilterBar.js's "Rayon" dropdown's kilometer options. Backed by real data
+// as of the 2026-08-23 geocoding backfill (scripts/geocode-listings.js) —
+// every currently-approved listing has a real, Google-geocoded lat/lng.
+// A future listing published without a fresh geocode will have NULL
+// coordinates again until re-synced/re-geocoded; see the isKmRadius branch
+// below for how that case is handled rather than ignored.
+const KM_RADIUS_KM = { 1: 1, 3: 3, 5: 5 };
 
 /**
  * Build the WHERE clause + params shared by getListings and its COUNT query.
@@ -125,7 +152,7 @@ const LISTINGS_LIMIT_MAX = 60;
  *     path has parcelle_subtype set. Filtering on parcelle_subtype is the
  *     precise match for "this is a parcelle listing".
  */
-function buildFilters({ transactionType, propertyType, parcelleSubtype, commune, quartier, reference, priceMin, priceMax, bedsMin, bathMin, areaMin, search, excludeId }) {
+function buildFilters({ transactionType, propertyType, parcelleSubtype, commune, quartier, radius, reference, priceMin, priceMax, bedsMin, bathMin, depositMax, amenities, search, excludeId }) {
   const where = [APPROVED_FILTER];
   const params = [];
 
@@ -159,21 +186,48 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
     where.push(`p.bath >= $${params.length}`);
   }
 
-  // `area` is a TEXT column holding m2 as a string ('95', and '0' rather
-  // than NULL when unknown). Strip every non-digit before casting so a
-  // malformed value becomes NULL instead of erroring the whole query.
-  const minArea = Number.parseInt(areaMin, 10);
-  if (Number.isFinite(minArea) && minArea > 0) {
-    params.push(minArea);
-    where.push(`NULLIF(regexp_replace(COALESCE(p.area, ''), '[^0-9]', '', 'g'), '')::numeric >= $${params.length}`);
-  }
-
   // Used by the detail page's "other properties in this commune" rail so a
   // listing never recommends itself.
   const excluded = Number.parseInt(excludeId, 10);
   if (Number.isFinite(excluded)) {
     params.push(excluded);
     where.push(`p.id <> $${params.length}`);
+  }
+
+  // "Max Garantie / Avance" (FiltersDrawer.js) — deposit_months is a real,
+  // structured column (see lib/constants.js's DEPOSIT_MAX_OPTIONS doc
+  // comment), so unlike the amenity checkboxes below this is an exact
+  // filter on verified data, not a text search. A listing whose deposit is
+  // still unknown (NULL — synced before the 2026-08-19 migration, or never
+  // republished since) is excluded rather than silently treated as a match.
+  const maxDeposit = Number.parseInt(depositMax, 10);
+  if (Number.isFinite(maxDeposit)) {
+    params.push(maxDeposit);
+    where.push(`p.deposit_months IS NOT NULL AND p.deposit_months <= $${params.length}`);
+  }
+
+  // "Plus de filtres" amenity checkboxes (Énergie & Eau / Accessibilité &
+  // Sécurité / Conditions de location) — no structured column exists for
+  // any of these (see AMENITY_KEYWORDS's doc comment above), so each
+  // checked box ANDs in a real word-boundary match against the listing's
+  // own title/description text. Only title/description, not address/
+  // quartier/reference/commune (unlike the free-text `search` fallback
+  // below): an amenity describes a feature of the property, not where it
+  // is, so matching it against a quartier or reference name would be a
+  // real false positive, not just an imprecise one. An unrecognised key is
+  // silently ignored rather than erroring — the UI can only ever send one
+  // of VALID_AMENITY_KEYS, but a stale/hand-edited URL shouldn't 500.
+  if (Array.isArray(amenities)) {
+    for (const key of amenities) {
+      if (!VALID_AMENITY_KEYS.has(key)) continue;
+      const keywords = AMENITY_KEYWORDS[key];
+      const group = keywords.map((keyword) => {
+        params.push(`\\y${escapeRegex(keyword)}`);
+        const idx = params.length;
+        return `pc.title ~* $${idx} OR pc.description ~* $${idx}`;
+      });
+      where.push(`(${group.join(' OR ')})`);
+    }
   }
 
   if (propertyType === 'parcelle') {
@@ -191,7 +245,62 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
     where.push(`LOWER(catc.name) = $${params.length}`);
   }
 
-  if (commune) {
+  // FilterBar.js's "Rayon" dropdown.
+  //   'commune'  -> drop the quartier constraint, keep commune.
+  //   'citywide' -> drop both.
+  //   '1'|'3'|'5' -> real kilometer radius (see below).
+  const isCitywide = radius === 'citywide';
+  const isCommuneWide = radius === 'commune';
+  const kmValue = KM_RADIUS_KM[radius];
+  const isKmRadius = Boolean(kmValue) && Boolean(commune) && Boolean(KINSHASA_COMMUNE_CENTROIDS[commune]);
+
+  if (isKmRadius) {
+    // A real Haversine distance, centered on the commune's real,
+    // Google-verified centroid (KINSHASA_COMMUNE_CENTROIDS — lib/geocoding.js,
+    // fetched live from the Geocoding API, not typed from memory). There is
+    // still no quartier-level or landmark-level coordinate data, so this
+    // centers on the commune regardless of whether a quartier is also
+    // selected — the closest real reference point available.
+    //
+    // A listing whose own lat/lng is still NULL (a future un-geocoded
+    // submission — see scripts/geocode-listings.js) can't be measured by
+    // distance at all, so it falls back to the same commune-tag EXISTS check
+    // used by the plain commune filter below rather than silently vanishing
+    // from every km-radius search.
+    //
+    // LEAST/GREATEST clamps the acos() argument to [-1, 1]: floating-point
+    // rounding on a listing essentially at the centroid itself can push the
+    // cosine expression a hair past 1, and acos() of anything outside that
+    // domain is NaN in Postgres — a real failure mode of this exact formula,
+    // not a hypothetical one, so it's guarded here rather than shipped as
+    // written in the original spec.
+    const centroid = KINSHASA_COMMUNE_CENTROIDS[commune];
+    params.push(centroid.lat, centroid.lng, kmValue, commune);
+    const latIdx = params.length - 3;
+    const lngIdx = params.length - 2;
+    const radiusIdx = params.length - 1;
+    const communeIdx = params.length;
+    where.push(`(
+      (
+        p.latitude IS NOT NULL AND p.longitude IS NOT NULL AND p.latitude != '' AND p.longitude != '' AND (
+          6371 * acos(
+            LEAST(1, GREATEST(-1,
+              cos(radians($${latIdx})) * cos(radians(p.latitude::double precision)) *
+              cos(radians(p.longitude::double precision) - radians($${lngIdx})) +
+              sin(radians($${latIdx})) * sin(radians(p.latitude::double precision))
+            ))
+          )
+        ) <= $${radiusIdx}
+      )
+      OR (
+        (p.latitude IS NULL OR p.longitude IS NULL OR p.latitude = '' OR p.longitude = '') AND EXISTS (
+          SELECT 1 FROM property_amenities pa
+          JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = ${CONTENT_LANGUAGE_ID}
+          WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44 AND ac.name = $${communeIdx}
+        )
+      )
+    )`);
+  } else if (commune && !isCitywide) {
     params.push(commune);
     where.push(`EXISTS (
       SELECT 1 FROM property_amenities pa
@@ -200,7 +309,7 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
     )`);
   }
 
-  if (quartier) {
+  if (quartier && !isCitywide && !isCommuneWide && !isKmRadius) {
     params.push(quartier);
     where.push(`p.quartier = $${params.length}`);
   }
@@ -269,14 +378,17 @@ const SORT_COLUMNS = {
  * @param {'maison_type_locataire'|'villa'|'terrain_nu'} [options.parcelleSubtype]
  * @param {string} [options.commune]  Canonical commune name (see GET /locations).
  * @param {string} [options.quartier] Canonical quartier name.
+ * @param {'commune'|'citywide'|'1'|'3'|'5'} [options.radius] 'commune' drops the quartier constraint (keeps commune); 'citywide' drops both. '1'|'3'|'5' is a real kilometer radius, Haversine-measured from the commune's real geocoded centroid against each listing's own real coordinates (backfilled via scripts/geocode-listings.js) — a listing still missing coordinates falls back to the commune-tag match instead of being silently excluded.
  * @param {number} [options.priceMin]
  * @param {number} [options.priceMax]
  * @param {number} [options.bedsMin] Minimum bedrooms (`p.beds >= bedsMin`).
+ * @param {number} [options.depositMax] Real, structured `deposit_months <= depositMax` filter (NULL deposits excluded — see lib/constants.js's DEPOSIT_MAX_OPTIONS).
+ * @param {string[]} [options.amenities] "Plus de filtres" checkboxes (lib/constants.js's AMENITY_GROUPS keys) — word-boundary text match against title/description, not a structured flag (see AMENITY_KEYWORDS above).
  * @param {string} [options.search] Free-text match against title/description/address/quartier/reference/commune.
  * @param {'newest'|'price_asc'|'price_desc'} [options.sort='newest']
  * @param {number} [options.limit]
  * @param {number} [options.offset]
- * @returns {Promise<{total: number, limit: number, offset: number, count: number, data: Object[], locationRelaxed: boolean, relaxedFromCommune: string|null}>}
+ * @returns {Promise<{total: number, limit: number, offset: number, count: number, data: Object[], locationRelaxed: boolean, relaxedFromCommune: string|null, requestedRadius: string|null, radiusExpanded: boolean, effectiveRadius: string|null}>}
  */
 export async function getListings(options = {}) {
   let { whereClause, params } = buildFilters(options);
@@ -327,6 +439,47 @@ export async function getListings(options = {}) {
     }
   }
 
+  // Km-radius auto-expand ladder: FilterBar.js's "Rayon" pill lets a visitor
+  // pick a narrow km tier explicitly. Rather than dead-ending, step through
+  // the wider km tiers in order (RADIUS_LADDER, reusing KM_RADIUS_KM as the
+  // one source of truth) and use the first one that finds something — same
+  // swap-only-on-success shape as the locationRelaxed block above. Only ever
+  // reported honestly via requestedRadius/radiusExpanded/effectiveRadius
+  // below, never presented as an exact match at the tier the visitor picked.
+  //
+  // Deliberately does NOT auto-continue into 'commune'/'citywide' — those
+  // mean "give up on distance entirely", a bigger jump than "look a bit
+  // further", and stay a manual, explicit choice via
+  // ListingsEmptyState.js's real relaxation links. Also does not fire for a
+  // plain quartier/commune search with no radius chosen at all — silently
+  // widening every such search to citywide would destroy the informative
+  // "there's genuinely nothing here" signal that empty state relies on.
+  const RADIUS_LADDER = Object.keys(KM_RADIUS_KM); // ['1', '3', '5']
+  const requestedRadius = options.radius || null;
+  const requestedIdx = RADIUS_LADDER.indexOf(options.radius);
+  let radiusExpanded = false;
+  let effectiveRadius = null;
+
+  if (total === 0 && requestedIdx !== -1) {
+    for (let i = requestedIdx + 1; i < RADIUS_LADDER.length; i++) {
+      const candidate = RADIUS_LADDER[i];
+      const widerFilters = buildFilters({ ...options, radius: candidate });
+      const { rows: widerCountRows } = await pool.query(
+        `SELECT COUNT(*) AS total ${FROM_JOINS} WHERE ${widerFilters.whereClause}`,
+        widerFilters.params,
+      );
+      const widerTotal = Number.parseInt(widerCountRows[0].total, 10);
+      if (widerTotal > 0) {
+        whereClause = widerFilters.whereClause;
+        params = widerFilters.params;
+        total = widerTotal;
+        radiusExpanded = true;
+        effectiveRadius = candidate;
+        break;
+      }
+    }
+  }
+
   const { rows: data } = await pool.query(
     `SELECT ${SELECT_FIELDS} ${FROM_JOINS} WHERE ${whereClause}
      ORDER BY ${orderBy}
@@ -342,6 +495,15 @@ export async function getListings(options = {}) {
     data,
     locationRelaxed,
     relaxedFromCommune: locationRelaxed ? options.commune : null,
+    // Radius ladder (FilterBar.js's Rayon pill): requestedRadius is exactly
+    // what the caller asked for, unchanged, so the UI can always show the
+    // visitor's real choice even when wider data is what's actually
+    // rendered. effectiveRadius is only set when the ladder actually fired
+    // and found something ('3'|'5' — never equal to requestedRadius, never
+    // 'commune'/'citywide', those stay manual).
+    requestedRadius,
+    radiusExpanded,
+    effectiveRadius,
   };
 }
 
@@ -482,6 +644,63 @@ export async function getCommuneShowcase(limit = 6) {
  *
  * @returns {Promise<Array<{value: string, label: string, count: number}>>}
  */
+/**
+ * The real current highest approved-listing price — feeds FilterBar.js's
+ * price slider ceiling, which was a fixed $500,000 UI constant with no
+ * relationship to actual inventory ("there's no live min/max-price
+ * aggregate query today"). Same principle as getPropertyTypeFacets(): don't
+ * hardcode a bound the database can just answer. Typing a value above the
+ * ceiling into the Max input still filters correctly either way — this only
+ * changes where the slider's own top end sits.
+ *
+ * @returns {Promise<{maxPrice: number|null}>} null when there are no
+ *   approved listings with a price at all (a genuinely empty catalog),
+ *   never a fabricated fallback number.
+ */
+export async function getPriceRange() {
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT MAX(p.price) AS max_price ${FROM_JOINS} WHERE ${APPROVED_FILTER} AND p.price IS NOT NULL`,
+  );
+  const maxPrice = Number.parseFloat(rows[0]?.max_price);
+  return { maxPrice: Number.isFinite(maxPrice) && maxPrice > 0 ? maxPrice : null };
+}
+
+/**
+ * Semantically similar approved listings, via pgvector cosine distance
+ * (`<=>`) against the target listing's own stored embedding
+ * (services/embeddings.js, engine repo — written on every publish since the
+ * pgvector groundwork landed, backfilled for older rows by
+ * scripts/backfill-embeddings.js). Confirmed live against production: every
+ * currently-approved listing has a real, non-null embedding.
+ *
+ * The target's own embedding is resolved inside the query (a non-correlated
+ * scalar subquery, computed once) rather than round-tripped through JS —
+ * simpler than pulling the vector out, reformatting it, and passing it back
+ * as a bind param. Returns [] rather than throwing when the target has no
+ * embedding yet (a future listing synced through an OPENAI_API_KEY outage),
+ * so the caller can fall back to the existing commune-based related rail.
+ *
+ * @param {number|string} id
+ * @param {number} [limit=6]
+ * @returns {Promise<Object[]>}
+ */
+export async function getSimilarListings(id, limit = 6) {
+  const numericId = Number.parseInt(id, 10);
+  if (!Number.isFinite(numericId)) return [];
+
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT ${SELECT_FIELDS} ${FROM_JOINS}
+     WHERE ${APPROVED_FILTER} AND p.id <> $1 AND p.embedding IS NOT NULL
+       AND (SELECT embedding FROM properties WHERE id = $1) IS NOT NULL
+     ORDER BY p.embedding <=> (SELECT embedding FROM properties WHERE id = $1)
+     LIMIT $2`,
+    [numericId, limit],
+  );
+  return rows;
+}
+
 export async function getPropertyTypeFacets() {
   const pool = getPool();
 

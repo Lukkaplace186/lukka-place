@@ -132,6 +132,25 @@ function fuzzyLocationMatch(text) {
     }
   }
 
+  // Same edit-distance idea, now for quartiers and landmarks — previously
+  // restricted to the 24 communes only, leaving the ~600-row quartier/
+  // landmark list (most of what a visitor actually types from memory)
+  // uncorrected. Deliberately stricter than the commune tier above: a
+  // 6-char floor (not 4) and a fixed maxDist of 1 regardless of length —
+  // at this row count, a distance-2 tolerance starts collapsing two
+  // genuinely different short quartier names into each other rather than
+  // just catching a typo of one.
+  for (const word of words) {
+    if (word.length < 6) continue;
+    for (const row of INDEX) {
+      if (row.type === 'commune') continue; // already tried above
+      const looseLabel = looseNormalize(row.label);
+      if (looseLabel.length < 6) continue;
+      if (Math.abs(word.length - looseLabel.length) > 1) continue;
+      if (editDistance(word, looseLabel) <= 1) return { ...row, matchedText: word };
+    }
+  }
+
   return null;
 }
 
@@ -209,11 +228,33 @@ export function findLocationMention(text) {
 
   let best = null;
   for (const row of INDEX) {
-    if (row.norm.length < 4) continue;
+    // Floor of 3, not 4: real short labels exist in this gazetteer today
+    // (CPA, a real Ngaliema quartier; Yuo) that a 4-char floor silently
+    // made unreachable here even though they already work fine in the
+    // autocomplete dropdown (searchGazetteer has no such gate at all) —
+    // confirmed by checking every label's length before picking this
+    // number, not guessed. Safe to lower because of the *added* trailing-
+    // boundary check just below, which this function didn't have before:
+    // previously a short label only had to *start* at a word boundary, so
+    // "Golf" could in principle have matched the first four letters of an
+    // unrelated longer word. Requiring the match to also *end* at a word
+    // boundary (or the end of the string) is what actually makes a 3-char
+    // floor safe, not the floor number itself.
+    if (row.norm.length < 3) continue;
     const matchIndex = norm.indexOf(row.norm);
     if (matchIndex === -1) continue;
-    const isWordStart = matchIndex === 0 || norm[matchIndex - 1] === ' ' || norm[matchIndex - 1] === '-';
+    // Apostrophe counts as a leading boundary too — real French elision
+    // ("l'UPN", "d'Ozone") puts a vowel-initial name directly against a
+    // preceding apostrophe with no space at all. Confirmed this was a real
+    // gap while adding UPN: "près de l'UPN" would otherwise fail the
+    // word-start check entirely (the character right before "upn" is "'",
+    // which wasn't in the accepted boundary set).
+    const isWordStart =
+      matchIndex === 0 || [' ', '-', "'"].includes(norm[matchIndex - 1]);
     if (!isWordStart) continue;
+    const endIndex = matchIndex + row.norm.length;
+    const isWordEnd = endIndex === norm.length || norm[endIndex] === ' ' || norm[endIndex] === '-';
+    if (!isWordEnd) continue;
     if (!best || row.norm.length > best.norm.length) best = row;
   }
 

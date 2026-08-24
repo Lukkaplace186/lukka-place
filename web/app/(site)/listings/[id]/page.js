@@ -6,7 +6,7 @@ import EnquiryCard from '@/components/EnquiryCard';
 import ListingLocationMap from '@/components/ListingLocationMap';
 import RelatedListings from '@/components/RelatedListings';
 import MobileListingBar from '@/components/MobileListingBar';
-import { getListingById, getListings } from '@/lib/listings';
+import { getListingById, getListings, getSimilarListings } from '@/lib/listings';
 import { listingImages, typeLabel, locationLine } from '@/lib/listingView';
 import { formatPrice } from '@/lib/format';
 
@@ -77,18 +77,28 @@ export default async function ListingDetailPage({ params }) {
   const where = locationLine(listing);
   const type = typeLabel(listing);
 
-  // Other properties in the same commune, this one excluded. Widen to the
-  // whole city when the commune has nothing else to show.
-  let related = [];
+  // Real pgvector cosine-similarity match against this listing's own stored
+  // embedding (services/embeddings.js, engine repo — written on every
+  // publish) tried first: it can surface a genuinely similar property the
+  // plain commune filter below would miss entirely (same kind of unit and
+  // price range, different neighborhood). Falls back to the previous
+  // commune-then-citywide chain when there's no embedding yet or nothing
+  // comes back — never a dead rail.
+  let related = await getSimilarListings(listing.id, 6);
+  let relatedMode = 'similar';
   let widened = false;
-  if (listing.commune) {
-    const { data } = await getListings({ commune: listing.commune, excludeId: listing.id, limit: 6 });
-    related = data;
-  }
+
   if (related.length === 0) {
-    const { data } = await getListings({ excludeId: listing.id, limit: 6 });
-    related = data;
-    widened = Boolean(listing.commune);
+    relatedMode = 'commune';
+    if (listing.commune) {
+      const { data } = await getListings({ commune: listing.commune, excludeId: listing.id, limit: 6 });
+      related = data;
+    }
+    if (related.length === 0) {
+      const { data } = await getListings({ excludeId: listing.id, limit: 6 });
+      related = data;
+      widened = Boolean(listing.commune);
+    }
   }
 
   return (
@@ -160,7 +170,7 @@ export default async function ListingDetailPage({ params }) {
       </div>
 
       <div className="mt-16">
-        <RelatedListings listings={related} commune={listing.commune} widened={widened} />
+        <RelatedListings listings={related} commune={listing.commune} widened={widened} mode={relatedMode} />
       </div>
 
       <MobileListingBar listing={listing} />

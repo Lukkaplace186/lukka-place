@@ -2,10 +2,9 @@
 
 import { useSyncExternalStore } from 'react';
 import { getCurrency, subscribeCurrency } from '@/lib/currencyPreference';
-import { convertToCdf, EXCHANGE_RATE_UPDATED_AT } from '@/lib/currency';
+import { convertToCdf } from '@/lib/currency';
+import { useCdfRate } from '@/lib/CurrencyRateContext';
 import { formatPrice } from '@/lib/format';
-
-const CONVERSION_TOOLTIP = `Estimation convertie au ${EXCHANGE_RATE_UPDATED_AT} — le prix réel est en USD`;
 
 /**
  * Drop-in replacement for a raw formatPrice(...) text node. Renders the
@@ -40,15 +39,17 @@ export default function Price({
   subtextClassName = 'mt-1 block text-[0.75rem] font-normal leading-normal text-ink-45',
 }) {
   const currency = useSyncExternalStore(subscribeCurrency, getCurrency, () => 'USD');
+  const { cdfPerUsd, updatedAt } = useCdfRate();
+  const conversionTooltip = `Estimation convertie au ${updatedAt} — le prix réel est en USD`;
 
-  const cdf = convertToCdf(amount);
+  const cdf = convertToCdf(amount, cdfPerUsd);
   const cdfFormatted = cdf != null ? cdf.toLocaleString('fr-FR') : null;
   const cdfSuffix = purpose === 'rent' ? (pricePeriod === 'an' ? ' FC / an' : ' FC / mois') : ' FC';
   const usdFormatted = formatPrice(amount, purpose, pricePeriod);
 
   if (currency === 'CDF') {
     const primary = (
-      <span className={className} title={CONVERSION_TOOLTIP}>
+      <span className={className} title={conversionTooltip}>
         ≈ {cdfFormatted ?? '—'}
         {cdfSuffix}
       </span>
@@ -67,7 +68,7 @@ export default function Price({
   return showSubtext && cdfFormatted != null ? (
     <span>
       {primary}
-      <span className={subtextClassName} title={CONVERSION_TOOLTIP}>
+      <span className={subtextClassName} title={conversionTooltip}>
         ≈ {cdfFormatted}
         {cdfSuffix}
       </span>

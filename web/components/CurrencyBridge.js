@@ -1,19 +1,24 @@
 import Link from 'next/link';
 import { ArrowLeftRight } from 'lucide-react';
-import { CDF_PER_USD, EXCHANGE_RATE_UPDATED_AT } from '@/lib/currency';
+import { getCdfRate } from '@/lib/currencyRate';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 
 /**
  * Diaspora block — makes the USD/CDF switch a headline feature rather than a
  * control tucked into the header.
  *
- * Honesty constraint: lib/currency.js holds a manually-maintained mid-market
- * rate with an explicit date, not a live FX feed. This section states the
- * rate and its date outright instead of implying anything live, which is the
- * same discipline <Price> already applies with its "≈" marker and tooltip.
- * If this ever moves to a real feed, this copy has to change with it.
+ * Honesty constraint: the rate is admin-editable (lib/currencyRate.js) but
+ * still explicitly not a live FX feed — this section states the rate and
+ * its real date outright instead of implying anything live, same discipline
+ * <Price> already applies with its "≈" marker and tooltip. If this ever
+ * moves to a real feed, this copy has to change with it. A Server Component
+ * already, so it reads the rate directly rather than via
+ * CurrencyRateContext (that context exists only because Price.js/
+ * PropertyMap.js are 'use client' and can't do this themselves).
  */
-export default function CurrencyBridge() {
+export default async function CurrencyBridge() {
+  const { cdfPerUsd, updatedAt } = await getCdfRate();
+
   return (
     <section className="bg-ink py-20 sm:py-28">
       <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8">
@@ -56,11 +61,11 @@ export default function CurrencyBridge() {
             <p className="mt-6 flex flex-wrap items-baseline gap-x-3 text-white">
               <span className="u-tabular text-2xl font-bold">1 USD</span>
               <span className="text-white/40">=</span>
-              <span className="u-tabular text-2xl font-bold">{CDF_PER_USD.toLocaleString('fr-FR')} FC</span>
+              <span className="u-tabular text-2xl font-bold">{cdfPerUsd.toLocaleString('fr-FR')} FC</span>
             </p>
 
             <p className="mt-4 text-[0.8125rem] leading-relaxed text-white/50">
-              Taux de référence relevé le {EXCHANGE_RATE_UPDATED_AT}, mis à jour manuellement. Les prix des annonces
+              Taux de référence relevé le {updatedAt}, mis à jour manuellement. Les prix des annonces
               sont établis en dollars — les montants en francs sont une estimation indicative, jamais le prix contractuel.
             </p>
           </div>

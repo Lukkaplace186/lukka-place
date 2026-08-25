@@ -8,7 +8,8 @@ import { buildPricePinIcon } from '@/lib/mapIcons';
 import { MAP_STYLES } from '@/lib/mapStyle';
 import { NO_PHOTO_URL } from '@/lib/constants';
 import { formatPrice } from '@/lib/format';
-import { convertToCdf, EXCHANGE_RATE_UPDATED_AT } from '@/lib/currency';
+import { convertToCdf } from '@/lib/currency';
+import { useCdfRate } from '@/lib/CurrencyRateContext';
 import { getCurrency } from '@/lib/currencyPreference';
 
 function escapeHtml(value) {
@@ -34,11 +35,11 @@ function escapeHtml(value) {
  * built with until closed and reopened; every other price on the page
  * (which does use <Price>, a real subscription) updates immediately.
  */
-function buildInfoWindowContent(listing) {
+function buildInfoWindowContent(listing, cdfPerUsd) {
   const currency = getCurrency();
   const price =
     currency === 'CDF'
-      ? `≈ ${convertToCdf(listing.price)?.toLocaleString('fr-FR') ?? '—'} FC${listing.purpose === 'rent' ? ' / mois' : ''}`
+      ? `≈ ${convertToCdf(listing.price, cdfPerUsd)?.toLocaleString('fr-FR') ?? '—'} FC${listing.purpose === 'rent' ? ' / mois' : ''}`
       : formatPrice(listing.price, listing.purpose);
   const image = listing.featured_image || NO_PHOTO_URL;
   const spec = [
@@ -84,6 +85,7 @@ function buildInfoWindowContent(listing) {
 const MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
 export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoom }) {
+  const { cdfPerUsd } = useCdfRate();
   const mapElementRef = useRef(null);
   const clustererRef = useRef(null);
   // id -> google.maps.Marker, rebuilt each time the main geocoding effect
@@ -147,7 +149,7 @@ export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoo
             icon: buildPricePinIcon({ price: listing.price, purpose: listing.purpose, commune: listing.commune }),
           });
           marker.addListener('click', () => {
-            infoWindow.setContent(buildInfoWindowContent(listing));
+            infoWindow.setContent(buildInfoWindowContent(listing, cdfPerUsd));
             infoWindow.open({ map, anchor: marker });
           });
           // Map -> card hover-sync direction. The card -> map direction

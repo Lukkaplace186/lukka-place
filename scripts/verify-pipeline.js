@@ -1667,9 +1667,17 @@ console.log('\n2. services/openai.js');
     );
   });
   check('replies to the agent', () => {
+    // A photo submission now gets two replies: the immediate burst-start ack
+    // (fired at enqueue time, before extraction even runs), then the real
+    // listing summary once gpt-4o/db work finishes — see routes/webhook.js's
+    // enqueueMessage. Text-only messages (greetings, buyer chat) don't get
+    // the ack — see the 'media' gate there — so this is specific to photo
+    // submissions, not a change to every reply in this suite.
     const posts = httpCalls.filter((c) => c.method === 'post');
-    assert.strictEqual(posts.length, 1);
+    assert.strictEqual(posts.length, 2, 'expected an immediate ack plus the real listing reply');
     assert.strictEqual(posts[0].data.to, '243850000000');
+    assert.ok(posts[0].data.text.body.includes('Message reçu'), 'first post should be the burst-start ack');
+    assert.strictEqual(posts[1].data.to, '243850000000');
   });
 
   // Photo with no caption at all — the case that used to be dropped entirely.
@@ -2988,6 +2996,98 @@ console.log('\n2. services/openai.js');
 
   const leadNotFoundResp = await adminRequest('GET', '/admin/leads/999999999');
   check('an unknown lead id 404s', () => assert.strictEqual(leadNotFoundResp.status, 404));
+
+  console.log('\n15g. POST /admin/leads — agent storefront inquiry form (web/)');
+
+  httpCalls.length = 0;
+  const createLeadResp = await adminRequest('POST', '/admin/leads', {
+    wa_id: '243940000001',
+    name: 'Prospect Test',
+    source: 'agent-profile-inquiry',
+    property_id: null,
+    assigned_agent: 'Agent Test',
+    requirements_summary: '2 chambres à Gombe',
+  });
+  check('creates a real lead row and returns it', () => {
+    assert.strictEqual(createLeadResp.status, 201);
+    assert.strictEqual(createLeadResp.body.lead.wa_id, '243940000001');
+    assert.strictEqual(createLeadResp.body.lead.source, 'agent-profile-inquiry');
+    assert.strictEqual(createLeadResp.body.lead.requirements_summary, '2 chambres à Gombe');
+    assert.strictEqual(createLeadResp.body.lead.status, 'NEW');
+  });
+  await checkAsync('the new lead is immediately visible via GET /admin/leads', async () => {
+    const listResp = await adminRequest('GET', '/admin/leads?limit=100');
+    assert.ok(listResp.body.data.some((l) => l.id === createLeadResp.body.lead.id));
+  });
+
+  const missingWaIdResp = await adminRequest('POST', '/admin/leads', { name: 'No phone' });
+  check('wa_id is required — rejected with 400, not a silent null row', () =>
+    assert.strictEqual(missingWaIdResp.status, 400));
+
+  console.log('\n15h. GET /admin/leads?property_ids= — agent dashboard\'s Lead Activity Stream (web/)');
+
+  const leadForProp1 = dbService.createLead({ wa_id: '243940000002', property_id: 501, status: 'NEW' });
+  dbService.createLead({ wa_id: '243940000003', property_id: 502, status: 'NEW' });
+  const leadNoProp = dbService.createLead({ wa_id: '243940000004', status: 'NEW' });
+
+  const scopedResp = await adminRequest('GET', '/admin/leads?property_ids=501&limit=100');
+  check('scopes to exactly the given property_ids — one agent\'s own listings only', () => {
+    assert.strictEqual(scopedResp.status, 200);
+    assert.ok(scopedResp.body.data.some((l) => l.id === leadForProp1.id));
+    assert.ok(!scopedResp.body.data.some((l) => l.property_id === 502));
+    assert.ok(!scopedResp.body.data.some((l) => l.id === leadNoProp.id), 'a lead with no property_id at all must not leak into a property_ids-scoped query');
+  });
+
+  const emptyPropertyIdsResp = await adminRequest('GET', '/admin/leads?property_ids=notanumber');
+  check('property_ids with no valid ids is a 400, not an unfiltered full list', () =>
+    assert.strictEqual(emptyPropertyIdsResp.status, 400));
+
+  console.log('\n15i. POST /admin/send-whatsapp — agent phone-verification OTP (web/)');
+
+  httpCalls.length = 0;
+  const sendOtpResp = await adminRequest('POST', '/admin/send-whatsapp', {
+    phone: '243940000005',
+    message: 'Votre code de vérification Lukka Place : 123456 (valable 10 minutes)',
+  });
+  check('sends through the real Chakra path and returns success', () => {
+    assert.strictEqual(sendOtpResp.status, 200);
+    assert.strictEqual(sendOtpResp.body.success, true);
+    const posts = httpCalls.filter((c) => c.method === 'post');
+    assert.strictEqual(posts.length, 1);
+    assert.strictEqual(posts[0].data.to, '243940000005');
+    assert.ok(posts[0].data.text.body.includes('123456'));
+  });
+
+  const badPhoneResp = await adminRequest('POST', '/admin/send-whatsapp', { phone: 'not-a-phone', message: 'hi' });
+  check('a non-digits phone is rejected with 400 before ever calling Chakra', () =>
+    assert.strictEqual(badPhoneResp.status, 400));
+
+  const missingMessageResp = await adminRequest('POST', '/admin/send-whatsapp', { phone: '243940000005' });
+  check('a missing message is rejected with 400', () => assert.strictEqual(missingMessageResp.status, 400));
+
+  console.log('\n15j. GET /admin/leads?wa_id= — customer inquiry history (web/)');
+
+  const leadForCustomer = dbService.createLead({ wa_id: '243940000006', property_id: 601, status: 'NEW' });
+  dbService.createLead({ wa_id: '243940000006', property_id: 602, status: 'CONTACTED' });
+  const leadForOtherCustomer = dbService.createLead({ wa_id: '243940000007', property_id: 601, status: 'NEW' });
+
+  const waScopedResp = await adminRequest('GET', '/admin/leads?wa_id=243940000006&limit=100');
+  check('scopes to exactly one customer\'s own leads by wa_id', () => {
+    assert.strictEqual(waScopedResp.status, 200);
+    assert.strictEqual(waScopedResp.body.data.length, 2);
+    assert.ok(waScopedResp.body.data.every((l) => l.wa_id === '243940000006'));
+    assert.ok(!waScopedResp.body.data.some((l) => l.id === leadForOtherCustomer.id), 'another customer\'s lead must never leak into a wa_id-scoped query');
+  });
+
+  const waNoMatchResp = await adminRequest('GET', '/admin/leads?wa_id=243940000099');
+  check('a wa_id with no leads returns an empty list, not an error', () => {
+    assert.strictEqual(waNoMatchResp.status, 200);
+    assert.strictEqual(waNoMatchResp.body.data.length, 0);
+  });
+
+  const waBadFormatResp = await adminRequest('GET', '/admin/leads?wa_id=not-a-phone');
+  check('a non-digits wa_id is rejected with 400 before ever touching the DB', () =>
+    assert.strictEqual(waBadFormatResp.status, 400));
 
   // -------------------------------------------------------------------------
   console.log(`\n${'-'.repeat(60)}`);

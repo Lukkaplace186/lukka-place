@@ -1,11 +1,13 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Heart, Bookmark, LogOut } from 'lucide-react';
+import { Heart, Bookmark, LogOut, Send } from 'lucide-react';
 import Breadcrumb from '@/components/Breadcrumb';
 import { getCurrentCustomerId, getCustomerById, listFavoriteIds, listSavedSearches } from '@/lib/customers';
+import { getSavedSearchMatches } from '@/lib/alerts';
+import { getCustomerInquiries } from '@/lib/customerInquiries';
 import { getListingsByIds } from '@/lib/listings';
 import { formatPhoneDisplay } from '@/lib/phone';
-import { buildWhatsAppLink } from '@/lib/whatsapp';
+import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { logoutAction, updateNameAction, deleteAccountAction } from './actions';
 import DeleteAccountButton from './DeleteAccountButton';
@@ -24,20 +26,26 @@ export default async function AccountPage() {
   const customer = await getCustomerById(customerId);
   if (!customer) redirect('/compte/connexion');
 
-  const [favoriteIds, savedSearches] = await Promise.all([
+  const [favoriteIds, savedSearches, inquiries] = await Promise.all([
     listFavoriteIds(customerId),
     listSavedSearches(customerId),
+    getCustomerInquiries(customerId),
   ]);
   const previewFavorites = favoriteIds.length > 0 ? await getListingsByIds(favoriteIds.slice(0, 3)) : [];
+
+  // Real count, same computation /compte/alertes uses (lib/alerts.js) — never
+  // touchSavedSearchesViewed here, so landing on the overview doesn't zero
+  // out the count the dedicated alerts page is about to show.
+  const searchMatches = savedSearches.length > 0 ? await getSavedSearchMatches(savedSearches) : [];
+  const newMatchesTotal = searchMatches.reduce((sum, m) => sum + m.newCount, 0);
 
   // No self-service password reset — there's no re-verification channel to
   // build one honestly (no email, and a proactive WhatsApp push hits the
   // same Meta template-approval wall documented in the plan). This reuses
   // the one real contact channel every other CTA in this app already uses.
-  const phoneNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
-  const forgotPasswordHref = phoneNumber
-    ? buildWhatsAppLink(phoneNumber, `Bonjour, j'ai oublié le mot de passe de mon compte Lukka Place (${formatPhoneDisplay(customer.phone)}).`)
-    : null;
+  const forgotPasswordHref = getCentralWhatsAppHref(
+    `Bonjour, j'ai oublié le mot de passe de mon compte Lukka Place (${formatPhoneDisplay(customer.phone)}).`,
+  );
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
@@ -91,7 +99,7 @@ export default async function AccountPage() {
         )}
       </section>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-3">
         <Link href="/favoris" className="flex flex-col gap-2 rounded-lg border border-line bg-surface p-5 transition-colors hover:border-ink-25">
           <span className="flex items-center gap-2 text-ink-70">
             <Heart strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
@@ -106,14 +114,37 @@ export default async function AccountPage() {
         </Link>
 
         <Link href="/compte/alertes" className="flex flex-col gap-2 rounded-lg border border-line bg-surface p-5 transition-colors hover:border-ink-25">
-          <span className="flex items-center gap-2 text-ink-70">
-            <Bookmark strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-            <span className="u-eyebrow">Recherches sauvegardées</span>
+          <span className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-2 text-ink-70">
+              <Bookmark strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+              <span className="u-eyebrow">Recherches sauvegardées</span>
+            </span>
+            {newMatchesTotal > 0 && (
+              <span className="u-tabular shrink-0 rounded-full bg-blue-tint px-2 py-0.5 text-[0.6875rem] font-semibold text-blue-deep">
+                {newMatchesTotal} nouvelle{newMatchesTotal > 1 ? 's' : ''}
+              </span>
+            )}
           </span>
           <p className="u-tabular text-2xl font-bold text-ink">{savedSearches.length}</p>
           {savedSearches.length > 0 && (
             <p className="truncate text-[0.8125rem] text-ink-45">
               {savedSearches.map((s) => s.label).join(' · ')}
+            </p>
+          )}
+        </Link>
+
+        <Link href="/compte/demandes" className="flex flex-col gap-2 rounded-lg border border-line bg-surface p-5 transition-colors hover:border-ink-25">
+          <span className="flex items-center gap-2 text-ink-70">
+            <Send strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+            <span className="u-eyebrow">Mes demandes</span>
+          </span>
+          <p className="u-tabular text-2xl font-bold text-ink">{inquiries.length}</p>
+          {inquiries.length > 0 && (
+            <p className="truncate text-[0.8125rem] text-ink-45">
+              {inquiries
+                .map(({ listing }) => listing?.title)
+                .filter(Boolean)
+                .join(' · ')}
             </p>
           )}
         </Link>

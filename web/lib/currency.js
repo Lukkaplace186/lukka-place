@@ -1,16 +1,21 @@
-// Client-side display conversion only — every listing's real stored price
-// is USD (see web/CLAUDE.md: no `currency` column exists on the live
-// `properties` table today). This is a manually-set, dated exchange rate,
-// not a live FX API — a static figure that's honestly labeled as an
-// estimate is more truthful than one that looks live but silently goes
-// stale. Source: Wise mid-market rate, https://wise.com/gb/currency-converter/usd-to-cdf-rate,
-// checked 2026-08-18 (~2,292 CDF per USD; the real market rate moves day to
-// day — update this constant/date together if it drifts noticeably).
-export const CDF_PER_USD = 2292;
-export const EXCHANGE_RATE_UPDATED_AT = '2026-08-18';
+// Client-safe: pure conversion + fallback values only. The real,
+// admin-editable rate is read server-side by lib/currencyRate.js
+// (server-only, touches Postgres) and threaded down to client components via
+// lib/CurrencyRateContext.js — this file itself must stay importable from
+// 'use client' components (Price.js, PropertyMap.js), so it can never pull
+// in 'server-only' or the DB pool.
+//
+// DEFAULT_CDF_PER_USD/DEFAULT_RATE_UPDATED_AT are only ever used as a
+// fallback (empty/unreachable exchange_rates table) — see
+// lib/currencyRate.js's getCdfRate(). Source of the original figure: Wise
+// mid-market rate, https://wise.com/gb/currency-converter/usd-to-cdf-rate,
+// checked 2026-08-18.
+export const DEFAULT_CDF_PER_USD = 2292;
+export const DEFAULT_RATE_UPDATED_AT = '2026-08-18';
 
-export function convertToCdf(usdAmount) {
+export function convertToCdf(usdAmount, cdfPerUsd) {
   const amount = Number(usdAmount);
-  if (!Number.isFinite(amount)) return null;
-  return Math.round(amount * CDF_PER_USD);
+  const rate = Number(cdfPerUsd);
+  if (!Number.isFinite(amount) || !Number.isFinite(rate)) return null;
+  return Math.round(amount * rate);
 }

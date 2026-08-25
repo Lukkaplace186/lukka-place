@@ -8,9 +8,8 @@ import 'server-only';
  * involved. Authenticated with ENGINE_API_SECRET (mirrors the engine's own
  * API_SECRET — see .env.local's comment there).
  *
- * No login of its own protects the /admin/* pages that call these functions
- * — see web/CLAUDE.md and app/admin/layout.js. Local-dev-only until one
- * exists; do not deploy this surface anywhere public yet.
+ * /admin/* is gated by middleware.js + lib/adminAuth.js's signed session
+ * cookie (a single shared team password) — see web/CLAUDE.md.
  */
 
 function base() {
@@ -68,10 +67,22 @@ export async function sendManualReply(id, text) {
   return engineFetch(`/admin/conversations/${id}/reply`, { method: 'POST', body: JSON.stringify({ text }) });
 }
 
-/** @returns {Promise<{total: number, limit: number, offset: number, count: number, data: Object[]}>} */
-export async function listLeads({ status, limit, offset } = {}) {
+/**
+ * @param {{status?: string, propertyIds?: number[], waId?: string, limit?: number, offset?: number}} [options]
+ * `propertyIds` scopes the stream to one agent's own listings — the agent
+ * dashboard's Lead Activity Stream (Stage 4D). `waId` scopes it to one
+ * customer's own submitted leads — customer inquiry history
+ * (lib/customerInquiries.js). Callers must only ever pass a `waId` derived
+ * server-side from the authenticated caller's own session, never a
+ * client-supplied value — same non-negotiable binding rule the buyer
+ * assistant's tool-calling layer already follows (see root CLAUDE.md).
+ * @returns {Promise<{total: number, limit: number, offset: number, count: number, data: Object[]}>}
+ */
+export async function listLeads({ status, propertyIds, waId, limit, offset } = {}) {
   const params = new URLSearchParams();
   if (status) params.set('status', status);
+  if (propertyIds?.length) params.set('property_ids', propertyIds.join(','));
+  if (waId) params.set('wa_id', waId);
   if (limit) params.set('limit', String(limit));
   if (offset) params.set('offset', String(offset));
   const query = params.toString();
@@ -81,4 +92,45 @@ export async function listLeads({ status, limit, offset } = {}) {
 /** @returns {Promise<{lead: Object}>} */
 export async function updateLeadStatus(id, status) {
   return engineFetch(`/admin/leads/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) });
+}
+
+/**
+ * Agent storefront's "Demandez ce bien à cet agent" inquiry form.
+ * @returns {Promise<{lead: Object}>}
+ */
+export async function createLead({ waId, name, source, propertyId, assignedAgent, requirementsSummary }) {
+  return engineFetch('/admin/leads', {
+    method: 'POST',
+    body: JSON.stringify({
+      wa_id: waId,
+      name,
+      source,
+      property_id: propertyId,
+      assigned_agent: assignedAgent,
+      requirements_summary: requirementsSummary,
+    }),
+  });
+}
+
+/**
+ * Agent phone-verification OTP (web/lib/agentAuth.js) — the engine holds
+ * the real Chakra credentials, so this is the only way `web/` can actually
+ * deliver a WhatsApp message.
+ * @returns {Promise<{success: true}>}
+ */
+export async function sendWhatsAppMessage(phone, message) {
+  return engineFetch('/admin/send-whatsapp', { method: 'POST', body: JSON.stringify({ phone, message }) });
+}
+
+/**
+ * Notifies a listing's original WhatsApp submitter of an approve/reject
+ * decision. `status` is 'approved' or 'rejected' — not the raw
+ * `approve_status` integer, the engine maps it to real message copy.
+ * @returns {Promise<{success: true}>}
+ */
+export async function notifyListingModeration(propertyId, status) {
+  return engineFetch(`/admin/properties/${propertyId}/notify`, {
+    method: 'POST',
+    body: JSON.stringify({ status }),
+  });
 }

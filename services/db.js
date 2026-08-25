@@ -172,6 +172,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_listings_price      ON listings (price);
   CREATE INDEX IF NOT EXISTS idx_listings_bedrooms   ON listings (bedrooms);
   CREATE INDEX IF NOT EXISTS idx_listings_wa_status  ON listings (wa_id, status);
+  CREATE INDEX IF NOT EXISTS idx_listings_remote_property_id ON listings (remote_property_id);
 `);
 
 // ---------------------------------------------------------------------------
@@ -649,6 +650,19 @@ function getRecentListings(limit = 20, waId) {
 
 function getListing(id) {
   return parseRow(db.prepare('SELECT * FROM listings WHERE id = ?').get(id));
+}
+
+/**
+ * Reverse lookup for the admin moderation dashboard (web/): given a
+ * Supabase `properties.id`, find the original submitter's wa_id. The link
+ * only exists this direction — `listings.remote_property_id` is set once a
+ * row syncs to Postgres (see services/postgres.js's syncListingToPostgres),
+ * but `properties` itself carries no wa_id/phone column at all.
+ */
+function getListingByRemotePropertyId(remotePropertyId) {
+  return parseRow(
+    db.prepare('SELECT * FROM listings WHERE remote_property_id = ? ORDER BY id DESC LIMIT 1').get(remotePropertyId),
+  );
 }
 
 const LISTINGS_LIMIT_DEFAULT = 50;
@@ -1176,16 +1190,37 @@ const LEADS_LIST_LIMIT_MAX = 100;
  *
  * @param {Object} [options]
  * @param {string} [options.status] Filter to one LEAD_STATUSES value.
+ * @param {number[]} [options.propertyIds] Filter to leads on these property ids.
+ * @param {string} [options.waId] Filter to one submitter's own leads (customer inquiry history).
  * @param {number} [options.limit]
  * @param {number} [options.offset]
  * @returns {{total: number, limit: number, offset: number, count: number, data: Object[]}}
  */
-function listLeads({ status, limit, offset } = {}) {
+function listLeads({ status, propertyIds, waId, limit, offset } = {}) {
   const where = [];
   const params = {};
   if (status) {
     where.push('status = @status');
     params.status = status;
+  }
+  // Customer inquiry history (web/) — a customer's own submitted leads,
+  // looked up by their phone number (same digits-only wa_id shape a lead's
+  // wa_id column already holds).
+  if (waId) {
+    where.push('wa_id = @waId');
+    params.waId = waId;
+  }
+  // Agent dashboard's Lead Activity Stream (web/) — leads tied to any of
+  // this agent's real property_ids (the remote Postgres properties.id, per
+  // this column's own inline comment above). No IN-clause placeholder
+  // helper exists in better-sqlite3 for a variable-length array, so this
+  // builds one @p0, @p1, ... param per id explicitly.
+  if (Array.isArray(propertyIds) && propertyIds.length > 0) {
+    const placeholders = propertyIds.map((id, i) => {
+      params[`p${i}`] = id;
+      return `@p${i}`;
+    });
+    where.push(`property_id IN (${placeholders.join(', ')})`);
   }
   const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
@@ -1235,6 +1270,7 @@ module.exports = {
   getListings,
   getRecentListings,
   getListing,
+  getListingByRemotePropertyId,
   countListings,
   parseRow,
   migrate,

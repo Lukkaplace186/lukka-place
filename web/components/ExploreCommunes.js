@@ -47,10 +47,10 @@ export default function ExploreCommunes({ communes = [] }) {
                     sizes="(min-width: 1024px) 33vw, 50vw"
                     className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.06]"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#0F172A]/85 via-[#0F172A]/25 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#0B1120]/85 via-[#0B1120]/25 to-transparent" />
                 </>
               ) : (
-                <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-br from-ink to-[#1E3A8A]" />
+                <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-br from-ink to-blue" />
               )}
 
               <div className="relative z-10 p-4 sm:p-5">

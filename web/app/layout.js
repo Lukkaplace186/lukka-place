@@ -1,26 +1,27 @@
-import { Plus_Jakarta_Sans, Fraunces } from 'next/font/google';
+import { Plus_Jakarta_Sans, DM_Serif_Display } from 'next/font/google';
 import './globals.css';
 import { SITE_URL } from '@/lib/constants';
 
 /*
- * Two families, sans-led.
+ * Two families, sans-led — matches web/Design's "WhiteBlue Royal" system
+ * exactly (both are its named brand-font stand-ins, not a substitution on
+ * this app's part: see web/Design/_ds/.../readme.md's "Fonts" section).
  *
- * Plus Jakarta Sans is the workhorse: the hero headline (800), all UI,
- * filters, prices, card data and body copy. Its warm, rounded geometric
- * character (matching the Zoopla-style reference) replaces Inter here —
- * same sans-led role, still entirely weight/size driven for hierarchy, and
+ * Plus Jakarta Sans is the workhorse: the hero headline, all UI, filters,
+ * prices, card data and body copy. Its warm, rounded geometric character
+ * (matching the Zoopla-style reference) replaces Inter here — same
+ * sans-led role, still entirely weight/size driven for hierarchy, and
  * still has proper tabular numerals for a grid of prices. Subset to the
  * five weights the type scale actually uses (400/500/600/700/800) rather
  * than shipping the whole variable-weight range over mobile data.
  *
- * Fraunces is an accent only — section titles, /a-propos, the detail-page
- * description heading — held at 400-500. It is what keeps the site from
- * looking like every other portal. It is never used for UI or data.
- *
- * This replaces Geist + Geist Mono + Playfair Display (three families, one
- * of which was set at font-extrabold, the heaviest cut of a face whose
- * elegance lives at 400). Reference codes moved from the mono face to
- * .u-ref in globals.css, which is why no mono family is loaded any more.
+ * DM Serif Display is an accent only — the hero headline, section titles,
+ * /a-propos, the detail-page description heading — regular weight only
+ * (the face has no bold cut; setting it heavier would fake a weight that
+ * doesn't exist). It is what keeps the site from looking like every other
+ * portal. It is never used for UI or data. Replaces Fraunces, which served
+ * the same accent role under the previous "Prestige White" pass but isn't
+ * the face this design system specifies.
  */
 const plusJakartaSans = Plus_Jakarta_Sans({
   variable: '--font-jakarta',
@@ -29,10 +30,11 @@ const plusJakartaSans = Plus_Jakarta_Sans({
   display: 'swap',
 });
 
-const fraunces = Fraunces({
-  variable: '--font-fraunces',
+const dmSerifDisplay = DM_Serif_Display({
+  variable: '--font-dmserif',
   subsets: ['latin'],
-  axes: ['opsz'],
+  weight: '400',
+  style: ['normal', 'italic'],
   display: 'swap',
 });
 
@@ -76,7 +78,7 @@ export const metadata = {
  */
 export default function RootLayout({ children }) {
   return (
-    <html lang="fr" className={`${plusJakartaSans.variable} ${fraunces.variable} h-full`}>
+    <html lang="fr" className={`${plusJakartaSans.variable} ${dmSerifDisplay.variable} h-full`}>
       <body className="min-h-full">{children}</body>
     </html>
   );

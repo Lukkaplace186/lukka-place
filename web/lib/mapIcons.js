@@ -5,17 +5,17 @@
 // only be called after the Maps JS API has loaded (references the global
 // `google.maps.Size`/`Point`, same as the rest of PropertyMap.js).
 
-// A small fixed blue/slate family, mirroring --blue / --blue-deep / --ink
-// in app/globals.css — commune color is a deterministic hash into this
-// palette, a lightweight visual grouping cue. Hardcoded rather than read
-// from a CSS custom property on purpose: these are baked into data-URI SVG
-// strings at runtime, where the document's stylesheet is unreachable. All
-// six stay dark enough for white pin-label text to keep real contrast
-// (checked against WCAG's 4.5:1 text-contrast guidance, not just picked by
-// eye). Not a substitute for real commune boundary polygons, which don't
-// exist anywhere in this repo (see web/CLAUDE.md's "no fabricated data"
-// rule) — just a color hint.
-const PIN_COLORS = ['#1450D0', '#1040A6', '#2563EB', '#0F172A', '#1E3A8A', '#334155'];
+// A small fixed royal/ink family, mirroring --blue / --blue-deep / --ink in
+// app/globals.css (web/Design's royal-600/royal-700/ink-900 ramp) — commune
+// color is a deterministic hash into this palette, a lightweight visual
+// grouping cue. Hardcoded rather than read from a CSS custom property on
+// purpose: these are baked into data-URI SVG strings at runtime, where the
+// document's stylesheet is unreachable. All six stay dark enough for white
+// pin-label text to keep real contrast (checked against WCAG's 4.5:1
+// text-contrast guidance, not just picked by eye). Not a substitute for real
+// commune boundary polygons, which don't exist anywhere in this repo (see
+// web/CLAUDE.md's "no fabricated data" rule) — just a color hint.
+const PIN_COLORS = ['#1E3AA8', '#16307E', '#2A4BC9', '#0B1120', '#0C1D50', '#2C3444'];
 
 function hashString(str) {
   let h = 0;

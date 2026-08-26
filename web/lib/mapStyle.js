@@ -1,5 +1,5 @@
 /**
- * Google Maps style array in the site's Prestige White + logo blue palette.
+ * Google Maps style array in the site's WhiteBlue Royal palette.
  *
  * The default Google basemap is its own blue-green and was the loudest
  * palette violation on the site — it sits beside the results grid at 42% of
@@ -14,16 +14,16 @@
  * deliberate: a Map ID would also force AdvancedMarkerElement, and the
  * clustering here runs against classic google.maps.Marker instances.
  */
-const INK = '#0F172A';
-const INK_45 = '#64748B';
-const CANVAS = '#FAFAFA';
-const CANVAS_ALT = '#F8F9FA';
-const CANVAS_DEEP = '#F1F5F9';
-const LINE = '#E2E8F0';
-// Real water, tinted toward the brand blue rather than a neutral grey —
-// the one place on the map where a hint of the accent colour is honest
-// (it *is* the Congo river / Kinshasa's real waterways, not decoration).
-const WATER = '#DCE8FB';
+const INK = '#0B1120';
+const INK_45 = '#5C6679';
+const CANVAS = '#FFFFFF';
+const CANVAS_ALT = '#F7F7F5';
+const CANVAS_DEEP = '#EFF1F6';
+const LINE = '#E2E6EF';
+// Real water, tinted toward royal blue rather than a neutral grey — the one
+// place on the map where a hint of the accent colour is honest (it *is* the
+// Congo river / Kinshasa's real waterways, not decoration).
+const WATER = '#DCE3FF';
 
 export const MAP_STYLES = [
   { elementType: 'geometry', stylers: [{ color: CANVAS }] },

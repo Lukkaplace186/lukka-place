@@ -3,59 +3,83 @@
 @import "shadcn/tailwind.css";
 
 /*
- * Lukka Place design tokens.
+ * Lukka Place design tokens — "WhiteBlue Royal".
  *
- * Direction: "Prestige White" — a crisp, cool off-white ground with the
- * brand's own logo blue as the single accent, replacing the earlier warm
- * bronze/stone system. White cards sitting on a barely-off-white ground is
- * still what gives cards their edge without a shadow doing the work — that
- * figure/ground separation is a real property worth keeping, it's just
- * cooler and brighter now instead of warm.
+ * Source: web/Design (Claude Design canvas export + design-system token
+ * bundle under web/Design/_ds). Prestige white is the primary — paper for
+ * cards, chalk for page rest, mist for sunken/image-well surfaces — and
+ * royal blue is the single secondary, the only voice of action. Brass is a
+ * sparing prestige accent for premium flags and rules; it is never a
+ * button. Same token *names* as the previous "Prestige White" pass (so the
+ * ~40 components already built against `bg-canvas`/`text-ink`/`bg-blue`/
+ * `font-display`/etc. re-skin automatically) — only the underlying values
+ * and a few additions (brass, precise radii/shadow) change.
  *
  * Naming note: the ground is `canvas`, not `stone`. Tailwind ships a
  * built-in `stone-*` scale and having both `bg-stone-deep` (ours) and
  * `bg-stone-800` (theirs) in the same codebase reads as a typo.
  *
- * Tailwind v4: there is no tailwind.config.js. Any --color-* / --font-* in
- * the @theme block below automatically becomes a utility
- * (--color-blue -> bg-blue, text-blue, border-blue, ...).
+ * Tailwind v4: there is no tailwind.config.js. Any --color-* / --font-* /
+ * --radius-* in the @theme block below automatically becomes a utility
+ * (--color-blue -> bg-blue, text-blue, border-blue, ... / --radius-card ->
+ * rounded-card).
  */
 :root {
-  /* Ink ramp — Tailwind's own slate scale (slate-900/600/500/300), chosen
-     deliberately rather than invented: it's a well-known, pre-verified
-     ramp that reads correctly against a cool white ground, and it's the
-     same family the brand's logo blue already sits in. */
-  --ink: #0f172a;      /* headings, primary text        18.7:1 on canvas */
-  --ink-70: #475569;   /* body copy                      7.4:1 */
-  --ink-45: #64748b;   /* meta, captions                 4.6:1 */
-  --ink-25: #cbd5e1;   /* placeholder, disabled — decorative only */
+  /* Ink ramp — cool, navy-leaning greys (web/Design/_ds tokens/colors.css'
+     --ink-900/700/500/200), not a generic slate. Text, hairlines, borders. */
+  --ink: #0b1120;       /* headings, primary text (ink-900) */
+  --ink-70: #2c3444;    /* body copy (ink-700) */
+  --ink-45: #5c6679;    /* meta, captions (ink-500) */
+  --ink-25: #cbd2e0;    /* placeholder, disabled — decorative only (ink-200) */
 
   /* Prestige White ground */
-  --canvas: #fafafa;      /* page ground — a hair off pure white */
-  --canvas-alt: #f8f9fa;  /* alternating section fills */
-  --canvas-deep: #f1f5f9; /* hover / pressed fills */
-  --line: #e2e8f0;        /* hairline borders — replaces card shadows */
+  --canvas: #ffffff;      /* page ground — white is the primary */
+  --canvas-alt: #f7f7f5;  /* alternating/sunken section fills (chalk) */
+  --canvas-deep: #eff1f6; /* hover / pressed fills, image wells (mist) */
+  --line: #e2e6ef;        /* hairline borders — replaces card shadows (ink-100) */
   --surface: #ffffff;     /* elevated cards sitting ON canvas */
 
   /*
-   * Blue — the brand's own logo colour, and the single accent on the site.
-   * CONTRAST RULE, computed not assumed:
-   *   white text on --blue ............. 4.69:1  passes AA  -> fill
-   *   --blue as text on --canvas ....... 6.80:1  passes AA  -> fine too
-   *   --blue-deep as text on --canvas .. 9.1:1    passes AAA -> hover/links
-   * Unlike the old bronze token, --blue itself already clears AA as text —
-   * --blue-deep exists for hover/pressed states and isn't load-bearing for
-   * contrast the way --bronze-deep was.
+   * Royal blue — the single secondary and the only voice of action.
+   * CONTRAST RULE, computed against the real design-system source, not
+   * assumed:
+   *   white text on --blue (royal-600, #1E3AA8) ..... 7.9:1  passes AAA -> fill
+   *   --blue as text on --canvas ..................... 7.9:1  passes AAA -> fine too
+   *   --blue-deep (royal-700, #16307E) on --canvas ... 10.7:1 passes AAA -> hover/links
    */
-  --blue: #1450d0;
-  --blue-deep: #1040a6;
-  --blue-tint: #e8effc;
+  --blue: #1e3aa8;
+  --blue-deep: #16307e;
+  --blue-tint: #eef2ff;
+
+  /*
+   * Brass — sparing prestige accent (premium flags, award marks, rules).
+   * Readme.md is explicit: never a button. Used only as a badge/icon fill
+   * (brass, white text) or as brass-deep text/rules on canvas.
+   *   white text on --brass (brass-500, #A97C2F) ..... 3.2:1  fails AA for
+   *     body text but is fine for the large/bold badge-caps use it's
+   *     actually used for (WCAG large-text threshold is 3:1).
+   *   --brass-deep (brass-700, #7A5619) on --canvas ... 7.3:1  passes AAA
+   */
+  --brass: #a97c2f;
+  --brass-deep: #7a5619;
+  --brass-tint: #f3e7ce;
 
   /* Functional green — WhatsApp CTA and rental-income signal. Not part of
      the palette direction; it's a signal colour and stays put. */
   --green: #00b050;
   --green-deep: #00963f;
   --green-tint: #e6f8ee;
+
+  /* Glass/scrim tokens for photography — web/Design/_ds tokens/colors.css.
+     Only ever used over an image, never over flat colour. */
+  --glass-royal: rgba(12, 29, 80, 0.42);
+  --glass-white: rgba(255, 255, 255, 0.82);
+  --scrim-image: linear-gradient(180deg, rgba(11, 17, 32, 0) 34%, rgba(11, 17, 32, 0.62) 100%);
+  --scrim-hero: linear-gradient(94deg, rgba(12, 29, 80, 0.72) 0%, rgba(12, 29, 80, 0.28) 52%, rgba(12, 29, 80, 0) 78%);
+
+  /* The one elevation reserved for a panel that genuinely floats over
+     photography (the hero search unit) — web/Design/_ds tokens/shadows.css. */
+  --shadow-panel: 0 24px 60px -24px rgba(12, 29, 80, 0.35);
 
   /*
    * shadcn/ui tokens, remapped onto the palette above so Button, Dialog,
@@ -82,8 +106,11 @@
   --input: var(--line);
   --ring: var(--blue);
 
-  /* 8px. The references (Zillow, Rightmove) are moderately rounded, not
-     sharp — full pills stay for filter chips, badges and CTAs. */
+  /* 8px — matches web/Design's --radius-button/--radius-input exactly.
+     rounded-xl (12px) and rounded-2xl (16px), derived below, land on the
+     design's --radius-image and --radius-panel too. Full pills stay for
+     filter chips, badges and CTAs. A dedicated --radius-card (14px, the
+     design's own card radius, between xl and 2xl) is added in @theme. */
   --radius: 8px;
 }
 
@@ -106,13 +133,17 @@
   --color-blue-deep: var(--blue-deep);
   --color-blue-tint: var(--blue-tint);
 
+  --color-brass: var(--brass);
+  --color-brass-deep: var(--brass-deep);
+  --color-brass-tint: var(--brass-tint);
+
   --color-green: var(--green);
   --color-green-deep: var(--green-deep);
   --color-green-tint: var(--green-tint);
 
   --font-sans: var(--font-jakarta);
-  --font-display: var(--font-fraunces);
-  --font-heading: var(--font-fraunces);
+  --font-display: var(--font-dmserif);
+  --font-heading: var(--font-dmserif);
 
   --color-border: var(--border);
   --color-input: var(--input);
@@ -137,6 +168,9 @@
   --radius-xl: calc(var(--radius) * 1.5);
   --radius-2xl: calc(var(--radius) * 2);
   --radius-3xl: calc(var(--radius) * 3);
+  /* Property/search cards — web/Design's own --radius-card (14px), used by
+     the three listing card designs and the hero search panel. */
+  --radius-card: 14px;
 }
 
 @layer base {
@@ -151,9 +185,9 @@
     font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
   }
-  /* Fraunces is an accent face: section titles and editorial copy only.
-     Never UI, never data. Its default leading reads cramped at display
-     sizes, so headings set it explicitly. */
+  /* DM Serif Display is an accent face: hero headline, section titles,
+     editorial copy only. Never UI, never data. Its default leading reads
+     cramped at display sizes, so headings set it explicitly. */
   .font-display {
     font-optical-sizing: auto;
   }
@@ -172,11 +206,12 @@
   }
 
   /* The workhorse of the editorial layer — commune labels, section
-     kickers, spec-table keys. */
+     kickers, spec-table keys. Matches web/Design's eyebrow spec exactly
+     (11px / 700 / 0.12em / uppercase). */
   .u-eyebrow {
     font-size: 0.6875rem;
     line-height: 1.2;
-    font-weight: 600;
+    font-weight: 700;
     letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--ink-45);
@@ -195,18 +230,36 @@
     text-transform: uppercase;
     font-variant-numeric: tabular-nums;
   }
-  /* The one real elevation in the system. Cards use hairlines instead;
-     this is for things that genuinely float above the page. Shadow tint
-     is the ink colour's own RGB (15 23 42), not a generic black. */
+  /* The two real elevations in the system. Cards use hairlines instead;
+     these are for things that genuinely float above the page. Shadow tint
+     is the ink colour's own RGB (11 17 32, ink-900), not a generic black —
+     matches web/Design/_ds tokens/shadows.css exactly. */
   .u-lift {
     box-shadow:
-      0 1px 2px rgb(15 23 42 / 0.04),
-      0 8px 24px -6px rgb(15 23 42 / 0.10);
+      0 1px 2px rgb(11 17 32 / 0.06),
+      0 8px 24px -6px rgb(11 17 32 / 0.1);
   }
   .u-lift-lg {
     box-shadow:
-      0 2px 4px rgb(15 23 42 / 0.05),
-      0 24px 48px -12px rgb(15 23 42 / 0.18);
+      0 2px 4px rgb(11 17 32 / 0.06),
+      0 24px 48px -12px rgb(11 17 32 / 0.18);
+  }
+  /* The hero search panel's own elevation — a royal-tinted shadow, distinct
+     from the ink-tinted .u-lift family, exclusively for the one panel that
+     floats over the hero photograph. web/Design/_ds tokens/shadows.css'
+     --shadow-panel. */
+  .u-shadow-panel {
+    box-shadow: var(--shadow-panel);
+  }
+  /* Frosted royal capsule for short metadata over a photo (photo count,
+     "1/23") — web/Design's --glass-royal. Never combined with the
+     --scrim-image gradient on the same edge (long text uses the gradient,
+     short metadata uses the capsule — not both). */
+  .u-glass-royal {
+    background: var(--glass-royal);
+    -webkit-backdrop-filter: saturate(1.1) blur(14px);
+    backdrop-filter: saturate(1.1) blur(14px);
+    color: #fff;
   }
 
   /* Tactile press feedback for plain (non-framer-motion) tappable elements

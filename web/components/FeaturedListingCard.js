@@ -9,9 +9,9 @@ import CallCTA from './CallCTA';
 import ShareButton from './ShareButton';
 import AgencyLogo from './AgencyLogo';
 import Price from './Price';
-import { NewBadge, TypeBadge, DepositBadge } from './ListingBadges';
+import { TypeBadge, DepositBadge } from './ListingBadges';
 import SpecItem from './SpecItem';
-import { listingImages, isNewListing, formatAddedOn, typeLabel, specItems, feedLocationLine } from '@/lib/listingView';
+import { listingImages, formatAddedOn, typeLabel, specItems, feedLocationLine } from '@/lib/listingView';
 
 const MotionLink = motion.create(Link);
 
@@ -77,7 +77,7 @@ export default function FeaturedListingCard({ listing }) {
       whileHover="hover"
       whileTap={{ scale: 0.98 }}
       animate="rest"
-      className="group flex w-full min-w-full flex-shrink-0 snap-center flex-col overflow-hidden rounded-2xl border border-line bg-surface transition-colors hover:border-ink-25 sm:w-full sm:min-w-0"
+      className="group flex w-full min-w-full flex-shrink-0 snap-center flex-col overflow-hidden rounded-card border border-line bg-surface transition-colors hover:border-ink-25 sm:w-full sm:min-w-0"
     >
       <div className="relative aspect-4/3 w-full overflow-hidden">
         <CardImageCarousel
@@ -86,7 +86,6 @@ export default function FeaturedListingCard({ listing }) {
           sizes="(min-width: 1024px) 25vw, (min-width: 768px) 33vw, (min-width: 640px) 50vw, 100vw"
         />
         <div className="pointer-events-none absolute left-2.5 top-2.5 z-10 flex flex-wrap gap-1.5">
-          {isNewListing(createdAt) && <NewBadge />}
           <TypeBadge>{typeLabel(listing)}</TypeBadge>
         </div>
       </div>

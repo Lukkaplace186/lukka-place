@@ -14,9 +14,10 @@ import { useMotionSafe } from '@/lib/useMotionSafe';
  * of the viewport and the header sits transparently over it — see Header.js,
  * which only goes solid once scrolled.
  *
- * Headline is Plus Jakarta Sans 800, not the serif. That matches the reference portals,
- * where the hero is the one high-impact moment meant to punch rather than
- * read as editorial; the serif shows up from the first section heading down.
+ * Headline is DM Serif Display (font-display), matching web/Design's own
+ * hero spec (--fs-display-l, regular weight, never bold, never uppercase).
+ * This is the one place the accent face gets to be the loudest thing on the
+ * page — every section heading below it uses the same face at a smaller size.
  *
  * Photo: /public/hero.jpg — client-supplied, sourced from Unsplash
  * ("frames-for-your-heart", photo ncYuMo5Yx10). Unsplash's own license
@@ -54,20 +55,24 @@ export default function Hero() {
         />
       </motion.div>
 
-      {/* Ink scrim rather than flat black — it keeps the photograph's own
-          colour and ties the image into the Prestige White/blue palette
-          instead of greying it out. */}
-      <div className="absolute inset-0 bg-gradient-to-r from-[#0F172A]/85 via-[#0F172A]/55 to-[#0F172A]/10" />
-      <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#0F172A]/60 to-transparent" />
+      {/* Royal scrim (web/Design's --scrim-hero: a left-to-right royal-ink
+          wash) rather than flat black — it keeps the photograph's own
+          colour and ties the image straight into the WhiteBlue Royal
+          palette instead of greying it out. */}
+      <div
+        className="absolute inset-0"
+        style={{ background: 'linear-gradient(94deg, rgba(12,29,80,.78) 0%, rgba(12,29,80,.42) 52%, rgba(12,29,80,.08) 78%)' }}
+      />
+      <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#0B1120]/60 to-transparent" />
 
       <div className="relative z-10 mx-auto w-full max-w-[1600px] px-4 pt-16 sm:px-6 lg:px-8">
         <div className="max-w-3xl">
           <p className="u-eyebrow mb-5 text-white/70">Immobilier à Kinshasa</p>
 
-          <h1 className="text-[2.75rem] font-extrabold leading-[1.05] tracking-[-0.03em] text-white sm:text-6xl lg:text-[4.25rem]">
+          <h1 className="font-display text-[2.75rem] font-normal leading-[1.04] tracking-[-0.018em] text-white sm:text-6xl lg:text-[4.25rem]">
             Trouvez le bien
             <br />
-            qui vous ressemble.
+            qui vous ressemble
           </h1>
 
           <p className="mt-5 max-w-xl text-base leading-relaxed text-white/75">

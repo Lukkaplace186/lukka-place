@@ -58,13 +58,13 @@ function buildInfoWindowContent(listing, cdfPerUsd) {
         style="width:100%;height:120px;object-fit:cover;border-radius:6px 6px 0 0;display:block;"
       />
       <div style="padding:10px 6px 6px;">
-        <p style="margin:0;font-size:16px;font-weight:700;color:#0F172A;">${escapeHtml(price)}</p>
-        <p style="margin:4px 0 0;font-size:13px;font-weight:500;color:#475569;line-height:1.35;">${escapeHtml(listing.title)}</p>
-        ${spec ? `<p style="margin:4px 0 0;font-size:12px;color:#64748B;">${escapeHtml(spec)}</p>` : ''}
-        ${location ? `<p style="margin:2px 0 0;font-size:12px;color:#64748B;">${escapeHtml(location)}</p>` : ''}
+        <p style="margin:0;font-size:16px;font-weight:700;color:#0B1120;">${escapeHtml(price)}</p>
+        <p style="margin:4px 0 0;font-size:13px;font-weight:500;color:#2C3444;line-height:1.35;">${escapeHtml(listing.title)}</p>
+        ${spec ? `<p style="margin:4px 0 0;font-size:12px;color:#5C6679;">${escapeHtml(spec)}</p>` : ''}
+        ${location ? `<p style="margin:2px 0 0;font-size:12px;color:#5C6679;">${escapeHtml(location)}</p>` : ''}
         <a
           href="/listings/${encodeURIComponent(listing.id)}"
-          style="display:inline-block;margin-top:8px;font-size:13px;font-weight:600;color:#1040A6;text-decoration:none;"
+          style="display:inline-block;margin-top:8px;font-size:13px;font-weight:600;color:#16307E;text-decoration:none;"
         >
           Voir les détails →
         </a>

@@ -84,7 +84,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
           entity — a typographic gradient treatment, same fallback
           ExploreCommunes.js already uses when no real photo backs a
           commune tile, rather than a fabricated stock image. */}
-      <div className="relative flex h-40 items-end bg-gradient-to-br from-ink to-[#1E3A8A] sm:h-56">
+      <div className="relative flex h-40 items-end bg-gradient-to-br from-ink to-blue sm:h-56">
         <div className="mx-auto flex w-full max-w-5xl items-end gap-4 px-4 pb-6 sm:px-6">
           <div className="h-20 w-20 shrink-0 overflow-hidden rounded-full border-4 border-white bg-white shadow-sm sm:h-28 sm:w-28">
             <AgentAvatar src={agent.image} alt={name} />

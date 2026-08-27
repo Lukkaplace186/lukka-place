@@ -81,7 +81,7 @@ export default async function AdminConversationDetailPage({ params }) {
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr]">
         <div className="flex flex-col gap-4">
-          <div className="rounded-lg border border-line bg-white p-4">
+          <div className="rounded-card border border-line bg-white p-4">
             <h2 className="mb-3 text-sm font-semibold text-ink">Transcription</h2>
             {messages.length === 0 ? (
               <p className="text-sm text-ink-45">Aucun message.</p>
@@ -110,7 +110,7 @@ export default async function AdminConversationDetailPage({ params }) {
                 type="text"
                 name="text"
                 placeholder={conversation.ai_active ? 'Écrire un message (bascule automatiquement l\'IA en silence non — pensez à «Prendre en main»)' : 'Écrire une réponse...'}
-                className="flex-1 rounded-md border border-line px-3 py-2 text-sm text-ink focus:border-blue focus:outline-none"
+                className="u-focus-ring flex-1 rounded-md border border-line px-3 py-2 text-sm text-ink"
               />
               <button type="submit" className="rounded-md bg-blue px-4 py-2 text-sm font-semibold text-white hover:bg-blue-deep">
                 Envoyer
@@ -120,7 +120,7 @@ export default async function AdminConversationDetailPage({ params }) {
         </div>
 
         <div className="flex flex-col gap-4">
-          <div className="rounded-lg border border-line bg-white p-4">
+          <div className="rounded-card border border-line bg-white p-4">
             <h2 className="mb-3 text-sm font-semibold text-ink">Critères connus</h2>
             <dl className="grid grid-cols-2 gap-2 text-sm">
               {REQUIREMENT_LABELS.map(([field, label]) => (
@@ -132,7 +132,7 @@ export default async function AdminConversationDetailPage({ params }) {
             </dl>
           </div>
 
-          <div className="rounded-lg border border-line bg-white p-4">
+          <div className="rounded-card border border-line bg-white p-4">
             <h2 className="mb-3 text-sm font-semibold text-ink">Agent assigné</h2>
             <form action={boundAssign} className="flex gap-2">
               <input
@@ -140,7 +140,7 @@ export default async function AdminConversationDetailPage({ params }) {
                 name="assigned_agent"
                 defaultValue={conversation.assigned_agent || ''}
                 placeholder="Nom de l'agent"
-                className="flex-1 rounded-md border border-line px-3 py-1.5 text-sm text-ink focus:border-blue focus:outline-none"
+                className="u-focus-ring flex-1 rounded-md border border-line px-3 py-1.5 text-sm text-ink"
               />
               <button type="submit" className="rounded-md border border-line px-3 py-1.5 text-sm font-medium text-ink hover:bg-canvas-alt">
                 Enregistrer
@@ -148,7 +148,7 @@ export default async function AdminConversationDetailPage({ params }) {
             </form>
           </div>
 
-          <div className="rounded-lg border border-line bg-white p-4">
+          <div className="rounded-card border border-line bg-white p-4">
             <h2 className="mb-3 text-sm font-semibold text-ink">Notes internes</h2>
             <form action={boundNotes} className="flex flex-col gap-2">
               <textarea
@@ -156,7 +156,7 @@ export default async function AdminConversationDetailPage({ params }) {
                 defaultValue={conversation.notes || ''}
                 rows={4}
                 placeholder="Jamais visible par le client..."
-                className="rounded-md border border-line px-3 py-2 text-sm text-ink focus:border-blue focus:outline-none"
+                className="u-focus-ring rounded-md border border-line px-3 py-2 text-sm text-ink"
               />
               <button type="submit" className="self-start rounded-md border border-line px-3 py-1.5 text-sm font-medium text-ink hover:bg-canvas-alt">
                 Enregistrer
@@ -164,7 +164,7 @@ export default async function AdminConversationDetailPage({ params }) {
             </form>
           </div>
 
-          <div className="rounded-lg border border-line bg-white p-4">
+          <div className="rounded-card border border-line bg-white p-4">
             <h2 className="mb-3 text-sm font-semibold text-ink">Prospects liés</h2>
             {leads.length === 0 ? (
               <p className="text-sm text-ink-45">Aucun prospect pour cette conversation.</p>

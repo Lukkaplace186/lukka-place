@@ -39,7 +39,7 @@ export default function SignupForm({ action, next, error }) {
           type="text"
           name="fullName"
           autoComplete="name"
-          className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink focus:border-blue focus:outline-none"
+          className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
         />
       </div>
 
@@ -56,7 +56,7 @@ export default function SignupForm({ action, next, error }) {
           placeholder="099 712 3456"
           autoFocus
           required
-          className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink focus:border-blue focus:outline-none"
+          className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
         />
       </div>
 
@@ -71,7 +71,7 @@ export default function SignupForm({ action, next, error }) {
           autoComplete="new-password"
           minLength={8}
           required
-          className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink focus:border-blue focus:outline-none"
+          className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
         />
         <p className="mt-1 text-xs text-ink-45">8 caractères minimum.</p>
       </div>

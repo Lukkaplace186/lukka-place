@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef } from 'react';
+import Link from 'next/link';
 import { getFavoriteIds, getSavedSearches } from '@/lib/localFavorites';
 
 const ERROR_MESSAGES = {
@@ -46,21 +47,26 @@ export default function LoginForm({ action, next, error }) {
           placeholder="099 712 3456"
           autoFocus
           required
-          className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink focus:border-blue focus:outline-none"
+          className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
         />
       </div>
 
       <div>
-        <label htmlFor="password" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
-          Mot de passe
-        </label>
+        <div className="mb-1 flex items-center justify-between">
+          <label htmlFor="password" className="block text-xs font-semibold uppercase tracking-wide text-ink-45">
+            Mot de passe
+          </label>
+          <Link href="/mot-de-passe-oublie?role=customer" className="text-xs font-semibold text-blue-deep hover:underline">
+            Mot de passe oublié ?
+          </Link>
+        </div>
         <input
           id="password"
           type="password"
           name="password"
           autoComplete="current-password"
           required
-          className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink focus:border-blue focus:outline-none"
+          className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
         />
       </div>
 

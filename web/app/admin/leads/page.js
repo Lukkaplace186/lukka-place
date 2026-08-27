@@ -44,11 +44,11 @@ export default async function AdminLeadsPage({ searchParams }) {
       </div>
 
       {data.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-line bg-white p-10 text-center text-sm text-ink-45">
+        <div className="rounded-card border border-dashed border-line bg-white p-10 text-center text-sm text-ink-45">
           Aucun prospect.
         </div>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-line bg-white">
+        <div className="overflow-hidden rounded-card border border-line bg-white">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-line bg-canvas-alt text-xs uppercase tracking-wide text-ink-45">
               <tr>

@@ -62,7 +62,7 @@ export default function AgentDashboardView({ metrics, chartData, recentInquiries
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="rounded-lg border border-line bg-surface p-5 lg:col-span-2">
+        <div className="rounded-card border border-line bg-surface p-5 lg:col-span-2">
           <h2 className="mb-4 text-sm font-semibold text-ink">Vues des annonces (7 derniers jours)</h2>
           {hasAnyViews ? (
             <div className="flex h-40 items-end justify-between gap-2">
@@ -88,7 +88,7 @@ export default function AgentDashboardView({ metrics, chartData, recentInquiries
           )}
         </div>
 
-        <div className="rounded-lg border border-line bg-surface p-5">
+        <div className="rounded-card border border-line bg-surface p-5">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-ink">Demandes récentes</h2>
             <Link href="#prospects" className="text-xs font-semibold text-blue-deep hover:underline">
@@ -118,7 +118,7 @@ export default function AgentDashboardView({ metrics, chartData, recentInquiries
 
 function StatCard({ label, value, icon: Icon }) {
   return (
-    <div className="flex items-center justify-between rounded-lg border border-line bg-surface p-4">
+    <div className="flex items-center justify-between rounded-card border border-line bg-surface p-4">
       <div>
         <p className="u-eyebrow text-ink-45">{label}</p>
         <p className="u-tabular mt-1 text-2xl font-bold text-ink">{value.toLocaleString('fr-FR')}</p>

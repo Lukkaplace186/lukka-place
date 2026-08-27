@@ -17,7 +17,7 @@ export default async function AdminLoginPage({ searchParams }) {
 
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-4">
-      <div className="w-full max-w-sm">
+      <div className="w-full max-w-sm rounded-card border border-line bg-surface p-6 u-lift sm:p-8">
         <h1 className="text-xl font-bold tracking-[-0.02em] text-ink">
           Lukka <span className="text-blue-deep">Admin</span>
         </h1>
@@ -35,7 +35,7 @@ export default async function AdminLoginPage({ searchParams }) {
               name="password"
               autoFocus
               required
-              className="w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink focus:border-blue focus:outline-none"
+              className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
             />
           </div>
 

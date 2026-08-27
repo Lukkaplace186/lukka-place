@@ -32,7 +32,7 @@ const FILTER_PARAM_KEYS = [
 const PRICE_SLIDER_FALLBACK_MAX = 500000;
 
 const numberInputClass =
-  'w-full rounded-md border border-line bg-canvas px-3 py-2 text-sm text-ink placeholder:text-ink-25 focus:border-blue focus:outline-none';
+  'u-focus-ring w-full rounded-md border border-line bg-canvas px-3 py-2 text-sm text-ink placeholder:text-ink-25';
 
 /**
  * Sticky search bar for /listings — the dense reference surface.

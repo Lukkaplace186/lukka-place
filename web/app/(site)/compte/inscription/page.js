@@ -14,7 +14,7 @@ export default async function CustomerSignupPage({ searchParams }) {
 
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-4">
-      <div className="w-full max-w-sm">
+      <div className="w-full max-w-sm rounded-card border border-line bg-surface p-6 u-lift sm:p-8">
         <h1 className="font-display text-2xl font-normal tracking-[-0.01em] text-ink">Créer un compte</h1>
         <p className="mt-1 text-sm text-ink-45">
           Vos favoris et recherches déjà enregistrés sur cet appareil seront conservés.

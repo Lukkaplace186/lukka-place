@@ -7,7 +7,7 @@ import FavoriteButton from './FavoriteButton';
 import ShareButton from './ShareButton';
 import { RentBadge, DepositBadge } from './ListingBadges';
 import { specItems, locationLine, formatAddedOn } from '@/lib/listingView';
-import { buildWhatsAppLink, buildWhatsAppMessage } from '@/lib/whatsapp';
+import { getCentralWhatsAppHref, buildWhatsAppMessage } from '@/lib/whatsapp';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 
 /**
@@ -26,28 +26,24 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 export default function EnquiryCard({ listing }) {
   const { id, title, price, purpose, reference, created_at: createdAt, deposit_months: depositMonths, price_period: pricePeriod } = listing;
 
-  const phoneNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
-  const href = phoneNumber
-    ? buildWhatsAppLink(
-        phoneNumber,
-        buildWhatsAppMessage({
-          reference: listing.reference,
-          slug: listing.slug,
-          id: listing.id,
-          propertyType: listing.category_name,
-          commune: listing.commune,
-          price: listing.price,
-          purpose: listing.purpose,
-        }),
-      )
-    : null;
+  const href = getCentralWhatsAppHref(
+    buildWhatsAppMessage({
+      reference: listing.reference,
+      slug: listing.slug,
+      id: listing.id,
+      propertyType: listing.category_name,
+      commune: listing.commune,
+      price: listing.price,
+      purpose: listing.purpose,
+    }),
+  );
 
   const where = locationLine(listing);
   const specs = specItems(listing).slice(0, 3);
   const addedOn = formatAddedOn(createdAt);
 
   return (
-    <div className="rounded-lg border border-line bg-surface p-5 sm:p-6">
+    <div className="rounded-card border border-line bg-surface p-5 sm:p-6">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           {where ? <p className="u-eyebrow mb-2">{where}</p> : null}
@@ -80,7 +76,7 @@ export default function EnquiryCard({ listing }) {
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            className="u-press inline-flex items-center justify-center gap-2 rounded-full bg-green px-6 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-green-deep"
+            className="u-press u-focus-ring inline-flex items-center justify-center gap-2 rounded-full border border-transparent bg-green px-6 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-green-deep"
           >
             <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
             Contacter via WhatsApp

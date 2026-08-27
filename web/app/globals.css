@@ -50,6 +50,12 @@
   --blue: #1e3aa8;
   --blue-deep: #16307e;
   --blue-tint: #eef2ff;
+  /* royal-400 — reserved for focus rings only (web/Design's own focus spec:
+     "2px royal-400 outline at 2px offset, plus shadow-focus on fields.
+     Never removed, never replaced by a colour change alone."). Not exposed
+     as a --color-* theme token — it has exactly one job. */
+  --blue-400: #4761d8;
+  --shadow-focus: 0 0 0 3px rgba(71, 97, 216, 0.32);
 
   /*
    * Brass — sparing prestige accent (premium flags, award marks, rules).
@@ -261,6 +267,16 @@
     backdrop-filter: saturate(1.1) blur(14px);
     color: #fff;
   }
+  /* Frosted white capsule for circular controls over a photo (gallery
+     prev/next, close) — web/Design's --glass-white, the counterpart to
+     .u-glass-royal above: glass-royal is for short metadata capsules
+     (photo count), glass-white is for the controls themselves. */
+  .u-glass-white {
+    background: var(--glass-white);
+    -webkit-backdrop-filter: saturate(1.1) blur(14px);
+    backdrop-filter: saturate(1.1) blur(14px);
+    color: var(--ink);
+  }
 
   /* Tactile press feedback for plain (non-framer-motion) tappable elements
      — filter pills, icon CTAs, nav items. Deliberately NOT gated behind
@@ -277,5 +293,20 @@
   }
   .u-press:active {
     transform: scale(0.96);
+  }
+
+  /* Form-field focus treatment, matching web/Design's real spec exactly —
+     a royal border plus a genuine ring (--shadow-focus), never the
+     `focus:outline-none` + border-colour-only pattern this was previously
+     shipping across every auth/admin form (the design's own guidelines
+     card is explicit that removing the outline without a real replacement
+     ring fails its own interaction-states rule). */
+  .u-focus-ring {
+    transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  }
+  .u-focus-ring:focus {
+    outline: none;
+    border-color: var(--blue);
+    box-shadow: var(--shadow-focus);
   }
 }

@@ -30,7 +30,7 @@ export default async function AdminCmsPage() {
           Taux manuel affiché sur le site public, jamais un flux de change en direct — voir web/CLAUDE.md. Modifier
           cette valeur change immédiatement toutes les conversions &laquo;&nbsp;≈&nbsp;&raquo; affichées sur le site.
         </p>
-        <form action={updateExchangeRateAction} className="flex items-end gap-2.5 rounded-lg border border-line bg-white p-4">
+        <form action={updateExchangeRateAction} className="flex items-end gap-2.5 rounded-card border border-line bg-white p-4">
           <div>
             <label htmlFor="cdf_per_usd" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
               1 USD = ? CDF
@@ -64,7 +64,7 @@ export default async function AdminCmsPage() {
               <form
                 key={slider.id}
                 action={bound}
-                className="space-y-2 rounded-lg border border-line bg-white p-4"
+                className="space-y-2 rounded-card border border-line bg-white p-4"
               >
                 <div className="flex items-center justify-between">
                   <span className="u-eyebrow text-ink-45">Langue: {languageLabel(slider.language_id)}</span>
@@ -96,7 +96,7 @@ export default async function AdminCmsPage() {
 
       <div>
         <h2 className="mb-3 text-sm font-semibold text-ink">Bannières publicitaires (advertisements)</h2>
-        <div className="overflow-hidden rounded-lg border border-line bg-white">
+        <div className="overflow-hidden rounded-card border border-line bg-white">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-line bg-canvas-alt text-xs uppercase tracking-wide text-ink-45">
               <tr>

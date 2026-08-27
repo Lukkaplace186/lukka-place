@@ -50,7 +50,7 @@ export default function PhotoGallery({ images, alt }) {
 
   if (total === 0) {
     return (
-      <div className="flex aspect-16/9 w-full flex-col items-center justify-center gap-2 rounded-lg border border-line bg-canvas-alt text-ink-25">
+      <div className="flex aspect-16/9 w-full flex-col items-center justify-center gap-2 rounded-card border border-line bg-canvas-alt text-ink-25">
         <ImageOff strokeWidth={ICON_STROKE_WIDTH} className="h-6 w-6" />
         <p className="text-[0.8125rem]">Aucune photo pour cette annonce</p>
       </div>
@@ -64,7 +64,7 @@ export default function PhotoGallery({ images, alt }) {
     <>
       <div className="relative">
         <div
-          className={`grid h-[22rem] gap-2 overflow-hidden rounded-lg sm:h-[26rem] lg:h-[30rem] ${
+          className={`grid h-[22rem] gap-2 overflow-hidden rounded-card sm:h-[26rem] lg:h-[30rem] ${
             hasGrid ? 'grid-cols-1 sm:grid-cols-[1.6fr_1fr]' : 'grid-cols-1'
           }`}
         >
@@ -110,7 +110,7 @@ export default function PhotoGallery({ images, alt }) {
         <button
           type="button"
           onClick={() => setLightboxIndex(0)}
-          className="u-lift absolute bottom-4 right-4 inline-flex items-center gap-2 rounded-full bg-surface px-4 py-2.5 text-[0.8125rem] font-semibold text-ink transition-colors hover:bg-canvas-alt"
+          className="u-glass-royal absolute bottom-4 right-4 inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-[0.8125rem] font-semibold transition-colors hover:bg-[rgba(12,29,80,0.58)]"
         >
           <Expand strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
           <span className="u-tabular">{total}</span> photo{total !== 1 ? 's' : ''}
@@ -141,7 +141,7 @@ export default function PhotoGallery({ images, alt }) {
                   type="button"
                   onClick={() => step(-1)}
                   aria-label="Photo précédente"
-                  className="absolute left-3 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-surface/90 text-ink transition-colors hover:bg-surface"
+                  className="u-glass-white absolute left-3 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full transition-colors hover:bg-white/95"
                 >
                   <ChevronLeft strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
                 </button>
@@ -149,11 +149,11 @@ export default function PhotoGallery({ images, alt }) {
                   type="button"
                   onClick={() => step(1)}
                   aria-label="Photo suivante"
-                  className="absolute right-3 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-surface/90 text-ink transition-colors hover:bg-surface"
+                  className="u-glass-white absolute right-3 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full transition-colors hover:bg-white/95"
                 >
                   <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
                 </button>
-                <span className="u-tabular absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-ink/70 px-3 py-1.5 text-[0.75rem] font-medium text-white">
+                <span className="u-glass-royal u-tabular absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full px-3 py-1.5 text-[0.75rem] font-medium">
                   {lightboxIndex + 1} / {total}
                 </span>
               </>

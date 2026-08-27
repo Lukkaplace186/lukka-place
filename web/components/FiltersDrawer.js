@@ -6,8 +6,8 @@ import { PillOption } from './FilterPill';
 import { PARCELLE_SUBTYPES, AMENITY_GROUPS, DEPOSIT_MAX_OPTIONS } from '@/lib/constants';
 
 const selectClass =
-  'w-full rounded-md border border-line bg-canvas px-3 py-2.5 text-sm text-ink ' +
-  'focus:border-blue focus:outline-none disabled:cursor-not-allowed disabled:opacity-50';
+  'u-focus-ring w-full rounded-md border border-line bg-canvas px-3 py-2.5 text-sm text-ink ' +
+  'disabled:cursor-not-allowed disabled:opacity-50';
 
 /**
  * "Plus de filtres" — the fields that do not earn their own top-bar pill.

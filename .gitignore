@@ -27,3 +27,10 @@ _verify.db
 _verify.db-shm
 _verify.db-wal
 _verify_uploads/
+
+# Design/reference scratch — not source (matches web/Design/, web/_ds/, etc.)
+lukkaplace/
+reference-portal/
+*.zip
+Design/
+_ds/

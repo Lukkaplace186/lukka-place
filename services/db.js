@@ -1191,12 +1191,15 @@ const LEADS_LIST_LIMIT_MAX = 100;
  * @param {Object} [options]
  * @param {string} [options.status] Filter to one LEAD_STATUSES value.
  * @param {number[]} [options.propertyIds] Filter to leads on these property ids.
+ * @param {string} [options.assignedAgent] Filter to leads whose `assigned_agent`
+ *   matches this exact string — see the column's own comment for why this is
+ *   a display-name string, not an id, and the fragility that implies.
  * @param {string} [options.waId] Filter to one submitter's own leads (customer inquiry history).
  * @param {number} [options.limit]
  * @param {number} [options.offset]
  * @returns {{total: number, limit: number, offset: number, count: number, data: Object[]}}
  */
-function listLeads({ status, propertyIds, waId, limit, offset } = {}) {
+function listLeads({ status, propertyIds, assignedAgent, waId, limit, offset } = {}) {
   const where = [];
   const params = {};
   if (status) {
@@ -1210,17 +1213,35 @@ function listLeads({ status, propertyIds, waId, limit, offset } = {}) {
     where.push('wa_id = @waId');
     params.waId = waId;
   }
-  // Agent dashboard's Lead Activity Stream (web/) — leads tied to any of
-  // this agent's real property_ids (the remote Postgres properties.id, per
-  // this column's own inline comment above). No IN-clause placeholder
-  // helper exists in better-sqlite3 for a variable-length array, so this
-  // builds one @p0, @p1, ... param per id explicitly.
-  if (Array.isArray(propertyIds) && propertyIds.length > 0) {
-    const placeholders = propertyIds.map((id, i) => {
-      params[`p${i}`] = id;
-      return `@p${i}`;
-    });
-    where.push(`property_id IN (${placeholders.join(', ')})`);
+  // Agent dashboard's Lead Activity Stream (web/) — "this agent's own
+  // inbox" is the OR of two different ownership signals, not just one:
+  // leads tied to any of this agent's real property_ids (the remote
+  // Postgres properties.id, per this column's own inline comment above),
+  // OR a general inquiry with no property_id yet that was still addressed
+  // to this agent by name (assigned_agent — see submitInquiryAction in
+  // web/app/(site)/agents/[id]/actions.js, which writes the agent's display
+  // name there, not an id). Without the OR, a property_id-only filter
+  // silently dropped every property_id: null lead from an agent's own
+  // dashboard even when assigned_agent named them directly — caught during
+  // manual QA of the agent-profile inquiry form. No IN-clause placeholder
+  // helper exists in better-sqlite3 for a variable-length array, so the
+  // property_id branch builds one @p0, @p1, ... param per id explicitly.
+  const hasPropertyIds = Array.isArray(propertyIds) && propertyIds.length > 0;
+  const hasAssignedAgent = !!assignedAgent;
+  if (hasPropertyIds || hasAssignedAgent) {
+    const ownerClauses = [];
+    if (hasPropertyIds) {
+      const placeholders = propertyIds.map((id, i) => {
+        params[`p${i}`] = id;
+        return `@p${i}`;
+      });
+      ownerClauses.push(`property_id IN (${placeholders.join(', ')})`);
+    }
+    if (hasAssignedAgent) {
+      ownerClauses.push('assigned_agent = @assignedAgent');
+      params.assignedAgent = assignedAgent;
+    }
+    where.push(`(${ownerClauses.join(' OR ')})`);
   }
   const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
 

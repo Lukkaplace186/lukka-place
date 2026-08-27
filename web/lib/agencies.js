@@ -60,3 +60,15 @@ export async function getOwnListingsForDashboard(agentId) {
   );
   return rows;
 }
+
+/**
+ * The one display-name computation every agent-dashboard page needs —
+ * previously duplicated ad hoc per file (and with a different fallback
+ * string in each copy). Also what submitInquiryAction
+ * (web/app/(site)/agents/[id]/actions.js) writes into a general inquiry's
+ * `assigned_agent` column, so the dashboard's own lead queries can match
+ * against it exactly — see services/db.js's listLeads doc comment.
+ */
+export function agentDisplayName(agent) {
+  return [agent?.first_name, agent?.last_name].filter(Boolean).join(' ') || agent?.username || null;
+}

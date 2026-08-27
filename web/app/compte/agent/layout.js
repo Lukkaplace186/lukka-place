@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getCurrentAgentId } from '@/lib/agentSession';
-import { getAgentProfile, getOwnListingsForDashboard } from '@/lib/agencies';
+import { getAgentProfile, getOwnListingsForDashboard, agentDisplayName } from '@/lib/agencies';
 import { listLeads } from '@/lib/adminApi';
 import AgentSidebar from '@/components/AgentSidebar';
 import { agentLogoutAction } from './actions';
@@ -34,11 +34,13 @@ export default async function AgentDashboardLayout({ children }) {
 
   const listings = await getOwnListingsForDashboard(agentId);
   const propertyIds = listings.map((l) => l.id);
-  const { total: newLeadsCount } = propertyIds.length
-    ? await listLeads({ propertyIds, status: 'NEW', limit: 1 })
-    : { total: 0 };
+  const displayName = agentDisplayName(agent);
+  const { total: newLeadsCount } =
+    propertyIds.length || displayName
+      ? await listLeads({ propertyIds, assignedAgent: displayName || undefined, status: 'NEW', limit: 1 })
+      : { total: 0 };
 
-  const name = [agent.first_name, agent.last_name].filter(Boolean).join(' ') || agent.username || 'Agent';
+  const name = displayName || 'Agent';
   const initials = name
     .split(' ')
     .filter(Boolean)

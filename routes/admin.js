@@ -131,7 +131,7 @@ router.post('/conversations/:id/reply', async (req, res) => {
 // ---------------------------------------------------------------------------
 
 router.get('/leads', (req, res) => {
-  const { status, property_ids: propertyIdsRaw, wa_id: waId, limit, offset } = req.query;
+  const { status, property_ids: propertyIdsRaw, assigned_agent: assignedAgent, wa_id: waId, limit, offset } = req.query;
 
   if (status && !db.LEAD_STATUSES.includes(status)) {
     return res.status(400).json({ success: false, error: `Invalid status '${status}'.` });
@@ -158,7 +158,7 @@ router.get('/leads', (req, res) => {
   }
 
   try {
-    const page = db.listLeads({ status, propertyIds, waId, limit, offset });
+    const page = db.listLeads({ status, propertyIds, assignedAgent, waId, limit, offset });
     return res.json({ success: true, ...page });
   } catch (err) {
     console.error(`[admin] GET /leads failed: ${err.message}`);

@@ -3042,6 +3042,24 @@ console.log('\n2. services/openai.js');
   check('property_ids with no valid ids is a 400, not an unfiltered full list', () =>
     assert.strictEqual(emptyPropertyIdsResp.status, 400));
 
+  // assigned_agent widens the same stream (OR'd with property_ids, not
+  // AND'd) — a general inquiry with no property_id yet (web/'s
+  // submitInquiryAction) still needs to surface in that agent's own
+  // dashboard, alongside their real listing-scoped leads.
+  const leadByName = dbService.createLead({ wa_id: '243940000010', assigned_agent: 'Jean Kalala', status: 'NEW' });
+  const leadForOtherAgentProp = dbService.createLead({ wa_id: '243940000011', property_id: 503, status: 'NEW' });
+
+  const assignedAgentResp = await adminRequest(
+    'GET',
+    '/admin/leads?property_ids=501&assigned_agent=' + encodeURIComponent('Jean Kalala') + '&limit=100',
+  );
+  check('assigned_agent surfaces a property_id-less lead alongside property_ids-scoped ones', () => {
+    assert.strictEqual(assignedAgentResp.status, 200);
+    assert.ok(assignedAgentResp.body.data.some((l) => l.id === leadForProp1.id), 'still includes the property_ids match');
+    assert.ok(assignedAgentResp.body.data.some((l) => l.id === leadByName.id), 'includes the assigned_agent-only match');
+    assert.ok(!assignedAgentResp.body.data.some((l) => l.id === leadForOtherAgentProp.id), 'a lead on neither signal must not leak in');
+  });
+
   console.log('\n15i. POST /admin/send-whatsapp — agent phone-verification OTP (web/)');
 
   httpCalls.length = 0;

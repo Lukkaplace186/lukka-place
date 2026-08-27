@@ -1,5 +1,5 @@
 import { getCurrentAgentId } from '@/lib/agentSession';
-import { getAgentProfile, getOwnListingsForDashboard } from '@/lib/agencies';
+import { getAgentProfile, getOwnListingsForDashboard, agentDisplayName } from '@/lib/agencies';
 import {
   getAgentProfileViews,
   getAgentListingViews,
@@ -22,13 +22,16 @@ export default async function AgentOverviewPage() {
 
   const listings = await getOwnListingsForDashboard(agentId);
   const propertyIds = listings.map((l) => l.id);
+  const displayName = agentDisplayName(agent);
 
   const [profileViews, listingViews, whatsappClicks, favoritesCount, leadsPage, viewsByDay] = await Promise.all([
     getAgentProfileViews(agentId),
     getAgentListingViews(propertyIds),
     getAgentWhatsAppClicks(propertyIds),
     getAgentFavoritesCount(propertyIds),
-    propertyIds.length > 0 ? listLeads({ propertyIds, limit: 3 }) : Promise.resolve({ data: [] }),
+    propertyIds.length > 0 || displayName
+      ? listLeads({ propertyIds, assignedAgent: displayName || undefined, limit: 3 })
+      : Promise.resolve({ data: [] }),
     getAgentListingViewsByDay(propertyIds),
   ]);
 

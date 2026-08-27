@@ -68,9 +68,15 @@ export async function sendManualReply(id, text) {
 }
 
 /**
- * @param {{status?: string, propertyIds?: number[], waId?: string, limit?: number, offset?: number}} [options]
+ * @param {{status?: string, propertyIds?: number[], assignedAgent?: string, waId?: string, limit?: number, offset?: number}} [options]
  * `propertyIds` scopes the stream to one agent's own listings — the agent
- * dashboard's Lead Activity Stream (Stage 4D). `waId` scopes it to one
+ * dashboard's Lead Activity Stream (Stage 4D). `assignedAgent` widens that
+ * same stream (OR'd with `propertyIds` on the engine side, not AND'd) to
+ * also surface a general inquiry with no property_id yet that was still
+ * addressed to this agent by name — see submitInquiryAction in
+ * web/app/(site)/agents/[id]/actions.js, the only place that writes
+ * `assigned_agent`, and services/db.js's listLeads doc comment for why this
+ * is a display-name string match, not an id join. `waId` scopes it to one
  * customer's own submitted leads — customer inquiry history
  * (lib/customerInquiries.js). Callers must only ever pass a `waId` derived
  * server-side from the authenticated caller's own session, never a
@@ -78,10 +84,11 @@ export async function sendManualReply(id, text) {
  * assistant's tool-calling layer already follows (see root CLAUDE.md).
  * @returns {Promise<{total: number, limit: number, offset: number, count: number, data: Object[]}>}
  */
-export async function listLeads({ status, propertyIds, waId, limit, offset } = {}) {
+export async function listLeads({ status, propertyIds, assignedAgent, waId, limit, offset } = {}) {
   const params = new URLSearchParams();
   if (status) params.set('status', status);
   if (propertyIds?.length) params.set('property_ids', propertyIds.join(','));
+  if (assignedAgent) params.set('assigned_agent', assignedAgent);
   if (waId) params.set('wa_id', waId);
   if (limit) params.set('limit', String(limit));
   if (offset) params.set('offset', String(offset));

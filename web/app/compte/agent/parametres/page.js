@@ -1,5 +1,5 @@
 import { getCurrentAgentId } from '@/lib/agentSession';
-import { getAgentProfile } from '@/lib/agencies';
+import { getAgentProfile, agentDisplayName } from '@/lib/agencies';
 import AgentPageHeader from '@/components/AgentPageHeader';
 import { changeAgentPasswordAction } from '../actions';
 
@@ -16,7 +16,7 @@ export default async function AgentSettingsPage({ searchParams }) {
 
   const agentId = await getCurrentAgentId();
   const agent = await getAgentProfile(agentId);
-  const name = [agent.first_name, agent.last_name].filter(Boolean).join(' ') || agent.username || '—';
+  const name = agentDisplayName(agent) || '—';
 
   return (
     <>

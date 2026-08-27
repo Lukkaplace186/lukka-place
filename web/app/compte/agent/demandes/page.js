@@ -1,6 +1,6 @@
 import { Phone, Calculator, MapPin, Send } from 'lucide-react';
 import { getCurrentAgentId } from '@/lib/agentSession';
-import { getOwnListingsForDashboard } from '@/lib/agencies';
+import { getAgentProfile, getOwnListingsForDashboard, agentDisplayName } from '@/lib/agencies';
 import { listLeads } from '@/lib/adminApi';
 import { LEAD_STATUSES, LEAD_STATUS_LABELS_FR } from '@/lib/adminLabels';
 import { buildWhatsAppLink } from '@/lib/whatsapp';
@@ -39,13 +39,16 @@ export default async function AgentInquiriesPage({ searchParams }) {
   const statusFilter = typeof params.status === 'string' ? params.status : '';
 
   const agentId = await getCurrentAgentId();
+  const agent = await getAgentProfile(agentId);
   const listings = await getOwnListingsForDashboard(agentId);
   const propertyIds = listings.map((l) => l.id);
   const listingById = new Map(listings.map((l) => [l.id, l]));
+  const displayName = agentDisplayName(agent);
 
-  const leadsPage = propertyIds.length
-    ? await listLeads({ propertyIds, status: statusFilter || undefined, limit: 100 })
-    : { total: 0, data: [] };
+  const leadsPage =
+    propertyIds.length || displayName
+      ? await listLeads({ propertyIds, assignedAgent: displayName || undefined, status: statusFilter || undefined, limit: 100 })
+      : { total: 0, data: [] };
 
   return (
     <>
@@ -77,7 +80,9 @@ export default async function AgentInquiriesPage({ searchParams }) {
 
         {leadsPage.data.length === 0 ? (
           <div className="rounded-card border border-dashed border-line bg-white p-10 text-center text-sm text-ink-45">
-            {propertyIds.length === 0 ? 'Ajoutez un bien pour recevoir des demandes.' : 'Aucune demande pour ce filtre.'}
+            {listings.length === 0 && leadsPage.total === 0
+              ? 'Ajoutez un bien pour recevoir des demandes.'
+              : 'Aucune demande pour ce filtre.'}
           </div>
         ) : (
           leadsPage.data.map((lead) => {

@@ -12,7 +12,7 @@ import {
 } from '@/lib/agentAuth';
 import { bumpAgentTokenVersion, getAgentAuthById, resetAgentPassword } from '@/lib/agents';
 import { clearAgentSession, getCurrentAgentId, establishAgentSession } from '@/lib/agentSession';
-import { getOwnListingsForDashboard } from '@/lib/agencies';
+import { getAgentProfile, getOwnListingsForDashboard, agentDisplayName } from '@/lib/agencies';
 import { listLeads, updateLeadStatus } from '@/lib/adminApi';
 import { LEAD_STATUSES } from '@/lib/adminLabels';
 
@@ -76,11 +76,13 @@ export async function updateAgentLeadStatusAction(leadId, formData) {
   const status = String(formData.get('status') || '');
   if (!LEAD_STATUSES.includes(status)) throw new Error(`status must be one of: ${LEAD_STATUSES.join(', ')}`);
 
-  const listings = await getOwnListingsForDashboard(agentId);
+  const [agent, listings] = await Promise.all([getAgentProfile(agentId), getOwnListingsForDashboard(agentId)]);
   const propertyIds = listings.map((l) => l.id);
-  const { data } = propertyIds.length
-    ? await listLeads({ propertyIds, limit: 200 })
-    : { data: [] };
+  const displayName = agentDisplayName(agent);
+  const { data } =
+    propertyIds.length || displayName
+      ? await listLeads({ propertyIds, assignedAgent: displayName || undefined, limit: 200 })
+      : { data: [] };
   if (!data.some((lead) => lead.id === leadId)) throw new Error('Not your lead, or it does not exist.');
 
   await updateLeadStatus(leadId, status);

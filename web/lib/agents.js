@@ -72,6 +72,25 @@ export async function getAgents({ q } = {}) {
   return rows;
 }
 
+/**
+ * Public agent directory (web/app/(site)/agents/page.js) — active agents
+ * with at least one real listing behind them, matching this app's own
+ * no-empty-directory-entry convention (same reasoning as ExploreCommunes.js
+ * only showing a commune tile once a real listing exists there).
+ * listing_count is a correlated scalar subquery in AGENT_FIELDS, not an
+ * aggregate over this query's own rows, so the >0 filter happens in JS
+ * after the fetch rather than a SQL HAVING clause — real agent counts are
+ * small (tens, not thousands; see admin/dashboard's own "Agents actifs"
+ * stat), so this stays simple instead of restructuring the query.
+ */
+export async function getPublicAgents() {
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT ${AGENT_FIELDS} ${AGENT_JOINS} WHERE a.status = 1 ORDER BY listing_count DESC NULLS LAST`,
+  );
+  return rows.filter((r) => r.listing_count > 0);
+}
+
 export async function getAgentById(id) {
   const numericId = Number.parseInt(id, 10);
   if (!Number.isFinite(numericId)) return null;
@@ -102,6 +121,17 @@ export async function getAgentByPhone(phone) {
             reset_otp_code_hash, reset_otp_expires_at
      FROM agents WHERE phone = $1`,
     [phone],
+  );
+  return rows[0] || null;
+}
+
+/** Self-service settings (change-password form) — same auth-shape query as getAgentByPhone, keyed by id instead. */
+export async function getAgentAuthById(id) {
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT id, phone, email, username, password_hash, token_version, failed_login_count, locked_until
+     FROM agents WHERE id = $1`,
+    [id],
   );
   return rows[0] || null;
 }

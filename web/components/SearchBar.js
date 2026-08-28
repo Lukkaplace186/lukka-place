@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { ArrowUpRight, ArrowRight, Search, MapPin, ChevronDown } from 'lucide-react';
 import LocationAutocomplete from './LocationAutocomplete';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 
@@ -12,27 +13,32 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  * (components/property/SearchPanel.jsx), rendered at full container width.
  *
  * Three parts, in the design's order:
- *   1. an underline Tabs row (Louer / Acheter / Parcelles / Agents) — the
- *      design's own `homeTabs`, with a 3px royal-600 underline on the active
- *      tab over a 1px hairline, not the rounded pill group this used before
+ *   1. an underline Tabs row (Louer / Acheter / Agents) — the design's own
+ *      `homeTabs`, with a 3px royal-600 underline on the active tab over a
+ *      1px hairline, not the rounded pill group this used before. Parcelles
+ *      was dropped from this row: it's still reachable via the "Type de
+ *      bien" select, and a fourth tab was one too many against the site's
+ *      top nav also being trimmed down to À propos/Agents.
  *   2. a labelled field row: location (flex 2), Type de bien (flex 1),
- *      Budget max (flex 1), and a 56px primary Rechercher button
+ *      Budget (flex 1, a Zoopla-style min/max popover), and a 56px primary
+ *      Rechercher button
  *   3. a royal-700 strip carrying the "list your property" cross-sell
  *
  * Fields carry visible labels above them ("Commune, quartier ou référence",
- * "Type de bien", "Budget max") because the design's Input/Select do; the
+ * "Type de bien", "Budget") because the design's Input/Select do; the
  * previous version was placeholder-only.
  *
- * Tab behaviour: Louer/Acheter set transaction_type, Parcelles forces
- * property_type=parcelle and drops the now-redundant type select, and
- * Agents isn't a property search at all — there is no per-agent search
- * backend, so that tab swaps the field row for a single honest link to
- * /agents (the real directory) rather than a search box that does nothing.
+ * Tab behaviour: Louer/Acheter set transaction_type. Agents isn't a property
+ * search at all — there is no per-agent search backend, so that tab swaps
+ * the field row for a single honest link to /agents (the real directory)
+ * rather than a search box that does nothing.
  *
  * `propertyTypes` is real and DB-derived (getPropertyTypeFacets(), the same
  * source FilterBar's own pill uses), so a type with zero results is never
- * offered. `BUDGET_OPTIONS` is a small fixed set of round ceilings — a
- * filter-UI convenience, not a claim about the data.
+ * offered. `BUDGET_MIN_OPTIONS`/`BUDGET_MAX_OPTIONS` are a small fixed set
+ * of round steps — a filter-UI convenience, not a claim about the data —
+ * feeding the same `price_min`/`price_max` params FilterBar's own Prix pill
+ * already submits on /listings.
  *
  * Placeholder copy stays "Gombe, Ma Campagne" per the design, and the label
  * says "référence" (never "repère") per the root CLAUDE.md.
@@ -40,19 +46,34 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 const HOME_TABS = [
   { value: 'louer', label: 'Louer' },
   { value: 'acheter', label: 'Acheter' },
-  { value: 'parcelles', label: 'Parcelles' },
   { value: 'agents', label: 'Agents' },
 ];
 
 const TRANSACTION_BY_TAB = { louer: 'location', acheter: 'vente' };
 
-const BUDGET_OPTIONS = [
-  { value: '', label: 'Tous les budgets' },
-  { value: '500', label: 'Jusqu’à 500 $' },
-  { value: '1000', label: 'Jusqu’à 1 000 $' },
-  { value: '2000', label: 'Jusqu’à 2 000 $' },
-  { value: '5000', label: 'Jusqu’à 5 000 $' },
+const BUDGET_MIN_OPTIONS = [
+  { value: '', label: 'Sans min' },
+  { value: '200', label: '200 $' },
+  { value: '500', label: '500 $' },
+  { value: '1000', label: '1 000 $' },
+  { value: '2000', label: '2 000 $ et +' },
 ];
+
+const BUDGET_MAX_OPTIONS = [
+  { value: '', label: 'Sans max' },
+  { value: '500', label: '500 $' },
+  { value: '1000', label: '1 000 $' },
+  { value: '2500', label: '2 500 $' },
+  { value: '5000', label: '5 000 $ et +' },
+];
+
+function formatBudgetLabel(min, max) {
+  const fmt = (v) => `${Number(v).toLocaleString('fr-FR')} $`;
+  if (min && max) return `${fmt(min)} - ${fmt(max)}`;
+  if (max) return `Max ${fmt(max)}`;
+  if (min) return `Dès ${fmt(min)}`;
+  return 'Tous les budgets';
+}
 
 /** The design's Input/Select shell at size lg: 8px radius, 1px inset
  *  hairline, 16/18px padding, with the label sitting above it. */
@@ -71,15 +92,16 @@ const FIELD_SHELL =
 export default function SearchBar({ propertyTypes = [] }) {
   const [homeTab, setHomeTab] = useState('louer');
   const [propertyType, setPropertyType] = useState('');
+  const [budgetMin, setBudgetMin] = useState('');
   const [budgetMax, setBudgetMax] = useState('');
   const isAgentsTab = homeTab === 'agents';
-  const isParcellesTab = homeTab === 'parcelles';
   const sellHref = getCentralWhatsAppHref('Bonjour, je souhaite lister mon bien sur Lukka Place.');
   const locationRef = useRef(null);
 
   const extraParams = {
     transaction_type: TRANSACTION_BY_TAB[homeTab] || '',
-    property_type: isParcellesTab ? 'parcelle' : propertyType,
+    property_type: propertyType,
+    price_min: budgetMin,
     price_max: budgetMax,
   };
 
@@ -154,45 +176,82 @@ export default function SearchBar({ propertyTypes = [] }) {
             />
           </Field>
 
-          {/* Hidden on Parcelles: the tab itself already declares the type,
-              so a second control saying the same thing is redundant. */}
-          {!isParcellesTab ? (
-            <Field label="Type de bien" htmlFor="hero-type" className="sm:flex-[1_1_10.625rem]">
-              <div className={`${FIELD_SHELL} relative`}>
-                <select
-                  id="hero-type"
-                  value={propertyType}
-                  onChange={(e) => setPropertyType(e.target.value)}
-                  className="min-w-0 flex-1 appearance-none bg-transparent text-[1rem] font-medium text-ink focus:outline-none"
-                >
-                  <option value="">Tous les types</option>
-                  {propertyTypes.map(({ value, label, count }) => (
-                    <option key={value} value={value}>
-                      {label} ({count})
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown strokeWidth={ICON_STROKE_WIDTH} className="pointer-events-none h-4.5 w-4.5 shrink-0 text-ink-45" />
-              </div>
-            </Field>
-          ) : null}
-
-          <Field label="Budget max" htmlFor="hero-budget" className="sm:flex-[1_1_10.625rem]">
+          <Field label="Type de bien" htmlFor="hero-type" className="sm:flex-[1_1_10.625rem]">
             <div className={`${FIELD_SHELL} relative`}>
               <select
-                id="hero-budget"
-                value={budgetMax}
-                onChange={(e) => setBudgetMax(e.target.value)}
+                id="hero-type"
+                value={propertyType}
+                onChange={(e) => setPropertyType(e.target.value)}
                 className="min-w-0 flex-1 appearance-none bg-transparent text-[1rem] font-medium text-ink focus:outline-none"
               >
-                {BUDGET_OPTIONS.map(({ value, label }) => (
+                <option value="">Tous les types</option>
+                {propertyTypes.map(({ value, label, count }) => (
                   <option key={value} value={value}>
-                    {label}
+                    {label} ({count})
                   </option>
                 ))}
               </select>
               <ChevronDown strokeWidth={ICON_STROKE_WIDTH} className="pointer-events-none h-4.5 w-4.5 shrink-0 text-ink-45" />
             </div>
+          </Field>
+
+          {/* Zoopla-style budget popover: a single trigger showing the
+              current range, opening a two-column Prix min/Prix max panel —
+              replaces the old single "Budget max" <select>, which could
+              only ever express a ceiling, never a floor. */}
+          <Field label="Budget" className="sm:flex-[1_1_10.625rem]">
+            <Popover>
+              <PopoverTrigger className={`${FIELD_SHELL} w-full justify-between text-left`}>
+                <span className="min-w-0 flex-1 truncate text-[1rem] font-medium text-ink">
+                  {formatBudgetLabel(budgetMin, budgetMax)}
+                </span>
+                <ChevronDown strokeWidth={ICON_STROKE_WIDTH} className="h-4.5 w-4.5 shrink-0 text-ink-45" />
+              </PopoverTrigger>
+              <PopoverContent align="start" sideOffset={8} className="w-[min(22rem,calc(100vw-2rem))] rounded-lg border-line bg-surface p-4 u-lift">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="hero-budget-min" className="u-eyebrow mb-2 block">
+                      Prix min
+                    </label>
+                    <div className={`${FIELD_SHELL} relative px-3 py-2.5`}>
+                      <select
+                        id="hero-budget-min"
+                        value={budgetMin}
+                        onChange={(e) => setBudgetMin(e.target.value)}
+                        className="min-w-0 flex-1 appearance-none bg-transparent text-[0.875rem] font-medium text-ink focus:outline-none"
+                      >
+                        {BUDGET_MIN_OPTIONS.map(({ value, label }) => (
+                          <option key={value} value={value}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown strokeWidth={ICON_STROKE_WIDTH} className="pointer-events-none h-4 w-4 shrink-0 text-ink-45" />
+                    </div>
+                  </div>
+                  <div>
+                    <label htmlFor="hero-budget-max" className="u-eyebrow mb-2 block">
+                      Prix max
+                    </label>
+                    <div className={`${FIELD_SHELL} relative px-3 py-2.5`}>
+                      <select
+                        id="hero-budget-max"
+                        value={budgetMax}
+                        onChange={(e) => setBudgetMax(e.target.value)}
+                        className="min-w-0 flex-1 appearance-none bg-transparent text-[0.875rem] font-medium text-ink focus:outline-none"
+                      >
+                        {BUDGET_MAX_OPTIONS.map(({ value, label }) => (
+                          <option key={value} value={value}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown strokeWidth={ICON_STROKE_WIDTH} className="pointer-events-none h-4 w-4 shrink-0 text-ink-45" />
+                    </div>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
           </Field>
 
           <button

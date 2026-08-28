@@ -19,14 +19,13 @@ const ACCOUNT_LINKS = [
   { href: '/compte/alertes', label: 'Alertes', icon: Bell },
 ];
 
-// Order and set match web/Design's own header exactly: Acheter, Louer,
-// Parcelles, À propos — previously this was missing Parcelles entirely and
-// had Louer/Acheter reversed.
+// Trimmed to the two links the top bar keeps: browsing (Acheter/Louer/
+// Parcelles) already lives in the hero search tabs and FilterBar's
+// transaction pill, so it doesn't need a second copy here. "Devenir Agence
+// Partenaire" stays a separate CTA button below, not a text link.
 const PRIMARY_LINKS = [
-  { href: '/listings?transaction_type=vente', label: 'Acheter' },
-  { href: '/listings?transaction_type=location', label: 'Louer' },
-  { href: '/listings?property_type=parcelle', label: 'Parcelles' },
   { href: '/a-propos', label: 'À propos' },
+  { href: '/agents', label: 'Agents' },
 ];
 
 /**

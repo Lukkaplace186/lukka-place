@@ -21,7 +21,7 @@ export default async function CommuneShortcuts() {
 
   return (
     <section className="bg-surface">
-      <div className="mx-auto max-w-[1240px] px-4 pt-10 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1240px] px-4 pt-6 sm:px-6 lg:px-8">
         {/* -mx-4/px-4 lets the row bleed to the true viewport edge on mobile
             (so the first/last chip isn't flush against the container's own
             padding) while overflow-x-auto + no-scrollbar (globals.css) gives

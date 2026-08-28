@@ -1,131 +1,226 @@
+import Link from 'next/link';
+import { Image as ImageIcon, ExternalLink, MessageCircle, Plus } from 'lucide-react';
 import { getCurrentAgentId } from '@/lib/agentSession';
-import { getOwnListingsForDashboard } from '@/lib/agencies';
+import { getAgentDashboardContext } from '@/lib/agentDashboard';
 import { getPerListingStats } from '@/lib/analytics';
 import { formatPrice } from '@/lib/format';
-import { Image as ImageIcon } from 'lucide-react';
+import { getCentralWhatsAppHref } from '@/lib/whatsapp';
+import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import SafeImage from '@/components/SafeImage';
 import AgentPageHeader from '@/components/AgentPageHeader';
+import AgentListingStatusSelect from '@/components/AgentListingStatusSelect';
 import { updateListingStatusAction } from '../actions';
 
-const LISTING_STATUS_LABELS = { active: 'Actif', under_offer: 'Sous compromis', closed: 'Loué / Vendu' };
-const APPROVE_STATUS_LABELS = { 0: 'En attente', 1: 'Approuvé', 2: 'Rejeté' };
+const LISTING_STATUS_OPTIONS = [
+  { value: 'active', label: 'Actif' },
+  { value: 'under_offer', label: 'Sous compromis' },
+  { value: 'closed', label: 'Loué / Vendu' },
+];
 
-const STATUS_PILL = {
-  active: 'bg-green-tint text-green-deep',
-  under_offer: 'bg-brass-tint text-brass-deep',
-  closed: 'bg-canvas-deep text-ink-70',
+const APPROVE_STATUS = {
+  0: { label: 'En attente', className: 'bg-warning-tint text-warning' },
+  1: { label: 'Publié', className: 'bg-success-tint text-success' },
+  2: { label: 'Rejeté', className: 'bg-danger-tint text-danger' },
 };
+
+// Written out as a full literal (not composed or .replace()-d at runtime):
+// Tailwind scans source text, so an arbitrary-value class it never sees
+// spelled out simply doesn't get generated — see web/CLAUDE.md.
+const GRID_COLS = 'lg:grid-cols-[minmax(0,2.4fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,1.3fr)_minmax(0,1.2fr)]';
 
 export default async function AgentListingsPage({ searchParams }) {
   const params = await searchParams;
   const statusFilter = typeof params.status === 'string' ? params.status : '';
+  const q = typeof params.q === 'string' ? params.q.trim() : '';
 
   const agentId = await getCurrentAgentId();
-  const listings = await getOwnListingsForDashboard(agentId);
-  const propertyIds = listings.map((l) => l.id);
+  const { listings, propertyIds, newLeadsCount } = await getAgentDashboardContext(agentId);
   const perListingStats = await getPerListingStats(propertyIds);
 
-  const filtered = statusFilter ? listings.filter((l) => l.listing_status === statusFilter) : listings;
+  const needle = q.toLowerCase();
+  const filtered = listings.filter((l) => {
+    if (statusFilter && l.listing_status !== statusFilter) return false;
+    if (!needle) return true;
+    return `${l.title || ''} ${l.quartier || ''}`.toLowerCase().includes(needle);
+  });
 
-  const activeCount = listings.filter((l) => l.listing_status === 'active').length;
-  const closedCount = listings.filter((l) => l.listing_status === 'closed').length;
-  const underOfferCount = listings.filter((l) => l.listing_status === 'under_offer').length;
+  const counts = LISTING_STATUS_OPTIONS.map(
+    (o) => `${listings.filter((l) => l.listing_status === o.value).length} ${o.label.toLowerCase()}`,
+  ).join(' · ');
+
+  const addListingHref = getCentralWhatsAppHref(
+    'Bonjour, je souhaite ajouter une nouvelle propriété à mon compte agent.',
+  );
 
   return (
     <>
       <AgentPageHeader
         title="Mes biens"
-        subtitle={`${listings.length} bien${listings.length === 1 ? '' : 's'} · ${activeCount} actif${activeCount === 1 ? '' : 's'} · ${underOfferCount} sous compromis · ${closedCount} loué/vendu`}
+        newLeadsCount={newLeadsCount}
+        searchAction="/compte/agent/biens"
+        searchDefaultValue={q}
+        searchPlaceholder="Rechercher un bien"
+        hiddenSearchFields={{ status: statusFilter }}
       />
 
-      <div className="px-5 py-6 sm:px-8">
-        <div className="mb-4 flex justify-end">
-          <form method="get" className="flex items-center gap-2">
-            <select
-              name="status"
-              defaultValue={statusFilter}
-              className="rounded-md border border-line bg-white px-2.5 py-1.5 text-sm text-ink"
-            >
-              <option value="">Tous les statuts</option>
-              {Object.entries(LISTING_STATUS_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-            <button type="submit" className="rounded-md border border-line bg-white px-3 py-1.5 text-sm font-medium text-ink hover:bg-canvas-alt">
-              Filtrer
-            </button>
-          </form>
-        </div>
-
-        {filtered.length === 0 ? (
-          <div className="rounded-card border border-dashed border-line bg-white p-10 text-center text-sm text-ink-45">
-            {listings.length === 0 ? 'Aucune annonce pour le moment.' : 'Aucune annonce pour ce statut.'}
-          </div>
-        ) : (
-          <div className="overflow-hidden rounded-card border border-line bg-white">
-            <div className="grid grid-cols-[minmax(0,2.4fr)_1fr_1fr_1.3fr] gap-3 border-b border-line bg-canvas-alt px-5 py-2.5 text-[0.6875rem] font-bold uppercase tracking-wide text-ink-35">
-              <div>Bien</div>
-              <div>Prix</div>
-              <div>Vues / Clics</div>
-              <div>Statut</div>
+      <div className="px-5 py-7 sm:px-8">
+        <div className="u-card overflow-hidden rounded-card bg-surface">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-line px-6 py-5">
+            <div>
+              <div className="text-[1.125rem] font-bold text-ink">
+                {listings.length} bien{listings.length === 1 ? '' : 's'}
+              </div>
+              <div className="mt-0.5 text-[0.8125rem] text-ink-45">{counts}</div>
             </div>
-            {filtered.map((listing) => {
-              const boundStatus = updateListingStatusAction.bind(null, listing.id);
-              return (
-                <div
-                  key={listing.id}
-                  className="grid grid-cols-[minmax(0,2.4fr)_1fr_1fr_1.3fr] items-center gap-3 border-b border-line px-5 py-3.5 last:border-b-0"
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              <form method="get" className="flex items-center gap-2">
+                {q && <input type="hidden" name="q" value={q} />}
+                <select
+                  name="status"
+                  defaultValue={statusFilter}
+                  aria-label="Filtrer par statut"
+                  className="u-focus-ring h-10 w-[10.625rem] rounded-lg border border-line bg-surface px-3 text-[0.8125rem] font-medium text-ink"
                 >
-                  <div className="flex min-w-0 items-center gap-3.5">
-                    <div className="h-12 w-16 shrink-0 overflow-hidden rounded-lg bg-canvas-deep">
-                      {listing.featured_image ? (
-                        <SafeImage
-                          src={listing.featured_image}
-                          alt=""
-                          width={64}
-                          height={48}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-ink-25">
-                          <ImageIcon className="h-4 w-4" />
+                  <option value="">Tous les statuts</option>
+                  {LISTING_STATUS_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="submit"
+                  className="u-btn-secondary u-press h-10 rounded-lg px-3.5 text-[0.8125rem] font-bold text-ink"
+                >
+                  Filtrer
+                </button>
+              </form>
+
+              {addListingHref && (
+                <a
+                  href={addListingHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="u-btn-secondary u-press inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 text-[0.8125rem] font-bold text-ink"
+                >
+                  <Plus strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                  Ajouter un bien
+                </a>
+              )}
+            </div>
+          </div>
+
+          {filtered.length === 0 ? (
+            <div className="px-6 py-16 text-center text-sm text-ink-45">
+              {listings.length === 0
+                ? 'Aucune annonce pour le moment. Envoyez votre premier bien sur WhatsApp pour le publier.'
+                : 'Aucune annonce ne correspond à ces filtres.'}
+            </div>
+          ) : (
+            <>
+              <div
+                // lg:gap-3 must match the data rows below exactly — without
+                // it the header's five columns are each ~17px wider (the
+                // four 12px gaps the rows spend and the header doesn't), so
+                // every column label sits off its own column.
+                className={`hidden ${GRID_COLS} bg-canvas-alt px-6 py-3 text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-ink-35 lg:grid lg:gap-3`}
+              >
+                <div>Bien</div>
+                <div>Prix</div>
+                <div>Vues</div>
+                <div>Statut</div>
+                <div className="text-right">Actions</div>
+              </div>
+
+              {filtered.map((listing) => {
+                const boundStatus = updateListingStatusAction.bind(null, listing.id);
+                const approve = APPROVE_STATUS[listing.approve_status];
+                const editHref = getCentralWhatsAppHref(
+                  `Bonjour, je souhaite modifier mon annonce « ${listing.title} » (réf. ${listing.id}).`,
+                );
+
+                return (
+                  <div
+                    key={listing.id}
+                    className={`flex flex-wrap items-center gap-4 border-t border-line px-6 py-4 lg:grid ${GRID_COLS} lg:gap-3`}
+                  >
+                    <div className="flex min-w-0 flex-1 items-center gap-3.5 lg:flex-none">
+                      <div className="grid h-12 w-16 shrink-0 place-items-center overflow-hidden rounded-[10px] bg-canvas-deep text-ink-25">
+                        {listing.featured_image ? (
+                          <SafeImage
+                            src={listing.featured_image}
+                            alt=""
+                            width={64}
+                            height={48}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <ImageIcon strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-bold text-ink">{listing.title}</div>
+                        <div className="mt-[3px] flex items-center gap-2 text-xs text-ink-45">
+                          <span className="truncate">{listing.quartier || 'Localisation non précisée'}</span>
+                          {approve && (
+                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[0.625rem] font-bold ${approve.className}`}>
+                              {approve.label}
+                            </span>
+                          )}
                         </div>
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-bold text-ink">{listing.title}</div>
-                      <div className="mt-0.5 text-xs text-ink-45">
-                        {listing.quartier || '—'} · {APPROVE_STATUS_LABELS[listing.approve_status] || '—'}
                       </div>
                     </div>
+
+                    <div className="u-tabular text-sm font-bold text-ink">
+                      {formatPrice(listing.price, listing.purpose)}
+                    </div>
+
+                    <div className="u-tabular text-sm text-ink-70">
+                      <span className="lg:hidden">Vues : </span>
+                      {(perListingStats.views[listing.id] || 0).toLocaleString('fr-FR')}
+                    </div>
+
+                    <form action={boundStatus}>
+                      <AgentListingStatusSelect
+                        name="listing_status"
+                        defaultValue={listing.listing_status}
+                        options={LISTING_STATUS_OPTIONS}
+                        label={`Statut de ${listing.title}`}
+                      />
+                    </form>
+
+                    <div className="flex items-center justify-end gap-1.5">
+                      {listing.approve_status === 1 && (
+                        <Link
+                          href={`/listings/${listing.id}`}
+                          target="_blank"
+                          aria-label={`Voir l'annonce ${listing.title}`}
+                          title="Voir l'annonce publique"
+                          className="u-press grid h-[2.125rem] w-[2.125rem] place-items-center rounded-lg text-ink-45 transition-colors hover:bg-canvas-alt hover:text-ink"
+                        >
+                          <ExternalLink strokeWidth={ICON_STROKE_WIDTH} className="h-[1.0625rem] w-[1.0625rem]" />
+                        </Link>
+                      )}
+                      {editHref && (
+                        <a
+                          href={editHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          aria-label={`Demander une modification de ${listing.title}`}
+                          title="Demander une modification sur WhatsApp"
+                          className="u-press grid h-[2.125rem] w-[2.125rem] place-items-center rounded-lg text-ink-45 transition-colors hover:bg-canvas-alt hover:text-ink"
+                        >
+                          <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-[1.0625rem] w-[1.0625rem]" />
+                        </a>
+                      )}
+                    </div>
                   </div>
-                  <div className="u-tabular text-sm font-bold text-ink">{formatPrice(listing.price, listing.purpose)}</div>
-                  <div className="u-tabular text-sm text-ink-70">
-                    {perListingStats.views[listing.id] || 0} / {perListingStats.clicks[listing.id] || 0}
-                  </div>
-                  <form action={boundStatus} className="flex items-center gap-1.5">
-                    <select
-                      name="listing_status"
-                      defaultValue={listing.listing_status}
-                      className={`appearance-none rounded-full border-0 px-3 py-1.5 text-xs font-bold ${STATUS_PILL[listing.listing_status] || STATUS_PILL.active}`}
-                    >
-                      {Object.entries(LISTING_STATUS_LABELS).map(([value, label]) => (
-                        <option key={value} value={value}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                    <button type="submit" className="rounded-full border border-line px-2 py-1 text-xs font-medium text-ink hover:bg-canvas-alt">
-                      OK
-                    </button>
-                  </form>
-                </div>
-              );
-            })}
-          </div>
-        )}
+                );
+              })}
+            </>
+          )}
+        </div>
       </div>
     </>
   );

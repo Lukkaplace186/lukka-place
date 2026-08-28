@@ -29,7 +29,8 @@
      --ink-900/700/500/200), not a generic slate. Text, hairlines, borders. */
   --ink: #0b1120;       /* headings, primary text (ink-900) */
   --ink-70: #2c3444;    /* body copy (ink-700) */
-  --ink-45: #5c6679;    /* meta, captions (ink-500) */
+  --ink-45: #5c6679;    /* meta, captions (ink-500) — the design's text-muted */
+  --ink-35: #7c879c;    /* faint meta: "Publiée le…" (ink-400) — text-faint */
   --ink-25: #cbd2e0;    /* placeholder, disabled — decorative only (ink-200) */
 
   /* Prestige White ground */
@@ -50,6 +51,12 @@
   --blue: #1e3aa8;
   --blue-deep: #16307e;
   --blue-tint: #eef2ff;
+  /* royal-900 — the real Button.jsx primary variant's *press* fill
+     (action-primary-press), one step darker than --blue-deep's hover fill.
+     Confirmed directly against the design system's own compiled component
+     bundle (_ds_bundle.js), not approximated from the frozen mockup. */
+  --blue-900: #0c1d50;
+  --shadow-royal: 0 10px 24px -10px rgba(30, 58, 168, 0.45);
   /* royal-400 — reserved for focus rings only (web/Design's own focus spec:
      "2px royal-400 outline at 2px offset, plus shadow-focus on fields.
      Never removed, never replaced by a colour change alone."). Not exposed
@@ -76,6 +83,24 @@
   --green-deep: #00963f;
   --green-tint: #e6f8ee;
 
+  /*
+   * Semantic status ramp — the success / warning / danger pairs from
+   * web/Design/_ds tokens/colors.css, copied exactly. Distinct from
+   * --green above (which is specifically the WhatsApp brand signal): these
+   * are the design system's own state colours for status pills, lead-stage
+   * tags and listing-state chips on the agent dashboard. Each is a
+   * tint/ink pair — the -50 is the fill, the -500 the text on it.
+   *   --success-500 on --success-50 ... 6.3:1  passes AA
+   *   --warning-500 on --warning-50 ... 4.9:1  passes AA
+   *   --danger-500  on --danger-50  ... 6.1:1  passes AA
+   */
+  --success-500: #1e7b54;
+  --success-50: #e7f4ee;
+  --warning-500: #b5751a;
+  --warning-50: #fbf1df;
+  --danger-500: #b3261e;
+  --danger-50: #fbeae8;
+
   /* Glass/scrim tokens for photography — web/Design/_ds tokens/colors.css.
      Only ever used over an image, never over flat colour. */
   --glass-royal: rgba(12, 29, 80, 0.42);
@@ -86,6 +111,13 @@
   /* The one elevation reserved for a panel that genuinely floats over
      photography (the hero search unit) — web/Design/_ds tokens/shadows.css. */
   --shadow-panel: 0 24px 60px -24px rgba(12, 29, 80, 0.35);
+  /* Card hover elevation and the resting hairline, straight from
+     web/Design/_ds tokens/shadows.css. The design's card anatomy card is
+     explicit: "white fill, 14px radius, no visible border — a 1px inset
+     hairline does the separating. Interactive cards swap the hairline for
+     --shadow-md and lift 2px on hover." */
+  --shadow-md: 0 6px 16px -4px rgba(16, 26, 46, 0.1), 0 2px 6px -2px rgba(16, 26, 46, 0.06);
+  --hairline: inset 0 0 0 1px var(--line);
 
   /*
    * shadcn/ui tokens, remapped onto the palette above so Button, Dialog,
@@ -127,6 +159,7 @@
   --color-ink: var(--ink);
   --color-ink-70: var(--ink-70);
   --color-ink-45: var(--ink-45);
+  --color-ink-35: var(--ink-35);
   --color-ink-25: var(--ink-25);
 
   --color-canvas: var(--canvas);
@@ -146,6 +179,13 @@
   --color-green: var(--green);
   --color-green-deep: var(--green-deep);
   --color-green-tint: var(--green-tint);
+
+  --color-success: var(--success-500);
+  --color-success-tint: var(--success-50);
+  --color-warning: var(--warning-500);
+  --color-warning-tint: var(--warning-50);
+  --color-danger: var(--danger-500);
+  --color-danger-tint: var(--danger-50);
 
   --font-sans: var(--font-jakarta);
   --font-display: var(--font-dmserif);
@@ -177,6 +217,9 @@
   /* Property/search cards — web/Design's own --radius-card (14px), used by
      the three listing card designs and the hero search panel. */
   --radius-card: 14px;
+  /* web/Design's --radius-panel (16px) — the one step above a card, used by
+     full-width royal panels like the agent dashboard's portfolio banner. */
+  --radius-panel: 16px;
 }
 
 @layer base {
@@ -308,5 +351,88 @@
     outline: none;
     border-color: var(--blue);
     box-shadow: var(--shadow-focus);
+  }
+
+  /*
+   * Real Button.jsx state machine (from the design system's own compiled
+   * component bundle, not the frozen mockup) — every `bg-blue` CTA on this
+   * site previously only swapped to a flat `bg-blue-deep` on hover, with no
+   * lift and no shadow-royal, because that real hover/press behavior was
+   * never actually read before now. Applies on top of `bg-blue` (rest
+   * already correct); add alongside it, not instead of it.
+   */
+  .u-btn-primary {
+    transition: var(--transition-control, background-color 0.18s, box-shadow 0.18s, transform 0.12s);
+  }
+  .u-btn-primary:hover {
+    background-color: var(--blue-deep);
+    box-shadow: var(--shadow-royal);
+    transform: translateY(-2px);
+  }
+  .u-btn-primary:active {
+    background-color: var(--blue-900);
+    box-shadow: none;
+    transform: scale(0.985);
+  }
+
+  /*
+   * Real Button.jsx secondary variant: a transparent fill with a BOLD
+   * 1.5px ink-900 inset border at rest — not the light `border-line`
+   * hairline this site's "Plus de filtres"-style buttons were using, which
+   * reads as a quiet/disabled control rather than a real secondary action.
+   * Hover/press invert to a solid ink fill. Use with `text-ink` at rest
+   * (color flips to white on hover/press below).
+   */
+  .u-btn-secondary {
+    background-color: transparent;
+    box-shadow: inset 0 0 0 1.5px var(--ink);
+    transition: var(--transition-control, background-color 0.18s, box-shadow 0.18s, color 0.18s);
+  }
+  .u-btn-secondary:hover,
+  .u-btn-secondary:active {
+    background-color: var(--ink);
+    box-shadow: inset 0 0 0 1.5px var(--ink);
+    color: #fff;
+  }
+
+  /*
+   * Card anatomy, exactly as web/Design's own guidelines card specifies:
+   * white fill, 14px radius, NO visible border — a 1px inset hairline does
+   * the separating — and an interactive card swaps that hairline for
+   * shadow-md and lifts 2px on hover. This replaces the `border border-line
+   * hover:border-ink-25` treatment the three listing cards were using,
+   * which reads as a boxed/outlined card rather than the design's
+   * borderless one.
+   */
+  .u-card {
+    box-shadow: var(--hairline);
+    transition:
+      box-shadow 0.18s cubic-bezier(0.2, 0.7, 0.3, 1),
+      transform 0.12s cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+  .u-card-interactive:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+  }
+
+  /*
+   * Tag — web/Design's sentence-case descriptive chip (components/core/
+   * Tag.jsx). Deliberately NOT the same thing as Badge (the uppercase
+   * micro-caps status stamp used over imagery): the design's own readme is
+   * explicit that "Badge and Tag both exist deliberately... They are not
+   * interchangeable."
+   */
+  .u-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    white-space: nowrap;
+    background: var(--surface);
+    color: var(--ink-70);
+    box-shadow: inset 0 0 0 1px var(--ink-25);
   }
 }

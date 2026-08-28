@@ -2,27 +2,36 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { BarChart3, Landmark, Mail, SlidersHorizontal, LogOut } from 'lucide-react';
+import { BarChart3, Landmark, Mail, SlidersHorizontal, Building2 } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { Wordmark } from './Brand';
 
 /**
- * Agent dashboard app shell nav — mirrors app/admin/AdminSidebar.js's
- * structure (usePathname-driven active state, a `mobile` rendering for
- * small screens) but on a white rail with a royal-fill active pill, per
- * web/Design's "Espace agent" screen — the admin console's own solid
- * blue-deep rail is a different, internal-tool register on purpose.
+ * The design's 260px agent rail (web/Design "Espace agent"), cloned:
+ * white column with a hairline right border, the logo lockup over an
+ * "Espace agent" eyebrow, an icon nav whose active item takes a solid
+ * royal-600 fill and whose counts ride in a pill, a "Profil complété"
+ * progress card pinned to the bottom, and the account block under it.
  *
- * `listingsCount`/`newLeadsCount` are real counts passed down from
- * app/compte/agent/layout.js's own fetch (own listings length, leads with
- * status='NEW'); no fabricated badge is ever shown when a count is 0 or
- * undefined — the badge only renders for a truthy count, same convention
- * the source design's own `count && ...` guard used.
+ * Deliberately NOT the admin console's solid blue-deep rail
+ * (app/admin/AdminSidebar.js) — the design gives the agent surface a white
+ * rail and the internal console a royal one, and that contrast is the point.
+ *
+ * Every number here is real: `listingsCount` is the agent's own listing
+ * count, `newLeadsCount` is a real count of leads at status NEW, and
+ * `completion` is computed by lib/agencies.js's agentProfileCompletion from
+ * fields that actually exist and actually change what a visitor sees. The
+ * design's own 82 % / "Ajoutez une photo de couverture" is sample data —
+ * there is no cover-photo column on this schema, so that specific hint
+ * never appears; the real next gap does.
+ *
+ * Below `lg` this renders as the design's mobile tab bar instead (its phone
+ * frame shows the same four destinations along the bottom).
  */
 const NAV = [
   { href: '/compte/agent', label: "Vue d'ensemble", short: 'Vue', icon: BarChart3, exact: true },
   { href: '/compte/agent/biens', label: 'Mes biens', short: 'Biens', icon: Landmark, countKey: 'listings' },
-  { href: '/compte/agent/demandes', label: 'Demandes', short: 'Demandes', icon: Mail, countKey: 'leads' },
+  { href: '/compte/agent/demandes', label: 'Demandes & messages', short: 'Demandes', icon: Mail, countKey: 'leads' },
   { href: '/compte/agent/parametres', label: 'Paramètres', short: 'Réglages', icon: SlidersHorizontal },
 ];
 
@@ -30,13 +39,20 @@ function isActive(pathname, item) {
   return item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`);
 }
 
-export default function AgentSidebar({ agentName, agentInitials, listingsCount, newLeadsCount, logoutAction }) {
+export default function AgentSidebar({
+  agentName,
+  agentInitials,
+  listingsCount,
+  newLeadsCount,
+  completion,
+  logoutAction,
+}) {
   const pathname = usePathname();
   const counts = { listings: listingsCount, leads: newLeadsCount };
 
   return (
     <>
-      <aside className="sticky top-0 hidden h-screen w-[260px] shrink-0 flex-col gap-7 border-r border-line bg-white px-4 py-6 lg:flex">
+      <aside className="sticky top-0 hidden h-screen w-[260px] shrink-0 flex-col gap-7 border-r border-line bg-surface px-4 py-6 lg:flex">
         <div className="px-2">
           <Wordmark />
           <div className="mt-1 text-[0.6875rem] font-bold uppercase tracking-[0.16em] text-ink-35">Espace agent</div>
@@ -51,7 +67,7 @@ export default function AgentSidebar({ agentName, agentInitials, listingsCount, 
                 key={item.href}
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
-                className={`flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-sm font-semibold transition-colors ${
+                className={`flex items-center gap-3 rounded-[10px] px-3 py-[0.6875rem] text-sm font-semibold transition-colors ${
                   active ? 'bg-blue text-white' : 'text-ink-70 hover:bg-canvas-alt'
                 }`}
               >
@@ -59,8 +75,8 @@ export default function AgentSidebar({ agentName, agentInitials, listingsCount, 
                 <span className="flex-1 text-left">{item.label}</span>
                 {!!count && (
                   <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-                      active ? 'bg-white/25 text-white' : 'bg-canvas-deep text-ink-70'
+                    className={`u-tabular rounded-full px-2 py-0.5 text-xs font-bold ${
+                      active ? 'bg-white/[0.22] text-white' : 'bg-canvas-deep text-ink-70'
                     }`}
                   >
                     {count}
@@ -71,15 +87,34 @@ export default function AgentSidebar({ agentName, agentInitials, listingsCount, 
           })}
         </nav>
 
-        <div className="mt-auto flex items-center gap-2.5 px-2">
+        {completion && (
+          <div className="mt-auto flex flex-col gap-3 rounded-card bg-canvas-alt p-4">
+            <div className="flex items-center justify-between text-[0.8125rem] font-semibold text-ink-70">
+              <span>Profil complété</span>
+              <span className="u-tabular">{completion.percent} %</span>
+            </div>
+            <div
+              className="h-1.5 overflow-hidden rounded-full bg-line"
+              role="progressbar"
+              aria-valuenow={completion.percent}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label="Profil complété"
+            >
+              <div className="h-full rounded-full bg-blue transition-all" style={{ width: `${completion.percent}%` }} />
+            </div>
+            {completion.nextHint && <p className="text-xs leading-relaxed text-ink-45">{completion.nextHint}</p>}
+          </div>
+        )}
+
+        <div className={`flex items-center gap-2.5 px-2 ${completion ? '' : 'mt-auto'}`}>
           <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-blue-tint text-[0.8125rem] font-extrabold text-blue-deep">
-            {agentInitials}
+            {agentInitials || <Building2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />}
           </div>
           <div className="min-w-0 flex-1">
             <div className="truncate text-[0.8125rem] font-bold text-ink">{agentName}</div>
             <form action={logoutAction}>
-              <button type="submit" className="inline-flex items-center gap-1 text-xs text-ink-45 hover:text-ink">
-                <LogOut strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
+              <button type="submit" className="text-xs text-ink-45 transition-colors hover:text-ink">
                 Se déconnecter
               </button>
             </form>
@@ -100,20 +135,14 @@ export default function AgentSidebar({ agentName, agentInitials, listingsCount, 
                 key={item.href}
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
-                className={`u-press relative flex flex-col items-center gap-1 py-2.5 text-[0.625rem] font-medium tracking-[0.02em] transition-colors ${
-                  active ? 'text-blue-deep' : 'text-ink-45'
+                className={`u-press relative flex flex-col items-center gap-1 py-2.5 text-[0.6875rem] font-semibold transition-colors ${
+                  active ? 'text-blue' : 'text-ink-35'
                 }`}
               >
-                <span
-                  aria-hidden="true"
-                  className={`absolute inset-x-0 top-0 mx-auto h-[2px] rounded-b-full bg-blue transition-all ${
-                    active ? 'w-8 opacity-100' : 'w-0 opacity-0'
-                  }`}
-                />
                 <span className="relative">
                   <item.icon strokeWidth={ICON_STROKE_WIDTH} className="h-[1.375rem] w-[1.375rem]" />
                   {!!count && (
-                    <span className="absolute -right-1.5 -top-1 rounded-full bg-blue px-[5px] text-[0.5625rem] font-bold text-white">
+                    <span className="u-tabular absolute -right-2 -top-1 rounded-full bg-blue px-[5px] text-[0.5625rem] font-bold text-white">
                       {count}
                     </span>
                   )}

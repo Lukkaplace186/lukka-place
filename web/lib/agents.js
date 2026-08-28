@@ -22,7 +22,7 @@ const AGENT_FIELDS = `
   a.id, a.username, a.email, a.phone, a.status, a.vendor_id, a.image, a.primary_communes,
   a.phone_verified_at,
   v.username AS vendor_username,
-  ai.first_name, ai.last_name,
+  ai.first_name, ai.last_name, ai.address, ai.city,
   p.title AS package_title, p.number_of_property AS listing_limit,
   m.expire_date,
   (SELECT count(*) FROM properties WHERE agent_id = a.id)::int AS listing_count
@@ -41,7 +41,7 @@ const AGENT_JOINS = `
   FROM agents a
   LEFT JOIN vendors v ON v.id = a.vendor_id
   LEFT JOIN LATERAL (
-    SELECT first_name, last_name FROM agent_infos
+    SELECT first_name, last_name, address, city FROM agent_infos
     WHERE agent_id = a.id
     ORDER BY (language_id = 20) DESC, language_id
     LIMIT 1

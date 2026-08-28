@@ -16,3 +16,36 @@ export function formatPrice(price, purpose, pricePeriod) {
   if (purpose !== 'rent') return `${amount} $`;
   return pricePeriod === 'an' ? `${amount} $ / an` : `${amount} $ / mois`;
 }
+
+const RELATIVE_FR = new Intl.RelativeTimeFormat('fr-FR', { numeric: 'auto' });
+const RELATIVE_STEPS = [
+  { unit: 'year', ms: 365 * 24 * 60 * 60 * 1000 },
+  { unit: 'month', ms: 30 * 24 * 60 * 60 * 1000 },
+  { unit: 'day', ms: 24 * 60 * 60 * 1000 },
+  { unit: 'hour', ms: 60 * 60 * 1000 },
+  { unit: 'minute', ms: 60 * 1000 },
+];
+
+/**
+ * "il y a 2 h" / "hier" — the design's own relative-time phrasing for lead
+ * rows, computed from the real timestamp rather than stored as prose.
+ *
+ * The engine's SQLite timestamps come back as `YYYY-MM-DD HH:MM:SS` in UTC
+ * with no zone marker, which `new Date()` would otherwise read as *local*
+ * time — an hours-wide error that reads as "dans 2 heures" for a lead that
+ * just arrived. The `.replace(' ', 'T') + 'Z'` normalisation below is what
+ * every other lead-rendering call site in this app already does; it lives
+ * here now so there is one copy of it.
+ */
+export function formatRelativeFr(value) {
+  if (!value) return '—';
+  const date = value instanceof Date ? value : new Date(`${String(value).replace(' ', 'T')}Z`);
+  if (Number.isNaN(date.getTime())) return '—';
+
+  const diff = date.getTime() - Date.now();
+  const abs = Math.abs(diff);
+  for (const { unit, ms } of RELATIVE_STEPS) {
+    if (abs >= ms) return RELATIVE_FR.format(Math.round(diff / ms), unit);
+  }
+  return "à l'instant";
+}

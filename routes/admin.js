@@ -315,7 +315,23 @@ router.post('/send-whatsapp', async (req, res) => {
   }
 
   try {
-    await chakra.sendWhatsAppMessage(phone, message);
+    // Log Meta's accepted-message envelope, not just failures. A Cloud API
+    // send can return 200 with a real message id and still never reach the
+    // handset (24h customer-service window, an app still in development
+    // mode with an allow-list of test recipients, a number with no WhatsApp
+    // account). Without this line those cases are indistinguishable from a
+    // message that was delivered, because the only other log here fires on
+    // throw — which is exactly the dead end an OTP that "sends" but never
+    // arrives leaves you in.
+    const result = await chakra.sendWhatsAppMessage(phone, message);
+    console.log(
+      `[admin] send-whatsapp to ${phone} accepted by Meta: ${JSON.stringify({
+        messageId: result?.messages?.[0]?.id ?? null,
+        messageStatus: result?.messages?.[0]?.message_status ?? null,
+        contactWaId: result?.contacts?.[0]?.wa_id ?? null,
+        contactInput: result?.contacts?.[0]?.input ?? null,
+      })}`,
+    );
     return res.json({ success: true });
   } catch (err) {
     console.error(`[admin] send-whatsapp to ${phone} failed: ${err.message}`);

@@ -24,7 +24,16 @@ const OPTIONS = [
   { value: 'CDF', label: 'FC' },
 ];
 
-export default function CurrencyToggle({ inverted = false }) {
+// The header's control is a tight icon-sized pair, so USD is a bare "$"
+// there. web/Design's agent-portfolio screen labels the same control
+// "USD / FC" in a wider row where the word fits — `longLabels` switches to
+// that without forking the component or the shared preference behind it.
+const LONG_OPTIONS = [
+  { value: 'USD', label: 'USD' },
+  { value: 'CDF', label: 'FC' },
+];
+
+export default function CurrencyToggle({ inverted = false, longLabels = false }) {
   const currency = useSyncExternalStore(subscribeCurrency, getCurrency, () => 'USD');
 
   return (
@@ -35,7 +44,7 @@ export default function CurrencyToggle({ inverted = false }) {
         inverted ? 'border-white/30 bg-white/10 backdrop-blur-sm' : 'border-line bg-surface'
       }`}
     >
-      {OPTIONS.map(({ value, label }) => {
+      {(longLabels ? LONG_OPTIONS : OPTIONS).map(({ value, label }) => {
         const active = currency === value;
         return (
           <button

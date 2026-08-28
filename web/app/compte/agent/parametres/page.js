@@ -1,110 +1,220 @@
+import Link from 'next/link';
+import { BadgeCheck, ArrowUpRight, Check, Circle } from 'lucide-react';
 import { getCurrentAgentId } from '@/lib/agentSession';
-import { getAgentProfile, agentDisplayName } from '@/lib/agencies';
+import { getAgentDashboardContext } from '@/lib/agentDashboard';
+import { formatPhoneDisplay } from '@/lib/phone';
+import { SITE_URL, ICON_STROKE_WIDTH } from '@/lib/constants';
+import AgentAvatar from '@/components/AgentAvatar';
 import AgentPageHeader from '@/components/AgentPageHeader';
-import { changeAgentPasswordAction } from '../actions';
+import { updateAgentIdentityAction, changeAgentPasswordAction } from '../actions';
 
 const ERROR_MESSAGES = {
   too_short: 'Le nouveau mot de passe doit contenir au moins 8 caractères.',
   mismatch: 'Les deux mots de passe ne correspondent pas.',
   wrong_password: 'Mot de passe actuel incorrect.',
+  name_required: 'Renseignez au moins un prénom ou un nom.',
 };
 
 export default async function AgentSettingsPage({ searchParams }) {
   const params = await searchParams;
   const error = typeof params.error === 'string' ? params.error : null;
-  const success = params.success === '1';
+  const saved = typeof params.saved === 'string' ? params.saved : null;
+  const passwordSuccess = params.success === '1';
 
   const agentId = await getCurrentAgentId();
-  const agent = await getAgentProfile(agentId);
-  const name = agentDisplayName(agent) || '—';
+  const { agent, completion } = await getAgentDashboardContext(agentId);
+
+  const profileUrl = `${SITE_URL}/agents/${agent.id}`;
 
   return (
     <>
-      <AgentPageHeader title="Paramètres" subtitle="Vos informations de connexion." />
+      <AgentPageHeader title="Paramètres" newLeadsCount={0} />
 
-      <div className="grid grid-cols-1 gap-6 px-5 py-6 sm:px-8 lg:max-w-2xl">
-        <div className="rounded-card border border-line bg-white p-6">
-          <h2 className="text-sm font-bold text-ink">Identité</h2>
-          <dl className="mt-4 flex flex-col gap-3 text-sm">
-            <div className="flex items-center justify-between gap-4">
-              <dt className="text-ink-45">Nom</dt>
-              <dd className="font-semibold text-ink">{name}</dd>
+      <div className="grid grid-cols-1 gap-6 px-5 py-7 sm:px-8 lg:grid-cols-[minmax(0,1fr)_22.5rem] lg:items-start">
+        <div className="u-card flex flex-col gap-5 rounded-card bg-surface p-6">
+          <div>
+            <h2 className="text-[1.125rem] font-bold text-ink">Identité de l&apos;agence</h2>
+            <p className="mt-0.5 text-[0.8125rem] text-ink-45">
+              Ce que vos clients voient en haut de votre page publique.
+            </p>
+          </div>
+
+          <div className="flex items-start gap-5">
+            <div className="h-[6.5rem] w-[6.5rem] shrink-0 overflow-hidden rounded-card bg-canvas-deep">
+              <AgentAvatar src={agent.image} alt="" />
             </div>
-            <div className="flex items-center justify-between gap-4">
-              <dt className="text-ink-45">Numéro WhatsApp</dt>
-              <dd className="font-semibold text-ink">{agent.phone || '—'}</dd>
+            <p className="text-[0.8125rem] leading-relaxed text-ink-45">
+              Votre photo de profil est gérée par l&apos;équipe Lukka Place — envoyez-la sur WhatsApp et elle sera
+              mise en ligne. Il n&apos;y a pas encore de photo de couverture sur les pages agent.
+            </p>
+          </div>
+
+          <form action={updateAgentIdentityAction} className="flex flex-col gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="first_name" className="mb-1.5 block text-[0.8125rem] font-semibold text-ink-70">
+                  Prénom
+                </label>
+                <input
+                  id="first_name"
+                  name="first_name"
+                  defaultValue={agent.first_name || ''}
+                  className="u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink"
+                />
+              </div>
+              <div>
+                <label htmlFor="last_name" className="mb-1.5 block text-[0.8125rem] font-semibold text-ink-70">
+                  Nom
+                </label>
+                <input
+                  id="last_name"
+                  name="last_name"
+                  defaultValue={agent.last_name || ''}
+                  className="u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink"
+                />
+              </div>
             </div>
-            <div className="flex items-center justify-between gap-4">
-              <dt className="text-ink-45">E-mail</dt>
-              <dd className="font-semibold text-ink">{agent.email || '—'}</dd>
+
+            <div>
+              <label htmlFor="bio" className="mb-1.5 block text-[0.8125rem] font-semibold text-ink-70">
+                Présentation
+              </label>
+              <textarea
+                id="bio"
+                name="bio"
+                rows={4}
+                defaultValue={agent.bio || ''}
+                placeholder="Location et vente de maisons, appartements et parcelles à Kinshasa."
+                className="u-focus-ring w-full resize-y rounded-lg border border-line bg-surface p-3 text-sm leading-relaxed text-ink placeholder:text-ink-35"
+              />
             </div>
-          </dl>
+
+            <div>
+              <span className="mb-1.5 block text-[0.8125rem] font-semibold text-ink-70">Numéro WhatsApp</span>
+              <div className="flex h-11 items-center gap-2 rounded-lg border border-line bg-canvas-alt px-3 text-sm text-ink-45">
+                <span className="u-tabular text-ink">{formatPhoneDisplay(agent.phone) || 'Non renseigné'}</span>
+                {agent.phone_verified_at && (
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-success">
+                    <BadgeCheck strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                    Vérifié
+                  </span>
+                )}
+              </div>
+              <p className="mt-1.5 text-xs text-ink-35">
+                C&apos;est ce numéro qui reçoit les demandes et qui vous identifie à la connexion. Le changer demande
+                une nouvelle vérification par code — contactez l&apos;équipe Lukka Place.
+              </p>
+            </div>
+
+            {saved === 'identity' && (
+              <p className="text-sm font-semibold text-success" role="status">
+                Modifications enregistrées.
+              </p>
+            )}
+            {error === 'name_required' && (
+              <p className="text-sm font-semibold text-danger" role="alert">
+                {ERROR_MESSAGES.name_required}
+              </p>
+            )}
+
+            <div className="flex gap-2.5">
+              <button
+                type="submit"
+                className="u-btn-primary u-press h-11 rounded-lg bg-blue px-5 text-sm font-bold text-white"
+              >
+                Enregistrer les modifications
+              </button>
+              <Link
+                href="/compte/agent/parametres"
+                className="u-press inline-flex h-11 items-center rounded-lg px-4 text-sm font-semibold text-ink-45 transition-colors hover:bg-canvas-alt hover:text-ink"
+              >
+                Annuler
+              </Link>
+            </div>
+          </form>
         </div>
 
-        <div className="rounded-card border border-line bg-white p-6">
-          <h2 className="text-sm font-bold text-ink">Mot de passe</h2>
-          <p className="mt-1 text-xs text-ink-45">Changer de mot de passe déconnecte vos autres sessions.</p>
+        <div className="flex flex-col gap-6">
+          <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-6">
+            <h2 className="text-[1.125rem] font-bold text-ink">Mot de passe</h2>
 
-          <form action={changeAgentPasswordAction} className="mt-4 flex flex-col gap-3">
-            <div>
-              <label htmlFor="current_password" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
-                Mot de passe actuel
-              </label>
-              <input
-                id="current_password"
-                type="password"
-                name="current_password"
-                autoComplete="current-password"
-                required
-                className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
-              />
-            </div>
-            <div>
-              <label htmlFor="new_password" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
-                Nouveau mot de passe
-              </label>
-              <input
-                id="new_password"
-                type="password"
-                name="new_password"
-                autoComplete="new-password"
-                placeholder="8 caractères minimum"
-                required
-                className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
-              />
-            </div>
-            <div>
-              <label htmlFor="confirm_password" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
-                Confirmer
-              </label>
-              <input
-                id="confirm_password"
-                type="password"
-                name="confirm_password"
-                autoComplete="new-password"
-                required
-                className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
-              />
+            <form action={changeAgentPasswordAction} className="flex flex-col gap-3">
+              {[
+                { id: 'current_password', label: 'Mot de passe actuel', autoComplete: 'current-password' },
+                { id: 'new_password', label: 'Nouveau mot de passe', autoComplete: 'new-password', placeholder: '8 caractères minimum' },
+                { id: 'confirm_password', label: 'Confirmer', autoComplete: 'new-password' },
+              ].map((field) => (
+                <div key={field.id}>
+                  <label htmlFor={field.id} className="mb-1.5 block text-[0.8125rem] font-semibold text-ink-70">
+                    {field.label}
+                  </label>
+                  <input
+                    id={field.id}
+                    name={field.id}
+                    type="password"
+                    autoComplete={field.autoComplete}
+                    placeholder={field.placeholder}
+                    required
+                    className="u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35"
+                  />
+                </div>
+              ))}
+
+              {passwordSuccess && (
+                <p className="text-sm font-semibold text-success" role="status">
+                  Mot de passe mis à jour.
+                </p>
+              )}
+              {error && error !== 'name_required' && (
+                <p className="text-sm font-semibold text-danger" role="alert">
+                  {ERROR_MESSAGES[error] || ERROR_MESSAGES.wrong_password}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                className="u-btn-secondary u-press mt-1 h-11 w-full rounded-lg text-sm font-bold text-ink"
+              >
+                Mettre à jour le mot de passe
+              </button>
+            </form>
+          </div>
+
+          <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-6">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-[1.125rem] font-bold text-ink">Votre page publique</h2>
+              <span className="u-tabular text-[0.8125rem] font-bold text-blue">{completion.percent} %</span>
             </div>
 
-            {success && (
-              <p className="text-sm text-green-deep" role="status">
-                Mot de passe mis à jour.
-              </p>
-            )}
-            {error && (
-              <p className="text-sm text-red-600" role="alert">
-                {ERROR_MESSAGES[error] || ERROR_MESSAGES.wrong_password}
-              </p>
-            )}
+            <div className="h-1.5 overflow-hidden rounded-full bg-line">
+              <div className="h-full rounded-full bg-blue" style={{ width: `${completion.percent}%` }} />
+            </div>
 
-            <button
-              type="submit"
-              className="mt-1 self-start rounded-md bg-blue px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary"
+            <ul className="flex flex-col gap-2 text-[0.8125rem]">
+              {completion.items.map((item) => (
+                <li key={item.label} className="flex items-center gap-2">
+                  {item.done ? (
+                    <Check strokeWidth={2.5} className="h-4 w-4 shrink-0 text-success" />
+                  ) : (
+                    <Circle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0 text-ink-25" />
+                  )}
+                  <span className={item.done ? 'text-ink-45 line-through decoration-ink-25' : 'text-ink-70'}>
+                    {item.label}
+                  </span>
+                </li>
+              ))}
+            </ul>
+
+            <Link
+              href={`/agents/${agent.id}`}
+              target="_blank"
+              className="u-press inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border border-line text-[0.8125rem] font-bold text-ink transition-colors hover:bg-canvas-alt"
             >
-              Mettre à jour le mot de passe
-            </button>
-          </form>
+              Voir ma page
+              <ArrowUpRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+            </Link>
+            <p className="truncate text-xs text-ink-35">{profileUrl}</p>
+          </div>
         </div>
       </div>
     </>

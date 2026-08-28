@@ -339,4 +339,58 @@ router.post('/send-whatsapp', async (req, res) => {
   }
 });
 
+/**
+ * Template send — the only reliable way to deliver an agent's verification
+ * code.
+ *
+ * A free-form text (POST /send-whatsapp above) is only delivered to someone
+ * who has messaged this business within the last 24 hours. A brand-new agent
+ * signing up never has, so Meta accepts the call with a real message id and
+ * then never delivers it — a silent dead end, diagnosed directly against the
+ * live account. An approved AUTHENTICATION-category template has no such
+ * window, which is why the OTP path uses this endpoint instead.
+ *
+ * `otp_code` is passed separately from `body_params` on purpose: an
+ * authentication template needs the same code in BOTH the body and its
+ * copy-code button, and services/chakra.js builds that second component
+ * only when this field is present.
+ */
+router.post('/send-whatsapp-template', async (req, res) => {
+  const {
+    phone,
+    template,
+    language_code: languageCode,
+    body_params: bodyParams,
+    otp_code: otpCode,
+  } = req.body || {};
+
+  if (!phone || !/^\d{9,15}$/.test(String(phone))) {
+    return res.status(400).json({ success: false, error: 'phone must be a real digits-only wa_id.' });
+  }
+  if (!template || typeof template !== 'string') {
+    return res.status(400).json({ success: false, error: 'template name is required.' });
+  }
+  if (bodyParams !== undefined && !Array.isArray(bodyParams)) {
+    return res.status(400).json({ success: false, error: 'body_params must be an array.' });
+  }
+
+  try {
+    const result = await chakra.sendTemplate(phone, template, {
+      languageCode: languageCode || 'fr',
+      bodyParams: bodyParams || [],
+      otpCode: otpCode || undefined,
+    });
+    console.log(
+      `[admin] send-whatsapp-template '${template}' to ${phone} accepted by Meta: ${JSON.stringify({
+        messageId: result?.messages?.[0]?.id ?? null,
+        messageStatus: result?.messages?.[0]?.message_status ?? null,
+      })}`,
+    );
+    return res.json({ success: true });
+  } catch (err) {
+    console.error(`[admin] send-whatsapp-template '${template}' to ${phone} failed: ${err.message}`);
+    return res.status(502).json({ success: false, error: `WhatsApp template send failed: ${err.message}` });
+  }
+});
+
 module.exports = router;

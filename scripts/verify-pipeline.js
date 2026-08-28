@@ -3083,6 +3083,48 @@ console.log('\n2. services/openai.js');
   const missingMessageResp = await adminRequest('POST', '/admin/send-whatsapp', { phone: '243940000005' });
   check('a missing message is rejected with 400', () => assert.strictEqual(missingMessageResp.status, 400));
 
+  // Template send — the OTP path. A free-form text is only delivered inside
+  // the 24h customer-service window, which a first-time registrant is never
+  // in, so agent verification codes go out as an approved template instead.
+  httpCalls.length = 0;
+  const templateResp = await adminRequest('POST', '/admin/send-whatsapp-template', {
+    phone: '243940000008',
+    template: 'agent_auth_otp',
+    language_code: 'fr',
+    body_params: ['123456'],
+    otp_code: '123456',
+  });
+  check('sends an approved template with the code in body AND copy-code button', () => {
+    assert.strictEqual(templateResp.status, 200);
+    const posts = httpCalls.filter((c) => c.method === 'post');
+    assert.strictEqual(posts.length, 1);
+    const payload = posts[0].data;
+    assert.strictEqual(payload.type, 'template');
+    assert.strictEqual(payload.template.name, 'agent_auth_otp');
+    assert.strictEqual(payload.template.language.code, 'fr');
+    const body = payload.template.components.find((c) => c.type === 'body');
+    const button = payload.template.components.find((c) => c.type === 'button');
+    assert.strictEqual(body.parameters[0].text, '123456');
+    assert.ok(button, 'an authentication template is rejected by Meta without its copy-code button');
+    assert.strictEqual(button.parameters[0].text, '123456');
+  });
+
+  httpCalls.length = 0;
+  const templateNoButtonResp = await adminRequest('POST', '/admin/send-whatsapp-template', {
+    phone: '243940000008',
+    template: 'utility_notice',
+    body_params: ['hello'],
+  });
+  check('omits the button component when no otp_code is given', () => {
+    assert.strictEqual(templateNoButtonResp.status, 200);
+    const payload = httpCalls.filter((c) => c.method === 'post')[0].data;
+    assert.ok(!payload.template.components.some((c) => c.type === 'button'));
+  });
+
+  const templateNoNameResp = await adminRequest('POST', '/admin/send-whatsapp-template', { phone: '243940000008' });
+  check('a missing template name is rejected with 400', () =>
+    assert.strictEqual(templateNoNameResp.status, 400));
+
   console.log('\n15j. GET /admin/leads?wa_id= — customer inquiry history (web/)');
 
   const leadForCustomer = dbService.createLead({ wa_id: '243940000006', property_id: 601, status: 'NEW' });

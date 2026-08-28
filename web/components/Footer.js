@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { buildWhatsAppLink } from '@/lib/whatsapp';
+import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { getPopularCommunes } from '@/lib/listings';
 import { Wordmark } from './Brand';
 
@@ -87,13 +87,32 @@ export default async function Footer() {
       ]
     : NAV_COLUMNS;
 
-  const phoneNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
-  const whatsappHref = phoneNumber
-    ? buildWhatsAppLink(phoneNumber, 'Bonjour, je vous contacte depuis lukkaplace.com.')
-    : null;
+  const whatsappHref = getCentralWhatsAppHref('Bonjour, je vous contacte depuis lukkaplace.com.');
 
   return (
     <footer className="mt-auto border-t border-line bg-canvas-alt">
+      {/* Agency recruitment band. Sits above the link columns rather than
+          inside one — it is a conversion ask, not a navigation item, and it
+          is the only place on a public page that recruits supply. */}
+      <div className="border-b border-line bg-blue-deep">
+        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-5 px-4 py-8 sm:px-6 lg:px-8">
+          <div className="min-w-0">
+            <p className="font-display text-[1.5rem] leading-tight text-white">
+              Vous êtes agent ou agence immobilière ?
+            </p>
+            <p className="mt-1 text-sm text-white/70">
+              Publiez vos biens et recevez vos demandes clients sur WhatsApp.
+            </p>
+          </div>
+          <Link
+            href="/compte/agent/inscription"
+            className="u-press inline-flex h-12 flex-none items-center rounded-lg bg-white px-6 text-[0.9375rem] font-bold text-blue-deep transition-transform hover:-translate-y-0.5"
+          >
+            Devenir Agence Partenaire
+          </Link>
+        </div>
+      </div>
+
       <div className="mx-auto max-w-[1600px] px-4 py-14 sm:px-6 lg:px-8 lg:py-16">
         <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-5">
           <div className="lg:col-span-2">

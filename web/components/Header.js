@@ -19,9 +19,13 @@ const ACCOUNT_LINKS = [
   { href: '/compte/alertes', label: 'Alertes', icon: Bell },
 ];
 
+// Order and set match web/Design's own header exactly: Acheter, Louer,
+// Parcelles, À propos — previously this was missing Parcelles entirely and
+// had Louer/Acheter reversed.
 const PRIMARY_LINKS = [
-  { href: '/listings?transaction_type=location', label: 'Louer' },
   { href: '/listings?transaction_type=vente', label: 'Acheter' },
+  { href: '/listings?transaction_type=location', label: 'Louer' },
+  { href: '/listings?property_type=parcelle', label: 'Parcelles' },
   { href: '/a-propos', label: 'À propos' },
 ];
 
@@ -144,6 +148,15 @@ export default function Header() {
                     </Link>
                   </SheetClose>
                 )}
+
+                <SheetClose asChild>
+                  <Link
+                    href="/compte/agent/inscription"
+                    className="mt-2 flex items-center justify-center gap-2 rounded-md bg-blue-tint px-3 py-2.5 text-[0.9375rem] font-bold text-blue-deep"
+                  >
+                    Devenir Agence Partenaire
+                  </Link>
+                </SheetClose>
               </nav>
             </SheetContent>
           </Sheet>
@@ -163,6 +176,21 @@ export default function Header() {
               {label}
             </Link>
           ))}
+
+          {/* Agency recruitment CTA. Deliberately styled as a real button
+              rather than a fifth text link — it is the only nav item asking
+              for a signup, and it competes with four navigation links that
+              all lead to browsing. */}
+          <Link
+            href="/compte/agent/inscription"
+            className={`u-press inline-flex h-9 items-center rounded-full px-3.5 text-[0.8125rem] font-bold transition-colors ${
+              overHero
+                ? 'text-white ring-1 ring-inset ring-white/50 hover:bg-white/10'
+                : 'bg-blue-tint text-blue-deep hover:bg-blue hover:text-white'
+            }`}
+          >
+            Devenir Agence Partenaire
+          </Link>
         </nav>
 
         <div className="ml-auto flex items-center gap-2 sm:gap-3">
@@ -178,6 +206,21 @@ export default function Header() {
             </Link>
           )}
           <CurrencyToggle inverted={overHero} />
+
+          {/* Favoris — web/Design's header always shows this text link,
+              never gated behind login: favorites are local-only
+              (lib/localFavorites.js), no account required. Previously the
+              only way to reach /favoris on desktop was the left SideRail,
+              which the homepage no longer renders. */}
+          <Link
+            href="/favoris"
+            className={`hidden items-center gap-1.5 text-sm font-medium transition-colors lg:inline-flex ${
+              overHero ? 'text-white/85 hover:text-white' : 'text-ink-70 hover:text-blue-deep'
+            }`}
+          >
+            <Heart strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+            Favoris
+          </Link>
 
           {loggedIn ? (
             <DropdownMenu>

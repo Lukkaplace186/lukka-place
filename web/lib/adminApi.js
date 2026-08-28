@@ -130,6 +130,32 @@ export async function sendWhatsAppMessage(phone, message) {
 }
 
 /**
+ * Template send — required for anything going to someone who has not
+ * messaged the business in the last 24 hours, which is every agent
+ * registering for the first time. A free-form send to them is accepted by
+ * Meta and silently never delivered; a template is not subject to that
+ * window. See the engine's POST /admin/send-whatsapp-template.
+ *
+ * @param {string} phone digits-only wa_id
+ * @param {{template: string, languageCode?: string, bodyParams?: string[], otpCode?: string}} options
+ *   `otpCode` is only for AUTHENTICATION-category templates, which need the
+ *   code in their copy-code button as well as the body.
+ * @returns {Promise<{success: true}>}
+ */
+export async function sendWhatsAppTemplate(phone, { template, languageCode, bodyParams, otpCode } = {}) {
+  return engineFetch('/admin/send-whatsapp-template', {
+    method: 'POST',
+    body: JSON.stringify({
+      phone,
+      template,
+      language_code: languageCode,
+      body_params: bodyParams,
+      otp_code: otpCode,
+    }),
+  });
+}
+
+/**
  * Notifies a listing's original WhatsApp submitter of an approve/reject
  * decision. `status` is 'approved' or 'rejected' — not the raw
  * `approve_status` integer, the engine maps it to real message copy.

@@ -136,7 +136,7 @@ async function sendWhatsAppMessage(toPhone, messageText, { previewUrl = false, r
  * @param {string}   [options.languageCode='fr']
  * @param {string[]} [options.bodyParams=[]]  Ordered {{1}}, {{2}} values.
  */
-async function sendTemplate(toPhone, templateName, { languageCode = 'fr', bodyParams = [] } = {}) {
+async function sendTemplate(toPhone, templateName, { languageCode = 'fr', bodyParams = [], otpCode } = {}) {
   const to = String(toPhone).replace(/^\+/, '');
 
   const template = { name: templateName, language: { code: languageCode } };
@@ -147,6 +147,23 @@ async function sendTemplate(toPhone, templateName, { languageCode = 'fr', bodyPa
         parameters: bodyParams.map((text) => ({ type: 'text', text: String(text) })),
       },
     ];
+  }
+
+  // Meta's AUTHENTICATION-category templates (the only category allowed to
+  // carry a one-time code) are rejected without their copy-code button
+  // component alongside the body — the code has to be supplied twice, once
+  // for the message text and once for the button that copies it. Passing
+  // `otpCode` adds that component. Omit it for a plain UTILITY/MARKETING
+  // template, where sending a button component the template doesn't declare
+  // is itself an error.
+  if (otpCode) {
+    template.components = template.components || [];
+    template.components.push({
+      type: 'button',
+      sub_type: 'url',
+      index: '0',
+      parameters: [{ type: 'text', text: String(otpCode) }],
+    });
   }
 
   try {

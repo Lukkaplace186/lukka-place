@@ -52,21 +52,33 @@ const HOME_TABS = [
 
 const TRANSACTION_BY_TAB = { louer: 'location', acheter: 'vente' };
 
-const BUDGET_MIN_OPTIONS = [
-  { value: '', label: 'Sans min' },
-  { value: '200', label: '200 $' },
-  { value: '500', label: '500 $' },
-  { value: '1000', label: '1 000 $' },
-  { value: '2000', label: '2 000 $ et +' },
+// Tiered steps, not one flat increment across the whole range: renters
+// under $1,000 are genuinely sensitive to $100-200 gaps ($700 vs $800 is a
+// real different bracket of listing), where $2k+ listings don't need that
+// resolution — a single $500 step for the whole scale either buries the
+// low end in too-coarse buckets or makes the high end an unusably long
+// list. Computed once here rather than hand-typed twice (min and max share
+// the exact same thresholds), so the three tier boundaries only exist in
+// one place: 100-1 000 by 100, 1 250-2 000 by 250, 2 500-5 000 by 500.
+const PRICE_STEP_VALUES = [
+  ...Array.from({ length: 10 }, (_, i) => (i + 1) * 100), // 100, 200, ..., 1 000
+  1250, 1500, 1750, 2000,
+  2500, 3000, 3500, 4000, 4500, 5000,
 ];
 
-const BUDGET_MAX_OPTIONS = [
-  { value: '', label: 'Sans max' },
-  { value: '500', label: '500 $' },
-  { value: '1000', label: '1 000 $' },
-  { value: '2500', label: '2 500 $' },
-  { value: '5000', label: '5 000 $ et +' },
-];
+function buildBudgetOptions(noneLabel) {
+  const last = PRICE_STEP_VALUES.length - 1;
+  return [
+    { value: '', label: noneLabel },
+    ...PRICE_STEP_VALUES.map((amount, i) => ({
+      value: String(amount),
+      label: i === last ? `${amount.toLocaleString('fr-FR')} $ et +` : `${amount.toLocaleString('fr-FR')} $`,
+    })),
+  ];
+}
+
+const BUDGET_MIN_OPTIONS = buildBudgetOptions('Sans min');
+const BUDGET_MAX_OPTIONS = buildBudgetOptions('Sans max');
 
 /**
  * Prix min/max option list inside the Budget popover — real buttons, not a
@@ -88,7 +100,12 @@ function BudgetOptionList({ idPrefix, label, options, value, onChange }) {
       <span className="u-eyebrow mb-2 block" id={`${idPrefix}-label`}>
         {label}
       </span>
-      <div role="listbox" aria-labelledby={`${idPrefix}-label`} className="flex flex-col gap-0.5">
+      {/* max-h-60 (240px) + overflow-y-auto: real necessity now, not
+          decoration — the tiered price steps mean up to 21 rows per
+          column (see PRICE_STEP_VALUES), which at ~36px each would run
+          ~750px tall unconstrained, taller than most phone viewports and
+          well past PopoverContent's own unbounded height. */}
+      <div role="listbox" aria-labelledby={`${idPrefix}-label`} className="flex max-h-60 flex-col gap-0.5 overflow-y-auto">
         {options.map((opt) => {
           const selected = value === opt.value;
           return (

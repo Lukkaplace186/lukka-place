@@ -17,8 +17,8 @@ export const dynamic = 'force-dynamic';
  * Dashboard app shell for every /compte/agent/** route — a plain top-level
  * app/compte/agent/ tree (not app/(site)/compte/agent/), same reasoning
  * app/admin sits outside (site): the design's own full sidebar+header shell
- * would otherwise render *underneath* the public site's Header/BottomNav/
- * Footer from app/(site)/layout.js. /compte/agent/connexion and
+ * would otherwise render *underneath* the public site's Header/Footer from
+ * app/(site)/layout.js. /compte/agent/connexion and
  * /compte/agent/inscription stay in (site) — this shell is only for the
  * authenticated dashboard itself. middleware.js already gates every
  * /compte/agent/* path by URL, unaffected by which physical app/ tree

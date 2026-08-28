@@ -10,12 +10,12 @@ import { getCentralWhatsAppHref } from '@/lib/whatsapp';
  * visibly, NO left icon rail.
  *
  * That is why /agents lives in its own route group rather than in (site):
- * app/(site)/layout.js mounts Header + BottomNav + Footer — historically
- * plus a fixed 76px left icon rail (SideRail.js) that this profile screen
- * never had either. That rail has since been removed sitewide, so this
- * route group's real remaining distinction is its own slim header/footer,
- * not the rail. Route groups don't change URLs, so /agents and
- * /agents/[id] are untouched.
+ * app/(site)/layout.js mounts Header + Footer — historically also a fixed
+ * BottomNav.js mobile tab bar and a fixed 76px left icon rail (SideRail.js),
+ * neither of which this profile screen ever had either. Both have since
+ * been removed sitewide, so this route group's real remaining distinction
+ * is its own slim header/footer, not any of that former chrome. Route
+ * groups don't change URLs, so /agents and /agents/[id] are untouched.
  *
  * CurrencyRateProvider is re-provided here deliberately: it is not
  * inherited from (site), and <Price> silently falls back to a stale default

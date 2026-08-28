@@ -14,8 +14,14 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  * description — the bubble showed the CTA but not what it costs, so the
  * decision needed a scroll back to the top.
  *
- * Sits at bottom-16 to clear BottomNav, and is hidden from lg upward where
- * the sticky EnquiryCard is always in view.
+ * Hidden from lg upward, where the sticky EnquiryCard is always in view.
+ *
+ * Sits at `bottom-0` now with its own `pb-[env(safe-area-inset-bottom)]`
+ * (same safe-area handling BottomNav.js used to carry) — it used to sit at
+ * `bottom-16` to clear that fixed tab bar underneath it, which is gone
+ * entirely now (see app/(site)/layout.js), so this bar is the true bottom
+ * edge of the screen on mobile and needs to account for a notch/home-
+ * indicator itself.
  */
 export default function MobileListingBar({ listing }) {
   const href = getCentralWhatsAppHref(
@@ -32,7 +38,7 @@ export default function MobileListingBar({ listing }) {
 
   return (
     <div
-      className="fixed inset-x-0 bottom-16 z-40 border-t border-line bg-surface/95 px-4 py-3 backdrop-blur-md lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 px-4 py-3 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
       style={{ boxShadow: '0 -8px 24px -12px rgba(12, 29, 80, 0.25)' }}
     >
       <div className="flex items-center gap-3">

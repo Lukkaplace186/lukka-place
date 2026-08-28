@@ -129,21 +129,28 @@ export default function ListingsSplitView({ listings, isMapView, page, totalPage
           and rounded per the earlier request. On mobile, switching into map
           view no longer just reveals this pane in normal document flow: it
           becomes a `fixed` fullscreen layer (viewport minus the h-16 fixed
-          Header and the h-16 BottomNav — this app has a persistent bottom
-          nav a reference portal's own app chrome doesn't, so pinning the
-          map to the raw viewport bottom would seat ~64px of it underneath
-          BottomNav, unusable, the same class of correction as the
-          `top-[8.5rem]` sticky offset above), carrying MobileMapChrome's
-          floating nav/search/filter/badge on top of it — the immersive,
-          Rightmove-style map mode. `lg:` reverts everything back to the
-          normal sticky in-flow pane. PropertyMap itself owns no border/
-          rounding any more (see its own comment) precisely so this one
-          wrapper can flip between "full-bleed fixed layer" and "rounded
-          sticky rail" without PropertyMap needing to know which. */}
+          Header, down to the true viewport bottom — `bottom-0`, not
+          `bottom-16`), carrying MobileMapChrome's floating nav/search/
+          filter/badge on top of it — the immersive, Rightmove-style map
+          mode. `lg:` reverts everything back to the normal sticky in-flow
+          pane. PropertyMap itself owns no border/rounding any more (see
+          its own comment) precisely so this one wrapper can flip between
+          "full-bleed fixed layer" and "rounded sticky rail" without
+          PropertyMap needing to know which.
+
+          `bottom-16` used to be load-bearing: this app had a persistent
+          fixed BottomNav.js tab bar a reference portal's own app chrome
+          doesn't, so pinning the map to the raw viewport bottom would have
+          seated ~64px of it underneath that bar, unusable — the same class
+          of correction as the `top-[8.5rem]` sticky offset above. That bar
+          is gone entirely now (see app/(site)/layout.js), so there is
+          nothing left to clear; MobileMapOverlay's own "Liste" button
+          (`absolute bottom-6` *within* this box) already follows this
+          box's real bottom edge automatically. */}
       <div
         className={`flex flex-col ${
           isMapView
-            ? 'fixed inset-x-0 top-16 bottom-16 z-30'
+            ? 'fixed inset-x-0 top-16 bottom-0 z-30'
             : 'hidden'
         } lg:inset-auto lg:z-auto lg:flex lg:overflow-hidden lg:rounded-2xl lg:sticky lg:top-[8.5rem] lg:h-[calc(100vh-10rem)]`}
       >

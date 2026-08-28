@@ -90,15 +90,19 @@ export default async function ListingsPage({ searchParams }) {
         <ActiveFilterChips params={params} propertyTypeLabel={propertyTypeLabel} />
       </div>
 
-      {/* pb-36 (144px), not pb-20: FloatingControlBar is `fixed bottom-
-          [4.75rem]` (76px) with its own ~44px pill height, so its top edge
-          sits ~120px above the viewport bottom — pb-20 (80px) left the last
-          ~40px of the results grid genuinely hidden behind it, exactly
-          where a mobile card's own action row lives. Measured directly
-          against the real component, not guessed. lg:pb-8 is unchanged —
+      {/* pb-24 (96px): FloatingControlBar now sits at `fixed bottom-6`
+          (24px) with its own ~44px pill height, so its top edge lands
+          ~68px above the viewport bottom — pb-24 clears that with a real
+          ~28px margin above it, so nothing in the last card's own content
+          sits behind the pill. Used to be pb-36 (144px), when the pill sat
+          at `bottom-[4.75rem]` to clear the fixed BottomNav.js tab bar
+          underneath it — that bar is gone entirely (see
+          app/(site)/layout.js) and the pill moved down to the true
+          viewport edge with it, so the clearance needed here shrank by
+          roughly the bar's own height. lg:pb-8 is unchanged —
           FloatingControlBar is lg:hidden, so there is nothing to clear
           there. */}
-      <div className="mx-auto max-w-[1600px] px-4 pb-36 pt-6 sm:px-6 lg:px-8 lg:pb-8">
+      <div className="mx-auto max-w-[1600px] px-4 pb-24 pt-6 sm:px-6 lg:px-8 lg:pb-8">
         <div className={isMapView ? 'hidden lg:block' : ''}>
           <ResultsHeader
             total={total}

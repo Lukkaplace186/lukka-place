@@ -135,7 +135,14 @@ export default async function ListingDetailPage({ params }) {
   }
 
   return (
-    <div className="pb-24 lg:pb-0">
+    // pb-28: clears MobileListingBar.js, fixed at the true `bottom-0` now
+    // (it used to sit at bottom-16, above the fixed BottomNav.js tab bar
+    // this page's own pb-24 was accounting for alongside it — that bar is
+    // gone entirely, see app/(site)/layout.js, but MobileListingBar's own
+    // height plus a phone's real safe-area-inset-bottom can still run
+    // close to 96px, so this went up slightly rather than down to keep a
+    // real margin above it.
+    <div className="pb-28 lg:pb-0">
       <ListingViewTracker path={`/listings/${listing.id}`} commune={listing.commune} />
       <div className="mx-auto max-w-[1600px] px-4 pt-6 sm:px-6 lg:px-8">
         <div className="mb-5 flex items-center justify-between gap-4">

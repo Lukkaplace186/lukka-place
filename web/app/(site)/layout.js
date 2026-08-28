@@ -1,7 +1,6 @@
 import Header from '@/components/Header';
 import SiteShell from '@/components/SiteShell';
 import Footer from '@/components/Footer';
-import BottomNav from '@/components/BottomNav';
 import { CurrencyRateProvider } from '@/lib/CurrencyRateContext';
 import { getCdfRate } from '@/lib/currencyRate';
 
@@ -14,16 +13,21 @@ import { getCdfRate } from '@/lib/currencyRate';
  * Route groups don't affect URLs, so every public path is unchanged.
  *
  * Spacing contract, defined here once so pages don't each reinvent it:
- *   pt-16          clears the fixed h-16 Header
- *   pb-16 lg:pb-0  clears the fixed BottomNav (which is lg:hidden)
+ *   pt-16   clears the fixed h-16 Header
  *
- * There used to be a third line here — `lg:pl-[76px]`, clearing a fixed
- * desktop icon rail (SideRail.js: Rechercher/Favoris/Demandes/Compte). That
- * rail is gone: web/Design's screens never carried a left toolbar, its four
- * destinations are still reachable (Demandes moved into Header's top-right
- * utility row; the other three already lived there or in BottomNav), and
- * every page under this layout now gets the full container width back
- * rather than losing 76px to a gutter with nothing forcing it.
+ * There used to be two more lines here. `lg:pl-[76px]` cleared a fixed
+ * desktop icon rail (SideRail.js) — removed entirely, since web/Design's
+ * screens never carried a left toolbar. `pb-16 lg:pb-0` cleared
+ * BottomNav.js, the fixed mobile tab bar (Rechercher/Favoris/Demandes/
+ * Compte) — also removed entirely now, per an explicit instruction to drop
+ * the persistent bottom bar in favour of Header's own hamburger menu +
+ * top-right utility row on mobile (the same Rightmove-style pattern this
+ * whole nav rework has been chasing: no persistent bottom chrome, floating
+ * per-page actions instead — see FloatingControlBar.js and
+ * MobileListingBar.js, both repositioned to the true viewport bottom now
+ * that there's nothing there to clear). Every page under this layout gets
+ * its full container height back rather than losing 64px to a bar with
+ * nothing forcing it.
  *
  * Fetches the real, admin-editable exchange rate once per request here
  * (a server-only DB read — see lib/currencyRate.js) and provides it to every
@@ -37,10 +41,9 @@ export default async function SiteLayout({ children }) {
     <CurrencyRateProvider rate={rate}>
       <Header />
       <SiteShell>
-        <main className="flex-1 pb-16 lg:pb-0">{children}</main>
+        <main className="flex-1">{children}</main>
         <Footer />
       </SiteShell>
-      <BottomNav />
     </CurrencyRateProvider>
   );
 }

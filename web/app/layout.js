@@ -71,9 +71,9 @@ export const metadata = {
 };
 
 /*
- * Deliberately bare. The public site's shell (Header / Footer / BottomNav)
- * lives in app/(site)/layout.js, not here — /admin has its own chrome and
- * was previously rendering it *underneath* the public header because
+ * Deliberately bare. The public site's shell (Header / Footer) lives in
+ * app/(site)/layout.js, not here — /admin has its own chrome and was
+ * previously rendering it *underneath* the public header because
  * everything nested in this one layout.
  */
 export default function RootLayout({ children }) {

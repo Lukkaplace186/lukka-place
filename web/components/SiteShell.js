@@ -1,14 +1,14 @@
 /**
  * Wraps the main content column in the flex-column layout the fixed Header
- * and BottomNav need to sit outside of.
+ * needs to sit outside of.
  *
  * Used to also carry a `usePathname()`/`isHome` branch that toggled
  * `lg:pl-[76px]` on and off — a gutter for the fixed left icon rail
  * (SideRail.js), present everywhere except the homepage, which never had
- * the rail. The rail is gone entirely now (removed sitewide, its
- * destinations reachable from Header's top-right utility row and
- * BottomNav), so there is no gutter left to conditionally apply and this
- * can render as a plain server component again.
+ * the rail. Both that rail and BottomNav.js, the fixed mobile bottom bar
+ * this shell used to sit above, are gone entirely now — see
+ * app/(site)/layout.js's doc comment — so there is no per-route gutter or
+ * bottom padding left to apply and this can stay a plain server component.
  */
 export default function SiteShell({ children }) {
   return <div className="flex min-h-screen flex-col pt-16">{children}</div>;

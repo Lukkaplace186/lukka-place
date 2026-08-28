@@ -73,10 +73,12 @@ const PRIMARY_LINKS = [
  * delivers "always visible while scrolling" on every route without
  * depending on being a scroll-container's first child (SiteShell's `pt-16`
  * spacer already accounts for it), and switching would be a structural
- * change for the same visible result. `z-[60]`, not `z-50`, is deliberate
- * too: BottomNav is `z-50`, and since it mounts after Header in the tree, a
- * tied z-index would let it paint over the header on mobile — z-[60] keeps
- * the header on top the way it always has.
+ * change for the same visible result. `z-[60]` used to matter specifically
+ * against BottomNav.js's `z-50` fixed tab bar (mounted after Header in the
+ * tree, so a tied z-index would have let it paint over the header on
+ * mobile); that bar is gone entirely now (see app/(site)/layout.js), but
+ * `z-[60]` is left as-is — still correct, and nothing left in the public
+ * site tree needs Header to sit any lower.
  *
  * Also carries Demandes now — a top-right text link next to Favoris,
  * routing to the same `/compte/demandes` the mobile tab bar always used.
@@ -217,10 +219,10 @@ export default function Header() {
 
           {/* Demandes — moved here from the now-removed left icon rail
               (SideRail.js). Same real route as before (`/compte/demandes`,
-              still the one NAV_ITEMS/BottomNav use on mobile): it redirects
-              to login with a `?next=` back to itself when signed out, so
-              this link doesn't need its own logged-in branch — the route
-              already handles both states honestly. */}
+              still the one NAV_ITEMS uses in the mobile Sheet menu below):
+              it redirects to login with a `?next=` back to itself when
+              signed out, so this link doesn't need its own logged-in
+              branch — the route already handles both states honestly. */}
           <Link
             href="/compte/demandes"
             className="hidden items-center gap-1.5 text-sm font-medium text-ink-70 transition-colors hover:text-blue-deep lg:inline-flex"

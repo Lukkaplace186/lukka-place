@@ -7,7 +7,7 @@ import { resolveListingLocation, KINSHASA_CENTER } from '@/lib/geocoding';
 import { buildPricePinIcon } from '@/lib/mapIcons';
 import { MAP_STYLES } from '@/lib/mapStyle';
 import { NO_PHOTO_URL } from '@/lib/constants';
-import { formatPrice } from '@/lib/format';
+import { formatPrice, formatCdfCompact } from '@/lib/format';
 import { convertToCdf } from '@/lib/currency';
 import { useCdfRate } from '@/lib/CurrencyRateContext';
 import { getCurrency } from '@/lib/currencyPreference';
@@ -39,7 +39,7 @@ function buildInfoWindowContent(listing, cdfPerUsd) {
   const currency = getCurrency();
   const price =
     currency === 'CDF'
-      ? `≈ ${convertToCdf(listing.price, cdfPerUsd)?.toLocaleString('fr-FR') ?? '—'} FC${listing.purpose === 'rent' ? ' / mois' : ''}`
+      ? `≈ ${formatCdfCompact(convertToCdf(listing.price, cdfPerUsd)) ?? '—'} FC${listing.purpose === 'rent' ? ' / mois' : ''}`
       : formatPrice(listing.price, listing.purpose);
   const image = listing.featured_image || NO_PHOTO_URL;
   const spec = [

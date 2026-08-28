@@ -5,6 +5,7 @@ import Link from 'next/link';
 import CardImageCarousel from './CardImageCarousel';
 import FavoriteButton from './FavoriteButton';
 import Price from './Price';
+import SpecItem from './SpecItem';
 import { CardBadges, AmenityTag } from './ListingBadges';
 import {
   listingImages, formatAddedOn, specItems, feedLocationLine, descriptionSnippet, matchedAmenityKeys,
@@ -72,8 +73,6 @@ export default function PropertyCard({
   const summary = descriptionSnippet(description, 150);
   const addedOn = formatAddedOn(createdAt);
   const amenityKeys = matchedAmenityKeys(listing, 2);
-
-  const factsLine = specs.map((s) => `${s.value} ${s.label}`).join(' · ');
 
   return (
     // Own `@container` so the horizontal layout's breakpoints resolve
@@ -164,7 +163,16 @@ export default function PropertyCard({
           </span>
         </div>
 
-        {factsLine ? <p className="text-[0.875rem] text-ink-45">{factsLine}</p> : null}
+        {/* Icon + tabular number + label per spec (SpecItem.js/SpecIcons.js
+            — bed/bath/ruler glyphs), not a joined plain-text string. Same
+            component the design's KeyFacts.js already uses on the detail
+            page's fact grid; this was the one place still rendering specs
+            as bare "2 ch · 1 sdb" text. */}
+        {specs.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.875rem] text-ink-45">
+            {specs.map((spec) => <SpecItem key={spec.key} spec={spec} />)}
+          </div>
+        ) : null}
 
         {where ? <p className="truncate text-[0.875rem] font-medium text-ink-70">{where}</p> : null}
 

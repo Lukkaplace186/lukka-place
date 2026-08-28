@@ -72,7 +72,6 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
   // remounts this component with a new `defaults.commune`) or the URL.
   const [commune] = useState(defaults.commune || '');
   const [quartier, setQuartier] = useState(defaults.quartier || '');
-  const [radius, setRadius] = useState(defaults.radius || '');
   const [propertyType, setPropertyType] = useState(defaults.propertyType || '');
   const [parcelleSubtype, setParcelleSubtype] = useState(defaults.parcelleSubtype || '');
   const [bedsMin, setBedsMin] = useState(defaults.bedsMin || '');
@@ -143,7 +142,6 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
       if (bathMin) qs.set('bath_min', bathMin);
       if (priceMin) qs.set('price_min', priceMin);
       if (priceMax) qs.set('price_max', priceMax);
-      if (commune && radius) qs.set('radius', radius);
       if (depositMax) qs.set('deposit_max', depositMax);
       if (amenities.length) qs.set('amenities', amenities.join(','));
 
@@ -169,7 +167,6 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
     transaction,
     commune,
     quartier,
-    radius,
     propertyType,
     parcelleSubtype,
     bedsMin,
@@ -218,9 +215,6 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
     ['transaction_type', transaction],
     ['commune', commune],
     ['quartier', quartier],
-    // Only meaningful once a commune is picked — lib/listings.js's
-    // buildFilters ignores it otherwise.
-    ['radius', commune ? radius : ''],
     ['property_type', propertyType],
     ['parcelle_subtype', propertyType === 'parcelle' ? parcelleSubtype : ''],
     ['beds_min', bedsMin],
@@ -241,23 +235,6 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
         ? `max ${priceMax} $`
         : null;
   const typeLabel = propertyTypes.find((o) => o.value === propertyType)?.label;
-
-  // Hierarchy tiers (quartier -> commune -> Kinshasa) plus, since the
-  // 2026-08-23 geocoding backfill (scripts/geocode-listings.js), real
-  // kilometer options — Haversine-measured in lib/listings.js from the
-  // commune's real Google-geocoded centroid against each listing's own real
-  // coordinates. A third hierarchy tier only appears once a quartier is
-  // actually selected (via "Plus de filtres"): dropping straight from
-  // quartier to city would silently skip past the commune-wide option a
-  // visitor might actually want.
-  const KM_OPTIONS = [1, 3, 5];
-  const radiusLabel = KM_OPTIONS.includes(Number(radius))
-    ? `+${radius} km`
-    : radius === 'citywide'
-      ? 'Toute la ville'
-      : radius === 'commune'
-        ? 'Toute la commune'
-        : null;
 
   return (
     <div className="sticky top-16 z-40 border-b border-line bg-canvas/95 backdrop-blur-md">
@@ -299,56 +276,18 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
           />
 
           <div className="-mx-4 flex w-full items-center gap-2 overflow-x-auto px-4 pb-0.5 lg:mx-0 lg:w-auto lg:px-0">
-            {/* Zoopla's own bar order: Location -> Radius -> Bedrooms ->
-                Price -> Property type -> More filters -> Save. Rent/Buy is
-                already handled by the header nav and the URL's
-                transaction_type param (see Header.js), and "Commune" as a
-                separate structured pill was dropped — it duplicated the
-                location input above, which already resolves a typed/picked
-                place to a real commune (see LocationAutocomplete/
-                searchParser and FiltersDrawer's own hint pointing here). */}
-            {commune ? (
-              <FilterPill label="Rayon" value={radiusLabel} active={Boolean(radius)}>
-                <PillFieldLabel>Rayon de recherche</PillFieldLabel>
-                <div className="flex flex-wrap gap-2">
-                  {quartier ? (
-                    <PillOption selected={!radius} onClick={() => apply(setRadius)('')}>
-                      Ce quartier uniquement
-                    </PillOption>
-                  ) : (
-                    <PillOption selected={!radius} onClick={() => apply(setRadius)('')}>
-                      Cette commune uniquement
-                    </PillOption>
-                  )}
-                  {KM_OPTIONS.map((km) => (
-                    <PillOption key={km} selected={radius === String(km)} onClick={() => apply(setRadius)(String(km))}>
-                      +{km} km
-                    </PillOption>
-                  ))}
-                  {quartier ? (
-                    <PillOption selected={radius === 'commune'} onClick={() => apply(setRadius)('commune')}>
-                      Toute la commune
-                    </PillOption>
-                  ) : null}
-                  <PillOption selected={radius === 'citywide'} onClick={() => apply(setRadius)('citywide')}>
-                    Toute la ville
-                  </PillOption>
-                </div>
-                <p className="mt-3 text-[0.75rem] leading-relaxed text-ink-45">
-                  {KM_OPTIONS.includes(Number(radius))
-                    ? `Distance réelle depuis le centre de la commune — mesurée pour les biens géolocalisés, complétée par les biens de ${commune} non encore géolocalisés.`
-                    : 'Basé sur les communes/quartiers renseignés. Les options en km ci-dessus utilisent une distance réelle depuis le centre de la commune.'}
-                </p>
-              </FilterPill>
-            ) : (
-              <span
-                aria-disabled="true"
-                className="inline-flex shrink-0 items-center whitespace-nowrap rounded-lg border border-line bg-canvas-alt px-3.5 py-2 text-[0.8125rem] font-medium text-ink-25"
-              >
-                Rayon
-              </span>
-            )}
-
+            {/* Zoopla's own bar order minus Radius (removed for now — see
+                lib/listings.js's buildFilters and ResultsHeader.js, which
+                still honour a `radius` param arriving via a bookmarked/
+                shared URL, just with no UI control left in this bar to set
+                or change it): Bedrooms -> Price -> Property type -> More
+                filters -> Save. Rent/Buy is already handled by the header
+                nav and the URL's transaction_type param (see Header.js),
+                and "Commune" as a separate structured pill was dropped — it
+                duplicated the location input above, which already resolves
+                a typed/picked place to a real commune (see
+                LocationAutocomplete/searchParser and FiltersDrawer's own
+                hint pointing here). */}
             <FilterPill label="Chambres" value={bedsMin ? `${bedsMin}+ ch` : null} active={Boolean(bedsMin)}>
               <PillFieldLabel>Chambres (minimum)</PillFieldLabel>
               <div className="flex flex-wrap gap-2">

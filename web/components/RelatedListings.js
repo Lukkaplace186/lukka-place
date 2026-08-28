@@ -39,9 +39,21 @@ export default function RelatedListings({ listings, commune, widened = false, mo
     <section className="border-t border-line bg-canvas-alt py-16">
       <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8">
         <SectionHeading eyebrow={eyebrow} title={title} lead={lead} href="/listings" className="mb-8" />
+        {/* Each card needs an explicit width here: a plain flex row gives
+            an unconstrained child no size of its own to scroll with, so
+            every PropertyCard (layout="vertical", the default — its root
+            @container div carries no width class, unlike the "horizontal"
+            layout other call sites use) collapsed to near-zero width and
+            the whole rail rendered as blank space. Confirmed directly: a
+            live width probe on this exact row measured every card at 0px.
+            w-[19rem] shrink-0 gives each card the fixed rail-item width it
+            needs; snap-start (missing before) is what the row's own
+            snap-x/snap-mandatory was already set up to use per card. */}
         <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4">
           {listings.map((listing) => (
-            <PropertyCard key={listing.id} listing={listing} />
+            <div key={listing.id} className="w-[19rem] shrink-0 snap-start">
+              <PropertyCard listing={listing} />
+            </div>
           ))}
         </div>
       </div>

@@ -59,12 +59,15 @@ const GALLERY_SUBQUERY = `(
 // services/postgres.js's resolveAgentId in the engine repo, which only
 // starts resolving real matches once real agent accounts with real phone
 // numbers exist) LEFT JOINs to `agents`, never an inner join — a listing
-// with no agent attached must still return, with these three columns NULL,
-// not disappear from the feed. `agents.image`/`agents.phone` are whatever
-// the Laravel admin form eventually lets a team member enter — no known
+// with no agent attached must still return, with these columns NULL, not
+// disappear from the feed. `agents.image`/`agents.phone` are whatever the
+// Laravel admin form eventually lets a team member enter — no known
 // URL-prefixing convention for `image` was verified, so it's selected as-is
 // and the UI (AgencyLogo.js) falls back to text on a load failure rather
-// than assuming a base path that might be wrong.
+// than assuming a base path that might be wrong. `a.id AS agent_id` is the
+// real FK target itself — selected so the detail page can link to
+// /agents/[id] (app/(portfolio)/agents/[id]/page.js) when a listing
+// actually has one attached, rather than guessing at an id.
 const SELECT_FIELDS = `
   p.id, p.price, p.purpose, p.beds, p.bath, p.area, p.quartier,
   p.parcelle_subtype, p.units_count, p.reference, p.featured_image,
@@ -72,7 +75,7 @@ const SELECT_FIELDS = `
   pc.title, pc.slug, pc.address,
   catc.name AS category_name,
   pc.description,
-  a.image AS agency_logo_url, a.username AS agency_name, a.phone AS agent_phone,
+  a.id AS agent_id, a.image AS agency_logo_url, a.username AS agency_name, a.phone AS agent_phone,
   ${COMMUNE_SUBQUERY},
   ${GALLERY_SUBQUERY}
 `;

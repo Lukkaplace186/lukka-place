@@ -17,6 +17,20 @@ export function formatPrice(price, purpose, pricePeriod) {
   return pricePeriod === 'an' ? `${amount} $ / an` : `${amount} $ / mois`;
 }
 
+// Real Intl compact notation, not a hand-rolled "/1000 + k" — French uses a
+// comma decimal separator and a space before the unit ("916,8 k"), which
+// Intl gets right for free. Only ever applied to a *converted* CDF amount
+// (Price.js, PropertyMap's InfoWindow) — never to the exchange rate itself
+// (PricePanel.js, CurrencyBridge.js, parametres/page.js all print "1 USD =
+// 2 292 FC" in full): a rate is a single reference figure someone might
+// want to read exactly, not a price a visitor scans down a list of.
+const CDF_COMPACT_FORMATTER = new Intl.NumberFormat('fr-FR', { notation: 'compact', maximumFractionDigits: 1 });
+
+export function formatCdfCompact(cdf) {
+  const amount = Number(cdf);
+  return Number.isFinite(amount) ? CDF_COMPACT_FORMATTER.format(amount) : null;
+}
+
 const RELATIVE_FR = new Intl.RelativeTimeFormat('fr-FR', { numeric: 'auto' });
 const RELATIVE_STEPS = [
   { unit: 'year', ms: 365 * 24 * 60 * 60 * 1000 },

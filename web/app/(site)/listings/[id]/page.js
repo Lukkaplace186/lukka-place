@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation';
-import { MapPin } from 'lucide-react';
+import Link from 'next/link';
+import { MapPin, ArrowRight } from 'lucide-react';
 import Breadcrumb from '@/components/Breadcrumb';
 import PhotoGallery from '@/components/PhotoGallery';
 import KeyFacts from '@/components/KeyFacts';
@@ -9,6 +10,8 @@ import EnquiryCard from '@/components/EnquiryCard';
 import ListingLocationMap from '@/components/ListingLocationMap';
 import RelatedListings from '@/components/RelatedListings';
 import MobileListingBar from '@/components/MobileListingBar';
+import ShareButton from '@/components/ShareButton';
+import FavoriteButton from '@/components/FavoriteButton';
 import { AmenityTag } from '@/components/ListingBadges';
 import { getListingById, getListings, getSimilarListings } from '@/lib/listings';
 import { listingImages, locationLine, matchedAmenityKeys } from '@/lib/listingView';
@@ -52,6 +55,28 @@ export async function generateMetadata({ params }) {
       images: image ? [image] : undefined,
     },
   };
+}
+
+/**
+ * Directly under EnquiryCard, only when this listing actually has a real
+ * `agent_id` (see lib/listings.js's SELECT_FIELDS — NULL on every listing
+ * with no agent attached, same honesty rule EnquiryCard's own
+ * "Appeler l'agent" button follows: render nothing rather than a link to a
+ * profile that doesn't exist). Routes to the real /agents/[id] directory
+ * page (app/(portfolio)/agents/[id]/page.js), not a guessed id.
+ */
+function AgentProfileLink({ agentId }) {
+  if (!agentId) return null;
+
+  return (
+    <Link
+      href={`/agents/${agentId}`}
+      className="u-press group inline-flex items-center justify-center gap-1.5 rounded-lg border border-line px-5 py-2.5 text-sm font-semibold text-ink-70 transition-colors hover:border-ink-25 hover:text-ink"
+    >
+      Voir le profil de l&apos;agent
+      <ArrowRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+    </Link>
+  );
 }
 
 /**
@@ -113,17 +138,29 @@ export default async function ListingDetailPage({ params }) {
     <div className="pb-24 lg:pb-0">
       <ListingViewTracker path={`/listings/${listing.id}`} commune={listing.commune} />
       <div className="mx-auto max-w-[1600px] px-4 pt-6 sm:px-6 lg:px-8">
-        <Breadcrumb
-          className="mb-5"
-          items={[
-            { label: 'Accueil', href: '/' },
-            { label: 'Annonces', href: '/listings' },
-            ...(listing.commune
-              ? [{ label: listing.commune, href: `/listings?commune=${encodeURIComponent(listing.commune)}` }]
-              : []),
-            { label: listing.title },
-          ]}
-        />
+        <div className="mb-5 flex items-center justify-between gap-4">
+          <Breadcrumb
+            className="min-w-0"
+            items={[
+              { label: 'Accueil', href: '/' },
+              { label: 'Annonces', href: '/listings' },
+              ...(listing.commune
+                ? [{ label: listing.commune, href: `/listings?commune=${encodeURIComponent(listing.commune)}` }]
+                : []),
+              { label: listing.title },
+            ]}
+          />
+
+          {/* Zoopla-style top-right action pair — Partager/Sauvegarder,
+              both real (Web Share API with a clipboard fallback; the same
+              localStorage favorite every other heart on the site reads),
+              not decorative buttons duplicating EnquiryCard's own pair
+              lower down. */}
+          <div className="flex shrink-0 items-center gap-2">
+            <ShareButton title={listing.title} />
+            <FavoriteButton listingId={listing.id} variant="label" />
+          </div>
+        </div>
 
         <PhotoGallery images={images} alt={listing.title} createdAt={listing.created_at} />
 
@@ -162,6 +199,7 @@ export default async function ListingDetailPage({ params }) {
             {/* Mobile only: the sticky right rail is off-screen below lg. */}
             <div className="lg:hidden">
               <EnquiryCard listing={listing} />
+              <AgentProfileLink agentId={listing.agent_id} />
             </div>
 
             {listing.description ? (
@@ -202,6 +240,7 @@ export default async function ListingDetailPage({ params }) {
 
           <aside className="hidden lg:sticky lg:top-24 lg:flex lg:flex-col lg:gap-5">
             <EnquiryCard listing={listing} />
+            <AgentProfileLink agentId={listing.agent_id} />
             <PricePanel listing={listing} />
           </aside>
         </div>

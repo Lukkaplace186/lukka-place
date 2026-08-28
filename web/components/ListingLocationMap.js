@@ -18,6 +18,16 @@ import ResponsiveMapPane from './ResponsiveMapPane';
  * too — its matchMedia gate exists to protect the Geocoding quota on
  * /listings, where a phone visitor may never open the map at all. Here the
  * map is part of the page.
+ *
+ * The explicit height on `className` below is load-bearing, not
+ * decorative: ResponsiveMapPane's own wrapper and PropertyMap's root div
+ * are both `h-full`, which resolves to 0 without an ancestor that actually
+ * has a height. On /listings that ancestor is ListingsSplitView's
+ * `lg:h-[calc(100vh-10rem)]` pane; this page had nothing supplying one at
+ * all, so the whole map silently collapsed to zero height — no error, no
+ * placeholder, just the caption text below an invisible map. Confirmed by
+ * reading the full h-full chain (ListingLocationMap -> ResponsiveMapPane ->
+ * PropertyMap), not assumed.
  */
 export default function ListingLocationMap({ listing }) {
   return (
@@ -28,7 +38,7 @@ export default function ListingLocationMap({ listing }) {
         hoveredId={null}
         onMarkerHover={() => {}}
         maxZoom={15}
-        className="overflow-hidden rounded-lg border border-line"
+        className="h-[22rem] overflow-hidden rounded-lg border border-line sm:h-[26rem]"
       />
       <p className="mt-2.5 text-[0.75rem] text-ink-45">
         Localisation approximative, affichée à l&apos;échelle du quartier pour préserver la confidentialité du bien.

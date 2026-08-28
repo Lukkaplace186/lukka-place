@@ -65,6 +65,19 @@ const PRIMARY_LINKS = [
  * Height is 4rem/h-16 and is depended on elsewhere: FilterBar sticks at
  * `top-16` so the two never overlap.
  *
+ * Fill is `bg-surface` (the real `--surface` token, `#fff` — solid white,
+ * not the `bg-canvas/90 backdrop-blur-md` translucent-over-scroll-content
+ * treatment this carried before) with a real `shadow-sm` elevation instead
+ * of relying on the 1px hairline alone to separate it from the page.
+ * Position stays `fixed` rather than `position: sticky` — `fixed` already
+ * delivers "always visible while scrolling" on every route without
+ * depending on being a scroll-container's first child (SiteShell's `pt-16`
+ * spacer already accounts for it), and switching would be a structural
+ * change for the same visible result. `z-[60]`, not `z-50`, is deliberate
+ * too: BottomNav is `z-50`, and since it mounts after Header in the tree, a
+ * tied z-index would let it paint over the header on mobile — z-[60] keeps
+ * the header on top the way it always has.
+ *
  * Also carries Demandes now — a top-right text link next to Favoris,
  * routing to the same `/compte/demandes` the mobile tab bar always used.
  * It used to live only on the fixed left icon rail (SideRail.js), which
@@ -78,7 +91,7 @@ export default function Header() {
   const loggedIn = useIsLoggedIn();
 
   return (
-    <header className="fixed inset-x-0 top-0 z-[60] h-16 border-b border-line bg-canvas/90 backdrop-blur-md">
+    <header className="fixed inset-x-0 top-0 z-[60] h-16 border-b border-line bg-surface shadow-sm">
       <div className="mx-auto flex h-full max-w-[1600px] items-center gap-4 px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-3 lg:w-[76px] lg:shrink-0 lg:pl-0">
           {/* Mobile menu — Radix Sheet owns focus trapping, Escape and

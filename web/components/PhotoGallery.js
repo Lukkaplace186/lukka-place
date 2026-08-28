@@ -68,6 +68,15 @@ export default function PhotoGallery({ images, alt, createdAt }) {
   // than the whole grid being clipped to one rounded rectangle.
   const mosaic = shots.slice(0, 3);
   const hasGrid = mosaic.length > 1;
+  // Exactly one side photo (total === 2) is a real, common case — most
+  // listings here carry only a couple of WhatsApp-submitted photos. The
+  // side column used to always be a `grid-rows-2` pair regardless of how
+  // many side tiles it actually had: with only one, the second row track
+  // still reserved its full height with nothing in it, showing as dead
+  // white space next to the lead photo rather than the single side tile
+  // filling the column. `sideShots.length` (1 or 2) now drives which
+  // layout the column renders instead of hardcoding two rows.
+  const sideShots = mosaic.slice(1, 3);
 
   return (
     <>
@@ -112,32 +121,38 @@ export default function PhotoGallery({ images, alt, createdAt }) {
           </button>
 
           {hasGrid ? (
-            <div className="hidden grid-rows-2 gap-3 sm:grid">
-              {mosaic.slice(1, 3).map((src, i) => (
-                <button
-                  key={`${src}-${i}`}
-                  type="button"
-                  onClick={() => setLightboxIndex(i + 1)}
-                  aria-label={`Agrandir la photo ${i + 2}`}
-                  className="group relative h-full w-full overflow-hidden rounded-xl bg-canvas-deep"
-                >
-                  <SafeImage
-                    src={src}
-                    alt=""
-                    fill
-                    sizes="30vw"
-                    className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.05]"
-                  />
-                  {/* "Toutes les photos" sits on the last tile, exactly
-                      where the design puts it. */}
-                  {i === 1 && total > 3 ? (
-                    <span className="u-glass-royal absolute bottom-3.5 right-3.5 inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-[0.8125rem] font-semibold">
-                      <Expand strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-                      Toutes les photos
-                    </span>
-                  ) : null}
-                </button>
-              ))}
+            <div className={`hidden gap-3 sm:grid ${sideShots.length > 1 ? 'grid-rows-2' : 'grid-rows-1'}`}>
+              {sideShots.map((src, i) => {
+                const isLastTile = i === sideShots.length - 1;
+                return (
+                  <button
+                    key={`${src}-${i}`}
+                    type="button"
+                    onClick={() => setLightboxIndex(i + 1)}
+                    aria-label={`Agrandir la photo ${i + 2}`}
+                    className="group relative h-full w-full overflow-hidden rounded-xl bg-canvas-deep"
+                  >
+                    <SafeImage
+                      src={src}
+                      alt=""
+                      fill
+                      sizes="30vw"
+                      className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.05]"
+                    />
+                    {/* "Toutes les photos" sits on the last rendered tile,
+                        whenever the mosaic isn't showing every photo —
+                        `total > mosaic.length`, not a hardcoded `> 3`
+                        (which assumed the side column always has two
+                        tiles). */}
+                    {isLastTile && total > mosaic.length ? (
+                      <span className="u-glass-royal absolute bottom-3.5 right-3.5 inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-[0.8125rem] font-semibold">
+                        <Expand strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                        Toutes les photos
+                      </span>
+                    ) : null}
+                  </button>
+                );
+              })}
             </div>
           ) : null}
         </div>

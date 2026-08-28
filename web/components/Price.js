@@ -4,7 +4,7 @@ import { useSyncExternalStore } from 'react';
 import { getCurrency, subscribeCurrency } from '@/lib/currencyPreference';
 import { convertToCdf } from '@/lib/currency';
 import { useCdfRate } from '@/lib/CurrencyRateContext';
-import { formatPrice } from '@/lib/format';
+import { formatPrice, formatCdfCompact } from '@/lib/format';
 
 /**
  * Drop-in replacement for a raw formatPrice(...) text node. Renders the
@@ -43,7 +43,11 @@ export default function Price({
   const conversionTooltip = `Estimation convertie au ${updatedAt} — le prix réel est en USD`;
 
   const cdf = convertToCdf(amount, cdfPerUsd);
-  const cdfFormatted = cdf != null ? cdf.toLocaleString('fr-FR') : null;
+  // Compact ("≈ 916,8 k FC"), not the raw digit string — a long-form CDF
+  // figure next to a short USD one reads as noise, not confirmation. See
+  // lib/format.js's doc comment on formatCdfCompact for why this only
+  // applies to a converted price, never to the exchange rate itself.
+  const cdfFormatted = cdf != null ? formatCdfCompact(cdf) : null;
   const cdfSuffix = purpose === 'rent' ? (pricePeriod === 'an' ? ' FC / an' : ' FC / mois') : ' FC';
   const usdFormatted = formatPrice(amount, purpose, pricePeriod);
 

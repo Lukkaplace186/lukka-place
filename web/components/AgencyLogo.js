@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Monogram } from './Brand';
 
 /**
  * Right-aligned agency identity slot for a listing card's header — real
@@ -31,9 +32,45 @@ import { useState } from 'react';
  * field whose real shape is still unknown. A load failure (wrong domain,
  * 404, bare filename) falls back to the agency name as text, then to the
  * Lukka Place mark, same as the no-agent case.
+ *
+ * `variant="footer"` is a round-avatar + name row for a card's footer
+ * (ListingCardVertical.js, ListingCard.js) — same real-logo -> name-only ->
+ * Lukka Place fallback priority as the default variant above, just laid out
+ * as an avatar+label pair instead of a bare logo image, to read as "agent
+ * identity" alongside the footer's contact buttons rather than a stray
+ * logo floating in the metadata block. The Lukka Place fallback uses the
+ * real `Monogram` (Brand.js) — at true avatar scale (32px) the roofline
+ * mark reads fine, unlike the wide horizontal slot the default variant's
+ * doc comment above found it too abstract for.
  */
-export default function AgencyLogo({ logoUrl, name }) {
+export default function AgencyLogo({ logoUrl, name, variant = 'default' }) {
   const [failed, setFailed] = useState(false);
+
+  if (variant === 'footer') {
+    if (logoUrl && !failed) {
+      return (
+        <div className="flex min-w-0 items-center gap-2">
+          <img
+            src={logoUrl}
+            alt={name || 'Agence'}
+            loading="lazy"
+            onError={() => setFailed(true)}
+            className="h-8 w-8 shrink-0 rounded-full border border-line object-cover"
+          />
+          <span className="truncate text-[0.8125rem] font-semibold text-ink-70">{name || 'Agence'}</span>
+        </div>
+      );
+    }
+    if (name) {
+      return <span className="truncate text-[0.8125rem] font-semibold text-ink-70">{name}</span>;
+    }
+    return (
+      <div className="flex min-w-0 items-center gap-2">
+        <Monogram className="h-8 w-8 shrink-0 rounded-full border border-line" />
+        <span className="truncate text-[0.8125rem] font-semibold text-ink-70">Lukka Place</span>
+      </div>
+    );
+  }
 
   if (!logoUrl || failed) {
     if (name) {

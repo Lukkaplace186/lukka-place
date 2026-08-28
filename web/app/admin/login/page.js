@@ -47,7 +47,7 @@ export default async function AdminLoginPage({ searchParams }) {
 
           <button
             type="submit"
-            className="mt-1 rounded-md bg-blue px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-deep"
+            className="mt-1 rounded-md bg-blue px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary"
           >
             Se connecter
           </button>

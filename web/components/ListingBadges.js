@@ -2,6 +2,7 @@ import {
   Camera, Zap, Sun, Droplet, Route, ShieldCheck, Car, Snowflake, Sofa,
 } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { isNewListing } from '@/lib/listingView';
 
 /**
  * The chip vocabulary shared by all three card designs.
@@ -17,6 +18,58 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  * already use server-side (`lib/listings.js`'s `buildFilters`), just
  * surfaced as a badge instead of a filter.
  */
+
+/**
+ * The design system's Badge primitive (components/core/Badge.jsx) — an
+ * uppercase micro-caps status stamp. Tone names and their exact fills come
+ * straight from that component's own TONES map. The four status tones
+ * (success/warning/danger and their tints) are the design's semantic
+ * colours from tokens/colors.css, which this app had no tokens for.
+ *
+ * Deliberately distinct from `.u-tag` (globals.css): the design's readme is
+ * explicit that Badge and Tag "are not interchangeable" — Badge is a status
+ * stamp, Tag is a sentence-case descriptive chip.
+ */
+const BADGE_TONES = {
+  royal: 'bg-blue text-white',
+  royalSoft: 'bg-blue-tint text-blue-deep',
+  brass: 'bg-brass-tint text-brass-deep',
+  ink: 'bg-ink text-white',
+  white: 'bg-white text-ink',
+  success: 'bg-[#E7F4EE] text-[#1E7B54]',
+  warning: 'bg-[#FBF1DF] text-[#B5751A]',
+  danger: 'bg-[#FBEAE8] text-[#B3261E]',
+};
+
+export function Badge({ tone = 'royal', children, className = '' }) {
+  if (!children) return null;
+  return (
+    <span
+      className={`pointer-events-none inline-flex items-center rounded-full px-2.5 py-[5px] text-[0.6875rem] font-bold uppercase leading-[1.3] tracking-[0.12em] ${
+        BADGE_TONES[tone] || BADGE_TONES.royal
+      } ${className}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+/**
+ * The real badges for one listing, in the order the design's PropertyCard
+ * stacks them. Each is backed by a real column — "Nouveau" from `created_at`
+ * (see isNewListing), the status stamps from the agent-set `listing_status`.
+ * The design's own card also shows a brass "Premium" flag; nothing in the
+ * schema backs that, so it is deliberately not rendered.
+ */
+export function CardBadges({ listing }) {
+  const status = LISTING_STATUS_LABELS[listing.listing_status];
+  return (
+    <>
+      {isNewListing(listing.created_at) ? <Badge tone="royal">Nouveau</Badge> : null}
+      {status ? <Badge tone="ink">{status}</Badge> : null}
+    </>
+  );
+}
 
 export function TypeBadge({ children }) {
   if (!children) return null;
@@ -109,6 +162,24 @@ export function AmenityPill({ amenityKey }) {
   return (
     <span className="u-glass-royal pointer-events-none inline-flex items-center gap-1 rounded-full px-2 py-1 text-[0.6875rem] font-medium">
       <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-3 w-3" />
+      {meta.label}
+    </span>
+  );
+}
+
+/**
+ * The same real, text-matched amenities rendered as the design's `.u-tag`
+ * chip instead of a glass pill — PropertyCard puts these in the card body
+ * (below the description), where the design does, not over the photo.
+ * Icon included: the design's own Tag accepts one.
+ */
+export function AmenityTag({ amenityKey }) {
+  const meta = AMENITY_PILL_META[amenityKey];
+  if (!meta) return null;
+  const Icon = meta.icon;
+  return (
+    <span className="u-tag">
+      <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
       {meta.label}
     </span>
   );

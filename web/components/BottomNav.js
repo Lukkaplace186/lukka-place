@@ -24,7 +24,7 @@ export default function BottomNav() {
       aria-label="Navigation"
       className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
     >
-      <div className="grid grid-cols-5">
+      <div className="grid grid-cols-4">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
           const active = isNavItemActive(href, pathname);
           return (

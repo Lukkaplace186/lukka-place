@@ -14,7 +14,8 @@ import { CUSTOMER_SESSION_COOKIE, verifyCustomerSessionToken } from './customerA
 export async function getCustomerByPhone(phone) {
   const pool = getPool();
   const { rows } = await pool.query(
-    `SELECT id, phone, password_hash, full_name, token_version, failed_login_count, locked_until, created_at
+    `SELECT id, phone, password_hash, full_name, token_version, failed_login_count, locked_until, created_at,
+            reset_otp_code_hash, reset_otp_expires_at
      FROM customers WHERE phone = $1`,
     [phone],
   );
@@ -76,6 +77,42 @@ export async function updateCustomerName(customerId, fullName) {
 export async function deleteCustomer(customerId) {
   const pool = getPool();
   await pool.query(`DELETE FROM customers WHERE id = $1`, [customerId]);
+}
+
+// ---------------------------------------------------------------------------
+// "Mot de passe oublié" — web/lib/resetPassword.js. Deliberately separate
+// columns from anything else on this table (there's no signup-verification
+// OTP for customers to collide with, unlike agents below), but kept
+// symmetric with setAgentResetOtp/resetAgentPassword in lib/agents.js so
+// resetPassword.js can drive both through one identical shape.
+// ---------------------------------------------------------------------------
+
+export async function setCustomerResetOtp(customerId, { codeHash, expiresAt }) {
+  const pool = getPool();
+  await pool.query(`UPDATE customers SET reset_otp_code_hash = $1, reset_otp_expires_at = $2 WHERE id = $3`, [
+    codeHash,
+    expiresAt,
+    customerId,
+  ]);
+}
+
+/**
+ * The one write that actually completes a reset: new password, OTP cleared
+ * (a used code is never valid twice), every outstanding session invalidated
+ * (token_version bump — same mechanism logout-everywhere already uses), and
+ * any login lockout cleared, since proving phone ownership via OTP is a
+ * stronger signal than the failed-attempt counter it would otherwise still
+ * be gating on.
+ */
+export async function resetCustomerPassword(customerId, passwordHash) {
+  const pool = getPool();
+  await pool.query(
+    `UPDATE customers
+     SET password_hash = $1, reset_otp_code_hash = NULL, reset_otp_expires_at = NULL,
+         token_version = token_version + 1, failed_login_count = 0, locked_until = NULL
+     WHERE id = $2`,
+    [passwordHash, customerId],
+  );
 }
 
 export async function listFavoriteIds(customerId) {

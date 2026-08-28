@@ -262,40 +262,45 @@ function extractInboundMessages(body) {
  * listing, which beats dropping the message entirely.
  */
 async function downloadImages(refs, label) {
-  const images = [];
+  // Each ref's own try/catch already logs-and-skips on failure rather than
+  // throwing, so running them concurrently (instead of the previous
+  // sequential for-await loop) is safe: one slow/failed image no longer
+  // adds its latency to every image behind it in the list.
+  const results = await Promise.all(
+    refs.map(async (ref) => {
+      let image = null;
 
-  for (const ref of refs) {
-    let image = null;
+      if (ref.url) {
+        try {
+          image = await chakra.downloadMediaByUrl(ref.url, ref.mimeType);
+        } catch (err) {
+          console.warn(
+            `[chakra] ${label}: direct media URL failed (${err.message})` +
+              (ref.id ? ' — retrying via media id' : ''),
+          );
+        }
+      }
 
-    if (ref.url) {
-      try {
-        image = await chakra.downloadMediaByUrl(ref.url, ref.mimeType);
-      } catch (err) {
-        console.warn(
-          `[chakra] ${label}: direct media URL failed (${err.message})` +
-            (ref.id ? ' — retrying via media id' : ''),
+      if (!image && ref.id) {
+        try {
+          image = await chakra.downloadMedia(ref.id);
+        } catch (err) {
+          console.warn(`[chakra] media ${ref.id} for ${label} could not be downloaded: ${err.message}`);
+        }
+      }
+
+      if (image) {
+        console.log(
+          `[chakra] media ${ref.id || 'url'} downloaded (${image.mimeType}, ` +
+            `${Math.max(1, Math.round(image.sizeBytes / 1024))} KB)`,
         );
       }
-    }
 
-    if (!image && ref.id) {
-      try {
-        image = await chakra.downloadMedia(ref.id);
-      } catch (err) {
-        console.warn(`[chakra] media ${ref.id} for ${label} could not be downloaded: ${err.message}`);
-      }
-    }
+      return image;
+    }),
+  );
 
-    if (image) {
-      console.log(
-        `[chakra] media ${ref.id || 'url'} downloaded (${image.mimeType}, ` +
-          `${Math.max(1, Math.round(image.sizeBytes / 1024))} KB)`,
-      );
-      images.push(image);
-    }
-  }
-
-  return images;
+  return results.filter(Boolean);
 }
 
 // ---------------------------------------------------------------------------
@@ -308,6 +313,14 @@ async function downloadImages(refs, label) {
 // ---------------------------------------------------------------------------
 
 const PUBLISHED_REPLY = 'Merci ! Votre annonce est maintenant publiée et visible sur Lukka Place. 🎉';
+
+/**
+ * Sent once per new submission (see enqueueMessage), not once per message —
+ * the GPT-4o extraction + image handling that follows can take a real,
+ * noticeable few seconds to tens of seconds, and a WhatsApp user staring at
+ * silence has no other signal that anything is happening.
+ */
+const ACK_REPLY = 'Message reçu, un instant pendant que nous traitons votre annonce... ⏳';
 
 const UNSUPPORTED_MEDIA_REPLY =
   'Bonjour 👋 Pour publier une annonce, envoyez-la en *texte* ou en *photo* (avec légende). ' +
@@ -383,6 +396,29 @@ function enqueueMessage(message) {
     group = { messages: [], idleTimer: null, maxTimer: null };
     pendingGroups.set(key, group);
     group.maxTimer = setTimeout(() => flushSender(key, 'max wait'), groupMaxWaitMs());
+
+    // Burst-aware ack: fires once, when a brand-new group opens for this
+    // sender — not per message in the burst. Two conditions, both required:
+    // - No listing already awaiting this sender's 'OK' — that reply is a
+    //   fast confirmation/correction (no gpt-4o call), so an extra "please
+    //   wait" there would just be noise ahead of the real, near-instant reply.
+    // - The message actually carries media. Enqueue time is before any
+    //   classification (gpt-4o hasn't run yet), so there's no way to know
+    //   here whether this will turn out to be a listing, a buyer-search
+    //   message, a greeting, or — critically — a conversation currently
+    //   under human handoff, where the system must stay completely silent.
+    //   Gating on "has a photo" is a proxy for "this is actually a listing
+    //   submission, not a fast text-only chat message": listings are
+    //   submitted with photos, buyer/greeting/handoff traffic overwhelmingly
+    //   isn't, and text-only extraction is fast enough not to need an ack
+    //   anyway. A first version of this ack fired unconditionally and broke
+    //   exactly this — sent an ack even while human-handoff silence should
+    //   have suppressed any reply — caught by scripts/verify-pipeline.js.
+    if (message.media?.length && !findLatestPendingListing(key)) {
+      chakra.sendWhatsAppMessage(key, ACK_REPLY).catch((err) => {
+        console.error(`[chakra] failed to send ack to ${key}: ${err.message}`);
+      });
+    }
   }
 
   // A retry arriving mid-burst must not be buffered twice.

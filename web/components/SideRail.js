@@ -20,6 +20,13 @@ import { NAV_ITEMS, isNavItemActive } from './navItems';
 export default function SideRail() {
   const pathname = usePathname();
 
+  // web/Design's homepage has no left icon rail at all — just the top
+  // header (Acheter/Louer/Parcelles/À propos + Favoris/Connexion). Hiding
+  // it here, not by not-rendering <SideRail /> in the layout, keeps
+  // /listings, /favoris etc. unaffected — this is the one route that
+  // deliberately diverges from the rest of the site's shell.
+  if (pathname === '/') return null;
+
   return (
     <nav
       aria-label="Navigation principale"

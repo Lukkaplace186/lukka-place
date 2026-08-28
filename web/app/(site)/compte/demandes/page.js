@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import { Send } from 'lucide-react';
 import Link from 'next/link';
 import Breadcrumb from '@/components/Breadcrumb';
-import ListingCardVertical from '@/components/ListingCardVertical';
+import PropertyCard from '@/components/PropertyCard';
 import { getCurrentCustomerId } from '@/lib/customers';
 import { getCustomerInquiries } from '@/lib/customerInquiries';
 import { LEAD_STATUS_LABELS_FR } from '@/lib/adminLabels';
@@ -55,7 +55,7 @@ export default async function DemandesPage() {
           </p>
           <Link
             href="/listings"
-            className="mt-7 inline-flex items-center rounded-full bg-blue px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-deep"
+            className="mt-7 inline-flex items-center rounded-full bg-blue px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary"
           >
             Parcourir les annonces
           </Link>
@@ -77,7 +77,7 @@ export default async function DemandesPage() {
 
               {listing ? (
                 <div className="max-w-xs">
-                  <ListingCardVertical listing={listing} />
+                  <PropertyCard listing={listing} />
                 </div>
               ) : (
                 <p className="text-[0.8125rem] italic text-ink-45">Annonce non disponible.</p>

@@ -3,16 +3,20 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, Expand, ImageOff } from 'lucide-react';
 import SafeImage from './SafeImage';
+import { Badge } from './ListingBadges';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
+import { isNewListing } from '@/lib/listingView';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 
 /**
- * Detail-page gallery: a mosaic (one large frame plus a 2x2 grid of the next
- * four) that opens a full-screen lightbox.
+ * Detail-page gallery: web/Design's 2fr/1fr three-tile grid (one tall lead
+ * photo spanning two rows, two stacked beside it) that opens a full-screen
+ * lightbox.
  *
  * Real listings carry 0 to 16 photos, so every count has to work: 0 renders
  * an honest empty frame rather than a broken image, 1-2 fill the width, and
- * anything above 5 surfaces a "voir les N photos" affordance so the rest are
+ * anything above 3 surfaces the design's "Toutes les photos" affordance on
+ * the last tile so the rest are
  * reachable.
  *
  * The lightbox is a Radix Dialog (shadcn) — it already owns focus trapping,
@@ -21,7 +25,7 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  * `open` flips, so a framer-motion exit animation there would never run
  * (see the scope note in lib/motion.js).
  */
-export default function PhotoGallery({ images, alt }) {
+export default function PhotoGallery({ images, alt, createdAt }) {
   const shots = images || [];
   const total = shots.length;
 
@@ -57,22 +61,31 @@ export default function PhotoGallery({ images, alt }) {
     );
   }
 
-  const mosaic = shots.slice(0, 5);
+  // web/Design's detail gallery: a 2fr/1fr split with two 210px rows — one
+  // tall lead photo spanning both rows, and two stacked photos beside it.
+  // Three tiles, not the five-tile 1-large-plus-2x2 mosaic this previously
+  // rendered. Each tile carries the design's own 12px --radius-image rather
+  // than the whole grid being clipped to one rounded rectangle.
+  const mosaic = shots.slice(0, 3);
   const hasGrid = mosaic.length > 1;
 
   return (
     <>
       <div className="relative">
         <div
-          className={`grid h-[22rem] gap-2 overflow-hidden rounded-card sm:h-[26rem] lg:h-[30rem] ${
-            hasGrid ? 'grid-cols-1 sm:grid-cols-[1.6fr_1fr]' : 'grid-cols-1'
+          className={`grid gap-3 ${
+            hasGrid
+              ? 'grid-cols-1 grid-rows-[13rem_13rem] sm:grid-cols-[2fr_1fr]'
+              : 'h-[22rem] grid-cols-1 sm:h-[26rem]'
           }`}
         >
           <button
             type="button"
             onClick={() => setLightboxIndex(0)}
             aria-label="Agrandir la photo 1"
-            className="group relative h-full w-full overflow-hidden bg-canvas-alt"
+            className={`group relative w-full overflow-hidden rounded-xl bg-canvas-deep ${
+              hasGrid ? 'row-span-2 h-full' : 'h-full'
+            }`}
           >
             <SafeImage
               src={mosaic[0]}
@@ -82,39 +95,52 @@ export default function PhotoGallery({ images, alt }) {
               sizes="(min-width: 1024px) 60vw, 100vw"
               className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]"
             />
+
+            {/* Badges the design stamps on the lead photo. Both are real:
+                every listing reaching this page has already passed the
+                approve_status=1 moderation gate (lib/listings.js), and
+                "Nouveau" is the same 14-day created_at window the cards
+                use. */}
+            <span className="pointer-events-none absolute left-3.5 top-3.5 z-10 flex flex-wrap gap-2">
+              <Badge tone="white">Annonce vérifiée</Badge>
+              {isNewListing(createdAt) ? <Badge tone="royal">Nouveau</Badge> : null}
+            </span>
+
+            <span className="u-glass-royal u-tabular pointer-events-none absolute bottom-3.5 right-3.5 z-10 inline-flex items-center rounded-sm px-2.5 py-1.5 text-[0.8125rem] font-semibold">
+              1/{total} photo{total !== 1 ? 's' : ''}
+            </span>
           </button>
 
           {hasGrid ? (
-            <div className="hidden grid-cols-2 grid-rows-2 gap-2 sm:grid">
-              {mosaic.slice(1, 5).map((src, i) => (
+            <div className="hidden grid-rows-2 gap-3 sm:grid">
+              {mosaic.slice(1, 3).map((src, i) => (
                 <button
                   key={`${src}-${i}`}
                   type="button"
                   onClick={() => setLightboxIndex(i + 1)}
                   aria-label={`Agrandir la photo ${i + 2}`}
-                  className="group relative h-full w-full overflow-hidden bg-canvas-alt"
+                  className="group relative h-full w-full overflow-hidden rounded-xl bg-canvas-deep"
                 >
                   <SafeImage
                     src={src}
                     alt=""
                     fill
-                    sizes="20vw"
+                    sizes="30vw"
                     className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.05]"
                   />
+                  {/* "Toutes les photos" sits on the last tile, exactly
+                      where the design puts it. */}
+                  {i === 1 && total > 3 ? (
+                    <span className="u-glass-royal absolute bottom-3.5 right-3.5 inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-[0.8125rem] font-semibold">
+                      <Expand strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                      Toutes les photos
+                    </span>
+                  ) : null}
                 </button>
               ))}
             </div>
           ) : null}
         </div>
-
-        <button
-          type="button"
-          onClick={() => setLightboxIndex(0)}
-          className="u-glass-royal absolute bottom-4 right-4 inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-[0.8125rem] font-semibold transition-colors hover:bg-[rgba(12,29,80,0.58)]"
-        >
-          <Expand strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-          <span className="u-tabular">{total}</span> photo{total !== 1 ? 's' : ''}
-        </button>
       </div>
 
       <Dialog open={isOpen} onOpenChange={(next) => !next && setLightboxIndex(null)}>

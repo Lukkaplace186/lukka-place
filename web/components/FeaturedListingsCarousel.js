@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import FeaturedListingCard from './FeaturedListingCard';
+import PropertyCard from './PropertyCard';
 import { revealUp } from '@/lib/motion';
 import { useMotionSafe } from '@/lib/useMotionSafe';
 
@@ -50,7 +50,7 @@ export default function FeaturedListingsCarousel({ listings }) {
       ].join(' ')}
     >
       {listings.map((listing) => (
-        <FeaturedListingCard key={listing.id} listing={listing} />
+        <PropertyCard key={listing.id} listing={listing} />
       ))}
     </motion.div>
   );

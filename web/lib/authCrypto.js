@@ -42,3 +42,17 @@ export function safeEqualHex(a, b) {
 export function hmacSign(secret, value) {
   return crypto.createHmac('sha256', secret).update(value).digest('hex');
 }
+
+/**
+ * 6-digit code, zero-padded — matches what a human reads aloud/types easily
+ * off a WhatsApp message. Previously hand-rolled once inside agentAuth.js
+ * for signup verification; lives here now so the password-reset flow
+ * (resetPassword.js, both customers and agents) can reuse the exact same
+ * generator instead of a second copy. Hash it the same way as a password —
+ * `hashToStoredForm(code)` — a leaked *_otp_code_hash column is still
+ * useless without the salt+scrypt work.
+ */
+export function generateOtpCode() {
+  const n = Math.floor(Math.random() * 1_000_000);
+  return String(n).padStart(6, '0');
+}

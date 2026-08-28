@@ -35,6 +35,13 @@
 
   /* Prestige White ground */
   --canvas: #ffffff;      /* page ground — white is the primary */
+  /* Warm stone — the Espace Client portal's own ground, straight from the
+     "Espace Client" design canvas (its <body> is literally #F9F8F6). The
+     public storefront keeps white as its primary ground; the signed-in
+     portal is the one surface the design gives a warm ground so its white
+     cards read as figure against it. Scoped to /compte/client/* — do not
+     use it as a general page fill. */
+  --canvas-warm: #f9f8f6;
   --canvas-alt: #f7f7f5;  /* alternating/sunken section fills (chalk) */
   --canvas-deep: #eff1f6; /* hover / pressed fills, image wells (mist) */
   --line: #e2e6ef;        /* hairline borders — replaces card shadows (ink-100) */
@@ -164,6 +171,7 @@
 
   --color-canvas: var(--canvas);
   --color-canvas-alt: var(--canvas-alt);
+  --color-canvas-warm: var(--canvas-warm);
   --color-canvas-deep: var(--canvas-deep);
   --color-surface: var(--surface);
   --color-line: var(--line);

@@ -1,6 +1,10 @@
-import { PARCELLE_SUBTYPES } from './constants';
+import { PARCELLE_SUBTYPES, AMENITY_GROUPS } from './constants';
 
 const PARCELLE_LABELS = Object.fromEntries(PARCELLE_SUBTYPES.map(({ value, label }) => [value, label]));
+
+const AMENITY_LABELS = Object.fromEntries(
+  AMENITY_GROUPS.flatMap(({ options }) => options.map(({ key, label }) => [key, label])),
+);
 
 /**
  * Human-readable summary of a /listings query — "Appartements à louer à
@@ -42,4 +46,66 @@ export function buildSearchLabel(searchParams) {
   if (q) parts.push(`"${q}"`);
 
   return parts.join(' ');
+}
+
+/**
+ * A saved search's real criteria, as discrete chips — the design's Tag row
+ * on each alert card ("Location", "2 chambres", "Gombe", "Meublé").
+ *
+ * Every chip is read straight out of the search's own stored query string;
+ * there is no inference and no default. A saved search that only carries
+ * `transaction_type=location` produces exactly one chip, not a padded row.
+ * Shares the exact same param names as parseListingsSearchParams (which is
+ * what actually re-runs the search) so the chips can never describe
+ * criteria the query doesn't really apply.
+ *
+ * @param {URLSearchParams} searchParams
+ * @returns {string[]}
+ */
+export function searchCriteriaTags(searchParams) {
+  const tags = [];
+  const get = (key) => searchParams.get(key);
+
+  const transactionType = get('transaction_type');
+  if (transactionType === 'location') tags.push('Location');
+  else if (transactionType === 'vente') tags.push('Achat');
+
+  const parcelleSubtype = get('parcelle_subtype');
+  const propertyType = get('property_type');
+  if (parcelleSubtype && PARCELLE_LABELS[parcelleSubtype]) tags.push(PARCELLE_LABELS[parcelleSubtype]);
+  else if (propertyType === 'appartement') tags.push('Appartement');
+  else if (propertyType === 'parcelle') tags.push('Parcelle');
+
+  const commune = get('commune');
+  if (commune) tags.push(commune);
+  const quartier = get('quartier');
+  if (quartier) tags.push(quartier);
+  if (commune && get('radius') === 'citywide') tags.push('Toute la ville');
+
+  const bedsMin = get('beds_min');
+  if (bedsMin) tags.push(`${bedsMin} chambre${Number(bedsMin) > 1 ? 's' : ''} et plus`);
+  const bathMin = get('bath_min');
+  if (bathMin) tags.push(`${bathMin} sdb et plus`);
+
+  const priceMin = get('price_min');
+  const priceMax = get('price_max');
+  const money = (value) => `$${Number(value).toLocaleString('en-US')}`;
+  if (priceMin && priceMax) tags.push(`${money(priceMin)} – ${money(priceMax)}`);
+  else if (priceMin) tags.push(`À partir de ${money(priceMin)}`);
+  else if (priceMax) tags.push(`Max ${money(priceMax)}`);
+
+  const depositMax = get('deposit_max');
+  if (depositMax) tags.push(`Garantie max ${depositMax} mois`);
+
+  const amenities = (get('amenities') || '').split(',').filter(Boolean);
+  for (const key of amenities) {
+    if (AMENITY_LABELS[key]) tags.push(AMENITY_LABELS[key]);
+  }
+
+  const reference = get('reference');
+  if (reference) tags.push(`Réf. ${reference}`);
+  const q = get('q');
+  if (q) tags.push(`« ${q} »`);
+
+  return tags;
 }

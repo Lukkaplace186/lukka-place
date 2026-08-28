@@ -3,7 +3,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { Share2, Check, Heart, Bookmark, X } from 'lucide-react';
-import ListingCard from '@/components/ListingCard';
+import PropertyCard from '@/components/PropertyCard';
 import Breadcrumb from '@/components/Breadcrumb';
 import CardSkeleton from '@/components/CardSkeleton';
 import {
@@ -203,7 +203,7 @@ function FavoritesSection() {
           </p>
           <Link
             href="/listings"
-            className="mt-7 inline-flex items-center rounded-full bg-blue px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-deep"
+            className="mt-7 inline-flex items-center rounded-full bg-blue px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary"
           >
             Parcourir les annonces
           </Link>
@@ -211,7 +211,7 @@ function FavoritesSection() {
       ) : (
         <div className="flex flex-col gap-4">
           {displayListings.map((listing) => (
-            <ListingCard key={listing.id} listing={listing} />
+            <PropertyCard key={listing.id} listing={listing} layout="horizontal" />
           ))}
         </div>
       )}
@@ -284,7 +284,7 @@ function SharedListSection() {
       ) : (
         <div className="flex flex-col gap-4">
           {listings.map((listing) => (
-            <ListingCard key={listing.id} listing={listing} />
+            <PropertyCard key={listing.id} listing={listing} layout="horizontal" />
           ))}
         </div>
       )}

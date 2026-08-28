@@ -1,5 +1,5 @@
 import PageShell, { PageAction, PageNotice } from '@/components/PageShell';
-import { buildWhatsAppLink } from '@/lib/whatsapp';
+import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 
 export const metadata = {
   title: 'Messages — Lukka Place',
@@ -13,10 +13,7 @@ export const metadata = {
  * this routes there rather than showing a bare "coming soon".
  */
 export default function MessagesPage() {
-  const phoneNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
-  const whatsappHref = phoneNumber
-    ? buildWhatsAppLink(phoneNumber, 'Bonjour, je vous contacte depuis lukkaplace.com.')
-    : null;
+  const whatsappHref = getCentralWhatsAppHref('Bonjour, je vous contacte depuis lukkaplace.com.');
 
   return (
     <PageShell

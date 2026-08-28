@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Home, KeyRound, Megaphone } from 'lucide-react';
-import { buildWhatsAppLink } from '@/lib/whatsapp';
+import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 
 const CARDS = [
@@ -38,10 +38,7 @@ const CARDS = [
  * a dead link.
  */
 export default function TransactionTypesGrid() {
-  const phoneNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
-  const sellHref = phoneNumber
-    ? buildWhatsAppLink(phoneNumber, 'Bonjour, je souhaite lister mon bien sur Lukka Place.')
-    : null;
+  const sellHref = getCentralWhatsAppHref('Bonjour, je souhaite lister mon bien sur Lukka Place.');
 
   return (
     <section className="mx-auto max-w-[1600px] px-4 pb-20 sm:px-6 sm:pb-28 lg:px-8">

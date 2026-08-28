@@ -2,10 +2,9 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Bookmark } from 'lucide-react';
 import Breadcrumb from '@/components/Breadcrumb';
-import ListingCardVertical from '@/components/ListingCardVertical';
+import PropertyCard from '@/components/PropertyCard';
 import { getCurrentCustomerId, listSavedSearches, touchSavedSearchesViewed } from '@/lib/customers';
-import { getListings } from '@/lib/listings';
-import { parseListingsSearchParams } from '@/lib/searchQuery';
+import { getSavedSearchMatches } from '@/lib/alerts';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 
 export const metadata = {
@@ -33,15 +32,13 @@ export default async function AlertesPage() {
 
   const searches = await listSavedSearches(customerId);
 
-  const sections = await Promise.all(
-    searches.map(async (search) => {
-      const filters = parseListingsSearchParams(new URLSearchParams(search.query));
-      const { data, total } = await getListings({ ...filters, sort: 'newest', limit: 60 });
-      const since = new Date(search.last_viewed_at || search.created_at);
-      const newListings = data.filter((l) => new Date(l.created_at) > since);
-      return { search, newListings: newListings.slice(0, SHOWN_PER_SEARCH), newCount: newListings.length, total };
-    }),
-  );
+  const matches = await getSavedSearchMatches(searches);
+  const sections = matches.map(({ search, newListings, newCount, total }) => ({
+    search,
+    newListings: newListings.slice(0, SHOWN_PER_SEARCH),
+    newCount,
+    total,
+  }));
 
   await touchSavedSearchesViewed(customerId, searches.map((s) => s.id));
 
@@ -69,7 +66,7 @@ export default async function AlertesPage() {
           </p>
           <Link
             href="/listings"
-            className="mt-7 inline-flex items-center rounded-full bg-blue px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-deep"
+            className="mt-7 inline-flex items-center rounded-full bg-blue px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary"
           >
             Parcourir les annonces
           </Link>
@@ -95,7 +92,7 @@ export default async function AlertesPage() {
               {newListings.length > 0 && (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {newListings.map((listing) => (
-                    <ListingCardVertical key={listing.id} listing={listing} />
+                    <PropertyCard key={listing.id} listing={listing} />
                   ))}
                 </div>
               )}

@@ -76,37 +76,40 @@ async function uploadListingPhotos(localWebPaths, propertyId) {
   }
 
   const storage = getClient().storage.from(BUCKET);
-  const urls = [];
 
-  for (const webPath of localWebPaths) {
-    const localPath = resolveLocalPath(webPath);
-    let buffer;
-    try {
-      buffer = fs.readFileSync(localPath);
-    } catch (err) {
-      console.warn(`[supabaseStorage] could not read ${localPath}: ${err.message}`);
-      continue;
-    }
+  // Each path's own try/catch already logs-and-skips on failure rather than
+  // throwing, so running the uploads concurrently (instead of the previous
+  // sequential for-await loop) is safe and cuts real wall-clock time for a
+  // multi-photo listing.
+  const urls = await Promise.all(
+    localWebPaths.map(async (webPath) => {
+      const localPath = resolveLocalPath(webPath);
+      let buffer;
+      try {
+        buffer = fs.readFileSync(localPath);
+      } catch (err) {
+        console.warn(`[supabaseStorage] could not read ${localPath}: ${err.message}`);
+        return null;
+      }
 
-    const ext = path.extname(localPath).slice(1).toLowerCase() || 'jpg';
-    const storagePath = `properties/${propertyId}/whatsapp_${contentHash(buffer)}.${ext}`;
+      const ext = path.extname(localPath).slice(1).toLowerCase() || 'jpg';
+      const storagePath = `properties/${propertyId}/whatsapp_${contentHash(buffer)}.${ext}`;
 
-    const { error: uploadError } = await storage.upload(storagePath, buffer, {
-      contentType: CONTENT_TYPE_BY_EXT[ext] || 'application/octet-stream',
-      upsert: true,
-    });
-    if (uploadError) {
-      console.warn(`[supabaseStorage] upload failed for ${storagePath}: ${uploadError.message}`);
-      continue;
-    }
+      const { error: uploadError } = await storage.upload(storagePath, buffer, {
+        contentType: CONTENT_TYPE_BY_EXT[ext] || 'application/octet-stream',
+        upsert: true,
+      });
+      if (uploadError) {
+        console.warn(`[supabaseStorage] upload failed for ${storagePath}: ${uploadError.message}`);
+        return null;
+      }
 
-    const { data } = storage.getPublicUrl(storagePath);
-    if (data?.publicUrl) {
-      urls.push(data.publicUrl);
-    }
-  }
+      const { data } = storage.getPublicUrl(storagePath);
+      return data?.publicUrl || null;
+    }),
+  );
 
-  return urls;
+  return urls.filter(Boolean);
 }
 
 module.exports = {

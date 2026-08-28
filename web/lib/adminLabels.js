@@ -34,3 +34,17 @@ export const LEAD_STATUS_LABELS_FR = {
   CONVERTED: 'Converti',
   LOST: 'Perdu',
 };
+
+export const LISTING_MODERATION_STATUSES = ['pending', 'approved', 'rejected'];
+
+export const LISTING_MODERATION_STATUS_LABELS_FR = {
+  pending: 'En attente',
+  approved: 'Approuvé',
+  rejected: 'Rejeté',
+};
+
+/** agents.status / vendors.status — real smallint column, 0/1 only. */
+export const AGENT_STATUS_LABELS_FR = {
+  0: 'Inactif',
+  1: 'Actif',
+};

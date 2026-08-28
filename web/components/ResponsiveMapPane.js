@@ -31,7 +31,7 @@ export default function ResponsiveMapPane({ listings, isMapView, hoveredId, onMa
       {shouldRender ? (
         <PropertyMap listings={listings} hoveredId={hoveredId} onMarkerHover={onMarkerHover} maxZoom={maxZoom} />
       ) : (
-        <div className="h-[70vh] w-full bg-canvas-alt lg:h-full" />
+        <div className="h-full w-full bg-canvas-alt" />
       )}
     </div>
   );

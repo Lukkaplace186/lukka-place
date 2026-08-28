@@ -34,3 +34,16 @@ reference-portal/
 *.zip
 Design/
 _ds/
+
+# Claude Design canvas exports that land loose in web/ rather than under
+# web/Design/ (the canvas HTML plus the runtime it loads). Nothing in the
+# app imports any of them — verified by grep over web/app, web/components
+# and web/lib — and web/support.js is the source of the only ESLint errors
+# outside LocationAutocomplete.js. Real, served assets live in web/public/
+# (e.g. public/assets/img/noimage.jpg, which lib/constants.js's NO_PHOTO_URL
+# points at) and stay tracked; web/assets/ is the design's own source art.
+*.dc.html
+.thumbnail
+web/support.js
+web/image-slot.js
+web/assets/

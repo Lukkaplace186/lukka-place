@@ -1,14 +1,20 @@
 import { notFound } from 'next/navigation';
+import { MapPin } from 'lucide-react';
 import Breadcrumb from '@/components/Breadcrumb';
 import PhotoGallery from '@/components/PhotoGallery';
-import PropertyMetrics from '@/components/PropertyMetrics';
+import KeyFacts from '@/components/KeyFacts';
+import Price from '@/components/Price';
+import PricePanel from '@/components/PricePanel';
 import EnquiryCard from '@/components/EnquiryCard';
 import ListingLocationMap from '@/components/ListingLocationMap';
 import RelatedListings from '@/components/RelatedListings';
 import MobileListingBar from '@/components/MobileListingBar';
+import { AmenityTag } from '@/components/ListingBadges';
 import { getListingById, getListings, getSimilarListings } from '@/lib/listings';
-import { listingImages, typeLabel, locationLine } from '@/lib/listingView';
+import { listingImages, locationLine, matchedAmenityKeys } from '@/lib/listingView';
 import { formatPrice } from '@/lib/format';
+import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import ListingViewTracker from '@/components/ListingViewTracker';
 
 /**
  * `openGraph`/`twitter` here are what WhatsApp's own link-preview crawler
@@ -75,7 +81,9 @@ export default async function ListingDetailPage({ params }) {
 
   const images = listingImages(listing);
   const where = locationLine(listing);
-  const type = typeLabel(listing);
+  // Up to 5 here rather than a card's 2 — the detail page has a dedicated
+  // "Équipements" section with room for the full matched set.
+  const amenityKeys = matchedAmenityKeys(listing, 5);
 
   // Real pgvector cosine-similarity match against this listing's own stored
   // embedding (services/embeddings.js, engine repo — written on every
@@ -103,6 +111,7 @@ export default async function ListingDetailPage({ params }) {
 
   return (
     <div className="pb-24 lg:pb-0">
+      <ListingViewTracker path={`/listings/${listing.id}`} commune={listing.commune} />
       <div className="mx-auto max-w-[1600px] px-4 pt-6 sm:px-6 lg:px-8">
         <Breadcrumb
           className="mb-5"
@@ -116,55 +125,84 @@ export default async function ListingDetailPage({ params }) {
           ]}
         />
 
-        <PhotoGallery images={images} alt={listing.title} />
+        <PhotoGallery images={images} alt={listing.title} createdAt={listing.created_at} />
 
-        <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1fr)_23rem] lg:items-start lg:gap-12">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              {type ? (
-                <span className="rounded-full bg-blue-tint px-3 py-1 text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-blue-deep">
-                  {type}
-                </span>
+        {/* web/Design's detail layout: a 400px right rail, not 23rem/368px,
+            and 40px between the columns. */}
+        <div className="mt-9 grid gap-10 lg:grid-cols-[minmax(0,1fr)_25rem] lg:items-start">
+          <div className="flex min-w-0 flex-col gap-7">
+            {/* Price leads the page at 44px/800 — the design's single
+                loudest number, above the title rather than tucked into the
+                enquiry panel. */}
+            <div className="flex flex-col gap-2.5">
+              <span className="u-tabular text-[2.25rem] font-extrabold leading-none tracking-[-0.025em] text-ink sm:text-[2.75rem]">
+                <Price
+                  amount={listing.price}
+                  purpose={listing.purpose}
+                  pricePeriod={listing.price_period}
+                  showSubtext
+                  subtextClassName="ml-3 text-[1rem] font-normal tracking-normal text-ink-45"
+                />
+              </span>
+
+              <h1 className="text-[1.3125rem] font-bold leading-[1.3] tracking-[-0.008em] text-ink">
+                {listing.title}
+              </h1>
+
+              {(listing.address || where) ? (
+                <p className="inline-flex items-center gap-1.5 text-[0.875rem] text-ink-45">
+                  <MapPin strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0" />
+                  {listing.address || where}
+                </p>
               ) : null}
-              {where ? <span className="u-eyebrow">{where}</span> : null}
             </div>
 
-            <h1 className="mt-3 font-display text-[1.75rem] font-normal leading-[1.15] tracking-[-0.02em] text-ink sm:text-[2.25rem]">
-              {listing.title}
-            </h1>
+            <KeyFacts listing={listing} />
 
-            {listing.address ? <p className="mt-2 text-[0.9375rem] text-ink-45">{listing.address}</p> : null}
-
-            {/* Mobile only: the sticky EnquiryCard is off-screen below lg,
-                and the price should not require a scroll to the bottom. */}
-            <div className="mt-6 lg:hidden">
+            {/* Mobile only: the sticky right rail is off-screen below lg. */}
+            <div className="lg:hidden">
               <EnquiryCard listing={listing} />
             </div>
 
-            <div className="mt-10">
-              <h2 className="u-eyebrow mb-4">Caractéristiques</h2>
-              <PropertyMetrics listing={listing} />
-            </div>
-
             {listing.description ? (
-              <div className="mt-10">
-                <h2 className="font-display text-xl font-normal tracking-[-0.01em] text-ink">Description</h2>
-                <p className="mt-3 whitespace-pre-line text-[0.9375rem] leading-relaxed text-ink-70">
+              <div className="flex flex-col gap-3">
+                <h2 className="text-[1.125rem] font-bold text-ink">Description</h2>
+                <p className="max-w-[41rem] whitespace-pre-line text-[1rem] leading-[1.6] text-ink-70">
                   {listing.description}
                 </p>
               </div>
             ) : null}
 
-            <div className="mt-10">
-              <h2 className="font-display text-xl font-normal tracking-[-0.01em] text-ink">Localisation</h2>
-              <div className="mt-4">
-                <ListingLocationMap listing={listing} />
+            {amenityKeys.length > 0 ? (
+              <div className="flex flex-col gap-3.5">
+                <h2 className="text-[1.125rem] font-bold text-ink">Équipements confirmés par l&apos;agent</h2>
+                <div className="flex flex-wrap gap-2">
+                  {amenityKeys.map((key) => <AmenityTag key={key} amenityKey={key} />)}
+                </div>
+                {/* The design's heading claims agent confirmation, and its
+                    own caption immediately qualifies how: these come from
+                    the listing text, not a structured column. Both are true
+                    here — the description is written by the agent who
+                    submitted the listing, and it passes the approve_status
+                    moderation gate before publication — so the design's
+                    wording is kept verbatim. The caption is what carries the
+                    honesty; the heading alone would overclaim. */}
+                <p className="max-w-[39rem] text-[0.8125rem] leading-[1.45] text-ink-35">
+                  Les équipements proviennent du texte de l&apos;annonce, revu à la publication. Ils ne sont pas issus
+                  d&apos;un champ structuré de la base — un bien peut en disposer sans l&apos;avoir précisé.
+                </p>
               </div>
+            ) : null}
+
+            <div className="flex flex-col gap-3">
+              <h2 className="text-[1.125rem] font-bold text-ink">Emplacement</h2>
+              <ListingLocationMap listing={listing} />
             </div>
           </div>
 
-          <aside className="hidden lg:sticky lg:top-24 lg:block">
+          <aside className="hidden lg:sticky lg:top-24 lg:flex lg:flex-col lg:gap-5">
             <EnquiryCard listing={listing} />
+            <PricePanel listing={listing} />
           </aside>
         </div>
       </div>

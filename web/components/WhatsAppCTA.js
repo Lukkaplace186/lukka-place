@@ -38,6 +38,19 @@ function WhatsAppIcon(props) {
  * alongside the CTA, so the old floating bubble variant was removed rather
  * than left as an unused branch.
  *
+ * A real `<button>` navigating via `window.open`, not an `<a href target=
+ * "_blank">` — every usage of this component (ListingCard.js,
+ * ListingCardVertical.js, FeaturedListingCard.js) sits inside the card's
+ * own outer `<Link>` (renders as `<a>`), and HTML forbids nesting `<a>`
+ * inside `<a>`: the browser silently closes the outer anchor early and
+ * React throws a real hydration mismatch once it notices — confirmed live
+ * the moment `NEXT_PUBLIC_WHATSAPP_NUMBER` was set to a real value for
+ * testing. Invisible until then only because that env var (and
+ * `agent_phone`) has been empty on every listing so far (see
+ * web/CLAUDE.md's Known Gaps). `window.open(href, '_blank', 'noopener,
+ * noreferrer')` reproduces the same new-tab, no-opener behavior the
+ * `target`/`rel` attributes gave the old `<a>`.
+ *
  * @param {Object} props
  * @param {Object} props.listing
  * @param {'compact'|'block'} [props.variant]
@@ -62,31 +75,39 @@ export default function WhatsAppCTA({ listing, variant = 'compact' }) {
   });
   const href = buildWhatsAppLink(phoneNumber, message);
 
+  function handleClick(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    fetch('/api/track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'whatsapp_click', listingId: listing.id, commune: listing.commune }),
+      keepalive: true,
+    }).catch(() => {});
+    window.open(href, '_blank', 'noopener,noreferrer');
+  }
+
   if (variant === 'block') {
     return (
-      <a
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={(e) => e.stopPropagation()}
+      <button
+        type="button"
+        onClick={handleClick}
         className="u-press inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-green px-4 text-[0.875rem] font-semibold text-white shadow-sm transition-colors hover:bg-green-deep"
       >
         <WhatsAppIcon className="h-4 w-4" />
         WhatsApp
-      </a>
+      </button>
     );
   }
 
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      onClick={(e) => e.stopPropagation()}
+    <button
+      type="button"
+      onClick={handleClick}
       className="u-press inline-flex shrink-0 items-center gap-1.5 rounded-full bg-green px-3.5 py-1.5 text-[0.75rem] font-semibold text-white transition-colors hover:bg-green-deep"
     >
       <WhatsAppIcon className="h-3.5 w-3.5" />
       WhatsApp
-    </a>
+    </button>
   );
 }

@@ -1,34 +1,35 @@
-// Zillow-style rounded price-pill marker icons for PropertyMap.js. Classic
+// Speech-bubble price marker icons for PropertyMap.js. Classic
 // `google.maps.Marker.icon` data-URI SVGs — not `AdvancedMarkerElement`,
 // which needs a Cloud Console Map ID even for a plain pixel-styled pin (see
 // PropertyMap.js's doc comment for why this codebase avoids that). Must
 // only be called after the Maps JS API has loaded (references the global
 // `google.maps.Size`/`Point`, same as the rest of PropertyMap.js).
-
-// A small fixed royal/ink family, mirroring --blue / --blue-deep / --ink in
-// app/globals.css (web/Design's royal-600/royal-700/ink-900 ramp) — commune
-// color is a deterministic hash into this palette, a lightweight visual
-// grouping cue. Hardcoded rather than read from a CSS custom property on
-// purpose: these are baked into data-URI SVG strings at runtime, where the
-// document's stylesheet is unreachable. All six stay dark enough for white
-// pin-label text to keep real contrast (checked against WCAG's 4.5:1
-// text-contrast guidance, not just picked by eye). Not a substitute for real
-// commune boundary polygons, which don't exist anywhere in this repo (see
-// web/CLAUDE.md's "no fabricated data" rule) — just a color hint.
-const PIN_COLORS = ['#1E3AA8', '#16307E', '#2A4BC9', '#0B1120', '#0C1D50', '#2C3444'];
-
-function hashString(str) {
-  let h = 0;
-  for (let i = 0; i < str.length; i += 1) {
-    h = (h * 31 + str.charCodeAt(i)) | 0;
-  }
-  return Math.abs(h);
-}
-
-function communeColor(commune) {
-  if (!commune) return PIN_COLORS[0];
-  return PIN_COLORS[hashString(commune) % PIN_COLORS.length];
-}
+//
+// Shape: a rounded-rect callout with a downward triangle tail, built as one
+// unioned SVG path so the stroke traces a continuous outline (no visible
+// seam between the body and the tail) — a real vector shape, not the
+// previous rounded pill. `anchor` sits at the tail's own tip, so the marker
+// points at its coordinate the way a map pin should, rather than floating
+// centred over it as the old pill icon did.
+//
+// Requested a CSS `after:` pseudo-element tail with Tailwind classes — not
+// possible here: a `google.maps.Marker.icon` is a flat SVG string handed to
+// the Maps JS API, never inserted into the DOM as a real element, so no
+// pseudo-element or Tailwind class can ever apply to it. This SVG path is
+// the actual mechanism that produces the same visual result.
+//
+// Colour: normal state is white/ink (matching "custom white speech-bubble
+// markers" literally) — the previous per-commune colour hash is dropped
+// here on purpose, since the request calls for one plain resting state and
+// reserves colour for the active state. Requested "green or royal-blue" for
+// the active marker; green isn't in this app's palette (app/globals.css has
+// no green token, no green anywhere in Header/FilterBar/badges), so this
+// uses --blue-deep, the same royal accent every other "selected/active"
+// state in this app already uses (card hover ring, active filter pill,
+// underline tab). Flagging the deviation rather than introducing an
+// off-palette colour.
+const INK_900 = '#0B1120';
+const BLUE_DEEP = '#16307E';
 
 // Compact label for pin real estate ("450k $", not "450 000 $") — a
 // separate concern from lib/format.js's full formatPrice, which is for
@@ -40,23 +41,56 @@ function compactPrice(price, purpose) {
   return purpose === 'rent' ? `${label} $/m` : `${label} $`;
 }
 
-export function buildPricePinIcon({ price, purpose, commune, hovered = false }) {
-  const label = compactPrice(price, purpose);
-  const color = communeColor(commune);
-  const scale = hovered ? 1.18 : 1;
-  const width = Math.round((Math.max(46, label.length * 7.5 + 28)) * scale);
-  const height = Math.round(28 * scale);
-  const fontSize = Math.round(12 * scale);
-  const strokeWidth = hovered ? 3 : 2;
+/** One unioned outline: rounded-rect body, all four corners, with the
+ *  bottom edge cut inward into a downward triangle tail centred on the
+ *  body's width. Drawn clockwise from the top-left corner. */
+function speechBubblePath({ w, h, r, tailW, tailH }) {
+  const apexX = w / 2;
+  const apexY = h + tailH;
+  return [
+    `M ${r},0`,
+    `H ${w - r}`,
+    `A ${r},${r} 0 0 1 ${w},${r}`,
+    `V ${h - r}`,
+    `A ${r},${r} 0 0 1 ${w - r},${h}`,
+    `L ${apexX + tailW / 2},${h}`,
+    `L ${apexX},${apexY}`,
+    `L ${apexX - tailW / 2},${h}`,
+    `L ${r},${h}`,
+    `A ${r},${r} 0 0 1 0,${h - r}`,
+    `V ${r}`,
+    `A ${r},${r} 0 0 1 ${r},0`,
+    'Z',
+  ].join(' ');
+}
 
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">` +
-    `<rect x="${strokeWidth / 2}" y="${strokeWidth / 2}" width="${width - strokeWidth}" height="${height - strokeWidth}" rx="${height / 2}" fill="${color}" stroke="#ffffff" stroke-width="${strokeWidth}" />` +
-    `<text x="${width / 2}" y="${height / 2 + fontSize * 0.35}" font-family="Arial, Helvetica, sans-serif" font-size="${fontSize}" font-weight="700" fill="#ffffff" text-anchor="middle">${label}</text>` +
+export function buildPricePinIcon({ price, purpose, hovered = false }) {
+  const label = compactPrice(price, purpose);
+  const scale = hovered ? 1.14 : 1;
+  const w = Math.round((Math.max(54, label.length * 7.5 + 34)) * scale);
+  const h = Math.round(30 * scale);
+  const r = Math.round(9 * scale);
+  const tailW = Math.round(14 * scale);
+  const tailH = Math.round(9 * scale);
+  const fontSize = Math.round(12.5 * scale);
+  const strokeWidth = hovered ? 1.75 : 1.5;
+  const totalW = w;
+  const totalH = h + tailH;
+
+  const fill = hovered ? BLUE_DEEP : '#ffffff';
+  const stroke = hovered ? '#ffffff' : INK_900;
+  const textFill = hovered ? '#ffffff' : INK_900;
+
+  const path = speechBubblePath({ w, h, r, tailW, tailH });
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${totalW}" height="${totalH}" viewBox="0 0 ${totalW} ${totalH}">` +
+    `<path d="${path}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linejoin="round" />` +
+    `<text x="${w / 2}" y="${h / 2 + fontSize * 0.35}" font-family="Arial, Helvetica, sans-serif" font-size="${fontSize}" font-weight="700" fill="${textFill}" text-anchor="middle">${label}</text>` +
     `</svg>`;
 
   return {
     url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
-    scaledSize: new google.maps.Size(width, height),
-    anchor: new google.maps.Point(width / 2, height / 2),
+    scaledSize: new google.maps.Size(totalW, totalH),
+    anchor: new google.maps.Point(totalW / 2, totalH),
   };
 }

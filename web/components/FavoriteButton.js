@@ -101,8 +101,16 @@ export default function FavoriteButton({ listingId, className = '', variant = 'i
       aria-label={favorited ? 'Retirer des favoris' : 'Ajouter aux favoris'}
       aria-pressed={favorited}
       className={cn(
-        'u-press flex h-10 w-10 items-center justify-center rounded-full bg-surface/90 backdrop-blur-sm transition-colors hover:bg-surface',
-        favorited ? 'text-blue' : 'text-ink-45',
+        // web/Design's IconButton variant="onImage": a frosted glass-white
+        // circle with shadow-sm, not a flat translucent surface fill.
+        // Kept at h-10/40px rather than the design's 34px — see the doc
+        // comment above; that size was set from a real-device touch-target
+        // measurement, and 6px of diameter doesn't change how the frosted
+        // circle reads.
+        'u-press u-glass-white flex h-10 w-10 items-center justify-center rounded-full shadow-sm transition-colors hover:bg-white',
+        // The one filled-glyph exception in the whole system, per the
+        // design's iconography rules: the saved heart fills royal-600.
+        favorited ? 'text-blue' : 'text-ink',
         className,
       )}
     >

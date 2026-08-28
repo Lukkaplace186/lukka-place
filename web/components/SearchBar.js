@@ -1,173 +1,217 @@
 'use client';
 
-import { useState } from 'react';
-import { Sparkles, ArrowUpRight } from 'lucide-react';
+import { useRef, useState } from 'react';
+import Link from 'next/link';
+import { ArrowUpRight, ArrowRight, Search, MapPin, ChevronDown } from 'lucide-react';
 import LocationAutocomplete from './LocationAutocomplete';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 
 /**
- * Hero search.
+ * The hero search panel — web/Design's SearchPanel
+ * (components/property/SearchPanel.jsx), rendered at full container width.
  *
- * Location entry is LocationAutocomplete (see that file) — real communes,
- * quartiers and landmarks from lib/gazetteer.js, with real approved-listing
- * counts on commune suggestions. This replaces the previous split of a
- * `<select>` sourced from getCommuneShowcase() plus a separate free-text
- * field; the autocomplete's own API route sources its defaults from
- * lib/listings.js's getPopularCommunes() directly, so nothing here needs to
- * fetch or thread commune data through anymore.
+ * Three parts, in the design's order:
+ *   1. an underline Tabs row (Louer / Acheter / Parcelles / Agents) — the
+ *      design's own `homeTabs`, with a 3px royal-600 underline on the active
+ *      tab over a 1px hairline, not the rounded pill group this used before
+ *   2. a labelled field row: location (flex 2), Type de bien (flex 1),
+ *      Budget max (flex 1), and a 56px primary Rechercher button
+ *   3. a royal-700 strip carrying the "list your property" cross-sell
  *
- * Picking a suggestion navigates straight to `/listings` with the right
- * commune/quartier/q param — see LocationAutocomplete's `extraParams`,
- * which carries the transaction-type toggle along so it survives that
- * navigation instead of getting silently dropped.
+ * Fields carry visible labels above them ("Commune, quartier ou référence",
+ * "Type de bien", "Budget max") because the design's Input/Select do; the
+ * previous version was placeholder-only.
  *
- * "Classique" / "Recherche IA" is a UI mode, not two different backends —
- * both submit through the same LocationAutocomplete -> parseSearchQuery()
- * -> /listings pipeline (lib/searchParser.js), same as Rightmove's own AI
- * Search still lands on its normal results page. AI mode only swaps the
- * placeholder/suggestions for ones that invite a full sentence instead of a
- * place name; it does not add a filter Classic mode lacks — there is no
- * radius/distance search (properties have no real stored coordinates; see
- * the note in the root CLAUDE.md's "Interactive Property Map" section), so
- * placeholder/suggestion copy here deliberately says "près de X" (a real
- * commune-level landmark match — see lib/gazetteer.js's findLocationMention,
- * used by searchParser.js) rather than implying a km-precise radius nothing
- * backs. Suggestion copy is otherwise honest about what the parser does:
- * "avec piscine"/"meublé" work because they ride the real description
- * search (lib/listings.js's ILIKE fallback), not a `has_pool` column.
+ * Tab behaviour: Louer/Acheter set transaction_type, Parcelles forces
+ * property_type=parcelle and drops the now-redundant type select, and
+ * Agents isn't a property search at all — there is no per-agent search
+ * backend, so that tab swaps the field row for a single honest link to
+ * /agents (the real directory) rather than a search box that does nothing.
  *
- * Classic mode's placeholder deliberately still reads "Commune, quartier,
- * référence…" (not the "point de repère" wording from a later design pass)
- * for two reasons: the root CLAUDE.md is explicit — "Always use the French
- * term 'référence' (not 'repère')" — and FilterBar.js's own instance of
- * this exact field uses the same copy; diverging here would make the same
- * control read as two different things depending which page it's on.
+ * `propertyTypes` is real and DB-derived (getPropertyTypeFacets(), the same
+ * source FilterBar's own pill uses), so a type with zero results is never
+ * offered. `BUDGET_OPTIONS` is a small fixed set of round ceilings — a
+ * filter-UI convenience, not a claim about the data.
  *
- * Panel treatment matches web/Design's own hero search unit: a white card
- * floating over the hero photograph (radius-panel + shadow-panel, not a
- * dark frosted-glass card) with a WhatsApp cross-sell strip in royal-700
- * along its bottom edge ("Vous avez un bien à louer ou à vendre ?" ->
- * "Publier par WhatsApp"), reusing the same central-number helper and
- * honest-disabled-state convention every other WhatsApp CTA on the site
- * already follows (see lib/whatsapp.js, TransactionTypesGrid.js).
+ * Placeholder copy stays "Gombe, Ma Campagne" per the design, and the label
+ * says "référence" (never "repère") per the root CLAUDE.md.
  */
-const TRANSACTIONS = [
-  { value: 'location', label: 'Louer' },
-  { value: 'vente', label: 'Acheter' },
+const HOME_TABS = [
+  { value: 'louer', label: 'Louer' },
+  { value: 'acheter', label: 'Acheter' },
+  { value: 'parcelles', label: 'Parcelles' },
+  { value: 'agents', label: 'Agents' },
 ];
 
-const SEARCH_MODES = [
-  { value: 'classic', label: '🔍 Classique' },
-  { value: 'ai', label: '✨ Recherche IA' },
+const TRANSACTION_BY_TAB = { louer: 'location', acheter: 'vente' };
+
+const BUDGET_OPTIONS = [
+  { value: '', label: 'Tous les budgets' },
+  { value: '500', label: 'Jusqu’à 500 $' },
+  { value: '1000', label: 'Jusqu’à 1 000 $' },
+  { value: '2000', label: 'Jusqu’à 2 000 $' },
+  { value: '5000', label: 'Jusqu’à 5 000 $' },
 ];
 
-// Short, one-tap-friendly on purpose (mobile discovery) — every one still
-// real and verified live against the actual parser (lib/searchParser.js)
-// and gazetteer (lib/data/kinshasa-gazetteer.json). "Groupe" stays a
-// free-text keyword (see the note at the top of searchParser.js) — it rides
-// the real ILIKE description fallback rather than a `has_generator` column
-// that doesn't exist yet. "Ma Campagne" (a quartier of Ngaliema, not a
-// commune) resolves via lib/gazetteer.js's findLocationMention exactly like
-// a landmark does.
-const AI_SUGGESTIONS = ['Gombe 2 chambres', 'Studio meublé', 'Ma Campagne', 'avec groupe'];
-
-export default function SearchBar() {
-  const [transaction, setTransaction] = useState('location');
-  const [mode, setMode] = useState('classic');
-  const isAi = mode === 'ai';
-  const sellHref = getCentralWhatsAppHref('Bonjour, je souhaite lister mon bien sur Lukka Place.');
-
+/** The design's Input/Select shell at size lg: 8px radius, 1px inset
+ *  hairline, 16/18px padding, with the label sitting above it. */
+function Field({ label, htmlFor, className = '', children }) {
   return (
-    // The search "card" — a white panel floating over the hero photograph,
-    // matching web/Design's own hero search unit (radius-panel + a royal-
-    // tinted shadow-panel, never a shadow that reads as generic black).
-    <div className="w-full max-w-2xl overflow-hidden rounded-2xl bg-surface u-shadow-panel">
-      <div className="p-4 sm:p-5">
-        {/* Row 1: transaction toggle top-left, search-mode toggle top-right.
-            flex-wrap lets the mode toggle drop to its own line on narrow
-            viewports instead of squeezing both pill groups into
-            stacked-then-clipped chaos — verified at a 375px viewport. */}
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          {/* Segmented transaction toggle — the reference portals put this
-              choice first because it changes the meaning of every price
-              below it. */}
-          <div className="inline-flex rounded-full border border-line bg-canvas-alt p-1">
-            {TRANSACTIONS.map(({ value, label }) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setTransaction(value)}
-                aria-pressed={transaction === value}
-                className={`inline-flex h-10 items-center justify-center rounded-full px-5 text-[0.8125rem] font-semibold transition-colors ${
-                  transaction === value ? 'bg-blue text-white' : 'text-ink-70 hover:text-ink'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+    <label htmlFor={htmlFor} className={`flex min-w-0 flex-col gap-2 ${className}`}>
+      <span className="text-[0.875rem] font-bold text-ink">{label}</span>
+      {children}
+    </label>
+  );
+}
 
-          {/* Classique / Recherche IA — same submission pipeline underneath
-              (see the doc comment above), just a different placeholder and
-              suggestion set. */}
-          <div className="inline-flex rounded-full border border-line bg-canvas-alt p-1">
-            {SEARCH_MODES.map(({ value, label }) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setMode(value)}
-                aria-pressed={mode === value}
-                className={`inline-flex h-10 items-center justify-center rounded-full px-4 text-[0.8125rem] font-semibold transition-colors ${
-                  mode === value ? 'bg-ink text-white' : 'text-ink-70 hover:text-ink'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
+const FIELD_SHELL =
+  'u-focus-ring flex items-center gap-3 rounded-lg border border-ink-25 bg-surface px-[1.125rem] py-4';
 
-        {/* Row 2: the input itself — classic dropdown or AI free-text,
-            depending on mode. */}
-        {isAi ? <p className="mb-2 text-[0.8125rem] font-semibold text-ink">Partagez ce qui compte pour vous</p> : null}
+export default function SearchBar({ propertyTypes = [] }) {
+  const [homeTab, setHomeTab] = useState('louer');
+  const [propertyType, setPropertyType] = useState('');
+  const [budgetMax, setBudgetMax] = useState('');
+  const isAgentsTab = homeTab === 'agents';
+  const isParcellesTab = homeTab === 'parcelles';
+  const sellHref = getCentralWhatsAppHref('Bonjour, je souhaite lister mon bien sur Lukka Place.');
+  const locationRef = useRef(null);
 
-        <label className="sr-only" htmlFor="hero-location">
-          {isAi ? 'Partagez ce qui compte pour vous' : 'Commune, quartier ou référence'}
-        </label>
-        <LocationAutocomplete
-          // Remounts the field when the mode changes so stray typed text
-          // from one mode doesn't linger into the other's very different
-          // placeholder/suggestion context. The transaction toggle above is
-          // separate state on this component and is untouched by this
-          // remount, so it (the one real filter that can exist before a
-          // visitor has submitted anything from this homepage box) survives
-          // a mode switch.
-          key={mode}
-          id="hero-location"
-          variant="hero"
-          placeholder={isAi ? 'Ex: 2 chambres sous 800$ près de St Luc' : 'Commune, quartier, référence…'}
-          extraParams={{ transaction_type: transaction }}
-          showButton
-          buttonLabel={isAi ? '✨ Rechercher' : 'Rechercher'}
-          showIcon={isAi}
-          icon={Sparkles}
-          hideDropdown={isAi}
-          suggestions={isAi ? AI_SUGGESTIONS : []}
-          className="rounded-xl border border-line bg-canvas p-2 sm:rounded-full"
-          rowClassName="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-0"
-          inputClassName="bg-transparent px-4 py-3 text-sm font-medium text-ink placeholder:text-ink-25 focus:outline-none"
-        />
+  const extraParams = {
+    transaction_type: TRANSACTION_BY_TAB[homeTab] || '',
+    property_type: isParcellesTab ? 'parcelle' : propertyType,
+    price_max: budgetMax,
+  };
+
+  // border-line: a real hairline (the design's own --border-subtle), not a
+  // frosted/translucent fill — the compiled SearchPanel.jsx source is
+  // explicit that this panel is solid white + shadow-panel, and the
+  // design's readme rules out a frosted card here specifically ("never a
+  // dark frosted-glass card"). The border exists only to give the panel a
+  // defined edge against a bright photo; shadow-panel still carries the
+  // actual elevation.
+  return (
+    <div className="overflow-hidden rounded-2xl border border-line bg-surface u-shadow-panel">
+      {/* Underline tabs — the design's Tabs default variant. */}
+      <div role="tablist" className="flex gap-1 overflow-x-auto px-4 shadow-[0_-1px_0_var(--line)_inset]">
+        {HOME_TABS.map(({ value, label }) => {
+          const on = homeTab === value;
+          return (
+            <button
+              key={value}
+              type="button"
+              role="tab"
+              aria-selected={on}
+              onClick={() => setHomeTab(value)}
+              className={`shrink-0 whitespace-nowrap px-5 py-3.5 text-[1rem] font-semibold transition-colors ${
+                on
+                  ? 'text-blue-deep shadow-[0_-3px_0_var(--blue)_inset]'
+                  : 'text-ink-45 hover:text-ink'
+              }`}
+            >
+              {label}
+            </button>
+          );
+        })}
       </div>
 
-      {/* WhatsApp cross-sell strip — web/Design's own hero search unit ends
-          in a royal-700 band with this exact copy pattern. Real central
-          number, honest disabled state when unset (see lib/whatsapp.js),
-          same convention every other WhatsApp CTA on the site follows. */}
-      <div className="flex flex-col items-start gap-3 bg-blue-deep px-4 py-4 sm:flex-row sm:items-center sm:px-5">
+      {isAgentsTab ? (
+        <div className="flex flex-col items-start gap-3 p-6 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-[0.9375rem] text-ink-70">Parcourez tous les agents actifs sur Lukka Place.</p>
+          <Link
+            href="/agents"
+            className="u-press u-btn-primary inline-flex h-14 shrink-0 items-center gap-2 rounded-lg bg-blue px-6 text-[1rem] font-semibold text-white"
+          >
+            Voir les agents
+            <ArrowRight strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
+          </Link>
+        </div>
+      ) : (
+        <div className="flex flex-col items-stretch gap-3 p-6 sm:flex-row sm:items-end">
+          <Field
+            label="Commune, quartier ou référence"
+            htmlFor="hero-location"
+            className="sm:flex-[2_1_18.75rem]"
+          >
+            <LocationAutocomplete
+              // Remounts on tab change so a stray typed value doesn't linger
+              // from one transaction/type context into another.
+              key={homeTab}
+              ref={locationRef}
+              id="hero-location"
+              variant="hero"
+              placeholder="Gombe, Ma Campagne"
+              extraParams={extraParams}
+              // The button lives at the end of the row, after the selects —
+              // the design's field order — so this renders no button of
+              // its own and is submitted through the ref instead.
+              showButton={false}
+              className={FIELD_SHELL}
+              rowClassName="flex w-full items-center gap-3"
+              inputClassName="min-w-0 flex-1 bg-transparent text-[1rem] text-ink placeholder:text-ink-25 focus:outline-none"
+              icon={MapPin}
+              showIcon
+            />
+          </Field>
+
+          {/* Hidden on Parcelles: the tab itself already declares the type,
+              so a second control saying the same thing is redundant. */}
+          {!isParcellesTab ? (
+            <Field label="Type de bien" htmlFor="hero-type" className="sm:flex-[1_1_10.625rem]">
+              <div className={`${FIELD_SHELL} relative`}>
+                <select
+                  id="hero-type"
+                  value={propertyType}
+                  onChange={(e) => setPropertyType(e.target.value)}
+                  className="min-w-0 flex-1 appearance-none bg-transparent text-[1rem] font-medium text-ink focus:outline-none"
+                >
+                  <option value="">Tous les types</option>
+                  {propertyTypes.map(({ value, label, count }) => (
+                    <option key={value} value={value}>
+                      {label} ({count})
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown strokeWidth={ICON_STROKE_WIDTH} className="pointer-events-none h-4.5 w-4.5 shrink-0 text-ink-45" />
+              </div>
+            </Field>
+          ) : null}
+
+          <Field label="Budget max" htmlFor="hero-budget" className="sm:flex-[1_1_10.625rem]">
+            <div className={`${FIELD_SHELL} relative`}>
+              <select
+                id="hero-budget"
+                value={budgetMax}
+                onChange={(e) => setBudgetMax(e.target.value)}
+                className="min-w-0 flex-1 appearance-none bg-transparent text-[1rem] font-medium text-ink focus:outline-none"
+              >
+                {BUDGET_OPTIONS.map(({ value, label }) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown strokeWidth={ICON_STROKE_WIDTH} className="pointer-events-none h-4.5 w-4.5 shrink-0 text-ink-45" />
+            </div>
+          </Field>
+
+          <button
+            type="button"
+            onClick={() => locationRef.current?.submit()}
+            className="u-press u-btn-primary inline-flex h-14 shrink-0 items-center justify-center gap-2 rounded-lg bg-blue px-6 text-[1rem] font-semibold text-white"
+          >
+            <Search strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
+            Rechercher
+          </button>
+        </div>
+      )}
+
+      {/* Royal cross-sell strip. Real central number, honest disabled state
+          when NEXT_PUBLIC_WHATSAPP_NUMBER is unset (see lib/whatsapp.js). */}
+      <div className="flex flex-col items-start gap-3 bg-blue-deep px-6 py-5 sm:flex-row sm:items-center sm:gap-6">
         <div className="flex flex-col gap-0.5">
-          <span className="text-[0.8125rem] font-bold text-white">Vous avez un bien à louer ou à vendre ?</span>
-          <span className="text-[0.75rem] text-white/70">
+          <span className="text-[0.875rem] font-bold text-white">Vous avez un bien à louer ou à vendre ?</span>
+          <span className="text-[0.8125rem] text-white/72">
             Envoyez photos et détails sur WhatsApp. Nous vérifions, puis nous publions.
           </span>
         </div>
@@ -176,13 +220,13 @@ export default function SearchBar() {
             href={sellHref}
             target="_blank"
             rel="noopener noreferrer"
-            className="u-press inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white px-4 py-2 text-[0.8125rem] font-semibold text-blue-deep transition-colors hover:bg-blue-tint sm:ml-auto"
+            className="u-press inline-flex shrink-0 items-center gap-1.5 rounded-lg px-4 py-2.5 text-[0.875rem] font-semibold text-white ring-[1.5px] ring-inset ring-white/72 transition-colors hover:bg-white hover:text-blue-deep sm:ml-auto"
           >
             Publier par WhatsApp
-            <ArrowUpRight strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
+            <ArrowUpRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
           </a>
         ) : (
-          <span className="shrink-0 text-[0.75rem] text-white/50 sm:ml-auto">Publication indisponible</span>
+          <span className="shrink-0 text-[0.8125rem] text-white/50 sm:ml-auto">Publication indisponible</span>
         )}
       </div>
     </div>

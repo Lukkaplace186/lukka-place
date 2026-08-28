@@ -11,6 +11,7 @@ import { Slider } from './ui/slider';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { buildSearchLabel } from '@/lib/searchLabel';
 import { pushRecentSearch, readRecentSearches, subscribeRecentSearches } from '@/lib/searchHistory';
+import { subscribeOpenFiltersDrawer } from '@/lib/mapFilterDrawer';
 
 const FORM_ID = 'listings-filter-form';
 const ADVANCED_KEYS = ['quartier', 'parcelleSubtype', 'bathMin'];
@@ -81,6 +82,11 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
   const [depositMax, setDepositMax] = useState(defaults.depositMax || '');
   const [amenities, setAmenities] = useState(defaults.amenities || []);
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // The mobile fullscreen map's floating "Filtres" button opens this same
+  // drawer instead of a second, duplicate filter sheet — see
+  // lib/mapFilterDrawer.js.
+  useEffect(() => subscribeOpenFiltersDrawer(() => setDrawerOpen(true)), []);
 
   // Recent searches (lib/searchHistory.js) — a real, local-only history of
   // whatever filter combination was actually applied here, distinct from
@@ -408,7 +414,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
               <button
                 type="button"
                 onClick={submit}
-                className={`u-press mt-3 w-full rounded-full bg-blue py-2 text-[0.8125rem] font-semibold text-white transition-colors hover:bg-blue-deep ${resultPending ? 'opacity-70' : ''}`}
+                className={`u-press mt-3 w-full rounded-full bg-blue py-2 text-[0.8125rem] font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary ${resultPending ? 'opacity-70' : ''}`}
               >
                 {resultCountLabel || 'Appliquer'}
               </button>

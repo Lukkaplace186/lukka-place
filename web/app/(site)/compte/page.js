@@ -87,7 +87,7 @@ export default async function AccountPage() {
           </div>
           <button
             type="submit"
-            className="rounded-md bg-blue px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-deep"
+            className="rounded-md bg-blue px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary"
           >
             Enregistrer
           </button>

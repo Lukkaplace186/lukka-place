@@ -71,11 +71,13 @@ export const TRANSACTION_OPTIONS = [
  * mentioned it) — it is a real, working filter, just not a database-verified
  * one, and the drawer says so.
  *
- * `key` here must match a key in lib/listings.js's AMENITY_KEYWORDS exactly
- * — that's where the actual keyword list per amenity lives, so it doesn't
- * need duplicating here and can't drift silently: buildFilters ignores any
- * key it doesn't recognise, and this file's keys are the only ones the UI
- * can ever send.
+ * `key` here must match a key in AMENITY_KEYWORDS below exactly —
+ * lib/listings.js's buildFilters (server-side WHERE clause) and
+ * lib/listingView.js's matchedAmenityKeys (client-side card badges) both
+ * import that same map, so the keyword list per amenity lives in exactly
+ * one place and can't drift silently: buildFilters ignores any key it
+ * doesn't recognise, and this file's keys are the only ones the UI can
+ * ever send.
  */
 export const AMENITY_GROUPS = [
   {
@@ -102,6 +104,27 @@ export const AMENITY_GROUPS = [
     ],
   },
 ];
+
+/**
+ * The actual keyword list per AMENITY_GROUPS key — matched with a
+ * leading-word-boundary regex (`\b`/`~*'\y...'`, no trailing boundary) by
+ * both consumers, not plain substring matching: confirmed live that a plain
+ * substring check on "meuble" (furnished) matches inside "immeuble"
+ * (building), a real false positive, while French adjectives inflect for
+ * gender/number ("climatisées"), so the trailing boundary is deliberately
+ * omitted — see lib/listings.js's buildFilters doc comment for the full
+ * verification notes.
+ */
+export const AMENITY_KEYWORDS = {
+  generator: ['groupe électrogène', 'groupe electrogene', 'générateur', 'generateur'],
+  solar: ['panneau solaire', 'panneaux solaires', 'inverseur', 'onduleur'],
+  borehole: ['forage', 'citerne'],
+  paved_road: ['route asphaltée', 'route asphaltee', 'route pavée', 'route pavee', 'asphalté', 'asphalte', 'bitumé', 'bitume'],
+  security: ['clôture', 'cloture', 'gardiennage', 'gardien'],
+  parking: ['parking', 'garage'],
+  ac: ['climatisation', 'climatisé', 'climatise', 'climatiseur'],
+  furnished: ['meublé', 'meuble', 'meublée', 'meublee'],
+};
 
 /**
  * "Max Garantie / Avance" — deposit_months IS a real, structured column

@@ -1,115 +1,120 @@
 'use client';
 
-import { MessageCircle } from 'lucide-react';
-import Price from './Price';
-import CurrencyToggle from './CurrencyToggle';
+import { MessageCircle, Phone } from 'lucide-react';
 import FavoriteButton from './FavoriteButton';
 import ShareButton from './ShareButton';
-import { RentBadge, DepositBadge } from './ListingBadges';
-import { specItems, locationLine, formatAddedOn } from '@/lib/listingView';
-import { getCentralWhatsAppHref, buildWhatsAppMessage } from '@/lib/whatsapp';
+import { getCentralWhatsAppHref, buildWhatsAppLink, buildWhatsAppMessage } from '@/lib/whatsapp';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 
 /**
- * Sticky enquiry panel — the conversion surface of the detail page.
+ * The agent panel from web/Design's listing-detail screen — the right
+ * rail's first card.
  *
- * There is no agent identity anywhere in the schema: no name, photo, phone
- * or email. The reference portals fill this exact slot with an agent card,
- * and inventing one is precisely what CLAUDE.md's no-fabricated-data rule
- * forbids. So this panel leads with the facts we can actually stand behind —
- * price, currency, reference code, publication date — and routes to the one
- * real central WhatsApp number.
+ * Design anatomy: an initials avatar in a royal-50 circle, the agent's name
+ * and a qualifying line, a hairline divider, then a full-width primary
+ * "Contacter par WhatsApp", a full-width secondary "Appeler l'agent", a
+ * ghost Enregistrer/Partager pair, and a caption explaining that the
+ * WhatsApp message goes out pre-filled with the reference.
  *
- * When NEXT_PUBLIC_WHATSAPP_NUMBER is unset the CTA renders as an honest
- * disabled state rather than a wa.me link with an empty number.
+ * This replaces the previous version of this card, which led with the price
+ * and a currency toggle. Both moved: the price now leads the main column at
+ * 44px (the design's loudest number) and is restated by `PricePanel`
+ * directly below this card, and the currency toggle lives in the header on
+ * every page.
+ *
+ * Honest-data notes, unchanged from before:
+ *  - `agency_name` / `agent_phone` come from the real agents join
+ *    (lib/listings.js) and are NULL on every listing today, so the panel
+ *    falls back to naming Lukka Place itself rather than inventing an
+ *    agent. The design's "· 34 biens à Kinshasa" qualifier is dropped
+ *    entirely — no per-agent listing count is available on this row, and it
+ *    is exactly the kind of number that must not be guessed.
+ *  - "Appeler l'agent" renders only when a real per-listing number exists.
+ *  - WhatsApp falls back to the one central number, and renders a disabled
+ *    state (not a dead wa.me link) when that env var is unset.
  */
+function initialsOf(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean).slice(0, 2);
+  if (parts.length === 0) return 'LP';
+  return parts.map((p) => p[0].toUpperCase()).join('');
+}
+
 export default function EnquiryCard({ listing }) {
-  const { id, title, price, purpose, reference, created_at: createdAt, deposit_months: depositMonths, price_period: pricePeriod } = listing;
+  const {
+    id, title, reference,
+    agency_name: agencyName, agent_phone: agentPhone,
+  } = listing;
 
-  const href = getCentralWhatsAppHref(
-    buildWhatsAppMessage({
-      reference: listing.reference,
-      slug: listing.slug,
-      id: listing.id,
-      propertyType: listing.category_name,
-      commune: listing.commune,
-      price: listing.price,
-      purpose: listing.purpose,
-    }),
-  );
+  const message = buildWhatsAppMessage({
+    reference: listing.reference,
+    slug: listing.slug,
+    id: listing.id,
+    propertyType: listing.category_name,
+    commune: listing.commune,
+    price: listing.price,
+    purpose: listing.purpose,
+  });
 
-  const where = locationLine(listing);
-  const specs = specItems(listing).slice(0, 3);
-  const addedOn = formatAddedOn(createdAt);
+  // A real per-listing agent number when one exists, otherwise Lukka
+  // Place's own central number — same precedence WhatsAppCTA uses.
+  const whatsappHref = agentPhone ? buildWhatsAppLink(agentPhone, message) : getCentralWhatsAppHref(message);
+  const displayName = agencyName || 'Lukka Place';
+  const qualifier = agencyName ? 'Agent partenaire' : 'Équipe Lukka Place';
 
   return (
-    <div className="rounded-card border border-line bg-surface p-5 sm:p-6">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          {where ? <p className="u-eyebrow mb-2">{where}</p> : null}
-          <p className="u-tabular text-[1.75rem] font-bold leading-none text-ink">
-            <Price amount={price} purpose={purpose} pricePeriod={pricePeriod} showSubtext />
-          </p>
+    <div className="u-card flex flex-col gap-[1.125rem] rounded-card bg-surface p-6">
+      <div className="flex items-center gap-3.5">
+        <span className="u-tabular flex h-[3.25rem] w-[3.25rem] shrink-0 items-center justify-center rounded-full bg-blue-tint text-[1.125rem] font-extrabold text-blue-deep">
+          {initialsOf(agencyName)}
+        </span>
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="truncate text-[0.875rem] font-bold text-ink">{displayName}</span>
+          <span className="text-[0.8125rem] text-ink-45">{qualifier}</span>
         </div>
-        <CurrencyToggle />
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-1.5">
-        {purpose === 'rent' ? <RentBadge /> : null}
-        <DepositBadge months={depositMonths} />
-      </div>
+      <div className="h-px bg-line" />
 
-      {specs.length > 0 ? (
-        <div className="mt-5 grid grid-cols-3 gap-px overflow-hidden rounded-md border border-line bg-line">
-          {specs.map((s) => (
-            <div key={s.key} className="bg-canvas px-2 py-3 text-center">
-              <p className="u-tabular text-base font-bold text-ink">{s.value}</p>
-              <p className="mt-0.5 text-[0.6875rem] text-ink-45">{s.label}</p>
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      <div className="mt-5 flex flex-col gap-2.5">
-        {href ? (
+      <div className="flex flex-col gap-2.5">
+        {whatsappHref ? (
           <a
-            href={href}
+            href={whatsappHref}
             target="_blank"
             rel="noopener noreferrer"
-            className="u-press u-focus-ring inline-flex items-center justify-center gap-2 rounded-full border border-transparent bg-green px-6 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-green-deep"
+            className="u-press u-btn-primary inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue px-5 py-3 text-sm font-semibold text-white"
           >
             <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
-            Contacter via WhatsApp
+            Contacter par WhatsApp
           </a>
         ) : (
-          <span className="inline-flex items-center justify-center rounded-full border border-line px-6 py-3.5 text-sm font-semibold text-ink-25">
+          <span className="inline-flex w-full items-center justify-center rounded-lg border border-line px-5 py-3 text-sm font-semibold text-ink-25">
             Contact indisponible
           </span>
         )}
 
+        {/* Real per-listing number only — renders nothing at all rather than
+            a tel: link to a number we don't have. */}
+        {agentPhone ? (
+          <a
+            href={`tel:${agentPhone}`}
+            className="u-press u-btn-secondary inline-flex w-full items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold text-ink"
+          >
+            <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
+            Appeler l&apos;agent
+          </a>
+        ) : null}
+
         <div className="flex items-center gap-2">
-          <ShareButton title={title} className="flex-1" />
-          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-line">
-            <FavoriteButton listingId={id} className="bg-transparent" />
-          </span>
+          <FavoriteButton listingId={id} variant="label" className="flex-1 justify-center" />
+          <ShareButton title={title} variant="icon" />
         </div>
       </div>
 
-      {(reference || addedOn) ? (
-        <div className="mt-5 border-t border-line pt-4 text-[0.75rem] text-ink-45">
-          {reference ? (
-            <p className="flex items-center justify-between gap-3">
-              <span>Référence</span>
-              <span className="u-ref text-ink-70">{reference}</span>
-            </p>
-          ) : null}
-          {addedOn ? (
-            <p className="mt-1.5 flex items-center justify-between gap-3">
-              <span>Publié le</span>
-              <span className="text-ink-70">{addedOn}</span>
-            </p>
-          ) : null}
-        </div>
+      {reference ? (
+        <p className="text-[0.8125rem] leading-[1.45] text-ink-35">
+          Le message WhatsApp part pré-rempli avec la référence{' '}
+          <span className="u-ref text-ink-45">{reference}</span> et le lien de l&apos;annonce.
+        </p>
       ) : null}
     </div>
   );

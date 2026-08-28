@@ -65,7 +65,7 @@ export default async function AdminConversationDetailPage({ params }) {
         <div className="flex gap-2">
           {conversation.ai_active ? (
             <form action={boundTakeOver}>
-              <button type="submit" className="rounded-full bg-blue px-4 py-2 text-sm font-semibold text-white hover:bg-blue-deep">
+              <button type="submit" className="rounded-full bg-blue px-4 py-2 text-sm font-semibold text-white hover:bg-blue-deep u-btn-primary">
                 Prendre en main
               </button>
             </form>
@@ -112,7 +112,7 @@ export default async function AdminConversationDetailPage({ params }) {
                 placeholder={conversation.ai_active ? 'Écrire un message (bascule automatiquement l\'IA en silence non — pensez à «Prendre en main»)' : 'Écrire une réponse...'}
                 className="u-focus-ring flex-1 rounded-md border border-line px-3 py-2 text-sm text-ink"
               />
-              <button type="submit" className="rounded-md bg-blue px-4 py-2 text-sm font-semibold text-white hover:bg-blue-deep">
+              <button type="submit" className="rounded-md bg-blue px-4 py-2 text-sm font-semibold text-white hover:bg-blue-deep u-btn-primary">
                 Envoyer
               </button>
             </form>

@@ -33,7 +33,7 @@ export default function PageShell({ eyebrow, title, lead, breadcrumb, align = 'l
 export function PageAction({ href, children, external = false, tone = 'solid' }) {
   const className =
     tone === 'solid'
-      ? 'inline-flex items-center gap-2 rounded-full bg-blue px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-deep'
+      ? 'inline-flex items-center gap-2 rounded-full bg-blue px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary'
       : 'inline-flex items-center gap-2 rounded-full bg-green px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-green-deep';
 
   if (external) {

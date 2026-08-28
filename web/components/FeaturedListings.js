@@ -16,10 +16,11 @@ export default async function FeaturedListings() {
   return (
     <section className="mx-auto max-w-[1600px] px-4 py-20 sm:px-6 sm:py-28 lg:px-8">
       <SectionHeading
-        eyebrow="Sélection"
-        title="Derniers biens publiés"
+        eyebrow="Sélection de la semaine"
+        title="Nouveautés vérifiées à Kinshasa"
         lead="Les annonces les plus récemment vérifiées et mises en ligne."
         href="/listings"
+        linkLabel="Voir les annonces"
         className="mb-10"
       />
       <FeaturedListingsCarousel listings={data} />

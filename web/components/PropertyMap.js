@@ -146,7 +146,7 @@ export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoo
           const marker = new google.maps.Marker({
             position,
             title: listing.title,
-            icon: buildPricePinIcon({ price: listing.price, purpose: listing.purpose, commune: listing.commune }),
+            icon: buildPricePinIcon({ price: listing.price, purpose: listing.purpose }),
           });
           marker.addListener('click', () => {
             infoWindow.setContent(buildInfoWindowContent(listing, cdfPerUsd));
@@ -214,7 +214,7 @@ export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoo
       const listing = listings.find((l) => l.id === previous);
       if (listing) {
         const marker = markers.get(previous);
-        marker.setIcon(buildPricePinIcon({ price: listing.price, purpose: listing.purpose, commune: listing.commune }));
+        marker.setIcon(buildPricePinIcon({ price: listing.price, purpose: listing.purpose }));
         marker.setZIndex(undefined);
       }
     }
@@ -223,7 +223,7 @@ export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoo
       const listing = listings.find((l) => l.id === hoveredId);
       if (listing) {
         const marker = markers.get(hoveredId);
-        marker.setIcon(buildPricePinIcon({ price: listing.price, purpose: listing.purpose, commune: listing.commune, hovered: true }));
+        marker.setIcon(buildPricePinIcon({ price: listing.price, purpose: listing.purpose, hovered: true }));
         marker.setZIndex(google.maps.Marker.MAX_ZINDEX + 1);
       }
     }
@@ -231,8 +231,15 @@ export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoo
     previousHoveredRef.current = hoveredId;
   }, [hoveredId, listings]);
 
+  // No border/rounding of its own — every caller (the desktop split pane,
+  // the mobile fullscreen overlay) already owns its own edge treatment, and
+  // this used to double up with ListingsSplitView's own rounded-2xl wrapper.
+  // Height is always the parent's — the previous `h-[70vh]` mobile fallback
+  // pinned the map to 70% of the viewport regardless of what container it
+  // sat in, which is exactly wrong for a fixed-fullscreen mobile map that
+  // needs to fill an explicit top/bottom inset instead.
   return (
-    <div className="relative h-full overflow-hidden rounded-lg border border-line">
+    <div className="relative h-full w-full overflow-hidden">
       {status === 'loading' && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-1 bg-white/90 text-sm text-ink-45">
           <p>Chargement de la carte...</p>
@@ -253,7 +260,7 @@ export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoo
           Aucun bien de cette recherche n&apos;a pu être localisé sur la carte.
         </div>
       )}
-      <div ref={mapElementRef} className="h-[70vh] w-full lg:h-full" />
+      <div ref={mapElementRef} className="h-full w-full" />
     </div>
   );
 }

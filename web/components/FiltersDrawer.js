@@ -186,7 +186,7 @@ export default function FiltersDrawer({
           <Link
             href="/listings"
             onClick={reset}
-            className="u-press flex-1 rounded-full border border-line py-2.5 text-center text-sm font-semibold text-ink transition-colors hover:bg-canvas-alt"
+            className="u-press u-btn-secondary flex-1 rounded-full py-2.5 text-center text-sm font-semibold text-ink"
           >
             Réinitialiser
           </Link>
@@ -196,7 +196,7 @@ export default function FiltersDrawer({
               onClose();
               onApply?.();
             }}
-            className={`u-press flex-1 rounded-full bg-blue py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-deep ${resultPending ? 'opacity-70' : ''}`}
+            className={`u-press flex-1 rounded-full bg-blue py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary ${resultPending ? 'opacity-70' : ''}`}
           >
             {resultCountLabel || 'Voir les résultats'}
           </button>

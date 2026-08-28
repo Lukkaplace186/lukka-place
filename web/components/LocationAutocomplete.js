@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useId, useImperativeHandle, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { MapPin, Landmark, Search, Sparkles, X, Clock, BedDouble, Bath, Home, DollarSign, Hash } from 'lucide-react';
@@ -198,16 +198,26 @@ function SearchParamsBridge({ children }) {
  *   - default (Hero, on `/`): builds a fresh URL from `extraParams` only
  *     (e.g. the transaction-type toggle) — there is no prior /listings
  *     search to preserve.
+ *
+ * `ref` exposes one imperative method, `submit()` — the same free-text
+ * submit `showButton`'s own internal button calls. Only needed when a
+ * caller renders its OWN trailing "Rechercher" button outside this
+ * component (SearchBar.js's hero row: Type de bien/Budget max selects sit
+ * between the location field and the button, so the button can't live
+ * glued to the input the way `showButton` renders it) — pass
+ * `showButton={false}` in that case. Every other caller ignores this.
  */
-export default function LocationAutocomplete(props) {
+const LocationAutocomplete = forwardRef(function LocationAutocomplete(props, ref) {
   return props.preserveParams ? (
-    <SearchParamsBridge>{(searchParams) => <LocationAutocompleteCore {...props} currentParams={searchParams} />}</SearchParamsBridge>
+    <SearchParamsBridge>{(searchParams) => <LocationAutocompleteCore {...props} currentParams={searchParams} ref={ref} />}</SearchParamsBridge>
   ) : (
-    <LocationAutocompleteCore {...props} currentParams={null} />
+    <LocationAutocompleteCore {...props} currentParams={null} ref={ref} />
   );
-}
+});
 
-function LocationAutocompleteCore({
+export default LocationAutocomplete;
+
+const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
   id,
   name = 'q',
   ariaLabel,
@@ -237,7 +247,7 @@ function LocationAutocompleteCore({
   // history from AI mode's own raw-sentence `history` state below; the two
   // never mix.
   recentSearches = [],
-}) {
+}, ref) {
   const router = useRouter();
   const listboxId = useId();
   const reactId = useId();
@@ -446,6 +456,12 @@ function LocationAutocompleteCore({
     router.push(`/listings?${params.toString()}`);
   }
 
+  // No deps array: submitFreeText is a plain function redeclared every
+  // render (not memoized), so this intentionally re-runs every render to
+  // always close over the current one rather than risk a stale value/
+  // extraParams capture.
+  useImperativeHandle(ref, () => ({ submit: () => submitFreeText() }));
+
   function handleKeyDown(e) {
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -532,7 +548,7 @@ function LocationAutocompleteCore({
             // Object]" and submitted as `q`. Reproduced and confirmed as
             // the exact cause of the "[object Object]" search results bug.
             onClick={() => submitFreeText()}
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-blue px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-deep sm:rounded-full"
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-blue px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary sm:rounded-full"
           >
             <Search strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
             {buttonLabel}
@@ -709,4 +725,4 @@ function LocationAutocompleteCore({
         : null}
     </div>
   );
-}
+});

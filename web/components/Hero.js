@@ -7,93 +7,106 @@ import { heroDrift } from '@/lib/motion';
 import { useMotionSafe } from '@/lib/useMotionSafe';
 
 /**
- * Homepage hero.
+ * Homepage hero, following web/Design's "Accueil — desktop" screen.
  *
- * `-mt-16` pulls this up under the fixed header (app/(site)/layout.js adds a
- * matching pt-16 to everything else), so the photograph runs to the very top
- * of the viewport and the header sits transparently over it — see Header.js,
- * which only goes solid once scrolled.
+ * Two pieces, deliberately siblings rather than nested: a 520px photographic
+ * band, then the search panel pulled up over its lower edge by -92px. The
+ * panel used to sit *inside* the hero's centred content column capped at
+ * `max-w-2xl`; in the design it is a full-container-width card straddling
+ * the hero's bottom edge, which is what this now does.
  *
- * Headline is DM Serif Display (font-display), matching web/Design's own
- * hero spec (--fs-display-l, regular weight, never bold, never uppercase).
- * This is the one place the accent face gets to be the loudest thing on the
- * page — every section heading below it uses the same face at a smaller size.
+ * `-mt-16` on the band pulls it under the fixed header (app/(site)/layout.js
+ * adds a matching pt-16 to everything else), so the photograph runs to the
+ * very top of the viewport and the header sits transparently over it — see
+ * Header.js, which only goes solid once scrolled.
  *
- * Photo: /public/hero.jpg — client-supplied, sourced from Unsplash
- * ("frames-for-your-heart", photo ncYuMo5Yx10). Unsplash's own license
- * doesn't require attribution, but this site's convention (see the previous
- * Kinshasa-night photo this replaced) has been real licence + visible
- * credit whenever a real photographer is identifiable, so that continues
- * here. Cropped from the original tall portrait to a landscape band around
- * the actual subject (building/truck/palm) before shipping — the source's
- * lower half is empty lawn, and shipping it uncropped would have both
- * bloated the file and risked object-cover's default center-crop pushing
- * the subject out of frame on a wide hero.
+ * Headline is DM Serif Display (font-display) at --fs-display-l, regular
+ * weight, matching the design's hero spec (never bold, never uppercase).
  *
- * Not confirmed to depict Kinshasa specifically — it is a real, licensed
- * exterior photo used as an atmospheric hero image, the same role the prior
- * photo played. If a real, licensed Kinshasa-specific daylight photo is
- * ever sourced, that would be the more precise choice.
+ * Photo: /public/kaysha-StJWD4ci8wY-unsplash.jpg — supplied directly by the
+ * user, replacing the earlier hero-kinshasa.jpg. The filename is Unsplash's
+ * own download-attribution naming convention (photographer "kaysha", photo
+ * id StJWD4ci8wY), so it's credited below the same way the very first
+ * version of this hero (an Unsplash photo) was. Not confirmed to depict
+ * Kinshasa specifically — no EXIF/location data was available to check —
+ * so the credit doesn't assert a place, only the real source.
  */
-export default function Hero() {
+export default function Hero({ propertyTypes = [] }) {
   const safe = useMotionSafe();
 
   return (
-    <section className="relative -mt-16 flex min-h-[38rem] w-full items-center overflow-hidden bg-ink lg:h-[88vh] lg:max-h-[54rem]">
-      <motion.div
-        className="absolute inset-0"
-        initial={safe ? heroDrift.initial : false}
-        animate={safe ? heroDrift.animate : undefined}
-      >
-        <Image
-          src="/hero.jpg"
-          alt=""
-          fill
-          priority
-          sizes="100vw"
-          className="object-cover"
+    <>
+      <section className="relative -mt-16 flex h-[30rem] w-full items-center overflow-hidden bg-ink lg:h-[32.5rem]">
+        <motion.div
+          className="absolute inset-0"
+          initial={safe ? heroDrift.initial : false}
+          animate={safe ? heroDrift.animate : undefined}
+        >
+          <Image
+            src="/kaysha-StJWD4ci8wY-unsplash.jpg"
+            alt=""
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover"
+          />
+        </motion.div>
+
+        {/* Two vertical (180deg) ink washes, not the old single 94deg
+            --scrim-hero. That angle-based gradient's line length is
+            computed from the box's own aspect ratio — on the wide desktop
+            box it worked, but on a narrow/tall mobile box (where the
+            headline also wraps to 2 lines and runs further down) its
+            78%-falloff point arrived in far fewer pixels, leaving most of
+            the text sitting over bare sky. A vertical gradient's line
+            length is always the box's height, so it can't break the same
+            way across breakpoints. Both layers use the real ink-900 rgba
+            already established for --scrim-image, not an off-palette
+            slate/black. */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0"
+          style={{ background: 'linear-gradient(180deg, rgba(11,17,32,.7) 0%, rgba(11,17,32,.32) 42%, rgba(11,17,32,.12) 65%)' }}
         />
-      </motion.div>
+        {/* The real --scrim-image token, reused here to protect the
+            transition into the search card at the hero's bottom edge —
+            the same bottom-anchored ink fade cards already use for a photo
+            with long text on it. */}
+        <div
+          aria-hidden="true"
+          className="absolute inset-0"
+          style={{ background: 'var(--scrim-image)' }}
+        />
 
-      {/* Royal scrim (web/Design's --scrim-hero: a left-to-right royal-ink
-          wash) rather than flat black — it keeps the photograph's own
-          colour and ties the image straight into the WhiteBlue Royal
-          palette instead of greying it out. */}
-      <div
-        className="absolute inset-0"
-        style={{ background: 'linear-gradient(94deg, rgba(12,29,80,.78) 0%, rgba(12,29,80,.42) 52%, rgba(12,29,80,.08) 78%)' }}
-      />
-      <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#0B1120]/60 to-transparent" />
+        <a
+          href="https://unsplash.com/photos/StJWD4ci8wY"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="absolute bottom-2 right-3 z-10 text-[0.625rem] text-white/40 transition-colors hover:text-white/70"
+        >
+          Photo by kaysha on Unsplash
+        </a>
 
-      <div className="relative z-10 mx-auto w-full max-w-[1600px] px-4 pt-16 sm:px-6 lg:px-8">
-        <div className="max-w-3xl">
-          <p className="u-eyebrow mb-5 text-white/70">Immobilier à Kinshasa</p>
+        <div className="relative z-10 mx-auto w-full max-w-[1240px] px-4 pt-16 sm:px-6 lg:px-8">
+          <div className="max-w-[41rem]">
+            <p className="u-eyebrow mb-5 text-white/72">Immobilier à Kinshasa</p>
 
-          <h1 className="font-display text-[2.75rem] font-normal leading-[1.04] tracking-[-0.018em] text-white sm:text-6xl lg:text-[4.25rem]">
-            Trouvez le bien
-            <br />
-            qui vous ressemble
-          </h1>
+            <h1 className="font-display text-[2.5rem] font-normal leading-[1.04] tracking-[-0.018em] text-white sm:text-[3.25rem] lg:text-[3.75rem]">
+              Trouvez le bien qui vous ressemble
+            </h1>
 
-          <p className="mt-5 max-w-xl text-base leading-relaxed text-white/75">
-            Appartements, villas et parcelles vérifiés à Kinshasa — prix en dollars ou en francs, contact direct par
-            WhatsApp.
-          </p>
-
-          <div className="mt-8">
-            <SearchBar />
+            <p className="mt-5 max-w-[32.5rem] text-[1.125rem] leading-[1.56] text-white/82">
+              Appartements, villas et parcelles vérifiés à Kinshasa — prix en dollars ou en francs, contact direct par
+              WhatsApp.
+            </p>
           </div>
         </div>
-      </div>
+      </section>
 
-      <a
-        href="https://unsplash.com/photos/ncYuMo5Yx10"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="absolute bottom-2 right-3 z-10 text-[0.625rem] text-white/40 transition-colors hover:text-white/70"
-      >
-        Photo via Unsplash
-      </a>
-    </section>
+      {/* The panel straddles the hero's bottom edge, per the design. */}
+      <div className="relative z-20 mx-auto -mt-16 w-full max-w-[1240px] px-4 sm:px-6 lg:-mt-[5.75rem] lg:px-8">
+        <SearchBar propertyTypes={propertyTypes} />
+      </div>
+    </>
   );
 }

@@ -84,7 +84,7 @@ export default function SignupForm({ action, next, error }) {
 
       <button
         type="submit"
-        className="mt-1 rounded-md bg-blue px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-deep"
+        className="mt-1 rounded-md bg-blue px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary"
       >
         Créer mon compte
       </button>

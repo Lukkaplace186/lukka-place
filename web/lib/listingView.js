@@ -1,4 +1,4 @@
-import { PARCELLE_SUBTYPES } from './constants';
+import { PARCELLE_SUBTYPES, AMENITY_KEYWORDS } from './constants';
 import { abbreviationVariants } from './textVariants';
 
 /**
@@ -18,8 +18,6 @@ const PARCELLE_SUBTYPE_LABELS = Object.fromEntries(
   PARCELLE_SUBTYPES.map(({ value, label }) => [value, label]),
 );
 
-const NEW_WINDOW_DAYS = 14;
-
 const DATE_FORMATTER = new Intl.DateTimeFormat('fr-FR', {
   day: 'numeric',
   month: 'long',
@@ -33,17 +31,24 @@ export function listingImages(listing) {
   return featured ? [featured, ...gallery.filter((src) => src !== featured)] : gallery;
 }
 
-export function isNewListing(createdAt) {
-  if (!createdAt) return false;
-  const ageMs = Date.now() - new Date(createdAt).getTime();
-  return ageMs >= 0 && ageMs <= NEW_WINDOW_DAYS * 24 * 60 * 60 * 1000;
-}
-
 export function formatAddedOn(createdAt) {
   if (!createdAt) return null;
   const date = new Date(createdAt);
   if (Number.isNaN(date.getTime())) return null;
   return DATE_FORMATTER.format(date);
+}
+
+// A listing counts as new for its first two weeks. Real `created_at`, and
+// the same window app/(site)/agents/[id]/page.js's "Nouveautés" tab already
+// filters on — defined here so the badge and that tab can never drift apart
+// (exactly the class of bug this module's own doc comment describes).
+const NEW_LISTING_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+
+export function isNewListing(createdAt) {
+  if (!createdAt) return false;
+  const time = new Date(createdAt).getTime();
+  if (Number.isNaN(time)) return false;
+  return Date.now() - time <= NEW_LISTING_WINDOW_MS;
 }
 
 /**
@@ -66,7 +71,11 @@ export function typeLabel(listing) {
 export function specItems(listing) {
   const items = [];
   if (listing.beds != null) items.push({ key: 'beds', value: listing.beds, label: 'ch' });
-  if (listing.bath != null) items.push({ key: 'bath', value: listing.bath, label: 'sdb' });
+  // Same gotcha hasArea() exists for: bath can carry '' rather than a real
+  // NULL, and '' != null is true, so a naive check rendered a bare "sdb"
+  // with no number on any listing whose bathroom count was never recorded
+  // — confirmed live on the homepage's "Derniers biens publiés" cards.
+  if (Number(listing.bath) > 0) items.push({ key: 'bath', value: listing.bath, label: 'sdb' });
   if (hasArea(listing.area)) items.push({ key: 'area', value: listing.area, label: 'm²' });
   if (listing.units_count != null) items.push({ key: 'units', value: listing.units_count, label: 'portes' });
   return items;
@@ -186,4 +195,37 @@ export function matchSnippet(description, searchTerm, contextChars = 40) {
     match: flat.slice(matchIndex, matchIndex + matchLength),
     after: flat.slice(matchIndex + matchLength, end) + (end < flat.length ? '…' : ''),
   };
+}
+
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Real amenity feature pills for a listing card — reuses AMENITY_KEYWORDS
+ * (lib/constants.js), the exact same word-boundary keyword list the
+ * "Plus de filtres" checkboxes already filter with server-side
+ * (lib/listings.js's buildFilters). No structured amenity column exists on
+ * `properties` (see web/CLAUDE.md's "No fabricated data" section), so this
+ * is a real match against the listing's own title/description text, not an
+ * invented flag — the same honesty posture the filter already uses, just
+ * surfaced as a badge. A listing that has a feature but never mentioned it
+ * in the text is a real false negative, same tradeoff the filter accepts.
+ *
+ * Capped at `max` (default 2) — a card photo has room for a couple of
+ * pills, not the full eight-key list.
+ */
+export function matchedAmenityKeys(listing, max = 2) {
+  const text = `${listing.title || ''} ${listing.description || ''}`;
+  if (!text.trim()) return [];
+
+  const matches = [];
+  for (const key of Object.keys(AMENITY_KEYWORDS)) {
+    const isMatch = AMENITY_KEYWORDS[key].some((keyword) => (
+      new RegExp(`\\b${escapeRegex(keyword)}`, 'i').test(text)
+    ));
+    if (isMatch) matches.push(key);
+    if (matches.length >= max) break;
+  }
+  return matches;
 }

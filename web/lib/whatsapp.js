@@ -15,8 +15,8 @@ import { SITE_URL } from './constants';
  *     "(Appartement à )" with a dangling preposition.
  *   - `price`/`purpose` are optional — omitted entirely if not passed
  *     (callers outside a specific listing, e.g. Footer.js/ValueProposition.js's
- *     generic "contact us" links, use buildWhatsAppLink directly and never
- *     call this at all).
+ *     generic "contact us" links, pass their own plain string to
+ *     getCentralWhatsAppHref below and never call this at all).
  *
  * Always quotes the listing's real stored USD price, deliberately never a
  * currency-toggled CDF estimate — see components/Price.js's doc comment.
@@ -31,4 +31,22 @@ export function buildWhatsAppMessage({ reference, slug, id, propertyType, commun
 
 export function buildWhatsAppLink(phoneNumber, message) {
   return `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+}
+
+/**
+ * The one real central WhatsApp number (CLAUDE.md's Lead Routing Rules),
+ * resolved to a link or `null`. Every CTA on the site that isn't routing to
+ * a specific per-listing/per-agent number (Footer, ValueProposition,
+ * TrustSection, TransactionTypesGrid, contact/messages/compte pages,
+ * EnquiryCard, MobileListingBar) was re-deriving
+ * `process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ? buildWhatsAppLink(...) : null`
+ * by hand — same risk `lib/listingView.js`'s doc comment already warns
+ * about for card values: N copies of one condition drift the moment one of
+ * them doesn't get updated. Callers still own the message text and the
+ * disabled-state markup; this only centralises the number lookup + null
+ * fallback.
+ */
+export function getCentralWhatsAppHref(message) {
+  const phoneNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
+  return phoneNumber ? buildWhatsAppLink(phoneNumber, message) : null;
 }

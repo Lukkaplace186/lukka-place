@@ -1,4 +1,4 @@
-import FeaturedListingCard from './FeaturedListingCard';
+import PropertyCard from './PropertyCard';
 import SectionHeading from './SectionHeading';
 
 /**
@@ -41,7 +41,7 @@ export default function RelatedListings({ listings, commune, widened = false, mo
         <SectionHeading eyebrow={eyebrow} title={title} lead={lead} href="/listings" className="mb-8" />
         <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4">
           {listings.map((listing) => (
-            <FeaturedListingCard key={listing.id} listing={listing} />
+            <PropertyCard key={listing.id} listing={listing} />
           ))}
         </div>
       </div>

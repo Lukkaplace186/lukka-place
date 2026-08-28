@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { buildWhatsAppLink } from '@/lib/whatsapp';
+import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import SectionHeading from './SectionHeading';
 
 const VALUE_PROPS = [
@@ -35,25 +35,29 @@ const VALUE_PROPS = [
  * entry point on the site.
  */
 export default function ValueProposition() {
-  const phoneNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
-  const whatsappHref = phoneNumber
-    ? buildWhatsAppLink(phoneNumber, 'Bonjour, je vous contacte depuis lukkaplace.com.')
-    : null;
+  const whatsappHref = getCentralWhatsAppHref('Bonjour, je vous contacte depuis lukkaplace.com.');
 
   const linkClass =
     'group mt-6 inline-flex items-center gap-1.5 text-[0.8125rem] font-semibold uppercase tracking-[0.08em] text-blue-deep';
 
   return (
-    <section className="border-y border-line bg-canvas-alt py-20 sm:py-28">
-      <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8">
-        <SectionHeading eyebrow="Notre approche" title="Ce qui change, concrètement" align="center" className="mb-14" />
+    // Chalk band with an inset top hairline, 56px vertical padding — the
+    // design's own "approach" section, and the last thing on the homepage
+    // before the footer.
+    <section className="bg-canvas-alt py-14 shadow-[0_1px_0_var(--line)_inset] sm:py-16">
+      <div className="mx-auto max-w-[1240px] px-4 sm:px-6 lg:px-8">
+        <SectionHeading eyebrow="Notre approche" title="Ce qui change, concrètement" align="center" className="mb-9" />
 
-        <div className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-line bg-line md:grid-cols-3">
+        {/* Three separate hairline cards with a real 24px gap, not one fused
+            gap-px grid — the design shows them as distinct cards. */}
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
           {VALUE_PROPS.map(({ number, title, body, ctaLabel, ctaHref, whatsapp }) => (
-            <div key={title} className="flex flex-col bg-surface p-7 sm:p-9">
-              <span className="u-tabular font-display text-2xl font-normal text-blue">{number}</span>
-              <h3 className="mt-5 font-display text-xl leading-tight tracking-[-0.01em] text-ink">{title}</h3>
-              <p className="mt-3 text-[0.875rem] leading-relaxed text-ink-45">{body}</p>
+            <div key={title} className="u-card flex flex-col rounded-card bg-surface p-7">
+              <span className="u-tabular font-display text-[1.625rem] font-normal leading-none text-blue">{number}</span>
+              {/* Sans 700 at h4, not the display serif — the design uses the
+                  serif only for the numeral here. */}
+              <h3 className="mt-3 text-[1.125rem] font-bold leading-snug text-ink">{title}</h3>
+              <p className="mt-3 text-[0.875rem] leading-[1.55] text-ink-45">{body}</p>
 
               {whatsapp ? (
                 whatsappHref ? (

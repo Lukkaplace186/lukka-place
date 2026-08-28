@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import SafeImage from './SafeImage';
@@ -48,11 +48,24 @@ const DOT_WINDOW = 5;
  * next/image's default 75) plus a subtle contrast/brightness/saturate
  * lift on the image itself — real photos, just rendered a touch crisper.
  */
-export default function CardImageCarousel({ images, alt, sizes = '(min-width: 1024px) 22rem, 100vw' }) {
+export default function CardImageCarousel({ images, alt, sizes = '(min-width: 1024px) 22rem, 100vw', onIndexChange }) {
   const [index, setIndex] = useState(0);
   const scrollerRef = useRef(null);
   const total = images.length;
   const safe = useMotionSafe();
+
+  // Notifies a caller rendering its own "current/total" counter
+  // (PropertyCard's pill) whenever the visible photo actually changes, so
+  // it stays in sync instead of a static "1/N" that never moves once
+  // someone swipes past the first photo. An effect, not a call inlined into
+  // setIndex's updater — calling a *different* component's setState from
+  // inside this component's state-updater function is exactly the "Cannot
+  // update a component while rendering a different component" anti-pattern
+  // React warns about; an effect defers it to after commit, which is the
+  // correct place for one component to tell another "my state changed".
+  useEffect(() => {
+    onIndexChange?.(index);
+  }, [index, onIndexChange]);
 
   function visibleDots() {
     if (total <= DOT_WINDOW) {

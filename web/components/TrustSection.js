@@ -1,5 +1,5 @@
 import { ShieldCheck, Users, MessageCircle } from 'lucide-react';
-import { buildWhatsAppLink } from '@/lib/whatsapp';
+import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 
 const TRUST_POINTS = [
@@ -19,10 +19,7 @@ const TRUST_POINTS = [
  * no-fabricated-data rule forbids.
  */
 export default function TrustSection() {
-  const phoneNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
-  const whatsappHref = phoneNumber
-    ? buildWhatsAppLink(phoneNumber, "Bonjour, j'ai une question pour l'équipe Lukka Place.")
-    : null;
+  const whatsappHref = getCentralWhatsAppHref("Bonjour, j'ai une question pour l'équipe Lukka Place.");
 
   return (
     <section className="mx-auto max-w-[1600px] px-4 py-20 sm:px-6 sm:py-28 lg:px-8">

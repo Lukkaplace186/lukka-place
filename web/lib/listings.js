@@ -1,7 +1,7 @@
 import 'server-only';
 import { getPool } from './db';
 import { KINSHASA_COMMUNE_CENTROIDS } from './geocoding';
-import { AMENITY_GROUPS } from './constants';
+import { AMENITY_GROUPS, AMENITY_KEYWORDS } from './constants';
 import { abbreviationVariants } from './textVariants';
 
 /**
@@ -68,7 +68,7 @@ const GALLERY_SUBQUERY = `(
 const SELECT_FIELDS = `
   p.id, p.price, p.purpose, p.beds, p.bath, p.area, p.quartier,
   p.parcelle_subtype, p.units_count, p.reference, p.featured_image,
-  p.created_at, p.price_period, p.deposit_months,
+  p.created_at, p.price_period, p.deposit_months, p.listing_status,
   pc.title, pc.slug, pc.address,
   catc.name AS category_name,
   pc.description,
@@ -111,17 +111,10 @@ function escapeRegex(value) {
  * prefix (so "climatisées"/"climatisé" both match) while still correctly
  * failing to match "meuble" inside "immeuble" (no boundary exists between
  * the second "m" and "meuble" there — confirmed with the same live query).
+ * The keyword list itself now lives in lib/constants.js's AMENITY_KEYWORDS
+ * (imported above) so lib/listingView.js's client-side card badges can
+ * share the exact same list rather than a hand-duplicated copy.
  */
-const AMENITY_KEYWORDS = {
-  generator: ['groupe électrogène', 'groupe electrogene', 'générateur', 'generateur'],
-  solar: ['panneau solaire', 'panneaux solaires', 'inverseur', 'onduleur'],
-  borehole: ['forage', 'citerne'],
-  paved_road: ['route asphaltée', 'route asphaltee', 'route pavée', 'route pavee', 'asphalté', 'asphalte', 'bitumé', 'bitume'],
-  security: ['clôture', 'cloture', 'gardiennage', 'gardien'],
-  parking: ['parking', 'garage'],
-  ac: ['climatisation', 'climatisé', 'climatise', 'climatiseur'],
-  furnished: ['meublé', 'meuble', 'meublée', 'meublee'],
-};
 
 // Derived, not hand-duplicated, from lib/constants.js's AMENITY_GROUPS — the
 // UI can only ever send a key that's actually offered as a checkbox.
@@ -152,7 +145,7 @@ const KM_RADIUS_KM = { 1: 1, 3: 3, 5: 5 };
  *     path has parcelle_subtype set. Filtering on parcelle_subtype is the
  *     precise match for "this is a parcelle listing".
  */
-function buildFilters({ transactionType, propertyType, parcelleSubtype, commune, quartier, radius, reference, priceMin, priceMax, bedsMin, bathMin, depositMax, amenities, search, excludeId }) {
+function buildFilters({ transactionType, propertyType, parcelleSubtype, commune, quartier, radius, reference, priceMin, priceMax, bedsMin, bathMin, depositMax, amenities, search, excludeId, agentId }) {
   const where = [APPROVED_FILTER];
   const params = [];
 
@@ -192,6 +185,15 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
   if (Number.isFinite(excluded)) {
     params.push(excluded);
     where.push(`p.id <> $${params.length}`);
+  }
+
+  // Agent storefront (web/app/(site)/agents/[id]/page.js) — scopes results
+  // to one real agents.id via the same p.agent_id column the public
+  // agency_name/agency_logo_url fields already join through.
+  const agent = Number.parseInt(agentId, 10);
+  if (Number.isFinite(agent)) {
+    params.push(agent);
+    where.push(`p.agent_id = $${params.length}`);
   }
 
   // "Max Garantie / Avance" (FiltersDrawer.js) — deposit_months is a real,
@@ -385,6 +387,7 @@ const SORT_COLUMNS = {
  * @param {number} [options.depositMax] Real, structured `deposit_months <= depositMax` filter (NULL deposits excluded — see lib/constants.js's DEPOSIT_MAX_OPTIONS).
  * @param {string[]} [options.amenities] "Plus de filtres" checkboxes (lib/constants.js's AMENITY_GROUPS keys) — word-boundary text match against title/description, not a structured flag (see AMENITY_KEYWORDS above).
  * @param {string} [options.search] Free-text match against title/description/address/quartier/reference/commune.
+ * @param {number} [options.agentId] Scopes to one real agents.id — the agent storefront's inventory filter.
  * @param {'newest'|'price_asc'|'price_desc'} [options.sort='newest']
  * @param {number} [options.limit]
  * @param {number} [options.offset]
@@ -578,6 +581,36 @@ export async function getListingById(id) {
   );
 
   return rows[0] || null;
+}
+
+const MODERATION_STATUS_FILTERS = {
+  pending: 'p.approve_status = 0',
+  approved: 'p.approve_status = 1',
+  rejected: 'p.approve_status = 2',
+};
+
+/**
+ * Admin-only: every listing at a given moderation status, regardless of
+ * `status`/`approve_status`. This is intentionally the one query in this
+ * file that does NOT apply APPROVED_FILTER — callers must only ever reach it
+ * from behind the /admin password gate (see middleware.js), never from a
+ * public-facing page.
+ *
+ * @param {'pending'|'approved'|'rejected'} [status='pending']
+ * @returns {Promise<Array<object>>}
+ */
+export async function getListingsForModeration(status = 'pending', { limit = 50 } = {}) {
+  const filter = MODERATION_STATUS_FILTERS[status] ?? MODERATION_STATUS_FILTERS.pending;
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT ${SELECT_FIELDS}
+     ${FROM_JOINS}
+     WHERE ${filter}
+     ORDER BY p.created_at DESC
+     LIMIT $1`,
+    [limit],
+  );
+  return rows;
 }
 
 /**

@@ -37,7 +37,7 @@ export default async function CurrencyBridge() {
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
                 href="/listings"
-                className="inline-flex items-center rounded-full bg-blue px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-deep"
+                className="inline-flex items-center rounded-full bg-blue px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary"
               >
                 Parcourir les biens
               </Link>

@@ -1,5 +1,6 @@
 import Header from '@/components/Header';
 import SideRail from '@/components/SideRail';
+import SiteShell from '@/components/SiteShell';
 import Footer from '@/components/Footer';
 import BottomNav from '@/components/BottomNav';
 import { CurrencyRateProvider } from '@/lib/CurrencyRateContext';
@@ -30,10 +31,10 @@ export default async function SiteLayout({ children }) {
     <CurrencyRateProvider rate={rate}>
       <Header />
       <SideRail />
-      <div className="flex min-h-screen flex-col pt-16 lg:pl-[76px]">
+      <SiteShell>
         <main className="flex-1 pb-16 lg:pb-0">{children}</main>
         <Footer />
-      </div>
+      </SiteShell>
       <BottomNav />
     </CurrencyRateProvider>
   );

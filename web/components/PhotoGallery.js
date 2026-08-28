@@ -121,7 +121,21 @@ export default function PhotoGallery({ images, alt, createdAt }) {
           </button>
 
           {hasGrid ? (
-            <div className={`hidden gap-3 sm:grid ${sideShots.length > 1 ? 'grid-rows-2' : 'grid-rows-1'}`}>
+            // row-span-2 is the actual fix for the dead space: without it,
+            // this div — the second item auto-placed into a 2-row grid,
+            // with no explicit row span of its own — only ever occupied
+            // ONE of the two 13rem row tracks (CSS Grid's default
+            // single-cell auto-placement, same as any un-spanned item),
+            // leaving the second 13rem row in this column completely
+            // empty — a real 13rem gap of blank space beside the bottom
+            // half of the lead photo, on every multi-photo gallery, not
+            // just the 1-side-photo case the grid-rows-1/2 toggle below
+            // handles. The lead photo's own button already had
+            // `row-span-2 h-full`; this div needed the same thing to
+            // actually reach the same height, not just sit inside a
+            // shorter box that then had to divide *that* between its own
+            // 1 or 2 tiles.
+            <div className={`hidden row-span-2 gap-3 sm:grid ${sideShots.length > 1 ? 'grid-rows-2' : 'grid-rows-1'}`}>
               {sideShots.map((src, i) => {
                 const isLastTile = i === sideShots.length - 1;
                 return (

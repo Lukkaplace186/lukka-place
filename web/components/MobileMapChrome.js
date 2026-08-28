@@ -18,8 +18,10 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  *
  * Search re-uses LocationAutocomplete exactly as FilterBar does
  * (`preserveParams`, so a search here keeps `view=map` and every other
- * active filter). The filter button opens FilterBar's own FiltersDrawer via
- * lib/mapFilterDrawer.js rather than a second, duplicate sheet.
+ * active filter). The filter button opens FilterBar's own FilterModal (the
+ * mobile-wide comprehensive filter sheet, not the desktop-only
+ * FiltersDrawer) via lib/mapFilterDrawer.js rather than a second, duplicate
+ * sheet.
  *
  * The "back to list" action lives in MobileMapOverlay now, as a single
  * floating button over the map itself — not here, per the explicit

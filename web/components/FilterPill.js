@@ -75,13 +75,21 @@ export function PillFieldLabel({ children }) {
   return <span className="u-eyebrow mb-2 block">{children}</span>;
 }
 
-/** Shared option-button styling for single-choice panels. */
-export function PillOption({ selected, children, ...props }) {
+/**
+ * Shared option-button styling for single-choice panels. `size="lg"` is the
+ * larger touch-target variant FilterModal.js's mobile sections use (its own
+ * full-screen sheet has the room a compact pill-panel popover doesn't);
+ * every existing desktop caller is unaffected since `size` defaults to the
+ * original `sm` sizing.
+ */
+export function PillOption({ selected, size = 'sm', children, ...props }) {
   return (
     <button
       type="button"
       aria-pressed={selected}
-      className={`u-press rounded-full border px-3 py-1.5 text-[0.8125rem] font-medium transition-colors ${
+      className={`u-press rounded-full border font-medium transition-colors ${
+        size === 'lg' ? 'px-5 py-3 text-[0.9375rem]' : 'px-3 py-1.5 text-[0.8125rem]'
+      } ${
         selected ? 'border-blue bg-blue text-white' : 'border-line bg-surface text-ink-70 hover:border-ink-25 hover:text-ink'
       }`}
       {...props}

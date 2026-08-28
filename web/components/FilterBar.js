@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { SlidersHorizontal } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { SlidersHorizontal, Map } from 'lucide-react';
 import FilterPill, { PillFieldLabel, PillOption } from './FilterPill';
 import FiltersDrawer from './FiltersDrawer';
+import FilterModal from './FilterModal';
 import LocationAutocomplete from './LocationAutocomplete';
 import SaveSearchButton from './SaveSearchButton';
 import { Slider } from './ui/slider';
@@ -40,11 +41,21 @@ const numberInputClass =
  *
  * Every filter value lives in React state here and is submitted through
  * hidden inputs rendered inside the form. That is deliberate: the pill
- * panels and the "Plus de filtres" sheet both render through Radix portals
- * to document.body, so any field nested inside them would sit outside the
- * form element and never be submitted. Owning the state here means the
- * panels are pure UI and there is exactly one place a filter value can come
- * from.
+ * panels and the "Plus de filtres"/"Filtres" sheets all render through
+ * Radix portals to document.body, so any field nested inside them would sit
+ * outside the form element and never be submitted. Owning the state here
+ * means the panels are pure UI and there is exactly one place a filter
+ * value can come from.
+ *
+ * Two different mobile/desktop experiences share that one state now,
+ * Rightmove/Zoopla-style: desktop (`lg:` and up) keeps the full pill row
+ * (Chambres/Prix/Type de bien) plus a separate "Plus de filtres" trigger
+ * (FiltersDrawer.js) it always had. Below `lg`, both are replaced by a
+ * single compact "Filtres" button next to the location input, opening
+ * FilterModal.js — one full-screen sheet covering every field from both of
+ * desktop's surfaces at once, plus a Carte/alert utility row underneath the
+ * input. FilterModal and FiltersDrawer share their non-primary fields via
+ * AdvancedFilterFields.js rather than duplicating that markup.
  *
  * `sort` and `view` are carried through as hidden inputs too — previously,
  * changing any filter silently discarded the visitor's sort order and
@@ -81,11 +92,13 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
   const [depositMax, setDepositMax] = useState(defaults.depositMax || '');
   const [amenities, setAmenities] = useState(defaults.amenities || []);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [filterModalOpen, setFilterModalOpen] = useState(false);
+  const router = useRouter();
 
   // The mobile fullscreen map's floating "Filtres" button opens this same
-  // drawer instead of a second, duplicate filter sheet — see
+  // FilterModal instead of a second, duplicate filter sheet — see
   // lib/mapFilterDrawer.js.
-  useEffect(() => subscribeOpenFiltersDrawer(() => setDrawerOpen(true)), []);
+  useEffect(() => subscribeOpenFiltersDrawer(() => setFilterModalOpen(true)), []);
 
   // Recent searches (lib/searchHistory.js) — a real, local-only history of
   // whatever filter combination was actually applied here, distinct from
@@ -109,10 +122,11 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
     pushRecentSearch({ label: buildSearchLabel(searchParams), href });
   }, [searchParams]);
 
-  // Live "Voir N biens" count for the Prix popover's and the "Plus de
-  // filtres" drawer's CTA buttons — both stage several field changes before
-  // one real submit, so a visitor benefits from seeing the real result
-  // count update as they adjust, not just after committing. Seeded from the
+  // Live "Voir N résultats" count for the Prix popover's, the "Plus de
+  // filtres" drawer's, and FilterModal's CTA buttons — all three stage
+  // several field changes before one real submit, so a visitor benefits
+  // from seeing the real result count update as they adjust, not just
+  // after committing. Seeded from the
   // page's own already-known `total` (the current URL's real result count)
   // rather than starting unknown, so there's no wasted first fetch and no
   // flash of a generic label on mount. `resultPending` drives a subtle
@@ -177,8 +191,13 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
     amenities,
   ]);
 
+  // "résultats", not the previous "biens" — matches the literal wording
+  // asked for in the mobile filter-modal spec, and also what this same
+  // label already fell back to (FiltersDrawer/FilterModal's own hardcoded
+  // "Voir les résultats" when `resultCount` is still null) — the two used
+  // to say different things for the same button.
   const resultCountLabel =
-    resultCount == null ? null : `Voir ${resultCount.toLocaleString('fr-FR')} bien${resultCount === 1 ? '' : 's'}`;
+    resultCount == null ? null : `Voir ${resultCount.toLocaleString('fr-FR')} résultat${resultCount === 1 ? '' : 's'}`;
 
   const quartiers = commune ? locations[commune] || [] : [];
   // amenities is always an array (never absent) — counted by length, not by
@@ -187,9 +206,30 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
   // checked.
   const advancedCount =
     ADVANCED_KEYS.filter((key) => defaults[key]).length + (defaults.amenities?.length || 0) + (defaults.depositMax ? 1 : 0);
+  // Mobile's single "Filtres" button badge — the primary pills' own active
+  // count (Chambres/Prix-as-one/Type de bien) plus everything advancedCount
+  // already tracks, since FilterModal.js is the one screen covering both
+  // sets now.
+  const mobileFilterCount =
+    (defaults.bedsMin ? 1 : 0) +
+    (defaults.priceMin || defaults.priceMax ? 1 : 0) +
+    (defaults.propertyType ? 1 : 0) +
+    advancedCount;
+
+  const isMapView = defaults.view === 'map';
 
   function submit() {
     formRef.current?.requestSubmit();
+  }
+
+  function toggleMapView() {
+    const params = new URLSearchParams(searchParams.toString());
+    if (isMapView) {
+      params.delete('view');
+    } else {
+      params.set('view', 'map');
+    }
+    router.push(`/listings?${params.toString()}`);
   }
 
   // Set a value, then submit once React has committed it — the hidden
@@ -249,7 +289,16 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
           value ? <input key={name} type="hidden" name={name} value={value} /> : null,
         )}
 
-        <div className="flex w-full flex-col gap-2 lg:flex-row lg:items-center lg:gap-3">
+        {/* Row 1: location input + a single per-breakpoint filter entry
+            point. Mobile gets a compact "Filtres" button beside the input
+            (opens FilterModal, the one full-screen sheet covering every
+            field below); desktop keeps the full pill row + separate
+            "Plus de filtres" trigger it always had (`hidden lg:flex`) —
+            this was a `flex-col` stack before, with the pill row as a
+            second horizontally-scrolling mobile row underneath the input;
+            replaced with a real Rightmove/Zoopla-style single row now that
+            mobile no longer shows the pills at all. */}
+        <div className="flex w-full items-center gap-2 lg:gap-3">
           {/* preserveParams: this box does its own client-side navigation
               (see LocationAutocomplete) rather than participating in this
               form's hidden-input/requestSubmit machinery — picking a
@@ -272,10 +321,32 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
             showIcon
             showClear
             recentSearches={recentSearches}
-            className="min-w-0 w-full flex-1 rounded-lg border border-line bg-surface px-4 py-2 lg:min-w-[15rem] lg:py-2.5"
+            className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-4 py-2 lg:min-w-[15rem] lg:py-2.5"
           />
 
-          <div className="-mx-4 flex w-full items-center gap-2 overflow-x-auto px-4 pb-0.5 lg:mx-0 lg:w-auto lg:px-0">
+          {/* Mobile-only single filter entry point — replaces the pill row
+              (Chambres/Prix/Type de bien) and the separate "Plus de
+              filtres" trigger below, both hidden below lg now. Opens
+              FilterModal.js. */}
+          <button
+            type="button"
+            onClick={() => setFilterModalOpen(true)}
+            className={`u-press inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-4 py-2 text-[0.8125rem] font-semibold transition-colors lg:hidden ${
+              mobileFilterCount > 0
+                ? 'border-blue bg-blue-tint text-blue-deep'
+                : 'border-line bg-surface text-ink-70'
+            }`}
+          >
+            <SlidersHorizontal strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+            Filtres
+            {mobileFilterCount > 0 ? (
+              <span className="u-tabular flex h-4 min-w-4 items-center justify-center rounded-full bg-blue px-1 text-[0.625rem] font-bold text-white">
+                {mobileFilterCount}
+              </span>
+            ) : null}
+          </button>
+
+          <div className="hidden items-center gap-2 lg:flex">
             {/* Zoopla's own bar order minus Radius (removed for now — see
                 lib/listings.js's buildFilters and ResultsHeader.js, which
                 still honour a `radius` param arriving via a bookmarked/
@@ -402,6 +473,26 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
           </div>
         </div>
 
+        {/* Row 2, mobile only: Zoopla's own secondary utility bar directly
+            beneath the search input — a real map-view toggle (same
+            `?view=map` param FloatingControlBar.js's own "Carte" pill
+            already drives; this is a second entry point to the identical
+            real toggle, not a separate one) and the real save-search/alert
+            action (SaveSearchButton's `variant="alert"` — see its own doc
+            comment for why this is the same feature relabelled, not a
+            second implementation). */}
+        <div className="mt-2 flex items-center divide-x divide-line border-t border-line lg:hidden">
+          <button
+            type="button"
+            onClick={toggleMapView}
+            className="u-press flex flex-1 items-center justify-center gap-1.5 py-2.5 text-[0.8125rem] font-semibold text-ink-70 transition-colors hover:text-blue-deep"
+          >
+            <Map strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+            {isMapView ? 'Vue liste' : 'Carte'}
+          </button>
+          <SaveSearchButton variant="alert" />
+        </div>
+
         <FiltersDrawer
           open={drawerOpen}
           onClose={() => setDrawerOpen(false)}
@@ -411,6 +502,23 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
           propertyType={propertyType}
           values={{ quartier, parcelleSubtype, bedsMin, bathMin, depositMax, amenities }}
           setters={{ setQuartier, setParcelleSubtype, setBedsMin, setBathMin, setDepositMax, setAmenities }}
+          resultCountLabel={resultCountLabel}
+          resultPending={resultPending}
+        />
+
+        <FilterModal
+          open={filterModalOpen}
+          onClose={() => setFilterModalOpen(false)}
+          onApply={submit}
+          propertyTypes={propertyTypes}
+          quartiers={quartiers}
+          commune={commune}
+          priceSliderMax={PRICE_SLIDER_MAX}
+          values={{ propertyType, priceMin, priceMax, bedsMin, bathMin, quartier, parcelleSubtype, depositMax, amenities }}
+          setters={{
+            setPropertyType, setPriceMin, setPriceMax, setBedsMin, setBathMin,
+            setQuartier, setParcelleSubtype, setDepositMax, setAmenities,
+          }}
           resultCountLabel={resultCountLabel}
           resultPending={resultPending}
         />

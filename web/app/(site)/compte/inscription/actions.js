@@ -7,8 +7,8 @@ import { hashPassword } from '@/lib/customerAuth';
 import { establishCustomerSession } from '@/lib/customerSession';
 
 function safeNext(nextParam) {
-  const next = String(nextParam || '/compte');
-  return next.startsWith('/') && !next.startsWith('//') ? next : '/compte';
+  const next = String(nextParam || '/compte/client');
+  return next.startsWith('/') && !next.startsWith('//') ? next : '/compte/client';
 }
 
 function parseAnonymousData(formData) {

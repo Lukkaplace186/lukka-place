@@ -10,7 +10,7 @@ export const metadata = {
 export default async function CustomerSignupPage({ searchParams }) {
   const params = await searchParams;
   const error = typeof params.error === 'string' ? params.error : null;
-  const next = typeof params.next === 'string' ? params.next : '/compte';
+  const next = typeof params.next === 'string' ? params.next : '/compte/client';
 
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-4">

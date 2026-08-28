@@ -17,7 +17,7 @@ export default async function CustomerLoginPage({ searchParams }) {
   const params = await searchParams;
   const error = typeof params.error === 'string' ? params.error : null;
   const reset = params.reset === '1';
-  const next = typeof params.next === 'string' ? params.next : '/compte';
+  const next = typeof params.next === 'string' ? params.next : '/compte/client';
 
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-4">

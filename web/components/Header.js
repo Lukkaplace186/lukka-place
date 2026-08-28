@@ -14,7 +14,7 @@ import { useIsLoggedIn } from '@/lib/customerClient';
 import { logoutAction } from '@/app/(site)/compte/actions';
 
 const ACCOUNT_LINKS = [
-  { href: '/compte', label: 'Mon compte', icon: User },
+  { href: '/compte/client', label: 'Mon compte', icon: User },
   { href: '/favoris', label: 'Mes favoris', icon: Heart },
   { href: '/compte/alertes', label: 'Alertes', icon: Bell },
 ];

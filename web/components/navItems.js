@@ -16,13 +16,16 @@ export const NAV_ITEMS = [
   { href: '/listings', label: 'Rechercher', icon: Search },
   { href: '/favoris', label: 'Favoris', icon: Heart },
   { href: '/compte/demandes', label: 'Demandes', icon: Mail },
-  { href: '/compte', label: 'Compte', icon: User },
+  { href: '/compte/client', label: 'Compte', icon: User },
 ];
 
 export function isNavItemActive(href, pathname) {
   if (href === '/listings') return pathname.startsWith('/listings');
-  // /compte must not light up on /compte/demandes (or any other child) —
-  // they are two separate tabs.
-  if (href === '/compte') return pathname === '/compte';
+  // '/compte/client' has its own children (favoris, alertes, messages...)
+  // that must all light up the same 'Compte' tab, the same reason
+  // '/listings' above uses startsWith rather than an exact match. The
+  // sibling '/compte/demandes' tab stays a separate exact match — it's a
+  // different route entirely, not a child of this one.
+  if (href === '/compte/client') return pathname === href || pathname.startsWith(`${href}/`);
   return pathname === href;
 }

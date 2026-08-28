@@ -14,9 +14,19 @@ import { useMotionSafe } from '@/lib/useMotionSafe';
  *     doesn't need a visible scrollbar track. Deliberately no extra
  *     horizontal padding or negative-margin breakout here: the parent
  *     <section> (FeaturedListings.js) already carries `px-4`, and each
- *     card is `w-full`/`min-w-full` of that already-inset scroller — so
- *     the scroller's own clientWidth exactly equals one card's width and
- *     a snapped card shows edge to edge with zero peek of its neighbour.
+ *     card is wrapped in its own `w-full shrink-0 snap-start` div — the
+ *     doc comment here used to describe this same intent ("each card is
+ *     w-full/min-w-full") without any class actually doing it: PropertyCard
+ *     defaults to `layout="vertical"`, whose own root wrapper carries no
+ *     width class at all (only the `layout="horizontal"` branch gets
+ *     `w-full`), so every card in this flex row collapsed to its
+ *     min-content width — confirmed directly, 2px per card on a real
+ *     390px viewport, the whole row reading as a series of vertical
+ *     hairlines. The wrapper below is what RelatedListings.js's own
+ *     "Biens similaires" rail needed for the identical reason; `sm:contents`
+ *     removes it from the box tree once the layout below switches to a
+ *     real grid, so PropertyCard's own Link is the direct grid item there,
+ *     same as before this fix.
  *     An earlier version broke out of the section's padding (`-mx-4/px-4`
  *     + `scroll-p-4`) to bleed cards near-full-bleed at 85vw with a
  *     deliberate sliver of the next card showing; on real devices that
@@ -50,7 +60,9 @@ export default function FeaturedListingsCarousel({ listings }) {
       ].join(' ')}
     >
       {listings.map((listing) => (
-        <PropertyCard key={listing.id} listing={listing} />
+        <div key={listing.id} className="w-full shrink-0 snap-start sm:contents">
+          <PropertyCard listing={listing} />
+        </div>
       ))}
     </motion.div>
   );

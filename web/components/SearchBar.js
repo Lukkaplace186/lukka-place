@@ -68,6 +68,49 @@ const BUDGET_MAX_OPTIONS = [
   { value: '5000', label: '5 000 $ et +' },
 ];
 
+/**
+ * Prix min/max option list inside the Budget popover — real buttons, not a
+ * native `<select>`. Used to be one; confirmed as the real cause of a
+ * dropdown that rendered its option list detached near the top of the
+ * screen on iOS Safari rather than anchored under the field: Radix's own
+ * Popper positioning (PopoverContent, see ui/popover.jsx) applies a real
+ * CSS `transform` to place the panel, and WebKit's native `<select>`
+ * picker miscalculates its own anchor position when any ancestor carries a
+ * transform — a documented WebKit quirk, not something `appearance: none`
+ * (already present before this and confirmed not sufficient — that only
+ * restyles the closed control, it doesn't touch where the native picker
+ * itself renders) fixes. A plain button list sidesteps the native picker
+ * entirely, so there's nothing left for that WebKit behaviour to break.
+ */
+function BudgetOptionList({ idPrefix, label, options, value, onChange }) {
+  return (
+    <div>
+      <span className="u-eyebrow mb-2 block" id={`${idPrefix}-label`}>
+        {label}
+      </span>
+      <div role="listbox" aria-labelledby={`${idPrefix}-label`} className="flex flex-col gap-0.5">
+        {options.map((opt) => {
+          const selected = value === opt.value;
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              role="option"
+              aria-selected={selected}
+              onClick={() => onChange(opt.value)}
+              className={`u-press w-full rounded-md px-2.5 py-2 text-left text-[0.8125rem] font-medium transition-colors ${
+                selected ? 'bg-blue-tint text-blue-deep' : 'text-ink-70 hover:bg-canvas-alt'
+              }`}
+            >
+              {opt.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function formatBudgetLabel(min, max) {
   const fmt = (v) => `${Number(v).toLocaleString('fr-FR')} $`;
   if (min && max) return `${fmt(min)} - ${fmt(max)}`;
@@ -196,46 +239,20 @@ export default function SearchBar({ propertyTypes = [] }) {
               </PopoverTrigger>
               <PopoverContent align="start" sideOffset={8} className="w-[min(22rem,calc(100vw-2rem))] rounded-lg border-line bg-surface p-4 u-lift">
                 <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label htmlFor="hero-budget-min" className="u-eyebrow mb-2 block">
-                      Prix min
-                    </label>
-                    <div className={`${FIELD_SHELL} relative px-3 py-2.5`}>
-                      <select
-                        id="hero-budget-min"
-                        value={budgetMin}
-                        onChange={(e) => setBudgetMin(e.target.value)}
-                        className="min-w-0 flex-1 appearance-none bg-transparent text-[0.875rem] font-medium text-ink focus:outline-none"
-                      >
-                        {BUDGET_MIN_OPTIONS.map(({ value, label }) => (
-                          <option key={value} value={value}>
-                            {label}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown strokeWidth={ICON_STROKE_WIDTH} className="pointer-events-none h-4 w-4 shrink-0 text-ink-45" />
-                    </div>
-                  </div>
-                  <div>
-                    <label htmlFor="hero-budget-max" className="u-eyebrow mb-2 block">
-                      Prix max
-                    </label>
-                    <div className={`${FIELD_SHELL} relative px-3 py-2.5`}>
-                      <select
-                        id="hero-budget-max"
-                        value={budgetMax}
-                        onChange={(e) => setBudgetMax(e.target.value)}
-                        className="min-w-0 flex-1 appearance-none bg-transparent text-[0.875rem] font-medium text-ink focus:outline-none"
-                      >
-                        {BUDGET_MAX_OPTIONS.map(({ value, label }) => (
-                          <option key={value} value={value}>
-                            {label}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown strokeWidth={ICON_STROKE_WIDTH} className="pointer-events-none h-4 w-4 shrink-0 text-ink-45" />
-                    </div>
-                  </div>
+                  <BudgetOptionList
+                    idPrefix="hero-budget-min"
+                    label="Prix min"
+                    options={BUDGET_MIN_OPTIONS}
+                    value={budgetMin}
+                    onChange={setBudgetMin}
+                  />
+                  <BudgetOptionList
+                    idPrefix="hero-budget-max"
+                    label="Prix max"
+                    options={BUDGET_MAX_OPTIONS}
+                    value={budgetMax}
+                    onChange={setBudgetMax}
+                  />
                 </div>
               </PopoverContent>
             </Popover>

@@ -35,8 +35,15 @@ export function Wordmark({ inverted = false, className = '' }) {
           asset, not a Supabase-sourced photo; next/image adds no real value
           here and the two-variant swap by background is simpler as a plain
           img. width/height set the intrinsic aspect ratio so h-* + w-auto
-          scales without layout shift. */}
-      <img src={src} alt="Lukka Place" width={LOGO_ASPECT.width} height={LOGO_ASPECT.height} className="h-6 w-auto sm:h-7" />
+          scales without layout shift.
+
+          h-7/h-8, not the previous h-6/h-7 — a modest size bump for more
+          visual weight in the header, per an explicit "bolder logo"
+          instruction. Size is the only real lever here: this is a supplied
+          raster PNG (see the doc comment above), so there's no font-weight
+          or SVG fill to strengthen — a heavier stroke would mean asking for
+          new source art, not a CSS change. */}
+      <img src={src} alt="Lukka Place" width={LOGO_ASPECT.width} height={LOGO_ASPECT.height} className="h-7 w-auto sm:h-8" />
     </Link>
   );
 }

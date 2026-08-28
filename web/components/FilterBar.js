@@ -313,6 +313,14 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
               means this box now absorbs all remaining row width itself, so
               the pill row (already shrink-0 per control, see FilterPill.js)
               lands flush against the real right edge instead. */}
+          {/* border-2 + focus-within:border-blue: a thicker rest-state
+              border and real focus feedback (there was none before — only
+              the nested <input> itself can take `:focus`, so the visible
+              box needs `focus-within` to react at all), per the "bolder,
+              higher-contrast search input" instruction. Stays on this
+              app's own `--blue` focus token rather than a literal dark
+              slate-900 border, matching `.u-focus-ring`'s established
+              focus colour used everywhere else a field gets one. */}
           <LocationAutocomplete
             preserveParams
             initialValue={defaults.search || ''}
@@ -321,7 +329,8 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
             showIcon
             showClear
             recentSearches={recentSearches}
-            className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-4 py-2 lg:min-w-[15rem] lg:py-2.5"
+            className="min-w-0 flex-1 rounded-lg border-2 border-line bg-surface px-4 py-2 transition-colors focus-within:border-blue lg:min-w-[15rem] lg:py-2.5"
+            inputClassName="font-medium"
           />
 
           {/* Mobile-only single filter entry point — replaces the pill row
@@ -331,7 +340,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
           <button
             type="button"
             onClick={() => setFilterModalOpen(true)}
-            className={`u-press inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border px-4 py-2 text-[0.8125rem] font-semibold transition-colors lg:hidden ${
+            className={`u-press inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border-2 px-4 py-2 text-[0.8125rem] font-semibold transition-colors lg:hidden ${
               mobileFilterCount > 0
                 ? 'border-blue bg-blue-tint text-blue-deep'
                 : 'border-line bg-surface text-ink-70'

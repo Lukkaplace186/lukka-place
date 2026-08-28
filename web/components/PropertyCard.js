@@ -45,10 +45,17 @@ import { cn } from '@/lib/utils';
  * change to the primary conversion path, made on an explicit instruction to
  * favour the design's UX over what was already working.
  *
- * Card chrome is `.u-card` + `.u-card-interactive` (globals.css): a 1px
- * inset hairline at rest that swaps for shadow-md and a 2px lift on hover,
- * per the design's card-anatomy card. Not a `border`, which is what the
- * previous cards used and what made them read as outlined boxes.
+ * Card chrome used to be `.u-card` + `.u-card-interactive` (globals.css): a
+ * 1px inset hairline at rest that swaps for shadow-md and a 2px lift on
+ * hover, per the design's card-anatomy card, deliberately not a `border` —
+ * which is what the previous cards used and what made them read as
+ * outlined boxes. That's now reversed on an explicit "bold, high-contrast,
+ * Zoopla/Zillow-style elevation" instruction: a real `border-line` border
+ * plus a genuine `shadow-sm` at rest (not just on hover), still lifting to
+ * `shadow-md` + a slight raise on hover. Written as plain utilities rather
+ * than through `.u-card`/`.u-card-interactive` so `shadow-sm` doesn't have
+ * to out-cascade that class's own `box-shadow: var(--hairline)` rule at
+ * matching specificity, which is a fragile thing to rely on.
  *
  * Grid-row height uniformity: the summary line and the amenity-tag row
  * both reserve their own space (`min-h-*`) whether or not a given listing
@@ -108,7 +115,7 @@ export default function PropertyCard({
         // shorter than its neighbours in the same row even though the row
         // itself was already uniform height. h-full is what makes the
         // visible card box actually fill it.
-        'u-card u-card-interactive group flex h-full overflow-hidden rounded-card bg-surface',
+        'group flex h-full overflow-hidden rounded-card border border-line bg-surface shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md',
         // Horizontal only once there's room for a 300px image beside the
         // body — below that it stacks, or the text column collapses to
         // nothing in a narrow results pane.
@@ -157,7 +164,7 @@ export default function PropertyCard({
             gradient — the design is explicit that the two are never
             combined on the same edge. */}
         {images.length > 1 ? (
-          <span className="u-glass-royal u-tabular pointer-events-none absolute bottom-3 right-3 z-10 inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-[0.8125rem] font-semibold">
+          <span className="u-glass-royal u-tabular pointer-events-none absolute bottom-3 right-3 z-10 inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-[0.8125rem] font-semibold shadow-sm">
             {activeIndex + 1}/{images.length}
           </span>
         ) : null}
@@ -167,20 +174,34 @@ export default function PropertyCard({
         <div className="flex flex-wrap items-baseline gap-2.5">
           <span
             className={cn(
-              'u-tabular font-bold tracking-[-0.02em] text-ink',
+              // font-extrabold (800), not the previous font-bold (700) —
+              // Plus Jakarta Sans's real heaviest loaded weight (see
+              // app/layout.js's own `weight` list), per the "extra bold
+              // price" instruction. Size is unchanged rather than shrunk to
+              // the literal `text-xl` (1.25rem) that instruction also
+              // named: this is already larger than that, and shrinking an
+              // already-prominent price would fight the stated goal of
+              // making it read as bigger, not smaller.
+              'u-tabular font-extrabold tracking-[-0.02em] text-ink',
               horizontal ? 'text-[1.3125rem] @[34rem]:text-[1.875rem]' : 'text-[1.3125rem]',
             )}
           >
             {/* The design's `qualifier` slot is the converted-currency line
                 ("≈ 520 775 000 FC"), which <Price showSubtext> already
                 produces from the real, dated rate — rendered inline on the
-                price's own baseline here rather than stacked below it. */}
+                price's own baseline here rather than stacked below it. Now
+                a real muted pill/badge (`bg-canvas-alt`/`text-ink-70`, this
+                app's own chalk-and-ink tokens for the literal
+                "bg-slate-100 text-slate-600" pill instruction) instead of
+                plain inline text, so the primary USD figure reads
+                unambiguously as the headline number and the converted one
+                as a secondary reference beside it. */}
             <Price
               amount={price}
               purpose={purpose}
               pricePeriod={pricePeriod}
               showSubtext
-              subtextClassName="ml-2 text-[0.875rem] font-normal tracking-normal text-ink-45"
+              subtextClassName="ml-2 inline-flex items-center rounded-md bg-canvas-alt px-2 py-0.5 text-xs font-semibold tracking-normal text-ink-70"
             />
           </span>
         </div>

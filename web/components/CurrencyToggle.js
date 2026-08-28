@@ -16,6 +16,14 @@ import { getCurrency, setCurrency, subscribeCurrency } from '@/lib/currencyPrefe
  * header is solid on every route now — see Header.js — and nothing passed
  * it any more.)
  *
+ * Solid `bg-blue-deep` container (the real dark-navy brand token, not a
+ * generic slate) with a bright white pill for the active segment — a
+ * deliberate high-contrast pass, per an explicit "bold like Zoopla/Zillow"
+ * instruction, over the previous light `bg-surface` container with only
+ * the active segment filled. The one real control in the top-right utility
+ * cluster that's meant to visually anchor the bar, not blend into it.
+ *
+
  * Buttons are a fixed h-9 (36px) rather than padding-driven — measured on a
  * real phone viewport, the previous padding-only sizing came out to
  * 24x32px, well under the ~40-44px touch target this control needs given
@@ -42,7 +50,7 @@ export default function CurrencyToggle({ longLabels = false }) {
     <div
       role="group"
       aria-label="Devise d'affichage"
-      className="flex items-center rounded-full border border-line bg-surface p-0.5 transition-colors"
+      className="flex items-center rounded-full border border-blue-deep bg-blue-deep p-0.5 shadow-sm transition-colors"
     >
       {(longLabels ? LONG_OPTIONS : OPTIONS).map(({ value, label }) => {
         const active = currency === value;
@@ -53,7 +61,7 @@ export default function CurrencyToggle({ longLabels = false }) {
             onClick={() => setCurrency(value)}
             aria-pressed={active}
             className={`inline-flex h-9 min-w-9 items-center justify-center rounded-full px-3 text-[0.8125rem] font-semibold transition-colors ${
-              active ? 'bg-blue text-white' : 'text-ink-45 hover:text-ink'
+              active ? 'bg-white text-blue-deep shadow-sm' : 'text-white/75 hover:text-white'
             }`}
           >
             {label}

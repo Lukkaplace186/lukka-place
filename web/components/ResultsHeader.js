@@ -71,7 +71,17 @@ export default function ResultsHeader({
 
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
         <div className="min-w-0">
-          <h1 className="font-display text-[1.5rem] font-normal leading-[1.15] tracking-[-0.02em] text-ink sm:text-[1.875rem]">
+          {/* Sans, not `font-display` (the DM Serif Display face) — a
+              deliberate departure from this app's usual "serif only for
+              editorial titles, never heavy" rule (web/CLAUDE.md), on an
+              explicit "punchier, high-contrast like Zoopla/Zillow"
+              instruction for this specific results-page title. font-black
+              (900) isn't achievable: Plus Jakarta Sans is only loaded up to
+              800 (app/layout.js's own `weight` list) and DM Serif Display
+              has no bold cut at all — either would fake a weight the font
+              doesn't have. font-extrabold (800) is the real heaviest
+              available, same reasoning as PropertyCard's price. */}
+          <h1 className="text-[1.5rem] font-extrabold leading-[1.15] tracking-tight text-ink sm:text-[1.875rem]">
             {heading}
           </h1>
           <p className="mt-1.5 text-[0.8125rem] text-ink-45">

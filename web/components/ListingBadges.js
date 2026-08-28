@@ -44,8 +44,17 @@ const BADGE_TONES = {
 export function Badge({ tone = 'royal', children, className = '' }) {
   if (!children) return null;
   return (
+    // shadow-sm: a real drop-shadow so a solid badge separates cleanly from
+    // a busy photo behind it, per an explicit "bold, high-contrast badges"
+    // instruction — added here rather than only on PropertyCard's own
+    // badges, so it applies everywhere Badge is actually used (cards, the
+    // detail-page gallery). Shape stays the design system's own pill
+    // (rounded-full), not a squared-off rounded-md — that would be a much
+    // bigger, undocumented departure from every other pill-shaped badge/
+    // tag sitewide (DepositBadge, RentBadge, AmenityTag, etc.) for a
+    // change this instruction didn't actually ask for.
     <span
-      className={`pointer-events-none inline-flex items-center rounded-full px-2.5 py-[5px] text-[0.6875rem] font-bold uppercase leading-[1.3] tracking-[0.12em] ${
+      className={`pointer-events-none inline-flex items-center rounded-full px-2.5 py-[5px] text-[0.6875rem] font-bold uppercase leading-[1.3] tracking-[0.12em] shadow-sm ${
         BADGE_TONES[tone] || BADGE_TONES.royal
       } ${className}`}
     >

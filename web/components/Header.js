@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, Search, User, Heart, Bell, LogOut } from 'lucide-react';
+import { Menu, Search, User, Heart, Bell, LogOut, ArrowUpRight, Mail } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetClose } from './ui/sheet';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from './ui/dropdown-menu';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -19,63 +19,66 @@ const ACCOUNT_LINKS = [
   { href: '/compte/alertes', label: 'Alertes', icon: Bell },
 ];
 
-// Trimmed to the two links the top bar keeps: browsing (Acheter/Louer/
-// Parcelles) already lives in the hero search tabs and FilterBar's
-// transaction pill, so it doesn't need a second copy here. "Devenir Agence
-// Partenaire" stays a separate CTA button below, not a text link.
+/**
+ * The four nav destinations of the "Landing refondue" header.
+ *
+ * Louer and Acheter were promoted *out* of the hero search panel and into
+ * the nav, so the two audiences separate before the search unit rather than
+ * inside it. SearchBar.js's tab row is Louer/Acheter only now, and it lost
+ * its "Agents" tab entirely — a directory is not a property type, so it
+ * never belonged in a row that switches what you search. "Agences" is where
+ * that directory lives instead.
+ *
+ * No active-state underline here, unlike the mockup: two of these four
+ * destinations are distinguished only by a query string
+ * (?transaction_type=...), and reading that from a layout-level client
+ * component means useSearchParams(), which drags every statically rendered
+ * route under this layout into a Suspense bailout (see web/CLAUDE.md).
+ * Hover colour only, rather than an underline that would be right on two
+ * links and silently wrong on the other two.
+ */
 const PRIMARY_LINKS = [
+  { href: '/listings?transaction_type=location', label: 'Louer' },
+  { href: '/listings?transaction_type=vente', label: 'Acheter' },
+  { href: '/agents', label: 'Agences' },
   { href: '/a-propos', label: 'À propos' },
-  { href: '/agents', label: 'Agents' },
 ];
 
 /**
  * Sticky site header.
  *
- * On the homepage it starts transparent so the hero photograph runs to the
- * top of the viewport, then solidifies once scrolled. Everywhere else it is
- * solid from the start.
+ * Solid on every route, the homepage included. It previously started
+ * transparent over the hero photograph and solidified on scroll — a
+ * rAF-throttled scroll listener driving an `overHero` flag through nine
+ * separate className branches. The refonte is explicit that it never goes
+ * transparent, because the wordmark has to stay legible over whatever
+ * photograph the hero happens to be carrying. The listener, the `scrolled`
+ * state and every inverted variant are gone with it, and Hero.js no longer
+ * bleeds up under the header either.
  *
- * Implementation note: this uses a rAF-throttled passive scroll listener
- * rather than an IntersectionObserver. The IO "is it stuck?" trick needs a
- * sentinel node or a `top: -1px` offset hack to distinguish "resting at the
- * top of the page" from "pinned to the top of the viewport", and both of
- * those are more moving parts than the two-line listener below for the same
- * result. Passive + rAF means it never blocks scrolling.
+ * The header CTA is "Publier un bien" as a secondary outline button, not
+ * the filled "Devenir Agence Partenaire" pill it used to be. One filled
+ * royal button per band, and on the homepage that one is "Rechercher"; the
+ * partner ask keeps its own royal band above the footer (Footer.js), which
+ * is the single place on a public page that recruits supply.
  *
  * Height is 4rem/h-16 and is depended on elsewhere: FilterBar sticks at
- * `top-16` so the two never overlap, and SideRail's top padding clears it.
+ * `top-16` so the two never overlap.
+ *
+ * Also carries Demandes now — a top-right text link next to Favoris,
+ * routing to the same `/compte/demandes` the mobile tab bar always used.
+ * It used to live only on the fixed left icon rail (SideRail.js), which
+ * had no desktop equivalent anywhere else; that rail is gone entirely (see
+ * app/(site)/layout.js), so every page under this layout gets its full
+ * container width back instead of losing 76px to a gutter.
  */
 export default function Header() {
   const pathname = usePathname();
-  const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const loggedIn = useIsLoggedIn();
 
-  const overHero = pathname === '/' && !scrolled;
-
-  useEffect(() => {
-    let frame = 0;
-    const onScroll = () => {
-      if (frame) return;
-      frame = window.requestAnimationFrame(() => {
-        setScrolled(window.scrollY > 24);
-        frame = 0;
-      });
-    };
-    onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', onScroll);
-      if (frame) window.cancelAnimationFrame(frame);
-    };
-  }, []);
-
   return (
-    <header
-      className={`fixed inset-x-0 top-0 z-[60] h-16 transition-colors duration-300 ${
-        overHero ? 'bg-transparent' : 'border-b border-line bg-canvas/90 backdrop-blur-md'
-      }`}
-    >
+    <header className="fixed inset-x-0 top-0 z-[60] h-16 border-b border-line bg-canvas/90 backdrop-blur-md">
       <div className="mx-auto flex h-full max-w-[1600px] items-center gap-4 px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-3 lg:w-[76px] lg:shrink-0 lg:pl-0">
           {/* Mobile menu — Radix Sheet owns focus trapping, Escape and
@@ -83,9 +86,7 @@ export default function Header() {
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
             <SheetTrigger
               aria-label="Ouvrir le menu"
-              className={`-ml-1 inline-flex h-11 w-11 items-center justify-center rounded-md transition-colors lg:hidden ${
-                overHero ? 'text-white hover:bg-white/15' : 'text-ink hover:bg-canvas-deep'
-              }`}
+              className="-ml-1 inline-flex h-11 w-11 items-center justify-center rounded-md text-ink transition-colors hover:bg-canvas-deep lg:hidden"
             >
               <Menu strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
             </SheetTrigger>
@@ -153,7 +154,7 @@ export default function Header() {
                     href="/compte/agent/inscription"
                     className="mt-2 flex items-center justify-center gap-2 rounded-md bg-blue-tint px-3 py-2.5 text-[0.9375rem] font-bold text-blue-deep"
                   >
-                    Devenir Agence Partenaire
+                    Publier un bien
                   </Link>
                 </SheetClose>
               </nav>
@@ -161,40 +162,24 @@ export default function Header() {
           </Sheet>
         </div>
 
-        <Wordmark inverted={overHero} className="shrink-0" />
+        <Wordmark className="shrink-0" />
 
         <nav className="ml-6 hidden items-center gap-7 lg:flex">
           {PRIMARY_LINKS.map(({ href, label }) => (
             <Link
               key={href}
               href={href}
-              className={`text-sm font-medium transition-colors ${
-                overHero ? 'text-white/85 hover:text-white' : 'text-ink-70 hover:text-blue-deep'
-              }`}
+              className="text-sm font-medium text-ink-70 transition-colors hover:text-blue-deep"
             >
               {label}
             </Link>
           ))}
-
-          {/* Agency recruitment CTA. Deliberately styled as a real button
-              rather than a fifth text link — it is the only nav item asking
-              for a signup, and it competes with four navigation links that
-              all lead to browsing. */}
-          <Link
-            href="/compte/agent/inscription"
-            className={`u-press inline-flex h-9 items-center rounded-full px-3.5 text-[0.8125rem] font-bold transition-colors ${
-              overHero
-                ? 'text-white ring-1 ring-inset ring-white/50 hover:bg-white/10'
-                : 'bg-blue-tint text-blue-deep hover:bg-blue hover:text-white'
-            }`}
-          >
-            Devenir Agence Partenaire
-          </Link>
         </nav>
 
         <div className="ml-auto flex items-center gap-2 sm:gap-3">
-          {/* On /listings the sticky FilterBar already owns search, so this
-              only appears where there is no other way in. */}
+          {/* On /listings the sticky FilterBar owns search, and on the
+              homepage the hero panel does, so this only appears where there
+              is no other way in. */}
           {!pathname.startsWith('/listings') && pathname !== '/' && (
             <Link
               href="/listings"
@@ -204,32 +189,38 @@ export default function Header() {
               <Search strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
             </Link>
           )}
-          <CurrencyToggle inverted={overHero} />
+          <CurrencyToggle />
 
           {/* Favoris — web/Design's header always shows this text link,
               never gated behind login: favorites are local-only
-              (lib/localFavorites.js), no account required. Previously the
-              only way to reach /favoris on desktop was the left SideRail,
-              which the homepage no longer renders. */}
+              (lib/localFavorites.js), no account required. */}
           <Link
             href="/favoris"
-            className={`hidden items-center gap-1.5 text-sm font-medium transition-colors lg:inline-flex ${
-              overHero ? 'text-white/85 hover:text-white' : 'text-ink-70 hover:text-blue-deep'
-            }`}
+            className="hidden items-center gap-1.5 text-sm font-medium text-ink-70 transition-colors hover:text-blue-deep lg:inline-flex"
           >
             <Heart strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
             Favoris
+          </Link>
+
+          {/* Demandes — moved here from the now-removed left icon rail
+              (SideRail.js). Same real route as before (`/compte/demandes`,
+              still the one NAV_ITEMS/BottomNav use on mobile): it redirects
+              to login with a `?next=` back to itself when signed out, so
+              this link doesn't need its own logged-in branch — the route
+              already handles both states honestly. */}
+          <Link
+            href="/compte/demandes"
+            className="hidden items-center gap-1.5 text-sm font-medium text-ink-70 transition-colors hover:text-blue-deep lg:inline-flex"
+          >
+            <Mail strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+            Demandes
           </Link>
 
           {loggedIn ? (
             <DropdownMenu>
               <DropdownMenuTrigger
                 aria-label="Mon compte"
-                className={`hidden h-11 w-11 items-center justify-center rounded-full border transition-colors lg:inline-flex ${
-                  overHero
-                    ? 'border-white/30 text-white hover:bg-white/15'
-                    : 'border-line text-ink-70 hover:border-blue hover:text-blue-deep'
-                }`}
+                className="hidden h-11 w-11 items-center justify-center rounded-full border border-line text-ink-70 transition-colors hover:border-blue hover:text-blue-deep lg:inline-flex"
               >
                 <User strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
               </DropdownMenuTrigger>
@@ -252,13 +243,19 @@ export default function Header() {
           ) : (
             <Link
               href="/compte/connexion"
-              className={`hidden text-sm font-medium transition-colors lg:inline-block ${
-                overHero ? 'text-white/85 hover:text-white' : 'text-ink-70 hover:text-blue-deep'
-              }`}
+              className="hidden text-sm font-medium text-ink-70 transition-colors hover:text-blue-deep lg:inline-block"
             >
               Connexion
             </Link>
           )}
+
+          <Link
+            href="/compte/agent/inscription"
+            className="u-press u-btn-secondary hidden h-9 items-center gap-1.5 rounded-lg px-4 text-[0.8125rem] font-bold text-ink lg:inline-flex"
+          >
+            Publier un bien
+            <ArrowUpRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+          </Link>
         </div>
       </div>
     </header>

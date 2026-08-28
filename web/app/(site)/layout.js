@@ -1,5 +1,4 @@
 import Header from '@/components/Header';
-import SideRail from '@/components/SideRail';
 import SiteShell from '@/components/SiteShell';
 import Footer from '@/components/Footer';
 import BottomNav from '@/components/BottomNav';
@@ -16,8 +15,15 @@ import { getCdfRate } from '@/lib/currencyRate';
  *
  * Spacing contract, defined here once so pages don't each reinvent it:
  *   pt-16          clears the fixed h-16 Header
- *   lg:pl-[76px]   clears the fixed SideRail
  *   pb-16 lg:pb-0  clears the fixed BottomNav (which is lg:hidden)
+ *
+ * There used to be a third line here — `lg:pl-[76px]`, clearing a fixed
+ * desktop icon rail (SideRail.js: Rechercher/Favoris/Demandes/Compte). That
+ * rail is gone: web/Design's screens never carried a left toolbar, its four
+ * destinations are still reachable (Demandes moved into Header's top-right
+ * utility row; the other three already lived there or in BottomNav), and
+ * every page under this layout now gets the full container width back
+ * rather than losing 76px to a gutter with nothing forcing it.
  *
  * Fetches the real, admin-editable exchange rate once per request here
  * (a server-only DB read — see lib/currencyRate.js) and provides it to every
@@ -30,7 +36,6 @@ export default async function SiteLayout({ children }) {
   return (
     <CurrencyRateProvider rate={rate}>
       <Header />
-      <SideRail />
       <SiteShell>
         <main className="flex-1 pb-16 lg:pb-0">{children}</main>
         <Footer />

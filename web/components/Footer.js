@@ -93,14 +93,18 @@ export default async function Footer() {
     <footer className="mt-auto border-t border-line bg-canvas-alt">
       {/* Agency recruitment band. Sits above the link columns rather than
           inside one — it is a conversion ask, not a navigation item, and it
-          is the only place on a public page that recruits supply. */}
+          is now the only place on a public page that recruits supply: the
+          header's filled partner pill and the hero panel's fused royal
+          strip are both gone (Header.js, SearchBar.js), so this band
+          carries the whole message on its own and is sized like the real
+          section it is, not like a footer strip. */}
       <div className="border-b border-line bg-blue-deep">
-        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-5 px-4 py-8 sm:px-6 lg:px-8">
-          <div className="min-w-0">
-            <p className="font-display text-[1.5rem] leading-tight text-white">
+        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-6 px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
+          <div className="min-w-0 max-w-[40rem]">
+            <p className="font-display text-[1.75rem] leading-[1.1] tracking-[-0.012em] text-white sm:text-[2.25rem]">
               Vous êtes agent ou agence immobilière ?
             </p>
-            <p className="mt-1 text-sm text-white/70">
+            <p className="mt-2.5 text-[1.0625rem] leading-[1.56] text-white/80">
               Publiez vos biens et recevez vos demandes clients sur WhatsApp.
             </p>
           </div>

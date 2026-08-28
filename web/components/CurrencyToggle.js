@@ -11,8 +11,10 @@ import { getCurrency, setCurrency, subscribeCurrency } from '@/lib/currencyPrefe
  *
  * This is a headline feature for the diaspora audience, not a utility
  * control, so it is styled explicitly here rather than through the shadcn
- * Button — it needs an `inverted` variant to sit on the transparent header
- * over the hero photograph, which Button's variants don't cover.
+ * Button, whose variants don't cover a segmented control. (It used to carry
+ * an `inverted` variant for the header's transparent-over-hero state; the
+ * header is solid on every route now — see Header.js — and nothing passed
+ * it any more.)
  *
  * Buttons are a fixed h-9 (36px) rather than padding-driven — measured on a
  * real phone viewport, the previous padding-only sizing came out to
@@ -33,16 +35,14 @@ const LONG_OPTIONS = [
   { value: 'CDF', label: 'FC' },
 ];
 
-export default function CurrencyToggle({ inverted = false, longLabels = false }) {
+export default function CurrencyToggle({ longLabels = false }) {
   const currency = useSyncExternalStore(subscribeCurrency, getCurrency, () => 'USD');
 
   return (
     <div
       role="group"
       aria-label="Devise d'affichage"
-      className={`flex items-center rounded-full border p-0.5 transition-colors ${
-        inverted ? 'border-white/30 bg-white/10 backdrop-blur-sm' : 'border-line bg-surface'
-      }`}
+      className="flex items-center rounded-full border border-line bg-surface p-0.5 transition-colors"
     >
       {(longLabels ? LONG_OPTIONS : OPTIONS).map(({ value, label }) => {
         const active = currency === value;
@@ -53,11 +53,7 @@ export default function CurrencyToggle({ inverted = false, longLabels = false })
             onClick={() => setCurrency(value)}
             aria-pressed={active}
             className={`inline-flex h-9 min-w-9 items-center justify-center rounded-full px-3 text-[0.8125rem] font-semibold transition-colors ${
-              active
-                ? 'bg-blue text-white'
-                : inverted
-                  ? 'text-white/75 hover:text-white'
-                  : 'text-ink-45 hover:text-ink'
+              active ? 'bg-blue text-white' : 'text-ink-45 hover:text-ink'
             }`}
           >
             {label}

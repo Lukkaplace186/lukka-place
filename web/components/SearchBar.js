@@ -1,37 +1,39 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import Link from 'next/link';
-import { ArrowUpRight, ArrowRight, Search, MapPin, ChevronDown } from 'lucide-react';
+import { Search, MapPin, ChevronDown } from 'lucide-react';
 import LocationAutocomplete from './LocationAutocomplete';
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 
 /**
  * The hero search panel — web/Design's SearchPanel
  * (components/property/SearchPanel.jsx), rendered at full container width.
  *
- * Three parts, in the design's order:
- *   1. an underline Tabs row (Louer / Acheter / Agents) — the design's own
- *      `homeTabs`, with a 3px royal-600 underline on the active tab over a
- *      1px hairline, not the rounded pill group this used before. Parcelles
- *      was dropped from this row: it's still reachable via the "Type de
- *      bien" select, and a fourth tab was one too many against the site's
- *      top nav also being trimmed down to À propos/Agents.
+ * Two parts, in the design's order:
+ *   1. an underline Tabs row (Louer / Acheter) — the design's own
+ *      `searchTabs`, with a 3px royal-600 underline on the active tab over
+ *      a 1px hairline, not the rounded pill group this used before.
+ *      Parcelles is still reachable via the "Type de bien" select.
  *   2. a labelled field row: location (flex 2), Type de bien (flex 1),
  *      Budget (flex 1, a Zoopla-style min/max popover), and a 56px primary
  *      Rechercher button
- *   3. a royal-700 strip carrying the "list your property" cross-sell
+ *
+ * Two things the refonte removed from this panel, both because they put a
+ * second primary action inside the one unit that already has "Rechercher":
+ *   - An "Agents" tab. A directory is not a property type, so a tab that
+ *     changes the entity rather than the search broke the row's own
+ *     pattern; agencies moved up into the top nav (Header.js).
+ *   - A fused royal-700 "list your property" strip. It competed with
+ *     Rechercher and pushed the listings ~140px further down the page; the
+ *     same cross-sell now has its own royal band above the footer
+ *     (Footer.js), which is where the partner ask lives.
  *
  * Fields carry visible labels above them ("Commune, quartier ou référence",
  * "Type de bien", "Budget") because the design's Input/Select do; the
  * previous version was placeholder-only.
  *
- * Tab behaviour: Louer/Acheter set transaction_type. Agents isn't a property
- * search at all — there is no per-agent search backend, so that tab swaps
- * the field row for a single honest link to /agents (the real directory)
- * rather than a search box that does nothing.
+ * Tab behaviour: Louer/Acheter set transaction_type.
  *
  * `propertyTypes` is real and DB-derived (getPropertyTypeFacets(), the same
  * source FilterBar's own pill uses), so a type with zero results is never
@@ -46,7 +48,6 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 const HOME_TABS = [
   { value: 'louer', label: 'Louer' },
   { value: 'acheter', label: 'Acheter' },
-  { value: 'agents', label: 'Agents' },
 ];
 
 const TRANSACTION_BY_TAB = { louer: 'location', acheter: 'vente' };
@@ -94,8 +95,6 @@ export default function SearchBar({ propertyTypes = [] }) {
   const [propertyType, setPropertyType] = useState('');
   const [budgetMin, setBudgetMin] = useState('');
   const [budgetMax, setBudgetMax] = useState('');
-  const isAgentsTab = homeTab === 'agents';
-  const sellHref = getCentralWhatsAppHref('Bonjour, je souhaite lister mon bien sur Lukka Place.');
   const locationRef = useRef(null);
 
   const extraParams = {
@@ -137,19 +136,7 @@ export default function SearchBar({ propertyTypes = [] }) {
         })}
       </div>
 
-      {isAgentsTab ? (
-        <div className="flex flex-col items-start gap-3 p-6 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-[0.9375rem] text-ink-70">Parcourez tous les agents actifs sur Lukka Place.</p>
-          <Link
-            href="/agents"
-            className="u-press u-btn-primary inline-flex h-14 shrink-0 items-center gap-2 rounded-lg bg-blue px-6 text-[1rem] font-semibold text-white"
-          >
-            Voir les agents
-            <ArrowRight strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
-          </Link>
-        </div>
-      ) : (
-        <div className="flex flex-col items-stretch gap-3 p-6 sm:flex-row sm:items-end">
+      <div className="flex flex-col items-stretch gap-3 p-6 sm:flex-row sm:items-end">
           <Field
             label="Commune, quartier ou référence"
             htmlFor="hero-location"
@@ -263,31 +250,6 @@ export default function SearchBar({ propertyTypes = [] }) {
             Rechercher
           </button>
         </div>
-      )}
-
-      {/* Royal cross-sell strip. Real central number, honest disabled state
-          when NEXT_PUBLIC_WHATSAPP_NUMBER is unset (see lib/whatsapp.js). */}
-      <div className="flex flex-col items-start gap-3 bg-blue-deep px-6 py-5 sm:flex-row sm:items-center sm:gap-6">
-        <div className="flex flex-col gap-0.5">
-          <span className="text-[0.875rem] font-bold text-white">Vous avez un bien à louer ou à vendre ?</span>
-          <span className="text-[0.8125rem] text-white/72">
-            Envoyez photos et détails sur WhatsApp. Nous vérifions, puis nous publions.
-          </span>
-        </div>
-        {sellHref ? (
-          <a
-            href={sellHref}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="u-press inline-flex shrink-0 items-center gap-1.5 rounded-lg px-4 py-2.5 text-[0.875rem] font-semibold text-white ring-[1.5px] ring-inset ring-white/72 transition-colors hover:bg-white hover:text-blue-deep sm:ml-auto"
-          >
-            Publier par WhatsApp
-            <ArrowUpRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-          </a>
-        ) : (
-          <span className="shrink-0 text-[0.8125rem] text-white/50 sm:ml-auto">Publication indisponible</span>
-        )}
-      </div>
     </div>
   );
 }

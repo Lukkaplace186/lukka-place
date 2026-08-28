@@ -9,16 +9,18 @@ import { useMotionSafe } from '@/lib/useMotionSafe';
 /**
  * Homepage hero, following web/Design's "Accueil — desktop" screen.
  *
- * Two pieces, deliberately siblings rather than nested: a 520px photographic
+ * Two pieces, deliberately siblings rather than nested: a 540px photographic
  * band, then the search panel pulled up over its lower edge by -92px. The
  * panel used to sit *inside* the hero's centred content column capped at
  * `max-w-2xl`; in the design it is a full-container-width card straddling
  * the hero's bottom edge, which is what this now does.
  *
- * `-mt-16` on the band pulls it under the fixed header (app/(site)/layout.js
- * adds a matching pt-16 to everything else), so the photograph runs to the
- * very top of the viewport and the header sits transparently over it — see
- * Header.js, which only goes solid once scrolled.
+ * The band starts *below* the fixed header rather than bleeding up under it.
+ * It used to carry `-mt-16` (cancelling the layout's `pt-16`) so the photo
+ * reached the very top of the viewport with a transparent header over it;
+ * the refonte makes the header solid on every route so the wordmark stays
+ * legible over any photograph, so there is nothing left to bleed under —
+ * see Header.js.
  *
  * Headline is DM Serif Display (font-display) at --fs-display-l, regular
  * weight, matching the design's hero spec (never bold, never uppercase).
@@ -36,7 +38,7 @@ export default function Hero({ propertyTypes = [] }) {
 
   return (
     <>
-      <section className="relative -mt-16 flex h-[30rem] w-full items-center overflow-hidden bg-ink lg:h-[32.5rem]">
+      <section className="relative flex h-[26rem] w-full items-center overflow-hidden bg-ink sm:h-[30rem] lg:h-[33.75rem]">
         <motion.div
           className="absolute inset-0"
           initial={safe ? heroDrift.initial : false}
@@ -87,7 +89,7 @@ export default function Hero({ propertyTypes = [] }) {
           Photo by kaysha on Unsplash
         </a>
 
-        <div className="relative z-10 mx-auto w-full max-w-[1240px] px-4 pt-16 sm:px-6 lg:px-8">
+        <div className="relative z-10 mx-auto w-full max-w-[1240px] px-4 sm:px-6 lg:px-8">
           <div className="max-w-[41rem]">
             <p className="u-eyebrow mb-5 text-white/72">Immobilier à Kinshasa</p>
 

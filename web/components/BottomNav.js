@@ -6,11 +6,11 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { NAV_ITEMS, isNavItemActive } from './navItems';
 
 /**
- * Fixed 5-icon bottom nav, mobile and tablet only.
- *
- * Breakpoint handoff is exact: `lg:hidden` here, `hidden lg:flex` on
- * SideRail. Previously this was `sm:hidden` while nothing replaced it above
- * that width, which left 640-1024px with no primary navigation at all.
+ * Fixed 4-icon bottom nav, mobile and tablet only (`lg:hidden`) — the sole
+ * remaining consumer of NAV_ITEMS now that SideRail.js, the desktop
+ * equivalent this used to hand off to at the `lg` breakpoint, has been
+ * removed entirely. Desktop reaches the same four destinations through
+ * Header's top-right utility row instead (see Header.js).
  *
  * The matching bottom padding lives once in app/(site)/layout.js. It used
  * to be absent there and re-implemented ad hoc on four separate pages

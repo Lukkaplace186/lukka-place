@@ -1,17 +1,15 @@
-'use client';
-
-import { usePathname } from 'next/navigation';
-
 /**
- * Wraps the main content column so its left padding can react to
- * SideRail.js hiding itself on the homepage — `lg:pl-[76px]` exists only to
- * clear the fixed SideRail, so it has to disappear on the one route where
- * SideRail does too, or home would render with a dead 76px gutter on the
- * left at desktop widths.
+ * Wraps the main content column in the flex-column layout the fixed Header
+ * and BottomNav need to sit outside of.
+ *
+ * Used to also carry a `usePathname()`/`isHome` branch that toggled
+ * `lg:pl-[76px]` on and off — a gutter for the fixed left icon rail
+ * (SideRail.js), present everywhere except the homepage, which never had
+ * the rail. The rail is gone entirely now (removed sitewide, its
+ * destinations reachable from Header's top-right utility row and
+ * BottomNav), so there is no gutter left to conditionally apply and this
+ * can render as a plain server component again.
  */
 export default function SiteShell({ children }) {
-  const pathname = usePathname();
-  const isHome = pathname === '/';
-
-  return <div className={`flex min-h-screen flex-col pt-16 ${isHome ? '' : 'lg:pl-[76px]'}`}>{children}</div>;
+  return <div className="flex min-h-screen flex-col pt-16">{children}</div>;
 }

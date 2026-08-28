@@ -7,9 +7,13 @@ import { getListings } from '@/lib/listings';
  * status=1/approve_status=1 gate as every other read (lib/listings.js),
  * never curated or placeholder entries. Renders nothing at all when there
  * are no approved listings rather than showing an empty shell.
+ *
+ * Eight, not six: the refonte's grid is four across at desktop, and its own
+ * layout rule caps this at "eight cards above the fold at most" — two full
+ * rows, then pagination on /listings rather than more here.
  */
 export default async function FeaturedListings() {
-  const { data, count } = await getListings({ limit: 6 });
+  const { data, count } = await getListings({ limit: 8 });
 
   if (count === 0) return null;
 
@@ -20,7 +24,7 @@ export default async function FeaturedListings() {
         title="Nouveautés vérifiées à Kinshasa"
         lead="Les annonces les plus récemment vérifiées et mises en ligne."
         href="/listings"
-        linkLabel="Voir les annonces"
+        linkLabel="Voir toutes les annonces"
         className="mb-10"
       />
       <FeaturedListingsCarousel listings={data} />

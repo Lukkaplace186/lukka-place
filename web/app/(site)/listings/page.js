@@ -86,7 +86,12 @@ export default async function ListingsPage({ searchParams }) {
         />
       </div>
 
-      <div className={isMapView ? 'hidden lg:block' : ''}>
+      {/* hidden lg:block, unconditionally now — this used to be visible on
+          mobile in list view (only map view hid it there), per an explicit
+          "no chip row above the mobile feed, active filters live in
+          FilterModal only" instruction. Desktop is unaffected: it always
+          showed this regardless of isMapView, and still does. */}
+      <div className="hidden lg:block">
         <ActiveFilterChips params={params} propertyTypeLabel={propertyTypeLabel} />
       </div>
 
@@ -102,7 +107,15 @@ export default async function ListingsPage({ searchParams }) {
           roughly the bar's own height. lg:pb-8 is unchanged —
           FloatingControlBar is lg:hidden, so there is nothing to clear
           there. */}
-      <div className="mx-auto max-w-[1600px] px-4 pb-24 pt-6 sm:px-6 lg:px-8 lg:pb-8">
+      {/* pt-3, not the previous pt-6, below sm: with the breadcrumb and
+          filter chips both hidden on mobile now (see above and
+          ResultsHeader.js), this is the last real gap left between the
+          utility row above and the first card — tightened so that card's
+          top edge lands closer to the initial viewport, per the "tight,
+          cohesive top block, no dead space" instruction. sm:pt-6 keeps
+          desktop's original spacing, which isn't under the same
+          above-the-fold pressure a phone screen is. */}
+      <div className="mx-auto max-w-[1600px] px-4 pb-24 pt-3 sm:px-6 sm:pt-6 lg:px-8 lg:pb-8">
         <div className={isMapView ? 'hidden lg:block' : ''}>
           <ResultsHeader
             total={total}

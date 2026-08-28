@@ -51,8 +51,20 @@ export default function ResultsHeader({
   if (commune) crumbs.push({ label: commune, href: `/listings?commune=${encodeURIComponent(commune)}` });
 
   return (
-    <div className="mb-5">
-      <nav aria-label="Fil d'Ariane" className="mb-4 flex flex-wrap items-center gap-1 text-[0.75rem] text-ink-45">
+    // mb-2, not the previous mb-5, below lg — "tight top block, first card
+    // visible on initial load" instruction. lg:mb-5 keeps desktop as it
+    // was, matching the breadcrumb's own lg: reveal breakpoint just below
+    // so the two never fall out of step (a value that switched at a
+    // different breakpoint than the nav it's spacing would leave a stretch
+    // of viewport widths with the old margin but no breadcrumb to justify
+    // it, or vice versa).
+    <div className="mb-2 lg:mb-5">
+      {/* hidden lg:flex — the breadcrumb is real navigation (Accueil >
+          Annonces > commune), not decoration, but it's also the first
+          thing eating vertical space above the feed on a phone, per an
+          explicit "no breadcrumb on mobile" instruction. Desktop keeps it,
+          unchanged. */}
+      <nav aria-label="Fil d'Ariane" className="mb-4 hidden flex-wrap items-center gap-1 text-[0.75rem] text-ink-45 lg:flex">
         {crumbs.map(({ label, href }, i) => (
           <span key={href} className="inline-flex items-center gap-1">
             {i > 0 ? (
@@ -80,12 +92,24 @@ export default function ResultsHeader({
               800 (app/layout.js's own `weight` list) and DM Serif Display
               has no bold cut at all — either would fake a weight the font
               doesn't have. font-extrabold (800) is the real heaviest
-              available, same reasoning as PropertyCard's price. */}
-          <h1 className="text-[1.5rem] font-extrabold leading-[1.15] tracking-tight text-ink sm:text-[1.875rem]">
+              available, same reasoning as PropertyCard's price.
+
+              Mobile now steps back down to `text-lg font-bold` — Zoopla's
+              own results-header title is genuinely smaller/lighter than
+              the "punchier" treatment above asked for, per a direct
+              follow-up instruction pointing at that exact reference
+              screenshot. `lg:` (not `sm:`) is where it grows into the
+              larger extrabold size, matching the breadcrumb/margin
+              breakpoint just above so the whole block steps up together
+              rather than piecemeal across different widths. */}
+          <h1 className="text-lg font-bold leading-[1.15] tracking-tight text-ink lg:text-[1.875rem] lg:font-extrabold">
             {heading}
           </h1>
-          <p className="mt-1.5 text-[0.8125rem] text-ink-45">
-            <span className="u-tabular font-semibold text-ink">{total}</span> résultat{total !== 1 ? 's' : ''}
+          {/* text-sm/font-normal throughout, including the count itself —
+              Zoopla's own count line is a plain muted caption, not a
+              semibold number standing out against the rest of the line. */}
+          <p className="mt-1 text-sm font-normal text-ink-45">
+            <span className="u-tabular">{total}</span> résultat{total !== 1 ? 's' : ''}
           </p>
           {locationRelaxed ? (
             <p className="mt-1 text-[0.8125rem] text-ink-45">

@@ -25,7 +25,8 @@ import { cn } from '@/lib/utils';
  *
  * Anatomy is the design's, in its order, and is deliberately much quieter
  * than what this app had built:
- *   photo (208px tall vertical / 300px wide horizontal) — a real
+ *   photo (16:9 full-width vertical / 300px wide once horizontal flips to
+ *     a real row — see the image container's own comment) — a real
  *     CardImageCarousel (swipeable, hover-revealed arrows, dot pagination),
  *     restored on top of the design's static photo per explicit instruction
  *     — scrim-image gradient, Badges top-left, saved-heart top-right, "1/N"
@@ -115,7 +116,12 @@ export default function PropertyCard({
         // shorter than its neighbours in the same row even though the row
         // itself was already uniform height. h-full is what makes the
         // visible card box actually fill it.
-        'group flex h-full overflow-hidden rounded-card border border-line bg-surface shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md',
+        // rounded-t-lg (8px), not the uniform rounded-card (14px) the top
+        // corners used to share with the bottom — a slightly sharper top
+        // edge reads as less "boxed in" around the photo, per an explicit
+        // instruction. rounded-b-card keeps the body/footer corners as
+        // they were; only the photo's own top corners changed.
+        'group flex h-full overflow-hidden rounded-t-lg rounded-b-card border border-line bg-surface shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md',
         // Horizontal only once there's room for a 300px image beside the
         // body — below that it stacks, or the text column collapses to
         // nothing in a narrow results pane.
@@ -129,10 +135,30 @@ export default function PropertyCard({
     >
       <div
         className={cn(
-          'relative shrink-0 overflow-hidden bg-canvas-deep',
+          // aspect-[16/9], not the previous fixed h-[208px] — a fixed
+          // pixel height meant the *effective* aspect ratio silently
+          // shifted at every different card width this renders at
+          // (homepage carousel item, /listings mobile row, desktop grid
+          // column), never matching a wide "edge-to-edge" ratio
+          // consistently anywhere. aspect-[16/9] keeps the same real
+          // proportions everywhere the card renders, computed live from
+          // whatever width it actually gets — the only way to guarantee
+          // "wide, immersive photo" holds regardless of layout. Picked
+          // over the wider 16/10 named alongside it in the instruction:
+          // at this card's typical mobile width, 16/10 comes out *taller*
+          // than the previous 208px (worse, not better, for immersion),
+          // where 16/9 lands almost exactly where 208px already did.
+          'relative shrink-0 overflow-hidden bg-canvas-deep aspect-[16/9]',
           horizontal
-            ? 'h-[208px] w-full @[34rem]:h-auto @[34rem]:min-h-[13.75rem] @[34rem]:w-[300px]'
-            : 'h-[208px] w-full',
+            // @[34rem]:aspect-auto cancels the aspect-ratio once the
+            // layout flips to a real side-by-side row (the image's height
+            // there needs to track the flex row's own content height via
+            // h-auto/min-h, not a ratio computed from its own 300px
+            // width — leaving aspect-[16/9] active would fight that,
+            // since a definite width + auto height still consults
+            // aspect-ratio to fill the gap unless it's explicitly reset).
+            ? 'w-full @[34rem]:aspect-auto @[34rem]:h-auto @[34rem]:min-h-[13.75rem] @[34rem]:w-[300px]'
+            : 'w-full',
         )}
       >
         {images.length > 0 ? (

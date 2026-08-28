@@ -23,11 +23,15 @@ import { getCdfRate } from '@/lib/currencyRate';
  * the persistent bottom bar in favour of Header's own hamburger menu +
  * top-right utility row on mobile (the same Rightmove-style pattern this
  * whole nav rework has been chasing: no persistent bottom chrome, floating
- * per-page actions instead — see FloatingControlBar.js and
- * MobileListingBar.js, both repositioned to the true viewport bottom now
- * that there's nothing there to clear). Every page under this layout gets
- * its full container height back rather than losing 64px to a bar with
- * nothing forcing it.
+ * per-page actions instead — see MobileListingBar.js, repositioned to the
+ * true viewport bottom now that there's nothing there to clear.
+ * FloatingControlBar.js, the one other component that got the same
+ * repositioning at the time, has since been removed entirely on a later
+ * instruction — its two actions ("Carte", "Trier") both moved into
+ * in-page chrome instead (FilterBar.js's mobile utility row, and
+ * ResultsHeader.js next to the result count) rather than floating over
+ * the feed. Every page under this layout gets its full container height
+ * back rather than losing 64px to a bar with nothing forcing it.
  *
  * Fetches the real, admin-editable exchange rate once per request here
  * (a server-only DB read — see lib/currencyRate.js) and provides it to every

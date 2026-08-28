@@ -131,7 +131,13 @@ export default function ResultsHeader({
           ) : null}
         </div>
 
-        <span className="hidden shrink-0 sm:block">
+        {/* Visible on every breakpoint now, not just sm: and up — this is
+            "Trier"'s only home left. It used to duplicate the floating
+            FloatingControlBar.js pill's own sort dropdown on mobile
+            specifically because it was hidden here; that pill is gone
+            entirely now (removed on an explicit instruction), so hiding
+            this too would have left mobile with no way to sort at all. */}
+        <span className="shrink-0">
           <SortDropdown />
         </span>
       </div>

@@ -483,10 +483,12 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
         </div>
 
         {/* Row 2, mobile only: Zoopla's own secondary utility bar directly
-            beneath the search input — a real map-view toggle (same
-            `?view=map` param FloatingControlBar.js's own "Carte" pill
-            already drives; this is a second entry point to the identical
-            real toggle, not a separate one) and the real save-search/alert
+            beneath the search input — a real map-view toggle (the same
+            `?view=map` param the map/list split has always used; this is
+            now the ONLY mobile entry point to it, since FloatingControlBar.js
+            — the floating "Carte / Trier" pill that used to duplicate this
+            same toggle — has been removed entirely, see
+            app/(site)/listings/page.js) and the real save-search/alert
             action (SaveSearchButton's `variant="alert"` — see its own doc
             comment for why this is the same feature relabelled, not a
             second implementation). */}

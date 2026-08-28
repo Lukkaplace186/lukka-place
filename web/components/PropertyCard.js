@@ -49,6 +49,18 @@ import { cn } from '@/lib/utils';
  * inset hairline at rest that swaps for shadow-md and a 2px lift on hover,
  * per the design's card-anatomy card. Not a `border`, which is what the
  * previous cards used and what made them read as outlined boxes.
+ *
+ * Grid-row height uniformity: the summary line and the amenity-tag row
+ * both reserve their own space (`min-h-*`) whether or not a given listing
+ * has that content, and the visible card box carries `h-full` — see the
+ * inline comments at each — so "Publiée le …" lands at the same y-position
+ * on every card in a row instead of drifting up or down with how much text
+ * a listing happens to have. `mt-auto` on the footer (not `justify-between`
+ * on the whole column) is what actually pins it to the bottom: the other
+ * rows keep their natural `gap-2` spacing above it, and `mt-auto` alone
+ * consumes whatever's left. `justify-between` on the column would instead
+ * spread *every* row apart evenly, which is a different (and here, wrong)
+ * effect.
  */
 export default function PropertyCard({
   listing,
@@ -86,7 +98,17 @@ export default function PropertyCard({
       onMouseEnter={onHoverStart}
       onMouseLeave={onHoverEnd}
       className={cn(
-        'u-card u-card-interactive group flex overflow-hidden rounded-card bg-surface',
+        // h-full: this Link is what actually carries the card's visible
+        // border/shadow (u-card), but its own height used to be pure
+        // content-driven — the invisible @container wrapper above it was
+        // already stretched to the grid row's height (CSS Grid's default
+        // align-items: stretch applies to a block child of any display
+        // type), but the Link inside it never consumed that available
+        // height, so a card with a short description/no tags visually sat
+        // shorter than its neighbours in the same row even though the row
+        // itself was already uniform height. h-full is what makes the
+        // visible card box actually fill it.
+        'u-card u-card-interactive group flex h-full overflow-hidden rounded-card bg-surface',
         // Horizontal only once there's room for a 300px image beside the
         // body — below that it stacks, or the text column collapses to
         // nothing in a narrow results pane.
@@ -176,15 +198,25 @@ export default function PropertyCard({
 
         {where ? <p className="truncate text-[0.875rem] font-medium text-ink-70">{where}</p> : null}
 
-        {summary ? (
-          <p className="line-clamp-2 text-[0.875rem] leading-[1.55] text-ink-70">{summary}</p>
-        ) : null}
+        {/* min-h reserves exactly two lines at this block's own
+            text-[0.875rem]/leading-[1.55] (0.875 * 1.55 = 1.35625rem per
+            line) regardless of how much text a listing actually has —
+            line-clamp-2 alone only caps the *maximum*, it doesn't reserve a
+            minimum, so a one-sentence description used to leave the row
+            shorter than a neighbour with a full two-line one, and a
+            listing with no description at all skipped the block entirely.
+            Both now take up the same space; a short or missing summary
+            just leaves blank space inside its own reserved box instead of
+            shifting everything below it upward. */}
+        <p className="line-clamp-2 min-h-[2.75rem] text-[0.875rem] leading-[1.55] text-ink-70">{summary}</p>
 
-        {amenityKeys.length > 0 ? (
-          <div className="mt-1 flex flex-wrap gap-2">
-            {amenityKeys.map((key) => <AmenityTag key={key} amenityKey={key} />)}
-          </div>
-        ) : null}
+        {/* Same reservation for the amenity-tag row: min-h-8 (32px) holds
+            the row's height whether or not this listing matched any real
+            amenities, so the footer below doesn't creep upward on a card
+            with none. */}
+        <div className="flex min-h-8 flex-wrap items-center gap-2">
+          {amenityKeys.map((key) => <AmenityTag key={key} amenityKey={key} />)}
+        </div>
 
         {(addedOn || reference) ? (
           <div className="mt-auto flex items-center justify-between gap-3 pt-3">

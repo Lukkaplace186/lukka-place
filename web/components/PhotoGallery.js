@@ -5,7 +5,6 @@ import { ChevronLeft, ChevronRight, Expand, ImageOff } from 'lucide-react';
 import SafeImage from './SafeImage';
 import { Badge } from './ListingBadges';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
-import { isNewListing } from '@/lib/listingView';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 
 /**
@@ -25,7 +24,7 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  * `open` flips, so a framer-motion exit animation there would never run
  * (see the scope note in lib/motion.js).
  */
-export default function PhotoGallery({ images, alt, createdAt }) {
+export default function PhotoGallery({ images, alt }) {
   const shots = images || [];
   const total = shots.length;
 
@@ -105,14 +104,15 @@ export default function PhotoGallery({ images, alt, createdAt }) {
               className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]"
             />
 
-            {/* Badges the design stamps on the lead photo. Both are real:
-                every listing reaching this page has already passed the
-                approve_status=1 moderation gate (lib/listings.js), and
-                "Nouveau" is the same 14-day created_at window the cards
-                use. */}
+            {/* Real: every listing reaching this page has already passed
+                the approve_status=1 moderation gate (lib/listings.js). The
+                "Nouveau" badge that used to sit beside this (from
+                created_at, same 14-day window the cards used) is gone
+                entirely on an explicit instruction — see ListingBadges.js's
+                CardBadges, where the matching card-grid badge was removed
+                the same way. */}
             <span className="pointer-events-none absolute left-3.5 top-3.5 z-10 flex flex-wrap gap-2">
               <Badge tone="white">Annonce vérifiée</Badge>
-              {isNewListing(createdAt) ? <Badge tone="royal">Nouveau</Badge> : null}
             </span>
 
             <span className="u-glass-royal u-tabular pointer-events-none absolute bottom-3.5 right-3.5 z-10 inline-flex items-center rounded-sm px-2.5 py-1.5 text-[0.8125rem] font-semibold">

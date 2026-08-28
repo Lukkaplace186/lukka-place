@@ -2,7 +2,6 @@ import {
   Camera, Zap, Sun, Droplet, Route, ShieldCheck, Car, Snowflake, Sofa,
 } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
-import { isNewListing } from '@/lib/listingView';
 
 /**
  * The chip vocabulary shared by all three card designs.
@@ -65,19 +64,17 @@ export function Badge({ tone = 'royal', children, className = '' }) {
 
 /**
  * The real badges for one listing, in the order the design's PropertyCard
- * stacks them. Each is backed by a real column — "Nouveau" from `created_at`
- * (see isNewListing), the status stamps from the agent-set `listing_status`.
- * The design's own card also shows a brass "Premium" flag; nothing in the
- * schema backs that, so it is deliberately not rendered.
+ * stacks them. The status stamps are backed by the agent-set
+ * `listing_status` column. The design's own card also shows a brass
+ * "Premium" flag; nothing in the schema backs that, so it is deliberately
+ * not rendered. The "Nouveau" badge that used to sit here (from
+ * `created_at`, see lib/listingView.js's now-removed `isNewListing`) is
+ * gone entirely on an explicit instruction — removed from every listing,
+ * not just made conditional on something new.
  */
 export function CardBadges({ listing }) {
   const status = LISTING_STATUS_LABELS[listing.listing_status];
-  return (
-    <>
-      {isNewListing(listing.created_at) ? <Badge tone="royal">Nouveau</Badge> : null}
-      {status ? <Badge tone="ink">{status}</Badge> : null}
-    </>
-  );
+  return status ? <Badge tone="ink">{status}</Badge> : null;
 }
 
 export function TypeBadge({ children }) {

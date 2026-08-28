@@ -6,10 +6,13 @@ import { abbreviationVariants } from './textVariants';
  *
  * The cards stay separate components on purpose (see web/CLAUDE.md — they're
  * tuned for different contexts), but they were each re-deriving the same
- * things from the same raw DB row: which images to show, whether a listing
- * is new, how to phrase the spec line. That duplication is how the
- * "Just Added" / "Nouveau" split happened — the same condition rendered in
- * two languages in two files. One source of truth fixes that class of bug.
+ * things from the same raw DB row: which images to show, how to phrase the
+ * spec line. Used to also include whether a listing is new — that
+ * duplication is how the "Just Added" / "Nouveau" split happened, the same
+ * condition rendered in two languages in two files — but the "Nouveau"
+ * badge itself has since been removed entirely (on an explicit
+ * instruction, from every listing) along with the `isNewListing` helper
+ * that used to live here; nothing in this module derives recency any more.
  *
  * Everything here reads real columns only. Nothing is inferred or invented.
  */
@@ -38,18 +41,6 @@ export function formatAddedOn(createdAt) {
   return DATE_FORMATTER.format(date);
 }
 
-// A listing counts as new for its first two weeks. Real `created_at`, and
-// the same window app/(site)/agents/[id]/page.js's "Nouveautés" tab already
-// filters on — defined here so the badge and that tab can never drift apart
-// (exactly the class of bug this module's own doc comment describes).
-const NEW_LISTING_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
-
-export function isNewListing(createdAt) {
-  if (!createdAt) return false;
-  const time = new Date(createdAt).getTime();
-  if (Number.isNaN(time)) return false;
-  return Date.now() - time <= NEW_LISTING_WINDOW_MS;
-}
 
 /**
  * `area` is a TEXT column and carries '0' rather than NULL when unknown, so

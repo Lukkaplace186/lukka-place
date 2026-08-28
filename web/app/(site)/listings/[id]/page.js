@@ -169,7 +169,7 @@ export default async function ListingDetailPage({ params }) {
           </div>
         </div>
 
-        <PhotoGallery images={images} alt={listing.title} createdAt={listing.created_at} />
+        <PhotoGallery images={images} alt={listing.title} />
 
         {/* web/Design's detail layout: a 400px right rail, not 23rem/368px,
             and 40px between the columns. */}

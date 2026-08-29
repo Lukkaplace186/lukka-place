@@ -11,6 +11,9 @@ export default async function CustomerSignupPage({ searchParams }) {
   const params = await searchParams;
   const error = typeof params.error === 'string' ? params.error : null;
   const next = typeof params.next === 'string' ? params.next : '/compte/client';
+  // Prefilled by AuthPromptModal.js's Save Search / Create Alert gate —
+  // real hand-off of what the visitor already typed, not a default guess.
+  const initialPhone = typeof params.phone === 'string' ? params.phone : '';
 
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-4">
@@ -20,7 +23,7 @@ export default async function CustomerSignupPage({ searchParams }) {
           Vos favoris et recherches déjà enregistrés sur cet appareil seront conservés.
         </p>
 
-        <SignupForm action={signupAction} next={next} error={error} />
+        <SignupForm action={signupAction} next={next} error={error} initialPhone={initialPhone} />
 
         <p className="mt-5 text-center text-sm text-ink-45">
           Déjà un compte ?{' '}

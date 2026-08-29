@@ -14,7 +14,7 @@ const ERROR_MESSAGES = {
  * favorites/saved searches into hidden fields right before submit, so
  * signupAction can merge them into the brand-new account.
  */
-export default function SignupForm({ action, next, error }) {
+export default function SignupForm({ action, next, error, initialPhone = '' }) {
   const formRef = useRef(null);
 
   function handleSubmit() {
@@ -54,6 +54,7 @@ export default function SignupForm({ action, next, error }) {
           inputMode="tel"
           autoComplete="tel"
           placeholder="099 712 3456"
+          defaultValue={initialPhone}
           autoFocus
           required
           className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"

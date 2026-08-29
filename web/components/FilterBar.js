@@ -13,6 +13,7 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { buildSearchLabel } from '@/lib/searchLabel';
 import { pushRecentSearch, readRecentSearches, subscribeRecentSearches } from '@/lib/searchHistory';
 import { subscribeOpenFiltersDrawer } from '@/lib/mapFilterDrawer';
+import { cn } from '@/lib/utils';
 
 const FORM_ID = 'listings-filter-form';
 const ADVANCED_KEYS = ['quartier', 'parcelleSubtype', 'bathMin'];
@@ -66,6 +67,29 @@ const numberInputClass =
  */
 export default function FilterBar({ locations, propertyTypes = [], initialTotal, priceCeiling, defaults = {} }) {
   const formRef = useRef(null);
+
+  // Condenses this bar's own padding once the page has scrolled a few
+  // pixels — a self-contained, single-boolean scroll listener, deliberately
+  // NOT the multi-branch rAF-driven Header scroll listener that used to
+  // exist and was removed on purpose (see Header.js's doc comment): this
+  // reads one threshold into one boolean, not nine className branches into
+  // an `overHero` flag. rAF-throttled all the same, so a fast scroll can't
+  // queue more than one state update per frame.
+  const [condensed, setCondensed] = useState(false);
+  useEffect(() => {
+    let ticking = false;
+    function onScroll() {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        setCondensed(window.scrollY > 8);
+        ticking = false;
+      });
+    }
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   // Real max price, rounded up to a clean $10,000 step for a tidy slider —
   // not padded with invented headroom above it, and never below what's
@@ -277,13 +301,28 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
   const typeLabel = propertyTypes.find((o) => o.value === propertyType)?.label;
 
   return (
-    <div className="sticky top-16 z-40 border-b border-line bg-canvas/95 backdrop-blur-md">
+    // Sticks at top-16, under the fixed Header — it stays on screen and
+    // solid, same as the header above it (see Header.js's own doc comment
+    // on why this app never lets its header scroll away or go transparent).
+    // What actually changes on scroll is this bar's own padding and
+    // elevation: shadow-sm -> shadow-md plus a touch less vertical padding
+    // once `condensed`, so it visibly settles into a pinned, "in control
+    // mode" state without needing the header itself to move or disappear.
+    <div
+      className={cn(
+        'sticky top-16 z-40 border-b border-line bg-canvas/95 backdrop-blur-md transition-shadow duration-300 ease-in-out',
+        condensed ? 'shadow-md' : 'shadow-sm',
+      )}
+    >
       <form
         id={FORM_ID}
         ref={formRef}
         action="/listings"
         method="get"
-        className="mx-auto max-w-[1600px] px-4 py-2.5 sm:px-6 lg:px-8 lg:py-3"
+        className={cn(
+          'mx-auto max-w-[1600px] px-4 transition-[padding] duration-300 ease-in-out sm:px-6 lg:px-8',
+          condensed ? 'py-1.5 lg:py-2' : 'py-2.5 lg:py-3',
+        )}
       >
         {hidden.map(([name, value]) =>
           value ? <input key={name} type="hidden" name={name} value={value} /> : null,

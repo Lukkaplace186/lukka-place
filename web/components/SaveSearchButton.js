@@ -2,13 +2,33 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { motion } from 'framer-motion';
 import { Bell } from 'lucide-react';
 import { isSearchSaved, removeSavedSearch, saveSearch, subscribeSavedSearches } from '@/lib/favorites';
 import { buildSearchLabel, searchCriteriaTags } from '@/lib/searchLabel';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useIsLoggedIn } from '@/lib/customerClient';
+import { useMotionSafe } from '@/lib/useMotionSafe';
+import { iconPop } from '@/lib/motion';
 import AuthPromptModal from './AuthPromptModal';
 import SearchAlertConfirmModal from './SearchAlertConfirmModal';
+
+// Same pop used for the saved-heart glyph (FavoriteButton.js) — reused
+// rather than re-invented so every toggled icon in the app feels consistent.
+// `key={pulseKey}` remounts the span on each real toggle, gated by `safe`
+// for reduced-motion visitors.
+function AnimatedBell({ pulseKey, safe, ...bellProps }) {
+  return (
+    <motion.span
+      key={pulseKey}
+      className="inline-flex"
+      initial={safe ? { scale: 0.6 } : false}
+      animate={safe ? { scale: iconPop.scale, transition: iconPop.transition } : undefined}
+    >
+      <Bell {...bellProps} />
+    </motion.span>
+  );
+}
 
 // Namespaced so it can never collide with a real filter key (see
 // FilterBar.js's FILTER_PARAM_KEYS) — this one is internal plumbing between
@@ -57,8 +77,13 @@ export default function SaveSearchButton({ variant = 'default' }) {
   const searchParams = useSearchParams();
   const queryString = searchParams.toString();
   const loggedIn = useIsLoggedIn();
+  const safe = useMotionSafe();
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  // Bumped on every real save/remove (handleClick and handleConfirm — the
+  // toggle can complete from either path) so AnimatedBell's pop replays once
+  // per actual state change, never on mount.
+  const [pulseKey, setPulseKey] = useState(0);
   const resumedRef = useRef(false);
   const saved = useSyncExternalStore(
     subscribeSavedSearches,
@@ -78,6 +103,7 @@ export default function SaveSearchButton({ variant = 'default' }) {
     const params = cleanParams();
     const query = params.toString();
     saveSearch({ query, label: buildSearchLabel(params), href: `${pathname}?${query}` });
+    setPulseKey((k) => k + 1);
   }
 
   // Real resume, not a fabricated auto-fill: fires only once `loggedIn`
@@ -98,6 +124,7 @@ export default function SaveSearchButton({ variant = 'default' }) {
   function handleClick() {
     if (saved) {
       removeSavedSearch(queryString);
+      setPulseKey((k) => k + 1);
       return;
     }
     if (!loggedIn) {
@@ -148,7 +175,13 @@ export default function SaveSearchButton({ variant = 'default' }) {
             saved ? 'text-blue-deep' : 'text-ink-70 hover:text-blue-deep'
           }`}
         >
-          <Bell fill={saved ? 'currentColor' : 'none'} strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+          <AnimatedBell
+            pulseKey={pulseKey}
+            safe={safe}
+            fill={saved ? 'currentColor' : 'none'}
+            strokeWidth={ICON_STROKE_WIDTH}
+            className="h-4 w-4"
+          />
           {saved ? 'Alerte créée' : "M'alerter des nouveaux biens"}
         </button>
         {authPrompt}
@@ -169,7 +202,9 @@ export default function SaveSearchButton({ variant = 'default' }) {
             : 'border border-line bg-surface text-ink-70 hover:border-blue hover:text-blue-deep'
         }`}
       >
-        <Bell
+        <AnimatedBell
+          pulseKey={pulseKey}
+          safe={safe}
           fill={saved ? 'currentColor' : 'none'}
           strokeWidth={ICON_STROKE_WIDTH}
           className="h-4 w-4"

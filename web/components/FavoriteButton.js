@@ -7,7 +7,7 @@ import { Heart } from 'lucide-react';
 import { isFavorite, subscribeFavorites, toggleFavorite } from '@/lib/favorites';
 import { useIsLoggedIn } from '@/lib/customerClient';
 import { useMotionSafe } from '@/lib/useMotionSafe';
-import { heartPop } from '@/lib/motion';
+import { iconPop } from '@/lib/motion';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import AuthPromptModal from './AuthPromptModal';
@@ -52,7 +52,7 @@ import { FAV_RETURN_PARAM } from './FavoriteResumeHandler';
  */
 // The heart glyph wrapped once and reused across all three variants below —
 // `key={pulseKey}` remounts this span each real toggle (see handleClick),
-// which is what makes heartPop's keyframe animation replay from its start
+// which is what makes iconPop's keyframe animation replay from its start
 // on every tap instead of running once ever. Reduced-motion visitors get a
 // plain, unanimated glyph (`safe` gates it, same convention as every other
 // decorative motion preset in lib/motion.js).
@@ -62,7 +62,7 @@ function AnimatedHeart({ pulseKey, safe, ...heartProps }) {
       key={pulseKey}
       className="inline-flex"
       initial={safe ? { scale: 0.6 } : false}
-      animate={safe ? { scale: heartPop.scale, transition: heartPop.transition } : undefined}
+      animate={safe ? { scale: iconPop.scale, transition: iconPop.transition } : undefined}
     >
       <Heart {...heartProps} />
     </motion.span>

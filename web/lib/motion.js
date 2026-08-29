@@ -80,11 +80,12 @@ export const heroDrift = {
   animate: { scale: 1, transition: { duration: 18, ease: 'linear' } },
 };
 
-// A quick "pop" for the saved-heart glyph in FavoriteButton.js, triggered by
-// remounting a motion.span on a click-driven key (see FavoriteButton.js) so
-// it fires once per actual toggle, never on hydration/mount. A keyframe
-// array forces framer-motion into tween interpolation regardless of `type`,
-// so this reaches for a back-out cubic-bezier (overshoots past 1.15 then
-// settles) instead of `type: 'spring'` — the standard way to fake spring
-// bounce with keyframes rather than fighting the two systems together.
-export const heartPop = { scale: [0.6, 1.15, 1], transition: { duration: 0.4, ease: [0.34, 1.56, 0.64, 1] } };
+// A quick "pop" for a toggled glyph — the saved-heart in FavoriteButton.js,
+// the alert bell in SaveSearchButton.js — triggered by remounting a
+// motion.span on a click-driven key (see either component) so it fires once
+// per actual toggle, never on hydration/mount. A keyframe array forces
+// framer-motion into tween interpolation regardless of `type`, so this
+// reaches for a back-out cubic-bezier (overshoots past 1.15 then settles)
+// instead of `type: 'spring'` — the standard way to fake spring bounce with
+// keyframes rather than fighting the two systems together.
+export const iconPop = { scale: [0.6, 1.15, 1], transition: { duration: 0.4, ease: [0.34, 1.56, 0.64, 1] } };

@@ -308,19 +308,29 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
     // elevation: shadow-sm -> shadow-md plus a touch less vertical padding
     // once `condensed`, so it visibly settles into a pinned, "in control
     // mode" state without needing the header itself to move or disappear.
+    //
+    // bg-canvas/95 + backdrop-blur-md deliberately do NOT live on this same
+    // sticky element — confirmed live on a real iOS Safari phone: this bar
+    // computed `position: sticky; top: 64px` correctly (DevTools agreed)
+    // but visibly scrolled away with the page instead of pinning, the exact
+    // symptom of a well-documented WebKit bug where `backdrop-filter` on a
+    // `position: sticky` element breaks its own stickiness. The fix is to
+    // keep `sticky` on a filter-free element and move the blurred fill onto
+    // an absolutely-positioned layer behind the real content instead.
     <div
       className={cn(
-        'sticky top-16 z-40 border-b border-line bg-canvas/95 backdrop-blur-md transition-shadow duration-300 ease-in-out',
+        'sticky top-16 z-40 border-b border-line transition-shadow duration-300 ease-in-out',
         condensed ? 'shadow-md' : 'shadow-sm',
       )}
     >
+      <div aria-hidden="true" className="absolute inset-0 bg-canvas/95 backdrop-blur-md" />
       <form
         id={FORM_ID}
         ref={formRef}
         action="/listings"
         method="get"
         className={cn(
-          'mx-auto max-w-[1600px] px-4 transition-[padding] duration-300 ease-in-out sm:px-6 lg:px-8',
+          'relative mx-auto max-w-[1600px] px-4 transition-[padding] duration-300 ease-in-out sm:px-6 lg:px-8',
           condensed ? 'py-1.5 lg:py-2' : 'py-2.5 lg:py-3',
         )}
       >

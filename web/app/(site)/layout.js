@@ -47,7 +47,14 @@ export default async function SiteLayout({ children }) {
       <FavoriteResumeHandler />
       <Header />
       <SiteShell>
-        <main className="flex-1">{children}</main>
+        {/* min-h-0 alongside flex-1: a flex item's default min-height is
+            `auto` (its content size), not 0 — the standard real fix for the
+            other well-documented trigger of WebKit's sticky-inside-flex bug
+            class (see FilterBar.js's own doc comment for the specific
+            symptom this app hit). Purely defensive: it doesn't change any
+            visible sizing here since content already determines this
+            column's height. */}
+        <main className="min-h-0 flex-1">{children}</main>
         <Footer />
       </SiteShell>
     </CurrencyRateProvider>

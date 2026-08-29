@@ -117,12 +117,27 @@ export default function ListingsEmptyState({ popularCommunes = [], params = {}, 
         </>
       ) : null}
 
-      <Link
-        href="/listings"
-        className="mt-8 inline-flex items-center rounded-full bg-blue px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary"
-      >
-        Voir toutes les annonces
-      </Link>
+      <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+        <Link
+          href="/listings"
+          className="inline-flex items-center rounded-full bg-blue px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary"
+        >
+          Voir toutes les annonces
+        </Link>
+        {/* Real, working manual-request form (RequestForm.js) — reachable
+            only from here (0 results) and from the dedicated dashboard tab
+            it actually lives on, never duplicated onto the normal results
+            toolbar where a real saved-search alert already covers the case
+            of "keep watching this search". /compte/client/* already
+            redirects a guest to sign in first (see that route's layout.js),
+            so this link needs no auth check of its own. */}
+        <Link
+          href="/compte/client/demandes"
+          className="inline-flex items-center rounded-full border border-line bg-surface px-6 py-2.5 text-sm font-semibold text-ink-70 transition-colors hover:border-blue hover:text-blue-deep"
+        >
+          Trouver pour moi
+        </Link>
+      </div>
     </div>
   );
 }

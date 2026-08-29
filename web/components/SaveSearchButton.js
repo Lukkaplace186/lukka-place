@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Bookmark, Bell } from 'lucide-react';
+import { Bell } from 'lucide-react';
 import { isSearchSaved, removeSavedSearch, saveSearch, subscribeSavedSearches } from '@/lib/favorites';
-import { buildSearchLabel } from '@/lib/searchLabel';
+import { buildSearchLabel, searchCriteriaTags } from '@/lib/searchLabel';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useIsLoggedIn } from '@/lib/customerClient';
 import AuthPromptModal from './AuthPromptModal';
+import SearchAlertConfirmModal from './SearchAlertConfirmModal';
 
 // Namespaced so it can never collide with a real filter key (see
 // FilterBar.js's FILTER_PARAM_KEYS) — this one is internal plumbing between
@@ -15,29 +16,40 @@ import AuthPromptModal from './AuthPromptModal';
 const AUTH_RETURN_PARAM = 'lkp_auth_return';
 
 /**
- * "Save search" / "Create alert" — real either way, but gated behind a real
- * account now (see AuthPromptModal.js): an explicit product decision to
- * match the Rightmove/Zoopla pattern of blocking Save/Alert until sign-up,
- * rather than this component's previous behaviour of always saving locally
- * first and only suggesting an account afterward. A signed-in visitor is
- * unaffected either way — saving was always real and server-synced for them
- * (see lib/favorites.js's dispatch to accountFavorites.js vs. localFavorites.js).
+ * "M'alerter des nouveaux biens" — one real action, one real label
+ * everywhere. This used to render as two visually distinct features
+ * depending on breakpoint (a Bookmark "Sauvegarder" pill on desktop, a Bell
+ * "Créer une alerte" button on mobile) even though both always drove the
+ * exact same save/unsave toggle — confusing to anyone who noticed both,
+ * since it read as two different features rather than one. `variant` still
+ * picks a *layout* (a compact pill among FilterBar's desktop toolbar vs. a
+ * half-width item in its mobile utility row), never the copy or icon
+ * anymore — both are the same Bell + label now.
  *
- * The gate hands off to the real /compte/inscription phone+password signup
- * (this app has no email-based auth to gate behind instead — see
+ * Gated behind a real account (see AuthPromptModal.js): an explicit product
+ * decision to match the Rightmove/Zoopla pattern of blocking Save/Alert
+ * until sign-up, rather than this component's previous behaviour of always
+ * saving locally first and only suggesting an account afterward. A
+ * signed-in visitor is unaffected either way — saving was always real and
+ * server-synced for them (see lib/favorites.js's dispatch to
+ * accountFavorites.js vs. localFavorites.js).
+ *
+ * A signed-in visitor also gets a real confirmation step first
+ * (SearchAlertConfirmModal.js) rather than an instant save on click — it
+ * shows the exact criteria (via lib/searchLabel.js's searchCriteriaTags,
+ * the same function AlertsBoard.js already renders each saved search's tag
+ * row from) so nothing gets saved the visitor didn't actually see.
+ *
+ * The auth gate hands off to the real /compte/inscription phone+password
+ * signup (this app has no email-based auth to gate behind instead — see
  * lib/customerAuth.js) and round-trips via a `next` URL carrying
  * AUTH_RETURN_PARAM. On return, the effect below checks for a *genuine*
  * session (`loggedIn`, server-verified) before performing the actual save —
  * nothing here fabricates a saved search for an account that doesn't really
- * exist yet.
- *
- * `variant="alert"` is the exact same real save/unsave toggle above, styled
- * for mobile FilterBar's utility row ("🔔 Créer une alerte") — a bell icon
- * and that label instead of the bookmark + "Sauvegarder"/"Enregistrée"
- * text. It's the same mechanism because it *is* the same feature: saving a
- * search is what creates a real alert (server-synced and actively
- * re-checked once signed in), so this is a relabelling for where it's
- * surfaced, not a second implementation.
+ * exist yet. That resume path skips the confirmation modal (the visitor
+ * already reviewed and confirmed intent once, before being sent to sign up;
+ * asking again after signup would just be a second friction step for
+ * nothing new).
  */
 export default function SaveSearchButton({ variant = 'default' }) {
   const pathname = usePathname();
@@ -46,6 +58,7 @@ export default function SaveSearchButton({ variant = 'default' }) {
   const queryString = searchParams.toString();
   const loggedIn = useIsLoggedIn();
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const resumedRef = useRef(false);
   const saved = useSyncExternalStore(
     subscribeSavedSearches,
@@ -91,6 +104,11 @@ export default function SaveSearchButton({ variant = 'default' }) {
       setShowAuthPrompt(true);
       return;
     }
+    setShowConfirm(true);
+  }
+
+  function handleConfirm() {
+    setShowConfirm(false);
     performSave();
   }
 
@@ -110,6 +128,15 @@ export default function SaveSearchButton({ variant = 'default' }) {
     />
   ) : null;
 
+  const confirmModal = showConfirm ? (
+    <SearchAlertConfirmModal
+      open={showConfirm}
+      onClose={() => setShowConfirm(false)}
+      onConfirm={handleConfirm}
+      tags={searchCriteriaTags(cleanParams())}
+    />
+  ) : null;
+
   if (variant === 'alert') {
     return (
       <span className="relative inline-flex flex-1 justify-center">
@@ -122,9 +149,10 @@ export default function SaveSearchButton({ variant = 'default' }) {
           }`}
         >
           <Bell fill={saved ? 'currentColor' : 'none'} strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-          {saved ? 'Alerte créée' : 'Créer une alerte'}
+          {saved ? 'Alerte créée' : "M'alerter des nouveaux biens"}
         </button>
         {authPrompt}
+        {confirmModal}
       </span>
     );
   }
@@ -141,14 +169,15 @@ export default function SaveSearchButton({ variant = 'default' }) {
             : 'border border-line bg-surface text-ink-70 hover:border-blue hover:text-blue-deep'
         }`}
       >
-        <Bookmark
+        <Bell
           fill={saved ? 'currentColor' : 'none'}
           strokeWidth={ICON_STROKE_WIDTH}
           className="h-4 w-4"
         />
-        {saved ? 'Enregistrée' : 'Sauvegarder'}
+        {saved ? 'Alerte créée' : "M'alerter des nouveaux biens"}
       </button>
       {authPrompt}
+      {confirmModal}
     </span>
   );
 }

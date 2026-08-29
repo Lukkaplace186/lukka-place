@@ -100,7 +100,7 @@ export default function FilterModal({
           <SheetTitle className="font-display text-xl font-normal tracking-[-0.01em]">Filtres</SheetTitle>
         </SheetHeader>
 
-        <div className="flex flex-1 flex-col gap-6 overflow-y-auto overscroll-contain px-4 py-5">
+        <div className="flex flex-1 flex-col gap-6 overflow-y-auto overscroll-contain px-4 pb-10 pt-5">
           <Section label="Prix (USD)">
             <div className="flex items-center gap-2">
               <input

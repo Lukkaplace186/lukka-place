@@ -2,9 +2,12 @@
 
 import { useState, useSyncExternalStore } from 'react';
 import { usePathname } from 'next/navigation';
+import { motion } from 'framer-motion';
 import { Heart } from 'lucide-react';
 import { isFavorite, subscribeFavorites, toggleFavorite } from '@/lib/favorites';
 import { useIsLoggedIn } from '@/lib/customerClient';
+import { useMotionSafe } from '@/lib/useMotionSafe';
+import { heartPop } from '@/lib/motion';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import AuthPromptModal from './AuthPromptModal';
@@ -47,10 +50,35 @@ import { FAV_RETURN_PARAM } from './FavoriteResumeHandler';
  * (a Zoopla screenshot) moved Save off the photo entirely and into this
  * row, so the frosted on-photo look no longer applies here.
  */
+// The heart glyph wrapped once and reused across all three variants below —
+// `key={pulseKey}` remounts this span each real toggle (see handleClick),
+// which is what makes heartPop's keyframe animation replay from its start
+// on every tap instead of running once ever. Reduced-motion visitors get a
+// plain, unanimated glyph (`safe` gates it, same convention as every other
+// decorative motion preset in lib/motion.js).
+function AnimatedHeart({ pulseKey, safe, ...heartProps }) {
+  return (
+    <motion.span
+      key={pulseKey}
+      className="inline-flex"
+      initial={safe ? { scale: 0.6 } : false}
+      animate={safe ? { scale: heartPop.scale, transition: heartPop.transition } : undefined}
+    >
+      <Heart {...heartProps} />
+    </motion.span>
+  );
+}
+
 export default function FavoriteButton({ listingId, className = '', variant = 'icon' }) {
   const pathname = usePathname();
   const loggedIn = useIsLoggedIn();
+  const safe = useMotionSafe();
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  // Bumped only inside handleClick (a real toggle), never on mount/hydration
+  // — remounting the motion.span below on this key is what makes the pop
+  // fire once per actual tap instead of once whenever `favorited` first
+  // resolves from its SSR-false snapshot to a real localStorage value.
+  const [pulseKey, setPulseKey] = useState(0);
 
   // useSyncExternalStore (not useEffect+useState) is the correct primitive
   // for reading an external store like localStorage: it avoids a
@@ -70,6 +98,7 @@ export default function FavoriteButton({ listingId, className = '', variant = 'i
       return;
     }
     toggleFavorite(listingId);
+    setPulseKey((k) => k + 1);
   }
 
   // Read directly rather than usePathname()+useSearchParams(): this button
@@ -106,7 +135,9 @@ export default function FavoriteButton({ listingId, className = '', variant = 'i
             className,
           )}
         >
-          <Heart
+          <AnimatedHeart
+            pulseKey={pulseKey}
+            safe={safe}
             fill={favorited ? 'currentColor' : 'none'}
             strokeWidth={ICON_STROKE_WIDTH}
             className="h-3.5 w-3.5"
@@ -132,7 +163,9 @@ export default function FavoriteButton({ listingId, className = '', variant = 'i
             className,
           )}
         >
-          <Heart
+          <AnimatedHeart
+            pulseKey={pulseKey}
+            safe={safe}
             fill={favorited ? 'currentColor' : 'none'}
             strokeWidth={ICON_STROKE_WIDTH}
             className="h-4 w-4"
@@ -164,7 +197,9 @@ export default function FavoriteButton({ listingId, className = '', variant = 'i
           className,
         )}
       >
-        <Heart
+        <AnimatedHeart
+          pulseKey={pulseKey}
+          safe={safe}
           fill={favorited ? 'currentColor' : 'none'}
           strokeWidth={ICON_STROKE_WIDTH}
           className="h-4.5 w-4.5"

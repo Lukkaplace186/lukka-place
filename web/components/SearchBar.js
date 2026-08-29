@@ -172,7 +172,15 @@ export default function SearchBar({ propertyTypes = [] }) {
   // defined edge against a bright photo; shadow-panel still carries the
   // actual elevation.
   return (
-    <div className="overflow-hidden rounded-2xl border border-line bg-surface u-shadow-panel">
+    // Frosted glass over the photo, not a flat bg-surface: bg-surface/90 is
+    // real --surface (#fff) at 90% opacity, close enough to opaque that
+    // every text/input contrast combo inside is unaffected, but translucent
+    // enough that backdrop-blur reads as glass against the hero photo it
+    // straddles. border-white/30 replaces border-line here specifically —
+    // the hairline border-line is tuned for a solid white card and all but
+    // disappears against a photo; a soft white edge reads correctly on both
+    // the photo (top of the panel) and the canvas background (bottom).
+    <div className="overflow-hidden rounded-2xl border border-white/30 bg-surface/90 backdrop-blur-md u-shadow-panel">
       {/* Underline tabs — the design's Tabs default variant. */}
       <div role="tablist" className="flex gap-1 overflow-x-auto px-4 shadow-[0_-1px_0_var(--line)_inset]">
         {HOME_TABS.map(({ value, label }) => {

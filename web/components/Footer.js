@@ -97,20 +97,33 @@ export default async function Footer() {
           header's filled partner pill and the hero panel's fused royal
           strip are both gone (Header.js, SearchBar.js), so this band
           carries the whole message on its own and is sized like the real
-          section it is, not like a footer strip. */}
-      <div className="border-b border-line bg-blue-deep">
+          section it is, not like a footer strip.
+
+          bg-ink (real --ink, #0b1120 — the same near-black this app already
+          uses for headings/hairlines), not the previous flat bg-blue-deep:
+          an editorial-luxury CTA reads as a genuine dark section rather than
+          a bright brand-colour block. border-white/10 replaces border-line
+          here specifically — border-line is tuned for hairlines on light
+          surfaces and is close to invisible against ink. The button drops
+          the solid white fill for a "metallic ghost" treatment using
+          --brass, this app's one real metallic-adjacent accent (already
+          contrast-computed in app/globals.css): a brass-bordered outline at
+          rest, filling brass with dark ink text on hover/press — never white
+          text *on* brass, which the documented contrast rule states fails
+          AA (3.2:1). */}
+      <div className="border-y border-white/10 bg-ink">
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-6 px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
           <div className="min-w-0 max-w-[40rem]">
             <p className="font-display text-[1.75rem] leading-[1.1] tracking-[-0.012em] text-white sm:text-[2.25rem]">
               Vous êtes agent ou agence immobilière ?
             </p>
-            <p className="mt-2.5 text-[1.0625rem] leading-[1.56] text-white/80">
+            <p className="mt-2.5 text-[1.0625rem] leading-[1.56] text-white/70">
               Publiez vos biens et recevez vos demandes clients sur WhatsApp.
             </p>
           </div>
           <Link
             href="/compte/agent/inscription"
-            className="u-press inline-flex h-12 flex-none items-center rounded-lg bg-white px-6 text-[0.9375rem] font-bold text-blue-deep transition-transform hover:-translate-y-0.5"
+            className="u-press inline-flex h-12 flex-none items-center rounded-lg border border-brass/50 px-6 text-[0.9375rem] font-bold text-white transition-colors hover:border-brass hover:bg-brass hover:text-ink"
           >
             Devenir Agence Partenaire
           </Link>

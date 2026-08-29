@@ -18,16 +18,20 @@
 // pseudo-element or Tailwind class can ever apply to it. This SVG path is
 // the actual mechanism that produces the same visual result.
 //
-// Colour: normal state is white/ink (matching "custom white speech-bubble
-// markers" literally) — the previous per-commune colour hash is dropped
-// here on purpose, since the request calls for one plain resting state and
-// reserves colour for the active state. Requested "green or royal-blue" for
-// the active marker; green isn't in this app's palette (app/globals.css has
-// no green token, no green anywhere in Header/FilterBar/badges), so this
-// uses --blue-deep, the same royal accent every other "selected/active"
-// state in this app already uses (card hover ring, active filter pill,
-// underline tab). Flagging the deviation rather than introducing an
-// off-palette colour.
+// Colour: resting state is a solid ink-900 fill with white text — an
+// editorial-luxury "dark pill" treatment (real --ink, the same near-black
+// this app already uses for headings/hairlines, not an off-palette slate),
+// swapped from the previous white-fill/ink-text resting state on an
+// explicit "dark markers" instruction. Active/hovered still uses
+// --blue-deep, the one royal accent every other "selected" state in this
+// app already uses (card hover ring, active filter pill, underline tab) —
+// unchanged, since white text already reads cleanly on either fill. The
+// callout-with-tail SHAPE (see speechBubblePath below) is deliberately left
+// alone: it exists specifically so the marker's anchor point is the tail's
+// tip rather than the body's centre, which is what makes it actually point
+// at its coordinate instead of floating over it (see the file-level doc
+// comment) — reverting to a plain pill would regress that anchor precision
+// for a purely cosmetic ask.
 const INK_900 = '#0B1120';
 const BLUE_DEEP = '#16307E';
 
@@ -77,9 +81,14 @@ export function buildPricePinIcon({ price, purpose, hovered = false }) {
   const totalW = w;
   const totalH = h + tailH;
 
-  const fill = hovered ? BLUE_DEEP : '#ffffff';
-  const stroke = hovered ? '#ffffff' : INK_900;
-  const textFill = hovered ? '#ffffff' : INK_900;
+  const fill = hovered ? BLUE_DEEP : INK_900;
+  // A white stroke rather than the previous ink one: on a dark fill, the pin
+  // needs its own edge definition against both light and dark map-tile
+  // areas — the old ink stroke only worked because the resting fill was
+  // white. Hover gets a fuller stroke to read as the more prominent state,
+  // resting a subtler one so it doesn't compete with the hover treatment.
+  const stroke = hovered ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.22)';
+  const textFill = '#ffffff';
 
   const path = speechBubblePath({ w, h, r, tailW, tailH });
 

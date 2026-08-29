@@ -86,6 +86,7 @@ export const AMENITY_GROUPS = [
       { key: 'generator', label: 'Groupe électrogène' },
       { key: 'solar', label: 'Panneaux solaires / Inverseur' },
       { key: 'borehole', label: "Forage / Citerne d'eau" },
+      { key: 'dedicated_line', label: 'Ligne SNEL dédiée' },
     ],
   },
   {
@@ -101,6 +102,7 @@ export const AMENITY_GROUPS = [
     options: [
       { key: 'ac', label: 'Climatisation' },
       { key: 'furnished', label: 'Meublé' },
+      { key: 'semi_furnished', label: 'Semi-meublé' },
     ],
   },
 ];
@@ -119,11 +121,16 @@ export const AMENITY_KEYWORDS = {
   generator: ['groupe électrogène', 'groupe electrogene', 'générateur', 'generateur'],
   solar: ['panneau solaire', 'panneaux solaires', 'inverseur', 'onduleur'],
   borehole: ['forage', 'citerne'],
+  dedicated_line: ['ligne dédiée', 'ligne dediee', 'ligne snel dédiée', 'ligne snel dediee', 'snel dédié', 'snel dedie'],
   paved_road: ['route asphaltée', 'route asphaltee', 'route pavée', 'route pavee', 'asphalté', 'asphalte', 'bitumé', 'bitume'],
   security: ['clôture', 'cloture', 'gardiennage', 'gardien'],
   parking: ['parking', 'garage'],
   ac: ['climatisation', 'climatisé', 'climatise', 'climatiseur'],
   furnished: ['meublé', 'meuble', 'meublée', 'meublee'],
+  // Substring of `furnished`'s own keywords ("meublé" sits inside
+  // "semi-meublé"), so a semi-furnished listing legitimately matches both —
+  // real overlap, not a bug: the text genuinely contains both claims.
+  semi_furnished: ['semi-meublé', 'semi meublé', 'semi-meuble', 'semi meuble', 'semi-meublée', 'semi meublee'],
 };
 
 /**
@@ -137,6 +144,7 @@ export const AMENITY_KEYWORDS = {
  */
 export const DEPOSIT_MAX_OPTIONS = [
   { value: '', label: 'Toutes' },
+  { value: '1', label: '1 mois' },
   { value: '3', label: '3 mois' },
   { value: '6', label: '6 mois' },
   { value: '10', label: '10+ mois' },

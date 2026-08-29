@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Menu, Search, User, Heart, Bell, LogOut, ArrowUpRight, Mail } from 'lucide-react';
+import { Menu, Search, User, Heart, Bell, LogOut, ArrowUpRight, Mail, Briefcase } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetClose } from './ui/sheet';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from './ui/dropdown-menu';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -18,6 +18,15 @@ const ACCOUNT_LINKS = [
   { href: '/favoris', label: 'Mes favoris', icon: Heart },
   { href: '/compte/alertes', label: 'Alertes', icon: Bell },
 ];
+
+// The mobile Sheet's utility row (Rechercher/Favoris/Demandes) reuses
+// NAV_ITEMS but drops '/compte/client' — it duplicated ACCOUNT_LINKS' own
+// "Mon compte" entry under a different label ("Compte"), which is exactly
+// the kind of flat-list clutter the drawer restructure below is meant to
+// remove. Signed-out visitors get an explicit customer/agent choice instead
+// (see the Sheet content), so a bare third "Compte" link isn't needed either
+// way.
+const UTILITY_NAV_ITEMS = NAV_ITEMS.filter((item) => item.href !== '/compte/client');
 
 /**
  * The four nav destinations of the "Landing refondue" header.
@@ -105,79 +114,116 @@ export default function Header() {
             >
               <Menu strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
             </SheetTrigger>
-            <SheetContent side="left" className="w-[17rem] bg-surface p-0">
+            <SheetContent side="left" className="flex w-[85vw] max-w-sm flex-col gap-0 bg-surface p-0">
               <SheetHeader className="border-b border-line px-5 py-4">
                 <SheetTitle className="text-left">
                   <Wordmark />
                 </SheetTitle>
               </SheetHeader>
-              <nav className="flex flex-col px-2 py-3">
-                {PRIMARY_LINKS.map(({ href, label }) => (
-                  <SheetClose asChild key={href}>
-                    <Link href={href} className="rounded-md px-3 py-2.5 text-[0.9375rem] font-medium text-ink hover:bg-canvas-alt">
-                      {label}
-                    </Link>
-                  </SheetClose>
-                ))}
-                <span className="my-2 h-px bg-line" />
-                {NAV_ITEMS.map(({ href, label, icon: Icon }) => (
-                  <SheetClose asChild key={href}>
-                    <Link
-                      href={href}
-                      className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-[0.9375rem] font-medium hover:bg-canvas-alt ${
-                        isNavItemActive(href, pathname) ? 'text-blue-deep' : 'text-ink'
-                      }`}
-                    >
-                      <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
-                      {label}
-                    </Link>
-                  </SheetClose>
-                ))}
-                <span className="my-2 h-px bg-line" />
-                {loggedIn ? (
-                  <>
-                    {ACCOUNT_LINKS.map(({ href, label, icon: Icon }) => (
-                      <SheetClose asChild key={href}>
-                        <Link href={href} className="flex items-center gap-3 rounded-md px-3 py-2.5 text-[0.9375rem] font-medium text-ink hover:bg-canvas-alt">
-                          <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
-                          {label}
+              {/* SheetContent's own close button (showCloseButton default)
+                  already renders top-3 right-3 over this header row — that's
+                  the drawer's "X", not a second one hand-rolled here (see
+                  web/CLAUDE.md on not hand-rolling what Radix Sheet owns). */}
+              <nav className="flex flex-1 flex-col overflow-y-auto px-3 py-4">
+                {/* Section 1 — primary navigation */}
+                <div className="flex flex-col gap-0.5">
+                  {PRIMARY_LINKS.map(({ href, label }) => (
+                    <SheetClose asChild key={href}>
+                      <Link href={href} className="rounded-md px-3 py-3 text-base font-semibold text-ink hover:bg-canvas-alt">
+                        {label}
+                      </Link>
+                    </SheetClose>
+                  ))}
+                </div>
+
+                <span className="my-3 h-px bg-line" />
+
+                {/* Section 2 — utility links, then account/login, kept
+                    distinct from Section 1's site navigation. */}
+                <div className="flex flex-col gap-0.5">
+                  {UTILITY_NAV_ITEMS.map(({ href, label, icon: Icon }) => (
+                    <SheetClose asChild key={href}>
+                      <Link
+                        href={href}
+                        className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-[0.9375rem] font-medium hover:bg-canvas-alt ${
+                          isNavItemActive(href, pathname) ? 'text-blue-deep' : 'text-ink'
+                        }`}
+                      >
+                        <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
+                        {label}
+                      </Link>
+                    </SheetClose>
+                  ))}
+                </div>
+
+                <span className="my-3 h-px bg-line" />
+
+                {/* Customer vs. agent/partner logins, kept as two explicit,
+                    visually distinct actions rather than one generic
+                    "Connexion" link — a visitor shouldn't have to guess
+                    which portal that leads to. */}
+                <div className="flex flex-col gap-1.5">
+                  {loggedIn ? (
+                    <>
+                      {ACCOUNT_LINKS.map(({ href, label, icon: Icon }) => (
+                        <SheetClose asChild key={href}>
+                          <Link href={href} className="flex items-center gap-3 rounded-md px-3 py-2.5 text-[0.9375rem] font-medium text-ink hover:bg-canvas-alt">
+                            <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
+                            {label}
+                          </Link>
+                        </SheetClose>
+                      ))}
+                      <SheetClose asChild>
+                        <button
+                          type="button"
+                          onClick={() => logoutAction()}
+                          className="flex items-center gap-3 rounded-md px-3 py-2.5 text-left text-[0.9375rem] font-medium text-ink hover:bg-canvas-alt"
+                        >
+                          <LogOut strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
+                          Se déconnecter
+                        </button>
+                      </SheetClose>
+                    </>
+                  ) : (
+                    <>
+                      <SheetClose asChild>
+                        <Link href="/compte/connexion" className="flex items-center gap-3 rounded-md px-3 py-2.5 text-[0.9375rem] font-medium text-ink hover:bg-canvas-alt">
+                          <User strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
+                          Connexion client
                         </Link>
                       </SheetClose>
-                    ))}
-                    <SheetClose asChild>
-                      <button
-                        type="button"
-                        onClick={() => logoutAction()}
-                        className="flex items-center gap-3 rounded-md px-3 py-2.5 text-left text-[0.9375rem] font-medium text-ink hover:bg-canvas-alt"
-                      >
-                        <LogOut strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
-                        Se déconnecter
-                      </button>
-                    </SheetClose>
-                  </>
-                ) : (
+                      <SheetClose asChild>
+                        <Link
+                          href="/compte/agent/connexion"
+                          className="u-btn-secondary flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-[0.9375rem] font-bold text-ink"
+                        >
+                          <Briefcase strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
+                          Espace Agent / Partenaire
+                        </Link>
+                      </SheetClose>
+                    </>
+                  )}
+                </div>
+
+                {/* Section 3 — primary CTA, pinned to the bottom of the
+                    drawer via mt-auto so it stays reachable regardless of
+                    how tall Sections 1-2 grow. */}
+                <div className="mt-auto pt-4">
                   <SheetClose asChild>
-                    <Link href="/compte/connexion" className="flex items-center gap-3 rounded-md px-3 py-2.5 text-[0.9375rem] font-medium text-ink hover:bg-canvas-alt">
-                      <User strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
-                      Connexion
+                    <Link
+                      href="/compte/agent/inscription"
+                      className="u-press u-btn-primary flex w-full items-center justify-center gap-2 rounded-lg bg-blue py-3 text-[0.9375rem] font-bold text-white"
+                    >
+                      Publier un bien
                     </Link>
                   </SheetClose>
-                )}
-
-                <SheetClose asChild>
-                  <Link
-                    href="/compte/agent/inscription"
-                    className="mt-2 flex items-center justify-center gap-2 rounded-md bg-blue-tint px-3 py-2.5 text-[0.9375rem] font-bold text-blue-deep"
-                  >
-                    Publier un bien
-                  </Link>
-                </SheetClose>
+                </div>
               </nav>
             </SheetContent>
           </Sheet>
         </div>
 
-        <Wordmark className="shrink-0" />
+        <Wordmark className="shrink-0" size="lg" />
 
         <nav className="ml-6 hidden items-center gap-7 lg:flex">
           {PRIMARY_LINKS.map(({ href, label }) => (

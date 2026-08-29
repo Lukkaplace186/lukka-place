@@ -26,7 +26,16 @@ import Link from 'next/link';
  */
 const LOGO_ASPECT = { width: 2354, height: 746 };
 
-export function Wordmark({ inverted = false, className = '' }) {
+// 'lg' is the site Header's own size, kept separate from the shared default
+// so bumping the header's visual weight doesn't also resize every other
+// consumer (Footer, AgentSidebar, the portfolio layout, the mobile Sheet's
+// own drawer header).
+const LOGO_SIZES = {
+  base: 'h-7 w-auto sm:h-8',
+  lg: 'h-9 w-auto sm:h-10',
+};
+
+export function Wordmark({ inverted = false, className = '', size = 'base' }) {
   const src = inverted ? '/brand/logo-dark.png' : '/brand/logo-light.png';
 
   return (
@@ -43,7 +52,7 @@ export function Wordmark({ inverted = false, className = '' }) {
           raster PNG (see the doc comment above), so there's no font-weight
           or SVG fill to strengthen — a heavier stroke would mean asking for
           new source art, not a CSS change. */}
-      <img src={src} alt="Lukka Place" width={LOGO_ASPECT.width} height={LOGO_ASPECT.height} className="h-7 w-auto sm:h-8" />
+      <img src={src} alt="Lukka Place" width={LOGO_ASPECT.width} height={LOGO_ASPECT.height} className={LOGO_SIZES[size] ?? LOGO_SIZES.base} />
     </Link>
   );
 }

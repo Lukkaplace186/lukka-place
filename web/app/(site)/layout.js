@@ -1,6 +1,7 @@
 import Header from '@/components/Header';
 import SiteShell from '@/components/SiteShell';
 import Footer from '@/components/Footer';
+import FavoriteResumeHandler from '@/components/FavoriteResumeHandler';
 import { CurrencyRateProvider } from '@/lib/CurrencyRateContext';
 import { getCdfRate } from '@/lib/currencyRate';
 
@@ -43,6 +44,7 @@ export default async function SiteLayout({ children }) {
 
   return (
     <CurrencyRateProvider rate={rate}>
+      <FavoriteResumeHandler />
       <Header />
       <SiteShell>
         <main className="flex-1">{children}</main>

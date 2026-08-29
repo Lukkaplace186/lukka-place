@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 const TITLES = {
   save: 'Se connecter ou créer un compte pour enregistrer la recherche',
   alert: 'Se connecter ou créer un compte pour créer une alerte',
+  favorite: 'Se connecter ou créer un compte pour enregistrer ce bien en favori',
 };
 
 /**

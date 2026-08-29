@@ -85,8 +85,16 @@ export default function FavorisPage() {
         <p className="mt-3 text-[0.9375rem] leading-relaxed text-ink-45">
           {loggedIn
             ? 'Vos biens et recherches enregistrés sont conservés sur votre compte, accessibles depuis n’importe quel appareil.'
-            : 'Vos biens et recherches enregistrés sont conservés sur cet appareil — aucun compte n’est nécessaire, et rien n’est envoyé à Lukka Place.'}
+            : 'Connectez-vous pour retrouver vos biens favoris et vos recherches enregistrées.'}
         </p>
+        {!loggedIn ? (
+          <Link
+            href={`/compte/connexion?next=${encodeURIComponent('/favoris')}`}
+            className="mt-4 inline-flex items-center rounded-full bg-blue px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary"
+          >
+            Se connecter
+          </Link>
+        ) : null}
       </header>
 
       <SharedListSection />

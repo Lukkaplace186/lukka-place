@@ -84,13 +84,23 @@ export default function FilterModal({
     <Sheet open={open} onOpenChange={(next) => !next && onClose()}>
       <SheetContent
         side="bottom"
-        className="flex h-[100dvh] flex-col gap-0 rounded-t-none border-line bg-surface p-0 sm:h-[92vh] sm:rounded-t-xl lg:hidden"
+        // The base SheetContent primitive (components/ui/sheet.jsx) ships
+        // `data-[side=bottom]:h-auto` unconditionally. That's an
+        // attribute-selector rule ([data-side=bottom].h-auto), which beats a
+        // plain `h-[100dvh]` utility on CSS specificity regardless of source
+        // order — confirmed live: the sheet rendered at height:1487px with
+        // its top edge at y:-526px, permanently off-screen, which is exactly
+        // the "header and top filters missing" bug. Scoping the override
+        // under the same `data-[side=bottom]:` modifier matches it on
+        // specificity and lets tailwind-merge dedupe the conflicting rule,
+        // so this sheet actually gets the full-height it asks for.
+        className="flex flex-col gap-0 rounded-t-none border-line bg-surface p-0 data-[side=bottom]:h-[100dvh] sm:data-[side=bottom]:h-[92vh] sm:rounded-t-xl lg:hidden"
       >
         <SheetHeader className="border-b border-line">
           <SheetTitle className="font-display text-xl font-normal tracking-[-0.01em]">Filtres</SheetTitle>
         </SheetHeader>
 
-        <div className="flex flex-1 flex-col gap-6 overflow-y-auto px-4 py-5">
+        <div className="flex flex-1 flex-col gap-6 overflow-y-auto overscroll-contain px-4 py-5">
           <Section label="Prix (USD)">
             <div className="flex items-center gap-2">
               <input

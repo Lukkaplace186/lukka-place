@@ -25,23 +25,13 @@ import { useMotionSafe } from '@/lib/useMotionSafe';
  * Headline is DM Serif Display (font-display) at --fs-display-l, regular
  * weight, matching the design's hero spec (never bold, never uppercase).
  *
- * Photo: /public/hero-gombe.jpg — an AI-generated image (source file was
- * literally named `Gemini_Generated_Image_*.jpg`), not a real photograph.
- * This is a deliberate, explicit exception to this file's — and
- * web/CLAUDE.md's — usual rule that a hero image must be a real, licensed
- * photo: raised directly with the client, who chose to use it anyway,
- * unlabeled, over the alternative of keeping the previous real photo or
- * adding an "AI-generated" disclosure. No photographer credit link below
- * (unlike the two real photos this hero has carried before) — there is no
- * license to satisfy for the client's own generated asset.
- *
- * object-[center_72%], not the container default: the source image (1253×832)
- * is roughly 55% sky above the horizon, with the actual subject — a
- * motorcyclist heading down the road, the framing the client asked to keep —
- * sitting in the bottom third. This hero band is short and wide, so a plain
- * centred crop would cut most of that subject away in favour of empty sky;
- * biasing the vertical anchor down keeps the rider in frame at every
- * breakpoint instead.
+ * Photo: /public/kaysha-StJWD4ci8wY-unsplash.jpg — supplied directly by the
+ * user, replacing the earlier hero-kinshasa.jpg. The filename is Unsplash's
+ * own download-attribution naming convention (photographer "kaysha", photo
+ * id StJWD4ci8wY), so it's credited below the same way the very first
+ * version of this hero (an Unsplash photo) was. Not confirmed to depict
+ * Kinshasa specifically — no EXIF/location data was available to check —
+ * so the credit doesn't assert a place, only the real source.
  */
 export default function Hero({ propertyTypes = [] }) {
   const safe = useMotionSafe();
@@ -55,12 +45,12 @@ export default function Hero({ propertyTypes = [] }) {
           animate={safe ? heroDrift.animate : undefined}
         >
           <Image
-            src="/hero-gombe.jpg"
+            src="/kaysha-StJWD4ci8wY-unsplash.jpg"
             alt=""
             fill
             priority
             sizes="100vw"
-            className="object-cover object-[center_72%]"
+            className="object-cover"
           />
         </motion.div>
 
@@ -89,6 +79,15 @@ export default function Hero({ propertyTypes = [] }) {
           className="absolute inset-0"
           style={{ background: 'var(--scrim-image)' }}
         />
+
+        <a
+          href="https://unsplash.com/photos/StJWD4ci8wY"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="absolute bottom-2 right-3 z-10 text-[0.625rem] text-white/40 transition-colors hover:text-white/70"
+        >
+          Photo by kaysha on Unsplash
+        </a>
 
         <div className="relative z-10 mx-auto w-full max-w-[1240px] px-4 sm:px-6 lg:px-8">
           <div className="max-w-[41rem]">

@@ -322,6 +322,15 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
         'sticky top-16 z-40 border-b border-line transition-shadow duration-300 ease-in-out',
         condensed ? 'shadow-md' : 'shadow-sm',
       )}
+      // Promotes this element to its own GPU compositing layer — a
+      // long-standing real workaround for older iOS Safari dropping
+      // position:sticky recalculation during momentum (inertial) scrolling.
+      // Inline style, not a `transform-gpu`/`will-change-transform`
+      // Tailwind utility: this app has already hit Tailwind v4 silently not
+      // generating an uncommon utility once (web/CLAUDE.md's grid-cols
+      // gotcha), and this is a rendering hint worth guaranteeing rather
+      // than trusting to compile.
+      style={{ transform: 'translateZ(0)', willChange: 'transform' }}
     >
       <div aria-hidden="true" className="absolute inset-0 bg-canvas/95 backdrop-blur-md" />
       <form

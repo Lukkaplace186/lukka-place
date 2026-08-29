@@ -52,7 +52,7 @@ export function Wordmark({ inverted = false, className = '', size = 'base' }) {
           raster PNG (see the doc comment above), so there's no font-weight
           or SVG fill to strengthen — a heavier stroke would mean asking for
           new source art, not a CSS change. */}
-      <img src={src} alt="Lukka Place" width={LOGO_ASPECT.width} height={LOGO_ASPECT.height} className={LOGO_SIZES[size] ?? LOGO_SIZES.base} />
+      <img src={src} alt="Lukka Place" width={LOGO_ASPECT.width} height={LOGO_ASPECT.height} className={`block ${LOGO_SIZES[size] ?? LOGO_SIZES.base}`} />
     </Link>
   );
 }

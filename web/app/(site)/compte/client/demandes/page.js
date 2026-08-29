@@ -12,7 +12,7 @@ import { submitPropertyRequestAction } from '../actions';
 import RequestForm from './RequestForm';
 
 export const metadata = {
-  title: 'Soumettre une recherche — Lukka Place',
+  title: 'Trouver pour moi — Lukka Place',
   robots: { index: false, follow: false },
 };
 

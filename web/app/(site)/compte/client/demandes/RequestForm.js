@@ -90,7 +90,7 @@ export default function RequestForm({ action, communes }) {
   return (
     <PortalPanel className="p-6 sm:p-8">
       <h2 className="font-display text-[1.75rem] font-normal leading-[1.14] tracking-[-0.008em] text-ink sm:text-[2.125rem]">
-        Soumettre une recherche
+        Trouver pour moi
       </h2>
       <p className="mt-3 max-w-[32.5rem] text-[0.9375rem] leading-[1.6] text-ink-45">
         Décrivez le bien que vous cherchez. Nous transmettons votre demande aux agences partenaires de Lukka Place.

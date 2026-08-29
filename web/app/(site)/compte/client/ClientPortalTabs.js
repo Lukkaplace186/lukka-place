@@ -18,15 +18,25 @@ import { cn } from '@/lib/utils';
  * Counts are passed in already computed (lib/customerPortal.js) and are
  * omitted entirely when zero — the design's own `sc-if` on `t.count` does
  * the same thing, and a "0" pill would be noise rather than information.
+ *
+ * Down from the original 7 destinations (Vue d'ensemble, Mes favoris, Mes
+ * alertes, Mes messages, Soumettre une recherche, Visites planifiées,
+ * Paramètres) to 4, per an explicit simplification request. The overview
+ * tab is gone outright — `/compte/client` now lands directly on saved
+ * properties instead of a redundant summary of numbers this bar already
+ * shows. Favoris+Alertes and Messages+Visites each collapse into one tab
+ * (a `?tab=` sub-toggle for the former, one merged chronological list for
+ * the latter — see ./page.js and ./messages/InquiryThreads.js), and
+ * Demandes/Paramètres are just relabelled, not restructured. `savedTotal`
+ * (favorites + alerts) is computed by the layout, not `getPortalCounts()`
+ * itself — that function's real return shape stays the honest per-metric
+ * one other callers still rely on.
  */
 const TABS = [
-  { href: '/compte/client', label: "Vue d'ensemble", exact: true },
-  { href: '/compte/client/favoris', label: 'Mes favoris', countKey: 'favorites' },
-  { href: '/compte/client/alertes', label: 'Mes alertes', countKey: 'alerts' },
-  { href: '/compte/client/messages', label: 'Mes messages', countKey: 'inquiries' },
-  { href: '/compte/client/demandes', label: 'Soumettre une recherche' },
-  { href: '/compte/client/visites', label: 'Visites planifiées', countKey: 'viewings' },
-  { href: '/compte/client/parametres', label: 'Paramètres' },
+  { href: '/compte/client', label: 'Favoris & Alertes', exact: true, countKey: 'savedTotal' },
+  { href: '/compte/client/messages', label: 'Messages & Visites', countKey: 'inquiries' },
+  { href: '/compte/client/demandes', label: 'Trouver pour moi' },
+  { href: '/compte/client/parametres', label: 'Mon profil' },
 ];
 
 export default function ClientPortalTabs({ counts = {} }) {

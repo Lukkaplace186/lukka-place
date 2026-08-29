@@ -32,6 +32,10 @@ export default async function ClientPortalLayout({ children }) {
 
   const { customerId, customer } = session;
   const counts = await getPortalCounts(customerId);
+  // Favoris+Alertes collapsed into one tab (ClientPortalTabs.js), so its nav
+  // pill shows the combined total rather than picking just one of the two
+  // real per-metric counts getPortalCounts() already returns.
+  const tabCounts = { ...counts, savedTotal: counts.favorites + counts.alerts };
 
   // The account's own stored name, never a fabricated one. A customer who
   // signed up without giving a name gets their real phone number as the
@@ -41,7 +45,11 @@ export default async function ClientPortalLayout({ children }) {
 
   return (
     <div className="min-h-screen bg-canvas-warm">
-      <div className="mx-auto max-w-[77.5rem] px-4 pb-7 pt-11 sm:px-6 lg:px-8">
+      {/* pt/pb compact on mobile (was a flat pt-11/pb-7 at every width) so
+          the tab bar and saved properties sit higher on a phone viewport
+          without scrolling past a tall greeting first; desktop keeps the
+          original spacing. */}
+      <div className="mx-auto max-w-[77.5rem] px-4 pb-4 pt-6 sm:px-6 sm:pb-7 sm:pt-11 lg:px-8">
         <p className="u-eyebrow">Espace client</p>
         <h1 className="mt-2.5 font-display text-[2.125rem] font-normal leading-[1.08] tracking-[-0.012em] text-ink sm:text-[2.875rem]">
           Bonjour, {firstName}
@@ -59,7 +67,7 @@ export default async function ClientPortalLayout({ children }) {
         </p>
       </div>
 
-      <ClientPortalTabs counts={counts} />
+      <ClientPortalTabs counts={tabCounts} />
 
       <main className="mx-auto max-w-[77.5rem] px-4 pb-24 pt-10 sm:px-6 lg:px-8">{children}</main>
     </div>

@@ -12,7 +12,7 @@ import { logoutAction, deleteAccountAction } from '../../actions';
 import { updateProfileNameAction } from '../actions';
 
 export const metadata = {
-  title: 'Paramètres — Lukka Place',
+  title: 'Mon profil — Lukka Place',
   robots: { index: false, follow: false },
 };
 
@@ -57,7 +57,7 @@ export default async function ParametresPage() {
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start">
       <div className="flex flex-col gap-6">
         <PortalSectionHeading
-          title="Paramètres"
+          title="Mon profil"
           lead="Vos informations et vos préférences d'affichage."
         />
 

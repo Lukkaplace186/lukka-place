@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { Mail } from 'lucide-react';
 import { PortalSectionHeading, PortalEmpty } from '@/components/ClientPortalUI';
-import { getPortalCustomer } from '@/lib/customerPortal';
+import { getPortalCustomer, isViewingLead } from '@/lib/customerPortal';
 import { getCustomerInquiries } from '@/lib/customerInquiries';
 import { LEAD_STATUS_LABELS_FR } from '@/lib/adminLabels';
 import { listingImages } from '@/lib/listingView';
@@ -9,7 +9,7 @@ import { formatPrice } from '@/lib/format';
 import InquiryThreads from './InquiryThreads';
 
 export const metadata = {
-  title: 'Mes messages — Lukka Place',
+  title: 'Messages & Visites — Lukka Place',
   robots: { index: false, follow: false },
 };
 
@@ -33,6 +33,13 @@ function formatWith(formatter, value) {
  * Prices are serialised with the listing's real stored USD figure rather
  * than the client-side currency toggle: this is transactional history, and
  * lib/whatsapp.js already takes the same position for the same reason.
+ *
+ * "Visites planifiées" used to be a separate tab/page over a *filtered*
+ * subset of this exact same `getCustomerInquiries()` call (any lead whose
+ * status is VIEWING_REQUESTED/VIEWING_COMPLETED). Rather than keep two pages
+ * re-fetching the same rows, each thread now just carries `isViewing` so the
+ * one chronological list can surface viewing-specific status and actions
+ * inline (see InquiryThreads.js) instead of duplicating the list elsewhere.
  */
 export default async function MessagesPage() {
   const session = await getPortalCustomer();
@@ -44,14 +51,14 @@ export default async function MessagesPage() {
     return (
       <div>
         <PortalSectionHeading
-          title="Mes messages et demandes"
-          lead="Vos échanges avec les agences partenaires."
+          title="Messages & Visites"
+          lead="Vos échanges avec les agences partenaires, y compris le suivi de vos demandes de visite."
           className="mb-7"
         />
         <PortalEmpty
           icon={Mail}
           title="Aucune demande pour le moment"
-          actionLabel="Soumettre une recherche"
+          actionLabel="Trouver pour moi"
           actionHref="/compte/client/demandes"
         >
           Contactez une agence depuis une annonce, ou décrivez-nous le bien que vous cherchez : vos échanges
@@ -68,6 +75,7 @@ export default async function MessagesPage() {
     summary: lead.requirements_summary || null,
     createdAtLabel: formatWith(LONG_DATE, lead.created_at),
     createdAtShort: formatWith(SHORT_DATE, lead.created_at),
+    isViewing: isViewingLead(lead),
     listing: listing
       ? {
           id: listing.id,
@@ -82,7 +90,7 @@ export default async function MessagesPage() {
   return (
     <div>
       <PortalSectionHeading
-        title="Mes messages et demandes"
+        title="Messages & Visites"
         lead={`${threads.length} échange${threads.length > 1 ? 's' : ''} avec les agences partenaires.`}
         className="mb-7"
       />

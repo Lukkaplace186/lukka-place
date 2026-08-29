@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { MessageCircle, ArrowUpRight, ImageIcon, Inbox } from 'lucide-react';
+import { MessageCircle, ArrowUpRight, ImageIcon, Inbox, CalendarDays } from 'lucide-react';
 import SafeImage from '@/components/SafeImage';
 import { PortalPanel, PortalBadge } from '@/components/ClientPortalUI';
 import { buildWhatsAppLink } from '@/lib/whatsapp';
@@ -67,6 +67,29 @@ export default function InquiryThreads({ threads, whatsappNumber }) {
         )
       : null;
 
+  // Same two viewing-specific actions the old standalone "Visites
+  // planifiées" page offered — reschedule/cancel, not a generic "continue
+  // the conversation" — kept verbatim now that a viewing lead renders inline
+  // here instead of on its own page.
+  const rescheduleHref =
+    whatsappNumber && active?.isViewing
+      ? buildWhatsAppLink(
+          whatsappNumber,
+          active.listing
+            ? `Bonjour, je souhaite convenir d'un créneau pour la visite de l'annonce Ref: ${active.listing.reference || `#${active.listing.id}`}.`
+            : `Bonjour, je souhaite convenir d'un créneau pour ma demande de visite n° ${active.id}.`,
+        )
+      : null;
+  const cancelHref =
+    whatsappNumber && active?.isViewing
+      ? buildWhatsAppLink(
+          whatsappNumber,
+          active.listing
+            ? `Bonjour, je souhaite annuler ma demande de visite pour l'annonce Ref: ${active.listing.reference || `#${active.listing.id}`}.`
+            : `Bonjour, je souhaite annuler ma demande de visite n° ${active.id}.`,
+        )
+      : null;
+
   return (
     <PortalPanel className="grid overflow-hidden lg:min-h-[36rem] lg:grid-cols-[22.5rem_minmax(0,1fr)]">
       <div className="flex flex-col border-b border-line lg:border-b-0 lg:border-r">
@@ -100,8 +123,14 @@ export default function InquiryThreads({ threads, whatsappNumber }) {
                       {thread.summary}
                     </p>
                   ) : null}
-                  <span className="mt-2 inline-block">
+                  <span className="mt-2 flex flex-wrap items-center gap-2">
                     <PortalBadge tone={THREAD_TONES[thread.status] || 'neutral'}>{thread.statusLabel}</PortalBadge>
+                    {thread.isViewing ? (
+                      <span className="inline-flex items-center gap-1 text-[0.6875rem] font-semibold text-ink-45">
+                        <CalendarDays strokeWidth={ICON_STROKE_WIDTH} className="h-3 w-3" aria-hidden="true" />
+                        Visite
+                      </span>
+                    ) : null}
                   </span>
                 </div>
               </button>
@@ -133,7 +162,31 @@ export default function InquiryThreads({ threads, whatsappNumber }) {
                   <ArrowUpRight strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
                 </Link>
               ) : null}
-              {continueHref ? (
+              {active.isViewing ? (
+                <>
+                  {rescheduleHref ? (
+                    <a
+                      href={rescheduleHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 rounded-full bg-green px-4 py-2 text-[0.8125rem] font-semibold text-white transition-colors hover:bg-green-deep"
+                    >
+                      <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
+                      Convenir d&apos;un créneau
+                    </a>
+                  ) : null}
+                  {cancelHref ? (
+                    <a
+                      href={cancelHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center rounded-full px-4 py-2 text-[0.8125rem] font-semibold text-ink-45 transition-colors hover:bg-canvas-alt hover:text-ink"
+                    >
+                      Annuler la visite
+                    </a>
+                  ) : null}
+                </>
+              ) : continueHref ? (
                 <a
                   href={continueHref}
                   target="_blank"

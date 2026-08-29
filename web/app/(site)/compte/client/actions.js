@@ -34,7 +34,9 @@ export async function removeFavoriteAction(formData) {
   if (!Number.isFinite(propertyId)) return;
 
   await removeFavorite(customerId, propertyId);
-  revalidatePath('/compte/client/favoris');
+  // '/compte/client/favoris' is now just a redirect to '/compte/client'
+  // (the merged Favoris & Alertes tab), so revalidating the real route is
+  // what actually matters.
   revalidatePath('/compte/client');
   // The public /favoris page reads the same rows for a signed-in visitor.
   revalidatePath('/favoris');
@@ -46,7 +48,7 @@ export async function removeSavedSearchAction(formData) {
   if (!query) return;
 
   await removeSavedSearch(customerId, query);
-  revalidatePath('/compte/client/alertes');
+  // Same reasoning as above — '/compte/client/alertes' just redirects here now.
   revalidatePath('/compte/client');
   revalidatePath('/compte/alertes');
 }

@@ -97,28 +97,3 @@ export function PortalEmpty({ icon: Icon, title, children, actionLabel, actionHr
     </PortalPanel>
   );
 }
-
-/**
- * A dashboard stat tile. `value` is always a real count; `hint` is the real
- * detail line under it, or nothing at all when there is none to show.
- */
-export function PortalStat({ icon: Icon, label, value, hint, href }) {
-  const body = (
-    <>
-      <span className="flex items-center gap-2 text-ink-70">
-        {Icon ? <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" /> : null}
-        <span className="u-eyebrow">{label}</span>
-      </span>
-      <p className="u-tabular mt-2 text-[1.75rem] font-extrabold leading-none tracking-[-0.02em] text-ink">{value}</p>
-      {hint ? <p className="mt-2 line-clamp-2 text-[0.8125rem] leading-[1.45] text-ink-45">{hint}</p> : null}
-    </>
-  );
-
-  if (!href) return <PortalPanel className="p-5">{body}</PortalPanel>;
-
-  return (
-    <Link href={href} className="u-card u-card-interactive block rounded-card bg-surface p-5">
-      {body}
-    </Link>
-  );
-}

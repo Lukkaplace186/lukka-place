@@ -110,9 +110,9 @@ export default function Header() {
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
             <SheetTrigger
               aria-label="Ouvrir le menu"
-              className="-ml-1 inline-flex h-11 w-11 items-center justify-center rounded-md text-ink transition-colors hover:bg-canvas-deep lg:hidden"
+              className="flex items-center justify-center rounded-md p-1.5 text-ink transition-colors hover:bg-canvas-deep lg:hidden"
             >
-              <Menu strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
+              <Menu strokeWidth={ICON_STROKE_WIDTH} className="h-7 w-7" />
             </SheetTrigger>
             <SheetContent side="left" className="flex w-[85vw] max-w-sm flex-col gap-0 bg-surface p-0">
               <SheetHeader className="border-b border-line px-5 py-4">
@@ -250,6 +250,49 @@ export default function Header() {
               <Search strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
             </Link>
           )}
+          {/* Account icon — sits directly left of the currency toggle at
+              every breakpoint (was previously a `lg:`-only, logged-in-only
+              affordance further right in this row; guest visitors had no
+              icon at all, only the text "Connexion" link below, and mobile
+              had no persistent account entry outside the hamburger Sheet).
+              Guest branch links straight to the real /compte/connexion
+              phone+password login — no separate signed-out affordance is
+              invented, just the same real destination made reachable from
+              here too. */}
+          {loggedIn ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                aria-label="Mon compte"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-line text-ink-70 transition-colors hover:border-blue hover:text-blue-deep sm:h-11 sm:w-11"
+              >
+                <User strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {ACCOUNT_LINKS.map(({ href, label, icon: Icon }) => (
+                  <DropdownMenuItem key={href} asChild>
+                    <Link href={href} className="flex items-center gap-2.5">
+                      <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
+                      {label}
+                    </Link>
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={() => logoutAction()} className="flex items-center gap-2.5">
+                  <LogOut strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
+                  Se déconnecter
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Link
+              href="/compte/connexion"
+              aria-label="Connexion"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-line text-ink-70 transition-colors hover:border-blue hover:text-blue-deep sm:h-11 sm:w-11"
+            >
+              <User strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+            </Link>
+          )}
+
           <CurrencyToggle />
 
           {/* Favoris — web/Design's header always shows this text link,
@@ -276,39 +319,6 @@ export default function Header() {
             <Mail strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
             Demandes
           </Link>
-
-          {loggedIn ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                aria-label="Mon compte"
-                className="hidden h-11 w-11 items-center justify-center rounded-full border border-line text-ink-70 transition-colors hover:border-blue hover:text-blue-deep lg:inline-flex"
-              >
-                <User strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {ACCOUNT_LINKS.map(({ href, label, icon: Icon }) => (
-                  <DropdownMenuItem key={href} asChild>
-                    <Link href={href} className="flex items-center gap-2.5">
-                      <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
-                      {label}
-                    </Link>
-                  </DropdownMenuItem>
-                ))}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => logoutAction()} className="flex items-center gap-2.5">
-                  <LogOut strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
-                  Se déconnecter
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ) : (
-            <Link
-              href="/compte/connexion"
-              className="hidden text-sm font-medium text-ink-70 transition-colors hover:text-blue-deep lg:inline-block"
-            >
-              Connexion
-            </Link>
-          )}
 
           <Link
             href="/compte/agent/inscription"

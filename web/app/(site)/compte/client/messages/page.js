@@ -6,7 +6,7 @@ import { getCustomerInquiries } from '@/lib/customerInquiries';
 import { getLocationHierarchySafe } from '@/lib/locations';
 import { getPopularCommunes } from '@/lib/listings';
 import { LEAD_STATUS_LABELS_FR } from '@/lib/adminLabels';
-import { listingImages } from '@/lib/listingView';
+import { listingImages, feedLocationLine } from '@/lib/listingView';
 import { formatPrice } from '@/lib/format';
 import { updatePropertyRequestAction } from '../actions';
 import InquiryThreads from './InquiryThreads';
@@ -119,9 +119,12 @@ export default async function MessagesPage() {
       : null,
     // Agent Demand Feed proposals — real listings agents have pitched
     // against this custom-search request (web/lib/customerInquiries.js).
-    // agencyName/reference are the same real `agents.username` /
-    // `properties.reference` columns SELECT_FIELDS (lib/listings.js) and
-    // the listing detail page already surface — nothing invented per-card.
+    // agencyName/agentPhone/beds/location are the same real
+    // `agents.username`/`agents.phone`/`properties.beds`/commune-amenity
+    // columns SELECT_FIELDS (lib/listings.js) and the listing detail page's
+    // own EnquiryCard/WhatsAppCTA/CallCTA already surface via the identical
+    // real-per-listing-number-with-central-fallback convention — nothing
+    // invented per-card.
     proposals: (proposals || []).map((property) => ({
       id: property.id,
       title: property.title,
@@ -129,6 +132,9 @@ export default async function MessagesPage() {
       image: listingImages(property)[0] || null,
       priceLabel: formatPrice(property.price, property.purpose, property.price_period),
       agencyName: property.agency_name || null,
+      agentPhone: property.agent_phone || null,
+      beds: property.beds != null ? property.beds : null,
+      location: feedLocationLine(property),
     })),
   }));
 

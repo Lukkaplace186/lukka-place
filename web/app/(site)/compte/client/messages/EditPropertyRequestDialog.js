@@ -61,7 +61,12 @@ export default function EditPropertyRequestDialog({
         showToast({ type: 'error', message: result.error });
         return;
       }
-      showToast({ type: 'success', message: 'Votre recherche a été mise à jour.' });
+      showToast({
+        type: 'success',
+        message: result.proposalsReset
+          ? 'Recherche mise à jour — nouvelles propositions réinitialisées.'
+          : 'Recherche mise à jour.',
+      });
       setOpen(false);
       router.refresh();
     });

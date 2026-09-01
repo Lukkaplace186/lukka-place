@@ -126,10 +126,18 @@ export async function assignLead(id, { agentId, assignedAgent }) {
  * after the fact through PATCH /admin/leads/:id. Only fields actually
  * present in `patch` are sent, so an omitted one is left untouched
  * server-side rather than overwritten with `undefined`.
+ *
+ * `proposals_reset` comes back `true` when this edit actually changed the
+ * commune: the engine compares old vs. new commune itself (never trusts a
+ * client-asserted flag) and, on a real change, clears every existing Agent
+ * Demand Feed pitch and reopens the request in the new commune — see
+ * routes/admin.js's PATCH /leads/:id and services/db.js's
+ * resetLeadProposals.
+ *
  * @param {number} id
  * @param {{transactionType?: string|null, commune?: string|null, priceMin?: number|null,
  *          priceMax?: number|null, bedrooms?: number|null, requirementsSummary?: string|null}} patch
- * @returns {Promise<{lead: Object}>}
+ * @returns {Promise<{lead: Object, proposals_reset: boolean}>}
  */
 export async function updateLeadRequirements(id, patch = {}) {
   const body = {};

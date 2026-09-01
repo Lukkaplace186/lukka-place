@@ -2,57 +2,67 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { MessageCircle, ArrowUpRight, ImageIcon, Inbox, CalendarDays, Check } from 'lucide-react';
+import { MessageCircle, ArrowUpRight, ImageIcon, Inbox, CalendarDays, Check, Phone, BedDouble, MapPin } from 'lucide-react';
 import SafeImage from '@/components/SafeImage';
 import { PortalPanel, PortalBadge } from '@/components/ClientPortalUI';
-import { buildWhatsAppLink, getCentralWhatsAppHref } from '@/lib/whatsapp';
+import { buildWhatsAppLink } from '@/lib/whatsapp';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import EditPropertyRequestDialog from './EditPropertyRequestDialog';
 
 const TRANSACTION_TYPE_LABELS_FR = { vente: 'Achat', location: 'Location' };
 
-// Mirrors services/db.js's real MAX_PITCHES_PER_LEAD — the actual cap
-// enforced server-side on Agent Demand Feed pitches, not a display-only
-// guess. Same duplication convention lib/adminLabels.js already uses for
-// LEAD_STATUSES/CONVERSATION_STATES (mirrored constants, kept in step by
-// hand, rather than an extra round-trip just to fetch one integer).
-const MAX_PROPOSALS_PER_LEAD = 7;
-
 /**
- * "2 ch. Location à Limete" — a real, data-derived title for a custom
- * search thread, built from the same structured columns the edit dialog
- * writes (transaction_type/commune/bedrooms). Falls back to a generic label
- * when none of those are set yet (a lead created before this data existed,
- * or one whose customer left every field blank) rather than presenting a
- * blank/fabricated specific commune.
+ * "Location · Limete · 2 ch. · Budget 843 $ – 960 $" — a compact title built
+ * from the same structured columns (commune/bedrooms/price_min/price_max/
+ * transaction_type) the edit dialog writes, pipe-separated to match this
+ * app's other multi-fact summary lines. The fallback condition intentionally
+ * checks only commune/price/bedrooms, not transaction_type — a lead can be
+ * meaningfully titled from commune+budget alone even if it somehow has no
+ * transaction type on file.
+ *
+ * A lead whose structured columns were never populated (created before this
+ * feature existed, or via the WhatsApp buyer assistant flow, which only
+ * ever wrote free text) falls back to its own real `requirements_summary`
+ * instead — never a blank/fabricated commune. Only a lead with neither gets
+ * the fully generic label.
  */
 function customSearchTitle(thread) {
-  if (!thread.transactionType && !thread.commune && thread.bedrooms == null) {
-    return 'Recherche personnalisée';
+  const hasStructured = thread.commune || thread.priceMin != null || thread.priceMax != null || thread.bedrooms != null;
+  if (hasStructured) {
+    const parts = [];
+    if (thread.transactionType) {
+      parts.push(TRANSACTION_TYPE_LABELS_FR[thread.transactionType] || thread.transactionType);
+    }
+    if (thread.commune) parts.push(thread.commune);
+    if (thread.bedrooms != null) parts.push(`${thread.bedrooms} ch.`);
+    const budget = budgetLabel(thread.priceMin, thread.priceMax);
+    if (budget) parts.push(`Budget ${budget}`);
+    return parts.join(' · ');
   }
-  const bedroomsPart = thread.bedrooms != null ? `${thread.bedrooms} ch. ` : '';
-  const transactionPart = TRANSACTION_TYPE_LABELS_FR[thread.transactionType] || 'Recherche';
-  return `${bedroomsPart}${transactionPart} à ${thread.commune || 'Kinshasa'}`;
+  return thread.summary || 'Recherche personnalisée';
 }
 
 /**
- * The 4-stage tracker for a custom search (Agent Demand Feed) thread, built
+ * The 3-stage tracker for a custom search (Agent Demand Feed) thread, built
  * entirely from real signals already on the lead: it was created (always
  * true once a thread exists), it is open to partner agents (true from the
  * same moment — GET /admin/leads/open lists it immediately, there is no
- * separate "activation" step to fabricate), it has drawn at least one real
- * pitch (`proposals`), and a visit has actually been scheduled/completed or
- * the lead converted. No stage is inferred from anything the UI invents.
+ * separate "activation" step to fabricate), and it has drawn real interest
+ * (`proposals`) — the step's own label carries the live count instead of a
+ * capacity number a customer has no context for (the 7-pitch cap is an
+ * internal Agent Demand Feed limit, not something to expose here).
  */
 function customSearchTrackerSteps(thread) {
   const proposalsCount = thread.proposals?.length || 0;
-  const visitPlanned = thread.isViewing || thread.status === 'CONVERTED';
+  const interestLabel =
+    proposalsCount > 0
+      ? `${proposalsCount} agence${proposalsCount > 1 ? 's' : ''} intéressée${proposalsCount > 1 ? 's' : ''}`
+      : "Agences en cours d'analyse";
   const steps = [
     { label: 'Demande envoyée', done: true },
-    { label: 'Transmis aux agences', done: true },
-    { label: `Propositions reçues (${proposalsCount}/${MAX_PROPOSALS_PER_LEAD})`, done: proposalsCount > 0 },
-    { label: 'Visite planifiée', done: visitPlanned },
+    { label: 'Diffusée aux agences', done: true },
+    { label: interestLabel, done: proposalsCount > 0 },
   ];
   const currentIndex = steps.findIndex((step) => !step.done);
   const activeIndex = currentIndex === -1 ? steps.length - 1 : currentIndex;
@@ -170,16 +180,28 @@ function customSearchStatus(thread) {
 }
 
 /**
- * Same central-number rule as every other WhatsApp CTA in this app (root
- * CLAUDE.md's Lead Routing Rules) — the message text carries the real
- * listing metadata (title, its own reference, price) instead of a per-listing
- * agent number.
+ * Same real-per-listing-number-with-central-fallback convention as
+ * EnquiryCard.js/WhatsAppCTA.js/CallCTA.js: `property.agentPhone` is the
+ * real `agents.phone` column (via `properties.agent_id`, web/lib/listings.js's
+ * SELECT_FIELDS — confirmed live, not the stale "no per-listing number
+ * exists" note in root CLAUDE.md's Lead Routing Rules, which predates the
+ * Phase 2/4 agent self-service work web/CLAUDE.md's Known Gaps documents).
+ * Falls back to Lukka Place's own central WhatsApp number when a proposal's
+ * agent has none on file, exactly like every other contact CTA in this app.
  */
-function proposalWhatsAppHref(property, leadId) {
+function proposalContactMessage(property, leadId) {
   const refPart = property.reference ? ` (Réf: ${property.reference})` : '';
-  return getCentralWhatsAppHref(
-    `Bonjour, je suis intéressé par la proposition « ${property.title} »${refPart} — ${property.priceLabel}, pour ma demande n° ${leadId}.`,
-  );
+  return `Bonjour, je suis intéressé par la proposition « ${property.title} »${refPart} — ${property.priceLabel}, pour ma demande n° ${leadId}.`;
+}
+
+function proposalWhatsAppHref(property, leadId, whatsappNumber) {
+  const phone = property.agentPhone || whatsappNumber;
+  return phone ? buildWhatsAppLink(phone, proposalContactMessage(property, leadId)) : null;
+}
+
+function proposalCallHref(property, whatsappNumber) {
+  const phone = property.agentPhone || whatsappNumber;
+  return phone ? `tel:${phone}` : null;
 }
 
 function Thumbnail({ src, alt, className }) {
@@ -242,6 +264,11 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
         <div className="flex max-h-[26rem] flex-col overflow-y-auto lg:max-h-none">
           {threads.map((thread) => {
             const isActive = active?.id === thread.id;
+            const title = thread.listing ? thread.listing.title : customSearchTitle(thread);
+            // Skip the preview line when it would just repeat the title
+            // verbatim — happens for a custom-search thread whose title
+            // fell back to its own raw summary (customSearchTitle above).
+            const showSummaryPreview = thread.summary && thread.summary !== title;
             return (
               <button
                 key={thread.id}
@@ -256,12 +283,10 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
                 <Thumbnail src={thread.listing?.image || null} alt="" className="h-[3.25rem] w-[3.25rem]" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline justify-between gap-2.5">
-                    <span className="truncate text-[0.875rem] font-bold text-ink">
-                      {thread.listing ? thread.listing.title : customSearchTitle(thread)}
-                    </span>
+                    <span className="truncate text-[0.875rem] font-bold text-ink">{title}</span>
                     <span className="u-tabular shrink-0 text-[0.75rem] text-ink-35">{thread.createdAtShort}</span>
                   </div>
-                  {thread.summary ? (
+                  {showSummaryPreview ? (
                     <p className="mt-1.5 line-clamp-2 text-[0.8125rem] leading-[1.45] text-ink-45">
                       {thread.summary}
                     </p>
@@ -333,7 +358,13 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
                     </a>
                   ) : null}
                 </>
-              ) : continueHref ? (
+              ) : active.listing && continueHref ? (
+                // Custom-search threads deliberately don't get this generic
+                // "continue on WhatsApp" button any more — each real
+                // proposal now has its own direct "Contacter l'agence" CTA
+                // below, which is the more specific, more useful action.
+                // Kept for listing-attached threads, which have no proposal
+                // cards and would otherwise lose their only contact path.
                 <a
                   href={continueHref}
                   target="_blank"
@@ -452,7 +483,8 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
                 </p>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   {active.proposals.map((property) => {
-                    const proposalHref = proposalWhatsAppHref(property, active.id);
+                    const whatsappHref = proposalWhatsAppHref(property, active.id, whatsappNumber);
+                    const callHref = proposalCallHref(property, whatsappNumber);
                     return (
                       <div
                         key={property.id}
@@ -481,20 +513,45 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
                             {property.title}
                           </Link>
                           <p className="u-tabular text-[0.9375rem] font-bold text-blue-deep">{property.priceLabel}</p>
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.75rem] text-ink-45">
+                            {property.beds != null ? (
+                              <span className="inline-flex items-center gap-1">
+                                <BedDouble strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
+                                {property.beds} ch.
+                              </span>
+                            ) : null}
+                            {property.location ? (
+                              <span className="inline-flex items-center gap-1">
+                                <MapPin strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
+                                {property.location}
+                              </span>
+                            ) : null}
+                          </div>
                           {property.agencyName ? (
                             <p className="text-[0.75rem] text-ink-45">Proposé par {property.agencyName}</p>
                           ) : null}
-                          {proposalHref && (
-                            <a
-                              href={proposalHref}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="mt-2 inline-flex items-center justify-center gap-2 rounded-full bg-green px-4 py-2.5 text-[0.8125rem] font-semibold text-white transition-colors hover:bg-green-deep"
-                            >
-                              <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
-                              Discuter de cette offre sur WhatsApp
-                            </a>
-                          )}
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {whatsappHref && (
+                              <a
+                                href={whatsappHref}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-green px-4 py-2.5 text-[0.8125rem] font-semibold text-white transition-colors hover:bg-green-deep"
+                              >
+                                <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
+                                Contacter l&apos;agence
+                              </a>
+                            )}
+                            {callHref && (
+                              <a
+                                href={callHref}
+                                className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 py-2.5 text-[0.8125rem] font-semibold text-ink-70 shadow-[inset_0_0_0_1px_var(--line)] transition-colors hover:bg-canvas-alt"
+                              >
+                                <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
+                                Appeler
+                              </a>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );

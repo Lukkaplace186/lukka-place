@@ -205,15 +205,23 @@ export async function updatePropertyRequestAction(leadId, formData) {
     return { ok: false, error: 'Le budget minimum doit être inférieur ou égal au budget maximum.' };
   }
 
+  let proposalsReset = false;
   try {
-    await updateLeadRequirements(numericLeadId, {
+    // The engine decides `proposals_reset` itself — by comparing this
+    // lead's stored commune against the one being written, never from
+    // anything computed here — and clears every existing Agent Demand Feed
+    // pitch when it actually changed (routes/admin.js's PATCH /leads/:id,
+    // services/db.js's resetLeadProposals): a proposal pitched by an agent
+    // covering the old commune is no longer relevant once the request has
+    // moved elsewhere.
+    ({ proposals_reset: proposalsReset } = await updateLeadRequirements(numericLeadId, {
       transactionType,
       commune,
       priceMin: Number.isFinite(parsedBudgetMin) ? parsedBudgetMin : null,
       priceMax: Number.isFinite(parsedBudgetMax) ? parsedBudgetMax : null,
       bedrooms: Number.isFinite(parsedBedrooms) ? parsedBedrooms : null,
       requirementsSummary: requirementsSummary || null,
-    });
+    }));
   } catch (error) {
     console.warn('[compte/client] updatePropertyRequestAction failed:', error.message);
     return { ok: false, error: "Votre demande n'a pas pu être mise à jour. Réessayez dans un instant." };
@@ -223,5 +231,5 @@ export async function updatePropertyRequestAction(leadId, formData) {
   revalidatePath('/compte/client/demandes');
   revalidatePath('/compte/client');
 
-  return { ok: true };
+  return { ok: true, proposalsReset: Boolean(proposalsReset) };
 }

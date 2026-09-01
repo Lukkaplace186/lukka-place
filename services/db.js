@@ -1278,6 +1278,36 @@ function updateLeadRequirements(id, patch = {}) {
   return getLead(id);
 }
 
+/**
+ * Commune-sensitive reset — called when a "Modifier ma recherche" edit
+ * (routes/admin.js's PATCH /leads/:id) actually changes the commune. Every
+ * existing pitch was made by an agent covering the *old* commune (Agent
+ * Demand Feed's GET /leads/open filters by commune), so it's no longer a
+ * relevant proposal once the request has moved elsewhere — kept around it
+ * would just show the customer stale offers for a neighbourhood they're no
+ * longer searching in. A hard delete, not a soft-archive flag: no archived
+ * table/column exists anywhere else in this schema, and nothing currently
+ * reads a lead's past proposals once they're gone (getLeadProposals only
+ * ever fetches the live set).
+ *
+ * Resets `pitches_count` to 0 (the real gate `listOpenLeads`/
+ * `createLeadProposal` check against MAX_PITCHES_PER_LEAD) and `status`
+ * back to 'NEW' so the request is fully eligible again in the new commune's
+ * open-lead feed, exactly as if freshly submitted there.
+ *
+ * @param {number} id
+ * @returns {Object} The updated lead row.
+ */
+function resetLeadProposals(id) {
+  db.transaction(() => {
+    db.prepare('DELETE FROM lead_proposals WHERE lead_id = ?').run(id);
+    db.prepare(
+      `UPDATE leads SET pitches_count = 0, status = 'NEW', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+    ).run(id);
+  })();
+  return getLead(id);
+}
+
 function getLeadsByStatus(status, limit = 50) {
   return status
     ? db.prepare('SELECT * FROM leads WHERE status = ? ORDER BY id DESC LIMIT ?').all(status, limit)
@@ -1657,6 +1687,7 @@ module.exports = {
   updateLeadStatus,
   assignLead,
   updateLeadRequirements,
+  resetLeadProposals,
   LEAD_REQUIREMENT_FIELDS,
   getLeadsByStatus,
   listLeads,

@@ -298,7 +298,8 @@ router.get('/leads/:id', (req, res) => {
 
 router.patch('/leads/:id', (req, res) => {
   const id = Number.parseInt(req.params.id, 10);
-  if (!Number.isFinite(id) || !db.getLead(id)) {
+  const existingLead = Number.isFinite(id) ? db.getLead(id) : null;
+  if (!existingLead) {
     return res.status(404).json({ success: false, error: 'Lead not found.' });
   }
 
@@ -336,6 +337,16 @@ router.patch('/leads/:id', (req, res) => {
     });
   }
 
+  // Commune-sensitive reset: decided here, against the row fetched *before*
+  // any write above, never from anything the caller asserts — a client
+  // claiming "commune changed" is not trustworthy, the engine's own before/
+  // after comparison is. Only fires when this patch actually carries a
+  // commune (every other PATCH caller — status changes, Request Assignment
+  // Routing — never touches this field, so `undefined` correctly means
+  // "leave it alone", same as updateLeadRequirements' own convention.
+  const communeChanged =
+    requirementsPatch.commune !== undefined && requirementsPatch.commune !== existingLead.commune;
+
   try {
     if (status !== undefined) db.updateLeadStatus(id, status);
     // Admin dashboard's Request Assignment Routing — web/ resolves the real
@@ -346,7 +357,11 @@ router.patch('/leads/:id', (req, res) => {
       db.assignLead(id, { agentId: agentId ?? null, assignedAgent: assignedAgent ?? null });
     }
     if (hasRequirementsPatch) db.updateLeadRequirements(id, requirementsPatch);
-    return res.json({ success: true, lead: db.getLead(id) });
+    // Runs after updateLeadRequirements so the reset's own status='NEW' /
+    // pitches_count=0 win over anything the requirements patch itself set —
+    // a stale pitch count is exactly what this is meant to fix.
+    if (communeChanged) db.resetLeadProposals(id);
+    return res.json({ success: true, lead: db.getLead(id), proposals_reset: communeChanged });
   } catch (err) {
     return res.status(400).json({ success: false, error: err.message });
   }

@@ -3029,6 +3029,44 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(leadEmptyPatchResp.status, 400);
   });
 
+  console.log('\n15f-bis. PATCH /admin/leads/:id — commune-sensitive proposal reset (customer "Modifier ma recherche")');
+
+  const resetTestLead = dbService.createLead({
+    wa_id: '243930000099', commune: 'Limete', transaction_type: 'location', bedrooms: 2, status: 'QUALIFIED',
+  });
+  dbService.createLeadProposal({ leadId: resetTestLead.id, agentId: 501, propertyId: 9001 });
+  check('setup: the lead has one real Agent Demand Feed pitch recorded before any edit', () => {
+    assert.strictEqual(dbService.getLead(resetTestLead.id).pitches_count, 1);
+    assert.strictEqual(dbService.getLeadProposals([resetTestLead.id]).length, 1);
+  });
+
+  const sameCommuneResp = await adminRequest('PATCH', `/admin/leads/${resetTestLead.id}`, {
+    commune: 'Limete', price_min: 600,
+  });
+  check('editing without changing the commune keeps existing proposals untouched', () => {
+    assert.strictEqual(sameCommuneResp.status, 200);
+    assert.strictEqual(sameCommuneResp.body.proposals_reset, false);
+    assert.strictEqual(sameCommuneResp.body.lead.pitches_count, 1);
+    assert.strictEqual(sameCommuneResp.body.lead.status, 'QUALIFIED');
+    assert.strictEqual(dbService.getLeadProposals([resetTestLead.id]).length, 1);
+  });
+
+  const communeChangeResp = await adminRequest('PATCH', `/admin/leads/${resetTestLead.id}`, { commune: 'Gombe' });
+  check('editing to a different commune clears every existing proposal and reopens the request', () => {
+    assert.strictEqual(communeChangeResp.status, 200);
+    assert.strictEqual(communeChangeResp.body.proposals_reset, true);
+    assert.strictEqual(communeChangeResp.body.lead.commune, 'Gombe');
+    assert.strictEqual(communeChangeResp.body.lead.pitches_count, 0);
+    assert.strictEqual(communeChangeResp.body.lead.status, 'NEW');
+    assert.strictEqual(dbService.getLeadProposals([resetTestLead.id]).length, 0);
+  });
+
+  const noCommuneFieldResp = await adminRequest('PATCH', `/admin/leads/${resetTestLead.id}`, { bedrooms: 3 });
+  check('a patch that never mentions commune is never treated as a commune change', () => {
+    assert.strictEqual(noCommuneFieldResp.status, 200);
+    assert.strictEqual(noCommuneFieldResp.body.proposals_reset, false);
+  });
+
   console.log('\n15g. POST /admin/leads — agent storefront inquiry form (web/)');
 
   httpCalls.length = 0;

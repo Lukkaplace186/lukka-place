@@ -2,11 +2,17 @@ import Link from 'next/link';
 import { BadgeCheck, ArrowUpRight, Check, Circle } from 'lucide-react';
 import { getCurrentAgentId } from '@/lib/agentSession';
 import { getAgentDashboardContext } from '@/lib/agentDashboard';
+import { getLocationHierarchySafe } from '@/lib/locations';
 import { formatPhoneDisplay } from '@/lib/phone';
 import { SITE_URL, ICON_STROKE_WIDTH } from '@/lib/constants';
-import AgentAvatar from '@/components/AgentAvatar';
+import AgentAvatarUpload from '@/components/AgentAvatarUpload';
 import AgentPageHeader from '@/components/AgentPageHeader';
-import { updateAgentIdentityAction, changeAgentPasswordAction } from '../actions';
+import {
+  updateAgentIdentityAction,
+  changeAgentPasswordAction,
+  updateOwnCommunesAction,
+  updateWorkingHoursAction,
+} from '../actions';
 
 const ERROR_MESSAGES = {
   too_short: 'Le nouveau mot de passe doit contenir au moins 8 caractères.',
@@ -22,15 +28,21 @@ export default async function AgentSettingsPage({ searchParams }) {
   const passwordSuccess = params.success === '1';
 
   const agentId = await getCurrentAgentId();
-  const { agent, completion } = await getAgentDashboardContext(agentId);
+  const [{ agent, completion }, { communes, degraded }] = await Promise.all([
+    getAgentDashboardContext(agentId),
+    getLocationHierarchySafe(),
+  ]);
 
   const profileUrl = `${SITE_URL}/agents/${agent.id}`;
+  const selectedCommunes = new Set(agent.primary_communes || []);
+  const boundUpdateCommunes = updateOwnCommunesAction.bind(null, communes);
 
   return (
     <>
       <AgentPageHeader title="Paramètres" newLeadsCount={0} />
 
       <div className="grid grid-cols-1 gap-6 px-5 py-7 sm:px-8 lg:grid-cols-[minmax(0,1fr)_22.5rem] lg:items-start">
+        <div className="flex flex-col gap-6">
         <div className="u-card flex flex-col gap-5 rounded-card bg-surface p-6">
           <div>
             <h2 className="text-[1.125rem] font-bold text-ink">Identité de l&apos;agence</h2>
@@ -39,15 +51,7 @@ export default async function AgentSettingsPage({ searchParams }) {
             </p>
           </div>
 
-          <div className="flex items-start gap-5">
-            <div className="h-[6.5rem] w-[6.5rem] shrink-0 overflow-hidden rounded-card bg-canvas-deep">
-              <AgentAvatar src={agent.image} alt="" />
-            </div>
-            <p className="text-[0.8125rem] leading-relaxed text-ink-45">
-              Votre photo de profil est gérée par l&apos;équipe Lukka Place — envoyez-la sur WhatsApp et elle sera
-              mise en ligne. Il n&apos;y a pas encore de photo de couverture sur les pages agent.
-            </p>
-          </div>
+          <AgentAvatarUpload initialSrc={agent.image} />
 
           <form action={updateAgentIdentityAction} className="flex flex-col gap-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -132,6 +136,79 @@ export default async function AgentSettingsPage({ searchParams }) {
               </Link>
             </div>
           </form>
+        </div>
+
+        <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-6">
+          <div>
+            <h2 className="text-[1.125rem] font-bold text-ink">Communes couvertes</h2>
+            <p className="mt-0.5 text-[0.8125rem] text-ink-45">
+              Les communes où vous proposez des biens, affichées sur votre page publique.
+            </p>
+          </div>
+
+          {degraded ? (
+            <p className="text-[0.8125rem] text-ink-45">
+              Liste des communes indisponible pour le moment. Réessayez plus tard.
+            </p>
+          ) : (
+            <form action={boundUpdateCommunes} className="flex flex-col gap-4">
+              <div className="grid max-h-56 grid-cols-2 gap-x-4 gap-y-2 overflow-y-auto sm:grid-cols-3">
+                {communes.map((commune) => (
+                  <label key={commune} className="flex items-center gap-2 text-[0.8125rem] text-ink-70">
+                    <input type="checkbox" name="communes" value={commune} defaultChecked={selectedCommunes.has(commune)} />
+                    {commune}
+                  </label>
+                ))}
+              </div>
+
+              {saved === 'communes' && (
+                <p className="text-sm font-semibold text-success" role="status">
+                  Communes mises à jour.
+                </p>
+              )}
+
+              <button
+                type="submit"
+                className="u-btn-primary u-press h-10 self-start rounded-lg bg-blue px-5 text-sm font-bold text-white"
+              >
+                Enregistrer
+              </button>
+            </form>
+          )}
+        </div>
+
+        <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-6">
+          <div>
+            <h2 className="text-[1.125rem] font-bold text-ink">Horaires</h2>
+            <p className="mt-0.5 text-[0.8125rem] text-ink-45">
+              Vos jours et heures de disponibilité, affichés sur votre page publique.
+            </p>
+          </div>
+
+          <form action={updateWorkingHoursAction} className="flex flex-col gap-3">
+            <input
+              type="text"
+              name="working_hours"
+              defaultValue={agent.working_hours || ''}
+              placeholder="Lundi–Samedi, 8h–19h"
+              maxLength={200}
+              className="u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35"
+            />
+
+            {saved === 'hours' && (
+              <p className="text-sm font-semibold text-success" role="status">
+                Horaires mis à jour.
+              </p>
+            )}
+
+            <button
+              type="submit"
+              className="u-btn-secondary u-press h-10 self-start rounded-lg px-5 text-sm font-bold text-ink"
+            >
+              Enregistrer
+            </button>
+          </form>
+        </div>
         </div>
 
         <div className="flex flex-col gap-6">

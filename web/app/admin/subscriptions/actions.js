@@ -4,10 +4,73 @@ import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { getPool } from '@/lib/db';
 import { ADMIN_SESSION_COOKIE, isValidSessionToken } from '@/lib/adminAuth';
+import { createPackage, updatePackage, assignPackageToAgent, PACKAGE_TERMS } from '@/lib/subscriptions';
 
 async function assertAdminSession() {
   const token = (await cookies()).get(ADMIN_SESSION_COOKIE)?.value;
   if (!isValidSessionToken(token)) throw new Error('Not authenticated');
+}
+
+function readPackageForm(formData) {
+  const title = String(formData.get('title') || '').trim();
+  const price = Number.parseFloat(formData.get('price'));
+  const term = String(formData.get('term') || '');
+  const numberOfPropertyRaw = formData.get('number_of_property');
+  const numberOfProperty = numberOfPropertyRaw ? Number.parseInt(numberOfPropertyRaw, 10) : null;
+  const isTrial = formData.get('is_trial') === 'on';
+  const trialDays = Number.parseInt(formData.get('trial_days'), 10) || 0;
+
+  if (!title) throw new Error('Le nom du forfait est obligatoire.');
+  if (!Number.isFinite(price) || price < 0) throw new Error('Indiquez un prix valide.');
+  if (!PACKAGE_TERMS.includes(term)) throw new Error(`term must be one of: ${PACKAGE_TERMS.join(', ')}`);
+
+  return { title, price, term, numberOfProperty, isTrial, trialDays };
+}
+
+export async function createPackageAction(formData) {
+  await assertAdminSession();
+  await createPackage(readPackageForm(formData));
+  revalidatePath('/admin/subscriptions');
+}
+
+export async function updatePackageAction(packageId, formData) {
+  await assertAdminSession();
+  const status = Number.parseInt(formData.get('status'), 10);
+  await updatePackage(packageId, { ...readPackageForm(formData), status: [0, 1].includes(status) ? status : 1 });
+  revalidatePath('/admin/subscriptions');
+}
+
+/**
+ * Manual payment ledger — the admin records what was actually agreed/paid
+ * (price/method/transaction reference) at the moment they assign a package,
+ * since this app has no payment gateway of its own (per the product
+ * decision behind this feature: manual entry, not a real processor).
+ */
+export async function assignPackageAction(formData) {
+  await assertAdminSession();
+
+  const agentId = Number.parseInt(formData.get('agent_id'), 10);
+  const packageId = Number.parseInt(formData.get('package_id'), 10);
+  if (!Number.isFinite(agentId)) throw new Error('agent_id is required');
+  if (!Number.isFinite(packageId)) throw new Error('package_id is required');
+
+  const priceRaw = formData.get('price');
+  const price = priceRaw ? Number.parseFloat(priceRaw) : null;
+
+  await assignPackageToAgent({
+    agentId,
+    packageId,
+    isTrial: formData.get('is_trial') === 'on',
+    price: Number.isFinite(price) ? price : null,
+    currency: String(formData.get('currency') || '').trim() || null,
+    currencySymbol: String(formData.get('currency_symbol') || '').trim() || null,
+    paymentMethod: String(formData.get('payment_method') || '').trim() || null,
+    transactionId: String(formData.get('transaction_id') || '').trim() || null,
+    receipt: String(formData.get('receipt') || '').trim() || null,
+  });
+
+  revalidatePath('/admin/subscriptions');
+  revalidatePath('/admin/agents');
 }
 
 /**

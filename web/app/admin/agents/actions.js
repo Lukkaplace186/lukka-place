@@ -69,17 +69,27 @@ export async function assignAgentToListingAction(propertyId, agentId) {
  * canonical commune list (getLocationHierarchySafe(), the engine's own
  * kinshasa_locations.json-backed hierarchy) — never free text — so a stray
  * checkbox value can't smuggle an invented commune name onto a public page.
+ *
+ * Called directly from AgentCommunesForm.js (a client component), not just
+ * as a plain `<form action>`, so it can drive a pending state and a toast —
+ * same {ok, error} result shape every other client-invoked action in web/
+ * uses (see app/compte/agent/actions.js).
  */
 export async function updateAgentCommunesAction(agentId, validCommunes, formData) {
-  await assertAdminSession();
-  const validSet = new Set(validCommunes);
-  const selected = formData.getAll('communes').filter((c) => validSet.has(c));
+  try {
+    await assertAdminSession();
+    const validSet = new Set(validCommunes);
+    const selected = formData.getAll('communes').filter((c) => validSet.has(c));
 
-  const pool = getPool();
-  await pool.query('UPDATE agents SET primary_communes = $1, updated_at = NOW() WHERE id = $2', [
-    selected,
-    agentId,
-  ]);
-  revalidatePath('/admin/agents');
-  revalidatePath(`/agents/${agentId}`);
+    const pool = getPool();
+    await pool.query('UPDATE agents SET primary_communes = $1, updated_at = NOW() WHERE id = $2', [
+      selected,
+      agentId,
+    ]);
+    revalidatePath('/admin/agents');
+    revalidatePath(`/agents/${agentId}`);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message || 'La mise à jour a échoué.' };
+  }
 }

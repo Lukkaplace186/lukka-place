@@ -9,7 +9,7 @@ import {
   removeSavedSearch,
   updateCustomerName,
 } from '@/lib/customers';
-import { createLead } from '@/lib/adminApi';
+import { createLead, getLead, updateLeadRequirements } from '@/lib/adminApi';
 import { buildRequirementsSummary } from '@/lib/customerPortal';
 
 /**
@@ -70,10 +70,14 @@ export async function updateProfileNameAction(formData) {
  * conversations/leads dashboard exactly like any other lead, and comes back
  * to the customer through getCustomerInquiries() scoped to their own phone.
  *
- * The engine's POST /admin/leads accepts `requirements_summary` but not the
- * structured `transaction_type`/`commune`/`price_min`/`price_max`/`bedrooms`
- * columns, so the form's real values are composed into one readable summary
- * string (buildRequirementsSummary) rather than silently dropped.
+ * POST /admin/leads now also accepts the structured
+ * `transaction_type`/`commune`/`price_min`/`price_max`/`bedrooms` columns
+ * (Agent Demand Feed needs real columns to filter on, not just prose) — the
+ * full free-text summary (buildRequirementsSummary) is still sent too, so
+ * nothing the customer typed is lost. The form collects multiple communes
+ * (checkboxes); only the single `commune` TEXT column exists, so the first
+ * selected commune becomes the structured value and the complete list stays
+ * in the summary for a human reading it.
  *
  * `wa_id` is the authenticated customer's own stored phone — already in the
  * digits-only shape the engine validates (lib/customerInquiries.js's doc
@@ -115,12 +119,21 @@ export async function submitPropertyRequestAction(_prevState, formData) {
     notes,
   });
 
+  const parsedBedrooms = Number.parseInt(bedrooms, 10);
+  const parsedBudgetMin = Number.parseFloat(budgetMin);
+  const parsedBudgetMax = Number.parseFloat(budgetMax);
+
   try {
     await createLead({
       waId: customer.phone,
       name: customer.full_name || null,
       source: 'espace-client-request',
       requirementsSummary,
+      transactionType,
+      commune: communes[0],
+      priceMin: Number.isFinite(parsedBudgetMin) ? parsedBudgetMin : null,
+      priceMax: Number.isFinite(parsedBudgetMax) ? parsedBudgetMax : null,
+      bedrooms: Number.isFinite(parsedBedrooms) ? parsedBedrooms : null,
     });
   } catch (error) {
     console.warn('[compte/client] submitPropertyRequestAction failed:', error.message);
@@ -136,4 +149,79 @@ export async function submitPropertyRequestAction(_prevState, formData) {
   revalidatePath('/compte/demandes');
 
   return { status: 'success', message: 'Votre demande a été transmise aux agences partenaires.' };
+}
+
+/**
+ * "Modifier ma recherche" — a customer editing the structured fields on
+ * their own already-submitted lead (Messages & Visites detail panel).
+ * `leadId` alone is never enough authorization: it's re-fetched from the
+ * engine and its own `wa_id` is checked against this session's real
+ * `customer.phone` before any write — the same non-negotiable
+ * server-side-only binding rule every other action here follows (a
+ * client-supplied leadId must never let one customer edit another's lead).
+ *
+ * Returns a plain {ok, error} result rather than throwing/redirecting — it's
+ * called imperatively from EditPropertyRequestDialog via useTransition, same
+ * contract as markListingSoldAction (web/app/compte/agent/actions.js).
+ */
+export async function updatePropertyRequestAction(leadId, formData) {
+  const customerId = await requireCustomerId();
+  const customer = await getCustomerById(customerId);
+  if (!customer) redirect('/compte/connexion?next=/compte/client/messages');
+
+  const numericLeadId = Number.parseInt(leadId, 10);
+  if (!Number.isFinite(numericLeadId)) {
+    return { ok: false, error: 'Demande introuvable.' };
+  }
+
+  let lead;
+  try {
+    ({ lead } = await getLead(numericLeadId));
+  } catch (error) {
+    return { ok: false, error: 'Demande introuvable.' };
+  }
+  if (!lead || lead.wa_id !== customer.phone) {
+    return { ok: false, error: "Cette demande n'appartient pas à votre compte." };
+  }
+
+  const transactionType = String(formData.get('transactionType') || '');
+  const commune = String(formData.get('commune') || '');
+  const bedroomsRaw = String(formData.get('bedrooms') || '');
+  const budgetMin = String(formData.get('budgetMin') || '');
+  const budgetMax = String(formData.get('budgetMax') || '');
+  const requirementsSummary = String(formData.get('requirementsSummary') || '').trim();
+
+  if (!['vente', 'location'].includes(transactionType)) {
+    return { ok: false, error: 'Choisissez d’abord si vous souhaitez acheter ou louer.' };
+  }
+  if (!commune) {
+    return { ok: false, error: 'Sélectionnez une commune.' };
+  }
+
+  const parsedBedrooms = Number.parseInt(bedroomsRaw, 10);
+  const parsedBudgetMin = Number.parseFloat(budgetMin);
+  const parsedBudgetMax = Number.parseFloat(budgetMax);
+  if (Number.isFinite(parsedBudgetMin) && Number.isFinite(parsedBudgetMax) && parsedBudgetMin > parsedBudgetMax) {
+    return { ok: false, error: 'Le budget minimum doit être inférieur ou égal au budget maximum.' };
+  }
+
+  try {
+    await updateLeadRequirements(numericLeadId, {
+      transactionType,
+      commune,
+      priceMin: Number.isFinite(parsedBudgetMin) ? parsedBudgetMin : null,
+      priceMax: Number.isFinite(parsedBudgetMax) ? parsedBudgetMax : null,
+      bedrooms: Number.isFinite(parsedBedrooms) ? parsedBedrooms : null,
+      requirementsSummary: requirementsSummary || null,
+    });
+  } catch (error) {
+    console.warn('[compte/client] updatePropertyRequestAction failed:', error.message);
+    return { ok: false, error: "Votre demande n'a pas pu être mise à jour. Réessayez dans un instant." };
+  }
+
+  revalidatePath('/compte/client/messages');
+  revalidatePath('/compte/client/demandes');
+  revalidatePath('/compte/client');
+
+  return { ok: true };
 }

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { getCurrentAgentId } from '@/lib/agentSession';
 import { getAgentDashboardContext } from '@/lib/agentDashboard';
 import AgentSidebar from '@/components/AgentSidebar';
+import { ToastProvider } from '@/components/Toast';
 import { agentLogoutAction } from './actions';
 
 export const metadata = {
@@ -34,7 +35,7 @@ export default async function AgentDashboardLayout({ children }) {
   const context = await getAgentDashboardContext(agentId);
   if (!context) redirect('/compte/agent/connexion');
 
-  const { agent, listings, newLeadsCount, completion, displayName } = context;
+  const { agent, listings, newLeadsCount, pendingVisitsCount, completion, displayName } = context;
 
   const name = displayName || agent.username || 'Agent';
   // Initials are built from LETTERS only. An agent who hasn't set a name yet
@@ -56,10 +57,13 @@ export default async function AgentDashboardLayout({ children }) {
         agentInitials={initials}
         listingsCount={listings.length}
         newLeadsCount={newLeadsCount}
+        pendingVisitsCount={pendingVisitsCount}
         completion={completion}
         logoutAction={agentLogoutAction}
       />
-      <div className="flex min-w-0 flex-1 flex-col pb-16 lg:pb-0">{children}</div>
+      <ToastProvider>
+        <div className="flex min-w-0 flex-1 flex-col pb-16 lg:pb-0">{children}</div>
+      </ToastProvider>
     </div>
   );
 }

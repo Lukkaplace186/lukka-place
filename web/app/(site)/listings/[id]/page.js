@@ -92,8 +92,11 @@ function AgentProfileLink({ agentId }) {
  * search when the commune has nothing else, and says so rather than
  * implying the results are nearby.
  */
-export default async function ListingDetailPage({ params }) {
+export default async function ListingDetailPage({ params, searchParams }) {
   const { id } = await params;
+  const sp = await searchParams;
+  const visitSent = sp.visit_sent === '1';
+  const visitError = typeof sp.visit_error === 'string' ? sp.visit_error : null;
   const listing = await getListingById(id);
 
   // Covers both "no such id" and "exists but is not approved" —
@@ -205,7 +208,7 @@ export default async function ListingDetailPage({ params }) {
 
             {/* Mobile only: the sticky right rail is off-screen below lg. */}
             <div className="lg:hidden">
-              <EnquiryCard listing={listing} />
+              <EnquiryCard listing={listing} visitSent={visitSent} visitError={visitError} />
               <AgentProfileLink agentId={listing.agent_id} />
             </div>
 
@@ -246,7 +249,7 @@ export default async function ListingDetailPage({ params }) {
           </div>
 
           <aside className="hidden lg:sticky lg:top-24 lg:flex lg:flex-col lg:gap-5">
-            <EnquiryCard listing={listing} />
+            <EnquiryCard listing={listing} visitSent={visitSent} visitError={visitError} />
             <AgentProfileLink agentId={listing.agent_id} />
             <PricePanel listing={listing} />
           </aside>

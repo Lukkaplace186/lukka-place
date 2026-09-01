@@ -51,7 +51,7 @@ export async function getOwnListingsForDashboard(agentId) {
   const pool = getPool();
   const { rows } = await pool.query(
     `SELECT p.id, p.price, p.purpose, p.approve_status, p.listing_status, p.featured_image, p.quartier,
-            pc.title
+            p.sold_price, pc.title
      FROM properties p
      JOIN property_contents pc ON pc.property_id = p.id AND pc.language_id = 20
      WHERE p.agent_id = $1
@@ -129,6 +129,32 @@ export async function updateAgentIdentity(agentId, { firstName, lastName, bio, v
       );
     }
   }
+}
+
+export async function updateAgentImage(agentId, imageUrl) {
+  const pool = getPool();
+  await pool.query('UPDATE agents SET image = $1, updated_at = NOW() WHERE id = $2', [imageUrl, agentId]);
+}
+
+/**
+ * Same write admin's updateAgentCommunesAction (web/app/admin/agents/actions.js)
+ * already proves against agents.primary_communes — pulled in here so the
+ * agent's own self-service action can share it instead of re-deriving the SQL.
+ */
+export async function updateAgentCommunes(agentId, communes) {
+  const pool = getPool();
+  await pool.query('UPDATE agents SET primary_communes = $1, updated_at = NOW() WHERE id = $2', [
+    communes,
+    agentId,
+  ]);
+}
+
+export async function updateAgentWorkingHours(agentId, workingHours) {
+  const pool = getPool();
+  await pool.query('UPDATE agents SET working_hours = $1, updated_at = NOW() WHERE id = $2', [
+    workingHours || null,
+    agentId,
+  ]);
 }
 
 /**

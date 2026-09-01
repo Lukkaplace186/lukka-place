@@ -84,16 +84,22 @@ export async function sendManualReply(id, text) {
  * assistant's tool-calling layer already follows (see root CLAUDE.md).
  * @returns {Promise<{total: number, limit: number, offset: number, count: number, data: Object[]}>}
  */
-export async function listLeads({ status, propertyIds, assignedAgent, waId, limit, offset } = {}) {
+export async function listLeads({ status, propertyIds, assignedAgent, agentId, waId, limit, offset } = {}) {
   const params = new URLSearchParams();
   if (status) params.set('status', status);
   if (propertyIds?.length) params.set('property_ids', propertyIds.join(','));
   if (assignedAgent) params.set('assigned_agent', assignedAgent);
+  if (agentId != null) params.set('agent_id', String(agentId));
   if (waId) params.set('wa_id', waId);
   if (limit) params.set('limit', String(limit));
   if (offset) params.set('offset', String(offset));
   const query = params.toString();
   return engineFetch(`/admin/leads${query ? `?${query}` : ''}`);
+}
+
+/** Admin Prospects detail page (/admin/leads/[id]). @returns {Promise<{lead: Object}>} */
+export async function getLead(id) {
+  return engineFetch(`/admin/leads/${id}`);
 }
 
 /** @returns {Promise<{lead: Object}>} */
@@ -102,10 +108,93 @@ export async function updateLeadStatus(id, status) {
 }
 
 /**
+ * Admin dashboard's Request Assignment Routing. `agentId: null` un-assigns.
+ * @param {number} id
+ * @param {{agentId: number|null, assignedAgent: string|null}} patch
+ * @returns {Promise<{lead: Object}>}
+ */
+export async function assignLead(id, { agentId, assignedAgent }) {
+  return engineFetch(`/admin/leads/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ agent_id: agentId, assigned_agent: assignedAgent }),
+  });
+}
+
+/**
+ * Customer-side "Modifier ma recherche" edit (Messages & Visites) — the same
+ * structured columns POST /leads already writes on creation, now editable
+ * after the fact through PATCH /admin/leads/:id. Only fields actually
+ * present in `patch` are sent, so an omitted one is left untouched
+ * server-side rather than overwritten with `undefined`.
+ * @param {number} id
+ * @param {{transactionType?: string|null, commune?: string|null, priceMin?: number|null,
+ *          priceMax?: number|null, bedrooms?: number|null, requirementsSummary?: string|null}} patch
+ * @returns {Promise<{lead: Object}>}
+ */
+export async function updateLeadRequirements(id, patch = {}) {
+  const body = {};
+  if (patch.transactionType !== undefined) body.transaction_type = patch.transactionType;
+  if (patch.commune !== undefined) body.commune = patch.commune;
+  if (patch.priceMin !== undefined) body.price_min = patch.priceMin;
+  if (patch.priceMax !== undefined) body.price_max = patch.priceMax;
+  if (patch.bedrooms !== undefined) body.bedrooms = patch.bedrooms;
+  if (patch.requirementsSummary !== undefined) body.requirements_summary = patch.requirementsSummary;
+  return engineFetch(`/admin/leads/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+}
+
+/**
+ * Agent dashboard's Visit Scheduler — same propertyIds/assignedAgent
+ * ownership-scoping convention as listLeads above (OR'd on the engine side).
+ * @param {{status?: string, propertyIds?: number[], assignedAgent?: string, limit?: number, offset?: number}} [options]
+ * @returns {Promise<{total: number, limit: number, offset: number, count: number, data: Object[]}>}
+ */
+export async function listViewingRequests({ status, propertyIds, assignedAgent, limit, offset } = {}) {
+  const params = new URLSearchParams();
+  if (status) params.set('status', status);
+  if (propertyIds?.length) params.set('property_ids', propertyIds.join(','));
+  if (assignedAgent) params.set('assigned_agent', assignedAgent);
+  if (limit) params.set('limit', String(limit));
+  if (offset) params.set('offset', String(offset));
+  const query = params.toString();
+  return engineFetch(`/admin/viewing-requests${query ? `?${query}` : ''}`);
+}
+
+/**
+ * @param {number} id
+ * @param {{status?: string, requestedTime?: string}} patch `requestedTime` lets
+ *   "Reprogrammer" propose a new free-text time in the same write as the status change.
+ * @returns {Promise<{viewingRequest: Object}>}
+ */
+export async function updateViewingRequest(id, { status, requestedTime } = {}) {
+  return engineFetch(`/admin/viewing-requests/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status, requested_time: requestedTime }),
+  });
+}
+
+/**
+ * Public "Demander une visite" form (web/app/(site)/listings/[id]) — call
+ * this after createLead() with the real lead id it returns; `requestedTime`
+ * is the visitor's own free-text answer (same convention as every other
+ * viewing_requests.requested_time write in this system).
+ * @param {{leadId: number, propertyId?: number, requestedTime?: string}} options
+ * @returns {Promise<{viewingRequest: Object}>}
+ */
+export async function createViewingRequest({ leadId, propertyId, requestedTime }) {
+  return engineFetch('/admin/viewing-requests', {
+    method: 'POST',
+    body: JSON.stringify({ lead_id: leadId, property_id: propertyId, requested_time: requestedTime }),
+  });
+}
+
+/**
  * Agent storefront's "Demandez ce bien à cet agent" inquiry form.
  * @returns {Promise<{lead: Object}>}
  */
-export async function createLead({ waId, name, source, propertyId, assignedAgent, requirementsSummary }) {
+export async function createLead({
+  waId, name, source, propertyId, assignedAgent, requirementsSummary,
+  transactionType, commune, priceMin, priceMax, bedrooms,
+}) {
   return engineFetch('/admin/leads', {
     method: 'POST',
     body: JSON.stringify({
@@ -115,8 +204,53 @@ export async function createLead({ waId, name, source, propertyId, assignedAgent
       property_id: propertyId,
       assigned_agent: assignedAgent,
       requirements_summary: requirementsSummary,
+      transaction_type: transactionType,
+      commune,
+      price_min: priceMin,
+      price_max: priceMax,
+      bedrooms,
     }),
   });
+}
+
+/**
+ * Agent Demand Feed — open "Trouver pour moi" requests (no listing attached,
+ * under the 7-pitch cap) filtered to real commune names. The engine strips
+ * wa_id/name from every row before this ever reaches web/ — see
+ * routes/admin.js's GET /leads/open.
+ * @param {{communes?: string[], limit?: number}} [options]
+ * @returns {Promise<{total: number, limit: number, count: number, data: Object[]}>}
+ */
+export async function listOpenLeads({ communes, limit } = {}) {
+  const params = new URLSearchParams();
+  if (communes?.length) params.set('communes', communes.join(','));
+  if (limit) params.set('limit', String(limit));
+  const query = params.toString();
+  return engineFetch(`/admin/leads/open${query ? `?${query}` : ''}`);
+}
+
+/**
+ * "Proposer un bien" — one agent pitching one of their own listings against
+ * an open request. Throws with a real, user-facing error message (cap
+ * reached / already pitched) on failure — see services/db.js's
+ * createLeadProposal, engine repo.
+ * @returns {Promise<{proposal: Object}>}
+ */
+export async function createLeadProposal({ leadId, agentId, propertyId }) {
+  return engineFetch(`/admin/leads/${leadId}/proposals`, {
+    method: 'POST',
+    body: JSON.stringify({ agent_id: agentId, property_id: propertyId }),
+  });
+}
+
+/**
+ * Bulk fetch for the customer-side "Messages & Visites" merge.
+ * @param {number[]} leadIds
+ * @returns {Promise<{proposals: Object[]}>}
+ */
+export async function getLeadProposals(leadIds) {
+  if (!leadIds?.length) return { proposals: [] };
+  return engineFetch(`/admin/leads/proposals?lead_ids=${leadIds.join(',')}`);
 }
 
 /**

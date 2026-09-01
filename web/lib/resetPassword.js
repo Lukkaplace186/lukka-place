@@ -1,5 +1,5 @@
 import 'server-only';
-import { normalizeCongoPhone } from './phone';
+import { normalizePhone } from './phone';
 import { generateOtpCode, hashToStoredForm, verifyAgainstStoredForm } from './authCrypto';
 import { sendWhatsAppMessage } from './adminApi';
 import { getCustomerByPhone, setCustomerResetOtp, resetCustomerPassword } from './customers';
@@ -65,7 +65,7 @@ const MIN_PASSWORD_LENGTH = 8; // matches signup's own "no policy engine" postur
  * @returns {Promise<{ok: true}|{ok: false, error: 'phone'|'send_failed'}>}
  */
 export async function requestPasswordReset(phoneInput, role) {
-  const phone = normalizeCongoPhone(phoneInput);
+  const phone = normalizePhone(phoneInput);
   if (!phone) return { ok: false, error: 'phone' };
 
   const { getByPhone, setResetOtp } = adapterFor(role);
@@ -107,7 +107,7 @@ export async function requestPasswordReset(phoneInput, role) {
  * @returns {Promise<{ok: true}|{ok: false, error: 'phone'|'weak_password'|'expired'|'invalid'}>}
  */
 export async function verifyAndResetPassword(phoneInput, otpCode, newPassword, role) {
-  const phone = normalizeCongoPhone(phoneInput);
+  const phone = normalizePhone(phoneInput);
   if (!phone) return { ok: false, error: 'phone' };
   if (!newPassword || String(newPassword).length < MIN_PASSWORD_LENGTH) {
     return { ok: false, error: 'weak_password' };

@@ -131,10 +131,18 @@ router.post('/conversations/:id/reply', async (req, res) => {
 // ---------------------------------------------------------------------------
 
 router.get('/leads', (req, res) => {
-  const { status, property_ids: propertyIdsRaw, assigned_agent: assignedAgent, wa_id: waId, limit, offset } = req.query;
+  const { status, property_ids: propertyIdsRaw, assigned_agent: assignedAgent, agent_id: agentIdRaw, wa_id: waId, limit, offset } = req.query;
 
   if (status && !db.LEAD_STATUSES.includes(status)) {
     return res.status(400).json({ success: false, error: `Invalid status '${status}'.` });
+  }
+
+  let agentId;
+  if (agentIdRaw !== undefined) {
+    agentId = Number.parseInt(agentIdRaw, 10);
+    if (!Number.isFinite(agentId)) {
+      return res.status(400).json({ success: false, error: 'agent_id must be a real integer.' });
+    }
   }
 
   // Agent dashboard's Lead Activity Stream — comma-separated real Postgres
@@ -158,7 +166,7 @@ router.get('/leads', (req, res) => {
   }
 
   try {
-    const page = db.listLeads({ status, propertyIds, assignedAgent, waId, limit, offset });
+    const page = db.listLeads({ status, propertyIds, assignedAgent, agentId, waId, limit, offset });
     return res.json({ success: true, ...page });
   } catch (err) {
     console.error(`[admin] GET /leads failed: ${err.message}`);
@@ -181,6 +189,16 @@ router.post('/leads', (req, res) => {
     property_id: propertyId,
     assigned_agent: assignedAgent,
     requirements_summary: requirementsSummary,
+    // Agent Demand Feed needs these as real structured columns to filter on
+    // (commune, budget, bedrooms) — previously only web/'s "Trouver pour
+    // moi" form folded them into requirements_summary as free text and
+    // never forwarded the structured values this far, which silently broke
+    // commune-based routing for every request submitted that way.
+    transaction_type: transactionType,
+    commune,
+    price_min: priceMin,
+    price_max: priceMax,
+    bedrooms,
   } = req.body || {};
   if (!waId) {
     return res.status(400).json({ success: false, error: 'wa_id is required.' });
@@ -194,10 +212,77 @@ router.post('/leads', (req, res) => {
       property_id: propertyId ?? null,
       assigned_agent: assignedAgent || null,
       requirements_summary: requirementsSummary || null,
+      transaction_type: transactionType || null,
+      commune: commune || null,
+      price_min: priceMin ?? null,
+      price_max: priceMax ?? null,
+      bedrooms: bedrooms ?? null,
     });
     return res.status(201).json({ success: true, lead });
   } catch (err) {
     console.error(`[admin] POST /leads failed: ${err.message}`);
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Agent Demand Feed — open "Trouver pour moi" requests + multi-agent
+// pitching. Registered before GET /leads/:id so 'open'/'proposals' are
+// never swallowed as an :id value.
+// ---------------------------------------------------------------------------
+
+router.get('/leads/open', (req, res) => {
+  const { communes: communesRaw, limit } = req.query;
+  const communes = communesRaw ? String(communesRaw).split(',').filter(Boolean) : undefined;
+
+  try {
+    const page = db.listOpenLeads({ communes, limit });
+    // The actual privacy boundary: an agent who hasn't pitched (or been
+    // assigned) a lead must never receive its real phone/name over the
+    // wire, not just have the UI choose not to render them.
+    const data = page.data.map(({ wa_id, name, ...rest }) => rest);
+    return res.json({ success: true, ...page, data });
+  } catch (err) {
+    console.error(`[admin] GET /leads/open failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not read open leads.' });
+  }
+});
+
+router.get('/leads/proposals', (req, res) => {
+  const { lead_ids: leadIdsRaw } = req.query;
+  if (!leadIdsRaw) {
+    return res.status(400).json({ success: false, error: 'lead_ids is required.' });
+  }
+  const leadIds = String(leadIdsRaw)
+    .split(',')
+    .map((id) => Number.parseInt(id, 10))
+    .filter(Number.isFinite);
+
+  try {
+    const proposals = db.getLeadProposals(leadIds);
+    return res.json({ success: true, proposals });
+  } catch (err) {
+    console.error(`[admin] GET /leads/proposals failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not read proposals.' });
+  }
+});
+
+router.post('/leads/:id/proposals', (req, res) => {
+  const leadId = Number.parseInt(req.params.id, 10);
+  if (!Number.isFinite(leadId) || !db.getLead(leadId)) {
+    return res.status(404).json({ success: false, error: 'Lead not found.' });
+  }
+
+  const agentId = Number.parseInt(req.body?.agent_id, 10);
+  const propertyId = Number.parseInt(req.body?.property_id, 10);
+  if (!Number.isFinite(agentId) || !Number.isFinite(propertyId)) {
+    return res.status(400).json({ success: false, error: 'agent_id and property_id are required.' });
+  }
+
+  try {
+    const proposal = db.createLeadProposal({ leadId, agentId, propertyId });
+    return res.status(201).json({ success: true, proposal });
+  } catch (err) {
     return res.status(400).json({ success: false, error: err.message });
   }
 });
@@ -217,14 +302,129 @@ router.patch('/leads/:id', (req, res) => {
     return res.status(404).json({ success: false, error: 'Lead not found.' });
   }
 
-  const { status } = req.body || {};
-  if (!status) {
-    return res.status(400).json({ success: false, error: 'status is required.' });
+  const {
+    status,
+    agent_id: agentId,
+    assigned_agent: assignedAgent,
+    // Customer-side "Modifier ma recherche" edit (web/'s Messages & Visites)
+    // — the same structured columns POST /leads already accepts, now
+    // writable after the fact. requirements object keys mirror
+    // db.LEAD_REQUIREMENT_FIELDS exactly.
+    transaction_type: transactionType,
+    commune,
+    quartier,
+    price_min: priceMin,
+    price_max: priceMax,
+    bedrooms,
+    requirements_summary: requirementsSummary,
+  } = req.body || {};
+  const requirementsPatch = {
+    transaction_type: transactionType,
+    commune,
+    quartier,
+    price_min: priceMin,
+    price_max: priceMax,
+    bedrooms,
+    requirements_summary: requirementsSummary,
+  };
+  const hasRequirementsPatch = Object.values(requirementsPatch).some((v) => v !== undefined);
+
+  if (status === undefined && agentId === undefined && assignedAgent === undefined && !hasRequirementsPatch) {
+    return res.status(400).json({
+      success: false,
+      error: 'status, agent_id, assigned_agent, or a requirements field is required.',
+    });
   }
 
   try {
-    const lead = db.updateLeadStatus(id, status);
-    return res.json({ success: true, lead });
+    if (status !== undefined) db.updateLeadStatus(id, status);
+    // Admin dashboard's Request Assignment Routing — web/ resolves the real
+    // agent's display name before calling this (it has Postgres access to
+    // agent_infos, which this SQLite-only engine doesn't), so both fields
+    // arrive together; agentId: null explicitly un-assigns.
+    if (agentId !== undefined || assignedAgent !== undefined) {
+      db.assignLead(id, { agentId: agentId ?? null, assignedAgent: assignedAgent ?? null });
+    }
+    if (hasRequirementsPatch) db.updateLeadRequirements(id, requirementsPatch);
+    return res.json({ success: true, lead: db.getLead(id) });
+  } catch (err) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Viewing requests — the agent dashboard's Visit Scheduler. Same
+// property_ids/assigned_agent ownership-scoping convention as GET /leads
+// above (see db.listViewingRequestsForOwner's doc comment for why this has
+// to go through the parent lead, one hop, since viewing_requests carries no
+// agent column of its own).
+// ---------------------------------------------------------------------------
+
+/**
+ * Public "Demander une visite" form (web/app/(site)/listings/[id] — a real
+ * visitor submitting a visit request for a specific listing, not the agent
+ * dashboard). `lead_id` is required (matches db.createViewingRequest's own
+ * invariant) — the caller creates the lead first via POST /leads, same
+ * two-step sequence the buyer-assistant's request_viewing tool already does
+ * internally (services/openai.js).
+ */
+router.post('/viewing-requests', (req, res) => {
+  const { lead_id: leadId, property_id: propertyId, requested_time: requestedTime } = req.body || {};
+  const numericLeadId = Number.parseInt(leadId, 10);
+  if (!Number.isFinite(numericLeadId) || !db.getLead(numericLeadId)) {
+    return res.status(400).json({ success: false, error: 'lead_id must reference a real lead.' });
+  }
+
+  try {
+    const viewingRequest = db.createViewingRequest({ leadId: numericLeadId, propertyId, requestedTime });
+    return res.status(201).json({ success: true, viewingRequest });
+  } catch (err) {
+    console.error(`[admin] POST /viewing-requests failed: ${err.message}`);
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+router.get('/viewing-requests', (req, res) => {
+  const { status, property_ids: propertyIdsRaw, assigned_agent: assignedAgent, limit, offset } = req.query;
+
+  if (status && !db.VIEWING_REQUEST_STATUSES.includes(status)) {
+    return res.status(400).json({ success: false, error: `Invalid status '${status}'.` });
+  }
+
+  let propertyIds;
+  if (propertyIdsRaw) {
+    propertyIds = String(propertyIdsRaw)
+      .split(',')
+      .map((id) => Number.parseInt(id, 10))
+      .filter(Number.isFinite);
+    if (propertyIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'property_ids must contain at least one valid id.' });
+    }
+  }
+
+  try {
+    const page = db.listViewingRequestsForOwner({ propertyIds, assignedAgent, status, limit, offset });
+    return res.json({ success: true, ...page });
+  } catch (err) {
+    console.error(`[admin] GET /viewing-requests failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not read viewing requests.' });
+  }
+});
+
+router.patch('/viewing-requests/:id', (req, res) => {
+  const id = Number.parseInt(req.params.id, 10);
+  if (!Number.isFinite(id) || !db.getViewingRequest(id)) {
+    return res.status(404).json({ success: false, error: 'Viewing request not found.' });
+  }
+
+  const { status, requested_time: requestedTime } = req.body || {};
+  if (status === undefined && requestedTime === undefined) {
+    return res.status(400).json({ success: false, error: 'status or requested_time is required.' });
+  }
+
+  try {
+    const viewingRequest = db.updateViewingRequest(id, { status, requestedTime });
+    return res.json({ success: true, viewingRequest });
   } catch (err) {
     return res.status(400).json({ success: false, error: err.message });
   }

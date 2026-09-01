@@ -3,9 +3,12 @@ import { Mail } from 'lucide-react';
 import { PortalSectionHeading, PortalEmpty } from '@/components/ClientPortalUI';
 import { getPortalCustomer, isViewingLead } from '@/lib/customerPortal';
 import { getCustomerInquiries } from '@/lib/customerInquiries';
+import { getLocationHierarchySafe } from '@/lib/locations';
+import { getPopularCommunes } from '@/lib/listings';
 import { LEAD_STATUS_LABELS_FR } from '@/lib/adminLabels';
 import { listingImages } from '@/lib/listingView';
 import { formatPrice } from '@/lib/format';
+import { updatePropertyRequestAction } from '../actions';
 import InquiryThreads from './InquiryThreads';
 
 export const metadata = {
@@ -21,6 +24,19 @@ const SHORT_DATE = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'sh
 function formatWith(formatter, value) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? '—' : formatter.format(date);
+}
+
+/**
+ * Same real-or-nothing commune list demandes/page.js already builds for the
+ * initial request form — reused here so the edit dialog's commune select
+ * never offers an option that isn't real (web/CLAUDE.md's "don't hardcode
+ * filter option lists").
+ */
+async function resolveCommunes() {
+  const { communes } = await getLocationHierarchySafe();
+  if (communes.length > 0) return communes;
+  const popular = await getPopularCommunes(24);
+  return popular.map((c) => c.commune);
 }
 
 /**
@@ -45,7 +61,10 @@ export default async function MessagesPage() {
   const session = await getPortalCustomer();
   if (!session) redirect('/compte/connexion?next=/compte/client/messages');
 
-  const inquiries = await getCustomerInquiries(session.customerId);
+  const [inquiries, communes] = await Promise.all([
+    getCustomerInquiries(session.customerId),
+    resolveCommunes(),
+  ]);
 
   if (inquiries.length === 0) {
     return (
@@ -68,7 +87,7 @@ export default async function MessagesPage() {
     );
   }
 
-  const threads = inquiries.map(({ lead, listing }) => ({
+  const threads = inquiries.map(({ lead, listing, proposals }) => ({
     id: lead.id,
     status: lead.status,
     statusLabel: LEAD_STATUS_LABELS_FR[lead.status] || lead.status,
@@ -76,6 +95,19 @@ export default async function MessagesPage() {
     createdAtLabel: formatWith(LONG_DATE, lead.created_at),
     createdAtShort: formatWith(SHORT_DATE, lead.created_at),
     isViewing: isViewingLead(lead),
+    // Real fields backing the "Recherche personnalisée" status banner below
+    // (InquiryThreads.js) — commune is the request's own real column, and
+    // agentId is the same real assignment /admin/leads now writes (Request
+    // Assignment Routing), not a fabricated pipeline stage.
+    commune: lead.commune || null,
+    agentId: lead.agent_id || null,
+    // Structured request fields — real columns POST /leads already writes
+    // (root CLAUDE.md's Lead Routing Rules), now also shown/editable in
+    // full rather than folded only into the free-text summary above.
+    transactionType: lead.transaction_type || null,
+    priceMin: lead.price_min ?? null,
+    priceMax: lead.price_max ?? null,
+    bedrooms: lead.bedrooms ?? null,
     listing: listing
       ? {
           id: listing.id,
@@ -85,6 +117,19 @@ export default async function MessagesPage() {
           priceLabel: formatPrice(listing.price, listing.purpose, listing.price_period),
         }
       : null,
+    // Agent Demand Feed proposals — real listings agents have pitched
+    // against this custom-search request (web/lib/customerInquiries.js).
+    // agencyName/reference are the same real `agents.username` /
+    // `properties.reference` columns SELECT_FIELDS (lib/listings.js) and
+    // the listing detail page already surface — nothing invented per-card.
+    proposals: (proposals || []).map((property) => ({
+      id: property.id,
+      title: property.title,
+      reference: property.reference || null,
+      image: listingImages(property)[0] || null,
+      priceLabel: formatPrice(property.price, property.purpose, property.price_period),
+      agencyName: property.agency_name || null,
+    })),
   }));
 
   return (
@@ -94,7 +139,12 @@ export default async function MessagesPage() {
         lead={`${threads.length} échange${threads.length > 1 ? 's' : ''} avec les agences partenaires.`}
         className="mb-7"
       />
-      <InquiryThreads threads={threads} whatsappNumber={process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || null} />
+      <InquiryThreads
+        threads={threads}
+        whatsappNumber={process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || null}
+        communes={communes}
+        updateAction={updatePropertyRequestAction}
+      />
     </div>
   );
 }

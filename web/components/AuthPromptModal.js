@@ -55,7 +55,7 @@ export default function AuthPromptModal({ open, onClose, trigger, next }) {
               type="tel"
               inputMode="tel"
               autoComplete="tel"
-              placeholder="099 712 3456"
+              placeholder="099 712 3456 ou +33 612345678"
               autoFocus
               required
               value={phone}

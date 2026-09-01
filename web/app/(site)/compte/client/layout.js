@@ -3,6 +3,7 @@ import { ShieldCheck } from 'lucide-react';
 import { getPortalCustomer, getPortalCounts } from '@/lib/customerPortal';
 import { formatPhoneDisplay } from '@/lib/phone';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { ToastProvider } from '@/components/Toast';
 import ClientPortalTabs from './ClientPortalTabs';
 
 export const metadata = {
@@ -69,7 +70,9 @@ export default async function ClientPortalLayout({ children }) {
 
       <ClientPortalTabs counts={tabCounts} />
 
-      <main className="mx-auto max-w-[77.5rem] px-4 pb-24 pt-10 sm:px-6 lg:px-8">{children}</main>
+      <ToastProvider>
+        <main className="mx-auto max-w-[77.5rem] px-4 pb-24 pt-10 sm:px-6 lg:px-8">{children}</main>
+      </ToastProvider>
     </div>
   );
 }

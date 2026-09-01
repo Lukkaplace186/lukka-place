@@ -64,7 +64,7 @@ export default function InquiryForm({ agentId, agentName, sent, error }) {
             type="tel"
             inputMode="tel"
             required
-            placeholder="099 712 3456"
+            placeholder="099 712 3456 ou +33 612345678"
             className={FIELD_CLASS}
           />
         </div>

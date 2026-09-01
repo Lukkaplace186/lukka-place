@@ -35,6 +35,15 @@ export const LEAD_STATUS_LABELS_FR = {
   LOST: 'Perdu',
 };
 
+export const VIEWING_REQUEST_STATUSES = ['PENDING', 'CONFIRMED', 'RESCHEDULED', 'CANCELLED'];
+
+export const VIEWING_REQUEST_STATUS_LABELS_FR = {
+  PENDING: 'En attente',
+  CONFIRMED: 'Confirmée',
+  RESCHEDULED: 'Reprogrammée',
+  CANCELLED: 'Annulée',
+};
+
 export const LISTING_MODERATION_STATUSES = ['pending', 'approved', 'rejected'];
 
 export const LISTING_MODERATION_STATUS_LABELS_FR = {

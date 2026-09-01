@@ -1,7 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { normalizeCongoPhone } from '@/lib/phone';
+import { normalizePhone } from '@/lib/phone';
 import { getCustomerByPhone, createCustomer, mergeAnonymousData } from '@/lib/customers';
 import { hashPassword } from '@/lib/customerAuth';
 import { establishCustomerSession } from '@/lib/customerSession';
@@ -27,7 +27,7 @@ export async function signupAction(formData) {
   const next = safeNext(formData.get('next'));
   const password = String(formData.get('password') || '');
   const fullName = String(formData.get('fullName') || '').trim();
-  const phone = normalizeCongoPhone(String(formData.get('phone') || ''));
+  const phone = normalizePhone(String(formData.get('phone') || ''));
 
   if (!phone) {
     redirect(`/compte/inscription?error=phone&next=${encodeURIComponent(next)}`);

@@ -1,20 +1,36 @@
 import Link from 'next/link';
-import { Image as ImageIcon, ExternalLink, MessageCircle, Plus } from 'lucide-react';
+import { Image as ImageIcon, ExternalLink, MessageCircle } from 'lucide-react';
 import { getCurrentAgentId } from '@/lib/agentSession';
 import { getAgentDashboardContext } from '@/lib/agentDashboard';
 import { getPerListingStats } from '@/lib/analytics';
 import { formatPrice } from '@/lib/format';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
+import { getLocationHierarchySafe } from '@/lib/locations';
+import { getPropertyCategories } from '@/lib/agentListings';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import SafeImage from '@/components/SafeImage';
 import AgentPageHeader from '@/components/AgentPageHeader';
 import AgentListingStatusSelect from '@/components/AgentListingStatusSelect';
+import CreateListingDialog from '@/components/CreateListingDialog';
+import MarkListingSoldDialog from '@/components/MarkListingSoldDialog';
 import { updateListingStatusAction } from '../actions';
 
+// The full vocabulary, used by the top filter dropdown — a closed listing
+// must stay filterable even though it's no longer reachable from the
+// per-row select below.
 const LISTING_STATUS_OPTIONS = [
   { value: 'active', label: 'Actif' },
   { value: 'under_offer', label: 'Sous compromis' },
   { value: 'closed', label: 'Loué / Vendu' },
+];
+
+// The per-row select's options — deliberately excludes 'closed'. Reaching
+// that state now only happens through MarkListingSoldDialog, which requires
+// a real final price; offering it here too would let an agent bypass that
+// and leave sold_price null. See actions.js's LISTING_STATUSES comment.
+const LISTING_STATUS_EDIT_OPTIONS = [
+  { value: 'active', label: 'Actif' },
+  { value: 'under_offer', label: 'Sous compromis' },
 ];
 
 const APPROVE_STATUS = {
@@ -35,7 +51,11 @@ export default async function AgentListingsPage({ searchParams }) {
 
   const agentId = await getCurrentAgentId();
   const { listings, propertyIds, newLeadsCount } = await getAgentDashboardContext(agentId);
-  const perListingStats = await getPerListingStats(propertyIds);
+  const [perListingStats, { communes }, categories] = await Promise.all([
+    getPerListingStats(propertyIds),
+    getLocationHierarchySafe(),
+    getPropertyCategories(),
+  ]);
 
   const needle = q.toLowerCase();
   const filtered = listings.filter((l) => {
@@ -47,10 +67,6 @@ export default async function AgentListingsPage({ searchParams }) {
   const counts = LISTING_STATUS_OPTIONS.map(
     (o) => `${listings.filter((l) => l.listing_status === o.value).length} ${o.label.toLowerCase()}`,
   ).join(' · ');
-
-  const addListingHref = getCentralWhatsAppHref(
-    'Bonjour, je souhaite ajouter une nouvelle propriété à mon compte agent.',
-  );
 
   return (
     <>
@@ -97,24 +113,14 @@ export default async function AgentListingsPage({ searchParams }) {
                 </button>
               </form>
 
-              {addListingHref && (
-                <a
-                  href={addListingHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="u-btn-secondary u-press inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 text-[0.8125rem] font-bold text-ink"
-                >
-                  <Plus strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-                  Ajouter un bien
-                </a>
-              )}
+              <CreateListingDialog communes={communes} categories={categories} />
             </div>
           </div>
 
           {filtered.length === 0 ? (
             <div className="px-6 py-16 text-center text-sm text-ink-45">
               {listings.length === 0
-                ? 'Aucune annonce pour le moment. Envoyez votre premier bien sur WhatsApp pour le publier.'
+                ? 'Aucune annonce pour le moment. Cliquez sur « Ajouter un bien » pour publier votre premier bien.'
                 : 'Aucune annonce ne correspond à ces filtres.'}
             </div>
           ) : (
@@ -136,6 +142,7 @@ export default async function AgentListingsPage({ searchParams }) {
               {filtered.map((listing) => {
                 const boundStatus = updateListingStatusAction.bind(null, listing.id);
                 const approve = APPROVE_STATUS[listing.approve_status];
+                const isClosed = listing.listing_status === 'closed';
                 const editHref = getCentralWhatsAppHref(
                   `Bonjour, je souhaite modifier mon annonce « ${listing.title} » (réf. ${listing.id}).`,
                 );
@@ -174,6 +181,11 @@ export default async function AgentListingsPage({ searchParams }) {
 
                     <div className="u-tabular text-sm font-bold text-ink">
                       {formatPrice(listing.price, listing.purpose)}
+                      {isClosed && listing.sold_price != null && (
+                        <div className="mt-0.5 text-xs font-semibold text-ink-45">
+                          Prix final : {formatPrice(listing.sold_price, listing.purpose)}
+                        </div>
+                      )}
                     </div>
 
                     <div className="u-tabular text-sm text-ink-70">
@@ -181,14 +193,20 @@ export default async function AgentListingsPage({ searchParams }) {
                       {(perListingStats.views[listing.id] || 0).toLocaleString('fr-FR')}
                     </div>
 
-                    <form action={boundStatus}>
-                      <AgentListingStatusSelect
-                        name="listing_status"
-                        defaultValue={listing.listing_status}
-                        options={LISTING_STATUS_OPTIONS}
-                        label={`Statut de ${listing.title}`}
-                      />
-                    </form>
+                    {isClosed ? (
+                      <span className="w-full max-w-[10.5rem] rounded-full bg-canvas-deep px-3.5 py-[0.4375rem] text-center text-[0.8125rem] font-bold text-ink-70">
+                        {listing.purpose === 'rent' ? 'Loué' : 'Vendu'}
+                      </span>
+                    ) : (
+                      <form action={boundStatus}>
+                        <AgentListingStatusSelect
+                          name="listing_status"
+                          defaultValue={listing.listing_status}
+                          options={LISTING_STATUS_EDIT_OPTIONS}
+                          label={`Statut de ${listing.title}`}
+                        />
+                      </form>
+                    )}
 
                     <div className="flex items-center justify-end gap-1.5">
                       {listing.approve_status === 1 && (
@@ -201,6 +219,9 @@ export default async function AgentListingsPage({ searchParams }) {
                         >
                           <ExternalLink strokeWidth={ICON_STROKE_WIDTH} className="h-[1.0625rem] w-[1.0625rem]" />
                         </Link>
+                      )}
+                      {!isClosed && (
+                        <MarkListingSoldDialog propertyId={listing.id} purpose={listing.purpose} title={listing.title} />
                       )}
                       {editHref && (
                         <a

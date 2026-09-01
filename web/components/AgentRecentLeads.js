@@ -39,7 +39,7 @@ export default function AgentRecentLeads({ leads, listingById }) {
       ) : (
         <div className="mt-2 flex flex-col">
           {leads.map((lead) => {
-            const property = lead.property_id ? listingById?.get(lead.property_id) : null;
+            const property = lead.property_id ? listingById?.get(String(lead.property_id)) : null;
             const meta = metaLine(lead, property?.title);
             return (
               <div key={lead.id} className="flex gap-3 border-b border-line py-4 last:border-b-0 last:pb-0">

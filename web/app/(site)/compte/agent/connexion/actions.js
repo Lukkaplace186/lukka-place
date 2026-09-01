@@ -1,7 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { normalizeCongoPhone } from '@/lib/phone';
+import { normalizePhone } from '@/lib/phone';
 import { getAgentByPhone, recordAgentFailedLogin, clearAgentFailedLogins, sendAgentOtp } from '@/lib/agents';
 import { verifyPasswordAgainstHash, burnConstantTime, MAX_FAILED_LOGIN_ATTEMPTS, LOCKOUT_MS } from '@/lib/agentAuth';
 import { establishAgentSession } from '@/lib/agentSession';
@@ -15,7 +15,7 @@ function safeNext(nextParam) {
 export async function agentLoginAction(formData) {
   const next = safeNext(formData.get('next'));
   const password = String(formData.get('password') || '');
-  const phone = normalizeCongoPhone(String(formData.get('phone') || ''));
+  const phone = normalizePhone(String(formData.get('phone') || ''));
 
   if (!phone) {
     redirect(`/compte/agent/connexion?error=phone&next=${encodeURIComponent(next)}`);

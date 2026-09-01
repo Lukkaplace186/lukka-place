@@ -53,7 +53,7 @@ export default function SignupForm({ action, next, error, initialPhone = '' }) {
           name="phone"
           inputMode="tel"
           autoComplete="tel"
-          placeholder="099 712 3456"
+          placeholder="099 712 3456 ou +33 612345678"
           defaultValue={initialPhone}
           autoFocus
           required

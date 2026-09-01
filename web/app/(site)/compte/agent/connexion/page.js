@@ -42,7 +42,7 @@ export default async function AgentLoginPage({ searchParams }) {
               name="phone"
               inputMode="tel"
               autoComplete="tel"
-              placeholder="099 712 3456"
+              placeholder="099 712 3456 ou +33 612345678"
               autoFocus
               required
               className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"

@@ -1,7 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { normalizeCongoPhone } from '@/lib/phone';
+import { normalizePhone } from '@/lib/phone';
 import {
   getCustomerByPhone,
   clearFailedLoginsAndTouchLogin,
@@ -43,7 +43,7 @@ function parseAnonymousData(formData) {
 export async function loginAction(formData) {
   const next = safeNext(formData.get('next'));
   const password = String(formData.get('password') || '');
-  const phone = normalizeCongoPhone(String(formData.get('phone') || ''));
+  const phone = normalizePhone(String(formData.get('phone') || ''));
 
   if (!phone) {
     redirect(`/compte/connexion?error=phone&next=${encodeURIComponent(next)}`);

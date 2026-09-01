@@ -3,8 +3,16 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
-import { updateConversation, sendManualReply, updateLeadStatus } from '@/lib/adminApi';
-import { ADMIN_SESSION_COOKIE } from '@/lib/adminAuth';
+import { updateConversation, sendManualReply, updateLeadStatus, assignLead } from '@/lib/adminApi';
+import { ADMIN_SESSION_COOKIE, isValidSessionToken } from '@/lib/adminAuth';
+import { getAgentById } from '@/lib/agents';
+import { agentDisplayName } from '@/lib/agencies';
+
+/** Same defense-in-depth pattern as web/app/admin/agents/actions.js. */
+async function assertAdminSession() {
+  const token = (await cookies()).get(ADMIN_SESSION_COOKIE)?.value;
+  if (!isValidSessionToken(token)) throw new Error('Not authenticated');
+}
 
 /**
  * Server Actions backing the /admin/* dashboard forms. Each one is a thin
@@ -51,6 +59,30 @@ export async function updateLeadStatusAction(leadId, formData) {
   const status = String(formData.get('status') || '');
   if (!status) return;
   await updateLeadStatus(leadId, status);
+  revalidatePath('/admin/leads');
+}
+
+/**
+ * Request Assignment Routing. The engine's leads table is SQLite-only and
+ * has no Postgres access, so it can't resolve an agent id to a display
+ * name itself — that resolution happens here, then both the real id and
+ * the display-name string are sent together (see services/db.js's
+ * assignLead doc comment, engine repo). An empty selection un-assigns.
+ */
+export async function assignLeadAction(leadId, formData) {
+  await assertAdminSession();
+
+  const raw = formData.get('agent_id');
+  const agentId = raw ? Number.parseInt(raw, 10) : null;
+
+  let assignedAgent = null;
+  if (agentId !== null) {
+    const agent = await getAgentById(agentId);
+    if (!agent) throw new Error(`No agent #${agentId}`);
+    assignedAgent = agentDisplayName(agent);
+  }
+
+  await assignLead(leadId, { agentId, assignedAgent });
   revalidatePath('/admin/leads');
 }
 

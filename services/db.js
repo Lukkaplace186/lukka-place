@@ -881,7 +881,61 @@ db.exec(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_viewing_requests_lead_id ON viewing_requests (lead_id);
+
+  -- Agent Demand Feed's multi-proposal pitching — up to 7 agents can each
+  -- pitch one of their own listings against the same open "Trouver pour
+  -- moi" request. property_id is a loose, unenforced integer pointing at
+  -- Postgres properties.id, same convention leads.property_id and
+  -- viewing_requests.property_id already use (no FK possible across
+  -- separate databases). UNIQUE(lead_id, agent_id) is what actually enforces
+  -- "one pitch per agent per lead" — see db.createLeadProposal.
+  CREATE TABLE IF NOT EXISTS lead_proposals (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    lead_id     INTEGER NOT NULL REFERENCES leads (id),
+    agent_id    INTEGER NOT NULL,
+    property_id INTEGER NOT NULL,
+    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (lead_id, agent_id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_lead_proposals_lead_id ON lead_proposals (lead_id);
 `);
+
+/**
+ * `agent_id` — the admin dashboard's Request Assignment Routing needs a real
+ * id to assign a lead to, not just `assigned_agent`'s display-name string
+ * (which silently stops matching if an agent ever renames themselves, or
+ * two agents share a name). Added via the same idempotent
+ * ADD-COLUMN-if-missing pattern CONVERSATIONS_EXTENDED_COLUMNS already uses,
+ * rather than a checked-in migration framework this repo doesn't have.
+ * `assigned_agent` is still written alongside it (see db.assignLead) so
+ * every existing display-name-based lookup keeps working unchanged.
+ */
+const LEADS_EXTENDED_COLUMNS = [
+  ['agent_id', 'INTEGER'],
+  // Agent Demand Feed's multi-proposal cap (see lead_proposals below) —
+  // capped at 7 pitches per open request so a request doesn't silently
+  // collect unlimited agent noise.
+  ['pitches_count', 'INTEGER NOT NULL DEFAULT 0'],
+];
+
+function migrateLeads() {
+  const existing = new Set(db.prepare('PRAGMA table_info(leads)').all().map((c) => c.name));
+  const missing = LEADS_EXTENDED_COLUMNS.filter(([name]) => !existing.has(name));
+  if (missing.length === 0) return [];
+
+  db.transaction(() => {
+    for (const [name, type] of missing) {
+      db.exec(`ALTER TABLE leads ADD COLUMN ${name} ${type}`);
+    }
+  })();
+
+  const added = missing.map(([name]) => name);
+  console.log(`[db] leads schema migrated — added column(s): ${added.join(', ')}`);
+  return added;
+}
+
+migrateLeads();
 
 /** Fields a requirements patch may set — mirrors CORRECTABLE_FIELDS's "only overwrite what's mentioned" rule. */
 const CONVERSATION_REQUIREMENT_FIELDS = [
@@ -1171,6 +1225,59 @@ function updateLeadStatus(id, status) {
   return getLead(id);
 }
 
+/**
+ * Admin dashboard's Request Assignment Routing — writes both the real id
+ * and the display-name string together (see LEADS_EXTENDED_COLUMNS' doc
+ * comment above): `agent_id` is the precise signal going forward, while
+ * `assigned_agent` keeps every existing name-based lookup working for leads
+ * assigned before this column existed. Passing `agentId: null` un-assigns.
+ *
+ * @param {number} id
+ * @param {{agentId: number|null, assignedAgent: string|null}} patch
+ */
+function assignLead(id, { agentId, assignedAgent } = {}) {
+  db.prepare(
+    `UPDATE leads SET agent_id = ?, assigned_agent = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+  ).run(toNullable(agentId), toNullable(assignedAgent), id);
+  return getLead(id);
+}
+
+/** Fields a lead requirements edit may touch — the "Recherche personnalisée" columns POST /leads already accepts. */
+const LEAD_REQUIREMENT_FIELDS = [
+  'transaction_type', 'commune', 'quartier', 'price_min', 'price_max', 'bedrooms', 'requirements_summary',
+];
+
+/**
+ * Customer-initiated edit of their own lead (web/'s Messages & Visites
+ * "Modifier ma recherche"). Only fields actually present in `patch` are
+ * touched; a field explicitly set to null clears it (e.g. removing a
+ * bedroom preference) — same `null` un-sets / `undefined` leave-alone
+ * convention as assignLead's `agentId: null`, not
+ * updateConversationRequirements's "empty value is a no-op" rule (that one
+ * exists for AI-extracted patches, where an empty match is never a
+ * deliberate clear).
+ *
+ * @param {number} id
+ * @param {Object} patch Any of LEAD_REQUIREMENT_FIELDS.
+ * @returns {Object} The updated lead row.
+ */
+function updateLeadRequirements(id, patch = {}) {
+  const sets = [];
+  const params = { id };
+
+  for (const field of LEAD_REQUIREMENT_FIELDS) {
+    if (patch[field] === undefined) continue;
+    sets.push(`${field} = @${field}`);
+    params[field] = toNullable(patch[field]);
+  }
+
+  if (sets.length === 0) return getLead(id);
+
+  sets.push('updated_at = CURRENT_TIMESTAMP');
+  db.prepare(`UPDATE leads SET ${sets.join(', ')} WHERE id = @id`).run(params);
+  return getLead(id);
+}
+
 function getLeadsByStatus(status, limit = 50) {
   return status
     ? db.prepare('SELECT * FROM leads WHERE status = ? ORDER BY id DESC LIMIT ?').all(status, limit)
@@ -1194,12 +1301,17 @@ const LEADS_LIST_LIMIT_MAX = 100;
  * @param {string} [options.assignedAgent] Filter to leads whose `assigned_agent`
  *   matches this exact string — see the column's own comment for why this is
  *   a display-name string, not an id, and the fragility that implies.
+ * @param {number} [options.agentId] Filter to leads whose real `agent_id`
+ *   matches — the precise signal Request Assignment Routing writes (see
+ *   assignLead below); OR'd alongside propertyIds/assignedAgent, not a
+ *   replacement for either, since plenty of pre-existing leads only ever
+ *   got the display-name column set.
  * @param {string} [options.waId] Filter to one submitter's own leads (customer inquiry history).
  * @param {number} [options.limit]
  * @param {number} [options.offset]
  * @returns {{total: number, limit: number, offset: number, count: number, data: Object[]}}
  */
-function listLeads({ status, propertyIds, assignedAgent, waId, limit, offset } = {}) {
+function listLeads({ status, propertyIds, assignedAgent, agentId, waId, limit, offset } = {}) {
   const where = [];
   const params = {};
   if (status) {
@@ -1228,7 +1340,8 @@ function listLeads({ status, propertyIds, assignedAgent, waId, limit, offset } =
   // property_id branch builds one @p0, @p1, ... param per id explicitly.
   const hasPropertyIds = Array.isArray(propertyIds) && propertyIds.length > 0;
   const hasAssignedAgent = !!assignedAgent;
-  if (hasPropertyIds || hasAssignedAgent) {
+  const hasAgentId = Number.isFinite(agentId);
+  if (hasPropertyIds || hasAssignedAgent || hasAgentId) {
     const ownerClauses = [];
     if (hasPropertyIds) {
       const placeholders = propertyIds.map((id, i) => {
@@ -1240,6 +1353,10 @@ function listLeads({ status, propertyIds, assignedAgent, waId, limit, offset } =
     if (hasAssignedAgent) {
       ownerClauses.push('assigned_agent = @assignedAgent');
       params.assignedAgent = assignedAgent;
+    }
+    if (hasAgentId) {
+      ownerClauses.push('agent_id = @agentId');
+      params.agentId = agentId;
     }
     where.push(`(${ownerClauses.join(' OR ')})`);
   }
@@ -1260,6 +1377,108 @@ function listLeads({ status, propertyIds, assignedAgent, waId, limit, offset } =
   return { total, limit: resolvedLimit, offset: resolvedOffset, count: data.length, data };
 }
 
+const OPEN_LEADS_LIMIT_DEFAULT = 50;
+const OPEN_LEADS_LIMIT_MAX = 100;
+const MAX_PITCHES_PER_LEAD = 7;
+
+/**
+ * Agent Demand Feed — "Trouver pour moi" requests with no listing attached
+ * yet, not already capped out, filtered to the communes an agent covers.
+ * Returns full rows (including wa_id/name) deliberately — stripping those
+ * for the privacy boundary is routes/admin.js's job (GET /leads/open), so
+ * this function stays correct for any future caller that legitimately does
+ * need them (an admin view, say).
+ *
+ * @param {Object} [options]
+ * @param {string[]} [options.communes] Real commune names (agents.primary_communes) to match against leads.commune.
+ * @param {number} [options.limit]
+ * @returns {{total: number, limit: number, count: number, data: Object[]}}
+ */
+function listOpenLeads({ communes, limit } = {}) {
+  const where = [
+    'property_id IS NULL',
+    'pitches_count < @maxPitches',
+    "status NOT IN ('CONVERTED', 'LOST')",
+  ];
+  const params = { maxPitches: MAX_PITCHES_PER_LEAD };
+
+  const hasCommunes = Array.isArray(communes) && communes.length > 0;
+  if (hasCommunes) {
+    const placeholders = communes.map((c, i) => {
+      params[`c${i}`] = c;
+      return `@c${i}`;
+    });
+    where.push(`commune IN (${placeholders.join(', ')})`);
+  } else {
+    // No real commune signal at all (an agent with none set yet) must never
+    // fall through to "every open request in the system" — same defensive
+    // posture listViewingRequestsForOwner already takes with `0 = 1`.
+    where.push('0 = 1');
+  }
+
+  const whereClause = `WHERE ${where.join(' AND ')}`;
+  const parsedLimit = Number.parseInt(limit, 10);
+  const resolvedLimit = Number.isFinite(parsedLimit)
+    ? Math.min(Math.max(parsedLimit, 1), OPEN_LEADS_LIMIT_MAX)
+    : OPEN_LEADS_LIMIT_DEFAULT;
+
+  const { total } = db.prepare(`SELECT COUNT(*) AS total FROM leads ${whereClause}`).get(params);
+  const data = db
+    .prepare(`SELECT * FROM leads ${whereClause} ORDER BY id DESC LIMIT @limit`)
+    .all({ ...params, limit: resolvedLimit });
+
+  return { total, limit: resolvedLimit, count: data.length, data };
+}
+
+/**
+ * One agent pitching one of their own listings against an open request.
+ * Enforces both real limits at the DB layer, not just in the UI: the
+ * 7-pitch cap (MAX_PITCHES_PER_LEAD) and one-pitch-per-agent
+ * (UNIQUE(lead_id, agent_id) on lead_proposals) — a request re-submitted
+ * after the UI's own check raced past it still can't violate either.
+ *
+ * @param {{leadId: number, agentId: number, propertyId: number}} input
+ * @returns {Object} the new lead_proposals row
+ */
+function createLeadProposal({ leadId, agentId, propertyId }) {
+  const lead = getLead(leadId);
+  if (!lead) throw new Error('Not found');
+  if (lead.pitches_count >= MAX_PITCHES_PER_LEAD) {
+    throw new Error('Ce bien a déjà atteint le nombre maximum de propositions.');
+  }
+
+  let info;
+  try {
+    info = db
+      .prepare('INSERT INTO lead_proposals (lead_id, agent_id, property_id) VALUES (?, ?, ?)')
+      .run(leadId, agentId, propertyId);
+  } catch (err) {
+    if (/UNIQUE constraint failed/.test(err.message)) {
+      throw new Error('Vous avez déjà proposé un bien pour cette demande.');
+    }
+    throw err;
+  }
+
+  db.prepare('UPDATE leads SET pitches_count = pitches_count + 1 WHERE id = ?').run(leadId);
+  return db.prepare('SELECT * FROM lead_proposals WHERE id = ?').get(Number(info.lastInsertRowid));
+}
+
+/**
+ * Bulk fetch for the customer-side "Messages & Visites" merge (web/lib/
+ * customerInquiries.js) — one round trip for all of a customer's own leads
+ * rather than one per lead.
+ * @param {number[]} leadIds
+ * @returns {Object[]}
+ */
+function getLeadProposals(leadIds) {
+  if (!Array.isArray(leadIds) || leadIds.length === 0) return [];
+  const placeholders = leadIds.map((_, i) => `@l${i}`).join(', ');
+  const params = Object.fromEntries(leadIds.map((id, i) => [`l${i}`, id]));
+  return db
+    .prepare(`SELECT * FROM lead_proposals WHERE lead_id IN (${placeholders}) ORDER BY created_at DESC`)
+    .all(params);
+}
+
 /**
  * @param {Object} data
  * @param {number} data.leadId
@@ -1273,6 +1492,117 @@ function createViewingRequest({ leadId, propertyId, requestedTime } = {}) {
     .prepare(`INSERT INTO viewing_requests (lead_id, property_id, requested_time) VALUES (?, ?, ?)`)
     .run(leadId, toNullable(propertyId), toNullable(requestedTime));
   return db.prepare('SELECT * FROM viewing_requests WHERE id = ?').get(Number(info.lastInsertRowid));
+}
+
+function getViewingRequest(id) {
+  return db.prepare('SELECT * FROM viewing_requests WHERE id = ?').get(id);
+}
+
+/**
+ * viewing_requests.status has sat unused at its 'PENDING' default since the
+ * column was added (see the CREATE TABLE comment above) — this is the first
+ * real vocabulary and the first thing to ever transition it, for the agent
+ * dashboard's Confirm/Cancel/Reschedule actions.
+ */
+const VIEWING_REQUEST_STATUSES = ['PENDING', 'CONFIRMED', 'RESCHEDULED', 'CANCELLED'];
+
+/**
+ * @param {number} id
+ * @param {{status?: string, requestedTime?: string}} patch `requestedTime`
+ *   lets "Reprogrammer" propose a new free-text time in the same write as
+ *   the status change, rather than a second round trip.
+ */
+function updateViewingRequest(id, { status, requestedTime } = {}) {
+  if (status !== undefined && !VIEWING_REQUEST_STATUSES.includes(status)) {
+    throw new Error(`updateViewingRequest: unknown status '${status}' (expected one of ${VIEWING_REQUEST_STATUSES.join(', ')})`);
+  }
+  if (status !== undefined) {
+    db.prepare('UPDATE viewing_requests SET status = ? WHERE id = ?').run(status, id);
+  }
+  if (requestedTime !== undefined) {
+    db.prepare('UPDATE viewing_requests SET requested_time = ? WHERE id = ?').run(toNullable(requestedTime), id);
+  }
+  return getViewingRequest(id);
+}
+
+const VIEWING_REQUESTS_LIST_LIMIT_DEFAULT = 50;
+const VIEWING_REQUESTS_LIST_LIMIT_MAX = 100;
+
+/**
+ * Agent dashboard's Visit Scheduler — viewing_requests carries no agent
+ * column of its own (see the CREATE TABLE comment above), so ownership is
+ * derived through its parent lead, one hop, mirroring listLeads' own
+ * property_id-OR-assigned_agent ownership rule exactly: a request counts as
+ * "this agent's" if the property it's for (its own property_id, falling
+ * back to the parent lead's property_id when the request itself has none)
+ * is one of the agent's own listings, OR the parent lead was addressed to
+ * this agent by display name.
+ *
+ * @param {Object} [options]
+ * @param {number[]} [options.propertyIds]
+ * @param {string} [options.assignedAgent]
+ * @param {string} [options.status] One of VIEWING_REQUEST_STATUSES.
+ * @param {number} [options.limit]
+ * @param {number} [options.offset]
+ * @returns {{total: number, limit: number, offset: number, count: number, data: Object[]}}
+ */
+function listViewingRequestsForOwner({ propertyIds, assignedAgent, status, limit, offset } = {}) {
+  const where = [];
+  const params = {};
+
+  if (status) {
+    where.push('vr.status = @status');
+    params.status = status;
+  }
+
+  const hasPropertyIds = Array.isArray(propertyIds) && propertyIds.length > 0;
+  const hasAssignedAgent = !!assignedAgent;
+  if (hasPropertyIds || hasAssignedAgent) {
+    const ownerClauses = [];
+    if (hasPropertyIds) {
+      const placeholders = propertyIds.map((id, i) => {
+        params[`p${i}`] = id;
+        return `@p${i}`;
+      });
+      ownerClauses.push(`COALESCE(vr.property_id, l.property_id) IN (${placeholders.join(', ')})`);
+    }
+    if (hasAssignedAgent) {
+      ownerClauses.push('l.assigned_agent = @assignedAgent');
+      params.assignedAgent = assignedAgent;
+    }
+    where.push(`(${ownerClauses.join(' OR ')})`);
+  } else {
+    // No real ownership signal at all (an agent with no listings and no
+    // display name yet) must never fall through to "every viewing request
+    // in the system" — same defensive posture callers already take with
+    // listLeads (see web/app/compte/agent/actions.js's assertOwnedLead,
+    // which never calls this without at least one signal either).
+    where.push('0 = 1');
+  }
+
+  const whereClause = `WHERE ${where.join(' AND ')}`;
+
+  const parsedLimit = Number.parseInt(limit, 10);
+  const resolvedLimit = Number.isFinite(parsedLimit)
+    ? Math.min(Math.max(parsedLimit, 1), VIEWING_REQUESTS_LIST_LIMIT_MAX)
+    : VIEWING_REQUESTS_LIST_LIMIT_DEFAULT;
+  const parsedOffset = Number.parseInt(offset, 10);
+  const resolvedOffset = Number.isFinite(parsedOffset) ? Math.max(parsedOffset, 0) : 0;
+
+  const fromJoin = `FROM viewing_requests vr JOIN leads l ON l.id = vr.lead_id`;
+
+  const { total } = db.prepare(`SELECT COUNT(*) AS total ${fromJoin} ${whereClause}`).get(params);
+  const data = db
+    .prepare(
+      `SELECT vr.id, vr.lead_id, vr.property_id, vr.requested_time, vr.status, vr.created_at,
+              l.wa_id AS lead_wa_id, l.name AS lead_name, l.assigned_agent,
+              l.property_id AS lead_property_id, l.commune AS lead_commune, l.quartier AS lead_quartier
+       ${fromJoin} ${whereClause}
+       ORDER BY vr.id DESC LIMIT @limit OFFSET @offset`,
+    )
+    .all({ ...params, limit: resolvedLimit, offset: resolvedOffset });
+
+  return { total, limit: resolvedLimit, offset: resolvedOffset, count: data.length, data };
 }
 
 /** Flush WAL and release the file handle on shutdown. */
@@ -1325,9 +1655,20 @@ module.exports = {
   getLeadByConversationId,
   getLeadsByConversation,
   updateLeadStatus,
+  assignLead,
+  updateLeadRequirements,
+  LEAD_REQUIREMENT_FIELDS,
   getLeadsByStatus,
   listLeads,
+  listOpenLeads,
+  createLeadProposal,
+  getLeadProposals,
+  MAX_PITCHES_PER_LEAD,
   createViewingRequest,
+  getViewingRequest,
+  updateViewingRequest,
+  listViewingRequestsForOwner,
+  VIEWING_REQUEST_STATUSES,
   LEAD_STATUSES,
   CONVERSATION_REQUIREMENT_FIELDS,
 };

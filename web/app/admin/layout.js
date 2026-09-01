@@ -1,5 +1,6 @@
 import { logoutAction } from './actions';
 import AdminSidebar from './AdminSidebar';
+import { ToastProvider } from '@/components/Toast';
 
 export const metadata = {
   title: 'Admin — Lukka Place',
@@ -24,31 +25,33 @@ export const metadata = {
  */
 export default function AdminLayout({ children }) {
   return (
-    <div className="flex min-h-screen bg-canvas-alt">
-      <div className="hidden lg:flex">
-        <AdminSidebar />
-      </div>
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-[76px] shrink-0 items-center gap-5 border-b border-line bg-surface px-6">
-          <span className="text-[1.3125rem] font-bold tracking-[-0.008em] text-ink">
-            Lukka <span className="text-blue-deep">Admin</span>
-          </span>
-          <form action={logoutAction} className="ml-auto">
-            <button type="submit" className="text-sm font-medium text-ink-45 transition-colors hover:text-ink">
-              Se déconnecter
-            </button>
-          </form>
-        </header>
-
-        {/* Below lg the royal rail is hidden, so the same destinations ride
-            here instead — see the layout doc comment. */}
-        <div className="lg:hidden">
-          <AdminSidebar mobile />
+    <ToastProvider>
+      <div className="flex min-h-screen bg-canvas-alt">
+        <div className="hidden lg:flex">
+          <AdminSidebar />
         </div>
 
-        <main className="min-w-0 flex-1 px-6 py-7">{children}</main>
+        <div className="flex min-w-0 flex-1 flex-col">
+          <header className="flex h-[76px] shrink-0 items-center gap-5 border-b border-line bg-surface px-6">
+            <span className="text-[1.3125rem] font-bold tracking-[-0.008em] text-ink">
+              Lukka <span className="text-blue-deep">Admin</span>
+            </span>
+            <form action={logoutAction} className="ml-auto">
+              <button type="submit" className="text-sm font-medium text-ink-45 transition-colors hover:text-ink">
+                Se déconnecter
+              </button>
+            </form>
+          </header>
+
+          {/* Below lg the royal rail is hidden, so the same destinations ride
+              here instead — see the layout doc comment. */}
+          <div className="lg:hidden">
+            <AdminSidebar mobile />
+          </div>
+
+          <main className="min-w-0 flex-1 px-6 py-7">{children}</main>
+        </div>
       </div>
-    </div>
+    </ToastProvider>
   );
 }

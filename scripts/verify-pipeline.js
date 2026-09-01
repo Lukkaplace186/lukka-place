@@ -2997,6 +2997,38 @@ console.log('\n2. services/openai.js');
   const leadNotFoundResp = await adminRequest('GET', '/admin/leads/999999999');
   check('an unknown lead id 404s', () => assert.strictEqual(leadNotFoundResp.status, 404));
 
+  // "Modifier ma recherche" — the customer-side edit flow (web/app/(site)/compte/client/actions.js's
+  // updatePropertyRequestAction) writes through this exact same PATCH, via db.updateLeadRequirements.
+  const leadRequirementsPatchResp = await adminRequest('PATCH', `/admin/leads/${adminLead.id}`, {
+    transaction_type: 'location',
+    commune: 'Ngaliema',
+    price_min: 500,
+    price_max: 900,
+    bedrooms: 2,
+    requirements_summary: 'Recherche mise à jour par le client',
+  });
+  check("updates a lead's structured requirement fields (customer edit flow)", () => {
+    assert.strictEqual(leadRequirementsPatchResp.status, 200);
+    assert.strictEqual(leadRequirementsPatchResp.body.lead.transaction_type, 'location');
+    assert.strictEqual(leadRequirementsPatchResp.body.lead.commune, 'Ngaliema');
+    assert.strictEqual(leadRequirementsPatchResp.body.lead.price_min, 500);
+    assert.strictEqual(leadRequirementsPatchResp.body.lead.price_max, 900);
+    assert.strictEqual(leadRequirementsPatchResp.body.lead.bedrooms, 2);
+    assert.strictEqual(leadRequirementsPatchResp.body.lead.requirements_summary, 'Recherche mise à jour par le client');
+  });
+
+  const leadRequirementsClearResp = await adminRequest('PATCH', `/admin/leads/${adminLead.id}`, { bedrooms: null });
+  check('a requirements field explicitly set to null clears it, leaving the rest of the patch untouched', () => {
+    assert.strictEqual(leadRequirementsClearResp.status, 200);
+    assert.strictEqual(leadRequirementsClearResp.body.lead.bedrooms, null);
+    assert.strictEqual(leadRequirementsClearResp.body.lead.commune, 'Ngaliema');
+  });
+
+  const leadEmptyPatchResp = await adminRequest('PATCH', `/admin/leads/${adminLead.id}`, {});
+  check('PATCH /admin/leads/:id with no recognized field is a 400, not a silent no-op', () => {
+    assert.strictEqual(leadEmptyPatchResp.status, 400);
+  });
+
   console.log('\n15g. POST /admin/leads — agent storefront inquiry form (web/)');
 
   httpCalls.length = 0;

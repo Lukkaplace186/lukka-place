@@ -1,7 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { normalizeCongoPhone } from '@/lib/phone';
+import { normalizePhone } from '@/lib/phone';
 import { getAgentByPhone, createAgent, sendAgentOtp } from '@/lib/agents';
 import { updateAgentIdentity } from '@/lib/agencies';
 import { hashPassword } from '@/lib/agentAuth';
@@ -24,7 +24,7 @@ function safeNext(nextParam) {
 export async function agentSignupAction(formData) {
   const next = safeNext(formData.get('next'));
   const password = String(formData.get('password') || '');
-  const phone = normalizeCongoPhone(String(formData.get('phone') || ''));
+  const phone = normalizePhone(String(formData.get('phone') || ''));
   const fullName = String(formData.get('full_name') || '').trim().slice(0, 240);
 
   if (!fullName) {

@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Plus, Landmark, BarChart3, Phone, Mail } from 'lucide-react';
 import { getCurrentAgentId } from '@/lib/agentSession';
 import { getAgentDashboardContext } from '@/lib/agentDashboard';
@@ -9,13 +10,13 @@ import {
   VIEW_RANGES,
 } from '@/lib/analytics';
 import { listLeads } from '@/lib/adminApi';
-import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { SITE_URL, ICON_STROKE_WIDTH } from '@/lib/constants';
 import AgentPageHeader from '@/components/AgentPageHeader';
 import AgentPortfolioBanner from '@/components/AgentPortfolioBanner';
 import AgentStatGrid from '@/components/AgentStatGrid';
 import AgentViewsChart from '@/components/AgentViewsChart';
 import AgentRecentLeads from '@/components/AgentRecentLeads';
+import AgentSubscriptionCard from '@/components/AgentSubscriptionCard';
 import WhatsAppPortfolioGenerator from '@/components/WhatsAppPortfolioGenerator';
 
 const RANGE_OPTIONS = Object.entries(VIEW_RANGES).map(([value, { label }]) => ({ value, label }));
@@ -39,10 +40,6 @@ export default async function AgentOverviewPage({ searchParams }) {
 
   const activeCount = listings.filter((l) => l.approve_status === 1 && l.listing_status === 'active').length;
 
-  const addListingHref = getCentralWhatsAppHref(
-    'Bonjour, je souhaite ajouter une nouvelle propriété à mon compte agent.',
-  );
-
   // Exactly the design's four cells, in its order, with its labels. The
   // remaining real metrics (profile views, favourites, pending moderation)
   // are not crammed in beside them — the design's strip is four, and the
@@ -62,17 +59,13 @@ export default async function AgentOverviewPage({ searchParams }) {
         searchAction="/compte/agent/biens"
         searchPlaceholder="Rechercher un bien, un client"
         action={
-          addListingHref && (
-            <a
-              href={addListingHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="u-btn-primary u-press inline-flex h-11 items-center gap-1.5 rounded-lg bg-blue px-5 text-sm font-bold text-white"
-            >
-              <Plus strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-              Ajouter un bien
-            </a>
-          )
+          <Link
+            href="/compte/agent/biens"
+            className="u-btn-primary u-press inline-flex h-11 items-center gap-1.5 rounded-lg bg-blue px-5 text-sm font-bold text-white"
+          >
+            <Plus strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+            Ajouter un bien
+          </Link>
         }
       />
 
@@ -92,7 +85,17 @@ export default async function AgentOverviewPage({ searchParams }) {
             range={range}
             rangeLabel={VIEW_RANGES[range].caption}
           />
-          <AgentRecentLeads leads={leadsPage.data} listingById={listingById} />
+          <div className="flex flex-col gap-6">
+            <AgentRecentLeads leads={leadsPage.data} listingById={listingById} />
+            <AgentSubscriptionCard
+              packageTitle={agent.package_title}
+              packageTerm={agent.package_term}
+              isTrial={agent.subscription_is_trial}
+              expireDate={agent.expire_date}
+              listingCount={listings.length}
+              listingLimit={agent.listing_limit}
+            />
+          </div>
         </div>
 
         {listings.length > 0 && <WhatsAppPortfolioGenerator listings={listings} siteUrl={SITE_URL} />}

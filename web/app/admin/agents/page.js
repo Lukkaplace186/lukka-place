@@ -1,7 +1,8 @@
 import { getAgents, getVendors } from '@/lib/agents';
 import { getLocationHierarchySafe } from '@/lib/locations';
 import { AGENT_STATUS_LABELS_FR } from '@/lib/adminLabels';
-import { updateAgentStatusAction, reassignAgentVendorAction, updateAgentCommunesAction } from './actions';
+import { updateAgentStatusAction, reassignAgentVendorAction } from './actions';
+import AgentCommunesForm from './AgentCommunesForm';
 
 function formatDate(value) {
   if (!value) return null;
@@ -69,10 +70,8 @@ export default async function AdminAgentsPage({ searchParams }) {
               {agents.map((agent) => {
                 const boundUpdateStatus = updateAgentStatusAction.bind(null, agent.id);
                 const boundReassign = reassignAgentVendorAction.bind(null, agent.id);
-                const boundCommunes = updateAgentCommunesAction.bind(null, agent.id, communes);
                 const fullName = [agent.first_name, agent.last_name].filter(Boolean).join(' ') || agent.username || '—';
                 const expireLabel = formatDate(agent.expire_date);
-                const selectedCommunes = new Set(agent.primary_communes || []);
 
                 return (
                   <tr key={agent.id} className="border-b border-line last:border-b-0 hover:bg-canvas-alt">
@@ -113,27 +112,11 @@ export default async function AdminAgentsPage({ searchParams }) {
                       {degraded ? (
                         <span className="text-xs text-ink-45">Liste des communes indisponible (moteur injoignable)</span>
                       ) : (
-                        <form action={boundCommunes} className="flex flex-col gap-1.5">
-                          <div className="flex max-h-24 flex-wrap gap-x-3 gap-y-1 overflow-y-auto text-xs text-ink-70">
-                            {communes.map((commune) => (
-                              <label key={commune} className="flex items-center gap-1">
-                                <input
-                                  type="checkbox"
-                                  name="communes"
-                                  value={commune}
-                                  defaultChecked={selectedCommunes.has(commune)}
-                                />
-                                {commune}
-                              </label>
-                            ))}
-                          </div>
-                          <button
-                            type="submit"
-                            className="self-start rounded-md border border-line px-2 py-1 text-xs font-medium text-ink hover:bg-canvas-alt"
-                          >
-                            Enregistrer
-                          </button>
-                        </form>
+                        <AgentCommunesForm
+                          agentId={agent.id}
+                          communes={communes}
+                          selectedCommunes={agent.primary_communes || []}
+                        />
                       )}
                     </td>
                     <td className="px-4 py-2.5 text-ink-70">

@@ -1,7 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { normalizeCongoPhone } from '@/lib/phone';
+import { normalizePhone } from '@/lib/phone';
 import { createLead } from '@/lib/adminApi';
 import { getAgentProfile } from '@/lib/agencies';
 
@@ -15,7 +15,7 @@ import { getAgentProfile } from '@/lib/agencies';
  */
 export async function submitInquiryAction(agentId, formData) {
   const name = String(formData.get('name') || '').trim();
-  const phone = normalizeCongoPhone(String(formData.get('phone') || ''));
+  const phone = normalizePhone(String(formData.get('phone') || ''));
   const message = String(formData.get('message') || '').trim();
 
   // The form's "Type de bien" and "Budget" selects are real answers, but the

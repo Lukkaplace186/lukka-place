@@ -1,7 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { normalizeCongoPhone } from '@/lib/phone';
+import { normalizePhone } from '@/lib/phone';
 import { requestPasswordReset } from '@/lib/resetPassword';
 import { setResetAttemptCookie } from '@/lib/resetAttempt';
 
@@ -20,7 +20,7 @@ function safeRole(roleParam) {
 export async function requestResetAction(formData) {
   const role = safeRole(formData.get('role'));
   const phoneInput = String(formData.get('phone') || '');
-  const phone = normalizeCongoPhone(phoneInput);
+  const phone = normalizePhone(phoneInput);
 
   if (!phone) {
     redirect(`/mot-de-passe-oublie?error=phone&role=${role}`);

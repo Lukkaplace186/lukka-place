@@ -1,6 +1,6 @@
 import 'server-only';
 import { getCustomerById, getCurrentCustomerId } from './customers';
-import { listLeads } from './adminApi';
+import { listLeads, getLeadProposals } from './adminApi';
 import { getListingsByIds } from './listings';
 
 /**
@@ -24,7 +24,10 @@ import { getListingsByIds } from './listings';
  * losing it should degrade to an empty list, not a 500).
  *
  * @param {number} customerId
- * @returns {Promise<Array<{lead: Object, listing: Object|null}>>}
+ * @returns {Promise<Array<{lead: Object, listing: Object|null, proposals: Object[]}>>}
+ *   `proposals` is the real listing rows agents have pitched against this
+ *   lead via the Agent Demand Feed (web/lib/adminApi.js's
+ *   getLeadProposals) — [] until at least one agent proposes something.
  */
 export async function getCustomerInquiries(customerId) {
   const customer = await getCustomerById(customerId);
@@ -39,15 +42,46 @@ export async function getCustomerInquiries(customerId) {
   }
   if (leads.length === 0) return [];
 
-  const propertyIds = leads.map((lead) => lead.property_id).filter((id) => id != null);
+  // Agent Demand Feed proposals for this customer's own leads — best-effort,
+  // same non-throwing posture as the leads fetch above: a proposals lookup
+  // failure should degrade to "no proposals shown yet", not break the whole
+  // page.
+  let proposals = [];
+  try {
+    ({ proposals } = await getLeadProposals(leads.map((lead) => lead.id)));
+  } catch (error) {
+    console.warn('[customerInquiries] proposals unreachable, showing none:', error.message);
+  }
+
+  const propertyIds = [
+    ...leads.map((lead) => lead.property_id),
+    ...proposals.map((p) => p.property_id),
+  ].filter((id) => id != null);
   const listings = propertyIds.length > 0 ? await getListingsByIds(propertyIds) : [];
-  const listingById = new Map(listings.map((listing) => [listing.id, listing]));
+  // Keyed by String(id): properties.id is a Postgres bigint, which
+  // node-postgres returns as a string, while lead.property_id/
+  // proposal.property_id come from the engine's SQLite as plain numbers —
+  // a Map lookup with the raw number silently never matched (caught live:
+  // every proposal came back filtered out as "no listing found" despite the
+  // row genuinely existing). Same bug class as the agent-side
+  // Number(l.id) fix in web/app/compte/agent/actions.js's proposeListingAction.
+  const listingById = new Map(listings.map((listing) => [String(listing.id), listing]));
+
+  const proposalsByLeadId = new Map();
+  for (const proposal of proposals) {
+    const list = proposalsByLeadId.get(proposal.lead_id) || [];
+    list.push(proposal);
+    proposalsByLeadId.set(proposal.lead_id, list);
+  }
 
   // A listing that's since been unpublished/rejected simply has no match
   // here — honest absence, never a fabricated placeholder (web/CLAUDE.md).
   return leads.map((lead) => ({
     lead,
-    listing: lead.property_id != null ? listingById.get(lead.property_id) || null : null,
+    listing: lead.property_id != null ? listingById.get(String(lead.property_id)) || null : null,
+    proposals: (proposalsByLeadId.get(lead.id) || [])
+      .map((p) => listingById.get(String(p.property_id)))
+      .filter(Boolean),
   }));
 }
 

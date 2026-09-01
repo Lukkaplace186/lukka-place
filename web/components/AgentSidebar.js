@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { BarChart3, Landmark, Mail, SlidersHorizontal, Building2 } from 'lucide-react';
+import { BarChart3, Landmark, Mail, CalendarCheck, SlidersHorizontal, Building2 } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { Wordmark } from './Brand';
 
@@ -25,13 +25,13 @@ import { Wordmark } from './Brand';
  * there is no cover-photo column on this schema, so that specific hint
  * never appears; the real next gap does.
  *
- * Below `lg` this renders as the design's mobile tab bar instead (its phone
- * frame shows the same four destinations along the bottom).
+ * Below `lg` this renders as a mobile tab bar instead, one entry per NAV item.
  */
 const NAV = [
   { href: '/compte/agent', label: "Vue d'ensemble", short: 'Vue', icon: BarChart3, exact: true },
   { href: '/compte/agent/biens', label: 'Mes biens', short: 'Biens', icon: Landmark, countKey: 'listings' },
   { href: '/compte/agent/demandes', label: 'Demandes & messages', short: 'Demandes', icon: Mail, countKey: 'leads' },
+  { href: '/compte/agent/visites', label: 'Visites', short: 'Visites', icon: CalendarCheck, countKey: 'visits' },
   { href: '/compte/agent/parametres', label: 'Paramètres', short: 'Réglages', icon: SlidersHorizontal },
 ];
 
@@ -44,11 +44,12 @@ export default function AgentSidebar({
   agentInitials,
   listingsCount,
   newLeadsCount,
+  pendingVisitsCount,
   completion,
   logoutAction,
 }) {
   const pathname = usePathname();
-  const counts = { listings: listingsCount, leads: newLeadsCount };
+  const counts = { listings: listingsCount, leads: newLeadsCount, visits: pendingVisitsCount };
 
   return (
     <>
@@ -126,7 +127,7 @@ export default function AgentSidebar({
         aria-label="Navigation espace agent"
         className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
       >
-        <div className="grid grid-cols-4">
+        <div className="grid grid-cols-5">
           {NAV.map((item) => {
             const active = isActive(pathname, item);
             const count = item.countKey ? counts[item.countKey] : null;

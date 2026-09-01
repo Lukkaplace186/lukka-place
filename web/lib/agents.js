@@ -20,11 +20,11 @@ import { sendWhatsAppTemplate } from './adminApi';
 
 const AGENT_FIELDS = `
   a.id, a.username, a.email, a.phone, a.status, a.vendor_id, a.image, a.primary_communes,
-  a.phone_verified_at,
+  a.working_hours, a.phone_verified_at,
   v.username AS vendor_username,
   ai.first_name, ai.last_name, ai.address, ai.city,
-  p.title AS package_title, p.number_of_property AS listing_limit,
-  m.expire_date,
+  p.title AS package_title, p.number_of_property AS listing_limit, p.term AS package_term,
+  m.expire_date, m.is_trial AS subscription_is_trial,
   (SELECT count(*) FROM properties WHERE agent_id = a.id)::int AS listing_count
 `;
 
@@ -47,7 +47,7 @@ const AGENT_JOINS = `
     LIMIT 1
   ) ai ON true
   LEFT JOIN LATERAL (
-    SELECT package_id, expire_date FROM memberships
+    SELECT package_id, expire_date, is_trial FROM memberships
     WHERE vendor_id = v.id AND status = 1 AND expire_date > NOW()
     ORDER BY expire_date DESC
     LIMIT 1

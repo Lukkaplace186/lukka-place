@@ -1,10 +1,110 @@
 'use client';
 
-import { MessageCircle, Phone } from 'lucide-react';
+import { useState } from 'react';
+import { MessageCircle, Phone, CalendarClock } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import FavoriteButton from './FavoriteButton';
 import ShareButton from './ShareButton';
 import { getCentralWhatsAppHref, buildWhatsAppLink, buildWhatsAppMessage } from '@/lib/whatsapp';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { submitVisitRequestAction } from '@/app/(site)/listings/[id]/actions';
+
+const FIELD_CLASS =
+  'u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35';
+
+const VISIT_ERROR_MESSAGES = {
+  phone: 'Numéro invalide — vérifiez et réessayez.',
+  time: 'Indiquez le créneau qui vous arrange.',
+  1: "L'envoi a échoué, réessayez.",
+};
+
+/**
+ * "Demander une visite" — a real Dialog + form-action, same composition
+ * DeleteAccountButton.js already established for a public (site) page: a
+ * plain trigger button, local `open` state, and a server-action `<form>`
+ * inside DialogFooter. The redirect this action ends with closes the dialog
+ * on its own (a full page navigation unmounts it); visitSent/visitError
+ * feedback is rendered as an always-visible banner on the parent card
+ * instead of inside the dialog itself — EnquiryCard renders twice on this
+ * page (mobile inline + desktop rail), and a Radix Dialog portals to
+ * `document.body`, bypassing whichever instance's parent is CSS-hidden for
+ * the current viewport; auto-reopening both on error would show two
+ * stacked dialogs at once.
+ */
+function VisitRequestDialog({ propertyId }) {
+  const [open, setOpen] = useState(false);
+  const bound = submitVisitRequestAction.bind(null, propertyId);
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="u-press u-btn-secondary inline-flex w-full items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold text-ink"
+      >
+        <CalendarClock strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
+        Demander une visite
+      </button>
+
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Demander une visite</DialogTitle>
+          <DialogDescription>
+            Laissez vos coordonnées et le créneau qui vous arrange — l&apos;agent vous confirmera la visite sur WhatsApp.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form action={bound} className="flex flex-col gap-4">
+          <div>
+            <label htmlFor="visit-name" className="mb-1.5 block text-[0.8125rem] font-semibold text-ink-70">
+              Nom (facultatif)
+            </label>
+            <input id="visit-name" name="name" placeholder="Votre nom" className={FIELD_CLASS} />
+          </div>
+
+          <div>
+            <label htmlFor="visit-phone" className="mb-1.5 block text-[0.8125rem] font-semibold text-ink-70">
+              Numéro WhatsApp
+            </label>
+            <input
+              id="visit-phone"
+              name="phone"
+              type="tel"
+              inputMode="tel"
+              required
+              placeholder="099 712 3456 ou +33 612345678"
+              className={FIELD_CLASS}
+            />
+          </div>
+
+          <div>
+            <label htmlFor="visit-time" className="mb-1.5 block text-[0.8125rem] font-semibold text-ink-70">
+              Créneau souhaité
+            </label>
+            <input
+              id="visit-time"
+              name="requested_time"
+              required
+              placeholder="Ex. Samedi matin, 10h"
+              className={FIELD_CLASS}
+            />
+          </div>
+
+          <DialogFooter>
+            <DialogClose asChild>
+              <button type="button" className="rounded-full border border-line px-4 py-2 text-sm font-medium text-ink-70 hover:bg-canvas-alt">
+                Annuler
+              </button>
+            </DialogClose>
+            <button type="submit" className="u-btn-primary u-press rounded-lg bg-blue px-5 py-2 text-sm font-bold text-white">
+              Envoyer la demande
+            </button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 /**
  * The agent panel from web/Design's listing-detail screen — the right
@@ -39,7 +139,7 @@ function initialsOf(name) {
   return parts.map((p) => p[0].toUpperCase()).join('');
 }
 
-export default function EnquiryCard({ listing }) {
+export default function EnquiryCard({ listing, visitSent, visitError }) {
   const {
     id, title, reference,
     agency_name: agencyName, agent_phone: agentPhone,
@@ -76,6 +176,17 @@ export default function EnquiryCard({ listing }) {
       <div className="h-px bg-line" />
 
       <div className="flex flex-col gap-2.5">
+        {visitSent && (
+          <p className="rounded-lg bg-success-tint px-3.5 py-2.5 text-[0.8125rem] font-semibold text-success" role="status">
+            Votre demande de visite est partie — l&apos;agent vous répondra sur WhatsApp.
+          </p>
+        )}
+        {visitError && (
+          <p className="rounded-lg bg-danger-tint px-3.5 py-2.5 text-[0.8125rem] font-semibold text-danger" role="alert">
+            {VISIT_ERROR_MESSAGES[visitError] || VISIT_ERROR_MESSAGES[1]}
+          </p>
+        )}
+
         {whatsappHref ? (
           <a
             href={whatsappHref}
@@ -91,6 +202,8 @@ export default function EnquiryCard({ listing }) {
             Contact indisponible
           </span>
         )}
+
+        <VisitRequestDialog propertyId={id} />
 
         {/* Real per-listing number only — renders nothing at all rather than
             a tel: link to a number we don't have. */}

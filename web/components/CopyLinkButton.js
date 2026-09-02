@@ -11,7 +11,13 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  * accessible name. The copied state swaps the icon either way, so the
  * feedback survives without visible text.
  */
-export default function CopyLinkButton({ url, label = 'Copier le lien', ariaLabel, className = '' }) {
+export default function CopyLinkButton({
+  url,
+  label = 'Copier le lien',
+  ariaLabel,
+  className = '',
+  iconClassName = 'h-[18px] w-[18px]',
+}) {
   const [copied, setCopied] = useState(false);
 
   async function handleCopy() {
@@ -31,9 +37,9 @@ export default function CopyLinkButton({ url, label = 'Copier le lien', ariaLabe
       title={ariaLabel}
     >
       {copied ? (
-        <Check strokeWidth={ICON_STROKE_WIDTH} className="h-[18px] w-[18px]" />
+        <Check strokeWidth={ICON_STROKE_WIDTH} className={iconClassName} />
       ) : (
-        <Link2 strokeWidth={ICON_STROKE_WIDTH} className="h-[18px] w-[18px]" />
+        <Link2 strokeWidth={ICON_STROKE_WIDTH} className={iconClassName} />
       )}
       {label ? (copied ? 'Copié !' : label) : null}
     </button>

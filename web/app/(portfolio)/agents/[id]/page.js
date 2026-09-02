@@ -16,13 +16,12 @@ import { SITE_URL, ICON_STROKE_WIDTH } from '@/lib/constants';
 const PROFILE_MESSAGE =
   "Bonjour, j'ai vu votre profil sur Lukka Place et j'aimerais en savoir plus sur vos biens.";
 
+// Only the two transaction tabs — no "Tous" (the tab row itself covers
+// everything the portfolio has) and no "Parcelles" (a property-type facet,
+// not a transaction type; it doesn't belong beside À louer/À vendre).
 const TABS = [
-  { key: 'all', label: 'Tous' },
   { key: 'location', label: 'À louer' },
   { key: 'vente', label: 'À vendre' },
-  // The design's fourth tab. 'parcelle' is a real filter in lib/listings.js —
-  // `parcelle_subtype IS NOT NULL`, not a category name match.
-  { key: 'parcelle', label: 'Parcelles' },
 ];
 
 /** Local to this page — /agents/[id] base, not /listings like lib/urlParams.js's helpers. */
@@ -75,12 +74,11 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
   const agent = await getAgentProfile(id);
   if (!agent) notFound();
 
-  const tab = TABS.some((t) => t.key === sp.tab) ? sp.tab : 'all';
+  const tab = TABS.some((t) => t.key === sp.tab) ? sp.tab : TABS[0].key;
   const q = typeof sp.q === 'string' ? sp.q : '';
 
   const listings = await getAgentListings(agent.id, {
-    transactionType: tab === 'location' || tab === 'vente' ? tab : undefined,
-    propertyType: tab === 'parcelle' ? 'parcelle' : undefined,
+    transactionType: tab,
     commune: sp.commune,
     search: q || undefined,
   });
@@ -144,18 +142,21 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
         legible on ink washes out on royal.
       */}
       <section className="bg-blue-deep text-white">
-        <div className="mx-auto max-w-[77.5rem] px-4 py-14 sm:px-6 sm:py-16">
+        <div className="mx-auto max-w-[77.5rem] px-4 py-9 sm:px-6 sm:py-11">
           {/* Minimal share bar, folded into the hero — this replaces the
               full-width chalk "Partagez ce portfolio" strip that used to sit
-              between the hero and the portfolio. */}
-          <div className="mb-10 flex items-center justify-between gap-4">
-            <span className="truncate text-[0.8125rem] text-white/60">{profileUrl}</span>
-            <div className="flex flex-none items-center gap-1.5">
+              between the hero and the portfolio. Bigger, higher-contrast
+              controls than a purely decorative icon pair — these are real,
+              frequently-used actions. */}
+          <div className="mb-8 flex items-center justify-between gap-4">
+            <span className="truncate text-[0.8125rem] font-medium text-white/80">{profileUrl}</span>
+            <div className="flex flex-none items-center gap-2">
               <CopyLinkButton
                 url={profileUrl}
                 label=""
                 ariaLabel="Copier le lien du portfolio"
-                className="u-press grid h-9 w-9 place-items-center rounded-full text-white/70 ring-1 ring-inset ring-white/15 transition-colors hover:bg-white/10 hover:text-white"
+                iconClassName="h-5 w-5"
+                className="u-press grid h-11 w-11 place-items-center rounded-full bg-white/[0.08] text-white ring-1 ring-inset ring-white/25 transition-colors hover:bg-white/[0.16]"
               />
               <ShareOnWhatsAppButton
                 url={profileUrl}
@@ -163,51 +164,53 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
                 message={shareMessage}
                 iconOnly
                 label="Partager ce portfolio"
-                className="u-press grid h-9 w-9 place-items-center rounded-full text-white/70 ring-1 ring-inset ring-white/15 transition-colors hover:bg-white/10 hover:text-white"
+                iconClassName="h-5 w-5"
+                className="u-press grid h-11 w-11 place-items-center rounded-full bg-white/[0.08] text-white ring-1 ring-inset ring-white/25 transition-colors hover:bg-white/[0.16]"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-1 items-end gap-10 lg:grid-cols-[minmax(0,1fr)_17rem]">
-            <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-7">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:gap-6">
               {/* Refined circular avatar with a hairline ring, replacing the
-                  square logo tile. */}
-              <div className="grid h-24 w-24 shrink-0 place-items-center overflow-hidden rounded-full bg-white/[0.06] p-1 text-center ring-1 ring-white/20">
+                  square logo tile — sized down from the original hero so the
+                  banner reads less like a full-bleed cover photo. */}
+              <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full bg-white/[0.08] p-1 text-center ring-1 ring-white/25 sm:h-[4.5rem] sm:w-[4.5rem]">
                 {agent.image ? (
                   <div className="h-full w-full overflow-hidden rounded-full">
                     <AgentAvatar src={agent.image} alt={name} />
                   </div>
                 ) : initial ? (
-                  <span className="font-display text-[1.75rem] leading-none text-white/70">{initial}</span>
+                  <span className="font-display text-[1.375rem] leading-none text-white/85">{initial}</span>
                 ) : (
-                  <Building2 strokeWidth={1.5} className="h-8 w-8 text-white/55" />
+                  <Building2 strokeWidth={1.5} className="h-6 w-6 text-white/65" />
                 )}
               </div>
 
-              <div className="flex min-w-0 flex-col gap-4">
+              <div className="flex min-w-0 flex-col gap-3.5">
                 {/* Meta line, assembled only from parts that are actually
                     true for this agent — no segment is printed as filler. */}
-                <span className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-white/60">
+                <span className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-white/85">
                   {metaLine}
                 </span>
 
-                <h1 className="font-display text-[2.25rem] font-normal leading-[1.06] tracking-tight text-white sm:text-[3.25rem]">
+                <h1 className="font-display text-[2rem] font-normal leading-[1.06] tracking-tight text-white sm:text-[2.75rem]">
                   {headingName}
                 </h1>
 
                 {/* The phone is a quiet verified chip now, not the headline. */}
                 {agent.phone && hasRealName && (
-                  <span className="inline-flex w-fit items-center gap-2 rounded-full bg-white/[0.07] py-1.5 pl-3 pr-3.5 text-[0.8125rem] ring-1 ring-inset ring-white/15">
+                  <span className="inline-flex w-fit items-center gap-2 rounded-full bg-white/[0.1] py-1.5 pl-3 pr-3.5 text-[0.8125rem] ring-1 ring-inset ring-white/25">
                     {agent.phone_verified_at && (
-                      <BadgeCheck strokeWidth={2.25} className="h-4 w-4 shrink-0 text-white/80" />
+                      <BadgeCheck strokeWidth={2.25} className="h-4 w-4 shrink-0 text-white/90" />
                     )}
-                    <span className="u-tabular font-semibold text-white/90">{formatPhoneDisplay(agent.phone)}</span>
-                    {agent.phone_verified_at && <span className="text-white/45">Vérifié</span>}
+                    <span className="u-tabular font-semibold text-white">{formatPhoneDisplay(agent.phone)}</span>
+                    {agent.phone_verified_at && <span className="text-white/70">Vérifié</span>}
                   </span>
                 )}
 
                 {agent.bio && (
-                  <p className="max-w-[52ch] text-[0.9375rem] leading-[1.7] text-white/75">{agent.bio}</p>
+                  <p className="max-w-[52ch] text-[0.9375rem] leading-[1.7] text-white/85">{agent.bio}</p>
                 )}
 
                 {communes.length > 0 && (
@@ -219,7 +222,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
                         className={`inline-flex items-center rounded-full px-3 py-1.5 text-[0.8125rem] font-medium transition-colors ${
                           sp.commune === commune
                             ? 'bg-white text-blue-deep'
-                            : 'text-white/70 ring-1 ring-inset ring-white/15 hover:bg-white/10 hover:text-white'
+                            : 'text-white/85 ring-1 ring-inset ring-white/25 hover:bg-white/15 hover:text-white'
                         }`}
                       >
                         {commune}
@@ -230,7 +233,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
               </div>
             </div>
 
-            <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-4">
               {/* The single primary action in the hero. The sticky rail
                   carries the other one; there is no third. */}
               {whatsappHref ? (
@@ -238,32 +241,32 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
                   href={whatsappHref}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="u-press flex h-[3.25rem] items-center justify-center gap-2.5 rounded-lg bg-white text-[0.9375rem] font-bold text-blue-deep transition-transform hover:-translate-y-0.5"
+                  className="u-press flex h-12 items-center justify-center gap-2.5 rounded-lg bg-white text-[0.9375rem] font-bold text-blue-deep transition-transform hover:-translate-y-0.5"
                 >
                   <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
                   Contacter l&apos;agence
                 </a>
               ) : (
-                <span className="flex h-[3.25rem] items-center justify-center rounded-lg px-4 text-center text-[0.8125rem] text-white/65 ring-1 ring-inset ring-white/15">
+                <span className="flex h-12 items-center justify-center rounded-lg px-4 text-center text-[0.8125rem] text-white/80 ring-1 ring-inset ring-white/25">
                   Coordonnées non disponibles
                 </span>
               )}
 
-              <div className="flex gap-8 border-t border-white/10 pt-4">
+              <div className="flex gap-8 border-t border-white/15 pt-4">
                 <div>
-                  <div className="u-tabular text-[1.75rem] font-extrabold leading-none tracking-[-0.02em] text-white">
+                  <div className="u-tabular text-[1.625rem] font-extrabold leading-none tracking-[-0.02em] text-white">
                     {agent.listing_count}
                   </div>
-                  <div className="mt-1.5 text-[0.8125rem] text-white/65">
+                  <div className="mt-1.5 text-[0.8125rem] font-medium text-white/80">
                     bien{agent.listing_count === 1 ? '' : 's'} actif{agent.listing_count === 1 ? '' : 's'}
                   </div>
                 </div>
                 {communes.length > 0 && (
                   <div>
-                    <div className="u-tabular text-[1.75rem] font-extrabold leading-none tracking-[-0.02em] text-white">
+                    <div className="u-tabular text-[1.625rem] font-extrabold leading-none tracking-[-0.02em] text-white">
                       {communes.length}
                     </div>
-                    <div className="mt-1.5 text-[0.8125rem] text-white/65">
+                    <div className="mt-1.5 text-[0.8125rem] font-medium text-white/80">
                       commune{communes.length === 1 ? '' : 's'} couverte{communes.length === 1 ? '' : 's'}
                     </div>
                   </div>
@@ -302,7 +305,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
               {TABS.map(({ key, label }) => (
                 <Link
                   key={key}
-                  href={hrefWithParam(agent.id, sp, 'tab', key === 'all' ? null : key)}
+                  href={hrefWithParam(agent.id, sp, 'tab', key)}
                   aria-current={tab === key ? 'page' : undefined}
                   className={`-mb-px whitespace-nowrap border-b-[1.5px] px-1 pb-3 pt-2 text-sm transition-colors ${
                     tab === key
@@ -331,11 +334,14 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
           </section>
 
           {/* Pinned contact rail. `top` clears the 76px sticky header plus a
-              gutter; the max-height + internal scroll keeps the whole card
-              reachable on a short viewport instead of stranding the submit
-              button below the fold, which is the failure mode a naive
-              position:sticky has when its content is taller than the screen. */}
-          <aside className="no-scrollbar flex flex-col gap-3 lg:sticky lg:top-[6.5rem] lg:max-h-[calc(100vh-7.5rem)] lg:overflow-y-auto">
+              gutter. Deliberately NO internal `overflow-y-auto` / `max-h`
+              here: that combination gives the rail its own independent
+              scroll position, so scrolling the page back up does not bring
+              the WhatsApp button back into view — it stays scrolled out of
+              sight inside its own clipped box until the rail's internal
+              scroll is separately reset. A plain sticky block has no such
+              state to get stuck in. */}
+          <aside className="flex flex-col gap-3 lg:sticky lg:top-[6.5rem]">
             <div className="flex flex-col gap-2.5 rounded-card border border-line/60 bg-surface p-4">
               {whatsappHref ? (
                 <a

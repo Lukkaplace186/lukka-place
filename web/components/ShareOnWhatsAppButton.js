@@ -20,6 +20,7 @@ export default function ShareOnWhatsAppButton({
   showArrow = false,
   iconOnly = false,
   className = 'u-press inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-3.5 py-1.5 text-[0.8125rem] font-medium text-ink-70 transition-colors hover:border-green hover:text-green-deep',
+  iconClassName = 'h-[18px] w-[18px]',
 }) {
   async function handleClick() {
     const text = message || `${title} — ${url}`;
@@ -45,7 +46,7 @@ export default function ShareOnWhatsAppButton({
       title={iconOnly ? label : undefined}
     >
       {iconOnly ? (
-        <Share2 strokeWidth={ICON_STROKE_WIDTH} className="h-[18px] w-[18px]" />
+        <Share2 strokeWidth={ICON_STROKE_WIDTH} className={iconClassName} />
       ) : (
         <>
           {label}

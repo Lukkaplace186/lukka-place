@@ -597,3 +597,30 @@ export async function setListingAmenities(propertyId, amenityIds, existingClient
     if (ownsClient) client.release();
   }
 }
+
+/**
+ * The Mes biens table's inline price cell — a narrower write than
+ * updateListing() on purpose. That function requires the full field set
+ * (title, description, commune, amenities…) because the native editor
+ * submits all of them together; re-fetching and re-submitting every other
+ * field just to change one number would be both wasted work and a wider
+ * blast radius than the edit the agent actually asked for (a stale
+ * description typed in another tab could silently get overwritten).
+ *
+ * Still dual-column and currency-aware: `price` stays canonical USD (the
+ * caller has already converted a CDF figure via the dated rate before
+ * calling this, same as updateListingAction does for the full editor), and
+ * `priceOriginal`/`currency` are written alongside it so the two can never
+ * drift out of sync with each other.
+ *
+ * @returns {Promise<boolean>} false when the listing isn't this agent's.
+ */
+export async function updateListingPrice(agentId, propertyId, { price, priceOriginal, currency }) {
+  const pool = getPool();
+  const { rowCount } = await pool.query(
+    `UPDATE properties SET price = $1, price_original = $2, currency = $3, updated_at = NOW()
+     WHERE id = $4 AND agent_id = $5`,
+    [price, priceOriginal, currency, propertyId, agentId],
+  );
+  return rowCount > 0;
+}

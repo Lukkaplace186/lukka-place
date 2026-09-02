@@ -52,6 +52,10 @@ export default function AgentPageHeader({
                 aria-hidden="true"
               />
               <input
+                // Global "/" shortcut (AgentKeyboardShortcuts.js) focuses by
+                // this id — every page that renders a search box shares it,
+                // since only one can ever be on screen at a time.
+                id="agent-page-search"
                 type="search"
                 name="q"
                 defaultValue={searchDefaultValue}

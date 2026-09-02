@@ -50,7 +50,7 @@ export async function getAgentListings(agentId, filters = {}) {
 export async function getOwnListingsForDashboard(agentId) {
   const pool = getPool();
   const { rows } = await pool.query(
-    `SELECT p.id, p.price, p.purpose, p.approve_status, p.listing_status, p.featured_image, p.quartier,
+    `SELECT p.id, p.price, p.purpose, p.beds, p.approve_status, p.listing_status, p.featured_image, p.quartier,
             p.sold_price, p.currency, p.price_original, pc.title
      FROM properties p
      JOIN property_contents pc ON pc.property_id = p.id AND pc.language_id = 20

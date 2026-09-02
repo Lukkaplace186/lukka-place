@@ -27,6 +27,7 @@ import {
   createListing,
   attachListingPhotos,
   updateListing,
+  updateListingPrice,
   setListingGallery,
   deleteListing,
   duplicateListing,
@@ -746,4 +747,104 @@ export async function duplicateListingAction(propertyId) {
 
   revalidateListingSurfaces(agentId, newId);
   return { ok: true, propertyId: newId };
+}
+
+/**
+ * The Mes biens table's inline price cell (AgentListingsTable.js), backed
+ * by lib/agentListings.js's narrower updateListingPrice — see that
+ * function's own doc comment for why this doesn't reuse the full
+ * updateListing() the native editor calls.
+ *
+ * Currency-aware the same way updateListingAction is: an FC figure is
+ * converted to canonical USD at the current dated rate before being
+ * written, and the agent's own authored figure is preserved verbatim in
+ * price_original. Called imperatively (not a <form action>) so the client
+ * can apply the value optimistically and roll it back on a real failure.
+ */
+export async function updateListingPriceAction(propertyId, formData) {
+  const agentId = await assertAgentSession();
+
+  const priceInput = Number.parseFloat(formData.get('price'));
+  const currency = String(formData.get('currency') || 'USD').toUpperCase();
+
+  if (!['USD', 'CDF'].includes(currency)) return { ok: false, error: 'Devise invalide.' };
+  if (!Number.isFinite(priceInput) || priceInput <= 0) return { ok: false, error: 'Indiquez un prix valide.' };
+
+  let price = priceInput;
+  if (currency === 'CDF') {
+    const rate = await getCdfRate();
+    price = convertCdfToUsd(priceInput, rate.cdfPerUsd);
+    if (!Number.isFinite(price) || price <= 0) {
+      return { ok: false, error: 'La conversion du prix en dollars a échoué. Réessayez.' };
+    }
+  }
+
+  const owned = await updateListingPrice(agentId, propertyId, { price, priceOriginal: priceInput, currency });
+  if (!owned) return { ok: false, error: 'Bien introuvable, ou vous n’en êtes pas le propriétaire.' };
+
+  revalidateListingSurfaces(agentId, propertyId);
+  return { ok: true, price };
+}
+
+/**
+ * Bulk "Marquer sous compromis" from the Mes biens floating selection bar.
+ *
+ * Deliberately NOT a bulk "Marquer comme loué / vendu": that status can
+ * only be reached with a real final sale price (markListingSoldAction,
+ * LISTING_STATUSES above), and there is no honest single price to apply
+ * across a batch of different listings — collecting N real prices in one
+ * bulk action is a materially different, larger feature than "select rows,
+ * click a button", not a corner this action can safely cut. Moving several
+ * listings to "sous compromis" together carries no such requirement, so
+ * that is the real bulk status change offered here.
+ *
+ * Every id is still scoped through the per-row `AND agent_id = $n` inside
+ * updateListingStatusAction's own query — a client-supplied id list can
+ * only ever touch listings this agent actually owns.
+ *
+ * @param {number[]} propertyIds
+ * @returns {Promise<{ok: boolean, updated: number, failed: number}>}
+ */
+export async function bulkMarkUnderOfferAction(propertyIds) {
+  const agentId = await assertAgentSession();
+  const ids = (propertyIds || []).map((id) => Number(id)).filter(Number.isFinite);
+
+  const pool = getPool();
+  const { rowCount } = await pool.query(
+    `UPDATE properties SET listing_status = 'under_offer', sold_price = NULL, updated_at = NOW()
+     WHERE id = ANY($1::bigint[]) AND agent_id = $2 AND listing_status <> 'closed'`,
+    [ids, agentId],
+  );
+
+  revalidateListingSurfaces(agentId, null);
+  return { ok: true, updated: rowCount, failed: ids.length - rowCount };
+}
+
+/**
+ * Bulk delete from the Mes biens floating selection bar — same real,
+ * irreversible removal as deleteListingAction (child rows first, no
+ * ON DELETE CASCADE on these tables), just applied to a selection. Runs the
+ * per-listing helper sequentially rather than one batched statement so a
+ * listing referenced elsewhere in a way that makes it fail doesn't abort
+ * the rest of the selection — the caller gets an honest partial-success
+ * count instead of an all-or-nothing failure.
+ *
+ * @param {number[]} propertyIds
+ * @returns {Promise<{ok: boolean, deleted: number, failed: number}>}
+ */
+export async function bulkDeleteListingsAction(propertyIds) {
+  const agentId = await assertAgentSession();
+  const ids = (propertyIds || []).map((id) => Number(id)).filter(Number.isFinite);
+
+  let deleted = 0;
+  for (const id of ids) {
+    try {
+      if (await deleteListing(agentId, id)) deleted += 1;
+    } catch (err) {
+      console.error(`[compte/agent] bulk delete failed for listing #${id}: ${err.message}`);
+    }
+  }
+
+  revalidateListingSurfaces(agentId, null);
+  return { ok: true, deleted, failed: ids.length - deleted };
 }

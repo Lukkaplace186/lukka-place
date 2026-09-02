@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { ArrowUpRight } from 'lucide-react';
+import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { formatRelativeFr } from '@/lib/format';
 
 /**
@@ -11,6 +13,14 @@ import { formatRelativeFr } from '@/lib/format';
  * columns (price_min/price_max, then the attached property title falling
  * back to commune/quartier), and any part with no value is simply left out
  * instead of printing an empty segment or a placeholder.
+ *
+ * The whole card is one link into /compte/agent/demandes — same hover
+ * treatment (group + u-press + hover:bg-canvas-alt, a corner arrow that
+ * fades in) as AgentStatGrid's clickable metric cells, so the two
+ * "this number/list lives elsewhere, click through" surfaces on this page
+ * read as one consistent affordance. "Tout voir" stays in the header as a
+ * label, not a second nested link — an <a> inside an <a> is invalid HTML,
+ * and the whole card already goes to the same place.
  */
 function metaLine(lead, propertyTitle) {
   const min = lead.price_min != null ? Number(lead.price_min).toLocaleString('fr-FR') : null;
@@ -26,12 +36,20 @@ function metaLine(lead, propertyTitle) {
 
 export default function AgentRecentLeads({ leads, listingById }) {
   return (
-    <div className="u-card flex flex-col rounded-card bg-surface p-6">
+    <Link
+      href="/compte/agent/demandes"
+      className="u-card group u-press flex flex-col rounded-card bg-surface p-6 text-left transition-colors hover:bg-canvas-alt"
+    >
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-[1.125rem] font-bold text-ink">Demandes récentes</h2>
-        <Link href="/compte/agent/demandes" className="text-[0.8125rem] font-bold text-blue hover:underline">
+        <span className="inline-flex items-center gap-1 text-[0.8125rem] font-bold text-blue">
           Tout voir
-        </Link>
+          <ArrowUpRight
+            strokeWidth={ICON_STROKE_WIDTH}
+            aria-hidden="true"
+            className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100"
+          />
+        </span>
       </div>
 
       {leads.length === 0 ? (
@@ -63,6 +81,6 @@ export default function AgentRecentLeads({ leads, listingById }) {
           })}
         </div>
       )}
-    </div>
+    </Link>
   );
 }

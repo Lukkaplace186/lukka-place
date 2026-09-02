@@ -34,6 +34,32 @@ export function buildWhatsAppLink(phoneNumber, message) {
 }
 
 /**
+ * A share-to-anyone WhatsApp link — `wa.me/?text=` with no recipient, which
+ * opens WhatsApp's own contact picker instead of a fixed conversation. Used
+ * by the "Partager sur WhatsApp" action on a listing row: this is a
+ * marketing share (the agent sends their own listing to whoever they pick),
+ * not a lead contact, so it deliberately doesn't reuse buildWhatsAppLink's
+ * fixed-number shape.
+ */
+export function buildWhatsAppShareLink(message) {
+  return `https://wa.me/?text=${encodeURIComponent(message)}`;
+}
+
+/**
+ * The share text for "Partager sur WhatsApp" on a listing row — title,
+ * price and a real link to the public listing page, so whoever receives it
+ * can open the exact same detail page the agent is looking at. Reuses
+ * formatPrice for the same real stored price every other surface shows,
+ * never a currency-toggled estimate — same reasoning buildWhatsAppMessage
+ * above already documents.
+ */
+export function buildListingShareMessage({ title, price, purpose, pricePeriod, id }) {
+  const priceText = price != null ? ` — ${formatPrice(price, purpose, pricePeriod)}` : '';
+  const link = id != null ? `\n${SITE_URL}/listings/${id}` : '';
+  return `${title}${priceText}${link}`;
+}
+
+/**
  * The one real central WhatsApp number (CLAUDE.md's Lead Routing Rules),
  * resolved to a link or `null`. Every CTA on the site that isn't routing to
  * a specific per-listing/per-agent number (Footer, ValueProposition,

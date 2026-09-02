@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { CheckCircle2, Copy, ExternalLink, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import { Copy, ExternalLink, MessageCircle, MoreHorizontal, Pencil, RotateCcw, Trash2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -13,7 +13,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
-import { deleteListingAction, duplicateListingAction } from '@/app/compte/agent/actions';
+import { buildWhatsAppShareLink, buildListingShareMessage } from '@/lib/whatsapp';
+import { deleteListingAction, duplicateListingAction, updateListingStatusAction } from '@/app/compte/agent/actions';
 import { useToast } from './Toast';
 
 /**
@@ -31,12 +32,42 @@ import { useToast } from './Toast';
  * final price, which MarkListingSoldDialog collects, and that dialog stays
  * its own control on the row (see actions.js's LISTING_STATUSES comment for
  * why 'closed' can only be reached through it).
+ *
+ * "Remettre en ligne" is the reverse path, for a listing already closed: it
+ * calls the same updateListingStatusAction the per-row status select uses
+ * elsewhere (status='active'), which already clears sold_price and
+ * revalidates every public surface — there is no separate "republish"
+ * action to keep in sync with that one.
  */
 export default function AgentListingActionsMenu({ listing, isClosed }) {
   const router = useRouter();
   const { showToast } = useToast();
   const [pending, startTransition] = useTransition();
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  function handleRepublish() {
+    startTransition(async () => {
+      try {
+        const formData = new FormData();
+        formData.set('listing_status', 'active');
+        await updateListingStatusAction(listing.id, formData);
+        showToast({ type: 'success', message: `« ${listing.title} » remis en ligne.` });
+        router.refresh();
+      } catch (err) {
+        showToast({ type: 'error', message: err.message || "Échec de la remise en ligne." });
+      }
+    });
+  }
+
+  const shareHref = buildWhatsAppShareLink(
+    buildListingShareMessage({
+      title: listing.title,
+      price: listing.price,
+      purpose: listing.purpose,
+      pricePeriod: listing.price_period,
+      id: listing.id,
+    }),
+  );
 
   function handleDuplicate() {
     startTransition(async () => {
@@ -96,12 +127,24 @@ export default function AgentListingActionsMenu({ listing, isClosed }) {
             Dupliquer
           </DropdownMenuItem>
 
-          {isClosed && (
-            <DropdownMenuItem disabled className="flex items-center gap-2.5">
-              <CheckCircle2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
-              {listing.purpose === 'rent' ? 'Déjà loué' : 'Déjà vendu'}
+          <DropdownMenuItem asChild>
+            <a
+              href={shareHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2.5"
+            >
+              <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
+              Partager sur WhatsApp
+            </a>
+          </DropdownMenuItem>
+
+          {isClosed ? (
+            <DropdownMenuItem onSelect={handleRepublish} disabled={pending} className="flex items-center gap-2.5">
+              <RotateCcw strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
+              Remettre en ligne
             </DropdownMenuItem>
-          )}
+          ) : null}
 
           <DropdownMenuSeparator />
 

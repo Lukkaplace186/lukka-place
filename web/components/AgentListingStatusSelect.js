@@ -24,8 +24,21 @@ const PILL = {
   closed: 'bg-canvas-deep text-ink-70',
 };
 
-export default function AgentListingStatusSelect({ name, defaultValue, options, label }) {
+/**
+ * `onChange` is optional: when given (AgentListingsTable's optimistic-update
+ * row), it's called with the new value directly and the select is treated
+ * as a plain controlled control with no wrapping `<form>`. When omitted,
+ * this falls back to its original behaviour — submitting the enclosing
+ * server-action form via `requestSubmit()` — so a future consumer that
+ * still wants the plain-form pattern doesn't have to opt into anything.
+ */
+export default function AgentListingStatusSelect({ name, defaultValue, options, label, onChange }) {
   const ref = useRef(null);
+
+  function handleChange(event) {
+    if (onChange) onChange(event.target.value);
+    else ref.current?.form?.requestSubmit();
+  }
 
   return (
     <select
@@ -33,7 +46,7 @@ export default function AgentListingStatusSelect({ name, defaultValue, options, 
       name={name}
       defaultValue={defaultValue}
       aria-label={label}
-      onChange={() => ref.current?.form?.requestSubmit()}
+      onChange={handleChange}
       className={`u-focus-ring w-full max-w-[10.5rem] cursor-pointer appearance-none rounded-full border-0 px-3.5 py-[0.4375rem] text-center text-[0.8125rem] font-bold ${
         PILL[defaultValue] || PILL.active
       }`}

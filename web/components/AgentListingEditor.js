@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, GripVertical, Plus, Star, X } from 'lucide-react';
+import { ArrowLeft, CircleCheck, GripVertical, Plus, Sparkles, Star, X } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { convertToCdf } from '@/lib/currency';
 import { convertCdfToUsd } from '@/lib/format';
@@ -68,6 +68,11 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
 
   const [amenityIds, setAmenityIds] = useState(() => new Set(listing.amenity_ids || []));
   const [amenitiesTouched, setAmenitiesTouched] = useState(false);
+
+  // Tracked only for the live quality hint below — the textarea itself
+  // stays uncontrolled (defaultValue), so this doesn't change what actually
+  // gets submitted, it just mirrors its length as the agent types.
+  const [descriptionLength, setDescriptionLength] = useState((listing.description || '').length);
 
   function toggleAmenity(id) {
     setAmenityIds((prev) => {
@@ -169,6 +174,8 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
 
   return (
     <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-6">
+      <QualityHints photoCount={photos.length} descriptionLength={descriptionLength} />
+
       <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-6">
         <h2 className="text-[1.0625rem] font-bold text-ink">Descriptif</h2>
 
@@ -193,6 +200,7 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
             minLength={15}
             rows={6}
             defaultValue={listing.description || ''}
+            onChange={(e) => setDescriptionLength(e.target.value.length)}
             className="u-focus-ring w-full resize-y rounded-lg border border-line bg-surface p-3 text-sm leading-relaxed text-ink placeholder:text-ink-35"
           />
           <p className={HINT_CLASS}>
@@ -492,5 +500,57 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
         </button>
       </div>
     </form>
+  );
+}
+
+// Thresholds are the same ones the design's own guidance already implies
+// elsewhere (10-photo cap, a description long enough to actually describe
+// the place) — not invented numbers, just made visible and live instead of
+// silently governing acceptance after the fact.
+const MIN_RECOMMENDED_PHOTOS = 3;
+const MIN_RECOMMENDED_DESCRIPTION_LENGTH = 150;
+
+/**
+ * A live prompt, not a gate — nothing here blocks saving (the form's real
+ * `required`/`minLength` validation on title/description/photos still does
+ * that). This only tells the agent, before they scroll past it, what would
+ * make the listing show better: more photos, a fuller description. Both
+ * numbers are read straight from the same state the rest of the form
+ * already tracks (`photos.length`, the description textarea's live
+ * length) — never a separate, possibly-stale computation.
+ */
+function QualityHints({ photoCount, descriptionLength }) {
+  const hints = [];
+  if (photoCount < MIN_RECOMMENDED_PHOTOS) {
+    const remaining = MIN_RECOMMENDED_PHOTOS - photoCount;
+    hints.push(
+      `Ajoutez au moins ${remaining} photo${remaining > 1 ? 's' : ''} de plus pour une visibilité maximale.`,
+    );
+  }
+  if (descriptionLength < MIN_RECOMMENDED_DESCRIPTION_LENGTH) {
+    hints.push('Détaillez la description (150 caractères ou plus) pour aider les visiteurs à se projeter.');
+  }
+
+  if (hints.length === 0) {
+    return (
+      <div className="flex items-center gap-2.5 rounded-card bg-success-tint px-5 py-3.5 text-[0.8125rem] font-semibold text-success">
+        <CircleCheck strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0" aria-hidden="true" />
+        Annonce complète — photos et description au niveau recommandé.
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-card bg-warning-tint px-5 py-3.5 text-[0.8125rem] font-semibold text-warning">
+      <div className="flex items-center gap-2.5">
+        <Sparkles strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0" aria-hidden="true" />
+        Pour une meilleure visibilité
+      </div>
+      <ul className="ml-[1.625rem] list-disc font-normal">
+        {hints.map((hint) => (
+          <li key={hint}>{hint}</li>
+        ))}
+      </ul>
+    </div>
   );
 }

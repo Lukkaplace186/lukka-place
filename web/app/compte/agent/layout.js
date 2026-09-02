@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { getCurrentAgentId } from '@/lib/agentSession';
 import { getAgentDashboardContext } from '@/lib/agentDashboard';
 import AgentSidebar from '@/components/AgentSidebar';
+import AgentKeyboardShortcuts from '@/components/AgentKeyboardShortcuts';
 import { ToastProvider } from '@/components/Toast';
 import { agentLogoutAction } from './actions';
 
@@ -52,6 +53,7 @@ export default async function AgentDashboardLayout({ children }) {
 
   return (
     <div className="flex min-h-screen bg-canvas-alt">
+      <AgentKeyboardShortcuts />
       <AgentSidebar
         agentName={name}
         agentInitials={initials}

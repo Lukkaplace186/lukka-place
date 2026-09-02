@@ -1,4 +1,5 @@
 import 'server-only';
+import { getAgentPitchUsage } from './adminApi';
 
 /**
  * Agent Demand Feed access — a platform-wide launch trial (env-configurable
@@ -76,4 +77,27 @@ export function resolvePitchQuota(agent, used) {
     remaining: Math.max(0, limit - safeUsed),
     exhausted: safeUsed >= limit,
   };
+}
+
+/**
+ * Fetches + resolves an agent's pitch quota in one call — the overview page
+ * and the dedicated /compte/agent/abonnement page both need exactly this,
+ * and duplicating the try/catch around a third-party fetch in two places is
+ * exactly the kind of drift lib/listingView.js's own doc comment warns
+ * about. Same degrade-don't-die contract as the rest of this dashboard: the
+ * engine being unreachable returns null (no quota line renders) rather than
+ * taking the page down or showing a fabricated number.
+ *
+ * @param {number} agentId
+ * @param {{monthly_pitch_limit?: number|null, package_title?: string|null}} agent
+ * @returns {Promise<{limit: number, used: number, remaining: number, exhausted: boolean}|null>}
+ */
+export async function getAgentPitchQuota(agentId, agent) {
+  try {
+    const { used } = await getAgentPitchUsage({ agentId, since: currentPitchPeriodStart() });
+    return resolvePitchQuota(agent, used);
+  } catch (err) {
+    console.warn(`[demandFeed] pitch usage unavailable for agent #${agentId}: ${err.message}`);
+    return null;
+  }
 }

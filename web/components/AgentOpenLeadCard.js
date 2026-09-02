@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Send } from 'lucide-react';
+import { Send, Target } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { formatPrice } from '@/lib/format';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { proposeListingAction } from '@/app/compte/agent/actions';
+import { bestMatch } from '@/lib/agentMatching';
 import { useToast } from './Toast';
 
 const TRANSACTION_LABELS_FR = { location: 'Location', vente: 'Vente' };
@@ -29,6 +30,14 @@ function budgetText(lead) {
  * is the one who reaches out afterward (their own proposal card in
  * Messages & Visites carries the real WhatsApp deep link) — this card never
  * sends anything to the customer directly.
+ *
+ * "Match %" is a real, computed score (lib/agentMatching.js) against this
+ * agent's own price/bedroom count — never fabricated, and simply absent
+ * when the lead gives no budget or bedroom signal to score against. The
+ * strongest-scoring listing is pre-selected in the pitch dialog's select
+ * below (true 1-click pitching for the common case), but the agent can
+ * still change it before submitting — this pre-selects, it never
+ * auto-submits.
  */
 export default function AgentOpenLeadCard({ lead, relativeTime, myListings }) {
   const [open, setOpen] = useState(false);
@@ -37,6 +46,7 @@ export default function AgentOpenLeadCard({ lead, relativeTime, myListings }) {
   const { showToast } = useToast();
 
   const budget = budgetText(lead);
+  const best = useMemo(() => bestMatch(myListings, lead), [myListings, lead]);
 
   function handleSubmit(event) {
     event.preventDefault();
@@ -71,10 +81,19 @@ export default function AgentOpenLeadCard({ lead, relativeTime, myListings }) {
             </p>
           )}
 
-          <div className="mt-3.5 flex flex-wrap gap-x-[1.125rem] gap-y-2 border-t border-line pt-3.5 text-[0.8125rem] text-ink-70">
+          <div className="mt-3.5 flex flex-wrap items-center gap-x-[1.125rem] gap-y-2 border-t border-line pt-3.5 text-[0.8125rem] text-ink-70">
             {budget && <span>{budget}</span>}
             {lead.bedrooms ? <span>{lead.bedrooms} chambre{lead.bedrooms > 1 ? 's' : ''}</span> : null}
             <span className="text-ink-45">{lead.pitches_count || 0}/{MAX_PITCHES} propositions envoyées</span>
+            {best && (
+              <span
+                title={`Meilleure correspondance : « ${best.listing.title} »`}
+                className="inline-flex items-center gap-1 rounded-full bg-blue-tint px-2 py-0.5 text-[0.75rem] font-bold text-blue-deep"
+              >
+                <Target strokeWidth={ICON_STROKE_WIDTH} className="h-3 w-3" />
+                {best.score}% correspondance
+              </span>
+            )}
           </div>
         </div>
 
@@ -102,13 +121,14 @@ export default function AgentOpenLeadCard({ lead, relativeTime, myListings }) {
             <select
               name="property_id"
               required
-              defaultValue=""
+              defaultValue={best ? String(best.listing.id) : ''}
               className="u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink"
             >
               <option value="" disabled>Choisir un bien…</option>
               {myListings.map((listing) => (
                 <option key={listing.id} value={listing.id}>
                   {listing.title} — {formatPrice(listing.price, listing.purpose)}
+                  {best?.listing.id === listing.id ? ` (${best.score}% correspondance)` : ''}
                 </option>
               ))}
             </select>

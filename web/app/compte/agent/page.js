@@ -9,13 +9,12 @@ import {
   getAgentMonthlyDeltas,
   VIEW_RANGES,
 } from '@/lib/analytics';
-import { listLeads, getAgentPitchUsage } from '@/lib/adminApi';
+import { listLeads } from '@/lib/adminApi';
 import {
   hasDemandFeedAccess,
   isWithinLaunchTrial,
   launchTrialEndsAtLabel,
-  currentPitchPeriodStart,
-  resolvePitchQuota,
+  getAgentPitchQuota,
 } from '@/lib/demandFeed';
 import { SITE_URL, ICON_STROKE_WIDTH } from '@/lib/constants';
 import AgentPageHeader from '@/components/AgentPageHeader';
@@ -36,7 +35,7 @@ export default async function AgentOverviewPage({ searchParams }) {
   const { agent, listings, propertyIds, listingById, leadScope, hasLeadScope, newLeadsCount } =
     await getAgentDashboardContext(agentId);
 
-  const [views30d, whatsappClicks, leadsPage, series, deltas, pitchUsage] = await Promise.all([
+  const [views30d, whatsappClicks, leadsPage, series, deltas, pitchQuota] = await Promise.all([
     getAgentListingViews(propertyIds, 30),
     getAgentWhatsAppClicks(propertyIds),
     hasLeadScope ? listLeads({ ...leadScope, limit: 3 }) : Promise.resolve({ total: 0, data: [] }),
@@ -47,13 +46,8 @@ export default async function AgentOverviewPage({ searchParams }) {
     // simply shows no quota line rather than a fabricated one — and
     // proposeListingAction re-checks the real count server-side before any
     // pitch is written, so an unreadable count here can never grant one.
-    getAgentPitchUsage({ agentId, since: currentPitchPeriodStart() }).catch((err) => {
-      console.warn(`[compte/agent] pitch usage unavailable: ${err.message}`);
-      return null;
-    }),
+    getAgentPitchQuota(agentId, agent),
   ]);
-
-  const pitchQuota = pitchUsage ? resolvePitchQuota(agent, pitchUsage.used) : null;
 
   const activeCount = listings.filter((l) => l.approve_status === 1 && l.listing_status === 'active').length;
 

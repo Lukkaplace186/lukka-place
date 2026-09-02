@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { BarChart3, Landmark, Mail, SlidersHorizontal, Building2 } from 'lucide-react';
+import { BarChart3, Landmark, Mail, BadgeCheck, SlidersHorizontal, Building2 } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { Wordmark } from './Brand';
 
@@ -38,6 +38,7 @@ const NAV = [
   { href: '/compte/agent', label: "Vue d'ensemble", short: 'Vue', icon: BarChart3, exact: true },
   { href: '/compte/agent/biens', label: 'Mes biens', short: 'Biens', icon: Landmark, countKey: 'listings' },
   { href: '/compte/agent/demandes', label: 'Demandes & visites', short: 'Demandes', icon: Mail, countKey: 'leads' },
+  { href: '/compte/agent/abonnement', label: 'Abonnement', short: 'Abonnement', icon: BadgeCheck },
   { href: '/compte/agent/parametres', label: 'Paramètres', short: 'Réglages', icon: SlidersHorizontal },
 ];
 
@@ -95,7 +96,10 @@ export default function AgentSidebar({
         </nav>
 
         {completion && (
-          <div className="mt-auto flex flex-col gap-3 rounded-card bg-canvas-alt p-4">
+          <Link
+            href="/compte/agent/parametres"
+            className="mt-auto flex flex-col gap-3 rounded-card bg-canvas-alt p-4 transition-colors hover:bg-canvas-deep"
+          >
             <div className="flex items-center justify-between text-[0.8125rem] font-semibold text-ink-70">
               <span>Profil complété</span>
               <span className="u-tabular">{completion.percent} %</span>
@@ -111,7 +115,7 @@ export default function AgentSidebar({
               <div className="h-full rounded-full bg-blue transition-all" style={{ width: `${completion.percent}%` }} />
             </div>
             {completion.nextHint && <p className="text-xs leading-relaxed text-ink-45">{completion.nextHint}</p>}
-          </div>
+          </Link>
         )}
 
         <div className={`flex items-center gap-2.5 px-2 ${completion ? '' : 'mt-auto'}`}>
@@ -133,7 +137,7 @@ export default function AgentSidebar({
         aria-label="Navigation espace agent"
         className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
       >
-        <div className="grid grid-cols-4">
+        <div className="grid grid-cols-5">
           {NAV.map((item) => {
             const active = isActive(pathname, item);
             const count = item.countKey ? counts[item.countKey] : null;

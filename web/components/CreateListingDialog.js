@@ -1,12 +1,13 @@
 'use client';
 
-import { useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { createListingAction } from '@/app/compte/agent/actions';
 import { useToast } from './Toast';
+import { OPEN_CREATE_LISTING_EVENT, OPEN_CREATE_LISTING_STORAGE_KEY } from '@/lib/agentShortcutEvents';
 
 const FIELD_CLASS =
   'u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35';
@@ -18,14 +19,55 @@ const LABEL_CLASS = 'mb-1.5 block text-[0.8125rem] font-semibold text-ink-70';
  * upload with local previews, and an imperative call to createListingAction
  * (not a plain <form action>) so this stays open and shows the real error on
  * a validation failure instead of navigating away.
+ *
+ * Also the real destination of the global "N" keyboard shortcut
+ * (AgentKeyboardShortcuts.js): there is no dedicated `/biens/nouveau`
+ * *page* — creation has always been this in-place dialog, not a route — so
+ * "N" opens this instead of navigating to a page that doesn't exist. Two
+ * paths in:
+ *  - Already on Mes biens: AgentKeyboardShortcuts dispatches
+ *    OPEN_CREATE_LISTING_EVENT and this opens immediately.
+ *  - Anywhere else: it sets a one-shot sessionStorage flag and navigates to
+ *    Mes biens; the flag is consumed in the lazy useState initializer below
+ *    (a read during render, not a setState-in-effect — the ESLint rule
+ *    other 'use client' components in this app already trip over,
+ *    react-hooks/set-state-in-effect, exists for exactly this: calling
+ *    setState synchronously inside an effect body cascades into an extra
+ *    render). sessionStorage rather than a `?new=1` query param on purpose
+ *    — `useSearchParams()` would force a Suspense boundary around this
+ *    component (see web/CLAUDE.md's documented gotcha).
  */
 export default function CreateListingDialog({ communes, categories }) {
-  const [open, setOpen] = useState(false);
+  // Lazy initializer: reads (and clears) the one-shot flag exactly once, at
+  // first render — not in an effect. `typeof window` guards the server
+  // render, which always computes `false` since sessionStorage doesn't
+  // exist there; only the client's real first mount ever sees the flag.
+  const [open, setOpen] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      if (window.sessionStorage.getItem(OPEN_CREATE_LISTING_STORAGE_KEY) === '1') {
+        window.sessionStorage.removeItem(OPEN_CREATE_LISTING_STORAGE_KEY);
+        return true;
+      }
+    } catch {
+      // Private-browsing sessionStorage access can throw — the shortcut
+      // simply doesn't auto-open in that case, no crash.
+    }
+    return false;
+  });
   const [pending, startTransition] = useTransition();
   const [photos, setPhotos] = useState([]);
   const formRef = useRef(null);
   const router = useRouter();
   const { showToast } = useToast();
+
+  useEffect(() => {
+    function handleShortcut() {
+      setOpen(true);
+    }
+    window.addEventListener(OPEN_CREATE_LISTING_EVENT, handleShortcut);
+    return () => window.removeEventListener(OPEN_CREATE_LISTING_EVENT, handleShortcut);
+  }, []);
 
   function handlePhotoChange(event) {
     const files = Array.from(event.target.files || []).map((file) => ({ file, url: URL.createObjectURL(file) }));

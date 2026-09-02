@@ -68,8 +68,18 @@ const GALLERY_SUBQUERY = `(
 // real FK target itself — selected so the detail page can link to
 // /agents/[id] (app/(portfolio)/agents/[id]/page.js) when a listing
 // actually has one attached, rather than guessing at an id.
+// Dual-column currency: p.price above stays the canonical USD figure that
+// every filter (WHERE price >= / <=), ORDER BY price and MAX(price) in this
+// module compare against. p.currency + p.price_original carry what the agent
+// actually authored, so <Price> can render an FC-authored listing verbatim
+// instead of round-tripping it through a rate that moves.
+//
+// (Kept as a JS comment, not an inline SQL one: this is a template literal,
+// and a backtick inside it — as in a quoted column name — silently ends the
+// string. That broke the build once.)
 const SELECT_FIELDS = `
   p.id, p.price, p.purpose, p.beds, p.bath, p.area, p.quartier,
+  p.currency, p.price_original,
   p.parcelle_subtype, p.units_count, p.reference, p.featured_image,
   p.created_at, p.price_period, p.deposit_months, p.listing_status,
   pc.title, pc.slug, pc.address,

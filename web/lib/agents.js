@@ -24,6 +24,7 @@ const AGENT_FIELDS = `
   v.username AS vendor_username,
   ai.first_name, ai.last_name, ai.address, ai.city,
   p.title AS package_title, p.number_of_property AS listing_limit, p.term AS package_term,
+  p.monthly_pitch_limit,
   m.expire_date, m.is_trial AS subscription_is_trial,
   (SELECT count(*) FROM properties WHERE agent_id = a.id)::int AS listing_count
 `;

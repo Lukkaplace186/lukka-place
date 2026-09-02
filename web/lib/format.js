@@ -17,6 +17,36 @@ export function formatPrice(price, purpose, pricePeriod) {
   return pricePeriod === 'an' ? `${amount} $ / an` : `${amount} $ / mois`;
 }
 
+/**
+ * The same suffix logic as formatPrice above, for a price genuinely stored
+ * in francs congolais (`properties.currency = 'CDF'`, with the authored
+ * figure in `price_original`).
+ *
+ * Deliberately separate from formatPrice rather than a `currency` parameter
+ * bolted onto it: formatPrice has ~20 call sites that all mean "the
+ * canonical USD price", and every one of them should keep meaning exactly
+ * that. This is for the one case where the number being rendered is the
+ * agent's own authored FC figure — which is exact, not a conversion, and so
+ * is never marked with the "≈" that a converted estimate carries.
+ *
+ * Full digits, not formatCdfCompact: compact notation is reserved for
+ * *converted* estimates (see that function's own note). An authored price is
+ * a real figure someone may need to read exactly.
+ */
+export function formatPriceCdf(price, purpose, pricePeriod) {
+  const amount = Number(price).toLocaleString('fr-FR');
+  if (purpose !== 'rent') return `${amount} FC`;
+  return pricePeriod === 'an' ? `${amount} FC / an` : `${amount} FC / mois`;
+}
+
+/** USD amount for a price authored in CDF, at the given dated rate. */
+export function convertCdfToUsd(cdfAmount, cdfPerUsd) {
+  const amount = Number(cdfAmount);
+  const rate = Number(cdfPerUsd);
+  if (!Number.isFinite(amount) || !Number.isFinite(rate) || rate <= 0) return null;
+  return Math.round((amount / rate) * 100) / 100;
+}
+
 // Real Intl compact notation, not a hand-rolled "/1000 + k" — French uses a
 // comma decimal separator and a space before the unit ("916,8 k"), which
 // Intl gets right for free. Only ever applied to a *converted* CDF amount

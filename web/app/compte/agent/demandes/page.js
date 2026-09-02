@@ -1,22 +1,42 @@
 import Link from 'next/link';
 import { getCurrentAgentId } from '@/lib/agentSession';
 import { getAgentDashboardContext } from '@/lib/agentDashboard';
-import { listLeads, listOpenLeads } from '@/lib/adminApi';
-import { LEAD_STATUSES, LEAD_STATUS_LABELS_FR } from '@/lib/adminLabels';
+import { listLeads, listOpenLeads, listViewingRequests } from '@/lib/adminApi';
+import {
+  LEAD_STATUSES,
+  LEAD_STATUS_LABELS_FR,
+  VIEWING_REQUEST_STATUSES,
+  VIEWING_REQUEST_STATUS_LABELS_FR,
+} from '@/lib/adminLabels';
 import { formatRelativeFr } from '@/lib/format';
 import { hasDemandFeedAccess, isWithinLaunchTrial, launchTrialEndsAtLabel } from '@/lib/demandFeed';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import AgentPageHeader from '@/components/AgentPageHeader';
 import AgentLeadCard from '@/components/AgentLeadCard';
 import AgentOpenLeadCard from '@/components/AgentOpenLeadCard';
+import AgentVisitRequestCard from '@/components/AgentVisitRequestCard';
 import { updateAgentLeadStatusAction, replyToLeadAction } from '../actions';
 
 const STATUS_OPTIONS = LEAD_STATUSES.map((value) => ({ value, label: LEAD_STATUS_LABELS_FR[value] }));
 
+/**
+ * Visites used to be its own sidebar section. It is a sub-tab here now: a
+ * viewing request is not a separate inbox, it is one stage of the same
+ * client conversation the other two tabs already show — the customer portal
+ * made the same merge on its own side (compte/client/visites now redirects
+ * into Messages & Visites). `/compte/agent/visites` still resolves; it
+ * redirects here so an existing bookmark or notification link keeps working.
+ */
 const TABS = [
   { value: 'mes-demandes', label: 'Mes demandes' },
-  { value: 'ouvertes', label: 'Demandes ouvertes' },
+  { value: 'ouvertes', label: 'Opportunités communes' },
+  { value: 'visites', label: 'Visites' },
 ];
+
+const VISIT_STATUS_OPTIONS = VIEWING_REQUEST_STATUSES.map((value) => ({
+  value,
+  label: VIEWING_REQUEST_STATUS_LABELS_FR[value],
+}));
 
 function budgetText(lead) {
   const min = lead.price_min != null ? Number(lead.price_min).toLocaleString('fr-FR') : null;
@@ -27,20 +47,110 @@ function budgetText(lead) {
   return null;
 }
 
+/**
+ * The former /compte/agent/visites section, as a tab. Same real data and
+ * same Accept / Reschedule / Cancel controls it already had
+ * (AgentVisitRequestCard -> updateViewingRequestAction) — this only changes
+ * where it lives, not what it can do.
+ *
+ * The status <select> reuses the shared `?status=` param the other two tabs
+ * use, with `tab=visites` carried in a hidden field so filtering doesn't
+ * bounce back to Mes demandes. The two vocabularies never collide because
+ * each tab resolves the param against its own status list.
+ */
+function VisitsTab({ visitsPage, statusFilter, listingById, hasListings }) {
+  const pending = visitsPage.data.filter((v) => v.status === 'PENDING').length;
+
+  return (
+    <>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <div className="text-[1.125rem] font-bold text-ink">
+            {visitsPage.total} demande{visitsPage.total === 1 ? '' : 's'} de visite
+          </div>
+          <div className="mt-0.5 text-[0.8125rem] text-ink-45">
+            {pending} en attente · demandées par vos clients potentiels
+          </div>
+        </div>
+
+        <form method="get" className="flex items-center gap-2">
+          <input type="hidden" name="tab" value="visites" />
+          <select
+            name="status"
+            defaultValue={statusFilter}
+            aria-label="Filtrer par statut"
+            className="u-focus-ring h-10 w-[11.25rem] rounded-lg border border-line bg-surface px-3 text-[0.8125rem] font-medium text-ink"
+          >
+            <option value="">Toutes les visites</option>
+            {VISIT_STATUS_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          <button
+            type="submit"
+            className="u-btn-secondary u-press h-10 rounded-lg px-3.5 text-[0.8125rem] font-bold text-ink"
+          >
+            Filtrer
+          </button>
+        </form>
+      </div>
+
+      {visitsPage.data.length === 0 ? (
+        <div className="u-card rounded-card bg-surface px-6 py-16 text-center text-sm text-ink-45">
+          {statusFilter
+            ? 'Aucune visite ne correspond à ce filtre.'
+            : hasListings
+              ? 'Aucune demande de visite pour le moment.'
+              : 'Ajoutez un bien pour commencer à recevoir des demandes de visite.'}
+        </div>
+      ) : (
+        visitsPage.data.map((viewingRequest) => {
+          const propertyId = viewingRequest.property_id || viewingRequest.lead_property_id;
+          const property = propertyId ? listingById.get(String(propertyId)) : null;
+          const target =
+            property?.title ||
+            [viewingRequest.lead_quartier, viewingRequest.lead_commune].filter(Boolean).join(', ') ||
+            null;
+
+          return (
+            <AgentVisitRequestCard
+              key={viewingRequest.id}
+              viewingRequest={viewingRequest}
+              statusLabel={VIEWING_REQUEST_STATUS_LABELS_FR[viewingRequest.status] || viewingRequest.status}
+              relativeTime={formatRelativeFr(viewingRequest.created_at)}
+              target={target}
+            />
+          );
+        })
+      )}
+    </>
+  );
+}
+
 export default async function AgentInquiriesPage({ searchParams }) {
   const params = await searchParams;
-  const tab = params.tab === 'ouvertes' ? 'ouvertes' : 'mes-demandes';
+  const tab = ['ouvertes', 'visites'].includes(params.tab) ? params.tab : 'mes-demandes';
   const statusFilter = typeof params.status === 'string' && LEAD_STATUSES.includes(params.status) ? params.status : '';
+  const visitStatusFilter =
+    typeof params.status === 'string' && VIEWING_REQUEST_STATUSES.includes(params.status) ? params.status : '';
   const q = typeof params.q === 'string' ? params.q.trim() : '';
   const replySent = params.reply_sent === '1';
   const replyError = typeof params.reply_error === 'string' ? params.reply_error : null;
 
   const agentId = await getCurrentAgentId();
-  const { agent, listingById, leadScope, hasLeadScope, newLeadsCount, listings } = await getAgentDashboardContext(agentId);
+  const { agent, listingById, leadScope, hasLeadScope, newLeadsCount, pendingVisitsCount, listings } =
+    await getAgentDashboardContext(agentId);
 
   const leadsPage = hasLeadScope
     ? await listLeads({ ...leadScope, status: statusFilter || undefined, limit: 100 })
     : { total: 0, data: [] };
+
+  const visitsPage =
+    tab === 'visites' && hasLeadScope
+      ? await listViewingRequests({ ...leadScope, status: visitStatusFilter || undefined, limit: 100 })
+      : { total: 0, data: [] };
 
   const needle = q.toLowerCase();
   const leads = needle
@@ -83,11 +193,19 @@ export default async function AgentInquiriesPage({ searchParams }) {
             >
               {t.label}
               {t.value === 'ouvertes' && openLeadsPage.total > 0 ? ` (${openLeadsPage.total})` : ''}
+              {t.value === 'visites' && pendingVisitsCount > 0 ? ` (${pendingVisitsCount})` : ''}
             </Link>
           ))}
         </div>
 
-        {tab === 'ouvertes' ? (
+        {tab === 'visites' ? (
+          <VisitsTab
+            visitsPage={visitsPage}
+            statusFilter={visitStatusFilter}
+            listingById={listingById}
+            hasListings={listings.length > 0}
+          />
+        ) : tab === 'ouvertes' ? (
           <>
             {inTrial && !agent.package_title && (
               <p className="rounded-lg bg-blue-tint px-4 py-3 text-sm font-semibold text-blue-deep" role="status">

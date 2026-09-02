@@ -1,10 +1,8 @@
-import Link from 'next/link';
-import { Image as ImageIcon, ExternalLink, MessageCircle } from 'lucide-react';
+import { Image as ImageIcon } from 'lucide-react';
 import { getCurrentAgentId } from '@/lib/agentSession';
 import { getAgentDashboardContext } from '@/lib/agentDashboard';
 import { getPerListingStats } from '@/lib/analytics';
 import { formatPrice } from '@/lib/format';
-import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { getLocationHierarchySafe } from '@/lib/locations';
 import { getPropertyCategories } from '@/lib/agentListings';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -12,6 +10,7 @@ import SafeImage from '@/components/SafeImage';
 import AgentPageHeader from '@/components/AgentPageHeader';
 import AgentListingStatusSelect from '@/components/AgentListingStatusSelect';
 import CreateListingDialog from '@/components/CreateListingDialog';
+import AgentListingActionsMenu from '@/components/AgentListingActionsMenu';
 import MarkListingSoldDialog from '@/components/MarkListingSoldDialog';
 import { updateListingStatusAction } from '../actions';
 
@@ -42,7 +41,8 @@ const APPROVE_STATUS = {
 // Written out as a full literal (not composed or .replace()-d at runtime):
 // Tailwind scans source text, so an arbitrary-value class it never sees
 // spelled out simply doesn't get generated — see web/CLAUDE.md.
-const GRID_COLS = 'lg:grid-cols-[minmax(0,2.4fr)_minmax(0,1fr)_minmax(0,0.9fr)_minmax(0,1.3fr)_minmax(0,1.2fr)]';
+const GRID_COLS =
+  'lg:grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_minmax(0,1.2fr)_minmax(0,0.6fr)]';
 
 export default async function AgentListingsPage({ searchParams }) {
   const params = await searchParams;
@@ -135,6 +135,7 @@ export default async function AgentListingsPage({ searchParams }) {
                 <div>Bien</div>
                 <div>Prix</div>
                 <div>Vues</div>
+                <div>Clics</div>
                 <div>Statut</div>
                 <div className="text-right">Actions</div>
               </div>
@@ -143,9 +144,6 @@ export default async function AgentListingsPage({ searchParams }) {
                 const boundStatus = updateListingStatusAction.bind(null, listing.id);
                 const approve = APPROVE_STATUS[listing.approve_status];
                 const isClosed = listing.listing_status === 'closed';
-                const editHref = getCentralWhatsAppHref(
-                  `Bonjour, je souhaite modifier mon annonce « ${listing.title} » (réf. ${listing.id}).`,
-                );
 
                 return (
                   <div
@@ -193,6 +191,11 @@ export default async function AgentListingsPage({ searchParams }) {
                       {(perListingStats.views[listing.id] || 0).toLocaleString('fr-FR')}
                     </div>
 
+                    <div className="u-tabular text-sm text-ink-70">
+                      <span className="lg:hidden">Clics WhatsApp : </span>
+                      {(perListingStats.clicks[listing.id] || 0).toLocaleString('fr-FR')}
+                    </div>
+
                     {isClosed ? (
                       <span className="w-full max-w-[10.5rem] rounded-full bg-canvas-deep px-3.5 py-[0.4375rem] text-center text-[0.8125rem] font-bold text-ink-70">
                         {listing.purpose === 'rent' ? 'Loué' : 'Vendu'}
@@ -209,32 +212,10 @@ export default async function AgentListingsPage({ searchParams }) {
                     )}
 
                     <div className="flex items-center justify-end gap-1.5">
-                      {listing.approve_status === 1 && (
-                        <Link
-                          href={`/listings/${listing.id}`}
-                          target="_blank"
-                          aria-label={`Voir l'annonce ${listing.title}`}
-                          title="Voir l'annonce publique"
-                          className="u-press grid h-[2.125rem] w-[2.125rem] place-items-center rounded-lg text-ink-45 transition-colors hover:bg-canvas-alt hover:text-ink"
-                        >
-                          <ExternalLink strokeWidth={ICON_STROKE_WIDTH} className="h-[1.0625rem] w-[1.0625rem]" />
-                        </Link>
-                      )}
                       {!isClosed && (
                         <MarkListingSoldDialog propertyId={listing.id} purpose={listing.purpose} title={listing.title} />
                       )}
-                      {editHref && (
-                        <a
-                          href={editHref}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          aria-label={`Demander une modification de ${listing.title}`}
-                          title="Demander une modification sur WhatsApp"
-                          className="u-press grid h-[2.125rem] w-[2.125rem] place-items-center rounded-lg text-ink-45 transition-colors hover:bg-canvas-alt hover:text-ink"
-                        >
-                          <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-[1.0625rem] w-[1.0625rem]" />
-                        </a>
-                      )}
+                      <AgentListingActionsMenu listing={listing} isClosed={isClosed} />
                     </div>
                   </div>
                 );

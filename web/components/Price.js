@@ -4,78 +4,92 @@ import { useSyncExternalStore } from 'react';
 import { getCurrency, subscribeCurrency } from '@/lib/currencyPreference';
 import { convertToCdf } from '@/lib/currency';
 import { useCdfRate } from '@/lib/CurrencyRateContext';
-import { formatPrice, formatCdfCompact } from '@/lib/format';
+import { formatPrice, formatPriceCdf, formatCdfCompact } from '@/lib/format';
 
 /**
- * Drop-in replacement for a raw formatPrice(...) text node. Renders the
- * real stored USD price, or — if the visitor has toggled to CDF via
- * CurrencyToggle.js — a converted estimate, always visibly marked "≈" and
- * with a title tooltip naming the conversion date, never presented as the
- * listing's actual stored currency (there isn't one on the live schema —
- * see lib/currency.js's doc comment).
+ * Drop-in replacement for a raw formatPrice(...) text node.
+ *
+ * There are now two genuinely different situations, and the whole point of
+ * this component is to not blur them:
+ *
+ *  1. **Listing authored in USD** (`currency = 'USD'` — the default, and
+ *     every listing that existed before the dual-column migration). The USD
+ *     figure is real; any FC figure is a conversion, so it is marked "≈",
+ *     rendered compact, and carries a tooltip naming the rate date. This is
+ *     exactly the previous behaviour, unchanged.
+ *
+ *  2. **Listing authored in FC** (`currency = 'CDF'`, with the agent's own
+ *     figure in `priceOriginal`). Now the FC figure is the real one — shown
+ *     in full digits with no "≈", because it is not an estimate — and it is
+ *     the *USD* side that is derived and gets the "≈" and the tooltip.
+ *
+ * `amount` keeps meaning what it always meant: the canonical USD `price`
+ * column that every filter, sort and the engine's budget matcher compare
+ * against. For a CDF-authored listing that value is the converted-at-save
+ * figure, which is why it is presented as an approximation there.
+ *
+ * `currency`/`priceOriginal` are optional with USD-shaped defaults, so every
+ * existing call site that passes neither behaves exactly as before.
  *
  * Server snapshot is always 'USD' (same useSyncExternalStore pattern as
- * FavoriteButton.js — localStorage doesn't exist server-side), so this
- * never causes a hydration mismatch even before the real client-side
- * preference loads.
- *
- * `showSubtext` (opt-in, default off — every existing call site is
- * unaffected) adds a second, smaller line with whichever currency ISN'T
- * the CurrencyToggle-selected primary. The toggle still controls which
- * figure leads; this only stops the other one from disappearing entirely,
- * for surfaces (card price displays) where seeing both matters. Still the
- * same real conversion (lib/currency.js), same "≈"/tooltip honesty marker
- * — never presented as a second stored currency.
+ * FavoriteButton.js — localStorage doesn't exist server-side), so this never
+ * causes a hydration mismatch before the real preference loads.
  */
 export default function Price({
   amount,
   purpose,
   pricePeriod,
   className,
+  currency: listingCurrency = 'USD',
+  priceOriginal = null,
   showSubtext = false,
   // mt-1/leading-normal regardless of the parent's own leading (card price
   // wrappers use leading-none for the primary figure, which would otherwise
   // crush this line against it too, since it inherits from the same block).
   subtextClassName = 'mt-1 block text-[0.75rem] font-normal leading-normal text-ink-45',
 }) {
-  const currency = useSyncExternalStore(subscribeCurrency, getCurrency, () => 'USD');
+  const preference = useSyncExternalStore(subscribeCurrency, getCurrency, () => 'USD');
   const { cdfPerUsd, updatedAt } = useCdfRate();
-  const conversionTooltip = `Estimation convertie au ${updatedAt} — le prix réel est en USD`;
 
-  const cdf = convertToCdf(amount, cdfPerUsd);
-  // Compact ("≈ 916,8 k FC"), not the raw digit string — a long-form CDF
-  // figure next to a short USD one reads as noise, not confirmation. See
-  // lib/format.js's doc comment on formatCdfCompact for why this only
-  // applies to a converted price, never to the exchange rate itself.
-  const cdfFormatted = cdf != null ? formatCdfCompact(cdf) : null;
+  // Is the FC figure the agent's own, or one we computed?
+  const nativeIsCdf = listingCurrency === 'CDF' && priceOriginal != null;
+
+  const usdText = formatPrice(amount, purpose, pricePeriod);
+  const cdfExactText = nativeIsCdf ? formatPriceCdf(priceOriginal, purpose, pricePeriod) : null;
+
+  const cdfEstimate = convertToCdf(amount, cdfPerUsd);
+  const cdfEstimateText = cdfEstimate != null ? formatCdfCompact(cdfEstimate) : null;
   const cdfSuffix = purpose === 'rent' ? (pricePeriod === 'an' ? ' FC / an' : ' FC / mois') : ' FC';
-  const usdFormatted = formatPrice(amount, purpose, pricePeriod);
 
-  if (currency === 'CDF') {
-    const primary = (
-      <span className={className} title={conversionTooltip}>
-        ≈ {cdfFormatted ?? '—'}
-        {cdfSuffix}
+  const tooltip = nativeIsCdf
+    ? `Prix affiché en USD, converti au taux du ${updatedAt} — le prix réel est en FC`
+    : `Estimation convertie au ${updatedAt} — le prix réel est en USD`;
+
+  // Each side resolved once: { text, approximate }. `approximate` is what
+  // decides the "≈" and the tooltip, and it is driven by which currency the
+  // listing was actually authored in — never by the visitor's preference.
+  const usd = { text: usdText, approximate: nativeIsCdf };
+  const cdf = nativeIsCdf
+    ? { text: cdfExactText, approximate: false }
+    : { text: cdfEstimateText != null ? `${cdfEstimateText}${cdfSuffix}` : null, approximate: true };
+
+  const leading = preference === 'CDF' ? cdf : usd;
+  const secondary = preference === 'CDF' ? usd : cdf;
+
+  const render = (side, extraClassName) =>
+    side.text == null ? null : (
+      <span className={extraClassName} title={side.approximate ? tooltip : undefined}>
+        {side.approximate ? '≈ ' : ''}
+        {side.text}
       </span>
     );
-    return showSubtext ? (
-      <span>
-        {primary}
-        <span className={subtextClassName}>{usdFormatted}</span>
-      </span>
-    ) : (
-      primary
-    );
-  }
 
-  const primary = <span className={className}>{usdFormatted}</span>;
-  return showSubtext && cdfFormatted != null ? (
+  const primary = render(leading, className) ?? <span className={className}>—</span>;
+
+  return showSubtext && secondary.text != null ? (
     <span>
       {primary}
-      <span className={subtextClassName} title={conversionTooltip}>
-        ≈ {cdfFormatted}
-        {cdfSuffix}
-      </span>
+      {render(secondary, subtextClassName)}
     </span>
   ) : (
     primary

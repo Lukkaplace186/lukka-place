@@ -23,7 +23,17 @@ import {
 } from '@/lib/agencies';
 import { uploadAgentAvatar } from '@/lib/agentStorage';
 import { uploadListingPhoto } from '@/lib/listingStorage';
-import { createListing, attachListingPhotos } from '@/lib/agentListings';
+import {
+  createListing,
+  attachListingPhotos,
+  updateListing,
+  setListingGallery,
+  deleteListing,
+  duplicateListing,
+  getFeatureAmenities,
+} from '@/lib/agentListings';
+import { getCdfRate } from '@/lib/currencyRate';
+import { convertCdfToUsd } from '@/lib/format';
 import {
   listLeads,
   updateLeadStatus,
@@ -31,9 +41,10 @@ import {
   listViewingRequests,
   updateViewingRequest,
   createLeadProposal,
+  getAgentPitchUsage,
 } from '@/lib/adminApi';
 import { LEAD_STATUSES, VIEWING_REQUEST_STATUSES } from '@/lib/adminLabels';
-import { hasDemandFeedAccess } from '@/lib/demandFeed';
+import { hasDemandFeedAccess, currentPitchPeriodStart, resolvePitchQuota } from '@/lib/demandFeed';
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 const ALLOWED_AVATAR_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
@@ -92,9 +103,7 @@ export async function updateListingStatusAction(propertyId, formData) {
   );
   if (rowCount === 0) throw new Error('Not your listing, or it does not exist.');
 
-  revalidatePath('/compte/agent/biens');
-  revalidatePath('/compte/agent');
-  revalidatePath(`/listings/${propertyId}`);
+  revalidateListingSurfaces(agentId, propertyId);
 }
 
 /**
@@ -119,9 +128,7 @@ export async function markListingSoldAction(propertyId, formData) {
   );
   if (rowCount === 0) return { ok: false, error: 'Bien introuvable, ou vous n’en êtes pas le propriétaire.' };
 
-  revalidatePath('/compte/agent/biens');
-  revalidatePath('/compte/agent');
-  revalidatePath(`/listings/${propertyId}`);
+  revalidateListingSurfaces(agentId, propertyId);
   return { ok: true };
 }
 
@@ -198,8 +205,7 @@ export async function createListingAction(validCommunes, validCategories, formDa
     console.error(`[compte/agent] photo upload failed for new listing #${propertyId}: ${err.message}`);
   }
 
-  revalidatePath('/compte/agent/biens');
-  revalidatePath('/compte/agent');
+  revalidateListingSurfaces(agentId, propertyId);
 
   return { ok: true, propertyId, photoWarning: uploadedCount < photos.length };
 }
@@ -288,7 +294,7 @@ export async function updateViewingRequestAction(viewingRequestId, formData) {
   }
 
   await updateViewingRequest(viewingRequestId, { status, requestedTime });
-  revalidatePath('/compte/agent/visites');
+  revalidatePath('/compte/agent/demandes');
   revalidatePath('/compte/agent');
   return { ok: true, status };
 }
@@ -478,6 +484,28 @@ export async function proposeListingAction(leadId, formData) {
     return { ok: false, error: 'Choisissez un bien à proposer.' };
   }
 
+  // Monthly quota, checked server-side before anything is written. The
+  // client renders a remaining count too, but that is UX — this is the gate.
+  // Usage is a real count of this agent's own lead_proposals rows since the
+  // start of the month (the engine's SQLite owns that record); the allowance
+  // is packages.monthly_pitch_limit. A quota lookup that fails does NOT
+  // silently grant the pitch: the feed's whole commercial model depends on
+  // this limit, so an unreadable count is a refusal, not a free pass.
+  let quota;
+  try {
+    const { used } = await getAgentPitchUsage({ agentId, since: currentPitchPeriodStart() });
+    quota = resolvePitchQuota(agent, used);
+  } catch (err) {
+    console.warn(`[compte/agent] pitch usage lookup failed for agent #${agentId}: ${err.message}`);
+    return { ok: false, error: 'Impossible de vérifier votre quota de propositions. Réessayez dans un instant.' };
+  }
+  if (quota.exhausted) {
+    return {
+      ok: false,
+      error: `Vous avez utilisé vos ${quota.limit} propositions du mois. Le quota est réinitialisé le 1er du mois prochain.`,
+    };
+  }
+
   const listings = await getOwnListingsForDashboard(agentId);
   // properties.id is a Postgres bigint — node-postgres returns it as a
   // string, so a bare === against the parsed-int propertyId always failed
@@ -499,5 +527,223 @@ export async function proposeListingAction(leadId, formData) {
   }
 
   revalidatePath('/compte/agent/demandes');
+  revalidatePath('/compte/agent');
+  // A pitch is immediately visible on the customer's own side — their
+  // proposal cards live in Messages & Visites (compte/client/messages), fed
+  // by the same lead_proposals rows this just wrote.
+  revalidatePath('/compte/client/messages');
+  revalidatePath('/compte/client');
   return { ok: true };
+}
+
+/**
+ * Every public surface a listing's own content appears on. Called after
+ * every native write below, so an agent's edit is live on the storefront
+ * immediately rather than at the next natural revalidation — the whole
+ * point of editing in-app instead of messaging the team on WhatsApp.
+ *
+ * `/listings` and `/` are included because a card there renders the title,
+ * price and cover photo this editor can change; `/agents/[id]` is the
+ * agent's own public portfolio page.
+ */
+function revalidateListingSurfaces(agentId, propertyId) {
+  revalidatePath('/compte/agent/biens');
+  revalidatePath('/compte/agent');
+  revalidatePath('/listings');
+  revalidatePath('/');
+  revalidatePath(`/agents/${agentId}`);
+  if (propertyId != null) {
+    revalidatePath(`/compte/agent/biens/${propertyId}/edit`);
+    revalidatePath(`/listings/${propertyId}`);
+  }
+}
+
+/**
+ * The native editor's save (/compte/agent/biens/[id]/edit).
+ *
+ * Ownership is enforced twice and neither check trusts the client: the
+ * agent id comes from assertAgentSession(), and lib/agentListings.js's
+ * updateListing carries `AND agent_id = $n` in the UPDATE itself, returning
+ * false rather than silently writing nothing if they don't match.
+ *
+ * `validCommunes` is bound at render time from the same DB/engine-backed
+ * list the form's select is built from — the same allow-list pattern
+ * createListingAction and updateOwnCommunesAction already use, so a crafted
+ * request can't smuggle in an invented commune (which would also write a
+ * commune amenity tag that maps to nothing).
+ *
+ * Returns {ok, error?} rather than redirecting: the form calls it
+ * imperatively so it can surface the real error inline and keep the agent's
+ * unsaved input, same reasoning as createListingAction.
+ */
+export async function updateListingAction(propertyId, validCommunes, formData) {
+  const agentId = await assertAgentSession();
+
+  const title = String(formData.get('title') || '').trim().slice(0, 150);
+  const description = String(formData.get('description') || '').trim().slice(0, 4000);
+  const commune = String(formData.get('commune') || '');
+  const quartier = String(formData.get('quartier') || '').trim().slice(0, 120) || null;
+  const priceInput = Number.parseFloat(formData.get('price'));
+  const currency = String(formData.get('currency') || 'USD').toUpperCase();
+
+  const optionalInt = (key) => {
+    const raw = formData.get(key);
+    if (raw === null || String(raw).trim() === '') return null;
+    const parsed = Number.parseInt(raw, 10);
+    return Number.isFinite(parsed) ? parsed : NaN;
+  };
+  const beds = optionalInt('beds');
+  const bath = optionalInt('bath');
+  const unitsCount = optionalInt('units_count');
+  const depositMonths = optionalInt('deposit_months');
+  const areaRaw = formData.get('area');
+  const areaNumber = String(areaRaw ?? '').trim() === '' ? null : Number.parseFloat(areaRaw);
+
+  if (!title) return { ok: false, error: 'Le titre est obligatoire.' };
+  if (description.length < 15) return { ok: false, error: 'La description doit contenir au moins 15 caractères.' };
+  if (!new Set(validCommunes).has(commune)) return { ok: false, error: 'Commune invalide.' };
+  if (!['USD', 'CDF'].includes(currency)) return { ok: false, error: 'Devise invalide.' };
+  if (!Number.isFinite(priceInput) || priceInput <= 0) return { ok: false, error: 'Indiquez un prix valide.' };
+  for (const [value, label] of [
+    [beds, 'chambres'], [bath, 'salles de bain'], [unitsCount, 'portes'], [depositMonths, 'mois de garantie'],
+  ]) {
+    if (value !== null && (!Number.isFinite(value) || value < 0)) {
+      return { ok: false, error: `Nombre de ${label} invalide.` };
+    }
+  }
+  if (areaNumber !== null && (!Number.isFinite(areaNumber) || areaNumber < 0)) {
+    return { ok: false, error: 'Superficie invalide.' };
+  }
+
+  // `area` is a TEXT column that carries '0' rather than NULL when unknown
+  // (web/CLAUDE.md's hasArea() gotcha) — writing '0' for a cleared field
+  // keeps this listing consistent with every other row rather than
+  // introducing a NULL the read path doesn't expect.
+  const area = areaNumber === null || areaNumber === 0 ? '0' : String(areaNumber);
+
+  // Dual-column currency. `price_original` is the agent's own figure, stored
+  // verbatim in the currency they chose. `price` stays canonical USD, because
+  // it is what every WHERE price >= / <=, ORDER BY price, MAX(price) and the
+  // engine's budgetScore compare against — an FC number in that column would
+  // sort above every USD listing and never match a budget filter.
+  //
+  // The rate is the same admin-editable, explicitly-dated figure the whole
+  // site displays with (lib/currencyRate.js) — not a live FX feed, which is
+  // exactly why the authored figure is preserved separately rather than being
+  // the only record.
+  let price = priceInput;
+  if (currency === 'CDF') {
+    const rate = await getCdfRate();
+    price = convertCdfToUsd(priceInput, rate.cdfPerUsd);
+    if (!Number.isFinite(price) || price <= 0) {
+      return { ok: false, error: 'La conversion du prix en dollars a échoué. Réessayez.' };
+    }
+  }
+  const priceOriginal = priceInput;
+
+  // Feature amenities: only ids that really exist outside the 21-44 commune
+  // block are accepted, resolved against the database rather than trusted
+  // from the form — a commune id smuggled in here would silently relocate
+  // the listing, since that same table stores its commune.
+  let amenityIds;
+  if (formData.get('amenities_touched') === '1') {
+    const submitted = formData.getAll('amenities').map((v) => Number.parseInt(v, 10)).filter(Number.isFinite);
+    const allowed = new Set((await getFeatureAmenities()).map((a) => a.id));
+    amenityIds = submitted.filter((id) => allowed.has(id));
+  }
+
+  // Photos: `existing_photos` is the kept-and-reordered set the client sends
+  // back (order matters — index 0 becomes the cover), `photos` are newly
+  // uploaded files appended after them. The gallery is only rewritten when
+  // the form actually submitted a photo section, so a save that never
+  // touched photos leaves them completely alone.
+  const keptPhotos = formData.getAll('existing_photos').map(String).filter(Boolean);
+  const newFiles = formData.getAll('photos').filter((f) => f && typeof f !== 'string' && f.size > 0);
+  const touchedPhotos = formData.get('photos_touched') === '1';
+
+  // Every photo rule is checked BEFORE the field write below. Validating
+  // them afterwards meant a rejected photo set returned {ok:false} on an
+  // edit whose title/price/description had already been committed — the
+  // agent saw "échec" and closed the form believing nothing had saved.
+  if (touchedPhotos) {
+    if (keptPhotos.length + newFiles.length === 0) {
+      return { ok: false, error: 'Gardez au moins une photo.' };
+    }
+    if (keptPhotos.length + newFiles.length > MAX_LISTING_PHOTOS) {
+      return { ok: false, error: `Maximum ${MAX_LISTING_PHOTOS} photos.` };
+    }
+    for (const file of newFiles) {
+      if (!ALLOWED_LISTING_PHOTO_TYPES[file.type]) {
+        return { ok: false, error: 'Format de photo non supporté (JPEG, PNG ou WebP uniquement).' };
+      }
+      if (file.size > MAX_LISTING_PHOTO_BYTES) return { ok: false, error: 'Une photo dépasse 5 Mo.' };
+    }
+  }
+
+  const owned = await updateListing(agentId, propertyId, {
+    title, description, commune, price, priceOriginal, currency, beds, bath, area, quartier,
+    unitsCount, depositMonths, amenityIds,
+  });
+  if (!owned) return { ok: false, error: 'Bien introuvable, ou vous n’en êtes pas le propriétaire.' };
+
+  let photoWarning = false;
+  if (touchedPhotos) {
+    const urls = [...keptPhotos];
+    try {
+      for (const file of newFiles) {
+        const buffer = Buffer.from(await file.arrayBuffer());
+        urls.push(await uploadListingPhoto(buffer, propertyId, ALLOWED_LISTING_PHOTO_TYPES[file.type]));
+      }
+    } catch (err) {
+      console.error(`[compte/agent] photo upload failed for listing #${propertyId}: ${err.message}`);
+      photoWarning = true;
+    }
+    // Written even on a partial upload failure: the kept/reordered photos
+    // are a real, intended change and shouldn't be discarded because one
+    // new file didn't make it to Storage.
+    await setListingGallery(propertyId, urls);
+  }
+
+  revalidateListingSurfaces(agentId, propertyId);
+  return { ok: true, photoWarning };
+}
+
+/**
+ * Permanent delete, from the Mes biens actions menu. Irreversible and says
+ * so in the UI, which requires typing nothing but does confirm in a real
+ * dialog rather than a bare menu click.
+ *
+ * Deliberately returns {ok} instead of redirecting so the menu can show a
+ * toast and let router.refresh() drop the row, matching every other
+ * imperative action on this dashboard.
+ */
+export async function deleteListingAction(propertyId) {
+  const agentId = await assertAgentSession();
+
+  let deleted;
+  try {
+    deleted = await deleteListing(agentId, propertyId);
+  } catch (err) {
+    console.error(`[compte/agent] delete failed for listing #${propertyId}: ${err.message}`);
+    // A listing already referenced by something this app doesn't own (a
+    // lead's property_id lives in the engine's SQLite and has no FK, but
+    // other Postgres tables may) surfaces as a real error rather than a
+    // silent no-op.
+    return { ok: false, error: "Ce bien n'a pas pu être supprimé. Contactez l'équipe Lukka Place." };
+  }
+  if (!deleted) return { ok: false, error: 'Bien introuvable, ou vous n’en êtes pas le propriétaire.' };
+
+  revalidateListingSurfaces(agentId, propertyId);
+  return { ok: true };
+}
+
+/** Duplicate one of this agent's listings into a fresh unpublished draft. */
+export async function duplicateListingAction(propertyId) {
+  const agentId = await assertAgentSession();
+
+  const newId = await duplicateListing(agentId, propertyId);
+  if (!newId) return { ok: false, error: 'Bien introuvable, ou vous n’en êtes pas le propriétaire.' };
+
+  revalidateListingSurfaces(agentId, newId);
+  return { ok: true, propertyId: newId };
 }

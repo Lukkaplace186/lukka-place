@@ -262,6 +262,26 @@ export async function getLeadProposals(leadIds) {
 }
 
 /**
+ * How many pitches this agent has made since `since` — the engine's
+ * GET /admin/leads/proposals-usage, counting real `lead_proposals` rows.
+ *
+ * Usage lives in the engine's SQLite because that is where a pitch is
+ * actually recorded; the *allowance* lives in Postgres on `packages`
+ * (monthly_pitch_limit), because that is a plan entitlement. There is
+ * deliberately no `agent_pitch_usage` table mirroring the count into
+ * Postgres — it would be a second source of truth that drifts the first time
+ * a proposal is deleted (which resetLeadProposals really does when a lead's
+ * commune changes).
+ *
+ * @param {{agentId: number, since: string}} input `since` is an ISO string.
+ * @returns {Promise<{used: number, since: string}>}
+ */
+export async function getAgentPitchUsage({ agentId, since }) {
+  const params = new URLSearchParams({ agent_id: String(agentId), since });
+  return engineFetch(`/admin/leads/proposals-usage?${params.toString()}`);
+}
+
+/**
  * Agent phone-verification OTP (web/lib/agentAuth.js) — the engine holds
  * the real Chakra credentials, so this is the only way `web/` can actually
  * deliver a WhatsApp message.

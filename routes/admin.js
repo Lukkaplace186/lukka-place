@@ -267,6 +267,31 @@ router.get('/leads/proposals', (req, res) => {
   }
 });
 
+/**
+ * Agent Demand Feed's monthly pitch quota — a real count of this agent's own
+ * lead_proposals rows since `since`. Registered before GET /leads/:id so
+ * 'proposals-usage' is never parsed as a lead id, same reason
+ * 'open'/'proposals' above are.
+ */
+router.get('/leads/proposals-usage', (req, res) => {
+  const agentId = Number.parseInt(req.query.agent_id, 10);
+  const since = String(req.query.since || '');
+  if (!Number.isFinite(agentId)) {
+    return res.status(400).json({ success: false, error: 'agent_id is required.' });
+  }
+  if (!since || Number.isNaN(new Date(since).getTime())) {
+    return res.status(400).json({ success: false, error: 'since must be a valid ISO timestamp.' });
+  }
+
+  try {
+    const used = db.countAgentProposalsSince({ agentId, since });
+    return res.json({ success: true, used, since });
+  } catch (err) {
+    console.error(`[admin] GET /leads/proposals-usage failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not read pitch usage.' });
+  }
+});
+
 router.post('/leads/:id/proposals', (req, res) => {
   const leadId = Number.parseInt(req.params.id, 10);
   if (!Number.isFinite(leadId) || !db.getLead(leadId)) {

@@ -3067,6 +3067,68 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(noCommuneFieldResp.body.proposals_reset, false);
   });
 
+
+  console.log('\n15f-ter. GET /admin/leads/proposals-usage — agent monthly pitch quota (web/)');
+
+  // The quota counter has no table of its own: `lead_proposals` IS the usage
+  // record, so these assertions are made against real rows written by the
+  // same createLeadProposal the Agent Demand Feed uses.
+  const quotaLeadA = dbService.createLead({ wa_id: '243930000101', commune: 'Gombe', transaction_type: 'location' });
+  const quotaLeadB = dbService.createLead({ wa_id: '243930000102', commune: 'Gombe', transaction_type: 'location' });
+  const QUOTA_AGENT = 777;
+  const OTHER_AGENT = 778;
+  dbService.createLeadProposal({ leadId: quotaLeadA.id, agentId: QUOTA_AGENT, propertyId: 9101 });
+  dbService.createLeadProposal({ leadId: quotaLeadB.id, agentId: QUOTA_AGENT, propertyId: 9102 });
+  dbService.createLeadProposal({ leadId: quotaLeadA.id, agentId: OTHER_AGENT, propertyId: 9103 });
+
+  const epoch = new Date(0).toISOString();
+
+  const usageResp = await adminRequest('GET', `/admin/leads/proposals-usage?agent_id=${QUOTA_AGENT}&since=${encodeURIComponent(epoch)}`);
+  check("counts only this agent's own pitches, never another agent's on the same lead", () => {
+    assert.strictEqual(usageResp.status, 200);
+    assert.strictEqual(usageResp.body.used, 2);
+  });
+
+  const otherUsageResp = await adminRequest('GET', `/admin/leads/proposals-usage?agent_id=${OTHER_AGENT}&since=${encodeURIComponent(epoch)}`);
+  check('each agent is counted independently', () => {
+    assert.strictEqual(otherUsageResp.body.used, 1);
+  });
+
+  const futureSince = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+  const windowResp = await adminRequest('GET', `/admin/leads/proposals-usage?agent_id=${QUOTA_AGENT}&since=${encodeURIComponent(futureSince)}`);
+  check('the `since` window is real — a window starting in the future counts nothing', () => {
+    assert.strictEqual(windowResp.body.used, 0);
+  });
+
+  const unknownAgentResp = await adminRequest('GET', `/admin/leads/proposals-usage?agent_id=99999&since=${encodeURIComponent(epoch)}`);
+  check('an agent who has never pitched is 0 used, not an error', () => {
+    assert.strictEqual(unknownAgentResp.status, 200);
+    assert.strictEqual(unknownAgentResp.body.used, 0);
+  });
+
+  const badAgentResp = await adminRequest('GET', `/admin/leads/proposals-usage?since=${encodeURIComponent(epoch)}`);
+  check('a missing agent_id is rejected with 400 rather than counting every agent at once', () => {
+    assert.strictEqual(badAgentResp.status, 400);
+  });
+
+  const badSinceResp = await adminRequest('GET', `/admin/leads/proposals-usage?agent_id=${QUOTA_AGENT}&since=not-a-date`);
+  check('an unparseable `since` is rejected with 400, never silently treated as "all time"', () => {
+    assert.strictEqual(badSinceResp.status, 400);
+  });
+
+  check('the route is matched as its own path, not swallowed by GET /leads/:id', () => {
+    // '/leads/proposals-usage' must be registered before '/leads/:id', or
+    // Express hands 'proposals-usage' to the :id handler as a lead id and
+    // this endpoint 404s instead of counting anything.
+    assert.strictEqual(usageResp.status, 200);
+    assert.ok(Object.prototype.hasOwnProperty.call(usageResp.body, 'used'));
+  });
+
+  check('deleting a proposal really lowers the count — no separate counter to drift', () => {
+    dbService.resetLeadProposals(quotaLeadA.id);
+    assert.strictEqual(dbService.countAgentProposalsSince({ agentId: QUOTA_AGENT, since: epoch }), 1);
+  });
+
   console.log('\n15g. POST /admin/leads — agent storefront inquiry form (web/)');
 
   httpCalls.length = 0;

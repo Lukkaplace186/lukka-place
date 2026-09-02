@@ -1,4 +1,5 @@
-import { BadgeCheck, Sparkles } from 'lucide-react';
+import Link from 'next/link';
+import { BadgeCheck, Send, Sparkles } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 
@@ -29,8 +30,91 @@ function formatDate(value) {
  * @param {string|Date|null} props.expireDate
  * @param {number} props.listingCount
  * @param {number|null} props.listingLimit
+ * @param {boolean} props.feedAccess real hasDemandFeedAccess(agent) result.
+ * @param {string|null} props.feedTrialEndsAt set only while the platform-wide
+ *   launch trial is what's granting access, so the card can say *why* it is
+ *   open and when that changes.
+ * @param {{limit: number, used: number, remaining: number, exhausted: boolean}|null} props.pitchQuota
+ *   real monthly pitch allowance and usage, or null when the count was
+ *   unreadable (the engine owns it) — in which case no quota line renders.
  */
-export default function AgentSubscriptionCard({ packageTitle, packageTerm, isTrial, expireDate, listingCount, listingLimit }) {
+/**
+ * Whether this agency can pitch on the open-request feed, and on what basis.
+ *
+ * `pitchQuota` is real on both sides: the allowance is
+ * `packages.monthly_pitch_limit` (falling back to the launch-trial allowance
+ * for an agency with no paid plan), and `used` is a genuine count of this
+ * agent's own `lead_proposals` rows since the 1st of the month, counted by
+ * the engine that owns them. It is null — and the line simply doesn't render
+ * — when that count couldn't be read, rather than showing a guess.
+ *
+ * Distinct from the per-request cap shown on the request card itself ("3/7
+ * propositions envoyées"): that one limits how many agencies may pitch a
+ * single request, this one limits how many pitches one agency may make.
+ */
+function FeedAccessLine({ feedAccess, feedTrialEndsAt, pitchQuota }) {
+  if (!feedAccess) {
+    return (
+      <p className="border-t border-line pt-3.5 text-[0.8125rem] leading-relaxed text-ink-45">
+        Le flux de demandes ouvertes n’est pas accessible sans abonnement actif.
+      </p>
+    );
+  }
+
+  const percentUsed = pitchQuota && pitchQuota.limit > 0
+    ? Math.min(100, Math.round((pitchQuota.used / pitchQuota.limit) * 100))
+    : null;
+
+  return (
+    <div className="flex flex-col gap-2 border-t border-line pt-3.5">
+      {pitchQuota && (
+        <>
+          <div className="flex items-center justify-between text-[0.8125rem] font-semibold text-ink-70">
+            <span>Propositions ce mois</span>
+            <span className="u-tabular">
+              {pitchQuota.remaining}/{pitchQuota.limit} restantes
+            </span>
+          </div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-line">
+            <div
+              className={`h-full rounded-full ${pitchQuota.exhausted ? 'bg-danger' : 'bg-blue'}`}
+              style={{ width: `${percentUsed}%` }}
+            />
+          </div>
+        </>
+      )}
+
+      <Link
+        href="/compte/agent/demandes?tab=ouvertes"
+        className="group inline-flex items-start gap-2 text-[0.8125rem] leading-relaxed text-ink-70 hover:text-ink"
+      >
+        <Send strokeWidth={ICON_STROKE_WIDTH} className="mt-0.5 h-4 w-4 shrink-0 text-blue" />
+        <span>
+          {pitchQuota?.exhausted ? (
+            <>
+              <span className="font-semibold group-hover:underline">Quota atteint</span>
+              {' — '}
+              réinitialisé le 1er du mois prochain.
+            </>
+          ) : (
+            <>
+              <span className="font-semibold group-hover:underline">Propositions activées</span>
+              {' — '}
+              {feedTrialEndsAt
+                ? `accès gratuit au flux de demandes jusqu’au ${feedTrialEndsAt}.`
+                : 'proposez vos biens sur les demandes ouvertes de vos communes.'}
+            </>
+          )}
+        </span>
+      </Link>
+    </div>
+  );
+}
+
+export default function AgentSubscriptionCard({
+  packageTitle, packageTerm, isTrial, expireDate, listingCount, listingLimit, feedAccess, feedTrialEndsAt,
+  pitchQuota = null,
+}) {
   const hasSubscription = !!packageTitle;
   const isLifetime = packageTerm === 'lifetime';
   const renewalLabel = formatDate(expireDate);
@@ -78,10 +162,13 @@ export default function AgentSubscriptionCard({ packageTitle, packageTerm, isTri
               </div>
             </div>
           )}
+
+          <FeedAccessLine feedAccess={feedAccess} feedTrialEndsAt={feedTrialEndsAt} pitchQuota={pitchQuota} />
         </>
       ) : (
         <>
           <p className="text-[0.8125rem] leading-relaxed text-ink-45">Aucun abonnement actif pour le moment.</p>
+          <FeedAccessLine feedAccess={feedAccess} feedTrialEndsAt={feedTrialEndsAt} pitchQuota={pitchQuota} />
           {(() => {
             const href = getCentralWhatsAppHref('Bonjour, je souhaite souscrire à un abonnement Lukka Place.');
             return href ? (

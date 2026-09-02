@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { BarChart3, Landmark, Mail, CalendarCheck, SlidersHorizontal, Building2 } from 'lucide-react';
+import { BarChart3, Landmark, Mail, SlidersHorizontal, Building2 } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { Wordmark } from './Brand';
 
@@ -26,12 +26,18 @@ import { Wordmark } from './Brand';
  * never appears; the real next gap does.
  *
  * Below `lg` this renders as a mobile tab bar instead, one entry per NAV item.
+ *
+ * Visites is no longer its own section — it is a tab inside Demandes (a
+ * viewing request is a stage of the same client conversation, not a second
+ * inbox). Its pending count therefore rolls into the Demandes badge rather
+ * than disappearing: the badge means "items in this section waiting on you",
+ * which after the merge is genuinely new leads *plus* unanswered visit
+ * requests. Both halves are real counts (see lib/agentDashboard.js).
  */
 const NAV = [
   { href: '/compte/agent', label: "Vue d'ensemble", short: 'Vue', icon: BarChart3, exact: true },
   { href: '/compte/agent/biens', label: 'Mes biens', short: 'Biens', icon: Landmark, countKey: 'listings' },
-  { href: '/compte/agent/demandes', label: 'Demandes & messages', short: 'Demandes', icon: Mail, countKey: 'leads' },
-  { href: '/compte/agent/visites', label: 'Visites', short: 'Visites', icon: CalendarCheck, countKey: 'visits' },
+  { href: '/compte/agent/demandes', label: 'Demandes & visites', short: 'Demandes', icon: Mail, countKey: 'leads' },
   { href: '/compte/agent/parametres', label: 'Paramètres', short: 'Réglages', icon: SlidersHorizontal },
 ];
 
@@ -49,7 +55,7 @@ export default function AgentSidebar({
   logoutAction,
 }) {
   const pathname = usePathname();
-  const counts = { listings: listingsCount, leads: newLeadsCount, visits: pendingVisitsCount };
+  const counts = { listings: listingsCount, leads: newLeadsCount + pendingVisitsCount };
 
   return (
     <>
@@ -127,7 +133,7 @@ export default function AgentSidebar({
         aria-label="Navigation espace agent"
         className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
       >
-        <div className="grid grid-cols-5">
+        <div className="grid grid-cols-4">
           {NAV.map((item) => {
             const active = isActive(pathname, item);
             const count = item.countKey ? counts[item.countKey] : null;

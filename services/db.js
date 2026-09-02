@@ -1494,6 +1494,30 @@ function createLeadProposal({ leadId, agentId, propertyId }) {
 }
 
 /**
+ * How many pitches this agent has made since `since` — the real monthly
+ * quota counter behind the agent dashboard's "propositions restantes".
+ *
+ * There is deliberately no `agent_pitch_usage` table. `lead_proposals`
+ * already IS the usage record: one row per pitch, with a real `created_at`,
+ * written by createLeadProposal below. A separate counter table would be a
+ * second source of truth that drifts the first time a proposal is deleted
+ * (resetLeadProposals does exactly that when a lead's commune changes) or a
+ * write is retried.
+ *
+ * The window is passed in rather than computed here so the caller owns the
+ * "month" definition — web/ resolves it from the same clock it renders with.
+ *
+ * @param {{agentId: number, since: string}} input `since` is an ISO string.
+ * @returns {number}
+ */
+function countAgentProposalsSince({ agentId, since }) {
+  const row = db
+    .prepare('SELECT count(*) AS n FROM lead_proposals WHERE agent_id = ? AND created_at >= ?')
+    .get(Number(agentId), since);
+  return row ? row.n : 0;
+}
+
+/**
  * Bulk fetch for the customer-side "Messages & Visites" merge (web/lib/
  * customerInquiries.js) — one round trip for all of a customer's own leads
  * rather than one per lead.
@@ -1694,6 +1718,7 @@ module.exports = {
   listOpenLeads,
   createLeadProposal,
   getLeadProposals,
+  countAgentProposalsSince,
   MAX_PITCHES_PER_LEAD,
   createViewingRequest,
   getViewingRequest,

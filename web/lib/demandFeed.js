@@ -30,3 +30,50 @@ export function launchTrialEndsAtLabel() {
   if (Number.isNaN(end.getTime())) return null;
   return new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }).format(end);
 }
+
+/**
+ * The pitch allowance for an agent with no paid package — i.e. everyone
+ * currently on the platform-wide launch trial. `packages.monthly_pitch_limit`
+ * defaults to 10 for real plans; this is the same figure for the trial, so
+ * the trial isn't accidentally unlimited while it lasts.
+ */
+const TRIAL_MONTHLY_PITCH_LIMIT = 10;
+
+/**
+ * Start of the current calendar month, as an ISO string — the window the
+ * engine counts `lead_proposals` rows within.
+ *
+ * Calendar month, not a rolling 30 days, because "propositions restantes ce
+ * mois" is what the UI says and a rolling window would make that sentence a
+ * lie (the number would creep back up mid-month as old pitches aged out,
+ * with nothing on screen explaining why).
+ */
+export function currentPitchPeriodStart(now = new Date()) {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+}
+
+/**
+ * Resolves an agent's monthly pitch quota from the real allowance on their
+ * plan and the real count of pitches they've already made.
+ *
+ * `used` comes from the engine (lib/adminApi.js's getAgentPitchUsage) and is
+ * a count of actual lead_proposals rows — never an estimate. `limit` comes
+ * from packages.monthly_pitch_limit, falling back to the trial allowance for
+ * an agent whose access is the launch trial rather than a paid plan.
+ *
+ * @param {{monthly_pitch_limit?: number|null, package_title?: string|null}} agent
+ * @param {number} used
+ * @returns {{limit: number, used: number, remaining: number, exhausted: boolean}}
+ */
+export function resolvePitchQuota(agent, used) {
+  const limit = Number.isFinite(Number(agent?.monthly_pitch_limit))
+    ? Number(agent.monthly_pitch_limit)
+    : TRIAL_MONTHLY_PITCH_LIMIT;
+  const safeUsed = Number.isFinite(Number(used)) ? Math.max(0, Number(used)) : 0;
+  return {
+    limit,
+    used: safeUsed,
+    remaining: Math.max(0, limit - safeUsed),
+    exhausted: safeUsed >= limit,
+  };
+}

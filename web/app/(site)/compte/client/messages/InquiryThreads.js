@@ -180,28 +180,32 @@ function customSearchStatus(thread) {
 }
 
 /**
- * Same real-per-listing-number-with-central-fallback convention as
- * EnquiryCard.js/WhatsAppCTA.js/CallCTA.js: `property.agentPhone` is the
- * real `agents.phone` column (via `properties.agent_id`, web/lib/listings.js's
- * SELECT_FIELDS — confirmed live, not the stale "no per-listing number
- * exists" note in root CLAUDE.md's Lead Routing Rules, which predates the
- * Phase 2/4 agent self-service work web/CLAUDE.md's Known Gaps documents).
- * Falls back to Lukka Place's own central WhatsApp number when a proposal's
- * agent has none on file, exactly like every other contact CTA in this app.
+ * Strict agent-only contact routing (explicit product decision — this
+ * deliberately departs from EnquiryCard.js/WhatsAppCTA.js/CallCTA.js's
+ * agent-first-with-central-fallback convention on the *public* listing
+ * pages, which is unchanged and still correct there): the core journey here
+ * is customer submits request -> an agent/commissionaire matches & pitches
+ * -> customer reaches that specific agent directly. There is no "contact
+ * Lukka Place instead" fallback in this file any more — a proposal with no
+ * real `agentPhone` on file (`agents.phone`, via `properties.agent_id`,
+ * web/lib/listings.js's SELECT_FIELDS) simply shows no contact button
+ * rather than bridging through the platform. `agentPhone` is real, not
+ * invented — see web/CLAUDE.md's Known Gaps note on the live-verified
+ * `agents.phone` column — it just isn't populated for every agency yet.
  */
 function proposalContactMessage(property, leadId) {
   const refPart = property.reference ? ` (Réf: ${property.reference})` : '';
   return `Bonjour, je suis intéressé par la proposition « ${property.title} »${refPart} — ${property.priceLabel}, pour ma demande n° ${leadId}.`;
 }
 
-function proposalWhatsAppHref(property, leadId, whatsappNumber) {
-  const phone = property.agentPhone || whatsappNumber;
-  return phone ? buildWhatsAppLink(phone, proposalContactMessage(property, leadId)) : null;
+function proposalWhatsAppHref(property, leadId) {
+  return property.agentPhone
+    ? buildWhatsAppLink(property.agentPhone, proposalContactMessage(property, leadId))
+    : null;
 }
 
-function proposalCallHref(property, whatsappNumber) {
-  const phone = property.agentPhone || whatsappNumber;
-  return phone ? `tel:${phone}` : null;
+function proposalCallHref(property) {
+  return property.agentPhone ? `tel:${property.agentPhone}` : null;
 }
 
 function Thumbnail({ src, alt, className }) {
@@ -222,20 +226,19 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
   const [activeId, setActiveId] = useState(threads[0]?.id ?? null);
   const active = threads.find((t) => t.id === activeId) || threads[0] || null;
 
-  const continueHref =
-    whatsappNumber && active
-      ? buildWhatsAppLink(
-          whatsappNumber,
-          active.listing
-            ? `Bonjour, je reviens vers vous au sujet de ma demande du ${active.createdAtLabel} concernant l'annonce Ref: ${active.listing.reference || `#${active.listing.id}`}.`
-            : `Bonjour, je reviens vers vous au sujet de ma demande du ${active.createdAtLabel}.`,
-        )
-      : null;
-
   // Same two viewing-specific actions the old standalone "Visites
   // planifiées" page offered — reschedule/cancel, not a generic "continue
   // the conversation" — kept verbatim now that a viewing lead renders inline
   // here instead of on its own page.
+  //
+  // Deliberate, flagged exception to this file's strict-agent-only contact
+  // policy (see proposalWhatsAppHref's doc comment above): once a viewing
+  // is underway there is no reliable link anywhere in the data model back
+  // to which specific agent set it up (`viewing_requests` carries no agent
+  // column, and a custom-search viewing could have come from any one of
+  // several pitching proposals) — using the central number here is an
+  // honest fallback to a real gap, not fabricating an agent contact that
+  // isn't recorded. Worth a real product decision if this needs closing.
   const rescheduleHref =
     whatsappNumber && active?.isViewing
       ? buildWhatsAppLink(
@@ -358,23 +361,14 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
                     </a>
                   ) : null}
                 </>
-              ) : active.listing && continueHref ? (
-                // Custom-search threads deliberately don't get this generic
-                // "continue on WhatsApp" button any more — each real
-                // proposal now has its own direct "Contacter l'agence" CTA
-                // below, which is the more specific, more useful action.
-                // Kept for listing-attached threads, which have no proposal
-                // cards and would otherwise lose their only contact path.
-                <a
-                  href={continueHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-full bg-green px-4 py-2 text-[0.8125rem] font-semibold text-white transition-colors hover:bg-green-deep"
-                >
-                  <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
-                  Poursuivre sur WhatsApp
-                </a>
               ) : null}
+              {/* No generic "contact the platform" CTA here any more, for
+                  either thread type — a listing-attached thread still has
+                  "Voir la fiche" above, which leads to the listing's own
+                  EnquiryCard/WhatsAppCTA/CallCTA (real per-listing agent
+                  contact); a custom-search thread's real contact points are
+                  the per-proposal "Contacter l'agence"/"Appeler" buttons
+                  below, once an agent has actually pitched something. */}
             </div>
           </div>
 
@@ -467,10 +461,11 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
             ) : active.proposals?.length === 0 ? (
               <div className="rounded-card bg-blue-tint p-5">
                 <p className="text-[0.9375rem] font-bold leading-snug text-blue-deep">
-                  Votre demande est diffusée aux agences{active.commune ? ` de ${active.commune}` : ''}.
+                  Votre demande est diffusée auprès de nos agents et commissionnaires partenaires.
                 </p>
                 <p className="mt-1.5 text-[0.8125rem] leading-[1.55] text-ink-70">
-                  Vous recevrez leurs propositions ici et sur WhatsApp.
+                  Dès qu&apos;un agent retient votre demande, ses propositions et ses coordonnées directes (Appel et
+                  WhatsApp) apparaîtront ici.
                 </p>
               </div>
             ) : null}
@@ -483,8 +478,8 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
                 </p>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   {active.proposals.map((property) => {
-                    const whatsappHref = proposalWhatsAppHref(property, active.id, whatsappNumber);
-                    const callHref = proposalCallHref(property, whatsappNumber);
+                    const whatsappHref = proposalWhatsAppHref(property, active.id);
+                    const callHref = proposalCallHref(property);
                     return (
                       <div
                         key={property.id}

@@ -282,7 +282,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
           what makes the sticky child work at all — the grid's default
           `stretch` would make the aside full-height, leaving it nothing to
           stick within. */}
-      <div className="mx-auto max-w-[77.5rem] px-4 py-14 sm:px-6 sm:py-16">
+      <div className="mx-auto max-w-[77.5rem] px-4 pb-14 pt-8 sm:px-6 sm:pb-16 sm:pt-9">
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-12">
           <section>
             <div className="flex flex-wrap items-end justify-between gap-6">

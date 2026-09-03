@@ -125,6 +125,13 @@
      --shadow-md and lift 2px on hover." */
   --shadow-md: 0 6px 16px -4px rgba(16, 26, 46, 0.1), 0 2px 6px -2px rgba(16, 26, 46, 0.06);
   --hairline: inset 0 0 0 1px var(--line);
+  /* Rightmove's own container elevation, matched to its published spec on
+     an explicit instruction: a 2px/8px resting shadow at 6% black that
+     doubles to 4px/16px at 8% on hover. Softer and tighter than
+     --shadow-md above (which stays the design system's own card-hover
+     token, still used by the hero/enquiry `.u-lift` family). */
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-card-hover: 0 4px 16px rgba(0, 0, 0, 0.08);
 
   /*
    * shadcn/ui tokens, remapped onto the palette above so Button, Dialog,
@@ -239,8 +246,24 @@
   }
   body {
     @apply bg-canvas text-ink;
-    font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+    /* Plus Jakarta Sans is the root family for the whole application —
+       public storefront, agent portal and /admin alike — inherited from
+       here rather than redeclared per component. --font-sans resolves to
+       --font-jakarta (next/font, app/layout.js); the system faces after it
+       are the real fallback stack that renders before the webfont swaps
+       in, so the pre-swap frame is a native UI face on every platform
+       rather than the browser's generic sans. */
+    font-family:
+      var(--font-sans),
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      Roboto,
+      ui-sans-serif,
+      system-ui,
+      sans-serif;
     -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
   /* DM Serif Display is an accent face: hero headline, section titles,
      editorial copy only. Never UI, never data. Its default leading reads
@@ -413,14 +436,35 @@
    * borderless one.
    */
   .u-card {
-    box-shadow: var(--hairline);
+    /* The hairline still does the separating (design system's own card
+       anatomy), but it is now paired with Rightmove's resting
+       micro-elevation — 0 2px 8px rgba(0,0,0,0.06) — on an explicit
+       instruction to match that portal's container standard. Both layers
+       are in the same box-shadow so a card reads as a real, slightly
+       lifted surface instead of a flat outlined box, without needing an
+       extra border utility at every call site. */
+    box-shadow: var(--hairline), var(--shadow-card);
     transition:
-      box-shadow 0.18s cubic-bezier(0.2, 0.7, 0.3, 1),
+      box-shadow 0.2s ease-out,
       transform 0.12s cubic-bezier(0.2, 0.7, 0.3, 1);
   }
   .u-card-interactive:hover {
-    box-shadow: var(--shadow-md);
+    box-shadow: var(--hairline), var(--shadow-card-hover);
     transform: translateY(-2px);
+  }
+
+  /*
+   * Image container standard — every property photo (search cards, gallery
+   * feeds, detail-view cards) sits in a wrapper carrying the same hairline
+   * + micro-elevation as the cards around it, so a photo never floats
+   * borderless against the page while its neighbours are framed.
+   */
+  .u-media-frame {
+    overflow: hidden;
+    border-radius: var(--radius-lg, 8px);
+    box-shadow:
+      inset 0 0 0 1px rgb(226 230 239 / 0.6),
+      var(--shadow-card);
   }
 
   /*

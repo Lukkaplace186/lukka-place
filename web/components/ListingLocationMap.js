@@ -38,7 +38,7 @@ export default function ListingLocationMap({ listing }) {
         hoveredId={null}
         onMarkerHover={() => {}}
         maxZoom={15}
-        className="h-[22rem] overflow-hidden rounded-lg border border-line sm:h-[26rem]"
+        className="u-card h-[22rem] overflow-hidden rounded-lg border border-line sm:h-[26rem]"
       />
       <p className="mt-2.5 text-[0.75rem] text-ink-45">
         Localisation approximative, affichée à l&apos;échelle du quartier pour préserver la confidentialité du bien.

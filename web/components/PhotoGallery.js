@@ -155,7 +155,7 @@ export default function PhotoGallery({ images, alt }) {
               alt={alt}
               fill
               priority
-              sizes="(min-width: 1024px) 60vw, 100vw"
+              sizes="(min-width: 1280px) 830px, (min-width: 1024px) 64vw, 100vw"
               className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]"
             />
 
@@ -195,7 +195,7 @@ export default function PhotoGallery({ images, alt }) {
                       src={src}
                       alt=""
                       fill
-                      sizes="30vw"
+                      sizes="(min-width: 1280px) 410px, (min-width: 1024px) 32vw, 50vw"
                       className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.05]"
                     />
                     {/* "Toutes les photos" sits on the last rendered tile,

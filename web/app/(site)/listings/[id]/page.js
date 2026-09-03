@@ -82,9 +82,12 @@ function AgentProfileLink({ agentId }) {
 /**
  * Property detail — the conversion page.
  *
- * Structure follows the reference portals: breadcrumb, gallery, then a
- * two-column split with the narrative on the left and a sticky enquiry
- * panel on the right, closing with a map and a rail of other properties.
+ * Structure follows Rightmove's own layout architecture: breadcrumb, then
+ * a full-width hero gallery spanning the entire 1280px canvas, then a
+ * 68/32 two-column split — narrative on the left, a permanently sticky
+ * rail (agent contact + price/FX breakdown) on the right that stays docked
+ * through Description, Équipements and Emplacement — closing with a map
+ * and a rail of other properties.
  *
  * The related rail is the important addition. This page previously ended
  * after the description with nothing to click, so a visitor who did not want
@@ -147,7 +150,7 @@ export default async function ListingDetailPage({ params, searchParams }) {
     // real margin above it.
     <div className="pb-28 lg:pb-0">
       <ListingViewTracker path={`/listings/${listing.id}`} commune={listing.commune} />
-      <div className="mx-auto max-w-[1140px] px-4 pt-6 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
         <div className="mb-5 flex items-center justify-between gap-4">
           <Breadcrumb
             className="min-w-0"
@@ -172,25 +175,26 @@ export default async function ListingDetailPage({ params, searchParams }) {
           </div>
         </div>
 
-        {/* Rightmove-style layout, per an explicit instruction (with a real
-            reference screenshot): the gallery is the left column's first
-            item, sharing its top row with the sticky agent card on the
-            right, rather than a full-bleed band above the two-column grid —
-            a full-width gallery was tried and then explicitly reverted back
-            to this. A 400px right rail, not 23rem/368px, and 40px between
-            the columns. Both the gallery (PhotoGallery.js) and EnquiryCard
-            now carry real `.u-lift` drop shadows instead of this app's
-            usual `.u-card` hairline, on the same explicit instruction — see
-            each component's own doc comment for why that's a deliberate,
-            scoped departure from the design system's normal card
-            treatment, not a global change. */}
-        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_25rem] lg:items-start">
-          <div className="flex min-w-0 flex-col gap-7">
-            <PhotoGallery images={images} alt={listing.title} />
+        {/* HERO MEDIA — full grid width, per an explicit instruction (this
+            reverses an earlier one that had put the gallery inside the left
+            column beside the agent card; the two instructions genuinely
+            conflict and the newer one wins). The photos are the page's
+            primary focal point and now span the whole 1280px canvas rather
+            than ~68% of a narrower one. PhotoGallery carries its own
+            `.u-lift` elevation and hairline — see that component's doc
+            comment for why the gallery is a deliberate, scoped departure
+            from this app's usual `.u-card` hairline-only treatment. */}
+        <PhotoGallery images={images} alt={listing.title} />
 
-            {/* Price leads the page at 44px/800 — the design's single
-                loudest number, above the title rather than tucked into the
-                enquiry panel. */}
+        {/* Everything below the hero is the two-column split: narrative on
+            the left, a permanently docked rail on the right. 68/32 as
+            instructed, expressed in `fr` units rather than literal
+            percentages so the 40px gap comes out of the tracks instead of
+            overflowing the row (68% + 32% + gap > 100%). */}
+        <div className="mt-8 grid gap-10 lg:mt-10 lg:grid-cols-[minmax(0,68fr)_minmax(0,32fr)] lg:items-start">
+          <div className="flex w-full min-w-0 flex-col gap-7">
+            {/* Price leads the page — the design's single loudest number,
+                above the title rather than tucked into the enquiry panel. */}
             <div className="flex flex-col gap-2.5">
               <span className="u-tabular text-[2.25rem] font-extrabold leading-none tracking-[-0.025em] text-ink sm:text-[2.75rem]">
                 <Price
@@ -202,12 +206,17 @@ export default async function ListingDetailPage({ params, searchParams }) {
                 />
               </span>
 
-              <h1 className="text-[1.3125rem] font-bold leading-[1.3] tracking-[-0.008em] text-ink">
+              {/* Rightmove's own heading scale: 20px on a phone, 24px from
+                  sm, 30px on desktop — bold and tight-tracked, on the ink
+                  ramp's darkest step (the design system's equivalent of the
+                  reference's slate-900; this app has no slate scale and
+                  introducing one would fork the palette). */}
+              <h1 className="text-xl font-bold leading-[1.25] tracking-tight text-ink sm:text-2xl lg:text-3xl">
                 {listing.title}
               </h1>
 
               {(listing.address || where) ? (
-                <p className="inline-flex items-center gap-1.5 text-[0.875rem] text-ink-45">
+                <p className="inline-flex items-center gap-1.5 text-[0.9375rem] text-ink-45 sm:text-base">
                   <MapPin strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0" />
                   {listing.address || where}
                 </p>
@@ -217,15 +226,16 @@ export default async function ListingDetailPage({ params, searchParams }) {
             <KeyFacts listing={listing} />
 
             {/* Mobile only: the sticky right rail is off-screen below lg. */}
-            <div className="lg:hidden">
+            <div className="flex flex-col gap-4 lg:hidden">
               <EnquiryCard listing={listing} visitSent={visitSent} visitError={visitError} />
               <AgentProfileLink agentId={listing.agent_id} />
+              <PricePanel listing={listing} />
             </div>
 
             {listing.description ? (
               <div className="flex flex-col gap-3">
-                <h2 className="text-[1.125rem] font-bold text-ink">Description</h2>
-                <p className="max-w-[41rem] whitespace-pre-line text-[1rem] leading-[1.6] text-ink-70">
+                <h2 className="text-lg font-bold tracking-tight text-ink sm:text-xl lg:text-2xl">Description</h2>
+                <p className="max-w-[46rem] whitespace-pre-line text-[0.9375rem] leading-[1.6] text-ink-70 sm:text-base">
                   {listing.description}
                 </p>
               </div>
@@ -233,7 +243,9 @@ export default async function ListingDetailPage({ params, searchParams }) {
 
             {amenityKeys.length > 0 ? (
               <div className="flex flex-col gap-3.5">
-                <h2 className="text-[1.125rem] font-bold text-ink">Équipements confirmés par l&apos;agent</h2>
+                <h2 className="text-lg font-bold tracking-tight text-ink sm:text-xl lg:text-2xl">
+                  Équipements confirmés par l&apos;agent
+                </h2>
                 <div className="flex flex-wrap gap-2">
                   {amenityKeys.map((key) => <AmenityTag key={key} amenityKey={key} />)}
                 </div>
@@ -245,7 +257,7 @@ export default async function ListingDetailPage({ params, searchParams }) {
                     moderation gate before publication — so the design's
                     wording is kept verbatim. The caption is what carries the
                     honesty; the heading alone would overclaim. */}
-                <p className="max-w-[39rem] text-[0.8125rem] leading-[1.45] text-ink-35">
+                <p className="max-w-[42rem] text-[0.8125rem] leading-[1.5] text-ink-35">
                   Les équipements proviennent du texte de l&apos;annonce, revu à la publication. Ils ne sont pas issus
                   d&apos;un champ structuré de la base — un bien peut en disposer sans l&apos;avoir précisé.
                 </p>
@@ -253,12 +265,17 @@ export default async function ListingDetailPage({ params, searchParams }) {
             ) : null}
 
             <div className="flex flex-col gap-3">
-              <h2 className="text-[1.125rem] font-bold text-ink">Emplacement</h2>
+              <h2 className="text-lg font-bold tracking-tight text-ink sm:text-xl lg:text-2xl">Emplacement</h2>
               <ListingLocationMap listing={listing} />
             </div>
           </div>
 
-          <aside className="hidden lg:sticky lg:top-24 lg:flex lg:flex-col lg:gap-5">
+          {/* The rail stays docked for the whole scroll — Description,
+              Équipements and Emplacement all pass behind it. `self-start`
+              is what actually makes `sticky` work inside a grid: without
+              it the item stretches to the row's full height and has no
+              room left to stick within. top-24 clears the fixed header. */}
+          <aside className="hidden w-full self-start lg:sticky lg:top-24 lg:flex lg:flex-col lg:space-y-4">
             <EnquiryCard listing={listing} visitSent={visitSent} visitError={visitError} />
             <AgentProfileLink agentId={listing.agent_id} />
             <PricePanel listing={listing} />

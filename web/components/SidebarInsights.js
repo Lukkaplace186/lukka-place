@@ -22,7 +22,7 @@ export default function SidebarInsights({ popularCommunes, allCommunes }) {
 
   return (
     <aside className="grid gap-4 sm:grid-cols-2">
-      <div className="rounded-lg border border-line bg-surface p-5">
+      <div className="u-card rounded-lg border border-line bg-surface p-5">
         <h2 className="u-eyebrow mb-4">{hasRealRanking ? 'Communes populaires' : 'Explorez par commune'}</h2>
         <ul className="flex flex-col gap-2">
           {communeLinks.map(({ commune, count }) => (
@@ -39,7 +39,7 @@ export default function SidebarInsights({ popularCommunes, allCommunes }) {
         </ul>
       </div>
 
-      <div className="rounded-lg border border-line bg-surface p-5">
+      <div className="u-card rounded-lg border border-line bg-surface p-5">
         <h2 className="u-eyebrow mb-4">Recherches associées</h2>
         <ul className="flex flex-col gap-2">
           {RELATED_SEARCHES.map(({ label, href }) => (

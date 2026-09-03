@@ -24,7 +24,7 @@ export default function PricePanel({ listing }) {
   const { price, purpose, price_period: pricePeriod, deposit_months: depositMonths } = listing;
 
   return (
-    <div className="flex flex-col gap-3 rounded-card bg-blue-deep p-6">
+    <div className="u-lift flex flex-col gap-3 rounded-card bg-blue-deep p-6">
       <span className="u-eyebrow text-white/70">Prix affiché</span>
 
       <div className="flex flex-col gap-1.5">

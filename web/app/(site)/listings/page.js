@@ -3,6 +3,7 @@ import ActiveFilterChips from '@/components/ActiveFilterChips';
 import ListingsSplitView from '@/components/ListingsSplitView';
 import ResultsHeader from '@/components/ResultsHeader';
 import ListingsEmptyState from '@/components/ListingsEmptyState';
+import FloatingControlBar from '@/components/FloatingControlBar';
 import { getListings, getPopularCommunes, getCommuneShowcase, getPropertyTypeFacets, getPriceRange } from '@/lib/listings';
 import { getLocationHierarchySafe } from '@/lib/locations';
 import { parseListingsSearchParams } from '@/lib/searchQuery';
@@ -144,6 +145,10 @@ export default async function ListingsPage({ searchParams }) {
         )}
       </div>
 
+      {/* List mode only — the mobile fullscreen map already has its own
+          bottom-center floating control at this exact position
+          (MobileMapOverlay.js's "← Liste" button). */}
+      {!isMapView && count > 0 ? <FloatingControlBar /> : null}
     </div>
   );
 }

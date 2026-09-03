@@ -11,7 +11,9 @@ import {
 } from './ui/dropdown-menu';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 
-const SORT_OPTIONS = [
+// Exported so FloatingControlBar.js's mobile "Trier" sheet offers the exact
+// same real options rather than a second, driftable copy of this list.
+export const SORT_OPTIONS = [
   { value: 'newest', label: 'Plus récents' },
   { value: 'price_asc', label: 'Prix croissant' },
   { value: 'price_desc', label: 'Prix décroissant' },

@@ -59,9 +59,15 @@ export default function FeaturedListingsCarousel({ listings }) {
         'lg:grid-cols-4',
       ].join(' ')}
     >
-      {listings.map((listing) => (
+      {listings.map((listing, i) => (
         <div key={listing.id} className="w-full shrink-0 snap-start sm:contents">
-          <PropertyCard listing={listing} />
+          {/* First row of the lg:grid-cols-4 desktop grid (and the single
+              visible card on the mobile snap-carousel) is above the fold —
+              `priority` skips next/image's lazy-loading for those so the
+              LCP photo starts requesting immediately instead of waiting on
+              an IntersectionObserver, matching CardImageCarousel's own
+              cover-photo-only default. Everything past index 4 stays lazy. */}
+          <PropertyCard listing={listing} priority={i < 4} />
         </div>
       ))}
     </motion.div>

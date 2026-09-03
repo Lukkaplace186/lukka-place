@@ -85,6 +85,15 @@ export default function PhotoGallery({ images, alt }) {
   // (was rounded-xl) on every tile. A 2fr/1fr split — one tall lead photo,
   // two stacked beside it. Three tiles, not the five-tile 1-large-plus-2x2
   // mosaic this previously rendered.
+  //
+  // The outer frame (both this desktop grid and the mobile carousel above)
+  // carries a real `.u-lift` drop shadow plus a `border-line` hairline, per
+  // an explicit instruction matching a real Rightmove screenshot — a
+  // deliberate, scoped departure from this app's usual `.u-card` convention
+  // ("cards use hairlines instead of shadows," web/CLAUDE.md's design
+  // system notes). The photo block is meant to read as a genuinely floating
+  // hero element here, the same "real elevation" `.u-lift` already exists
+  // for (app/globals.css) — not a card among other cards.
   const mosaic = shots.slice(0, 3);
   const hasGrid = mosaic.length > 1;
   // Exactly one side photo (total === 2) is a real, common case — most
@@ -110,7 +119,7 @@ export default function PhotoGallery({ images, alt }) {
             if (e.key === 'Enter' || e.key === ' ') setLightboxIndex(mobileIndex);
           }}
           aria-label={`Agrandir la photo ${mobileIndex + 1}`}
-          className="h-[22rem] w-full cursor-pointer overflow-hidden rounded-xl bg-canvas-deep"
+          className="u-lift h-[22rem] w-full cursor-pointer overflow-hidden rounded-xl border border-line bg-canvas-deep"
         >
           <CardImageCarousel images={shots} alt={alt} sizes="100vw" priority onIndexChange={setMobileIndex} />
         </div>
@@ -131,7 +140,7 @@ export default function PhotoGallery({ images, alt }) {
 
       <div className="relative hidden sm:block">
         <div
-          className={`grid h-[27.5rem] gap-2 lg:h-[30rem] ${
+          className={`u-lift grid h-[27.5rem] gap-2 rounded-xl border border-line lg:h-[30rem] ${
             hasGrid ? 'grid-cols-1 sm:grid-cols-[2fr_1fr]' : 'grid-cols-1'
           }`}
         >

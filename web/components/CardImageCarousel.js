@@ -47,12 +47,48 @@ const DOT_WINDOW = 5;
  * every other decorative preset in this app. `quality={90}` (up from
  * next/image's default 75) plus a subtle contrast/brightness/saturate
  * lift on the image itself — real photos, just rendered a touch crisper.
+ *
+ * Only the cover photo (index 0) actually mounts a next/image on first
+ * render — a listing can carry 10+ gallery photos, and every one of them
+ * used to mount inside this snap-scroller at once (all `flex-shrink-0`,
+ * side by side), so a feed of a dozen cards fired a dozen photos' worth of
+ * requests each, most for photos nobody ever scrolled to. `loaded` tracks
+ * which slide indices are allowed to render their real image; the current
+ * index plus its immediate neighbours are added as `index` changes, so the
+ * next/previous photo is already mounted (and starts decoding) before a
+ * swipe or arrow-click finishes animating into view, without ever loading
+ * the whole gallery up front. An unloaded slide renders an empty
+ * canvas-alt placeholder that still carries the real flex-shrink-0/w-full
+ * sizing, so the scroller's snap points and scrollWidth stay correct
+ * either way.
  */
-export default function CardImageCarousel({ images, alt, sizes = '(min-width: 1024px) 22rem, 100vw', onIndexChange }) {
+export default function CardImageCarousel({
+  images, alt, sizes = '(min-width: 1024px) 22rem, 100vw', onIndexChange, priority = false,
+}) {
   const [index, setIndex] = useState(0);
+  const [loaded, setLoaded] = useState(() => new Set([0]));
   const scrollerRef = useRef(null);
   const total = images.length;
   const safe = useMotionSafe();
+
+  // Marks a slide (and its immediate neighbours) as allowed to mount its
+  // real image — called directly from the two places `index` actually
+  // changes (scrollToIndex/handleScroll below), not from a useEffect keyed
+  // on `index`: deriving state from a prop/state change belongs in the
+  // event handler that causes the change, not a synchronous setState inside
+  // an effect (see react-hooks/set-state-in-effect).
+  function markLoadedAround(i) {
+    setLoaded((prev) => {
+      let next = prev;
+      for (const idx of [i - 1, i, i + 1]) {
+        if (idx >= 0 && idx < total && !next.has(idx)) {
+          if (next === prev) next = new Set(prev);
+          next.add(idx);
+        }
+      }
+      return next;
+    });
+  }
 
   // Notifies a caller rendering its own "current/total" counter
   // (PropertyCard's pill) whenever the visible photo actually changes, so
@@ -89,6 +125,7 @@ export default function CardImageCarousel({ images, alt, sizes = '(min-width: 10
       scroller.scrollTo({ left: i * scroller.clientWidth, behavior: 'smooth' });
     }
     setIndex(i);
+    markLoadedAround(i);
   }
 
   function go(delta, e) {
@@ -101,10 +138,23 @@ export default function CardImageCarousel({ images, alt, sizes = '(min-width: 10
     if (!width) return;
     const next = Math.min(Math.max(Math.round(scroller.scrollLeft / width), 0), total - 1);
     setIndex((current) => (next === current ? current : next));
+    markLoadedAround(next);
+  }
+
+  // Desktop hover reveals the arrow buttons (sm:group-hover/carousel below)
+  // — the same gesture is real "explicit intent to browse", so it also
+  // preloads the next photo, ahead of an actual swipe/click, purely so a
+  // hover-then-click has nothing left to wait on. Touch devices have no
+  // hover state, so this never fires the eager-load spec explicitly wants
+  // reserved for swipe/expansion there.
+  function handlePointerEnter() {
+    if (total > 1) {
+      setLoaded((prev) => (prev.has(1) ? prev : new Set(prev).add(1)));
+    }
   }
 
   return (
-    <div className="group/carousel relative h-full w-full overflow-hidden bg-canvas-alt">
+    <div className="group/carousel relative h-full w-full overflow-hidden bg-canvas-alt" onMouseEnter={handlePointerEnter}>
       <motion.div
         ref={scrollerRef}
         onScroll={handleScroll}
@@ -113,14 +163,17 @@ export default function CardImageCarousel({ images, alt, sizes = '(min-width: 10
       >
         {images.map((src, i) => (
           <div key={`${src}-${i}`} className="relative h-full w-full flex-shrink-0 snap-center">
-            <SafeImage
-              src={src}
-              alt={i === 0 ? alt : `${alt} — photo ${i + 1}`}
-              fill
-              sizes={sizes}
-              quality={90}
-              className="object-cover contrast-[1.03] brightness-[1.02] saturate-[1.04]"
-            />
+            {loaded.has(i) ? (
+              <SafeImage
+                src={src}
+                alt={i === 0 ? alt : `${alt} — photo ${i + 1}`}
+                fill
+                sizes={sizes}
+                quality={90}
+                priority={priority && i === 0}
+                className="object-cover contrast-[1.03] brightness-[1.02] saturate-[1.04]"
+              />
+            ) : null}
           </div>
         ))}
       </motion.div>
@@ -131,7 +184,7 @@ export default function CardImageCarousel({ images, alt, sizes = '(min-width: 10
             type="button"
             onClick={(e) => go(-1, e)}
             aria-label="Photo précédente"
-            className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-surface/90 p-1.5 text-ink opacity-0 backdrop-blur-sm transition-opacity hover:bg-surface sm:group-hover/carousel:opacity-100"
+            className="u-press absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-surface/90 p-1.5 text-ink opacity-0 backdrop-blur-sm transition-opacity hover:bg-surface sm:group-hover/carousel:opacity-100"
           >
             <ChevronLeft strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
           </button>
@@ -139,7 +192,7 @@ export default function CardImageCarousel({ images, alt, sizes = '(min-width: 10
             type="button"
             onClick={(e) => go(1, e)}
             aria-label="Photo suivante"
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-surface/90 p-1.5 text-ink opacity-0 backdrop-blur-sm transition-opacity hover:bg-surface sm:group-hover/carousel:opacity-100"
+            className="u-press absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-surface/90 p-1.5 text-ink opacity-0 backdrop-blur-sm transition-opacity hover:bg-surface sm:group-hover/carousel:opacity-100"
           >
             <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
           </button>

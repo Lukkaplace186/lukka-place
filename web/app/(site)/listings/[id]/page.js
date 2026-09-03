@@ -172,13 +172,18 @@ export default async function ListingDetailPage({ params, searchParams }) {
           </div>
         </div>
 
-        {/* Rightmove-style layout, per an explicit instruction: the gallery
-            is the left column's first item rather than a full-bleed row
-            above the two-column grid, so the right rail's top edge lands
-            flush with the gallery's top edge instead of starting well below
-            it (previously separated by the gallery's own full height plus
-            this grid's mt-9). A 400px right rail, not 23rem/368px, and 40px
-            between the columns. */}
+        {/* Rightmove-style layout, per an explicit instruction (with a real
+            reference screenshot): the gallery is the left column's first
+            item, sharing its top row with the sticky agent card on the
+            right, rather than a full-bleed band above the two-column grid —
+            a full-width gallery was tried and then explicitly reverted back
+            to this. A 400px right rail, not 23rem/368px, and 40px between
+            the columns. Both the gallery (PhotoGallery.js) and EnquiryCard
+            now carry real `.u-lift` drop shadows instead of this app's
+            usual `.u-card` hairline, on the same explicit instruction — see
+            each component's own doc comment for why that's a deliberate,
+            scoped departure from the design system's normal card
+            treatment, not a global change. */}
         <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_25rem] lg:items-start">
           <div className="flex min-w-0 flex-col gap-7">
             <PhotoGallery images={images} alt={listing.title} />

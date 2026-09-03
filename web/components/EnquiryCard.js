@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { motion } from 'framer-motion';
 import { MessageCircle, Phone, CalendarClock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import FavoriteButton from './FavoriteButton';
@@ -8,6 +9,8 @@ import ShareButton from './ShareButton';
 import { getCentralWhatsAppHref, buildWhatsAppLink, buildWhatsAppMessage } from '@/lib/whatsapp';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { submitVisitRequestAction } from '@/app/(site)/listings/[id]/actions';
+import { revealUp } from '@/lib/motion';
+import { useMotionSafe } from '@/lib/useMotionSafe';
 
 const FIELD_CLASS =
   'u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35';
@@ -132,6 +135,23 @@ function VisitRequestDialog({ propertyId }) {
  *  - "Appeler l'agent" renders only when a real per-listing number exists.
  *  - WhatsApp falls back to the one central number, and renders a disabled
  *    state (not a dead wa.me link) when that env var is unset.
+ *
+ * Carries a real `.u-lift` drop shadow instead of this app's usual `.u-card`
+ * hairline, per an explicit instruction matching a real Rightmove
+ * screenshot — the same scoped, deliberate departure from the design
+ * system's normal card treatment as PhotoGallery.js's own frame (see its
+ * doc comment).
+ *
+ * Also plays a quick `revealUp` entrance (lib/motion.js, gated by
+ * `useMotionSafe()`) on mount — `animate="visible"`, not `whileInView`.
+ * This card shares the gallery's own top row (page.js), so it's normally
+ * already inside the initial viewport on load; `whileInView` only fires
+ * off an IntersectionObserver crossing, which is not guaranteed to run for
+ * an element that starts already-in-view, and confirmed live to leave the
+ * card stuck at `opacity: 0` in that case — a real bug, not a cosmetic
+ * choice. `animate` fires unconditionally on mount instead. The parent
+ * `<aside>` (page.js) still owns the actual sticky behavior via
+ * `lg:sticky lg:top-24`.
  */
 function initialsOf(name) {
   const parts = String(name || '').trim().split(/\s+/).filter(Boolean).slice(0, 2);
@@ -140,6 +160,7 @@ function initialsOf(name) {
 }
 
 export default function EnquiryCard({ listing, visitSent, visitError }) {
+  const safe = useMotionSafe();
   const {
     id, title, reference,
     agency_name: agencyName, agent_phone: agentPhone,
@@ -162,7 +183,12 @@ export default function EnquiryCard({ listing, visitSent, visitError }) {
   const qualifier = agencyName ? 'Agent partenaire' : 'Équipe Lukka Place';
 
   return (
-    <div className="u-card flex flex-col gap-[1.125rem] rounded-card bg-surface p-6">
+    <motion.div
+      variants={safe ? revealUp : undefined}
+      initial={safe ? 'hidden' : false}
+      animate={safe ? 'visible' : undefined}
+      className="u-lift flex flex-col gap-[1.125rem] rounded-card border border-line bg-surface p-6"
+    >
       <div className="flex items-center gap-3.5">
         <span className="u-tabular flex h-[3.25rem] w-[3.25rem] shrink-0 items-center justify-center rounded-full bg-blue-tint text-[1.125rem] font-extrabold text-blue-deep">
           {initialsOf(agencyName)}
@@ -229,6 +255,6 @@ export default function EnquiryCard({ listing, visitSent, visitError }) {
           <span className="u-ref text-ink-45">{reference}</span> et le lien de l&apos;annonce.
         </p>
       ) : null}
-    </div>
+    </motion.div>
   );
 }

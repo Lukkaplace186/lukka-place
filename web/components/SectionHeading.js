@@ -19,10 +19,10 @@ export default function SectionHeading({ eyebrow, title, lead, href, linkLabel =
     >
       <div className={`max-w-2xl ${centered ? 'mx-auto text-center' : ''}`}>
         {eyebrow && <p className="u-eyebrow mb-3">{eyebrow}</p>}
-        <h2 className="font-display text-[1.75rem] font-normal leading-[1.12] tracking-[-0.02em] text-ink sm:text-[2.25rem]">
+        <h2 className="font-display text-[1.375rem] font-normal leading-[1.2] tracking-[0.1px] text-ink sm:text-2xl">
           {title}
         </h2>
-        {lead && <p className="mt-3 text-[0.9375rem] leading-relaxed text-ink-45">{lead}</p>}
+        {lead && <p className="u-body mt-3 text-ink-45">{lead}</p>}
       </div>
 
       {href && (

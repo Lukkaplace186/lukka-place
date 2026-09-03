@@ -212,14 +212,16 @@ export default function PropertyCard({
             className={cn(
               // font-extrabold (800), not the previous font-bold (700) —
               // Plus Jakarta Sans's real heaviest loaded weight (see
-              // app/layout.js's own `weight` list), per the "extra bold
-              // price" instruction. Size is unchanged rather than shrunk to
-              // the literal `text-xl` (1.25rem) that instruction also
-              // named: this is already larger than that, and shrinking an
-              // already-prominent price would fight the stated goal of
-              // making it read as bigger, not smaller.
-              'u-tabular font-extrabold tracking-[-0.02em] text-ink',
-              horizontal ? 'text-[1.3125rem] @[34rem]:text-[1.875rem]' : 'text-[1.3125rem]',
+              // Rightmove's real card price, measured on their own search
+              // results page: 24px / weight 500 / 32px leading / +0.1px
+              // tracking — identical to their detail-page price. Replaces
+              // font-extrabold (800) at 21/30px with negative tracking,
+              // which is the "too black, too big" this was asked to fix.
+              // The compact (grid) variant steps down one notch on their
+              // own scale to 20px/500, since a 24px price in a narrow card
+              // wraps the converted-currency pill onto its own line.
+              'u-tabular font-medium tracking-[0.1px] text-ink',
+              horizontal ? 'text-2xl leading-8' : 'text-xl leading-7',
             )}
           >
             {/* The design's `qualifier` slot is the converted-currency line

@@ -47,7 +47,7 @@ export default function KeyFacts({ listing }) {
         <div key={key} className="flex flex-col gap-2 bg-canvas-alt p-4">
           <Icon strokeWidth={1.75} className="h-5 w-5 text-blue" />
           <span className="u-eyebrow text-ink-35">{label}</span>
-          <span className="u-tabular text-[1.125rem] font-bold text-ink">{value}</span>
+          <span className="u-tabular u-body text-ink">{value}</span>
         </div>
       ))}
     </div>

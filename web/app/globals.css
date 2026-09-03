@@ -264,6 +264,12 @@
       sans-serif;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+    /* Rightmove sets a global +0.1px letter-spacing on every text node
+       (measured directly on their own pages, both detail and results).
+       Positive, not negative — this site was running `tracking-tight`
+       (-0.025em) on its headings and prices, which is a large part of why
+       they read as dense/black next to the reference. */
+    letter-spacing: 0.1px;
   }
   /* DM Serif Display is an accent face: hero headline, section titles,
      editorial copy only. Never UI, never data. Its default leading reads
@@ -289,12 +295,64 @@
      kickers, spec-table keys. Matches web/Design's eyebrow spec exactly
      (11px / 700 / 0.12em / uppercase). */
   .u-eyebrow {
-    font-size: 0.6875rem;
-    line-height: 1.2;
-    font-weight: 700;
-    letter-spacing: 0.12em;
+    /* Rightmove's own micro label ("PROPERTY TYPE", "BATHROOMS", "SIZE",
+       "TENURE"), measured: 12px / 400 / 1px letter-spacing / 16px leading
+       / #6C6D7F. Weight 500 here rather than their 400 — Plus Jakarta Sans
+       renders lighter than Effra at the same weight and 400 uppercase at
+       12px disappears; every other value matches theirs exactly. Was
+       11px/700/0.12em, which was both smaller and much heavier. */
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 500;
+    letter-spacing: 1px;
     text-transform: uppercase;
     color: var(--ink-45);
+  }
+  /*
+   * Rightmove's type scale, measured directly off their own live pages
+   * (a property detail page and a search-results page) rather than eyeballed
+   * from a screenshot. The whole portal runs on six sizes and TWO weights:
+   *
+   *   12px / 400 / +1px    micro caps label      #6C6D7F
+   *   14px / 400 / +0.1px  meta, eyebrow         #6C6D7F
+   *   16px / 400 / +0.1px  body, key-fact values #000433   <- 342 uses
+   *   16px / 500 / +0.1px  buttons, emphasis     #000433
+   *   20px / 500 / +0.1px  section headings      #000433
+   *   24px / 500 / +0.1px  PRICE (detail + card) #000433   <- their largest
+   *
+   * Nothing on their site is larger than 24px and weight 700 appears twice
+   * on an entire page. This app was running the price at 44px/800 and
+   * headings at 30px/700 with negative tracking, which is exactly the
+   * "too black, too big" the reference doesn't have.
+   *
+   * Colours stay on this app's own ink ramp: Rightmove's #000433 is if
+   * anything darker in luminance than our --ink (#0b1120), so the weight
+   * and tracking are what actually change, not the palette.
+   */
+  .u-price {
+    font-size: 1.5rem;
+    line-height: 2rem;
+    font-weight: 500;
+    letter-spacing: 0.1px;
+  }
+  .u-h1,
+  .u-h2 {
+    font-size: 1.25rem;
+    line-height: 1.75rem;
+    font-weight: 500;
+    letter-spacing: 0.1px;
+  }
+  .u-body {
+    font-size: 1rem;
+    line-height: 1.5rem;
+    font-weight: 400;
+    letter-spacing: 0.1px;
+  }
+  .u-meta {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    font-weight: 400;
+    letter-spacing: 0.1px;
   }
   /* Every price uses this. Proportional digits make a column of prices in
      a results grid visibly ragged. */

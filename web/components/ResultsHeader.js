@@ -102,7 +102,7 @@ export default function ResultsHeader({
               larger extrabold size, matching the breadcrumb/margin
               breakpoint just above so the whole block steps up together
               rather than piecemeal across different widths. */}
-          <h1 className="text-lg font-bold leading-[1.15] tracking-tight text-ink lg:text-[1.875rem] lg:font-extrabold">
+          <h1 className="text-xl font-medium leading-7 tracking-[0.1px] text-ink lg:text-2xl lg:leading-8">
             {heading}
           </h1>
           {/* text-sm/font-normal throughout, including the count itself —

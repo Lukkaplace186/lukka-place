@@ -196,13 +196,13 @@ export default async function ListingDetailPage({ params, searchParams }) {
             {/* Price leads the page — the design's single loudest number,
                 above the title rather than tucked into the enquiry panel. */}
             <div className="flex flex-col gap-2.5">
-              <span className="u-tabular text-[2.25rem] font-extrabold leading-none tracking-[-0.025em] text-ink sm:text-[2.75rem]">
+              <span className="u-tabular u-price text-ink">
                 <Price
                   amount={listing.price}
                   purpose={listing.purpose}
                   pricePeriod={listing.price_period}
                   showSubtext
-                  subtextClassName="ml-3 text-[1rem] font-normal tracking-normal text-ink-45"
+                  subtextClassName="ml-2.5 u-meta font-normal text-ink-45"
                 />
               </span>
 
@@ -211,12 +211,12 @@ export default async function ListingDetailPage({ params, searchParams }) {
                   ramp's darkest step (the design system's equivalent of the
                   reference's slate-900; this app has no slate scale and
                   introducing one would fork the palette). */}
-              <h1 className="text-xl font-bold leading-[1.25] tracking-tight text-ink sm:text-2xl lg:text-3xl">
+              <h1 className="u-h1 text-ink">
                 {listing.title}
               </h1>
 
               {(listing.address || where) ? (
-                <p className="inline-flex items-center gap-1.5 text-[0.9375rem] text-ink-45 sm:text-base">
+                <p className="u-meta inline-flex items-center gap-1.5 text-ink-45">
                   <MapPin strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0" />
                   {listing.address || where}
                 </p>
@@ -234,8 +234,8 @@ export default async function ListingDetailPage({ params, searchParams }) {
 
             {listing.description ? (
               <div className="flex flex-col gap-3">
-                <h2 className="text-lg font-bold tracking-tight text-ink sm:text-xl lg:text-2xl">Description</h2>
-                <p className="max-w-[46rem] whitespace-pre-line text-[0.9375rem] leading-[1.6] text-ink-70 sm:text-base">
+                <h2 className="u-h2 text-ink">Description</h2>
+                <p className="u-body max-w-[46rem] whitespace-pre-line text-ink-70">
                   {listing.description}
                 </p>
               </div>
@@ -243,9 +243,7 @@ export default async function ListingDetailPage({ params, searchParams }) {
 
             {amenityKeys.length > 0 ? (
               <div className="flex flex-col gap-3.5">
-                <h2 className="text-lg font-bold tracking-tight text-ink sm:text-xl lg:text-2xl">
-                  Équipements confirmés par l&apos;agent
-                </h2>
+                <h2 className="u-h2 text-ink">Équipements confirmés par l&apos;agent</h2>
                 <div className="flex flex-wrap gap-2">
                   {amenityKeys.map((key) => <AmenityTag key={key} amenityKey={key} />)}
                 </div>
@@ -265,7 +263,7 @@ export default async function ListingDetailPage({ params, searchParams }) {
             ) : null}
 
             <div className="flex flex-col gap-3">
-              <h2 className="text-lg font-bold tracking-tight text-ink sm:text-xl lg:text-2xl">Emplacement</h2>
+              <h2 className="u-h2 text-ink">Emplacement</h2>
               <ListingLocationMap listing={listing} />
             </div>
           </div>

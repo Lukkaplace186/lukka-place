@@ -28,7 +28,7 @@ export default function PricePanel({ listing }) {
       <span className="u-eyebrow text-white/70">Prix affiché</span>
 
       <div className="flex flex-col gap-1.5">
-        <span className="u-tabular text-[1.875rem] font-bold tracking-[-0.02em] text-white">
+        <span className="u-tabular u-price text-white">
           <Price
             amount={price}
             purpose={purpose}

@@ -190,7 +190,7 @@ export default function EnquiryCard({ listing, visitSent, visitError }) {
       className="u-lift flex flex-col gap-[1.125rem] rounded-card border border-line bg-surface p-6"
     >
       <div className="flex items-center gap-3.5">
-        <span className="u-tabular flex h-[3.25rem] w-[3.25rem] shrink-0 items-center justify-center rounded-full bg-blue-tint text-[1.125rem] font-extrabold text-blue-deep">
+        <span className="u-tabular flex h-[3.25rem] w-[3.25rem] shrink-0 items-center justify-center rounded-full bg-blue-tint text-[1.125rem] font-medium text-blue-deep">
           {initialsOf(agencyName)}
         </span>
         <div className="flex min-w-0 flex-col gap-0.5">

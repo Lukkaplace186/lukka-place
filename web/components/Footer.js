@@ -114,7 +114,7 @@ export default async function Footer() {
       <div className="border-y border-white/10 bg-ink">
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-6 px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
           <div className="min-w-0 max-w-[40rem]">
-            <p className="font-display text-[1.75rem] leading-[1.1] tracking-[-0.012em] text-white sm:text-[2.25rem]">
+            <p className="font-display text-[1.375rem] leading-[1.2] tracking-[0.1px] text-white sm:text-2xl">
               Vous êtes agent ou agence immobilière ?
             </p>
             <p className="mt-2.5 text-[1.0625rem] leading-[1.56] text-white/70">

@@ -42,7 +42,7 @@ export default function MobileListingBar({ listing }) {
       style={{ boxShadow: '0 -8px 24px -12px rgba(12, 29, 80, 0.25)' }}
     >
       <div className="flex items-center gap-3">
-        <p className="u-tabular min-w-0 flex-1 text-lg font-bold leading-none text-ink">
+        <p className="u-tabular min-w-0 flex-1 text-lg font-medium leading-none tracking-[0.1px] text-ink">
           <Price amount={listing.price} purpose={listing.purpose} pricePeriod={listing.price_period} />
         </p>
 

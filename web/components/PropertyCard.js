@@ -52,11 +52,20 @@ import { cn } from '@/lib/utils';
  * which is what the previous cards used and what made them read as
  * outlined boxes. That's now reversed on an explicit "bold, high-contrast,
  * Zoopla/Zillow-style elevation" instruction: a real `border-line` border
- * plus a genuine `shadow-sm` at rest (not just on hover), still lifting to
- * `shadow-md` + a slight raise on hover. Written as plain utilities rather
- * than through `.u-card`/`.u-card-interactive` so `shadow-sm` doesn't have
- * to out-cascade that class's own `box-shadow: var(--hairline)` rule at
- * matching specificity, which is a fragile thing to rely on.
+ * plus a genuine shadow at rest (not just on hover), lifting further on
+ * hover. Written as plain utilities rather than through
+ * `.u-card`/`.u-card-interactive` so the shadow doesn't have to out-cascade
+ * that class's own `box-shadow: var(--hairline)` rule at matching
+ * specificity, which is a fragile thing to rely on.
+ *
+ * The shadow itself is a bespoke arbitrary value, not Tailwind's stock
+ * `shadow-sm`/`shadow-md` (those resolve to Tailwind's own un-themed scale
+ * here — `--shadow-md` in globals.css is a real design token but isn't
+ * registered under `@theme`, so the plain utility name never picked it up)
+ * and noticeably stronger than the site's own `--shadow-md` token, on an
+ * explicit "make the listings pop like Rightmove's cards" instruction —
+ * Rightmove's own card shadow reads as a clear, deliberate lift off the
+ * white page, not a faint hairline-adjacent tint.
  *
  * Grid-row height uniformity: the summary line and the amenity-tag row
  * both reserve their own space (`min-h-*`) whether or not a given listing
@@ -121,7 +130,7 @@ export default function PropertyCard({
         // edge reads as less "boxed in" around the photo, per an explicit
         // instruction. rounded-b-card keeps the body/footer corners as
         // they were; only the photo's own top corners changed.
-        'group flex h-full overflow-hidden rounded-t-lg rounded-b-card border border-line bg-surface shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md',
+        'group flex h-full overflow-hidden rounded-t-lg rounded-b-card border border-line bg-surface shadow-[0_8px_20px_-8px_rgba(16,26,46,0.18),0_2px_6px_-2px_rgba(16,26,46,0.08)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_18px_34px_-12px_rgba(16,26,46,0.28),0_6px_16px_-6px_rgba(16,26,46,0.14)]',
         // Horizontal only once there's room for a 300px image beside the
         // body — below that it stacks, or the text column collapses to
         // nothing in a narrow results pane.
@@ -167,6 +176,7 @@ export default function PropertyCard({
             alt={title}
             sizes={sizes || (horizontal ? '300px' : '(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw')}
             onIndexChange={setActiveIndex}
+            priority={priority}
           />
         ) : null}
 

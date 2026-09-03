@@ -301,15 +301,19 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
               </div>
             </div>
 
-            <div className="no-scrollbar mt-6 flex gap-7 overflow-x-auto border-b border-line/60">
+            {/* Rightmove-style tab row: a bold, clearly underlined active tab
+                against a quiet inactive one — bumped from a 1.5px hairline
+                to a real 3px bar so the active state reads at a glance,
+                per the reference screenshot. */}
+            <div className="no-scrollbar mt-6 flex gap-8 overflow-x-auto border-b border-line/60">
               {TABS.map(({ key, label }) => (
                 <Link
                   key={key}
                   href={hrefWithParam(agent.id, sp, 'tab', key)}
                   aria-current={tab === key ? 'page' : undefined}
-                  className={`-mb-px whitespace-nowrap border-b-[1.5px] px-1 pb-3 pt-2 text-sm transition-colors ${
+                  className={`-mb-px whitespace-nowrap border-b-[3px] px-0.5 pb-3 pt-2 text-[0.9375rem] transition-colors ${
                     tab === key
-                      ? 'border-ink font-semibold text-ink'
+                      ? 'border-ink font-bold text-ink'
                       : 'border-transparent font-medium text-ink-45 hover:border-line hover:text-ink-70'
                   }`}
                 >

@@ -147,7 +147,7 @@ export default async function ListingDetailPage({ params, searchParams }) {
     // real margin above it.
     <div className="pb-28 lg:pb-0">
       <ListingViewTracker path={`/listings/${listing.id}`} commune={listing.commune} />
-      <div className="mx-auto max-w-[1600px] px-4 pt-6 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1140px] px-4 pt-6 sm:px-6 lg:px-8">
         <div className="mb-5 flex items-center justify-between gap-4">
           <Breadcrumb
             className="min-w-0"
@@ -172,12 +172,17 @@ export default async function ListingDetailPage({ params, searchParams }) {
           </div>
         </div>
 
-        <PhotoGallery images={images} alt={listing.title} />
-
-        {/* web/Design's detail layout: a 400px right rail, not 23rem/368px,
-            and 40px between the columns. */}
-        <div className="mt-9 grid gap-10 lg:grid-cols-[minmax(0,1fr)_25rem] lg:items-start">
+        {/* Rightmove-style layout, per an explicit instruction: the gallery
+            is the left column's first item rather than a full-bleed row
+            above the two-column grid, so the right rail's top edge lands
+            flush with the gallery's top edge instead of starting well below
+            it (previously separated by the gallery's own full height plus
+            this grid's mt-9). A 400px right rail, not 23rem/368px, and 40px
+            between the columns. */}
+        <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_25rem] lg:items-start">
           <div className="flex min-w-0 flex-col gap-7">
+            <PhotoGallery images={images} alt={listing.title} />
+
             {/* Price leads the page at 44px/800 — the design's single
                 loudest number, above the title rather than tucked into the
                 enquiry panel. */}

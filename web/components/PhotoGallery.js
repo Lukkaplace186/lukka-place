@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight, Expand, ImageOff } from 'lucide-react';
 import SafeImage from './SafeImage';
+import CardImageCarousel from './CardImageCarousel';
 import { Badge } from './ListingBadges';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -23,10 +24,27 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  * is not wrapped in a motion.div: Radix unmounts the content the moment
  * `open` flips, so a framer-motion exit animation there would never run
  * (see the scope note in lib/motion.js).
+ *
+ * Below `sm`, the mosaic's side tiles were already hidden (no room for
+ * them), which left mobile with a single static lead photo you had to tap
+ * into the lightbox just to see photo 2 — no on-page swiping. That slot now
+ * renders CardImageCarousel instead: the exact same real snap-scroll
+ * carousel every listing card already uses (finger-swipeable, sliding-window
+ * pagination dots, and lazy-loads only the current photo plus its immediate
+ * neighbours rather than the whole gallery — see that component's own doc
+ * comment). Reused rather than reimplemented so mobile's swipe feel is
+ * identical everywhere it appears, and so this doesn't grow a second lazy-
+ * loading strategy to keep in sync with the first. Desktop's mosaic grid is
+ * untouched — this only replaces the collapsed single-tile mobile case.
+ * Tapping the carousel (a real tap, not a drag — see CardImageCarousel's own
+ * note on why a swipe gesture never fires a synthetic click) opens the same
+ * lightbox, at whichever photo is actually on screen rather than always
+ * photo 1.
  */
 export default function PhotoGallery({ images, alt }) {
   const shots = images || [];
   const total = shots.length;
+  const [mobileIndex, setMobileIndex] = useState(0);
 
   const [lightboxIndex, setLightboxIndex] = useState(null);
   const isOpen = lightboxIndex !== null;
@@ -60,11 +78,13 @@ export default function PhotoGallery({ images, alt }) {
     );
   }
 
-  // web/Design's detail gallery: a 2fr/1fr split with two 210px rows — one
-  // tall lead photo spanning both rows, and two stacked photos beside it.
-  // Three tiles, not the five-tile 1-large-plus-2x2 mosaic this previously
-  // rendered. Each tile carries the design's own 12px --radius-image rather
-  // than the whole grid being clipped to one rounded rectangle.
+  // Rightmove-style desktop gallery, per an explicit instruction: a fixed
+  // h-[27.5rem]/lg:h-[30rem] (440px/480px) band rather than the previous
+  // grid-rows-[13rem_13rem] (which only summed to 416px and didn't scale up
+  // at lg), tight gap-2 (8px, was gap-3/12px), and sleek rounded-md corners
+  // (was rounded-xl) on every tile. A 2fr/1fr split — one tall lead photo,
+  // two stacked beside it. Three tiles, not the five-tile 1-large-plus-2x2
+  // mosaic this previously rendered.
   const mosaic = shots.slice(0, 3);
   const hasGrid = mosaic.length > 1;
   // Exactly one side photo (total === 2) is a real, common case — most
@@ -79,21 +99,47 @@ export default function PhotoGallery({ images, alt }) {
 
   return (
     <>
-      <div className="relative">
+      {/* Mobile only — real swipeable carousel (see doc comment above).
+          Hidden at sm+, where the desktop mosaic below takes over. */}
+      <div className="relative sm:hidden">
         <div
-          className={`grid gap-3 ${
-            hasGrid
-              ? 'grid-cols-1 grid-rows-[13rem_13rem] sm:grid-cols-[2fr_1fr]'
-              : 'h-[22rem] grid-cols-1 sm:h-[26rem]'
+          role="button"
+          tabIndex={0}
+          onClick={() => setLightboxIndex(mobileIndex)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') setLightboxIndex(mobileIndex);
+          }}
+          aria-label={`Agrandir la photo ${mobileIndex + 1}`}
+          className="h-[22rem] w-full cursor-pointer overflow-hidden rounded-xl bg-canvas-deep"
+        >
+          <CardImageCarousel images={shots} alt={alt} sizes="100vw" priority onIndexChange={setMobileIndex} />
+        </div>
+
+        <span className="pointer-events-none absolute left-3.5 top-3.5 z-10 flex flex-wrap gap-2">
+          <Badge tone="white">Annonce vérifiée</Badge>
+        </span>
+
+        {/* Live count, not a static "1/N" — CardImageCarousel already
+            reports the on-screen index via onIndexChange, so this can track
+            an actual swipe instead of freezing at photo 1. The dot row
+            beneath it is CardImageCarousel's own; this badge is additive,
+            same composition PropertyCard.js already uses. */}
+        <span className="u-glass-royal u-tabular pointer-events-none absolute bottom-3.5 right-3.5 z-10 inline-flex items-center rounded-sm px-2.5 py-1.5 text-[0.8125rem] font-semibold">
+          {mobileIndex + 1}/{total} photo{total !== 1 ? 's' : ''}
+        </span>
+      </div>
+
+      <div className="relative hidden sm:block">
+        <div
+          className={`grid h-[27.5rem] gap-2 lg:h-[30rem] ${
+            hasGrid ? 'grid-cols-1 sm:grid-cols-[2fr_1fr]' : 'grid-cols-1'
           }`}
         >
           <button
             type="button"
             onClick={() => setLightboxIndex(0)}
             aria-label="Agrandir la photo 1"
-            className={`group relative w-full overflow-hidden rounded-xl bg-canvas-deep ${
-              hasGrid ? 'row-span-2 h-full' : 'h-full'
-            }`}
+            className="group relative h-full w-full overflow-hidden rounded-md bg-canvas-deep"
           >
             <SafeImage
               src={mosaic[0]}
@@ -121,21 +167,11 @@ export default function PhotoGallery({ images, alt }) {
           </button>
 
           {hasGrid ? (
-            // row-span-2 is the actual fix for the dead space: without it,
-            // this div — the second item auto-placed into a 2-row grid,
-            // with no explicit row span of its own — only ever occupied
-            // ONE of the two 13rem row tracks (CSS Grid's default
-            // single-cell auto-placement, same as any un-spanned item),
-            // leaving the second 13rem row in this column completely
-            // empty — a real 13rem gap of blank space beside the bottom
-            // half of the lead photo, on every multi-photo gallery, not
-            // just the 1-side-photo case the grid-rows-1/2 toggle below
-            // handles. The lead photo's own button already had
-            // `row-span-2 h-full`; this div needed the same thing to
-            // actually reach the same height, not just sit inside a
-            // shorter box that then had to divide *that* between its own
-            // 1 or 2 tiles.
-            <div className={`hidden row-span-2 gap-3 sm:grid ${sideShots.length > 1 ? 'grid-rows-2' : 'grid-rows-1'}`}>
+            // h-full: the parent grid now carries a fixed height directly
+            // (h-[27.5rem]/lg:h-[30rem]) rather than two 13rem row tracks,
+            // so this column just needs to fill that single row — no
+            // row-span needed anymore now that there's only one row to span.
+            <div className={`hidden h-full gap-2 sm:grid ${sideShots.length > 1 ? 'grid-rows-2' : 'grid-rows-1'}`}>
               {sideShots.map((src, i) => {
                 const isLastTile = i === sideShots.length - 1;
                 return (
@@ -144,7 +180,7 @@ export default function PhotoGallery({ images, alt }) {
                     type="button"
                     onClick={() => setLightboxIndex(i + 1)}
                     aria-label={`Agrandir la photo ${i + 2}`}
-                    className="group relative h-full w-full overflow-hidden rounded-xl bg-canvas-deep"
+                    className="group relative h-full w-full overflow-hidden rounded-md bg-canvas-deep"
                   >
                     <SafeImage
                       src={src}

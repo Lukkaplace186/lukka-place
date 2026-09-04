@@ -120,7 +120,15 @@ export default async function AdminAgentsPage({ searchParams }) {
                       )}
                     </td>
                     <td className="px-4 py-2.5 text-ink-70">
+                      {/* Total against the package cap — packages.number_of_property
+                          limits how many listings an agency may hold, not how many
+                          are live, so the quota figure is the total. The live count
+                          is spelled out beside it because the bare number reads as
+                          "listings on the site" and is not that. */}
                       {agent.listing_count} {agent.listing_limit != null ? `/ ${agent.listing_limit}` : ''}
+                      {agent.live_listing_count !== agent.listing_count ? (
+                        <div className="text-xs text-ink-45">{agent.live_listing_count} en ligne</div>
+                      ) : null}
                       {agent.package_title ? (
                         <div className="text-xs text-ink-45">
                           {agent.package_title}

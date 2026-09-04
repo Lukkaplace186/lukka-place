@@ -4,7 +4,7 @@ import { Send, FileText, ArrowRight } from 'lucide-react';
 import { PortalPanel, PortalBadge } from '@/components/ClientPortalUI';
 import { getPortalCustomer } from '@/lib/customerPortal';
 import { getCustomerInquiries } from '@/lib/customerInquiries';
-import { getLocationHierarchySafe } from '@/lib/locations';
+import { getLocationHierarchyWithFallback } from '@/lib/locations';
 import { getPopularCommunes } from '@/lib/listings';
 import { LEAD_STATUS_LABELS_FR } from '@/lib/adminLabels';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -44,7 +44,7 @@ const LEAD_TONES = {
  * page down, and no commune list is ever hardcoded here.
  */
 async function resolveCommunes() {
-  const { communes } = await getLocationHierarchySafe();
+  const { communes } = await getLocationHierarchyWithFallback();
   if (communes.length > 0) return communes;
   const popular = await getPopularCommunes(24);
   return popular.map((c) => c.commune);

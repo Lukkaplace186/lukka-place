@@ -255,10 +255,10 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
               <div className="flex gap-8 border-t border-white/15 pt-4">
                 <div>
                   <div className="u-tabular text-[1.625rem] font-extrabold leading-none tracking-[-0.02em] text-white">
-                    {agent.listing_count}
+                    {agent.live_listing_count}
                   </div>
                   <div className="mt-1.5 text-[0.8125rem] font-medium text-white/80">
-                    bien{agent.listing_count === 1 ? '' : 's'} actif{agent.listing_count === 1 ? '' : 's'}
+                    bien{agent.live_listing_count === 1 ? '' : 's'} actif{agent.live_listing_count === 1 ? '' : 's'}
                   </div>
                 </div>
                 {communes.length > 0 && (
@@ -324,7 +324,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
 
             {filteredListings.length === 0 ? (
               <div className="mt-8 rounded-card border border-dashed border-line bg-surface p-12 text-center text-sm text-ink-45">
-                {agent.listing_count === 0
+                {agent.live_listing_count === 0
                   ? "Cet agent n'a pas encore de bien en ligne. Envoyez-lui votre recherche ci-contre."
                   : 'Aucune annonce ne correspond à ces filtres.'}
               </div>

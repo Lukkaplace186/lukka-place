@@ -10,6 +10,7 @@ import AgentListingActionsMenu from './AgentListingActionsMenu';
 import MarkListingSoldDialog from './MarkListingSoldDialog';
 import { formatPrice, formatPriceCdf } from '@/lib/format';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { usableImageSrc } from '@/lib/listingView';
 import {
   updateListingStatusAction,
   updateListingPriceAction,
@@ -243,7 +244,7 @@ export default function AgentListingsTable({ listings, perListingStats }) {
 
             <div className="flex min-w-0 flex-1 items-center gap-3.5 lg:flex-none">
               <div className="grid h-12 w-16 shrink-0 place-items-center overflow-hidden rounded-[10px] bg-canvas-deep text-ink-25">
-                {listing.featured_image ? (
+                {usableImageSrc(listing.featured_image) ? (
                   <SafeImage
                     src={listing.featured_image}
                     alt=""

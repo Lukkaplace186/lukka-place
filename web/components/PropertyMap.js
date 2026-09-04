@@ -8,6 +8,7 @@ import { buildPricePinIcon } from '@/lib/mapIcons';
 import { MAP_STYLES } from '@/lib/mapStyle';
 import { NO_PHOTO_URL } from '@/lib/constants';
 import { formatPrice, formatCdfCompact } from '@/lib/format';
+import { usableImageSrc } from '@/lib/listingView';
 import { convertToCdf } from '@/lib/currency';
 import { useCdfRate } from '@/lib/CurrencyRateContext';
 import { getCurrency } from '@/lib/currencyPreference';
@@ -41,7 +42,10 @@ function buildInfoWindowContent(listing, cdfPerUsd) {
     currency === 'CDF'
       ? `≈ ${formatCdfCompact(convertToCdf(listing.price, cdfPerUsd)) ?? '—'} FC${listing.purpose === 'rent' ? ' / mois' : ''}`
       : formatPrice(listing.price, listing.purpose);
-  const image = listing.featured_image || NO_PHOTO_URL;
+  // A bare Laravel filename (`default.jpg`) is not a resolvable URL — see
+  // usableImageSrc(). In an InfoWindow it renders as a broken image rather
+  // than crashing, but it is still a dead request every time a pin opens.
+  const image = usableImageSrc(listing.featured_image) ? listing.featured_image : NO_PHOTO_URL;
   const spec = [
     listing.beds != null ? `${listing.beds} ch` : null,
     listing.bath != null ? `${listing.bath} sdb` : null,

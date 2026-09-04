@@ -11,8 +11,37 @@
 // synced before this field existed); 'an' renders "/ an" instead; 'total'
 // or 'mois' both render the existing "/ mois" text (a one-time total rent
 // figure is still effectively described the same way here).
+/**
+ * What every price formatter here renders when there is no real figure to
+ * show. The standard French property-listing phrase for exactly this, so it
+ * reads as an intentional state rather than a broken one.
+ *
+ * Before this existed, `Number(price).toLocaleString()` ran unguarded and the
+ * two bad inputs failed differently — the quieter one being much worse:
+ *   Number(undefined) === NaN -> "NaN $"  visibly broken
+ *   Number(null)      === 0   -> "0 $"    reads as free
+ * `properties.price` is nullable and one live listing is genuinely priced 0,
+ * so both were reachable, and both propagated into the WhatsApp share text
+ * via lib/whatsapp.js.
+ */
+export const PRICE_ON_REQUEST = 'Prix sur demande';
+
+/**
+ * A price is renderable only when it is a real, finite, positive number.
+ *
+ * Zero is deliberately excluded: no listing on this site is free, so a 0 is
+ * always missing data wearing a number's clothes.
+ */
+export function usablePrice(price) {
+  if (price === null || price === undefined || price === '') return null;
+  const amount = Number(price);
+  return Number.isFinite(amount) && amount > 0 ? amount : null;
+}
+
 export function formatPrice(price, purpose, pricePeriod) {
-  const amount = Number(price).toLocaleString('fr-FR');
+  const usable = usablePrice(price);
+  if (usable === null) return PRICE_ON_REQUEST;
+  const amount = usable.toLocaleString('fr-FR');
   if (purpose !== 'rent') return `${amount} $`;
   return pricePeriod === 'an' ? `${amount} $ / an` : `${amount} $ / mois`;
 }
@@ -34,16 +63,22 @@ export function formatPrice(price, purpose, pricePeriod) {
  * a real figure someone may need to read exactly.
  */
 export function formatPriceCdf(price, purpose, pricePeriod) {
-  const amount = Number(price).toLocaleString('fr-FR');
+  const usable = usablePrice(price);
+  if (usable === null) return PRICE_ON_REQUEST;
+  const amount = usable.toLocaleString('fr-FR');
   if (purpose !== 'rent') return `${amount} FC`;
   return pricePeriod === 'an' ? `${amount} FC / an` : `${amount} FC / mois`;
 }
 
 /** USD amount for a price authored in CDF, at the given dated rate. */
 export function convertCdfToUsd(cdfAmount, cdfPerUsd) {
-  const amount = Number(cdfAmount);
+  // `Number.isFinite(Number(null))` is true — Number(null) is 0 — so the
+  // original guard let a null amount through and returned 0 rather than
+  // null, converting an unknown price into a free one. usablePrice() rejects
+  // null/''/0 before the arithmetic.
+  const amount = usablePrice(cdfAmount);
   const rate = Number(cdfPerUsd);
-  if (!Number.isFinite(amount) || !Number.isFinite(rate) || rate <= 0) return null;
+  if (amount === null || !Number.isFinite(rate) || rate <= 0) return null;
   return Math.round((amount / rate) * 100) / 100;
 }
 

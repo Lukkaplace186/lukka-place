@@ -3,7 +3,7 @@ import { Mail } from 'lucide-react';
 import { PortalSectionHeading, PortalEmpty } from '@/components/ClientPortalUI';
 import { getPortalCustomer, isViewingLead } from '@/lib/customerPortal';
 import { getCustomerInquiries } from '@/lib/customerInquiries';
-import { getLocationHierarchySafe } from '@/lib/locations';
+import { getLocationHierarchyWithFallback } from '@/lib/locations';
 import { getPopularCommunes } from '@/lib/listings';
 import { LEAD_STATUS_LABELS_FR } from '@/lib/adminLabels';
 import { listingImages, feedLocationLine } from '@/lib/listingView';
@@ -33,7 +33,7 @@ function formatWith(formatter, value) {
  * filter option lists").
  */
 async function resolveCommunes() {
-  const { communes } = await getLocationHierarchySafe();
+  const { communes } = await getLocationHierarchyWithFallback();
   if (communes.length > 0) return communes;
   const popular = await getPopularCommunes(24);
   return popular.map((c) => c.commune);

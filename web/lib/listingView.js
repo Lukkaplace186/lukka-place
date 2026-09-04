@@ -27,10 +27,31 @@ const DATE_FORMATTER = new Intl.DateTimeFormat('fr-FR', {
   year: 'numeric',
 });
 
+/**
+ * Whether an image value from the database can actually be rendered.
+ *
+ * `next/image` throws at render time — a full page crash, not a broken image
+ * icon, and SafeImage's onError never gets a chance to catch it — for any src
+ * that is neither an absolute URL nor root-relative. Older Laravel-era rows
+ * store a bare filename (`default.jpg`) rather than a URL, and there is no
+ * verified base path anywhere in this codebase to join it to. Guessing one
+ * would fabricate a URL that probably 404s, so a bare filename is treated as
+ * "no image" and the real placeholder is shown instead.
+ *
+ * This is what made property #152 crash the moderation page the moment it
+ * became visible there.
+ */
+export function usableImageSrc(src) {
+  if (!src || typeof src !== 'string') return false;
+  const trimmed = src.trim();
+  if (!trimmed) return false;
+  return trimmed.startsWith('/') || /^https?:\/\//i.test(trimmed);
+}
+
 /** featured_image first, then the rest of the gallery, de-duplicated. */
 export function listingImages(listing) {
-  const gallery = listing.gallery || [];
-  const featured = listing.featured_image;
+  const gallery = (listing.gallery || []).filter(usableImageSrc);
+  const featured = usableImageSrc(listing.featured_image) ? listing.featured_image : null;
   return featured ? [featured, ...gallery.filter((src) => src !== featured)] : gallery;
 }
 

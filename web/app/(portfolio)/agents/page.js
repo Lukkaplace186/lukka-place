@@ -63,7 +63,7 @@ export default async function AgentsDirectoryPage() {
                     <p className="truncate text-sm text-ink-45">{agent.vendor_username}</p>
                   ) : null}
                   <p className="u-tabular mt-0.5 text-xs text-ink-45">
-                    {agent.listing_count} annonce{agent.listing_count !== 1 ? 's' : ''}
+                    {agent.live_listing_count} annonce{agent.live_listing_count !== 1 ? 's' : ''}
                     {communes.length > 0 ? ` · ${communes.slice(0, 2).join(', ')}` : ''}
                   </p>
                 </div>

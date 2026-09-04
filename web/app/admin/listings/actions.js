@@ -58,7 +58,61 @@ async function notifyBestEffort(listingId, status) {
   }
 }
 
+/**
+ * Placeholder content that reached the public site because a human clicked
+ * Approuver without noticing what they were approving.
+ *
+ * Two real examples, both live and both found in the pre-launch QA sweep:
+ *   #280 — description read "Le message contient uniquement une image de
+ *          carte sans informations immobilières", the AI extractor's own
+ *          failure message, published as the listing's description.
+ *   #239 — priced 0.00, rendering as "0 $ / mois" on the homepage.
+ *
+ * Approval is the last gate before a listing is public, so the check belongs
+ * here. It blocks rather than warns: an approval is one click and easily
+ * done on autopilot, and the cost of a bad listing going live is much higher
+ * than the cost of being asked to fix it first. Rejection stays unguarded —
+ * a broken listing should always be rejectable.
+ */
+const EXTRACTION_FAILURE_MARKERS = [
+  'ne contient',
+  'uniquement une image',
+  'sans information',
+  'aucune information',
+];
+
+async function assertPublishable(listingId) {
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT p.price, pc.title, pc.description
+     FROM properties p
+     LEFT JOIN property_contents pc ON pc.property_id = p.id AND pc.language_id = 20
+     WHERE p.id = $1`,
+    [listingId],
+  );
+  const listing = rows[0];
+  if (!listing) throw new Error(`Annonce #${listingId} introuvable.`);
+
+  if (!listing.title || !listing.description) {
+    throw new Error(
+      `Annonce #${listingId} : contenu manquant (titre ou description). À rejeter plutôt qu'à publier.`,
+    );
+  }
+  if (listing.price == null || Number(listing.price) <= 0) {
+    throw new Error(`Annonce #${listingId} : le prix est absent ou nul. Corrigez-le avant de publier.`);
+  }
+
+  const description = String(listing.description).toLowerCase();
+  if (EXTRACTION_FAILURE_MARKERS.some((marker) => description.includes(marker))) {
+    throw new Error(
+      `Annonce #${listingId} : la description est un message d'erreur d'extraction, pas une vraie description.`,
+    );
+  }
+}
+
 export async function approveListingAction(listingId) {
+  await assertAdminSession();
+  await assertPublishable(listingId);
   await setApprovalStatus(listingId, 1);
   notifyBestEffort(listingId, 'approved');
 }

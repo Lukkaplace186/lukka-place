@@ -11,7 +11,12 @@ import SaveSearchButton from './SaveSearchButton';
 import { Slider } from './ui/slider';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { buildSearchLabel } from '@/lib/searchLabel';
-import { pushRecentSearch, readRecentSearches, subscribeRecentSearches } from '@/lib/searchHistory';
+import {
+  pushRecentSearch,
+  readRecentSearches,
+  subscribeRecentSearches,
+  getEmptyRecentSearches,
+} from '@/lib/searchHistory';
 import { subscribeOpenFiltersDrawer } from '@/lib/mapFilterDrawer';
 import { cn } from '@/lib/utils';
 
@@ -136,7 +141,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
   // since the CustomEvent it dispatches on write is what this subscription
   // reacts to. `() => []` server snapshot: localStorage doesn't exist
   // server-side, same reasoning FavoriteButton.js already documents.
-  const recentSearches = useSyncExternalStore(subscribeRecentSearches, readRecentSearches, () => []);
+  const recentSearches = useSyncExternalStore(subscribeRecentSearches, readRecentSearches, getEmptyRecentSearches);
   const searchParams = useSearchParams();
 
   useEffect(() => {

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { getCurrentAgentId } from '@/lib/agentSession';
 import { getAgentDashboardContext } from '@/lib/agentDashboard';
 import { getPerListingStats } from '@/lib/analytics';
-import { getLocationHierarchySafe } from '@/lib/locations';
+import { getLocationHierarchyWithFallback } from '@/lib/locations';
 import { getPropertyCategories } from '@/lib/agentListings';
 import AgentPageHeader from '@/components/AgentPageHeader';
 import CreateListingDialog from '@/components/CreateListingDialog';
@@ -37,7 +37,7 @@ export default async function AgentListingsPage({ searchParams }) {
   const { listings, propertyIds, newLeadsCount } = await getAgentDashboardContext(agentId);
   const [perListingStats, { communes }, categories] = await Promise.all([
     getPerListingStats(propertyIds),
-    getLocationHierarchySafe(),
+    getLocationHierarchyWithFallback(),
     getPropertyCategories(),
   ]);
 

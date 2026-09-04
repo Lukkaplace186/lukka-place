@@ -74,6 +74,15 @@ const GALLERY_SUBQUERY = `(
 // actually authored, so <Price> can render an FC-authored listing verbatim
 // instead of round-tripping it through a rate that moves.
 //
+// p.latitude/p.longitude are real columns, and the km-radius filter below
+// already reads them — but they were missing from this SELECT, so
+// lib/geocoding.js's resolveListingLocation never saw a stored position and
+// its `source: 'existing'` branch was dead for every listing on the site.
+// Every map view re-geocoded client-side against a billable Google API, once
+// per session, while the rows that do carry coordinates went unused. Two
+// sources of truth for one location, disagreeing by construction; this is
+// the half that was missing.
+//
 // (Kept as a JS comment, not an inline SQL one: this is a template literal,
 // and a backtick inside it — as in a quoted column name — silently ends the
 // string. That broke the build once.)
@@ -82,6 +91,7 @@ const SELECT_FIELDS = `
   p.currency, p.price_original,
   p.parcelle_subtype, p.units_count, p.reference, p.featured_image,
   p.created_at, p.price_period, p.deposit_months, p.listing_status,
+  p.latitude, p.longitude,
   pc.title, pc.slug, pc.address,
   catc.name AS category_name,
   pc.description,
@@ -603,6 +613,52 @@ const MODERATION_STATUS_FILTERS = {
 };
 
 /**
+ * The moderation queue joins LEFT where the public queries join INNER, and
+ * this difference is the whole point of it existing separately.
+ *
+ * FROM_JOINS requires a `property_contents` row at language_id 20, a
+ * `property_categories` row, and a `property_category_contents` row at
+ * language_id 26. A listing missing any of the three is silently dropped
+ * from the result — which for the public site is correct (an unrenderable
+ * listing should not appear), but for the moderation queue means the listing
+ * becomes invisible and therefore un-approvable AND un-rejectable, with no
+ * error surfaced anywhere. It just never shows up.
+ *
+ * That is not hypothetical: property #152 sat in this blind spot for 47 days
+ * with no property_contents row, while the admin queue showed one fewer
+ * pending listing than the database actually held. The submitting agent had
+ * already been told their listing was published.
+ *
+ * So the queue shows every row and labels what is missing, letting a human
+ * reject a broken submission instead of leaving it stranded. `title` falls
+ * back to a marker rather than rendering an empty cell, so the reason a
+ * listing looks odd is visible in the UI.
+ */
+const MODERATION_SELECT_FIELDS = `
+  p.id, p.price, p.purpose, p.beds, p.bath, p.area, p.quartier,
+  p.currency, p.price_original,
+  p.parcelle_subtype, p.units_count, p.reference, p.featured_image,
+  p.created_at, p.price_period, p.deposit_months, p.listing_status,
+  p.latitude, p.longitude,
+  COALESCE(pc.title, '[Contenu manquant]') AS title,
+  pc.slug, pc.address, pc.description,
+  catc.name AS category_name,
+  (pc.id IS NULL) AS missing_content,
+  (catc.id IS NULL) AS missing_category,
+  a.id AS agent_id, a.image AS agency_logo_url, a.username AS agency_name, a.phone AS agent_phone,
+  ${COMMUNE_SUBQUERY},
+  ${GALLERY_SUBQUERY}
+`;
+
+const MODERATION_FROM_JOINS = `
+  FROM properties p
+  LEFT JOIN property_contents pc ON pc.property_id = p.id AND pc.language_id = ${CONTENT_LANGUAGE_ID}
+  LEFT JOIN property_categories cat ON cat.id = p.category_id
+  LEFT JOIN property_category_contents catc ON catc.category_id = cat.id AND catc.language_id = ${CATEGORY_LANGUAGE_ID}
+  LEFT JOIN agents a ON a.id = p.agent_id
+`;
+
+/**
  * Admin-only: every listing at a given moderation status, regardless of
  * `status`/`approve_status`. This is intentionally the one query in this
  * file that does NOT apply APPROVED_FILTER — callers must only ever reach it
@@ -616,8 +672,8 @@ export async function getListingsForModeration(status = 'pending', { limit = 50 
   const filter = MODERATION_STATUS_FILTERS[status] ?? MODERATION_STATUS_FILTERS.pending;
   const pool = getPool();
   const { rows } = await pool.query(
-    `SELECT ${SELECT_FIELDS}
-     ${FROM_JOINS}
+    `SELECT ${MODERATION_SELECT_FIELDS}
+     ${MODERATION_FROM_JOINS}
      WHERE ${filter}
      ORDER BY p.created_at DESC
      LIMIT $1`,

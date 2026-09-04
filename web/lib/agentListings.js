@@ -105,7 +105,7 @@ function capitalise(text) {
  * @param {number|null} input.bath
  * @returns {Promise<number>} the new properties.id
  */
-export async function createListing({ agentId, vendorId, category, title, description, commune, price, purpose, beds, bath }) {
+export async function createListing({ agentId, vendorId, category, title, description, commune, price, purpose, beds, bath, area = null, quartier = null }) {
   const pool = getPool();
   const client = await pool.connect();
 
@@ -126,8 +126,12 @@ export async function createListing({ agentId, vendorId, category, title, descri
       type: capitalise(category.type),
       beds,
       bath,
-      area: '0',
-      quartier: null,
+      // `area` is TEXT and carries '0' rather than NULL when unknown — the
+      // schema's own convention, and what hasArea() checks for. Both fields
+      // used to be hardcoded here, so every listing typed into the agent form
+      // was permanently thinner than the same listing sent by WhatsApp.
+      area: area != null ? String(area) : '0',
+      quartier,
       price_period: purpose === 'rent' ? 'mois' : null,
       status: 1,
       approve_status: 0,
@@ -143,7 +147,7 @@ export async function createListing({ agentId, vendorId, category, title, descri
     );
     const propertyId = rows[0].id;
 
-    const address = [commune, 'Kinshasa'].filter(Boolean).join(', ');
+    const address = [quartier, commune, 'Kinshasa'].filter(Boolean).join(', ');
     const slug = `${slugify(title)}-${propertyId}`;
     await client.query(
       `INSERT INTO property_contents (property_id, language_id, title, slug, address, description, created_at, updated_at)

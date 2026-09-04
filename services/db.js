@@ -648,6 +648,29 @@ function getRecentListings(limit = 20, waId) {
   return rows.map(parseRow);
 }
 
+/**
+ * Every Supabase property id this sender has had published.
+ *
+ * This table is the only place that records which WhatsApp number submitted
+ * which listing — `properties` in Postgres stores no submitter phone, only a
+ * resolved `agent_id` — so linking an agent to work they sent before they had
+ * an account has to start here. Backs POST /admin/agents/claim-listings.
+ *
+ * @param {string} waId
+ * @returns {number[]} remote_property_id values, oldest first, no nulls.
+ */
+function getRemotePropertyIdsForWaId(waId) {
+  if (!waId) return [];
+  return db
+    .prepare(
+      `SELECT remote_property_id FROM listings
+       WHERE wa_id = ? AND remote_property_id IS NOT NULL
+       ORDER BY id ASC`,
+    )
+    .all(String(waId))
+    .map((row) => row.remote_property_id);
+}
+
 function getListing(id) {
   return parseRow(db.prepare('SELECT * FROM listings WHERE id = ?').get(id));
 }
@@ -1676,6 +1699,7 @@ module.exports = {
   getRecentListings,
   getListing,
   getListingByRemotePropertyId,
+  getRemotePropertyIdsForWaId,
   countListings,
   parseRow,
   migrate,

@@ -820,7 +820,8 @@ console.log('\n2. services/openai.js');
   await checkAsync('resolveAgentId digit-normalises wa_id and compares against a digit-normalised agents.phone', async () => {
     const client = {
       query: async (sql, params) => {
-        assert.match(sql, /FROM agents WHERE regexp_replace\(phone, '\\D', '', 'g'\) = \$1/);
+        assert.match(sql, /FROM agents/);
+        assert.match(sql, /regexp_replace\(phone, '\\D', '', 'g'\) = \$1/);
         assert.deepStrictEqual(params, ['243997123456']);
         return { rows: [{ id: 28 }] };
       },
@@ -830,6 +831,21 @@ console.log('\n2. services/openai.js');
     // a real query at all instead of being guarded out beforehand.
     const result = await postgresService.resolveAgentId(client, '243997123456');
     assert.strictEqual(result, 28);
+  });
+  // Attribution decides whose name appears on a public listing and which
+  // number its WhatsApp CTA dials, so an account nobody proved they own must
+  // not claim listings. Three of the four live agent rows are active but
+  // unverified, and one of those carries the central Lukka Place number.
+  await checkAsync('resolveAgentId only matches a phone-verified agent', async () => {
+    let seenSql = '';
+    const client = {
+      query: async (sql) => {
+        seenSql = sql;
+        return { rows: [] };
+      },
+    };
+    await postgresService.resolveAgentId(client, '243997123456');
+    assert.match(seenSql, /phone_verified_at IS NOT NULL/);
   });
 
   await checkAsync('resolveAgentId strips "+", spaces and dashes from wa_id before comparing', async () => {
@@ -962,6 +978,48 @@ console.log('\n2. services/openai.js');
       { category: fakeCategory, location: fakeLocation, agentId: 28 },
     );
     assert.strictEqual(values.agent_id, 28);
+  });
+  // Regression guard for a bug that reached production: re-syncing an
+  // already-approved listing reverted it to pending and dropped it off the
+  // public site (properties #256/#257 — see
+  // scripts/restore-approval-256-257.js, the hand-written recovery).
+  check('updatablePropertyValues drops approve_status so a re-sync cannot un-approve a live listing', () => {
+    const values = postgresService.buildPropertyValues(
+      { property_type: 'appartement', transaction_type: 'location' },
+      { category: fakeCategory, location: fakeLocation, agentId: 33 },
+    );
+    assert.strictEqual(values.approve_status, 0, 'a NEW listing must still enter moderation');
+
+    const updatable = postgresService.updatablePropertyValues(values);
+    assert.ok(!('approve_status' in updatable), 'an UPDATE must never write approve_status');
+    assert.strictEqual(updatable.status, 1, 'status carries no human decision and is still written');
+  });
+  check('updatablePropertyValues preserves an admin-assigned agent_id when resolution finds nobody', () => {
+    // resolveAgentId returns null for a listing whose agent has no account
+    // yet; writing that over an agent_id an admin set by hand would silently
+    // un-attribute the listing.
+    const values = postgresService.buildPropertyValues(
+      { property_type: 'appartement', transaction_type: 'location' },
+      { category: fakeCategory, location: fakeLocation },
+    );
+    assert.strictEqual(values.agent_id, null);
+    assert.ok(!('agent_id' in postgresService.updatablePropertyValues(values)));
+  });
+  check('updatablePropertyValues still writes a resolved agent_id (a late-registering agent gets linked)', () => {
+    const values = postgresService.buildPropertyValues(
+      { property_type: 'appartement', transaction_type: 'location' },
+      { category: fakeCategory, location: fakeLocation, agentId: 33 },
+    );
+    assert.strictEqual(postgresService.updatablePropertyValues(values).agent_id, 33);
+  });
+  check('updatablePropertyValues does not mutate its input', () => {
+    const values = postgresService.buildPropertyValues(
+      { property_type: 'appartement', transaction_type: 'location' },
+      { category: fakeCategory, location: fakeLocation, agentId: 33 },
+    );
+    postgresService.updatablePropertyValues(values);
+    assert.strictEqual(values.approve_status, 0);
+    assert.strictEqual(values.agent_id, 33);
   });
   check('buildPropertyValues still computes purpose/area/quartier correctly (refactor did not regress existing fields)', () => {
     const values = postgresService.buildPropertyValues(

@@ -159,6 +159,13 @@ export async function createListingAction(validCommunes, validCategories, formDa
   const bathRaw = formData.get('bath');
   const beds = bedsRaw ? Number.parseInt(bedsRaw, 10) : null;
   const bath = bathRaw ? Number.parseInt(bathRaw, 10) : null;
+  // Both optional, and both deliberately normalised to null rather than a
+  // placeholder: `area` is a TEXT column where '0' renders as "0 m²"
+  // (see hasArea() in lib/listingView.js), so an unknown surface must stay
+  // empty, not become a zero.
+  const areaRaw = formData.get('area');
+  const area = areaRaw ? Number.parseInt(areaRaw, 10) : null;
+  const quartier = String(formData.get('quartier') || '').trim() || null;
   const photos = formData.getAll('photos').filter((f) => f && typeof f !== 'string' && f.size > 0);
 
   if (!title) return { ok: false, error: 'Le titre est obligatoire.' };
@@ -168,6 +175,7 @@ export async function createListingAction(validCommunes, validCategories, formDa
   const category = validCategories.find((c) => c.id === categoryId);
   if (!category) return { ok: false, error: 'Type de bien invalide.' };
   if (!Number.isFinite(price) || price <= 0) return { ok: false, error: 'Indiquez un prix valide.' };
+  if (area !== null && (!Number.isFinite(area) || area <= 0)) return { ok: false, error: 'Superficie invalide.' };
   if (beds !== null && (!Number.isFinite(beds) || beds < 0)) return { ok: false, error: 'Nombre de chambres invalide.' };
   if (bath !== null && (!Number.isFinite(bath) || bath < 0)) return { ok: false, error: 'Nombre de salles de bain invalide.' };
   if (!photos.length) return { ok: false, error: 'Ajoutez au moins une photo.' };
@@ -191,6 +199,8 @@ export async function createListingAction(validCommunes, validCategories, formDa
     purpose,
     beds,
     bath,
+    area,
+    quartier,
   });
 
   let uploadedCount = 0;

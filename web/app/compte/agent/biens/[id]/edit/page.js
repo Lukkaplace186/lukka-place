@@ -4,7 +4,7 @@ import { ExternalLink } from 'lucide-react';
 import { getCurrentAgentId } from '@/lib/agentSession';
 import { getAgentDashboardContext } from '@/lib/agentDashboard';
 import { getOwnListingForEdit, getFeatureAmenities } from '@/lib/agentListings';
-import { getLocationHierarchySafe } from '@/lib/locations';
+import { getLocationHierarchyWithFallback } from '@/lib/locations';
 import { getPopularCommunes } from '@/lib/listings';
 import { getCdfRate } from '@/lib/currencyRate';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -30,7 +30,7 @@ const APPROVE_STATUS = {
  * commune list is ever hardcoded (web/CLAUDE.md).
  */
 async function resolveCommunes() {
-  const { communes } = await getLocationHierarchySafe();
+  const { communes } = await getLocationHierarchyWithFallback();
   if (communes.length > 0) return communes;
   const popular = await getPopularCommunes(24);
   return popular.map((c) => c.commune);

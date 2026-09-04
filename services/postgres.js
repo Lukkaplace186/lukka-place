@@ -233,11 +233,66 @@ async function resolveAgentId(client, waId) {
   if (!waId) return null;
   const digitsOnly = String(waId).replace(/\D/g, '');
   if (!digitsOnly) return null;
+  // `phone_verified_at IS NOT NULL` matters: attribution decides whose name
+  // appears on a public listing and which number its WhatsApp CTA dials. Three
+  // of the four live agent rows are active but unverified, and one of those
+  // carries the central Lukka Place number itself — so an unverified account
+  // claiming listings is a real, currently-reachable state, not a theoretical
+  // one. Verification is the only signal we have that the holder of that
+  // number actually asked for the account.
   const { rows } = await client.query(
-    `SELECT id FROM agents WHERE regexp_replace(phone, '\\D', '', 'g') = $1 LIMIT 1`,
+    `SELECT id FROM agents
+     WHERE regexp_replace(phone, '\\D', '', 'g') = $1
+       AND phone_verified_at IS NOT NULL
+     LIMIT 1`,
     [digitsOnly],
   );
   return rows[0]?.id ?? null;
+}
+
+/**
+ * Attribute every already-published listing sent from `waId` to that agent,
+ * for listings that currently have no agent at all.
+ *
+ * resolveAgentId only runs during a sync, and a sync only happens when a
+ * listing is published or corrected. An agent who WhatsApps listings *before*
+ * registering on the web — overwhelmingly the real-world order — is therefore
+ * never linked to anything they sent, permanently: 23 of 31 live listings had
+ * `agent_id IS NULL` when this was written. Their submitters cannot edit them,
+ * cannot mark them sold, and never see them in their dashboard, while every
+ * enquiry routes to the central number instead of to them.
+ *
+ * This closes that gap from the other side: call it when an agent's phone is
+ * verified, and their existing work is claimed. `remotePropertyIds` comes from
+ * the engine's own SQLite (the only place that knows which wa_id submitted
+ * which property id — Postgres stores no submitter phone).
+ *
+ * Only ever fills a NULL: an attribution an admin made by hand always wins.
+ *
+ * @param {number[]} remotePropertyIds
+ * @param {string} waId
+ * @returns {Promise<{agentId: number|null, linkedIds: number[]}>}
+ */
+async function linkListingsToAgent(remotePropertyIds, waId) {
+  if (!isConfigured()) return { agentId: null, linkedIds: [] };
+  const ids = (remotePropertyIds || []).map(Number).filter(Number.isFinite);
+  if (!ids.length) return { agentId: null, linkedIds: [] };
+
+  const client = await getPool().connect();
+  try {
+    const agentId = await resolveAgentId(client, waId);
+    if (!agentId) return { agentId: null, linkedIds: [] };
+
+    const { rows } = await client.query(
+      `UPDATE properties SET agent_id = $1, updated_at = NOW()
+       WHERE id = ANY($2) AND agent_id IS NULL
+       RETURNING id`,
+      [agentId, ids],
+    );
+    return { agentId, linkedIds: rows.map((r) => r.id) };
+  } finally {
+    client.release();
+  }
 }
 
 /**
@@ -298,6 +353,43 @@ function buildPropertyValues(row, { category, location, agentId = null }) {
     status: 1,
     approve_status: 0,
   };
+}
+
+/**
+ * The subset of buildPropertyValues() that may be written when the property
+ * already exists in Postgres.
+ *
+ * Two fields are deliberately dropped, because on an existing row they are
+ * owned by somebody else and re-asserting the intake's opinion destroys a
+ * real decision:
+ *
+ *   approve_status — owned by the human moderator in web/'s admin panel.
+ *     buildPropertyValues always says 0 ("pending"), which is right for a
+ *     brand-new listing and catastrophic for an existing one: re-syncing an
+ *     approved, publicly-live listing silently reverted it to pending and
+ *     dropped it off the site. This is not hypothetical — it happened to
+ *     properties #256 and #257 in production, and
+ *     scripts/restore-approval-256-257.js is the hand-written recovery.
+ *     A re-sync is triggered by an agent replying "OK" twice, by a Chakra
+ *     redelivery, or by scripts/resync-published-listings.js.
+ *
+ *   agent_id when it resolves to null — owned by whoever last attributed the
+ *     listing. resolveAgentId() only matches a wa_id against a registered
+ *     agent, so it returns null for a listing whose agent has no account
+ *     yet. Writing that null over an agent_id an admin set by hand (web/'s
+ *     assignAgentToListingAction) would silently un-attribute the listing.
+ *     A non-null resolution is still written, so an agent who registers
+ *     after submitting gets picked up on the next sync.
+ *
+ * `status` stays: it is always 1 on both paths and carries no human decision.
+ *
+ * @param {Object} values A buildPropertyValues() result.
+ * @returns {Object} A new object; the input is not mutated.
+ */
+function updatablePropertyValues(values) {
+  const { approve_status: _approveStatus, ...updatable } = values;
+  if (updatable.agent_id == null) delete updatable.agent_id;
+  return updatable;
 }
 
 /**
@@ -401,12 +493,14 @@ async function syncListingToPostgres(row) {
     const propertyValues = buildPropertyValues(row, { category, location, agentId });
 
     if (propertyId) {
-      const setClause = Object.keys(propertyValues)
-        .map((key, i) => `${key} = $${i + 1}`)
-        .join(', ');
+      // Never re-assert moderation-owned fields on an existing row — see
+      // updatablePropertyValues() for exactly which are dropped and why.
+      const updateValues = updatablePropertyValues(propertyValues);
+      const updateKeys = Object.keys(updateValues);
+      const setClause = updateKeys.map((key, i) => `${key} = $${i + 1}`).join(', ');
       await client.query(
-        `UPDATE properties SET ${setClause}, updated_at = NOW() WHERE id = $${Object.keys(propertyValues).length + 1}`,
-        [...Object.values(propertyValues), propertyId],
+        `UPDATE properties SET ${setClause}, updated_at = NOW() WHERE id = $${updateKeys.length + 1}`,
+        [...Object.values(updateValues), propertyId],
       );
     } else {
       const keys = Object.keys(propertyValues);
@@ -539,7 +633,9 @@ module.exports = {
   slugify,
   capitalise,
   buildPropertyValues,
+  updatablePropertyValues,
   resolveAgentId,
+  linkListingsToAgent,
   CATEGORY_FALLBACK_FR,
   COMMUNE_AMENITY_IDS,
   normaliseRowLocation,

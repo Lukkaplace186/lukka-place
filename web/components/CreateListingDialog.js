@@ -186,6 +186,23 @@ export default function CreateListingDialog({ communes, categories }) {
             </div>
           </div>
 
+          {/* Surface and quartier were the two fields the WhatsApp intake
+              captured and this form did not, so a listing typed here was
+              permanently thinner than the same listing sent by message:
+              "0 m²" on the card, and invisible to the quartier filter. Both
+              optional — an agent who doesn't know the surface leaves it
+              empty and the card shows nothing, rather than a fabricated 0. */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="area" className={LABEL_CLASS}>Superficie (m²)</label>
+              <input id="area" name="area" type="number" min="1" step="1" className={FIELD_CLASS} />
+            </div>
+            <div>
+              <label htmlFor="quartier" className={LABEL_CLASS}>Quartier</label>
+              <input id="quartier" name="quartier" maxLength={120} className={FIELD_CLASS} />
+            </div>
+          </div>
+
           <div>
             <label htmlFor="description" className={LABEL_CLASS}>Description</label>
             <textarea

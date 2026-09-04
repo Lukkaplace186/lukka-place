@@ -323,6 +323,23 @@ export async function sendWhatsAppTemplate(phone, { template, languageCode, body
  * `approve_status` integer, the engine maps it to real message copy.
  * @returns {Promise<{success: true}>}
  */
+/**
+ * Ask the engine to attribute the listings this number already published to
+ * the agent who has just proved they hold it.
+ *
+ * The engine owns this because only it can answer the question: Postgres
+ * records a resolved `agent_id` on `properties` but never a submitter phone,
+ * so the wa_id -> property_id mapping lives solely in the engine's SQLite.
+ *
+ * Safe to call more than once — it only ever fills a NULL agent_id.
+ */
+export async function claimListingsForPhone(phone) {
+  return engineFetch('/admin/agents/claim-listings', {
+    method: 'POST',
+    body: JSON.stringify({ wa_id: phone }),
+  });
+}
+
 export async function notifyListingModeration(propertyId, status) {
   return engineFetch(`/admin/properties/${propertyId}/notify`, {
     method: 'POST',

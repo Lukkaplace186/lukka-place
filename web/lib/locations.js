@@ -58,3 +58,35 @@ export async function getLocationHierarchySafe() {
     return { communes: [], locations: {}, degraded: true };
   }
 }
+
+/**
+ * The hierarchy, with the database-derived fallback already applied.
+ *
+ * getLocationHierarchySafe() only promises not to throw — substituting real
+ * communes when it degrades was left to each caller, and only one of the two
+ * callers actually did it. /listings falls back correctly; the agent
+ * create-listing form did not, and its empty list became the allow-list that
+ * createListingAction validates the submitted commune against
+ * (`if (!new Set(validCommunes).has(commune))`). With the engine down, the
+ * commune select rendered empty AND every submission was rejected as
+ * "Commune invalide" — an unrelated process on another port silently made it
+ * impossible for an agent to list a property.
+ *
+ * Doing the substitution here rather than at each call site means a third
+ * caller cannot reintroduce the same gap.
+ *
+ * The fallback communes come from listings that actually exist, so a commune
+ * with no listings won't appear during an outage — honest, and still enough
+ * to write a listing against.
+ *
+ * @returns {Promise<{communes: string[], locations: Record<string, string[]>, degraded: boolean}>}
+ */
+export async function getLocationHierarchyWithFallback() {
+  const hierarchy = await getLocationHierarchySafe();
+  if (hierarchy.communes.length > 0) return hierarchy;
+
+  // Imported lazily so the happy path never pulls in the database module.
+  const { getCommuneShowcase } = await import('./listings');
+  const showcase = await getCommuneShowcase(24);
+  return { ...hierarchy, communes: showcase.map((c) => c.commune).filter(Boolean) };
+}

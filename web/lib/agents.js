@@ -1,7 +1,7 @@
 import 'server-only';
 import { getPool } from './db';
 import { generateOtpCode, hashOtp, otpExpiresAt } from './agentAuth';
-import { sendWhatsAppTemplate } from './adminApi';
+import { sendWhatsAppTemplate, claimListingsForPhone } from './adminApi';
 
 /**
  * Reads/writes against the real Laravel/Zipprr schema that already lives in
@@ -26,7 +26,9 @@ const AGENT_FIELDS = `
   p.title AS package_title, p.number_of_property AS listing_limit, p.term AS package_term,
   p.monthly_pitch_limit,
   m.expire_date, m.is_trial AS subscription_is_trial,
-  (SELECT count(*) FROM properties WHERE agent_id = a.id)::int AS listing_count
+  (SELECT count(*) FROM properties WHERE agent_id = a.id)::int AS listing_count,
+  (SELECT count(*) FROM properties
+   WHERE agent_id = a.id AND status = 1 AND approve_status = 1)::int AS live_listing_count
 `;
 
 // LATERAL, not a plain LEFT JOIN, on purpose: agent_infos is a per-language
@@ -83,13 +85,22 @@ export async function getAgents({ q } = {}) {
  * after the fetch rather than a SQL HAVING clause — real agent counts are
  * small (tens, not thousands; see admin/dashboard's own "Agents actifs"
  * stat), so this stays simple instead of restructuring the query.
+ *
+ * Filters and orders on `live_listing_count`, NOT `listing_count`. The
+ * latter counts every property row attributed to the agent regardless of
+ * moderation state, while the storefront this links to
+ * (lib/agencies.js -> getListings) applies the full approved filter — so an
+ * agent whose listings were all pending or rejected appeared in the
+ * directory and led to a completely empty page. No agent triggers that
+ * today, which is exactly why it needed pinning rather than leaving until it
+ * broke in front of a visitor.
  */
 export async function getPublicAgents() {
   const pool = getPool();
   const { rows } = await pool.query(
-    `SELECT ${AGENT_FIELDS} ${AGENT_JOINS} WHERE a.status = 1 ORDER BY listing_count DESC NULLS LAST`,
+    `SELECT ${AGENT_FIELDS} ${AGENT_JOINS} WHERE a.status = 1 ORDER BY live_listing_count DESC NULLS LAST`,
   );
-  return rows.filter((r) => r.listing_count > 0);
+  return rows.filter((r) => r.live_listing_count > 0);
 }
 
 export async function getAgentById(id) {
@@ -177,13 +188,45 @@ export async function setAgentOtp(agentId, { codeHash, expiresAt }) {
   ]);
 }
 
-/** Clears the OTP and marks the phone verified in one write — a used code is never valid twice. */
+/**
+ * Clears the OTP and marks the phone verified in one write — a used code is
+ * never valid twice — then claims any listings this number already published.
+ *
+ * The claim step matters because listing attribution is otherwise resolved
+ * only during a WhatsApp sync, and a sync only happens on publish or
+ * correction. An agent who sent listings before creating an account was never
+ * linked to any of them: 23 of 31 live listings had no agent at all when this
+ * was written, so their submitters could not edit them, mark them sold, or
+ * see them in a dashboard, and every enquiry routed to the central number.
+ *
+ * Verification is the right trigger: it is the exact moment we first have
+ * evidence this person holds that number, and the engine's own resolver only
+ * matches phone-verified agents for the same reason.
+ *
+ * Deliberately best-effort — a failure here must not fail a verification that
+ * has already succeeded. The agent is verified either way; the listings are
+ * picked up by the next call or by an admin. It is safe to retry because the
+ * claim only ever fills a NULL agent_id.
+ */
 export async function consumeAgentOtp(agentId) {
   const pool = getPool();
-  await pool.query(
-    `UPDATE agents SET otp_code_hash = NULL, otp_expires_at = NULL, phone_verified_at = NOW() WHERE id = $1`,
+  const { rows } = await pool.query(
+    `UPDATE agents SET otp_code_hash = NULL, otp_expires_at = NULL, phone_verified_at = NOW()
+     WHERE id = $1 RETURNING phone`,
     [agentId],
   );
+
+  const phone = rows[0]?.phone;
+  if (!phone) return;
+
+  try {
+    const result = await claimListingsForPhone(phone);
+    if (result?.linked) {
+      console.log(`[agents] agent #${agentId} claimed ${result.linked} existing listing(s) on verification`);
+    }
+  } catch (err) {
+    console.error(`[agents] listing claim failed for agent #${agentId}: ${err.message}`);
+  }
 }
 
 /**

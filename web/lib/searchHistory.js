@@ -19,7 +19,17 @@
 const KEY = 'lukka_recent_listings_searches';
 const EVENT = 'lukka:recent-searches-changed';
 const MAX = 5;
-const EMPTY_LIST = [];
+// Exported so a getServerSnapshot can return this exact reference.
+// useSyncExternalStore compares snapshots by identity: a server snapshot
+// that builds a fresh [] on every call never settles, and React reports
+// "The result of getServerSnapshot should be cached to avoid an infinite
+// loop" — which FilterBar.js did, on every page carrying the search bar.
+export const EMPTY_LIST = [];
+
+/** Stable getServerSnapshot for useSyncExternalStore — same reference every call. */
+export function getEmptyRecentSearches() {
+  return EMPTY_LIST;
+}
 
 // useSyncExternalStore requires getSnapshot to return a *stable* reference
 // when nothing changed — re-parsing JSON on every call would return a new

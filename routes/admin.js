@@ -529,6 +529,58 @@ router.post('/properties/:remotePropertyId/notify', async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// Agent listing attribution (web/)
+// ---------------------------------------------------------------------------
+
+/**
+ * Attribute the listings a phone number already published to the agent who
+ * now owns that number.
+ *
+ * This lives in the engine because only the engine can answer the question.
+ * `properties` in Postgres records a resolved `agent_id` but never a
+ * submitter phone, so the wa_id -> property_id mapping exists nowhere except
+ * this engine's own SQLite `listings` table.
+ *
+ * The gap it closes: attribution is resolved during a sync, and a sync only
+ * happens on publish or correction. An agent who sends listings by WhatsApp
+ * *before* registering on the web — overwhelmingly the real order — was never
+ * linked to any of them, permanently. 23 of 31 live listings had no agent at
+ * all when this was written; their submitters could not edit them, mark them
+ * sold, or see them in a dashboard, and every enquiry went to the central
+ * number instead of to them.
+ *
+ * Intended caller: web/'s phone-verification step, right after an agent
+ * proves they hold the number. Safe to call repeatedly — it only ever fills a
+ * NULL agent_id, so an attribution an admin made by hand always wins, and a
+ * second call simply links nothing.
+ */
+router.post('/agents/claim-listings', async (req, res) => {
+  const waId = String(req.body?.wa_id ?? '').replace(/\D/g, '');
+  if (!waId) {
+    return res.status(400).json({ success: false, error: 'wa_id is required (digits only)' });
+  }
+
+  try {
+    const remotePropertyIds = db.getRemotePropertyIdsForWaId(waId);
+    if (!remotePropertyIds.length) {
+      return res.json({ success: true, agentId: null, linkedIds: [], linked: 0 });
+    }
+
+    const { agentId, linkedIds } = await require('../services/postgres').linkListingsToAgent(
+      remotePropertyIds,
+      waId,
+    );
+    if (agentId) {
+      console.log(`[admin] claim-listings ${waId} -> agent #${agentId}: linked ${linkedIds.length}`);
+    }
+    return res.json({ success: true, agentId, linkedIds, linked: linkedIds.length });
+  } catch (err) {
+    console.error(`[admin] claim-listings failed for ${waId}: ${err.message}`);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Generic WhatsApp send (agent phone-verification OTP, web/)
 // ---------------------------------------------------------------------------
 

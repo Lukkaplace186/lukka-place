@@ -44,6 +44,12 @@ export async function POST(request) {
   const template = process.env.SEARCH_ALERT_TEMPLATE || 'search_alert';
   const languageCode = process.env.SEARCH_ALERT_TEMPLATE_LANG || 'fr';
 
+  // Absolute, because this goes into a WhatsApp message — there is no page
+  // for a relative URL to be relative to. Falls back to the production
+  // origin rather than localhost: a link to localhost in a customer's
+  // WhatsApp is worse than no alert at all.
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://lukkaplace.com').replace(/\/+$/, '');
+
   const searches = await getSavedSearchesWithPhone();
   let notifiedSearches = 0;
   let notifiedListings = 0;
@@ -62,6 +68,20 @@ export async function POST(request) {
       if (!freshMatches.length) continue;
 
       const top = freshMatches[0];
+
+      // The link is the point of the whole alert: "nous avons trouvé 3 biens"
+      // has to open exactly those three. `ids` (lib/searchQuery.js) is what
+      // makes the page agree with the number in the message — re-running the
+      // saved search instead would show everything that has ever matched it,
+      // so a visitor told "3" could land on a page of 40.
+      //
+      // The saved search's own query string rides along so the filter bar
+      // opens in the state the customer saved, and clearing the id chip
+      // leaves them in a working search rather than an empty page.
+      const params = new URLSearchParams(search.query);
+      params.set('ids', freshMatches.map((l) => l.id).join(','));
+      const link = `${siteUrl}/listings?${params.toString()}`;
+
       await sendWhatsAppTemplate(search.phone, {
         template,
         languageCode,
@@ -69,6 +89,7 @@ export async function POST(request) {
           search.label,
           String(freshMatches.length),
           `${top.title} — ${formatPrice(top.price, top.purpose, top.price_period)}`,
+          link,
         ],
       });
 

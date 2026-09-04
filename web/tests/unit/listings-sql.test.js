@@ -117,3 +117,28 @@ test('every moderation status filter is a distinct approve_status', async () => 
   }
   assert.equal(seen.size, 3, 'the three tabs must return disjoint sets');
 });
+
+/**
+ * The `ids` filter backs the WhatsApp search-alert link. The alert message
+ * names a count ("nous avons trouvé 3 biens"), so the page it opens must
+ * show exactly those listings — not everything the saved search has ever
+ * matched.
+ */
+test('an explicit id set scopes the query without dropping the approval filter', async () => {
+  await listings.getListings({ ids: [281, 284] });
+  const sql = allSql();
+  assert.match(sql, /p\.id = ANY\(\$\d+::int\[\]\)/);
+  assert.ok(sql.includes(APPROVED), 'a link someone kept must not resurrect an unapproved listing');
+  const idParam = calls[0].values.find((v) => Array.isArray(v));
+  assert.deepEqual(idParam, [281, 284]);
+});
+
+test('an ids param that parses to nothing returns nothing, never the whole site', async () => {
+  await listings.getListings({ ids: [] });
+  assert.match(allSql(), /p\.id = ANY/, 'an empty set must still constrain the query');
+});
+
+test('omitting ids leaves the query unconstrained by id', async () => {
+  await listings.getListings({});
+  assert.ok(!allSql().includes('p.id = ANY'));
+});

@@ -168,7 +168,7 @@ const KM_RADIUS_KM = { 1: 1, 3: 3, 5: 5 };
  *     path has parcelle_subtype set. Filtering on parcelle_subtype is the
  *     precise match for "this is a parcelle listing".
  */
-function buildFilters({ transactionType, propertyType, parcelleSubtype, commune, quartier, radius, reference, priceMin, priceMax, bedsMin, bathMin, depositMax, amenities, search, excludeId, agentId }) {
+function buildFilters({ transactionType, propertyType, parcelleSubtype, commune, quartier, radius, reference, priceMin, priceMax, bedsMin, bathMin, depositMax, amenities, search, excludeId, agentId, ids }) {
   const where = [APPROVED_FILTER];
   const params = [];
 
@@ -208,6 +208,22 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
   if (Number.isFinite(excluded)) {
     params.push(excluded);
     where.push(`p.id <> $${params.length}`);
+  }
+
+  // An explicit id set, from the WhatsApp search-alert link
+  // (/listings?ids=281,284). The alert message names a count, so the page it
+  // opens has to show exactly those listings rather than re-running the saved
+  // search and returning everything that has ever matched it.
+  //
+  // APPROVED_FILTER still applies (it is the first entry in `where`), so a
+  // listing that has since been unapproved drops out rather than being
+  // resurrected by having its id in a link someone kept.
+  if (Array.isArray(ids)) {
+    const numericIds = ids.map((id) => Number.parseInt(id, 10)).filter(Number.isFinite);
+    // An ids param that survives parsing to nothing must return nothing, not
+    // silently widen to the whole site — the visitor asked for a specific set.
+    params.push(numericIds);
+    where.push(`p.id = ANY($${params.length}::int[])`);
   }
 
   // Agent storefront (web/app/(site)/agents/[id]/page.js) — scopes results

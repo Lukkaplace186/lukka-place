@@ -37,5 +37,21 @@ export function parseListingsSearchParams(searchParamsLike) {
     // there being no active amenity filters at all.
     amenities: get('amenities') ? get('amenities').split(',').filter(Boolean) : [],
     search: get('q'),
+    // An explicit set of listing ids, used by the WhatsApp search-alert link
+    // so "nous avons trouvé 3 biens" opens exactly those three rather than
+    // re-running the saved search and showing everything that has ever
+    // matched it. Ids are the only honest way to do that: the alert names a
+    // count, and the page it opens has to agree with that count.
+    //
+    // Parsed to integers here rather than passed through as text, so a
+    // hand-edited link can't inject anything into the query — and an id
+    // that no longer resolves (deleted, or since unapproved) simply drops
+    // out, because getListings still applies the approval filter.
+    ids: get('ids')
+      ? get('ids')
+          .split(',')
+          .map((id) => Number.parseInt(id, 10))
+          .filter(Number.isFinite)
+      : null,
   };
 }

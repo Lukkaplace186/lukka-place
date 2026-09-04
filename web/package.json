@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "npm run test:unit",
+    "test:unit": "node --env-file=tests/unit.env --no-warnings --test --conditions=react-server --import ./tests/support/register.mjs \"tests/unit/**/*.test.js\"",
+    "test:http": "node --no-warnings --test --conditions=react-server --import ./tests/support/register.mjs \"tests/http/**/*.test.js\"",
+    "test:chain": "node --no-warnings --test --conditions=react-server --import ./tests/support/register.mjs --test-timeout=180000 tests/chain/whatsapp-to-site.test.js"
   },
   "dependencies": {
     "@googlemaps/js-api-loader": "^2.1.1",

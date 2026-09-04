@@ -305,3 +305,88 @@ export async function getPerListingStats(propertyIds) {
 
   return { views, clicks };
 }
+
+/**
+ * Traffic split by device — the "web or mobile?" question the dashboard
+ * could not answer before web/scripts/setup-analytics-dimensions.js added
+ * the column.
+ *
+ * Rows written before that migration have `device IS NULL` and are reported
+ * as 'inconnu' rather than folded into a real bucket: they genuinely predate
+ * the measurement, and quietly counting them as desktop would overstate the
+ * one number this exists to get right.
+ *
+ * Bots are a real bucket, not filtered out here — the caller decides whether
+ * to show them. They matter for reading the totals honestly, since crawler
+ * traffic is not audience.
+ *
+ * @returns {Promise<Array<{device: string, views: number}>>}
+ */
+export async function getViewsByDevice({ sinceDays } = {}) {
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT COALESCE(device, 'inconnu') AS device, count(*)::int AS views
+     FROM page_views
+     WHERE $1::int IS NULL OR created_at >= NOW() - ($1 || ' days')::interval
+     GROUP BY 1
+     ORDER BY views DESC`,
+    [sinceDays ?? null],
+  );
+  return rows;
+}
+
+/**
+ * Where visitors came from — a utm_source campaign label when one was
+ * present, otherwise the referrer's bare host, otherwise 'direct'.
+ * Self-referrals are recorded as 'direct' at write time (lib/requestContext.js),
+ * so internal navigation never appears here as a source.
+ *
+ * @returns {Promise<Array<{source: string, views: number}>>}
+ */
+export async function getViewsBySource({ sinceDays, limit = 10 } = {}) {
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT COALESCE(source, 'inconnu') AS source, count(*)::int AS views
+     FROM page_views
+     WHERE $1::int IS NULL OR created_at >= NOW() - ($1 || ' days')::interval
+     GROUP BY 1
+     ORDER BY views DESC
+     LIMIT $2`,
+    [sinceDays ?? null, limit],
+  );
+  return rows;
+}
+
+/**
+ * WhatsApp conversion split by device — which device actually produces
+ * enquiries, not just views. This is the pair of numbers that answers
+ * "should we invest in the mobile experience?", which neither figure alone
+ * does: mobile can dominate views and still convert worse.
+ *
+ * @returns {Promise<Array<{device: string, views: number, clicks: number, rate: number|null}>>}
+ */
+export async function getConversionByDevice({ sinceDays } = {}) {
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `WITH v AS (
+       SELECT COALESCE(device, 'inconnu') AS device, count(*)::int AS views
+       FROM page_views
+       WHERE $1::int IS NULL OR created_at >= NOW() - ($1 || ' days')::interval
+       GROUP BY 1
+     ), c AS (
+       SELECT COALESCE(device, 'inconnu') AS device, count(*)::int AS clicks
+       FROM whatsapp_clicks
+       WHERE $1::int IS NULL OR created_at >= NOW() - ($1 || ' days')::interval
+       GROUP BY 1
+     )
+     SELECT COALESCE(v.device, c.device) AS device,
+            COALESCE(v.views, 0) AS views,
+            COALESCE(c.clicks, 0) AS clicks
+     FROM v FULL OUTER JOIN c ON c.device = v.device
+     ORDER BY views DESC`,
+    [sinceDays ?? null],
+  );
+  // Rate computed here, not in SQL: a device with zero views has no rate at
+  // all, and 0 would read as "nobody converts" rather than "nobody visited".
+  return rows.map((r) => ({ ...r, rate: r.views > 0 ? r.clicks / r.views : null }));
+}

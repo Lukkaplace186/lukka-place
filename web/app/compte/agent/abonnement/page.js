@@ -65,15 +65,22 @@ export default async function AgentSubscriptionPage() {
     getOpenPlanChangeRequests(agentId),
   ]);
 
-  // The agent's current package, matched by title against the purchasable
-  // list. AGENT_FIELDS surfaces `package_title` but not the package id (its
-  // LATERAL join selects the membership, then joins the package for its
-  // display fields), and adding an id there would ripple through every
-  // consumer of that field list for one screen. Titles are unique in
-  // practice across the real `packages` rows; a miss simply means no card is
-  // marked "Actuel", which is a cosmetic degradation, not a wrong action.
+  // The agent's current package, matched against the purchasable list.
+  // AGENT_FIELDS surfaces `package_title`/`package_term` but not the package
+  // id (its LATERAL join selects the membership, then joins the package for
+  // its display fields), and adding an id there would ripple through every
+  // consumer of that field list for one screen.
+  //
+  // Title ALONE is not enough, despite what an earlier version of this
+  // comment claimed: production carries two packages called "Gold" (monthly
+  // $25 and yearly $275) and two called "Diamond". Matching on title only
+  // returned whichever sorted first, so an agency on yearly Gold saw the
+  // MONTHLY Gold card badged "Actuel" — a plan they are not on, priced
+  // differently, on the one screen where that has to be right. The term
+  // disambiguates every real pair.
   const currentPackage = agent.package_title
-    ? packages.find((p) => p.title === agent.package_title)
+    ? packages.find((p) => p.title === agent.package_title && p.term === agent.package_term)
+      ?? packages.find((p) => p.title === agent.package_title)
     : null;
 
   return (

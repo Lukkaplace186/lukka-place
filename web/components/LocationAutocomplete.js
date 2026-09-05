@@ -199,13 +199,16 @@ function SearchParamsBridge({ children }) {
  *     (e.g. the transaction-type toggle) — there is no prior /listings
  *     search to preserve.
  *
- * `ref` exposes one imperative method, `submit()` — the same free-text
- * submit `showButton`'s own internal button calls. Only needed when a
- * caller renders its OWN trailing "Rechercher" button outside this
- * component (SearchBar.js's hero row: Type de bien/Budget max selects sit
- * between the location field and the button, so the button can't live
- * glued to the input the way `showButton` renders it) — pass
- * `showButton={false}` in that case. Every other caller ignores this.
+ * `ref` exposes two imperative methods:
+ *   - `submit()` — the same free-text submit `showButton`'s own internal
+ *     button calls. Only needed when a caller renders its OWN "Rechercher"
+ *     button outside this component (SearchBar.js's hero: the button is a
+ *     full-width CTA below the field block, so it can't live glued to the
+ *     input the way `showButton` renders it) — pass `showButton={false}`
+ *     in that case.
+ *   - `setQuery(text)` — fills the field from outside (SearchBar.js's
+ *     commune quick pills).
+ * Every other caller ignores both.
  */
 const LocationAutocomplete = forwardRef(function LocationAutocomplete(props, ref) {
   return props.preserveParams ? (
@@ -235,6 +238,15 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
   className = '',
   rowClassName = 'flex items-center gap-2',
   inputClassName = '',
+  // Reports the current text back to the caller on every change — typed or
+  // set through the `setQuery` imperative method below. SearchBar.js's hero
+  // uses it to keep its commune quick-pills honest: a pill is only tinted
+  // active while the field still literally holds that commune's name, so
+  // typing over it un-tints the pill rather than leaving a lit chip
+  // claiming a filter the field no longer carries. Every other caller
+  // ignores it — the component still owns `value` itself, this is a
+  // notification, not a controlled-input handoff.
+  onValueChange,
   // "AI Search" mode (SearchBar.js): swaps the real gazetteer dropdown for a
   // static list of example queries. hideDropdown stops the debounced
   // /api/locations/autocomplete fetch entirely — there's no structured
@@ -460,7 +472,18 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
   // render (not memoized), so this intentionally re-runs every render to
   // always close over the current one rather than risk a stale value/
   // extraParams capture.
-  useImperativeHandle(ref, () => ({ submit: () => submitFreeText() }));
+  // `setQuery` fills the field from outside (SearchBar.js's commune quick
+  // pills). It goes through the same `onValueChange` the keyboard path does
+  // so a caller tracking the text sees one consistent signal either way,
+  // and it deliberately does NOT open the suggestion panel: a pill tap is
+  // already a completed choice, not the start of typing.
+  useImperativeHandle(ref, () => ({
+    submit: () => submitFreeText(),
+    setQuery: (text) => {
+      setValue(text);
+      onValueChange?.(text);
+    },
+  }));
 
   function handleKeyDown(e) {
     if (e.key === 'ArrowDown') {
@@ -517,6 +540,7 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
           placeholder={placeholder}
           onChange={(e) => {
             setValue(e.target.value);
+            onValueChange?.(e.target.value);
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}

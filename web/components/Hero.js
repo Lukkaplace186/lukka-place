@@ -10,7 +10,11 @@ import { useMotionSafe } from '@/lib/useMotionSafe';
  * Homepage hero, following web/Design's "Accueil — desktop" screen.
  *
  * Two pieces, deliberately siblings rather than nested: a 540px photographic
- * band, then the search panel pulled up over its lower edge by -92px. The
+ * band, then the search panel pulled up over its lower edge by -92px. That
+ * overlap is intentionally unchanged now that the panel is a taller
+ * four-tier card (toggle / fields / CTA / commune pills): the offset anchors
+ * the panel's TOP edge to the photo, so extra height grows downward into the
+ * page and the straddle reads the same. The
  * panel used to sit *inside* the hero's centred content column capped at
  * `max-w-2xl`; in the design it is a full-container-width card straddling
  * the hero's bottom edge, which is what this now does.
@@ -33,7 +37,7 @@ import { useMotionSafe } from '@/lib/useMotionSafe';
  * Kinshasa specifically — no EXIF/location data was available to check —
  * so the credit doesn't assert a place, only the real source.
  */
-export default function Hero({ propertyTypes = [] }) {
+export default function Hero({ propertyTypes = [], communes = [], initialCount = null }) {
   const safe = useMotionSafe();
 
   return (
@@ -107,7 +111,7 @@ export default function Hero({ propertyTypes = [] }) {
 
       {/* The panel straddles the hero's bottom edge, per the design. */}
       <div className="relative z-20 mx-auto -mt-16 w-full max-w-[1240px] px-4 sm:px-6 lg:-mt-[5.75rem] lg:px-8">
-        <SearchBar propertyTypes={propertyTypes} />
+        <SearchBar propertyTypes={propertyTypes} communes={communes} initialCount={initialCount} />
       </div>
     </>
   );

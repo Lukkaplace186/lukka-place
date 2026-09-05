@@ -2,6 +2,8 @@
 
 import { motion } from 'framer-motion';
 import Image from 'next/image';
+import { Zap } from 'lucide-react';
+import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import SearchBar from './SearchBar';
 import { heroDrift } from '@/lib/motion';
 import { useMotionSafe } from '@/lib/useMotionSafe';
@@ -26,8 +28,12 @@ import { useMotionSafe } from '@/lib/useMotionSafe';
  * legible over any photograph, so there is nothing left to bleed under —
  * see Header.js.
  *
- * Headline is DM Serif Display (font-display) at --fs-display-l, regular
- * weight, matching the design's hero spec (never bold, never uppercase).
+ * Headline is Plus Jakarta Sans at 800 (the family's heaviest real cut),
+ * set as a Zillow-style stacked-noun grid — "Appartements. Villas.
+ * Terrains. Agences." It was DM Serif Display at regular weight; the
+ * refonte asked for a punchier, more authoritative hero and a bold grid
+ * is a sans figure. Sizes step 24 -> 36 -> 48px so the block stays short
+ * on a phone and never crowds the search panel it sits above.
  *
  * Photo: /public/kaysha-StJWD4ci8wY-unsplash.jpg — supplied directly by the
  * user, replacing the earlier hero-kinshasa.jpg. The filename is Unsplash's
@@ -95,15 +101,61 @@ export default function Hero({ propertyTypes = [], communes = [], initialCount =
 
         <div className="relative z-10 mx-auto w-full max-w-[1240px] px-4 sm:px-6 lg:px-8">
           <div className="max-w-[41rem]">
-            <p className="u-eyebrow mb-5 text-white/72">Immobilier à Kinshasa</p>
+            {/* Glass eyebrow pill. Not `.u-eyebrow` — that utility is a bare
+                12px/500 label with no chrome, and this is a bordered
+                frosted capsule with its own 11px/700 spec. The bolt is a
+                lucide icon rather than the ⚡ emoji: emoji render at
+                wildly different weights and colours per platform (and land
+                as full-colour glyphs inside a monochrome pill), and this
+                codebase's rule is lucide for every icon. `gap-1.5` is
+                spacing the icon from the text, which is what it's for. */}
+            {/* `tracking-wider` (0.05em) is the brief's value and it holds
+                everywhere it fits. At 320px it doesn't: measured in a
+                browser, the one-line pill wants 291px against 288px of
+                container and wraps to a two-line lozenge. Dropping to
+                `tracking-wide` (0.025em) below 360px reclaims ~10px across
+                36 uppercase characters — imperceptible at 11px, and enough
+                for one clean line with room to spare. Scoped to the
+                narrowest phones rather than applied at `sm`, because from
+                360px up the wider tracking fits fine. */}
+            <p className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white backdrop-blur-md min-[360px]:tracking-wider">
+              <Zap strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className="h-3 w-3 shrink-0" />
+              L&apos;immobilier de confiance à Kinshasa
+            </p>
 
-            <h1 className="font-display text-[2.5rem] font-normal leading-[1.04] tracking-[-0.018em] text-white sm:text-[3.25rem] lg:text-[3.75rem]">
-              Trouvez le bien qui vous ressemble
+            {/* Sans, extrabold — the Zillow-style stacked-noun grid, not the
+                DM Serif display line this carried before. Two deliberate
+                departures from the brief's class string:
+                  - `font-extrabold` at every breakpoint, never
+                    `sm:font-black`. Plus Jakarta Sans is subset to
+                    400/500/600/700/800 in app/layout.js and the family has
+                    no 900 cut at all, so `font-black` would ask the browser
+                    to synthesise one — a smeared faux-bold, most visible at
+                    exactly this size. 800 is the real ceiling and already
+                    reads as black at display scale.
+                  - the serif is gone from the h1. layout.js's own font note
+                    lists "the hero headline" under BOTH families, so this
+                    was already ambiguous; a bold stacked grid is a sans
+                    figure and setting DM Serif heavy would fake a weight
+                    that face doesn't have either. */}
+            <h1 className="text-2xl font-extrabold leading-[1.1] tracking-tight text-white drop-shadow-sm sm:text-4xl md:text-5xl">
+              Appartements. Villas. Terrains. Agences.
             </h1>
 
-            <p className="mt-5 max-w-[32.5rem] text-[1.125rem] leading-[1.56] text-white/82">
-              Appartements, villas et parcelles vérifiés à Kinshasa — prix en dollars ou en francs, contact direct par
-              WhatsApp.
+            {/* text-white/82, not the brief's `text-slate-200/90`: both
+                CLAUDE.md files rule out Tailwind's built-in slate scale
+                here (it reads as a typo beside our own ink ramp), and
+                white at 82% is the value this exact line already used
+                against this photograph. */}
+            {/* `max-w-md` (448px) is the brief's measure and it is right on
+                a phone, where the line wraps mid-phrase naturally. From
+                `md` up the type steps to 16px and the sentence wants 478px
+                — 30px more than the cap — so it broke with "WhatsApp."
+                orphaned on a line of its own. `md:max-w-lg` (512px) clears
+                it by 34px and keeps the whole promise on one line, which
+                is the point of a one-liner subhead. Measured, not eyeballed. */}
+            <p className="mt-2 max-w-md text-xs font-medium text-white/82 drop-shadow sm:text-sm md:max-w-lg md:text-base">
+              Biens vérifiés, prix transparents &amp; contact direct sur WhatsApp.
             </p>
           </div>
         </div>

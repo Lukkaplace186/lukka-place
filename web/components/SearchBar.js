@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Search, MapPin, ChevronDown, Building2, Wallet } from 'lucide-react';
 import LocationAutocomplete from './LocationAutocomplete';
-import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB, ICON_STROKE_WIDTH } from '@/lib/constants';
 import { parseSearchQuery } from '@/lib/searchParser';
 
 /**
@@ -64,7 +64,8 @@ const HOME_TABS = [
   { value: 'acheter', label: 'Acheter' },
 ];
 
-const TRANSACTION_BY_TAB = { louer: 'location', acheter: 'vente' };
+// Both live in lib/constants.js because the homepage's server component
+// needs the same mapping to scope `initialCount` to the tab this opens on.
 
 // Tiered steps, not one flat increment across the whole range: renters
 // under $1,000 are genuinely sensitive to $100-200 gaps ($700 vs $800 is a
@@ -143,7 +144,7 @@ const CELL_SELECT =
   'font-medium text-ink focus:outline-none sm:pr-1 sm:text-[0.9375rem]';
 
 export default function SearchBar({ propertyTypes = [], communes = [], initialCount = null }) {
-  const [homeTab, setHomeTab] = useState('louer');
+  const [homeTab, setHomeTab] = useState(HERO_DEFAULT_TAB);
   const [propertyType, setPropertyType] = useState('');
   const [budgetMax, setBudgetMax] = useState('');
   // Mirrors the location field's text. LocationAutocomplete still owns the
@@ -152,7 +153,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
   const [location, setLocation] = useState('');
   const locationRef = useRef(null);
 
-  const transactionType = TRANSACTION_BY_TAB[homeTab] || '';
+  const transactionType = HERO_TRANSACTION_BY_TAB[homeTab] || '';
 
   const extraParams = {
     transaction_type: transactionType,

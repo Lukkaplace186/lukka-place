@@ -2,6 +2,7 @@ import Hero from '@/components/Hero';
 import FeaturedListings from '@/components/FeaturedListings';
 import ValueProposition from '@/components/ValueProposition';
 import { getListings, getPopularCommunes, getPropertyTypeFacets } from '@/lib/listings';
+import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB } from '@/lib/constants';
 
 /**
  * The homepage, section for section as web/Design/Landing's "Lukka Place —
@@ -33,8 +34,14 @@ import { getListings, getPopularCommunes, getPropertyTypeFacets } from '@/lib/li
  *     with real counts, the same source FilterBar.js's own pill on
  *     /listings uses, so the hero never offers a type with zero results.
  *   - getPopularCommunes() feeds the panel's own commune quick-pills.
- *   - getListings({ limit: 1 }).total is the real approved-listing total
- *     behind the "Rechercher (N biens)" CTA on first paint. `limit: 1`
+ *   - getListings().total is the real approved-listing total behind the
+ *     "Rechercher (N biens)" CTA on first paint, scoped to the transaction
+ *     type the panel OPENS on (Louer -> location) rather than left
+ *     unfiltered. Unscoped it reported 31 (30 rentals + 1 sale) under an
+ *     active Louer tab whose real count is 30 — the button over-reported
+ *     until the visitor touched a control and the client refetch corrected
+ *     it. The tab and the mapping both come from lib/constants.js so the
+ *     server count and the client's default tab cannot drift. `limit: 1`
  *     keeps the row payload minimal; the COUNT query getListings() runs
  *     internally is unaffected by limit. From there the panel refetches
  *     /api/listings/count as filters change — same endpoint, same query.
@@ -54,7 +61,7 @@ export default async function HomePage() {
   const [propertyTypes, communes, { total }] = await Promise.all([
     getPropertyTypeFacets(),
     getPopularCommunes(8),
-    getListings({ limit: 1 }),
+    getListings({ limit: 1, transactionType: HERO_TRANSACTION_BY_TAB[HERO_DEFAULT_TAB] }),
   ]);
 
   return (

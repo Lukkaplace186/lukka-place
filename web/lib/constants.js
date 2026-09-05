@@ -3,6 +3,17 @@
 // next.config.mjs's remotePatterns).
 export const NO_PHOTO_URL = 'https://lukkaplace.com/assets/img/noimage.jpg';
 
+// The hero search panel opens on Louer, so the "Rechercher (N biens)" count
+// it ships with must be scoped to rentals — otherwise the server-rendered
+// first paint shows the UNFILTERED total while the panel's own staged
+// filters say "location", and the button over-reports until the visitor
+// touches something. Caught on production: the CTA read "31 biens" (30
+// rentals + 1 sale) under an active Louer tab whose real count is 30.
+// Both the server count (app/(site)/page.js) and the client's default tab
+// (components/SearchBar.js) read these, so the two cannot drift apart again.
+export const HERO_DEFAULT_TAB = 'louer';
+export const HERO_TRANSACTION_BY_TAB = { louer: 'location', acheter: 'vente' };
+
 // Matches services/openai.js's PARCELLE_SUBTYPES in the engine repo exactly —
 // shared between SearchBar (homepage) and FilterBar (/listings).
 export const PARCELLE_SUBTYPES = [

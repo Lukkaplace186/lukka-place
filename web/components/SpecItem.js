@@ -43,13 +43,26 @@ const SPEC_COLUMN_LABELS = {
  * to a token that passes rather than to the lightest one that still "reads"
  * on a good monitor.
  */
+/**
+ * The label and value treatments, exported as strings so the detail page's
+ * KeyFacts grid renders its rail identically without re-typing the values.
+ * KeyFacts can't just use <SpecCell> — it stacks an icon above the label,
+ * a different structure — but the two rails must not drift apart in size,
+ * weight, tracking or colour, which is exactly what happens when the same
+ * treatment is written out at two call sites.
+ */
+export const SPEC_LABEL_CLASS =
+  'text-[0.625rem] font-extrabold uppercase leading-none tracking-[0.09em] text-ink-45';
+export const SPEC_VALUE_CLASS =
+  'flex items-center gap-1.5 font-extrabold leading-none tracking-tight text-ink';
+
 export function SpecCell({ label, children, className = '' }) {
   return (
     <span className={`flex min-w-0 flex-col gap-1 ${className}`}>
-      <span className="truncate text-[0.625rem] font-extrabold uppercase leading-none tracking-[0.09em] text-ink-45">
+      <span className={`truncate ${SPEC_LABEL_CLASS}`}>
         {label}
       </span>
-      <span className="flex items-center gap-1.5 text-[0.875rem] font-extrabold leading-none tracking-tight text-ink">
+      <span className={`text-[0.875rem] ${SPEC_VALUE_CLASS}`}>
         {children}
       </span>
     </span>

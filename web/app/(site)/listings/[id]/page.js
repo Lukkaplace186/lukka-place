@@ -112,6 +112,31 @@ export default async function ListingDetailPage({ params, searchParams }) {
 
   const images = listingImages(listing);
   const where = locationLine(listing);
+  // The address line only earns its place when it says something the heading
+  // doesn't. Two ways it can end up saying the same thing: locationLine()
+  // itself falls back to `address` when quartier/commune are both missing (so
+  // they'd be byte-identical), and even when it doesn't, the stored address is
+  // usually that same "Quartier, Commune" plus a trailing ", Kinshasa" the
+  // engine appends on every listing (buildAddress(), services/postgres.js).
+  // Now that the heading IS the location, printing both would state the place
+  // twice on consecutive lines.
+  const addressDetail = (() => {
+    const address = typeof listing.address === 'string' ? listing.address.trim() : '';
+    if (!address) return null;
+    if (!where) return address;
+    const normalize = (value) => value.toLowerCase().replace(/[\s,]+/g, ' ').trim();
+    const a = normalize(address);
+    const w = normalize(where);
+    // Subtract what the heading already says, plus the city the engine
+    // appends to every address, and keep the line only if real content
+    // survives. A plain `a.includes(w)` test would have been wrong in the
+    // one case this line actually matters: "12 Avenue Kasai, Ngiri-Ngiri"
+    // contains the heading "Ngiri-Ngiri", but the street number is new
+    // information and suppressing it would throw away the most specific
+    // thing on the page.
+    const remainder = a.replace(w, ' ').replace(/\bkinshasa\b/g, ' ').replace(/[^a-z0-9]+/g, '');
+    return remainder ? address : null;
+  })();
   // Up to 5 here rather than a card's 2 — the detail page has a dedicated
   // "Équipements" section with room for the full matched set.
   const amenityKeys = matchedAmenityKeys(listing, 5);
@@ -196,29 +221,46 @@ export default async function ListingDetailPage({ params, searchParams }) {
             {/* Price leads the page — the design's single loudest number,
                 above the title rather than tucked into the enquiry panel. */}
             <div className="flex flex-col gap-2.5">
-              <span className="u-tabular u-price text-ink">
+              {/* Explicit classes, not `.u-price` / `.u-h1`. Those globals are
+                  24px/500 and 20px/500 — the "font-medium, washed out"
+                  pairing this page was called out for — but they are shared
+                  utilities (`.u-h1`/`.u-h2` also set every section heading,
+                  `.u-body` three more files), so thickening them in place
+                  would re-weight surfaces nobody asked to change. The
+                  listing page carries its own weights instead, matched to
+                  the feed card's. */}
+              <span className="u-tabular text-[1.75rem] font-extrabold leading-tight tracking-tight text-ink sm:text-[2rem]">
                 <Price
                   amount={listing.price}
                   purpose={listing.purpose}
                   pricePeriod={listing.price_period}
                   showSubtext
-                  subtextClassName="ml-2.5 u-meta font-normal text-ink-45"
+                  subtextClassName="ml-2.5 inline-block rounded-md bg-canvas-alt px-2 py-0.5 align-middle text-[0.8125rem] font-bold leading-normal tracking-normal text-ink-45"
                 />
               </span>
 
-              {/* Rightmove's own heading scale: 20px on a phone, 24px from
-                  sm, 30px on desktop — bold and tight-tracked, on the ink
-                  ramp's darkest step (the design system's equivalent of the
-                  reference's slate-900; this app has no slate scale and
-                  introducing one would fork the palette). */}
-              <h1 className="u-h1 text-ink">
-                {listing.title}
+              {/* The address is the heading, the way Rightmove leads with
+                  "The Risings, Walthamstow, E17" — and the way this app's own
+                  feed card already does.
+                  
+                  It used to be `listing.title`, the agent-written sentence
+                  ("2 chambres — Appartement à louer à Kalamu"). That sentence
+                  restates, in prose, exactly what the KeyFacts grid two rows
+                  below now states as structured data (Type de bien /
+                  Chambres / Salles de bain), which is the substitution this
+                  change was asked for. `listing.title` is NOT dropped from
+                  the page's identity — it still carries the <title>, the
+                  OpenGraph title and the breadcrumb's final crumb (see
+                  generateMetadata above), so search engines and shared links
+                  keep the descriptive phrasing. */}
+              <h1 className="text-xl font-extrabold leading-snug tracking-tight text-ink sm:text-2xl">
+                {where || listing.title}
               </h1>
 
-              {(listing.address || where) ? (
-                <p className="u-meta inline-flex items-center gap-1.5 text-ink-45">
-                  <MapPin strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0" />
-                  {listing.address || where}
+              {addressDetail ? (
+                <p className="inline-flex items-center gap-1.5 text-[0.875rem] font-bold text-ink-70">
+                  <MapPin strokeWidth={2.25} className="h-4 w-4 shrink-0 text-ink-45" />
+                  {addressDetail}
                 </p>
               ) : null}
             </div>

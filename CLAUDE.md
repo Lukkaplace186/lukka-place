@@ -26,6 +26,18 @@ The storefront queries Supabase directly (chosen over a proxying Express endpoin
 - **Schema Attributes**: Always handle:
   - `parcelle_subtype` — sub-classification, only meaningful when `property_type = 'parcelle'`.
   - `units_count` (integer) — "X Portes" / "Type Locataire" door count.
+  - `deposit_months` / `advance_months` / `commission_months` — the three
+    **separate** entry costs behind Kinshasa's "Garantie : 3 + 1 + 1" notation:
+    refundable security deposit, rent paid in advance, and agency commission,
+    in that order. Never sum them into `deposit_months` — that is the bug this
+    split fixed ("3 + 1 + 1" was read back to agents as "Garantie : 5 mois",
+    overstating the deposit by two months). "4+1" means deposit + advance, with
+    commission NULL; a plain "Garantie : 3 mois" leaves the other two NULL
+    (NULL = not stated, which is not the same claim as 0 = none required). Any
+    total is derived at render time from the three, never stored.
+    Not yet carried to Supabase: `properties` has `deposit_months` only, so
+    `syncListingToPostgres` still syncs that one field (now correct) and drops
+    the other two — they need an `ALTER TABLE` before the sync can include them.
   - `reference` — the listing's **own** explicit code (e.g. "Réf: LKP-2026-0091"), distinct from `quartier`. Never conflate the two: `quartier` is a place/landmark, `reference` is an identifier for the listing itself.
 - **Landmarks**: Always use the French term "référence" (not "repère") in any user-facing or prompt-facing French text.
 
@@ -114,6 +126,54 @@ WhatsApp *at the moment it is created* — nobody has to open a feed.
   response rates) and per-request on `/admin/leads/[id]`, which also carries a
   "Relancer la diffusion" button (`POST /admin/leads/:id/dispatch`, idempotent
   via `UNIQUE (lead_id, agent_id)`).
+
+## Auto-Attribution of Incoming Listings (live)
+
+`services/agentOnboarding.js`'s `identifySender`, forked in `routes/webhook.js`
+immediately after the listing row is inserted. One Postgres lookup per inbound
+listing decides which of two things the intake reply says.
+
+- **Recognised agent** (a row in `agents` whose digit-normalised `phone`
+  matches the sender's `wa_id` **and** whose `phone_verified_at` is set): the
+  listing is stamped with their `agents.id` and the reply greets them by name
+  — "Bonjour {prénom} ! Votre bien a été reconnu et lié à votre compte." —
+  with the same summary card the onboarding path shows, plus a link to
+  `/compte/agent/biens`.
+- **Nobody we know**: unchanged — the existing WhatsApp onboarding ask (name +
+  agency, no OTP, account created in-flow). **Deliberately not replaced with a
+  "go and sign up on lukkaplace.com" bounce**: sending an agent to a web form
+  to retype what they already sent is strictly worse than the flow that
+  already registers them without leaving WhatsApp.
+- **Existing but unverified account**: neither. `identifySender` reports
+  `registered: false` (so nothing is attributed to an account nobody proved
+  they own), while `shouldOnboard` still sees the row and stays quiet rather
+  than asking them to register a second time.
+
+### Why the `phone_verified_at` gate is the same one twice
+`identifySender`'s gate is deliberately identical to
+`services/postgres.js`'s `resolveAgentId`, and the two must not drift: telling
+an agent their listing is linked to their account is a promise that publishing
+it will actually set `properties.agent_id`, and `resolveAgentId` refuses an
+unverified account. A regression test asserts the unverified case on both
+sides.
+
+Note the consequence for **dual creation** (agent registered on the web with
+the same number, then WhatsApps a listing): they are linked automatically, but
+only once that number is verified. An inbound WhatsApp message is *not* treated
+as self-verification here, unlike in the onboarding flow above — there the
+sender creates the account, so it is theirs by construction; here the account
+already exists and was created by someone else's session, so auto-verifying it
+would let anyone who registered on the web with an agent's phone number collect
+that agent's listings.
+
+### `listings.agent_id` (SQLite) is a record, not the source of truth
+The new column records who we recognised at intake, written by
+`db.attributeListingToAgent` **after** the insert so the Postgres round trip
+can never delay — or, if Postgres is down, prevent — storing the listing.
+`syncListingToPostgres` still resolves attribution live at publish time, so an
+account verified between intake and publication is picked up rather than frozen.
+The write only ever fills a blank (`agent_id IS NULL`), so a redelivery or a
+correction can never move a listing from one agent to another.
 
 ## WhatsApp Agent Onboarding (live)
 

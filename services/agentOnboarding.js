@@ -102,19 +102,149 @@ function normalisePhone(waId) {
  * public listing *attribution*. Here the question is only "does an account
  * already exist?", and answering "no" for an existing-but-unverified account
  * would create a duplicate agent for the same phone number.
+ *
+ * Also returns `first_name` (from agent_infos), so recognising a sender and
+ * greeting them by name cost one round trip between them rather than two.
  */
 async function findAgentByPhone(waId) {
   if (!isConfigured()) return null;
   const digits = normalisePhone(waId);
   if (!digits) return null;
+  // first_name lives in agent_infos, not agents — and is read as a correlated
+  // subquery rather than a LEFT JOIN because agent_infos has no unique
+  // constraint on (agent_id, language_id) (verified against the live schema,
+  // see upsertAgentFromWhatsApp below), so a join could fan one agent out into
+  // several rows and leave LIMIT 1 picking an arbitrary one.
   const { rows } = await getPool().query(
-    `SELECT id, username, phone, status, password_hash, phone_verified_at, agency_name
+    `SELECT id, username, phone, status, password_hash, phone_verified_at, agency_name,
+            (SELECT ai.first_name FROM agent_infos ai
+              WHERE ai.agent_id = agents.id AND ai.language_id = $2 AND ai.first_name IS NOT NULL
+              LIMIT 1) AS first_name
      FROM agents
      WHERE regexp_replace(phone, '\\D', '', 'g') = $1
      LIMIT 1`,
-    [digits],
+    [digits, CONTENT_LANGUAGE_ID],
   );
   return rows[0] || null;
+}
+
+/**
+ * Who is this sender — a registered agent, or nobody we know yet?
+ *
+ * One Postgres round trip serving both halves of the intake fork in
+ * routes/webhook.js, so recognising an agent and deciding whether to ask an
+ * unknown sender to register never costs two queries for the same answer.
+ *
+ * `registered` deliberately requires `phone_verified_at`, matching
+ * services/postgres.js's resolveAgentId exactly. The two must agree: greeting
+ * someone by name and telling them their listing is linked to their account is
+ * a promise that the sync will then actually attribute it, and resolveAgentId
+ * refuses an unverified account. An existing but unverified row is therefore
+ * reported as `{ registered: false, agent }` — known well enough not to be
+ * asked to register all over again, not proven enough to claim a listing.
+ *
+ * Never throws: Postgres being unreachable degrades to "we don't know this
+ * sender", which costs a greeting, not the listing.
+ *
+ * @param {string} waId
+ * @returns {Promise<{registered: boolean, agentId: number|null, firstName: string|null, agent: Object|null}>}
+ */
+async function identifySender(waId) {
+  const unknown = { registered: false, agentId: null, firstName: null, agent: null };
+  if (!isConfigured()) return unknown;
+
+  try {
+    const agent = await findAgentByPhone(waId);
+    const identity = senderIdentityFrom(agent);
+
+    if (agent && !identity.registered) {
+      console.log(
+        `[recognition] ${waId} matches agent #${agent.id}, but that number is unverified — no attribution`,
+      );
+    }
+
+    return identity;
+  } catch (err) {
+    console.warn(`[recognition] agent lookup failed for ${waId}: ${err.message}`);
+    return unknown;
+  }
+}
+
+/**
+ * The identity decision itself, separated from the Postgres round trip that
+ * fetches the row so it can be exercised on its own.
+ *
+ * The `phone_verified_at` gate here is the same one services/postgres.js's
+ * resolveAgentId applies when it populates properties.agent_id, and they have
+ * to stay identical: this is what decides whether we tell an agent their
+ * listing is linked to their account, and saying so has to be true once the
+ * listing is published.
+ *
+ * @param {Object|null} agent A row from findAgentByPhone(), or null.
+ * @returns {{registered: boolean, agentId: number|null, firstName: string|null, agent: Object|null}}
+ */
+function senderIdentityFrom(agent) {
+  if (!agent) return { registered: false, agentId: null, firstName: null, agent: null };
+  if (!agent.phone_verified_at) return { registered: false, agentId: null, firstName: null, agent };
+
+  return {
+    registered: true,
+    agentId: Number(agent.id),
+    firstName: displayFirstName(agent),
+    agent,
+  };
+}
+
+/**
+ * The name to greet a recognised agent by, or null.
+ *
+ * agent_infos.first_name is the real one. `username` is a fallback only when
+ * it is not simply the phone number read back at them: WhatsApp-created
+ * accounts default `username` to the digits when the sender gave no name
+ * (upsertAgentFromWhatsApp above), and "Bonjour 243997123456 !" is worse than
+ * no greeting at all. Never invents a name — the caller drops the name from
+ * the sentence rather than guessing one.
+ */
+function displayFirstName(agent) {
+  const first = agent && agent.first_name && String(agent.first_name).trim();
+  if (first) return first.split(/\s+/)[0];
+
+  const username = agent && agent.username && String(agent.username).trim();
+  if (username && !/^\+?[\d\s().-]+$/.test(username)) return username.split(/\s+/)[0];
+
+  return null;
+}
+
+/**
+ * Appended to the intake reply for a sender we recognised — the mirror image
+ * of onboardingPrompt() above.
+ *
+ * Says the two things a recognised agent cannot otherwise tell from the
+ * generic acknowledgement: that we know who they are, and that this property
+ * is attached to their account rather than sitting anonymously in a queue. It
+ * reuses the same summary card the onboarding path shows, because the value of
+ * that card — catching a wrong price or commune while it is still cheap to
+ * fix — has nothing to do with whether the sender has an account.
+ *
+ * @param {{firstName: string|null}} identity
+ * @param {Object} listing     getListing() row.
+ * @param {number} photoCount
+ * @returns {string}
+ */
+function recognitionNote({ firstName } = {}, listing = {}, photoCount = 0) {
+  const greeting = firstName
+    ? `Bonjour ${firstName} ! Votre bien a été reconnu et lié à votre compte. ✅`
+    : 'Votre bien a été reconnu et lié à votre compte Lukka Place. ✅';
+
+  const card = summaryCard(listing, photoCount);
+
+  return [
+    greeting,
+    card ? `\n${card}` : null,
+    `\nRetrouvez-le dans votre tableau de bord : ${SITE_URL}/compte/agent/biens`,
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 function hashToken(token) {
@@ -317,13 +447,16 @@ function parseNameReply(text) {
  * a listing from being recorded and confirmed. The agent is simply asked on
  * their next submission instead.
  */
-async function shouldOnboard(waId) {
+async function shouldOnboard(waId, { agent: knownAgent } = {}) {
   if (!isConfigured()) return false;
   const session = getSession(waId);
   if (session && (session.state === 'COMPLETED' || session.asked_count >= MAX_ASKS)) return false;
 
   try {
-    const agent = await findAgentByPhone(waId);
+    // identifySender() has usually already resolved this sender; reuse that
+    // answer rather than asking Postgres the same question twice per listing.
+    // `undefined` means "not looked up yet"; `null` is a real "no such agent".
+    const agent = knownAgent !== undefined ? knownAgent : await findAgentByPhone(waId);
     // An account that already has a password is a finished registration —
     // nothing to onboard. An account with a verified phone but no password is
     // one of these WhatsApp onboardings still waiting for its magic link to
@@ -415,6 +548,9 @@ async function completeOnboarding(waId, text, { pendingListingId = null } = {}) 
 }
 
 module.exports = {
+  identifySender,
+  senderIdentityFrom,
+  recognitionNote,
   shouldOnboard,
   startOnboarding,
   completeOnboarding,
@@ -425,6 +561,7 @@ module.exports = {
   onboardingPrompt,
   activationMessage,
   findAgentByPhone,
+  displayFirstName,
   upsertAgentFromWhatsApp,
   hashToken,
   MAX_ASKS,

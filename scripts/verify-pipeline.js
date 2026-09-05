@@ -131,6 +131,8 @@ function cannedCompletion(overrides = {}) {
       currency: 'USD',
       price_period: 'mois',
       deposit_months: 3,
+      advance_months: 1,
+      commission_months: 1,
       bedrooms: 4,
       bathrooms: 2,
       surface_area_sqm: 600,
@@ -308,7 +310,8 @@ check('extracted_data covers every SQLite listing column it should', () => {
   const props = Object.keys(schema.properties.extracted_data.properties);
   for (const column of [
     'intent', 'transaction_type', 'property_type', 'commune', 'quartier',
-    'price', 'currency', 'price_period', 'deposit_months', 'bedrooms', 'bathrooms',
+    'price', 'currency', 'price_period', 'deposit_months', 'advance_months',
+    'commission_months', 'bedrooms', 'bathrooms',
     'surface_area_sqm', 'furnished', 'amenities', 'summary_fr', 'missing_fields',
   ]) {
     assert.ok(props.includes(column), `schema is missing '${column}'`);
@@ -354,6 +357,40 @@ check('parcelle_subtype/units_count/reference are present in the strict schema a
     assert.ok(required.includes(field), `"${field}" not in required (violates strict mode)`);
   }
   assert.deepStrictEqual(props.parcelle_subtype.enum, ['maison_type_locataire', 'villa', 'terrain_nu', null]);
+});
+check('the three "3 + 1 + 1" entry costs are separate nullable integers in the strict schema', () => {
+  const props = schema.properties.extracted_data.properties;
+  const required = schema.properties.extracted_data.required;
+  for (const field of ['deposit_months', 'advance_months', 'commission_months']) {
+    assert.ok(props[field], `schema missing property "${field}"`);
+    assert.ok(required.includes(field), `"${field}" not in required (violates strict mode)`);
+    assert.deepStrictEqual(props[field].type, ['integer', 'null'], `"${field}" must be a nullable integer`);
+  }
+  // No "total"/"upfront" field: a sum is derived at render time from the
+  // three real postes. Storing it too would let it drift from its parts —
+  // and a stored total is exactly what produced the "Garantie : 5 mois" bug.
+  assert.ok(!props.total_upfront_months, 'the total must stay derived, not stored');
+});
+check('system prompt forbids summing "3 + 1 + 1" into deposit_months', () => {
+  const prompt = openaiService.SYSTEM_PROMPT;
+  // The convention itself, the three destination fields, and an explicit
+  // prohibition — the actual bug was the model summing them to 5.
+  for (const needle of [
+    '3 + 1 + 1', 'advance_months', 'commission_months',
+    'Ne les additionne JAMAIS dans deposit_months',
+    "ne veut PAS dire 5 mois de garantie",
+  ]) {
+    assert.ok(prompt.includes(needle), `prompt missing "${needle}"`);
+  }
+});
+check('the WhatsApp reply template shows the three entry costs on their own lines', () => {
+  const prompt = openaiService.SYSTEM_PROMPT;
+  // "*Garantie*" must carry deposit_months alone — the agent-facing half of
+  // the same bug, where the confirmation read back "Garantie : 5 mois".
+  assert.ok(prompt.includes('*Garantie* : {deposit_months} mois'));
+  assert.ok(prompt.includes("*Loyer d'avance* : {advance_months} mois"));
+  assert.ok(prompt.includes("*Commission d'agence* : {commission_months} mois"));
+  assert.ok(prompt.includes("*Total à prévoir à l'entrée*"));
 });
 
 // ---------------------------------------------------------------------------
@@ -1354,6 +1391,33 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(parcelleRow.units_count, 4);
     assert.strictEqual(parcelleRow.reference, 'LKP-2026-0091');
   });
+  check('the "3 + 1 + 1" entry costs land in three separate columns', () => {
+    // The canned extraction quotes "Garantie : 3 + 1 + 1" — 3 months of
+    // refundable deposit, 1 month rent in advance, 1 month agency
+    // commission. Storing 5 in deposit_months (the bug) overstated the
+    // deposit by two months on every listing using this notation.
+    assert.strictEqual(row.deposit_months, 3);
+    assert.strictEqual(row.advance_months, 1);
+    assert.strictEqual(row.commission_months, 1);
+  });
+  check('a single-number "Garantie : 3 mois" leaves advance/commission NULL, not 0', () => {
+    // A listing that quotes only a deposit says nothing about advance rent
+    // or commission. NULL ("not stated") and 0 ("none required") are
+    // different claims to make to a renter.
+    const simple = dbService.insertListing(
+      {
+        intent: 'listing', transaction_type: 'location', property_type: 'appartement',
+        commune: 'Gombe', price: 900, currency: 'USD', price_period: 'mois',
+        deposit_months: 3, bedrooms: 2, amenities: [], missing_fields: [], confidence: 0.9,
+      },
+      '243810000098',
+      { wamid: 'wamid.DEPOSIT_ONLY' },
+    );
+    const simpleRow = dbService.getListing(simple.id);
+    assert.strictEqual(simpleRow.deposit_months, 3);
+    assert.strictEqual(simpleRow.advance_months, null);
+    assert.strictEqual(simpleRow.commission_months, null);
+  });
   check('same wamid twice is flagged duplicate', () => {
     const again = dbService.insertListing(data, '243810000000', { wamid: 'wamid.DIRECT' });
     assert.strictEqual(again.duplicate, true);
@@ -1387,6 +1451,18 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(corrected.bedrooms, 5);
     assert.strictEqual(corrected.commune, 'Ngaliema', 'unrelated field must survive the correction');
     assert.strictEqual(corrected.price, 2500);
+  });
+  check('applyListingCorrection can restate the entry costs independently', () => {
+    // "la garantie c'est 2 mois, pas 3" must move deposit_months alone and
+    // leave the advance and commission the agent already stated intact.
+    const restated = dbService.applyListingCorrection(
+      saved.id,
+      { deposit_months: 2 },
+      "la garantie c'est 2 mois",
+    );
+    assert.strictEqual(restated.deposit_months, 2);
+    assert.strictEqual(restated.advance_months, 1);
+    assert.strictEqual(restated.commission_months, 1);
   });
   check('applyListingCorrection appends to raw_text, group_wamids and photos', () => {
     assert.ok(corrected.raw_text.includes("non, c'est 5 chambres"));
@@ -3570,6 +3646,179 @@ console.log('\n2. services/openai.js');
     await assert.rejects(() => scheduler.runSearchAlertSweep(), /CRON_SECRET/);
     process.env.CRON_SECRET = saved;
   });
+
+  // ===========================================================================
+  // 19. Auto-attribution of an incoming listing to a recognised agent
+  //     (services/agentOnboarding.js's identifySender + routes/webhook.js)
+  // ===========================================================================
+
+  console.log('\n19. Auto-attribution of incoming listings to a recognised agent');
+
+  // --- The identity decision itself -----------------------------------------
+
+  const VERIFIED_AGENT = {
+    id: '91',
+    username: '243997123456',
+    phone: '+243 997-123-456',
+    phone_verified_at: '2026-08-01T09:00:00.000Z',
+    agency_name: 'Agence Horizon',
+    first_name: 'Sarah',
+  };
+
+  check('a phone-verified agent is recognised, with a numeric agents.id and a first name', () => {
+    const identity = onboarding.senderIdentityFrom(VERIFIED_AGENT);
+    assert.strictEqual(identity.registered, true);
+    // Postgres hands bigint ids back as strings; properties.agent_id and the
+    // local agent_id column are both numeric, so this must not stay '91'.
+    assert.strictEqual(identity.agentId, 91);
+    assert.strictEqual(identity.firstName, 'Sarah');
+  });
+
+  // The same gate services/postgres.js's resolveAgentId applies (section 3c).
+  // The two have to agree: telling an agent their listing is linked to their
+  // account is a promise the sync then has to keep, and resolveAgentId refuses
+  // an unverified account.
+  check('an existing but UNVERIFIED account is not recognised and claims nothing', () => {
+    const identity = onboarding.senderIdentityFrom({ ...VERIFIED_AGENT, phone_verified_at: null });
+    assert.strictEqual(identity.registered, false);
+    assert.strictEqual(identity.agentId, null);
+    // Still handed back, so shouldOnboard() knows not to ask them to register again.
+    assert.ok(identity.agent, 'the row itself must still be reported');
+  });
+
+  check('a sender with no account at all is simply unknown', () => {
+    assert.deepStrictEqual(onboarding.senderIdentityFrom(null), {
+      registered: false, agentId: null, firstName: null, agent: null,
+    });
+  });
+
+  check('agent_infos.first_name is preferred over username for the greeting', () =>
+    assert.strictEqual(onboarding.displayFirstName({ first_name: 'Sarah', username: 'Kabeya' }), 'Sarah'));
+
+  // upsertAgentFromWhatsApp defaults `username` to the phone digits when the
+  // sender gave no name, and "Bonjour 243997123456 !" is worse than no greeting.
+  check('a username that is only the phone number never becomes a greeting', () => {
+    assert.strictEqual(onboarding.displayFirstName({ username: '243997123456' }), null);
+    assert.strictEqual(onboarding.displayFirstName({ username: '+243 997-123-456' }), null);
+    assert.strictEqual(onboarding.displayFirstName({}), null);
+  });
+
+  check('a real username is used when agent_infos has no first name', () =>
+    assert.strictEqual(onboarding.displayFirstName({ username: 'Jean Kabeya' }), 'Jean'));
+
+  await checkAsync('identifySender degrades to "unknown" without Postgres rather than throwing', async () => {
+    const identity = await onboarding.identifySender('243997123456');
+    assert.strictEqual(identity.registered, false);
+    assert.strictEqual(identity.agentId, null);
+  });
+
+  // --- The message ----------------------------------------------------------
+
+  check('the recognition note greets the agent by name and points at their dashboard', () => {
+    const note = onboarding.recognitionNote(
+      { firstName: 'Sarah' },
+      { commune: 'Ngaliema', price: 2500, currency: 'USD', transaction_type: 'location', bedrooms: 4 },
+      2,
+    );
+    assert.match(note, /Bonjour Sarah/);
+    assert.match(note, /lié à votre compte/);
+    assert.match(note, /Commune : Ngaliema/);
+    assert.match(note, /compte\/agent\/biens/);
+  });
+
+  check('with no usable name the sentence drops the name instead of printing a blank', () => {
+    const note = onboarding.recognitionNote({ firstName: null }, {}, 0);
+    assert.doesNotMatch(note, /undefined|null|Bonjour\s*!/);
+    assert.match(note, /lié à votre compte/);
+  });
+
+  // --- The local attribution write ------------------------------------------
+
+  const attributed = dbService.insertListing(
+    { is_listing: true, property_type: 'villa', commune: 'Gombe' },
+    '243997123456',
+    { wamid: 'wamid.ATTR' },
+  );
+
+  check('a listing starts unattributed', () =>
+    assert.strictEqual(dbService.getListing(attributed.id).agent_id, null));
+
+  check('attributeListingToAgent stamps the agents.id on the row', () => {
+    assert.strictEqual(dbService.attributeListingToAgent(attributed.id, 91), true);
+    assert.strictEqual(dbService.getListing(attributed.id).agent_id, 91);
+  });
+
+  // A redelivery or a correction must never move a listing between accounts.
+  check('an attribution already on the row is never overwritten', () => {
+    assert.strictEqual(dbService.attributeListingToAgent(attributed.id, 42), false);
+    assert.strictEqual(dbService.getListing(attributed.id).agent_id, 91);
+  });
+
+  check('attributing to a missing agent id is a no-op, not a NULL write', () => {
+    const fresh = dbService.insertListing(
+      { is_listing: true, property_type: 'villa' }, '243997000111', { wamid: 'wamid.ATTR2' },
+    );
+    assert.strictEqual(dbService.attributeListingToAgent(fresh.id, null), false);
+    assert.strictEqual(dbService.getListing(fresh.id).agent_id, null);
+  });
+
+  // --- End to end through the real webhook route ----------------------------
+  //
+  // The case the whole feature exists for: a registered agent WhatsApps a
+  // property, it lands on their account, and the reply says so.
+  //
+  // identifySender is stubbed because the recognition it performs is a real
+  // Supabase query and this suite deliberately runs with no database
+  // credentials (see the top of this file). Everything downstream of it — the
+  // route, the parser, SQLite, the reply — is the real code path.
+
+  const realIdentifySender = onboarding.identifySender;
+
+  httpCalls.length = 0;
+  onboarding.identifySender = async () => onboarding.senderIdentityFrom(VERIFIED_AGENT);
+
+  const recognisedStatus = await post(
+    '/webhook',
+    inbound('wamid.RECOGNISED', 'Villa a louer Ngaliema 4 chambres 2500$/mois', '243997123456'),
+  );
+  await settle();
+
+  const recognisedFound = dbService.findByWamid('wamid.RECOGNISED');
+
+  check('the webhook accepts the listing', () => assert.strictEqual(recognisedStatus, 200));
+
+  check('a listing from a registered agent is stored against their agent_id', () => {
+    assert.ok(recognisedFound, 'no listing row was created for wamid.RECOGNISED');
+    const row = dbService.getListing(recognisedFound.id);
+    assert.strictEqual(row.wa_id, '243997123456');
+    assert.strictEqual(row.agent_id, 91);
+  });
+
+  check('the agent is greeted by name and told the listing is on their account', () => {
+    assert.strictEqual(httpCalls.length, 1, 'expected exactly one Chakra reply');
+    const body = httpCalls[0].data.text.body;
+    assert.match(body, /Annonce reçue/);
+    assert.match(body, /Bonjour Sarah/);
+    assert.match(body, /lié à votre compte/);
+  });
+
+  check('a recognised agent is never also asked to register', () => {
+    assert.doesNotMatch(httpCalls[0].data.text.body, /nom de votre agence/);
+  });
+
+  httpCalls.length = 0;
+  onboarding.identifySender = async () => onboarding.senderIdentityFrom(null);
+
+  await post('/webhook', inbound('wamid.UNKNOWNSENDER', 'Villa a louer Ngaliema', '243997999888'));
+  await settle();
+
+  check('a listing from an unrecognised sender is stored with no attribution', () => {
+    const found = dbService.findByWamid('wamid.UNKNOWNSENDER');
+    assert.ok(found, 'no listing row was created for wamid.UNKNOWNSENDER');
+    assert.strictEqual(dbService.getListing(found.id).agent_id, null);
+  });
+
+  onboarding.identifySender = realIdentifySender;
 
   // -------------------------------------------------------------------------
   console.log(`\n${'-'.repeat(60)}`);

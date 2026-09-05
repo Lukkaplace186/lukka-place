@@ -14,6 +14,7 @@ const express = require('express');
 const { parseMessage } = require('../services/openai');
 const {
   insertListing,
+  attributeListingToAgent,
   findByWamid,
   findLatestPendingListing,
   publishListing,
@@ -543,10 +544,13 @@ async function processGroup(messages) {
       console.log(`[chakra] ${label}: stored ${photoPaths.length} photo(s)`);
     }
 
-    // Set below when an unregistered sender's listing triggers the WhatsApp
-    // registration ask. Kept out here so the single send at the end of this
-    // function stays the only place a reply leaves the intake path.
-    let onboardingSuffix = null;
+    // Set below by the sender-recognition fork: either the confirmation that
+    // a known agent's listing is linked to their account, or the registration
+    // ask for a sender who has no account yet. Kept out here so the single
+    // send at the end of this function stays the only place a reply leaves
+    // the intake path. `suffixKind` exists only for the log line.
+    let intakeSuffix = null;
+    let suffixKind = null;
 
     const { extracted_data: extracted, whatsapp_reply: reply, _meta } = await parseMessage(text, {
       senderPhone: from,
@@ -632,21 +636,49 @@ async function processGroup(messages) {
           (wamids.length > 1 ? ` (${wamids.length} messages)` : ''),
       );
 
-      // Is this sender already a registered agent? If not, the reply below
-      // carries a structured summary card and one question instead of ending
-      // at "répondez OK". Answering that question IS the confirmation for an
-      // unregistered sender (see services/agentOnboarding.js), so they are
-      // never asked to acknowledge the same listing twice.
+      // AUTO-ATTRIBUTION — who sent this?
       //
-      // Wrapped: an onboarding failure must never cost the agent the reply
-      // confirming we received their property.
+      // One lookup (services/agentOnboarding.js's identifySender), two
+      // outcomes:
+      //
+      //   Recognised, phone-verified agent — the listing is stamped with
+      //   their `agents.id` and the reply says so by name, so they can see
+      //   it landed on their account instead of guessing. The stamp is a
+      //   local record; services/postgres.js's syncListingToPostgres still
+      //   resolves attribution live when the listing is published, which is
+      //   what actually populates properties.agent_id and puts the property
+      //   on their web dashboard.
+      //
+      //   Nobody we know — the reply carries a structured summary card and
+      //   one question instead of ending at "répondez OK". Answering that
+      //   question IS the confirmation for an unregistered sender (see
+      //   services/agentOnboarding.js), so they are never asked to
+      //   acknowledge the same listing twice.
+      //
+      // A sender matching an *unverified* account is neither: identifySender
+      // reports them unregistered (so nothing is attributed to an account
+      // nobody proved they own) while shouldOnboard still sees the existing
+      // row and stays quiet rather than asking them to register twice.
+      //
+      // Wrapped: a recognition failure — Postgres down, most likely — must
+      // never cost the agent the reply confirming we received their property.
       try {
-        if (await onboarding.shouldOnboard(from)) {
+        const identity = await onboarding.identifySender(from);
+
+        if (identity.registered) {
+          attributeListingToAgent(id, identity.agentId);
+          console.log(`[recognition] listing #${id} from ${from} attributed to agent #${identity.agentId}`);
+          intakeSuffix = onboarding.recognitionNote(identity, getListing(id), photoPaths.length);
+          suffixKind = 'recognition';
+        } else if (await onboarding.shouldOnboard(from, { agent: identity.agent })) {
           const prompt = onboarding.startOnboarding(from, getListing(id), photoPaths.length);
-          if (prompt) onboardingSuffix = prompt;
+          if (prompt) {
+            intakeSuffix = prompt;
+            suffixKind = 'registration';
+          }
         }
       } catch (err) {
-        console.warn(`[onboarding] could not offer registration to ${from}: ${err.message}`);
+        console.warn(`[intake] sender recognition failed for ${from}: ${err.message}`);
       }
     } else if (pending) {
       // Doesn't stand alone as a listing, but a prior one is still pending —
@@ -655,12 +687,12 @@ async function processGroup(messages) {
       console.log(`[db] listing #${pending.id} updated (correction from ${from})`);
     }
 
-    await chakra.sendWhatsAppMessage(from, onboardingSuffix ? `${reply}
+    await chakra.sendWhatsAppMessage(from, intakeSuffix ? `${reply}
 
-${onboardingSuffix}` : reply, {
+${intakeSuffix}` : reply, {
       replyToMessageId: primaryWamid || undefined,
     });
-    console.log(`[chakra] reply sent to ${from}${onboardingSuffix ? ' (with registration prompt)' : ''}`);
+    console.log(`[chakra] reply sent to ${from}${suffixKind ? ` (with ${suffixKind})` : ''}`);
   } finally {
     wamids.forEach((wamid) => inFlight.delete(wamid));
   }

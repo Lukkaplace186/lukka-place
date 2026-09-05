@@ -75,6 +75,16 @@ CONTEXTE MONÉTAIRE
 - Sépare le loyer mensuel du prix de vente : "500$/mois" => price 500, price_period "mois". Une vente => price_period "total".
 - Une caution ("garantie", "3 mois de caution") n'est PAS le loyer : mets-la dans deposit_months.
 
+CONDITIONS D'ENTRÉE — NOTATION "3 + 1 + 1" (convention immobilière de Kinshasa)
+- "Garantie : 3 + 1 + 1", "3+1+1", "GARANTIE 4+1", "3 mois garantie + 1 avance + 1 commission" : ces nombres sont des POSTES DISTINCTS. Ne les additionne JAMAIS dans deposit_months — "3 + 1 + 1" ne veut PAS dire 5 mois de garantie.
+  * 1er nombre => deposit_months : la garantie locative seule (caution restituable en fin de bail).
+  * 2e nombre => advance_months : le loyer d'avance (mois de loyer payés d'avance à l'entrée).
+  * 3e nombre => commission_months : les frais d'agence / du commissionnaire.
+- Deux nombres seulement ("4+1", "3 + 1") => garantie + avance : deposit_months = 1er nombre, advance_months = 2e nombre, commission_months null.
+- Un seul nombre ("Garantie : 3 mois", "caution 2 mois") => deposit_months uniquement ; advance_months et commission_months restent null.
+- Si le message nomme explicitement chaque poste ("2 mois de garantie, 1 mois d'avance, 1 mois de commission"), suis les libellés écrits plutôt que l'ordre des nombres.
+- Ne mets jamais un total dans deposit_months : chaque champ ne contient que son propre poste.
+
 LOCALISATION
 - Les 24 communes de Kinshasa, chacune avec ses quartiers officiels :
 ${LOCATIONS_BLOCK}
@@ -126,11 +136,16 @@ Bonjour! Merci pour votre message. Voici les informations extraites de la magnif
 *Quartier* : {quartier}
 *Loyer* ou *Prix* : {price}$ {price_period}
 *Garantie* : {deposit_months} mois
+*Loyer d'avance* : {advance_months} mois
+*Commission d'agence* : {commission_months} mois
+*Total à prévoir à l'entrée* : {deposit_months + advance_months + commission_months} mois
 *Chambres* : {bedrooms}
 *Salles de bain* : {bathrooms}
 *Nombre de portes* : {units_count}
 *Équipements* : {amenities}
 *Référence* : {reference}
+
+- Conditions d'entrée : n'écris que les lignes dont la valeur est non-null, et n'ajoute la ligne *Total à prévoir à l'entrée* que si au moins deux des trois postes sont connus. Si price est connu et price_period vaut "mois", ajoute le montant entre parenthèses après CHACUNE de ces quatre lignes, ligne de total comprise, calculé comme (nombre de mois × loyer mensuel) — ex. avec un loyer de 750 $ et "3 + 1 + 1" : "*Garantie* : 3 mois (2250 $)" ... "*Total à prévoir à l'entrée* : 5 mois (3750 $)". Sans loyer mensuel connu, écris seulement les mois.
 
   Puis, s'il y a des missing_fields, demande-les explicitement. Termine en invitant l'agent à répondre "OK" pour publier ou à envoyer une correction.
 - Si is_listing est false : réponds brièvement et demande à l'agent d'envoyer l'annonce avec le type de bien, la commune, le prix et le nombre de chambres.
@@ -162,6 +177,7 @@ const RESPONSE_FORMAT = {
           required: [
             'is_listing', 'intent', 'transaction_type', 'property_type', 'parcelle_subtype',
             'commune', 'quartier', 'price', 'currency', 'price_period', 'deposit_months',
+            'advance_months', 'commission_months',
             'bedrooms', 'bathrooms', 'surface_area_sqm', 'units_count', 'furnished',
             'amenities', 'reference', 'summary_fr', 'missing_fields', 'confidence',
           ],
@@ -194,7 +210,15 @@ const RESPONSE_FORMAT = {
             price_period: { type: ['string', 'null'], enum: ['mois', 'an', 'total', null] },
             deposit_months: {
               type: ['integer', 'null'],
-              description: 'Mois de caution/garantie exigés.',
+              description: "Mois de garantie locative SEULE (caution restituable). Dans la notation \"3 + 1 + 1\", c'est le premier nombre — jamais la somme.",
+            },
+            advance_months: {
+              type: ['integer', 'null'],
+              description: "Mois de loyer d'avance — deuxième nombre de la notation \"3 + 1 + 1\".",
+            },
+            commission_months: {
+              type: ['integer', 'null'],
+              description: "Mois de frais d'agence / commissionnaire — troisième nombre de la notation \"3 + 1 + 1\".",
             },
             bedrooms: {
               type: ['integer', 'null'],

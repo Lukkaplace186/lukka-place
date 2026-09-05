@@ -57,6 +57,7 @@ CONTEXTE MONÉTAIRE
 - "FC", "CDF", "francs" => CDF (franc congolais).
 - Si aucune devise n'est indiquée et que le montant est plausible en USD, utilise USD.
 - Sépare bien le loyer mensuel du prix de vente. "500$/mois" => loyer mensuel 500 USD. Une caution ("garantie", "3 mois de caution") n'est PAS le loyer.
+- Notation "3 + 1 + 1" (convention de Kinshasa) : ce sont trois postes distincts, jamais une somme. 1er nombre => deposit_months (garantie locative seule), 2e => advance_months (loyer d'avance), 3e => commission_months (frais d'agence). "4+1" => deposit_months 4 et advance_months 1. Un seul nombre => deposit_months seul. N'additionne JAMAIS ces nombres dans deposit_months.
 
 LOCALISATION
 - Les 24 communes de Kinshasa : ${KINSHASA_COMMUNES.join(', ')}.
@@ -117,7 +118,9 @@ const LISTING_SCHEMA = {
       enum: ['mois', 'an', 'total'],
       description: '"mois" pour un loyer mensuel, "total" pour un prix de vente.',
     },
-    deposit_months: { type: Type.INTEGER, nullable: true, description: 'Nombre de mois de caution/garantie exigés.' },
+    deposit_months: { type: Type.INTEGER, nullable: true, description: 'Mois de garantie locative SEULE — premier nombre de la notation "3 + 1 + 1", jamais leur somme.' },
+    advance_months: { type: Type.INTEGER, nullable: true, description: 'Mois de loyer d\'avance — deuxième nombre de la notation "3 + 1 + 1".' },
+    commission_months: { type: Type.INTEGER, nullable: true, description: 'Mois de frais d\'agence / commissionnaire — troisième nombre de la notation "3 + 1 + 1".' },
     negotiable: { type: Type.BOOLEAN, nullable: true },
     bedrooms: { type: Type.INTEGER, nullable: true, description: 'Nombre de chambres (pas le total des pièces).' },
     bathrooms: { type: Type.INTEGER, nullable: true },
@@ -151,7 +154,8 @@ const LISTING_SCHEMA = {
   propertyOrdering: [
     'is_listing', 'intent', 'transaction_type', 'property_type', 'commune',
     'quartier', 'city', 'address_hint', 'price', 'currency', 'price_period',
-    'deposit_months', 'negotiable', 'bedrooms', 'bathrooms', 'total_rooms',
+    'deposit_months', 'advance_months', 'commission_months',
+    'negotiable', 'bedrooms', 'bathrooms', 'total_rooms',
     'surface_area_sqm', 'floor', 'furnished', 'amenities', 'availability',
     'contact_name', 'contact_phone', 'summary_fr', 'detected_languages',
     'missing_fields', 'raw_notes', 'confidence',

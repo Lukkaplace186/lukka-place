@@ -80,7 +80,14 @@ const EXTENDED_COLUMNS = [
   // from `quartier` (a place, not an identifier).
   ['reference', 'TEXT'],
   ['price_period', 'TEXT'],
+  // The three entry costs a Kinshasa listing quotes as "Garantie : 3 + 1 + 1",
+  // kept as separate columns because they are separate facts: only
+  // deposit_months is the refundable security deposit, and summing them into
+  // it (the bug this split fixes) told renters a 3-month garantie was 5.
+  // A listing quoting a single "Garantie : 3 mois" leaves the other two NULL.
   ['deposit_months', 'INTEGER'],
+  ['advance_months', 'INTEGER'],
+  ['commission_months', 'INTEGER'],
   // SQLite has no BOOLEAN type — stored as 0 / 1 / NULL.
   ['furnished', 'INTEGER'],
   // JSON arrays, queryable in place via json_extract() / json_each().
@@ -106,6 +113,16 @@ const EXTENDED_COLUMNS = [
   // there (services/postgres.js) — lets a later re-sync UPDATE instead of
   // inserting a duplicate row on the website's side.
   ['remote_property_id', 'INTEGER'],
+  // Supabase `agents.id` this listing was attributed to at intake, because the
+  // sender's number matched a phone-verified agent account (see
+  // services/agentOnboarding.js's identifySender). A local RECORD of that
+  // recognition, not the source of truth: services/postgres.js's
+  // syncListingToPostgres still resolves attribution live against `agents` at
+  // publish time, so an account verified between intake and publication is
+  // picked up rather than frozen at whatever was true when the message
+  // arrived. NULL means "the sender was not a recognised agent" — never
+  // "unknown", since the lookup runs on every inbound listing.
+  ['agent_id', 'INTEGER'],
 ];
 
 const ALL_COLUMNS = [...BASE_COLUMNS, ...EXTENDED_COLUMNS];
@@ -311,12 +328,16 @@ const insertListingStmt = db.prepare(`
  * @param {string} [senderInfo.status]    Defaults to 'pending_confirmation' — every
  *        new listing waits for the agent's 'OK' before it counts as published.
  * @param {string[]} [senderInfo.photos]  Web paths of downloaded photos (services/mediaStorage.js).
+ * @param {number} [senderInfo.agentId]   Supabase `agents.id` when the sender is a
+ *        recognised, phone-verified agent. Usually set after the fact by
+ *        attributeListingToAgent() instead — the recognition lookup is a
+ *        Postgres round trip that must never delay storing the listing.
  * @returns {{id: number, createdAt: string, duplicate: boolean}}
  *          `duplicate` is true when this wamid was already stored; `id` then
  *          points at the existing row.
  */
 function saveListing(listingData, senderInfo = {}) {
-  const { waId, wamid, groupWamids, agentName, rawText, status, photos } = senderInfo;
+  const { waId, wamid, groupWamids, agentName, rawText, status, photos, agentId } = senderInfo;
 
   if (!waId) {
     throw new Error('saveListing requires senderInfo.waId');
@@ -351,6 +372,8 @@ function saveListing(listingData, senderInfo = {}) {
       reference: toNullable(listingData.reference),
       price_period: toNullable(listingData.price_period),
       deposit_months: toInteger(listingData.deposit_months),
+      advance_months: toInteger(listingData.advance_months),
+      commission_months: toInteger(listingData.commission_months),
       furnished: toSqliteBool(listingData.furnished),
       amenities: toJsonText(listingData.amenities),
       summary_fr: toNullable(listingData.summary_fr),
@@ -361,6 +384,7 @@ function saveListing(listingData, senderInfo = {}) {
       mysql_property_id: null,
       // Set only once services/postgres.js confirms the sync — see publishListing.
       remote_property_id: null,
+      agent_id: toInteger(agentId),
     });
   } catch (err) {
     // Match only the wamid collision. A blanket INSERT OR IGNORE would also
@@ -402,6 +426,7 @@ function saveListing(listingData, senderInfo = {}) {
  * @param {string} [extra.agentName]    Sender's display name, if the provider sends one.
  * @param {string} [extra.rawText]      Original message text.
  * @param {string[]} [extra.photos]     Web paths of downloaded photos (services/mediaStorage.js).
+ * @param {number} [extra.agentId]      Supabase `agents.id`, when already known.
  * @returns {{id: number, createdAt: string, duplicate: boolean}}
  */
 function insertListing(extractedData, senderPhone, extra = {}) {
@@ -420,7 +445,35 @@ function insertListing(extractedData, senderPhone, extra = {}) {
     rawText: extra.rawText,
     status: extra.status,
     photos: extra.photos,
+    agentId: extra.agentId,
   });
+}
+
+/**
+ * Record that this listing arrived from a recognised, phone-verified agent.
+ *
+ * Called from routes/webhook.js just after the row is inserted rather than
+ * being passed into insertListing, so the Postgres lookup behind the
+ * recognition can never delay — or, when Postgres is unreachable, prevent —
+ * storing the listing itself.
+ *
+ * Only ever fills a blank (`agent_id IS NULL`): an attribution already on the
+ * row is left alone, so a correction or a redelivery can never silently move
+ * a listing from one agent to another.
+ *
+ * @param {number} id
+ * @param {number} agentId Supabase `agents.id`.
+ * @returns {boolean} True when this call is what set the attribution.
+ */
+function attributeListingToAgent(id, agentId) {
+  const numericAgentId = toInteger(agentId);
+  if (id == null || numericAgentId == null) return false;
+
+  const info = db
+    .prepare('UPDATE listings SET agent_id = ? WHERE id = ? AND agent_id IS NULL')
+    .run(numericAgentId, id);
+
+  return info.changes > 0;
 }
 
 /**
@@ -520,7 +573,8 @@ function publishListing(id) {
 /** Listing fields a correction message may overwrite. Never `id`/`wa_id`/`status`. */
 const CORRECTABLE_FIELDS = [
   'intent', 'transaction_type', 'property_type', 'parcelle_subtype', 'commune', 'quartier',
-  'price', 'currency', 'price_period', 'deposit_months', 'bedrooms', 'bathrooms',
+  'price', 'currency', 'price_period', 'deposit_months', 'advance_months',
+  'commission_months', 'bedrooms', 'bathrooms',
   'surface_area_sqm', 'units_count', 'furnished', 'amenities', 'reference',
   'summary_fr', 'missing_fields',
 ];
@@ -532,6 +586,8 @@ const CORRECTABLE_COERCERS = {
   surface_area_sqm: toNumber,
   units_count: toInteger,
   deposit_months: toInteger,
+  advance_months: toInteger,
+  commission_months: toInteger,
   furnished: toSqliteBool,
   amenities: toJsonText,
   missing_fields: toJsonText,
@@ -2003,6 +2059,7 @@ module.exports = {
   db,
   saveListing,
   insertListing,
+  attributeListingToAgent,
   findByWamid,
   findLatestPendingListing,
   publishListing,

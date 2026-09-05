@@ -26,7 +26,7 @@ import { getListingsByIds } from './listings';
  * @param {number} customerId
  * @returns {Promise<Array<{lead: Object, listing: Object|null, proposals: Object[]}>>}
  *   `proposals` is the real listing rows agents have pitched against this
- *   lead via the Agent Demand Feed (web/lib/adminApi.js's
+ *   lead in response to their request (web/lib/adminApi.js's
  *   getLeadProposals) — [] until at least one agent proposes something.
  */
 export async function getCustomerInquiries(customerId) {
@@ -42,7 +42,7 @@ export async function getCustomerInquiries(customerId) {
   }
   if (leads.length === 0) return [];
 
-  // Agent Demand Feed proposals for this customer's own leads — best-effort,
+  // Agent proposals for this customer's own leads — best-effort,
   // same non-throwing posture as the leads fetch above: a proposals lookup
   // failure should degrade to "no proposals shown yet", not break the whole
   // page.

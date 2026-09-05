@@ -51,7 +51,7 @@ export async function getAgentDashboardContext(agentId) {
     // string by node-postgres), while a lead/viewing-request's property_id
     // comes from the engine's SQLite as a plain number — a bare `l.id` key
     // silently never matched any lookup by the numeric form (caught live
-    // while testing the Agent Demand Feed: every property-attached lead's
+    // while testing the agent lead inbox: every property-attached lead's
     // "target" listing resolved to null everywhere this Map is consulted —
     // demandes/page.js, visites/page.js, AgentRecentLeads.js).
     listingById: new Map(listings.map((l) => [String(l.id), l])),

@@ -72,7 +72,7 @@ export async function updateProfileNameAction(formData) {
  *
  * POST /admin/leads now also accepts the structured
  * `transaction_type`/`commune`/`price_min`/`price_max`/`bedrooms` columns
- * (Agent Demand Feed needs real columns to filter on, not just prose) — the
+ * (the matching engine needs real columns to rank on, not just prose) — the
  * full free-text summary (buildRequirementsSummary) is still sent too, so
  * nothing the customer typed is lost. The form collects multiple communes
  * (checkboxes); only the single `commune` TEXT column exists, so the first
@@ -209,7 +209,7 @@ export async function updatePropertyRequestAction(leadId, formData) {
   try {
     // The engine decides `proposals_reset` itself — by comparing this
     // lead's stored commune against the one being written, never from
-    // anything computed here — and clears every existing Agent Demand Feed
+    // anything computed here — and clears every existing agent
     // pitch when it actually changed (routes/admin.js's PATCH /leads/:id,
     // services/db.js's resetLeadProposals): a proposal pitched by an agent
     // covering the old commune is no longer relevant once the request has

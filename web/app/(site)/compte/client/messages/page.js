@@ -117,7 +117,7 @@ export default async function MessagesPage() {
           priceLabel: formatPrice(listing.price, listing.purpose, listing.price_period),
         }
       : null,
-    // Agent Demand Feed proposals — real listings agents have pitched
+    // Agent proposals — real listings agents have pitched
     // against this custom-search request (web/lib/customerInquiries.js).
     // agencyName/agentPhone/beds/location are the same real
     // `agents.username`/`agents.phone`/`properties.beds`/commune-amenity

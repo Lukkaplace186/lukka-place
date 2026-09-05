@@ -135,7 +135,7 @@ export async function assignLead(id, { agentId, assignedAgent }) {
  * `proposals_reset` comes back `true` when this edit actually changed the
  * commune: the engine compares old vs. new commune itself (never trusts a
  * client-asserted flag) and, on a real change, clears every existing Agent
- * Demand Feed pitch and reopens the request in the new commune — see
+ * pitch and reopens the request in the new commune — see
  * routes/admin.js's PATCH /leads/:id and services/db.js's
  * resetLeadProposals.
  *

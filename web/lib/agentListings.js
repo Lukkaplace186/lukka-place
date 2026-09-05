@@ -27,7 +27,7 @@ const NO_PHOTO_URL = 'https://lukkaplace.com/assets/img/noimage.jpg';
  * Exported so lib/adminListings.js (the admin-side override editor, which has
  * a deliberately different authority model and therefore its own module) uses
  * this exact map rather than becoming a THIRD copy — the one thing
- * tests/unit/write-path-parity.js already exists to prevent.
+ * tests/unit/write-path-parity.test.js already exists to prevent.
  */
 export const COMMUNE_AMENITY_IDS = {
   Bandalungwa: 21, Barumbu: 22, Bumbu: 23, Gombe: 24, Kalamu: 25,

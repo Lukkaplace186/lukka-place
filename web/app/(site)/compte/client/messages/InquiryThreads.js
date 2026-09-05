@@ -44,14 +44,14 @@ function customSearchTitle(thread) {
 }
 
 /**
- * The 3-stage tracker for a custom search (Agent Demand Feed) thread, built
+ * The 3-stage tracker for a custom search thread, built
  * entirely from real signals already on the lead: it was created (always
  * true once a thread exists), it is open to partner agents (true from the
  * same moment — GET /admin/leads/open lists it immediately, there is no
  * separate "activation" step to fabricate), and it has drawn real interest
  * (`proposals`) — the step's own label carries the live count instead of a
  * capacity number a customer has no context for (the 7-pitch cap is an
- * internal Agent Demand Feed limit, not something to expose here).
+ * internal per-request pitch cap, not something to expose here).
  */
 function customSearchTrackerSteps(thread) {
   const proposalsCount = thread.proposals?.length || 0;
@@ -162,7 +162,7 @@ const THREAD_TONES = {
 const MATCH_FOUND_STATUSES = new Set(['QUALIFIED', 'VIEWING_REQUESTED', 'VIEWING_COMPLETED', 'CONVERTED']);
 
 function customSearchStatus(thread) {
-  // A real agent proposal (Agent Demand Feed) is direct, first-hand evidence
+  // A real agent proposal is direct, first-hand evidence
   // a match exists — a stronger signal than the status/agentId heuristic
   // below, which only ever approximated it. Checked first so a request that
   // got a proposal without ever passing through QUALIFIED/etc. still shows

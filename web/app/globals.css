@@ -368,6 +368,127 @@
     text-transform: uppercase;
     font-variant-numeric: tabular-nums;
   }
+
+  /*
+   * ---------------------------------------------------------------------
+   * THE SHARED TYPE SCALE — one system for all four surfaces.
+   * ---------------------------------------------------------------------
+   *
+   * Before this block the app ran four different typographic dialects on
+   * top of one font stack, which is why the storefront, the agent portal,
+   * the Espace Client and /admin read as different products:
+   *
+   *   public site   page/section titles in DM Serif (`font-display`)
+   *   agent portal  page title in DM Serif, but every card heading in
+   *                 ad-hoc `text-[1.125rem] font-bold` sans
+   *   Espace Client DM Serif titles, a third set of arbitrary sizes
+   *   /admin        ZERO uses of `font-display` anywhere — every heading
+   *                 sans-bold, at `text-xl` / `text-[1.3125rem]` / `text-sm`
+   *
+   * Two families, one hierarchy, applied identically everywhere:
+   *
+   *   DM Serif Display  page titles and section titles ONLY. This is the
+   *                     luxury voice; it is what makes an admin console
+   *                     read as part of the same product as the storefront.
+   *                     Regular weight only — the face has no bold cut.
+   *   Plus Jakarta Sans everything else: card headings, labels, data,
+   *                     body, buttons, meta.
+   *
+   * Use these utilities instead of writing a new arbitrary `text-[...]`.
+   * A one-off size is how the four dialects happened in the first place.
+   */
+
+  /* Hero title — the h1 at the top of a full-width page that is meant to
+     feel editorial rather than operational (the Espace Client portal, the
+     saved-search and request pages). One tier above .u-title-page, which is
+     the dense dashboard-header equivalent. */
+  .u-title-hero {
+    font-family: var(--font-display), Georgia, 'Times New Roman', serif;
+    font-size: 2rem;
+    line-height: 1.12;
+    font-weight: 400;
+    letter-spacing: -0.018em;
+    font-optical-sizing: auto;
+  }
+  @media (min-width: 640px) {
+    .u-title-hero {
+      font-size: 2.5rem;
+    }
+  }
+
+  /* Page title — the h1 in a page header. One per screen. */
+  .u-title-page {
+    font-family: var(--font-display), Georgia, 'Times New Roman', serif;
+    font-size: 1.75rem;
+    line-height: 1.15;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    font-optical-sizing: auto;
+  }
+  @media (min-width: 640px) {
+    .u-title-page {
+      font-size: 1.875rem;
+    }
+  }
+
+  /* Section title — a major band within a page (a panel group, a form
+     section, the heading above a table). */
+  .u-title-section {
+    font-family: var(--font-display), Georgia, 'Times New Roman', serif;
+    font-size: 1.375rem;
+    line-height: 1.25;
+    font-weight: 400;
+    letter-spacing: -0.008em;
+    font-optical-sizing: auto;
+  }
+
+  /* Card title — the heading inside a single card/panel. Sans, not serif:
+     at 17px a display serif reads as decoration rather than structure, and
+     a dashboard has far too many of these for the serif to stay special. */
+  .u-title-card {
+    font-size: 1.0625rem;
+    line-height: 1.4;
+    font-weight: 700;
+    letter-spacing: -0.005em;
+  }
+
+  /* Sub-heading inside a card — a group label above a field cluster or a
+     list section. Sits between .u-title-card and .u-eyebrow. */
+  .u-title-sub {
+    font-size: 0.9375rem;
+    line-height: 1.4;
+    font-weight: 700;
+    letter-spacing: 0.1px;
+  }
+
+  /* The dashboard workhorse: 13px. Table cells, filter controls, status
+     lines, form labels, secondary buttons. This size was already the de
+     facto standard across the agent portal (`text-[0.8125rem]`, 60+ uses)
+     — naming it is what stops /admin drifting to `text-sm` (14px) for the
+     same job. */
+  .u-micro {
+    font-size: 0.8125rem;
+    line-height: 1.25rem;
+    font-weight: 400;
+    letter-spacing: 0.1px;
+  }
+  .u-micro-strong {
+    font-size: 0.8125rem;
+    line-height: 1.25rem;
+    font-weight: 600;
+    letter-spacing: 0.1px;
+  }
+
+  /* A headline metric on a stat tile. Tabular by construction — a row of
+     these goes visibly ragged with proportional digits. */
+  .u-stat {
+    font-size: 1.75rem;
+    line-height: 1.1;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
   /* The two real elevations in the system. Cards use hairlines instead;
      these are for things that genuinely float above the page. Shadow tint
      is the ink colour's own RGB (11 17 32, ink-900), not a generic black —

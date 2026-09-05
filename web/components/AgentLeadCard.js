@@ -1,8 +1,16 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { Phone, Calculator, MapPin, Send, Check } from 'lucide-react';
+import { useMemo, useRef, useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { Phone, Calculator, MapPin, Send, Check, Target, Building2 } from 'lucide-react';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose,
+} from '@/components/ui/dialog';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { formatPrice } from '@/lib/format';
+import { bestMatch } from '@/lib/agentMatching';
+import { proposeListingAction } from '@/app/compte/agent/actions';
+import { useToast } from './Toast';
 
 /**
  * The design's inquiry card, cloned: contact name + state tag + relative
@@ -18,6 +26,18 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  * decorative tags — they save typing, they don't send anything by
  * themselves, and the agent always sees exactly what will go out before
  * pressing Envoyer.
+ *
+ * "Proposer un bien" moved here from AgentOpenLeadCard, which has been
+ * deleted along with the open-request feed it belonged to. The action behind
+ * it is unchanged (proposeListingAction -> a real lead_proposals row); what
+ * changed is that an agent reaches it from a request the engine pushed to
+ * them, rather than from a marketplace they had to go and browse. Match % is
+ * still a real computed score (lib/agentMatching.js) against this agent's own
+ * listings, and is absent rather than fabricated when the request gives
+ * nothing to score against.
+ *
+ * `highlighted` marks the one request an agent arrived here to see from a
+ * WhatsApp alert's deep link — see services/leadDispatch.js's agentLink.
  */
 const STATUS_TAG = {
   NEW: 'bg-blue-tint text-blue-deep',
@@ -44,10 +64,33 @@ export default function AgentLeadCard({
   target,
   replyAction,
   statusAction,
+  myListings = [],
+  highlighted = false,
 }) {
   const [open, setOpen] = useState(false);
+  const [proposeOpen, setProposeOpen] = useState(false);
+  const [proposePending, startProposeTransition] = useTransition();
+  const router = useRouter();
+  const { showToast } = useToast();
   const textareaRef = useRef(null);
   const name = lead.name || lead.wa_id;
+
+  const best = useMemo(() => bestMatch(myListings, lead), [myListings, lead]);
+
+  function handlePropose(event) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    startProposeTransition(async () => {
+      const result = await proposeListingAction(lead.id, formData);
+      if (!result.ok) {
+        showToast({ type: 'error', message: result.error });
+        return;
+      }
+      showToast({ type: 'success', message: 'Bien proposé au client.' });
+      setProposeOpen(false);
+      router.refresh();
+    });
+  }
 
   function insertQuickReply(text) {
     const el = textareaRef.current;
@@ -57,7 +100,13 @@ export default function AgentLeadCard({
   }
 
   return (
-    <div className="u-card rounded-card bg-surface p-6">
+    <div className={`u-card rounded-card bg-surface p-6 ${highlighted ? 'ring-2 ring-blue' : ''}`}>
+      {highlighted && (
+        <p className="u-micro-strong mb-4 inline-flex items-center gap-1.5 rounded-full bg-blue-tint px-3 py-1 text-blue-deep">
+          <Target strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
+          La demande de votre alerte WhatsApp
+        </p>
+      )}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_16.5rem] lg:items-center">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2.5">
@@ -93,6 +142,15 @@ export default function AgentLeadCard({
                 <span className="truncate">{target}</span>
               </span>
             )}
+            {best && (
+              <span
+                title={`Meilleure correspondance dans votre portefeuille : ${best.listing.title}`}
+                className="inline-flex items-center gap-1 rounded-full bg-blue-tint px-2 py-0.5 text-[0.75rem] font-bold text-blue-deep"
+              >
+                <Target strokeWidth={ICON_STROKE_WIDTH} className="h-3 w-3" />
+                {best.score}% correspondance
+              </span>
+            )}
           </div>
         </div>
 
@@ -106,6 +164,17 @@ export default function AgentLeadCard({
             <Send strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
             {open ? 'Fermer' : 'Répondre'}
           </button>
+
+          {myListings.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setProposeOpen(true)}
+              className="u-btn-secondary u-press inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-lg text-[0.8125rem] font-bold text-ink"
+            >
+              <Building2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+              Proposer un bien
+            </button>
+          )}
 
           <form action={statusAction}>
             <input type="hidden" name="status" value={lead.status === 'QUALIFIED' ? 'CONVERTED' : 'QUALIFIED'} />
@@ -193,6 +262,55 @@ export default function AgentLeadCard({
           Mettre à jour
         </button>
       </form>
+
+      <Dialog open={proposeOpen} onOpenChange={setProposeOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Proposer un bien</DialogTitle>
+            <DialogDescription>
+              Choisissez un bien publié et actif de votre portefeuille. Le client le verra dans son espace
+              Lukka Place et pourra vous contacter directement.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handlePropose} className="flex flex-col gap-4">
+            <select
+              name="property_id"
+              required
+              defaultValue={best ? String(best.listing.id) : ''}
+              className="u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink"
+            >
+              <option value="" disabled>
+                Choisir un bien…
+              </option>
+              {myListings.map((listing) => (
+                <option key={listing.id} value={listing.id}>
+                  {listing.title} — {formatPrice(listing.price, listing.purpose)}
+                  {best?.listing.id === listing.id ? ` (${best.score}% correspondance)` : ''}
+                </option>
+              ))}
+            </select>
+
+            <DialogFooter>
+              <DialogClose asChild>
+                <button
+                  type="button"
+                  className="u-press inline-flex h-11 items-center rounded-lg px-4 text-sm font-semibold text-ink-45 hover:bg-canvas-alt hover:text-ink"
+                >
+                  Annuler
+                </button>
+              </DialogClose>
+              <button
+                type="submit"
+                disabled={proposePending}
+                className="u-btn-primary u-press h-11 rounded-lg bg-blue px-5 text-sm font-bold text-white disabled:opacity-60"
+              >
+                {proposePending ? 'Envoi…' : 'Proposer ce bien'}
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

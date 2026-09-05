@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Copy, ExternalLink, MessageCircle, MoreHorizontal, Pencil, RotateCcw, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, Copy, ExternalLink, MessageCircle, MoreHorizontal, Pencil, RotateCcw, Trash2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -14,7 +14,12 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { buildWhatsAppShareLink, buildListingShareMessage } from '@/lib/whatsapp';
-import { deleteListingAction, duplicateListingAction, updateListingStatusAction } from '@/app/compte/agent/actions';
+import {
+  deleteListingAction,
+  duplicateListingAction,
+  setListingArchivedAction,
+  updateListingStatusAction,
+} from '@/app/compte/agent/actions';
 import { useToast } from './Toast';
 
 /**
@@ -35,15 +40,36 @@ import { useToast } from './Toast';
  *
  * "Remettre en ligne" is the reverse path, for a listing already closed: it
  * calls the same updateListingStatusAction the per-row status select uses
- * elsewhere (status='active'), which already clears sold_price and
- * revalidates every public surface — there is no separate "republish"
- * action to keep in sync with that one.
+ * elsewhere (status='active'), which already clears the recorded
+ * transaction and revalidates every public surface — there is no separate
+ * "republish" action to keep in sync with that one.
+ *
+ * "Archiver" / "Remettre en vente" is a THIRD, orthogonal thing, and the
+ * distinction is worth holding on to:
+ *
+ *   Marquer loué / vendu   the market state changed, and a real transaction
+ *                          (price + date) is recorded against the listing.
+ *   Archiver               the listing is simply off the market for now —
+ *                          the owner went quiet, the season is over, it's
+ *                          being re-photographed. No transaction happened,
+ *                          nothing is claimed about why, and nothing is
+ *                          deleted.
+ *   Supprimer              gone for good.
+ *
+ * Collapsing the middle one into either neighbour is what forces agents to
+ * delete inventory they only wanted to hide.
  */
 export default function AgentListingActionsMenu({ listing, isClosed }) {
   const router = useRouter();
   const { showToast } = useToast();
   const [pending, startTransition] = useTransition();
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // Archived is `status = 0` — the same active/enabled flag the public
+  // query filters on. Coerced because bigint/smallint columns arrive from
+  // node-postgres as strings often enough that `=== 0` silently never
+  // matches.
+  const isArchived = Number(listing.status) === 0;
 
   function handleRepublish() {
     startTransition(async () => {
@@ -56,6 +82,23 @@ export default function AgentListingActionsMenu({ listing, isClosed }) {
       } catch (err) {
         showToast({ type: 'error', message: err.message || "Échec de la remise en ligne." });
       }
+    });
+  }
+
+  function handleToggleArchive() {
+    startTransition(async () => {
+      const result = await setListingArchivedAction(listing.id, !isArchived);
+      if (!result.ok) {
+        showToast({ type: 'error', message: result.error });
+        return;
+      }
+      showToast({
+        type: 'success',
+        message: isArchived
+          ? `« ${listing.title} » est de nouveau visible sur le site.`
+          : `« ${listing.title} » archivé — masqué du site, rien n’est supprimé.`,
+      });
+      router.refresh();
     });
   }
 
@@ -144,7 +187,20 @@ export default function AgentListingActionsMenu({ listing, isClosed }) {
               <RotateCcw strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
               Remettre en ligne
             </DropdownMenuItem>
-          ) : null}
+          ) : (
+            <DropdownMenuItem
+              onSelect={handleToggleArchive}
+              disabled={pending}
+              className="flex items-center gap-2.5"
+            >
+              {isArchived ? (
+                <ArchiveRestore strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
+              ) : (
+                <Archive strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
+              )}
+              {isArchived ? 'Remettre en vente' : 'Archiver (masquer du site)'}
+            </DropdownMenuItem>
+          )}
 
           <DropdownMenuSeparator />
 

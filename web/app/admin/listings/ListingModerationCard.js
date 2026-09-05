@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import SafeImage from '@/components/SafeImage';
 import { Button } from '@/components/ui/button';
 import { listingImages, feedLocationLine } from '@/lib/listingView';
@@ -38,7 +39,17 @@ export default function ListingModerationCard({ listing, status }) {
           <dd>{listing.agent_phone || '—'}</dd>
         </dl>
 
-        <div className="flex items-center gap-2 pt-2">
+        <div className="flex flex-wrap items-center gap-2 pt-2">
+          {/* Granular override editing (app/admin/listings/[id]) — the third
+              verb this card was missing. Until it existed, a listing with a
+              typo'd price or a missing commune could only be REJECTED and
+              re-submitted by its agent over WhatsApp. */}
+          <Link
+            href={`/admin/listings/${listing.id}`}
+            className="u-btn-secondary u-press inline-flex h-8 items-center rounded-md px-3 text-xs font-bold text-ink"
+          >
+            Modifier
+          </Link>
           {status !== 'approved' && (
             <form action={boundApprove}>
               <Button type="submit" size="sm">

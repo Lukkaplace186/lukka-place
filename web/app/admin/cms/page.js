@@ -17,7 +17,7 @@ export default async function AdminCmsPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-xl font-bold tracking-[-0.02em] text-ink">CMS</h1>
+        <h1 className="u-title-page text-ink">CMS</h1>
         <p className="mt-1 text-sm text-ink-45">
           Contenu réel du CMS — certaines lignes datent de la maquette d&apos;origine et n&apos;ont jamais été
           personnalisées ; elles restent affichées telles quelles plutôt que masquées.
@@ -25,7 +25,7 @@ export default async function AdminCmsPage() {
       </div>
 
       <div>
-        <h2 className="mb-3 text-sm font-semibold text-ink">Taux de change (USD → CDF)</h2>
+        <h2 className="u-title-card mb-3 text-ink">Taux de change (USD → CDF)</h2>
         <p className="mb-3 max-w-2xl text-xs text-ink-45">
           Taux manuel affiché sur le site public, jamais un flux de change en direct — voir web/CLAUDE.md. Modifier
           cette valeur change immédiatement toutes les conversions &laquo;&nbsp;≈&nbsp;&raquo; affichées sur le site.
@@ -56,7 +56,7 @@ export default async function AdminCmsPage() {
       </div>
 
       <div>
-        <h2 className="mb-3 text-sm font-semibold text-ink">Bannières d&apos;accueil (sliders)</h2>
+        <h2 className="u-title-card mb-3 text-ink">Bannières d&apos;accueil (sliders)</h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {sliders.map((slider) => {
             const bound = updateSliderAction.bind(null, slider.id);
@@ -95,7 +95,7 @@ export default async function AdminCmsPage() {
       </div>
 
       <div>
-        <h2 className="mb-3 text-sm font-semibold text-ink">Bannières publicitaires (advertisements)</h2>
+        <h2 className="u-title-card mb-3 text-ink">Bannières publicitaires (advertisements)</h2>
         <div className="overflow-hidden rounded-card border border-line bg-white">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-line bg-canvas-alt text-xs uppercase tracking-wide text-ink-45">

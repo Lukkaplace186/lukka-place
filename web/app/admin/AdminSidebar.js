@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BarChart3, FileText, Mail, User, Landmark, MessageCircle, Settings } from 'lucide-react';
+import { BarChart3, FileText, Mail, User, Landmark, MessageCircle, Radar, Settings } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 
 /**
@@ -28,6 +28,7 @@ const NAV = [
   { href: '/admin/listings', label: 'Annonces', icon: FileText },
   { href: '/admin/conversations', label: 'Conversations', icon: MessageCircle },
   { href: '/admin/leads', label: 'Prospects', icon: Mail },
+  { href: '/admin/matching', label: 'Attribution', icon: Radar },
   { href: '/admin/agents', label: 'Agents', icon: User },
   { href: '/admin/subscriptions', label: 'Abonnements', icon: Landmark },
   { href: '/admin/cms', label: 'CMS', icon: Settings },

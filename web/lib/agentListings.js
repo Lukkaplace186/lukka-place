@@ -23,8 +23,13 @@ const NO_PHOTO_URL = 'https://lukkaplace.com/assets/img/noimage.jpg';
  * engine) this Next.js app can't import from, and commune-as-amenity-id
  * isn't exposed by the engine's GET /locations endpoint (that only returns
  * commune *names*). Keep both copies in sync if a commune is ever renamed.
+ *
+ * Exported so lib/adminListings.js (the admin-side override editor, which has
+ * a deliberately different authority model and therefore its own module) uses
+ * this exact map rather than becoming a THIRD copy — the one thing
+ * tests/unit/write-path-parity.js already exists to prevent.
  */
-const COMMUNE_AMENITY_IDS = {
+export const COMMUNE_AMENITY_IDS = {
   Bandalungwa: 21, Barumbu: 22, Bumbu: 23, Gombe: 24, Kalamu: 25,
   'Kasa-Vubu': 26, Kimbanseke: 27, Kinshasa: 28, Kintambo: 29, Kisenso: 30,
   Lemba: 31, Limete: 32, Lingwala: 33, Makala: 34, Maluku: 35, Masina: 36,

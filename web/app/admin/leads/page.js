@@ -58,7 +58,7 @@ export default async function AdminLeadsPage({ searchParams }) {
     <div>
       <div className="mb-4 flex items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold tracking-[-0.02em] text-ink">Prospects</h1>
+          <h1 className="u-title-page text-ink">Prospects</h1>
           <p className="mt-1 text-sm text-ink-45">{total} prospect{total !== 1 ? 's' : ''}</p>
         </div>
 

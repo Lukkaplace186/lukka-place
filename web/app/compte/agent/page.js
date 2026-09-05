@@ -10,12 +10,7 @@ import {
   VIEW_RANGES,
 } from '@/lib/analytics';
 import { listLeads } from '@/lib/adminApi';
-import {
-  hasDemandFeedAccess,
-  isWithinLaunchTrial,
-  launchTrialEndsAtLabel,
-  getAgentPitchQuota,
-} from '@/lib/demandFeed';
+import { getAgentLeadQuota } from '@/lib/leadQuota';
 import { SITE_URL, ICON_STROKE_WIDTH } from '@/lib/constants';
 import AgentPageHeader from '@/components/AgentPageHeader';
 import AgentPortfolioBanner from '@/components/AgentPortfolioBanner';
@@ -35,7 +30,7 @@ export default async function AgentOverviewPage({ searchParams }) {
   const { agent, listings, propertyIds, listingById, leadScope, hasLeadScope, newLeadsCount } =
     await getAgentDashboardContext(agentId);
 
-  const [views30d, whatsappClicks, leadsPage, series, deltas, pitchQuota] = await Promise.all([
+  const [views30d, whatsappClicks, leadsPage, series, deltas, leadQuota] = await Promise.all([
     getAgentListingViews(propertyIds, 30),
     getAgentWhatsAppClicks(propertyIds),
     hasLeadScope ? listLeads({ ...leadScope, limit: 3 }) : Promise.resolve({ total: 0, data: [] }),
@@ -43,10 +38,10 @@ export default async function AgentOverviewPage({ searchParams }) {
     getAgentMonthlyDeltas(agentId, propertyIds),
     // Same degrade-don't-die contract the rest of this dashboard follows: the
     // engine being unreachable must not take the overview down. The card
-    // simply shows no quota line rather than a fabricated one — and
-    // proposeListingAction re-checks the real count server-side before any
-    // pitch is written, so an unreadable count here can never grant one.
-    getAgentPitchQuota(agentId, agent),
+    // simply shows no quota bar rather than a fabricated one — and the write
+    // path re-checks the real count server-side before recording a response,
+    // so an unreadable count here can never grant one.
+    getAgentLeadQuota(agentId, agent),
   ]);
 
   const activeCount = listings.filter((l) => l.approve_status === 1 && l.listing_status === 'active').length;
@@ -114,14 +109,7 @@ export default async function AgentOverviewPage({ searchParams }) {
               expireDate={agent.expire_date}
               listingCount={listings.length}
               listingLimit={agent.listing_limit}
-              feedAccess={hasDemandFeedAccess(agent)}
-              // Only passed when the launch trial is what's actually granting
-              // access — an agency on a real paid membership shouldn't be told
-              // their access expires on the trial's date.
-              feedTrialEndsAt={
-                isWithinLaunchTrial() && !agent.package_title ? launchTrialEndsAtLabel() : null
-              }
-              pitchQuota={pitchQuota}
+              leadQuota={leadQuota}
             />
           </div>
         </div>

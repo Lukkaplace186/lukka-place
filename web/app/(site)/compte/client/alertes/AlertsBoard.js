@@ -50,7 +50,7 @@ export default function AlertsBoard({ matches, whatsappHref }) {
               <PortalPanel key={search.id} className="p-6">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <h3 className="text-[1.125rem] font-bold leading-snug text-ink">{search.label}</h3>
+                    <h3 className="u-title-card text-ink">{search.label}</h3>
                     <p
                       className={`mt-2 inline-flex items-center gap-1.5 text-[0.8125rem] font-semibold ${
                         newCount > 0 ? 'text-blue-deep' : 'text-ink-45'
@@ -126,7 +126,7 @@ export default function AlertsBoard({ matches, whatsappHref }) {
 
       <PortalPanel as="aside" className="flex flex-col gap-5 p-6">
         <div>
-          <h3 className="text-[1.125rem] font-bold text-ink">Comment vous êtes prévenu</h3>
+          <h3 className="u-title-card text-ink">Comment vous êtes prévenu</h3>
           <p className="mt-2 text-[0.8125rem] leading-[1.5] text-ink-45">
             Vos alertes sont consultables ici : à chaque visite, chaque recherche est relancée et les biens publiés
             depuis votre dernier passage sont mis en avant.

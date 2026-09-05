@@ -922,7 +922,147 @@ db.exec(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_lead_proposals_lead_id ON lead_proposals (lead_id);
+
+  -- Automated agent matching — one row per (request, agent) the dispatcher
+  -- actually pushed to. Written by services/leadDispatch.js the instant a
+  -- request is created, before any agent has done anything.
+  --
+  -- Deliberately NOT folded into lead_proposals, which is a different fact:
+  --
+  --   lead_matches    "we decided this agency should see this request, and
+  --                    we notified them" — our action, no agent involvement,
+  --                    no property attached (there isn't one yet).
+  --   lead_proposals  "this agency answered, with THIS specific property" —
+  --                    the agent's action, property_id NOT NULL, and the
+  --                    thing their monthly quota is actually counted from.
+  --
+  -- Merging them would either force a fake property_id onto a notification,
+  -- or silently make every push consume the agent's paid response quota.
+  -- Keeping them apart is also what makes response *rate* measurable at all:
+  -- matches without a matching proposal row are exactly the requests an
+  -- agency was given and did not work.
+  --
+  -- "rank" is the agent's position in the ranking that produced this push
+  -- (1 = best match), kept so the ranking can be evaluated after the fact
+  -- rather than only reasoned about.
+  CREATE TABLE IF NOT EXISTS lead_matches (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    lead_id      INTEGER NOT NULL REFERENCES leads (id),
+    agent_id     INTEGER NOT NULL,
+    agent_phone  TEXT,
+    rank         INTEGER,
+    score        REAL,
+    channel      TEXT NOT NULL DEFAULT 'whatsapp',
+    -- 'NOTIFIED' once the WhatsApp push succeeded, 'FAILED' when it did not
+    -- (the row is still written either way — a failed notification is a real
+    -- fact worth seeing in /admin, not something to hide by not recording).
+    status       TEXT NOT NULL DEFAULT 'NOTIFIED',
+    error        TEXT,
+    created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (lead_id, agent_id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_lead_matches_lead_id  ON lead_matches (lead_id);
+  CREATE INDEX IF NOT EXISTS idx_lead_matches_agent_id ON lead_matches (agent_id, created_at);
+
+  -- WhatsApp agent onboarding (services/agentOnboarding.js) — the short-lived
+  -- conversational state between "we asked an unregistered sender for their
+  -- name" and "their agents row exists in Postgres".
+  --
+  -- Local and deliberately so: it is conversation state, exactly like
+  -- "conversations" above, and it is worthless the moment the real account
+  -- exists. The account itself, the phone verification and the activation
+  -- token all live in Postgres where the rest of the agent identity does —
+  -- nothing here is a second source of truth for any of that.
+  CREATE TABLE IF NOT EXISTS agent_onboarding (
+    wa_id       TEXT PRIMARY KEY,
+    -- 'AWAITING_NAME'  we have asked for their name/agency and are waiting
+    -- 'COMPLETED'      the agents row exists; nothing more is asked here
+    state       TEXT NOT NULL DEFAULT 'AWAITING_NAME',
+    full_name   TEXT,
+    agency_name TEXT,
+    agent_id    INTEGER,
+    -- How many times we have asked. Capped by the caller so a sender who
+    -- never answers is not re-asked on every listing they ever send.
+    asked_count INTEGER NOT NULL DEFAULT 1,
+    created_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- Scheduled-job bookkeeping (services/scheduler.js). One row per job name,
+  -- not one per run: the only question ever asked of it is "when did this
+  -- last SUCCEED?", which is what makes the weekly customer-alert sweep
+  -- idempotent across restarts. A deploy landing inside the firing window
+  -- must not send every customer a second round of WhatsApp alerts.
+  --
+  -- last_error and last_run_at are recorded separately from succeeded_at on
+  -- purpose: a failed attempt must be visible without advancing the "already
+  -- ran this week" clock, so the next tick retries instead of skipping the
+  -- whole week.
+  CREATE TABLE IF NOT EXISTS job_runs (
+    name         TEXT PRIMARY KEY,
+    last_run_at  TIMESTAMP,
+    succeeded_at TIMESTAMP,
+    last_error   TEXT,
+    detail       TEXT,
+    run_count    INTEGER NOT NULL DEFAULT 0
+  );
 `);
+
+/** @returns {{name, last_run_at, succeeded_at, last_error, detail, run_count}|null} */
+function getLastJobRun(name) {
+  return db.prepare('SELECT * FROM job_runs WHERE name = ?').get(String(name)) || null;
+}
+
+/**
+ * Records an attempt. `succeeded_at` only moves on success — see the table
+ * comment for why a failure must stay visible without advancing the clock
+ * that decides whether the job already ran this period.
+ */
+function recordJobRun(name, { ok, detail = null } = {}) {
+  db.prepare(
+    `INSERT INTO job_runs (name, last_run_at, succeeded_at, last_error, detail, run_count)
+     VALUES (@name, CURRENT_TIMESTAMP, CASE WHEN @ok = 1 THEN CURRENT_TIMESTAMP END,
+             CASE WHEN @ok = 1 THEN NULL ELSE @detail END, @detail, 1)
+     ON CONFLICT (name) DO UPDATE SET
+       last_run_at  = CURRENT_TIMESTAMP,
+       succeeded_at = CASE WHEN @ok = 1 THEN CURRENT_TIMESTAMP ELSE job_runs.succeeded_at END,
+       last_error   = CASE WHEN @ok = 1 THEN NULL ELSE @detail END,
+       detail       = @detail,
+       run_count    = job_runs.run_count + 1`,
+  ).run({ name: String(name), ok: ok ? 1 : 0, detail });
+  return getLastJobRun(name);
+}
+
+/** @returns {Object|null} the onboarding session for this sender, if any. */
+function getOnboardingSession(waId) {
+  return db.prepare('SELECT * FROM agent_onboarding WHERE wa_id = ?').get(String(waId)) || null;
+}
+
+/**
+ * Opens the session, or bumps `asked_count` on an existing one. The bump is
+ * what makes the "stop asking after N listings" cap real rather than a
+ * counter the caller has to maintain.
+ */
+function openOnboardingSession(waId) {
+  db.prepare(
+    `INSERT INTO agent_onboarding (wa_id, state) VALUES (?, 'AWAITING_NAME')
+     ON CONFLICT (wa_id) DO UPDATE SET
+       asked_count = agent_onboarding.asked_count + 1,
+       updated_at  = CURRENT_TIMESTAMP`,
+  ).run(String(waId));
+  return getOnboardingSession(waId);
+}
+
+/** Terminal state — the real Postgres agents row now exists. */
+function completeOnboardingSession(waId, { fullName, agencyName, agentId } = {}) {
+  db.prepare(
+    `UPDATE agent_onboarding
+     SET state = 'COMPLETED', full_name = ?, agency_name = ?, agent_id = ?, updated_at = CURRENT_TIMESTAMP
+     WHERE wa_id = ?`,
+  ).run(fullName || null, agencyName || null, agentId ?? null, String(waId));
+  return getOnboardingSession(waId);
+}
 
 /**
  * `agent_id` — the admin dashboard's Request Assignment Routing needs a real
@@ -1364,7 +1504,7 @@ const LEADS_LIST_LIMIT_MAX = 100;
  * @param {number} [options.offset]
  * @returns {{total: number, limit: number, offset: number, count: number, data: Object[]}}
  */
-function listLeads({ status, propertyIds, assignedAgent, agentId, waId, limit, offset } = {}) {
+function listLeads({ status, propertyIds, assignedAgent, agentId, matchedAgentId, waId, limit, offset } = {}) {
   const where = [];
   const params = {};
   if (status) {
@@ -1391,10 +1531,17 @@ function listLeads({ status, propertyIds, assignedAgent, agentId, waId, limit, o
   // manual QA of the agent-profile inquiry form. No IN-clause placeholder
   // helper exists in better-sqlite3 for a variable-length array, so the
   // property_id branch builds one @p0, @p1, ... param per id explicitly.
+  //
+  // `matchedAgentId` is the fourth ownership signal, added with the automated
+  // dispatcher: a request the engine PUSHED to this agency is theirs to work
+  // even though it names no property of theirs and was never assigned to them
+  // by hand. Without it the whole point of the push would be lost — the agent
+  // gets a WhatsApp alert about a request that then isn't in their dashboard.
   const hasPropertyIds = Array.isArray(propertyIds) && propertyIds.length > 0;
   const hasAssignedAgent = !!assignedAgent;
   const hasAgentId = Number.isFinite(agentId);
-  if (hasPropertyIds || hasAssignedAgent || hasAgentId) {
+  const hasMatchedAgentId = Number.isFinite(matchedAgentId);
+  if (hasPropertyIds || hasAssignedAgent || hasAgentId || hasMatchedAgentId) {
     const ownerClauses = [];
     if (hasPropertyIds) {
       const placeholders = propertyIds.map((id, i) => {
@@ -1410,6 +1557,12 @@ function listLeads({ status, propertyIds, assignedAgent, agentId, waId, limit, o
     if (hasAgentId) {
       ownerClauses.push('agent_id = @agentId');
       params.agentId = agentId;
+    }
+    if (hasMatchedAgentId) {
+      ownerClauses.push(
+        'EXISTS (SELECT 1 FROM lead_matches lm WHERE lm.lead_id = leads.id AND lm.agent_id = @matchedAgentId)',
+      );
+      params.matchedAgentId = matchedAgentId;
     }
     where.push(`(${ownerClauses.join(' OR ')})`);
   }
@@ -1554,6 +1707,165 @@ function getLeadProposals(leadIds) {
   return db
     .prepare(`SELECT * FROM lead_proposals WHERE lead_id IN (${placeholders}) ORDER BY created_at DESC`)
     .all(params);
+}
+
+/**
+ * Everything /admin's matching console needs, in one round trip.
+ *
+ * Real counts only. "Response rate" is matches that have a real
+ * lead_proposals row from the same agency — an agency that was pushed a
+ * request and answered it with a property. Nothing here estimates: a window
+ * with no pushes reports zeros, not a projection.
+ *
+ * @param {{since: string}} options ISO timestamp — the window start.
+ */
+function getMatchingStats({ since }) {
+  const totals = db
+    .prepare(
+      `SELECT
+         (SELECT COUNT(*) FROM leads WHERE created_at >= @since)                      AS leads,
+         (SELECT COUNT(DISTINCT lead_id) FROM lead_matches WHERE created_at >= @since) AS leads_dispatched,
+         (SELECT COUNT(*) FROM lead_matches WHERE created_at >= @since)                AS pushes,
+         (SELECT COUNT(*) FROM lead_matches WHERE created_at >= @since AND status = 'FAILED') AS failed_pushes,
+         (SELECT COUNT(*) FROM lead_proposals WHERE created_at >= @since)              AS proposals`,
+    )
+    .get({ since });
+
+  // Requests that reached nobody. This is the number that matters most on
+  // that page: it is the coverage gap, i.e. the communes where customers are
+  // asking and no agency has signed up to answer.
+  const uncovered = db
+    .prepare(
+      `SELECT COALESCE(commune, 'Non précisée') AS commune, COUNT(*) AS n
+       FROM leads l
+       WHERE l.created_at >= @since
+         AND NOT EXISTS (SELECT 1 FROM lead_matches m WHERE m.lead_id = l.id)
+       GROUP BY COALESCE(commune, 'Non précisée')
+       ORDER BY n DESC`,
+    )
+    .all({ since });
+
+  const byCommune = db
+    .prepare(
+      `SELECT COALESCE(l.commune, 'Non précisée') AS commune,
+              COUNT(DISTINCT l.id)     AS leads,
+              COUNT(m.id)              AS pushes,
+              COUNT(DISTINCT p.id)     AS answers
+       FROM leads l
+       LEFT JOIN lead_matches   m ON m.lead_id = l.id
+       LEFT JOIN lead_proposals p ON p.lead_id = l.id
+       WHERE l.created_at >= @since
+       GROUP BY COALESCE(l.commune, 'Non précisée')
+       ORDER BY leads DESC`,
+    )
+    .all({ since });
+
+  const byAgent = db
+    .prepare(
+      `SELECT m.agent_id,
+              m.agent_phone,
+              COUNT(*) AS pushes,
+              SUM(CASE WHEN p.id IS NOT NULL THEN 1 ELSE 0 END) AS answers,
+              MIN(m.rank) AS best_rank
+       FROM lead_matches m
+       LEFT JOIN lead_proposals p ON p.lead_id = m.lead_id AND p.agent_id = m.agent_id
+       WHERE m.created_at >= @since
+       GROUP BY m.agent_id, m.agent_phone
+       ORDER BY pushes DESC`,
+    )
+    .all({ since });
+
+  return { since, totals, uncovered, byCommune, byAgent };
+}
+
+/**
+ * Records that the automated dispatcher pushed a request to one agency.
+ *
+ * `INSERT OR IGNORE`, not a plain INSERT: UNIQUE(lead_id, agent_id) is what
+ * guarantees an agency is never pushed the same request twice, and a
+ * re-dispatch (a retry after a partial failure, a lead edited and re-matched)
+ * must be a silent no-op for agencies already notified rather than an error
+ * that aborts the whole sweep.
+ *
+ * @param {{leadId: number, agentId: number, agentPhone?: string|null, rank?: number|null,
+ *          score?: number|null, channel?: string, status?: string, error?: string|null}} input
+ * @returns {{created: boolean, row: Object|null}}
+ */
+function recordLeadMatch({
+  leadId, agentId, agentPhone = null, rank = null, score = null,
+  channel = 'whatsapp', status = 'NOTIFIED', error = null,
+}) {
+  const info = db
+    .prepare(
+      `INSERT OR IGNORE INTO lead_matches (lead_id, agent_id, agent_phone, rank, score, channel, status, error)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(Number(leadId), Number(agentId), agentPhone, rank, score, channel, status, error);
+
+  const row = db
+    .prepare('SELECT * FROM lead_matches WHERE lead_id = ? AND agent_id = ?')
+    .get(Number(leadId), Number(agentId));
+  return { created: info.changes > 0, row: row || null };
+}
+
+/**
+ * Flips a match to FAILED after the fact — the dispatcher writes the row
+ * first (so a crash mid-send still leaves evidence the agency was selected)
+ * and downgrades it only if the send genuinely failed.
+ */
+function markLeadMatchFailed({ leadId, agentId, error }) {
+  db.prepare(
+    `UPDATE lead_matches SET status = 'FAILED', error = ? WHERE lead_id = ? AND agent_id = ?`,
+  ).run(String(error || '').slice(0, 500), Number(leadId), Number(agentId));
+}
+
+/** Every agency this request was pushed to, best-ranked first. */
+function getLeadMatches(leadId) {
+  return db
+    .prepare('SELECT * FROM lead_matches WHERE lead_id = ? ORDER BY rank IS NULL, rank ASC, id ASC')
+    .all(Number(leadId));
+}
+
+/**
+ * Responsiveness, per agency, over a real window — the share of pushed
+ * requests they actually answered with a proposal.
+ *
+ * Both halves are real rows, never an estimate: `matched` counts
+ * lead_matches, `answered` counts how many of those same leads the agency
+ * also has a lead_proposals row for. An agency with no pushes yet returns
+ * `matched: 0`, and the caller treats that as neutral rather than as a
+ * zero score — a brand-new agency has not been unresponsive, it has not been
+ * given anything.
+ *
+ * @param {{since: string}} options ISO timestamp.
+ * @returns {Map<number, {matched: number, answered: number}>}
+ */
+function getAgentResponsivenessSince({ since }) {
+  const rows = db
+    .prepare(
+      `SELECT m.agent_id AS agent_id,
+              COUNT(*) AS matched,
+              SUM(CASE WHEN p.id IS NOT NULL THEN 1 ELSE 0 END) AS answered
+       FROM lead_matches m
+       LEFT JOIN lead_proposals p
+         ON p.lead_id = m.lead_id AND p.agent_id = m.agent_id
+       WHERE m.created_at >= ?
+       GROUP BY m.agent_id`,
+    )
+    .all(since);
+  return new Map(rows.map((r) => [Number(r.agent_id), { matched: r.matched, answered: r.answered || 0 }]));
+}
+
+/**
+ * How many requests this agency was pushed within a window — the input to the
+ * dispatcher's own fairness cap, so one agency doesn't absorb every lead in a
+ * busy commune while its neighbours get none.
+ */
+function countAgentMatchesSince({ agentId, since }) {
+  const row = db
+    .prepare('SELECT count(*) AS n FROM lead_matches WHERE agent_id = ? AND created_at >= ?')
+    .get(Number(agentId), since);
+  return row ? row.n : 0;
 }
 
 /**
@@ -1742,6 +2054,17 @@ module.exports = {
   listOpenLeads,
   createLeadProposal,
   getLeadProposals,
+  getLastJobRun,
+  recordJobRun,
+  getOnboardingSession,
+  openOnboardingSession,
+  completeOnboardingSession,
+  recordLeadMatch,
+  markLeadMatchFailed,
+  getLeadMatches,
+  getMatchingStats,
+  getAgentResponsivenessSince,
+  countAgentMatchesSince,
   countAgentProposalsSince,
   MAX_PITCHES_PER_LEAD,
   createViewingRequest,

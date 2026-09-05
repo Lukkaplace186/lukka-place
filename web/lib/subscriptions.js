@@ -192,3 +192,141 @@ export async function getFeaturedPropertyIds() {
   );
   return new Set(rows.map((r) => Number(r.property_id)));
 }
+
+// ---------------------------------------------------------------------------
+// Agent-facing subscription surface (/compte/agent/abonnement)
+//
+// Everything below reads the same real memberships/packages tables the admin
+// side already writes. No second source of truth, and nothing here fabricates
+// a figure the schema can't back — an agency with no vendor row simply has no
+// billing history, and that renders as an honest empty state.
+// ---------------------------------------------------------------------------
+
+/**
+ * The plans an agent can actually be moved onto: real, active `packages`
+ * rows. Ordered cheapest-first so the tier ladder reads in the direction an
+ * upgrade goes.
+ *
+ * `monthly_pitch_limit` and `number_of_property` are the two real quotas this
+ * schema carries, and they are exactly what the comparison table shows —
+ * there is deliberately no invented "priority support" / "featured listings
+ * included" row, because nothing in the database backs one.
+ */
+export async function getPurchasablePackages() {
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT id, title, price, term, number_of_property, monthly_pitch_limit,
+            priority_multiplier, is_trial, trial_days
+     FROM packages
+     WHERE status = 1
+     ORDER BY price ASC, id ASC`,
+  );
+  return rows.map((r) => ({
+    ...r,
+    id: Number(r.id),
+    price: Number(r.price),
+    priority_multiplier: r.priority_multiplier == null ? 1 : Number(r.priority_multiplier),
+  }));
+}
+
+/**
+ * One agency's own billing/subscription history — the same `memberships`
+ * rows getMemberships() returns platform-wide, scoped to a vendor.
+ *
+ * Every row IS a payment record (see getMemberships' doc comment): this
+ * table accumulates one row per assignment/renewal, so "historique de
+ * facturation" is this list ordered by when it happened, not a separate
+ * ledger that could drift from it.
+ *
+ * @param {number|null} vendorId `agents.vendor_id` — null for an agent whose
+ *   agency has never been linked, which correctly yields an empty history
+ *   rather than someone else's.
+ */
+export async function getAgentBillingHistory(vendorId) {
+  if (!vendorId) return [];
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT mem.id, mem.status, mem.is_trial, mem.price, mem.currency, mem.currency_symbol,
+            mem.payment_method, mem.transaction_id, mem.receipt,
+            mem.start_date, mem.expire_date, mem.created_at,
+            pkg.title AS package_title, pkg.term AS package_term
+     FROM memberships mem
+     LEFT JOIN packages pkg ON pkg.id = mem.package_id
+     WHERE mem.vendor_id = $1
+     ORDER BY mem.created_at DESC, mem.id DESC`,
+    [vendorId],
+  );
+  return rows;
+}
+
+export const PLAN_REQUEST_STATUSES = ['pending', 'approved', 'declined'];
+
+/**
+ * Records an agent's own request to move to a plan. Idempotent per open
+ * request thanks to `plan_change_requests_open_uniq` (a partial unique index
+ * over status='pending'), so a double-click or an impatient re-submit is a
+ * no-op rather than a duplicate row in the admin queue.
+ *
+ * @returns {Promise<{created: boolean}>} `created: false` means an identical
+ *   request was already open — the caller says so instead of claiming a new
+ *   one was filed.
+ */
+export async function createPlanChangeRequest({ agentId, packageId, kind = 'upgrade', note = null }) {
+  const pool = getPool();
+  const { rowCount } = await pool.query(
+    `INSERT INTO plan_change_requests (agent_id, package_id, kind, note)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT DO NOTHING`,
+    [agentId, packageId, kind, note],
+  );
+  return { created: rowCount > 0 };
+}
+
+/** This agent's own open requests, so the dashboard can show "demande en cours" on that tier. */
+export async function getOpenPlanChangeRequests(agentId) {
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT id, package_id, kind, note, created_at
+     FROM plan_change_requests
+     WHERE agent_id = $1 AND status = 'pending'
+     ORDER BY created_at DESC`,
+    [agentId],
+  );
+  return rows.map((r) => ({ ...r, package_id: r.package_id == null ? null : Number(r.package_id) }));
+}
+
+/**
+ * The admin queue behind /admin/subscriptions. Joins through to the agent and
+ * the requested package so the queue is readable without N follow-up lookups.
+ */
+export async function listPlanChangeRequests({ status = 'pending', limit = 100 } = {}) {
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT pcr.id, pcr.agent_id, pcr.package_id, pcr.kind, pcr.note, pcr.status,
+            pcr.created_at, pcr.handled_at, pcr.handled_note,
+            a.username AS agent_username, a.phone AS agent_phone, a.agency_name,
+            pkg.title AS package_title, pkg.price AS package_price, pkg.term AS package_term
+     FROM plan_change_requests pcr
+     LEFT JOIN agents a ON a.id = pcr.agent_id
+     LEFT JOIN packages pkg ON pkg.id = pcr.package_id
+     WHERE ($1::text IS NULL OR pcr.status = $1)
+     ORDER BY pcr.created_at DESC
+     LIMIT $2`,
+    [status || null, limit],
+  );
+  return rows;
+}
+
+/** @param {'approved'|'declined'} status */
+export async function resolvePlanChangeRequest(id, status, note = null) {
+  if (!['approved', 'declined'].includes(status)) {
+    throw new Error("status must be 'approved' or 'declined'");
+  }
+  const pool = getPool();
+  await pool.query(
+    `UPDATE plan_change_requests
+     SET status = $1, handled_at = NOW(), handled_note = $2
+     WHERE id = $3 AND status = 'pending'`,
+    [status, note, id],
+  );
+}

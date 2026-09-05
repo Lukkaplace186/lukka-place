@@ -47,7 +47,7 @@ export default async function AlertesPage() {
       <Breadcrumb className="mb-6" items={[{ label: 'Accueil', href: '/' }, { label: 'Alertes' }]} />
 
       <header className="mb-10">
-        <h1 className="font-display text-[2rem] font-normal leading-[1.12] tracking-[-0.02em] text-ink sm:text-[2.5rem]">
+        <h1 className="u-title-hero text-ink">
           Alertes
         </h1>
         <p className="mt-3 text-[0.9375rem] leading-relaxed text-ink-45">
@@ -60,7 +60,7 @@ export default async function AlertesPage() {
           <span className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-canvas-alt text-ink-45">
             <Bookmark strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
           </span>
-          <h3 className="font-display text-xl font-normal tracking-[-0.01em] text-ink">Aucune recherche sauvegardée</h3>
+          <h3 className="u-title-section text-ink">Aucune recherche sauvegardée</h3>
           <p className="mx-auto mt-2 max-w-sm text-[0.875rem] leading-relaxed text-ink-45">
             Sauvegardez une recherche depuis la page des annonces pour être alerté des nouveaux biens correspondants.
           </p>

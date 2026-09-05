@@ -205,7 +205,7 @@ function FavoritesSection() {
           <span className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-canvas-alt text-ink-45">
             <Heart strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
           </span>
-          <h3 className="font-display text-xl font-normal tracking-[-0.01em] text-ink">Rien d&apos;enregistré</h3>
+          <h3 className="u-title-section text-ink">Rien d&apos;enregistré</h3>
           <p className="mx-auto mt-2 max-w-sm text-[0.875rem] leading-relaxed text-ink-45">
             Touchez le cœur sur une annonce pour la retrouver ici, et partagez votre sélection en un lien.
           </p>

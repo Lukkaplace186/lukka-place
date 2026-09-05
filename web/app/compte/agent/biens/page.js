@@ -17,16 +17,39 @@ const LISTING_STATUS_OPTIONS = [
   { value: 'closed', label: 'Loué / Vendu' },
 ];
 
-// Three broad pills above the table — plain GET links into the same
-// `?status=` param the detailed select already reads, not a second
-// client-side filtering mechanism. "Loués / Vendus" groups 'closed' the
-// same way the design's own three-state grouping does; the granular select
-// beside it still offers 'under_offer' on its own for whoever wants it.
+// Broad pills above the table — plain GET links into the same `?status=`
+// param the detailed select already reads, not a second client-side
+// filtering mechanism. "Loués / Vendus" groups 'closed' the same way the
+// design's own grouping does; the granular select beside it still offers
+// 'under_offer' on its own for whoever wants it.
+//
+// 'archived' is deliberately in this list even though it is NOT a
+// listing_status value — it's `properties.status = 0`, a different axis (see
+// setListingArchivedAction). Filtering by it from the same control is right
+// for the agent ("show me the ones that aren't on the site"); `matchesFilter`
+// below is what keeps the two axes from being conflated in the data.
 const FILTER_PILLS = [
   { value: '', label: 'Tous' },
-  { value: 'active', label: 'Actifs' },
+  { value: 'active', label: 'En ligne' },
+  { value: 'archived', label: 'Archivés' },
   { value: 'closed', label: 'Loués / Vendus' },
 ];
+
+/**
+ * One place that knows `?status=` spans two independent columns:
+ *   'archived'                     -> properties.status = 0 (visibility)
+ *   'active' | 'under_offer' | ... -> properties.listing_status (market)
+ *
+ * 'active' additionally excludes archived rows: an agent asking for their
+ * live inventory does not mean "including the ones hidden from the site".
+ */
+function matchesFilter(listing, filter) {
+  if (!filter) return true;
+  const archived = Number(listing.status) === 0;
+  if (filter === 'archived') return archived && listing.listing_status !== 'closed';
+  if (filter === 'active') return listing.listing_status === 'active' && !archived;
+  return listing.listing_status === filter;
+}
 
 export default async function AgentListingsPage({ searchParams }) {
   const params = await searchParams;
@@ -43,14 +66,17 @@ export default async function AgentListingsPage({ searchParams }) {
 
   const needle = q.toLowerCase();
   const filtered = listings.filter((l) => {
-    if (statusFilter && l.listing_status !== statusFilter) return false;
+    if (!matchesFilter(l, statusFilter)) return false;
     if (!needle) return true;
     return `${l.title || ''} ${l.quartier || ''}`.toLowerCase().includes(needle);
   });
 
-  const counts = LISTING_STATUS_OPTIONS.map(
-    (o) => `${listings.filter((l) => l.listing_status === o.value).length} ${o.label.toLowerCase()}`,
-  ).join(' · ');
+  const counts = [
+    ...LISTING_STATUS_OPTIONS.map(
+      (o) => `${listings.filter((l) => matchesFilter(l, o.value)).length} ${o.label.toLowerCase()}`,
+    ),
+    `${listings.filter((l) => matchesFilter(l, 'archived')).length} archivé(s)`,
+  ].join(' · ');
 
   return (
     <>
@@ -88,7 +114,7 @@ export default async function AgentListingsPage({ searchParams }) {
         <div className="u-card overflow-hidden rounded-card bg-surface">
           <div className="flex flex-wrap items-center justify-between gap-4 border-b border-line px-6 py-5">
             <div>
-              <div className="text-[1.125rem] font-bold text-ink">
+              <div className="u-title-card text-ink">
                 {listings.length} bien{listings.length === 1 ? '' : 's'}
               </div>
               <div className="mt-0.5 text-[0.8125rem] text-ink-45">{counts}</div>
@@ -109,6 +135,7 @@ export default async function AgentListingsPage({ searchParams }) {
                       {o.label}
                     </option>
                   ))}
+                  <option value="archived">Archivé (masqué du site)</option>
                 </select>
                 <button
                   type="submit"

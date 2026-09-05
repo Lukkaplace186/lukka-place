@@ -10,9 +10,19 @@ import { useToast } from './Toast';
 
 /**
  * The only path to listing_status = 'closed' (see actions.js's
- * LISTING_STATUSES comment) — collects the real final transaction price
- * before the listing leaves the active market, rather than letting a bare
- * status change silently lose that figure.
+ * LISTING_STATUSES comment) — collects the real final transaction price AND
+ * date before the listing leaves the active market, rather than letting a
+ * bare status change silently lose both.
+ *
+ * Both fields are required, and both are load-bearing beyond this screen:
+ * asking-vs-achieved price and days-on-market are the two columns that make
+ * the market export (lib/dataExport.js) worth anything to a bank or a
+ * developer. DOM was previously derived from `updated_at`, which is not the
+ * closing date — it moves every time anything on the row changes.
+ *
+ * `max` on the date input blocks a future date in the picker itself; the
+ * server re-checks it (and that it isn't before the listing was published)
+ * rather than trusting the attribute.
  */
 export default function MarkListingSoldDialog({ propertyId, purpose, title }) {
   const [open, setOpen] = useState(false);
@@ -22,6 +32,7 @@ export default function MarkListingSoldDialog({ propertyId, purpose, title }) {
 
   const isRent = purpose === 'rent';
   const verb = isRent ? 'loué' : 'vendu';
+  const today = new Date().toISOString().slice(0, 10);
 
   function handleSubmit(event) {
     event.preventDefault();
@@ -55,27 +66,49 @@ export default function MarkListingSoldDialog({ propertyId, purpose, title }) {
         <DialogHeader>
           <DialogTitle>Marquer comme {verb} ?</DialogTitle>
           <DialogDescription>
-            « {title} » sera retiré des biens actifs et le prix final sera enregistré. Cette information reste
-            visible sur votre tableau de bord.
+            « {title} » sera retiré de la recherche publique et la transaction sera enregistrée. Rien n’est
+            supprimé : le bien reste sur votre tableau de bord et peut être remis en ligne à tout moment.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div>
-            <label htmlFor="sold_price" className="mb-1.5 block text-[0.8125rem] font-semibold text-ink-70">
-              Prix final ($)
-            </label>
-            <input
-              id="sold_price"
-              name="sold_price"
-              type="number"
-              min="1"
-              step="1"
-              required
-              autoFocus
-              className="u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink"
-            />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label htmlFor="sold_price" className="u-micro-strong mb-1.5 block text-ink-70">
+                Prix final convenu ($)
+              </label>
+              <input
+                id="sold_price"
+                name="sold_price"
+                type="number"
+                min="1"
+                step="1"
+                required
+                autoFocus
+                className="u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="sold_at" className="u-micro-strong mb-1.5 block text-ink-70">
+                Date de la transaction
+              </label>
+              <input
+                id="sold_at"
+                name="sold_at"
+                type="date"
+                max={today}
+                defaultValue={today}
+                required
+                className="u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink"
+              />
+            </div>
           </div>
+
+          <p className="u-micro text-ink-45">
+            Le prix réellement convenu — pas le prix affiché — et la date alimentent les statistiques de
+            marché de Lukka Place. Ils ne sont jamais publiés sur l’annonce.
+          </p>
 
           <DialogFooter>
             <DialogClose asChild>

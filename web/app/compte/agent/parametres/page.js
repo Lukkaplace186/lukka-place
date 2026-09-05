@@ -45,7 +45,7 @@ export default async function AgentSettingsPage({ searchParams }) {
         <div className="flex flex-col gap-6">
         <div className="u-card flex flex-col gap-5 rounded-card bg-surface p-6">
           <div>
-            <h2 className="text-[1.125rem] font-bold text-ink">Identité de l&apos;agence</h2>
+            <h2 className="u-title-card text-ink">Identité de l&apos;agence</h2>
             <p className="mt-0.5 text-[0.8125rem] text-ink-45">
               Ce que vos clients voient en haut de votre page publique.
             </p>
@@ -140,7 +140,7 @@ export default async function AgentSettingsPage({ searchParams }) {
 
         <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-6">
           <div>
-            <h2 className="text-[1.125rem] font-bold text-ink">Communes couvertes</h2>
+            <h2 className="u-title-card text-ink">Communes couvertes</h2>
             <p className="mt-0.5 text-[0.8125rem] text-ink-45">
               Les communes où vous proposez des biens, affichées sur votre page publique.
             </p>
@@ -179,7 +179,7 @@ export default async function AgentSettingsPage({ searchParams }) {
 
         <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-6">
           <div>
-            <h2 className="text-[1.125rem] font-bold text-ink">Horaires</h2>
+            <h2 className="u-title-card text-ink">Horaires</h2>
             <p className="mt-0.5 text-[0.8125rem] text-ink-45">
               Vos jours et heures de disponibilité, affichés sur votre page publique.
             </p>
@@ -213,7 +213,7 @@ export default async function AgentSettingsPage({ searchParams }) {
 
         <div className="flex flex-col gap-6">
           <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-6">
-            <h2 className="text-[1.125rem] font-bold text-ink">Mot de passe</h2>
+            <h2 className="u-title-card text-ink">Mot de passe</h2>
 
             <form action={changeAgentPasswordAction} className="flex flex-col gap-3">
               {[
@@ -259,7 +259,7 @@ export default async function AgentSettingsPage({ searchParams }) {
 
           <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-6">
             <div className="flex items-center justify-between gap-3">
-              <h2 className="text-[1.125rem] font-bold text-ink">Votre page publique</h2>
+              <h2 className="u-title-card text-ink">Votre page publique</h2>
               <span className="u-tabular text-[0.8125rem] font-bold text-blue">{completion.percent} %</span>
             </div>
 

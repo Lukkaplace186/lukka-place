@@ -44,7 +44,7 @@ A second WhatsApp flow, separate from the agent-listing-intake pipeline above: a
 - **Storage** — `services/db.js`, four new SQLite tables (same file as `listings`, brand new tables so no `ALTER TABLE` migration path): `conversations` (one row per search thread, holds the requirements collected so far + `ai_active` for human handoff + `last_shown_property_ids` so "le premier"/"moins cher" can resolve), `messages` (full transcript, both directions), `leads` (`status` one of `NEW`/`CONTACTED`/`QUALIFIED`/`VIEWING_REQUESTED`/`VIEWING_COMPLETED`/`CONVERTED`/`LOST`), `viewing_requests` (`requested_time` is free text — "demain matin" is a real answer, not a structured slot the conversation collects).
 - **Property matching** — `services/propertyRepository.js` (real Supabase reads, reuses `web/lib/listings.js`'s exact filter conventions: the `status = 1 AND approve_status = 1` gate, commune resolved via `property_amenities`) feeds `services/propertyMatching.js` (ranks by budget fit / bedroom match / listing freshness; widens a commune-scoped search that returns zero results to city-wide, flagged via `widened: true` so the reply can say so honestly rather than presenting it as an exact match). No distance/geo ranking here — correction to an earlier note in this file: `properties.latitude`/`longitude` **do exist** as real columns (verified directly against the live schema), they're just `NULL` on every currently-approved listing, so there's no real per-property coordinate to rank by yet. See "Interactive Property Map" below for how `web/` derives a real position anyway.
 - **AI tool-calling layer** — `services/openai.js`, appended below `parseMessage()` as a fully separate pipeline (own system prompt `BUYER_SYSTEM_PROMPT`, own model call in `runBuyerTurn`). Six tools (`search_properties`, `get_property`, `get_location`, `create_enquiry`, `request_viewing`, `handoff_to_agent`), each backed by a real executor — `search_properties`/`get_property` call `propertyMatching`/`propertyRepository` (real Supabase reads), `get_location` calls the real `kinshasa_locations.json` data, `create_enquiry`/`request_viewing`/`handoff_to_agent` write real `leads`/`viewing_requests`/`conversations` rows via `services/db.js`. Identity/requirements (`conversationId`, `waId`, known requirements) are bound from the caller's `context`, never from model-supplied tool arguments — the model can propose an action, never assert whose lead it is. `runBuyerTurn` loops tool-call → real execution → feed result back to the model, capped at `BUYER_MAX_TOOL_ITERATIONS` (4) with an honest fallback reply if the model never settles on final text. Nothing in `parseMessage()`/`SYSTEM_PROMPT`/`RESPONSE_FORMAT` was touched — same file, purely additive, reverified by `scripts/verify-pipeline.js` (293/293 passing, including every pre-existing check unchanged).
-- **Live routing** — `routes/webhook.js` now forks: `!extracted.is_listing && !pending && extracted.intent === 'buyer_request'` routes to `services/buyerConversation.js`'s `handleBuyerMessage` instead of the agent-intake reply, via a new `if` block with its own early `return`, inserted immediately before the original (byte-for-byte unmodified) `if (extracted.is_listing) {...} else if (pending) {...}` chain. The `!pending` guard is deliberate and tested (`scripts/verify-pipeline.js` §14d): a sender with a listing still awaiting `'OK'` is never redirected into the buyer flow, even if a correction reply happens to get misclassified as `buyer_request`.
+- **Live routing** — `routes/webhook.js` forks: `!extracted.is_listing && !pending && extracted.intent === 'buyer_request'` routes to `services/buyerConversation.js`'s `handleBuyerMessage` instead of the agent-intake reply, via a new `if` block with its own early `return`, inserted immediately before the original (byte-for-byte unmodified) `if (extracted.is_listing) {...} else if (pending) {...}` chain. The `!pending` guard is deliberate and tested (`scripts/verify-pipeline.js` §14d): a sender with a listing still awaiting `'OK'` is never redirected into the buyer flow, even if a correction reply happens to get misclassified as `buyer_request`.
   - `services/buyerConversation.js` owns the orchestration: load/create the conversation, honor `ai_active` (silent once a human has taken over — the message is still recorded for the agent, but no auto-reply is sent), call `runBuyerTurn`, merge real requirements straight out of the model's own `search_properties` tool-call arguments (no second extraction call), advance conversation state (`COLLECTING_REQUIREMENTS` → `SEARCHING_PROPERTIES` → `SHOWING_RESULTS` after a real search — both hops are required, `conversationState.js`'s transition table has no direct edge), and send the reply via the same `services/chakra.js` used by the agent-intake path.
   - A `runBuyerTurn` failure degrades to `BUYER_ASSISTANT_FALLBACK_REPLY` rather than leaving the customer without a reply or throwing a stack trace back at them.
 - **Admin dashboard** (`web/app/admin/*`) — conversations + leads, per the decision above (lives in `web/`, never touches the Laravel admin or its schema). Backed by a new `routes/admin.js` on the engine (`GET/PATCH /admin/conversations[/:id]`, `POST /admin/conversations/:id/reply`, `GET/PATCH /admin/leads[/:id]`), mounted behind the same `requireApiKey` middleware `GET /listings` already uses — no new auth mechanism invented. `web/lib/adminApi.js` is the server-side client, same pattern as `web/lib/locations.js`'s `GET /locations` call, authenticated via a new `ENGINE_API_SECRET` env var (`web/.env.local`, mirrors the engine's own `API_SECRET`).
@@ -64,6 +64,99 @@ Real Google Maps rendering on `/listings` (`?view=map`, toggle button next to So
 - **`@googlemaps/js-api-loader` v2.x note**: the `Loader` class (commonly shown in older tutorials/AI training data) throws `"The Loader class is no longer available in this version"` — this version's real API is the functional `setOptions({ key })` + `importLibrary(name)` pair. Caught by a live browser error, not assumed from familiarity with an older version.
 - **Clustering**: `@googlemaps/markerclusterer` against classic `google.maps.Marker` instances (not the newer `AdvancedMarkerElement` — that needs a Cloud Console Map ID and wasn't necessary here; `Marker` still works, just prints a deprecation warning).
 - **Known environment limitation, not a code bug**: this session's sandboxed test browser has no real GPU (WebGL reports available but the renderer is unaccelerated software — `"WebKit WebGL"` with no hardware string), which makes Google's Maps JS API silently fall back to `StaticMapService.GetMapImage` (a static, non-interactive image) instead of the normal vector-tile renderer, so full interactive rendering (pan/zoom/cluster click/InfoWindow) could not be visually confirmed in that pane. What **was** confirmed directly: all 8 real listings resolve to real coordinates (`console.log` per listing — 7 geocoded, 1 via the commune-fallback fix above, 0 unresolved), `google.maps.Marker` instances are genuinely created (its deprecation warning only fires on real construction), no JS errors anywhere in the pipeline, and lint is clean. **Verify the actual interactive experience (pan/zoom/clusters/popup clicks) in a real desktop browser** — it should Just Work there; the static-image fallback is specific to unaccelerated/headless environments.
+
+## Automated Agent Matching (live)
+
+**The USP, and it is a push, not a pull.** Every customer request is scored
+against the real agencies covering its commune and sent to the best seven on
+WhatsApp *at the moment it is created* — nobody has to open a feed.
+
+- **Trigger** — two call sites, deliberately both in the engine because it is
+  the only component downstream of every intake channel AND the only one
+  holding WhatsApp credentials: `routes/admin.js`'s `POST /leads` (the Espace
+  Client's "Trouver pour moi" form and the agent-profile inquiry form both
+  post here) and `services/openai.js`'s `executeCreateEnquiry` (the WhatsApp
+  buyer assistant). Both call `dispatchLeadInBackground` — fire-and-forget,
+  after the row is committed, so the customer's confirmation never waits on
+  seven outbound sends and a dispatch failure can never fail the write.
+- **Ranking** — `services/agentRanking.js`, in SQL against Postgres:
+  commune coverage (50 pts for a `primary_communes` specialty, 20 for
+  `serviced_communes`; agencies matching neither are excluded outright),
+  real approved listings in that commune (≤25), listings that also fit the
+  budget and bedroom count (≤15), verified WhatsApp number (10) — all
+  multiplied by `packages.priority_multiplier`.
+- **Adjustment + dispatch** — `services/leadDispatch.js` weights that raw
+  score by responsiveness and by recent volume (both from this engine's own
+  SQLite), records one `lead_matches` row **before** each send, then notifies.
+- **`lead_matches` vs `lead_proposals` are NOT the same fact and must stay
+  separate tables.** `lead_matches` = "we chose this agency and notified
+  them" (our action, no property, no cost to them). `lead_proposals` = "the
+  agency answered with THIS property" (their action, `property_id NOT NULL`,
+  and the row their paid monthly quota is counted from). Merging them would
+  either bill an agency for a lead they were merely shown, or force a fake
+  property id onto a notification — and would make response *rate*
+  unmeasurable, since it is exactly matches without a matching proposal.
+- **The agent side** — `leads.matchedAgentId` is a fourth ownership signal in
+  `db.listLeads`, OR'd with property_ids / assigned_agent / agent_id. Without
+  it the WhatsApp alert would deep-link into a dashboard that doesn't show the
+  request.
+- **The pull feed is gone.** `/compte/agent/demandes`'s "Opportunités
+  communes" tab, `AgentOpenLeadCard`, `listOpenLeads` in `web/lib/adminApi.js`
+  and `web/lib/demandFeed.js` were all removed. `GET /admin/leads/open` still
+  exists on the engine but has no consumer.
+- **Meta template** — `AGENT_LEAD_MATCH_TEMPLATE` (5 body variables: agent
+  name, commune, bedrooms, budget, link). **Not yet approved** — confirmed
+  live: Meta returns `(#132001) Template name does not exist in the
+  translation`. Until it is, every push falls back to a plain session message,
+  which reaches any agency that messaged the engine in the last 24h. The
+  fallback is real and works; it is not a stub.
+- **Inspect it** at `/admin/matching` (volume, coverage gaps, per-agency
+  response rates) and per-request on `/admin/leads/[id]`, which also carries a
+  "Relancer la diffusion" button (`POST /admin/leads/:id/dispatch`, idempotent
+  via `UNIQUE (lead_id, agent_id)`).
+
+## WhatsApp Agent Onboarding (live)
+
+`services/agentOnboarding.js`. An unregistered sender who WhatsApps a listing
+gets a real account without leaving WhatsApp and **without an OTP**.
+
+1. Listing is stored as usual; because the sender has no `agents` row, the
+   normal intake reply gets a structured summary card appended plus one
+   question: name and agency.
+2. Their answer creates the Postgres `agents` row with
+   `phone_verified_at = NOW()`, publishes the pending listing (answering IS
+   the confirmation for an unregistered sender — two acknowledgements for one
+   action is one too many), retroactively claims every listing they ever sent
+   (`linkListingsToAgent`), and replies with a single-use magic link.
+3. `/compte/agent/activer?phone=…&token=…` sets their first password.
+
+**Why no OTP:** a WhatsApp message *from* a number is strictly stronger proof
+of control than an SMS code sent *to* it, and we already hold it before we
+send anything. The token protects the password, not the phone. Only its
+SHA-256 is stored (`agents.activation_token_hash`), it is cleared on redemption
+in the same UPDATE that sets the password (so a replay updates zero rows),
+and `token_version` is bumped alongside.
+
+The ask is capped at `MAX_ASKS` (3) per sender via `agent_onboarding` in
+SQLite, so someone who never answers is not nagged on every listing.
+
+## Scheduled Jobs
+
+`services/scheduler.js`, started from `index.js`. This process is the only
+always-on single-instance component in the system (`ecosystem.config.js` pins
+it to one fork), which is why the timer lives here.
+
+- **Weekly customer alerts** — calls `web`'s own
+  `POST /api/cron/search-alerts` (Bearer `CRON_SECRET`). That endpoint had been
+  correct and complete for weeks with **nothing calling it**; its own doc
+  comment said so. The engine does not reimplement the sweep — a second
+  definition of "a new match" would drift from the one customers see on their
+  Alertes tab.
+- **Idempotent across restarts** via the `job_runs` table: a run is skipped
+  when one already succeeded within `MIN_GAP_MS` (6 days). A deploy landing
+  inside the Monday-09:00 firing window is a no-op, not a second round of real
+  WhatsApp messages. A *failed* run deliberately does not advance
+  `succeeded_at`, so the next tick retries instead of skipping the week.
 
 ## Verification & Commands
 - **Verification Command**: Always run `npm run verify` before declaring a backend task complete.

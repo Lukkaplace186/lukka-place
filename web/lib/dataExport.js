@@ -25,10 +25,12 @@ import { getPool } from './db';
  *     `area` is TEXT and stores '0' for unknown (the schema's own
  *     convention), which is normalised to empty here so a consumer never
  *     reads "0 m²" as a real measurement.
- *   - `closed_on` is `updated_at` on a closed listing, which is the closing
- *     edit's timestamp — a good proxy, not a recorded completion date. The
- *     column comment says so, and a dedicated column would be the right fix
- *     if this data is ever sold on precision of timing.
+ *   - `closed_on` is the agent's own recorded transaction date
+ *     (`properties.sold_at`, required by the "marquer comme vendu" dialog),
+ *     falling back to `updated_at` only for listings closed before that
+ *     column existed. The fallback is the closing edit's timestamp, not a
+ *     completion date — that was the previous behaviour for every row, and
+ *     it drifts every time the listing is touched afterwards.
  *
  * Unapproved listings are excluded: they were never on the market, so
  * including them would misstate both supply and time-on-market.
@@ -59,6 +61,7 @@ export const LISTING_EXPORT_COLUMNS = [
   'listed_on',
   'closed_on',
   'days_on_market',
+  'currently_listed',
   'latitude',
   'longitude',
   'agent_id',
@@ -97,11 +100,21 @@ const EXPORT_SQL = `
     NULLIF(NULLIF(p.area, '0'), '')                 AS area_sqm,
     p.units_count,
     p.created_at                                    AS listed_on,
-    CASE WHEN p.listing_status = 'closed' THEN p.updated_at END AS closed_on,
+    -- The real agreed transaction date where the agent recorded one
+    -- (properties.sold_at, collected by MarkListingSoldDialog), falling back
+    -- to updated_at only for listings closed before that field existed. The
+    -- fallback is the closing EDIT's timestamp, not a completion date — a
+    -- decent proxy, and it drifts every time the row is touched afterwards,
+    -- which is exactly why sold_at now exists and is preferred.
+    CASE WHEN p.listing_status = 'closed' THEN COALESCE(p.sold_at::timestamp, p.updated_at) END AS closed_on,
     CASE WHEN p.listing_status = 'closed'
-         THEN GREATEST(0, EXTRACT(DAY FROM (p.updated_at - p.created_at))::int)
+         THEN GREATEST(0, EXTRACT(DAY FROM (COALESCE(p.sold_at::timestamp, p.updated_at) - p.created_at))::int)
          ELSE GREATEST(0, EXTRACT(DAY FROM (NOW() - p.created_at))::int)
     END                                             AS days_on_market,
+    -- Whether this row is still publicly visible. A closed or archived
+    -- listing is status = 0 and correctly absent from the site, but it is
+    -- very much present in the market record — see the WHERE clause below.
+    (p.status = 1)                                  AS currently_listed,
     p.latitude,
     p.longitude,
     p.agent_id,
@@ -111,7 +124,20 @@ const EXPORT_SQL = `
   LEFT JOIN property_categories cat ON cat.id = p.category_id
   LEFT JOIN property_category_contents catc ON catc.category_id = cat.id AND catc.language_id = 26
   LEFT JOIN agents a ON a.id = p.agent_id
-  WHERE p.status = 1 AND p.approve_status = 1
+  -- approve_status = 1 ONLY — deliberately NOT the public
+  -- "status = 1 AND approve_status = 1" gate every other query in this app
+  -- applies, and the one place in the codebase where that difference is
+  -- correct.
+  --
+  -- "status" is now the visibility flag: closing a transaction sets it to 0
+  -- (markListingSoldAction) and so does archiving. Filtering on it here would
+  -- silently drop every SOLD listing from the market export — the rows that
+  -- carry sold_price, sold_at and the achieved-vs-asking delta, which are the
+  -- entire commercial value of this dataset. Approval is the right gate: it
+  -- means the listing was genuinely on the market at some point.
+  --
+  -- Consumers who want only live supply filter on "currently_listed".
+  WHERE p.approve_status = 1
   ORDER BY p.created_at DESC
 `;
 

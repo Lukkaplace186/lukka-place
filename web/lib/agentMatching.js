@@ -1,7 +1,7 @@
 /**
- * Rough compatibility scoring between an open Agent Demand Feed request
- * (a `leads` row — real `price_min`/`price_max`/`bedrooms` columns) and one
- * of the agent's own listings. Real inputs only, no external data, and no
+ * Rough compatibility scoring between a customer request (a `leads` row —
+ * real `price_min`/`price_max`/`bedrooms` columns) and one of the agent's
+ * own listings. Real inputs only, no external data, and no
  * fabricated percentage when the lead gives nothing to score against.
  *
  * Mirrors the shape of the engine's own services/propertyMatching.js
@@ -10,9 +10,14 @@
  * here. No freshness component: this scores one static listing against one
  * request, it isn't ranking a result list.
  *
- * Deliberately client-safe (no 'server-only', no DB import): used both by
- * the server-rendered demandes page (to compute a default pitch target) and
- * by AgentOpenLeadCard, a client component, to render the badge.
+ * Deliberately client-safe (no 'server-only', no DB import): used by
+ * AgentLeadCard, a client component, both to render the match badge and to
+ * pre-select the strongest candidate in its "Proposer un bien" dialog.
+ *
+ * Distinct from services/agentRanking.js in the engine, which scores the
+ * other direction — which AGENCIES best fit a request — in SQL, for the
+ * automated dispatcher. This one scores which of ONE agency's listings best
+ * fits a request, in the browser.
  */
 
 function budgetScore(price, priceMin, priceMax) {

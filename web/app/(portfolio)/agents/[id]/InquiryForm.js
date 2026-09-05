@@ -34,7 +34,7 @@ export default function InquiryForm({ agentId, agentName, sent, error }) {
   if (sent) {
     return (
       <div className="u-card rounded-card bg-surface p-6 text-center">
-        <p className="text-[1.125rem] font-bold text-ink">Votre demande est partie</p>
+        <p className="u-title-card text-ink">Votre demande est partie</p>
         <p className="mt-2 text-sm leading-relaxed text-ink-70">
           {agentName} a reçu votre message et vous répondra sur WhatsApp au numéro que vous avez laissé.
         </p>
@@ -44,7 +44,7 @@ export default function InquiryForm({ agentId, agentName, sent, error }) {
 
   return (
     <div className="rounded-card border border-line/60 bg-surface p-4">
-      <h3 className="text-[1.125rem] font-bold text-ink">Envoyer un message à l&apos;agence</h3>
+      <h3 className="u-title-card text-ink">Envoyer un message à l&apos;agence</h3>
 
       <form action={bound} className="mt-3.5 flex flex-col gap-3">
         <div>

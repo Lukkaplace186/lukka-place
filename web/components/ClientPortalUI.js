@@ -31,7 +31,7 @@ export function PortalSectionHeading({ title, lead, action, className = '' }) {
   return (
     <div className={cn('flex flex-wrap items-end justify-between gap-6', className)}>
       <div>
-        <h2 className="font-display text-[1.75rem] font-normal leading-[1.14] tracking-[-0.008em] text-ink sm:text-[2.125rem]">
+        <h2 className="u-title-page text-ink">
           {title}
         </h2>
         {lead ? <p className="mt-2 text-[0.875rem] leading-[1.55] text-ink-45">{lead}</p> : null}
@@ -82,7 +82,7 @@ export function PortalEmpty({ icon: Icon, title, children, actionLabel, actionHr
           <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" aria-hidden="true" />
         </span>
       ) : null}
-      <h3 className="font-display text-xl font-normal tracking-[-0.01em] text-ink">{title}</h3>
+      <h3 className="u-title-section text-ink">{title}</h3>
       {children ? (
         <p className="mx-auto mt-2 max-w-sm text-[0.875rem] leading-relaxed text-ink-45">{children}</p>
       ) : null}

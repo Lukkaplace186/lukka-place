@@ -26,7 +26,7 @@ function StatCard({ label, value, hint }) {
   return (
     <div className="rounded-card border border-line bg-white p-4">
       <p className="u-eyebrow text-ink-45">{label}</p>
-      <p className="mt-1 text-2xl font-bold tracking-[-0.02em] text-ink">{value}</p>
+      <p className="u-stat mt-1 text-ink">{value}</p>
       {hint ? <p className="mt-1 text-xs text-ink-45">{hint}</p> : null}
     </div>
   );
@@ -35,7 +35,7 @@ function StatCard({ label, value, hint }) {
 function Panel({ title, note, isEmpty, children }) {
   return (
     <div>
-      <h2 className="mb-2 text-sm font-semibold text-ink">{title}</h2>
+      <h2 className="u-title-card mb-2 text-ink">{title}</h2>
       {note ? <p className="mb-2 text-xs text-ink-45">{note}</p> : null}
       {isEmpty ? (
         <div className="rounded-card border border-dashed border-line bg-white p-10 text-center text-sm text-ink-45">
@@ -72,7 +72,7 @@ export default async function AdminDashboardPage() {
     <div>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold tracking-[-0.02em] text-ink">Tableau de bord</h1>
+          <h1 className="u-title-page text-ink">Tableau de bord</h1>
           <p className="mt-1 text-sm text-ink-45">
             Basé sur le trafic réel enregistré depuis la mise en place du suivi — aucune donnée historique
             n&apos;existait avant.

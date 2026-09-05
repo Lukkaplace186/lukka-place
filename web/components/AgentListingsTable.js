@@ -3,7 +3,7 @@
 import { useMemo, useOptimistic, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ExternalLink, Image as ImageIcon, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, ExternalLink, Image as ImageIcon, Trash2 } from 'lucide-react';
 import SafeImage from './SafeImage';
 import AgentListingStatusSelect from './AgentListingStatusSelect';
 import AgentListingActionsMenu from './AgentListingActionsMenu';
@@ -15,6 +15,7 @@ import {
   updateListingStatusAction,
   updateListingPriceAction,
   bulkMarkUnderOfferAction,
+  bulkSetArchivedAction,
   bulkDeleteListingsAction,
 } from '@/app/compte/agent/actions';
 import { useToast } from './Toast';
@@ -29,6 +30,19 @@ const APPROVE_STATUS = {
   1: { label: 'Publié', className: 'bg-success-tint text-success' },
   2: { label: 'Rejeté', className: 'bg-danger-tint text-danger' },
 };
+
+// An archived listing (properties.status = 0) is invisible to the public
+// regardless of its moderation state, so showing it as "Publié" would be a
+// straightforward lie about where it is. This badge replaces the
+// approve-status one rather than sitting beside it.
+const ARCHIVED_BADGE = { label: 'Archivée', className: 'bg-canvas-deep text-ink-45' };
+
+function shortDate(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }).format(date);
+}
 
 // Written out as a full literal (not composed or .replace()-d at runtime):
 // Tailwind scans source text, so an arbitrary-value class it never sees
@@ -87,6 +101,17 @@ export default function AgentListingsTable({ listings, perListingStats }) {
     [optimisticListings],
   );
   const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
+
+  // Drives whether the bulk bar offers Archiver or Remettre en ligne. Only
+  // flips to "restore" when EVERY selected row is already archived — a mixed
+  // selection archives, which is the non-destructive read of an ambiguous
+  // intent (nothing leaves the public site by surprise on the way back).
+  const allSelectedArchived = useMemo(() => {
+    if (selected.size === 0) return false;
+    return optimisticListings
+      .filter((l) => selected.has(l.id))
+      .every((l) => Number(l.status) === 0);
+  }, [optimisticListings, selected]);
 
   function toggleOne(id) {
     setSelected((prev) => {
@@ -174,6 +199,31 @@ export default function AgentListingsTable({ listings, perListingStats }) {
     });
   }
 
+  function handleBulkArchive(archived) {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    setBulkPending(true);
+    startTransition(async () => {
+      for (const id of ids) {
+        applyOptimistic({ type: 'update', id, changes: { status: archived ? 0 : 1 } });
+      }
+      try {
+        const result = await bulkSetArchivedAction(ids, archived);
+        showToast({
+          type: 'success',
+          message: archived
+            ? `${result.updated} bien${result.updated === 1 ? '' : 's'} archivé${result.updated === 1 ? '' : 's'} — masqué${result.updated === 1 ? '' : 's'} du site, rien n’est supprimé.`
+            : `${result.updated} bien${result.updated === 1 ? '' : 's'} remis en ligne.`,
+        });
+      } catch (err) {
+        showToast({ type: 'error', message: err.message || 'Échec de la mise à jour groupée.' });
+      }
+      clearSelection();
+      setBulkPending(false);
+      router.refresh();
+    });
+  }
+
   function handleBulkDelete() {
     const ids = [...selected];
     if (ids.length === 0) return;
@@ -224,8 +274,12 @@ export default function AgentListingsTable({ listings, perListingStats }) {
       </div>
 
       {optimisticListings.map((listing) => {
-        const approve = APPROVE_STATUS[listing.approve_status];
         const isClosed = listing.listing_status === 'closed';
+        const isArchived = Number(listing.status) === 0;
+        // A closed listing is archived too (markListingSoldAction retires it
+        // from public search), but "Loué / Vendu" already says that in the
+        // status column — a second "Archivée" chip beside it is noise.
+        const approve = isArchived && !isClosed ? ARCHIVED_BADGE : APPROVE_STATUS[listing.approve_status];
         const isSelected = selected.has(listing.id);
 
         return (
@@ -348,6 +402,19 @@ export default function AgentListingsTable({ listings, perListingStats }) {
             </button>
             <button
               type="button"
+              onClick={() => handleBulkArchive(!allSelectedArchived)}
+              disabled={pending || bulkPending}
+              className="u-press inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3.5 py-1.5 text-[0.8125rem] font-bold text-white transition-colors hover:bg-white/25 disabled:opacity-50"
+            >
+              {allSelectedArchived ? (
+                <ArchiveRestore strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
+              ) : (
+                <Archive strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
+              )}
+              {allSelectedArchived ? 'Remettre en ligne' : 'Archiver'}
+            </button>
+            <button
+              type="button"
               onClick={() => setConfirmBulkDelete(true)}
               disabled={pending || bulkPending}
               className="u-press inline-flex items-center gap-1.5 rounded-full bg-danger/90 px-3.5 py-1.5 text-[0.8125rem] font-bold text-white transition-colors hover:bg-danger disabled:opacity-50"
@@ -373,7 +440,7 @@ export default function AgentListingsTable({ listings, perListingStats }) {
           className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4"
         >
           <div className="u-card w-full max-w-sm rounded-card bg-surface p-6">
-            <h2 className="text-[1.0625rem] font-bold text-ink">Supprimer {selected.size} bien{selected.size === 1 ? '' : 's'} ?</h2>
+            <h2 className="u-title-card text-ink">Supprimer {selected.size} bien{selected.size === 1 ? '' : 's'} ?</h2>
             <p className="mt-2 text-sm text-ink-45">
               Ces annonces et leurs photos seront définitivement retirées du site. Cette action est irréversible.
             </p>
@@ -469,6 +536,7 @@ function PriceCell({ listing, isClosed, onSave }) {
               no currency field), unlike the listing's own authored price
               above — so this one line intentionally never uses formatPriceCdf. */}
           Prix final : {formatPrice(listing.sold_price, listing.purpose)}
+          {shortDate(listing.sold_at) ? ` · ${shortDate(listing.sold_at)}` : ''}
         </div>
       )}
     </button>

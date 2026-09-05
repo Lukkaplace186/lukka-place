@@ -17,6 +17,7 @@ const whatsapp = require('./services/whatsapp');
 const chakraWebhook = require('./routes/webhook');
 const adminRoutes = require('./routes/admin');
 const { UPLOADS_ROOT } = require('./services/mediaStorage');
+const scheduler = require('./services/scheduler');
 const locationsService = require('./services/locations');
 
 const app = express();
@@ -520,6 +521,13 @@ if (!APP_SECRET) {
 const server = app.listen(PORT, () => {
   console.log(`[boot] Lukka Place engine listening on http://localhost:${PORT}`);
   console.log(`[boot] webhook endpoint: http://localhost:${PORT}/webhook`);
+
+  // The weekly customer alert sweep. This process is the only always-on,
+  // single-instance component in the system (ecosystem.config.js pins it to
+  // one fork), which is what makes it the right place to hold a timer —
+  // web/'s alert endpoint has existed and worked for weeks with nothing
+  // calling it. See services/scheduler.js.
+  scheduler.start();
 });
 
 /**
@@ -540,6 +548,7 @@ for (const signal of ['SIGTERM', 'SIGINT']) {
       console.error(`[shutdown] flush failed: ${err.message}`);
     }
 
+    scheduler.stop();
     server.close(() => console.log('[shutdown] http server closed'));
 
     // Give in-flight extraction and replies a moment to finish.

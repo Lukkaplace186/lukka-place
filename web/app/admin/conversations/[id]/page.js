@@ -51,7 +51,7 @@ export default async function AdminConversationDetailPage({ params }) {
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold tracking-[-0.02em] text-ink">{conversation.wa_id}</h1>
+          <h1 className="u-title-page text-ink">{conversation.wa_id}</h1>
           <div className="mt-1 flex items-center gap-2">
             <span className="rounded-full bg-blue-tint px-2 py-0.5 text-xs font-medium text-blue-deep">
               {CONVERSATION_STATE_LABELS_FR[conversation.state] || conversation.state}
@@ -82,7 +82,7 @@ export default async function AdminConversationDetailPage({ params }) {
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr]">
         <div className="flex flex-col gap-4">
           <div className="rounded-card border border-line bg-white p-4">
-            <h2 className="mb-3 text-sm font-semibold text-ink">Transcription</h2>
+            <h2 className="u-title-card mb-3 text-ink">Transcription</h2>
             {messages.length === 0 ? (
               <p className="text-sm text-ink-45">Aucun message.</p>
             ) : (
@@ -121,7 +121,7 @@ export default async function AdminConversationDetailPage({ params }) {
 
         <div className="flex flex-col gap-4">
           <div className="rounded-card border border-line bg-white p-4">
-            <h2 className="mb-3 text-sm font-semibold text-ink">Critères connus</h2>
+            <h2 className="u-title-card mb-3 text-ink">Critères connus</h2>
             <dl className="grid grid-cols-2 gap-2 text-sm">
               {REQUIREMENT_LABELS.map(([field, label]) => (
                 <div key={field}>
@@ -133,7 +133,7 @@ export default async function AdminConversationDetailPage({ params }) {
           </div>
 
           <div className="rounded-card border border-line bg-white p-4">
-            <h2 className="mb-3 text-sm font-semibold text-ink">Agent assigné</h2>
+            <h2 className="u-title-card mb-3 text-ink">Agent assigné</h2>
             <form action={boundAssign} className="flex gap-2">
               <input
                 type="text"
@@ -149,7 +149,7 @@ export default async function AdminConversationDetailPage({ params }) {
           </div>
 
           <div className="rounded-card border border-line bg-white p-4">
-            <h2 className="mb-3 text-sm font-semibold text-ink">Notes internes</h2>
+            <h2 className="u-title-card mb-3 text-ink">Notes internes</h2>
             <form action={boundNotes} className="flex flex-col gap-2">
               <textarea
                 name="notes"
@@ -165,7 +165,7 @@ export default async function AdminConversationDetailPage({ params }) {
           </div>
 
           <div className="rounded-card border border-line bg-white p-4">
-            <h2 className="mb-3 text-sm font-semibold text-ink">Prospects liés</h2>
+            <h2 className="u-title-card mb-3 text-ink">Prospects liés</h2>
             {leads.length === 0 ? (
               <p className="text-sm text-ink-45">Aucun prospect pour cette conversation.</p>
             ) : (

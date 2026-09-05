@@ -26,8 +26,17 @@ export async function getAgentDashboardContext(agentId) {
   const listings = await getOwnListingsForDashboard(agentId);
   const propertyIds = listings.map((l) => l.id);
   const displayName = agentDisplayName(agent);
-  const leadScope = { propertyIds, assignedAgent: displayName || undefined };
-  const hasLeadScope = propertyIds.length > 0 || !!displayName;
+  // Four ownership signals, OR-ed by the engine (services/db.js's listLeads):
+  // a lead on one of this agent's listings, one addressed to them by name,
+  // one assigned to them by id, and — added with the automated dispatcher —
+  // one the engine PUSHED to them. The last is what makes the WhatsApp alert
+  // and the dashboard agree: an agent alerted about a request must find that
+  // request here, even though it names no listing of theirs.
+  const leadScope = { propertyIds, assignedAgent: displayName || undefined, matchedAgentId: agentId };
+  // Always true now — matchedAgentId is always present — but kept as the
+  // single place that decides, rather than deleting the concept and having
+  // three call sites assume it.
+  const hasLeadScope = propertyIds.length > 0 || !!displayName || Number.isFinite(Number(agentId));
 
   const [{ total: newLeadsCount }, { total: pendingVisitsCount }] = await Promise.all([
     hasLeadScope ? listLeads({ ...leadScope, status: 'NEW', limit: 1 }) : Promise.resolve({ total: 0 }),

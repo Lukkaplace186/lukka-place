@@ -195,7 +195,7 @@ function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, r
         </div>
 
         <div>
-          <h3 className="text-[1.125rem] font-bold leading-snug tracking-[-0.004em] text-ink">
+          <h3 className="u-title-card text-ink">
             <Link href={`/listings/${listing.id}`} className="transition-colors hover:text-blue-deep">
               {listing.title}
             </Link>

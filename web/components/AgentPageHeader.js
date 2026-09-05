@@ -34,7 +34,7 @@ export default function AgentPageHeader({
     <header className="sticky top-0 z-20 border-b border-line bg-surface px-5 sm:px-8">
       <div className="flex min-h-[4.75rem] flex-wrap items-center justify-between gap-x-4 gap-y-3 py-3">
         <div className="min-w-0">
-          <h1 className="font-display truncate text-[1.75rem] font-normal leading-tight tracking-[-0.01em] text-ink sm:text-[1.875rem]">
+          <h1 className="u-title-page truncate text-ink">
             {title}
           </h1>
           {subtitle && <p className="mt-0.5 text-[0.8125rem] text-ink-45">{subtitle}</p>}

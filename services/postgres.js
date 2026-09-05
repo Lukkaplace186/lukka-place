@@ -625,6 +625,10 @@ async function syncListingToPostgres(row) {
 module.exports = {
   syncListingToPostgres,
   isConfigured,
+  // Shared by services/agentRanking.js, which reads `agents` for the
+  // automated lead matcher. One pool per process, not a second connection
+  // pool for the same database.
+  getPool,
   // Exposed for tests / inspection.
   resolveCategory,
   buildTitle,

@@ -41,7 +41,7 @@ export default function AgentRecentLeads({ leads, listingById }) {
       className="u-card group u-press flex flex-col rounded-card bg-surface p-6 text-left transition-colors hover:bg-canvas-alt"
     >
       <div className="flex items-center justify-between gap-4">
-        <h2 className="text-[1.125rem] font-bold text-ink">Demandes récentes</h2>
+        <h2 className="u-title-card text-ink">Demandes récentes</h2>
         <span className="inline-flex items-center gap-1 text-[0.8125rem] font-bold text-blue">
           Tout voir
           <ArrowUpRight

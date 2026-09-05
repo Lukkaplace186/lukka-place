@@ -18,7 +18,7 @@ export default async function AdminLoginPage({ searchParams }) {
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm rounded-card border border-line bg-surface p-6 u-lift sm:p-8">
-        <h1 className="text-xl font-bold tracking-[-0.02em] text-ink">
+        <h1 className="u-title-page text-ink">
           Lukka <span className="text-blue-deep">Admin</span>
         </h1>
         <p className="mt-1 text-sm text-ink-45">Accès réservé à l&apos;équipe Lukka Place.</p>

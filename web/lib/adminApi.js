@@ -84,12 +84,17 @@ export async function sendManualReply(id, text) {
  * assistant's tool-calling layer already follows (see root CLAUDE.md).
  * @returns {Promise<{total: number, limit: number, offset: number, count: number, data: Object[]}>}
  */
-export async function listLeads({ status, propertyIds, assignedAgent, agentId, waId, limit, offset } = {}) {
+export async function listLeads({
+  status, propertyIds, assignedAgent, agentId, matchedAgentId, waId, limit, offset,
+} = {}) {
   const params = new URLSearchParams();
   if (status) params.set('status', status);
   if (propertyIds?.length) params.set('property_ids', propertyIds.join(','));
   if (assignedAgent) params.set('assigned_agent', assignedAgent);
   if (agentId != null) params.set('agent_id', String(agentId));
+  // Requests the engine's dispatcher pushed to this agency — OR'd with the
+  // other ownership signals engine-side, never replacing them.
+  if (matchedAgentId != null) params.set('matched_agent_id', String(matchedAgentId));
   if (waId) params.set('wa_id', waId);
   if (limit) params.set('limit', String(limit));
   if (offset) params.set('offset', String(offset));
@@ -222,25 +227,9 @@ export async function createLead({
 }
 
 /**
- * Agent Demand Feed — open "Trouver pour moi" requests (no listing attached,
- * under the 7-pitch cap) filtered to real commune names. The engine strips
- * wa_id/name from every row before this ever reaches web/ — see
- * routes/admin.js's GET /leads/open.
- * @param {{communes?: string[], limit?: number}} [options]
- * @returns {Promise<{total: number, limit: number, count: number, data: Object[]}>}
- */
-export async function listOpenLeads({ communes, limit } = {}) {
-  const params = new URLSearchParams();
-  if (communes?.length) params.set('communes', communes.join(','));
-  if (limit) params.set('limit', String(limit));
-  const query = params.toString();
-  return engineFetch(`/admin/leads/open${query ? `?${query}` : ''}`);
-}
-
-/**
- * "Proposer un bien" — one agent pitching one of their own listings against
- * an open request. Throws with a real, user-facing error message (cap
- * reached / already pitched) on failure — see services/db.js's
+ * "Proposer un bien" — one agent answering a customer request with one of
+ * their own listings. Throws with a real, user-facing error message (cap
+ * reached / already answered) on failure — see services/db.js's
  * createLeadProposal, engine repo.
  * @returns {Promise<{proposal: Object}>}
  */
@@ -345,4 +334,27 @@ export async function notifyListingModeration(propertyId, status) {
     method: 'POST',
     body: JSON.stringify({ status }),
   });
+}
+
+/**
+ * The matching console's whole dataset in one call — see routes/admin.js's
+ * GET /leads/matching-stats for why it is one endpoint rather than five.
+ * @param {{days?: number}} [options]
+ */
+export async function getMatchingStats({ days = 30 } = {}) {
+  return engineFetch(`/admin/leads/matching-stats?days=${encodeURIComponent(days)}`);
+}
+
+/** Which agencies a request was pushed to, and whether each was reached. */
+export async function getLeadMatches(leadId) {
+  return engineFetch(`/admin/leads/${leadId}/matches`);
+}
+
+/**
+ * Manual re-dispatch of one request. Awaited on the engine side (unlike the
+ * automatic creation-time trigger), so the returned counts are real.
+ * @returns {Promise<{dispatched: number, notified: number, failed: number, skipped?: string}>}
+ */
+export async function redispatchLead(leadId) {
+  return engineFetch(`/admin/leads/${leadId}/dispatch`, { method: 'POST' });
 }

@@ -19,7 +19,7 @@ export default async function AdminConversationsPage({ searchParams }) {
     <div>
       <div className="mb-4 flex items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold tracking-[-0.02em] text-ink">Conversations WhatsApp</h1>
+          <h1 className="u-title-page text-ink">Conversations WhatsApp</h1>
           <p className="mt-1 text-sm text-ink-45">{total} conversation{total !== 1 ? 's' : ''}</p>
         </div>
 

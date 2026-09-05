@@ -25,7 +25,7 @@ export default async function AgentsDirectoryPage() {
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
       <div className="mb-6">
-        <h1 className="font-display text-2xl font-normal tracking-[-0.01em] text-ink sm:text-3xl">
+        <h1 className="u-title-section text-ink sm:text-3xl">
           Agents à Kinshasa
         </h1>
         <p className="mt-1.5 text-sm text-ink-45">

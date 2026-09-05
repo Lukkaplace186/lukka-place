@@ -430,6 +430,7 @@ async function parseMessage(text, { senderPhone, images = [], imageDetail } = {}
 const propertyMatchingService = require('./propertyMatching');
 const propertyRepositoryService = require('./propertyRepository');
 const dbService = require('./db');
+const { dispatchLeadInBackground } = require('./leadDispatch');
 // Second require of an already-cached module (services/openai.js's top-level
 // require above only pulls LOCATIONS/COMMUNES) — cheap and deliberately kept
 // separate so the original import line is never touched.
@@ -638,6 +639,19 @@ function executeCreateEnquiry(args = {}, context) {
     property_id: args.property_id ?? context.selectedPropertyId ?? null,
     requirements_summary: args.summary || null,
   });
+
+  // AUTOMATED AGENT MATCHING — the WhatsApp-side event trigger, the twin of
+  // the one in routes/admin.js's POST /leads. A customer who describes what
+  // they want to the WhatsApp assistant must reach the same seven agencies
+  // as one who fills in the web form; matching only the web path would leave
+  // the platform's primary intake channel unmatched.
+  //
+  // Fire-and-forget by construction: this executor runs inside runBuyerTurn's
+  // tool loop, which the customer is waiting on for a reply. Ranking seven
+  // agencies and sending seven WhatsApp messages inline would add seconds to
+  // every enquiry confirmation.
+  dispatchLeadInBackground(lead);
+
   return { created: true, lead_id: lead.id, status: lead.status };
 }
 

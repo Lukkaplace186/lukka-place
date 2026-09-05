@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { getCurrentAgentId } from '@/lib/agentSession';
 import { getAgentDashboardContext } from '@/lib/agentDashboard';
-import { listLeads, listOpenLeads, listViewingRequests } from '@/lib/adminApi';
+import { listLeads, listViewingRequests } from '@/lib/adminApi';
 import {
   LEAD_STATUSES,
   LEAD_STATUS_LABELS_FR,
@@ -9,11 +9,8 @@ import {
   VIEWING_REQUEST_STATUS_LABELS_FR,
 } from '@/lib/adminLabels';
 import { formatRelativeFr } from '@/lib/format';
-import { hasDemandFeedAccess, isWithinLaunchTrial, launchTrialEndsAtLabel } from '@/lib/demandFeed';
-import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import AgentPageHeader from '@/components/AgentPageHeader';
 import AgentLeadCard from '@/components/AgentLeadCard';
-import AgentOpenLeadCard from '@/components/AgentOpenLeadCard';
 import AgentVisitRequestCard from '@/components/AgentVisitRequestCard';
 import { updateAgentLeadStatusAction, replyToLeadAction } from '../actions';
 
@@ -27,9 +24,21 @@ const STATUS_OPTIONS = LEAD_STATUSES.map((value) => ({ value, label: LEAD_STATUS
  * into Messages & Visites). `/compte/agent/visites` still resolves; it
  * redirects here so an existing bookmark or notification link keeps working.
  */
+/**
+ * Two tabs, not three. "Opportunités communes" — a browsable feed of every
+ * unclaimed request in the agent's communes — has been removed entirely.
+ *
+ * It was a pull model: the agent had to remember to come and look, the
+ * fastest-checking agencies took everything, and a customer's request could
+ * sit unseen for days while seven agencies who wanted it never knew it
+ * existed. The engine's dispatcher (services/leadDispatch.js) replaces it
+ * with a push: a new request is ranked against the real agencies covering
+ * its commune the instant it's submitted, and the best seven get a WhatsApp
+ * alert with a deep link straight into this page. Those requests arrive in
+ * "Mes demandes" below — nothing here asks an agent to go looking.
+ */
 const TABS = [
   { value: 'mes-demandes', label: 'Mes demandes' },
-  { value: 'ouvertes', label: 'Opportunités communes' },
   { value: 'visites', label: 'Visites' },
 ];
 
@@ -65,7 +74,7 @@ function VisitsTab({ visitsPage, statusFilter, listingById, hasListings }) {
     <>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <div className="text-[1.125rem] font-bold text-ink">
+          <div className="u-title-card text-ink">
             {visitsPage.total} demande{visitsPage.total === 1 ? '' : 's'} de visite
           </div>
           <div className="mt-0.5 text-[0.8125rem] text-ink-45">
@@ -131,7 +140,11 @@ function VisitsTab({ visitsPage, statusFilter, listingById, hasListings }) {
 
 export default async function AgentInquiriesPage({ searchParams }) {
   const params = await searchParams;
-  const tab = ['ouvertes', 'visites'].includes(params.tab) ? params.tab : 'mes-demandes';
+  const tab = params.tab === 'visites' ? 'visites' : 'mes-demandes';
+  // Set by the WhatsApp alert's deep link (services/leadDispatch.js's
+  // agentLink) so the agent lands on the exact request they were notified
+  // about, pinned to the top of their inbox instead of having to find it.
+  const focusLeadId = Number.parseInt(params.lead, 10);
   const statusFilter = typeof params.status === 'string' && LEAD_STATUSES.includes(params.status) ? params.status : '';
   const visitStatusFilter =
     typeof params.status === 'string' && VIEWING_REQUEST_STATUSES.includes(params.status) ? params.status : '';
@@ -161,13 +174,15 @@ export default async function AgentInquiriesPage({ searchParams }) {
 
   const unread = leadsPage.data.filter((l) => l.status === 'NEW').length;
 
-  const feedAccess = hasDemandFeedAccess(agent);
-  const inTrial = isWithinLaunchTrial();
-  const trialEndsLabel = launchTrialEndsAtLabel();
-  const communes = agent.primary_communes || [];
-  const openLeadsPage = tab === 'ouvertes' || feedAccess
-    ? await listOpenLeads({ communes, limit: 50 })
-    : { total: 0, data: [] };
+  // The deep-linked request first, everything else in the order the engine
+  // returned it. Sorting rather than filtering: an agent arriving from a
+  // WhatsApp alert should see that request at the top AND still have their
+  // whole inbox, not a single-row page they have to escape from.
+  const orderedLeads = Number.isFinite(focusLeadId)
+    ? [...leads].sort((a, b) => (b.id === focusLeadId) - (a.id === focusLeadId))
+    : leads;
+  const focusedLeadPresent = Number.isFinite(focusLeadId) && leads.some((l) => l.id === focusLeadId);
+
   const myActiveListings = listings.filter((l) => l.approve_status === 1 && l.listing_status === 'active');
 
   return (
@@ -192,7 +207,6 @@ export default async function AgentInquiriesPage({ searchParams }) {
               }`}
             >
               {t.label}
-              {t.value === 'ouvertes' && openLeadsPage.total > 0 ? ` (${openLeadsPage.total})` : ''}
               {t.value === 'visites' && pendingVisitsCount > 0 ? ` (${pendingVisitsCount})` : ''}
             </Link>
           ))}
@@ -205,64 +219,16 @@ export default async function AgentInquiriesPage({ searchParams }) {
             listingById={listingById}
             hasListings={listings.length > 0}
           />
-        ) : tab === 'ouvertes' ? (
-          <>
-            {inTrial && !agent.package_title && (
-              <p className="rounded-lg bg-blue-tint px-4 py-3 text-sm font-semibold text-blue-deep" role="status">
-                Accès gratuit pendant la période de lancement
-                {trialEndsLabel ? ` — jusqu'au ${trialEndsLabel}` : ''}.
-              </p>
-            )}
-
-            {!feedAccess ? (
-              <div className="u-card flex flex-col items-center gap-3 rounded-card bg-surface px-6 py-16 text-center">
-                <p className="text-sm font-semibold text-ink">
-                  {openLeadsPage.total} demande{openLeadsPage.total === 1 ? '' : 's'} ouverte
-                  {openLeadsPage.total === 1 ? '' : 's'} dans vos communes
-                </p>
-                <p className="max-w-md text-sm text-ink-45">
-                  Renouvelez votre abonnement pour voir le détail de ces demandes et proposer vos biens.
-                </p>
-                {(() => {
-                  const href = getCentralWhatsAppHref('Bonjour, je souhaite renouveler mon abonnement Lukka Place.');
-                  return href ? (
-                    <a
-                      href={href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="u-btn-primary u-press mt-1 inline-flex h-10 items-center rounded-lg bg-blue px-4 text-[0.8125rem] font-bold text-white"
-                    >
-                      Renouveler mon abonnement
-                    </a>
-                  ) : null;
-                })()}
-              </div>
-            ) : openLeadsPage.data.length === 0 ? (
-              <div className="u-card rounded-card bg-surface px-6 py-16 text-center text-sm text-ink-45">
-                {communes.length === 0
-                  ? 'Ajoutez vos communes couvertes dans vos paramètres pour voir les demandes ouvertes.'
-                  : 'Aucune demande ouverte dans vos communes pour le moment.'}
-              </div>
-            ) : (
-              openLeadsPage.data.map((lead) => (
-                <AgentOpenLeadCard
-                  key={lead.id}
-                  lead={lead}
-                  relativeTime={formatRelativeFr(lead.created_at)}
-                  myListings={myActiveListings}
-                />
-              ))
-            )}
-          </>
         ) : (
           <>
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <div className="text-[1.125rem] font-bold text-ink">
+                <div className="u-title-card text-ink">
                   {leadsPage.total} demande{leadsPage.total === 1 ? '' : 's'}
                 </div>
-                <div className="mt-0.5 text-[0.8125rem] text-ink-45">
-                  {unread} non lue{unread === 1 ? '' : 's'} · envoyées depuis votre page publique
+                <div className="u-micro mt-0.5 text-ink-45">
+                  {unread} non lue{unread === 1 ? '' : 's'} · reçues depuis votre page publique et via
+                  l’attribution automatique
                 </div>
               </div>
 
@@ -290,6 +256,13 @@ export default async function AgentInquiriesPage({ searchParams }) {
               </form>
             </div>
 
+            {Number.isFinite(focusLeadId) && !focusedLeadPresent && (
+              <p className="u-micro rounded-lg bg-warning-tint px-4 py-3 font-semibold text-warning" role="status">
+                La demande n° {focusLeadId} ne figure plus dans votre liste — elle a peut-être été traitée par
+                une autre agence ou filtrée par le statut sélectionné.
+              </p>
+            )}
+
             {replySent && (
               <p className="rounded-lg bg-success-tint px-4 py-3 text-sm font-semibold text-success" role="status">
                 Réponse envoyée sur WhatsApp.
@@ -316,12 +289,14 @@ export default async function AgentInquiriesPage({ searchParams }) {
                     : 'Aucune demande pour le moment. Partagez votre page publique pour en recevoir.'}
               </div>
             ) : (
-              leads.map((lead) => {
+              orderedLeads.map((lead) => {
                 const property = lead.property_id ? listingById.get(String(lead.property_id)) : null;
                 return (
                   <AgentLeadCard
                     key={lead.id}
                     lead={lead}
+                    highlighted={lead.id === focusLeadId}
+                    myListings={myActiveListings}
                     statusLabel={LEAD_STATUS_LABELS_FR[lead.status] || lead.status}
                     statusOptions={STATUS_OPTIONS}
                     relativeTime={formatRelativeFr(lead.created_at)}

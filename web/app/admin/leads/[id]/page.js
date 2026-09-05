@@ -1,10 +1,10 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { getLead, getLeadProposals } from '@/lib/adminApi';
+import { getLead, getLeadProposals, getLeadMatches } from '@/lib/adminApi';
 import { getAgents } from '@/lib/agents';
 import { getListingsByIds } from '@/lib/listings';
 import { LEAD_STATUSES, LEAD_STATUS_LABELS_FR } from '@/lib/adminLabels';
-import { updateLeadStatusAction, assignLeadAction } from '../../actions';
+import { updateLeadStatusAction, assignLeadAction, redispatchLeadAction } from '../../actions';
 
 function formatDateTime(value) {
   if (!value) return '—';
@@ -46,10 +46,18 @@ export default async function AdminLeadDetailPage({ params }) {
   }
   if (!lead) notFound();
 
-  const [{ proposals }, agents] = await Promise.all([
+  const [{ proposals }, agents, matchesResult] = await Promise.all([
     getLeadProposals([id]),
     getAgents(),
+    // Best-effort: the matches panel is diagnostic. The engine failing to
+    // return it must not take down a page whose primary job is working the
+    // lead itself.
+    getLeadMatches(id).catch((err) => {
+      console.warn(`[admin/leads] matches unavailable for #${id}: ${err.message}`);
+      return { matches: [] };
+    }),
   ]);
+  const matches = matchesResult.matches || [];
 
   const propertyIds = proposals.map((p) => p.property_id);
   const listings = propertyIds.length > 0 ? await getListingsByIds(propertyIds) : [];
@@ -79,7 +87,7 @@ export default async function AdminLeadDetailPage({ params }) {
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold tracking-[-0.02em] text-ink">{lead.name || lead.wa_id}</h1>
+          <h1 className="u-title-page text-ink">{lead.name || lead.wa_id}</h1>
           <p className="mt-1 text-sm text-ink-45">
             {lead.wa_id} · Demande #{lead.id} · Créée le {formatDateTime(lead.created_at)}
           </p>
@@ -92,7 +100,7 @@ export default async function AdminLeadDetailPage({ params }) {
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1.4fr_1fr]">
         <div className="flex flex-col gap-4">
           <div className="rounded-card border border-line bg-white p-4">
-            <h2 className="mb-3 text-sm font-semibold text-ink">Critères de recherche</h2>
+            <h2 className="u-title-card mb-3 text-ink">Critères de recherche</h2>
             <dl className="grid grid-cols-2 gap-3 text-sm">
               {REQUEST_LABELS.map(([field, label]) => (
                 <div key={field}>
@@ -110,8 +118,80 @@ export default async function AdminLeadDetailPage({ params }) {
             )}
           </div>
 
+          {/* Who the automated dispatcher actually reached, and whether the
+              WhatsApp push landed. A matching engine nobody can inspect is a
+              matching engine nobody trusts — and the difference between "no
+              agency covers this commune" and "we notified seven and none
+              replied" calls for completely different action. */}
           <div className="rounded-card border border-line bg-white p-4">
-            <h2 className="mb-3 text-sm font-semibold text-ink">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="u-title-card text-ink">
+                Agences notifiées ({matches.length})
+              </h2>
+              <form action={redispatchLeadAction.bind(null, id)}>
+                <button
+                  type="submit"
+                  className="rounded-md border border-line px-3 py-1.5 text-xs font-medium text-ink hover:bg-canvas-alt"
+                >
+                  Relancer la diffusion
+                </button>
+              </form>
+            </div>
+
+            {matches.length === 0 ? (
+              <p className="text-sm text-ink-45">
+                Aucune agence notifiée.{' '}
+                {lead.commune
+                  ? `Aucune agence inscrite ne couvre ${lead.commune} — voir `
+                  : 'Cette demande ne précise aucune commune, elle ne peut donc pas être attribuée automatiquement. Voir '}
+                <Link href="/admin/matching" className="font-semibold text-blue-deep hover:underline">
+                  Attribution
+                </Link>
+                .
+              </p>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {matches.map((m) => {
+                  const agent = agentById.get(String(m.agent_id));
+                  const answered = proposals.some((p) => Number(p.agent_id) === Number(m.agent_id));
+                  return (
+                    <li key={m.id} className="rounded-md border border-line p-2.5 text-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-medium text-ink">
+                          {m.rank ? `#${m.rank} · ` : ''}
+                          {agent ? agentName(agent) : `Agent #${m.agent_id}`}
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          {answered ? (
+                            <span className="rounded-full bg-success-tint px-2 py-0.5 text-[0.6875rem] font-bold text-success">
+                              A répondu
+                            </span>
+                          ) : m.status === 'FAILED' ? (
+                            <span className="rounded-full bg-danger-tint px-2 py-0.5 text-[0.6875rem] font-bold text-danger">
+                              Envoi échoué
+                            </span>
+                          ) : (
+                            <span className="rounded-full bg-canvas-deep px-2 py-0.5 text-[0.6875rem] font-bold text-ink-45">
+                              Notifiée
+                            </span>
+                          )}
+                          <span className="text-xs text-ink-45">{formatDateTime(m.created_at)}</span>
+                        </span>
+                      </div>
+                      <p className="u-tabular mt-0.5 text-xs text-ink-45">
+                        {m.agent_phone || '—'}
+                        {m.score != null ? ` · score ${Math.round(m.score)}` : ''}
+                        {m.error ? ` · ${m.error}` : ''}
+                      </p>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+
+          <div className="rounded-card border border-line bg-white p-4">
+            <h2 className="u-title-card mb-3 text-ink">
               Propositions des agents ({proposals.length}/7)
             </h2>
             {enrichedProposals.length === 0 ? (
@@ -138,7 +218,7 @@ export default async function AdminLeadDetailPage({ params }) {
 
         <div className="flex flex-col gap-4">
           <div className="rounded-card border border-line bg-white p-4">
-            <h2 className="mb-3 text-sm font-semibold text-ink">Client</h2>
+            <h2 className="u-title-card mb-3 text-ink">Client</h2>
             <dl className="flex flex-col gap-2 text-sm">
               <div>
                 <dt className="text-xs text-ink-45">Nom</dt>
@@ -156,7 +236,7 @@ export default async function AdminLeadDetailPage({ params }) {
           </div>
 
           <div className="rounded-card border border-line bg-white p-4">
-            <h2 className="mb-3 text-sm font-semibold text-ink">Agent assigné</h2>
+            <h2 className="u-title-card mb-3 text-ink">Agent assigné</h2>
             <form action={boundAssign} className="flex flex-col gap-2">
               <select
                 name="agent_id"
@@ -191,7 +271,7 @@ export default async function AdminLeadDetailPage({ params }) {
           </div>
 
           <div className="rounded-card border border-line bg-white p-4">
-            <h2 className="mb-3 text-sm font-semibold text-ink">Statut</h2>
+            <h2 className="u-title-card mb-3 text-ink">Statut</h2>
             <form action={boundUpdateStatus} className="flex flex-col gap-2">
               <select
                 name="status"

@@ -62,7 +62,7 @@ export default async function ParametresPage() {
         />
 
         <PortalPanel className="p-6 sm:p-7">
-          <h3 className="text-[1.125rem] font-bold text-ink">Informations personnelles</h3>
+          <h3 className="u-title-card text-ink">Informations personnelles</h3>
 
           <form action={updateProfileNameAction} className="mt-5 grid gap-4 sm:grid-cols-2">
             <div>
@@ -115,7 +115,7 @@ export default async function ParametresPage() {
         </PortalPanel>
 
         <PortalPanel className="p-6 sm:p-7">
-          <h3 className="text-[1.125rem] font-bold text-ink">Devise d&apos;affichage</h3>
+          <h3 className="u-title-card text-ink">Devise d&apos;affichage</h3>
           <p className="mt-2 max-w-lg text-[0.8125rem] leading-[1.5] text-ink-45">
             Les prix sont enregistrés en dollars. L&apos;affichage en francs congolais utilise un taux indicatif de{' '}
             <span className="u-tabular font-semibold text-ink-70">

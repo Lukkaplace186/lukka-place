@@ -52,9 +52,102 @@ Scan fast to find, linger to decide.
   - white on `--bronze` (`#A6642A`) = **4.69:1**, passes AA → bronze is a **fill** colour.
   - `--bronze` as text on `--canvas` = **4.46:1**, **fails AA** → never use it for body-size text.
   - `--bronze-deep` (`#7E4A1C`) on `--canvas` = **6.93:1**, passes → all bronze text, links and small icons.
-- **Type is sans-led.** Inter carries the hero (800), all UI, filters, prices, card data and body copy. Fraunces is an *accent only* — section titles, `/a-propos`, detail-page section headings — held at **400–500**. Never Fraunces for UI or data; never at a heavy weight (the previous design set a display serif at `font-extrabold`, the heaviest cut of a face whose whole character lives at regular weight). No mono family is loaded: reference codes use `.u-ref`.
+- **Type is sans-led**, and there is now exactly one scale for the whole application — see the **Typography** section below, which supersedes any per-surface heading convention. Plus Jakarta Sans carries all UI, filters, prices, card data and body copy; DM Serif Display is an *accent only*, at regular weight, for page and section titles on every surface including `/admin`. No mono family is loaded: reference codes use `.u-ref`. (This bullet previously named Inter and Fraunces — both were replaced by the "WhiteBlue Royal" pass and the note was stale.)
 - **Utilities that carry the look**: `.u-eyebrow` (uppercase 11px/0.12em — the editorial workhorse), `.u-tabular` (**every price**, or grid columns go ragged), `.u-ref`, `.u-lift` / `.u-lift-lg` (the only real elevations; cards use hairline `border-line` instead of shadows).
 - **Colours that can't reach CSS**: `lib/mapIcons.js` (SVG data URIs) and `lib/mapStyle.js` (Google Maps `styles` array) hardcode the palette because neither can resolve CSS custom properties. Keep them in step by hand.
+
+## Typography — one scale, four surfaces
+
+**Before this, the app ran four typographic dialects on one font stack**, which
+is why the storefront, the agent portal, the Espace Client and `/admin` read as
+different products: the public site set headings in DM Serif, the agent portal
+used the serif for its page title but ad-hoc `text-[1.125rem] font-bold` sans
+for every card heading, the client portal had a third set of arbitrary sizes,
+and `/admin` used the display face **zero times** — every heading sans-bold at
+`text-xl` / `text-[1.3125rem]` / `text-sm`.
+
+**Two families, one hierarchy, applied identically everywhere** (tokens and
+utilities in `app/globals.css`):
+
+| Utility | Face | Size | Use |
+| --- | --- | --- | --- |
+| `.u-title-hero` | DM Serif | 32→40px | the h1 of an editorial full-page (Espace Client, /compte/alertes, /compte/demandes) |
+| `.u-title-page` | DM Serif | 28→30px | every dashboard page header — agent AND admin |
+| `.u-title-section` | DM Serif | 22px | a band within a page; auth-card titles; empty-state titles |
+| `.u-title-card` | Sans 700 | 17px | the heading inside one card or panel |
+| `.u-title-sub` | Sans 700 | 15px | a group label above a field cluster |
+| `.u-micro` / `.u-micro-strong` | Sans 400/600 | 13px | the dashboard workhorse: table cells, filter controls, form labels |
+| `.u-stat` | Sans 800 tabular | 28px | a headline metric on a stat tile |
+
+**Use these instead of writing a new arbitrary `text-[…]`.** A one-off size is
+exactly how the four dialects happened. `.u-price`, `.u-body`, `.u-meta`,
+`.u-eyebrow`, `.u-ref` and `.u-tabular` are unchanged and still apply.
+
+The serif is what makes an admin console read as part of the same product as
+the storefront — it is why it now appears there at all. It stays regular
+weight only (the face has no bold cut) and never carries UI or data.
+
+## Listing lifecycle — three independent axes
+
+Conflating any two of these is the bug that keeps recurring:
+
+| Column | Meaning | Who owns it |
+| --- | --- | --- |
+| `approve_status` | moderation: 0 pending / 1 approved / 2 rejected | admin only |
+| `listing_status` | market state: `active` / `under_offer` / `closed` | agent (+ admin override) |
+| `status` | visibility: 1 public / 0 hidden | agent ("Archiver") and admin ("Suspendre") |
+
+- **Archiving is `status = 0`** — the existing active/enabled flag the public
+  filter already excludes. No new visibility mechanism was invented; the only
+  new column is `archived_at`, which records *when*, so an agent archive is
+  distinguishable from a listing that was simply never enabled.
+- **Closing a transaction requires a real price AND a real date.**
+  `markListingSoldAction` writes `sold_price` + `sold_at` and sets
+  `status = 0`, so a concluded property leaves public search. `sold_at` exists
+  because days-on-market was previously derived from `updated_at`, which moves
+  every time anything on the row changes — a listing touched three months after
+  closing reported a three-month-longer DOM.
+- **`lib/dataExport.js` filters on `approve_status = 1` ONLY**, and is the one
+  query in this codebase that deliberately does not apply the public
+  `status = 1 AND approve_status = 1` gate. Filtering on `status` there would
+  drop every SOLD listing — the rows carrying `sold_price`, `sold_at` and the
+  achieved-vs-asking delta, i.e. the entire commercial value of the dataset.
+  Consumers who want live supply only filter the new `currently_listed` column.
+  `tests/unit/data-export.test.js` asserts this on the SQL text, not on rows.
+
+## Admin console
+
+- **`lib/adminListings.js` is separate from `lib/agentListings.js` on purpose.**
+  The latter enforces `AND agent_id = $n` on every statement — that scoping is
+  its whole point and must never be weakened. An admin needs to reach any
+  listing, including the ~23 with no agent attached. Two modules with two
+  explicit authority models beats one module with a "skip the ownership check"
+  flag someone eventually passes from the wrong place.
+- **Granular override editing** (`/admin/listings/[id]`) is what the console was
+  missing entirely: it previously offered exactly two verbs, Approuver and
+  Rejeter, so a listing with a transposed price or a missing commune could only
+  be bounced back to its agent over WhatsApp. That is why 6 approved listings
+  still carry no commune tag — nobody had a way to add one.
+- **Suspendre ≠ Rejeter.** Rejection is a moderation verdict that notifies the
+  agent their listing was refused; suspension is operational and reversible in
+  one click, leaving approval intact. `?status=suspended` is a fourth
+  moderation queue reading a *different column* (`status = 0 AND
+  approve_status = 1`) — see `LISTING_MODERATION_STATUSES`.
+- **`/admin/agents/[id]`** owns identity, territory (specialty vs coverage —
+  they score differently in the matcher), the verification badge, session
+  revocation, WhatsApp password-reset links, and portfolio reassignment.
+  `agents.phone` is deliberately **not** editable: it is the primary
+  identifier, and changing it would silently invalidate listing attribution,
+  the verification that granted the badge, and sessions.
+- **Duplicate detection** flags same-normalised-phone and same-email groups
+  only, never name similarity. The phone normaliser folds DRC shorthand onto
+  `243…` and leaves every other country's digits alone — an unconditional
+  `243` prefix turned a real UK number in production into `243447932673460`.
+- **Quotas are per-PACKAGE, not per-agent.** This schema has no per-agent quota
+  column; a UI implying one would promise an override nothing enforces.
+- **`plan_change_requests`** is the queue behind the agent-facing "Demander ce
+  forfait". There is no payment gateway by product decision — approving a
+  request assigns the package and writes the ledger row in one action.
 
 ## Layout & shell
 

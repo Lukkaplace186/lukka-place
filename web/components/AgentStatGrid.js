@@ -69,7 +69,7 @@ function StatBody({ stat }) {
             />
           )}
         </div>
-        <div className="u-tabular mt-1.5 text-[1.875rem] font-extrabold leading-none tracking-[-0.02em] text-ink">
+        <div className="u-stat mt-1.5 text-ink">
           {stat.value.toLocaleString('fr-FR')}
         </div>
         <DeltaLine delta={stat.delta} />

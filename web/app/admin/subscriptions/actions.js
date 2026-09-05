@@ -4,7 +4,13 @@ import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { getPool } from '@/lib/db';
 import { ADMIN_SESSION_COOKIE, isValidSessionToken } from '@/lib/adminAuth';
-import { createPackage, updatePackage, assignPackageToAgent, PACKAGE_TERMS } from '@/lib/subscriptions';
+import {
+  createPackage,
+  updatePackage,
+  assignPackageToAgent,
+  resolvePlanChangeRequest,
+  PACKAGE_TERMS,
+} from '@/lib/subscriptions';
 
 async function assertAdminSession() {
   const token = (await cookies()).get(ADMIN_SESSION_COOKIE)?.value;
@@ -132,4 +138,136 @@ export async function unsetFeaturedAction(propertyId) {
     [propertyId],
   );
   revalidatePath('/admin/subscriptions');
+}
+
+/**
+ * Approve or decline an agent's own plan-change request.
+ *
+ * "Approve" here means "we have taken the payment and are provisioning it" —
+ * this platform has no gateway (deliberately: /admin/subscriptions is a
+ * manual ledger for cash, bank transfer and Mobile Money), so approving both
+ * resolves the request AND assigns the package in one transaction-shaped
+ * action rather than leaving an admin to remember the second half.
+ *
+ * The payment details are optional on purpose: an agency put on a plan
+ * pending payment is a real situation, and forcing a fabricated amount to
+ * record the provisioning would put a fake number straight into the ledger.
+ */
+export async function resolvePlanRequestAction(requestId, decision, formData) {
+  await assertAdminSession();
+
+  if (!['approved', 'declined'].includes(decision)) {
+    throw new Error("decision must be 'approved' or 'declined'");
+  }
+
+  const note = String(formData?.get('handled_note') || '').trim() || null;
+
+  if (decision === 'approved') {
+    const agentId = Number.parseInt(formData.get('agent_id'), 10);
+    const packageId = Number.parseInt(formData.get('package_id'), 10);
+    if (!Number.isFinite(agentId) || !Number.isFinite(packageId)) {
+      throw new Error('agent_id and package_id are required to approve a request');
+    }
+
+    const priceRaw = formData.get('price');
+    const price = priceRaw ? Number.parseFloat(priceRaw) : null;
+
+    await assignPackageToAgent({
+      agentId,
+      packageId,
+      price: Number.isFinite(price) ? price : null,
+      currency: String(formData.get('currency') || '').trim() || null,
+      currencySymbol: String(formData.get('currency_symbol') || '').trim() || null,
+      paymentMethod: String(formData.get('payment_method') || '').trim() || null,
+      transactionId: String(formData.get('transaction_id') || '').trim() || null,
+    });
+  }
+
+  await resolvePlanChangeRequest(requestId, decision, note);
+
+  revalidatePath('/admin/subscriptions');
+  revalidatePath('/admin/agents');
+  revalidatePath('/compte/agent/abonnement');
+}
+
+/**
+ * Extend, expire or cancel an existing membership without creating a new
+ * ledger row.
+ *
+ * `memberships` doubles as the payment ledger (one row per assignment or
+ * renewal — see lib/subscriptions.js), which is exactly why extending has to
+ * be a distinct verb from assigning: a goodwill week added to a plan is not a
+ * payment, and recording it as one would inflate revenue in the very table an
+ * admin reads to reconcile cash.
+ *
+ * `status = 0` is this schema's own "not active" for a membership; the
+ * agent-facing card reads `expire_date` and shows an honest expired state, so
+ * cancelling by pulling the date back to today is what the rest of the app
+ * already understands.
+ */
+export async function updateMembershipAction(membershipId, formData) {
+  await assertAdminSession();
+  const action = String(formData.get('action') || '');
+  const pool = getPool();
+
+  if (action === 'extend') {
+    const days = Number.parseInt(formData.get('days'), 10);
+    if (!Number.isFinite(days) || days === 0) throw new Error('days must be a non-zero integer');
+    await pool.query(
+      `UPDATE memberships
+       SET expire_date = GREATEST(COALESCE(expire_date, CURRENT_DATE), CURRENT_DATE) + make_interval(days => $1),
+           status = 1, updated_at = NOW()
+       WHERE id = $2`,
+      [days, membershipId],
+    );
+  } else if (action === 'cancel') {
+    await pool.query(
+      `UPDATE memberships SET status = 0, expire_date = CURRENT_DATE, updated_at = NOW() WHERE id = $1`,
+      [membershipId],
+    );
+  } else if (action === 'reactivate') {
+    await pool.query(`UPDATE memberships SET status = 1, updated_at = NOW() WHERE id = $1`, [membershipId]);
+  } else {
+    throw new Error(`Unknown membership action: ${action}`);
+  }
+
+  revalidatePath('/admin/subscriptions');
+  revalidatePath('/admin/agents');
+}
+
+/**
+ * Quota override on a PACKAGE, not on one agency.
+ *
+ * There is no per-agent quota column anywhere in this schema — the caps are
+ * `packages.number_of_property` and `packages.monthly_pitch_limit`, which
+ * every agency on that tier shares. Adding a per-agent override column would
+ * be a real migration and a second source of truth for every quota check in
+ * both applications; editing the tier is the honest capability this schema
+ * actually supports, and the form says so rather than implying a per-agent
+ * grant that doesn't exist.
+ */
+export async function updatePackageQuotasAction(packageId, formData) {
+  await assertAdminSession();
+
+  const listingLimitRaw = formData.get('number_of_property');
+  const pitchLimitRaw = formData.get('monthly_pitch_limit');
+  const priorityRaw = formData.get('priority_multiplier');
+
+  const listingLimit = listingLimitRaw ? Number.parseInt(listingLimitRaw, 10) : null;
+  const pitchLimit = Number.parseInt(pitchLimitRaw, 10);
+  const priority = Number.parseFloat(priorityRaw);
+
+  if (!Number.isFinite(pitchLimit) || pitchLimit < 0) throw new Error('monthly_pitch_limit must be >= 0');
+  if (!Number.isFinite(priority) || priority <= 0) throw new Error('priority_multiplier must be > 0');
+
+  const pool = getPool();
+  await pool.query(
+    `UPDATE packages
+     SET number_of_property = $1, monthly_pitch_limit = $2, priority_multiplier = $3, updated_at = NOW()
+     WHERE id = $4`,
+    [listingLimit, pitchLimit, priority, packageId],
+  );
+
+  revalidatePath('/admin/subscriptions');
+  revalidatePath('/compte/agent/abonnement');
 }

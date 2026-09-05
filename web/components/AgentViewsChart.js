@@ -20,7 +20,7 @@ export default function AgentViewsChart({ series, rangeOptions, range, rangeLabe
     <div className="u-card rounded-card bg-surface p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-[1.125rem] font-bold text-ink">Vues de vos annonces</h2>
+          <h2 className="u-title-card text-ink">Vues de vos annonces</h2>
           <p className="mt-0.5 text-[0.8125rem] text-ink-45">{rangeLabel}</p>
         </div>
         <Suspense fallback={<div className="h-10 w-[9.5rem] rounded-lg border border-line bg-surface" />}>

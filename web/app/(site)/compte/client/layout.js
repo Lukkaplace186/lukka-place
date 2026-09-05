@@ -52,7 +52,7 @@ export default async function ClientPortalLayout({ children }) {
           original spacing. */}
       <div className="mx-auto max-w-[77.5rem] px-4 pb-4 pt-6 sm:px-6 sm:pb-7 sm:pt-11 lg:px-8">
         <p className="u-eyebrow">Espace client</p>
-        <h1 className="mt-2.5 font-display text-[2.125rem] font-normal leading-[1.08] tracking-[-0.012em] text-ink sm:text-[2.875rem]">
+        <h1 className="u-title-hero mt-2.5 text-ink">
           Bonjour, {firstName}
         </h1>
         <p className="mt-3 max-w-[38.75rem] text-[1rem] leading-[1.6] text-ink-45">

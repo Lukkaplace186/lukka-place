@@ -36,7 +36,7 @@ export default async function DemandesPage() {
       <Breadcrumb className="mb-6" items={[{ label: 'Accueil', href: '/' }, { label: 'Mes demandes' }]} />
 
       <header className="mb-10">
-        <h1 className="font-display text-[2rem] font-normal leading-[1.12] tracking-[-0.02em] text-ink sm:text-[2.5rem]">
+        <h1 className="u-title-hero text-ink">
           Mes demandes
         </h1>
         <p className="mt-3 text-[0.9375rem] leading-relaxed text-ink-45">
@@ -49,7 +49,7 @@ export default async function DemandesPage() {
           <span className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-canvas-alt text-ink-45">
             <Send strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
           </span>
-          <h3 className="font-display text-xl font-normal tracking-[-0.01em] text-ink">Aucune demande pour le moment</h3>
+          <h3 className="u-title-section text-ink">Aucune demande pour le moment</h3>
           <p className="mx-auto mt-2 max-w-sm text-[0.875rem] leading-relaxed text-ink-45">
             Contactez un agent depuis une annonce pour voir vos demandes apparaître ici.
           </p>

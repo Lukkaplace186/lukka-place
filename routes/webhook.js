@@ -18,11 +18,13 @@ const {
   findLatestPendingListing,
   publishListing,
   applyListingCorrection,
+  getListing,
 } = require('../services/db');
 const chakra = require('../services/chakra');
 const { persistImages } = require('../services/mediaStorage');
 const { resolveCommune, resolveQuartier } = require('../services/locations');
 const { handleBuyerMessage } = require('../services/buyerConversation');
+const onboarding = require('../services/agentOnboarding');
 
 const router = express.Router();
 
@@ -541,6 +543,11 @@ async function processGroup(messages) {
       console.log(`[chakra] ${label}: stored ${photoPaths.length} photo(s)`);
     }
 
+    // Set below when an unregistered sender's listing triggers the WhatsApp
+    // registration ask. Kept out here so the single send at the end of this
+    // function stays the only place a reply leaves the intake path.
+    let onboardingSuffix = null;
+
     const { extracted_data: extracted, whatsapp_reply: reply, _meta } = await parseMessage(text, {
       senderPhone: from,
       images,
@@ -565,6 +572,29 @@ async function processGroup(messages) {
     if (extracted.quartier) {
       const resolvedQuartier = resolveQuartier(extracted.quartier, extracted.commune);
       if (resolvedQuartier) extracted.quartier = resolvedQuartier;
+    }
+
+    // AGENT ONBOARDING — the reply to "what is your name and your agency?".
+    //
+    // Checked before the buyer branch and before the listing branch, and
+    // gated on `!extracted.is_listing` so a sender who answers by simply
+    // sending another property is treated as submitting that property (which
+    // is what they did) rather than having "Villa 3 chambres Gombe 1500$"
+    // stored as their name.
+    //
+    // A failed capture (unparseable answer, Postgres down) deliberately falls
+    // THROUGH to the normal reply below rather than returning: the sender
+    // gets a sensible response either way, and the session stays open so the
+    // question can be asked again on their next listing.
+    if (!extracted.is_listing && hasText && onboarding.getSession(from)?.state === 'AWAITING_NAME') {
+      const result = await onboarding.completeOnboarding(from, text, {
+        pendingListingId: pending ? pending.id : null,
+      });
+      if (result.handled) {
+        console.log(`[onboarding] ${from} registered from WhatsApp`);
+        return;
+      }
+      console.log(`[onboarding] ${from} reply not usable as a name (${result.reason}) — falling through`);
     }
 
     // Customer search, not an agent submission — route to the buyer
@@ -601,6 +631,23 @@ async function processGroup(messages) {
         `[db] listing #${id} saved from ${from}` +
           (wamids.length > 1 ? ` (${wamids.length} messages)` : ''),
       );
+
+      // Is this sender already a registered agent? If not, the reply below
+      // carries a structured summary card and one question instead of ending
+      // at "répondez OK". Answering that question IS the confirmation for an
+      // unregistered sender (see services/agentOnboarding.js), so they are
+      // never asked to acknowledge the same listing twice.
+      //
+      // Wrapped: an onboarding failure must never cost the agent the reply
+      // confirming we received their property.
+      try {
+        if (await onboarding.shouldOnboard(from)) {
+          const prompt = onboarding.startOnboarding(from, getListing(id), photoPaths.length);
+          if (prompt) onboardingSuffix = prompt;
+        }
+      } catch (err) {
+        console.warn(`[onboarding] could not offer registration to ${from}: ${err.message}`);
+      }
     } else if (pending) {
       // Doesn't stand alone as a listing, but a prior one is still pending —
       // treat it as a correction/refinement of that listing rather than noise.
@@ -608,8 +655,12 @@ async function processGroup(messages) {
       console.log(`[db] listing #${pending.id} updated (correction from ${from})`);
     }
 
-    await chakra.sendWhatsAppMessage(from, reply, { replyToMessageId: primaryWamid || undefined });
-    console.log(`[chakra] reply sent to ${from}`);
+    await chakra.sendWhatsAppMessage(from, onboardingSuffix ? `${reply}
+
+${onboardingSuffix}` : reply, {
+      replyToMessageId: primaryWamid || undefined,
+    });
+    console.log(`[chakra] reply sent to ${from}${onboardingSuffix ? ' (with registration prompt)' : ''}`);
   } finally {
     wamids.forEach((wamid) => inFlight.delete(wamid));
   }

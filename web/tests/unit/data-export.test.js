@@ -55,9 +55,50 @@ test('the header row names every contract column in order', () => {
 test('the export covers only listings that were really on the market', async () => {
   await getListingExportRows();
   const sql = calls[0].sql;
-  assert.match(sql, /p\.status = 1 AND p\.approve_status = 1/, 'unapproved listings were never on the market');
+  assert.match(sql, /WHERE p\.approve_status = 1/, 'unapproved listings were never on the market');
   // '0' is the stored "unknown" for the TEXT area column; exporting it as a
   // measurement would be fabricated data.
   assert.match(sql, /NULLIF\(NULLIF\(p\.area, '0'\), ''\)/);
   assert.match(sql, /price_delta_pct/);
+});
+
+/**
+ * The one query in this app that deliberately does NOT apply the public
+ * `status = 1 AND approve_status = 1` gate, and the reason is the whole
+ * commercial point of the export.
+ *
+ * `status` became the visibility flag when archiving and transaction
+ * recording landed: marking a listing sold sets it to 0 so a concluded
+ * property leaves public search. If this query filtered on it, every SOLD
+ * listing — precisely the rows carrying sold_price, sold_at and the
+ * achieved-vs-asking delta — would silently vanish from the dataset, and the
+ * export would quietly become a list of things that never transacted.
+ *
+ * Asserted on the SQL text rather than on returned rows for the same reason
+ * listings-sql.test.js does: a row-comparison test passes just as happily
+ * against a fixture that happens to contain no sold listings.
+ */
+test('sold and archived listings stay in the market export — status must NOT be filtered', async () => {
+  await getListingExportRows();
+  const sql = calls[0].sql;
+  // Comments are stripped first: the doc comment right above the WHERE
+  // clause quotes the very filter this asserts is absent, so matching the
+  // raw text would fail on the explanation of why it is absent.
+  const withoutComments = sql.split('\n').map((line) => line.replace(/--.*$/, '')).join('\n');
+  assert.doesNotMatch(
+    withoutComments,
+    /WHERE[\s\S]*p\.status = 1/,
+    'filtering on p.status here drops every closed transaction from the dataset',
+  );
+  assert.match(sql, /\(p\.status = 1\) *AS currently_listed/, 'consumers still need to know what is live');
+});
+
+test('days on market uses the agent-recorded transaction date, not the last edit', async () => {
+  await getListingExportRows();
+  const sql = calls[0].sql;
+  // updated_at moves every time anything on the row changes, so a listing
+  // touched three months after closing reported a three-month-longer DOM.
+  // sold_at is the real agreed date; updated_at survives only as the fallback
+  // for rows closed before that column existed.
+  assert.match(sql, /COALESCE\(p\.sold_at::timestamp, p\.updated_at\)/);
 });

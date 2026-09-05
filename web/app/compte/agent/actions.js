@@ -45,7 +45,8 @@ import {
   getAgentPitchUsage,
 } from '@/lib/adminApi';
 import { LEAD_STATUSES, VIEWING_REQUEST_STATUSES } from '@/lib/adminLabels';
-import { hasDemandFeedAccess, currentPitchPeriodStart, resolvePitchQuota } from '@/lib/demandFeed';
+import { currentQuotaPeriodStart, resolveLeadQuota } from '@/lib/leadQuota';
+import { createPlanChangeRequest, getPurchasablePackages } from '@/lib/subscriptions';
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 const ALLOWED_AVATAR_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
@@ -94,12 +95,22 @@ export async function updateListingStatusAction(propertyId, formData) {
   if (!LISTING_STATUSES.includes(status)) throw new Error(`listing_status must be one of: ${LISTING_STATUSES.join(', ')}`);
 
   const pool = getPool();
-  // sold_price is cleared whenever the status moves away from 'closed' —
-  // this action can no longer set 'closed' itself (see LISTING_STATUSES
-  // above), but a listing already closed that gets reactivated shouldn't
-  // keep a stale final price attached to what is now an active listing.
+  // sold_price/sold_at are cleared whenever the status moves away from
+  // 'closed' — this action can no longer set 'closed' itself (see
+  // LISTING_STATUSES above), but a listing already closed that gets
+  // reactivated shouldn't keep a stale transaction attached to what is now
+  // an active listing.
+  //
+  // `status = 1` (and archived_at = NULL) comes back with it: closing a
+  // listing retires it from public search, so reopening it has to put it
+  // back or "Remettre en ligne" would leave the agent with an active
+  // listing nobody can find. An agent who wants it active-but-hidden
+  // archives it explicitly afterwards.
   const { rowCount } = await pool.query(
-    `UPDATE properties SET listing_status = $1, sold_price = NULL, updated_at = NOW() WHERE id = $2 AND agent_id = $3`,
+    `UPDATE properties
+     SET listing_status = $1, sold_price = NULL, sold_at = NULL,
+         status = 1, archived_at = NULL, updated_at = NOW()
+     WHERE id = $2 AND agent_id = $3`,
     [status, propertyId, agentId],
   );
   if (rowCount === 0) throw new Error('Not your listing, or it does not exist.');
@@ -114,6 +125,24 @@ export async function updateListingStatusAction(propertyId, formData) {
  * object (not a redirect) since this is called imperatively from inside
  * MarkListingSoldDialog, which needs {ok, error} to keep the dialog open on
  * a validation failure and show a toast either way.
+ *
+ * Both halves of the transaction record are required, not optional:
+ *
+ *  - `sold_price` — the real agreed figure, which is what makes the
+ *    institutional market export (lib/dataExport.js: asking vs achieved,
+ *    price delta) mean anything. Without it a closed listing contributes
+ *    nothing to the dataset.
+ *  - `sold_at` — the real agreed DATE. Days-on-market was previously
+ *    approximated from `updated_at`, which moves whenever anything on the
+ *    row is edited; a listing touched three months after closing reported a
+ *    three-month-longer DOM. A future date is rejected outright, and so is
+ *    one before the listing existed.
+ *
+ * Closing also retires the listing from public search (`status = 0`). A
+ * concluded transaction still appearing in results is the single most
+ * common complaint against portals that don't do this, and the data is
+ * fully preserved either way — this is the same reversible visibility flag
+ * Archiver uses, not a delete.
  */
 export async function markListingSoldAction(propertyId, formData) {
   const agentId = await assertAgentSession();
@@ -122,10 +151,93 @@ export async function markListingSoldAction(propertyId, formData) {
     return { ok: false, error: 'Indiquez un prix final valide.' };
   }
 
+  const soldAtRaw = String(formData.get('sold_at') || '').trim();
+  if (!soldAtRaw) return { ok: false, error: 'Indiquez la date de la transaction.' };
+  const soldAt = new Date(`${soldAtRaw}T12:00:00Z`);
+  if (Number.isNaN(soldAt.getTime())) return { ok: false, error: 'Date de transaction invalide.' };
+  if (soldAt.getTime() > Date.now()) {
+    return { ok: false, error: 'La date de transaction ne peut pas être dans le futur.' };
+  }
+
   const pool = getPool();
+  const { rows } = await pool.query(
+    'SELECT created_at FROM properties WHERE id = $1 AND agent_id = $2',
+    [propertyId, agentId],
+  );
+  if (!rows.length) return { ok: false, error: 'Bien introuvable, ou vous n’en êtes pas le propriétaire.' };
+  const createdAt = rows[0].created_at ? new Date(rows[0].created_at) : null;
+  // Same-day close is legitimate, so this compares dates, not instants —
+  // `created_at` is a timestamp and a listing published at 14:00 would
+  // otherwise reject a transaction dated that morning.
+  if (createdAt && soldAtRaw < createdAt.toISOString().slice(0, 10)) {
+    return { ok: false, error: 'La date de transaction précède la publication de l’annonce.' };
+  }
+
   const { rowCount } = await pool.query(
-    `UPDATE properties SET listing_status = 'closed', sold_price = $1, updated_at = NOW() WHERE id = $2 AND agent_id = $3`,
-    [soldPrice, propertyId, agentId],
+    `UPDATE properties
+     SET listing_status = 'closed', sold_price = $1, sold_at = $2,
+         status = 0, archived_at = NOW(), updated_at = NOW()
+     WHERE id = $3 AND agent_id = $4`,
+    [soldPrice, soldAtRaw, propertyId, agentId],
+  );
+  if (rowCount === 0) return { ok: false, error: 'Bien introuvable, ou vous n’en êtes pas le propriétaire.' };
+
+  revalidateListingSurfaces(agentId, propertyId);
+  return { ok: true };
+}
+
+/**
+ * Archive / republish — "temporarily hide a listing from public search
+ * without deleting the data".
+ *
+ * The mechanism is `properties.status`, the existing 0/1 active-enabled
+ * integer flag that every public query already excludes (`status = 1 AND
+ * approve_status = 1` — see CLAUDE.md). Nothing new is invented, and
+ * nothing is destroyed: the row, its photos, its gallery, its amenity tags
+ * and its stats all stay exactly where they were, and republishing is a
+ * single UPDATE away.
+ *
+ * Deliberately independent of the three axes it sits beside:
+ *   approve_status  moderation (admin owns it — archiving never launders an
+ *                   unapproved listing into an approved one, and
+ *                   republishing an unapproved listing still leaves it
+ *                   invisible, correctly)
+ *   listing_status  market state (active / under_offer / closed)
+ *   status          visibility — this action, and only this action, on the
+ *                   agent side
+ *
+ * `archived_at` records when, which is what lets the UI say "Archivée le
+ * …" and lets /admin tell an agent-archived listing from one that was
+ * never enabled in the first place.
+ *
+ * Republishing a *closed* listing is refused: a listing whose transaction
+ * is recorded must go back through "Remettre en ligne" (which clears the
+ * sold price and date), or the site would publish a property that our own
+ * market dataset says is already sold.
+ */
+export async function setListingArchivedAction(propertyId, archived) {
+  const agentId = await assertAgentSession();
+  const pool = getPool();
+
+  if (!archived) {
+    const { rows } = await pool.query(
+      'SELECT listing_status FROM properties WHERE id = $1 AND agent_id = $2',
+      [propertyId, agentId],
+    );
+    if (!rows.length) return { ok: false, error: 'Bien introuvable, ou vous n’en êtes pas le propriétaire.' };
+    if (rows[0].listing_status === 'closed') {
+      return {
+        ok: false,
+        error: 'Ce bien est marqué loué / vendu. Utilisez « Remettre en ligne » pour rouvrir la transaction.',
+      };
+    }
+  }
+
+  const { rowCount } = await pool.query(
+    `UPDATE properties
+     SET status = $1, archived_at = $2, updated_at = NOW()
+     WHERE id = $3 AND agent_id = $4`,
+    [archived ? 0 : 1, archived ? new Date() : null, propertyId, agentId],
   );
   if (rowCount === 0) return { ok: false, error: 'Bien introuvable, ou vous n’en êtes pas le propriétaire.' };
 
@@ -476,18 +588,27 @@ export async function updateWorkingHoursAction(formData) {
 }
 
 /**
- * Agent Demand Feed's "Proposer un bien". Called imperatively (not a plain
- * <form action>) so the card can show a toast and stay in place, same
- * pattern as markListingSoldAction/createListingAction. Re-checks feed
- * access and listing ownership server-side — the client-side locked state
+ * An agent answering a customer request that was matched and pushed to them
+ * — "je propose ce bien pour cette demande".
+ *
+ * This used to be the Agent Demand Feed's pitch button, reachable only by
+ * browsing a marketplace of open requests. That feed is gone: the engine's
+ * dispatcher now pushes a matching request to the best-ranked agencies on
+ * WhatsApp the moment it's submitted, and this is what an agent does when
+ * they act on one. The write is unchanged (a real `lead_proposals` row) —
+ * only the way an agent arrives at it.
+ *
+ * Called imperatively (not a plain <form action>) so the card can show a
+ * toast and stay in place, same pattern as markListingSoldAction. Re-checks
+ * quota and listing ownership server-side — the client-side remaining count
  * and "my own listings only" dropdown are UX, not the real gate.
  */
 export async function proposeListingAction(leadId, formData) {
   const agentId = await assertAgentSession();
 
   const agent = await getAgentProfile(agentId);
-  if (!agent || !hasDemandFeedAccess(agent)) {
-    return { ok: false, error: "Votre accès au flux de demandes n'est plus actif." };
+  if (!agent) {
+    return { ok: false, error: 'Compte agent introuvable.' };
   }
 
   const propertyId = Number.parseInt(formData.get('property_id'), 10);
@@ -500,20 +621,21 @@ export async function proposeListingAction(leadId, formData) {
   // Usage is a real count of this agent's own lead_proposals rows since the
   // start of the month (the engine's SQLite owns that record); the allowance
   // is packages.monthly_pitch_limit. A quota lookup that fails does NOT
-  // silently grant the pitch: the feed's whole commercial model depends on
-  // this limit, so an unreadable count is a refusal, not a free pass.
+  // silently grant the response: the paid tiers' whole commercial model
+  // depends on this limit, so an unreadable count is a refusal, not a free
+  // pass.
   let quota;
   try {
-    const { used } = await getAgentPitchUsage({ agentId, since: currentPitchPeriodStart() });
-    quota = resolvePitchQuota(agent, used);
+    const { used } = await getAgentPitchUsage({ agentId, since: currentQuotaPeriodStart() });
+    quota = resolveLeadQuota(agent, used);
   } catch (err) {
-    console.warn(`[compte/agent] pitch usage lookup failed for agent #${agentId}: ${err.message}`);
-    return { ok: false, error: 'Impossible de vérifier votre quota de propositions. Réessayez dans un instant.' };
+    console.warn(`[compte/agent] lead quota lookup failed for agent #${agentId}: ${err.message}`);
+    return { ok: false, error: 'Impossible de vérifier votre quota du mois. Réessayez dans un instant.' };
   }
   if (quota.exhausted) {
     return {
       ok: false,
-      error: `Vous avez utilisé vos ${quota.limit} propositions du mois. Le quota est réinitialisé le 1er du mois prochain.`,
+      error: `Vous avez traité vos ${quota.limit} demandes du mois. Le quota est réinitialisé le 1er du mois prochain.`,
     };
   }
 
@@ -821,9 +943,40 @@ export async function bulkMarkUnderOfferAction(propertyIds) {
 
   const pool = getPool();
   const { rowCount } = await pool.query(
-    `UPDATE properties SET listing_status = 'under_offer', sold_price = NULL, updated_at = NOW()
+    `UPDATE properties SET listing_status = 'under_offer', sold_price = NULL, sold_at = NULL, updated_at = NOW()
      WHERE id = ANY($1::bigint[]) AND agent_id = $2 AND listing_status <> 'closed'`,
     [ids, agentId],
+  );
+
+  revalidateListingSurfaces(agentId, null);
+  return { ok: true, updated: rowCount, failed: ids.length - rowCount };
+}
+
+/**
+ * Bulk archive / republish, alongside bulkMarkUnderOfferAction above — an
+ * agent clearing out a season's inventory shouldn't have to open a menu 20
+ * times. Same rules as the single-listing setListingArchivedAction: closed
+ * listings are excluded from a bulk republish (they must go back through
+ * "Remettre en ligne", which clears the recorded transaction) rather than
+ * silently skipped without saying so — the returned `failed` count is what
+ * the toast reports.
+ *
+ * @param {number[]} propertyIds
+ * @param {boolean} archived
+ * @returns {Promise<{ok: boolean, updated: number, failed: number}>}
+ */
+export async function bulkSetArchivedAction(propertyIds, archived) {
+  const agentId = await assertAgentSession();
+  const ids = (propertyIds || []).map((id) => Number(id)).filter(Number.isFinite);
+  if (ids.length === 0) return { ok: true, updated: 0, failed: 0 };
+
+  const pool = getPool();
+  const { rowCount } = await pool.query(
+    `UPDATE properties
+     SET status = $1, archived_at = $2, updated_at = NOW()
+     WHERE id = ANY($3::bigint[]) AND agent_id = $4
+       ${archived ? '' : "AND listing_status <> 'closed'"}`,
+    [archived ? 0 : 1, archived ? new Date() : null, ids, agentId],
   );
 
   revalidateListingSurfaces(agentId, null);
@@ -857,4 +1010,42 @@ export async function bulkDeleteListingsAction(propertyIds) {
 
   revalidateListingSurfaces(agentId, null);
   return { ok: true, deleted, failed: ids.length - deleted };
+}
+
+
+/**
+ * An agent asking to move to a real plan, from their own dashboard.
+ *
+ * `packageId` is validated against the live list of *purchasable* packages
+ * (status = 1) rather than trusted — the same allow-list posture
+ * createListingAction takes with communes/categories. Without it a crafted
+ * request could file a queue entry for a retired or hidden package, which an
+ * admin would then be asked to honour.
+ *
+ * Returns {ok, created} rather than throwing: this is called imperatively
+ * from AgentPlanPicker, which needs to distinguish "filed" from "you already
+ * asked for this" and say so, instead of navigating away.
+ */
+export async function requestPlanChangeAction(packageId) {
+  const agentId = await assertAgentSession();
+  const id = Number.parseInt(packageId, 10);
+  if (!Number.isFinite(id)) return { ok: false, error: 'Forfait invalide.' };
+
+  const packages = await getPurchasablePackages();
+  const target = packages.find((p) => p.id === id);
+  if (!target) return { ok: false, error: "Ce forfait n'est pas disponible à la souscription." };
+
+  try {
+    const { created } = await createPlanChangeRequest({
+      agentId,
+      packageId: id,
+      kind: 'upgrade',
+      note: `Demande depuis l'espace agent — ${target.title}`,
+    });
+    revalidatePath('/compte/agent/abonnement');
+    return { ok: true, created };
+  } catch (err) {
+    console.error(`[agent] plan change request failed for agent #${agentId}: ${err.message}`);
+    return { ok: false, error: "Votre demande n'a pas pu être enregistrée. Réessayez dans un instant." };
+  }
 }

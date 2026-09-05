@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getListingsForModeration } from '@/lib/listings';
+import { getSuspendedListings } from '@/lib/adminListings';
 import { LISTING_MODERATION_STATUSES, LISTING_MODERATION_STATUS_LABELS_FR } from '@/lib/adminLabels';
 import ListingModerationCard from './ListingModerationCard';
 
@@ -7,12 +8,16 @@ export default async function AdminListingsPage({ searchParams }) {
   const params = await searchParams;
   const status = LISTING_MODERATION_STATUSES.includes(params.status) ? params.status : 'pending';
 
-  const listings = await getListingsForModeration(status);
+  // 'suspended' is not an approve_status value — it is status = 0 on an
+  // already-approved listing, a different column entirely. See
+  // LISTING_MODERATION_STATUSES' doc comment.
+  const listings =
+    status === 'suspended' ? await getSuspendedListings() : await getListingsForModeration(status);
 
   return (
     <div>
       <div className="mb-4">
-        <h1 className="text-xl font-bold tracking-[-0.02em] text-ink">Annonces</h1>
+        <h1 className="u-title-page text-ink">Annonces</h1>
         <p className="mt-1 text-sm text-ink-45">
           {listings.length} annonce{listings.length !== 1 ? 's' : ''}
         </p>

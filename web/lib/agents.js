@@ -1,7 +1,8 @@
 import 'server-only';
+import { createHash, randomBytes } from 'node:crypto';
 import { getPool } from './db';
 import { generateOtpCode, hashOtp, otpExpiresAt } from './agentAuth';
-import { sendWhatsAppTemplate, claimListingsForPhone } from './adminApi';
+import { sendWhatsAppTemplate, sendWhatsAppMessage, claimListingsForPhone } from './adminApi';
 
 /**
  * Reads/writes against the real Laravel/Zipprr schema that already lives in
@@ -300,4 +301,352 @@ export async function resetAgentPassword(agentId, passwordHash) {
      WHERE id = $2`,
     [passwordHash, agentId],
   );
+}
+
+/**
+ * SHA-256 of an activation token — the engine stores only this
+ * (`agents.activation_token_hash`), never the raw value. Plain SHA-256 rather
+ * than the salted scrypt used for passwords and OTPs: this token is 32 bytes
+ * of `crypto.randomBytes`, so it has no guessable structure for a work factor
+ * to defend, and both sides of the comparison have to derive the same digest
+ * from the same input with no stored salt to share across two applications.
+ * Must stay byte-identical to services/agentOnboarding.js's hashToken().
+ */
+function hashActivationToken(token) {
+  return createHash('sha256').update(String(token)).digest('hex');
+}
+
+/**
+ * Redeems a WhatsApp activation link: verifies the token against the stored
+ * hash, sets the agent's first password, and clears the token so the link
+ * cannot be replayed.
+ *
+ * Single-statement, single-round-trip on purpose. The check and the clear
+ * happen in one UPDATE with the conditions in its own WHERE clause, so two
+ * concurrent submissions of the same link cannot both succeed — the second
+ * finds `activation_token_hash` already NULL and updates zero rows. A
+ * read-then-write version would have a real race here.
+ *
+ * `token_version` is bumped in the same statement: any session that somehow
+ * existed for this account before its password was set is invalidated by the
+ * act of setting one.
+ *
+ * The comparison is a plain SQL equality on a SHA-256 digest, not
+ * timingSafeEqual. That is deliberate and safe here: the attacker-controlled
+ * value is hashed BEFORE it reaches the database, so a timing difference
+ * leaks information about the digest of their own guess, not about the
+ * stored secret — there is no prefix to walk. (A password check, where the
+ * candidate is compared after a salted KDF the attacker cannot precompute,
+ * is a different situation and correctly uses verifyAgainstStoredForm.)
+ *
+ * @param {{phone: string, token: string, passwordHash: string}} input
+ * @returns {Promise<{id: number, token_version: number}|null>} null when the
+ *   token is wrong, expired, or already used.
+ */
+export async function consumeAgentActivationToken({ phone, token, passwordHash }) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits || !token) return null;
+
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `UPDATE agents
+     SET password_hash = $1,
+         activation_token_hash = NULL,
+         activation_expires_at = NULL,
+         phone_verified_at = COALESCE(phone_verified_at, NOW()),
+         token_version = token_version + 1,
+         status = 1,
+         updated_at = NOW()
+     WHERE regexp_replace(phone, '\D', '', 'g') = $2
+       AND activation_token_hash = $3
+       AND activation_expires_at > NOW()
+     RETURNING id, token_version`,
+    [passwordHash, digits, hashActivationToken(token)],
+  );
+
+  const agent = rows[0];
+  if (!agent) return null;
+
+  // Retroactive claiming, the moment the account becomes fully usable. The
+  // engine already links listings at onboarding time; this covers anything
+  // submitted between the WhatsApp registration and this click. Best-effort:
+  // the engine being unreachable must not fail an activation that has
+  // already committed.
+  try {
+    await claimListingsForPhone(digits);
+  } catch (err) {
+    console.warn(`[agent-activate] listing claim failed for ${digits}: ${err.message}`);
+  }
+
+  return { id: Number(agent.id), token_version: agent.token_version };
+}
+
+/**
+ * The activation landing page's own pre-flight check — is this link still
+ * good? Read-only, so the page can render "ce lien a expiré" with a real
+ * next step instead of showing a password form that will fail on submit.
+ *
+ * @returns {Promise<{valid: boolean, agentName: string|null, agencyName: string|null}>}
+ */
+export async function peekAgentActivation({ phone, token }) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits || !token) return { valid: false, agentName: null, agencyName: null };
+
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT a.id, a.username, a.agency_name, ai.first_name, ai.last_name
+     FROM agents a
+     LEFT JOIN LATERAL (
+       SELECT first_name, last_name FROM agent_infos
+       WHERE agent_id = a.id ORDER BY (language_id = 20) DESC, language_id LIMIT 1
+     ) ai ON true
+     WHERE regexp_replace(a.phone, '\D', '', 'g') = $1
+       AND a.activation_token_hash = $2
+       AND a.activation_expires_at > NOW()
+     LIMIT 1`,
+    [digits, hashActivationToken(token)],
+  );
+
+  const row = rows[0];
+  if (!row) return { valid: false, agentName: null, agencyName: null };
+  return {
+    valid: true,
+    agentName: [row.first_name, row.last_name].filter(Boolean).join(' ') || row.username || null,
+    agencyName: row.agency_name || null,
+  };
+}
+
+/**
+ * One agent, with everything the admin identity page edits — a superset of
+ * getAgentById's fields plus the columns that only /admin touches
+ * (activation state, onboarding provenance, serviced territory).
+ */
+export async function getAgentForAdmin(agentId) {
+  const id = Number.parseInt(agentId, 10);
+  if (!Number.isFinite(id)) return null;
+
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT ${AGENT_FIELDS},
+            a.serviced_communes, a.agency_name, a.onboarding_source,
+            a.activation_expires_at, a.password_hash IS NOT NULL AS has_password,
+            a.locked_until, a.failed_login_count, a.created_at
+     ${AGENT_JOINS}
+     WHERE a.id = $1`,
+    [id],
+  );
+  const row = rows[0];
+  return row ? { ...row, id: Number(row.id) } : null;
+}
+
+/**
+ * Full identity override. Every field is optional: `undefined` leaves the
+ * column alone, so a one-field correction doesn't blank the rest.
+ *
+ * `phone` is deliberately NOT editable here. It is the primary identifier for
+ * this whole platform — listings are claimed by it (services/postgres.js's
+ * linkListingsToAgent), sessions belong to the account it identifies, and the
+ * WhatsApp verification that granted the badge was performed against that
+ * exact number. Editing it in an admin form would silently invalidate all
+ * three with no visible signal. A genuinely wrong number means a new account
+ * plus a listing reassignment, which is at least honest about what happened.
+ */
+export async function adminUpdateAgent(agentId, {
+  agencyName, email, status, primaryCommunes, servicedCommunes, phoneVerified,
+}) {
+  const sets = [];
+  const values = [];
+  const push = (column, value) => {
+    values.push(value);
+    sets.push(`${column} = $${values.length}`);
+  };
+
+  if (agencyName !== undefined) push('agency_name', agencyName);
+  if (email !== undefined) push('email', email);
+  if (status !== undefined) push('status', status);
+  if (primaryCommunes !== undefined) push('primary_communes', primaryCommunes);
+  if (servicedCommunes !== undefined) push('serviced_communes', servicedCommunes);
+  // A verification badge is a claim about reality, so it can be REVOKED here
+  // (an admin discovering the number isn't theirs) but granting it stamps
+  // NOW() rather than an arbitrary date — the badge means "verified", and the
+  // timestamp records when we said so.
+  if (phoneVerified !== undefined) {
+    if (phoneVerified) sets.push('phone_verified_at = COALESCE(phone_verified_at, NOW())');
+    else sets.push('phone_verified_at = NULL');
+  }
+
+  if (!sets.length) return false;
+
+  const pool = getPool();
+  values.push(agentId);
+  const { rowCount } = await pool.query(
+    `UPDATE agents SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $${values.length}`,
+    values,
+  );
+  return rowCount > 0;
+}
+
+/**
+ * Locks an account out immediately: every existing session for it stops
+ * verifying, because a session token carries the `token_version` it was
+ * issued under (lib/agentAuth.js) and this makes that stale.
+ *
+ * This is what "invalidate compromised sessions" actually means here — there
+ * is no server-side session store to delete rows from, by design.
+ */
+export async function revokeAgentSessions(agentId) {
+  const pool = getPool();
+  const { rowCount } = await pool.query(
+    'UPDATE agents SET token_version = token_version + 1, updated_at = NOW() WHERE id = $1',
+    [agentId],
+  );
+  return rowCount > 0;
+}
+
+/**
+ * Issues a fresh activation link for an agent and sends it over WhatsApp —
+ * the admin-side "reset this agent's password" and "resend their magic link"
+ * in one action, because on this platform they are the same operation.
+ *
+ * Deliberately NOT a password an admin picks and reads out: nobody at Lukka
+ * Place should ever know an agent's password, and a temporary one relayed by
+ * hand is a live credential sitting in a chat log. The link goes to the
+ * number the account is already verified against, so only the account holder
+ * can use it.
+ *
+ * Sessions are revoked in the same statement. A password reset that leaves an
+ * attacker's existing session alive resets nothing.
+ *
+ * @returns {Promise<{ok: boolean, error?: string}>}
+ */
+export async function issueAgentActivationLink(agentId) {
+  const pool = getPool();
+  const { rows } = await pool.query('SELECT id, phone FROM agents WHERE id = $1', [agentId]);
+  const agent = rows[0];
+  if (!agent) return { ok: false, error: 'Agent introuvable.' };
+  if (!agent.phone) return { ok: false, error: 'Cet agent n’a pas de numéro WhatsApp enregistré.' };
+
+  const token = randomBytes(32).toString('hex');
+  const ttlHours = Number.parseInt(process.env.AGENT_ACTIVATION_TTL_HOURS, 10) || 72;
+  const expiresAt = new Date(Date.now() + ttlHours * 60 * 60 * 1000);
+
+  await pool.query(
+    `UPDATE agents
+     SET activation_token_hash = $1, activation_expires_at = $2,
+         token_version = token_version + 1, failed_login_count = 0, locked_until = NULL,
+         updated_at = NOW()
+     WHERE id = $3`,
+    [hashActivationToken(token), expiresAt, agentId],
+  );
+
+  const digits = String(agent.phone).replace(/\D/g, '');
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://lukkaplace.com').replace(/\/+$/, '');
+  const link = `${siteUrl}/compte/agent/activer?phone=${encodeURIComponent(digits)}&token=${token}`;
+
+  try {
+    await sendWhatsAppMessage(
+      digits,
+      [
+        'Lukka Place — réinitialisation de votre accès agent.',
+        '',
+        'Cliquez ici pour choisir un nouveau mot de passe :',
+        link,
+        '',
+        `Ce lien est valable ${ttlHours} heures. Si vous n’êtes pas à l’origine de cette demande, ignorez ce message.`,
+      ].join('\n'),
+    );
+  } catch (err) {
+    // The token is already stored, so the link genuinely works — only the
+    // delivery failed. Saying so lets the admin relay it another way instead
+    // of being told the whole operation failed when it did not.
+    return { ok: false, error: `Lien créé mais l'envoi WhatsApp a échoué : ${err.message}` };
+  }
+
+  return { ok: true };
+}
+
+/**
+ * Accounts that look like the same person registered twice.
+ *
+ * Two real signals, and no heuristic dressed up as a certainty:
+ *
+ *   - THE SAME NUMBER, DIFFERENT FORMATTING. `agents.phone` is free text
+ *     (varchar), and one line genuinely appears as '243997123456',
+ *     '+243 997 123 456' and '0997123456' depending on how it was entered.
+ *     Reducing to digits and folding a leading national '0' onto the 243
+ *     country code is what collapses those three into one group.
+ *   - THE SAME EMAIL, case-insensitively.
+ *
+ * Deliberately NOT name similarity: several very common names in Kinshasa
+ * would group unrelated agencies together, and presenting that as a duplicate
+ * finding is a guess wearing a fact's clothes. This returns groups to REVIEW;
+ * it never merges anything.
+ */
+export async function findDuplicateAgents() {
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `WITH digits AS (
+       SELECT id, username, email, phone, status, created_at,
+              regexp_replace(phone, '[^0-9]', '', 'g') AS d
+       FROM agents
+       WHERE phone IS NOT NULL AND phone <> ''
+     ),
+     normalised AS (
+       SELECT id, username, email, phone, status, created_at,
+              -- DRC mobile numbers only. '243' + 9 digits is already
+              -- canonical; '0' + 9 digits is the local form; a bare 9 digits
+              -- starting 8 or 9 is how they are commonly typed.
+              --
+              -- Anything else keeps EXACTLY its own digits, uncanonicalised.
+              -- An unconditional '243' prefix turned a real UK number
+              -- (447932673460, agent #37 in production) into
+              -- '243447932673460' — harmless in that instance because it
+              -- grouped with nothing, but exactly the kind of silent mangling
+              -- that eventually matches two unrelated accounts together.
+              CASE
+                WHEN d ~ '^243[0-9]{9}$'  THEN d
+                WHEN d ~ '^0[0-9]{9}$'    THEN '243' || substring(d from 2)
+                WHEN d ~ '^[89][0-9]{8}$' THEN '243' || d
+                ELSE d
+              END AS phone_key
+       FROM digits
+     )
+     SELECT phone_key AS key, 'phone' AS kind,
+            json_agg(json_build_object(
+              'id', id, 'username', username, 'email', email, 'phone', phone,
+              'status', status, 'created_at', created_at
+            ) ORDER BY id) AS accounts
+     FROM normalised
+     GROUP BY phone_key
+     HAVING COUNT(*) > 1
+
+     UNION ALL
+
+     SELECT LOWER(email) AS key, 'email' AS kind,
+            json_agg(json_build_object(
+              'id', id, 'username', username, 'email', email, 'phone', phone,
+              'status', status, 'created_at', created_at
+            ) ORDER BY id) AS accounts
+     FROM agents
+     WHERE email IS NOT NULL AND email <> ''
+     GROUP BY LOWER(email)
+     HAVING COUNT(*) > 1`,
+  );
+  return rows;
+}
+
+/**
+ * Moves every listing from one agent to another — the "bulk-reassign their
+ * inventory" an admin needs before suspending or retiring an account, so the
+ * properties don't silently fall back to the central WhatsApp number.
+ *
+ * @returns {Promise<number>} how many listings moved.
+ */
+export async function reassignAgentListings(fromAgentId, toAgentId) {
+  const pool = getPool();
+  const { rows } = await pool.query(
+    'UPDATE properties SET agent_id = $1, updated_at = NOW() WHERE agent_id = $2 RETURNING id',
+    [toAgentId, fromAgentId],
+  );
+  return rows.length;
 }

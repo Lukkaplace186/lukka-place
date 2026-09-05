@@ -18,6 +18,7 @@ const express = require('express');
 const db = require('../services/db');
 const chakra = require('../services/chakra');
 const { STATES } = require('../services/conversationState');
+const { dispatchLead, dispatchLeadInBackground } = require('../services/leadDispatch');
 
 const router = express.Router();
 
@@ -131,7 +132,10 @@ router.post('/conversations/:id/reply', async (req, res) => {
 // ---------------------------------------------------------------------------
 
 router.get('/leads', (req, res) => {
-  const { status, property_ids: propertyIdsRaw, assigned_agent: assignedAgent, agent_id: agentIdRaw, wa_id: waId, limit, offset } = req.query;
+  const {
+    status, property_ids: propertyIdsRaw, assigned_agent: assignedAgent,
+    agent_id: agentIdRaw, matched_agent_id: matchedAgentIdRaw, wa_id: waId, limit, offset,
+  } = req.query;
 
   if (status && !db.LEAD_STATUSES.includes(status)) {
     return res.status(400).json({ success: false, error: `Invalid status '${status}'.` });
@@ -142,6 +146,17 @@ router.get('/leads', (req, res) => {
     agentId = Number.parseInt(agentIdRaw, 10);
     if (!Number.isFinite(agentId)) {
       return res.status(400).json({ success: false, error: 'agent_id must be a real integer.' });
+    }
+  }
+
+  // Requests the automated dispatcher pushed to this agency (lead_matches).
+  // A fourth ownership signal, OR'd with the three above — see
+  // services/db.js's listLeads.
+  let matchedAgentId;
+  if (matchedAgentIdRaw !== undefined) {
+    matchedAgentId = Number.parseInt(matchedAgentIdRaw, 10);
+    if (!Number.isFinite(matchedAgentId)) {
+      return res.status(400).json({ success: false, error: 'matched_agent_id must be a real integer.' });
     }
   }
 
@@ -166,7 +181,7 @@ router.get('/leads', (req, res) => {
   }
 
   try {
-    const page = db.listLeads({ status, propertyIds, assignedAgent, agentId, waId, limit, offset });
+    const page = db.listLeads({ status, propertyIds, assignedAgent, agentId, matchedAgentId, waId, limit, offset });
     return res.json({ success: true, ...page });
   } catch (err) {
     console.error(`[admin] GET /leads failed: ${err.message}`);
@@ -218,6 +233,22 @@ router.post('/leads', (req, res) => {
       price_max: priceMax ?? null,
       bedrooms: bedrooms ?? null,
     });
+
+    // AUTOMATED AGENT MATCHING — the event trigger.
+    //
+    // Every customer request that reaches this endpoint (the Espace Client's
+    // "Trouver pour moi" form and the agent-profile inquiry form both post
+    // here) is immediately ranked against the real agencies covering its
+    // commune and pushed to the best seven on WhatsApp. This is the whole
+    // difference between the matching service working and not working: it
+    // fires on creation, rather than waiting for an agent to open a feed.
+    //
+    // Fire-and-forget, after the row is committed and outside the response:
+    // the customer's confirmation must not wait on seven outbound WhatsApp
+    // sends, and a dispatch failure must never turn a successfully-saved
+    // request into a 400. See services/leadDispatch.js's failure posture.
+    dispatchLeadInBackground(lead);
+
     return res.status(201).json({ success: true, lead });
   } catch (err) {
     console.error(`[admin] POST /leads failed: ${err.message}`);
@@ -245,6 +276,27 @@ router.get('/leads/open', (req, res) => {
   } catch (err) {
     console.error(`[admin] GET /leads/open failed: ${err.message}`);
     return res.status(500).json({ success: false, error: 'Could not read open leads.' });
+  }
+});
+
+/**
+ * The matching console's data. One round trip rather than five endpoints —
+ * every figure on that page comes from the same window and would be
+ * incoherent if the requests raced.
+ *
+ * Registered ahead of GET /leads/:id, like 'open' and 'proposals-usage', so
+ * 'matching-stats' is never parsed as a lead id.
+ */
+router.get('/leads/matching-stats', (req, res) => {
+  const days = Number.parseInt(req.query.days, 10);
+  const window = Number.isFinite(days) ? Math.min(Math.max(days, 1), 365) : 30;
+  const since = new Date(Date.now() - window * 24 * 60 * 60 * 1000).toISOString();
+
+  try {
+    return res.json({ success: true, days: window, ...db.getMatchingStats({ since }) });
+  } catch (err) {
+    console.error(`[admin] GET /leads/matching-stats failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not read matching stats.' });
   }
 });
 
@@ -309,6 +361,55 @@ router.post('/leads/:id/proposals', (req, res) => {
     return res.status(201).json({ success: true, proposal });
   } catch (err) {
     return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * Which agencies the automated dispatcher pushed a request to, and whether
+ * each was actually reached. The admin lead detail page renders this — a
+ * matching engine nobody can inspect is a matching engine nobody trusts.
+ *
+ * Unlike '/leads/open' and '/leads/proposals' above, this one does NOT need
+ * to be declared before '/leads/:id' — the paths differ in segment count, so
+ * '/leads/:id' cannot match '/leads/7/matches'. It sits here to keep every
+ * /leads/* sub-resource together.
+ */
+router.get('/leads/:id/matches', (req, res) => {
+  const leadId = Number.parseInt(req.params.id, 10);
+  if (!Number.isFinite(leadId) || !db.getLead(leadId)) {
+    return res.status(404).json({ success: false, error: 'Lead not found.' });
+  }
+  try {
+    return res.json({ success: true, matches: db.getLeadMatches(leadId) });
+  } catch (err) {
+    console.error(`[admin] GET /leads/${leadId}/matches failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not read matches.' });
+  }
+});
+
+/**
+ * Manual re-dispatch, for the two cases the automatic trigger can't cover:
+ * a request that arrived before any agency covered its commune, and one
+ * whose commune an admin has since corrected.
+ *
+ * Awaited, not fire-and-forget like the creation-time trigger — an admin
+ * clicking "Relancer la diffusion" is asking a question ("how many did that
+ * reach?") and deserves the real answer rather than a 202 and a log line.
+ * Already-notified agencies are skipped by the UNIQUE(lead_id, agent_id)
+ * constraint, so this is safe to press twice.
+ */
+router.post('/leads/:id/dispatch', async (req, res) => {
+  const leadId = Number.parseInt(req.params.id, 10);
+  const lead = Number.isFinite(leadId) ? db.getLead(leadId) : null;
+  if (!lead) {
+    return res.status(404).json({ success: false, error: 'Lead not found.' });
+  }
+  try {
+    const result = await dispatchLead(lead);
+    return res.json({ success: true, ...result });
+  } catch (err) {
+    console.error(`[admin] POST /leads/${leadId}/dispatch failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 

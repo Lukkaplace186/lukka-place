@@ -25,6 +25,12 @@ const PUBLIC_AGENT_PATHS = new Set([
   '/compte/agent/connexion',
   '/compte/agent/inscription',
   '/compte/agent/inscription/verifier',
+  // The WhatsApp magic-link landing page. Necessarily public: its whole
+  // purpose is to let an agent who has never had a password set one. It is
+  // not unguarded — it is gated by the single-use activation token in its own
+  // URL, checked against a hash in Postgres with a real expiry (see
+  // lib/agents.js's consumeAgentActivationToken).
+  '/compte/agent/activer',
 ]);
 
 export function middleware(request) {

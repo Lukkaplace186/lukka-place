@@ -3,7 +3,13 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
-import { updateConversation, sendManualReply, updateLeadStatus, assignLead } from '@/lib/adminApi';
+import {
+  updateConversation,
+  sendManualReply,
+  updateLeadStatus,
+  assignLead,
+  redispatchLead,
+} from '@/lib/adminApi';
 import { ADMIN_SESSION_COOKIE, isValidSessionToken } from '@/lib/adminAuth';
 import { getAgentById } from '@/lib/agents';
 import { agentDisplayName } from '@/lib/agencies';
@@ -97,4 +103,24 @@ export async function logoutAction() {
   // still showed the dashboard.
   cookieStore.delete({ name: ADMIN_SESSION_COOKIE, path: '/admin' });
   redirect('/admin/login');
+}
+
+/**
+ * Manual re-dispatch of one request to the best-matching agencies.
+ *
+ * Two real cases the automatic creation-time trigger cannot cover: a request
+ * that arrived when no agency covered its commune, and one whose commune an
+ * admin has since corrected. Agencies already notified are skipped by the
+ * engine's own UNIQUE (lead_id, agent_id) constraint, so this is safe to
+ * press twice — it will never double-message anyone.
+ */
+export async function redispatchLeadAction(leadId) {
+  await assertAdminSession();
+  const result = await redispatchLead(leadId);
+  console.log(
+    `[admin] re-dispatched lead #${leadId}: ${result.notified ?? 0} notified, ` +
+      `${result.failed ?? 0} failed${result.skipped ? ` (skipped: ${result.skipped})` : ''}`,
+  );
+  revalidatePath(`/admin/leads/${leadId}`);
+  revalidatePath('/admin/matching');
 }

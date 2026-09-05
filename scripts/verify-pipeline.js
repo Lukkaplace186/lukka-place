@@ -3339,6 +3339,238 @@ console.log('\n2. services/openai.js');
   check('a non-digits wa_id is rejected with 400 before ever touching the DB', () =>
     assert.strictEqual(waBadFormatResp.status, 400));
 
+  // ===========================================================================
+  console.log('\n16. Automated agent matching — lead_matches (services/leadDispatch.js)');
+  // ===========================================================================
+  //
+  // The dispatcher's Postgres ranking half cannot run here (this suite
+  // deliberately blanks the DB_* env so nothing can reach production — see the
+  // note at the top of this file), and that is exactly right: what MUST be
+  // covered locally is the SQLite half, because that is where the guarantees
+  // live. One notification per agency per request, quota accounting that a
+  // push cannot silently consume, and a lead reaching the agency it was
+  // pushed to.
+
+  const matchLead = dbService.createLead({ wa_id: '243950000001', commune: 'Gombe', bedrooms: 3 });
+
+  const firstMatch = dbService.recordLeadMatch({
+    leadId: matchLead.id, agentId: 9001, agentPhone: '243950009001', rank: 1, score: 82.5,
+  });
+  check('a dispatch records a real lead_matches row', () => {
+    assert.strictEqual(firstMatch.created, true);
+    assert.strictEqual(firstMatch.row.status, 'NOTIFIED');
+    assert.strictEqual(firstMatch.row.rank, 1);
+  });
+
+  const duplicateMatch = dbService.recordLeadMatch({ leadId: matchLead.id, agentId: 9001 });
+  check('the same agency is never notified twice for one request', () => {
+    assert.strictEqual(duplicateMatch.created, false, 'a re-dispatch must be a no-op, not a second WhatsApp message');
+    assert.strictEqual(dbService.getLeadMatches(matchLead.id).length, 1);
+  });
+
+  dbService.recordLeadMatch({ leadId: matchLead.id, agentId: 9002, agentPhone: '243950009002', rank: 2 });
+  dbService.markLeadMatchFailed({ leadId: matchLead.id, agentId: 9002, error: 'template not approved' });
+  check('a failed push is recorded, not hidden', () => {
+    const failed = dbService.getLeadMatches(matchLead.id).find((m) => m.agent_id === 9002);
+    assert.strictEqual(failed.status, 'FAILED');
+    assert.match(failed.error, /template/);
+  });
+
+  check('matches come back best-ranked first', () => {
+    const ranks = dbService.getLeadMatches(matchLead.id).map((m) => m.rank);
+    assert.deepStrictEqual(ranks, [1, 2]);
+  });
+
+  const matchScopedResp = await adminRequest(`GET`, `/admin/leads?matched_agent_id=9001&limit=100`);
+  check('a pushed request reaches the agency it was pushed to', () => {
+    assert.strictEqual(matchScopedResp.status, 200);
+    assert.ok(
+      matchScopedResp.body.data.some((l) => l.id === matchLead.id),
+      'without this the WhatsApp alert points at a dashboard that does not show the request',
+    );
+  });
+
+  const matchOtherAgentResp = await adminRequest('GET', '/admin/leads?matched_agent_id=9999&limit=100');
+  check('an agency that was NOT pushed the request does not see it', () =>
+    assert.ok(!matchOtherAgentResp.body.data.some((l) => l.id === matchLead.id)));
+
+  const badMatchedIdResp = await adminRequest('GET', '/admin/leads?matched_agent_id=abc');
+  check('a non-numeric matched_agent_id is a 400, not an unfiltered list', () =>
+    assert.strictEqual(badMatchedIdResp.status, 400));
+
+  const sinceAll = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  check('a notification does NOT consume the agency\'s paid response quota', () => {
+    // This is the whole reason lead_matches and lead_proposals are separate
+    // tables. Merging them would bill an agency for a lead they were merely
+    // shown.
+    assert.strictEqual(dbService.countAgentProposalsSince({ agentId: 9001, since: sinceAll }), 0);
+    assert.strictEqual(dbService.countAgentMatchesSince({ agentId: 9001, since: sinceAll }), 1);
+  });
+
+  dbService.createLeadProposal({ leadId: matchLead.id, agentId: 9001, propertyId: 700 });
+  check('responsiveness counts real answers against real pushes', () => {
+    const stats = dbService.getAgentResponsivenessSince({ since: sinceAll }).get(9001);
+    assert.strictEqual(stats.matched, 1);
+    assert.strictEqual(stats.answered, 1);
+    const unanswered = dbService.getAgentResponsivenessSince({ since: sinceAll }).get(9002);
+    assert.strictEqual(unanswered.answered, 0, 'an agency that was notified and stayed silent must score 0 answered');
+  });
+
+  const statsResp = await adminRequest('GET', '/admin/leads/matching-stats?days=30');
+  check('the matching console reports real counts', () => {
+    assert.strictEqual(statsResp.status, 200);
+    assert.strictEqual(statsResp.body.totals.pushes, 2);
+    assert.strictEqual(statsResp.body.totals.leads_dispatched, 1);
+  });
+
+  check('the coverage gap lists only requests that genuinely reached nobody', () => {
+    // Every other lead this suite created was never dispatched, so they are
+    // all genuinely uncovered — this is the figure that tells the business
+    // where to go and recruit. The one lead that WAS dispatched must not
+    // appear in it.
+    assert.ok(Array.isArray(statsResp.body.uncovered));
+    assert.ok(statsResp.body.uncovered.length > 0, 'undispatched leads exist in this fixture');
+    const total = statsResp.body.uncovered.reduce((sum, row) => sum + row.n, 0);
+    assert.strictEqual(
+      total,
+      statsResp.body.totals.leads - statsResp.body.totals.leads_dispatched,
+      'uncovered must be exactly the leads with no lead_matches row',
+    );
+  });
+
+  const leadMatchesResp = await adminRequest('GET', `/admin/leads/${matchLead.id}/matches`);
+  check('GET /leads/:id/matches exposes the dispatch for inspection', () => {
+    assert.strictEqual(leadMatchesResp.status, 200);
+    assert.strictEqual(leadMatchesResp.body.matches.length, 2);
+  });
+
+  const missingLeadMatchesResp = await adminRequest('GET', '/admin/leads/99999/matches');
+  check('matches for a non-existent lead is a 404', () =>
+    assert.strictEqual(missingLeadMatchesResp.status, 404));
+
+  // ===========================================================================
+  console.log('\n17. WhatsApp agent onboarding (services/agentOnboarding.js)');
+  // ===========================================================================
+
+  const onboarding = require('../services/agentOnboarding');
+
+  check('a name and an agency are parsed out of one free-text reply', () => {
+    assert.deepStrictEqual(onboarding.parseNameReply('Jean Kabeya, Agence Horizon'), {
+      fullName: 'Jean Kabeya', agencyName: 'Agence Horizon',
+    });
+    assert.deepStrictEqual(onboarding.parseNameReply('Paul N - Immo Kin'), {
+      fullName: 'Paul N', agencyName: 'Immo Kin',
+    });
+  });
+
+  check('a name with no agency yields null, never a fabricated agency', () => {
+    assert.deepStrictEqual(onboarding.parseNameReply('Marie Tshibangu'), {
+      fullName: 'Marie Tshibangu', agencyName: null,
+    });
+  });
+
+  check('a polite lead-in is not stored as part of the name', () =>
+    assert.strictEqual(onboarding.parseNameReply('Bonjour, Jean Kabeya').fullName, 'Jean Kabeya'));
+
+  check('an empty reply is refused rather than creating a nameless account', () =>
+    assert.strictEqual(onboarding.parseNameReply('   '), null));
+
+  check('the summary card omits fields the agent never gave, rather than printing dashes', () => {
+    const card = onboarding.summaryCard(
+      { commune: 'Gombe', price: 1200, currency: 'USD', transaction_type: 'location', bedrooms: null },
+      5,
+    );
+    assert.match(card, /Gombe/);
+    // fr-FR groups thousands with U+202F (narrow no-break space), not a plain
+    // space — matching a literal ' ' here fails against correct output.
+    assert.match(card, /1\s200\s\$ \/ mois/u);
+    assert.match(card, /5 reçues/);
+    assert.ok(!/Chambres/.test(card), 'a bedroom count that was never given must not appear at all');
+  });
+
+  check('the onboarding session is capped so an unanswering sender is not nagged forever', () => {
+    const waId = '243950000777';
+    for (let i = 0; i < onboarding.MAX_ASKS + 2; i += 1) dbService.openOnboardingSession(waId);
+    assert.ok(dbService.getOnboardingSession(waId).asked_count >= onboarding.MAX_ASKS);
+  });
+
+  check('completing a session is terminal', () => {
+    const waId = '243950000778';
+    dbService.openOnboardingSession(waId);
+    const done = dbService.completeOnboardingSession(waId, { fullName: 'A B', agencyName: 'C', agentId: 12 });
+    assert.strictEqual(done.state, 'COMPLETED');
+    assert.strictEqual(done.agent_id, 12);
+  });
+
+  check('the activation token is stored as a hash, never in the clear', () => {
+    const token = 'a'.repeat(64);
+    const hashed = onboarding.hashToken(token);
+    assert.notStrictEqual(hashed, token);
+    assert.strictEqual(hashed.length, 64);
+    assert.strictEqual(onboarding.hashToken(token), hashed, 'the hash must be deterministic across processes');
+  });
+
+  check('the magic link carries the phone and the raw token, and nothing else', () => {
+    const message = onboarding.activationMessage({
+      fullName: 'Jean', link: 'https://lukkaplace.com/compte/agent/activer?phone=243900000000&token=abc',
+      listingQueued: true,
+    });
+    assert.match(message, /activer\?phone=243900000000&token=abc/);
+    assert.match(message, /modération/);
+  });
+
+  // ===========================================================================
+  console.log('\n18. Weekly alert scheduler (services/scheduler.js)');
+  // ===========================================================================
+
+  const scheduler = require('../services/scheduler');
+
+  check('the sweep fires in its configured window', () => {
+    const when = new Date();
+    // Walk forward to the next configured day/hour so this assertion does not
+    // depend on when the suite happens to run.
+    while (when.getDay() !== scheduler.ALERT_DAY || when.getHours() !== scheduler.ALERT_HOUR) {
+      when.setHours(when.getHours() + 1);
+    }
+    assert.strictEqual(scheduler.shouldRunNow(when), true);
+  });
+
+  check('it does not fire outside that window', () => {
+    const when = new Date();
+    while (when.getDay() === scheduler.ALERT_DAY && when.getHours() === scheduler.ALERT_HOUR) {
+      when.setHours(when.getHours() + 1);
+    }
+    assert.strictEqual(scheduler.shouldRunNow(when), false);
+  });
+
+  check('a successful run blocks a second sweep in the same week', () => {
+    dbService.recordJobRun(scheduler.JOB_NAME, { ok: true, detail: '{}' });
+    const when = new Date();
+    while (when.getDay() !== scheduler.ALERT_DAY || when.getHours() !== scheduler.ALERT_HOUR) {
+      when.setHours(when.getHours() + 1);
+    }
+    assert.strictEqual(
+      scheduler.shouldRunNow(when),
+      false,
+      'a deploy landing inside the firing window must not re-send every customer their alerts',
+    );
+  });
+
+  check('a FAILED run does not count as having run — the next tick retries', () => {
+    // Reset to a clean slate, then record only a failure.
+    dbService.recordJobRun('scheduler-failure-probe', { ok: false, detail: 'boom' });
+    const probe = dbService.getLastJobRun('scheduler-failure-probe');
+    assert.strictEqual(probe.succeeded_at, null);
+    assert.match(probe.last_error, /boom/);
+  });
+
+  await checkAsync('the sweep refuses to run without CRON_SECRET rather than calling an open endpoint', async () => {
+    const saved = process.env.CRON_SECRET;
+    process.env.CRON_SECRET = '';
+    await assert.rejects(() => scheduler.runSearchAlertSweep(), /CRON_SECRET/);
+    process.env.CRON_SECRET = saved;
+  });
+
   // -------------------------------------------------------------------------
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);

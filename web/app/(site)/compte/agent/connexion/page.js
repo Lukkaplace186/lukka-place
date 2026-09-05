@@ -26,7 +26,7 @@ export default async function AgentLoginPage({ searchParams }) {
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm rounded-card border border-line bg-surface p-6 u-lift sm:p-8">
-        <h1 className="font-display text-2xl font-normal tracking-[-0.01em] text-ink">Espace agent</h1>
+        <h1 className="u-title-section text-ink">Espace agent</h1>
         <p className="mt-1 text-sm text-ink-45">Gérez vos annonces et vos prospects.</p>
 
         <form action={agentLoginAction} className="mt-6 flex flex-col gap-3">

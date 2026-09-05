@@ -1,4 +1,7 @@
-import { getAgents, getVendors } from '@/lib/agents';
+import Link from 'next/link';
+import { AlertTriangle } from 'lucide-react';
+import { getAgents, getVendors, findDuplicateAgents } from '@/lib/agents';
+import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { getLocationHierarchySafe } from '@/lib/locations';
 import { AGENT_STATUS_LABELS_FR } from '@/lib/adminLabels';
 import { updateAgentStatusAction, reassignAgentVendorAction } from './actions';
@@ -15,17 +18,18 @@ export default async function AdminAgentsPage({ searchParams }) {
   const params = await searchParams;
   const q = params.q || '';
 
-  const [agents, vendors, { communes, degraded }] = await Promise.all([
+  const [agents, vendors, { communes, degraded }, duplicates] = await Promise.all([
     getAgents({ q: q || undefined }),
     getVendors(),
     getLocationHierarchySafe(),
+    findDuplicateAgents(),
   ]);
 
   return (
     <div>
       <div className="mb-4 flex items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold tracking-[-0.02em] text-ink">Agents</h1>
+          <h1 className="u-title-page text-ink">Agents</h1>
           <p className="mt-1 text-sm text-ink-45">
             {agents.length} agent{agents.length !== 1 ? 's' : ''}
           </p>
@@ -47,6 +51,45 @@ export default async function AdminAgentsPage({ searchParams }) {
           </button>
         </form>
       </div>
+
+      {/* Duplicate detection. Two real signals only — the same number written
+          three different ways, and the same email — never name similarity,
+          which would group unrelated agencies sharing a common Kinshasa name
+          and present a guess as a finding. This flags for REVIEW; nothing is
+          merged automatically. */}
+      {duplicates.length > 0 && (
+        <div className="mb-4 rounded-card border border-warning/40 bg-warning-tint p-4">
+          <div className="flex items-center gap-2">
+            <AlertTriangle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-warning" />
+            <h2 className="u-title-card text-warning">
+              {duplicates.length} doublon{duplicates.length === 1 ? '' : 's'} potentiel
+              {duplicates.length === 1 ? '' : 's'}
+            </h2>
+          </div>
+          <ul className="mt-2.5 flex flex-col gap-2">
+            {duplicates.map((group) => (
+              <li key={`${group.kind}-${group.key}`} className="u-micro text-ink-70">
+                <span className="font-bold text-ink">
+                  {group.kind === 'phone' ? 'Même numéro' : 'Même email'} : {group.key}
+                </span>
+                {' — '}
+                {group.accounts.map((a, i) => (
+                  <span key={a.id}>
+                    {i > 0 ? ', ' : ''}
+                    <Link href={`/admin/agents/${a.id}`} className="font-semibold text-blue-deep hover:underline">
+                      #{a.id} {a.username || ''}
+                    </Link>
+                  </span>
+                ))}
+              </li>
+            ))}
+          </ul>
+          <p className="u-micro mt-2 text-ink-45">
+            Vérifiez chaque groupe avant d&apos;agir : transférez le portefeuille vers le compte à
+            conserver, puis suspendez l&apos;autre.
+          </p>
+        </div>
+      )}
 
       {agents.length === 0 ? (
         <div className="rounded-card border border-dashed border-line bg-white p-10 text-center text-sm text-ink-45">
@@ -76,13 +119,21 @@ export default async function AdminAgentsPage({ searchParams }) {
                 return (
                   <tr key={agent.id} className="border-b border-line last:border-b-0 hover:bg-canvas-alt">
                     <td className="px-4 py-2.5">
-                      <div className="font-medium text-ink">{fullName}</div>
+                      <Link
+                        href={`/admin/agents/${agent.id}`}
+                        className="font-medium text-ink hover:text-blue-deep hover:underline"
+                      >
+                        {fullName}
+                      </Link>
                       <div className="text-xs text-ink-45">{agent.email || '—'}</div>
                     </td>
                     <td className="px-4 py-2.5 text-ink-70">{agent.phone || '—'}</td>
                     <td className="px-4 py-2.5">
-                      {/* Not admin-settable — real signal only, set by the actual
-                          WhatsApp-OTP signup flow (lib/agentAuth.js), never a toggle. */}
+                      {/* Read-only here. It IS revocable/grantable, but only on
+                          the agent detail page, behind an explanation of what
+                          the badge asserts — a one-click toggle in a table row
+                          is too easy to hit by accident for a claim that
+                          governs public attribution and lead routing. */}
                       {agent.phone_verified_at ? (
                         <span className="rounded-full bg-green-tint px-2 py-0.5 text-xs font-medium text-green-deep">Oui</span>
                       ) : (

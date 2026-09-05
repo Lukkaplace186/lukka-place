@@ -38,12 +38,35 @@ export function usablePrice(price) {
   return Number.isFinite(amount) && amount > 0 ? amount : null;
 }
 
-export function formatPrice(price, purpose, pricePeriod) {
+/**
+ * The same price, split into the two parts that want different type: the
+ * figure ("700 $") and the rental period ("/ mois").
+ *
+ * Rightmove sets the period noticeably lighter and smaller than the number
+ * — the figure is what a buyer scans for, the period is a qualifier on it —
+ * and that is impossible when the two arrive pre-joined in one string.
+ *
+ * `formatPrice` below is now expressed in terms of this, rather than the two
+ * duplicating the suffix rule. That matters because the suffix logic is
+ * genuinely fiddly (sale prices take no period at all, and 'an' is a real
+ * stored value alongside 'mois'), and a second copy of it would be free to
+ * drift. Every existing formatPrice call site keeps getting the exact same
+ * string it got before — asserted in tests/unit/format.test.js.
+ *
+ * @returns {{amount: string, period: string|null}} `period` is null for a
+ *   sale, and for an unknown price (where there is no figure to qualify).
+ */
+export function formatPriceParts(price, purpose, pricePeriod) {
   const usable = usablePrice(price);
-  if (usable === null) return PRICE_ON_REQUEST;
-  const amount = usable.toLocaleString('fr-FR');
-  if (purpose !== 'rent') return `${amount} $`;
-  return pricePeriod === 'an' ? `${amount} $ / an` : `${amount} $ / mois`;
+  if (usable === null) return { amount: PRICE_ON_REQUEST, period: null };
+  const amount = `${usable.toLocaleString('fr-FR')} $`;
+  if (purpose !== 'rent') return { amount, period: null };
+  return { amount, period: pricePeriod === 'an' ? '/ an' : '/ mois' };
+}
+
+export function formatPrice(price, purpose, pricePeriod) {
+  const { amount, period } = formatPriceParts(price, purpose, pricePeriod);
+  return period ? `${amount} ${period}` : amount;
 }
 
 /**
@@ -62,12 +85,17 @@ export function formatPrice(price, purpose, pricePeriod) {
  * *converted* estimates (see that function's own note). An authored price is
  * a real figure someone may need to read exactly.
  */
-export function formatPriceCdf(price, purpose, pricePeriod) {
+export function formatPriceCdfParts(price, purpose, pricePeriod) {
   const usable = usablePrice(price);
-  if (usable === null) return PRICE_ON_REQUEST;
-  const amount = usable.toLocaleString('fr-FR');
-  if (purpose !== 'rent') return `${amount} FC`;
-  return pricePeriod === 'an' ? `${amount} FC / an` : `${amount} FC / mois`;
+  if (usable === null) return { amount: PRICE_ON_REQUEST, period: null };
+  const amount = `${usable.toLocaleString('fr-FR')} FC`;
+  if (purpose !== 'rent') return { amount, period: null };
+  return { amount, period: pricePeriod === 'an' ? '/ an' : '/ mois' };
+}
+
+export function formatPriceCdf(price, purpose, pricePeriod) {
+  const { amount, period } = formatPriceCdfParts(price, purpose, pricePeriod);
+  return period ? `${amount} ${period}` : amount;
 }
 
 /** USD amount for a price authored in CDF, at the given dated rate. */

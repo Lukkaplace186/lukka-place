@@ -2,10 +2,11 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Scale, MessageCircle, CalendarDays, Trash2, MapPin, ImageOff } from 'lucide-react';
+import { Scale, MessageCircle, CalendarDays, Trash2, ImageOff } from 'lucide-react';
 import SafeImage from '@/components/SafeImage';
 import Price from '@/components/Price';
 import { CardBadges } from '@/components/ListingBadges';
+import SpecItem, { SpecCell } from '@/components/SpecItem';
 import { PortalPanel, PortalSectionHeading } from '@/components/ClientPortalUI';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { listingImages, specItems, typeLabel, feedLocationLine, formatAddedOn } from '@/lib/listingView';
@@ -105,9 +106,8 @@ function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, r
   const images = listingImages(listing);
   const cover = images[0] || null;
   const where = feedLocationLine(listing);
-  const facts = specItems(listing)
-    .map((s) => `${s.value} ${s.label}`)
-    .join(' · ');
+  const specs = specItems(listing);
+  const type = typeLabel(listing);
 
   const contactHref = whatsappNumber
     ? buildWhatsAppLink(
@@ -185,30 +185,57 @@ function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, r
       </div>
 
       <div className="flex flex-1 flex-col gap-3.5 p-5">
+        {/* Aligned to components/PropertyCard: same 24px/800 figure, same
+            inline chalk pill for the converted amount, same reference
+            treatment. This card was 21px/800 with no converted figure at
+            all and a 13px/400 ink-35 reference, so the two read as
+            different products when a visitor moved between /listings and
+            their own favourites. */}
         <div className="flex items-baseline justify-between gap-3">
-          <span className="u-tabular text-[1.3125rem] font-extrabold tracking-[-0.02em] text-ink">
-            <Price amount={listing.price} purpose={listing.purpose} pricePeriod={listing.price_period} />
+          <span className="u-tabular text-2xl font-extrabold leading-tight tracking-tight text-ink">
+            <Price
+              amount={listing.price}
+              purpose={listing.purpose}
+              pricePeriod={listing.price_period}
+              showSubtext
+              subtextClassName="ml-2 inline-block rounded-md bg-canvas-alt px-2 py-0.5 align-middle text-[0.75rem] font-bold leading-normal tracking-normal text-ink-45"
+            />
           </span>
           {listing.reference ? (
-            <span className="u-tabular shrink-0 text-[0.8125rem] text-ink-35">{listing.reference}</span>
+            <span className="u-tabular shrink-0 text-[0.6875rem] font-bold text-ink-45">{listing.reference}</span>
           ) : null}
         </div>
 
+        {/* The location is the heading, matching PropertyCard and the
+            listing detail page. It was `listing.title` — the agent-written
+            sentence ("2 chambres — Appartement à louer à Kalamu") — with
+            the real location demoted below it at 13px/400 ink-45. That is
+            the exact pairing the rest of the site moved away from, and this
+            card was the last public surface still carrying it. The link
+            target is unchanged; only what it reads changed. */}
         <div>
-          <h3 className="u-title-card text-ink">
+          <h3 className="text-base font-extrabold leading-snug tracking-tight text-ink">
             <Link href={`/listings/${listing.id}`} className="transition-colors hover:text-blue-deep">
-              {listing.title}
+              {where || listing.title}
             </Link>
           </h3>
-          {where ? (
-            <p className="mt-2 flex items-center gap-1.5 text-[0.8125rem] text-ink-45">
-              <MapPin strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              {where}
-            </p>
-          ) : null}
         </div>
 
-        {facts ? <p className="text-[0.8125rem] font-medium text-ink-70">{facts}</p> : null}
+        {/* The labelled rail, replacing a joined "2 ch · 1 sdb" string —
+            same SpecCell/SpecItem the feed card and the detail page's
+            KeyFacts grid use, so all three state a listing's facts
+            identically. It also gains "Type de bien", which this card never
+            showed at all. */}
+        {(specs.length > 0 || type) ? (
+          <div className="flex flex-wrap items-start gap-x-4 gap-y-2.5">
+            {type ? (
+              <SpecCell label="Type de bien">
+                <span className="truncate">{type}</span>
+              </SpecCell>
+            ) : null}
+            {specs.map((spec) => <SpecItem key={spec.key} spec={spec} variant="stacked" />)}
+          </div>
+        ) : null}
 
         <div className="flex-1" />
 

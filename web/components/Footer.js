@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { getPopularCommunes } from '@/lib/listings';
 import { Wordmark } from './Brand';
+import CurrencyToggle from './CurrencyToggle';
 
 /**
  * Social icons: only WhatsApp is a real, working link (same central number
@@ -112,7 +113,7 @@ export default async function Footer() {
           text *on* brass, which the documented contrast rule states fails
           AA (3.2:1). */}
       <div className="border-y border-white/10 bg-ink">
-        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-6 px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
+        <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-6 px-4 py-9 sm:px-6 sm:py-12 lg:px-8 lg:py-16">
           <div className="min-w-0 max-w-[40rem]">
             <p className="font-display text-[1.375rem] leading-[1.2] tracking-[0.1px] text-white sm:text-2xl">
               Vous êtes agent ou agence immobilière ?
@@ -130,8 +131,8 @@ export default async function Footer() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-[1600px] px-4 py-14 sm:px-6 lg:px-8 lg:py-16">
-        <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="mx-auto max-w-[1600px] px-4 py-10 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
+        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 sm:gap-10 lg:grid-cols-5">
           <div className="lg:col-span-2">
             <Wordmark />
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-ink-45">
@@ -164,11 +165,21 @@ export default async function Footer() {
 
           {columns.map(({ title, links }) => (
             <div key={title}>
-              <h3 className="u-eyebrow mb-4">{title}</h3>
-              <ul className="flex flex-col gap-2">
+              <h3 className="u-eyebrow mb-3">{title}</h3>
+              {/* Two columns on mobile, back to a single stack from sm up.
+                  The Communes group is the reason: it renders up to five
+                  real communes, and one-per-line put five rows of ~28px into
+                  a footer a mobile visitor has to scroll past. Paired up it
+                  is three rows instead — and the same treatment costs the
+                  two-link groups nothing, since they collapse to a single
+                  row rather than two. From sm up the outer grid already
+                  supplies real columns, so a nested 2-col there would just
+                  make each group's own links wrap oddly against its
+                  neighbours; the vertical list is correct at that width. */}
+              <ul className="grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-1 sm:gap-y-2">
                 {links.map(({ label, href }) => (
-                  <li key={label}>
-                    <Link href={href} className="text-sm text-ink-70 transition-colors hover:text-blue-deep">
+                  <li key={label} className="min-w-0">
+                    <Link href={href} className="block truncate text-sm text-ink-70 transition-colors hover:text-blue-deep">
                       {label}
                     </Link>
                   </li>
@@ -178,7 +189,16 @@ export default async function Footer() {
           ))}
         </div>
 
-        <div className="mt-12 border-t border-line pt-7">
+        {/* Display preferences. The currency control's second home now that
+            it no longer rides in the mobile navbar (Header.js) — reachable
+            from the bottom of any page, and labelled, which the bare
+            "$ | FC" header pill never was. */}
+        <div className="mt-9 flex flex-wrap items-center gap-x-4 gap-y-3 border-t border-line pt-6">
+          <span className="u-eyebrow">Devise d&apos;affichage</span>
+          <CurrencyToggle longLabels />
+        </div>
+
+        <div className="mt-8 border-t border-line pt-6">
           <p className="max-w-4xl text-xs leading-relaxed text-ink-45">{LEGAL_DISCLAIMER}</p>
           <p className="mt-4 text-xs text-ink-25">&copy; {new Date().getFullYear()} Lukka Place — Kinshasa, RDC.</p>
         </div>

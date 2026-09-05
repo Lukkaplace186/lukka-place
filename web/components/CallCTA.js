@@ -40,7 +40,7 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  *
  * @param {Object} props
  * @param {Object} props.listing
- * @param {'pill'|'icon'|'block'} [props.variant]
+ * @param {'pill'|'icon'|'block'|'link'} [props.variant]
  */
 export default function CallCTA({ listing, variant = 'pill' }) {
   const phoneNumber = listing.agent_phone || process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
@@ -50,6 +50,25 @@ export default function CallCTA({ listing, variant = 'pill' }) {
     e.preventDefault();
     e.stopPropagation();
     window.location.href = `tel:${phoneNumber}`;
+  }
+
+  // `link` is PropertyCard's bottom action bar: a bare text+icon action on
+  // the card's own white footer strip, matching WhatsAppCTA's own `link`
+  // variant so the pair reads as one toolbar rather than two competing
+  // button styles. Ink-neutral against WhatsApp's emerald — Call is the
+  // secondary channel of the two (CLAUDE.md's Lead Routing Rules put the
+  // real conversion path on WhatsApp).
+  if (variant === 'link') {
+    return (
+      <button
+        type="button"
+        onClick={handleClick}
+        className="u-press inline-flex shrink-0 items-center gap-1.5 rounded-md px-1 py-1.5 text-[0.75rem] font-bold text-ink-70 transition-colors hover:text-ink"
+      >
+        <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+        Appeler
+      </button>
+    );
   }
 
   if (variant === 'icon') {

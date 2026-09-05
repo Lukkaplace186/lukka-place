@@ -205,6 +205,21 @@ export default function Header() {
                   )}
                 </div>
 
+                <span className="my-3 h-px bg-line" />
+
+                {/* Section 2b — display preferences. The currency control's
+                    mobile home now that it is off the navbar (see the note
+                    at its desktop instance below). Explicitly labelled here,
+                    which the bare "$ | FC" pill in the header never was, and
+                    NOT wrapped in SheetClose: switching currency is a
+                    preference change the visitor should be able to see take
+                    effect, not a navigation that should dismiss the
+                    drawer. */}
+                <div className="flex items-center justify-between gap-3 rounded-md px-3 py-2">
+                  <span className="text-[0.9375rem] font-medium text-ink">Devise d&apos;affichage</span>
+                  <CurrencyToggle longLabels />
+                </div>
+
                 {/* Section 3 — primary CTA, pinned to the bottom of the
                     drawer via mt-auto so it stays reachable regardless of
                     how tall Sections 1-2 grow. */}
@@ -293,7 +308,25 @@ export default function Header() {
             </Link>
           )}
 
-          <CurrencyToggle />
+          {/* Desktop only. On mobile this pill sat immediately beside the
+              account icon in a row that also carries the hamburger, the
+              wordmark and (off the homepage) the search icon — four controls
+              plus a logo inside a 4rem bar, with the currency segmented
+              control the widest of them. It is a display preference, not a
+              navigation destination, so it does not earn permanent space in
+              a mobile navbar that is pinned to every scroll position.
+              Removed from there, not deleted: the same control now appears
+              as a real labelled row in the hamburger Sheet below (where a
+              preference belongs, and where `longLabels` lets it read "USD"
+              rather than a bare "$"), and again in the footer's own settings
+              cluster (Footer.js), so it stays reachable from any scroll
+              depth on any page without riding along in the header. Desktop
+              keeps the inline pill — the bar genuinely has room there, and
+              one-tap currency switching is a headline feature for the
+              diaspora audience. */}
+          <div className="hidden lg:block">
+            <CurrencyToggle />
+          </div>
 
           {/* Favoris — web/Design's header always shows this text link,
               never gated behind login: favorites are local-only

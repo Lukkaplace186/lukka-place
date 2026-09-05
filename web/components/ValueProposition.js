@@ -49,15 +49,15 @@ const VALUE_PROPS = [
  */
 export default function ValueProposition() {
   return (
-    <section className="bg-canvas-alt py-14 shadow-[0_1px_0_var(--line)_inset] sm:py-20">
+    <section className="bg-canvas-alt py-11 shadow-[0_1px_0_var(--line)_inset] sm:py-20">
       <div className="mx-auto max-w-[1240px] px-4 sm:px-6 lg:px-8">
-        <SectionHeading eyebrow="Notre approche" title="Ce qui change, concrètement" className="mb-10 sm:mb-12" />
+        <SectionHeading eyebrow="Notre approche" title="Ce qui change, concrètement" className="mb-7 sm:mb-12" />
 
         <div className="grid grid-cols-1 gap-px border-y border-line bg-line md:grid-cols-3">
           {VALUE_PROPS.map(({ number, title, body }) => (
             <div
               key={title}
-              className="flex flex-col gap-3 bg-canvas-alt py-8 sm:py-9 md:px-10 md:first:pl-0 md:last:pr-0"
+              className="flex flex-col gap-2.5 bg-canvas-alt py-6 sm:gap-3 sm:py-9 md:px-10 md:first:pl-0 md:last:pr-0"
             >
               <span className="u-tabular font-display text-[2.125rem] font-normal leading-none text-blue">{number}</span>
               {/* Sans 700, not the display serif — the design uses the
@@ -70,7 +70,7 @@ export default function ValueProposition() {
 
         <Link
           href="/listings"
-          className="u-press u-btn-primary mt-9 inline-flex h-12 items-center gap-2 rounded-lg bg-blue px-6 text-[1rem] font-semibold text-white"
+          className="u-press u-btn-primary mt-7 inline-flex h-12 items-center gap-2 rounded-lg bg-blue px-6 text-[1rem] font-semibold text-white sm:mt-9"
         >
           Voir les annonces vérifiées
           <ArrowRight strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />

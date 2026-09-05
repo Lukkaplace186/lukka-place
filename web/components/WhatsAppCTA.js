@@ -53,7 +53,7 @@ function WhatsAppIcon(props) {
  *
  * @param {Object} props
  * @param {Object} props.listing
- * @param {'compact'|'block'} [props.variant]
+ * @param {'compact'|'block'|'link'} [props.variant]
  */
 export default function WhatsAppCTA({ listing, variant = 'compact' }) {
   const phoneNumber = listing.agent_phone || process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
@@ -85,6 +85,25 @@ export default function WhatsAppCTA({ listing, variant = 'compact' }) {
       keepalive: true,
     }).catch(() => {});
     window.open(href, '_blank', 'noopener,noreferrer');
+  }
+
+  // `link` is the Rightmove-style bottom action bar's left slot: a bare
+  // text+icon action on the card's own white footer strip, not a filled
+  // pill. Sits beside the Save toggle under a hairline divider, so a second
+  // solid green fill there would out-shout the price block two rows above
+  // it — the emerald ink alone is enough to mark it as the primary action
+  // in a two-item row.
+  if (variant === 'link') {
+    return (
+      <button
+        type="button"
+        onClick={handleClick}
+        className="u-press inline-flex shrink-0 items-center gap-1.5 rounded-md px-1 py-1.5 text-[0.75rem] font-bold text-green transition-colors hover:text-green-deep"
+      >
+        <WhatsAppIcon className="h-4 w-4" />
+        WhatsApp
+      </button>
+    );
   }
 
   if (variant === 'block') {

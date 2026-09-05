@@ -18,14 +18,20 @@ export default async function FeaturedListings() {
   if (count === 0) return null;
 
   return (
-    <section className="mx-auto max-w-[1600px] px-4 pt-10 pb-20 sm:px-6 sm:pt-14 sm:pb-28 lg:px-8">
+    <section className="mx-auto max-w-[1600px] px-4 pt-8 pb-14 sm:px-6 sm:pt-14 sm:pb-24 lg:px-8">
+      {/* No `lead`. It read "Les annonces les plus récemment vérifiées et
+          mises en ligne." directly under a title that already says
+          "Nouveautés vérifiées à Kinshasa", under an eyebrow that already
+          says "Sélection de la semaine" — the same claim three times in one
+          header block, and on mobile that third line pushed the first real
+          listing two rows further down. The eyebrow carries the recency
+          framing, the title carries the rest. */}
       <SectionHeading
         eyebrow="Sélection de la semaine"
         title="Nouveautés vérifiées à Kinshasa"
-        lead="Les annonces les plus récemment vérifiées et mises en ligne."
         href="/listings"
         linkLabel="Voir toutes les annonces"
-        className="mb-10"
+        className="mb-6 sm:mb-10"
       />
       <FeaturedListingsCarousel listings={data} />
     </section>

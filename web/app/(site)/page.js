@@ -48,6 +48,20 @@ import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB } from '@/lib/constants';
  * The location field sources its own suggestions from
  * /api/locations/autocomplete, so nothing needs threading through for it.
  *
+ * **Mobile density pass.** The three sections below are unchanged in
+ * composition but not in rhythm: FeaturedListings and ValueProposition each
+ * carry a tighter mobile band (`sm:` restores the previous desktop values
+ * verbatim, so only narrow viewports move), and FeaturedListings lost its
+ * `lead` line, which restated its own title and eyebrow. The one duplicate
+ * deliberately left standing is the hero's subhead — "Biens vérifiés, prix
+ * transparents & contact direct sur WhatsApp." — against ValueProposition's
+ * three numbered props, which are the same three claims. That is a promise
+ * made once above the fold and then evidenced at length in the section that
+ * exists to evidence it, not a section repeating itself; cutting either one
+ * would leave the page either opening with no promise or closing with no
+ * argument. The rest of the reclaimed height comes from PropertyCard, which
+ * dropped its reserved two-line description block (see PropertyCard.js).
+ *
  * CommuneShortcuts is no longer rendered here. It was a row of commune
  * pills sitting immediately under the search panel; the panel now carries
  * that row itself, where a tap FILLS the search field instead of navigating

@@ -64,6 +64,36 @@ export function formatAddedOn(createdAt) {
 
 
 /**
+ * The card's freshness line — Rightmove's own green "Added today" / "Added
+ * on 18/04/2026", against this app's one real recency column, `created_at`.
+ *
+ * Deliberately "Publiée", not "Vérifiée". Every live listing genuinely has
+ * passed the Laravel admin's human moderation gate (approve_status = 1 —
+ * see CLAUDE.md), so the claim itself would be true, but there is no
+ * verification *timestamp* anywhere in the schema: `created_at` is when the
+ * row was published, and dating a verification event from it would be
+ * inventing a fact the database doesn't hold. The word changes; the green
+ * treatment and the recency signal the design asked for do not.
+ *
+ * "aujourd'hui"/"hier" are computed against real local calendar days (not a
+ * 24h/48h window off the raw timestamp), so a listing published at 23:00
+ * yesterday reads "hier" this morning rather than "aujourd'hui".
+ */
+export function formatFreshness(createdAt) {
+  if (!createdAt) return null;
+  const date = new Date(createdAt);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const days = Math.round((startOfDay(new Date()) - startOfDay(date)) / 86400000);
+
+  if (days <= 0) return "Publiée aujourd'hui";
+  if (days === 1) return 'Publiée hier';
+  return `Publiée le ${DATE_FORMATTER.format(date)}`;
+}
+
+
+/**
  * `area` is a TEXT column and carries '0' rather than NULL when unknown, so
  * a naive render produces "0 m²" on a listing whose surface nobody recorded.
  */
@@ -224,20 +254,40 @@ function escapeRegex(value) {
  * surfaced as a badge. A listing that has a feature but never mentioned it
  * in the text is a real false negative, same tradeoff the filter accepts.
  *
- * Capped at `max` (default 2) — a card photo has room for a couple of
- * pills, not the full eight-key list.
+ * Capped at `max` (default 2) — a card has room for a few pills, not the
+ * full eight-key list.
+ *
+ * Returns `{ key, matched }` pairs: `key` is the AMENITY_KEYWORDS key (what
+ * the filter uses), `matched` is the specific keyword actually found in this
+ * listing's own text (what an honest label uses). See the inline note.
  */
-export function matchedAmenityKeys(listing, max = 2) {
+export function matchedAmenities(listing, max = 2) {
   const text = `${listing.title || ''} ${listing.description || ''}`;
   if (!text.trim()) return [];
 
   const matches = [];
   for (const key of Object.keys(AMENITY_KEYWORDS)) {
-    const isMatch = AMENITY_KEYWORDS[key].some((keyword) => (
+    // Which keyword actually hit, not merely whether one did. Several keys
+    // cover genuinely different real-world features under one filter: the
+    // `borehole` key matches both "forage" (a drilled borehole) and
+    // "citerne" (a water tank). Those are not the same thing, and a listing
+    // whose text only ever said "forage" must not be badged "Citerne".
+    // `find` rather than `some`, so the caller can label the specific claim
+    // the listing itself actually made.
+    const matched = AMENITY_KEYWORDS[key].find((keyword) => (
       new RegExp(`\\b${escapeRegex(keyword)}`, 'i').test(text)
     ));
-    if (isMatch) matches.push(key);
+    if (matched) matches.push({ key, matched });
     if (matches.length >= max) break;
   }
   return matches;
+}
+
+/**
+ * Keys only — the shape every existing caller already expects. A thin
+ * wrapper over `matchedAmenities` rather than a second scan, so the two can
+ * never disagree about what a listing matched.
+ */
+export function matchedAmenityKeys(listing, max = 2) {
+  return matchedAmenities(listing, max).map(({ key }) => key);
 }

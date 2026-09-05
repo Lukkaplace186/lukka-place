@@ -147,13 +147,30 @@ export function DepositBadge({ months }) {
 const AMENITY_PILL_META = {
   generator: { icon: Zap, label: 'Groupe' },
   solar: { icon: Sun, label: 'Solaire' },
-  borehole: { icon: Droplet, label: 'Forage' },
+  // One key, two genuinely different real features (lib/constants.js's
+  // AMENITY_KEYWORDS.borehole matches both "forage" and "citerne"), so the
+  // label follows whichever word the listing's own text actually used —
+  // see `labelFor` below. "Forage" stays the fallback for a caller that
+  // doesn't pass the matched keyword through.
+  borehole: { icon: Droplet, label: 'Forage', byKeyword: { citerne: 'Citerne' } },
   paved_road: { icon: Route, label: 'Route' },
-  security: { icon: ShieldCheck, label: 'Sécurisé' },
+  security: { icon: ShieldCheck, label: 'Sécurité' },
   parking: { icon: Car, label: 'Parking' },
   ac: { icon: Snowflake, label: 'Climatisé' },
   furnished: { icon: Sofa, label: 'Meublé' },
+  // Previously unmapped, so a real semi-furnished or dedicated-SNEL-line
+  // match rendered no chip at all — `matchedAmenities` counted it against
+  // the cap and then AmenityTag returned null for it, silently costing the
+  // listing a slot. Both are real AMENITY_KEYWORDS keys the filter drawer
+  // already offers; they just had no pill vocabulary.
+  semi_furnished: { icon: Sofa, label: 'Semi-meublé' },
+  dedicated_line: { icon: Zap, label: 'Ligne SNEL' },
 };
+
+function labelFor(meta, matched) {
+  const normalized = typeof matched === 'string' ? matched.toLowerCase() : null;
+  return (normalized && meta.byKeyword?.[normalized]) || meta.label;
+}
 
 /**
  * One real, text-matched amenity badge (see lib/listingView.js's
@@ -179,14 +196,34 @@ export function AmenityPill({ amenityKey }) {
  * (below the description), where the design does, not over the photo.
  * Icon included: the design's own Tag accepts one.
  */
-export function AmenityTag({ amenityKey }) {
+export function AmenityTag({ amenityKey, matched, size = 'default' }) {
   const meta = AMENITY_PILL_META[amenityKey];
   if (!meta) return null;
   const Icon = meta.icon;
+  const label = labelFor(meta, matched);
+
+  // `size="compact"` is the feed card's own chip: 11px on a filled chalk
+  // ground with a real hairline border, per the card spec. Deliberately not
+  // `.u-tag` (13px, 6px/12px padding, inset ring, transparent-to-surface
+  // fill) — that utility is tuned for the detail page's own amenity list,
+  // where these sit in a roomy section rather than three-across inside a
+  // ~311px card body. Keeping them on one utility would have meant either
+  // oversized card chips or shrinking the detail page's, so the two sizes
+  // are explicit instead. `whitespace-nowrap` keeps a two-word chip
+  // ("Semi-meublé") from breaking mid-label when the row wraps.
+  if (size === 'compact') {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-line bg-canvas-alt px-2.5 py-1 text-[0.6875rem] font-bold leading-none text-ink-70">
+        <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-3 w-3 shrink-0" />
+        {label}
+      </span>
+    );
+  }
+
   return (
     <span className="u-tag">
       <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
-      {meta.label}
+      {label}
     </span>
   );
 }

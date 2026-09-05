@@ -85,9 +85,19 @@
   --brass-tint: #f3e7ce;
 
   /* Functional green — WhatsApp CTA and rental-income signal. Not part of
-     the palette direction; it's a signal colour and stays put. */
+     the palette direction; it's a signal colour and stays put.
+
+     Same fill-vs-text split the bronze/brass rule documents in CLAUDE.md,
+     and computed the same way rather than eyeballed. Against white surface:
+       --green       #00b050   2.87:1   fill only, never text
+       --green-deep  #00963f   3.86:1   fails AA for body-size text
+       --green-ink   #007c34   5.34:1   passes AA — all green TEXT
+     --green-deep is fine as a hover fill (WhatsAppCTA's solid button) and
+     as large display type, but a 10-12px green metadata line — the card's
+     "Publiée le …" freshness stamp — needs --green-ink. */
   --green: #00b050;
   --green-deep: #00963f;
+  --green-ink: #007c34;
   --green-tint: #e6f8ee;
 
   /*
@@ -193,6 +203,7 @@
 
   --color-green: var(--green);
   --color-green-deep: var(--green-deep);
+  --color-green-ink: var(--green-ink);
   --color-green-tint: var(--green-tint);
 
   --color-success: var(--success-500);

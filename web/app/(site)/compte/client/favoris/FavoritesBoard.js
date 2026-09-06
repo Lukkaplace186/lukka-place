@@ -71,8 +71,12 @@ function ComparisonTable({ listings }) {
             </th>
             {listings.map((listing) => (
               <th key={listing.id} scope="col" className="min-w-[11rem] py-3 pr-4 align-bottom">
-                <span className="block text-[0.9375rem] font-bold leading-snug text-ink">{listing.title}</span>
-                <span className="u-tabular mt-1 block text-[1.0625rem] font-extrabold tracking-[-0.02em] text-ink">
+                {/* Same 500/600 scale as the card below it — this column
+                    header was 700 over 800 and stayed heavy when the cards
+                    were lightened, which made the compare view read as a
+                    different product from the board it opens from. */}
+                <span className="block text-[0.9375rem] font-medium leading-snug text-ink">{listing.title}</span>
+                <span className="u-tabular mt-1 block text-[1.0625rem] font-semibold tracking-normal text-ink">
                   <Price amount={listing.price} purpose={listing.purpose} pricePeriod={listing.price_period} />
                 </span>
               </th>
@@ -85,11 +89,11 @@ function ComparisonTable({ listings }) {
             if (values.every((v) => v == null || v === '')) return null;
             return (
               <tr key={row.key} className="border-t border-line">
-                <th scope="row" className="py-3 pr-4 align-top text-[0.8125rem] font-semibold text-ink-45">
+                <th scope="row" className="py-3 pr-4 align-top text-[0.8125rem] font-medium text-ink">
                   {row.label}
                 </th>
                 {values.map((value, i) => (
-                  <td key={listings[i].id} className="u-tabular py-3 pr-4 align-top text-[0.875rem] text-ink-70">
+                  <td key={listings[i].id} className="u-tabular py-3 pr-4 align-top text-[0.875rem] font-normal text-ink">
                     {value == null || value === '' ? <span className="text-ink-25">—</span> : value}
                   </td>
                 ))}

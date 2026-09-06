@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader';
 import { MarkerClusterer } from '@googlemaps/markerclusterer';
 import { resolveListingLocation, KINSHASA_CENTER } from '@/lib/geocoding';
-import { buildPricePinIcon } from '@/lib/mapIcons';
+import { buildPricePinIcon, createClusterRenderer } from '@/lib/mapIcons';
+import { resolveMarkerKind, LEGEND_KINDS } from '@/lib/mapMarkerKinds';
 import { MAP_STYLES } from '@/lib/mapStyle';
 import { NO_PHOTO_URL } from '@/lib/constants';
 import { formatPrice, formatCdfCompact } from '@/lib/format';
@@ -75,6 +76,37 @@ function buildInfoWindowContent(listing, cdfPerUsd) {
       </div>
     </div>
   `;
+}
+
+/**
+ * The key for the pin colours. Without it the colour coding is decoration —
+ * a blue dot and an orange dot only mean "appartement" and "terrain" if the
+ * map says so somewhere.
+ *
+ * Rendered as real DOM over the map canvas rather than a Maps API custom
+ * control, for the same reason MobileMapOverlay is a sibling element: it
+ * then styles with this app's own tokens and needs no Maps globals. It sits
+ * top-left, the one corner neither MobileMapOverlay's count badge (top
+ * centre) nor its Liste button (bottom centre) nor Google's own attribution
+ * (bottom edge) occupies.
+ */
+function MapLegend() {
+  return (
+    <div className="u-lift pointer-events-none absolute left-3 top-3 z-20 rounded-xl border border-line bg-surface/95 px-2.5 py-2 backdrop-blur-md">
+      <ul className="flex flex-col gap-1">
+        {LEGEND_KINDS.map((kind) => (
+          <li key={kind.key} className="flex items-center gap-1.5 whitespace-nowrap text-[0.6875rem] font-medium text-ink-45">
+            <span
+              aria-hidden="true"
+              className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+              style={{ backgroundColor: kind.color }}
+            />
+            {kind.label}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 /**
@@ -150,8 +182,14 @@ export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoo
           const marker = new google.maps.Marker({
             position,
             title: listing.title,
-            icon: buildPricePinIcon({ price: listing.price, purpose: listing.purpose }),
+            icon: buildPricePinIcon({ listing }),
           });
+          // Stamped on the marker itself so the cluster renderer can tally
+          // the property types under a bubble without carrying a second
+          // id -> listing lookup into MarkerClusterer's callback (which is
+          // handed markers, not listings). A plain property, not
+          // marker.set(): this is our own metadata, never a Maps API option.
+          marker.lukkaKind = resolveMarkerKind(listing);
           marker.addListener('click', () => {
             infoWindow.setContent(buildInfoWindowContent(listing, cdfPerUsd));
             infoWindow.open({ map, anchor: marker });
@@ -171,7 +209,7 @@ export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoo
 
         if (cancelled) return;
 
-        clustererRef.current = new MarkerClusterer({ map, markers });
+        clustererRef.current = new MarkerClusterer({ map, markers, renderer: createClusterRenderer() });
 
         if (markers.length > 0) {
           map.fitBounds(bounds, 48);
@@ -218,7 +256,7 @@ export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoo
       const listing = listings.find((l) => l.id === previous);
       if (listing) {
         const marker = markers.get(previous);
-        marker.setIcon(buildPricePinIcon({ price: listing.price, purpose: listing.purpose }));
+        marker.setIcon(buildPricePinIcon({ listing }));
         marker.setZIndex(undefined);
       }
     }
@@ -227,7 +265,7 @@ export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoo
       const listing = listings.find((l) => l.id === hoveredId);
       if (listing) {
         const marker = markers.get(hoveredId);
-        marker.setIcon(buildPricePinIcon({ price: listing.price, purpose: listing.purpose, hovered: true }));
+        marker.setIcon(buildPricePinIcon({ listing, hovered: true }));
         marker.setZIndex(google.maps.Marker.MAX_ZINDEX + 1);
       }
     }
@@ -265,6 +303,7 @@ export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoo
         </div>
       )}
       <div ref={mapElementRef} className="h-full w-full" />
+      {status === 'ready' && <MapLegend />}
     </div>
   );
 }

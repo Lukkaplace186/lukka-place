@@ -1,12 +1,13 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { normalizePhone } from '@/lib/phone';
+import { phoneFromForm } from '@/lib/phone';
 import {
   getCustomerByPhone,
   clearFailedLoginsAndTouchLogin,
   recordFailedLogin,
   mergeAnonymousData,
+  sendCustomerOtp,
 } from '@/lib/customers';
 import {
   verifyPasswordAgainstHash,
@@ -15,6 +16,7 @@ import {
   LOCKOUT_MS,
 } from '@/lib/customerAuth';
 import { establishCustomerSession } from '@/lib/customerSession';
+import { setVerifyAttemptCookie } from '@/lib/verifyAttempt';
 
 function safeNext(nextParam) {
   const next = String(nextParam || '/compte/client');
@@ -43,7 +45,7 @@ function parseAnonymousData(formData) {
 export async function loginAction(formData) {
   const next = safeNext(formData.get('next'));
   const password = String(formData.get('password') || '');
-  const phone = normalizePhone(String(formData.get('phone') || ''));
+  const phone = phoneFromForm(formData);
 
   if (!phone) {
     redirect(`/compte/connexion?error=phone&next=${encodeURIComponent(next)}`);
@@ -72,6 +74,25 @@ export async function loginAction(formData) {
   const { favoriteIds, savedSearches } = parseAnonymousData(formData);
   if (favoriteIds.length > 0 || savedSearches.length > 0) {
     await mergeAnonymousData(customer.id, { favoriteIds, savedSearches });
+  }
+
+  // An unverified number never gets a session — it gets a code. Two kinds
+  // of account land here: one created since signup verification existed
+  // whose owner closed the tab before entering the code, and one created
+  // before it existed at all (scripts/migrate-customer-phone-verification.js
+  // deliberately backfills nobody, because nobody proved those numbers).
+  // Both are the same one-time step, and it is the same step an agent with
+  // an unverified account already goes through.
+  if (!customer.phone_verified_at) {
+    await setVerifyAttemptCookie({ role: 'customer', id: customer.id, phone });
+    const verifyUrl = `/compte/inscription/verifier?next=${encodeURIComponent(next)}`;
+    try {
+      await sendCustomerOtp(customer.id, phone);
+    } catch (err) {
+      console.error(`[customer-auth] OTP send failed for customer #${customer.id}: ${err.message}`);
+      redirect(`${verifyUrl}&error=send_failed`);
+    }
+    redirect(verifyUrl);
   }
 
   await establishCustomerSession({ id: customer.id, tokenVersion: customer.token_version });

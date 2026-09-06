@@ -200,6 +200,20 @@ and `token_version` is bumped alongside.
 The ask is capped at `MAX_ASKS` (3) per sender via `agent_onboarding` in
 SQLite, so someone who never answers is not nagged on every listing.
 
+## wa_id validation is 7-15 digits, not 9-15
+
+`routes/admin.js` gates `phone`/`wa_id` on `POST /admin/send-whatsapp`,
+`POST /admin/send-whatsapp-template` and the leads query with
+`/^\d{7,15}$/`. The 7-digit floor is E.164's real minimum (a 3-digit country
+code plus a 4-digit subscriber number), not a typo for the old 9.
+
+It was widened when `web/` opened signup to every country (see
+`web/CLAUDE.md`, "Phone numbers are international now"): the old floor
+rejected a legitimate short international number outright, and the person
+signing up saw "we couldn't send you a code" for a number that was perfectly
+valid. `web/lib/phone.js` applies the same 7..15 range, so the two layers
+agree; changing one without the other reintroduces the gap.
+
 ## Scheduled Jobs
 
 `services/scheduler.js`, started from `index.js`. This process is the only

@@ -125,8 +125,9 @@ export async function submitPropertyRequestAction(_prevState, formData) {
   const parsedBudgetMin = Number.parseFloat(budgetMin);
   const parsedBudgetMax = Number.parseFloat(budgetMax);
 
+  let leadId = null;
   try {
-    await createLead({
+    const { lead } = await createLead({
       waId: customer.phone,
       name: customer.full_name || null,
       source: 'espace-client-request',
@@ -137,6 +138,7 @@ export async function submitPropertyRequestAction(_prevState, formData) {
       priceMax: Number.isFinite(parsedBudgetMax) ? parsedBudgetMax : null,
       bedrooms: Number.isFinite(parsedBedrooms) ? parsedBedrooms : null,
     });
+    leadId = lead?.id ?? null;
   } catch (error) {
     console.warn('[compte/client] submitPropertyRequestAction failed:', error.message);
     return {
@@ -150,7 +152,23 @@ export async function submitPropertyRequestAction(_prevState, formData) {
   revalidatePath('/compte/client');
   revalidatePath('/compte/demandes');
 
-  return { status: 'success', message: t('errors.requestSentToAgencies') };
+  // Hand the customer straight to the tab that tracks what they just sent,
+  // rather than leaving them on the form under a green banner. The request
+  // has one real next state — agencies answering it — and that state lives
+  // on Messages & Visites; an inline "sent!" on the form was a dead end that
+  // said nothing about what happens next.
+  //
+  // `?submitted=<id>` is what makes it a real hand-off rather than a plain
+  // navigation: the destination opens ON that thread and confirms it by
+  // number (./messages/page.js), instead of defaulting to whatever happens
+  // to sort first. It is only ever a display hint — every thread rendered
+  // there is still resolved server-side from the session's own phone, so a
+  // hand-edited id can select nothing it wasn't already allowed to see.
+  //
+  // Outside the try/catch on purpose: redirect() signals by throwing, and a
+  // throw inside that block would be caught and reported as a send failure
+  // for a lead that was in fact created.
+  redirect(leadId ? `/compte/client/messages?submitted=${leadId}` : '/compte/client/messages');
 }
 
 /**

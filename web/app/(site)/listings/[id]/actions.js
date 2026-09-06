@@ -1,7 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { normalizePhone } from '@/lib/phone';
+import { phoneFromForm } from '@/lib/phone';
 import { createLead, createViewingRequest } from '@/lib/adminApi';
 import { getListingById } from '@/lib/listings';
 
@@ -22,7 +22,7 @@ import { getListingById } from '@/lib/listings';
  */
 export async function submitVisitRequestAction(propertyId, formData) {
   const name = String(formData.get('name') || '').trim().slice(0, 120);
-  const phone = normalizePhone(String(formData.get('phone') || ''));
+  const phone = phoneFromForm(formData);
   const requestedTime = String(formData.get('requested_time') || '').trim().slice(0, 200);
 
   if (!phone) redirect(`/listings/${propertyId}?visit_error=phone`);

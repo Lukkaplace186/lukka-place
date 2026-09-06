@@ -176,7 +176,7 @@ router.get('/leads', (req, res) => {
   // Customer inquiry history (web/) — scopes the stream to one customer's
   // own submitted leads. Same digits-only wa_id shape POST /send-whatsapp
   // already validates, since a lead's wa_id is always a real WhatsApp number.
-  if (waId !== undefined && !/^\d{9,15}$/.test(String(waId))) {
+  if (waId !== undefined && !/^\d{7,15}$/.test(String(waId))) {
     return res.status(400).json({ success: false, error: 'wa_id must be a real digits-only WhatsApp number.' });
   }
 
@@ -698,9 +698,15 @@ router.post('/agents/claim-listings', async (req, res) => {
  * registering agent "check your WhatsApp," so the caller genuinely needs to
  * know whether the send worked before responding.
  */
+// The 7-digit floor is E.164's real minimum (a 3-digit country code plus a
+// 4-digit subscriber number), not a typo for the old 9. It was widened when
+// web/ opened signup to every country: the previous floor rejected a
+// legitimate short international number outright, which surfaced to the
+// person signing up as "we couldn't send you a code" for a number that was
+// perfectly valid. See web/lib/phone.js, which applies the same 7..15 range.
 router.post('/send-whatsapp', async (req, res) => {
   const { phone, message } = req.body || {};
-  if (!phone || !/^\d{9,15}$/.test(String(phone))) {
+  if (!phone || !/^\d{7,15}$/.test(String(phone))) {
     return res.status(400).json({ success: false, error: 'phone must be a real digits-only wa_id.' });
   }
   if (!message || typeof message !== 'string' || message.length > 1000) {
@@ -757,7 +763,7 @@ router.post('/send-whatsapp-template', async (req, res) => {
     otp_code: otpCode,
   } = req.body || {};
 
-  if (!phone || !/^\d{9,15}$/.test(String(phone))) {
+  if (!phone || !/^\d{7,15}$/.test(String(phone))) {
     return res.status(400).json({ success: false, error: 'phone must be a real digits-only wa_id.' });
   }
   if (!template || typeof template !== 'string') {

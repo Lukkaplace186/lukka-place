@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { signupAction } from './actions';
 import SignupForm from './SignupForm';
+import { getRequestCountry } from '@/lib/requestCountry';
 import { getT } from '@/lib/i18n/server';
 
 // generateMetadata, not a static object: a static export cannot see the
@@ -21,6 +22,10 @@ export default async function CustomerSignupPage({ searchParams }) {
   // Prefilled by AuthPromptModal.js's Save Search / Create Alert gate —
   // real hand-off of what the visitor already typed, not a default guess.
   const initialPhone = typeof params.phone === 'string' ? params.phone : '';
+  // The country the AuthPromptModal handed over wins; otherwise the field
+  // opens on the visitor's own country, decided server-side so the first
+  // paint already shows the right dial code (lib/requestCountry.js).
+  const initialCountry = typeof params.country === 'string' ? params.country : await getRequestCountry();
 
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-4">
@@ -30,7 +35,13 @@ export default async function CustomerSignupPage({ searchParams }) {
           {t('auth.signupKeepsLocal')}
         </p>
 
-        <SignupForm action={signupAction} next={next} error={error} initialPhone={initialPhone} />
+        <SignupForm
+          action={signupAction}
+          next={next}
+          error={error}
+          initialPhone={initialPhone}
+          initialCountry={initialCountry}
+        />
 
         <p className="mt-5 text-center text-sm text-ink-45">
           Déjà un compte ?{' '}

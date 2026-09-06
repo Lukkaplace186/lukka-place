@@ -20,7 +20,18 @@ export const config = {
   runtime: 'nodejs',
 };
 
-const PUBLIC_COMPTE_PATHS = new Set(['/compte/connexion', '/compte/inscription']);
+// '/compte/inscription/verifier' is public for the same reason
+// '/compte/agent/inscription/verifier' below is: it is the step that comes
+// BEFORE a session exists. Signup deliberately does not log anyone in until
+// a WhatsApp code proves the number, so gating this page on a session would
+// bounce every new customer straight back to a login they cannot pass yet.
+// Its own guard is the signed attempt cookie (lib/verifyAttempt.js), which
+// is what actually says who is mid-verification.
+const PUBLIC_COMPTE_PATHS = new Set([
+  '/compte/connexion',
+  '/compte/inscription',
+  '/compte/inscription/verifier',
+]);
 const PUBLIC_AGENT_PATHS = new Set([
   '/compte/agent/connexion',
   '/compte/agent/inscription',

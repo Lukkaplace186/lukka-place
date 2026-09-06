@@ -11,7 +11,9 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { submitVisitRequestAction } from '@/app/(site)/listings/[id]/actions';
 import { revealUp } from '@/lib/motion';
 import { useMotionSafe } from '@/lib/useMotionSafe';
-import { useT } from '@/lib/i18n/client';
+import PhoneField from './PhoneField';
+import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
+import { useLocale, useT } from '@/lib/i18n/client';
 
 const FIELD_CLASS =
   'u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35';
@@ -38,6 +40,7 @@ const VISIT_ERROR_KEYS = {
  */
 function VisitRequestDialog({ propertyId }) {
   const t = useT();
+  const locale = useLocale();
   const [open, setOpen] = useState(false);
   const bound = submitVisitRequestAction.bind(null, propertyId);
 
@@ -68,20 +71,15 @@ function VisitRequestDialog({ propertyId }) {
             <input id="visit-name" name="name" placeholder={t('enquiry.namePlaceholder')} className={FIELD_CLASS} />
           </div>
 
-          <div>
-            <label htmlFor="visit-phone" className="mb-1.5 block text-[0.8125rem] font-semibold text-ink-70">
-              {t('enquiry.whatsappNumber')}
-            </label>
-            <input
-              id="visit-phone"
-              name="phone"
-              type="tel"
-              inputMode="tel"
-              required
-              placeholder={t('enquiry.whatsappPlaceholder')}
-              className={FIELD_CLASS}
-            />
-          </div>
+          <PhoneField
+            name="phone"
+            id="visit-phone"
+            locale={locale}
+            labels={{ ...phoneFieldLabels(t), label: t('enquiry.whatsappNumber') }}
+            labelClassName="mb-1.5 text-[0.8125rem] font-semibold normal-case tracking-normal text-ink-70"
+            fieldClassName="h-11 rounded-lg bg-surface"
+            required
+          />
 
           <div>
             <label htmlFor="visit-time" className="mb-1.5 block text-[0.8125rem] font-semibold text-ink-70">

@@ -71,8 +71,12 @@ test('an unauthenticated customer page redirects to the customer login', () => {
 });
 
 test('customer public paths stay reachable', () => {
-  for (const p of ['/compte/connexion', '/compte/inscription']) {
-    assert.equal(outcome(middleware(requestFor(p))).redirected, false);
+  // The verification page belongs on this list for the same reason the
+  // agent one does: it is the step BEFORE a session exists. Gating it on a
+  // session would bounce every new customer to a login they cannot pass
+  // until they have entered the very code that page is asking for.
+  for (const p of ['/compte/connexion', '/compte/inscription', '/compte/inscription/verifier']) {
+    assert.equal(outcome(middleware(requestFor(p))).redirected, false, `${p} must be public`);
   }
 });
 

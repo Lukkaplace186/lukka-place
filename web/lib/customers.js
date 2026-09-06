@@ -2,6 +2,8 @@ import 'server-only';
 import { cookies } from 'next/headers';
 import { getPool } from './db';
 import { CUSTOMER_SESSION_COOKIE, verifyCustomerSessionToken } from './customerAuth';
+import { generateOtpCode, hashOtp, otpExpiresAt } from './authCrypto';
+import { sendOtpViaWhatsApp, otpFallbackText } from './otpDelivery';
 
 /**
  * Customer-account DB access — mirrors lib/listings.js's shape (plain async
@@ -40,6 +42,61 @@ export async function createCustomer({ phone, passwordHash, fullName }) {
     [phone, passwordHash, fullName || null],
   );
   return rows[0];
+}
+
+// ---------------------------------------------------------------------------
+// Signup phone verification — the WhatsApp OTP a brand-new customer account
+// has to clear before it can hold a session. Mirrors lib/agents.js's
+// setAgentOtp/consumeAgentOtp/sendAgentOtp exactly, including the separate
+// column pair: `otp_code_hash`/`otp_expires_at` belong to signup
+// verification, `reset_otp_*` below to a password reset, and one flow must
+// never invalidate the other's in-flight code.
+// ---------------------------------------------------------------------------
+
+/** Read by id for the verification step, which has no password to look up by. */
+export async function getCustomerAuthById(customerId) {
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT id, phone, full_name, token_version, otp_code_hash, otp_expires_at, phone_verified_at
+     FROM customers WHERE id = $1`,
+    [customerId],
+  );
+  return rows[0] || null;
+}
+
+export async function setCustomerOtp(customerId, { codeHash, expiresAt }) {
+  const pool = getPool();
+  await pool.query(`UPDATE customers SET otp_code_hash = $1, otp_expires_at = $2 WHERE id = $3`, [
+    codeHash,
+    expiresAt,
+    customerId,
+  ]);
+}
+
+/**
+ * Clears the code and stamps the verification in one statement — a used
+ * code is never valid twice, and a verified number never re-verifies from a
+ * replayed one.
+ */
+export async function consumeCustomerOtp(customerId) {
+  const pool = getPool();
+  await pool.query(
+    `UPDATE customers
+     SET otp_code_hash = NULL, otp_expires_at = NULL, phone_verified_at = NOW()
+     WHERE id = $1`,
+    [customerId],
+  );
+}
+
+/**
+ * Generates a real code, stores its hash, and actually delivers it — the
+ * single place "make a code" and "send it" are composed, used by signup, by
+ * the resend button, and by a login on a not-yet-verified account.
+ */
+export async function sendCustomerOtp(customerId, phone) {
+  const code = generateOtpCode();
+  await setCustomerOtp(customerId, { codeHash: hashOtp(code), expiresAt: otpExpiresAt() });
+  await sendOtpViaWhatsApp(phone, code, { label: 'customer-auth', fallbackText: otpFallbackText(code) });
 }
 
 export async function recordFailedLogin(customerId, { lockUntil } = {}) {

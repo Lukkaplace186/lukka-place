@@ -1,10 +1,11 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { normalizePhone } from '@/lib/phone';
+import { phoneFromForm } from '@/lib/phone';
 import { getAgentByPhone, createAgent, sendAgentOtp } from '@/lib/agents';
 import { updateAgentIdentity } from '@/lib/agencies';
 import { hashPassword } from '@/lib/agentAuth';
+import { setVerifyAttemptCookie } from '@/lib/verifyAttempt';
 
 function safeNext(nextParam) {
   const next = String(nextParam || '/compte/agent');
@@ -24,7 +25,7 @@ function safeNext(nextParam) {
 export async function agentSignupAction(formData) {
   const next = safeNext(formData.get('next'));
   const password = String(formData.get('password') || '');
-  const phone = normalizePhone(String(formData.get('phone') || ''));
+  const phone = phoneFromForm(formData);
   const fullName = String(formData.get('full_name') || '').trim().slice(0, 240);
 
   if (!fullName) {
@@ -60,6 +61,11 @@ export async function agentSignupAction(formData) {
     console.error(`[agent-auth] could not store name for agent #${agent.id}: ${err.message}`);
   }
 
+  // Which account is being verified travels in a signed httpOnly cookie
+  // rather than the `?agent=<id>` query param this flow used to key on —
+  // see lib/verifyAttempt.js for what that param made possible.
+  await setVerifyAttemptCookie({ role: 'agent', id: agent.id, phone });
+
   try {
     await sendAgentOtp(agent.id, phone);
   } catch (err) {
@@ -67,5 +73,5 @@ export async function agentSignupAction(formData) {
     redirect(`/compte/agent/inscription?error=otp_failed&next=${encodeURIComponent(next)}`);
   }
 
-  redirect(`/compte/agent/inscription/verifier?agent=${agent.id}&next=${encodeURIComponent(next)}`);
+  redirect(`/compte/agent/inscription/verifier?next=${encodeURIComponent(next)}`);
 }

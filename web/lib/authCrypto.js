@@ -56,3 +56,24 @@ export function generateOtpCode() {
   const n = Math.floor(Math.random() * 1_000_000);
   return String(n).padStart(6, '0');
 }
+
+/**
+ * How long a verification code stays valid. One constant for every code
+ * this product sends (agent signup, customer signup, password reset) —
+ * three different lifetimes would be three different things to explain on
+ * three different screens.
+ */
+export const OTP_TTL_MS = 10 * 60 * 1000;
+
+/** Hashed the same way as a password (salted scrypt) — a leaked *_otp_code_hash column is still useless without the salt+scrypt work. */
+export function hashOtp(code) {
+  return hashToStoredForm(String(code ?? ''));
+}
+
+export function verifyOtp(candidate, storedHash) {
+  return verifyAgainstStoredForm(candidate, storedHash);
+}
+
+export function otpExpiresAt() {
+  return new Date(Date.now() + OTP_TTL_MS);
+}

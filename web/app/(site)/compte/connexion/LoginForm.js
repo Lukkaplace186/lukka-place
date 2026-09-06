@@ -3,7 +3,9 @@
 import { useRef } from 'react';
 import Link from 'next/link';
 import { getFavoriteIds, getSavedSearches } from '@/lib/localFavorites';
-import { useT } from '@/lib/i18n/client';
+import PhoneField from '@/components/PhoneField';
+import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
+import { useLocale, useT } from '@/lib/i18n/client';
 
 // Keys, not text: a module-level constant is evaluated once at import,
 // where `t` does not exist — see components/navItems.js.
@@ -21,8 +23,9 @@ const ERROR_MESSAGE_KEYS = {
  * JS-free form). The account-side merge itself (loginAction ->
  * mergeAnonymousData) is real and additive, not a decoration.
  */
-export default function LoginForm({ action, next, error }) {
+export default function LoginForm({ action, next, error, defaultCountry }) {
   const t = useT();
+  const locale = useLocale();
   const formRef = useRef(null);
 
   function handleSubmit() {
@@ -38,22 +41,15 @@ export default function LoginForm({ action, next, error }) {
       <input type="hidden" name="favoriteIds" />
       <input type="hidden" name="savedSearches" />
 
-      <div>
-        <label htmlFor="phone" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
-          {t('auth.phoneNumber')}
-        </label>
-        <input
-          id="phone"
-          type="tel"
-          name="phone"
-          inputMode="tel"
-          autoComplete="tel"
-          placeholder={t('enquiry.whatsappPlaceholder')}
-          autoFocus
-          required
-          className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
-        />
-      </div>
+      <PhoneField
+        name="phone"
+        id="phone"
+        defaultCountry={defaultCountry}
+        locale={locale}
+        labels={phoneFieldLabels(t)}
+        autoFocus
+        required
+      />
 
       <div>
         <div className="mb-1 flex items-center justify-between">

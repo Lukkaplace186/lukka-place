@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { loginAction } from './actions';
 import LoginForm from './LoginForm';
+import { getRequestCountry } from '@/lib/requestCountry';
 import { getT } from '@/lib/i18n/server';
 
 export const metadata = {
@@ -20,6 +21,7 @@ export default async function CustomerLoginPage({ searchParams }) {
   const error = typeof params.error === 'string' ? params.error : null;
   const reset = params.reset === '1';
   const next = typeof params.next === 'string' ? params.next : '/compte/client';
+  const country = await getRequestCountry();
 
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-4">
@@ -33,7 +35,7 @@ export default async function CustomerLoginPage({ searchParams }) {
           </p>
         )}
 
-        <LoginForm action={loginAction} next={next} error={error} />
+        <LoginForm action={loginAction} next={next} error={error} defaultCountry={country} />
 
         <p className="mt-5 text-center text-sm text-ink-45">
           Pas encore de compte ?{' '}

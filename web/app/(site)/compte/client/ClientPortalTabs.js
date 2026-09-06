@@ -33,11 +33,28 @@ import { useT } from '@/lib/i18n/client';
  * itself — that function's real return shape stays the honest per-metric
  * one other callers still rely on.
  */
+/**
+ * ORDER IS THE FUNNEL, and it is not alphabetical or historical — it is the
+ * order a customer actually moves through:
+ *
+ *   1. Favoris & Alertes  — what they saved while browsing
+ *   2. Trouver pour moi   — the request they make when browsing wasn't enough
+ *   3. Messages & Visites — where that request is answered and tracked
+ *
+ * "Trouver pour moi" used to sit AFTER "Messages & Visites", which put the
+ * destination before the action that fills it: a new customer met an empty
+ * inbox before ever being offered the form that populates it. Submitting the
+ * form now lands on tab 3 (../actions.js's submitPropertyRequestAction) and
+ * tab 3's empty state points back at tab 2 (./messages/page.js), so the two
+ * are a loop in both directions rather than two unconnected pages.
+ *
+ * Paramètres stays last: it is not part of the funnel.
+ */
 // Keys, not text — see components/navItems.js.
 const TABS = [
   { href: '/compte/client', labelKey: 'account.portal.tabs.favorites', exact: true, countKey: 'savedTotal' },
-  { href: '/compte/client/messages', labelKey: 'account.portal.tabs.messages', countKey: 'inquiries' },
   { href: '/compte/client/demandes', labelKey: 'account.portal.tabs.findForMe' },
+  { href: '/compte/client/messages', labelKey: 'account.portal.tabs.messages', countKey: 'inquiries' },
   { href: '/compte/client/parametres', labelKey: 'account.portal.tabs.profile' },
 ];
 

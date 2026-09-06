@@ -2,7 +2,9 @@
 
 import { useRef } from 'react';
 import { getFavoriteIds, getSavedSearches } from '@/lib/localFavorites';
-import { useT } from '@/lib/i18n/client';
+import PhoneField from '@/components/PhoneField';
+import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
+import { useLocale, useT } from '@/lib/i18n/client';
 
 // Keys, not text: a module-level constant is evaluated once at import,
 // where `t` does not exist — see components/navItems.js.
@@ -10,6 +12,7 @@ const ERROR_MESSAGE_KEYS = {
   phone: 'auth.errors.phoneInvalid',
   password: 'auth.errors.passwordMin8',
   exists: 'auth.errors.accountExists',
+  expired_attempt: 'auth.errors.expiredAttempt',
 };
 
 /**
@@ -17,8 +20,9 @@ const ERROR_MESSAGE_KEYS = {
  * favorites/saved searches into hidden fields right before submit, so
  * signupAction can merge them into the brand-new account.
  */
-export default function SignupForm({ action, next, error, initialPhone = '' }) {
+export default function SignupForm({ action, next, error, initialPhone = '', initialCountry = '' }) {
   const t = useT();
+  const locale = useLocale();
   const formRef = useRef(null);
 
   function handleSubmit() {
@@ -47,23 +51,17 @@ export default function SignupForm({ action, next, error, initialPhone = '' }) {
         />
       </div>
 
-      <div>
-        <label htmlFor="phone" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
-          {t('auth.phoneNumber')}
-        </label>
-        <input
-          id="phone"
-          type="tel"
-          name="phone"
-          inputMode="tel"
-          autoComplete="tel"
-          placeholder={t('enquiry.whatsappPlaceholder')}
-          defaultValue={initialPhone}
-          autoFocus
-          required
-          className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
-        />
-      </div>
+      <PhoneField
+        name="phone"
+        id="phone"
+        defaultValue={initialPhone}
+        defaultCountry={initialCountry || undefined}
+        locale={locale}
+        labels={phoneFieldLabels(t)}
+        hint={t('auth.signup.codeWillBeSent')}
+        autoFocus
+        required
+      />
 
       <div>
         <label htmlFor="password" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">

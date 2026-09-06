@@ -1,6 +1,9 @@
 import Link from 'next/link';
 import { agentSignupAction } from './actions';
-import { getT } from '@/lib/i18n/server';
+import PhoneField from '@/components/PhoneField';
+import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
+import { getRequestCountry } from '@/lib/requestCountry';
+import { getLocale, getT } from '@/lib/i18n/server';
 
 // generateMetadata, not a static object: a static export cannot see the
 // request locale — see app/(site)/a-propos/page.js.
@@ -25,6 +28,8 @@ const ERROR_MESSAGE_KEYS = {
 
 export default async function AgentSignupPage({ searchParams }) {
   const t = await getT();
+  const locale = await getLocale();
+  const country = await getRequestCountry();
   const params = await searchParams;
   const error = typeof params.error === 'string' ? params.error : null;
   const next = typeof params.next === 'string' ? params.next : '/compte/agent';
@@ -56,21 +61,14 @@ export default async function AgentSignupPage({ searchParams }) {
             />
           </div>
 
-          <div>
-            <label htmlFor="phone" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
-              {t('agent.settings.whatsappNumber')}
-            </label>
-            <input
-              id="phone"
-              type="tel"
-              name="phone"
-              inputMode="tel"
-              autoComplete="tel"
-              placeholder={t('enquiry.whatsappPlaceholder')}
-              required
-              className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
-            />
-          </div>
+          <PhoneField
+            name="phone"
+            id="phone"
+            defaultCountry={country}
+            locale={locale}
+            labels={{ ...phoneFieldLabels(t), label: t('agent.settings.whatsappNumber') }}
+            required
+          />
 
           <div>
             <label htmlFor="password" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
@@ -89,7 +87,7 @@ export default async function AgentSignupPage({ searchParams }) {
 
           {error && (
             <p className="text-sm text-red-600" role="alert">
-              {(ERROR_MESSAGE_KEYS[error] ? t(ERROR_MESSAGE_KEYS[error]) : null) || ERROR_MESSAGES.phone}
+              {(ERROR_MESSAGE_KEYS[error] ? t(ERROR_MESSAGE_KEYS[error]) : null) || t(ERROR_MESSAGE_KEYS.phone)}
             </p>
           )}
 

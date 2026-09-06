@@ -2,7 +2,8 @@ import 'server-only';
 import { createHash, randomBytes } from 'node:crypto';
 import { getPool } from './db';
 import { generateOtpCode, hashOtp, otpExpiresAt } from './agentAuth';
-import { sendWhatsAppTemplate, sendWhatsAppMessage, claimListingsForPhone } from './adminApi';
+import { sendWhatsAppMessage, claimListingsForPhone } from './adminApi';
+import { sendOtpViaWhatsApp, otpFallbackText } from './otpDelivery';
 
 /**
  * Reads/writes against the real Laravel/Zipprr schema that already lives in
@@ -241,28 +242,12 @@ export async function sendAgentOtp(agentId, phone) {
   const code = generateOtpCode();
   await setAgentOtp(agentId, { codeHash: hashOtp(code), expiresAt: otpExpiresAt() });
 
-  // Delivered as an approved template, NOT a free-form text. Meta only
-  // delivers free-form messages to someone who has messaged this business
-  // within the last 24 hours; a first-time registrant never has, so the old
-  // sendWhatsAppMessage call was accepted with a real message id and then
-  // silently never arrived — verified directly against the live account,
-  // where the API returned 200 and no handset ever rang.
-  //
-  // The template name/language are env-driven because they live in Meta's
-  // WhatsApp Manager, not in this repo — an approval there must not require
-  // a code change here. OTP_TEMPLATE_HAS_BUTTON exists because Meta rejects
-  // an AUTHENTICATION-category template sent without its copy-code button
-  // and equally rejects a button component on a template that declares
-  // none; only whoever approved the template knows which shape it is.
-  const template = process.env.AGENT_OTP_TEMPLATE || 'agent_auth_otp';
-  const languageCode = process.env.AGENT_OTP_TEMPLATE_LANG || 'fr';
-  const withButton = process.env.AGENT_OTP_TEMPLATE_HAS_BUTTON !== '0';
-
-  await sendWhatsAppTemplate(phone, {
-    template,
-    languageCode,
-    bodyParams: [code],
-    otpCode: withButton ? code : undefined,
+  // Template-first delivery, with the session-message fallback, both of
+  // them real — see lib/otpDelivery.js for why a free-form send alone is
+  // silently undeliverable to a first-time registrant.
+  await sendOtpViaWhatsApp(phone, code, {
+    label: 'agent-auth',
+    fallbackText: otpFallbackText(code),
   });
 }
 

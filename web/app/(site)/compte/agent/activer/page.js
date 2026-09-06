@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { BadgeCheck } from 'lucide-react';
-import { normalizePhone } from '@/lib/phone';
+import { normalizeStoredPhone } from '@/lib/phone';
 import { peekAgentActivation } from '@/lib/agents';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -46,7 +46,7 @@ const ERROR_MESSAGE_KEYS = {
 export default async function AgentActivatePage({ searchParams }) {
   const t = await getT();
   const params = await searchParams;
-  const phone = normalizePhone(String(params.phone || ''));
+  const phone = normalizeStoredPhone(String(params.phone || ''));
   const token = typeof params.token === 'string' ? params.token : '';
   const error = typeof params.error === 'string' ? params.error : null;
 

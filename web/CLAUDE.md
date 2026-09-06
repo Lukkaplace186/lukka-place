@@ -181,6 +181,115 @@ Conflating any two of these is the bug that keeps recurring:
 - **Icons are `lucide-react`, always**, with `ICON_SIZE` / `ICON_STROKE_WIDTH` from `lib/constants.js`. The hand-rolled WhatsApp/Facebook/Instagram brand SVGs in `Footer.js` and `WhatsAppCTA.js` are the one deliberate exception — this lucide version ships no brand glyphs (confirmed by a failed build, not assumed).
 - **Motion is `framer-motion` via `lib/motion.js`** — `revealUp`/`revealStagger` (section reveals), `imageZoom` (card photo on hover), `heroDrift`, `fadeScale`, `cardHoverProps`, `fadeInUp`. **Gate every decorative preset through `useMotionSafe()` (`lib/useMotionSafe.js`)** — `prefers-reduced-motion` was honoured nowhere before. Read the scope note at the top of `lib/motion.js` before wrapping a Radix `Dialog`/`Sheet` in `motion.div`: they animate via `data-state` + `tw-animate-css`, and layering framer-motion on top without `AnimatePresence` + `forceMount` breaks the exit rather than improving it.
 
+## Phone numbers are international now — the country is data, not a guess
+
+The platform opened to diaspora customers (buying in Kinshasa from London,
+Brussels, Toronto) and to agents listing property outside the DRC, so a phone
+number can no longer be assumed Congolese.
+
+- **`components/PhoneField.js` is the only phone input in the product.** It
+  posts two fields: the typed number as `name`, and the picked ISO 3166-1
+  country as `<name>Country`. Every Server Action reads both through
+  `phoneFromForm(formData)` (`lib/phone.js`). A new form that renders a bare
+  `<input type="tel">` reintroduces exactly the bug this replaced.
+- **The bug it replaced was silent and damaging.** `normalizePhone`'s
+  country-less branch recognises DRC shorthand, so a London number typed as
+  `07932673460` was stored as `243793267346` — a real Kinshasa number
+  belonging to somebody else. No error, no rejection: a working-looking
+  account whose OTP, alerts and viewing confirmations all went to a stranger.
+- **Three normalizers, three jobs, don't mix them up:**
+  - `normalizePhone(input, country)` — raw text from a form. With a country
+    it is exact; without one it still accepts DRC shorthand and refuses to
+    guess at anything else.
+  - `normalizeStoredPhone(value)` — a value that is ALREADY E.164 (a `wa_id`
+    from the WhatsApp pipeline, a number off a row, the number in a signed
+    cookie). Re-running `normalizePhone` on one of these rejects every
+    non-DRC number, which is what turned international agents' activation
+    links into "Lien expiré".
+  - `splitPhone(e164)` — the inverse, for re-opening a stored number into
+    the picker.
+- **`lib/countries.js` holds E.164 dial codes only; country NAMES come from
+  `Intl.DisplayNames`** in the reader's own locale. 230-odd hand-typed French
+  strings plus 230 English ones is a FR/EN parity problem nobody on this team
+  would maintain. `tests/unit/phone-countries.test.js` asserts every ISO code
+  resolves to a real region name, which is what catches a typo'd code.
+- **Trunk prefixes are per-country facts, not a blanket "strip the 0".** `''`
+  for Italy and Côte d'Ivoire (the leading 0 is part of the number there),
+  `'1'` across the NANP, `'0'` elsewhere. Getting this wrong deletes a real
+  digit.
+- **Seven dial codes are shared** (+1 across 24 NANP territories, +44 across
+  the UK and the Crown Dependencies, …). `PRIMARY_FOR_DIAL` says which
+  country a stored number displays as; without it, list order decided, and
+  every British number was labelled "Guernsey".
+- **The starting country is decided server-side** from `Accept-Language`
+  (`lib/requestCountry.js`), so the first paint already shows the right dial
+  code. Without it the field renders +243 and flips to +44 a moment after
+  hydration — real, observed in the preview. A bare `fr` (no region) is
+  ignored rather than maximised into `fr-FR`; that would default a Kinshasa
+  visitor to France. After hydration a previous explicit choice
+  (`localStorage`) and the visitor's own selection both win.
+- **No flag images and no new dependency.** Flags are regional-indicator
+  emoji. Windows ships no flag-emoji font, so they render there as the two
+  ISO letters — which is exactly the code chip the alternative design would
+  have drawn, and why there isn't a second one beside them.
+- **Radix restores focus to the trigger on close, and that is wrong here.**
+  Picking a country with Enter put focus back on the trigger button just in
+  time for that same keystroke's keyup to "click" it and reopen the panel.
+  `onCloseAutoFocus` is prevented, and `choose()` moves focus to the number
+  input synchronously — the panel animates out over ~100ms and keystrokes
+  land in the search box for the whole of it otherwise. Both confirmed in a
+  real browser, not reasoned about.
+
+## Phone verification — WhatsApp OTP, both account types
+
+**Customer signup no longer establishes a session.** It creates the row,
+sends a code, and hands off to `/compte/inscription/verifier`; only a real
+code establishes the session. Agents have worked this way since they were
+built — customers were the side missing it, which meant a mistyped number
+produced an account we could never reach again through the only channel this
+product has.
+
+- **`scripts/migrate-customer-phone-verification.js` must run before this
+  code deploys.** `getCustomerByPhone` selects `otp_code_hash`,
+  `otp_expires_at` and `phone_verified_at`; without the migration every
+  customer login throws. Additive and re-runnable (`IF NOT EXISTS`).
+- **Existing customers are NOT backfilled as verified.** Nobody proved those
+  numbers, and stamping a timestamp would record a verification that never
+  happened. They are asked once, on their next login — the same one-time step
+  an unverified agent already goes through.
+- **`lib/verifyAttempt.js` replaced the `?agent=<id>` / `?customer=<id>` query
+  param.** That param was not a credential (the code is), but it was
+  guessable, and two things followed: the resend button would fire a real
+  WhatsApp message at whatever account id you typed into the URL, and the
+  page could never show the number it had just texted. A signed httpOnly
+  cookie fixes both — the page now confirms the last four digits back, which
+  is how someone catches their own typo instead of waiting ten minutes for a
+  code that was never coming. Same primitive and same reasoning as
+  `lib/resetAttempt.js`.
+- **`/compte/inscription/verifier` is in `middleware.js`'s public list**, for
+  the same reason the agent one is: it is the step *before* a session exists.
+  Gating it on a session bounces every new customer to a login they cannot
+  pass until they enter the very code that page is asking for. Pinned in
+  `tests/unit/middleware.test.js`.
+- **`lib/otpDelivery.js` is the one way a code leaves this app**, and it is
+  template-first with a session-message fallback. Meta only delivers a
+  free-form message to someone who messaged the business in the last 24h, so
+  a first-time registrant never receives one — accepted with a real message
+  id, silently never delivered. The fallback exists because the template
+  lives in Meta's WhatsApp Manager and may be missing or pending approval;
+  when it is, a session message still reaches everyone who has messaged us
+  recently. Both failing is reported as a real failure, never swallowed. The
+  password-reset flow was a bare free-form send until now and went through
+  this too.
+- **OTP primitives live in `lib/authCrypto.js`** (`hashOtp`, `verifyOtp`,
+  `otpExpiresAt`, `OTP_TTL_MS`), re-exported from `agentAuth.js` for the
+  callers that already imported them there. One 10-minute lifetime for every
+  code this product sends; a customer-flavoured copy is how two "10 minutes"
+  quietly become 10 and 15.
+- Signup verification (`otp_code_hash`) and password reset
+  (`reset_otp_code_hash`) are **separate column pairs on both tables**. One
+  flow must never invalidate the other's in-flight code.
+
 ## Known gaps (real, documented, not to be papered over)
 
 - **`price_period` / `deposit_months`** — the `ALTER TABLE properties ADD COLUMN price_period text, ADD COLUMN deposit_months integer;` migration this was waiting on has run (2026-08-19, confirmed directly against `information_schema.columns`), and `SELECT_FIELDS` (`lib/listings.js`) now selects both. Before this, `services/postgres.js` (engine repo) was already writing both fields on *every* sync — since `syncListingToPostgres` is fire-and-forget and swallows its own errors, that meant every listing publish was silently failing to reach Postgres at all, with the submitting agent seeing a normal success reply. Existing Postgres rows still have `NULL` for both until their next sync; `DepositBadge` only starts showing real values as listings get republished or freshly submitted.

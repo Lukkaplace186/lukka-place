@@ -314,9 +314,24 @@ function Thumbnail({ src, alt, className }) {
   );
 }
 
-export default function InquiryThreads({ threads, whatsappNumber, communes = [], updateAction }) {
+export default function InquiryThreads({
+  threads,
+  whatsappNumber,
+  communes = [],
+  updateAction,
+  // Set when the customer arrives straight from submitting a request
+  // (../actions.js redirects here with ?submitted=<id>), so the tab opens on
+  // the thread they just created rather than on whatever sorts first. It is
+  // only an initial selection — resolved against the threads this session
+  // was already served, so an unknown id simply falls back to the default.
+  initialThreadId = null,
+}) {
   const t = useT();
-  const [activeId, setActiveId] = useState(threads[0]?.id ?? null);
+  const [activeId, setActiveId] = useState(
+    () => (initialThreadId != null && threads.some((thread) => thread.id === initialThreadId)
+      ? initialThreadId
+      : threads[0]?.id ?? null),
+  );
   const active = threads.find((t) => t.id === activeId) || threads[0] || null;
 
   // Mobile drill-down: `active` above is basically always set (this

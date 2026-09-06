@@ -290,12 +290,10 @@ export default function RequestForm({ action, communes }) {
 
         <div className="h-px bg-line" />
 
-        {state?.status === 'success' ? (
-          <p className="flex items-start gap-2.5 rounded-md bg-success-tint px-4 py-3 text-[0.875rem] font-medium text-success">
-            <Check strokeWidth={ICON_STROKE_WIDTH} className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-            {state.message}
-          </p>
-        ) : null}
+        {/* No success branch: a submitted request redirects to Messages &
+            Visites, which confirms it by number and opens on that thread
+            (../actions.js). Only a real failure keeps the customer here,
+            with everything they typed still in the form. */}
         {state?.status === 'error' ? (
           <p className="flex items-start gap-2.5 rounded-md bg-danger-tint px-4 py-3 text-[0.875rem] font-medium text-danger">
             <CircleAlert strokeWidth={ICON_STROKE_WIDTH} className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />

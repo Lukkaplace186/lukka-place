@@ -1,10 +1,11 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { normalizePhone } from '@/lib/phone';
+import { phoneFromForm } from '@/lib/phone';
 import { getAgentByPhone, recordAgentFailedLogin, clearAgentFailedLogins, sendAgentOtp } from '@/lib/agents';
 import { verifyPasswordAgainstHash, burnConstantTime, MAX_FAILED_LOGIN_ATTEMPTS, LOCKOUT_MS } from '@/lib/agentAuth';
 import { establishAgentSession } from '@/lib/agentSession';
+import { setVerifyAttemptCookie } from '@/lib/verifyAttempt';
 
 function safeNext(nextParam) {
   const next = String(nextParam || '/compte/agent');
@@ -15,7 +16,7 @@ function safeNext(nextParam) {
 export async function agentLoginAction(formData) {
   const next = safeNext(formData.get('next'));
   const password = String(formData.get('password') || '');
-  const phone = normalizePhone(String(formData.get('phone') || ''));
+  const phone = phoneFromForm(formData);
 
   if (!phone) {
     redirect(`/compte/agent/connexion?error=phone&next=${encodeURIComponent(next)}`);
@@ -42,13 +43,14 @@ export async function agentLoginAction(formData) {
   await clearAgentFailedLogins(agent.id);
 
   if (!agent.phone_verified_at) {
+    await setVerifyAttemptCookie({ role: 'agent', id: agent.id, phone });
     try {
       await sendAgentOtp(agent.id, phone);
     } catch (err) {
       console.error(`[agent-auth] OTP send failed for agent #${agent.id}: ${err.message}`);
       redirect(`/compte/agent/connexion?error=otp_failed&next=${encodeURIComponent(next)}`);
     }
-    redirect(`/compte/agent/inscription/verifier?agent=${agent.id}&next=${encodeURIComponent(next)}`);
+    redirect(`/compte/agent/inscription/verifier?next=${encodeURIComponent(next)}`);
   }
 
   await establishAgentSession({ id: agent.id, tokenVersion: agent.token_version });

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useFormStatus } from 'react-dom';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * Resend control with a real cooldown.
@@ -18,10 +19,15 @@ import { useFormStatus } from 'react-dom';
  * Resetting state in an effect is the cascading-render pattern React's own
  * lint rule rejects, and `key` is the supported way to say "this is
  * conceptually a new timer".
+ *
+ * Its three labels were hardcoded French until this component moved out of
+ * the agent signup folder and started serving the customer flow too, where
+ * an English page rendered one French button.
  */
 const COOLDOWN_SECONDS = 45;
 
 function Inner({ seconds }) {
+  const t = useT();
   const { pending } = useFormStatus();
   const blocked = pending || seconds > 0;
 
@@ -31,11 +37,7 @@ function Inner({ seconds }) {
       disabled={blocked}
       className="text-sm font-semibold text-blue-deep underline underline-offset-2 transition-colors hover:text-blue disabled:cursor-not-allowed disabled:text-ink-35 disabled:no-underline"
     >
-      {pending
-        ? 'Envoi en cours…'
-        : seconds > 0
-          ? `Renvoyer le code dans ${seconds} s`
-          : 'Renvoyer le code'}
+      {pending ? t('auth.resend.sending') : seconds > 0 ? t('auth.resend.retryIn', { seconds }) : t('auth.resend.now')}
     </button>
   );
 }

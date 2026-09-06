@@ -1010,7 +1010,8 @@
           "other": "{count} agences ont proposé un bien — consultez-les ci-dessous et contactez-les directement."
         }
       },
-      "viewProposalsBelow": "Voir les propositions ci-dessous"
+      "viewProposalsBelow": "Voir les propositions ci-dessous",
+      "submittedConfirmation": "Demande n° {id} envoyée aux agences partenaires. Suivez son avancement ici."
     },
     "requestForm": {
       "title": "Trouver pour moi",
@@ -1350,7 +1351,6 @@
   "errors": {
     "chooseBuyOrRent": "Choisissez d’abord si vous souhaitez acheter ou louer.",
     "selectAtLeastOneCommune": "Sélectionnez au moins une commune.",
-    "requestSentToAgencies": "Votre demande a été transmise aux agences partenaires.",
     "requestNotFound": "Demande introuvable.",
     "selectACommune": "Sélectionnez une commune.",
     "budgetMinAboveMax": "Le budget minimum doit être inférieur ou égal au budget maximum.",

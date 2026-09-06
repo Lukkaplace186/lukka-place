@@ -1,5 +1,8 @@
 import { submitInquiryAction } from './actions';
-import { getT } from '@/lib/i18n/server';
+import PhoneField from '@/components/PhoneField';
+import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
+import { getRequestCountry } from '@/lib/requestCountry';
+import { getLocale, getT } from '@/lib/i18n/server';
 
 /**
  * The design's "Envoyer un message à l'agence" card — a white panel at
@@ -31,6 +34,8 @@ const FIELD_CLASS =
 
 export default async function InquiryForm({ agentId, agentName, sent, error }) {
   const t = await getT();
+  const locale = await getLocale();
+  const country = await getRequestCountry();
   const bound = submitInquiryAction.bind(null, agentId);
 
   if (sent) {
@@ -56,20 +61,16 @@ export default async function InquiryForm({ agentId, agentName, sent, error }) {
           <input id="inquiry-name" name="name" placeholder="Votre nom" className={FIELD_CLASS} />
         </div>
 
-        <div>
-          <label htmlFor="inquiry-phone" className="mb-1 block text-xs font-semibold text-ink-70">
-            {t('enquiry.whatsappNumber')}
-          </label>
-          <input
-            id="inquiry-phone"
-            name="phone"
-            type="tel"
-            inputMode="tel"
-            required
-            placeholder={t('enquiry.whatsappPlaceholder')}
-            className={FIELD_CLASS}
-          />
-        </div>
+        <PhoneField
+          name="phone"
+          id="inquiry-phone"
+          defaultCountry={country}
+          locale={locale}
+          labels={{ ...phoneFieldLabels(t), label: t('enquiry.whatsappNumber') }}
+          labelClassName="mb-1 text-xs font-semibold normal-case tracking-normal text-ink-70"
+          fieldClassName="h-10 rounded-lg border-line/70 bg-surface"
+          required
+        />
 
         <div className="grid grid-cols-2 gap-2.5">
           <div>

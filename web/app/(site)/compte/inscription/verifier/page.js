@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { agentVerifyOtpAction, agentResendOtpAction } from './actions';
+import { customerVerifyOtpAction, customerResendOtpAction } from './actions';
 import ResendButton from '@/components/OtpResendButton';
 import { getVerifyAttempt, maskPhone } from '@/lib/verifyAttempt';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
@@ -17,29 +17,31 @@ export async function generateMetadata() {
 }
 
 // Keys, not text: a module-level constant is evaluated once at import
-// and cannot hold translated copy — see components/navItems.js. The
-// lookup below resolves the key at render.
+// and cannot hold translated copy — see components/navItems.js.
 const ERROR_MESSAGE_KEYS = {
   1: 'auth.errors.codeInvalid',
   expired: 'auth.errors.codeExpired',
   send_failed: 'auth.errors.sendFailed',
 };
 
-export default async function AgentVerifyOtpPage({ searchParams }) {
+/**
+ * Step 2 of customer signup. Reachable only with a valid attempt cookie —
+ * anyone landing here without one (a bookmarked URL, an expired flow) is
+ * sent back to step 1 rather than shown a code box that can never succeed.
+ */
+export default async function CustomerVerifyOtpPage({ searchParams }) {
   const t = await getT();
   const params = await searchParams;
+  const attempt = await getVerifyAttempt();
+
+  if (!attempt || attempt.role !== 'customer') {
+    redirect('/compte/inscription?error=expired_attempt');
+  }
+
   const error = typeof params.error === 'string' ? params.error : null;
   const sent = params.sent === '1';
-  const next = typeof params.next === 'string' ? params.next : '/compte/agent';
+  const next = typeof params.next === 'string' ? params.next : '/compte/client';
   const whatsappHref = getCentralWhatsAppHref(t('auth.forgot.whatsappCodeHelp'));
-
-  // Reachable only with a valid attempt cookie — a bookmarked URL or an
-  // expired flow goes back to the start rather than showing a code box that
-  // can never succeed. See lib/verifyAttempt.js.
-  const attempt = await getVerifyAttempt();
-  if (!attempt || attempt.role !== 'agent') {
-    redirect('/compte/agent/inscription');
-  }
 
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-4">
@@ -50,7 +52,7 @@ export default async function AgentVerifyOtpPage({ searchParams }) {
           {sent ? ` ${t('auth.newCodeSent')}` : ''}
         </p>
 
-        <form action={agentVerifyOtpAction} className="mt-6 flex flex-col gap-3">
+        <form action={customerVerifyOtpAction} className="mt-6 flex flex-col gap-3">
           <input type="hidden" name="next" value={next} />
 
           {/* autoComplete="one-time-code": on iOS and Android the code is
@@ -76,7 +78,7 @@ export default async function AgentVerifyOtpPage({ searchParams }) {
 
           {error && (
             <p className="text-sm text-red-600" role="alert">
-              {(ERROR_MESSAGE_KEYS[error] ? t(ERROR_MESSAGE_KEYS[error]) : null) || (ERROR_MESSAGE_KEYS[1] ? t(ERROR_MESSAGE_KEYS[1]) : null)}
+              {(ERROR_MESSAGE_KEYS[error] ? t(ERROR_MESSAGE_KEYS[error]) : null) || t(ERROR_MESSAGE_KEYS[1])}
             </p>
           )}
 
@@ -88,7 +90,7 @@ export default async function AgentVerifyOtpPage({ searchParams }) {
           </button>
         </form>
 
-        <form action={agentResendOtpAction} className="mt-3 text-center">
+        <form action={customerResendOtpAction} className="mt-3 text-center">
           <input type="hidden" name="next" value={next} />
           <ResendButton key={sent ? 'sent' : 'initial'} />
         </form>
@@ -105,7 +107,7 @@ export default async function AgentVerifyOtpPage({ searchParams }) {
         )}
 
         <p className="mt-5 text-center text-sm text-ink-45">
-          <Link href="/compte/agent/inscription" className="font-semibold text-blue-deep hover:underline">
+          <Link href="/compte/inscription" className="font-semibold text-blue-deep hover:underline">
             {t('auth.wrongNumber')}
           </Link>
         </p>

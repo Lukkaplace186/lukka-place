@@ -7,6 +7,9 @@ import {
   scryptHex,
   randomSaltHex,
   generateOtpCode,
+  hashOtp,
+  verifyOtp,
+  otpExpiresAt,
 } from './authCrypto';
 
 /**
@@ -81,24 +84,12 @@ export const AGENT_SESSION_TTL_SECONDS = Math.floor(SESSION_TTL_MS / 1000);
 export const MAX_FAILED_LOGIN_ATTEMPTS = 5;
 export const LOCKOUT_MS = 15 * 60 * 1000;
 
-const OTP_TTL_MS = 10 * 60 * 1000;
-
-// generateOtpCode now lives in authCrypto.js (shared with resetPassword.js)
-// — re-exported here so nothing importing it from agentAuth.js needs to change.
-export { generateOtpCode };
-
-/** Hashed the same way as a password (salted scrypt) — a leaked otp_code_hash column is still useless without the salt+scrypt work. */
-export function hashOtp(code) {
-  return hashToStoredForm(String(code ?? ''));
-}
-
-export function verifyOtp(candidate, storedHash) {
-  return verifyAgainstStoredForm(candidate, storedHash);
-}
-
-export function otpExpiresAt() {
-  return new Date(Date.now() + OTP_TTL_MS);
-}
+// The OTP primitives now live in authCrypto.js, alongside the password and
+// session-token ones, because customer signup verification needs the exact
+// same code lifetime and the exact same hashing — a second copy under a
+// customer-flavoured name is how two "10 minutes" quietly become 10 and 15.
+// Re-exported here so nothing importing them from agentAuth.js has to change.
+export { generateOtpCode, hashOtp, verifyOtp, otpExpiresAt };
 
 // Re-exported so callers doing agent-specific work never need to import
 // authCrypto.js directly for a one-off hash (kept for symmetry with the

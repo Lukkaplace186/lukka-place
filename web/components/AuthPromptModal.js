@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
-import { useT } from '@/lib/i18n/client';
+import PhoneField from './PhoneField';
+import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
+import { useLocale, useT } from '@/lib/i18n/client';
 
 // Keys, not text — see components/navItems.js.
 const TITLE_KEYS = {
@@ -31,13 +32,22 @@ const TITLE_KEYS = {
 export default function AuthPromptModal({ open, onClose, trigger, next }) {
   const t = useT();
   const router = useRouter();
-  const [phone, setPhone] = useState('');
+  const locale = useLocale();
 
+  // Read straight off the form rather than from controlled state: PhoneField
+  // owns two values (the typed number and the picked country) and both have
+  // to reach the signup page, or the country the visitor chose here is lost
+  // and their number gets re-guessed as a DRC one on the next screen.
   function handleSubmit(e) {
     e.preventDefault();
+    const data = new FormData(e.currentTarget);
+    const phone = String(data.get('phone') || '').trim();
+    const country = String(data.get('phoneCountry') || '');
+
     const params = new URLSearchParams();
     params.set('next', next);
-    if (phone.trim()) params.set('phone', phone.trim());
+    if (phone) params.set('phone', phone);
+    if (phone && country) params.set('country', country);
     router.push(`/compte/inscription?${params.toString()}`);
   }
 
@@ -49,23 +59,14 @@ export default function AuthPromptModal({ open, onClose, trigger, next }) {
         </DialogTitle>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          <div>
-            <label htmlFor="auth-prompt-phone" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
-              {t('auth.phoneNumber')}
-            </label>
-            <input
-              id="auth-prompt-phone"
-              type="tel"
-              inputMode="tel"
-              autoComplete="tel"
-              placeholder={t('enquiry.whatsappPlaceholder')}
-              autoFocus
-              required
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2.5 text-sm text-ink"
-            />
-          </div>
+          <PhoneField
+            name="phone"
+            id="auth-prompt-phone"
+            locale={locale}
+            labels={phoneFieldLabels(t)}
+            autoFocus
+            required
+          />
 
           <button
             type="submit"

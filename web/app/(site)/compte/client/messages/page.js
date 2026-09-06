@@ -1,11 +1,12 @@
 import { redirect } from 'next/navigation';
-import { Mail } from 'lucide-react';
+import { Mail, Check } from 'lucide-react';
 import { PortalSectionHeading, PortalEmpty } from '@/components/ClientPortalUI';
 import { getPortalCustomer, isViewingLead } from '@/lib/customerPortal';
 import { getCustomerInquiries } from '@/lib/customerInquiries';
 import { getLocationHierarchyWithFallback } from '@/lib/locations';
 import { getPopularCommunes } from '@/lib/listings';
 import { LEAD_STATUS_LABEL_KEYS } from '@/lib/adminLabels';
+import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { listingImages, feedLocationLine } from '@/lib/listingView';
 import { formatPrice } from '@/lib/format';
 import { updatePropertyRequestAction } from '../actions';
@@ -58,10 +59,17 @@ async function resolveCommunes() {
  * one chronological list can surface viewing-specific status and actions
  * inline (see InquiryThreads.js) instead of duplicating the list elsewhere.
  */
-export default async function MessagesPage() {
+export default async function MessagesPage({ searchParams }) {
   const t = await getT();
   const session = await getPortalCustomer();
   if (!session) redirect('/compte/connexion?next=/compte/client/messages');
+
+  // Set by submitPropertyRequestAction's redirect (../actions.js). A display
+  // hint only: it selects among threads this session was already entitled to
+  // see, so a hand-edited value can never widen what is rendered.
+  const params = await searchParams;
+  const submittedId = Number.parseInt(String(params?.submitted ?? ''), 10);
+  const justSubmitted = Number.isFinite(submittedId) ? submittedId : null;
 
   const [inquiries, communes] = await Promise.all([
     getCustomerInquiries(session.customerId),
@@ -80,7 +88,7 @@ export default async function MessagesPage() {
         <PortalEmpty
           icon={Mail}
           title={t('account.requests.emptyTitle')}
-          actionLabel="Trouver pour moi"
+          actionLabel={t('account.portal.tabs.findForMe')}
           actionHref="/compte/client/demandes"
         >
           {t('account.requests.emptyBody2')}
@@ -140,6 +148,11 @@ export default async function MessagesPage() {
     })),
   }));
 
+  // Only claim "we've received it" when the id in the URL matches a real
+  // thread of this customer's own — otherwise the page would confirm a
+  // submission that never happened to anyone who edited the query string.
+  const confirmed = justSubmitted != null && threads.some((thread) => thread.id === justSubmitted);
+
   return (
     <div>
       <PortalSectionHeading
@@ -148,11 +161,21 @@ export default async function MessagesPage() {
         sublead={t('account.requests.trackHelp')}
         className="mb-7"
       />
+      {confirmed ? (
+        <p
+          role="status"
+          className="mb-5 flex items-start gap-2.5 rounded-md bg-success-tint px-4 py-3 text-[0.875rem] font-medium text-success"
+        >
+          <Check strokeWidth={ICON_STROKE_WIDTH} className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          {t('account.requests.submittedConfirmation', { id: justSubmitted })}
+        </p>
+      ) : null}
       <InquiryThreads
         threads={threads}
         whatsappNumber={process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || null}
         communes={communes}
         updateAction={updatePropertyRequestAction}
+        initialThreadId={confirmed ? justSubmitted : null}
       />
     </div>
   );

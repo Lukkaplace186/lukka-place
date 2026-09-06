@@ -1010,7 +1010,8 @@
           "other": "{count} agencies have proposed a property — see them below and reach out directly."
         }
       },
-      "viewProposalsBelow": "View proposals below"
+      "viewProposalsBelow": "View proposals below",
+      "submittedConfirmation": "Request no. {id} sent to our partner agencies. Follow its progress here."
     },
     "requestForm": {
       "title": "Find one for me",
@@ -1350,7 +1351,6 @@
   "errors": {
     "chooseBuyOrRent": "First choose whether you want to buy or rent.",
     "selectAtLeastOneCommune": "Select at least one commune.",
-    "requestSentToAgencies": "Your request has been passed on to our partner agencies.",
     "requestNotFound": "Request not found.",
     "selectACommune": "Select a commune.",
     "budgetMinAboveMax": "The minimum budget must be less than or equal to the maximum budget.",

@@ -1,7 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { normalizePhone } from '@/lib/phone';
+import { normalizeStoredPhone } from '@/lib/phone';
 import { hashPassword } from '@/lib/agentAuth';
 import { establishAgentSession } from '@/lib/agentSession';
 import { consumeAgentActivationToken } from '@/lib/agents';
@@ -24,7 +24,7 @@ import { consumeAgentActivationToken } from '@/lib/agents';
  * the query string, keeping the token in the URL so a retry works.
  */
 export async function activateAgentAction(formData) {
-  const phone = normalizePhone(String(formData.get('phone') || ''));
+  const phone = normalizeStoredPhone(String(formData.get('phone') || ''));
   const token = String(formData.get('token') || '');
   const password = String(formData.get('password') || '');
   const confirm = String(formData.get('password_confirm') || '');

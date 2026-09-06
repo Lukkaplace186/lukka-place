@@ -1,7 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { normalizePhone } from '@/lib/phone';
+import { phoneFromForm } from '@/lib/phone';
 import { requestPasswordReset } from '@/lib/resetPassword';
 import { setResetAttemptCookie } from '@/lib/resetAttempt';
 
@@ -19,14 +19,17 @@ function safeRole(roleParam) {
  */
 export async function requestResetAction(formData) {
   const role = safeRole(formData.get('role'));
-  const phoneInput = String(formData.get('phone') || '');
-  const phone = normalizePhone(phoneInput);
+  // Normalized once here, against the country the visitor picked, and then
+  // carried onward as digits — every later step (the attempt cookie, the
+  // resend, the OTP check) works from the E.164 number, never from the raw
+  // text, so there is exactly one place a country can be applied.
+  const phone = phoneFromForm(formData);
 
   if (!phone) {
     redirect(`/mot-de-passe-oublie?error=phone&role=${role}`);
   }
 
-  const result = await requestPasswordReset(phoneInput, role);
+  const result = await requestPasswordReset(phone, role);
 
   if (!result.ok) {
     redirect(`/mot-de-passe-oublie?error=${result.error}&role=${role}`);

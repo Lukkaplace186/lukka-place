@@ -1,7 +1,7 @@
 import 'server-only';
-import { normalizePhone } from './phone';
+import { normalizeStoredPhone } from './phone';
 import { generateOtpCode, hashToStoredForm, verifyAgainstStoredForm } from './authCrypto';
-import { sendWhatsAppMessage } from './adminApi';
+import { sendOtpViaWhatsApp } from './otpDelivery';
 import { getCustomerByPhone, setCustomerResetOtp, resetCustomerPassword } from './customers';
 import { getAgentByPhone, setAgentResetOtp, resetAgentPassword } from './agents';
 import { hashPassword as hashCustomerPassword } from './customerAuth';
@@ -41,6 +41,19 @@ function adapterFor(role) {
 // reasoning as customerAuth.js/agentAuth.js's own burnConstantTime.
 const DUMMY_OTP_HASH = hashToStoredForm('lukka-reset-otp-dummy-comparison-value');
 
+/**
+ * Both entry points take an ALREADY-normalized number, not raw text.
+ *
+ * They used to re-run normalizePhone() themselves, which broke the moment
+ * the country picker landed: step 1 normalizes '07932 673460' + GB into
+ * '447932673460', and feeding that back through the country-less
+ * normalizePhone() — whose whole job is to recognise DRC shorthand — returns
+ * null, since a bare 12-digit non-DRC string is exactly the shape it
+ * deliberately refuses to guess at. Every caller (the step-1 action, the
+ * verify action, the resend) already holds the normalized form, so the
+ * normalization now happens once, at the form boundary, and this layer just
+ * asserts the shape it was handed (normalizeStoredPhone, lib/phone.js).
+ */
 const RESET_OTP_TTL_MS = 10 * 60 * 1000;
 const MIN_PASSWORD_LENGTH = 8; // matches signup's own "no policy engine" posture (see compte/inscription/actions.js)
 
@@ -60,13 +73,12 @@ const MIN_PASSWORD_LENGTH = 8; // matches signup's own "no policy engine" postur
  * exactly what web/CLAUDE.md's "Honest UI State" rule argues against. The
  * caller routes this straight to the WhatsApp-support fallback CTA.
  *
- * @param {string} phoneInput
+ * @param {string} phone digits-only E.164, already normalized by the caller
  * @param {'customer'|'agent'} role
  * @returns {Promise<{ok: true}|{ok: false, error: 'phone'|'send_failed'}>}
  */
-export async function requestPasswordReset(phoneInput, role) {
-  const phone = normalizePhone(phoneInput);
-  if (!phone) return { ok: false, error: 'phone' };
+export async function requestPasswordReset(phone, role) {
+  if (!normalizeStoredPhone(phone)) return { ok: false, error: 'phone' };
 
   const { getByPhone, setResetOtp } = adapterFor(role);
   const account = await getByPhone(phone);
@@ -82,10 +94,14 @@ export async function requestPasswordReset(phoneInput, role) {
   });
 
   try {
-    await sendWhatsAppMessage(
-      phone,
-      `Votre code de réinitialisation Lukka Place : ${code} (valable 10 minutes). Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.`,
-    );
+    // Template-first, session-message fallback (lib/otpDelivery.js). This
+    // used to be a bare free-form send, which Meta silently drops for
+    // anyone outside the 24h window — including, in practice, exactly the
+    // person who has not been able to get into their account for a while.
+    await sendOtpViaWhatsApp(phone, code, {
+      label: 'reset-password',
+      fallbackText: `Votre code de réinitialisation Lukka Place : ${code} (valable 10 minutes). Si vous n'êtes pas à l'origine de cette demande, ignorez ce message.`,
+    });
   } catch (err) {
     console.error(`[reset-password] OTP send failed for ${role} ${phone}: ${err.message}`);
     return { ok: false, error: 'send_failed' };
@@ -100,15 +116,14 @@ export async function requestPasswordReset(phoneInput, role) {
  * account — including the one that's now "logged in" on some other device
  * with the old password — dies), and clears any login lockout.
  *
- * @param {string} phoneInput
+ * @param {string} phone digits-only E.164, already normalized by the caller
  * @param {string} otpCode
  * @param {string} newPassword
  * @param {'customer'|'agent'} role
  * @returns {Promise<{ok: true}|{ok: false, error: 'phone'|'weak_password'|'expired'|'invalid'}>}
  */
-export async function verifyAndResetPassword(phoneInput, otpCode, newPassword, role) {
-  const phone = normalizePhone(phoneInput);
-  if (!phone) return { ok: false, error: 'phone' };
+export async function verifyAndResetPassword(phone, otpCode, newPassword, role) {
+  if (!normalizeStoredPhone(phone)) return { ok: false, error: 'phone' };
   if (!newPassword || String(newPassword).length < MIN_PASSWORD_LENGTH) {
     return { ok: false, error: 'weak_password' };
   }

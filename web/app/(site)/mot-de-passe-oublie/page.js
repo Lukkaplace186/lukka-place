@@ -1,7 +1,10 @@
 import Link from 'next/link';
 import { requestResetAction } from './actions';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
-import { getT } from '@/lib/i18n/server';
+import PhoneField from '@/components/PhoneField';
+import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
+import { getRequestCountry } from '@/lib/requestCountry';
+import { getLocale, getT } from '@/lib/i18n/server';
 
 // generateMetadata, not a static object: a static export cannot see the
 // request locale — see app/(site)/a-propos/page.js.
@@ -29,6 +32,8 @@ const ERROR_MESSAGE_KEYS = {
  */
 export default async function ForgotPasswordPage({ searchParams }) {
   const t = await getT();
+  const locale = await getLocale();
+  const country = await getRequestCountry();
   const params = await searchParams;
   const error = typeof params.error === 'string' ? params.error : null;
   const role = params.role === 'agent' ? 'agent' : 'customer';
@@ -46,22 +51,15 @@ export default async function ForgotPasswordPage({ searchParams }) {
         </p>
 
         <form action={requestResetAction} className="mt-6 flex flex-col gap-3">
-          <div>
-            <label htmlFor="phone" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
-              {t('auth.phoneNumber')}
-            </label>
-            <input
-              id="phone"
-              type="tel"
-              name="phone"
-              inputMode="tel"
-              autoComplete="tel"
-              placeholder={t('enquiry.whatsappPlaceholder')}
-              autoFocus
-              required
-              className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
-            />
-          </div>
+          <PhoneField
+            name="phone"
+            id="phone"
+            defaultCountry={country}
+            locale={locale}
+            labels={phoneFieldLabels(t)}
+            autoFocus
+            required
+          />
 
           <fieldset>
             <legend className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">Je suis</legend>

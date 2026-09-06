@@ -5,16 +5,22 @@ import { getListingForAdmin, getCategoriesForAdmin } from '@/lib/adminListings';
 import { getLocationHierarchyWithFallback } from '@/lib/locations';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import AdminListingEditor from './AdminListingEditor';
+import { getT } from '@/lib/i18n/server';
 
-export const metadata = {
-  title: 'Modifier une annonce — Admin — Lukka Place',
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata() {
+  const t = await getT();
+  return {
+    title: t('admin.moderation.editTitle'),
+    robots: { index: false, follow: false },
+  };
+}
 
+// `labelKey`, not `label`: this is a module-level constant, evaluated once at
+// import, so it cannot hold translated text — see components/navItems.js.
 const APPROVE_LABEL = {
-  0: { label: 'En attente de validation', className: 'bg-warning-tint text-warning' },
-  1: { label: 'Approuvée', className: 'bg-success-tint text-success' },
-  2: { label: 'Rejetée', className: 'bg-danger-tint text-danger' },
+  0: { labelKey: 'admin.moderation.pendingReview', className: 'bg-warning-tint text-warning' },
+  1: { labelKey: 'admin.moderation.approved', className: 'bg-success-tint text-success' },
+  2: { labelKey: 'admin.moderation.rejected', className: 'bg-danger-tint text-danger' },
 };
 
 function formatDate(value) {
@@ -40,6 +46,7 @@ function formatDate(value) {
  * lists rather than trusting the submitted form.
  */
 export default async function AdminListingEditPage({ params }) {
+  const t = await getT();
   const { id } = await params;
   const listing = await getListingForAdmin(id);
   if (!listing) notFound();
@@ -59,7 +66,7 @@ export default async function AdminListingEditPage({ params }) {
           className="u-micro-strong inline-flex items-center gap-1.5 text-ink-45 hover:text-ink"
         >
           <ArrowLeft strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-          Retour aux annonces
+          {t('admin.moderation.backToListings')}
         </Link>
 
         <div className="mt-2 flex flex-wrap items-center gap-3">
@@ -68,12 +75,12 @@ export default async function AdminListingEditPage({ params }) {
             <span
               className={`rounded-full px-2.5 py-1 text-[0.6875rem] font-extrabold uppercase tracking-[0.1em] ${approve.className}`}
             >
-              {approve.label}
+              {t(approve.labelKey)}
             </span>
           )}
           {Number(listing.status) === 0 && (
             <span className="rounded-full bg-canvas-deep px-2.5 py-1 text-[0.6875rem] font-extrabold uppercase tracking-[0.1em] text-ink-45">
-              Masquée
+              {t('admin.moderation.hidden')}
             </span>
           )}
         </div>
@@ -89,7 +96,7 @@ export default async function AdminListingEditPage({ params }) {
                 {listing.agency_name || listing.agent_username || `#${listing.agent_id}`}
               </Link>
             ) : (
-              <span className="font-semibold text-warning">non attribué</span>
+              <span className="font-semibold text-warning">{t('admin.actions.unassigned')}</span>
             )}
           </span>
           {listing.approve_status === 1 && Number(listing.status) === 1 && (
@@ -98,7 +105,7 @@ export default async function AdminListingEditPage({ params }) {
               target="_blank"
               className="inline-flex items-center gap-1 font-semibold text-blue-deep hover:underline"
             >
-              Voir en ligne
+              {t('common.shared.viewOnline')}
               <ExternalLink strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
             </Link>
           )}

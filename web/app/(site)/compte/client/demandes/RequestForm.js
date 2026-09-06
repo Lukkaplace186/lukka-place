@@ -6,6 +6,7 @@ import { ArrowRight, Check, CircleAlert } from 'lucide-react';
 import { PortalPanel } from '@/components/ClientPortalUI';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { cn } from '@/lib/utils';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * "Soumettre une recherche" — the design's four-step request form.
@@ -26,18 +27,29 @@ import { cn } from '@/lib/utils';
  * assistant's own `viewing_requests.requested_time` is free text for
  * exactly this reason — "dès que possible" is a real answer, not a slot).
  */
+// Only the two word-bearing entries carry a key; the bare numerals are the
+// same in both languages and stay literal rather than becoming pointless
+// dictionary round-trips.
 const BEDROOM_OPTIONS = [
-  { value: 'studio', label: 'Studio' },
+  { value: 'studio', labelKey: 'account.requestForm.studio' },
   { value: '1', label: '1' },
   { value: '2', label: '2' },
   { value: '3', label: '3' },
-  { value: '4', label: '4 et plus' },
+  { value: '4', labelKey: 'account.requestForm.bedrooms4plus' },
 ];
 
+/*
+ * `value` is the SUBMITTED text, and it is deliberately not translated: the
+ * chosen option is stored as free text and appended verbatim to the request
+ * description the partner agencies read (lib/customerPortal.js). Translating
+ * the value would change what gets written to the database depending on the
+ * customer's display language, and would not match rows already stored. Only
+ * the visible label follows the language.
+ */
 const FLEXIBILITY_OPTIONS = [
-  'Date ferme',
-  'Flexible à une semaine près',
-  'Flexible à un mois près',
+  { value: 'Date ferme', labelKey: 'account.requestForm.dateFirm' },
+  { value: 'Flexible à une semaine près', labelKey: 'account.requestForm.flexibleWeek' },
+  { value: 'Flexible à un mois près', labelKey: 'account.requestForm.flexibleMonth' },
 ];
 
 function Step({ number, title, hint, children }) {
@@ -56,6 +68,7 @@ function Step({ number, title, hint, children }) {
 }
 
 function SubmitButton() {
+  const t = useT();
   const { pending } = useFormStatus();
   return (
     <button
@@ -66,7 +79,7 @@ function SubmitButton() {
         pending ? 'cursor-wait bg-canvas-deep text-ink-45' : 'u-btn-primary bg-blue text-white',
       )}
     >
-      {pending ? 'Envoi en cours…' : 'Envoyer ma demande'}
+      {pending ? 'Envoi en cours…' : t('account.requestForm.submit')}
       {pending ? null : <ArrowRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />}
     </button>
   );
@@ -76,6 +89,7 @@ const FIELD_CLASS =
   'u-focus-ring w-full rounded-md border border-line bg-white px-3.5 py-2.5 text-[0.9375rem] text-ink placeholder:text-ink-25';
 
 export default function RequestForm({ action, communes }) {
+  const t = useT();
   const [state, formAction] = useActionState(action, null);
   const [transactionType, setTransactionType] = useState('location');
   const [selectedCommunes, setSelectedCommunes] = useState([]);
@@ -90,10 +104,10 @@ export default function RequestForm({ action, communes }) {
   return (
     <PortalPanel className="p-6 sm:p-8">
       <h2 className="u-title-page text-ink">
-        Trouver pour moi
+        {t('account.requestForm.title')}
       </h2>
       <p className="mt-3 max-w-[32.5rem] text-[0.9375rem] leading-[1.6] text-ink-45">
-        Décrivez le bien que vous cherchez. Nous transmettons votre demande aux agences partenaires de Lukka Place.
+        {t('account.requestForm.lead')}
       </p>
 
       <div className="my-7 h-px bg-line" />
@@ -105,11 +119,11 @@ export default function RequestForm({ action, communes }) {
         ))}
         <input type="hidden" name="bedrooms" value={bedrooms} />
 
-        <Step number={1} title="Type de transaction">
+        <Step number={1} title={t('account.requestForm.transactionType')}>
           <div className="grid gap-3.5 sm:grid-cols-2">
             {[
-              { value: 'vente', label: 'Acheter', hint: 'Maison, appartement ou terrain' },
-              { value: 'location', label: 'Louer', hint: 'Bail résidentiel ou professionnel' },
+              { value: 'vente', label: t('account.requestForm.buy'), hint: t('account.requestForm.buyHint') },
+              { value: 'location', label: t('account.requestForm.rent'), hint: t('account.requestForm.rentHint') },
             ].map(({ value, label, hint }) => {
               const active = transactionType === value;
               return (
@@ -135,7 +149,7 @@ export default function RequestForm({ action, communes }) {
 
         <Step
           number={2}
-          title="Communes visées"
+          title={t('account.requestForm.targetCommunes')}
           hint="Sélectionnez une ou plusieurs communes de Kinshasa."
         >
           {communes.length > 0 ? (
@@ -170,17 +184,16 @@ export default function RequestForm({ action, communes }) {
             </div>
           ) : (
             <p className="text-[0.8125rem] text-ink-45">
-              La liste des communes n&apos;est pas disponible pour le moment. Précisez la zone souhaitée dans le champ
-              « Précisions » ci-dessous.
+              {t('account.requestForm.communesUnavailable')}
             </p>
           )}
         </Step>
 
-        <Step number={3} title="Budget et chambres">
+        <Step number={3} title={t('account.requestForm.budgetAndBedrooms')}>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="budgetMin" className="u-eyebrow mb-1.5 block">
-                Budget minimum (USD)
+                {t('account.requestForm.budgetMin')}
               </label>
               <input
                 id="budgetMin"
@@ -194,7 +207,7 @@ export default function RequestForm({ action, communes }) {
             </div>
             <div>
               <label htmlFor="budgetMax" className="u-eyebrow mb-1.5 block">
-                Budget maximum (USD)
+                {t('account.requestForm.budgetMax')}
               </label>
               <input
                 id="budgetMax"
@@ -209,9 +222,9 @@ export default function RequestForm({ action, communes }) {
           </div>
 
           <div className="mt-5">
-            <p className="u-eyebrow mb-2.5">Nombre de chambres</p>
+            <p className="u-eyebrow mb-2.5">{t('account.requestForm.bedroomCount')}</p>
             <div className="flex w-max max-w-full flex-wrap gap-1 rounded-full bg-canvas-alt p-1">
-              {BEDROOM_OPTIONS.map(({ value, label }) => {
+              {BEDROOM_OPTIONS.map(({ value, label, labelKey }) => {
                 const active = bedrooms === value;
                 return (
                   <button
@@ -224,7 +237,7 @@ export default function RequestForm({ action, communes }) {
                       active ? 'bg-surface text-blue-deep shadow-sm' : 'text-ink-45 hover:text-ink',
                     )}
                   >
-                    {label}
+                    {labelKey ? t(labelKey) : label}
                   </button>
                 );
               })}
@@ -232,29 +245,29 @@ export default function RequestForm({ action, communes }) {
           </div>
         </Step>
 
-        <Step number={4} title="Date d'entrée souhaitée">
+        <Step number={4} title={t('account.requestForm.moveInDateTitle')}>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="movingDate" className="u-eyebrow mb-1.5 block">
-                À partir du
+                {t('account.requestForm.fromDate')}
               </label>
               <input
                 id="movingDate"
                 name="movingDate"
                 type="text"
-                placeholder="15 octobre, ou « dès que possible »"
+                placeholder={t('account.requestForm.datePlaceholder')}
                 className={FIELD_CLASS}
               />
             </div>
             <div>
               <label htmlFor="flexibility" className="u-eyebrow mb-1.5 block">
-                Souplesse
+                {t('account.requestForm.flexibility')}
               </label>
               <select id="flexibility" name="flexibility" defaultValue="" className={FIELD_CLASS}>
-                <option value="">Sans préférence</option>
-                {FLEXIBILITY_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
+                <option value="">{t('account.requestForm.noPreference')}</option>
+                {FLEXIBILITY_OPTIONS.map(({ value, labelKey }) => (
+                  <option key={value} value={value}>
+                    {t(labelKey)}
                   </option>
                 ))}
               </select>
@@ -263,13 +276,13 @@ export default function RequestForm({ action, communes }) {
 
           <div className="mt-4">
             <label htmlFor="notes" className="u-eyebrow mb-1.5 block">
-              Précisions (facultatif)
+              {t('account.requestForm.notes')}
             </label>
             <textarea
               id="notes"
               name="notes"
               rows={3}
-              placeholder="Quartier précis, groupe électrogène, parking, tout ce qui compte pour vous."
+              placeholder={t('account.requestForm.notesPlaceholder')}
               className={cn(FIELD_CLASS, 'resize-y leading-[1.55]')}
             />
           </div>
@@ -293,7 +306,7 @@ export default function RequestForm({ action, communes }) {
         <div className="flex flex-wrap items-center gap-4">
           <SubmitButton />
           <span className="text-[0.8125rem] text-ink-45">
-            Votre demande est envoyée avec le numéro WhatsApp de votre compte.
+            {t('account.requestForm.sentWithAccountNumber')}
           </span>
         </div>
       </form>

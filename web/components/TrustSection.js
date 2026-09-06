@@ -1,6 +1,7 @@
 import { ShieldCheck, Users, MessageCircle } from 'lucide-react';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { getT } from '@/lib/i18n/server';
 
 const TRUST_POINTS = [
   { icon: ShieldCheck, text: 'Chaque annonce est vérifiée avant publication' },
@@ -18,20 +19,21 @@ const TRUST_POINTS = [
  * to fill the space the reference portals give them is exactly what the
  * no-fabricated-data rule forbids.
  */
-export default function TrustSection() {
+export default async function TrustSection() {
+  const t = await getT();
   const whatsappHref = getCentralWhatsAppHref("Bonjour, j'ai une question pour l'équipe Lukka Place.");
 
   return (
     <section className="mx-auto max-w-[1600px] px-4 py-20 sm:px-6 sm:py-28 lg:px-8">
       <div className="flex flex-col gap-10 rounded-lg border border-line bg-surface px-6 py-10 sm:px-10 sm:py-12 lg:flex-row lg:items-center lg:gap-16 lg:px-14">
         <div className="flex-1">
-          <p className="u-eyebrow mb-4">Qui est derrière</p>
+          <p className="u-eyebrow mb-4">{t('home.trustHeading')}</p>
           <h2 className="font-display text-[1.75rem] font-normal leading-[1.12] tracking-[-0.02em] text-ink sm:text-[2.25rem]">
-            Une seule équipe, un seul numéro
+            {t('home.trust.oneTeam')}
           </h2>
           <p className="mt-4 max-w-2xl text-[0.9375rem] leading-relaxed text-ink-45">
             Chaque annonce passe par une vraie équipe avant d&apos;être publiée — pas d&apos;agents multiples à démêler,
-            pas de fiches abandonnées. Une seule ligne WhatsApp pour une question, une visite ou un signalement.
+            {t('home.trust.body')}
           </p>
 
           <ul className="mt-7 grid gap-3 sm:grid-cols-3">

@@ -3,11 +3,17 @@ import { BadgeCheck } from 'lucide-react';
 import AgentAvatar from '@/components/AgentAvatar';
 import { getPublicAgents } from '@/lib/agents';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { getT } from '@/lib/i18n/server';
 
-export const metadata = {
-  title: 'Agents — Lukka Place',
-  description: 'Agents immobiliers actifs à Kinshasa, avec des annonces réelles publiées sur Lukka Place.',
-};
+// generateMetadata, not a static object: a static export is evaluated at
+// module load, where there is no request and so no translator.
+export async function generateMetadata() {
+  const t = await getT();
+  return {
+    title: t('agent.portfolio.directoryMetaTitle'),
+    description: t('agent.portfolio.directoryMetaDescription'),
+  };
+}
 
 /**
  * Public agent directory — the "Agents" tab in the hero search bar
@@ -20,23 +26,24 @@ export const metadata = {
  * tiles.
  */
 export default async function AgentsDirectoryPage() {
+  const t = await getT();
   const agents = await getPublicAgents();
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
       <div className="mb-6">
         <h1 className="u-title-section text-ink sm:text-3xl">
-          Agents à Kinshasa
+          {t('agent.portfolio.directoryTitle')}
         </h1>
         <p className="mt-1.5 text-sm text-ink-45">
           {agents.length} agent{agents.length === 1 ? '' : 's'} actif{agents.length === 1 ? '' : 's'}, avec des
-          annonces vérifiées.
+          {t('agent.portfolio.directoryLead')}
         </p>
       </div>
 
       {agents.length === 0 ? (
         <div className="rounded-card border border-dashed border-line bg-white p-10 text-center text-sm text-ink-45">
-          Aucun agent actif pour le moment.
+          {t('agent.portfolio.directoryEmpty')}
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

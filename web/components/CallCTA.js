@@ -1,5 +1,8 @@
+'use client';
+
 import { Phone } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * "Appeler" — a real `tel:` call to the listing's own per-listing agent
@@ -43,6 +46,7 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  * @param {'pill'|'icon'|'block'|'link'} [props.variant]
  */
 export default function CallCTA({ listing, variant = 'pill' }) {
+  const t = useT();
   const phoneNumber = listing.agent_phone || process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
   if (!phoneNumber) return null;
 
@@ -66,7 +70,7 @@ export default function CallCTA({ listing, variant = 'pill' }) {
         className="u-press inline-flex shrink-0 items-center gap-1.5 rounded-md px-1 py-1.5 text-[0.75rem] font-medium text-ink transition-colors hover:text-ink-70"
       >
         <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-        Appeler
+        {t('account.requests.call')}
       </button>
     );
   }
@@ -76,7 +80,7 @@ export default function CallCTA({ listing, variant = 'pill' }) {
       <button
         type="button"
         onClick={handleClick}
-        aria-label="Appeler"
+        aria-label={t('account.requests.call')}
         className="u-press inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-line text-ink-70 transition-colors hover:bg-canvas-alt"
       >
         <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
@@ -92,7 +96,7 @@ export default function CallCTA({ listing, variant = 'pill' }) {
         className="u-press inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-line px-4 text-[0.875rem] font-semibold text-ink-70 transition-colors hover:bg-canvas-alt"
       >
         <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-        Appeler
+        {t('account.requests.call')}
       </button>
     );
   }
@@ -104,7 +108,7 @@ export default function CallCTA({ listing, variant = 'pill' }) {
       className="u-press inline-flex shrink-0 items-center gap-1.5 rounded-full border border-line px-3.5 py-1.5 text-[0.75rem] font-semibold text-ink-70 transition-colors hover:bg-canvas-alt"
     >
       <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
-      Appeler
+      {t('account.requests.call')}
     </button>
   );
 }

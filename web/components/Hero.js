@@ -5,6 +5,7 @@ import Image from 'next/image';
 import SearchBar from './SearchBar';
 import { heroDrift } from '@/lib/motion';
 import { useMotionSafe } from '@/lib/useMotionSafe';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * Homepage hero, following web/Design's "Accueil — desktop" screen.
@@ -44,6 +45,7 @@ import { useMotionSafe } from '@/lib/useMotionSafe';
  * so the credit doesn't assert a place, only the real source.
  */
 export default function Hero({ propertyTypes = [], communes = [], initialCount = null }) {
+  const t = useT();
   const safe = useMotionSafe();
 
   return (
@@ -96,7 +98,7 @@ export default function Hero({ propertyTypes = [], communes = [], initialCount =
           rel="noopener noreferrer"
           className="absolute bottom-2 right-3 z-10 text-[0.625rem] text-white/40 transition-colors hover:text-white/70"
         >
-          Photo by kaysha on Unsplash
+          {t('home.hero.photoCredit')}
         </a>
 
         <div className="relative z-10 mx-auto w-full max-w-[1240px] px-4 sm:px-6 lg:px-8">
@@ -119,7 +121,7 @@ export default function Hero({ propertyTypes = [], communes = [], initialCount =
                 that close to its box is where a stacked grid starts
                 colliding rather than reading as one. */}
             <h1 className="text-4xl font-extrabold leading-[1.02] tracking-tight text-white drop-shadow-xl min-[360px]:tracking-tighter sm:text-5xl md:text-6xl">
-              Appartements. Villas. Terrains. Agences.
+              {t('home.hero.title')}
             </h1>
 
             {/* Pure white at 95% — the brief's `opacity-95`, applied as
@@ -128,7 +130,7 @@ export default function Hero({ propertyTypes = [], communes = [], initialCount =
                 at max-w-md the 16px line wants 478px against a 448px cap
                 and breaks with "WhatsApp." orphaned on its own line. */}
             <p className="mt-3 max-w-md text-sm font-bold text-white/95 drop-shadow-md sm:text-base md:max-w-lg">
-              Biens vérifiés, prix transparents &amp; contact direct sur WhatsApp.
+              {t('home.hero.subtitle')}
             </p>
           </div>
         </div>

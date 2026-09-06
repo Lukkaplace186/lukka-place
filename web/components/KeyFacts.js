@@ -1,6 +1,9 @@
+'use client';
+
 import { BedDouble, Bath, Ruler, DoorOpen, FileText, Home } from 'lucide-react';
 import { hasArea } from '@/lib/listingView';
 import { SPEC_LABEL_CLASS, SPEC_VALUE_CLASS } from './SpecItem';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * The design system's KeyFacts (components/property/KeyFacts.jsx) — the
@@ -21,6 +24,7 @@ import { SPEC_LABEL_CLASS, SPEC_VALUE_CLASS } from './SpecItem';
  * trap (see hasArea).
  */
 export default function KeyFacts({ listing }) {
+  const t = useT();
   const {
     area, beds, bath, units_count: unitsCount,
     category_name: categoryName, deposit_months: depositMonths,
@@ -37,16 +41,27 @@ export default function KeyFacts({ listing }) {
   // being the "… Appartement à louer à …" sentence: the type would have had
   // nowhere left to appear.
   const items = [
-    categoryName ? { key: 'type', icon: Home, label: 'Type de bien', value: categoryName } : null,
-    beds != null ? { key: 'beds', icon: BedDouble, label: 'Chambres', value: beds } : null,
+    // `categoryName` stays untranslated: it is a real value out of
+    // property_category_contents, not UI copy. Only the labels are keys.
+    categoryName ? { key: 'type', icon: Home, label: t('listings.facts.propertyType'), value: categoryName } : null,
+    beds != null ? { key: 'beds', icon: BedDouble, label: t('listings.facts.bedrooms'), value: beds } : null,
     // Number(bath) > 0, not `bath != null` — `bath` carries '' rather than a
     // real NULL when unrecorded, and '' != null is true. Same trap
     // lib/listingView.js's specItems() documents.
-    Number(bath) > 0 ? { key: 'bath', icon: Bath, label: 'Salles de bain', value: bath } : null,
-    hasArea(area) ? { key: 'area', icon: Ruler, label: 'Superficie', value: `${area} m²` } : null,
-    unitsCount != null ? { key: 'units', icon: DoorOpen, label: 'Portes', value: unitsCount } : null,
+    Number(bath) > 0 ? { key: 'bath', icon: Bath, label: t('listings.facts.bathrooms'), value: bath } : null,
+    hasArea(area)
+      ? { key: 'area', icon: Ruler, label: t('listings.facts.area'), value: t('listings.facts.squareMetres', { value: area }) }
+      : null,
+    unitsCount != null ? { key: 'units', icon: DoorOpen, label: t('listings.facts.doors'), value: unitsCount } : null,
     depositMonths != null
-      ? { key: 'deposit', icon: FileText, label: 'Garantie', value: `${depositMonths} mois` }
+      ? {
+          key: 'deposit',
+          icon: FileText,
+          label: t('listings.facts.deposit'),
+          // Pluralised: "1 month" vs "3 months" differ in English, where the
+          // French "mois" does not change.
+          value: t('listings.facts.months', { count: depositMonths }),
+        }
       : null,
   ].filter(Boolean).slice(0, 4);
 

@@ -13,6 +13,7 @@ import { listingImages, specItems, typeLabel, feedLocationLine, formatAddedOn } 
 import { buildWhatsAppMessage, buildWhatsAppLink } from '@/lib/whatsapp';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { cn } from '@/lib/utils';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * "Mes favoris" — the design's favourites board, over this app's real
@@ -42,32 +43,42 @@ import { cn } from '@/lib/utils';
  */
 const MAX_COMPARE = 4;
 
-const COMPARE_ROWS = [
-  { key: 'type', label: 'Type', get: (l) => typeLabel(l) },
-  { key: 'beds', label: 'Chambres', get: (l) => specItems(l).find((s) => s.key === 'beds')?.value ?? null },
-  { key: 'bath', label: 'Salles de bain', get: (l) => specItems(l).find((s) => s.key === 'bath')?.value ?? null },
-  {
-    key: 'area',
-    label: 'Superficie',
-    get: (l) => {
-      const item = specItems(l).find((s) => s.key === 'area');
-      return item ? `${item.value} m²` : null;
+/*
+ * Built per render rather than as a module constant: both the row labels and
+ * several of the derived values (specItems' unit words, the formatted date's
+ * month name) depend on the active language, and a module-level array would
+ * freeze all of them in whichever locale loaded first.
+ */
+function compareRows(t) {
+  const spec = (l, key) => specItems(l, t).find((item) => item.key === key);
+  return [
+    { key: 'type', label: t('account.favorites.columns.type'), get: (l) => typeLabel(l, t) },
+    { key: 'beds', label: t('account.favorites.columns.bedrooms'), get: (l) => spec(l, 'beds')?.value ?? null },
+    { key: 'bath', label: t('account.favorites.columns.bathrooms'), get: (l) => spec(l, 'bath')?.value ?? null },
+    {
+      key: 'area',
+      label: t('account.favorites.columns.area'),
+      get: (l) => {
+        const item = spec(l, 'area');
+        return item ? t('listings.facts.squareMetres', { value: item.value }) : null;
+      },
     },
-  },
-  { key: 'units', label: 'Portes', get: (l) => specItems(l).find((s) => s.key === 'units')?.value ?? null },
-  { key: 'place', label: 'Localisation', get: (l) => feedLocationLine(l) },
-  { key: 'reference', label: 'Référence', get: (l) => l.reference || null },
-  { key: 'added', label: 'Publiée le', get: (l) => formatAddedOn(l.created_at) },
-];
+    { key: 'units', label: t('account.favorites.columns.doors'), get: (l) => spec(l, 'units')?.value ?? null },
+    { key: 'place', label: t('account.favorites.columns.location'), get: (l) => feedLocationLine(l) },
+    { key: 'reference', label: t('account.favorites.columns.reference'), get: (l) => l.reference || null },
+    { key: 'added', label: t('account.favorites.columns.addedOn'), get: (l) => formatAddedOn(l.created_at, t.locale) },
+  ];
+}
 
 function ComparisonTable({ listings }) {
+  const t = useT();
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[34rem] border-collapse text-left">
         <thead>
           <tr>
             <th scope="col" className="u-eyebrow w-36 py-3 pr-4 align-bottom">
-              Critère
+              {t('account.favorites.criterion')}
             </th>
             {listings.map((listing) => (
               <th key={listing.id} scope="col" className="min-w-[11rem] py-3 pr-4 align-bottom">
@@ -84,7 +95,7 @@ function ComparisonTable({ listings }) {
           </tr>
         </thead>
         <tbody>
-          {COMPARE_ROWS.map((row) => {
+          {compareRows(t).map((row) => {
             const values = listings.map((l) => row.get(l));
             if (values.every((v) => v == null || v === '')) return null;
             return (
@@ -107,11 +118,12 @@ function ComparisonTable({ listings }) {
 }
 
 function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, removeAction }) {
+  const t = useT();
   const images = listingImages(listing);
   const cover = images[0] || null;
   const where = feedLocationLine(listing);
-  const specs = specItems(listing);
-  const type = typeLabel(listing);
+  const specs = specItems(listing, t);
+  const type = typeLabel(listing, t);
 
   const contactHref = whatsappNumber
     ? buildWhatsAppLink(
@@ -120,7 +132,7 @@ function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, r
           reference: listing.reference,
           slug: listing.slug,
           id: listing.id,
-          propertyType: typeLabel(listing) || 'bien',
+          propertyType: typeLabel(listing, t) || t('listings.results.subjectFallback'),
           commune: listing.commune,
           price: listing.price,
           purpose: listing.purpose,
@@ -169,14 +181,14 @@ function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, r
             onChange={onToggle}
             className="h-3.5 w-3.5 rounded-sm accent-[var(--blue)]"
           />
-          Comparer
+          {t('account.favorites.compare')}
         </label>
 
         <form action={removeAction} className="absolute right-3.5 top-3.5 z-10">
           <input type="hidden" name="propertyId" value={listing.id} />
           <button
             type="submit"
-            aria-label={`Retirer « ${listing.title} » des favoris`}
+            aria-label={t('account.favorites.remove', { title: listing.title })}
             className="u-glass-white u-press inline-flex h-10 w-10 items-center justify-center rounded-full text-ink transition-colors hover:text-danger"
           >
             <Trash2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
@@ -233,7 +245,7 @@ function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, r
         {(specs.length > 0 || type) ? (
           <div className="flex flex-wrap items-start gap-x-4 gap-y-2.5">
             {type ? (
-              <SpecCell label="Type de bien">
+              <SpecCell label={t('listings.facts.propertyType')}>
                 <span className="truncate">{type}</span>
               </SpecCell>
             ) : null}
@@ -252,11 +264,11 @@ function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, r
               className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-green px-4 py-2.5 text-[0.8125rem] font-semibold text-white transition-colors hover:bg-green-deep"
             >
               <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
-              Contacter sur WhatsApp
+              {t('account.favorites.contactWhatsApp')}
             </a>
           ) : (
             <p className="rounded-md bg-canvas-deep px-3 py-2 text-center text-[0.75rem] text-ink-45">
-              Numéro WhatsApp non configuré
+              {t('account.favorites.whatsappNotConfigured')}
             </p>
           )}
 
@@ -268,7 +280,7 @@ function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, r
               className="u-btn-secondary inline-flex w-full items-center justify-center gap-2 rounded-full px-4 py-2.5 text-[0.8125rem] font-semibold text-ink"
             >
               <CalendarDays strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
-              Planifier une visite
+              {t('account.favorites.scheduleViewing')}
             </a>
           ) : null}
         </div>
@@ -278,6 +290,7 @@ function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, r
 }
 
 export default function FavoritesBoard({ listings, whatsappNumber, removeAction }) {
+  const t = useT();
   const [selected, setSelected] = useState([]);
   const [compareOpen, setCompareOpen] = useState(false);
 
@@ -298,7 +311,7 @@ export default function FavoritesBoard({ listings, whatsappNumber, removeAction 
   return (
     <div>
       <PortalSectionHeading
-        title="Mes favoris"
+        title={t('account.favorites.title')}
         lead={`${listings.length} bien${listings.length > 1 ? 's' : ''} sauvegardé${
           listings.length > 1 ? 's' : ''
         } · sélectionnez-en deux ou plus pour les comparer`}
@@ -313,7 +326,7 @@ export default function FavoritesBoard({ listings, whatsappNumber, removeAction 
             )}
           >
             <Scale strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
-            Comparer ({selectedListings.length})
+            {t('account.favorites.compareCount', { count: selectedListings.length })}
           </button>
         }
         className="mb-7"
@@ -342,7 +355,7 @@ export default function FavoritesBoard({ listings, whatsappNumber, removeAction 
       <Dialog open={compareOpen} onOpenChange={setCompareOpen}>
         <DialogContent className="max-w-4xl">
           <DialogHeader>
-            <DialogTitle>Comparer {selectedListings.length} biens</DialogTitle>
+            <DialogTitle>{t('account.favorites.compareTitle', { count: selectedListings.length })}</DialogTitle>
             <DialogDescription>
               Uniquement les informations réellement enregistrées sur chaque annonce. Un critère qu&apos;aucune des
               annonces sélectionnées ne renseigne n&apos;apparaît pas.

@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef } from 'react';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * The status control in the design's listings table is a bare coloured
@@ -33,6 +34,7 @@ const PILL = {
  * still wants the plain-form pattern doesn't have to opt into anything.
  */
 export default function AgentListingStatusSelect({ name, defaultValue, options, label, onChange }) {
+  const t = useT();
   const ref = useRef(null);
 
   function handleChange(event) {
@@ -51,9 +53,12 @@ export default function AgentListingStatusSelect({ name, defaultValue, options, 
         PILL[defaultValue] || PILL.active
       }`}
     >
+      {/* `labelKey` (a dictionary path) rather than `label`: the option list
+          is a module constant in the caller and so cannot hold translated
+          text — see components/navItems.js. */}
       {options.map((o) => (
         <option key={o.value} value={o.value} className="bg-surface text-ink">
-          {o.label}
+          {t(o.labelKey)}
         </option>
       ))}
     </select>

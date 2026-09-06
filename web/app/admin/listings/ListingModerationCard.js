@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { listingImages, feedLocationLine } from '@/lib/listingView';
 import { formatPrice } from '@/lib/format';
 import { approveListingAction, rejectListingAction } from './actions';
+import { getT } from '@/lib/i18n/server';
 
 /**
  * Admin-only card — deliberately not a reuse of ListingCard/ListingCardVertical
@@ -12,7 +13,8 @@ import { approveListingAction, rejectListingAction } from './actions';
  * no way to omit them). A fourth, admin-scoped layout, same principle as the
  * three public ones existing on purpose.
  */
-export default function ListingModerationCard({ listing, status }) {
+export default async function ListingModerationCard({ listing, status }) {
+  const t = await getT();
   const image = listingImages(listing)[0];
   const boundApprove = approveListingAction.bind(null, listing.id);
   const boundReject = rejectListingAction.bind(null, listing.id);
@@ -31,11 +33,11 @@ export default function ListingModerationCard({ listing, status }) {
         </p>
 
         <dl className="grid grid-cols-2 gap-x-2 gap-y-0.5 pt-1 text-xs text-ink-45">
-          <dt className="font-medium text-ink-70">Réf.</dt>
+          <dt className="font-medium text-ink-70">{t('admin.moderation.reference')}</dt>
           <dd className="u-ref">{listing.reference || '—'}</dd>
           <dt className="font-medium text-ink-70">Agence</dt>
           <dd>{listing.agency_name || '—'}</dd>
-          <dt className="font-medium text-ink-70">Téléphone</dt>
+          <dt className="font-medium text-ink-70">{t('admin.moderation.phone')}</dt>
           <dd>{listing.agent_phone || '—'}</dd>
         </dl>
 
@@ -53,14 +55,14 @@ export default function ListingModerationCard({ listing, status }) {
           {status !== 'approved' && (
             <form action={boundApprove}>
               <Button type="submit" size="sm">
-                Approuver
+                {t('admin.actions.approve')}
               </Button>
             </form>
           )}
           {status !== 'rejected' && (
             <form action={boundReject}>
               <Button type="submit" size="sm" variant="destructive">
-                Rejeter
+                {t('admin.actions.reject')}
               </Button>
             </form>
           )}

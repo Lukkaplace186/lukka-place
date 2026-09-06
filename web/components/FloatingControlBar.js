@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Map, ArrowUpDown, Check } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from './ui/sheet';
 import { SORT_OPTIONS } from './SortDropdown';
+import { useT } from '@/lib/i18n/client';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 
 /**
@@ -35,6 +36,7 @@ export default function FloatingControlBar() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [sortOpen, setSortOpen] = useState(false);
+  const t = useT();
   const currentSort = searchParams.get('sort') || 'newest';
 
   function openMapView() {
@@ -68,7 +70,7 @@ export default function FloatingControlBar() {
             className="u-press flex items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-[0.8125rem] font-semibold transition-colors hover:bg-canvas-alt active:scale-95"
           >
             <Map strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-            Carte
+            {t('listings.view.map')}
           </button>
           <span aria-hidden="true" className="h-5 w-px bg-line" />
           <button
@@ -77,7 +79,7 @@ export default function FloatingControlBar() {
             className="u-press flex items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-[0.8125rem] font-semibold transition-colors hover:bg-canvas-alt active:scale-95"
           >
             <ArrowUpDown strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-            Trier
+            {t('listings.sort.short')}
           </button>
         </div>
       </div>
@@ -85,17 +87,17 @@ export default function FloatingControlBar() {
       <Sheet open={sortOpen} onOpenChange={setSortOpen}>
         <SheetContent side="bottom" className="rounded-t-2xl border-line bg-surface p-0">
           <SheetHeader className="border-b border-line px-5 py-4">
-            <SheetTitle>Trier par</SheetTitle>
+            <SheetTitle>{t('listings.sort.label')}</SheetTitle>
           </SheetHeader>
           <div className="flex flex-col p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
-            {SORT_OPTIONS.map(({ value, label }) => (
+            {SORT_OPTIONS.map(({ value, labelKey }) => (
               <button
                 key={value}
                 type="button"
                 onClick={() => applySort(value)}
                 className="flex items-center justify-between rounded-md px-3.5 py-3.5 text-left text-[0.9375rem] font-medium text-ink transition-colors hover:bg-canvas-alt"
               >
-                {label}
+                {t(labelKey)}
                 {currentSort === value ? (
                   <Check strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-blue" />
                 ) : null}

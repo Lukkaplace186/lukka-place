@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { BadgeCheck, ArrowUpRight, CalendarClock, Sparkles, TriangleAlert } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
+import { getT } from '@/lib/i18n/server';
 
 const TERM_LABELS_FR = { monthly: 'Mensuel', yearly: 'Annuel', lifetime: 'À vie' };
 
@@ -92,7 +93,7 @@ function Quota({ label, used, limit, hint, danger = false }) {
  * @param {boolean} [props.compact] Overview variant: drops the footer links,
  *   since the overview already sits one click from the full page.
  */
-export default function AgentSubscriptionCard({
+export default async function AgentSubscriptionCard({
   packageTitle,
   packageTerm,
   isTrial,
@@ -102,6 +103,7 @@ export default function AgentSubscriptionCard({
   leadQuota = null,
   compact = false,
 }) {
+  const t = await getT();
   const hasSubscription = !!packageTitle;
   const isLifetime = packageTerm === 'lifetime';
   const renewalLabel = formatDate(expireDate);
@@ -112,7 +114,7 @@ export default function AgentSubscriptionCard({
   const badge = !hasSubscription
     ? null
     : expired
-      ? { label: 'Expiré', className: 'bg-danger-tint text-danger', Icon: TriangleAlert }
+      ? { label: t('agent.subscription.expired'), className: 'bg-danger-tint text-danger', Icon: TriangleAlert }
       : isTrial
         ? { label: 'Essai', className: 'bg-warning-tint text-warning', Icon: Sparkles }
         : { label: 'Actif', className: 'bg-success-tint text-success', Icon: BadgeCheck };
@@ -137,7 +139,7 @@ export default function AgentSubscriptionCard({
             <div className="u-title-section text-ink">{packageTitle}</div>
             <div className="u-micro mt-0.5 text-ink-45">
               {TERM_LABELS_FR[packageTerm] || 'Forfait'}
-              {isLifetime ? ' · Aucun renouvellement' : ''}
+              {isLifetime ? ` ${t('agent.subscription.noRenewal')}` : ''}
             </div>
           </div>
 
@@ -156,8 +158,8 @@ export default function AgentSubscriptionCard({
               <div className="u-micro min-w-0 text-ink-70">
                 {expired ? (
                   <>
-                    <span className="font-bold text-danger">Abonnement expiré</span> depuis le {renewalLabel}.
-                    Vos biens restent enregistrés, mais votre quota n’est plus renouvelé.
+                    <span className="font-bold text-danger">{t('agent.subscription.expiredTitle')}</span> depuis le {renewalLabel}.
+                    {t('agent.subscription.expiredBody')}
                   </>
                 ) : (
                   <>
@@ -176,13 +178,13 @@ export default function AgentSubscriptionCard({
 
           {listingLimit != null && (
             <Quota
-              label="Biens publiés"
+              label={t('agent.subscription.publishedListings')}
               used={listingCount}
               limit={listingLimit}
               danger={listingCount >= listingLimit}
               hint={
                 listingCount >= listingLimit
-                  ? 'Quota atteint — archivez un bien ou passez à un forfait supérieur pour en publier un de plus.'
+                  ? t('agent.subscription.listingQuotaReached')
                   : null
               }
             />
@@ -190,13 +192,13 @@ export default function AgentSubscriptionCard({
 
           {leadQuota && (
             <Quota
-              label="Demandes clients traitées ce mois"
+              label={t('agent.subscription.leadsHandledThisMonth')}
               used={leadQuota.used}
               limit={leadQuota.limit}
               danger={leadQuota.exhausted}
               hint={
                 leadQuota.exhausted
-                  ? 'Quota atteint — réinitialisé le 1er du mois prochain.'
+                  ? t('agent.subscription.leadQuotaReached')
                   : `${leadQuota.remaining} restante${leadQuota.remaining === 1 ? '' : 's'} ce mois-ci.`
               }
             />
@@ -204,10 +206,9 @@ export default function AgentSubscriptionCard({
         </>
       ) : (
         <>
-          <div className="u-title-section text-ink">Aucun forfait actif</div>
+          <div className="u-title-section text-ink">{t('agent.subscription.noActivePlan')}</div>
           <p className="u-micro leading-relaxed text-ink-45">
-            Vous pouvez publier et gérer vos biens, mais sans forfait actif votre quota de publications et de
-            demandes clients n’est pas renouvelé.
+            {t('agent.subscription.noPlanBody')}
           </p>
         </>
       )}
@@ -218,12 +219,12 @@ export default function AgentSubscriptionCard({
             href="/compte/agent/abonnement"
             className="u-btn-primary u-press inline-flex h-10 items-center gap-1.5 rounded-lg bg-blue px-4 text-[0.8125rem] font-bold text-white"
           >
-            {hasSubscription ? 'Gérer mon abonnement' : 'Voir les forfaits'}
+            {hasSubscription ? t('agent.subscription.manage') : t('agent.subscription.seePlans')}
             <ArrowUpRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
           </Link>
           {(() => {
             const href = getCentralWhatsAppHref(
-              'Bonjour, j’ai une question sur mon abonnement Lukka Place.',
+              t('agent.subscription.whatsappQuestion'),
             );
             return href ? (
               <a
@@ -232,7 +233,7 @@ export default function AgentSubscriptionCard({
                 rel="noopener noreferrer"
                 className="u-btn-secondary u-press inline-flex h-10 items-center rounded-lg px-4 text-[0.8125rem] font-bold text-ink"
               >
-                Parler à l’équipe
+                {t('agent.subscription.talkToTeam')}
               </a>
             ) : null;
           })()}

@@ -9,6 +9,7 @@ import CallCTA from './CallCTA';
 import AgencyLogo from './AgencyLogo';
 import Price from './Price';
 import SpecItem, { SpecCell } from './SpecItem';
+import { useT } from '@/lib/i18n/client';
 import { CardBadges, AmenityTag } from './ListingBadges';
 import {
   listingImages, formatFreshness, specItems, typeLabel, feedLocationLine, matchedAmenities,
@@ -91,13 +92,14 @@ export default function PropertyCard({
     price_period: pricePeriod, agency_name: agencyName, agency_logo_url: agencyLogoUrl,
   } = listing;
 
+  const t = useT();
   const horizontal = layout === 'horizontal';
   const images = listingImages(listing);
   const [activeIndex, setActiveIndex] = useState(0);
-  const specs = specItems(listing);
-  const type = typeLabel(listing);
+  const specs = specItems(listing, t);
+  const type = typeLabel(listing, t);
   const where = feedLocationLine(listing);
-  const freshness = formatFreshness(createdAt);
+  const freshness = formatFreshness(createdAt, t);
   const amenities = matchedAmenities(listing, 3);
   // Only when this listing genuinely has an agency attached. AgencyLogo's own
   // no-agent fallback is the Lukka Place wordmark, which is honest on a
@@ -281,7 +283,7 @@ export default function PropertyCard({
         {(specs.length > 0 || type) ? (
           <div className="flex flex-wrap items-start gap-x-4 gap-y-2.5 pt-0.5">
             {type ? (
-              <SpecCell label="Type de bien">
+              <SpecCell label={t('listings.facts.propertyType')}>
                 <span className="truncate">{type}</span>
               </SpecCell>
             ) : null}

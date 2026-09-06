@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { ADMIN_SESSION_COOKIE, isValidSessionToken } from '@/lib/adminAuth';
 import { adminUpdateListing, adminSetListingVisible } from '@/lib/adminListings';
+import { getT } from '@/lib/i18n/server';
 
 /** Same defense-in-depth pattern as every other admin write path. */
 async function assertAdminSession() {
@@ -63,6 +64,7 @@ function decimal(formData, name) {
  * happily publish.
  */
 export async function adminUpdateListingAction(propertyId, validCommunes, validCategoryIds, formData) {
+  const t = await getT();
   try {
     await assertAdminSession();
 
@@ -72,35 +74,35 @@ export async function adminUpdateListingAction(propertyId, validCommunes, validC
     }
 
     const purpose = String(formData.get('purpose') || '');
-    if (purpose && !PURPOSES.includes(purpose)) return { ok: false, error: 'Transaction invalide.' };
+    if (purpose && !PURPOSES.includes(purpose)) return { ok: false, error: t('errors.invalidTransaction') };
 
     const currency = String(formData.get('currency') || '');
-    if (currency && !CURRENCIES.includes(currency)) return { ok: false, error: 'Devise invalide.' };
+    if (currency && !CURRENCIES.includes(currency)) return { ok: false, error: t('errors.invalidCurrency') };
 
     const pricePeriod = String(formData.get('price_period') || '');
-    if (!PRICE_PERIODS.includes(pricePeriod)) return { ok: false, error: 'Périodicité invalide.' };
+    if (!PRICE_PERIODS.includes(pricePeriod)) return { ok: false, error: t('errors.invalidPeriodicity') };
 
     const commune = text(formData, 'commune', 60);
-    if (commune && !validCommunes.includes(commune)) return { ok: false, error: 'Commune invalide.' };
+    if (commune && !validCommunes.includes(commune)) return { ok: false, error: t('errors.invalidCommune') };
 
     const categoryId = int(formData, 'category_id');
     if (categoryId != null && !validCategoryIds.includes(categoryId)) {
-      return { ok: false, error: 'Type de bien invalide.' };
+      return { ok: false, error: t('errors.invalidPropertyType') };
     }
 
     const price = decimal(formData, 'price');
-    if (price != null && price <= 0) return { ok: false, error: 'Le prix doit être supérieur à zéro.' };
+    if (price != null && price <= 0) return { ok: false, error: t('errors.priceMustBePositive') };
 
     const soldPrice = decimal(formData, 'sold_price');
     const soldAt = text(formData, 'sold_at', 10);
     if ((soldPrice != null || soldAt != null) && listingStatus !== 'closed') {
       return {
         ok: false,
-        error: 'Un prix ou une date de transaction ne peut être enregistré que sur un bien « Loué / Vendu ».',
+        error: t('errors.soldFieldsNeedClosedStatus'),
       };
     }
     if (soldAt && Number.isNaN(new Date(`${soldAt}T12:00:00Z`).getTime())) {
-      return { ok: false, error: 'Date de transaction invalide.' };
+      return { ok: false, error: t('errors.invalidTransactionDate') };
     }
 
     const updated = await adminUpdateListing(propertyId, {
@@ -134,7 +136,7 @@ export async function adminUpdateListingAction(propertyId, validCommunes, validC
       longitude: text(formData, 'longitude', 32),
     });
 
-    if (!updated) return { ok: false, error: 'Annonce introuvable.' };
+    if (!updated) return { ok: false, error: t('errors.listingNotFound') };
 
     revalidatePath('/admin/listings');
     revalidatePath(`/admin/listings/${propertyId}`);
@@ -159,10 +161,11 @@ export async function adminUpdateListingAction(propertyId, validCommunes, validC
  * handled by telling an agent their listing was rejected.
  */
 export async function adminSetListingVisibleAction(propertyId, visible) {
+  const t = await getT();
   try {
     await assertAdminSession();
     const ok = await adminSetListingVisible(propertyId, visible);
-    if (!ok) return { ok: false, error: 'Annonce introuvable.' };
+    if (!ok) return { ok: false, error: t('errors.listingNotFound') };
     revalidatePath('/admin/listings');
     revalidatePath(`/admin/listings/${propertyId}`);
     revalidatePath('/listings');

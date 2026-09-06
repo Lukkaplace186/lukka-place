@@ -1,4 +1,5 @@
 import { submitInquiryAction } from './actions';
+import { getT } from '@/lib/i18n/server';
 
 /**
  * The design's "Envoyer un message à l'agence" card — a white panel at
@@ -28,13 +29,14 @@ const BUDGET_OPTIONS = ['Moins de 1 000 $', '1 000 – 2 500 $', '2 500 – 5 00
 const FIELD_CLASS =
   'u-focus-ring h-10 w-full rounded-lg border border-line/70 bg-surface px-3 text-sm leading-normal text-ink transition-colors placeholder:text-ink-35 hover:border-line';
 
-export default function InquiryForm({ agentId, agentName, sent, error }) {
+export default async function InquiryForm({ agentId, agentName, sent, error }) {
+  const t = await getT();
   const bound = submitInquiryAction.bind(null, agentId);
 
   if (sent) {
     return (
       <div className="u-card rounded-card bg-surface p-6 text-center">
-        <p className="u-title-card text-ink">Votre demande est partie</p>
+        <p className="u-title-card text-ink">{t('agent.portfolio.requestSent')}</p>
         <p className="mt-2 text-sm leading-relaxed text-ink-70">
           {agentName} a reçu votre message et vous répondra sur WhatsApp au numéro que vous avez laissé.
         </p>
@@ -44,19 +46,19 @@ export default function InquiryForm({ agentId, agentName, sent, error }) {
 
   return (
     <div className="rounded-card border border-line/60 bg-surface p-4">
-      <h3 className="u-title-card text-ink">Envoyer un message à l&apos;agence</h3>
+      <h3 className="u-title-card text-ink">{t('agent.portfolio.sendMessage')}</h3>
 
       <form action={bound} className="mt-3.5 flex flex-col gap-3">
         <div>
           <label htmlFor="inquiry-name" className="mb-1 block text-xs font-semibold text-ink-70">
-            Nom complet
+            {t('account.profile.fullName')}
           </label>
           <input id="inquiry-name" name="name" placeholder="Votre nom" className={FIELD_CLASS} />
         </div>
 
         <div>
           <label htmlFor="inquiry-phone" className="mb-1 block text-xs font-semibold text-ink-70">
-            Numéro WhatsApp
+            {t('enquiry.whatsappNumber')}
           </label>
           <input
             id="inquiry-phone"
@@ -64,7 +66,7 @@ export default function InquiryForm({ agentId, agentName, sent, error }) {
             type="tel"
             inputMode="tel"
             required
-            placeholder="099 712 3456 ou +33 612345678"
+            placeholder={t('enquiry.whatsappPlaceholder')}
             className={FIELD_CLASS}
           />
         </div>
@@ -72,10 +74,10 @@ export default function InquiryForm({ agentId, agentName, sent, error }) {
         <div className="grid grid-cols-2 gap-2.5">
           <div>
             <label htmlFor="inquiry-type" className="mb-1 block text-xs font-semibold text-ink-70">
-              Type de bien
+              {t('listings.filters.propertyType')}
             </label>
             <select id="inquiry-type" name="property_type" defaultValue="" className={FIELD_CLASS}>
-              <option value="">Indifférent</option>
+              <option value="">{t('agent.portfolio.noPreference')}</option>
               {TYPE_OPTIONS.map((o) => (
                 <option key={o} value={o}>
                   {o}
@@ -85,10 +87,10 @@ export default function InquiryForm({ agentId, agentName, sent, error }) {
           </div>
           <div>
             <label htmlFor="inquiry-budget" className="mb-1 block text-xs font-semibold text-ink-70">
-              Budget
+              {t('account.requests.budget')}
             </label>
             <select id="inquiry-budget" name="budget" defaultValue="" className={FIELD_CLASS}>
-              <option value="">Indifférent</option>
+              <option value="">{t('agent.portfolio.noPreference')}</option>
               {BUDGET_OPTIONS.map((o) => (
                 <option key={o} value={o}>
                   {o}
@@ -100,20 +102,20 @@ export default function InquiryForm({ agentId, agentName, sent, error }) {
 
         <div>
           <label htmlFor="inquiry-message" className="mb-1 block text-xs font-semibold text-ink-70">
-            Votre message
+            {t('agent.portfolio.yourMessage')}
           </label>
           <textarea
             id="inquiry-message"
             name="message"
             rows={3}
-            placeholder="Bonjour, je cherche une maison 3 chambres à Ngaliema pour octobre."
+            placeholder={t('agent.portfolio.messagePlaceholder')}
             className="u-focus-ring w-full resize-y rounded-lg border border-line/70 bg-surface p-3 text-sm leading-relaxed text-ink transition-colors placeholder:text-ink-35 hover:border-line"
           />
         </div>
 
         {error && (
           <p className="text-sm font-semibold text-danger" role="alert">
-            {error === 'phone' ? 'Numéro invalide — vérifiez et réessayez.' : "L'envoi a échoué, réessayez."}
+            {error === 'phone' ? t('enquiry.errors.phone') : t('enquiry.errors.failed')}
           </p>
         )}
 
@@ -121,7 +123,7 @@ export default function InquiryForm({ agentId, agentName, sent, error }) {
           type="submit"
           className="u-btn-primary u-press h-11 w-full rounded-lg bg-blue text-sm font-bold text-white"
         >
-          Envoyer la demande
+          {t('enquiry.submit')}
         </button>
 
         <p className="text-center text-xs text-ink-35">

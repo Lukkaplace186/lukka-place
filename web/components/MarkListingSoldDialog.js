@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { markListingSoldAction } from '@/app/compte/agent/actions';
 import { useToast } from './Toast';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * The only path to listing_status = 'closed' (see actions.js's
@@ -25,6 +26,7 @@ import { useToast } from './Toast';
  * rather than trusting the attribute.
  */
 export default function MarkListingSoldDialog({ propertyId, purpose, title }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const router = useRouter();
@@ -56,7 +58,7 @@ export default function MarkListingSoldDialog({ propertyId, purpose, title }) {
         type="button"
         onClick={() => setOpen(true)}
         aria-label={`Marquer ${title} comme ${verb}`}
-        title={isRent ? 'Marquer comme loué' : 'Marquer comme vendu'}
+        title={isRent ? t('agent.listings.markAsLet') : 'Marquer comme vendu'}
         className="u-press grid h-[2.125rem] w-[2.125rem] place-items-center rounded-lg text-ink-45 transition-colors hover:bg-canvas-alt hover:text-ink"
       >
         <CheckCircle2 strokeWidth={ICON_STROKE_WIDTH} className="h-[1.0625rem] w-[1.0625rem]" />
@@ -67,7 +69,7 @@ export default function MarkListingSoldDialog({ propertyId, purpose, title }) {
           <DialogTitle>Marquer comme {verb} ?</DialogTitle>
           <DialogDescription>
             « {title} » sera retiré de la recherche publique et la transaction sera enregistrée. Rien n’est
-            supprimé : le bien reste sur votre tableau de bord et peut être remis en ligne à tout moment.
+            {t('agent.sold.notDeleted')}
           </DialogDescription>
         </DialogHeader>
 
@@ -91,7 +93,7 @@ export default function MarkListingSoldDialog({ propertyId, purpose, title }) {
 
             <div>
               <label htmlFor="sold_at" className="u-micro-strong mb-1.5 block text-ink-70">
-                Date de la transaction
+                {t('common.shared.transactionDate')}
               </label>
               <input
                 id="sold_at"
@@ -106,14 +108,13 @@ export default function MarkListingSoldDialog({ propertyId, purpose, title }) {
           </div>
 
           <p className="u-micro text-ink-45">
-            Le prix réellement convenu — pas le prix affiché — et la date alimentent les statistiques de
-            marché de Lukka Place. Ils ne sont jamais publiés sur l’annonce.
+            {t('agent.sold.statsNote')}
           </p>
 
           <DialogFooter>
             <DialogClose asChild>
               <button type="button" className="u-press inline-flex h-11 items-center rounded-lg px-4 text-sm font-semibold text-ink-45 hover:bg-canvas-alt hover:text-ink">
-                Annuler
+                {t('common.actions.cancel')}
               </button>
             </DialogClose>
             <button

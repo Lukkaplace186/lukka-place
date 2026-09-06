@@ -8,6 +8,7 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { createListingAction } from '@/app/compte/agent/actions';
 import { useToast } from './Toast';
 import { OPEN_CREATE_LISTING_EVENT, OPEN_CREATE_LISTING_STORAGE_KEY } from '@/lib/agentShortcutEvents';
+import { useT } from '@/lib/i18n/client';
 
 const FIELD_CLASS =
   'u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35';
@@ -38,6 +39,7 @@ const LABEL_CLASS = 'mb-1.5 block text-[0.8125rem] font-semibold text-ink-70';
  *    component (see web/CLAUDE.md's documented gotcha).
  */
 export default function CreateListingDialog({ communes, categories }) {
+  const t = useT();
   // Lazy initializer: reads (and clears) the one-shot flag exactly once, at
   // first render — not in an effect. `typeof window` guards the server
   // render, which always computes `false` since sessionStorage doesn't
@@ -105,8 +107,8 @@ export default function CreateListingDialog({ communes, categories }) {
       showToast({
         type: result.photoWarning ? 'error' : 'success',
         message: result.photoWarning
-          ? 'Annonce créée, mais certaines photos n’ont pas pu être envoyées.'
-          : 'Annonce créée — en attente de validation par l’équipe Lukka Place.',
+          ? t('agent.editor.createdWithPhotoWarning')
+          : t('agent.editor.createdPendingReview'),
       });
       setOpen(false);
       resetForm();
@@ -122,34 +124,34 @@ export default function CreateListingDialog({ communes, categories }) {
         className="u-btn-secondary u-press inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 text-[0.8125rem] font-bold text-ink"
       >
         <Plus strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-        Ajouter un bien
+        {t('agent.editor.addListing')}
       </button>
 
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Ajouter un bien</DialogTitle>
+          <DialogTitle>{t('agent.editor.addListing')}</DialogTitle>
           <DialogDescription>
-            Votre annonce sera visible publiquement après validation par l’équipe Lukka Place.
+            {t('agent.editor.publicAfterReview')}
           </DialogDescription>
         </DialogHeader>
 
         <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div>
             <label htmlFor="title" className={LABEL_CLASS}>Titre</label>
-            <input id="title" name="title" required maxLength={150} placeholder="Bel appartement 3 chambres à Gombe" className={FIELD_CLASS} />
+            <input id="title" name="title" required maxLength={150} placeholder={t('agent.editor.titlePlaceholder')} className={FIELD_CLASS} />
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label htmlFor="purpose" className={LABEL_CLASS}>Transaction</label>
+              <label htmlFor="purpose" className={LABEL_CLASS}>{t('common.shared.transaction')}</label>
               <select id="purpose" name="purpose" required defaultValue="" className={FIELD_CLASS}>
-                <option value="" disabled>Choisir…</option>
-                <option value="rent">Louer</option>
-                <option value="sale">Vendre</option>
+                <option value="" disabled>{t('common.shared.choose')}</option>
+                <option value="rent">{t('common.shared.rentVerb')}</option>
+                <option value="sale">{t('common.shared.sellVerb')}</option>
               </select>
             </div>
             <div>
-              <label htmlFor="category_id" className={LABEL_CLASS}>Type de bien</label>
+              <label htmlFor="category_id" className={LABEL_CLASS}>{t('agent.editor.propertyType')}</label>
               <select id="category_id" name="category_id" required defaultValue="" className={FIELD_CLASS}>
                 <option value="" disabled>Choisir…</option>
                 {categories.map((c) => (
@@ -170,7 +172,7 @@ export default function CreateListingDialog({ communes, categories }) {
               </select>
             </div>
             <div>
-              <label htmlFor="price" className={LABEL_CLASS}>Prix ($)</label>
+              <label htmlFor="price" className={LABEL_CLASS}>{t('agent.editor.priceUsd')}</label>
               <input id="price" name="price" type="number" min="1" step="1" required className={FIELD_CLASS} />
             </div>
           </div>
@@ -181,7 +183,7 @@ export default function CreateListingDialog({ communes, categories }) {
               <input id="beds" name="beds" type="number" min="0" step="1" className={FIELD_CLASS} />
             </div>
             <div>
-              <label htmlFor="bath" className={LABEL_CLASS}>Salles de bain</label>
+              <label htmlFor="bath" className={LABEL_CLASS}>{t('agent.editor.bathrooms')}</label>
               <input id="bath" name="bath" type="number" min="0" step="1" className={FIELD_CLASS} />
             </div>
           </div>
@@ -198,20 +200,20 @@ export default function CreateListingDialog({ communes, categories }) {
               <input id="area" name="area" type="number" min="1" step="1" className={FIELD_CLASS} />
             </div>
             <div>
-              <label htmlFor="quartier" className={LABEL_CLASS}>Quartier</label>
+              <label htmlFor="quartier" className={LABEL_CLASS}>{t('listings.filters.quartier')}</label>
               <input id="quartier" name="quartier" maxLength={120} className={FIELD_CLASS} />
             </div>
           </div>
 
           <div>
-            <label htmlFor="description" className={LABEL_CLASS}>Description</label>
+            <label htmlFor="description" className={LABEL_CLASS}>{t('listings.detail.description')}</label>
             <textarea
               id="description"
               name="description"
               required
               minLength={15}
               rows={4}
-              placeholder="Décrivez le bien : état, équipements, environnement…"
+              placeholder={t('agent.editor.descriptionPlaceholder')}
               className="u-focus-ring w-full resize-y rounded-lg border border-line bg-surface p-3 text-sm leading-relaxed text-ink placeholder:text-ink-35"
             />
           </div>
@@ -226,7 +228,7 @@ export default function CreateListingDialog({ communes, categories }) {
                   <button
                     type="button"
                     onClick={() => removePhoto(index)}
-                    aria-label="Retirer cette photo"
+                    aria-label={t('agent.editor.removePhoto')}
                     className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-black/60 text-white"
                   >
                     <X strokeWidth={2.5} className="h-3 w-3" />
@@ -238,13 +240,13 @@ export default function CreateListingDialog({ communes, categories }) {
                 <input type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={handlePhotoChange} />
               </label>
             </div>
-            <p className="mt-1.5 text-xs text-ink-35">JPEG, PNG ou WebP — 5 Mo max par photo, 10 photos max.</p>
+            <p className="mt-1.5 text-xs text-ink-35">{t('agent.editor.photoHint')}</p>
           </div>
 
           <DialogFooter>
             <DialogClose asChild>
               <button type="button" className="u-press inline-flex h-11 items-center rounded-lg px-4 text-sm font-semibold text-ink-45 hover:bg-canvas-alt hover:text-ink">
-                Annuler
+                {t('common.actions.cancel')}
               </button>
             </DialogClose>
             <button

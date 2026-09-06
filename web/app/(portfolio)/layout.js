@@ -3,6 +3,7 @@ import { CurrencyRateProvider } from '@/lib/CurrencyRateContext';
 import { getCdfRate } from '@/lib/currencyRate';
 import { Wordmark } from '@/components/Brand';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
+import { getT } from '@/lib/i18n/server';
 
 /**
  * Chrome for the agent portfolio pages, cloned from web/Design's "Agent
@@ -24,9 +25,10 @@ import { getCentralWhatsAppHref } from '@/lib/whatsapp';
  * lib/currency.js's doc comment warns about.
  */
 export default async function PortfolioLayout({ children }) {
+  const t = await getT();
   const rate = await getCdfRate();
   const publishHref = getCentralWhatsAppHref(
-    'Bonjour, je souhaite publier un bien sur Lukka Place.',
+    t('agent.portfolio.whatsappPublish'),
   );
 
   return (
@@ -44,7 +46,7 @@ export default async function PortfolioLayout({ children }) {
                 Louer
               </Link>
               <Link href="/agents" className="hidden hover:text-ink sm:block">
-                Agences
+                {t('nav.agencies')}
               </Link>
               {publishHref && (
                 <a
@@ -53,7 +55,7 @@ export default async function PortfolioLayout({ children }) {
                   rel="noopener noreferrer"
                   className="u-btn-secondary u-press inline-flex h-9 items-center rounded-lg px-4 text-[0.8125rem] font-bold text-ink"
                 >
-                  Publier un bien
+                  {t('nav.publishListing')}
                 </a>
               )}
             </nav>
@@ -66,10 +68,10 @@ export default async function PortfolioLayout({ children }) {
           <div className="mx-auto flex max-w-[77.5rem] flex-wrap items-center justify-between gap-4 px-4 text-[0.8125rem] text-ink-45 sm:px-6">
             <span className="inline-flex items-center gap-2.5">
               <Wordmark />
-              Portfolio hébergé par Lukka Place
+              {t('agent.portfolio.hostedBy')}
             </span>
             <Link href="/contact" className="hover:text-ink">
-              Signaler une annonce
+              {t('agent.portfolio.reportListing')}
             </Link>
           </div>
         </footer>

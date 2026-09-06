@@ -19,11 +19,18 @@ import { Search, Heart, Mail, User } from 'lucide-react';
  * utility row (Rechercher through the search icon/FilterBar, Favoris and
  * Demandes as text links, Compte via the account dropdown).
  */
+/*
+ * `labelKey`, not `label`: these are module-level constants, evaluated once
+ * at import time, so they cannot hold translated text — a string baked in
+ * here would be frozen in whichever language happened to be active when the
+ * module first loaded, and would never follow the language toggle. The
+ * consumer resolves the key at render instead (see Header.js).
+ */
 export const NAV_ITEMS = [
-  { href: '/listings', label: 'Rechercher', icon: Search },
-  { href: '/favoris', label: 'Favoris', icon: Heart },
-  { href: '/compte/demandes', label: 'Demandes', icon: Mail },
-  { href: '/compte/client', label: 'Compte', icon: User },
+  { href: '/listings', labelKey: 'nav.search', icon: Search },
+  { href: '/favoris', labelKey: 'nav.favorites', icon: Heart },
+  { href: '/compte/demandes', labelKey: 'nav.requests', icon: Mail },
+  { href: '/compte/client', labelKey: 'nav.account', icon: User },
 ];
 
 export function isNavItemActive(href, pathname) {

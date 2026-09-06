@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from 'react';
 import AgentAvatar from './AgentAvatar';
 import { uploadAgentAvatarAction } from '@/app/compte/agent/actions';
 import { useToast } from './Toast';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * Wraps the read-only AgentAvatar display with a real upload flow. Calls
@@ -13,6 +14,7 @@ import { useToast } from './Toast';
  * give it, unlike every other form on this settings page.
  */
 export default function AgentAvatarUpload({ initialSrc }) {
+  const t = useT();
   const [src, setSrc] = useState(initialSrc);
   const [pending, startTransition] = useTransition();
   const inputRef = useRef(null);
@@ -32,7 +34,7 @@ export default function AgentAvatarUpload({ initialSrc }) {
       const result = await uploadAgentAvatarAction(formData);
       if (result.ok) {
         setSrc(result.url);
-        showToast({ type: 'success', message: 'Photo mise à jour.' });
+        showToast({ type: 'success', message: t('agent.settings.photoUpdated') });
       } else {
         setSrc(initialSrc);
         showToast({ type: 'error', message: result.error });
@@ -60,7 +62,7 @@ export default function AgentAvatarUpload({ initialSrc }) {
           disabled={pending}
           className="u-btn-secondary u-press h-9 rounded-lg px-4 text-xs font-bold text-ink disabled:opacity-60"
         >
-          {pending ? 'Envoi en cours…' : 'Changer la photo'}
+          {pending ? 'Envoi en cours…' : t('agent.settings.changePhoto')}
         </button>
         <input
           ref={inputRef}
@@ -69,7 +71,7 @@ export default function AgentAvatarUpload({ initialSrc }) {
           hidden
           onChange={handleChange}
         />
-        <p className="text-xs text-ink-35">JPEG, PNG ou WebP — 5 Mo max.</p>
+        <p className="text-xs text-ink-35">{t('agent.settings.photoHint')}</p>
       </div>
     </div>
   );

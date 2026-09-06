@@ -4,17 +4,20 @@ import { getAgentDashboardContext } from '@/lib/agentDashboard';
 import { listLeads, listViewingRequests } from '@/lib/adminApi';
 import {
   LEAD_STATUSES,
-  LEAD_STATUS_LABELS_FR,
+  LEAD_STATUS_LABEL_KEYS,
   VIEWING_REQUEST_STATUSES,
-  VIEWING_REQUEST_STATUS_LABELS_FR,
+  VIEWING_REQUEST_STATUS_LABEL_KEYS,
 } from '@/lib/adminLabels';
 import { formatRelativeFr } from '@/lib/format';
 import AgentPageHeader from '@/components/AgentPageHeader';
 import AgentLeadCard from '@/components/AgentLeadCard';
 import AgentVisitRequestCard from '@/components/AgentVisitRequestCard';
 import { updateAgentLeadStatusAction, replyToLeadAction } from '../actions';
+import { getT } from '@/lib/i18n/server';
 
-const STATUS_OPTIONS = LEAD_STATUSES.map((value) => ({ value, label: LEAD_STATUS_LABELS_FR[value] }));
+// `labelKey`, resolved at render — a module constant cannot hold translated
+// text (see components/navItems.js).
+const STATUS_OPTIONS = LEAD_STATUSES.map((value) => ({ value, labelKey: LEAD_STATUS_LABEL_KEYS[value] }));
 
 /**
  * Visites used to be its own sidebar section. It is a sub-tab here now: a
@@ -38,13 +41,13 @@ const STATUS_OPTIONS = LEAD_STATUSES.map((value) => ({ value, label: LEAD_STATUS
  * "Mes demandes" below — nothing here asks an agent to go looking.
  */
 const TABS = [
-  { value: 'mes-demandes', label: 'Mes demandes' },
-  { value: 'visites', label: 'Visites' },
+  { value: 'mes-demandes', labelKey: 'agent.leads.tabRequests' },
+  { value: 'visites', labelKey: 'agent.leads.tabVisits' },
 ];
 
 const VISIT_STATUS_OPTIONS = VIEWING_REQUEST_STATUSES.map((value) => ({
   value,
-  label: VIEWING_REQUEST_STATUS_LABELS_FR[value],
+  labelKey: VIEWING_REQUEST_STATUS_LABEL_KEYS[value],
 }));
 
 function budgetText(lead) {
@@ -67,7 +70,10 @@ function budgetText(lead) {
  * bounce back to Mes demandes. The two vocabularies never collide because
  * each tab resolves the param against its own status list.
  */
-function VisitsTab({ visitsPage, statusFilter, listingById, hasListings }) {
+// Async, so it can resolve its own translator — it is a Server Component
+// rendered by the page below, not a client child, so awaiting here is free.
+async function VisitsTab({ visitsPage, statusFilter, listingById, hasListings }) {
+  const t = await getT();
   const pending = visitsPage.data.filter((v) => v.status === 'PENDING').length;
 
   return (
@@ -87,13 +93,13 @@ function VisitsTab({ visitsPage, statusFilter, listingById, hasListings }) {
           <select
             name="status"
             defaultValue={statusFilter}
-            aria-label="Filtrer par statut"
+            aria-label={t('agent.leads.filterByStatus')}
             className="u-focus-ring h-10 w-[11.25rem] rounded-lg border border-line bg-surface px-3 text-[0.8125rem] font-medium text-ink"
           >
-            <option value="">Toutes les visites</option>
+            <option value="">{t('agent.leads.allVisits')}</option>
             {VISIT_STATUS_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
-                {o.label}
+                {t(o.labelKey)}
               </option>
             ))}
           </select>
@@ -101,7 +107,7 @@ function VisitsTab({ visitsPage, statusFilter, listingById, hasListings }) {
             type="submit"
             className="u-btn-secondary u-press h-10 rounded-lg px-3.5 text-[0.8125rem] font-bold text-ink"
           >
-            Filtrer
+            {t('agent.leads.filter')}
           </button>
         </form>
       </div>
@@ -109,9 +115,9 @@ function VisitsTab({ visitsPage, statusFilter, listingById, hasListings }) {
       {visitsPage.data.length === 0 ? (
         <div className="u-card rounded-card bg-surface px-6 py-16 text-center text-sm text-ink-45">
           {statusFilter
-            ? 'Aucune visite ne correspond à ce filtre.'
+            ? t('agent.leads.noVisitsForFilter')
             : hasListings
-              ? 'Aucune demande de visite pour le moment.'
+              ? t('agent.leads.noVisitsYet')
               : 'Ajoutez un bien pour commencer à recevoir des demandes de visite.'}
         </div>
       ) : (
@@ -127,7 +133,11 @@ function VisitsTab({ visitsPage, statusFilter, listingById, hasListings }) {
             <AgentVisitRequestCard
               key={viewingRequest.id}
               viewingRequest={viewingRequest}
-              statusLabel={VIEWING_REQUEST_STATUS_LABELS_FR[viewingRequest.status] || viewingRequest.status}
+              statusLabel={
+                VIEWING_REQUEST_STATUS_LABEL_KEYS[viewingRequest.status]
+                  ? t(VIEWING_REQUEST_STATUS_LABEL_KEYS[viewingRequest.status])
+                  : viewingRequest.status
+              }
               relativeTime={formatRelativeFr(viewingRequest.created_at)}
               target={target}
             />
@@ -139,6 +149,7 @@ function VisitsTab({ visitsPage, statusFilter, listingById, hasListings }) {
 }
 
 export default async function AgentInquiriesPage({ searchParams }) {
+  const t = await getT();
   const params = await searchParams;
   const tab = params.tab === 'visites' ? 'visites' : 'mes-demandes';
   // Set by the WhatsApp alert's deep link (services/leadDispatch.js's
@@ -188,7 +199,7 @@ export default async function AgentInquiriesPage({ searchParams }) {
   return (
     <>
       <AgentPageHeader
-        title="Demandes"
+        title={t('agent.leads.title')}
         newLeadsCount={newLeadsCount}
         searchAction="/compte/agent/demandes"
         searchDefaultValue={q}
@@ -237,13 +248,13 @@ export default async function AgentInquiriesPage({ searchParams }) {
                 <select
                   name="status"
                   defaultValue={statusFilter}
-                  aria-label="Filtrer par statut"
+                  aria-label={t('agent.leads.filterByStatus')}
                   className="u-focus-ring h-10 w-[11.25rem] rounded-lg border border-line bg-surface px-3 text-[0.8125rem] font-medium text-ink"
                 >
-                  <option value="">Toutes les demandes</option>
+                  <option value="">{t('agent.leads.allRequests')}</option>
                   {STATUS_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>
-                      {o.label}
+                      {t(o.labelKey)}
                     </option>
                   ))}
                 </select>
@@ -251,7 +262,7 @@ export default async function AgentInquiriesPage({ searchParams }) {
                   type="submit"
                   className="u-btn-secondary u-press h-10 rounded-lg px-3.5 text-[0.8125rem] font-bold text-ink"
                 >
-                  Filtrer
+                  {t('agent.leads.filter')}
                 </button>
               </form>
             </div>
@@ -259,19 +270,19 @@ export default async function AgentInquiriesPage({ searchParams }) {
             {Number.isFinite(focusLeadId) && !focusedLeadPresent && (
               <p className="u-micro rounded-lg bg-warning-tint px-4 py-3 font-semibold text-warning" role="status">
                 La demande n° {focusLeadId} ne figure plus dans votre liste — elle a peut-être été traitée par
-                une autre agence ou filtrée par le statut sélectionné.
+                {t('agent.leads.otherAgencyOrFiltered')}
               </p>
             )}
 
             {replySent && (
               <p className="rounded-lg bg-success-tint px-4 py-3 text-sm font-semibold text-success" role="status">
-                Réponse envoyée sur WhatsApp.
+                {t('agent.leads.replySent')}
               </p>
             )}
             {replyError && (
               <p className="rounded-lg bg-danger-tint px-4 py-3 text-sm font-semibold text-danger" role="alert">
                 {replyError === 'empty'
-                  ? 'Votre message était vide — rien n’a été envoyé.'
+                  ? t('agent.leads.emptyMessage')
                   : "L'envoi WhatsApp a échoué. Réessayez dans un instant."}
               </p>
             )}
@@ -283,9 +294,9 @@ export default async function AgentInquiriesPage({ searchParams }) {
                  never applied for an inbox that is simply still empty. */
               <div className="u-card rounded-card bg-surface px-6 py-16 text-center text-sm text-ink-45">
                 {statusFilter || q
-                  ? 'Aucune demande ne correspond à ces filtres.'
+                  ? t('agent.leads.noRequestsForFilters')
                   : listings.length === 0
-                    ? 'Ajoutez un bien pour commencer à recevoir des demandes.'
+                    ? t('agent.leads.addListingToReceive')
                     : 'Aucune demande pour le moment. Partagez votre page publique pour en recevoir.'}
               </div>
             ) : (
@@ -297,7 +308,7 @@ export default async function AgentInquiriesPage({ searchParams }) {
                     lead={lead}
                     highlighted={lead.id === focusLeadId}
                     myListings={myActiveListings}
-                    statusLabel={LEAD_STATUS_LABELS_FR[lead.status] || lead.status}
+                    statusLabel={LEAD_STATUS_LABEL_KEYS[lead.status] ? t(LEAD_STATUS_LABEL_KEYS[lead.status]) : lead.status}
                     statusOptions={STATUS_OPTIONS}
                     relativeTime={formatRelativeFr(lead.created_at)}
                     budget={budgetText(lead)}

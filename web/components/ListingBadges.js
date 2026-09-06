@@ -1,7 +1,10 @@
+'use client';
+
 import {
   Camera, Zap, Sun, Droplet, Route, ShieldCheck, Car, Snowflake, Sofa,
 } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * The chip vocabulary shared by all three card designs.
@@ -73,8 +76,9 @@ export function Badge({ tone = 'royal', children, className = '' }) {
  * not just made conditional on something new.
  */
 export function CardBadges({ listing }) {
-  const status = LISTING_STATUS_LABELS[listing.listing_status];
-  return status ? <Badge tone="ink">{status}</Badge> : null;
+  const t = useT();
+  const labelKey = LISTING_STATUS_LABEL_KEYS[listing.listing_status];
+  return labelKey ? <Badge tone="ink">{t(labelKey)}</Badge> : null;
 }
 
 export function TypeBadge({ children }) {
@@ -103,11 +107,16 @@ export function PhotoCountBadge({ count }) {
  * and by far the common case — a badge on every single card would be noise,
  * not signal.
  */
-const LISTING_STATUS_LABELS = { under_offer: 'Sous compromis', closed: 'Loué / Vendu' };
+const LISTING_STATUS_LABEL_KEYS = {
+  under_offer: 'listings.badges.underOffer',
+  closed: 'listings.badges.closed',
+};
 
 export function ListingStatusBadge({ status }) {
-  const label = LISTING_STATUS_LABELS[status];
-  if (!label) return null;
+  const t = useT();
+  const labelKey = LISTING_STATUS_LABEL_KEYS[status];
+  if (!labelKey) return null;
+  const label = t(labelKey);
   return (
     <span className="pointer-events-none rounded-full bg-ink px-2.5 py-1 text-[0.625rem] font-semibold uppercase tracking-[0.08em] text-white">
       {label}
@@ -117,9 +126,10 @@ export function ListingStatusBadge({ status }) {
 
 /** Rental listings only — flags the income framing an investor is scanning for. */
 export function RentBadge() {
+  const t = useT();
   return (
     <span className="rounded-full bg-green-tint px-2 py-0.5 text-[0.6875rem] font-semibold text-green-deep">
-      Location
+      {t('listings.badges.rental')}
     </span>
   );
 }
@@ -130,10 +140,11 @@ export function RentBadge() {
  * present, so it stays invisible rather than showing a guessed number.
  */
 export function DepositBadge({ months }) {
+  const t = useT();
   if (months == null) return null;
   return (
     <span className="rounded-full border border-blue/30 bg-blue-tint px-2 py-0.5 text-[0.6875rem] font-semibold text-blue-deep">
-      Garantie {months} mois
+      {t('listings.badges.depositMonths', { count: months })}
     </span>
   );
 }
@@ -145,31 +156,42 @@ export function DepositBadge({ months }) {
  * photo, not in a checkbox list, so brevity matters more than completeness.
  */
 const AMENITY_PILL_META = {
-  generator: { icon: Zap, label: 'Groupe' },
-  solar: { icon: Sun, label: 'Solaire' },
+  generator: { icon: Zap, labelKey: 'listings.badges.generator' },
+  solar: { icon: Sun, labelKey: 'listings.badges.solar' },
   // One key, two genuinely different real features (lib/constants.js's
   // AMENITY_KEYWORDS.borehole matches both "forage" and "citerne"), so the
   // label follows whichever word the listing's own text actually used —
-  // see `labelFor` below. "Forage" stays the fallback for a caller that
-  // doesn't pass the matched keyword through.
-  borehole: { icon: Droplet, label: 'Forage', byKeyword: { citerne: 'Citerne' } },
-  paved_road: { icon: Route, label: 'Route' },
-  security: { icon: ShieldCheck, label: 'Sécurité' },
-  parking: { icon: Car, label: 'Parking' },
-  ac: { icon: Snowflake, label: 'Climatisé' },
-  furnished: { icon: Sofa, label: 'Meublé' },
+  // see `labelFor` below. The borehole key stays the fallback for a caller
+  // that doesn't pass the matched keyword through.
+  borehole: {
+    icon: Droplet,
+    labelKey: 'listings.badges.borehole',
+    byKeyword: { citerne: 'listings.badges.cistern' },
+  },
+  paved_road: { icon: Route, labelKey: 'listings.badges.road' },
+  security: { icon: ShieldCheck, labelKey: 'listings.badges.security' },
+  parking: { icon: Car, labelKey: 'listings.badges.parking' },
+  ac: { icon: Snowflake, labelKey: 'listings.badges.airConditioned' },
+  furnished: { icon: Sofa, labelKey: 'listings.badges.furnished' },
   // Previously unmapped, so a real semi-furnished or dedicated-SNEL-line
   // match rendered no chip at all — `matchedAmenities` counted it against
   // the cap and then AmenityTag returned null for it, silently costing the
   // listing a slot. Both are real AMENITY_KEYWORDS keys the filter drawer
   // already offers; they just had no pill vocabulary.
-  semi_furnished: { icon: Sofa, label: 'Semi-meublé' },
-  dedicated_line: { icon: Zap, label: 'Ligne SNEL' },
+  semi_furnished: { icon: Sofa, labelKey: 'listings.badges.semiFurnished' },
+  dedicated_line: { icon: Zap, labelKey: 'listings.badges.snelLine' },
 };
 
-function labelFor(meta, matched) {
+/*
+ * `byKeyword` now maps a matched keyword to a KEY rather than to text, so
+ * the "forage"/"citerne" distinction survives translation: they are two
+ * genuinely different real features (a borehole and a water tank), and
+ * collapsing them into one English word would lose a real fact the
+ * listing's own text stated.
+ */
+function labelFor(t, meta, matched) {
   const normalized = typeof matched === 'string' ? matched.toLowerCase() : null;
-  return (normalized && meta.byKeyword?.[normalized]) || meta.label;
+  return t((normalized && meta.byKeyword?.[normalized]) || meta.labelKey);
 }
 
 /**
@@ -179,13 +201,14 @@ function labelFor(meta, matched) {
  * rather than a broken pill.
  */
 export function AmenityPill({ amenityKey }) {
+  const t = useT();
   const meta = AMENITY_PILL_META[amenityKey];
   if (!meta) return null;
   const Icon = meta.icon;
   return (
     <span className="u-glass-royal pointer-events-none inline-flex items-center gap-1 rounded-full px-2 py-1 text-[0.6875rem] font-medium">
       <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-3 w-3" />
-      {meta.label}
+      {t(meta.labelKey)}
     </span>
   );
 }
@@ -197,10 +220,11 @@ export function AmenityPill({ amenityKey }) {
  * Icon included: the design's own Tag accepts one.
  */
 export function AmenityTag({ amenityKey, matched, size = 'default' }) {
+  const t = useT();
   const meta = AMENITY_PILL_META[amenityKey];
   if (!meta) return null;
   const Icon = meta.icon;
-  const label = labelFor(meta, matched);
+  const label = labelFor(t, meta, matched);
 
   // `size="compact"` is the feed card's own chip: 11px on a filled chalk
   // ground with a real hairline border, per the card spec. Deliberately not

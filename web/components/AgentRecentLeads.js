@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ArrowUpRight } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { formatRelativeFr } from '@/lib/format';
+import { getT } from '@/lib/i18n/server';
 
 /**
  * The design's "Demandes récentes" card — a "Tout voir" link in the header,
@@ -34,14 +35,15 @@ function metaLine(lead, propertyTitle) {
   return [budget, target].filter(Boolean).join(' · ');
 }
 
-export default function AgentRecentLeads({ leads, listingById }) {
+export default async function AgentRecentLeads({ leads, listingById }) {
+  const t = await getT();
   return (
     <Link
       href="/compte/agent/demandes"
       className="u-card group u-press flex flex-col rounded-card bg-surface p-6 text-left transition-colors hover:bg-canvas-alt"
     >
       <div className="flex items-center justify-between gap-4">
-        <h2 className="u-title-card text-ink">Demandes récentes</h2>
+        <h2 className="u-title-card text-ink">{t('agent.overview.recentLeads')}</h2>
         <span className="inline-flex items-center gap-1 text-[0.8125rem] font-bold text-blue">
           Tout voir
           <ArrowUpRight
@@ -53,7 +55,7 @@ export default function AgentRecentLeads({ leads, listingById }) {
       </div>
 
       {leads.length === 0 ? (
-        <p className="mt-6 text-sm text-ink-45">Aucune demande pour le moment.</p>
+        <p className="mt-6 text-sm text-ink-45">{t('agent.overview.noLeadsYet')}</p>
       ) : (
         <div className="mt-2 flex flex-col">
           {leads.map((lead) => {

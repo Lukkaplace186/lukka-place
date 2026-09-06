@@ -3,6 +3,7 @@
 import { Bell } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * Shown to an already-authenticated visitor before SaveSearchButton.js
@@ -21,16 +22,17 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  * control here would set a value nothing ever reads.
  */
 export default function SearchAlertConfirmModal({ open, onClose, onConfirm, tags = [] }) {
+  const t = useT();
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
       <DialogContent className="gap-5 p-6">
         <DialogTitle className="flex items-center gap-2 text-left font-display text-lg font-normal leading-snug tracking-[-0.01em] text-ink">
           <Bell strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5 text-blue" />
-          Créer une alerte pour cette recherche
+          {t('listings.alert.createForSearch')}
         </DialogTitle>
 
         <div>
-          <p className="mb-2.5 text-sm text-ink-45">Vous serez alerté des nouveaux biens correspondant à :</p>
+          <p className="mb-2.5 text-sm text-ink-45">{t('listings.alertModal.intro')}</p>
           {tags.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {tags.map((tag) => (
@@ -40,7 +42,7 @@ export default function SearchAlertConfirmModal({ open, onClose, onConfirm, tags
               ))}
             </div>
           ) : (
-            <p className="text-sm text-ink-70">Tous les biens disponibles.</p>
+            <p className="text-sm text-ink-70">{t('listings.alertModal.allProperties')}</p>
           )}
         </div>
 

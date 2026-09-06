@@ -1,8 +1,9 @@
 import { Suspense } from 'react';
 import AgentChartRangeSelect from './AgentChartRangeSelect';
+import { getT } from '@/lib/i18n/server';
 
 /**
- * The design's "Vues de vos annonces" card: title over a caption, the range
+ * The design's {t('agent.overview.viewsChart')} card: title over a caption, the range
  * Select right-aligned, then a 220px bar plot whose bars carry their value
  * as a label above them and their period label below the baseline rule.
  *
@@ -12,7 +13,8 @@ import AgentChartRangeSelect from './AgentChartRangeSelect';
  * draws no bar at all and keeps its label — the honest shape of a quiet
  * period, which is exactly what this chart is for.
  */
-export default function AgentViewsChart({ series, rangeOptions, range, rangeLabel }) {
+export default async function AgentViewsChart({ series, rangeOptions, range, rangeLabel }) {
+  const t = await getT();
   const max = Math.max(1, ...series.map((b) => b.views));
   const hasAny = series.some((b) => b.views > 0);
 
@@ -20,7 +22,7 @@ export default function AgentViewsChart({ series, rangeOptions, range, rangeLabe
     <div className="u-card rounded-card bg-surface p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="u-title-card text-ink">Vues de vos annonces</h2>
+          <h2 className="u-title-card text-ink">{t('agent.overview.viewsChart')}</h2>
           <p className="mt-0.5 text-[0.8125rem] text-ink-45">{rangeLabel}</p>
         </div>
         <Suspense fallback={<div className="h-10 w-[9.5rem] rounded-lg border border-line bg-surface" />}>
@@ -51,7 +53,7 @@ export default function AgentViewsChart({ series, rangeOptions, range, rangeLabe
         </>
       ) : (
         <div className="mt-7 flex h-[13.75rem] items-center justify-center border-b border-line text-sm text-ink-45">
-          Pas encore de vues sur cette période.
+          {t('agent.editor.noViewsInPeriod')}
         </div>
       )}
     </div>

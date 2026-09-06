@@ -9,8 +9,9 @@ import { buildWhatsAppLink } from '@/lib/whatsapp';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import EditPropertyRequestDialog from './EditPropertyRequestDialog';
+import { useT } from '@/lib/i18n/client';
 
-const TRANSACTION_TYPE_LABELS_FR = { vente: 'Achat', location: 'Location' };
+const TRANSACTION_TYPE_LABEL_KEYS = { vente: 'search.tags.purchase', location: 'search.tags.rental' };
 
 /**
  * "Location · Limete · 2 ch. · Budget 843 $ – 960 $" — a compact title built
@@ -27,12 +28,13 @@ const TRANSACTION_TYPE_LABELS_FR = { vente: 'Achat', location: 'Location' };
  * instead — never a blank/fabricated commune. Only a lead with neither gets
  * the fully generic label.
  */
-function customSearchTitle(thread) {
+function customSearchTitle(thread, t) {
   const hasStructured = thread.commune || thread.priceMin != null || thread.priceMax != null || thread.bedrooms != null;
   if (hasStructured) {
     const parts = [];
     if (thread.transactionType) {
-      parts.push(TRANSACTION_TYPE_LABELS_FR[thread.transactionType] || thread.transactionType);
+      const key = TRANSACTION_TYPE_LABEL_KEYS[thread.transactionType];
+      parts.push(key ? t(key) : thread.transactionType);
     }
     if (thread.commune) parts.push(thread.commune);
     if (thread.bedrooms != null) parts.push(`${thread.bedrooms} ch.`);
@@ -53,15 +55,15 @@ function customSearchTitle(thread) {
  * capacity number a customer has no context for (the 7-pitch cap is an
  * internal per-request pitch cap, not something to expose here).
  */
-function customSearchTrackerSteps(thread) {
+function customSearchTrackerSteps(thread, t) {
   const proposalsCount = thread.proposals?.length || 0;
   const interestLabel =
     proposalsCount > 0
-      ? `${proposalsCount} agence${proposalsCount > 1 ? 's' : ''} intéressée${proposalsCount > 1 ? 's' : ''}`
-      : "Agences en cours d'analyse";
+      ? t('account.requests.agenciesInterested', { count: proposalsCount })
+      : t('account.requests.agenciesAnalysing');
   const steps = [
-    { label: 'Demande envoyée', done: true },
-    { label: 'Diffusée aux agences', done: true },
+    { label: t('account.requests.stages.sent'), done: true },
+    { label: t('account.requests.stages.broadcast'), done: true },
     { label: interestLabel, done: proposalsCount > 0 },
   ];
   const currentIndex = steps.findIndex((step) => !step.done);
@@ -161,22 +163,22 @@ const THREAD_TONES = {
 // read through a customer-friendly lens.
 const MATCH_FOUND_STATUSES = new Set(['QUALIFIED', 'VIEWING_REQUESTED', 'VIEWING_COMPLETED', 'CONVERTED']);
 
-function customSearchStatus(thread) {
+function customSearchStatus(thread, t) {
   // A real agent proposal is direct, first-hand evidence
   // a match exists — a stronger signal than the status/agentId heuristic
   // below, which only ever approximated it. Checked first so a request that
   // got a proposal without ever passing through QUALIFIED/etc. still shows
   // the right tier.
   if (thread.proposals?.length > 0) {
-    return { tone: 'royal', label: 'Proposition prête' };
+    return { tone: 'royal', label: t('account.requests.stages.proposalReady') };
   }
   if (!thread.agentId) {
-    return { tone: 'warning', label: 'En cours de traitement' };
+    return { tone: 'warning', label: t('account.requests.stages.inProgress') };
   }
   if (MATCH_FOUND_STATUSES.has(thread.status)) {
-    return { tone: 'royal', label: 'Proposition prête' };
+    return { tone: 'royal', label: t('account.requests.stages.proposalReady') };
   }
-  return { tone: 'success', label: 'Transmis aux agents' };
+  return { tone: 'success', label: t('account.requests.stages.sentToAgents') };
 }
 
 /**
@@ -223,6 +225,7 @@ function Thumbnail({ src, alt, className }) {
 }
 
 export default function InquiryThreads({ threads, whatsappNumber, communes = [], updateAction }) {
+  const t = useT();
   const [activeId, setActiveId] = useState(threads[0]?.id ?? null);
   const active = threads.find((t) => t.id === activeId) || threads[0] || null;
 
@@ -262,12 +265,12 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
     <PortalPanel className="grid overflow-hidden lg:min-h-[36rem] lg:grid-cols-[22.5rem_minmax(0,1fr)]">
       <div className="flex flex-col border-b border-line lg:border-b-0 lg:border-r">
         <div className="px-5 py-4">
-          <p className="u-eyebrow">Vos demandes</p>
+          <p className="u-eyebrow">{t('account.requests.yourRequests')}</p>
         </div>
         <div className="flex max-h-[26rem] flex-col overflow-y-auto lg:max-h-none">
           {threads.map((thread) => {
             const isActive = active?.id === thread.id;
-            const title = thread.listing ? thread.listing.title : customSearchTitle(thread);
+            const title = thread.listing ? thread.listing.title : customSearchTitle(thread, t);
             // Skip the preview line when it would just repeat the title
             // verbatim — happens for a custom-search thread whose title
             // fell back to its own raw summary (customSearchTitle above).
@@ -298,12 +301,12 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
                     {thread.listing ? (
                       <PortalBadge tone={THREAD_TONES[thread.status] || 'neutral'}>{thread.statusLabel}</PortalBadge>
                     ) : (
-                      <PortalBadge tone={customSearchStatus(thread).tone}>{customSearchStatus(thread).label}</PortalBadge>
+                      <PortalBadge tone={customSearchStatus(thread, t).tone}>{customSearchStatus(thread, t).label}</PortalBadge>
                     )}
                     {thread.isViewing ? (
                       <span className="inline-flex items-center gap-1 text-[0.6875rem] font-semibold text-ink-45">
                         <CalendarDays strokeWidth={ICON_STROKE_WIDTH} className="h-3 w-3" aria-hidden="true" />
-                        Visite
+                        {t('account.requests.viewing')}
                       </span>
                     ) : null}
                   </span>
@@ -320,7 +323,7 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
             <Thumbnail src={active.listing?.image || null} alt="" className="h-[3.25rem] w-16" />
             <div className="min-w-[15rem] flex-1">
               <p className="text-[0.9375rem] font-bold leading-snug text-ink">
-                {active.listing ? active.listing.title : customSearchTitle(active)}
+                {active.listing ? active.listing.title : customSearchTitle(active, t)}
               </p>
               <p className="u-tabular mt-1 text-[0.8125rem] text-ink-45">
                 {active.listing?.priceLabel ? `${active.listing.priceLabel} · ` : ''}
@@ -333,7 +336,7 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
                   href={`/listings/${active.listing.id}`}
                   className="inline-flex items-center gap-1.5 text-[0.8125rem] font-semibold text-blue-deep hover:underline"
                 >
-                  Voir la fiche
+                  {t('account.requests.viewListing')}
                   <ArrowUpRight strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
                 </Link>
               ) : null}
@@ -347,7 +350,7 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
                       className="inline-flex items-center gap-2 rounded-full bg-green px-4 py-2 text-[0.8125rem] font-semibold text-white transition-colors hover:bg-green-deep"
                     >
                       <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
-                      Convenir d&apos;un créneau
+                      {t('account.requests.arrangeSlot')}
                     </a>
                   ) : null}
                   {cancelHref ? (
@@ -357,7 +360,7 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
                       rel="noopener noreferrer"
                       className="inline-flex items-center rounded-full px-4 py-2 text-[0.8125rem] font-semibold text-ink-45 transition-colors hover:bg-canvas-alt hover:text-ink"
                     >
-                      Annuler la visite
+                      {t('account.requests.cancelViewing')}
                     </a>
                   ) : null}
                 </>
@@ -375,7 +378,7 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
           <div className="flex flex-1 flex-col gap-5 p-6">
             {!active.listing ? (
               <div className="rounded-card bg-surface p-5 shadow-[var(--hairline)]">
-                <StatusTracker steps={customSearchTrackerSteps(active)} />
+                <StatusTracker steps={customSearchTrackerSteps(active, t)} />
               </div>
             ) : null}
 
@@ -383,7 +386,7 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
               {active.listing ? (
                 <PortalBadge tone={THREAD_TONES[active.status] || 'neutral'}>{active.statusLabel}</PortalBadge>
               ) : (
-                <PortalBadge tone={customSearchStatus(active).tone}>{customSearchStatus(active).label}</PortalBadge>
+                <PortalBadge tone={customSearchStatus(active, t).tone}>{customSearchStatus(active, t).label}</PortalBadge>
               )}
               <span className="text-[0.8125rem] text-ink-45">
                 Envoyée le {active.createdAtLabel}
@@ -395,7 +398,7 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
 
             <div className="rounded-card bg-surface p-5 shadow-[var(--hairline)]">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="u-eyebrow">Votre demande</p>
+                <p className="u-eyebrow">{t('account.requests.yourRequest')}</p>
                 {updateAction && !active.listing ? (
                   <EditPropertyRequestDialog
                     leadId={active.id}
@@ -415,27 +418,29 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
                 <dl className="mt-3.5 grid grid-cols-2 gap-x-4 gap-y-3 border-b border-line pb-4 sm:grid-cols-4">
                   {active.transactionType ? (
                     <div>
-                      <dt className="text-[0.75rem] text-ink-45">Transaction</dt>
+                      <dt className="text-[0.75rem] text-ink-45">{t('account.requests.transaction')}</dt>
                       <dd className="mt-0.5 text-[0.875rem] font-bold text-ink">
-                        {TRANSACTION_TYPE_LABELS_FR[active.transactionType] || active.transactionType}
+                        {TRANSACTION_TYPE_LABEL_KEYS[active.transactionType]
+                          ? t(TRANSACTION_TYPE_LABEL_KEYS[active.transactionType])
+                          : active.transactionType}
                       </dd>
                     </div>
                   ) : null}
                   {active.commune ? (
                     <div>
-                      <dt className="text-[0.75rem] text-ink-45">Commune</dt>
+                      <dt className="text-[0.75rem] text-ink-45">{t('account.requests.commune')}</dt>
                       <dd className="mt-0.5 text-[0.875rem] font-bold text-ink">{active.commune}</dd>
                     </div>
                   ) : null}
                   {active.bedrooms != null ? (
                     <div>
-                      <dt className="text-[0.75rem] text-ink-45">Chambres</dt>
+                      <dt className="text-[0.75rem] text-ink-45">{t('account.requests.bedrooms')}</dt>
                       <dd className="u-tabular mt-0.5 text-[0.875rem] font-bold text-ink">{active.bedrooms}</dd>
                     </div>
                   ) : null}
                   {budgetLabel(active.priceMin, active.priceMax) ? (
                     <div>
-                      <dt className="text-[0.75rem] text-ink-45">Budget</dt>
+                      <dt className="text-[0.75rem] text-ink-45">{t('account.requests.budget')}</dt>
                       <dd className="u-tabular mt-0.5 text-[0.875rem] font-bold text-ink">
                         {budgetLabel(active.priceMin, active.priceMax)}
                       </dd>
@@ -448,7 +453,7 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
                 <p className="mt-4 whitespace-pre-line text-[0.9375rem] leading-[1.6] text-ink-70">{active.summary}</p>
               ) : (
                 <p className="mt-4 text-[0.875rem] italic text-ink-45">
-                  Aucun détail n&apos;a été enregistré avec cette demande.
+                  {t('account.requests.noDetails')}
                 </p>
               )}
             </div>
@@ -456,16 +461,15 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
             {active.listing ? (
               <p className="text-[0.8125rem] leading-[1.55] text-ink-45">
                 Lukka Place n&apos;a pas de messagerie interne : la réponse de l&apos;agence vous parvient directement
-                sur WhatsApp, au numéro rattaché à votre compte.
+                {t('account.requests.onWhatsAppAtNumber')}
               </p>
             ) : active.proposals?.length === 0 ? (
               <div className="rounded-card bg-blue-tint p-5">
                 <p className="text-[0.9375rem] font-bold leading-snug text-blue-deep">
-                  Votre demande est diffusée auprès de nos agents et commissionnaires partenaires.
+                  {t('account.requests.broadcasting')}
                 </p>
                 <p className="mt-1.5 text-[0.8125rem] leading-[1.55] text-ink-70">
-                  Dès qu&apos;un agent retient votre demande, ses propositions et ses coordonnées directes (Appel et
-                  WhatsApp) apparaîtront ici.
+                  {t('account.requests.broadcastingBody')}
                 </p>
               </div>
             ) : null}
@@ -473,8 +477,8 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
             {active.proposals?.length > 0 && (
               <div className="flex flex-col gap-3">
                 <p className="u-eyebrow">
-                  Bien{active.proposals.length > 1 ? 's' : ''} proposé{active.proposals.length > 1 ? 's' : ''} par
-                  nos agents
+                  {t('account.requests.proposedBy', { count: active.proposals.length })}
+                  {t('account.requests.ourAgents')}
                 </p>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   {active.proposals.map((property) => {
@@ -534,7 +538,7 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
                                 className="inline-flex flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-full bg-green px-4 py-2.5 text-[0.8125rem] font-semibold text-white transition-colors hover:bg-green-deep"
                               >
                                 <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
-                                Contacter l&apos;agence
+                                {t('account.requests.contactAgency')}
                               </a>
                             )}
                             {callHref && (
@@ -543,7 +547,7 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
                                 className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 py-2.5 text-[0.8125rem] font-semibold text-ink-70 shadow-[inset_0_0_0_1px_var(--line)] transition-colors hover:bg-canvas-alt"
                               >
                                 <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
-                                Appeler
+                                {t('account.requests.call')}
                               </a>
                             )}
                           </div>
@@ -559,7 +563,7 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
       ) : (
         <div className="flex flex-col items-center justify-center gap-3 bg-canvas-alt p-10 text-center">
           <Inbox strokeWidth={ICON_STROKE_WIDTH} className="h-6 w-6 text-ink-25" aria-hidden="true" />
-          <p className="text-[0.875rem] text-ink-45">Sélectionnez une demande pour en voir le détail.</p>
+          <p className="text-[0.875rem] text-ink-45">{t('account.requests.selectOne')}</p>
         </div>
       )}
     </PortalPanel>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * The two pieces that float directly over the map CANVAS itself (not the
@@ -24,6 +25,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
  * elevation utility for floating surfaces like this.
  */
 export default function MobileMapOverlay({ shown, totalMatching }) {
+  const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -47,7 +49,7 @@ export default function MobileMapOverlay({ shown, totalMatching }) {
         onClick={backToList}
         className="u-lift u-press pointer-events-auto absolute bottom-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-line bg-surface px-6 py-2.5 text-[0.8125rem] font-semibold text-ink"
       >
-        Liste
+        {t('listings.view.list')}
       </button>
     </div>
   );

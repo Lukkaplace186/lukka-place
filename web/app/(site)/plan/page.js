@@ -1,9 +1,15 @@
 import PageShell, { PageAction, PageNotice } from '@/components/PageShell';
+import { getT } from '@/lib/i18n/server';
 
-export const metadata = {
-  title: 'Plan — Lukka Place',
-  description: 'Outils de planification pour votre recherche immobilière à Kinshasa.',
-};
+// generateMetadata, not a static object: a static export is evaluated at
+// module load, where there is no request and so no translator.
+export async function generateMetadata() {
+  const t = await getT();
+  return {
+    title: t('updates.planMetaTitle'),
+    description: t('updates.planMetaDescription'),
+  };
+}
 
 /**
  * Honest stub. The reference portals fill this slot with mortgage
@@ -11,24 +17,24 @@ export const metadata = {
  * service-provider integration behind this site, so shipping a calculator
  * would mean inventing the rates it runs on.
  */
-export default function PlanPage() {
+export default async function PlanPage() {
+  const t = await getT();
   return (
     <PageShell
       eyebrow="Plan"
-      title="Préparer votre achat ou votre location"
-      breadcrumb={[{ label: 'Accueil', href: '/' }, { label: 'Plan' }]}
+      title={t('updates.planTitle')}
+      breadcrumb={[{ label: t('breadcrumb.home'), href: '/' }, { label: 'Plan' }]}
     >
       <div className="flex flex-col items-start gap-6">
         <PageNotice>
-          Un simulateur de budget demanderait des taux de financement réels, dont Lukka Place ne dispose pas. Plutôt
+          {t('updates.planBody1')}
           qu&apos;un calculateur alimenté par des chiffres inventés, cette page reste vide en attendant des données
           fiables.
         </PageNotice>
         <p className="text-[0.9375rem] leading-relaxed text-ink-70">
-          Ce que vous pouvez déjà faire : chaque annonce affiche son prix exact, sa superficie et son prix au mètre
-          carré, en dollars comme en francs, sans frais ajoutés par la plateforme.
+          {t('updates.planBody2')}
         </p>
-        <PageAction href="/listings">Parcourir les annonces</PageAction>
+        <PageAction href="/listings">{t('account.favorites.browseListings')}</PageAction>
       </div>
     </PageShell>
   );

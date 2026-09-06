@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, MapPin, ChevronDown, Building2, Wallet } from 'lucide-react';
 import LocationAutocomplete from './LocationAutocomplete';
 import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB, ICON_STROKE_WIDTH } from '@/lib/constants';
 import { parseSearchQuery } from '@/lib/searchParser';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * The hero search panel — a white card floating over the hero photograph,
@@ -60,8 +61,8 @@ import { parseSearchQuery } from '@/lib/searchParser';
  * CLAUDE.md.
  */
 const HOME_TABS = [
-  { value: 'louer', label: 'Louer' },
-  { value: 'acheter', label: 'Acheter' },
+  { value: 'louer', labelKey: 'home.search.rent' },
+  { value: 'acheter', labelKey: 'home.search.buy' },
 ];
 
 // Both live in lib/constants.js because the homepage's server component
@@ -79,17 +80,26 @@ const PRICE_STEP_VALUES = [
   2500, 3000, 3500, 4000, 4500, 5000,
 ];
 
-const BUDGET_MAX_OPTIONS = [
-  { value: '', label: 'Tous prix' },
-  ...PRICE_STEP_VALUES.map((amount) => ({
-    value: String(amount),
-    // "Max X" throughout, the last step included. "5 000 $ et +" would be
-    // a lie in a *ceiling* field — it reads as a floor — and the longer
-    // "Jusqu'à X $" does not survive the 2-column cell at 320px, where a
-    // native <select> shows the selected option's own text verbatim.
-    label: `Max ${amount.toLocaleString('fr-FR')} $`,
-  })),
-];
+/*
+ * Built per-render now rather than as a module constant, because both the
+ * label AND the thousands separator are language-dependent ("Max 1 500 $" vs
+ * "Max $1,500"). The 24-entry array is cheap to rebuild and is memoised at
+ * the call site; a module-level constant would freeze both in French.
+ */
+function buildBudgetMaxOptions(t) {
+  const numberLocale = t.locale === 'en' ? 'en-GB' : 'fr-FR';
+  return [
+    { value: '', label: t('home.search.allPrices') },
+    ...PRICE_STEP_VALUES.map((amount) => ({
+      value: String(amount),
+      // "Max X" throughout, the last step included. "5 000 $ et +" would be
+      // a lie in a *ceiling* field — it reads as a floor — and the longer
+      // "Jusqu'à X $" does not survive the 2-column cell at 320px, where a
+      // native <select> shows the selected option's own text verbatim.
+      label: t('home.search.budgetMax', { amount: amount.toLocaleString(numberLocale) }),
+    })),
+  ];
+}
 
 const COUNT_DEBOUNCE_MS = 350;
 
@@ -144,6 +154,9 @@ const CELL_SELECT =
   'font-medium text-ink focus:outline-none sm:pr-1 sm:text-[0.9375rem]';
 
 export default function SearchBar({ propertyTypes = [], communes = [], initialCount = null }) {
+  const t = useT();
+  // Rebuilt only when the language changes — see buildBudgetMaxOptions.
+  const budgetMaxOptions = useMemo(() => buildBudgetMaxOptions(t), [t]);
   const [homeTab, setHomeTab] = useState(HERO_DEFAULT_TAB);
   const [propertyType, setPropertyType] = useState('');
   const [budgetMax, setBudgetMax] = useState('');
@@ -248,10 +261,10 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
       {/* --- 1. Intent toggle ------------------------------------------- */}
       <div
         role="tablist"
-        aria-label="Type de transaction"
+        aria-label={t('home.search.transactionType')}
         className="mb-4 inline-flex rounded-full bg-canvas-alt p-1"
       >
-        {HOME_TABS.map(({ value, label }) => {
+        {HOME_TABS.map(({ value, labelKey }) => {
           const on = homeTab === value;
           return (
             <button
@@ -279,7 +292,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
                   : 'text-ink-45 hover:text-ink'
               }`}
             >
-              {label}
+              {t(labelKey)}
             </button>
           );
         })}
@@ -298,7 +311,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
           id="hero-location"
           variant="hero"
           ariaLabel="Commune, quartier ou référence"
-          placeholder="Commune / Quartier (ex : Gombe, Ngaliema)"
+          placeholder={t('home.search.locationPlaceholder')}
           extraParams={extraParams}
           onValueChange={setLocation}
           // The CTA is a full-width button on its own tier below, so this
@@ -329,14 +342,14 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
             <Building2 strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className={CELL_ICON} />
             <select
               id="hero-type"
-              aria-label="Type de bien"
+              aria-label={t('home.search.propertyType')}
               value={propertyType}
               onChange={(e) => setPropertyType(e.target.value)}
               // `appearance-none` drops the native arrow on every engine
               // so the single lucide chevron below is the only indicator.
               className={CELL_SELECT}
             >
-              <option value="">Tous types</option>
+              <option value="">{t('home.search.allTypes')}</option>
               {propertyTypes.map(({ value, label, count: typeCount }) => (
                 <option key={value} value={value}>
                   {label} ({typeCount})
@@ -354,12 +367,12 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
             <Wallet strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className={CELL_ICON} />
             <select
               id="hero-budget"
-              aria-label="Budget maximum"
+              aria-label={t('home.search.budget')}
               value={budgetMax}
               onChange={(e) => setBudgetMax(e.target.value)}
               className={CELL_SELECT}
             >
-              {BUDGET_MAX_OPTIONS.map(({ value, label }) => (
+              {budgetMaxOptions.map(({ value, label }) => (
                 <option key={value} value={value}>
                   {label}
                 </option>
@@ -381,7 +394,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
         className="u-press u-btn-primary mt-4 inline-flex h-[3.25rem] w-full items-center justify-center gap-2 rounded-2xl bg-blue px-6 text-[1rem] font-semibold text-white"
       >
         <Search strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className="h-5 w-5" />
-        <span>Rechercher</span>
+        <span>{t('home.search.submit')}</span>
         {/* Always mounted, so the live region exists before its text does —
             a region that appears at the same moment as its content is not
             reliably announced. */}
@@ -394,7 +407,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
       {communes.length > 0 ? (
         <div className="mt-4">
           <span id="hero-quick-communes" className="u-eyebrow mb-2 block">
-            Communes populaires
+            {t('home.search.popularCommunes')}
           </span>
           {/* -mx-4/px-4 lets the row bleed to the card's true edge so the
               first/last chip isn't visually inset, while overflow-x-auto +

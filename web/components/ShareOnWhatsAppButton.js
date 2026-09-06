@@ -3,6 +3,7 @@
 import { ArrowUpRight, Share2 } from 'lucide-react';
 import { buildWhatsAppLink } from '@/lib/whatsapp';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * "Partager la page sur WhatsApp" — distinct from WhatsAppCTA.js (which
@@ -16,12 +17,17 @@ export default function ShareOnWhatsAppButton({
   url,
   title,
   message,
-  label = 'Partager la page sur WhatsApp',
+  label,
   showArrow = false,
   iconOnly = false,
   className = 'u-press inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-3.5 py-1.5 text-[0.8125rem] font-medium text-ink-70 transition-colors hover:border-green hover:text-green-deep',
   iconClassName = 'h-[18px] w-[18px]',
 }) {
+  const t = useT();
+  // Resolved here, not in the parameter list: `t` is not in scope in a
+  // default parameter value.
+  const shareLabel = label ?? t('listings.share.shareOnWhatsApp');
+
   async function handleClick() {
     const text = message || `${title} — ${url}`;
 
@@ -49,7 +55,7 @@ export default function ShareOnWhatsAppButton({
         <Share2 strokeWidth={ICON_STROKE_WIDTH} className={iconClassName} />
       ) : (
         <>
-          {label}
+          {shareLabel}
           {showArrow && (
             <ArrowUpRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
           )}

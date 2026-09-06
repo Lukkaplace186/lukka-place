@@ -6,6 +6,7 @@ import { Phone, MapPin, Clock, Check, X, CalendarClock } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { updateViewingRequestAction } from '@/app/compte/agent/actions';
 import { useToast } from './Toast';
+import { useT } from '@/lib/i18n/client';
 
 const STATUS_TAG = {
   PENDING: 'bg-warning-tint text-warning',
@@ -23,6 +24,7 @@ const STATUS_TAG = {
  * navigation, per this feature's ask.
  */
 export default function AgentVisitRequestCard({ viewingRequest, statusLabel, relativeTime, target }) {
+  const t = useT();
   const [reschedule, setReschedule] = useState(false);
   const [newTime, setNewTime] = useState('');
   const [pending, startTransition] = useTransition();
@@ -43,9 +45,9 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
         return;
       }
       const messages = {
-        CONFIRMED: 'Visite confirmée.',
-        CANCELLED: 'Visite annulée.',
-        RESCHEDULED: 'Nouveau créneau proposé.',
+        CONFIRMED: t('agent.visits.confirmed'),
+        CANCELLED: t('agent.visits.cancelled'),
+        RESCHEDULED: t('agent.visits.rescheduled'),
       };
       showToast({ type: 'success', message: messages[status] || 'Demande mise à jour.' });
       setReschedule(false);
@@ -113,7 +115,7 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
               className="u-press inline-flex h-9 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg text-[0.8125rem] font-semibold text-ink-45 transition-colors hover:bg-canvas-alt hover:text-ink disabled:opacity-60"
             >
               <CalendarClock strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-              Reprogrammer
+              {t('agent.visits.reschedule')}
             </button>
             <button
               type="button"
@@ -122,7 +124,7 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
               className="u-press inline-flex h-9 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg text-[0.8125rem] font-semibold text-danger transition-colors hover:bg-danger-tint disabled:opacity-60"
             >
               <X strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-              Annuler
+              {t('common.actions.cancel')}
             </button>
           </div>
         </div>
@@ -132,7 +134,7 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
         <form onSubmit={submitReschedule} className="mt-4 flex flex-col gap-2.5 border-t border-line pt-4 sm:flex-row sm:items-end">
           <div className="flex-1">
             <label htmlFor={`reschedule-${viewingRequest.id}`} className="mb-1.5 block text-[0.8125rem] font-semibold text-ink-70">
-              Nouveau créneau proposé
+              {t('agent.visits.newSlotProposed')}
             </label>
             <input
               id={`reschedule-${viewingRequest.id}`}
@@ -149,7 +151,7 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
             disabled={pending}
             className="u-btn-primary u-press h-11 rounded-lg bg-blue px-5 text-sm font-bold text-white disabled:opacity-60"
           >
-            {pending ? 'Envoi…' : 'Proposer ce créneau'}
+            {pending ? 'Envoi…' : t('agent.visits.proposeSlot')}
           </button>
         </form>
       )}

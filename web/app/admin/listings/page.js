@@ -1,10 +1,12 @@
 import Link from 'next/link';
 import { getListingsForModeration } from '@/lib/listings';
 import { getSuspendedListings } from '@/lib/adminListings';
-import { LISTING_MODERATION_STATUSES, LISTING_MODERATION_STATUS_LABELS_FR } from '@/lib/adminLabels';
+import { LISTING_MODERATION_STATUSES, LISTING_MODERATION_STATUS_LABEL_KEYS } from '@/lib/adminLabels';
 import ListingModerationCard from './ListingModerationCard';
+import { getT } from '@/lib/i18n/server';
 
 export default async function AdminListingsPage({ searchParams }) {
+  const t = await getT();
   const params = await searchParams;
   const status = LISTING_MODERATION_STATUSES.includes(params.status) ? params.status : 'pending';
 
@@ -17,7 +19,7 @@ export default async function AdminListingsPage({ searchParams }) {
   return (
     <div>
       <div className="mb-4">
-        <h1 className="u-title-page text-ink">Annonces</h1>
+        <h1 className="u-title-page text-ink">{t('admin.listings.title')}</h1>
         <p className="mt-1 text-sm text-ink-45">
           {listings.length} annonce{listings.length !== 1 ? 's' : ''}
         </p>
@@ -34,14 +36,14 @@ export default async function AdminListingsPage({ searchParams }) {
                 : 'border-line bg-white text-ink hover:bg-canvas-alt'
             }`}
           >
-            {LISTING_MODERATION_STATUS_LABELS_FR[s]}
+            {t(LISTING_MODERATION_STATUS_LABEL_KEYS[s])}
           </Link>
         ))}
       </div>
 
       {listings.length === 0 ? (
         <div className="rounded-card border border-dashed border-line bg-white p-10 text-center text-sm text-ink-45">
-          Aucune annonce.
+          {t('admin.listings.empty')}
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

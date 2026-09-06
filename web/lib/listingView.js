@@ -17,15 +17,26 @@ import { abbreviationVariants } from './textVariants';
  * Everything here reads real columns only. Nothing is inferred or invented.
  */
 
-const PARCELLE_SUBTYPE_LABELS = Object.fromEntries(
-  PARCELLE_SUBTYPES.map(({ value, label }) => [value, label]),
+const PARCELLE_SUBTYPE_LABEL_KEYS = Object.fromEntries(
+  PARCELLE_SUBTYPES.map(({ value, labelKey }) => [value, labelKey]),
 );
 
-const DATE_FORMATTER = new Intl.DateTimeFormat('fr-FR', {
-  day: 'numeric',
-  month: 'long',
-  year: 'numeric',
-});
+/*
+ * One formatter per locale, built once and cached. `Intl.DateTimeFormat` is
+ * expensive enough to construct that doing it per card in a feed is
+ * measurable, which is why the original was a module-level constant — this
+ * keeps that property while letting the month name follow the language
+ * ("18 avril 2026" vs "18 April 2026"). `en-GB`, not `en-US`: this is a
+ * day-month-year market, and an American visitor is not the audience.
+ */
+const DATE_FORMATTERS = {
+  fr: new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }),
+  en: new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+};
+
+function dateFormatter(locale) {
+  return DATE_FORMATTERS[locale] || DATE_FORMATTERS.fr;
+}
 
 /**
  * Whether an image value from the database can actually be rendered.
@@ -55,11 +66,12 @@ export function listingImages(listing) {
   return featured ? [featured, ...gallery.filter((src) => src !== featured)] : gallery;
 }
 
-export function formatAddedOn(createdAt) {
+/** `locale` is optional and falls back to French, this app's default. */
+export function formatAddedOn(createdAt, locale) {
   if (!createdAt) return null;
   const date = new Date(createdAt);
   if (Number.isNaN(date.getTime())) return null;
-  return DATE_FORMATTER.format(date);
+  return dateFormatter(locale).format(date);
 }
 
 
@@ -79,7 +91,7 @@ export function formatAddedOn(createdAt) {
  * 24h/48h window off the raw timestamp), so a listing published at 23:00
  * yesterday reads "hier" this morning rather than "aujourd'hui".
  */
-export function formatFreshness(createdAt) {
+export function formatFreshness(createdAt, t) {
   if (!createdAt) return null;
   const date = new Date(createdAt);
   if (Number.isNaN(date.getTime())) return null;
@@ -87,9 +99,20 @@ export function formatFreshness(createdAt) {
   const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   const days = Math.round((startOfDay(new Date()) - startOfDay(date)) / 86400000);
 
-  if (days <= 0) return "Publiée aujourd'hui";
-  if (days === 1) return 'Publiée hier';
-  return `Publiée le ${DATE_FORMATTER.format(date)}`;
+  // No translator supplied: keep the original French wording rather than
+  // degrading to a bare date. This is the app's default language, so a call
+  // site that hasn't been passed a `t` still renders correct copy instead of
+  // losing the "Publiée" framing entirely — which is also what
+  // tests/unit/listing-view-amenities.test.js pins.
+  if (!t) {
+    if (days <= 0) return "Publiée aujourd'hui";
+    if (days === 1) return 'Publiée hier';
+    return `Publiée le ${dateFormatter().format(date)}`;
+  }
+
+  if (days <= 0) return t('listings.freshness.today');
+  if (days === 1) return t('listings.freshness.yesterday');
+  return t('listings.freshness.on', { date: dateFormatter(t.locale).format(date) });
 }
 
 
@@ -102,24 +125,37 @@ export function hasArea(area) {
 }
 
 /** The parcelle sub-type when there is one, otherwise the real category. */
-export function typeLabel(listing) {
-  return PARCELLE_SUBTYPE_LABELS[listing.parcelle_subtype] || listing.category_name || null;
+/**
+ * `t` is optional and the fallback is deliberate: `category_name` is a real
+ * value out of property_category_contents, not UI copy, so a caller with no
+ * translator still gets a correct label for every listing that has one. Only
+ * the parcelle sub-type is dictionary-backed, and only that branch needs `t`.
+ */
+export function typeLabel(listing, t) {
+  const subtypeKey = PARCELLE_SUBTYPE_LABEL_KEYS[listing.parcelle_subtype];
+  if (subtypeKey && t) return t(subtypeKey);
+  return listing.category_name || null;
 }
 
 /**
  * Spec items as structured pairs rather than a pre-joined string, so each
  * card can choose its own separator (hairline dividers, icons, or pipes).
  */
-export function specItems(listing) {
+export function specItems(listing, t) {
+  // `t` optional: a caller with no translator gets the dictionary keys' own
+  // French via the label fallback below rather than an exception.
+  const label = (key, fallback) => (t ? t(`listings.specs.${key}`) : fallback);
   const items = [];
-  if (listing.beds != null) items.push({ key: 'beds', value: listing.beds, label: 'ch' });
+  if (listing.beds != null) items.push({ key: 'beds', value: listing.beds, label: label('beds', 'ch') });
   // Same gotcha hasArea() exists for: bath can carry '' rather than a real
   // NULL, and '' != null is true, so a naive check rendered a bare "sdb"
   // with no number on any listing whose bathroom count was never recorded
   // — confirmed live on the homepage's "Derniers biens publiés" cards.
-  if (Number(listing.bath) > 0) items.push({ key: 'bath', value: listing.bath, label: 'sdb' });
-  if (hasArea(listing.area)) items.push({ key: 'area', value: listing.area, label: 'm²' });
-  if (listing.units_count != null) items.push({ key: 'units', value: listing.units_count, label: 'portes' });
+  if (Number(listing.bath) > 0) items.push({ key: 'bath', value: listing.bath, label: label('bath', 'sdb') });
+  if (hasArea(listing.area)) items.push({ key: 'area', value: listing.area, label: label('area', 'm²') });
+  if (listing.units_count != null) {
+    items.push({ key: 'units', value: listing.units_count, label: label('units', 'portes') });
+  }
   return items;
 }
 

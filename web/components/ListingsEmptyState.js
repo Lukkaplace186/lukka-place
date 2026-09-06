@@ -1,9 +1,19 @@
+'use client';
+
 import Link from 'next/link';
 import { SearchX } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { hrefWithoutKeys, hrefWithParam } from '@/lib/urlParams';
+import { useT } from '@/lib/i18n/client';
 
-const BEDS_LABEL = { beds_min: (v) => `${v}+ chambres`, property_type: (v) => v, bath_min: (v) => `${v}+ sdb` };
+// Each entry takes the translator so the chip reads in the visitor's own
+// language; `property_type` passes its value straight through because it is
+// already a resolved label, not a key.
+const RELAXABLE_LABEL = {
+  beds_min: (t, v) => t('listings.filters.bedsChip', { count: v }),
+  bath_min: (t, v) => t('listings.filters.bathChip', { count: v }),
+  property_type: (t, v) => v,
+};
 
 /**
  * Empty results.
@@ -21,13 +31,23 @@ const BEDS_LABEL = { beds_min: (v) => `${v}+ chambres`, property_type: (v) => v,
  * the blunt "clear everything" reset.
  */
 export default function ListingsEmptyState({ popularCommunes = [], params = {}, propertyTypeLabel }) {
+  const t = useT();
   const commune = params.commune;
   const quartier = params.quartier;
   const relaxable = [
-    params.beds_min ? { key: 'beds_min', label: `Retirer le filtre ${BEDS_LABEL.beds_min(params.beds_min)}` } : null,
-    params.bath_min ? { key: 'bath_min', label: `Retirer le filtre ${BEDS_LABEL.bath_min(params.bath_min)}` } : null,
+    params.beds_min
+      ? { key: 'beds_min', label: t('listings.filters.removeFilter', { label: RELAXABLE_LABEL.beds_min(t, params.beds_min) }) }
+      : null,
+    params.bath_min
+      ? { key: 'bath_min', label: t('listings.filters.removeFilter', { label: RELAXABLE_LABEL.bath_min(t, params.bath_min) }) }
+      : null,
     params.property_type
-      ? { key: 'property_type', label: `Retirer le filtre ${propertyTypeLabel || params.property_type}` }
+      ? {
+          key: 'property_type',
+          label: t('listings.filters.removeFilter', {
+            label: RELAXABLE_LABEL.property_type(t, propertyTypeLabel || params.property_type),
+          }),
+        }
       : null,
   ].filter(Boolean);
 
@@ -37,7 +57,7 @@ export default function ListingsEmptyState({ popularCommunes = [], params = {}, 
         <SearchX strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
       </span>
 
-      <h2 className="font-display text-xl font-normal tracking-[-0.01em] text-ink">Aucun bien ne correspond</h2>
+      <h2 className="font-display text-xl font-normal tracking-[-0.01em] text-ink">{t('listings.empty.title')}</h2>
       <p className="mx-auto mt-2 max-w-sm text-[0.875rem] leading-relaxed text-ink-45">
         {commune ? (
           // ['1','3','5'] km having all failed (getListings()'s radius ladder
@@ -47,17 +67,12 @@ export default function ListingsEmptyState({ popularCommunes = [], params = {}, 
           // offered, when a 5km real-distance search already ran and found
           // nothing.
           ['1', '3', '5'].includes(params.radius) ? (
-            <>
-              Aucun bien trouvé même en élargissant jusqu&rsquo;à 5 km autour de{' '}
-              <span className="font-semibold">{commune}</span>.
-            </>
+            t('listings.empty.noneWithin5km', { commune })
           ) : (
-            <>
-              Aucun bien ne correspond exactement à votre recherche à <span className="font-semibold">{commune}</span>.
-            </>
+            t('listings.empty.noExactAt', { commune })
           )
         ) : (
-          "Essayez d'élargir votre recherche — moins de filtres, une fourchette de prix plus large, ou une autre commune."
+          t('listings.empty.generic')
         )}
       </p>
 
@@ -68,7 +83,7 @@ export default function ListingsEmptyState({ popularCommunes = [], params = {}, 
               href={hrefWithParam(params, 'radius', 'commune')}
               className="u-press inline-flex items-center rounded-full border border-blue bg-blue-tint px-3.5 py-1.5 text-[0.8125rem] font-medium text-blue-deep transition-colors hover:bg-blue hover:text-white"
             >
-              Élargir à {commune} entière
+              {t('listings.empty.widenToCommune', { commune })}
             </Link>
           ) : null}
           {commune && params.radius !== 'citywide' ? (
@@ -76,7 +91,7 @@ export default function ListingsEmptyState({ popularCommunes = [], params = {}, 
               href={hrefWithParam(params, 'radius', 'citywide')}
               className="u-press inline-flex items-center rounded-full border border-blue bg-blue-tint px-3.5 py-1.5 text-[0.8125rem] font-medium text-blue-deep transition-colors hover:bg-blue hover:text-white"
             >
-              Élargir à Kinshasa entière
+              {t('listings.empty.widen')}
             </Link>
           ) : null}
           {commune ? (
@@ -101,7 +116,7 @@ export default function ListingsEmptyState({ popularCommunes = [], params = {}, 
 
       {popularCommunes.length > 0 ? (
         <>
-          <p className="u-eyebrow mt-8 mb-3">Communes avec des biens disponibles</p>
+          <p className="u-eyebrow mt-8 mb-3">{t('listings.empty.communesWithListings')}</p>
           <div className="flex flex-wrap justify-center gap-2">
             {popularCommunes.map(({ commune, count }) => (
               <Link
@@ -122,7 +137,7 @@ export default function ListingsEmptyState({ popularCommunes = [], params = {}, 
           href="/listings"
           className="inline-flex items-center rounded-full bg-blue px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary"
         >
-          Voir toutes les annonces
+          {t('listings.empty.seeAll')}
         </Link>
         {/* Real, working manual-request form (RequestForm.js) — reachable
             only from here (0 results) and from the dedicated dashboard tab
@@ -135,7 +150,7 @@ export default function ListingsEmptyState({ popularCommunes = [], params = {}, 
           href="/compte/client/demandes"
           className="inline-flex items-center rounded-full border border-line bg-surface px-6 py-2.5 text-sm font-semibold text-ink-70 transition-colors hover:border-blue hover:text-blue-deep"
         >
-          Trouver pour moi
+          {t('listings.empty.findForMe')}
         </Link>
       </div>
     </div>

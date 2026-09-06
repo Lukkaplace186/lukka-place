@@ -41,6 +41,22 @@
       "notProvided": "Not provided",
       "yes": "Yes",
       "no": "No"
+    },
+    "shared": {
+      "whatsapp": "WhatsApp",
+      "signIn": "Sign in",
+      "deletePermanently": "Delete permanently",
+      "transactionDate": "Transaction date",
+      "location": "Location",
+      "transaction": "Transaction",
+      "rentVerb": "Rent",
+      "sellVerb": "Sell",
+      "choose": "Choose…",
+      "linkCopied": "Link copied",
+      "somethingWentWrong": "Something went wrong.",
+      "saveChanges": "Save changes",
+      "viewOnline": "View online",
+      "noData": "No data yet"
     }
   },
   "nav": {
@@ -110,7 +126,8 @@
       "contactTitle": "Direct contact",
       "contactBody": "One WhatsApp line, the same for every listing. No forms, no unsolicited sales calls.",
       "pricesTitle": "Transparent prices",
-      "pricesBody": "Price, floor area and reference shown as they are, in dollars and in francs. No platform admin fees added."
+      "pricesBody": "Price, floor area and reference shown as they are, in dollars and in francs. No platform admin fees added.",
+      "eyebrow": "Our approach"
     },
     "trustHeading": "Who's behind this",
     "featuredHeading": "Newly verified in Kinshasa",
@@ -127,7 +144,25 @@
     "exploreCommunes": "Explore by commune",
     "currencyBridge": {
       "eyebrow": "From abroad",
-      "referenceRate": "Reference rate"
+      "referenceRate": "Reference rate",
+      "body": "in its commune, and a WhatsApp message puts you in touch directly — no middleman, whatever your time zone.",
+      "browse": "Browse properties",
+      "howItWorks": "How it works",
+      "rateNote": "are set in dollars — franc amounts are an indicative estimate, never the contractual price."
+    },
+    "transactions": {
+      "rentTitle": "Rent",
+      "rentBody": "Apartments and houses to rent, verified and ready to view.",
+      "buyTitle": "Buy",
+      "buyBody": "Apartments, villas and plots for sale in Kinshasa.",
+      "buyCta": "Properties for sale",
+      "sellTitle": "Sell",
+      "sellBody": "Got a property to list? Our team handles it from WhatsApp.",
+      "sellCta": "List my property"
+    },
+    "trust": {
+      "oneTeam": "One team, one number",
+      "body": "no abandoned listings. One WhatsApp line for a question, a viewing or a report."
     }
   },
   "about": {
@@ -198,7 +233,8 @@
       "priceUsdSection": "Price (USD)",
       "mapView": "Map",
       "listView": "List view",
-      "any": "Any"
+      "any": "Any",
+      "searchButton": "Search"
     },
     "sort": {
       "label": "Sort by",
@@ -279,7 +315,8 @@
         "one": "{count} month",
         "other": "{count} months"
       },
-      "squareMetres": "{value} m²"
+      "squareMetres": "{value} m²",
+      "reference": "Reference"
     },
     "price": {
       "displayed": "Displayed price",
@@ -369,7 +406,8 @@
       "verified": "Verified listing",
       "enlargePhoto": "Enlarge photo {n}",
       "previousPhoto": "Previous photo",
-      "nextPhoto": "Next photo"
+      "nextPhoto": "Next photo",
+      "allPhotos": "All photos"
     },
     "metrics": {
       "price": "Price",
@@ -378,10 +416,12 @@
     },
     "autocomplete": {
       "clear": "Clear search",
-      "suggestions": "Location suggestions"
+      "suggestions": "Location suggestions",
+      "recentSearches": "Recent searches"
     },
     "map": {
-      "loading": "Loading the map…"
+      "loading": "Loading the map…",
+      "viewDetails": "View details →"
     },
     "alertModal": {
       "intro": "You'll be alerted to new properties matching:",
@@ -395,7 +435,28 @@
     },
     "alert": {
       "create": "Alert me about new properties",
-      "created": "Alert created"
+      "created": "Alert created",
+      "createForSearch": "Create an alert for this search"
+    },
+    "authPrompt": {
+      "save": "Log in or create an account to save this search",
+      "alert": "Log in or create an account to create an alert",
+      "favorite": "Log in or create an account to save this property"
+    },
+    "related": {
+      "similar": "Similar properties",
+      "otherInKinshasa": "Other properties in Kinshasa",
+      "otherIn": "Other properties in {commune}",
+      "recommended": "Recommended",
+      "nearby": "Nearby",
+      "noneLeftIn": "No other property available in {commune} right now."
+    },
+    "viewVerified": "See verified listings",
+    "saveContact": "Save contact",
+    "favorite": {
+      "saved": "Saved",
+      "remove": "Remove from saved",
+      "add": "Add to saved"
     }
   },
   "enquiry": {
@@ -413,7 +474,12 @@
     "contactUnavailable": "Contact unavailable",
     "callAgent": "Call the agent",
     "messageSuffix": "and the listing link.",
-    "referenceNote": "The WhatsApp message is pre-filled with reference {reference} and the listing link."
+    "referenceNote": "The WhatsApp message is pre-filled with reference {reference} and the listing link.",
+    "errors": {
+      "phone": "Invalid number — check it and try again.",
+      "time": "Tell us the time that suits you.",
+      "failed": "Sending failed, please try again."
+    }
   },
   "search": {
     "label": {
@@ -528,7 +594,24 @@
       "archived_toast": "“{title}” archived — hidden from the site, nothing is deleted.",
       "relistForSale": "Put back on the market",
       "archiveHide": "Archive (hide from the site)",
-      "deleteOneBody": "“{title}” and its photos will be permanently removed from the site. This action cannot be undone."
+      "deleteOneBody": "“{title}” and its photos will be permanently removed from the site. This action cannot be undone.",
+      "emptyDashboard": "No listings yet. Click “Add a property” to publish your first one.",
+      "bulkArchived": {
+        "one": "{count} listing archived — hidden from the site.",
+        "other": "{count} listings archived — hidden from the site."
+      },
+      "bulkUnarchived": {
+        "one": "{count} listing put back online.",
+        "other": "{count} listings put back online."
+      },
+      "bulkDeleted": {
+        "one": "{count} listing deleted.",
+        "other": "{count} listings deleted."
+      },
+      "bulkDeletedWithFailures": "{deleted} deleted, {failed} failed.",
+      "let": "Let",
+      "editPrice": "Edit price",
+      "markAsLet": "Mark as let"
     },
     "leads": {
       "title": "Enquiries",
@@ -555,13 +638,27 @@
         "viewingBody": "Hello, I can arrange a viewing. Which day suits you?",
         "documentsLabel": "Send the documents",
         "documentsBody": "Hello, I'll send you the property documents shortly."
-      }
+      },
+      "noVisitsForFilter": "No viewings match this filter.",
+      "noVisitsYet": "No viewing requests yet.",
+      "otherAgencyOrFiltered": "another agency, or filtered out by the selected status.",
+      "emptyMessage": "Your message was empty — nothing was sent.",
+      "noRequestsForFilters": "No enquiries match these filters.",
+      "addListingToReceive": "Add a property to start receiving enquiries.",
+      "updateStatus": "Update",
+      "reply": "Reply",
+      "markHandled": "Mark as handled",
+      "proposeThis": "Propose this property"
     },
     "visits": {
       "confirm": "Confirm",
       "reschedule": "Reschedule",
       "newSlotProposed": "New time proposed",
-      "slotPlaceholder": "e.g. Saturday morning, 10am"
+      "slotPlaceholder": "e.g. Saturday morning, 10am",
+      "confirmed": "Viewing confirmed.",
+      "cancelled": "Viewing cancelled.",
+      "rescheduled": "New time proposed.",
+      "proposeSlot": "Propose this time"
     },
     "settings": {
       "title": "Settings",
@@ -592,7 +689,12 @@
       "publicPageTitle": "Your public page",
       "viewMyPage": "View my page",
       "photoUpdated": "Photo updated.",
-      "photoHint": "JPEG, PNG or WebP — 5 MB max."
+      "photoHint": "JPEG, PNG or WebP — 5 MB max.",
+      "passwordTooShort": "The new password must be at least 8 characters.",
+      "passwordMismatch": "The two passwords do not match.",
+      "wrongPassword": "Current password is incorrect.",
+      "nameRequired": "Enter at least a first or last name.",
+      "changePhoto": "Change photo"
     },
     "subscription": {
       "title": "Subscription",
@@ -613,7 +715,20 @@
       "expiredTitle": "Subscription expired",
       "publishedListings": "Published listings",
       "leadsHandledThisMonth": "Customer enquiries handled this month",
-      "noActivePlan": "No active plan"
+      "noActivePlan": "No active plan",
+      "noRenewal": "· No renewal",
+      "expiredBody": "Your properties are still saved, but your quota is no longer renewed.",
+      "listingQuotaReached": "Quota reached — archive a property or move to a higher plan to publish another.",
+      "leadQuotaReached": "Quota reached — resets on the 1st of next month.",
+      "noPlanBody": "You can publish and manage your properties, but without an active plan your publication and customer-enquiry quotas are not renewed.",
+      "whatsappQuestion": "Hello, I have a question about my Lukka Place subscription.",
+      "talkToTeam": "Talk to the team",
+      "manage": "Manage my subscription",
+      "seePlans": "See plans",
+      "howPaymentBody": "Lukka Place subscriptions are paid directly to the team — cash, bank transfer or Mobile Money. Choose your plan below: your request is recorded and an adviser contacts you on WhatsApp to activate it.",
+      "whatPlanDetermines": "Your plan determines three things: how many properties you can publish, how many customer enquiries you can handle each month, and your priority in the automatic matching of new requests in your communes.",
+      "beingProcessed": "being processed.",
+      "noPaymentsYet": "No payments recorded yet. Your history will appear here after your first activation."
     },
     "meta": {
       "title": "Agent area — Lukka Place"
@@ -635,7 +750,20 @@
       "movePhotoLeft": "Move photo left",
       "movePhotoRight": "Move photo right",
       "removePhoto": "Remove this photo",
-      "photoHint": "JPEG, PNG or WebP — 5 MB max per photo, 10 photos max."
+      "photoHint": "JPEG, PNG or WebP — 5 MB max per photo, 10 photos max.",
+      "savedWithPhotoWarning": "Changes saved, but some photos could not be uploaded.",
+      "savedAndPublished": "Changes saved and published.",
+      "searchFiltersHint": "that the search filters analyse.",
+      "amenitiesHint": "Tick what the property genuinely has. This information appears on the listing.",
+      "noPhotos": "This property has no photos. Add at least one.",
+      "addPhotos": "Add photos",
+      "complete": "Listing complete — photos and description at the recommended level.",
+      "forBetterVisibility": "For better visibility",
+      "createdWithPhotoWarning": "Listing created, but some photos could not be uploaded.",
+      "createdPendingReview": "Listing created — awaiting review by the Lukka Place team.",
+      "publicAfterReview": "Your listing will be publicly visible after review by the Lukka Place team.",
+      "editsPendingReview": "Your changes are saved immediately, but the property will only be publicly visible after review by the Lukka Place team.",
+      "noViewsInPeriod": "No views yet in this period."
     },
     "portfolio": {
       "toRent": "To rent",
@@ -645,7 +773,49 @@
       "sendMessage": "Send the agency a message",
       "requestSent": "Your enquiry has been sent",
       "noPreference": "No preference",
-      "messagePlaceholder": "Hello, I'm looking for a 3-bedroom house in Ngaliema for October."
+      "messagePlaceholder": "Hello, I'm looking for a 3-bedroom house in Ngaliema for October.",
+      "partnerAgency": "Partner agency",
+      "verifiedFem": "Verified",
+      "contactUnavailable": "Contact details unavailable",
+      "noListingsYet": "This agent has no properties online yet. Send them your search using the form.",
+      "directoryTitle": "Agents in Kinshasa",
+      "directoryLead": "verified listings.",
+      "directoryEmpty": "No active agents at the moment.",
+      "directoryMetaTitle": "Agents — Lukka Place",
+      "directoryMetaDescription": "Estate agents active in Kinshasa, with real listings published on Lukka Place.",
+      "hostedBy": "Portfolio hosted by Lukka Place",
+      "reportListing": "Report a listing",
+      "whatsappPublish": "Hello, I'd like to list a property on Lukka Place.",
+      "yourMessage": "Your message",
+      "yourPublicPortfolio": "Your public portfolio",
+      "pageReady": "Your page is ready for your properties",
+      "numberVerifiedBy": "Number verified by Lukka Place"
+    },
+    "completion": {
+      "nameLabel": "Name provided",
+      "nameHint": "Add your name to personalise your page.",
+      "bioLabel": "About written",
+      "bioHint": "Add a description of your agency.",
+      "phoneLabel": "WhatsApp number",
+      "phoneHint": "Add your WhatsApp number.",
+      "verifiedLabel": "Number verified",
+      "verifiedHint": "Verify your number to show the “Number verified” badge.",
+      "photoLabel": "Profile photo",
+      "photoHint": "Add a profile photo.",
+      "communesLabel": "Communes covered",
+      "communesHint": "Tell us which communes you cover.",
+      "listingLabel": "At least one property published",
+      "listingHint": "Publish your first property via WhatsApp."
+    },
+    "plans": {
+      "none": "No plan is open for subscription right now. Contact the Lukka Place team to find out what's available.",
+      "unlimitedListings": "Unlimited published listings",
+      "currentPlan": "Your current plan",
+      "request": "Request this plan"
+    },
+    "sold": {
+      "notDeleted": "deleted: the property stays on your dashboard and can be put back online at any time.",
+      "statsNote": "The price actually agreed — not the advertised price — and the date feed Lukka Place's market statistics. They are never published on the listing."
     }
   },
   "status": {
@@ -742,7 +912,10 @@
       "compareTitle": {
         "one": "Compare {count} property",
         "other": "Compare {count} properties"
-      }
+      },
+      "syncedNote": "Your saved properties and searches are kept on your account, reachable from any device.",
+      "whatsappAlert": "Hello, I'd like to be notified about new properties matching my search.",
+      "signInPrompt": "Sign in to find your saved properties and searches again."
     },
     "alerts": {
       "title": "My alerts",
@@ -757,7 +930,19 @@
       "editSearch": "Edit search",
       "editSearchNamed": "Edit the search “{label}”",
       "deleteSearch": "Delete the search {label}",
-      "deleteAlert": "Delete alert"
+      "deleteAlert": "Delete alert",
+      "lead": "New listings matching your saved searches, since your last visit here.",
+      "saveToGetAlerts": "Save a search from the listings page to be alerted about matching new properties.",
+      "howItWorksBody": "Your alerts live here: on every visit, each search is re-run and the properties published since you were last here are highlighted.",
+      "newResults": {
+        "one": "{count} result",
+        "other": "{count} results"
+      },
+      "newSinceLastVisit": {
+        "one": "{count} new result since your last visit",
+        "other": "{count} new results since your last visit"
+      },
+      "noneSinceLastVisit": "No new results since your last visit"
     },
     "requests": {
       "title": "My enquiries",
@@ -793,7 +978,21 @@
         "one": "{count} agency interested",
         "other": "{count} agencies interested"
       },
-      "agenciesAnalysing": "Agencies reviewing"
+      "agenciesAnalysing": "Agencies reviewing",
+      "willAppearHere": "Your enquiries will appear here from your first submission, along with how far each agency has got.",
+      "customSearchNoListing": "Custom search, not tied to a listing",
+      "viewProgress": "View progress",
+      "onWhatsAppAtNumber": "on WhatsApp, at the number linked to your account.",
+      "ourAgents": "our agents",
+      "emptyBody2": "Contact an agency from a listing, or describe the property you're looking for: your conversations will appear here.",
+      "proposalsCount": {
+        "one": "{count} proposed",
+        "other": "{count} proposed"
+      },
+      "proposedBy": {
+        "one": "Property proposed by",
+        "other": "Properties proposed by"
+      }
     },
     "requestForm": {
       "title": "Find one for me",
@@ -825,7 +1024,13 @@
       "bedrooms4plus": "4 or more",
       "moveInDateTitle": "Preferred move-in date",
       "transactionTypeLabel": "Transaction type",
-      "metaTitle": "Find one for me — Lukka Place"
+      "metaTitle": "Find one for me — Lukka Place",
+      "dateFirm": "Fixed date",
+      "flexibleWeek": "Flexible within a week",
+      "flexibleMonth": "Flexible within a month",
+      "updatedWithReset": "Search updated — new proposals reset.",
+      "updated": "Search updated.",
+      "submit": "Send my request"
     },
     "profile": {
       "title": "My profile",
@@ -843,7 +1048,10 @@
       "sessionNote": "Logging out ends all your open sessions, on this device and on any other.",
       "closeAccount": "Close account",
       "closeAccountNote": "Your saved listings and saved searches will be permanently deleted.",
-      "deleteConfirm": "Delete your account?"
+      "deleteConfirm": "Delete your account?",
+      "deleteAccount": "Delete my account",
+      "deleteBody": "Your saved listings and searches will be permanently deleted. This action cannot be undone.",
+      "resetNote": "any password reset goes through."
     }
   },
   "admin": {
@@ -888,7 +1096,9 @@
       "topCommunes": "Most viewed communes",
       "commune": "Commune",
       "pageViews": "Page views",
-      "conversionRate": "Conversion rate (listings)"
+      "conversionRate": "Conversion rate (listings)",
+      "excludesBots": "Excludes bots and views from before tracking",
+      "direct": "Direct"
     },
     "listings": {
       "title": "Property Approvals",
@@ -948,7 +1158,18 @@
       "internalNotes": "Internal notes",
       "notesPlaceholder": "Never visible to the customer…",
       "linkedLeads": "Linked leads",
-      "noLinkedLeads": "No leads for this conversation."
+      "noLinkedLeads": "No leads for this conversation.",
+      "transaction": "Transaction",
+      "propertyType": "Property type",
+      "commune": "Commune",
+      "quartier": "Neighbourhood",
+      "priceMin": "Min price",
+      "priceMax": "Max price",
+      "bedrooms": "Bedrooms",
+      "aiSilentAgentInControl": "AI silent (agent in control)",
+      "composerHint": "Write a message (does NOT automatically silence the AI — remember “Take over”)",
+      "composerPlaceholder": "Write a reply…",
+      "composerHintPlain": "Write a message (does NOT automatically silence the AI — remember “Take over”)"
     },
     "agents": {
       "title": "Agent Verification",
@@ -967,7 +1188,17 @@
       "noAgency": "— No agency —",
       "ok": "OK",
       "communesUnavailable": "Commune list unavailable (engine unreachable)",
-      "noActiveSubscription": "No active subscription"
+      "noActiveSubscription": "No active subscription",
+      "backToAgents": "Back to agents",
+      "verified": "Verified",
+      "notVerified": "Not verified",
+      "sameNumber": "Same number",
+      "sameEmail": "Same email",
+      "alreadyCovered": "Already covered: this is one of the agency's specialities.",
+      "transferred": {
+        "one": "{count} listing transferred.",
+        "other": "{count} listings transferred."
+      }
     },
     "actions": {
       "approve": "Approve",
@@ -999,7 +1230,13 @@
       "periodicity": "Billing period",
       "marketStatus": "Market status",
       "finalPrice": "Agreed final price (USD)",
-      "transactionDate": "Transaction date"
+      "transactionDate": "Transaction date",
+      "backToListings": "Back to listings",
+      "hidden": "Hidden",
+      "suspended": "Listing suspended — removed from the public site.",
+      "putBackOnline": "Listing back online.",
+      "visibleOnSite": "Visible on lukkaplace.com",
+      "hiddenFromSite": "Hidden from the public site"
     },
     "subscriptions": {
       "lead": "Plans, assignment to agents and payment tracking.",
@@ -1038,7 +1275,15 @@
       "priority": "Priority (×)",
       "unlimited": "unlimited",
       "expiresOn": "Expires on",
-      "daysToAdd": "Days to add"
+      "daysToAdd": "Days to add",
+      "planRequestsHint2": "records the payment in the log below, in a single action.",
+      "noInventedFigure": "invented figure in the payments log.",
+      "addPlan": "+ Add a plan",
+      "quotasHint": "These three values apply in real time: the cap on published listings, the number of",
+      "quotasHint2": "of new requests.",
+      "cancelled": "Cancelled",
+      "unfeature": "Remove from Featured",
+      "agencyRequired": "An agency must be assigned — featured_properties.vendor_id is required in the database, and no agent is linked to this listing yet"
     },
     "matching": {
       "engineUnreachable": "The matching engine is unreachable.",
@@ -1050,7 +1295,11 @@
       "responses": "Responses",
       "agencyResponsiveness": "Agency responsiveness",
       "alertsReceived": "Alerts received",
-      "howRankingWorks": "How ranking works"
+      "howRankingWorks": "How ranking works",
+      "lead": "Every customer request is ranked and pushed to the 7 best agencies in its commune, on WhatsApp, the second it is submitted.",
+      "coverageGapBody": "These customers described what they are looking for and nobody was notified — no registered agency covers their commune, or the request named none. It is the one metric on this page that shows where to recruit.",
+      "rankingBody": "plan, then weighted by its recent responsiveness and by how many requests it has already received, so that one commune's flow does not concentrate on a single agency.",
+      "noAgency": "No agency"
     },
     "agentPanel": {
       "identityAndTerritory": "Identity and territory",
@@ -1063,12 +1312,21 @@
       "coverage": "Coverage (other communes served)",
       "accessAndSecurity": "Access and security",
       "transferPortfolio": "Transfer portfolio",
-      "destinationAgent": "Destination agent"
+      "destinationAgent": "Destination agent",
+      "verifiedHint": "for automatic listing attribution. Only untick it if the number turns out not to belong to this agency.",
+      "coverageHint": "Specialities are covered automatically. Coverage decides which customer requests",
+      "sendLoginLink": "Send a WhatsApp login link",
+      "closeAllSessions": "Close all sessions",
+      "loginLinkHint": "The login link replaces a temporary password: it goes to the agency's already-verified number, closes all of its open sessions, and nobody at Lukka Place knows its password.",
+      "transferHint": "to do before suspending an account: with no agent attached, every listing falls back to the central WhatsApp number.",
+      "chooseAgent": "Choose an agent…",
+      "transfer": "Transfer"
     },
     "cms": {
       "exchangeRate": "Exchange rate (USD → CDF)",
       "homeBanners": "Home banners (sliders)",
-      "adBanners": "Advertising banners"
+      "adBanners": "Advertising banners",
+      "rateNote": "Manual rate shown on the public site, never a live exchange feed — see web/CLAUDE.md. Edit"
     }
   },
   "errors": {
@@ -1123,7 +1381,15 @@
     "requestNotSaved": "Your request could not be saved. Please try again in a moment.",
     "requestNotSent": "Your request could not be sent. Please try again in a moment.",
     "requestNotYours": "This request does not belong to your account.",
-    "requestNotUpdated": "Your request could not be updated. Please try again in a moment."
+    "requestNotUpdated": "Your request could not be updated. Please try again in a moment.",
+    "invalidCount": "Invalid number of {field}.",
+    "fieldBedrooms": "bedrooms",
+    "fieldBathrooms": "bathrooms",
+    "fieldDoors": "doors",
+    "fieldDepositMonths": "deposit months",
+    "agentNoWhatsApp": "This agent has no WhatsApp number on record.",
+    "sendFailedShort": "Sending failed.",
+    "actionFailed": "The action failed."
   },
   "auth": {
     "forgotPassword": "Forgotten password",
@@ -1138,7 +1404,56 @@
     "agentLoginLead": "Manage your listings and your leads.",
     "verifyMetaTitle": "Verification — Lukka Place",
     "customerSignupMetaTitle": "Create an account — Lukka Place",
-    "forgotPasswordMetaTitle": "Forgotten password — Lukka Place"
+    "forgotPasswordMetaTitle": "Forgotten password — Lukka Place",
+    "errors": {
+      "linkInvalid": "This link is no longer valid. Send another WhatsApp message to receive a new one.",
+      "passwordTooShort": "Choose a password of at least 8 characters.",
+      "passwordMismatch": "The two passwords do not match.",
+      "phoneInvalid": "Invalid phone number.",
+      "sendFailed": "We can't send a code right now.",
+      "codeInvalid": "Incorrect code.",
+      "codeExpired": "This code has expired — request a new one.",
+      "passwordsMismatch": "The passwords do not match.",
+      "passwordMin8": "The password must be at least 8 characters.",
+      "resendFailed": "We can't send a new code right now.",
+      "nameRequired": "Enter your agency name or your full name.",
+      "accountExists": "An account already exists with this number.",
+      "otpFailed": "Sending the verification code failed — please try again.",
+      "badCredentials": "Incorrect number or password.",
+      "locked": "Too many attempts — try again in 15 minutes."
+    },
+    "activate": {
+      "expiredBody": "This activation link is no longer valid — it may already have been used, or it has passed its expiry. Your properties are still saved: only dashboard access is pending.",
+      "requestNewLink": "Get a new link on WhatsApp",
+      "alreadyHavePassword": "I already have a password — log in",
+      "choosePasswordBody": "verified. Choose a password to access your dashboard.",
+      "submit": "Activate my account",
+      "whatsappExpired": "Hello, my Lukka Place activation link has expired. Could you send me a new one?"
+    },
+    "password": "Password",
+    "confirmPassword": "Confirm password",
+    "phoneNumber": "Phone number",
+    "verificationCode": "Verification code",
+    "forgot": {
+      "lead": "Enter your phone number — a verification code will be sent to you on WhatsApp.",
+      "receiveCode": "Get a code",
+      "contactSupport": "Contact WhatsApp support",
+      "backToLogin": "Back to login",
+      "whatsappHelp": "Hello, I can't reset my password on Lukka Place.",
+      "whatsappCodeHelp": "Hello, I'm not receiving my password reset code on Lukka Place.",
+      "reset": "Reset password",
+      "codeNotReceived": "Code not received? Try again via WhatsApp"
+    },
+    "signup": {
+      "codeWillBeSent": "A verification code will be sent to this number on WhatsApp.",
+      "receiveCode": "Get my code"
+    },
+    "createMyAccount": "Create my account",
+    "passwordReset": "Password reset — log in with your new password.",
+    "enterSixDigitCode": "Enter the 6-digit code you received on WhatsApp.",
+    "verify": "Verify",
+    "signupKeepsLocal": "The saved listings and searches already on this device will be kept.",
+    "newCodeSent": "A new code has been sent."
   },
   "updates": {
     "title": "Updates",
@@ -1146,7 +1461,14 @@
     "planTitle": "Preparing your purchase or rental",
     "messagesTitle": "Your conversations happen on WhatsApp",
     "metaTitle": "Updates — Lukka Place",
-    "metaDescription": "Alerts for new property listings in Kinshasa."
+    "metaDescription": "Alerts for new property listings in Kinshasa.",
+    "planMetaTitle": "Planning — Lukka Place",
+    "planMetaDescription": "Planning tools for your property search in Kinshasa.",
+    "planBody1": "A budget simulator would need real financing rates, which Lukka Place does not have. Instead",
+    "planBody2": "What you can already do: every listing shows its exact price, its floor area and its price per square metre, in dollars and in francs, with no fees added by the platform.",
+    "alertsSignedInOnly": "Alerts are for signed-in visitors — create an account to see new listings matching your saved searches.",
+    "saveSearchMeanwhile": "In the meantime you can save a search from the listings page: it is kept on this device and stays reachable from your saved listings.",
+    "messagesLead": "Lukka Place has no internal inbox. Every conversation about a listing happens directly on WhatsApp, with no account and no form."
   },
   "site": {
     "metaTitle": "Lukka Place — Property in Kinshasa",

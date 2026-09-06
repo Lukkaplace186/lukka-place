@@ -6,6 +6,7 @@ import PropertyCard from '@/components/PropertyCard';
 import { getCurrentCustomerId, listSavedSearches, touchSavedSearchesViewed } from '@/lib/customers';
 import { getSavedSearchMatches } from '@/lib/alerts';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { getT } from '@/lib/i18n/server';
 
 export const metadata = {
   title: 'Alertes — Lukka Place',
@@ -27,6 +28,7 @@ const SHOWN_PER_SEARCH = 6;
  * page's own visit doesn't zero out the very numbers it's about to show.
  */
 export default async function AlertesPage() {
+  const t = await getT();
   const customerId = await getCurrentCustomerId();
   if (!customerId) redirect('/compte/connexion?next=/compte/alertes');
 
@@ -44,14 +46,14 @@ export default async function AlertesPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
-      <Breadcrumb className="mb-6" items={[{ label: 'Accueil', href: '/' }, { label: 'Alertes' }]} />
+      <Breadcrumb className="mb-6" items={[{ label: t('breadcrumb.home'), href: '/' }, { label: t('nav.alerts') }]} />
 
       <header className="mb-10">
         <h1 className="u-title-hero text-ink">
-          Alertes
+          {t('nav.alerts')}
         </h1>
         <p className="mt-3 text-[0.9375rem] leading-relaxed text-ink-45">
-          Les nouvelles annonces correspondant à vos recherches sauvegardées, depuis votre dernière visite ici.
+          {t('account.alerts.lead')}
         </p>
       </header>
 
@@ -60,15 +62,15 @@ export default async function AlertesPage() {
           <span className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-canvas-alt text-ink-45">
             <Bookmark strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
           </span>
-          <h3 className="u-title-section text-ink">Aucune recherche sauvegardée</h3>
+          <h3 className="u-title-section text-ink">{t('account.alerts.emptyTitle')}</h3>
           <p className="mx-auto mt-2 max-w-sm text-[0.875rem] leading-relaxed text-ink-45">
-            Sauvegardez une recherche depuis la page des annonces pour être alerté des nouveaux biens correspondants.
+            {t('account.alerts.saveToGetAlerts')}
           </p>
           <Link
             href="/listings"
             className="mt-7 inline-flex items-center rounded-full bg-blue px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary"
           >
-            Parcourir les annonces
+            {t('account.favorites.browseListings')}
           </Link>
         </div>
       ) : (

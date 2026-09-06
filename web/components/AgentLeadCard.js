@@ -11,12 +11,13 @@ import { formatPrice } from '@/lib/format';
 import { bestMatch } from '@/lib/agentMatching';
 import { proposeListingAction } from '@/app/compte/agent/actions';
 import { useToast } from './Toast';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * The design's inquiry card, cloned: contact name + state tag + relative
  * time on one row, the message body, a hairline-topped meta row of
  * icon/value pairs, and a fixed 264px action column carrying a primary
- * "Répondre" over a ghost "Marquer comme traitée". Opening Répondre expands
+ * t('agent.leads.reply') over a ghost t('agent.leads.markHandled'). Opening Répondre expands
  * a full-width composer across the bottom of the card.
  *
  * Everything the composer does is real: the textarea posts to
@@ -50,9 +51,9 @@ const STATUS_TAG = {
 };
 
 const QUICK_REPLIES = [
-  { label: 'Bien disponible', text: 'Bonjour, oui le bien est toujours disponible.' },
-  { label: 'Proposer une visite', text: 'Bonjour, je peux organiser une visite. Quel jour vous arrange ?' },
-  { label: 'Envoyer les documents', text: 'Bonjour, je vous envoie les documents du bien dans un instant.' },
+  { labelKey: 'agent.leads.quickReplies.availableLabel', textKey: 'agent.leads.quickReplies.availableBody' },
+  { labelKey: 'agent.leads.quickReplies.viewingLabel', textKey: 'agent.leads.quickReplies.viewingBody' },
+  { labelKey: 'agent.leads.quickReplies.documentsLabel', textKey: 'agent.leads.quickReplies.documentsBody' },
 ];
 
 export default function AgentLeadCard({
@@ -67,6 +68,7 @@ export default function AgentLeadCard({
   myListings = [],
   highlighted = false,
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [proposeOpen, setProposeOpen] = useState(false);
   const [proposePending, startProposeTransition] = useTransition();
@@ -86,7 +88,7 @@ export default function AgentLeadCard({
         showToast({ type: 'error', message: result.error });
         return;
       }
-      showToast({ type: 'success', message: 'Bien proposé au client.' });
+      showToast({ type: 'success', message: t('agent.leads.propertyProposed') });
       setProposeOpen(false);
       router.refresh();
     });
@@ -104,7 +106,7 @@ export default function AgentLeadCard({
       {highlighted && (
         <p className="u-micro-strong mb-4 inline-flex items-center gap-1.5 rounded-full bg-blue-tint px-3 py-1 text-blue-deep">
           <Target strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
-          La demande de votre alerte WhatsApp
+          {t('agent.leads.fromWhatsAppAlert')}
         </p>
       )}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_16.5rem] lg:items-center">
@@ -162,7 +164,7 @@ export default function AgentLeadCard({
             className="u-btn-primary u-press inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue text-sm font-bold text-white"
           >
             <Send strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
-            {open ? 'Fermer' : 'Répondre'}
+            {open ? 'Fermer' : t('agent.leads.reply')}
           </button>
 
           {myListings.length > 0 && (
@@ -172,7 +174,7 @@ export default function AgentLeadCard({
               className="u-btn-secondary u-press inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-lg text-[0.8125rem] font-bold text-ink"
             >
               <Building2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-              Proposer un bien
+              {t('agent.leads.proposeProperty')}
             </button>
           )}
 
@@ -183,7 +185,7 @@ export default function AgentLeadCard({
               className="u-press inline-flex h-9 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg text-[0.8125rem] font-semibold text-ink-45 transition-colors hover:bg-canvas-alt hover:text-ink"
             >
               <Check strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-              {lead.status === 'QUALIFIED' ? 'Marquer comme convertie' : 'Marquer comme traitée'}
+              {lead.status === 'QUALIFIED' ? 'Marquer comme convertie' : t('agent.leads.markHandled')}
             </button>
           </form>
         </div>
@@ -200,19 +202,19 @@ export default function AgentLeadCard({
             name="text"
             rows={3}
             required
-            placeholder="Bonjour, le bien est disponible. Quel jour vous arrange pour la visite ?"
+            placeholder={t('agent.leads.quickReplies.viewingBody')}
             className="u-focus-ring resize-y rounded-lg border border-line bg-surface p-3 text-sm leading-relaxed text-ink placeholder:text-ink-35"
           />
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex flex-wrap gap-2">
               {QUICK_REPLIES.map((q) => (
                 <button
-                  key={q.label}
+                  key={q.labelKey}
                   type="button"
-                  onClick={() => insertQuickReply(q.text)}
+                  onClick={() => insertQuickReply(t(q.textKey))}
                   className="u-press rounded-full bg-canvas-alt px-3 py-1.5 text-xs font-semibold text-ink-70 transition-colors hover:bg-canvas-deep hover:text-ink"
                 >
-                  {q.label}
+                  {t(q.labelKey)}
                 </button>
               ))}
             </div>
@@ -222,14 +224,14 @@ export default function AgentLeadCard({
                 onClick={() => setOpen(false)}
                 className="u-press h-9 rounded-lg px-3.5 text-[0.8125rem] font-semibold text-ink-45 transition-colors hover:bg-canvas-alt hover:text-ink"
               >
-                Annuler
+                {t('common.actions.cancel')}
               </button>
               <button
                 type="submit"
                 className="u-btn-primary u-press inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-lg bg-blue px-3.5 text-[0.8125rem] font-bold text-white"
               >
                 <Send strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-                Envoyer le message
+                {t('agent.leads.sendMessage')}
               </button>
             </div>
           </div>
@@ -259,17 +261,16 @@ export default function AgentLeadCard({
           type="submit"
           className="u-press h-8 rounded-full border border-line px-2.5 text-xs font-medium text-ink transition-colors hover:bg-canvas-alt"
         >
-          Mettre à jour
+          {t('agent.leads.updateStatus')}
         </button>
       </form>
 
       <Dialog open={proposeOpen} onOpenChange={setProposeOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Proposer un bien</DialogTitle>
+            <DialogTitle>{t('agent.leads.proposeProperty')}</DialogTitle>
             <DialogDescription>
-              Choisissez un bien publié et actif de votre portefeuille. Le client le verra dans son espace
-              Lukka Place et pourra vous contacter directement.
+              {t('agent.leads.proposeHint')}
             </DialogDescription>
           </DialogHeader>
 
@@ -281,7 +282,7 @@ export default function AgentLeadCard({
               className="u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink"
             >
               <option value="" disabled>
-                Choisir un bien…
+                {t('agent.leads.choosePropertyPlaceholder')}
               </option>
               {myListings.map((listing) => (
                 <option key={listing.id} value={listing.id}>
@@ -297,7 +298,7 @@ export default function AgentLeadCard({
                   type="button"
                   className="u-press inline-flex h-11 items-center rounded-lg px-4 text-sm font-semibold text-ink-45 hover:bg-canvas-alt hover:text-ink"
                 >
-                  Annuler
+                  {t('common.actions.cancel')}
                 </button>
               </DialogClose>
               <button
@@ -305,7 +306,7 @@ export default function AgentLeadCard({
                 disabled={proposePending}
                 className="u-btn-primary u-press h-11 rounded-lg bg-blue px-5 text-sm font-bold text-white disabled:opacity-60"
               >
-                {proposePending ? 'Envoi…' : 'Proposer ce bien'}
+                {proposePending ? 'Envoi…' : t('agent.leads.proposeThis')}
               </button>
             </DialogFooter>
           </form>

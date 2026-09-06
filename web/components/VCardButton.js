@@ -1,10 +1,13 @@
 'use client';
 
+import { useT } from '@/lib/i18n/client';
+
 /**
  * Pure client-side vCard generation from real fields only (name/phone/email)
  * — no server round-trip, nothing invented for a field that's null.
  */
 export default function VCardButton({ name, phone, email }) {
+  const t = useT();
   function handleClick() {
     const lines = [
       'BEGIN:VCARD',
@@ -32,7 +35,7 @@ export default function VCardButton({ name, phone, email }) {
       onClick={handleClick}
       className="u-press inline-flex items-center justify-center rounded-xl border border-line px-3.5 py-2 text-sm font-medium text-ink-70 transition-colors hover:bg-canvas-alt"
     >
-      Enregistrer le contact
+      {t('listings.saveContact')}
     </button>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTransition } from 'react';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * The range selector on the design's "Vues de vos annonces" card. Navigates
@@ -15,6 +16,7 @@ import { useTransition } from 'react';
  * puts the whole page inside a Suspense boundary.
  */
 export default function AgentChartRangeSelect({ options, value }) {
+  const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [pending, startTransition] = useTransition();
@@ -29,7 +31,7 @@ export default function AgentChartRangeSelect({ options, value }) {
     <select
       value={value}
       onChange={onChange}
-      aria-label="Période du graphique"
+      aria-label={t('agent.overview.chartRange')}
       data-pending={pending ? '' : undefined}
       className="u-focus-ring h-10 w-[9.5rem] rounded-lg border border-line bg-surface px-3 text-[0.8125rem] font-medium text-ink data-pending:opacity-60"
     >

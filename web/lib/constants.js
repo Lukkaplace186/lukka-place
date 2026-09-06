@@ -16,10 +16,19 @@ export const HERO_TRANSACTION_BY_TAB = { louer: 'location', acheter: 'vente' };
 
 // Matches services/openai.js's PARCELLE_SUBTYPES in the engine repo exactly —
 // shared between SearchBar (homepage) and FilterBar (/listings).
+/*
+ * `labelKey` rather than `label` throughout this file.
+ *
+ * These are module-level constants evaluated once at import, so a literal
+ * string here would be frozen in whichever language loaded first and would
+ * never follow the language toggle. The `value`/`key` side is untouched —
+ * those are the real query-param and database values, and translating them
+ * would change what gets filtered, not just what gets read.
+ */
 export const PARCELLE_SUBTYPES = [
-  { value: 'maison_type_locataire', label: 'Maison Type Locataire' },
-  { value: 'villa', label: 'Villa' },
-  { value: 'terrain_nu', label: 'Terrain Nu' },
+  { value: 'maison_type_locataire', labelKey: 'listings.parcelleSubtype.maison_type_locataire' },
+  { value: 'villa', labelKey: 'listings.parcelleSubtype.villa' },
+  { value: 'terrain_nu', labelKey: 'listings.parcelleSubtype.terrain_nu' },
 ];
 
 // lucide-react convention — import icons individually (`import { Search } from
@@ -50,21 +59,21 @@ export const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://lukkaplace.
  * "Appartement disponibles"; anything not listed falls back to the raw label.
  * 'Duplex' is invariable in French and is listed to document that.
  */
-export const PROPERTY_TYPE_PLURALS = {
-  parcelle: 'Parcelles',
-  appartement: 'Appartements',
-  maison: 'Maisons',
-  duplex: 'Duplex',
-  terrain: 'Terrains',
-  batiment: 'Bâtiments',
-  boutique: 'Boutiques',
-  entrepot: 'Entrepôts',
+export const PROPERTY_TYPE_PLURAL_KEYS = {
+  parcelle: 'listings.typePlurals.parcelle',
+  appartement: 'listings.typePlurals.appartement',
+  maison: 'listings.typePlurals.maison',
+  duplex: 'listings.typePlurals.duplex',
+  terrain: 'listings.typePlurals.terrain',
+  batiment: 'listings.typePlurals.batiment',
+  boutique: 'listings.typePlurals.boutique',
+  entrepot: 'listings.typePlurals.entrepot',
 };
 
 export const TRANSACTION_OPTIONS = [
-  { value: '', label: 'Tous' },
-  { value: 'vente', label: 'À vendre' },
-  { value: 'location', label: 'À louer' },
+  { value: '', labelKey: 'listings.transaction.all' },
+  { value: 'vente', labelKey: 'listings.transaction.sale' },
+  { value: 'location', labelKey: 'listings.transaction.rent' },
 ];
 
 /**
@@ -92,28 +101,28 @@ export const TRANSACTION_OPTIONS = [
  */
 export const AMENITY_GROUPS = [
   {
-    title: 'Énergie & Eau',
+    titleKey: 'listings.amenityGroups.energyWater',
     options: [
-      { key: 'generator', label: 'Groupe électrogène' },
-      { key: 'solar', label: 'Panneaux solaires / Inverseur' },
-      { key: 'borehole', label: "Forage / Citerne d'eau" },
-      { key: 'dedicated_line', label: 'Ligne SNEL dédiée' },
+      { key: 'generator', labelKey: 'listings.amenities.generator' },
+      { key: 'solar', labelKey: 'listings.amenities.solar' },
+      { key: 'borehole', labelKey: 'listings.amenities.borehole' },
+      { key: 'dedicated_line', labelKey: 'listings.amenities.dedicated_line' },
     ],
   },
   {
-    title: 'Accessibilité & Sécurité',
+    titleKey: 'listings.amenityGroups.accessSecurity',
     options: [
-      { key: 'paved_road', label: 'Route asphaltée / pavée' },
-      { key: 'security', label: 'Clôture / Gardiennage' },
-      { key: 'parking', label: 'Parking intérieur' },
+      { key: 'paved_road', labelKey: 'listings.amenities.paved_road' },
+      { key: 'security', labelKey: 'listings.amenities.security' },
+      { key: 'parking', labelKey: 'listings.amenities.parking' },
     ],
   },
   {
-    title: 'Conditions de location',
+    titleKey: 'listings.amenityGroups.rentalTerms',
     options: [
-      { key: 'ac', label: 'Climatisation' },
-      { key: 'furnished', label: 'Meublé' },
-      { key: 'semi_furnished', label: 'Semi-meublé' },
+      { key: 'ac', labelKey: 'listings.amenities.ac' },
+      { key: 'furnished', labelKey: 'listings.amenities.furnished' },
+      { key: 'semi_furnished', labelKey: 'listings.amenities.semi_furnished' },
     ],
   },
 ];
@@ -154,9 +163,9 @@ export const AMENITY_KEYWORDS = {
  * whenever this filter is active.
  */
 export const DEPOSIT_MAX_OPTIONS = [
-  { value: '', label: 'Toutes' },
-  { value: '1', label: '1 mois' },
-  { value: '3', label: '3 mois' },
-  { value: '6', label: '6 mois' },
-  { value: '10', label: '10+ mois' },
+  { value: '', labelKey: 'listings.depositMax.any' },
+  { value: '1', labelKey: 'listings.depositMax.1' },
+  { value: '3', labelKey: 'listings.depositMax.3' },
+  { value: '6', labelKey: 'listings.depositMax.6' },
+  { value: '10', labelKey: 'listings.depositMax.10' },
 ];

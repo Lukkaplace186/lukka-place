@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * The design's sticky portal tab bar ("Espace Client" canvas): a white
@@ -32,23 +33,25 @@ import { cn } from '@/lib/utils';
  * itself — that function's real return shape stays the honest per-metric
  * one other callers still rely on.
  */
+// Keys, not text — see components/navItems.js.
 const TABS = [
-  { href: '/compte/client', label: 'Favoris & Alertes', exact: true, countKey: 'savedTotal' },
-  { href: '/compte/client/messages', label: 'Messages & Visites', countKey: 'inquiries' },
-  { href: '/compte/client/demandes', label: 'Trouver pour moi' },
-  { href: '/compte/client/parametres', label: 'Mon profil' },
+  { href: '/compte/client', labelKey: 'account.portal.tabs.favorites', exact: true, countKey: 'savedTotal' },
+  { href: '/compte/client/messages', labelKey: 'account.portal.tabs.messages', countKey: 'inquiries' },
+  { href: '/compte/client/demandes', labelKey: 'account.portal.tabs.findForMe' },
+  { href: '/compte/client/parametres', labelKey: 'account.portal.tabs.profile' },
 ];
 
 export default function ClientPortalTabs({ counts = {} }) {
+  const t = useT();
   const pathname = usePathname();
 
   return (
     <div className="sticky top-16 z-20 border-y border-line bg-surface">
       <nav
-        aria-label="Espace client"
+        aria-label={t('account.portal.title')}
         className="no-scrollbar mx-auto flex max-w-[77.5rem] gap-1.5 overflow-x-auto px-4 sm:px-6 lg:px-8"
       >
-        {TABS.map(({ href, label, exact, countKey }) => {
+        {TABS.map(({ href, labelKey, exact, countKey }) => {
           const active = exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
           const count = countKey ? counts[countKey] : null;
 
@@ -62,7 +65,7 @@ export default function ClientPortalTabs({ counts = {} }) {
                 active ? 'font-bold text-ink' : 'font-medium text-ink-45 hover:text-ink-70',
               )}
             >
-              <span>{label}</span>
+              <span>{t(labelKey)}</span>
               {count ? (
                 <span
                   className={cn(

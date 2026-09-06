@@ -1,5 +1,8 @@
+'use client';
+
 import { SPEC_ICONS } from './SpecIcons';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * The full-word label for a spec key, for the stacked card grid. `specItems()`
@@ -8,11 +11,11 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  * wants the real word above the value, so the two vocabularies live side by
  * side rather than one being rewritten into the other.
  */
-const SPEC_COLUMN_LABELS = {
-  beds: 'Chambres',
-  bath: 'Salles de bain',
-  area: 'Surface',
-  units: 'Portes',
+const SPEC_COLUMN_LABEL_KEYS = {
+  beds: 'listings.facts.bedrooms',
+  bath: 'listings.facts.bathrooms',
+  area: 'listings.facts.area',
+  units: 'listings.facts.doors',
 };
 
 /**
@@ -81,11 +84,12 @@ export function SpecCell({ label, children, className = '' }) {
  * genuinely ambiguous.
  */
 export default function SpecItem({ spec, variant = 'inline' }) {
+  const t = useT();
   const Icon = SPEC_ICONS[spec.key];
 
   if (variant === 'stacked') {
     return (
-      <SpecCell label={SPEC_COLUMN_LABELS[spec.key] || spec.label}>
+      <SpecCell label={SPEC_COLUMN_LABEL_KEYS[spec.key] ? t(SPEC_COLUMN_LABEL_KEYS[spec.key]) : spec.label}>
         {Icon && <Icon strokeWidth={1.75} className="h-4 w-4 shrink-0" />}
         <span className="u-tabular">{spec.value}</span>
         {spec.key === 'area' ? <span className="font-medium">m²</span> : null}

@@ -1,17 +1,27 @@
 import { agentVerifyOtpAction, agentResendOtpAction } from './actions';
 import ResendButton from './ResendButton';
+import { getT } from '@/lib/i18n/server';
 
-export const metadata = {
-  title: 'Vérification — Lukka Place',
-  robots: { index: false, follow: false },
-};
+// generateMetadata, not a static object: a static export cannot see the
+// request locale — see app/(site)/a-propos/page.js.
+export async function generateMetadata() {
+  const t = await getT();
+  return {
+    title: t('auth.verifyMetaTitle'),
+    robots: { index: false, follow: false },
+  };
+}
 
-const ERROR_MESSAGES = {
-  1: 'Code incorrect.',
-  expired: 'Ce code a expiré — demandez-en un nouveau.',
+// Keys, not text: a module-level constant is evaluated once at import
+// and cannot hold translated copy — see components/navItems.js. The
+// lookup below resolves the key at render.
+const ERROR_MESSAGE_KEYS = {
+  1: 'auth.errors.codeInvalid',
+  expired: 'auth.errors.codeExpired',
 };
 
 export default async function AgentVerifyOtpPage({ searchParams }) {
+  const t = await getT();
   const params = await searchParams;
   const error = typeof params.error === 'string' ? params.error : null;
   const sent = params.sent === '1';
@@ -21,10 +31,10 @@ export default async function AgentVerifyOtpPage({ searchParams }) {
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm rounded-card border border-line bg-surface p-6 u-lift sm:p-8">
-        <h1 className="u-title-section text-ink">Vérification du numéro</h1>
+        <h1 className="u-title-section text-ink">{t('auth.numberVerification')}</h1>
         <p className="mt-1 text-sm text-ink-45">
-          Entrez le code à 6 chiffres reçu sur WhatsApp.
-          {sent ? ' Un nouveau code a été envoyé.' : ''}
+          {t('auth.enterSixDigitCode')}
+          {sent ? ` ${t('auth.newCodeSent')}` : ''}
         </p>
 
         <form action={agentVerifyOtpAction} className="mt-6 flex flex-col gap-3">
@@ -33,7 +43,7 @@ export default async function AgentVerifyOtpPage({ searchParams }) {
 
           <div>
             <label htmlFor="code" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
-              Code de vérification
+              {t('auth.verificationCode')}
             </label>
             <input
               id="code"
@@ -50,7 +60,7 @@ export default async function AgentVerifyOtpPage({ searchParams }) {
 
           {error && (
             <p className="text-sm text-red-600" role="alert">
-              {ERROR_MESSAGES[error] || ERROR_MESSAGES[1]}
+              {(ERROR_MESSAGE_KEYS[error] ? t(ERROR_MESSAGE_KEYS[error]) : null) || (ERROR_MESSAGE_KEYS[1] ? t(ERROR_MESSAGE_KEYS[1]) : null)}
             </p>
           )}
 
@@ -58,7 +68,7 @@ export default async function AgentVerifyOtpPage({ searchParams }) {
             type="submit"
             className="mt-1 rounded-md bg-blue px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary"
           >
-            Vérifier
+            {t('auth.verify')}
           </button>
         </form>
 

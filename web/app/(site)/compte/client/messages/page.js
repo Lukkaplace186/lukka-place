@@ -5,11 +5,12 @@ import { getPortalCustomer, isViewingLead } from '@/lib/customerPortal';
 import { getCustomerInquiries } from '@/lib/customerInquiries';
 import { getLocationHierarchyWithFallback } from '@/lib/locations';
 import { getPopularCommunes } from '@/lib/listings';
-import { LEAD_STATUS_LABELS_FR } from '@/lib/adminLabels';
+import { LEAD_STATUS_LABEL_KEYS } from '@/lib/adminLabels';
 import { listingImages, feedLocationLine } from '@/lib/listingView';
 import { formatPrice } from '@/lib/format';
 import { updatePropertyRequestAction } from '../actions';
 import InquiryThreads from './InquiryThreads';
+import { getT } from '@/lib/i18n/server';
 
 export const metadata = {
   title: 'Messages & Visites — Lukka Place',
@@ -58,6 +59,7 @@ async function resolveCommunes() {
  * inline (see InquiryThreads.js) instead of duplicating the list elsewhere.
  */
 export default async function MessagesPage() {
+  const t = await getT();
   const session = await getPortalCustomer();
   if (!session) redirect('/compte/connexion?next=/compte/client/messages');
 
@@ -70,18 +72,17 @@ export default async function MessagesPage() {
     return (
       <div>
         <PortalSectionHeading
-          title="Messages & Visites"
+          title={t('account.portal.tabs.messages')}
           lead="Vos échanges avec les agences partenaires, y compris le suivi de vos demandes de visite."
           className="mb-7"
         />
         <PortalEmpty
           icon={Mail}
-          title="Aucune demande pour le moment"
+          title={t('account.requests.emptyTitle')}
           actionLabel="Trouver pour moi"
           actionHref="/compte/client/demandes"
         >
-          Contactez une agence depuis une annonce, ou décrivez-nous le bien que vous cherchez : vos échanges
-          apparaîtront ici.
+          {t('account.requests.emptyBody2')}
         </PortalEmpty>
       </div>
     );
@@ -90,7 +91,7 @@ export default async function MessagesPage() {
   const threads = inquiries.map(({ lead, listing, proposals }) => ({
     id: lead.id,
     status: lead.status,
-    statusLabel: LEAD_STATUS_LABELS_FR[lead.status] || lead.status,
+    statusLabel: LEAD_STATUS_LABEL_KEYS[lead.status] ? t(LEAD_STATUS_LABEL_KEYS[lead.status]) : lead.status,
     summary: lead.requirements_summary || null,
     createdAtLabel: formatWith(LONG_DATE, lead.created_at),
     createdAtShort: formatWith(SHORT_DATE, lead.created_at),
@@ -141,7 +142,7 @@ export default async function MessagesPage() {
   return (
     <div>
       <PortalSectionHeading
-        title="Messages & Visites"
+        title={t('account.portal.tabs.messages')}
         lead={`${threads.length} échange${threads.length > 1 ? 's' : ''} avec les agences partenaires.`}
         className="mb-7"
       />

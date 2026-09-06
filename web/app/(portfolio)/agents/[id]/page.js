@@ -12,6 +12,7 @@ import { getAgentProfile, getAgentListings, agentDisplayName } from '@/lib/agenc
 import { buildWhatsAppLink, getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { formatPhoneDisplay } from '@/lib/phone';
 import { SITE_URL, ICON_STROKE_WIDTH } from '@/lib/constants';
+import { getT } from '@/lib/i18n/server';
 
 const PROFILE_MESSAGE =
   "Bonjour, j'ai vu votre profil sur Lukka Place et j'aimerais en savoir plus sur vos biens.";
@@ -19,9 +20,11 @@ const PROFILE_MESSAGE =
 // Only the two transaction tabs — no "Tous" (the tab row itself covers
 // everything the portfolio has) and no "Parcelles" (a property-type facet,
 // not a transaction type; it doesn't belong beside À louer/À vendre).
+// `labelKey`, not `label` — a module-level constant cannot hold translated
+// text (see components/navItems.js).
 const TABS = [
-  { key: 'location', label: 'À louer' },
-  { key: 'vente', label: 'À vendre' },
+  { key: 'location', labelKey: 'agent.portfolio.toRent' },
+  { key: 'vente', labelKey: 'agent.portfolio.toSell' },
 ];
 
 /** Local to this page — /agents/[id] base, not /listings like lib/urlParams.js's helpers. */
@@ -68,13 +71,14 @@ export async function generateMetadata({ params }) {
  * than a separate full-width strip.
  */
 export default async function AgentStorefrontPage({ params, searchParams }) {
+  const t = await getT();
   const { id } = await params;
   const sp = await searchParams;
 
   const agent = await getAgentProfile(id);
   if (!agent) notFound();
 
-  const tab = TABS.some((t) => t.key === sp.tab) ? sp.tab : TABS[0].key;
+  const tab = TABS.some((entry) => entry.key === sp.tab) ? sp.tab : TABS[0].key;
   const q = typeof sp.q === 'string' ? sp.q : '';
 
   const listings = await getAgentListings(agent.id, {
@@ -112,8 +116,8 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
   // about this agent, and any segment without backing data is simply not
   // emitted rather than being padded with a plausible-looking default.
   const metaLine = [
-    'Agence partenaire',
-    agent.phone_verified_at ? 'Vérifiée' : null,
+    t('agent.portfolio.partnerAgency'),
+    agent.phone_verified_at ? t('agent.portfolio.verifiedFem') : null,
     agent.city || (communes.length === 1 ? communes[0] : communes.length > 1 ? 'Kinshasa' : null),
   ]
     .filter(Boolean)
@@ -154,7 +158,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
               <CopyLinkButton
                 url={profileUrl}
                 label=""
-                ariaLabel="Copier le lien du portfolio"
+                ariaLabel={t('listings.share.copyPortfolioLink')}
                 iconClassName="h-5 w-5"
                 className="u-press grid h-11 w-11 place-items-center rounded-full bg-white/[0.08] text-white ring-1 ring-inset ring-white/25 transition-colors hover:bg-white/[0.16]"
               />
@@ -163,7 +167,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
                 title={name}
                 message={shareMessage}
                 iconOnly
-                label="Partager ce portfolio"
+                label={t('agent.portfolio.share')}
                 iconClassName="h-5 w-5"
                 className="u-press grid h-11 w-11 place-items-center rounded-full bg-white/[0.08] text-white ring-1 ring-inset ring-white/25 transition-colors hover:bg-white/[0.16]"
               />
@@ -205,7 +209,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
                       <BadgeCheck strokeWidth={2.25} className="h-4 w-4 shrink-0 text-white/90" />
                     )}
                     <span className="u-tabular font-semibold text-white">{formatPhoneDisplay(agent.phone)}</span>
-                    {agent.phone_verified_at && <span className="text-white/70">Vérifié</span>}
+                    {agent.phone_verified_at && <span className="text-white/70">{t('agent.portfolio.verified')}</span>}
                   </span>
                 )}
 
@@ -248,7 +252,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
                 </a>
               ) : (
                 <span className="flex h-12 items-center justify-center rounded-lg px-4 text-center text-[0.8125rem] text-white/80 ring-1 ring-inset ring-white/25">
-                  Coordonnées non disponibles
+                  {t('agent.portfolio.contactUnavailable')}
                 </span>
               )}
 
@@ -296,7 +300,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
               {/* The design puts exactly one control on this row: "Devise USD / FC".
                   No search field — the tabs are the filter. */}
               <div className="flex items-center gap-3">
-                <span className="text-[0.8125rem] text-ink-45">Devise</span>
+                <span className="text-[0.8125rem] text-ink-45">{t('admin.subscriptions.currency')}</span>
                 <CurrencyToggle longLabels />
               </div>
             </div>
@@ -306,7 +310,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
                 to a real 3px bar so the active state reads at a glance,
                 per the reference screenshot. */}
             <div className="no-scrollbar mt-6 flex gap-8 overflow-x-auto border-b border-line/60">
-              {TABS.map(({ key, label }) => (
+              {TABS.map(({ key, labelKey }) => (
                 <Link
                   key={key}
                   href={hrefWithParam(agent.id, sp, 'tab', key)}
@@ -317,7 +321,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
                       : 'border-transparent font-medium text-ink-45 hover:border-line hover:text-ink-70'
                   }`}
                 >
-                  {label}
+                  {t(labelKey)}
                 </Link>
               ))}
             </div>
@@ -325,7 +329,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
             {filteredListings.length === 0 ? (
               <div className="mt-8 rounded-card border border-dashed border-line bg-surface p-12 text-center text-sm text-ink-45">
                 {agent.live_listing_count === 0
-                  ? "Cet agent n'a pas encore de bien en ligne. Envoyez-lui votre recherche ci-contre."
+                  ? t('agent.portfolio.noListingsYet')
                   : 'Aucune annonce ne correspond à ces filtres.'}
               </div>
             ) : (
@@ -355,11 +359,11 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
                   className="u-btn-primary u-press inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-blue text-sm font-bold text-white"
                 >
                   <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
-                  Contacter sur WhatsApp
+                  {t('account.favorites.contactWhatsApp')}
                 </a>
               ) : (
                 <span className="inline-flex h-12 items-center justify-center rounded-lg border border-dashed border-line px-4 text-center text-[0.8125rem] text-ink-45">
-                  Coordonnées non disponibles
+                  {t('agent.portfolio.contactUnavailable')}
                 </span>
               )}
 
@@ -381,7 +385,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
                         {formatPhoneDisplay(agent.phone)}
                       </div>
                       <div className="text-xs text-ink-45">
-                        {agent.phone_verified_at ? 'Numéro vérifié par Lukka Place' : 'WhatsApp'}
+                        {agent.phone_verified_at ? t('agent.portfolio.numberVerifiedBy') : t('admin.leads.whatsapp')}
                       </div>
                     </div>
                   </div>
@@ -409,7 +413,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
                       <div className="text-[0.875rem] font-bold text-ink">
                         {agent.address ? [agent.address, agent.city].filter(Boolean).join(', ') : communes.join(', ')}
                       </div>
-                      <div className="text-xs text-ink-45">{agent.address ? 'Bureau' : 'Communes couvertes'}</div>
+                      <div className="text-xs text-ink-45">{agent.address ? 'Bureau' : t('agent.settings.communesTitle')}</div>
                     </div>
                   </div>
                 )}

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Monogram } from './Brand';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * Right-aligned agency identity slot for a listing card's header — real
@@ -44,6 +45,7 @@ import { Monogram } from './Brand';
  * doc comment above found it too abstract for.
  */
 export default function AgencyLogo({ logoUrl, name, variant = 'default' }) {
+  const t = useT();
   const [failed, setFailed] = useState(false);
 
   if (variant === 'footer') {
@@ -67,7 +69,7 @@ export default function AgencyLogo({ logoUrl, name, variant = 'default' }) {
     return (
       <div className="flex min-w-0 items-center gap-2">
         <Monogram className="h-8 w-8 shrink-0 rounded-full border border-line" />
-        <span className="truncate text-[0.8125rem] font-semibold text-ink-70">Lukka Place</span>
+        <span className="truncate text-[0.8125rem] font-semibold text-ink-70">{t('footer.columns.brand')}</span>
       </div>
     );
   }
@@ -79,7 +81,7 @@ export default function AgencyLogo({ logoUrl, name, variant = 'default' }) {
     return (
       <img
         src="/brand/logo-light.png"
-        alt="Lukka Place"
+        alt={t('footer.columns.brand')}
         width={2354}
         height={746}
         className="h-5 w-auto shrink-0 object-contain"

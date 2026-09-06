@@ -47,6 +47,7 @@ import {
 import { LEAD_STATUSES, VIEWING_REQUEST_STATUSES } from '@/lib/adminLabels';
 import { currentQuotaPeriodStart, resolveLeadQuota } from '@/lib/leadQuota';
 import { createPlanChangeRequest, getPurchasablePackages } from '@/lib/subscriptions';
+import { getT } from '@/lib/i18n/server';
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 const ALLOWED_AVATAR_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
@@ -145,18 +146,19 @@ export async function updateListingStatusAction(propertyId, formData) {
  * Archiver uses, not a delete.
  */
 export async function markListingSoldAction(propertyId, formData) {
+  const t = await getT();
   const agentId = await assertAgentSession();
   const soldPrice = Number.parseFloat(formData.get('sold_price'));
   if (!Number.isFinite(soldPrice) || soldPrice <= 0) {
-    return { ok: false, error: 'Indiquez un prix final valide.' };
+    return { ok: false, error: t('errors.invalidFinalPrice') };
   }
 
   const soldAtRaw = String(formData.get('sold_at') || '').trim();
-  if (!soldAtRaw) return { ok: false, error: 'Indiquez la date de la transaction.' };
+  if (!soldAtRaw) return { ok: false, error: t('errors.transactionDateRequired') };
   const soldAt = new Date(`${soldAtRaw}T12:00:00Z`);
-  if (Number.isNaN(soldAt.getTime())) return { ok: false, error: 'Date de transaction invalide.' };
+  if (Number.isNaN(soldAt.getTime())) return { ok: false, error: t('errors.invalidTransactionDate') };
   if (soldAt.getTime() > Date.now()) {
-    return { ok: false, error: 'La date de transaction ne peut pas être dans le futur.' };
+    return { ok: false, error: t('errors.transactionDateInFuture') };
   }
 
   const pool = getPool();
@@ -164,13 +166,13 @@ export async function markListingSoldAction(propertyId, formData) {
     'SELECT created_at FROM properties WHERE id = $1 AND agent_id = $2',
     [propertyId, agentId],
   );
-  if (!rows.length) return { ok: false, error: 'Bien introuvable, ou vous n’en êtes pas le propriétaire.' };
+  if (!rows.length) return { ok: false, error: t('errors.listingNotFoundOrNotYours') };
   const createdAt = rows[0].created_at ? new Date(rows[0].created_at) : null;
   // Same-day close is legitimate, so this compares dates, not instants —
   // `created_at` is a timestamp and a listing published at 14:00 would
   // otherwise reject a transaction dated that morning.
   if (createdAt && soldAtRaw < createdAt.toISOString().slice(0, 10)) {
-    return { ok: false, error: 'La date de transaction précède la publication de l’annonce.' };
+    return { ok: false, error: t('errors.transactionDateBeforePublication') };
   }
 
   const { rowCount } = await pool.query(
@@ -180,7 +182,7 @@ export async function markListingSoldAction(propertyId, formData) {
      WHERE id = $3 AND agent_id = $4`,
     [soldPrice, soldAtRaw, propertyId, agentId],
   );
-  if (rowCount === 0) return { ok: false, error: 'Bien introuvable, ou vous n’en êtes pas le propriétaire.' };
+  if (rowCount === 0) return { ok: false, error: t('errors.listingNotFoundOrNotYours') };
 
   revalidateListingSurfaces(agentId, propertyId);
   return { ok: true };
@@ -216,6 +218,7 @@ export async function markListingSoldAction(propertyId, formData) {
  * market dataset says is already sold.
  */
 export async function setListingArchivedAction(propertyId, archived) {
+  const t = await getT();
   const agentId = await assertAgentSession();
   const pool = getPool();
 
@@ -224,11 +227,11 @@ export async function setListingArchivedAction(propertyId, archived) {
       'SELECT listing_status FROM properties WHERE id = $1 AND agent_id = $2',
       [propertyId, agentId],
     );
-    if (!rows.length) return { ok: false, error: 'Bien introuvable, ou vous n’en êtes pas le propriétaire.' };
+    if (!rows.length) return { ok: false, error: t('errors.listingNotFoundOrNotYours') };
     if (rows[0].listing_status === 'closed') {
       return {
         ok: false,
-        error: 'Ce bien est marqué loué / vendu. Utilisez « Remettre en ligne » pour rouvrir la transaction.',
+        error: t('errors.alreadyClosed'),
       };
     }
   }
@@ -239,7 +242,7 @@ export async function setListingArchivedAction(propertyId, archived) {
      WHERE id = $3 AND agent_id = $4`,
     [archived ? 0 : 1, archived ? new Date() : null, propertyId, agentId],
   );
-  if (rowCount === 0) return { ok: false, error: 'Bien introuvable, ou vous n’en êtes pas le propriétaire.' };
+  if (rowCount === 0) return { ok: false, error: t('errors.listingNotFoundOrNotYours') };
 
   revalidateListingSurfaces(agentId, propertyId);
   return { ok: true };
@@ -259,6 +262,7 @@ export async function setListingArchivedAction(propertyId, archived) {
  * error on failure, not navigate away).
  */
 export async function createListingAction(validCommunes, validCategories, formData) {
+  const t = await getT();
   const agentId = await assertAgentSession();
 
   const title = String(formData.get('title') || '').trim().slice(0, 150);
@@ -280,21 +284,21 @@ export async function createListingAction(validCommunes, validCategories, formDa
   const quartier = String(formData.get('quartier') || '').trim() || null;
   const photos = formData.getAll('photos').filter((f) => f && typeof f !== 'string' && f.size > 0);
 
-  if (!title) return { ok: false, error: 'Le titre est obligatoire.' };
-  if (description.length < 15) return { ok: false, error: 'La description doit contenir au moins 15 caractères.' };
-  if (!['rent', 'sale'].includes(purpose)) return { ok: false, error: 'Choisissez « Louer » ou « Vendre ».' };
-  if (!new Set(validCommunes).has(commune)) return { ok: false, error: 'Commune invalide.' };
+  if (!title) return { ok: false, error: t('errors.titleRequired') };
+  if (description.length < 15) return { ok: false, error: t('errors.descriptionTooShort') };
+  if (!['rent', 'sale'].includes(purpose)) return { ok: false, error: t('errors.chooseRentOrSale') };
+  if (!new Set(validCommunes).has(commune)) return { ok: false, error: t('errors.invalidCommune') };
   const category = validCategories.find((c) => c.id === categoryId);
-  if (!category) return { ok: false, error: 'Type de bien invalide.' };
-  if (!Number.isFinite(price) || price <= 0) return { ok: false, error: 'Indiquez un prix valide.' };
-  if (area !== null && (!Number.isFinite(area) || area <= 0)) return { ok: false, error: 'Superficie invalide.' };
-  if (beds !== null && (!Number.isFinite(beds) || beds < 0)) return { ok: false, error: 'Nombre de chambres invalide.' };
-  if (bath !== null && (!Number.isFinite(bath) || bath < 0)) return { ok: false, error: 'Nombre de salles de bain invalide.' };
-  if (!photos.length) return { ok: false, error: 'Ajoutez au moins une photo.' };
+  if (!category) return { ok: false, error: t('errors.invalidPropertyType') };
+  if (!Number.isFinite(price) || price <= 0) return { ok: false, error: t('errors.invalidPrice') };
+  if (area !== null && (!Number.isFinite(area) || area <= 0)) return { ok: false, error: t('errors.invalidArea') };
+  if (beds !== null && (!Number.isFinite(beds) || beds < 0)) return { ok: false, error: t('errors.invalidBedrooms') };
+  if (bath !== null && (!Number.isFinite(bath) || bath < 0)) return { ok: false, error: t('errors.invalidBathrooms') };
+  if (!photos.length) return { ok: false, error: t('errors.addAtLeastOnePhoto') };
   if (photos.length > MAX_LISTING_PHOTOS) return { ok: false, error: `Maximum ${MAX_LISTING_PHOTOS} photos.` };
   for (const file of photos) {
-    if (!ALLOWED_LISTING_PHOTO_TYPES[file.type]) return { ok: false, error: 'Format de photo non supporté (JPEG, PNG ou WebP uniquement).' };
-    if (file.size > MAX_LISTING_PHOTO_BYTES) return { ok: false, error: 'Une photo dépasse 5 Mo.' };
+    if (!ALLOWED_LISTING_PHOTO_TYPES[file.type]) return { ok: false, error: t('errors.unsupportedPhotoFormat') };
+    if (file.size > MAX_LISTING_PHOTO_BYTES) return { ok: false, error: t('errors.photoTooLarge') };
   }
 
   const agent = await getAgentProfile(agentId);
@@ -399,6 +403,7 @@ async function assertOwnedViewingRequest(agentId, viewingRequestId) {
  * status='RESCHEDULED' — confirming or cancelling never touches it.
  */
 export async function updateViewingRequestAction(viewingRequestId, formData) {
+  const t = await getT();
   const agentId = await assertAgentSession();
   const status = String(formData.get('status') || '');
   if (!VIEWING_REQUEST_STATUSES.includes(status)) {
@@ -407,7 +412,7 @@ export async function updateViewingRequestAction(viewingRequestId, formData) {
 
   const requestedTime = status === 'RESCHEDULED' ? String(formData.get('requested_time') || '').trim() : undefined;
   if (status === 'RESCHEDULED' && !requestedTime) {
-    return { ok: false, error: 'Indiquez le nouveau créneau proposé.' };
+    return { ok: false, error: t('errors.newSlotRequired') };
   }
 
   try {
@@ -533,14 +538,15 @@ export async function changeAgentPasswordAction(formData) {
  * page navigation, unlike every other action on this page.
  */
 export async function uploadAgentAvatarAction(formData) {
+  const t = await getT();
   const agentId = await assertAgentSession();
   const file = formData.get('avatar');
 
-  if (!file || typeof file === 'string') return { ok: false, error: 'Aucun fichier reçu.' };
+  if (!file || typeof file === 'string') return { ok: false, error: t('errors.noFileReceived') };
   if (!ALLOWED_AVATAR_TYPES[file.type]) {
-    return { ok: false, error: 'Format non supporté (JPEG, PNG ou WebP uniquement).' };
+    return { ok: false, error: t('errors.unsupportedFileFormat') };
   }
-  if (file.size > MAX_AVATAR_BYTES) return { ok: false, error: 'Fichier trop volumineux (5 Mo max).' };
+  if (file.size > MAX_AVATAR_BYTES) return { ok: false, error: t('errors.fileTooLarge') };
 
   const buffer = Buffer.from(await file.arrayBuffer());
   let url;
@@ -548,7 +554,7 @@ export async function uploadAgentAvatarAction(formData) {
     url = await uploadAgentAvatar(buffer, agentId, ALLOWED_AVATAR_TYPES[file.type]);
   } catch (err) {
     console.error(`[compte/agent] avatar upload failed for agent #${agentId}: ${err.message}`);
-    return { ok: false, error: "Échec de l'envoi. Réessayez." };
+    return { ok: false, error: t('errors.sendFailed') };
   }
 
   await updateAgentImage(agentId, url);
@@ -604,16 +610,17 @@ export async function updateWorkingHoursAction(formData) {
  * and "my own listings only" dropdown are UX, not the real gate.
  */
 export async function proposeListingAction(leadId, formData) {
+  const t = await getT();
   const agentId = await assertAgentSession();
 
   const agent = await getAgentProfile(agentId);
   if (!agent) {
-    return { ok: false, error: 'Compte agent introuvable.' };
+    return { ok: false, error: t('errors.agentAccountNotFound') };
   }
 
   const propertyId = Number.parseInt(formData.get('property_id'), 10);
   if (!Number.isFinite(propertyId)) {
-    return { ok: false, error: 'Choisissez un bien à proposer.' };
+    return { ok: false, error: t('errors.choosePropertyToPropose') };
   }
 
   // Monthly quota, checked server-side before anything is written. The
@@ -630,7 +637,7 @@ export async function proposeListingAction(leadId, formData) {
     quota = resolveLeadQuota(agent, used);
   } catch (err) {
     console.warn(`[compte/agent] lead quota lookup failed for agent #${agentId}: ${err.message}`);
-    return { ok: false, error: 'Impossible de vérifier votre quota du mois. Réessayez dans un instant.' };
+    return { ok: false, error: t('errors.quotaCheckFailed') };
   }
   if (quota.exhausted) {
     return {
@@ -650,7 +657,7 @@ export async function proposeListingAction(leadId, formData) {
     (l) => Number(l.id) === propertyId && l.approve_status === 1 && l.listing_status === 'active',
   );
   if (!listing) {
-    return { ok: false, error: "Ce bien n'est pas disponible (il doit être publié et actif)." };
+    return { ok: false, error: t('errors.listingNotAvailable') };
   }
 
   try {
@@ -710,6 +717,7 @@ function revalidateListingSurfaces(agentId, propertyId) {
  * unsaved input, same reasoning as createListingAction.
  */
 export async function updateListingAction(propertyId, validCommunes, formData) {
+  const t = await getT();
   const agentId = await assertAgentSession();
 
   const title = String(formData.get('title') || '').trim().slice(0, 150);
@@ -732,20 +740,23 @@ export async function updateListingAction(propertyId, validCommunes, formData) {
   const areaRaw = formData.get('area');
   const areaNumber = String(areaRaw ?? '').trim() === '' ? null : Number.parseFloat(areaRaw);
 
-  if (!title) return { ok: false, error: 'Le titre est obligatoire.' };
-  if (description.length < 15) return { ok: false, error: 'La description doit contenir au moins 15 caractères.' };
-  if (!new Set(validCommunes).has(commune)) return { ok: false, error: 'Commune invalide.' };
-  if (!['USD', 'CDF'].includes(currency)) return { ok: false, error: 'Devise invalide.' };
-  if (!Number.isFinite(priceInput) || priceInput <= 0) return { ok: false, error: 'Indiquez un prix valide.' };
-  for (const [value, label] of [
-    [beds, 'chambres'], [bath, 'salles de bain'], [unitsCount, 'portes'], [depositMonths, 'mois de garantie'],
+  if (!title) return { ok: false, error: t('errors.titleRequired') };
+  if (description.length < 15) return { ok: false, error: t('errors.descriptionTooShort') };
+  if (!new Set(validCommunes).has(commune)) return { ok: false, error: t('errors.invalidCommune') };
+  if (!['USD', 'CDF'].includes(currency)) return { ok: false, error: t('errors.invalidCurrency') };
+  if (!Number.isFinite(priceInput) || priceInput <= 0) return { ok: false, error: t('errors.invalidPrice') };
+  for (const [value, fieldKey] of [
+    [beds, 'errors.fieldBedrooms'],
+    [bath, 'errors.fieldBathrooms'],
+    [unitsCount, 'errors.fieldDoors'],
+    [depositMonths, 'errors.fieldDepositMonths'],
   ]) {
     if (value !== null && (!Number.isFinite(value) || value < 0)) {
-      return { ok: false, error: `Nombre de ${label} invalide.` };
+      return { ok: false, error: t('errors.invalidCount', { field: t(fieldKey) }) };
     }
   }
   if (areaNumber !== null && (!Number.isFinite(areaNumber) || areaNumber < 0)) {
-    return { ok: false, error: 'Superficie invalide.' };
+    return { ok: false, error: t('errors.invalidArea') };
   }
 
   // `area` is a TEXT column that carries '0' rather than NULL when unknown
@@ -769,7 +780,7 @@ export async function updateListingAction(propertyId, validCommunes, formData) {
     const rate = await getCdfRate();
     price = convertCdfToUsd(priceInput, rate.cdfPerUsd);
     if (!Number.isFinite(price) || price <= 0) {
-      return { ok: false, error: 'La conversion du prix en dollars a échoué. Réessayez.' };
+      return { ok: false, error: t('errors.priceConversionFailed') };
     }
   }
   const priceOriginal = priceInput;
@@ -800,16 +811,16 @@ export async function updateListingAction(propertyId, validCommunes, formData) {
   // agent saw "échec" and closed the form believing nothing had saved.
   if (touchedPhotos) {
     if (keptPhotos.length + newFiles.length === 0) {
-      return { ok: false, error: 'Gardez au moins une photo.' };
+      return { ok: false, error: t('errors.keepAtLeastOnePhoto') };
     }
     if (keptPhotos.length + newFiles.length > MAX_LISTING_PHOTOS) {
       return { ok: false, error: `Maximum ${MAX_LISTING_PHOTOS} photos.` };
     }
     for (const file of newFiles) {
       if (!ALLOWED_LISTING_PHOTO_TYPES[file.type]) {
-        return { ok: false, error: 'Format de photo non supporté (JPEG, PNG ou WebP uniquement).' };
+        return { ok: false, error: t('errors.unsupportedPhotoFormat') };
       }
-      if (file.size > MAX_LISTING_PHOTO_BYTES) return { ok: false, error: 'Une photo dépasse 5 Mo.' };
+      if (file.size > MAX_LISTING_PHOTO_BYTES) return { ok: false, error: t('errors.photoTooLarge') };
     }
   }
 
@@ -817,7 +828,7 @@ export async function updateListingAction(propertyId, validCommunes, formData) {
     title, description, commune, price, priceOriginal, currency, beds, bath, area, quartier,
     unitsCount, depositMonths, amenityIds,
   });
-  if (!owned) return { ok: false, error: 'Bien introuvable, ou vous n’en êtes pas le propriétaire.' };
+  if (!owned) return { ok: false, error: t('errors.listingNotFoundOrNotYours') };
 
   let photoWarning = false;
   if (touchedPhotos) {
@@ -851,6 +862,7 @@ export async function updateListingAction(propertyId, validCommunes, formData) {
  * imperative action on this dashboard.
  */
 export async function deleteListingAction(propertyId) {
+  const t = await getT();
   const agentId = await assertAgentSession();
 
   let deleted;
@@ -862,9 +874,9 @@ export async function deleteListingAction(propertyId) {
     // lead's property_id lives in the engine's SQLite and has no FK, but
     // other Postgres tables may) surfaces as a real error rather than a
     // silent no-op.
-    return { ok: false, error: "Ce bien n'a pas pu être supprimé. Contactez l'équipe Lukka Place." };
+    return { ok: false, error: t('errors.listingDeleteFailed') };
   }
-  if (!deleted) return { ok: false, error: 'Bien introuvable, ou vous n’en êtes pas le propriétaire.' };
+  if (!deleted) return { ok: false, error: t('errors.listingNotFoundOrNotYours') };
 
   revalidateListingSurfaces(agentId, propertyId);
   return { ok: true };
@@ -872,10 +884,11 @@ export async function deleteListingAction(propertyId) {
 
 /** Duplicate one of this agent's listings into a fresh unpublished draft. */
 export async function duplicateListingAction(propertyId) {
+  const t = await getT();
   const agentId = await assertAgentSession();
 
   const newId = await duplicateListing(agentId, propertyId);
-  if (!newId) return { ok: false, error: 'Bien introuvable, ou vous n’en êtes pas le propriétaire.' };
+  if (!newId) return { ok: false, error: t('errors.listingNotFoundOrNotYours') };
 
   revalidateListingSurfaces(agentId, newId);
   return { ok: true, propertyId: newId };
@@ -894,25 +907,26 @@ export async function duplicateListingAction(propertyId) {
  * can apply the value optimistically and roll it back on a real failure.
  */
 export async function updateListingPriceAction(propertyId, formData) {
+  const t = await getT();
   const agentId = await assertAgentSession();
 
   const priceInput = Number.parseFloat(formData.get('price'));
   const currency = String(formData.get('currency') || 'USD').toUpperCase();
 
-  if (!['USD', 'CDF'].includes(currency)) return { ok: false, error: 'Devise invalide.' };
-  if (!Number.isFinite(priceInput) || priceInput <= 0) return { ok: false, error: 'Indiquez un prix valide.' };
+  if (!['USD', 'CDF'].includes(currency)) return { ok: false, error: t('errors.invalidCurrency') };
+  if (!Number.isFinite(priceInput) || priceInput <= 0) return { ok: false, error: t('errors.invalidPrice') };
 
   let price = priceInput;
   if (currency === 'CDF') {
     const rate = await getCdfRate();
     price = convertCdfToUsd(priceInput, rate.cdfPerUsd);
     if (!Number.isFinite(price) || price <= 0) {
-      return { ok: false, error: 'La conversion du prix en dollars a échoué. Réessayez.' };
+      return { ok: false, error: t('errors.priceConversionFailed') };
     }
   }
 
   const owned = await updateListingPrice(agentId, propertyId, { price, priceOriginal: priceInput, currency });
-  if (!owned) return { ok: false, error: 'Bien introuvable, ou vous n’en êtes pas le propriétaire.' };
+  if (!owned) return { ok: false, error: t('errors.listingNotFoundOrNotYours') };
 
   revalidateListingSurfaces(agentId, propertyId);
   return { ok: true, price };
@@ -1027,13 +1041,14 @@ export async function bulkDeleteListingsAction(propertyIds) {
  * asked for this" and say so, instead of navigating away.
  */
 export async function requestPlanChangeAction(packageId) {
+  const t = await getT();
   const agentId = await assertAgentSession();
   const id = Number.parseInt(packageId, 10);
-  if (!Number.isFinite(id)) return { ok: false, error: 'Forfait invalide.' };
+  if (!Number.isFinite(id)) return { ok: false, error: t('errors.invalidPlan') };
 
   const packages = await getPurchasablePackages();
   const target = packages.find((p) => p.id === id);
-  if (!target) return { ok: false, error: "Ce forfait n'est pas disponible à la souscription." };
+  if (!target) return { ok: false, error: t('errors.planNotAvailable') };
 
   try {
     const { created } = await createPlanChangeRequest({
@@ -1046,6 +1061,6 @@ export async function requestPlanChangeAction(packageId) {
     return { ok: true, created };
   } catch (err) {
     console.error(`[agent] plan change request failed for agent #${agentId}: ${err.message}`);
-    return { ok: false, error: "Votre demande n'a pas pu être enregistrée. Réessayez dans un instant." };
+    return { ok: false, error: t('errors.requestNotSaved') };
   }
 }

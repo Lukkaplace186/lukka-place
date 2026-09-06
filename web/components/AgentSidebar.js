@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { BarChart3, Landmark, Mail, BadgeCheck, SlidersHorizontal, Building2 } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { Wordmark } from './Brand';
+import { useT } from '@/lib/i18n/client';
+import LanguageToggle from './LanguageToggle';
 
 /**
  * The design's 260px agent rail (web/Design "Espace agent"), cloned:
@@ -34,12 +36,15 @@ import { Wordmark } from './Brand';
  * which after the merge is genuinely new leads *plus* unanswered visit
  * requests. Both halves are real counts (see lib/agentDashboard.js).
  */
+// Keys, not text — see components/navItems.js on why a module-level constant
+// cannot hold translated copy. `shortKey` is the mobile tab-bar label, which
+// is a genuinely different (shorter) word, not a truncation of the full one.
 const NAV = [
-  { href: '/compte/agent', label: "Vue d'ensemble", short: 'Vue', icon: BarChart3, exact: true },
-  { href: '/compte/agent/biens', label: 'Mes biens', short: 'Biens', icon: Landmark, countKey: 'listings' },
-  { href: '/compte/agent/demandes', label: 'Demandes & visites', short: 'Demandes', icon: Mail, countKey: 'leads' },
-  { href: '/compte/agent/abonnement', label: 'Abonnement', short: 'Abonnement', icon: BadgeCheck },
-  { href: '/compte/agent/parametres', label: 'Paramètres', short: 'Réglages', icon: SlidersHorizontal },
+  { href: '/compte/agent', labelKey: 'agent.nav.overview', shortKey: 'agent.nav.overviewShort', icon: BarChart3, exact: true },
+  { href: '/compte/agent/biens', labelKey: 'agent.nav.listings', shortKey: 'agent.nav.listingsShort', icon: Landmark, countKey: 'listings' },
+  { href: '/compte/agent/demandes', labelKey: 'agent.nav.leads', shortKey: 'agent.nav.leadsShort', icon: Mail, countKey: 'leads' },
+  { href: '/compte/agent/abonnement', labelKey: 'agent.nav.subscription', shortKey: 'agent.nav.subscriptionShort', icon: BadgeCheck },
+  { href: '/compte/agent/parametres', labelKey: 'agent.nav.settings', shortKey: 'agent.nav.settingsShort', icon: SlidersHorizontal },
 ];
 
 function isActive(pathname, item) {
@@ -55,6 +60,7 @@ export default function AgentSidebar({
   completion,
   logoutAction,
 }) {
+  const t = useT();
   const pathname = usePathname();
   const counts = { listings: listingsCount, leads: newLeadsCount + pendingVisitsCount };
 
@@ -63,7 +69,7 @@ export default function AgentSidebar({
       <aside className="sticky top-0 hidden h-screen w-[260px] shrink-0 flex-col gap-7 border-r border-line bg-surface px-4 py-6 lg:flex">
         <div className="px-2">
           <Wordmark />
-          <div className="mt-1 text-[0.6875rem] font-bold uppercase tracking-[0.16em] text-ink-35">Espace agent</div>
+          <div className="mt-1 text-[0.6875rem] font-bold uppercase tracking-[0.16em] text-ink-35">{t('agent.nav.eyebrow')}</div>
         </div>
 
         <nav className="flex flex-col gap-1">
@@ -80,7 +86,7 @@ export default function AgentSidebar({
                 }`}
               >
                 <item.icon strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5 shrink-0" />
-                <span className="flex-1 text-left">{item.label}</span>
+                <span className="flex-1 text-left">{t(item.labelKey)}</span>
                 {!!count && (
                   <span
                     className={`u-tabular rounded-full px-2 py-0.5 text-xs font-bold ${
@@ -101,7 +107,7 @@ export default function AgentSidebar({
             className="mt-auto flex flex-col gap-3 rounded-card bg-canvas-alt p-4 transition-colors hover:bg-canvas-deep"
           >
             <div className="flex items-center justify-between text-[0.8125rem] font-semibold text-ink-70">
-              <span>Profil complété</span>
+              <span>{t('agent.nav.profileCompletion')}</span>
               <span className="u-tabular">{completion.percent} %</span>
             </div>
             <div
@@ -110,15 +116,27 @@ export default function AgentSidebar({
               aria-valuenow={completion.percent}
               aria-valuemin={0}
               aria-valuemax={100}
-              aria-label="Profil complété"
+              aria-label={t('agent.nav.profileCompletion')}
             >
               <div className="h-full rounded-full bg-blue transition-all" style={{ width: `${completion.percent}%` }} />
             </div>
-            {completion.nextHint && <p className="text-xs leading-relaxed text-ink-45">{completion.nextHint}</p>}
+            {completion.nextHintKey && (
+              <p className="text-xs leading-relaxed text-ink-45">{t(completion.nextHintKey)}</p>
+            )}
           </Link>
         )}
 
-        <div className={`flex items-center gap-2.5 px-2 ${completion ? '' : 'mt-auto'}`}>
+        {/* Language control, above the account block rather than in it: it is
+            a display preference, not part of the signed-in agent's identity.
+            The rail is `hidden lg:flex` (see the doc comment), so on mobile
+            the dashboard's toggle is the public header's — every
+            /compte/agent route still renders inside the root layout. */}
+        <div className={`flex items-center justify-between gap-3 px-2 ${completion ? '' : 'mt-auto'}`}>
+          <span className="text-[0.8125rem] font-medium text-ink-45">{t('common.language.label')}</span>
+          <LanguageToggle />
+        </div>
+
+        <div className="flex items-center gap-2.5 px-2">
           <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-blue-tint text-[0.8125rem] font-extrabold text-blue-deep">
             {agentInitials || <Building2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />}
           </div>
@@ -126,7 +144,7 @@ export default function AgentSidebar({
             <div className="truncate text-[0.8125rem] font-bold text-ink">{agentName}</div>
             <form action={logoutAction}>
               <button type="submit" className="text-xs text-ink-45 transition-colors hover:text-ink">
-                Se déconnecter
+                {t('common.actions.logout')}
               </button>
             </form>
           </div>
@@ -134,7 +152,7 @@ export default function AgentSidebar({
       </aside>
 
       <nav
-        aria-label="Navigation espace agent"
+        aria-label={t('agent.nav.ariaLabel')}
         className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
       >
         <div className="grid grid-cols-5">
@@ -158,7 +176,7 @@ export default function AgentSidebar({
                     </span>
                   )}
                 </span>
-                {item.short}
+                {t(item.shortKey)}
               </Link>
             );
           })}

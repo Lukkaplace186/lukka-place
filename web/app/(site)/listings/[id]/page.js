@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import { getT } from '@/lib/i18n/server';
 import Link from 'next/link';
 import { MapPin, ArrowRight } from 'lucide-react';
 import Breadcrumb from '@/components/Breadcrumb';
@@ -65,15 +66,16 @@ export async function generateMetadata({ params }) {
  * profile that doesn't exist). Routes to the real /agents/[id] directory
  * page (app/(portfolio)/agents/[id]/page.js), not a guessed id.
  */
-function AgentProfileLink({ agentId }) {
+async function AgentProfileLink({ agentId }) {
   if (!agentId) return null;
+  const t = await getT();
 
   return (
     <Link
       href={`/agents/${agentId}`}
       className="u-press group inline-flex items-center justify-center gap-1.5 rounded-lg border border-line px-5 py-2.5 text-sm font-semibold text-ink-70 transition-colors hover:border-ink-25 hover:text-ink"
     >
-      Voir le profil de l&apos;agent
+      {t('listings.detail.viewAgentProfile')}
       <ArrowRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
     </Link>
   );
@@ -96,6 +98,7 @@ function AgentProfileLink({ agentId }) {
  * implying the results are nearby.
  */
 export default async function ListingDetailPage({ params, searchParams }) {
+  const t = await getT();
   const { id } = await params;
   const sp = await searchParams;
   const visitSent = sp.visit_sent === '1';
@@ -180,8 +183,8 @@ export default async function ListingDetailPage({ params, searchParams }) {
           <Breadcrumb
             className="min-w-0"
             items={[
-              { label: 'Accueil', href: '/' },
-              { label: 'Annonces', href: '/listings' },
+              { label: t('breadcrumb.home'), href: '/' },
+              { label: t('breadcrumb.listings'), href: '/listings' },
               ...(listing.commune
                 ? [{ label: listing.commune, href: `/listings?commune=${encodeURIComponent(listing.commune)}` }]
                 : []),
@@ -276,7 +279,7 @@ export default async function ListingDetailPage({ params, searchParams }) {
 
             {listing.description ? (
               <div className="flex flex-col gap-3">
-                <h2 className="u-h2 text-ink">Description</h2>
+                <h2 className="u-h2 text-ink">{t('listings.detail.description')}</h2>
                 <p className="u-body max-w-[46rem] whitespace-pre-line text-ink-70">
                   {listing.description}
                 </p>
@@ -285,7 +288,7 @@ export default async function ListingDetailPage({ params, searchParams }) {
 
             {amenityKeys.length > 0 ? (
               <div className="flex flex-col gap-3.5">
-                <h2 className="u-h2 text-ink">Équipements confirmés par l&apos;agent</h2>
+                <h2 className="u-h2 text-ink">{t('listings.detail.confirmedAmenities')}</h2>
                 <div className="flex flex-wrap gap-2">
                   {amenityKeys.map((key) => <AmenityTag key={key} amenityKey={key} />)}
                 </div>
@@ -305,7 +308,7 @@ export default async function ListingDetailPage({ params, searchParams }) {
             ) : null}
 
             <div className="flex flex-col gap-3">
-              <h2 className="u-h2 text-ink">Emplacement</h2>
+              <h2 className="u-h2 text-ink">{t('listings.detail.location')}</h2>
               <ListingLocationMap listing={listing} />
             </div>
           </div>

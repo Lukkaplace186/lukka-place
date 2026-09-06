@@ -1,20 +1,30 @@
 import Link from 'next/link';
 import { agentSignupAction } from './actions';
+import { getT } from '@/lib/i18n/server';
 
-export const metadata = {
-  title: 'Créer un compte agent — Lukka Place',
-  robots: { index: false, follow: false },
-};
+// generateMetadata, not a static object: a static export cannot see the
+// request locale — see app/(site)/a-propos/page.js.
+export async function generateMetadata() {
+  const t = await getT();
+  return {
+    title: t('auth.agentSignupMetaTitle'),
+    robots: { index: false, follow: false },
+  };
+}
 
-const ERROR_MESSAGES = {
-  name: 'Indiquez le nom de votre agence ou votre nom complet.',
-  phone: 'Numéro de téléphone invalide.',
-  password: 'Le mot de passe doit contenir au moins 8 caractères.',
-  exists: 'Un compte existe déjà avec ce numéro.',
-  otp_failed: "L'envoi du code de vérification a échoué — réessayez.",
+// Keys, not text: a module-level constant is evaluated once at import
+// and cannot hold translated copy — see components/navItems.js. The
+// lookup below resolves the key at render.
+const ERROR_MESSAGE_KEYS = {
+  name: 'auth.errors.nameRequired',
+  phone: 'auth.errors.phoneInvalid',
+  password: 'auth.errors.passwordMin8',
+  exists: 'auth.errors.accountExists',
+  otp_failed: 'auth.errors.otpFailed',
 };
 
 export default async function AgentSignupPage({ searchParams }) {
+  const t = await getT();
   const params = await searchParams;
   const error = typeof params.error === 'string' ? params.error : null;
   const next = typeof params.next === 'string' ? params.next : '/compte/agent';
@@ -22,9 +32,9 @@ export default async function AgentSignupPage({ searchParams }) {
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm rounded-card border border-line bg-surface p-6 u-lift sm:p-8">
-        <h1 className="u-title-section text-ink">Créer un compte agent</h1>
+        <h1 className="u-title-section text-ink">{t('auth.agentSignupTitle')}</h1>
         <p className="mt-1 text-sm text-ink-45">
-          Un code de vérification sera envoyé sur WhatsApp à ce numéro.
+          {t('auth.signup.codeWillBeSent')}
         </p>
 
         <form action={agentSignupAction} className="mt-6 flex flex-col gap-3">
@@ -32,7 +42,7 @@ export default async function AgentSignupPage({ searchParams }) {
 
           <div>
             <label htmlFor="full_name" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
-              Nom complet
+              {t('account.profile.fullName')}
             </label>
             <input
               id="full_name"
@@ -48,7 +58,7 @@ export default async function AgentSignupPage({ searchParams }) {
 
           <div>
             <label htmlFor="phone" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
-              Numéro WhatsApp
+              {t('agent.settings.whatsappNumber')}
             </label>
             <input
               id="phone"
@@ -56,7 +66,7 @@ export default async function AgentSignupPage({ searchParams }) {
               name="phone"
               inputMode="tel"
               autoComplete="tel"
-              placeholder="099 712 3456 ou +33 612345678"
+              placeholder={t('enquiry.whatsappPlaceholder')}
               required
               className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
             />
@@ -64,7 +74,7 @@ export default async function AgentSignupPage({ searchParams }) {
 
           <div>
             <label htmlFor="password" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
-              Mot de passe
+              {t('auth.password')}
             </label>
             <input
               id="password"
@@ -79,7 +89,7 @@ export default async function AgentSignupPage({ searchParams }) {
 
           {error && (
             <p className="text-sm text-red-600" role="alert">
-              {ERROR_MESSAGES[error] || ERROR_MESSAGES.phone}
+              {(ERROR_MESSAGE_KEYS[error] ? t(ERROR_MESSAGE_KEYS[error]) : null) || ERROR_MESSAGES.phone}
             </p>
           )}
 
@@ -87,7 +97,7 @@ export default async function AgentSignupPage({ searchParams }) {
             type="submit"
             className="mt-1 rounded-md bg-blue px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary"
           >
-            Recevoir mon code
+            {t('auth.signup.receiveCode')}
           </button>
         </form>
 
@@ -97,7 +107,7 @@ export default async function AgentSignupPage({ searchParams }) {
             href={`/compte/agent/connexion?next=${encodeURIComponent(next)}`}
             className="font-semibold text-blue-deep hover:underline"
           >
-            Se connecter
+            {t('admin.login.submit')}
           </Link>
         </p>
       </div>

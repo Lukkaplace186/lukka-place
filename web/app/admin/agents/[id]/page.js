@@ -6,6 +6,7 @@ import { getLocationHierarchyWithFallback } from '@/lib/locations';
 import { getAgentBillingHistory } from '@/lib/subscriptions';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import AgentAdminPanel from './AgentAdminPanel';
+import { getT } from '@/lib/i18n/server';
 
 export const metadata = {
   title: 'Agent — Admin — Lukka Place',
@@ -42,6 +43,7 @@ function Stat({ label, value, tone }) {
  * would be a UI that claims an authority nothing enforces.
  */
 export default async function AdminAgentDetailPage({ params }) {
+  const t = await getT();
   const { id } = await params;
   const agent = await getAgentForAdmin(id);
   if (!agent) notFound();
@@ -74,18 +76,18 @@ export default async function AdminAgentDetailPage({ params }) {
           className="u-micro-strong inline-flex items-center gap-1.5 text-ink-45 hover:text-ink"
         >
           <ArrowLeft strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-          Retour aux agents
+          {t('admin.agents.backToAgents')}
         </Link>
 
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <h1 className="u-title-page text-ink">{displayName}</h1>
           {agent.phone_verified_at ? (
             <span className="rounded-full bg-success-tint px-2.5 py-1 text-[0.6875rem] font-extrabold uppercase tracking-[0.1em] text-success">
-              Vérifié
+              {t('admin.agents.verified')}
             </span>
           ) : (
             <span className="rounded-full bg-warning-tint px-2.5 py-1 text-[0.6875rem] font-extrabold uppercase tracking-[0.1em] text-warning">
-              Non vérifié
+              {t('admin.agents.notVerified')}
             </span>
           )}
           {agent.status === 0 && (
@@ -118,10 +120,10 @@ export default async function AdminAgentDetailPage({ params }) {
             agent.listing_limit != null && agent.listing_count >= agent.listing_limit ? 'text-danger' : undefined
           }
         />
-        <Stat label="En ligne" value={agent.live_listing_count} />
+        <Stat label={t('agent.listings.online')} value={agent.live_listing_count} />
         <Stat label="Forfait" value={agent.package_title || 'Aucun'} />
         <Stat
-          label="Échéance"
+          label={t('admin.subscriptions.dueDate')}
           value={formatDate(agent.expire_date)}
           tone={
             agent.expire_date && new Date(agent.expire_date) < new Date() ? 'text-danger' : undefined
@@ -143,7 +145,7 @@ export default async function AdminAgentDetailPage({ params }) {
             <p className="u-micro text-ink-45">
               Aucun paiement enregistré. Attribuez un forfait depuis{' '}
               <Link href="/admin/subscriptions" className="font-semibold text-blue-deep hover:underline">
-                Abonnements
+                {t('admin.nav.subscriptions')}
               </Link>
               .
             </p>

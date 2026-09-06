@@ -1,8 +1,9 @@
 import Link from 'next/link';
 import { listLeads } from '@/lib/adminApi';
 import { getAgents } from '@/lib/agents';
-import { LEAD_STATUSES, LEAD_STATUS_LABELS_FR } from '@/lib/adminLabels';
+import { LEAD_STATUSES, LEAD_STATUS_LABEL_KEYS } from '@/lib/adminLabels';
 import { updateLeadStatusAction, assignLeadAction } from '../actions';
+import { getT } from '@/lib/i18n/server';
 
 function formatDate(value) {
   if (!value) return '—';
@@ -46,6 +47,7 @@ function researchLine(lead) {
 }
 
 export default async function AdminLeadsPage({ searchParams }) {
+  const t = await getT();
   const params = await searchParams;
   const status = params.status || '';
 
@@ -58,7 +60,7 @@ export default async function AdminLeadsPage({ searchParams }) {
     <div>
       <div className="mb-4 flex items-end justify-between gap-3">
         <div>
-          <h1 className="u-title-page text-ink">Prospects</h1>
+          <h1 className="u-title-page text-ink">{t('admin.leads.title')}</h1>
           <p className="mt-1 text-sm text-ink-45">{total} prospect{total !== 1 ? 's' : ''}</p>
         </div>
 
@@ -68,33 +70,33 @@ export default async function AdminLeadsPage({ searchParams }) {
             defaultValue={status}
             className="rounded-md border border-line bg-white px-2.5 py-1.5 text-sm text-ink"
           >
-            <option value="">Tous les statuts</option>
+            <option value="">{t('admin.leads.allStatuses')}</option>
             {LEAD_STATUSES.map((s) => (
               <option key={s} value={s}>
-                {LEAD_STATUS_LABELS_FR[s]}
+                {t(LEAD_STATUS_LABEL_KEYS[s])}
               </option>
             ))}
           </select>
           <button type="submit" className="rounded-md border border-line bg-white px-3 py-1.5 text-sm font-medium text-ink hover:bg-canvas-alt">
-            Filtrer
+            {t('admin.leads.filter')}
           </button>
         </form>
       </div>
 
       {data.length === 0 ? (
         <div className="rounded-card border border-dashed border-line bg-white p-10 text-center text-sm text-ink-45">
-          Aucun prospect.
+          {t('admin.leads.empty')}
         </div>
       ) : (
         <div className="overflow-hidden rounded-card border border-line bg-white">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-line bg-canvas-alt text-xs uppercase tracking-wide text-ink-45">
               <tr>
-                <th className="px-4 py-2.5 font-semibold">Client</th>
-                <th className="px-4 py-2.5 font-semibold">Recherche</th>
-                <th className="px-4 py-2.5 font-semibold">Agent assigné</th>
-                <th className="px-4 py-2.5 font-semibold">Créé le</th>
-                <th className="px-4 py-2.5 font-semibold">Statut</th>
+                <th className="px-4 py-2.5 font-semibold">{t('admin.leads.customer')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('admin.leads.search')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('admin.leads.assignedAgent')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('admin.leads.createdAt')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('admin.leads.status')}</th>
                 <th className="px-4 py-2.5 font-semibold" />
               </tr>
             </thead>
@@ -154,7 +156,7 @@ export default async function AdminLeadsPage({ searchParams }) {
                           defaultValue={lead.agent_id ?? ''}
                           className="rounded-md border border-line bg-white px-2 py-1 text-xs text-ink"
                         >
-                          <option value="">— Non assigné —</option>
+                          <option value="">{t('admin.leads.unassigned')}</option>
                           {matching.length > 0 && (
                             <optgroup label={`Couvre ${lead.commune}`}>
                               {matching.map((a) => (
@@ -164,7 +166,7 @@ export default async function AdminLeadsPage({ searchParams }) {
                               ))}
                             </optgroup>
                           )}
-                          <optgroup label="Tous les agents">
+                          <optgroup label={t('admin.actions.allAgents')}>
                             {others.map((a) => (
                               <option key={a.id} value={a.id}>
                                 {agentName(a)}
@@ -173,7 +175,7 @@ export default async function AdminLeadsPage({ searchParams }) {
                           </optgroup>
                         </select>
                         <button type="submit" className="rounded-md border border-line px-2 py-1 text-xs font-medium text-ink hover:bg-canvas-alt">
-                          Assigner
+                          {t('admin.leads.assign')}
                         </button>
                       </form>
                       {lead.assigned_agent && (
@@ -190,7 +192,7 @@ export default async function AdminLeadsPage({ searchParams }) {
                         >
                           {LEAD_STATUSES.map((s) => (
                             <option key={s} value={s}>
-                              {LEAD_STATUS_LABELS_FR[s]}
+                              {t(LEAD_STATUS_LABEL_KEYS[s])}
                             </option>
                           ))}
                         </select>
@@ -201,7 +203,7 @@ export default async function AdminLeadsPage({ searchParams }) {
                     </td>
                     <td className="whitespace-nowrap px-4 py-2.5">
                       <Link href={`/admin/leads/${lead.id}`} className="text-xs font-medium text-blue-deep hover:underline">
-                        Voir le détail
+                        {t('admin.leads.viewDetail')}
                       </Link>
                     </td>
                   </tr>

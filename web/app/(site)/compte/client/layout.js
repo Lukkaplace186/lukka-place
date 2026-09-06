@@ -5,11 +5,17 @@ import { formatPhoneDisplay } from '@/lib/phone';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { ToastProvider } from '@/components/Toast';
 import ClientPortalTabs from './ClientPortalTabs';
+import { getT } from '@/lib/i18n/server';
 
-export const metadata = {
-  title: 'Espace client — Lukka Place',
-  robots: { index: false, follow: false },
-};
+// generateMetadata rather than a static object, so the tab title follows the
+// language too — see app/(site)/a-propos/page.js.
+export async function generateMetadata() {
+  const t = await getT();
+  return {
+    title: t('account.portal.metaTitle'),
+    robots: { index: false, follow: false },
+  };
+}
 
 /**
  * Espace Client shell — web/Design/Customer dash's "Espace Client" canvas.
@@ -28,6 +34,7 @@ export const metadata = {
  * coupling FilterBar.js already depends on (web/CLAUDE.md's layout notes).
  */
 export default async function ClientPortalLayout({ children }) {
+  const t = await getT();
   const session = await getPortalCustomer();
   if (!session) redirect('/compte/connexion?next=/compte/client');
 
@@ -51,12 +58,10 @@ export default async function ClientPortalLayout({ children }) {
           without scrolling past a tall greeting first; desktop keeps the
           original spacing. */}
       <div className="mx-auto max-w-[77.5rem] px-4 pb-4 pt-6 sm:px-6 sm:pb-7 sm:pt-11 lg:px-8">
-        <p className="u-eyebrow">Espace client</p>
-        <h1 className="u-title-hero mt-2.5 text-ink">
-          Bonjour, {firstName}
-        </h1>
+        <p className="u-eyebrow">{t('account.portal.title')}</p>
+        <h1 className="u-title-hero mt-2.5 text-ink">{t('account.portal.greeting', { name: firstName })}</h1>
         <p className="mt-3 max-w-[38.75rem] text-[1rem] leading-[1.6] text-ink-45">
-          Vos biens sauvegardés, vos alertes et vos échanges avec les agences de Kinshasa, au même endroit.
+          {t('account.portal.lead')}
         </p>
         <p className="mt-3 inline-flex items-center gap-1.5 text-[0.8125rem] font-semibold text-blue-deep">
           <ShieldCheck strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
@@ -64,7 +69,7 @@ export default async function ClientPortalLayout({ children }) {
               tied to a real phone number. There is no ID-verification column
               on `customers`, so the design's "Compte vérifié / Identité
               vérifiée" badge is deliberately not reproduced as such. */}
-          Compte lié au {formatPhoneDisplay(customer.phone)}
+          {t('account.portal.accountLinkedTo', { phone: formatPhoneDisplay(customer.phone) })}
         </p>
       </div>
 

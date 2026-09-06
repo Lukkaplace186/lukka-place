@@ -7,7 +7,8 @@ import FloatingControlBar from '@/components/FloatingControlBar';
 import { getListings, getPopularCommunes, getCommuneShowcase, getPropertyTypeFacets, getPriceRange } from '@/lib/listings';
 import { getLocationHierarchySafe } from '@/lib/locations';
 import { parseListingsSearchParams } from '@/lib/searchQuery';
-import { PROPERTY_TYPE_PLURALS } from '@/lib/constants';
+import { PROPERTY_TYPE_PLURAL_KEYS } from '@/lib/constants';
+import { getT } from '@/lib/i18n/server';
 
 export default async function ListingsPage({ searchParams }) {
   const params = await searchParams;
@@ -42,8 +43,13 @@ export default async function ListingsPage({ searchParams }) {
 
   const totalPages = Math.max(Math.ceil(total / limit), 1);
   const isMapView = params.view === 'map';
+  // The plural form is dictionary copy ("Appartements" / "Apartments"); the
+  // facet fallback is a real category name out of the database, so it is used
+  // verbatim in either language.
+  const t = await getT();
+  const pluralKey = params.property_type ? PROPERTY_TYPE_PLURAL_KEYS[params.property_type] : undefined;
   const propertyTypeLabel = params.property_type
-    ? PROPERTY_TYPE_PLURALS[params.property_type] ||
+    ? (pluralKey ? t(pluralKey) : undefined) ||
       propertyTypes.find((o) => o.value === params.property_type)?.label
     : undefined;
 

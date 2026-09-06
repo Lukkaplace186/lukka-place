@@ -523,8 +523,8 @@ export async function issueAgentActivationLink(agentId) {
   const pool = getPool();
   const { rows } = await pool.query('SELECT id, phone FROM agents WHERE id = $1', [agentId]);
   const agent = rows[0];
-  if (!agent) return { ok: false, error: 'Agent introuvable.' };
-  if (!agent.phone) return { ok: false, error: 'Cet agent n’a pas de numéro WhatsApp enregistré.' };
+  if (!agent) return { ok: false, errorKey: 'errors.agentNotFound' };
+  if (!agent.phone) return { ok: false, errorKey: 'errors.agentNoWhatsApp' };
 
   const token = randomBytes(32).toString('hex');
   const ttlHours = Number.parseInt(process.env.AGENT_ACTIVATION_TTL_HOURS, 10) || 72;

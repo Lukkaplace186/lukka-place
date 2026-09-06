@@ -19,23 +19,24 @@ import {
   bulkDeleteListingsAction,
 } from '@/app/compte/agent/actions';
 import { useToast } from './Toast';
+import { useT } from '@/lib/i18n/client';
 
 const LISTING_STATUS_EDIT_OPTIONS = [
-  { value: 'active', label: 'Actif' },
-  { value: 'under_offer', label: 'Sous compromis' },
+  { value: 'active', labelKey: 'status.listing.active' },
+  { value: 'under_offer', labelKey: 'status.listing.under_offer' },
 ];
 
 const APPROVE_STATUS = {
-  0: { label: 'En attente', className: 'bg-warning-tint text-warning' },
-  1: { label: 'Publié', className: 'bg-success-tint text-success' },
-  2: { label: 'Rejeté', className: 'bg-danger-tint text-danger' },
+  0: { labelKey: 'status.listing.pending', className: 'bg-warning-tint text-warning' },
+  1: { labelKey: 'status.listing.published', className: 'bg-success-tint text-success' },
+  2: { labelKey: 'status.listing.rejected', className: 'bg-danger-tint text-danger' },
 };
 
 // An archived listing (properties.status = 0) is invisible to the public
 // regardless of its moderation state, so showing it as "Publié" would be a
 // straightforward lie about where it is. This badge replaces the
 // approve-status one rather than sitting beside it.
-const ARCHIVED_BADGE = { label: 'Archivée', className: 'bg-canvas-deep text-ink-45' };
+const ARCHIVED_BADGE = { labelKey: 'status.listing.archived', className: 'bg-canvas-deep text-ink-45' };
 
 function shortDate(value) {
   if (!value) return null;
@@ -78,6 +79,7 @@ const GRID_COLS =
  *    it".
  */
 export default function AgentListingsTable({ listings, perListingStats }) {
+  const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
   const [pending, startTransition] = useTransition();
@@ -148,7 +150,7 @@ export default function AgentListingsTable({ listings, perListingStats }) {
   function handlePriceSave(listing, rawValue) {
     const value = Number.parseFloat(rawValue);
     if (!Number.isFinite(value) || value <= 0) {
-      showToast({ type: 'error', message: 'Indiquez un prix valide.' });
+      showToast({ type: 'error', message: t('agent.listings.invalidPrice') });
       return;
     }
     startTransition(async () => {
@@ -188,7 +190,7 @@ export default function AgentListingsTable({ listings, perListingStats }) {
         const result = await bulkMarkUnderOfferAction(ids);
         showToast({
           type: 'success',
-          message: `${result.updated} bien${result.updated === 1 ? '' : 's'} marqué${result.updated === 1 ? '' : 's'} sous compromis.`,
+          message: t('agent.listings.markedUnderOffer', { count: result.updated }),
         });
       } catch (err) {
         showToast({ type: 'error', message: err.message || 'Échec de la mise à jour groupée.' });
@@ -212,8 +214,8 @@ export default function AgentListingsTable({ listings, perListingStats }) {
         showToast({
           type: 'success',
           message: archived
-            ? `${result.updated} bien${result.updated === 1 ? '' : 's'} archivé${result.updated === 1 ? '' : 's'} — masqué${result.updated === 1 ? '' : 's'} du site, rien n’est supprimé.`
-            : `${result.updated} bien${result.updated === 1 ? '' : 's'} remis en ligne.`,
+            ? t('agent.listings.bulkArchived', { count: result.updated })
+            : t('agent.listings.bulkUnarchived', { count: result.updated }),
         });
       } catch (err) {
         showToast({ type: 'error', message: err.message || 'Échec de la mise à jour groupée.' });
@@ -236,8 +238,8 @@ export default function AgentListingsTable({ listings, perListingStats }) {
           type: result.failed > 0 ? 'error' : 'success',
           message:
             result.failed > 0
-              ? `${result.deleted} bien${result.deleted === 1 ? '' : 's'} supprimé${result.deleted === 1 ? '' : 's'}, ${result.failed} échec${result.failed === 1 ? '' : 's'}.`
-              : `${result.deleted} bien${result.deleted === 1 ? '' : 's'} supprimé${result.deleted === 1 ? '' : 's'}.`,
+              ? t('agent.listings.bulkDeletedWithFailures', { deleted: result.deleted, failed: result.failed })
+              : t('agent.listings.bulkDeleted', { count: result.deleted }),
         });
       } catch (err) {
         showToast({ type: 'error', message: err.message || 'Échec de la suppression groupée.' });
@@ -261,16 +263,16 @@ export default function AgentListingsTable({ listings, perListingStats }) {
           type="checkbox"
           checked={allSelected}
           onChange={toggleAll}
-          aria-label="Tout sélectionner"
+          aria-label={t('agent.listings.selectAll')}
           disabled={selectableIds.length === 0}
           className="h-4 w-4 rounded-sm accent-[var(--blue)]"
         />
-        <div>Bien</div>
-        <div>Prix</div>
-        <div>Vues</div>
-        <div>Clics</div>
-        <div>Statut</div>
-        <div className="text-right">Actions</div>
+        <div>{t('agent.listings.columns.property')}</div>
+        <div>{t('agent.listings.columns.price')}</div>
+        <div>{t('agent.listings.columns.views')}</div>
+        <div>{t('agent.listings.columns.clicks')}</div>
+        <div>{t('agent.listings.columns.status')}</div>
+        <div className="text-right">{t('agent.listings.columns.actions')}</div>
       </div>
 
       {optimisticListings.map((listing) => {
@@ -292,7 +294,7 @@ export default function AgentListingsTable({ listings, perListingStats }) {
               checked={isSelected}
               onChange={() => toggleOne(listing.id)}
               disabled={isClosed}
-              aria-label={`Sélectionner ${listing.title}`}
+              aria-label={t('agent.listings.selectOne', { title: listing.title })}
               className="h-4 w-4 shrink-0 rounded-sm accent-[var(--blue)] disabled:opacity-30"
             />
 
@@ -317,7 +319,7 @@ export default function AgentListingsTable({ listings, perListingStats }) {
                     target="_blank"
                     rel="noopener noreferrer"
                     className="group inline-flex max-w-full items-center gap-1 truncate text-sm font-bold text-ink hover:text-blue-deep hover:underline"
-                    title="Voir l’annonce publique"
+                    title={t('agent.listings.viewPublic')}
                   >
                     <span className="truncate">{listing.title}</span>
                     <ExternalLink
@@ -327,7 +329,7 @@ export default function AgentListingsTable({ listings, perListingStats }) {
                     />
                   </Link>
                 ) : (
-                  <div className="truncate text-sm font-bold text-ink" title="Annonce pas encore publiée">
+                  <div className="truncate text-sm font-bold text-ink" title={t('agent.listings.notPublishedYet')}>
                     {listing.title}
                   </div>
                 )}
@@ -335,7 +337,7 @@ export default function AgentListingsTable({ listings, perListingStats }) {
                   <span className="truncate">{listing.quartier || 'Localisation non précisée'}</span>
                   {approve && (
                     <span className={`shrink-0 rounded-full px-2 py-0.5 text-[0.625rem] font-bold ${approve.className}`}>
-                      {approve.label}
+                      {t(approve.labelKey)}
                     </span>
                   )}
                 </div>
@@ -345,18 +347,18 @@ export default function AgentListingsTable({ listings, perListingStats }) {
             <PriceCell listing={listing} isClosed={isClosed} onSave={(value) => handlePriceSave(listing, value)} />
 
             <div className="u-tabular text-sm text-ink-70">
-              <span className="lg:hidden">Vues : </span>
+              <span className="lg:hidden">{t('agent.listings.viewsInline')} </span>
               {(perListingStats.views[listing.id] || 0).toLocaleString('fr-FR')}
             </div>
 
             <div className="u-tabular text-sm text-ink-70">
-              <span className="lg:hidden">Clics WhatsApp : </span>
+              <span className="lg:hidden">{t('agent.listings.clicksInline')} </span>
               {(perListingStats.clicks[listing.id] || 0).toLocaleString('fr-FR')}
             </div>
 
             {isClosed ? (
               <span className="w-full max-w-[10.5rem] rounded-full bg-canvas-deep px-3.5 py-[0.4375rem] text-center text-[0.8125rem] font-bold text-ink-70">
-                {listing.purpose === 'rent' ? 'Loué' : 'Vendu'}
+                {listing.purpose === 'rent' ? t('agent.listings.let') : 'Vendu'}
               </span>
             ) : (
               // Keyed on the optimistic status itself: AgentListingStatusSelect
@@ -370,7 +372,7 @@ export default function AgentListingsTable({ listings, perListingStats }) {
                 name="listing_status"
                 defaultValue={listing.listing_status}
                 options={LISTING_STATUS_EDIT_OPTIONS}
-                label={`Statut de ${listing.title}`}
+                label={t('agent.listings.statusOf', { title: listing.title })}
                 onChange={(status) => handleStatusChange(listing, status)}
               />
             )}
@@ -398,7 +400,7 @@ export default function AgentListingsTable({ listings, perListingStats }) {
               disabled={pending || bulkPending}
               className="u-press rounded-full bg-white/15 px-3.5 py-1.5 text-[0.8125rem] font-bold text-white transition-colors hover:bg-white/25 disabled:opacity-50"
             >
-              Marquer sous compromis
+              {t('agent.listings.markUnderOffer')}
             </button>
             <button
               type="button"
@@ -420,14 +422,14 @@ export default function AgentListingsTable({ listings, perListingStats }) {
               className="u-press inline-flex items-center gap-1.5 rounded-full bg-danger/90 px-3.5 py-1.5 text-[0.8125rem] font-bold text-white transition-colors hover:bg-danger disabled:opacity-50"
             >
               <Trash2 strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
-              Supprimer
+              {t('common.actions.delete')}
             </button>
             <button
               type="button"
               onClick={clearSelection}
               className="u-press rounded-full px-3 py-1.5 text-[0.8125rem] font-semibold text-white/70 hover:text-white"
             >
-              Annuler
+              {t('common.actions.cancel')}
             </button>
           </div>
         </div>
@@ -440,17 +442,17 @@ export default function AgentListingsTable({ listings, perListingStats }) {
           className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4"
         >
           <div className="u-card w-full max-w-sm rounded-card bg-surface p-6">
-            <h2 className="u-title-card text-ink">Supprimer {selected.size} bien{selected.size === 1 ? '' : 's'} ?</h2>
-            <p className="mt-2 text-sm text-ink-45">
-              Ces annonces et leurs photos seront définitivement retirées du site. Cette action est irréversible.
-            </p>
+            <h2 className="u-title-card text-ink">
+              {t('agent.listings.deleteBulkTitle', { count: selected.size })}
+            </h2>
+            <p className="mt-2 text-sm text-ink-45">{t('agent.listings.deleteConfirm')}</p>
             <div className="mt-6 flex justify-end gap-2.5">
               <button
                 type="button"
                 onClick={() => setConfirmBulkDelete(false)}
                 className="u-press inline-flex h-11 items-center rounded-lg px-4 text-sm font-semibold text-ink-45 hover:bg-canvas-alt hover:text-ink"
               >
-                Annuler
+                {t('common.actions.cancel')}
               </button>
               <button
                 type="button"
@@ -458,7 +460,7 @@ export default function AgentListingsTable({ listings, perListingStats }) {
                 disabled={bulkPending}
                 className="u-press h-11 rounded-lg bg-danger px-5 text-sm font-bold text-white disabled:opacity-60"
               >
-                {bulkPending ? 'Suppression…' : 'Supprimer définitivement'}
+                {bulkPending ? t('agent.listings.deleting') : t('agent.listings.deletePermanently')}
               </button>
             </div>
           </div>
@@ -478,6 +480,7 @@ export default function AgentListingsTable({ listings, perListingStats }) {
  * Enter/blur saves, Escape cancels.
  */
 function PriceCell({ listing, isClosed, onSave }) {
+  const t = useT();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState('');
 
@@ -524,7 +527,7 @@ function PriceCell({ listing, isClosed, onSave }) {
       type="button"
       onClick={startEdit}
       disabled={isClosed}
-      title={isClosed ? undefined : 'Modifier le prix'}
+      title={isClosed ? undefined : t('agent.listings.editPrice')}
       className={`u-tabular rounded-md px-1.5 py-0.5 text-left text-sm font-bold text-ink ${
         isClosed ? 'cursor-default' : 'cursor-text hover:bg-canvas-alt'
       }`}

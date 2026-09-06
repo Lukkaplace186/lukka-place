@@ -3,11 +3,14 @@
 import { useRef } from 'react';
 import Link from 'next/link';
 import { getFavoriteIds, getSavedSearches } from '@/lib/localFavorites';
+import { useT } from '@/lib/i18n/client';
 
-const ERROR_MESSAGES = {
-  1: 'Numéro ou mot de passe incorrect.',
-  phone: 'Numéro de téléphone invalide.',
-  locked: 'Trop de tentatives — réessayez dans 15 minutes.',
+// Keys, not text: a module-level constant is evaluated once at import,
+// where `t` does not exist — see components/navItems.js.
+const ERROR_MESSAGE_KEYS = {
+  1: 'auth.errors.badCredentials',
+  phone: 'auth.errors.phoneInvalid',
+  locked: 'auth.errors.locked',
 };
 
 /**
@@ -19,6 +22,7 @@ const ERROR_MESSAGES = {
  * mergeAnonymousData) is real and additive, not a decoration.
  */
 export default function LoginForm({ action, next, error }) {
+  const t = useT();
   const formRef = useRef(null);
 
   function handleSubmit() {
@@ -36,7 +40,7 @@ export default function LoginForm({ action, next, error }) {
 
       <div>
         <label htmlFor="phone" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
-          Numéro de téléphone
+          {t('auth.phoneNumber')}
         </label>
         <input
           id="phone"
@@ -44,7 +48,7 @@ export default function LoginForm({ action, next, error }) {
           name="phone"
           inputMode="tel"
           autoComplete="tel"
-          placeholder="099 712 3456 ou +33 612345678"
+          placeholder={t('enquiry.whatsappPlaceholder')}
           autoFocus
           required
           className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
@@ -54,10 +58,10 @@ export default function LoginForm({ action, next, error }) {
       <div>
         <div className="mb-1 flex items-center justify-between">
           <label htmlFor="password" className="block text-xs font-semibold uppercase tracking-wide text-ink-45">
-            Mot de passe
+            {t('auth.password')}
           </label>
           <Link href="/mot-de-passe-oublie?role=customer" className="text-xs font-semibold text-blue-deep hover:underline">
-            Mot de passe oublié ?
+            {t('account.profile.forgotPassword')}
           </Link>
         </div>
         <input
@@ -72,7 +76,7 @@ export default function LoginForm({ action, next, error }) {
 
       {error && (
         <p className="text-sm text-red-600" role="alert">
-          {ERROR_MESSAGES[error] || ERROR_MESSAGES[1]}
+          {(ERROR_MESSAGE_KEYS[error] ? t(ERROR_MESSAGE_KEYS[error]) : null) || (ERROR_MESSAGE_KEYS[1] ? t(ERROR_MESSAGE_KEYS[1]) : null)}
         </p>
       )}
 
@@ -80,7 +84,7 @@ export default function LoginForm({ action, next, error }) {
         type="submit"
         className="mt-1 rounded-md bg-blue px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary"
       >
-        Se connecter
+        {t('common.shared.signIn')}
       </button>
     </form>
   );

@@ -1,11 +1,17 @@
 import { redirect } from 'next/navigation';
 import PageShell, { PageAction, PageNotice } from '@/components/PageShell';
 import { getCurrentCustomerId } from '@/lib/customers';
+import { getT } from '@/lib/i18n/server';
 
-export const metadata = {
-  title: 'Actualités — Lukka Place',
-  description: 'Alertes sur les nouvelles annonces à Kinshasa.',
-};
+// generateMetadata, not a static object: a static export cannot see the
+// request locale — see app/(site)/a-propos/page.js.
+export async function generateMetadata() {
+  const t = await getT();
+  return {
+    title: t('updates.metaTitle'),
+    description: t('updates.metaDescription'),
+  };
+}
 
 /**
  * Honest stub for anonymous visitors — real alerts now exist, but they're
@@ -15,29 +21,29 @@ export const metadata = {
  * pointing here unmodified; this redirect is what handles the split.
  */
 export default async function UpdatesPage() {
+  const t = await getT();
   const customerId = await getCurrentCustomerId();
   if (customerId) redirect('/compte/alertes');
 
   return <UpdatesStub />;
 }
 
-function UpdatesStub() {
+async function UpdatesStub() {
+  const t = await getT();
   return (
     <PageShell
-      eyebrow="Actualités"
-      title="Alertes sur les nouvelles annonces"
-      breadcrumb={[{ label: 'Accueil', href: '/' }, { label: 'Actualités' }]}
+      eyebrow={t('updates.title')}
+      title={t('updates.alertsTitle')}
+      breadcrumb={[{ label: t('breadcrumb.home'), href: '/' }, { label: t('updates.title') }]}
     >
       <div className="flex flex-col items-start gap-6">
         <PageNotice>
-          Les alertes sont réservées aux visiteurs connectés — créez un compte pour voir les nouvelles annonces
-          correspondant à vos recherches sauvegardées.
+          {t('updates.alertsSignedInOnly')}
         </PageNotice>
         <p className="text-[0.9375rem] leading-relaxed text-ink-70">
-          En attendant, vous pouvez sauvegarder une recherche depuis la page des annonces : elle est conservée sur cet
-          appareil et reste accessible depuis vos favoris.
+          {t('updates.saveSearchMeanwhile')}
         </p>
-        <PageAction href="/compte/inscription?next=/compte/alertes">Créer un compte</PageAction>
+        <PageAction href="/compte/inscription?next=/compte/alertes">{t('common.actions.signup')}</PageAction>
       </div>
     </PageShell>
   );

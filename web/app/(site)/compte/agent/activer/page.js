@@ -5,16 +5,25 @@ import { peekAgentActivation } from '@/lib/agents';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { activateAgentAction } from './actions';
+import { getT } from '@/lib/i18n/server';
 
-export const metadata = {
-  title: 'Activer mon compte agent — Lukka Place',
-  robots: { index: false, follow: false },
-};
+// generateMetadata, not a static object: a static export cannot see the
+// request locale — see app/(site)/a-propos/page.js.
+export async function generateMetadata() {
+  const t = await getT();
+  return {
+    title: t('auth.activateMetaTitle'),
+    robots: { index: false, follow: false },
+  };
+}
 
-const ERROR_MESSAGES = {
-  invalid: 'Ce lien n’est plus valable. Renvoyez un message sur WhatsApp pour en recevoir un nouveau.',
-  password: 'Choisissez un mot de passe d’au moins 8 caractères.',
-  mismatch: 'Les deux mots de passe ne correspondent pas.',
+// Keys, not text: a module-level constant is evaluated once at import
+// and cannot hold translated copy — see components/navItems.js. The
+// lookup below resolves the key at render.
+const ERROR_MESSAGE_KEYS = {
+  invalid: 'auth.errors.linkInvalid',
+  password: 'auth.errors.passwordTooShort',
+  mismatch: 'auth.errors.passwordMismatch',
 };
 
 /**
@@ -35,6 +44,7 @@ const ERROR_MESSAGES = {
  * presenting a password form that fails on submit.
  */
 export default async function AgentActivatePage({ searchParams }) {
+  const t = await getT();
   const params = await searchParams;
   const phone = normalizePhone(String(params.phone || ''));
   const token = typeof params.token === 'string' ? params.token : '';
@@ -44,15 +54,14 @@ export default async function AgentActivatePage({ searchParams }) {
 
   if (!valid) {
     const href = getCentralWhatsAppHref(
-      'Bonjour, mon lien d’activation Lukka Place a expiré. Pouvez-vous m’en envoyer un nouveau ?',
+      t('auth.activate.whatsappExpired'),
     );
     return (
       <div className="flex min-h-[70vh] flex-col items-center justify-center px-4">
         <div className="u-lift w-full max-w-sm rounded-card border border-line bg-surface p-6 sm:p-8">
-          <h1 className="u-title-section text-ink">Lien expiré</h1>
+          <h1 className="u-title-section text-ink">{t('auth.linkExpired')}</h1>
           <p className="u-micro mt-2 leading-relaxed text-ink-45">
-            Ce lien d’activation n’est plus valable — il a peut-être déjà été utilisé, ou il a dépassé sa durée
-            de validité. Vos biens restent enregistrés : seul l’accès au tableau de bord attend.
+            {t('auth.activate.expiredBody')}
           </p>
           <div className="mt-6 flex flex-col gap-2.5">
             {href ? (
@@ -62,14 +71,14 @@ export default async function AgentActivatePage({ searchParams }) {
                 rel="noopener noreferrer"
                 className="u-btn-primary u-press inline-flex h-11 items-center justify-center rounded-lg bg-blue px-4 text-sm font-bold text-white"
               >
-                Recevoir un nouveau lien sur WhatsApp
+                {t('auth.activate.requestNewLink')}
               </a>
             ) : null}
             <Link
               href="/compte/agent/connexion"
               className="u-micro-strong inline-flex h-10 items-center justify-center rounded-lg text-ink-45 hover:text-ink"
             >
-              J’ai déjà un mot de passe — me connecter
+              {t('auth.activate.alreadyHavePassword')}
             </Link>
           </div>
         </div>
@@ -82,7 +91,7 @@ export default async function AgentActivatePage({ searchParams }) {
       <div className="u-lift w-full max-w-sm rounded-card border border-line bg-surface p-6 sm:p-8">
         <span className="mb-4 inline-flex items-center gap-1.5 rounded-full bg-success-tint px-3 py-1 text-[0.6875rem] font-extrabold uppercase tracking-[0.1em] text-success">
           <BadgeCheck strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
-          Numéro vérifié
+          {t('admin.agentPanel.numberVerified')}
         </span>
 
         <h1 className="u-title-section text-ink">
@@ -91,7 +100,7 @@ export default async function AgentActivatePage({ searchParams }) {
         <p className="u-micro mt-2 leading-relaxed text-ink-45">
           {agencyName ? `${agencyName} · ` : ''}
           Votre compte agent est créé et votre numéro <span className="u-tabular">{phone}</span> est déjà
-          vérifié. Choisissez un mot de passe pour accéder à votre tableau de bord.
+          {t('auth.activate.choosePasswordBody')}
         </p>
 
         <form action={activateAgentAction} className="mt-6 flex flex-col gap-3.5">
@@ -100,7 +109,7 @@ export default async function AgentActivatePage({ searchParams }) {
 
           <div>
             <label htmlFor="password" className="u-eyebrow mb-1.5 block text-ink-45">
-              Mot de passe
+              {t('auth.password')}
             </label>
             <input
               id="password"
@@ -112,12 +121,12 @@ export default async function AgentActivatePage({ searchParams }) {
               autoFocus
               className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2.5 text-sm text-ink"
             />
-            <p className="u-micro mt-1.5 text-ink-35">8 caractères minimum.</p>
+            <p className="u-micro mt-1.5 text-ink-35">{t('auth.minEightChars')}</p>
           </div>
 
           <div>
             <label htmlFor="password_confirm" className="u-eyebrow mb-1.5 block text-ink-45">
-              Confirmer le mot de passe
+              {t('auth.confirmPassword')}
             </label>
             <input
               id="password_confirm"
@@ -132,7 +141,7 @@ export default async function AgentActivatePage({ searchParams }) {
 
           {error && (
             <p className="u-micro font-semibold text-danger" role="alert">
-              {ERROR_MESSAGES[error] || ERROR_MESSAGES.invalid}
+              {(ERROR_MESSAGE_KEYS[error] ? t(ERROR_MESSAGE_KEYS[error]) : null) || ERROR_MESSAGES.invalid}
             </p>
           )}
 
@@ -140,7 +149,7 @@ export default async function AgentActivatePage({ searchParams }) {
             type="submit"
             className="u-btn-primary u-press mt-1 inline-flex h-11 items-center justify-center rounded-lg bg-blue px-4 text-sm font-bold text-white"
           >
-            Activer mon compte
+            {t('auth.activate.submit')}
           </button>
         </form>
       </div>

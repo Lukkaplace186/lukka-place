@@ -9,6 +9,7 @@ import { convertToCdf } from '@/lib/currency';
 import { convertCdfToUsd } from '@/lib/format';
 import { updateListingAction } from '@/app/compte/agent/actions';
 import { useToast } from './Toast';
+import { useT } from '@/lib/i18n/client';
 
 const FIELD_CLASS =
   'u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35';
@@ -43,6 +44,7 @@ const HINT_CLASS = 'mt-1.5 text-xs text-ink-35';
  * as an invisible side effect of ordering.
  */
 export default function AgentListingEditor({ listing, communes, cdfRate, amenities = [] }) {
+  const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
   const [pending, startTransition] = useTransition();
@@ -160,8 +162,8 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
       showToast({
         type: result.photoWarning ? 'error' : 'success',
         message: result.photoWarning
-          ? 'Modifications enregistrées, mais certaines photos n’ont pas pu être envoyées.'
-          : 'Modifications enregistrées et publiées.',
+          ? t('agent.editor.savedWithPhotoWarning')
+          : t('agent.editor.savedAndPublished'),
       });
       setPhotosTouched(false);
       setAmenitiesTouched(false);
@@ -192,7 +194,7 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
         </div>
 
         <div>
-          <label htmlFor="description" className={LABEL_CLASS}>Description</label>
+          <label htmlFor="description" className={LABEL_CLASS}>{t('listings.detail.description')}</label>
           <textarea
             id="description"
             name="description"
@@ -205,13 +207,13 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
           />
           <p className={HINT_CLASS}>
             Citez les équipements en toutes lettres (groupe électrogène, forage, parking, meublé…) : c’est ce texte
-            que les filtres de recherche analysent.
+            {t('agent.editor.searchFiltersHint')}
           </p>
         </div>
       </div>
 
       <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-6">
-        <h2 className="text-[1.0625rem] font-bold text-ink">Prix et caractéristiques</h2>
+        <h2 className="text-[1.0625rem] font-bold text-ink">{t('agent.editor.priceAndFeatures')}</h2>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
@@ -237,7 +239,7 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
                   making them retype it deliberately. */}
               <div
                 role="group"
-                aria-label="Devise du prix"
+                aria-label={t('agent.editor.priceCurrency')}
                 className="flex shrink-0 items-center rounded-lg border border-line bg-canvas-alt p-0.5"
               >
                 {[
@@ -286,7 +288,7 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
               min="0"
               step="1"
               defaultValue={Number(listing.area) > 0 ? listing.area : ''}
-              placeholder="Non précisée"
+              placeholder={t('agent.editor.notSpecified')}
               className={FIELD_CLASS}
             />
           </div>
@@ -298,7 +300,7 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
             <input id="beds" name="beds" type="number" min="0" step="1" defaultValue={listing.beds ?? ''} className={FIELD_CLASS} />
           </div>
           <div>
-            <label htmlFor="bath" className={LABEL_CLASS}>Salles de bain</label>
+            <label htmlFor="bath" className={LABEL_CLASS}>{t('agent.editor.bathrooms')}</label>
             <input id="bath" name="bath" type="number" min="0" step="1" defaultValue={listing.bath ?? ''} className={FIELD_CLASS} />
           </div>
           <div>
@@ -330,7 +332,7 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
       </div>
 
       <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-6">
-        <h2 className="text-[1.0625rem] font-bold text-ink">Localisation</h2>
+        <h2 className="text-[1.0625rem] font-bold text-ink">{t('common.shared.location')}</h2>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
@@ -349,7 +351,7 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
             </select>
           </div>
           <div>
-            <label htmlFor="quartier" className={LABEL_CLASS}>Quartier ou référence</label>
+            <label htmlFor="quartier" className={LABEL_CLASS}>{t('agent.editor.quartierOrReference')}</label>
             <input
               id="quartier"
               name="quartier"
@@ -365,9 +367,9 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
       {amenities.length > 0 && (
         <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-6">
           <div>
-            <h2 className="text-[1.0625rem] font-bold text-ink">Équipements</h2>
+            <h2 className="text-[1.0625rem] font-bold text-ink">{t('agent.editor.amenities')}</h2>
             <p className={HINT_CLASS}>
-              Cochez ce que le bien possède réellement. Ces informations s’affichent sur l’annonce.
+              {t('agent.editor.amenitiesHint')}
             </p>
           </div>
 
@@ -401,7 +403,7 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
 
         {photos.length === 0 ? (
           <p className="rounded-lg bg-canvas-alt px-4 py-3 text-sm text-ink-45">
-            Ce bien n’a aucune photo. Ajoutez-en au moins une.
+            {t('agent.editor.noPhotos')}
           </p>
         ) : (
           <ul className="flex flex-wrap gap-3">
@@ -446,7 +448,7 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
                     type="button"
                     onClick={() => movePhoto(index, index - 1)}
                     disabled={index === 0}
-                    aria-label="Déplacer la photo vers la gauche"
+                    aria-label={t('agent.editor.movePhotoLeft')}
                     className="grid h-6 w-6 place-items-center rounded-md bg-black/55 text-xs font-bold text-white disabled:opacity-40"
                   >
                     ←
@@ -455,7 +457,7 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
                     type="button"
                     onClick={() => movePhoto(index, index + 1)}
                     disabled={index === photos.length - 1}
-                    aria-label="Déplacer la photo vers la droite"
+                    aria-label={t('agent.editor.movePhotoRight')}
                     className="grid h-6 w-6 place-items-center rounded-md bg-black/55 text-xs font-bold text-white disabled:opacity-40"
                   >
                     →
@@ -465,7 +467,7 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
                 <button
                   type="button"
                   onClick={() => removePhoto(index)}
-                  aria-label="Retirer cette photo"
+                  aria-label={t('agent.editor.removePhoto')}
                   className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-white"
                 >
                   <X strokeWidth={2.5} className="h-3.5 w-3.5" />
@@ -477,10 +479,10 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
 
         <label className="inline-flex h-10 w-fit cursor-pointer items-center gap-1.5 rounded-lg border border-dashed border-line px-3.5 text-[0.8125rem] font-bold text-ink-70 hover:bg-canvas-alt">
           <Plus strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-          Ajouter des photos
+          {t('agent.editor.addPhotos')}
           <input type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={addPhotos} />
         </label>
-        <p className="text-xs text-ink-35">JPEG, PNG ou WebP — 5 Mo max par photo, 10 photos max.</p>
+        <p className="text-xs text-ink-35">{t('agent.editor.photoHint')}</p>
       </div>
 
       <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 border-t border-line bg-surface/95 px-1 py-4 backdrop-blur-md">
@@ -489,14 +491,14 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
           className="u-press inline-flex h-11 items-center gap-1.5 rounded-lg px-4 text-sm font-semibold text-ink-45 hover:bg-canvas-alt hover:text-ink"
         >
           <ArrowLeft strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-          Retour
+          {t('common.actions.back')}
         </Link>
         <button
           type="submit"
           disabled={pending}
           className="u-btn-primary u-press h-11 rounded-lg bg-blue px-6 text-sm font-bold text-white disabled:opacity-60"
         >
-          {pending ? 'Enregistrement…' : 'Enregistrer'}
+          {pending ? 'Enregistrement…' : t('common.actions.save')}
         </button>
       </div>
     </form>
@@ -520,6 +522,7 @@ const MIN_RECOMMENDED_DESCRIPTION_LENGTH = 150;
  * length) — never a separate, possibly-stale computation.
  */
 function QualityHints({ photoCount, descriptionLength }) {
+  const t = useT();
   const hints = [];
   if (photoCount < MIN_RECOMMENDED_PHOTOS) {
     const remaining = MIN_RECOMMENDED_PHOTOS - photoCount;
@@ -535,7 +538,7 @@ function QualityHints({ photoCount, descriptionLength }) {
     return (
       <div className="flex items-center gap-2.5 rounded-card bg-success-tint px-5 py-3.5 text-[0.8125rem] font-semibold text-success">
         <CircleCheck strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0" aria-hidden="true" />
-        Annonce complète — photos et description au niveau recommandé.
+        {t('agent.editor.complete')}
       </div>
     );
   }
@@ -544,7 +547,7 @@ function QualityHints({ photoCount, descriptionLength }) {
     <div className="flex flex-col gap-2 rounded-card bg-warning-tint px-5 py-3.5 text-[0.8125rem] font-semibold text-warning">
       <div className="flex items-center gap-2.5">
         <Sparkles strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0" aria-hidden="true" />
-        Pour une meilleure visibilité
+        {t('agent.editor.forBetterVisibility')}
       </div>
       <ul className="ml-[1.625rem] list-disc font-normal">
         {hints.map((hint) => (

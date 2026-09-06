@@ -3,9 +3,10 @@
 import Link from 'next/link';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from './ui/sheet';
 import AdvancedFilterFields from './AdvancedFilterFields';
+import { useT } from '@/lib/i18n/client';
 
 /**
- * "Plus de filtres" — the fields that do not earn their own top-bar pill.
+ * {t('listings.filters.moreFilters')} — the fields that do not earn their own top-bar pill.
  * The actual field markup lives in AdvancedFilterFields.js now, shared with
  * FilterModal.js's mobile "Filtres" sheet — this component owns the Sheet
  * chrome (header, scroll area, bottom action bar) and the reset behaviour
@@ -28,6 +29,7 @@ export default function FiltersDrawer({
   resultCountLabel,
   resultPending,
 }) {
+  const t = useT();
   const { setQuartier, setParcelleSubtype, setBedsMin, setBathMin, setDepositMax, setAmenities } = setters;
 
   function reset() {
@@ -43,7 +45,7 @@ export default function FiltersDrawer({
     <Sheet open={open} onOpenChange={(next) => !next && onClose()}>
       <SheetContent side="bottom" className="max-h-[85vh] rounded-t-xl border-line bg-surface">
         <SheetHeader className="border-b border-line">
-          <SheetTitle className="font-display text-xl font-normal tracking-[-0.01em]">Plus de filtres</SheetTitle>
+          <SheetTitle className="font-display text-xl font-normal tracking-[-0.01em]">{t('listings.filters.moreFilters')}</SheetTitle>
         </SheetHeader>
 
         <div className="flex flex-col gap-6 overflow-y-auto px-4 py-5">
@@ -62,7 +64,7 @@ export default function FiltersDrawer({
             onClick={reset}
             className="u-press u-btn-secondary flex-1 rounded-full py-2.5 text-center text-sm font-semibold text-ink"
           >
-            Réinitialiser
+            {t('common.actions.reset')}
           </Link>
           <button
             type="button"

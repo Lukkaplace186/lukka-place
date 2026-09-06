@@ -6,15 +6,21 @@ import { getPortalCustomer } from '@/lib/customerPortal';
 import { getCustomerInquiries } from '@/lib/customerInquiries';
 import { getLocationHierarchyWithFallback } from '@/lib/locations';
 import { getPopularCommunes } from '@/lib/listings';
-import { LEAD_STATUS_LABELS_FR } from '@/lib/adminLabels';
+import { LEAD_STATUS_LABEL_KEYS } from '@/lib/adminLabels';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { submitPropertyRequestAction } from '../actions';
 import RequestForm from './RequestForm';
+import { getT } from '@/lib/i18n/server';
 
-export const metadata = {
-  title: 'Trouver pour moi — Lukka Place',
-  robots: { index: false, follow: false },
-};
+// generateMetadata, not a static object: a static export cannot see the
+// request locale — see app/(site)/a-propos/page.js.
+export async function generateMetadata() {
+  const t = await getT();
+  return {
+    title: t('account.requestForm.metaTitle'),
+    robots: { index: false, follow: false },
+  };
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -51,6 +57,7 @@ async function resolveCommunes() {
 }
 
 export default async function DemandesPage() {
+  const t = await getT();
   const session = await getPortalCustomer();
   if (!session) redirect('/compte/connexion?next=/compte/client/demandes');
 
@@ -72,7 +79,7 @@ export default async function DemandesPage() {
               <Send strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
             </span>
             <p className="text-[0.875rem] leading-relaxed text-ink-45">
-              Vos demandes apparaîtront ici dès votre premier envoi, avec leur avancement côté agences.
+              {t('account.requests.willAppearHere')}
             </p>
           </PortalPanel>
         ) : (
@@ -81,7 +88,7 @@ export default async function DemandesPage() {
               <div className="flex items-center justify-between gap-3">
                 <span className="u-tabular text-[0.875rem] font-bold text-ink">Demande n° {lead.id}</span>
                 <PortalBadge tone={LEAD_TONES[lead.status] || 'neutral'}>
-                  {LEAD_STATUS_LABELS_FR[lead.status] || lead.status}
+                  {LEAD_STATUS_LABEL_KEYS[lead.status] ? t(LEAD_STATUS_LABEL_KEYS[lead.status]) : lead.status}
                 </PortalBadge>
               </div>
 
@@ -107,7 +114,7 @@ export default async function DemandesPage() {
                 ) : (
                   <p className="inline-flex items-center gap-2 text-[0.8125rem] text-ink-45">
                     <FileText strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0" aria-hidden="true" />
-                    Recherche personnalisée, sans annonce rattachée
+                    {t('account.requests.customSearchNoListing')}
                   </p>
                 )}
 
@@ -115,7 +122,7 @@ export default async function DemandesPage() {
                   href="/compte/client/messages"
                   className="inline-flex items-center gap-1.5 text-[0.8125rem] font-semibold text-blue-deep hover:underline"
                 >
-                  Voir le suivi
+                  {t('account.requests.viewProgress')}
                   <ArrowRight strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
                 </Link>
               </div>

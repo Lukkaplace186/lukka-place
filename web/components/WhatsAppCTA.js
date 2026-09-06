@@ -1,4 +1,7 @@
+'use client';
+
 import { buildWhatsAppLink, buildWhatsAppMessage } from '@/lib/whatsapp';
+import { useT } from '@/lib/i18n/client';
 
 function WhatsAppIcon(props) {
   return (
@@ -56,6 +59,7 @@ function WhatsAppIcon(props) {
  * @param {'compact'|'block'|'link'} [props.variant]
  */
 export default function WhatsAppCTA({ listing, variant = 'compact' }) {
+  const t = useT();
   const phoneNumber = listing.agent_phone || process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
 
   if (!phoneNumber) {
@@ -101,7 +105,7 @@ export default function WhatsAppCTA({ listing, variant = 'compact' }) {
         className="u-press inline-flex shrink-0 items-center gap-1.5 rounded-md px-1 py-1.5 text-[0.75rem] font-medium text-ink transition-colors hover:text-ink-70"
       >
         <WhatsAppIcon className="h-4 w-4" />
-        WhatsApp
+        {t('common.shared.whatsapp')}
       </button>
     );
   }
@@ -114,7 +118,7 @@ export default function WhatsAppCTA({ listing, variant = 'compact' }) {
         className="u-press inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-green px-4 text-[0.875rem] font-semibold text-white shadow-sm transition-colors hover:bg-green-deep"
       >
         <WhatsAppIcon className="h-4 w-4" />
-        WhatsApp
+        {t('common.shared.whatsapp')}
       </button>
     );
   }
@@ -126,7 +130,7 @@ export default function WhatsAppCTA({ listing, variant = 'compact' }) {
       className="u-press inline-flex shrink-0 items-center gap-1.5 rounded-full bg-green px-3.5 py-1.5 text-[0.75rem] font-semibold text-white transition-colors hover:bg-green-deep"
     >
       <WhatsAppIcon className="h-3.5 w-3.5" />
-      WhatsApp
+      {t('common.shared.whatsapp')}
     </button>
   );
 }

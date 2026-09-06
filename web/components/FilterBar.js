@@ -11,6 +11,7 @@ import SaveSearchButton from './SaveSearchButton';
 import { Slider } from './ui/slider';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { buildSearchLabel } from '@/lib/searchLabel';
+import { useT } from '@/lib/i18n/client';
 import {
   pushRecentSearch,
   readRecentSearches,
@@ -71,6 +72,7 @@ const numberInputClass =
  * Sticks at top-16 to sit directly under the fixed h-16 Header.
  */
 export default function FilterBar({ locations, propertyTypes = [], initialTotal, priceCeiling, defaults = {} }) {
+  const t = useT();
   const formRef = useRef(null);
 
   // Condenses this bar's own padding once the page has scrolled a few
@@ -148,8 +150,8 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
     const hasActiveFilter = FILTER_PARAM_KEYS.some((key) => searchParams.get(key));
     if (!hasActiveFilter) return;
     const href = `/listings?${searchParams.toString()}`;
-    pushRecentSearch({ label: buildSearchLabel(searchParams), href });
-  }, [searchParams]);
+    pushRecentSearch({ label: buildSearchLabel(searchParams, t), href });
+  }, [searchParams, t]);
 
   // Live "Voir N résultats" count for the Prix popover's, the "Plus de
   // filtres" drawer's, and FilterModal's CTA buttons — all three stage
@@ -225,8 +227,18 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
   // label already fell back to (FiltersDrawer/FilterModal's own hardcoded
   // "Voir les résultats" when `resultCount` is still null) — the two used
   // to say different things for the same button.
+  // One dictionary entry for number + noun: the two languages pluralise at
+  // different boundaries, which a `${n === 1 ? '' : 's'}` suffix can't say.
+  // The thousands separator follows the locale too (1 500 vs 1,500).
   const resultCountLabel =
-    resultCount == null ? null : `Voir ${resultCount.toLocaleString('fr-FR')} résultat${resultCount === 1 ? '' : 's'}`;
+    resultCount == null
+      ? null
+      : t('listings.filters.viewResults', {
+          count: resultCount,
+          // `count` is also what selects the plural form, so the formatted
+          // string is passed separately rather than replacing it.
+          countFormatted: resultCount.toLocaleString(t.locale === 'en' ? 'en-GB' : 'fr-FR'),
+        });
 
   const quartiers = commune ? locations[commune] || [] : [];
   // amenities is always an array (never absent) — counted by length, not by
@@ -387,7 +399,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
           <LocationAutocomplete
             preserveParams
             initialValue={defaults.search || ''}
-            placeholder="Commune, quartier, référence…"
+            placeholder={t('listings.filters.searchPlaceholder')}
             ariaLabel="Rechercher"
             showIcon
             showClear
@@ -410,7 +422,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
             }`}
           >
             <SlidersHorizontal strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-            Filtres
+            {t('listings.filters.title')}
             {mobileFilterCount > 0 ? (
               <span className="u-tabular flex h-4 min-w-4 items-center justify-center rounded-full bg-blue px-1 text-[0.625rem] font-bold text-white">
                 {mobileFilterCount}
@@ -431,11 +443,15 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
                 a typed/picked place to a real commune (see
                 LocationAutocomplete/searchParser and FiltersDrawer's own
                 hint pointing here). */}
-            <FilterPill label="Chambres" value={bedsMin ? `${bedsMin}+ ch` : null} active={Boolean(bedsMin)}>
-              <PillFieldLabel>Chambres (minimum)</PillFieldLabel>
+            <FilterPill
+              label={t('listings.filters.bedrooms')}
+              value={bedsMin ? t('listings.filters.bedsValue', { count: bedsMin }) : null}
+              active={Boolean(bedsMin)}
+            >
+              <PillFieldLabel>{t('listings.filters.bedroomsMin')}</PillFieldLabel>
               <div className="flex flex-wrap gap-2">
                 <PillOption selected={!bedsMin} onClick={() => apply(setBedsMin)('')}>
-                  Toutes
+                  {t('listings.filters.any')}
                 </PillOption>
                 {[1, 2, 3, 4, 5].map((n) => (
                   <PillOption key={n} selected={String(bedsMin) === String(n)} onClick={() => apply(setBedsMin)(String(n))}>
@@ -445,16 +461,16 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
               </div>
             </FilterPill>
 
-            <FilterPill label="Prix" value={priceLabel} active={Boolean(priceMin || priceMax)}>
-              <PillFieldLabel>Prix en USD</PillFieldLabel>
+            <FilterPill label={t('listings.filters.price')} value={priceLabel} active={Boolean(priceMin || priceMax)}>
+              <PillFieldLabel>{t('listings.filters.priceUsd')}</PillFieldLabel>
               <div className="flex items-center gap-2">
                 <input
                   type="number"
                   min="0"
                   value={priceMin}
                   onChange={(e) => setPriceMin(e.target.value)}
-                  placeholder="Min"
-                  aria-label="Prix minimum"
+                  placeholder={t('listings.filters.min')}
+                  aria-label={t('listings.filters.priceMin')}
                   className={numberInputClass}
                 />
                 <span className="text-ink-25">-</span>
@@ -463,8 +479,8 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
                   min="0"
                   value={priceMax}
                   onChange={(e) => setPriceMax(e.target.value)}
-                  placeholder="Max"
-                  aria-label="Prix maximum"
+                  placeholder={t('listings.filters.max')}
+                  aria-label={t('listings.filters.priceMax')}
                   className={numberInputClass}
                 />
               </div>
@@ -486,7 +502,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
                   setPriceMin(nextMin > 0 ? String(nextMin) : '');
                   setPriceMax(nextMax < PRICE_SLIDER_MAX ? String(nextMax) : '');
                 }}
-                aria-label="Fourchette de prix en USD"
+                aria-label={t('listings.filters.priceRangeAria')}
               />
               <div className="mt-1.5 flex items-center justify-between text-[0.6875rem] text-ink-45">
                 <span>0 $</span>
@@ -498,15 +514,15 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
                 onClick={submit}
                 className={`u-press mt-3 w-full rounded-full bg-blue py-2 text-[0.8125rem] font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary ${resultPending ? 'opacity-70' : ''}`}
               >
-                {resultCountLabel || 'Appliquer'}
+                {resultCountLabel || t('listings.filters.apply')}
               </button>
             </FilterPill>
 
-            <FilterPill label="Type de bien" value={typeLabel} active={Boolean(propertyType)}>
-              <PillFieldLabel>Type de bien</PillFieldLabel>
+            <FilterPill label={t('listings.filters.propertyType')} value={typeLabel} active={Boolean(propertyType)}>
+              <PillFieldLabel>{t('listings.filters.propertyType')}</PillFieldLabel>
               <div className="flex flex-wrap gap-2">
                 <PillOption selected={!propertyType} onClick={() => apply(setPropertyType)('')}>
-                  Tous
+                  {t('listings.filters.allTypes')}
                 </PillOption>
                 {/* DB-derived, with real counts — an option that would
                     return zero results is never offered. */}
@@ -529,7 +545,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
               }`}
             >
               <SlidersHorizontal strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-              Plus de filtres
+              {t('listings.filters.moreFilters')}
               {advancedCount > 0 ? (
                 <span className="u-tabular flex h-4 min-w-4 items-center justify-center rounded-full bg-blue px-1 text-[0.625rem] font-bold text-white">
                   {advancedCount}
@@ -562,7 +578,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
             className="u-press flex flex-1 items-center justify-center gap-1.5 py-2.5 text-[0.8125rem] font-semibold text-ink-70 transition-colors hover:text-blue-deep"
           >
             <Map strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-            {isMapView ? 'Vue liste' : 'Carte'}
+            {isMapView ? t('listings.filters.listView') : t('listings.filters.mapView')}
           </button>
           <SaveSearchButton variant="alert" />
         </div>

@@ -1,38 +1,36 @@
 import PageShell from '@/components/PageShell';
+import { getT } from '@/lib/i18n/server';
 
-export const metadata = {
-  title: 'À propos — Lukka Place',
-  description: "Comment fonctionne Lukka Place, la plateforme d'annonces immobilières de Kinshasa.",
-};
+/*
+ * `generateMetadata`, not a static `metadata` object: a static export is
+ * evaluated once at module load and so cannot see the request's locale. The
+ * <title> and the share-card description are user-facing copy like any other
+ * — an English visitor sharing this page should not put a French card into
+ * their WhatsApp thread.
+ */
+export async function generateMetadata() {
+  const t = await getT();
+  return {
+    title: t('about.metaTitle'),
+    description: t('about.metaDescription'),
+  };
+}
 
-export default function AboutPage() {
+export default async function AboutPage() {
+  const t = await getT();
+
   return (
     <PageShell
-      eyebrow="À propos"
-      title="Une plateforme faite pour Kinshasa"
-      lead="Les agents et particuliers soumettent leurs biens par WhatsApp. Chaque annonce est structurée, vérifiée, puis publiée."
-      breadcrumb={[{ label: 'Accueil', href: '/' }, { label: 'À propos' }]}
+      eyebrow={t('about.eyebrow')}
+      title={t('about.title')}
+      lead={t('about.lead')}
+      breadcrumb={[{ label: t('breadcrumb.home'), href: '/' }, { label: t('about.eyebrow') }]}
     >
       <div className="flex flex-col gap-6 text-[0.9375rem] leading-relaxed text-ink-70">
-        <p>
-          Lukka Place est une plateforme d&apos;annonces immobilières dédiée à Kinshasa. Les agents et particuliers
-          soumettent leurs biens directement par WhatsApp — texte ou photos — et chaque annonce est structurée puis
-          vérifiée avant d&apos;être publiée sur le site.
-        </p>
-        <p>
-          L&apos;objectif est simple : donner aux personnes qui cherchent un appartement, une villa ou une parcelle à
-          Kinshasa un endroit unique, à jour, où chaque annonce correspond à un bien réellement disponible — et un moyen
-          direct de contacter au sujet d&apos;un bien, sans compte ni formulaire.
-        </p>
-        <p>
-          Les prix sont établis en dollars américains. L&apos;affichage en francs congolais est une estimation
-          indicative, convertie à un taux de référence daté et mis à jour manuellement, jamais présentée comme le prix
-          contractuel.
-        </p>
-        <p>
-          Lukka Place ne fournit pas de services de courtage financier direct ; la plateforme facilite la mise en
-          relation entre les annonceurs et les personnes intéressées via référence d&apos;annonce.
-        </p>
+        <p>{t('about.body1')}</p>
+        <p>{t('about.body2')}</p>
+        <p>{t('about.body3')}</p>
+        <p>{t('about.body4')}</p>
       </div>
     </PageShell>
   );

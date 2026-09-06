@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getPopularCommunes } from '@/lib/listings';
+import { getT } from '@/lib/i18n/server';
 
 /**
  * web/Design's commune row, directly under the hero search panel: a bold
@@ -22,6 +23,7 @@ import { getPopularCommunes } from '@/lib/listings';
  * The per-commune emoji stays gone: the design's row carries none.
  */
 export default async function CommuneShortcuts() {
+  const t = await getT();
   const communes = await getPopularCommunes(8);
   if (!communes.length) return null;
 
@@ -34,7 +36,7 @@ export default async function CommuneShortcuts() {
             a native, scrollbar-free swipe with no body-level overflow — the
             scroll is contained to this row, not the page. */}
         <div className="no-scrollbar -mx-4 flex items-center gap-2.5 overflow-x-auto px-4 sm:mx-0 sm:flex-wrap sm:px-0">
-          <span className="mr-1.5 shrink-0 text-[0.875rem] font-bold text-ink">Communes</span>
+          <span className="mr-1.5 shrink-0 text-[0.875rem] font-bold text-ink">{t('footer.columns.communes')}</span>
           {communes.map(({ commune, count }) => (
             <Link
               key={commune}

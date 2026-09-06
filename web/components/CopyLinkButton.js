@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Link2, Check } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { useT } from '@/lib/i18n/client';
 
 /** Copies `url` to the clipboard with a real "Copié !" confirmation — same feedback pattern as WhatsAppPortfolioGenerator.js's own copy button. */
 /**
@@ -13,11 +14,14 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  */
 export default function CopyLinkButton({
   url,
-  label = 'Copier le lien',
+  label,
   ariaLabel,
   className = '',
   iconClassName = 'h-[18px] w-[18px]',
 }) {
+  const t = useT();
+  // See ShareOnWhatsAppButton on why this is not a parameter default.
+  const copyLabel = label ?? t('listings.share.copyLink');
   const [copied, setCopied] = useState(false);
 
   async function handleCopy() {
@@ -33,7 +37,7 @@ export default function CopyLinkButton({
       type="button"
       onClick={handleCopy}
       className={className}
-      aria-label={ariaLabel || (label ? undefined : 'Copier le lien')}
+      aria-label={ariaLabel || (copyLabel ? undefined : t('listings.share.copyLink'))}
       title={ariaLabel}
     >
       {copied ? (
@@ -41,7 +45,11 @@ export default function CopyLinkButton({
       ) : (
         <Link2 strokeWidth={ICON_STROKE_WIDTH} className={iconClassName} />
       )}
-      {label ? (copied ? 'Copié !' : label) : null}
+      {/* `copyLabel`, not the raw prop: the original applied its default in
+          the parameter list, so every later reference already saw it. A
+          caller passing label="" (the agent hero's icon-only button) still
+          gets no text, since ?? only substitutes null/undefined. */}
+      {copyLabel ? (copied ? t('listings.share.copied') : copyLabel) : null}
     </button>
   );
 }

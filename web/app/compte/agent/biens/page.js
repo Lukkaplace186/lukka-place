@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getT } from '@/lib/i18n/server';
 import { getCurrentAgentId } from '@/lib/agentSession';
 import { getAgentDashboardContext } from '@/lib/agentDashboard';
 import { getPerListingStats } from '@/lib/analytics';
@@ -12,9 +13,9 @@ import AgentListingsTable from '@/components/AgentListingsTable';
 // must stay filterable even though it's no longer reachable from the
 // per-row select in AgentListingsTable.
 const LISTING_STATUS_OPTIONS = [
-  { value: 'active', label: 'Actif' },
-  { value: 'under_offer', label: 'Sous compromis' },
-  { value: 'closed', label: 'Loué / Vendu' },
+  { value: 'active', labelKey: 'status.listing.active' },
+  { value: 'under_offer', labelKey: 'status.listing.under_offer' },
+  { value: 'closed', labelKey: 'status.listing.closed' },
 ];
 
 // Broad pills above the table — plain GET links into the same `?status=`
@@ -29,10 +30,10 @@ const LISTING_STATUS_OPTIONS = [
 // for the agent ("show me the ones that aren't on the site"); `matchesFilter`
 // below is what keeps the two axes from being conflated in the data.
 const FILTER_PILLS = [
-  { value: '', label: 'Tous' },
-  { value: 'active', label: 'En ligne' },
-  { value: 'archived', label: 'Archivés' },
-  { value: 'closed', label: 'Loués / Vendus' },
+  { value: '', labelKey: 'listings.filters.allTypes' },
+  { value: 'active', labelKey: 'agent.listings.online' },
+  { value: 'archived', labelKey: 'agent.listings.archived' },
+  { value: 'closed', labelKey: 'agent.listings.soldOrLet' },
 ];
 
 /**
@@ -52,6 +53,7 @@ function matchesFilter(listing, filter) {
 }
 
 export default async function AgentListingsPage({ searchParams }) {
+  const t = await getT();
   const params = await searchParams;
   const statusFilter = typeof params.status === 'string' ? params.status : '';
   const q = typeof params.q === 'string' ? params.q.trim() : '';
@@ -81,11 +83,11 @@ export default async function AgentListingsPage({ searchParams }) {
   return (
     <>
       <AgentPageHeader
-        title="Mes biens"
+        title={t('agent.listings.title')}
         newLeadsCount={newLeadsCount}
         searchAction="/compte/agent/biens"
         searchDefaultValue={q}
-        searchPlaceholder="Rechercher un bien"
+        searchPlaceholder={t('nav.searchAria')}
         hiddenSearchFields={{ status: statusFilter }}
       />
 
@@ -105,7 +107,7 @@ export default async function AgentListingsPage({ searchParams }) {
                   active ? 'bg-ink text-white' : 'bg-canvas-alt text-ink-70 hover:bg-canvas-deep'
                 }`}
               >
-                {pill.label}
+                {t(pill.labelKey)}
               </Link>
             );
           })}
@@ -126,22 +128,22 @@ export default async function AgentListingsPage({ searchParams }) {
                 <select
                   name="status"
                   defaultValue={statusFilter}
-                  aria-label="Filtrer par statut"
+                  aria-label={t('agent.listings.filterByStatus')}
                   className="u-focus-ring h-10 w-[10.625rem] rounded-lg border border-line bg-surface px-3 text-[0.8125rem] font-medium text-ink"
                 >
-                  <option value="">Tous les statuts</option>
+                  <option value="">{t('agent.listings.allStatuses')}</option>
                   {LISTING_STATUS_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>
-                      {o.label}
+                      {t(o.labelKey)}
                     </option>
                   ))}
-                  <option value="archived">Archivé (masqué du site)</option>
+                  <option value="archived">{t('agent.listings.archivedHidden')}</option>
                 </select>
                 <button
                   type="submit"
                   className="u-btn-secondary u-press h-10 rounded-lg px-3.5 text-[0.8125rem] font-bold text-ink"
                 >
-                  Filtrer
+                  {t('agent.listings.filter')}
                 </button>
               </form>
 
@@ -152,7 +154,7 @@ export default async function AgentListingsPage({ searchParams }) {
           {filtered.length === 0 ? (
             <div className="px-6 py-16 text-center text-sm text-ink-45">
               {listings.length === 0
-                ? 'Aucune annonce pour le moment. Cliquez sur « Ajouter un bien » pour publier votre premier bien.'
+                ? t('agent.listings.emptyDashboard')
                 : 'Aucune annonce ne correspond à ces filtres.'}
             </div>
           ) : (

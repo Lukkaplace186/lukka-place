@@ -5,6 +5,7 @@ import { PortalPanel, PortalSectionHeading, PortalEmpty } from '@/components/Cli
 import { searchCriteriaTags } from '@/lib/searchLabel';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { removeSavedSearchAction } from '../actions';
+import { getT } from '@/lib/i18n/server';
 
 const SHOWN_PER_SEARCH = 3;
 
@@ -15,17 +16,17 @@ const SHOWN_PER_SEARCH = 3;
  * `matches` is the real, already-computed `getSavedSearchMatches()` result
  * (lib/alerts.js) — this component only renders, it never fetches.
  */
-export default function AlertsBoard({ matches, whatsappHref }) {
+export default async function AlertsBoard({ matches, whatsappHref }) {
+  const t = await getT();
   if (matches.length === 0) {
     return (
       <PortalEmpty
         icon={Bell}
-        title="Aucune recherche sauvegardée"
-        actionLabel="Parcourir les annonces"
+        title={t('account.alerts.emptyTitle')}
+        actionLabel={t('account.favorites.browseListings')}
         actionHref="/listings"
       >
-        Sauvegardez une recherche depuis la page des annonces : nous vous montrons ici les nouveaux biens qui y
-        correspondent à chacune de vos visites.
+        {t('account.alerts.emptyBody')}
       </PortalEmpty>
     );
   }
@@ -34,7 +35,7 @@ export default function AlertsBoard({ matches, whatsappHref }) {
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start">
       <div>
         <PortalSectionHeading
-          title="Mes alertes"
+          title={t('account.alerts.title')}
           lead={`${matches.length} recherche${matches.length > 1 ? 's' : ''} active${
             matches.length > 1 ? 's' : ''
           }. Les nouveaux biens correspondants apparaissent ici à chaque visite.`}
@@ -43,7 +44,7 @@ export default function AlertsBoard({ matches, whatsappHref }) {
 
         <div className="flex flex-col gap-5">
           {matches.map(({ search, newListings, newCount, total }) => {
-            const tags = searchCriteriaTags(new URLSearchParams(search.query));
+            const tags = searchCriteriaTags(new URLSearchParams(search.query), t);
             const shown = newListings.slice(0, SHOWN_PER_SEARCH);
 
             return (
@@ -58,16 +59,16 @@ export default function AlertsBoard({ matches, whatsappHref }) {
                     >
                       <Bell strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
                       {newCount > 0
-                        ? `${newCount} nouveau${newCount > 1 ? 'x' : ''} résultat${newCount > 1 ? 's' : ''} depuis votre dernière visite`
-                        : 'Aucun nouveau résultat depuis votre dernière visite'}
+                        ? t('account.alerts.newSinceLastVisit', { count: newCount })
+                        : t('account.alerts.noneSinceLastVisit')}
                     </p>
                   </div>
 
                   <div className="flex shrink-0 items-center gap-1">
                     <Link
                       href={`/listings?${search.query}`}
-                      aria-label={`Modifier la recherche « ${search.label} »`}
-                      title="Modifier la recherche"
+                      aria-label={t('account.alerts.editSearchNamed', { label: search.label })}
+                      title={t('account.alerts.editSearch')}
                       className="u-press inline-flex h-8 w-8 items-center justify-center rounded-full text-ink-45 transition-colors hover:bg-canvas-deep hover:text-ink"
                     >
                       <SlidersHorizontal strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
@@ -77,7 +78,7 @@ export default function AlertsBoard({ matches, whatsappHref }) {
                       <button
                         type="submit"
                         aria-label={`Supprimer l'alerte « ${search.label} »`}
-                        title="Supprimer l'alerte"
+                        title={t('account.alerts.deleteAlert')}
                         className="u-press inline-flex h-8 w-8 items-center justify-center rounded-full text-ink-45 transition-colors hover:bg-danger-tint hover:text-danger"
                       >
                         <Trash2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
@@ -106,7 +107,7 @@ export default function AlertsBoard({ matches, whatsappHref }) {
                     href={`/listings?${search.query}`}
                     className="inline-flex items-center gap-1.5 text-[0.8125rem] font-semibold text-blue-deep hover:underline"
                   >
-                    Voir tous les résultats
+                    {t('account.alerts.seeAllResults')}
                     <ArrowRight strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
                   </Link>
                 </div>
@@ -126,10 +127,9 @@ export default function AlertsBoard({ matches, whatsappHref }) {
 
       <PortalPanel as="aside" className="flex flex-col gap-5 p-6">
         <div>
-          <h3 className="u-title-card text-ink">Comment vous êtes prévenu</h3>
+          <h3 className="u-title-card text-ink">{t('account.alerts.howNotified')}</h3>
           <p className="mt-2 text-[0.8125rem] leading-[1.5] text-ink-45">
-            Vos alertes sont consultables ici : à chaque visite, chaque recherche est relancée et les biens publiés
-            depuis votre dernier passage sont mis en avant.
+            {t('account.alerts.howItWorksBody')}
           </p>
         </div>
 
@@ -148,7 +148,7 @@ export default function AlertsBoard({ matches, whatsappHref }) {
             className="inline-flex items-center justify-center gap-2 rounded-full bg-green px-5 py-2.5 text-[0.875rem] font-semibold text-white transition-colors hover:bg-green-deep"
           >
             <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
-            En parler sur WhatsApp
+            {t('account.alerts.discussWhatsApp')}
           </a>
         ) : null}
 
@@ -157,7 +157,7 @@ export default function AlertsBoard({ matches, whatsappHref }) {
           className="u-btn-secondary inline-flex items-center justify-center gap-2 rounded-full px-5 py-2.5 text-[0.875rem] font-semibold text-ink"
         >
           <Plus strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
-          Créer une alerte
+          {t('account.alerts.create')}
         </Link>
       </PortalPanel>
     </div>

@@ -11,14 +11,16 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { submitVisitRequestAction } from '@/app/(site)/listings/[id]/actions';
 import { revealUp } from '@/lib/motion';
 import { useMotionSafe } from '@/lib/useMotionSafe';
+import { useT } from '@/lib/i18n/client';
 
 const FIELD_CLASS =
   'u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35';
 
-const VISIT_ERROR_MESSAGES = {
-  phone: 'Numéro invalide — vérifiez et réessayez.',
-  time: 'Indiquez le créneau qui vous arrange.',
-  1: "L'envoi a échoué, réessayez.",
+// Keys, not text — see components/navItems.js.
+const VISIT_ERROR_KEYS = {
+  phone: 'enquiry.errors.phone',
+  time: 'enquiry.errors.time',
+  1: 'enquiry.errors.failed',
 };
 
 /**
@@ -35,6 +37,7 @@ const VISIT_ERROR_MESSAGES = {
  * stacked dialogs at once.
  */
 function VisitRequestDialog({ propertyId }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const bound = submitVisitRequestAction.bind(null, propertyId);
 
@@ -46,28 +49,28 @@ function VisitRequestDialog({ propertyId }) {
         className="u-press u-btn-secondary inline-flex w-full items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold text-ink"
       >
         <CalendarClock strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
-        Demander une visite
+        {t('enquiry.requestViewing')}
       </button>
 
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Demander une visite</DialogTitle>
+          <DialogTitle>{t('enquiry.requestViewing')}</DialogTitle>
           <DialogDescription>
-            Laissez vos coordonnées et le créneau qui vous arrange — l&apos;agent vous confirmera la visite sur WhatsApp.
+            {t('enquiry.intro')}
           </DialogDescription>
         </DialogHeader>
 
         <form action={bound} className="flex flex-col gap-4">
           <div>
             <label htmlFor="visit-name" className="mb-1.5 block text-[0.8125rem] font-semibold text-ink-70">
-              Nom (facultatif)
+              {t('enquiry.nameOptional')}
             </label>
-            <input id="visit-name" name="name" placeholder="Votre nom" className={FIELD_CLASS} />
+            <input id="visit-name" name="name" placeholder={t('enquiry.namePlaceholder')} className={FIELD_CLASS} />
           </div>
 
           <div>
             <label htmlFor="visit-phone" className="mb-1.5 block text-[0.8125rem] font-semibold text-ink-70">
-              Numéro WhatsApp
+              {t('enquiry.whatsappNumber')}
             </label>
             <input
               id="visit-phone"
@@ -75,20 +78,20 @@ function VisitRequestDialog({ propertyId }) {
               type="tel"
               inputMode="tel"
               required
-              placeholder="099 712 3456 ou +33 612345678"
+              placeholder={t('enquiry.whatsappPlaceholder')}
               className={FIELD_CLASS}
             />
           </div>
 
           <div>
             <label htmlFor="visit-time" className="mb-1.5 block text-[0.8125rem] font-semibold text-ink-70">
-              Créneau souhaité
+              {t('enquiry.preferredSlot')}
             </label>
             <input
               id="visit-time"
               name="requested_time"
               required
-              placeholder="Ex. Samedi matin, 10h"
+              placeholder={t('enquiry.slotPlaceholder')}
               className={FIELD_CLASS}
             />
           </div>
@@ -96,11 +99,11 @@ function VisitRequestDialog({ propertyId }) {
           <DialogFooter>
             <DialogClose asChild>
               <button type="button" className="rounded-full border border-line px-4 py-2 text-sm font-medium text-ink-70 hover:bg-canvas-alt">
-                Annuler
+                {t('common.actions.cancel')}
               </button>
             </DialogClose>
             <button type="submit" className="u-btn-primary u-press rounded-lg bg-blue px-5 py-2 text-sm font-bold text-white">
-              Envoyer la demande
+              {t('enquiry.submit')}
             </button>
           </DialogFooter>
         </form>
@@ -160,6 +163,7 @@ function initialsOf(name) {
 }
 
 export default function EnquiryCard({ listing, visitSent, visitError }) {
+  const t = useT();
   const safe = useMotionSafe();
   const {
     id, title, reference,
@@ -204,12 +208,12 @@ export default function EnquiryCard({ listing, visitSent, visitError }) {
       <div className="flex flex-col gap-2.5">
         {visitSent && (
           <p className="rounded-lg bg-success-tint px-3.5 py-2.5 text-[0.8125rem] font-semibold text-success" role="status">
-            Votre demande de visite est partie — l&apos;agent vous répondra sur WhatsApp.
+            {t('enquiry.sent')}
           </p>
         )}
         {visitError && (
           <p className="rounded-lg bg-danger-tint px-3.5 py-2.5 text-[0.8125rem] font-semibold text-danger" role="alert">
-            {VISIT_ERROR_MESSAGES[visitError] || VISIT_ERROR_MESSAGES[1]}
+            {VISIT_ERROR_KEYS[visitError] || VISIT_ERROR_KEYS[1]}
           </p>
         )}
 
@@ -221,11 +225,11 @@ export default function EnquiryCard({ listing, visitSent, visitError }) {
             className="u-press u-btn-primary inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue px-5 py-3 text-sm font-semibold text-white"
           >
             <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
-            Contacter par WhatsApp
+            {t('enquiry.contactWhatsApp')}
           </a>
         ) : (
           <span className="inline-flex w-full items-center justify-center rounded-lg border border-line px-5 py-3 text-sm font-semibold text-ink-25">
-            Contact indisponible
+            {t('enquiry.contactUnavailable')}
           </span>
         )}
 
@@ -239,7 +243,7 @@ export default function EnquiryCard({ listing, visitSent, visitError }) {
             className="u-press u-btn-secondary inline-flex w-full items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold text-ink"
           >
             <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
-            Appeler l&apos;agent
+            {t('enquiry.callAgent')}
           </a>
         ) : null}
 
@@ -249,10 +253,19 @@ export default function EnquiryCard({ listing, visitSent, visitError }) {
         </div>
       </div>
 
+      {/* The reference keeps its `.u-ref` treatment by being interpolated
+          into the sentence as an element rather than as plain text — the two
+          languages put it in different positions, so it cannot be a fixed
+          prefix + <span> + fixed suffix. */}
       {reference ? (
         <p className="text-[0.8125rem] leading-[1.45] text-ink-35">
-          Le message WhatsApp part pré-rempli avec la référence{' '}
-          <span className="u-ref text-ink-45">{reference}</span> et le lien de l&apos;annonce.
+          {t('enquiry.referenceNote', { reference })
+            .split(reference)
+            .flatMap((part, i) => [
+              part,
+              i === 0 ? <span key="ref" className="u-ref text-ink-45">{reference}</span> : null,
+            ])
+            .filter(Boolean)}
         </p>
       ) : null}
     </motion.div>

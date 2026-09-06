@@ -7,11 +7,12 @@ import { MapPin, Landmark, Search, Sparkles, X, Clock, BedDouble, Bath, Home, Do
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { parseSearchQuery, escapeRegExp } from '@/lib/searchParser';
+import { useT } from '@/lib/i18n/client';
 
-const PROPERTY_TYPE_LABELS = {
-  appartement: 'Appartement',
-  maison: 'Maison',
-  parcelle: 'Parcelle',
+const PROPERTY_TYPE_LABEL_KEYS = {
+  appartement: 'search.tags.apartment',
+  maison: 'listings.typePlurals.maison',
+  parcelle: 'search.tags.plot',
 };
 
 /**
@@ -37,7 +38,7 @@ function buildPreviewPills(parsed) {
     pills.push({ field: 'bath_min', icon: Bath, label: `${parsed.bath_min}+ SDB` });
   }
   if (parsed.property_type) {
-    const typeLabel = PROPERTY_TYPE_LABELS[parsed.property_type] || parsed.property_type;
+    const typeLabel = PROPERTY_TYPE_LABEL_KEYS[parsed.property_type] || parsed.property_type;
     const subtypeLabel = parsed.parcelle_subtype === 'villa' ? ' (Villa)' : parsed.parcelle_subtype === 'terrain_nu' ? ' (Terrain)' : '';
     pills.push({ field: 'property_type', icon: Home, label: `${typeLabel}${subtypeLabel}` });
   }
@@ -148,7 +149,11 @@ function HighlightedLabel({ label, query }) {
 }
 
 const TYPE_ICON = { commune: MapPin, quartier: MapPin, landmark: Landmark };
-const TYPE_LABEL_FR = { commune: 'Commune', quartier: 'Quartier', landmark: 'Référence' };
+const TYPE_LABEL_KEYS = {
+  commune: 'listings.filters.commune',
+  quartier: 'listings.filters.quartier',
+  landmark: 'listings.facts.reference',
+};
 
 /**
  * `useSearchParams()` forces Next to require a Suspense boundary around its
@@ -224,7 +229,7 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
   id,
   name = 'q',
   ariaLabel,
-  placeholder = 'Commune, quartier, référence…',
+  placeholder,
   initialValue = '',
   extraParams = {},
   preserveParams = false,
@@ -234,7 +239,7 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
   icon: InputIcon = Search,
   showClear = false,
   showButton = false,
-  buttonLabel = 'Rechercher',
+  buttonLabel,
   className = '',
   rowClassName = 'flex items-center gap-2',
   inputClassName = '',
@@ -260,6 +265,12 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
   // never mix.
   recentSearches = [],
 }, ref) {
+  const t = useT();
+  // Defaults resolved here rather than in the parameter list: `t` is not in
+  // scope in a default parameter value. `??` (not `||`) so a caller passing
+  // an empty string still gets an empty placeholder.
+  const placeholderText = placeholder ?? t('listings.filters.searchPlaceholder');
+  const buttonText = buttonLabel ?? t('listings.filters.searchButton');
   const router = useRouter();
   const listboxId = useId();
   const reactId = useId();
@@ -537,7 +548,7 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
           aria-activedescendant={activeOptionId}
           autoComplete="off"
           value={value}
-          placeholder={placeholder}
+          placeholder={placeholderText}
           onChange={(e) => {
             setValue(e.target.value);
             onValueChange?.(e.target.value);
@@ -555,7 +566,7 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
               setValue('');
               setResults([]);
             }}
-            aria-label="Effacer la recherche"
+            aria-label={t('listings.autocomplete.clear')}
             className="shrink-0 rounded-full p-0.5 text-ink-25 transition-colors hover:bg-canvas-deep hover:text-ink"
           >
             <X strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
@@ -575,7 +586,7 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
             className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-blue px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary sm:rounded-full"
           >
             <Search strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-            {buttonLabel}
+            {buttonText}
           </button>
         ) : null}
       </div>
@@ -619,7 +630,7 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
               ref={listboxRef}
               id={listboxId}
               role="listbox"
-              aria-label="Suggestions de lieux"
+              aria-label={t('listings.autocomplete.suggestions')}
               style={{
                 position: 'fixed',
                 left: position.left,
@@ -650,7 +661,7 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
                   {history.length > 0 ? (
                     <>
                       <p className="u-eyebrow px-4 pb-1.5 pt-1 !normal-case !tracking-normal text-ink-25">
-                        Recherches récentes
+                        {t('listings.autocomplete.recentSearches')}
                       </p>
                       {history.map((item) => (
                         <button
@@ -689,7 +700,7 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
                   {showRecentSearches ? (
                     <>
                       <p className="u-eyebrow px-4 pb-1.5 pt-1 !normal-case !tracking-normal text-ink-25">
-                        Recherches récentes
+                        {t('listings.autocomplete.recentSearches')}
                       </p>
                       {recentSearches.map((entry) => (
                         <button
@@ -735,7 +746,7 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
                           <span className="u-tabular shrink-0 text-xs text-ink-45">{result.count}</span>
                         ) : (
                           <span className="u-eyebrow shrink-0 !normal-case !tracking-normal text-ink-25">
-                            {TYPE_LABEL_FR[result.type]}
+                            {TYPE_LABEL_KEYS[result.type] ? t(TYPE_LABEL_KEYS[result.type]) : result.type}
                           </span>
                         )}
                       </button>

@@ -1,15 +1,24 @@
 import Link from 'next/link';
 import { requestResetAction } from './actions';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
+import { getT } from '@/lib/i18n/server';
 
-export const metadata = {
-  title: 'Mot de passe oublié — Lukka Place',
-  robots: { index: false, follow: false },
-};
+// generateMetadata, not a static object: a static export cannot see the
+// request locale — see app/(site)/a-propos/page.js.
+export async function generateMetadata() {
+  const t = await getT();
+  return {
+    title: t('auth.forgotPasswordMetaTitle'),
+    robots: { index: false, follow: false },
+  };
+}
 
-const ERROR_MESSAGES = {
-  phone: 'Numéro de téléphone invalide.',
-  send_failed: "Impossible d'envoyer un code pour le moment.",
+// Keys, not text: a module-level constant is evaluated once at import
+// and cannot hold translated copy — see components/navItems.js. The
+// lookup below resolves the key at render.
+const ERROR_MESSAGE_KEYS = {
+  phone: 'auth.errors.phoneInvalid',
+  send_failed: 'auth.errors.sendFailed',
 };
 
 /**
@@ -19,26 +28,27 @@ const ERROR_MESSAGES = {
  * and it keeps a real phone number out of the URL even on the failure path.
  */
 export default async function ForgotPasswordPage({ searchParams }) {
+  const t = await getT();
   const params = await searchParams;
   const error = typeof params.error === 'string' ? params.error : null;
   const role = params.role === 'agent' ? 'agent' : 'customer';
 
   const whatsappHref = getCentralWhatsAppHref(
-    "Bonjour, je n'arrive pas à réinitialiser mon mot de passe sur Lukka Place.",
+    t('auth.forgot.whatsappHelp'),
   );
 
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm rounded-card border border-line bg-surface p-6 u-lift sm:p-8">
-        <h1 className="u-title-section text-ink">Mot de passe oublié</h1>
+        <h1 className="u-title-section text-ink">{t('auth.forgotPassword')}</h1>
         <p className="mt-1 text-sm text-ink-45">
-          Entrez votre numéro de téléphone — un code de vérification vous sera envoyé sur WhatsApp.
+          {t('auth.forgot.lead')}
         </p>
 
         <form action={requestResetAction} className="mt-6 flex flex-col gap-3">
           <div>
             <label htmlFor="phone" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
-              Numéro de téléphone
+              {t('auth.phoneNumber')}
             </label>
             <input
               id="phone"
@@ -46,7 +56,7 @@ export default async function ForgotPasswordPage({ searchParams }) {
               name="phone"
               inputMode="tel"
               autoComplete="tel"
-              placeholder="099 712 3456 ou +33 612345678"
+              placeholder={t('enquiry.whatsappPlaceholder')}
               autoFocus
               required
               className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
@@ -69,7 +79,7 @@ export default async function ForgotPasswordPage({ searchParams }) {
 
           {error && (
             <p className="text-sm text-red-600" role="alert">
-              {ERROR_MESSAGES[error] || 'Une erreur est survenue.'}
+              {(ERROR_MESSAGE_KEYS[error] ? t(ERROR_MESSAGE_KEYS[error]) : null) || t('common.shared.somethingWentWrong')}
             </p>
           )}
 
@@ -77,7 +87,7 @@ export default async function ForgotPasswordPage({ searchParams }) {
             type="submit"
             className="mt-1 rounded-md bg-blue px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary"
           >
-            Recevoir un code
+            {t('auth.forgot.receiveCode')}
           </button>
         </form>
 
@@ -88,13 +98,13 @@ export default async function ForgotPasswordPage({ searchParams }) {
             rel="noopener noreferrer"
             className="u-btn-secondary mt-3 flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold text-ink-70"
           >
-            Contacter le support WhatsApp
+            {t('auth.forgot.contactSupport')}
           </a>
         )}
 
         <p className="mt-5 text-center text-sm text-ink-45">
           <Link href="/compte/connexion" className="font-semibold text-blue-deep hover:underline">
-            Retour à la connexion
+            {t('auth.forgot.backToLogin')}
           </Link>
         </p>
       </div>

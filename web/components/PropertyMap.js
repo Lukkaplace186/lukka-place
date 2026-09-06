@@ -12,6 +12,7 @@ import { usableImageSrc } from '@/lib/listingView';
 import { convertToCdf } from '@/lib/currency';
 import { useCdfRate } from '@/lib/CurrencyRateContext';
 import { getCurrency } from '@/lib/currencyPreference';
+import { useT } from '@/lib/i18n/client';
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (c) => (
@@ -36,7 +37,9 @@ function escapeHtml(value) {
  * built with until closed and reopened; every other price on the page
  * (which does use <Price>, a real subscription) updates immediately.
  */
-function buildInfoWindowContent(listing, cdfPerUsd) {
+// `t` is threaded in rather than hooked: this builds an HTML string for
+// the Maps InfoWindow, outside React's render, so it cannot call useT().
+function buildInfoWindowContent(listing, cdfPerUsd, t) {
   const currency = getCurrency();
   const price =
     currency === 'CDF'
@@ -70,7 +73,7 @@ function buildInfoWindowContent(listing, cdfPerUsd) {
           href="/listings/${encodeURIComponent(listing.id)}"
           style="display:inline-block;margin-top:8px;font-size:13px;font-weight:600;color:#16307E;text-decoration:none;"
         >
-          Voir les détails →
+          {t('listings.map.viewDetails')}
         </a>
       </div>
     </div>
@@ -89,6 +92,7 @@ function buildInfoWindowContent(listing, cdfPerUsd) {
 const MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
 export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoom }) {
+  const t = useT();
   const { cdfPerUsd } = useCdfRate();
   const mapElementRef = useRef(null);
   // id -> google.maps.Marker, rebuilt each time the main geocoding effect
@@ -204,7 +208,7 @@ export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoo
             zIndex: priceZIndex(listing.price),
           });
           marker.addListener('click', () => {
-            infoWindow.setContent(buildInfoWindowContent(listing, cdfPerUsd));
+            infoWindow.setContent(buildInfoWindowContent(listing, cdfPerUsd, t));
             infoWindow.open({ map, anchor: marker });
           });
           // Map -> card hover-sync direction. The card -> map direction
@@ -297,7 +301,7 @@ export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoo
     <div className="relative h-full w-full overflow-hidden">
       {status === 'loading' && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-1 bg-white/90 text-sm text-ink-45">
-          <p>Chargement de la carte...</p>
+          <p>{t('listings.map.loading')}</p>
           {resolvedTotal.total > 0 && (
             <p className="text-xs text-ink-25">
               {resolvedTotal.resolved} / {resolvedTotal.total} biens localisés

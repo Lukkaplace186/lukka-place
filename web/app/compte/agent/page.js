@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { getT } from '@/lib/i18n/server';
 import { Plus, Landmark, BarChart3, Phone, Mail } from 'lucide-react';
 import { getCurrentAgentId } from '@/lib/agentSession';
 import { getAgentDashboardContext } from '@/lib/agentDashboard';
@@ -22,6 +23,7 @@ import AgentSubscriptionCard from '@/components/AgentSubscriptionCard';
 const RANGE_OPTIONS = Object.entries(VIEW_RANGES).map(([value, { label }]) => ({ value, label }));
 
 export default async function AgentOverviewPage({ searchParams }) {
+  const t = await getT();
   const params = await searchParams;
   // The design's chart opens on "30 derniers jours, par semaine".
   const range = typeof params.range === 'string' && VIEW_RANGES[params.range] ? params.range : '30d';
@@ -60,16 +62,16 @@ export default async function AgentOverviewPage({ searchParams }) {
   //                     would be a bigger claim than the data supports
   //   Demandes reçues   the inbox
   const stats = [
-    { key: 'active', label: 'Biens actifs', value: activeCount, icon: Landmark, href: '/compte/agent/biens?status=active', delta: { kind: 'count', value: deltas.listings } },
-    { key: 'views', label: 'Vues sur 30 jours', value: views30d, icon: BarChart3, href: '/compte/agent/biens', delta: { kind: 'pct', value: deltas.views } },
-    { key: 'clicks', label: 'Clics WhatsApp', value: whatsappClicks, icon: Phone, href: '/compte/agent/biens', delta: { kind: 'pct', value: deltas.clicks } },
-    { key: 'leads', label: 'Demandes reçues', value: leadsPage.total, icon: Mail, href: '/compte/agent/demandes' },
+    { key: 'active', label: t('agent.overview.activeListings'), value: activeCount, icon: Landmark, href: '/compte/agent/biens?status=active', delta: { kind: 'count', value: deltas.listings } },
+    { key: 'views', label: t('agent.overview.views30d'), value: views30d, icon: BarChart3, href: '/compte/agent/biens', delta: { kind: 'pct', value: deltas.views } },
+    { key: 'clicks', label: t('agent.overview.whatsappClicks'), value: whatsappClicks, icon: Phone, href: '/compte/agent/biens', delta: { kind: 'pct', value: deltas.clicks } },
+    { key: 'leads', label: t('agent.overview.leadsReceived'), value: leadsPage.total, icon: Mail, href: '/compte/agent/demandes' },
   ];
 
   return (
     <>
       <AgentPageHeader
-        title="Vue d'ensemble"
+        title={t('agent.overview.title')}
         newLeadsCount={newLeadsCount}
         searchAction="/compte/agent/biens"
         searchPlaceholder="Rechercher un bien, un client"
@@ -79,7 +81,7 @@ export default async function AgentOverviewPage({ searchParams }) {
             className="u-btn-primary u-press inline-flex h-11 items-center gap-1.5 rounded-lg bg-blue px-5 text-sm font-bold text-white"
           >
             <Plus strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-            Ajouter un bien
+            {t('agent.overview.addListing')}
           </Link>
         }
       />

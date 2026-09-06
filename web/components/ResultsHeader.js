@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { useT } from '@/lib/i18n/client';
 import { ChevronRight } from 'lucide-react';
 import SortDropdown from './SortDropdown';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -13,11 +16,24 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  * the end of the toolbar to match Zoopla's own layout — it's `type="button"`
  * there so it still can't trigger the surrounding filter form's submit.
  */
-function buildHeading({ commune, quartier, transactionType, propertyTypeLabel, citywide, communeWide }) {
-  const subject = propertyTypeLabel || 'Biens';
+/*
+ * Assembled from a template rather than by concatenation, because the two
+ * languages do not put these three parts in the same order or shape:
+ * "Appartements à louer à Gombe" vs "Apartments to rent in Gombe". A
+ * `${subject} ${label} à ${place}` concatenation hardcodes the French
+ * preposition into the structure itself.
+ */
+function buildHeading({ t, commune, quartier, transactionType, propertyTypeLabel, citywide, communeWide }) {
+  const subject = propertyTypeLabel || t('listings.results.subjectFallback');
+  // Place names are real data and are never translated.
   const place = citywide ? 'Kinshasa' : communeWide ? commune : quartier || commune || 'Kinshasa';
-  const label = transactionType === 'location' ? 'à louer' : transactionType === 'vente' ? 'à vendre' : 'disponibles';
-  return `${subject} ${label} à ${place}`;
+  const transaction =
+    transactionType === 'location'
+      ? t('search.label.toRent')
+      : transactionType === 'vente'
+        ? t('search.label.toBuy')
+        : t('search.label.available');
+  return t('listings.results.heading', { subject, transaction, place });
 }
 
 export default function ResultsHeader({
@@ -45,9 +61,13 @@ export default function ResultsHeader({
   requestedRadius = null,
   effectiveRadius = null,
 }) {
-  const heading = buildHeading({ commune, quartier, transactionType, propertyTypeLabel, citywide, communeWide });
+  const t = useT();
+  const heading = buildHeading({ t, commune, quartier, transactionType, propertyTypeLabel, citywide, communeWide });
 
-  const crumbs = [{ label: 'Accueil', href: '/' }, { label: 'Annonces', href: '/listings' }];
+  const crumbs = [
+    { label: t('breadcrumb.home'), href: '/' },
+    { label: t('breadcrumb.listings'), href: '/listings' },
+  ];
   if (commune) crumbs.push({ label: commune, href: `/listings?commune=${encodeURIComponent(commune)}` });
 
   return (
@@ -64,7 +84,7 @@ export default function ResultsHeader({
           thing eating vertical space above the feed on a phone, per an
           explicit "no breadcrumb on mobile" instruction. Desktop keeps it,
           unchanged. */}
-      <nav aria-label="Fil d'Ariane" className="mb-4 hidden flex-wrap items-center gap-1 text-[0.75rem] text-ink-45 lg:flex">
+      <nav aria-label={t('breadcrumb.ariaLabel')} className="mb-4 hidden flex-wrap items-center gap-1 text-[0.75rem] text-ink-45 lg:flex">
         {crumbs.map(({ label, href }, i) => (
           <span key={href} className="inline-flex items-center gap-1">
             {i > 0 ? (
@@ -108,25 +128,31 @@ export default function ResultsHeader({
           {/* text-sm/font-normal throughout, including the count itself —
               Zoopla's own count line is a plain muted caption, not a
               semibold number standing out against the rest of the line. */}
-          <p className="mt-1 text-sm font-normal text-ink-45">
-            <span className="u-tabular">{total}</span> résultat{total !== 1 ? 's' : ''}
+          {/* The count and its noun are one dictionary entry: English
+              pluralises at a different boundary than French (0 is plural in
+              English, singular in French), which a `{total !== 1 ? 's' : ''}`
+              suffix cannot express. `.u-tabular` moves to the whole line —
+              the number is no longer a separately wrapped span, since its
+              position inside the sentence differs by language. */}
+          <p className="u-tabular mt-1 text-sm font-normal text-ink-45">
+            {t('listings.results.resultCount', { count: total })}
           </p>
           {locationRelaxed ? (
             <p className="mt-1 text-[0.8125rem] text-ink-45">
-              Aucun résultat exact à {relaxedFromCommune} — recherche élargie à Kinshasa pour ces mots-clés.
+              {t('listings.results.locationRelaxed', { commune: relaxedFromCommune })}
             </p>
           ) : null}
           {citywide && (commune || quartier) ? (
             <p className="mt-1 text-[0.8125rem] text-ink-45">
-              Rayon élargi à Kinshasa entière depuis {quartier || commune}.
+              {t('listings.results.citywideFrom', { place: quartier || commune })}
             </p>
           ) : communeWide && quartier ? (
             <p className="mt-1 text-[0.8125rem] text-ink-45">
-              Rayon élargi à {commune} entière depuis {quartier}.
+              {t('listings.results.communeWideFrom', { commune, quartier })}
             </p>
           ) : radiusExpanded ? (
             <p className="mt-1 text-[0.8125rem] text-ink-45">
-              Aucun résultat à moins de {requestedRadius} km — élargi automatiquement à {effectiveRadius} km.
+              {t('listings.results.radiusExpanded', { requested: requestedRadius, effective: effectiveRadius })}
             </p>
           ) : null}
         </div>

@@ -1,6 +1,16 @@
-// Shared French labels for the conversationState.js states and LEAD_STATUSES
-// values, used by both admin list/detail pages. Kept as plain data, not
-// duplicated inline per page.
+/*
+ * Shared status vocabularies for the conversationState.js states, LEAD_STATUSES
+ * and the moderation queues — used by the admin console, the agent dashboard
+ * and the customer portal alike.
+ *
+ * These now map each real database value to a DICTIONARY KEY rather than to
+ * French text. The value side (`NEW`, `approve_status = 1`, …) is untouched:
+ * it is what the database stores and what the queries filter on, and
+ * translating it would change behaviour rather than presentation. Only the
+ * label moved. The `_FR` suffix is gone from every export name with it — the
+ * labels are no longer French-specific, so a name claiming they are would be
+ * actively misleading.
+ */
 
 export const CONVERSATION_STATES = [
   'NEW', 'COLLECTING_REQUIREMENTS', 'SEARCHING_PROPERTIES', 'SHOWING_RESULTS',
@@ -8,41 +18,23 @@ export const CONVERSATION_STATES = [
   'CONTACT_REQUEST', 'HUMAN_HANDOFF', 'CLOSED',
 ];
 
-export const CONVERSATION_STATE_LABELS_FR = {
-  NEW: 'Nouveau',
-  COLLECTING_REQUIREMENTS: 'Collecte des critères',
-  SEARCHING_PROPERTIES: 'Recherche en cours',
-  SHOWING_RESULTS: 'Résultats affichés',
-  PROPERTY_SELECTED: 'Bien sélectionné',
-  ANSWERING_PROPERTY_QUESTIONS: 'Questions sur le bien',
-  VIEWING_REQUEST: 'Visite demandée',
-  CONTACT_REQUEST: 'Contact demandé',
-  HUMAN_HANDOFF: 'Transféré à un agent',
-  CLOSED: 'Clôturé',
-};
+export const CONVERSATION_STATE_LABEL_KEYS = Object.fromEntries(
+  CONVERSATION_STATES.map((state) => [state, `status.conversation.${state}`]),
+);
 
 export const LEAD_STATUSES = [
   'NEW', 'CONTACTED', 'QUALIFIED', 'VIEWING_REQUESTED', 'VIEWING_COMPLETED', 'CONVERTED', 'LOST',
 ];
 
-export const LEAD_STATUS_LABELS_FR = {
-  NEW: 'Nouveau',
-  CONTACTED: 'Contacté',
-  QUALIFIED: 'Qualifié',
-  VIEWING_REQUESTED: 'Visite demandée',
-  VIEWING_COMPLETED: 'Visite effectuée',
-  CONVERTED: 'Converti',
-  LOST: 'Perdu',
-};
+export const LEAD_STATUS_LABEL_KEYS = Object.fromEntries(
+  LEAD_STATUSES.map((status) => [status, `status.lead.${status}`]),
+);
 
 export const VIEWING_REQUEST_STATUSES = ['PENDING', 'CONFIRMED', 'RESCHEDULED', 'CANCELLED'];
 
-export const VIEWING_REQUEST_STATUS_LABELS_FR = {
-  PENDING: 'En attente',
-  CONFIRMED: 'Confirmée',
-  RESCHEDULED: 'Reprogrammée',
-  CANCELLED: 'Annulée',
-};
+export const VIEWING_REQUEST_STATUS_LABEL_KEYS = Object.fromEntries(
+  VIEWING_REQUEST_STATUSES.map((status) => [status, `status.viewingRequest.${status}`]),
+);
 
 /**
  * The moderation queues.
@@ -61,15 +53,12 @@ export const VIEWING_REQUEST_STATUS_LABELS_FR = {
  */
 export const LISTING_MODERATION_STATUSES = ['pending', 'approved', 'rejected', 'suspended'];
 
-export const LISTING_MODERATION_STATUS_LABELS_FR = {
-  pending: 'En attente',
-  approved: 'Approuvé',
-  rejected: 'Rejeté',
-  suspended: 'Suspendu / archivé',
-};
+export const LISTING_MODERATION_STATUS_LABEL_KEYS = Object.fromEntries(
+  LISTING_MODERATION_STATUSES.map((status) => [status, `status.moderation.${status}`]),
+);
 
 /** agents.status / vendors.status — real smallint column, 0/1 only. */
-export const AGENT_STATUS_LABELS_FR = {
-  0: 'Inactif',
-  1: 'Actif',
+export const AGENT_STATUS_LABEL_KEYS = {
+  0: 'status.agentAccount.0',
+  1: 'status.agentAccount.1',
 };

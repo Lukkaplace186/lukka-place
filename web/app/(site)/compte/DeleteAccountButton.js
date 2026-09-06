@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * Real confirmation before an irreversible action (cascades to
@@ -12,6 +13,7 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  * be one accidental tap from a permanent, unrecoverable delete.
  */
 export default function DeleteAccountButton({ action }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
 
   return (
@@ -22,24 +24,24 @@ export default function DeleteAccountButton({ action }) {
         className="inline-flex items-center gap-1.5 text-[0.8125rem] font-medium text-red-600 hover:underline"
       >
         <Trash2 strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
-        Supprimer mon compte
+        {t('account.profile.deleteAccount')}
       </button>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Supprimer votre compte ?</DialogTitle>
+          <DialogTitle>{t('account.profile.deleteConfirm')}</DialogTitle>
           <DialogDescription>
-            Vos favoris et recherches sauvegardées seront définitivement supprimés. Cette action est irréversible.
+            {t('account.profile.deleteBody')}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <DialogClose asChild>
             <button type="button" className="rounded-full border border-line px-4 py-2 text-sm font-medium text-ink-70 hover:bg-canvas-alt">
-              Annuler
+              {t('common.actions.cancel')}
             </button>
           </DialogClose>
           <form action={action}>
             <button type="submit" className="w-full rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">
-              Supprimer définitivement
+              {t('common.shared.deletePermanently')}
             </button>
           </form>
         </DialogFooter>

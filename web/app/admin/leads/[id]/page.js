@@ -3,8 +3,9 @@ import Link from 'next/link';
 import { getLead, getLeadProposals, getLeadMatches } from '@/lib/adminApi';
 import { getAgents } from '@/lib/agents';
 import { getListingsByIds } from '@/lib/listings';
-import { LEAD_STATUSES, LEAD_STATUS_LABELS_FR } from '@/lib/adminLabels';
+import { LEAD_STATUSES, LEAD_STATUS_LABEL_KEYS } from '@/lib/adminLabels';
 import { updateLeadStatusAction, assignLeadAction, redispatchLeadAction } from '../../actions';
+import { getT } from '@/lib/i18n/server';
 
 function formatDateTime(value) {
   if (!value) return '—';
@@ -33,6 +34,7 @@ const REQUEST_LABELS = [
  * teammate can bookmark/share beats a bit of extra polish here.
  */
 export default async function AdminLeadDetailPage({ params }) {
+  const t = await getT();
   const { id: idParam } = await params;
   const id = Number.parseInt(idParam, 10);
   if (!Number.isFinite(id)) notFound();
@@ -82,7 +84,7 @@ export default async function AdminLeadDetailPage({ params }) {
   return (
     <div>
       <Link href="/admin/leads" className="text-sm text-blue-deep hover:underline">
-        ← Tous les prospects
+        {t('admin.leads.backToAll')}
       </Link>
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
@@ -93,14 +95,14 @@ export default async function AdminLeadDetailPage({ params }) {
           </p>
         </div>
         <span className="rounded-full bg-blue-tint px-2.5 py-1 text-xs font-medium text-blue-deep">
-          {LEAD_STATUS_LABELS_FR[lead.status] || lead.status}
+          {LEAD_STATUS_LABEL_KEYS[lead.status] ? t(LEAD_STATUS_LABEL_KEYS[lead.status]) : lead.status}
         </span>
       </div>
 
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1.4fr_1fr]">
         <div className="flex flex-col gap-4">
           <div className="rounded-card border border-line bg-white p-4">
-            <h2 className="u-title-card mb-3 text-ink">Critères de recherche</h2>
+            <h2 className="u-title-card mb-3 text-ink">{t('admin.leads.searchCriteria')}</h2>
             <dl className="grid grid-cols-2 gap-3 text-sm">
               {REQUEST_LABELS.map(([field, label]) => (
                 <div key={field}>
@@ -112,7 +114,7 @@ export default async function AdminLeadDetailPage({ params }) {
 
             {lead.requirements_summary && (
               <div className="mt-4 border-t border-line pt-4">
-                <p className="mb-1.5 text-xs font-semibold text-ink-45">Texte complet de la demande</p>
+                <p className="mb-1.5 text-xs font-semibold text-ink-45">{t('admin.leads.fullRequestText')}</p>
                 <p className="whitespace-pre-line text-sm text-ink-70">{lead.requirements_summary}</p>
               </div>
             )}
@@ -133,7 +135,7 @@ export default async function AdminLeadDetailPage({ params }) {
                   type="submit"
                   className="rounded-md border border-line px-3 py-1.5 text-xs font-medium text-ink hover:bg-canvas-alt"
                 >
-                  Relancer la diffusion
+                  {t('admin.leads.redispatch')}
                 </button>
               </form>
             </div>
@@ -145,7 +147,7 @@ export default async function AdminLeadDetailPage({ params }) {
                   ? `Aucune agence inscrite ne couvre ${lead.commune} — voir `
                   : 'Cette demande ne précise aucune commune, elle ne peut donc pas être attribuée automatiquement. Voir '}
                 <Link href="/admin/matching" className="font-semibold text-blue-deep hover:underline">
-                  Attribution
+                  {t('admin.leads.matching')}
                 </Link>
                 .
               </p>
@@ -164,15 +166,15 @@ export default async function AdminLeadDetailPage({ params }) {
                         <span className="flex items-center gap-1.5">
                           {answered ? (
                             <span className="rounded-full bg-success-tint px-2 py-0.5 text-[0.6875rem] font-bold text-success">
-                              A répondu
+                              {t('admin.leads.replied')}
                             </span>
                           ) : m.status === 'FAILED' ? (
                             <span className="rounded-full bg-danger-tint px-2 py-0.5 text-[0.6875rem] font-bold text-danger">
-                              Envoi échoué
+                              {t('admin.leads.sendFailed')}
                             </span>
                           ) : (
                             <span className="rounded-full bg-canvas-deep px-2 py-0.5 text-[0.6875rem] font-bold text-ink-45">
-                              Notifiée
+                              {t('admin.leads.notified')}
                             </span>
                           )}
                           <span className="text-xs text-ink-45">{formatDateTime(m.created_at)}</span>
@@ -195,7 +197,7 @@ export default async function AdminLeadDetailPage({ params }) {
               Propositions des agents ({proposals.length}/7)
             </h2>
             {enrichedProposals.length === 0 ? (
-              <p className="text-sm text-ink-45">Aucune proposition pour le moment.</p>
+              <p className="text-sm text-ink-45">{t('admin.leads.noProposals')}</p>
             ) : (
               <ul className="flex flex-col gap-2">
                 {enrichedProposals.map((p) => (
@@ -207,7 +209,7 @@ export default async function AdminLeadDetailPage({ params }) {
                       <span className="text-xs text-ink-45">{formatDateTime(p.created_at)}</span>
                     </div>
                     <p className="mt-0.5 text-ink-70">
-                      {p.property ? p.property.title : `Bien #${p.property_id} (introuvable)`}
+                      {p.property ? p.property.title : t('admin.leads.propertyMissing', { id: p.property_id })}
                     </p>
                   </li>
                 ))}
@@ -218,32 +220,32 @@ export default async function AdminLeadDetailPage({ params }) {
 
         <div className="flex flex-col gap-4">
           <div className="rounded-card border border-line bg-white p-4">
-            <h2 className="u-title-card mb-3 text-ink">Client</h2>
+            <h2 className="u-title-card mb-3 text-ink">{t('admin.leads.customer')}</h2>
             <dl className="flex flex-col gap-2 text-sm">
               <div>
-                <dt className="text-xs text-ink-45">Nom</dt>
+                <dt className="text-xs text-ink-45">{t('admin.leads.name')}</dt>
                 <dd className="text-ink">{lead.name || '—'}</dd>
               </div>
               <div>
-                <dt className="text-xs text-ink-45">WhatsApp</dt>
+                <dt className="text-xs text-ink-45">{t('admin.leads.whatsapp')}</dt>
                 <dd className="text-ink">{lead.wa_id}</dd>
               </div>
               <div>
-                <dt className="text-xs text-ink-45">Source</dt>
+                <dt className="text-xs text-ink-45">{t('admin.leads.source')}</dt>
                 <dd className="text-ink">{lead.source}</dd>
               </div>
             </dl>
           </div>
 
           <div className="rounded-card border border-line bg-white p-4">
-            <h2 className="u-title-card mb-3 text-ink">Agent assigné</h2>
+            <h2 className="u-title-card mb-3 text-ink">{t('admin.leads.assignedAgent')}</h2>
             <form action={boundAssign} className="flex flex-col gap-2">
               <select
                 name="agent_id"
                 defaultValue={lead.agent_id ?? ''}
                 className="rounded-md border border-line bg-white px-2.5 py-1.5 text-sm text-ink"
               >
-                <option value="">— Non assigné —</option>
+                <option value="">{t('admin.leads.unassigned')}</option>
                 {matching.length > 0 && (
                   <optgroup label={`Couvre ${lead.commune}`}>
                     {matching.map((a) => (
@@ -253,7 +255,7 @@ export default async function AdminLeadDetailPage({ params }) {
                     ))}
                   </optgroup>
                 )}
-                <optgroup label="Tous les agents">
+                <optgroup label={t('admin.actions.allAgents')}>
                   {others.map((a) => (
                     <option key={a.id} value={a.id}>
                       {agentName(a)}
@@ -262,7 +264,7 @@ export default async function AdminLeadDetailPage({ params }) {
                 </optgroup>
               </select>
               <button type="submit" className="self-start rounded-md border border-line px-3 py-1.5 text-sm font-medium text-ink hover:bg-canvas-alt">
-                Assigner
+                {t('admin.leads.assign')}
               </button>
             </form>
             {lead.assigned_agent && (
@@ -271,7 +273,7 @@ export default async function AdminLeadDetailPage({ params }) {
           </div>
 
           <div className="rounded-card border border-line bg-white p-4">
-            <h2 className="u-title-card mb-3 text-ink">Statut</h2>
+            <h2 className="u-title-card mb-3 text-ink">{t('admin.leads.status')}</h2>
             <form action={boundUpdateStatus} className="flex flex-col gap-2">
               <select
                 name="status"
@@ -280,12 +282,12 @@ export default async function AdminLeadDetailPage({ params }) {
               >
                 {LEAD_STATUSES.map((s) => (
                   <option key={s} value={s}>
-                    {LEAD_STATUS_LABELS_FR[s]}
+                    {t(LEAD_STATUS_LABEL_KEYS[s])}
                   </option>
                 ))}
               </select>
               <button type="submit" className="self-start rounded-md border border-line px-3 py-1.5 text-sm font-medium text-ink hover:bg-canvas-alt">
-                Mettre à jour
+                {t('admin.leads.update')}
               </button>
             </form>
           </div>

@@ -3,9 +3,10 @@ import { AlertTriangle } from 'lucide-react';
 import { getAgents, getVendors, findDuplicateAgents } from '@/lib/agents';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { getLocationHierarchySafe } from '@/lib/locations';
-import { AGENT_STATUS_LABELS_FR } from '@/lib/adminLabels';
+import { AGENT_STATUS_LABEL_KEYS } from '@/lib/adminLabels';
 import { updateAgentStatusAction, reassignAgentVendorAction } from './actions';
 import AgentCommunesForm from './AgentCommunesForm';
+import { getT } from '@/lib/i18n/server';
 
 function formatDate(value) {
   if (!value) return null;
@@ -15,6 +16,7 @@ function formatDate(value) {
 }
 
 export default async function AdminAgentsPage({ searchParams }) {
+  const t = await getT();
   const params = await searchParams;
   const q = params.q || '';
 
@@ -29,7 +31,7 @@ export default async function AdminAgentsPage({ searchParams }) {
     <div>
       <div className="mb-4 flex items-end justify-between gap-3">
         <div>
-          <h1 className="u-title-page text-ink">Agents</h1>
+          <h1 className="u-title-page text-ink">{t('admin.agents.title')}</h1>
           <p className="mt-1 text-sm text-ink-45">
             {agents.length} agent{agents.length !== 1 ? 's' : ''}
           </p>
@@ -40,14 +42,14 @@ export default async function AdminAgentsPage({ searchParams }) {
             type="search"
             name="q"
             defaultValue={q}
-            placeholder="Nom, email ou téléphone"
+            placeholder={t('admin.agents.searchPlaceholder')}
             className="rounded-md border border-line bg-white px-2.5 py-1.5 text-sm text-ink"
           />
           <button
             type="submit"
             className="rounded-md border border-line bg-white px-3 py-1.5 text-sm font-medium text-ink hover:bg-canvas-alt"
           >
-            Rechercher
+            {t('admin.agents.search')}
           </button>
         </form>
       </div>
@@ -70,7 +72,7 @@ export default async function AdminAgentsPage({ searchParams }) {
             {duplicates.map((group) => (
               <li key={`${group.kind}-${group.key}`} className="u-micro text-ink-70">
                 <span className="font-bold text-ink">
-                  {group.kind === 'phone' ? 'Même numéro' : 'Même email'} : {group.key}
+                  {group.kind === 'phone' ? t('admin.agents.sameNumber') : t('admin.agents.sameEmail')} : {group.key}
                 </span>
                 {' — '}
                 {group.accounts.map((a, i) => (
@@ -85,28 +87,27 @@ export default async function AdminAgentsPage({ searchParams }) {
             ))}
           </ul>
           <p className="u-micro mt-2 text-ink-45">
-            Vérifiez chaque groupe avant d&apos;agir : transférez le portefeuille vers le compte à
-            conserver, puis suspendez l&apos;autre.
+            {t('admin.agents.duplicateWarning')}
           </p>
         </div>
       )}
 
       {agents.length === 0 ? (
         <div className="rounded-card border border-dashed border-line bg-white p-10 text-center text-sm text-ink-45">
-          Aucun agent.
+          {t('admin.agents.empty')}
         </div>
       ) : (
         <div className="overflow-hidden rounded-card border border-line bg-white">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-line bg-canvas-alt text-xs uppercase tracking-wide text-ink-45">
               <tr>
-                <th className="px-4 py-2.5 font-semibold">Nom</th>
-                <th className="px-4 py-2.5 font-semibold">Téléphone / WhatsApp</th>
-                <th className="px-4 py-2.5 font-semibold">Tél. vérifié</th>
-                <th className="px-4 py-2.5 font-semibold">Agence</th>
-                <th className="px-4 py-2.5 font-semibold">Communes desservies</th>
-                <th className="px-4 py-2.5 font-semibold">Annonces</th>
-                <th className="px-4 py-2.5 font-semibold">Statut</th>
+                <th className="px-4 py-2.5 font-semibold">{t('admin.agents.name')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('admin.agents.phone')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('admin.agents.phoneVerified')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('admin.agents.agency')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('admin.agents.servicedCommunes')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('admin.agents.listings')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('admin.agents.status')}</th>
               </tr>
             </thead>
             <tbody>
@@ -135,7 +136,7 @@ export default async function AdminAgentsPage({ searchParams }) {
                           is too easy to hit by accident for a claim that
                           governs public attribution and lead routing. */}
                       {agent.phone_verified_at ? (
-                        <span className="rounded-full bg-green-tint px-2 py-0.5 text-xs font-medium text-green-deep">Oui</span>
+                        <span className="rounded-full bg-green-tint px-2 py-0.5 text-xs font-medium text-green-deep">{t('admin.agents.yes')}</span>
                       ) : (
                         <span className="text-xs text-ink-45">—</span>
                       )}
@@ -147,7 +148,7 @@ export default async function AdminAgentsPage({ searchParams }) {
                           defaultValue={agent.vendor_id ?? ''}
                           className="rounded-md border border-line bg-white px-2 py-1 text-xs text-ink"
                         >
-                          <option value="">— Aucune agence —</option>
+                          <option value="">{t('admin.agents.noAgency')}</option>
                           {vendors.map((v) => (
                             <option key={v.id} value={v.id}>
                               {v.username}
@@ -161,7 +162,7 @@ export default async function AdminAgentsPage({ searchParams }) {
                     </td>
                     <td className="px-4 py-2.5">
                       {degraded ? (
-                        <span className="text-xs text-ink-45">Liste des communes indisponible (moteur injoignable)</span>
+                        <span className="text-xs text-ink-45">{t('admin.agents.communesUnavailable')}</span>
                       ) : (
                         <AgentCommunesForm
                           agentId={agent.id}
@@ -186,7 +187,7 @@ export default async function AdminAgentsPage({ searchParams }) {
                           {expireLabel ? ` · jusqu'au ${expireLabel}` : ''}
                         </div>
                       ) : (
-                        <div className="text-xs text-ink-45">Aucun abonnement actif</div>
+                        <div className="text-xs text-ink-45">{t('admin.agents.noActiveSubscription')}</div>
                       )}
                     </td>
                     <td className="px-4 py-2.5">
@@ -196,7 +197,7 @@ export default async function AdminAgentsPage({ searchParams }) {
                           defaultValue={agent.status}
                           className="rounded-full border border-line bg-white px-2 py-1 text-xs font-medium text-ink"
                         >
-                          {Object.entries(AGENT_STATUS_LABELS_FR).map(([value, label]) => (
+                          {Object.entries(AGENT_STATUS_LABEL_KEYS).map(([value, label]) => (
                             <option key={value} value={value}>
                               {label}
                             </option>

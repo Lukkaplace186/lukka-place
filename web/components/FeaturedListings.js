@@ -1,6 +1,7 @@
 import FeaturedListingsCarousel from './FeaturedListingsCarousel';
 import SectionHeading from './SectionHeading';
 import { getListings } from '@/lib/listings';
+import { getT } from '@/lib/i18n/server';
 
 /**
  * The most recent approved listings — real data behind the same
@@ -13,6 +14,7 @@ import { getListings } from '@/lib/listings';
  * rows, then pagination on /listings rather than more here.
  */
 export default async function FeaturedListings() {
+  const t = await getT();
   const { data, count } = await getListings({ limit: 8 });
 
   if (count === 0) return null;
@@ -28,9 +30,9 @@ export default async function FeaturedListings() {
           framing, the title carries the rest. */}
       <SectionHeading
         eyebrow="Sélection de la semaine"
-        title="Nouveautés vérifiées à Kinshasa"
+        title={t('home.featuredHeading')}
         href="/listings"
-        linkLabel="Voir toutes les annonces"
+        linkLabel={t('listings.empty.seeAll')}
         className="mb-6 sm:mb-10"
       />
       <FeaturedListingsCarousel listings={data} />

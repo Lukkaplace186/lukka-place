@@ -11,11 +11,17 @@ import { cn } from '@/lib/utils';
 import { removeFavoriteAction } from './actions';
 import FavoritesBoard from './favoris/FavoritesBoard';
 import AlertsBoard from './alertes/AlertsBoard';
+import { getT } from '@/lib/i18n/server';
 
-export const metadata = {
-  title: 'Favoris & Alertes — Lukka Place',
-  robots: { index: false, follow: false },
-};
+// generateMetadata, not a static object: a static export is evaluated at
+// module load, where there is no request and so no translator.
+export async function generateMetadata() {
+  const t = await getT();
+  return {
+    title: t('account.favorites.metaTitle'),
+    robots: { index: false, follow: false },
+  };
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -35,6 +41,7 @@ export const dynamic = 'force-dynamic';
  * unconditionally since neither costs a real query beyond `customers`.
  */
 export default async function EspaceClientPage({ searchParams }) {
+  const t = await getT();
   const session = await getPortalCustomer();
   if (!session) redirect('/compte/connexion?next=/compte/client');
   const { customerId } = session;
@@ -58,7 +65,7 @@ export default async function EspaceClientPage({ searchParams }) {
       savedSearches.map((s) => s.id),
     );
     const whatsappHref = getCentralWhatsAppHref(
-      'Bonjour, je souhaite être prévenu des nouveaux biens correspondant à ma recherche.',
+      t('account.favorites.whatsappAlert'),
     );
     content = <AlertsBoard matches={matches} whatsappHref={whatsappHref} />;
   } else {
@@ -67,12 +74,11 @@ export default async function EspaceClientPage({ searchParams }) {
       listings.length === 0 ? (
         <PortalEmpty
           icon={Heart}
-          title="Aucun favori pour le moment"
-          actionLabel="Parcourir les annonces"
+          title={t('account.favorites.emptyTitle')}
+          actionLabel={t('account.favorites.browseListings')}
           actionHref="/listings"
         >
-          Touchez le cœur sur une annonce pour la sauvegarder. Vos favoris vous suivent sur tous vos appareils dès
-          que vous êtes connecté.
+          {t('account.favorites.emptyBody')}
         </PortalEmpty>
       ) : (
         <FavoritesBoard

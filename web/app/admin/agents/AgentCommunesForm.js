@@ -3,6 +3,7 @@
 import { useTransition } from 'react';
 import { useToast } from '@/components/Toast';
 import { updateAgentCommunesAction } from './actions';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * Communes desservies "Enregistrer" form — a client component (rather than
@@ -11,6 +12,7 @@ import { updateAgentCommunesAction } from './actions';
  * rows which give no feedback at all beyond the page silently re-rendering.
  */
 export default function AgentCommunesForm({ agentId, communes, selectedCommunes }) {
+  const t = useT();
   const [pending, startTransition] = useTransition();
   const { showToast } = useToast();
   const selected = new Set(selectedCommunes);
@@ -25,7 +27,7 @@ export default function AgentCommunesForm({ agentId, communes, selectedCommunes 
         showToast({ type: 'error', message: result.error });
         return;
       }
-      showToast({ type: 'success', message: 'Communes desservies mises à jour.' });
+      showToast({ type: 'success', message: t('admin.agentPanel.communesUpdated') });
     });
   }
 
@@ -44,7 +46,7 @@ export default function AgentCommunesForm({ agentId, communes, selectedCommunes 
         disabled={pending}
         className="self-start rounded-md border border-line px-2 py-1 text-xs font-medium text-ink hover:bg-canvas-alt disabled:opacity-60"
       >
-        {pending ? 'Enregistrement…' : 'Enregistrer'}
+        {pending ? 'Enregistrement…' : t('common.actions.save')}
       </button>
     </form>
   );

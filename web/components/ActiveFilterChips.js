@@ -2,8 +2,11 @@ import Link from 'next/link';
 import { X } from 'lucide-react';
 import { AMENITY_GROUPS, DEPOSIT_MAX_OPTIONS, ICON_STROKE_WIDTH } from '@/lib/constants';
 import { hrefWithoutKeys, hrefWithoutAmenity } from '@/lib/urlParams';
+import { getT } from '@/lib/i18n/server';
 
-const AMENITY_LABELS = Object.fromEntries(AMENITY_GROUPS.flatMap((g) => g.options).map(({ key, label }) => [key, label]));
+const AMENITY_LABEL_KEYS = Object.fromEntries(
+  AMENITY_GROUPS.flatMap((g) => g.options).map(({ key, labelKey }) => [key, labelKey]),
+);
 const KM_RADIUS_VALUES = new Set(['1', '3', '5']);
 
 /**
@@ -19,13 +22,17 @@ const KM_RADIUS_VALUES = new Set(['1', '3', '5']);
  * Renders nothing when no filter is active — this is a summary of what's
  * currently applied, not a permanent UI fixture.
  */
-export default function ActiveFilterChips({ params = {}, propertyTypeLabel }) {
+// Async so it can `await getT()` — it stays a Server Component (it renders
+// only <Link>s, no interactivity) rather than being pushed into the client
+// bundle just to read the locale.
+export default async function ActiveFilterChips({ params = {}, propertyTypeLabel }) {
+  const t = await getT();
   const chips = [];
 
   if (params.transaction_type) {
     chips.push({
       key: 'transaction_type',
-      label: params.transaction_type === 'location' ? 'À louer' : 'À vendre',
+      label: params.transaction_type === 'location' ? t('listings.transaction.rent') : t('listings.transaction.sale'),
       href: hrefWithoutKeys(params, 'transaction_type'),
     });
   }
@@ -38,11 +45,11 @@ export default function ActiveFilterChips({ params = {}, propertyTypeLabel }) {
 
   if (params.commune && params.radius) {
     const radiusLabel = KM_RADIUS_VALUES.has(params.radius)
-      ? `+${params.radius} km`
+      ? t('listings.chips.radiusKm', { km: params.radius })
       : params.radius === 'commune'
-        ? 'Toute la commune'
+        ? t('listings.chips.wholeCommune')
         : params.radius === 'citywide'
-          ? 'Toute la ville'
+          ? t('listings.chips.citywide')
           : null;
     if (radiusLabel) chips.push({ key: 'radius', label: radiusLabel, href: hrefWithoutKeys(params, 'radius') });
   }
@@ -58,38 +65,48 @@ export default function ActiveFilterChips({ params = {}, propertyTypeLabel }) {
   if (params.price_min || params.price_max) {
     const label =
       params.price_min && params.price_max
-        ? `${params.price_min}$ - ${params.price_max}$`
+        ? t('listings.chips.priceRange', { min: params.price_min, max: params.price_max })
         : params.price_min
-          ? `Dès ${params.price_min}$`
-          : `Max ${params.price_max}$`;
+          ? t('listings.chips.priceFrom', { min: params.price_min })
+          : t('listings.chips.priceUpTo', { max: params.price_max });
     chips.push({ key: 'price', label, href: hrefWithoutKeys(params, ['price_min', 'price_max']) });
   }
 
   if (params.beds_min) {
-    chips.push({ key: 'beds_min', label: `${params.beds_min}+ chambres`, href: hrefWithoutKeys(params, 'beds_min') });
+    chips.push({
+      key: 'beds_min',
+      label: t('listings.filters.bedsChip', { count: params.beds_min }),
+      href: hrefWithoutKeys(params, 'beds_min'),
+    });
   }
   if (params.bath_min) {
-    chips.push({ key: 'bath_min', label: `${params.bath_min}+ sdb`, href: hrefWithoutKeys(params, 'bath_min') });
+    chips.push({
+      key: 'bath_min',
+      label: t('listings.filters.bathChip', { count: params.bath_min }),
+      href: hrefWithoutKeys(params, 'bath_min'),
+    });
   }
 
   if (params.deposit_max) {
     const option = DEPOSIT_MAX_OPTIONS.find((o) => o.value === params.deposit_max);
     chips.push({
       key: 'deposit_max',
-      label: `Garantie ≤ ${option?.label || `${params.deposit_max} mois`}`,
+      label: t('listings.filters.depositMax', {
+        value: option ? t(option.labelKey) : t('listings.depositMax.months', { count: params.deposit_max }),
+      }),
       href: hrefWithoutKeys(params, 'deposit_max'),
     });
   }
 
   const activeAmenities = params.amenities ? params.amenities.split(',').filter(Boolean) : [];
   for (const amenityKey of activeAmenities) {
-    const label = AMENITY_LABELS[amenityKey];
-    if (!label) continue; // unrecognised/stale key in a hand-edited URL — never render a chip for it
-    chips.push({ key: `amenity-${amenityKey}`, label, href: hrefWithoutAmenity(params, amenityKey) });
+    const labelKey = AMENITY_LABEL_KEYS[amenityKey];
+    if (!labelKey) continue; // unrecognised/stale key in a hand-edited URL — never render a chip for it
+    chips.push({ key: `amenity-${amenityKey}`, label: t(labelKey), href: hrefWithoutAmenity(params, amenityKey) });
   }
 
   if (params.q) {
-    chips.push({ key: 'q', label: `« ${params.q} »`, href: hrefWithoutKeys(params, 'q') });
+    chips.push({ key: 'q', label: t('listings.filters.queryChip', { query: params.q }), href: hrefWithoutKeys(params, 'q') });
   }
 
   if (chips.length === 0) return null;
@@ -111,7 +128,7 @@ export default function ActiveFilterChips({ params = {}, propertyTypeLabel }) {
           href="/listings"
           className="text-[0.75rem] font-medium text-ink-45 underline-offset-2 transition-colors hover:text-blue-deep hover:underline"
         >
-          Tout effacer
+          {t('listings.filters.clearAll')}
         </Link>
       ) : null}
     </div>

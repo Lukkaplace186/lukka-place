@@ -18,6 +18,7 @@ import {
   updateMembershipAction,
   updatePackageQuotasAction,
 } from './actions';
+import { getT } from '@/lib/i18n/server';
 
 // See web/app/admin/dashboard/page.js's identical comment — this page has
 // no searchParams/cookies() of its own, so without this it would statically
@@ -41,6 +42,7 @@ function agentName(agent) {
 const FIELD = 'rounded-md border border-line bg-white px-2 py-1.5 text-sm text-ink';
 
 export default async function AdminSubscriptionsPage() {
+  const t = await getT();
   const [memberships, featuredPricings, featuredIds, approvedListings, vendors, packages, agents, planRequests] =
     await Promise.all([
       getMemberships(),
@@ -56,8 +58,8 @@ export default async function AdminSubscriptionsPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="u-title-page text-ink">Abonnements</h1>
-        <p className="mt-1 text-sm text-ink-45">Forfaits, attribution aux agents et suivi des paiements.</p>
+        <h1 className="u-title-page text-ink">{t('admin.nav.subscriptions')}</h1>
+        <p className="mt-1 text-sm text-ink-45">{t('admin.subscriptions.lead')}</p>
       </div>
 
       {/* Agent-initiated plan requests. This queue is the other half of
@@ -65,15 +67,15 @@ export default async function AdminSubscriptionsPage() {
           agent's request would exist nowhere an admin ever looks, which is
           exactly why a WhatsApp-only version of that button was not enough. */}
       <div>
-        <h2 className="u-title-card mb-1 text-ink">Demandes de forfait</h2>
+        <h2 className="u-title-card mb-1 text-ink">{t('admin.subscriptions.planRequests')}</h2>
         <p className="mb-3 text-xs text-ink-45">
-          Demandes envoyées par les agents depuis leur espace. Approuver attribue le forfait et
-          enregistre le paiement dans le journal ci-dessous, en une seule action.
+          {t('admin.subscriptions.planRequestsHint')}
+          {t('admin.subscriptions.planRequestsHint2')}
         </p>
 
         {planRequests.length === 0 ? (
           <div className="rounded-card border border-dashed border-line bg-white p-8 text-center text-sm text-ink-45">
-            Aucune demande en attente.
+            {t('admin.subscriptions.noPendingRequests')}
           </div>
         ) : (
           <div className="flex flex-col gap-3">
@@ -100,26 +102,26 @@ export default async function AdminSubscriptionsPage() {
                     <input type="hidden" name="agent_id" value={req.agent_id} />
                     <input type="hidden" name="package_id" value={req.package_id ?? ''} />
                     <div>
-                      <label className="mb-1 block text-xs font-medium text-ink-45">Montant encaissé</label>
+                      <label className="mb-1 block text-xs font-medium text-ink-45">{t('admin.subscriptions.amountCollected')}</label>
                       <input name="price" type="number" step="0.01" min="0" className={`${FIELD} w-28`} />
                     </div>
                     <div>
-                      <label className="mb-1 block text-xs font-medium text-ink-45">Devise</label>
+                      <label className="mb-1 block text-xs font-medium text-ink-45">{t('admin.subscriptions.currency')}</label>
                       <input name="currency" placeholder="USD" className={`${FIELD} w-20`} />
                     </div>
                     <div>
-                      <label className="mb-1 block text-xs font-medium text-ink-45">Mode</label>
+                      <label className="mb-1 block text-xs font-medium text-ink-45">{t('admin.subscriptions.method')}</label>
                       <input name="payment_method" placeholder="Mobile Money…" className={FIELD} />
                     </div>
                     <div>
-                      <label className="mb-1 block text-xs font-medium text-ink-45">Réf.</label>
+                      <label className="mb-1 block text-xs font-medium text-ink-45">{t('admin.subscriptions.reference')}</label>
                       <input name="transaction_id" className={`${FIELD} w-28`} />
                     </div>
                     <button
                       type="submit"
                       className="rounded-md border border-blue-deep bg-blue-tint px-3 py-1.5 text-xs font-bold text-blue-deep hover:bg-blue-deep hover:text-white"
                     >
-                      Approuver et attribuer
+                      {t('admin.subscriptions.approveAndAssign')}
                     </button>
                   </form>
 
@@ -134,7 +136,7 @@ export default async function AdminSubscriptionsPage() {
                 </div>
                 <p className="mt-2 text-xs text-ink-35">
                   Laissez le montant vide pour provisionner sans encaissement enregistré — mieux qu&apos;un
-                  chiffre inventé dans le journal des paiements.
+                  {t('admin.subscriptions.noInventedFigure')}
                 </p>
               </div>
             ))}
@@ -144,18 +146,18 @@ export default async function AdminSubscriptionsPage() {
 
       {/* Package CRUD */}
       <div>
-        <h2 className="u-title-card mb-3 text-ink">Forfaits</h2>
+        <h2 className="u-title-card mb-3 text-ink">{t('admin.subscriptions.plans')}</h2>
 
         <div className="overflow-hidden rounded-card border border-line bg-white">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-line bg-canvas-alt text-xs uppercase tracking-wide text-ink-45">
               <tr>
-                <th className="px-4 py-2.5 font-semibold">Nom</th>
-                <th className="px-4 py-2.5 font-semibold">Prix ($)</th>
-                <th className="px-4 py-2.5 font-semibold">Durée</th>
-                <th className="px-4 py-2.5 font-semibold">Biens max</th>
-                <th className="px-4 py-2.5 font-semibold">Essai (jours)</th>
-                <th className="px-4 py-2.5 font-semibold">Statut</th>
+                <th className="px-4 py-2.5 font-semibold">{t('admin.subscriptions.name')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('admin.subscriptions.priceUsd')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('admin.subscriptions.duration')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('admin.subscriptions.maxListings')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('admin.subscriptions.trialDays')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('admin.subscriptions.status')}</th>
                 <th className="px-4 py-2.5 font-semibold" />
               </tr>
             </thead>
@@ -180,10 +182,10 @@ export default async function AdminSubscriptionsPage() {
                         </div>
                         <select name="status" defaultValue={pkg.status} className={FIELD}>
                           <option value={1}>Actif</option>
-                          <option value={0}>Inactif</option>
+                          <option value={0}>{t('status.agentAccount.0')}</option>
                         </select>
                         <button type="submit" className="justify-self-start rounded-md border border-line px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-canvas-alt">
-                          Enregistrer
+                          {t('common.actions.save')}
                         </button>
                       </form>
                     </td>
@@ -195,14 +197,14 @@ export default async function AdminSubscriptionsPage() {
         </div>
 
         <form action={createPackageAction} className="mt-3 grid grid-cols-7 items-center gap-2 rounded-card border border-dashed border-line bg-white px-4 py-3">
-          <input name="title" placeholder="Nom du forfait" required className={FIELD} />
-          <input name="price" type="number" step="0.01" min="0" placeholder="Prix" required className={FIELD} />
+          <input name="title" placeholder={t('admin.subscriptions.planName')} required className={FIELD} />
+          <input name="price" type="number" step="0.01" min="0" placeholder={t('admin.subscriptions.price')} required className={FIELD} />
           <select name="term" defaultValue="monthly" className={FIELD}>
             {PACKAGE_TERMS.map((t) => (
               <option key={t} value={t}>{TERM_LABELS_FR[t]}</option>
             ))}
           </select>
-          <input name="number_of_property" type="number" min="0" placeholder="Biens max" className={FIELD} />
+          <input name="number_of_property" type="number" min="0" placeholder={t('admin.subscriptions.maxListings')} className={FIELD} />
           <div className="flex items-center gap-1.5">
             <label className="flex items-center gap-1 text-xs text-ink-45">
               <input type="checkbox" name="is_trial" /> Essai
@@ -211,7 +213,7 @@ export default async function AdminSubscriptionsPage() {
           </div>
           <div />
           <button type="submit" className="justify-self-start rounded-md border border-blue-deep bg-blue-tint px-2.5 py-1.5 text-xs font-medium text-blue-deep hover:bg-blue-deep hover:text-white">
-            + Ajouter un forfait
+            {t('admin.subscriptions.addPlan')}
           </button>
         </form>
       </div>
@@ -220,20 +222,20 @@ export default async function AdminSubscriptionsPage() {
           has no per-agent quota column, and adding a UI that implies one would
           promise an override nothing enforces. */}
       <div>
-        <h2 className="u-title-card mb-1 text-ink">Quotas et priorité par forfait</h2>
+        <h2 className="u-title-card mb-1 text-ink">{t('admin.subscriptions.quotasTitle')}</h2>
         <p className="mb-3 text-xs text-ink-45">
-          Ces trois valeurs sont appliquées en temps réel : le plafond de biens publiés, le nombre de
+          {t('admin.subscriptions.quotasHint')}
           demandes clients traitables par mois, et le poids du forfait dans l&apos;attribution automatique
-          des nouvelles demandes.
+          {t('admin.subscriptions.quotasHint2')}
         </p>
         <div className="overflow-hidden rounded-card border border-line bg-white">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-line bg-canvas-alt text-xs uppercase tracking-wide text-ink-45">
               <tr>
-                <th className="px-4 py-2.5 font-semibold">Forfait</th>
-                <th className="px-4 py-2.5 font-semibold">Biens max</th>
-                <th className="px-4 py-2.5 font-semibold">Demandes / mois</th>
-                <th className="px-4 py-2.5 font-semibold">Priorité (×)</th>
+                <th className="px-4 py-2.5 font-semibold">{t('admin.subscriptions.plan')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('admin.subscriptions.maxListings')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('admin.subscriptions.requestsPerMonth')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('admin.subscriptions.priority')}</th>
                 <th className="px-4 py-2.5 font-semibold" />
               </tr>
             </thead>
@@ -251,7 +253,7 @@ export default async function AdminSubscriptionsPage() {
                         type="number"
                         min="0"
                         defaultValue={pkg.number_of_property ?? ''}
-                        placeholder="illimité"
+                        placeholder={t('admin.subscriptions.unlimited')}
                         className={`${FIELD} w-24`}
                       />
                       <input
@@ -273,7 +275,7 @@ export default async function AdminSubscriptionsPage() {
                         type="submit"
                         className="rounded-md border border-line px-3 py-1.5 text-xs font-medium text-ink hover:bg-canvas-alt"
                       >
-                        Enregistrer
+                        {t('common.actions.save')}
                       </button>
                     </form>
                   </td>
@@ -286,21 +288,21 @@ export default async function AdminSubscriptionsPage() {
 
       {/* Assign a package to an agent */}
       <div>
-        <h2 className="u-title-card mb-3 text-ink">Attribuer un forfait</h2>
+        <h2 className="u-title-card mb-3 text-ink">{t('admin.subscriptions.assignPlan')}</h2>
         <form action={assignPackageAction} className="flex flex-wrap items-end gap-2 rounded-card border border-line bg-white p-4">
           <div>
-            <label className="mb-1 block text-xs font-medium text-ink-45">Agent</label>
+            <label className="mb-1 block text-xs font-medium text-ink-45">{t('admin.subscriptions.agent')}</label>
             <select name="agent_id" required className={FIELD}>
-              <option value="">Choisir…</option>
+              <option value="">{t('admin.actions.choose')}</option>
               {agents.map((a) => (
                 <option key={a.id} value={a.id}>{agentName(a)}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-ink-45">Forfait</label>
+            <label className="mb-1 block text-xs font-medium text-ink-45">{t('admin.subscriptions.plan')}</label>
             <select name="package_id" required className={FIELD}>
-              <option value="">Choisir…</option>
+              <option value="">{t('admin.actions.choose')}</option>
               {packages.filter((p) => p.status === 1).map((p) => (
                 <option key={p.id} value={p.id}>{p.title} ({TERM_LABELS_FR[p.term]})</option>
               ))}
@@ -310,23 +312,23 @@ export default async function AdminSubscriptionsPage() {
             <input type="checkbox" name="is_trial" /> Essai
           </label>
           <div>
-            <label className="mb-1 block text-xs font-medium text-ink-45">Prix payé</label>
+            <label className="mb-1 block text-xs font-medium text-ink-45">{t('admin.subscriptions.pricePaid')}</label>
             <input name="price" type="number" step="0.01" min="0" className={`${FIELD} w-24`} />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-ink-45">Devise</label>
+            <label className="mb-1 block text-xs font-medium text-ink-45">{t('admin.subscriptions.currency')}</label>
             <input name="currency" placeholder="USD" className={`${FIELD} w-20`} />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-ink-45">Symbole</label>
+            <label className="mb-1 block text-xs font-medium text-ink-45">{t('admin.subscriptions.symbol')}</label>
             <input name="currency_symbol" placeholder="$" className={`${FIELD} w-16`} />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-ink-45">Mode de paiement</label>
+            <label className="mb-1 block text-xs font-medium text-ink-45">{t('admin.subscriptions.paymentMethod')}</label>
             <input name="payment_method" placeholder="Virement, Mobile Money…" className={FIELD} />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-ink-45">Réf. transaction</label>
+            <label className="mb-1 block text-xs font-medium text-ink-45">{t('admin.subscriptions.transactionReference')}</label>
             <input name="transaction_id" className={FIELD} />
           </div>
           <button type="submit" className="rounded-md border border-blue-deep bg-blue-tint px-3 py-1.5 text-xs font-medium text-blue-deep hover:bg-blue-deep hover:text-white">
@@ -344,19 +346,19 @@ export default async function AdminSubscriptionsPage() {
 
         {memberships.length === 0 ? (
           <div className="rounded-card border border-dashed border-line bg-white p-10 text-center text-sm text-ink-45">
-            Aucun abonnement.
+            {t('admin.subscriptions.noSubscriptions')}
           </div>
         ) : (
           <div className="overflow-hidden rounded-card border border-line bg-white">
             <table className="w-full text-left text-sm">
               <thead className="border-b border-line bg-canvas-alt text-xs uppercase tracking-wide text-ink-45">
                 <tr>
-                  <th className="px-4 py-2.5 font-semibold">Agence</th>
-                  <th className="px-4 py-2.5 font-semibold">Forfait</th>
-                  <th className="px-4 py-2.5 font-semibold">Prix payé</th>
+                  <th className="px-4 py-2.5 font-semibold">{t('admin.subscriptions.agency')}</th>
+                  <th className="px-4 py-2.5 font-semibold">{t('admin.subscriptions.plan')}</th>
+                  <th className="px-4 py-2.5 font-semibold">{t('admin.subscriptions.pricePaid')}</th>
                   <th className="px-4 py-2.5 font-semibold">Paiement</th>
-                  <th className="px-4 py-2.5 font-semibold">Expire le</th>
-                  <th className="px-4 py-2.5 font-semibold">Actions</th>
+                  <th className="px-4 py-2.5 font-semibold">{t('admin.subscriptions.expiresOn')}</th>
+                  <th className="px-4 py-2.5 font-semibold">{t('admin.subscriptions.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -379,7 +381,7 @@ export default async function AdminSubscriptionsPage() {
                       {formatDate(m.expire_date) || '—'}
                       {m.status !== 1 && (
                         <span className="ml-1.5 rounded-full bg-canvas-deep px-1.5 py-0.5 text-[0.65rem] font-bold uppercase text-ink-45">
-                          Annulé
+                          {t('admin.subscriptions.cancelled')}
                         </span>
                       )}
                     </td>
@@ -400,7 +402,7 @@ export default async function AdminSubscriptionsPage() {
                             type="number"
                             defaultValue={30}
                             className={`${FIELD} w-16 !py-1 !text-xs`}
-                            aria-label="Jours à ajouter"
+                            aria-label={t('admin.subscriptions.daysToAdd')}
                           />
                           <button
                             type="submit"
@@ -419,7 +421,7 @@ export default async function AdminSubscriptionsPage() {
                             type="submit"
                             className="rounded-md border border-line px-2 py-1 text-xs font-medium text-ink-45 hover:bg-canvas-alt hover:text-ink"
                           >
-                            {m.status === 1 ? 'Annuler' : 'Réactiver'}
+                            {m.status === 1 ? 'Annuler' : t('admin.actions.reactivate')}
                           </button>
                         </form>
                       </div>
@@ -441,7 +443,7 @@ export default async function AdminSubscriptionsPage() {
 
         {approvedListings.length === 0 ? (
           <div className="rounded-card border border-dashed border-line bg-white p-10 text-center text-sm text-ink-45">
-            Aucune annonce approuvée.
+            {t('admin.subscriptions.noApprovedListings')}
           </div>
         ) : (
           <div className="overflow-hidden rounded-card border border-line bg-white">
@@ -468,7 +470,7 @@ export default async function AdminSubscriptionsPage() {
                               type="submit"
                               className="rounded-full border border-blue-deep bg-blue-tint px-2.5 py-1 text-xs font-medium text-blue-deep hover:bg-blue-deep hover:text-white"
                             >
-                              Retirer de Vedette
+                              {t('admin.subscriptions.unfeature')}
                             </button>
                           </form>
                         ) : (
@@ -476,7 +478,7 @@ export default async function AdminSubscriptionsPage() {
                             <select
                               name="vendor_id"
                               className="rounded-md border border-line bg-white px-2 py-1 text-xs text-ink"
-                              title="Agence à attribuer — featured_properties.vendor_id est obligatoire en base, et aucun agent n'est encore lié à cette annonce"
+                              title={t('admin.subscriptions.agencyRequired')}
                             >
                               {vendors.map((v) => (
                                 <option key={v.id} value={v.id}>

@@ -11,6 +11,7 @@ import {
 } from '@/lib/customers';
 import { createLead, getLead, updateLeadRequirements } from '@/lib/adminApi';
 import { buildRequirementsSummary } from '@/lib/customerPortal';
+import { getT } from '@/lib/i18n/server';
 
 /**
  * Server actions for the Espace Client portal.
@@ -88,6 +89,7 @@ export async function updateProfileNameAction(formData) {
  * their typed input, not a Next.js error page.
  */
 export async function submitPropertyRequestAction(_prevState, formData) {
+  const t = await getT();
   const customerId = await requireCustomerId();
   const customer = await getCustomerById(customerId);
   if (!customer) redirect('/compte/connexion?next=/compte/client/demandes');
@@ -102,10 +104,10 @@ export async function submitPropertyRequestAction(_prevState, formData) {
   const notes = String(formData.get('notes') || '').trim();
 
   if (!transactionType) {
-    return { status: 'error', message: 'Choisissez d’abord si vous souhaitez acheter ou louer.' };
+    return { status: 'error', message: t('errors.chooseBuyOrRent') };
   }
   if (communes.length === 0) {
-    return { status: 'error', message: 'Sélectionnez au moins une commune.' };
+    return { status: 'error', message: t('errors.selectAtLeastOneCommune') };
   }
 
   const requirementsSummary = buildRequirementsSummary({
@@ -139,7 +141,7 @@ export async function submitPropertyRequestAction(_prevState, formData) {
     console.warn('[compte/client] submitPropertyRequestAction failed:', error.message);
     return {
       status: 'error',
-      message: "Votre demande n'a pas pu être envoyée. Réessayez dans un instant.",
+      message: t('errors.requestNotSent'),
     };
   }
 
@@ -148,7 +150,7 @@ export async function submitPropertyRequestAction(_prevState, formData) {
   revalidatePath('/compte/client');
   revalidatePath('/compte/demandes');
 
-  return { status: 'success', message: 'Votre demande a été transmise aux agences partenaires.' };
+  return { status: 'success', message: t('errors.requestSentToAgencies') };
 }
 
 /**
@@ -165,23 +167,24 @@ export async function submitPropertyRequestAction(_prevState, formData) {
  * contract as markListingSoldAction (web/app/compte/agent/actions.js).
  */
 export async function updatePropertyRequestAction(leadId, formData) {
+  const t = await getT();
   const customerId = await requireCustomerId();
   const customer = await getCustomerById(customerId);
   if (!customer) redirect('/compte/connexion?next=/compte/client/messages');
 
   const numericLeadId = Number.parseInt(leadId, 10);
   if (!Number.isFinite(numericLeadId)) {
-    return { ok: false, error: 'Demande introuvable.' };
+    return { ok: false, error: t('errors.requestNotFound') };
   }
 
   let lead;
   try {
     ({ lead } = await getLead(numericLeadId));
   } catch (error) {
-    return { ok: false, error: 'Demande introuvable.' };
+    return { ok: false, error: t('errors.requestNotFound') };
   }
   if (!lead || lead.wa_id !== customer.phone) {
-    return { ok: false, error: "Cette demande n'appartient pas à votre compte." };
+    return { ok: false, error: t('errors.requestNotYours') };
   }
 
   const transactionType = String(formData.get('transactionType') || '');
@@ -192,17 +195,17 @@ export async function updatePropertyRequestAction(leadId, formData) {
   const requirementsSummary = String(formData.get('requirementsSummary') || '').trim();
 
   if (!['vente', 'location'].includes(transactionType)) {
-    return { ok: false, error: 'Choisissez d’abord si vous souhaitez acheter ou louer.' };
+    return { ok: false, error: t('errors.chooseBuyOrRent') };
   }
   if (!commune) {
-    return { ok: false, error: 'Sélectionnez une commune.' };
+    return { ok: false, error: t('errors.selectACommune') };
   }
 
   const parsedBedrooms = Number.parseInt(bedroomsRaw, 10);
   const parsedBudgetMin = Number.parseFloat(budgetMin);
   const parsedBudgetMax = Number.parseFloat(budgetMax);
   if (Number.isFinite(parsedBudgetMin) && Number.isFinite(parsedBudgetMax) && parsedBudgetMin > parsedBudgetMax) {
-    return { ok: false, error: 'Le budget minimum doit être inférieur ou égal au budget maximum.' };
+    return { ok: false, error: t('errors.budgetMinAboveMax') };
   }
 
   let proposalsReset = false;
@@ -224,7 +227,7 @@ export async function updatePropertyRequestAction(leadId, formData) {
     }));
   } catch (error) {
     console.warn('[compte/client] updatePropertyRequestAction failed:', error.message);
-    return { ok: false, error: "Votre demande n'a pas pu être mise à jour. Réessayez dans un instant." };
+    return { ok: false, error: t('errors.requestNotUpdated') };
   }
 
   revalidatePath('/compte/client/messages');

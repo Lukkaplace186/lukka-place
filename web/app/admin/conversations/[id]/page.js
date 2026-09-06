@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getConversationDetail } from '@/lib/adminApi';
-import { CONVERSATION_STATE_LABELS_FR, LEAD_STATUS_LABELS_FR } from '@/lib/adminLabels';
+import { CONVERSATION_STATE_LABEL_KEYS, LEAD_STATUS_LABEL_KEYS } from '@/lib/adminLabels';
+import { getT } from '@/lib/i18n/server';
 import {
   assignAgentAction, saveNotesAction, takeOverAction, returnToAiAction, sendReplyAction,
 } from '../../actions';
@@ -13,17 +14,20 @@ function formatDateTime(value) {
   );
 }
 
-const REQUIREMENT_LABELS = [
-  ['transaction_type', 'Transaction'],
-  ['property_type', 'Type de bien'],
-  ['commune', 'Commune'],
-  ['quartier', 'Quartier'],
-  ['price_min', 'Prix min'],
-  ['price_max', 'Prix max'],
-  ['bedrooms', 'Chambres'],
+// [column, dictionary key] — the column names are real database fields and
+// stay as they are; only the label side is translated.
+const REQUIREMENT_LABEL_KEYS = [
+  ['transaction_type', 'admin.conversations.transaction'],
+  ['property_type', 'admin.conversations.propertyType'],
+  ['commune', 'admin.conversations.commune'],
+  ['quartier', 'admin.conversations.quartier'],
+  ['price_min', 'admin.conversations.priceMin'],
+  ['price_max', 'admin.conversations.priceMax'],
+  ['bedrooms', 'admin.conversations.bedrooms'],
 ];
 
 export default async function AdminConversationDetailPage({ params }) {
+  const t = await getT();
   const { id: idParam } = await params;
   const id = Number.parseInt(idParam, 10);
   if (!Number.isFinite(id)) notFound();
@@ -46,7 +50,7 @@ export default async function AdminConversationDetailPage({ params }) {
   return (
     <div>
       <Link href="/admin/conversations" className="text-sm text-blue-deep hover:underline">
-        ← Toutes les conversations
+        {t('admin.conversations.backToAll')}
       </Link>
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
@@ -54,10 +58,10 @@ export default async function AdminConversationDetailPage({ params }) {
           <h1 className="u-title-page text-ink">{conversation.wa_id}</h1>
           <div className="mt-1 flex items-center gap-2">
             <span className="rounded-full bg-blue-tint px-2 py-0.5 text-xs font-medium text-blue-deep">
-              {CONVERSATION_STATE_LABELS_FR[conversation.state] || conversation.state}
+              {CONVERSATION_STATE_LABEL_KEYS[conversation.state] ? t(CONVERSATION_STATE_LABEL_KEYS[conversation.state]) : conversation.state}
             </span>
             <span className={`text-xs font-medium ${conversation.ai_active ? 'text-green-deep' : 'text-ink-45'}`}>
-              {conversation.ai_active ? 'IA active' : 'IA silencieuse (agent aux commandes)'}
+              {conversation.ai_active ? 'IA active' : t('admin.conversations.aiSilentAgentInControl')}
             </span>
           </div>
         </div>
@@ -66,13 +70,13 @@ export default async function AdminConversationDetailPage({ params }) {
           {conversation.ai_active ? (
             <form action={boundTakeOver}>
               <button type="submit" className="rounded-full bg-blue px-4 py-2 text-sm font-semibold text-white hover:bg-blue-deep u-btn-primary">
-                Prendre en main
+                {t('admin.conversations.takeOver')}
               </button>
             </form>
           ) : (
             <form action={boundReturnToAi}>
               <button type="submit" className="rounded-full border border-blue px-4 py-2 text-sm font-semibold text-blue-deep hover:bg-blue-tint">
-                Rendre à l&apos;IA
+                {t('admin.conversations.returnToAi')}
               </button>
             </form>
           )}
@@ -82,9 +86,9 @@ export default async function AdminConversationDetailPage({ params }) {
       <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr]">
         <div className="flex flex-col gap-4">
           <div className="rounded-card border border-line bg-white p-4">
-            <h2 className="u-title-card mb-3 text-ink">Transcription</h2>
+            <h2 className="u-title-card mb-3 text-ink">{t('admin.conversations.transcript')}</h2>
             {messages.length === 0 ? (
-              <p className="text-sm text-ink-45">Aucun message.</p>
+              <p className="text-sm text-ink-45">{t('admin.conversations.noMessages')}</p>
             ) : (
               <div className="flex flex-col gap-2">
                 {messages.map((m) => (
@@ -109,11 +113,15 @@ export default async function AdminConversationDetailPage({ params }) {
               <input
                 type="text"
                 name="text"
-                placeholder={conversation.ai_active ? 'Écrire un message (bascule automatiquement l\'IA en silence non — pensez à «Prendre en main»)' : 'Écrire une réponse...'}
+                placeholder={
+                  conversation.ai_active
+                    ? t('admin.conversations.composerHintPlain')
+                    : t('admin.conversations.composerPlaceholder')
+                }
                 className="u-focus-ring flex-1 rounded-md border border-line px-3 py-2 text-sm text-ink"
               />
               <button type="submit" className="rounded-md bg-blue px-4 py-2 text-sm font-semibold text-white hover:bg-blue-deep u-btn-primary">
-                Envoyer
+                {t('admin.conversations.send')}
               </button>
             </form>
           </div>
@@ -121,9 +129,9 @@ export default async function AdminConversationDetailPage({ params }) {
 
         <div className="flex flex-col gap-4">
           <div className="rounded-card border border-line bg-white p-4">
-            <h2 className="u-title-card mb-3 text-ink">Critères connus</h2>
+            <h2 className="u-title-card mb-3 text-ink">{t('admin.conversations.knownCriteria')}</h2>
             <dl className="grid grid-cols-2 gap-2 text-sm">
-              {REQUIREMENT_LABELS.map(([field, label]) => (
+              {REQUIREMENT_LABEL_KEYS.map(([field, label]) => (
                 <div key={field}>
                   <dt className="text-xs text-ink-45">{label}</dt>
                   <dd className="text-ink">{conversation[field] ?? '—'}</dd>
@@ -133,41 +141,41 @@ export default async function AdminConversationDetailPage({ params }) {
           </div>
 
           <div className="rounded-card border border-line bg-white p-4">
-            <h2 className="u-title-card mb-3 text-ink">Agent assigné</h2>
+            <h2 className="u-title-card mb-3 text-ink">{t('admin.conversations.assignedAgent')}</h2>
             <form action={boundAssign} className="flex gap-2">
               <input
                 type="text"
                 name="assigned_agent"
                 defaultValue={conversation.assigned_agent || ''}
-                placeholder="Nom de l'agent"
+                placeholder={t('admin.conversations.agentNamePlaceholder')}
                 className="u-focus-ring flex-1 rounded-md border border-line px-3 py-1.5 text-sm text-ink"
               />
               <button type="submit" className="rounded-md border border-line px-3 py-1.5 text-sm font-medium text-ink hover:bg-canvas-alt">
-                Enregistrer
+                {t('common.actions.save')}
               </button>
             </form>
           </div>
 
           <div className="rounded-card border border-line bg-white p-4">
-            <h2 className="u-title-card mb-3 text-ink">Notes internes</h2>
+            <h2 className="u-title-card mb-3 text-ink">{t('admin.conversations.internalNotes')}</h2>
             <form action={boundNotes} className="flex flex-col gap-2">
               <textarea
                 name="notes"
                 defaultValue={conversation.notes || ''}
                 rows={4}
-                placeholder="Jamais visible par le client..."
+                placeholder={t('admin.conversations.notesPlaceholder')}
                 className="u-focus-ring rounded-md border border-line px-3 py-2 text-sm text-ink"
               />
               <button type="submit" className="self-start rounded-md border border-line px-3 py-1.5 text-sm font-medium text-ink hover:bg-canvas-alt">
-                Enregistrer
+                {t('common.actions.save')}
               </button>
             </form>
           </div>
 
           <div className="rounded-card border border-line bg-white p-4">
-            <h2 className="u-title-card mb-3 text-ink">Prospects liés</h2>
+            <h2 className="u-title-card mb-3 text-ink">{t('admin.conversations.linkedLeads')}</h2>
             {leads.length === 0 ? (
-              <p className="text-sm text-ink-45">Aucun prospect pour cette conversation.</p>
+              <p className="text-sm text-ink-45">{t('admin.conversations.noLinkedLeads')}</p>
             ) : (
               <ul className="flex flex-col gap-2">
                 {leads.map((l) => (
@@ -175,7 +183,7 @@ export default async function AdminConversationDetailPage({ params }) {
                     <div className="flex items-center justify-between">
                       <span className="font-medium text-ink">#{l.id}</span>
                       <span className="rounded-full bg-blue-tint px-2 py-0.5 text-xs font-medium text-blue-deep">
-                        {LEAD_STATUS_LABELS_FR[l.status] || l.status}
+                        {LEAD_STATUS_LABEL_KEYS[l.status] ? t(LEAD_STATUS_LABEL_KEYS[l.status]) : l.status}
                       </span>
                     </div>
                     {l.requirements_summary && <p className="mt-1 text-xs text-ink-45">{l.requirements_summary}</p>}

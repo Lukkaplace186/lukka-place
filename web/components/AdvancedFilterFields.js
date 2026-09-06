@@ -2,6 +2,7 @@
 
 import { PillOption } from './FilterPill';
 import { PARCELLE_SUBTYPES, AMENITY_GROUPS, DEPOSIT_MAX_OPTIONS } from '@/lib/constants';
+import { useT } from '@/lib/i18n/client';
 
 const selectClass =
   'u-focus-ring w-full rounded-md border border-line bg-canvas px-3 py-2.5 text-sm text-ink ' +
@@ -50,6 +51,8 @@ export default function AdvancedFilterFields({
   const { quartier = '', parcelleSubtype = '', bedsMin = '', bathMin = '', depositMax = '', amenities = [] } = values;
   const { setQuartier, setParcelleSubtype, setBedsMin, setBathMin, setDepositMax, setAmenities } = setters;
 
+  const t = useT();
+
   function toggleAmenity(key) {
     setAmenities?.(amenities.includes(key) ? amenities.filter((k) => k !== key) : [...amenities, key]);
   }
@@ -57,8 +60,8 @@ export default function AdvancedFilterFields({
   return (
     <>
       <Field
-        label="Quartier"
-        hint={commune ? undefined : 'Choisissez d’abord une commune dans la barre de recherche.'}
+        label={t('listings.filters.quartier')}
+        hint={commune ? undefined : t('listings.filters.quartierHint')}
       >
         <select
           key={commune}
@@ -67,7 +70,7 @@ export default function AdvancedFilterFields({
           disabled={!commune}
           className={selectClass}
         >
-          <option value="">Tous les quartiers</option>
+          <option value="">{t('listings.filters.allQuartiers')}</option>
           {quartiers.map((q) => (
             <option key={q} value={q}>
               {q}
@@ -77,12 +80,12 @@ export default function AdvancedFilterFields({
       </Field>
 
       {propertyType === 'parcelle' ? (
-        <Field label="Sous-type de parcelle">
+        <Field label={t('listings.filters.parcelleSubtype')}>
           <select value={parcelleSubtype} onChange={(e) => setParcelleSubtype?.(e.target.value)} className={selectClass}>
-            <option value="">Tous les sous-types</option>
-            {PARCELLE_SUBTYPES.map(({ value, label }) => (
+            <option value="">{t('listings.filters.allSubtypes')}</option>
+            {PARCELLE_SUBTYPES.map(({ value, labelKey }) => (
               <option key={value} value={value}>
-                {label}
+                {t(labelKey)}
               </option>
             ))}
           </select>
@@ -91,9 +94,9 @@ export default function AdvancedFilterFields({
 
       {includeBedsBaths ? (
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Salles de bain">
+          <Field label={t('listings.filters.bathrooms')}>
             <select value={bathMin} onChange={(e) => setBathMin?.(e.target.value)} className={selectClass}>
-              <option value="">Toutes</option>
+              <option value="">{t('listings.filters.any')}</option>
               {[1, 2, 3, 4].map((n) => (
                 <option key={n} value={n}>
                   {n}+
@@ -107,7 +110,7 @@ export default function AdvancedFilterFields({
               field. */}
           <Field label="Chambres">
             <select value={bedsMin} onChange={(e) => setBedsMin?.(e.target.value)} className={selectClass}>
-              <option value="">Toutes</option>
+              <option value="">{t('listings.filters.any')}</option>
               {[1, 2, 3, 4, 5].map((n) => (
                 <option key={n} value={n}>
                   {n}+
@@ -125,43 +128,40 @@ export default function AdvancedFilterFields({
           Real, working filters — just not database-verified ones, hence
           the caption below rather than silently implying otherwise. */}
       {AMENITY_GROUPS.slice(0, 2).map((group) => (
-        <Field key={group.title} label={group.title}>
+        <Field key={group.titleKey} label={t(group.titleKey)}>
           <div className="flex flex-wrap gap-2">
-            {group.options.map(({ key, label }) => (
+            {group.options.map(({ key, labelKey }) => (
               <PillOption key={key} selected={amenities.includes(key)} onClick={() => toggleAmenity(key)}>
-                {label}
+                {t(labelKey)}
               </PillOption>
             ))}
           </div>
         </Field>
       ))}
 
-      <Field label="Conditions de location">
+      <Field label={t('listings.amenityGroups.rentalTerms')}>
         <div className="flex flex-col gap-3">
           <div>
-            <span className="mb-2 block text-xs font-medium text-ink-70">Garantie / avance maximum</span>
+            <span className="mb-2 block text-xs font-medium text-ink-70">{t('listings.filters.depositMaxLabel')}</span>
             <select value={depositMax} onChange={(e) => setDepositMax?.(e.target.value)} className={selectClass}>
-              {DEPOSIT_MAX_OPTIONS.map(({ value, label }) => (
+              {DEPOSIT_MAX_OPTIONS.map(({ value, labelKey }) => (
                 <option key={value} value={value}>
-                  {label}
+                  {t(labelKey)}
                 </option>
               ))}
             </select>
           </div>
           <div className="flex flex-wrap gap-2">
-            {AMENITY_GROUPS[2].options.map(({ key, label }) => (
+            {AMENITY_GROUPS[2].options.map(({ key, labelKey }) => (
               <PillOption key={key} selected={amenities.includes(key)} onClick={() => toggleAmenity(key)}>
-                {label}
+                {t(labelKey)}
               </PillOption>
             ))}
           </div>
         </div>
       </Field>
 
-      <p className="text-xs text-ink-45">
-        Ces critères recherchent une mention réelle dans le titre ou la description de l&rsquo;annonce — un bien peut
-        avoir cet équipement sans l&rsquo;avoir précisé.
-      </p>
+      <p className="text-xs text-ink-45">{t('listings.filters.textMatchNote')}</p>
     </>
   );
 }

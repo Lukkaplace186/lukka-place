@@ -10,11 +10,17 @@ import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { logoutAction, deleteAccountAction } from '../../actions';
 import { updateProfileNameAction } from '../actions';
+import { getT } from '@/lib/i18n/server';
 
-export const metadata = {
-  title: 'Mon profil — Lukka Place',
-  robots: { index: false, follow: false },
-};
+// generateMetadata, not a static object: a static export is evaluated at
+// module load, where there is no request and so no translator.
+export async function generateMetadata() {
+  const t = await getT();
+  return {
+    title: t('account.profile.metaTitle'),
+    robots: { index: false, follow: false },
+  };
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -38,6 +44,7 @@ const DATE_FORMATTER = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month:
  * Alertes tab: nothing stores them, and nothing acts on them.
  */
 export default async function ParametresPage() {
+  const t = await getT();
   const session = await getPortalCustomer();
   if (!session) redirect('/compte/connexion?next=/compte/client/parametres');
 
@@ -62,12 +69,12 @@ export default async function ParametresPage() {
         />
 
         <PortalPanel className="p-6 sm:p-7">
-          <h3 className="u-title-card text-ink">Informations personnelles</h3>
+          <h3 className="u-title-card text-ink">{t('account.profile.personalInfo')}</h3>
 
           <form action={updateProfileNameAction} className="mt-5 grid gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="fullName" className="u-eyebrow mb-1.5 block">
-                Nom complet
+                {t('account.profile.fullName')}
               </label>
               <input
                 id="fullName"
@@ -75,14 +82,14 @@ export default async function ParametresPage() {
                 type="text"
                 autoComplete="name"
                 defaultValue={customer.full_name || ''}
-                placeholder="Votre nom"
+                placeholder={t('account.profile.namePlaceholder')}
                 className="u-focus-ring w-full rounded-md border border-line bg-white px-3.5 py-2.5 text-[0.9375rem] text-ink placeholder:text-ink-25"
               />
             </div>
 
             <div>
               <label htmlFor="phone" className="u-eyebrow mb-1.5 block">
-                Téléphone (WhatsApp)
+                {t('account.profile.phone')}
               </label>
               <input
                 id="phone"
@@ -93,7 +100,7 @@ export default async function ParametresPage() {
                 className="u-tabular w-full cursor-not-allowed rounded-md border border-line bg-canvas-alt px-3.5 py-2.5 text-[0.9375rem] text-ink-45"
               />
               <p id="phone-help" className="mt-1.5 text-[0.75rem] text-ink-35">
-                C&apos;est l&apos;identifiant de votre compte : il ne peut pas être modifié ici.
+                {t('account.profile.phoneNote')}
               </p>
             </div>
 
@@ -102,7 +109,7 @@ export default async function ParametresPage() {
                 type="submit"
                 className="u-btn-primary inline-flex items-center rounded-full bg-blue px-6 py-2.5 text-[0.875rem] font-semibold text-white"
               >
-                Enregistrer les modifications
+                {t('account.profile.saveChanges')}
               </button>
             </div>
           </form>
@@ -115,11 +122,11 @@ export default async function ParametresPage() {
         </PortalPanel>
 
         <PortalPanel className="p-6 sm:p-7">
-          <h3 className="u-title-card text-ink">Devise d&apos;affichage</h3>
+          <h3 className="u-title-card text-ink">{t('common.currency.label')}</h3>
           <p className="mt-2 max-w-lg text-[0.8125rem] leading-[1.5] text-ink-45">
             Les prix sont enregistrés en dollars. L&apos;affichage en francs congolais utilise un taux indicatif de{' '}
             <span className="u-tabular font-semibold text-ink-70">
-              {rate.cdfPerUsd.toLocaleString('fr-FR')} FC pour 1 USD
+              {Number(rate.cdfPerUsd).toLocaleString('fr-FR')} FC pour 1 USD
             </span>
             , mis à jour le {rate.updatedAt} — ce n&apos;est pas un taux en temps réel.
           </p>
@@ -134,10 +141,10 @@ export default async function ParametresPage() {
           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-tint text-blue-deep">
             <ShieldCheck strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" aria-hidden="true" />
           </span>
-          <h3 className="mt-3.5 text-[1.0625rem] font-bold text-ink">Sécurité du compte</h3>
+          <h3 className="mt-3.5 text-[1.0625rem] font-bold text-ink">{t('account.profile.security')}</h3>
           <p className="mt-2 text-[0.8125rem] leading-[1.55] text-ink-45">
             Votre compte est rattaché au numéro {formatPhoneDisplay(customer.phone)}. C&apos;est par ce numéro que
-            passe toute réinitialisation de mot de passe.
+            {t('account.profile.resetNote')}
           </p>
           {passwordHelpHref ? (
             <a
@@ -146,15 +153,15 @@ export default async function ParametresPage() {
               rel="noopener noreferrer"
               className="mt-3.5 inline-block text-[0.8125rem] font-semibold text-blue-deep hover:underline"
             >
-              Mot de passe oublié ?
+              {t('account.profile.forgotPassword')}
             </a>
           ) : null}
         </PortalPanel>
 
         <PortalPanel className="p-6">
-          <h3 className="text-[1.0625rem] font-bold text-ink">Session</h3>
+          <h3 className="text-[1.0625rem] font-bold text-ink">{t('account.profile.session')}</h3>
           <p className="mt-2 text-[0.8125rem] leading-[1.55] text-ink-45">
-            Se déconnecter met fin à toutes vos sessions ouvertes, sur cet appareil comme sur les autres.
+            {t('account.profile.sessionNote')}
           </p>
           <form action={logoutAction} className="mt-4">
             <button
@@ -162,15 +169,15 @@ export default async function ParametresPage() {
               className="u-btn-secondary inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[0.875rem] font-semibold text-ink"
             >
               <LogOut strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
-              Se déconnecter
+              {t('common.actions.logout')}
             </button>
           </form>
         </PortalPanel>
 
         <PortalPanel className="p-6">
-          <h3 className="text-[1.0625rem] font-bold text-ink">Fermer le compte</h3>
+          <h3 className="text-[1.0625rem] font-bold text-ink">{t('account.profile.closeAccount')}</h3>
           <p className="mt-2 text-[0.8125rem] leading-[1.55] text-ink-45">
-            Vos favoris et vos recherches sauvegardées seront supprimés définitivement.
+            {t('account.profile.closeAccountNote')}
           </p>
           <div className="mt-4">
             <DeleteAccountButton action={deleteAccountAction} />

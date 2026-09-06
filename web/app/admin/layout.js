@@ -1,11 +1,27 @@
 import { logoutAction } from './actions';
 import AdminSidebar from './AdminSidebar';
+import LanguageToggle from '@/components/LanguageToggle';
 import { ToastProvider } from '@/components/Toast';
+import { getI18n, getT } from '@/lib/i18n/server';
+import { I18nProvider } from '@/lib/i18n/client';
 
-export const metadata = {
-  title: 'Admin — Lukka Place',
-  robots: { index: false, follow: false },
-};
+// generateMetadata rather than a static object — see app/(site)/a-propos.
+export async function generateMetadata() {
+  const t = await getT();
+  return {
+    title: t('admin.meta.title'),
+    robots: { index: false, follow: false },
+  };
+}
+
+/*
+ * The admin console's own namespaces, layered on the chrome ones the root
+ * layout supplies (I18nProvider merges — see lib/i18n/client.js). `status`
+ * carries the shared moderation/lead/conversation vocabularies, and
+ * `listings` the property-type words the moderation screens render; nothing
+ * here reaches a public visitor's payload.
+ */
+const ADMIN_NAMESPACES = ['admin', 'status', 'listings'];
 
 /**
  * Internal tool, not part of the public site's nav (Header.js has no link
@@ -23,9 +39,13 @@ export const metadata = {
  * `lg` the nav collapses into a horizontal scroller under the header
  * rather than disappearing entirely.
  */
-export default function AdminLayout({ children }) {
+export default async function AdminLayout({ children }) {
+  const { locale, messages } = await getI18n(ADMIN_NAMESPACES);
+  const t = await getT();
+
   return (
-    <ToastProvider>
+    <I18nProvider locale={locale} messages={messages}>
+      <ToastProvider>
       <div className="flex min-h-screen bg-canvas-alt">
         <div className="hidden lg:flex">
           <AdminSidebar />
@@ -34,13 +54,19 @@ export default function AdminLayout({ children }) {
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="flex h-[76px] shrink-0 items-center gap-5 border-b border-line bg-surface px-6">
             <span className="text-[1.3125rem] font-bold tracking-[-0.008em] text-ink">
-              Lukka <span className="text-blue-deep">Admin</span>
+              Lukka <span className="text-blue-deep">{t('admin.chrome.brandSuffix')}</span>
             </span>
-            <form action={logoutAction} className="ml-auto">
-              <button type="submit" className="text-sm font-medium text-ink-45 transition-colors hover:text-ink">
-                Se déconnecter
-              </button>
-            </form>
+            {/* The console's language control. `ml-auto` moves here from the
+                logout form so the two sit together as one right-hand utility
+                cluster, the same shape the public header uses. */}
+            <div className="ml-auto flex items-center gap-4">
+              <LanguageToggle />
+              <form action={logoutAction}>
+                <button type="submit" className="text-sm font-medium text-ink-45 transition-colors hover:text-ink">
+                  {t('common.actions.logout')}
+                </button>
+              </form>
+            </div>
           </header>
 
           {/* Below lg the royal rail is hidden, so the same destinations ride
@@ -52,6 +78,7 @@ export default function AdminLayout({ children }) {
           <main className="min-w-0 flex-1 px-6 py-7">{children}</main>
         </div>
       </div>
-    </ToastProvider>
+      </ToastProvider>
+    </I18nProvider>
   );
 }

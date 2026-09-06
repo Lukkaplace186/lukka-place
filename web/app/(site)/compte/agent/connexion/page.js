@@ -1,16 +1,20 @@
 import Link from 'next/link';
 import { agentLoginAction } from './actions';
+import { getT } from '@/lib/i18n/server';
 
 export const metadata = {
   title: 'Connexion agent — Lukka Place',
   robots: { index: false, follow: false },
 };
 
-const ERROR_MESSAGES = {
-  1: 'Numéro ou mot de passe incorrect.',
-  phone: 'Numéro de téléphone invalide.',
-  locked: 'Trop de tentatives — réessayez dans 15 minutes.',
-  otp_failed: "L'envoi du code de vérification a échoué — réessayez.",
+// Keys, not text: a module-level constant is evaluated once at import
+// and cannot hold translated copy — see components/navItems.js. The
+// lookup below resolves the key at render.
+const ERROR_MESSAGE_KEYS = {
+  1: 'auth.errors.badCredentials',
+  phone: 'auth.errors.phoneInvalid',
+  locked: 'auth.errors.locked',
+  otp_failed: 'auth.errors.otpFailed',
 };
 
 /**
@@ -18,6 +22,7 @@ const ERROR_MESSAGES = {
  * there's no localStorage anonymous-data merge to carry across submit here.
  */
 export default async function AgentLoginPage({ searchParams }) {
+  const t = await getT();
   const params = await searchParams;
   const error = typeof params.error === 'string' ? params.error : null;
   const reset = params.reset === '1';
@@ -26,15 +31,15 @@ export default async function AgentLoginPage({ searchParams }) {
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm rounded-card border border-line bg-surface p-6 u-lift sm:p-8">
-        <h1 className="u-title-section text-ink">Espace agent</h1>
-        <p className="mt-1 text-sm text-ink-45">Gérez vos annonces et vos prospects.</p>
+        <h1 className="u-title-section text-ink">{t('agent.nav.eyebrow')}</h1>
+        <p className="mt-1 text-sm text-ink-45">{t('auth.agentLoginLead')}</p>
 
         <form action={agentLoginAction} className="mt-6 flex flex-col gap-3">
           <input type="hidden" name="next" value={next} />
 
           <div>
             <label htmlFor="phone" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
-              Numéro de téléphone
+              {t('auth.phoneNumber')}
             </label>
             <input
               id="phone"
@@ -42,7 +47,7 @@ export default async function AgentLoginPage({ searchParams }) {
               name="phone"
               inputMode="tel"
               autoComplete="tel"
-              placeholder="099 712 3456 ou +33 612345678"
+              placeholder={t('enquiry.whatsappPlaceholder')}
               autoFocus
               required
               className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
@@ -52,10 +57,10 @@ export default async function AgentLoginPage({ searchParams }) {
           <div>
             <div className="mb-1 flex items-center justify-between">
               <label htmlFor="password" className="block text-xs font-semibold uppercase tracking-wide text-ink-45">
-                Mot de passe
+                {t('auth.password')}
               </label>
               <Link href="/mot-de-passe-oublie?role=agent" className="text-xs font-semibold text-blue-deep hover:underline">
-                Mot de passe oublié ?
+                {t('account.profile.forgotPassword')}
               </Link>
             </div>
             <input
@@ -70,13 +75,13 @@ export default async function AgentLoginPage({ searchParams }) {
 
           {reset && (
             <p className="text-sm text-green-deep" role="status">
-              Mot de passe réinitialisé — connectez-vous avec votre nouveau mot de passe.
+              {t('auth.passwordReset')}
             </p>
           )}
 
           {error && (
             <p className="text-sm text-red-600" role="alert">
-              {ERROR_MESSAGES[error] || ERROR_MESSAGES[1]}
+              {(ERROR_MESSAGE_KEYS[error] ? t(ERROR_MESSAGE_KEYS[error]) : null) || (ERROR_MESSAGE_KEYS[1] ? t(ERROR_MESSAGE_KEYS[1]) : null)}
             </p>
           )}
 
@@ -84,7 +89,7 @@ export default async function AgentLoginPage({ searchParams }) {
             type="submit"
             className="mt-1 rounded-md bg-blue px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary"
           >
-            Se connecter
+            {t('admin.login.submit')}
           </button>
         </form>
 
@@ -94,7 +99,7 @@ export default async function AgentLoginPage({ searchParams }) {
             href={`/compte/agent/inscription?next=${encodeURIComponent(next)}`}
             className="font-semibold text-blue-deep hover:underline"
           >
-            Créer un compte
+            {t('common.actions.signup')}
           </Link>
         </p>
       </div>

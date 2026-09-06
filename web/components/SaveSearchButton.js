@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { Bell } from 'lucide-react';
 import { isSearchSaved, removeSavedSearch, saveSearch, subscribeSavedSearches } from '@/lib/favorites';
 import { buildSearchLabel, searchCriteriaTags } from '@/lib/searchLabel';
+import { useT } from '@/lib/i18n/client';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useIsLoggedIn } from '@/lib/customerClient';
 import { useMotionSafe } from '@/lib/useMotionSafe';
@@ -72,6 +73,7 @@ const AUTH_RETURN_PARAM = 'lkp_auth_return';
  * nothing new).
  */
 export default function SaveSearchButton({ variant = 'default' }) {
+  const t = useT();
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -102,7 +104,7 @@ export default function SaveSearchButton({ variant = 'default' }) {
   function performSave() {
     const params = cleanParams();
     const query = params.toString();
-    saveSearch({ query, label: buildSearchLabel(params), href: `${pathname}?${query}` });
+    saveSearch({ query, label: buildSearchLabel(params, t), href: `${pathname}?${query}` });
     setPulseKey((k) => k + 1);
   }
 
@@ -160,7 +162,7 @@ export default function SaveSearchButton({ variant = 'default' }) {
       open={showConfirm}
       onClose={() => setShowConfirm(false)}
       onConfirm={handleConfirm}
-      tags={searchCriteriaTags(cleanParams())}
+      tags={searchCriteriaTags(cleanParams(), t)}
     />
   ) : null;
 
@@ -182,7 +184,7 @@ export default function SaveSearchButton({ variant = 'default' }) {
             strokeWidth={ICON_STROKE_WIDTH}
             className="h-4 w-4"
           />
-          {saved ? 'Alerte créée' : "M'alerter des nouveaux biens"}
+          {saved ? t('listings.alert.created') : t('listings.alert.create')}
         </button>
         {authPrompt}
         {confirmModal}
@@ -209,7 +211,7 @@ export default function SaveSearchButton({ variant = 'default' }) {
           strokeWidth={ICON_STROKE_WIDTH}
           className="h-4 w-4"
         />
-        {saved ? 'Alerte créée' : "M'alerter des nouveaux biens"}
+        {saved ? t('listings.alert.created') : t('listings.alert.create')}
       </button>
       {authPrompt}
       {confirmModal}

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Check, Share2 } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * Share the current listing.
@@ -33,6 +34,7 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  * that Link's navigation — same guard FavoriteButton uses.
  */
 export default function ShareButton({ title, path, className = '', variant = 'pill' }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
 
   async function handleShare(e) {
@@ -70,7 +72,7 @@ export default function ShareButton({ title, path, className = '', variant = 'pi
       <button
         type="button"
         onClick={handleShare}
-        aria-label={copied ? 'Lien copié' : 'Partager'}
+        aria-label={copied ? t('common.shared.linkCopied') : t('common.actions.share')}
         className={`u-press inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition-colors ${
           copied ? 'border-blue/30 bg-blue-tint text-blue' : 'border-line text-ink-70 hover:bg-canvas-alt'
         } ${className}`}
@@ -97,7 +99,7 @@ export default function ShareButton({ title, path, className = '', variant = 'pi
       ) : (
         <Share2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
       )}
-      {copied ? 'Lien copié' : 'Partager'}
+      {copied ? t('common.shared.linkCopied') : t('common.actions.share')}
     </button>
   );
 }

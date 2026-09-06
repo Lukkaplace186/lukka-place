@@ -191,9 +191,92 @@ Conflating any two of these is the bug that keeps recurring:
 - **No logo file yet.** `components/Brand.js` renders a set-type wordmark; drop the client's SVG at `public/brand/` and flip `LOGO_SRC` / `MARK_SRC`. Nothing else imports a brand mark.
 - **Per-listing agent contact — the schema limitation this used to describe is resolved; a real self-service path now exists.** `properties.agent_id` (FK) is the mechanism, joined to `agents`/`agent_infos`. **Correction, checked directly against live Supabase (this note previously said otherwise and was stale): `agents.phone` is `character varying(32)`, not a 32-bit integer — it holds a real E.164 `wa_id` (e.g. `243997123456`) with no truncation risk.** Phase 2 added the admin-side `assignAgentToListingAction` (`web/app/admin/agents/actions.js`) that populates `agent_id` for real; Phase 4 added genuine agent self-service accounts (`agents.password_hash`, phone-verified via a real WhatsApp OTP — see `lib/agentAuth.js`), independent of Laravel's own unused `agents.password` column. A listing without an attributed agent still correctly falls back to the central `WhatsAppCTA` number, same as before — this is no longer the only path, just the honest fallback when there's genuinely no agent attached yet.
 
+## Bilingual FR/EN — how it works and what will bite you
+
+French is the default and is not a "source language of convenience": listings,
+communes and agents are French-first, and `lib/i18n/config.js`'s
+`DEFAULT_LOCALE` encodes that. English exists for the diaspora audience — the
+same audience the USD/FC toggle was built for.
+
+**Locale is a cookie (`NEXT_LOCALE`), not a `/fr` `/en` route segment.** That
+was a deliberate trade-off, recorded in `lib/i18n/config.js`: no restructuring
+of ~100 route files into `app/[locale]/`, no rewrite of every internal
+`<Link href>`, and one canonical URL per page so existing shares keep working.
+The cost is that reading the cookie opts a route into dynamic rendering — the
+seven public routes that used to prerender (`/`, `/a-propos`, `/contact`,
+`/favoris`, `/agents`, `/messages`, `/plan`) are now `ƒ`. Everything else was
+already dynamic. If per-locale static prerendering ever matters more, the
+migration is to `app/[locale]/`, not to reading the cookie in fewer places.
+
+- **Dictionaries** — `lib/i18n/fr.json` / `en.json`, ~1,185 keys each, grouped
+  into 18 top-level namespaces. `tests/unit/i18n.test.js` asserts they stay
+  key-for-key identical, that no value is blank, and that `{placeholder}` sets
+  match between the two — a "{count} biens" translated without its count is
+  silent data loss.
+- **Reading a string** — `await getT()` in a Server Component or Server Action
+  (`lib/i18n/server.js`), `useT()` in a client one (`lib/i18n/client.js`).
+  Never import `lib/i18n/server.js` from anything reachable by a `'use client'`
+  file: it pulls in `server-only` and `next/headers`, and the build fails.
+- **Namespaces are shipped per surface.** Each layout passes only what its own
+  subtree renders, so `/admin`'s copy never reaches a public visitor (~6KB
+  gzip saved per public page). `tests/unit/i18n-namespaces.test.js` walks the
+  real import graph and fails if a client component resolves a namespace its
+  layout doesn't provide — that gap is otherwise silent in production, warned
+  about only in dev.
+
+### The three mistakes that actually happened here, repeatedly
+
+1. **`t` in a module-level constant.** `const LABELS = { a: t('x') }` at the top
+   of a file is a `ReferenceError` at import — `t` only exists inside a
+   component or action. Constants hold `labelKey` strings and the consumer
+   resolves them at render. Every label map in this codebase follows that shape
+   (`components/navItems.js` is the reference).
+2. **`t` in a default parameter.** `function X({ label = t('y') })` has the same
+   problem: parameter defaults are evaluated where `t` is not in scope. The
+   default moves into the body (`CopyLinkButton`, `ShareOnWhatsAppButton`,
+   `LocationAutocomplete` all do this, with a comment).
+3. **A function that calls `t()` without binding one.** This is the dangerous
+   one: **the build passes and the page 500s at render.** It shipped several
+   times during the migration and was caught in a browser, not by `npm run
+   build`. `tests/unit/i18n-translator-binding.test.js` now checks every
+   top-level declaration. Two cases are worth remembering — `Wordmark`
+   (`components/Brand.js`) is a NAMED export, so an earlier check that only
+   looked at default exports saw nothing while every page rendering the header
+   crashed; and an earlier version of that test missed `FavoritesSection`
+   because an apostrophe in French JSX text was read as the start of a string
+   literal and threw off its brace counting.
+
+### What is deliberately NOT translated
+
+- **Real data**: listing titles, descriptions, commune and quartier names,
+  agency names, `category_name` out of `property_category_contents`. Only
+  labels around them are keys. `typeLabel()` translates the parcelle sub-type
+  and passes `category_name` through untouched.
+- **`AMENITY_KEYWORDS` (`lib/constants.js`)** and
+  **`EXTRACTION_FAILURE_MARKERS` (`app/admin/listings/actions.js`)** — French
+  keyword lists matched against listing text that is itself French.
+  Translating either would break the matcher, not localise it.
+- **The `flexibility` option VALUES** in the customer request form: the chosen
+  option is stored as free text and appended to what partner agencies read, so
+  translating the value would change what lands in the database depending on
+  the customer's display language. Only its visible label follows the toggle.
+- **The agent password-reset WhatsApp message (`lib/agents.js`)** — it is sent
+  to the agent, but triggered by an admin. Translating it would render it in
+  the *admin's* language, not the recipient's.
+
+### Verifying a change
+
+Static scanning is not sufficient and repeatedly under-reported here: strings
+hide in ternary branches, template literals, default parameters and multi-line
+JSX that a line-based scan does not see. The check that actually settles it is
+fetching each route twice with `cookie: NEXT_LOCALE=fr` and `=en` and looking
+for French in the English render — that works on output, so the source shape
+cannot fool it. `npm run build` catches neither an unbound `t` nor a missing
+namespace; the two i18n tests above exist because of that.
+
 ## Testing
 
-- **`npm test`** runs the unit tier: Node's built-in `node --test`, no test framework dependency, matching the engine's own hand-rolled `scripts/verify-pipeline.js` precedent. 72 tests.
+- **`npm test`** runs the unit tier: Node's built-in `node --test`, no test framework dependency, matching the engine's own hand-rolled `scripts/verify-pipeline.js` precedent. 102 tests, three of which (`i18n.test.js`, `i18n-namespaces.test.js`, `i18n-translator-binding.test.js`) guard the bilingual layer — see the FR/EN section above for why the build alone does not.
 - Two flags carry the whole thing and are not optional: **`--conditions=react-server`** makes `import 'server-only'` a genuine no-op (that package exports a zero-byte file under that condition), which is what lets ~30 `lib/` modules be imported at all; and `tests/support/hooks.mjs` uses **`module.registerHooks`** to resolve the `@/` alias and retry extensionless specifiers with `.js` — Next resolves both implicitly, plain Node ESM resolves neither.
 - The unit tier substitutes `lib/db.js` with a recording fake pool (`tests/support/fakePool.js`), which buys the assertion class that matters most here: **SQL text invariants**. `properties` has no row-level security, so the `status = 1 AND approve_status = 1` filter is the only thing keeping unapproved listings private — and a test comparing returned rows would pass just as happily with that filter deleted, as long as the fixture held no pending rows. `tests/unit/listings-sql.test.js` asserts on the emitted SQL instead, which cannot be fooled that way.
 - **`npm run test:http` and `npm run test:chain` talk to live production data** and are gated behind an explicit `QA_ALLOW_PROD=1`. They are deliberately excluded from CI.

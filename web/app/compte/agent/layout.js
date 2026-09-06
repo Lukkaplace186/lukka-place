@@ -5,11 +5,27 @@ import AgentSidebar from '@/components/AgentSidebar';
 import AgentKeyboardShortcuts from '@/components/AgentKeyboardShortcuts';
 import { ToastProvider } from '@/components/Toast';
 import { agentLogoutAction } from './actions';
+import { getI18n, getT } from '@/lib/i18n/server';
+import { I18nProvider } from '@/lib/i18n/client';
 
-export const metadata = {
-  title: 'Espace agent — Lukka Place',
-  robots: { index: false, follow: false },
-};
+// generateMetadata rather than a static object, so the browser-tab title
+// follows the language too — see app/(site)/a-propos/page.js.
+export async function generateMetadata() {
+  const t = await getT();
+  return {
+    title: t('agent.meta.title'),
+    robots: { index: false, follow: false },
+  };
+}
+
+/*
+ * The agent dashboard's own namespaces, added on top of the chrome ones the
+ * root layout supplies (I18nProvider merges — see lib/i18n/client.js). This
+ * tree sits outside the (site) route group, so it does NOT inherit the
+ * storefront's listing vocabulary; `listings` is included explicitly because
+ * the agent's own tables render listing statuses and specs.
+ */
+const AGENT_NAMESPACES = ['agent', 'listings', 'status', 'auth'];
 
 // No searchParams/cookies() call of its own would trip Next's automatic
 // dynamic-rendering detection — same fix admin pages already had to make.
@@ -30,6 +46,7 @@ export const dynamic = 'force-dynamic';
  * and the white sidebar both read as figure against it.
  */
 export default async function AgentDashboardLayout({ children }) {
+  const { locale, messages } = await getI18n(AGENT_NAMESPACES);
   const agentId = await getCurrentAgentId();
   if (!agentId) redirect('/compte/agent/connexion');
 
@@ -52,20 +69,22 @@ export default async function AgentDashboardLayout({ children }) {
       .join('') || null;
 
   return (
-    <div className="flex min-h-screen bg-canvas-alt">
-      <AgentKeyboardShortcuts />
-      <AgentSidebar
-        agentName={name}
-        agentInitials={initials}
-        listingsCount={listings.length}
-        newLeadsCount={newLeadsCount}
-        pendingVisitsCount={pendingVisitsCount}
-        completion={completion}
-        logoutAction={agentLogoutAction}
-      />
-      <ToastProvider>
-        <div className="flex min-w-0 flex-1 flex-col pb-16 lg:pb-0">{children}</div>
-      </ToastProvider>
-    </div>
+    <I18nProvider locale={locale} messages={messages}>
+      <div className="flex min-h-screen bg-canvas-alt">
+        <AgentKeyboardShortcuts />
+        <AgentSidebar
+          agentName={name}
+          agentInitials={initials}
+          listingsCount={listings.length}
+          newLeadsCount={newLeadsCount}
+          pendingVisitsCount={pendingVisitsCount}
+          completion={completion}
+          logoutAction={agentLogoutAction}
+        />
+        <ToastProvider>
+          <div className="flex min-w-0 flex-1 flex-col pb-16 lg:pb-0">{children}</div>
+        </ToastProvider>
+      </div>
+    </I18nProvider>
   );
 }

@@ -2,11 +2,14 @@
 
 import { useRef } from 'react';
 import { getFavoriteIds, getSavedSearches } from '@/lib/localFavorites';
+import { useT } from '@/lib/i18n/client';
 
-const ERROR_MESSAGES = {
-  phone: 'Numéro de téléphone invalide.',
-  password: 'Le mot de passe doit contenir au moins 8 caractères.',
-  exists: 'Un compte existe déjà avec ce numéro.',
+// Keys, not text: a module-level constant is evaluated once at import,
+// where `t` does not exist — see components/navItems.js.
+const ERROR_MESSAGE_KEYS = {
+  phone: 'auth.errors.phoneInvalid',
+  password: 'auth.errors.passwordMin8',
+  exists: 'auth.errors.accountExists',
 };
 
 /**
@@ -15,6 +18,7 @@ const ERROR_MESSAGES = {
  * signupAction can merge them into the brand-new account.
  */
 export default function SignupForm({ action, next, error, initialPhone = '' }) {
+  const t = useT();
   const formRef = useRef(null);
 
   function handleSubmit() {
@@ -32,7 +36,7 @@ export default function SignupForm({ action, next, error, initialPhone = '' }) {
 
       <div>
         <label htmlFor="fullName" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
-          Nom (facultatif)
+          {t('enquiry.nameOptional')}
         </label>
         <input
           id="fullName"
@@ -45,7 +49,7 @@ export default function SignupForm({ action, next, error, initialPhone = '' }) {
 
       <div>
         <label htmlFor="phone" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
-          Numéro de téléphone
+          {t('auth.phoneNumber')}
         </label>
         <input
           id="phone"
@@ -53,7 +57,7 @@ export default function SignupForm({ action, next, error, initialPhone = '' }) {
           name="phone"
           inputMode="tel"
           autoComplete="tel"
-          placeholder="099 712 3456 ou +33 612345678"
+          placeholder={t('enquiry.whatsappPlaceholder')}
           defaultValue={initialPhone}
           autoFocus
           required
@@ -63,7 +67,7 @@ export default function SignupForm({ action, next, error, initialPhone = '' }) {
 
       <div>
         <label htmlFor="password" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
-          Mot de passe
+          {t('auth.password')}
         </label>
         <input
           id="password"
@@ -74,12 +78,12 @@ export default function SignupForm({ action, next, error, initialPhone = '' }) {
           required
           className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
         />
-        <p className="mt-1 text-xs text-ink-45">8 caractères minimum.</p>
+        <p className="mt-1 text-xs text-ink-45">{t('auth.minEightChars')}</p>
       </div>
 
       {error && (
         <p className="text-sm text-red-600" role="alert">
-          {ERROR_MESSAGES[error] || 'Une erreur est survenue.'}
+          {(ERROR_MESSAGE_KEYS[error] ? t(ERROR_MESSAGE_KEYS[error]) : null) || t('common.shared.somethingWentWrong')}
         </p>
       )}
 
@@ -87,7 +91,7 @@ export default function SignupForm({ action, next, error, initialPhone = '' }) {
         type="submit"
         className="mt-1 rounded-md bg-blue px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary"
       >
-        Créer mon compte
+        {t('auth.createMyAccount')}
       </button>
     </form>
   );

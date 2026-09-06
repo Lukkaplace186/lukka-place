@@ -6,6 +6,7 @@ import { Eye, EyeOff, Save } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useToast } from '@/components/Toast';
 import { adminUpdateListingAction, adminSetListingVisibleAction } from './actions';
+import { useT } from '@/lib/i18n/client';
 
 const FIELD =
   'u-focus-ring h-10 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink';
@@ -41,6 +42,7 @@ function Field({ label, children, span = 1 }) {
  * before this page existed.
  */
 export default function AdminListingEditor({ listing, communes, categories }) {
+  const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
   const [pending, startTransition] = useTransition();
@@ -56,7 +58,7 @@ export default function AdminListingEditor({ listing, communes, categories }) {
       const result = await adminUpdateListingAction(listing.id, communes, categoryIds, formData);
       showToast(
         result.ok
-          ? { type: 'success', message: 'Annonce mise à jour.' }
+          ? { type: 'success', message: t('admin.moderation.updated') }
           : { type: 'error', message: result.error },
       );
       if (result.ok) router.refresh();
@@ -71,8 +73,8 @@ export default function AdminListingEditor({ listing, communes, categories }) {
           ? {
               type: 'success',
               message: isVisible
-                ? 'Annonce suspendue — retirée du site public.'
-                : 'Annonce remise en ligne.',
+                ? t('admin.moderation.suspended')
+                : t('admin.moderation.putBackOnline'),
             }
           : { type: 'error', message: result.error },
       );
@@ -88,7 +90,7 @@ export default function AdminListingEditor({ listing, communes, categories }) {
           <Field label="Titre" span={2}>
             <input name="title" defaultValue={listing.title || ''} maxLength={150} className={FIELD} />
           </Field>
-          <Field label="Description" span={2}>
+          <Field label={t('listings.detail.description')} span={2}>
             <textarea
               name="description"
               defaultValue={listing.description || ''}
@@ -101,11 +103,11 @@ export default function AdminListingEditor({ listing, communes, categories }) {
       </section>
 
       <section className="u-card rounded-card bg-surface p-6">
-        <h2 className="u-title-card mb-4 text-ink">Localisation</h2>
+        <h2 className="u-title-card mb-4 text-ink">{t('common.shared.location')}</h2>
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label="Commune">
             <select name="commune" defaultValue={listing.commune || ''} className={FIELD}>
-              <option value="">— Aucune —</option>
+              <option value="">{t('admin.actions.none')}</option>
               {communes.map((c) => (
                 <option key={c} value={c}>
                   {c}
@@ -113,10 +115,10 @@ export default function AdminListingEditor({ listing, communes, categories }) {
               ))}
             </select>
           </Field>
-          <Field label="Quartier">
+          <Field label={t('listings.filters.quartier')}>
             <input name="quartier" defaultValue={listing.quartier || ''} className={FIELD} />
           </Field>
-          <Field label="Référence">
+          <Field label={t('admin.moderation.reference2')}>
             <input name="reference" defaultValue={listing.reference || ''} className={FIELD} />
           </Field>
           <Field label="Latitude">
@@ -144,11 +146,11 @@ export default function AdminListingEditor({ listing, communes, categories }) {
       </section>
 
       <section className="u-card rounded-card bg-surface p-6">
-        <h2 className="u-title-card mb-4 text-ink">Caractéristiques</h2>
+        <h2 className="u-title-card mb-4 text-ink">{t('admin.moderation.features')}</h2>
         <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Type de bien">
+          <Field label={t('admin.moderation.propertyType')}>
             <select name="category_id" defaultValue={listing.category_id ?? ''} className={FIELD}>
-              <option value="">— Aucun —</option>
+              <option value="">{t('admin.actions.noneMasc')}</option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
@@ -156,7 +158,7 @@ export default function AdminListingEditor({ listing, communes, categories }) {
               ))}
             </select>
           </Field>
-          <Field label="Transaction">
+          <Field label={t('common.shared.transaction')}>
             <select name="purpose" defaultValue={listing.purpose || 'rent'} className={FIELD}>
               <option value="rent">Location</option>
               <option value="sale">Vente</option>
@@ -169,7 +171,7 @@ export default function AdminListingEditor({ listing, communes, categories }) {
           <Field label="Chambres">
             <input name="beds" type="number" min="0" defaultValue={listing.beds ?? ''} className={FIELD} />
           </Field>
-          <Field label="Salles de bain">
+          <Field label={t('admin.moderation.bathrooms')}>
             <input name="bath" type="number" min="0" defaultValue={listing.bath ?? ''} className={FIELD} />
           </Field>
           <Field label="Surface (m²)">
@@ -206,9 +208,9 @@ export default function AdminListingEditor({ listing, communes, categories }) {
       </section>
 
       <section className="u-card rounded-card bg-surface p-6">
-        <h2 className="u-title-card mb-4 text-ink">Prix et transaction</h2>
+        <h2 className="u-title-card mb-4 text-ink">{t('admin.moderation.priceAndTransaction')}</h2>
         <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Prix affiché (USD)">
+          <Field label={t('admin.moderation.displayedPrice')}>
             <input
               name="price"
               type="number"
@@ -218,7 +220,7 @@ export default function AdminListingEditor({ listing, communes, categories }) {
               className={FIELD}
             />
           </Field>
-          <Field label="Prix saisi par l’agent">
+          <Field label={t('admin.moderation.agentEnteredPrice')}>
             <input
               name="price_original"
               type="number"
@@ -234,15 +236,15 @@ export default function AdminListingEditor({ listing, communes, categories }) {
               <option value="CDF">CDF (FC)</option>
             </select>
           </Field>
-          <Field label="Périodicité">
+          <Field label={t('admin.moderation.periodicity')}>
             <select name="price_period" defaultValue={listing.price_period || ''} className={FIELD}>
-              <option value="">— Aucune —</option>
+              <option value="">{t('admin.actions.none')}</option>
               <option value="month">Par mois</option>
               <option value="year">Par an</option>
               <option value="day">Par jour</option>
             </select>
           </Field>
-          <Field label="Statut du marché">
+          <Field label={t('admin.moderation.marketStatus')}>
             <select
               name="listing_status"
               value={status}
@@ -251,14 +253,14 @@ export default function AdminListingEditor({ listing, communes, categories }) {
             >
               <option value="active">Actif</option>
               <option value="under_offer">Sous compromis</option>
-              <option value="closed">Loué / Vendu</option>
+              <option value="closed">{t('status.listing.closed')}</option>
             </select>
           </Field>
         </div>
 
         {status === 'closed' && (
           <div className="mt-4 grid gap-4 rounded-lg bg-canvas-alt p-4 sm:grid-cols-3">
-            <Field label="Prix final convenu (USD)">
+            <Field label={t('admin.moderation.finalPrice')}>
               <input
                 name="sold_price"
                 type="number"
@@ -268,7 +270,7 @@ export default function AdminListingEditor({ listing, communes, categories }) {
                 className={FIELD}
               />
             </Field>
-            <Field label="Date de la transaction">
+            <Field label={t('common.shared.transactionDate')}>
               <input
                 name="sold_at"
                 type="date"
@@ -294,7 +296,7 @@ export default function AdminListingEditor({ listing, communes, categories }) {
           className="u-press inline-flex h-10 items-center gap-2 rounded-lg bg-white px-4 text-[0.8125rem] font-bold text-ink disabled:opacity-60"
         >
           <Save strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-          {pending ? 'Enregistrement…' : 'Enregistrer les modifications'}
+          {pending ? 'Enregistrement…' : t('common.shared.saveChanges')}
         </button>
 
         <button
@@ -308,11 +310,11 @@ export default function AdminListingEditor({ listing, communes, categories }) {
           ) : (
             <Eye strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
           )}
-          {isVisible ? 'Suspendre (retirer du site)' : 'Remettre en ligne'}
+          {isVisible ? t('admin.actions.suspend') : t('admin.actions.putBackOnline')}
         </button>
 
         <span className="u-micro ml-auto text-white/60">
-          {isVisible ? 'Visible sur lukkaplace.com' : 'Masquée du site public'}
+          {isVisible ? t('admin.moderation.visibleOnSite') : t('admin.moderation.hiddenFromSite')}
         </span>
       </div>
     </form>

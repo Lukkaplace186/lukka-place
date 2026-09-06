@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { listConversations } from '@/lib/adminApi';
-import { CONVERSATION_STATES, CONVERSATION_STATE_LABELS_FR } from '@/lib/adminLabels';
+import { CONVERSATION_STATES, CONVERSATION_STATE_LABEL_KEYS } from '@/lib/adminLabels';
+import { getT } from '@/lib/i18n/server';
 
 function formatDate(value) {
   if (!value) return '—';
@@ -10,6 +11,7 @@ function formatDate(value) {
 }
 
 export default async function AdminConversationsPage({ searchParams }) {
+  const t = await getT();
   const params = await searchParams;
   const state = params.state || '';
 
@@ -19,7 +21,7 @@ export default async function AdminConversationsPage({ searchParams }) {
     <div>
       <div className="mb-4 flex items-end justify-between gap-3">
         <div>
-          <h1 className="u-title-page text-ink">Conversations WhatsApp</h1>
+          <h1 className="u-title-page text-ink">{t('admin.conversations.title')}</h1>
           <p className="mt-1 text-sm text-ink-45">{total} conversation{total !== 1 ? 's' : ''}</p>
         </div>
 
@@ -29,34 +31,34 @@ export default async function AdminConversationsPage({ searchParams }) {
             defaultValue={state}
             className="rounded-md border border-line bg-white px-2.5 py-1.5 text-sm text-ink"
           >
-            <option value="">Tous les statuts</option>
+            <option value="">{t('admin.conversations.allStatuses')}</option>
             {CONVERSATION_STATES.map((s) => (
               <option key={s} value={s}>
-                {CONVERSATION_STATE_LABELS_FR[s]}
+                {t(CONVERSATION_STATE_LABEL_KEYS[s])}
               </option>
             ))}
           </select>
           <button type="submit" className="rounded-md border border-line bg-white px-3 py-1.5 text-sm font-medium text-ink hover:bg-canvas-alt">
-            Filtrer
+            {t('admin.conversations.filter')}
           </button>
         </form>
       </div>
 
       {data.length === 0 ? (
         <div className="rounded-card border border-dashed border-line bg-white p-10 text-center text-sm text-ink-45">
-          Aucune conversation.
+          {t('admin.conversations.empty')}
         </div>
       ) : (
         <div className="overflow-hidden rounded-card border border-line bg-white">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-line bg-canvas-alt text-xs uppercase tracking-wide text-ink-45">
               <tr>
-                <th className="px-4 py-2.5 font-semibold">Client</th>
-                <th className="px-4 py-2.5 font-semibold">Statut</th>
-                <th className="px-4 py-2.5 font-semibold">IA</th>
-                <th className="px-4 py-2.5 font-semibold">Agent</th>
-                <th className="px-4 py-2.5 font-semibold">Dernier message</th>
-                <th className="px-4 py-2.5 font-semibold">Mis à jour</th>
+                <th className="px-4 py-2.5 font-semibold">{t('admin.conversations.customer')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('admin.conversations.status')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('admin.conversations.ai')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('admin.conversations.agent')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('admin.conversations.lastMessage')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('admin.conversations.updatedAt')}</th>
               </tr>
             </thead>
             <tbody>
@@ -70,14 +72,14 @@ export default async function AdminConversationsPage({ searchParams }) {
                   </td>
                   <td className="px-4 py-2.5">
                     <span className="rounded-full bg-blue-tint px-2 py-0.5 text-xs font-medium text-blue-deep">
-                      {CONVERSATION_STATE_LABELS_FR[c.state] || c.state}
+                      {CONVERSATION_STATE_LABEL_KEYS[c.state] ? t(CONVERSATION_STATE_LABEL_KEYS[c.state]) : c.state}
                     </span>
                   </td>
                   <td className="px-4 py-2.5">
                     {c.ai_active ? (
-                      <span className="text-xs font-medium text-green-deep">Active</span>
+                      <span className="text-xs font-medium text-green-deep">{t('admin.conversations.aiActive')}</span>
                     ) : (
-                      <span className="text-xs font-medium text-ink-45">Silencieuse</span>
+                      <span className="text-xs font-medium text-ink-45">{t('admin.conversations.aiSilent')}</span>
                     )}
                   </td>
                   <td className="px-4 py-2.5 text-ink-70">{c.assigned_agent || '—'}</td>

@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * Real brand marks, supplied by the client.
@@ -36,6 +39,7 @@ const LOGO_SIZES = {
 };
 
 export function Wordmark({ inverted = false, className = '', size = 'base' }) {
+  const t = useT();
   const src = inverted ? '/brand/logo-dark.png' : '/brand/logo-light.png';
 
   return (
@@ -52,17 +56,18 @@ export function Wordmark({ inverted = false, className = '', size = 'base' }) {
           raster PNG (see the doc comment above), so there's no font-weight
           or SVG fill to strengthen — a heavier stroke would mean asking for
           new source art, not a CSS change. */}
-      <img src={src} alt="Lukka Place" width={LOGO_ASPECT.width} height={LOGO_ASPECT.height} className={`block ${LOGO_SIZES[size] ?? LOGO_SIZES.base}`} />
+      <img src={src} alt={t('footer.columns.brand')} width={LOGO_ASPECT.width} height={LOGO_ASPECT.height} className={`block ${LOGO_SIZES[size] ?? LOGO_SIZES.base}`} />
     </Link>
   );
 }
 
 export function Monogram({ className = '' }) {
+  const t = useT();
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
       src="/brand/icon-square-512.png"
-      alt="Lukka Place"
+      alt={t('footer.columns.brand')}
       width={512}
       height={512}
       className={`h-8 w-8 ${className}`}

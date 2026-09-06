@@ -1,4 +1,5 @@
 import Price from './Price';
+import { getT } from '@/lib/i18n/server';
 
 /**
  * Specification table.
@@ -17,7 +18,8 @@ import Price from './Price';
  * ("Prix", "Prix / m²"), so it wants the plain amount, not Price's own
  * "/ mois" suffix.
  */
-export default function PropertyMetrics({ listing }) {
+export default async function PropertyMetrics({ listing }) {
+  const t = await getT();
   const {
     price, purpose, area, beds, bath, quartier, commune,
     units_count: unitsCount, category_name: categoryName, deposit_months: depositMonths,
@@ -30,15 +32,15 @@ export default function PropertyMetrics({ listing }) {
   const pricePerSqm = hasArea ? price / numericArea : null;
 
   const items = [
-    { label: 'Prix', value: <Price amount={price} /> },
-    categoryName ? { label: 'Type', value: <span className="capitalize">{categoryName}</span> } : null,
+    { label: t('listings.metrics.price'), value: <Price amount={price} /> },
+    categoryName ? { label: t('account.favorites.columns.type'), value: <span className="capitalize">{categoryName}</span> } : null,
     hasArea ? { label: 'Superficie', value: `${area} m²` } : null,
-    pricePerSqm ? { label: 'Prix / m²', value: <Price amount={Math.round(pricePerSqm)} /> } : null,
+    pricePerSqm ? { label: t('listings.metrics.pricePerSqm'), value: <Price amount={Math.round(pricePerSqm)} /> } : null,
     beds != null ? { label: 'Chambres', value: beds } : null,
-    bath != null ? { label: 'Salles de bain', value: bath } : null,
+    bath != null ? { label: t('listings.metrics.bathrooms'), value: bath } : null,
     unitsCount != null ? { label: 'Portes', value: unitsCount } : null,
     commune ? { label: 'Commune', value: commune } : null,
-    quartier ? { label: 'Quartier', value: quartier } : null,
+    quartier ? { label: t('listings.filters.quartier'), value: quartier } : null,
     // Real captured intake data, never a fabricated default term — absent on
     // every listing until the deposit_months column exists on live Supabase
     // (see the TODO in lib/listings.js).

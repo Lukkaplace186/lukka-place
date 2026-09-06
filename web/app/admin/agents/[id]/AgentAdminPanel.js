@@ -11,6 +11,7 @@ import {
   adminRevokeAgentSessionsAction,
   adminReassignListingsAction,
 } from './actions';
+import { useT } from '@/lib/i18n/client';
 
 const FIELD = 'u-focus-ring h-10 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink';
 const LABEL = 'u-eyebrow mb-1.5 block text-ink-45';
@@ -31,6 +32,7 @@ const LABEL = 'u-eyebrow mb-1.5 block text-ink-45';
  * ranking query would resolve arbitrarily.
  */
 function CommuneGrid({ name, communes, selected, disabled = new Set() }) {
+  const t = useT();
   const chosen = new Set(selected || []);
   return (
     <div className="grid max-h-56 grid-cols-2 gap-x-3 gap-y-1.5 overflow-y-auto rounded-lg border border-line bg-canvas-alt p-3 sm:grid-cols-3">
@@ -40,7 +42,7 @@ function CommuneGrid({ name, communes, selected, disabled = new Set() }) {
           <label
             key={commune}
             className={`u-micro flex items-center gap-2 ${isDisabled ? 'text-ink-35' : 'text-ink-70'}`}
-            title={isDisabled ? 'Déjà couvert : c’est une spécialité de cette agence.' : undefined}
+            title={isDisabled ? t('admin.agents.alreadyCovered') : undefined}
           >
             <input
               type="checkbox"
@@ -59,6 +61,7 @@ function CommuneGrid({ name, communes, selected, disabled = new Set() }) {
 }
 
 export default function AgentAdminPanel({ agent, communes, otherAgents, listingCount }) {
+  const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
   const [pending, startTransition] = useTransition();
@@ -88,18 +91,18 @@ export default function AgentAdminPanel({ agent, communes, otherAgents, listingC
     const formData = new FormData(event.currentTarget);
     run(
       () => adminReassignListingsAction(agent.id, formData),
-      (r) => `${r.moved} bien${r.moved === 1 ? '' : 's'} transféré${r.moved === 1 ? '' : 's'}.`,
+      (r) => t('admin.agents.transferred', { count: r.moved }),
     );
   }
 
   return (
     <div className="flex flex-col gap-6">
       <form onSubmit={handleSave} className="u-card flex flex-col gap-5 rounded-card bg-surface p-6">
-        <h2 className="u-title-card text-ink">Identité et territoire</h2>
+        <h2 className="u-title-card text-ink">{t('admin.agentPanel.identityAndTerritory')}</h2>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <span className={LABEL}>Nom de l’agence</span>
+            <span className={LABEL}>{t('admin.agentPanel.agencyName')}</span>
             <input name="agency_name" defaultValue={agent.agency_name || ''} className={FIELD} />
           </div>
           <div>
@@ -107,14 +110,14 @@ export default function AgentAdminPanel({ agent, communes, otherAgents, listingC
             <input name="email" type="email" defaultValue={agent.email || ''} className={FIELD} />
           </div>
           <div>
-            <span className={LABEL}>Statut du compte</span>
+            <span className={LABEL}>{t('admin.agentPanel.accountStatus')}</span>
             <select name="status" defaultValue={agent.status} className={FIELD}>
               <option value={1}>Actif</option>
               <option value={0}>Suspendu</option>
             </select>
           </div>
           <div>
-            <span className={LABEL}>Numéro WhatsApp</span>
+            <span className={LABEL}>{t('admin.agentPanel.whatsappNumber')}</span>
             <input
               value={agent.phone || '—'}
               readOnly
@@ -136,19 +139,18 @@ export default function AgentAdminPanel({ agent, communes, otherAgents, listingC
             className="mt-0.5 h-4 w-4 rounded-sm accent-[var(--blue)]"
           />
           <span className="u-micro text-ink-70">
-            <span className="font-bold text-ink">Numéro vérifié</span> — badge public et condition
-            d’attribution automatique des annonces. Décochez uniquement si le numéro s’avère ne pas
-            appartenir à cette agence.
+            <span className="font-bold text-ink">{t('admin.agentPanel.numberVerified')}</span> — badge public et condition
+            {t('admin.agentPanel.verifiedHint')}
           </span>
         </label>
 
         <div>
-          <span className={LABEL}>Spécialités (communes principales)</span>
+          <span className={LABEL}>{t('admin.agentPanel.primaryCommunes')}</span>
           <CommuneGrid name="primary_communes" communes={communes} selected={agent.primary_communes} />
         </div>
 
         <div>
-          <span className={LABEL}>Couverture (autres communes acceptées)</span>
+          <span className={LABEL}>{t('admin.agentPanel.coverage')}</span>
           <CommuneGrid
             name="serviced_communes"
             communes={communes}
@@ -156,7 +158,7 @@ export default function AgentAdminPanel({ agent, communes, otherAgents, listingC
             disabled={primary}
           />
           <p className="u-micro mt-1.5 text-ink-45">
-            Les spécialités sont automatiquement couvertes. La couverture décide quelles demandes clients
+            {t('admin.agentPanel.coverageHint')}
             sont poussées à cette agence ; les spécialités décident de son classement.
           </p>
         </div>
@@ -168,13 +170,13 @@ export default function AgentAdminPanel({ agent, communes, otherAgents, listingC
             className="u-btn-primary u-press inline-flex h-10 items-center gap-2 rounded-lg bg-blue px-4 text-[0.8125rem] font-bold text-white disabled:opacity-60"
           >
             <Save strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-            {pending ? 'Enregistrement…' : 'Enregistrer'}
+            {pending ? 'Enregistrement…' : t('common.actions.save')}
           </button>
         </div>
       </form>
 
       <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-6">
-        <h2 className="u-title-card text-ink">Accès et sécurité</h2>
+        <h2 className="u-title-card text-ink">{t('admin.agentPanel.accessAndSecurity')}</h2>
         <div className="u-micro grid gap-2 text-ink-70 sm:grid-cols-2">
           <div>
             Mot de passe défini : <strong>{agent.has_password ? 'oui' : 'non'}</strong>
@@ -203,7 +205,7 @@ export default function AgentAdminPanel({ agent, communes, otherAgents, listingC
             className="u-btn-primary u-press inline-flex h-10 items-center gap-2 rounded-lg bg-blue px-4 text-[0.8125rem] font-bold text-white disabled:opacity-60"
           >
             <KeyRound strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-            Envoyer un lien de connexion WhatsApp
+            {t('admin.agentPanel.sendLoginLink')}
           </button>
           <button
             type="button"
@@ -217,29 +219,26 @@ export default function AgentAdminPanel({ agent, communes, otherAgents, listingC
             className="u-btn-secondary u-press inline-flex h-10 items-center gap-2 rounded-lg px-4 text-[0.8125rem] font-bold text-ink disabled:opacity-60"
           >
             <LogOut strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-            Fermer toutes les sessions
+            {t('admin.agentPanel.closeAllSessions')}
           </button>
         </div>
         <p className="u-micro text-ink-45">
-          Le lien de connexion remplace un mot de passe temporaire : il part sur le numéro déjà vérifié de
-          l’agence, ferme toutes ses sessions en cours, et personne chez Lukka Place ne connaît son mot de
-          passe.
+          {t('admin.agentPanel.loginLinkHint')}
         </p>
       </div>
 
       <form onSubmit={handleReassign} className="u-card flex flex-col gap-4 rounded-card bg-surface p-6">
-        <h2 className="u-title-card text-ink">Transférer le portefeuille</h2>
+        <h2 className="u-title-card text-ink">{t('admin.agentPanel.transferPortfolio')}</h2>
         <p className="u-micro text-ink-45">
           Déplace les {listingCount} bien{listingCount === 1 ? '' : 's'} de cette agence vers une autre. À
-          faire avant de suspendre un compte : sans agent attribué, chaque annonce retombe sur le numéro
-          WhatsApp central.
+          {t('admin.agentPanel.transferHint')}
         </p>
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[16rem] flex-1">
-            <span className={LABEL}>Agent de destination</span>
+            <span className={LABEL}>{t('admin.agentPanel.destinationAgent')}</span>
             <select name="to_agent_id" defaultValue="" className={FIELD} required>
               <option value="" disabled>
-                Choisir un agent…
+                {t('admin.agentPanel.chooseAgent')}
               </option>
               {otherAgents.map((a) => (
                 <option key={a.id} value={a.id}>
@@ -254,7 +253,7 @@ export default function AgentAdminPanel({ agent, communes, otherAgents, listingC
             className="u-btn-secondary u-press inline-flex h-10 items-center gap-2 rounded-lg px-4 text-[0.8125rem] font-bold text-ink disabled:opacity-40"
           >
             <ArrowRightLeft strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-            Transférer
+            {t('admin.agentPanel.transfer')}
           </button>
         </div>
       </form>

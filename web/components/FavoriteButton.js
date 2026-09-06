@@ -12,6 +12,7 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import AuthPromptModal from './AuthPromptModal';
 import { FAV_RETURN_PARAM } from './FavoriteResumeHandler';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * Gated behind a real account (see AuthPromptModal.js) — an explicit product
@@ -37,7 +38,7 @@ import { FAV_RETURN_PARAM } from './FavoriteResumeHandler';
  * that looks tappable but isn't.
  *
  * `variant="label"` is the same real toggle rendered as a text pill
- * ("Sauvegarder"/"Enregistré") for a card's bottom action row, next to
+ * ("Sauvegarder"/t('listings.favorite.saved')) for a card's bottom action row, next to
  * WhatsAppCTA, instead of floating over the photo — both variants share
  * the one localStorage-backed toggle below, nothing about the underlying
  * behaviour changes.
@@ -70,6 +71,7 @@ function AnimatedHeart({ pulseKey, safe, ...heartProps }) {
 }
 
 export default function FavoriteButton({ listingId, className = '', variant = 'icon' }) {
+  const t = useT();
   const pathname = usePathname();
   const loggedIn = useIsLoggedIn();
   const safe = useMotionSafe();
@@ -142,7 +144,7 @@ export default function FavoriteButton({ listingId, className = '', variant = 'i
             strokeWidth={ICON_STROKE_WIDTH}
             className="h-3.5 w-3.5"
           />
-          {favorited ? 'Enregistré' : 'Sauvegarder'}
+          {favorited ? t('listings.favorite.saved') : 'Sauvegarder'}
         </button>
         {authPrompt}
       </>
@@ -155,7 +157,7 @@ export default function FavoriteButton({ listingId, className = '', variant = 'i
         <button
           type="button"
           onClick={handleClick}
-          aria-label={favorited ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+          aria-label={favorited ? t('listings.favorite.remove') : t('listings.favorite.add')}
           aria-pressed={favorited}
           className={cn(
             'u-press inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition-colors',
@@ -181,7 +183,7 @@ export default function FavoriteButton({ listingId, className = '', variant = 'i
       <button
         type="button"
         onClick={handleClick}
-        aria-label={favorited ? 'Retirer des favoris' : 'Ajouter aux favoris'}
+        aria-label={favorited ? t('listings.favorite.remove') : t('listings.favorite.add')}
         aria-pressed={favorited}
         className={cn(
           // web/Design's IconButton variant="onImage": a frosted glass-white

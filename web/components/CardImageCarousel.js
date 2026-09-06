@@ -7,6 +7,7 @@ import SafeImage from './SafeImage';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { imageZoom } from '@/lib/motion';
 import { useMotionSafe } from '@/lib/useMotionSafe';
+import { useT } from '@/lib/i18n/client';
 
 const DOT_WINDOW = 5;
 
@@ -65,6 +66,7 @@ const DOT_WINDOW = 5;
 export default function CardImageCarousel({
   images, alt, sizes = '(min-width: 1024px) 22rem, 100vw', onIndexChange, priority = false,
 }) {
+  const t = useT();
   const [index, setIndex] = useState(0);
   const [loaded, setLoaded] = useState(() => new Set([0]));
   const scrollerRef = useRef(null);
@@ -183,7 +185,7 @@ export default function CardImageCarousel({
           <button
             type="button"
             onClick={(e) => go(-1, e)}
-            aria-label="Photo précédente"
+            aria-label={t('listings.gallery.previousPhoto')}
             className="u-press absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-surface/90 p-1.5 text-ink opacity-0 backdrop-blur-sm transition-opacity hover:bg-surface sm:group-hover/carousel:opacity-100"
           >
             <ChevronLeft strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
@@ -191,7 +193,7 @@ export default function CardImageCarousel({
           <button
             type="button"
             onClick={(e) => go(1, e)}
-            aria-label="Photo suivante"
+            aria-label={t('listings.gallery.nextPhoto')}
             className="u-press absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-surface/90 p-1.5 text-ink opacity-0 backdrop-blur-sm transition-opacity hover:bg-surface sm:group-hover/carousel:opacity-100"
           >
             <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />

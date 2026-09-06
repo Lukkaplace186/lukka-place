@@ -7,6 +7,7 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { requestPlanChangeAction } from '@/app/compte/agent/actions';
 import { useToast } from './Toast';
+import { useT } from '@/lib/i18n/client';
 
 const TERM_SUFFIX = { monthly: '/ mois', yearly: '/ an', lifetime: 'une fois' };
 
@@ -42,6 +43,7 @@ function priceLabel(pkg) {
  * the popup is blocked anyway, and vice versa — neither depends on the other.
  */
 export default function AgentPlanPicker({ packages, currentPackageId, openRequestPackageIds }) {
+  const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
   const [pending, startTransition] = useTransition();
@@ -83,8 +85,7 @@ export default function AgentPlanPicker({ packages, currentPackageId, openReques
     return (
       <div className="u-card rounded-card bg-surface px-6 py-12 text-center">
         <p className="u-micro text-ink-45">
-          Aucun forfait n’est ouvert à la souscription pour le moment. Contactez l’équipe Lukka Place pour
-          connaître les options disponibles.
+          {t('agent.plans.none')}
         </p>
       </div>
     );
@@ -126,7 +127,7 @@ export default function AgentPlanPicker({ packages, currentPackageId, openReques
                 <Check strokeWidth={ICON_STROKE_WIDTH} className="mt-0.5 h-4 w-4 shrink-0 text-blue" />
                 <span>
                   {pkg.number_of_property == null
-                    ? 'Biens publiés illimités'
+                    ? t('agent.plans.unlimitedListings')
                     : `${pkg.number_of_property} biens publiés`}
                 </span>
               </li>
@@ -147,7 +148,7 @@ export default function AgentPlanPicker({ packages, currentPackageId, openReques
             <div className="mt-auto pt-1">
               {isCurrent ? (
                 <span className="u-micro-strong inline-flex h-10 items-center text-ink-45">
-                  Votre forfait actuel
+                  {t('agent.plans.currentPlan')}
                 </span>
               ) : isRequested ? (
                 <span className="u-micro-strong inline-flex h-10 items-center gap-1.5 text-warning">
@@ -161,7 +162,7 @@ export default function AgentPlanPicker({ packages, currentPackageId, openReques
                   disabled={pending}
                   className="u-btn-primary u-press inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-blue px-4 text-[0.8125rem] font-bold text-white disabled:opacity-60"
                 >
-                  {pending && requestedId === pkg.id ? 'Envoi…' : 'Demander ce forfait'}
+                  {pending && requestedId === pkg.id ? 'Envoi…' : t('agent.plans.request')}
                   <ArrowUpRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
                 </button>
               )}

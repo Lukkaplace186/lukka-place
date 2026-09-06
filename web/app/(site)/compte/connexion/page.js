@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { loginAction } from './actions';
 import LoginForm from './LoginForm';
+import { getT } from '@/lib/i18n/server';
 
 export const metadata = {
   title: 'Connexion — Lukka Place',
@@ -14,6 +15,7 @@ export const metadata = {
  * out.
  */
 export default async function CustomerLoginPage({ searchParams }) {
+  const t = await getT();
   const params = await searchParams;
   const error = typeof params.error === 'string' ? params.error : null;
   const reset = params.reset === '1';
@@ -22,12 +24,12 @@ export default async function CustomerLoginPage({ searchParams }) {
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm rounded-card border border-line bg-surface p-6 u-lift sm:p-8">
-        <h1 className="u-title-section text-ink">Connexion</h1>
-        <p className="mt-1 text-sm text-ink-45">Retrouvez vos favoris et vos alertes.</p>
+        <h1 className="u-title-section text-ink">{t('common.actions.login')}</h1>
+        <p className="mt-1 text-sm text-ink-45">{t('auth.customerLoginLead')}</p>
 
         {reset && (
           <p className="mt-4 text-sm text-green-deep" role="status">
-            Mot de passe réinitialisé — connectez-vous avec votre nouveau mot de passe.
+            {t('auth.passwordReset')}
           </p>
         )}
 
@@ -36,7 +38,7 @@ export default async function CustomerLoginPage({ searchParams }) {
         <p className="mt-5 text-center text-sm text-ink-45">
           Pas encore de compte ?{' '}
           <Link href={`/compte/inscription?next=${encodeURIComponent(next)}`} className="font-semibold text-blue-deep hover:underline">
-            Créer un compte
+            {t('common.actions.signup')}
           </Link>
         </p>
       </div>

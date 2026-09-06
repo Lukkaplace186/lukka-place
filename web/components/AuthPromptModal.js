@@ -4,11 +4,13 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
+import { useT } from '@/lib/i18n/client';
 
-const TITLES = {
-  save: 'Se connecter ou créer un compte pour enregistrer la recherche',
-  alert: 'Se connecter ou créer un compte pour créer une alerte',
-  favorite: 'Se connecter ou créer un compte pour enregistrer ce bien en favori',
+// Keys, not text — see components/navItems.js.
+const TITLE_KEYS = {
+  save: 'listings.authPrompt.save',
+  alert: 'listings.authPrompt.alert',
+  favorite: 'listings.authPrompt.favorite',
 };
 
 /**
@@ -27,6 +29,7 @@ const TITLES = {
  * the full round trip; this modal never saves anything itself.
  */
 export default function AuthPromptModal({ open, onClose, trigger, next }) {
+  const t = useT();
   const router = useRouter();
   const [phone, setPhone] = useState('');
 
@@ -42,20 +45,20 @@ export default function AuthPromptModal({ open, onClose, trigger, next }) {
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
       <DialogContent className="gap-5 p-6">
         <DialogTitle className="text-left font-display text-lg font-normal leading-snug tracking-[-0.01em] text-ink">
-          {TITLES[trigger] || TITLES.save}
+          {TITLE_KEYS[trigger] || TITLES.save}
         </DialogTitle>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <div>
             <label htmlFor="auth-prompt-phone" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
-              Numéro de téléphone
+              {t('auth.phoneNumber')}
             </label>
             <input
               id="auth-prompt-phone"
               type="tel"
               inputMode="tel"
               autoComplete="tel"
-              placeholder="099 712 3456 ou +33 612345678"
+              placeholder={t('enquiry.whatsappPlaceholder')}
               autoFocus
               required
               value={phone}
@@ -75,7 +78,7 @@ export default function AuthPromptModal({ open, onClose, trigger, next }) {
         <p className="text-center text-sm text-ink-45">
           Déjà un compte ?{' '}
           <Link href={`/compte/connexion?next=${encodeURIComponent(next)}`} className="font-semibold text-blue-deep hover:underline">
-            Se connecter
+            {t('common.shared.signIn')}
           </Link>
         </p>
       </DialogContent>

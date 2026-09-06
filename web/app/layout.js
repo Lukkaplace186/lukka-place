@@ -1,6 +1,9 @@
 import { Plus_Jakarta_Sans, DM_Serif_Display } from 'next/font/google';
 import './globals.css';
 import { SITE_URL } from '@/lib/constants';
+import { getI18n, getT } from '@/lib/i18n/server';
+import { I18nProvider } from '@/lib/i18n/client';
+import LocaleSync from '@/components/LocaleSync';
 
 /*
  * Two families, sans-led — matches web/Design's "WhiteBlue Royal" system
@@ -38,8 +41,6 @@ const dmSerifDisplay = DM_Serif_Display({
   display: 'swap',
 });
 
-const SITE_TITLE = 'Lukka Place — Immobilier à Kinshasa';
-const SITE_DESCRIPTION = 'Trouvez votre prochain bien à louer ou à vendre à Kinshasa.';
 
 // Real brand asset: public/brand/logo-dark.png (the client-supplied white
 // wordmark, alpha-transparent — see Brand.js's own doc comment) composited
@@ -51,49 +52,63 @@ const SITE_DESCRIPTION = 'Trouvez votre prochain bien à louer ou à vendre à K
 // already a project dependency) if the source lockup ever changes.
 const OG_IMAGE = '/og-image.png';
 
-export const metadata = {
-  // Required for any relative openGraph/twitter image URL to resolve to an
-  // absolute one — without this Next.js silently can't build a working
-  // preview-card image URL. Every page inherits this baseline; the listing
-  // detail page (generateMetadata) overrides title/description/images with
-  // the listing's own real photo, everything else keeps this fallback.
-  metadataBase: new URL(SITE_URL),
-  title: SITE_TITLE,
-  description: SITE_DESCRIPTION,
-  openGraph: {
+/*
+ * generateMetadata rather than a static object: the site title, description
+ * and every share-card string below are user-facing copy, and a static export
+ * is evaluated once at module load with no access to the request's locale.
+ * `openGraph.locale` follows the choice too, so a shared link previews in the
+ * language the sharer was reading.
+ */
+export async function generateMetadata() {
+  const t = await getT();
+  const SITE_TITLE = t('site.metaTitle');
+  const SITE_DESCRIPTION = t('site.metaDescription');
+  const locale = t.locale === 'en' ? 'en_GB' : 'fr_CD';
+
+  return {
+    // Required for any relative openGraph/twitter image URL to resolve to an
+    // absolute one — without this Next.js silently can't build a working
+    // preview-card image URL. Every page inherits this baseline; the listing
+    // detail page (generateMetadata) overrides title/description/images with
+    // the listing's own real photo, everything else keeps this fallback.
+    metadataBase: new URL(SITE_URL),
     title: SITE_TITLE,
     description: SITE_DESCRIPTION,
-    siteName: 'Lukka Place',
-    locale: 'fr_CD',
-    type: 'website',
-    // 1200x630, Open Graph's own canonical card size — previously unset
-    // entirely, so every link share (WhatsApp, iMessage, Slack, Facebook)
-    // rendered with no image at all.
-    images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: SITE_TITLE }],
-  },
-  twitter: {
-    // summary_large_image, not the previous 'summary' — that card type
-    // expects a small near-square thumbnail; pairing it with a real 1200x630
-    // banner would have X crop it down oddly instead of showing the full
-    // wide card the image is actually sized for.
-    card: 'summary_large_image',
-    title: SITE_TITLE,
-    description: SITE_DESCRIPTION,
-    images: [OG_IMAGE],
-  },
-  // app/favicon.ico and app/icon.png both exist now (both regenerated as
-  // the new solid-blue tile — see the doc comment above), but confirmed
-  // directly in a real browser: with both special files present, the App
-  // Router's auto-convention only emits a <link rel="icon"> for
-  // favicon.ico and silently drops icon.png, rather than offering both
-  // for the browser to pick from. The explicit `icon` entry below is what
-  // actually gets it linked. apple-touch-icon still needs its own explicit
-  // entry too — iOS ignores both of the above for a home-screen bookmark.
-  icons: {
-    icon: '/icon.png',
-    apple: '/brand/apple-touch-icon.png',
-  },
-};
+    openGraph: {
+      title: SITE_TITLE,
+      description: SITE_DESCRIPTION,
+      siteName: t('footer.columns.brand'),
+      locale,
+      type: 'website',
+      // 1200x630, Open Graph's own canonical card size — previously unset
+      // entirely, so every link share (WhatsApp, iMessage, Slack, Facebook)
+      // rendered with no image at all.
+      images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: SITE_TITLE }],
+    },
+    twitter: {
+      // summary_large_image, not the previous 'summary' — that card type
+      // expects a small near-square thumbnail; pairing it with a real 1200x630
+      // banner would have X crop it down oddly instead of showing the full
+      // wide card the image is actually sized for.
+      card: 'summary_large_image',
+      title: SITE_TITLE,
+      description: SITE_DESCRIPTION,
+      images: [OG_IMAGE],
+    },
+    // app/favicon.ico and app/icon.png both exist now (both regenerated as
+    // the new solid-blue tile — see the doc comment above), but confirmed
+    // directly in a real browser: with both special files present, the App
+    // Router's auto-convention only emits a <link rel="icon"> for
+    // favicon.ico and silently drops icon.png, rather than offering both
+    // for the browser to pick from. The explicit `icon` entry below is what
+    // actually gets it linked. apple-touch-icon still needs its own explicit
+    // entry too — iOS ignores both of the above for a home-screen bookmark.
+    icons: {
+      icon: '/icon.png',
+      apple: '/brand/apple-touch-icon.png',
+    },
+  };
+}
 
 // themeColor lives in `viewport`, not `metadata` — App Router's own split
 // since Next 14 (a raw `<meta name="theme-color">` written by hand in the
@@ -105,15 +120,38 @@ export const viewport = {
 };
 
 /*
+ * The namespaces every surface shares — the header, the footer, the sidebars
+ * and the generic Save/Cancel/Delete vocabulary. Each of the four surface
+ * layouts adds its own on top (I18nProvider merges rather than replaces, see
+ * lib/i18n/client.js), so /admin's copy never ships to a public visitor and
+ * the storefront's listing vocabulary never ships to /admin.
+ */
+const CHROME_NAMESPACES = ['common', 'nav', 'footer'];
+
+/*
  * Deliberately bare. The public site's shell (Header / Footer) lives in
  * app/(site)/layout.js, not here — /admin has its own chrome and was
  * previously rendering it *underneath* the public header because
  * everything nested in this one layout.
+ *
+ * The one thing that IS global is locale: `lang` on <html> has to be the
+ * real language of the document (screen readers pick pronunciation from it,
+ * and so does Chrome's translate prompt), and every surface below needs a
+ * provider. Reading the cookie here is what makes this layout — and so every
+ * route — dynamic; see lib/i18n/config.js for why that trade-off was taken
+ * over restructuring the app into app/[locale]/.
  */
-export default function RootLayout({ children }) {
+export default async function RootLayout({ children }) {
+  const { locale, messages } = await getI18n(CHROME_NAMESPACES);
+
   return (
-    <html lang="fr" className={`${plusJakartaSans.variable} ${dmSerifDisplay.variable} h-full`}>
-      <body className="min-h-full">{children}</body>
+    <html lang={locale} className={`${plusJakartaSans.variable} ${dmSerifDisplay.variable} h-full`}>
+      <body className="min-h-full">
+        <I18nProvider locale={locale} messages={messages}>
+          <LocaleSync />
+          {children}
+        </I18nProvider>
+      </body>
     </html>
   );
 }

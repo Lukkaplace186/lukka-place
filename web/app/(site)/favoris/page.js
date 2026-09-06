@@ -15,6 +15,7 @@ import {
 } from '@/lib/favorites';
 import { useIsLoggedIn } from '@/lib/customerClient';
 import { ICON_STROKE_WIDTH, SITE_URL } from '@/lib/constants';
+import { useT } from '@/lib/i18n/client';
 
 const EMPTY_LIST = [];
 
@@ -69,6 +70,7 @@ function subscribeToLocation(callback) {
  * localStorage subscriptions rather than the URL.
  */
 export default function FavorisPage() {
+  const t = useT();
   // Only changes the header copy below — the data-fetching sections
   // (favorites/saved searches) already dispatch to the right backend
   // regardless, via lib/favorites.js's own login check.
@@ -76,23 +78,23 @@ export default function FavorisPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
-      <Breadcrumb className="mb-6" items={[{ label: 'Accueil', href: '/' }, { label: 'Favoris' }]} />
+      <Breadcrumb className="mb-6" items={[{ label: t('breadcrumb.home'), href: '/' }, { label: t('nav.favorites') }]} />
 
       <header className="mb-10">
         <h1 className="font-display text-[2rem] font-normal leading-[1.12] tracking-[-0.02em] text-ink sm:text-[2.5rem]">
-          Mes favoris
+          {t('account.favorites.title')}
         </h1>
         <p className="mt-3 text-[0.9375rem] leading-relaxed text-ink-45">
           {loggedIn
-            ? 'Vos biens et recherches enregistrés sont conservés sur votre compte, accessibles depuis n’importe quel appareil.'
-            : 'Connectez-vous pour retrouver vos biens favoris et vos recherches enregistrées.'}
+            ? t('account.favorites.syncedNote')
+            : t('account.favorites.signInPrompt')}
         </p>
         {!loggedIn ? (
           <Link
             href={`/compte/connexion?next=${encodeURIComponent('/favoris')}`}
             className="mt-4 inline-flex items-center rounded-full bg-blue px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary"
           >
-            Se connecter
+            {t('common.shared.signIn')}
           </Link>
         ) : null}
       </header>
@@ -141,6 +143,7 @@ function useListingsByIds(ids) {
 }
 
 function FavoritesSection() {
+  const t = useT();
   const favoriteIds = useSyncExternalStore(subscribeFavorites, getFavoriteIds, () => EMPTY_LIST);
   const listings = useListingsByIds(favoriteIds);
   const [copied, setCopied] = useState(false);
@@ -180,19 +183,19 @@ function FavoritesSection() {
               {copied ? (
                 <>
                   <Check strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
-                  Lien copié
+                  {t('account.favorites.linkCopied')}
                 </>
               ) : (
                 <>
                   <Share2 strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
-                  Partager
+                  {t('common.actions.share')}
                 </>
               )}
             </button>
           ) : null
         }
       >
-        Biens favoris
+        {t('account.favorites.savedProperties')}
       </SectionTitle>
 
       {listings === null ? (
@@ -205,15 +208,15 @@ function FavoritesSection() {
           <span className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-canvas-alt text-ink-45">
             <Heart strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
           </span>
-          <h3 className="u-title-section text-ink">Rien d&apos;enregistré</h3>
+          <h3 className="u-title-section text-ink">{t('account.favorites.nothingSaved')}</h3>
           <p className="mx-auto mt-2 max-w-sm text-[0.875rem] leading-relaxed text-ink-45">
-            Touchez le cœur sur une annonce pour la retrouver ici, et partagez votre sélection en un lien.
+            {t('account.favorites.nothingSavedBody')}
           </p>
           <Link
             href="/listings"
             className="mt-7 inline-flex items-center rounded-full bg-blue px-6 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary"
           >
-            Parcourir les annonces
+            {t('account.favorites.browseListings')}
           </Link>
         </div>
       ) : (
@@ -228,16 +231,16 @@ function FavoritesSection() {
 }
 
 function SavedSearchesSection() {
+  const t = useT();
   const savedSearches = useSyncExternalStore(subscribeSavedSearches, getSavedSearches, () => EMPTY_LIST);
 
   return (
     <section className="mt-14">
-      <SectionTitle icon={Bookmark}>Recherches sauvegardées</SectionTitle>
+      <SectionTitle icon={Bookmark}>{t('account.alerts.savedSearches')}</SectionTitle>
 
       {savedSearches.length === 0 ? (
         <p className="rounded-lg border border-line bg-canvas-alt px-5 py-4 text-[0.875rem] text-ink-45">
-          Aucune recherche sauvegardée. Depuis la page des annonces, enregistrez une recherche pour la relancer en un
-          clic.
+          {t('account.alerts.noneSavedShort')}
         </p>
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2">
@@ -275,6 +278,7 @@ function SavedSearchesSection() {
  * wants to keep one hearts it deliberately.
  */
 function SharedListSection() {
+  const t = useT();
   // Server snapshot is always empty (there is no location server-side), so
   // this cannot cause a hydration mismatch.
   const ids = useSyncExternalStore(subscribeToLocation, getShareIds, () => EMPTY_LIST);
@@ -284,11 +288,11 @@ function SharedListSection() {
 
   return (
     <section className="rounded-lg border border-blue/30 bg-blue-tint/40 p-5 sm:p-6">
-      <SectionTitle icon={Share2}>Liste partagée</SectionTitle>
+      <SectionTitle icon={Share2}>{t('account.favorites.sharedList')}</SectionTitle>
       {listings === null ? (
         <CardSkeleton />
       ) : listings.length === 0 ? (
-        <p className="text-[0.875rem] text-ink-45">Cette liste partagée ne contient plus de biens disponibles.</p>
+        <p className="text-[0.875rem] text-ink-45">{t('account.favorites.sharedListEmpty')}</p>
       ) : (
         <div className="flex flex-col gap-4">
           {listings.map((listing) => (

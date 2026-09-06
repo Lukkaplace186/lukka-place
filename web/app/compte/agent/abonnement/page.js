@@ -11,11 +11,17 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import AgentPageHeader from '@/components/AgentPageHeader';
 import AgentSubscriptionCard from '@/components/AgentSubscriptionCard';
 import AgentPlanPicker from '@/components/AgentPlanPicker';
+import { getT } from '@/lib/i18n/server';
 
-export const metadata = {
-  title: 'Abonnement — Espace agent — Lukka Place',
-  robots: { index: false, follow: false },
-};
+// generateMetadata, not a static object: a static export is evaluated at
+// module load, where there is no request and so no translator.
+export async function generateMetadata() {
+  const t = await getT();
+  return {
+    title: t('agent.subscription.metaTitle'),
+    robots: { index: false, follow: false },
+  };
+}
 
 const TERM_LABELS_FR = { monthly: 'Mensuel', yearly: 'Annuel', lifetime: 'À vie' };
 
@@ -55,6 +61,7 @@ function money(value, symbol) {
  * and that renders as an honest empty state rather than a fabricated entry.
  */
 export default async function AgentSubscriptionPage() {
+  const t = await getT();
   const agentId = await getCurrentAgentId();
   const { agent, listings, newLeadsCount } = await getAgentDashboardContext(agentId);
 
@@ -103,22 +110,18 @@ export default async function AgentSubscriptionPage() {
           <div className="u-card flex flex-col gap-3 rounded-card bg-surface p-6">
             <h2 className="u-title-card flex items-center gap-2 text-ink">
               <CreditCard strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem] text-blue" />
-              Comment fonctionne le paiement
+              {t('agent.subscription.howPaymentWorks')}
             </h2>
             <p className="u-micro leading-relaxed text-ink-70">
-              Les abonnements Lukka Place sont réglés directement auprès de l’équipe — espèces, virement
-              bancaire ou Mobile Money. Choisissez votre forfait ci-dessous : votre demande est enregistrée et
-              un conseiller vous contacte sur WhatsApp pour l’activation.
+              {t('agent.subscription.howPaymentBody')}
             </p>
             <p className="u-micro leading-relaxed text-ink-45">
-              Votre forfait détermine trois choses : le nombre de biens que vous pouvez publier, le nombre de
-              demandes clients que vous pouvez traiter chaque mois, et votre priorité dans l’attribution
-              automatique des nouvelles demandes de vos communes.
+              {t('agent.subscription.whatPlanDetermines')}
             </p>
             {openRequests.length > 0 && (
               <div className="u-micro mt-1 rounded-lg bg-warning-tint px-3.5 py-3 text-warning">
                 {openRequests.length} demande{openRequests.length === 1 ? '' : 's'} de changement de forfait en
-                cours de traitement.
+                {t('agent.subscription.beingProcessed')}
               </div>
             )}
           </div>
@@ -126,9 +129,9 @@ export default async function AgentSubscriptionPage() {
 
         <section className="flex flex-col gap-4">
           <div>
-            <h2 className="u-title-section text-ink">Forfaits disponibles</h2>
+            <h2 className="u-title-section text-ink">{t('agent.subscription.availablePlans')}</h2>
             <p className="u-micro mt-1 text-ink-45">
-              Les quotas affichés sont ceux réellement appliqués à votre compte.
+              {t('agent.subscription.quotaNote')}
             </p>
           </div>
           <AgentPlanPicker
@@ -140,9 +143,9 @@ export default async function AgentSubscriptionPage() {
 
         <section className="flex flex-col gap-4">
           <div>
-            <h2 className="u-title-section text-ink">Historique de facturation</h2>
+            <h2 className="u-title-section text-ink">{t('agent.subscription.billingHistory')}</h2>
             <p className="u-micro mt-1 text-ink-45">
-              Chaque activation et chaque renouvellement enregistrés par l’équipe Lukka Place.
+              {t('agent.subscription.billingHistoryHint')}
             </p>
           </div>
 
@@ -154,8 +157,7 @@ export default async function AgentSubscriptionPage() {
                 aria-hidden="true"
               />
               <p className="u-micro text-ink-45">
-                Aucun paiement enregistré pour le moment. L’historique apparaîtra ici dès votre première
-                activation.
+                {t('agent.subscription.noPaymentsYet')}
               </p>
             </div>
           ) : (
@@ -164,11 +166,11 @@ export default async function AgentSubscriptionPage() {
                 <thead>
                   <tr className="bg-canvas-alt text-left text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-ink-35">
                     <th className="px-5 py-3">Forfait</th>
-                    <th className="px-5 py-3">Montant</th>
-                    <th className="px-5 py-3">Méthode</th>
-                    <th className="px-5 py-3">Référence</th>
-                    <th className="px-5 py-3">Début</th>
-                    <th className="px-5 py-3">Échéance</th>
+                    <th className="px-5 py-3">{t('agent.subscription.amount')}</th>
+                    <th className="px-5 py-3">{t('agent.subscription.method')}</th>
+                    <th className="px-5 py-3">{t('agent.subscription.reference')}</th>
+                    <th className="px-5 py-3">{t('agent.subscription.start')}</th>
+                    <th className="px-5 py-3">{t('agent.subscription.end')}</th>
                   </tr>
                 </thead>
                 <tbody>

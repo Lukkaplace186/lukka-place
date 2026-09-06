@@ -1,10 +1,13 @@
+'use client';
+
 import Link from 'next/link';
+import { useT } from '@/lib/i18n/client';
 
 const RELATED_SEARCHES = [
-  { label: 'Appartements à Kinshasa', href: '/listings?property_type=appartement' },
-  { label: 'Parcelles à vendre', href: '/listings?property_type=parcelle&transaction_type=vente' },
-  { label: 'Biens à louer', href: '/listings?transaction_type=location' },
-  { label: 'Maisons Type Locataire', href: '/listings?property_type=parcelle&parcelle_subtype=maison_type_locataire' },
+  { labelKey: 'listings.sidebar.apartmentsKinshasa', href: '/listings?property_type=appartement' },
+  { labelKey: 'listings.sidebar.plotsForSale', href: '/listings?property_type=parcelle&transaction_type=vente' },
+  { labelKey: 'listings.sidebar.propertiesToRent', href: '/listings?transaction_type=location' },
+  { labelKey: 'listings.sidebar.typeLocataireHouses', href: '/listings?property_type=parcelle&parcelle_subtype=maison_type_locataire' },
 ];
 
 /**
@@ -17,13 +20,14 @@ const RELATED_SEARCHES = [
  * "popular" claim we have no data to back.
  */
 export default function SidebarInsights({ popularCommunes, allCommunes }) {
+  const t = useT();
   const hasRealRanking = popularCommunes.length > 0;
   const communeLinks = hasRealRanking ? popularCommunes : allCommunes.slice(0, 6).map((commune) => ({ commune }));
 
   return (
     <aside className="grid gap-4 sm:grid-cols-2">
       <div className="u-card rounded-lg border border-line bg-surface p-5">
-        <h2 className="u-eyebrow mb-4">{hasRealRanking ? 'Communes populaires' : 'Explorez par commune'}</h2>
+        <h2 className="u-eyebrow mb-4">{hasRealRanking ? t('home.search.popularCommunes') : t('home.exploreCommunes')}</h2>
         <ul className="flex flex-col gap-2">
           {communeLinks.map(({ commune, count }) => (
             <li key={commune}>
@@ -40,7 +44,7 @@ export default function SidebarInsights({ popularCommunes, allCommunes }) {
       </div>
 
       <div className="u-card rounded-lg border border-line bg-surface p-5">
-        <h2 className="u-eyebrow mb-4">Recherches associées</h2>
+        <h2 className="u-eyebrow mb-4">{t('listings.sidebar.relatedSearches')}</h2>
         <ul className="flex flex-col gap-2">
           {RELATED_SEARCHES.map(({ label, href }) => (
             <li key={href}>

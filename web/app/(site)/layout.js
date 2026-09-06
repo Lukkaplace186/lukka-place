@@ -4,6 +4,8 @@ import Footer from '@/components/Footer';
 import FavoriteResumeHandler from '@/components/FavoriteResumeHandler';
 import { CurrencyRateProvider } from '@/lib/CurrencyRateContext';
 import { getCdfRate } from '@/lib/currencyRate';
+import { getI18n } from '@/lib/i18n/server';
+import { I18nProvider } from '@/lib/i18n/client';
 
 /**
  * Public site shell.
@@ -39,24 +41,38 @@ import { getCdfRate } from '@/lib/currencyRate';
  * client component under this layout via CurrencyRateProvider, since Price.js
  * and PropertyMap.js are 'use client' and can't read Postgres directly.
  */
+/*
+ * The storefront's own namespaces, added on top of the chrome ones the root
+ * layout already supplies (I18nProvider merges — see lib/i18n/client.js).
+ * /admin and the agent dashboard sit outside this route group and add their
+ * own instead, which is what keeps admin copy out of a public visitor's
+ * payload.
+ */
+const SITE_NAMESPACES = [
+  'home', 'about', 'contact', 'breadcrumb', 'listings', 'enquiry', 'account', 'search', 'auth', 'updates',
+];
+
 export default async function SiteLayout({ children }) {
   const rate = await getCdfRate();
+  const { locale, messages } = await getI18n(SITE_NAMESPACES);
 
   return (
-    <CurrencyRateProvider rate={rate}>
-      <FavoriteResumeHandler />
-      <Header />
-      <SiteShell>
-        {/* min-h-0 alongside flex-1: a flex item's default min-height is
-            `auto` (its content size), not 0 — the standard real fix for the
-            other well-documented trigger of WebKit's sticky-inside-flex bug
-            class (see FilterBar.js's own doc comment for the specific
-            symptom this app hit). Purely defensive: it doesn't change any
-            visible sizing here since content already determines this
-            column's height. */}
-        <main className="min-h-0 flex-1">{children}</main>
-        <Footer />
-      </SiteShell>
-    </CurrencyRateProvider>
+    <I18nProvider locale={locale} messages={messages}>
+      <CurrencyRateProvider rate={rate}>
+        <FavoriteResumeHandler />
+        <Header />
+        <SiteShell>
+          {/* min-h-0 alongside flex-1: a flex item's default min-height is
+              `auto` (its content size), not 0 — the standard real fix for the
+              other well-documented trigger of WebKit's sticky-inside-flex bug
+              class (see FilterBar.js's own doc comment for the specific
+              symptom this app hit). Purely defensive: it doesn't change any
+              visible sizing here since content already determines this
+              column's height. */}
+          <main className="min-h-0 flex-1">{children}</main>
+          <Footer />
+        </SiteShell>
+      </CurrencyRateProvider>
+    </I18nProvider>
   );
 }

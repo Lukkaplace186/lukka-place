@@ -169,12 +169,16 @@ export async function updateAgentWorkingHours(agentId, workingHours) {
  * `listingCount` comes from lib/agents.js's own correlated subquery on the
  * agent row, so this needs no extra query of its own.
  *
- * @returns {{percent: number, done: number, total: number, nextHint: string|null}}
+ * @returns {{percent: number, done: number, total: number, nextHintKey: string|null}}
  */
 export function agentProfileCompletion(agent, { listingCount } = {}) {
+  // `labelKey`/`hintKey` rather than text: this runs server-side but its
+  // result is handed to AgentSidebar, a client component, which resolves the
+  // keys through the provider. Returning text here would freeze the checklist
+  // in one language regardless of the reader's choice.
   const checks = [
     {
-      label: 'Nom renseigné',
+      labelKey: 'agent.completion.nameLabel',
       // A REAL name, not the phone-digits fallback. `createAgent` sets
       // `username` to the agent's own phone number, so a plain truthiness
       // check on agentDisplayName marks this complete for an account that
@@ -182,25 +186,25 @@ export function agentProfileCompletion(agent, { listingCount } = {}) {
       // number where the agency name belongs while the checklist claims
       // the step is done.
       done: !!(agent?.first_name || agent?.last_name) || !/^\d{9,15}$/.test(agent?.username || ''),
-      hint: 'Ajoutez votre nom pour personnaliser votre page.',
+      hintKey: 'agent.completion.nameHint',
     },
-    { label: 'Présentation rédigée', done: !!agent?.bio, hint: 'Ajoutez une présentation de votre agence.' },
-    { label: 'Numéro WhatsApp', done: !!agent?.phone, hint: 'Ajoutez votre numéro WhatsApp.' },
+    { labelKey: 'agent.completion.bioLabel', done: !!agent?.bio, hintKey: 'agent.completion.bioHint' },
+    { labelKey: 'agent.completion.phoneLabel', done: !!agent?.phone, hintKey: 'agent.completion.phoneHint' },
     {
-      label: 'Numéro vérifié',
+      labelKey: 'agent.completion.verifiedLabel',
       done: !!agent?.phone_verified_at,
-      hint: 'Vérifiez votre numéro pour afficher le badge « Numéro vérifié ».',
+      hintKey: 'agent.completion.verifiedHint',
     },
-    { label: 'Photo de profil', done: !!agent?.image, hint: 'Ajoutez une photo de profil.' },
+    { labelKey: 'agent.completion.photoLabel', done: !!agent?.image, hintKey: 'agent.completion.photoHint' },
     {
-      label: 'Communes couvertes',
+      labelKey: 'agent.completion.communesLabel',
       done: !!agent?.primary_communes?.length,
-      hint: 'Indiquez les communes que vous couvrez.',
+      hintKey: 'agent.completion.communesHint',
     },
     {
-      label: 'Au moins un bien publié',
+      labelKey: 'agent.completion.listingLabel',
       done: (listingCount ?? agent?.listing_count ?? 0) > 0,
-      hint: 'Publiez votre premier bien via WhatsApp.',
+      hintKey: 'agent.completion.listingHint',
     },
   ];
 
@@ -209,7 +213,7 @@ export function agentProfileCompletion(agent, { listingCount } = {}) {
     percent: Math.round((done / checks.length) * 100),
     done,
     total: checks.length,
-    items: checks.map(({ label, done: isDone }) => ({ label, done: isDone })),
-    nextHint: checks.find((c) => !c.done)?.hint || null,
+    items: checks.map(({ labelKey, done: isDone }) => ({ labelKey, done: isDone })),
+    nextHintKey: checks.find((c) => !c.done)?.hintKey || null,
   };
 }

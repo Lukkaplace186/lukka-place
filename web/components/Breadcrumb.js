@@ -1,6 +1,9 @@
+'use client';
+
 import Link from 'next/link';
 import { ChevronRight } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * Shared breadcrumb. The last entry renders as plain text, never a link to
@@ -9,8 +12,9 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  * @param {{items: Array<{label: string, href?: string}>}} props
  */
 export default function Breadcrumb({ items, className = '' }) {
+  const t = useT();
   return (
-    <nav aria-label="Fil d'Ariane" className={`flex flex-wrap items-center gap-1 text-[0.75rem] text-ink-45 ${className}`}>
+    <nav aria-label={t('breadcrumb.ariaLabel')} className={`flex flex-wrap items-center gap-1 text-[0.75rem] text-ink-45 ${className}`}>
       {items.map(({ label, href }, i) => {
         const isLast = i === items.length - 1;
         return (

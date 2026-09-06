@@ -7,6 +7,7 @@ import CardImageCarousel from './CardImageCarousel';
 import { Badge } from './ListingBadges';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * Detail-page gallery: web/Design's 2fr/1fr three-tile grid (one tall lead
@@ -42,6 +43,7 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  * photo 1.
  */
 export default function PhotoGallery({ images, alt }) {
+  const t = useT();
   const shots = images || [];
   const total = shots.length;
   const [mobileIndex, setMobileIndex] = useState(0);
@@ -73,7 +75,7 @@ export default function PhotoGallery({ images, alt }) {
     return (
       <div className="flex aspect-16/9 w-full flex-col items-center justify-center gap-2 rounded-card border border-line bg-canvas-alt text-ink-25">
         <ImageOff strokeWidth={ICON_STROKE_WIDTH} className="h-6 w-6" />
-        <p className="text-[0.8125rem]">Aucune photo pour cette annonce</p>
+        <p className="text-[0.8125rem]">{t('listings.gallery.noPhotos')}</p>
       </div>
     );
   }
@@ -118,14 +120,14 @@ export default function PhotoGallery({ images, alt }) {
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') setLightboxIndex(mobileIndex);
           }}
-          aria-label={`Agrandir la photo ${mobileIndex + 1}`}
+          aria-label={t('listings.gallery.enlargePhoto', { n: mobileIndex + 1 })}
           className="u-lift h-[22rem] w-full cursor-pointer overflow-hidden rounded-xl border border-line bg-canvas-deep"
         >
           <CardImageCarousel images={shots} alt={alt} sizes="100vw" priority onIndexChange={setMobileIndex} />
         </div>
 
         <span className="pointer-events-none absolute left-3.5 top-3.5 z-10 flex flex-wrap gap-2">
-          <Badge tone="white">Annonce vérifiée</Badge>
+          <Badge tone="white">{t('listings.gallery.verified')}</Badge>
         </span>
 
         {/* Live count, not a static "1/N" — CardImageCarousel already
@@ -147,7 +149,7 @@ export default function PhotoGallery({ images, alt }) {
           <button
             type="button"
             onClick={() => setLightboxIndex(0)}
-            aria-label="Agrandir la photo 1"
+            aria-label={t('listings.gallery.enlargePhoto', { n: 1 })}
             className="group relative h-full w-full overflow-hidden rounded-md bg-canvas-deep"
           >
             <SafeImage
@@ -167,7 +169,7 @@ export default function PhotoGallery({ images, alt }) {
                 CardBadges, where the matching card-grid badge was removed
                 the same way. */}
             <span className="pointer-events-none absolute left-3.5 top-3.5 z-10 flex flex-wrap gap-2">
-              <Badge tone="white">Annonce vérifiée</Badge>
+              <Badge tone="white">{t('listings.gallery.verified')}</Badge>
             </span>
 
             <span className="u-glass-royal u-tabular pointer-events-none absolute bottom-3.5 right-3.5 z-10 inline-flex items-center rounded-sm px-2.5 py-1.5 text-[0.8125rem] font-semibold">
@@ -188,7 +190,7 @@ export default function PhotoGallery({ images, alt }) {
                     key={`${src}-${i}`}
                     type="button"
                     onClick={() => setLightboxIndex(i + 1)}
-                    aria-label={`Agrandir la photo ${i + 2}`}
+                    aria-label={t('listings.gallery.enlargePhoto', { n: i + 2 })}
                     className="group relative h-full w-full overflow-hidden rounded-md bg-canvas-deep"
                   >
                     <SafeImage
@@ -206,7 +208,7 @@ export default function PhotoGallery({ images, alt }) {
                     {isLastTile && total > mosaic.length ? (
                       <span className="u-glass-royal absolute bottom-3.5 right-3.5 inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-[0.8125rem] font-semibold">
                         <Expand strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-                        Toutes les photos
+                        {t('listings.gallery.allPhotos')}
                       </span>
                     ) : null}
                   </button>
@@ -240,7 +242,7 @@ export default function PhotoGallery({ images, alt }) {
                 <button
                   type="button"
                   onClick={() => step(-1)}
-                  aria-label="Photo précédente"
+                  aria-label={t('listings.gallery.previousPhoto')}
                   className="u-glass-white absolute left-3 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full transition-colors hover:bg-white/95"
                 >
                   <ChevronLeft strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
@@ -248,7 +250,7 @@ export default function PhotoGallery({ images, alt }) {
                 <button
                   type="button"
                   onClick={() => step(1)}
-                  aria-label="Photo suivante"
+                  aria-label={t('listings.gallery.nextPhoto')}
                   className="u-glass-white absolute right-3 top-1/2 z-10 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full transition-colors hover:bg-white/95"
                 >
                   <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />

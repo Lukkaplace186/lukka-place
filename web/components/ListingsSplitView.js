@@ -9,6 +9,7 @@ import ResponsiveMapPane from './ResponsiveMapPane';
 import MobileMapChrome from './MobileMapChrome';
 import MobileMapOverlay from './MobileMapOverlay';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { useT } from '@/lib/i18n/client';
 
 function buildPageHref(searchParams, page) {
   const params = new URLSearchParams(searchParams);
@@ -37,6 +38,7 @@ function buildPageHref(searchParams, page) {
  * behind it rather than starting where the results column visually does.
  */
 export default function ListingsSplitView({ listings, isMapView, page, totalPages, params, popularCommunes, communes, total }) {
+  const t = useT();
   const [hoveredId, setHoveredId] = useState(null);
 
   // Mobile map mode is a `fixed` fullscreen layer (see the map wrapper
@@ -109,7 +111,7 @@ export default function ListingsSplitView({ listings, isMapView, page, totalPage
             {page > 1 ? (
               <Link href={buildPageHref(params, page - 1)} className={pagerLink}>
                 <ChevronLeft strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-                Précédent
+                {t('common.actions.previous')}
               </Link>
             ) : null}
             <span className="u-tabular px-2 text-[0.8125rem] text-ink-45">
@@ -117,7 +119,7 @@ export default function ListingsSplitView({ listings, isMapView, page, totalPage
             </span>
             {page < totalPages ? (
               <Link href={buildPageHref(params, page + 1)} className={pagerLink}>
-                Suivant
+                {t('common.actions.next')}
                 <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
               </Link>
             ) : null}

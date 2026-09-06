@@ -2,23 +2,14 @@ import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import SectionHeading from './SectionHeading';
+import { getT } from '@/lib/i18n/server';
 
+// Keys, not text — see components/navItems.js on why a module-level constant
+// cannot hold translated copy.
 const VALUE_PROPS = [
-  {
-    number: '01',
-    title: 'Annonces vérifiées',
-    body: 'Chaque bien passe par un contrôle humain avant publication — informations, photos et localisation sont revues, pas simplement recopiées.',
-  },
-  {
-    number: '02',
-    title: 'Contact direct',
-    body: 'Une seule ligne WhatsApp, la même pour toutes les annonces. Pas de formulaire, pas de rappel commercial non sollicité.',
-  },
-  {
-    number: '03',
-    title: 'Prix transparents',
-    body: 'Prix, superficie et référence affichés tels quels, en dollars comme en francs. Aucun frais de dossier ajouté par la plateforme.',
-  },
+  { number: '01', titleKey: 'home.value.verifiedTitle', bodyKey: 'home.value.verifiedBody' },
+  { number: '02', titleKey: 'home.value.contactTitle', bodyKey: 'home.value.contactBody' },
+  { number: '03', titleKey: 'home.value.pricesTitle', bodyKey: 'home.value.pricesBody' },
 ];
 
 /**
@@ -47,11 +38,12 @@ const VALUE_PROPS = [
  * No Buying/Renting/Selling tabs: none of these three differ by transaction
  * type, so tabs would be dead UI.
  */
-export default function ValueProposition() {
+export default async function ValueProposition() {
+  const t = await getT();
   return (
     <section className="bg-canvas-alt py-11 shadow-[0_1px_0_var(--line)_inset] sm:py-20">
       <div className="mx-auto max-w-[1240px] px-4 sm:px-6 lg:px-8">
-        <SectionHeading eyebrow="Notre approche" title="Ce qui change, concrètement" className="mb-7 sm:mb-12" />
+        <SectionHeading eyebrow={t('home.value.eyebrow')} title={t('home.value.heading')} className="mb-7 sm:mb-12" />
 
         <div className="grid grid-cols-1 gap-px border-y border-line bg-line md:grid-cols-3">
           {VALUE_PROPS.map(({ number, title, body }) => (
@@ -72,7 +64,7 @@ export default function ValueProposition() {
           href="/listings"
           className="u-press u-btn-primary mt-7 inline-flex h-12 items-center gap-2 rounded-lg bg-blue px-6 text-[1rem] font-semibold text-white sm:mt-9"
         >
-          Voir les annonces vérifiées
+          {t('listings.viewVerified')}
           <ArrowRight strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
         </Link>
       </div>

@@ -4,6 +4,7 @@ import { SlidersHorizontal } from 'lucide-react';
 import LocationAutocomplete from './LocationAutocomplete';
 import { openFiltersDrawer } from '@/lib/mapFilterDrawer';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * Sticky top bar for the mobile fullscreen map — the map-mode replacement
@@ -28,6 +29,7 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  * "one clean Liste control" instruction.
  */
 export default function MobileMapChrome({ params }) {
+  const t = useT();
   return (
     <div className="flex shrink-0 items-center gap-1.5 border-b border-line bg-surface p-2.5 lg:hidden">
       <LocationAutocomplete
@@ -45,7 +47,7 @@ export default function MobileMapChrome({ params }) {
       <button
         type="button"
         onClick={() => openFiltersDrawer()}
-        aria-label="Plus de filtres"
+        aria-label={t('listings.filters.moreFilters')}
         className="u-press flex shrink-0 items-center justify-center rounded-full bg-canvas-alt p-2.5 text-ink-70"
       >
         <SlidersHorizontal strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />

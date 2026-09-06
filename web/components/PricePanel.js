@@ -2,6 +2,7 @@
 
 import Price from './Price';
 import { useCdfRate } from '@/lib/CurrencyRateContext';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * The royal "Prix affiché" panel from the design's listing-detail screen —
@@ -20,12 +21,13 @@ import { useCdfRate } from '@/lib/CurrencyRateContext';
  * fabricated term on a page about money.
  */
 export default function PricePanel({ listing }) {
+  const t = useT();
   const { cdfPerUsd, updatedAt } = useCdfRate();
   const { price, purpose, price_period: pricePeriod, deposit_months: depositMonths } = listing;
 
   return (
     <div className="u-lift flex flex-col gap-3 rounded-card bg-blue-deep p-6">
-      <span className="u-eyebrow text-white/70">Prix affiché</span>
+      <span className="u-eyebrow text-white/70">{t('listings.price.displayed')}</span>
 
       <div className="flex flex-col gap-1.5">
         <span className="u-tabular u-price text-white">
@@ -43,9 +45,12 @@ export default function PricePanel({ listing }) {
 
       <div className="flex flex-col gap-1 text-[0.8125rem] text-white/75">
         <span className="u-tabular">
-          1 USD = {Number(cdfPerUsd).toLocaleString('fr-FR')} FC · taux indicatif du {updatedAt}
+          {t('listings.price.rateNote', {
+            rate: Number(cdfPerUsd).toLocaleString(t.locale === 'en' ? 'en-GB' : 'fr-FR'),
+            date: updatedAt,
+          })}
         </span>
-        {depositMonths != null ? <span>Garantie {depositMonths} mois</span> : null}
+        {depositMonths != null ? <span>{t('listings.badges.depositMonths', { count: depositMonths })}</span> : null}
       </div>
     </div>
   );

@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useToast } from '@/components/Toast';
+import { useT } from '@/lib/i18n/client';
 
 const FIELD_CLASS =
   'u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35';
@@ -45,6 +46,7 @@ export default function EditPropertyRequestDialog({
   bedrooms: initialBedrooms,
   requirementsSummary: initialRequirementsSummary,
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [transactionTypeValue, setTransactionTypeValue] = useState(initialTransactionType || 'location');
@@ -64,8 +66,8 @@ export default function EditPropertyRequestDialog({
       showToast({
         type: 'success',
         message: result.proposalsReset
-          ? 'Recherche mise à jour — nouvelles propositions réinitialisées.'
-          : 'Recherche mise à jour.',
+          ? t('account.requestForm.updatedWithReset')
+          : t('account.requestForm.updated'),
       });
       setOpen(false);
       router.refresh();
@@ -80,14 +82,14 @@ export default function EditPropertyRequestDialog({
         className="u-press inline-flex items-center gap-2 rounded-full px-4 py-2 text-[0.8125rem] font-semibold text-ink-45 transition-colors hover:bg-canvas-alt hover:text-ink"
       >
         <Pencil strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
-        Modifier ma recherche
+        {t('account.requestForm.editTitle')}
       </button>
 
       <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Modifier ma recherche</DialogTitle>
+          <DialogTitle>{t('account.requestForm.editTitle')}</DialogTitle>
           <DialogDescription>
-            Ces informations sont transmises aux agences partenaires — corrigez-les à tout moment.
+            {t('account.requestForm.editLead')}
           </DialogDescription>
         </DialogHeader>
 
@@ -95,7 +97,7 @@ export default function EditPropertyRequestDialog({
           <input type="hidden" name="transactionType" value={transactionTypeValue} />
 
           <div>
-            <span className={LABEL_CLASS}>Type de transaction</span>
+            <span className={LABEL_CLASS}>{t('account.requestForm.transactionTypeLabel')}</span>
             <div className="grid grid-cols-2 gap-2.5">
               {[
                 { value: 'vente', label: 'Acheter' },
@@ -145,7 +147,7 @@ export default function EditPropertyRequestDialog({
                 defaultValue={initialBedrooms != null ? String(initialBedrooms) : ''}
                 className={FIELD_CLASS}
               >
-                <option value="">Sans préférence</option>
+                <option value="">{t('account.requestForm.noPreference')}</option>
                 {BEDROOM_OPTIONS.map((value) => (
                   <option key={value} value={value}>
                     {value === '4' ? '4 et plus' : value}
@@ -157,7 +159,7 @@ export default function EditPropertyRequestDialog({
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label htmlFor="edit_budgetMin" className={LABEL_CLASS}>Budget minimum (USD)</label>
+              <label htmlFor="edit_budgetMin" className={LABEL_CLASS}>{t('account.requestForm.budgetMin')}</label>
               <input
                 id="edit_budgetMin"
                 name="budgetMin"
@@ -169,7 +171,7 @@ export default function EditPropertyRequestDialog({
               />
             </div>
             <div>
-              <label htmlFor="edit_budgetMax" className={LABEL_CLASS}>Budget maximum (USD)</label>
+              <label htmlFor="edit_budgetMax" className={LABEL_CLASS}>{t('account.requestForm.budgetMax')}</label>
               <input
                 id="edit_budgetMax"
                 name="budgetMax"
@@ -183,13 +185,13 @@ export default function EditPropertyRequestDialog({
           </div>
 
           <div>
-            <label htmlFor="edit_requirementsSummary" className={LABEL_CLASS}>Précisions</label>
+            <label htmlFor="edit_requirementsSummary" className={LABEL_CLASS}>{t('account.requestForm.notesShort')}</label>
             <textarea
               id="edit_requirementsSummary"
               name="requirementsSummary"
               rows={4}
               defaultValue={initialRequirementsSummary || ''}
-              placeholder="Quartier précis, groupe électrogène, parking, tout ce qui compte pour vous."
+              placeholder={t('account.requestForm.notesPlaceholder')}
               className="u-focus-ring w-full resize-y rounded-lg border border-line bg-surface p-3 text-sm leading-relaxed text-ink placeholder:text-ink-35"
             />
           </div>
@@ -197,7 +199,7 @@ export default function EditPropertyRequestDialog({
           <DialogFooter>
             <DialogClose asChild>
               <button type="button" className="u-press inline-flex h-11 items-center rounded-lg px-4 text-sm font-semibold text-ink-45 hover:bg-canvas-alt hover:text-ink">
-                Annuler
+                {t('common.actions.cancel')}
               </button>
             </DialogClose>
             <button
@@ -205,7 +207,7 @@ export default function EditPropertyRequestDialog({
               disabled={pending}
               className="u-btn-primary u-press h-11 rounded-lg bg-blue px-5 text-sm font-bold text-white disabled:opacity-60"
             >
-              {pending ? 'Enregistrement…' : 'Enregistrer'}
+              {pending ? 'Enregistrement…' : t('common.actions.save')}
             </button>
           </DialogFooter>
         </form>

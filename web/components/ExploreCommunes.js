@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import SafeImage from './SafeImage';
 import SectionHeading from './SectionHeading';
+import { getT } from '@/lib/i18n/server';
 
 /**
  * "Explorez par commune" — real photography, real counts.
@@ -16,7 +17,8 @@ import SectionHeading from './SectionHeading';
  * A commune whose latest listing has no usable photo falls back to the
  * typographic treatment rather than borrowing another commune's image.
  */
-export default function ExploreCommunes({ communes = [] }) {
+export default async function ExploreCommunes({ communes = [] }) {
+  const t = await getT();
   if (!communes.length) return null;
 
   return (
@@ -24,7 +26,7 @@ export default function ExploreCommunes({ communes = [] }) {
       <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8">
         <SectionHeading
           eyebrow="Quartiers"
-          title="Explorez par commune"
+          title={t('home.exploreCommunes')}
           lead="Les communes de Kinshasa où des biens sont disponibles en ce moment."
           href="/listings"
           linkLabel="Toutes les annonces"

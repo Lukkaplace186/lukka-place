@@ -3,6 +3,7 @@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from './ui/sheet';
 import { PillOption } from './FilterPill';
 import AdvancedFilterFields from './AdvancedFilterFields';
+import { useT } from '@/lib/i18n/client';
 
 const numberInputClass =
   'u-focus-ring w-full rounded-md border border-line bg-canvas px-3 py-2.5 text-sm text-ink placeholder:text-ink-25';
@@ -59,6 +60,7 @@ export default function FilterModal({
   resultCountLabel,
   resultPending,
 }) {
+  const t = useT();
   const {
     propertyType = '', priceMin = '', priceMax = '', bedsMin = '', bathMin = '',
     quartier = '', parcelleSubtype = '', depositMax = '', amenities = [],
@@ -97,19 +99,19 @@ export default function FilterModal({
         className="flex flex-col gap-0 rounded-t-none border-line bg-surface p-0 data-[side=bottom]:h-[100dvh] sm:data-[side=bottom]:h-[92vh] sm:rounded-t-xl lg:hidden"
       >
         <SheetHeader className="border-b border-line">
-          <SheetTitle className="font-display text-xl font-normal tracking-[-0.01em]">Filtres</SheetTitle>
+          <SheetTitle className="font-display text-xl font-normal tracking-[-0.01em]">{t('listings.filters.title')}</SheetTitle>
         </SheetHeader>
 
         <div className="flex flex-1 flex-col gap-6 overflow-y-auto overscroll-contain px-4 pb-10 pt-5">
-          <Section label="Prix (USD)">
+          <Section label={t('listings.filters.priceUsdSection')}>
             <div className="flex items-center gap-2">
               <input
                 type="number"
                 min="0"
                 value={priceMin}
                 onChange={(e) => setPriceMin?.(e.target.value)}
-                placeholder="Min"
-                aria-label="Prix minimum"
+                placeholder={t('listings.filters.min')}
+                aria-label={t('listings.filters.priceMin')}
                 className={numberInputClass}
               />
               <span className="text-ink-25">-</span>
@@ -118,18 +120,18 @@ export default function FilterModal({
                 min="0"
                 value={priceMax}
                 onChange={(e) => setPriceMax?.(e.target.value)}
-                placeholder="Max"
-                aria-label="Prix maximum"
+                placeholder={t('listings.filters.max')}
+                aria-label={t('listings.filters.priceMax')}
                 className={numberInputClass}
               />
             </div>
             <p className="text-xs text-ink-45">Jusqu&rsquo;à {priceSliderMax.toLocaleString('fr-FR')} $ dans le catalogue actuel.</p>
           </Section>
 
-          <Section label="Chambres">
+          <Section label={t('listings.filters.bedrooms')}>
             <div className="flex flex-wrap gap-2">
               <PillOption size="lg" selected={!bedsMin} onClick={() => setBedsMin?.('')}>
-                Toutes
+                {t('listings.filters.any')}
               </PillOption>
               {[1, 2, 3, 4, 5].map((n) => (
                 <PillOption key={n} size="lg" selected={String(bedsMin) === String(n)} onClick={() => setBedsMin?.(String(n))}>
@@ -139,10 +141,10 @@ export default function FilterModal({
             </div>
           </Section>
 
-          <Section label="Salles de bain">
+          <Section label={t('listings.filters.bathrooms')}>
             <div className="flex flex-wrap gap-2">
               <PillOption size="lg" selected={!bathMin} onClick={() => setBathMin?.('')}>
-                Toutes
+                {t('listings.filters.any')}
               </PillOption>
               {[1, 2, 3, 4].map((n) => (
                 <PillOption key={n} size="lg" selected={String(bathMin) === String(n)} onClick={() => setBathMin?.(String(n))}>
@@ -152,10 +154,10 @@ export default function FilterModal({
             </div>
           </Section>
 
-          <Section label="Type de bien">
+          <Section label={t('listings.filters.propertyType')}>
             <div className="flex flex-wrap gap-2">
               <PillOption size="lg" selected={!propertyType} onClick={() => setPropertyType?.('')}>
-                Tous
+                {t('listings.filters.allTypes')}
               </PillOption>
               {/* DB-derived, with real counts — same source FilterBar's
                   desktop pill uses, so a type that would return zero
@@ -185,7 +187,7 @@ export default function FilterModal({
             onClick={reset}
             className="u-press u-btn-secondary flex-1 rounded-full py-2.5 text-center text-sm font-semibold text-ink"
           >
-            Tout effacer
+            {t('listings.filters.clearAll')}
           </button>
           <button
             type="button"
@@ -195,7 +197,7 @@ export default function FilterModal({
             }}
             className={`u-press flex-1 rounded-full bg-blue py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary ${resultPending ? 'opacity-70' : ''}`}
           >
-            {resultCountLabel || 'Voir les résultats'}
+            {resultCountLabel || t('listings.filters.viewResultsGeneric')}
           </button>
         </div>
       </SheetContent>

@@ -1,6 +1,7 @@
 import { getSliders, getAdvertisements, languageLabel } from '@/lib/cms';
 import { getCdfRate } from '@/lib/currencyRate';
 import { updateSliderAction, updateAdvertisementAction, updateExchangeRateAction } from './actions';
+import { getT } from '@/lib/i18n/server';
 
 // See web/app/admin/dashboard/page.js's identical comment — this page has
 // no searchParams/cookies() of its own, so without this it would statically
@@ -8,6 +9,7 @@ import { updateSliderAction, updateAdvertisementAction, updateExchangeRateAction
 export const dynamic = 'force-dynamic';
 
 export default async function AdminCmsPage() {
+  const t = await getT();
   const [sliders, advertisements, exchangeRate] = await Promise.all([
     getSliders(),
     getAdvertisements(),
@@ -17,7 +19,7 @@ export default async function AdminCmsPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="u-title-page text-ink">CMS</h1>
+        <h1 className="u-title-page text-ink">{t('admin.nav.cms')}</h1>
         <p className="mt-1 text-sm text-ink-45">
           Contenu réel du CMS — certaines lignes datent de la maquette d&apos;origine et n&apos;ont jamais été
           personnalisées ; elles restent affichées telles quelles plutôt que masquées.
@@ -25,9 +27,9 @@ export default async function AdminCmsPage() {
       </div>
 
       <div>
-        <h2 className="u-title-card mb-3 text-ink">Taux de change (USD → CDF)</h2>
+        <h2 className="u-title-card mb-3 text-ink">{t('admin.cms.exchangeRate')}</h2>
         <p className="mb-3 max-w-2xl text-xs text-ink-45">
-          Taux manuel affiché sur le site public, jamais un flux de change en direct — voir web/CLAUDE.md. Modifier
+          {t('admin.cms.rateNote')}
           cette valeur change immédiatement toutes les conversions &laquo;&nbsp;≈&nbsp;&raquo; affichées sur le site.
         </p>
         <form action={updateExchangeRateAction} className="flex items-end gap-2.5 rounded-card border border-line bg-white p-4">
@@ -49,14 +51,14 @@ export default async function AdminCmsPage() {
             type="submit"
             className="rounded-md border border-line bg-white px-3 py-1.5 text-sm font-medium text-ink hover:bg-canvas-alt"
           >
-            Enregistrer
+            {t('common.actions.save')}
           </button>
           <p className="pb-2 text-xs text-ink-45">Dernière mise à jour : {exchangeRate.updatedAt}</p>
         </form>
       </div>
 
       <div>
-        <h2 className="u-title-card mb-3 text-ink">Bannières d&apos;accueil (sliders)</h2>
+        <h2 className="u-title-card mb-3 text-ink">{t('admin.cms.homeBanners')}</h2>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {sliders.map((slider) => {
             const bound = updateSliderAction.bind(null, slider.id);
@@ -86,7 +88,7 @@ export default async function AdminCmsPage() {
                   type="submit"
                   className="rounded-md border border-line bg-white px-3 py-1.5 text-sm font-medium text-ink hover:bg-canvas-alt"
                 >
-                  Enregistrer
+                  {t('common.actions.save')}
                 </button>
               </form>
             );
@@ -95,12 +97,12 @@ export default async function AdminCmsPage() {
       </div>
 
       <div>
-        <h2 className="u-title-card mb-3 text-ink">Bannières publicitaires (advertisements)</h2>
+        <h2 className="u-title-card mb-3 text-ink">{t('admin.cms.adBanners')}</h2>
         <div className="overflow-hidden rounded-card border border-line bg-white">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-line bg-canvas-alt text-xs uppercase tracking-wide text-ink-45">
               <tr>
-                <th className="px-4 py-2.5 font-semibold">Emplacement</th>
+                <th className="px-4 py-2.5 font-semibold">{t('listings.detail.location')}</th>
                 <th className="px-4 py-2.5 font-semibold">Vues</th>
                 <th className="px-4 py-2.5 font-semibold">URL</th>
               </tr>

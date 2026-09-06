@@ -21,6 +21,7 @@ import {
   updateListingStatusAction,
 } from '@/app/compte/agent/actions';
 import { useToast } from './Toast';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * The full per-listing management suite, replacing the row's old icon trio
@@ -60,6 +61,7 @@ import { useToast } from './Toast';
  * delete inventory they only wanted to hide.
  */
 export default function AgentListingActionsMenu({ listing, isClosed }) {
+  const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
   const [pending, startTransition] = useTransition();
@@ -77,7 +79,7 @@ export default function AgentListingActionsMenu({ listing, isClosed }) {
         const formData = new FormData();
         formData.set('listing_status', 'active');
         await updateListingStatusAction(listing.id, formData);
-        showToast({ type: 'success', message: `« ${listing.title} » remis en ligne.` });
+        showToast({ type: 'success', message: t('agent.listings.relisted', { title: listing.title }) });
         router.refresh();
       } catch (err) {
         showToast({ type: 'error', message: err.message || "Échec de la remise en ligne." });
@@ -95,8 +97,8 @@ export default function AgentListingActionsMenu({ listing, isClosed }) {
       showToast({
         type: 'success',
         message: isArchived
-          ? `« ${listing.title} » est de nouveau visible sur le site.`
-          : `« ${listing.title} » archivé — masqué du site, rien n’est supprimé.`,
+          ? t('agent.listings.unarchived', { title: listing.title })
+          : t('agent.listings.archived_toast', { title: listing.title }),
       });
       router.refresh();
     });
@@ -119,7 +121,7 @@ export default function AgentListingActionsMenu({ listing, isClosed }) {
         showToast({ type: 'error', message: result.error });
         return;
       }
-      showToast({ type: 'success', message: 'Copie créée — en attente de validation.' });
+      showToast({ type: 'success', message: t('agent.listings.duplicated') });
       router.push(`/compte/agent/biens/${result.propertyId}/edit`);
       router.refresh();
     });
@@ -132,7 +134,7 @@ export default function AgentListingActionsMenu({ listing, isClosed }) {
         showToast({ type: 'error', message: result.error });
         return;
       }
-      showToast({ type: 'success', message: `« ${listing.title} » supprimé.` });
+      showToast({ type: 'success', message: t('agent.listings.deleted', { title: listing.title }) });
       setConfirmDelete(false);
       router.refresh();
     });
@@ -142,7 +144,7 @@ export default function AgentListingActionsMenu({ listing, isClosed }) {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger
-          aria-label={`Actions pour ${listing.title}`}
+          aria-label={t('agent.listings.actionsFor', { title: listing.title })}
           className="u-press grid h-[2.125rem] w-[2.125rem] place-items-center rounded-lg text-ink-45 transition-colors hover:bg-canvas-alt hover:text-ink data-[state=open]:bg-canvas-alt data-[state=open]:text-ink"
         >
           <MoreHorizontal strokeWidth={ICON_STROKE_WIDTH} className="h-[1.0625rem] w-[1.0625rem]" />
@@ -152,7 +154,7 @@ export default function AgentListingActionsMenu({ listing, isClosed }) {
           <DropdownMenuItem asChild>
             <Link href={`/compte/agent/biens/${listing.id}/edit`} className="flex items-center gap-2.5">
               <Pencil strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
-              Modifier
+              {t('agent.listings.edit')}
             </Link>
           </DropdownMenuItem>
 
@@ -160,14 +162,14 @@ export default function AgentListingActionsMenu({ listing, isClosed }) {
             <DropdownMenuItem asChild>
               <Link href={`/listings/${listing.id}`} target="_blank" className="flex items-center gap-2.5">
                 <ExternalLink strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
-                Voir l’annonce publique
+                {t('agent.listings.viewPublic')}
               </Link>
             </DropdownMenuItem>
           )}
 
           <DropdownMenuItem onSelect={handleDuplicate} disabled={pending} className="flex items-center gap-2.5">
             <Copy strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
-            Dupliquer
+            {t('agent.listings.duplicate')}
           </DropdownMenuItem>
 
           <DropdownMenuItem asChild>
@@ -178,14 +180,14 @@ export default function AgentListingActionsMenu({ listing, isClosed }) {
               className="flex items-center gap-2.5"
             >
               <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
-              Partager sur WhatsApp
+              {t('agent.listings.shareWhatsApp')}
             </a>
           </DropdownMenuItem>
 
           {isClosed ? (
             <DropdownMenuItem onSelect={handleRepublish} disabled={pending} className="flex items-center gap-2.5">
               <RotateCcw strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
-              Remettre en ligne
+              {t('agent.listings.relist')}
             </DropdownMenuItem>
           ) : (
             <DropdownMenuItem
@@ -198,7 +200,7 @@ export default function AgentListingActionsMenu({ listing, isClosed }) {
               ) : (
                 <Archive strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
               )}
-              {isArchived ? 'Remettre en vente' : 'Archiver (masquer du site)'}
+              {isArchived ? t('agent.listings.relistForSale') : t('agent.listings.archiveHide')}
             </DropdownMenuItem>
           )}
 
@@ -209,7 +211,7 @@ export default function AgentListingActionsMenu({ listing, isClosed }) {
             className="flex items-center gap-2.5 text-danger focus:text-danger"
           >
             <Trash2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-            Supprimer
+            {t('common.actions.delete')}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -217,11 +219,8 @@ export default function AgentListingActionsMenu({ listing, isClosed }) {
       <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Supprimer ce bien ?</DialogTitle>
-            <DialogDescription>
-              « {listing.title} » et ses photos seront définitivement retirés du site. Cette action est
-              irréversible.
-            </DialogDescription>
+            <DialogTitle>{t('agent.listings.deleteOne')}</DialogTitle>
+            <DialogDescription>{t('agent.listings.deleteOneBody', { title: listing.title })}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <DialogClose asChild>
@@ -229,7 +228,7 @@ export default function AgentListingActionsMenu({ listing, isClosed }) {
                 type="button"
                 className="u-press inline-flex h-11 items-center rounded-lg px-4 text-sm font-semibold text-ink-45 hover:bg-canvas-alt hover:text-ink"
               >
-                Annuler
+                {t('common.actions.cancel')}
               </button>
             </DialogClose>
             <button
@@ -238,7 +237,7 @@ export default function AgentListingActionsMenu({ listing, isClosed }) {
               disabled={pending}
               className="u-press h-11 rounded-lg bg-danger px-5 text-sm font-bold text-white disabled:opacity-60"
             >
-              {pending ? 'Suppression…' : 'Supprimer définitivement'}
+              {pending ? t('agent.listings.deleting') : t('agent.listings.deletePermanently')}
             </button>
           </DialogFooter>
         </DialogContent>

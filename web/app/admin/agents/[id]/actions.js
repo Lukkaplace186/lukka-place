@@ -10,6 +10,7 @@ import {
   reassignAgentListings,
   getAgentById,
 } from '@/lib/agents';
+import { getT } from '@/lib/i18n/server';
 
 async function assertAdminSession() {
   const token = (await cookies()).get(ADMIN_SESSION_COOKIE)?.value;
@@ -38,6 +39,7 @@ function revalidateAgent(agentId) {
  * impossible to express beats validating against it.
  */
 export async function adminSaveAgentAction(agentId, validCommunes, formData) {
+  const t = await getT();
   try {
     await assertAdminSession();
     const valid = new Set(validCommunes);
@@ -55,7 +57,7 @@ export async function adminSaveAgentAction(agentId, validCommunes, formData) {
       phoneVerified: formData.get('phone_verified') === 'on',
     });
 
-    if (!ok) return { ok: false, error: 'Agent introuvable.' };
+    if (!ok) return { ok: false, error: t('errors.agentNotFound') };
     revalidateAgent(agentId);
     return { ok: true };
   } catch (err) {
@@ -70,25 +72,30 @@ export async function adminSaveAgentAction(agentId, validCommunes, formData) {
  * why this is a link rather than an admin-chosen temporary password.
  */
 export async function adminResetAgentAccessAction(agentId) {
+  const t = await getT();
   try {
     await assertAdminSession();
-    const result = await issueAgentActivationLink(agentId);
+    // lib/agents.js returns an `errorKey` rather than text — it has no request
+    // context of its own, so the message is resolved here, in the admin's
+    // language.
+    const { errorKey, ...result } = await issueAgentActivationLink(agentId);
     revalidateAgent(agentId);
-    return result;
+    return errorKey ? { ...result, error: t(errorKey) } : result;
   } catch (err) {
-    return { ok: false, error: err.message || "L'envoi a échoué." };
+    return { ok: false, error: err.message || t('errors.sendFailedShort') };
   }
 }
 
 /** Sign the agent out everywhere, without touching their password. */
 export async function adminRevokeAgentSessionsAction(agentId) {
+  const t = await getT();
   try {
     await assertAdminSession();
     const ok = await revokeAgentSessions(agentId);
     revalidateAgent(agentId);
-    return ok ? { ok: true } : { ok: false, error: 'Agent introuvable.' };
+    return ok ? { ok: true } : { ok: false, error: t('errors.agentNotFound') };
   } catch (err) {
-    return { ok: false, error: err.message || "L'action a échoué." };
+    return { ok: false, error: err.message || t('errors.actionFailed') };
   }
 }
 
@@ -101,11 +108,12 @@ export async function adminRevokeAgentSessionsAction(agentId) {
  * discover afterwards.
  */
 export async function adminReassignListingsAction(fromAgentId, formData) {
+  const t = await getT();
   try {
     await assertAdminSession();
     const toAgentId = Number.parseInt(formData.get('to_agent_id'), 10);
-    if (!Number.isFinite(toAgentId)) return { ok: false, error: 'Choisissez un agent de destination.' };
-    if (toAgentId === Number(fromAgentId)) return { ok: false, error: 'Choisissez un agent différent.' };
+    if (!Number.isFinite(toAgentId)) return { ok: false, error: t('errors.chooseDestinationAgent') };
+    if (toAgentId === Number(fromAgentId)) return { ok: false, error: t('errors.chooseDifferentAgent') };
 
     const target = await getAgentById(toAgentId);
     if (!target) return { ok: false, error: `Aucun agent #${toAgentId}.` };

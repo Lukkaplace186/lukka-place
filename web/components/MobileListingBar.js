@@ -5,6 +5,7 @@ import Price from './Price';
 import FavoriteButton from './FavoriteButton';
 import { getCentralWhatsAppHref, buildWhatsAppMessage } from '@/lib/whatsapp';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { useT } from '@/lib/i18n/client';
 
 /**
  * Sticky action bar for the detail page on mobile, replacing the floating
@@ -24,6 +25,7 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  * indicator itself.
  */
 export default function MobileListingBar({ listing }) {
+  const t = useT();
   const href = getCentralWhatsAppHref(
     buildWhatsAppMessage({
       reference: listing.reference,
@@ -58,7 +60,7 @@ export default function MobileListingBar({ listing }) {
             className="u-press u-focus-ring inline-flex shrink-0 items-center gap-2 rounded-full border border-transparent bg-green px-5 py-2.5 text-[0.8125rem] font-semibold text-white transition-colors hover:bg-green-deep"
           >
             <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-            WhatsApp
+            {t('common.shared.whatsapp')}
           </a>
         ) : null}
       </div>

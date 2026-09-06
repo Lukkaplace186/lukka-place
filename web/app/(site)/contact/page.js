@@ -1,28 +1,35 @@
 import PageShell, { PageAction, PageNotice } from '@/components/PageShell';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
+import { getT } from '@/lib/i18n/server';
 
-export const metadata = {
-  title: 'Contact — Lukka Place',
-  description: 'Contactez Lukka Place par WhatsApp.',
-};
+// See /a-propos on why this is generateMetadata rather than a static object.
+export async function generateMetadata() {
+  const t = await getT();
+  return {
+    title: t('contact.metaTitle'),
+    description: t('contact.metaDescription'),
+  };
+}
 
-export default function ContactPage() {
-  const whatsappHref = getCentralWhatsAppHref('Bonjour, je vous contacte depuis lukkaplace.com.');
+export default async function ContactPage() {
+  const t = await getT();
+  // The prefilled WhatsApp greeting follows the visitor's language too.
+  const whatsappHref = getCentralWhatsAppHref(t('footer.whatsappGreeting'));
 
   return (
     <PageShell
-      eyebrow="Contact"
-      title="Parlons de votre projet"
-      lead="WhatsApp est le moyen le plus rapide de nous joindre — une question sur une annonce, un bien à soumettre, ou toute autre demande."
-      breadcrumb={[{ label: 'Accueil', href: '/' }, { label: 'Contact' }]}
+      eyebrow={t('contact.eyebrow')}
+      title={t('contact.title')}
+      lead={t('contact.lead')}
+      breadcrumb={[{ label: t('breadcrumb.home'), href: '/' }, { label: t('contact.eyebrow') }]}
     >
       {whatsappHref ? (
         <PageAction href={whatsappHref} external tone="green">
-          Écrire sur WhatsApp
+          {t('contact.whatsappCta')}
         </PageAction>
       ) : (
         <PageNotice>
-          Le numéro WhatsApp de contact n&apos;est pas encore configuré sur cette installation.
+          {t('contact.unavailable')}
         </PageNotice>
       )}
     </PageShell>

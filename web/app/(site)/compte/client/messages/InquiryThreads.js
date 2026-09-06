@@ -261,8 +261,17 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
         )
       : null;
 
+  // `grid-cols-1` is load-bearing on mobile, not decorative. A bare `grid`
+  // leaves the single track at `auto`, which sizes to the widest child's
+  // min-content — and PortalPanel clips (`overflow-hidden`), so the excess
+  // was unreachable rather than scrollable: measured 472px of content inside
+  // a 343px column at a 375px viewport, with `documentElement.scrollWidth`
+  // still 375. Tailwind v4's `grid-cols-1` is `minmax(0,1fr)`, which caps the
+  // track at the container. The `min-w-0`s below are the other half of the
+  // same fix — a `truncate` (white-space:nowrap) flex item contributes its
+  // full untruncated text width as min-content unless it can shrink.
   return (
-    <PortalPanel className="grid overflow-hidden lg:min-h-[36rem] lg:grid-cols-[22.5rem_minmax(0,1fr)]">
+    <PortalPanel className="grid grid-cols-1 overflow-hidden lg:min-h-[36rem] lg:grid-cols-[22.5rem_minmax(0,1fr)]">
       <div className="flex flex-col border-b border-line lg:border-b-0 lg:border-r">
         <div className="px-5 py-4">
           <p className="u-eyebrow">{t('account.requests.yourRequests')}</p>
@@ -288,8 +297,8 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
               >
                 <Thumbnail src={thread.listing?.image || null} alt="" className="h-[3.25rem] w-[3.25rem]" />
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline justify-between gap-2.5">
-                    <span className="truncate text-[0.875rem] font-bold text-ink">{title}</span>
+                  <div className="flex min-w-0 items-baseline justify-between gap-2.5">
+                    <span className="min-w-0 truncate text-[0.875rem] font-bold text-ink">{title}</span>
                     <span className="u-tabular shrink-0 text-[0.75rem] text-ink-35">{thread.createdAtShort}</span>
                   </div>
                   {showSummaryPreview ? (
@@ -321,7 +330,11 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
         <div className="flex flex-col bg-canvas-alt">
           <div className="flex flex-wrap items-center gap-4 border-b border-line bg-surface px-6 py-4">
             <Thumbnail src={active.listing?.image || null} alt="" className="h-[3.25rem] w-16" />
-            <div className="min-w-[15rem] flex-1">
+            {/* basis, not min-width: a hard 240px minimum plus the thumbnail,
+                gap and px-6 padding overflows a 375px viewport. flex-basis
+                keeps the intended "wrap the actions onto their own line"
+                behaviour while still letting the block shrink on a phone. */}
+            <div className="min-w-0 flex-1 basis-[15rem]">
               <p className="text-[0.9375rem] font-bold leading-snug text-ink">
                 {active.listing ? active.listing.title : customSearchTitle(active, t)}
               </p>

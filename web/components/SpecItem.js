@@ -52,9 +52,9 @@ const SPEC_COLUMN_LABELS = {
  * treatment is written out at two call sites.
  */
 export const SPEC_LABEL_CLASS =
-  'text-[0.625rem] font-extrabold uppercase leading-none tracking-[0.09em] text-ink-45';
+  'text-[0.625rem] font-extrabold uppercase leading-none tracking-[0.09em] text-ink-70';
 export const SPEC_VALUE_CLASS =
-  'flex items-center gap-1.5 font-extrabold leading-none tracking-tight text-ink';
+  'flex items-center gap-1.5 font-extrabold leading-none tracking-tight text-ink-70';
 
 export function SpecCell({ label, children, className = '' }) {
   return (
@@ -88,9 +88,9 @@ export default function SpecItem({ spec, variant = 'inline' }) {
   if (variant === 'stacked') {
     return (
       <SpecCell label={SPEC_COLUMN_LABELS[spec.key] || spec.label}>
-        {Icon && <Icon strokeWidth={2.25} className="h-4 w-4 shrink-0 text-ink-45" />}
+        {Icon && <Icon strokeWidth={2.25} className="h-4 w-4 shrink-0" />}
         <span className="u-tabular">{spec.value}</span>
-        {spec.key === 'area' ? <span className="font-bold text-ink-70">m²</span> : null}
+        {spec.key === 'area' ? <span className="font-bold">m²</span> : null}
       </SpecCell>
     );
   }

@@ -230,7 +230,7 @@ export default function PropertyCard({
             purpose={purpose}
             pricePeriod={pricePeriod}
             showSubtext
-            subtextClassName="ml-2 inline-block rounded-md bg-canvas-alt px-2 py-0.5 align-middle text-[0.75rem] font-bold leading-normal tracking-normal text-ink-45"
+            subtextClassName="ml-2 inline-block rounded-md bg-canvas-alt px-2 py-0.5 align-middle text-[0.75rem] font-bold leading-normal tracking-normal text-ink-70"
           />
         </div>
 
@@ -243,7 +243,7 @@ export default function PropertyCard({
             up from 14px/700. */}
         {(where || hasAgency) ? (
           <div className="flex items-center justify-between gap-3">
-            {where ? <p className="min-w-0 truncate text-base font-extrabold leading-snug tracking-tight text-ink">{where}</p> : <span />}
+            {where ? <p className="min-w-0 truncate text-base font-extrabold leading-snug tracking-tight text-ink-70">{where}</p> : <span />}
             {/* The agency badge sits on the title row, not on the spec rail
                 below it. Measured at 375px: sharing the rail's row cost it
                 ~52px of width, which was exactly enough to push the third
@@ -313,13 +313,16 @@ export default function PropertyCard({
                 lib/listingView.js: there is no verification timestamp in the
                 schema to date that claim from.
 
-                `text-green-ink`, not `text-green-deep`: at 11px this is
-                body-size text, and green-deep measures 3.86:1 on the card's
-                white surface — under AA. green-ink is the same hue at
-                5.34:1. See the green block in app/globals.css. */}
-            <span className="text-[0.6875rem] font-bold tracking-tight text-green-ink">{freshness || ''}</span>
+                It is no longer green. The card was carrying three hues at
+                once — ink for the price and values, an ink grey for labels
+                and meta, and two separate greens (this line and the WhatsApp
+                CTA) — which read as clutter rather than as signal. Every
+                text element on the card is now the single `ink-70` token,
+                with the price figure alone left at full `ink` so it is the
+                one thing that stands out. */}
+            <span className="text-[0.6875rem] font-bold tracking-tight text-ink-70">{freshness || ''}</span>
             {reference ? (
-              <span className="u-tabular shrink-0 text-[0.6875rem] font-bold text-ink-45">{reference}</span>
+              <span className="u-tabular shrink-0 text-[0.6875rem] font-bold text-ink-70">{reference}</span>
             ) : null}
           </div>
         ) : null}

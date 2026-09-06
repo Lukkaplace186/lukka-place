@@ -198,11 +198,11 @@ function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, r
               purpose={listing.purpose}
               pricePeriod={listing.price_period}
               showSubtext
-              subtextClassName="ml-2 inline-block rounded-md bg-canvas-alt px-2 py-0.5 align-middle text-[0.75rem] font-bold leading-normal tracking-normal text-ink-45"
+              subtextClassName="ml-2 inline-block rounded-md bg-canvas-alt px-2 py-0.5 align-middle text-[0.75rem] font-bold leading-normal tracking-normal text-ink-70"
             />
           </span>
           {listing.reference ? (
-            <span className="u-tabular shrink-0 text-[0.6875rem] font-bold text-ink-45">{listing.reference}</span>
+            <span className="u-tabular shrink-0 text-[0.6875rem] font-bold text-ink-70">{listing.reference}</span>
           ) : null}
         </div>
 
@@ -214,7 +214,7 @@ function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, r
             card was the last public surface still carrying it. The link
             target is unchanged; only what it reads changed. */}
         <div>
-          <h3 className="text-base font-extrabold leading-snug tracking-tight text-ink">
+          <h3 className="text-base font-extrabold leading-snug tracking-tight text-ink-70">
             <Link href={`/listings/${listing.id}`} className="transition-colors hover:text-blue-deep">
               {where || listing.title}
             </Link>

@@ -56,7 +56,7 @@ export default function KeyFacts({ listing }) {
     <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-line sm:grid-cols-4">
       {items.map(({ key, icon: Icon, label, value }) => (
         <div key={key} className="flex flex-col gap-2 bg-canvas-alt p-4">
-          <Icon strokeWidth={2} className="h-5 w-5 text-blue" />
+          <Icon strokeWidth={2} className="h-5 w-5 text-ink-70" />
           {/* Was `u-eyebrow text-ink-35` (12px/500) over `u-body` (16px/400)
               — the lightest pairing on the page, and `u-eyebrow` is shared by
               30 other files so it could not be thickened in place without

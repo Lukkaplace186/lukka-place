@@ -52,7 +52,7 @@ export default function Price({
   // gets scanned, the period is a qualifier on it. Applies only to the
   // PRIMARY side; the converted secondary line is already small enough
   // that splitting its weight again would just make it noisy.
-  periodClassName = 'ml-1 text-[0.875rem] font-normal tracking-normal text-ink-45',
+  periodClassName = 'ml-1 text-[0.875rem] font-normal tracking-normal text-ink-70',
 }) {
   const preference = useSyncExternalStore(subscribeCurrency, getCurrency, () => 'USD');
   const { cdfPerUsd, updatedAt } = useCdfRate();

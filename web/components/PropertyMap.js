@@ -85,14 +85,22 @@ function buildInfoWindowContent(listing, cdfPerUsd) {
  *
  * Rendered as real DOM over the map canvas rather than a Maps API custom
  * control, for the same reason MobileMapOverlay is a sibling element: it
- * then styles with this app's own tokens and needs no Maps globals. It sits
- * top-left, the one corner neither MobileMapOverlay's count badge (top
- * centre) nor its Liste button (bottom centre) nor Google's own attribution
- * (bottom edge) occupies.
+ * then styles with this app's own tokens and needs no Maps globals.
+ *
+ * `top-16` on mobile, `lg:top-3` on desktop, and that split is load-bearing
+ * rather than cosmetic. MobileMapOverlay's "Affichage de X sur Y biens"
+ * badge is centred at `top-4` and is `lg:hidden`; on a 375px viewport it is
+ * wide enough to reach the left edge of the map, so a legend at `top-3`
+ * sits directly underneath it and its first two rows become unreadable.
+ * Caught on the real phone-width production page, not in desktop review,
+ * where the badge does not render at all. Below the badge on mobile, back
+ * to the top corner on desktop. The bottom edge is not an option on either:
+ * the Liste button (bottom centre, mobile) and Google's own attribution
+ * (bottom, always) already own it.
  */
 function MapLegend() {
   return (
-    <div className="u-lift pointer-events-none absolute left-3 top-3 z-20 rounded-xl border border-line bg-surface/95 px-2.5 py-2 backdrop-blur-md">
+    <div className="u-lift pointer-events-none absolute left-3 top-16 z-20 rounded-xl border border-line bg-surface/95 px-2.5 py-2 backdrop-blur-md lg:top-3">
       <ul className="flex flex-col gap-1">
         {LEGEND_KINDS.map((kind) => (
           <li key={kind.key} className="flex items-center gap-1.5 whitespace-nowrap text-[0.6875rem] font-medium text-ink-45">

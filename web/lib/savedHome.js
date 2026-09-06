@@ -17,7 +17,7 @@ import { getListingsByIds } from './listings';
  *
  * Returns null in the two cases that mean "there is nothing personal to
  * show": a signed-out visitor, and a signed-in one whose shelf is empty.
- * The homepage renders "Sélection de la semaine" for both. See
+ * The homepage renders "Sélection de la Semaine" for both. See
  * components/SavedListings.js on why the empty shelf falls back rather than
  * rendering an empty personalised section.
  *

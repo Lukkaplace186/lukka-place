@@ -120,7 +120,6 @@
       "allPrices": "Any price"
     },
     "value": {
-      "heading": "What actually changes",
       "verifiedTitle": "Verified listings",
       "verifiedBody": "Every property goes through a human check before publication — details, photos and location are reviewed, not simply copied across.",
       "contactTitle": "Direct contact",
@@ -130,11 +129,12 @@
       "eyebrow": "Our approach"
     },
     "trustHeading": "Who's behind this",
-    "featuredHeading": "Newly verified in Kinshasa",
+    "featuredEyebrow": "Newly verified",
+    "featuredHeading": "Featured Properties",
     "saved": {
       "eyebrow": "Welcome back, {name}",
       "eyebrowAnonymous": "Welcome back",
-      "title": "Saved properties",
+      "title": "Saved Properties",
       "lead": {
         "one": "One property kept aside — pick up where you left off.",
         "other": "{count} properties kept aside — pick up where you left off."
@@ -444,7 +444,7 @@
       "favorite": "Log in or create an account to save this property"
     },
     "related": {
-      "similar": "Similar properties",
+      "similar": "Similar Properties",
       "otherInKinshasa": "Other properties in Kinshasa",
       "otherIn": "Other properties in {commune}",
       "recommended": "Recommended",
@@ -883,7 +883,7 @@
     "favorites": {
       "title": "My Saved Listings",
       "metaTitle": "Saved & Alerts — Lukka Place",
-      "savedProperties": "Saved properties",
+      "savedProperties": "Saved Properties",
       "emptyTitle": "Nothing saved yet",
       "emptyBody": "Tap the heart on a listing to save it. Your saved listings follow you across all your devices once you're signed in.",
       "nothingSaved": "Nothing saved",

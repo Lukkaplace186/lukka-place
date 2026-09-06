@@ -120,7 +120,6 @@
       "allPrices": "Tous prix"
     },
     "value": {
-      "heading": "Ce qui change, concrètement",
       "verifiedTitle": "Annonces vérifiées",
       "verifiedBody": "Chaque bien passe par un contrôle humain avant publication — informations, photos et localisation sont revues, pas simplement recopiées.",
       "contactTitle": "Contact direct",
@@ -130,11 +129,12 @@
       "eyebrow": "Notre approche"
     },
     "trustHeading": "Qui est derrière",
-    "featuredHeading": "Nouveautés vérifiées à Kinshasa",
+    "featuredEyebrow": "Nouveautés vérifiées",
+    "featuredHeading": "Sélection de la Semaine",
     "saved": {
       "eyebrow": "Bon retour, {name}",
       "eyebrowAnonymous": "Bon retour",
-      "title": "Mes biens enregistrés",
+      "title": "Biens Enregistrés",
       "lead": {
         "one": "Un bien gardé de côté — reprenez où vous en étiez.",
         "other": "{count} biens gardés de côté — reprenez où vous en étiez."
@@ -444,7 +444,7 @@
       "favorite": "Se connecter ou créer un compte pour enregistrer ce bien en favori"
     },
     "related": {
-      "similar": "Biens similaires",
+      "similar": "Biens Similaires",
       "otherInKinshasa": "Autres biens à Kinshasa",
       "otherIn": "Autres biens à {commune}",
       "recommended": "Recommandé",
@@ -883,7 +883,7 @@
     "favorites": {
       "title": "Mes favoris",
       "metaTitle": "Favoris & Alertes — Lukka Place",
-      "savedProperties": "Biens favoris",
+      "savedProperties": "Biens Favoris",
       "emptyTitle": "Aucun favori pour le moment",
       "emptyBody": "Touchez le cœur sur une annonce pour la sauvegarder. Vos favoris vous suivent sur tous vos appareils dès que vous êtes connecté.",
       "nothingSaved": "Rien d'enregistré",

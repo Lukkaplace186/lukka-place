@@ -65,9 +65,9 @@ import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB } from '@/lib/constants';
  * dropped its reserved two-line description block (see PropertyCard.js).
  *
  * **The second section is now personal when it can be.** For a signed-in
- * visitor who has saved at least one property, "Sélection de la semaine"
- * (FeaturedListings) is replaced outright by their own "Mes biens
- * enregistrés" shelf — not stacked above it, since two eight-card listing
+ * visitor who has saved at least one property, "Sélection de la Semaine"
+ * (FeaturedListings) is replaced outright by their own "Biens Enregistrés"
+ * shelf — not stacked above it, since two eight-card listing
  * sections back to back is the same page twice. The swap is decided by
  * lib/savedHome.js's getSavedHomeSection(), which returns null for a
  * signed-out visitor and for a signed-in one with an empty shelf — this

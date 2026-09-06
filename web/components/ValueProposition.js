@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
-import SectionHeading from './SectionHeading';
 import { getT } from '@/lib/i18n/server';
 
 // Keys, not text — see components/navItems.js on why a module-level constant
@@ -43,19 +42,25 @@ export default async function ValueProposition() {
   return (
     <section className="bg-canvas-alt py-11 shadow-[0_1px_0_var(--line)_inset] sm:py-20">
       <div className="mx-auto max-w-[1240px] px-4 sm:px-6 lg:px-8">
-        <SectionHeading eyebrow={t('home.value.eyebrow')} title={t('home.value.heading')} className="mb-7 sm:mb-12" />
+        {/* The eyebrow IS the header. It previously sat above a serif title
+            ("Ce qui change, concrètement" / "What actually changes") that
+            restated the same promise the three numbered props then make in
+            full — a label, a paraphrase of the section, and the section
+            itself, in that order. The label is kept because it names the
+            section in the page outline; the paraphrase is gone. */}
+        <h2 className="u-eyebrow mb-7 sm:mb-12">{t('home.value.eyebrow')}</h2>
 
         <div className="grid grid-cols-1 gap-px border-y border-line bg-line md:grid-cols-3">
-          {VALUE_PROPS.map(({ number, title, body }) => (
+          {VALUE_PROPS.map(({ number, titleKey, bodyKey }) => (
             <div
-              key={title}
+              key={number}
               className="flex flex-col gap-2.5 bg-canvas-alt py-6 sm:gap-3 sm:py-9 md:px-10 md:first:pl-0 md:last:pr-0"
             >
               <span className="u-tabular font-display text-[2.125rem] font-normal leading-none text-blue">{number}</span>
               {/* Sans 700, not the display serif — the design uses the
                   serif only for the numeral here. */}
-              <h3 className="text-[1.3125rem] font-bold leading-snug tracking-[-0.008em] text-ink">{title}</h3>
-              <p className="text-[1rem] leading-[1.6] text-ink-70 text-pretty">{body}</p>
+              <h3 className="text-[1.3125rem] font-bold leading-snug tracking-[-0.008em] text-ink">{t(titleKey)}</h3>
+              <p className="text-[1rem] leading-[1.6] text-ink-70 text-pretty">{t(bodyKey)}</p>
             </div>
           ))}
         </div>

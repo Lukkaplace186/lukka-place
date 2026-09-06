@@ -22,14 +22,17 @@ export default async function FeaturedListings() {
   return (
     <section className="mx-auto max-w-[1600px] px-4 pt-8 pb-14 sm:px-6 sm:pt-14 sm:pb-24 lg:px-8">
       {/* No `lead`. It read "Les annonces les plus récemment vérifiées et
-          mises en ligne." directly under a title that already says
-          "Nouveautés vérifiées à Kinshasa", under an eyebrow that already
-          says "Sélection de la semaine" — the same claim three times in one
-          header block, and on mobile that third line pushed the first real
-          listing two rows further down. The eyebrow carries the recency
-          framing, the title carries the rest. */}
+          mises en ligne." directly under a title and an eyebrow that both
+          already said as much — the same claim three times in one header
+          block, and on mobile that third line pushed the first real listing
+          two rows further down. The eyebrow carries the recency framing, the
+          title names the section.
+
+          The eyebrow was also the last hardcoded French string on this page:
+          an English visitor read "Sélection de la semaine" above an English
+          title. It resolves through the dictionary like everything else now. */}
       <SectionHeading
-        eyebrow="Sélection de la semaine"
+        eyebrow={t('home.featuredEyebrow')}
         title={t('home.featuredHeading')}
         href="/listings"
         linkLabel={t('listings.empty.seeAll')}

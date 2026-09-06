@@ -1,32 +1,36 @@
-// Marker and cluster icons for PropertyMap.js. Classic
+// Price-tag marker icons for PropertyMap.js. Classic
 // `google.maps.Marker.icon` data-URI SVGs — not `AdvancedMarkerElement`,
 // which needs a Cloud Console Map ID even for a plain pixel-styled pin (see
 // PropertyMap.js's doc comment for why this codebase avoids that). Must
 // only be called after the Maps JS API has loaded (references the global
 // `google.maps.Size`/`Point`, same as the rest of PropertyMap.js).
 //
-// Shape: a white price label stacked directly ABOVE a solid, colour-coded
-// circular icon pin with a downward tail, both drawn into one SVG so they
-// travel as a single marker and can never drift apart or overlap. `anchor`
-// sits at the tail's own tip, so the marker points at its coordinate the
-// way a map pin should rather than floating centred over it — the same
-// anchor precision the previous single speech-bubble icon had, deliberately
-// preserved through the redesign.
+// Shape: the dense price-tag pattern the reference portals use — a compact
+// white rounded rectangle carrying the price in bold ink, with a short tail
+// beneath it. Body and tail are one unioned path so the border traces a
+// continuous outline with no seam where the two meet, and `anchor` sits at
+// the tail's own tip, so the marker points at its coordinate rather than
+// floating centred over it.
 //
-// The pin's colour and glyph come from lib/mapMarkerKinds.js and encode the
-// listing's real property type; the price stays in a high-contrast white
-// label because it is the one value a visitor scans for, and a coloured
-// fill behind it would cost legibility for no information gain.
+// The category glyphs and colour coding that used to live here are gone on
+// an explicit direction change: a map of 30+ listings reads better as a
+// field of scannable prices than as a field of icons, and the price is the
+// one value a visitor is actually comparing. lib/mapMarkerKinds.js, the
+// cluster bubble builders and the legend they fed were removed with them.
 //
-// Requested a CSS `after:` pseudo-element tail with Tailwind classes — not
-// possible here: a `google.maps.Marker.icon` is a flat SVG string handed to
-// the Maps JS API, never inserted into the DOM as a real element, so no
-// pseudo-element or Tailwind class can ever apply to it. These SVG paths
-// are the actual mechanism that produces the same visual result.
-import { resolveMarkerKind, UNKNOWN_KIND } from './mapMarkerKinds';
+// Requested Tailwind classes for this (`text-slate-900 font-bold`,
+// `shadow-md border border-slate-200`) — not possible: a
+// `google.maps.Marker.icon` is a flat SVG string handed to the Maps JS API,
+// never inserted into the DOM as a real element, so no Tailwind class can
+// ever apply to it. The SVG attributes below are the actual mechanism that
+// produces that same visual result, using this app's own palette values
+// (`--ink`, `--line`, `--blue-deep`) rather than Tailwind's slate scale.
 import { usablePrice } from './format';
 
-const INK_900 = '#0B1120';
+const INK = '#0B1120'; // --ink, this app's near-black (Tailwind slate-900's role)
+const LINE = '#E2E6EF'; // --line, the app's hairline (Tailwind slate-200's role)
+const BLUE_DEEP = '#16307E'; // --blue-deep, the established "selected" accent
+const WHITE = '#FFFFFF';
 const FONT_STACK = 'Arial, Helvetica, sans-serif';
 
 /**
@@ -38,13 +42,18 @@ const FONT_STACK = 'Arial, Helvetica, sans-serif';
  * thousands there printed a real 1 200 $/mois rent as "1k $/m" — a 200 $
  * understatement on the single number a visitor scans a map for, and it
  * collapsed the entire mid-market rent band (1 000-1 499) onto one label.
- * Decimal comma, like every other number this app renders in French.
  *
- * Guards through lib/format.js's usablePrice for the same reason every other
- * price render does: `properties.price` is nullable, and Number(null) is 0,
- * so an unguarded pin label read "0 $/m" — a real price claim — on a listing
- * whose price nobody recorded. An unknown price renders no label at all;
- * the pin still plots, because its position is real either way.
+ * Currency sits AFTER the amount with a decimal comma ("1,2k $/m"), not
+ * before it ("$1.2k/m"). That is the French convention this whole app
+ * already renders prices in — lib/format.js's formatPrice, every card, every
+ * detail page — and a map pin reading differently from the card beside it
+ * for the same listing would look like a bug.
+ *
+ * Guards through usablePrice for the same reason every other price render
+ * does: `properties.price` is nullable, and Number(null) is 0, so an
+ * unguarded pin label read "0 $/m" — a real price claim — on a listing whose
+ * price nobody recorded. An unknown price renders no label at all; the pin
+ * still plots, because its position is real either way.
  */
 export function compactPrice(price, purpose) {
   const amount = usablePrice(price);
@@ -63,251 +72,123 @@ export function compactPrice(price, purpose) {
   return purpose === 'rent' ? `${label} $/m` : `${label} $`;
 }
 
+/**
+ * Stacking order. "Higher prices to the front" as directed, so that where
+ * two tags do overlap the more expensive listing stays readable, and a
+ * hovered tag beats every resting one.
+ *
+ * Clamped below google.maps.Marker.MAX_ZINDEX (1000000) so a sale price in
+ * the hundreds of thousands can never collide with, or exceed, the value
+ * PropertyMap.js uses for the hovered marker.
+ */
+export function priceZIndex(price) {
+  const amount = usablePrice(price);
+  if (amount === null) return 0;
+  return Math.min(Math.round(amount), 999000);
+}
+
 // One shared soft shadow. SVG element ids are scoped to the document they
 // live in, and each of these strings becomes its own <img> document, so
 // reusing the same id across every marker is safe.
-function dropShadow(id, { dy = 1, blur = 1.4, opacity = 0.3 } = {}) {
+function dropShadow(id) {
   return (
     `<filter id="${id}" x="-60%" y="-60%" width="220%" height="220%">` +
-    `<feDropShadow dx="0" dy="${dy}" stdDeviation="${blur}" flood-color="${INK_900}" flood-opacity="${opacity}" />` +
+    `<feDropShadow dx="0" dy="1" stdDeviation="1.3" flood-color="${INK}" flood-opacity="0.26" />` +
     `</filter>`
   );
 }
 
-/** A lucide 24x24 stroke glyph, scaled and centred on (cx, cy). */
-function glyphMarkup(paths, { cx, cy, size, stroke, strokeWidth }) {
-  const scale = size / 24;
-  const inner = paths.map((d) => `<path d="${d}" />`).join('');
-  return (
-    `<g transform="translate(${(cx - size / 2).toFixed(2)} ${(cy - size / 2).toFixed(2)}) scale(${scale.toFixed(4)})" ` +
-    `fill="none" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round">${inner}</g>`
-  );
-}
-
-/** Circle of radius r centred on (cx, cy) with a downward triangular tail,
- *  as one continuous outline so the white ring traces the whole shape with
- *  no seam. `tailW` is the width of the tail where it meets the circle. */
-function teardropPath({ cx, cy, r, tailW, tailH }) {
-  const halfTail = tailW / 2;
-  const baseY = cy + Math.sqrt(Math.max(r * r - halfTail * halfTail, 0));
-  const tipY = cy + r + tailH;
+/**
+ * One unioned outline: a rounded rectangle whose bottom edge is cut inward
+ * into a short downward tail, centred on the body's width. Drawn clockwise
+ * from the top-left corner, so a single stroke traces body and tail as one
+ * continuous border.
+ */
+function pillPath({ x, y, w, h, r, tailW, tailH }) {
+  const apexX = x + w / 2;
+  const apexY = y + h + tailH;
+  const right = x + w;
+  const bottom = y + h;
   return [
-    `M ${(cx - halfTail).toFixed(2)},${baseY.toFixed(2)}`,
-    `A ${r.toFixed(2)},${r.toFixed(2)} 0 1 1 ${(cx + halfTail).toFixed(2)},${baseY.toFixed(2)}`,
-    `L ${cx.toFixed(2)},${tipY.toFixed(2)}`,
+    `M ${(x + r).toFixed(2)},${y.toFixed(2)}`,
+    `H ${(right - r).toFixed(2)}`,
+    `A ${r.toFixed(2)},${r.toFixed(2)} 0 0 1 ${right.toFixed(2)},${(y + r).toFixed(2)}`,
+    `V ${(bottom - r).toFixed(2)}`,
+    `A ${r.toFixed(2)},${r.toFixed(2)} 0 0 1 ${(right - r).toFixed(2)},${bottom.toFixed(2)}`,
+    `L ${(apexX + tailW / 2).toFixed(2)},${bottom.toFixed(2)}`,
+    `L ${apexX.toFixed(2)},${apexY.toFixed(2)}`,
+    `L ${(apexX - tailW / 2).toFixed(2)},${bottom.toFixed(2)}`,
+    `L ${(x + r).toFixed(2)},${bottom.toFixed(2)}`,
+    `A ${r.toFixed(2)},${r.toFixed(2)} 0 0 1 ${x.toFixed(2)},${(bottom - r).toFixed(2)}`,
+    `V ${(y + r).toFixed(2)}`,
+    `A ${r.toFixed(2)},${r.toFixed(2)} 0 0 1 ${(x + r).toFixed(2)},${y.toFixed(2)}`,
     'Z',
   ].join(' ');
 }
 
-function svgDataUri(svg) {
-  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
-}
-
 /**
- * Geometry for one listing marker, in pixels. Pure — no Maps globals — so
- * the layout invariants (label clears the pin, anchor sits on the tail tip)
- * are testable without loading the Maps JS API.
+ * Geometry for one price tag, in pixels. Pure — no Maps globals — so the
+ * layout invariants (the tag fits its own canvas, the anchor sits on the
+ * tail tip) are testable without loading the Maps JS API.
  */
 export function pricePinGeometry({ label, hovered = false }) {
-  const scale = hovered ? 1.12 : 1;
+  const scale = hovered ? 1.1 : 1;
+  const text = String(label ?? '');
+  // Room for the drop shadow on every side; without it the blur is clipped
+  // at the icon's edge and the tag looks like it has a hard grey line.
   const pad = 3;
-  // A listing with no usable price gets no label band at all, rather than an
-  // empty white pill or a pin floating below a blank gap — see compactPrice.
-  const hasLabel = String(label ?? '').length > 0;
-  const labelH = hasLabel ? Math.round(21 * scale) : 0;
-  const gap = hasLabel ? Math.round(3 * scale) : 0;
-  const pinR = 13 * scale;
-  const tailH = 6 * scale;
 
-  const labelW = hasLabel ? Math.round(Math.max(46, label.length * 6.9 + 20) * scale) : 0;
-  const width = Math.round(Math.max(labelW, pinR * 2 + 2) + pad * 2);
-  const cx = width / 2;
-  const pinCy = pad + labelH + gap + pinR;
-  const tipY = pinCy + pinR + tailH;
+  const h = Math.round(20 * scale);
+  const r = 5 * scale;
+  const fontSize = 11.5 * scale;
+  const tailW = 8 * scale;
+  const tailH = 5 * scale;
+  const w = Math.round(Math.max(34, text.length * 6.6 + 16) * scale);
 
-  return {
-    scale,
-    pad,
-    labelH,
-    labelR: Math.round(6 * scale),
-    labelW,
-    fontSize: 11.5 * scale,
-    pinR,
-    tailH,
-    tailW: 10 * scale,
-    glyphSize: 15 * scale,
-    width,
-    height: Math.round(tipY + pad),
-    cx,
-    pinCy,
-    tipY,
-  };
+  const width = Math.round(w + pad * 2);
+  const height = Math.round(pad + h + tailH + pad);
+  const x = (width - w) / 2;
+  const y = pad;
+  const tipY = y + h + tailH;
+
+  return { scale, pad, w, h, r, tailW, tailH, fontSize, width, height, x, y, tipY, cx: width / 2 };
 }
 
 /**
- * The full marker for one listing: white price label above, colour-coded
- * icon pin below, anchored at the pin's tip.
+ * The price tag for one listing.
  *
- * @param {object} listing - the listing itself, so the pin's type colour and
- *   the price label can never be built from two different records.
- * @param {boolean} [hovered] - the hover/active treatment (scaled up, darker
- *   fill, label outlined in the type colour).
+ * @param {object} listing - the listing itself, so the label can never be
+ *   built from a different record than the marker it belongs to.
+ * @param {boolean} [hovered] - the hover/active treatment: deep brand blue
+ *   fill with white text, scaled up slightly.
  */
 export function buildPricePinIcon({ listing, hovered = false }) {
-  const kind = resolveMarkerKind(listing);
-  const label = compactPrice(listing?.price, listing?.purpose);
+  // "N.C." (non communiqué) rather than an empty tag. compactPrice returns
+  // '' for a listing with no usable price, and a blank white pill on the map
+  // is meaningless noise — it neither states a price nor admits it is
+  // missing. This is not theoretical: 1 of the 36 currently approved
+  // listings has no price. The standard French listing abbreviation says the
+  // true thing in the two characters a tag has room for.
+  const label = compactPrice(listing?.price, listing?.purpose) || 'N.C.';
   const g = pricePinGeometry({ label, hovered });
 
-  const pinFill = hovered ? kind.colorDark : kind.color;
-  const labelStroke = hovered ? kind.color : 'rgba(11,17,32,0.14)';
-  const labelStrokeWidth = hovered ? 1.5 : 1;
+  const fill = hovered ? BLUE_DEEP : WHITE;
+  const stroke = hovered ? BLUE_DEEP : LINE;
+  const textFill = hovered ? WHITE : INK;
 
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${g.width}" height="${g.height}" viewBox="0 0 ${g.width} ${g.height}">` +
-    `<defs>${dropShadow('lkp-pin-shadow')}</defs>` +
-    `<g filter="url(#lkp-pin-shadow)">` +
-    // Pin first, so the label's white body always wins the overlap if a
-    // future size change ever makes the two touch.
-    `<path d="${teardropPath({ cx: g.cx, cy: g.pinCy, r: g.pinR, tailW: g.tailW, tailH: g.tailH })}" ` +
-    `fill="${pinFill}" stroke="#FFFFFF" stroke-width="${(2 * g.scale).toFixed(2)}" stroke-linejoin="round" />` +
-    (label
-      ? `<rect x="${(g.cx - g.labelW / 2).toFixed(2)}" y="${g.pad}" width="${g.labelW}" height="${g.labelH}" ` +
-        `rx="${g.labelR}" fill="#FFFFFF" stroke="${labelStroke}" stroke-width="${labelStrokeWidth}" />`
-      : '') +
-    `</g>` +
-    glyphMarkup(kind.glyph, {
-      cx: g.cx,
-      cy: g.pinCy,
-      size: g.glyphSize,
-      stroke: '#FFFFFF',
-      strokeWidth: 2.4,
-    }) +
-    (label
-      ? `<text x="${g.cx.toFixed(2)}" y="${(g.pad + g.labelH / 2 + g.fontSize * 0.36).toFixed(2)}" ` +
-        `font-family="${FONT_STACK}" font-size="${g.fontSize.toFixed(2)}" font-weight="700" ` +
-        `fill="${INK_900}" text-anchor="middle">${label}</text>`
-      : '') +
+    `<defs>${dropShadow('lkp-tag-shadow')}</defs>` +
+    `<path d="${pillPath({ x: g.x, y: g.y, w: g.w, h: g.h, r: g.r, tailW: g.tailW, tailH: g.tailH })}" ` +
+    `fill="${fill}" stroke="${stroke}" stroke-width="1" stroke-linejoin="round" filter="url(#lkp-tag-shadow)" />` +
+    `<text x="${g.cx.toFixed(2)}" y="${(g.y + g.h / 2 + g.fontSize * 0.36).toFixed(2)}" ` +
+    `font-family="${FONT_STACK}" font-size="${g.fontSize.toFixed(2)}" font-weight="700" ` +
+    `fill="${textFill}" text-anchor="middle">${label}</text>` +
     `</svg>`;
 
   return {
-    url: svgDataUri(svg),
+    url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
     scaledSize: new google.maps.Size(g.width, g.height),
     anchor: new google.maps.Point(g.cx, g.tipY),
-  };
-}
-
-/**
- * Tally the marker kinds inside one cluster.
- *
- * Reads the `lukkaKind` property PropertyMap.js stamps onto each
- * google.maps.Marker at creation. Exported separately from
- * buildClusterIcon so the tally is testable without the Maps JS globals the
- * icon builder needs.
- */
-export function tallyClusterKinds(markers) {
-  const counts = {};
-  for (const marker of markers ?? []) {
-    const kind = marker?.lukkaKind ?? UNKNOWN_KIND;
-    if (!counts[kind.key]) counts[kind.key] = { kind, count: 0 };
-    counts[kind.key].count += 1;
-  }
-  return counts;
-}
-
-/**
- * Ring segments for a cluster, as {kind, count, drawn, offset} in pixels of
- * arc. Pure, for the same reason pricePinGeometry is: the proportionality
- * of the ring is the whole point of it and deserves a real test.
- */
-export function clusterRingSegments({ counts, radius, gapLen }) {
-  const entries = Object.values(counts)
-    .filter((entry) => entry.count > 0)
-    .sort((a, b) => b.count - a.count);
-  const sum = entries.reduce((acc, entry) => acc + entry.count, 0) || 1;
-  const circumference = 2 * Math.PI * radius;
-  // A visible break between arcs only when there is more than one type; a
-  // single-type ring stays an unbroken circle.
-  const gap = entries.length > 1 ? gapLen : 0;
-
-  let offset = 0;
-  const segments = entries.map((entry) => {
-    const arc = (entry.count / sum) * circumference;
-    const segment = { kind: entry.kind, count: entry.count, drawn: Math.max(arc - gap, 0.5), offset };
-    offset += arc;
-    return segment;
-  });
-
-  return { segments, circumference };
-}
-
-/**
- * A cluster bubble: white disc, count in ink, wrapped in a ring split into
- * one arc per property type present, sized by how many of each the cluster
- * holds. The ring is the honest answer to "what is under this number" — a
- * cluster of eight flats reads as one solid blue ring, a genuinely mixed
- * area reads as a segmented one, and neither requires zooming in to find
- * out.
- */
-export function buildClusterIcon({ counts, total }) {
-  // Grows with the cluster but flattens fast — a 40-property cluster must
-  // not become a disc that swallows its own neighbourhood.
-  const r = 17 + Math.min(Math.log2(Math.max(total, 1)) * 2.6, 11);
-  const ringWidth = 4;
-  const ringR = r - ringWidth / 2;
-  const pad = 4;
-  const size = Math.round((r + pad) * 2);
-  const c = size / 2;
-
-  const { segments, circumference } = clusterRingSegments({
-    counts,
-    radius: ringR,
-    gapLen: Math.min(2 * Math.PI * ringR * 0.02, 3),
-  });
-
-  const ring = segments
-    .map(
-      (segment) =>
-        `<circle cx="${c}" cy="${c}" r="${ringR.toFixed(2)}" fill="none" stroke="${segment.kind.color}" ` +
-        `stroke-width="${ringWidth}" stroke-linecap="butt" ` +
-        `stroke-dasharray="${segment.drawn.toFixed(2)} ${(circumference - segment.drawn).toFixed(2)}" ` +
-        `stroke-dashoffset="${(-segment.offset).toFixed(2)}" transform="rotate(-90 ${c} ${c})" />`,
-    )
-    .join('');
-
-  const fontSize = total >= 100 ? r * 0.66 : r * 0.78;
-
-  const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">` +
-    `<defs>${dropShadow('lkp-cluster-shadow', { dy: 1, blur: 2, opacity: 0.22 })}</defs>` +
-    `<circle cx="${c}" cy="${c}" r="${r.toFixed(2)}" fill="#FFFFFF" filter="url(#lkp-cluster-shadow)" />` +
-    ring +
-    `<text x="${c}" y="${(c + fontSize * 0.35).toFixed(2)}" font-family="${FONT_STACK}" ` +
-    `font-size="${fontSize.toFixed(2)}" font-weight="700" fill="${INK_900}" text-anchor="middle">${total}</text>` +
-    `</svg>`;
-
-  return {
-    url: svgDataUri(svg),
-    scaledSize: new google.maps.Size(size, size),
-    anchor: new google.maps.Point(c, c),
-  };
-}
-
-/**
- * MarkerClusterer's `renderer` contract: one google.maps.Marker per cluster.
- * Defined here rather than inline in PropertyMap.js so the whole visual
- * vocabulary of the map — pins and clusters — lives in one file.
- */
-export function createClusterRenderer() {
-  return {
-    render({ count, position, markers }) {
-      return new google.maps.Marker({
-        position,
-        icon: buildClusterIcon({ counts: tallyClusterKinds(markers), total: count }),
-        // Above every price pin, and higher for bigger clusters, so a large
-        // cluster is never hidden behind a small one it overlaps.
-        zIndex: Number(google.maps.Marker.MAX_ZINDEX) + count,
-        title: `${count} biens`,
-      });
-    },
   };
 }

@@ -2,10 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader';
-import { MarkerClusterer } from '@googlemaps/markerclusterer';
 import { resolveListingLocation, KINSHASA_CENTER } from '@/lib/geocoding';
-import { buildPricePinIcon, createClusterRenderer } from '@/lib/mapIcons';
-import { resolveMarkerKind, LEGEND_KINDS } from '@/lib/mapMarkerKinds';
+import { buildPricePinIcon, priceZIndex } from '@/lib/mapIcons';
+import { spreadColocatedPins } from '@/lib/mapPinSpread';
 import { MAP_STYLES } from '@/lib/mapStyle';
 import { NO_PHOTO_URL } from '@/lib/constants';
 import { formatPrice, formatCdfCompact } from '@/lib/format';
@@ -79,45 +78,6 @@ function buildInfoWindowContent(listing, cdfPerUsd) {
 }
 
 /**
- * The key for the pin colours. Without it the colour coding is decoration —
- * a blue dot and an orange dot only mean "appartement" and "terrain" if the
- * map says so somewhere.
- *
- * Rendered as real DOM over the map canvas rather than a Maps API custom
- * control, for the same reason MobileMapOverlay is a sibling element: it
- * then styles with this app's own tokens and needs no Maps globals.
- *
- * `top-16` on mobile, `lg:top-3` on desktop, and that split is load-bearing
- * rather than cosmetic. MobileMapOverlay's "Affichage de X sur Y biens"
- * badge is centred at `top-4` and is `lg:hidden`; on a 375px viewport it is
- * wide enough to reach the left edge of the map, so a legend at `top-3`
- * sits directly underneath it and its first two rows become unreadable.
- * Caught on the real phone-width production page, not in desktop review,
- * where the badge does not render at all. Below the badge on mobile, back
- * to the top corner on desktop. The bottom edge is not an option on either:
- * the Liste button (bottom centre, mobile) and Google's own attribution
- * (bottom, always) already own it.
- */
-function MapLegend() {
-  return (
-    <div className="u-lift pointer-events-none absolute left-3 top-16 z-20 rounded-xl border border-line bg-surface/95 px-2.5 py-2 backdrop-blur-md lg:top-3">
-      <ul className="flex flex-col gap-1">
-        {LEGEND_KINDS.map((kind) => (
-          <li key={kind.key} className="flex items-center gap-1.5 whitespace-nowrap text-[0.6875rem] font-medium text-ink-45">
-            <span
-              aria-hidden="true"
-              className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-              style={{ backgroundColor: kind.color }}
-            />
-            {kind.label}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-/**
  * Interactive property map (product task #55): real Google Maps rendering,
  * clustered markers, and an InfoWindow property-card preview on click.
  * Pin positions come from lib/geocoding.js's resolution pipeline (real
@@ -131,7 +91,6 @@ const MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoom }) {
   const { cdfPerUsd } = useCdfRate();
   const mapElementRef = useRef(null);
-  const clustererRef = useRef(null);
   // id -> google.maps.Marker, rebuilt each time the main geocoding effect
   // runs. Read/written by the separate hover-only effect below, which must
   // never trigger a re-run of that effect (see its own comment).
@@ -153,8 +112,10 @@ export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoo
     setOptions({ key: MAPS_API_KEY, v: 'weekly' });
 
     // Once these resolve, the classes are also on the global `google.maps`
-    // namespace (per the loader's own docs) — used that way below since
-    // @googlemaps/markerclusterer expects that global to already exist.
+    // namespace (per the loader's own docs), which is how they are used
+    // below and inside lib/mapIcons.js. (This used to be justified by
+    // @googlemaps/markerclusterer needing that global; clustering is gone,
+    // but the global is still the API surface the rest of this file uses.)
     Promise.all([importLibrary('maps'), importLibrary('geocoding'), importLibrary('marker')])
       .then(async () => {
         if (cancelled || !mapElementRef.current) return;
@@ -199,6 +160,12 @@ export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoo
         const markers = [];
         markersRef.current = new Map();
 
+        // Two passes. Every position has to be known before ANY marker is
+        // placed, because spreadColocatedPins needs to see the whole set to
+        // tell which pins share a spot — that is not decidable one listing
+        // at a time. Resolution is still sequential (below), so the
+        // "X / Y biens localisés" progress still advances as it goes.
+        const resolved = [];
         for (const listing of listings) {
           if (cancelled) break;
 
@@ -210,18 +177,32 @@ export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoo
           );
           if (location.source === 'unresolved') continue;
 
-          const position = { lat: location.lat, lng: location.lng };
+          resolved.push({ listing, lat: location.lat, lng: location.lng });
+          setResolvedTotal((prev) => ({ ...prev, resolved: prev.resolved + 1 }));
+        }
+
+        if (cancelled) return;
+
+        const positions = spreadColocatedPins(
+          resolved.map(({ listing, lat, lng }) => ({ id: listing.id, lat, lng })),
+        );
+
+        for (const { listing } of resolved) {
+          const placed = positions.get(listing.id);
+          if (!placed) continue;
+          const position = { lat: placed.lat, lng: placed.lng };
+
+          // `map` is passed straight to the constructor now. It used to be
+          // omitted because MarkerClusterer owned adding and removing
+          // markers from the map; with clustering gone, every marker has to
+          // put itself on the map and take itself off again (see cleanup).
           const marker = new google.maps.Marker({
+            map,
             position,
             title: listing.title,
             icon: buildPricePinIcon({ listing }),
+            zIndex: priceZIndex(listing.price),
           });
-          // Stamped on the marker itself so the cluster renderer can tally
-          // the property types under a bubble without carrying a second
-          // id -> listing lookup into MarkerClusterer's callback (which is
-          // handed markers, not listings). A plain property, not
-          // marker.set(): this is our own metadata, never a Maps API option.
-          marker.lukkaKind = resolveMarkerKind(listing);
           marker.addListener('click', () => {
             infoWindow.setContent(buildInfoWindowContent(listing, cdfPerUsd));
             infoWindow.open({ map, anchor: marker });
@@ -236,12 +217,7 @@ export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoo
           markers.push(marker);
           markersRef.current.set(listing.id, marker);
           bounds.extend(position);
-          setResolvedTotal((prev) => ({ ...prev, resolved: prev.resolved + 1 }));
         }
-
-        if (cancelled) return;
-
-        clustererRef.current = new MarkerClusterer({ map, markers, renderer: createClusterRenderer() });
 
         if (markers.length > 0) {
           map.fitBounds(bounds, 48);
@@ -262,7 +238,12 @@ export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoo
 
     return () => {
       cancelled = true;
-      clustererRef.current?.clearMarkers();
+      // MarkerClusterer.clearMarkers() used to do this. Without it, a
+      // re-run (new filters, new page of results) would leave every
+      // previous marker on the map and stack stale price tags on top of
+      // the current ones.
+      for (const marker of markersRef.current.values()) marker.setMap(null);
+      markersRef.current = new Map();
     };
     // `listings` is the array from the current page's data fetch — a new
     // array reference each server render, which is exactly when the map
@@ -335,7 +316,6 @@ export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoo
         </div>
       )}
       <div ref={mapElementRef} className="h-full w-full" />
-      {status === 'ready' && <MapLegend />}
     </div>
   );
 }

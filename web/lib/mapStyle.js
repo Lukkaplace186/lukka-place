@@ -14,28 +14,31 @@
  * property portals do: green parks and vegetation, genuinely blue water, a
  * warm paper canvas, and a road hierarchy where motorways/arterials read
  * warmer and heavier than local streets. Everything is still muted a stop
- * below a stock Google basemap so the colour-coded property pins
- * (lib/mapMarkerKinds.js) stay the most saturated thing on screen — the pins
- * are the content, the map is the context.
+ * below a stock Google basemap, and that restraint matters MORE now that the
+ * markers are white price tags (lib/mapIcons.js) rather than saturated
+ * colour-coded pins: a white tag needs a calm, mid-value ground to read
+ * against, and a stock-saturation basemap would swallow it. The tags are the
+ * content, the map is the context.
  *
  * POI *icons* and transit stay off for that same reason: a field of Google's
- * own category pins competes directly with ours. Park and water labels are
- * kept, because those are the landmarks people actually navigate Kinshasa by.
+ * own category pins competes directly with the price tags. Park and water
+ * labels are kept, because those are the landmarks people actually navigate
+ * Kinshasa by.
  *
  * Values are hardcoded hexes rather than CSS custom properties because this
  * array is handed to the Maps JS API, which resolves nothing from the
  * document's stylesheet.
  *
  * Uses the classic JSON `styles` array (not a Cloud-console Map ID). That is
- * deliberate: a Map ID would also force AdvancedMarkerElement, and the
- * clustering here runs against classic google.maps.Marker instances. It is
+ * deliberate: a Map ID would also force AdvancedMarkerElement, and the price
+ * tags here are classic google.maps.Marker instances. It is
  * also why this is not a Mapbox style — the app renders with the Google Maps
  * JS API and a referrer-restricted Google key, so a Mapbox style URL would
  * need a second vendor, a second key and a rewrite of PropertyMap.js.
  */
 
-// Paper, not white: a hair of warmth so the white pin labels and the white
-// cluster discs read as raised objects rather than holes in the canvas.
+// Paper, not white: a hair of warmth so the white price tags read as raised
+// objects sitting on the map rather than holes punched through it.
 const CANVAS = '#F7F5F0';
 const CANVAS_ALT = '#F1EEE7';
 const INK = '#2A3040';
@@ -64,7 +67,7 @@ export const MAP_STYLES = [
   { elementType: 'labels.text.fill', stylers: [{ color: INK_SOFT }] },
   { elementType: 'labels.text.stroke', stylers: [{ color: HALO }] },
 
-  // Google's own category icons compete with the property pins; the labels
+  // Google's own category icons compete with the price tags; the labels
   // for parks and water below are kept because they are real landmarks.
   { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
   { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },

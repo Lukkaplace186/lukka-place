@@ -73,7 +73,8 @@ export default async function MessagesPage() {
       <div>
         <PortalSectionHeading
           title={t('account.portal.tabs.messages')}
-          lead="Vos échanges avec les agences partenaires, y compris le suivi de vos demandes de visite."
+          lead={t('account.requests.emptyLead')}
+          sublead={t('account.requests.trackHelp')}
           className="mb-7"
         />
         <PortalEmpty
@@ -143,7 +144,8 @@ export default async function MessagesPage() {
     <div>
       <PortalSectionHeading
         title={t('account.portal.tabs.messages')}
-        lead={`${threads.length} échange${threads.length > 1 ? 's' : ''} avec les agences partenaires.`}
+        lead={t('account.requests.exchangeCount', { count: threads.length })}
+        sublead={t('account.requests.trackHelp')}
         className="mb-7"
       />
       <InquiryThreads

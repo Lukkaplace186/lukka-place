@@ -992,7 +992,25 @@
       "proposedBy": {
         "one": "Property proposed by",
         "other": "Properties proposed by"
-      }
+      },
+      "trackHelp": "Track the status of your property requests and chat directly with agencies.",
+      "exchangeCount": {
+        "one": "{count} exchange with our partner agencies.",
+        "other": "{count} exchanges with our partner agencies."
+      },
+      "emptyLead": "Your exchanges with partner agencies, including tracking for your viewing requests.",
+      "back": "Back to your enquiries",
+      "stepDescriptions": {
+        "sent": "Your request was received and saved to your account.",
+        "broadcast": "We shared your request with the partner agencies covering this search.",
+        "analysingWithCommune": "Partner agencies in {commune} are reviewing your request and checking their available listings.",
+        "analysing": "Partner agencies are reviewing your request and checking their available listings.",
+        "interested": {
+          "one": "{count} agency has proposed a property — see it below and reach out directly.",
+          "other": "{count} agencies have proposed a property — see them below and reach out directly."
+        }
+      },
+      "viewProposalsBelow": "View proposals below"
     },
     "requestForm": {
       "title": "Find one for me",
@@ -1420,7 +1438,8 @@
       "accountExists": "An account already exists with this number.",
       "otpFailed": "Sending the verification code failed — please try again.",
       "badCredentials": "Incorrect number or password.",
-      "locked": "Too many attempts — try again in 15 minutes."
+      "locked": "Too many attempts — try again in 15 minutes.",
+      "expiredAttempt": "That verification expired — please sign up again."
     },
     "activate": {
       "expiredBody": "This activation link is no longer valid — it may already have been used, or it has passed its expiry. Your properties are still saved: only dashboard access is pending.",
@@ -1453,7 +1472,18 @@
     "enterSixDigitCode": "Enter the 6-digit code you received on WhatsApp.",
     "verify": "Verify",
     "signupKeepsLocal": "The saved listings and searches already on this device will be kept.",
-    "newCodeSent": "A new code has been sent."
+    "newCodeSent": "A new code has been sent.",
+    "phonePlaceholder": "Your number without the country code",
+    "countryCode": "Country code",
+    "searchCountry": "Search for a country",
+    "noCountryFound": "No country found",
+    "codeSentTo": "Enter the 6-digit code sent on WhatsApp to {phone}.",
+    "wrongNumber": "That’s not my number — start over",
+    "resend": {
+      "sending": "Sending…",
+      "retryIn": "Resend the code in {seconds}s",
+      "now": "Resend the code"
+    }
   },
   "updates": {
     "title": "Updates",

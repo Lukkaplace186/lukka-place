@@ -26,8 +26,13 @@ export function PortalPanel({ as: Tag = 'section', className = '', children, ...
 /**
  * The design's page-section header: a DM Serif display title over a muted
  * one-line lead, with an optional action pinned to the right.
+ *
+ * `sublead` is an optional second, quieter line — for a short "how to use
+ * this tab" helper that shouldn't compete with `lead`'s own real, specific
+ * fact (a count, a status). Additive and opt-in: every existing call site
+ * omits it and renders exactly as before.
  */
-export function PortalSectionHeading({ title, lead, action, className = '' }) {
+export function PortalSectionHeading({ title, lead, sublead, action, className = '' }) {
   return (
     <div className={cn('flex flex-wrap items-end justify-between gap-6', className)}>
       <div>
@@ -35,6 +40,7 @@ export function PortalSectionHeading({ title, lead, action, className = '' }) {
           {title}
         </h2>
         {lead ? <p className="mt-2 text-[0.875rem] leading-[1.55] text-ink-45">{lead}</p> : null}
+        {sublead ? <p className="mt-1 text-[0.8125rem] leading-[1.5] text-ink-35">{sublead}</p> : null}
       </div>
       {action ? <div className="shrink-0">{action}</div> : null}
     </div>

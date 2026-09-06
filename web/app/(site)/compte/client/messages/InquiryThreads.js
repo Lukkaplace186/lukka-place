@@ -2,7 +2,18 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { MessageCircle, ArrowUpRight, ImageIcon, Inbox, CalendarDays, Check, Phone, BedDouble, MapPin } from 'lucide-react';
+import {
+  MessageCircle,
+  ArrowUpRight,
+  ArrowLeft,
+  ImageIcon,
+  Inbox,
+  CalendarDays,
+  Check,
+  Phone,
+  BedDouble,
+  MapPin,
+} from 'lucide-react';
 import SafeImage from '@/components/SafeImage';
 import { PortalPanel, PortalBadge } from '@/components/ClientPortalUI';
 import { buildWhatsAppLink } from '@/lib/whatsapp';
@@ -54,6 +65,15 @@ function customSearchTitle(thread, t) {
  * (`proposals`) — the step's own label carries the live count instead of a
  * capacity number a customer has no context for (the 7-pitch cap is an
  * internal per-request pitch cap, not something to expose here).
+ *
+ * Each step also carries a `description` — the tap-to-reveal micro-copy
+ * StatusTracker shows below the row. The last step's description uses the
+ * request's own real `commune` when there is one (never a fabricated area),
+ * and folds in the honest "jump to the proposals below" pointer once there
+ * actually are proposals — there is still no single agency to name here
+ * (see proposalWhatsAppHref's doc comment), so the CTA is an anchor into
+ * this same page's real per-proposal contact buttons, not a fabricated
+ * platform-wide WhatsApp link.
  */
 function customSearchTrackerSteps(thread, t) {
   const proposalsCount = thread.proposals?.length || 0;
@@ -61,52 +81,122 @@ function customSearchTrackerSteps(thread, t) {
     proposalsCount > 0
       ? t('account.requests.agenciesInterested', { count: proposalsCount })
       : t('account.requests.agenciesAnalysing');
+  const analysingDescription = thread.commune
+    ? t('account.requests.stepDescriptions.analysingWithCommune', { commune: thread.commune })
+    : t('account.requests.stepDescriptions.analysing');
+  const interestDescription =
+    proposalsCount > 0
+      ? t('account.requests.stepDescriptions.interested', { count: proposalsCount })
+      : analysingDescription;
   const steps = [
-    { label: t('account.requests.stages.sent'), done: true },
-    { label: t('account.requests.stages.broadcast'), done: true },
-    { label: interestLabel, done: proposalsCount > 0 },
+    { label: t('account.requests.stages.sent'), description: t('account.requests.stepDescriptions.sent'), done: true },
+    {
+      label: t('account.requests.stages.broadcast'),
+      description: t('account.requests.stepDescriptions.broadcast'),
+      done: true,
+    },
+    { label: interestLabel, description: interestDescription, done: proposalsCount > 0, hasProposals: proposalsCount > 0 },
   ];
   const currentIndex = steps.findIndex((step) => !step.done);
   const activeIndex = currentIndex === -1 ? steps.length - 1 : currentIndex;
   return steps.map((step, index) => ({ ...step, current: index === activeIndex }));
 }
 
-function StatusTracker({ steps }) {
+/**
+ * Each step is a real tap target (not just a static dot), opening a shared
+ * description panel below the row rather than a per-node floating tooltip —
+ * a tooltip pinned above/below the *last* node in a 3-wide row has nowhere
+ * good to go on a 375px viewport (the exact class of overflow bug the mobile
+ * layout fix elsewhere in this file exists to prevent). Defaults open on the
+ * step the tracker itself considers "current", so the micro-copy a customer
+ * actually needs ("what does 'agencies reviewing' mean?") is visible without
+ * requiring a tap — tapping any step (including the open one, to collapse
+ * it) still works exactly as asked.
+ *
+ * `key={activeThreadId}` from the parent remounts this on every thread
+ * switch, so `expandedIndex` doesn't carry the previous thread's open step
+ * into a new one.
+ */
+function StatusTracker({ steps, onProposalsClick, viewProposalsLabel }) {
+  const currentIndex = steps.findIndex((step) => step.current);
+  const [expandedIndex, setExpandedIndex] = useState(currentIndex);
+  const expanded = steps[expandedIndex] || null;
+
   return (
-    <div className="flex items-start">
-      {steps.map((step, index) => (
-        <div key={step.label} className="flex flex-1 items-start last:flex-none">
-          <div className="flex w-16 shrink-0 flex-col items-center gap-2 text-center sm:w-20">
-            <span
-              className={cn(
-                'grid h-7 w-7 shrink-0 place-items-center rounded-full text-[0.75rem] font-bold',
-                step.done
-                  ? 'bg-blue text-white'
-                  : step.current
-                    ? 'bg-blue-tint text-blue-deep shadow-[inset_0_0_0_1.5px_var(--blue)]'
-                    : 'bg-canvas-deep text-ink-35',
-              )}
-            >
-              {step.done ? (
-                <Check strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
-              ) : (
-                index + 1
-              )}
-            </span>
-            <span
-              className={cn(
-                'text-[0.6875rem] font-semibold leading-tight',
-                step.done || step.current ? 'text-ink' : 'text-ink-35',
-              )}
-            >
-              {step.label}
-            </span>
-          </div>
-          {index < steps.length - 1 ? (
-            <div className={cn('mt-3.5 h-px flex-1', step.done ? 'bg-blue' : 'bg-line')} />
+    <div>
+      <div className="flex items-start">
+        {steps.map((step, index) => {
+          const isOpen = expandedIndex === index;
+          return (
+            <div key={step.label} className="flex flex-1 items-start last:flex-none">
+              <button
+                type="button"
+                // Functional updater, not `isOpen ? null : index`: `isOpen`
+                // is a stale closure over the render that produced this
+                // button. Two clicks landing before React re-renders (a fast
+                // double-tap, or two synthetic events in the same tick) would
+                // both read the same pre-click `isOpen` and both apply the
+                // same toggle, cancelling out instead of the second click
+                // reversing the first. Reading `current` fresh from state
+                // avoids that regardless of batching.
+                onClick={() => setExpandedIndex((current) => (current === index ? null : index))}
+                aria-expanded={isOpen}
+                aria-controls="tracker-step-description"
+                className="flex min-h-11 w-16 shrink-0 flex-col items-center gap-2 rounded-md p-1 text-center transition-colors hover:bg-canvas-alt focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue sm:w-20"
+              >
+                <span
+                  className={cn(
+                    'grid h-7 w-7 shrink-0 place-items-center rounded-full text-[0.75rem] font-bold',
+                    step.done
+                      ? 'bg-blue text-white'
+                      : step.current
+                        ? 'bg-blue-tint text-blue-deep shadow-[inset_0_0_0_1.5px_var(--blue)]'
+                        : 'bg-canvas-deep text-ink-35',
+                  )}
+                >
+                  {step.done ? (
+                    <Check strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
+                  ) : (
+                    index + 1
+                  )}
+                </span>
+                <span
+                  className={cn(
+                    'text-[0.6875rem] font-semibold leading-tight underline decoration-dotted decoration-1 underline-offset-2',
+                    step.done || step.current ? 'text-ink' : 'text-ink-35',
+                    isOpen && 'no-underline',
+                  )}
+                >
+                  {step.label}
+                </span>
+              </button>
+              {index < steps.length - 1 ? (
+                <div className={cn('mt-3.5 h-px flex-1', step.done ? 'bg-blue' : 'bg-line')} />
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+      {expanded ? (
+        <p
+          id="tracker-step-description"
+          className="mt-4 border-t border-line pt-4 text-[0.8125rem] leading-[1.55] text-ink-70"
+        >
+          {expanded.description}
+          {expanded.hasProposals ? (
+            <>
+              {' '}
+              <button
+                type="button"
+                onClick={onProposalsClick}
+                className="font-semibold text-blue-deep underline hover:no-underline"
+              >
+                {viewProposalsLabel}
+              </button>
+            </>
           ) : null}
-        </div>
-      ))}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -229,6 +319,24 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
   const [activeId, setActiveId] = useState(threads[0]?.id ?? null);
   const active = threads.find((t) => t.id === activeId) || threads[0] || null;
 
+  // Mobile drill-down: `active` above is basically always set (this
+  // component only renders once `threads` is non-empty), so gating the
+  // detail pane on it alone would show a thread's full detail on first
+  // paint even on a phone — the exact "list and detail both open at once"
+  // clutter this state exists to fix. `mobileDetailOpen` tracks whether the
+  // customer has actually tapped into a thread on THIS visit; it is inert
+  // at `lg:` and up, where both panes show side by side as before.
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(false);
+
+  function selectThread(id) {
+    setActiveId(id);
+    setMobileDetailOpen(true);
+  }
+
+  function scrollToProposals() {
+    document.getElementById('customer-proposals')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
   // Same two viewing-specific actions the old standalone "Visites
   // planifiées" page offered — reschedule/cancel, not a generic "continue
   // the conversation" — kept verbatim now that a viewing lead renders inline
@@ -272,7 +380,10 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
   // full untruncated text width as min-content unless it can shrink.
   return (
     <PortalPanel className="grid grid-cols-1 overflow-hidden lg:min-h-[36rem] lg:grid-cols-[22.5rem_minmax(0,1fr)]">
-      <div className="flex flex-col border-b border-line lg:border-b-0 lg:border-r">
+      {/* Hidden once a thread is open on a phone — see mobileDetailOpen
+          above. `lg:flex` always wins back at the desktop breakpoint, where
+          this pane and the detail pane show side by side regardless. */}
+      <div className={cn('flex-col border-b border-line lg:flex lg:border-b-0 lg:border-r', mobileDetailOpen ? 'hidden' : 'flex')}>
         <div className="px-5 py-4">
           <p className="u-eyebrow">{t('account.requests.yourRequests')}</p>
         </div>
@@ -288,11 +399,20 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
               <button
                 key={thread.id}
                 type="button"
-                onClick={() => setActiveId(thread.id)}
+                onClick={() => selectThread(thread.id)}
                 aria-current={isActive ? 'true' : undefined}
                 className={cn(
-                  'flex w-full items-start gap-3.5 border-b border-line px-5 py-4 text-left transition-colors',
-                  isActive ? 'bg-blue-tint' : 'hover:bg-canvas-alt',
+                  // A permanently-reserved 3px left border (transparent when
+                  // inactive) is the selection indicator — coloured in for
+                  // the active thread without ever shifting the row's
+                  // content by those 3px the way adding the border only on
+                  // selection would. `active:` is the real tap-feedback
+                  // pseudo-class on a touch device; `hover:` mostly doesn't
+                  // fire there at all.
+                  'flex w-full items-start gap-3.5 border-b border-line border-l-[3px] px-5 py-4 text-left transition-colors',
+                  isActive
+                    ? 'border-l-blue bg-blue-tint'
+                    : 'border-l-transparent hover:bg-canvas-alt active:bg-blue-tint',
                 )}
               >
                 <Thumbnail src={thread.listing?.image || null} alt="" className="h-[3.25rem] w-[3.25rem]" />
@@ -327,7 +447,21 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
       </div>
 
       {active ? (
-        <div className="flex flex-col bg-canvas-alt">
+        // Shown only once a thread is open on a phone (mirrors the list
+        // pane's own gating above); always shown at `lg:` regardless, same
+        // as before this drill-down existed. `animate-in` is a real,
+        // functional transition (which pane the customer is looking at just
+        // changed) rather than decorative, so it isn't gated through
+        // useMotionSafe() the way lib/motion.js's hover/reveal presets are.
+        <div className={cn('flex-col bg-canvas-alt lg:flex', mobileDetailOpen ? 'flex animate-in fade-in slide-in-from-right-2 duration-150' : 'hidden')}>
+          <button
+            type="button"
+            onClick={() => setMobileDetailOpen(false)}
+            className="flex min-h-11 items-center gap-1.5 border-b border-line bg-surface px-4 text-[0.8125rem] font-semibold text-blue-deep lg:hidden"
+          >
+            <ArrowLeft strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
+            {t('common.actions.back')}
+          </button>
           <div className="flex flex-wrap items-center gap-4 border-b border-line bg-surface px-6 py-4">
             <Thumbnail src={active.listing?.image || null} alt="" className="h-[3.25rem] w-16" />
             {/* basis, not min-width: a hard 240px minimum plus the thumbnail,
@@ -391,7 +525,15 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
           <div className="flex flex-1 flex-col gap-5 p-6">
             {!active.listing ? (
               <div className="rounded-card bg-surface p-5 shadow-[var(--hairline)]">
-                <StatusTracker steps={customSearchTrackerSteps(active, t)} />
+                {/* `key` remounts the tracker (and its internal expanded-step
+                    state) on every thread switch — see StatusTracker's doc
+                    comment. */}
+                <StatusTracker
+                  key={active.id}
+                  steps={customSearchTrackerSteps(active, t)}
+                  onProposalsClick={scrollToProposals}
+                  viewProposalsLabel={t('account.requests.viewProposalsBelow')}
+                />
               </div>
             ) : null}
 
@@ -488,7 +630,7 @@ export default function InquiryThreads({ threads, whatsappNumber, communes = [],
             ) : null}
 
             {active.proposals?.length > 0 && (
-              <div className="flex flex-col gap-3">
+              <div id="customer-proposals" className="flex scroll-mt-4 flex-col gap-3">
                 <p className="u-eyebrow">
                   {t('account.requests.proposedBy', { count: active.proposals.length })}
                   {t('account.requests.ourAgents')}

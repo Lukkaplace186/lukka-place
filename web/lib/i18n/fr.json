@@ -992,7 +992,25 @@
       "proposedBy": {
         "one": "Bien proposé par",
         "other": "Biens proposés par"
-      }
+      },
+      "trackHelp": "Suivez le statut de vos demandes et échangez directement avec les agences.",
+      "exchangeCount": {
+        "one": "{count} échange avec les agences partenaires.",
+        "other": "{count} échanges avec les agences partenaires."
+      },
+      "emptyLead": "Vos échanges avec les agences partenaires, y compris le suivi de vos demandes de visite.",
+      "back": "Retour à vos demandes",
+      "stepDescriptions": {
+        "sent": "Votre demande a été reçue et enregistrée sur votre compte.",
+        "broadcast": "Nous avons transmis votre demande aux agences partenaires de cette recherche.",
+        "analysingWithCommune": "Les agences partenaires de {commune} examinent votre demande et vérifient leurs biens disponibles.",
+        "analysing": "Les agences partenaires examinent votre demande et vérifient leurs biens disponibles.",
+        "interested": {
+          "one": "{count} agence a proposé un bien — consultez-le ci-dessous et contactez-la directement.",
+          "other": "{count} agences ont proposé un bien — consultez-les ci-dessous et contactez-les directement."
+        }
+      },
+      "viewProposalsBelow": "Voir les propositions ci-dessous"
     },
     "requestForm": {
       "title": "Trouver pour moi",
@@ -1420,7 +1438,8 @@
       "accountExists": "Un compte existe déjà avec ce numéro.",
       "otpFailed": "L'envoi du code de vérification a échoué — réessayez.",
       "badCredentials": "Numéro ou mot de passe incorrect.",
-      "locked": "Trop de tentatives — réessayez dans 15 minutes."
+      "locked": "Trop de tentatives — réessayez dans 15 minutes.",
+      "expiredAttempt": "Cette vérification a expiré — recommencez l’inscription."
     },
     "activate": {
       "expiredBody": "Ce lien d’activation n’est plus valable — il a peut-être déjà été utilisé, ou il a dépassé sa durée de validité. Vos biens restent enregistrés : seul l’accès au tableau de bord attend.",
@@ -1453,7 +1472,18 @@
     "enterSixDigitCode": "Entrez le code à 6 chiffres reçu sur WhatsApp.",
     "verify": "Vérifier",
     "signupKeepsLocal": "Vos favoris et recherches déjà enregistrés sur cet appareil seront conservés.",
-    "newCodeSent": "Un nouveau code a été envoyé."
+    "newCodeSent": "Un nouveau code a été envoyé.",
+    "phonePlaceholder": "Votre numéro sans l’indicatif",
+    "countryCode": "Indicatif pays",
+    "searchCountry": "Rechercher un pays",
+    "noCountryFound": "Aucun pays trouvé",
+    "codeSentTo": "Entrez le code à 6 chiffres envoyé sur WhatsApp au {phone}.",
+    "wrongNumber": "Ce n’est pas mon numéro — recommencer",
+    "resend": {
+      "sending": "Envoi en cours…",
+      "retryIn": "Renvoyer le code dans {seconds} s",
+      "now": "Renvoyer le code"
+    }
   },
   "updates": {
     "title": "Actualités",

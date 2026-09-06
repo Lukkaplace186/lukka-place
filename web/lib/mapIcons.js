@@ -6,8 +6,12 @@
 // `google.maps.Size`/`Point`, same as the rest of PropertyMap.js).
 //
 // Shape: the dense price-tag pattern the reference portals use — a compact
-// white rounded rectangle carrying the price in bold ink, with a short tail
-// beneath it. Body and tail are one unioned path so the border traces a
+// rounded rectangle carrying the price, with a short tail beneath it. It is
+// filled in the brand's royal blue with white text rather than the
+// reference portals' white-on-dark-text, on an explicit branding decision:
+// the map is the densest single screen on the site, so it is also the
+// cheapest place to make the brand colour read at a glance.
+// Body and tail are one unioned path so the border traces a
 // continuous outline with no seam where the two meet, and `anchor` sits at
 // the tail's own tip, so the marker points at its coordinate rather than
 // floating centred over it.
@@ -24,12 +28,15 @@
 // never inserted into the DOM as a real element, so no Tailwind class can
 // ever apply to it. The SVG attributes below are the actual mechanism that
 // produces that same visual result, using this app's own palette values
-// (`--ink`, `--line`, `--blue-deep`) rather than Tailwind's slate scale.
+// (`--blue`, `--blue-900`) rather than Tailwind's slate scale.
 import { usablePrice } from './format';
 
-const INK = '#0B1120'; // --ink, this app's near-black (Tailwind slate-900's role)
-const LINE = '#E2E6EF'; // --line, the app's hairline (Tailwind slate-200's role)
-const BLUE_DEEP = '#16307E'; // --blue-deep, the established "selected" accent
+const INK = '#0B1120'; // --ink, only used for the drop shadow now
+// The royal ladder, straight out of app/globals.css. Its own comment there
+// has already computed the contrast: white text on --blue is 7.9:1, which
+// passes AAA, so this is a legitimate fill for text at tag size.
+const BLUE = '#1E3AA8'; // --blue (royal-600), the brand fill — resting tag
+const BLUE_PRESSED = '#0C1D50'; // --blue-900, the darkest step — active tag
 const WHITE = '#FFFFFF';
 const FONT_STACK = 'Arial, Helvetica, sans-serif';
 
@@ -43,11 +50,14 @@ const FONT_STACK = 'Arial, Helvetica, sans-serif';
  * understatement on the single number a visitor scans a map for, and it
  * collapsed the entire mid-market rent band (1 000-1 499) onto one label.
  *
- * Currency sits AFTER the amount with a decimal comma ("1,2k $/m"), not
- * before it ("$1.2k/m"). That is the French convention this whole app
- * already renders prices in — lib/format.js's formatPrice, every card, every
- * detail page — and a map pin reading differently from the card beside it
- * for the same listing would look like a bug.
+ * Currency sits AFTER the amount with a decimal comma, and — unlike
+ * everywhere else in this app — with NO space before it: "1,2k$/m", not
+ * "1,2k $/m". That is a deliberate, map-only exception to the French
+ * spacing lib/format.js uses on cards and detail pages. A tag is ~40px of
+ * map real estate that has to stay readable in a crowded field, and the
+ * thin space is the cheapest character to spend. The order (amount, then
+ * currency) still matches the rest of the app, so the tag and the card
+ * beside it still read as the same price.
  *
  * Guards through usablePrice for the same reason every other price render
  * does: `properties.price` is nullable, and Number(null) is 0, so an
@@ -69,7 +79,7 @@ export function compactPrice(price, purpose) {
     label = `${Math.round(amount / 1000)}k`;
   }
 
-  return purpose === 'rent' ? `${label} $/m` : `${label} $`;
+  return purpose === 'rent' ? `${label}$/m` : `${label}$`;
 }
 
 /**
@@ -159,8 +169,8 @@ export function pricePinGeometry({ label, hovered = false }) {
  *
  * @param {object} listing - the listing itself, so the label can never be
  *   built from a different record than the marker it belongs to.
- * @param {boolean} [hovered] - the hover/active treatment: deep brand blue
- *   fill with white text, scaled up slightly.
+ * @param {boolean} [hovered] - the hover/active treatment: the darkest step
+ *   of the royal ladder, a fuller white ring, scaled up slightly.
  */
 export function buildPricePinIcon({ listing, hovered = false }) {
   // "N.C." (non communiqué) rather than an empty tag. compactPrice returns
@@ -172,15 +182,24 @@ export function buildPricePinIcon({ listing, hovered = false }) {
   const label = compactPrice(listing?.price, listing?.purpose) || 'N.C.';
   const g = pricePinGeometry({ label, hovered });
 
-  const fill = hovered ? BLUE_DEEP : WHITE;
-  const stroke = hovered ? BLUE_DEEP : LINE;
-  const textFill = hovered ? WHITE : INK;
+  // Resting is --blue; active steps to --blue-900 rather than the ladder's
+  // usual --blue-deep hover. --blue-deep sits one step from --blue and the
+  // difference is invisible on a 40px tag — and this state is not decoration,
+  // it is the map half of the card<->map hover sync, so it has to be obvious
+  // at a glance. The white ring thickens with it for the same reason.
+  //
+  // The ring itself is not optional: a blue tag over the basemap's blue water
+  // (lib/mapStyle.js's --water) has almost no edge without it.
+  const fill = hovered ? BLUE_PRESSED : BLUE;
+  const stroke = hovered ? WHITE : 'rgba(255,255,255,0.92)';
+  const strokeWidth = hovered ? 1.75 : 1.25;
+  const textFill = WHITE;
 
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${g.width}" height="${g.height}" viewBox="0 0 ${g.width} ${g.height}">` +
     `<defs>${dropShadow('lkp-tag-shadow')}</defs>` +
     `<path d="${pillPath({ x: g.x, y: g.y, w: g.w, h: g.h, r: g.r, tailW: g.tailW, tailH: g.tailH })}" ` +
-    `fill="${fill}" stroke="${stroke}" stroke-width="1" stroke-linejoin="round" filter="url(#lkp-tag-shadow)" />` +
+    `fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linejoin="round" filter="url(#lkp-tag-shadow)" />` +
     `<text x="${g.cx.toFixed(2)}" y="${(g.y + g.h / 2 + g.fontSize * 0.36).toFixed(2)}" ` +
     `font-family="${FONT_STACK}" font-size="${g.fontSize.toFixed(2)}" font-weight="700" ` +
     `fill="${textFill}" text-anchor="middle">${label}</text>` +

@@ -14,11 +14,12 @@
  * property portals do: green parks and vegetation, genuinely blue water, a
  * warm paper canvas, and a road hierarchy where motorways/arterials read
  * warmer and heavier than local streets. Everything is still muted a stop
- * below a stock Google basemap, and that restraint matters MORE now that the
- * markers are white price tags (lib/mapIcons.js) rather than saturated
- * colour-coded pins: a white tag needs a calm, mid-value ground to read
- * against, and a stock-saturation basemap would swallow it. The tags are the
- * content, the map is the context.
+ * below a stock Google basemap, and that restraint is what keeps the royal
+ * blue price tags (lib/mapIcons.js) legible: they are now the only strongly
+ * saturated thing on the map, which is the whole point of filling them in
+ * the brand colour. Note the one real collision — a blue tag over --water
+ * below — which is why every tag carries a white ring of its own. The tags
+ * are the content, the map is the context.
  *
  * POI *icons* and transit stay off for that same reason: a field of Google's
  * own category pins competes directly with the price tags. Park and water
@@ -37,8 +38,8 @@
  * need a second vendor, a second key and a rewrite of PropertyMap.js.
  */
 
-// Paper, not white: a hair of warmth so the white price tags read as raised
-// objects sitting on the map rather than holes punched through it.
+// Paper, not white: a hair of warmth, so the tags and their white rings read
+// as objects sitting on the map rather than holes punched through it.
 const CANVAS = '#F7F5F0';
 const CANVAS_ALT = '#F1EEE7';
 const INK = '#2A3040';

@@ -10,13 +10,17 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { NAV_ITEMS, isNavItemActive } from './navItems';
 import { Wordmark } from './Brand';
 import CurrencyToggle from './CurrencyToggle';
+import LanguageToggle from './LanguageToggle';
+import { useT } from '@/lib/i18n/client';
 import { useIsLoggedIn } from '@/lib/customerClient';
 import { logoutAction } from '@/app/(site)/compte/actions';
 
+// Keys, not text — see navItems.js on why a module-level constant cannot
+// hold translated copy.
 const ACCOUNT_LINKS = [
-  { href: '/compte/client', label: 'Mon compte', icon: User },
-  { href: '/favoris', label: 'Mes favoris', icon: Heart },
-  { href: '/compte/alertes', label: 'Alertes', icon: Bell },
+  { href: '/compte/client', labelKey: 'nav.myAccount', icon: User },
+  { href: '/favoris', labelKey: 'nav.myFavorites', icon: Heart },
+  { href: '/compte/alertes', labelKey: 'nav.alerts', icon: Bell },
 ];
 
 // The mobile Sheet's utility row (Rechercher/Favoris/Demandes) reuses
@@ -47,10 +51,10 @@ const UTILITY_NAV_ITEMS = NAV_ITEMS.filter((item) => item.href !== '/compte/clie
  * links and silently wrong on the other two.
  */
 const PRIMARY_LINKS = [
-  { href: '/listings?transaction_type=location', label: 'Louer' },
-  { href: '/listings?transaction_type=vente', label: 'Acheter' },
-  { href: '/agents', label: 'Agences' },
-  { href: '/a-propos', label: 'À propos' },
+  { href: '/listings?transaction_type=location', labelKey: 'nav.rent' },
+  { href: '/listings?transaction_type=vente', labelKey: 'nav.buy' },
+  { href: '/agents', labelKey: 'nav.agencies' },
+  { href: '/a-propos', labelKey: 'nav.about' },
 ];
 
 /**
@@ -89,17 +93,34 @@ const PRIMARY_LINKS = [
  * `z-[60]` is left as-is — still correct, and nothing left in the public
  * site tree needs Header to sit any lower.
  *
- * Also carries Demandes now — a top-right text link next to Favoris,
- * routing to the same `/compte/demandes` the mobile tab bar always used.
- * It used to live only on the fixed left icon rail (SideRail.js), which
- * had no desktop equivalent anywhere else; that rail is gone entirely (see
- * app/(site)/layout.js), so every page under this layout gets its full
- * container width back instead of losing 76px to a gutter.
+ * **Desktop utility row, left to right**: search icon (only where nothing
+ * else on the page owns search), account, currency, Demandes, language,
+ * "Publier un bien". Two deliberate changes from the previous order:
+ *
+ *   - **Favoris is no longer a text link here.** It sat between the
+ *     currency pill and Demandes, which made the row read as three
+ *     unrelated things wearing the same weight. Favorites did not lose a
+ *     home — "Mes favoris" is in the account dropdown right of the wordmark,
+ *     the mobile Sheet still carries it via NAV_ITEMS, and the footer's
+ *     Compte column now lists it too, which is what keeps /favoris reachable
+ *     on desktop for a SIGNED-OUT visitor: favorites are local-only for
+ *     them (lib/localFavorites.js), and the account affordance they see is a
+ *     login link with no dropdown to hold it.
+ *   - **Demandes moved up beside the currency toggle**, and the language
+ *     control moved down to sit immediately before the CTA. Each block below
+ *     carries its own note on why.
+ *
+ * Demandes still routes to the same `/compte/demandes` the mobile tab bar
+ * always used. It used to live only on the fixed left icon rail
+ * (SideRail.js), which had no desktop equivalent anywhere else; that rail is
+ * gone entirely (see app/(site)/layout.js), so every page under this layout
+ * gets its full container width back instead of losing 76px to a gutter.
  */
 export default function Header() {
   const pathname = usePathname();
   const [menuOpen, setMenuOpen] = useState(false);
   const loggedIn = useIsLoggedIn();
+  const t = useT();
 
   return (
     <header className="fixed inset-x-0 top-0 z-[60] h-16 border-b border-line bg-surface shadow-sm">
@@ -109,7 +130,7 @@ export default function Header() {
               outside-click; don't hand-roll one (see web/CLAUDE.md). */}
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
             <SheetTrigger
-              aria-label="Ouvrir le menu"
+              aria-label={t('nav.openMenu')}
               className="flex items-center justify-center rounded-md p-1.5 text-ink transition-colors hover:bg-canvas-deep lg:hidden"
             >
               <Menu strokeWidth={ICON_STROKE_WIDTH} className="h-7 w-7" />
@@ -127,10 +148,10 @@ export default function Header() {
               <nav className="flex flex-1 flex-col overflow-y-auto px-3 py-4">
                 {/* Section 1 — primary navigation */}
                 <div className="flex flex-col gap-0.5">
-                  {PRIMARY_LINKS.map(({ href, label }) => (
+                  {PRIMARY_LINKS.map(({ href, labelKey }) => (
                     <SheetClose asChild key={href}>
                       <Link href={href} className="rounded-md px-3 py-3 text-base font-semibold text-ink hover:bg-canvas-alt">
-                        {label}
+                        {t(labelKey)}
                       </Link>
                     </SheetClose>
                   ))}
@@ -141,7 +162,7 @@ export default function Header() {
                 {/* Section 2 — utility links, then account/login, kept
                     distinct from Section 1's site navigation. */}
                 <div className="flex flex-col gap-0.5">
-                  {UTILITY_NAV_ITEMS.map(({ href, label, icon: Icon }) => (
+                  {UTILITY_NAV_ITEMS.map(({ href, labelKey, icon: Icon }) => (
                     <SheetClose asChild key={href}>
                       <Link
                         href={href}
@@ -150,7 +171,7 @@ export default function Header() {
                         }`}
                       >
                         <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
-                        {label}
+                        {t(labelKey)}
                       </Link>
                     </SheetClose>
                   ))}
@@ -165,11 +186,11 @@ export default function Header() {
                 <div className="flex flex-col gap-1.5">
                   {loggedIn ? (
                     <>
-                      {ACCOUNT_LINKS.map(({ href, label, icon: Icon }) => (
+                      {ACCOUNT_LINKS.map(({ href, labelKey, icon: Icon }) => (
                         <SheetClose asChild key={href}>
                           <Link href={href} className="flex items-center gap-3 rounded-md px-3 py-2.5 text-[0.9375rem] font-medium text-ink hover:bg-canvas-alt">
                             <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
-                            {label}
+                            {t(labelKey)}
                           </Link>
                         </SheetClose>
                       ))}
@@ -180,7 +201,7 @@ export default function Header() {
                           className="flex items-center gap-3 rounded-md px-3 py-2.5 text-left text-[0.9375rem] font-medium text-ink hover:bg-canvas-alt"
                         >
                           <LogOut strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
-                          Se déconnecter
+                          {t('common.actions.logout')}
                         </button>
                       </SheetClose>
                     </>
@@ -189,7 +210,7 @@ export default function Header() {
                       <SheetClose asChild>
                         <Link href="/compte/connexion" className="flex items-center gap-3 rounded-md px-3 py-2.5 text-[0.9375rem] font-medium text-ink hover:bg-canvas-alt">
                           <User strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
-                          Connexion client
+                          {t('nav.customerLogin')}
                         </Link>
                       </SheetClose>
                       <SheetClose asChild>
@@ -198,7 +219,7 @@ export default function Header() {
                           className="u-btn-secondary flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-[0.9375rem] font-bold text-ink"
                         >
                           <Briefcase strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
-                          Espace Agent / Partenaire
+                          {t('nav.agentSpace')}
                         </Link>
                       </SheetClose>
                     </>
@@ -216,8 +237,20 @@ export default function Header() {
                     effect, not a navigation that should dismiss the
                     drawer. */}
                 <div className="flex items-center justify-between gap-3 rounded-md px-3 py-2">
-                  <span className="text-[0.9375rem] font-medium text-ink">Devise d&apos;affichage</span>
+                  <span className="text-[0.9375rem] font-medium text-ink">{t('common.currency.label')}</span>
                   <CurrencyToggle longLabels />
+                </div>
+
+                {/* The language control's mobile home, beside the currency
+                    one: both are display preferences, and the drawer is
+                    where this header keeps preferences on small screens.
+                    Not wrapped in SheetClose, for the same reason the
+                    currency row above isn't — switching language is a change
+                    the visitor should watch take effect, not a navigation
+                    that dismisses the drawer out from under them. */}
+                <div className="flex items-center justify-between gap-3 rounded-md px-3 py-2">
+                  <span className="text-[0.9375rem] font-medium text-ink">{t('common.language.label')}</span>
+                  <LanguageToggle />
                 </div>
 
                 {/* Section 3 — primary CTA, pinned to the bottom of the
@@ -229,7 +262,7 @@ export default function Header() {
                       href="/compte/agent/inscription"
                       className="u-press u-btn-primary flex w-full items-center justify-center gap-2 rounded-lg bg-blue py-3 text-[0.9375rem] font-bold text-white"
                     >
-                      Publier un bien
+                      {t('nav.publishListing')}
                     </Link>
                   </SheetClose>
                 </div>
@@ -241,13 +274,13 @@ export default function Header() {
         <Wordmark className="shrink-0" size="lg" />
 
         <nav className="ml-6 hidden items-center gap-7 lg:flex">
-          {PRIMARY_LINKS.map(({ href, label }) => (
+          {PRIMARY_LINKS.map(({ href, labelKey }) => (
             <Link
               key={href}
               href={href}
               className="text-sm font-medium text-ink-70 transition-colors hover:text-blue-deep"
             >
-              {label}
+              {t(labelKey)}
             </Link>
           ))}
         </nav>
@@ -259,7 +292,7 @@ export default function Header() {
           {!pathname.startsWith('/listings') && pathname !== '/' && (
             <Link
               href="/listings"
-              aria-label="Rechercher un bien"
+              aria-label={t('nav.searchAria')}
               className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-line text-ink-70 transition-colors hover:border-blue hover:text-blue-deep"
             >
               <Search strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
@@ -277,31 +310,31 @@ export default function Header() {
           {loggedIn ? (
             <DropdownMenu>
               <DropdownMenuTrigger
-                aria-label="Mon compte"
+                aria-label={t('nav.myAccount')}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-line text-ink-70 transition-colors hover:border-blue hover:text-blue-deep sm:h-11 sm:w-11"
               >
                 <User strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {ACCOUNT_LINKS.map(({ href, label, icon: Icon }) => (
+                {ACCOUNT_LINKS.map(({ href, labelKey, icon: Icon }) => (
                   <DropdownMenuItem key={href} asChild>
                     <Link href={href} className="flex items-center gap-2.5">
                       <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
-                      {label}
+                      {t(labelKey)}
                     </Link>
                   </DropdownMenuItem>
                 ))}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={() => logoutAction()} className="flex items-center gap-2.5">
                   <LogOut strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
-                  Se déconnecter
+                  {t('common.actions.logout')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
             <Link
               href="/compte/connexion"
-              aria-label="Connexion"
+              aria-label={t('common.actions.login')}
               className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-line text-ink-70 transition-colors hover:border-blue hover:text-blue-deep sm:h-11 sm:w-11"
             >
               <User strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
@@ -328,36 +361,48 @@ export default function Header() {
             <CurrencyToggle />
           </div>
 
-          {/* Favoris — web/Design's header always shows this text link,
-              never gated behind login: favorites are local-only
-              (lib/localFavorites.js), no account required. */}
-          <Link
-            href="/favoris"
-            className="hidden items-center gap-1.5 text-sm font-medium text-ink-70 transition-colors hover:text-blue-deep lg:inline-flex"
-          >
-            <Heart strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-            Favoris
-          </Link>
+          {/* Demandes — deliberately the currency toggle's immediate
+              neighbour. Both answer "what am I already doing here": the
+              currency a returning visitor reads prices in, and the requests
+              they have open. Favoris used to sit between them and no longer
+              appears in this row at all (see the doc comment above).
 
-          {/* Demandes — moved here from the now-removed left icon rail
-              (SideRail.js). Same real route as before (`/compte/demandes`,
-              still the one NAV_ITEMS uses in the mobile Sheet menu below):
-              it redirects to login with a `?next=` back to itself when
-              signed out, so this link doesn't need its own logged-in
-              branch — the route already handles both states honestly. */}
+              Same real route it has always used (`/compte/demandes`, still
+              the one NAV_ITEMS uses in the mobile Sheet menu below): it
+              redirects to login with a `?next=` back to itself when signed
+              out, so this link needs no logged-in branch of its own — the
+              route already handles both states honestly. */}
           <Link
             href="/compte/demandes"
             className="hidden items-center gap-1.5 text-sm font-medium text-ink-70 transition-colors hover:text-blue-deep lg:inline-flex"
           >
             <Mail strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-            Demandes
+            {t('nav.requests')}
           </Link>
+
+          {/* Desktop only, same reasoning as the currency pill: on mobile
+              this is a labelled preference row in the drawer instead, not a
+              fourth control competing for a 4rem bar.
+
+              Its slot is the last one before the CTA, which is where a
+              language control belongs on a bilingual marketplace: it is the
+              setting a visitor reaches for when the page did not open in
+              their language, and the CTA is the one thing in this row they
+              are most likely to be reading when they notice. Keeping it
+              adjacent means the switch happens without crossing the whole
+              bar. It is separated from the currency pill it used to sit
+              beside — the two are still the same kind of control, but the
+              nav link between them is what stops a row of two segmented
+              pills reading as one four-option widget. */}
+          <div className="hidden lg:block">
+            <LanguageToggle />
+          </div>
 
           <Link
             href="/compte/agent/inscription"
             className="u-press u-btn-secondary hidden h-9 items-center gap-1.5 rounded-lg px-4 text-[0.8125rem] font-bold text-ink lg:inline-flex"
           >
-            Publier un bien
+            {t('nav.publishListing')}
             <ArrowUpRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
           </Link>
         </div>

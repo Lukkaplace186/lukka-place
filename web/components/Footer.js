@@ -3,6 +3,8 @@ import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { getPopularCommunes } from '@/lib/listings';
 import { Wordmark } from './Brand';
 import CurrencyToggle from './CurrencyToggle';
+import LanguageToggle from './LanguageToggle';
+import { getT } from '@/lib/i18n/server';
 
 /**
  * Social icons: only WhatsApp is a real, working link (same central number
@@ -42,25 +44,48 @@ function InstagramIcon(props) {
   );
 }
 
+/*
+ * Keys rather than text, for the reason navItems.js records: a module-level
+ * constant is evaluated once at import and would freeze whichever language
+ * was active then. The commune column built below is the deliberate
+ * exception — a commune name is a real place, not UI copy, and Gombe is
+ * Gombe in both languages.
+ */
 const NAV_COLUMNS = [
   {
-    title: 'Annonces',
+    titleKey: 'footer.columns.listings',
     links: [
-      { label: 'À vendre', href: '/listings?transaction_type=vente' },
-      { label: 'À louer', href: '/listings?transaction_type=location' },
+      { labelKey: 'footer.links.forSale', href: '/listings?transaction_type=vente' },
+      { labelKey: 'footer.links.forRent', href: '/listings?transaction_type=location' },
     ],
   },
   {
-    title: 'Lukka Place',
+    titleKey: 'footer.columns.brand',
     links: [
-      { label: 'À propos', href: '/a-propos' },
-      { label: 'Contact', href: '/contact' },
+      { labelKey: 'footer.links.about', href: '/a-propos' },
+      { labelKey: 'footer.links.contact', href: '/contact' },
+    ],
+  },
+  /*
+   * The account column exists because Header dropped its desktop "Favoris"
+   * text link. A SIGNED-IN visitor still reaches both of these from the
+   * header (the account dropdown, and the Demandes link beside the currency
+   * pill); a signed-out one sees a bare login icon with no dropdown behind
+   * it, and would have had no route to /favoris anywhere in the desktop
+   * chrome — while still being able to save listings, since favorites are
+   * local-only until they have an account (lib/localFavorites.js). Both
+   * routes handle the signed-out case themselves (/favoris renders the local
+   * list and offers login; /compte/demandes redirects with a `?next=`), so
+   * neither link needs a logged-in branch here.
+   */
+  {
+    titleKey: 'footer.columns.account',
+    links: [
+      { labelKey: 'nav.favorites', href: '/favoris' },
+      { labelKey: 'nav.requests', href: '/compte/demandes' },
     ],
   },
 ];
-
-const LEGAL_DISCLAIMER =
-  "Lukka Place est une plateforme d'annonces immobilières à Kinshasa. Les informations fournies sur les annonces sont établies sous la responsabilité des annonceurs. Lukka Place ne fournit pas de services de courtage financier direct et facilite la mise en relation via référence d'annonce.";
 
 /**
  * The commune column is built from communes that actually have approved
@@ -73,12 +98,15 @@ const LEGAL_DISCLAIMER =
  * destination the data can't fill.
  */
 export default async function Footer() {
+  const t = await getT();
   const popularCommunes = await getPopularCommunes(5);
   const columns = popularCommunes.length
     ? [
         NAV_COLUMNS[0],
         {
-          title: 'Communes',
+          titleKey: 'footer.columns.communes',
+          // `label` (already-resolved text), not `labelKey`: these are real
+          // commune names out of the database, not dictionary entries.
           links: popularCommunes.map(({ commune }) => ({
             label: commune,
             href: `/listings?commune=${encodeURIComponent(commune)}`,
@@ -88,7 +116,10 @@ export default async function Footer() {
       ]
     : NAV_COLUMNS;
 
-  const whatsappHref = getCentralWhatsAppHref('Bonjour, je vous contacte depuis lukkaplace.com.');
+  // The opening line of the WhatsApp message follows the visitor's language
+  // too — a French greeting from someone browsing in English reads as a
+  // template they were never meant to see.
+  const whatsappHref = getCentralWhatsAppHref(t('footer.whatsappGreeting'));
 
   return (
     <footer className="mt-auto border-t border-line bg-canvas-alt">
@@ -116,27 +147,35 @@ export default async function Footer() {
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-6 px-4 py-9 sm:px-6 sm:py-12 lg:px-8 lg:py-16">
           <div className="min-w-0 max-w-[40rem]">
             <p className="font-display text-[1.375rem] leading-[1.2] tracking-[0.1px] text-white sm:text-2xl">
-              Vous êtes agent ou agence immobilière ?
+              {t('footer.partnerBand.title')}
             </p>
             <p className="mt-2.5 text-[1.0625rem] leading-[1.56] text-white/70">
-              Publiez vos biens et recevez vos demandes clients sur WhatsApp.
+              {t('footer.partnerBand.subtitle')}
             </p>
           </div>
           <Link
             href="/compte/agent/inscription"
             className="u-press inline-flex h-12 flex-none items-center rounded-lg border border-brass/50 px-6 text-[0.9375rem] font-bold text-white transition-colors hover:border-brass hover:bg-brass hover:text-ink"
           >
-            Devenir Agence Partenaire
+            {t('footer.partnerBand.cta')}
           </Link>
         </div>
       </div>
 
       <div className="mx-auto max-w-[1600px] px-4 py-10 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
-        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 sm:gap-10 lg:grid-cols-5">
+        {/* Six, not five. The brand block below spans two, so five left
+            exactly three slots for link columns — which was right for
+            Annonces + Communes + Lukka Place and wraps the moment there is a
+            fourth (the Compte column added above). At six, the full set fits
+            one row and the communes-less case simply leaves the last slot
+            empty rather than dropping a column onto its own line. Staying
+            within 1-6 is deliberate: web/CLAUDE.md records a `lg:grid-cols-10`
+            that silently never made it into the compiled CSS. */}
+        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 sm:gap-10 lg:grid-cols-6">
           <div className="lg:col-span-2">
             <Wordmark />
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-ink-45">
-              La plateforme d&apos;annonces immobilières de Kinshasa — appartements, villas et parcelles, à louer ou à vendre.
+              {t('footer.tagline')}
             </p>
             <div className="mt-5 flex items-center gap-3">
               {whatsappHref ? (
@@ -144,7 +183,7 @@ export default async function Footer() {
                   href={whatsappHref}
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label="WhatsApp"
+                  aria-label={t('admin.leads.whatsapp')}
                   className="flex h-9 w-9 items-center justify-center rounded-full bg-green text-white transition-colors hover:bg-green-deep"
                 >
                   <WhatsAppIcon className="h-4.5 w-4.5" />
@@ -163,9 +202,9 @@ export default async function Footer() {
             </div>
           </div>
 
-          {columns.map(({ title, links }) => (
-            <div key={title}>
-              <h3 className="u-eyebrow mb-3">{title}</h3>
+          {columns.map(({ titleKey, links }) => (
+            <div key={titleKey}>
+              <h3 className="u-eyebrow mb-3">{t(titleKey)}</h3>
               {/* Two columns on mobile, back to a single stack from sm up.
                   The Communes group is the reason: it renders up to five
                   real communes, and one-per-line put five rows of ~28px into
@@ -177,10 +216,10 @@ export default async function Footer() {
                   make each group's own links wrap oddly against its
                   neighbours; the vertical list is correct at that width. */}
               <ul className="grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-1 sm:gap-y-2">
-                {links.map(({ label, href }) => (
-                  <li key={label} className="min-w-0">
+                {links.map(({ label, labelKey, href }) => (
+                  <li key={href} className="min-w-0">
                     <Link href={href} className="block truncate text-sm text-ink-70 transition-colors hover:text-blue-deep">
-                      {label}
+                      {labelKey ? t(labelKey) : label}
                     </Link>
                   </li>
                 ))}
@@ -194,13 +233,19 @@ export default async function Footer() {
             from the bottom of any page, and labelled, which the bare
             "$ | FC" header pill never was. */}
         <div className="mt-9 flex flex-wrap items-center gap-x-4 gap-y-3 border-t border-line pt-6">
-          <span className="u-eyebrow">Devise d&apos;affichage</span>
+          <span className="u-eyebrow">{t('common.currency.label')}</span>
           <CurrencyToggle longLabels />
+
+          {/* The language control's third home, alongside the currency one.
+              Both are reachable from the bottom of any page at any scroll
+              depth without riding in the header on mobile — see Header.js. */}
+          <span className="u-eyebrow ml-2">{t('common.language.label')}</span>
+          <LanguageToggle longLabels />
         </div>
 
         <div className="mt-8 border-t border-line pt-6">
-          <p className="max-w-4xl text-xs leading-relaxed text-ink-45">{LEGAL_DISCLAIMER}</p>
-          <p className="mt-4 text-xs text-ink-25">&copy; {new Date().getFullYear()} Lukka Place — Kinshasa, RDC.</p>
+          <p className="max-w-4xl text-xs leading-relaxed text-ink-45">{t('footer.disclaimer')}</p>
+          <p className="mt-4 text-xs text-ink-25">{t('footer.copyright', { year: new Date().getFullYear() })}</p>
         </div>
       </div>
     </footer>

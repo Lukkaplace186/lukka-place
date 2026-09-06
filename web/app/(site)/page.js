@@ -1,7 +1,9 @@
 import Hero from '@/components/Hero';
 import FeaturedListings from '@/components/FeaturedListings';
+import SavedListings from '@/components/SavedListings';
 import ValueProposition from '@/components/ValueProposition';
 import { getListings, getPopularCommunes, getPropertyTypeFacets } from '@/lib/listings';
+import { getSavedHomeSection } from '@/lib/savedHome';
 import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB } from '@/lib/constants';
 
 /**
@@ -62,6 +64,26 @@ import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB } from '@/lib/constants';
  * argument. The rest of the reclaimed height comes from PropertyCard, which
  * dropped its reserved two-line description block (see PropertyCard.js).
  *
+ * **The second section is now personal when it can be.** For a signed-in
+ * visitor who has saved at least one property, "Sélection de la semaine"
+ * (FeaturedListings) is replaced outright by their own "Mes biens
+ * enregistrés" shelf — not stacked above it, since two eight-card listing
+ * sections back to back is the same page twice. The swap is decided by
+ * lib/savedHome.js's getSavedHomeSection(), which returns null for a
+ * signed-out visitor and for a signed-in one with an empty shelf — this
+ * page renders FeaturedListings in exactly those two cases. The decision is
+ * data rather than a nullable section so the choice can be made before the
+ * markup exists; there is no path where both appear or both vanish. See
+ * components/SavedListings.js for why the empty shelf falls back rather
+ * than rendering an empty personalised section.
+ *
+ * It joins the existing Promise.all rather than awaiting after it: the
+ * hero's three values and the visitor's shelf are independent reads, and
+ * serialising them would add a whole round trip to the signed-in homepage
+ * for nothing. Reading the session cookie costs no static rendering here —
+ * this route was already dynamic for the locale cookie alone (see
+ * lib/i18n/config.js).
+ *
  * CommuneShortcuts is no longer rendered here. It was a row of commune
  * pills sitting immediately under the search panel; the panel now carries
  * that row itself, where a tap FILLS the search field instead of navigating
@@ -72,16 +94,17 @@ import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB } from '@/lib/constants';
  * else imports it, same as the four other sections listed above.
  */
 export default async function HomePage() {
-  const [propertyTypes, communes, { total }] = await Promise.all([
+  const [propertyTypes, communes, { total }, saved] = await Promise.all([
     getPropertyTypeFacets(),
     getPopularCommunes(8),
     getListings({ limit: 1, transactionType: HERO_TRANSACTION_BY_TAB[HERO_DEFAULT_TAB] }),
+    getSavedHomeSection(),
   ]);
 
   return (
     <>
       <Hero propertyTypes={propertyTypes} communes={communes} initialCount={total} />
-      <FeaturedListings />
+      {saved ? <SavedListings listings={saved.listings} firstName={saved.firstName} /> : <FeaturedListings />}
       <ValueProposition />
     </>
   );

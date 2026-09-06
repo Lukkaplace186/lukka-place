@@ -24,24 +24,22 @@ const SPEC_COLUMN_LABELS = {
  * gap are then defined once here instead of being retyped at each call site
  * and drifting apart.
  *
- * `text-ink-45` for the label against `text-ink` (#0b1120) for the value:
- * the label is a wayfinding rail, the value is the data, and the step
- * between them is what makes the rail readable without competing.
+ * Label and value are the SAME colour (`--ink`, #0b1120) and the same
+ * weight (500). They separate by size and casing alone — 10px uppercase
+ * over 14px sentence case — not by going grey or going bold.
  *
- * ink-45 (#5c6679) specifically, and this one is computed rather than
- * eyeballed — same discipline as the bronze/brass rule in web/CLAUDE.md.
- * Against the card's white `--surface`:
+ * That is a deliberate reversal of two earlier passes here. This rail was
+ * 10px/800 ink-45 over 14px/800 ink, which came from an explicit
+ * "Rightmove-chunky" brief; seen rendered at real card width it read as
+ * heavy and busy, and the instruction that replaced it was to match a calm,
+ * regular-weight reference. Weight is now the thing that does NOT vary
+ * across the card, which is what makes it read quietly.
  *
- *     ink-35   #7c879c   3.62:1   fails AA
- *     slate-400 #94a3b8  2.56:1   fails AA  (the literal spec value)
- *     ink-45   #5c6679   5.78:1   passes AA
- *
- * The 4.5:1 threshold is the one that applies here: WCAG's relaxed 3:1
- * large-text allowance needs 18.66px bold or 24px regular, and this label is
- * 10px. A faint-grey micro-label is the single easiest place on a card to
- * fail contrast without anyone noticing, which is exactly why it is pinned
- * to a token that passes rather than to the lightest one that still "reads"
- * on a good monitor.
+ * Contrast is no longer a live concern here, which is why the computed
+ * table that used to sit in this comment is gone: at #0b1120 on the card's
+ * white `--surface` every label and value is 18.83:1, far above the 4.5:1
+ * that applies to 10px text. The earlier greys were the risk (ink-35 was
+ * 3.62:1 and failed); full ink cannot be.
  */
 /**
  * The label and value treatments, exported as strings so the detail page's
@@ -52,9 +50,9 @@ const SPEC_COLUMN_LABELS = {
  * treatment is written out at two call sites.
  */
 export const SPEC_LABEL_CLASS =
-  'text-[0.625rem] font-extrabold uppercase leading-none tracking-[0.09em] text-ink-70';
+  'text-[0.625rem] font-medium uppercase leading-none tracking-[0.09em] text-ink';
 export const SPEC_VALUE_CLASS =
-  'flex items-center gap-1.5 font-extrabold leading-none tracking-tight text-ink-70';
+  'flex items-center gap-1.5 font-medium leading-none tracking-normal text-ink';
 
 export function SpecCell({ label, children, className = '' }) {
   return (
@@ -88,9 +86,9 @@ export default function SpecItem({ spec, variant = 'inline' }) {
   if (variant === 'stacked') {
     return (
       <SpecCell label={SPEC_COLUMN_LABELS[spec.key] || spec.label}>
-        {Icon && <Icon strokeWidth={2.25} className="h-4 w-4 shrink-0" />}
+        {Icon && <Icon strokeWidth={1.75} className="h-4 w-4 shrink-0" />}
         <span className="u-tabular">{spec.value}</span>
-        {spec.key === 'area' ? <span className="font-bold">m²</span> : null}
+        {spec.key === 'area' ? <span className="font-medium">m²</span> : null}
       </SpecCell>
     );
   }

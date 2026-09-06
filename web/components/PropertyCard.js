@@ -50,13 +50,20 @@ import { cn } from '@/lib/utils';
  * went back inline rather than stacked (~16px), and the chip row is not
  * height-reserved, so a listing matching nothing simply doesn't render it.
  *
- * Two deliberate reversals of decisions this file previously documented,
- * both on explicit instruction — recorded rather than quietly applied:
- * contact CTAs are back on the card (the earlier note deferred all contact
- * to the listing page's EnquiryCard / MobileListingBar), and the price is
- * `font-extrabold` again, reversing the `font-medium tracking-[0.1px]` set
- * here from a measurement of Rightmove's own card price (24px / weight
- * 500).
+ * Contact CTAs are on the card, reversing an earlier note here that
+ * deferred all contact to the listing page's EnquiryCard / MobileListingBar.
+ *
+ * **Weight is deliberately flat.** Everything is 500 except the price at
+ * 600, and every text element is the same `--ink` (#0b1120). Hierarchy is
+ * carried by size alone — 24px price, 16px location, 14px values, 10px
+ * uppercase labels.
+ *
+ * That reverses two earlier passes which pushed this card to 800 across the
+ * board on an explicit "Rightmove-chunky" brief. Rendered at real card
+ * width it read as too strong, and the instruction that replaced it was to
+ * match a calm regular-weight reference. Sizes were kept; only weight and
+ * colour moved. Worth knowing before "restoring" any bold here: it has been
+ * round-tripped once already.
  *
  * Row heights need none of the old `min-h-*` reservations to stay uniform:
  * the grid stretches each card (`h-full` on the Link) and `mt-auto` on the
@@ -197,11 +204,13 @@ export default function PropertyCard({
         {/* ------------------------- Zone 2: price ------------------------ */}
         <div
           className={
-            // font-extrabold (800), not the spec's font-black (900):
-            // app/layout.js subsets Plus Jakarta Sans to 400-800, so a 900
-            // request is synthesised by the browser into a smeared faux-bold
-            // rather than rendered from a real cut. 800 is the family's true
-            // ceiling here and is what "black" has to mean on this stack.
+            // font-semibold (600). This was font-extrabold (800) — the
+            // ceiling of what app/layout.js actually subsets (400-800; a 900
+            // request would be synthesised into a smeared faux-bold, which
+            // is why "black" was never really available here). 800 across
+            // the card read as too strong once rendered, so the price keeps
+            // the size that makes it the anchor and gives back the weight.
+            // It is still the heaviest thing on the card, just not by much.
             //
             // text-2xl is the spec's size and is what this renders at
             // everywhere there is room for it. The `@[19rem]` step down to
@@ -214,7 +223,7 @@ export default function PropertyCard({
             // this card also renders in a ~400px results column beside the
             // map at full desktop width, where the viewport says nothing
             // useful about how much room the price actually has.
-            'u-tabular text-xl font-extrabold leading-tight tracking-tight text-ink @[19rem]:text-2xl'
+            'u-tabular text-xl font-semibold leading-tight tracking-normal text-ink @[19rem]:text-2xl'
           }
         >
           {/* <Price> already resolves both sides from the real, dated rate and
@@ -230,7 +239,7 @@ export default function PropertyCard({
             purpose={purpose}
             pricePeriod={pricePeriod}
             showSubtext
-            subtextClassName="ml-2 inline-block rounded-md bg-canvas-alt px-2 py-0.5 align-middle text-[0.75rem] font-bold leading-normal tracking-normal text-ink-70"
+            subtextClassName="ml-2 inline-block rounded-md bg-canvas-alt px-2 py-0.5 align-middle text-[0.75rem] font-medium leading-normal tracking-normal text-ink"
           />
         </div>
 
@@ -243,7 +252,7 @@ export default function PropertyCard({
             up from 14px/700. */}
         {(where || hasAgency) ? (
           <div className="flex items-center justify-between gap-3">
-            {where ? <p className="min-w-0 truncate text-base font-extrabold leading-snug tracking-tight text-ink-70">{where}</p> : <span />}
+            {where ? <p className="min-w-0 truncate text-base font-medium leading-snug tracking-normal text-ink">{where}</p> : <span />}
             {/* The agency badge sits on the title row, not on the spec rail
                 below it. Measured at 375px: sharing the rail's row cost it
                 ~52px of width, which was exactly enough to push the third
@@ -320,9 +329,9 @@ export default function PropertyCard({
                 text element on the card is now the single `ink-70` token,
                 with the price figure alone left at full `ink` so it is the
                 one thing that stands out. */}
-            <span className="text-[0.6875rem] font-bold tracking-tight text-ink-70">{freshness || ''}</span>
+            <span className="text-[0.6875rem] font-normal tracking-normal text-ink">{freshness || ''}</span>
             {reference ? (
-              <span className="u-tabular shrink-0 text-[0.6875rem] font-bold text-ink-70">{reference}</span>
+              <span className="u-tabular shrink-0 text-[0.6875rem] font-normal text-ink">{reference}</span>
             ) : null}
           </div>
         ) : null}

@@ -213,7 +213,7 @@ export function AmenityTag({ amenityKey, matched, size = 'default' }) {
   // ("Semi-meublé") from breaking mid-label when the row wraps.
   if (size === 'compact') {
     return (
-      <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-line bg-canvas-alt px-2.5 py-1 text-[0.6875rem] font-bold leading-none text-ink-70">
+      <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-line bg-canvas-alt px-2.5 py-1 text-[0.6875rem] font-medium leading-none text-ink">
         <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-3 w-3 shrink-0" />
         {label}
       </span>

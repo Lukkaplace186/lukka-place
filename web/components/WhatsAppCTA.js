@@ -98,7 +98,7 @@ export default function WhatsAppCTA({ listing, variant = 'compact' }) {
       <button
         type="button"
         onClick={handleClick}
-        className="u-press inline-flex shrink-0 items-center gap-1.5 rounded-md px-1 py-1.5 text-[0.75rem] font-bold text-ink-70 transition-colors hover:text-ink"
+        className="u-press inline-flex shrink-0 items-center gap-1.5 rounded-md px-1 py-1.5 text-[0.75rem] font-medium text-ink transition-colors hover:text-ink-70"
       >
         <WhatsAppIcon className="h-4 w-4" />
         WhatsApp

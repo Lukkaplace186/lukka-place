@@ -229,13 +229,13 @@ export default async function ListingDetailPage({ params, searchParams }) {
                   would re-weight surfaces nobody asked to change. The
                   listing page carries its own weights instead, matched to
                   the feed card's. */}
-              <span className="u-tabular text-[1.75rem] font-extrabold leading-tight tracking-tight text-ink sm:text-[2rem]">
+              <span className="u-tabular text-[1.75rem] font-semibold leading-tight tracking-normal text-ink sm:text-[2rem]">
                 <Price
                   amount={listing.price}
                   purpose={listing.purpose}
                   pricePeriod={listing.price_period}
                   showSubtext
-                  subtextClassName="ml-2.5 inline-block rounded-md bg-canvas-alt px-2 py-0.5 align-middle text-[0.8125rem] font-bold leading-normal tracking-normal text-ink-70"
+                  subtextClassName="ml-2.5 inline-block rounded-md bg-canvas-alt px-2 py-0.5 align-middle text-[0.8125rem] font-medium leading-normal tracking-normal text-ink"
                 />
               </span>
 
@@ -253,12 +253,12 @@ export default async function ListingDetailPage({ params, searchParams }) {
                   OpenGraph title and the breadcrumb's final crumb (see
                   generateMetadata above), so search engines and shared links
                   keep the descriptive phrasing. */}
-              <h1 className="text-xl font-extrabold leading-snug tracking-tight text-ink-70 sm:text-2xl">
+              <h1 className="text-xl font-medium leading-snug tracking-normal text-ink sm:text-2xl">
                 {where || listing.title}
               </h1>
 
               {addressDetail ? (
-                <p className="inline-flex items-center gap-1.5 text-[0.875rem] font-bold text-ink-70">
+                <p className="inline-flex items-center gap-1.5 text-[0.875rem] font-normal text-ink">
                   <MapPin strokeWidth={2.25} className="h-4 w-4 shrink-0" />
                   {addressDetail}
                 </p>

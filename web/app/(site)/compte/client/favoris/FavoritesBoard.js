@@ -192,17 +192,17 @@ function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, r
             different products when a visitor moved between /listings and
             their own favourites. */}
         <div className="flex items-baseline justify-between gap-3">
-          <span className="u-tabular text-2xl font-extrabold leading-tight tracking-tight text-ink">
+          <span className="u-tabular text-2xl font-semibold leading-tight tracking-normal text-ink">
             <Price
               amount={listing.price}
               purpose={listing.purpose}
               pricePeriod={listing.price_period}
               showSubtext
-              subtextClassName="ml-2 inline-block rounded-md bg-canvas-alt px-2 py-0.5 align-middle text-[0.75rem] font-bold leading-normal tracking-normal text-ink-70"
+              subtextClassName="ml-2 inline-block rounded-md bg-canvas-alt px-2 py-0.5 align-middle text-[0.75rem] font-medium leading-normal tracking-normal text-ink"
             />
           </span>
           {listing.reference ? (
-            <span className="u-tabular shrink-0 text-[0.6875rem] font-bold text-ink-70">{listing.reference}</span>
+            <span className="u-tabular shrink-0 text-[0.6875rem] font-normal text-ink">{listing.reference}</span>
           ) : null}
         </div>
 
@@ -214,7 +214,7 @@ function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, r
             card was the last public surface still carrying it. The link
             target is unchanged; only what it reads changed. */}
         <div>
-          <h3 className="text-base font-extrabold leading-snug tracking-tight text-ink-70">
+          <h3 className="text-base font-medium leading-snug tracking-normal text-ink">
             <Link href={`/listings/${listing.id}`} className="transition-colors hover:text-blue-deep">
               {where || listing.title}
             </Link>

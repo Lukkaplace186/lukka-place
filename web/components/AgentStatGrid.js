@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ArrowUpRight } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { getT } from '@/lib/i18n/server';
 
 /**
  * The design's stat strip: ONE white card at card radius with shadow-xs,
@@ -24,7 +25,12 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  * (hover fill + corner arrow) only ever appears where there is genuinely
  * somewhere to go.
  */
-function DeltaLine({ delta }) {
+// `t` is a prop, not a useT() call: this file is a Server Component module
+// (the default export below is async and awaits getT()), so a client hook
+// here throws at request time — and /compte/agent is dynamic, so the build
+// never catches it. The server parent already holds a translator; passing
+// it down keeps this whole file off the client bundle.
+function DeltaLine({ delta, t }) {
   if (delta == null) return null;
 
   if (delta.kind === 'count') {
@@ -44,7 +50,7 @@ function DeltaLine({ delta }) {
   if (delta.value == null) return null;
 
   if (delta.value === 0) {
-    return <div className="mt-1 text-xs font-semibold text-ink-35">stable ce mois</div>;
+    return <div className="mt-1 text-xs font-semibold text-ink-35">{t('agent.overview.stableThisMonth')}</div>;
   }
   const up = delta.value > 0;
   return (
@@ -55,7 +61,9 @@ function DeltaLine({ delta }) {
   );
 }
 
-function StatBody({ stat }) {
+// `t` is threaded down from the async server default export rather than
+// pulled from a hook — see the note on DeltaLine below.
+function StatBody({ stat, t }) {
   return (
     <>
       <div className="min-w-0">
@@ -72,7 +80,7 @@ function StatBody({ stat }) {
         <div className="u-stat mt-1.5 text-ink">
           {stat.value.toLocaleString('fr-FR')}
         </div>
-        <DeltaLine delta={stat.delta} />
+        <DeltaLine delta={stat.delta} t={t} />
       </div>
       <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-blue-tint text-blue">
         <stat.icon strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
@@ -83,7 +91,8 @@ function StatBody({ stat }) {
 
 const CELL_CLASS = 'flex items-center justify-between gap-3 bg-surface px-5 py-[1.375rem]';
 
-export default function AgentStatGrid({ stats }) {
+export default async function AgentStatGrid({ stats }) {
+  const t = await getT();
   return (
     // gap-px over a --line background paints the design's hairline dividers
     // between cells at every breakpoint, without nth-child variants that
@@ -96,11 +105,11 @@ export default function AgentStatGrid({ stats }) {
             href={stat.href}
             className={`${CELL_CLASS} group u-press text-left transition-colors hover:bg-canvas-alt`}
           >
-            <StatBody stat={stat} />
+            <StatBody stat={stat} t={t} />
           </Link>
         ) : (
           <div key={stat.key} className={CELL_CLASS}>
-            <StatBody stat={stat} />
+            <StatBody stat={stat} t={t} />
           </div>
         ),
       )}

@@ -1,5 +1,6 @@
 import PropertyCard from './PropertyCard';
 import SectionHeading from './SectionHeading';
+import { getT } from '@/lib/i18n/server';
 
 /**
  * "Other properties nearby" rail.
@@ -23,17 +24,23 @@ import SectionHeading from './SectionHeading';
  * implied to be a location match, since a semantically similar listing can
  * easily sit in a different commune.
  */
-export default function RelatedListings({ listings, commune, widened = false, mode = 'commune' }) {
+// Async and server-side: this renders from the listing detail page, itself a
+// Server Component, and has no state, effects or handlers of its own. It
+// briefly called useT() without a 'use client' directive, which is a
+// request-time "t is not defined"/client-reference throw rather than a build
+// error — /listings/[id] is dynamic, so `next build` never executes it.
+export default async function RelatedListings({ listings, commune, widened = false, mode = 'commune' }) {
+  const t = await getT();
   if (!listings || listings.length === 0) return null;
 
   const title =
     mode === 'similar'
-      ? 'Biens similaires'
+      ? t('listings.related.similar')
       : widened || !commune
-        ? 'Autres biens à Kinshasa'
-        : `Autres biens à ${commune}`;
-  const eyebrow = mode === 'similar' ? 'Recommandé' : 'À proximité';
-  const lead = widened && commune ? `Aucun autre bien disponible à ${commune} pour le moment.` : undefined;
+        ? t('listings.related.otherInKinshasa')
+        : t('listings.related.otherIn', { commune });
+  const eyebrow = mode === 'similar' ? t('listings.related.recommended') : t('listings.related.nearby');
+  const lead = widened && commune ? t('listings.related.noneLeftIn', { commune }) : undefined;
 
   return (
     <section className="border-t border-line bg-canvas-alt py-16">

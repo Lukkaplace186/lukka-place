@@ -6,14 +6,21 @@ import { getT } from '@/lib/i18n/server';
 // Keys, not text — see components/navItems.js on why a module-level constant
 // cannot hold translated copy.
 const VALUE_PROPS = [
-  { number: '01', titleKey: 'home.value.verifiedTitle', bodyKey: 'home.value.verifiedBody' },
-  { number: '02', titleKey: 'home.value.contactTitle', bodyKey: 'home.value.contactBody' },
-  { number: '03', titleKey: 'home.value.pricesTitle', bodyKey: 'home.value.pricesBody' },
+  { id: 'verified', titleKey: 'home.value.verifiedTitle', bodyKey: 'home.value.verifiedBody' },
+  { id: 'contact', titleKey: 'home.value.contactTitle', bodyKey: 'home.value.contactBody' },
+  { id: 'prices', titleKey: 'home.value.pricesTitle', bodyKey: 'home.value.pricesBody' },
 ];
 
 /**
- * Three value props as an editorial numbered row, on the chalk band that
- * closes the homepage before the footer.
+ * Three value props as an editorial row, on the chalk band that closes the
+ * homepage before the footer.
+ *
+ * No "01/02/03" numerals. They were decoration, not information: the three
+ * claims are peers, not an ordered procedure, so numbering them implied a
+ * sequence the copy does not have — and on mobile, where the three cells
+ * stack, each 34px serif numeral pushed the actual heading a full line
+ * further down the fold for no gain. The heading is now the first thing in
+ * every cell, on the same left axis as its body text.
  *
  * Two things the refonte changed here, both about where the reader is sent
  * next:
@@ -51,14 +58,13 @@ export default async function ValueProposition() {
         <h2 className="u-eyebrow mb-7 sm:mb-12">{t('home.value.eyebrow')}</h2>
 
         <div className="grid grid-cols-1 gap-px border-y border-line bg-line md:grid-cols-3">
-          {VALUE_PROPS.map(({ number, titleKey, bodyKey }) => (
+          {VALUE_PROPS.map(({ id, titleKey, bodyKey }) => (
             <div
-              key={number}
-              className="flex flex-col gap-2.5 bg-canvas-alt py-6 sm:gap-3 sm:py-9 md:px-10 md:first:pl-0 md:last:pr-0"
+              key={id}
+              className="flex flex-col gap-2 bg-canvas-alt py-6 sm:gap-2.5 sm:py-9 md:px-10 md:first:pl-0 md:last:pr-0"
             >
-              <span className="u-tabular font-display text-[2.125rem] font-normal leading-none text-blue">{number}</span>
-              {/* Sans 700, not the display serif — the design uses the
-                  serif only for the numeral here. */}
+              {/* Sans 700, not the display serif: with the numeral gone the
+                  serif has no role in this section at all. */}
               <h3 className="text-[1.3125rem] font-bold leading-snug tracking-[-0.008em] text-ink">{t(titleKey)}</h3>
               <p className="text-[1rem] leading-[1.6] text-ink-70 text-pretty">{t(bodyKey)}</p>
             </div>

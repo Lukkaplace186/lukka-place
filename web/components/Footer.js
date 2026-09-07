@@ -131,31 +131,48 @@ export default async function Footer() {
           carries the whole message on its own and is sized like the real
           section it is, not like a footer strip.
 
-          bg-ink (real --ink, #0b1120 — the same near-black this app already
-          uses for headings/hairlines), not the previous flat bg-blue-deep:
-          an editorial-luxury CTA reads as a genuine dark section rather than
-          a bright brand-colour block. border-white/10 replaces border-line
-          here specifically — border-line is tuned for hairlines on light
-          surfaces and is close to invisible against ink. The button drops
-          the solid white fill for a "metallic ghost" treatment using
-          --brass, this app's one real metallic-adjacent accent (already
-          contrast-computed in app/globals.css): a brass-bordered outline at
-          rest, filling brass with dark ink text on hover/press — never white
-          text *on* brass, which the documented contrast rule states fails
-          AA (3.2:1). */}
-      <div className="border-y border-white/10 bg-ink">
+          bg-blue (real --blue, royal-600 #1E3AA8 — the token app/globals.css
+          already contrast-computes as "white text on --blue ... 7.9:1 AAA"),
+          not the previous bg-ink near-black. Royal blue is this design's one
+          voice of action, so the page's single supply-side conversion ask now
+          wears the brand colour instead of reading as a neutral dark slab.
+          Not the raw #233B93 from the brief: that is a hand-picked hex a few
+          points off the token every other blue surface on the site already
+          uses (the hero CTA, the primary buttons), and two royal blues that
+          nearly match is worse than one that does.
+
+          border-white/15 replaces border-line here specifically — border-line
+          is tuned for hairlines on light surfaces and is invisible against a
+          saturated royal fill. Subtext is white/80, not white/70: on royal
+          blue that composites to 6.6:1 (white/70 drops to ~5.2:1), so the
+          second line clears AA on its own rather than borrowing the heading's
+          contrast.
+
+          The button reverts from the brass "metallic ghost" to a solid white
+          fill with royal text — the highest-contrast pairing available on this
+          background (7.9:1, the same ratio inverted), and brass-on-royal would
+          have put the one accent reserved for prestige marks onto a button,
+          which Readme.md forbids outright. Hover goes to --blue-tint (#EEF2FF,
+          the real token behind what the brief called blue-50).
+
+          Mobile: the band is a flex row that wraps, so below sm the button
+          landed at its natural ~210px width, left-aligned under the copy and
+          reading as a link rather than the section's action. It is now
+          full-width and centred until sm, at h-12 (48px, the documented tap
+          target), which is the only real CTA treatment on a stacked layout. */}
+      <div className="border-y border-white/15 bg-blue">
         <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-6 px-4 py-9 sm:px-6 sm:py-12 lg:px-8 lg:py-16">
           <div className="min-w-0 max-w-[40rem]">
             <p className="font-display text-[1.375rem] leading-[1.2] tracking-[0.1px] text-white sm:text-2xl">
               {t('footer.partnerBand.title')}
             </p>
-            <p className="mt-2.5 text-[1.0625rem] leading-[1.56] text-white/70">
+            <p className="mt-2.5 text-[1.0625rem] leading-[1.56] text-white/80">
               {t('footer.partnerBand.subtitle')}
             </p>
           </div>
           <Link
             href="/compte/agent/inscription"
-            className="u-press inline-flex h-12 flex-none items-center rounded-lg border border-brass/50 px-6 text-[0.9375rem] font-bold text-white transition-colors hover:border-brass hover:bg-brass hover:text-ink"
+            className="u-press inline-flex h-12 w-full flex-none items-center justify-center rounded-lg bg-white px-6 text-[0.9375rem] font-bold text-blue transition-colors hover:bg-blue-tint sm:w-auto"
           >
             {t('footer.partnerBand.cta')}
           </Link>

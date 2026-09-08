@@ -25,7 +25,7 @@ export async function generateMetadata() {
  * storefront's listing vocabulary; `listings` is included explicitly because
  * the agent's own tables render listing statuses and specs.
  */
-const AGENT_NAMESPACES = ['agent', 'listings', 'status', 'auth'];
+const AGENT_NAMESPACES = ['agent', 'listings', 'status', 'auth', 'errors'];
 
 // No searchParams/cookies() call of its own would trip Next's automatic
 // dynamic-rendering detection — same fix admin pages already had to make.

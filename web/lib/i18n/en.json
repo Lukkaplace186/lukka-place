@@ -765,6 +765,13 @@
       "editsPendingReview": "Your changes are saved immediately, but the property will only be publicly visible after review by the Lukka Place team.",
       "noViewsInPeriod": "No views yet in this period.",
       "descriptionSection": "Description",
+      "smartPasteTitle": "Auto-Fill from WhatsApp Text",
+      "smartPasteHint": "Paste the raw text of a WhatsApp listing: the fields below and the description will be pre-filled. Always review before saving.",
+      "smartPastePlaceholder": "Paste the listing text here…",
+      "smartPasteButton": "Parse & Fill",
+      "smartPasteButtonPending": "Parsing…",
+      "smartPasteSuccess": "Fields filled automatically — review them before saving.",
+      "smartPasteLowConfidence": "The pasted text doesn't clearly look like a listing — check every field before saving.",
       "photos": "Photos"
     },
     "portfolio": {
@@ -1411,6 +1418,8 @@
     "transactionDateBeforePublication": "The transaction date is earlier than the listing's publication.",
     "alreadyClosed": "This property is marked let / sold. Use “Put back online” to reopen the transaction.",
     "titleRequired": "A title is required.",
+    "pasteTextRequired": "Paste the listing text before parsing it.",
+    "parseListingFailed": "We couldn't parse this text right now. Try again or fill in the form manually.",
     "descriptionTooShort": "The description must be at least 15 characters.",
     "chooseRentOrSale": "Choose “Rent” or “Sell”.",
     "invalidPrice": "Enter a valid price.",

@@ -10,6 +10,8 @@ import { convertCdfToUsd } from '@/lib/format';
 import { updateListingAction } from '@/app/compte/agent/actions';
 import { useToast } from './Toast';
 import { useT } from '@/lib/i18n/client';
+import SmartPasteSection from './SmartPasteSection';
+import { buildFormValuesFromParsed } from '@/lib/smartPaste';
 
 const FIELD_CLASS =
   'u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35';
@@ -174,9 +176,47 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
 
   const isRent = listing.purpose === 'rent';
 
+  /**
+   * Same reasoning as CreateListingDialog's own handleParsed: only the
+   * fields the extraction actually returned are touched, so a partial paste
+   * never clears something the agent already typed. Uncontrolled inputs
+   * (title, area, beds, bath, units_count, deposit_months, commune,
+   * quartier, description) are set directly on the form node; price,
+   * currency and amenities go through their own React state since this
+   * editor already controls those.
+   */
+  function handleParsed(extracted, rawText) {
+    const mapped = buildFormValuesFromParsed(extracted, { communes, amenities, rawText });
+    const form = formRef.current;
+    if (!form) return;
+
+    if (mapped.title) form.elements.title.value = mapped.title;
+    if (mapped.description) {
+      form.elements.description.value = mapped.description;
+      setDescriptionLength(mapped.description.length);
+    }
+    if (mapped.commune) form.elements.commune.value = mapped.commune;
+    if (mapped.quartier) form.elements.quartier.value = mapped.quartier;
+    if (mapped.area) form.elements.area.value = mapped.area;
+    if (mapped.beds) form.elements.beds.value = mapped.beds;
+    if (mapped.bath) form.elements.bath.value = mapped.bath;
+    if (mapped.unitsCount) form.elements.units_count.value = mapped.unitsCount;
+    if (mapped.depositMonths) form.elements.deposit_months.value = mapped.depositMonths;
+
+    if (mapped.price) setPrice(mapped.price);
+    if (mapped.currency) setCurrency(mapped.currency);
+
+    if (mapped.amenityIds.length) {
+      setAmenityIds((prev) => new Set([...prev, ...mapped.amenityIds]));
+      setAmenitiesTouched(true);
+    }
+  }
+
   return (
     <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-6">
       <QualityHints photoCount={photos.length} descriptionLength={descriptionLength} />
+
+      <SmartPasteSection onParsed={handleParsed} />
 
       <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-6">
         <h2 className="text-[1.0625rem] font-bold text-ink">{t('agent.editor.descriptionSection')}</h2>

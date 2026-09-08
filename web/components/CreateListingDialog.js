@@ -9,6 +9,8 @@ import { createListingAction } from '@/app/compte/agent/actions';
 import { useToast } from './Toast';
 import { OPEN_CREATE_LISTING_EVENT, OPEN_CREATE_LISTING_STORAGE_KEY } from '@/lib/agentShortcutEvents';
 import { useT } from '@/lib/i18n/client';
+import SmartPasteSection from './SmartPasteSection';
+import { buildFormValuesFromParsed } from '@/lib/smartPaste';
 
 const FIELD_CLASS =
   'u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35';
@@ -92,6 +94,30 @@ export default function CreateListingDialog({ communes, categories }) {
     });
   }
 
+  /**
+   * Fills the (entirely uncontrolled) form fields directly on the DOM node,
+   * same reasoning as a plain `form.reset()` above — there's no controlled
+   * state for these inputs to flow through. Only fields the extraction
+   * actually returned are touched, so a partial paste never clears something
+   * the agent had already typed by hand.
+   */
+  function handleParsed(extracted, rawText) {
+    const mapped = buildFormValuesFromParsed(extracted, { communes, categories, rawText });
+    const form = formRef.current;
+    if (!form) return;
+
+    if (mapped.title) form.elements.title.value = mapped.title;
+    if (mapped.purpose) form.elements.purpose.value = mapped.purpose;
+    if (mapped.categoryId != null) form.elements.category_id.value = String(mapped.categoryId);
+    if (mapped.commune) form.elements.commune.value = mapped.commune;
+    if (mapped.price) form.elements.price.value = mapped.price;
+    if (mapped.beds) form.elements.beds.value = mapped.beds;
+    if (mapped.bath) form.elements.bath.value = mapped.bath;
+    if (mapped.area) form.elements.area.value = mapped.area;
+    if (mapped.quartier) form.elements.quartier.value = mapped.quartier;
+    if (mapped.description) form.elements.description.value = mapped.description;
+  }
+
   function handleSubmit(event) {
     event.preventDefault();
     const formData = new FormData(formRef.current);
@@ -136,6 +162,8 @@ export default function CreateListingDialog({ communes, categories }) {
         </DialogHeader>
 
         <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <SmartPasteSection onParsed={handleParsed} />
+
           <div>
             <label htmlFor="title" className={LABEL_CLASS}>Titre</label>
             <input id="title" name="title" required maxLength={150} placeholder={t('agent.editor.titlePlaceholder')} className={FIELD_CLASS} />

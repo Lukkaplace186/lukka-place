@@ -43,6 +43,7 @@ import {
   updateViewingRequest,
   createLeadProposal,
   getAgentPitchUsage,
+  parseAgentListingText,
 } from '@/lib/adminApi';
 import { LEAD_STATUSES, VIEWING_REQUEST_STATUSES } from '@/lib/adminLabels';
 import { currentQuotaPeriodStart, resolveLeadQuota } from '@/lib/leadQuota';
@@ -246,6 +247,35 @@ export async function setListingArchivedAction(propertyId, archived) {
 
   revalidateListingSurfaces(agentId, propertyId);
   return { ok: true };
+}
+
+/**
+ * Smart Paste — "Auto-Fill from WhatsApp Text" on the create/edit forms.
+ * Requires an authenticated agent session purely to gate use of the (paid,
+ * per-call) engine extraction endpoint to logged-in agents; the extraction
+ * itself is not scoped to any particular listing or agent identity. Mapping
+ * the raw extraction onto real form values (a real category id, a real
+ * commune, a real amenity id) happens client-side in lib/smartPaste.js,
+ * using the same communes/categories/amenities lists already passed into
+ * these forms — so this action stays a thin, auth-checked pass-through to
+ * the engine rather than a second copy of that mapping logic.
+ *
+ * @returns {Promise<{ok: true, extracted: Object} | {ok: false, error: string}>}
+ */
+export async function parseListingTextAction(rawText) {
+  const t = await getT();
+  await assertAgentSession();
+
+  const text = String(rawText || '').trim();
+  if (!text) return { ok: false, error: t('errors.pasteTextRequired') };
+
+  try {
+    const { extracted_data: extracted } = await parseAgentListingText(text);
+    return { ok: true, extracted };
+  } catch (err) {
+    console.error(`[compte/agent] parse-listing failed: ${err.message}`);
+    return { ok: false, error: t('errors.parseListingFailed') };
+  }
 }
 
 /**

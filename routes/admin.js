@@ -682,6 +682,38 @@ router.post('/agents/claim-listings', async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// Smart Paste (agent dashboard "Auto-Fill from WhatsApp Text", web/)
+// ---------------------------------------------------------------------------
+
+/**
+ * Extracts structured listing-form fields + a clean description from raw
+ * agent-pasted text — the dashboard equivalent of what the WhatsApp intake
+ * bot's parseMessage() already does for inbound messages. Text-only: the
+ * dashboard has its own photo uploader, so there is no image path here.
+ *
+ * A 502 on model failure (not 500) mirrors send-whatsapp's posture just
+ * above: the request is a normal outcome that failed on the far side, not a
+ * bug in this route.
+ */
+router.post('/parse-listing', async (req, res) => {
+  const text = typeof req.body?.text === 'string' ? req.body.text.trim() : '';
+  if (!text) {
+    return res.status(400).json({ success: false, error: 'text is required.' });
+  }
+  if (text.length > 4000) {
+    return res.status(400).json({ success: false, error: 'text is too long (max 4000 characters).' });
+  }
+
+  try {
+    const result = await require('../services/openai').parseListingTextForForm(text);
+    return res.json({ success: true, ...result });
+  } catch (err) {
+    console.error(`[admin] parse-listing failed: ${err.message}`);
+    return res.status(502).json({ success: false, error: 'Could not parse the pasted text.' });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Generic WhatsApp send (agent phone-verification OTP, web/)
 // ---------------------------------------------------------------------------
 

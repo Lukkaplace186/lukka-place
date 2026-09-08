@@ -329,6 +329,20 @@ export async function claimListingsForPhone(phone) {
   });
 }
 
+/**
+ * Smart Paste (agent dashboard) — sends raw pasted listing text to the
+ * engine's Sonnet/GPT-backed extractor (POST /admin/parse-listing) and gets
+ * back structured fields + a clean generated description. Mapping those
+ * fields onto real form values (matching a real category id, a real commune
+ * from the allow-list, a real amenity id) happens client-side in
+ * lib/smartPaste.js — this function only does the network call, same
+ * boundary every other function in this file keeps.
+ * @returns {Promise<{extracted_data: Object}>}
+ */
+export async function parseAgentListingText(text) {
+  return engineFetch('/admin/parse-listing', { method: 'POST', body: JSON.stringify({ text }) });
+}
+
 export async function notifyListingModeration(propertyId, status) {
   return engineFetch(`/admin/properties/${propertyId}/notify`, {
     method: 'POST',

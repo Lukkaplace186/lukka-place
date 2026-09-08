@@ -841,6 +841,157 @@ async function runBuyerTurn({
   };
 }
 
+// =============================================================================
+// Smart Paste — agent-dashboard "Auto-Fill from WhatsApp Text" (web/)
+//
+// A THIRD, separate pipeline from parseMessage() (WhatsApp intake) and the
+// buyer assistant above. An agent already signed into the web dashboard
+// pastes the same kind of raw text they'd otherwise send over WhatsApp, and
+// this returns structured fields to fill the create/edit form plus a clean
+// prose description for the public listing page — never invented text: every
+// field mirrors the extraction rules and deposit/advance/commission split
+// parseMessage() already uses, so the two pipelines cannot disagree about
+// what "3 + 1 + 1" means. No whatsapp_reply, no is_listing/intent
+// classification (dashboard input is always assumed to be a listing) — those
+// are WhatsApp-specific concerns this pipeline doesn't have.
+//
+// Deliberately excludes any phone/contact field: root CLAUDE.md is explicit
+// that every "Contact" CTA routes through Lukka Place's one central WhatsApp
+// number and no per-listing agent phone is synced to Supabase — the agent's
+// own identity already comes from their signed-in dashboard session, and a
+// name/number lifted from pasted text has no real field to land in.
+// =============================================================================
+
+const LISTING_FORM_SYSTEM_PROMPT = `Tu es l'analyste immobilier de Lukka Place, une plateforme proptech à Kinshasa (République Démocratique du Congo).
+
+Un agent immobilier, déjà connecté à son espace personnel, colle le texte brut d'une annonce (souvent rédigé pour WhatsApp : emojis, argot, mise en page libre) pour remplir automatiquement son formulaire. Produis uniquement les champs structurés demandés, plus une description propre pour la page publique.
+
+CONTEXTE LINGUISTIQUE ET MONÉTAIRE — mêmes règles que pour l'intake WhatsApp :
+- Texte en français, lingala, ou mélange des deux. "pièces" = total des pièces, PAS les chambres. "chambre salon" = 1 chambre.
+- Loyers et prix sont presque toujours en dollars ; "$"/"usd"/"dollars" => USD, "FC"/"CDF"/"francs" => CDF. Sans devise indiquée et montant plausible en USD, utilise USD.
+- Sépare le loyer mensuel du prix de vente : "$/mois" => price_period "mois" ; une vente => price_period "total".
+
+CONDITIONS D'ENTRÉE — NOTATION "3 + 1 + 1" (convention de Kinshasa), IDENTIQUE à l'intake WhatsApp :
+- Ces nombres sont des POSTES DISTINCTS. Ne les additionne JAMAIS — "3 + 1 + 1" ne veut PAS dire 5 mois.
+  * 1er nombre => deposit_months (garantie locative seule, restituable).
+  * 2e nombre => advance_months (loyer payé d'avance).
+  * 3e nombre => commission_months (frais d'agence/commissionnaire).
+- Deux nombres seulement ("4+1") => deposit_months + advance_months, commission_months null.
+- Un seul nombre ("Garantie : 3 mois") => deposit_months uniquement.
+- Ne mets jamais un total dans deposit_months.
+
+LOCALISATION — mêmes 24 communes et orthographes normalisées que l'intake WhatsApp :
+${LOCATIONS_BLOCK}
+- Normalise la commune vers l'une de ces orthographes exactes. La référence précise (nom de résidence, repère informel) va dans "quartier", jamais dans "commune".
+- Un code/numéro de référence explicite ("Réf:", "Référence:") va dans "reference", distinct du quartier.
+
+CLASSIFICATION DU TYPE DE BIEN — mêmes règles que l'intake WhatsApp :
+1. PARCELLE : dimensions de terrain, propriété clôturée, "Maison Type Locataire" ou "Portes" => property_type "parcelle". Sous-type (parcelle_subtype, uniquement si property_type = "parcelle") : "maison_type_locataire", "villa", "terrain_nu". NE classe JAMAIS "appartement" uniquement à cause d'une superficie ou de plusieurs pièces/portes.
+2. APPARTEMENT : uniquement si le message décrit explicitement un logement dans un immeuble à étages ou une résidence collective.
+3. "X Portes" / "Type Locataire" => units_count = X.
+
+RÈGLES D'EXTRACTION
+1. N'invente rien. Tout champ absent du message doit être null. Une annonce partielle est normale.
+2. Ne convertis pas les devises ; rapporte le montant et la devise tels qu'écrits.
+3. Convertis les dimensions en superficie ("20x30" => 600 m²), la virgule est un séparateur décimal.
+4. title_suggestion : un titre court (moins de 80 caractères), en français correct, casse normale (pas de MAJUSCULES, pas d'emoji), ex. "Appartement 3 chambres à louer à Kinshasa, Plateau".
+5. description_fr : un descriptif professionnel de 2 à 4 phrases en français, en casse normale (pas de MAJUSCULES, pas d'emoji, pas de formatage WhatsApp avec astérisques, pas de puces), qui décrit la composition et les équipements RÉELLEMENT mentionnés dans le texte — n'invente aucun détail. N'inclus JAMAIS le prix, la garantie, ni une quelconque coordonnée de contact dans ce texte : ce sont des champs séparés, gérés ailleurs sur la page.
+6. confidence : 0.9+ pour une annonce claire, ~0.5 pour un message vague, <0.3 si le texte ne ressemble probablement pas à une annonce.`;
+
+const LISTING_FORM_RESPONSE_FORMAT = {
+  type: 'json_schema',
+  json_schema: {
+    name: 'lukka_listing_form_extraction',
+    strict: true,
+    schema: {
+      type: 'object',
+      additionalProperties: false,
+      required: [
+        'title_suggestion', 'transaction_type', 'property_type', 'parcelle_subtype',
+        'commune', 'quartier', 'reference', 'price', 'currency', 'price_period',
+        'deposit_months', 'advance_months', 'commission_months', 'bedrooms', 'bathrooms',
+        'surface_area_sqm', 'units_count', 'furnished', 'description_fr', 'confidence',
+      ],
+      properties: {
+        title_suggestion: { type: ['string', 'null'], description: 'Titre court suggéré, casse normale, sans emoji.' },
+        transaction_type: { type: ['string', 'null'], enum: ['location', 'vente', null] },
+        property_type: { type: ['string', 'null'], enum: [...PROPERTY_TYPES, null] },
+        parcelle_subtype: { type: ['string', 'null'], enum: [...PARCELLE_SUBTYPES, null] },
+        commune: { type: ['string', 'null'] },
+        quartier: { type: ['string', 'null'] },
+        reference: { type: ['string', 'null'] },
+        price: { type: ['number', 'null'] },
+        currency: { type: ['string', 'null'], enum: ['USD', 'CDF', 'EUR', null] },
+        price_period: { type: ['string', 'null'], enum: ['mois', 'an', 'total', null] },
+        deposit_months: { type: ['integer', 'null'] },
+        advance_months: { type: ['integer', 'null'] },
+        commission_months: { type: ['integer', 'null'] },
+        bedrooms: { type: ['integer', 'null'] },
+        bathrooms: { type: ['integer', 'null'] },
+        surface_area_sqm: { type: ['number', 'null'] },
+        units_count: { type: ['integer', 'null'] },
+        furnished: { type: ['boolean', 'null'] },
+        description_fr: { type: 'string', description: 'Descriptif professionnel de 2-4 phrases, casse normale, sans emoji ni astérisque.' },
+        confidence: { type: 'number' },
+      },
+    },
+  },
+};
+
+/**
+ * Extract structured form fields + a clean description from raw agent-pasted
+ * text (web/'s Smart Paste). Text-only by design — the dashboard form already
+ * has its own dedicated photo uploader, unlike the WhatsApp intake pipeline.
+ *
+ * @param {string} rawText
+ * @returns {Promise<{extracted_data: Object, _meta: Object}>}
+ */
+async function parseListingTextForForm(rawText) {
+  const text = String(rawText || '').trim();
+  if (!text) {
+    throw new Error('parseListingTextForForm requires non-empty text');
+  }
+
+  const completion = await getClient().chat.completions.create({
+    model: MODEL,
+    temperature: 0,
+    response_format: LISTING_FORM_RESPONSE_FORMAT,
+    messages: [
+      { role: 'system', content: LISTING_FORM_SYSTEM_PROMPT },
+      { role: 'user', content: `--- TEXTE COLLÉ ---\n${text}\n--- FIN ---` },
+    ],
+  });
+
+  const choice = completion.choices?.[0];
+  if (choice?.message?.refusal) {
+    throw new Error(`Model refused the request: ${choice.message.refusal}`);
+  }
+  if (choice?.finish_reason === 'length') {
+    throw new Error('Model output was truncated (finish_reason: length)');
+  }
+
+  const raw = choice?.message?.content;
+  if (!raw) {
+    throw new Error(`Model returned no content (finish_reason: ${choice?.finish_reason || 'unknown'})`);
+  }
+
+  let extracted_data;
+  try {
+    extracted_data = JSON.parse(raw);
+  } catch {
+    throw new Error(`Model returned non-JSON output: ${String(raw).slice(0, 200)}`);
+  }
+
+  return {
+    extracted_data,
+    _meta: {
+      model: completion.model || MODEL,
+      usage: completion.usage || null,
+      finish_reason: choice.finish_reason,
+    },
+  };
+}
+
 module.exports = {
   parseMessage,
   toImagePart,
@@ -856,6 +1007,11 @@ module.exports = {
   MISSING_FIELD_KEYS,
   SUPPORTED_IMAGE_MIME_TYPES,
   MAX_IMAGES,
+
+  // Smart Paste (agent dashboard) — additive, does not change parseMessage.
+  parseListingTextForForm,
+  LISTING_FORM_SYSTEM_PROMPT,
+  LISTING_FORM_RESPONSE_FORMAT,
 
   // Buyer assistant (see the section above) — additive, does not change
   // anything exported above this point.

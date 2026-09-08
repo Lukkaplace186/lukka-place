@@ -765,7 +765,14 @@
       "editsPendingReview": "Vos modifications sont enregistrées immédiatement, mais le bien ne sera visible publiquement qu’après validation par l’équipe Lukka Place.",
       "noViewsInPeriod": "Pas encore de vues sur cette période.",
       "descriptionSection": "Descriptif",
-      "photos": "Photos"
+      "photos": "Photos",
+      "smartPasteTitle": "Remplissage automatique depuis WhatsApp",
+      "smartPasteHint": "Collez le texte brut d’une annonce WhatsApp : les champs ci-dessous et le descriptif seront pré-remplis. Vérifiez toujours avant d’enregistrer.",
+      "smartPastePlaceholder": "Collez ici le texte de l’annonce…",
+      "smartPasteButton": "Analyser et remplir",
+      "smartPasteButtonPending": "Analyse en cours…",
+      "smartPasteSuccess": "Champs remplis automatiquement — vérifiez-les avant d’enregistrer.",
+      "smartPasteLowConfidence": "Le texte collé ne ressemble pas clairement à une annonce — vérifiez chaque champ avant d’enregistrer."
     },
     "portfolio": {
       "toRent": "À louer",
@@ -1411,6 +1418,8 @@
     "transactionDateBeforePublication": "La date de transaction précède la publication de l’annonce.",
     "alreadyClosed": "Ce bien est marqué loué / vendu. Utilisez « Remettre en ligne » pour rouvrir la transaction.",
     "titleRequired": "Le titre est obligatoire.",
+    "pasteTextRequired": "Collez le texte de l’annonce avant de l’analyser.",
+    "parseListingFailed": "Impossible d’analyser ce texte pour le moment. Réessayez ou remplissez le formulaire manuellement.",
     "descriptionTooShort": "La description doit contenir au moins 15 caractères.",
     "chooseRentOrSale": "Choisissez « Louer » ou « Vendre ».",
     "invalidPrice": "Indiquez un prix valide.",

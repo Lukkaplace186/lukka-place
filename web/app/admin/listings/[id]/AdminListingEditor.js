@@ -85,7 +85,7 @@ export default function AdminListingEditor({ listing, communes, categories }) {
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-6">
       <section className="u-card rounded-card bg-surface p-6">
-        <h2 className="u-title-card mb-4 text-ink">Contenu</h2>
+        <h2 className="u-title-card mb-4 text-ink">{t('admin.moderation.content')}</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Titre" span={2}>
             <input name="title" defaultValue={listing.title || ''} maxLength={150} className={FIELD} />

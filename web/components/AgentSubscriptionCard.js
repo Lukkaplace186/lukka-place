@@ -122,7 +122,7 @@ export default async function AgentSubscriptionCard({
   return (
     <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-6">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="u-title-card text-ink">Abonnement</h2>
+        <h2 className="u-title-card text-ink">{t('agent.subscription.title')}</h2>
         {badge && (
           <span
             className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[0.6875rem] font-extrabold uppercase tracking-[0.1em] ${badge.className}`}

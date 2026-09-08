@@ -179,7 +179,7 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
       <QualityHints photoCount={photos.length} descriptionLength={descriptionLength} />
 
       <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-6">
-        <h2 className="text-[1.0625rem] font-bold text-ink">Descriptif</h2>
+        <h2 className="text-[1.0625rem] font-bold text-ink">{t('agent.editor.descriptionSection')}</h2>
 
         <div>
           <label htmlFor="title" className={LABEL_CLASS}>Titre</label>
@@ -397,7 +397,7 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
 
       <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-6">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-[1.0625rem] font-bold text-ink">Photos</h2>
+          <h2 className="text-[1.0625rem] font-bold text-ink">{t('agent.editor.photos')}</h2>
           <span className="text-xs text-ink-35">{photos.length}/10 · glissez pour réordonner</span>
         </div>
 

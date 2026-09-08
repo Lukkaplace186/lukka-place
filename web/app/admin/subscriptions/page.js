@@ -339,7 +339,7 @@ export default async function AdminSubscriptionsPage() {
 
       {/* Payment ledger */}
       <div>
-        <h2 className="u-title-card mb-1 text-ink">Paiements &amp; abonnements</h2>
+        <h2 className="u-title-card mb-1 text-ink">{t('admin.subscriptions.paymentsAndSubscriptions')}</h2>
         <p className="mb-3 text-xs text-ink-45">
           {memberships.length} entrée{memberships.length !== 1 ? 's' : ''} — chaque attribution crée une nouvelle ligne, donc cette liste est aussi l&apos;historique des paiements.
         </p>
@@ -435,7 +435,7 @@ export default async function AdminSubscriptionsPage() {
       </div>
 
       <div>
-        <h2 className="u-title-card mb-1 text-ink">Annonces Vedette</h2>
+        <h2 className="u-title-card mb-1 text-ink">{t('admin.subscriptions.featuredListings')}</h2>
         <p className="mb-3 text-xs text-ink-45">
           Annonces réellement approuvées et publiques uniquement — {approvedListings.length} disponible
           {approvedListings.length !== 1 ? 's' : ''}.

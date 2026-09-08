@@ -71,7 +71,7 @@ export default async function DemandesPage() {
       <RequestForm action={submitPropertyRequestAction} communes={communes} />
 
       <aside className="flex flex-col gap-5">
-        <h3 className="u-eyebrow">Demandes soumises</h3>
+        <h3 className="u-eyebrow">{t('account.requests.submitted')}</h3>
 
         {inquiries.length === 0 ? (
           <PortalPanel className="px-5 py-8 text-center">

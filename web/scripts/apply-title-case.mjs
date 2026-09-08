@@ -18,7 +18,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { allHeadingKeys, lookup, setIn } from './heading-keys.mjs';
+import { allHeadingKeys, headingStrings, setIn } from './heading-keys.mjs';
 import { toTitleCase } from '../lib/titleCase.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -28,13 +28,15 @@ const check = process.argv.includes('--check');
 const dict = JSON.parse(readFileSync(EN, 'utf8'));
 const changes = [];
 
+// `headingStrings` rather than a plain lookup, because a heading entry can be
+// a plural object — both `{ one, other }` forms render into the same <h2>.
 for (const key of allHeadingKeys(dict, ROOT)) {
-  const value = lookup(dict, key);
-  if (typeof value !== 'string') continue;
-  const titled = toTitleCase(value);
-  if (titled === value) continue;
-  changes.push({ key, from: value, to: titled });
-  if (!check) setIn(dict, key, titled);
+  for (const { path, value } of headingStrings(dict, key)) {
+    const titled = toTitleCase(value);
+    if (titled === value) continue;
+    changes.push({ key: path, from: value, to: titled });
+    if (!check) setIn(dict, path, titled);
+  }
 }
 
 for (const { key, from, to } of changes) console.log(`${key}\n  - ${from}\n  + ${to}`);

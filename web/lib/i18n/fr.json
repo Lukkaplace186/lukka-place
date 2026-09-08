@@ -763,7 +763,9 @@
       "createdPendingReview": "Annonce créée — en attente de validation par l’équipe Lukka Place.",
       "publicAfterReview": "Votre annonce sera visible publiquement après validation par l’équipe Lukka Place.",
       "editsPendingReview": "Vos modifications sont enregistrées immédiatement, mais le bien ne sera visible publiquement qu’après validation par l’équipe Lukka Place.",
-      "noViewsInPeriod": "Pas encore de vues sur cette période."
+      "noViewsInPeriod": "Pas encore de vues sur cette période.",
+      "descriptionSection": "Descriptif",
+      "photos": "Photos"
     },
     "portfolio": {
       "toRent": "À louer",
@@ -1011,7 +1013,8 @@
         }
       },
       "viewProposalsBelow": "Voir les propositions ci-dessous",
-      "submittedConfirmation": "Demande n° {id} envoyée aux agences partenaires. Suivez son avancement ici."
+      "submittedConfirmation": "Demande n° {id} envoyée aux agences partenaires. Suivez son avancement ici.",
+      "submitted": "Demandes soumises"
     },
     "requestForm": {
       "title": "Trouver pour moi",
@@ -1256,7 +1259,8 @@
       "suspended": "Annonce suspendue — retirée du site public.",
       "putBackOnline": "Annonce remise en ligne.",
       "visibleOnSite": "Visible sur lukkaplace.com",
-      "hiddenFromSite": "Masquée du site public"
+      "hiddenFromSite": "Masquée du site public",
+      "content": "Contenu"
     },
     "subscriptions": {
       "lead": "Forfaits, attribution aux agents et suivi des paiements.",
@@ -1303,7 +1307,9 @@
       "quotasHint2": "des nouvelles demandes.",
       "cancelled": "Annulé",
       "unfeature": "Retirer de Vedette",
-      "agencyRequired": "Agence à attribuer — featured_properties.vendor_id est obligatoire en base, et aucun agent n'est encore lié à cette annonce"
+      "agencyRequired": "Agence à attribuer — featured_properties.vendor_id est obligatoire en base, et aucun agent n'est encore lié à cette annonce",
+      "paymentsAndSubscriptions": "Paiements & abonnements",
+      "featuredListings": "Annonces vedette"
     },
     "matching": {
       "engineUnreachable": "Le moteur d’attribution est injoignable.",
@@ -1319,7 +1325,8 @@
       "lead": "Chaque demande client est classée puis poussée aux 7 meilleures agences de sa commune, sur WhatsApp, à la seconde où elle est soumise.",
       "coverageGapBody": "Ces clients ont décrit ce qu’ils cherchent et personne n’a été notifié — aucune agence inscrite ne couvre leur commune, ou la demande n’en précisait aucune. C’est la seule métrique de cette page qui indique où recruter.",
       "rankingBody": "forfait, puis pondéré par sa réactivité récente et par le nombre de demandes déjà reçues, pour que le flux d’une commune ne se concentre pas sur une seule agence.",
-      "noAgency": "Aucune agence"
+      "noAgency": "Aucune agence",
+      "title": "Attribution automatique"
     },
     "agentPanel": {
       "identityAndTerritory": "Identité et territoire",
@@ -1340,7 +1347,8 @@
       "loginLinkHint": "Le lien de connexion remplace un mot de passe temporaire : il part sur le numéro déjà vérifié de l’agence, ferme toutes ses sessions en cours, et personne chez Lukka Place ne connaît son mot de passe.",
       "transferHint": "faire avant de suspendre un compte : sans agent attribué, chaque annonce retombe sur le numéro WhatsApp central.",
       "chooseAgent": "Choisir un agent…",
-      "transfer": "Transférer"
+      "transfer": "Transférer",
+      "subscriptionHistory": "Historique d’abonnement"
     },
     "cms": {
       "exchangeRate": "Taux de change (USD → CDF)",

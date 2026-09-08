@@ -92,7 +92,7 @@ export default async function AdminMatchingPage({ searchParams }) {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="u-title-page text-ink">Attribution automatique</h1>
+          <h1 className="u-title-page text-ink">{t('admin.matching.title')}</h1>
           <p className="u-micro mt-1 text-ink-45">
             {t('admin.matching.lead')}
           </p>

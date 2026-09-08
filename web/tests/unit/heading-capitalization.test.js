@@ -6,7 +6,15 @@ import path from 'node:path';
 import fr from '@/lib/i18n/fr.json' with { type: 'json' };
 import en from '@/lib/i18n/en.json' with { type: 'json' };
 import { toTitleCase } from '@/lib/titleCase';
-import { allHeadingKeys, lookup, sourceFiles } from '../../scripts/heading-keys.mjs';
+import {
+  allHeadingKeys,
+  headingKeysInSource,
+  headingPropComponents,
+  headingStrings,
+  lookup,
+  propFedHeadingKeys,
+  sourceFiles,
+} from '../../scripts/heading-keys.mjs';
 
 /**
  * **Headings: capitalized in both languages, Title Case in English.**
@@ -56,9 +64,9 @@ function startsCapitalized(value) {
 for (const [lang, dict] of [['fr', fr], ['en', en]]) {
   test(`${lang}.json: every heading string starts with a capital letter`, () => {
     const offenders = allHeadingKeys(dict, ROOT)
-      .map((key) => [key, lookup(dict, key)])
-      .filter(([, value]) => typeof value === 'string' && !startsCapitalized(value))
-      .map(([key, value]) => `${key} = ${JSON.stringify(value)}`);
+      .flatMap((key) => headingStrings(dict, key))
+      .filter(({ value }) => !startsCapitalized(value))
+      .map(({ path, value }) => `${path} = ${JSON.stringify(value)}`);
 
     assert.deepEqual(offenders, [], `${lang}.json headings must start with a capital letter`);
   });
@@ -71,9 +79,9 @@ for (const [lang, dict] of [['fr', fr], ['en', en]]) {
  */
 test('en.json: every heading string is in Title Case', () => {
   const offenders = allHeadingKeys(en, ROOT)
-    .map((key) => [key, lookup(en, key)])
-    .filter(([, value]) => typeof value === 'string' && toTitleCase(value) !== value)
-    .map(([key, value]) => `${key}\n    is:     ${JSON.stringify(value)}\n    should: ${JSON.stringify(toTitleCase(value))}`);
+    .flatMap((key) => headingStrings(en, key))
+    .filter(({ value }) => toTitleCase(value) !== value)
+    .map(({ path, value }) => `${path}\n    is:     ${JSON.stringify(value)}\n    should: ${JSON.stringify(toTitleCase(value))}`);
 
   assert.deepEqual(
     offenders,
@@ -128,3 +136,105 @@ for (const [lang, dict] of [['fr', fr], ['en', en]]) {
     assert.deepEqual(offenders, [], `${lang}.json: results-heading openers must start with a capital letter`);
   });
 }
+
+/**
+ * The third source of heading keys: a key handed to a component prop that the
+ * component renders inside a heading. `<Panel title={t('…')}>` puts a real
+ * <h2> on the admin dashboard with no `<h2>` anywhere near the call site, so
+ * neither the naming convention nor the element scan sees it, and those
+ * headings sat outside this rule until the prop scan was added.
+ */
+test('heading props are discovered from the JSX, not from a hand-kept list', () => {
+  const components = headingPropComponents(ROOT);
+
+  // `function Panel({ title, … })` renders `<h2>{title}</h2>`.
+  assert.ok(components.has('Panel'), 'Panel renders a prop inside an <h2>');
+  assert.ok(components.get('Panel').has('title'), 'Panel.title is that prop');
+
+  // `<SectionTitle>{t('…')}</SectionTitle>` — arrives as children, not a prop.
+  assert.ok(components.get('SectionTitle')?.has('children'), 'SectionTitle headings arrive as children');
+
+  const keys = new Set(propFedHeadingKeys(ROOT, components));
+  assert.ok(
+    keys.has('admin.dashboard.trafficSource'),
+    'a <Panel title={t(…)}> key must be treated as the heading it renders as',
+  );
+});
+
+/**
+ * ...and the line the prop scan must not cross. `<SectionTitle>` takes a whole
+ * `<button>` as its `action` prop, and that button's label lives *inside the
+ * opening tag*, next to the heading it is not. Scanning from the tag's start
+ * instead of its end swept `account.favorites.linkCopied` ("Link copied") in
+ * and Title-Cased a toast-style button label as though it were a section
+ * heading.
+ */
+test('a label passed inside an element-valued prop is not mistaken for the heading', () => {
+  const keys = new Set(propFedHeadingKeys(ROOT));
+
+  assert.ok(keys.has('account.favorites.savedProperties'), 'the children ARE the heading');
+  assert.ok(!keys.has('account.favorites.linkCopied'), 'a button label in an `action` prop is not');
+  assert.ok(!keys.has('common.actions.share'), 'nor is the button label beside it');
+});
+
+/**
+ * A key rendered in a heading must actually exist — in BOTH dictionaries.
+ *
+ * `allHeadingKeys` drops a key the dictionary doesn't have, so that
+ * `apply-title-case.mjs` never trips over one; that is also exactly what
+ * would hide a typo. lib/i18n/translate.js falls back silently in
+ * production, so `t('admin.matching.titel')` ships an empty <h1> rather than
+ * an error. This is the check that turns that into a failing test — and the
+ * nine headings that were hardcoded French in JSX until they moved into the
+ * dictionary are precisely the kind of edit that can introduce one.
+ */
+for (const [lang, dict] of [['fr', fr], ['en', en]]) {
+  test(`${lang}.json: every key rendered in a heading exists`, () => {
+    const rendered = [...headingKeysInSource(ROOT), ...propFedHeadingKeys(ROOT)];
+    const missing = [...new Set(rendered)]
+      .filter((key) => headingStrings(dict, key).length === 0)
+      .sort();
+
+    assert.deepEqual(missing, [], `${lang}.json is missing heading keys the JSX renders`);
+  });
+}
+
+/**
+ * ...and the English form of the same `<h1>`, assembled end to end.
+ *
+ * Checking the openers alone was not enough. `listings.results.heading` is
+ * `"{subject} {transaction} in {place}"`, and `{transaction}` is filled from
+ * `search.label.toRent` / `toBuy` / `available` — three keys that exist for
+ * this heading and nothing else, and that no rule had ever looked at. They
+ * read "to rent" / "for sale" / "available", so the live `/listings` <h1>
+ * rendered "Apartments to rent in Gombe" — the exact string the convention's
+ * own documentation used as its Title Case example, in sentence case.
+ *
+ * So this asserts the rendered heading rather than its ingredients: every
+ * subject the filters can produce, against every transaction, is Title Case.
+ */
+test('en.json: the assembled results heading is Title Case for every filter combination', () => {
+  const template = lookup(en, 'listings.results.heading');
+  const subjects = [
+    lookup(en, 'listings.results.subjectFallback'),
+    ...Object.values(lookup(en, 'listings.typePlurals') || {}),
+  ];
+  // components/ResultsHeader.js's buildHeading: these three, and only these.
+  const transactions = ['toRent', 'toBuy', 'available'].map((k) => lookup(en, `search.label.${k}`));
+
+  const offenders = [];
+  for (const subject of subjects) {
+    for (const transaction of transactions) {
+      // `place` is real data (a commune name), never translated.
+      const heading = template
+        .replace('{subject}', subject)
+        .replace('{transaction}', transaction)
+        .replace('{place}', 'Gombe');
+      if (toTitleCase(heading) !== heading) {
+        offenders.push(`${JSON.stringify(heading)}\n    should: ${JSON.stringify(toTitleCase(heading))}`);
+      }
+    }
+  }
+
+  assert.deepEqual(offenders, [], 'the results <h1> must be Title Case as rendered, not just as stored');
+});

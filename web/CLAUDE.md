@@ -340,15 +340,72 @@ there is no code path that could Title-Case the French dictionary.
   comes from the value. `listings.results.heading` is `"{subject}
   {transaction} in {place}"` — the test asserts the strings that can fill
   `{subject}` instead of exempting that `<h1>` silently.
+- **Checking a template's ingredients is not the same as checking the
+  heading.** The `{subject}` fillers were asserted; `{transaction}` never
+  was. It comes from `search.label.toRent` / `toBuy` / `available` — three
+  keys that exist for this one `<h1>` and nothing else, and which read "to
+  rent" / "for sale" / "available". So `/listings` shipped "Apartments to
+  rent in Gombe": the very string this file used as its Title Case example,
+  in sentence case. They are now "to Rent" / "for Sale" / "Available" (odd
+  alone, correct in the only place they appear), and the test assembles the
+  real heading — every subject × every transaction — rather than inspecting
+  the parts. Change those three keys only together with that test.
 - **There is deliberately no test asserting French is *not* Title Case.** The
   obvious version fires on every proper-noun meta title ("Contact — Lukka
   Place") and would need a hand-maintained exception list. See the comment in
   the test file.
-- **Still open, and the one thing an English visitor sees out of convention:**
-  nine headings are hardcoded French in JSX rather than going through i18n,
-  so they stay French — and therefore sentence case — for an English reader.
-  `grep -rEn "<h[1-6][^>]*>[^<{]*[A-Za-zÀ-ÿ]" app components` finds them.
-  Moving them into the dictionary is what would bring them under this rule.
+- **The nine hardcoded French JSX headings are gone.** They rendered French —
+  and therefore sentence case — to an English reader, because a heading
+  written straight into JSX never meets the dictionary. All nine now go
+  through `t()` (`account.requests.submitted`,
+  `admin.agentPanel.subscriptionHistory`, `admin.moderation.content`,
+  `admin.matching.title`, `admin.subscriptions.paymentsAndSubscriptions`,
+  `admin.subscriptions.featuredListings`, `agent.editor.descriptionSection`,
+  `agent.editor.photos`, and the already-existing `agent.subscription.title`),
+  so the rule reaches them. `grep -rEn "<h[1-6][^>]*>[^<{]*[A-Za-zÀ-ÿ]" app
+  components` is how you find a new one; it should stay empty.
+
+### A heading is not always next to an `<h2>`
+
+`heading-keys.mjs` unions **three** sources, not two. The third exists
+because `<Panel title={t('admin.dashboard.trafficSource')}>` renders a real
+`<h2>` — inside `Panel` — with no heading element anywhere near the call
+site. Twenty-one headings (`Panel`, `Step`, `SectionHeading`, `PageShell`,
+`AgentPageHeader`, `PortalEmpty`, `SectionTitle`, plus Radix's
+`DialogTitle`/`SheetTitle`) sat outside this rule until the prop scan was
+added, so "Sort by", "More filters" and "Traffic source" were shipping in
+sentence case under an English Title Case convention.
+
+- **Which props are heading props is derived, never listed.** A component is
+  read for `<h2>{title}</h2>`, and `title` becomes a heading prop of that
+  component. A hand-kept list is precisely what goes stale when someone adds
+  a dashboard panel.
+- **Radix's `DialogTitle`/`SheetTitle` are named explicitly**, since they are
+  the one case that never appears as `<hN>` in our source — Radix renders the
+  `<h2>` and wires `aria-labelledby` to it.
+- **The prop scan is scoped to the opening tag, and children are scanned from
+  after it.** `<SectionTitle action={<button>{t('…linkCopied')}</button>}>`
+  puts a button's label *inside the opening tag*; scanning from the tag's
+  start Title-Cased "Link copied" — a transient toast label — as though it
+  were a section heading. Both halves of that (the heading it must catch, the
+  label it must not) are pinned in the test file.
+- **A key used as both a dialog title and the button that opens it gets Title
+  Case in both places**, which is right here: this app's buttons already read
+  "Log In" and "Create an Account".
+- **A heading entry is not always a string.** `agent.listings.deleteBulkTitle`
+  and `account.favorites.compareTitle` are `{ one, other }` plural objects,
+  and both forms render into the same heading. A plain `typeof value ===
+  'string'` check skipped them entirely — they were the last two English
+  headings still in sentence case, and the naming convention had been
+  matching them the whole time. `headingStrings()` in `heading-keys.mjs` is
+  the one place that resolves an entry to the strings it can render; use it
+  rather than `lookup()` when checking or rewriting heading copy.
+- **A heading key that doesn't exist fails a test now.**
+  `lib/i18n/translate.js` falls back silently in production, so a typo'd
+  `t('admin.matching.titel')` ships an empty `<h1>` rather than an error, and
+  `allHeadingKeys` drops unknown keys so the transform never trips over one —
+  which is the same thing that would hide the typo. Both dictionaries are
+  asserted to hold every key the JSX renders in a heading.
 
 ## Phone verification — WhatsApp OTP, both account types
 

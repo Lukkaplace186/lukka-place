@@ -140,7 +140,7 @@ export default async function AdminAgentDetailPage({ params }) {
         />
 
         <div className="u-card flex flex-col gap-3 rounded-card bg-surface p-6">
-          <h2 className="u-title-card text-ink">Historique d’abonnement</h2>
+          <h2 className="u-title-card text-ink">{t('admin.agentPanel.subscriptionHistory')}</h2>
           {billing.length === 0 ? (
             <p className="u-micro text-ink-45">
               Aucun paiement enregistré. Attribuez un forfait depuis{' '}

@@ -4,9 +4,19 @@
  * One-time back-catalogue cleanup for the Smart Paste feature (root
  * CLAUDE.md): re-runs every existing listing's own title+description text
  * through the same `parseListingTextForForm` extractor the agent dashboard's
- * "Auto-Fill from WhatsApp Text" button now uses, and replaces a messy
- * WhatsApp-style description (emojis, asterisks, ALL CAPS, bullet glyphs)
- * with the clean, professional one it generates.
+ * "Auto-Fill from WhatsApp Text" button now uses, and replaces the
+ * description with the hardened headline + "• " bulleted format the current
+ * LISTING_FORM_SYSTEM_PROMPT generates — every bullet backed by a fact
+ * actually present in the source text, per that prompt's zero-hallucination
+ * guardrail; nothing here adds or embellishes on top of what the model
+ * returns.
+ *
+ * Two selection modes:
+ *   - Default: only listings whose CURRENT description still looks like raw
+ *     WhatsApp copy (see looksMessy()) — for an incremental cleanup pass.
+ *   - `--all`: every listing, regardless of its current description — for a
+ *     full re-format after a prompt change (e.g. adopting the new
+ *     headline+bullets style across the whole catalogue).
  *
  * Deliberately narrower than "re-extract everything and overwrite the
  * record": a listing's structured columns (price, beds, bath, quartier, ...)
@@ -15,8 +25,8 @@
  * back into the model — blindly overwriting a since-corrected column from a
  * stale source would be a real regression, not a cleanup. So:
  *
- *   - `description` (property_contents) is REPLACED whenever the existing
- *     text looks messy (see looksMessy()) — that's the actual ask.
+ *   - `description` (property_contents) is REPLACED for every processed
+ *     listing — that's the actual ask.
  *   - Every OTHER field (beds, bath, quartier, parcelle_subtype, units_count,
  *     reference, deposit_months) is only ever filled when the column is
  *     currently NULL. An existing non-null value always wins. When the
@@ -27,9 +37,10 @@
  *     sensitive field with the highest cost of a wrong auto-correction.
  *
  * Usage:
- *   node scripts/backfill-smart-paste-descriptions.js            (dry run — no writes)
- *   node scripts/backfill-smart-paste-descriptions.js --apply    (writes for real)
- *   node scripts/backfill-smart-paste-descriptions.js --apply --limit=5
+ *   node scripts/backfill-smart-paste-descriptions.js                  (dry run, messy-only)
+ *   node scripts/backfill-smart-paste-descriptions.js --all            (dry run, every listing)
+ *   node scripts/backfill-smart-paste-descriptions.js --all --apply    (writes for real)
+ *   node scripts/backfill-smart-paste-descriptions.js --all --apply --limit=5
  *
  * Requires the real OPENAI_API_KEY and Postgres (DB_HOST/DB_USER/DB_PASSWORD/
  * DB_NAME) env vars — same as the live engine process. Writes a full JSON
@@ -47,21 +58,37 @@ const CONTENT_LANGUAGE_ID = 20;
 const REPORT_PATH = path.join(__dirname, 'backfill-smart-paste-descriptions.report.json');
 
 const APPLY = process.argv.includes('--apply');
+const ALL = process.argv.includes('--all');
 const LIMIT_ARG = process.argv.find((a) => a.startsWith('--limit='));
 const LIMIT = LIMIT_ARG ? Number.parseInt(LIMIT_ARG.split('=')[1], 10) : null;
+// Targeted retry for listings that failed on a prior run (e.g. a 429 from
+// the model provider's tokens-per-minute limit — the earlier run logs which
+// ids those were, and nothing was written for them, so a retry is safe).
+const IDS_ARG = process.argv.find((a) => a.startsWith('--ids='));
+const ONLY_IDS = IDS_ARG ? new Set(IDS_ARG.split('=')[1].split(',').map((s) => Number.parseInt(s, 10))) : null;
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** Same signal EXTRACTION_FAILURE_MARKERS-style checks elsewhere in this codebase use: is this text still raw WhatsApp copy, not a written listing description? */
+/**
+ * Same signal EXTRACTION_FAILURE_MARKERS-style checks elsewhere in this
+ * codebase use: is this text still raw WhatsApp copy, not a written listing
+ * description? Only consulted when `--all` is NOT passed.
+ *
+ * Deliberately does NOT treat "•" alone as messy: the hardened prompt's own
+ * output is a clean headline + "• " bulleted list, so a bare bullet check
+ * would flag every listing this script (or Smart Paste) already cleaned up
+ * as still needing work, on every future run. Real WhatsApp mess is still
+ * caught by the emoji/asterisk/shouty-line checks below.
+ */
 function looksMessy(text) {
   const t = String(text || '');
   if (t.trim().length < 20) return true;
   const emoji = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u;
   const whatsappMarkup = /\*[^*]+\*/;
-  const bullets = /[•▪●]/;
   const shoutyLine = /^[A-ZÀ-Ý0-9 !.,:;'"()/-]{12,}$/m;
-  return emoji.test(t) || whatsappMarkup.test(t) || bullets.test(t) || shoutyLine.test(t);
+  return emoji.test(t) || whatsappMarkup.test(t) || shoutyLine.test(t);
 }
 
-/** Defensive cleanup mirroring web/lib/smartPaste.js's cleanDescription — kept as a small duplicate here rather than a cross-repo import, since this is a one-time script. */
+/** Defensive cleanup mirroring web/lib/smartPaste.js's cleanDescription — kept as a small duplicate here rather than a cross-repo import, since this is a one-time script. Bullet characters (•) are intentional formatting from the hardened prompt and are left alone. */
 function cleanDescription(text) {
   return String(text || '')
     .replace(/\*+/g, '')
@@ -92,16 +119,23 @@ async function run() {
     [CONTENT_LANGUAGE_ID],
   );
 
-  const candidates = (LIMIT ? listings.slice(0, LIMIT) : listings).filter((l) => looksMessy(l.description));
+  const idFiltered = ONLY_IDS ? listings.filter((l) => ONLY_IDS.has(Number(l.id))) : listings;
+  const scoped = LIMIT ? idFiltered.slice(0, LIMIT) : idFiltered;
+  const candidates = (ALL || ONLY_IDS) ? scoped : scoped.filter((l) => looksMessy(l.description));
 
+  const selectionLabel = ONLY_IDS ? `selected (--ids)` : ALL ? 'selected (--all)' : 'with a messy description';
   console.log(
-    `[backfill] ${listings.length} listings total, ${candidates.length} with a messy description ` +
+    `[backfill] ${listings.length} listings total, ${candidates.length} ${selectionLabel} ` +
       `(${APPLY ? 'APPLY — writing for real' : 'DRY RUN — no writes'})`,
   );
 
   const report = { startedAt: new Date().toISOString(), apply: APPLY, updated: [], filledFields: [], ambiguous: [], failed: [] };
 
   for (const listing of candidates) {
+    // Light pacing against the model provider's tokens-per-minute limit —
+    // hit for real on a 37-listing --all run (three 429s, all before any
+    // write, so nothing was left inconsistent — but worth not repeating).
+    await sleep(1500);
     const sourceText = [listing.title, listing.description].filter(Boolean).join('\n\n');
     let extracted;
     try {
@@ -119,6 +153,12 @@ async function run() {
     }
 
     const newDescription = cleanDescription(extracted.description_fr);
+    if (newDescription.length < 20) {
+      console.warn(`[backfill] #${listing.id} generated description too short (${newDescription.length} chars) — skipped, needs manual review`);
+      report.ambiguous.push({ id: listing.id, reason: 'description_too_short', newDescription });
+      continue;
+    }
+
     const fills = {};
     for (const { column, extractedKey } of FILLABLE_COLUMNS) {
       const existing = listing[column];

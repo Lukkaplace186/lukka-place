@@ -895,8 +895,17 @@ RÈGLES D'EXTRACTION
 2. Ne convertis pas les devises ; rapporte le montant et la devise tels qu'écrits.
 3. Convertis les dimensions en superficie ("20x30" => 600 m²), la virgule est un séparateur décimal.
 4. title_suggestion : un titre court (moins de 80 caractères), en français correct, casse normale (pas de MAJUSCULES, pas d'emoji), ex. "Appartement 3 chambres à louer à Kinshasa, Plateau".
-5. description_fr : un descriptif professionnel de 2 à 4 phrases en français, en casse normale (pas de MAJUSCULES, pas d'emoji, pas de formatage WhatsApp avec astérisques, pas de puces), qui décrit la composition et les équipements RÉELLEMENT mentionnés dans le texte — n'invente aucun détail. N'inclus JAMAIS le prix, la garantie, ni une quelconque coordonnée de contact dans ce texte : ce sont des champs séparés, gérés ailleurs sur la page.
-6. confidence : 0.9+ pour une annonce claire, ~0.5 pour un message vague, <0.3 si le texte ne ressemble probablement pas à une annonce.`;
+5. description_fr : un texte en DEUX parties séparées par une ligne vide.
+   a) Une accroche courte et percutante (une phrase, moins de 90 caractères), en français, casse normale (jamais de MAJUSCULES), sans emoji, au plus un point d'exclamation.
+   b) Une liste à puces (chaque ligne commence par "• "), une puce par caractéristique de composition ou d'équipement — voir le GARDE-FOU ANTI-HALLUCINATION ci-dessous pour ce qui peut y figurer.
+   N'inclus JAMAIS le prix, la garantie, ni une quelconque coordonnée de contact dans ce texte : ce sont des champs séparés, gérés ailleurs sur la page.
+6. confidence : 0.9+ pour une annonce claire, ~0.5 pour un message vague, <0.3 si le texte ne ressemble probablement pas à une annonce.
+
+GARDE-FOU ANTI-HALLUCINATION (règle absolue — prime sur le style et sur l'envie de "compléter" la liste)
+- N'ajoute, n'insinue ou ne suppose AUCUN équipement, caractéristique ou avantage qui n'est pas écrit explicitement dans le texte source — même s'il est courant pour ce type de bien à Kinshasa. Un appartement n'a pas forcément de parking, de balcon, de climatisation ou de groupe électrogène : n'en parle dans la liste à puces QUE si le texte le mentionne réellement.
+- Si le texte ne mentionne aucun équipement précis, la liste à puces peut se limiter à un seul élément décrivant la composition (ex. "3 chambres, 1 salon") — ne complète jamais avec des suppositions pour donner l'impression d'un bien mieux équipé.
+- En cas de doute sur le sens exact d'une abréviation ou d'un terme ambigu, OMETS-le plutôt que de deviner ce qu'il désigne.
+- Un descriptif honnête et incomplet vaut toujours mieux qu'un descriptif complet mais partiellement inventé.`;
 
 const LISTING_FORM_RESPONSE_FORMAT = {
   type: 'json_schema',
@@ -931,7 +940,10 @@ const LISTING_FORM_RESPONSE_FORMAT = {
         surface_area_sqm: { type: ['number', 'null'] },
         units_count: { type: ['integer', 'null'] },
         furnished: { type: ['boolean', 'null'] },
-        description_fr: { type: 'string', description: 'Descriptif professionnel de 2-4 phrases, casse normale, sans emoji ni astérisque.' },
+        description_fr: {
+          type: 'string',
+          description: 'Accroche courte + ligne vide + liste à puces ("• "), casse normale, sans emoji ni astérisque. Chaque puce doit correspondre à un fait explicitement présent dans le texte source — jamais une supposition.',
+        },
         confidence: { type: 'number' },
       },
     },

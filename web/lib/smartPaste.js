@@ -122,11 +122,14 @@ export function matchAmenityIds(amenities, rawText) {
 }
 
 /**
- * Defensive cleanup only — the model is already instructed to produce plain
- * sentence-case French prose with no emoji/asterisks (services/openai.js's
- * LISTING_FORM_SYSTEM_PROMPT). This just strips anything that slips through,
- * so a raw WhatsApp-style artifact never lands in the description textarea
- * unedited.
+ * Defensive cleanup only — the model is already instructed to produce a
+ * headline + a "• " bulleted feature list, sentence case, no emoji/asterisks
+ * (services/openai.js's LISTING_FORM_SYSTEM_PROMPT). Bullet characters (•)
+ * are intentional formatting and are left alone; this only strips WhatsApp
+ * artifacts (asterisks, emoji) that slip through, so raw markup never lands
+ * in the description textarea unedited. `whitespace-pre-line` on the public
+ * listing page (app/(site)/listings/[id]/page.js) is what renders the
+ * headline/blank-line/bullets structure as actual line breaks.
  * @param {string} description
  * @returns {string}
  */

@@ -1,4 +1,5 @@
 import { Plus_Jakarta_Sans, DM_Serif_Display } from 'next/font/google';
+import Script from 'next/script';
 import './globals.css';
 import { SITE_URL } from '@/lib/constants';
 import { getI18n, getT } from '@/lib/i18n/server';
@@ -147,6 +148,36 @@ export default async function RootLayout({ children }) {
   return (
     <html lang={locale} className={`${plusJakartaSans.variable} ${dmSerifDisplay.variable} h-full`}>
       <body className="min-h-full">
+        {/*
+         * Plausible — cookieless, privacy-friendly page analytics.
+         *
+         * Deliberately additive to lib/analytics.js + /api/track, not a
+         * replacement: that one is our own first-party counter (per-listing
+         * views and enquiries, feeding /admin/dashboard) and answers "which
+         * listing is working". Plausible answers "where does traffic come
+         * from". Neither can be derived from the other.
+         *
+         * `afterInteractive` rather than `beforeInteractive`: Next only
+         * honours beforeInteractive by injecting into <head> and blocking the
+         * initial HTML, and an analytics beacon is never worth delaying first
+         * paint for. That is safe here precisely because the inline stub below
+         * is Plausible's own queue shim — any plausible(...) call made before
+         * the remote script lands is buffered on `plausible.q` and replayed,
+         * rather than thrown away.
+         *
+         * The id in the script URL is a public site identifier (it ships to
+         * every browser by definition), not a secret, so it is hardcoded
+         * rather than put behind a NEXT_PUBLIC_ env var that would add a
+         * deploy-time failure mode for no confidentiality gain.
+         */}
+        <Script
+          src="https://plausible.io/js/pa-9NscHR8kDkD908gAxBxEC.js"
+          strategy="afterInteractive"
+        />
+        <Script id="plausible-init" strategy="afterInteractive">
+          {`window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};
+plausible.init()`}
+        </Script>
         <I18nProvider locale={locale} messages={messages}>
           <LocaleSync />
           {children}

@@ -2,10 +2,12 @@
 
 import { redirect } from 'next/navigation';
 import { phoneFromForm } from '@/lib/phone';
-import { getAgentByPhone, createAgent, sendAgentOtp } from '@/lib/agents';
+import { getAgentByPhone, createAgent, sendAgentOtp, consumeAgentOtp } from '@/lib/agents';
 import { updateAgentIdentity } from '@/lib/agencies';
 import { hashPassword } from '@/lib/agentAuth';
+import { establishAgentSession } from '@/lib/agentSession';
 import { setVerifyAttemptCookie } from '@/lib/verifyAttempt';
+import { otpBypassEnabled, logOtpBypass } from '@/lib/otpBypass';
 
 function safeNext(nextParam) {
   const next = String(nextParam || '/compte/agent');
@@ -59,6 +61,17 @@ export async function agentSignupAction(formData) {
     // A name that fails to save must not cost the agent their account — the
     // row already exists and the name is editable later in Paramètres.
     console.error(`[agent-auth] could not store name for agent #${agent.id}: ${err.message}`);
+  }
+
+  // Testing mode: no code, straight to a session. consumeAgentOtp is reused
+  // rather than a second UPDATE, which also means the bypassed path still
+  // runs the retroactive listing claim — the thing that makes an agent who
+  // already WhatsApped listings find them on their dashboard.
+  if (otpBypassEnabled()) {
+    logOtpBypass('agent-auth', { id: agent.id, phone });
+    await consumeAgentOtp(agent.id);
+    await establishAgentSession({ id: agent.id, tokenVersion: agent.token_version });
+    redirect(next);
   }
 
   // Which account is being verified travels in a signed httpOnly cookie

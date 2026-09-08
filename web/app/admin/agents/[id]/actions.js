@@ -10,6 +10,7 @@ import {
   reassignAgentListings,
   getAgentById,
 } from '@/lib/agents';
+import { adminSetAccountPassword } from '@/lib/adminPasswordReset';
 import { getT } from '@/lib/i18n/server';
 
 async function assertAdminSession() {
@@ -83,6 +84,36 @@ export async function adminResetAgentAccessAction(agentId) {
     return errorKey ? { ...result, error: t(errorKey) } : result;
   } catch (err) {
     return { ok: false, error: err.message || t('errors.sendFailedShort') };
+  }
+}
+
+/**
+ * Sets the agent's password to one the admin typed, right here — the offline
+ * counterpart to adminResetAgentAccessAction above, which depends on a
+ * WhatsApp message arriving. Both exist because they fail in different
+ * situations: the link is better when the agent is reachable (we never learn
+ * their password), this one is the only thing that works when they are not.
+ *
+ * The new password is relayed by the admin, out of band. It is not returned
+ * here and not logged: the whole point of hashing it is that nothing but the
+ * person who typed it ever holds the plaintext.
+ */
+export async function adminSetAgentPasswordAction(agentId, formData) {
+  const t = await getT();
+  try {
+    await assertAdminSession();
+    const { errorKey, ...result } = await adminSetAccountPassword({
+      role: 'agent',
+      id: agentId,
+      password: formData.get('password'),
+      confirm: formData.get('password_confirm'),
+    });
+    if (errorKey) return { ...result, error: t(errorKey) };
+    revalidateAgent(agentId);
+    return result;
+  } catch (err) {
+    console.error(`[admin/agents] password reset #${agentId} failed: ${err.message}`);
+    return { ok: false, error: err.message || t('errors.actionFailed') };
   }
 }
 

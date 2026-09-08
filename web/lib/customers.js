@@ -172,6 +172,51 @@ export async function resetCustomerPassword(customerId, passwordHash) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Admin console (/admin/customers). Read-only listing plus the lookup the
+// password-reset action needs. The reset itself reuses resetCustomerPassword
+// above rather than adding a second UPDATE — an admin-set password and a
+// self-service reset must leave the row in exactly the same state (password
+// replaced, every outstanding session invalidated, lockout cleared), and two
+// statements claiming to do that is how they drift.
+// ---------------------------------------------------------------------------
+
+/**
+ * @param {{q?: string, limit?: number}} [options] `q` matches on phone digits
+ *   or name. Matched against the stored E.164 digits, so a search for
+ *   "0793" finds nothing and "44793" finds the number — the same thing the
+ *   agents search already does, and the reason the placeholder says digits.
+ */
+export async function adminListCustomers({ q, limit = 200 } = {}) {
+  const pool = getPool();
+  const term = String(q || '').trim();
+  const params = [Math.min(Number(limit) || 200, 500)];
+  let where = '';
+  if (term) {
+    params.push(`%${term.replace(/[%_]/g, '')}%`);
+    where = `WHERE c.phone ILIKE $2 OR COALESCE(c.full_name, '') ILIKE $2`;
+  }
+
+  const { rows } = await pool.query(
+    `SELECT c.id, c.phone, c.full_name, c.created_at, c.last_login_at,
+            c.phone_verified_at, c.failed_login_count, c.locked_until,
+            (c.password_hash IS NOT NULL AND c.password_hash <> '') AS has_password
+     FROM customers c
+     ${where}
+     ORDER BY c.created_at DESC
+     LIMIT $1`,
+    params,
+  );
+  return rows;
+}
+
+/** The existence check the reset action runs before writing a password. */
+export async function adminGetCustomerById(customerId) {
+  const pool = getPool();
+  const { rows } = await pool.query(`SELECT id, phone, full_name FROM customers WHERE id = $1`, [customerId]);
+  return rows[0] || null;
+}
+
 export async function listFavoriteIds(customerId) {
   const pool = getPool();
   const { rows } = await pool.query(

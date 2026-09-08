@@ -1092,7 +1092,8 @@
       "subscriptions": "Subscriptions",
       "cms": "CMS",
       "todayRate": "Today's rate",
-      "editRate": "Edit rate"
+      "editRate": "Edit rate",
+      "customers": "Customers"
     },
     "login": {
       "intro": "Restricted to the Lukka Place team.",
@@ -1346,6 +1347,35 @@
       "homeBanners": "Home banners (sliders)",
       "adBanners": "Advertising banners",
       "rateNote": "Manual rate shown on the public site, never a live exchange feed — see web/CLAUDE.md. Edit"
+    },
+    "password": {
+      "title": "Reset password",
+      "hint": "Sets a new password immediately and signs the account out everywhere. Relay it to the account holder yourself — it is never sent automatically.",
+      "newPassword": "New password",
+      "confirmPassword": "Confirm password",
+      "submit": "Set password",
+      "saving": "Saving…",
+      "generate": "Generate",
+      "done": "Password updated.",
+      "sessionsNote": "Every existing session for this account is closed, and any login lockout is cleared.",
+      "tooShort": "The password must be at least 8 characters.",
+      "mismatch": "The two passwords do not match.",
+      "accountNotFound": "This account no longer exists.",
+      "failed": "Could not update the password."
+    },
+    "customers": {
+      "title": "Customers",
+      "one": "customer",
+      "many": "customers",
+      "search": "Search",
+      "searchPlaceholder": "Name or number (digits)",
+      "empty": "No customer account matches this search.",
+      "noName": "Unnamed account",
+      "since": "since",
+      "hasPassword": "Password set",
+      "verified": "Number verified",
+      "failedLogins": "Failed logins",
+      "locked": "Locked"
     }
   },
   "errors": {

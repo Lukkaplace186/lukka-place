@@ -2,10 +2,17 @@
 
 import { redirect } from 'next/navigation';
 import { phoneFromForm } from '@/lib/phone';
-import { getAgentByPhone, recordAgentFailedLogin, clearAgentFailedLogins, sendAgentOtp } from '@/lib/agents';
+import {
+  getAgentByPhone,
+  recordAgentFailedLogin,
+  clearAgentFailedLogins,
+  sendAgentOtp,
+  consumeAgentOtp,
+} from '@/lib/agents';
 import { verifyPasswordAgainstHash, burnConstantTime, MAX_FAILED_LOGIN_ATTEMPTS, LOCKOUT_MS } from '@/lib/agentAuth';
 import { establishAgentSession } from '@/lib/agentSession';
 import { setVerifyAttemptCookie } from '@/lib/verifyAttempt';
+import { otpBypassEnabled, logOtpBypass } from '@/lib/otpBypass';
 
 function safeNext(nextParam) {
   const next = String(nextParam || '/compte/agent');
@@ -42,7 +49,13 @@ export async function agentLoginAction(formData) {
 
   await clearAgentFailedLogins(agent.id);
 
-  if (!agent.phone_verified_at) {
+  if (!agent.phone_verified_at && otpBypassEnabled()) {
+    // Testing mode — the password already matched; only proof of the number
+    // is being skipped. See lib/otpBypass.js. consumeAgentOtp also claims any
+    // listings this number already sent in over WhatsApp.
+    logOtpBypass('agent-auth', { id: agent.id, phone });
+    await consumeAgentOtp(agent.id);
+  } else if (!agent.phone_verified_at) {
     await setVerifyAttemptCookie({ role: 'agent', id: agent.id, phone });
     try {
       await sendAgentOtp(agent.id, phone);

@@ -2,9 +2,17 @@
 
 import { redirect } from 'next/navigation';
 import { phoneFromForm } from '@/lib/phone';
-import { getCustomerByPhone, createCustomer, mergeAnonymousData, sendCustomerOtp } from '@/lib/customers';
+import {
+  getCustomerByPhone,
+  createCustomer,
+  mergeAnonymousData,
+  sendCustomerOtp,
+  consumeCustomerOtp,
+} from '@/lib/customers';
 import { hashPassword } from '@/lib/customerAuth';
+import { establishCustomerSession } from '@/lib/customerSession';
 import { setVerifyAttemptCookie } from '@/lib/verifyAttempt';
+import { otpBypassEnabled, logOtpBypass } from '@/lib/otpBypass';
 
 function safeNext(nextParam) {
   const next = String(nextParam || '/compte/client');
@@ -65,6 +73,17 @@ export async function signupAction(formData) {
   const { favoriteIds, savedSearches } = parseAnonymousData(formData);
   if (favoriteIds.length > 0 || savedSearches.length > 0) {
     await mergeAnonymousData(customer.id, { favoriteIds, savedSearches });
+  }
+
+  // Testing mode: no code, straight to a session. consumeCustomerOtp is
+  // reused rather than a second UPDATE — it is already the one statement
+  // that means "this number is verified", so the bypassed path and the real
+  // one leave the row in exactly the same state.
+  if (otpBypassEnabled()) {
+    logOtpBypass('customer-auth', { id: customer.id, phone });
+    await consumeCustomerOtp(customer.id);
+    await establishCustomerSession({ id: customer.id, tokenVersion: customer.token_version });
+    redirect(next);
   }
 
   // Which account is being verified travels in a signed httpOnly cookie,

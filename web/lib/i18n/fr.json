@@ -1092,7 +1092,8 @@
       "subscriptions": "Abonnements",
       "cms": "CMS",
       "todayRate": "Taux du jour",
-      "editRate": "Modifier le taux"
+      "editRate": "Modifier le taux",
+      "customers": "Clients"
     },
     "login": {
       "intro": "Accès réservé à l'équipe Lukka Place.",
@@ -1346,6 +1347,35 @@
       "homeBanners": "Bannières d'accueil (sliders)",
       "adBanners": "Bannières publicitaires (advertisements)",
       "rateNote": "Taux manuel affiché sur le site public, jamais un flux de change en direct — voir web/CLAUDE.md. Modifier"
+    },
+    "password": {
+      "title": "Réinitialiser le mot de passe",
+      "hint": "Définit un nouveau mot de passe immédiatement et déconnecte le compte partout. Transmettez-le vous-même au titulaire : il n’est jamais envoyé automatiquement.",
+      "newPassword": "Nouveau mot de passe",
+      "confirmPassword": "Confirmer le mot de passe",
+      "submit": "Définir le mot de passe",
+      "saving": "Enregistrement…",
+      "generate": "Générer",
+      "done": "Mot de passe mis à jour.",
+      "sessionsNote": "Toutes les sessions existantes de ce compte sont fermées et tout verrouillage de connexion est levé.",
+      "tooShort": "Le mot de passe doit contenir au moins 8 caractères.",
+      "mismatch": "Les deux mots de passe ne correspondent pas.",
+      "accountNotFound": "Ce compte n’existe plus.",
+      "failed": "La mise à jour du mot de passe a échoué."
+    },
+    "customers": {
+      "title": "Clients",
+      "one": "client",
+      "many": "clients",
+      "search": "Rechercher",
+      "searchPlaceholder": "Nom ou numéro (chiffres)",
+      "empty": "Aucun compte client ne correspond à cette recherche.",
+      "noName": "Compte sans nom",
+      "since": "depuis le",
+      "hasPassword": "Mot de passe défini",
+      "verified": "Numéro vérifié",
+      "failedLogins": "Échecs de connexion",
+      "locked": "Verrouillé"
     }
   },
   "errors": {

@@ -10,7 +10,9 @@ import {
   adminResetAgentAccessAction,
   adminRevokeAgentSessionsAction,
   adminReassignListingsAction,
+  adminSetAgentPasswordAction,
 } from './actions';
+import PasswordResetForm from '../../PasswordResetForm';
 import { useT } from '@/lib/i18n/client';
 
 const FIELD = 'u-focus-ring h-10 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink';
@@ -225,6 +227,18 @@ export default function AgentAdminPanel({ agent, communes, otherAgents, listingC
         <p className="u-micro text-ink-45">
           {t('admin.agentPanel.loginLinkHint')}
         </p>
+
+        {/* The offline counterpart to the WhatsApp link above: same card,
+            because an admin looking for "how do I get this agent back in"
+            should find both options in one place and pick by whether the
+            agent is reachable on WhatsApp right now. */}
+        <div className="border-t border-line pt-4">
+          <PasswordResetForm
+            action={adminSetAgentPasswordAction.bind(null, agent.id)}
+            accountLabel={agent.phone || undefined}
+            compact
+          />
+        </div>
       </div>
 
       <form onSubmit={handleReassign} className="u-card flex flex-col gap-4 rounded-card bg-surface p-6">

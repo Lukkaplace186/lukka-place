@@ -240,6 +240,96 @@ number can no longer be assumed Congolese.
   land in the search box for the whole of it otherwise. Both confirmed in a
   real browser, not reasoned about.
 
+## TESTING MODE — `AUTH_OTP_BYPASS=1` turns phone verification off
+
+`lib/otpBypass.js`, read by the four auth entry points (customer signup and
+login, agent signup and login). **Currently set on production**, deliberately,
+so the end-to-end flow can be tested at all.
+
+**Why it exists.** The `agent_auth_otp` template is not delivering, and
+`lib/otpDelivery.js`'s session-message fallback only reaches somebody who
+messaged the business number in the last 24 hours — which a first-time
+registrant never has. So no new account could complete signup, and nothing
+downstream of signup (listing attribution, the agent dashboard, demandes)
+could be exercised.
+
+**What it changes: exactly one thing.** Whether a code has to be presented.
+Passwords are still scrypt-hashed through `lib/authCrypto.js`, sessions are
+still the same signed tokens, and the bypassed path calls the same
+`consumeAgentOtp` / `consumeCustomerOtp` the real path does — so the row ends
+up in an identical state, including the retroactive listing claim that makes
+an agent's already-WhatsApped listings appear on their dashboard.
+
+**What it costs.** Phone verification is the only thing proving a registrant
+holds the number they typed. With this on, anyone can register any number and
+be treated as its owner — and since `consumeAgentOtp` claims every listing
+ever sent from that number, an agent signup on somebody else's number hands
+over that agency's portfolio. Acceptable for a closed testing window on known
+numbers; **not** acceptable once real agents are onboarding themselves.
+
+**Turning it off is `unset AUTH_OTP_BYPASS` + `pm2 restart lukka-place-web
+--update-env`.** No code change and no revert — that is why it is an env flag
+and not a commented-out block. The flag is read at call time, not module load,
+so the restart is enough.
+
+Not affected, and still OTP-gated: `/mot-de-passe-oublie` (self-service
+password reset). Use the admin reset below instead while the template is down.
+
+## Admin password reset — `lib/adminPasswordReset.js`
+
+An admin can set any agent's or customer's password directly, from
+`/admin/agents/[id]` (in the "Accès et sécurité" card, beside the WhatsApp
+link) and from the new `/admin/customers` list.
+
+- **It reuses `resetAgentPassword` / `resetCustomerPassword`**, not its own
+  UPDATE. Those already carry the semantics a password change must have here:
+  replace the hash, clear any in-flight reset code, bump `token_version` so
+  every outstanding session dies, clear the login lockout. An admin-set
+  password that skipped the `token_version` bump would leave whoever was
+  already signed in on the old password still signed in — usually the exact
+  situation the reset is being used to end.
+- **The two realms keep their own hashers.** `agentAuth` and `customerAuth`
+  are separate auth realms with separate session secrets
+  (`tests/unit/auth-realms.test.js` pins that). They compute the same scrypt
+  form today; that is not a guarantee to build on.
+- **The typed password is shown in clear in the form.** Deliberate: the admin
+  is about to read it out over WhatsApp, and a masked field they cannot check
+  is how an account gets locked harder than it started. It is never logged,
+  never returned by the action, and never sent anywhere — the admin relays it.
+- **Why `/admin/customers` is a list with an inline reset, not a detail page.**
+  Password reset is the only customer-account operation this console has any
+  business performing; everything else a customer owns already shows on
+  `/admin/leads` and `/admin/conversations`, keyed by phone. Agents keep their
+  detail page because they have identity, territory and a portfolio to manage.
+- This is also the only reset path customers have ever had — the activation-link
+  mechanism is an `agents` table feature.
+
+## Headings start with a capital letter — enforced, not reviewed
+
+`tests/unit/heading-capitalization.test.js`. Every heading string starts with
+a capital: the `…title` / `…heading` / `…eyebrow` keys in both dictionaries,
+every key this app actually renders inside an `<h1>`–`<h6>` (read out of the
+JSX, not a hardcoded list), and headings written straight into JSX.
+
+- **First character only.** It says nothing about sentence case vs title case
+  *within* a heading — both are in use here on purpose (French section titles
+  are sentence case, some product-name headings are title case), and a test
+  that picked a winner would be inventing an editorial decision nobody made.
+- **A template that opens with an interpolation is checked at its source.**
+  `listings.results.heading` is `"{subject} {transaction} in {place}"` and
+  renders "Apartments to rent in Gombe" — so the test asserts the strings that
+  can fill `{subject}` (`listings.typePlurals.*`, `listings.results.subjectFallback`)
+  are capitalized instead of exempting that `<h1>` silently.
+- Digits, punctuation and interpolations are allowed before the first letter.
+- The audit that prompted this found **no** existing violations — every heading
+  in both languages already complied. The test is what keeps that true when a
+  key is added to one dictionary and its counterpart to the other by someone
+  else a week later.
+- **Separately noted, not fixed:** nine headings are hardcoded French in JSX
+  rather than going through i18n, so they stay French for an English visitor.
+  They are correctly capitalized, so they are not a violation of this rule —
+  `grep -rEn "<h[1-6][^>]*>[^<{]*[A-Za-zÀ-ÿ]" app components` finds them.
+
 ## Phone verification — WhatsApp OTP, both account types
 
 **Customer signup no longer establishes a session.** It creates the row,

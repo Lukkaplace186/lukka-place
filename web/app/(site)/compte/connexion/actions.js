@@ -8,6 +8,7 @@ import {
   recordFailedLogin,
   mergeAnonymousData,
   sendCustomerOtp,
+  consumeCustomerOtp,
 } from '@/lib/customers';
 import {
   verifyPasswordAgainstHash,
@@ -17,6 +18,7 @@ import {
 } from '@/lib/customerAuth';
 import { establishCustomerSession } from '@/lib/customerSession';
 import { setVerifyAttemptCookie } from '@/lib/verifyAttempt';
+import { otpBypassEnabled, logOtpBypass } from '@/lib/otpBypass';
 
 function safeNext(nextParam) {
   const next = String(nextParam || '/compte/client');
@@ -83,7 +85,12 @@ export async function loginAction(formData) {
   // deliberately backfills nobody, because nobody proved those numbers).
   // Both are the same one-time step, and it is the same step an agent with
   // an unverified account already goes through.
-  if (!customer.phone_verified_at) {
+  if (!customer.phone_verified_at && otpBypassEnabled()) {
+    // Testing mode — the password already matched, so the only thing being
+    // skipped is proof of the number. See lib/otpBypass.js.
+    logOtpBypass('customer-auth', { id: customer.id, phone });
+    await consumeCustomerOtp(customer.id);
+  } else if (!customer.phone_verified_at) {
     await setVerifyAttemptCookie({ role: 'customer', id: customer.id, phone });
     const verifyUrl = `/compte/inscription/verifier?next=${encodeURIComponent(next)}`;
     try {

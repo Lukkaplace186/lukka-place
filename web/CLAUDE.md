@@ -33,7 +33,26 @@ don't guess. Examples already in this codebase:
 - Card chip badges are limited to what the data can prove: photo count (`gallery.length`), "Location" (`purpose`), door count (`units_count`). No "Price cut" (no price history exists), no days-on-market shaming, no invented amenity hooks. See `ListingBadges.js`. ("Nouveau", 14-day `created_at`, used to be one of these — removed entirely from every listing on an explicit instruction; not a data-honesty issue, the badge was real, it's just gone now.)
 - The hero background (`public/hero-kinshasa.jpg`) is a real, properly-licensed photo (CC BY-SA 2.0, Wikimedia Commons — MONUSCO/Abel Kavanagh) with the required credit rendered in `Hero.js`. It has been re-encoded to ~330 KB (it shipped at 5.6 MB). Anything that replaces it keeps both properties: real licence, visible credit where the licence asks for one.
 - `PropertyMetrics.js` shows a rental listing's own price as its monthly income and nothing for a sale listing — no market-comparable dataset exists to estimate a yield. `/plan` stays an honest empty page for the same reason: a budget calculator would need financing rates we don't have.
-- `lib/currency.js` is a **manually-maintained, dated** rate, not a live FX feed. Everything that displays CDF says so — `<Price>` marks it "≈" with a dated tooltip, and `CurrencyBridge.js` states the date in copy. Don't imply it's live.
+- **The USD→CDF rate is a real daily feed now** (`lib/exchangeRate.js`), not the
+  manually-maintained constant this bullet used to describe. What did NOT change
+  is the honesty framing, and it still binds: `<Price>` marks converted amounts
+  "≈" with a dated tooltip, `CurrencyBridge.js` states the date in copy, and
+  nothing presents it as a dealing rate — a daily reference figure is not a
+  quote somebody can transact on.
+  - **The displayed date is always the date the displayed number actually came
+    from**, never "today". The feed publishes its own `time_last_update_utc`
+    and that is what we render; when the fetch fails we fall back to
+    `DEFAULT_CDF_PER_USD` carrying `DEFAULT_RATE_UPDATED_AT`, its real check
+    date. Stamping a fallback with today's date would be a stale figure wearing
+    a fresh one, on a number customers budget against — the same class of
+    fabrication as the invented deposit terms two sections down.
+  - **Frankfurter does not carry CDF** — it republishes the ECB majors, and a
+    USD→CDF query returns nothing usable (confirmed against the live API). Any
+    replacement source has to actually quote this exotic; `open.er-api.com` was
+    picked because it does, needs no key, and reports its own publish date.
+  - `lib/currencyRate.js` stays the single entry point every pricing surface
+    reads. An admin's manual entry from `/admin/cms` still wins, but only while
+    it is at least as recent as the feed — a correction, not a permanent pin.
 
 ## Design system
 

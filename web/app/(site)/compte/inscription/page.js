@@ -3,6 +3,7 @@ import { signupAction } from './actions';
 import SignupForm from './SignupForm';
 import { getRequestCountry } from '@/lib/requestCountry';
 import { getT } from '@/lib/i18n/server';
+import { otpBypassEnabled } from '@/lib/otpBypass';
 
 // generateMetadata, not a static object: a static export cannot see the
 // request locale — see app/(site)/a-propos/page.js.
@@ -41,6 +42,7 @@ export default async function CustomerSignupPage({ searchParams }) {
           error={error}
           initialPhone={initialPhone}
           initialCountry={initialCountry}
+          phoneHintKey={otpBypassEnabled() ? 'auth.signup.noCodeNeeded' : 'auth.signup.codeWillBeSent'}
         />
 
         <p className="mt-5 text-center text-sm text-ink-45">

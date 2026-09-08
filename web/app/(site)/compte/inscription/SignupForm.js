@@ -20,7 +20,17 @@ const ERROR_MESSAGE_KEYS = {
  * favorites/saved searches into hidden fields right before submit, so
  * signupAction can merge them into the brand-new account.
  */
-export default function SignupForm({ action, next, error, initialPhone = '', initialCountry = '' }) {
+export default function SignupForm({
+  action,
+  next,
+  error,
+  initialPhone = '',
+  initialCountry = '',
+  // The phone hint is a KEY passed down rather than resolved here, because
+  // whether a code is actually sent depends on a server-only flag
+  // (lib/otpBypass.js) that a client component cannot read.
+  phoneHintKey = 'auth.signup.codeWillBeSent',
+}) {
   const t = useT();
   const locale = useLocale();
   const formRef = useRef(null);
@@ -58,7 +68,7 @@ export default function SignupForm({ action, next, error, initialPhone = '', ini
         defaultCountry={initialCountry || undefined}
         locale={locale}
         labels={phoneFieldLabels(t)}
-        hint={t('auth.signup.codeWillBeSent')}
+        hint={t(phoneHintKey)}
         autoFocus
         required
       />

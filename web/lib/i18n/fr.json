@@ -1495,7 +1495,8 @@
     },
     "signup": {
       "codeWillBeSent": "Un code de vérification sera envoyé sur WhatsApp à ce numéro.",
-      "receiveCode": "Recevoir mon code"
+      "receiveCode": "Recevoir mon code",
+      "noCodeNeeded": "Votre compte est créé immédiatement — aucun code de vérification n’est nécessaire pour le moment."
     },
     "createMyAccount": "Créer mon compte",
     "passwordReset": "Mot de passe réinitialisé — connectez-vous avec votre nouveau mot de passe.",

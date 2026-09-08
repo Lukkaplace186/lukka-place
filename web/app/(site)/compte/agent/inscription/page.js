@@ -4,6 +4,7 @@ import PhoneField from '@/components/PhoneField';
 import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
 import { getRequestCountry } from '@/lib/requestCountry';
 import { getLocale, getT } from '@/lib/i18n/server';
+import { otpBypassEnabled } from '@/lib/otpBypass';
 
 // generateMetadata, not a static object: a static export cannot see the
 // request locale — see app/(site)/a-propos/page.js.
@@ -33,13 +34,18 @@ export default async function AgentSignupPage({ searchParams }) {
   const params = await searchParams;
   const error = typeof params.error === 'string' ? params.error : null;
   const next = typeof params.next === 'string' ? params.next : '/compte/agent';
+  // With verification bypassed there is no code, so neither the subtitle nor
+  // the button may promise one — see lib/otpBypass.js and this app's
+  // "Honest UI State" rule. The copy is chosen here, in a Server Component,
+  // because the flag is server-only.
+  const bypassing = otpBypassEnabled();
 
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm rounded-card border border-line bg-surface p-6 u-lift sm:p-8">
         <h1 className="u-title-section text-ink">{t('auth.agentSignupTitle')}</h1>
         <p className="mt-1 text-sm text-ink-45">
-          {t('auth.signup.codeWillBeSent')}
+          {bypassing ? t('auth.signup.noCodeNeeded') : t('auth.signup.codeWillBeSent')}
         </p>
 
         <form action={agentSignupAction} className="mt-6 flex flex-col gap-3">
@@ -95,7 +101,7 @@ export default async function AgentSignupPage({ searchParams }) {
             type="submit"
             className="mt-1 rounded-md bg-blue px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-deep u-btn-primary"
           >
-            {t('auth.signup.receiveCode')}
+            {bypassing ? t('auth.createMyAccount') : t('auth.signup.receiveCode')}
           </button>
         </form>
 

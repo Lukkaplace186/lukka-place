@@ -2,7 +2,7 @@
 
 import { BedDouble, Bath, Ruler, DoorOpen, FileText, Home, Hash } from 'lucide-react';
 import { hasArea, entryTerms } from '@/lib/listingView';
-import { lastCellSpanClass } from '@/lib/keyFactsGrid';
+import { lastCellPresentation, STACKED_CELL_CLASS } from '@/lib/keyFactsGrid';
 import { SPEC_LABEL_CLASS, SPEC_VALUE_CLASS } from './SpecItem';
 import { useT } from '@/lib/i18n/client';
 
@@ -101,32 +101,58 @@ export default function KeyFacts({ listing }) {
   if (items.length === 0) return null;
 
   // The last row absorbs its own short fall: whichever cell ends the grid
-  // stretches over the columns nothing else is using, so there is never an
-  // empty box beside a real one and never a strip of rule colour showing
-  // through. lib/keyFactsGrid.js owns and documents that decision.
-  const lastCellSpan = lastCellSpanClass(items.length);
+  // stretches over the columns nothing else is using AND lays its content out
+  // along the row, so there is neither an empty box beside a real one nor a
+  // half-empty stretched cell that reads as one. lib/keyFactsGrid.js owns and
+  // documents both halves of that.
+  const lastCell = lastCellPresentation(items.length);
 
   return (
     <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-line sm:grid-cols-4">
-      {items.map(({ key, icon: Icon, label, value }, index) => (
-        <div
-          key={key}
-          className={`flex flex-col gap-2 bg-canvas-alt p-4 ${index === items.length - 1 ? lastCellSpan : ''}`}
-        >
-          <Icon strokeWidth={1.75} className="h-5 w-5 text-ink" />
-          {/* The card rail's own exported treatments (components/SpecItem.js)
-              rather than `u-eyebrow`/`u-body`, so this grid and the feed card
-              state a listing's facts identically. Sharing the constants is
-              also why this grid tracked the card automatically when both
-              were lightened from 800 to 500 — a local copy of those classes
-              would have been left behind at the old weight. */}
-          <span className={SPEC_LABEL_CLASS}>{label}</span>
-          {/* `break-words` for the reference cell's sake: a real code like
-              "LKP-2026-0091" is longer than any other value this grid holds
-              and would otherwise run out of a quarter-width cell. */}
-          <span className={`u-tabular break-words text-lg ${SPEC_VALUE_CLASS}`}>{value}</span>
-        </div>
-      ))}
+      {items.map(({ key, icon: Icon, label, value }, index) => {
+        const { className, grouped } = index === items.length - 1
+          ? lastCell
+          : { className: STACKED_CELL_CLASS, grouped: false };
+
+        // The card rail's own exported treatments (components/SpecItem.js)
+        // rather than `u-eyebrow`/`u-body`, so this grid and the feed card
+        // state a listing's facts identically. Sharing the constants is also
+        // why this grid tracked the card automatically when both were
+        // lightened from 800 to 500 — a local copy of those classes would
+        // have been left behind at the old weight.
+        //
+        // `break-words` plus `min-w-0` for the reference cell's sake: a real
+        // code like "LKP-2026-0091", or a landmark like "Petit Boulevard, 2ᵉ
+        // Rue Industrielle", is longer than any other value this grid holds.
+        // `min-w-0` matters only in the row layout, where a flex item's
+        // default `min-width: auto` would refuse to shrink and push the cell
+        // wider than its column.
+        const icon = <Icon strokeWidth={1.75} className="h-5 w-5 shrink-0 text-ink" />;
+        const labelEl = <span className={SPEC_LABEL_CLASS}>{label}</span>;
+        const valueEl = (
+          <span className={`u-tabular min-w-0 break-words text-lg ${SPEC_VALUE_CLASS}`}>{value}</span>
+        );
+
+        return (
+          <div key={key} className={`bg-canvas-alt p-4 ${className}`}>
+            {grouped ? (
+              // Icon and label as ONE flex item, so `justify-between` sends the
+              // value to the far end of the row instead of spreading all three
+              // evenly and stranding the icon away from the words it labels.
+              <span className="flex items-center gap-2.5">
+                {icon}
+                {labelEl}
+              </span>
+            ) : (
+              <>
+                {icon}
+                {labelEl}
+              </>
+            )}
+            {valueEl}
+          </div>
+        );
+      })}
     </div>
   );
 }

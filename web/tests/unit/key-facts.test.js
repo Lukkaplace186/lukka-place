@@ -1,12 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { entryTerms } from '@/lib/listingView';
-import { lastCellSpanClass } from '@/lib/keyFactsGrid';
+import { readFileSync } from 'node:fs';
+import { lastCellPresentation, STACKED_CELL_CLASS } from '@/lib/keyFactsGrid';
 
 /**
  * The listing detail page's KeyFacts grid, in the two places it can be wrong
  * without anyone noticing: what it says about money, and what it leaves behind
  * when the last row is short.
+ *
+ * The short-row half has now been reported from production twice — once as a
+ * blank filler box, once as the empty right half of the stretched cell that
+ * replaced it — so the cases below are the real ones, not invented shapes.
  */
 
 test('a deposit on its own stays a deposit — no invented advance or commission', () => {
@@ -63,42 +68,69 @@ test('a gap in the middle is not papered over with a placeholder', () => {
   assert.equal(terms.itemized, false);
 });
 
-test('a full row leaves the last cell exactly one column wide', () => {
-  // 4 cells fill both a 2-up and a 4-up row; 8 does the same.
-  assert.equal(lastCellSpanClass(4), '');
-  assert.equal(lastCellSpanClass(8), '');
+test('a full row leaves the last cell an ordinary stacked cell', () => {
+  // The stacked treatment every other cell wears, asserted literally here so
+  // KeyFacts and this file cannot drift apart on what "ordinary" looks like.
+  assert.equal(STACKED_CELL_CLASS, 'flex flex-col gap-2');
+
+  // 4 cells fill both a 2-up and a 4-up row; 8 does the same. Nothing to
+  // correct, so nothing is corrected — no span, no row layout, no grouping.
+  for (const count of [4, 8]) {
+    assert.deepEqual(lastCellPresentation(count), { className: STACKED_CELL_CLASS, grouped: false });
+  }
 });
 
-test('a short final row is closed by the last real cell, never by a blank one', () => {
-  // Five cells — four facts plus the Reference — is the case that produced a
-  // blank white box beside Reference on a phone. The cell stretches instead.
-  assert.equal(lastCellSpanClass(5), 'col-span-2 sm:col-span-4');
+test('a cell short in BOTH rows stretches and lays its content along the row', () => {
+  // Five cells — four facts plus the Reference — is the case reported twice
+  // from the live site. First it left a blank filler box beside Reference;
+  // then, once Reference stretched, it left the right half of that stretched
+  // cell empty, which reads as the same box because the rows above carry a
+  // rule at the midpoint. So it stretches AND goes horizontal.
+  const five = lastCellPresentation(5);
+  assert.equal(five.className, 'col-span-2 sm:col-span-4 flex items-center justify-between gap-4');
+  assert.equal(five.grouped, true, 'icon and label must group so the value lands at the far end');
 
-  // Six: exact on mobile (three full rows of two), two columns spare on
-  // desktop. The two breakpoints genuinely disagree, which is why both are
-  // computed rather than one being derived from the other.
-  assert.equal(lastCellSpanClass(6), 'sm:col-span-3');
-
-  assert.equal(lastCellSpanClass(7), 'col-span-2 sm:col-span-2');
-  assert.equal(lastCellSpanClass(3), 'col-span-2 sm:col-span-2');
-  assert.equal(lastCellSpanClass(2), 'sm:col-span-3');
-  assert.equal(lastCellSpanClass(1), 'col-span-2 sm:col-span-4');
+  // Odd is never divisible by four, so an odd count is always short in both.
+  for (const count of [1, 3, 5, 7, 9, 11]) {
+    const cell = lastCellPresentation(count);
+    assert.ok(cell.className.startsWith('col-span-2 '), `${count} cells: no mobile stretch`);
+    assert.ok(cell.className.includes('flex items-center'), `${count} cells: not laid along the row`);
+    assert.equal(cell.grouped, true);
+  }
 });
 
-test('every span class is a literal Tailwind can actually see', () => {
+test('a cell exact on mobile but short on desktop stays stacked on the phone', () => {
+  // Six cells fill every mobile row (three rows of two) and leave two desktop
+  // columns spare. Going horizontal at mobile too would cram an icon, a label
+  // and a value like "Petit Boulevard, 2ᵉ Rue Industrielle" onto one line in a
+  // half-width cell — listing #293 is exactly that shape.
+  const six = lastCellPresentation(6);
+  assert.equal(
+    six.className,
+    'sm:col-span-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4',
+  );
+  assert.ok(!six.className.split(' ').includes('col-span-2'), 'must not stretch on mobile');
+
+  // Grouped is still true: the direction flips at `sm` but the DOM cannot, so
+  // the icon and label have to be grouped before the flip.
+  assert.equal(six.grouped, true);
+});
+
+test('every class emitted is a literal Tailwind can actually see', () => {
   // Tailwind v4 scans source text: an interpolated `sm:col-span-${n}` compiles
   // to nothing and the grid silently keeps its hole. This asserts the helper
-  // only ever emits from the fixed set written out in its source.
-  const allowed = new Set(['col-span-2', 'sm:col-span-2', 'sm:col-span-3', 'sm:col-span-4']);
+  // only ever emits classes written out literally in its own source.
+  const source = readFileSync(new URL('../../lib/keyFactsGrid.js', import.meta.url), 'utf8');
 
   for (let count = 1; count <= 24; count += 1) {
-    for (const cls of lastCellSpanClass(count).split(' ').filter(Boolean)) {
-      assert.ok(allowed.has(cls), `${cls} is not one of the literals in lib/keyFactsGrid.js`);
+    for (const cls of lastCellPresentation(count).className.split(' ').filter(Boolean)) {
+      assert.ok(source.includes(`${cls}`), `${cls} is not a literal in lib/keyFactsGrid.js`);
     }
   }
+});
 
-  // Nonsense in, nothing out — never a stray class on a grid with no cells.
+test('nonsense in, an ordinary cell out — never a stray span class', () => {
   for (const bad of [0, -1, 2.5, NaN, null, undefined]) {
-    assert.equal(lastCellSpanClass(bad), '');
+    assert.deepEqual(lastCellPresentation(bad), { className: STACKED_CELL_CLASS, grouped: false });
   }
 });

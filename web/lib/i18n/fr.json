@@ -317,7 +317,9 @@
       },
       "squareMetres": "{value} m²",
       "reference": "Référence",
-      "referenceTag": "Réf: {reference}"
+      "referenceTag": "Réf: {reference}",
+      "entryTerms": "Conditions d'entrée",
+      "entryTermsMonths": "{parts} mois"
     },
     "price": {
       "displayed": "Prix affiché",

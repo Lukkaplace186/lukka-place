@@ -124,6 +124,64 @@ export function hasArea(area) {
   return Number(area) > 0;
 }
 
+/**
+ * The three SEPARATE costs behind Kinshasa's "Garantie : 3 + 1 + 1" — the
+ * refundable deposit, the rent paid in advance, and the agency commission, in
+ * that order. They are stored apart on purpose: summing them overstates the
+ * deposit, which is the exact bug the split fixed ("3 + 1 + 1" was read back
+ * to agents as "Garantie : 5 mois"). So this returns the itemised parts and
+ * lets the caller derive a total if it wants one; it never stores or leads
+ * with the sum.
+ *
+ * NULL means "not stated", which is a different claim from 0 ("none
+ * required"), so an absent advance or commission is left out of the notation
+ * rather than printed as a zero or filled in from a "standard" figure. There
+ * is no standard to fall back to here, and inventing one to fill a UI slot is
+ * the thing this codebase refuses to do.
+ *
+ * The notation is positional, so it has to start at the deposit: with no
+ * deposit stated there is nothing to render "3 + 1 + 1"-style and this returns
+ * null. Only a contiguous run is emitted for the same reason — "3 + _ + 1" is
+ * not a notation anyone writes, and a placeholder would state something the
+ * listing does not.
+ *
+ * TODAY THIS ALWAYS RETURNS A DEPOSIT-ONLY RESULT on the storefront:
+ * `properties` carries `deposit_months` and nothing else (verified directly
+ * against the live schema), so `advance_months`/`commission_months` arrive
+ * undefined. The engine already parses and stores all three in SQLite; they
+ * need an ALTER TABLE plus a `syncListingToPostgres` change before this can
+ * render the full breakdown. Nothing here has to change when that lands —
+ * only lib/listings.js's SELECT_FIELDS.
+ */
+export function entryTerms(listing) {
+  const deposit = monthsValue(listing?.deposit_months);
+  if (deposit === null) return null;
+
+  const advance = monthsValue(listing?.advance_months);
+  const commission = monthsValue(listing?.commission_months);
+
+  const parts = [deposit];
+  if (advance !== null) {
+    parts.push(advance);
+    if (commission !== null) parts.push(commission);
+  }
+
+  return {
+    parts,
+    // Derived here, never stored — and deliberately not the headline: a total
+    // labelled "Garantie" is precisely the overstatement the split undid.
+    total: parts.reduce((sum, part) => sum + part, 0),
+    itemized: parts.length > 1,
+  };
+}
+
+/** A month count that is really a number. '' and null both mean "not stated". */
+function monthsValue(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const months = Number(value);
+  return Number.isFinite(months) ? months : null;
+}
+
 /** The parcelle sub-type when there is one, otherwise the real category. */
 /**
  * `t` is optional and the fallback is deliberate: `category_name` is a real

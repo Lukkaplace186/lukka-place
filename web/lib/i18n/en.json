@@ -474,7 +474,6 @@
     "contactUnavailable": "Contact unavailable",
     "callAgent": "Call the agent",
     "messageSuffix": "and the listing link.",
-    "referenceNote": "The WhatsApp message is pre-filled with reference {reference} and the listing link.",
     "errors": {
       "phone": "Invalid number — check it and try again.",
       "time": "Tell us the time that suits you.",

@@ -116,9 +116,12 @@ function VisitRequestDialog({ propertyId }) {
  *
  * Design anatomy: an initials avatar in a royal-50 circle, the agent's name
  * and a qualifying line, a hairline divider, then a full-width primary
- * "Contacter par WhatsApp", a full-width secondary "Appeler l'agent", a
- * ghost Enregistrer/Partager pair, and a caption explaining that the
- * WhatsApp message goes out pre-filled with the reference.
+ * "Contacter par WhatsApp", a full-width secondary "Appeler l'agent", and a
+ * ghost Enregistrer/Partager pair. The WhatsApp message itself still goes out
+ * pre-filled with the reference and listing link (buildWhatsAppMessage below)
+ * — only the caption spelling that out on-page is gone, on an explicit
+ * instruction to keep the consumer-facing card free of behind-the-scenes
+ * mechanics.
  *
  * This replaces the previous version of this card, which led with the price
  * and a currency toggle. Both moved: the price now leads the main column at
@@ -164,7 +167,7 @@ export default function EnquiryCard({ listing, visitSent, visitError }) {
   const t = useT();
   const safe = useMotionSafe();
   const {
-    id, title, reference,
+    id, title,
     agency_name: agencyName, agent_phone: agentPhone,
   } = listing;
 
@@ -250,22 +253,6 @@ export default function EnquiryCard({ listing, visitSent, visitError }) {
           <ShareButton title={title} variant="icon" />
         </div>
       </div>
-
-      {/* The reference keeps its `.u-ref` treatment by being interpolated
-          into the sentence as an element rather than as plain text — the two
-          languages put it in different positions, so it cannot be a fixed
-          prefix + <span> + fixed suffix. */}
-      {reference ? (
-        <p className="text-[0.8125rem] leading-[1.45] text-ink-35">
-          {t('enquiry.referenceNote', { reference })
-            .split(reference)
-            .flatMap((part, i) => [
-              part,
-              i === 0 ? <span key="ref" className="u-ref text-ink-45">{reference}</span> : null,
-            ])
-            .filter(Boolean)}
-        </p>
-      ) : null}
     </motion.div>
   );
 }

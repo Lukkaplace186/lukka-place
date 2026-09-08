@@ -474,7 +474,6 @@
     "contactUnavailable": "Contact indisponible",
     "callAgent": "Appeler l'agent",
     "messageSuffix": "et le lien de l'annonce.",
-    "referenceNote": "Le message WhatsApp part pré-rempli avec la référence {reference} et le lien de l'annonce.",
     "errors": {
       "phone": "Numéro invalide — vérifiez et réessayez.",
       "time": "Indiquez le créneau qui vous arrange.",

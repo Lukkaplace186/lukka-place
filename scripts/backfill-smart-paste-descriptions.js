@@ -5,9 +5,10 @@
  * CLAUDE.md): re-runs every existing listing's own title+description text
  * through the same `parseListingTextForForm` extractor the agent dashboard's
  * "Auto-Fill from WhatsApp Text" button now uses, and replaces the
- * description with the hardened headline + "• " bulleted format the current
- * LISTING_FORM_SYSTEM_PROMPT generates — every bullet backed by a fact
- * actually present in the source text, per that prompt's zero-hallucination
+ * description with the clean, flowing prose the current
+ * LISTING_FORM_SYSTEM_PROMPT generates — no bulleted feature list (amenities
+ * already have their own badges elsewhere on the listing page) — with every
+ * fact backed by the source text, per that prompt's zero-hallucination
  * guardrail; nothing here adds or embellishes on top of what the model
  * returns.
  *
@@ -15,8 +16,8 @@
  *   - Default: only listings whose CURRENT description still looks like raw
  *     WhatsApp copy (see looksMessy()) — for an incremental cleanup pass.
  *   - `--all`: every listing, regardless of its current description — for a
- *     full re-format after a prompt change (e.g. adopting the new
- *     headline+bullets style across the whole catalogue).
+ *     full re-format after a prompt change (e.g. moving the whole catalogue
+ *     from one description style to another).
  *
  * Deliberately narrower than "re-extract everything and overwrite the
  * record": a listing's structured columns (price, beds, bath, quartier, ...)
@@ -72,12 +73,6 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  * Same signal EXTRACTION_FAILURE_MARKERS-style checks elsewhere in this
  * codebase use: is this text still raw WhatsApp copy, not a written listing
  * description? Only consulted when `--all` is NOT passed.
- *
- * Deliberately does NOT treat "•" alone as messy: the hardened prompt's own
- * output is a clean headline + "• " bulleted list, so a bare bullet check
- * would flag every listing this script (or Smart Paste) already cleaned up
- * as still needing work, on every future run. Real WhatsApp mess is still
- * caught by the emoji/asterisk/shouty-line checks below.
  */
 function looksMessy(text) {
   const t = String(text || '');
@@ -88,7 +83,7 @@ function looksMessy(text) {
   return emoji.test(t) || whatsappMarkup.test(t) || shoutyLine.test(t);
 }
 
-/** Defensive cleanup mirroring web/lib/smartPaste.js's cleanDescription — kept as a small duplicate here rather than a cross-repo import, since this is a one-time script. Bullet characters (•) are intentional formatting from the hardened prompt and are left alone. */
+/** Defensive cleanup mirroring web/lib/smartPaste.js's cleanDescription — kept as a small duplicate here rather than a cross-repo import, since this is a one-time script. */
 function cleanDescription(text) {
   return String(text || '')
     .replace(/\*+/g, '')

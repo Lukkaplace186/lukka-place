@@ -895,15 +895,13 @@ RÈGLES D'EXTRACTION
 2. Ne convertis pas les devises ; rapporte le montant et la devise tels qu'écrits.
 3. Convertis les dimensions en superficie ("20x30" => 600 m²), la virgule est un séparateur décimal.
 4. title_suggestion : un titre court (moins de 80 caractères), en français correct, casse normale (pas de MAJUSCULES, pas d'emoji), ex. "Appartement 3 chambres à louer à Kinshasa, Plateau".
-5. description_fr : un texte en DEUX parties séparées par une ligne vide.
-   a) Une accroche courte et percutante (une phrase, moins de 90 caractères), en français, casse normale (jamais de MAJUSCULES), sans emoji, au plus un point d'exclamation.
-   b) Une liste à puces (chaque ligne commence par "• "), une puce par caractéristique de composition ou d'équipement — voir le GARDE-FOU ANTI-HALLUCINATION ci-dessous pour ce qui peut y figurer.
+5. description_fr : un texte de PROSE fluide et professionnelle (2 à 4 phrases, pas de liste à puces, pas de titre séparé), en français, casse normale (jamais de MAJUSCULES), sans emoji, sans formatage WhatsApp (astérisques, puces). Le ton est engageant et soigné, mais chaque phrase ne fait que reformuler des faits RÉELLEMENT présents dans le texte source — voir le GARDE-FOU ANTI-HALLUCINATION ci-dessous. Les équipements sont déjà affichés séparément sous forme de badges sur la page : ce texte n'a pas besoin de tous les répéter en liste, une phrase qui les mentionne naturellement suffit.
    N'inclus JAMAIS le prix, la garantie, ni une quelconque coordonnée de contact dans ce texte : ce sont des champs séparés, gérés ailleurs sur la page.
 6. confidence : 0.9+ pour une annonce claire, ~0.5 pour un message vague, <0.3 si le texte ne ressemble probablement pas à une annonce.
 
-GARDE-FOU ANTI-HALLUCINATION (règle absolue — prime sur le style et sur l'envie de "compléter" la liste)
-- N'ajoute, n'insinue ou ne suppose AUCUN équipement, caractéristique ou avantage qui n'est pas écrit explicitement dans le texte source — même s'il est courant pour ce type de bien à Kinshasa. Un appartement n'a pas forcément de parking, de balcon, de climatisation ou de groupe électrogène : n'en parle dans la liste à puces QUE si le texte le mentionne réellement.
-- Si le texte ne mentionne aucun équipement précis, la liste à puces peut se limiter à un seul élément décrivant la composition (ex. "3 chambres, 1 salon") — ne complète jamais avec des suppositions pour donner l'impression d'un bien mieux équipé.
+GARDE-FOU ANTI-HALLUCINATION (règle absolue — prime sur le style et sur l'envie d'étoffer le texte)
+- N'ajoute, n'insinue ou ne suppose AUCUN équipement, caractéristique ou avantage qui n'est pas écrit explicitement dans le texte source — même s'il est courant pour ce type de bien à Kinshasa. Un appartement n'a pas forcément de parking, de balcon, de climatisation ou de groupe électrogène : n'en parle QUE si le texte le mentionne réellement.
+- Si le texte ne mentionne aucun équipement précis, la description peut se limiter à une phrase sur la composition (ex. "Cet appartement de 3 chambres et un salon est à louer à Gombe.") — ne complète jamais avec des suppositions pour donner l'impression d'un bien mieux équipé.
 - En cas de doute sur le sens exact d'une abréviation ou d'un terme ambigu, OMETS-le plutôt que de deviner ce qu'il désigne.
 - Un descriptif honnête et incomplet vaut toujours mieux qu'un descriptif complet mais partiellement inventé.`;
 
@@ -942,7 +940,7 @@ const LISTING_FORM_RESPONSE_FORMAT = {
         furnished: { type: ['boolean', 'null'] },
         description_fr: {
           type: 'string',
-          description: 'Accroche courte + ligne vide + liste à puces ("• "), casse normale, sans emoji ni astérisque. Chaque puce doit correspondre à un fait explicitement présent dans le texte source — jamais une supposition.',
+          description: 'Prose fluide de 2-4 phrases (pas de liste à puces, pas de titre séparé), casse normale, sans emoji ni astérisque. Chaque fait mentionné doit être explicitement présent dans le texte source — jamais une supposition.',
         },
         confidence: { type: 'number' },
       },

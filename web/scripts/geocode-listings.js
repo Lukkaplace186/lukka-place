@@ -66,7 +66,7 @@ const CONTENT_LANGUAGE_ID = 20;
 async function fetchApprovedListingsMissingCoords(client) {
   const { rows } = await client.query(
     `
-    SELECT p.id, pc.address, p.quartier,
+    SELECT p.id, pc.address, p.quartier, p.reference,
       (
         SELECT ac.name FROM property_amenities pa
         JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = $1
@@ -86,9 +86,27 @@ async function fetchApprovedListingsMissingCoords(client) {
 
 /** Real address text only — never fabricates a street address that wasn't
  *  actually given. Same field precedence as web/lib/geocoding.js's
- *  buildGeocodeQuery (the client-side map's version of this exact idea). */
+ *  buildGeocodeQueries (the client-side map's version of this exact idea),
+ *  including the landmark reference: agents fill `reference` with a repere
+ *  ("Demiap", "Mimosas, Camp Docteur") far more often than with a code, and
+ *  in a city of unnamed streets that is the most useful token a geocoder can
+ *  be given. A reference with no real word in it is an identifier, not a
+ *  place, and is left out — see isLandmarkReference over there for the whole
+ *  argument. This script only ever emits the MOST specific query; it has no
+ *  cascade, which is why its output is reviewed before --write. */
+const LANDMARK_WORD = /^\p{L}[\p{L}'’-]*$/u;
+
+function isLandmarkReference(reference) {
+  const value = String(reference ?? '').trim();
+  if (value.length < 3) return false;
+  return value
+    .split(/[\s,]+/)
+    .some((token) => LANDMARK_WORD.test(token) && (token.match(/\p{L}/gu) || []).length >= 3);
+}
+
 function buildGeocodeQuery(listing) {
-  const parts = [listing.address, listing.quartier, listing.commune, 'Kinshasa', 'DRC'].filter(Boolean);
+  const landmark = isLandmarkReference(listing.reference) ? String(listing.reference).trim() : null;
+  const parts = [listing.address, landmark, listing.quartier, listing.commune, 'Kinshasa', 'DRC'].filter(Boolean);
   return parts.join(', ');
 }
 

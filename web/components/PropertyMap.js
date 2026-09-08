@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader';
-import { resolveListingLocation, KINSHASA_CENTER } from '@/lib/geocoding';
+import { resolveListingBase, placeResolvedListings, KINSHASA_CENTER } from '@/lib/geocoding';
 import { buildPricePinIcon, priceZIndex } from '@/lib/mapIcons';
 import { spreadColocatedPins } from '@/lib/mapPinSpread';
 import { MAP_STYLES } from '@/lib/mapStyle';
@@ -164,29 +164,54 @@ export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoo
         const markers = [];
         markersRef.current = new Map();
 
-        // Two passes. Every position has to be known before ANY marker is
-        // placed, because spreadColocatedPins needs to see the whole set to
-        // tell which pins share a spot — that is not decidable one listing
-        // at a time. Resolution is still sequential (below), so the
-        // "X / Y biens localisés" progress still advances as it goes.
-        const resolved = [];
+        // Three passes, and the split is load-bearing rather than tidiness.
+        // Nothing about where a pin ENDS UP can be decided one listing at a
+        // time: both the co-location fan (placeResolvedListings) and the
+        // final de-overlap pass (spreadColocatedPins) need to see which
+        // listings share a spot, which is only knowable once every base
+        // point is in. Resolution itself is still sequential, so the
+        // "X / Y biens localisés" progress advances as it goes.
+        //
+        // Pass 1 — resolve each listing to its REAL, un-jittered point.
+        const bases = [];
         for (const listing of listings) {
           if (cancelled) break;
 
           // Sequential, not Promise.all — Google's client Geocoder self-throttles, and resolving one at a time keeps us well under its rate limit.
-          const location = await resolveListingLocation({ listing, geocoder });
-          console.log(
-            `[PropertyMap] listing #${listing.id}: ${location.source}` +
-              (location.source !== 'unresolved' ? ` (${location.lat.toFixed(5)}, ${location.lng.toFixed(5)})` : ' — skipped, no pin'),
-          );
-          if (location.source === 'unresolved') continue;
+          const base = await resolveListingBase({ listing, geocoder });
+          if (!base) {
+            console.log(`[PropertyMap] listing #${listing.id}: unresolved — skipped, no pin`);
+            continue;
+          }
 
-          resolved.push({ listing, lat: location.lat, lng: location.lng });
+          console.log(
+            `[PropertyMap] listing #${listing.id}: ${base.source} (${base.lat.toFixed(5)}, ${base.lng.toFixed(5)})` +
+              (base.query ? ` via "${base.query}"` : ''),
+          );
+          bases.push({ id: listing.id, listing, base });
           setResolvedTotal((prev) => ({ ...prev, resolved: prev.resolved + 1 }));
         }
 
         if (cancelled) return;
 
+        // Pass 2 — privacy jitter, with listings sharing a base point fanned
+        // onto a ring around it instead of each hopping off in an
+        // independently random direction.
+        const placements = placeResolvedListings(bases);
+        const resolved = [];
+        for (const { listing } of bases) {
+          const placement = placements.get(listing.id);
+          if (!placement) continue;
+          if (placement.colocated) {
+            console.log(
+              `[PropertyMap] listing #${listing.id}: 1 of ${placement.groupSize} at the same spot — offset to (${placement.lat.toFixed(5)}, ${placement.lng.toFixed(5)})`,
+            );
+          }
+          resolved.push({ listing, lat: placement.lat, lng: placement.lng });
+        }
+
+        // Pass 3 — the last-resort de-overlap net, for the case where two
+        // independent base points happen to jitter onto each other anyway.
         const positions = spreadColocatedPins(
           resolved.map(({ listing, lat, lng }) => ({ id: listing.id, lat, lng })),
         );

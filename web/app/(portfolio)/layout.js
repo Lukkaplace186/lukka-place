@@ -3,7 +3,8 @@ import { CurrencyRateProvider } from '@/lib/CurrencyRateContext';
 import { getCdfRate } from '@/lib/currencyRate';
 import { Wordmark } from '@/components/Brand';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
-import { getT } from '@/lib/i18n/server';
+import { I18nProvider } from '@/lib/i18n/client';
+import { getI18n } from '@/lib/i18n/server';
 
 /**
  * Chrome for the agent portfolio pages, cloned from web/Design's "Agent
@@ -24,58 +25,82 @@ import { getT } from '@/lib/i18n/server';
  * admin-maintained rate, which is precisely the kind of quiet wrongness
  * lib/currency.js's doc comment warns about.
  */
+/*
+ * The namespaces THIS subtree's client components resolve, on top of the
+ * chrome ones app/layout.js already provides (I18nProvider merges — see
+ * lib/i18n/client.js). Server components here don't need the list: getT()
+ * holds the whole dictionary. Only what crosses into the browser does.
+ *
+ *   listings — PropertyCard and everything under it (KeyFacts, SpecItem,
+ *              CardImageCarousel, lib/listingView.js's derived labels); the
+ *              agency portfolio is a grid of exactly those cards.
+ *   account  — CallCTA, the "Appeler" button on each card.
+ *   auth     — FavoriteButton opens AuthPromptModal for a signed-out
+ *              visitor, and its PhoneField labels come from
+ *              lib/phoneFieldLabels.js resolved client-side.
+ *
+ * This layout mounted no provider at all until now, which is exactly the
+ * failure tests/unit/i18n-namespaces.test.js was written to catch — but that
+ * test iterated a hardcoded list of layouts and this route group was not on
+ * it, so a public page shipped raw `listings.facts.bathrooms` dot-paths to
+ * real visitors. The test now discovers layouts from the filesystem instead.
+ */
+const PORTFOLIO_NAMESPACES = ['listings', 'account', 'auth'];
+
 export default async function PortfolioLayout({ children }) {
-  const t = await getT();
+  const { locale, messages, t } = await getI18n(PORTFOLIO_NAMESPACES);
   const rate = await getCdfRate();
   const publishHref = getCentralWhatsAppHref(
     t('agent.portfolio.whatsappPublish'),
   );
 
   return (
-    <CurrencyRateProvider rate={rate}>
-      <div className="flex min-h-screen flex-col bg-canvas">
-        <header className="sticky top-0 z-30 border-b border-line bg-surface">
-          <div className="mx-auto flex h-[4.75rem] max-w-[77.5rem] items-center justify-between gap-6 px-4 sm:px-6">
-            <Wordmark />
-
-            <nav className="flex items-center gap-5 text-sm font-semibold text-ink-70 sm:gap-7">
-              <Link href="/listings?transaction_type=vente" className="hidden hover:text-ink sm:block">
-                Acheter
-              </Link>
-              <Link href="/listings?transaction_type=location" className="hidden hover:text-ink sm:block">
-                Louer
-              </Link>
-              <Link href="/agents" className="hidden hover:text-ink sm:block">
-                {t('nav.agencies')}
-              </Link>
-              {publishHref && (
-                <a
-                  href={publishHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="u-btn-secondary u-press inline-flex h-9 items-center rounded-lg px-4 text-[0.8125rem] font-bold text-ink"
-                >
-                  {t('nav.publishListing')}
-                </a>
-              )}
-            </nav>
-          </div>
-        </header>
-
-        <main className="flex-1">{children}</main>
-
-        <footer className="border-t border-line bg-canvas-alt py-8">
-          <div className="mx-auto flex max-w-[77.5rem] flex-wrap items-center justify-between gap-4 px-4 text-[0.8125rem] text-ink-45 sm:px-6">
-            <span className="inline-flex items-center gap-2.5">
+    <I18nProvider locale={locale} messages={messages}>
+      <CurrencyRateProvider rate={rate}>
+        <div className="flex min-h-screen flex-col bg-canvas">
+          <header className="sticky top-0 z-30 border-b border-line bg-surface">
+            <div className="mx-auto flex h-[4.75rem] max-w-[77.5rem] items-center justify-between gap-6 px-4 sm:px-6">
               <Wordmark />
-              {t('agent.portfolio.hostedBy')}
-            </span>
-            <Link href="/contact" className="hover:text-ink">
-              {t('agent.portfolio.reportListing')}
-            </Link>
-          </div>
-        </footer>
-      </div>
-    </CurrencyRateProvider>
+
+              <nav className="flex items-center gap-5 text-sm font-semibold text-ink-70 sm:gap-7">
+                <Link href="/listings?transaction_type=vente" className="hidden hover:text-ink sm:block">
+                  Acheter
+                </Link>
+                <Link href="/listings?transaction_type=location" className="hidden hover:text-ink sm:block">
+                  Louer
+                </Link>
+                <Link href="/agents" className="hidden hover:text-ink sm:block">
+                  {t('nav.agencies')}
+                </Link>
+                {publishHref && (
+                  <a
+                    href={publishHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="u-btn-secondary u-press inline-flex h-9 items-center rounded-lg px-4 text-[0.8125rem] font-bold text-ink"
+                  >
+                    {t('nav.publishListing')}
+                  </a>
+                )}
+              </nav>
+            </div>
+          </header>
+
+          <main className="flex-1">{children}</main>
+
+          <footer className="border-t border-line bg-canvas-alt py-8">
+            <div className="mx-auto flex max-w-[77.5rem] flex-wrap items-center justify-between gap-4 px-4 text-[0.8125rem] text-ink-45 sm:px-6">
+              <span className="inline-flex items-center gap-2.5">
+                <Wordmark />
+                {t('agent.portfolio.hostedBy')}
+              </span>
+              <Link href="/contact" className="hover:text-ink">
+                {t('agent.portfolio.reportListing')}
+              </Link>
+            </div>
+          </footer>
+        </div>
+      </CurrencyRateProvider>
+    </I18nProvider>
   );
 }

@@ -70,6 +70,12 @@ test('every function calling t() has a translator in scope', () => {
       const binds =
         /const\s+t\s*=\s*useT\(\)/.test(region.body) ||
         /const\s+t\s*=\s*await\s+getT\(\)/.test(region.body) ||
+        // `const { locale, messages, t } = await getI18n(NS)` — the third real
+        // way to obtain a translator, and the one a layout that ALSO seeds the
+        // client provider uses. It is documented in lib/i18n/server.js but no
+        // layout destructured its `t` until (portfolio) mounted a provider, so
+        // this check flagged a correctly-bound function as an offender.
+        /const\s*\{[^}]*\bt\b[^}]*\}\s*=\s*await\s+getI18n\(/.test(region.body) ||
         // `t` arrives as a parameter: fn(x, t), fn({ t, … }), (x, t) => …
         /\(\s*[^)]*\bt\b\s*[,)]/.test(region.signature) ||
         /\{[^}]*\bt\b[^}]*\}\s*\)/.test(region.signature) ||

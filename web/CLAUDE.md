@@ -304,31 +304,51 @@ link) and from the new `/admin/customers` list.
 - This is also the only reset path customers have ever had — the activation-link
   mechanism is an `agents` table feature.
 
-## Headings start with a capital letter — enforced, not reviewed
+## Heading capitalization — Title Case in EN, sentence case in FR
 
-`tests/unit/heading-capitalization.test.js`. Every heading string starts with
-a capital: the `…title` / `…heading` / `…eyebrow` keys in both dictionaries,
-every key this app actually renders inside an `<h1>`–`<h6>` (read out of the
-JSX, not a hardcoded list), and headings written straight into JSX.
+Enforced by `tests/unit/heading-capitalization.test.js`, applied by
+`node scripts/apply-title-case.mjs`, with the rule itself in
+`lib/titleCase.js` and "which keys are headings" in
+`scripts/heading-keys.mjs` — the transform and the test share both, so they
+cannot drift.
 
-- **First character only.** It says nothing about sentence case vs title case
-  *within* a heading — both are in use here on purpose (French section titles
-  are sentence case, some product-name headings are title case), and a test
-  that picked a winner would be inventing an editorial decision nobody made.
-- **A template that opens with an interpolation is checked at its source.**
-  `listings.results.heading` is `"{subject} {transaction} in {place}"` and
-  renders "Apartments to rent in Gombe" — so the test asserts the strings that
-  can fill `{subject}` (`listings.typePlurals.*`, `listings.results.subjectFallback`)
-  are capitalized instead of exempting that `<h1>` silently.
-- Digits, punctuation and interpolations are allowed before the first letter.
-- The audit that prompted this found **no** existing violations — every heading
-  in both languages already complied. The test is what keeps that true when a
-  key is added to one dictionary and its counterpart to the other by someone
-  else a week later.
-- **Separately noted, not fixed:** nine headings are hardcoded French in JSX
-  rather than going through i18n, so they stay French for an English visitor.
-  They are correctly capitalized, so they are not a violation of this rule —
+**Two conventions, because the two languages have two:**
+
+| | Rule | Example |
+| --- | --- | --- |
+| English | Title Case | "Create an Agent Account" |
+| French | sentence case | "Créer un compte agent" |
+
+Forcing English Title Case onto French would produce "Créer Un Compte
+Agent", which reads to a French speaker the way "create an agent account"
+reads to an English one. `apply-title-case.mjs` only ever opens `en.json`;
+there is no code path that could Title-Case the French dictionary.
+
+- **`subtitle` ends in `title`** and was swept into the first run of the
+  transform, which turned a banner's body copy into "List Your Properties and
+  Receive Customer Enquiries on WhatsApp." Subtitles are excluded explicitly
+  in `heading-keys.mjs`. Watch for this whenever the suffix match is widened.
+- **Not `text-transform: capitalize`.** That utility uppercases *every* word,
+  giving "Are You **An** Estate Agent **Or** Agency?" — it has no concept of
+  articles, conjunctions or prepositions, cannot leave an acronym alone, and
+  would leave the underlying strings wrong anyway. The strings are
+  transformed at source so the rendered text is the text in the dictionary.
+- **Words with deliberate casing are never re-cased** — `WhatsApp`, `USD`,
+  `CDF`. A naive capitalizer turns "WhatsApp" into "Whatsapp".
+- **Interpolations are never touched** (`{count}`, `{name}`), and a template
+  that OPENS with one is exempt from the capital check, since the capital
+  comes from the value. `listings.results.heading` is `"{subject}
+  {transaction} in {place}"` — the test asserts the strings that can fill
+  `{subject}` instead of exempting that `<h1>` silently.
+- **There is deliberately no test asserting French is *not* Title Case.** The
+  obvious version fires on every proper-noun meta title ("Contact — Lukka
+  Place") and would need a hand-maintained exception list. See the comment in
+  the test file.
+- **Still open, and the one thing an English visitor sees out of convention:**
+  nine headings are hardcoded French in JSX rather than going through i18n,
+  so they stay French — and therefore sentence case — for an English reader.
   `grep -rEn "<h[1-6][^>]*>[^<{]*[A-Za-zÀ-ÿ]" app components` finds them.
+  Moving them into the dictionary is what would bring them under this rule.
 
 ## Phone verification — WhatsApp OTP, both account types
 

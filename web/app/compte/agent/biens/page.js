@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { getT } from '@/lib/i18n/server';
 import { getCurrentAgentId } from '@/lib/agentSession';
 import { getAgentDashboardContext } from '@/lib/agentDashboard';
@@ -59,12 +60,38 @@ export default async function AgentListingsPage({ searchParams }) {
   const q = typeof params.q === 'string' ? params.q.trim() : '';
 
   const agentId = await getCurrentAgentId();
-  const { listings, propertyIds, newLeadsCount } = await getAgentDashboardContext(agentId);
-  const [perListingStats, { communes }, categories] = await Promise.all([
-    getPerListingStats(propertyIds),
-    getLocationHierarchyWithFallback(),
-    getPropertyCategories(),
+  // getAgentDashboardContext returns null when the session's agent row is gone
+  // (deleted account, restored database, cookie outliving the row). The layout
+  // redirects on exactly this condition, but layout and page render
+  // concurrently in the App Router, so destructuring null here can still throw
+  // first — and a TypeError, unlike a redirect, is what the visitor sees.
+  const context = await getAgentDashboardContext(agentId);
+  if (!context) redirect('/compte/agent/connexion');
+
+  const listings = Array.isArray(context.listings) ? context.listings : [];
+  const propertyIds = Array.isArray(context.propertyIds) ? context.propertyIds : [];
+  const newLeadsCount = context.newLeadsCount ?? 0;
+
+  // Degrade, don't die — the same contract the overview page follows. Not one
+  // of these three is what this page is *for*: the table renders from
+  // `listings`, which is already in hand. Analytics or the category list being
+  // unreachable should cost an empty Vues/Clics column or a create dialog with
+  // no categories to offer — never the agent's inventory list itself.
+  const [perListingStats, hierarchy, categories] = await Promise.all([
+    getPerListingStats(propertyIds).catch((error) => {
+      console.error('[agent/biens] per-listing stats unavailable:', error.message);
+      return { views: {}, clicks: {} };
+    }),
+    getLocationHierarchyWithFallback().catch((error) => {
+      console.error('[agent/biens] location hierarchy unavailable:', error.message);
+      return { communes: [] };
+    }),
+    getPropertyCategories().catch((error) => {
+      console.error('[agent/biens] property categories unavailable:', error.message);
+      return [];
+    }),
   ]);
+  const communes = hierarchy?.communes ?? [];
 
   const needle = q.toLowerCase();
   const filtered = listings.filter((l) => {
@@ -73,9 +100,15 @@ export default async function AgentListingsPage({ searchParams }) {
     return `${l.title || ''} ${l.quartier || ''}`.toLowerCase().includes(needle);
   });
 
+  // `o.label` here — not `t(o.labelKey)` — is what took this whole page down:
+  // the i18n migration renamed the field on LISTING_STATUS_OPTIONS and updated
+  // both JSX reads of it, but missed this one, so every render threw
+  // `Cannot read properties of undefined (reading 'toLowerCase')` before it
+  // produced any output. `t()` always returns a string (it falls back to the
+  // key itself), so there is no undefined to guard against here.
   const counts = [
     ...LISTING_STATUS_OPTIONS.map(
-      (o) => `${listings.filter((l) => matchesFilter(l, o.value)).length} ${o.label.toLowerCase()}`,
+      (o) => `${listings.filter((l) => matchesFilter(l, o.value)).length} ${t(o.labelKey).toLowerCase()}`,
     ),
     `${listings.filter((l) => matchesFilter(l, 'archived')).length} archivé(s)`,
   ].join(' · ');

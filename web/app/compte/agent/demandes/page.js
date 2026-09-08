@@ -209,16 +209,16 @@ export default async function AgentInquiriesPage({ searchParams }) {
 
       <div className="flex flex-col gap-4 px-5 py-7 sm:px-8">
         <div className="flex items-center gap-1 border-b border-line">
-          {TABS.map((t) => (
+          {TABS.map((item) => (
             <Link
-              key={t.value}
-              href={`/compte/agent/demandes?tab=${t.value}`}
+              key={item.value}
+              href={`/compte/agent/demandes?tab=${item.value}`}
               className={`-mb-px border-b-2 px-3.5 py-2.5 text-[0.8125rem] font-semibold transition-colors ${
-                tab === t.value ? 'border-blue text-blue-deep' : 'border-transparent text-ink-45 hover:text-ink'
+                tab === item.value ? 'border-blue text-blue-deep' : 'border-transparent text-ink-45 hover:text-ink'
               }`}
             >
-              {t.label}
-              {t.value === 'visites' && pendingVisitsCount > 0 ? ` (${pendingVisitsCount})` : ''}
+              {t(item.labelKey)}
+              {item.value === 'visites' && pendingVisitsCount > 0 ? ` (${pendingVisitsCount})` : ''}
             </Link>
           ))}
         </div>

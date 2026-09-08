@@ -253,7 +253,7 @@ export default function AgentLeadCard({
         >
           {statusOptions.map((o) => (
             <option key={o.value} value={o.value}>
-              {o.label}
+              {t(o.labelKey)}
             </option>
           ))}
         </select>

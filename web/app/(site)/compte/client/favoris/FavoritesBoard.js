@@ -217,8 +217,13 @@ function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, r
               subtextClassName="ml-2 inline-block rounded-md bg-canvas-alt px-2 py-0.5 align-middle text-[0.75rem] font-medium leading-normal tracking-normal text-ink"
             />
           </span>
+          {/* Same "Réf: …" treatment as components/PropertyCard — this
+              card is the same product surface and already tracks that one
+              deliberately (see the note above). */}
           {listing.reference ? (
-            <span className="u-tabular shrink-0 text-[0.6875rem] font-normal text-ink">{listing.reference}</span>
+            <span className="u-tabular shrink-0 text-[0.6875rem] font-normal text-ink">
+              {t('listings.facts.referenceTag', { reference: listing.reference })}
+            </span>
           ) : null}
         </div>
 

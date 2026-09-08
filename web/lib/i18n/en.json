@@ -316,7 +316,8 @@
         "other": "{count} months"
       },
       "squareMetres": "{value} m²",
-      "reference": "Reference"
+      "reference": "Reference",
+      "referenceTag": "Ref: {reference}"
     },
     "price": {
       "displayed": "Displayed price",

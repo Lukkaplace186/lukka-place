@@ -332,8 +332,21 @@ export default function PropertyCard({
                 with the price figure alone left at full `ink` so it is the
                 one thing that stands out. */}
             <span className="text-[0.6875rem] font-normal tracking-normal text-ink">{freshness || ''}</span>
+            {/* Labelled "Réf: …", never the bare code. On its own, a
+                reference like "Demiap" reads as a place or an agency name
+                rather than as this listing's identifier — which is exactly
+                the confusion CLAUDE.md warns about between `reference` and
+                `quartier`, here landing on the visitor instead of on the
+                parser. The prefix is the local convention and it is what an
+                agent is quoted on the phone.
+
+                Still nothing at all when there is no reference: the whole
+                row is already conditional above, and this stays null rather
+                than rendering a stranded "Réf:" with no code after it. */}
             {reference ? (
-              <span className="u-tabular shrink-0 text-[0.6875rem] font-normal text-ink">{reference}</span>
+              <span className="u-tabular shrink-0 text-[0.6875rem] font-normal text-ink">
+                {t('listings.facts.referenceTag', { reference })}
+              </span>
             ) : null}
           </div>
         ) : null}

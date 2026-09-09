@@ -349,7 +349,16 @@ function buildPropertyValues(row, { category, location, agentId = null }) {
     // "column does not exist" error until it does). Powers web/'s "Garantie
     // N mois" badge — see web/lib/listings.js's SELECT_FIELDS.
     price_period: row.price_period ?? null,
+    // The three entry costs stay THREE fields all the way to the storefront.
+    // `deposit_months` alone was all `properties` could hold until the
+    // advance/commission columns were added (scripts/migrate-entry-cost-
+    // columns.js), which is why "Garantie : 3 + 1 + 1" could only ever be
+    // shown there as "Garantie 3 mois" — the other two were parsed, stored in
+    // SQLite, and then dropped on the way out. Never re-sum them here: a
+    // single 5 in deposit_months is the exact overstatement the split undid.
     deposit_months: row.deposit_months ?? null,
+    advance_months: row.advance_months ?? null,
+    commission_months: row.commission_months ?? null,
     status: 1,
     approve_status: 0,
   };

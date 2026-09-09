@@ -993,6 +993,33 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(values.units_count, 4);
     assert.strictEqual(values.reference, 'LKP-2026-0091');
   });
+  check('buildPropertyValues carries all THREE entry costs, never a re-summed total', () => {
+    // "Garantie : 3 + 1 + 1" — deposit, advance, commission. Summing them into
+    // deposit_months is the bug the split fixed (5 months of deposit claimed
+    // where 3 were owed), and the sync is the last place it could come back.
+    const values = postgresService.buildPropertyValues(
+      {
+        property_type: 'appartement', transaction_type: 'location',
+        deposit_months: 3, advance_months: 1, commission_months: 1,
+      },
+      { category: fakeCategory, location: fakeLocation },
+    );
+    assert.strictEqual(values.deposit_months, 3);
+    assert.strictEqual(values.advance_months, 1);
+    assert.strictEqual(values.commission_months, 1);
+  });
+  check('buildPropertyValues leaves an unstated advance/commission NULL, not 0', () => {
+    // NULL is "not stated"; 0 is "none required". A plain "Garantie : 3 mois"
+    // makes the first claim, and writing 0 would make the second one for the
+    // agent.
+    const values = postgresService.buildPropertyValues(
+      { property_type: 'appartement', transaction_type: 'location', deposit_months: 3 },
+      { category: fakeCategory, location: fakeLocation },
+    );
+    assert.strictEqual(values.deposit_months, 3);
+    assert.strictEqual(values.advance_months, null);
+    assert.strictEqual(values.commission_months, null);
+  });
   check('buildPropertyValues defaults all three to null when absent, without throwing', () => {
     const values = postgresService.buildPropertyValues(
       { property_type: 'appartement', transaction_type: 'location' },

@@ -68,6 +68,26 @@ test('a gap in the middle is not papered over with a placeholder', () => {
   assert.equal(terms.itemized, false);
 });
 
+test('the deposit cell states the deposit alone, never the entry total', () => {
+  // The grid shows both: "Garantie : 3 mois" (what comes back) and
+  // "Conditions d'entrée : 3 + 1 + 1" (what has to be paid to sign). The first
+  // reads parts[0] and nothing else — a "3 + 1 + 1" printed as "Garantie :
+  // 5 mois" claims two months of refundable deposit that are actually rent and
+  // commission, which is the bug the three-field split exists to prevent.
+  const terms = entryTerms({ deposit_months: 3, advance_months: 1, commission_months: 1 });
+  assert.equal(terms.parts[0], 3);
+  assert.equal(terms.parts.join(' + '), '3 + 1 + 1');
+});
+
+test('a deposit with nothing beside it produces no second money cell', () => {
+  // `itemized` is what KeyFacts gates the entry-terms cell on. With only a
+  // deposit stated, repeating "3" under a second heading would imply a
+  // breakdown nobody gave us — and filling in the "+ 1 + 1" that usually
+  // follows would be inventing money a customer would budget for.
+  assert.equal(entryTerms({ deposit_months: 3 }).itemized, false);
+  assert.equal(entryTerms({ deposit_months: 3, advance_months: 1 }).itemized, true);
+});
+
 test('a full row leaves the last cell an ordinary stacked cell', () => {
   // The stacked treatment every other cell wears, asserted literally here so
   // KeyFacts and this file cannot drift apart on what "ordinary" looks like.

@@ -127,9 +127,9 @@ export default function KeyFacts({ listing }) {
   return (
     <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-line sm:grid-cols-4">
       {items.map(({ key, icon: Icon, label, value }, index) => {
-        const { className, grouped } = index === items.length - 1
+        const { className, groupClassName } = index === items.length - 1
           ? lastCell
-          : { className: STACKED_CELL_CLASS, grouped: false };
+          : { className: STACKED_CELL_CLASS, groupClassName: '' };
 
         // The card rail's own exported treatments (components/SpecItem.js)
         // rather than `u-eyebrow`/`u-body`, so this grid and the feed card
@@ -152,11 +152,13 @@ export default function KeyFacts({ listing }) {
 
         return (
           <div key={key} className={`bg-canvas-alt p-4 ${className}`}>
-            {grouped ? (
-              // Icon and label as ONE flex item, so `justify-between` sends the
-              // value to the far end of the row instead of spreading all three
-              // evenly and stranding the icon away from the words it labels.
-              <span className="flex items-center gap-2.5">
+            {groupClassName ? (
+              // Icon and label as ONE flex item where the cell is stretched, so
+              // `justify-between` sends the value to the far end of the row.
+              // At a width where the cell is NOT stretched this wrapper is
+              // `display: contents` and generates no box at all, leaving the
+              // cell identical to its neighbours — see lib/keyFactsGrid.js.
+              <span className={groupClassName}>
                 {icon}
                 {labelEl}
               </span>

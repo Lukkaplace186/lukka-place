@@ -96,7 +96,7 @@ test('a full row leaves the last cell an ordinary stacked cell', () => {
   // 4 cells fill both a 2-up and a 4-up row; 8 does the same. Nothing to
   // correct, so nothing is corrected — no span, no row layout, no grouping.
   for (const count of [4, 8]) {
-    assert.deepEqual(lastCellPresentation(count), { className: STACKED_CELL_CLASS, grouped: false });
+    assert.deepEqual(lastCellPresentation(count), { className: STACKED_CELL_CLASS, groupClassName: '' });
   }
 });
 
@@ -108,14 +108,14 @@ test('a cell short in BOTH rows stretches and lays its content along the row', (
   // rule at the midpoint. So it stretches AND goes horizontal.
   const five = lastCellPresentation(5);
   assert.equal(five.className, 'col-span-2 sm:col-span-4 flex items-center justify-between gap-4');
-  assert.equal(five.grouped, true, 'icon and label must group so the value lands at the far end');
+  assert.equal(five.groupClassName, 'flex items-center gap-2.5', 'icon and label must group so the value lands at the far end');
 
   // Odd is never divisible by four, so an odd count is always short in both.
   for (const count of [1, 3, 5, 7, 9, 11]) {
     const cell = lastCellPresentation(count);
     assert.ok(cell.className.startsWith('col-span-2 '), `${count} cells: no mobile stretch`);
     assert.ok(cell.className.includes('flex items-center'), `${count} cells: not laid along the row`);
-    assert.equal(cell.grouped, true);
+    assert.equal(cell.groupClassName, 'flex items-center gap-2.5');
   }
 });
 
@@ -131,9 +131,11 @@ test('a cell exact on mobile but short on desktop stays stacked on the phone', (
   );
   assert.ok(!six.className.split(' ').includes('col-span-2'), 'must not stretch on mobile');
 
-  // Grouped is still true: the direction flips at `sm` but the DOM cannot, so
-  // the icon and label have to be grouped before the flip.
-  assert.equal(six.grouped, true);
+  // The wrapper is present but `display: contents` until `sm`. The DOM cannot
+  // change per breakpoint, so a real wrapper at mobile would put this one
+  // cell's icon beside its label while every other cell stacks its icon above
+  // — which is exactly how it shipped once, and it read as a mistake.
+  assert.equal(six.groupClassName, 'contents sm:flex sm:items-center sm:gap-2.5');
 });
 
 test('every class emitted is a literal Tailwind can actually see', () => {
@@ -143,7 +145,8 @@ test('every class emitted is a literal Tailwind can actually see', () => {
   const source = readFileSync(new URL('../../lib/keyFactsGrid.js', import.meta.url), 'utf8');
 
   for (let count = 1; count <= 24; count += 1) {
-    for (const cls of lastCellPresentation(count).className.split(' ').filter(Boolean)) {
+    const { className, groupClassName } = lastCellPresentation(count);
+    for (const cls of `${className} ${groupClassName}`.split(' ').filter(Boolean)) {
       assert.ok(source.includes(`${cls}`), `${cls} is not a literal in lib/keyFactsGrid.js`);
     }
   }
@@ -151,6 +154,6 @@ test('every class emitted is a literal Tailwind can actually see', () => {
 
 test('nonsense in, an ordinary cell out — never a stray span class', () => {
   for (const bad of [0, -1, 2.5, NaN, null, undefined]) {
-    assert.deepEqual(lastCellPresentation(bad), { className: STACKED_CELL_CLASS, grouped: false });
+    assert.deepEqual(lastCellPresentation(bad), { className: STACKED_CELL_CLASS, groupClassName: '' });
   }
 });

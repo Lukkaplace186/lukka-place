@@ -1,6 +1,6 @@
 'use client';
 
-import { BedDouble, Bath, Ruler, DoorOpen, FileText, Home, Hash } from 'lucide-react';
+import { BedDouble, Bath, Ruler, DoorOpen, FileText, Home, Hash, Wallet } from 'lucide-react';
 import { hasArea, entryTerms } from '@/lib/listingView';
 import { lastCellPresentation, STACKED_CELL_CLASS } from '@/lib/keyFactsGrid';
 import { SPEC_LABEL_CLASS, SPEC_VALUE_CLASS } from './SpecItem';
@@ -61,24 +61,18 @@ export default function KeyFacts({ listing }) {
       ? { key: 'area', icon: Ruler, label: t('listings.facts.area'), value: t('listings.facts.squareMetres', { value: area }) }
       : null,
     unitsCount != null ? { key: 'units', icon: DoorOpen, label: t('listings.facts.doors'), value: unitsCount } : null,
-    // One money cell, not two. When the listing states an advance or a
-    // commission alongside the deposit it reads as the local notation the
-    // agent wrote — "3 + 1 + 1 mois" under "Conditions d'entrée" — and when
-    // it states only a deposit it stays exactly the "Garantie / 3 mois" cell
-    // it has always been. A second cell repeating the same money under a
-    // different heading would be the more confusing of the two options, and a
-    // single "5 mois" total labelled Garantie is the overstatement the split
-    // into three fields exists to prevent.
+    // The REFUNDABLE deposit on its own — `terms.parts[0]`, never the total.
+    // A "3 + 1 + 1" shown here as "Garantie : 5 mois" is the exact
+    // overstatement that splitting the field into three undid: two of those
+    // months are rent and commission, and neither comes back.
     terms
       ? {
-          key: 'terms',
+          key: 'deposit',
           icon: FileText,
-          label: terms.itemized ? t('listings.facts.entryTerms') : t('listings.facts.deposit'),
-          value: terms.itemized
-            ? t('listings.facts.entryTermsMonths', { parts: terms.parts.join(' + ') })
-            // Pluralised: "1 month" vs "3 months" differ in English, where the
-            // French "mois" does not change.
-            : t('listings.facts.months', { count: terms.parts[0] }),
+          label: t('listings.facts.deposit'),
+          // Pluralised: "1 month" vs "3 months" differ in English, where the
+          // French "mois" does not change.
+          value: t('listings.facts.months', { count: terms.parts[0] }),
         }
       : null,
   ].filter(Boolean);
@@ -94,9 +88,32 @@ export default function KeyFacts({ listing }) {
   // Real column only (`properties.reference`), never `quartier` standing in
   // for it and never an id dressed up as one — a listing with no reference
   // renders no cell at all.
-  const items = reference
-    ? [...facts, { key: 'reference', icon: Hash, label: t('listings.facts.reference'), value: reference }]
-    : facts;
+  // Reference, then the entry terms — in that order, so on the 2-up mobile
+  // grid the reference lands bottom-LEFT and the money bottom-RIGHT.
+  const items = [...facts];
+
+  if (reference) {
+    items.push({ key: 'reference', icon: Hash, label: t('listings.facts.reference'), value: reference });
+  }
+
+  // The whole deal in the notation the agent quoted: "3 + 1 + 1 mois" —
+  // deposit, then rent paid in advance, then agency commission. This is what a
+  // customer has to find before signing, and until the advance/commission
+  // columns reached Supabase the site could not state it at all.
+  //
+  // Only when there is genuinely more than a deposit to say. A listing that
+  // states "Garantie : 3 mois" and nothing else has this cell omitted rather
+  // than filled with "3" — repeating the cell above under a second heading
+  // would imply a breakdown nobody gave us, and inventing the "+ 1 + 1" that
+  // usually follows would be inventing money the customer would budget for.
+  if (terms?.itemized) {
+    items.push({
+      key: 'entry',
+      icon: Wallet,
+      label: t('listings.facts.entryTerms'),
+      value: t('listings.facts.entryTermsMonths', { parts: terms.parts.join(' + ') }),
+    });
+  }
 
   if (items.length === 0) return null;
 

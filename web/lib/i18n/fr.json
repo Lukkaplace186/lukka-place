@@ -1430,11 +1430,11 @@
     "invalidBathrooms": "Nombre de salles de bain invalide.",
     "addAtLeastOnePhoto": "Ajoutez au moins une photo.",
     "unsupportedPhotoFormat": "Format de photo non supporté (JPEG, PNG ou WebP uniquement).",
-    "photoTooLarge": "Une photo dépasse 5 Mo.",
+    "photoTooLarge": "Une photo dépasse {max} Mo.",
     "newSlotRequired": "Indiquez le nouveau créneau proposé.",
     "noFileReceived": "Aucun fichier reçu.",
     "unsupportedFileFormat": "Format non supporté (JPEG, PNG ou WebP uniquement).",
-    "fileTooLarge": "Fichier trop volumineux (5 Mo max).",
+    "fileTooLarge": "Fichier trop volumineux ({max} Mo max).",
     "agentAccountNotFound": "Compte agent introuvable.",
     "choosePropertyToPropose": "Choisissez un bien à proposer.",
     "quotaCheckFailed": "Impossible de vérifier votre quota du mois. Réessayez dans un instant.",
@@ -1456,7 +1456,10 @@
     "fieldDepositMonths": "mois de garantie",
     "agentNoWhatsApp": "Cet agent n’a pas de numéro WhatsApp enregistré.",
     "sendFailedShort": "L'envoi a échoué.",
-    "actionFailed": "L'action a échoué."
+    "actionFailed": "L'action a échoué.",
+    "tooManyPhotos": "Maximum {max} photos par annonce.",
+    "uploadTooLarge": "Vos photos totalisent {total} Mo, au-delà de la limite de {max} Mo par envoi. Retirez-en quelques-unes ou enregistrez-les en deux fois.",
+    "submissionFailed": "L’envoi a échoué. Votre session a peut-être expiré, ou la connexion a été interrompue — rechargez la page et réessayez."
   },
   "auth": {
     "forgotPassword": "Mot de passe oublié",

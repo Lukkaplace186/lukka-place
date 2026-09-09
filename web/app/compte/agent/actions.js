@@ -49,13 +49,27 @@ import { LEAD_STATUSES, VIEWING_REQUEST_STATUSES } from '@/lib/adminLabels';
 import { currentQuotaPeriodStart, resolveLeadQuota } from '@/lib/leadQuota';
 import { createPlanChangeRequest, getPurchasablePackages } from '@/lib/subscriptions';
 import { getT } from '@/lib/i18n/server';
+import { MAX_AVATAR_BYTES, megabytes, validatePhotoSelection } from '@/lib/uploadLimits.mjs';
 
-const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 const ALLOWED_AVATAR_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 
-const MAX_LISTING_PHOTO_BYTES = 5 * 1024 * 1024;
-const MAX_LISTING_PHOTOS = 10;
 const ALLOWED_LISTING_PHOTO_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+const ALLOWED_LISTING_PHOTO_MIME = Object.keys(ALLOWED_LISTING_PHOTO_TYPES);
+
+/**
+ * The server side of lib/uploadLimits.mjs's shared rule. The browser runs
+ * the same function before sending (CreateListingDialog / AgentListingEditor)
+ * so an oversized selection is refused with a real message instead of being
+ * pushed at a transport that would 413 it — but this is the authoritative
+ * copy: a Server Action is a public POST endpoint and cannot trust that any
+ * client-side check ran at all.
+ *
+ * @returns {{ok: false, error: string}|null}
+ */
+function photoSelectionError(t, files, options) {
+  const problem = validatePhotoSelection(files, { ...options, allowedTypes: ALLOWED_LISTING_PHOTO_MIME });
+  return problem ? { ok: false, error: t(problem.key, problem.vars) } : null;
+}
 
 // 'closed' is deliberately excluded here — it must only ever be reached via
 // markListingSoldAction below, which requires a real sold_price alongside
@@ -325,11 +339,8 @@ export async function createListingAction(validCommunes, validCategories, formDa
   if (beds !== null && (!Number.isFinite(beds) || beds < 0)) return { ok: false, error: t('errors.invalidBedrooms') };
   if (bath !== null && (!Number.isFinite(bath) || bath < 0)) return { ok: false, error: t('errors.invalidBathrooms') };
   if (!photos.length) return { ok: false, error: t('errors.addAtLeastOnePhoto') };
-  if (photos.length > MAX_LISTING_PHOTOS) return { ok: false, error: `Maximum ${MAX_LISTING_PHOTOS} photos.` };
-  for (const file of photos) {
-    if (!ALLOWED_LISTING_PHOTO_TYPES[file.type]) return { ok: false, error: t('errors.unsupportedPhotoFormat') };
-    if (file.size > MAX_LISTING_PHOTO_BYTES) return { ok: false, error: t('errors.photoTooLarge') };
-  }
+  const photoProblem = photoSelectionError(t, photos);
+  if (photoProblem) return photoProblem;
 
   const agent = await getAgentProfile(agentId);
   if (!agent) throw new Error('Not authenticated');
@@ -576,7 +587,9 @@ export async function uploadAgentAvatarAction(formData) {
   if (!ALLOWED_AVATAR_TYPES[file.type]) {
     return { ok: false, error: t('errors.unsupportedFileFormat') };
   }
-  if (file.size > MAX_AVATAR_BYTES) return { ok: false, error: t('errors.fileTooLarge') };
+  if (file.size > MAX_AVATAR_BYTES) {
+    return { ok: false, error: t('errors.fileTooLarge', { max: megabytes(MAX_AVATAR_BYTES) }) };
+  }
 
   const buffer = Buffer.from(await file.arrayBuffer());
   let url;
@@ -843,15 +856,8 @@ export async function updateListingAction(propertyId, validCommunes, formData) {
     if (keptPhotos.length + newFiles.length === 0) {
       return { ok: false, error: t('errors.keepAtLeastOnePhoto') };
     }
-    if (keptPhotos.length + newFiles.length > MAX_LISTING_PHOTOS) {
-      return { ok: false, error: `Maximum ${MAX_LISTING_PHOTOS} photos.` };
-    }
-    for (const file of newFiles) {
-      if (!ALLOWED_LISTING_PHOTO_TYPES[file.type]) {
-        return { ok: false, error: t('errors.unsupportedPhotoFormat') };
-      }
-      if (file.size > MAX_LISTING_PHOTO_BYTES) return { ok: false, error: t('errors.photoTooLarge') };
-    }
+    const photoProblem = photoSelectionError(t, newFiles, { keptCount: keptPhotos.length });
+    if (photoProblem) return photoProblem;
   }
 
   const owned = await updateListing(agentId, propertyId, {

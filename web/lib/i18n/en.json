@@ -1430,11 +1430,11 @@
     "invalidBathrooms": "Invalid number of bathrooms.",
     "addAtLeastOnePhoto": "Add at least one photo.",
     "unsupportedPhotoFormat": "Unsupported photo format (JPEG, PNG or WebP only).",
-    "photoTooLarge": "One photo is larger than 5 MB.",
+    "photoTooLarge": "One photo is larger than {max} MB.",
     "newSlotRequired": "Enter the new proposed time.",
     "noFileReceived": "No file received.",
     "unsupportedFileFormat": "Unsupported format (JPEG, PNG or WebP only).",
-    "fileTooLarge": "File too large (5 MB max).",
+    "fileTooLarge": "File too large ({max} MB max).",
     "agentAccountNotFound": "Agent account not found.",
     "choosePropertyToPropose": "Choose a property to propose.",
     "quotaCheckFailed": "We couldn't check your monthly quota. Please try again in a moment.",
@@ -1456,7 +1456,10 @@
     "fieldDepositMonths": "deposit months",
     "agentNoWhatsApp": "This agent has no WhatsApp number on record.",
     "sendFailedShort": "Sending failed.",
-    "actionFailed": "The action failed."
+    "actionFailed": "The action failed.",
+    "tooManyPhotos": "Maximum {max} photos per listing.",
+    "uploadTooLarge": "Your photos total {total} MB, over the {max} MB limit per upload. Remove a few, or save them in two goes.",
+    "submissionFailed": "The upload failed. Your session may have expired, or the connection dropped — reload the page and try again."
   },
   "auth": {
     "forgotPassword": "Forgotten Password",

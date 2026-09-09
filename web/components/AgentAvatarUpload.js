@@ -5,6 +5,7 @@ import AgentAvatar from './AgentAvatar';
 import { uploadAgentAvatarAction } from '@/app/compte/agent/actions';
 import { useToast } from './Toast';
 import { useT } from '@/lib/i18n/client';
+import { MAX_AVATAR_BYTES, megabytes } from '@/lib/uploadLimits.mjs';
 
 /**
  * Wraps the read-only AgentAvatar display with a real upload flow. Calls
@@ -24,6 +25,16 @@ export default function AgentAvatarUpload({ initialSrc }) {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    // Refused before sending rather than after: over the Server Action's
+    // transport ceiling the request is aborted with a 413 and the call
+    // rejects, which is not a result this handler could have read.
+    // lib/uploadLimits.mjs holds the figure the action re-checks.
+    if (file.size > MAX_AVATAR_BYTES) {
+      showToast({ type: 'error', message: t('errors.fileTooLarge', { max: megabytes(MAX_AVATAR_BYTES) }) });
+      event.target.value = '';
+      return;
+    }
+
     const previewUrl = URL.createObjectURL(file);
     setSrc(previewUrl);
 
@@ -31,15 +42,25 @@ export default function AgentAvatarUpload({ initialSrc }) {
     formData.set('avatar', file);
 
     startTransition(async () => {
-      const result = await uploadAgentAvatarAction(formData);
-      if (result.ok) {
-        setSrc(result.url);
-        showToast({ type: 'success', message: t('agent.settings.photoUpdated') });
-      } else {
+      try {
+        const result = await uploadAgentAvatarAction(formData);
+        if (result.ok) {
+          setSrc(result.url);
+          showToast({ type: 'success', message: t('agent.settings.photoUpdated') });
+        } else {
+          setSrc(initialSrc);
+          showToast({ type: 'error', message: result.error });
+        }
+      } catch (err) {
+        // See CreateListingDialog: a rejected action is a transport failure,
+        // not an {ok:false}. The preview has to be rolled back here too, or
+        // the agent is left looking at a photo that was never stored.
+        console.error('[AgentAvatarUpload] uploadAgentAvatarAction failed', err);
         setSrc(initialSrc);
-        showToast({ type: 'error', message: result.error });
+        showToast({ type: 'error', message: t('errors.submissionFailed') });
+      } finally {
+        URL.revokeObjectURL(previewUrl);
       }
-      URL.revokeObjectURL(previewUrl);
     });
 
     event.target.value = '';

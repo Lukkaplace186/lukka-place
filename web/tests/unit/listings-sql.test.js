@@ -142,3 +142,77 @@ test('omitting ids leaves the query unconstrained by id', async () => {
   await listings.getListings({});
   assert.ok(!allSql().includes('p.id = ANY'));
 });
+
+/**
+ * Agency name resolution.
+ *
+ * `a.username AS agency_name` was the shipped bug: every account created via
+ * WhatsApp onboarding or this app's phone+password signup has `username` set
+ * to its own phone digits, with the real name in `agent_infos`. Cards and the
+ * detail page's EnquiryCard therefore printed "33766517388" where "NSUMBU
+ * Marie" belonged. Asserted on the SQL rather than on returned rows for the
+ * same reason as the approval filter above — a row fixture proves nothing
+ * about the query that produced it.
+ */
+const READ_PATHS = [
+  ['getListings', () => listings.getListings({})],
+  ['getListingById', () => listings.getListingById(294)],
+  ['getListingsByIds', () => listings.getListingsByIds([294, 298])],
+  ['getListingsForModeration', () => listings.getListingsForModeration('pending')],
+];
+
+for (const [name, run] of READ_PATHS) {
+  test(`${name} never selects a raw username as the agency name`, async () => {
+    await run();
+    const sql = normalizeSql(allSql());
+    assert.ok(
+      !/a\.username AS agency_name/i.test(sql),
+      'agents.username is the account phone on almost every real row — never a name',
+    );
+    assert.match(sql, /AS agency_name/, `${name} must still return an agency_name column`);
+  });
+
+  test(`${name} resolves the agency name through agent_infos, first_name first`, async () => {
+    await run();
+    const sql = normalizeSql(allSql());
+    assert.match(sql, /CONCAT_WS\(' ', ai\.first_name, ai\.last_name\)/);
+    // Priority order: person name, then trading name, then a non-phone username.
+    assert.match(
+      sql,
+      /COALESCE\( NULLIF\(TRIM\(CONCAT_WS\(' ', ai\.first_name, ai\.last_name\)\), ''\), NULLIF\(TRIM\(a\.agency_name\), ''\)/,
+    );
+  });
+
+  test(`${name} resolves a phone-shaped username to NULL, not to itself`, async () => {
+    await run();
+    const sql = normalizeSql(allSql());
+    assert.match(sql, /CASE WHEN a\.username ~ '\^\[\+\]\?\[0-9\]\{7,15\}\$' THEN NULL ELSE a\.username END/);
+    assert.ok(
+      !/\\+/.test(sql),
+      "a lone backslash-plus is eaten by the JS template literal before Postgres sees it — the class form [+] is required",
+    );
+  });
+
+  test(`${name} joins agent_infos LATERAL, so a two-language agent cannot duplicate a listing`, async () => {
+    await run();
+    const sql = normalizeSql(allSql());
+    assert.match(sql, /LEFT JOIN LATERAL \( SELECT first_name, last_name FROM agent_infos/);
+    assert.match(sql, /agent_infos WHERE agent_id = a\.id ORDER BY \(language_id = 20\) DESC, language_id LIMIT 1/);
+  });
+}
+
+test('the COUNT query carries the same agent_infos join as the data query', async () => {
+  enqueue([{ total: '4' }]);
+  enqueue([]);
+  await listings.getListings({});
+
+  const [countCall, dataCall] = calls;
+  assert.match(normalizeSql(countCall.sql), /COUNT\(\*\)/);
+  for (const call of [countCall, dataCall]) {
+    assert.match(
+      normalizeSql(call.sql),
+      /LEFT JOIN LATERAL \( SELECT first_name, last_name FROM agent_infos/,
+      'a join present in one and absent from the other would make the total disagree with the page',
+    );
+  }
+});

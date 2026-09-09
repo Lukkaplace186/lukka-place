@@ -86,6 +86,56 @@ const GALLERY_SUBQUERY = `(
 // (Kept as a JS comment, not an inline SQL one: this is a template literal,
 // and a backtick inside it — as in a quoted column name — silently ends the
 // string. That broke the build once.)
+
+// `agency_name` is the agent's real NAME, not whatever happens to sit in
+// `agents.username`. That distinction is not cosmetic: every account created
+// through the WhatsApp onboarding flow or this app's own phone+password
+// signup gets `username` = its own phone digits (services/agentOnboarding.js
+// in the engine repo, and lib/agents.js's createAgent here), and the real
+// name is written to `agent_infos.first_name`/`last_name` instead. Selecting
+// `a.username` therefore printed a raw 11-digit phone number where the
+// agency name belongs on every listing card and on the detail page's
+// EnquiryCard — confirmed live: 8 of the 9 agents holding approved listings
+// have a phone-digit username and a real first/last name beside it (agent
+// #39 = "33766517388" / "NSUMBU Marie", the case this was caught on), while
+// /agents/[id] showed the correct name all along because it reads through
+// lib/agents.js's agent_infos join.
+//
+// Resolution order matches what the public /agents/[id] hero prints
+// (agentDisplayName in lib/agencies.js), so a card and the profile it links
+// to can never disagree: person name, then the agency's own trading name,
+// then a username that is actually a name. A phone-shaped username resolves
+// to NULL rather than to itself — the phone already has its own column
+// (`agent_phone`, used for the tel: link), and repeating it here as a label
+// is exactly the bug. 7..15 digits is E.164's real range, the same one
+// lib/phone.js and the engine's routes/admin.js validate against; written as
+// `[+]?` rather than `\+?` because this is a JS template literal, where a
+// lone backslash-plus is silently eaten before Postgres ever sees it.
+//
+// NULL here is a real answer, not a gap to paper over: PropertyCard renders
+// the agency slot only when this or `agency_logo_url` is non-null, and
+// AgencyLogo/EnquiryCard fall back to Lukka Place's own mark, which is the
+// honest signal for a listing the platform handles directly.
+const AGENCY_NAME_EXPR = `
+  COALESCE(
+    NULLIF(TRIM(CONCAT_WS(' ', ai.first_name, ai.last_name)), ''),
+    NULLIF(TRIM(a.agency_name), ''),
+    NULLIF(TRIM(CASE WHEN a.username ~ '^[+]?[0-9]{7,15}$' THEN NULL ELSE a.username END), '')
+  ) AS agency_name`;
+
+// LATERAL + LIMIT 1, not a plain LEFT JOIN — `agent_infos` is a per-language
+// content table (one row per language_id) and agent #28 really does hold two
+// of them, so a plain join fans one listing out into two identical rows.
+// lib/agents.js hit exactly that and documents it; the feed would have paid
+// for it far more visibly, with duplicate cards and an off-by-N page count.
+const AGENT_INFOS_JOIN = `
+  LEFT JOIN LATERAL (
+    SELECT first_name, last_name FROM agent_infos
+    WHERE agent_id = a.id
+    ORDER BY (language_id = ${CONTENT_LANGUAGE_ID}) DESC, language_id
+    LIMIT 1
+  ) ai ON true`;
+
 const SELECT_FIELDS = `
   p.id, p.price, p.purpose, p.beds, p.bath, p.area, p.quartier,
   p.currency, p.price_original,
@@ -95,7 +145,7 @@ const SELECT_FIELDS = `
   pc.title, pc.slug, pc.address,
   catc.name AS category_name,
   pc.description,
-  a.id AS agent_id, a.image AS agency_logo_url, a.username AS agency_name, a.phone AS agent_phone,
+  a.id AS agent_id, a.image AS agency_logo_url, ${AGENCY_NAME_EXPR}, a.phone AS agent_phone,
   ${COMMUNE_SUBQUERY},
   ${GALLERY_SUBQUERY}
 `;
@@ -108,6 +158,7 @@ const FROM_JOINS = `
   JOIN property_categories cat ON cat.id = p.category_id
   JOIN property_category_contents catc ON catc.category_id = cat.id AND catc.language_id = ${CATEGORY_LANGUAGE_ID}
   LEFT JOIN agents a ON a.id = p.agent_id
+  ${AGENT_INFOS_JOIN}
 `;
 
 const TRANSACTION_TYPE_TO_PURPOSE = { location: 'rent', vente: 'sale' };
@@ -661,7 +712,7 @@ const MODERATION_SELECT_FIELDS = `
   catc.name AS category_name,
   (pc.id IS NULL) AS missing_content,
   (catc.id IS NULL) AS missing_category,
-  a.id AS agent_id, a.image AS agency_logo_url, a.username AS agency_name, a.phone AS agent_phone,
+  a.id AS agent_id, a.image AS agency_logo_url, ${AGENCY_NAME_EXPR}, a.phone AS agent_phone,
   ${COMMUNE_SUBQUERY},
   ${GALLERY_SUBQUERY}
 `;
@@ -672,6 +723,7 @@ const MODERATION_FROM_JOINS = `
   LEFT JOIN property_categories cat ON cat.id = p.category_id
   LEFT JOIN property_category_contents catc ON catc.category_id = cat.id AND catc.language_id = ${CATEGORY_LANGUAGE_ID}
   LEFT JOIN agents a ON a.id = p.agent_id
+  ${AGENT_INFOS_JOIN}
 `;
 
 /**

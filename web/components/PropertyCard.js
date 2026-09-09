@@ -7,6 +7,7 @@ import FavoriteButton from './FavoriteButton';
 import WhatsAppCTA from './WhatsAppCTA';
 import CallCTA from './CallCTA';
 import AgencyLogo from './AgencyLogo';
+import { displayableAgencyName } from '@/lib/agentIdentity';
 import Price from './Price';
 import SpecItem, { SpecCell } from './SpecItem';
 import { useT } from '@/lib/i18n/client';
@@ -114,7 +115,13 @@ export default function PropertyCard({
   // file's predecessor, AgencyLogo.js, WhatsAppCTA.js — still assert that
   // `agent_id` is NULL on *every* row; that was true when written and is
   // now stale. Do not re-derive behaviour from those notes without checking.
-  const hasAgency = Boolean(agencyName || agencyLogoUrl);
+  // `displayableAgencyName` and not a bare truthiness check: `agency_name`
+  // used to resolve to `agents.username`, which is the agent's own phone
+  // digits on almost every real account, so this gate was opening the slot
+  // for a card that had no name to show — only a phone number. That is fixed
+  // in SQL now (lib/listings.js's AGENCY_NAME_EXPR), and the gate agrees with
+  // AgencyLogo's own guard so the two can't diverge.
+  const hasAgency = Boolean(displayableAgencyName(agencyName) || agencyLogoUrl);
 
   return (
     // Own `@container` so the horizontal layout's breakpoints resolve against

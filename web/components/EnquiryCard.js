@@ -6,6 +6,8 @@ import { MessageCircle, Phone, CalendarClock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import FavoriteButton from './FavoriteButton';
 import ShareButton from './ShareButton';
+import AgentMonogram from './AgentMonogram';
+import { displayableAgencyName } from '@/lib/agentIdentity';
 import { getCentralWhatsAppHref, buildWhatsAppLink, buildWhatsAppMessage } from '@/lib/whatsapp';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { submitVisitRequestAction } from '@/app/(site)/listings/[id]/actions';
@@ -131,11 +133,13 @@ function VisitRequestDialog({ propertyId }) {
  *
  * Honest-data notes, unchanged from before:
  *  - `agency_name` / `agent_phone` come from the real agents join
- *    (lib/listings.js) and are NULL on every listing today, so the panel
- *    falls back to naming Lukka Place itself rather than inventing an
- *    agent. The design's "· 34 biens à Kinshasa" qualifier is dropped
- *    entirely — no per-agent listing count is available on this row, and it
- *    is exactly the kind of number that must not be guessed.
+ *    (lib/listings.js). They are NOT NULL on every listing any more — that
+ *    claim was true when written and is now stale: 23 of the 46 approved
+ *    listings carry a real agent. When they are null the panel still falls
+ *    back to naming Lukka Place itself rather than inventing an agent. The
+ *    design's "· 34 biens à Kinshasa" qualifier is dropped entirely — no
+ *    per-agent listing count is available on this row, and it is exactly the
+ *    kind of number that must not be guessed.
  *  - "Appeler l'agent" renders only when a real per-listing number exists.
  *  - WhatsApp falls back to the one central number, and renders a disabled
  *    state (not a dead wa.me link) when that env var is unset.
@@ -157,19 +161,21 @@ function VisitRequestDialog({ propertyId }) {
  * `<aside>` (page.js) still owns the actual sticky behavior via
  * `lg:sticky lg:top-24`.
  */
-function initialsOf(name) {
-  const parts = String(name || '').trim().split(/\s+/).filter(Boolean).slice(0, 2);
-  if (parts.length === 0) return 'LP';
-  return parts.map((p) => p[0].toUpperCase()).join('');
-}
 
 export default function EnquiryCard({ listing, visitSent, visitError }) {
   const t = useT();
   const safe = useMotionSafe();
   const {
     id, title,
-    agency_name: agencyName, agent_phone: agentPhone,
+    agency_name: agencyName, agent_phone: agentPhone, agency_logo_url: agencyLogoUrl,
   } = listing;
+
+  // `agency_name` resolves to the agent's real name now (lib/listings.js's
+  // AGENCY_NAME_EXPR); `displayableAgencyName` refuses a phone number reaching
+  // this slot from anywhere else. Both matter here — this panel's avatar used
+  // to render the first character of whatever it was handed, so an agent whose
+  // `username` was their phone number got a circle containing the digit "3".
+  const agentName = displayableAgencyName(agencyName);
 
   const message = buildWhatsAppMessage({
     reference: listing.reference,
@@ -184,8 +190,8 @@ export default function EnquiryCard({ listing, visitSent, visitError }) {
   // A real per-listing agent number when one exists, otherwise Lukka
   // Place's own central number — same precedence WhatsAppCTA uses.
   const whatsappHref = agentPhone ? buildWhatsAppLink(agentPhone, message) : getCentralWhatsAppHref(message);
-  const displayName = agencyName || 'Lukka Place';
-  const qualifier = agencyName ? 'Agent partenaire' : 'Équipe Lukka Place';
+  const displayName = agentName || 'Lukka Place';
+  const qualifier = agentName ? 'Agent partenaire' : 'Équipe Lukka Place';
 
   return (
     <motion.div
@@ -195,9 +201,12 @@ export default function EnquiryCard({ listing, visitSent, visitError }) {
       className="u-lift flex flex-col gap-[1.125rem] rounded-card border border-line bg-surface p-6"
     >
       <div className="flex items-center gap-3.5">
-        <span className="u-tabular flex h-[3.25rem] w-[3.25rem] shrink-0 items-center justify-center rounded-full bg-blue-tint text-[1.125rem] font-medium text-blue-deep">
-          {initialsOf(agencyName)}
-        </span>
+        <AgentMonogram
+          logoUrl={agencyLogoUrl}
+          name={agentName}
+          className="h-[3.25rem] w-[3.25rem]"
+          textClassName="text-[1.125rem]"
+        />
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="truncate text-[0.875rem] font-bold text-ink">{displayName}</span>
           <span className="text-[0.8125rem] text-ink-45">{qualifier}</span>

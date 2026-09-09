@@ -34,21 +34,37 @@
 /** Photos per listing. */
 export const MAX_LISTING_PHOTOS = 10;
 
-/** One photo. The `errors.photoTooLarge` copy quotes this figure. */
-export const MAX_LISTING_PHOTO_BYTES = 5 * 1024 * 1024;
+/**
+ * One photo. `errors.photoTooLarge` interpolates this figure rather than
+ * quoting it, so the message follows the constant.
+ *
+ * Raised from 5 MB because that is simply below what a current phone
+ * produces: a 12-50 MP JPEG straight off an agent's camera roll lands
+ * anywhere in 3-10 MB, and the 5 MB cap was rejecting real, ordinary
+ * photos as if they were abuse.
+ */
+export const MAX_LISTING_PHOTO_BYTES = 10 * 1024 * 1024;
 
 /**
- * Every photo in ONE submission, added together — deliberately far below
- * MAX_LISTING_PHOTOS × MAX_LISTING_PHOTO_BYTES (50 MB).
+ * Every photo in ONE submission, added together — deliberately below
+ * MAX_LISTING_PHOTOS × MAX_LISTING_PHOTO_BYTES (100 MB).
  *
  * A per-file cap alone cannot bound the request, and the request is what
- * has a ceiling. 20 MB covers the real case (10 photos averaging 2 MB, or
- * 4 large ones straight off a phone) without asking an agent on a Kinshasa
- * mobile connection to push 50 MB up a single request that has to survive
- * to completion. Over it, the browser says so and names the number instead
- * of sending a request that would 413.
+ * has a ceiling. 40 MB carries a genuine full set — ten photos averaging
+ * 4 MB, which is what a 12 MP set actually weighs — or four at the full
+ * 10 MB each. Allowing the arithmetic maximum instead would mean buffering
+ * 100 MB of multipart in the Node process (Next.js holds the whole body in
+ * memory, then copies each file again for the Storage upload) and asking a
+ * Kinshasa mobile connection to keep one request alive for all of it. Over
+ * the budget the browser says so and names the real total, instead of
+ * sending a request that would 413 silently.
+ *
+ * Raising this raises the transport ceiling with it (see below) — but check
+ * ecosystem.config.js's `max_memory_restart` at the same time. An upload
+ * that pushes the process past that cap is killed mid-request, which takes
+ * every other agent's in-flight upload with it.
  */
-export const MAX_UPLOAD_TOTAL_BYTES = 20 * 1024 * 1024;
+export const MAX_UPLOAD_TOTAL_BYTES = 40 * 1024 * 1024;
 
 /** Agent profile photo — one file, its own form, its own action. */
 export const MAX_AVATAR_BYTES = 5 * 1024 * 1024;

@@ -137,6 +137,7 @@ Ces règles ne s'appliquent QUE si un bloc "BROUILLON EN COURS" accompagne le me
 - Recalcule tout ce qui dépend d'une valeur modifiée : si le loyer change, les montants en dollars des conditions d'entrée changent aussi.
 - Dans whatsapp_reply, réaffiche la fiche récapitulative COMPLÈTE (même gabarit que ci-dessous) avec les valeurs fusionnées, puis invite l'agent à répondre "OK" pour publier ou à envoyer une autre correction. Autant d'allers-retours que nécessaire.
 - Ne demande JAMAIS à l'agent de renvoyer son annonce quand un brouillon existe : tu l'as déjà.
+- PHOTO OBLIGATOIRE : si le brouillon indique photos_count = 0 et que l'agent essaie de confirmer ("OK", "publiez", "c'est bon"), positionne is_confirmed à false et indique dans whatsapp_reply qu'il manque une photo — l'annonce ne peut pas être publiée sans au moins une photo du bien. Reste chaleureux : le bien est bien enregistré, il ne manque que la photo.
 
 CONFIRMATION (champ is_confirmed)
 - is_confirmed = true UNIQUEMENT si un BROUILLON EN COURS est fourni ET que le message exprime un accord pour publier SANS apporter la moindre information nouvelle ou modifiée ("c'est bon, publiez", "parfait merci", "oui vous pouvez publier", "rien à changer").
@@ -424,6 +425,11 @@ function draftContextFromListing(row) {
   // extraction blob, so that is where a previously corrected one comes from.
   const agencyName = row.parsed_json?.agency_name;
   if (agencyName) draft.agency_name = agencyName;
+
+  // The model cannot refuse a confirmation for a missing photo unless it knows
+  // whether one exists. Always present (including 0) — an absent key would read
+  // as "unknown" rather than "none", which is the case that must be refused.
+  draft.photos_count = Array.isArray(row.photos) ? row.photos.length : 0;
 
   const history = String(row.raw_text || '')
     .split('\n')

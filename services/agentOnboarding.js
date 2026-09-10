@@ -386,13 +386,21 @@ function onboardingPrompt(listing, photoCount) {
     .join('\n');
 }
 
-function activationMessage({ fullName, link, listingQueued }) {
+function activationMessage({ fullName, link, listingQueued, photoNeeded }) {
   const lines = [
     `Merci ${fullName} ! Votre compte agent Lukka Place est créé et votre numéro est vérifié. ✅`,
     '',
   ];
   if (listingQueued) {
     lines.push('Votre bien est maintenant chez notre équipe de modération. Vous serez notifié dès sa mise en ligne.');
+    lines.push('');
+  } else if (photoNeeded) {
+    // Without this the registration reply is silent about the listing, and the
+    // agent is left assuming it went live.
+    lines.push(
+      '⚠️ *Photo obligatoire* : votre bien est bien enregistré, mais il ne peut pas être publié sans photo. ' +
+        'Envoyez au moins une photo du bien pour finaliser sa publication. 📸',
+    );
     lines.push('');
   }
   lines.push('Cliquez ici à tout moment pour choisir votre mot de passe et accéder à votre tableau de bord :');
@@ -510,12 +518,26 @@ async function completeOnboarding(waId, text, { pendingListingId = null } = {}) 
   // Publish the listing that started this, so answering the question is also
   // the confirmation. Asking an unregistered agent for their name AND a
   // separate "OK" is two acknowledgements for one action.
+  //
+  // The mandatory-photo rule applies here too — this is a real publish path,
+  // not a special case. A listing with no photo stays pending instead, so the
+  // registration still completes (the account is theirs either way) and the
+  // agent can send a photo and confirm normally afterwards.
   let listingQueued = false;
+  let photoNeeded = false;
   if (pendingListingId) {
     try {
-      db.publishListing(pendingListingId);
-      listingQueued = true;
-      console.log(`[onboarding] listing #${pendingListingId} published on ${waId}'s registration`);
+      const listing = db.getListing(pendingListingId);
+      if (!listing) {
+        console.warn(`[onboarding] listing #${pendingListingId} vanished before publication`);
+      } else if (!(listing.photos || []).length) {
+        photoNeeded = true;
+        console.log(`[onboarding] listing #${pendingListingId} left pending — no photo`);
+      } else {
+        db.publishListing(pendingListingId);
+        listingQueued = true;
+        console.log(`[onboarding] listing #${pendingListingId} published on ${waId}'s registration`);
+      }
     } catch (err) {
       console.error(`[onboarding] could not publish listing #${pendingListingId}: ${err.message}`);
     }
@@ -539,7 +561,7 @@ async function completeOnboarding(waId, text, { pendingListingId = null } = {}) 
   const link = `${SITE_URL}/compte/agent/activer?phone=${encodeURIComponent(normalisePhone(waId))}&token=${token}`;
   await chakra.sendWhatsAppMessage(
     waId,
-    activationMessage({ fullName: parsed.fullName, link, listingQueued }),
+    activationMessage({ fullName: parsed.fullName, link, listingQueued, photoNeeded }),
     { previewUrl: true },
   );
 

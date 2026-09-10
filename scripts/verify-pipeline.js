@@ -1825,16 +1825,22 @@ console.log('\n2. services/openai.js');
     };
   }
 
-  function inboundImage(wamid, mediaId, caption) {
+  function inboundImage(wamid, mediaId, caption, from = '243850000000') {
     const image = caption ? { id: mediaId, caption } : { id: mediaId };
     return {
       object: 'whatsapp_business_account',
       entry: [{ id: '1', changes: [{ field: 'messages', value: {
         metadata: { phone_number_id: '987654321' },
-        contacts: [{ wa_id: '243850000000', profile: { name: 'Agent Photo' } }],
-        messages: [{ from: '243850000000', id: wamid, timestamp: '1', type: 'image', image }],
+        contacts: [{ wa_id: from, profile: { name: 'Agent Photo' } }],
+        messages: [{ from, id: wamid, timestamp: '1', type: 'image', image }],
       } }] }],
     };
+  }
+
+  /** Give a draft a photo, as if the agent had sent one earlier in the thread.
+   *  Publication now requires it — see section 6f. */
+  function attachPhoto(listingId, name = 'seed') {
+    dbService.applyListingCorrection(listingId, null, null, [], [`/uploads/listings/${name}.jpg`]);
   }
 
   // -------------------------------------------------------------------------
@@ -1973,6 +1979,9 @@ console.log('\n2. services/openai.js');
   // through the HTTP endpoint (not just the services/db.js unit checks above).
   const aiBeforeConfirm = openaiCalls.length;
   httpCalls.length = 0;
+  // Publication requires at least one photo (section 6f); this test is about
+  // the confirmation path, so give the draft the photo it would really have.
+  attachPhoto(dbService.findByWamid('wamid.E2E').id, 'e2e');
   await post('/webhook', inbound('wamid.CONFIRM', 'OK'));
   await settle();
 
@@ -2524,6 +2533,7 @@ console.log('\n2. services/openai.js');
 
   // Turn 4 — conversational approval. The model fallback publishes.
   httpCalls.length = 0;
+  attachPhoto(e2eDraft.id, 'loop');
   completionQueue.push(intakeCompletion(
     { price: 1100, bedrooms: 4, is_confirmed: true },
     'Parfait, je publie.',
@@ -2553,6 +2563,7 @@ console.log('\n2. services/openai.js');
   await settle(400);
   const regexDraft = dbService.findLatestPendingListing(loopE2EWaId);
 
+  attachPhoto(regexDraft.id, 'regex');
   const aiBeforeRegex = openaiCalls.length;
   httpCalls.length = 0;
   await post('/webhook', inbound('wamid.LOOPE2E5', 'OK', loopE2EWaId));
@@ -2562,6 +2573,86 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(openaiCalls.length - aiBeforeRegex, 0);
     assert.strictEqual(dbService.getListing(regexDraft.id).status, 'published');
     assert.strictEqual(httpCalls[0].data.text.body, webhookRouter.PUBLISHED_REPLY);
+  });
+
+  // -------------------------------------------------------------------------
+  // 6f. Mandatory photo gate on every confirmation path
+  //
+  // A storefront card with no image is worse than no card. All three publish
+  // paths refuse: the regex 'OK', the conversational is_confirmed fallback,
+  // and agent onboarding (where answering the name question is the
+  // confirmation). In every case the draft STAYS pending — refusing must not
+  // cost the agent the listing they already sent.
+  // -------------------------------------------------------------------------
+
+  console.log('\n6f. Mandatory photo enforcement (WhatsApp intake)');
+
+  const noPhotoWaId = '243950000011';
+  completionQueue.push(intakeCompletion(
+    { is_listing: true },
+    'Voici les informations extraites :\n*Loyer* : 900$ mois\nRépondez *OK* pour publier.',
+  ));
+  await post('/webhook', inbound('wamid.NOPIC0', 'Villa Kalamu 3ch 900$/mois', noPhotoWaId));
+  await settle(400);
+
+  const noPhotoDraft = dbService.findLatestPendingListing(noPhotoWaId);
+  check('setup: a text-only listing is still accepted and stored', () => {
+    assert.ok(noPhotoDraft, 'a listing with no photo must still be RECEIVED');
+    assert.deepStrictEqual(noPhotoDraft.photos, [], 'and it genuinely has no photos');
+  });
+
+  httpCalls.length = 0;
+  const aiBeforeNoPhotoOk = openaiCalls.length;
+  await post('/webhook', inbound('wamid.NOPIC1', 'OK', noPhotoWaId));
+  await settle(400);
+
+  check('a plain "OK" on a photoless draft does NOT publish', () =>
+    assert.strictEqual(dbService.getListing(noPhotoDraft.id).status, 'pending_confirmation'));
+  check('the agent is told a photo is required, in the exact agreed wording', () => {
+    assert.strictEqual(httpCalls.length, 1);
+    assert.strictEqual(httpCalls[0].data.text.body, webhookRouter.PHOTO_REQUIRED_REPLY);
+    assert.ok(httpCalls[0].data.text.body.includes('Photo obligatoire'));
+  });
+  check('refusing costs no model call — the regex path is still free', () =>
+    assert.strictEqual(openaiCalls.length - aiBeforeNoPhotoOk, 0));
+
+  // The conversational path must refuse identically, not slip through.
+  httpCalls.length = 0;
+  completionQueue.push(intakeCompletion({ is_confirmed: true }, 'Parfait, je publie.'));
+  await post('/webhook', inbound('wamid.NOPIC2', "c'est bon, publiez", noPhotoWaId));
+  await settle(400);
+
+  check('is_confirmed cannot bypass the photo gate either', () => {
+    assert.strictEqual(dbService.getListing(noPhotoDraft.id).status, 'pending_confirmation');
+    assert.strictEqual(httpCalls[0].data.text.body, webhookRouter.PHOTO_REQUIRED_REPLY);
+  });
+
+  // The model is told how many photos the draft has, so it can refuse itself.
+  const photoCtxCall = openaiCalls[openaiCalls.length - 1];
+  check('the draft context reports photos_count so the model can refuse too', () =>
+    assert.ok(photoCtxCall.messages[1].content.includes('"photos_count":0')));
+  check('the prompt carries the mandatory-photo rule', () =>
+    assert.ok(openaiService.SYSTEM_PROMPT.includes('PHOTO OBLIGATOIRE')));
+
+  // Sending the photo unblocks it — the draft was never lost.
+  httpCalls.length = 0;
+  check('the draft survived both refusals intact, still pending and still complete', () => {
+    const stillThere = dbService.getListing(noPhotoDraft.id);
+    assert.strictEqual(stillThere.status, 'pending_confirmation');
+    assert.strictEqual(stillThere.price, 1200, 'the draft kept its data through two refusals');
+  });
+
+  // Sending the photo WITH the confirmation unblocks it — the agent should not
+  // have to send the photo, then say OK a second time.
+  httpCalls.length = 0;
+  await post('/webhook', inboundImage('wamid.NOPIC3', 'media_777', 'OK', noPhotoWaId));
+  await settle(800);
+
+  check('a photo arriving WITH the "OK" is attached and the listing publishes', () => {
+    const row = dbService.getListing(noPhotoDraft.id);
+    assert.ok(row.photos.length > 0, 'the photo sent with the OK must be stored on the draft');
+    assert.strictEqual(row.status, 'published');
+    assert.strictEqual(httpCalls[httpCalls.length - 1].data.text.body, webhookRouter.PUBLISHED_REPLY);
   });
 
   // -------------------------------------------------------------------------

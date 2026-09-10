@@ -318,6 +318,15 @@ async function downloadImages(refs, label) {
 const PUBLISHED_REPLY = 'Merci ! Votre annonce est maintenant publiée et visible sur Lukka Place. 🎉';
 
 /**
+ * A listing with no photo is not publishable — a storefront card with no image
+ * is worse than no card. Sent instead of publishing, on every confirmation
+ * path, so the draft stays pending and the agent can still send the photo.
+ */
+const PHOTO_REQUIRED_REPLY =
+  '⚠️ *Photo obligatoire* : Vous ne pouvez pas publier une annonce sans photo. ' +
+  'Veuillez envoyer au moins une photo du bien pour finaliser la publication sur Lukka Place. 📸';
+
+/**
  * Sent once per new submission (see enqueueMessage), not once per message —
  * the GPT-4o extraction + image handling that follows can take a real,
  * noticeable few seconds to tens of seconds, and a WhatsApp user staring at
@@ -520,6 +529,36 @@ async function processGroup(messages) {
     const pending = findLatestPendingListing(from);
 
     if (pending && isAffirmative(text)) {
+      // MANDATORY PHOTO GATE.
+      //
+      // An agent often sends the photo in the same burst as their 'OK', so the
+      // draft's own photos are not the whole answer — any media arriving with
+      // the confirmation is downloaded and attached first, and only then is
+      // "does this listing have a photo?" a fair question to ask. Without that,
+      // confirming with the photo attached would be refused for a missing
+      // photo the agent had just sent.
+      let photos = pending.photos || [];
+
+      if (!photos.length && mediaRefs.length) {
+        const confirmImages = await downloadImages(mediaRefs, label);
+        const confirmPaths = confirmImages.length ? persistImages(confirmImages, label) : [];
+        if (confirmPaths.length) {
+          applyListingCorrection(pending.id, null, null, wamids, confirmPaths);
+          photos = confirmPaths;
+          console.log(`[db] listing #${pending.id} gained ${confirmPaths.length} photo(s) with the confirmation`);
+        }
+      }
+
+      if (!photos.length) {
+        // Deliberately NOT published, and deliberately still pending: the agent
+        // can send a photo and confirm again without re-sending the listing.
+        await chakra.sendWhatsAppMessage(from, PHOTO_REQUIRED_REPLY, {
+          replyToMessageId: primaryWamid || undefined,
+        });
+        console.log(`[db] listing #${pending.id} NOT published — no photo (confirmed by ${from})`);
+        return;
+      }
+
       publishListing(pending.id);
       await chakra.sendWhatsAppMessage(from, PUBLISHED_REPLY, {
         replyToMessageId: primaryWamid || undefined,
@@ -623,6 +662,19 @@ async function processGroup(messages) {
     // answering the name question IS the confirmation (see CLAUDE.md, "WhatsApp
     // Agent Onboarding"), and that path must keep priority.
     if (pending && extracted.is_confirmed && !extracted.is_listing) {
+      // Same mandatory-photo gate as the regex path above. Photos from this
+      // burst are already downloaded and persisted by now (photoPaths), so
+      // both sources are simply counted together.
+      if (!(pending.photos || []).length && !photoPaths.length) {
+        await chakra.sendWhatsAppMessage(from, PHOTO_REQUIRED_REPLY, {
+          replyToMessageId: primaryWamid || undefined,
+        });
+        console.log(`[db] listing #${pending.id} NOT published — no photo (conversational confirmation from ${from})`);
+        return;
+      }
+      if (photoPaths.length) {
+        applyListingCorrection(pending.id, null, null, wamids, photoPaths);
+      }
       publishListing(pending.id);
       await chakra.sendWhatsAppMessage(from, PUBLISHED_REPLY, {
         replyToMessageId: primaryWamid || undefined,
@@ -805,5 +857,6 @@ module.exports.enqueueMessage = enqueueMessage;
 module.exports.flushAll = flushAll;
 module.exports.isAffirmative = isAffirmative;
 module.exports.PUBLISHED_REPLY = PUBLISHED_REPLY;
+module.exports.PHOTO_REQUIRED_REPLY = PHOTO_REQUIRED_REPLY;
 module.exports.isUnsupportedType = isUnsupportedType;
 module.exports.UNSUPPORTED_MEDIA_REPLY = UNSUPPORTED_MEDIA_REPLY;

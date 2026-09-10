@@ -123,6 +123,31 @@ RÈGLES D'EXTRACTION
 6. confidence : 0.9+ pour une annonce claire, ~0.5 pour un message vague, <0.3 si ce n'est probablement pas une annonce.
 7. summary_fr : une phrase de résumé en français.
 
+TOLÉRANCE AU CHAOS (messages WhatsApp réels)
+- Les agents écrivent vite : fautes de frappe, dictée vocale mal transcrite, ponctuation absente, majuscules aléatoires, français et lingala mélangés. Corrige mentalement et extrais quand même — ne rejette JAMAIS un message parce qu'il est mal écrit.
+- Exemples de corrections attendues : "Slaongo" => "Salongo", "Ngaliem" => "Ngaliema", "3ch" / "3 ch" => bedrooms 3, "2sb" => bathrooms 2, "1200$" => price 1200 en USD, "loc" => location, "vte" => vente.
+- Un nom propre déformé ou inhabituel ("Kkimmo") est un nom d'agent ou d'agence, pas une erreur à ignorer.
+- Si un BROUILLON EN COURS t'est fourni, ne traite JAMAIS le message comme du bruit : il porte sur ce brouillon.
+
+BROUILLON EN COURS — BOUCLE DE CORRECTION
+Ces règles ne s'appliquent QUE si un bloc "BROUILLON EN COURS" accompagne le message. Sinon, ignore cette section.
+- Le message est presque toujours une modification du brouillon (prix, chambres, commune, garantie, référence...), une confirmation, ou une question à son sujet.
+- Mets is_listing à false, SAUF si le message décrit clairement un bien DIFFÉRENT et supplémentaire (une seconde annonce). Une reformulation, un ajout ou une correction du même bien => is_listing false.
+- Dans extracted_data, renvoie le brouillon COMPLET après fusion : reprends chaque valeur du brouillon et ne remplace que ce que le message corrige. Ne renvoie pas uniquement le champ modifié.
+- Recalcule tout ce qui dépend d'une valeur modifiée : si le loyer change, les montants en dollars des conditions d'entrée changent aussi.
+- Dans whatsapp_reply, réaffiche la fiche récapitulative COMPLÈTE (même gabarit que ci-dessous) avec les valeurs fusionnées, puis invite l'agent à répondre "OK" pour publier ou à envoyer une autre correction. Autant d'allers-retours que nécessaire.
+- Ne demande JAMAIS à l'agent de renvoyer son annonce quand un brouillon existe : tu l'as déjà.
+
+CONFIRMATION (champ is_confirmed)
+- is_confirmed = true UNIQUEMENT si un BROUILLON EN COURS est fourni ET que le message exprime un accord pour publier SANS apporter la moindre information nouvelle ou modifiée ("c'est bon, publiez", "parfait merci", "oui vous pouvez publier", "rien à changer").
+- is_confirmed = false dès que le message contient une correction, même précédée d'un accord : "ok mais 4 chambres" => false.
+- Sans brouillon en cours, is_confirmed est toujours false.
+
+IDENTITÉ ET AGENCE
+- Un agent peut corriger son identité en cours de route : "ce n'est pas mon compte", "je m'appelle Kkimmo", "mon agence c'est Kkimmo Immo".
+- Mets le nom de la personne dans agent_name et le nom de l'agence dans agency_name. Laisse-les null si le message n'en parle pas.
+- Une correction d'identité n'annule JAMAIS le brouillon : accuse réception du changement, réaffiche la fiche complète du bien, et demande si l'agent souhaite publier.
+
 RÈGLES POUR whatsapp_reply
 - Écris en français simple et respectueux, ton professionnel et chaleureux, tutoiement exclu (vouvoiement).
 - Si is_listing est true, suis EXACTEMENT ce gabarit (une ligne par champ non-null ; omets toute ligne dont la valeur serait null) :
@@ -148,7 +173,8 @@ Bonjour! Merci pour votre message. Voici les informations extraites de la magnif
 - Conditions d'entrée : n'écris que les lignes dont la valeur est non-null, et n'ajoute la ligne *Total à prévoir à l'entrée* que si au moins deux des trois postes sont connus. Si price est connu et price_period vaut "mois", ajoute le montant entre parenthèses après CHACUNE de ces quatre lignes, ligne de total comprise, calculé comme (nombre de mois × loyer mensuel) — ex. avec un loyer de 750 $ et "3 + 1 + 1" : "*Garantie* : 3 mois (2250 $)" ... "*Total à prévoir à l'entrée* : 5 mois (3750 $)". Sans loyer mensuel connu, écris seulement les mois.
 
   Puis, s'il y a des missing_fields, demande-les explicitement. Termine en invitant l'agent à répondre "OK" pour publier ou à envoyer une correction.
-- Si is_listing est false : réponds brièvement et demande à l'agent d'envoyer l'annonce avec le type de bien, la commune, le prix et le nombre de chambres.
+- Si is_listing est false ET qu'un BROUILLON EN COURS est fourni : ne redemande rien — confirme la correction en une phrase, réaffiche la fiche complète ci-dessus avec les valeurs fusionnées, puis invite à répondre "OK" pour publier ou à envoyer une autre correction.
+- Si is_listing est false et qu'aucun brouillon n'est en cours : réponds brièvement et demande à l'agent d'envoyer l'annonce avec le type de bien, la commune, le prix et le nombre de chambres.
 - Utilise le formatage WhatsApp (*gras*, un seul astérisque de chaque côté — jamais **double**) avec parcimonie et au maximum 2 emojis. Reste sous 900 caractères.
 - N'inclus JAMAIS de données que tu n'as pas réellement extraites du message.`;
 
@@ -175,16 +201,23 @@ const RESPONSE_FORMAT = {
           type: 'object',
           additionalProperties: false,
           required: [
-            'is_listing', 'intent', 'transaction_type', 'property_type', 'parcelle_subtype',
+            'is_listing', 'is_confirmed', 'intent', 'transaction_type', 'property_type',
+            'parcelle_subtype',
             'commune', 'quartier', 'price', 'currency', 'price_period', 'deposit_months',
             'advance_months', 'commission_months',
             'bedrooms', 'bathrooms', 'surface_area_sqm', 'units_count', 'furnished',
-            'amenities', 'reference', 'summary_fr', 'missing_fields', 'confidence',
+            'amenities', 'reference', 'agent_name', 'agency_name', 'summary_fr',
+            'missing_fields', 'confidence',
           ],
           properties: {
             is_listing: {
               type: 'boolean',
               description: 'true si le message décrit un bien à louer ou à vendre.',
+            },
+            is_confirmed: {
+              type: 'boolean',
+              description:
+                "true uniquement si un brouillon est en cours ET que le message approuve sa publication sans apporter la moindre correction. Toujours false sans brouillon.",
             },
             intent: {
               type: 'string',
@@ -239,6 +272,16 @@ const RESPONSE_FORMAT = {
             reference: {
               type: ['string', 'null'],
               description: "Code/numéro de référence explicite de l'annonce (\"Réf:\", \"Référence:\"), distinct du quartier.",
+            },
+            agent_name: {
+              type: ['string', 'null'],
+              description:
+                "Nom de l'agent, uniquement quand le message le corrige ou l'annonce explicitement (\"je m'appelle Kkimmo\").",
+            },
+            agency_name: {
+              type: ['string', 'null'],
+              description:
+                "Nom de l'agence, uniquement quand le message le corrige ou l'annonce explicitement.",
             },
             summary_fr: { type: 'string', description: 'Résumé en une phrase, en français.' },
             missing_fields: {
@@ -338,6 +381,60 @@ function toImagePart(image, detail) {
   };
 }
 
+/** How many earlier turns of an in-progress submission are replayed to the model. */
+const INTAKE_HISTORY_LIMIT = 5;
+
+/** Draft fields worth showing the model. Deliberately excludes ids, wamids,
+ *  status and photo paths — none of them help it merge a correction. */
+const DRAFT_CONTEXT_FIELDS = [
+  'transaction_type', 'property_type', 'parcelle_subtype', 'commune', 'quartier',
+  'price', 'currency', 'price_period', 'deposit_months', 'advance_months',
+  'commission_months', 'bedrooms', 'bathrooms', 'surface_area_sqm', 'units_count',
+  'furnished', 'amenities', 'reference', 'agent_name', 'summary_fr',
+];
+
+/**
+ * Turn a pending listing row into the `{ draft, history }` context parseMessage
+ * takes, so a follow-up message is understood as an edit of that listing rather
+ * than as a brand-new one.
+ *
+ * No new storage is involved: the pending row already *is* the memory. Its
+ * `raw_text` accumulates one line per turn (services/db.js
+ * applyListingCorrection appends to it), and its columns hold the merged draft.
+ *
+ * One honest limitation: the intake path never stores its own outbound replies,
+ * so `history` is inbound-only — the agent's turns, not ours. The draft object
+ * carries the same state our last summary card showed, in a cleaner form.
+ *
+ * @param {Object} row  A listing row as returned by services/db.js (parsed).
+ * @returns {{draft?: Object, history?: Array<{role: string, content: string}>}}
+ */
+function draftContextFromListing(row) {
+  if (!row) return {};
+
+  const draft = {};
+  for (const field of DRAFT_CONTEXT_FIELDS) {
+    const value = row[field];
+    if (value === undefined || value === null || value === '') continue;
+    // SQLite has no boolean — 0/1 would read as a quantity to the model.
+    draft[field] = field === 'furnished' ? Boolean(value) : value;
+  }
+
+  // agency_name has no column of its own; it only ever lives in the stored
+  // extraction blob, so that is where a previously corrected one comes from.
+  const agencyName = row.parsed_json?.agency_name;
+  if (agencyName) draft.agency_name = agencyName;
+
+  const history = String(row.raw_text || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(-INTAKE_HISTORY_LIMIT)
+    .map((content) => ({ role: 'user', content }));
+
+  return { draft, history };
+}
+
 /**
  * Extract a listing from one WhatsApp message: text, images, or both.
  *
@@ -348,9 +445,15 @@ function toImagePart(image, detail) {
  *        download returns.
  * @param {string} [options.senderPhone] Sender's number, passed as context only.
  * @param {string} [options.imageDetail] 'auto' | 'low' | 'high' for this call.
+ * @param {Object} [options.draft]     Listing already pending this sender's 'OK'
+ *        (see draftContextFromListing). Its presence is what switches the model
+ *        into correction mode; omit it and the request is byte-identical to a
+ *        first-contact call.
+ * @param {Array<{role: string, content: string}>} [options.history]
+ *        Earlier turns of the same submission, oldest first. Ignored without a draft.
  * @returns {Promise<{extracted_data: Object, whatsapp_reply: string, _meta: Object}>}
  */
-async function parseMessage(text, { senderPhone, images = [], imageDetail } = {}) {
+async function parseMessage(text, { senderPhone, images = [], imageDetail, draft = null, history = [] } = {}) {
   const hasText = Boolean(text && String(text).trim());
   const suppliedImages = Array.isArray(images) ? images.filter(Boolean) : [];
 
@@ -389,15 +492,35 @@ async function parseMessage(text, { senderPhone, images = [], imageDetail } = {}
     ...usedImages.map((image) => toImagePart(image, detail)),
   ];
 
+  // Without a pending draft this stays exactly [system, user] — a first-contact
+  // extraction must not pay for, or be influenced by, an empty context block.
+  const messages = [{ role: 'system', content: SYSTEM_PROMPT }];
+
+  if (draft) {
+    messages.push({
+      role: 'system',
+      content:
+        'BROUILLON EN COURS — annonce déjà enregistrée pour cet agent, en attente de son "OK" :\n' +
+        `${JSON.stringify(draft)}\n` +
+        'Le message ci-dessous porte sur ce brouillon : applique la section ' +
+        'BROUILLON EN COURS — BOUCLE DE CORRECTION.',
+    });
+
+    for (const turn of Array.isArray(history) ? history.slice(-INTAKE_HISTORY_LIMIT) : []) {
+      const role = turn?.role === 'assistant' ? 'assistant' : 'user';
+      const content = turn?.content ? String(turn.content).trim() : '';
+      if (content) messages.push({ role, content });
+    }
+  }
+
+  messages.push({ role: 'user', content: userContent });
+
   const completion = await getClient().chat.completions.create({
     model: MODEL,
     // Extraction, not creative writing — keep it deterministic.
     temperature: 0,
     response_format: RESPONSE_FORMAT,
-    messages: [
-      { role: 'system', content: SYSTEM_PROMPT },
-      { role: 'user', content: userContent },
-    ],
+    messages,
   });
 
   const choice = completion.choices?.[0];
@@ -1004,6 +1127,8 @@ async function parseListingTextForForm(rawText) {
 
 module.exports = {
   parseMessage,
+  draftContextFromListing,
+  INTAKE_HISTORY_LIMIT,
   toImagePart,
   // Exposed so services/embeddings.js can reuse the same lazy client/auth
   // (same OPENAI_API_KEY, same lazy-throw-if-missing behaviour) for

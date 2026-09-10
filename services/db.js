@@ -572,6 +572,10 @@ function publishListing(id) {
 
 /** Listing fields a correction message may overwrite. Never `id`/`wa_id`/`status`. */
 const CORRECTABLE_FIELDS = [
+  // agent_name is correctable so "ce n'est pas mon compte, je m'appelle X" lands
+  // on the draft. Only ever fills or replaces — the null/empty skip below means
+  // a correction that says nothing about identity can never blank it.
+  'agent_name',
   'intent', 'transaction_type', 'property_type', 'parcelle_subtype', 'commune', 'quartier',
   'price', 'currency', 'price_period', 'deposit_months', 'advance_months',
   'commission_months', 'bedrooms', 'bathrooms',

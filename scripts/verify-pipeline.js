@@ -156,6 +156,19 @@ function cannedCompletion(overrides = {}) {
   };
 }
 
+/**
+ * The user turn of the most recent model call.
+ *
+ * Always the LAST message, never a fixed index: a sender with a listing
+ * awaiting their 'OK' also gets a draft-context system message and replayed
+ * history ahead of it (services/openai.js draftContextFromListing), so
+ * `messages[1]` is only the user turn on a first-contact call.
+ */
+function lastUserParts() {
+  const { messages } = openaiCalls[openaiCalls.length - 1];
+  return messages[messages.length - 1].content;
+}
+
 // Multi-step queue, for tests that need several canned responses in a row
 // (the buyer assistant's tool-calling loop — see section 13). Additive:
 // every existing test only ever sets the single-shot `nextCompletion` above
@@ -393,6 +406,52 @@ check('the WhatsApp reply template shows the three entry costs on their own line
   assert.ok(prompt.includes("*Total à prévoir à l'entrée*"));
 });
 
+check('system prompt carries the chaos-tolerance and correction-loop rules', () => {
+  const prompt = openaiService.SYSTEM_PROMPT;
+  for (const needle of [
+    'TOLÉRANCE AU CHAOS',
+    'BROUILLON EN COURS — BOUCLE DE CORRECTION',
+    'CONFIRMATION (champ is_confirmed)',
+    'IDENTITÉ ET AGENCE',
+    // The typo examples are the point of the section, not decoration.
+    'Slaongo', '3ch', 'Kkimmo',
+  ]) {
+    assert.ok(prompt.includes(needle), `prompt missing "${needle}"`);
+  }
+});
+check('a pending draft flips the is_listing:false reply from a rejection to a re-render', () => {
+  const prompt = openaiService.SYSTEM_PROMPT;
+  // The bug this fixes: a two-word correction was answered with "send me the
+  // listing details" because the only is_listing:false rule was that ask.
+  assert.ok(
+    prompt.includes("Si is_listing est false ET qu'un BROUILLON EN COURS est fourni"),
+    'prompt has no draft-aware branch for is_listing:false',
+  );
+  assert.ok(
+    prompt.includes("Si is_listing est false et qu'aucun brouillon n'est en cours"),
+    'the no-draft ask must survive as its own explicit branch',
+  );
+  assert.ok(
+    prompt.includes('Ne demande JAMAIS à l\'agent de renvoyer son annonce quand un brouillon existe'),
+    'prompt must forbid re-asking for a listing it already holds',
+  );
+});
+check('a correction must restate the merged draft, not just the changed field', () => {
+  // Keeps the reply and services/db.js's SQL merge from disagreeing.
+  assert.ok(openaiService.SYSTEM_PROMPT.includes('renvoie le brouillon COMPLET après fusion'));
+});
+check('is_confirmed / agent_name / agency_name are in the strict schema and required', () => {
+  const props = schema.properties.extracted_data.properties;
+  const required = schema.properties.extracted_data.required;
+  for (const field of ['is_confirmed', 'agent_name', 'agency_name']) {
+    assert.ok(props[field], `schema missing property "${field}"`);
+    assert.ok(required.includes(field), `"${field}" not in required (violates strict mode)`);
+  }
+  assert.strictEqual(props.is_confirmed.type, 'boolean', 'is_confirmed must never be null');
+  assert.deepStrictEqual(props.agent_name.type, ['string', 'null']);
+  assert.deepStrictEqual(props.agency_name.type, ['string', 'null']);
+});
+
 // ---------------------------------------------------------------------------
 // 1b. services/locations.js — commune/quartier master data + fuzzy resolver
 // ---------------------------------------------------------------------------
@@ -598,7 +657,7 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(imagesOnly._meta.imageCount, 1));
   check('marks the absence of text in the prompt', () =>
     assert.ok(/images uniquement/.test(
-      openaiCalls[openaiCalls.length - 1].messages[1].content[0].text,
+      lastUserParts()[0].text,
     )));
 
   await checkAsync('still rejects a call with neither text nor images', () =>
@@ -642,7 +701,7 @@ console.log('\n2. services/openai.js');
   }));
   const capped = await openaiService.parseMessage('Album', { images: overCap });
   check(`caps images at MAX_IMAGES (${openaiService.MAX_IMAGES}) and reports the overflow`, () => {
-    const parts = openaiCalls[openaiCalls.length - 1].messages[1].content
+    const parts = lastUserParts()
       .filter((p) => p.type === 'image_url');
     assert.strictEqual(parts.length, openaiService.MAX_IMAGES);
     assert.strictEqual(capped._meta.imageCount, openaiService.MAX_IMAGES);
@@ -654,7 +713,7 @@ console.log('\n2. services/openai.js');
     imageDetail: 'high',
   });
   check("per-call imageDetail override reaches the request", () => {
-    const parts = openaiCalls[openaiCalls.length - 1].messages[1].content
+    const parts = lastUserParts()
       .filter((p) => p.type === 'image_url');
     assert.strictEqual(parts[0].image_url.detail, 'high');
     assert.strictEqual(highDetail._meta.imageDetail, 'high');
@@ -689,6 +748,122 @@ console.log('\n2. services/openai.js');
     () => check('surfaces non-JSON output', () => { throw new Error('should have thrown'); }),
     (err) => check('surfaces non-JSON output', () => assert.ok(/non-JSON/.test(err.message))),
   );
+
+  // -------------------------------------------------------------------------
+  // 2c. Draft context payload (multi-turn corrections)
+  //
+  // The whole point of the feature: a follow-up message must reach the model
+  // WITH the pending draft attached. The equally important half is that a
+  // first-contact message must reach it with nothing attached — see the
+  // "sends system + user messages" check in section 2, which pins that call
+  // at exactly two messages.
+  // -------------------------------------------------------------------------
+
+  console.log('\n2c. services/openai.js draft context (multi-turn corrections)');
+
+  const draftRow = {
+    id: 42,
+    wa_id: '243810000000',
+    commune: 'Ngaliema',
+    quartier: 'Macampagne',
+    property_type: 'villa',
+    price: 1200,
+    currency: 'USD',
+    price_period: 'mois',
+    deposit_months: 3,
+    advance_months: 1,
+    commission_months: 1,
+    bedrooms: 3,
+    furnished: 1, // SQLite's 0/1, not a JS boolean
+    agent_name: 'Jean',
+    status: 'pending_confirmation',
+    raw_text: ['msg un', 'msg deux', 'msg trois', 'msg quatre', 'msg cinq', 'msg six'].join('\n'),
+    parsed_json: { agency_name: 'Kkimmo Immo' },
+    photos: ['/uploads/a.jpg'],
+  };
+
+  const context = openaiService.draftContextFromListing(draftRow);
+
+  check('draftContextFromListing lifts the real draft fields off the row', () => {
+    assert.strictEqual(context.draft.commune, 'Ngaliema');
+    assert.strictEqual(context.draft.price, 1200);
+    assert.strictEqual(context.draft.bedrooms, 3);
+    assert.strictEqual(context.draft.agent_name, 'Jean');
+  });
+  check('SQLite 0/1 becomes a real boolean so the model does not read it as a quantity', () =>
+    assert.strictEqual(context.draft.furnished, true));
+  check('agency_name is recovered from parsed_json, which is its only home', () =>
+    assert.strictEqual(context.draft.agency_name, 'Kkimmo Immo'));
+  check('ids, status and photo paths are never sent to the model', () => {
+    for (const leaked of ['id', 'wa_id', 'status', 'photos', 'raw_text', 'parsed_json']) {
+      assert.ok(!(leaked in context.draft), `"${leaked}" must not be in the draft context`);
+    }
+  });
+  check(`history is the last ${openaiService.INTAKE_HISTORY_LIMIT} turns of raw_text, oldest first`, () => {
+    assert.strictEqual(context.history.length, openaiService.INTAKE_HISTORY_LIMIT);
+    assert.strictEqual(context.history[0].content, 'msg deux', 'oldest turn dropped first');
+    assert.strictEqual(context.history[context.history.length - 1].content, 'msg six');
+    assert.ok(context.history.every((t) => t.role === 'user'));
+  });
+  check('draftContextFromListing on nothing yields no context at all', () =>
+    assert.deepStrictEqual(openaiService.draftContextFromListing(null), {}));
+
+  await openaiService.parseMessage('Non pas 1200$ c est 1100$', {
+    senderPhone: '243810000000',
+    ...context,
+  });
+  const withDraft = openaiCalls[openaiCalls.length - 1];
+
+  check('a draft adds a second system message naming the pending listing', () => {
+    assert.strictEqual(withDraft.messages[0].role, 'system');
+    assert.strictEqual(withDraft.messages[0].content, openaiService.SYSTEM_PROMPT);
+    assert.strictEqual(withDraft.messages[1].role, 'system');
+    assert.ok(withDraft.messages[1].content.includes('annonce déjà enregistrée'));
+  });
+  check('the draft block carries the real values, not a placeholder', () => {
+    assert.ok(withDraft.messages[1].content.includes('"price":1200'));
+    assert.ok(withDraft.messages[1].content.includes('"commune":"Ngaliema"'));
+  });
+  check('the history turns sit between the draft block and the new message', () => {
+    const roles = withDraft.messages.map((m) => m.role);
+    assert.deepStrictEqual(roles, ['system', 'system', 'user', 'user', 'user', 'user', 'user', 'user']);
+    assert.strictEqual(withDraft.messages[2].content, 'msg deux');
+  });
+  check('the correction itself is still the final user turn', () => {
+    const last = withDraft.messages[withDraft.messages.length - 1];
+    assert.strictEqual(last.role, 'user');
+    assert.ok(last.content[0].text.includes('Non pas 1200$ c est 1100$'));
+  });
+  check('temperature and the strict schema are unchanged by the context', () => {
+    assert.strictEqual(withDraft.temperature, 0);
+    assert.strictEqual(withDraft.response_format.json_schema.strict, true);
+  });
+
+  await openaiService.parseMessage('Villa a louer Ngaliema 4 chambres 2500$/mois', {
+    senderPhone: '243810000000',
+  });
+  const withoutDraft = openaiCalls[openaiCalls.length - 1];
+
+  check('without a pending draft the request is still exactly [system, user]', () => {
+    assert.strictEqual(withoutDraft.messages.length, 2);
+    assert.strictEqual(withoutDraft.messages[0].role, 'system');
+    assert.strictEqual(withoutDraft.messages[1].role, 'user');
+  });
+  check('no draft block ever leaks into a first-contact call', () => {
+    // Matched on the runtime preamble, not on the section name — the section
+    // name lives in SYSTEM_PROMPT itself and is present on every call.
+    assert.ok(!JSON.stringify(withoutDraft.messages).includes('annonce déjà enregistrée'));
+    assert.strictEqual(withoutDraft.messages[0].content, openaiService.SYSTEM_PROMPT);
+  });
+  await openaiService.parseMessage('Bonjour', {
+    history: [{ role: 'user', content: 'orphan turn' }],
+  });
+  const orphanHistory = openaiCalls[openaiCalls.length - 1];
+
+  check('history without a draft is ignored rather than half-applied', () => {
+    assert.strictEqual(orphanHistory.messages.length, 2);
+    assert.ok(!JSON.stringify(orphanHistory.messages).includes('orphan turn'));
+  });
 
   // -------------------------------------------------------------------------
   // 3. services/chakra.js request building
@@ -1500,6 +1675,107 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(dbService.publishListing(saved.id), true));
 
   // -------------------------------------------------------------------------
+  // 5c. Endless correction loop: many corrections against one draft
+  //
+  // Section 5b covers a single correction. This covers the loop the agent
+  // actually lives in — refine, refine, refine, identity fix — and asserts the
+  // draft survives all of it as ONE row with nothing silently lost.
+  // -------------------------------------------------------------------------
+
+  console.log('\n5c. services/db.js endless correction loop');
+
+  const loopWaId = '243810000099';
+  const loopSaved = dbService.insertListing(
+    {
+      is_listing: true,
+      intent: 'listing',
+      transaction_type: 'location',
+      property_type: 'villa',
+      commune: 'Ngaliema',
+      quartier: 'Macampagne',
+      price: 1200,
+      currency: 'USD',
+      price_period: 'mois',
+      deposit_months: 3,
+      advance_months: 1,
+      commission_months: 1,
+      bedrooms: 3,
+      bathrooms: 2,
+      amenities: ['piscine'],
+      summary_fr: 'Villa 3 chambres à Macampagne, 1200 USD/mois.',
+      missing_fields: [],
+      confidence: 0.9,
+    },
+    loopWaId,
+    { wamid: 'wamid.LOOP0', groupWamids: ['wamid.LOOP0'], agentName: 'Jean', rawText: 'Villa Macampagne 3ch 1200$' },
+  );
+  const loopRowsBefore = dbService.countListings();
+
+  // Turn 1 — "Non pas 1200$ c'est 1100$"
+  dbService.applyListingCorrection(loopSaved.id, { price: 1100 }, "Non pas 1200$ c'est 1100$", ['wamid.LOOP1'], []);
+  // Turn 2 — "C'est 4 chambres pas 3"
+  dbService.applyListingCorrection(loopSaved.id, { bedrooms: 4 }, "C'est 4 chambres pas 3", ['wamid.LOOP2'], []);
+  // Turn 3 — "Ce n'est pas mon nom, c'est Kkimmo"
+  const afterIdentity = dbService.applyListingCorrection(
+    loopSaved.id,
+    { agent_name: 'Kkimmo', agency_name: 'Kkimmo Immo' },
+    "Ce n'est pas mon nom, c'est Kkimmo",
+    ['wamid.LOOP3'],
+    [],
+  );
+
+  check('three consecutive corrections amend one row and never insert another', () =>
+    assert.strictEqual(dbService.countListings(), loopRowsBefore));
+  check('each correction sticks — the latest value of every corrected field wins', () => {
+    assert.strictEqual(afterIdentity.price, 1100);
+    assert.strictEqual(afterIdentity.bedrooms, 4);
+  });
+  check('fields nobody corrected survive the whole loop', () => {
+    assert.strictEqual(afterIdentity.commune, 'Ngaliema');
+    assert.strictEqual(afterIdentity.quartier, 'Macampagne');
+    assert.strictEqual(afterIdentity.deposit_months, 3);
+    assert.strictEqual(afterIdentity.advance_months, 1);
+    assert.strictEqual(afterIdentity.commission_months, 1);
+    assert.strictEqual(afterIdentity.bathrooms, 2);
+    assert.deepStrictEqual(afterIdentity.amenities, ['piscine']);
+  });
+  check('an identity correction updates agent_name without dropping the draft', () => {
+    assert.strictEqual(afterIdentity.agent_name, 'Kkimmo');
+    assert.strictEqual(afterIdentity.status, 'pending_confirmation', 'the draft must still be live');
+    assert.strictEqual(afterIdentity.price, 1100, 'the property itself is untouched by an identity fix');
+  });
+  check('agency_name has no column but survives in parsed_json', () =>
+    assert.strictEqual(afterIdentity.parsed_json.agency_name, 'Kkimmo Immo'));
+  check('a correction that says nothing about identity can never blank agent_name', () => {
+    const quiet = dbService.applyListingCorrection(loopSaved.id, { bedrooms: 5 }, '5 chambres', [], []);
+    assert.strictEqual(quiet.agent_name, 'Kkimmo');
+  });
+  check('every turn is preserved in raw_text, so the replayed history is real', () => {
+    const row = dbService.getListing(loopSaved.id);
+    for (const turn of ["Non pas 1200$ c'est 1100$", "C'est 4 chambres pas 3", "Ce n'est pas mon nom, c'est Kkimmo"]) {
+      assert.ok(row.raw_text.includes(turn), `raw_text lost "${turn}"`);
+    }
+  });
+  check('the draft is still the one findLatestPendingListing returns after the loop', () => {
+    const stillPending = dbService.findLatestPendingListing(loopWaId);
+    assert.ok(stillPending);
+    assert.strictEqual(stillPending.id, loopSaved.id);
+  });
+  check('the loop feeds straight back into the model context it came from', () => {
+    // Closes the circle: what the loop wrote is what the next turn replays.
+    const ctx = openaiService.draftContextFromListing(dbService.getListing(loopSaved.id));
+    assert.strictEqual(ctx.draft.price, 1100);
+    assert.strictEqual(ctx.draft.bedrooms, 5);
+    assert.strictEqual(ctx.draft.agent_name, 'Kkimmo');
+    assert.strictEqual(ctx.draft.agency_name, 'Kkimmo Immo');
+    assert.ok(ctx.history.length > 0 && ctx.history.length <= openaiService.INTAKE_HISTORY_LIMIT);
+  });
+
+  dbService.publishListing(loopSaved.id);
+  check('the draft publishes normally after an arbitrary number of corrections', () =>
+    assert.strictEqual(dbService.getListing(loopSaved.id).status, 'published'));
+
+  // -------------------------------------------------------------------------
   // 6. End-to-end through the live HTTP endpoint
   // -------------------------------------------------------------------------
 
@@ -1779,13 +2055,13 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(openaiCalls.length - aiBeforeImg, 1);
   });
   check('sends the photo to the vision model as an image part', () => {
-    const parts = openaiCalls[openaiCalls.length - 1].messages[1].content;
+    const parts = lastUserParts();
     const imgs = parts.filter((p) => p.type === 'image_url');
     assert.strictEqual(imgs.length, 1);
     assert.strictEqual(imgs[0].image_url.url, `data:image/jpeg;base64,${REAL_JPEG_BYTES.toString('base64')}`);
   });
   check('passes the caption alongside the photo', () => {
-    const parts = openaiCalls[openaiCalls.length - 1].messages[1].content;
+    const parts = lastUserParts();
     assert.ok(parts[0].text.includes('Villa a louer Ngaliema'));
     assert.ok(/1 image\(s\)/.test(parts[0].text));
   });
@@ -1823,7 +2099,7 @@ console.log('\n2. services/openai.js');
 
   check('a caption-less photo still reaches the vision model', () => {
     assert.strictEqual(openaiCalls.length - aiBeforeImg, 1);
-    const parts = openaiCalls[openaiCalls.length - 1].messages[1].content;
+    const parts = lastUserParts();
     assert.strictEqual(parts.filter((p) => p.type === 'image_url').length, 1);
     assert.ok(/images uniquement/.test(parts[0].text));
   });
@@ -1842,7 +2118,7 @@ console.log('\n2. services/openai.js');
 
   check('failed download degrades to caption-only extraction', () => {
     assert.strictEqual(openaiCalls.length - aiBeforeImg, 1, 'should still call the model');
-    const parts = openaiCalls[openaiCalls.length - 1].messages[1].content;
+    const parts = lastUserParts();
     assert.strictEqual(parts.filter((p) => p.type === 'image_url').length, 0);
     assert.ok(parts[0].text.includes('Villa Gombe 1800$'));
   });
@@ -1906,12 +2182,12 @@ console.log('\n2. services/openai.js');
   check('4 photos get ONE reply', () =>
     assert.strictEqual(httpCalls.filter((c) => c.method === 'post').length, 1));
   check('all 4 images are sent to the vision model together', () => {
-    const parts = openaiCalls[openaiCalls.length - 1].messages[1].content;
+    const parts = lastUserParts();
     assert.strictEqual(parts.filter((p) => p.type === 'image_url').length, 4);
     assert.ok(/4 image\(s\)/.test(parts[0].text));
   });
   check("the first photo's caption is used for the group", () => {
-    const parts = openaiCalls[openaiCalls.length - 1].messages[1].content;
+    const parts = lastUserParts();
     assert.ok(parts[0].text.includes('Villa a louer Ma Campagne 2500$/mois'));
   });
 
@@ -1954,7 +2230,7 @@ console.log('\n2. services/openai.js');
   check('a text message and following photos merge into one listing', () => {
     assert.strictEqual(openaiCalls.length - aiBeforeImg, 1);
     assert.strictEqual(dbService.countListings() - rowsBeforeImg, 1);
-    const parts = openaiCalls[openaiCalls.length - 1].messages[1].content;
+    const parts = lastUserParts();
     assert.ok(parts[0].text.includes('Studio a louer Lemba'));
     assert.strictEqual(parts.filter((p) => p.type === 'image_url').length, 1);
   });
@@ -1991,7 +2267,7 @@ console.log('\n2. services/openai.js');
     );
   });
   check('the image cap still applies to a large burst', () => {
-    const parts = openaiCalls[openaiCalls.length - 1].messages[1].content;
+    const parts = lastUserParts();
     assert.ok(
       parts.filter((p) => p.type === 'image_url').length <= openaiService.MAX_IMAGES,
       'a burst must not exceed MAX_IMAGES',
@@ -2095,7 +2371,7 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(gets[0].config.headers.Authorization, 'Bearer chakra-test-token');
   });
   check('the fetched photo reaches the vision model as base64', () => {
-    const parts = openaiCalls[openaiCalls.length - 1].messages[1].content;
+    const parts = lastUserParts();
     const imgs = parts.filter((p) => p.type === 'image_url');
     assert.strictEqual(imgs.length, 1);
     assert.strictEqual(
@@ -2125,10 +2401,168 @@ console.log('\n2. services/openai.js');
     const gets = httpCalls.filter((c) => c.method === 'get');
     // no `mid` in this fixture -> direct fetch attempted -> fails -> one-hop by-id fallback
     assert.strictEqual(gets.length, 2, `expected a fallback download, saw ${gets.length} GETs`);
-    const parts = openaiCalls[openaiCalls.length - 1].messages[1].content;
+    const parts = lastUserParts();
     assert.strictEqual(parts.filter((p) => p.type === 'image_url').length, 1);
   });
   mediaDownloadError = savedDownloadError;
+
+  // -------------------------------------------------------------------------
+  // 6e. Conversational edit loop, end to end
+  //
+  // The regression that started this: a correction was answered with "envoyez
+  // l'annonce avec le type de bien, la commune..." — a rejection — even though
+  // the merge had actually worked. Plus the confirmation fallback: a plain 'OK'
+  // must still publish with no model call, while "c'est bon, publiez" now
+  // publishes via the model's is_confirmed verdict.
+  // -------------------------------------------------------------------------
+
+  console.log('\n6e. End-to-end conversational edit loop + confirmation fallback');
+
+  const loopE2EWaId = '243940000007';
+
+  /** One canned intake completion, with the full extracted_data shape. */
+  function intakeCompletion(extractedOverrides, reply) {
+    return {
+      model: 'gpt-4o-2024-08-06',
+      usage: { prompt_tokens: 900, completion_tokens: 180, total_tokens: 1080 },
+      choices: [{ finish_reason: 'stop', message: { refusal: null, content: JSON.stringify({
+        extracted_data: {
+          is_listing: false,
+          is_confirmed: false,
+          intent: 'listing',
+          transaction_type: 'location',
+          property_type: 'villa',
+          parcelle_subtype: null,
+          commune: 'Ngaliema',
+          quartier: 'Macampagne',
+          price: 1200,
+          currency: 'USD',
+          price_period: 'mois',
+          deposit_months: 3,
+          advance_months: 1,
+          commission_months: 1,
+          bedrooms: 3,
+          bathrooms: 2,
+          surface_area_sqm: null,
+          units_count: null,
+          furnished: null,
+          amenities: [],
+          reference: null,
+          agent_name: null,
+          agency_name: null,
+          summary_fr: 'Villa 3 chambres à Macampagne.',
+          missing_fields: [],
+          confidence: 0.9,
+          ...extractedOverrides,
+        },
+        whatsapp_reply: reply,
+      }) } }],
+    };
+  }
+
+  // Turn 1 — the original submission.
+  completionQueue.push(intakeCompletion(
+    { is_listing: true },
+    'Voici les informations extraites :\n*Loyer* : 1200$ mois\n*Chambres* : 3\nRépondez *OK* pour publier.',
+  ));
+  await post('/webhook', inbound('wamid.LOOPE2E0', 'Villa Macampagne 3ch 1200$/mois', loopE2EWaId));
+  await settle(400);
+
+  const e2eDraft = dbService.findLatestPendingListing(loopE2EWaId);
+  check('setup: turn 1 leaves a real pending draft', () => assert.ok(e2eDraft));
+
+  // Turn 2 — a bare price correction, the exact shape that used to be rejected.
+  const rowsBeforeEdit = dbService.countListings();
+  httpCalls.length = 0;
+  completionQueue.push(intakeCompletion(
+    { price: 1100, summary_fr: 'Villa 3 chambres à Macampagne, 1100 USD/mois.' },
+    'C\'est noté ✅\n*Loyer* : 1100$ mois\n*Chambres* : 3\n*Garantie* : 3 mois (3300 $)\nRépondez *OK* pour publier.',
+  ));
+  await post('/webhook', inbound('wamid.LOOPE2E1', "Non pas 1200$ c'est 1100$", loopE2EWaId));
+  await settle(400);
+
+  const editCall = openaiCalls[openaiCalls.length - 1];
+  check('the correction reaches the model WITH the pending draft attached', () => {
+    assert.strictEqual(editCall.messages[1].role, 'system');
+    assert.ok(editCall.messages[1].content.includes('annonce déjà enregistrée'));
+    assert.ok(editCall.messages[1].content.includes('"price":1200'), 'the draft must carry the pre-correction price');
+  });
+  check('a bare correction amends the draft instead of opening a second one', () => {
+    assert.strictEqual(dbService.countListings(), rowsBeforeEdit);
+    assert.strictEqual(dbService.getListing(e2eDraft.id).price, 1100);
+  });
+  check('the agent gets the re-rendered summary, NOT the "send me a listing" rejection', () => {
+    assert.strictEqual(httpCalls.length, 1);
+    const body = httpCalls[0].data.text.body;
+    assert.ok(body.includes('1100'), 'the reply must show the corrected value back');
+    assert.ok(
+      !/envoyez l'annonce avec le type de bien/i.test(body),
+      'this is the regression: a working correction answered as if the message were junk',
+    );
+  });
+  check('the draft is still pending after a correction — the loop stays open', () =>
+    assert.strictEqual(dbService.getListing(e2eDraft.id).status, 'pending_confirmation'));
+
+  // Turn 3 — approval wording carrying a real change. Must NOT publish.
+  httpCalls.length = 0;
+  completionQueue.push(intakeCompletion(
+    { price: 1100, bedrooms: 4, is_confirmed: false },
+    'Mise à jour ✅\n*Loyer* : 1100$ mois\n*Chambres* : 4\nRépondez *OK* pour publier.',
+  ));
+  await post('/webhook', inbound('wamid.LOOPE2E2', 'ok mais 4 chambres', loopE2EWaId));
+  await settle(400);
+
+  check('"ok mais 4 chambres" is a correction, not a confirmation', () => {
+    const row = dbService.getListing(e2eDraft.id);
+    assert.strictEqual(row.status, 'pending_confirmation', 'must not publish');
+    assert.strictEqual(row.bedrooms, 4, 'the correction inside it must still land');
+  });
+  check('the agent gets the updated card back, not a publication notice', () => {
+    assert.strictEqual(httpCalls.length, 1);
+    assert.notStrictEqual(httpCalls[0].data.text.body, webhookRouter.PUBLISHED_REPLY);
+  });
+
+  // Turn 4 — conversational approval. The model fallback publishes.
+  httpCalls.length = 0;
+  completionQueue.push(intakeCompletion(
+    { price: 1100, bedrooms: 4, is_confirmed: true },
+    'Parfait, je publie.',
+  ));
+  await post('/webhook', inbound('wamid.LOOPE2E3', "c'est bon, publiez", loopE2EWaId));
+  await settle(400);
+
+  check('is_confirmed publishes the pending draft', () =>
+    assert.strictEqual(dbService.getListing(e2eDraft.id).status, 'published'));
+  check('a conversational confirmation gets the same published reply as "OK"', () => {
+    assert.strictEqual(httpCalls.length, 1);
+    assert.strictEqual(httpCalls[0].data.text.body, webhookRouter.PUBLISHED_REPLY);
+  });
+  check('the published listing kept every correction from the loop', () => {
+    const row = dbService.getListing(e2eDraft.id);
+    assert.strictEqual(row.price, 1100);
+    assert.strictEqual(row.bedrooms, 4);
+    assert.strictEqual(row.commune, 'Ngaliema', 'untouched fields survived the whole conversation');
+  });
+
+  // The regex fast path must be exactly as it was: no model call at all.
+  completionQueue.push(intakeCompletion(
+    { is_listing: true },
+    'Voici les informations extraites :\n*Loyer* : 800$ mois\nRépondez *OK* pour publier.',
+  ));
+  await post('/webhook', inbound('wamid.LOOPE2E4', 'Appartement Kalamu 800$/mois', loopE2EWaId));
+  await settle(400);
+  const regexDraft = dbService.findLatestPendingListing(loopE2EWaId);
+
+  const aiBeforeRegex = openaiCalls.length;
+  httpCalls.length = 0;
+  await post('/webhook', inbound('wamid.LOOPE2E5', 'OK', loopE2EWaId));
+  await settle(400);
+
+  check('a plain "OK" still publishes with zero model calls — the fast path is intact', () => {
+    assert.strictEqual(openaiCalls.length - aiBeforeRegex, 0);
+    assert.strictEqual(dbService.getListing(regexDraft.id).status, 'published');
+    assert.strictEqual(httpCalls[0].data.text.body, webhookRouter.PUBLISHED_REPLY);
+  });
 
   // -------------------------------------------------------------------------
   // 7. Read API still serves what the pipeline wrote

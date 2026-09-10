@@ -11,7 +11,7 @@
 const crypto = require('crypto');
 const express = require('express');
 
-const { parseMessage } = require('../services/openai');
+const { parseMessage, draftContextFromListing } = require('../services/openai');
 const {
   insertListing,
   attributeListingToAgent,
@@ -552,9 +552,14 @@ async function processGroup(messages) {
     let intakeSuffix = null;
     let suffixKind = null;
 
+    // A listing already awaiting this sender's 'OK' is passed back to the model
+    // as context, so a two-word follow-up ("non 1100$") is understood as an edit
+    // of that draft rather than as an unreadable new submission. Nothing is
+    // added when there is no pending listing — see draftContextFromListing.
     const { extracted_data: extracted, whatsapp_reply: reply, _meta } = await parseMessage(text, {
       senderPhone: from,
       images,
+      ...(pending ? draftContextFromListing(pending) : {}),
     });
 
     console.log(
@@ -599,6 +604,32 @@ async function processGroup(messages) {
         return;
       }
       console.log(`[onboarding] ${from} reply not usable as a name (${result.reason}) — falling through`);
+    }
+
+    // CONVERSATIONAL CONFIRMATION — the fallback behind the regex above.
+    //
+    // The regex short-circuit at the top of this function still handles a plain
+    // 'OK' with no model call at all. This branch only catches what the regex
+    // deliberately refuses to match: "c'est bon, publiez", "parfait merci".
+    //
+    // Three conditions, all required, so the model can never publish anything
+    // it wasn't shown: a listing must already be pending for THIS sender, the
+    // model must have judged the message a pure approval (is_confirmed — false
+    // for "ok mais 4 chambres", which falls through to the correction merge
+    // below), and the message must not stand alone as a new listing, so a fresh
+    // property can never publish the previous draft as a side effect.
+    //
+    // Placed after the onboarding branch on purpose: for an unregistered sender
+    // answering the name question IS the confirmation (see CLAUDE.md, "WhatsApp
+    // Agent Onboarding"), and that path must keep priority.
+    if (pending && extracted.is_confirmed && !extracted.is_listing) {
+      publishListing(pending.id);
+      await chakra.sendWhatsAppMessage(from, PUBLISHED_REPLY, {
+        replyToMessageId: primaryWamid || undefined,
+      });
+      console.log(`[db] listing #${pending.id} published (conversational confirmation from ${from})`);
+      console.log(`[chakra] reply sent to ${from}`);
+      return;
     }
 
     // Customer search, not an agent submission — route to the buyer

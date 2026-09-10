@@ -211,3 +211,50 @@ export function buildPricePinIcon({ listing, hovered = false }) {
     anchor: new google.maps.Point(g.cx, g.tipY),
   };
 }
+
+/**
+ * The pin for a multi-unit BUILDING — one marker standing for several
+ * listings that genuinely share an address.
+ *
+ * Deliberately not a price tag: a building has a price RANGE, and showing one
+ * of its prices on a pin that opens four listings is a small lie. It reads
+ * "4 unités · 600$–1500$" instead, and is drawn darker and wider than a price
+ * tag so the two are distinguishable at a glance on a crowded map.
+ *
+ * @param {string} label   From lib/buildingGroups.js's buildingPinLabel().
+ * @param {boolean} [hovered]
+ */
+export function buildBuildingPinIcon({ label, hovered = false }) {
+  const text = String(label || '');
+  const g = pricePinGeometry({ label: text, hovered });
+
+  // One step darker than a price tag at rest, so a building never reads as
+  // just another (unusually wide) price.
+  const fill = hovered ? BLUE_PRESSED : BLUE_PRESSED;
+  const stroke = hovered ? WHITE : 'rgba(255,255,255,0.92)';
+  const strokeWidth = hovered ? 1.75 : 1.25;
+
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${g.width}" height="${g.height}" viewBox="0 0 ${g.width} ${g.height}">` +
+    `<defs>${dropShadow('lkp-bld-shadow')}</defs>` +
+    `<path d="${pillPath({ x: g.x, y: g.y, w: g.w, h: g.h, r: g.r, tailW: g.tailW, tailH: g.tailH })}" ` +
+    `fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linejoin="round" filter="url(#lkp-bld-shadow)" />` +
+    `<text x="${g.cx.toFixed(2)}" y="${(g.y + g.h / 2 + g.fontSize * 0.36).toFixed(2)}" ` +
+    `font-family="${FONT_STACK}" font-size="${g.fontSize.toFixed(2)}" font-weight="700" ` +
+    `fill="${WHITE}" text-anchor="middle">${escapeXml(text)}</text>` +
+    `</svg>`;
+
+  return {
+    url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+    scaledSize: new google.maps.Size(g.width, g.height),
+    anchor: new google.maps.Point(g.cx, g.tipY),
+  };
+}
+
+/** The label is French prose, not a number — `&` and `<` must not break the SVG. */
+function escapeXml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}

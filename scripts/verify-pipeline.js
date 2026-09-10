@@ -440,6 +440,39 @@ check('a correction must restate the merged draft, not just the changed field', 
   // Keeps the reply and services/db.js's SQL merge from disagreeing.
   assert.ok(openaiService.SYSTEM_PROMPT.includes('renvoie le brouillon COMPLET après fusion'));
 });
+check('multi-unit fields are in the strict schema and required', () => {
+  const props = schema.properties.extracted_data.properties;
+  const required = schema.properties.extracted_data.required;
+  for (const field of ['is_multi_unit', 'building_name', 'units']) {
+    assert.ok(props[field], `schema missing property "${field}"`);
+    assert.ok(required.includes(field), `"${field}" not in required (violates strict mode)`);
+  }
+  // strict mode applies to nested objects too — a missing additionalProperties
+  // or an unlisted property here is a 400 from the API, not a soft failure.
+  const unit = props.units.items;
+  assert.strictEqual(unit.additionalProperties, false);
+  for (const field of Object.keys(unit.properties)) {
+    assert.ok(unit.required.includes(field), `unit field "${field}" not in required`);
+  }
+  for (const field of ['bedrooms', 'bathrooms', 'price', 'floor', 'quantity']) {
+    assert.ok(unit.properties[field], `unit schema missing "${field}"`);
+  }
+});
+check('the prompt tells the model to split a building instead of picking one price', () => {
+  const prompt = openaiService.SYSTEM_PROMPT;
+  for (const needle of [
+    'IMMEUBLE À PLUSIEURS LOGEMENTS',
+    'is_multi_unit = true',
+    'ne choisis jamais un seul prix',
+    "typologies d'appartements détectées",
+    'annonces liées',
+  ]) {
+    assert.ok(prompt.includes(needle), `prompt missing "${needle}"`);
+  }
+  // The parcelle rule must not be swallowed by the new one: "4 Portes" is a
+  // rental plot (units_count), NOT a multi-unit building.
+  assert.ok(prompt.includes("n'est PAS un immeuble multi-unités"));
+});
 check('is_confirmed / agent_name / agency_name are in the strict schema and required', () => {
   const props = schema.properties.extracted_data.properties;
   const required = schema.properties.extracted_data.required;
@@ -1776,6 +1809,127 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(dbService.getListing(loopSaved.id).status, 'published'));
 
   // -------------------------------------------------------------------------
+  // 5d. Multi-unit buildings: one paste -> one row per layout
+  //
+  // The bug: a single message describing four apartments collapsed into ONE
+  // listing, keeping the last price it saw and losing the other three.
+  // -------------------------------------------------------------------------
+
+  console.log('\n5d. services/db.js multi-unit building expansion');
+
+  const buildingUnits = [
+    { bedrooms: 3, bathrooms: 3, price: 1500, price_period: 'mois', floor: 'Étage élevé',
+      amenities: ['balcon', 'climatisation'], quantity: null, summary_fr: '3 ch / 3 sdb, étage élevé.' },
+    { bedrooms: 3, bathrooms: 1, price: 900, price_period: 'mois', floor: null,
+      amenities: ['parking'], quantity: null, summary_fr: '3 ch / 1 sdb avec parking.' },
+    { bedrooms: 2, bathrooms: 2, price: 700, price_period: 'mois', floor: null,
+      amenities: [], quantity: 3, summary_fr: '2 ch / 2 sdb, 3 unités.' },
+    { bedrooms: 2, bathrooms: 1, price: 600, price_period: 'mois', floor: 'Rez-de-chaussée',
+      amenities: [], quantity: null, summary_fr: '2 ch / 1 sdb au rez-de-chaussée.' },
+  ];
+
+  const buildingDraft = dbService.insertListing(
+    {
+      is_listing: true, intent: 'listing', transaction_type: 'location',
+      property_type: 'appartement', commune: 'Kasa-Vubu', quartier: 'Salongo',
+      // Top-level mirrors the CHEAPEST unit, per the prompt rule.
+      price: 600, currency: 'USD', price_period: 'mois', bedrooms: 2, bathrooms: 1,
+      deposit_months: 3, advance_months: 1, commission_months: 1,
+      amenities: [], reference: 'LKP-BLD-1',
+      summary_fr: 'Immeuble à Kasa-Vubu, 4 typologies.',
+      missing_fields: [], confidence: 0.9,
+      is_multi_unit: true, building_name: 'Résidence Kin Marché', units: buildingUnits,
+    },
+    '243960000021',
+    { wamid: 'wamid.BLD0', groupWamids: ['wamid.BLD0'], rawText: 'Résidence Kin Marché...',
+      photos: ['/uploads/listings/bld-0.jpg'] },
+  );
+
+  const rowsBeforeExpand = dbService.countListings();
+  const expanded = dbService.expandAndPublishListing(buildingDraft.id);
+
+  check('a 4-typology paste becomes 4 real listing rows, not 1', () => {
+    assert.strictEqual(expanded.unitCount, 4);
+    assert.strictEqual(expanded.ids.length, 4);
+    assert.strictEqual(dbService.countListings(), rowsBeforeExpand + 3, 'the draft is reused as unit #1');
+  });
+  check('every unit shares one parent_building_id', () => {
+    assert.ok(expanded.parentBuildingId, 'a building id must be generated');
+    const ids = expanded.ids.map((rowId) => dbService.getListing(rowId).parent_building_id);
+    assert.deepStrictEqual(new Set(ids), new Set([expanded.parentBuildingId]));
+  });
+  check('the parent_building_id is a real UUID, valid unchanged in Postgres', () =>
+    assert.match(expanded.parentBuildingId, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/));
+  check('each row carries ITS OWN price and layout — nothing collapsed', () => {
+    const rows = expanded.ids.map((rowId) => dbService.getListing(rowId));
+    assert.deepStrictEqual(rows.map((r) => r.price).sort((a, b) => a - b), [600, 700, 900, 1500]);
+    const fifteenHundred = rows.find((r) => r.price === 1500);
+    assert.strictEqual(fifteenHundred.bedrooms, 3);
+    assert.strictEqual(fifteenHundred.bathrooms, 3);
+    const cheapest = rows.find((r) => r.price === 600);
+    assert.strictEqual(cheapest.bedrooms, 2);
+    assert.strictEqual(cheapest.bathrooms, 1);
+  });
+  check('building-level facts are inherited by every unit, never re-derived per unit', () => {
+    for (const rowId of expanded.ids) {
+      const row = dbService.getListing(rowId);
+      assert.strictEqual(row.commune, 'Kasa-Vubu');
+      assert.strictEqual(row.quartier, 'Salongo');
+      assert.strictEqual(row.transaction_type, 'location');
+      assert.strictEqual(row.reference, 'LKP-BLD-1');
+      assert.strictEqual(row.deposit_months, 3, 'entry costs belong to the building');
+      assert.deepStrictEqual(row.photos, ['/uploads/listings/bld-0.jpg'], 'building photos are every unit\'s photos');
+      assert.strictEqual(row.wa_id, '243960000021');
+    }
+  });
+  check('all four units are published, not just the original draft', () => {
+    for (const rowId of expanded.ids) {
+      assert.strictEqual(dbService.getListing(rowId).status, 'published');
+    }
+  });
+  check('only the draft keeps the inbound wamid — the unique index stays intact', () => {
+    const withWamid = expanded.ids.filter((rowId) => dbService.getListing(rowId).wamid);
+    assert.strictEqual(withWamid.length, 1);
+    assert.strictEqual(withWamid[0], buildingDraft.id);
+  });
+
+  // The ordinary case must be completely untouched by any of this.
+  const singleDraft = dbService.insertListing(
+    { is_listing: true, intent: 'listing', transaction_type: 'location', property_type: 'villa',
+      commune: 'Ngaliema', price: 1200, currency: 'USD', price_period: 'mois', bedrooms: 3,
+      amenities: [], summary_fr: 'Villa 3 ch.', missing_fields: [], confidence: 0.9,
+      is_multi_unit: false, units: [] },
+    '243960000022',
+    { wamid: 'wamid.SINGLE0', rawText: 'Villa Ngaliema', photos: ['/uploads/listings/s.jpg'] },
+  );
+  const rowsBeforeSingle = dbService.countListings();
+  const singleResult = dbService.expandAndPublishListing(singleDraft.id);
+
+  check('a single-unit listing publishes exactly as before, with no building id', () => {
+    assert.strictEqual(singleResult.unitCount, 1);
+    assert.strictEqual(singleResult.parentBuildingId, null);
+    assert.strictEqual(dbService.countListings(), rowsBeforeSingle, 'no extra rows');
+    assert.strictEqual(dbService.getListing(singleDraft.id).status, 'published');
+    assert.strictEqual(dbService.getListing(singleDraft.id).parent_building_id, null);
+  });
+
+  // is_multi_unit with only one entry is not a building — refuse to invent a
+  // group of one, which would draw a "1 unité" pin on the map.
+  const loneDraft = dbService.insertListing(
+    { is_listing: true, intent: 'listing', transaction_type: 'location', property_type: 'appartement',
+      commune: 'Gombe', price: 800, currency: 'USD', bedrooms: 2, amenities: [],
+      summary_fr: 'Appartement.', missing_fields: [], confidence: 0.8,
+      is_multi_unit: true, units: [{ bedrooms: 2, price: 800, amenities: [], summary_fr: 'x' }] },
+    '243960000023',
+    { wamid: 'wamid.LONE0', rawText: 'Appartement Gombe', photos: ['/uploads/listings/l.jpg'] },
+  );
+  check('a "multi-unit" message with one layout is not turned into a building', () => {
+    const result = dbService.expandAndPublishListing(loneDraft.id);
+    assert.strictEqual(result.unitCount, 1);
+    assert.strictEqual(result.parentBuildingId, null);
+  });
+
+  // -------------------------------------------------------------------------
   // 6. End-to-end through the live HTTP endpoint
   // -------------------------------------------------------------------------
 
@@ -2654,6 +2808,81 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(row.status, 'published');
     assert.strictEqual(httpCalls[httpCalls.length - 1].data.text.body, webhookRouter.PUBLISHED_REPLY);
   });
+
+  // -------------------------------------------------------------------------
+  // 6g. Multi-unit building, end to end
+  //
+  // The screenshot case: one paste, four apartments, four prices. Before this
+  // the engine replied with a single listing at $600/2 bedrooms and silently
+  // dropped the other three.
+  // -------------------------------------------------------------------------
+
+  console.log('\n6g. End-to-end multi-unit building paste');
+
+  const bldWaId = '243970000031';
+  const bldUnits = [
+    { bedrooms: 3, bathrooms: 3, price: 1500, price_period: 'mois', surface_area_sqm: null,
+      floor: 'Étage élevé', furnished: null, amenities: ['balcon', 'climatisation'],
+      quantity: null, summary_fr: '3 ch / 3 sdb.' },
+    { bedrooms: 3, bathrooms: 1, price: 900, price_period: 'mois', surface_area_sqm: null,
+      floor: null, furnished: null, amenities: ['parking'], quantity: null, summary_fr: '3 ch / 1 sdb.' },
+    { bedrooms: 2, bathrooms: 2, price: 700, price_period: 'mois', surface_area_sqm: null,
+      floor: null, furnished: null, amenities: [], quantity: 3, summary_fr: '2 ch / 2 sdb.' },
+    { bedrooms: 2, bathrooms: 1, price: 600, price_period: 'mois', surface_area_sqm: null,
+      floor: 'Rez-de-chaussée', furnished: null, amenities: [], quantity: null, summary_fr: '2 ch / 1 sdb.' },
+  ];
+
+  completionQueue.push(intakeCompletion(
+    {
+      is_listing: true, property_type: 'appartement', commune: 'Kasa-Vubu', quartier: 'Salongo',
+      price: 600, bedrooms: 2, bathrooms: 1,
+      is_multi_unit: true, building_name: 'Résidence Kin Marché', units: bldUnits,
+    },
+    'Résidence Kin Marché (Kasa-Vubu)\n🏢 4 typologies d\'appartements détectées :\n\n'
+      + '1️⃣ 3 Chambres / 3 Salles de bain — 1500$\n2️⃣ 3 Chambres / 1 Salle de bain — 900$ (Parking)\n'
+      + '3️⃣ 2 Chambres / 2 Salles de bain — 700$ (3 unités disponibles)\n'
+      + '4️⃣ 2 Chambres / 1 Salle de bain — 600$ (Rez-de-chaussée)\n\n'
+      + 'Répondez "OK" pour publier ces 4 annonces liées.',
+  ));
+  httpCalls.length = 0;
+  await post('/webhook', inbound(
+    'wamid.BLDE2E0',
+    'Résidence Kin Marché Kasa-Vubu: 3 chambres 1500$, 3 chambres 900$, 2 chambres 700$, 2 chambres 600$',
+    bldWaId,
+  ));
+  await settle(400);
+
+  const bldDraft = dbService.findLatestPendingListing(bldWaId);
+  check('a multi-unit paste is stored as ONE pending draft carrying all four units', () => {
+    assert.ok(bldDraft);
+    assert.strictEqual(bldDraft.parsed_json.is_multi_unit, true);
+    assert.strictEqual(bldDraft.parsed_json.units.length, 4);
+  });
+  check('the agent gets an itemised recap, not a single collapsed listing', () => {
+    const body = httpCalls[0].data.text.body;
+    for (const needle of ['4 typologies', '1500$', '900$', '700$', '600$', '4 annonces liées']) {
+      assert.ok(body.includes(needle), `recap missing "${needle}"`);
+    }
+  });
+
+  attachPhoto(bldDraft.id, 'building');
+  const rowsBeforeBldOk = dbService.countListings();
+  httpCalls.length = 0;
+  await post('/webhook', inbound('wamid.BLDE2E1', 'OK', bldWaId));
+  await settle(600);
+
+  check('confirming publishes FOUR linked listings from one message', () => {
+    assert.strictEqual(dbService.countListings(), rowsBeforeBldOk + 3);
+    assert.strictEqual(dbService.getListing(bldDraft.id).status, 'published');
+    assert.ok(dbService.getListing(bldDraft.id).parent_building_id, 'the draft is now unit #1 of a building');
+  });
+  check('the confirmation says four annonces, not "votre annonce"', () => {
+    const body = httpCalls[httpCalls.length - 1].data.text.body;
+    assert.strictEqual(body, webhookRouter.publishedReply(4));
+    assert.ok(body.includes('4 annonces liées'));
+  });
+  check('a single-unit confirmation still gets the original singular wording', () =>
+    assert.strictEqual(webhookRouter.publishedReply(1), webhookRouter.PUBLISHED_REPLY));
 
   // -------------------------------------------------------------------------
   // 7. Read API still serves what the pipeline wrote

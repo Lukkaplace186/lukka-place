@@ -9,6 +9,7 @@
  * so nothing latency-sensitive is waiting on them.
  */
 
+const crypto = require('crypto');
 const path = require('path');
 const Database = require('better-sqlite3');
 
@@ -123,6 +124,16 @@ const EXTENDED_COLUMNS = [
   // arrived. NULL means "the sender was not a recognised agent" — never
   // "unknown", since the lookup runs on every inbound listing.
   ['agent_id', 'INTEGER'],
+  // Multi-unit buildings. One WhatsApp paste can describe several distinct
+  // apartment layouts in ONE building ("3 ch 1500$, 3 ch 900$, 2 ch 600$").
+  // Each layout becomes its own listing row — so it is independently
+  // searchable and priced — and every row from the same paste shares this id,
+  // which is what lets the map draw ONE building pin instead of N markers
+  // stacked on the same coordinate. NULL for the ordinary single-unit case,
+  // which is almost every listing. TEXT because SQLite has no UUID type; the
+  // value is a real crypto.randomUUID(), so it stays valid when it reaches
+  // Postgres (properties.parent_building_id, uuid) unchanged.
+  ['parent_building_id', 'TEXT'],
 ];
 
 const ALL_COLUMNS = [...BASE_COLUMNS, ...EXTENDED_COLUMNS];
@@ -190,6 +201,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_listings_bedrooms   ON listings (bedrooms);
   CREATE INDEX IF NOT EXISTS idx_listings_wa_status  ON listings (wa_id, status);
   CREATE INDEX IF NOT EXISTS idx_listings_remote_property_id ON listings (remote_property_id);
+  CREATE INDEX IF NOT EXISTS idx_listings_parent_building_id ON listings (parent_building_id);
 `);
 
 // ---------------------------------------------------------------------------
@@ -337,7 +349,9 @@ const insertListingStmt = db.prepare(`
  *          points at the existing row.
  */
 function saveListing(listingData, senderInfo = {}) {
-  const { waId, wamid, groupWamids, agentName, rawText, status, photos, agentId } = senderInfo;
+  const {
+    waId, wamid, groupWamids, agentName, rawText, status, photos, agentId, parentBuildingId,
+  } = senderInfo;
 
   if (!waId) {
     throw new Error('saveListing requires senderInfo.waId');
@@ -385,6 +399,9 @@ function saveListing(listingData, senderInfo = {}) {
       // Set only once services/postgres.js confirms the sync — see publishListing.
       remote_property_id: null,
       agent_id: toInteger(agentId),
+      // Set only for a unit belonging to a multi-unit building — see
+      // expandAndPublishListing. NULL for every ordinary listing.
+      parent_building_id: toNullable(parentBuildingId),
     });
   } catch (err) {
     // Match only the wamid collision. A blanket INSERT OR IGNORE would also
@@ -659,6 +676,122 @@ function applyListingCorrection(id, extractedData, rawText, extraWamids = [], ne
   }
 
   return getListing(id);
+}
+
+/**
+ * Fields a child unit inherits from the building. Location, transaction and
+ * identity are properties of the ADDRESS, not of an individual apartment —
+ * repeating them per unit in the extraction would just invite them to drift.
+ */
+const BUILDING_SHARED_FIELDS = [
+  'transaction_type', 'property_type', 'parcelle_subtype', 'commune', 'quartier',
+  'currency', 'deposit_months', 'advance_months', 'commission_months', 'reference',
+];
+
+/** Per-unit fields, read off one entry of `units`. */
+const UNIT_FIELDS = [
+  'bedrooms', 'bathrooms', 'price', 'price_period', 'surface_area_sqm', 'furnished',
+];
+
+/**
+ * Publish a draft, expanding a multi-unit building into one row per layout.
+ *
+ * One WhatsApp paste can describe four different apartments in one building.
+ * Collapsing that into a single listing (which is what happened before) loses
+ * three of them and misprices the fourth. Instead every layout becomes its own
+ * row — independently searchable, independently priced, its own detail page —
+ * and all of them share a `parent_building_id`, which is what lets the map draw
+ * one building pin rather than four markers on the same coordinate.
+ *
+ * The draft row is REUSED as the first unit rather than left behind as an
+ * unpublished parent: it already carries the wamid the dedupe index is built
+ * on, and an extra non-listing row would be a permanent oddity in the table.
+ *
+ * A single-unit draft takes the ordinary path untouched — this is a no-op for
+ * almost every listing.
+ *
+ * @param {number} id  Pending listing id.
+ * @returns {{ids: number[], parentBuildingId: string|null, unitCount: number}}
+ */
+function expandAndPublishListing(id) {
+  const draft = getListing(id);
+  if (!draft) throw new Error(`expandAndPublishListing: listing #${id} not found`);
+
+  const parsed = draft.parsed_json || {};
+  const units = Array.isArray(parsed.units) ? parsed.units.filter(Boolean) : [];
+
+  // Not a building, or a "multi-unit" message that only ever described one
+  // layout — nothing to expand, and no parent id worth inventing for a group
+  // of one.
+  if (!parsed.is_multi_unit || units.length < 2) {
+    publishListing(id);
+    return { ids: [id], parentBuildingId: null, unitCount: 1 };
+  }
+
+  const parentBuildingId = crypto.randomUUID();
+  const ids = [];
+
+  // Everything below is one transaction: a building that half-published would
+  // leave orphan units on the storefront with no sibling to group them with.
+  db.transaction(() => {
+    // The draft becomes unit #1.
+    applyListingCorrection(id, unitPatch(units[0], parsed), null, [], []);
+    db.prepare('UPDATE listings SET parent_building_id = ? WHERE id = ?').run(parentBuildingId, id);
+    ids.push(id);
+
+    for (const unit of units.slice(1)) {
+      const listingData = {
+        ...unitPatch(unit, parsed),
+        intent: draft.intent || 'listing',
+        amenities: Array.isArray(unit.amenities) && unit.amenities.length
+          ? unit.amenities
+          : draft.amenities || [],
+        units_count: null,
+        missing_fields: [],
+        confidence: parsed.confidence ?? null,
+        is_multi_unit: true,
+        building_name: parsed.building_name ?? null,
+        floor: unit.floor ?? null,
+        quantity: unit.quantity ?? null,
+      };
+      for (const field of BUILDING_SHARED_FIELDS) {
+        if (listingData[field] === undefined) listingData[field] = draft[field];
+      }
+
+      const { id: childId } = saveListing(listingData, {
+        waId: draft.wa_id,
+        // No wamid: the inbound message id belongs to the draft row, and the
+        // unique index would reject a second row claiming it.
+        agentName: draft.agent_name,
+        rawText: draft.raw_text,
+        // Photos of the building are photos of every unit in it.
+        photos: draft.photos || [],
+        agentId: draft.agent_id,
+        parentBuildingId,
+      });
+      ids.push(childId);
+    }
+  })();
+
+  // Publication (and its Postgres sync) runs OUTSIDE the transaction:
+  // publishListing fires a fire-and-forget network call, which has no business
+  // inside a write lock.
+  for (const rowId of ids) publishListing(rowId);
+
+  console.log(`[db] listing #${id} expanded into ${ids.length} units (building ${parentBuildingId})`);
+  return { ids, parentBuildingId, unitCount: ids.length };
+}
+
+/** One unit's own values, falling back to the building-level extraction. */
+function unitPatch(unit, parsed) {
+  const patch = {};
+  for (const field of UNIT_FIELDS) {
+    const value = unit?.[field];
+    if (value !== undefined && value !== null) patch[field] = value;
+  }
+  if (unit?.summary_fr) patch.summary_fr = unit.summary_fr;
+  else if (parsed?.summary_fr) patch.summary_fr = parsed.summary_fr;
+  return patch;
 }
 
 // ---------------------------------------------------------------------------
@@ -2067,6 +2200,7 @@ module.exports = {
   findByWamid,
   findLatestPendingListing,
   publishListing,
+  expandAndPublishListing,
   applyListingCorrection,
   getListings,
   getRecentListings,

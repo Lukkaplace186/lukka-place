@@ -136,6 +136,19 @@ const AGENT_INFOS_JOIN = `
     LIMIT 1
   ) ai ON true`;
 
+// MULTI-UNIT BUILDINGS — one line still to add here.
+//
+// The engine already stamps every unit of a building with a shared
+// parent_building_id (services/db.js expandAndPublishListing), and the map
+// already groups on it (lib/buildingGroups.js, components/PropertyMap.js).
+// The column is NOT selected below because it does not exist on the live
+// `properties` table yet — naming it here would turn every storefront query
+// into a "column does not exist" error.
+//
+// Once scripts/migrate-building-columns.js has been run against production,
+// add `p.parent_building_id, p.building_name,` to the list below and the
+// building pins light up on their own. Until then every listing groups as
+// itself, which is byte-identical to the previous behaviour.
 const SELECT_FIELDS = `
   p.id, p.price, p.purpose, p.beds, p.bath, p.area, p.quartier,
   p.currency, p.price_original,

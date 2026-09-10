@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader';
 import { resolveListingBase, placeResolvedListings, KINSHASA_CENTER } from '@/lib/geocoding';
-import { buildPricePinIcon, priceZIndex } from '@/lib/mapIcons';
+import { buildPricePinIcon, buildBuildingPinIcon, priceZIndex } from '@/lib/mapIcons';
 import { spreadColocatedPins } from '@/lib/mapPinSpread';
+import { groupListingsByBuilding, buildingPinLabel } from '@/lib/buildingGroups';
 import { MAP_STYLES } from '@/lib/mapStyle';
 import { NO_PHOTO_URL } from '@/lib/constants';
 import { formatPrice, formatCdfCompact } from '@/lib/format';
@@ -91,7 +92,7 @@ function buildInfoWindowContent(listing, cdfPerUsd, t) {
  */
 const MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
-export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoom }) {
+export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoom, onBuildingSelect }) {
   const t = useT();
   const { cdfPerUsd } = useCdfRate();
   const mapElementRef = useRef(null);
@@ -173,10 +174,18 @@ export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoo
         // "X / Y biens localisés" progress advances as it goes.
         //
         // Pass 1 — resolve each listing to its REAL, un-jittered point.
+        //
+        // Grouped FIRST, because units of one building genuinely share an
+        // address: geocoding them separately would spend N calls to get the
+        // same point N times, and then lib/mapPinSpread.js would fan them
+        // apart into N buildings that do not exist. One group, one pin.
+        const groups = groupListingsByBuilding(listings);
+
         const bases = [];
-        for (const listing of listings) {
+        for (const group of groups) {
           if (cancelled) break;
 
+          const listing = group.representative;
           // Sequential, not Promise.all — Google's client Geocoder self-throttles, and resolving one at a time keeps us well under its rate limit.
           const base = await resolveListingBase({ listing, geocoder });
           if (!base) {
@@ -188,7 +197,7 @@ export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoo
             `[PropertyMap] listing #${listing.id}: ${base.source} (${base.lat.toFixed(5)}, ${base.lng.toFixed(5)})` +
               (base.query ? ` via "${base.query}"` : ''),
           );
-          bases.push({ id: listing.id, listing, base });
+          bases.push({ id: listing.id, listing, base, group });
           setResolvedTotal((prev) => ({ ...prev, resolved: prev.resolved + 1 }));
         }
 
@@ -199,7 +208,7 @@ export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoo
         // independently random direction.
         const placements = placeResolvedListings(bases);
         const resolved = [];
-        for (const { listing } of bases) {
+        for (const { listing, group } of bases) {
           const placement = placements.get(listing.id);
           if (!placement) continue;
           if (placement.colocated) {
@@ -207,7 +216,7 @@ export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoo
               `[PropertyMap] listing #${listing.id}: 1 of ${placement.groupSize} at the same spot — offset to (${placement.lat.toFixed(5)}, ${placement.lng.toFixed(5)})`,
             );
           }
-          resolved.push({ listing, lat: placement.lat, lng: placement.lng });
+          resolved.push({ listing, group, lat: placement.lat, lng: placement.lng });
         }
 
         // Pass 3 — the last-resort de-overlap net, for the case where two
@@ -216,7 +225,7 @@ export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoo
           resolved.map(({ listing, lat, lng }) => ({ id: listing.id, lat, lng })),
         );
 
-        for (const { listing } of resolved) {
+        for (const { listing, group } of resolved) {
           const placed = positions.get(listing.id);
           if (!placed) continue;
           const position = { lat: placed.lat, lng: placed.lng };
@@ -228,11 +237,22 @@ export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoo
           const marker = new google.maps.Marker({
             map,
             position,
-            title: listing.title,
-            icon: buildPricePinIcon({ listing }),
-            zIndex: priceZIndex(listing.price),
+            title: group.isBuilding ? (group.buildingName || listing.title) : listing.title,
+            icon: group.isBuilding
+              ? buildBuildingPinIcon({ label: buildingPinLabel(group) })
+              : buildPricePinIcon({ listing }),
+            // A building stands for several listings, so it should not be
+            // buried under the single most expensive pin beside it.
+            zIndex: group.isBuilding ? priceZIndex(group.priceMax) + 1 : priceZIndex(listing.price),
           });
           marker.addListener('click', () => {
+            // A building opens the unit list rather than an InfoWindow: the
+            // whole point is that there is no single listing to preview.
+            if (group.isBuilding) {
+              infoWindow.close();
+              onBuildingSelect?.(group);
+              return;
+            }
             infoWindow.setContent(buildInfoWindowContent(listing, cdfPerUsd, t));
             infoWindow.open({ map, anchor: marker });
           });
@@ -282,6 +302,9 @@ export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoo
     // stable — adding it here would risk re-running the sequential,
     // quota-sensitive geocoding loop if a future caller ever passed a
     // non-stable callback instead.
+    // `onBuildingSelect` is excluded for the same reason as `onMarkerHover`:
+    // re-running this effect replays the entire sequential Geocoding loop, and
+    // a caller passing an inline arrow would do that on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listings]);
 

@@ -149,6 +149,15 @@ IDENTITÉ ET AGENCE
 - Mets le nom de la personne dans agent_name et le nom de l'agence dans agency_name. Laisse-les null si le message n'en parle pas.
 - Une correction d'identité n'annule JAMAIS le brouillon : accuse réception du changement, réaffiche la fiche complète du bien, et demande si l'agent souhaite publier.
 
+IMMEUBLE À PLUSIEURS LOGEMENTS (multi-unités)
+- Un même message décrit souvent PLUSIEURS logements distincts dans un seul immeuble : "3 chambres 1500$, 3 chambres 900$, 2 chambres 700$, 2 chambres 600$". Ce n'est PAS une annonce unique : ne choisis jamais un seul prix ou un seul nombre de chambres en ignorant les autres.
+- Indices : plusieurs prix dans le même message, plusieurs nombres de chambres, une énumération (tirets, numéros, retours à la ligne), "appartement A / B", "au 1er étage ... au 2ème étage", "nous avons aussi".
+- Dans ce cas : is_multi_unit = true, et units contient UNE entrée par typologie distincte, chacune avec son propre prix, ses chambres, ses salles de bain, son étage et ses équipements.
+- building_name : le nom de l'immeuble ou de la résidence s'il est donné. La commune, le quartier, la référence et le type de transaction restent au niveau du message : ils sont communs à tout l'immeuble, ne les répète pas dans chaque unité.
+- "3 unités disponibles" pour une même typologie => quantity = 3 sur CETTE entrée, et non trois entrées identiques.
+- Les champs de premier niveau (price, bedrooms, bathrooms...) décrivent alors le logement le MOINS cher, pour que l'annonce reste lisible si les unités ne sont pas exploitées. Le détail fait foi.
+- Une annonce à logement unique garde is_multi_unit = false et units = []. "4 Portes" / "Type Locataire" n'est PAS un immeuble multi-unités : c'est une parcelle locative, units_count (voir plus haut).
+
 RÈGLES POUR whatsapp_reply
 - Écris en français simple et respectueux, ton professionnel et chaleureux, tutoiement exclu (vouvoiement).
 - Si is_listing est true, suis EXACTEMENT ce gabarit (une ligne par champ non-null ; omets toute ligne dont la valeur serait null) :
@@ -174,6 +183,7 @@ Bonjour! Merci pour votre message. Voici les informations extraites de la magnif
 - Conditions d'entrée : n'écris que les lignes dont la valeur est non-null, et n'ajoute la ligne *Total à prévoir à l'entrée* que si au moins deux des trois postes sont connus. Si price est connu et price_period vaut "mois", ajoute le montant entre parenthèses après CHACUNE de ces quatre lignes, ligne de total comprise, calculé comme (nombre de mois × loyer mensuel) — ex. avec un loyer de 750 $ et "3 + 1 + 1" : "*Garantie* : 3 mois (2250 $)" ... "*Total à prévoir à l'entrée* : 5 mois (3750 $)". Sans loyer mensuel connu, écris seulement les mois.
 
   Puis, s'il y a des missing_fields, demande-les explicitement. Termine en invitant l'agent à répondre "OK" pour publier ou à envoyer une correction.
+- Si is_multi_unit est true, n'utilise PAS le gabarit ci-dessus. Écris à la place un récapitulatif groupé : le nom de l'immeuble (ou la commune/quartier à défaut) sur la première ligne, puis "🏢 {N} typologies d'appartements détectées :", puis UNE ligne numérotée par typologie — "1️⃣ 3 Chambres / 3 Salles de bain — 1500$", en ajoutant entre parenthèses ce qui distingue l'unité quand c'est connu (étage, parking, "3 unités disponibles"). Termine par : Répondez "OK" pour publier ces {N} annonces liées.
 - Si is_listing est false ET qu'un BROUILLON EN COURS est fourni : ne redemande rien — confirme la correction en une phrase, réaffiche la fiche complète ci-dessus avec les valeurs fusionnées, puis invite à répondre "OK" pour publier ou à envoyer une autre correction.
 - Si is_listing est false et qu'aucun brouillon n'est en cours : réponds brièvement et demande à l'agent d'envoyer l'annonce avec le type de bien, la commune, le prix et le nombre de chambres.
 - Utilise le formatage WhatsApp (*gras*, un seul astérisque de chaque côté — jamais **double**) avec parcimonie et au maximum 2 emojis. Reste sous 900 caractères.
@@ -209,6 +219,7 @@ const RESPONSE_FORMAT = {
             'bedrooms', 'bathrooms', 'surface_area_sqm', 'units_count', 'furnished',
             'amenities', 'reference', 'agent_name', 'agency_name', 'summary_fr',
             'missing_fields', 'confidence',
+            'is_multi_unit', 'building_name', 'units',
           ],
           properties: {
             is_listing: {
@@ -290,6 +301,48 @@ const RESPONSE_FORMAT = {
               items: { type: 'string', enum: MISSING_FIELD_KEYS },
             },
             confidence: { type: 'number', description: 'Confiance globale entre 0 et 1.' },
+            is_multi_unit: {
+              type: 'boolean',
+              description:
+                "true si le message décrit PLUSIEURS logements distincts dans un même immeuble/une même adresse (typologies différentes, prix différents). false pour une annonce ordinaire.",
+            },
+            building_name: {
+              type: ['string', 'null'],
+              description:
+                "Nom de l'immeuble ou de la résidence quand il est donné (\"Résidence Kin Marché\"). null sinon.",
+            },
+            units: {
+              type: 'array',
+              description:
+                "Une entrée par TYPOLOGIE distincte quand is_multi_unit est true. Vide ([]) sinon — ne duplique jamais ici une annonce à logement unique.",
+              items: {
+                type: 'object',
+                additionalProperties: false,
+                required: [
+                  'bedrooms', 'bathrooms', 'price', 'price_period', 'surface_area_sqm',
+                  'floor', 'furnished', 'amenities', 'quantity', 'summary_fr',
+                ],
+                properties: {
+                  bedrooms: { type: ['integer', 'null'] },
+                  bathrooms: { type: ['integer', 'null'] },
+                  price: { type: ['number', 'null'], description: 'Prix de CETTE typologie.' },
+                  price_period: { type: ['string', 'null'], enum: ['mois', 'an', 'total', null] },
+                  surface_area_sqm: { type: ['number', 'null'] },
+                  floor: {
+                    type: ['string', 'null'],
+                    description: 'Étage tel qu\'écrit ("Rez-de-chaussée", "2ème étage", "étage élevé").',
+                  },
+                  furnished: { type: ['boolean', 'null'] },
+                  amenities: { type: 'array', items: { type: 'string' } },
+                  quantity: {
+                    type: ['integer', 'null'],
+                    description:
+                      'Nombre de logements IDENTIQUES de cette typologie ("3 unités disponibles" => 3). null si non précisé.',
+                  },
+                  summary_fr: { type: 'string', description: 'Résumé court de cette typologie.' },
+                },
+              },
+            },
           },
         },
         whatsapp_reply: {

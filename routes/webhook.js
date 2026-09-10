@@ -18,6 +18,7 @@ const {
   findByWamid,
   findLatestPendingListing,
   publishListing,
+  expandAndPublishListing,
   applyListingCorrection,
   getListing,
 } = require('../services/db');
@@ -318,6 +319,18 @@ async function downloadImages(refs, label) {
 const PUBLISHED_REPLY = 'Merci ! Votre annonce est maintenant publiée et visible sur Lukka Place. 🎉';
 
 /**
+ * Confirmation wording. A multi-unit building publishes several linked
+ * listings from one message, and saying "votre annonce" for four of them
+ * would leave the agent unsure whether the other three landed.
+ */
+function publishedReply(unitCount) {
+  if (unitCount > 1) {
+    return `Merci ! Vos ${unitCount} annonces liées sont maintenant publiées et visibles sur Lukka Place. 🎉`;
+  }
+  return PUBLISHED_REPLY;
+}
+
+/**
  * A listing with no photo is not publishable — a storefront card with no image
  * is worse than no card. Sent instead of publishing, on every confirmation
  * path, so the draft stays pending and the agent can still send the photo.
@@ -559,8 +572,10 @@ async function processGroup(messages) {
         return;
       }
 
-      publishListing(pending.id);
-      await chakra.sendWhatsAppMessage(from, PUBLISHED_REPLY, {
+      // Expands a multi-unit building into one published row per layout, and
+      // is an ordinary publish for everything else.
+      const { unitCount } = expandAndPublishListing(pending.id);
+      await chakra.sendWhatsAppMessage(from, publishedReply(unitCount), {
         replyToMessageId: primaryWamid || undefined,
       });
       console.log(`[db] listing #${pending.id} published (confirmed by ${from})`);
@@ -675,8 +690,8 @@ async function processGroup(messages) {
       if (photoPaths.length) {
         applyListingCorrection(pending.id, null, null, wamids, photoPaths);
       }
-      publishListing(pending.id);
-      await chakra.sendWhatsAppMessage(from, PUBLISHED_REPLY, {
+      const { unitCount: confirmedUnits } = expandAndPublishListing(pending.id);
+      await chakra.sendWhatsAppMessage(from, publishedReply(confirmedUnits), {
         replyToMessageId: primaryWamid || undefined,
       });
       console.log(`[db] listing #${pending.id} published (conversational confirmation from ${from})`);
@@ -858,5 +873,6 @@ module.exports.flushAll = flushAll;
 module.exports.isAffirmative = isAffirmative;
 module.exports.PUBLISHED_REPLY = PUBLISHED_REPLY;
 module.exports.PHOTO_REQUIRED_REPLY = PHOTO_REQUIRED_REPLY;
+module.exports.publishedReply = publishedReply;
 module.exports.isUnsupportedType = isUnsupportedType;
 module.exports.UNSUPPORTED_MEDIA_REPLY = UNSUPPORTED_MEDIA_REPLY;

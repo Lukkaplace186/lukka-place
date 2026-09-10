@@ -467,6 +467,43 @@ function normaliseRowLocation(row) {
  *        shape — `photos`/`amenities` already decoded to arrays).
  * @returns {Promise<number|null>} The Postgres `properties.id`, or null if skipped.
  */
+/**
+ * Does the live `properties` table carry the multi-unit building columns yet?
+ *
+ * Cached after the first answer: the schema does not change under a running
+ * process, and this would otherwise cost a catalogue query on every publish.
+ * `null` means "not asked yet". A failed probe answers `false` — degrading to
+ * "sync without the building id" is right, since a listing reaching the
+ * storefront un-grouped is far better than one that fails to sync at all.
+ */
+let buildingColumnsAvailable = null;
+
+async function hasBuildingColumns(client) {
+  if (buildingColumnsAvailable !== null) return buildingColumnsAvailable;
+  try {
+    const { rows } = await client.query(
+      `SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'properties' AND column_name = 'parent_building_id' LIMIT 1`,
+    );
+    buildingColumnsAvailable = rows.length > 0;
+    if (!buildingColumnsAvailable) {
+      console.warn(
+        '[postgres] properties.parent_building_id is missing — multi-unit listings will sync '
+          + 'ungrouped until scripts/migrate-building-columns.js has been run',
+      );
+    }
+  } catch (err) {
+    console.warn(`[postgres] could not probe for building columns: ${err.message}`);
+    buildingColumnsAvailable = false;
+  }
+  return buildingColumnsAvailable;
+}
+
+/** Test seam — lets the suite drive both sides of the probe. */
+function __resetBuildingColumnCache() {
+  buildingColumnsAvailable = null;
+}
+
 async function syncListingToPostgres(row) {
   if (!isConfigured()) {
     console.log('[postgres] DB_HOST/DB_USER/DB_PASSWORD/DB_NAME not fully set — skipping sync');
@@ -491,6 +528,18 @@ async function syncListingToPostgres(row) {
     const wasInsert = !propertyId;
 
     const propertyValues = buildPropertyValues(row, { category, location, agentId });
+
+    // Multi-unit grouping, added only when the column actually exists.
+    //
+    // The sync builds its column list from this object's keys, so naming a
+    // column Postgres does not have turns every publish into a "column does
+    // not exist" error — exactly the trap price_period/deposit_months
+    // documented above. Probing instead means this code is safe to deploy
+    // BEFORE scripts/migrate-building-columns.js is run, and starts carrying
+    // the building id by itself once it has been.
+    if (row.parent_building_id && (await hasBuildingColumns(client))) {
+      propertyValues.parent_building_id = row.parent_building_id;
+    }
 
     if (propertyId) {
       // Never re-assert moderation-owned fields on an existing row — see

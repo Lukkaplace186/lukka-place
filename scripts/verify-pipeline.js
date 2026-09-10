@@ -1930,6 +1930,275 @@ console.log('\n2. services/openai.js');
   });
 
   // -------------------------------------------------------------------------
+  // 5e. Flexibility layer: quick replies, adaptive burst, post-publication
+  //     corrections, availability updates, multi-property pastes
+  // -------------------------------------------------------------------------
+
+  console.log('\n5e. Flexibility layer (quick replies, corrections, availability, multi-property)');
+
+  const quickReplies = require('../services/quickReplies');
+
+  check('greetings in every language this number receives are matched', () => {
+    for (const greeting of [
+      'Bonjour', 'bonsoir', 'salut', 'Bjr', 'coucou',
+      'Mbote', 'boni', 'losako',
+      'mambo', 'jambo', 'habari',
+      'hi', 'Hello', 'hey', 'good morning',
+      'Bonjour Lukka', 'hi lukka place', 'mbote 👋', 'Salut !',
+    ]) {
+      const match = quickReplies.matchQuickReply(greeting);
+      assert.ok(match, `"${greeting}" should be a quick reply`);
+      assert.strictEqual(match.kind, 'greeting', `"${greeting}" matched as ${match?.kind}`);
+    }
+  });
+  check('help and thanks have their own canned answers', () => {
+    assert.strictEqual(quickReplies.matchQuickReply('/aide').kind, 'help');
+    assert.strictEqual(quickReplies.matchQuickReply('aide').kind, 'help');
+    assert.strictEqual(quickReplies.matchQuickReply('menu').kind, 'help');
+    assert.strictEqual(quickReplies.matchQuickReply('merci').kind, 'thanks');
+  });
+  check('a greeting carrying a real listing is NEVER swallowed', () => {
+    // The whole risk of this fast path: answering "hello" is worth nothing if
+    // it costs one listing.
+    for (const text of [
+      'bonjour villa a louer Gombe 1500$',
+      'Salut, appartement Limete 3 chambres',
+      'hi 2 chambres Ngaliema',
+      'bonjour, je cherche un studio',
+      'mbote, parcelle a vendre Kintambo',
+    ]) {
+      assert.strictEqual(quickReplies.matchQuickReply(text), null, `"${text}" must reach the model`);
+    }
+  });
+  check('anything with a digit, or longer than the cap, reaches the model', () => {
+    assert.strictEqual(quickReplies.matchQuickReply('bonjour 1200'), null);
+    assert.strictEqual(quickReplies.matchQuickReply('x'.repeat(quickReplies.MAX_QUICK_REPLY_LENGTH + 1)), null);
+    assert.strictEqual(quickReplies.matchQuickReply(''), null);
+    assert.strictEqual(quickReplies.matchQuickReply(null), null);
+  });
+  check('the greeting reply names Lukka Place and the photo rule', () => {
+    assert.ok(quickReplies.GREETING_REPLY.includes('Lukka Place'));
+    assert.ok(/photo/i.test(quickReplies.GREETING_REPLY));
+    assert.ok(/photo/i.test(quickReplies.HELP_REPLY));
+  });
+
+  check('the burst window stretches for an unfinished listing and not otherwise', () => {
+    // The harness runs with a deliberately tiny GROUP_MAX_WAIT_MS so bursts
+    // flush fast; the stretch is clamped by it, so assert against the real
+    // production ceiling instead of the test one.
+    const savedCeiling = process.env.GROUP_MAX_WAIT_MS;
+    process.env.GROUP_MAX_WAIT_MS = '45000';
+    try {
+    const base = 8000;
+    // Unfinished — still typing.
+    for (const text of ['Villa a louer Ngaliema', '3 chambres,', 'prix :', 'villa a louer et']) {
+      assert.ok(webhookRouter.adaptiveIdleMs(text, base) > base, `"${text}" should wait longer`);
+    }
+    // Complete, or not a listing at all — must stay snappy.
+    for (const text of ['Villa a louer Ngaliema 3ch 1500$/mois', 'Bonjour', 'OK', 'Appartement Limete 600 usd']) {
+      assert.strictEqual(webhookRouter.adaptiveIdleMs(text, base), base, `"${text}" should not be delayed`);
+    }
+    } finally {
+      if (savedCeiling === undefined) delete process.env.GROUP_MAX_WAIT_MS;
+      else process.env.GROUP_MAX_WAIT_MS = savedCeiling;
+    }
+  });
+  check('the stretched window can never outlive the burst ceiling', () => {
+    const savedCeiling = process.env.GROUP_MAX_WAIT_MS;
+    process.env.GROUP_MAX_WAIT_MS = '45000';
+    try {
+      // 2.5x a large base must be clamped to the ceiling, never past it.
+      assert.strictEqual(webhookRouter.adaptiveIdleMs('Villa a louer Ngaliema', 40000), 45000);
+      // ...and clamping must never make the wait SHORTER than normal.
+      process.env.GROUP_MAX_WAIT_MS = '100';
+      assert.strictEqual(webhookRouter.adaptiveIdleMs('Villa a louer Ngaliema', 8000), 8000);
+    } finally {
+      if (savedCeiling === undefined) delete process.env.GROUP_MAX_WAIT_MS;
+      else process.env.GROUP_MAX_WAIT_MS = savedCeiling;
+    }
+  });
+
+  // --- Post-publication corrections -----------------------------------------
+  const pubWaId = '243980000041';
+  const pubListing = dbService.insertListing(
+    { is_listing: true, intent: 'listing', transaction_type: 'location', property_type: 'villa',
+      commune: 'Ngaliema', price: 1200, currency: 'USD', price_period: 'mois', bedrooms: 3,
+      amenities: [], summary_fr: 'Villa.', missing_fields: [], confidence: 0.9 },
+    pubWaId,
+    { wamid: 'wamid.PUB0', rawText: 'Villa Ngaliema 1200$', photos: ['/uploads/listings/p.jpg'] },
+  );
+  dbService.publishListing(pubListing.id);
+
+  check('a published listing is no longer "pending", but IS still reachable', () => {
+    assert.strictEqual(dbService.findLatestPendingListing(pubWaId), undefined);
+    const found = dbService.findRecentPublishedListing(pubWaId);
+    assert.ok(found, 'an agent must still be able to talk about what they just published');
+    assert.strictEqual(found.id, pubListing.id);
+  });
+  check('a listing published outside the window is NOT offered for correction', () => {
+    // listings.created_at has one-second granularity, so a sub-second window
+    // cannot be exercised directly. A negative window puts the cutoff in the
+    // future, which is the same comparison this guards: anything older than
+    // the cutoff is excluded, so a month-old listing can never be silently
+    // corrected by an unrelated message today.
+    assert.strictEqual(dbService.findRecentPublishedListing(pubWaId, -60000), undefined);
+  });
+  check('the draft context tells the model whether it is a draft or already live', () => {
+    const liveCtx = openaiService.draftContextFromListing(dbService.getListing(pubListing.id));
+    assert.strictEqual(liveCtx.draft.statut, 'publiée');
+    const draftRow = { status: 'pending_confirmation', price: 1, photos: [], parsed_json: {} };
+    assert.strictEqual(openaiService.draftContextFromListing(draftRow).draft.statut, 'brouillon');
+  });
+
+  // --- Sale-price answer parsing --------------------------------------------
+  check('a sale price is read only from a bare amount, never from a sentence', () => {
+    // A sentence that merely contains a number must not close a transaction.
+    for (const [text, expected] of [
+      ['1200', 1200], ['1 200', 1200], ['1200$', 1200], ['1.200 USD', 1200], ['950 dollars', 950],
+      ['le prix etait de 1200', null], ['bonjour', null], ['0', null], ['', null],
+    ]) {
+      assert.strictEqual(webhookRouter.parseSalePrice(text), expected, `parseSalePrice(${JSON.stringify(text)})`);
+    }
+  });
+  check('declining to give the price is recognised', () => {
+    for (const text of ['passer', 'non', 'skip', 'je prefere pas', 'Passer']) {
+      assert.ok(webhookRouter.isDeclined(text), `"${text}" should count as declining`);
+    }
+    assert.ok(!webhookRouter.isDeclined('1200'));
+  });
+  check('the sale-price question is remembered per listing, and closes again', () => {
+    dbService.setAwaitingSalePrice(pubListing.id, true);
+    const awaiting = dbService.findListingAwaitingSalePrice(pubWaId);
+    assert.ok(awaiting);
+    assert.strictEqual(awaiting.id, pubListing.id);
+    dbService.setAwaitingSalePrice(pubListing.id, false);
+    assert.strictEqual(dbService.findListingAwaitingSalePrice(pubWaId), undefined);
+  });
+
+  // --- Multi-property paste (distinct properties, NOT one building) ---------
+  const multiPropDraft = dbService.insertListing(
+    {
+      is_listing: true, intent: 'listing', transaction_type: 'location', property_type: 'villa',
+      commune: 'Gombe', price: 600, currency: 'USD', price_period: 'mois', bedrooms: 2,
+      amenities: [], summary_fr: 'Deux biens.', missing_fields: [], confidence: 0.9,
+      is_multi_unit: false,
+      is_multi_property: true,
+      units: [
+        { bedrooms: 4, bathrooms: 3, price: 1500, price_period: 'mois', amenities: [], quantity: null,
+          summary_fr: 'Villa Gombe.', transaction_type: 'location', property_type: 'villa',
+          commune: 'Gombe', quartier: 'Cité du Fleuve' },
+        { bedrooms: 2, bathrooms: 1, price: 600, price_period: 'mois', amenities: [], quantity: null,
+          summary_fr: 'Appartement Limete.', transaction_type: 'location', property_type: 'appartement',
+          commune: 'Limete', quartier: 'Kingabwa' },
+      ],
+    },
+    '243980000042',
+    { wamid: 'wamid.MULTIPROP0', rawText: 'Villa Gombe 1500$ / Appartement Limete 600$',
+      photos: ['/uploads/listings/mp.jpg'] },
+  );
+
+  const mpRowsBefore = dbService.countListings();
+  const mpResult = dbService.expandAndPublishListing(multiPropDraft.id);
+
+  check('two unrelated properties in one paste become two separate listings', () => {
+    assert.strictEqual(mpResult.unitCount, 2);
+    assert.strictEqual(dbService.countListings(), mpRowsBefore + 1, 'the draft is reused as the first');
+  });
+  check('unrelated properties are NEVER grouped under a building id', () => {
+    // A villa in Gombe and a flat in Limete under one building pin would be a
+    // building that does not exist.
+    assert.strictEqual(mpResult.parentBuildingId, null);
+    for (const rowId of mpResult.ids) {
+      assert.strictEqual(dbService.getListing(rowId).parent_building_id, null);
+    }
+  });
+  check('each property keeps its OWN commune and type, not the first one\'s', () => {
+    const rows = mpResult.ids.map((rowId) => dbService.getListing(rowId));
+    const gombe = rows.find((r) => r.commune === 'Gombe');
+    const limete = rows.find((r) => r.commune === 'Limete');
+    assert.ok(gombe && limete, `expected Gombe and Limete, got ${rows.map((r) => r.commune).join(', ')}`);
+    assert.strictEqual(gombe.property_type, 'villa');
+    assert.strictEqual(gombe.price, 1500);
+    assert.strictEqual(limete.property_type, 'appartement');
+    assert.strictEqual(limete.price, 600);
+    assert.strictEqual(limete.bedrooms, 2);
+  });
+  check('both properties are published', () => {
+    for (const rowId of mpResult.ids) {
+      assert.strictEqual(dbService.getListing(rowId).status, 'published');
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // 5f. PDF flyers (services/documentText.js)
+  //
+  // Agencies send the listing as a marketing PDF. Every one of those used to
+  // get "send it as text or a photo" — a flat rejection of a document that
+  // contains the whole listing.
+  // -------------------------------------------------------------------------
+
+  console.log('\n5f. PDF flyer text extraction');
+
+  const documentText = require('../services/documentText');
+
+  // A real, minimal PDF carrying a real listing in its text layer.
+  const FLYER_PDF_B64 =
+    'JVBERi0xLjQKMSAwIG9iajw8L1R5cGUvQ2F0YWxvZy9QYWdlcyAyIDAgUj4+ZW5kb2JqCjIgMC'
+    + 'BvYmo8PC9UeXBlL1BhZ2VzL0tpZHNbMyAwIFJdL0NvdW50IDE+PmVuZG9iagozIDAgb2JqPDwv'
+    + 'VHlwZS9QYWdlL1BhcmVudCAyIDAgUi9NZWRpYUJveFswIDAgNjEyIDc5Ml0vUmVzb3VyY2VzPD'
+    + 'wvRm9udDw8L0YxIDUgMCBSPj4+Pi9Db250ZW50cyA0IDAgUj4+ZW5kb2JqCjQgMCBvYmo8PC9M'
+    + 'ZW5ndGggMTU1Pj5zdHJlYW0KQlQgL0YxIDEyIFRmIDQwIDcwMCBUZCAoVklMTEEgQSBMT1VFUi'
+    + 'AtIE5HQUxJRU1BIE1BQ0FNUEFHTkUgNCBjaGFtYnJlcyAzIHNhbGxlcyBkZSBiYWluIExveWVy'
+    + 'IDI1MDAgVVNEIHBhciBtb2lzIEdhcmFudGllIDMgKyAxICsgMSBSZWYgTEtQLTIwMjYtMDA5MS'
+    + 'kgVGogRVQKZW5kc3RyZWFtIGVuZG9iago1IDAgb2JqPDwvVHlwZS9Gb250L1N1YnR5cGUvVHlw'
+    + 'ZTEvQmFzZUZvbnQvSGVsdmV0aWNhPj5lbmRvYmoKeHJlZgowIDYKMDAwMDAwMDAwMCA2NTUzNS'
+    + 'BmIAowMDAwMDAwMDA5IDAwMDAwIG4gCjAwMDAwMDAwNTIgMDAwMDAgbiAKMDAwMDAwMDEwMSAw'
+    + 'MDAwMCBuIAowMDAwMDAwMjExIDAwMDAwIG4gCjAwMDAwMDA0MTMgMDAwMDAgbiAKdHJhaWxlcj'
+    + 'w8L1NpemUgNi9Sb290IDEgMCBSPj4Kc3RhcnR4cmVmCjQ3NAolJUVPRg==';
+  const flyerPdf = Buffer.from(FLYER_PDF_B64, 'base64');
+
+  await checkAsync("a PDF flyer's text layer is read into ordinary listing text", async () => {
+    const result = await documentText.extractPdfText(flyerPdf, 'application/pdf');
+    assert.strictEqual(result.ok, true, `expected text, got reason=${result.reason}`);
+    for (const needle of ['VILLA', 'NGALIEMA', 'chambres']) {
+      assert.ok(result.text.includes(needle), `extracted text missing "${needle}"`);
+    }
+  });
+  await checkAsync('page separators are stripped rather than fed to the model', async () => {
+    const result = await documentText.extractPdfText(flyerPdf, 'application/pdf');
+    assert.ok(!/--\s*\d+\s+of\s+\d+\s*--/.test(result.text), 'page markers must not survive');
+  });
+  await checkAsync('the bytes are trusted over a wrong mime type', async () => {
+    // WhatsApp sometimes labels a document application/octet-stream.
+    const result = await documentText.extractPdfText(flyerPdf, 'application/octet-stream');
+    assert.strictEqual(result.ok, true);
+  });
+  await checkAsync('a PDF with no usable text layer is refused, never faked', async () => {
+    // A scan carries real content and no text. The honest outcome is to refuse
+    // so the caller can ask for a photo, which the vision model CAN read —
+    // inventing a listing from nothing would be far worse.
+    const tiny = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\ntrailer<</Root 1 0 R>>', 'latin1');
+    const result = await documentText.extractPdfText(tiny, 'application/pdf');
+    assert.strictEqual(result.ok, false);
+    assert.ok(['no-text-layer', 'unreadable'].includes(result.reason), `unexpected reason ${result.reason}`);
+  });
+  await checkAsync('a non-PDF, an empty buffer and an oversized one are all refused', async () => {
+    assert.strictEqual((await documentText.extractPdfText(Buffer.from('hello'), 'text/plain')).reason, 'not-pdf');
+    assert.strictEqual((await documentText.extractPdfText(Buffer.alloc(0), 'application/pdf')).reason, 'empty');
+    const huge = Buffer.alloc(documentText.MAX_PDF_BYTES + 1);
+    assert.strictEqual((await documentText.extractPdfText(huge, 'application/pdf')).reason, 'too-large');
+  });
+  check('a PDF is recognised by mime type OR filename, but a docx never is', () => {
+    assert.ok(webhookRouter.looksLikePdf({ mime_type: 'application/pdf' }));
+    assert.ok(webhookRouter.looksLikePdf({ filename: 'annonce.PDF' }));
+    assert.ok(webhookRouter.looksLikePdf({ mime_type: 'application/octet-stream', filename: 'flyer.pdf' }));
+    assert.ok(!webhookRouter.looksLikePdf({ mime_type: 'application/msword', filename: 'a.docx' }));
+    assert.ok(!webhookRouter.looksLikePdf(null));
+  });
+  check('the unreadable-PDF reply asks for a photo, which the vision model CAN read', () =>
+    assert.ok(/photo/i.test(webhookRouter.PDF_UNREADABLE_REPLY)));
+
+  // -------------------------------------------------------------------------
   // 6. End-to-end through the live HTTP endpoint
   // -------------------------------------------------------------------------
 
@@ -2163,23 +2432,24 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(dbService.countListings() - rowsBeforeRetry, 0));
   check('redelivery sends no second reply', () => assert.strictEqual(httpCalls.length, 0));
 
-  // Non-listing chatter: reply, but do not store.
-  nextCompletion = cannedCompletion({
-    choices: [{ finish_reason: 'stop', message: { refusal: null, content: JSON.stringify({
-      extracted_data: {
-        is_listing: false, intent: 'greeting', transaction_type: null, property_type: null,
-        parcelle_subtype: null, commune: null, quartier: null, price: null, currency: null,
-        price_period: null, deposit_months: null, bedrooms: null, bathrooms: null,
-        surface_area_sqm: null, units_count: null, furnished: null, amenities: [], reference: null,
-        summary_fr: 'Salutation.', missing_fields: [], confidence: 0.2,
-      },
-      whatsapp_reply: 'Bonjour 👋 Envoyez-moi votre annonce avec le type, la commune et le prix.',
-    }) } }],
-  });
+  // Non-listing chatter: reply, but do not store — and, since
+  // services/quickReplies.js landed, without paying for a model call at all.
+  // Deliberately queues NO completion: if the fast path ever regressed into
+  // calling the model, it would consume the next test's canned response and
+  // fail there instead of here, so the absence is itself part of the check.
   const rowsBeforeGreeting = dbService.countListings();
+  const aiBeforeGreeting = openaiCalls.length;
   httpCalls.length = 0;
   await post('/webhook', inbound('wamid.GREET', 'Bonjour'));
   await settle();
+
+  check('a bare greeting is answered without any gpt-4o call', () =>
+    assert.strictEqual(openaiCalls.length - aiBeforeGreeting, 0));
+  check('the greeting reply welcomes the agent and asks for a listing', () => {
+    const body = httpCalls[0].data.text.body;
+    assert.ok(body.includes('Lukka Place'));
+    assert.ok(/photo/i.test(body), 'it must mention the mandatory photo up front');
+  });
 
   check('greeting stores no listing', () =>
     assert.strictEqual(dbService.countListings() - rowsBeforeGreeting, 0));

@@ -17,6 +17,11 @@ const {
   attributeListingToAgent,
   findByWamid,
   findLatestPendingListing,
+  findRecentPublishedListing,
+  resyncListing,
+  findListingAwaitingSalePrice,
+  setAwaitingSalePrice,
+  getActiveConversation,
   publishListing,
   expandAndPublishListing,
   applyListingCorrection,
@@ -26,6 +31,8 @@ const chakra = require('../services/chakra');
 const { persistImages } = require('../services/mediaStorage');
 const { resolveCommune, resolveQuartier } = require('../services/locations');
 const { handleBuyerMessage } = require('../services/buyerConversation');
+const { matchQuickReply } = require('../services/quickReplies');
+const { extractPdfText } = require('../services/documentText');
 const onboarding = require('../services/agentOnboarding');
 
 const router = express.Router();
@@ -42,6 +49,26 @@ const router = express.Router();
 // reason to start trusting unauthenticated traffic.
 const WEBHOOK_HMAC_SECRET = process.env.CHAKRA_WEBHOOK_HMAC_SECRET;
 const ALLOW_UNSIGNED_WEBHOOKS = process.env.ALLOW_UNSIGNED_WEBHOOKS === 'true';
+
+/** A bare amount: "1200", "1 200", "1200$", "1.200 USD". Null if not one.
+ *  Anchored on purpose: a sentence that merely CONTAINS a number is not an
+ *  answer to "at what price?", and must never close a transaction. */
+function parseSalePrice(text) {
+  const raw = String(text || '').trim();
+  const match = /^([\d][\d\s.,]*)\s*(?:\$|usd|dollars?)?$/i.exec(raw);
+  if (!match) return null;
+  const digits = match[1].replace(/[\s.,]/g, '');
+  if (!digits) return null;
+  const amount = Number.parseInt(digits, 10);
+  return Number.isFinite(amount) && amount > 0 ? amount : null;
+}
+
+/** "passer", "non", "skip" — declining to state the sale price. */
+function isDeclined(text) {
+  return /^(?:passer?|non|no|skip|prefere?\s*pas|je\s*prefere\s*pas|pas\s*maintenant)[\s!.]*$/i.test(
+    String(text || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''),
+  );
+}
 
 /** Constant-time compare; a length mismatch is already a mismatch. */
 function safeEqual(a, b) {
@@ -124,6 +151,10 @@ function normaliseMessage(message, contacts = [], fallbackWamid = null) {
   const media = [];
   const candidates = [
     message.image,
+    // A PDF flyer is a real listing, not an unsupported attachment (see
+    // services/documentText.js). Other document types are deliberately left
+    // out so they still get the "send text or a photo" reply.
+    looksLikePdf(message.document) ? message.document : null,
     message.media,
     message.attachment,
     ...(Array.isArray(message.attachments) ? message.attachments : []),
@@ -154,6 +185,15 @@ function normaliseMessage(message, contacts = [], fallbackWamid = null) {
     media,
     profileName: profile,
   };
+}
+
+/** Is this attachment a PDF? Checked on the declared mime type AND the
+ *  filename, since WhatsApp sometimes sends application/octet-stream. */
+function looksLikePdf(entry) {
+  if (!entry || typeof entry !== 'object') return false;
+  const mime = String(entry.mime_type || entry.mimeType || '').toLowerCase();
+  const name = String(entry.filename || entry.file_name || entry.name || '').toLowerCase();
+  return mime.includes('pdf') || name.endsWith('.pdf');
 }
 
 /** A message is worth processing if it has text, an image, or both. */
@@ -347,6 +387,27 @@ const PHOTO_REQUIRED_REPLY =
  */
 const ACK_REPLY = 'Message reçu, un instant pendant que nous traitons votre annonce... ⏳';
 
+const STATUS_ASK_PRICE_REPLY =
+  "C'est noté, le bien est retiré des recherches. ✅\n\n"
+  + "À quel prix la transaction s'est-elle conclue ? Répondez avec le montant "
+  + '(ex. _1200_) pour finaliser, ou _passer_ si vous préférez ne pas le communiquer.';
+
+const STATUS_CLOSED_REPLY = 'Merci ! La transaction est enregistrée. 🎉';
+
+const STATUS_SKIPPED_REPLY =
+  'Très bien, le bien reste retiré des recherches. Merci de nous avoir prévenus ! 🙌';
+
+const STATUS_AVAILABLE_REPLY = "C'est fait, le bien est de nouveau visible sur Lukka Place. ✅";
+
+const STATUS_FAILED_REPLY =
+  "Je n'ai pas pu mettre à jour l'annonce à l'instant — notre équipe s'en occupe. "
+  + "L'annonce est peut-être encore visible quelques minutes.";
+
+const PDF_UNREADABLE_REPLY =
+  "J'ai bien reçu votre document, mais il ne contient pas de texte lisible "
+  + "(c'est probablement un scan). 📄\n\n"
+  + "Envoyez-le plutôt en *photo*, ou tapez les informations principales — je m'occupe du reste.";
+
 const UNSUPPORTED_MEDIA_REPLY =
   'Bonjour 👋 Pour publier une annonce, envoyez-la en *texte* ou en *photo* (avec légende). ' +
   'Les autres formats (vidéo, audio, document, position, contact) ne sont pas encore pris en charge.';
@@ -397,6 +458,46 @@ function groupIdleMs() {
 function groupMaxWaitMs() {
   const value = Number.parseInt(process.env.GROUP_MAX_WAIT_MS, 10);
   return Number.isFinite(value) ? value : 45000;
+}
+
+/**
+ * How long to keep waiting for the rest of a listing.
+ *
+ * A fixed 8s window splits an agent who types a listing across several slow
+ * messages into two half-drafts: the first flushes and is extracted alone, the
+ * second arrives as a "correction" to it. A longer window for everyone is not
+ * the fix — that would make every fast, complete listing feel sluggish, and
+ * snappiness is the point of this path. So: wait longer only when what we have
+ * so far reads as UNFINISHED.
+ */
+function adaptiveIdleMs(text, baseIdle) {
+  const raw = String(text || '').trim();
+  if (!raw) return baseIdle;
+
+  const normalised = raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  // Dangling ending — punctuation, or a connector that cannot end a sentence.
+  const danglingEnd =
+    /[:,;\-\u2013\u2014+/]$/.test(normalised)
+    || /(?:^|\s)(?:et|avec|plus|ou|de|du|dans|pour|sur|au|aux)$/.test(normalised);
+
+  // Names a property but states no money yet — the commonest way a listing
+  // arrives in two halves.
+  const namesProperty =
+    /(?:louer|location|vendre|vente|villa|appartement|apartement|parcelle|studio|maison|duplex|terrain|bureau|boutique|entrepot|chambre|piece)/
+      .test(normalised);
+  // Generous on purpose: a false "has price" costs only the ordinary wait,
+  // while a false "no price" delays a finished listing.
+  const hasPrice = /[$\u20ac]|usd|fc|cdf|dollars?|\d{3,}/.test(normalised);
+
+  if (danglingEnd || (namesProperty && !hasPrice)) {
+    // 2.5x, bounded by the burst ceiling so this can never outlive the group,
+    // and never SHORTER than the normal wait (a plain Math.min would be, once
+    // the ceiling drops below the base).
+    return Math.max(baseIdle, Math.min(Math.round(baseIdle * 2.5), groupMaxWaitMs()));
+  }
+
+  return baseIdle;
 }
 
 /** sender wa_id -> { messages, idleTimer, maxTimer } */
@@ -457,9 +558,39 @@ function enqueueMessage(message) {
   if (group.idleTimer) {
     clearTimeout(group.idleTimer);
   }
-  group.idleTimer = setTimeout(() => flushSender(key, 'idle'), idle);
+  // Re-armed against everything buffered so far, not just this message: an
+  // agent who has sent "Villa a louer Ngaliema" and nothing else is still
+  // typing, and flushing them at 8s costs them a split listing.
+  const buffered = group.messages.map((m) => m.text || '').filter(Boolean).join(' ');
+  const wait = adaptiveIdleMs(buffered, idle);
+  if (wait !== idle) {
+    console.log(`[group] ${key}: listing looks unfinished — waiting ${wait}ms instead of ${idle}ms`);
+  }
+  group.idleTimer = setTimeout(() => flushSender(key, 'idle'), wait);
 
   return undefined;
+}
+
+/**
+ * Read every PDF in a burst and return their combined text.
+ *
+ * Failures are per-document and never fatal: one unreadable attachment must
+ * not cost the agent the caption or the photos that came with it.
+ */
+async function extractPdfsText(refs, label) {
+  const parts = [];
+  for (const ref of refs) {
+    if (!ref.id) continue;
+    try {
+      const { buffer, contentType } = await chakra.downloadMediaRaw(ref.id);
+      const result = await extractPdfText(buffer, contentType || ref.mimeType);
+      if (result.ok) parts.push(result.text);
+      else console.log(`[pdf] ${label}: document skipped (${result.reason})`);
+    } catch (err) {
+      console.warn(`[pdf] ${label}: could not read document: ${err.message}`);
+    }
+  }
+  return parts.join('\n\n').trim();
 }
 
 /** Close a sender's group and hand it to the pipeline. */
@@ -510,10 +641,16 @@ async function processGroup(messages) {
     .join('\n');
   const hasText = Boolean(text);
 
-  const mediaRefs = messages.flatMap((m) => m.media || []);
+  const allMediaRefs = messages.flatMap((m) => m.media || []);
+
+  // PDF flyers take a different route from photos: they carry a text layer the
+  // ordinary extraction can read, whereas the vision model cannot open them.
+  const isPdfRef = (ref) => /pdf/i.test(ref.mimeType || '');
+  const pdfRefs = allMediaRefs.filter(isPdfRef);
+  const mediaRefs = allMediaRefs.filter((ref) => !isPdfRef(ref));
   const profileName = messages.find((m) => m.profileName)?.profileName;
 
-  if (!hasText && mediaRefs.length === 0) {
+  if (!hasText && mediaRefs.length === 0 && pdfRefs.length === 0) {
     // Voice notes, stickers, locations: nothing to read, text or visual.
     console.log(`[chakra] ${label} has no text and no media — skipped`);
     return;
@@ -537,9 +674,38 @@ async function processGroup(messages) {
   wamids.forEach((wamid) => inFlight.add(wamid));
 
   try {
+    // PDF FLYERS — agencies send the listing as a marketing PDF rather than
+    // typing it. Its text layer is folded into the message text, so the whole
+    // rest of this pipeline (extraction, correction loop, confirmation) works
+    // on it unchanged. A PDF with no text layer is a scan: nothing to read,
+    // and the honest answer is to ask for a photo, which the vision model CAN
+    // read.
+    if (pdfRefs.length) {
+      const pdfText = await extractPdfsText(pdfRefs, label);
+      if (pdfText) {
+        text = [text, pdfText].filter(Boolean).join('\n');
+        hasText = true;
+        console.log(`[pdf] ${label}: ${pdfText.length} chars read from ${pdfRefs.length} document(s)`);
+      } else if (!hasText && mediaRefs.length === 0) {
+        await chakra.sendWhatsAppMessage(from, PDF_UNREADABLE_REPLY, {
+          replyToMessageId: primaryWamid || undefined,
+        });
+        console.log(`[pdf] ${label}: no text layer — asked for a photo instead`);
+        return;
+      }
+    }
+
     // A listing already awaits this sender's 'OK' — settle that conversation
     // before touching gpt-4o or inserting anything new.
     const pending = findLatestPendingListing(from);
+
+    // The listing this message is most likely ABOUT once the draft is gone.
+    // Before this, replying OK closed the door: "le prix a changé à 1100$"
+    // became a brand-new listing or noise, with no way back into the listing
+    // just published. Only consulted when nothing is pending, so a draft in
+    // play always wins.
+    const recentlyPublished = pending ? undefined : findRecentPublishedListing(from);
+    const contextListing = pending || recentlyPublished;
 
     if (pending && isAffirmative(text)) {
       // MANDATORY PHOTO GATE.
@@ -583,6 +749,68 @@ async function processGroup(messages) {
       return;
     }
 
+    // SALE PRICE FOLLOW-UP — the answer to "at what price did it close?".
+    // Checked before the quick replies and before gpt-4o: it is a bare number
+    // or a "passer", and asking a language model to recognise either is waste.
+    if (hasText) {
+      const awaitingPrice = findListingAwaitingSalePrice(from);
+      if (awaitingPrice) {
+        const amount = parseSalePrice(text);
+        if (amount !== null) {
+          setAwaitingSalePrice(awaitingPrice.id, false);
+          try {
+            await require('../services/postgres')
+              .markPropertySold(awaitingPrice.remote_property_id, amount);
+            console.log(`[status] listing #${awaitingPrice.id} closed at ${amount}`);
+          } catch (err) {
+            console.error(`[status] could not close listing #${awaitingPrice.id}: ${err.message}`);
+          }
+          await chakra.sendWhatsAppMessage(from, STATUS_CLOSED_REPLY, {
+            replyToMessageId: primaryWamid || undefined,
+          });
+          return;
+        }
+        if (isDeclined(text)) {
+          // Stays 'under_offer': off the market, transaction not recorded.
+          // Honest, and it keeps the market export free of a fabricated price.
+          setAwaitingSalePrice(awaitingPrice.id, false);
+          await chakra.sendWhatsAppMessage(from, STATUS_SKIPPED_REPLY, {
+            replyToMessageId: primaryWamid || undefined,
+          });
+          return;
+        }
+        // Anything else is not an answer to our question — fall through and
+        // treat it as an ordinary message rather than swallowing it.
+      }
+    }
+
+    // QUICK REPLIES — greeting / help / thanks, answered from a template.
+    //
+    // Before the media download and before parseMessage, because the point is
+    // to spend nothing: a bare "bonjour" was costing a full ~4,850-token
+    // extraction call to produce a reply that never varies.
+    // services/quickReplies.js is deliberately narrow — anything carrying real
+    // content falls through to the model.
+    //
+    // Four guards, each protecting an existing behaviour:
+    //   - `!pending`: a draft awaiting confirmation makes every message a
+    //     correction, never small talk.
+    //   - no media: a photo captioned "bonjour" is a listing.
+    //   - not mid-onboarding: AWAITING_NAME owns the next reply.
+    //   - no active buyer conversation: that thread has its own engine, and
+    //     one under human handoff must stay completely silent.
+    if (!pending && hasText && mediaRefs.length === 0 && pdfRefs.length === 0) {
+      const quick = matchQuickReply(text);
+      const midOnboarding = onboarding.getSession(from)?.state === 'AWAITING_NAME';
+      if (quick && !midOnboarding && !getActiveConversation(from)) {
+        await chakra.sendWhatsAppMessage(from, quick.reply, {
+          replyToMessageId: primaryWamid || undefined,
+        });
+        console.log(`[quick] ${label} — ${quick.kind} answered without a model call`);
+        return;
+      }
+    }
+
     const images = mediaRefs.length ? await downloadImages(mediaRefs, label) : [];
 
     // Every download failed and there was no caption — nothing left to read.
@@ -613,7 +841,7 @@ async function processGroup(messages) {
     const { extracted_data: extracted, whatsapp_reply: reply, _meta } = await parseMessage(text, {
       senderPhone: from,
       images,
-      ...(pending ? draftContextFromListing(pending) : {}),
+      ...(contextListing ? draftContextFromListing(contextListing) : {}),
     });
 
     console.log(
@@ -658,6 +886,66 @@ async function processGroup(messages) {
         return;
       }
       console.log(`[onboarding] ${from} reply not usable as a name (${result.reason}) — falling through`);
+    }
+
+    // AVAILABILITY CHANGE — "c'est loué", "vendu", "c'est encore libre".
+    //
+    // Routed here rather than parsed as a new property: before this, "c'est
+    // loué" was just a non-listing message and the listing stayed on the
+    // storefront forever, which is how a portal fills with properties nobody
+    // can rent.
+    //
+    // A concluded sale/let is written as 'under_offer', NOT 'closed'. web's
+    // markListingSoldAction makes 'closed' reachable only WITH a real
+    // sold_price, because the market export (asking vs achieved) is built on
+    // that figure. So the listing is retired immediately — which needs no
+    // figure — and the price is asked for; answering upgrades it to a properly
+    // recorded 'closed' (see the sale-price branch above).
+    if (contextListing && extracted.listing_status_update) {
+      const pg = require('../services/postgres');
+      const update = extracted.listing_status_update;
+      let statusReply;
+
+      try {
+        if (update === 'disponible') {
+          await pg.markPropertyAvailable(contextListing.remote_property_id);
+          setAwaitingSalePrice(contextListing.id, false);
+          statusReply = STATUS_AVAILABLE_REPLY;
+        } else {
+          await pg.markPropertyUnderOffer(contextListing.remote_property_id);
+          setAwaitingSalePrice(contextListing.id, true);
+          statusReply = STATUS_ASK_PRICE_REPLY;
+        }
+        console.log(`[status] listing #${contextListing.id} -> ${update} (from ${from})`);
+      } catch (err) {
+        // Postgres down: say so rather than claiming it worked. The listing is
+        // still live, and the agent needs to know that.
+        console.error(`[status] listing #${contextListing.id} update failed: ${err.message}`);
+        statusReply = STATUS_FAILED_REPLY;
+      }
+
+      await chakra.sendWhatsAppMessage(from, statusReply, {
+        replyToMessageId: primaryWamid || undefined,
+      });
+      return;
+    }
+
+    // CORRECTION TO AN ALREADY-PUBLISHED LISTING.
+    //
+    // The pending-draft correction below only ever matched a listing awaiting
+    // confirmation. This is the same edit loop for one already live: merge the
+    // change locally, then push it to Postgres so the storefront actually
+    // shows it — a correction that stopped at SQLite would leave the agent
+    // believing they had fixed a price the public still sees wrong.
+    if (!extracted.is_listing && !pending && recentlyPublished && extracted.is_correction) {
+      applyListingCorrection(recentlyPublished.id, extracted, text, wamids, photoPaths);
+      resyncListing(recentlyPublished.id);
+      console.log(`[db] published listing #${recentlyPublished.id} corrected by ${from}`);
+      await chakra.sendWhatsAppMessage(from, reply, {
+        replyToMessageId: primaryWamid || undefined,
+      });
+      console.log(`[chakra] reply sent to ${from}`);
+      return;
     }
 
     // CONVERSATIONAL CONFIRMATION — the fallback behind the regex above.
@@ -871,6 +1159,14 @@ module.exports.processGroup = processGroup;
 module.exports.enqueueMessage = enqueueMessage;
 module.exports.flushAll = flushAll;
 module.exports.isAffirmative = isAffirmative;
+module.exports.adaptiveIdleMs = adaptiveIdleMs;
+module.exports.parseSalePrice = parseSalePrice;
+module.exports.isDeclined = isDeclined;
+module.exports.looksLikePdf = looksLikePdf;
+module.exports.STATUS_ASK_PRICE_REPLY = STATUS_ASK_PRICE_REPLY;
+module.exports.STATUS_CLOSED_REPLY = STATUS_CLOSED_REPLY;
+module.exports.STATUS_AVAILABLE_REPLY = STATUS_AVAILABLE_REPLY;
+module.exports.PDF_UNREADABLE_REPLY = PDF_UNREADABLE_REPLY;
 module.exports.PUBLISHED_REPLY = PUBLISHED_REPLY;
 module.exports.PHOTO_REQUIRED_REPLY = PHOTO_REQUIRED_REPLY;
 module.exports.publishedReply = publishedReply;

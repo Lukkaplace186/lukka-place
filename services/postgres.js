@@ -468,6 +468,68 @@ function normaliseRowLocation(row) {
  * @returns {Promise<number|null>} The Postgres `properties.id`, or null if skipped.
  */
 /**
+ * Take a live listing off the market from WhatsApp — "c'est loué", "vendu".
+ *
+ * Sets `listing_status = 'under_offer'` and NOT 'closed', deliberately.
+ * web/app/compte/agent/actions.js makes 'closed' reachable only through
+ * markListingSoldAction, because it must carry a real `sold_price`: the
+ * institutional market export (asking vs achieved) is built on that figure,
+ * and a closed row with a NULL sold_price silently corrupts it.
+ *
+ * 'under_offer' needs no figure, retires the listing from active browsing
+ * immediately, and is honest about what we actually know. The agent is then
+ * asked for the price, and answering upgrades it to 'closed' — see
+ * markPropertySold below.
+ *
+ * @returns {Promise<boolean>} whether a row was actually updated.
+ */
+async function markPropertyUnderOffer(remotePropertyId) {
+  if (!isConfigured() || !remotePropertyId) return false;
+  const { rowCount } = await getPool().query(
+    `UPDATE properties SET listing_status = 'under_offer', updated_at = NOW()
+      WHERE id = $1 AND listing_status <> 'closed'`,
+    [remotePropertyId],
+  );
+  return rowCount > 0;
+}
+
+/**
+ * The price-carrying close, mirroring web's markListingSoldAction exactly:
+ * both halves of the transaction record are written together, never one
+ * without the other.
+ *
+ * `status = 0` retires it from public search the same way the web path does.
+ */
+async function markPropertySold(remotePropertyId, soldPrice, soldAt = new Date()) {
+  if (!isConfigured() || !remotePropertyId) return false;
+  if (!Number.isFinite(soldPrice) || soldPrice <= 0) {
+    throw new Error('markPropertySold requires a real positive sold_price');
+  }
+  const { rowCount } = await getPool().query(
+    `UPDATE properties
+        SET listing_status = 'closed', sold_price = $1, sold_at = $2,
+            status = 0, updated_at = NOW()
+      WHERE id = $3`,
+    [soldPrice, soldAt, remotePropertyId],
+  );
+  return rowCount > 0;
+}
+
+/** Put a listing back on the market — "finalement c'est encore libre". */
+async function markPropertyAvailable(remotePropertyId) {
+  if (!isConfigured() || !remotePropertyId) return false;
+  const { rowCount } = await getPool().query(
+    `UPDATE properties
+        SET listing_status = 'active', sold_price = NULL, sold_at = NULL,
+            status = 1, updated_at = NOW()
+      WHERE id = $1`,
+    [remotePropertyId],
+  );
+  return rowCount > 0;
+}
+
+
+/**
  * Does the live `properties` table carry the multi-unit building columns yet?
  *
  * Cached after the first answer: the schema does not change under a running
@@ -672,6 +734,9 @@ async function syncListingToPostgres(row) {
 }
 
 module.exports = {
+  markPropertyUnderOffer,
+  markPropertySold,
+  markPropertyAvailable,
   syncListingToPostgres,
   isConfigured,
   // Shared by services/agentRanking.js, which reads `agents` for the

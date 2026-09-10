@@ -383,11 +383,46 @@ async function downloadMedia(mediaId) {
   }
 
   if (contentType && !String(contentType).split(';')[0].trim().toLowerCase().startsWith('image/')) {
-    // Voice notes and PDFs land here; the vision model cannot read them.
+    // Voice notes land here; the vision model cannot read them. PDFs have
+    // their own route now — see downloadMediaRaw / services/documentText.js.
     throw new Error(`Media ${mediaId} is '${contentType}', not an image`);
   }
 
   return toImagePayload(bytes, contentType, mediaId);
+}
+
+/**
+ * Download a media object WITHOUT the image-only gate above.
+ *
+ * downloadMedia refuses anything that is not an image, which is correct for
+ * the vision path but makes a PDF flyer unreachable. This returns the raw
+ * bytes and lets the caller decide — services/documentText.js reads PDFs.
+ *
+ * @returns {Promise<{buffer: Buffer, contentType: string|null}>}
+ */
+async function downloadMediaRaw(mediaId) {
+  if (!mediaId) {
+    throw new Error('downloadMediaRaw requires a mediaId');
+  }
+
+  const token = requireEnv('CHAKRA_ACCESS_TOKEN');
+
+  try {
+    const response = await axios.get(mediaUrl(mediaId), {
+      headers: { Authorization: `Bearer ${token}` },
+      responseType: 'arraybuffer',
+      timeout: 30000,
+      beforeRedirect: (options) => {
+        delete options.headers.Authorization;
+      },
+    });
+    return {
+      buffer: Buffer.from(response.data),
+      contentType: response.headers?.['content-type'] || null,
+    };
+  } catch (err) {
+    return rethrowChakraError(err, `downloadMediaRaw ${mediaId}`);
+  }
 }
 
 module.exports = {
@@ -395,6 +430,7 @@ module.exports = {
   sendTemplate,
   markAsRead,
   downloadMedia,
+  downloadMediaRaw,
   downloadMediaByUrl,
   messagesUrl,
   mediaUrl,

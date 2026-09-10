@@ -134,6 +134,13 @@ const EXTENDED_COLUMNS = [
   // value is a real crypto.randomUUID(), so it stays valid when it reaches
   // Postgres (properties.parent_building_id, uuid) unchanged.
   ['parent_building_id', 'TEXT'],
+  // Set when an agent has told us a listing is loué/vendu and we have asked
+  // what price it went for. A numeric reply while this is set upgrades the
+  // property from 'under_offer' to 'closed' WITH a real sold_price — see
+  // services/postgres.js markPropertySold and the invariant it protects.
+  // ISO timestamp so a stale ask (nobody answered, days passed) can expire
+  // instead of catching an unrelated number weeks later.
+  ['awaiting_sale_price_at', 'TEXT'],
 ];
 
 const ALL_COLUMNS = [...BASE_COLUMNS, ...EXTENDED_COLUMNS];
@@ -402,6 +409,7 @@ function saveListing(listingData, senderInfo = {}) {
       // Set only for a unit belonging to a multi-unit building — see
       // expandAndPublishListing. NULL for every ordinary listing.
       parent_building_id: toNullable(parentBuildingId),
+      awaiting_sale_price_at: null,
     });
   } catch (err) {
     // Match only the wamid collision. A blanket INSERT OR IGNORE would also
@@ -679,6 +687,98 @@ function applyListingCorrection(id, extractedData, rawText, extraWamids = [], ne
 }
 
 /**
+ * How long after publication an agent can still correct a listing by replying
+ * in the same WhatsApp thread. Seven days: long enough to cover "the price
+ * changed" and "I gave you the wrong commune", short enough that a message
+ * about a property from months ago is not silently applied to it.
+ */
+const CORRECTION_WINDOW_MS = Number.parseInt(process.env.CORRECTION_WINDOW_MS, 10)
+  || 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * The most recently PUBLISHED listing this sender can still talk about.
+ *
+ * findLatestPendingListing only ever matched `pending_confirmation`, so the
+ * moment an agent replied OK there was no way back: "le prix a changé à 1100$"
+ * became either a brand-new listing or noise. This is the other half — the
+ * listing a follow-up message is most likely about once the draft is gone.
+ *
+ * Deliberately NOT merged into findLatestPendingListing: a pending listing and
+ * a published one need different handling (one gets published, the other gets
+ * re-synced), and collapsing them would make it easy to publish something
+ * twice by accident.
+ *
+ * @param {string} waId
+ * @param {number} [windowMs] Override the age limit (tests, and tuning).
+ */
+function findRecentPublishedListing(waId, windowMs = CORRECTION_WINDOW_MS) {
+  if (!waId) return undefined;
+  const cutoff = new Date(Date.now() - windowMs).toISOString().replace('T', ' ').slice(0, 19);
+  return parseRow(
+    db
+      .prepare(
+        `SELECT * FROM listings
+         WHERE wa_id = ? AND status = 'published' AND created_at >= ?
+         ORDER BY id DESC
+         LIMIT 1`,
+      )
+      .get(String(waId), cutoff),
+  );
+}
+
+/**
+ * Push an already-published listing's current values back to Postgres.
+ *
+ * publishListing owns the pending -> published transition and syncs as part of
+ * it; this is the same sync for a row that is already live, so a correction
+ * made after publication actually reaches the storefront instead of stopping
+ * at SQLite. Fire-and-forget for the same reason publishListing is: the
+ * agent's confirmation must not wait on a network round trip, and a Postgres
+ * outage must not make the local correction fail.
+ */
+function resyncListing(id) {
+  const row = getListing(id);
+  if (!row) return false;
+  if (!row.remote_property_id) {
+    // Never synced in the first place (published while Postgres was down, or
+    // sync failed). Nothing to update — a full sync would insert a duplicate.
+    console.warn(`[db] listing #${id} has no remote_property_id — correction stays local`);
+    return false;
+  }
+  Promise.resolve()
+    .then(() => require('./postgres').syncListingToPostgres(row))
+    .catch((err) => console.error(`[postgres] re-sync of listing #${id} failed: ${err.message}`));
+  return true;
+}
+
+/** How long a "what price did it go for?" ask stays open. Beyond this an
+ *  unrelated number must not be read as a sale price. */
+const SALE_PRICE_ASK_TTL_MS = 24 * 60 * 60 * 1000;
+
+/** The listing, if any, whose sale price this sender still owes us. */
+function findListingAwaitingSalePrice(waId) {
+  if (!waId) return undefined;
+  const cutoff = new Date(Date.now() - SALE_PRICE_ASK_TTL_MS).toISOString();
+  return parseRow(
+    db
+      .prepare(
+        `SELECT * FROM listings
+         WHERE wa_id = ? AND awaiting_sale_price_at IS NOT NULL
+           AND awaiting_sale_price_at >= ?
+         ORDER BY id DESC
+         LIMIT 1`,
+      )
+      .get(String(waId), cutoff),
+  );
+}
+
+/** Open or close the sale-price question for one listing. */
+function setAwaitingSalePrice(id, waiting) {
+  db.prepare('UPDATE listings SET awaiting_sale_price_at = ? WHERE id = ?')
+    .run(waiting ? new Date().toISOString() : null, id);
+}
+
+/**
  * Fields a child unit inherits from the building. Location, transaction and
  * identity are properties of the ADDRESS, not of an individual apartment —
  * repeating them per unit in the extraction would just invite them to drift.
@@ -691,6 +791,9 @@ const BUILDING_SHARED_FIELDS = [
 /** Per-unit fields, read off one entry of `units`. */
 const UNIT_FIELDS = [
   'bedrooms', 'bathrooms', 'price', 'price_period', 'surface_area_sqm', 'furnished',
+  // Only ever present for is_multi_property (distinct properties). For a
+  // building these stay null in the extraction and the shared value wins.
+  'transaction_type', 'property_type', 'commune', 'quartier',
 ];
 
 /**
@@ -720,15 +823,23 @@ function expandAndPublishListing(id) {
   const parsed = draft.parsed_json || {};
   const units = Array.isArray(parsed.units) ? parsed.units.filter(Boolean) : [];
 
-  // Not a building, or a "multi-unit" message that only ever described one
-  // layout — nothing to expand, and no parent id worth inventing for a group
-  // of one.
-  if (!parsed.is_multi_unit || units.length < 2) {
+  // Two different shapes share this expansion:
+  //   is_multi_unit     — several layouts in ONE building, grouped by a shared
+  //                       parent_building_id so the map draws one pin.
+  //   is_multi_property — several UNRELATED properties pasted together. Same
+  //                       one-row-per-entry split, but deliberately NO shared
+  //                       id: they are at different addresses, and grouping
+  //                       them would put a villa in Gombe and a flat in Limete
+  //                       under one building pin.
+  const isSplittable = parsed.is_multi_unit || parsed.is_multi_property;
+
+  // Nothing to expand, and no parent id worth inventing for a group of one.
+  if (!isSplittable || units.length < 2) {
     publishListing(id);
     return { ids: [id], parentBuildingId: null, unitCount: 1 };
   }
 
-  const parentBuildingId = crypto.randomUUID();
+  const parentBuildingId = parsed.is_multi_unit ? crypto.randomUUID() : null;
   const ids = [];
 
   // Everything below is one transaction: a building that half-published would
@@ -736,7 +847,9 @@ function expandAndPublishListing(id) {
   db.transaction(() => {
     // The draft becomes unit #1.
     applyListingCorrection(id, unitPatch(units[0], parsed), null, [], []);
-    db.prepare('UPDATE listings SET parent_building_id = ? WHERE id = ?').run(parentBuildingId, id);
+    if (parentBuildingId) {
+      db.prepare('UPDATE listings SET parent_building_id = ? WHERE id = ?').run(parentBuildingId, id);
+    }
     ids.push(id);
 
     for (const unit of units.slice(1)) {
@@ -749,7 +862,8 @@ function expandAndPublishListing(id) {
         units_count: null,
         missing_fields: [],
         confidence: parsed.confidence ?? null,
-        is_multi_unit: true,
+        is_multi_unit: Boolean(parsed.is_multi_unit),
+        is_multi_property: Boolean(parsed.is_multi_property),
         building_name: parsed.building_name ?? null,
         floor: unit.floor ?? null,
         quantity: unit.quantity ?? null,
@@ -778,7 +892,10 @@ function expandAndPublishListing(id) {
   // inside a write lock.
   for (const rowId of ids) publishListing(rowId);
 
-  console.log(`[db] listing #${id} expanded into ${ids.length} units (building ${parentBuildingId})`);
+  console.log(
+    `[db] listing #${id} expanded into ${ids.length} `
+      + (parentBuildingId ? `units (building ${parentBuildingId})` : 'separate listings'),
+  );
   return { ids, parentBuildingId, unitCount: ids.length };
 }
 
@@ -2201,6 +2318,11 @@ module.exports = {
   findLatestPendingListing,
   publishListing,
   expandAndPublishListing,
+  findRecentPublishedListing,
+  resyncListing,
+  findListingAwaitingSalePrice,
+  setAwaitingSalePrice,
+  CORRECTION_WINDOW_MS,
   applyListingCorrection,
   getListings,
   getRecentListings,

@@ -137,6 +137,13 @@ Ces règles ne s'appliquent QUE si un bloc "BROUILLON EN COURS" accompagne le me
 - Recalcule tout ce qui dépend d'une valeur modifiée : si le loyer change, les montants en dollars des conditions d'entrée changent aussi.
 - Dans whatsapp_reply, réaffiche la fiche récapitulative COMPLÈTE (même gabarit que ci-dessous) avec les valeurs fusionnées, puis invite l'agent à répondre "OK" pour publier ou à envoyer une autre correction. Autant d'allers-retours que nécessaire.
 - Ne demande JAMAIS à l'agent de renvoyer son annonce quand un brouillon existe : tu l'as déjà.
+- Le bloc de contexte peut décrire une annonce DÉJÀ PUBLIÉE (champ statut = "publiée") et non un brouillon. Les mêmes règles s'appliquent : le message est presque toujours une modification de cette annonce. Mets alors is_correction à true. Ne parle pas de « publier » ni de répondre "OK" — elle est déjà en ligne : confirme simplement la mise à jour et réaffiche la fiche.
+- is_correction = true dès que le message modifie l'annonce en contexte (brouillon ou publiée). false s'il décrit un bien différent, pose une question, ou s'il n'y a aucun contexte.
+
+DISPONIBILITÉ — "c'est loué" / "c'est vendu"
+- Si le message annonce que le bien en contexte n'est plus disponible ("c'est loué", "eza loué déjà", "vendu", "le bien est parti", "plus disponible"), renseigne listing_status_update : 'loue' pour une location conclue, 'vendu' pour une vente conclue, 'disponible' si l'agent revient en arrière.
+- Dans ce cas is_listing = false et is_correction = false : ce n'est pas une modification de la fiche, c'est un changement de disponibilité.
+- N'invente jamais ce champ à partir d'un simple mot comme "location" ou "à vendre" dans une annonce ordinaire : il ne s'agit que d'une transaction CONCLUE sur un bien déjà en ligne.
 - PHOTO OBLIGATOIRE : si le brouillon indique photos_count = 0 et que l'agent essaie de confirmer ("OK", "publiez", "c'est bon"), positionne is_confirmed à false et indique dans whatsapp_reply qu'il manque une photo — l'annonce ne peut pas être publiée sans au moins une photo du bien. Reste chaleureux : le bien est bien enregistré, il ne manque que la photo.
 
 CONFIRMATION (champ is_confirmed)
@@ -156,10 +163,17 @@ IMMEUBLE À PLUSIEURS LOGEMENTS (multi-unités)
 - building_name : le nom de l'immeuble ou de la résidence s'il est donné. La commune, le quartier, la référence et le type de transaction restent au niveau du message : ils sont communs à tout l'immeuble, ne les répète pas dans chaque unité.
 - "3 unités disponibles" pour une même typologie => quantity = 3 sur CETTE entrée, et non trois entrées identiques.
 - Les champs de premier niveau (price, bedrooms, bathrooms...) décrivent alors le logement le MOINS cher, pour que l'annonce reste lisible si les unités ne sont pas exploitées. Le détail fait foi.
-- Une annonce à logement unique garde is_multi_unit = false et units = []. "4 Portes" / "Type Locataire" n'est PAS un immeuble multi-unités : c'est une parcelle locative, units_count (voir plus haut).
+- Une annonce à logement unique garde is_multi_unit = false, is_multi_property = false et units = [].
+
+PLUSIEURS BIENS DISTINCTS DANS UN SEUL MESSAGE
+- Un agent envoie parfois plusieurs biens SANS LIEN entre eux d'un coup : "Villa à louer Gombe 1500$ / Appartement Limete 600$". Ce n'est PAS un immeuble : les biens sont à des adresses différentes.
+- Dans ce cas : is_multi_property = true, is_multi_unit = false, et units contient une entrée par bien, chacune avec SA propre commune, son quartier, son type de bien et son type de transaction en plus du prix et des chambres.
+- Comment trancher : mêmes commune/quartier/immeuble et seules les typologies changent => is_multi_unit. Communes ou types de biens différents => is_multi_property. Les deux ne sont jamais vrais en même temps.
+- Récapitulatif : liste numérotée, une ligne par bien avec sa commune et son prix, puis : Répondez "OK" pour publier ces {N} annonces. "4 Portes" / "Type Locataire" n'est PAS un immeuble multi-unités : c'est une parcelle locative, units_count (voir plus haut).
 
 RÈGLES POUR whatsapp_reply
 - Écris en français simple et respectueux, ton professionnel et chaleureux, tutoiement exclu (vouvoiement).
+- LANGUE : réponds dans la langue principale du message de l'agent. Un message majoritairement en lingala reçoit une réponse en lingala (les libellés de la fiche — Commune, Loyer, Chambres — restent en français, ce sont les termes du métier à Kinshasa) ; un message en anglais reçoit une réponse en anglais. Dans le doute, ou pour un message mélangé, réponds en français.
 - Si is_listing est true, suis EXACTEMENT ce gabarit (une ligne par champ non-null ; omets toute ligne dont la valeur serait null) :
 
 Bonjour! Merci pour votre message. Voici les informations extraites de la magnifique résidence que vous avez à louer / vendre :
@@ -219,7 +233,8 @@ const RESPONSE_FORMAT = {
             'bedrooms', 'bathrooms', 'surface_area_sqm', 'units_count', 'furnished',
             'amenities', 'reference', 'agent_name', 'agency_name', 'summary_fr',
             'missing_fields', 'confidence',
-            'is_multi_unit', 'building_name', 'units',
+            'is_multi_unit', 'is_multi_property', 'building_name', 'units',
+            'is_correction', 'listing_status_update',
           ],
           properties: {
             is_listing: {
@@ -301,6 +316,22 @@ const RESPONSE_FORMAT = {
               items: { type: 'string', enum: MISSING_FIELD_KEYS },
             },
             confidence: { type: 'number', description: 'Confiance globale entre 0 et 1.' },
+            is_correction: {
+              type: 'boolean',
+              description:
+                "true si le message modifie une annonce déjà existante fournie en contexte (brouillon ou annonce déjà publiée) plutôt que d'en décrire une nouvelle. false sans contexte.",
+            },
+            listing_status_update: {
+              type: ['string', 'null'],
+              enum: ['loue', 'vendu', 'disponible', null],
+              description:
+                "Renseigné UNIQUEMENT si le message annonce un changement de disponibilité du bien en contexte : \"c'est loué\" => 'loue', \"c'est vendu\" => 'vendu', \"finalement c'est encore libre\" => 'disponible'. null sinon.",
+            },
+            is_multi_property: {
+              type: 'boolean',
+              description:
+                "true si le message décrit plusieurs biens DISTINCTS et sans lien (communes ou types différents), et non plusieurs logements d'un même immeuble. Mutuellement exclusif avec is_multi_unit.",
+            },
             is_multi_unit: {
               type: 'boolean',
               description:
@@ -321,6 +352,7 @@ const RESPONSE_FORMAT = {
                 required: [
                   'bedrooms', 'bathrooms', 'price', 'price_period', 'surface_area_sqm',
                   'floor', 'furnished', 'amenities', 'quantity', 'summary_fr',
+                  'transaction_type', 'property_type', 'commune', 'quartier',
                 ],
                 properties: {
                   bedrooms: { type: ['integer', 'null'] },
@@ -340,6 +372,13 @@ const RESPONSE_FORMAT = {
                       'Nombre de logements IDENTIQUES de cette typologie ("3 unités disponibles" => 3). null si non précisé.',
                   },
                   summary_fr: { type: 'string', description: 'Résumé court de cette typologie.' },
+                  // Renseignés UNIQUEMENT pour is_multi_property (biens
+                  // distincts). Pour un immeuble, ces informations sont
+                  // communes et restent au niveau du message.
+                  transaction_type: { type: ['string', 'null'], enum: ['location', 'vente', null] },
+                  property_type: { type: ['string', 'null'], enum: [...PROPERTY_TYPES, null] },
+                  commune: { type: ['string', 'null'] },
+                  quartier: { type: ['string', 'null'] },
                 },
               },
             },
@@ -365,7 +404,10 @@ const SUPPORTED_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'ima
  * Cap on images per request. Each one costs tokens, and an agent dumping a
  * 30-photo album would otherwise turn one listing into a very expensive call.
  */
-const MAX_IMAGES = Number.parseInt(process.env.OPENAI_MAX_IMAGES, 10) || 8;
+// Matches web/app/compte/agent/actions.js's MAX_LISTING_PHOTOS (10). The two
+// channels must agree: at 8 here, an agent who could upload 10 photos on the
+// web silently lost 2 of them by sending the same listing over WhatsApp.
+const MAX_IMAGES = Number.parseInt(process.env.OPENAI_MAX_IMAGES, 10) || 10;
 
 /**
  * 'high' re-reads the image in 512px tiles — better at small print on a flyer,
@@ -483,6 +525,11 @@ function draftContextFromListing(row) {
   // whether one exists. Always present (including 0) — an absent key would read
   // as "unknown" rather than "none", which is the case that must be refused.
   draft.photos_count = Array.isArray(row.photos) ? row.photos.length : 0;
+
+  // A published listing is corrected, never "published" again — the model has
+  // to know which it is or it will keep asking an agent to reply OK to a
+  // listing that has been live for a week.
+  draft.statut = row.status === 'published' ? 'publiée' : 'brouillon';
 
   const history = String(row.raw_text || '')
     .split('\n')

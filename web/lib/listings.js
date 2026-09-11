@@ -136,24 +136,24 @@ const AGENT_INFOS_JOIN = `
     LIMIT 1
   ) ai ON true`;
 
-// MULTI-UNIT BUILDINGS — one line still to add here.
+// MULTI-UNIT BUILDINGS — parent_building_id and building_name are live.
 //
-// The engine already stamps every unit of a building with a shared
+// The engine stamps every unit of one building with a shared
 // parent_building_id (services/db.js expandAndPublishListing), and the map
-// already groups on it (lib/buildingGroups.js, components/PropertyMap.js).
-// The column is NOT selected below because it does not exist on the live
-// `properties` table yet — naming it here would turn every storefront query
-// into a "column does not exist" error.
+// groups on it (lib/buildingGroups.js, components/PropertyMap.js) so four
+// flats at one address draw one building pin instead of four markers stacked
+// on the same coordinate. Both columns were added by
+// scripts/migrate-building-columns.js, run against production 2026-09-11.
 //
-// Once scripts/migrate-building-columns.js has been run against production,
-// add `p.parent_building_id, p.building_name,` to the list below and the
-// building pins light up on their own. Until then every listing groups as
-// itself, which is byte-identical to the previous behaviour.
+// A listing with a NULL parent_building_id — every listing published before
+// multi-unit intake existed, and every ordinary single-unit listing — groups
+// as itself, exactly as before.
 const SELECT_FIELDS = `
   p.id, p.price, p.purpose, p.beds, p.bath, p.area, p.quartier,
   p.currency, p.price_original,
   p.parcelle_subtype, p.units_count, p.reference, p.featured_image,
   p.created_at, p.price_period, p.deposit_months, p.advance_months, p.commission_months, p.listing_status,
+  p.parent_building_id, p.building_name,
   p.latitude, p.longitude,
   pc.title, pc.slug, pc.address,
   catc.name AS category_name,
@@ -719,6 +719,7 @@ const MODERATION_SELECT_FIELDS = `
   p.currency, p.price_original,
   p.parcelle_subtype, p.units_count, p.reference, p.featured_image,
   p.created_at, p.price_period, p.deposit_months, p.advance_months, p.commission_months, p.listing_status,
+  p.parent_building_id, p.building_name,
   p.latitude, p.longitude,
   COALESCE(pc.title, '[Contenu manquant]') AS title,
   pc.slug, pc.address, pc.description,

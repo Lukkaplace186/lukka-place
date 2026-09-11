@@ -131,8 +131,11 @@ export default function PropertyCard({
     <div className={cn('@container', horizontal && 'w-full')}>
     <Link
       href={`/listings/${id}`}
-      onMouseEnter={onHoverStart}
-      onMouseLeave={onHoverEnd}
+      // Mouse only, for the same iOS reason as CardImageCarousel's
+      // handlePointerEnter: a tap's compatibility mouseenter would re-render
+      // this card (the hover ring) mid-tap, and Safari drops the click.
+      onPointerEnter={(e) => { if (e.pointerType === 'mouse') onHoverStart?.(); }}
+      onPointerLeave={(e) => { if (e.pointerType === 'mouse') onHoverEnd?.(); }}
       className={cn(
         'group flex h-full overflow-hidden rounded-t-lg rounded-b-card border border-line bg-surface shadow-[0_8px_20px_-8px_rgba(16,26,46,0.18),0_2px_6px_-2px_rgba(16,26,46,0.08)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_18px_34px_-12px_rgba(16,26,46,0.28),0_6px_16px_-6px_rgba(16,26,46,0.14)]',
         // Horizontal only once there's room for a 300px image beside the

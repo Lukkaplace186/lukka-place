@@ -149,14 +149,23 @@ export default function CardImageCarousel({
   // hover-then-click has nothing left to wait on. Touch devices have no
   // hover state, so this never fires the eager-load spec explicitly wants
   // reserved for swipe/expansion there.
-  function handlePointerEnter() {
+  //
+  // Gated on `pointerType === 'mouse'`, and it must stay a pointer event, not
+  // onMouseEnter. A tap on iOS Safari fires compatibility mouseover/
+  // mouseenter events BEFORE the click, and WebKit cancels that click if the
+  // DOM changes during them (its "hover menu" heuristic: the tap is spent
+  // revealing the menu). The handler used to be onMouseEnter, so every tap
+  // on a multi-photo card mounted photo 2's <img>, and iPhone users had to
+  // tap a card twice to open the listing — the first tap did nothing.
+  function handlePointerEnter(e) {
+    if (e.pointerType !== 'mouse') return;
     if (total > 1) {
       setLoaded((prev) => (prev.has(1) ? prev : new Set(prev).add(1)));
     }
   }
 
   return (
-    <div className="group/carousel relative h-full w-full overflow-hidden bg-canvas-alt" onMouseEnter={handlePointerEnter}>
+    <div className="group/carousel relative h-full w-full overflow-hidden bg-canvas-alt" onPointerEnter={handlePointerEnter}>
       <motion.div
         ref={scrollerRef}
         onScroll={handleScroll}

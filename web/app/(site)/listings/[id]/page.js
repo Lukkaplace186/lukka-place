@@ -5,6 +5,7 @@ import { MapPin, ArrowRight } from 'lucide-react';
 import Breadcrumb from '@/components/Breadcrumb';
 import PhotoGallery from '@/components/PhotoGallery';
 import KeyFacts from '@/components/KeyFacts';
+import EntryCostsBreakdown from '@/components/EntryCostsBreakdown';
 import Price from '@/components/Price';
 import PricePanel from '@/components/PricePanel';
 import EnquiryCard from '@/components/EnquiryCard';

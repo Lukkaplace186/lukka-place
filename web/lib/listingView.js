@@ -1,3 +1,4 @@
+import { usablePrice } from '@/lib/format';
 import { PARCELLE_SUBTYPES, AMENITY_KEYWORDS } from './constants';
 import { abbreviationVariants } from './textVariants';
 
@@ -384,4 +385,70 @@ export function matchedAmenities(listing, max = 2) {
  */
 export function matchedAmenityKeys(listing, max = 2) {
   return matchedAmenities(listing, max).map(({ key }) => key);
+}
+
+/**
+ * The entry costs itemised: how many months each poste is, what that is in
+ * money, and — the point of this — WHO receives it.
+ *
+ * "3 + 1 + 1" tells an agent everything and a tenant almost nothing. A person
+ * about to hand over five months of rent needs to know that three of them are
+ * rent they will live through, one is a deposit that comes back, and one is
+ * the agency's fee that does not.
+ *
+ * Ordered to match the notation shown elsewhere on the page (garantie,
+ * avance, commission) so position and number agree wherever a reader looks.
+ *
+ * Amounts are computed here and never stored: a stored total drifts from its
+ * parts, which is exactly the bug the three-way split undid. They are omitted
+ * entirely unless the listing has a real MONTHLY rent — a sale has no entry
+ * costs, and multiplying a sale price by five months would be nonsense.
+ *
+ * @returns {null|{lines: Array, totalMonths: number, totalAmount: number|null,
+ *   currency: string|null, hasAmounts: boolean}}
+ */
+export function entryCostBreakdown(listing) {
+  const terms = entryTerms(listing);
+  if (!terms || !terms.itemized) return null;
+
+  const monthly = listing?.price_period === 'mois' ? usablePrice(listing?.price) : null;
+  const currency = listing?.currency || 'USD';
+
+  const spec = [
+    {
+      key: 'deposit',
+      months: monthsValue(listing?.deposit_months),
+      recipient: 'bailleur',
+      refundable: true,
+    },
+    {
+      key: 'advance',
+      months: monthsValue(listing?.advance_months),
+      recipient: 'bailleur',
+      refundable: false,
+    },
+    {
+      key: 'commission',
+      months: monthsValue(listing?.commission_months),
+      recipient: 'agent',
+      refundable: false,
+    },
+  ];
+
+  const lines = spec
+    .filter((line) => line.months !== null)
+    .map((line) => ({
+      ...line,
+      amount: monthly === null ? null : line.months * monthly,
+    }));
+
+  const totalMonths = lines.reduce((sum, line) => sum + line.months, 0);
+
+  return {
+    lines,
+    totalMonths,
+    totalAmount: monthly === null ? null : totalMonths * monthly,
+    currency,
+    hasAmounts: monthly !== null,
+  };
 }

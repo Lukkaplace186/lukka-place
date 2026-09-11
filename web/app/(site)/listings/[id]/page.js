@@ -271,6 +271,12 @@ export default async function ListingDetailPage({ params, searchParams }) {
 
             <KeyFacts listing={listing} />
 
+            {/* Directly under the facts grid: that grid states the deal in the
+                agent's own notation ("4 + 1 mois"), this says who receives each
+                part and what comes back. Renders nothing when a listing states
+                only a guarantee. */}
+            <EntryCostsBreakdown listing={listing} />
+
             {/* Mobile only: the sticky right rail is off-screen below lg. */}
             <div className="flex flex-col gap-4 lg:hidden">
               <EnquiryCard listing={listing} visitSent={visitSent} visitError={visitError} />

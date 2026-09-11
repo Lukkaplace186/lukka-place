@@ -50,27 +50,50 @@ const ROW = 'flex items-center justify-between gap-4';
 const STACKED_THEN_ROW = 'flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4';
 
 /**
+ * The icon and label travel as ONE flex item in a row layout, so
+ * `justify-between` sends the value to the far end instead of spreading all
+ * three evenly and stranding the icon away from the words it labels.
+ */
+const GROUP = 'flex items-center gap-2.5';
+
+/**
+ * ...but that grouping must be invisible at a width where the cell is NOT
+ * stretched, or the one cell whose layout flips at `sm` would sit its icon
+ * beside its label on a phone while every other cell stacks its icon above.
+ * Seen on the live six-cell grid, and it reads as a mistake because it is one.
+ *
+ * `display: contents` is the fix: the wrapper stops generating a box, the icon
+ * and label become direct children of the cell's own flex column, and the cell
+ * is pixel-identical to its neighbours. At `sm` the wrapper becomes a real
+ * flex item again and the grouping comes back.
+ */
+const GROUP_FROM_SM = 'contents sm:flex sm:items-center sm:gap-2.5';
+
+/**
  * @param {number} count How many cells the grid renders.
- * @returns {{className: string, grouped: boolean}} Layout for the LAST cell.
- *   `className` carries both the column span and the flex direction.
- *   `grouped` says whether the caller should wrap the icon and label together
- *   as one flex item, which is what puts the value at the far end of the row.
- *   It stays true for the stacked-then-row case: the direction changes at `sm`
- *   but the DOM cannot, so the grouping has to be there before the flip.
+ * @returns {{className: string, groupClassName: string}} Layout for the LAST
+ *   cell. `className` carries both the column span and the flex direction.
+ *   `groupClassName` is empty when the cell is ordinary; otherwise it is the
+ *   class for a wrapper the caller puts around the icon and label — real at
+ *   the widths where the cell is stretched, `display: contents` (invisible to
+ *   layout) at the widths where it is not. The DOM cannot change per
+ *   breakpoint, so the wrapper is always present and the CSS decides whether
+ *   it counts.
  */
 export function lastCellPresentation(count) {
-  if (!Number.isInteger(count) || count < 1) return { className: STACKED, grouped: false };
+  if (!Number.isInteger(count) || count < 1) return { className: STACKED, groupClassName: '' };
 
   const stretchedOnMobile = count % 2 === 1;
   const desktopSpan = DESKTOP_SPAN_FOR_REMAINDER[count % 4];
 
   // Divides exactly into both rows — an ordinary cell, nothing to correct.
-  if (!stretchedOnMobile && !desktopSpan) return { className: STACKED, grouped: false };
+  if (!stretchedOnMobile && !desktopSpan) return { className: STACKED, groupClassName: '' };
 
   const span = [stretchedOnMobile ? 'col-span-2' : '', desktopSpan].filter(Boolean).join(' ');
-  const layout = stretchedOnMobile ? ROW : STACKED_THEN_ROW;
 
-  return { className: `${span} ${layout}`, grouped: true };
+  return stretchedOnMobile
+    ? { className: `${span} ${ROW}`, groupClassName: GROUP }
+    : { className: `${span} ${STACKED_THEN_ROW}`, groupClassName: GROUP_FROM_SM };
 }
 
 /** The stacked layout every other cell uses. Exported so KeyFacts has one source for it. */

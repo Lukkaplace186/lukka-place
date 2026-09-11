@@ -12,6 +12,7 @@ import { useToast } from './Toast';
 import { useT } from '@/lib/i18n/client';
 import SmartPasteSection from './SmartPasteSection';
 import { buildFormValuesFromParsed } from '@/lib/smartPaste';
+import { validatePhotoSelection } from '@/lib/uploadLimits.mjs';
 
 const FIELD_CLASS =
   'u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35';
@@ -150,13 +151,37 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
     formData.delete('amenities');
     formData.set('amenities_touched', amenitiesTouched ? '1' : '0');
     if (amenitiesTouched) for (const id of amenityIds) formData.append('amenities', String(id));
+    // Same pre-flight as CreateListingDialog, with the already-stored photos
+    // counted toward the per-listing maximum but not toward the byte budget:
+    // those are URLs being kept, not files being uploaded.
+    const newFiles = photos.filter((p) => p.file).map((p) => p.file);
+    const problem = validatePhotoSelection(newFiles, {
+      keptCount: photos.length - newFiles.length,
+    });
+    if (problem) {
+      showToast({ type: 'error', message: t(problem.key, problem.vars) });
+      return;
+    }
+
     for (const photo of photos) {
       if (photo.file) formData.append('photos', photo.file);
       else formData.append('existing_photos', photo.url);
     }
 
     startTransition(async () => {
-      const result = await updateListingAction(listing.id, communes, formData);
+      let result;
+      try {
+        result = await updateListingAction(listing.id, communes, formData);
+      } catch (err) {
+        // See CreateListingDialog: a transport-level failure (413, dropped
+        // connection, a session that expired and made the action throw)
+        // rejects rather than returning {ok:false}, and used to leave the
+        // agent staring at a Save button that did nothing.
+        console.error('[AgentListingEditor] updateListingAction failed', err);
+        showToast({ type: 'error', message: t('errors.submissionFailed') });
+        return;
+      }
+
       if (!result.ok) {
         showToast({ type: 'error', message: result.error });
         return;

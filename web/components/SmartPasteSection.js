@@ -34,8 +34,21 @@ export default function SmartPasteSection({ onParsed }) {
     }
 
     setPending(true);
-    const result = await parseListingTextAction(trimmed);
-    setPending(false);
+    let result;
+    try {
+      result = await parseListingTextAction(trimmed);
+    } catch (err) {
+      // try/FINALLY, not just try/catch: `setPending(false)` sat after an
+      // unguarded await, so a rejected action (expired session, dropped
+      // connection) left this button spinning "Analyse…" permanently with
+      // no error anywhere — a genuinely frozen control, not just a silent
+      // one. See CreateListingDialog for why a rejection is possible at all.
+      console.error('[SmartPasteSection] parseListingTextAction failed', err);
+      showToast({ type: 'error', message: t('errors.submissionFailed') });
+      return;
+    } finally {
+      setPending(false);
+    }
 
     if (!result.ok) {
       showToast({ type: 'error', message: result.error });

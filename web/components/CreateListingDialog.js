@@ -11,6 +11,7 @@ import { OPEN_CREATE_LISTING_EVENT, OPEN_CREATE_LISTING_STORAGE_KEY } from '@/li
 import { useT } from '@/lib/i18n/client';
 import SmartPasteSection from './SmartPasteSection';
 import { buildFormValuesFromParsed } from '@/lib/smartPaste';
+import { validatePhotoSelection } from '@/lib/uploadLimits.mjs';
 
 const FIELD_CLASS =
   'u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35';
@@ -120,12 +121,41 @@ export default function CreateListingDialog({ communes, categories }) {
 
   function handleSubmit(event) {
     event.preventDefault();
+    const files = photos.map(({ file }) => file);
+
+    // Checked here, before a single byte goes out, using the same rule the
+    // Server Action re-checks (lib/uploadLimits.mjs). Over the transport
+    // ceiling the request is aborted with a 413 mid-upload, which reaches
+    // this component as a rejected fetch carrying nothing an agent could
+    // act on — so the size verdict has to be reached while the file list is
+    // still in hand and can be named precisely.
+    const problem = validatePhotoSelection(files);
+    if (problem) {
+      showToast({ type: 'error', message: t(problem.key, problem.vars) });
+      return;
+    }
+
     const formData = new FormData(formRef.current);
     formData.delete('photos');
-    for (const { file } of photos) formData.append('photos', file);
+    for (const file of files) formData.append('photos', file);
 
     startTransition(async () => {
-      const result = await createListingAction(communes, categories, formData);
+      let result;
+      try {
+        result = await createListingAction(communes, categories, formData);
+      } catch (err) {
+        // A Server Action can fail *as a request* — an expired session
+        // throwing server-side, a dropped connection, a body the transport
+        // refused — and that arrives as a rejected promise, never as an
+        // {ok:false} the branch below could read. Without this catch the
+        // rejection went unhandled and the agent got a button that did
+        // nothing at all: no toast, no error, form still full. That is the
+        // symptom this whole fix started from.
+        console.error('[CreateListingDialog] createListingAction failed', err);
+        showToast({ type: 'error', message: t('errors.submissionFailed') });
+        return;
+      }
+
       if (!result.ok) {
         showToast({ type: 'error', message: result.error });
         return;

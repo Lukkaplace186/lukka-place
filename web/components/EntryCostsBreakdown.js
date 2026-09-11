@@ -1,5 +1,5 @@
 import { entryCostBreakdown } from '@/lib/listingView';
-import { formatPrice } from '@/lib/format';
+import { formatPriceParts } from '@/lib/format';
 
 /**
  * Who receives each part of the money due at signing.
@@ -45,7 +45,12 @@ export default function EntryCostsBreakdown({ listing }) {
   if (!breakdown) return null;
 
   const { lines, totalMonths, totalAmount, hasAmounts } = breakdown;
-  const money = (value) => formatPrice(value, listing.purpose, 'total');
+  // formatPriceParts appends "/ mois" for ANY rental, whatever period is
+  // passed — correct for a recurring rent, wrong for every number here. These
+  // are one-off sums due once at signing, and "1 500 $ / mois" reads as a
+  // monthly charge four times the actual rent. Passing a non-rent purpose is
+  // what suppresses the suffix; `.amount` is the bare figure.
+  const money = (value) => formatPriceParts(value, 'oneOff').amount;
 
   return (
     <section className="rounded-lg border border-line p-4 sm:p-5">
@@ -82,7 +87,7 @@ export default function EntryCostsBreakdown({ listing }) {
 
             <div className="shrink-0 text-right">
               <div className="u-tabular text-sm font-semibold text-ink">
-                {line.months} {line.months > 1 ? 'mois' : 'mois'}
+                {line.months} mois
               </div>
               {/* Amounts only when there is a real MONTHLY rent to multiply.
                   A sale has no entry costs, and a sale price times five months

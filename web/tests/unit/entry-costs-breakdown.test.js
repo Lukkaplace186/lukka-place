@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { entryCostBreakdown } from '@/lib/listingView';
+import { formatPriceParts } from '@/lib/format';
 
 /**
  * "3 + 1 + 1" is complete information for an agent and nearly none for a
@@ -108,4 +109,14 @@ test('months arriving as numeric strings are still arithmetic', () => {
   const stringy = entryCostBreakdown(rental({ deposit_months: '3', advance_months: '1' }));
   assert.equal(stringy.totalMonths, 5);
   assert.equal(stringy.totalAmount, 5000);
+});
+
+test('entry-cost amounts are formatted WITHOUT a "/ mois" suffix', () => {
+  // These are one-off sums due once at signing. formatPriceParts appends
+  // "/ mois" for any rental whatever period is passed, so the component must
+  // format them as non-recurring — "1 500 $ / mois" on the total reads as a
+  // monthly charge five times the actual rent, which is what shipped once.
+  assert.equal(formatPriceParts(1500, 'rent', 'total').period, '/ mois');
+  assert.equal(formatPriceParts(1500, 'oneOff').period, null);
+  assert.equal(formatPriceParts(1500, 'oneOff').amount, '1 500 $');
 });

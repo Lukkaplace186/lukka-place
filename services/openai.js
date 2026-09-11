@@ -84,6 +84,9 @@ CONDITIONS D'ENTRÉE — NOTATION "3 + 1 + 1" (convention immobilière de Kinsha
 - Un seul nombre ("Garantie : 3 mois", "caution 2 mois") => deposit_months uniquement ; advance_months et commission_months restent null.
 - Si le message nomme explicitement chaque poste ("2 mois de garantie, 1 mois d'avance, 1 mois de commission"), suis les libellés écrits plutôt que l'ordre des nombres.
 - Ne mets jamais un total dans deposit_months : chaque champ ne contient que son propre poste.
+- DURÉE NON QUALIFIÉE ("1000$ 4 mois", "800$ 3mois", "loyer 500$, 5 mois") — un nombre de mois donné à côté du loyer SANS le mot garantie/caution/avance/commission. Convention de Kinshasa : ce total se décompose en (N-1) mois d'avance + 1 mois de garantie. "1000$ 4mois" => advance_months 3, deposit_months 1, commission_months null. "3 mois" => advance_months 2, deposit_months 1.
+- Cette règle ne s'applique PAS quand le poste est nommé : "garantie 3 mois" reste deposit_months 3 et advance_months null. Le mot écrit par l'agent l'emporte toujours sur la convention.
+- À QUI VA CHAQUE POSTE (à rappeler dans la réponse) : l'avance et la garantie vont au BAILLEUR (l'avance couvre les premiers mois de loyer, la garantie est restituable en fin de bail) ; la commission va à l'AGENT / AGENCE (frais de courtage, non restituables).
 
 LOCALISATION
 - Les 24 communes de Kinshasa, chacune avec ses quartiers officiels :
@@ -184,17 +187,18 @@ Bonjour! Merci pour votre message. Voici les informations extraites de la magnif
 *Commune* : {commune}
 *Quartier* : {quartier}
 *Loyer* ou *Prix* : {price}$ {price_period}
-*Garantie* : {deposit_months} mois
-*Loyer d'avance* : {advance_months} mois
-*Commission d'agence* : {commission_months} mois
-*Total à prévoir à l'entrée* : {deposit_months + advance_months + commission_months} mois
+*Garantie* : {deposit_months} mois ➔ _Retenu par le Bailleur, remboursable en fin de bail_
+*Loyer d'avance* : {advance_months} mois ➔ _Payable au Bailleur, couvre vos premiers mois_
+*Commission d'agence* : {commission_months} mois ➔ _Payable à l'Agent / Agence, frais de courtage_
+*Total à verser à la signature* : {deposit_months + advance_months + commission_months} mois
 *Chambres* : {bedrooms}
 *Salles de bain* : {bathrooms}
 *Nombre de portes* : {units_count}
 *Équipements* : {amenities}
 *Référence* : {reference}
 
-- Conditions d'entrée : n'écris que les lignes dont la valeur est non-null, et n'ajoute la ligne *Total à prévoir à l'entrée* que si au moins deux des trois postes sont connus. Si price est connu et price_period vaut "mois", ajoute le montant entre parenthèses après CHACUNE de ces quatre lignes, ligne de total comprise, calculé comme (nombre de mois × loyer mensuel) — ex. avec un loyer de 750 $ et "3 + 1 + 1" : "*Garantie* : 3 mois (2250 $)" ... "*Total à prévoir à l'entrée* : 5 mois (3750 $)". Sans loyer mensuel connu, écris seulement les mois.
+- Conditions d'entrée : chaque ligne doit indiquer À QUI le montant est versé, exactement comme dans le gabarit ci-dessus — "Payable au Bailleur" pour l'avance, "Retenu par le Bailleur" pour la garantie, "Payable à l'Agent / Agence" pour la commission. Un locataire doit pouvoir lire la fiche et savoir qui encaisse quoi, et ce qui lui sera rendu.
+- N'écris que les lignes dont la valeur est non-null, et n'ajoute la ligne *Total à prévoir à l'entrée* que si au moins deux des trois postes sont connus. Si price est connu et price_period vaut "mois", ajoute le montant entre parenthèses après CHACUNE de ces quatre lignes, ligne de total comprise, calculé comme (nombre de mois × loyer mensuel) — ex. avec un loyer de 750 $ et "3 + 1 + 1" : "*Garantie* : 3 mois (2250 $)" ... "*Total à prévoir à l'entrée* : 5 mois (3750 $)". Sans loyer mensuel connu, écris seulement les mois.
 
   Puis, s'il y a des missing_fields, demande-les explicitement. Termine en invitant l'agent à répondre "OK" pour publier ou à envoyer une correction.
 - Si is_multi_unit est true, n'utilise PAS le gabarit ci-dessus. Écris à la place un récapitulatif groupé : le nom de l'immeuble (ou la commune/quartier à défaut) sur la première ligne, puis "🏢 {N} typologies d'appartements détectées :", puis UNE ligne numérotée par typologie — "1️⃣ 3 Chambres / 3 Salles de bain — 1500$", en ajoutant entre parenthèses ce qui distingue l'unité quand c'est connu (étage, parking, "3 unités disponibles"). Termine par : Répondez "OK" pour publier ces {N} annonces liées.
@@ -542,6 +546,70 @@ function draftContextFromListing(row) {
 }
 
 /**
+ * Deterministic safety net over the model's entry-cost extraction.
+ *
+ * The three postes behind "3 + 1 + 1" are the most consequential numbers in a
+ * listing — they decide what a tenant is told to hand over, and which part of
+ * it comes back — so they are not left to the model's judgement alone. Where
+ * the RAW TEXT states the terms unambiguously, the raw text wins.
+ *
+ * Two rules, both reading the agent's own words:
+ *
+ *  1. Additive syntax ("3+1+1", "4 + 1", "5 mois (3+1+1)") is re-derived from
+ *     the text and overwrites whatever came back, in the order this codebase
+ *     has always used: 1st = deposit (garantie), 2nd = advance, 3rd =
+ *     commission. See CLAUDE.md, "Data Schema & Location Hierarchy".
+ *
+ *  2. An UNQUALIFIED duration ("1000$ 4 mois") — a month count with no poste
+ *     named anywhere — is the Kinshasa shorthand for (N-1) months of advance
+ *     plus 1 month of guarantee. A model that reports it as a single
+ *     deposit_months of N is corrected here.
+ *
+ * Rule 2 never fires when the agent NAMED the poste ("garantie 3 mois"): the
+ * written word always beats the convention, which is the same principle the
+ * prompt states.
+ *
+ * Mutates and returns `extracted`.
+ */
+function normaliseEntryCosts(extracted, rawText) {
+  if (!extracted) return extracted;
+  const text = String(rawText || '');
+  if (!text.trim()) return extracted;
+
+  const normalised = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+  // --- Rule 1: additive syntax is authoritative.
+  const additive = /(\d+)\s*\+\s*(\d+)(?:\s*\+\s*(\d+))?/.exec(normalised);
+  if (additive) {
+    extracted.deposit_months = Number.parseInt(additive[1], 10);
+    extracted.advance_months = Number.parseInt(additive[2], 10);
+    extracted.commission_months =
+      additive[3] === undefined ? null : Number.parseInt(additive[3], 10);
+    return extracted;
+  }
+
+  // --- Rule 2: an unqualified "N mois".
+  //
+  // Only when NO poste is named in the message. "garantie 3 mois" is the
+  // agent telling us exactly what that 3 is, and must be left alone.
+  const namesAPoste = /garantie|caution|avance|commission|courtage/.test(normalised);
+  if (namesAPoste) return extracted;
+
+  const deposit = extracted.deposit_months;
+  const advance = extracted.advance_months;
+
+  // Guard on price_period too: "bail 2 ans" is a duration, not an entry cost.
+  const looksMonthly = /mois/.test(normalised);
+
+  if (looksMonthly && Number.isInteger(deposit) && deposit > 1 && (advance === null || advance === undefined || advance === 0)) {
+    extracted.advance_months = deposit - 1;
+    extracted.deposit_months = 1;
+  }
+
+  return extracted;
+}
+
+/**
  * Extract a listing from one WhatsApp message: text, images, or both.
  *
  * @param {string} [text]              Raw message body / image caption.
@@ -652,6 +720,9 @@ async function parseMessage(text, { senderPhone, images = [], imageDetail, draft
   } catch {
     throw new Error(`Model returned non-JSON output: ${String(raw).slice(0, 200)}`);
   }
+
+  // The raw text wins on entry costs — see normaliseEntryCosts.
+  normaliseEntryCosts(parsed.extracted_data, text);
 
   return {
     extracted_data: parsed.extracted_data,
@@ -1234,6 +1305,7 @@ async function parseListingTextForForm(rawText) {
 module.exports = {
   parseMessage,
   draftContextFromListing,
+  normaliseEntryCosts,
   INTAKE_HISTORY_LIMIT,
   toImagePart,
   // Exposed so services/embeddings.js can reuse the same lazy client/auth

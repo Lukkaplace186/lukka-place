@@ -396,6 +396,80 @@ check('system prompt forbids summing "3 + 1 + 1" into deposit_months', () => {
     assert.ok(prompt.includes(needle), `prompt missing "${needle}"`);
   }
 });
+check('every entry-cost line says WHO receives the money', () => {
+  // A tenant reading the card must know which part goes to the landlord,
+  // which part comes back, and which part is the agency's fee.
+  const prompt = openaiService.SYSTEM_PROMPT;
+  for (const needle of [
+    'Payable au Bailleur',
+    'Retenu par le Bailleur',
+    "Payable à l'Agent / Agence",
+    'remboursable en fin de bail',
+  ]) {
+    assert.ok(prompt.includes(needle), `prompt missing "${needle}"`);
+  }
+});
+check('the prompt carries the unqualified "N mois" Kinshasa convention', () => {
+  const prompt = openaiService.SYSTEM_PROMPT;
+  assert.ok(prompt.includes('DURÉE NON QUALIFIÉE'));
+  // The convention itself, and the exception that protects a named poste.
+  assert.ok(prompt.includes('(N-1) mois d\'avance + 1 mois de garantie'));
+  assert.ok(prompt.includes('Le mot écrit par l\'agent l\'emporte toujours sur la convention'));
+});
+check('normaliseEntryCosts re-derives additive syntax from the agent\'s own words', () => {
+  // The model is not trusted alone on the three most consequential numbers in
+  // a listing — the raw text wins wherever it is unambiguous.
+  const summed = openaiService.normaliseEntryCosts(
+    { deposit_months: 5, advance_months: null, commission_months: null },
+    'Belle villa, Garantie 3 + 1 + 1',
+  );
+  assert.strictEqual(summed.deposit_months, 3, 'the total must never land in deposit_months');
+  assert.strictEqual(summed.advance_months, 1);
+  assert.strictEqual(summed.commission_months, 1);
+
+  const twoTerms = openaiService.normaliseEntryCosts(
+    { deposit_months: null, advance_months: null, commission_months: 9 },
+    'GARANTIE 4+1',
+  );
+  assert.strictEqual(twoTerms.deposit_months, 4);
+  assert.strictEqual(twoTerms.advance_months, 1);
+  assert.strictEqual(twoTerms.commission_months, null, 'an unstated commission stays NULL, never 0');
+});
+check('an unqualified "N mois" becomes (N-1) advance + 1 guarantee', () => {
+  const split = openaiService.normaliseEntryCosts(
+    { deposit_months: 4, advance_months: null, commission_months: null },
+    'Appartement Limete 1000$ 4mois',
+  );
+  assert.strictEqual(split.advance_months, 3);
+  assert.strictEqual(split.deposit_months, 1);
+  assert.strictEqual(split.commission_months, null);
+});
+check('a NAMED poste always beats the convention', () => {
+  // "garantie 3 mois" is the agent telling us exactly what that 3 is.
+  const named = openaiService.normaliseEntryCosts(
+    { deposit_months: 3, advance_months: null, commission_months: null },
+    'Villa Ngaliema, garantie 3 mois',
+  );
+  assert.strictEqual(named.deposit_months, 3);
+  assert.strictEqual(named.advance_months, null);
+});
+check('a listing that states no entry costs at all is left completely alone', () => {
+  const untouched = openaiService.normaliseEntryCosts(
+    { deposit_months: null, advance_months: null, commission_months: null },
+    'Villa 3 chambres Gombe 1500$/mois',
+  );
+  assert.strictEqual(untouched.deposit_months, null);
+  assert.strictEqual(untouched.advance_months, null);
+  // NULL is "not stated", which is a different claim from 0 = "none required".
+  assert.notStrictEqual(untouched.advance_months, 0);
+});
+check('a bare month count that is not an entry cost is not rewritten', () => {
+  const lease = openaiService.normaliseEntryCosts(
+    { deposit_months: null, advance_months: null, commission_months: null },
+    'Bureau à louer, bail de 2 ans',
+  );
+  assert.strictEqual(lease.deposit_months, null);
+});
 check('the WhatsApp reply template shows the three entry costs on their own lines', () => {
   const prompt = openaiService.SYSTEM_PROMPT;
   // "*Garantie*" must carry deposit_months alone — the agent-facing half of

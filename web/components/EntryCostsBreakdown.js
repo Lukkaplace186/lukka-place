@@ -9,8 +9,8 @@ import { getT } from '@/lib/i18n/server';
  *
  * Anatomy, from the Claude Design screen: the total due at signing as the
  * headline figure, the agent's own notation ("3 + 1 + 1") opposite it, one
- * segmented bar sized by months, and a column per poste aligned under its own
- * segment carrying the figure and who banks it.
+ * segmented bar sized by months, and one column per poste — equal thirds at
+ * every width, including a phone — carrying the figure and who banks it.
  *
  * Every figure comes from entryCostBreakdown(), which only ever reports what
  * the listing states. There are no defaults: a listing that says "Garantie :
@@ -31,24 +31,20 @@ const SEGMENT_CLASS = {
   commission: 'bg-[#dde3fb]',
 };
 
-const TAG_CLASS = 'rounded-full border border-ink-25 px-3 py-1 text-[0.8125rem] leading-none text-ink-70';
+const TAG_CLASS =
+  'rounded-full border border-ink-25 px-1.5 py-0.5 text-[10px] leading-tight text-ink-70 sm:px-2.5 sm:py-1 sm:text-xs';
 
 /**
- * Column weights shared by the bar and the columns under it, so each label
- * starts exactly where its segment does. A stated zero ("pas de commission")
- * still gets a sliver so its column exists; it is drawn as an empty outline
- * rather than a filled segment, since there is no money in it.
+ * The bar's segments, sized by months — a true 3:1:1 for a "3 + 1 + 1".
+ *
+ * The columns below are equal thirds and no longer sit under their own
+ * segment, so nothing constrains these weights any more: the coloured dot
+ * beside each poste's title is what ties a column to its segment now.
  */
-function columnTemplates(lines) {
-  const weights = lines.map((line) => (line.months > 0 ? line.months : 0.4));
-  return {
-    // Phones: pure proportions — the bar is full width, the columns stack.
-    narrow: weights.map((w) => `minmax(0,${w}fr)`).join(' '),
-    // From `sm` the columns sit side by side and need room for "Commission ·
-    // 1 mois" even under a "6 + 1 + 1", so each has a floor. The bar takes the
-    // same template, which is what keeps it aligned when a floor kicks in.
-    wide: weights.map((w) => `minmax(8.5rem,${w}fr)`).join(' '),
-  };
+function barTemplate(lines) {
+  // A stated zero ("pas de commission") still gets a sliver so its segment
+  // exists; it is drawn as an empty outline, since there is no money in it.
+  return lines.map((line) => `minmax(0,${line.months > 0 ? line.months : 0.4}fr)`).join(' ');
 }
 
 export default async function EntryCostsBreakdown({ listing }) {
@@ -62,12 +58,12 @@ export default async function EntryCostsBreakdown({ listing }) {
   // monthly charge five times the rent. `.amount` is the bare figure.
   const money = (value) => formatPriceParts(value, 'oneOff').amount;
   const months = (count) => t('listings.facts.months', { count });
-  const cols = columnTemplates(lines);
+  const segments = barTemplate(lines);
 
   return (
     <section
       className="mt-6 border-t border-line pt-7 first:mt-0 first:border-t-0 first:pt-0"
-      style={{ '--entry-cols-narrow': cols.narrow, '--entry-cols': cols.wide }}
+      style={{ '--entry-cols': segments }}
     >
       {/* Side by side at every width, including a 390px phone: the total and
           the formula are the two halves of one statement, and wrapping the
@@ -107,7 +103,7 @@ export default async function EntryCostsBreakdown({ listing }) {
       {/* Decorative: every figure it encodes is stated as text below. */}
       <div
         aria-hidden="true"
-        className="mt-7 grid gap-x-1 [grid-template-columns:var(--entry-cols-narrow)] sm:[grid-template-columns:var(--entry-cols)]"
+        className="mt-7 grid gap-x-1 [grid-template-columns:var(--entry-cols)]"
       >
         {lines.map((line) => (
           <span
@@ -121,20 +117,30 @@ export default async function EntryCostsBreakdown({ listing }) {
         ))}
       </div>
 
-      {/* Stacked on a phone, one column per poste from `sm`.
-          `grid-rows-subgrid` is what keeps the three columns honest: a title
-          that wraps ("Commission · 1 month" is wider than its column under a
-          3 + 1 + 1) would otherwise push that column's amount and pills down
-          out of line with its neighbours. Each li spans the same three rows —
-          title, amount, tags — so the figures stay on one line across all
-          three whatever the titles do. */}
-      <ul className="mt-6 flex flex-col gap-5 sm:grid sm:grid-rows-[auto_auto_auto] sm:gap-x-1 sm:[grid-template-columns:var(--entry-cols)]">
+      {/* One row per poste at every width, including a 375px phone — the
+          three postes are one comparison, and stacking them turned it into
+          three separate facts you scroll past.
+
+          `grid-rows-subgrid` keeps the three columns honest: a title that
+          wraps to two lines ("Commission · 1 mois" in a ~95px phone column)
+          would otherwise push that column's amount and pills out of line
+          with its neighbours. Each li spans the same three rows — title,
+          amount, tags — so the figures stay level across all three.
+
+          The column count is inline rather than a `grid-cols-N` class: a
+          "4 + 1" listing renders two columns, and Tailwind v4 scans source
+          text, so an interpolated class name would compile to nothing. */}
+      <ul
+        className="mt-6 grid grid-rows-[auto_auto_auto] gap-x-2 divide-x divide-line sm:mt-7 sm:gap-x-4"
+        style={{ gridTemplateColumns: `repeat(${lines.length}, minmax(0,1fr))` }}
+      >
         {lines.map((line) => (
-          <li key={line.key} className="min-w-0 sm:row-span-3 sm:grid sm:grid-rows-subgrid sm:pr-3">
-            <div className="flex items-start gap-2 text-pretty text-[0.9375rem] font-semibold leading-tight text-ink">
-              {/* On a phone the columns stack away from the bar, so a swatch
-                  carries the colour key the alignment carries on desktop. */}
-              <span aria-hidden="true" className={`h-2.5 w-2.5 shrink-0 rounded-full sm:hidden ${SEGMENT_CLASS[line.key]}`} />
+          <li key={line.key} className="row-span-3 grid min-w-0 grid-rows-subgrid pl-2 first:pl-0 sm:pl-4 sm:first:pl-0">
+            <div className="flex items-start gap-1.5 text-pretty text-xs font-semibold leading-tight text-ink sm:text-sm">
+              {/* The swatch is the only thing tying a column to its segment
+                  now that the columns are equal thirds, so it shows at every
+                  width. `mt-0.5` sits it on the title's first line. */}
+              <span aria-hidden="true" className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${SEGMENT_CLASS[line.key]}`} />
               <span>
                 {t(`listings.entryCosts.${line.key}`)} · {months(line.months)}
               </span>
@@ -142,11 +148,15 @@ export default async function EntryCostsBreakdown({ listing }) {
             {/* No amount without a real monthly rent to multiply — a sale
                 price times five months is a number nobody owes. */}
             {hasAmounts ? (
-              <p className="u-tabular mt-2.5 text-[1.0625rem] font-bold leading-tight text-ink">
+              <p className="u-tabular mt-1.5 text-sm font-bold leading-tight text-ink sm:mt-2.5 sm:text-lg">
                 {money(line.amount)}
               </p>
             ) : null}
-            <div className="mt-3 flex flex-wrap gap-2">
+            {/* `items-start`: this row is shared with the other columns via
+                subgrid, so it is as tall as the tallest set of tags (the
+                deposit's two). Without it a lone pill stretches to that
+                height and `rounded-full` draws it as an oval. */}
+            <div className="mt-1.5 flex flex-wrap items-start gap-1 sm:mt-3 sm:gap-2">
               <span className={TAG_CLASS}>{t(`listings.entryCosts.recipient.${line.recipient}`)}</span>
               {line.refundable ? <span className={TAG_CLASS}>{t('listings.entryCosts.refundable')}</span> : null}
             </div>

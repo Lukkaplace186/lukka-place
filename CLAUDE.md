@@ -42,8 +42,41 @@ The storefront queries Supabase directly (chosen over a proxying Express endpoin
 - **Landmarks**: Always use the French term "référence" (not "repère") in any user-facing or prompt-facing French text.
 
 ## Lead Routing Rules
-- **WhatsApp CTA**: All "Contact on WhatsApp" buttons must route to Lukka Place's central WhatsApp number (the same number this engine's Chakra integration already runs on) — never a per-listing agent number. No per-listing contact number is synced to Supabase today.
-- **Message Format**:
+
+**Dual contact policy.** A listing detail page offers two different things on
+purpose, and they route differently:
+
+- **Direct contact is open and visible.** The listing agent's real phone
+  number is shown on the detail card as both a `tel:` link ("Appeler l'agent")
+  and a direct WhatsApp link — `web/components/EnquiryCard.js`,
+  `agentPhone ? buildWhatsAppLink(agentPhone, …) : getCentralWhatsAppHref(…)`.
+  In Kinshasa a listing with no reachable human behind it reads as a scam;
+  showing the agency's own number is what makes the listing credible, and
+  hiding it to force traffic through a funnel costs more trust than the
+  captured lead is worth. A listing with no attributed agent falls back to
+  Lukka Place's central number, and the `tel:` link renders **not at all**
+  rather than pointing at a number we don't have.
+- **"Demander une visite" is the automated pipeline.** It never opens a chat
+  client. It creates a real `leads` row plus a real `viewing_requests` row and
+  dispatches over WhatsApp from the engine — see "Viewing-Request
+  Notifications" below for who gets told, and the agent feedback loop for what
+  happens next. This is the path that produces a tracked, measurable request;
+  the direct buttons deliberately produce nothing we can see, which is the
+  trade being made.
+
+This supersedes the earlier rule that every "Contact on WhatsApp" button must
+use the central number and never a per-listing agent number. That rule
+described a state where no per-listing contact existed; `properties.agent_id`
+now resolves to a real `agents.phone` for attributed listings.
+
+**Known split, not yet reconciled:** the mobile listing bar
+(`web/components/MobileListingBar.js`) still routes its WhatsApp button to the
+central number and is not even passed `agent_phone`, while the desktop
+`EnquiryCard` routes to the agent. The same listing therefore offers a
+different contact depending on screen width. Decide which is intended before
+writing more code against either.
+
+- **Message Format** (both paths):
   ```
   Bonjour, je suis intéressé par l'annonce Ref: {reference} ({property_type} à {commune}). Est-elle toujours disponible ?
   ```
@@ -226,10 +259,9 @@ it lands.
 #### Storefront
 No change was needed for "keep contact info fully open": `EnquiryCard`
 already renders the listing agent's real number as both a `tel:` link and a
-direct WhatsApp link (`buildWhatsAppLink(agentPhone, …)`), falling back to the
-central number only when the listing has no attributed agent. Note this has
-already overtaken the "Lead Routing Rules" bullet above, which still says the
-CTA must never use a per-listing agent number.
+direct WhatsApp link, falling back to the central number only when the
+listing has no attributed agent. That is the direct half of the dual contact
+policy — see "Lead Routing Rules" above, which this loop is the other half of.
 
 ### Outbound WhatsApp: what actually works, and what silently doesn't
 

@@ -33,23 +33,25 @@
  * pass over the listing's text, which carries its own, weaker, honest
  * caption. Not backfilling is a real outcome here, not a failure.
  *
- * *** THIS HAS NOT BEEN RUN AGAINST THE EXISTING PRODUCTION CORPUS, AND
- *     SHOULD NOT BE WITHOUT READING A --dry-run FIRST. ***
- * Measured on all 33 published listings on 2026-09-12: it produced usable
- * lines for 23 of them, but roughly a quarter to a third of those lines were
- * advert framing rather than features — "2 APPARTEMENTS SUR MONT DES ARTS
- * HUILERIE", "Commune de Kinshasa", "NDAKU YA SIKA OFUTI OKOTI", agency
- * sign-offs. Each round of filtering below removed one category and revealed
- * another, which is the signature of a problem regexes cannot close: telling
- * a feature from a sales pitch needs to understand the sentence.
+ * *** ITS LINE-FILTER BACKFILL HAS NEVER BEEN RUN ON THE PRODUCTION CORPUS,
+ *     AND NO LONGER NEEDS TO BE: scripts/backfill-listing-features.js DID IT. ***
+ * Measured on all 33 published listings on 2026-09-12: this filter produced
+ * usable lines for 23 of them, but roughly a quarter to a third of those
+ * lines were advert framing rather than features — "2 APPARTEMENTS SUR MONT
+ * DES ARTS HUILERIE", "Commune de Kinshasa", "NDAKU YA SIKA OFUTI OKOTI",
+ * agency sign-offs. Each round of filtering below removed one category and
+ * revealed another, which is the signature of a problem regexes cannot
+ * close: telling a feature from a sales pitch needs to understand the
+ * sentence.
  *
- * The extraction model already does that, with the POINTS FORTS rules in
- * services/openai.js, and it now fills `features` on every NEW listing. The
- * right backfill for the existing corpus is to re-run that same extraction
- * over each row's stored `raw_text` (33 calls, a few cents) rather than to
- * keep growing NOISE_PATTERNS. This script stays because the schema half is
- * needed and re-runnable, and because its line filter is still the right one
- * for a genuinely list-formatted message.
+ * So the corpus was backfilled on 2026-09-13 by
+ * scripts/backfill-listing-features.js instead, which re-runs the extraction
+ * model (the POINTS FORTS rules in services/openai.js, same as new intake)
+ * over each row's stored `raw_text`: 32 of 48 live listings written, 0 phone
+ * numbers across 189 bullets. Use that script, not this one, for any future
+ * backfill. This one stays because the schema half is needed and
+ * re-runnable, and because its line filter is still right for a genuinely
+ * list-formatted message.
  *
  * THE LINE FILTER IS DUPLICATED, DELIBERATELY
  * `featureLinesFromText` below is the same rule as

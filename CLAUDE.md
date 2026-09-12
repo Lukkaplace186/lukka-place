@@ -49,13 +49,23 @@ The storefront queries Supabase directly (chosen over a proxying Express endpoin
     as structured data — price, garantie, chambres, commune, reference — and
     forbids inventing one to fill the section: `[]` is a correct answer.
     JSON text in SQLite, real `text[]` on `properties`
-    (`scripts/migrate-listing-features.js`, which also backfills older rows
-    from `listings.raw_text`, never from the public description — see that
-    file for why, and for the filters that keep an agent's phone number out
-    of a public bullet list). `web/lib/descriptionParser.js` is the read
-    side: real column first, then the AMENITY_KEYWORDS pass over the
-    listing's text, then its own description lines, and the UI captions
+    (`scripts/migrate-listing-features.js` adds the column). Existing rows
+    were backfilled by `scripts/backfill-listing-features.js`, which re-runs
+    `parseMessage` over each listing's stored `raw_text` — the same POINTS
+    FORTS rules as new intake, so there is one definition of a feature, not
+    two — and writes SQLite **and** Postgres, because a Postgres-only write
+    is nulled by the next `syncListingToPostgres`. Do not "simplify" it into
+    a regex over the raw text: that was tried, measured at ~60–75% precise
+    on the real corpus, and is why `migrate-listing-features.js`'s own
+    line-filter backfill has never been run. `web/lib/descriptionParser.js`
+    is the read side: real column first, then the AMENITY_KEYWORDS pass over
+    the listing's text, then its own description lines, and the UI captions
     which of the three it used.
+    **The prompt must not carry pasteable example phrases.** An earlier
+    POINTS FORTS example, "Climatisation dans les chambres", was copied
+    verbatim onto a listing whose message said only "2 climatiseurs" —
+    inventing where the air conditioning is. The rule now is: keep the
+    agent's own words, correct spelling, never add a detail.
 - **Landmarks**: Always use the French term "référence" (not "repère") in any user-facing or prompt-facing French text.
 
 ## Lead Routing Rules

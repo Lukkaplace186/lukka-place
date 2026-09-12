@@ -47,3 +47,10 @@ _ds/
 web/support.js
 web/image-slot.js
 web/assets/
+
+# One-off reports written beside the script that produced them (e.g.
+# scripts/backfill-smart-paste-descriptions.js --apply). They are a record of
+# one local run against one snapshot of live data, so they are never
+# reproducible and never useful to anybody else — and they carry listing
+# copy verbatim, which has no business in the repo.
+scripts/*.report.json

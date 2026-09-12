@@ -18,8 +18,14 @@ import { cn } from '@/lib/utils';
 // otherwise identical: same icon, same micro-caps label, same bold value.
 const LABEL_CLASS =
   'text-[0.6875rem] font-semibold uppercase leading-none tracking-[0.12em] text-ink-45 sm:text-xs';
+// `text-balance` for the reference cell's sake: it is the only value here
+// that is free text of unbounded length ("Petit Boulevard, 2ᵉ Rue
+// Industrielle" is a real one), and left to itself it wraps into ragged
+// lines in a 119px phone cell. Balancing evens them out. It is NOT
+// truncated — an agent quotes that reference on WhatsApp and the search bar
+// accepts it as a query, so an ellipsis would hide the useful half.
 const VALUE_CLASS =
-  'text-[1.0625rem] font-bold leading-tight tracking-normal text-ink sm:text-[1.3125rem]';
+  'text-balance text-[1.0625rem] font-bold leading-tight tracking-normal text-ink sm:text-[1.3125rem]';
 
 /**
  * The design system's KeyFacts (components/property/KeyFacts.jsx) — the

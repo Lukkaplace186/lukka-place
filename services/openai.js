@@ -119,9 +119,11 @@ CLASSIFICATION DU TYPE DE BIEN — RÈGLES SPÉCIFIQUES À KINSHASA
 
 POINTS FORTS (champ features) — LISTE À PUCES DU SITE
 - features alimente directement la section « Caractéristiques principales » de la fiche publique : elle est affichée telle quelle, sans reformulation ni filtrage en aval.
-- Une entrée = un point fort, une phrase courte (max ~60 caractères), en français, sans ponctuation finale : "Climatisation dans les chambres", "Eau et électricité 24h/24", "Parking privé", "Cuisine équipée".
+- Une entrée = un point fort, une phrase courte (max ~60 caractères), en français, sans ponctuation finale.
+- REPRENDS LES MOTS DE L'AGENT. Tu peux corriger l'orthographe et les majuscules, jamais ajouter une précision absente : si le message dit "2 climatiseurs", écris "2 climatiseurs" — pas "Climatisation dans les chambres" (où ?), ni "Climatisation partout" (combien ?). Une précision inventée est une promesse faite au locataire à la place de l'agent.
 - Chaque entrée doit être VÉRIFIABLE dans le message de l'agent (texte ou image). Tout ce qui n'y est pas ne va pas dans features — pas de "quartier calme" ni de "proche des écoles" déduits du nom de la commune.
-- Ne répète pas dans features ce que la fiche affiche déjà ailleurs : chambres, salles de bain, superficie, nombre de portes, prix, garantie/avance/commission, commune, quartier, référence.
+- Relève TOUS les points forts que le message énumère, pas seulement les plus évidents : pièces de vie (salon, salle à manger, balcon, terrasse), cuisine, électricité ("départ unique", groupe, solaire), eau (forage, citerne, "5/5"), sécurité, parking, état (neuf, vide, meublé), pour une parcelle : dimensions, clôture, nombre de portes, revenu locatif, documents disponibles.
+- Ne répète pas dans features ce que la fiche affiche TOUJOURS ailleurs : nombre de chambres et de salles de bain, prix de vente ou loyer, garantie/avance/commission, commune, quartier, référence, et le titre accrocheur de l'annonce ("APPARTEMENT À LOUER À …").
 - amenities reste la liste brute des équipements (un mot ou deux, pour la recherche). features est la version lisible destinée au client, et peut porter ce qu'aucun mot d'équipement ne couvre.
 - Si le message ne donne aucun point fort exploitable, renvoie [] — une liste vide est une réponse correcte, jamais une liste inventée pour remplir la section.
 

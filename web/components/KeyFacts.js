@@ -1,10 +1,25 @@
 'use client';
 
-import { BedDouble, Bath, Ruler, DoorOpen, FileText, Home, Hash, Wallet } from 'lucide-react';
+import { BedDouble, Bath, Ruler, DoorOpen, FileText, Landmark } from 'lucide-react';
 import { hasArea, entryTerms } from '@/lib/listingView';
 import { lastCellPresentation, STACKED_CELL_CLASS } from '@/lib/keyFactsGrid';
-import { SPEC_LABEL_CLASS, SPEC_VALUE_CLASS } from './SpecItem';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils';
+
+// The facts card's own treatments (Claude Design screen): micro-caps label,
+// 21px bold value. These used to be the feed card's SPEC_* classes, shared so
+// the two rails matched — the detail page now deliberately speaks louder than
+// a card in a grid of twenty.
+//
+// The design's 21px value is a four-across desktop measurement. A phone cell
+// is ~151px wide, where 21px breaks "Appartement" mid-word into "Appartem /
+// ent" and wraps "SALLES DE BAIN" onto two lines — seen in a 375px browser,
+// not assumed. Both step down one notch below `sm` and the layout is
+// otherwise identical: same icon, same micro-caps label, same bold value.
+const LABEL_CLASS =
+  'text-[0.6875rem] font-semibold uppercase leading-none tracking-[0.12em] text-ink-45 sm:text-xs';
+const VALUE_CLASS =
+  'text-[1.0625rem] font-bold leading-tight tracking-normal text-ink sm:text-[1.3125rem]';
 
 /**
  * The design system's KeyFacts (components/property/KeyFacts.jsx) — the
@@ -51,7 +66,7 @@ export default function KeyFacts({ listing }) {
   const facts = [
     // `categoryName` stays untranslated: it is a real value out of
     // property_category_contents, not UI copy. Only the labels are keys.
-    categoryName ? { key: 'type', icon: Home, label: t('listings.facts.propertyType'), value: categoryName } : null,
+    categoryName ? { key: 'type', icon: Landmark, label: t('listings.facts.type'), value: categoryName } : null,
     beds != null ? { key: 'beds', icon: BedDouble, label: t('listings.facts.bedrooms'), value: beds } : null,
     // Number(bath) > 0, not `bath != null` — `bath` carries '' rather than a
     // real NULL when unrecorded, and '' != null is true. Same trap
@@ -65,7 +80,11 @@ export default function KeyFacts({ listing }) {
     // A "3 + 1 + 1" shown here as "Garantie : 5 mois" is the exact
     // overstatement that splitting the field into three undid: two of those
     // months are rent and commission, and neither comes back.
-    terms
+    //
+    // Only for a deposit-only listing. Once advance or commission is stated,
+    // EntryCostsBreakdown renders directly below in the same card with the
+    // deposit as its first column, so a cell here would say it twice.
+    terms && !terms.itemized
       ? {
           key: 'deposit',
           icon: FileText,
@@ -93,27 +112,11 @@ export default function KeyFacts({ listing }) {
   const items = [...facts];
 
   if (reference) {
-    items.push({ key: 'reference', icon: Hash, label: t('listings.facts.reference'), value: reference });
+    items.push({ key: 'reference', icon: FileText, label: t('listings.facts.reference'), value: reference });
   }
 
-  // The whole deal in the notation the agent quoted: "3 + 1 + 1 mois" —
-  // deposit, then rent paid in advance, then agency commission. This is what a
-  // customer has to find before signing, and until the advance/commission
-  // columns reached Supabase the site could not state it at all.
-  //
-  // Only when there is genuinely more than a deposit to say. A listing that
-  // states "Garantie : 3 mois" and nothing else has this cell omitted rather
-  // than filled with "3" — repeating the cell above under a second heading
-  // would imply a breakdown nobody gave us, and inventing the "+ 1 + 1" that
-  // usually follows would be inventing money the customer would budget for.
-  if (terms?.itemized) {
-    items.push({
-      key: 'entry',
-      icon: Wallet,
-      label: t('listings.facts.entryTerms'),
-      value: t('listings.facts.entryTermsMonths', { parts: terms.parts.join(' + ') }),
-    });
-  }
+  // No "Conditions d'entrée" cell any more: the "3 + 1 + 1" notation is now
+  // the headline of EntryCostsBreakdown, directly below in the same card.
 
   if (items.length === 0) return null;
 
@@ -125,33 +128,35 @@ export default function KeyFacts({ listing }) {
   const lastCell = lastCellPresentation(items.length);
 
   return (
-    <div className="grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-line sm:grid-cols-4">
+    // 2-up until `md`, not `sm`: at 640-767px four cells are ~160px wide and a
+    // value like "Appartement" at 21px wraps inside its own cell. The 1px
+    // `gap` over a `bg-line` ground is what draws the dividers — between the
+    // two rows and the two columns on a phone, between all four cells on a
+    // desktop. lib/keyFactsGrid.js's span classes are tied to this same
+    // breakpoint; they move together or the last cell spans a row that isn't
+    // there yet.
+    <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-line md:grid-cols-4">
       {items.map(({ key, icon: Icon, label, value }, index) => {
         const { className, groupClassName } = index === items.length - 1
           ? lastCell
           : { className: STACKED_CELL_CLASS, groupClassName: '' };
 
-        // The card rail's own exported treatments (components/SpecItem.js)
-        // rather than `u-eyebrow`/`u-body`, so this grid and the feed card
-        // state a listing's facts identically. Sharing the constants is also
-        // why this grid tracked the card automatically when both were
-        // lightened from 800 to 500 — a local copy of those classes would
-        // have been left behind at the old weight.
-        //
         // `break-words` plus `min-w-0` for the reference cell's sake: a real
         // code like "LKP-2026-0091", or a landmark like "Petit Boulevard, 2ᵉ
         // Rue Industrielle", is longer than any other value this grid holds.
         // `min-w-0` matters only in the row layout, where a flex item's
         // default `min-width: auto` would refuse to shrink and push the cell
         // wider than its column.
-        const icon = <Icon strokeWidth={1.75} className="h-5 w-5 shrink-0 text-ink" />;
-        const labelEl = <span className={SPEC_LABEL_CLASS}>{label}</span>;
+        const icon = <Icon strokeWidth={1.75} className="h-4 w-4 shrink-0 text-blue" />;
+        const labelEl = <span className={LABEL_CLASS}>{label}</span>;
         const valueEl = (
-          <span className={`u-tabular min-w-0 break-words text-lg ${SPEC_VALUE_CLASS}`}>{value}</span>
+          <span className={`u-tabular min-w-0 break-words ${VALUE_CLASS}`}>{value}</span>
         );
 
+        // gap-3 over the helper's gap-2 (cn resolves the clash): the design
+        // spaces icon, label and value wider than the feed card does.
         return (
-          <div key={key} className={`bg-canvas-alt p-4 ${className}`}>
+          <div key={key} className={cn('bg-canvas-alt p-4 sm:p-5', className, 'gap-3')}>
             {groupClassName ? (
               // Icon and label as ONE flex item where the cell is stretched, so
               // `justify-between` sends the value to the far end of the row.

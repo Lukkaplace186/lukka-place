@@ -111,6 +111,35 @@ test('months arriving as numeric strings are still arithmetic', () => {
   assert.equal(stringy.totalAmount, 5000);
 });
 
+test('every figure tracks the rent at any price point — the live listings', () => {
+  // The shapes and prices of real approved listings (#297, #296, #303, and a
+  // 6 + 1 + 1 at the top of the range), so the card is checked against what
+  // it actually renders rather than one round number.
+  const cases = [
+    { price: 750, terms: [3, 1, 1], amounts: [2250, 750, 750], total: 3750, months: 5 },
+    { price: 1100, terms: [3, 1, 1], amounts: [3300, 1100, 1100], total: 5500, months: 5 },
+    { price: 300, terms: [4, 1, null], amounts: [1200, 300], total: 1500, months: 5 },
+    { price: 2500, terms: [6, 1, 1], amounts: [15000, 2500, 2500], total: 20000, months: 8 },
+  ];
+
+  for (const { price, terms, amounts, total, months } of cases) {
+    const [deposit_months, advance_months, commission_months] = terms;
+    const b = entryCostBreakdown(rental({ price, deposit_months, advance_months, commission_months }));
+    assert.deepEqual(b.lines.map((l) => l.amount), amounts, `${price} $ × ${terms.join('+')}`);
+    assert.equal(b.totalAmount, total);
+    assert.equal(b.totalMonths, months);
+    // The formula badge is the stated parts and nothing else — "4 + 1" stays
+    // two terms, never padded to "4 + 1 + 1".
+    assert.equal(b.lines.map((l) => l.months).join(' + '), terms.filter((m) => m !== null).join(' + '));
+  }
+});
+
+test('no default advance or commission is ever filled in', () => {
+  // #305 on the live site: "Garantie : 4 mois", nothing else. A "+ 1 + 1"
+  // default would put 2 000 $ on its card that nobody asked for.
+  assert.equal(entryCostBreakdown(rental({ price: 1000, deposit_months: 4, advance_months: null, commission_months: null })), null);
+});
+
 test('entry-cost amounts are formatted WITHOUT a "/ mois" suffix', () => {
   // These are one-off sums due once at signing. formatPriceParts appends
   // "/ mois" for any rental whatever period is passed, so the component must

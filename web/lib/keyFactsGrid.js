@@ -21,10 +21,10 @@
  *      row: icon and label together on the left, value on the right.
  *
  * Two breakpoints, two remainders: the grid is 2-up on mobile and 4-up from
- * `sm`, so a count can be short in one and exact in the other. Six cells fill
+ * `md`, so a count can be short in one and exact in the other. Six cells fill
  * every mobile row but leave two desktop columns spare — that cell must stay
  * stacked on a phone (it is half-width there and a single line would cramp)
- * and go horizontal only from `sm`. An odd count is short in both, since an
+ * and go horizontal only from `md`. An odd count is short in both, since an
  * odd number is never divisible by four.
  *
  * Every class here is a complete literal. Tailwind v4 scans source text, so an
@@ -35,9 +35,9 @@
 /** How many columns the last cell must absorb, by its 4-up remainder. */
 const DESKTOP_SPAN_FOR_REMAINDER = {
   0: '',
-  1: 'sm:col-span-4',
-  2: 'sm:col-span-3',
-  3: 'sm:col-span-2',
+  1: 'md:col-span-4',
+  2: 'md:col-span-3',
+  3: 'md:col-span-2',
 };
 
 /** A cell that is one column wide everywhere: the grid's normal stacked cell. */
@@ -46,8 +46,8 @@ const STACKED = 'flex flex-col gap-2';
 /** Stretched at every width — content runs along the row at every width too. */
 const ROW = 'flex items-center justify-between gap-4';
 
-/** Exact on mobile, stretched from `sm`: stacked on a phone, row on a desktop. */
-const STACKED_THEN_ROW = 'flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4';
+/** Exact on mobile, stretched from `md`: stacked on a phone, row on a desktop. */
+const STACKED_THEN_ROW = 'flex flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-4';
 
 /**
  * The icon and label travel as ONE flex item in a row layout, so
@@ -58,16 +58,16 @@ const GROUP = 'flex items-center gap-2.5';
 
 /**
  * ...but that grouping must be invisible at a width where the cell is NOT
- * stretched, or the one cell whose layout flips at `sm` would sit its icon
+ * stretched, or the one cell whose layout flips at `md` would sit its icon
  * beside its label on a phone while every other cell stacks its icon above.
  * Seen on the live six-cell grid, and it reads as a mistake because it is one.
  *
  * `display: contents` is the fix: the wrapper stops generating a box, the icon
  * and label become direct children of the cell's own flex column, and the cell
- * is pixel-identical to its neighbours. At `sm` the wrapper becomes a real
+ * is pixel-identical to its neighbours. At `md` the wrapper becomes a real
  * flex item again and the grouping comes back.
  */
-const GROUP_FROM_SM = 'contents sm:flex sm:items-center sm:gap-2.5';
+const GROUP_FROM_SM = 'contents md:flex md:items-center md:gap-2.5';
 
 /**
  * @param {number} count How many cells the grid renders.

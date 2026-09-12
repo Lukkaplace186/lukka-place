@@ -107,7 +107,7 @@ test('a cell short in BOTH rows stretches and lays its content along the row', (
   // cell empty, which reads as the same box because the rows above carry a
   // rule at the midpoint. So it stretches AND goes horizontal.
   const five = lastCellPresentation(5);
-  assert.equal(five.className, 'col-span-2 sm:col-span-4 flex items-center justify-between gap-4');
+  assert.equal(five.className, 'col-span-2 md:col-span-4 flex items-center justify-between gap-4');
   assert.equal(five.groupClassName, 'flex items-center gap-2.5', 'icon and label must group so the value lands at the far end');
 
   // Odd is never divisible by four, so an odd count is always short in both.
@@ -127,15 +127,15 @@ test('a cell exact on mobile but short on desktop stays stacked on the phone', (
   const six = lastCellPresentation(6);
   assert.equal(
     six.className,
-    'sm:col-span-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4',
+    'md:col-span-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-4',
   );
   assert.ok(!six.className.split(' ').includes('col-span-2'), 'must not stretch on mobile');
 
-  // The wrapper is present but `display: contents` until `sm`. The DOM cannot
+  // The wrapper is present but `display: contents` until `md`. The DOM cannot
   // change per breakpoint, so a real wrapper at mobile would put this one
   // cell's icon beside its label while every other cell stacks its icon above
   // — which is exactly how it shipped once, and it read as a mistake.
-  assert.equal(six.groupClassName, 'contents sm:flex sm:items-center sm:gap-2.5');
+  assert.equal(six.groupClassName, 'contents md:flex md:items-center md:gap-2.5');
 });
 
 test('every class emitted is a literal Tailwind can actually see', () => {

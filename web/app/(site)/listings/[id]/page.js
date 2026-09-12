@@ -269,13 +269,16 @@ export default async function ListingDetailPage({ params, searchParams }) {
               ) : null}
             </div>
 
-            <KeyFacts listing={listing} />
-
-            {/* Directly under the facts grid: that grid states the deal in the
-                agent's own notation ("4 + 1 mois"), this says who receives each
-                part and what comes back. Renders nothing when a listing states
-                only a guarantee. */}
-            <EntryCostsBreakdown listing={listing} />
+            {/* One card, two halves: the facts grid, then what is due at
+                signing and to whom. The breakdown renders nothing when a
+                listing states only a guarantee — KeyFacts keeps its deposit
+                cell for exactly that case — and drops its own top rule when
+                it is the card's first child. `empty:hidden` covers a listing
+                with neither. */}
+            <section className="rounded-2xl border border-line bg-surface p-5 empty:hidden sm:p-6">
+              <KeyFacts listing={listing} />
+              <EntryCostsBreakdown listing={listing} />
+            </section>
 
             {/* Mobile only: the sticky right rail is off-screen below lg. */}
             <div className="flex flex-col gap-4 lg:hidden">

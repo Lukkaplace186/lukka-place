@@ -319,7 +319,25 @@
       "reference": "Référence",
       "referenceTag": "Réf: {reference}",
       "entryTerms": "Conditions d'entrée",
-      "entryTermsMonths": "{parts} mois"
+      "entryTermsMonths": "{parts} mois",
+      "type": "Type"
+    },
+    "entryCosts": {
+      "heading": "Conditions financières",
+      "formula": "Formule d'entrée",
+      "atSigning": "à la signature",
+      "atSigningMonths": {
+        "one": "à la signature · {count} mois de loyer",
+        "other": "à la signature · {count} mois de loyer"
+      },
+      "deposit": "Garantie",
+      "advance": "Avance",
+      "commission": "Commission",
+      "refundable": "Remboursable",
+      "recipient": {
+        "bailleur": "Bailleur",
+        "agent": "Agence"
+      }
     },
     "price": {
       "displayed": "Prix affiché",

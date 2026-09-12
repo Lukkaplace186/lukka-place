@@ -319,7 +319,25 @@
       "reference": "Reference",
       "referenceTag": "Ref: {reference}",
       "entryTerms": "Entry terms",
-      "entryTermsMonths": "{parts} months"
+      "entryTermsMonths": "{parts} months",
+      "type": "Type"
+    },
+    "entryCosts": {
+      "heading": "Financial Terms",
+      "formula": "Entry formula",
+      "atSigning": "at signing",
+      "atSigningMonths": {
+        "one": "at signing · {count} month's rent",
+        "other": "at signing · {count} months' rent"
+      },
+      "deposit": "Deposit",
+      "advance": "Advance",
+      "commission": "Commission",
+      "refundable": "Refundable",
+      "recipient": {
+        "bailleur": "Landlord",
+        "agent": "Agency"
+      }
     },
     "price": {
       "displayed": "Displayed price",

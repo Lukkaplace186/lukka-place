@@ -117,6 +117,14 @@ CLASSIFICATION DU TYPE DE BIEN — RÈGLES SPÉCIFIQUES À KINSHASA
    - "X Portes" / "Type Locataire" : mets X dans units_count. Cela signale une parcelle locative à revenus (plusieurs logements loués séparément), pas un appartement unique.
    - Une référence explicite dans le texte brut ("Réf:", "Référence:" suivi d'un code ou numéro) va dans le champ "reference" — un identifiant de l'annonce elle-même, à ne JAMAIS confondre avec le quartier ou toute autre référence de localisation (qui vont dans "quartier", voir LOCALISATION ci-dessus).
 
+POINTS FORTS (champ features) — LISTE À PUCES DU SITE
+- features alimente directement la section « Caractéristiques principales » de la fiche publique : elle est affichée telle quelle, sans reformulation ni filtrage en aval.
+- Une entrée = un point fort, une phrase courte (max ~60 caractères), en français, sans ponctuation finale : "Climatisation dans les chambres", "Eau et électricité 24h/24", "Parking privé", "Cuisine équipée".
+- Chaque entrée doit être VÉRIFIABLE dans le message de l'agent (texte ou image). Tout ce qui n'y est pas ne va pas dans features — pas de "quartier calme" ni de "proche des écoles" déduits du nom de la commune.
+- Ne répète pas dans features ce que la fiche affiche déjà ailleurs : chambres, salles de bain, superficie, nombre de portes, prix, garantie/avance/commission, commune, quartier, référence.
+- amenities reste la liste brute des équipements (un mot ou deux, pour la recherche). features est la version lisible destinée au client, et peut porter ce qu'aucun mot d'équipement ne couvre.
+- Si le message ne donne aucun point fort exploitable, renvoie [] — une liste vide est une réponse correcte, jamais une liste inventée pour remplir la section.
+
 RÈGLES D'EXTRACTION
 1. N'invente rien. Tout champ absent du message doit être null (ou [] pour les listes). Une annonce partielle est normale.
 2. Ne convertis pas les devises. Rapporte le montant et la devise tels qu'ils apparaissent.
@@ -235,7 +243,7 @@ const RESPONSE_FORMAT = {
             'commune', 'quartier', 'price', 'currency', 'price_period', 'deposit_months',
             'advance_months', 'commission_months',
             'bedrooms', 'bathrooms', 'surface_area_sqm', 'units_count', 'furnished',
-            'amenities', 'reference', 'agent_name', 'agency_name', 'summary_fr',
+            'amenities', 'features', 'reference', 'agent_name', 'agency_name', 'summary_fr',
             'missing_fields', 'confidence',
             'is_multi_unit', 'is_multi_property', 'building_name', 'units',
             'is_correction', 'listing_status_update',
@@ -299,6 +307,21 @@ const RESPONSE_FORMAT = {
               type: 'array',
               items: { type: 'string' },
               description: 'piscine, forage, groupe électrogène, climatisation, parking, jardin, sécurité...',
+            },
+            // Distinct from `amenities`, which is a flat list of equipment
+            // names used for matching and for the summary card. This is the
+            // storefront's "Caractéristiques principales" list — short
+            // readable phrases, including the ones no equipment vocabulary
+            // has a word for ("eau et électricité 24h/24", "vue sur le
+            // fleuve", "quartier calme"). See web/lib/descriptionParser.js,
+            // which renders it verbatim; nothing downstream reinterprets
+            // these strings, which is exactly why the prompt forbids the
+            // model from writing one the message does not support.
+            features: {
+              type: 'array',
+              items: { type: 'string' },
+              description:
+                "Points forts du bien, en français, une phrase courte par point (max ~60 caractères), tirés UNIQUEMENT du message. [] si le message n'en donne aucun.",
             },
             reference: {
               type: ['string', 'null'],
@@ -490,7 +513,7 @@ const DRAFT_CONTEXT_FIELDS = [
   'transaction_type', 'property_type', 'parcelle_subtype', 'commune', 'quartier',
   'price', 'currency', 'price_period', 'deposit_months', 'advance_months',
   'commission_months', 'bedrooms', 'bathrooms', 'surface_area_sqm', 'units_count',
-  'furnished', 'amenities', 'reference', 'agent_name', 'summary_fr',
+  'furnished', 'amenities', 'features', 'reference', 'agent_name', 'summary_fr',
 ];
 
 /**

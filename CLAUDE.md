@@ -39,6 +39,23 @@ The storefront queries Supabase directly (chosen over a proxying Express endpoin
     `syncListingToPostgres` still syncs that one field (now correct) and drops
     the other two — they need an `ALTER TABLE` before the sync can include them.
   - `reference` — the listing's **own** explicit code (e.g. "Réf: LKP-2026-0091"), distinct from `quartier`. Never conflate the two: `quartier` is a place/landmark, `reference` is an identifier for the listing itself.
+  - `features` (array) — the storefront's "Caractéristiques principales"
+    bullets, extracted from the agent's own message. **Not a synonym for
+    `amenities`, and the two must not be merged.** `amenities` is a flat
+    equipment vocabulary used for matching and for the WhatsApp summary
+    card; `features` is reader-facing prose for the public listing page and
+    can carry a fact no equipment word covers ("eau et électricité 24h/24").
+    The extraction prompt forbids repeating anything the page already states
+    as structured data — price, garantie, chambres, commune, reference — and
+    forbids inventing one to fill the section: `[]` is a correct answer.
+    JSON text in SQLite, real `text[]` on `properties`
+    (`scripts/migrate-listing-features.js`, which also backfills older rows
+    from `listings.raw_text`, never from the public description — see that
+    file for why, and for the filters that keep an agent's phone number out
+    of a public bullet list). `web/lib/descriptionParser.js` is the read
+    side: real column first, then the AMENITY_KEYWORDS pass over the
+    listing's text, then its own description lines, and the UI captions
+    which of the three it used.
 - **Landmarks**: Always use the French term "référence" (not "repère") in any user-facing or prompt-facing French text.
 
 ## Lead Routing Rules
@@ -301,6 +318,69 @@ production.
 **There is no web-push pipeline at all** — no service worker, no VAPID keys,
 no FCM. Browser push notifications are not silent; they were never built.
 WhatsApp is the only notification channel this product has.
+
+## Listing Enquiries from the Storefront's WhatsApp CTA
+
+`services/listingEnquiry.js`. The other half of the dual contact policy: what
+happens when somebody actually taps "Contacter sur WhatsApp" on a listing
+page.
+
+**The loop this closed.** The storefront pre-types the message
+(`web/lib/whatsapp.js`'s `buildWhatsAppMessage`), so what arrives is:
+
+```
+Bonjour, je suis intéressé par l'annonce Ref: Petit Boulevard, 2ᵉ Rue
+Industrielle (Appartement à Limete) — 1 100 $ / mois. Est-elle toujours
+disponible ?
+Voir l'annonce : https://lukkaplace.com/listings/293
+```
+
+That reached gpt-4o as `is_listing: false`, `intent: 'question'`, matched no
+branch, and came back — verbatim from a real production transcript — as
+*« Pour vérifier la disponibilité, veuillez consulter directement l'annonce
+sur notre site ou contacter l'agent responsable via le lien fourni. »*, sent
+to somebody who had been on that page thirty seconds earlier and arrived
+through that exact link. Nobody at Lukka Place was told the enquiry existed,
+so nothing downstream was going to break the loop either.
+
+- **Deterministic, and ahead of the model.** We wrote the message, so its
+  shape is known and the listing id is in our own URL. The branch sits in
+  `routes/webhook.js` beside the quick replies — before the media download
+  and before `parseMessage` — and costs no extraction call at all
+  (`scripts/verify-pipeline.js` §22 asserts the model is never called).
+  The match is **host-anchored** (`lukkaplace.com`, plus localhost for QA):
+  an agent pasting a competitor's `/listings/…` link is not a customer
+  enquiry. Only numeric ids are accepted — every link the storefront emits
+  uses one, and a slug cannot be told from a path segment without a query.
+- **Three guards, same posture as every other interception here**: no
+  `pending` draft, no media (a message with photos is a listing submission
+  in this pipeline, and the enquiry message never carries any), and a
+  listing that does not resolve live under `status = 1 AND approve_status = 1`
+  returns `handled: false` and falls **through** to ordinary processing.
+  Tested: a property advert that happens to quote a listing URL is still
+  stored as a listing.
+- **The reply is written from what actually happened.** It promises
+  *"un de nos agents partenaires … vous recontactera très rapidement"*
+  only when this module genuinely reached a human — the listing's own
+  phone-verified agent (same `phone_verified_at` gate as `resolveAgentId`
+  and `identifySender`), or `OPS_WHATSAPP_NUMBER`. When it reached nobody it
+  says so and points at the listing's own contact details instead. A
+  promised callback nobody has been asked to make is the same failure as the
+  circular reply, one step later.
+- **Recipients are the listing's agent plus the desk — never
+  `services/leadDispatch.js`'s seven ranked agencies.** Same separation
+  `viewingNotifications.js` documents: this enquiry names one specific
+  listing, and broadcasting it to competitors is the wrong message to the
+  wrong people.
+- **It is recorded**, as a `leads` row with `source: 'listing-whatsapp-enquiry'`
+  — distinct from `'listing-visit-request'` (the "Demander une visite" form)
+  so the WhatsApp CTA's real conversion stays measurable — plus a
+  `conversations` row with `selected_property_id` set, reusing an existing
+  thread rather than forking one.
+- Unchanged and still binding: these are **session messages**. A customer
+  who has just messaged us is inside the 24h window, so the reply lands; the
+  *agent* alert only lands if that agent has messaged this number recently.
+  See "Outbound WhatsApp: what actually works" below.
 
 ## Automated Agent Matching (live)
 

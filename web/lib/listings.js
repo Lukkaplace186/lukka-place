@@ -155,6 +155,12 @@ const SELECT_FIELDS = `
   p.created_at, p.price_period, p.deposit_months, p.advance_months, p.commission_months, p.listing_status,
   p.parent_building_id, p.building_name,
   p.latitude, p.longitude,
+  -- text[]; arrives as a real JS array through node-pg, or NULL for a row
+  -- that predates scripts/migrate-listing-features.js (engine repo) and had
+  -- nothing extractable to backfill. lib/descriptionParser.js treats both
+  -- NULL and an empty array as "no column value" and falls back to the
+  -- keyword pass, so neither case needs special-casing here.
+  p.features,
   pc.title, pc.slug, pc.address,
   catc.name AS category_name,
   pc.description,

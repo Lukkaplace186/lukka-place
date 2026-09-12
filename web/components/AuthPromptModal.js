@@ -7,7 +7,17 @@ import PhoneField from './PhoneField';
 import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
 import { useLocale, useT } from '@/lib/i18n/client';
 
-// Keys, not text — see components/navItems.js.
+/*
+ * Keys, not text — see components/navItems.js. They must be RESOLVED through
+ * `t()` at the render site below: an earlier version interpolated the key
+ * itself into the dialog heading, so a guest tapping the heart read the
+ * literal string "listings.authPrompt.favorite". Caught in real mobile QA.
+ * The same line also referenced an undefined `TITLES` as its fallback, which
+ * a trigger outside this map would have evaluated — a ReferenceError thrown
+ * during render, i.e. Next.js's "This page couldn't load" boundary on top of
+ * a page that was fine a moment earlier. `TITLE_KEYS.save` is the real
+ * fallback the rename left behind.
+ */
 const TITLE_KEYS = {
   save: 'listings.authPrompt.save',
   alert: 'listings.authPrompt.alert',
@@ -55,7 +65,7 @@ export default function AuthPromptModal({ open, onClose, trigger, next }) {
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
       <DialogContent className="gap-5 p-6">
         <DialogTitle className="text-left font-display text-lg font-normal leading-snug tracking-[-0.01em] text-ink">
-          {TITLE_KEYS[trigger] || TITLES.save}
+          {t(TITLE_KEYS[trigger] || TITLE_KEYS.save)}
         </DialogTitle>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
@@ -72,12 +82,12 @@ export default function AuthPromptModal({ open, onClose, trigger, next }) {
             type="submit"
             className="u-press u-btn-primary mt-1 rounded-md bg-blue py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-deep"
           >
-            Continuer
+            {t('listings.authPrompt.continue')}
           </button>
         </form>
 
         <p className="text-center text-sm text-ink-45">
-          Déjà un compte ?{' '}
+          {t('listings.authPrompt.alreadyHaveAccount')}{' '}
           <Link href={`/compte/connexion?next=${encodeURIComponent(next)}`} className="font-semibold text-blue-deep hover:underline">
             {t('common.shared.signIn')}
           </Link>

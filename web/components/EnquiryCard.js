@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { MessageCircle, Phone, CalendarClock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import FavoriteButton from './FavoriteButton';
+import { trackEvent, listingEventPayload } from '@/lib/analyticsClient';
 import ShareButton from './ShareButton';
 import AgentMonogram from './AgentMonogram';
 import { displayableAgencyName } from '@/lib/agentIdentity';
@@ -228,10 +229,24 @@ export default function EnquiryCard({ listing, visitSent, visitError }) {
         )}
 
         {whatsappHref ? (
+          /* The detail page's primary conversion action. It reported
+             nothing until now, which is precisely the number
+             lib/analytics.js's getWhatsAppConversionRate claims to
+             measure: that rate counts whatsapp_clicks against views of
+             `/listings/%`, and this anchor (plus MobileListingBar's) are
+             the ONLY WhatsApp CTAs a listing page renders — WhatsAppCTA.js,
+             the one component that did fire the beacon, is used on feed
+             cards and explicitly not here. So the headline conversion
+             figure was structurally 0 %. `onClick` rather than swapping to
+             a button+window.open: this anchor is not nested inside a Link
+             (unlike the card variants), so the native target="_blank"
+             navigation is correct and the beacon just rides alongside it —
+             `keepalive` is what gets it out of the tab. */
           <a
             href={whatsappHref}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => trackEvent('whatsapp_click', listingEventPayload(listing))}
             className="u-press u-btn-primary inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue px-5 py-3 text-sm font-semibold text-white"
           >
             <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
@@ -258,7 +273,13 @@ export default function EnquiryCard({ listing, visitSent, visitError }) {
         ) : null}
 
         <div className="flex items-center gap-2">
-          <FavoriteButton listingId={id} variant="label" className="flex-1 justify-center" />
+          <FavoriteButton
+            listingId={id}
+            variant="label"
+            className="flex-1 justify-center"
+            price={listing.price}
+            commune={listing.commune}
+          />
           <ShareButton title={title} variant="icon" />
         </div>
       </div>

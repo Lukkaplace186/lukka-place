@@ -412,7 +412,10 @@
     "detail": {
       "viewAgentProfile": "Voir le profil de l'agent",
       "description": "Description",
-      "confirmedAmenities": "Équipements confirmés par l'agent",
+      "keyFeatures": "Caractéristiques principales",
+      "featuresFromAgent": "Points forts extraits du message de l'agent, revus à la publication. Une caractéristique absente de cette liste n'est pas forcément absente du bien.",
+      "featuresFromText": "Les équipements proviennent du texte de l'annonce, revu à la publication. Ils ne sont pas issus d'un champ structuré de la base — un bien peut en disposer sans l'avoir précisé.",
+      "featuresFromDescription": "Reprise de la description de l'annonce, mise en liste. Aucune information n'a été ajoutée.",
       "location": "Emplacement"
     },
     "sidebar": {
@@ -462,7 +465,9 @@
     "authPrompt": {
       "save": "Se connecter ou créer un compte pour enregistrer la recherche",
       "alert": "Se connecter ou créer un compte pour créer une alerte",
-      "favorite": "Se connecter ou créer un compte pour enregistrer ce bien en favori"
+      "favorite": "Se connecter ou créer un compte pour enregistrer ce bien en favori",
+      "continue": "Continuer",
+      "alreadyHaveAccount": "Déjà un compte ?"
     },
     "related": {
       "similar": "Biens Similaires",
@@ -475,6 +480,7 @@
     "viewVerified": "Voir les annonces vérifiées",
     "saveContact": "Enregistrer le contact",
     "favorite": {
+      "save": "Enregistrer",
       "saved": "Enregistré",
       "remove": "Retirer des favoris",
       "add": "Ajouter aux favoris"

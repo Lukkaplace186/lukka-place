@@ -4,6 +4,7 @@ import { MessageCircle } from 'lucide-react';
 import Price from './Price';
 import FavoriteButton from './FavoriteButton';
 import { getCentralWhatsAppHref, buildWhatsAppMessage } from '@/lib/whatsapp';
+import { trackEvent, listingEventPayload } from '@/lib/analyticsClient';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
 
@@ -49,7 +50,12 @@ export default function MobileListingBar({ listing }) {
         </p>
 
         <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-line transition-colors hover:border-blue">
-          <FavoriteButton listingId={listing.id} className="bg-transparent" />
+          <FavoriteButton
+            listingId={listing.id}
+            className="bg-transparent"
+            price={listing.price}
+            commune={listing.commune}
+          />
         </span>
 
         {href ? (
@@ -57,6 +63,7 @@ export default function MobileListingBar({ listing }) {
             href={href}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => trackEvent('whatsapp_click', listingEventPayload(listing))}
             className="u-press u-focus-ring inline-flex shrink-0 items-center gap-2 rounded-full border border-transparent bg-green px-5 py-2.5 text-[0.8125rem] font-semibold text-white transition-colors hover:bg-green-deep"
           >
             <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />

@@ -2,6 +2,8 @@
 
 import { useEffect } from 'react';
 
+import { trackEvent } from '@/lib/analyticsClient';
+
 /**
  * Fires once per detail-page mount — the page_view side of web/lib/analytics.js.
  * A tracking ping, not content: renders nothing, never blocks/delays the
@@ -10,12 +12,7 @@ import { useEffect } from 'react';
  */
 export default function ListingViewTracker({ path, commune }) {
   useEffect(() => {
-    fetch('/api/track', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'page_view', path, commune }),
-      keepalive: true,
-    }).catch(() => {});
+    trackEvent('page_view', { path, commune });
   }, [path, commune]);
 
   return null;

@@ -38,6 +38,7 @@ const {
   handleViewingButtonReply,
   handleAgentTextReply,
 } = require('../services/viewingNotifications');
+const { handleListingEnquiry } = require('../services/listingEnquiry');
 
 const router = express.Router();
 
@@ -658,11 +659,11 @@ async function processGroup(messages) {
   const label = primaryWamid || from;
 
   // Captions arrive spread across the burst; keep arrival order.
-  const text = messages
+  let text = messages
     .map((m) => (m.text ? String(m.text).trim() : ''))
     .filter(Boolean)
     .join('\n');
-  const hasText = Boolean(text);
+  let hasText = Boolean(text);
 
   // VIEWING FEEDBACK BUTTONS — first, before the dedupe and before any
   // billable work.
@@ -844,6 +845,38 @@ async function processGroup(messages) {
         }
         // Anything else is not an answer to our question — fall through and
         // treat it as an ordinary message rather than swallowing it.
+      }
+    }
+
+    // LISTING ENQUIRY — "je suis intéressé par l'annonce Ref: … Voir
+    // l'annonce : https://lukkaplace.com/listings/293".
+    //
+    // A message WE composed (web/lib/whatsapp.js's buildWhatsAppMessage),
+    // carrying our own listing URL. Answered deterministically, before the
+    // media download and before parseMessage, for the same reason the quick
+    // replies below are: there is nothing here a language model can tell us
+    // that the link does not already say, and letting it reach the model is
+    // what produced the circular "consultez l'annonce sur notre site" reply
+    // to a customer who had just come from that page. See
+    // services/listingEnquiry.js.
+    //
+    // Three guards, each protecting an existing behaviour:
+    //   - `!pending`: a draft awaiting confirmation makes every message a
+    //     correction of it, never a new enquiry.
+    //   - no media: in this pipeline a message carrying photos is a listing
+    //     submission by default, and the storefront's enquiry message never
+    //     carries any. An agent who pastes a listing link alongside their
+    //     own property advert therefore still reaches the intake path.
+    //   - `handled: false` from the handler itself — a link naming a
+    //     listing that is not live falls straight through, so nothing is
+    //     swallowed on the strength of a URL alone.
+    if (!pending && hasText && mediaRefs.length === 0 && pdfRefs.length === 0) {
+      try {
+        const enquiry = await handleListingEnquiry({ from, text, primaryWamid });
+        if (enquiry.handled) return;
+      } catch (err) {
+        // Never costs the sender a reply: fall through to the ordinary path.
+        console.error(`[enquiry] handling a listing enquiry from ${from} failed: ${err.message}`);
       }
     }
 

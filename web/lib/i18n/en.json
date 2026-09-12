@@ -412,7 +412,10 @@
     "detail": {
       "viewAgentProfile": "View agent profile",
       "description": "Description",
-      "confirmedAmenities": "Features Confirmed by the Agent",
+      "keyFeatures": "Key Features",
+      "featuresFromAgent": "Highlights taken from the agent's own message, reviewed at publication. A feature missing from this list is not necessarily missing from the property.",
+      "featuresFromText": "Features are drawn from the listing's own text, reviewed at publication. They do not come from a structured database field — a property may have one without having mentioned it.",
+      "featuresFromDescription": "The listing's own description, set out as a list. Nothing has been added to it.",
       "location": "Location"
     },
     "sidebar": {
@@ -462,7 +465,9 @@
     "authPrompt": {
       "save": "Log in or create an account to save this search",
       "alert": "Log in or create an account to create an alert",
-      "favorite": "Log in or create an account to save this property"
+      "favorite": "Log in or create an account to save this property",
+      "continue": "Continue",
+      "alreadyHaveAccount": "Already have an account?"
     },
     "related": {
       "similar": "Similar Properties",
@@ -475,6 +480,7 @@
     "viewVerified": "See verified listings",
     "saveContact": "Save contact",
     "favorite": {
+      "save": "Save",
       "saved": "Saved",
       "remove": "Remove from saved",
       "add": "Add to saved"

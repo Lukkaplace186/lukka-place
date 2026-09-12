@@ -1678,6 +1678,121 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(row.wa_id, '243810000000');
     assert.strictEqual(row.wamid, 'wamid.DIRECT');
   });
+  // `features` is the storefront's "Caractéristiques principales" list
+  // (web/components/listings/PropertyDescription.js). It is stored as its own
+  // JSON column rather than folded into `amenities`, so the round trip is
+  // asserted on its own — and asserted as EMPTY here, because the canned
+  // extraction carries no features and a silent fallback to `amenities`
+  // would be exactly the conflation the split exists to prevent.
+  check('features round-trips as its own array, separate from amenities', () => {
+    assert.deepStrictEqual(row.features, []);
+
+    const withFeatures = dbService.insertListing(
+      {
+        intent: 'listing', transaction_type: 'location', property_type: 'appartement',
+        commune: 'Gombe', price: 1200, currency: 'USD', price_period: 'mois',
+        amenities: ['climatisation'],
+        features: ['Eau et électricité 24h/24', 'Cuisine équipée', 'Parking privé'],
+        missing_fields: [], confidence: 0.9,
+      },
+      '243810000077',
+      { wamid: 'wamid.FEATURES' },
+    );
+    const featureRow = dbService.getListing(withFeatures.id);
+    assert.deepStrictEqual(featureRow.features, [
+      'Eau et électricité 24h/24', 'Cuisine équipée', 'Parking privé',
+    ]);
+    assert.deepStrictEqual(featureRow.amenities, ['climatisation']);
+  });
+
+  check('a correction can add features without clearing the rest of the draft', () => {
+    const draft = dbService.insertListing(
+      {
+        intent: 'listing', transaction_type: 'location', property_type: 'appartement',
+        commune: 'Limete', price: 900, currency: 'USD', amenities: ['parking'],
+        missing_fields: [], confidence: 0.8,
+      },
+      '243810000078',
+      { wamid: 'wamid.FEATCORRECT' },
+    );
+    dbService.applyListingCorrection(draft.id, { features: ['Jardin clôturé', 'Forage'] }, 'avec jardin');
+    const corrected = dbService.getListing(draft.id);
+    assert.deepStrictEqual(corrected.features, ['Jardin clôturé', 'Forage']);
+    assert.strictEqual(corrected.commune, 'Limete');
+    assert.strictEqual(corrected.price, 900);
+  });
+
+  // The backfill for rows that predate the extraction's own `features`
+  // field — scripts/migrate-listing-features.js, which reads the agent's
+  // ORIGINAL WhatsApp message rather than the laundered public description.
+  // Its filter list is not a style preference: every pattern in it was added
+  // because a real production row produced that line in a --dry-run.
+  {
+    const { featureLinesFromText } = require('./migrate-listing-features');
+
+    check('a well-formatted agent message becomes a real feature list', () => {
+      const lines = featureLinesFromText(
+        '*APPARTEMENT A LOUER*\n'
+        + '✨ Composition :\n'
+        + '✔️ 2 grandes chambres\n'
+        + '✔️ Cuisine spacieuse\n'
+        + '✔️ Climatisation partout\n'
+        + 'Parking disponible',
+      );
+      // Decoration and the section header are gone; the facts are not.
+      assert.deepStrictEqual(lines, [
+        'APPARTEMENT A LOUER',
+        '2 grandes chambres',
+        'Cuisine spacieuse',
+        'Climatisation partout',
+        'Parking disponible',
+      ]);
+    });
+
+    // The one that actually matters. CLAUDE.md's dual contact policy puts an
+    // agent's number on the listing page through EnquiryCard deliberately —
+    // it must not ALSO arrive as a "key feature", and neither must the price,
+    // the garantie or the reference, all of which the page already states as
+    // structured data.
+    check('an agent phone number never becomes a public bullet', () => {
+      const lines = featureLinesFromText(
+        'Climatisation partout\n'
+        + 'Parking disponible\n'
+        + 'Panneau solaire\n'
+        + '💋Loyer : 700 Dollars\n'
+        + 'Garantie : 4+1\n'
+        + 'Réf : Saio\n'
+        + '☎️Pour Tout Contact Eugene ML+243821122937',
+      );
+      assert.ok(
+        !lines.some((l) => /243821122937/.test(l)),
+        `phone number leaked into features: ${JSON.stringify(lines)}`,
+      );
+      assert.deepStrictEqual(lines, ['Climatisation partout', 'Parking disponible', 'Panneau solaire']);
+    });
+
+    check('a message with nothing but noise is left alone, not half-converted', () => {
+      const lines = featureLinesFromText(
+        '*🏘️ Bonjour*\n'
+        + 'Loyer : 700 Dollars\n'
+        + 'Garantie :4+1\n'
+        + 'Réf : Saio\n'
+        + '☎️Pour Tout Contact Eugene ML+243',
+      );
+      assert.deepStrictEqual(lines, []);
+    });
+
+    check('prose gets no bullets — this backfill never splits sentences', () => {
+      assert.deepStrictEqual(
+        featureLinesFromText(
+          'Cet appartement situé au premier niveau dans la commune de Bandalungwa '
+          + 'est disponible à la location. Il comprend deux chambres.',
+        ),
+        [],
+      );
+    });
+  }
+
   check('parcelle_subtype/units_count/reference default to null when the extraction has none of them', () => {
     assert.strictEqual(row.parcelle_subtype, null);
     assert.strictEqual(row.units_count, null);
@@ -2569,6 +2684,78 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(openaiCalls.length - aiBeforeJunk, 0);
     assert.strictEqual(httpCalls.length, 0);
   });
+
+  // -------------------------------------------------------------------------
+  // 6a3. PDF flyer end-to-end, through the real webhook
+  //
+  // 5f drives services/documentText.js directly. That is the half that always
+  // worked. The half that did NOT was routes/webhook.js's own PDF branch:
+  // `text` and `hasText` were declared `const` and then assigned to when a
+  // readable text layer came back, so EVERY flyer carrying real text threw
+  // `TypeError: Assignment to constant variable.` inside processGroup's try.
+  // The agent got no reply and the listing was never stored, while the
+  // no-text-layer branch beside it worked fine — which is exactly why it read
+  // as intermittent rather than total.
+  //
+  // A module-level test could never have caught this. The assertion has to run
+  // the request through the webhook.
+  // -------------------------------------------------------------------------
+
+  console.log('\n6a3. PDF flyer end-to-end (regression: const reassignment)');
+
+  const pdfRowsBefore = dbService.countListings();
+  const pdfAiBefore = openaiCalls.length;
+  const savedMediaBytes = mediaBinaryResponse;
+  const savedMediaType = mediaContentType;
+  mediaBinaryResponse = flyerPdf;
+  mediaContentType = 'application/pdf';
+  httpCalls.length = 0;
+
+  const pdfStatus = await post('/webhook', {
+    object: 'whatsapp_business_account',
+    entry: [{ id: '1', changes: [{ field: 'messages', value: {
+      metadata: { phone_number_id: '987654321' },
+      contacts: [{ wa_id: '243850000777', profile: { name: 'Agence Flyer' } }],
+      messages: [{
+        from: '243850000777',
+        id: 'wamid.PDFFLYER',
+        timestamp: '1',
+        type: 'document',
+        document: { id: 'media.flyer.1', mime_type: 'application/pdf', filename: 'annonce.pdf' },
+      }],
+    } }] }],
+  });
+  await settle(400);
+
+  check('a PDF flyer with a real text layer does not crash the pipeline', () => {
+    assert.strictEqual(pdfStatus, 200);
+    assert.strictEqual(
+      openaiCalls.length - pdfAiBefore,
+      1,
+      'the flyer never reached the model — processGroup threw before extraction',
+    );
+  });
+  check("the flyer's text layer is what the model was asked about", () => {
+    const parts = lastUserParts();
+    const sent = typeof parts === 'string'
+      ? parts
+      : parts.map((p) => p.text || '').join('\n');
+    assert.ok(/NGALIEMA/i.test(sent), `the PDF text never reached the model: ${sent.slice(0, 200)}`);
+  });
+  check('the flyer is stored as a real listing', () =>
+    assert.strictEqual(dbService.countListings() - pdfRowsBefore, 1));
+  check('the agent is answered rather than left in silence', () => {
+    assert.ok(httpCalls.length >= 1, 'no reply was sent for a readable flyer');
+    const replies = httpCalls.filter((c) => c.method === 'post' && c.data?.text?.body);
+    assert.ok(replies.length >= 1, 'no text reply reached the agent');
+    assert.ok(
+      !replies.some((r) => r.data.text.body === webhookRouter.PDF_UNREADABLE_REPLY),
+      'a readable flyer must never get the "send a photo instead" refusal',
+    );
+  });
+
+  mediaBinaryResponse = savedMediaBytes;
+  mediaContentType = savedMediaType;
 
   // -------------------------------------------------------------------------
   // 6b. Photo listings end-to-end
@@ -5659,6 +5846,168 @@ console.log('\n2. services/openai.js');
 
   propertyMatching.matchProperties = realMatchProperties;
   dbService.clearPendingAgentAction(AGENT_WA);
+
+  // ===========================================================================
+  // 22. Listing enquiry from the storefront's WhatsApp CTA
+  //
+  //     The message the site composes ("...Voir l'annonce :
+  //     https://lukkaplace.com/listings/293") used to reach gpt-4o and come
+  //     back as "pour vérifier la disponibilité, veuillez consulter
+  //     directement l'annonce sur notre site" — sent to somebody who had
+  //     just come from that page. These checks pin the two things that
+  //     stopped it: the reply is produced without a model call at all, and
+  //     a real human is told the enquiry exists.
+  // ===========================================================================
+
+  console.log('\n22. Listing enquiry (storefront WhatsApp CTA)');
+
+  const listingEnquiry = require('../services/listingEnquiry');
+
+  const ENQUIRY_WA = '243991234567';
+  const ENQUIRY_TEXT = "Bonjour, je suis intéressé par l'annonce Ref: Petit Boulevard, 2ᵉ Rue "
+    + "Industrielle (Appartement à Limete) — 1 100 $ / mois. Est-elle toujours disponible ?\n"
+    + "Voir l'annonce : https://lukkaplace.com/listings/293";
+
+  check('the real storefront message yields the listing id and the quoted reference', () => {
+    const parsed = listingEnquiry.parseListingEnquiry(ENQUIRY_TEXT);
+    assert.strictEqual(parsed.propertyId, 293);
+    assert.strictEqual(parsed.reference, 'Petit Boulevard, 2ᵉ Rue Industrielle');
+  });
+
+  check('an ordinary property advert is not mistaken for an enquiry', () =>
+    assert.strictEqual(
+      listingEnquiry.parseListingEnquiry('Villa a louer Ngaliema 4 chambres 2500$/mois'),
+      null,
+    ));
+
+  // Host-anchored on purpose: an agent pasting a competitor's link must not
+  // be answered as though they were asking about one of ours.
+  check("a listing link on somebody else's domain is not one of ours", () =>
+    assert.strictEqual(
+      listingEnquiry.parseListingEnquiry('regarde https://example.com/listings/293'),
+      null,
+    ));
+
+  check('a localhost link from QA is still recognised', () =>
+    assert.strictEqual(
+      listingEnquiry.parseListingEnquiry('http://localhost:3002/listings/42').propertyId,
+      42,
+    ));
+
+  // --- The reply itself -----------------------------------------------------
+
+  const ENQUIRY_LISTING = {
+    id: '293',
+    reference: 'Petit Boulevard, 2ᵉ Rue Industrielle',
+    title: '2 chambres — Appartement à louer à Limete',
+    slug: '2-chambres-appartement-a-louer-a-limete-293',
+    commune: 'Limete',
+    agent_id: '43',
+    agent_phone: '243821122937',
+    phone_verified_at: '2026-09-09T17:46:02.802Z',
+    agent_name: 'Kkimmo',
+  };
+
+  check('the reply never sends the customer back to the page they came from', () => {
+    const reply = listingEnquiry.customerReply({
+      listing: ENQUIRY_LISTING, propertyId: 293, quotedReference: null, reached: true,
+    });
+    assert.match(reply, /vérifie la disponibilité auprès du bailleur/);
+    assert.match(reply, /Souhaitez-vous programmer une visite/);
+    // The exact shape of the old failure: telling them to go and look at the
+    // listing on the website they had just come from.
+    assert.doesNotMatch(reply, /consulter.*sur notre site/i);
+    assert.doesNotMatch(reply, /site web/i);
+  });
+
+  check('when nobody was reached, no callback is promised', () => {
+    const reply = listingEnquiry.customerReply({
+      listing: ENQUIRY_LISTING, propertyId: 293, quotedReference: null, reached: false,
+    });
+    assert.doesNotMatch(reply, /recontactera/);
+    assert.match(reply, /pas pu joindre/);
+    // It has to leave them somewhere real instead.
+    assert.match(reply, /lukkaplace\.com\/listings\//);
+  });
+
+  check('a listing with no reference code never reads "Ref: null"', () => {
+    const reply = listingEnquiry.customerReply({
+      listing: { ...ENQUIRY_LISTING, reference: null },
+      propertyId: 293,
+      quotedReference: null,
+      reached: true,
+    });
+    assert.doesNotMatch(reply, /null/);
+    assert.match(reply, /2 chambres — Appartement à louer à Limete/);
+  });
+
+  // --- End to end, through the real route -----------------------------------
+
+  const realEnquiryLookup = propertyRepo.getListingContactById;
+  propertyRepo.getListingContactById = async (id) => (
+    Number(id) === 293 ? ENQUIRY_LISTING : null
+  );
+
+  httpCalls.length = 0;
+  const openaiCallsBeforeEnquiry = openaiCalls.length;
+  await post('/webhook', inbound('wamid.ENQUIRY', ENQUIRY_TEXT, ENQUIRY_WA));
+  await settle();
+
+  check('the enquiry is answered without a single gpt-4o call', () =>
+    assert.strictEqual(
+      openaiCalls.length,
+      openaiCallsBeforeEnquiry,
+      'the enquiry still reached the extraction model',
+    ));
+
+  check('the listing agent is told, and the customer gets a reply', () => {
+    const recipients = httpCalls.map((c) => c.data.to);
+    assert.ok(recipients.includes('243821122937'), `agent not notified (sent to ${recipients})`);
+    assert.ok(recipients.includes(ENQUIRY_WA), `customer not answered (sent to ${recipients})`);
+  });
+
+  check('the agent alert names the listing, the commune and the customer', () => {
+    const toAgent = httpCalls.find((c) => c.data.to === '243821122937');
+    const body = toAgent.data.text.body;
+    assert.match(body, /Petit Boulevard/);
+    assert.match(body, /Limete/);
+    assert.match(body, new RegExp(`\\+${ENQUIRY_WA}`));
+  });
+
+  check('the enquiry is recorded as a real, distinguishable lead', () => {
+    const leads = dbService.listLeads({ limit: 200 }).data
+      .filter((l) => l.wa_id === ENQUIRY_WA);
+    assert.strictEqual(leads.length, 1);
+    assert.strictEqual(leads[0].source, 'listing-whatsapp-enquiry');
+    assert.strictEqual(Number(leads[0].property_id), 293);
+  });
+
+  check('the enquiry was not also stored as a listing', () =>
+    assert.strictEqual(dbService.findByWamid('wamid.ENQUIRY'), undefined));
+
+  // --- The fall-through that keeps this safe --------------------------------
+  //
+  // A link naming a listing that is not live (pending moderation, retired,
+  // or simply wrong) must not be answered with a promise about a property we
+  // cannot confirm exists. It falls through to ordinary processing instead.
+
+  httpCalls.length = 0;
+  await post(
+    '/webhook',
+    inbound(
+      'wamid.DEADLINK',
+      'Villa a louer Ngaliema 4 chambres 2500$/mois — https://lukkaplace.com/listings/999999',
+      '243991234568',
+    ),
+  );
+  await settle();
+
+  check('a link to a listing that is not live falls through to the intake path', () => {
+    const stored = dbService.findByWamid('wamid.DEADLINK');
+    assert.ok(stored, 'the message was swallowed on the strength of a URL alone');
+  });
+
+  propertyRepo.getListingContactById = realEnquiryLookup;
 
   // -------------------------------------------------------------------------
   console.log(`\n${'-'.repeat(60)}`);

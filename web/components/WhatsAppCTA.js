@@ -1,6 +1,7 @@
 'use client';
 
 import { buildWhatsAppLink, buildWhatsAppMessage } from '@/lib/whatsapp';
+import { trackEvent, listingEventPayload } from '@/lib/analyticsClient';
 import { useT } from '@/lib/i18n/client';
 
 function WhatsAppIcon(props) {
@@ -82,12 +83,7 @@ export default function WhatsAppCTA({ listing, variant = 'compact' }) {
   function handleClick(e) {
     e.preventDefault();
     e.stopPropagation();
-    fetch('/api/track', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'whatsapp_click', listingId: listing.id, commune: listing.commune }),
-      keepalive: true,
-    }).catch(() => {});
+    trackEvent('whatsapp_click', listingEventPayload(listing));
     window.open(href, '_blank', 'noopener,noreferrer');
   }
 

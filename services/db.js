@@ -93,6 +93,13 @@ const EXTENDED_COLUMNS = [
   ['furnished', 'INTEGER'],
   // JSON arrays, queryable in place via json_extract() / json_each().
   ['amenities', 'TEXT'],
+  // The storefront's "Caractéristiques principales" bullets, as extracted
+  // from the agent's own message (services/openai.js's `features`). Kept
+  // separate from `amenities`: that one is a flat equipment vocabulary used
+  // for matching, this one is reader-facing prose and can carry a fact no
+  // equipment word covers ("eau et électricité 24h/24"). Synced to
+  // `properties.features` (text[]) by services/postgres.js.
+  ['features', 'TEXT'],
   ['summary_fr', 'TEXT'],
   ['missing_fields', 'TEXT'],
   // Complete aiParser output, so no future field is ever lost to the schema.
@@ -397,6 +404,7 @@ function saveListing(listingData, senderInfo = {}) {
       commission_months: toInteger(listingData.commission_months),
       furnished: toSqliteBool(listingData.furnished),
       amenities: toJsonText(listingData.amenities),
+      features: toJsonText(listingData.features),
       summary_fr: toNullable(listingData.summary_fr),
       missing_fields: toJsonText(listingData.missing_fields),
       parsed_json: toJsonText(listingData),
@@ -604,7 +612,7 @@ const CORRECTABLE_FIELDS = [
   'intent', 'transaction_type', 'property_type', 'parcelle_subtype', 'commune', 'quartier',
   'price', 'currency', 'price_period', 'deposit_months', 'advance_months',
   'commission_months', 'bedrooms', 'bathrooms',
-  'surface_area_sqm', 'units_count', 'furnished', 'amenities', 'reference',
+  'surface_area_sqm', 'units_count', 'furnished', 'amenities', 'features', 'reference',
   'summary_fr', 'missing_fields',
 ];
 
@@ -619,6 +627,7 @@ const CORRECTABLE_COERCERS = {
   commission_months: toInteger,
   furnished: toSqliteBool,
   amenities: toJsonText,
+  features: toJsonText,
   missing_fields: toJsonText,
 };
 
@@ -859,6 +868,11 @@ function expandAndPublishListing(id) {
         amenities: Array.isArray(unit.amenities) && unit.amenities.length
           ? unit.amenities
           : draft.amenities || [],
+        // The building's key features belong to every unit in it — there is
+        // no per-unit `features` in the extraction (see services/openai.js's
+        // `units` schema), and a unit inheriting "eau et électricité 24h/24"
+        // from its own building is a true statement, not a copied guess.
+        features: draft.features || [],
         units_count: null,
         missing_fields: [],
         confidence: parsed.confidence ?? null,
@@ -935,6 +949,7 @@ function parseRow(row) {
     ...row,
     furnished: row.furnished === null ? null : Boolean(row.furnished),
     amenities: fromJsonText(row.amenities, []),
+    features: fromJsonText(row.features, []),
     missing_fields: fromJsonText(row.missing_fields, []),
     photos: fromJsonText(row.photos, []),
     group_wamids: fromJsonText(row.group_wamids, []),

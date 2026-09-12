@@ -14,12 +14,12 @@ import RelatedListings from '@/components/RelatedListings';
 import MobileListingBar from '@/components/MobileListingBar';
 import ShareButton from '@/components/ShareButton';
 import FavoriteButton from '@/components/FavoriteButton';
-import { AmenityTag } from '@/components/ListingBadges';
 import { getListingById, getListings, getSimilarListings } from '@/lib/listings';
-import { listingImages, locationLine, matchedAmenityKeys } from '@/lib/listingView';
+import { listingImages, locationLine } from '@/lib/listingView';
 import { formatPrice } from '@/lib/format';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import ListingViewTracker from '@/components/ListingViewTracker';
+import PropertyDescription from '@/components/listings/PropertyDescription';
 
 /**
  * `openGraph`/`twitter` here are what WhatsApp's own link-preview crawler
@@ -143,7 +143,6 @@ export default async function ListingDetailPage({ params, searchParams }) {
   })();
   // Up to 5 here rather than a card's 2 — the detail page has a dedicated
   // "Équipements" section with room for the full matched set.
-  const amenityKeys = matchedAmenityKeys(listing, 5);
 
   // Real pgvector cosine-similarity match against this listing's own stored
   // embedding (services/embeddings.js, engine repo — written on every
@@ -180,7 +179,15 @@ export default async function ListingDetailPage({ params, searchParams }) {
     <div className="pb-28 lg:pb-0">
       <ListingViewTracker path={`/listings/${listing.id}`} commune={listing.commune} />
       <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
-        <div className="mb-5 flex items-center justify-between gap-4">
+        {/* Stacked below `sm`, side by side above it. Sharing one row at
+            320-375px left the breadcrumb roughly 140px of a 288px content
+            box — enough to wrap "Accueil › Annonces › Kintambo › 3 chambres
+            — Appartement…" onto three lines and shove the two action
+            buttons into it, which is what a real phone screenshot showed.
+            `justify-end` on the action row keeps Partager/Enregistrer
+            right-aligned in the stacked layout too, so they stay where the
+            thumb expects them rather than jumping to the left margin. */}
+        <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
           <Breadcrumb
             className="min-w-0"
             items={[
@@ -198,9 +205,9 @@ export default async function ListingDetailPage({ params, searchParams }) {
               localStorage favorite every other heart on the site reads),
               not decorative buttons duplicating EnquiryCard's own pair
               lower down. */}
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center justify-end gap-2">
             <ShareButton title={listing.title} />
-            <FavoriteButton listingId={listing.id} variant="label" />
+            <FavoriteButton listingId={listing.id} variant="label" price={listing.price} commune={listing.commune} />
           </div>
         </div>
 
@@ -239,7 +246,14 @@ export default async function ListingDetailPage({ params, searchParams }) {
                   purpose={listing.purpose}
                   pricePeriod={listing.price_period}
                   showSubtext
-                  subtextClassName="ml-2.5 inline-block rounded-md bg-canvas-alt px-2 py-0.5 align-middle text-[0.8125rem] font-medium leading-normal tracking-normal text-ink"
+                  /* The "≈ 2,5 M FC / mois" pill. Below `sm` it drops to
+                     its own line (`mt-1.5`, no left margin) instead of
+                     sitting beside a $1,100 that is already 1.75rem tall:
+                     at 320px the two together overflow the content box,
+                     and an inline-block that wraps still carries its
+                     `ml-2.5` as a stray indent on the new line. From `sm`
+                     up there is room and it sits inline, as designed. */
+                  subtextClassName="mt-1.5 inline-block rounded-md bg-canvas-alt px-2 py-0.5 align-middle text-[0.8125rem] font-medium leading-normal tracking-normal text-ink sm:ml-2.5 sm:mt-0"
                 />
               </span>
 
@@ -287,35 +301,13 @@ export default async function ListingDetailPage({ params, searchParams }) {
               <PricePanel listing={listing} />
             </div>
 
-            {listing.description ? (
-              <div className="flex flex-col gap-3">
-                <h2 className="u-h2 text-ink">{t('listings.detail.description')}</h2>
-                <p className="u-body max-w-[46rem] whitespace-pre-line text-ink-70">
-                  {listing.description}
-                </p>
-              </div>
-            ) : null}
-
-            {amenityKeys.length > 0 ? (
-              <div className="flex flex-col gap-3.5">
-                <h2 className="u-h2 text-ink">{t('listings.detail.confirmedAmenities')}</h2>
-                <div className="flex flex-wrap gap-2">
-                  {amenityKeys.map((key) => <AmenityTag key={key} amenityKey={key} />)}
-                </div>
-                {/* The design's heading claims agent confirmation, and its
-                    own caption immediately qualifies how: these come from
-                    the listing text, not a structured column. Both are true
-                    here — the description is written by the agent who
-                    submitted the listing, and it passes the approve_status
-                    moderation gate before publication — so the design's
-                    wording is kept verbatim. The caption is what carries the
-                    honesty; the heading alone would overclaim. */}
-                <p className="max-w-[42rem] text-[0.8125rem] leading-[1.5] text-ink-35">
-                  Les équipements proviennent du texte de l&apos;annonce, revu à la publication. Ils ne sont pas issus
-                  d&apos;un champ structuré de la base — un bien peut en disposer sans l&apos;avoir précisé.
-                </p>
-              </div>
-            ) : null}
+            {/* Key features first, description under it — see
+                components/listings/PropertyDescription.js. This replaces
+                BOTH the bare description block that used to sit here and
+                the separate "Équipements confirmés" chip section that used
+                to follow it; rendering either alongside this would state
+                the same amenities twice on one page. */}
+            <PropertyDescription listing={listing} />
 
             <div className="flex flex-col gap-3">
               <h2 className="u-h2 text-ink">{t('listings.detail.location')}</h2>

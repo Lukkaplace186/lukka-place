@@ -197,7 +197,7 @@ export default function PropertyCard({
         </div>
 
         <div className="absolute right-3 top-3 z-10">
-          <FavoriteButton listingId={id} />
+          <FavoriteButton listingId={id} price={listing.price} commune={listing.commune} />
         </div>
 
         {/* Photo counter back to bottom-right, where it does not collide

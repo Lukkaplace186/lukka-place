@@ -9,6 +9,7 @@ import { useIsLoggedIn } from '@/lib/customerClient';
 import { useMotionSafe } from '@/lib/useMotionSafe';
 import { iconPop } from '@/lib/motion';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { trackEvent } from '@/lib/analyticsClient';
 import { cn } from '@/lib/utils';
 import AuthPromptModal from './AuthPromptModal';
 import { FAV_RETURN_PARAM } from './FavoriteResumeHandler';
@@ -38,8 +39,9 @@ import { useT } from '@/lib/i18n/client';
  * that looks tappable but isn't.
  *
  * `variant="label"` is the same real toggle rendered as a text pill
- * ("Sauvegarder"/t('listings.favorite.saved')) for a card's bottom action row, next to
- * WhatsAppCTA, instead of floating over the photo — both variants share
+ * (t('listings.favorite.save') / t('listings.favorite.saved')) for a card's
+ * bottom action row, next to WhatsAppCTA, instead of floating over the
+ * photo — both variants share
  * the one localStorage-backed toggle below, nothing about the underlying
  * behaviour changes.
  *
@@ -70,7 +72,20 @@ function AnimatedHeart({ pulseKey, safe, ...heartProps }) {
   );
 }
 
-export default function FavoriteButton({ listingId, className = '', variant = 'icon' }) {
+/**
+ * `price`/`commune` are optional and exist only for the conversion event
+ * fired below — a save with no idea what was saved is a row nobody can
+ * segment. Every call site already holds the real listing row, so neither
+ * is derived or guessed here; a caller that genuinely has neither sends
+ * null rather than a placeholder.
+ */
+export default function FavoriteButton({
+  listingId,
+  className = '',
+  variant = 'icon',
+  price = null,
+  commune = null,
+}) {
   const t = useT();
   const pathname = usePathname();
   const loggedIn = useIsLoggedIn();
@@ -92,6 +107,26 @@ export default function FavoriteButton({ listingId, className = '', variant = 'i
     () => false,
   );
 
+  /**
+   * preventDefault + stopPropagation are load-bearing, not defensive noise:
+   * every variant of this button renders inside something clickable — the
+   * `icon` variant sits over a PropertyCard's photo, which IS a <Link> —
+   * so without both, a save navigates.
+   *
+   * The whole body is wrapped because this is an event handler, and React
+   * does NOT route a throw here to an error boundary: it becomes an
+   * uncaught window error, which in a Next.js App Router page surfaces as
+   * the "This page couldn't load" screen with the visitor's scroll position
+   * and their save both gone. Nothing about recording a favorite is worth
+   * that, so a failure here does nothing visible at all — the optimistic
+   * state in lib/accountFavorites.js already reverts itself when the real
+   * request fails.
+   *
+   * `toggleFavorite` is optimistic and returns the NEW state synchronously
+   * (the network write happens in the background and reverts on failure),
+   * which is what lets the event below name saved vs unsaved correctly
+   * without waiting on a round trip.
+   */
   function handleClick(e) {
     e.preventDefault();
     e.stopPropagation();
@@ -99,8 +134,17 @@ export default function FavoriteButton({ listingId, className = '', variant = 'i
       setShowAuthPrompt(true);
       return;
     }
-    toggleFavorite(listingId);
-    setPulseKey((k) => k + 1);
+    try {
+      const nowFavorited = toggleFavorite(listingId);
+      setPulseKey((k) => k + 1);
+      trackEvent(nowFavorited ? 'listing_saved' : 'listing_unsaved', {
+        listingId,
+        price,
+        commune,
+      });
+    } catch (err) {
+      console.error(`[favorite] toggling listing ${listingId} failed: ${err.message}`);
+    }
   }
 
   // Read directly rather than usePathname()+useSearchParams(): this button
@@ -144,7 +188,7 @@ export default function FavoriteButton({ listingId, className = '', variant = 'i
             strokeWidth={ICON_STROKE_WIDTH}
             className="h-3.5 w-3.5"
           />
-          {favorited ? t('listings.favorite.saved') : 'Sauvegarder'}
+          {favorited ? t('listings.favorite.saved') : t('listings.favorite.save')}
         </button>
         {authPrompt}
       </>

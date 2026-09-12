@@ -359,6 +359,17 @@ function buildPropertyValues(row, { category, location, agentId = null }) {
     deposit_months: row.deposit_months ?? null,
     advance_months: row.advance_months ?? null,
     commission_months: row.commission_months ?? null,
+    // The storefront's "Caractéristiques principales" bullets. `features` is
+    // a real text[] on properties (scripts/migrate-listing-features.js);
+    // node-pg serialises a JS array of strings to it directly, so the
+    // decoded SQLite array passes straight through.
+    //
+    // NULL, not [], when the agent's message stated no key feature. The two
+    // are different claims on the read side: web/lib/descriptionParser.js
+    // treats a missing column as "fall back to the keyword pass over the
+    // description", and an empty array would say "the extraction ran and
+    // found nothing", suppressing that fallback for a legacy-shaped row.
+    features: Array.isArray(row.features) && row.features.length ? row.features : null,
     status: 1,
     approve_status: 0,
   };

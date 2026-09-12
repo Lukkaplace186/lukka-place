@@ -1739,9 +1739,11 @@ console.log('\n2. services/openai.js');
         + '✔️ Climatisation partout\n'
         + 'Parking disponible',
       );
-      // Decoration and the section header are gone; the facts are not.
+      // Decoration, the section header AND the advert headline are gone;
+      // the facts are not. "APPARTEMENT A LOUER" is the message's title —
+      // the page's own <h1>, price and KeyFacts grid already say all of it,
+      // so repeating it as a "key feature" is noise.
       assert.deepStrictEqual(lines, [
-        'APPARTEMENT A LOUER',
         '2 grandes chambres',
         'Cuisine spacieuse',
         'Climatisation partout',

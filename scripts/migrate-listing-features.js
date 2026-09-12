@@ -33,6 +33,24 @@
  * pass over the listing's text, which carries its own, weaker, honest
  * caption. Not backfilling is a real outcome here, not a failure.
  *
+ * *** THIS HAS NOT BEEN RUN AGAINST THE EXISTING PRODUCTION CORPUS, AND
+ *     SHOULD NOT BE WITHOUT READING A --dry-run FIRST. ***
+ * Measured on all 33 published listings on 2026-09-12: it produced usable
+ * lines for 23 of them, but roughly a quarter to a third of those lines were
+ * advert framing rather than features — "2 APPARTEMENTS SUR MONT DES ARTS
+ * HUILERIE", "Commune de Kinshasa", "NDAKU YA SIKA OFUTI OKOTI", agency
+ * sign-offs. Each round of filtering below removed one category and revealed
+ * another, which is the signature of a problem regexes cannot close: telling
+ * a feature from a sales pitch needs to understand the sentence.
+ *
+ * The extraction model already does that, with the POINTS FORTS rules in
+ * services/openai.js, and it now fills `features` on every NEW listing. The
+ * right backfill for the existing corpus is to re-run that same extraction
+ * over each row's stored `raw_text` (33 calls, a few cents) rather than to
+ * keep growing NOISE_PATTERNS. This script stays because the schema half is
+ * needed and re-runnable, and because its line filter is still the right one
+ * for a genuinely list-formatted message.
+ *
  * THE LINE FILTER IS DUPLICATED, DELIBERATELY
  * `featureLinesFromText` below is the same rule as
  * web/lib/descriptionParser.js's `parseFeatureLines`, restated because this
@@ -93,20 +111,38 @@ const NOISE_PATTERNS = [
   /\+?\d[\d\s.-]{7,}/,
   /\bcontacts?\b|\bt[ée]l\b|\bwhatsapp\b|\bappelez\b/i,
   // Facts the page already states as structured data.
-  /\b(?:loyer|prix|price|garantie|avance|commission|caution)\b/i,
-  /\br[ée]f(?:[ée]rence)?\s*[:.]/i,
+  /\b(?:loyer|prix|price|garantie|avance|commission|caution|revenu)\b/i,
+  // Any bare money figure. "Revenu Mensuelle Usd 450/Mois" and "N'a Maison
+  // commerciale 450$" both carry a price with none of the words above.
+  /\d\s*(?:\$|usd|cdf|fc\b|dollars?)/i,
+  /(?:\$|usd|cdf)\s*\d/i,
+  // `références :` as well as `réf :` — the plural sits between the stem and
+  // the colon, which the original pattern could not see past.
+  /\br[ée]f(?:[ée]rences?)?\s*[:.]/i,
+  /^(?:localisation|adresse|commune|quartier|avenue|av|direction|arr[êe]t|repère|rep[èe]re)\s*[:.]/i,
   /\b(?:localisation|adresse|commune|quartier)\s*:/i,
-  // Addressed to a person, not describing a property.
-  /^(?:bonjour|bonsoir|salut|mbote|chers?|hello|hi)\b/i,
-  // Agent-to-agent trade notes.
-  /^nb\s*[:.]/i,
-  // A section header, whatever its length — "Composition :" and
-  // "APPAREMMENT AU PREMIER ÉTAGE COMPOSE :" are both introducing the list
-  // rather than being an item in it.
-  /:\s*$/,
   // "C/KASA VUBU" — the commune in the shorthand Kinshasa agents use. The
   // page already names it in the heading, the breadcrumb and the map.
   /^c\s*\/\s*\p{L}/iu,
+  // Advert framing, not a feature. "APPARTEMENT À LOUER – NGALIEMA /
+  // MIMOSAS" and "FLASH IMMOBILIER — 7 APPARTEMENTS À LOUER À LIMETE
+  // INDUSTRIEL" are the message's headline; the page's own <h1>, price and
+  // KeyFacts grid already say all of it.
+  // NOT `\b[àa]` — `\b` is ASCII-only, so in "APPARTEMENT À LOUER" the
+  // boundary before an accented `À` never matches and every headline written
+  // with a capital À sailed straight through. Anchor on whitespace instead.
+  /(?:^|\s)[àa]\s+(?:louer|vendre)\b/i,
+  /\b(?:flash\s+immobilier|to\s+solder|offre\s+(?:sous|direct))\b/i,
+  // Addressed to a person, not describing a property.
+  /^(?:bonjour|bonsoir|salut|mbote|chers?|hello|hi)\b/i,
+  // Agent-to-agent trade notes. "N.B :" / "NB:" / "N.B." are all in the data.
+  /^n\.?\s*b\.?\s*[:.]/i,
+  /^(?:je suis sur place|documents? disponibles?|propri[ée]taire)\b/i,
+  // A section header, with or without its colon. "Composition :",
+  // "APPAREMMENT AU PREMIER ÉTAGE COMPOSE :", "Composition", "COMPOSÉ DE➡"
+  // and "Autres détails" all introduce the list rather than being in it.
+  /:\s*$/,
+  /^(?:composition|compos[ée]e?\s*de|autres?\s+d[ée]tails?|d[ée]tails?)\b/i,
 ];
 
 /**

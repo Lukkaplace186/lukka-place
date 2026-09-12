@@ -121,3 +121,99 @@ export async function rejectListingAction(listingId) {
   await setApprovalStatus(listingId, 2);
   notifyBestEffort(listingId, 'rejected');
 }
+
+/**
+ * The preconditions behind "Vérifié par Lukka Place".
+ *
+ * REPORTED, NOT ENFORCED — and that is the point. Verification is a claim a
+ * human makes about a real property, so the console shows whoever is about to
+ * make it what the data can and cannot support, then lets them decide. An
+ * automatic rule ("≥1 photo AND a verified agent ⇒ verified") would derive
+ * the badge from facts that do not actually establish it, which is precisely
+ * the fabrication the no-invented-data rule forbids everywhere else here.
+ *
+ * @returns {Promise<{photos: number, agentVerified: boolean, communeTagged: boolean,
+ *                    approved: boolean, verifiedAt: string|null, verifiedBy: number|null}>}
+ */
+export async function getVerificationPreconditions(listingId) {
+  await assertAdminSession();
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT p.verified_at,
+            p.verified_by,
+            (p.approve_status = 1)                       AS approved,
+            (a.phone_verified_at IS NOT NULL)            AS agent_verified,
+            (SELECT COUNT(*)::int FROM property_slider_images si
+              WHERE si.property_id = p.id)               AS photo_count,
+            EXISTS (SELECT 1 FROM property_amenities pa
+                     WHERE pa.property_id = p.id
+                       AND pa.amenity_id BETWEEN 21 AND 44) AS commune_tagged
+       FROM properties p
+       LEFT JOIN agents a ON a.id = p.agent_id
+      WHERE p.id = $1`,
+    [listingId],
+  );
+  const row = rows[0];
+  if (!row) throw new Error(`Annonce #${listingId} introuvable.`);
+
+  return {
+    photos: row.photo_count,
+    agentVerified: Boolean(row.agent_verified),
+    communeTagged: Boolean(row.commune_tagged),
+    approved: Boolean(row.approved),
+    verifiedAt: row.verified_at,
+    verifiedBy: row.verified_by,
+  };
+}
+
+/**
+ * Stamp a listing as verified.
+ *
+ * `verified_by` records WHO, which is the first question asked the day a
+ * verified listing turns out not to be real. This console has one shared team
+ * password rather than per-admin accounts (lib/adminAuth.js — deliberately
+ * the smallest real thing that answers "is this a Lukka Place team member"),
+ * so there is no admin id to record and the column is left NULL rather than
+ * filled with a fake one. When per-admin accounts exist, this is where the id
+ * goes; until then NULL honestly means "a team member, we cannot say which".
+ *
+ * An unapproved listing cannot be verified: claiming we confirmed a property
+ * that has not even passed moderation puts the two axes in an order that
+ * makes no sense.
+ */
+export async function verifyListingAction(listingId) {
+  await assertAdminSession();
+  const pool = getPool();
+  const { rowCount } = await pool.query(
+    `UPDATE properties
+        SET verified_at = NOW(), updated_at = NOW()
+      WHERE id = $1 AND approve_status = 1`,
+    [listingId],
+  );
+  if (rowCount === 0) {
+    throw new Error(
+      `Annonce #${listingId} : introuvable, ou pas encore approuvée. Approuvez-la avant de la vérifier.`,
+    );
+  }
+  revalidatePath('/admin/listings');
+  revalidatePath(`/admin/listings/${listingId}`);
+}
+
+/**
+ * Withdraw verification.
+ *
+ * Clears the timestamp outright rather than keeping a history: this column
+ * answers "is this listing verified, and since when", and a withdrawn
+ * verification is simply not one. The audit trail that matters lives in the
+ * market export, which carries verified_at per row at the time it was taken.
+ */
+export async function unverifyListingAction(listingId) {
+  await assertAdminSession();
+  const pool = getPool();
+  await pool.query(
+    'UPDATE properties SET verified_at = NULL, verified_by = NULL, updated_at = NOW() WHERE id = $1',
+    [listingId],
+  );
+  revalidatePath('/admin/listings');
+  revalidatePath(`/admin/listings/${listingId}`);
+}

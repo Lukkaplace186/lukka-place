@@ -263,6 +263,32 @@ for that exact reason — an agent who answers *passer* leaves it at
 Ops is notified on every decline (`OPS_WHATSAPP_NUMBER`), told the reason, and
 told explicitly when a property needs verifying and archiving.
 
+#### Two write paths that could undo all of it
+
+The decline → `under_offer` → `closed` chain was correct; two neighbouring
+writes could silently reverse it, and both are now guarded.
+
+- **`markPropertyAvailable` NULLed `sold_price` and `sold_at` unconditionally.**
+  An agent replying "finalement c'est encore libre" on an already-closed
+  listing erased the achieved-vs-asking pair that the market export's entire
+  commercial value rests on, and which exists nowhere else. It now carries the
+  same `listing_status IS DISTINCT FROM 'closed'` guard its sibling has, so
+  reopening a closed listing is a deliberate act from the dashboard by someone
+  who can see the figure they are discarding. `web/`'s own equivalent already
+  refused this; the WhatsApp path was the way round it.
+- **`syncListingToPostgres` rewrote `status = 1` on every sync**, and a
+  correction to a published listing re-syncs (`resyncListing`). On a row
+  `markPropertySold` had set to `status = 0`, that republished a sold listing
+  while `listing_status` still said `'closed'` — the two axes disagreeing,
+  which `web/CLAUDE.md` names as the bug that keeps recurring. The UPDATE path
+  now reads the row's real `listing_status` **inside the transaction** and
+  drops `status` from the update when it is `'closed'` or `'under_offer'`.
+- **Both guards use `IS DISTINCT FROM`, not `<>`.** `listing_status` is NULL on
+  rows predating the column (`dataExport.js` COALESCEs it for that reason), and
+  `NULL <> 'closed'` is NULL rather than true — so a plain `<>` refused to
+  retire every legacy listing, which is precisely the set an agent is most
+  likely to report as already let.
+
 #### What still gates delivery
 Unchanged and worth repeating: interactive messages are **session messages**.
 An agent who has not messaged this number in the last 24h receives neither the
@@ -301,6 +327,40 @@ reasons, and only one of them was a code bug:
    `AUTH_OTP_BYPASS=1` is the live workaround), and why an agent who has not
    WhatsApped us recently will not receive a viewing-request notification even
    now that one is sent.
+
+#### Template-first, and what that now actually means
+
+**`chakra.sendTemplate` can carry quick-reply buttons.** This was the blocker
+under the whole feedback loop: `sendInteractiveButtons` is a **session**
+message type, so every tappable button in this product silently stops existing
+for anyone outside the 24h window. A template is the only way to put buttons in
+front of a cold contact, and `sendTemplate` now emits
+`components: [{ type: 'button', sub_type: 'quick_reply', index, parameters: [{ type: 'payload', payload }] }]`.
+Only the payload travels — labels are fixed in the approved template — and it
+comes back as `interactive.button_reply.id`, the same field the interactive
+path produces, so `parseViewingButtonId` needed no change. `index` must match
+the order the template declares its buttons in. `otpCode` and `buttons` cannot
+be combined: an AUTHENTICATION template's copy-code button already claims
+index 0.
+
+**Every template name now defaults to `null`.** `AGENT_LEAD_MATCH_TEMPLATE`
+and `AGENT_OTP_TEMPLATE` used to default to `'agent_lead_match'` and
+`'agent_auth_otp'` — names Meta has never heard of — so every send paid a
+guaranteed-failing round trip (seven per lead dispatch) before falling back to
+the session message that was always going to be what actually sent. Worse, that
+failure was indistinguishable in the logs from an APPROVED template failing to
+deliver. `chakra.templateConfigured(name)` is what callers use to tell "no
+template configured" (expected during launch, quiet) from "template send
+failed" (real, logged). `VIEWING_REQUEST_TEMPLATE` had made this choice
+already; the other two have caught up.
+
+**`OPS_WHATSAPP_NUMBER` is read at call time**, not module load, so ops can be
+pointed at a different handset without `pm2 restart --update-env` — the same
+shape as `web/lib/otpBypass.js`'s `otpBypassEnabled()`. It is still unset by
+default, deliberately, and `index.js` now **warns at boot** when it is missing:
+previously an unset ops number announced itself only at the moment a request
+ALSO failed to reach an agent, so a healthy-looking deployment could be
+dropping every desk copy in silence.
 
 Note `POST /admin/send-whatsapp`'s "accepted by Meta" log line prints
 `messageId: null` in production: Chakra does not forward Meta's
@@ -536,6 +596,142 @@ it to one fork), which is why the timer lives here.
   inside the Monday-09:00 firing window is a no-op, not a second round of real
   WhatsApp messages. A *failed* run deliberately does not advance
   `succeeded_at`, so the next tick retries instead of skipping the week.
+
+### One tick, many jobs — and two kinds of idempotence
+
+The tick is **60 seconds** (it was 10 minutes) and the work is a `JOBS` array
+of `{ name, shouldRun(now), run() }`. The old interval is what made the
+scheduler single-purpose: a 15-minute SLA checked every 10 minutes fires
+somewhere between 15 and 25 minutes late, which is not a 15-minute SLA.
+
+Three jobs are registered: `search-alerts-weekly`, `viewing-sla` and
+`viewing-checkin`. `shouldRun` must be **cheap** — it runs once a minute per
+job forever — and is where "is there anything to do?" belongs, so `job_runs`
+records real work rather than a heartbeat. Jobs run sequentially and each
+swallows its own failure: the SLA sweep throwing must never stop the
+post-visit check-in behind it.
+
+**`job_runs` cannot express per-entity idempotence and must not be asked to.**
+It is keyed by job NAME, one row per job, so it answers "did this sweep run"
+and nothing finer. "Have we already alerted on viewing request #47" is a fact
+about the request and lives on the row — `viewing_requests.sla_alerted_at`,
+`.checkin_sent_at`. Confusing the two either spams one customer or skips every
+other one.
+
+## Speed-to-lead: the 15-minute SLA and the post-visit check-in
+
+`services/viewingSweeps.js`. Two scheduler jobs, both keyed off columns added
+to `viewing_requests` (`scheduled_at`, `sla_alerted_at`, `checkin_sent_at`,
+`checkin_response`) through the same idempotent-ALTER array `decline_reason`
+already used.
+
+- **15 minutes unanswered → escalate.** Ops is told *why* the agent did not
+  answer — `agentReachability` distinguishes "never received it, number
+  unverified" from "received it and ignored it", which need completely
+  different responses and must not read the same. The customer gets real
+  alternatives at the same time.
+  - **The alternatives use the whole lead**, not just its commune:
+    `transaction_type`, `price_min`/`price_max` and `bedrooms` are all passed
+    to `propertyMatching`. The decline path passed only the commune, so a
+    rental shopper could be offered a sale — the data to fix it was already on
+    the row.
+  - **Status stays `PENDING`.** The agent can still accept, and inventing an
+    "EXPIRED" state would collapse "never answered" into the same bucket as
+    "answered late", making response *rate* unmeasurable — the same reason
+    `DECLINED` is not a synonym for `CANCELLED`.
+- **2 hours after the agreed slot → ask the customer how it went.** Three
+  answers (`GOOD` / `BAD` / `AGENT_ABSENT`), as buttons with a typed 1/2/3
+  fallback. A 👍 or 👎 sets the lead to `VIEWING_COMPLETED`, which had existed
+  in `LEAD_STATUSES` since it was written with **no code path able to reach
+  it**. `AGENT_ABSENT` additionally escalates to ops the same day.
+  - **It fires only on a real `scheduled_at`.** A confirmed visit with no
+    agreed instant is never asked about: `requested_time` is free text
+    ("demain matin") and `created_at` says nothing about when anyone met.
+    Asking "how was your visit?" about a visit that may not have happened is
+    worse than not asking.
+- **Authorisation is the mirror image of the agent loop's.** The only person
+  entitled to say how a visit went is the customer who attended it, so the
+  check-in handler matches the sender against `leads.wa_id` and must **not**
+  reuse `viewingNotifications.resolveContext`, which authorises the listing's
+  agent. `pending_customer_actions` is a separate table from
+  `pending_agent_actions` for the same reason — one table with a role
+  discriminator invites a handler that checks the wrong rule for the row it
+  loaded.
+
+### `scheduled_at`: where the instant comes from
+
+Accepting a request now pins it to a real time. `services/visitSchedule.js`'s
+`parseFrenchSlot` reads what the customer already wrote — "demain 14h",
+"samedi matin", "le 15 à 10h" — and the agent confirms it with one tap
+(`viewing_slot_ok:<id>` / `viewing_slot_edit:<id>`); an unparseable phrase
+falls back to asking, via `PENDING_KINDS.scheduleTime`.
+
+- **A day with no hour is refused, never guessed.** "demain" alone returns
+  null. Inventing 9am would produce a confident-looking slot nobody agreed to,
+  and the check-in would then fire against it.
+- **Stored in UTC with a `Z`, not `+01:00`.** Both are unambiguous instants,
+  but only one sorts: the check-in sweep does `WHERE scheduled_at <= ?` and
+  SQLite compares TEXT lexically, so a column mixing offsets would silently
+  return the wrong rows rather than failing. Kinshasa's UTC+1 is applied once,
+  at parse time.
+- **Day-part words are matched most-specific-first** (`apres-midi` before
+  `midi`), the same rule `parseDeclineReason` follows — otherwise "cet
+  après-midi" reads as noon.
+- The status is `CONFIRMED` and the customer is told **before** any of this:
+  scheduling is a refinement on an answer already given, and an agent who
+  ignores the slot question has still accepted the visit.
+
+## Listing verification — "Vérifié par Lukka Place"
+
+`properties.verified_at` + `verified_by` (`scripts/migrate-listing-verification.js`,
+idempotent, **no backfill**). A **fourth** lifecycle axis, independent of the
+three in `web/CLAUDE.md`, and the distinction is the whole point:
+
+| | asks | set by |
+|---|---|---|
+| `approve_status` | was this listing fit to publish? | a moderator |
+| `agents.phone_verified_at` | does this PERSON hold this number? | the OTP / WhatsApp onboarding |
+| `verified_at` | did we confirm this PROPERTY is real, on these terms? | a human, from `/admin/listings/[id]` |
+
+- **A timestamp, not a boolean.** Every comparable flag on this schema already
+  is one (`phone_verified_at`, `sold_at`, `archived_at`); `is_verified` is
+  derived as `verified_at IS NOT NULL`. A bare boolean cannot answer "who said
+  so, and when" — the first question asked the day a verified listing turns out
+  not to be real — and the market export wants the date.
+- **Preconditions are reported, never enforced.** `getVerificationPreconditions`
+  shows the admin the photo count, whether the agent's number is verified and
+  whether a commune is tagged, then lets them decide. An automatic rule would
+  derive the badge from facts that do not establish it, which is exactly the
+  fabrication the no-invented-data rule forbids everywhere else.
+- **Nothing is backfilled.** Nobody has verified any existing listing, and
+  stamping a timestamp would record a verification that never happened.
+- `verified_by` is NULL today and that is honest: `/admin` has one shared team
+  password, not per-admin accounts, so there is no id to record and a fake one
+  would be worse than none.
+- Appended to `LISTING_EXPORT_COLUMNS` — **appended**, since that list is the
+  CSV column order and a consumer's spreadsheet is keyed on it.
+
+## Benchmark pricing (`web/lib/marketBenchmarks.js`, `/admin/benchmarks`)
+
+Medians of real closed transactions by commune × purpose × property_type —
+asking, achieved, the negotiation gap, and days on market. Built **on**
+`lib/dataExport.js`'s conventions rather than forking them: the same
+`approve_status = 1`-only gate (filtering on `status` would drop every sold
+listing, i.e. the entire dataset), the same `sold_at`-preferred DOM.
+
+- **A cell below `MIN_SAMPLE` (5) is suppressed**, medians nulled, count kept.
+  A "median" of two sales is not a median, and this figure is meant to be
+  quotable to a bank. A suppressed cell still shows its real count, because "3
+  ventes, pas encore assez" is truer than an absent row that reads as "no
+  activity".
+- **Communes are derived from the data, never hardcoded** — Gombe / Ngaliema /
+  Lingwala are where volume is expected, not a fixed list.
+- **No imputation**: a close with no recorded `sold_price` is excluded rather
+  than stood in for by the asking price, which would make the negotiation gap
+  look like zero — the exact number this dataset exists to measure.
+- Admin-only and `noindex`, behind the same `ADMIN_SESSION_COOKIE` gate as the
+  CSV export. **Expect it to be mostly empty**: very few transactions are
+  recorded yet, and that is an accurate report on the market record.
 
 ## Verification & Commands
 - **Verification Command**: Always run `npm run verify` before declaring a backend task complete.

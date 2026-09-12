@@ -1244,8 +1244,29 @@ db.exec(`
   -- that we asked is still worth keeping.
   CREATE TABLE IF NOT EXISTS pending_agent_actions (
     wa_id              TEXT PRIMARY KEY,
+    -- 'VIEWING_RESPONSE'  waiting for 1 / 2 / 3 against the three-way alert
     -- 'DECLINE_REASON'    waiting for 1 / 2 / 3
     -- 'RESCHEDULE_TIME'   waiting for a free-text slot to forward to the client
+    -- 'CLOSING_PRICE'     waiting for the figure a retired listing closed at
+    -- 'SCHEDULE_TIME'     waiting for the concrete date+time of a confirmed visit
+    kind               TEXT NOT NULL,
+    viewing_request_id INTEGER NOT NULL REFERENCES viewing_requests (id),
+    created_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
+  -- The customer-side twin of pending_agent_actions, for the post-visit
+  -- check-in's typed fallback ("1" instead of tapping 👍).
+  --
+  -- A SEPARATE TABLE, not a "role" column on the one above, because the two
+  -- carry genuinely different authorisation rules: an agent's pending action
+  -- is answered by someone we re-verify against the listing's real agent in
+  -- Postgres, while a customer's is answered by the lead's own wa_id and
+  -- nothing else. Same reasoning that keeps lead_matches and lead_proposals
+  -- apart — one table with a discriminator invites a handler that checks the
+  -- wrong rule for the row it happens to load.
+  CREATE TABLE IF NOT EXISTS pending_customer_actions (
+    wa_id              TEXT PRIMARY KEY,
+    -- 'VISIT_FEEDBACK'    waiting for 1 / 2 / 3 against the post-visit check-in
     kind               TEXT NOT NULL,
     viewing_request_id INTEGER NOT NULL REFERENCES viewing_requests (id),
     created_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -2241,7 +2262,43 @@ function getViewingRequest(id) {
  * trap the admin dashboard's `notes` column already fell into (see this
  * file's migrateConversations). Same idempotent ALTER pattern, same reason.
  */
-const VIEWING_REQUESTS_EXTENDED_COLUMNS = [['decline_reason', 'TEXT']];
+/**
+ * Columns added to `viewing_requests` after it shipped.
+ *
+ * Every one of these must be nullable — `ALTER TABLE ADD COLUMN` cannot add
+ * NOT NULL or UNIQUE to an existing SQLite table — which is also the honest
+ * shape here: a request that has not been scheduled genuinely has no
+ * scheduled time, and NULL says that where 0 or '' would not.
+ *
+ * `scheduled_at` is the one that unlocks the post-visit check-in. Note that
+ * `requested_time` beside it is deliberately free text ("demain matin") and
+ * always will be — it is what the CUSTOMER asked for. `scheduled_at` is what
+ * the AGENT confirmed, as a real ISO-8601 instant, and only that can be
+ * counted two hours forward from.
+ *
+ * It is stored in UTC, with a `Z`, NOT as `...+01:00` Kinshasa local time.
+ * Both are unambiguous instants, but only one of them sorts: the check-in
+ * sweep selects `WHERE scheduled_at <= ?` and SQLite compares TEXT
+ * lexically, so a column mixing offsets — or mixing `+01:00` with a `Z`
+ * cutoff — would silently return the wrong rows rather than failing. The
+ * local wall-clock the agent agreed to is recovered for display by
+ * converting back; the offset itself is applied once, at parse time, in
+ * services/visitSchedule.js.
+ *
+ * `sla_alerted_at` and `checkin_sent_at` are per-ENTITY idempotence: job_runs
+ * is keyed by job name and can only answer "did the sweep run", never "have
+ * we already messaged this particular request". See services/scheduler.js.
+ */
+const VIEWING_REQUESTS_EXTENDED_COLUMNS = [
+  ['decline_reason', 'TEXT'],
+  ['scheduled_at', 'TEXT'],
+  ['sla_alerted_at', 'TEXT'],
+  ['checkin_sent_at', 'TEXT'],
+  ['checkin_response', 'TEXT'],
+];
+
+/** What a customer can answer to the post-visit check-in. */
+const CHECKIN_RESPONSES = ['GOOD', 'BAD', 'AGENT_ABSENT'];
 
 function migrateViewingRequests() {
   const existing = new Set(
@@ -2328,6 +2385,38 @@ function clearPendingAgentAction(waId) {
 }
 
 /**
+ * The customer-side twin. Same shape, same 24h TTL-on-read, different table —
+ * see the CREATE TABLE comment for why they are not merged.
+ */
+function setPendingCustomerAction({ waId, kind, viewingRequestId }) {
+  if (!waId || !kind || !viewingRequestId) {
+    throw new Error('setPendingCustomerAction requires waId, kind and viewingRequestId');
+  }
+  db.prepare(
+    `INSERT INTO pending_customer_actions (wa_id, kind, viewing_request_id, created_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT (wa_id) DO UPDATE SET
+       kind = excluded.kind,
+       viewing_request_id = excluded.viewing_request_id,
+       created_at = excluded.created_at`,
+  ).run(String(waId), String(kind), Number(viewingRequestId), new Date().toISOString());
+  return getPendingCustomerAction(waId);
+}
+
+function getPendingCustomerAction(waId) {
+  if (!waId) return undefined;
+  const cutoff = new Date(Date.now() - PENDING_ACTION_TTL_MS).toISOString();
+  return db
+    .prepare('SELECT * FROM pending_customer_actions WHERE wa_id = ? AND created_at >= ?')
+    .get(String(waId), cutoff);
+}
+
+function clearPendingCustomerAction(waId) {
+  if (!waId) return false;
+  return db.prepare('DELETE FROM pending_customer_actions WHERE wa_id = ?').run(String(waId)).changes > 0;
+}
+
+/**
  * viewing_requests.status has sat unused at its 'PENDING' default since the
  * column was added (see the CREATE TABLE comment above) — this is the first
  * real vocabulary and the first thing to ever transition it, for the agent
@@ -2365,6 +2454,110 @@ function updateViewingRequest(id, { status, requestedTime } = {}) {
   if (requestedTime !== undefined) {
     db.prepare('UPDATE viewing_requests SET requested_time = ? WHERE id = ?').run(toNullable(requestedTime), id);
   }
+  return getViewingRequest(id);
+}
+
+/**
+ * Record the concrete slot the agent confirmed.
+ *
+ * Kept separate from updateViewingRequest's `requestedTime` on purpose. That
+ * one carries what the CUSTOMER asked for and stays free text forever
+ * ("demain matin" is a real answer). This carries what the AGENT committed
+ * to, as an offset-aware ISO-8601 instant, because the post-visit check-in
+ * has to count two hours forward from it and cannot do that from a phrase.
+ *
+ * @param {number} id
+ * @param {string|null} scheduledAt ISO-8601 in UTC (…Z) — see the column note.
+ */
+function setViewingScheduledAt(id, scheduledAt) {
+  db.prepare('UPDATE viewing_requests SET scheduled_at = ? WHERE id = ?')
+    .run(toNullable(scheduledAt), id);
+  return getViewingRequest(id);
+}
+
+/**
+ * Requests an agent has not answered inside the SLA.
+ *
+ * `sla_alerted_at IS NULL` is what makes the sweep fire once and only once —
+ * job_runs cannot express this, being keyed by job name rather than by row.
+ * Status stays PENDING deliberately: the agent can still accept, and
+ * collapsing "unanswered" into a new status would make response rate
+ * unmeasurable.
+ *
+ * @param {number} olderThanMs How long a request may sit unanswered.
+ * @param {string} [now] ISO instant to measure from; injectable for tests.
+ */
+function listViewingRequestsAwaitingSla(olderThanMs, now = new Date().toISOString()) {
+  const cutoff = new Date(new Date(now).getTime() - olderThanMs).toISOString();
+  return db
+    .prepare(
+      `SELECT v.*, l.wa_id AS lead_wa_id, l.name AS lead_name, l.id AS lead_row_id,
+              l.transaction_type AS lead_transaction_type, l.commune AS lead_commune,
+              l.quartier AS lead_quartier, l.price_min AS lead_price_min,
+              l.price_max AS lead_price_max, l.bedrooms AS lead_bedrooms
+         FROM viewing_requests v
+         JOIN leads l ON l.id = v.lead_id
+        WHERE v.status = 'PENDING'
+          AND v.sla_alerted_at IS NULL
+          AND v.created_at <= ?
+        ORDER BY v.created_at ASC`,
+    )
+    .all(cutoff.replace('T', ' ').replace(/\.\d+Z$/, ''));
+}
+
+/** Stamp the SLA alert so the sweep never fires twice for one request. */
+function markSlaAlerted(id, at = new Date().toISOString()) {
+  db.prepare('UPDATE viewing_requests SET sla_alerted_at = ? WHERE id = ?').run(at, id);
+  return getViewingRequest(id);
+}
+
+/**
+ * Confirmed visits whose check-in window has opened.
+ *
+ * Requires a real `scheduled_at`: a request whose slot was never pinned down
+ * to an instant gets no check-in at all, rather than a guess counted from
+ * `created_at`. Asking "how was your visit?" about a visit that has not
+ * happened yet is worse than not asking.
+ *
+ * @param {number} afterMs How long after the slot to check in.
+ * @param {string} [now] ISO instant to measure from; injectable for tests.
+ */
+function listViewingRequestsDueForCheckin(afterMs, now = new Date().toISOString()) {
+  const cutoff = new Date(new Date(now).getTime() - afterMs).toISOString();
+  return db
+    .prepare(
+      `SELECT v.*, l.wa_id AS lead_wa_id, l.name AS lead_name, l.id AS lead_row_id
+         FROM viewing_requests v
+         JOIN leads l ON l.id = v.lead_id
+        WHERE v.status = 'CONFIRMED'
+          AND v.scheduled_at IS NOT NULL
+          AND v.checkin_sent_at IS NULL
+          AND v.scheduled_at <= ?
+        ORDER BY v.scheduled_at ASC`,
+    )
+    .all(cutoff);
+}
+
+/** Stamp the check-in so it is sent once, not once a minute. */
+function markCheckinSent(id, at = new Date().toISOString()) {
+  db.prepare('UPDATE viewing_requests SET checkin_sent_at = ? WHERE id = ?').run(at, id);
+  return getViewingRequest(id);
+}
+
+/**
+ * Record what the customer answered.
+ *
+ * Validated against CHECKIN_RESPONSES the same way updateViewingRequest
+ * validates status: a typo must be a loud error here, not a row carrying a
+ * value nothing downstream knows how to read.
+ */
+function setCheckinResponse(id, response) {
+  if (!CHECKIN_RESPONSES.includes(response)) {
+    throw new Error(
+      `setCheckinResponse: unknown response '${response}' (expected one of ${CHECKIN_RESPONSES.join(', ')})`,
+    );
+  }
+  db.prepare('UPDATE viewing_requests SET checkin_response = ? WHERE id = ?').run(response, id);
   return getViewingRequest(id);
 }
 
@@ -2535,9 +2728,20 @@ module.exports = {
   setPendingAgentAction,
   getPendingAgentAction,
   clearPendingAgentAction,
+  setPendingCustomerAction,
+  getPendingCustomerAction,
+  clearPendingCustomerAction,
   updateViewingRequest,
   listViewingRequestsForOwner,
   VIEWING_REQUEST_STATUSES,
+  // Speed-to-lead: the SLA sweep and the post-visit check-in.
+  setViewingScheduledAt,
+  listViewingRequestsAwaitingSla,
+  markSlaAlerted,
+  listViewingRequestsDueForCheckin,
+  markCheckinSent,
+  setCheckinResponse,
+  CHECKIN_RESPONSES,
   LEAD_STATUSES,
   CONVERSATION_REQUIREMENT_FIELDS,
 };

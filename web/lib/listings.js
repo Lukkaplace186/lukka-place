@@ -155,6 +155,13 @@ const SELECT_FIELDS = `
   p.created_at, p.price_period, p.deposit_months, p.advance_months, p.commission_months, p.listing_status,
   p.parent_building_id, p.building_name,
   p.latitude, p.longitude,
+  -- Listing-level verification: "Verified by Lukka", stamped per listing by a
+  -- human from /admin/listings/[id]. A timestamp rather than a boolean so the
+  -- badge can answer *when*, and NULL on almost every row — the designed
+  -- state, not a gap. Distinct from approve_status (moderation: fit to
+  -- publish) and from agents.phone_verified_at (a fact about a person, not
+  -- about a property).
+  p.verified_at,
   -- text[]; arrives as a real JS array through node-pg, or NULL for a row
   -- that predates scripts/migrate-listing-features.js (engine repo) and had
   -- nothing extractable to backfill. lib/descriptionParser.js treats both
@@ -727,6 +734,9 @@ const MODERATION_SELECT_FIELDS = `
   p.created_at, p.price_period, p.deposit_months, p.advance_months, p.commission_months, p.listing_status,
   p.parent_building_id, p.building_name,
   p.latitude, p.longitude,
+  -- So the moderation detail page can show whether this listing is already
+  -- verified, and by whom, rather than offering a stamp button blind.
+  p.verified_at, p.verified_by,
   COALESCE(pc.title, '[Contenu manquant]') AS title,
   pc.slug, pc.address, pc.description,
   catc.name AS category_name,

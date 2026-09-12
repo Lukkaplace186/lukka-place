@@ -302,7 +302,9 @@
       "underOffer": "Under offer",
       "closed": "Let / Sold",
       "cistern": "Water tank",
-      "depositMonths": "{count} months deposit"
+      "depositMonths": "{count} months deposit",
+      "verified": "Verified",
+      "verifiedOn": "Verified by Lukka Place on {date}"
     },
     "facts": {
       "propertyType": "Property type",
@@ -1417,6 +1419,25 @@
       "verified": "Number verified",
       "failedLogins": "Failed logins",
       "locked": "Locked"
+    },
+    "benchmarks": {
+      "title": "Benchmark Pricing",
+      "subtitle": "Medians computed from genuinely closed transactions. Internal — not for publication.",
+      "transactionsClosed": "Closed Transactions",
+      "reportableCells": "Reportable Cells",
+      "communesCovered": "Communes Covered",
+      "minSampleNote": "A median is shown only from {min} transactions upward. Below that, only the real count is given — a median of two sales is not a median.",
+      "tableTitle": "By Commune, Transaction and Type",
+      "commune": "Commune",
+      "purpose": "Transaction",
+      "propertyType": "Type",
+      "sample": "Sales",
+      "medianAsking": "Asking (median)",
+      "medianAchieved": "Achieved (median)",
+      "medianDelta": "Gap",
+      "medianDays": "Days on Market",
+      "notEnough": "Not Enough Yet",
+      "empty": "No closed transaction has been recorded yet. This page fills in as agents confirm a sale price."
     }
   },
   "errors": {

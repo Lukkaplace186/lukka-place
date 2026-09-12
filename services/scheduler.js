@@ -1,11 +1,11 @@
 /**
  * services/scheduler.js
  *
- * The one always-on process in this system, doing the one job nothing else
- * can: firing the weekly customer alert sweep.
+ * The one always-on process in this system, running every job that needs a
+ * clock rather than a request.
  *
  * WHY HERE
- * The sweep itself already existed and was already correct
+ * The weekly alert sweep already existed and was already correct
  * (web/app/api/cron/search-alerts/route.js — it re-runs every saved search
  * through the same getListings() the /listings page uses and WhatsApps the
  * owner about genuinely new matches). What it never had was anything to call
@@ -22,12 +22,24 @@
  * lives outside the repository, is invisible in code review, and silently
  * disappears the day the box is rebuilt.
  *
- * IDEMPOTENCE ACROSS RESTARTS
- * A naive setInterval re-fires the sweep on every deploy that happens to land
- * in the firing window — and this sweep sends real WhatsApp messages to real
- * customers. Each run is therefore recorded in `job_runs`, and a run is
- * skipped when one already succeeded within the interval. A deploy in the
- * middle of Monday morning is a no-op, not a second round of alerts.
+ * ONE TICK, MANY JOBS
+ * This used to be a single hardcoded weekly sweep on a ten-minute interval.
+ * That interval is the reason it could not host anything else: a 15-minute
+ * response SLA checked every 10 minutes fires somewhere between 15 and 25
+ * minutes late, which is not a 15-minute SLA. The tick is now 60 seconds and
+ * the work is a list of jobs, each deciding for itself whether it is due.
+ *
+ * TWO KINDS OF IDEMPOTENCE, AND THEY ARE NOT INTERCHANGEABLE
+ *   - `job_runs` answers "did this SWEEP run recently?". It is keyed by job
+ *     NAME, one row per job, so it can gate a weekly sweep and nothing finer.
+ *     A naive setInterval re-fires the alert sweep on every deploy that lands
+ *     in the firing window, and that sweep sends real WhatsApp messages to
+ *     real customers.
+ *   - Per-ENTITY idempotence ("have we already alerted on viewing request
+ *     #47?") cannot live in job_runs and does not. It lives in columns on the
+ *     row itself — `viewing_requests.sla_alerted_at`, `.checkin_sent_at`.
+ *     Confusing the two would either spam one customer or skip every other
+ *     one.
  */
 
 const db = require('./db');
@@ -43,8 +55,16 @@ const WEEKLY_HOUR = Number.parseInt(process.env.SEARCH_ALERT_HOUR, 10);
 const ALERT_DAY = Number.isFinite(WEEKLY_DAY) ? WEEKLY_DAY : 1;
 const ALERT_HOUR = Number.isFinite(WEEKLY_HOUR) ? WEEKLY_HOUR : 9;
 
-/** How often the clock is checked. Fine-grained enough to hit the hour, cheap enough to ignore. */
-const TICK_MS = 10 * 60 * 1000;
+/**
+ * How often the clock is checked.
+ *
+ * 60 seconds, down from 10 minutes. The weekly sweep never needed the
+ * resolution — but the viewing-request SLA does, and a tick coarser than the
+ * deadline it enforces cannot enforce it. The cost is one cheap indexed
+ * SQLite read per job per minute; the weekly sweep's own gate is a single
+ * `job_runs` lookup that returns immediately outside its hour.
+ */
+const TICK_MS = 60 * 1000;
 
 /**
  * Minimum gap between two successful sweeps. Six days rather than seven so a
@@ -95,10 +115,9 @@ async function runSearchAlertSweep() {
 /**
  * Is it time, and has it not already run?
  *
- * The day/hour test is a window, not an instant: ticks are 10 minutes apart
- * and the process may start at any point, so "the configured hour, any
- * minute" is the condition. MIN_GAP_MS is what stops the six ticks inside
- * that hour from firing six sweeps.
+ * The day/hour test is a window, not an instant: the process may start at any
+ * point, so "the configured hour, any minute" is the condition. MIN_GAP_MS is
+ * what stops the sixty ticks inside that hour from firing sixty sweeps.
  */
 function shouldRunNow(now = new Date()) {
   if (now.getDay() !== ALERT_DAY || now.getHours() !== ALERT_HOUR) return false;
@@ -107,23 +126,96 @@ function shouldRunNow(now = new Date()) {
   return Date.now() - new Date(last.succeeded_at).getTime() >= MIN_GAP_MS;
 }
 
-async function tick() {
-  if (!shouldRunNow()) return;
+/**
+ * The registry.
+ *
+ * A job is `{ name, shouldRun(now), run() }`. `shouldRun` must be CHEAP — it
+ * is called once a minute per job, forever — and is where "is there anything
+ * to do?" belongs, so that `job_runs` records real work rather than a
+ * heartbeat. `run` returns anything JSON-serialisable; it lands in
+ * `job_runs.detail` truncated to 500 chars.
+ *
+ * Order is registration order, and jobs run sequentially within a tick: they
+ * share one SQLite connection and one WhatsApp sender, and a tick that fanned
+ * them out in parallel would interleave sends for no benefit at this volume.
+ */
+const JOBS = [];
 
-  console.log(`[scheduler] running ${JOB_NAME}`);
-  try {
+function registerJob(job) {
+  if (!job?.name || typeof job.shouldRun !== 'function' || typeof job.run !== 'function') {
+    throw new Error('a job needs { name, shouldRun(now), run() }');
+  }
+  if (JOBS.some((existing) => existing.name === job.name)) {
+    throw new Error(`job '${job.name}' is already registered`);
+  }
+  JOBS.push(job);
+  return job;
+}
+
+registerJob({
+  name: JOB_NAME,
+  shouldRun: shouldRunNow,
+  run: async () => {
     const result = await runSearchAlertSweep();
-    db.recordJobRun(JOB_NAME, { ok: true, detail: JSON.stringify(result).slice(0, 500) });
     console.log(
       `[scheduler] ${JOB_NAME} done — ${result.notifiedSearches ?? 0} recherche(s), ` +
         `${result.notifiedListings ?? 0} bien(s) signalé(s)`,
     );
+    return result;
+  },
+});
+
+/**
+ * Speed-to-lead: the 15-minute unanswered-request escalation and the 2-hour
+ * post-visit check-in.
+ *
+ * Required lazily, inside this block rather than at the top of the file,
+ * because services/viewingSweeps.js requires services/viewingNotifications.js
+ * which requires services/chakra.js — a chain that has no business running
+ * just because something imported the scheduler to read ALERT_DAY.
+ */
+{
+  // eslint-disable-next-line global-require
+  const { slaJob, checkinJob } = require('./viewingSweeps');
+  registerJob(slaJob);
+  registerJob(checkinJob);
+}
+
+/**
+ * Runs one job if it is due, recording the outcome.
+ *
+ * Isolated per job on purpose: a throw in the SLA sweep must not stop the
+ * post-visit check-in behind it, and neither must stop next minute's tick.
+ */
+async function runJob(job, now = new Date()) {
+  let due;
+  try {
+    due = job.shouldRun(now);
+  } catch (err) {
+    console.error(`[scheduler] ${job.name} shouldRun failed: ${err.message}`);
+    return false;
+  }
+  if (!due) return false;
+
+  console.log(`[scheduler] running ${job.name}`);
+  try {
+    const result = await job.run();
+    db.recordJobRun(job.name, { ok: true, detail: JSON.stringify(result ?? {}).slice(0, 500) });
+    return true;
   } catch (err) {
     // Recorded as a FAILURE, which deliberately does not advance
     // `succeeded_at` — so the next tick inside the same window retries rather
     // than skipping the whole week because one attempt failed.
-    db.recordJobRun(JOB_NAME, { ok: false, detail: err.message.slice(0, 500) });
-    console.error(`[scheduler] ${JOB_NAME} failed: ${err.message}`);
+    db.recordJobRun(job.name, { ok: false, detail: err.message.slice(0, 500) });
+    console.error(`[scheduler] ${job.name} failed: ${err.message}`);
+    return true;
+  }
+}
+
+async function tick(now = new Date()) {
+  for (const job of JOBS) {
+    // Sequential, and each already swallows its own failure.
+    await runJob(job, now);
   }
 }
 
@@ -146,12 +238,13 @@ function start() {
   }, TICK_MS);
   // Never hold the process open on its own account — PM2 keeps this service
   // alive, and an unref'd timer means a manual `node index.js` still exits on
-  // Ctrl-C rather than hanging on a ten-minute interval.
+  // Ctrl-C rather than hanging on the interval.
   timer.unref?.();
 
   const dayNames = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
   console.log(
-    `[scheduler] started — alertes clients chaque ${dayNames[ALERT_DAY] || ALERT_DAY} à ${ALERT_HOUR}h`,
+    `[scheduler] started — ${JOBS.length} job(s), tick ${TICK_MS / 1000}s; ` +
+      `alertes clients chaque ${dayNames[ALERT_DAY] || ALERT_DAY} à ${ALERT_HOUR}h`,
   );
   return timer;
 }
@@ -171,4 +264,10 @@ module.exports = {
   ALERT_DAY,
   ALERT_HOUR,
   MIN_GAP_MS,
+  TICK_MS,
+  // The multi-job runner.
+  registerJob,
+  runJob,
+  tick,
+  JOBS,
 };

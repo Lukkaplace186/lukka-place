@@ -302,7 +302,9 @@
       "underOffer": "Sous compromis",
       "closed": "Loué / Vendu",
       "cistern": "Citerne",
-      "depositMonths": "Garantie {count} mois"
+      "depositMonths": "Garantie {count} mois",
+      "verified": "Vérifié",
+      "verifiedOn": "Vérifié par Lukka Place le {date}"
     },
     "facts": {
       "propertyType": "Type de bien",
@@ -1417,6 +1419,25 @@
       "verified": "Numéro vérifié",
       "failedLogins": "Échecs de connexion",
       "locked": "Verrouillé"
+    },
+    "benchmarks": {
+      "title": "Prix de référence",
+      "subtitle": "Médianes calculées sur les transactions réellement conclues. Interne — ne pas publier.",
+      "transactionsClosed": "Transactions conclues",
+      "reportableCells": "Cellules exploitables",
+      "communesCovered": "Communes couvertes",
+      "minSampleNote": "Une médiane n'est affichée qu'à partir de {min} transactions. En dessous, seul le nombre réel est indiqué — une médiane de deux ventes n'est pas une médiane.",
+      "tableTitle": "Par commune, transaction et type",
+      "commune": "Commune",
+      "purpose": "Transaction",
+      "propertyType": "Type",
+      "sample": "Ventes",
+      "medianAsking": "Demandé (médiane)",
+      "medianAchieved": "Obtenu (médiane)",
+      "medianDelta": "Écart",
+      "medianDays": "Jours sur le marché",
+      "notEnough": "Pas encore assez",
+      "empty": "Aucune transaction conclue n'a encore été enregistrée. Cette page se remplit à mesure que les agents confirment un prix de vente."
     }
   },
   "errors": {

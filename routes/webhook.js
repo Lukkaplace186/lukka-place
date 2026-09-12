@@ -38,6 +38,10 @@ const {
   handleViewingButtonReply,
   handleAgentTextReply,
 } = require('../services/viewingNotifications');
+const {
+  handleCheckinButtonReply,
+  handleCustomerTextReply,
+} = require('../services/viewingSweeps');
 const { handleListingEnquiry } = require('../services/listingEnquiry');
 
 const router = express.Router();
@@ -685,6 +689,18 @@ async function processGroup(messages) {
       console.error(`[viewing] button '${buttonReplyId}' from ${from} failed: ${err.message}`);
       return;
     }
+    try {
+      // The post-visit check-in's own buttons. A separate handler because the
+      // authorisation rule is the opposite one: the only person entitled to
+      // say how a visit went is the CUSTOMER who attended it, never the
+      // listing's agent. Each parser returns null for the other's ids, so
+      // they cannot swallow each other.
+      const feedback = await handleCheckinButtonReply({ from, replyId: buttonReplyId });
+      if (feedback.handled) return;
+    } catch (err) {
+      console.error(`[checkin] button '${buttonReplyId}' from ${from} failed: ${err.message}`);
+      return;
+    }
   }
 
   const allMediaRefs = messages.flatMap((m) => m.media || []);
@@ -810,6 +826,16 @@ async function processGroup(messages) {
         if (outcome.handled) return;
       } catch (err) {
         console.error(`[viewing] typed reply from ${from} failed: ${err.message}`);
+      }
+      try {
+        // A typed "1"/"2"/"3" answering the post-visit check-in. Same
+        // fall-through posture: anything that is not a plausible answer
+        // reaches ordinary intake, so a customer who sends a property advert
+        // while a check-in is open is not swallowed by it.
+        const feedback = await handleCustomerTextReply({ from, text });
+        if (feedback.handled) return;
+      } catch (err) {
+        console.error(`[checkin] typed reply from ${from} failed: ${err.message}`);
       }
     }
 

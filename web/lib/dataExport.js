@@ -66,6 +66,11 @@ export const LISTING_EXPORT_COLUMNS = [
   'longitude',
   'agent_id',
   'agent_name',
+  // APPENDED, never inserted: this list is the CSV column order and a
+  // consumer's spreadsheet is keyed on it. Empty for almost every row, which
+  // is the honest state — verification is stamped per listing by a human and
+  // nothing was backfilled.
+  'verified_at',
 ];
 
 const EXPORT_SQL = `
@@ -118,7 +123,11 @@ const EXPORT_SQL = `
     p.latitude,
     p.longitude,
     p.agent_id,
-    a.username                                      AS agent_name
+    a.username                                      AS agent_name,
+    -- When Lukka Place confirmed this listing describes a real property on
+    -- real terms. NOT approve_status (moderation) and NOT the agent's phone
+    -- verification — a separate, stronger claim about the property itself.
+    p.verified_at
   FROM properties p
   LEFT JOIN property_contents pc ON pc.property_id = p.id AND pc.language_id = 20
   LEFT JOIN property_categories cat ON cat.id = p.category_id

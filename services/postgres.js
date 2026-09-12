@@ -406,9 +406,26 @@ function buildPropertyValues(row, { category, location, agentId = null }) {
  * @param {Object} values A buildPropertyValues() result.
  * @returns {Object} A new object; the input is not mutated.
  */
-function updatablePropertyValues(values) {
+function updatablePropertyValues(values, currentListingStatus = null) {
   const { approve_status: _approveStatus, ...updatable } = values;
   if (updatable.agent_id == null) delete updatable.agent_id;
+
+  // Never republish a listing that has left the market.
+  //
+  // buildPropertyValues always sets `status = 1` (visible), and a correction
+  // to an already-published listing re-syncs the whole row
+  // (routes/webhook.js's resyncListing). On a property that markPropertySold
+  // had set to `status = 0`, that silently put a sold listing back on the
+  // public site while `listing_status` still said 'closed' — the two axes
+  // disagreeing, which web/CLAUDE.md names as the bug that keeps recurring
+  // here.
+  //
+  // 'under_offer' is included for the same reason: an agent correcting the
+  // price of a property they have just told us is under offer has not
+  // thereby put it back on the market.
+  if (currentListingStatus === 'closed' || currentListingStatus === 'under_offer') {
+    delete updatable.status;
+  }
   return updatable;
 }
 
@@ -506,8 +523,13 @@ function normaliseRowLocation(row) {
 async function markPropertyUnderOffer(remotePropertyId) {
   if (!isConfigured() || !remotePropertyId) return false;
   const { rowCount } = await getPool().query(
+    // IS DISTINCT FROM, not <>. listing_status is NULL on rows that predate
+    // the column (web/lib/dataExport.js COALESCEs it to 'active' for exactly
+    // that reason), and `NULL <> 'closed'` is NULL, not true — so a plain <>
+    // guard refused to retire every legacy listing, which is precisely the
+    // set an agent is most likely to report as already let.
     `UPDATE properties SET listing_status = 'under_offer', updated_at = NOW()
-      WHERE id = $1 AND listing_status <> 'closed'`,
+      WHERE id = $1 AND listing_status IS DISTINCT FROM 'closed'`,
     [remotePropertyId],
   );
   return rowCount > 0;
@@ -536,13 +558,29 @@ async function markPropertySold(remotePropertyId, soldPrice, soldAt = new Date()
 }
 
 /** Put a listing back on the market — "finalement c'est encore libre". */
+/**
+ * Back on the market.
+ *
+ * `AND listing_status <> 'closed'` is load-bearing and matches the guard
+ * markPropertyUnderOffer has carried all along. Without it, an agent replying
+ * "finalement c'est encore libre" on a listing that had already been closed
+ * silently NULLed `sold_price` and `sold_at` — the achieved-vs-asking pair
+ * that is the entire commercial value of web/lib/dataExport.js, and which
+ * cannot be recovered from anywhere else once gone. web/'s own equivalent
+ * (app/compte/agent/actions.js) already refused this; the WhatsApp path was
+ * the way round it.
+ *
+ * Reopening a genuinely closed listing is therefore a deliberate act, done
+ * from the dashboard by someone who can see the figure they are discarding —
+ * not a side effect of one ambiguous WhatsApp reply.
+ */
 async function markPropertyAvailable(remotePropertyId) {
   if (!isConfigured() || !remotePropertyId) return false;
   const { rowCount } = await getPool().query(
     `UPDATE properties
         SET listing_status = 'active', sold_price = NULL, sold_at = NULL,
             status = 1, updated_at = NOW()
-      WHERE id = $1`,
+      WHERE id = $1 AND listing_status IS DISTINCT FROM 'closed'`,
     [remotePropertyId],
   );
   return rowCount > 0;
@@ -624,9 +662,19 @@ async function syncListingToPostgres(row) {
     }
 
     if (propertyId) {
+      // What market state is this row actually in? A re-sync must not put a
+      // sold or under-offer listing back on the public site — see
+      // updatablePropertyValues(). Read inside the transaction, so it cannot
+      // race a close happening concurrently.
+      const { rows: statusRows } = await client.query(
+        'SELECT listing_status FROM properties WHERE id = $1',
+        [propertyId],
+      );
+      const currentListingStatus = statusRows[0]?.listing_status ?? null;
+
       // Never re-assert moderation-owned fields on an existing row — see
       // updatablePropertyValues() for exactly which are dropped and why.
-      const updateValues = updatablePropertyValues(propertyValues);
+      const updateValues = updatablePropertyValues(propertyValues, currentListingStatus);
       const updateKeys = Object.keys(updateValues);
       const setClause = updateKeys.map((key, i) => `${key} = $${i + 1}`).join(', ');
       await client.query(

@@ -38,6 +38,7 @@
 const chakra = require('./chakra');
 const propertyRepository = require('./propertyRepository');
 const propertyMatchingService = require('./propertyMatching');
+const { parseFrenchSlot, formatSlotFr } = require('./visitSchedule');
 
 /**
  * Template name as approved in Meta's WhatsApp Manager — env-driven for the
@@ -63,8 +64,35 @@ const TEMPLATE_LANG = process.env.VIEWING_REQUEST_TEMPLATE_LANG || 'fr';
  * engine's own WhatsApp sender, and a WABA number cannot message itself.
  * This has to be a real person's handset, so it is configured or it is
  * skipped — never guessed.
+ *
+ * Read at CALL TIME, not module load. It used to be a module-level const,
+ * which meant pointing ops at a different handset — the on-call phone
+ * changing, a number being corrected after a missed request — needed a full
+ * `pm2 restart lukka-place-engine --update-env` rather than an env edit. Same
+ * reasoning, and the same shape, as web/lib/otpBypass.js's otpBypassEnabled().
  */
-const OPS_NUMBER = (process.env.OPS_WHATSAPP_NUMBER || '').replace(/\D/g, '') || null;
+function opsNumber() {
+  return (process.env.OPS_WHATSAPP_NUMBER || '').replace(/\D/g, '') || null;
+}
+
+/**
+ * Said once at boot, because the alternative is finding out at 2am.
+ *
+ * Before this, an unset ops number announced itself only at the moment a
+ * request ALSO failed to reach an agent — so a perfectly healthy-looking
+ * deployment could be silently dropping the desk copy of every viewing
+ * request, every decline survey and every closing price, and nothing said so
+ * until the one case where both ends failed at once.
+ */
+function warnIfOpsUnconfigured() {
+  if (opsNumber()) return false;
+  console.warn(
+    '[viewing] OPS_WHATSAPP_NUMBER is unset — nobody receives the desk copy of a viewing '
+      + 'request, the decline survey or a captured closing price. A request on a listing with '
+      + 'no verified agent will reach NOBODY.',
+  );
+  return true;
+}
 
 const SITE_URL = (process.env.PUBLIC_SITE_URL || 'https://lukkaplace.com').replace(/\/+$/, '');
 
@@ -152,7 +180,26 @@ const BUTTON_PREFIX = {
   accept: 'viewing_accept',
   reschedule: 'viewing_reschedule',
   decline: 'viewing_decline',
+  // Confirming the concrete slot, once the agent has accepted.
+  slotOk: 'viewing_slot_ok',
+  slotEdit: 'viewing_slot_edit',
 };
+
+/**
+ * "Is this the right time?", asked only when we could parse a real slot out
+ * of what the customer wrote.
+ *
+ * One tap in the common case. The alternative — making every agent type a
+ * date after every accept — puts a mandatory round trip on the single action
+ * we most want them to complete, and an agent who abandons it leaves the
+ * check-in with nothing to fire from.
+ */
+function slotConfirmButtons(viewingRequestId) {
+  return [
+    { id: `${BUTTON_PREFIX.slotOk}:${viewingRequestId}`, title: '✅ Confirmer' },
+    { id: `${BUTTON_PREFIX.slotEdit}:${viewingRequestId}`, title: '✏️ Autre heure' },
+  ];
+}
 
 /**
  * The same three options written out, for when buttons aren't available.
@@ -317,10 +364,11 @@ async function notifyViewingRequest({ viewingRequest, lead, propertyId } = {}) {
   }
 
   let opsNotified = false;
-  if (OPS_NUMBER) {
+  const ops = opsNumber();
+  if (ops) {
     try {
       await chakra.sendWhatsAppMessage(
-        OPS_NUMBER,
+        ops,
         opsMessage({ listing, lead, viewingRequest, propertyId: id, agentNotified, agentSkipReason }),
         { previewUrl: true },
       );
@@ -387,6 +435,10 @@ const PENDING_KINDS = {
   declineReason: 'DECLINE_REASON',
   reschedule: 'RESCHEDULE_TIME',
   closingPrice: 'CLOSING_PRICE',
+  // Asked after an accept when the customer's wording carried no parseable
+  // slot ("je suis disponible cette semaine"), so the check-in has a real
+  // instant to count from rather than a guess.
+  scheduleTime: 'SCHEDULE_TIME',
 };
 
 const DECLINE_REASONS = {
@@ -410,7 +462,9 @@ function fold(text) {
  * left alone rather than swallowed.
  */
 function parseViewingButtonId(replyId) {
-  const match = /^viewing_(accept|reschedule|decline):(\d+)$/.exec(String(replyId || '').trim());
+  const match = /^viewing_(accept|reschedule|decline|slot_ok|slot_edit):(\d+)$/.exec(
+    String(replyId || '').trim(),
+  );
   if (!match) return null;
   return { action: match[1], viewingRequestId: Number.parseInt(match[2], 10) };
 }
@@ -507,6 +561,31 @@ const RESCHEDULE_ASK =
   `${HEADER_BRAND} Quel créneau proposez-vous ? Répondez avec la date et l'heure ` +
   "(ex. _samedi 14h_) et nous le transmettons au client.";
 const DECLINE_THANKS = `${HEADER_BRAND} C'est noté, merci de votre réponse. 🙏`;
+const SCHEDULE_ASK =
+  `${HEADER_BRAND} À quelle date et à quelle heure exactement ? ` +
+  'Répondez par exemple _demain 14h_ ou _samedi matin_.';
+
+/** The parsed slot, read back for a one-tap confirmation. */
+function slotConfirmText(iso) {
+  return [
+    `${HEADER_BRAND} Confirmons l'heure`,
+    '',
+    // Always the full date, never "demain" — this message can be read a day
+    // after it was sent, and "demain" would then confirm the wrong day.
+    `📅 ${formatSlotFr(iso) || iso}`,
+    '',
+    "C'est bien cela ?",
+  ].join('\n');
+}
+
+function slotAgreedText(iso) {
+  return [
+    `${HEADER_BRAND} Créneau enregistré ✅`,
+    `📅 ${formatSlotFr(iso) || iso}`,
+    '',
+    'Nous demanderons au client comment la visite s\'est passée juste après.',
+  ].join('\n');
+}
 
 /** The agent's own confirmation that their tap registered. */
 function acceptedAgentText(listing, viewingRequest, propertyId) {
@@ -605,12 +684,33 @@ async function trySend(phone, text, label) {
   }
 }
 
+/**
+ * Buttons where they work, the same question as text where they do not.
+ *
+ * Whether this account's Chakra plan forwards interactive payloads at all is
+ * not something this repo can assert, so nothing is allowed to depend on it.
+ * The text fallback asks for the same answer in words, which every handler
+ * downstream already accepts — so the loop closes either way.
+ */
+async function sendWithButtons(phone, text, buttons, label) {
+  if (!phone) return false;
+  const to = String(phone).replace(/\D/g, '');
+  try {
+    await chakra.sendInteractiveButtons(to, text, buttons);
+    return true;
+  } catch (err) {
+    console.warn(`[viewing] ${label}: interactive send failed (${err.message}) — falling back to text`);
+    return trySend(to, text, label);
+  }
+}
+
 async function notifyOps(text, label) {
-  if (!OPS_NUMBER) {
+  const ops = opsNumber();
+  if (!ops) {
     console.warn(`[viewing] ${label}: OPS_WHATSAPP_NUMBER unset — ops not told`);
     return false;
   }
-  return trySend(OPS_NUMBER, text, label);
+  return trySend(ops, text, label);
 }
 
 /**
@@ -652,6 +752,22 @@ async function resolveContext(viewingRequestId, from) {
 // The three actions
 // ---------------------------------------------------------------------------
 
+/**
+ * Accepting pins the visit down to a real instant, not just a status.
+ *
+ * The customer's `requested_time` is free text and stays that way. What the
+ * check-in two hours later needs is an actual timestamp, so the accept is
+ * where the agent turns "demain matin" into a slot. Two paths:
+ *
+ *   - parseable ("demain 14h") -> propose it back, one tap to confirm;
+ *   - not parseable ("quand vous voulez") -> ask, claiming the agent's next
+ *     message.
+ *
+ * Either way the STATUS is already CONFIRMED and the customer is already
+ * told. Scheduling is a refinement on top of an answer that has been given —
+ * an agent who ignores the slot question has still accepted the visit, and
+ * the customer must not be left waiting on a questionnaire.
+ */
 async function handleAccept({ request, listing, propertyId, from }) {
   dbService.updateViewingRequest(request.id, { status: 'CONFIRMED' });
   dbService.clearPendingAgentAction(from);
@@ -663,8 +779,62 @@ async function handleAccept({ request, listing, propertyId, from }) {
     'accept confirmation',
   );
 
-  console.log(`[viewing] request #${request.id} ACCEPTED by agent ${from} — client told: ${told}`);
-  return { action: 'accept', status: 'CONFIRMED', tenantNotified: told };
+  const proposal = parseFrenchSlot(request.requested_time);
+  if (proposal) {
+    // Stored now so a check-in still fires if the agent never answers the
+    // confirmation — it is the customer's own stated time, not an invention.
+    dbService.setViewingScheduledAt(request.id, proposal.iso);
+    await sendWithButtons(
+      from,
+      slotConfirmText(proposal.iso),
+      slotConfirmButtons(request.id),
+      'slot confirm',
+    );
+  } else {
+    dbService.setPendingAgentAction({
+      waId: from,
+      kind: PENDING_KINDS.scheduleTime,
+      viewingRequestId: request.id,
+    });
+    await trySend(from, SCHEDULE_ASK, 'slot ask');
+  }
+
+  console.log(
+    `[viewing] request #${request.id} ACCEPTED by agent ${from} — client told: ${told}, ` +
+      `slot: ${proposal ? proposal.iso : 'asked'}`,
+  );
+  return {
+    action: 'accept',
+    status: 'CONFIRMED',
+    tenantNotified: told,
+    scheduledAt: proposal ? proposal.iso : null,
+    awaiting: proposal ? null : PENDING_KINDS.scheduleTime,
+  };
+}
+
+/**
+ * The agent confirmed the slot we proposed. Nothing to write — handleAccept
+ * already stored it — so this is an acknowledgement, which is exactly why it
+ * is worth sending: a tap with no visible effect reads as a tap that failed.
+ */
+async function handleSlotOk({ request, from }) {
+  dbService.clearPendingAgentAction(from);
+  const when = request.scheduled_at;
+  await trySend(from, slotAgreedText(when), 'slot agreed');
+  console.log(`[viewing] request #${request.id} slot confirmed by ${from}: ${when}`);
+  return { action: 'slot-ok', scheduledAt: when };
+}
+
+/** The agent wants a different hour: claim their next message for it. */
+async function handleSlotEdit({ request, from }) {
+  dbService.setPendingAgentAction({
+    waId: from,
+    kind: PENDING_KINDS.scheduleTime,
+    viewingRequestId: request.id,
+  });
+  await trySend(from, SCHEDULE_ASK, 'slot re-ask');
+  console.log(`[viewing] request #${request.id} slot correction requested by ${from}`);
+  return { action: 'slot-edit', awaiting: PENDING_KINDS.scheduleTime };
 }
 
 async function handleReschedule({ request, from }) {
@@ -750,6 +920,8 @@ async function handleViewingButtonReply({ from, replyId }) {
   const args = { ...ctx, from };
   if (parsed.action === 'accept') return { handled: true, ...(await handleAccept(args)) };
   if (parsed.action === 'reschedule') return { handled: true, ...(await handleReschedule(args)) };
+  if (parsed.action === 'slot_ok') return { handled: true, ...(await handleSlotOk(args)) };
+  if (parsed.action === 'slot_edit') return { handled: true, ...(await handleSlotEdit(args)) };
   return { handled: true, ...(await handleDecline(args)) };
 }
 
@@ -785,10 +957,30 @@ async function handleAgentTextReply({ from, text }) {
     return { handled: true, ...(await handleDecline(args)) };
   }
 
+  if (pending.kind === PENDING_KINDS.scheduleTime) {
+    // Typed answer to "what date and time exactly?". Unparseable text falls
+    // through to ordinary intake rather than being eaten — the same posture
+    // every other branch here takes, and what stops a real property advert
+    // being swallowed because a question happened to be open.
+    const slot = parseFrenchSlot(text);
+    if (!slot) return { handled: false };
+
+    dbService.setViewingScheduledAt(ctx.request.id, slot.iso);
+    dbService.clearPendingAgentAction(from);
+    await trySend(from, slotAgreedText(slot.iso), 'slot agreed');
+    console.log(`[viewing] request #${ctx.request.id} scheduled for ${slot.iso} by ${from}`);
+    return { handled: true, action: 'slot-set', scheduledAt: slot.iso };
+  }
+
   if (pending.kind === PENDING_KINDS.reschedule) {
     const proposed = String(text || '').trim().slice(0, 200);
     if (!proposed) return { handled: false };
     dbService.updateViewingRequest(ctx.request.id, { requestedTime: proposed });
+    // A reschedule that names a real instant also pins the check-in to it.
+    // The customer still has to agree, so the status stays RESCHEDULED — but
+    // when they do, there is already a slot to count from.
+    const rescheduled = parseFrenchSlot(proposed);
+    if (rescheduled) dbService.setViewingScheduledAt(ctx.request.id, rescheduled.iso);
     dbService.clearPendingAgentAction(from);
 
     const told = await trySend(
@@ -898,6 +1090,9 @@ async function retireListing(ctx, from) {
 module.exports = {
   notifyViewingRequest,
   notifyViewingRequestInBackground,
+  opsNumber,
+  warnIfOpsUnconfigured,
+  notifyOps,
   // Exposed for scripts/verify-pipeline.js.
   agentMessage,
   opsMessage,
@@ -908,6 +1103,10 @@ module.exports = {
   viewingButtons,
   buttonFallbackText,
   BUTTON_PREFIX,
+  slotConfirmButtons,
+  slotConfirmText,
+  slotAgreedText,
+  SCHEDULE_ASK,
   // The feedback loop.
   handleViewingButtonReply,
   handleAgentTextReply,

@@ -43,8 +43,17 @@ const { rankAgentsForRequest, MAX_AGENTS_PER_LEAD } = require('./agentRanking');
  * Template name/language as approved in Meta's WhatsApp Manager. Env-driven
  * for exactly the reason AGENT_OTP_TEMPLATE and SEARCH_ALERT_TEMPLATE already
  * are: an approval over there must never require a code change over here.
+ *
+ * UNSET BY DEFAULT, deliberately — this used to default to 'agent_lead_match',
+ * a name Meta has never heard of. Every dispatch therefore paid a
+ * guaranteed-failing round trip PER AGENCY (seven per lead) to be told
+ * `(#132001) Template name does not exist in the translation`, before falling
+ * back to the session message that was always going to be what actually sent.
+ * Same choice, and the same reasoning, as VIEWING_REQUEST_TEMPLATE in
+ * services/viewingNotifications.js. Set it once a template is genuinely
+ * approved.
  */
-const TEMPLATE_NAME = process.env.AGENT_LEAD_MATCH_TEMPLATE || 'agent_lead_match';
+const TEMPLATE_NAME = process.env.AGENT_LEAD_MATCH_TEMPLATE || null;
 const TEMPLATE_LANG = process.env.AGENT_LEAD_MATCH_TEMPLATE_LANG || 'fr';
 
 const SITE_URL = (process.env.PUBLIC_SITE_URL || 'https://lukkaplace.com').replace(/\/+$/, '');
@@ -256,19 +265,27 @@ async function dispatchLead(lead, { limit = MAX_AGENTS_PER_LEAD } = {}) {
     if (!created) continue; // already pushed to this agency for this lead
 
     try {
-      try {
-        await chakra.sendTemplate(agent.phone, TEMPLATE_NAME, {
-          languageCode: TEMPLATE_LANG,
-          bodyParams: templateParams(lead, agent, link),
-        });
-      } catch (templateErr) {
-        // See fallbackText's doc comment — a template failure is very often
-        // "not approved yet", not "this agent is unreachable".
-        console.warn(
-          `[dispatch] template '${TEMPLATE_NAME}' failed for agent #${agent.agent_id}, ` +
-            `falling back to a session message: ${templateErr.message}`,
-        );
+      // No template configured is an EXPECTED state during launch, not a
+      // failure: go straight to the session message without the round trip,
+      // and without a warning that would cry wolf on every send.
+      if (!chakra.templateConfigured(TEMPLATE_NAME)) {
         await chakra.sendWhatsAppMessage(agent.phone, fallbackText(lead, agent, link), { previewUrl: true });
+      } else {
+        try {
+          await chakra.sendTemplate(agent.phone, TEMPLATE_NAME, {
+            languageCode: TEMPLATE_LANG,
+            bodyParams: templateParams(lead, agent, link),
+          });
+        } catch (templateErr) {
+          // A configured template that failed IS worth a warning — see
+          // fallbackText's doc comment; it is very often "not approved yet"
+          // rather than "this agent is unreachable".
+          console.warn(
+            `[dispatch] template '${TEMPLATE_NAME}' failed for agent #${agent.agent_id}, ` +
+              `falling back to a session message: ${templateErr.message}`,
+          );
+          await chakra.sendWhatsAppMessage(agent.phone, fallbackText(lead, agent, link), { previewUrl: true });
+        }
       }
       notified += 1;
     } catch (err) {

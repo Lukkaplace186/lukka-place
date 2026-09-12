@@ -522,6 +522,12 @@ const server = app.listen(PORT, () => {
   console.log(`[boot] Lukka Place engine listening on http://localhost:${PORT}`);
   console.log(`[boot] webhook endpoint: http://localhost:${PORT}/webhook`);
 
+  // Say at boot whether the ops desk can actually be reached. An unset
+  // OPS_WHATSAPP_NUMBER used to announce itself only at the moment a viewing
+  // request ALSO failed to reach an agent — so a deployment could be dropping
+  // every desk copy, decline survey and captured closing price in silence.
+  require('./services/viewingNotifications').warnIfOpsUnconfigured();
+
   // The weekly customer alert sweep. This process is the only always-on,
   // single-instance component in the system (ecosystem.config.js pins it to
   // one fork), which is what makes it the right place to hold a timer —

@@ -5540,8 +5540,30 @@ console.log('\n2. services/openai.js');
   });
 
   check('accepting messages BOTH the agent and the client', () => {
-    assert.strictEqual(httpCalls.length, 2, 'expected an ack to the agent and a confirmation to the client');
-    assert.deepStrictEqual(httpCalls.map((c) => c.data.to).sort(), ['243821122937', '243990111222']);
+    // Three sends now, not two: the agent gets an ack AND the slot-confirmation
+    // question, the client gets the confirmation. "samedi 14h" parses, so the
+    // agent is asked to confirm a concrete instant rather than to type one.
+    assert.strictEqual(
+      httpCalls.length,
+      3,
+      'expected an ack + slot question to the agent, and a confirmation to the client',
+    );
+    assert.deepStrictEqual(
+      httpCalls.map((c) => c.data.to).sort(),
+      ['243821122937', '243821122937', '243990111222'],
+    );
+  });
+
+  check('accepting pins the visit to a real instant the check-in can count from', () => {
+    // requested_time stays the customer's own free text; scheduled_at is the
+    // agent-confirmed instant, stored in UTC so the check-in sweep's
+    // `scheduled_at <= ?` comparison is a real ordering rather than a string
+    // coincidence.
+    const stored = dbService.getViewingRequest(acceptTarget.id);
+    assert.strictEqual(stored.requested_time, 'samedi 14h', 'the customer wording is untouched');
+    assert.ok(stored.scheduled_at, 'a parseable slot must be stored on accept');
+    assert.match(stored.scheduled_at, /Z$/, 'scheduled_at must be UTC, never a local offset');
+    assert.strictEqual(acceptOutcome.scheduledAt, stored.scheduled_at);
   });
 
   check('the client is told the visit is confirmed, with the slot and the agent', () => {
@@ -6010,6 +6032,656 @@ console.log('\n2. services/openai.js');
   });
 
   propertyRepo.getListingContactById = realEnquiryLookup;
+  // -------------------------------------------------------------------------
+  // 23. Messaging infrastructure: templates that can reach a cold contact
+  //
+  // Two distinct bugs are pinned here.
+  //
+  // (a) sendInteractiveButtons is a SESSION message type. Meta will not
+  //     deliver it outside the 24h window, so the whole agent feedback loop
+  //     silently stops existing for anyone who has not messaged us recently.
+  //     A template is the only way to put buttons in front of a cold contact,
+  //     which is what the quick_reply component support is for.
+  //
+  // (b) AGENT_LEAD_MATCH_TEMPLATE and AGENT_OTP_TEMPLATE used to default to
+  //     names Meta has never heard of, so every send paid a
+  //     guaranteed-failing round trip (seven per lead dispatch) before
+  //     falling back to the session message that was always going to be what
+  //     actually sent — and that failure was indistinguishable in the logs
+  //     from an APPROVED template failing to deliver.
+  // -------------------------------------------------------------------------
+
+  console.log('\n23. Messaging infrastructure (templates, quick replies, ops number)');
+
+  const viewingNotif = require('../services/viewingNotifications');
+
+  check('templateConfigured tells "unset" apart from "set"', () => {
+    assert.strictEqual(chakra.templateConfigured(null), false);
+    assert.strictEqual(chakra.templateConfigured(undefined), false);
+    assert.strictEqual(chakra.templateConfigured(''), false);
+    assert.strictEqual(chakra.templateConfigured('   '), false, 'whitespace is not a template name');
+    assert.strictEqual(chakra.templateConfigured('viewing_request'), true);
+  });
+
+  httpCalls.length = 0;
+  await chakra.sendTemplate('243850000123', 'viewing_request', {
+    languageCode: 'fr',
+    bodyParams: ['Marie', 'Villa Gombe', 'Jean', 'demain 14h', 'https://lukkaplace.com'],
+    buttons: [
+      { id: 'viewing_accept:47' },
+      { id: 'viewing_reschedule:47' },
+      { id: 'viewing_decline:47' },
+    ],
+  });
+
+  check('a template carries its quick-reply buttons as real components', () => {
+    const sent = httpCalls[httpCalls.length - 1].data;
+    assert.strictEqual(sent.type, 'template');
+    const buttons = sent.template.components.filter((c) => c.type === 'button');
+    assert.strictEqual(buttons.length, 3, 'all three buttons must travel');
+    assert.deepStrictEqual(
+      buttons.map((b) => b.sub_type),
+      ['quick_reply', 'quick_reply', 'quick_reply'],
+    );
+    // index must match the order the template declares its buttons in — a
+    // mismatch is a 400, not a silently mislabelled button.
+    assert.deepStrictEqual(buttons.map((b) => b.index), ['0', '1', '2']);
+  });
+
+  check('the payload is the SAME id the interactive path produces', () => {
+    // This is what makes the loop work unchanged: the payload comes back on
+    // the inbound webhook as interactive.button_reply.id either way, so
+    // parseViewingButtonId needs no branch for "arrived via template".
+    const sent = httpCalls[httpCalls.length - 1].data;
+    const payloads = sent.template.components
+      .filter((c) => c.type === 'button')
+      .map((c) => c.parameters[0].payload);
+    assert.deepStrictEqual(payloads, [
+      'viewing_accept:47',
+      'viewing_reschedule:47',
+      'viewing_decline:47',
+    ]);
+    for (const payload of payloads) {
+      assert.ok(viewingNotif.parseViewingButtonId(payload), payload + ' must still parse');
+    }
+  });
+
+  check('the body parameters are untouched by the button support', () => {
+    const sent = httpCalls[httpCalls.length - 1].data;
+    const body = sent.template.components.find((c) => c.type === 'body');
+    assert.deepStrictEqual(
+      body.parameters.map((p) => p.text),
+      ['Marie', 'Villa Gombe', 'Jean', 'demain 14h', 'https://lukkaplace.com'],
+    );
+  });
+
+  httpCalls.length = 0;
+  await chakra.sendTemplate('243850000123', 'agent_auth_otp', {
+    bodyParams: ['123456'],
+    otpCode: '123456',
+  });
+  check('the AUTHENTICATION copy-code button path is unchanged', () => {
+    const sent = httpCalls[httpCalls.length - 1].data;
+    const buttons = sent.template.components.filter((c) => c.type === 'button');
+    assert.strictEqual(buttons.length, 1);
+    assert.strictEqual(buttons[0].sub_type, 'url');
+    assert.strictEqual(buttons[0].index, '0');
+  });
+
+  await checkAsync('otpCode and quick-reply buttons cannot be combined', async () => {
+    // An AUTHENTICATION template's copy-code button already claims index 0.
+    await assert.rejects(
+      () => chakra.sendTemplate('243850000123', 't', { otpCode: '1', buttons: [{ id: 'x' }] }),
+      /cannot combine otpCode with quick-reply/,
+    );
+  });
+
+  await checkAsync("Meta's own quick-reply limits are enforced here, not discovered as a 400", async () => {
+    await assert.rejects(
+      () => chakra.sendTemplate('243850000123', 't', { buttons: [] }),
+      /1-3 quick-reply buttons/,
+    );
+    await assert.rejects(
+      () => chakra.sendTemplate('243850000123', 't', {
+        buttons: [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }],
+      }),
+      /1-3 quick-reply buttons/,
+    );
+    await assert.rejects(
+      () => chakra.sendTemplate('243850000123', 't', { buttons: [{ title: 'no id' }] }),
+      /needs an id/,
+    );
+    await assert.rejects(
+      () => chakra.sendTemplate('243850000123', 't', { buttons: [{ id: 'x'.repeat(129) }] }),
+      /128-character limit/,
+    );
+  });
+
+  check('an unconfigured lead-match template no longer defaults to a name Meta rejects', () => {
+    // The whole point: seven guaranteed-failing round trips per lead is not a
+    // fallback strategy, it is a tax. Asserted on the SOURCE rather than by
+    // driving a dispatch, because ranking agents needs a live Postgres this
+    // suite deliberately does not have.
+    const dispatchSource = fs.readFileSync(
+      path.join(__dirname, '..', 'services', 'leadDispatch.js'),
+      'utf8',
+    );
+    assert.ok(
+      /AGENT_LEAD_MATCH_TEMPLATE \|\| null/.test(dispatchSource),
+      "leadDispatch must default the template name to null, not to 'agent_lead_match'",
+    );
+    assert.ok(
+      /templateConfigured\(TEMPLATE_NAME\)/.test(dispatchSource),
+      'leadDispatch must skip straight to the session message when no template is configured',
+    );
+  });
+
+  // OPS_WHATSAPP_NUMBER is read at CALL time, so ops can be pointed at a
+  // different handset without restarting the engine.
+  const savedOpsNumber = process.env.OPS_WHATSAPP_NUMBER;
+  check('the ops number is read at call time, not frozen at module load', () => {
+    delete process.env.OPS_WHATSAPP_NUMBER;
+    assert.strictEqual(viewingNotif.opsNumber(), null);
+
+    process.env.OPS_WHATSAPP_NUMBER = '+243 81 555 0000';
+    assert.strictEqual(
+      viewingNotif.opsNumber(),
+      '243815550000',
+      'a formatted number must be normalised to digits, and picked up without a restart',
+    );
+  });
+  check('an unset ops number is announced at boot, not at 2am', () => {
+    delete process.env.OPS_WHATSAPP_NUMBER;
+    assert.strictEqual(viewingNotif.warnIfOpsUnconfigured(), true);
+    process.env.OPS_WHATSAPP_NUMBER = '243815550000';
+    assert.strictEqual(viewingNotif.warnIfOpsUnconfigured(), false);
+  });
+  if (savedOpsNumber === undefined) delete process.env.OPS_WHATSAPP_NUMBER;
+  else process.env.OPS_WHATSAPP_NUMBER = savedOpsNumber;
+  // -------------------------------------------------------------------------
+  // 24. The multi-job scheduler
+  //
+  // The tick used to be ten minutes and run one hardcoded weekly sweep. That
+  // interval is why it could not host anything else: a 15-minute SLA checked
+  // every 10 minutes fires between 15 and 25 minutes late, which is not a
+  // 15-minute SLA.
+  //
+  // §18 above still drives the weekly sweep's own gate and must keep passing
+  // unchanged — this section is about the runner around it.
+  // -------------------------------------------------------------------------
+
+  console.log('\n24. Multi-job scheduler dispatch');
+
+  const sched = require('../services/scheduler');
+
+  check('the tick is fine enough to enforce the tightest deadline on it', () => {
+    const { SLA_MS } = require('../services/viewingSweeps');
+    assert.strictEqual(sched.TICK_MS, 60 * 1000);
+    assert.ok(
+      sched.TICK_MS <= SLA_MS,
+      'a tick coarser than the SLA it enforces cannot enforce it',
+    );
+  });
+
+  check('the weekly sweep and both speed-to-lead sweeps are registered', () => {
+    const names = sched.JOBS.map((j) => j.name);
+    assert.deepStrictEqual(names, ['search-alerts-weekly', 'viewing-sla', 'viewing-checkin']);
+  });
+
+  check('a malformed job is refused rather than silently never running', () => {
+    assert.throws(() => sched.registerJob({}), /needs \{ name, shouldRun/);
+    assert.throws(() => sched.registerJob({ name: 'x', shouldRun: 1, run: 1 }), /needs \{ name/);
+    assert.throws(
+      () => sched.registerJob({ name: 'viewing-sla', shouldRun: () => false, run: async () => {} }),
+      /already registered/,
+      'a duplicate name would make job_runs ambiguous',
+    );
+  });
+
+  await checkAsync('a job that is not due does not run and records nothing', async () => {
+    let ran = false;
+    const before = dbService.getLastJobRun('probe-not-due');
+    const did = await sched.runJob(
+      { name: 'probe-not-due', shouldRun: () => false, run: async () => { ran = true; } },
+    );
+    assert.strictEqual(did, false);
+    assert.strictEqual(ran, false);
+    assert.strictEqual(dbService.getLastJobRun('probe-not-due'), before);
+  });
+
+  await checkAsync('a due job runs and its success is recorded', async () => {
+    const did = await sched.runJob(
+      { name: 'probe-due', shouldRun: () => true, run: async () => ({ handled: 2 }) },
+    );
+    assert.strictEqual(did, true);
+    const run = dbService.getLastJobRun('probe-due');
+    assert.ok(run.succeeded_at, 'a successful run must advance succeeded_at');
+    assert.match(run.detail, /handled/);
+  });
+
+  await checkAsync('a throwing job is recorded as a failure and does NOT advance succeeded_at', async () => {
+    // Same rule §18 pins for the weekly sweep: a failure must not consume the
+    // window, or one bad attempt skips the whole period.
+    await sched.runJob(
+      { name: 'probe-throws', shouldRun: () => true, run: async () => { throw new Error('boom'); } },
+    );
+    const run = dbService.getLastJobRun('probe-throws');
+    assert.strictEqual(run.succeeded_at, null);
+    assert.match(run.last_error, /boom/);
+  });
+
+  await checkAsync('a job whose shouldRun throws is skipped, not fatal', async () => {
+    const did = await sched.runJob({
+      name: 'probe-bad-gate',
+      shouldRun: () => { throw new Error('gate exploded'); },
+      run: async () => { throw new Error('must never be reached'); },
+    });
+    assert.strictEqual(did, false);
+  });
+
+  await checkAsync('one failing job never stops the jobs behind it', async () => {
+    // The whole point of the registry: the SLA sweep throwing must not take
+    // the post-visit check-in down with it.
+    const order = [];
+    const saved = sched.JOBS.splice(0, sched.JOBS.length);
+    try {
+      sched.JOBS.push(
+        { name: 'probe-a', shouldRun: () => true, run: async () => { order.push('a'); throw new Error('a failed'); } },
+        { name: 'probe-b', shouldRun: () => true, run: async () => { order.push('b'); } },
+      );
+      await sched.tick(new Date());
+      assert.deepStrictEqual(order, ['a', 'b'], 'b must still run after a threw');
+    } finally {
+      sched.JOBS.splice(0, sched.JOBS.length, ...saved);
+    }
+  });
+
+  // -------------------------------------------------------------------------
+  // 25. The 15-minute unanswered-request SLA
+  //
+  // job_runs is keyed by job NAME and can only ever answer "did the sweep
+  // run". "Have we already alerted on request #47" is a fact about the
+  // request, and lives on the row — which is what these assertions are really
+  // about.
+  // -------------------------------------------------------------------------
+
+  console.log('\n25. 15-minute unanswered-request SLA');
+
+  const sweeps = require('../services/viewingSweeps');
+  const OPS_WA = '243815550000';
+
+  /**
+   * A PENDING request, plus a lead carrying real requirements.
+   *
+   * Nothing is back-dated: every selector here takes `now`, so the tests
+   * travel forward instead of rewriting created_at. That keeps them
+   * independent of when the suite runs AND of SQLite's timestamp format.
+   */
+  function pendingViewingRequest() {
+    const lead = dbService.createLead({
+      wa_id: '243990111222',
+      name: 'Henoc Mimbo',
+      source: 'listing-visit-request',
+      property_id: 303,
+      transaction_type: 'location',
+      commune: 'Gombe',
+      price_max: 900,
+      bedrooms: 2,
+    });
+    const request = dbService.createViewingRequest({
+      leadId: lead.id,
+      propertyId: 303,
+      requestedTime: 'samedi 14h',
+    });
+    return { lead, request };
+  }
+
+  check('the SLA is fifteen minutes, and the check-in two hours', () => {
+    assert.strictEqual(sweeps.SLA_MS, 15 * 60 * 1000);
+    assert.strictEqual(sweeps.CHECKIN_AFTER_MS, 2 * 60 * 60 * 1000);
+  });
+
+  // A request created now is not yet late.
+  const slaFresh = pendingViewingRequest();
+  check('a request inside the SLA window is not selected', () => {
+    const due = dbService.listViewingRequestsAwaitingSla(sweeps.SLA_MS, new Date().toISOString());
+    assert.ok(
+      !due.some((r) => r.id === slaFresh.request.id),
+      'a request made a moment ago must not be escalated',
+    );
+  });
+
+  check('a request past the SLA is selected, with its lead joined in', () => {
+    const future = new Date(Date.now() + 20 * 60 * 1000).toISOString();
+    const due = dbService.listViewingRequestsAwaitingSla(sweeps.SLA_MS, future);
+    const mine = due.find((r) => r.id === slaFresh.request.id);
+    assert.ok(mine, 'a request older than the SLA must be picked up');
+    // The customer's number lives on the lead, never on the request.
+    assert.strictEqual(mine.lead_wa_id, '243990111222');
+    assert.strictEqual(mine.lead_transaction_type, 'location');
+    assert.strictEqual(mine.lead_price_max, 900);
+  });
+
+  // --- The sweep itself -----------------------------------------------------
+
+  const realMatch = propertyMatching.matchProperties;
+  const matchArgs = [];
+  propertyMatching.matchProperties = async (criteria) => {
+    matchArgs.push(criteria);
+    return {
+      data: [
+        { id: 401, title: 'Appartement 2 ch — Gombe', price: 850, slug: 'appt-gombe' },
+        { id: 303, title: 'Le bien déjà demandé', price: 800, slug: 'deja' },
+        { id: 402, title: 'Studio — Gombe', price: 700, slug: 'studio-gombe' },
+      ],
+      total: 3,
+      widened: false,
+      error: false,
+    };
+  };
+  const realContactLookup = propertyRepo.getListingContactById;
+  propertyRepo.getListingContactById = async () => ({
+    id: 303, title: 'Villa Kkimmo', reference: 'LKP-303', commune: 'Gombe',
+    agent_id: 91, agent_phone: '243821122937', phone_verified_at: '2026-08-01T09:00:00.000Z',
+    agent_name: 'Marie',
+  });
+
+  process.env.OPS_WHATSAPP_NUMBER = OPS_WA;
+  httpCalls.length = 0;
+  const slaFuture = new Date(Date.now() + 20 * 60 * 1000);
+  const slaResult = await sweeps.runSlaSweep(slaFuture);
+
+  check('the sweep escalates the overdue request', () => {
+    assert.ok(slaResult.alerted >= 1, 'at least the aged request must be alerted');
+  });
+
+  check('ops is told, and the customer gets alternatives', () => {
+    const tos = httpCalls.map((c) => c.data.to);
+    assert.ok(tos.includes(OPS_WA), 'ops must receive the escalation');
+    assert.ok(tos.includes('243990111222'), 'the customer must hear something');
+  });
+
+  check("the alternatives match what the customer actually asked for", () => {
+    // The decline path passed only the commune, so a rental shopper could be
+    // offered a sale. The lead already carries all of this.
+    const last = matchArgs[matchArgs.length - 1];
+    assert.strictEqual(last.transactionType, 'location');
+    assert.strictEqual(last.commune, 'Gombe');
+    assert.strictEqual(last.priceMax, 900);
+    assert.strictEqual(last.bedsMin, 2);
+  });
+
+  check('the property they are waiting on is never offered back to them', () => {
+    const toClient = httpCalls.find((c) => c.data.to === '243990111222').data.text.body;
+    assert.ok(!/Le bien déjà demandé/.test(toClient), 'the requested listing must be excluded');
+    assert.match(toClient, /Appartement 2 ch/);
+  });
+
+  check('the ops alert says WHY the agent did not answer', () => {
+    // "never received it, unverified number" and "received it and ignored it"
+    // need different responses and must not read the same.
+    const toOps = httpCalls.find((c) => c.data.to === OPS_WA).data.text.body;
+    assert.match(toOps, /a bien été alerté/i);
+  });
+
+  check('the request stays PENDING — response rate must stay measurable', () => {
+    const after = dbService.getViewingRequest(slaFresh.request.id);
+    assert.strictEqual(after.status, 'PENDING', 'the agent can still accept it');
+    assert.ok(after.sla_alerted_at, 'the escalation is stamped on the row, not in job_runs');
+  });
+
+  httpCalls.length = 0;
+  const slaSecond = await sweeps.runSlaSweep(new Date(Date.now() + 40 * 60 * 1000));
+  check('the escalation fires once and only once', () => {
+    // job_runs cannot express this at all: it holds one row per job NAME, so
+    // per-request idempotence has to live on the request.
+    const stillDue = dbService.listViewingRequestsAwaitingSla(
+      sweeps.SLA_MS,
+      new Date(Date.now() + 40 * 60 * 1000).toISOString(),
+    );
+    assert.ok(
+      !stillDue.some((r) => r.id === slaFresh.request.id),
+      'an already-alerted request must never be selected again',
+    );
+    assert.ok(dbService.getViewingRequest(slaFresh.request.id).sla_alerted_at);
+  });
+
+  // -------------------------------------------------------------------------
+  // 26. The 2-hour post-visit check-in
+  // -------------------------------------------------------------------------
+
+  console.log('\n26. Post-visit check-in');
+
+  const CUSTOMER_WA = '243990111222';
+
+  function confirmedVisit(scheduledAtIso) {
+    const lead = dbService.createLead({
+      wa_id: CUSTOMER_WA, name: 'Henoc Mimbo', source: 'listing-visit-request', property_id: 303,
+    });
+    const req = dbService.createViewingRequest({
+      leadId: lead.id, propertyId: 303, requestedTime: 'samedi 14h',
+    });
+    dbService.updateViewingRequest(req.id, { status: 'CONFIRMED' });
+    if (scheduledAtIso) dbService.setViewingScheduledAt(req.id, scheduledAtIso);
+    return { lead, request: dbService.getViewingRequest(req.id) };
+  }
+
+  const visitNow = new Date('2026-09-20T12:00:00.000Z');
+  const visited = confirmedVisit(visitNow.toISOString());
+
+  check('a visit that has only just happened is not asked about yet', () => {
+    const due = dbService.listViewingRequestsDueForCheckin(
+      sweeps.CHECKIN_AFTER_MS,
+      new Date(visitNow.getTime() + 60 * 60 * 1000).toISOString(),
+    );
+    assert.ok(
+      !due.some((r) => r.id === visited.request.id),
+      'one hour after the slot is too early — the visit may still be running',
+    );
+  });
+
+  check('a visit two hours old is due', () => {
+    const due = dbService.listViewingRequestsDueForCheckin(
+      sweeps.CHECKIN_AFTER_MS,
+      new Date(visitNow.getTime() + 2 * 60 * 60 * 1000 + 1000).toISOString(),
+    );
+    assert.ok(due.some((r) => r.id === visited.request.id));
+  });
+
+  const noSlot = confirmedVisit(null);
+  check('a confirmed visit with no agreed instant is NEVER asked about', () => {
+    // Asking "how was your visit?" about a visit that may not have happened is
+    // worse than not asking. requested_time is free text and cannot be counted
+    // from.
+    const due = dbService.listViewingRequestsDueForCheckin(
+      sweeps.CHECKIN_AFTER_MS,
+      new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString(),
+    );
+    assert.ok(!due.some((r) => r.id === noSlot.request.id));
+  });
+
+  httpCalls.length = 0;
+  const checkinAt = new Date(visitNow.getTime() + 3 * 60 * 60 * 1000);
+  const checkinResult = await sweeps.runCheckinSweep(checkinAt);
+
+  check('the check-in reaches the customer, not the agent', () => {
+    assert.ok(checkinResult.sent >= 1);
+    const tos = httpCalls.map((c) => c.data.to);
+    assert.ok(tos.includes(CUSTOMER_WA), 'the person who attended is the one asked');
+    assert.ok(!tos.includes('243821122937'), 'the agent is not asked how their own visit went');
+  });
+
+  check('it asks the question in French and offers the three real answers', () => {
+    const sent = httpCalls.find((c) => c.data.to === CUSTOMER_WA);
+    const body = sent.data.interactive
+      ? sent.data.interactive.body.text
+      : sent.data.text.body;
+    assert.match(body, /Comment s'est passée votre visite/);
+    if (sent.data.interactive) {
+      const titles = sent.data.interactive.action.buttons.map((b) => b.reply.title);
+      assert.deepStrictEqual(titles, ['👍 Bien', '👎 Déçu', '⚠️ Agent absent']);
+    }
+  });
+
+  check('the check-in is stamped so it is sent once, not once a minute', () => {
+    assert.ok(dbService.getViewingRequest(visited.request.id).checkin_sent_at);
+    const again = dbService.listViewingRequestsDueForCheckin(
+      sweeps.CHECKIN_AFTER_MS, checkinAt.toISOString(),
+    );
+    assert.ok(!again.some((r) => r.id === visited.request.id));
+  });
+
+  // --- The customer's answer ------------------------------------------------
+
+  check('a check-in button id names both the answer and the request', () => {
+    assert.deepStrictEqual(
+      sweeps.parseCheckinButtonId('visit_feedback_good:7'),
+      { action: 'good', viewingRequestId: 7 },
+    );
+    assert.strictEqual(sweeps.parseCheckinButtonId('viewing_accept:7'), null,
+      "the agent loop's buttons must fall through, not be swallowed here");
+    assert.strictEqual(viewingNotifications.parseViewingButtonId('visit_feedback_good:7'), null,
+      'and the reverse, so the two handlers cannot eat each other');
+  });
+
+  httpCalls.length = 0;
+  const goodOutcome = await sweeps.handleCheckinButtonReply({
+    from: CUSTOMER_WA,
+    replyId: `visit_feedback_good:${visited.request.id}`,
+  });
+
+  check('👍 is recorded against the request', () => {
+    assert.strictEqual(goodOutcome.handled, true);
+    assert.strictEqual(dbService.getViewingRequest(visited.request.id).checkin_response, 'GOOD');
+  });
+
+  check('a completed visit finally reaches VIEWING_COMPLETED', () => {
+    // The status has existed in LEAD_STATUSES since it was written and no code
+    // path could reach it until now.
+    assert.strictEqual(dbService.getLead(visited.lead.id).status, 'VIEWING_COMPLETED');
+  });
+
+  await checkAsync('somebody else cannot answer for the customer', async () => {
+    const other = confirmedVisit(visitNow.toISOString());
+    const refused = await sweeps.handleCheckinButtonReply({
+      from: '243999000111',
+      replyId: `visit_feedback_good:${other.request.id}`,
+    });
+    assert.strictEqual(refused.ignored, 'not-this-requests-customer');
+    assert.strictEqual(dbService.getViewingRequest(other.request.id).checkin_response, null);
+  });
+
+  const absent = confirmedVisit(visitNow.toISOString());
+  dbService.setPendingCustomerAction({
+    waId: CUSTOMER_WA, kind: 'VISIT_FEEDBACK', viewingRequestId: absent.request.id,
+  });
+  httpCalls.length = 0;
+  const typedOutcome = await sweeps.handleCustomerTextReply({ from: CUSTOMER_WA, text: '3' });
+
+  check('a typed 3 is accepted exactly as a tap on "Agent non présent"', () => {
+    assert.strictEqual(typedOutcome.handled, true);
+    assert.strictEqual(
+      dbService.getViewingRequest(absent.request.id).checkin_response,
+      'AGENT_ABSENT',
+    );
+  });
+
+  check('a no-show escalates to ops the same day', () => {
+    const toOps = httpCalls.filter((c) => c.data.to === OPS_WA);
+    assert.ok(toOps.length >= 1, 'ops must hear about an agent who did not turn up');
+    assert.match(toOps[toOps.length - 1].data.text.body, /Agent non présent/);
+  });
+
+  await checkAsync('an ordinary message while a check-in is open falls through to intake', async () => {
+    // The same posture the decline survey takes: a real property advert must
+    // never be eaten because a questionnaire happened to be open.
+    dbService.setPendingCustomerAction({
+      waId: CUSTOMER_WA, kind: 'VISIT_FEEDBACK', viewingRequestId: absent.request.id,
+    });
+    const passthrough = await sweeps.handleCustomerTextReply({
+      from: CUSTOMER_WA,
+      text: 'Villa a louer Ngaliema 4 chambres 2500$',
+    });
+    assert.strictEqual(passthrough.handled, false);
+  });
+
+  dbService.clearPendingCustomerAction(CUSTOMER_WA);
+  propertyMatching.matchProperties = realMatch;
+  propertyRepo.getListingContactById = realContactLookup;
+  delete process.env.OPS_WHATSAPP_NUMBER;
+
+  // -------------------------------------------------------------------------
+  // 27. French slot parsing (services/visitSchedule.js)
+  //
+  // Pure, and takes `now`, so none of this depends on when the suite runs.
+  // -------------------------------------------------------------------------
+
+  console.log('\n27. French slot parsing');
+
+  const { parseFrenchSlot, formatSlotFr } = require('../services/visitSchedule');
+  // Friday 2026-09-11, 09:00 in Kinshasa (UTC+1).
+  const FRI = new Date('2026-09-11T08:00:00Z');
+
+  check('a real slot becomes a real instant, in UTC', () => {
+    const slot = parseFrenchSlot('demain 14h', FRI);
+    // 14:00 Kinshasa on Saturday = 13:00 UTC.
+    assert.strictEqual(slot.iso, '2026-09-12T13:00:00.000Z');
+    assert.match(slot.iso, /Z$/, 'never a local offset — the sweep compares these as text');
+  });
+
+  check('a part of the day is a real time, not a missing one', () => {
+    assert.strictEqual(parseFrenchSlot('samedi matin', FRI).iso, '2026-09-12T09:00:00.000Z');
+    assert.strictEqual(parseFrenchSlot('ce soir', FRI).iso, '2026-09-11T17:00:00.000Z');
+  });
+
+  check('"midi" inside "après-midi" does not win', () => {
+    // Most-specific-first, the same rule parseDeclineReason follows.
+    assert.strictEqual(parseFrenchSlot('cet après-midi', FRI).iso, '2026-09-11T14:00:00.000Z');
+  });
+
+  check('an explicit hour beats the part of the day', () => {
+    assert.strictEqual(parseFrenchSlot('samedi matin 11h', FRI).iso, '2026-09-12T10:00:00.000Z');
+  });
+
+  check('a day with no hour is REFUSED rather than guessed at', () => {
+    // Inventing 9am would produce a confident-looking slot nobody agreed to,
+    // and the check-in would then fire against it.
+    assert.strictEqual(parseFrenchSlot('demain', FRI), null);
+    assert.strictEqual(parseFrenchSlot('samedi', FRI), null);
+    assert.strictEqual(parseFrenchSlot('la semaine prochaine', FRI), null);
+  });
+
+  check('nothing usable is null, never a crash', () => {
+    for (const input of [null, undefined, '', '   ', 'bonjour', '????']) {
+      assert.strictEqual(parseFrenchSlot(input, FRI), null, `input ${JSON.stringify(input)}`);
+    }
+  });
+
+  check('a weekday resolves forward, never to a slot that has passed', () => {
+    // "vendredi" typed ON a Friday means NEXT Friday. An agent naming a
+    // weekday is proposing a future appointment, and resolving it to a few
+    // hours ago would schedule a check-in for a visit nobody can attend.
+    assert.strictEqual(parseFrenchSlot('vendredi 14h', FRI).iso, '2026-09-18T13:00:00.000Z');
+    // A date that has already gone by is refused outright rather than rolled.
+    assert.strictEqual(parseFrenchSlot('01/09 à 10h', FRI), null);
+  });
+
+  check('accents and separators do not change the answer', () => {
+    const a = parseFrenchSlot('SAMEDI À 14H30', FRI);
+    const b = parseFrenchSlot('samedi a 14:30', FRI);
+    assert.strictEqual(a.iso, b.iso);
+    assert.strictEqual(a.iso, '2026-09-12T13:30:00.000Z');
+  });
+
+  check('the slot is read back with a full date, never "demain"', () => {
+    // This message can be read a day after it was sent, and "demain" would
+    // then confirm the wrong day.
+    const text = formatSlotFr(parseFrenchSlot('demain 14h', FRI).iso);
+    assert.match(text, /samedi 12 septembre à 14h00/);
+    assert.ok(!/demain/.test(text));
+  });
+
+
 
   // -------------------------------------------------------------------------
   console.log(`\n${'-'.repeat(60)}`);

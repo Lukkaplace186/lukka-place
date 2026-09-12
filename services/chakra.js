@@ -127,6 +127,26 @@ async function sendWhatsAppMessage(toPhone, messageText, { previewUrl = false, r
 }
 
 /**
+ * Is a template name actually configured?
+ *
+ * The distinction this draws is worth the function. Until 2026-09 two template
+ * names defaulted to strings Meta has never heard of ('agent_auth_otp',
+ * 'agent_lead_match'), so every send paid a guaranteed-failing round trip and
+ * then fell back — seven of them per lead dispatch. Worse, the failure was
+ * indistinguishable in the logs from a template that IS approved but failed to
+ * deliver, because #132001 only ever surfaces as a thrown Error string.
+ *
+ * Callers use this to skip straight to their fallback and stay quiet about it:
+ * "no template configured" is an expected state during launch, not an error.
+ *
+ * @param {string|null|undefined} name
+ * @returns {boolean}
+ */
+function templateConfigured(name) {
+  return Boolean(name && String(name).trim());
+}
+
+/**
  * Send a pre-approved template — the only way to re-open a conversation after
  * the 24h session window has closed.
  *
@@ -135,8 +155,16 @@ async function sendWhatsAppMessage(toPhone, messageText, { previewUrl = false, r
  * @param {Object} [options]
  * @param {string}   [options.languageCode='fr']
  * @param {string[]} [options.bodyParams=[]]  Ordered {{1}}, {{2}} values.
+ * @param {string}   [options.otpCode]  AUTHENTICATION templates only — see below.
+ * @param {Array<{id: string}>} [options.buttons]  Quick-reply payloads, in the
+ *        order the template declares its buttons. See the note below on why
+ *        only the id travels.
  */
-async function sendTemplate(toPhone, templateName, { languageCode = 'fr', bodyParams = [], otpCode } = {}) {
+async function sendTemplate(
+  toPhone,
+  templateName,
+  { languageCode = 'fr', bodyParams = [], otpCode, buttons } = {},
+) {
   const to = String(toPhone).replace(/^\+/, '');
 
   const template = { name: templateName, language: { code: languageCode } };
@@ -163,6 +191,52 @@ async function sendTemplate(toPhone, templateName, { languageCode = 'fr', bodyPa
       sub_type: 'url',
       index: '0',
       parameters: [{ type: 'text', text: String(otpCode) }],
+    });
+  }
+
+  // QUICK-REPLY BUTTONS ON A TEMPLATE
+  //
+  // sendInteractiveButtons below is a SESSION message type: Meta will not
+  // deliver it outside the 24h window, so the agent feedback loop it powers
+  // silently stops working for anyone who has not messaged us recently. A
+  // template is the only way to put tappable buttons in front of a cold
+  // contact — hence this path.
+  //
+  // Only the PAYLOAD travels. Button labels are fixed in the approved
+  // template and cannot be overridden per-send, which is the opposite of the
+  // interactive payload where we supply both. `index` must match the order
+  // the template declares its buttons in; a mismatch is a 400, not a
+  // silently mislabelled button.
+  //
+  // The payload comes back on the inbound webhook as
+  // `interactive.button_reply.id` — the exact same field the interactive path
+  // produces — so parseViewingButtonId and friends need no change.
+  if (buttons !== undefined) {
+    if (otpCode) {
+      // An AUTHENTICATION template's copy-code button already claims index 0.
+      throw new Error('sendTemplate cannot combine otpCode with quick-reply buttons');
+    }
+    if (!Array.isArray(buttons) || buttons.length === 0 || buttons.length > 3) {
+      throw new Error('sendTemplate requires 1-3 quick-reply buttons when buttons is given');
+    }
+    template.components = template.components || [];
+    buttons.forEach((button, index) => {
+      const payload = button?.id;
+      if (!payload || !String(payload).trim()) {
+        throw new Error('each quick-reply button needs an id (the payload)');
+      }
+      // Tighter than the 256 the interactive reply id allows: Meta caps a
+      // template quick-reply payload at 128. Ours are ~20 chars
+      // ("viewing_accept:47"), so this only ever catches a mistake.
+      if (String(payload).length > 128) {
+        throw new Error(`quick-reply payload '${payload}' is over WhatsApp's 128-character limit`);
+      }
+      template.components.push({
+        type: 'button',
+        sub_type: 'quick_reply',
+        index: String(index),
+        parameters: [{ type: 'payload', payload: String(payload) }],
+      });
     });
   }
 
@@ -506,6 +580,7 @@ module.exports = {
   sendWhatsAppMessage,
   sendTemplate,
   sendInteractiveButtons,
+  templateConfigured,
   markAsRead,
   downloadMedia,
   downloadMediaRaw,

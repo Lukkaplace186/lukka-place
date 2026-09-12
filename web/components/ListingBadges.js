@@ -124,6 +124,41 @@ export function ListingStatusBadge({ status }) {
   );
 }
 
+/**
+ * "Vérifié par Lukka Place" — properties.verified_at.
+ *
+ * The strongest claim this product makes about a listing, and the one most
+ * worth getting wrong-proof:
+ *
+ *  - It renders ONLY on a real `verified_at`. Not on approve_status (that is
+ *    moderation: a human read it and it was fit to publish), and not on the
+ *    agent's phone verification (that is a fact about a person). A badge
+ *    derived from either would be worn by listings nobody ever checked.
+ *  - Almost every row is NULL and stays NULL. Nothing was backfilled, because
+ *    stamping a date would record a verification that never happened.
+ *
+ * `title` carries the date so a visitor can see how fresh the check is —
+ * a verification from a year ago is a weaker claim than one from last week,
+ * and hiding that would overstate it.
+ */
+export function VerifiedBadge({ verifiedAt }) {
+  const t = useT();
+  if (!verifiedAt) return null;
+  const on = new Date(verifiedAt);
+  const title = Number.isNaN(on.getTime())
+    ? t('listings.badges.verified')
+    : t('listings.badges.verifiedOn', { date: on.toLocaleDateString('fr-FR') });
+  return (
+    <span
+      title={title}
+      className="inline-flex items-center gap-1 rounded-full bg-green-tint px-2 py-0.5 text-[0.6875rem] font-semibold text-green-deep"
+    >
+      <ShieldCheck strokeWidth={ICON_STROKE_WIDTH} className="h-3 w-3" />
+      {t('listings.badges.verified')}
+    </span>
+  );
+}
+
 /** Rental listings only — flags the income framing an investor is scanning for. */
 export function RentBadge() {
   const t = useT();

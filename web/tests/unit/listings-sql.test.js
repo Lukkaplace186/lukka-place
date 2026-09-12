@@ -79,6 +79,35 @@ test('SELECT_FIELDS selects latitude/longitude so the map can use stored coordin
   assert.match(dataQuery, /p\.longitude/, 'SELECT_FIELDS must select p.longitude');
 });
 
+test('SELECT_FIELDS selects verified_at so the "Verified by Lukka" badge has real data', async () => {
+  // The badge must render off a genuine per-listing verification and nothing
+  // else. If the column is not selected, listingView has nothing to read and
+  // the only way to make the badge appear is to derive it from approve_status
+  // or from the agent's phone verification — neither of which establishes
+  // that anyone checked THIS property.
+  enqueue([{ total: '0' }]);
+  enqueue([]);
+  await listings.getListings({});
+
+  assert.match(calls[1].sql, /p\.verified_at/, 'SELECT_FIELDS must select p.verified_at');
+});
+
+test('verification is never conflated with moderation in the public query', async () => {
+  // approve_status is "a moderator said it was fit to publish". verified_at is
+  // "Lukka Place confirmed the property is real". Deriving one from the other
+  // is the fourth-axis version of the bug web/CLAUDE.md keeps warning about.
+  enqueue([{ total: '0' }]);
+  enqueue([]);
+  await listings.getListings({});
+
+  const sql = normalizeSql(calls[1].sql);
+  assert.ok(
+    !/verified_at\s*=\s*approve_status|approve_status\s+AS\s+verified/i.test(sql),
+    'verified_at must be its own column, never an alias of approve_status',
+  );
+  assert.ok(sql.includes(APPROVED), 'the public approval gate must still be applied');
+});
+
 test('the radius filter queries the same latitude column the SELECT exposes', async () => {
   // No fixtures: the fake pool answers COUNT queries with a real zero row,
   // so the widening ladder runs to completion without the test having to

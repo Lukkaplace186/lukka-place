@@ -32,12 +32,33 @@ import { sendWhatsAppMessage, sendWhatsAppTemplate } from './adminApi';
  * whoever approved it knows which shape it is.
  */
 
+/**
+ * UNSET BY DEFAULT, deliberately. This used to default to 'agent_auth_otp',
+ * a name Meta has never heard of, so every code this product sent paid a
+ * guaranteed-failing round trip to be told `(#132001) Template name does not
+ * exist in the translation` before falling back to the session message that
+ * was always going to be the one that actually sent. Worse, that failure was
+ * indistinguishable in the logs from an APPROVED template failing to deliver.
+ *
+ * Set AGENT_OTP_TEMPLATE once a template is genuinely approved — and note
+ * that turning off AUTH_OTP_BYPASS before that point restores a gate which
+ * cannot deliver to a first-time registrant.
+ */
 function templateConfig() {
   return {
-    template: process.env.AGENT_OTP_TEMPLATE || 'agent_auth_otp',
+    template: process.env.AGENT_OTP_TEMPLATE || null,
     languageCode: process.env.AGENT_OTP_TEMPLATE_LANG || 'fr',
     withButton: process.env.AGENT_OTP_TEMPLATE_HAS_BUTTON !== '0',
   };
+}
+
+/**
+ * Is a template name actually configured? Mirrors the engine's
+ * `chakra.templateConfigured` — the two apps cannot share a module, so the
+ * rule is duplicated deliberately. Change one, change the other.
+ */
+export function templateConfigured(name) {
+  return Boolean(name && String(name).trim());
 }
 
 /**
@@ -50,6 +71,22 @@ function templateConfig() {
  */
 export async function sendOtpViaWhatsApp(phone, code, { fallbackText, label = 'otp' } = {}) {
   const { template, languageCode, withButton } = templateConfig();
+
+  // No template configured is an EXPECTED state until one is approved, not a
+  // failure: skip the round trip and the warning, and go straight to the
+  // session message. It still reaches anyone who messaged us in the last 24h
+  // — just never a first-time registrant, which is precisely why
+  // AUTH_OTP_BYPASS exists and why it must not be turned off before a
+  // template is approved.
+  if (!templateConfigured(template)) {
+    if (!fallbackText) {
+      throw new Error(
+        `[${label}] no OTP template configured (AGENT_OTP_TEMPLATE) and no fallback text supplied`,
+      );
+    }
+    await sendWhatsAppMessage(phone, fallbackText);
+    return { channel: 'session' };
+  }
 
   try {
     await sendWhatsAppTemplate(phone, {

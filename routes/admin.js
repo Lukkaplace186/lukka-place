@@ -19,6 +19,7 @@ const db = require('../services/db');
 const chakra = require('../services/chakra');
 const { STATES } = require('../services/conversationState');
 const { dispatchLead, dispatchLeadInBackground } = require('../services/leadDispatch');
+const { notifyViewingRequestInBackground } = require('../services/viewingNotifications');
 
 const router = express.Router();
 
@@ -518,6 +519,21 @@ router.post('/viewing-requests', (req, res) => {
 
   try {
     const viewingRequest = db.createViewingRequest({ leadId: numericLeadId, propertyId, requestedTime });
+
+    // THE SEND THE LISTING PAGE ALREADY PROMISES.
+    //
+    // "Votre demande de visite a été envoyée — l'agent vous répondra sur
+    // WhatsApp" was printed by web/app/(site)/listings/[id] the moment this
+    // row committed, while nothing anywhere sent anything. Fire-and-forget,
+    // after the commit, for the same reason dispatchLeadInBackground is:
+    // the row is the transaction that matters and the visitor's confirmation
+    // must not wait on an outbound WhatsApp round trip.
+    notifyViewingRequestInBackground({
+      viewingRequest,
+      lead: db.getLead(numericLeadId),
+      propertyId,
+    });
+
     return res.status(201).json({ success: true, viewingRequest });
   } catch (err) {
     console.error(`[admin] POST /viewing-requests failed: ${err.message}`);

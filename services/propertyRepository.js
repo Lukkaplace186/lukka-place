@@ -79,6 +79,29 @@ const FROM_JOINS = `
   JOIN property_category_contents catc ON catc.category_id = cat.id AND catc.language_id = ${CATEGORY_LANGUAGE_ID}
 `;
 
+// Agent identity, for getListingContactById only. Copied verbatim from
+// web/lib/listings.js's AGENCY_NAME_EXPR / AGENT_INFOS_JOIN rather than
+// re-derived: the real name lives in `agent_infos`, not `agents.username`
+// (which is the account's own phone digits for every WhatsApp-onboarded and
+// phone-signup account), and `agent_infos` is a per-language content table
+// where agent #28 genuinely holds two rows — a plain LEFT JOIN fans one
+// listing out into two. Duplicated across repos because this engine is
+// CommonJS and outside that app's module graph; change one, change the other.
+const AGENT_NAME_EXPR = `
+  COALESCE(
+    NULLIF(TRIM(CONCAT_WS(' ', ai.first_name, ai.last_name)), ''),
+    NULLIF(TRIM(a.agency_name), ''),
+    NULLIF(TRIM(CASE WHEN a.username ~ '^[+]?[0-9]{7,15}$' THEN NULL ELSE a.username END), '')
+  ) AS agent_name`;
+
+const AGENT_INFOS_JOIN = `
+  LEFT JOIN LATERAL (
+    SELECT first_name, last_name FROM agent_infos
+    WHERE agent_id = a.id
+    ORDER BY (language_id = ${CONTENT_LANGUAGE_ID}) DESC, language_id
+    LIMIT 1
+  ) ai ON true`;
+
 const TRANSACTION_TYPE_TO_PURPOSE = { location: 'rent', vente: 'sale' };
 
 const SEARCH_LIMIT_DEFAULT = 8;
@@ -223,10 +246,55 @@ async function getPropertyById(id) {
   }
 }
 
+/**
+ * The listing's own agent contact, for notifying them that somebody asked to
+ * visit it. Deliberately NOT folded into getPropertyById: that one feeds the
+ * assistant's `get_property` tool, whose result is handed to a language model
+ * and can end up paraphrased to a customer — an agent's personal phone number
+ * has no business being in that payload. This is a separate, narrower read
+ * whose only consumer is services/viewingNotifications.js.
+ *
+ * Same approved-listing gate as every other read here, so a viewing request
+ * against a pending listing resolves no contact rather than leaking one.
+ *
+ * `phone_verified_at` is returned, not filtered on, because the caller wants
+ * to say *why* nothing was sent. It mirrors the gate services/postgres.js's
+ * resolveAgentId and agentOnboarding's identifySender both apply: an
+ * unverified number is somebody's claim, not a confirmed destination, and
+ * messaging it would tell a stranger about an agency's viewing requests.
+ *
+ * @param {number|string} id
+ * @returns {Promise<Object|null>}
+ */
+async function getListingContactById(id) {
+  const numericId = Number.parseInt(id, 10);
+  if (!Number.isFinite(numericId) || !isConfigured()) return null;
+
+  try {
+    const client = getPool();
+    const { rows } = await client.query(
+      `SELECT p.id, p.reference, pc.title, pc.slug, ${COMMUNE_SUBQUERY},
+              a.id AS agent_id, a.phone AS agent_phone,
+              a.phone_verified_at,
+              ${AGENT_NAME_EXPR}
+       ${FROM_JOINS}
+       LEFT JOIN agents a ON a.id = p.agent_id
+       ${AGENT_INFOS_JOIN}
+       WHERE p.id = $1 AND ${APPROVED_FILTER}`,
+      [numericId],
+    );
+    return rows[0] || null;
+  } catch (err) {
+    console.error(`[propertyRepository] getListingContactById(${id}) failed: ${err.message}`);
+    return null;
+  }
+}
+
 module.exports = {
   isConfigured,
   searchProperties,
   getPropertyById,
+  getListingContactById,
   buildFilters,
   SEARCH_LIMIT_DEFAULT,
   SEARCH_LIMIT_MAX,

@@ -755,6 +755,7 @@ const propertyMatchingService = require('./propertyMatching');
 const propertyRepositoryService = require('./propertyRepository');
 const dbService = require('./db');
 const { dispatchLeadInBackground } = require('./leadDispatch');
+const { notifyViewingRequestInBackground } = require('./viewingNotifications');
 // Second require of an already-cached module (services/openai.js's top-level
 // require above only pulls LOCATIONS/COMMUNES) — cheap and deliberately kept
 // separate so the original import line is never touched.
@@ -993,6 +994,13 @@ function executeRequestViewing(args = {}, context) {
     requestedTime: args.requested_time || null,
   });
   dbService.updateLeadStatus(lead.id, 'VIEWING_REQUESTED');
+
+  // Same missing send as the web form's path — see
+  // services/viewingNotifications.js. Fire-and-forget so the assistant's own
+  // reply to the customer is never held up by an outbound send to the agent,
+  // and so a failure here can never surface to the model as a failed tool
+  // call for something that genuinely did get recorded.
+  notifyViewingRequestInBackground({ viewingRequest: viewing, lead, propertyId: viewing.property_id });
 
   return { created: true, viewing_request_id: viewing.id, lead_id: lead.id, status: viewing.status };
 }

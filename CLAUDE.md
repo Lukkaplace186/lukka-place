@@ -83,6 +83,86 @@ Real Google Maps rendering on `/listings` (`?view=map`, toggle button next to So
 - **Markers**: classic `google.maps.Marker` instances (not the newer `AdvancedMarkerElement` — that needs a Cloud Console Map ID and wasn't necessary here; `Marker` still works, just prints a deprecation warning), each rendered as a dense price tag. **There is no marker clustering** — `@googlemaps/markerclusterer` was removed on the direction change to that price-tag pattern (dd425f9), and this bullet said otherwise until now. Overlap between pins at the same location is handled by the fan described above, not by clustering.
 - **Known environment limitation, not a code bug**: this session's sandboxed test browser has no real GPU (WebGL reports available but the renderer is unaccelerated software — `"WebKit WebGL"` with no hardware string), which makes Google's Maps JS API silently fall back to `StaticMapService.GetMapImage` (a static, non-interactive image) instead of the normal vector-tile renderer, so full interactive rendering (pan/zoom/cluster click/InfoWindow) could not be visually confirmed in that pane. What **was** confirmed directly: all 8 real listings resolve to real coordinates (`console.log` per listing — 7 geocoded, 1 via the commune-fallback fix above, 0 unresolved), `google.maps.Marker` instances are genuinely created (its deprecation warning only fires on real construction), no JS errors anywhere in the pipeline, and lint is clean. **Verify the actual interactive experience (pan/zoom/clusters/popup clicks) in a real desktop browser** — it should Just Work there; the static-image fallback is specific to unaccelerated/headless environments.
 
+## Viewing-Request Notifications
+
+`services/viewingNotifications.js`. A viewing request now actually sends
+something. Before this module, **both** paths that create a `viewing_requests`
+row — `routes/admin.js`'s `POST /viewing-requests` (the listing page's
+"Demander une visite" form) and `services/openai.js`'s `executeRequestViewing`
+(the WhatsApp buyer assistant's `request_viewing` tool) — wrote the row and
+stopped. Nothing sent a message to anybody, while the listing page told the
+visitor "l'agent vous répondra sur WhatsApp". Confirmed against production:
+`viewing_requests` #1–#3 all held correct data and not one outbound send was
+ever attempted for any of them.
+
+- **Recipients are the listing's own agent, plus Lukka Place's desk** — never
+  the seven ranked agencies `services/leadDispatch.js` pushes to. That module
+  answers "who might have a property like this?"; a viewing request already
+  names one specific listing, and broadcasting it to competing agencies is the
+  wrong message to the wrong people. The two must not be merged.
+- **The agent is resolved by `propertyRepository.getListingContactById`** — a
+  new, deliberately narrow read, separate from `getPropertyById` because that
+  one feeds the assistant's `get_property` tool, whose result is handed to a
+  language model and can end up paraphrased to a customer; an agent's personal
+  phone number has no business in that payload. Same `status = 1 AND
+  approve_status = 1` gate as every other read there, and the same
+  `phone_verified_at` gate as `postgres.js`'s `resolveAgentId` and
+  `agentOnboarding`'s `identifySender` — an unverified number is somebody's
+  claim, and messaging it would tell a stranger who is asking to visit an
+  agency's properties.
+- **`OPS_WHATSAPP_NUMBER`** (engine `.env`) receives a copy of every request,
+  stating explicitly whether the agent was reached. It has **no default on
+  purpose**: the obvious candidate, `NEXT_PUBLIC_WHATSAPP_NUMBER`, is this
+  engine's own WhatsApp sender, and a WABA number cannot message itself. Unset
+  means the ops copy is skipped; a request that reaches neither an agent nor
+  ops logs `reached NOBODY` at error level, because that is exactly the state
+  in which the visitor's "l'agent vous répondra" is silently false.
+- **`VIEWING_REQUEST_TEMPLATE` is unset by default**, unlike
+  `AGENT_LEAD_MATCH_TEMPLATE`/`AGENT_OTP_TEMPLATE`. Those two default to a name
+  Meta has never heard of and pay a guaranteed-failing round trip on every
+  send. With no template configured this goes straight to a session message.
+- Fire-and-forget after the commit, same posture as `dispatchLeadInBackground`;
+  never throws into its caller. Covered by `scripts/verify-pipeline.js` §20.
+
+### Outbound WhatsApp: what actually works, and what silently doesn't
+
+Diagnosed live 2026-09-12, against production logs and the production SQLite.
+**Outbound is not broken as a channel** — `[chakra] reply sent to …` lines
+prove agent-intake replies send fine. What fails, fails for three distinct
+reasons, and only one of them was a code bug:
+
+1. **Viewing requests sent nothing at all.** A code gap, fixed above.
+2. **No approved Meta template exists.** `agent_auth_otp` (the signup OTP) and
+   `agent_lead_match` (the agent-matching push) both return
+   `(#132001) Template name does not exist in the translation`. This cannot be
+   fixed in this repo — the templates live in Meta's WhatsApp Manager behind
+   the Chakra account. Until they are approved, **every** outbound message
+   falls back to a free-form session message.
+3. **A session message only reaches somebody who messaged this business number
+   in the last 24 hours.** Outside that window Chakra/Meta accept the call and
+   the message never arrives. This is why a first-time registrant's OTP is a
+   silent dead end (`web/lib/otpBypass.js` documents that, and
+   `AUTH_OTP_BYPASS=1` is the live workaround), and why an agent who has not
+   WhatsApped us recently will not receive a viewing-request notification even
+   now that one is sent.
+
+Note `POST /admin/send-whatsapp`'s "accepted by Meta" log line prints
+`messageId: null` in production: Chakra does not forward Meta's
+`{messages:[{id}]}` envelope, so that line confirms a 2xx and nothing more.
+Do not read it as proof of delivery.
+
+**`lead_matches` held 0 rows in production** as of this check: the agent
+matching push has never fired, because every lead created so far carried no
+`commune` (leads #1–#3 predate the structured fields; #4–#6 are
+`listing-visit-request` rows, which correctly have none — a visit request
+names a listing and must not be broadcast). `conversations`/`messages` are
+also empty — the WhatsApp buyer assistant has never been routed to in
+production.
+
+**There is no web-push pipeline at all** — no service worker, no VAPID keys,
+no FCM. Browser push notifications are not silent; they were never built.
+WhatsApp is the only notification channel this product has.
+
 ## Automated Agent Matching (live)
 
 **The USP, and it is a push, not a pull.** Every customer request is scored

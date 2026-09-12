@@ -4945,6 +4945,234 @@ console.log('\n2. services/openai.js');
 
   onboarding.identifySender = realIdentifySender;
 
+  // ===========================================================================
+  // 20. Viewing-request notifications (services/viewingNotifications.js)
+  //
+  //     The listing page tells a visitor "l'agent vous répondra sur WhatsApp"
+  //     the moment the row commits. Before this module existed, both creation
+  //     paths wrote the row and sent nothing at all — confirmed in production,
+  //     where viewing_requests #1..#3 each had zero outbound sends. These
+  //     checks are here so that silence can never come back unnoticed.
+  // ===========================================================================
+
+  console.log('\n20. Viewing-request notifications');
+
+  const viewingNotifications = require('../services/viewingNotifications');
+  const propertyRepo = require('../services/propertyRepository');
+
+  // getListingContactById is a real Supabase read and this suite runs with no
+  // database credentials (see the top of this file), so it is stubbed — the
+  // message building, the verification gate, the ops copy and the real Chakra
+  // send underneath are all the genuine code path.
+  const realGetListingContact = propertyRepo.getListingContactById;
+
+  const ATTRIBUTED_LISTING = {
+    id: '303',
+    reference: 'Notre Dame',
+    title: '2 chambres — Appartement à louer à Lingwala',
+    slug: '2-chambres-appartement-a-louer-a-lingwala-303',
+    commune: 'Lingwala',
+    agent_id: '43',
+    agent_phone: '243821122937',
+    phone_verified_at: '2026-09-09T17:46:02.802Z',
+    agent_name: 'Kkimmo',
+  };
+
+  const viewingLead = dbService.createLead({
+    wa_id: '243990111222',
+    name: 'Henoc Mimbo',
+    source: 'listing-visit-request',
+    property_id: 303,
+  });
+  const viewingRow = dbService.createViewingRequest({
+    leadId: viewingLead.id,
+    propertyId: 303,
+    requestedTime: 'Tuesday 10 am',
+  });
+
+  // --- The agent send -------------------------------------------------------
+
+  propertyRepo.getListingContactById = async () => ATTRIBUTED_LISTING;
+  httpCalls.length = 0;
+
+  const notifiedAgent = await viewingNotifications.notifyViewingRequest({
+    viewingRequest: viewingRow,
+    lead: viewingLead,
+    propertyId: 303,
+  });
+
+  check('a viewing request on an attributed listing really sends to that agent', () => {
+    assert.strictEqual(notifiedAgent.agentNotified, true);
+    assert.strictEqual(httpCalls.length, 1, 'expected exactly one Chakra send');
+    assert.strictEqual(httpCalls[0].data.to, '243821122937');
+    assert.strictEqual(httpCalls[0].data.type, 'text');
+  });
+
+  check('the agent message carries the customer, the slot and the listing', () => {
+    const body = httpCalls[0].data.text.body;
+    assert.match(body, /Bonjour Kkimmo/);
+    assert.match(body, /Henoc Mimbo/);
+    assert.match(body, /\+243990111222/);
+    assert.match(body, /Tuesday 10 am/);
+    assert.match(body, /Lingwala/);
+    assert.match(body, /compte\/agent\/visites/);
+  });
+
+  // No template is approved for this yet, so VIEWING_REQUEST_TEMPLATE is
+  // unset by default and the send must go straight out as a session message
+  // rather than burning a guaranteed-failing template round trip first — the
+  // exact cost AGENT_OTP_TEMPLATE pays on every OTP today.
+  check('with no template configured, no template call is attempted at all', () =>
+    assert.strictEqual(httpCalls.filter((c) => c.data && c.data.type === 'template').length, 0));
+
+  // --- The verification gate ------------------------------------------------
+
+  propertyRepo.getListingContactById = async () => ({
+    ...ATTRIBUTED_LISTING,
+    phone_verified_at: null,
+  });
+  httpCalls.length = 0;
+
+  const unverifiedContact = await viewingNotifications.notifyViewingRequest({
+    viewingRequest: viewingRow,
+    lead: viewingLead,
+    propertyId: 303,
+  });
+
+  // Same gate as postgres.js's resolveAgentId and identifySender: an
+  // unverified number is somebody's claim, and messaging it would tell a
+  // stranger who is asking to visit an agency's properties.
+  check('an unverified agent number is never messaged', () => {
+    assert.strictEqual(unverifiedContact.agentNotified, false);
+    assert.strictEqual(httpCalls.length, 0);
+  });
+
+  propertyRepo.getListingContactById = async () => ({
+    ...ATTRIBUTED_LISTING,
+    agent_id: null,
+    agent_phone: null,
+    phone_verified_at: null,
+    agent_name: null,
+  });
+  httpCalls.length = 0;
+
+  const unattributedContact = await viewingNotifications.notifyViewingRequest({
+    viewingRequest: viewingRow,
+    lead: viewingLead,
+    propertyId: 303,
+  });
+
+  check('a listing with no agent notifies nobody rather than guessing a recipient', () => {
+    assert.strictEqual(unattributedContact.agentNotified, false);
+    assert.strictEqual(httpCalls.length, 0);
+  });
+
+  // --- Failure posture ------------------------------------------------------
+
+  propertyRepo.getListingContactById = async () => {
+    throw new Error('Postgres unreachable');
+  };
+  httpCalls.length = 0;
+
+  await checkAsync('a failing listing lookup degrades to "nobody notified", never a throw', async () => {
+    const result = await viewingNotifications.notifyViewingRequest({
+      viewingRequest: viewingRow,
+      lead: viewingLead,
+      propertyId: 303,
+    });
+    assert.strictEqual(result.agentNotified, false);
+  });
+
+  propertyRepo.getListingContactById = async () => ATTRIBUTED_LISTING;
+  httpCalls.length = 0;
+
+  await checkAsync('a request with no property tells nobody and reports why', async () => {
+    const result = await viewingNotifications.notifyViewingRequest({
+      viewingRequest: { id: 99, property_id: null },
+      lead: viewingLead,
+    });
+    assert.strictEqual(result.reason, 'no-property');
+    assert.strictEqual(httpCalls.length, 0);
+  });
+
+  // --- Message building, without the network --------------------------------
+
+  check('displayPhone prints a dialable number and never a blank', () => {
+    assert.strictEqual(viewingNotifications.displayPhone('243821122937'), '+243821122937');
+    assert.strictEqual(viewingNotifications.displayPhone(null), 'numéro inconnu');
+  });
+
+  check('listingLabel falls back title -> reference -> id, never to an empty string', () => {
+    assert.strictEqual(viewingNotifications.listingLabel({ title: 'Villa' }, 7), 'Villa');
+    assert.strictEqual(viewingNotifications.listingLabel({ reference: 'LKP-1' }, 7), 'Réf: LKP-1');
+    assert.strictEqual(viewingNotifications.listingLabel(null, 7), 'bien #7');
+  });
+
+  // The desk copy's whole job is saying whether anyone else was told, so a
+  // request on an unattributed listing has to read as needing a human.
+  // Branding is the FIRST line on purpose: WhatsApp's chat list and push
+  // preview only show the opening characters, so a signature at the bottom is
+  // branding the recipient never sees before deciding whether to open it.
+  check('both messages open with the Lukka Place system-alert header', () => {
+    const agentBody = viewingNotifications.agentMessage({
+      listing: ATTRIBUTED_LISTING, lead: viewingLead, viewingRequest: viewingRow, propertyId: 303,
+    });
+    const deskBody = viewingNotifications.opsMessage({
+      listing: ATTRIBUTED_LISTING, lead: viewingLead, viewingRequest: viewingRow,
+      propertyId: 303, agentNotified: true,
+    });
+    assert.strictEqual(viewingNotifications.HEADER, '\u{1F3E0} [Lukka Place] Nouvelle demande de visite');
+    assert.ok(agentBody.startsWith(viewingNotifications.HEADER), 'agent message does not open with the header');
+    assert.ok(deskBody.startsWith(viewingNotifications.HEADER), 'ops message does not open with the header');
+  });
+
+  check('the ops copy flags a request that reached no agent', () => {
+    const body = viewingNotifications.opsMessage({
+      listing: null,
+      lead: viewingLead,
+      viewingRequest: viewingRow,
+      propertyId: 303,
+      agentNotified: false,
+      agentSkipReason: 'aucun agent rattaché à cette annonce',
+    });
+    assert.match(body, /NON prévenu/);
+    assert.match(body, /manuellement/);
+  });
+
+  check('the ops copy names the agent when one was reached', () => {
+    const body = viewingNotifications.opsMessage({
+      listing: ATTRIBUTED_LISTING,
+      lead: viewingLead,
+      viewingRequest: viewingRow,
+      propertyId: 303,
+      agentNotified: true,
+    });
+    assert.match(body, /Agent prévenu : Kkimmo/);
+  });
+
+  // --- Through the real route -----------------------------------------------
+
+  propertyRepo.getListingContactById = async () => ATTRIBUTED_LISTING;
+  httpCalls.length = 0;
+
+  const viewingRouteResponse = await adminRequest('POST', '/admin/viewing-requests', {
+    lead_id: viewingLead.id,
+    property_id: 303,
+    requested_time: 'samedi 11h',
+  });
+  await settle();
+
+  check('POST /admin/viewing-requests still returns 201 for the visitor', () =>
+    assert.strictEqual(viewingRouteResponse.status, 201));
+
+  check('POST /admin/viewing-requests now actually notifies the agent', () => {
+    assert.strictEqual(httpCalls.length, 1, 'expected exactly one Chakra send from the route');
+    assert.strictEqual(httpCalls[0].data.to, '243821122937');
+    assert.match(httpCalls[0].data.text.body, /samedi 11h/);
+  });
+
+  propertyRepo.getListingContactById = realGetListingContact;
+
   // -------------------------------------------------------------------------
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);

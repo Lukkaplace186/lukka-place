@@ -34,6 +34,10 @@ const { handleBuyerMessage } = require('../services/buyerConversation');
 const { matchQuickReply } = require('../services/quickReplies');
 const { extractPdfText } = require('../services/documentText');
 const onboarding = require('../services/agentOnboarding');
+const {
+  handleViewingButtonReply,
+  handleAgentTextReply,
+} = require('../services/viewingNotifications');
 
 const router = express.Router();
 
@@ -137,12 +141,29 @@ function normaliseMessage(message, contacts = [], fallbackWamid = null) {
   const from = message.from || message.sender || message.msisdn || list[0]?.wa_id;
   if (!from) return null;
 
+  // A tapped reply button (or a picked list row). `id` is ours — it is
+  // whatever we put in the outbound payload, so it is the only part that
+  // carries meaning; `title` is the label the agent saw and is used as the
+  // message text so anything downstream that only understands text still
+  // reads something sensible rather than a null.
+  //
+  // Without this, a button tap arrives with no text and no media, fails
+  // isUsable(), matches no UNSUPPORTED_MESSAGE_TYPES entry, and is dropped in
+  // silence — which is exactly how a 3-way feedback loop would appear to work
+  // while doing nothing at all.
+  const buttonReply =
+    message.interactive?.button_reply ??
+    message.interactive?.list_reply ??
+    // Meta's older quick-reply shape, still emitted by some providers.
+    (message.button ? { id: message.button.payload, title: message.button.text } : null);
+
   const text =
     message.text?.body ??
     (typeof message.text === 'string' ? message.text : undefined) ??
     message.image?.caption ??
     message.caption ??
     message.body ??
+    (buttonReply?.title ? String(buttonReply.title) : undefined) ??
     null;
 
   // Media references: an id needs a download hop, a url can be fetched directly.
@@ -184,6 +205,7 @@ function normaliseMessage(message, contacts = [], fallbackWamid = null) {
     text: text === null || text === undefined ? null : String(text),
     media,
     profileName: profile,
+    replyId: buttonReply?.id ? String(buttonReply.id) : null,
   };
 }
 
@@ -196,9 +218,10 @@ function looksLikePdf(entry) {
   return mime.includes('pdf') || name.endsWith('.pdf');
 }
 
-/** A message is worth processing if it has text, an image, or both. */
+/** A message is worth processing if it has text, an image, a tapped button,
+ *  or any combination. */
 function isUsable(message) {
-  return Boolean(message && (message.text?.trim() || message.media.length));
+  return Boolean(message && (message.text?.trim() || message.media.length || message.replyId));
 }
 
 /**
@@ -641,6 +664,28 @@ async function processGroup(messages) {
     .join('\n');
   const hasText = Boolean(text);
 
+  // VIEWING FEEDBACK BUTTONS — first, before the dedupe and before any
+  // billable work.
+  //
+  // A tap is unambiguous and self-describing: the id names the action AND the
+  // request it applies to, so none of the context this function builds
+  // afterwards is needed to act on it. It also has to come before the
+  // pending-draft branch below: an agent holding an unconfirmed listing who
+  // taps "✅ Accepter" would otherwise have the button's label read as a
+  // correction to that draft.
+  const buttonReplyId = messages.map((m) => m.replyId).find(Boolean);
+  if (buttonReplyId) {
+    try {
+      const outcome = await handleViewingButtonReply({ from, replyId: buttonReplyId });
+      if (outcome.handled) return;
+    } catch (err) {
+      // Never let the feedback loop take down the intake pipeline this
+      // process also serves.
+      console.error(`[viewing] button '${buttonReplyId}' from ${from} failed: ${err.message}`);
+      return;
+    }
+  }
+
   const allMediaRefs = messages.flatMap((m) => m.media || []);
 
   // PDF flyers take a different route from photos: they carry a text layer the
@@ -747,6 +792,24 @@ async function processGroup(messages) {
       console.log(`[db] listing #${pending.id} published (confirmed by ${from})`);
       console.log(`[chakra] reply sent to ${from}`);
       return;
+    }
+
+    // VIEWING FEEDBACK, TYPED — "1", "samedi 14h", "700$": the answer to a
+    // question the viewing loop asked this agent.
+    //
+    // Placed here, after the draft-confirmation branch, so an 'OK' on a
+    // pending listing still wins; and modelled on the sale-price follow-up
+    // directly below, including its most important property — anything that
+    // is not a plausible answer returns handled:false and falls through to
+    // ordinary processing, so a real property advert is never swallowed
+    // because a questionnaire happened to be open.
+    if (hasText) {
+      try {
+        const outcome = await handleAgentTextReply({ from, text });
+        if (outcome.handled) return;
+      } catch (err) {
+        console.error(`[viewing] typed reply from ${from} failed: ${err.message}`);
+      }
     }
 
     // SALE PRICE FOLLOW-UP — the answer to "at what price did it close?".

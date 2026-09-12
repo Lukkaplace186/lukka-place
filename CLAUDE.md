@@ -124,6 +124,113 @@ ever attempted for any of them.
 - Fire-and-forget after the commit, same posture as `dispatchLeadInBackground`;
   never throws into its caller. Covered by `scripts/verify-pipeline.js` §20.
 
+### The agent feedback loop — Accept / Autre créneau / Décliner
+
+The alert carries three tappable reply buttons, and what the agent does with
+them drives the rest. `services/viewingNotifications.js` owns the whole loop;
+`routes/webhook.js` only routes into it.
+
+- **Outbound** — `chakra.sendInteractiveButtons` (Meta's `interactive`/`button`
+  payload, passed through Chakra like every other payload). Button ids are
+  `viewing_accept:<id>` / `viewing_reschedule:<id>` / `viewing_decline:<id>`:
+  the request id is **embedded in the id**, not inferred from "the most recent
+  request from this agent", so an agent holding two open requests can answer
+  the older one and a tap arriving a day late still resolves correctly.
+- **Whether buttons actually arrive is not something this repo can assert.**
+  Chakra is a pass-through and Meta accepts the payload, but this account's
+  plan may or may not forward interactive messages. So `send()` catches a
+  failed interactive send and falls back to the same text with a numbered
+  menu, and **every handler accepts a typed `1`/`2`/`3` exactly as it accepts
+  a tap**. The numbered path claims the agent's next message via
+  `pending_agent_actions` (kind `VIEWING_RESPONSE`), because a typed "1"
+  carries no request id.
+- **Inbound** — `normaliseMessage` now extracts `interactive.button_reply`,
+  `interactive.list_reply` and the older `button` shape into `replyId`, and
+  `isUsable` accepts a message that has only that. Before this, a tap arrived
+  with no text and no media, matched no `UNSUPPORTED_MESSAGE_TYPES` entry, and
+  was **dropped in silence** — exactly how a feedback loop appears to work
+  while doing nothing.
+- **Authorisation is not optional.** `viewing_accept:3` is a guessable string.
+  Every handler re-resolves the listing's real agent from Postgres and refuses
+  a sender who isn't them; the refusal is silent to the sender, since
+  answering "that belongs to someone else" confirms the id is real. A listing
+  with no attributed agent is authorised for nobody.
+- **Ordering in `routes/webhook.js`** — a tap is handled *first*, before the
+  dedupe and before any billable work, and specifically before the
+  pending-draft branch: an agent holding an unconfirmed listing who taps
+  "✅ Accepter" would otherwise have the button's label read as a correction.
+  A *typed* answer is handled later, after the draft-confirmation branch, so
+  an `OK` on a pending listing still wins.
+- **Anything that is not a plausible answer returns `handled: false`** and
+  falls through to ordinary processing — the same posture the sale-price
+  follow-up already takes. This is what stops a real property advert being
+  swallowed because a questionnaire happened to be open, and it is tested
+  end-to-end (§21: a listing sent mid-survey is still stored as a listing).
+
+#### Status vocabulary — reused, not forked
+The three buttons map onto the states the agent dashboard's Visit Scheduler
+already renders:
+
+| Button | `viewing_requests.status` |
+|---|---|
+| ✅ Accepter | `CONFIRMED` — the state its own Confirm action sets |
+| 🕒 Autre créneau | `RESCHEDULED` — the state its Reprogrammer sets |
+| ❌ Décliner | `DECLINED` — **new**; nothing could reach it before |
+
+`DECLINED` is deliberately not a synonym for `CANCELLED`. Cancelled means the
+visit was called off after being agreed; declined means the agent refused it
+outright, and only the second should pull the customer into the alternatives
+recovery path. Collapsing them would make agent response rate unmeasurable —
+the same reason `lead_matches` and `lead_proposals` stay separate tables.
+
+#### The decline survey, and where the closing price really goes
+Declining sets `DECLINED`, sends the agent the three-option survey, **and at
+the same time** sends the customer three real alternatives from
+`propertyMatching` (never the listing just declined; an honest "nous n'avons
+pas d'équivalent" when there are none, never an empty list). The customer
+should not wait on the agent filling in a questionnaire to learn this visit
+isn't happening.
+
+Answering **1 (déjà loué/vendu)** retires the listing and asks what it closed
+at. **This reuses the existing transaction record rather than creating a new
+one**, and that is a deliberate departure from the original spec, which asked
+for a `closed_transactions` table and a `closed_unverified`/`pending_delist`
+status:
+
+- `postgres.markPropertyUnderOffer` → `listing_status = 'under_offer'`
+  immediately (off the market, no figure needed, honest about what we know).
+- the price answer → `postgres.markPropertySold` →
+  `listing_status = 'closed'`, `sold_price`, `sold_at`, `status = 0`.
+
+That pair is already live, already what `web/`'s `markListingSoldAction` and
+the WhatsApp status flow in `routes/webhook.js` both write, and already what
+the institutional market export (asking vs achieved) is built on. A second
+table and a second status vocabulary would have split the same fact across two
+places and drifted. `'closed'` is never reached without a real `sold_price`
+for that exact reason — an agent who answers *passer* leaves it at
+`under_offer`, and no price is invented.
+
+Ops is notified on every decline (`OPS_WHATSAPP_NUMBER`), told the reason, and
+told explicitly when a property needs verifying and archiving.
+
+#### What still gates delivery
+Unchanged and worth repeating: interactive messages are **session messages**.
+An agent who has not messaged this number in the last 24h receives neither the
+buttons nor the numbered fallback, and no template is approved. The same is
+true of every customer-facing message in this loop — a customer who reached us
+through the web form has never messaged the business number, so the
+confirmation, the reschedule proposal and the alternatives will not reach them
+until a template exists. The loop is real and complete; Meta decides whether
+it lands.
+
+#### Storefront
+No change was needed for "keep contact info fully open": `EnquiryCard`
+already renders the listing agent's real number as both a `tel:` link and a
+direct WhatsApp link (`buildWhatsAppLink(agentPhone, …)`), falling back to the
+central number only when the listing has no attributed agent. Note this has
+already overtaken the "Lead Routing Rules" bullet above, which still says the
+CTA must never use a per-listing agent number.
+
 ### Outbound WhatsApp: what actually works, and what silently doesn't
 
 Diagnosed live 2026-09-12, against production logs and the production SQLite.

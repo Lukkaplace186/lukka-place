@@ -1215,6 +1215,27 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_viewing_requests_lead_id ON viewing_requests (lead_id);
 
+  -- What an agent is waiting to answer, keyed by their wa_id.
+  --
+  -- The decline survey and the reschedule proposal are both multi-turn: we
+  -- ask a question on WhatsApp and the NEXT message from that number is the
+  -- answer. Without this, that answer falls into the listing-intake pipeline
+  -- and a bare "1" gets sent to gpt-4o as a property advert.
+  --
+  -- One row per wa_id (PRIMARY KEY), so a second question replaces the first
+  -- rather than leaving two claims on the same next message. TTL is applied
+  -- on read, not by deleting rows, mirroring listings.awaiting_sale_price_at:
+  -- an answer that arrives three days late is not an answer, but the record
+  -- that we asked is still worth keeping.
+  CREATE TABLE IF NOT EXISTS pending_agent_actions (
+    wa_id              TEXT PRIMARY KEY,
+    -- 'DECLINE_REASON'    waiting for 1 / 2 / 3
+    -- 'RESCHEDULE_TIME'   waiting for a free-text slot to forward to the client
+    kind               TEXT NOT NULL,
+    viewing_request_id INTEGER NOT NULL REFERENCES viewing_requests (id),
+    created_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
   -- Agent Demand Feed's multi-proposal pitching — up to 7 agents can each
   -- pitch one of their own listings against the same open "Trouver pour
   -- moi" request. property_id is a loose, unenforced integer pointing at
@@ -2198,12 +2219,120 @@ function getViewingRequest(id) {
 }
 
 /**
+ * `decline_reason` on an already-live database.
+ *
+ * CREATE TABLE IF NOT EXISTS only applies to a fresh file, and production's
+ * viewing_requests table predates this column — the exact schema-evolution
+ * trap the admin dashboard's `notes` column already fell into (see this
+ * file's migrateConversations). Same idempotent ALTER pattern, same reason.
+ */
+const VIEWING_REQUESTS_EXTENDED_COLUMNS = [['decline_reason', 'TEXT']];
+
+function migrateViewingRequests() {
+  const existing = new Set(
+    db.prepare('PRAGMA table_info(viewing_requests)').all().map((c) => c.name),
+  );
+  const missing = VIEWING_REQUESTS_EXTENDED_COLUMNS.filter(([name]) => !existing.has(name));
+  if (missing.length === 0) return [];
+
+  db.transaction(() => {
+    for (const [name, type] of missing) {
+      db.exec(`ALTER TABLE viewing_requests ADD COLUMN ${name} ${type}`);
+    }
+  })();
+
+  const added = missing.map(([name]) => name);
+  console.log(`[db] viewing_requests schema migrated — added column(s): ${added.join(', ')}`);
+  return added;
+}
+
+migrateViewingRequests();
+
+/**
+ * One viewing request joined to the customer who made it.
+ *
+ * Every handler in the agent feedback loop needs both halves at once — the
+ * request to update and the lead's wa_id to reply to — and fetching them
+ * separately invites a handler that updates a status and then messages
+ * nobody because the lead lookup was forgotten.
+ */
+function getViewingRequestWithLead(id) {
+  return db
+    .prepare(
+      `SELECT v.*, l.wa_id AS lead_wa_id, l.name AS lead_name, l.id AS lead_row_id
+         FROM viewing_requests v
+         JOIN leads l ON l.id = v.lead_id
+        WHERE v.id = ?`,
+    )
+    .get(id);
+}
+
+/** Record why an agent turned a visit down. Free-form on purpose: '3' is
+ *  "autre raison", and the words that follow it are the useful part. */
+function setViewingDeclineReason(id, reason) {
+  db.prepare('UPDATE viewing_requests SET decline_reason = ? WHERE id = ?')
+    .run(toNullable(reason), id);
+  return getViewingRequest(id);
+}
+
+/**
+ * How long a question we asked an agent stays answerable. Same 24h as
+ * SALE_PRICE_ASK_TTL_MS and for the same reason: a bare "1" typed three days
+ * later is answering something else.
+ */
+const PENDING_ACTION_TTL_MS = 24 * 60 * 60 * 1000;
+
+/** Claim this sender's next message for a specific question. */
+function setPendingAgentAction({ waId, kind, viewingRequestId }) {
+  if (!waId || !kind || !viewingRequestId) {
+    throw new Error('setPendingAgentAction requires waId, kind and viewingRequestId');
+  }
+  db.prepare(
+    `INSERT INTO pending_agent_actions (wa_id, kind, viewing_request_id, created_at)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT (wa_id) DO UPDATE SET
+       kind = excluded.kind,
+       viewing_request_id = excluded.viewing_request_id,
+       created_at = excluded.created_at`,
+  ).run(String(waId), String(kind), Number(viewingRequestId), new Date().toISOString());
+  return getPendingAgentAction(waId);
+}
+
+/** The question this sender still owes us an answer to, if it hasn't aged out. */
+function getPendingAgentAction(waId) {
+  if (!waId) return undefined;
+  const cutoff = new Date(Date.now() - PENDING_ACTION_TTL_MS).toISOString();
+  return db
+    .prepare('SELECT * FROM pending_agent_actions WHERE wa_id = ? AND created_at >= ?')
+    .get(String(waId), cutoff);
+}
+
+function clearPendingAgentAction(waId) {
+  if (!waId) return false;
+  return db.prepare('DELETE FROM pending_agent_actions WHERE wa_id = ?').run(String(waId)).changes > 0;
+}
+
+/**
  * viewing_requests.status has sat unused at its 'PENDING' default since the
  * column was added (see the CREATE TABLE comment above) — this is the first
  * real vocabulary and the first thing to ever transition it, for the agent
  * dashboard's Confirm/Cancel/Reschedule actions.
  */
-const VIEWING_REQUEST_STATUSES = ['PENDING', 'CONFIRMED', 'RESCHEDULED', 'CANCELLED'];
+/**
+ * 'DECLINED' is deliberately NOT a synonym for 'CANCELLED'. Cancelled means
+ * the visit was called off (either side, after it was agreed); declined means
+ * the agent refused it outright — and only the second one should pull the
+ * customer into the "here are three alternatives" recovery path. Collapsing
+ * them would make the agent-response rate unmeasurable for the same reason
+ * lead_matches and lead_proposals have to stay separate tables.
+ *
+ * The three WhatsApp buttons map onto the vocabulary the agent dashboard's
+ * Visit Scheduler already renders rather than forking a parallel one:
+ *   [✅ Accepter]       -> CONFIRMED   (same state the dashboard's Confirm sets)
+ *   [🕒 Autre créneau]  -> RESCHEDULED (same state its Reprogrammer sets)
+ *   [❌ Décliner]       -> DECLINED    (new — nothing could reach it before)
+ */
+const VIEWING_REQUEST_STATUSES = ['PENDING', 'CONFIRMED', 'RESCHEDULED', 'CANCELLED', 'DECLINED'];
 
 /**
  * @param {number} id
@@ -2386,6 +2515,11 @@ module.exports = {
   MAX_PITCHES_PER_LEAD,
   createViewingRequest,
   getViewingRequest,
+  getViewingRequestWithLead,
+  setViewingDeclineReason,
+  setPendingAgentAction,
+  getPendingAgentAction,
+  clearPendingAgentAction,
   updateViewingRequest,
   listViewingRequestsForOwner,
   VIEWING_REQUEST_STATUSES,

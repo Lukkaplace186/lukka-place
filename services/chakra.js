@@ -179,6 +179,83 @@ async function sendTemplate(toPhone, templateName, { languageCode = 'fr', bodyPa
 }
 
 /**
+ * Send a text message carrying up to three tappable reply buttons.
+ *
+ * Meta's `interactive` / `button` payload, passed straight through Chakra the
+ * same way the plain text payload above is. The caller gets back whatever the
+ * API returned; a failure throws, so a caller that has a text fallback can
+ * catch and degrade (services/viewingNotifications.js does exactly that —
+ * whether THIS account's Chakra plan forwards interactive payloads at all is
+ * not something this repo can assert, so nothing depends on it working).
+ *
+ * Meta's own limits, enforced here rather than discovered as a 400:
+ *   - at most 3 buttons
+ *   - button title <= 20 characters (emoji count)
+ *   - button id <= 256 characters
+ *   - body <= 1024 characters
+ * The id is what comes back on the inbound webhook as
+ * `interactive.button_reply.id`, so it is the only part that carries meaning.
+ *
+ * @param {string} toPhone
+ * @param {string} bodyText
+ * @param {Array<{id: string, title: string}>} buttons
+ */
+async function sendInteractiveButtons(toPhone, bodyText, buttons = []) {
+  if (!toPhone) {
+    throw new Error('sendInteractiveButtons requires toPhone');
+  }
+  if (!bodyText || !String(bodyText).trim()) {
+    throw new Error('sendInteractiveButtons requires non-empty bodyText');
+  }
+  if (!Array.isArray(buttons) || buttons.length === 0 || buttons.length > 3) {
+    throw new Error('sendInteractiveButtons requires 1-3 buttons');
+  }
+  for (const button of buttons) {
+    if (!button?.id || !button?.title) {
+      throw new Error('each button needs an id and a title');
+    }
+    if ([...String(button.title)].length > 20) {
+      throw new Error(`button title '${button.title}' is over WhatsApp's 20-character limit`);
+    }
+    if (String(button.id).length > 256) {
+      throw new Error(`button id '${button.id}' is over WhatsApp's 256-character limit`);
+    }
+  }
+  if (String(bodyText).length > 1024) {
+    throw new Error("interactive body is over WhatsApp's 1024-character limit");
+  }
+
+  const to = String(toPhone).replace(/^\+/, '');
+
+  const payload = {
+    messaging_product: 'whatsapp',
+    recipient_type: 'individual',
+    to,
+    type: 'interactive',
+    interactive: {
+      type: 'button',
+      body: { text: String(bodyText) },
+      action: {
+        buttons: buttons.map((button) => ({
+          type: 'reply',
+          reply: { id: String(button.id), title: String(button.title) },
+        })),
+      },
+    },
+  };
+
+  try {
+    const { data } = await axios.post(messagesUrl(), payload, {
+      headers: authHeaders(),
+      timeout: 15000,
+    });
+    return data;
+  } catch (err) {
+    return rethrowChakraError(err, `sendInteractiveButtons to ${to}`);
+  }
+}
+
+/**
  * Show the blue read receipt so the agent sees the engine picked their message
  * up while extraction is still running.
  */
@@ -428,6 +505,7 @@ async function downloadMediaRaw(mediaId) {
 module.exports = {
   sendWhatsAppMessage,
   sendTemplate,
+  sendInteractiveButtons,
   markAsRead,
   downloadMedia,
   downloadMediaRaw,

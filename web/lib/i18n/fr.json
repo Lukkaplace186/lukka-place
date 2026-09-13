@@ -447,7 +447,8 @@
     },
     "map": {
       "loading": "Chargement de la carte…",
-      "viewDetails": "Voir les détails →"
+      "viewDetails": "Voir les détails →",
+      "closePreview": "Fermer l’aperçu"
     },
     "alertModal": {
       "intro": "Vous serez alerté des nouveaux biens correspondant à :",

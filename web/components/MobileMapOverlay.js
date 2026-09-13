@@ -24,7 +24,7 @@ import { useT } from '@/lib/i18n/client';
  * the design system's real one. `.u-lift` is the actual registered
  * elevation utility for floating surfaces like this.
  */
-export default function MobileMapOverlay({ shown, totalMatching }) {
+export default function MobileMapOverlay({ shown, totalMatching, hideListButton = false }) {
   const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -44,13 +44,13 @@ export default function MobileMapOverlay({ shown, totalMatching }) {
         </span>
       ) : null}
 
-      <button
+      {hideListButton ? null : <button
         type="button"
         onClick={backToList}
         className="u-lift u-press pointer-events-auto absolute bottom-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-line bg-surface px-6 py-2.5 text-[0.8125rem] font-semibold text-ink"
       >
         {t('listings.view.list')}
-      </button>
+      </button>}
     </div>
   );
 }

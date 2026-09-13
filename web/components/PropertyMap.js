@@ -7,83 +7,15 @@ import { buildPricePinIcon, buildBuildingPinIcon, priceZIndex } from '@/lib/mapI
 import { spreadColocatedPins } from '@/lib/mapPinSpread';
 import { groupListingsByBuilding, buildingPinLabel } from '@/lib/buildingGroups';
 import { MAP_STYLES } from '@/lib/mapStyle';
-import { NO_PHOTO_URL } from '@/lib/constants';
-import { formatPrice, formatCdfCompact } from '@/lib/format';
-import { usableImageSrc } from '@/lib/listingView';
-import { convertToCdf } from '@/lib/currency';
-import { useCdfRate } from '@/lib/CurrencyRateContext';
-import { getCurrency } from '@/lib/currencyPreference';
 import { useT } from '@/lib/i18n/client';
 
-function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>"']/g, (c) => (
-    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
-  ));
-}
-
 /**
- * Plain HTML string, not JSX — Google's InfoWindow renders outside React's
- * tree, so this can't use SafeImage/next/image; the onerror attribute below
- * is the same NO_PHOTO_URL fallback SafeImage uses, just implemented as a
- * raw DOM event handler instead of a React one. Every real field is HTML-
- * escaped (this text ultimately originates from agent WhatsApp submissions
- * — untrusted third-party input, not user-generated-content from a random
- * site visitor, but still never safe to interpolate unescaped).
- *
- * Currency: reads the visitor's USD/CDF preference once, at the moment the
- * marker is clicked and this content is built — not a live React
- * subscription, since this HTML string is handed to Google's InfoWindow and
- * never re-rendered by React. If the visitor flips CurrencyToggle while an
- * InfoWindow is already open, that one InfoWindow keeps showing what it was
- * built with until closed and reopened; every other price on the page
- * (which does use <Price>, a real subscription) updates immediately.
- */
-// `t` is threaded in rather than hooked: this builds an HTML string for
-// the Maps InfoWindow, outside React's render, so it cannot call useT().
-function buildInfoWindowContent(listing, cdfPerUsd, t) {
-  const currency = getCurrency();
-  const price =
-    currency === 'CDF'
-      ? `≈ ${formatCdfCompact(convertToCdf(listing.price, cdfPerUsd)) ?? '—'} FC${listing.purpose === 'rent' ? ' / mois' : ''}`
-      : formatPrice(listing.price, listing.purpose);
-  // A bare Laravel filename (`default.jpg`) is not a resolvable URL — see
-  // usableImageSrc(). In an InfoWindow it renders as a broken image rather
-  // than crashing, but it is still a dead request every time a pin opens.
-  const image = usableImageSrc(listing.featured_image) ? listing.featured_image : NO_PHOTO_URL;
-  const spec = [
-    listing.beds != null ? `${listing.beds} ch` : null,
-    listing.bath != null ? `${listing.bath} sdb` : null,
-    Number(listing.area) > 0 ? `${listing.area} m²` : null,
-  ].filter(Boolean).join(' | ');
-  const location = [listing.quartier, listing.commune].filter(Boolean).join(', ');
-
-  return `
-    <div style="width:220px;font-family:inherit;">
-      <img
-        src="${escapeHtml(image)}"
-        onerror="this.onerror=null;this.src='${NO_PHOTO_URL}';"
-        alt=""
-        style="width:100%;height:120px;object-fit:cover;border-radius:6px 6px 0 0;display:block;"
-      />
-      <div style="padding:10px 6px 6px;">
-        <p style="margin:0;font-size:16px;font-weight:700;color:#0B1120;">${escapeHtml(price)}</p>
-        <p style="margin:4px 0 0;font-size:13px;font-weight:500;color:#2C3444;line-height:1.35;">${escapeHtml(listing.title)}</p>
-        ${spec ? `<p style="margin:4px 0 0;font-size:12px;color:#5C6679;">${escapeHtml(spec)}</p>` : ''}
-        ${location ? `<p style="margin:2px 0 0;font-size:12px;color:#5C6679;">${escapeHtml(location)}</p>` : ''}
-        <a
-          href="/listings/${encodeURIComponent(listing.id)}"
-          style="display:inline-block;margin-top:8px;font-size:13px;font-weight:600;color:#16307E;text-decoration:none;"
-        >
-          {t('listings.map.viewDetails')}
-        </a>
-      </div>
-    </div>
-  `;
-}
-
-/**
- * Interactive property map (product task #55): real Google Maps rendering,
- * clustered markers, and an InfoWindow property-card preview on click.
+ * Interactive property map (product task #55): real Google Maps rendering
+ * and price-tag markers. Clicking a price pin calls `onListingSelect`, and
+ * the caller renders the preview card (MapListingPreview) beside the map —
+ * this used to be a Google InfoWindow built from an HTML string, which could
+ * not reach React at all and shipped a literal `{t('listings.map.viewDetails')}`
+ * as its link text. Clicking the bare map calls `onListingSelect(null)`.
  * Pin positions come from lib/geocoding.js's resolution pipeline (real
  * geocoded address → real commune centroid fallback → privacy jitter) —
  * never a fabricated coordinate. Listings that resolve to nothing (no
@@ -92,9 +24,8 @@ function buildInfoWindowContent(listing, cdfPerUsd, t) {
  */
 const MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
-export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoom, onBuildingSelect }) {
+export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoom, onBuildingSelect, onListingSelect }) {
   const t = useT();
-  const { cdfPerUsd } = useCdfRate();
   const mapElementRef = useRef(null);
   // id -> google.maps.Marker, rebuilt each time the main geocoding effect
   // runs. Read/written by the separate hover-only effect below, which must
@@ -160,7 +91,10 @@ export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoo
         });
 
         const geocoder = new google.maps.Geocoder();
-        const infoWindow = new google.maps.InfoWindow();
+        // Tapping the bare map dismisses an open preview card. Marker clicks
+        // do not propagate to the map, so this never closes the card a pin
+        // tap has just opened.
+        map.addListener('click', () => onListingSelect?.(null));
         const bounds = new google.maps.LatLngBounds();
         const markers = [];
         markersRef.current = new Map();
@@ -246,15 +180,14 @@ export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoo
             zIndex: group.isBuilding ? priceZIndex(group.priceMax) + 1 : priceZIndex(listing.price),
           });
           marker.addListener('click', () => {
-            // A building opens the unit list rather than an InfoWindow: the
+            // A building opens the unit list rather than a preview card: the
             // whole point is that there is no single listing to preview.
             if (group.isBuilding) {
-              infoWindow.close();
+              onListingSelect?.(null);
               onBuildingSelect?.(group);
               return;
             }
-            infoWindow.setContent(buildInfoWindowContent(listing, cdfPerUsd, t));
-            infoWindow.open({ map, anchor: marker });
+            onListingSelect?.(listing);
           });
           // Map -> card hover-sync direction. The card -> map direction
           // (ListingCardVertical's onHoverStart/onHoverEnd) is handled by
@@ -302,7 +235,7 @@ export default function PropertyMap({ listings, hoveredId, onMarkerHover, maxZoo
     // stable — adding it here would risk re-running the sequential,
     // quota-sensitive geocoding loop if a future caller ever passed a
     // non-stable callback instead.
-    // `onBuildingSelect` is excluded for the same reason as `onMarkerHover`:
+    // `onBuildingSelect` and `onListingSelect` are excluded for the same reason as `onMarkerHover`:
     // re-running this effect replays the entire sequential Geocoding loop, and
     // a caller passing an inline arrow would do that on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps

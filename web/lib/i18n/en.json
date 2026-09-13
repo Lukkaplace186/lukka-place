@@ -447,7 +447,8 @@
     },
     "map": {
       "loading": "Loading the map…",
-      "viewDetails": "View details →"
+      "viewDetails": "View details →",
+      "closePreview": "Close preview"
     },
     "alertModal": {
       "intro": "You'll be alerted to new properties matching:",

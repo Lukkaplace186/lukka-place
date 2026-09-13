@@ -40,6 +40,9 @@ function buildPageHref(searchParams, page) {
 export default function ListingsSplitView({ listings, isMapView, page, totalPages, params, popularCommunes, communes, total }) {
   const t = useT();
   const [hoveredId, setHoveredId] = useState(null);
+  // A pin's preview card sits over the bottom of the map, exactly where the
+  // mobile "Liste" button floats — so the button steps aside while it is open.
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   // Mobile map mode is a `fixed` fullscreen layer (see the map wrapper
   // below), painted over whatever the document would otherwise show at
@@ -175,9 +178,10 @@ export default function ListingsSplitView({ listings, isMapView, page, totalPage
             isMapView={isMapView}
             hoveredId={hoveredId}
             onMarkerHover={setHoveredId}
+            onPreviewChange={setPreviewOpen}
             className="h-full w-full"
           />
-          {isMapView ? <MobileMapOverlay shown={listings.length} totalMatching={total} /> : null}
+          {isMapView ? <MobileMapOverlay shown={listings.length} totalMatching={total} hideListButton={previewOpen} /> : null}
         </div>
       </div>
     </div>

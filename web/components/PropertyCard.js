@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { Camera } from 'lucide-react';
+import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import CardImageCarousel from './CardImageCarousel';
 import FavoriteButton from './FavoriteButton';
 import WhatsAppCTA from './WhatsAppCTA';
@@ -207,6 +209,7 @@ export default function PropertyCard({
             scrim already darkens this edge enough to carry white text. */}
         {images.length > 1 ? (
           <span className="u-glass-royal u-tabular pointer-events-none absolute bottom-3 right-3 z-10 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[0.75rem] font-bold shadow-sm">
+            <Camera strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
             {activeIndex + 1}/{images.length}
           </span>
         ) : null}
@@ -245,13 +248,15 @@ export default function PropertyCard({
               pass: the spec's own price line is `400 $ / mois  ≈ 916k FC /
               mois`, and inline also buys back the ~16px that stacking cost.
               `inline-block` on the pill keeps it from being split across
-              lines if it ever does wrap. */}
+              lines if it ever does wrap. The pill is muted (regular weight,
+              ink-45 grey) so the USD figure is the only thing the eye
+              lands on — the FC figure is a reference, not a second price. */}
           <Price
             amount={price}
             purpose={purpose}
             pricePeriod={pricePeriod}
             showSubtext
-            subtextClassName="ml-2 inline-block rounded-md bg-canvas-alt px-2 py-0.5 align-middle text-[0.75rem] font-medium leading-normal tracking-normal text-ink"
+            subtextClassName="ml-2 inline-block rounded-md bg-canvas-alt px-2 py-0.5 align-middle text-[0.75rem] font-normal leading-normal tracking-normal text-ink-45"
           />
         </div>
 
@@ -377,10 +382,16 @@ export default function PropertyCard({
 
             Both render nothing when no phone number is configured at all, so
             on a misconfigured deploy this degrades to an empty bar rather
-            than to links pointing at `tel:undefined`. */}
-        <div className="mt-auto flex items-center justify-between gap-3 border-t border-line pt-2.5">
-          <CallCTA listing={listing} variant="link" />
-          <WhatsAppCTA listing={listing} variant="link" />
+            than to links pointing at `tel:undefined`.
+
+            Distinct buttons, not bare text links: Appeler as an outlined
+            pill, WhatsApp as the one solid brand-green fill, so the primary
+            conversion path reads as a button at a glance (explicit request,
+            2026-09-13, against the Rightmove card). The `block` variants are
+            the pair both CTA components already define for this. */}
+        <div className="mt-auto flex items-center gap-2 border-t border-line pt-3">
+          <CallCTA listing={listing} variant="block" />
+          <WhatsAppCTA listing={listing} variant="block" />
         </div>
       </div>
     </Link>

@@ -124,7 +124,7 @@ export async function updateListingStatusAction(propertyId, formData) {
   // archives it explicitly afterwards.
   const { rowCount } = await pool.query(
     `UPDATE properties
-     SET listing_status = $1, sold_price = NULL, sold_at = NULL,
+     SET listing_status = $1, sold_price = NULL, sold_at = NULL, price_source = NULL,
          status = 1, archived_at = NULL, updated_at = NOW()
      WHERE id = $2 AND agent_id = $3`,
     [status, propertyId, agentId],
@@ -193,6 +193,9 @@ export async function markListingSoldAction(propertyId, formData) {
   const { rowCount } = await pool.query(
     `UPDATE properties
      SET listing_status = 'closed', sold_price = $1, sold_at = $2,
+         -- Provenance for /admin/market-data: the agent typed it into their
+         -- own dashboard (vs WHATSAPP_AGENT_REPLY from the engine).
+         price_source = 'DIRECT_INPUT',
          status = 0, archived_at = NOW(), updated_at = NOW()
      WHERE id = $3 AND agent_id = $4`,
     [soldPrice, soldAtRaw, propertyId, agentId],
@@ -993,7 +996,7 @@ export async function bulkMarkUnderOfferAction(propertyIds) {
 
   const pool = getPool();
   const { rowCount } = await pool.query(
-    `UPDATE properties SET listing_status = 'under_offer', sold_price = NULL, sold_at = NULL, updated_at = NOW()
+    `UPDATE properties SET listing_status = 'under_offer', sold_price = NULL, sold_at = NULL, price_source = NULL, updated_at = NOW()
      WHERE id = ANY($1::bigint[]) AND agent_id = $2 AND listing_status <> 'closed'`,
     [ids, agentId],
   );

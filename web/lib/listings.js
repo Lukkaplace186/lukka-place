@@ -116,7 +116,7 @@ const GALLERY_SUBQUERY = `(
 // the agency slot only when this or `agency_logo_url` is non-null, and
 // AgencyLogo/EnquiryCard fall back to Lukka Place's own mark, which is the
 // honest signal for a listing the platform handles directly.
-const AGENCY_NAME_EXPR = `
+export const AGENCY_NAME_EXPR = `
   COALESCE(
     NULLIF(TRIM(CONCAT_WS(' ', ai.first_name, ai.last_name)), ''),
     NULLIF(TRIM(a.agency_name), ''),
@@ -128,7 +128,7 @@ const AGENCY_NAME_EXPR = `
 // of them, so a plain join fans one listing out into two identical rows.
 // lib/agents.js hit exactly that and documents it; the feed would have paid
 // for it far more visibly, with duplicate cards and an off-by-N page count.
-const AGENT_INFOS_JOIN = `
+export const AGENT_INFOS_JOIN = `
   LEFT JOIN LATERAL (
     SELECT first_name, last_name FROM agent_infos
     WHERE agent_id = a.id
@@ -171,7 +171,18 @@ const SELECT_FIELDS = `
   pc.title, pc.slug, pc.address,
   catc.name AS category_name,
   pc.description,
-  a.id AS agent_id, a.image AS agency_logo_url, ${AGENCY_NAME_EXPR}, a.phone AS agent_phone,
+  a.id AS agent_id, a.image AS agency_logo_url, ${AGENCY_NAME_EXPR},
+  -- DIRECT-TO-AGENT ROUTING. The agent's number reaches a public page only
+  -- when the agent proved they hold it (phone_verified_at) AND the team has
+  -- not switched direct routing off for them (agents.direct_routing_enabled,
+  -- /admin/benchmarks). Otherwise NULL, and every CTA that reads agent_phone
+  -- (EnquiryCard, MobileListingBar, WhatsAppCTA, CallCTA) falls back to the
+  -- central number. An unverified number is somebody's claim; publishing it
+  -- sends customers to whoever typed it. Same three conditions as the
+  -- engine's services/propertyRepository.js directRoutingBlocker: change one,
+  -- change the other. IS NOT FALSE so a NULL flag keeps today's behaviour.
+  CASE WHEN a.phone_verified_at IS NOT NULL AND a.direct_routing_enabled IS NOT FALSE
+       THEN NULLIF(TRIM(a.phone), '') END AS agent_phone,
   ${COMMUNE_SUBQUERY},
   ${GALLERY_SUBQUERY}
 `;

@@ -209,9 +209,10 @@ async function notifyEnquiry({ listing, propertyId, from, quotedReference }) {
   // claim, and messaging it would tell a stranger who is asking about an
   // agency's properties.
   let agentSkipReason = null;
+  // Plus the team's direct-routing switch: an agent switched to central
+  // fallback is not alerted directly, and the desk handles the enquiry.
   if (!listing) agentSkipReason = 'annonce introuvable ou non approuvée';
-  else if (!listing.agent_phone) agentSkipReason = 'aucun agent rattaché à cette annonce';
-  else if (!listing.phone_verified_at) agentSkipReason = 'numéro agent non vérifié';
+  else agentSkipReason = propertyRepository.directRoutingBlocker(listing);
 
   let agentNotified = false;
   if (!agentSkipReason) {

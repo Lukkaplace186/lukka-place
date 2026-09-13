@@ -372,3 +372,48 @@ export async function getLeadMatches(leadId) {
 export async function redispatchLead(leadId) {
   return engineFetch(`/admin/leads/${leadId}/dispatch`, { method: 'POST' });
 }
+
+// ---------------------------------------------------------------------------
+// Direct-to-agent routing — /admin/viewings, /admin/telemetry,
+// /admin/market-data, /admin/benchmarks.
+// ---------------------------------------------------------------------------
+
+/**
+ * Every viewing request across every agent, plus unfiltered status / routing /
+ * fall-through counts. NOT the owner-scoped listViewingRequests above.
+ */
+export async function listViewingFeed({ status, routingType, limit, offset } = {}) {
+  const params = new URLSearchParams();
+  if (status) params.set('status', status);
+  if (routingType) params.set('routing_type', routingType);
+  if (limit) params.set('limit', String(limit));
+  if (offset) params.set('offset', String(offset));
+  const query = params.toString();
+  return engineFetch(`/admin/viewing-requests/feed${query ? `?${query}` : ''}`);
+}
+
+/** Hand a request to another verified agent; the engine alerts them with buttons. */
+export async function reassignViewingRequest(id, agentId) {
+  return engineFetch(`/admin/viewing-requests/${id}/reassign`, {
+    method: 'POST',
+    body: JSON.stringify({ agent_id: agentId }),
+  });
+}
+
+/** Resend the current agent's alert. */
+export async function nudgeViewingRequest(id) {
+  return engineFetch(`/admin/viewing-requests/${id}/nudge`, { method: 'POST' });
+}
+
+/** @param {string} scheduledAt ISO-8601 with an offset. */
+export async function scheduleViewingRequest(id, scheduledAt) {
+  return engineFetch(`/admin/viewing-requests/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ scheduled_at: scheduledAt }),
+  });
+}
+
+/** GET /api/admin/benchmarks/agent-performance — leaderboard + commune deltas. */
+export async function getAgentPerformance({ days = 90 } = {}) {
+  return engineFetch(`/api/admin/benchmarks/agent-performance?days=${encodeURIComponent(days)}`);
+}

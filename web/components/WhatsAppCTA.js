@@ -1,7 +1,7 @@
 'use client';
 
-import { buildWhatsAppLink, buildWhatsAppMessage } from '@/lib/whatsapp';
-import { trackEvent, listingEventPayload } from '@/lib/analyticsClient';
+import { resolveWhatsAppRouting } from '@/lib/leadRouting';
+import { trackLeadClick } from '@/lib/analyticsClient';
 import { useT } from '@/lib/i18n/client';
 
 function WhatsAppIcon(props) {
@@ -61,29 +61,19 @@ function WhatsAppIcon(props) {
  */
 export default function WhatsAppCTA({ listing, variant = 'compact' }) {
   const t = useT();
-  const phoneNumber = listing.agent_phone || process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
+  // Verified agent directly, central number otherwise — lib/leadRouting.js.
+  const { href, routingType } = resolveWhatsAppRouting(listing);
 
-  if (!phoneNumber) {
+  if (!href) {
     // No real number is configured yet (see .env.local's TODO) — render
     // nothing rather than ship a wa.me link with an empty number.
     return null;
   }
 
-  const message = buildWhatsAppMessage({
-    reference: listing.reference,
-    slug: listing.slug,
-    id: listing.id,
-    propertyType: listing.category_name,
-    commune: listing.commune,
-    price: listing.price,
-    purpose: listing.purpose,
-  });
-  const href = buildWhatsAppLink(phoneNumber, message);
-
   function handleClick(e) {
     e.preventDefault();
     e.stopPropagation();
-    trackEvent('whatsapp_click', listingEventPayload(listing));
+    trackLeadClick(listing, routingType);
     window.open(href, '_blank', 'noopener,noreferrer');
   }
 

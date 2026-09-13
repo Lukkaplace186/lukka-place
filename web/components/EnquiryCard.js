@@ -5,11 +5,11 @@ import { motion } from 'framer-motion';
 import { MessageCircle, Phone, CalendarClock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import FavoriteButton from './FavoriteButton';
-import { trackEvent, listingEventPayload } from '@/lib/analyticsClient';
+import { trackLeadClick } from '@/lib/analyticsClient';
+import { resolveWhatsAppRouting } from '@/lib/leadRouting';
 import ShareButton from './ShareButton';
 import AgentMonogram from './AgentMonogram';
 import { displayableAgencyName } from '@/lib/agentIdentity';
-import { getCentralWhatsAppHref, buildWhatsAppLink, buildWhatsAppMessage } from '@/lib/whatsapp';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { submitVisitRequestAction } from '@/app/(site)/listings/[id]/actions';
 import { revealUp } from '@/lib/motion';
@@ -178,19 +178,11 @@ export default function EnquiryCard({ listing, visitSent, visitError }) {
   // `username` was their phone number got a circle containing the digit "3".
   const agentName = displayableAgencyName(agencyName);
 
-  const message = buildWhatsAppMessage({
-    reference: listing.reference,
-    slug: listing.slug,
-    id: listing.id,
-    propertyType: listing.category_name,
-    commune: listing.commune,
-    price: listing.price,
-    purpose: listing.purpose,
-  });
-
-  // A real per-listing agent number when one exists, otherwise Lukka
-  // Place's own central number — same precedence WhatsAppCTA uses.
-  const whatsappHref = agentPhone ? buildWhatsAppLink(agentPhone, message) : getCentralWhatsAppHref(message);
+  // The verified agent directly, otherwise Lukka Place's central number — the
+  // one rule every WhatsApp CTA shares (lib/leadRouting.js). `agentPhone` is
+  // only non-null for a verified, routing-enabled agent (lib/listings.js), so
+  // the tel: link below follows the same rule without restating it.
+  const { href: whatsappHref, routingType } = resolveWhatsAppRouting(listing);
   const displayName = agentName || 'Lukka Place';
   const qualifier = agentName ? 'Agent partenaire' : 'Équipe Lukka Place';
 
@@ -246,7 +238,7 @@ export default function EnquiryCard({ listing, visitSent, visitError }) {
             href={whatsappHref}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={() => trackEvent('whatsapp_click', listingEventPayload(listing))}
+            onClick={() => trackLeadClick(listing, routingType)}
             className="u-press u-btn-primary inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue px-5 py-3 text-sm font-semibold text-white"
           >
             <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />

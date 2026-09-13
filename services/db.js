@@ -2295,6 +2295,22 @@ const VIEWING_REQUESTS_EXTENDED_COLUMNS = [
   ['sla_alerted_at', 'TEXT'],
   ['checkin_sent_at', 'TEXT'],
   ['checkin_response', 'TEXT'],
+  // Direct-to-agent routing (migrations/20260913_lead_routing_and_price_capture.sql).
+  // `agent_id` is the Postgres agents.id the alert actually went to — or, once
+  // `reassigned_at` is set, the agent an admin handed the request to.
+  // `routing_type` is DIRECT_WA when a verified agent was alerted and
+  // CENTRAL_FALLBACK when only Lukka Place's desk could be.
+  ['agent_id', 'INTEGER'],
+  ['routing_type', 'TEXT'],
+  ['reassigned_at', 'TEXT'],
+  // The agent's first answer, written once — response latency counts to it.
+  ['first_response_at', 'TEXT'],
+  // Why a viewing fell through, as a code, beside the free-text
+  // `decline_reason`. `decline_reason_by` says who gave it: an agent declining
+  // (the survey) and a customer disappointed by the visit (the 👎 check-in)
+  // are different facts and are never merged into one.
+  ['decline_reason_code', 'TEXT'],
+  ['decline_reason_by', 'TEXT'],
 ];
 
 /** What a customer can answer to the post-visit check-in. */
@@ -2319,6 +2335,23 @@ function migrateViewingRequests() {
 }
 
 migrateViewingRequests();
+
+/**
+ * `pending_agent_actions.amount` — the figure we read back to an agent and are
+ * waiting for them to confirm (CLOSING_PRICE_CONFIRM). Nullable: every other
+ * pending kind carries no amount. Same idempotent ALTER as above.
+ */
+function migratePendingAgentActions() {
+  const existing = new Set(
+    db.prepare('PRAGMA table_info(pending_agent_actions)').all().map((c) => c.name),
+  );
+  if (existing.has('amount')) return false;
+  db.exec('ALTER TABLE pending_agent_actions ADD COLUMN amount REAL');
+  console.log('[db] pending_agent_actions schema migrated — added column(s): amount');
+  return true;
+}
+
+migratePendingAgentActions();
 
 /**
  * One viewing request joined to the customer who made it.
@@ -2355,18 +2388,25 @@ function setViewingDeclineReason(id, reason) {
 const PENDING_ACTION_TTL_MS = 24 * 60 * 60 * 1000;
 
 /** Claim this sender's next message for a specific question. */
-function setPendingAgentAction({ waId, kind, viewingRequestId }) {
+function setPendingAgentAction({ waId, kind, viewingRequestId, amount = null }) {
   if (!waId || !kind || !viewingRequestId) {
     throw new Error('setPendingAgentAction requires waId, kind and viewingRequestId');
   }
   db.prepare(
-    `INSERT INTO pending_agent_actions (wa_id, kind, viewing_request_id, created_at)
-     VALUES (?, ?, ?, ?)
+    `INSERT INTO pending_agent_actions (wa_id, kind, viewing_request_id, amount, created_at)
+     VALUES (?, ?, ?, ?, ?)
      ON CONFLICT (wa_id) DO UPDATE SET
        kind = excluded.kind,
        viewing_request_id = excluded.viewing_request_id,
+       amount = excluded.amount,
        created_at = excluded.created_at`,
-  ).run(String(waId), String(kind), Number(viewingRequestId), new Date().toISOString());
+  ).run(
+    String(waId),
+    String(kind),
+    Number(viewingRequestId),
+    Number.isFinite(Number(amount)) && amount !== null ? Number(amount) : null,
+    new Date().toISOString(),
+  );
   return getPendingAgentAction(waId);
 }
 
@@ -2436,7 +2476,28 @@ function clearPendingCustomerAction(waId) {
  *   [🕒 Autre créneau]  -> RESCHEDULED (same state its Reprogrammer sets)
  *   [❌ Décliner]       -> DECLINED    (new — nothing could reach it before)
  */
-const VIEWING_REQUEST_STATUSES = ['PENDING', 'CONFIRMED', 'RESCHEDULED', 'CANCELLED', 'DECLINED'];
+const VIEWING_REQUEST_STATUSES = ['PENDING', 'CONFIRMED', 'RESCHEDULED', 'CANCELLED', 'DECLINED', 'COMPLETED'];
+
+/**
+ * 'COMPLETED' is reached only from the post-visit check-in, when the customer
+ * says the visit happened (👍 or 👎). "Agent absent" is the opposite claim and
+ * never completes a request.
+ */
+const ROUTING_TYPES = ['DIRECT_WA', 'CENTRAL_FALLBACK'];
+
+/**
+ * Why a viewing fell through. The first two are an agent's answers to the
+ * decline survey, the next two a customer's answer to a 👎 check-in; OTHER is
+ * either. PROPERTY_NO_LONGER_AVAILABLE is the only one that retires a listing.
+ */
+const DECLINE_REASON_CODES = [
+  'PRICE_TOO_HIGH',
+  'PROPERTY_NO_LONGER_AVAILABLE',
+  'LOCATION_DESELECTED',
+  'TERMS_UNACCEPTABLE',
+  'OTHER',
+];
+const DECLINE_REASON_BY = ['AGENT', 'CUSTOMER'];
 
 /**
  * @param {number} id
@@ -2559,6 +2620,129 @@ function setCheckinResponse(id, response) {
   }
   db.prepare('UPDATE viewing_requests SET checkin_response = ? WHERE id = ?').run(response, id);
   return getViewingRequest(id);
+}
+
+/** Who the alert went to, and by which path. Called once, at notify time. */
+function setViewingRouting(id, { agentId = null, routingType }) {
+  if (!ROUTING_TYPES.includes(routingType)) {
+    throw new Error(`setViewingRouting: unknown routing type '${routingType}' (expected one of ${ROUTING_TYPES.join(', ')})`);
+  }
+  db.prepare('UPDATE viewing_requests SET agent_id = ?, routing_type = ? WHERE id = ?')
+    .run(agentId == null ? null : Number(agentId), routingType, id);
+  return getViewingRequest(id);
+}
+
+/**
+ * The agent's first answer. `first_response_at IS NULL` in the WHERE is what
+ * makes it the first: a later reschedule-then-accept must not move the clock.
+ *
+ * @returns {boolean} whether this call was the first response.
+ */
+function recordViewingFirstResponse(id, at = new Date().toISOString()) {
+  return db
+    .prepare('UPDATE viewing_requests SET first_response_at = ? WHERE id = ? AND first_response_at IS NULL')
+    .run(at, id).changes > 0;
+}
+
+function setViewingDeclineCode(id, code, by) {
+  if (!DECLINE_REASON_CODES.includes(code)) {
+    throw new Error(`setViewingDeclineCode: unknown code '${code}' (expected one of ${DECLINE_REASON_CODES.join(', ')})`);
+  }
+  if (!DECLINE_REASON_BY.includes(by)) {
+    throw new Error(`setViewingDeclineCode: unknown author '${by}' (expected one of ${DECLINE_REASON_BY.join(', ')})`);
+  }
+  db.prepare('UPDATE viewing_requests SET decline_reason_code = ?, decline_reason_by = ? WHERE id = ?')
+    .run(code, by, id);
+  return getViewingRequest(id);
+}
+
+/**
+ * Admin override: hand a request to a different (verified) agent.
+ *
+ * Back to PENDING with the SLA and first-response clocks cleared, because the
+ * new agent has answered nothing yet — carrying the previous agent's CONFIRMED
+ * or DECLINED over would tell the customer something the new agent never said.
+ * The earlier decline reason stays on the row: it is still why the first
+ * agent passed.
+ */
+function reassignViewingRequest(id, agentId, at = new Date().toISOString()) {
+  const numericAgent = Number.parseInt(agentId, 10);
+  if (!Number.isFinite(numericAgent)) throw new Error('reassignViewingRequest requires a numeric agentId');
+  db.prepare(
+    `UPDATE viewing_requests
+        SET agent_id = ?, reassigned_at = ?, routing_type = 'DIRECT_WA', status = 'PENDING',
+            first_response_at = NULL, sla_alerted_at = NULL
+      WHERE id = ?`,
+  ).run(numericAgent, at, id);
+  return getViewingRequest(id);
+}
+
+/**
+ * Every viewing request, for /admin/viewings and /admin/telemetry — NOT
+ * owner-scoped, which is exactly why it is a separate function from
+ * listViewingRequestsForOwner (whose "no ownership signal -> nothing" rule
+ * must never be weakened for the agent dashboard's sake).
+ */
+function listAllViewingRequests({ status, routingType, limit, offset } = {}) {
+  const where = [];
+  const params = {};
+  if (status) {
+    if (!VIEWING_REQUEST_STATUSES.includes(status)) throw new Error(`Invalid status '${status}'`);
+    where.push('vr.status = @status');
+    params.status = status;
+  }
+  if (routingType) {
+    if (!ROUTING_TYPES.includes(routingType)) throw new Error(`Invalid routing type '${routingType}'`);
+    where.push('vr.routing_type = @routingType');
+    params.routingType = routingType;
+  }
+  const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+  const parsedLimit = Number.parseInt(limit, 10);
+  const resolvedLimit = Number.isFinite(parsedLimit)
+    ? Math.min(Math.max(parsedLimit, 1), VIEWING_REQUESTS_LIST_LIMIT_MAX)
+    : VIEWING_REQUESTS_LIST_LIMIT_DEFAULT;
+  const parsedOffset = Number.parseInt(offset, 10);
+  const resolvedOffset = Number.isFinite(parsedOffset) ? Math.max(parsedOffset, 0) : 0;
+
+  const fromJoin = 'FROM viewing_requests vr JOIN leads l ON l.id = vr.lead_id';
+  const { total } = db.prepare(`SELECT COUNT(*) AS total ${fromJoin} ${whereClause}`).get(params);
+  const data = db
+    .prepare(
+      `SELECT vr.*, l.wa_id AS lead_wa_id, l.name AS lead_name, l.source AS lead_source,
+              l.status AS lead_status
+       ${fromJoin} ${whereClause}
+       ORDER BY vr.id DESC LIMIT @limit OFFSET @offset`,
+    )
+    .all({ ...params, limit: resolvedLimit, offset: resolvedOffset });
+
+  // Unfiltered totals for the chips and the fall-through breakdown, so a
+  // filtered page never makes the other buckets read as zero.
+  const countBy = (column) => Object.fromEntries(
+    db.prepare(`SELECT ${column} AS k, COUNT(*) AS n FROM viewing_requests GROUP BY ${column}`)
+      .all()
+      .map((r) => [r.k ?? 'NONE', r.n]),
+  );
+  const byDeclineReason = db
+    .prepare(
+      `SELECT decline_reason_code AS code, decline_reason_by AS by, COUNT(*) AS n
+         FROM viewing_requests WHERE decline_reason_code IS NOT NULL
+        GROUP BY decline_reason_code, decline_reason_by`,
+    )
+    .all();
+
+  return {
+    total,
+    limit: resolvedLimit,
+    offset: resolvedOffset,
+    count: data.length,
+    data,
+    summary: {
+      byStatus: countBy('status'),
+      byRouting: countBy('routing_type'),
+      byDeclineReason,
+    },
+  };
 }
 
 const VIEWING_REQUESTS_LIST_LIMIT_DEFAULT = 50;
@@ -2742,6 +2926,15 @@ module.exports = {
   markCheckinSent,
   setCheckinResponse,
   CHECKIN_RESPONSES,
+  // Direct-to-agent routing, performance and fall-through reasons.
+  setViewingRouting,
+  recordViewingFirstResponse,
+  setViewingDeclineCode,
+  reassignViewingRequest,
+  listAllViewingRequests,
+  ROUTING_TYPES,
+  DECLINE_REASON_CODES,
+  DECLINE_REASON_BY,
   LEAD_STATUSES,
   CONVERSATION_REQUIREMENT_FIELDS,
 };

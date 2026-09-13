@@ -39,6 +39,11 @@ const chakra = require('./chakra');
 const propertyRepository = require('./propertyRepository');
 const propertyMatchingService = require('./propertyMatching');
 const { parseFrenchSlot, formatSlotFr } = require('./visitSchedule');
+const priceExtraction = require('./priceExtraction');
+const agentPerformance = require('./agentPerformance');
+
+/** properties.price_source for a figure an agent gave us on WhatsApp. */
+const PRICE_SOURCE_WHATSAPP = 'WHATSAPP_AGENT_REPLY';
 
 /**
  * Template name as approved in Meta's WhatsApp Manager — env-driven for the
@@ -296,7 +301,17 @@ async function send(phone, text, templateParams, buttons = null) {
  * @param {number|string} [params.propertyId] Defaults to the row's own property_id.
  * @returns {Promise<{agentNotified: boolean, opsNotified: boolean, reason?: string}>}
  */
-async function notifyViewingRequest({ viewingRequest, lead, propertyId } = {}) {
+async function notifyViewingRequest({
+  viewingRequest,
+  lead,
+  propertyId,
+  // Admin overrides (reassign / nudge) — see reassignViewing and
+  // nudgeViewingAgent below. A normal creation passes none of these.
+  agentOverride = null,
+  notifyOpsCopy = true,
+  recordRouting = true,
+  reassign = false,
+} = {}) {
   const id = propertyId ?? viewingRequest?.property_id ?? null;
 
   // A viewing request with no property is the assistant's "I'd like to see
@@ -318,13 +333,16 @@ async function notifyViewingRequest({ viewingRequest, lead, propertyId } = {}) {
     console.error(`[viewing] listing lookup for property #${id} failed: ${err.message}`);
   }
 
+  // An admin-chosen agent stands in for the listing's own one.
+  if (listing && agentOverride) listing = withAgent(listing, agentOverride);
+
   // Same gate as services/postgres.js's resolveAgentId and
   // agentOnboarding's identifySender, for the same reason: an unverified
-  // number is a claim somebody typed, not a confirmed destination.
+  // number is a claim somebody typed, not a confirmed destination. Plus the
+  // team's direct-routing switch — see propertyRepository.directRoutingBlocker.
   let agentSkipReason = null;
   if (!listing) agentSkipReason = 'listing introuvable ou non approuvée';
-  else if (!listing.agent_phone) agentSkipReason = 'aucun agent rattaché à cette annonce';
-  else if (!listing.phone_verified_at) agentSkipReason = 'numéro agent non vérifié';
+  else agentSkipReason = propertyRepository.directRoutingBlocker(listing);
 
   let agentNotified = false;
   if (!agentSkipReason) {
@@ -363,8 +381,35 @@ async function notifyViewingRequest({ viewingRequest, lead, propertyId } = {}) {
     console.warn(`[viewing] request #${viewingRequest?.id} (property #${id}) — agent not notified: ${agentSkipReason}`);
   }
 
+  // Which path this request actually took — the fact /admin/viewings filters
+  // on. Recorded from what happened, not from what the listing page offered:
+  // a verified agent whose alert failed to send is CENTRAL_FALLBACK.
+  const routingType = agentNotified ? 'DIRECT_WA' : 'CENTRAL_FALLBACK';
+  if (viewingRequest?.id) {
+    if (recordRouting) {
+      try {
+        dbService.setViewingRouting(viewingRequest.id, {
+          agentId: listing?.agent_id ?? null,
+          routingType,
+        });
+      } catch (err) {
+        console.error(`[viewing] routing record for request #${viewingRequest.id} failed: ${err.message}`);
+      }
+    }
+    if (agentNotified) {
+      await agentPerformance.logLeadDispatched({
+        agentId: listing.agent_id,
+        listingId: id,
+        viewingRequestId: viewingRequest.id,
+        // A reassigned agent's clock starts now, not at the original request.
+        leadTimestamp: reassign ? new Date().toISOString() : viewingRequest.created_at,
+        reassign,
+      });
+    }
+  }
+
   let opsNotified = false;
-  const ops = opsNumber();
+  const ops = notifyOpsCopy ? opsNumber() : null;
   if (ops) {
     try {
       await chakra.sendWhatsAppMessage(
@@ -376,7 +421,7 @@ async function notifyViewingRequest({ viewingRequest, lead, propertyId } = {}) {
     } catch (err) {
       console.error(`[viewing] ops copy for request #${viewingRequest?.id} failed: ${err.message}`);
     }
-  } else if (!agentNotified) {
+  } else if (!agentNotified && notifyOpsCopy) {
     // The one combination where a request reaches nobody at all. Worth a
     // louder line than the per-recipient warnings above, because it is the
     // state the visitor's "l'agent vous répondra" is silently false in.
@@ -386,7 +431,84 @@ async function notifyViewingRequest({ viewingRequest, lead, propertyId } = {}) {
     );
   }
 
-  return { agentNotified, opsNotified, reason: agentSkipReason || undefined };
+  return { agentNotified, opsNotified, routingType, reason: agentSkipReason || undefined };
+}
+
+/** The listing row with a different agent's contact fields laid over it. */
+function withAgent(listing, agent) {
+  return {
+    ...listing,
+    agent_id: agent?.agent_id ?? null,
+    agent_phone: agent?.agent_phone ?? null,
+    phone_verified_at: agent?.phone_verified_at ?? null,
+    direct_routing_enabled: agent?.direct_routing_enabled,
+    agent_name: agent?.agent_name ?? null,
+  };
+}
+
+/**
+ * Admin override: hand a viewing request to a different, verified agent and
+ * alert them with the same three buttons.
+ *
+ * The chosen agent has to pass the same directRoutingBlocker gate as any
+ * automatic alert — an admin picking a name from a list is not proof that the
+ * person holds the number, and messaging an unverified one would tell a
+ * stranger who wants to visit a property.
+ *
+ * @returns {Promise<{ok: boolean, reason?: string, agentNotified?: boolean}>}
+ */
+async function reassignViewing(viewingRequestId, agentId) {
+  const request = dbService.getViewingRequestWithLead(viewingRequestId);
+  if (!request) return { ok: false, reason: 'unknown-request' };
+  if (!request.property_id) return { ok: false, reason: 'no-property' };
+
+  let agent = null;
+  try {
+    agent = await propertyRepository.getAgentContactById(agentId);
+  } catch (err) {
+    console.error(`[viewing] reassign lookup for agent #${agentId} failed: ${err.message}`);
+  }
+  const blocker = agent ? propertyRepository.directRoutingBlocker(agent) : 'agent introuvable';
+  if (blocker) return { ok: false, reason: blocker };
+
+  dbService.reassignViewingRequest(request.id, agent.agent_id);
+  const updated = dbService.getViewingRequestWithLead(request.id);
+  const result = await notifyViewingRequest({
+    viewingRequest: updated,
+    lead: dbService.getLead(updated.lead_row_id),
+    agentOverride: agent,
+    recordRouting: false,
+    reassign: true,
+  });
+  console.log(
+    `[viewing] request #${request.id} REASSIGNED to agent #${agent.agent_id} — notified: ${result.agentNotified}`,
+  );
+  return { ok: true, agentId: agent.agent_id, agentNotified: result.agentNotified, reason: result.reason };
+}
+
+/**
+ * Re-engagement ping: send the current agent the alert again, buttons and
+ * all. Agent only — ops already has the desk copy, and a nudge that also
+ * re-pinged ops would train them to ignore the channel.
+ */
+async function nudgeViewingAgent(viewingRequestId) {
+  const request = dbService.getViewingRequestWithLead(viewingRequestId);
+  if (!request) return { ok: false, reason: 'unknown-request' };
+  if (!request.property_id) return { ok: false, reason: 'no-property' };
+
+  let agentOverride = null;
+  if (request.reassigned_at && request.agent_id) {
+    agentOverride = await propertyRepository.getAgentContactById(request.agent_id).catch(() => null);
+    if (!agentOverride) return { ok: false, reason: 'agent introuvable' };
+  }
+  const result = await notifyViewingRequest({
+    viewingRequest: request,
+    lead: dbService.getLead(request.lead_row_id),
+    agentOverride,
+    notifyOpsCopy: false,
+    recordRouting: false,
+  });
+  return { ok: result.agentNotified, agentNotified: result.agentNotified, reason: result.reason };
 }
 
 /**
@@ -435,6 +557,9 @@ const PENDING_KINDS = {
   declineReason: 'DECLINE_REASON',
   reschedule: 'RESCHEDULE_TIME',
   closingPrice: 'CLOSING_PRICE',
+  // A figure read out of a sentence (or by the model) and read back to the
+  // agent; pending_agent_actions.amount holds it until they say OUI.
+  closingPriceConfirm: 'CLOSING_PRICE_CONFIRM',
   // Asked after an accept when the customer's wording carried no parseable
   // slot ("je suis disponible cette semaine"), so the check-in has a real
   // instant to count from rather than a guess.
@@ -445,6 +570,18 @@ const DECLINE_REASONS = {
   1: 'Bien déjà loué / vendu',
   2: 'Non disponible aux dates demandées',
   3: 'Autre raison',
+};
+
+/**
+ * The survey answers as viewing_requests.decline_reason_code. The agent's
+ * three options stay as they are; PRICE_TOO_HIGH / LOCATION_DESELECTED /
+ * TERMS_UNACCEPTABLE are customer reasons and are collected from the customer
+ * (services/viewingSweeps.js), never put in an agent's mouth.
+ */
+const AGENT_DECLINE_REASON_CODES = {
+  1: 'PROPERTY_NO_LONGER_AVAILABLE',
+  2: 'OTHER',
+  3: 'OTHER',
 };
 
 /** Strip accents and case so "déjà loué" and "deja loue" match alike. */
@@ -551,10 +688,36 @@ const DECLINE_SURVEY_TEXT = [
 ].join('\n');
 
 const CLOSING_PRICE_ASK =
-  '📊 Félicitations ! À quel prix final le bien a-t-il été conclu ? (ex: 700$)\n\n' +
+  '📊 Super ! Quel a été le prix final conclu (en USD) ? (Exemple: 700)\n\n' +
   'Répondez _passer_ si vous préférez ne pas le communiquer.';
 
 const CLOSING_PRICE_THANKS = `${HEADER_BRAND} Merci, la transaction est enregistrée. 🎉`;
+
+const CLOSING_PRICE_USD_ONLY =
+  `${HEADER_BRAND} Merci ! Pouvez-vous nous donner le montant en dollars (USD) ? (Exemple: 700)`;
+
+const CLOSING_PRICE_REASK =
+  `${HEADER_BRAND} D'accord — quel a été le montant exact conclu, en USD ? (Exemple: 700)`;
+
+/** A figure we read out of a sentence, read back before anything is written. */
+function closingPriceConfirmText(amount) {
+  return [
+    `${HEADER_BRAND} Nous avons compris : ${priceExtraction.formatUsd(amount)}.`,
+    '',
+    'Répondez *OUI* pour confirmer, ou envoyez le bon montant.',
+  ].join('\n');
+}
+
+/** The receipt: the figure, and — when the listing had an asking price — the real gap. */
+function closingPriceThanksText(amount, listPrice, delta) {
+  const lines = [CLOSING_PRICE_THANKS, `💰 Prix conclu : ${priceExtraction.formatUsd(amount)}`];
+  if (listPrice != null && delta?.deltaPct != null) {
+    lines.push(
+      `🏷️ Prix affiché : ${priceExtraction.formatUsd(listPrice)} (écart : ${priceExtraction.formatPct(delta.deltaPct)})`,
+    );
+  }
+  return lines.join('\n');
+}
 const CLOSING_PRICE_SKIPPED =
   `${HEADER_BRAND} Très bien — le bien reste retiré des recherches. Merci de nous avoir prévenus ! 🙌`;
 const RESCHEDULE_ASK =
@@ -648,7 +811,7 @@ function tenantAlternativesText(alternatives) {
   return lines.join('\n');
 }
 
-function opsDeclineText({ listing, viewingRequest, propertyId, reasonCode, closedPrice }) {
+function opsDeclineText({ listing, viewingRequest, propertyId, reasonCode, closedPrice, listPrice, delta }) {
   const lines = [
     `${HEADER_BRAND} Visite déclinée`,
     '',
@@ -661,8 +824,11 @@ function opsDeclineText({ listing, viewingRequest, propertyId, reasonCode, close
       closedPrice != null
         ? `💰 Conclu à ${Number(closedPrice).toLocaleString('fr-FR')} $ — annonce retirée des recherches.`
         : "⚠️ L'agent dit le bien déjà loué/vendu, sans prix communiqué.",
-      '👉 À vérifier et archiver sur le storefront.',
     );
+    if (closedPrice != null && listPrice != null && delta?.deltaPct != null) {
+      lines.push(`🏷️ Affiché ${priceExtraction.formatUsd(listPrice)} — écart ${priceExtraction.formatPct(delta.deltaPct)}`);
+    }
+    lines.push('👉 À vérifier et archiver sur le storefront.');
   }
   lines.push('', `Demande #${viewingRequest?.id}`, listingLink(listing, propertyId));
   return lines.join('\n');
@@ -735,6 +901,18 @@ async function resolveContext(viewingRequestId, from) {
     }
   }
 
+  // Reassigned by an admin: the request now belongs to that agent, and only
+  // their taps count — the listing's own agent is no longer authorised on it.
+  if (listing && request.reassigned_at && request.agent_id) {
+    let assigned = null;
+    try {
+      assigned = await propertyRepository.getAgentContactById(request.agent_id);
+    } catch (err) {
+      console.error(`[viewing] assigned agent lookup #${request.agent_id} failed: ${err.message}`);
+    }
+    listing = withAgent(listing, assigned);
+  }
+
   const senderDigits = String(from || '').replace(/\D/g, '');
   const agentDigits = String(listing?.agent_phone || '').replace(/\D/g, '');
   const authorised = Boolean(agentDigits) && agentDigits === senderDigits;
@@ -768,8 +946,23 @@ async function resolveContext(viewingRequestId, from) {
  * an agent who ignores the slot question has still accepted the visit, and
  * the customer must not be left waiting on a questionnaire.
  */
+/**
+ * Stamp the agent's answer for response latency. The SQLite mirror keeps only
+ * the first; the Postgres log keeps the first latency and the latest outcome.
+ * Never throws — a metrics write must not stop the customer being told.
+ */
+async function recordAgentResponse(request, outcome) {
+  try {
+    dbService.recordViewingFirstResponse(request.id);
+  } catch (err) {
+    console.error(`[viewing] first-response stamp for #${request.id} failed: ${err.message}`);
+  }
+  await agentPerformance.logResponse({ viewingRequestId: request.id, outcome });
+}
+
 async function handleAccept({ request, listing, propertyId, from }) {
   dbService.updateViewingRequest(request.id, { status: 'CONFIRMED' });
+  await recordAgentResponse(request, 'CONFIRMED');
   dbService.clearPendingAgentAction(from);
 
   await trySend(from, acceptedAgentText(listing, request, propertyId), 'accept ack');
@@ -839,6 +1032,7 @@ async function handleSlotEdit({ request, from }) {
 
 async function handleReschedule({ request, from }) {
   dbService.updateViewingRequest(request.id, { status: 'RESCHEDULED' });
+  await recordAgentResponse(request, 'RESCHEDULED');
   // The agent's NEXT message is the slot they are proposing.
   dbService.setPendingAgentAction({
     waId: from,
@@ -853,6 +1047,7 @@ async function handleReschedule({ request, from }) {
 
 async function handleDecline({ request, listing, propertyId, from }) {
   dbService.updateViewingRequest(request.id, { status: 'DECLINED' });
+  await recordAgentResponse(request, 'DECLINED');
   dbService.setPendingAgentAction({
     waId: from,
     kind: PENDING_KINDS.declineReason,
@@ -1001,6 +1196,7 @@ async function handleAgentTextReply({ from, text }) {
     const reason = parseDeclineReason(text);
     if (!reason) return { handled: false };
     dbService.setViewingDeclineReason(ctx.request.id, `${reason} — ${DECLINE_REASONS[reason]}`);
+    dbService.setViewingDeclineCode(ctx.request.id, AGENT_DECLINE_REASON_CODES[reason], 'AGENT');
 
     if (reason === 1) {
       // The property is gone. Retire it now on what the agent told us, and
@@ -1022,38 +1218,113 @@ async function handleAgentTextReply({ from, text }) {
   }
 
   if (pending.kind === PENDING_KINDS.closingPrice) {
-    const amount = parseClosingPrice(text);
-    if (amount !== null) {
-      dbService.clearPendingAgentAction(from);
-      let recorded = false;
-      try {
-        recorded = await require('./postgres').markPropertySold(remotePropertyIdFor(ctx), amount);
-      } catch (err) {
-        console.error(`[viewing] could not close property #${ctx.propertyId}: ${err.message}`);
+    // services/priceExtraction.js: a bare figure is written straight away,
+    // exactly as before; one read out of a sentence or by the model is read
+    // back first; a property advert or a franc amount is never taken as one.
+    const parsed = await priceExtraction.parseAgentPriceResponse(text);
+    if (parsed.declined) return { handled: true, ...(await skipClosingPrice(ctx, from)) };
+    if (parsed.amount === null) {
+      if (parsed.reason === 'cdf') {
+        await trySend(from, CLOSING_PRICE_USD_ONLY, 'closing price usd only');
+        return { handled: true, action: 'closing-price-needs-usd' };
       }
-      await trySend(from, CLOSING_PRICE_THANKS, 'closing price thanks');
-      await notifyOps(
-        opsDeclineText({ ...ctx, viewingRequest: ctx.request, reasonCode: 1, closedPrice: amount }),
-        'ops closed note',
-      );
-      console.log(`[viewing] property #${ctx.propertyId} closed at ${amount} (written: ${recorded})`);
-      return { handled: true, action: 'closing-price-recorded', amount, recorded };
+      return { handled: false };
     }
-    if (isPriceDeclined(text)) {
-      // Stays 'under_offer': off the market, transaction not recorded. Honest,
-      // and it keeps the market export free of a fabricated price.
-      dbService.clearPendingAgentAction(from);
-      await trySend(from, CLOSING_PRICE_SKIPPED, 'closing price skipped');
-      await notifyOps(
-        opsDeclineText({ ...ctx, viewingRequest: ctx.request, reasonCode: 1, closedPrice: null }),
-        'ops closed note',
-      );
-      return { handled: true, action: 'closing-price-skipped' };
+    if (parsed.needsConfirmation) {
+      dbService.setPendingAgentAction({
+        waId: from,
+        kind: PENDING_KINDS.closingPriceConfirm,
+        viewingRequestId: ctx.request.id,
+        amount: parsed.amount,
+      });
+      await trySend(from, closingPriceConfirmText(parsed.amount), 'closing price confirm');
+      console.log(`[viewing] property #${ctx.propertyId} closing price ${parsed.amount} read (${parsed.source}) — awaiting OUI`);
+      return {
+        handled: true,
+        action: 'closing-price-confirm-asked',
+        amount: parsed.amount,
+        source: parsed.source,
+        awaiting: PENDING_KINDS.closingPriceConfirm,
+      };
     }
+    return { handled: true, ...(await recordClosingPrice(ctx, from, parsed.amount)) };
+  }
+
+  if (pending.kind === PENDING_KINDS.closingPriceConfirm) {
+    const amount = Number(pending.amount);
+    if (priceExtraction.isAffirmative(text) && Number.isFinite(amount) && amount > 0) {
+      return { handled: true, ...(await recordClosingPrice(ctx, from, amount)) };
+    }
+    // A corrected figure replaces the one we read back — it is the agent's
+    // own bare answer, which is the most certain form there is.
+    const corrected = priceExtraction.parseBarePrice(text);
+    if (corrected !== null) return { handled: true, ...(await recordClosingPrice(ctx, from, corrected)) };
+    if (/^(non|no)[\s!.]*$/.test(fold(text))) {
+      dbService.setPendingAgentAction({
+        waId: from,
+        kind: PENDING_KINDS.closingPrice,
+        viewingRequestId: ctx.request.id,
+      });
+      await trySend(from, CLOSING_PRICE_REASK, 'closing price re-ask');
+      return { handled: true, action: 'closing-price-reasked', awaiting: PENDING_KINDS.closingPrice };
+    }
+    if (priceExtraction.isPriceDeclined(text)) return { handled: true, ...(await skipClosingPrice(ctx, from)) };
     return { handled: false };
   }
 
   return { handled: false };
+}
+
+/**
+ * Write the close: sold_price + sold_at + price_source in one UPDATE, the
+ * asking price back for the delta, and a receipt stating both. The delta is
+ * computed here for the message only — it is derived again at read time
+ * everywhere else and never stored.
+ */
+async function recordClosingPrice(ctx, from, amount) {
+  dbService.clearPendingAgentAction(from);
+  let recorded = false;
+  let listPrice = ctx.listing?.price != null ? Number(ctx.listing.price) : null;
+  try {
+    const result = await require('./postgres').recordSoldPrice(remotePropertyIdFor(ctx), amount, {
+      source: PRICE_SOURCE_WHATSAPP,
+    });
+    recorded = result.updated;
+    if (result.listPrice != null) listPrice = result.listPrice;
+  } catch (err) {
+    console.error(`[viewing] could not close property #${ctx.propertyId}: ${err.message}`);
+  }
+  const delta = priceExtraction.computePriceDelta(listPrice, amount);
+
+  await trySend(from, closingPriceThanksText(amount, listPrice, delta), 'closing price thanks');
+  await notifyOps(
+    opsDeclineText({ ...ctx, viewingRequest: ctx.request, reasonCode: 1, closedPrice: amount, listPrice, delta }),
+    'ops closed note',
+  );
+  console.log(
+    `[viewing] property #${ctx.propertyId} closed at ${amount} (list ${listPrice ?? '?'}, `
+      + `delta ${delta.deltaPct ?? '?'}%, written: ${recorded})`,
+  );
+  return {
+    action: 'closing-price-recorded',
+    amount,
+    recorded,
+    listPrice,
+    deltaUsd: delta.deltaUsd,
+    deltaPct: delta.deltaPct,
+    source: PRICE_SOURCE_WHATSAPP,
+  };
+}
+
+/** Stays 'under_offer': off the market, transaction not recorded, no price invented. */
+async function skipClosingPrice(ctx, from) {
+  dbService.clearPendingAgentAction(from);
+  await trySend(from, CLOSING_PRICE_SKIPPED, 'closing price skipped');
+  await notifyOps(
+    opsDeclineText({ ...ctx, viewingRequest: ctx.request, reasonCode: 1, closedPrice: null }),
+    'ops closed note',
+  );
+  return { action: 'closing-price-skipped' };
 }
 
 /** The engine-side listing row behind a Postgres property, if we have one. */
@@ -1090,6 +1361,13 @@ async function retireListing(ctx, from) {
 module.exports = {
   notifyViewingRequest,
   notifyViewingRequestInBackground,
+  reassignViewing,
+  nudgeViewingAgent,
+  AGENT_DECLINE_REASON_CODES,
+  closingPriceConfirmText,
+  closingPriceThanksText,
+  CLOSING_PRICE_USD_ONLY,
+  PRICE_SOURCE_WHATSAPP,
   opsNumber,
   warnIfOpsUnconfigured,
   notifyOps,

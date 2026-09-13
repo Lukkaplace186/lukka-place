@@ -61,3 +61,30 @@ export function listingEventPayload(listing) {
     commune: listing?.commune ?? null,
   };
 }
+
+/**
+ * `whatsapp_cta_clicked` — a tap on a listing's WhatsApp button, with the
+ * routing it took (lib/leadRouting.js). Goes to /api/telemetry/lead-click,
+ * which writes the same `whatsapp_clicks` row a `whatsapp_click` did plus the
+ * routing, so it REPLACES trackEvent('whatsapp_click') at those call sites —
+ * firing both would count every tap twice in the conversion rate.
+ *
+ * No `agentId` in the body on purpose: the server reads it off the listing
+ * row. Same silent-failure posture as trackEvent, for the same reasons.
+ *
+ * @param {Object} listing
+ * @param {'DIRECT_WA'|'CENTRAL_FALLBACK'} routingType
+ */
+export function trackLeadClick(listing, routingType) {
+  if (typeof window === 'undefined') return;
+  try {
+    fetch('/api/telemetry/lead-click', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event: 'whatsapp_cta_clicked', ...listingEventPayload(listing), routingType }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    // Not the visitor's problem.
+  }
+}

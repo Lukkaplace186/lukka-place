@@ -19,6 +19,8 @@ const adminRoutes = require('./routes/admin');
 const { UPLOADS_ROOT } = require('./services/mediaStorage');
 const scheduler = require('./services/scheduler');
 const locationsService = require('./services/locations');
+const { getAgentPerformanceBenchmarks } = require('./services/agentPerformance');
+const postgresService = require('./services/postgres');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -137,6 +139,26 @@ app.get('/listings', requireApiKey, (req, res) => {
 // ---------------------------------------------------------------------------
 
 app.use('/admin', requireApiKey, adminRoutes);
+
+// ---------------------------------------------------------------------------
+// GET /api/admin/benchmarks/agent-performance — the agent leaderboard's data
+// (services/agentPerformance.js). Same requireApiKey gate as /admin. A 503,
+// not an empty 200, when Postgres is not configured: "no data" and "cannot
+// read the data" must not look the same on a dashboard.
+// ---------------------------------------------------------------------------
+
+app.get('/api/admin/benchmarks/agent-performance', requireApiKey, async (req, res) => {
+  if (!postgresService.isConfigured()) {
+    return res.status(503).json({ success: false, error: 'Postgres is not configured.' });
+  }
+  try {
+    const data = await getAgentPerformanceBenchmarks({ days: req.query.days });
+    return res.json({ success: true, ...data });
+  } catch (err) {
+    console.error(`[api] GET /api/admin/benchmarks/agent-performance failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not compute agent performance.' });
+  }
+});
 
 // ---------------------------------------------------------------------------
 // GET /locations — Kinshasa commune/quartier hierarchy (kinshasa_locations.json)

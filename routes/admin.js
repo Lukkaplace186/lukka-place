@@ -19,7 +19,12 @@ const db = require('../services/db');
 const chakra = require('../services/chakra');
 const { STATES } = require('../services/conversationState');
 const { dispatchLead, dispatchLeadInBackground } = require('../services/leadDispatch');
-const { notifyViewingRequestInBackground } = require('../services/viewingNotifications');
+const {
+  notifyViewingRequestInBackground,
+  reassignViewing,
+  nudgeViewingAgent,
+} = require('../services/viewingNotifications');
+const { parseFrenchSlot } = require('../services/visitSchedule');
 
 const router = express.Router();
 
@@ -568,22 +573,101 @@ router.get('/viewing-requests', (req, res) => {
   }
 });
 
+/**
+ * Every viewing request across every agent — /admin/viewings and
+ * /admin/telemetry. Deliberately a separate path from GET /viewing-requests,
+ * whose owner scoping (no ownership signal -> nothing) must stay intact for the
+ * agent dashboard.
+ */
+router.get('/viewing-requests/feed', (req, res) => {
+  const { status, routing_type: routingType, limit, offset } = req.query;
+  try {
+    return res.json({ success: true, ...db.listAllViewingRequests({ status, routingType, limit, offset }) });
+  } catch (err) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * `scheduled_at` accepts either an ISO instant with an offset or a French
+ * phrase ("samedi 14h") read by the same parser the agent's WhatsApp answer
+ * goes through. A day with no hour is refused there, and so it is here —
+ * an admin override must not invent the 9am the agent loop refuses to.
+ */
+function resolveScheduledAt(raw) {
+  if (raw === null || raw === '') return { value: null };
+  const text = String(raw).trim();
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/.test(text)) {
+    const date = new Date(text);
+    if (!Number.isNaN(date.getTime())) return { value: date.toISOString() };
+  }
+  const slot = parseFrenchSlot(text);
+  if (slot) return { value: slot.iso };
+  return { error: "scheduled_at must be an ISO instant with an offset, or a phrase with a day and an hour ('samedi 14h')." };
+}
+
 router.patch('/viewing-requests/:id', (req, res) => {
   const id = Number.parseInt(req.params.id, 10);
   if (!Number.isFinite(id) || !db.getViewingRequest(id)) {
     return res.status(404).json({ success: false, error: 'Viewing request not found.' });
   }
 
-  const { status, requested_time: requestedTime } = req.body || {};
-  if (status === undefined && requestedTime === undefined) {
-    return res.status(400).json({ success: false, error: 'status or requested_time is required.' });
+  const { status, requested_time: requestedTime, scheduled_at: scheduledAtRaw } = req.body || {};
+  if (status === undefined && requestedTime === undefined && scheduledAtRaw === undefined) {
+    return res.status(400).json({ success: false, error: 'status, requested_time or scheduled_at is required.' });
+  }
+
+  let scheduledAt;
+  if (scheduledAtRaw !== undefined) {
+    const resolved = resolveScheduledAt(scheduledAtRaw);
+    if (resolved.error) return res.status(400).json({ success: false, error: resolved.error });
+    scheduledAt = resolved.value;
   }
 
   try {
-    const viewingRequest = db.updateViewingRequest(id, { status, requestedTime });
-    return res.json({ success: true, viewingRequest });
+    if (status !== undefined || requestedTime !== undefined) {
+      db.updateViewingRequest(id, { status, requestedTime });
+    }
+    if (scheduledAt !== undefined) db.setViewingScheduledAt(id, scheduledAt);
+    return res.json({ success: true, viewingRequest: db.getViewingRequest(id) });
   } catch (err) {
     return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+/** Admin override: hand the request to another verified agent and alert them. */
+router.post('/viewing-requests/:id/reassign', async (req, res) => {
+  const id = Number.parseInt(req.params.id, 10);
+  if (!Number.isFinite(id) || !db.getViewingRequest(id)) {
+    return res.status(404).json({ success: false, error: 'Viewing request not found.' });
+  }
+  const agentId = Number.parseInt(req.body?.agent_id, 10);
+  if (!Number.isFinite(agentId)) {
+    return res.status(400).json({ success: false, error: 'agent_id must be a numeric agents.id.' });
+  }
+  try {
+    const result = await reassignViewing(id, agentId);
+    if (!result.ok) return res.status(400).json({ success: false, error: result.reason });
+    return res.json({ success: true, ...result, viewingRequest: db.getViewingRequest(id) });
+  } catch (err) {
+    console.error(`[admin] POST /viewing-requests/${id}/reassign failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not reassign the viewing request.' });
+  }
+});
+
+/** Re-engagement ping — resend the current agent's alert. */
+router.post('/viewing-requests/:id/nudge', async (req, res) => {
+  const id = Number.parseInt(req.params.id, 10);
+  if (!Number.isFinite(id) || !db.getViewingRequest(id)) {
+    return res.status(404).json({ success: false, error: 'Viewing request not found.' });
+  }
+  try {
+    const result = await nudgeViewingAgent(id);
+    if (!result.ok) return res.status(400).json({ success: false, error: result.reason || 'agent not reached' });
+    return res.json({ success: true, ...result });
+  } catch (err) {
+    console.error(`[admin] POST /viewing-requests/${id}/nudge failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not nudge the agent.' });
   }
 });
 

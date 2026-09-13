@@ -5707,7 +5707,7 @@ console.log('\n2. services/openai.js');
   check('answering "déjà loué" asks the agent what it closed at', () => {
     assert.strictEqual(reason1.action, 'declined-already-taken');
     const toAgent = httpCalls.find((c) => c.data.to === AGENT_WA).data.text.body;
-    assert.match(toAgent, /À quel prix final le bien a-t-il été conclu/);
+    assert.match(toAgent, /Quel a été le prix final conclu \(en USD\) \? \(Exemple: 700\)/);
     assert.strictEqual(dbService.getPendingAgentAction(AGENT_WA).kind, 'CLOSING_PRICE');
   });
 
@@ -6682,6 +6682,437 @@ console.log('\n2. services/openai.js');
   });
 
 
+
+  // -------------------------------------------------------------------------
+  // 28. Direct-to-agent routing, WhatsApp price capture, agent performance
+  //     (migrations/20260913_lead_routing_and_price_capture.sql)
+  //
+  //     A closing price is the one figure the market export exists to hold,
+  //     so the parser is pinned in both directions: what it must read, and —
+  //     just as important — what it must refuse (an advert, francs, a figure
+  //     the model made up). Routing is pinned on what actually happened, and
+  //     every rate the leaderboard shows is asserted against its SQL.
+  // -------------------------------------------------------------------------
+
+  console.log('\n28. Lead routing, WhatsApp price capture, agent performance');
+
+  const priceExtraction = require('../services/priceExtraction');
+  const agentPerformance = require('../services/agentPerformance');
+  const realContactLookup28 = propertyRepo.getListingContactById;
+  const realAgentLookup28 = propertyRepo.getAgentContactById;
+  const realModelExtractor = priceExtraction.extractPriceWithModel;
+  const LISTED = { ...ATTRIBUTED_LISTING, price: '750' };
+  propertyRepo.getListingContactById = async () => LISTED;
+
+  // --- 28a. Reading a closing price ----------------------------------------
+
+  await checkAsync('a bare figure is saved as-is, exactly as the anchored parser always did', async () => {
+    for (const [text, amount] of [['700', 700], ['1 100 $', 1100], ['1.200 USD', 1200], ['80', 80]]) {
+      const r = await priceExtraction.parseAgentPriceResponse(text);
+      assert.deepStrictEqual([r.amount, r.source, r.needsConfirmation], [amount, 'exact', false], text);
+    }
+  });
+
+  await checkAsync('one amount inside a short sentence is read — and must be confirmed', async () => {
+    const r = await priceExtraction.parseAgentPriceResponse('vendu à 700 dollars');
+    assert.deepStrictEqual([r.amount, r.source, r.needsConfirmation], [700, 'regex', true]);
+  });
+
+  await checkAsync('a year beside the price is not mistaken for it (the spec regex read "2026")', async () => {
+    assert.strictEqual((await priceExtraction.parseAgentPriceResponse('loué en septembre 2026 pour 650$')).amount, 650);
+  });
+
+  await checkAsync('"1,5k" is 1500', async () => {
+    assert.strictEqual((await priceExtraction.parseAgentPriceResponse('1,5k')).amount, 1500);
+  });
+
+  await checkAsync('a property advert is never read as a price', async () => {
+    const r = await priceExtraction.parseAgentPriceResponse('Appartement 3 chambres à Gombe 800$');
+    assert.deepStrictEqual([r.amount, r.reason], [null, 'not-an-answer']);
+  });
+
+  await checkAsync('francs are refused, never converted', async () => {
+    assert.strictEqual((await priceExtraction.parseAgentPriceResponse('500 000 FC')).reason, 'cdf');
+  });
+
+  await checkAsync('"depuis 3 mois" carries no price', async () => {
+    assert.strictEqual((await priceExtraction.parseAgentPriceResponse('depuis 3 mois')).amount, null);
+  });
+
+  await checkAsync('number words go to the model, and its answer still needs confirming', async () => {
+    priceExtraction.extractPriceWithModel = async () => ({ amount_usd: 700, currency: 'USD' });
+    const r = await priceExtraction.parseAgentPriceResponse('sept cents dollars');
+    assert.deepStrictEqual([r.amount, r.source, r.needsConfirmation], [700, 'llm', true]);
+  });
+
+  await checkAsync('the model may choose among the numbers in the text, never add one', async () => {
+    priceExtraction.extractPriceWithModel = async () => ({ amount_usd: 900, currency: 'USD' });
+    const invented = await priceExtraction.parseAgentPriceResponse('entre 700 et 750');
+    assert.deepStrictEqual([invented.amount, invented.reason], [null, 'model-unsupported']);
+    priceExtraction.extractPriceWithModel = async () => ({ amount_usd: 750, currency: 'USD' });
+    assert.strictEqual((await priceExtraction.parseAgentPriceResponse('entre 700 et 750')).amount, 750);
+    priceExtraction.extractPriceWithModel = async () => ({ amount_usd: 500000, currency: 'CDF' });
+    assert.strictEqual((await priceExtraction.parseAgentPriceResponse('cinq cent mille')).amount, null);
+  });
+
+  check('the delta is sold minus listed, and that as a percentage of listed', () => {
+    assert.deepStrictEqual(priceExtraction.computePriceDelta(750, 700), { deltaUsd: -50, deltaPct: -6.67 });
+    assert.deepStrictEqual(priceExtraction.computePriceDelta(0, 700), { deltaUsd: null, deltaPct: null });
+    assert.deepStrictEqual(priceExtraction.computePriceDelta(null, 700), { deltaUsd: null, deltaPct: null });
+  });
+
+  // --- 28b. The capture flow on WhatsApp -----------------------------------
+
+  const captureTarget = freshViewingRequest();
+  await viewingNotifications.handleViewingButtonReply({ from: AGENT_WA, replyId: `viewing_decline:${captureTarget.id}` });
+  await viewingNotifications.handleAgentTextReply({ from: AGENT_WA, text: '1' });
+
+  check("an agent's decline is stored as a code, attributed to the agent", () => {
+    const row = dbService.getViewingRequest(captureTarget.id);
+    assert.strictEqual(row.decline_reason_code, 'PROPERTY_NO_LONGER_AVAILABLE');
+    assert.strictEqual(row.decline_reason_by, 'AGENT');
+  });
+
+  check('the decline stamped a first response, for latency', () =>
+    assert.ok(dbService.getViewingRequest(captureTarget.id).first_response_at));
+
+  httpCalls.length = 0;
+  const readBack = await viewingNotifications.handleAgentTextReply({ from: AGENT_WA, text: 'vendu à 700 dollars' });
+
+  check('a price read out of a sentence is read back, and nothing is written yet', () => {
+    assert.strictEqual(readBack.action, 'closing-price-confirm-asked');
+    assert.strictEqual(readBack.amount, 700);
+    const pending = dbService.getPendingAgentAction(AGENT_WA);
+    assert.strictEqual(pending.kind, 'CLOSING_PRICE_CONFIRM');
+    assert.strictEqual(pending.amount, 700);
+    assert.match(httpCalls.find((c) => c.data.to === AGENT_WA).data.text.body, /Nous avons compris : 700 \$/);
+  });
+
+  httpCalls.length = 0;
+  const confirmedPrice = await viewingNotifications.handleAgentTextReply({ from: AGENT_WA, text: 'Oui' });
+
+  check('OUI writes the close, tagged as a WhatsApp agent reply', () => {
+    assert.strictEqual(confirmedPrice.action, 'closing-price-recorded');
+    assert.strictEqual(confirmedPrice.amount, 700);
+    assert.strictEqual(confirmedPrice.source, 'WHATSAPP_AGENT_REPLY');
+    assert.strictEqual(confirmedPrice.recorded, false, 'no database in this suite — reported honestly');
+    assert.strictEqual(dbService.getPendingAgentAction(AGENT_WA), undefined);
+  });
+
+  check('the receipt states the real gap against the asking price', () => {
+    assert.strictEqual(confirmedPrice.deltaPct, -6.67);
+    const body = httpCalls.find((c) => c.data.to === AGENT_WA).data.text.body;
+    assert.match(body, /Prix conclu : 700 \$/);
+    assert.match(body, /Prix affiché : 750 \$ \(écart : −6,7 %\)/);
+  });
+
+  const recaptureTarget = freshViewingRequest();
+  await viewingNotifications.handleViewingButtonReply({ from: AGENT_WA, replyId: `viewing_decline:${recaptureTarget.id}` });
+  await viewingNotifications.handleAgentTextReply({ from: AGENT_WA, text: '1' });
+
+  await checkAsync('a franc amount is refused and the agent is asked again in USD', async () => {
+    const r = await viewingNotifications.handleAgentTextReply({ from: AGENT_WA, text: '2 000 000 FC' });
+    assert.strictEqual(r.action, 'closing-price-needs-usd');
+    assert.strictEqual(dbService.getPendingAgentAction(AGENT_WA).kind, 'CLOSING_PRICE');
+  });
+
+  await checkAsync('a property advert sent while the question is open falls through to intake', async () => {
+    const r = await viewingNotifications.handleAgentTextReply({
+      from: AGENT_WA,
+      text: 'Appartement 2 chambres à louer, Gombe, 900$',
+    });
+    assert.strictEqual(r.handled, false);
+  });
+
+  await checkAsync('NON to a read-back asks for the figure again instead of saving it', async () => {
+    await viewingNotifications.handleAgentTextReply({ from: AGENT_WA, text: 'environ 650 $' });
+    assert.strictEqual(dbService.getPendingAgentAction(AGENT_WA).kind, 'CLOSING_PRICE_CONFIRM');
+    const r = await viewingNotifications.handleAgentTextReply({ from: AGENT_WA, text: 'non' });
+    assert.strictEqual(r.action, 'closing-price-reasked');
+    assert.strictEqual(dbService.getPendingAgentAction(AGENT_WA).kind, 'CLOSING_PRICE');
+    dbService.clearPendingAgentAction(AGENT_WA);
+  });
+
+  // --- 28c. Routing is recorded from what actually happened ----------------
+
+  const routedRow = freshViewingRequest();
+  const routed = await viewingNotifications.notifyViewingRequest({
+    viewingRequest: routedRow,
+    lead: dbService.getLead(routedRow.lead_id),
+    propertyId: 303,
+  });
+
+  check('a request that reached a verified agent is DIRECT_WA, with that agent', () => {
+    assert.strictEqual(routed.routingType, 'DIRECT_WA');
+    const row = dbService.getViewingRequest(routedRow.id);
+    assert.strictEqual(row.routing_type, 'DIRECT_WA');
+    assert.strictEqual(row.agent_id, 43);
+  });
+
+  propertyRepo.getListingContactById = async () => ({ ...LISTED, direct_routing_enabled: false });
+  const switchedRow = freshViewingRequest();
+  httpCalls.length = 0;
+  const switchedOff = await viewingNotifications.notifyViewingRequest({
+    viewingRequest: switchedRow,
+    lead: dbService.getLead(switchedRow.lead_id),
+    propertyId: 303,
+  });
+  propertyRepo.getListingContactById = async () => LISTED;
+
+  check('an agent the team switched to central fallback is not alerted directly', () => {
+    assert.strictEqual(switchedOff.agentNotified, false);
+    assert.strictEqual(switchedOff.routingType, 'CENTRAL_FALLBACK');
+    assert.match(switchedOff.reason, /routage direct désactivé/);
+    assert.ok(!httpCalls.some((c) => c.data.to === AGENT_WA), 'the agent must not receive the alert');
+    assert.strictEqual(dbService.getViewingRequest(switchedRow.id).routing_type, 'CENTRAL_FALLBACK');
+  });
+
+  await checkAsync('the first answer fixes the response time; a later answer does not move it', async () => {
+    const req = freshViewingRequest();
+    await viewingNotifications.handleViewingButtonReply({ from: AGENT_WA, replyId: `viewing_reschedule:${req.id}` });
+    const first = dbService.getViewingRequest(req.id).first_response_at;
+    assert.ok(first);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    dbService.clearPendingAgentAction(AGENT_WA);
+    await viewingNotifications.handleViewingButtonReply({ from: AGENT_WA, replyId: `viewing_accept:${req.id}` });
+    assert.strictEqual(dbService.getViewingRequest(req.id).first_response_at, first);
+    dbService.clearPendingAgentAction(AGENT_WA);
+  });
+
+  check('decline codes and routing types outside the vocabulary are refused loudly', () => {
+    const req = freshViewingRequest();
+    assert.throws(() => dbService.setViewingDeclineCode(req.id, 'TOO_FAR', 'AGENT'), /unknown code/);
+    assert.throws(() => dbService.setViewingDeclineCode(req.id, 'OTHER', 'NEIGHBOUR'), /unknown author/);
+    assert.throws(() => dbService.setViewingRouting(req.id, { routingType: 'SMS' }), /unknown routing type/);
+  });
+
+  // --- 28d. Admin overrides: reassign and nudge ----------------------------
+
+  const NEW_AGENT_WA = '243811000222';
+  propertyRepo.getAgentContactById = async (id) => {
+    if (Number(id) === 77) {
+      return {
+        agent_id: 77, agent_phone: NEW_AGENT_WA, phone_verified_at: '2026-09-01T00:00:00Z',
+        direct_routing_enabled: true, agent_name: 'Agence Test',
+      };
+    }
+    if (Number(id) === 78) {
+      return { agent_id: 78, agent_phone: '243811000333', phone_verified_at: null, agent_name: 'Non vérifié' };
+    }
+    return null;
+  };
+
+  const reassignTarget = freshViewingRequest();
+  await viewingNotifications.handleViewingButtonReply({ from: AGENT_WA, replyId: `viewing_decline:${reassignTarget.id}` });
+  dbService.clearPendingAgentAction(AGENT_WA);
+
+  await checkAsync('reassigning to an agent with an unverified number is refused', async () => {
+    const r = await viewingNotifications.reassignViewing(reassignTarget.id, 78);
+    assert.strictEqual(r.ok, false);
+    assert.match(r.reason, /non vérifié/);
+  });
+
+  httpCalls.length = 0;
+  const reassigned = await viewingNotifications.reassignViewing(reassignTarget.id, 77);
+
+  check('a reassign hands the request to the new agent, back to PENDING, and alerts them', () => {
+    assert.strictEqual(reassigned.ok, true);
+    assert.strictEqual(reassigned.agentNotified, true);
+    const row = dbService.getViewingRequest(reassignTarget.id);
+    assert.strictEqual(row.agent_id, 77);
+    assert.ok(row.reassigned_at);
+    assert.strictEqual(row.status, 'PENDING');
+    assert.strictEqual(row.first_response_at, null);
+    const alert = httpCalls.find((c) => c.data.to === NEW_AGENT_WA);
+    assert.ok(alert, 'the new agent was not alerted');
+    assert.strictEqual(alert.data.type, 'interactive');
+  });
+
+  await checkAsync("after a reassign the listing's own agent can no longer answer the request", async () => {
+    const r = await viewingNotifications.handleViewingButtonReply({
+      from: AGENT_WA, replyId: `viewing_accept:${reassignTarget.id}`,
+    });
+    assert.strictEqual(r.ignored, 'not-this-listings-agent');
+  });
+
+  await checkAsync('the reassigned agent can', async () => {
+    const r = await viewingNotifications.handleViewingButtonReply({
+      from: NEW_AGENT_WA, replyId: `viewing_accept:${reassignTarget.id}`,
+    });
+    assert.strictEqual(r.status, 'CONFIRMED');
+    dbService.clearPendingAgentAction(NEW_AGENT_WA);
+  });
+
+  await checkAsync('a nudge re-alerts the agent only, never the desk', async () => {
+    process.env.OPS_WHATSAPP_NUMBER = OPS_WA;
+    const req = freshViewingRequest();
+    httpCalls.length = 0;
+    const r = await viewingNotifications.nudgeViewingAgent(req.id);
+    delete process.env.OPS_WHATSAPP_NUMBER;
+    assert.strictEqual(r.ok, true);
+    assert.ok(httpCalls.some((c) => c.data.to === AGENT_WA));
+    assert.ok(!httpCalls.some((c) => c.data.to === OPS_WA), 'a nudge must not re-ping ops');
+    dbService.clearPendingAgentAction(AGENT_WA);
+  });
+
+  // --- 28e. The customer's side: COMPLETED, and why a visit fell through ---
+
+  const checkinSlot28 = new Date('2026-09-20T12:00:00.000Z').toISOString();
+
+  await checkAsync('👍 completes the visit', async () => {
+    const v = confirmedVisit(checkinSlot28);
+    await sweeps.handleCheckinButtonReply({ from: CUSTOMER_WA, replyId: `visit_feedback_good:${v.request.id}` });
+    assert.strictEqual(dbService.getViewingRequest(v.request.id).status, 'COMPLETED');
+  });
+
+  await checkAsync('"agent absent" is the opposite claim and never completes the visit', async () => {
+    const v = confirmedVisit(checkinSlot28);
+    await sweeps.handleCheckinButtonReply({ from: CUSTOMER_WA, replyId: `visit_feedback_noshow:${v.request.id}` });
+    assert.strictEqual(dbService.getViewingRequest(v.request.id).status, 'CONFIRMED');
+  });
+
+  await checkAsync('👎 completes the visit and asks the customer why — and the answer is theirs', async () => {
+    const v = confirmedVisit(checkinSlot28);
+    httpCalls.length = 0;
+    await sweeps.handleCheckinButtonReply({ from: CUSTOMER_WA, replyId: `visit_feedback_bad:${v.request.id}` });
+    assert.strictEqual(dbService.getViewingRequest(v.request.id).status, 'COMPLETED');
+    assert.strictEqual(dbService.getPendingCustomerAction(CUSTOMER_WA).kind, 'VISIT_FALLOFF_REASON');
+    assert.match(httpCalls.find((c) => c.data.to === CUSTOMER_WA).data.text.body, /Prix trop élevé/);
+
+    const answer = await sweeps.handleCustomerTextReply({ from: CUSTOMER_WA, text: '1' });
+    assert.strictEqual(answer.code, 'PRICE_TOO_HIGH');
+    const row = dbService.getViewingRequest(v.request.id);
+    assert.strictEqual(row.decline_reason_code, 'PRICE_TOO_HIGH');
+    assert.strictEqual(row.decline_reason_by, 'CUSTOMER');
+    assert.strictEqual(dbService.getPendingCustomerAction(CUSTOMER_WA), undefined);
+  });
+
+  check("a customer's reason is read from words too, and a long message is never swallowed", () => {
+    assert.strictEqual(sweeps.parseFalloffReason('trop cher'), 'PRICE_TOO_HIGH');
+    assert.strictEqual(sweeps.parseFalloffReason('le quartier est loin'), 'LOCATION_DESELECTED');
+    assert.strictEqual(sweeps.parseFalloffReason('la garantie'), 'TERMS_UNACCEPTABLE');
+    assert.strictEqual(sweeps.parseFalloffReason('4️⃣'), 'OTHER');
+    assert.strictEqual(
+      sweeps.parseFalloffReason('Bonjour, je cherche un appartement de 3 chambres à Gombe avec parking et groupe'),
+      null,
+    );
+  });
+
+  // --- 28f. Agent performance: the SQL behind every rate --------------------
+
+  function recordingPool(results = []) {
+    const queries = [];
+    return {
+      queries,
+      query: async (sql, values) => {
+        queries.push({ sql, values });
+        return { rows: results.shift() || [], rowCount: 1 };
+      },
+    };
+  }
+
+  await checkAsync('one dispatch log per request; a reassign restarts the clock for the new agent', async () => {
+    const pool = recordingPool();
+    await agentPerformance.logLeadDispatched(
+      { agentId: 43, listingId: 303, viewingRequestId: 9, leadTimestamp: '2026-09-13 10:00:00' },
+      { pool },
+    );
+    assert.match(pool.queries[0].sql, /ON CONFLICT \(viewing_request_id\) WHERE viewing_request_id IS NOT NULL DO NOTHING/);
+    assert.strictEqual(pool.queries[0].values[3], '2026-09-13T10:00:00.000Z', 'SQLite UTC must reach Postgres as UTC');
+    await agentPerformance.logLeadDispatched({ agentId: 77, listingId: 303, viewingRequestId: 9, reassign: true }, { pool });
+    assert.match(pool.queries[1].sql, /DO UPDATE SET agent_id = EXCLUDED\.agent_id/);
+  });
+
+  await checkAsync('the first response keeps its latency; the outcome follows later answers', async () => {
+    const pool = recordingPool();
+    await agentPerformance.logResponse({ viewingRequestId: 9, outcome: 'CONFIRMED', at: '2026-09-13T10:05:00.000Z' }, { pool });
+    const sql = pool.queries[0].sql.replace(/\s+/g, ' ');
+    assert.match(sql, /first_response_timestamp = COALESCE\(first_response_timestamp, \$2::timestamptz\)/);
+    assert.match(sql, /response_latency_seconds = COALESCE\( response_latency_seconds,/);
+    await assert.rejects(
+      () => agentPerformance.logResponse({ viewingRequestId: 9, outcome: 'MAYBE' }, { pool }),
+      /unknown outcome/,
+    );
+  });
+
+  await checkAsync('the leaderboard rates and the commune discount follow the recorded data', async () => {
+    const pool = recordingPool([
+      [{
+        agent_id: '43', agent_name: 'Kkimmo', agent_phone: '243821122937', phone_verified_at: '2026-09-09',
+        direct_routing_enabled: true, leads: 4, responded: 3, avg_latency_seconds: 840,
+        median_latency_seconds: 600, viewings: 2, completed: 1, declined: 1, closed_deals: 1,
+      }],
+      [
+        { commune: 'Commune A', sample: 6, avg_delta_pct: -4.5, avg_delta_usd: -40, from_whatsapp: 4 },
+        { commune: 'Commune B', sample: 2, avg_delta_pct: -8, avg_delta_usd: -80, from_whatsapp: 1 },
+      ],
+    ]);
+    const report = await agentPerformance.getAgentPerformanceBenchmarks({ days: 30, pool });
+    assert.match(agentPerformance.COMMUNE_DELTA_SQL, /p\.approve_status = 1/);
+    assert.ok(!/p\.status = 1/.test(agentPerformance.COMMUNE_DELTA_SQL), 'filtering on status drops every sold listing');
+    assert.deepStrictEqual(pool.queries[0].values, [30]);
+    const [agent] = report.agents;
+    assert.strictEqual(agent.leadToViewingPct, 50);
+    assert.strictEqual(agent.responseRatePct, 75);
+    assert.strictEqual(agent.routesDirect, true);
+    assert.strictEqual(report.communes[0].avgDeltaPct, -4.5);
+    assert.strictEqual(report.communes[1].suppressed, true, 'two closes are not an average');
+    assert.strictEqual(report.communes[1].avgDeltaPct, null);
+    assert.strictEqual(report.totals.avgLatencySeconds, 840);
+  });
+
+  check('an agent with no leads has no rates rather than zero rates, and an unverified one never routes direct', () => {
+    const summary = agentPerformance.summariseAgentRow({
+      agent_id: 1, leads: 0, responded: 0, viewings: 0, closed_deals: 0,
+      phone_verified_at: null, agent_phone: '243811000333', direct_routing_enabled: true,
+    });
+    assert.strictEqual(summary.leadToViewingPct, null);
+    assert.strictEqual(summary.routesDirect, false);
+  });
+
+  // --- 28g. The admin endpoints --------------------------------------------
+
+  const feedRes = await adminRequest('GET', '/admin/viewing-requests/feed?limit=5');
+  check('the admin feed lists every request with routing, status and fall-through counts', () => {
+    assert.strictEqual(feedRes.status, 200);
+    assert.ok(feedRes.body.data.length > 0 && feedRes.body.data.length <= 5);
+    assert.ok(feedRes.body.summary.byRouting.DIRECT_WA >= 1);
+    assert.ok(feedRes.body.summary.byDeclineReason.some((r) => r.code === 'PRICE_TOO_HIGH' && r.by === 'CUSTOMER'));
+  });
+
+  const slotTarget = freshViewingRequest();
+  const slotOk = await adminRequest('PATCH', `/admin/viewing-requests/${slotTarget.id}`, {
+    scheduled_at: '2026-10-03T14:00:00+01:00',
+  });
+  const slotBad = await adminRequest('PATCH', `/admin/viewing-requests/${slotTarget.id}`, { scheduled_at: 'demain' });
+  check('an admin can pin the appointment to a real instant, stored in UTC', () => {
+    assert.strictEqual(slotOk.status, 200);
+    assert.strictEqual(slotOk.body.viewingRequest.scheduled_at, '2026-10-03T13:00:00.000Z');
+  });
+  check('an admin appointment with a day and no hour is refused, never guessed', () =>
+    assert.strictEqual(slotBad.status, 400));
+
+  const reassignNoAgent = await adminRequest('POST', `/admin/viewing-requests/${slotTarget.id}/reassign`, {});
+  const reassignUnknown = await adminRequest('POST', '/admin/viewing-requests/999999/reassign', { agent_id: 77 });
+  check('reassign validates the agent id and the request', () => {
+    assert.strictEqual(reassignNoAgent.status, 400);
+    assert.strictEqual(reassignUnknown.status, 404);
+  });
+
+  const perfNoKey = await new Promise((resolve) => {
+    http.get({ host: 'localhost', port: 3200, path: '/api/admin/benchmarks/agent-performance' }, (res) => {
+      res.resume();
+      resolve(res.statusCode);
+    });
+  });
+  const perfWithKey = await adminRequest('GET', '/api/admin/benchmarks/agent-performance');
+  check('the agent-performance API sits behind the API key', () => assert.strictEqual(perfNoKey, 401));
+  check('without Postgres it answers 503, never an empty leaderboard', () =>
+    assert.strictEqual(perfWithKey.status, 503));
+
+  propertyRepo.getListingContactById = realContactLookup28;
+  propertyRepo.getAgentContactById = realAgentLookup28;
+  priceExtraction.extractPriceWithModel = realModelExtractor;
 
   // -------------------------------------------------------------------------
   console.log(`\n${'-'.repeat(60)}`);

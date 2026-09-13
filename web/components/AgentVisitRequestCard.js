@@ -13,6 +13,8 @@ const STATUS_TAG = {
   CONFIRMED: 'bg-success-tint text-success',
   RESCHEDULED: 'bg-blue-tint text-blue-deep',
   CANCELLED: 'bg-canvas-deep text-ink-45',
+  DECLINED: 'bg-danger-tint text-danger',
+  COMPLETED: 'bg-success-tint text-success',
 };
 
 /**

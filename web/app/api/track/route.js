@@ -1,5 +1,6 @@
 import { getPool } from '@/lib/db';
 import { analyticsDimensions } from '@/lib/requestContext';
+import { clientKey, rateLimited, usableAmount } from '@/lib/eventIngest';
 
 /**
  * Public, write-only event logger for the /admin/dashboard analytics
@@ -35,53 +36,12 @@ import { analyticsDimensions } from '@/lib/requestContext';
  * against casual abuse, not a defence against a determined distributed
  * attacker — that needs a real store, and is worth adding if the numbers ever
  * carry commercial weight on their own.
- */
-
-const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_MAX_EVENTS = 60;
-const hits = new Map();
-
-function rateLimited(key) {
-  const now = Date.now();
-  const cutoff = now - RATE_LIMIT_WINDOW_MS;
-
-  // Sweep on write rather than on a timer: a timer would keep this module
-  // alive and grow unboundedly between ticks under a burst.
-  for (const [k, timestamps] of hits) {
-    const kept = timestamps.filter((t) => t > cutoff);
-    if (kept.length) hits.set(k, kept);
-    else hits.delete(k);
-  }
-
-  const recent = hits.get(key) || [];
-  if (recent.length >= RATE_LIMIT_MAX_EVENTS) return true;
-  recent.push(now);
-  hits.set(key, recent);
-  return false;
-}
-
-/**
- * A price worth storing, or NULL.
  *
- * The body is the client's claim, and `price` reaches it from a rendered
- * listing row, so it arrives as a number, a numeric string, or (for a
- * listing with no price on file) null/undefined/''. Anything that is not a
- * real positive finite number becomes NULL — the column means "this is what
- * it cost when the visitor acted", and a 0 would assert a free property
- * rather than an unknown one. Same distinction lib/listingView.js's
- * `hasArea` already draws for the `area` column's literal '0'.
+ * The limiter, `usableAmount` and `clientKey` live in lib/eventIngest.js,
+ * shared with /api/telemetry/lead-click so both endpoints draw on ONE per-IP
+ * budget. `whatsapp_click` stays accepted here for pages cached before the
+ * storefront CTAs moved to the routing-aware lead-click beacon.
  */
-function usableAmount(value) {
-  if (value === null || value === undefined || value === '') return null;
-  const amount = Number(value);
-  return Number.isFinite(amount) && amount > 0 ? amount : null;
-}
-
-/** Behind Traefik, the socket address is the proxy — the real client is in the forwarded header. */
-function clientKey(request) {
-  const forwarded = request.headers.get('x-forwarded-for') || '';
-  return forwarded.split(',')[0].trim() || request.headers.get('x-real-ip') || 'unknown';
-}
 
 export async function POST(request) {
   if (rateLimited(clientKey(request))) {

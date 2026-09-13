@@ -2,7 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BarChart3, FileText, Mail, User, Users, Landmark, MessageCircle, Radar, Settings } from 'lucide-react';
+import {
+  Activity, BarChart3, CalendarClock, FileText, Gauge, Mail, User, Users, Landmark, MessageCircle, Radar,
+  Settings, TrendingDown,
+} from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
 
@@ -31,6 +34,10 @@ const NAV = [
   { href: '/admin/conversations', labelKey: 'admin.nav.conversations', icon: MessageCircle },
   { href: '/admin/leads', labelKey: 'admin.nav.leads', icon: Mail },
   { href: '/admin/matching', labelKey: 'admin.nav.matching', icon: Radar },
+  { href: '/admin/viewings', labelKey: 'admin.nav.viewings', icon: CalendarClock },
+  { href: '/admin/market-data', labelKey: 'admin.nav.marketData', icon: TrendingDown },
+  { href: '/admin/benchmarks', labelKey: 'admin.nav.agentPerformance', icon: Gauge },
+  { href: '/admin/telemetry', labelKey: 'admin.nav.telemetry', icon: Activity },
   { href: '/admin/agents', labelKey: 'admin.nav.agents', icon: User },
   { href: '/admin/customers', labelKey: 'admin.nav.customers', icon: Users },
   { href: '/admin/subscriptions', labelKey: 'admin.nav.subscriptions', icon: Landmark },

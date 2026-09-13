@@ -30,10 +30,33 @@ export const LEAD_STATUS_LABEL_KEYS = Object.fromEntries(
   LEAD_STATUSES.map((status) => [status, `status.lead.${status}`]),
 );
 
-export const VIEWING_REQUEST_STATUSES = ['PENDING', 'CONFIRMED', 'RESCHEDULED', 'CANCELLED'];
+// DECLINED (the agent refused) and COMPLETED (the customer confirmed the visit
+// happened) are written by the engine's WhatsApp loop, not by a dashboard
+// button — listed so both render with a real label wherever a status appears.
+export const VIEWING_REQUEST_STATUSES = ['PENDING', 'CONFIRMED', 'RESCHEDULED', 'CANCELLED', 'DECLINED', 'COMPLETED'];
 
 export const VIEWING_REQUEST_STATUS_LABEL_KEYS = Object.fromEntries(
   VIEWING_REQUEST_STATUSES.map((status) => [status, `status.viewingRequest.${status}`]),
+);
+
+/** viewing_requests.routing_type / whatsapp_clicks.routing_type. */
+export const ROUTING_TYPES = ['DIRECT_WA', 'CENTRAL_FALLBACK'];
+export const ROUTING_TYPE_LABEL_KEYS = Object.fromEntries(
+  ROUTING_TYPES.map((type) => [type, `status.routing.${type}`]),
+);
+
+/** viewing_requests.decline_reason_code — engine services/db.js DECLINE_REASON_CODES. */
+export const DECLINE_REASON_CODES = [
+  'PRICE_TOO_HIGH', 'PROPERTY_NO_LONGER_AVAILABLE', 'LOCATION_DESELECTED', 'TERMS_UNACCEPTABLE', 'OTHER',
+];
+export const DECLINE_REASON_LABEL_KEYS = Object.fromEntries(
+  DECLINE_REASON_CODES.map((code) => [code, `status.declineReason.${code}`]),
+);
+
+/** properties.price_source — the migration's CHECK constraint. */
+export const PRICE_SOURCES = ['WHATSAPP_AGENT_REPLY', 'ADMIN_DASHBOARD', 'DIRECT_INPUT'];
+export const PRICE_SOURCE_LABEL_KEYS = Object.fromEntries(
+  PRICE_SOURCES.map((source) => [source, `status.priceSource.${source}`]),
 );
 
 /**

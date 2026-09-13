@@ -73,16 +73,20 @@ The storefront queries Supabase directly (chosen over a proxying Express endpoin
 **Dual contact policy.** A listing detail page offers two different things on
 purpose, and they route differently:
 
-- **Direct contact is open and visible.** The listing agent's real phone
-  number is shown on the detail card as both a `tel:` link ("Appeler l'agent")
-  and a direct WhatsApp link — `web/components/EnquiryCard.js`,
-  `agentPhone ? buildWhatsAppLink(agentPhone, …) : getCentralWhatsAppHref(…)`.
-  In Kinshasa a listing with no reachable human behind it reads as a scam;
-  showing the agency's own number is what makes the listing credible, and
-  hiding it to force traffic through a funnel costs more trust than the
-  captured lead is worth. A listing with no attributed agent falls back to
-  Lukka Place's central number, and the `tel:` link renders **not at all**
-  rather than pointing at a number we don't have.
+- **Direct contact is open and visible — for a verified agent.** The listing
+  agent's real phone number is shown as both a `tel:` link ("Appeler l'agent")
+  and a direct `wa.me` link, on desktop (`EnquiryCard`), mobile
+  (`MobileListingBar`) and cards (`WhatsAppCTA`) alike, all through one rule:
+  `web/lib/leadRouting.js`'s `resolveWhatsAppRouting`. In Kinshasa a listing
+  with no reachable human behind it reads as a scam; showing the agency's own
+  number is what makes the listing credible. **The number only reaches the
+  page when `agents.phone_verified_at` is set AND
+  `agents.direct_routing_enabled` is not false** — `web/lib/listings.js`
+  nulls `agent_phone` otherwise, in SQL, and every CTA falls back to Lukka
+  Place's central number (the `tel:` link renders not at all). Before this an
+  unverified number was published as readily as a proven one. The engine's
+  `propertyRepository.directRoutingBlocker` is the same three conditions for
+  WhatsApp alerts; change one, change the other.
 - **"Demander une visite" is the automated pipeline.** It never opens a chat
   client. It creates a real `leads` row plus a real `viewing_requests` row and
   dispatches over WhatsApp from the engine — see "Viewing-Request
@@ -96,12 +100,11 @@ use the central number and never a per-listing agent number. That rule
 described a state where no per-listing contact existed; `properties.agent_id`
 now resolves to a real `agents.phone` for attributed listings.
 
-**Known split, not yet reconciled:** the mobile listing bar
-(`web/components/MobileListingBar.js`) still routes its WhatsApp button to the
-central number and is not even passed `agent_phone`, while the desktop
-`EnquiryCard` routes to the agent. The same listing therefore offers a
-different contact depending on screen width. Decide which is intended before
-writing more code against either.
+**The mobile/desktop split is reconciled.** `MobileListingBar` used to route
+to the central number while `EnquiryCard` routed to the agent, so one listing
+offered two contacts depending on screen width. Both now use
+`resolveWhatsAppRouting`. See "Direct-to-Agent Routing, Price Capture &
+Agent Performance" below.
 
 - **Message Format** (both paths):
   ```
@@ -721,7 +724,10 @@ three in `web/CLAUDE.md`, and the distinction is the whole point:
 - Appended to `LISTING_EXPORT_COLUMNS` — **appended**, since that list is the
   CSV column order and a consumer's spreadsheet is keyed on it.
 
-## Benchmark pricing (`web/lib/marketBenchmarks.js`, `/admin/benchmarks`)
+## Benchmark pricing (`web/lib/marketBenchmarks.js`, `/admin/market-data`)
+
+Moved from `/admin/benchmarks`, which is now the agent leaderboard — see
+"Direct-to-Agent Routing, Price Capture & Agent Performance".
 
 Medians of real closed transactions by commune × purpose × property_type —
 asking, achieved, the negotiation gap, and days on market. Built **on**
@@ -742,6 +748,81 @@ listing, i.e. the entire dataset), the same `sold_at`-preferred DOM.
 - Admin-only and `noindex`, behind the same `ADMIN_SESSION_COOKIE` gate as the
   CSV export. **Expect it to be mostly empty**: very few transactions are
   recorded yet, and that is an accurate report on the market record.
+
+## Direct-to-Agent Routing, Price Capture & Agent Performance
+
+`migrations/20260913_lead_routing_and_price_capture.sql` (run with
+`node scripts/run-sql-migration.js <file> --write`, idempotent). **Adapted to
+the real schema, deliberately not the literal brief**, and the reasons bind:
+
+- **No `sold_price_usd` / `price_delta_*` columns.** `properties.sold_price`
+  and `sold_at` (a DATE) already exist and every reader uses them; the deltas
+  are derived at read time exactly as `web/lib/dataExport.js` does, so a
+  corrected asking price never leaves a stale delta. Only the missing fact was
+  added: `properties.price_source` (`WHATSAPP_AGENT_REPLY` / `ADMIN_DASHBOARD`
+  / `DIRECT_INPUT`, CHECK-constrained). `postgres.recordSoldPrice` writes it in
+  the same UPDATE as the price; web's `markListingSoldAction` writes
+  `DIRECT_INPUT`; every path that clears `sold_price` clears it too.
+- **`agents.direct_routing_enabled`** (default true) is the admin switch on
+  `/admin/benchmarks`. It can switch a verified agent OFF; it can never switch
+  an unverified number ON — enforced in the UPDATE's WHERE clause, not only
+  the UI.
+- **`agent_performance_logs`** uses BIGINT FKs (`agents.id`/`properties.id` are
+  bigint, not UUID) with `ON DELETE CASCADE`, because agents delete their own
+  listings from the web dashboard. One row per viewing request that REACHED an
+  agent (partial unique index on `viewing_request_id`), written by
+  `viewingNotifications.notifyViewingRequest`; first response latency by
+  `logResponse` (COALESCE keeps the first); COMPLETED by the check-in.
+  **Scope, stated on the page:** a direct `wa.me` chat is invisible to us and
+  is not a "lead" here — the leaderboard measures viewing requests only.
+- **`viewing_requests` is SQLite**, so its new columns are in
+  `services/db.js`'s idempotent ALTER list: `agent_id`, `routing_type`
+  (DIRECT_WA when a verified agent was actually alerted, CENTRAL_FALLBACK
+  otherwise — recorded from what happened, not from what the page offered),
+  `reassigned_at`, `first_response_at`, `decline_reason_code`,
+  `decline_reason_by`. `COMPLETED` joins the status vocabulary and is reached
+  only by a 👍/👎 check-in; "agent absent" never completes a request.
+- **`whatsapp_clicks.routing_type` / `agent_id`**, written by
+  `POST /api/telemetry/lead-click` (`trackLeadClick`, event
+  `whatsapp_cta_clicked`). It REPLACES `trackEvent('whatsapp_click')` at the
+  three CTAs — both would double-count the conversion rate. `agent_id` is read
+  from `properties` in the INSERT, never from the request body.
+
+**Price capture** (`services/priceExtraction.js`): a bare figure ("700",
+"1 100 $") is written immediately, as before; a figure read from a sentence
+("vendu à 700 dollars") or by the model ("sept cents") is read back and only
+written on OUI (`CLOSING_PRICE_CONFIRM`, amount held in
+`pending_agent_actions.amount`). Refused, never guessed: a message that reads
+like a property advert (falls through to intake), francs, and any model answer
+that is not one of the numbers literally in the text. The brief's
+`/\b(\d{3,6})…/` regex was not used — it reads "2026" as a price and misses a
+$80 rent. The receipt states the real delta against the asking price.
+
+**Decline reasons** keep the agent's 3-option survey (mapped to
+`PROPERTY_NO_LONGER_AVAILABLE` / `OTHER`); `PRICE_TOO_HIGH`,
+`LOCATION_DESELECTED`, `TERMS_UNACCEPTABLE` are asked of the CUSTOMER after a
+👎 check-in (`viewingSweeps.parseFalloffReason`). `decline_reason_by` keeps
+the two apart.
+
+**Admin overrides** (`routes/admin.js`): `GET /admin/viewing-requests/feed`
+(all agents — not the owner-scoped list), `POST …/:id/reassign` (target must
+pass `directRoutingBlocker`; after a reassign only the assigned agent's taps
+are authorised), `POST …/:id/nudge` (agent only, never re-pings ops), `PATCH
+…/:id` with `scheduled_at` (ISO with offset or "samedi 14h"; a day with no hour
+is refused). `GET /api/admin/benchmarks/agent-performance` (index.js, API key)
+answers 503 without Postgres rather than an empty leaderboard; commune averages
+below 5 closes are suppressed, same rule as `marketBenchmarks.js`.
+
+**Web pages**: `/admin/viewings`, `/admin/market-data` (which now also holds
+the pricing medians formerly on `/admin/benchmarks`), `/admin/benchmarks`
+(agent leaderboard + routing switch), `/admin/telemetry` (tap log, agents to
+nudge, post-visit check-ins). The follow-ups shown are the real 15-minute SLA
+and 2-hour check-in — there is no 24-hour job.
+
+**Still true, and why the central fallback can reach nobody:**
+`OPS_WHATSAPP_NUMBER` was unset on production at deploy time (2026-09-13), so
+a request on a listing with no verified agent is logged and answered but no
+human is alerted until it is set.
 
 ## Verification & Commands
 - **Verification Command**: Always run `npm run verify` before declaring a backend task complete.

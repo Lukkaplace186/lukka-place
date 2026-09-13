@@ -30,6 +30,7 @@ const dbService = require('./db');
 const propertyRepository = require('./propertyRepository');
 const propertyMatchingService = require('./propertyMatching');
 const viewingNotifications = require('./viewingNotifications');
+const agentPerformance = require('./agentPerformance');
 
 /**
  * How long an agent has before a request escalates.
@@ -312,10 +313,58 @@ async function runCheckinSweep(now = new Date()) {
 
 const FEEDBACK_THANKS = {
   GOOD: `${HEADER_BRAND} Merci ! Ravis que la visite se soit bien passée. 🙌`,
-  BAD: `${HEADER_BRAND} Merci de votre retour — nous le transmettons à notre équipe.`,
+  BAD: [
+    `${HEADER_BRAND} Merci de votre retour — nous le transmettons à notre équipe.`,
+    '',
+    "Qu'est-ce qui n'a pas convenu ?",
+    '1️⃣ Prix trop élevé',
+    '2️⃣ Emplacement',
+    '3️⃣ Conditions (garantie, contrat…)',
+    '4️⃣ Autre',
+  ].join('\n'),
   AGENT_ABSENT:
     `${HEADER_BRAND} Nous sommes désolés, ce n'est pas normal. Notre équipe vous rappelle.`,
 };
+
+/**
+ * Why a visit the customer attended did not work out — asked only after 👎.
+ *
+ * These are the CUSTOMER's reasons and the reason they are collected here:
+ * PRICE_TOO_HIGH, LOCATION_DESELECTED and TERMS_UNACCEPTABLE are things only
+ * the person who visited can say. The agent's decline survey keeps its own
+ * three options (services/viewingNotifications.js), and the two are stored
+ * with `decline_reason_by` so they never blur into one statistic.
+ */
+const PENDING_FALLOFF_KIND = 'VISIT_FALLOFF_REASON';
+const FALLOFF_REASON_BY_CHOICE = {
+  1: 'PRICE_TOO_HIGH',
+  2: 'LOCATION_DESELECTED',
+  3: 'TERMS_UNACCEPTABLE',
+  4: 'OTHER',
+};
+const FALLOFF_THANKS = `${HEADER_BRAND} Merci, c'est noté. Répondez à ce message si vous souhaitez que nous vous proposions d'autres biens.`;
+
+/**
+ * "1".."4", keycaps, or the words themselves. Short replies only — a customer
+ * who sends a real message while the question is open must reach intake.
+ */
+function parseFalloffReason(text) {
+  const raw = String(text || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[️⃣]/g, '')
+    .replace(/[.)\]]+$/, '')
+    .trim();
+  if (!raw || raw.length > 60) return null;
+  if (/^[1-4]$/.test(raw)) return FALLOFF_REASON_BY_CHOICE[raw];
+  if (/\b(prix|cher|chere|trop\s+eleve|budget)\b/.test(raw)) return 'PRICE_TOO_HIGH';
+  if (/\b(emplacement|quartier|loin|endroit|zone|localisation|commune)\b/.test(raw)) return 'LOCATION_DESELECTED';
+  if (/\b(conditions?|garantie|contrat|avance|commission|caution)\b/.test(raw)) return 'TERMS_UNACCEPTABLE';
+  if (/^autre/.test(raw)) return 'OTHER';
+  return null;
+}
 
 /**
  * Record one answer and tell whoever needs to know.
@@ -340,6 +389,24 @@ async function recordCheckinResponse({ from, viewingRequestId, response }) {
 
   dbService.setCheckinResponse(request.id, response);
   dbService.clearPendingCustomerAction(from);
+
+  // 👍 and 👎 both say the visit HAPPENED — that is what COMPLETED means.
+  // "Agent absent" says the opposite and must never complete a request.
+  if (response === 'GOOD' || response === 'BAD') {
+    try {
+      dbService.updateViewingRequest(request.id, { status: 'COMPLETED' });
+    } catch (err) {
+      console.error(`[sweep] viewing #${request.id} COMPLETED update failed: ${err.message}`);
+    }
+    await agentPerformance.logOutcome({ viewingRequestId: request.id, outcome: 'COMPLETED' });
+  }
+  if (response === 'BAD') {
+    dbService.setPendingCustomerAction({
+      waId: from,
+      kind: PENDING_FALLOFF_KIND,
+      viewingRequestId: request.id,
+    });
+  }
 
   // A completed visit is a real lead milestone, and VIEWING_COMPLETED has sat
   // in LEAD_STATUSES unreachable by any code path until now.
@@ -371,6 +438,23 @@ async function recordCheckinResponse({ from, viewingRequestId, response }) {
   return { handled: true, action: 'checkin-response', response, viewingRequestId: request.id };
 }
 
+/** The customer's reason after 👎, same authorisation rule as the check-in itself. */
+async function recordFalloffReason({ from, viewingRequestId, code }) {
+  const request = dbService.getViewingRequestWithLead(viewingRequestId);
+  if (!request) return { handled: true, ignored: 'unknown-request' };
+  const senderDigits = String(from || '').replace(/\D/g, '');
+  const leadDigits = String(request.lead_wa_id || '').replace(/\D/g, '');
+  if (!leadDigits || leadDigits !== senderDigits) {
+    return { handled: true, ignored: 'not-this-requests-customer' };
+  }
+
+  dbService.setViewingDeclineCode(request.id, code, 'CUSTOMER');
+  dbService.clearPendingCustomerAction(from);
+  await trySendCustomer(request.lead_wa_id, FALLOFF_THANKS, null, 'falloff thanks');
+  console.log(`[sweep] viewing #${request.id} fall-through reason (customer): ${code}`);
+  return { handled: true, action: 'falloff-reason', code, viewingRequestId: request.id };
+}
+
 /** A tapped check-in button. */
 async function handleCheckinButtonReply({ from, replyId }) {
   const parsed = parseCheckinButtonId(replyId);
@@ -390,7 +474,15 @@ async function handleCheckinButtonReply({ from, replyId }) {
  */
 async function handleCustomerTextReply({ from, text }) {
   const pending = dbService.getPendingCustomerAction(from);
-  if (!pending || pending.kind !== PENDING_CUSTOMER_KIND) return { handled: false };
+  if (!pending) return { handled: false };
+
+  if (pending.kind === PENDING_FALLOFF_KIND) {
+    const code = parseFalloffReason(text);
+    if (!code) return { handled: false };
+    return recordFalloffReason({ from, viewingRequestId: pending.viewing_request_id, code });
+  }
+
+  if (pending.kind !== PENDING_CUSTOMER_KIND) return { handled: false };
 
   const choice = viewingNotifications.parseNumberedChoice(text);
   if (!choice) return { handled: false };
@@ -434,6 +526,10 @@ module.exports = {
   checkinButtons,
   checkinText,
   alternativesText,
+  parseFalloffReason,
+  FALLOFF_REASON_BY_CHOICE,
+  PENDING_FALLOFF_KIND,
+  FEEDBACK_THANKS,
   slaJob,
   checkinJob,
   SLA_MS,

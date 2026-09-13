@@ -273,9 +273,9 @@ async function getListingContactById(id) {
   try {
     const client = getPool();
     const { rows } = await client.query(
-      `SELECT p.id, p.reference, pc.title, pc.slug, ${COMMUNE_SUBQUERY},
+      `SELECT p.id, p.reference, p.price, pc.title, pc.slug, ${COMMUNE_SUBQUERY},
               a.id AS agent_id, a.phone AS agent_phone,
-              a.phone_verified_at,
+              a.phone_verified_at, a.direct_routing_enabled,
               ${AGENT_NAME_EXPR}
        ${FROM_JOINS}
        LEFT JOIN agents a ON a.id = p.agent_id
@@ -290,11 +290,64 @@ async function getListingContactById(id) {
   }
 }
 
+/**
+ * One agent's contact, by agents.id — for the admin "reassign this viewing
+ * request" override, where the agent is chosen by a person rather than
+ * derived from the listing. Same narrow shape as getListingContactById and the
+ * same reason it is kept out of anything a language model sees.
+ */
+async function getAgentContactById(agentId) {
+  const numericId = Number.parseInt(agentId, 10);
+  if (!Number.isFinite(numericId) || !isConfigured()) return null;
+  try {
+    const { rows } = await getPool().query(
+      `SELECT a.id AS agent_id, a.phone AS agent_phone, a.phone_verified_at,
+              a.direct_routing_enabled, ${AGENT_NAME_EXPR}
+         FROM agents a
+         ${AGENT_INFOS_JOIN}
+        WHERE a.id = $1`,
+      [numericId],
+    );
+    return rows[0] || null;
+  } catch (err) {
+    console.error(`[propertyRepository] getAgentContactById(${agentId}) failed: ${err.message}`);
+    return null;
+  }
+}
+
+/**
+ * Why a lead can NOT go straight to this agent, or null when it can.
+ *
+ * The single definition of "direct-routable", shared by the viewing alert,
+ * the storefront-enquiry alert and the admin reassign. web/lib/listings.js
+ * applies the same three conditions in SQL to decide whether a listing page
+ * shows the agent's number at all — change one, change the other.
+ *
+ *   1. a number exists;
+ *   2. the agent proved they hold it (phone_verified_at) — an admin switch
+ *      can never stand in for that proof;
+ *   3. the team has not switched direct routing off for them. `!== false`
+ *      rather than truthiness: a row read before the column existed carries
+ *      undefined, and must keep today's behaviour.
+ */
+function directRoutingBlocker(contact) {
+  if (!contact?.agent_phone) return 'aucun agent rattaché à cette annonce';
+  if (!contact.phone_verified_at) return 'numéro agent non vérifié';
+  if (contact.direct_routing_enabled === false) return "routage direct désactivé par l'équipe";
+  return null;
+}
+
 module.exports = {
   isConfigured,
   searchProperties,
   getPropertyById,
   getListingContactById,
+  getAgentContactById,
+  directRoutingBlocker,
+  // SQL fragments reused by services/agentPerformance.js's read side.
+  AGENT_NAME_EXPR,
+  AGENT_INFOS_JOIN,
+  COMMUNE_SUBQUERY,
   buildFilters,
   SEARCH_LIMIT_DEFAULT,
   SEARCH_LIMIT_MAX,

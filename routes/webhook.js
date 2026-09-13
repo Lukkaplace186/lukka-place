@@ -61,16 +61,11 @@ const ALLOW_UNSIGNED_WEBHOOKS = process.env.ALLOW_UNSIGNED_WEBHOOKS === 'true';
 
 /** A bare amount: "1200", "1 200", "1200$", "1.200 USD". Null if not one.
  *  Anchored on purpose: a sentence that merely CONTAINS a number is not an
- *  answer to "at what price?", and must never close a transaction. */
-function parseSalePrice(text) {
-  const raw = String(text || '').trim();
-  const match = /^([\d][\d\s.,]*)\s*(?:\$|usd|dollars?)?$/i.exec(raw);
-  if (!match) return null;
-  const digits = match[1].replace(/[\s.,]/g, '');
-  if (!digits) return null;
-  const amount = Number.parseInt(digits, 10);
-  return Number.isFinite(amount) && amount > 0 ? amount : null;
-}
+ *  answer to "at what price?", and must never close a transaction without the
+ *  confirmation step services/viewingNotifications.js adds for that case.
+ *  One definition now, in services/priceExtraction.js — the copy that used to
+ *  live here existed only to dodge a require cycle that module does not have. */
+const { parseBarePrice: parseSalePrice } = require('../services/priceExtraction');
 
 /** "passer", "non", "skip" — declining to state the sale price. */
 function isDeclined(text) {
@@ -850,7 +845,9 @@ async function processGroup(messages) {
           setAwaitingSalePrice(awaitingPrice.id, false);
           try {
             await require('../services/postgres')
-              .markPropertySold(awaitingPrice.remote_property_id, amount);
+              .markPropertySold(awaitingPrice.remote_property_id, amount, new Date(), {
+                source: 'WHATSAPP_AGENT_REPLY',
+              });
             console.log(`[status] listing #${awaitingPrice.id} closed at ${amount}`);
           } catch (err) {
             console.error(`[status] could not close listing #${awaitingPrice.id}: ${err.message}`);

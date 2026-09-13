@@ -542,19 +542,41 @@ async function markPropertyUnderOffer(remotePropertyId) {
  *
  * `status = 0` retires it from public search the same way the web path does.
  */
-async function markPropertySold(remotePropertyId, soldPrice, soldAt = new Date()) {
-  if (!isConfigured() || !remotePropertyId) return false;
+async function markPropertySold(remotePropertyId, soldPrice, soldAt = new Date(), { source = null } = {}) {
+  const { updated } = await recordSoldPrice(remotePropertyId, soldPrice, { soldAt, source });
+  return updated;
+}
+
+/** Where a sold_price came from — properties.price_source's CHECK constraint. */
+const PRICE_SOURCES = ['WHATSAPP_AGENT_REPLY', 'ADMIN_DASHBOARD', 'DIRECT_INPUT'];
+
+/**
+ * markPropertySold, plus the two things the price-capture flow needs back:
+ * the provenance is written in the same UPDATE, and the listing's asking price
+ * comes back (RETURNING) so the confirmation to the agent can state the real
+ * delta without a second read. The delta itself is never stored — see
+ * migrations/20260913_lead_routing_and_price_capture.sql.
+ *
+ * @returns {Promise<{updated: boolean, listPrice: number|null}>}
+ */
+async function recordSoldPrice(remotePropertyId, soldPrice, { soldAt = new Date(), source = null } = {}) {
+  if (!isConfigured() || !remotePropertyId) return { updated: false, listPrice: null };
   if (!Number.isFinite(soldPrice) || soldPrice <= 0) {
     throw new Error('markPropertySold requires a real positive sold_price');
   }
-  const { rowCount } = await getPool().query(
+  if (source !== null && !PRICE_SOURCES.includes(source)) {
+    throw new Error(`recordSoldPrice: unknown price source '${source}' (expected one of ${PRICE_SOURCES.join(', ')})`);
+  }
+  const { rows } = await getPool().query(
     `UPDATE properties
-        SET listing_status = 'closed', sold_price = $1, sold_at = $2,
+        SET listing_status = 'closed', sold_price = $1, sold_at = $2, price_source = $3,
             status = 0, updated_at = NOW()
-      WHERE id = $3`,
-    [soldPrice, soldAt, remotePropertyId],
+      WHERE id = $4
+      RETURNING price`,
+    [soldPrice, soldAt, source, remotePropertyId],
   );
-  return rowCount > 0;
+  const listPrice = rows[0]?.price != null ? Number(rows[0].price) : null;
+  return { updated: rows.length > 0, listPrice };
 }
 
 /** Put a listing back on the market — "finalement c'est encore libre". */
@@ -804,6 +826,8 @@ async function syncListingToPostgres(row) {
 module.exports = {
   markPropertyUnderOffer,
   markPropertySold,
+  recordSoldPrice,
+  PRICE_SOURCES,
   markPropertyAvailable,
   syncListingToPostgres,
   isConfigured,

@@ -3,8 +3,8 @@
 import { MessageCircle } from 'lucide-react';
 import Price from './Price';
 import FavoriteButton from './FavoriteButton';
-import { getCentralWhatsAppHref, buildWhatsAppMessage } from '@/lib/whatsapp';
-import { trackEvent, listingEventPayload } from '@/lib/analyticsClient';
+import { resolveWhatsAppRouting } from '@/lib/leadRouting';
+import { trackLeadClick } from '@/lib/analyticsClient';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
 
@@ -24,20 +24,15 @@ import { useT } from '@/lib/i18n/client';
  * entirely now (see app/(site)/layout.js), so this bar is the true bottom
  * edge of the screen on mobile and needs to account for a notch/home-
  * indicator itself.
+ *
+ * Routes exactly like EnquiryCard now (lib/leadRouting.js): the verified
+ * agent directly, the central number otherwise. It used to go central
+ * unconditionally, so the same listing offered a different contact on a
+ * phone than on a laptop.
  */
 export default function MobileListingBar({ listing }) {
   const t = useT();
-  const href = getCentralWhatsAppHref(
-    buildWhatsAppMessage({
-      reference: listing.reference,
-      slug: listing.slug,
-      id: listing.id,
-      propertyType: listing.category_name,
-      commune: listing.commune,
-      price: listing.price,
-      purpose: listing.purpose,
-    }),
-  );
+  const { href, routingType } = resolveWhatsAppRouting(listing);
 
   return (
     <div
@@ -63,7 +58,7 @@ export default function MobileListingBar({ listing }) {
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={() => trackEvent('whatsapp_click', listingEventPayload(listing))}
+            onClick={() => trackLeadClick(listing, routingType)}
             className="u-press u-focus-ring inline-flex shrink-0 items-center gap-2 rounded-full border border-transparent bg-green px-5 py-2.5 text-[0.8125rem] font-semibold text-white transition-colors hover:bg-green-deep"
           >
             <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />

@@ -2,31 +2,52 @@ import { formatPrice } from './format';
 import { SITE_URL } from './constants';
 
 /**
- * Message template exactly as specified in CLAUDE.md's Lead Routing Rules,
- * extended with the real listing price and a real link to the detail page
- * (Ref/type/commune, then price, then link — so the agent sees everything
- * needed to answer without opening a second app), with graceful fallbacks
- * for fields that are commonly still null on existing listings (see
- * PLAN.md §0 — `reference` and the commune-via-amenity tag were both added
- * after most currently-live listings were synced):
- *   - No `reference` yet -> fall back to the listing's slug, then its id,
- *     so the message never literally reads "Ref: null".
- *   - No `commune` yet -> drop the " à {commune}" clause rather than send
- *     "(Appartement à )" with a dangling preposition.
- *   - `price`/`purpose` are optional — omitted entirely if not passed
- *     (callers outside a specific listing, e.g. Footer.js/ValueProposition.js's
- *     generic "contact us" links, pass their own plain string to
- *     getCentralWhatsAppHref below and never call this at all).
+ * The message a customer sends when they tap a listing's WhatsApp button
+ * (CLAUDE.md "Message Format (both paths)"):
+ *
+ *   Bonjour, je vous contacte via Lukka Place au sujet de ce bien :
+ *   Appartement à Limete — 700 $ / mois
+ *   Réf. Petit Boulevard
+ *
+ *   Est-il toujours disponible ? Si oui, quand serait-il possible de le visiter ?
+ *
+ *   https://lukkaplace.com/listings/286
+ *
+ * Shaped for the agent reading it on a phone:
+ *   - "via Lukka Place" first: on the direct path the agent has no other way
+ *     to know where the lead came from.
+ *   - One fact line, stated once. WhatsApp unfurls the link into a card that
+ *     already carries the title, so the old "(Appartement à Limete) — 700 $"
+ *     parenthetical made the same facts read three times in one bubble. The
+ *     line stays because the chat list and a client with previews off show
+ *     only the text.
+ *   - The `Réf.` line only when the listing has a REAL `reference` — the
+ *     value KeyFacts shows on the page. There is deliberately no fallback:
+ *     the slug fallback is what put "2-chambres-appartement-a-louer-a-limete-286"
+ *     in front of agents, and an invented "LUK-286" would be exactly the "id
+ *     dressed up as a reference" KeyFacts refuses. The link identifies the
+ *     listing already.
+ *   - The link last and alone on its line, so it is tappable, and so the
+ *     engine's services/listingEnquiry.js — which recognises this message by
+ *     that link — keeps finding it.
+ *   - No emoji: this is sent as the customer's own words, and a bulleted
+ *     emoji block reads as a bot to the agent receiving it.
  *
  * Always quotes the listing's real stored USD price, deliberately never a
  * currency-toggled CDF estimate — see components/Price.js's doc comment.
  */
-export function buildWhatsAppMessage({ reference, slug, id, propertyType, commune, price, purpose }) {
-  const ref = reference || slug || `#${id}`;
-  const location = commune ? ` à ${commune}` : '';
-  const priceText = price != null ? ` — ${formatPrice(price, purpose)}` : '';
-  const link = id != null ? `\nVoir l'annonce : ${SITE_URL}/listings/${id}` : '';
-  return `Bonjour, je suis intéressé par l'annonce Ref: ${ref} (${propertyType}${location})${priceText}. Est-elle toujours disponible ?${link}`;
+export function buildWhatsAppMessage({ reference, id, propertyType, commune, price, purpose, pricePeriod }) {
+  const what = [propertyType, commune].filter(Boolean).join(' à ');
+  const priceText = price != null ? formatPrice(price, purpose, pricePeriod) : '';
+  const facts = [what, priceText].filter(Boolean).join(' — ');
+  const ref = typeof reference === 'string' ? reference.trim() : '';
+
+  const lines = ['Bonjour, je vous contacte via Lukka Place au sujet de ce bien :'];
+  if (facts) lines.push(facts);
+  if (ref) lines.push(`Réf. ${ref}`);
+  lines.push('', 'Est-il toujours disponible ? Si oui, quand serait-il possible de le visiter ?');
+  if (id != null) lines.push('', `${SITE_URL}/listings/${id}`);
+  return lines.join('\n');
 }
 
 export function buildWhatsAppLink(phoneNumber, message) {

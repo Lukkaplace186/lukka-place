@@ -106,10 +106,30 @@ offered two contacts depending on screen width. Both now use
 `resolveWhatsAppRouting`. See "Direct-to-Agent Routing, Price Capture &
 Agent Performance" below.
 
-- **Message Format** (both paths):
+- **Message Format** (both direct buttons — `web/lib/whatsapp.js`'s
+  `buildWhatsAppMessage`):
   ```
-  Bonjour, je suis intéressé par l'annonce Ref: {reference} ({property_type} à {commune}). Est-elle toujours disponible ?
+  Bonjour, je vous contacte via Lukka Place au sujet de ce bien :
+  {property_type} à {commune} — {price}
+  Réf. {reference}
+
+  Est-il toujours disponible ? Si oui, quand serait-il possible de le visiter ?
+
+  https://lukkaplace.com/listings/{id}
   ```
+  - The `Réf.` line appears **only when `properties.reference` is set**. No
+    fallback: the old slug fallback put
+    "Ref: 2-chambres-appartement-a-louer-a-limete-286" in front of agents, and
+    a made-up "LUK-{id}" would be an id dressed up as a reference, which
+    `KeyFacts.js` refuses. The link already identifies the listing.
+  - Each fact is stated once. WhatsApp unfurls the link into a card that
+    already shows the title, so the old parenthetical repeated it.
+  - `{price}` is `formatPrice(price, purpose, price_period)`: no "/ mois" on a
+    sale, "/ an" on a yearly rent. Empty parts are dropped along with their
+    separator.
+  - The link stays last. `services/listingEnquiry.js` recognises the message
+    by that link alone, and still parses the older "Ref: … Voir l'annonce :"
+    wording from links already sitting in chats.
 
 ## WhatsApp Property-Search Assistant (in progress)
 
@@ -402,11 +422,18 @@ page.
 (`web/lib/whatsapp.js`'s `buildWhatsAppMessage`), so what arrives is:
 
 ```
-Bonjour, je suis intéressé par l'annonce Ref: Petit Boulevard, 2ᵉ Rue
-Industrielle (Appartement à Limete) — 1 100 $ / mois. Est-elle toujours
-disponible ?
-Voir l'annonce : https://lukkaplace.com/listings/293
+Bonjour, je vous contacte via Lukka Place au sujet de ce bien :
+Appartement à Limete — 1 100 $ / mois
+Réf. Petit Boulevard, 2ᵉ Rue Industrielle
+
+Est-il toujours disponible ? Si oui, quand serait-il possible de le visiter ?
+
+https://lukkaplace.com/listings/293
 ```
+
+(The loop below was diagnosed on the earlier "je suis intéressé par l'annonce
+Ref: … Voir l'annonce : …" wording; recognition keys on the link, so both
+parse.)
 
 That reached gpt-4o as `is_listing: false`, `intent: 'question'`, matched no
 branch, and came back — verbatim from a real production transcript — as

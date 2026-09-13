@@ -5888,15 +5888,49 @@ console.log('\n2. services/openai.js');
   const listingEnquiry = require('../services/listingEnquiry');
 
   const ENQUIRY_WA = '243991234567';
-  const ENQUIRY_TEXT = "Bonjour, je suis intéressé par l'annonce Ref: Petit Boulevard, 2ᵉ Rue "
-    + "Industrielle (Appartement à Limete) — 1 100 $ / mois. Est-elle toujours disponible ?\n"
-    + "Voir l'annonce : https://lukkaplace.com/listings/293";
+  // Exactly what web/lib/whatsapp.js's buildWhatsAppMessage produces now.
+  const ENQUIRY_TEXT = 'Bonjour, je vous contacte via Lukka Place au sujet de ce bien :\n'
+    + 'Appartement à Limete — 1 100 $ / mois\n'
+    + 'Réf. Petit Boulevard, 2ᵉ Rue Industrielle\n'
+    + '\n'
+    + 'Est-il toujours disponible ? Si oui, quand serait-il possible de le visiter ?\n'
+    + '\n'
+    + 'https://lukkaplace.com/listings/293';
 
   check('the real storefront message yields the listing id and the quoted reference', () => {
     const parsed = listingEnquiry.parseListingEnquiry(ENQUIRY_TEXT);
     assert.strictEqual(parsed.propertyId, 293);
     assert.strictEqual(parsed.reference, 'Petit Boulevard, 2ᵉ Rue Industrielle');
   });
+
+  // A listing with no reference: the storefront writes no Réf line at all.
+  check('a storefront message with no Réf line still resolves, with no reference', () => {
+    const parsed = listingEnquiry.parseListingEnquiry(
+      'Bonjour, je vous contacte via Lukka Place au sujet de ce bien :\n'
+        + 'Appartement à Limete — 700 $ / mois\n\n'
+        + 'Est-il toujours disponible ? Si oui, quand serait-il possible de le visiter ?\n\n'
+        + 'https://lukkaplace.com/listings/286',
+    );
+    assert.strictEqual(parsed.propertyId, 286);
+    assert.strictEqual(parsed.reference, null);
+  });
+
+  // Links pre-typed by the old builder are still sitting in people's chats.
+  check('the previous storefront wording is still recognised', () => {
+    const parsed = listingEnquiry.parseListingEnquiry(
+      "Bonjour, je suis intéressé par l'annonce Ref: Petit Boulevard, 2ᵉ Rue "
+        + 'Industrielle (Appartement à Limete) — 1 100 $ / mois. Est-elle toujours disponible ?\n'
+        + "Voir l'annonce : https://lukkaplace.com/listings/293",
+    );
+    assert.strictEqual(parsed.propertyId, 293);
+    assert.strictEqual(parsed.reference, 'Petit Boulevard, 2ᵉ Rue Industrielle');
+  });
+
+  check('a hyphenated reference is not cut at the hyphen', () =>
+    assert.strictEqual(
+      listingEnquiry.parseListingEnquiry('Réf. Ngiri-Ngiri\nhttps://lukkaplace.com/listings/5').reference,
+      'Ngiri-Ngiri',
+    ));
 
   check('an ordinary property advert is not mistaken for an enquiry', () =>
     assert.strictEqual(
@@ -5962,8 +5996,24 @@ console.log('\n2. services/openai.js');
       reached: true,
     });
     assert.doesNotMatch(reply, /null/);
-    assert.match(reply, /2 chambres — Appartement à louer à Limete/);
+    assert.doesNotMatch(reply, /R[ée]f/);
+    // Once, not "Ref: {title} ({title})" as the label fallback used to print it.
+    assert.strictEqual(reply.split('2 chambres — Appartement à louer à Limete').length - 1, 1);
   });
+
+  check('the reply names the reference once, beside the title', () =>
+    assert.match(
+      listingEnquiry.customerReply({ listing: ENQUIRY_LISTING, propertyId: 293, reached: true }),
+      /le bien « 2 chambres — Appartement à louer à Limete » \(Réf\. Petit Boulevard, 2ᵉ Rue Industrielle\)/,
+    ));
+
+  // The old storefront fell back to the slug, and "Ref: 2-chambres-…" was
+  // cut at the first hyphen — the alert then named the listing "2".
+  check("a quoted slug never beats the listing's own title in the alert", () =>
+    assert.strictEqual(
+      listingEnquiry.listingLabel({ ...ENQUIRY_LISTING, reference: null }, 286, '2-chambres-appartement-a-louer-a-limete-286'),
+      '2 chambres — Appartement à louer à Limete',
+    ));
 
   // --- End to end, through the real route -----------------------------------
 

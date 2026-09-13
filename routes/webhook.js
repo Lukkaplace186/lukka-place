@@ -871,8 +871,8 @@ async function processGroup(messages) {
       }
     }
 
-    // LISTING ENQUIRY — "je suis intéressé par l'annonce Ref: … Voir
-    // l'annonce : https://lukkaplace.com/listings/293".
+    // LISTING ENQUIRY — "je vous contacte via Lukka Place au sujet de ce
+    // bien : … https://lukkaplace.com/listings/293".
     //
     // A message WE composed (web/lib/whatsapp.js's buildWhatsAppMessage),
     // carrying our own listing URL. Answered deterministically, before the

@@ -24,6 +24,11 @@ import { calls, enqueue, normalizeSql, reset } from '../support/fakePool.js';
 
 const CENTRAL = '243899000000';
 
+// The pre-typed text out of a wa.me href. formatPrice groups thousands with
+// toLocaleString('fr-FR'), which emits a narrow no-break space ("1 100") —
+// normalised here so the expectations can be written with a plain space.
+const messageOf = (href) => decodeURIComponent(href.split('?text=')[1]).replace(/[  ]/g, ' ');
+
 test.beforeEach(() => {
   reset();
   process.env.NEXT_PUBLIC_WHATSAPP_NUMBER = CENTRAL;
@@ -42,11 +47,58 @@ test('a verified agent routes DIRECT_WA to their own number, with the storefront
   const { routingType, href } = resolveWhatsAppRouting({ ...LISTING, agent_phone: '243821122937' });
   assert.equal(routingType, ROUTING_TYPES.direct);
   assert.ok(href.startsWith('https://wa.me/243821122937?text='), href);
-  const text = decodeURIComponent(href.split('?text=')[1]);
-  // The central bot recognises a storefront enquiry by this exact shape and
-  // the listing link, so the direct path must not drift from it.
-  assert.match(text, /^Bonjour, je suis intéressé par l'annonce Ref: Petit Boulevard \(Appartement à Limete\)/);
-  assert.match(text, /\/listings\/293/);
+  const text = messageOf(href);
+  // The central bot recognises a storefront enquiry by the listing link, so
+  // the direct path must carry the same message.
+  assert.equal(
+    text,
+    'Bonjour, je vous contacte via Lukka Place au sujet de ce bien :\n'
+      + 'Appartement à Limete — 1 100 $ / mois\n'
+      + 'Réf. Petit Boulevard\n'
+      + '\n'
+      + 'Est-il toujours disponible ? Si oui, quand serait-il possible de le visiter ?\n'
+      + '\n'
+      + 'https://lukkaplace.com/listings/293',
+  );
+});
+
+// The screenshot this came from: listing 286 has no reference, and the old
+// builder fell back to its slug — "Ref: 2-chambres-appartement-a-louer-a-limete-286".
+test('a listing with no reference gets no Réf line — never its slug, never an invented code', () => {
+  const { href } = resolveWhatsAppRouting({
+    ...LISTING,
+    id: 286,
+    reference: null,
+    slug: '2-chambres-appartement-a-louer-a-limete-286',
+    price: 700,
+    agent_phone: '243821122937',
+  });
+  const text = messageOf(href);
+  assert.doesNotMatch(text, /R[ée]f/);
+  assert.doesNotMatch(text, /2-chambres|null|undefined|LUK-/);
+  assert.match(text, /\nAppartement à Limete — 700 \$ \/ mois\n/);
+  assert.match(text, /\nhttps:\/\/lukkaplace\.com\/listings\/286$/);
+});
+
+test('a sale listing is not quoted per month, and a yearly rent says so', () => {
+  const sale = messageOf(
+    resolveWhatsAppRouting({ ...LISTING, purpose: 'sale', price: 85000, agent_phone: '243821122937' }).href,
+  );
+  assert.match(sale, /— 85 000 \$\n/);
+  assert.doesNotMatch(sale, /mois/);
+
+  const yearly = messageOf(
+    resolveWhatsAppRouting({ ...LISTING, price_period: 'an', agent_phone: '243821122937' }).href,
+  );
+  assert.match(yearly, /1 100 \$ \/ an/);
+});
+
+test('missing type, commune or price never leaves a dangling separator', () => {
+  const text = messageOf(
+    resolveWhatsAppRouting({ id: 7, reference: null, category_name: null, commune: null, price: null, agent_phone: '243821122937' }).href,
+  );
+  assert.doesNotMatch(text, / à |— |null|undefined/);
+  assert.match(text, /^Bonjour, je vous contacte via Lukka Place au sujet de ce bien :\n\nEst-il/);
 });
 
 test('no routable agent number falls back to the central number', () => {

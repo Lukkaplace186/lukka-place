@@ -18,22 +18,22 @@ import { buildWhatsAppLink, buildWhatsAppMessage, getCentralWhatsAppHref } from 
  * browser would be a second definition that could disagree with the SQL.
  *
  * The message is the same on both paths (CLAUDE.md "Message Format (both
- * paths)"): the central bot recognises a storefront enquiry by exactly this
- * text and the listing link inside it, so a different wording for the direct
- * path would be harmless today and a silent break the day an agent forwards
- * one to the central number.
+ * paths)"): the central bot recognises a storefront enquiry by the listing
+ * link inside it, so a different message for the direct path would be
+ * harmless today and a silent break the day an agent forwards one to the
+ * central number.
  */
 export const ROUTING_TYPES = Object.freeze({ direct: 'DIRECT_WA', central: 'CENTRAL_FALLBACK' });
 
 export function listingWhatsAppMessage(listing) {
   return buildWhatsAppMessage({
     reference: listing?.reference,
-    slug: listing?.slug,
     id: listing?.id,
     propertyType: listing?.category_name,
     commune: listing?.commune,
     price: listing?.price,
     purpose: listing?.purpose,
+    pricePeriod: listing?.price_period,
   });
 }
 

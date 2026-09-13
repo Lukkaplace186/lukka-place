@@ -8,10 +8,17 @@
  * The storefront builds the message (web/lib/whatsapp.js's
  * buildWhatsAppMessage) and opens WhatsApp with it pre-typed:
  *
- *   Bonjour, je suis intéressé par l'annonce Ref: Petit Boulevard, 2ᵉ Rue
- *   Industrielle (Appartement à Limete) — 1 100 $ / mois. Est-elle toujours
- *   disponible ?
- *   Voir l'annonce : https://lukkaplace.com/listings/293
+ *   Bonjour, je vous contacte via Lukka Place au sujet de ce bien :
+ *   Appartement à Limete — 1 100 $ / mois
+ *   Réf. Petit Boulevard, 2ᵉ Rue Industrielle
+ *
+ *   Est-il toujours disponible ? Si oui, quand serait-il possible de le visiter ?
+ *
+ *   https://lukkaplace.com/listings/293
+ *
+ * (Its wording has changed since this module was written; recognition only
+ * ever depended on the link, and the older "je suis intéressé par l'annonce
+ * Ref: … Voir l'annonce : <link>" shape still parses.)
  *
  * That message reached the intake pipeline, was classified `is_listing:
  * false` with `intent: 'question'`, matched no branch, and fell through to
@@ -81,8 +88,13 @@ const HEADER = '🏠 [Lukka Place] Nouvelle demande sur une annonce';
  */
 const LISTING_URL = /https?:\/\/(?:www\.)?(?:lukkaplace\.com|localhost(?::\d+)?|127\.0\.0\.1(?::\d+)?)\/listings\/(\d+)\b/i;
 
-/** "Ref: X (…)" as the storefront writes it — for the log line and the alert. */
-const REFERENCE = /\bR[ée]f\s*:\s*([^(\n]+?)\s*(?:\(|—|-|$)/i;
+/**
+ * The quoted reference, in either shape the storefront has written it:
+ * "Réf. X" on its own line (current), or "Ref: X (…)" inline (links already
+ * sitting in people's chats). Ends at a line break, "(" or "—" — NOT at "-",
+ * which cut "Ngiri-Ngiri" to "Ngiri" and the old slug fallback to "2".
+ */
+const REFERENCE = /\bR[ée]f\s*[.:]\s*([^(\n—]+?)\s*(?:\(|—|\n|$)/i;
 
 /**
  * Does this message look like somebody asking about a specific listing of
@@ -115,14 +127,30 @@ function listingLink(listing, propertyId) {
 }
 
 /**
- * How the listing is named back to the customer. Its own `reference` when
- * it has one (that is what they saw on the page and what they quoted), the
- * title otherwise, and the bare id as the last honest fallback — never
- * "Ref: null", which is what a naive interpolation produced on the ~60 % of
- * live listings that carry no reference code.
+ * How the listing is named in the alerts. Its own `reference` when it has
+ * one (that is what the page shows), the title otherwise, and the bare id as
+ * the last honest fallback — never "Ref: null", which is what a naive
+ * interpolation produced on the ~60 % of live listings that carry no
+ * reference code.
+ *
+ * The listing's own fields win over whatever the customer's message quoted:
+ * the listing always resolves by the time this runs, and a quoted reference
+ * is only as good as the message it came from — the storefront's old slug
+ * fallback made it "2-chambres-appartement-a-louer-a-limete-286".
  */
 function listingLabel(listing, propertyId, quotedReference) {
-  return listing?.reference || quotedReference || listing?.title || `#${propertyId}`;
+  return listing?.reference || listing?.title || quotedReference || `#${propertyId}`;
+}
+
+/**
+ * "le bien « 2 chambres — Appartement à louer à Limete » (Réf. Demiap)".
+ * The title and reference each appear once — the old
+ * "Ref: {label} ({title})" printed the title twice whenever a listing had
+ * no reference, since the label had fallen back to that same title.
+ */
+function listingPhrase(listing, propertyId) {
+  const name = listing?.title ? `le bien « ${listing.title} »` : `l'annonce #${propertyId}`;
+  return listing?.reference ? `${name} (Réf. ${listing.reference})` : name;
 }
 
 /**
@@ -131,13 +159,12 @@ function listingLabel(listing, propertyId, quotedReference) {
  * `reached` is not cosmetic — it is the difference between a promise we
  * have arranged to keep and one we have not. See the module comment.
  */
-function customerReply({ listing, propertyId, quotedReference, reached }) {
-  const label = listingLabel(listing, propertyId, quotedReference);
-  const title = listing?.title ? ` (${listing.title})` : '';
+function customerReply({ listing, propertyId, reached }) {
+  const phrase = listingPhrase(listing, propertyId);
 
   if (!reached) {
     return (
-      `Bonjour ! Merci pour votre intérêt pour l'annonce Ref: ${label}${title}.\n\n`
+      `Bonjour ! Merci pour votre intérêt pour ${phrase}.\n\n`
       + "Nous n'avons pas pu joindre l'agent responsable dans l'immédiat. "
       + "Le numéro de contact direct figure sur la fiche de l'annonce : "
       + `${listingLink(listing, propertyId)}\n\n`
@@ -146,7 +173,7 @@ function customerReply({ listing, propertyId, quotedReference, reached }) {
   }
 
   return (
-    `Bonjour ! Merci pour votre intérêt pour l'annonce Ref: ${label}${title}.\n\n`
+    `Bonjour ! Merci pour votre intérêt pour ${phrase}.\n\n`
     + "Un de nos agents partenaires vérifie la disponibilité auprès du bailleur "
     + 'et vous recontactera très rapidement.\n\n'
     + 'Souhaitez-vous programmer une visite ?'

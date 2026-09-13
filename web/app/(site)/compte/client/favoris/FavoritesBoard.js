@@ -11,7 +11,7 @@ import { PortalPanel, PortalSectionHeading } from '@/components/ClientPortalUI';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { listingImages, specItems, typeLabel, feedLocationLine, formatAddedOn } from '@/lib/listingView';
 import { buildWhatsAppMessage, buildWhatsAppLink } from '@/lib/whatsapp';
-import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { ICON_STROKE_WIDTH, SITE_URL } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n/client';
 
@@ -130,22 +130,24 @@ function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, r
         whatsappNumber,
         buildWhatsAppMessage({
           reference: listing.reference,
-          slug: listing.slug,
           id: listing.id,
           propertyType: typeLabel(listing, t) || t('listings.results.subjectFallback'),
           commune: listing.commune,
           price: listing.price,
           purpose: listing.purpose,
+          pricePeriod: listing.price_period,
         }),
       )
     : null;
 
+  // No slug fallback for the reference — see lib/whatsapp.js. The link names
+  // the listing; a "Réf." only appears when the listing really has one.
   const visitHref = whatsappNumber
     ? buildWhatsAppLink(
         whatsappNumber,
-        `Bonjour, je souhaite planifier une visite pour l'annonce Ref: ${
-          listing.reference || listing.slug || `#${listing.id}`
-        }. Quelles sont vos disponibilités ?`,
+        `Bonjour, je souhaite planifier une visite pour ce bien${
+          listing.reference ? ` (Réf. ${listing.reference})` : ''
+        }. Quelles sont vos disponibilités ?\n\n${SITE_URL}/listings/${listing.id}`,
       )
     : null;
 

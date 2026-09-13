@@ -35,6 +35,31 @@ const TAG_CLASS =
   'rounded-full border border-ink-25 px-1.5 py-0.5 text-[10px] leading-tight text-ink-70 sm:px-2.5 sm:py-1 sm:text-xs';
 
 /**
+ * Three postes stop fitting side by side below a 300px row. Measured in a
+ * browser, not estimated: "Commission" beside its swatch (~87px) and the
+ * "Remboursable" tag (~84px) cannot wrap, and three equal columns give them
+ * ~77px on a 320px phone and ~82px on a 360px one — the most common Android
+ * width — so both spilled into the next column. A 375px phone has 302px and
+ * keeps the row.
+ *
+ * Below that, each poste becomes one line of its own: title and amount side
+ * by side, tags underneath. A container query, not a breakpoint, because what
+ * runs out is this row's width, not the viewport's. Two postes fit at every
+ * width, so a "4 + 1" never stacks.
+ *
+ * `@max-*` rather than `@min-*` for the wide layout: the base classes stay
+ * the row, and nothing here has to out-rank a `sm:` class, since a viewport
+ * past `sm` never leaves this row under 300px.
+ */
+const STACK_BELOW_300 = {
+  list: '@max-[18.75rem]:grid-cols-1 @max-[18.75rem]:grid-rows-none @max-[18.75rem]:divide-x-0 @max-[18.75rem]:divide-y',
+  item: '@max-[18.75rem]:row-span-1 @max-[18.75rem]:grid-rows-[auto_auto] @max-[18.75rem]:grid-cols-[minmax(0,1fr)_auto] @max-[18.75rem]:gap-x-3 @max-[18.75rem]:py-3 @max-[18.75rem]:pl-0 @max-[18.75rem]:first:pt-0 @max-[18.75rem]:last:pb-0',
+  amount: '@max-[18.75rem]:mt-0 @max-[18.75rem]:text-right',
+  tags: '@max-[18.75rem]:col-span-2',
+};
+const NO_STACK = { list: '', item: '', amount: '', tags: '' };
+
+/**
  * The bar's segments, sized by months — a true 3:1:1 for a "3 + 1 + 1".
  *
  * The columns below are equal thirds and no longer sit under their own
@@ -59,6 +84,7 @@ export default async function EntryCostsBreakdown({ listing }) {
   const money = (value) => formatPriceParts(value, 'oneOff').amount;
   const months = (count) => t('listings.facts.months', { count });
   const segments = barTemplate(lines);
+  const stack = lines.length > 2 ? STACK_BELOW_300 : NO_STACK;
 
   return (
     <section
@@ -74,7 +100,10 @@ export default async function EntryCostsBreakdown({ listing }) {
           <h2 className="text-[0.6875rem] font-semibold uppercase leading-none tracking-[0.12em] text-ink-45 sm:text-xs">
             {t('listings.entryCosts.heading')}
           </h2>
-          <p className="u-tabular mt-3 text-[1.75rem] font-extrabold leading-none tracking-tight text-ink sm:text-[2.25rem] md:text-[2.75rem]">
+          {/* Semibold, not extrabold: the figure leads by SIZE, so it can share
+              the KeyFacts grid's weight class above it instead of shouting
+              over it. Soft contrast, still the loudest thing in the card. */}
+          <p className="u-tabular mt-3 text-[1.75rem] font-semibold leading-none tracking-[-0.02em] text-ink sm:text-[2.125rem] md:text-[2.5rem]">
             {hasAmounts ? money(totalAmount) : months(totalMonths)}
           </p>
           <p className="mt-2.5 text-sm text-ink-45 sm:text-[0.9375rem]">
@@ -89,10 +118,12 @@ export default async function EntryCostsBreakdown({ listing }) {
             {t('listings.entryCosts.formula')}
           </span>
           {/* The agent's own notation, in the order the columns below use. */}
-          <p className="u-tabular mt-3.5 text-2xl font-extrabold leading-none tracking-tight text-blue-deep sm:text-[1.75rem] md:text-[2.25rem]">
+          {/* Royal blue rather than blue-deep, and the operators dropped to a
+              light tint so the digits carry the notation. */}
+          <p className="u-tabular mt-3.5 text-2xl font-semibold leading-none tracking-[-0.01em] text-blue sm:text-[1.75rem] md:text-[2.125rem]">
             {lines.map((line, index) => (
               <span key={line.key}>
-                {index > 0 ? <span className="px-[0.18em]">+</span> : null}
+                {index > 0 ? <span className="px-[0.22em] font-normal text-[var(--blue-400)] opacity-50">+</span> : null}
                 {line.months}
               </span>
             ))}
@@ -110,16 +141,17 @@ export default async function EntryCostsBreakdown({ listing }) {
             key={line.key}
             className={
               line.months > 0
-                ? `h-4 rounded-full ${SEGMENT_CLASS[line.key]}`
-                : 'h-4 rounded-full border border-dashed border-ink-25'
+                ? `h-2.5 rounded-full ${SEGMENT_CLASS[line.key]}`
+                : 'h-2.5 rounded-full border border-dashed border-ink-25'
             }
           />
         ))}
       </div>
 
-      {/* One row per poste at every width, including a 375px phone — the
-          three postes are one comparison, and stacking them turned it into
-          three separate facts you scroll past.
+      {/* One row per poste, including on a 375px phone — the three postes
+          are one comparison, and stacking them turned it into three separate
+          facts you scroll past. The one exception is a three-poste row with
+          under 300px to work with; see STACK_BELOW_300.
 
           `grid-rows-subgrid` keeps the three columns honest: a title that
           wraps to two lines ("Commission · 1 mois" in a ~95px phone column)
@@ -127,16 +159,19 @@ export default async function EntryCostsBreakdown({ listing }) {
           with its neighbours. Each li spans the same three rows — title,
           amount, tags — so the figures stay level across all three.
 
-          The column count is inline rather than a `grid-cols-N` class: a
-          "4 + 1" listing renders two columns, and Tailwind v4 scans source
-          text, so an interpolated class name would compile to nothing. */}
+          The column count is a custom property rather than a `grid-cols-N`
+          class: a "4 + 1" listing renders two columns, and Tailwind v4 scans
+          source text, so an interpolated class name would compile to
+          nothing. Not an inline `gridTemplateColumns` either, which would
+          outrank the stacked layout's `grid-cols-1`. */}
+      <div className="@container mt-6 sm:mt-7">
       <ul
-        className="mt-6 grid grid-rows-[auto_auto_auto] gap-x-2 divide-x divide-line sm:mt-7 sm:gap-x-4"
-        style={{ gridTemplateColumns: `repeat(${lines.length}, minmax(0,1fr))` }}
+        className={`grid grid-rows-[auto_auto_auto] gap-x-2 divide-x divide-line [grid-template-columns:var(--entry-poste-cols)] sm:gap-x-4 ${stack.list}`}
+        style={{ '--entry-poste-cols': `repeat(${lines.length}, minmax(0,1fr))` }}
       >
         {lines.map((line) => (
-          <li key={line.key} className="row-span-3 grid min-w-0 grid-rows-subgrid pl-2 first:pl-0 sm:pl-4 sm:first:pl-0">
-            <div className="flex items-start gap-1.5 text-pretty text-xs font-semibold leading-tight text-ink sm:text-sm">
+          <li key={line.key} className={`row-span-3 grid min-w-0 grid-rows-subgrid pl-2 first:pl-0 sm:pl-4 sm:first:pl-0 ${stack.item}`}>
+            <div className="flex items-start gap-1.5 text-pretty text-xs font-medium leading-tight text-ink-70 sm:text-sm">
               {/* The swatch is the only thing tying a column to its segment
                   now that the columns are equal thirds, so it shows at every
                   width. `mt-0.5` sits it on the title's first line. */}
@@ -148,7 +183,7 @@ export default async function EntryCostsBreakdown({ listing }) {
             {/* No amount without a real monthly rent to multiply — a sale
                 price times five months is a number nobody owes. */}
             {hasAmounts ? (
-              <p className="u-tabular mt-1.5 text-sm font-bold leading-tight text-ink sm:mt-2.5 sm:text-lg">
+              <p className={`u-tabular mt-1.5 text-sm font-semibold leading-tight text-ink sm:mt-2.5 sm:text-lg ${stack.amount}`}>
                 {money(line.amount)}
               </p>
             ) : null}
@@ -156,13 +191,14 @@ export default async function EntryCostsBreakdown({ listing }) {
                 subgrid, so it is as tall as the tallest set of tags (the
                 deposit's two). Without it a lone pill stretches to that
                 height and `rounded-full` draws it as an oval. */}
-            <div className="mt-1.5 flex flex-wrap items-start gap-1 sm:mt-3 sm:gap-2">
+            <div className={`mt-1.5 flex flex-wrap items-start gap-1 sm:mt-3 sm:gap-2 ${stack.tags}`}>
               <span className={TAG_CLASS}>{t(`listings.entryCosts.recipient.${line.recipient}`)}</span>
               {line.refundable ? <span className={TAG_CLASS}>{t('listings.entryCosts.refundable')}</span> : null}
             </div>
           </li>
         ))}
       </ul>
+      </div>
     </section>
   );
 }

@@ -77,8 +77,10 @@ export default function MapListingPreview({ listing, onClose }) {
       aria-label={listing.title || t('listings.map.viewDetails')}
       // Bottom-anchored over the map. Centred with a ceiling on desktop,
       // where the map pane is half the screen and a full-width card would
-      // cover most of it.
-      className="absolute inset-x-3 bottom-3 z-30 mx-auto max-w-md sm:bottom-5"
+      // cover most of it. A flex column capped at the map's own height, so
+      // on a short map (landscape phone, browser chrome showing) the PHOTO
+      // is what gives way — the price, specs and button never do.
+      className="absolute inset-x-3 bottom-3 z-30 mx-auto flex max-h-[calc(100%-1.5rem)] max-w-md flex-col sm:bottom-5 sm:max-h-[calc(100%-2.5rem)]"
     >
       <button
         type="button"
@@ -89,8 +91,16 @@ export default function MapListingPreview({ listing, onClose }) {
         <X strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
       </button>
 
-      <div className="u-lift-lg overflow-hidden rounded-2xl border border-line bg-surface">
-        <Link href={href} className="relative block aspect-[16/9] max-h-[11.5rem] w-full bg-canvas-deep sm:max-h-[13rem]">
+      <div className="u-lift-lg flex min-h-0 flex-col overflow-hidden rounded-2xl border border-line bg-surface">
+        {/* An explicit height, not `aspect-[16/9] max-h-*`. With the ratio,
+            iOS Safari resolved the carousel's `h-full` against the
+            UNCLAMPED 16:9 height, so the photo painted ~30px past its own
+            box and over the price line (reported from a real iPhone,
+            2026-09-13). A fixed height gives `h-full` one unambiguous
+            answer in every engine, and `overflow-hidden` clips anything
+            that still disagrees. `shrink` + `min-h-24` is the short-map
+            give described on the wrapper above. */}
+        <Link href={href} className="relative block h-36 min-h-24 w-full shrink overflow-hidden bg-canvas-deep sm:h-44">
           {images.length > 0 ? (
             <CardImageCarousel
               images={images}
@@ -114,7 +124,7 @@ export default function MapListingPreview({ listing, onClose }) {
           </div>
         </Link>
 
-        <div className="flex flex-col gap-1 px-4 pb-3 pt-3">
+        <div className="flex shrink-0 flex-col gap-1 px-4 pb-3 pt-3">
           <Link href={href} className="flex min-w-0 flex-col gap-1">
             <span className="u-tabular text-xl font-semibold leading-tight text-ink">
               <Price

@@ -364,7 +364,7 @@ async function handleListingEnquiry({ from, text, primaryWamid } = {}) {
   let conversation = null;
   try {
     conversation = db.getActiveConversation(from) || db.createConversation(from);
-    db.recordMessage(conversation.id, 'inbound', { wamid: primaryWamid, text });
+    db.recordMessage(conversation.id, 'inbound', { wamid: primaryWamid, text, intent: 'listing_enquiry' });
     db.setSelectedProperty(conversation.id, propertyId);
   } catch (err) {
     console.error(`[enquiry] could not record the conversation for ${from}: ${err.message}`);
@@ -379,7 +379,9 @@ async function handleListingEnquiry({ from, text, primaryWamid } = {}) {
       replyToMessageId: primaryWamid || undefined,
       previewUrl: true,
     });
-    if (conversation) db.recordMessage(conversation.id, 'outbound', { text: reply });
+    // 'system', not 'ai': this reply is the deterministic template above, and
+    // no model was involved in writing it.
+    if (conversation) db.recordMessage(conversation.id, 'outbound', { text: reply, sender: 'system' });
     console.log(
       `[enquiry] property #${propertyId} from ${from} — replied `
         + `(agent=${agentNotified}, ops=${opsNotified})`,

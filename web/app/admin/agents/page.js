@@ -1,73 +1,105 @@
 import Link from 'next/link';
 import { AlertTriangle } from 'lucide-react';
-import { getAgents, getVendors, findDuplicateAgents } from '@/lib/agents';
+import { ADMIN_AGENT_SORTS, findDuplicateAgents, getVendors, listAgentsForAdmin } from '@/lib/agents';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
-import { getLocationHierarchySafe } from '@/lib/locations';
-import { AGENT_STATUS_LABEL_KEYS } from '@/lib/adminLabels';
-import { updateAgentStatusAction, reassignAgentVendorAction } from './actions';
-import AgentCommunesForm from './AgentCommunesForm';
+import { firstParam, parsePage } from '@/lib/adminPagination';
 import { getT } from '@/lib/i18n/server';
+import { ErrorNote, Stat } from '../LeadRoutingUI';
+import Pagination from '../table/Pagination';
+import TableToolbar from '../table/TableToolbar';
+import AgentsTable from './AgentsTable';
 
-function formatDate(value) {
+export const dynamic = 'force-dynamic';
+
+const SORT_LABEL_KEYS = {
+  newest: 'admin.agents.sortNewest',
+  name: 'admin.agents.sortName',
+  listings: 'admin.agents.sortListings',
+  live: 'admin.agents.sortLive',
+};
+
+function formatDay(value) {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  return new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }).format(date);
+  return new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Africa/Kinshasa' }).format(date);
 }
 
+/**
+ * The agent directory, built for tens of thousands of rows.
+ *
+ * One server page (LIMIT/OFFSET) per request, searched on name, agency, email,
+ * any fragment of the phone digits, or `#id`; filtered by verification and
+ * status; sorted by recency, name or portfolio size. The old version fetched
+ * every agent with two correlated counts each and rendered a full commune
+ * checkbox form and an agency <select> into every row.
+ *
+ * Duplicate detection stays: two real signals only (same normalised number,
+ * same email), flagged for review, never merged automatically.
+ */
 export default async function AdminAgentsPage({ searchParams }) {
   const t = await getT();
-  const params = await searchParams;
-  const q = params.q || '';
+  const raw = (await searchParams) || {};
+  const filters = {
+    q: firstParam(raw.q) || undefined,
+    verified: ['yes', 'no'].includes(firstParam(raw.verified)) ? firstParam(raw.verified) : undefined,
+    status: ['0', '1'].includes(firstParam(raw.status)) ? firstParam(raw.status) : undefined,
+    sort: ADMIN_AGENT_SORTS.includes(firstParam(raw.sort)) && firstParam(raw.sort) !== 'newest' ? firstParam(raw.sort) : undefined,
+  };
+  const { page, pageSize, limit, offset } = parsePage(raw);
+  const params = { ...filters, page: page > 1 ? String(page) : undefined, size: pageSize === 25 ? undefined : String(pageSize) };
 
-  const [agents, vendors, { communes, degraded }, duplicates] = await Promise.all([
-    getAgents({ q: q || undefined }),
+  const [listResult, vendorsResult, duplicatesResult] = await Promise.allSettled([
+    listAgentsForAdmin({ ...filters, limit, offset }),
     getVendors(),
-    getLocationHierarchySafe(),
     findDuplicateAgents(),
   ]);
+  const list = listResult.status === 'fulfilled' ? listResult.value : null;
+  const vendors = vendorsResult.status === 'fulfilled' ? vendorsResult.value : [];
+  const duplicates = duplicatesResult.status === 'fulfilled' ? duplicatesResult.value : [];
+
+  // Plain, pre-formatted props for the client table: no Date objects crossing
+  // the boundary, so server and browser render identical text.
+  const rows = (list?.rows || []).map((agent) => ({
+    id: Number(agent.id),
+    name: agent.display_name,
+    email: agent.email || null,
+    phone: agent.phone || null,
+    verified: Boolean(agent.phone_verified_at),
+    routingEnabled: agent.direct_routing_enabled !== false,
+    vendorId: agent.vendor_id ?? null,
+    agency: agent.vendor_username || null,
+    primary: agent.primary_communes || [],
+    serviced: agent.serviced_communes || [],
+    live: agent.live_listing_count ?? 0,
+    total: agent.listing_count ?? 0,
+    limit: agent.listing_limit ?? null,
+    packageTitle: agent.package_title || null,
+    expireLabel: formatDay(agent.expire_date),
+    status: agent.status,
+  }));
 
   return (
-    <div>
-      <div className="mb-4 flex items-end justify-between gap-3">
-        <div>
-          <h1 className="u-title-page text-ink">{t('admin.agents.title')}</h1>
-          <p className="mt-1 text-sm text-ink-45">
-            {agents.length} agent{agents.length !== 1 ? 's' : ''}
-          </p>
-        </div>
-
-        <form method="get" className="flex items-center gap-2">
-          <input
-            type="search"
-            name="q"
-            defaultValue={q}
-            placeholder={t('admin.agents.searchPlaceholder')}
-            className="rounded-md border border-line bg-white px-2.5 py-1.5 text-sm text-ink"
-          />
-          <button
-            type="submit"
-            className="rounded-md border border-line bg-white px-3 py-1.5 text-sm font-medium text-ink hover:bg-canvas-alt"
-          >
-            {t('admin.agents.search')}
-          </button>
-        </form>
+    <div className="flex flex-col gap-5">
+      <div>
+        <h1 className="u-title-page text-ink">{t('admin.agents.title')}</h1>
+        <p className="u-micro mt-1 text-ink-45">{t('admin.agents.subtitle')}</p>
       </div>
 
-      {/* Duplicate detection. Two real signals only — the same number written
-          three different ways, and the same email — never name similarity,
-          which would group unrelated agencies sharing a common Kinshasa name
-          and present a guess as a finding. This flags for REVIEW; nothing is
-          merged automatically. */}
+      {list ? (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+          <Stat label={t('admin.agents.statTotal')} value={list.summary.total.toLocaleString('fr-FR')} />
+          <Stat label={t('admin.agents.statVerified')} value={list.summary.verified.toLocaleString('fr-FR')} />
+          <Stat label={t('admin.agents.statActive')} value={list.summary.active.toLocaleString('fr-FR')} />
+        </div>
+      ) : null}
+
       {duplicates.length > 0 && (
-        <div className="mb-4 rounded-card border border-warning/40 bg-warning-tint p-4">
-          <div className="flex items-center gap-2">
+        <details className="rounded-card border border-warning/40 bg-warning-tint p-4">
+          <summary className="flex cursor-pointer items-center gap-2">
             <AlertTriangle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-warning" />
-            <h2 className="u-title-card text-warning">
-              {duplicates.length} doublon{duplicates.length === 1 ? '' : 's'} potentiel
-              {duplicates.length === 1 ? '' : 's'}
-            </h2>
-          </div>
+            <span className="u-title-card text-warning">{t('admin.agents.duplicatesTitle', { count: duplicates.length })}</span>
+          </summary>
           <ul className="mt-2.5 flex flex-col gap-2">
             {duplicates.map((group) => (
               <li key={`${group.kind}-${group.key}`} className="u-micro text-ink-70">
@@ -78,143 +110,57 @@ export default async function AdminAgentsPage({ searchParams }) {
                 {group.accounts.map((a, i) => (
                   <span key={a.id}>
                     {i > 0 ? ', ' : ''}
-                    <Link href={`/admin/agents/${a.id}`} className="font-semibold text-blue-deep hover:underline">
-                      #{a.id} {a.username || ''}
-                    </Link>
+                    <Link href={`/admin/agents/${a.id}`} className="font-semibold text-blue-deep hover:underline">#{a.id}</Link>
                   </span>
                 ))}
               </li>
             ))}
           </ul>
-          <p className="u-micro mt-2 text-ink-45">
-            {t('admin.agents.duplicateWarning')}
-          </p>
-        </div>
+          <p className="u-micro mt-2 text-ink-45">{t('admin.agents.duplicateWarning')}</p>
+        </details>
       )}
 
-      {agents.length === 0 ? (
-        <div className="rounded-card border border-dashed border-line bg-white p-10 text-center text-sm text-ink-45">
-          {t('admin.agents.empty')}
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-card border border-line bg-white">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-line bg-canvas-alt text-xs uppercase tracking-wide text-ink-45">
-              <tr>
-                <th className="px-4 py-2.5 font-semibold">{t('admin.agents.name')}</th>
-                <th className="px-4 py-2.5 font-semibold">{t('admin.agents.phone')}</th>
-                <th className="px-4 py-2.5 font-semibold">{t('admin.agents.phoneVerified')}</th>
-                <th className="px-4 py-2.5 font-semibold">{t('admin.agents.agency')}</th>
-                <th className="px-4 py-2.5 font-semibold">{t('admin.agents.servicedCommunes')}</th>
-                <th className="px-4 py-2.5 font-semibold">{t('admin.agents.listings')}</th>
-                <th className="px-4 py-2.5 font-semibold">{t('admin.agents.status')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {agents.map((agent) => {
-                const boundUpdateStatus = updateAgentStatusAction.bind(null, agent.id);
-                const boundReassign = reassignAgentVendorAction.bind(null, agent.id);
-                const fullName = [agent.first_name, agent.last_name].filter(Boolean).join(' ') || agent.username || '—';
-                const expireLabel = formatDate(agent.expire_date);
+      <TableToolbar
+        params={params}
+        search={{ placeholder: t('admin.agents.searchPlaceholder') }}
+        filters={[
+          {
+            type: 'select',
+            param: 'verified',
+            label: t('admin.agents.phoneVerified'),
+            options: [
+              { value: 'yes', label: t('admin.agents.verified') },
+              { value: 'no', label: t('admin.agents.notVerified') },
+            ],
+          },
+          {
+            type: 'select',
+            param: 'status',
+            label: t('admin.agents.status'),
+            options: [
+              { value: '1', label: t('admin.agents.statusActive') },
+              { value: '0', label: t('admin.agents.statusSuspended') },
+            ],
+          },
+          {
+            type: 'select',
+            param: 'sort',
+            label: t('admin.agents.sortBy'),
+            allLabel: t(SORT_LABEL_KEYS.newest),
+            options: ADMIN_AGENT_SORTS.filter((value) => value !== 'newest').map((value) => ({ value, label: t(SORT_LABEL_KEYS[value]) })),
+          },
+        ]}
+      />
 
-                return (
-                  <tr key={agent.id} className="border-b border-line last:border-b-0 hover:bg-canvas-alt">
-                    <td className="px-4 py-2.5">
-                      <Link
-                        href={`/admin/agents/${agent.id}`}
-                        className="font-medium text-ink hover:text-blue-deep hover:underline"
-                      >
-                        {fullName}
-                      </Link>
-                      <div className="text-xs text-ink-45">{agent.email || '—'}</div>
-                    </td>
-                    <td className="px-4 py-2.5 text-ink-70">{agent.phone || '—'}</td>
-                    <td className="px-4 py-2.5">
-                      {/* Read-only here. It IS revocable/grantable, but only on
-                          the agent detail page, behind an explanation of what
-                          the badge asserts — a one-click toggle in a table row
-                          is too easy to hit by accident for a claim that
-                          governs public attribution and lead routing. */}
-                      {agent.phone_verified_at ? (
-                        <span className="rounded-full bg-green-tint px-2 py-0.5 text-xs font-medium text-green-deep">{t('admin.agents.yes')}</span>
-                      ) : (
-                        <span className="text-xs text-ink-45">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <form action={boundReassign} className="flex items-center gap-1.5">
-                        <select
-                          name="vendor_id"
-                          defaultValue={agent.vendor_id ?? ''}
-                          className="rounded-md border border-line bg-white px-2 py-1 text-xs text-ink"
-                        >
-                          <option value="">{t('admin.agents.noAgency')}</option>
-                          {vendors.map((v) => (
-                            <option key={v.id} value={v.id}>
-                              {v.username}
-                            </option>
-                          ))}
-                        </select>
-                        <button type="submit" className="rounded-md border border-line px-2 py-1 text-xs font-medium text-ink hover:bg-canvas-alt">
-                          OK
-                        </button>
-                      </form>
-                    </td>
-                    <td className="px-4 py-2.5">
-                      {degraded ? (
-                        <span className="text-xs text-ink-45">{t('admin.agents.communesUnavailable')}</span>
-                      ) : (
-                        <AgentCommunesForm
-                          agentId={agent.id}
-                          communes={communes}
-                          selectedCommunes={agent.primary_communes || []}
-                        />
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5 text-ink-70">
-                      {/* Total against the package cap — packages.number_of_property
-                          limits how many listings an agency may hold, not how many
-                          are live, so the quota figure is the total. The live count
-                          is spelled out beside it because the bare number reads as
-                          "listings on the site" and is not that. */}
-                      {agent.listing_count} {agent.listing_limit != null ? `/ ${agent.listing_limit}` : ''}
-                      {agent.live_listing_count !== agent.listing_count ? (
-                        <div className="text-xs text-ink-45">{agent.live_listing_count} en ligne</div>
-                      ) : null}
-                      {agent.package_title ? (
-                        <div className="text-xs text-ink-45">
-                          {agent.package_title}
-                          {expireLabel ? ` · jusqu'au ${expireLabel}` : ''}
-                        </div>
-                      ) : (
-                        <div className="text-xs text-ink-45">{t('admin.agents.noActiveSubscription')}</div>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5">
-                      <form action={boundUpdateStatus} className="flex items-center gap-1.5">
-                        <select
-                          name="status"
-                          defaultValue={agent.status}
-                          className="rounded-full border border-line bg-white px-2 py-1 text-xs font-medium text-ink"
-                        >
-                          {Object.entries(AGENT_STATUS_LABEL_KEYS).map(([value, label]) => (
-                            <option key={value} value={value}>
-                              {label}
-                            </option>
-                          ))}
-                        </select>
-                        <button type="submit" className="rounded-full border border-line px-2 py-1 text-xs font-medium text-ink hover:bg-canvas-alt">
-                          OK
-                        </button>
-                      </form>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {listResult.status === 'rejected' ? (
+        <ErrorNote>{t('admin.agents.loadError', { error: listResult.reason?.message })}</ErrorNote>
+      ) : null}
+
+      <AgentsTable
+        rows={rows}
+        vendors={vendors.map((vendor) => ({ id: vendor.id, username: vendor.username }))}
+        footer={list ? <Pagination pathname="/admin/agents" params={params} total={list.total} page={page} pageSize={pageSize} /> : null}
+      />
     </div>
   );
 }

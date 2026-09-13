@@ -133,6 +133,52 @@ export async function getRecentLeadClicks({ limit = 100 } = {}) {
   return rows;
 }
 
+/** One page of the tap log, with its real total. `id DESC` breaks created_at ties. */
+export const LEAD_CLICKS_PAGE_SQL = `
+  SELECT wc.id, wc.created_at, wc.listing_id, wc.routing_type, wc.device, wc.source,
+         wc.commune, wc.agent_id, p.reference, pc.title
+    FROM whatsapp_clicks wc
+    LEFT JOIN properties p ON p.id = wc.listing_id
+    LEFT JOIN property_contents pc ON pc.property_id = wc.listing_id AND pc.language_id = 20
+   ORDER BY wc.created_at DESC, wc.id DESC
+   LIMIT $1 OFFSET $2
+`;
+
+export async function getLeadClicksPage({ limit = 25, offset = 0 } = {}) {
+  const pool = getPool();
+  const [{ rows: countRows }, { rows }] = await Promise.all([
+    pool.query('SELECT COUNT(*)::int AS total FROM whatsapp_clicks'),
+    pool.query(LEAD_CLICKS_PAGE_SQL, [limit, offset]),
+  ]);
+  return { total: countRows[0]?.total ?? 0, rows };
+}
+
+/**
+ * Taps per commune over a window, top ten. `whatsapp_clicks.commune` is what
+ * the tap recorded; a tap with none is counted apart (`untagged`) rather than
+ * dropped, so the ranking never hides how much of the traffic it covers.
+ */
+export async function getLeadClicksByCommune({ days = 30 } = {}) {
+  const pool = getPool();
+  const [{ rows }, { rows: untaggedRows }] = await Promise.all([
+    pool.query(
+      `SELECT commune, COUNT(*)::int AS taps
+         FROM whatsapp_clicks
+        WHERE created_at >= NOW() - make_interval(days => $1::int) AND commune IS NOT NULL AND commune <> ''
+        GROUP BY commune
+        ORDER BY taps DESC, commune
+        LIMIT 10`,
+      [days],
+    ),
+    pool.query(
+      `SELECT COUNT(*)::int AS n FROM whatsapp_clicks
+        WHERE created_at >= NOW() - make_interval(days => $1::int) AND (commune IS NULL OR commune = '')`,
+      [days],
+    ),
+  ]);
+  return { rows, untagged: untaggedRows[0]?.n ?? 0 };
+}
+
 /**
  * Taps by routing type over a window. A NULL routing type is a tap recorded
  * before routing was tracked — reported as its own bucket, never folded into

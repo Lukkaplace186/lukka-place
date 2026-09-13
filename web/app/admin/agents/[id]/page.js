@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
-import { getAgentForAdmin, getAgents } from '@/lib/agents';
+import { getAgentForAdmin } from '@/lib/agents';
 import { getLocationHierarchyWithFallback } from '@/lib/locations';
 import { getAgentBillingHistory } from '@/lib/subscriptions';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -48,22 +48,12 @@ export default async function AdminAgentDetailPage({ params }) {
   const agent = await getAgentForAdmin(id);
   if (!agent) notFound();
 
-  const [{ communes }, allAgents, billing] = await Promise.all([
+  // The portfolio-transfer destination is chosen with a server-side search
+  // (AgentPicker) — this page no longer loads every agent to fill a <select>.
+  const [{ communes }, billing] = await Promise.all([
     getLocationHierarchyWithFallback(),
-    getAgents(),
     getAgentBillingHistory(agent.vendor_id),
   ]);
-
-  const otherAgents = allAgents
-    .filter((a) => Number(a.id) !== agent.id)
-    .map((a) => ({
-      id: Number(a.id),
-      label:
-        [a.first_name, a.last_name].filter(Boolean).join(' ') ||
-        a.agency_name ||
-        a.username ||
-        `Agent #${a.id}`,
-    }));
 
   const displayName =
     [agent.first_name, agent.last_name].filter(Boolean).join(' ') || agent.username || `Agent #${agent.id}`;
@@ -135,7 +125,6 @@ export default async function AdminAgentDetailPage({ params }) {
         <AgentAdminPanel
           agent={agent}
           communes={communes}
-          otherAgents={otherAgents}
           listingCount={agent.listing_count}
         />
 

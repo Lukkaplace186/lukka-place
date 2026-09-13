@@ -210,6 +210,86 @@ export async function adminListCustomers({ q, limit = 200 } = {}) {
   return rows;
 }
 
+export const ADMIN_CUSTOMER_STATUSES = ['active', 'locked', 'unverified'];
+
+/**
+ * One page of /admin/customers, with the counts the table shows.
+ *
+ * "Locked" is `locked_until > NOW()` — an expired lockout is an active account
+ * again, which the old list got wrong by testing `locked_until` for NULL.
+ * Saved-search and favourite counts are scalar sub-selects evaluated for the
+ * page's rows only (both tables are indexed on customer_id). Enquiry counts
+ * live in the engine's SQLite and are fetched per page by the caller.
+ *
+ * `q` matches the name, or the stored E.164 digits once separators are
+ * stripped from what was typed — "+44 7932" finds 447932….
+ */
+export async function adminListCustomersPage({ q, status, limit = 25, offset = 0 } = {}) {
+  const pool = getPool();
+  const params = [];
+  const where = [];
+  const raw = String(q || '').trim();
+  if (raw) {
+    params.push(`%${raw.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
+    const nameParam = params.length;
+    const digits = raw.replace(/\D/g, '');
+    if (digits) {
+      params.push(`%${digits}%`);
+      where.push(`(COALESCE(c.full_name, '') ILIKE $${nameParam} OR c.phone LIKE $${params.length})`);
+    } else {
+      where.push(`COALESCE(c.full_name, '') ILIKE $${nameParam}`);
+    }
+  }
+  if (status === 'locked') where.push('c.locked_until > NOW()');
+  if (status === 'active') where.push('(c.locked_until IS NULL OR c.locked_until <= NOW())');
+  if (status === 'unverified') where.push('c.phone_verified_at IS NULL');
+  const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  const pageLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 25, 1), 100);
+  const pageOffset = Math.max(Number.parseInt(offset, 10) || 0, 0);
+
+  const [countResult, pageResult, summaryResult] = await Promise.all([
+    pool.query(`SELECT COUNT(*)::int AS total FROM customers c ${whereClause}`, params),
+    pool.query(
+      `SELECT c.id, c.phone, c.full_name, c.created_at, c.last_login_at,
+              c.phone_verified_at, c.failed_login_count, c.locked_until,
+              (c.locked_until IS NOT NULL AND c.locked_until > NOW()) AS is_locked,
+              (c.password_hash IS NOT NULL AND c.password_hash <> '') AS has_password,
+              (SELECT COUNT(*)::int FROM customer_saved_searches s WHERE s.customer_id = c.id) AS saved_searches_count,
+              (SELECT COUNT(*)::int FROM customer_favorites f WHERE f.customer_id = c.id) AS favorites_count
+       FROM customers c
+       ${whereClause}
+       ORDER BY c.created_at DESC, c.id DESC
+       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, pageLimit, pageOffset],
+    ),
+    pool.query(
+      `SELECT COUNT(*)::int AS total,
+              COUNT(*) FILTER (WHERE locked_until > NOW())::int AS locked,
+              COUNT(*) FILTER (WHERE phone_verified_at IS NULL)::int AS unverified
+       FROM customers`,
+    ),
+  ]);
+  return {
+    total: countResult.rows[0]?.total ?? 0,
+    rows: pageResult.rows,
+    summary: summaryResult.rows[0] || { total: 0, locked: 0, unverified: 0 },
+  };
+}
+
+/**
+ * Lift a login lockout without touching the password. Clears exactly the two
+ * columns the lockout consists of — the same two resetCustomerPassword clears
+ * alongside the password — and leaves token_version alone, since nobody's
+ * session needs to end for an account to be unlocked.
+ */
+export async function adminUnlockCustomer(customerId) {
+  const { rowCount } = await getPool().query(
+    'UPDATE customers SET failed_login_count = 0, locked_until = NULL WHERE id = $1',
+    [customerId],
+  );
+  return (rowCount ?? 0) > 0;
+}
+
 /** The existence check the reset action runs before writing a password. */
 export async function adminGetCustomerById(customerId) {
   const pool = getPool();

@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getLead, getLeadProposals, getLeadMatches } from '@/lib/adminApi';
-import { getAgents } from '@/lib/agents';
+import { getAgentNamesByIds } from '@/lib/agents';
+import AgentPicker from '../../AgentPicker';
 import { getListingsByIds } from '@/lib/listings';
 import { LEAD_STATUSES, LEAD_STATUS_LABEL_KEYS } from '@/lib/adminLabels';
 import { updateLeadStatusAction, assignLeadAction, redispatchLeadAction } from '../../actions';
@@ -15,7 +16,7 @@ function formatDateTime(value) {
 }
 
 function agentName(agent) {
-  return [agent.first_name, agent.last_name].filter(Boolean).join(' ') || agent.username || `Agent #${agent.id}`;
+  return agent.name || `Agent #${agent.id}`;
 }
 
 const REQUEST_LABELS = [
@@ -48,9 +49,8 @@ export default async function AdminLeadDetailPage({ params }) {
   }
   if (!lead) notFound();
 
-  const [{ proposals }, agents, matchesResult] = await Promise.all([
+  const [{ proposals }, matchesResult] = await Promise.all([
     getLeadProposals([id]),
-    getAgents(),
     // Best-effort: the matches panel is diagnostic. The engine failing to
     // return it must not take down a page whose primary job is working the
     // lead itself.
@@ -64,7 +64,12 @@ export default async function AdminLeadDetailPage({ params }) {
   const propertyIds = proposals.map((p) => p.property_id);
   const listings = propertyIds.length > 0 ? await getListingsByIds(propertyIds) : [];
   const listingById = new Map(listings.map((l) => [String(l.id), l]));
-  const agentById = new Map(agents.map((a) => [String(a.id), a]));
+  // Names for exactly the agents this page shows — never the whole directory.
+  const agentNames = await getAgentNamesByIds([
+    ...proposals.map((p) => p.agent_id),
+    ...matches.map((m) => m.agent_id),
+  ]).catch(() => new Map());
+  const agentById = new Map([...agentNames].map(([agentId, value]) => [String(agentId), value]));
 
   const enrichedProposals = proposals.map((p) => ({
     ...p,
@@ -72,11 +77,6 @@ export default async function AdminLeadDetailPage({ params }) {
     property: listingById.get(String(p.property_id)) || null,
   }));
 
-  const matching = lead.commune
-    ? agents.filter((a) => a.status === 1 && (a.primary_communes || []).includes(lead.commune))
-    : [];
-  const matchingIds = new Set(matching.map((a) => a.id));
-  const others = agents.filter((a) => a.status === 1 && !matchingIds.has(a.id));
 
   const boundAssign = assignLeadAction.bind(null, lead.id);
   const boundUpdateStatus = updateLeadStatusAction.bind(null, lead.id);
@@ -240,29 +240,14 @@ export default async function AdminLeadDetailPage({ params }) {
           <div className="rounded-card border border-line bg-white p-4">
             <h2 className="u-title-card mb-3 text-ink">{t('admin.leads.assignedAgent')}</h2>
             <form action={boundAssign} className="flex flex-col gap-2">
-              <select
+              <AgentPicker
                 name="agent_id"
-                defaultValue={lead.agent_id ?? ''}
-                className="rounded-md border border-line bg-white px-2.5 py-1.5 text-sm text-ink"
-              >
-                <option value="">{t('admin.leads.unassigned')}</option>
-                {matching.length > 0 && (
-                  <optgroup label={`Couvre ${lead.commune}`}>
-                    {matching.map((a) => (
-                      <option key={a.id} value={a.id}>
-                        {agentName(a)}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-                <optgroup label={t('admin.actions.allAgents')}>
-                  {others.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {agentName(a)}
-                    </option>
-                  ))}
-                </optgroup>
-              </select>
+                activeOnly
+                allowClear
+                commune={lead.commune || null}
+                defaultAgent={lead.agent_id ? { id: lead.agent_id, name: lead.assigned_agent || `Agent #${lead.agent_id}` } : null}
+                placeholder={t('admin.leads.unassigned')}
+              />
               <button type="submit" className="self-start rounded-md border border-line px-3 py-1.5 text-sm font-medium text-ink hover:bg-canvas-alt">
                 {t('admin.leads.assign')}
               </button>

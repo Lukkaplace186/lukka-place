@@ -2,29 +2,44 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { BellRing, CalendarClock, MoreHorizontal, UserRoundCog, XCircle } from 'lucide-react';
 import { useToast } from '@/components/Toast';
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
-import { nudgeViewingAction, reassignViewingAction, scheduleViewingAction } from './actions';
+import AgentPicker from '../AgentPicker';
+import { cancelViewingAction, nudgeViewingAction, reassignViewingAction, scheduleViewingAction } from './actions';
 
-const CONTROL = 'u-micro min-w-0 flex-1 rounded-md border border-line bg-surface px-2 py-1.5 text-ink';
-const BUTTON =
-  'u-press u-micro-strong shrink-0 rounded-md border border-line bg-surface px-2.5 py-1.5 text-ink transition-colors hover:border-blue disabled:cursor-not-allowed disabled:opacity-50';
+const ICON_BUTTON =
+  'u-press u-micro-strong inline-flex h-8 items-center gap-1.5 rounded-md border border-line bg-surface px-2 text-ink transition-colors hover:border-blue disabled:cursor-not-allowed disabled:opacity-50';
+const PRIMARY =
+  'u-press u-btn-primary inline-flex h-9 items-center justify-center rounded-lg bg-blue px-4 text-sm font-semibold text-white hover:bg-blue-deep disabled:opacity-50';
+const SECONDARY =
+  'u-press inline-flex h-9 items-center justify-center rounded-lg border border-line bg-surface px-4 text-sm font-semibold text-ink hover:bg-canvas-alt';
 
 /**
- * The manual overrides on one viewing request: reassign to a verified agent,
- * pin the appointment time, and — for a request an agent is sitting on —
- * resend their alert. `agents` is already filtered to agents a lead can
- * legally be routed to; the engine re-checks that on every call.
+ * The quick actions on one viewing request: nudge the agent sitting on it,
+ * hand it to another agency, pin the appointment time, or call it off.
+ *
+ * Reassignment searches routable agents server-side (AgentPicker) instead of
+ * rendering every agent into a <select> on every row — at 30k agents that
+ * select was the page. The engine re-checks the routing gate on every call.
  */
-export default function ViewingRowActions({ viewingRequestId, agents, currentAgentId, canNudge }) {
+export default function ViewingRowActions({ viewingRequestId, currentAgentId, commune, canNudge, canCancel }) {
   const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
   const [pending, startTransition] = useTransition();
-  const [agentId, setAgentId] = useState('');
+  const [dialog, setDialog] = useState(null);
+  const [agent, setAgent] = useState(null);
   const [when, setWhen] = useState('');
 
-  function run(action, reset) {
+  function run(action, onDone) {
     startTransition(async () => {
       let result;
       try {
@@ -37,70 +52,130 @@ export default function ViewingRowActions({ viewingRequestId, agents, currentAge
         return;
       }
       showToast({ type: 'success', message: result.message });
-      if (reset) reset();
+      onDone?.();
       router.refresh();
     });
   }
 
-  const selectable = agents.filter((agent) => agent.id !== currentAgentId);
+  const close = () => {
+    setDialog(null);
+    setAgent(null);
+    setWhen('');
+  };
 
   return (
-    <div className="flex min-w-[16rem] flex-col gap-1.5">
-      <form
-        className="flex gap-1.5"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (!agentId) return;
-          run(() => reassignViewingAction(viewingRequestId, Number(agentId)), () => setAgentId(''));
-        }}
-      >
-        <select
-          aria-label={t('admin.viewings.reassignTo')}
-          value={agentId}
-          onChange={(event) => setAgentId(event.target.value)}
-          className={CONTROL}
-          disabled={pending || selectable.length === 0}
-        >
-          <option value="">
-            {selectable.length ? t('admin.viewings.reassignTo') : t('admin.viewings.noRoutableAgents')}
-          </option>
-          {selectable.map((agent) => (
-            <option key={agent.id} value={agent.id}>
-              {agent.name || `#${agent.id}`}
-            </option>
-          ))}
-        </select>
-        <button type="submit" className={BUTTON} disabled={pending || !agentId}>
-          {t('admin.viewings.reassign')}
-        </button>
-      </form>
-
-      <form
-        className="flex gap-1.5"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (!when) return;
-          run(() => scheduleViewingAction(viewingRequestId, when), () => setWhen(''));
-        }}
-      >
-        <input
-          type="datetime-local"
-          aria-label={t('admin.viewings.timeLabel')}
-          value={when}
-          onChange={(event) => setWhen(event.target.value)}
-          className={CONTROL}
-          disabled={pending}
-        />
-        <button type="submit" className={BUTTON} disabled={pending || !when}>
-          {t('admin.viewings.setTime')}
-        </button>
-      </form>
-
+    <div className="flex items-center gap-1.5">
       {canNudge ? (
-        <button type="button" className={BUTTON} disabled={pending} onClick={() => run(() => nudgeViewingAction(viewingRequestId))}>
-          {t('admin.viewings.nudge')}
+        <button
+          type="button"
+          className={ICON_BUTTON}
+          disabled={pending}
+          onClick={() => run(() => nudgeViewingAction(viewingRequestId))}
+          title={t('admin.viewings.nudge')}
+        >
+          <BellRing strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
+          <span className="hidden xl:inline">{t('admin.viewings.nudge')}</span>
         </button>
       ) : null}
+
+      <button type="button" className={ICON_BUTTON} disabled={pending} onClick={() => setDialog('reassign')} title={t('admin.viewings.reassign')}>
+        <UserRoundCog strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
+        <span className="hidden xl:inline">{t('admin.viewings.reassign')}</span>
+      </button>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button type="button" className={ICON_BUTTON} disabled={pending} aria-label={t('admin.table.moreActions')}>
+            <MoreHorizontal strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-52">
+          <DropdownMenuItem onSelect={() => setDialog('time')}>
+            <CalendarClock strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+            {t('admin.viewings.setTime')}
+          </DropdownMenuItem>
+          {canCancel ? (
+            <DropdownMenuItem onSelect={() => setDialog('cancel')} className="text-danger">
+              <XCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+              {t('admin.viewings.cancel')}
+            </DropdownMenuItem>
+          ) : null}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Dialog open={dialog === 'reassign'} onOpenChange={(open) => (open ? setDialog('reassign') : close())}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t('admin.viewings.reassignTitle')}</DialogTitle>
+            <DialogDescription>{t('admin.viewings.reassignBody')}</DialogDescription>
+          </DialogHeader>
+          <AgentPicker
+            routableOnly
+            commune={commune}
+            excludeId={currentAgentId}
+            onSelect={setAgent}
+            placeholder={t('admin.viewings.reassignTo')}
+          />
+          <DialogFooter>
+            <button type="button" className={SECONDARY} onClick={close}>{t('common.actions.cancel')}</button>
+            <button
+              type="button"
+              className={PRIMARY}
+              disabled={pending || !agent}
+              onClick={() => run(() => reassignViewingAction(viewingRequestId, agent.id), close)}
+            >
+              {t('admin.viewings.reassign')}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={dialog === 'time'} onOpenChange={(open) => (open ? setDialog('time') : close())}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t('admin.viewings.setTimeTitle')}</DialogTitle>
+            <DialogDescription>{t('admin.viewings.setTimeBody')}</DialogDescription>
+          </DialogHeader>
+          <input
+            type="datetime-local"
+            aria-label={t('admin.viewings.timeLabel')}
+            value={when}
+            onChange={(event) => setWhen(event.target.value)}
+            className="u-focus-ring u-micro h-9 w-full rounded-lg border border-line bg-surface px-2.5 text-ink"
+          />
+          <DialogFooter>
+            <button type="button" className={SECONDARY} onClick={close}>{t('common.actions.cancel')}</button>
+            <button
+              type="button"
+              className={PRIMARY}
+              disabled={pending || !when}
+              onClick={() => run(() => scheduleViewingAction(viewingRequestId, when), close)}
+            >
+              {t('admin.viewings.setTime')}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={dialog === 'cancel'} onOpenChange={(open) => (open ? setDialog('cancel') : close())}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t('admin.viewings.cancelTitle')}</DialogTitle>
+            <DialogDescription>{t('admin.viewings.cancelBody')}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <button type="button" className={SECONDARY} onClick={close}>{t('admin.viewings.keep')}</button>
+            <button
+              type="button"
+              className="u-press inline-flex h-9 items-center justify-center rounded-lg bg-danger px-4 text-sm font-semibold text-white disabled:opacity-50"
+              disabled={pending}
+              onClick={() => run(() => cancelViewingAction(viewingRequestId), close)}
+            >
+              {t('admin.viewings.confirmCancel')}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

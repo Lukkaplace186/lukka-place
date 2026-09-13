@@ -1,19 +1,17 @@
 import Link from 'next/link';
 import { listLeads } from '@/lib/adminApi';
-import { getAgents } from '@/lib/agents';
 import { LEAD_STATUSES, LEAD_STATUS_LABEL_KEYS } from '@/lib/adminLabels';
+import { firstParam, parsePage } from '@/lib/adminPagination';
 import { updateLeadStatusAction, assignLeadAction } from '../actions';
 import { getT } from '@/lib/i18n/server';
+import AgentPicker from '../AgentPicker';
+import Pagination from '../table/Pagination';
 
 function formatDate(value) {
   if (!value) return '—';
   return new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }).format(
     new Date(`${value.replace(' ', 'T')}Z`),
   );
-}
-
-function agentName(agent) {
-  return [agent.first_name, agent.last_name].filter(Boolean).join(' ') || agent.username || `Agent #${agent.id}`;
 }
 
 function budgetText(lead) {
@@ -48,13 +46,17 @@ function researchLine(lead) {
 
 export default async function AdminLeadsPage({ searchParams }) {
   const t = await getT();
-  const params = await searchParams;
-  const status = params.status || '';
+  const params = (await searchParams) || {};
+  const status = firstParam(params.status) || '';
+  // `?wa=` scopes the list to one customer — /admin/customers links here.
+  const wa = String(firstParam(params.wa) || '').replace(/\D/g, '');
+  const { page, pageSize, limit, offset } = parsePage(params);
+  const pageParams = {
+    status: status || undefined, wa: wa || undefined,
+    page: page > 1 ? String(page) : undefined, size: pageSize === 25 ? undefined : String(pageSize),
+  };
 
-  const [{ total, data }, agents] = await Promise.all([
-    listLeads({ status: status || undefined, limit: 50 }),
-    getAgents(),
-  ]);
+  const { total, data } = await listLeads({ status: status || undefined, waId: wa || undefined, limit, offset });
 
   return (
     <div>
@@ -65,6 +67,7 @@ export default async function AdminLeadsPage({ searchParams }) {
         </div>
 
         <form method="get" className="flex items-center gap-2">
+          {wa ? <input type="hidden" name="wa" value={wa} /> : null}
           <select
             name="status"
             defaultValue={status}
@@ -106,16 +109,6 @@ export default async function AdminLeadsPage({ searchParams }) {
                 const boundAssign = assignLeadAction.bind(null, lead.id);
                 const research = researchLine(lead);
 
-                // Commune match first (a real signal from primary_communes),
-                // then every other active agent as a manual fallback — never
-                // hiding an option just because the request has no commune
-                // or matches nobody yet.
-                const matching = lead.commune
-                  ? agents.filter((a) => a.status === 1 && (a.primary_communes || []).includes(lead.commune))
-                  : [];
-                const matchingIds = new Set(matching.map((a) => a.id));
-                const others = agents.filter((a) => a.status === 1 && !matchingIds.has(a.id));
-
                 return (
                   <tr key={lead.id} className="border-b border-line last:border-b-0 hover:bg-canvas-alt align-top">
                     <td className="px-4 py-2.5">
@@ -150,30 +143,20 @@ export default async function AdminLeadsPage({ searchParams }) {
                       </div>
                     </td>
                     <td className="px-4 py-2.5">
+                      {/* Commune specialists come first in the picker's
+                          suggestions — the same signal the old "Couvre
+                          {commune}" optgroup carried — without loading
+                          every agent into every row. */}
                       <form action={boundAssign} className="flex items-center gap-1.5">
-                        <select
+                        <AgentPicker
                           name="agent_id"
-                          defaultValue={lead.agent_id ?? ''}
-                          className="rounded-md border border-line bg-white px-2 py-1 text-xs text-ink"
-                        >
-                          <option value="">{t('admin.leads.unassigned')}</option>
-                          {matching.length > 0 && (
-                            <optgroup label={`Couvre ${lead.commune}`}>
-                              {matching.map((a) => (
-                                <option key={a.id} value={a.id}>
-                                  {agentName(a)}
-                                </option>
-                              ))}
-                            </optgroup>
-                          )}
-                          <optgroup label={t('admin.actions.allAgents')}>
-                            {others.map((a) => (
-                              <option key={a.id} value={a.id}>
-                                {agentName(a)}
-                              </option>
-                            ))}
-                          </optgroup>
-                        </select>
+                          activeOnly
+                          allowClear
+                          commune={lead.commune || null}
+                          defaultAgent={lead.agent_id ? { id: lead.agent_id, name: lead.assigned_agent || `Agent #${lead.agent_id}` } : null}
+                          placeholder={t('admin.leads.unassigned')}
+                          className="w-52"
+                        />
                         <button type="submit" className="rounded-md border border-line px-2 py-1 text-xs font-medium text-ink hover:bg-canvas-alt">
                           {t('admin.leads.assign')}
                         </button>
@@ -211,6 +194,7 @@ export default async function AdminLeadsPage({ searchParams }) {
               })}
             </tbody>
           </table>
+          <Pagination pathname="/admin/leads" params={pageParams} total={total} page={page} pageSize={pageSize} />
         </div>
       )}
     </div>

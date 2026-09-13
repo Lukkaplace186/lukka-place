@@ -38,10 +38,15 @@ async function engineFetch(path, options = {}) {
   return body;
 }
 
-/** @returns {Promise<{total: number, limit: number, offset: number, count: number, data: Object[]}>} */
-export async function listConversations({ state, limit, offset } = {}) {
+/**
+ * @param {{state?: string, q?: string, aiActive?: '0'|'1', limit?: number, offset?: number}} [options]
+ * @returns {Promise<{total: number, limit: number, offset: number, count: number, data: Object[], summary: Object}>}
+ */
+export async function listConversations({ state, q, aiActive, limit, offset } = {}) {
   const params = new URLSearchParams();
   if (state) params.set('state', state);
+  if (q) params.set('q', q);
+  if (aiActive === '0' || aiActive === '1') params.set('ai_active', aiActive);
   if (limit) params.set('limit', String(limit));
   if (offset) params.set('offset', String(offset));
   const query = params.toString();
@@ -359,6 +364,41 @@ export async function getMatchingStats({ days = 30 } = {}) {
   return engineFetch(`/admin/leads/matching-stats?days=${encodeURIComponent(days)}`);
 }
 
+/**
+ * The paginated (request × agency) table on /admin/matching — see the engine's
+ * db.listLeadMatches for the budget-overlap and proposal-join rules.
+ */
+export async function listLeadMatches({
+  days = 30, commune, budgetMin, budgetMax, minScore, status, limit, offset,
+} = {}) {
+  const params = new URLSearchParams({ days: String(days) });
+  if (commune) params.set('commune', commune);
+  if (budgetMin !== undefined && budgetMin !== '') params.set('budget_min', String(budgetMin));
+  if (budgetMax !== undefined && budgetMax !== '') params.set('budget_max', String(budgetMax));
+  if (minScore !== undefined && minScore !== '') params.set('min_score', String(minScore));
+  if (status) params.set('status', status);
+  if (limit) params.set('limit', String(limit));
+  if (offset) params.set('offset', String(offset));
+  return engineFetch(`/admin/lead-matches?${params.toString()}`);
+}
+
+/**
+ * Enquiry and viewing counts for one page of customers, keyed by wa_id.
+ * @param {string[]} waIds at most 200
+ * @returns {Promise<Record<string, {leads: number, viewings: number, lastLeadAt: string|null}>>}
+ */
+export async function getLeadCountsByWaIds(waIds) {
+  const ids = [...new Set((waIds || []).filter(Boolean))];
+  if (ids.length === 0) return {};
+  const { counts } = await engineFetch(`/admin/leads/counts?wa_ids=${encodeURIComponent(ids.join(','))}`);
+  return counts || {};
+}
+
+/** The engine half of /admin/telemetry's performance cards. */
+export async function getLeadAnalytics({ days = 30 } = {}) {
+  return engineFetch(`/admin/lead-analytics?days=${encodeURIComponent(days)}`);
+}
+
 /** Which agencies a request was pushed to, and whether each was reached. */
 export async function getLeadMatches(leadId) {
   return engineFetch(`/admin/leads/${leadId}/matches`);
@@ -382,10 +422,18 @@ export async function redispatchLead(leadId) {
  * Every viewing request across every agent, plus unfiltered status / routing /
  * fall-through counts. NOT the owner-scoped listViewingRequests above.
  */
-export async function listViewingFeed({ status, routingType, limit, offset } = {}) {
+export async function listViewingFeed({
+  status, routingType, view, q, agentIds, commune, from, to, limit, offset,
+} = {}) {
   const params = new URLSearchParams();
   if (status) params.set('status', status);
   if (routingType) params.set('routing_type', routingType);
+  if (view) params.set('view', view);
+  if (q) params.set('q', q);
+  if (agentIds?.length) params.set('agent_ids', agentIds.join(','));
+  if (commune) params.set('commune', commune);
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
   if (limit) params.set('limit', String(limit));
   if (offset) params.set('offset', String(offset));
   const query = params.toString();

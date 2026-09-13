@@ -391,6 +391,7 @@ async function notifyViewingRequest({
         dbService.setViewingRouting(viewingRequest.id, {
           agentId: listing?.agent_id ?? null,
           routingType,
+          commune: listing?.commune ?? null,
         });
       } catch (err) {
         console.error(`[viewing] routing record for request #${viewingRequest.id} failed: ${err.message}`);

@@ -6,13 +6,7 @@ import { getT } from '@/lib/i18n/server';
 import {
   assignAgentAction, saveNotesAction, takeOverAction, returnToAiAction, sendReplyAction,
 } from '../../actions';
-
-function formatDateTime(value) {
-  if (!value) return '—';
-  return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short' }).format(
-    new Date(`${value.replace(' ', 'T')}Z`),
-  );
-}
+import MessageList from '../MessageList';
 
 // [column, dictionary key] — the column names are real database fields and
 // stay as they are; only the label side is translated.
@@ -41,6 +35,7 @@ export default async function AdminConversationDetailPage({ params }) {
   }
 
   const { conversation, messages, leads } = detail;
+  const messagesTotal = detail.messages_total ?? messages.length;
   const boundAssign = assignAgentAction.bind(null, id);
   const boundNotes = saveNotesAction.bind(null, id);
   const boundTakeOver = takeOverAction.bind(null, id);
@@ -87,27 +82,7 @@ export default async function AdminConversationDetailPage({ params }) {
         <div className="flex flex-col gap-4">
           <div className="rounded-card border border-line bg-white p-4">
             <h2 className="u-title-card mb-3 text-ink">{t('admin.conversations.transcript')}</h2>
-            {messages.length === 0 ? (
-              <p className="text-sm text-ink-45">{t('admin.conversations.noMessages')}</p>
-            ) : (
-              <div className="flex flex-col gap-2">
-                {messages.map((m) => (
-                  <div
-                    key={m.id}
-                    className={`max-w-[85%] rounded-lg px-3 py-2 text-sm ${
-                      m.direction === 'inbound'
-                        ? 'self-start bg-canvas-alt text-ink'
-                        : 'self-end bg-blue text-white'
-                    }`}
-                  >
-                    <p className="whitespace-pre-line">{m.text}</p>
-                    <p className={`mt-1 text-[10px] ${m.direction === 'inbound' ? 'text-ink-25' : 'text-white/60'}`}>
-                      {formatDateTime(m.created_at)}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
+            <MessageList messages={messages} total={messagesTotal} t={t} />
 
             <form action={boundReply} className="mt-4 flex gap-2 border-t border-line pt-4">
               <input

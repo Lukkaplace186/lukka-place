@@ -19,16 +19,24 @@ export function Stat({ label, value, hint }) {
   );
 }
 
-export function Panel({ title, note, children, isEmpty, emptyText }) {
+/**
+ * `aside` rides beside the title (an InfoTip, a link); `emptyGraphic` swaps the
+ * plain empty sentence for a ghost chart above it, for panels that will one day
+ * hold a chart or a table of figures.
+ */
+export function Panel({ title, note, children, isEmpty, emptyText, aside = null, emptyGraphic = null }) {
   return (
     <section className="flex flex-col gap-2">
       <div>
-        <h2 className="u-title-card text-ink">{title}</h2>
+        <div className="flex items-center gap-1.5">
+          <h2 className="u-title-card text-ink">{title}</h2>
+          {aside}
+        </div>
         {note ? <p className="u-micro mt-0.5 text-ink-45">{note}</p> : null}
       </div>
       {isEmpty ? (
         <div className="rounded-card border border-dashed border-line bg-surface px-6 py-10 text-center">
-          <p className="u-micro text-ink-45">{emptyText}</p>
+          {emptyGraphic || <p className="u-micro text-ink-45">{emptyText}</p>}
         </div>
       ) : (
         <div className="u-card overflow-x-auto rounded-card bg-surface">{children}</div>

@@ -70,15 +70,18 @@ function updateLastShownProperties(conversationId, toolCalls) {
  * @param {string} params.from          Sender's WhatsApp id (E.164, no '+').
  * @param {string} params.text          Raw message text.
  * @param {string} [params.primaryWamid]
+ * @param {string} [params.intent] The classification that routed the message
+ *   here (routes/webhook.js passes parseMessage's own `intent`), recorded on the
+ *   transcript for /admin/conversations.
  */
-async function handleBuyerMessage({ from, text, primaryWamid }) {
+async function handleBuyerMessage({ from, text, primaryWamid, intent }) {
   const conversation = db.getActiveConversation(from) || db.createConversation(from);
 
   if (!conversation.ai_active) {
     // A human agent has taken over this conversation (§17) — still record
     // the message so the agent sees the full transcript, but the AI stays
     // silent until explicitly reactivated. No WhatsApp reply is sent here.
-    db.recordMessage(conversation.id, 'inbound', { wamid: primaryWamid, text });
+    db.recordMessage(conversation.id, 'inbound', { wamid: primaryWamid, text, intent });
     console.log(`[buyer] conversation #${conversation.id} (${from}) is under human handoff — AI reply skipped`);
     return;
   }
@@ -86,7 +89,7 @@ async function handleBuyerMessage({ from, text, primaryWamid }) {
   // Fetched BEFORE recording this message: runBuyerTurn takes the new
   // message separately as `userMessage`, so `history` here is prior turns only.
   const history = db.getRecentMessages(conversation.id, HISTORY_LIMIT);
-  db.recordMessage(conversation.id, 'inbound', { wamid: primaryWamid, text });
+  db.recordMessage(conversation.id, 'inbound', { wamid: primaryWamid, text, intent });
 
   if (conversation.state === 'NEW') {
     tryTransition(conversation.id, 'COLLECTING_REQUIREMENTS');
@@ -131,7 +134,7 @@ async function handleBuyerMessage({ from, text, primaryWamid }) {
     tryTransition(conversation.id, 'SHOWING_RESULTS');
   }
 
-  db.recordMessage(conversation.id, 'outbound', { text: reply });
+  db.recordMessage(conversation.id, 'outbound', { text: reply, sender: 'ai', toolCalls });
 
   await chakra.sendWhatsAppMessage(from, reply, { replyToMessageId: primaryWamid || undefined });
   console.log(`[buyer] conversation #${conversation.id}: replied to ${from} (${toolCalls.length} tool call(s))`);

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  Activity, BarChart3, CalendarClock, FileText, Gauge, Mail, User, Users, Landmark, MessageCircle, Radar,
+  BarChart3, CalendarClock, ChartNoAxesCombined, FileText, Gauge, Mail, User, Users, Landmark, MessageCircle, Radar,
   Settings, TrendingDown,
 } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -37,7 +37,9 @@ const NAV = [
   { href: '/admin/viewings', labelKey: 'admin.nav.viewings', icon: CalendarClock },
   { href: '/admin/market-data', labelKey: 'admin.nav.marketData', icon: TrendingDown },
   { href: '/admin/benchmarks', labelKey: 'admin.nav.agentPerformance', icon: Gauge },
-  { href: '/admin/telemetry', labelKey: 'admin.nav.telemetry', icon: Activity },
+  // Labelled "Lead Analytics"; the URL stays /admin/telemetry so existing
+  // bookmarks and revalidatePath calls keep working.
+  { href: '/admin/telemetry', labelKey: 'admin.nav.telemetry', icon: ChartNoAxesCombined },
   { href: '/admin/agents', labelKey: 'admin.nav.agents', icon: User },
   { href: '/admin/customers', labelKey: 'admin.nav.customers', icon: Users },
   { href: '/admin/subscriptions', labelKey: 'admin.nav.subscriptions', icon: Landmark },

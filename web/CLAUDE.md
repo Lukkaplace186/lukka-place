@@ -169,6 +169,57 @@ Conflating any two of these is the bug that keeps recurring:
   forfait". There is no payment gateway by product decision — approving a
   request assigns the package and writes the ledger row in one action.
 
+### Built for 30k agents — every list is one server page
+
+The console used to fetch whole tables and slice nothing: `getAgents()` (every
+agent, two correlated listing counts each) was called by six pages just to fill
+`<select>`s, and `/admin/agents` rendered a 24-commune checkbox form into every
+row. That is fine at 10 agents and a multi-megabyte page at 30,000.
+
+- **URL-driven state, `lib/adminPagination.js`.** Page, page size (25/50/100
+  only — an arbitrary size is an unbounded query) and every filter are query
+  params. The Server Component asks the database for exactly one page
+  (`LIMIT/OFFSET` + a `COUNT`); the browser never holds more than 100 rows, which
+  is why there is no virtualisation layer. `buildHref` drops empty params and
+  resets `page` whenever a filter changes. Shared UI: `app/admin/table/`
+  (`TableToolbar` — debounced search, selects, dates; `Pagination`; `TableFrame`
+  with a sticky header). `TableToolbar` takes current values as props rather
+  than `useSearchParams()` (see Gotchas).
+- **Never load every agent again.** Pick an agent with `app/admin/AgentPicker.js`
+  (server-side type-ahead, ≤20 results, commune specialists first); name the
+  agents a page shows with `getAgentNamesByIds`; list them with
+  `listAgentsForAdmin`. `getAgents()` still exists for the public directory's
+  callers but has no admin caller left — keep it that way.
+- **Admin display names never fall back to `agents.username`** (it is the phone
+  number): `ADMIN_AGENT_NAME` is person → agency → `Agent #id`.
+- **Search escapes `%`/`_`** on both sides (Postgres `ilikeTerm`, engine
+  `likeTerm`); a typed `%` is text.
+- **`app/admin/error.js`** is the console's error boundary (Next 16 passes
+  `retry`, not `reset`). `/admin/matching` 500'd for every admin because
+  `const t = stats.totals` shadowed the translator one line before a `t()` call
+  — `i18n-translator-binding.test.js` cannot see a shadowed `t`, so name data
+  anything but `t`. Pages still load each data source independently
+  (`Promise.allSettled`) and render an `ErrorNote` in place.
+- **Agency search on `/admin/viewings`** is resolved to `agents.id` in Postgres
+  (`searchAgentIds`, capped at 500) and OR'd engine-side with the customer
+  name/number match — agency names do not live in SQLite. "Escalated" is the
+  engine's `view=escalated` slice (PENDING + `sla_alerted_at`), not a status.
+- **Conversations open in a slide-over at `?c=<id>`**, server-rendered like
+  every other view, so a thread is linkable and survives a refresh. Sender,
+  intent and assistant tool chips are written by the engine at record time
+  (`messages.sender/intent/tool_calls`); older rows show "sender not recorded"
+  rather than a guess. Listing-link and `wa.me` chips are pattern matches.
+- **`/admin/market-data` asking-price stats (`lib/marketStats.js`)** use the
+  PUBLIC gate (`status = 1 AND approve_status = 1`) — the opposite choice from
+  `marketBenchmarks.js`, deliberately: a sold listing is not on the market.
+  Yearly rent ÷ 12 exactly as `lib/format.js` renders it; `price <= 0` is "prix
+  sur demande", counted apart and never averaged in as $0.
+- **"Lead Analytics"** is the sidebar label for `/admin/telemetry` (URL kept).
+  Its conversion rate divides WhatsApp enquiries by CENTRAL-number taps only — a
+  direct-to-agent tap is invisible to us and is shown beside the rate, never in
+  it. "Delivery health" is API-accepted vs refused plus agents who answered;
+  there is no delivered count because Chakra forwards no receipts.
+
 ## Layout & shell
 
 - **Public pages live in the `app/(site)/` route group**; `app/admin` and `app/api` sit outside it. The shell (`Header` / `Footer`) is in `app/(site)/layout.js`, and the root layout is deliberately bare. Before this, everything nested in one root layout and `/admin` rendered the public header and footer *underneath* its own chrome. Route groups don't change URLs.

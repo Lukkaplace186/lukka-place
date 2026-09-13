@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { listViewingFeed } from '@/lib/adminApi';
-import { getAgentsForRouting, getListingLabels } from '@/lib/adminLeadRouting';
+import { getListingLabels } from '@/lib/adminLeadRouting';
+import { getAgentNamesByIds, searchAgentIds } from '@/lib/agents';
 import {
   DECLINE_REASON_LABEL_KEYS,
   ROUTING_TYPES,
@@ -8,8 +9,12 @@ import {
   VIEWING_REQUEST_STATUSES,
   VIEWING_REQUEST_STATUS_LABEL_KEYS,
 } from '@/lib/adminLabels';
+import { buildHref, firstParam, kinshasaDayEnd, kinshasaDayStart, parsePage } from '@/lib/adminPagination';
 import { getT } from '@/lib/i18n/server';
-import { Chip, ErrorNote, Panel, ROUTING_TONE, STATUS_TONE, TD, TH, formatKinshasa } from '../LeadRoutingUI';
+import { Chip, ErrorNote, ROUTING_TONE, STATUS_TONE, formatKinshasa } from '../LeadRoutingUI';
+import Pagination from '../table/Pagination';
+import TableToolbar from '../table/TableToolbar';
+import { EmptyRow, TD_DENSE, TH_STICKY, TR_DENSE, TableFrame } from '../table/TableFrame';
 import ViewingRowActions from './ViewingRowActions';
 
 export const metadata = {
@@ -19,152 +24,205 @@ export const metadata = {
 
 export const dynamic = 'force-dynamic';
 
-const FILTER_LINK =
-  'u-micro-strong inline-flex items-center gap-1.5 rounded-full border px-3 py-1 transition-colors';
+/** A filter value, not a status: the SLA-alerted PENDING slice (engine VIEWING_FEED_VIEWS.escalated). */
+const ESCALATED = 'ESCALATED';
+const CANCELLABLE = ['PENDING', 'CONFIRMED', 'RESCHEDULED'];
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
- * Live lead & viewing feed — every viewing request across both routing paths.
+ * Live viewing feed — every request across both routing paths, one server
+ * page at a time.
+ *
+ * Search takes an agency OR a customer: the agency half is resolved to
+ * agents.id here in Postgres (agency names do not live in the engine's
+ * SQLite), the customer half is matched by the engine, and the two are OR'd.
+ * "Escalated" filters on the 15-minute SLA alert without inventing a status
+ * for it. Commune uses the listing's own commune, recorded at notify time.
  *
  * `routing_type` is what actually happened when the request was created
- * (services/viewingNotifications.js): DIRECT_WA when a verified agent was
- * alerted, CENTRAL_FALLBACK when only the desk could be. A request that
- * predates routing being recorded shows as "not routed" rather than being
- * guessed into either bucket.
+ * (services/viewingNotifications.js); a request that predates routing being
+ * recorded shows as "not routed" rather than being guessed into a bucket.
  */
 export default async function AdminViewingsPage({ searchParams }) {
   const t = await getT();
-  const params = (await searchParams) || {};
-  const status = VIEWING_REQUEST_STATUSES.includes(params.status) ? params.status : undefined;
-  const routing = ROUTING_TYPES.includes(params.routing) ? params.routing : undefined;
+  const raw = (await searchParams) || {};
+  const statusParam = firstParam(raw.status);
+  const filters = {
+    q: firstParam(raw.q) || undefined,
+    status: VIEWING_REQUEST_STATUSES.includes(statusParam) || statusParam === ESCALATED ? statusParam : undefined,
+    routing: ROUTING_TYPES.includes(firstParam(raw.routing)) ? firstParam(raw.routing) : undefined,
+    commune: firstParam(raw.commune) || undefined,
+    from: DATE_PATTERN.test(firstParam(raw.from) || '') ? firstParam(raw.from) : undefined,
+    to: DATE_PATTERN.test(firstParam(raw.to) || '') ? firstParam(raw.to) : undefined,
+  };
+  const { page, pageSize, limit, offset } = parsePage(raw);
+  const params = { ...filters, page: page > 1 ? String(page) : undefined, size: pageSize === 25 ? undefined : String(pageSize) };
 
   let feed = null;
   let loadError = null;
   try {
-    feed = await listViewingFeed({ status, routingType: routing, limit: 100 });
+    const agentIds = filters.q ? await searchAgentIds(filters.q).catch(() => []) : undefined;
+    feed = await listViewingFeed({
+      status: filters.status === ESCALATED ? undefined : filters.status,
+      view: filters.status === ESCALATED ? 'escalated' : undefined,
+      routingType: filters.routing,
+      q: filters.q,
+      agentIds,
+      commune: filters.commune,
+      from: kinshasaDayStart(filters.from),
+      to: kinshasaDayEnd(filters.to),
+      limit,
+      offset,
+    });
   } catch (err) {
     loadError = err.message;
   }
 
   const rows = feed?.data || [];
-  const [labels, agents] = await Promise.all([
+  const [labels, agentNames] = await Promise.all([
     getListingLabels(rows.map((row) => row.property_id)).catch(() => new Map()),
-    getAgentsForRouting().catch(() => []),
+    getAgentNamesByIds(rows.map((row) => row.agent_id)).catch(() => new Map()),
   ]);
-  const agentNames = new Map(agents.map((agent) => [agent.id, agent.name]));
-  const routable = agents
-    .filter((agent) => agent.phoneVerified && agent.directRoutingEnabled)
-    .map((agent) => ({ id: agent.id, name: agent.name }));
   const byStatus = feed?.summary?.byStatus || {};
   const byRouting = feed?.summary?.byRouting || {};
+  const escalated = feed?.summary?.byView?.escalated || 0;
   const allCount = Object.values(byStatus).reduce((sum, n) => sum + n, 0);
 
-  const hrefFor = (next) => {
-    const query = new URLSearchParams();
-    const nextStatus = 'status' in next ? next.status : status;
-    const nextRouting = 'routing' in next ? next.routing : routing;
-    if (nextStatus) query.set('status', nextStatus);
-    if (nextRouting) query.set('routing', nextRouting);
-    const qs = query.toString();
-    return `/admin/viewings${qs ? `?${qs}` : ''}`;
-  };
-  const filterClass = (active) =>
-    `${FILTER_LINK} ${active ? 'border-blue bg-blue-tint text-blue-deep' : 'border-line bg-surface text-ink-70 hover:border-blue'}`;
+  const quick = [
+    { key: 'all', label: t('admin.viewings.all'), count: allCount, href: buildHref('/admin/viewings', params, { status: '', routing: '' }), active: !filters.status && !filters.routing },
+    { key: 'PENDING', label: t(VIEWING_REQUEST_STATUS_LABEL_KEYS.PENDING), count: byStatus.PENDING || 0, href: buildHref('/admin/viewings', params, { status: 'PENDING' }), active: filters.status === 'PENDING' },
+    { key: ESCALATED, label: t('admin.viewings.escalated'), count: escalated, href: buildHref('/admin/viewings', params, { status: ESCALATED }), active: filters.status === ESCALATED, tone: escalated ? 'danger' : undefined },
+    { key: 'CONFIRMED', label: t(VIEWING_REQUEST_STATUS_LABEL_KEYS.CONFIRMED), count: byStatus.CONFIRMED || 0, href: buildHref('/admin/viewings', params, { status: 'CONFIRMED' }), active: filters.status === 'CONFIRMED' },
+    ...ROUTING_TYPES.map((value) => ({
+      key: value, label: t(ROUTING_TYPE_LABEL_KEYS[value]), count: byRouting[value] || 0,
+      href: buildHref('/admin/viewings', params, { routing: filters.routing === value ? '' : value }), active: filters.routing === value,
+    })),
+  ];
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       <div>
         <h1 className="u-title-page text-ink">{t('admin.viewings.title')}</h1>
         <p className="u-micro mt-1 text-ink-45">{t('admin.viewings.subtitle')}</p>
       </div>
 
-      {loadError ? <ErrorNote>{t('admin.viewings.loadError', { error: loadError })}</ErrorNote> : null}
-
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap gap-2">
-          <Link href={hrefFor({ status: undefined })} className={filterClass(!status)}>
-            {t('admin.viewings.all')} <span className="u-tabular text-ink-45">{allCount}</span>
+      <div className="flex flex-wrap gap-2">
+        {quick.map((item) => (
+          <Link
+            key={item.key}
+            href={item.href}
+            scroll={false}
+            className={`u-micro-strong inline-flex items-center gap-1.5 rounded-full border px-3 py-1 transition-colors ${
+              item.active ? 'border-blue bg-blue-tint text-blue-deep' : 'border-line bg-surface text-ink-70 hover:border-blue'
+            }`}
+          >
+            {item.label}
+            <span className={`u-tabular ${item.tone === 'danger' ? 'text-danger' : 'text-ink-45'}`}>{item.count}</span>
           </Link>
-          {VIEWING_REQUEST_STATUSES.map((value) => (
-            <Link key={value} href={hrefFor({ status: value })} className={filterClass(status === value)}>
-              {t(VIEWING_REQUEST_STATUS_LABEL_KEYS[value])}
-              <span className="u-tabular text-ink-45">{byStatus[value] || 0}</span>
-            </Link>
-          ))}
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link href={hrefFor({ routing: undefined })} className={filterClass(!routing)}>
-            {t('admin.viewings.allRoutes')}
-          </Link>
-          {ROUTING_TYPES.map((value) => (
-            <Link key={value} href={hrefFor({ routing: value })} className={filterClass(routing === value)}>
-              {t(ROUTING_TYPE_LABEL_KEYS[value])}
-              <span className="u-tabular text-ink-45">{byRouting[value] || 0}</span>
-            </Link>
-          ))}
-        </div>
+        ))}
       </div>
 
-      <Panel
-        title={t('admin.viewings.tableTitle')}
-        isEmpty={rows.length === 0}
-        emptyText={t('admin.viewings.empty')}
+      <TableToolbar
+        params={params}
+        search={{ placeholder: t('admin.viewings.searchPlaceholder') }}
+        filters={[
+          {
+            type: 'select',
+            param: 'status',
+            label: t('admin.viewings.colStatus'),
+            options: [
+              ...VIEWING_REQUEST_STATUSES.map((value) => ({ value, label: t(VIEWING_REQUEST_STATUS_LABEL_KEYS[value]) })),
+              { value: ESCALATED, label: t('admin.viewings.escalated') },
+            ],
+          },
+          {
+            type: 'select',
+            param: 'routing',
+            label: t('admin.viewings.colRouting'),
+            options: ROUTING_TYPES.map((value) => ({ value, label: t(ROUTING_TYPE_LABEL_KEYS[value]) })),
+          },
+          {
+            type: 'select',
+            param: 'commune',
+            label: t('admin.viewings.colCommune'),
+            options: (feed?.summary?.communes || []).map((row) => ({ value: row.commune, label: `${row.commune} (${row.n})` })),
+          },
+          { type: 'date', param: 'from', label: t('admin.table.from') },
+          { type: 'date', param: 'to', label: t('admin.table.to') },
+        ]}
+      />
+
+      {loadError ? <ErrorNote>{t('admin.viewings.loadError', { error: loadError })}</ErrorNote> : null}
+
+      <TableFrame
+        minWidth="72rem"
+        footer={feed ? <Pagination pathname="/admin/viewings" params={params} total={feed.total} page={page} pageSize={pageSize} /> : null}
       >
-        <table className="w-full min-w-[68rem] border-collapse">
-          <thead>
-            <tr className="border-b border-line">
-              <th className={TH}>{t('admin.viewings.colListing')}</th>
-              <th className={TH}>{t('admin.viewings.colClient')}</th>
-              <th className={TH}>{t('admin.viewings.colReceived')}</th>
-              <th className={TH}>{t('admin.viewings.colRouting')}</th>
-              <th className={TH}>{t('admin.viewings.colAgent')}</th>
-              <th className={TH}>{t('admin.viewings.colStatus')}</th>
-              <th className={TH}>{t('admin.viewings.colSlot')}</th>
-              <th className={TH}>{t('admin.viewings.colReason')}</th>
-              <th className={TH}>{t('admin.viewings.colActions')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => {
+        <thead>
+          <tr>
+            <th className={TH_STICKY}>{t('admin.viewings.colListing')}</th>
+            <th className={TH_STICKY}>{t('admin.viewings.colClient')}</th>
+            <th className={TH_STICKY}>{t('admin.viewings.colReceived')}</th>
+            <th className={TH_STICKY}>{t('admin.viewings.colAgent')}</th>
+            <th className={TH_STICKY}>{t('admin.viewings.colStatus')}</th>
+            <th className={TH_STICKY}>{t('admin.viewings.colSlot')}</th>
+            <th className={TH_STICKY}>{t('admin.viewings.colReason')}</th>
+            <th className={TH_STICKY}>{t('admin.viewings.colActions')}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <EmptyRow colSpan={8}>{loadError ? '—' : t('admin.viewings.empty')}</EmptyRow>
+          ) : (
+            rows.map((row) => {
               const listing = labels.get(Number(row.property_id));
               const agentId = row.agent_id ? Number(row.agent_id) : null;
+              const isEscalated = row.status === 'PENDING' && row.sla_alerted_at;
               return (
-                <tr key={row.id} className="border-b border-line last:border-0">
-                  <td className={TD}>
+                <tr key={row.id} className={TR_DENSE}>
+                  <td className={TD_DENSE}>
                     {row.property_id ? (
                       <Link href={`/admin/listings/${row.property_id}`} className="font-semibold text-blue-deep hover:underline">
                         {listing?.reference ? `Réf: ${listing.reference}` : `#${row.property_id}`}
                       </Link>
                     ) : '—'}
-                    {listing?.title ? <div className="max-w-[16rem] truncate text-ink-45">{listing.title}</div> : null}
-                    <div className="u-tabular text-ink-35">#{row.id}</div>
+                    {listing?.title ? <div className="max-w-[15rem] truncate text-ink-45">{listing.title}</div> : null}
+                    <div className="u-tabular text-ink-35">
+                      #{row.id}{row.resolved_commune ? ` · ${row.resolved_commune}` : ''}
+                    </div>
                   </td>
-                  <td className={TD}>
-                    <div className="text-ink">{row.lead_name || '—'}</div>
+                  <td className={TD_DENSE}>
+                    <div className="max-w-[10rem] truncate text-ink">{row.lead_name || '—'}</div>
                     <div className="u-tabular text-ink-45">{row.lead_wa_id ? `+${row.lead_wa_id}` : ''}</div>
                   </td>
-                  <td className={`${TD} whitespace-nowrap`}>{formatKinshasa(row.created_at)}</td>
-                  <td className={TD}>
-                    {row.routing_type ? (
-                      <Chip tone={ROUTING_TONE[row.routing_type]}>{t(ROUTING_TYPE_LABEL_KEYS[row.routing_type])}</Chip>
-                    ) : (
-                      <span className="text-ink-35">{t('admin.viewings.notRouted')}</span>
-                    )}
+                  <td className={`${TD_DENSE} whitespace-nowrap`}>{formatKinshasa(row.created_at)}</td>
+                  <td className={TD_DENSE}>
+                    {agentId ? (
+                      <Link href={`/admin/agents/${agentId}`} className="text-ink hover:text-blue-deep hover:underline">
+                        {agentNames.get(agentId)?.name || `#${agentId}`}
+                      </Link>
+                    ) : '—'}
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {row.routing_type ? (
+                        <Chip tone={ROUTING_TONE[row.routing_type]}>{t(ROUTING_TYPE_LABEL_KEYS[row.routing_type])}</Chip>
+                      ) : (
+                        <span className="text-ink-35">{t('admin.viewings.notRouted')}</span>
+                      )}
+                      {row.reassigned_at ? <Chip>{t('admin.viewings.reassignedChip')}</Chip> : null}
+                    </div>
                   </td>
-                  <td className={TD}>
-                    {agentId ? (agentNames.get(agentId) || `#${agentId}`) : '—'}
-                    {row.reassigned_at ? (
-                      <div className="mt-1"><Chip>{t('admin.viewings.reassignedChip')}</Chip></div>
-                    ) : null}
+                  <td className={TD_DENSE}>
+                    <div className="flex flex-col items-start gap-1">
+                      <Chip tone={STATUS_TONE[row.status]}>
+                        {VIEWING_REQUEST_STATUS_LABEL_KEYS[row.status] ? t(VIEWING_REQUEST_STATUS_LABEL_KEYS[row.status]) : row.status}
+                      </Chip>
+                      {isEscalated ? <Chip tone="danger">{t('admin.viewings.escalated')}</Chip> : null}
+                    </div>
                   </td>
-                  <td className={TD}>
-                    <Chip tone={STATUS_TONE[row.status]}>
-                      {VIEWING_REQUEST_STATUS_LABEL_KEYS[row.status] ? t(VIEWING_REQUEST_STATUS_LABEL_KEYS[row.status]) : row.status}
-                    </Chip>
-                  </td>
-                  <td className={`${TD} whitespace-nowrap`}>
+                  <td className={`${TD_DENSE} whitespace-nowrap`}>
                     {row.scheduled_at ? formatKinshasa(row.scheduled_at) : (row.requested_time || '—')}
                   </td>
-                  <td className={TD}>
+                  <td className={TD_DENSE}>
                     {row.decline_reason_code ? (
                       <>
                         <div className="text-ink">{t(DECLINE_REASON_LABEL_KEYS[row.decline_reason_code])}</div>
@@ -174,20 +232,21 @@ export default async function AdminViewingsPage({ searchParams }) {
                       </>
                     ) : '—'}
                   </td>
-                  <td className={TD}>
+                  <td className={TD_DENSE}>
                     <ViewingRowActions
                       viewingRequestId={row.id}
-                      agents={routable}
                       currentAgentId={agentId}
+                      commune={row.resolved_commune || null}
                       canNudge={row.routing_type === 'DIRECT_WA' && ['PENDING', 'RESCHEDULED'].includes(row.status)}
+                      canCancel={CANCELLABLE.includes(row.status)}
                     />
                   </td>
                 </tr>
               );
-            })}
-          </tbody>
-        </table>
-      </Panel>
+            })
+          )}
+        </tbody>
+      </TableFrame>
     </div>
   );
 }

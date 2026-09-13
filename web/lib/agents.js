@@ -77,6 +77,205 @@ export async function getAgents({ q } = {}) {
   return rows;
 }
 
+// ---------------------------------------------------------------------------
+// Admin console at scale. getAgents() above returns EVERY agent with two
+// correlated listing counts each; six admin pages used to call it just to fill
+// a dropdown or name a handful of rows. At 30k agents that is a 30k-row query
+// and a 30k-option <select> per table row. Everything below is bounded: a page
+// (LIMIT/OFFSET), a search (LIMIT 20) or an explicit id list.
+// ---------------------------------------------------------------------------
+
+/** Name + agency joins only — what a count or a search needs, without the membership lateral. */
+const AGENT_SEARCH_JOINS = `
+  FROM agents a
+  LEFT JOIN vendors v ON v.id = a.vendor_id
+  LEFT JOIN LATERAL (
+    SELECT first_name, last_name FROM agent_infos
+    WHERE agent_id = a.id
+    ORDER BY (language_id = 20) DESC, language_id
+    LIMIT 1
+  ) ai ON true
+`;
+
+// Never `a.username` as a display name: it is the account's phone digits (see
+// web/CLAUDE.md). A person's name, else their agency, else the honest id.
+const ADMIN_AGENT_NAME = `COALESCE(
+  NULLIF(TRIM(CONCAT_WS(' ', ai.first_name, ai.last_name)), ''),
+  NULLIF(v.username, ''),
+  'Agent #' || a.id
+) AS display_name`;
+
+const AGENT_SORTS = {
+  newest: 'a.created_at DESC NULLS LAST, a.id DESC',
+  name: "LOWER(COALESCE(NULLIF(TRIM(CONCAT_WS(' ', ai.first_name, ai.last_name)), ''), v.username, '')) ASC, a.id ASC",
+  listings: 'listing_count DESC, a.id DESC',
+  live: 'live_listing_count DESC, a.id DESC',
+};
+export const ADMIN_AGENT_SORTS = Object.keys(AGENT_SORTS);
+
+/** `%`/`_` typed in an admin search box are text, not wildcards. */
+function ilikeTerm(value) {
+  const term = String(value ?? '').trim();
+  if (!term) return null;
+  return `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+}
+
+function agentSearchWhere(q, params) {
+  const term = ilikeTerm(q);
+  if (!term) return null;
+  params.push(term);
+  const n = params.length;
+  const digits = String(q).replace(/\D/g, '');
+  let phoneClause = '';
+  if (digits.length >= 3) {
+    params.push(`%${digits}%`);
+    phoneClause = ` OR regexp_replace(COALESCE(a.phone, ''), '[^0-9]', '', 'g') LIKE $${params.length}`;
+  }
+  let idClause = '';
+  if (/^#?\d+$/.test(String(q).trim())) {
+    params.push(Number.parseInt(String(q).replace('#', ''), 10));
+    idClause = ` OR a.id = $${params.length}`;
+  }
+  return `(a.email ILIKE $${n} OR ai.first_name ILIKE $${n} OR ai.last_name ILIKE $${n}
+           OR CONCAT_WS(' ', ai.first_name, ai.last_name) ILIKE $${n} OR v.username ILIKE $${n}
+           OR a.phone ILIKE $${n}${phoneClause}${idClause})`;
+}
+
+/**
+ * One page of /admin/agents.
+ *
+ * @param {{q?: string, verified?: 'yes'|'no', status?: '0'|'1', sort?: string, limit?: number, offset?: number}} [options]
+ * @returns {Promise<{total: number, rows: object[], summary: {total: number, verified: number, active: number}}>}
+ */
+export async function listAgentsForAdmin({ q, verified, status, sort = 'newest', limit = 25, offset = 0 } = {}) {
+  const pool = getPool();
+  const params = [];
+  const where = [];
+  const search = agentSearchWhere(q, params);
+  if (search) where.push(search);
+  if (verified === 'yes') where.push('a.phone_verified_at IS NOT NULL');
+  if (verified === 'no') where.push('a.phone_verified_at IS NULL');
+  if (status === '0' || status === '1') {
+    params.push(Number(status));
+    where.push(`a.status = $${params.length}`);
+  }
+  const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  const orderBy = AGENT_SORTS[sort] || AGENT_SORTS.newest;
+  const pageLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 25, 1), 100);
+  const pageOffset = Math.max(Number.parseInt(offset, 10) || 0, 0);
+
+  const [countResult, pageResult, summaryResult] = await Promise.all([
+    pool.query(`SELECT COUNT(*)::int AS total ${AGENT_SEARCH_JOINS} ${whereClause}`, params),
+    pool.query(
+      `SELECT ${AGENT_FIELDS}, a.direct_routing_enabled, a.serviced_communes, a.created_at, ${ADMIN_AGENT_NAME}
+       ${AGENT_JOINS}
+       ${whereClause}
+       ORDER BY ${orderBy}
+       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, pageLimit, pageOffset],
+    ),
+    pool.query(
+      `SELECT COUNT(*)::int AS total,
+              COUNT(*) FILTER (WHERE phone_verified_at IS NOT NULL)::int AS verified,
+              COUNT(*) FILTER (WHERE status = 1)::int AS active
+       FROM agents`,
+    ),
+  ]);
+  return {
+    total: countResult.rows[0]?.total ?? 0,
+    rows: pageResult.rows,
+    summary: summaryResult.rows[0] || { total: 0, verified: 0, active: 0 },
+  };
+}
+
+/**
+ * The type-ahead behind every agent picker in the console. At most 20 rows.
+ *
+ * `commune` puts that commune's specialists first, then its coverage agents —
+ * the same two signals the matcher scores (services/agentRanking.js) — without
+ * hiding anyone else. `routableOnly` is the direct-routing gate
+ * (verified number AND routing not switched off); the engine re-checks it on
+ * every reassign, so this only keeps unusable names out of the list.
+ */
+export async function searchAgentsForAdmin({ q, commune, routableOnly = false, activeOnly = false, excludeId, limit = 20 } = {}) {
+  const pool = getPool();
+  const params = [];
+  const where = [];
+  const search = agentSearchWhere(q, params);
+  if (search) where.push(search);
+  if (routableOnly) where.push('a.phone_verified_at IS NOT NULL AND a.direct_routing_enabled IS DISTINCT FROM false');
+  if (activeOnly) where.push('a.status = 1');
+  if (excludeId != null && Number.isFinite(Number(excludeId))) {
+    params.push(Number(excludeId));
+    where.push(`a.id <> $${params.length}`);
+  }
+  params.push(commune || null);
+  const communeParam = `$${params.length}`;
+  params.push(Math.min(Math.max(Number.parseInt(limit, 10) || 20, 1), 20));
+
+  const { rows } = await pool.query(
+    `SELECT a.id, a.phone, a.status, a.phone_verified_at, a.direct_routing_enabled, ${ADMIN_AGENT_NAME},
+            (${communeParam}::text IS NOT NULL AND ${communeParam}::text = ANY(COALESCE(a.primary_communes, '{}'))) AS covers_primary,
+            (${communeParam}::text IS NOT NULL AND ${communeParam}::text = ANY(COALESCE(a.serviced_communes, '{}'))) AS covers_serviced
+     ${AGENT_SEARCH_JOINS}
+     ${where.length ? `WHERE ${where.join(' AND ')}` : ''}
+     ORDER BY covers_primary DESC, covers_serviced DESC, a.status DESC, display_name ASC, a.id ASC
+     LIMIT $${params.length}`,
+    params,
+  );
+  return rows.map((row) => ({
+    id: Number(row.id),
+    name: row.display_name,
+    phone: row.phone || null,
+    active: row.status === 1,
+    verified: Boolean(row.phone_verified_at),
+    routable: Boolean(row.phone_verified_at) && row.direct_routing_enabled !== false,
+    coversPrimary: row.covers_primary,
+    coversServiced: row.covers_serviced,
+  }));
+}
+
+/** Display names for exactly the agents a page renders. */
+export async function getAgentNamesByIds(ids) {
+  const clean = [...new Set((ids || []).map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0))];
+  if (clean.length === 0) return new Map();
+  const { rows } = await getPool().query(
+    `SELECT a.id, a.phone, a.phone_verified_at, ${ADMIN_AGENT_NAME}
+     ${AGENT_SEARCH_JOINS}
+     WHERE a.id = ANY($1::bigint[])`,
+    [clean],
+  );
+  return new Map(rows.map((row) => [Number(row.id), {
+    id: Number(row.id), name: row.display_name, phone: row.phone || null, verified: Boolean(row.phone_verified_at),
+  }]));
+}
+
+/** Agency search on /admin/viewings: names/number -> ids the engine can filter on. Capped at 500. */
+export async function searchAgentIds(q) {
+  const params = [];
+  const search = agentSearchWhere(q, params);
+  if (!search) return [];
+  const { rows } = await getPool().query(`SELECT a.id ${AGENT_SEARCH_JOINS} WHERE ${search} ORDER BY a.id LIMIT 500`, params);
+  return rows.map((row) => Number(row.id));
+}
+
+/**
+ * Bulk Activer/Suspendre. `status` is the same 0/1 the per-row action accepts;
+ * nothing else is written, so a bulk change is exactly N single changes.
+ * @returns {Promise<number>} how many rows changed
+ */
+export async function bulkUpdateAgentStatus(ids, status) {
+  const clean = [...new Set((ids || []).map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0))];
+  if (![0, 1].includes(status)) throw new Error('status must be 0 or 1');
+  if (clean.length === 0) return 0;
+  if (clean.length > 500) throw new Error('At most 500 agents per bulk change');
+  const { rowCount } = await getPool().query(
+    'UPDATE agents SET status = $1, updated_at = NOW() WHERE id = ANY($2::bigint[])',
+    [status, clean],
+  );
+  return rowCount ?? 0;
+}
+
 /**
  * Public agent directory (web/app/(site)/agents/page.js) — active agents
  * with at least one real listing behind them, matching this app's own

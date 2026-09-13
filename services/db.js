@@ -1467,6 +1467,45 @@ function migrateLeads() {
 
 migrateLeads();
 
+/**
+ * Who wrote a message, and what it was about — the metadata the admin
+ * transcript renders beside each bubble.
+ *
+ * `direction` alone cannot tell an assistant reply from a team member's
+ * manual reply from a deterministic auto-reply: all three are 'outbound'. So
+ * the writer states it at the moment it records the message, because that is
+ * the only moment it is known. Rows written before these columns existed keep
+ * NULL — "sender not recorded" — rather than being guessed into a bucket.
+ *
+ *   sender      'customer' | 'ai' | 'agent' | 'system'
+ *   intent      the classification that ROUTED this message, when one did:
+ *               parseMessage's own `intent` enum, or 'listing_enquiry' for the
+ *               storefront CTA branch. Never inferred after the fact.
+ *   tool_calls  JSON array of the assistant tool names invoked to produce an
+ *               outbound reply (search_properties, request_viewing, …).
+ */
+const MESSAGE_SENDERS = ['customer', 'ai', 'agent', 'system'];
+
+const MESSAGES_EXTENDED_COLUMNS = [
+  ['sender', 'TEXT'],
+  ['intent', 'TEXT'],
+  ['tool_calls', 'TEXT'],
+];
+
+function migrateMessages() {
+  const existing = new Set(db.prepare('PRAGMA table_info(messages)').all().map((c) => c.name));
+  const missing = MESSAGES_EXTENDED_COLUMNS.filter(([name]) => !existing.has(name));
+  if (missing.length === 0) return [];
+  db.transaction(() => {
+    for (const [name, type] of missing) db.exec(`ALTER TABLE messages ADD COLUMN ${name} ${type}`);
+  })();
+  const added = missing.map(([name]) => name);
+  console.log(`[db] messages schema migrated — added column(s): ${added.join(', ')}`);
+  return added;
+}
+
+migrateMessages();
+
 /** Fields a requirements patch may set — mirrors CORRECTABLE_FIELDS's "only overwrite what's mentioned" rule. */
 const CONVERSATION_REQUIREMENT_FIELDS = [
   'transaction_type', 'property_type', 'parcelle_subtype', 'commune', 'quartier',
@@ -1611,54 +1650,98 @@ function updateConversationNotes(id, notes) {
 const CONVERSATIONS_LIST_LIMIT_DEFAULT = 50;
 const CONVERSATIONS_LIST_LIMIT_MAX = 100;
 
+/** `%` and `_` typed into an admin search box are text, not wildcards. */
+function likeTerm(value) {
+  const term = String(value ?? '').trim();
+  if (!term) return null;
+  return `%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+}
+
+function resolvePage(limit, offset, { max, fallback }) {
+  const parsedLimit = Number.parseInt(limit, 10);
+  const parsedOffset = Number.parseInt(offset, 10);
+  return {
+    limit: Number.isFinite(parsedLimit) ? Math.min(Math.max(parsedLimit, 1), max) : fallback,
+    offset: Number.isFinite(parsedOffset) ? Math.max(parsedOffset, 0) : 0,
+  };
+}
+
 /**
  * Paginated conversation list for the admin dashboard, most recently
  * updated first, each row including a preview of its latest message so the
  * list view doesn't need a separate query per row.
  *
+ * `id DESC` breaks `updated_at` ties so a page boundary can never repeat or
+ * skip a row. The latest message is ONE join on MAX(id) (indexed by
+ * conversation_id) rather than a correlated sub-select per column.
+ *
+ * `summary` is unfiltered, so a filtered page never makes the other state
+ * chips read as zero — the same rule listAllViewingRequests follows.
+ *
  * @param {Object} [options]
  * @param {string} [options.state] Filter to one conversationState.js state.
+ * @param {string} [options.q] Matches the customer's wa_id, the assigned agent or the notes.
+ * @param {boolean|string} [options.aiActive] true/'1' = AI replying, false/'0' = a human has taken over.
  * @param {number} [options.limit]
  * @param {number} [options.offset]
- * @returns {{total: number, limit: number, offset: number, count: number, data: Object[]}}
+ * @returns {{total: number, limit: number, offset: number, count: number, data: Object[], summary: Object}}
  */
-function listConversations({ state, limit, offset } = {}) {
+function listConversations({ state, q, aiActive, limit, offset } = {}) {
   const where = [];
   const params = {};
 
   if (state) {
-    where.push('state = @state');
+    where.push('c.state = @state');
     params.state = state;
   }
+  const term = likeTerm(q);
+  if (term) {
+    where.push(`(c.wa_id LIKE @q ESCAPE '\\' OR COALESCE(c.assigned_agent, '') LIKE @q ESCAPE '\\'
+                 OR COALESCE(c.notes, '') LIKE @q ESCAPE '\\')`);
+    params.q = term;
+  }
+  if (aiActive !== undefined && aiActive !== null && aiActive !== '') {
+    where.push('c.ai_active = @aiActive');
+    params.aiActive = aiActive === true || aiActive === '1' || aiActive === 'true' ? 1 : 0;
+  }
   const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+  const page = resolvePage(limit, offset, {
+    max: CONVERSATIONS_LIST_LIMIT_MAX, fallback: CONVERSATIONS_LIST_LIMIT_DEFAULT,
+  });
 
-  const parsedLimit = Number.parseInt(limit, 10);
-  const resolvedLimit = Number.isFinite(parsedLimit)
-    ? Math.min(Math.max(parsedLimit, 1), CONVERSATIONS_LIST_LIMIT_MAX)
-    : CONVERSATIONS_LIST_LIMIT_DEFAULT;
-  const parsedOffset = Number.parseInt(offset, 10);
-  const resolvedOffset = Number.isFinite(parsedOffset) ? Math.max(parsedOffset, 0) : 0;
-
-  const { total } = db.prepare(`SELECT COUNT(*) AS total FROM conversations ${whereClause}`).get(params);
+  const { total } = db.prepare(`SELECT COUNT(*) AS total FROM conversations c ${whereClause}`).get(params);
 
   const rows = db
     .prepare(
       `SELECT c.*,
-         (SELECT m.text FROM messages m WHERE m.conversation_id = c.id ORDER BY m.id DESC LIMIT 1) AS last_message,
-         (SELECT m.direction FROM messages m WHERE m.conversation_id = c.id ORDER BY m.id DESC LIMIT 1) AS last_message_direction
+              lm.text       AS last_message,
+              lm.direction  AS last_message_direction,
+              lm.sender     AS last_message_sender,
+              lm.created_at AS last_message_at,
+              (SELECT COUNT(*) FROM messages mc WHERE mc.conversation_id = c.id) AS message_count
        FROM conversations c
+       LEFT JOIN messages lm
+         ON lm.id = (SELECT MAX(m.id) FROM messages m WHERE m.conversation_id = c.id)
        ${whereClause}
-       ORDER BY c.updated_at DESC
+       ORDER BY c.updated_at DESC, c.id DESC
        LIMIT @limit OFFSET @offset`,
     )
-    .all({ ...params, limit: resolvedLimit, offset: resolvedOffset });
+    .all({ ...params, ...page });
+
+  const byState = Object.fromEntries(
+    db.prepare('SELECT state AS k, COUNT(*) AS n FROM conversations GROUP BY state').all().map((r) => [r.k, r.n]),
+  );
+  const { humanHandled } = db
+    .prepare('SELECT COUNT(*) AS humanHandled FROM conversations WHERE ai_active = 0 AND state != \'CLOSED\'')
+    .get();
 
   return {
     total,
-    limit: resolvedLimit,
-    offset: resolvedOffset,
+    limit: page.limit,
+    offset: page.offset,
     count: rows.length,
     data: rows.map(parseConversationRow),
+    summary: { byState, humanHandled },
   };
 }
 
@@ -1668,17 +1751,56 @@ function listConversations({ state, limit, offset } = {}) {
  * @param {Object} [options]
  * @param {string} [options.wamid]
  * @param {string} [options.text]
+ * @param {'customer'|'ai'|'agent'|'system'} [options.sender] Defaults to 'customer' for an
+ *   inbound message (an inbound message on a conversation IS the customer, by
+ *   construction); an outbound one with no sender stays NULL rather than guessed.
+ * @param {string} [options.intent] The classification that routed this message, if any.
+ * @param {Array<string|{name: string}>} [options.toolCalls] Assistant tools behind an outbound reply.
  * @returns {Object} The stored message row.
  */
-function recordMessage(conversationId, direction, { wamid, text } = {}) {
+function recordMessage(conversationId, direction, { wamid, text, sender, intent, toolCalls } = {}) {
   if (!conversationId) throw new Error('recordMessage requires conversationId');
   if (direction !== 'inbound' && direction !== 'outbound') {
     throw new Error(`recordMessage: direction must be 'inbound' or 'outbound', got '${direction}'`);
   }
+  const resolvedSender = sender ?? (direction === 'inbound' ? 'customer' : null);
+  if (resolvedSender !== null && !MESSAGE_SENDERS.includes(resolvedSender)) {
+    throw new Error(`recordMessage: sender must be one of ${MESSAGE_SENDERS.join(', ')}, got '${resolvedSender}'`);
+  }
+  const resolvedIntent = typeof intent === 'string' && /^[a-z_]{1,40}$/.test(intent) ? intent : null;
+  const toolNames = Array.isArray(toolCalls)
+    ? [...new Set(toolCalls.map((c) => (typeof c === 'string' ? c : c?.name)).filter(Boolean))]
+    : [];
   const info = db
-    .prepare(`INSERT INTO messages (conversation_id, direction, wamid, text) VALUES (?, ?, ?, ?)`)
-    .run(conversationId, direction, toNullable(wamid), toNullable(text));
-  return db.prepare('SELECT * FROM messages WHERE id = ?').get(Number(info.lastInsertRowid));
+    .prepare(
+      `INSERT INTO messages (conversation_id, direction, wamid, text, sender, intent, tool_calls)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(
+      conversationId, direction, toNullable(wamid), toNullable(text), resolvedSender, resolvedIntent,
+      toolNames.length ? JSON.stringify(toolNames) : null,
+    );
+  return parseMessageRow(db.prepare('SELECT * FROM messages WHERE id = ?').get(Number(info.lastInsertRowid)));
+}
+
+function parseMessageRow(row) {
+  if (!row) return row;
+  return { ...row, tool_calls: fromJsonText(row.tool_calls, []) };
+}
+
+/**
+ * The most recent `limit` messages in chronological order, plus the thread's
+ * real size — what the admin transcript shows. A long thread shows its END
+ * (where the conversation is now), and says how many earlier messages exist.
+ */
+function getLatestMessagesForAdmin(conversationId, limit = 200) {
+  const rows = db
+    .prepare('SELECT * FROM messages WHERE conversation_id = ? ORDER BY id DESC LIMIT ?')
+    .all(conversationId, limit)
+    .reverse()
+    .map(parseMessageRow);
+  const { total } = db.prepare('SELECT COUNT(*) AS total FROM messages WHERE conversation_id = ?').get(conversationId);
+  return { messages: rows, total };
 }
 
 /** Full transcript for a conversation, oldest first — for admin dashboard / agent handoff context (§48). */
@@ -2145,6 +2267,199 @@ function getMatchingStats({ since }) {
   return { since, totals, uncovered, byCommune, byAgent };
 }
 
+const LEAD_MATCHES_LIST_LIMIT_DEFAULT = 25;
+const LEAD_MATCHES_LIST_LIMIT_MAX = 100;
+const LEAD_MATCH_STATUS_FILTERS = ['NOTIFIED', 'FAILED', 'ANSWERED', 'UNANSWERED'];
+
+/**
+ * One row per (request, agency) push — the /admin/matching table.
+ *
+ * The "property" half of a match is `lead_proposals`: the agency's own answer
+ * with a real listing. It joins one-to-one (UNIQUE lead_id, agent_id on both
+ * tables), so a row carries `proposed_property_id` only when that agency
+ * actually proposed something. Nothing pairs a buyer with a property the
+ * agency never chose.
+ *
+ * Budget filters test OVERLAP between the requested range and the lead's own
+ * range, with a missing bound treated as open — "300–800" matches a lead that
+ * said "up to 500". A lead that stated no budget at all is excluded once a
+ * budget filter is set, rather than matching every range.
+ *
+ * Timestamps are compared through datetime(): `created_at` is SQLite's
+ * 'YYYY-MM-DD HH:MM:SS', and a raw ISO 'YYYY-MM-DDTHH…' compares lexically
+ * wrong on the boundary day (' ' sorts before 'T').
+ */
+function listLeadMatches({
+  since, commune, budgetMin, budgetMax, minScore, status, limit, offset,
+} = {}) {
+  const where = [];
+  const params = {};
+  if (since) {
+    where.push('m.created_at >= datetime(@since)');
+    params.since = since;
+  }
+  if (commune === '__none__') {
+    where.push('l.commune IS NULL');
+  } else if (commune) {
+    where.push('l.commune = @commune');
+    params.commune = commune;
+  }
+  const min = Number(budgetMin);
+  const max = Number(budgetMax);
+  if (budgetMin != null && budgetMin !== '' && Number.isFinite(min)) {
+    where.push('(l.price_min IS NOT NULL OR l.price_max IS NOT NULL)');
+    where.push('COALESCE(l.price_max, l.price_min) >= @budgetMin');
+    params.budgetMin = min;
+  }
+  if (budgetMax != null && budgetMax !== '' && Number.isFinite(max)) {
+    where.push('(l.price_min IS NOT NULL OR l.price_max IS NOT NULL)');
+    where.push('COALESCE(l.price_min, l.price_max) <= @budgetMax');
+    params.budgetMax = max;
+  }
+  const score = Number(minScore);
+  if (minScore != null && minScore !== '' && Number.isFinite(score)) {
+    where.push('m.score >= @minScore');
+    params.minScore = score;
+  }
+  if (status) {
+    if (!LEAD_MATCH_STATUS_FILTERS.includes(status)) throw new Error(`Invalid match status '${status}'`);
+    if (status === 'ANSWERED') where.push('p.id IS NOT NULL');
+    else if (status === 'UNANSWERED') where.push("p.id IS NULL AND m.status = 'NOTIFIED'");
+    else {
+      where.push('m.status = @status');
+      params.status = status;
+    }
+  }
+  const whereClause = where.length ? `WHERE ${[...new Set(where)].join(' AND ')}` : '';
+  const page = resolvePage(limit, offset, { max: LEAD_MATCHES_LIST_LIMIT_MAX, fallback: LEAD_MATCHES_LIST_LIMIT_DEFAULT });
+
+  const fromJoin = `FROM lead_matches m
+    JOIN leads l ON l.id = m.lead_id
+    LEFT JOIN lead_proposals p ON p.lead_id = m.lead_id AND p.agent_id = m.agent_id`;
+
+  const { total } = db.prepare(`SELECT COUNT(*) AS total ${fromJoin} ${whereClause}`).get(params);
+  const data = db
+    .prepare(
+      `SELECT m.id, m.lead_id, m.agent_id, m.agent_phone, m.rank, m.score, m.status, m.error, m.created_at,
+              l.name AS lead_name, l.wa_id AS lead_wa_id, l.commune, l.transaction_type,
+              l.price_min, l.price_max, l.bedrooms, l.status AS lead_status,
+              p.property_id AS proposed_property_id, p.created_at AS proposed_at
+       ${fromJoin} ${whereClause}
+       ORDER BY m.id DESC
+       LIMIT @limit OFFSET @offset`,
+    )
+    .all({ ...params, ...page });
+
+  // Facets over the same time window only — every option offered returns rows.
+  const windowClause = since ? 'WHERE m.created_at >= datetime(@since)' : '';
+  const windowParams = since ? { since } : {};
+  const communes = db
+    .prepare(
+      `SELECT l.commune AS commune, COUNT(*) AS n
+       FROM lead_matches m JOIN leads l ON l.id = m.lead_id
+       ${windowClause}
+       GROUP BY l.commune ORDER BY n DESC`,
+    )
+    .all(windowParams);
+  const scoreRange = db
+    .prepare(`SELECT MIN(m.score) AS min, MAX(m.score) AS max FROM lead_matches m ${windowClause}`)
+    .get(windowParams);
+
+  return {
+    total, limit: page.limit, offset: page.offset, count: data.length, data,
+    facets: { communes, scoreRange },
+  };
+}
+
+/**
+ * Enquiry and viewing counts for a page of customers, keyed by wa_id — one
+ * query for the whole page, never one per row.
+ */
+function countLeadsByWaIds(waIds) {
+  const ids = [...new Set((waIds || []).map((id) => String(id).replace(/\D/g, '')).filter(Boolean))].slice(0, 200);
+  if (ids.length === 0) return {};
+  const placeholders = ids.map((_, i) => `@w${i}`).join(', ');
+  const params = Object.fromEntries(ids.map((id, i) => [`w${i}`, id]));
+  const rows = db
+    .prepare(
+      `SELECT l.wa_id,
+              COUNT(DISTINCT l.id)  AS leads,
+              COUNT(DISTINCT vr.id) AS viewings,
+              MAX(l.created_at)     AS last_lead_at
+       FROM leads l
+       LEFT JOIN viewing_requests vr ON vr.lead_id = l.id
+       WHERE l.wa_id IN (${placeholders})
+       GROUP BY l.wa_id`,
+    )
+    .all(params);
+  return Object.fromEntries(rows.map((r) => [r.wa_id, { leads: r.leads, viewings: r.viewings, lastLeadAt: r.last_lead_at }]));
+}
+
+/**
+ * The engine half of /admin/telemetry's performance cards, over one window.
+ *
+ * "Delivery health" is deliberately built from what this engine can PROVE:
+ * a send the WhatsApp API accepted vs one it refused (lead_matches.status),
+ * and — the only real proof a message arrived — an agent who then answered
+ * (first_response_at). Chakra does not forward Meta's delivery receipts, so
+ * nothing here claims a "delivered" count.
+ */
+function getLeadAnalytics({ since }) {
+  const p = { since };
+  const pairs = (sql) => Object.fromEntries(db.prepare(sql).all(p).map((r) => [r.k ?? 'NONE', r.n]));
+  const leadsBySource = pairs(
+    'SELECT source AS k, COUNT(*) AS n FROM leads WHERE created_at >= datetime(@since) GROUP BY source',
+  );
+  const leadsByCommune = db
+    .prepare(
+      `SELECT commune, COUNT(*) AS n FROM leads
+       WHERE created_at >= datetime(@since) AND commune IS NOT NULL
+       GROUP BY commune ORDER BY n DESC LIMIT 10`,
+    )
+    .all(p);
+  const viewingsByCommune = db
+    .prepare(
+      `SELECT COALESCE(vr.commune, l.commune) AS commune, COUNT(*) AS n
+       FROM viewing_requests vr JOIN leads l ON l.id = vr.lead_id
+       WHERE vr.created_at >= datetime(@since) AND COALESCE(vr.commune, l.commune) IS NOT NULL
+       GROUP BY COALESCE(vr.commune, l.commune) ORDER BY n DESC LIMIT 10`,
+    )
+    .all(p);
+  const pushes = pairs(
+    'SELECT status AS k, COUNT(*) AS n FROM lead_matches WHERE created_at >= datetime(@since) GROUP BY status',
+  );
+  const viewing = db
+    .prepare(
+      `SELECT COUNT(*) AS total,
+              SUM(CASE WHEN routing_type = 'DIRECT_WA' THEN 1 ELSE 0 END)        AS direct,
+              SUM(CASE WHEN routing_type = 'CENTRAL_FALLBACK' THEN 1 ELSE 0 END) AS central,
+              SUM(CASE WHEN routing_type = 'DIRECT_WA' AND first_response_at IS NOT NULL THEN 1 ELSE 0 END) AS answered,
+              SUM(CASE WHEN sla_alerted_at IS NOT NULL THEN 1 ELSE 0 END)        AS escalated
+       FROM viewing_requests WHERE created_at >= datetime(@since)`,
+    )
+    .get(p);
+  const outbound = db
+    .prepare(
+      `SELECT COUNT(*) AS n FROM messages WHERE direction = 'outbound' AND created_at >= datetime(@since)`,
+    )
+    .get(p);
+  return {
+    since,
+    leadsBySource,
+    leadsByCommune,
+    viewingsByCommune,
+    pushes: { notified: pushes.NOTIFIED || 0, failed: pushes.FAILED || 0 },
+    viewings: {
+      total: viewing.total || 0,
+      direct: viewing.direct || 0,
+      central: viewing.central || 0,
+      answered: viewing.answered || 0,
+      escalated: viewing.escalated || 0,
+    },
+    conversationReplies: outbound.n || 0,
+  };
+}
+
 /**
  * Records that the automated dispatcher pushed a request to one agency.
  *
@@ -2311,6 +2626,12 @@ const VIEWING_REQUESTS_EXTENDED_COLUMNS = [
   // are different facts and are never merged into one.
   ['decline_reason_code', 'TEXT'],
   ['decline_reason_by', 'TEXT'],
+  // The listing's commune, copied from Postgres at notify time. A visit request
+  // names a listing, not a commune, so `leads.commune` is NULL on every one of
+  // them — and commune is not a column in Postgres either. Without this copy
+  // /admin/viewings could only filter by commune by fetching every property id
+  // in that commune first, which does not survive 30k listings.
+  ['commune', 'TEXT'],
 ];
 
 /** What a customer can answer to the post-visit check-in. */
@@ -2352,6 +2673,24 @@ function migratePendingAgentActions() {
 }
 
 migratePendingAgentActions();
+
+// Indexes for the admin console's sorts and filters. Every list there is
+// ORDER BY + LIMIT/OFFSET, which stays a bounded index walk only when the sort
+// and filter columns are indexed — without these, each page load is a full
+// scan plus a sort, and that is what stops a console at tens of thousands of
+// rows. IF NOT EXISTS: re-running on every boot is a no-op.
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_conversations_updated_at ON conversations (updated_at, id);
+  CREATE INDEX IF NOT EXISTS idx_conversations_ai_active  ON conversations (ai_active);
+  CREATE INDEX IF NOT EXISTS idx_leads_created_at         ON leads (created_at);
+  CREATE INDEX IF NOT EXISTS idx_leads_commune            ON leads (commune);
+  CREATE INDEX IF NOT EXISTS idx_lead_matches_created_at  ON lead_matches (created_at);
+  CREATE INDEX IF NOT EXISTS idx_lead_proposals_agent     ON lead_proposals (lead_id, agent_id);
+  CREATE INDEX IF NOT EXISTS idx_viewing_requests_created ON viewing_requests (created_at);
+  CREATE INDEX IF NOT EXISTS idx_viewing_requests_status  ON viewing_requests (status);
+  CREATE INDEX IF NOT EXISTS idx_viewing_requests_agent   ON viewing_requests (agent_id);
+  CREATE INDEX IF NOT EXISTS idx_viewing_requests_commune ON viewing_requests (commune);
+`);
 
 /**
  * One viewing request joined to the customer who made it.
@@ -2622,14 +2961,24 @@ function setCheckinResponse(id, response) {
   return getViewingRequest(id);
 }
 
-/** Who the alert went to, and by which path. Called once, at notify time. */
-function setViewingRouting(id, { agentId = null, routingType }) {
+/**
+ * Who the alert went to, and by which path. Called once, at notify time.
+ * `commune` is the listing's own, read from Postgres by the notifier; a NULL
+ * never overwrites a commune already recorded.
+ */
+function setViewingRouting(id, { agentId = null, routingType, commune = null }) {
   if (!ROUTING_TYPES.includes(routingType)) {
     throw new Error(`setViewingRouting: unknown routing type '${routingType}' (expected one of ${ROUTING_TYPES.join(', ')})`);
   }
-  db.prepare('UPDATE viewing_requests SET agent_id = ?, routing_type = ? WHERE id = ?')
-    .run(agentId == null ? null : Number(agentId), routingType, id);
+  db.prepare('UPDATE viewing_requests SET agent_id = ?, routing_type = ?, commune = COALESCE(?, commune) WHERE id = ?')
+    .run(agentId == null ? null : Number(agentId), routingType, toNullable(commune), id);
   return getViewingRequest(id);
+}
+
+/** Backfill only — a commune for a request that predates the column. Never overwrites. */
+function setViewingCommuneIfMissing(id, commune) {
+  if (!commune) return false;
+  return db.prepare('UPDATE viewing_requests SET commune = ? WHERE id = ? AND commune IS NULL').run(commune, id).changes > 0;
 }
 
 /**
@@ -2683,7 +3032,22 @@ function reassignViewingRequest(id, agentId, at = new Date().toISOString()) {
  * listViewingRequestsForOwner (whose "no ownership signal -> nothing" rule
  * must never be weakened for the agent dashboard's sake).
  */
-function listAllViewingRequests({ status, routingType, limit, offset } = {}) {
+/**
+ * Named slices of the feed that are not a status. "Escalated" in particular is
+ * NOT a status and must never become one: an escalated request is still
+ * PENDING (the agent can still accept), and the SLA sweep's `sla_alerted_at`
+ * is what records that the desk was told. See CLAUDE.md, "Speed-to-lead".
+ */
+const VIEWING_FEED_VIEWS = {
+  escalated: "vr.status = 'PENDING' AND vr.sla_alerted_at IS NOT NULL",
+  awaiting_agent:
+    "vr.routing_type = 'DIRECT_WA' AND vr.status IN ('PENDING', 'RESCHEDULED') AND vr.first_response_at IS NULL",
+  checkins: "vr.scheduled_at IS NOT NULL AND vr.status IN ('CONFIRMED', 'COMPLETED')",
+};
+
+function listAllViewingRequests({
+  status, routingType, view, q, agentIds, commune, from, to, limit, offset,
+} = {}) {
   const where = [];
   const params = {};
   if (status) {
@@ -2696,25 +3060,68 @@ function listAllViewingRequests({ status, routingType, limit, offset } = {}) {
     where.push('vr.routing_type = @routingType');
     params.routingType = routingType;
   }
+  if (view) {
+    if (!VIEWING_FEED_VIEWS[view]) throw new Error(`Invalid view '${view}'`);
+    where.push(`(${VIEWING_FEED_VIEWS[view]})`);
+  }
+  // One search box: the customer's name or number, OR an agency the caller
+  // already resolved to agents.id in Postgres (agency names do not live here).
+  const term = likeTerm(q);
+  const ids = [...new Set((agentIds || []).map(Number).filter((n) => Number.isInteger(n) && n > 0))].slice(0, 500);
+  const searchParts = [];
+  if (term) {
+    searchParts.push(`COALESCE(l.name, '') LIKE @q ESCAPE '\\'`, `l.wa_id LIKE @q ESCAPE '\\'`);
+    params.q = term;
+  }
+  if (ids.length) {
+    searchParts.push(`vr.agent_id IN (${ids.map((_, i) => `@agent${i}`).join(', ')})`);
+    ids.forEach((id, i) => { params[`agent${i}`] = id; });
+  }
+  if (searchParts.length) where.push(`(${searchParts.join(' OR ')})`);
+  if (commune) {
+    where.push('COALESCE(vr.commune, l.commune) = @commune');
+    params.commune = commune;
+  }
+  if (from) {
+    where.push('vr.created_at >= datetime(@from)');
+    params.from = from;
+  }
+  if (to) {
+    where.push('vr.created_at < datetime(@to)');
+    params.to = to;
+  }
   const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
-
-  const parsedLimit = Number.parseInt(limit, 10);
-  const resolvedLimit = Number.isFinite(parsedLimit)
-    ? Math.min(Math.max(parsedLimit, 1), VIEWING_REQUESTS_LIST_LIMIT_MAX)
-    : VIEWING_REQUESTS_LIST_LIMIT_DEFAULT;
-  const parsedOffset = Number.parseInt(offset, 10);
-  const resolvedOffset = Number.isFinite(parsedOffset) ? Math.max(parsedOffset, 0) : 0;
+  const page = resolvePage(limit, offset, {
+    max: VIEWING_REQUESTS_LIST_LIMIT_MAX, fallback: VIEWING_REQUESTS_LIST_LIMIT_DEFAULT,
+  });
+  const resolvedLimit = page.limit;
+  const resolvedOffset = page.offset;
 
   const fromJoin = 'FROM viewing_requests vr JOIN leads l ON l.id = vr.lead_id';
   const { total } = db.prepare(`SELECT COUNT(*) AS total ${fromJoin} ${whereClause}`).get(params);
   const data = db
     .prepare(
       `SELECT vr.*, l.wa_id AS lead_wa_id, l.name AS lead_name, l.source AS lead_source,
-              l.status AS lead_status
+              l.status AS lead_status, COALESCE(vr.commune, l.commune) AS resolved_commune
        ${fromJoin} ${whereClause}
        ORDER BY vr.id DESC LIMIT @limit OFFSET @offset`,
     )
     .all({ ...params, limit: resolvedLimit, offset: resolvedOffset });
+
+  const viewCounts = Object.fromEntries(
+    Object.entries(VIEWING_FEED_VIEWS).map(([name, clause]) => [
+      name,
+      db.prepare(`SELECT COUNT(*) AS n FROM viewing_requests vr WHERE ${clause}`).get().n,
+    ]),
+  );
+  const communes = db
+    .prepare(
+      `SELECT COALESCE(vr.commune, l.commune) AS commune, COUNT(*) AS n
+       ${fromJoin}
+       WHERE COALESCE(vr.commune, l.commune) IS NOT NULL
+       GROUP BY COALESCE(vr.commune, l.commune) ORDER BY n DESC`,
+    )
+    .all();
 
   // Unfiltered totals for the chips and the fall-through breakdown, so a
   // filtered page never makes the other buckets read as zero.
@@ -2741,6 +3148,8 @@ function listAllViewingRequests({ status, routingType, limit, offset } = {}) {
       byStatus: countBy('status'),
       byRouting: countBy('routing_type'),
       byDeclineReason,
+      byView: viewCounts,
+      communes,
     },
   };
 }
@@ -2876,6 +3285,15 @@ module.exports = {
   updateConversationNotes,
   listConversations,
   recordMessage,
+  MESSAGE_SENDERS,
+  MESSAGES_EXTENDED_COLUMNS,
+  getLatestMessagesForAdmin,
+  listLeadMatches,
+  LEAD_MATCH_STATUS_FILTERS,
+  countLeadsByWaIds,
+  getLeadAnalytics,
+  VIEWING_FEED_VIEWS,
+  setViewingCommuneIfMissing,
   getMessages,
   getRecentMessages,
   createLead,

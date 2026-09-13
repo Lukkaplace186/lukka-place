@@ -851,6 +851,42 @@ and 2-hour check-in — there is no 24-hour job.
 a request on a listing with no verified agent is logged and answered but no
 human is alerted until it is set.
 
+## Admin console at scale (engine side)
+
+The web console (web/CLAUDE.md, "Built for 30k agents") asks the engine for one
+page at a time. What the engine added for that:
+
+- **Filters are SQL, never a fetch-and-slice.** `listConversations` (q over
+  wa_id / assigned_agent / notes, `ai_active`), `listAllViewingRequests`
+  (`q`, `agent_ids`, `commune`, `from`/`to`, `view`), and the new
+  `listLeadMatches` (`GET /admin/lead-matches`: commune, budget OVERLAP, min
+  score, outcome). `%`/`_` in a search term are escaped. Summaries/facets are
+  unfiltered so a filtered page never zeroes the other chips.
+- **`view=escalated` is not a status.** It is PENDING + `sla_alerted_at`
+  (`VIEWING_FEED_VIEWS`); status stays PENDING, same rule as Speed-to-lead.
+- **Timestamps compare through `datetime(@x)`.** `created_at` is
+  `YYYY-MM-DD HH:MM:SS`; a raw ISO `…T…` compares lexically wrong on the
+  boundary day. `getMatchingStats` still compares raw ISO and is off by up to
+  a day at its window start — known, not yet changed.
+- **`viewing_requests.commune`** (idempotent ALTER) is the listing's commune,
+  copied at notify time by `setViewingRouting` (COALESCE — a NULL never
+  overwrites). Visit-request leads carry no commune and Postgres has no
+  commune column, so this copy is what makes commune filtering possible.
+  Older rows: `node scripts/backfill-viewing-communes.js [--write]` (dry run by
+  default, fills NULLs only).
+- **`messages.sender` / `intent` / `tool_calls`** (idempotent ALTER) are
+  written by whoever records the message: inbound defaults to `customer`;
+  `buyerConversation` records `ai` + tool names and the routed intent;
+  `listingEnquiry` records `system` + `listing_enquiry`; the admin reply
+  route records `agent`. An outbound row with no sender stays NULL — never
+  inferred later. `GET /admin/conversations/:id` now returns the LATEST 200
+  messages plus `messages_total`.
+- **`GET /admin/leads/counts?wa_ids=`** (≤200) and **`GET /admin/lead-analytics`**
+  back /admin/customers and Lead Analytics. Delivery health there is
+  accepted/refused sends plus agents who answered — never a delivered count.
+- Admin sort/filter columns are indexed (`CREATE INDEX IF NOT EXISTS` at boot).
+  Covered by `scripts/verify-pipeline.js` §23.
+
 ## Verification & Commands
 - **Verification Command**: Always run `npm run verify` before declaring a backend task complete.
 - **Test Coverage**: Do not touch schema fields without updating `scripts/verify-pipeline.js`.

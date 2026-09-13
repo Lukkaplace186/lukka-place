@@ -7,7 +7,8 @@ import {
   PACKAGE_TERMS,
 } from '@/lib/subscriptions';
 import { getListingsForModeration } from '@/lib/listings';
-import { getVendors, getAgents } from '@/lib/agents';
+import { getVendors } from '@/lib/agents';
+import AgentPicker from '../AgentPicker';
 import {
   setFeaturedAction,
   unsetFeaturedAction,
@@ -35,15 +36,11 @@ function formatDate(value) {
   return new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }).format(date);
 }
 
-function agentName(agent) {
-  return [agent.first_name, agent.last_name].filter(Boolean).join(' ') || agent.username || `Agent #${agent.id}`;
-}
-
 const FIELD = 'rounded-md border border-line bg-white px-2 py-1.5 text-sm text-ink';
 
 export default async function AdminSubscriptionsPage() {
   const t = await getT();
-  const [memberships, featuredPricings, featuredIds, approvedListings, vendors, packages, agents, planRequests] =
+  const [memberships, featuredPricings, featuredIds, approvedListings, vendors, packages, planRequests] =
     await Promise.all([
       getMemberships(),
       getFeaturedPricings(),
@@ -51,7 +48,6 @@ export default async function AdminSubscriptionsPage() {
       getListingsForModeration('approved', { limit: 50 }),
       getVendors(),
       getPackages(),
-      getAgents(),
       listPlanChangeRequests({ status: 'pending' }),
     ]);
 
@@ -292,12 +288,7 @@ export default async function AdminSubscriptionsPage() {
         <form action={assignPackageAction} className="flex flex-wrap items-end gap-2 rounded-card border border-line bg-white p-4">
           <div>
             <label className="mb-1 block text-xs font-medium text-ink-45">{t('admin.subscriptions.agent')}</label>
-            <select name="agent_id" required className={FIELD}>
-              <option value="">{t('admin.actions.choose')}</option>
-              {agents.map((a) => (
-                <option key={a.id} value={a.id}>{agentName(a)}</option>
-              ))}
-            </select>
+            <AgentPicker name="agent_id" placeholder={t('admin.actions.choose')} className="w-64" />
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-ink-45">{t('admin.subscriptions.plan')}</label>

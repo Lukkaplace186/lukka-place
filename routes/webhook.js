@@ -1114,7 +1114,7 @@ async function processGroup(messages) {
     // even if a correction reply happens to get classified as non-listing.
     // See CLAUDE.md's "WhatsApp Property-Search Assistant" section.
     if (!extracted.is_listing && !pending && extracted.intent === 'buyer_request') {
-      await handleBuyerMessage({ from, text, primaryWamid });
+      await handleBuyerMessage({ from, text, primaryWamid, intent: extracted.intent });
       return;
     }
 

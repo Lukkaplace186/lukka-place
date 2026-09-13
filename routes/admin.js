@@ -33,14 +33,17 @@ const router = express.Router();
 // ---------------------------------------------------------------------------
 
 router.get('/conversations', (req, res) => {
-  const { state, limit, offset } = req.query;
+  const { state, q, ai_active: aiActive, limit, offset } = req.query;
 
   if (state && !Object.values(STATES).includes(state)) {
     return res.status(400).json({ success: false, error: `Invalid state '${state}'.` });
   }
+  if (aiActive !== undefined && aiActive !== '' && !['0', '1'].includes(aiActive)) {
+    return res.status(400).json({ success: false, error: "ai_active must be '0' or '1'." });
+  }
 
   try {
-    const page = db.listConversations({ state, limit, offset });
+    const page = db.listConversations({ state, q, aiActive, limit, offset });
     return res.json({ success: true, ...page });
   } catch (err) {
     console.error(`[admin] GET /conversations failed: ${err.message}`);
@@ -55,9 +58,11 @@ router.get('/conversations/:id', (req, res) => {
     return res.status(404).json({ success: false, error: 'Conversation not found.' });
   }
 
-  const messages = db.getMessages(id);
+  // The END of a long thread, not its first 200 messages — that is where the
+  // conversation is now. `messages_total` says how much earlier history exists.
+  const { messages, total } = db.getLatestMessagesForAdmin(id, 200);
   const leads = db.getLeadsByConversation(id);
-  return res.json({ success: true, conversation, messages, leads });
+  return res.json({ success: true, conversation, messages, messages_total: total, leads });
 });
 
 const CONVERSATION_PATCHABLE = ['state', 'assigned_agent', 'ai_active', 'notes'];
@@ -129,7 +134,7 @@ router.post('/conversations/:id/reply', async (req, res) => {
     return res.status(502).json({ success: false, error: 'WhatsApp send failed — message was not recorded.' });
   }
 
-  const message = db.recordMessage(id, 'outbound', { text });
+  const message = db.recordMessage(id, 'outbound', { text, sender: 'agent' });
   return res.json({ success: true, message });
 });
 
@@ -303,6 +308,72 @@ router.get('/leads/matching-stats', (req, res) => {
   } catch (err) {
     console.error(`[admin] GET /leads/matching-stats failed: ${err.message}`);
     return res.status(500).json({ success: false, error: 'Could not read matching stats.' });
+  }
+});
+
+function windowStart(daysRaw, fallback = 30) {
+  const days = Number.parseInt(daysRaw, 10);
+  const window = Number.isFinite(days) ? Math.min(Math.max(days, 1), 365) : fallback;
+  return { window, since: new Date(Date.now() - window * 24 * 60 * 60 * 1000).toISOString() };
+}
+
+/** /admin/matching's paginated (request × agency) table — see db.listLeadMatches. */
+router.get('/lead-matches', (req, res) => {
+  const { window, since } = windowStart(req.query.days);
+  const {
+    commune, budget_min: budgetMin, budget_max: budgetMax, min_score: minScore, status, limit, offset,
+  } = req.query;
+  try {
+    const page = db.listLeadMatches({ since, commune, budgetMin, budgetMax, minScore, status, limit, offset });
+    return res.json({ success: true, days: window, ...page });
+  } catch (err) {
+    if (/^Invalid/.test(err.message)) return res.status(400).json({ success: false, error: err.message });
+    console.error(`[admin] GET /lead-matches failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not read lead matches.' });
+  }
+});
+
+/**
+ * Enquiry/viewing counts for a page of customers (/admin/customers). Registered
+ * ahead of GET /leads/:id so 'counts' is never parsed as a lead id.
+ */
+router.get('/leads/counts', (req, res) => {
+  const waIds = String(req.query.wa_ids || '').split(',').filter(Boolean);
+  if (waIds.length > 200) {
+    return res.status(400).json({ success: false, error: 'At most 200 wa_ids per request.' });
+  }
+  try {
+    return res.json({ success: true, counts: db.countLeadsByWaIds(waIds) });
+  } catch (err) {
+    console.error(`[admin] GET /leads/counts failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not count leads.' });
+  }
+});
+
+/**
+ * /admin/telemetry's performance cards. The configuration flags are read at
+ * call time, like OPS_WHATSAPP_NUMBER everywhere else, so pointing ops at a new
+ * handset shows up here without a restart.
+ */
+router.get('/lead-analytics', (req, res) => {
+  const { window, since } = windowStart(req.query.days);
+  try {
+    return res.json({
+      success: true,
+      days: window,
+      ...db.getLeadAnalytics({ since }),
+      config: {
+        opsNumberConfigured: Boolean(process.env.OPS_WHATSAPP_NUMBER),
+        templates: {
+          leadMatch: chakra.templateConfigured(process.env.AGENT_LEAD_MATCH_TEMPLATE || null),
+          viewingRequest: chakra.templateConfigured(process.env.VIEWING_REQUEST_TEMPLATE || null),
+          otp: chakra.templateConfigured(process.env.AGENT_OTP_TEMPLATE || null),
+        },
+      },
+    });
+  } catch (err) {
+    console.error(`[admin] GET /lead-analytics failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not read lead analytics.' });
   }
 });
 
@@ -580,9 +651,27 @@ router.get('/viewing-requests', (req, res) => {
  * agent dashboard.
  */
 router.get('/viewing-requests/feed', (req, res) => {
-  const { status, routing_type: routingType, limit, offset } = req.query;
+  const {
+    status, routing_type: routingType, view, q, agent_ids: agentIdsRaw, commune, from, to, limit, offset,
+  } = req.query;
+  const instant = (value) => {
+    if (!value) return undefined;
+    const date = new Date(String(value));
+    return Number.isNaN(date.getTime()) ? null : date.toISOString();
+  };
+  const fromIso = instant(from);
+  const toIso = instant(to);
+  if (fromIso === null || toIso === null) {
+    return res.status(400).json({ success: false, error: 'from/to must be ISO-8601 instants.' });
+  }
+  const agentIds = agentIdsRaw ? String(agentIdsRaw).split(',').map((id) => Number.parseInt(id, 10)) : undefined;
   try {
-    return res.json({ success: true, ...db.listAllViewingRequests({ status, routingType, limit, offset }) });
+    return res.json({
+      success: true,
+      ...db.listAllViewingRequests({
+        status, routingType, view, q, agentIds, commune, from: fromIso, to: toIso, limit, offset,
+      }),
+    });
   } catch (err) {
     return res.status(400).json({ success: false, error: err.message });
   }

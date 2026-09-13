@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { ADMIN_SESSION_COOKIE, isValidSessionToken } from '@/lib/adminAuth';
 import { adminSetAccountPassword } from '@/lib/adminPasswordReset';
+import { adminUnlockCustomer } from '@/lib/customers';
 import { getT } from '@/lib/i18n/server';
 
 // Local copy, matching app/admin/actions.js, app/admin/agents/actions.js and
@@ -35,6 +36,21 @@ export async function adminSetCustomerPasswordAction(customerId, formData) {
     return result;
   } catch (err) {
     console.error(`[admin/customers] password reset #${customerId} failed: ${err.message}`);
+    return { ok: false, error: err.message || t('errors.actionFailed') };
+  }
+}
+
+/** Lift a login lockout — the password and sessions are left as they are. */
+export async function adminUnlockCustomerAction(customerId) {
+  const t = await getT();
+  try {
+    await assertAdminSession();
+    const changed = await adminUnlockCustomer(customerId);
+    if (!changed) return { ok: false, error: t('admin.customers.notFound') };
+    revalidatePath('/admin/customers');
+    return { ok: true, message: t('admin.customers.unlocked') };
+  } catch (err) {
+    console.error(`[admin/customers] unlock #${customerId} failed: ${err.message}`);
     return { ok: false, error: err.message || t('errors.actionFailed') };
   }
 }

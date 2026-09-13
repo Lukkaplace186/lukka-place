@@ -7165,6 +7165,142 @@ console.log('\n2. services/openai.js');
   priceExtraction.extractPriceWithModel = realModelExtractor;
 
   // -------------------------------------------------------------------------
+  console.log('\n23. Admin console at scale — paginated filters and transcript metadata');
+
+  // Transcript metadata: who wrote a message is stated by the writer, never inferred.
+  const scaleConvo = dbService.createConversation('243990000123');
+  const inboundMsg = dbService.recordMessage(scaleConvo.id, 'inbound', { text: 'je cherche un studio', intent: 'buyer_request' });
+  const aiMsg = dbService.recordMessage(scaleConvo.id, 'outbound', {
+    text: 'Voici trois biens',
+    sender: 'ai',
+    toolCalls: [{ name: 'search_properties' }, { name: 'search_properties' }, 'request_viewing'],
+  });
+  const bareOutbound = dbService.recordMessage(scaleConvo.id, 'outbound', { text: 'message sans auteur' });
+  check('an inbound message is recorded as the customer, with the intent that routed it', () => {
+    assert.strictEqual(inboundMsg.sender, 'customer');
+    assert.strictEqual(inboundMsg.intent, 'buyer_request');
+  });
+  check('an assistant reply records its sender and each tool once', () => {
+    assert.strictEqual(aiMsg.sender, 'ai');
+    assert.deepStrictEqual(aiMsg.tool_calls, ['search_properties', 'request_viewing']);
+  });
+  check('an outbound message with no stated sender stays NULL, never guessed', () =>
+    assert.strictEqual(bareOutbound.sender, null));
+  check('an unknown sender is refused', () =>
+    assert.throws(() => dbService.recordMessage(scaleConvo.id, 'outbound', { text: 'x', sender: 'bot' }), /sender must be/));
+  check('a malformed intent is dropped rather than stored', () =>
+    assert.strictEqual(dbService.recordMessage(scaleConvo.id, 'inbound', { text: 'y', intent: 'DROP TABLE' }).intent, null));
+
+  const convoSearch = await adminRequest('GET', '/admin/conversations?q=990000123&limit=5');
+  check('conversation search finds a thread by number, with its message count and last sender', () => {
+    assert.strictEqual(convoSearch.status, 200);
+    const row = convoSearch.body.data.find((c) => c.id === scaleConvo.id);
+    assert.ok(row, 'thread missing from search');
+    assert.strictEqual(row.message_count, 4);
+    assert.strictEqual(row.last_message_sender, 'customer');
+    assert.ok(convoSearch.body.summary && typeof convoSearch.body.summary.byState === 'object');
+  });
+  const convoHuman = await adminRequest('GET', '/admin/conversations?ai_active=0&q=990000123');
+  const convoBadAi = await adminRequest('GET', '/admin/conversations?ai_active=maybe');
+  check('ai_active=0 narrows to human-handled threads', () => assert.strictEqual(convoHuman.body.total, 0));
+  check('an invalid ai_active is a 400, not an unfiltered list', () => assert.strictEqual(convoBadAi.status, 400));
+  check('a % typed into search is a literal, not a wildcard', () =>
+    assert.strictEqual(dbService.listConversations({ q: '%' }).total, 0));
+  const convoDetail = await adminRequest('GET', `/admin/conversations/${scaleConvo.id}`);
+  check('the transcript returns its real size and parsed tool calls', () => {
+    assert.strictEqual(convoDetail.body.messages_total, 4);
+    assert.deepStrictEqual(convoDetail.body.messages.find((m) => m.id === aiMsg.id).tool_calls, ['search_properties', 'request_viewing']);
+  });
+
+  // Viewing feed filters.
+  const scaleLead = dbService.createLead({ wa_id: '243990000456', name: 'Scale Test' });
+  const scaleVrA = dbService.createViewingRequest({ leadId: scaleLead.id, propertyId: 9001 });
+  const scaleVrB = dbService.createViewingRequest({ leadId: scaleLead.id, propertyId: 9002 });
+  dbService.setViewingRouting(scaleVrA.id, { agentId: 555, routingType: 'DIRECT_WA', commune: 'Gombe' });
+  dbService.setViewingRouting(scaleVrA.id, { agentId: 555, routingType: 'DIRECT_WA', commune: null });
+  dbService.db.prepare('UPDATE viewing_requests SET sla_alerted_at = ? WHERE id = ?').run(new Date().toISOString(), scaleVrB.id);
+  check("a later routing write without a commune keeps the listing's commune", () =>
+    assert.strictEqual(dbService.getViewingRequest(scaleVrA.id).commune, 'Gombe'));
+  check('the commune backfill only ever fills a NULL', () => {
+    assert.strictEqual(dbService.setViewingCommuneIfMissing(scaleVrA.id, 'Limete'), false);
+    assert.strictEqual(dbService.getViewingRequest(scaleVrA.id).commune, 'Gombe');
+  });
+
+  const feedIds = (res) => (res.body?.data || []).map((row) => row.id);
+  const feedCommune = await adminRequest('GET', '/admin/viewing-requests/feed?commune=Gombe');
+  const feedAgency = await adminRequest('GET', '/admin/viewing-requests/feed?agent_ids=555');
+  const feedCustomer = await adminRequest('GET', `/admin/viewing-requests/feed?q=${encodeURIComponent('Scale Test')}`);
+  const feedEscalated = await adminRequest('GET', '/admin/viewing-requests/feed?view=escalated');
+  const feedBadView = await adminRequest('GET', '/admin/viewing-requests/feed?view=bogus');
+  const feedFuture = await adminRequest('GET', '/admin/viewing-requests/feed?from=2999-01-01T00:00:00Z');
+  const feedBadDate = await adminRequest('GET', '/admin/viewing-requests/feed?from=not-a-date');
+  check('the viewing feed filters by commune', () => {
+    assert.ok(feedIds(feedCommune).includes(scaleVrA.id));
+    assert.ok(!feedIds(feedCommune).includes(scaleVrB.id));
+  });
+  check('the viewing feed filters by agency (resolved agent ids)', () => assert.ok(feedIds(feedAgency).includes(scaleVrA.id)));
+  check('the viewing feed searches by customer name', () => {
+    assert.ok(feedIds(feedCustomer).includes(scaleVrA.id));
+    assert.ok(feedIds(feedCustomer).includes(scaleVrB.id));
+  });
+  check('"escalated" is the SLA-alerted PENDING slice, not a status', () => {
+    assert.ok(feedIds(feedEscalated).includes(scaleVrB.id));
+    assert.ok(!feedIds(feedEscalated).includes(scaleVrA.id));
+    assert.strictEqual(dbService.getViewingRequest(scaleVrB.id).status, 'PENDING');
+    assert.ok(feedEscalated.body.summary.byView.escalated >= 1);
+  });
+  check('an unknown view and an unparseable date are 400s', () => {
+    assert.strictEqual(feedBadView.status, 400);
+    assert.strictEqual(feedBadDate.status, 400);
+  });
+  check('a date range excludes requests outside it', () => assert.strictEqual(feedFuture.body.total, 0));
+  check('the feed summary lists real communes only', () =>
+    assert.ok(feedCommune.body.summary.communes.some((row) => row.commune === 'Gombe')));
+
+  // Lead matches table.
+  const scaleMatchLead = dbService.createLead({ wa_id: '243990000789', commune: 'Ngaliema', price_min: 300, price_max: 800, bedrooms: 2 });
+  const noBudgetLead = dbService.createLead({ wa_id: '243990000790', commune: 'Ngaliema' });
+  dbService.recordLeadMatch({ leadId: scaleMatchLead.id, agentId: 901, rank: 1, score: 80 });
+  dbService.recordLeadMatch({ leadId: scaleMatchLead.id, agentId: 902, rank: 2, score: 40, status: 'FAILED' });
+  dbService.recordLeadMatch({ leadId: noBudgetLead.id, agentId: 901, rank: 1, score: 70 });
+  dbService.createLeadProposal({ leadId: scaleMatchLead.id, agentId: 901, propertyId: 7001 });
+  const matchesFor = (qs) => adminRequest('GET', `/admin/lead-matches?commune=Ngaliema${qs}`);
+  const mAll = await matchesFor('');
+  const mScore = await matchesFor('&min_score=50');
+  const mFailed = await matchesFor('&status=FAILED');
+  const mAnswered = await matchesFor('&status=ANSWERED');
+  const mOverlap = await matchesFor('&budget_min=500&budget_max=600');
+  const mAbove = await matchesFor('&budget_min=900');
+  const mBadStatus = await matchesFor('&status=bogus');
+  check('lead matches filter by commune', () => assert.strictEqual(mAll.body.total, 3));
+  check('lead matches filter by minimum score', () => assert.strictEqual(mScore.body.total, 2));
+  check('a proposal joins onto its own agency only', () => {
+    assert.deepStrictEqual(mAnswered.body.data.map((r) => r.agent_id), [901]);
+    assert.strictEqual(mAnswered.body.data[0].proposed_property_id, 7001);
+    assert.strictEqual(mFailed.body.data[0].proposed_property_id, null);
+  });
+  check('budget filters test overlap and exclude a lead with no budget', () => {
+    assert.strictEqual(mOverlap.body.total, 2);
+    assert.strictEqual(mAbove.body.total, 0);
+  });
+  check('an unknown match status is a 400', () => assert.strictEqual(mBadStatus.status, 400));
+  check('the commune facet is derived from real matches', () =>
+    assert.ok(mAll.body.facets.communes.some((row) => row.commune === 'Ngaliema')));
+
+  const leadCounts = await adminRequest('GET', '/admin/leads/counts?wa_ids=243990000456,243990000789');
+  check("GET /leads/counts is not swallowed by /leads/:id and counts a customer's leads and viewings", () => {
+    assert.strictEqual(leadCounts.status, 200);
+    assert.strictEqual(leadCounts.body.counts['243990000456'].leads, 1);
+    assert.strictEqual(leadCounts.body.counts['243990000456'].viewings, 2);
+  });
+  const analytics = await adminRequest('GET', '/admin/lead-analytics?days=7');
+  check('lead analytics reports accepted vs failed pushes and its own configuration', () => {
+    assert.strictEqual(analytics.status, 200);
+    assert.ok(analytics.body.pushes.failed >= 1);
+    assert.strictEqual(typeof analytics.body.config.opsNumberConfigured, 'boolean');
+  });
+
+  // -------------------------------------------------------------------------
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

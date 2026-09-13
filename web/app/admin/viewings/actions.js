@@ -3,7 +3,9 @@
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { ADMIN_SESSION_COOKIE, isValidSessionToken } from '@/lib/adminAuth';
-import { nudgeViewingRequest, reassignViewingRequest, scheduleViewingRequest } from '@/lib/adminApi';
+import {
+  nudgeViewingRequest, reassignViewingRequest, scheduleViewingRequest, updateViewingRequest,
+} from '@/lib/adminApi';
 import { getT } from '@/lib/i18n/server';
 
 /** Same defense-in-depth pattern as web/app/admin/agents/actions.js. */
@@ -51,6 +53,24 @@ export async function scheduleViewingAction(viewingRequestId, localValue) {
     await scheduleViewingRequest(viewingRequestId, `${text}:00+01:00`);
     revalidateRoutingPages();
     return { ok: true, message: t('admin.viewings.scheduled') };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+/**
+ * Admin override: call the visit off. `CANCELLED`, never `DECLINED` — the agent
+ * did not refuse it, and conflating the two would corrupt the response-rate
+ * figures (CLAUDE.md, "Status vocabulary"). Writes the status only: nobody is
+ * messaged, which the confirmation dialog says before the admin presses it.
+ */
+export async function cancelViewingAction(viewingRequestId) {
+  const t = await getT();
+  try {
+    await assertAdminSession();
+    await updateViewingRequest(viewingRequestId, { status: 'CANCELLED' });
+    revalidateRoutingPages();
+    return { ok: true, message: t('admin.viewings.cancelled') };
   } catch (err) {
     return { ok: false, error: err.message };
   }

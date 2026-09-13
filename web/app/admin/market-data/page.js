@@ -4,7 +4,12 @@ import { getClosedTransactions } from '@/lib/adminLeadRouting';
 import { DECLINE_REASON_CODES, DECLINE_REASON_LABEL_KEYS, PRICE_SOURCE_LABEL_KEYS } from '@/lib/adminLabels';
 import { getT } from '@/lib/i18n/server';
 import { Chip, ErrorNote, Panel, Stat, TD, TD_RIGHT, TH, TH_RIGHT, formatPct, money } from '../LeadRoutingUI';
+import { firstParam } from '@/lib/adminPagination';
+import { MARKET_PURPOSES } from '@/lib/marketStats';
+import EmptyChart from './EmptyChart';
+import InfoTip from './InfoTip';
 import PricingBenchmarks from './PricingBenchmarks';
+import PublishedPriceStats from './PublishedPriceStats';
 
 export const metadata = {
   title: 'Données marché — Admin — Lukka Place',
@@ -24,14 +29,19 @@ const SOURCE_TONE = { WHATSAPP_AGENT_REPLY: 'success', DIRECT_INPUT: 'blue', ADM
  * figure is read from recorded closes — nothing is estimated, and a commune
  * below the sample threshold shows its count, not an average.
  */
-export default async function AdminMarketDataPage() {
+export default async function AdminMarketDataPage({ searchParams }) {
   const t = await getT();
+  const raw = (await searchParams) || {};
+  const purpose = MARKET_PURPOSES.includes(firstParam(raw.purpose)) ? firstParam(raw.purpose) : 'rent';
+  const priceCommune = firstParam(raw.pc) || null;
+  const priceParams = { purpose: purpose === 'rent' ? undefined : purpose, pc: priceCommune || undefined };
 
-  const [closed, performance, feed] = await Promise.all([
-    getClosedTransactions({ limit: 200 }),
+  const [closedResult, performance, feed] = await Promise.all([
+    getClosedTransactions({ limit: 200 }).catch((err) => ({ error: err.message })),
     getAgentPerformance({ days: 365 }).catch((err) => ({ error: err.message })),
     listViewingFeed({ limit: 1 }).catch((err) => ({ error: err.message })),
   ]);
+  const closed = Array.isArray(closedResult) ? closedResult : [];
 
   const fromWhatsapp = closed.filter((row) => row.priceSource === 'WHATSAPP_AGENT_REPLY').length;
   const fromAgentDashboard = closed.filter((row) => row.priceSource === 'DIRECT_INPUT').length;
@@ -56,6 +66,15 @@ export default async function AdminMarketDataPage() {
         <p className="u-micro mt-1 text-ink-45">{t('admin.marketData.subtitle')}</p>
       </div>
 
+      <PublishedPriceStats purpose={purpose} commune={priceCommune} params={priceParams} />
+
+      <div className="flex items-center gap-1.5 border-t border-line pt-6">
+        <h2 className="u-title-section text-ink">{t('admin.marketData.closedSectionTitle')}</h2>
+        <InfoTip label={t('admin.marketData.closedSectionTitle')}>{t('admin.marketData.closedHelp')}</InfoTip>
+      </div>
+
+      {closedResult?.error ? <ErrorNote>{t('admin.marketData.closedError', { error: closedResult.error })}</ErrorNote> : null}
+
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label={t('admin.marketData.closedCount')} value={closed.length} />
         <Stat label={t('admin.marketData.fromWhatsapp')} value={fromWhatsapp} />
@@ -70,6 +89,8 @@ export default async function AdminMarketDataPage() {
         note={t('admin.marketData.communeNote', { min: minSample })}
         isEmpty={communes.length === 0}
         emptyText={t('admin.marketData.communeEmpty')}
+        emptyGraphic={<EmptyChart variant="rows" message={t('admin.marketData.communeEmpty')} />}
+        aside={<InfoTip label={t('admin.marketData.communeTitle')}>{t('admin.marketData.communeHelp', { min: minSample })}</InfoTip>}
       >
         <table className="w-full min-w-[40rem] border-collapse">
           <thead>
@@ -105,6 +126,8 @@ export default async function AdminMarketDataPage() {
         title={t('admin.marketData.transactionsTitle')}
         isEmpty={closed.length === 0}
         emptyText={t('admin.marketData.transactionsEmpty')}
+        emptyGraphic={<EmptyChart variant="rows" message={t('admin.marketData.transactionsEmpty')} />}
+        aside={<InfoTip label={t('admin.marketData.transactionsTitle')}>{t('admin.marketData.transactionsHelp')}</InfoTip>}
       >
         <table className="w-full min-w-[60rem] border-collapse">
           <thead>
@@ -158,6 +181,7 @@ export default async function AdminMarketDataPage() {
         note={t('admin.marketData.declinesNote')}
         isEmpty={reasonMax === 0}
         emptyText={t('admin.marketData.declinesEmpty')}
+        emptyGraphic={<EmptyChart variant="rows" message={t('admin.marketData.declinesEmpty')} />}
       >
         {/* Horizontal bars rather than the pie the brief sketched: five close
             categories compare far better by length than by angle, and every

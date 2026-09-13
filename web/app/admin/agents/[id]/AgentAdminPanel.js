@@ -13,6 +13,7 @@ import {
   adminSetAgentPasswordAction,
 } from './actions';
 import PasswordResetForm from '../../PasswordResetForm';
+import AgentPicker from '../../AgentPicker';
 import { useT } from '@/lib/i18n/client';
 
 const FIELD = 'u-focus-ring h-10 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink';
@@ -62,7 +63,7 @@ function CommuneGrid({ name, communes, selected, disabled = new Set() }) {
   );
 }
 
-export default function AgentAdminPanel({ agent, communes, otherAgents, listingCount }) {
+export default function AgentAdminPanel({ agent, communes, listingCount }) {
   const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
@@ -91,6 +92,10 @@ export default function AgentAdminPanel({ agent, communes, otherAgents, listingC
   function handleReassign(event) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
+    if (!formData.get('to_agent_id')) {
+      showToast({ type: 'error', message: t('admin.agentPanel.chooseAgent') });
+      return;
+    }
     run(
       () => adminReassignListingsAction(agent.id, formData),
       (r) => t('admin.agents.transferred', { count: r.moved }),
@@ -250,16 +255,7 @@ export default function AgentAdminPanel({ agent, communes, otherAgents, listingC
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-[16rem] flex-1">
             <span className={LABEL}>{t('admin.agentPanel.destinationAgent')}</span>
-            <select name="to_agent_id" defaultValue="" className={FIELD} required>
-              <option value="" disabled>
-                {t('admin.agentPanel.chooseAgent')}
-              </option>
-              {otherAgents.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.label}
-                </option>
-              ))}
-            </select>
+            <AgentPicker name="to_agent_id" excludeId={agent.id} placeholder={t('admin.agentPanel.chooseAgent')} />
           </div>
           <button
             type="submit"

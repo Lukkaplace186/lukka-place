@@ -220,6 +220,94 @@ row. That is fine at 10 agents and a multi-megabyte page at 30,000.
   it. "Delivery health" is API-accepted vs refused plus agents who answered;
   there is no delivered count because Chakra forwards no receipts.
 
+### Accounts, roles and the audit log
+
+- **Individual team accounts** (`lib/adminUsers.js`, table `console_admin_users`,
+  `migrations/20260914_admin_console_platform.sql` in the engine repo). NOT
+  Laravel's `admins`/`role_permissions` — those belong to the external
+  back-office. Nobody types another person's password: an owner invites by
+  name/email/role on `/admin/team` and gets a single-use activation link (72h,
+  only its SHA-256 stored) to send; the person sets their own password on
+  `/admin/activate` (public in middleware, gated by the token). Lockout: 5 bad
+  passwords lock the account 15 min; 20 failures from one IP in 15 min refuse
+  that IP. The last active owner cannot be demoted or disabled.
+- **Session tokens are `v2.<adminId>.<tokenVersion>.<exp>.<hmac>`**
+  (`lib/adminAuth.js`). middleware.js checks signature + expiry only;
+  `lib/adminSession.js` re-reads the account on every page (layout) and every
+  action (`requireAdmin(permission)`), so disabling someone or resetting their
+  access (both bump `token_version`) ends their sessions at once. The layout
+  learns the path from `x-admin-pathname`, set (and overwritten) by middleware.
+- **The shared password still works, deliberately, as bootstrap owner access**
+  (`adminId 0`). Without it, deploying accounts would have locked the team out
+  until someone created the first owner. Everything it does is audited as
+  `shared-password` and a banner says so. **Turn it off with
+  `ADMIN_SHARED_LOGIN=off` once an owner account is active.** A pre-v2 token is
+  read as that shared session so nobody was signed out by the deploy.
+- **Roles are `lib/adminRoles.js`**: owner / moderator / support / finance /
+  analyst, a fixed permission table, `SECTION_PERMISSIONS` for pages (longest
+  prefix wins). The sidebar hides what a role can't open; the layout and every
+  Server Action enforce it. An unknown permission is refused, never open.
+- **Every mutating action calls `recordAudit`** (`lib/adminAudit.js`,
+  `console_admin_audit_log`, append-only, owner-readable at `/admin/audit`,
+  exportable). Details never contain a password or a customer message body —
+  replies record their length. `verified_by`, `moderated_by` and the exchange
+  rate's `updated_by` now carry the real account (NULL/"shared" under the
+  shared password, honestly).
+
+### Operating the console
+
+- **Approval queue** (`lib/moderationQueue.js`, `/admin/listings`): pending
+  oldest first with waiting time; tabs pending / approved (public only) /
+  rejected / suspended; quality flags computed in SQL (no/few photos, no
+  commune/price/content, extraction-failure text, photo reused on another
+  listing, same title+price, unverified/no agent) plus a price-outlier flag
+  from cached commune medians (≥5 listings, ×3). **Flags are facts, never
+  auto-verdicts.** Bulk approve runs the publishability check per listing and
+  reports skips; reject requires a reason code (`lib/moderation.js`) stored in
+  `properties.moderation_reason_code/_note/moderated_at/moderated_by` and sent
+  to the agent (engine `MODERATION_REJECTION_REASONS`). The listing page has a
+  decision panel and a photo manager that can only reorder/cover/remove photos
+  already on the listing.
+- **Work queues** (`lib/adminWorkQueues.js`, dashboard top, sidebar badges) mix
+  Postgres counts and the engine's `GET /admin/work-queues`, cached 15s
+  server-side; the browser polls `/admin/api/queue-counts` every 30s while
+  visible (`LiveQueueCounts.js`). Queue pages show a "new items — refresh"
+  pill rather than reshuffling rows under the cursor.
+- **Global search** (Ctrl/⌘K, `lib/adminSearch.js`, `/admin/api/search`):
+  listings, agents, agencies, customers, conversations — only the groups the
+  role may open. Substring search is backed by pg_trgm GIN indexes.
+- **Profiles**: `/admin/agents/[id]` has tabs (profile, listings in every
+  state, requests routed to them, performance from `agent_performance_logs`,
+  notes & history); `/admin/customers/[id]` merges leads, viewings and
+  conversations into one timeline; `/admin/agencies[/id]` manages an agency's
+  whole roster (bulk activate/suspend). Internal notes: `console_admin_notes`.
+- **Every table exports CSV with its current filters** (`/admin/export/[dataset]`,
+  paged through the same list function, capped at 10,000 rows, audited,
+  formula-injection-safe) and supports **saved views** per person
+  (`console_admin_saved_views`; not available under the shared password).
+- **`/admin/billing`** is the renewal desk and ledger over `memberships`:
+  expiring-in-30-days first; revenue is RECORDED revenue (trials excluded) —
+  there is no gateway, so nothing claims reconciliation. The featured-listing
+  picker on Subscriptions is a server-side search (it used to offer only the 50
+  newest listings).
+- **`/admin/health`** reports Postgres/engine latency, last inbound WhatsApp
+  traffic, scheduled-job outcomes, send failures and missing delivery config,
+  from what the platform records. It reports; it does not alert — there is no
+  alert destination while `OPS_WHATSAPP_NUMBER` is unset.
+
+### Deliberately not done yet (and why)
+
+- **Engine leads/conversations/viewings are still SQLite.** Moving them to
+  Postgres rewrites every synchronous `services/db.js` call on the live
+  WhatsApp path; it needs its own dual-write migration, not a console change.
+- **Agency → branch → user hierarchy and agency self-service staff** need new
+  tables alongside Laravel-owned `vendors`/`agents` and agent-portal work.
+- **Invoices, card payments and failed-payment tracking** need a payment
+  gateway, which is out by product decision.
+- **Pushed alerts** need a destination (ops number or email).
+- **Keyset pagination**: OFFSET is fine at today's volume with page size ≤100;
+  switch the biggest tables to cursors if deep pages get slow.
+
 ## Layout & shell
 
 - **Public pages live in the `app/(site)/` route group**; `app/admin` and `app/api` sit outside it. The shell (`Header` / `Footer`) is in `app/(site)/layout.js`, and the root layout is deliberately bare. Before this, everything nested in one root layout and `/admin` rendered the public header and footer *underneath* its own chrome. Route groups don't change URLs.

@@ -5,6 +5,12 @@ import { getListingForAdmin, getCategoriesForAdmin } from '@/lib/adminListings';
 import { getLocationHierarchyWithFallback } from '@/lib/locations';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import AdminListingEditor from './AdminListingEditor';
+import ListingModerationPanel from './ListingModerationPanel';
+import { getListingModerationInfo } from '@/lib/moderationQueue';
+import { listEntityAudit } from '@/lib/adminAudit';
+import { can } from '@/lib/adminRoles';
+import { getAdminSession } from '@/lib/adminSession';
+import EntityTimeline from '../../EntityTimeline';
 import { getT } from '@/lib/i18n/server';
 
 export async function generateMetadata() {
@@ -51,9 +57,12 @@ export default async function AdminListingEditPage({ params }) {
   const listing = await getListingForAdmin(id);
   if (!listing) notFound();
 
-  const [{ communes }, categories] = await Promise.all([
+  const [{ communes }, categories, moderation, session, history] = await Promise.all([
     getLocationHierarchyWithFallback(),
     getCategoriesForAdmin(),
+    getListingModerationInfo(listing.id),
+    getAdminSession(),
+    listEntityAudit('listing', listing.id, 30).catch(() => []),
   ]);
 
   const approve = APPROVE_LABEL[listing.approve_status];
@@ -112,7 +121,20 @@ export default async function AdminListingEditPage({ params }) {
         </div>
       </div>
 
-      <AdminListingEditor listing={listing} communes={communes} categories={categories} />
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <AdminListingEditor listing={listing} communes={communes} categories={categories} />
+        <div className="flex flex-col gap-4">
+          {moderation ? (
+            <ListingModerationPanel
+              listingId={listing.id}
+              info={moderation}
+              canModerate={can(session?.role, 'listings.moderate')}
+              canEdit={can(session?.role, 'listings.edit')}
+            />
+          ) : null}
+          <EntityTimeline entityType="listing" entityId={listing.id} history={history} notes={[]} canWrite={false} />
+        </div>
+      </div>
     </div>
   );
 }

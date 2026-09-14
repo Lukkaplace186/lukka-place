@@ -1,8 +1,8 @@
 'use server';
 
-import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
-import { ADMIN_SESSION_COOKIE, isValidSessionToken } from '@/lib/adminAuth';
+import { requireAdmin } from '@/lib/adminSession';
+import { recordAudit } from '@/lib/adminAudit';
 import {
   adminUpdateAgent,
   revokeAgentSessions,
@@ -12,11 +12,6 @@ import {
 } from '@/lib/agents';
 import { adminSetAccountPassword } from '@/lib/adminPasswordReset';
 import { getT } from '@/lib/i18n/server';
-
-async function assertAdminSession() {
-  const token = (await cookies()).get(ADMIN_SESSION_COOKIE)?.value;
-  if (!isValidSessionToken(token)) throw new Error('Not authenticated');
-}
 
 function revalidateAgent(agentId) {
   revalidatePath('/admin/agents');
@@ -28,26 +23,20 @@ function revalidateAgent(agentId) {
  * Identity, territory and verification, in one save.
  *
  * Both commune lists are filtered against `validCommunes`, bound at render
- * time from the engine's own canonical hierarchy — never free text. A commune
- * name that doesn't exist would break three things at once and silently: the
- * public "communes desservies" section, the listings filter, and the lead
- * matcher's coverage WHERE clause, which is the mechanism deciding who gets
- * paid work.
- *
- * `serviced` is unioned with `primary` rather than stored independently. A
- * commune an agency calls a specialty that isn't in their coverage set is a
- * contradiction the ranking query would resolve arbitrarily; making it
- * impossible to express beats validating against it.
+ * time from the engine's own canonical hierarchy — never free text. `serviced`
+ * is unioned with `primary`: a specialty outside coverage is a contradiction
+ * the ranking query would resolve arbitrarily.
  */
 export async function adminSaveAgentAction(agentId, validCommunes, formData) {
   const t = await getT();
   try {
-    await assertAdminSession();
+    const session = await requireAdmin('agents.manage');
     const valid = new Set(validCommunes);
 
     const primary = formData.getAll('primary_communes').map(String).filter((c) => valid.has(c));
     const serviced = formData.getAll('serviced_communes').map(String).filter((c) => valid.has(c));
     const status = Number.parseInt(formData.get('status'), 10);
+    const phoneVerified = formData.get('phone_verified') === 'on';
 
     const ok = await adminUpdateAgent(agentId, {
       agencyName: String(formData.get('agency_name') || '').trim().slice(0, 160) || null,
@@ -55,10 +44,16 @@ export async function adminSaveAgentAction(agentId, validCommunes, formData) {
       status: [0, 1].includes(status) ? status : undefined,
       primaryCommunes: primary,
       servicedCommunes: [...new Set([...serviced, ...primary])],
-      phoneVerified: formData.get('phone_verified') === 'on',
+      phoneVerified,
     });
 
     if (!ok) return { ok: false, error: t('errors.agentNotFound') };
+    await recordAudit(session, {
+      action: 'agent.update',
+      entityType: 'agent',
+      entityId: agentId,
+      details: { status: [0, 1].includes(status) ? status : null, phoneVerified, primary, serviced },
+    });
     revalidateAgent(agentId);
     return { ok: true };
   } catch (err) {
@@ -67,19 +62,13 @@ export async function adminSaveAgentAction(agentId, validCommunes, formData) {
   }
 }
 
-/**
- * Sends a fresh WhatsApp magic link and invalidates every existing session
- * in the same statement — see lib/agents.js's issueAgentActivationLink for
- * why this is a link rather than an admin-chosen temporary password.
- */
+/** Sends a fresh WhatsApp magic link and invalidates every existing session in the same statement. */
 export async function adminResetAgentAccessAction(agentId) {
   const t = await getT();
   try {
-    await assertAdminSession();
-    // lib/agents.js returns an `errorKey` rather than text — it has no request
-    // context of its own, so the message is resolved here, in the admin's
-    // language.
+    const session = await requireAdmin('agents.security');
     const { errorKey, ...result } = await issueAgentActivationLink(agentId);
+    if (!errorKey) await recordAudit(session, { action: 'agent.access_reset', entityType: 'agent', entityId: agentId });
     revalidateAgent(agentId);
     return errorKey ? { ...result, error: t(errorKey) } : result;
   } catch (err) {
@@ -88,20 +77,13 @@ export async function adminResetAgentAccessAction(agentId) {
 }
 
 /**
- * Sets the agent's password to one the admin typed, right here — the offline
- * counterpart to adminResetAgentAccessAction above, which depends on a
- * WhatsApp message arriving. Both exist because they fail in different
- * situations: the link is better when the agent is reachable (we never learn
- * their password), this one is the only thing that works when they are not.
- *
- * The new password is relayed by the admin, out of band. It is not returned
- * here and not logged: the whole point of hashing it is that nothing but the
- * person who typed it ever holds the plaintext.
+ * Sets the agent's password to one the admin typed. The password itself is
+ * never returned, logged, or written to the audit log.
  */
 export async function adminSetAgentPasswordAction(agentId, formData) {
   const t = await getT();
   try {
-    await assertAdminSession();
+    const session = await requireAdmin('agents.security');
     const { errorKey, ...result } = await adminSetAccountPassword({
       role: 'agent',
       id: agentId,
@@ -109,6 +91,7 @@ export async function adminSetAgentPasswordAction(agentId, formData) {
       confirm: formData.get('password_confirm'),
     });
     if (errorKey) return { ...result, error: t(errorKey) };
+    await recordAudit(session, { action: 'agent.password_set', entityType: 'agent', entityId: agentId });
     revalidateAgent(agentId);
     return result;
   } catch (err) {
@@ -121,8 +104,9 @@ export async function adminSetAgentPasswordAction(agentId, formData) {
 export async function adminRevokeAgentSessionsAction(agentId) {
   const t = await getT();
   try {
-    await assertAdminSession();
+    const session = await requireAdmin('agents.security');
     const ok = await revokeAgentSessions(agentId);
+    if (ok) await recordAudit(session, { action: 'agent.sessions_revoked', entityType: 'agent', entityId: agentId });
     revalidateAgent(agentId);
     return ok ? { ok: true } : { ok: false, error: t('errors.agentNotFound') };
   } catch (err) {
@@ -130,18 +114,11 @@ export async function adminRevokeAgentSessionsAction(agentId) {
   }
 }
 
-/**
- * Moves an agency's whole portfolio to another agent.
- *
- * The target is verified to be a real agents row before anything moves —
- * `properties.agent_id` has a FK, but a typo'd id that happens to exist would
- * hand an entire portfolio to the wrong agency, and that is not something to
- * discover afterwards.
- */
+/** Moves an agency's whole portfolio to another agent — the target is verified real first. */
 export async function adminReassignListingsAction(fromAgentId, formData) {
   const t = await getT();
   try {
-    await assertAdminSession();
+    const session = await requireAdmin('agents.manage');
     const toAgentId = Number.parseInt(formData.get('to_agent_id'), 10);
     if (!Number.isFinite(toAgentId)) return { ok: false, error: t('errors.chooseDestinationAgent') };
     if (toAgentId === Number(fromAgentId)) return { ok: false, error: t('errors.chooseDifferentAgent') };
@@ -150,6 +127,12 @@ export async function adminReassignListingsAction(fromAgentId, formData) {
     if (!target) return { ok: false, error: `Aucun agent #${toAgentId}.` };
 
     const moved = await reassignAgentListings(fromAgentId, toAgentId);
+    await recordAudit(session, {
+      action: 'agent.listings_transferred',
+      entityType: 'agent',
+      entityId: fromAgentId,
+      details: { toAgentId, moved },
+    });
     revalidateAgent(fromAgentId);
     revalidatePath('/admin/listings');
     revalidatePath('/listings');

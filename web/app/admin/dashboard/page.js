@@ -8,6 +8,8 @@ import {
   getConversionByDevice,
 } from '@/lib/analytics';
 import { getT } from '@/lib/i18n/server';
+import { getAdminSession } from '@/lib/adminSession';
+import WorkQueues from './WorkQueues';
 
 // Plain async Server Component with no searchParams/cookies() call of its
 // own doesn't trip Next's automatic dynamic-rendering detection, even though
@@ -52,6 +54,7 @@ async function Panel({ title, note, isEmpty, children }) {
 
 export default async function AdminDashboardPage() {
   const t = await getT();
+  const session = await getAdminSession();
   const [pageViews, whatsappClicks, topCommunes, conversionRate, byDevice, bySource, conversionDevice] =
     await Promise.all([
       getTotalPageViews(),
@@ -91,6 +94,9 @@ export default async function AdminDashboardPage() {
         </a>
       </div>
 
+      <WorkQueues role={session?.role} />
+
+      <h2 className="u-title-section mb-3 text-ink">{t('admin.queues.trafficTitle')}</h2>
       <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label={t('admin.dashboard.pageViews')} value={pageViews.toLocaleString('fr-FR')} />
         <StatCard label="Clics WhatsApp" value={whatsappClicks.toLocaleString('fr-FR')} />

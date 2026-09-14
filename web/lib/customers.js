@@ -290,6 +290,23 @@ export async function adminUnlockCustomer(customerId) {
   return (rowCount ?? 0) > 0;
 }
 
+/** One customer with the account facts the detail page shows. */
+export async function adminGetCustomerProfile(customerId) {
+  const id = Number.parseInt(customerId, 10);
+  if (!Number.isFinite(id)) return null;
+  const { rows } = await getPool().query(
+    `SELECT c.id, c.phone, c.full_name, c.created_at, c.last_login_at, c.phone_verified_at,
+            c.failed_login_count, c.locked_until,
+            (c.locked_until IS NOT NULL AND c.locked_until > NOW()) AS is_locked,
+            (c.password_hash IS NOT NULL AND c.password_hash <> '') AS has_password,
+            COALESCE((SELECT array_agg(f.property_id ORDER BY f.created_at DESC) FROM customer_favorites f WHERE f.customer_id = c.id), ARRAY[]::bigint[]) AS favorite_ids
+     FROM customers c WHERE c.id = $1`,
+    [id],
+  );
+  const row = rows[0];
+  return row ? { ...row, id: Number(row.id), favorite_ids: (row.favorite_ids || []).map(Number) } : null;
+}
+
 /** The existence check the reset action runs before writing a password. */
 export async function adminGetCustomerById(customerId) {
   const pool = getPool();

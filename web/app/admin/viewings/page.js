@@ -16,6 +16,8 @@ import Pagination from '../table/Pagination';
 import TableToolbar from '../table/TableToolbar';
 import { EmptyRow, TD_DENSE, TH_STICKY, TR_DENSE, TableFrame } from '../table/TableFrame';
 import ViewingRowActions from './ViewingRowActions';
+import ServerViewTools from '../table/ServerViewTools';
+import { NewItemsNotice } from '../LiveQueueCounts';
 
 export const metadata = {
   title: 'Visites — Admin — Lukka Place',
@@ -150,7 +152,9 @@ export default async function AdminViewingsPage({ searchParams }) {
           { type: 'date', param: 'from', label: t('admin.table.from') },
           { type: 'date', param: 'to', label: t('admin.table.to') },
         ]}
-      />
+      >
+        <ServerViewTools path="/admin/viewings" params={params} exportDataset="viewings" />
+      </TableToolbar>
 
       {loadError ? <ErrorNote>{t('admin.viewings.loadError', { error: loadError })}</ErrorNote> : null}
 
@@ -247,6 +251,8 @@ export default async function AdminViewingsPage({ searchParams }) {
           )}
         </tbody>
       </TableFrame>
+
+      <NewItemsNotice keys={['pendingViewings', 'escalatedViewings']} />
     </div>
   );
 }

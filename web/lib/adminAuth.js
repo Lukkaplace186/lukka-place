@@ -2,18 +2,27 @@ import 'server-only';
 import { scryptHex, safeEqualHex, hmacSign } from './authCrypto';
 
 /**
- * Password gate for /admin/* — a single shared team password, not per-agent
- * accounts. This is deliberately the smallest real thing that answers "is
- * this visitor a Lukka Place team member or not": no user table, no new
- * dependency (Node's own `crypto` — scrypt for the password hash, HMAC +
- * timingSafeEqual for the session token, the same primitives the engine
- * already uses for webhook signature verification, now shared with
- * customerAuth.js via authCrypto.js). Real per-agent accounts were
- * deliberately deferred earlier until the admin dashboard actually needed a
- * login — see CLAUDE.md — this is that moment, sized to match it.
+ * Session tokens for /admin/*, and the legacy shared team password.
  *
- * Sessions are a stateless signed cookie (`${expiresAtMs}.${hmac}`), not a
- * database row — nothing to garbage-collect, nothing to lose on a restart.
+ * The console now has individual accounts (lib/adminUsers.js, roles in
+ * lib/adminRoles.js, every action audited in lib/adminAudit.js). A session
+ * token names the account it belongs to and the account's `token_version` at
+ * issue time:
+ *
+ *   v2.<adminId>.<tokenVersion>.<expiresAtMs>.<hmac>
+ *
+ * The token itself is still stateless — middleware.js can check it without a
+ * database — but lib/adminSession.js re-reads the account on every page and
+ * action, so disabling a person or resetting their access (both bump
+ * token_version) ends their sessions at once rather than at the 12h expiry.
+ *
+ * `adminId = 0` is the SHARED-PASSWORD session. It is kept deliberately as the
+ * bootstrap path: without it, deploying individual accounts would lock the
+ * team out of the console until someone could create the first owner. Every
+ * action it takes is audited as "shared-password". Turn it off with
+ * `ADMIN_SHARED_LOGIN=off` (or by unsetting ADMIN_PASSWORD_HASH) once the team
+ * has accounts. A pre-v2 token (`<expiresAtMs>.<hmac>`) is read as that same
+ * shared session, so nobody signed in at deploy time is thrown out.
  */
 
 const SESSION_COOKIE = 'lukka_admin_session';
@@ -25,22 +34,18 @@ function sessionSecret() {
   return secret;
 }
 
-function passwordHash() {
-  const hash = process.env.ADMIN_PASSWORD_HASH;
-  if (!hash) {
-    throw new Error(
-      'ADMIN_PASSWORD_HASH is not set — see .env.local. Generate one with: node scripts/hash-admin-password.js "<password>"',
-    );
-  }
-  return hash;
+/** Whether the legacy shared team password may still be used to sign in. */
+export function sharedPasswordEnabled() {
+  return Boolean(process.env.ADMIN_PASSWORD_HASH) && String(process.env.ADMIN_SHARED_LOGIN || '').toLowerCase() !== 'off';
 }
 
 /**
- * @param {string} candidate Plain-text password from the login form.
+ * @param {string} candidate Plain-text shared password from the login form.
  * @returns {boolean}
  */
 export function verifyPassword(candidate) {
-  const [salt, expectedHash] = passwordHash().split(':');
+  if (!sharedPasswordEnabled()) return false;
+  const [salt, expectedHash] = String(process.env.ADMIN_PASSWORD_HASH).split(':');
   if (!salt || !expectedHash) return false;
   return safeEqualHex(scryptHex(String(candidate || ''), salt), expectedHash);
 }
@@ -49,26 +54,54 @@ function sign(value) {
   return hmacSign(sessionSecret(), value);
 }
 
-/** A stateless session token: `${expiryMs}.${hmac}`. */
-export function createSessionToken() {
+/**
+ * @param {{adminId?: number, tokenVersion?: number}} [account] omitted = the shared-password session
+ */
+export function createSessionToken({ adminId = 0, tokenVersion = 0 } = {}) {
   const expiresAt = String(Date.now() + SESSION_TTL_MS);
-  return `${expiresAt}.${sign(expiresAt)}`;
+  const payload = `v2.${Math.max(0, Number(adminId) || 0)}.${Math.max(0, Number(tokenVersion) || 0)}.${expiresAt}`;
+  return `${payload}.${sign(payload)}`;
+}
+
+/**
+ * Signature + expiry only; whether the account still exists and is still
+ * active is lib/adminSession.js's job.
+ * @returns {{adminId: number, tokenVersion: number, expiresAt: number, legacy: boolean} | null}
+ */
+export function parseSessionToken(token) {
+  if (!token || typeof token !== 'string') return null;
+  const parts = token.split('.');
+
+  if (parts.length === 2) {
+    const [expiresAt, signature] = parts;
+    if (!/^\d+$/.test(expiresAt) || !signature) return null;
+    if (!safeEqualHex(sign(expiresAt), signature)) return null;
+    if (!(Number(expiresAt) > Date.now())) return null;
+    return { adminId: 0, tokenVersion: 0, expiresAt: Number(expiresAt), legacy: true };
+  }
+
+  if (parts.length !== 5 || parts[0] !== 'v2') return null;
+  const [, adminId, tokenVersion, expiresAt, signature] = parts;
+  if (![adminId, tokenVersion, expiresAt].every((part) => /^\d+$/.test(part)) || !signature) return null;
+  const payload = `v2.${adminId}.${tokenVersion}.${expiresAt}`;
+  if (!safeEqualHex(sign(payload), signature)) return null;
+  if (!(Number(expiresAt) > Date.now())) return null;
+  return { adminId: Number(adminId), tokenVersion: Number(tokenVersion), expiresAt: Number(expiresAt), legacy: false };
 }
 
 /** @returns {boolean} */
 export function isValidSessionToken(token) {
-  if (!token || typeof token !== 'string') return false;
-  const dot = token.indexOf('.');
-  if (dot === -1) return false;
-
-  const expiresAt = token.slice(0, dot);
-  const signature = token.slice(dot + 1);
-  if (!expiresAt || !signature) return false;
-
-  if (!safeEqualHex(sign(expiresAt), signature)) return false;
-
-  return Number(expiresAt) > Date.now();
+  return parseSessionToken(token) !== null;
 }
 
 export const ADMIN_SESSION_COOKIE = SESSION_COOKIE;
 export const ADMIN_SESSION_TTL_SECONDS = Math.floor(SESSION_TTL_MS / 1000);
+
+/** The cookie options every place that signs someone in must use — see logoutAction for why path matters. */
+export const ADMIN_SESSION_COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax',
+  path: '/admin',
+  maxAge: ADMIN_SESSION_TTL_SECONDS,
+};

@@ -7300,6 +7300,38 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(typeof analytics.body.config.opsNumberConfigured, 'boolean');
   });
 
+  // Admin platform: work queues, health, agent-scoped matches, rejection reasons.
+  const workQueues = await adminRequest('GET', '/admin/work-queues');
+  check('the work-queue counts include the escalated viewing created above', () => {
+    assert.strictEqual(workQueues.status, 200);
+    assert.ok(workQueues.body.counts.escalatedViewings >= 1);
+    assert.strictEqual(typeof workQueues.body.counts.humanConversations, 'number');
+  });
+  const engineHealth = await adminRequest('GET', '/admin/health');
+  check('engine health reports jobs, traffic recency, failures and configuration', () => {
+    assert.strictEqual(engineHealth.status, 200);
+    assert.ok(Array.isArray(engineHealth.body.jobs));
+    assert.ok('lastInboundMessageAt' in engineHealth.body.traffic);
+    assert.ok(engineHealth.body.failures.failedPushes24h >= 1);
+    assert.strictEqual(typeof engineHealth.body.config.opsNumberConfigured, 'boolean');
+  });
+  const agentMatches = await adminRequest('GET', '/admin/lead-matches?agent_id=902');
+  check('lead matches can be scoped to one agency', () => {
+    assert.strictEqual(agentMatches.status, 200);
+    assert.ok(agentMatches.body.data.length >= 1);
+    assert.ok(agentMatches.body.data.every((row) => row.agent_id === 902));
+  });
+  const { MODERATION_MESSAGES: moderationMessages } = require('../routes/admin');
+  check('a rejection tells the agent the reason and the moderator note', () => {
+    const text = moderationMessages.rejected(12, { code: 'BAD_PHOTOS', note: 'Ajoutez la façade' });
+    assert.match(text, /photos/);
+    assert.match(text, /Ajoutez la façade/);
+  });
+  check('a rejection without a reason keeps the original generic wording', () =>
+    assert.match(moderationMessages.rejected(12, {}), /quelques ajustements/));
+  check("an unknown reason code is not echoed to the agent", () =>
+    assert.doesNotMatch(moderationMessages.rejected(12, { code: 'DROP TABLE' }), /DROP/));
+
   // -------------------------------------------------------------------------
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);

@@ -3,11 +3,13 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  BarChart3, CalendarClock, ChartNoAxesCombined, FileText, Gauge, Mail, User, Users, Landmark, MessageCircle, Radar,
-  Settings, TrendingDown,
+  BarChart3, Building2, CalendarClock, ChartNoAxesCombined, CreditCard, FileText, Gauge, HeartPulse, Mail, User, Users,
+  Landmark, MessageCircle, Radar, ScrollText, Settings, TrendingDown, UsersRound,
 } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { can, sectionPermission } from '@/lib/adminRoles';
 import { useT } from '@/lib/i18n/client';
+import { QueueBadge, useQueueCounts } from './LiveQueueCounts';
 
 /**
  * The royal admin rail from web/Design's "Console d'administration" screen.
@@ -41,14 +43,31 @@ const NAV = [
   // bookmarks and revalidatePath calls keep working.
   { href: '/admin/telemetry', labelKey: 'admin.nav.telemetry', icon: ChartNoAxesCombined },
   { href: '/admin/agents', labelKey: 'admin.nav.agents', icon: User },
+  { href: '/admin/agencies', labelKey: 'admin.nav.agencies', icon: Building2 },
   { href: '/admin/customers', labelKey: 'admin.nav.customers', icon: Users },
   { href: '/admin/subscriptions', labelKey: 'admin.nav.subscriptions', icon: Landmark },
+  { href: '/admin/billing', labelKey: 'admin.nav.billing', icon: CreditCard },
   { href: '/admin/cms', labelKey: 'admin.nav.cms', icon: Settings },
+  { href: '/admin/team', labelKey: 'admin.nav.team', icon: UsersRound },
+  { href: '/admin/audit', labelKey: 'admin.nav.audit', icon: ScrollText },
+  { href: '/admin/health', labelKey: 'admin.nav.health', icon: HeartPulse },
 ];
 
-export default function AdminSidebar({ mobile = false }) {
+/** Which live work-queue count (lib/adminWorkQueues.js) badges which item. */
+const BADGE_FOR = {
+  '/admin/listings': 'pendingListings',
+  '/admin/viewings': 'escalatedViewings',
+  '/admin/conversations': 'humanConversations',
+  '/admin/subscriptions': 'pendingPlanRequests',
+};
+
+export default function AdminSidebar({ mobile = false, role }) {
   const t = useT();
   const pathname = usePathname();
+  const counts = useQueueCounts();
+  // A role only sees the sections it may open. The layout and every action
+  // enforce the same table server-side; hiding a link is not the security.
+  const items = NAV.filter(({ href }) => can(role, sectionPermission(href)));
 
   // Below lg the royal rail is hidden (see layout.js) and the same real
   // destinations ride in a horizontal scroller instead — the design only
@@ -57,7 +76,7 @@ export default function AdminSidebar({ mobile = false }) {
   if (mobile) {
     return (
       <nav className="flex gap-1 overflow-x-auto border-b border-line bg-blue-deep px-4 py-2">
-        {NAV.map(({ href, labelKey, icon: Icon }) => {
+        {items.map(({ href, labelKey, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(`${href}/`);
           return (
             <Link
@@ -69,7 +88,8 @@ export default function AdminSidebar({ mobile = false }) {
               }`}
             >
               <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0" />
-              {t(labelKey)}
+              <span className="flex-1">{t(labelKey)}</span>
+              <QueueBadge count={counts?.[BADGE_FOR[href]]} />
             </Link>
           );
         })}
@@ -87,7 +107,7 @@ export default function AdminSidebar({ mobile = false }) {
       </div>
 
       <nav className="flex flex-col gap-1">
-        {NAV.map(({ href, labelKey, icon: Icon }) => {
+        {items.map(({ href, labelKey, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(`${href}/`);
           return (
             <Link
@@ -99,7 +119,8 @@ export default function AdminSidebar({ mobile = false }) {
               }`}
             >
               <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem] shrink-0" />
-              {t(labelKey)}
+              <span className="flex-1">{t(labelKey)}</span>
+              <QueueBadge count={counts?.[BADGE_FOR[href]]} />
             </Link>
           );
         })}

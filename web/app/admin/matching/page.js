@@ -8,6 +8,7 @@ import { getT } from '@/lib/i18n/server';
 import { Chip, ErrorNote, Panel, Stat, TD, TH, formatKinshasa, money } from '../LeadRoutingUI';
 import Pagination from '../table/Pagination';
 import TableToolbar from '../table/TableToolbar';
+import ServerViewTools from '../table/ServerViewTools';
 import { EmptyRow, TD_DENSE, TD_DENSE_RIGHT, TH_STICKY, TH_STICKY_RIGHT, TR_DENSE, TableFrame } from '../table/TableFrame';
 
 export const metadata = {
@@ -197,7 +198,9 @@ export default async function AdminMatchingPage({ searchParams }) {
               options: MATCH_STATUSES.map((value) => ({ value, label: t(MATCH_STATUS_LABEL_KEYS[value]) })),
             },
           ]}
-        />
+        >
+          <ServerViewTools path="/admin/matching" params={params} exportDataset="lead-matches" />
+        </TableToolbar>
 
         {matchesError ? <ErrorNote>{t('admin.matching.matchesError', { error: matchesError })}</ErrorNote> : null}
 

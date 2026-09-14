@@ -1,17 +1,16 @@
 'use server';
 
-import { cookies } from 'next/headers';
-import { ADMIN_SESSION_COOKIE, isValidSessionToken } from '@/lib/adminAuth';
+import { getAdminSession } from '@/lib/adminSession';
 import { searchAgentsForAdmin } from '@/lib/agents';
 
 /**
  * The agent picker's type-ahead. A Server Action is a public POST endpoint, so
  * the session is checked here too — the middleware gates pages, not actions
- * invoked from a page that is already open.
+ * invoked from a page that is already open. Read-only: any signed-in role.
  */
 export async function searchAgentsAction({ q = '', commune = null, routableOnly = false, activeOnly = false, excludeId = null } = {}) {
-  const token = (await cookies()).get(ADMIN_SESSION_COOKIE)?.value;
-  if (!isValidSessionToken(token)) return { ok: false, error: 'Not authenticated', agents: [] };
+  const session = await getAdminSession();
+  if (!session) return { ok: false, error: 'Not authenticated', agents: [] };
   try {
     const agents = await searchAgentsForAdmin({
       q: String(q || '').slice(0, 80),

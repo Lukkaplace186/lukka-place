@@ -1,9 +1,9 @@
 'use server';
 
-import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { getPool } from '@/lib/db';
-import { ADMIN_SESSION_COOKIE, isValidSessionToken } from '@/lib/adminAuth';
+import { requireAdmin } from '@/lib/adminSession';
+import { recordAudit } from '@/lib/adminAudit';
 import {
   createPackage,
   updatePackage,
@@ -11,11 +11,6 @@ import {
   resolvePlanChangeRequest,
   PACKAGE_TERMS,
 } from '@/lib/subscriptions';
-
-async function assertAdminSession() {
-  const token = (await cookies()).get(ADMIN_SESSION_COOKIE)?.value;
-  if (!isValidSessionToken(token)) throw new Error('Not authenticated');
-}
 
 function readPackageForm(formData) {
   const title = String(formData.get('title') || '').trim();
@@ -33,27 +28,36 @@ function readPackageForm(formData) {
   return { title, price, term, numberOfProperty, isTrial, trialDays };
 }
 
-export async function createPackageAction(formData) {
-  await assertAdminSession();
-  await createPackage(readPackageForm(formData));
+function revalidateBilling() {
   revalidatePath('/admin/subscriptions');
+  revalidatePath('/admin/billing');
+  revalidatePath('/admin/agents');
+}
+
+export async function createPackageAction(formData) {
+  const session = await requireAdmin('billing.manage');
+  const pkg = readPackageForm(formData);
+  await createPackage(pkg);
+  await recordAudit(session, { action: 'package.create', entityType: 'package', details: pkg });
+  revalidateBilling();
 }
 
 export async function updatePackageAction(packageId, formData) {
-  await assertAdminSession();
+  const session = await requireAdmin('billing.manage');
   const status = Number.parseInt(formData.get('status'), 10);
-  await updatePackage(packageId, { ...readPackageForm(formData), status: [0, 1].includes(status) ? status : 1 });
-  revalidatePath('/admin/subscriptions');
+  const pkg = { ...readPackageForm(formData), status: [0, 1].includes(status) ? status : 1 };
+  await updatePackage(packageId, pkg);
+  await recordAudit(session, { action: 'package.update', entityType: 'package', entityId: packageId, details: pkg });
+  revalidateBilling();
 }
 
 /**
- * Manual payment ledger — the admin records what was actually agreed/paid
- * (price/method/transaction reference) at the moment they assign a package,
- * since this app has no payment gateway of its own (per the product
- * decision behind this feature: manual entry, not a real processor).
+ * Manual payment ledger — the admin records what was actually agreed/paid at
+ * the moment they assign a package; this platform has no payment gateway by
+ * product decision.
  */
 export async function assignPackageAction(formData) {
-  await assertAdminSession();
+  const session = await requireAdmin('billing.manage');
 
   const agentId = Number.parseInt(formData.get('agent_id'), 10);
   const packageId = Number.parseInt(formData.get('package_id'), 10);
@@ -62,8 +66,7 @@ export async function assignPackageAction(formData) {
 
   const priceRaw = formData.get('price');
   const price = priceRaw ? Number.parseFloat(priceRaw) : null;
-
-  await assignPackageToAgent({
+  const entry = {
     agentId,
     packageId,
     isTrial: formData.get('is_trial') === 'on',
@@ -73,32 +76,23 @@ export async function assignPackageAction(formData) {
     paymentMethod: String(formData.get('payment_method') || '').trim() || null,
     transactionId: String(formData.get('transaction_id') || '').trim() || null,
     receipt: String(formData.get('receipt') || '').trim() || null,
-  });
-
-  revalidatePath('/admin/subscriptions');
-  revalidatePath('/admin/agents');
+  };
+  await assignPackageToAgent(entry);
+  await recordAudit(session, { action: 'membership.assign', entityType: 'agent', entityId: agentId, details: entry });
+  revalidateBilling();
 }
 
 /**
- * featured_properties.property_id has no FK constraint (confirmed via
- * information_schema) and no FK to properties.id would even mean "real
- * listing" on its own — a real listing here specifically means approved and
- * public, the same `status = 1 AND approve_status = 1` gate every public
- * query in lib/listings.js applies. Featuring a pending/rejected listing
- * would be a real bug, not just an edge case, so it's checked explicitly
- * rather than trusted.
+ * featured_properties.property_id has no FK; featuring a pending/rejected
+ * listing would be a real bug, so the public gate is checked explicitly.
  */
 export async function setFeaturedAction(propertyId, formData) {
-  await assertAdminSession();
+  const session = await requireAdmin('billing.manage');
   const featuredPricingId = Number.parseInt(formData.get('featured_pricing_id'), 10);
   if (!Number.isFinite(featuredPricingId)) throw new Error('featured_pricing_id is required');
 
-  // featured_properties.vendor_id is NOT NULL at the database level (caught
-  // live — an insert with agent_id's vendor came back null and the DB
-  // correctly rejected it rather than silently accepting bad data). Every
-  // real listing today has agent_id NULL, so there's usually no vendor to
-  // infer automatically — the admin must attribute the grant to a real
-  // vendor explicitly, not have one invented.
+  // featured_properties.vendor_id is NOT NULL — the admin must attribute the
+  // grant to a real vendor explicitly, not have one invented.
   const vendorId = Number.parseInt(formData.get('vendor_id'), 10);
   if (!Number.isFinite(vendorId)) throw new Error('vendor_id is required');
 
@@ -127,40 +121,40 @@ export async function setFeaturedAction(propertyId, formData) {
     [featuredPricingId, propertyId, vendorId, price, numberOfDays],
   );
 
-  revalidatePath('/admin/subscriptions');
+  await recordAudit(session, {
+    action: 'featured.set',
+    entityType: 'listing',
+    entityId: propertyId,
+    details: { featuredPricingId, vendorId, days: numberOfDays, price: Number(price) },
+  });
+  revalidateBilling();
 }
 
 export async function unsetFeaturedAction(propertyId) {
-  await assertAdminSession();
+  const session = await requireAdmin('billing.manage');
   const pool = getPool();
   await pool.query(
     `UPDATE featured_properties SET status = 0, updated_at = NOW() WHERE property_id = $1 AND status = 1`,
     [propertyId],
   );
-  revalidatePath('/admin/subscriptions');
+  await recordAudit(session, { action: 'featured.unset', entityType: 'listing', entityId: propertyId });
+  revalidateBilling();
 }
 
 /**
- * Approve or decline an agent's own plan-change request.
- *
- * "Approve" here means "we have taken the payment and are provisioning it" —
- * this platform has no gateway (deliberately: /admin/subscriptions is a
- * manual ledger for cash, bank transfer and Mobile Money), so approving both
- * resolves the request AND assigns the package in one transaction-shaped
- * action rather than leaving an admin to remember the second half.
- *
- * The payment details are optional on purpose: an agency put on a plan
- * pending payment is a real situation, and forcing a fabricated amount to
- * record the provisioning would put a fake number straight into the ledger.
+ * Approve or decline an agent's own plan-change request. Approving both
+ * resolves the request AND assigns the package; payment details stay optional
+ * so a plan provisioned pending payment never gets a fabricated amount.
  */
 export async function resolvePlanRequestAction(requestId, decision, formData) {
-  await assertAdminSession();
+  const session = await requireAdmin('billing.manage');
 
   if (!['approved', 'declined'].includes(decision)) {
     throw new Error("decision must be 'approved' or 'declined'");
   }
 
   const note = String(formData?.get('handled_note') || '').trim() || null;
+  let assigned = null;
 
   if (decision === 'approved') {
     const agentId = Number.parseInt(formData.get('agent_id'), 10);
@@ -171,8 +165,7 @@ export async function resolvePlanRequestAction(requestId, decision, formData) {
 
     const priceRaw = formData.get('price');
     const price = priceRaw ? Number.parseFloat(priceRaw) : null;
-
-    await assignPackageToAgent({
+    assigned = {
       agentId,
       packageId,
       price: Number.isFinite(price) ? price : null,
@@ -180,35 +173,31 @@ export async function resolvePlanRequestAction(requestId, decision, formData) {
       currencySymbol: String(formData.get('currency_symbol') || '').trim() || null,
       paymentMethod: String(formData.get('payment_method') || '').trim() || null,
       transactionId: String(formData.get('transaction_id') || '').trim() || null,
-    });
+    };
+    await assignPackageToAgent(assigned);
   }
 
   await resolvePlanChangeRequest(requestId, decision, note);
+  await recordAudit(session, {
+    action: `plan_request.${decision}`,
+    entityType: 'membership',
+    entityId: `request:${requestId}`,
+    details: { note, assigned },
+  });
 
-  revalidatePath('/admin/subscriptions');
-  revalidatePath('/admin/agents');
+  revalidateBilling();
   revalidatePath('/compte/agent/abonnement');
 }
 
 /**
  * Extend, expire or cancel an existing membership without creating a new
- * ledger row.
- *
- * `memberships` doubles as the payment ledger (one row per assignment or
- * renewal — see lib/subscriptions.js), which is exactly why extending has to
- * be a distinct verb from assigning: a goodwill week added to a plan is not a
- * payment, and recording it as one would inflate revenue in the very table an
- * admin reads to reconcile cash.
- *
- * `status = 0` is this schema's own "not active" for a membership; the
- * agent-facing card reads `expire_date` and shows an honest expired state, so
- * cancelling by pulling the date back to today is what the rest of the app
- * already understands.
+ * ledger row — a goodwill week is not a payment.
  */
 export async function updateMembershipAction(membershipId, formData) {
-  await assertAdminSession();
+  const session = await requireAdmin('billing.manage');
   const action = String(formData.get('action') || '');
   const pool = getPool();
+  let details = {};
 
   if (action === 'extend') {
     const days = Number.parseInt(formData.get('days'), 10);
@@ -220,6 +209,7 @@ export async function updateMembershipAction(membershipId, formData) {
        WHERE id = $2`,
       [days, membershipId],
     );
+    details = { days };
   } else if (action === 'cancel') {
     await pool.query(
       `UPDATE memberships SET status = 0, expire_date = CURRENT_DATE, updated_at = NOW() WHERE id = $1`,
@@ -231,23 +221,13 @@ export async function updateMembershipAction(membershipId, formData) {
     throw new Error(`Unknown membership action: ${action}`);
   }
 
-  revalidatePath('/admin/subscriptions');
-  revalidatePath('/admin/agents');
+  await recordAudit(session, { action: `membership.${action}`, entityType: 'membership', entityId: membershipId, details });
+  revalidateBilling();
 }
 
-/**
- * Quota override on a PACKAGE, not on one agency.
- *
- * There is no per-agent quota column anywhere in this schema — the caps are
- * `packages.number_of_property` and `packages.monthly_pitch_limit`, which
- * every agency on that tier shares. Adding a per-agent override column would
- * be a real migration and a second source of truth for every quota check in
- * both applications; editing the tier is the honest capability this schema
- * actually supports, and the form says so rather than implying a per-agent
- * grant that doesn't exist.
- */
+/** Quota override on a PACKAGE — this schema has no per-agent quota column. */
 export async function updatePackageQuotasAction(packageId, formData) {
-  await assertAdminSession();
+  const session = await requireAdmin('billing.manage');
 
   const listingLimitRaw = formData.get('number_of_property');
   const pitchLimitRaw = formData.get('monthly_pitch_limit');
@@ -268,6 +248,12 @@ export async function updatePackageQuotasAction(packageId, formData) {
     [listingLimit, pitchLimit, priority, packageId],
   );
 
-  revalidatePath('/admin/subscriptions');
+  await recordAudit(session, {
+    action: 'package.quotas',
+    entityType: 'package',
+    entityId: packageId,
+    details: { listingLimit, pitchLimit, priority },
+  });
+  revalidateBilling();
   revalidatePath('/compte/agent/abonnement');
 }

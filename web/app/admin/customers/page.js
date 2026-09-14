@@ -1,4 +1,6 @@
+import Link from 'next/link';
 import { getLeadCountsByWaIds } from '@/lib/adminApi';
+import ServerViewTools from '../table/ServerViewTools';
 import { ADMIN_CUSTOMER_STATUSES, adminListCustomersPage } from '@/lib/customers';
 import { firstParam, parsePage } from '@/lib/adminPagination';
 import { getT } from '@/lib/i18n/server';
@@ -90,7 +92,9 @@ export default async function AdminCustomersPage({ searchParams }) {
             options: ADMIN_CUSTOMER_STATUSES.map((value) => ({ value, label: t(STATUS_LABEL_KEYS[value]) })),
           },
         ]}
-      />
+      >
+        <ServerViewTools path="/admin/customers" params={params} exportDataset="customers" />
+      </TableToolbar>
 
       {loadError ? <ErrorNote>{t('admin.customers.loadError', { error: loadError })}</ErrorNote> : null}
       {countsError ? <ErrorNote>{t('admin.customers.countsError', { error: countsError })}</ErrorNote> : null}
@@ -120,9 +124,9 @@ export default async function AdminCustomersPage({ searchParams }) {
               return (
                 <tr key={customer.id} className={TR_DENSE}>
                   <td className={TD_DENSE}>
-                    <div className="max-w-[16rem] truncate font-semibold text-ink">
+                    <Link href={`/admin/customers/${customer.id}`} className="block max-w-[16rem] truncate font-semibold text-ink hover:text-blue-deep hover:underline">
                       {customer.full_name || <span className="font-normal text-ink-45">{t('admin.customers.noName')}</span>}
-                    </div>
+                    </Link>
                     <div className="u-tabular text-ink-45">+{customer.phone} · #{customer.id}</div>
                   </td>
                   <td className={`${TD_DENSE} whitespace-nowrap`}>{formatDay(customer.created_at)}</td>

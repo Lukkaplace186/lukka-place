@@ -1,88 +1,52 @@
 'use server';
 
-import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { getPool } from '@/lib/db';
-import { ADMIN_SESSION_COOKIE, isValidSessionToken } from '@/lib/adminAuth';
 import { notifyListingModeration } from '@/lib/adminApi';
+import { requireAdmin } from '@/lib/adminSession';
+import { recordAudit } from '@/lib/adminAudit';
+import { EXTRACTION_FAILURE_MARKERS, REJECTION_REASON_CODES } from '@/lib/moderation';
 
 /**
- * Separate from ../actions.js on purpose: every action there proxies through
- * lib/adminApi.js to the engine's SQLite-backed /admin/* API. These write
- * directly to Supabase Postgres (the real `properties` table) via
- * lib/db.js's getPool(), a different data path — keeping them apart keeps
- * that distinction visible instead of burying a Postgres write in a file
- * whose docblock says "wraps lib/adminApi.js".
+ * Listing moderation writes — directly to Supabase Postgres, separate from
+ * ../actions.js (which proxies to the engine's SQLite API).
  *
- * assertAdminSession() is defense-in-depth: middleware.js already gates
- * /admin/*, but this is the first admin action anywhere that mutates
- * production listing data directly, so it re-checks the session token
- * itself rather than relying solely on the middleware layer above it.
+ * Every decision now records WHO decided, WHEN, and — for a rejection — WHY
+ * (`moderated_by`, `moderated_at`, `moderation_reason_code`, `moderation_note`),
+ * writes an audit row, and passes the reason to the engine so the agent's
+ * WhatsApp message says what to fix instead of "needs adjustments".
  */
-async function assertAdminSession() {
-  const token = (await cookies()).get(ADMIN_SESSION_COOKIE)?.value;
-  if (!isValidSessionToken(token)) throw new Error('Not authenticated');
-}
 
-async function setApprovalStatus(listingId, approveStatus) {
-  await assertAdminSession();
-  const pool = getPool();
-  await pool.query('UPDATE properties SET approve_status = $1, updated_at = NOW() WHERE id = $2', [
-    approveStatus,
-    listingId,
-  ]);
+const BULK_LIMIT = 100;
+
+function revalidateModeration(ids = []) {
   revalidatePath('/admin/listings');
+  for (const id of ids.slice(0, 20)) revalidatePath(`/admin/listings/${id}`);
+  revalidatePath('/listings');
+  revalidatePath('/admin/dashboard');
 }
 
 /**
- * WhatsApp notification is a courtesy on top of the real moderation
- * decision, not part of it — a failed/timed-out send (no matching
- * submitter, Chakra down, etc.) must never surface as a failure of the
- * approve/reject action itself, since the Postgres write above already
- * succeeded and is the actual source of truth.
- *
- * Deliberately not awaited by its callers below: this process runs as a
- * long-lived PM2 fork (see web/CLAUDE.md's Deployment section), not a
- * serverless/edge function, so the event loop keeps this promise running
- * to completion after the Server Action returns and the page revalidates —
- * unlike on a platform that tears down the request's execution context the
- * moment the response is sent, where an un-awaited fetch could be killed
- * mid-flight. The try/catch below still guarantees this promise itself
- * never rejects, so there's no unhandled-rejection risk either.
+ * WhatsApp notification is a courtesy on top of the real decision — a failed
+ * send must never turn a completed approve/reject into an error. Not awaited:
+ * this runs in a long-lived PM2 process, so the promise completes after the
+ * action returns, and the try/catch means it can never reject unhandled.
  */
-async function notifyBestEffort(listingId, status) {
+async function notifyBestEffort(listingId, status, reason) {
   try {
-    await notifyListingModeration(listingId, status);
+    await notifyListingModeration(listingId, status, reason);
   } catch (err) {
     console.error(`[admin/listings] moderation notify for #${listingId} (${status}) failed: ${err.message}`);
   }
 }
 
 /**
- * Placeholder content that reached the public site because a human clicked
- * Approuver without noticing what they were approving.
- *
- * Two real examples, both live and both found in the pre-launch QA sweep:
- *   #280 — description read "Le message contient uniquement une image de
- *          carte sans informations immobilières", the AI extractor's own
- *          failure message, published as the listing's description.
- *   #239 — priced 0.00, rendering as "0 $ / mois" on the homepage.
- *
- * Approval is the last gate before a listing is public, so the check belongs
- * here. It blocks rather than warns: an approval is one click and easily
- * done on autopilot, and the cost of a bad listing going live is much higher
- * than the cost of being asked to fix it first. Rejection stays unguarded —
- * a broken listing should always be rejectable.
+ * Why a listing may not be published, or null. Approval is the last gate
+ * before a listing is public, so these block rather than warn — real examples
+ * of each reached the site before this check existed (#280's description was
+ * the extractor's own failure message; #239 was priced 0.00).
  */
-const EXTRACTION_FAILURE_MARKERS = [
-  'ne contient',
-  'uniquement une image',
-  'sans information',
-  'aucune information',
-];
-
-async function assertPublishable(listingId) {
-  const pool = getPool();
+async function publishProblem(pool, listingId) {
   const { rows } = await pool.query(
     `SELECT p.price, pc.title, pc.description
      FROM properties p
@@ -91,52 +55,132 @@ async function assertPublishable(listingId) {
     [listingId],
   );
   const listing = rows[0];
-  if (!listing) throw new Error(`Annonce #${listingId} introuvable.`);
-
+  if (!listing) return `Annonce #${listingId} introuvable.`;
   if (!listing.title || !listing.description) {
-    throw new Error(
-      `Annonce #${listingId} : contenu manquant (titre ou description). À rejeter plutôt qu'à publier.`,
-    );
+    return `Annonce #${listingId} : contenu manquant (titre ou description). À rejeter plutôt qu'à publier.`;
   }
   if (listing.price == null || Number(listing.price) <= 0) {
-    throw new Error(`Annonce #${listingId} : le prix est absent ou nul. Corrigez-le avant de publier.`);
+    return `Annonce #${listingId} : le prix est absent ou nul. Corrigez-le avant de publier.`;
   }
-
   const description = String(listing.description).toLowerCase();
   if (EXTRACTION_FAILURE_MARKERS.some((marker) => description.includes(marker))) {
-    throw new Error(
-      `Annonce #${listingId} : la description est un message d'erreur d'extraction, pas une vraie description.`,
-    );
+    return `Annonce #${listingId} : la description est un message d'erreur d'extraction, pas une vraie description.`;
   }
+  return null;
 }
 
+async function writeDecision(pool, session, listingId, approveStatus, { reasonCode = null, note = null } = {}) {
+  const { rows } = await pool.query(
+    `UPDATE properties
+        SET approve_status = $1, moderation_reason_code = $2, moderation_note = $3,
+            moderated_at = NOW(), moderated_by = $4, updated_at = NOW()
+      WHERE id = $5
+      RETURNING id`,
+    [approveStatus, approveStatus === 2 ? reasonCode : null, approveStatus === 2 ? note : null, session.id, listingId],
+  );
+  return rows.length > 0;
+}
+
+function cleanReason(reasonCode, note) {
+  const code = REJECTION_REASON_CODES.includes(reasonCode) ? reasonCode : null;
+  const text = String(note || '').trim().slice(0, 500) || null;
+  return { reasonCode: code, note: text };
+}
+
+/** Form-action form (throws on failure) — used by the listing detail page. */
 export async function approveListingAction(listingId) {
-  await assertAdminSession();
-  await assertPublishable(listingId);
-  await setApprovalStatus(listingId, 1);
+  const session = await requireAdmin('listings.moderate');
+  const pool = getPool();
+  const problem = await publishProblem(pool, listingId);
+  if (problem) throw new Error(problem);
+  if (!(await writeDecision(pool, session, listingId, 1))) throw new Error(`Annonce #${listingId} introuvable.`);
+  await recordAudit(session, { action: 'listing.approve', entityType: 'listing', entityId: listingId });
+  revalidateModeration([listingId]);
   notifyBestEffort(listingId, 'approved');
 }
 
+/** Form-action form, without a reason. Prefer moderateListingsAction, which records one. */
 export async function rejectListingAction(listingId) {
-  await setApprovalStatus(listingId, 2);
+  const session = await requireAdmin('listings.moderate');
+  if (!(await writeDecision(getPool(), session, listingId, 2))) throw new Error(`Annonce #${listingId} introuvable.`);
+  await recordAudit(session, { action: 'listing.reject', entityType: 'listing', entityId: listingId });
+  revalidateModeration([listingId]);
   notifyBestEffort(listingId, 'rejected');
 }
 
 /**
- * The preconditions behind "Vérifié par Lukka Place".
+ * Approve or reject one or many listings from the queue.
  *
- * REPORTED, NOT ENFORCED — and that is the point. Verification is a claim a
- * human makes about a real property, so the console shows whoever is about to
- * make it what the data can and cannot support, then lets them decide. An
- * automatic rule ("≥1 photo AND a verified agent ⇒ verified") would derive
- * the badge from facts that do not actually establish it, which is precisely
- * the fabrication the no-invented-data rule forbids everywhere else here.
+ * Approval runs the publishability check per listing and SKIPS a listing that
+ * fails it, reporting why, rather than failing the whole batch — one listing
+ * with a missing price must not block the other 49 a moderator selected.
+ * Rejection requires a reason code from the fixed list.
  *
- * @returns {Promise<{photos: number, agentVerified: boolean, communeTagged: boolean,
- *                    approved: boolean, verifiedAt: string|null, verifiedBy: number|null}>}
+ * @param {{ids: number[], decision: 'approve'|'reject', reasonCode?: string, note?: string}} input
+ * @returns {Promise<{ok: boolean, error?: string, approved: number[], rejected: number[], skipped: {id: number, reason: string}[]}>}
+ */
+export async function moderateListingsAction({ ids, decision, reasonCode, note }) {
+  try {
+    const session = await requireAdmin('listings.moderate');
+    const clean = [...new Set((ids || []).map(Number).filter((id) => Number.isInteger(id) && id > 0))];
+    if (clean.length === 0) return { ok: false, error: 'Aucune annonce sélectionnée.', approved: [], rejected: [], skipped: [] };
+    if (clean.length > BULK_LIMIT) return { ok: false, error: `Au maximum ${BULK_LIMIT} annonces à la fois.`, approved: [], rejected: [], skipped: [] };
+    if (!['approve', 'reject'].includes(decision)) return { ok: false, error: 'Décision inconnue.', approved: [], rejected: [], skipped: [] };
+
+    const reason = cleanReason(reasonCode, note);
+    if (decision === 'reject' && !reason.reasonCode) {
+      return { ok: false, error: 'Choisissez un motif de rejet.', approved: [], rejected: [], skipped: [] };
+    }
+
+    const pool = getPool();
+    const approved = [];
+    const rejected = [];
+    const skipped = [];
+
+    for (const id of clean) {
+      if (decision === 'approve') {
+        const problem = await publishProblem(pool, id);
+        if (problem) {
+          skipped.push({ id, reason: problem });
+          continue;
+        }
+        if (await writeDecision(pool, session, id, 1)) approved.push(id);
+        else skipped.push({ id, reason: `Annonce #${id} introuvable.` });
+      } else if (await writeDecision(pool, session, id, 2, reason)) {
+        rejected.push(id);
+      } else {
+        skipped.push({ id, reason: `Annonce #${id} introuvable.` });
+      }
+    }
+
+    for (const id of approved) {
+      await recordAudit(session, { action: 'listing.approve', entityType: 'listing', entityId: id, details: { bulk: clean.length > 1 } });
+      notifyBestEffort(id, 'approved');
+    }
+    for (const id of rejected) {
+      await recordAudit(session, {
+        action: 'listing.reject',
+        entityType: 'listing',
+        entityId: id,
+        details: { bulk: clean.length > 1, reasonCode: reason.reasonCode, note: reason.note },
+      });
+      notifyBestEffort(id, 'rejected', reason);
+    }
+
+    revalidateModeration([...approved, ...rejected]);
+    return { ok: true, approved, rejected, skipped };
+  } catch (err) {
+    return { ok: false, error: err.message, approved: [], rejected: [], skipped: [] };
+  }
+}
+
+/**
+ * The preconditions behind "Vérifié par Lukka Place". REPORTED, NOT ENFORCED:
+ * verification is a claim a human makes about a real property, so the console
+ * shows what the data can and cannot support, then lets them decide.
  */
 export async function getVerificationPreconditions(listingId) {
-  await assertAdminSession();
+  await requireAdmin('listings.view');
   const pool = getPool();
   const { rows } = await pool.query(
     `SELECT p.verified_at,
@@ -167,53 +211,38 @@ export async function getVerificationPreconditions(listingId) {
 }
 
 /**
- * Stamp a listing as verified.
- *
- * `verified_by` records WHO, which is the first question asked the day a
- * verified listing turns out not to be real. This console has one shared team
- * password rather than per-admin accounts (lib/adminAuth.js — deliberately
- * the smallest real thing that answers "is this a Lukka Place team member"),
- * so there is no admin id to record and the column is left NULL rather than
- * filled with a fake one. When per-admin accounts exist, this is where the id
- * goes; until then NULL honestly means "a team member, we cannot say which".
- *
- * An unapproved listing cannot be verified: claiming we confirmed a property
- * that has not even passed moderation puts the two axes in an order that
- * makes no sense.
+ * Stamp a listing as verified. `verified_by` is now the console account that
+ * made the claim — it stayed NULL for as long as the console had only a shared
+ * password. Under that shared password it is still NULL, honestly.
  */
 export async function verifyListingAction(listingId) {
-  await assertAdminSession();
+  const session = await requireAdmin('listings.moderate');
   const pool = getPool();
   const { rowCount } = await pool.query(
     `UPDATE properties
-        SET verified_at = NOW(), updated_at = NOW()
+        SET verified_at = NOW(), verified_by = $2, updated_at = NOW()
       WHERE id = $1 AND approve_status = 1`,
-    [listingId],
+    [listingId, session.id],
   );
   if (rowCount === 0) {
     throw new Error(
       `Annonce #${listingId} : introuvable, ou pas encore approuvée. Approuvez-la avant de la vérifier.`,
     );
   }
+  await recordAudit(session, { action: 'listing.verify', entityType: 'listing', entityId: listingId });
   revalidatePath('/admin/listings');
   revalidatePath(`/admin/listings/${listingId}`);
 }
 
-/**
- * Withdraw verification.
- *
- * Clears the timestamp outright rather than keeping a history: this column
- * answers "is this listing verified, and since when", and a withdrawn
- * verification is simply not one. The audit trail that matters lives in the
- * market export, which carries verified_at per row at the time it was taken.
- */
+/** Withdraw verification. The audit log keeps who withdrew it and when. */
 export async function unverifyListingAction(listingId) {
-  await assertAdminSession();
+  const session = await requireAdmin('listings.moderate');
   const pool = getPool();
   await pool.query(
     'UPDATE properties SET verified_at = NULL, verified_by = NULL, updated_at = NOW() WHERE id = $1',
     [listingId],
   );
+  await recordAudit(session, { action: 'listing.unverify', entityType: 'listing', entityId: listingId });
   revalidatePath('/admin/listings');
   revalidatePath(`/admin/listings/${listingId}`);
 }

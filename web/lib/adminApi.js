@@ -348,11 +348,27 @@ export async function parseAgentListingText(text) {
   return engineFetch('/admin/parse-listing', { method: 'POST', body: JSON.stringify({ text }) });
 }
 
-export async function notifyListingModeration(propertyId, status) {
+/**
+ * @param {number} propertyId
+ * @param {'approved'|'rejected'} status
+ * @param {{reasonCode?: string|null, note?: string|null}} [reason] a rejection's
+ *   code and free-text note, which the engine turns into the agent's message.
+ */
+export async function notifyListingModeration(propertyId, status, { reasonCode = null, note = null } = {}) {
   return engineFetch(`/admin/properties/${propertyId}/notify`, {
     method: 'POST',
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, reason_code: reasonCode, note }),
   });
+}
+
+/** The engine's half of the console's work queues (viewings, conversations, sends). */
+export async function getEngineWorkQueueCounts() {
+  return engineFetch('/admin/work-queues');
+}
+
+/** The engine's own health report — jobs, sends, database, configuration. */
+export async function getEngineHealth() {
+  return engineFetch('/admin/health');
 }
 
 /**
@@ -369,9 +385,10 @@ export async function getMatchingStats({ days = 30 } = {}) {
  * db.listLeadMatches for the budget-overlap and proposal-join rules.
  */
 export async function listLeadMatches({
-  days = 30, commune, budgetMin, budgetMax, minScore, status, limit, offset,
+  days = 30, commune, budgetMin, budgetMax, minScore, status, agentId, limit, offset,
 } = {}) {
   const params = new URLSearchParams({ days: String(days) });
+  if (agentId != null) params.set('agent_id', String(agentId));
   if (commune) params.set('commune', commune);
   if (budgetMin !== undefined && budgetMin !== '') params.set('budget_min', String(budgetMin));
   if (budgetMax !== undefined && budgetMax !== '') params.set('budget_max', String(budgetMax));

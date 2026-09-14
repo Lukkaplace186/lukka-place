@@ -147,7 +147,7 @@ function agentSearchWhere(q, params) {
  * @param {{q?: string, verified?: 'yes'|'no', status?: '0'|'1', sort?: string, limit?: number, offset?: number}} [options]
  * @returns {Promise<{total: number, rows: object[], summary: {total: number, verified: number, active: number}}>}
  */
-export async function listAgentsForAdmin({ q, verified, status, sort = 'newest', limit = 25, offset = 0 } = {}) {
+export async function listAgentsForAdmin({ q, verified, status, vendorId, sort = 'newest', limit = 25, offset = 0 } = {}) {
   const pool = getPool();
   const params = [];
   const where = [];
@@ -158,6 +158,10 @@ export async function listAgentsForAdmin({ q, verified, status, sort = 'newest',
   if (status === '0' || status === '1') {
     params.push(Number(status));
     where.push(`a.status = $${params.length}`);
+  }
+  if (vendorId != null && Number.isFinite(Number(vendorId))) {
+    params.push(Number(vendorId));
+    where.push(`a.vendor_id = $${params.length}`);
   }
   const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
   const orderBy = AGENT_SORTS[sort] || AGENT_SORTS.newest;

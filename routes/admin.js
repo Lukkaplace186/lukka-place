@@ -321,10 +321,10 @@ function windowStart(daysRaw, fallback = 30) {
 router.get('/lead-matches', (req, res) => {
   const { window, since } = windowStart(req.query.days);
   const {
-    commune, budget_min: budgetMin, budget_max: budgetMax, min_score: minScore, status, limit, offset,
+    commune, budget_min: budgetMin, budget_max: budgetMax, min_score: minScore, status, agent_id: agentId, limit, offset,
   } = req.query;
   try {
-    const page = db.listLeadMatches({ since, commune, budgetMin, budgetMax, minScore, status, limit, offset });
+    const page = db.listLeadMatches({ since, commune, budgetMin, budgetMax, minScore, status, agentId, limit, offset });
     return res.json({ success: true, days: window, ...page });
   } catch (err) {
     if (/^Invalid/.test(err.message)) return res.status(400).json({ success: false, error: err.message });
@@ -374,6 +374,46 @@ router.get('/lead-analytics', (req, res) => {
   } catch (err) {
     console.error(`[admin] GET /lead-analytics failed: ${err.message}`);
     return res.status(500).json({ success: false, error: 'Could not read lead analytics.' });
+  }
+});
+
+/** The engine half of the console's work queues and sidebar badges. Cheap: indexed COUNTs. */
+router.get('/work-queues', (req, res) => {
+  try {
+    return res.json({ success: true, counts: db.getWorkQueueCounts() });
+  } catch (err) {
+    console.error(`[admin] GET /work-queues failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not read work queues.' });
+  }
+});
+
+/**
+ * /admin/health — what an operator needs to see before a customer notices:
+ * whether the scheduled jobs are succeeding, whether WhatsApp traffic is still
+ * arriving, whether sends are failing, and which delivery settings are missing.
+ */
+router.get('/health', (req, res) => {
+  try {
+    return res.json({
+      success: true,
+      ...db.getEngineHealth(),
+      process: {
+        uptimeSeconds: Math.round(process.uptime()),
+        node: process.version,
+        memoryMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
+      },
+      config: {
+        opsNumberConfigured: Boolean(process.env.OPS_WHATSAPP_NUMBER),
+        templates: {
+          leadMatch: chakra.templateConfigured(process.env.AGENT_LEAD_MATCH_TEMPLATE || null),
+          viewingRequest: chakra.templateConfigured(process.env.VIEWING_REQUEST_TEMPLATE || null),
+          otp: chakra.templateConfigured(process.env.AGENT_OTP_TEMPLATE || null),
+        },
+      },
+    });
+  } catch (err) {
+    console.error(`[admin] GET /health failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not read engine health.' });
   }
 });
 
@@ -767,8 +807,34 @@ router.post('/viewing-requests/:id/nudge', async (req, res) => {
 const MODERATION_MESSAGES = {
   approved: (propertyId) =>
     `Bonjour, bonne nouvelle ! Votre annonce est maintenant en ligne : https://lukkaplace.com/listings/${propertyId}`,
-  rejected: () =>
-    `Bonjour, votre annonce nécessite quelques ajustements avant de pouvoir être publiée. Notre équipe vous contactera bientôt pour en discuter.`,
+  rejected: (propertyId, reason) => {
+    const why = MODERATION_REJECTION_REASONS[reason?.code];
+    const note = typeof reason?.note === 'string' ? reason.note.trim().slice(0, 500) : '';
+    if (!why && !note) {
+      return `Bonjour, votre annonce nécessite quelques ajustements avant de pouvoir être publiée. Notre équipe vous contactera bientôt pour en discuter.`;
+    }
+    return [
+      'Bonjour, votre annonce n’a pas pu être publiée pour le moment.',
+      why ? `Motif : ${why}` : null,
+      note ? `Précision de notre équipe : ${note}` : null,
+      'Répondez simplement à ce message avec les corrections, et nous la revérifierons.',
+    ].filter(Boolean).join('\n\n');
+  },
+};
+
+/**
+ * What the agent is told for each rejection code web/lib/moderation.js offers.
+ * The code is chosen by a moderator from a fixed list, so the agent always gets
+ * a real reason rather than "needs adjustments" — which gave them nothing to fix.
+ */
+const MODERATION_REJECTION_REASONS = {
+  MISSING_INFO: 'des informations essentielles manquent (prix, commune, description ou type de bien).',
+  BAD_PHOTOS: 'les photos sont absentes, floues ou ne montrent pas le bien.',
+  WRONG_PRICE: 'le prix indiqué semble incorrect ou incohérent.',
+  DUPLICATE: 'cette annonce existe déjà sur Lukka Place.',
+  SUSPECTED_FRAUD: 'nous devons vérifier l’annonce avant publication.',
+  NOT_REAL_ESTATE: 'le message ne décrit pas un bien immobilier à louer ou à vendre.',
+  OTHER: null,
 };
 
 /**
@@ -809,7 +875,10 @@ router.post('/properties/:remotePropertyId/notify', async (req, res) => {
 
   setImmediate(async () => {
     try {
-      await chakra.sendWhatsAppMessage(listing.wa_id, buildMessage(remotePropertyId));
+      await chakra.sendWhatsAppMessage(
+        listing.wa_id,
+        buildMessage(remotePropertyId, { code: req.body?.reason_code, note: req.body?.note }),
+      );
     } catch (err) {
       console.error(`[admin] moderation notify for property #${remotePropertyId} failed to send: ${err.message}`);
     }
@@ -1014,3 +1083,5 @@ router.post('/send-whatsapp-template', async (req, res) => {
 });
 
 module.exports = router;
+// Exposed for scripts/verify-pipeline.js — the agent-facing wording is a contract worth pinning.
+module.exports.MODERATION_MESSAGES = MODERATION_MESSAGES;

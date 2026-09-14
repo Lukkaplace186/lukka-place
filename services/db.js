@@ -2212,11 +2212,11 @@ function getMatchingStats({ since }) {
   const totals = db
     .prepare(
       `SELECT
-         (SELECT COUNT(*) FROM leads WHERE created_at >= @since)                      AS leads,
-         (SELECT COUNT(DISTINCT lead_id) FROM lead_matches WHERE created_at >= @since) AS leads_dispatched,
-         (SELECT COUNT(*) FROM lead_matches WHERE created_at >= @since)                AS pushes,
-         (SELECT COUNT(*) FROM lead_matches WHERE created_at >= @since AND status = 'FAILED') AS failed_pushes,
-         (SELECT COUNT(*) FROM lead_proposals WHERE created_at >= @since)              AS proposals`,
+         (SELECT COUNT(*) FROM leads WHERE created_at >= datetime(@since))                      AS leads,
+         (SELECT COUNT(DISTINCT lead_id) FROM lead_matches WHERE created_at >= datetime(@since)) AS leads_dispatched,
+         (SELECT COUNT(*) FROM lead_matches WHERE created_at >= datetime(@since))                AS pushes,
+         (SELECT COUNT(*) FROM lead_matches WHERE created_at >= datetime(@since) AND status = 'FAILED') AS failed_pushes,
+         (SELECT COUNT(*) FROM lead_proposals WHERE created_at >= datetime(@since))              AS proposals`,
     )
     .get({ since });
 
@@ -2227,7 +2227,7 @@ function getMatchingStats({ since }) {
     .prepare(
       `SELECT COALESCE(commune, 'Non précisée') AS commune, COUNT(*) AS n
        FROM leads l
-       WHERE l.created_at >= @since
+       WHERE l.created_at >= datetime(@since)
          AND NOT EXISTS (SELECT 1 FROM lead_matches m WHERE m.lead_id = l.id)
        GROUP BY COALESCE(commune, 'Non précisée')
        ORDER BY n DESC`,
@@ -2243,7 +2243,7 @@ function getMatchingStats({ since }) {
        FROM leads l
        LEFT JOIN lead_matches   m ON m.lead_id = l.id
        LEFT JOIN lead_proposals p ON p.lead_id = l.id
-       WHERE l.created_at >= @since
+       WHERE l.created_at >= datetime(@since)
        GROUP BY COALESCE(l.commune, 'Non précisée')
        ORDER BY leads DESC`,
     )
@@ -2258,7 +2258,7 @@ function getMatchingStats({ since }) {
               MIN(m.rank) AS best_rank
        FROM lead_matches m
        LEFT JOIN lead_proposals p ON p.lead_id = m.lead_id AND p.agent_id = m.agent_id
-       WHERE m.created_at >= @since
+       WHERE m.created_at >= datetime(@since)
        GROUP BY m.agent_id, m.agent_phone
        ORDER BY pushes DESC`,
     )
@@ -2290,10 +2290,14 @@ const LEAD_MATCH_STATUS_FILTERS = ['NOTIFIED', 'FAILED', 'ANSWERED', 'UNANSWERED
  * wrong on the boundary day (' ' sorts before 'T').
  */
 function listLeadMatches({
-  since, commune, budgetMin, budgetMax, minScore, status, limit, offset,
+  since, commune, budgetMin, budgetMax, minScore, status, agentId, limit, offset,
 } = {}) {
   const where = [];
   const params = {};
+  if (agentId != null && agentId !== '' && Number.isFinite(Number(agentId))) {
+    where.push('m.agent_id = @agentId');
+    params.agentId = Number(agentId);
+  }
   if (since) {
     where.push('m.created_at >= datetime(@since)');
     params.since = since;
@@ -3158,6 +3162,59 @@ const VIEWING_REQUESTS_LIST_LIMIT_DEFAULT = 50;
 const VIEWING_REQUESTS_LIST_LIMIT_MAX = 100;
 
 /**
+ * The engine's half of the admin console's "what needs doing" counts. Every
+ * one is an indexed COUNT; web/lib/adminWorkQueues.js caches the result so the
+ * console's 30-second polling does not multiply them per open tab.
+ */
+function getWorkQueueCounts() {
+  const count = (sql) => db.prepare(sql).get().n;
+  return {
+    escalatedViewings: count(`SELECT COUNT(*) AS n FROM viewing_requests vr WHERE ${VIEWING_FEED_VIEWS.escalated}`),
+    awaitingAgent: count(`SELECT COUNT(*) AS n FROM viewing_requests vr WHERE ${VIEWING_FEED_VIEWS.awaiting_agent}`),
+    pendingViewings: count("SELECT COUNT(*) AS n FROM viewing_requests WHERE status = 'PENDING'"),
+    humanConversations: count("SELECT COUNT(*) AS n FROM conversations WHERE ai_active = 0 AND state != 'CLOSED'"),
+    failedPushes24h: count("SELECT COUNT(*) AS n FROM lead_matches WHERE status = 'FAILED' AND created_at >= datetime('now', '-1 day')"),
+    newLeads24h: count("SELECT COUNT(*) AS n FROM leads WHERE created_at >= datetime('now', '-1 day')"),
+  };
+}
+
+/**
+ * Operational health, read from what the engine itself records: scheduled job
+ * outcomes (job_runs), the most recent inbound traffic on each channel, send
+ * failures, and the database file. Nothing here is a synthetic probe — a
+ * "last inbound message" hours old on a weekday is the signal that the
+ * WhatsApp webhook stopped arriving.
+ */
+function getEngineHealth() {
+  const jobs = db.prepare('SELECT name, last_run_at, succeeded_at, last_error, run_count FROM job_runs ORDER BY name').all();
+  const latest = (sql) => db.prepare(sql).get()?.at || null;
+  const count = (sql) => db.prepare(sql).get().n;
+  let dbSizeBytes = null;
+  try {
+    dbSizeBytes = require('fs').statSync(DB_PATH).size;
+  } catch {
+    dbSizeBytes = null;
+  }
+  return {
+    jobs,
+    traffic: {
+      lastListingAt: latest('SELECT MAX(created_at) AS at FROM listings'),
+      lastInboundMessageAt: latest("SELECT MAX(created_at) AS at FROM messages WHERE direction = 'inbound'"),
+      lastLeadAt: latest('SELECT MAX(created_at) AS at FROM leads'),
+      lastViewingRequestAt: latest('SELECT MAX(created_at) AS at FROM viewing_requests'),
+      listings24h: count("SELECT COUNT(*) AS n FROM listings WHERE created_at >= datetime('now', '-1 day')"),
+      leads24h: count("SELECT COUNT(*) AS n FROM leads WHERE created_at >= datetime('now', '-1 day')"),
+    },
+    failures: {
+      failedPushes24h: count("SELECT COUNT(*) AS n FROM lead_matches WHERE status = 'FAILED' AND created_at >= datetime('now', '-1 day')"),
+      slaEscalations24h: count("SELECT COUNT(*) AS n FROM viewing_requests WHERE sla_alerted_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-1 day')"),
+      failedJobs: jobs.filter((job) => job.last_error && (!job.succeeded_at || job.last_run_at > job.succeeded_at)).length,
+    },
+    database: { path: DB_PATH, sizeBytes: dbSizeBytes },
+  };
+}
+
+/**
  * Agent dashboard's Visit Scheduler — viewing_requests carries no agent
  * column of its own (see the CREATE TABLE comment above), so ownership is
  * derived through its parent lead, one hop, mirroring listLeads' own
@@ -3294,6 +3351,8 @@ module.exports = {
   getLeadAnalytics,
   VIEWING_FEED_VIEWS,
   setViewingCommuneIfMissing,
+  getWorkQueueCounts,
+  getEngineHealth,
   getMessages,
   getRecentMessages,
   createLead,

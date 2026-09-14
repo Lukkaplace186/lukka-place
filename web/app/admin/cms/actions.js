@@ -1,47 +1,41 @@
 'use server';
 
-import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
-import { ADMIN_SESSION_COOKIE, isValidSessionToken } from '@/lib/adminAuth';
+import { requireAdmin } from '@/lib/adminSession';
+import { actorLabel, recordAudit } from '@/lib/adminAudit';
 import { updateSlider, updateAdvertisement } from '@/lib/cms';
 import { setCdfRate } from '@/lib/currencyRate';
 
-async function assertAdminSession() {
-  const token = (await cookies()).get(ADMIN_SESSION_COOKIE)?.value;
-  if (!isValidSessionToken(token)) throw new Error('Not authenticated');
-}
-
 export async function updateSliderAction(sliderId, formData) {
-  await assertAdminSession();
-  await updateSlider(sliderId, {
-    title: String(formData.get('title') || ''),
-    text: String(formData.get('text') || ''),
-  });
+  const session = await requireAdmin('cms.manage');
+  const title = String(formData.get('title') || '');
+  const text = String(formData.get('text') || '');
+  await updateSlider(sliderId, { title, text });
+  await recordAudit(session, { action: 'cms.slider', entityType: 'cms', entityId: `slider:${sliderId}`, details: { title } });
   revalidatePath('/admin/cms');
 }
 
 export async function updateAdvertisementAction(adId, formData) {
-  await assertAdminSession();
-  await updateAdvertisement(adId, { url: String(formData.get('url') || '') });
+  const session = await requireAdmin('cms.manage');
+  const url = String(formData.get('url') || '');
+  await updateAdvertisement(adId, { url });
+  await recordAudit(session, { action: 'cms.advertisement', entityType: 'cms', entityId: `ad:${adId}`, details: { url } });
   revalidatePath('/admin/cms');
 }
 
 /**
- * The USD→CDF display rate (web/CLAUDE.md: admin-editable, still explicitly
- * non-live — see lib/currencyRate.js's doc comment). `updated_by` is just
- * 'admin' — there's no per-admin identity in this single-shared-password
- * session model (lib/adminAuth.js), so attributing it to a named person
- * would be invented, not real.
+ * The USD→CDF display rate. `updated_by` now names the person who set it —
+ * this column used to say only 'admin', because the console had one shared
+ * password and no way to know who.
  */
 export async function updateExchangeRateAction(formData) {
-  await assertAdminSession();
+  const session = await requireAdmin('cms.manage');
   const rate = Number(formData.get('cdf_per_usd'));
   if (!Number.isFinite(rate) || rate <= 0) throw new Error('cdf_per_usd must be a positive number');
 
-  await setCdfRate(rate, 'admin');
+  await setCdfRate(rate, actorLabel(session).slice(0, 120));
+  await recordAudit(session, { action: 'cms.exchange_rate', entityType: 'cms', entityId: 'exchange_rate', details: { cdfPerUsd: rate } });
   revalidatePath('/admin/cms');
-  // 'layout' revalidates every route under app/(site)/layout.js, not just
-  // one path — that layout is what reads the rate (see its own doc
-  // comment), and the rate shows up on every public page with a <Price>.
+  // 'layout' revalidates every route under app/(site)/layout.js, which reads the rate.
   revalidatePath('/', 'layout');
 }

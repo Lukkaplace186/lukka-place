@@ -8,6 +8,8 @@ import Pagination from '../table/Pagination';
 import TableToolbar from '../table/TableToolbar';
 import { EmptyRow, TD_DENSE, TD_DENSE_RIGHT, TH_STICKY, TH_STICKY_RIGHT, TR_DENSE, TableFrame } from '../table/TableFrame';
 import ConversationDrawer from './ConversationDrawer';
+import ServerViewTools from '../table/ServerViewTools';
+import { NewItemsNotice } from '../LiveQueueCounts';
 
 export const dynamic = 'force-dynamic';
 
@@ -105,7 +107,9 @@ export default async function AdminConversationsPage({ searchParams }) {
             ],
           },
         ]}
-      />
+      >
+        <ServerViewTools path="/admin/conversations" params={params} exportDataset="conversations" />
+      </TableToolbar>
 
       {listError ? <ErrorNote>{t('admin.conversations.loadError', { error: listError })}</ErrorNote> : null}
 
@@ -171,6 +175,8 @@ export default async function AdminConversationsPage({ searchParams }) {
           )}
         </tbody>
       </TableFrame>
+
+      <NewItemsNotice keys={['humanConversations']} />
 
       {Number.isFinite(openId) ? (
         <ConversationDrawer

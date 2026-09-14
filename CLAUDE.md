@@ -866,8 +866,7 @@ page at a time. What the engine added for that:
   (`VIEWING_FEED_VIEWS`); status stays PENDING, same rule as Speed-to-lead.
 - **Timestamps compare through `datetime(@x)`.** `created_at` is
   `YYYY-MM-DD HH:MM:SS`; a raw ISO `…T…` compares lexically wrong on the
-  boundary day. `getMatchingStats` still compares raw ISO and is off by up to
-  a day at its window start — known, not yet changed.
+  boundary day. `getMatchingStats` was fixed the same way (2026-09-14).
 - **`viewing_requests.commune`** (idempotent ALTER) is the listing's commune,
   copied at notify time by `setViewingRouting` (COALESCE — a NULL never
   overwrites). Visit-request leads carry no commune and Postgres has no
@@ -884,6 +883,14 @@ page at a time. What the engine added for that:
 - **`GET /admin/leads/counts?wa_ids=`** (≤200) and **`GET /admin/lead-analytics`**
   back /admin/customers and Lead Analytics. Delivery health there is
   accepted/refused sends plus agents who answered — never a delivered count.
+- **`GET /admin/work-queues`** (engine counts for the console's work queues and
+  sidebar badges) and **`GET /admin/health`** (job_runs outcomes, last inbound
+  traffic, send failures, DB size, delivery config) back the dashboard and
+  `/admin/health`. `GET /admin/lead-matches` also takes `agent_id`.
+- **Rejection reasons reach the agent.** `POST /admin/properties/:id/notify`
+  accepts `reason_code` + `note`; `MODERATION_REJECTION_REASONS` holds the
+  French wording per code (web/lib/moderation.js lists the codes). No code and
+  no note keeps the original generic message; an unknown code is never echoed.
 - Admin sort/filter columns are indexed (`CREATE INDEX IF NOT EXISTS` at boot).
   Covered by `scripts/verify-pipeline.js` §23.
 

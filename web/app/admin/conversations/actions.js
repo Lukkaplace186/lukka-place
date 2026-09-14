@@ -1,39 +1,33 @@
 'use server';
 
-import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { sendManualReply, updateConversation } from '@/lib/adminApi';
-import { ADMIN_SESSION_COOKIE, isValidSessionToken } from '@/lib/adminAuth';
+import { requireAdmin } from '@/lib/adminSession';
+import { recordAudit } from '@/lib/adminAudit';
 import { getAgentNamesByIds } from '@/lib/agents';
 import { getT } from '@/lib/i18n/server';
 
 /**
  * Quick actions behind the conversation drawer. Each returns `{ok, message}`
- * or `{ok: false, error}` so the drawer can toast the real outcome — the older
- * form actions in app/admin/actions.js return nothing, so a rejected state
- * change there was invisible.
+ * or `{ok: false, error}` so the drawer can toast the real outcome, checks the
+ * caller's role, and records itself in the audit log.
  *
  * Every state change still goes through the engine's PATCH, i.e. through
  * services/conversationState.js's validated transitions: an admin cannot put
- * a thread in a state the assistant itself could not reach, and an illegal
- * move comes back as that module's own error message.
+ * a thread in a state the assistant itself could not reach.
  */
-
-async function assertAdminSession() {
-  const token = (await cookies()).get(ADMIN_SESSION_COOKIE)?.value;
-  if (!isValidSessionToken(token)) throw new Error('Not authenticated');
-}
 
 function revalidate(id) {
   revalidatePath('/admin/conversations');
   revalidatePath(`/admin/conversations/${id}`);
 }
 
-async function run(id, work, messageKey) {
+async function run(id, work, messageKey, audit) {
   const t = await getT();
   try {
-    await assertAdminSession();
-    await work();
+    const session = await requireAdmin('conversations.reply');
+    const details = await work();
+    await recordAudit(session, { action: audit, entityType: 'conversation', entityId: id, details: details || null });
     revalidate(id);
     return { ok: true, message: t(messageKey) };
   } catch (err) {
@@ -43,11 +37,11 @@ async function run(id, work, messageKey) {
 
 /** AI goes silent; a human owns the thread until it is handed back. */
 export async function takeOverConversationAction(id) {
-  return run(id, () => updateConversation(id, { ai_active: false, state: 'HUMAN_HANDOFF' }), 'admin.conversations.tookOver');
+  return run(id, () => updateConversation(id, { ai_active: false, state: 'HUMAN_HANDOFF' }).then(() => null), 'admin.conversations.tookOver', 'conversation.take_over');
 }
 
 export async function returnConversationToAiAction(id) {
-  return run(id, () => updateConversation(id, { ai_active: true, state: 'COLLECTING_REQUIREMENTS' }), 'admin.conversations.returnedToAi');
+  return run(id, () => updateConversation(id, { ai_active: true, state: 'COLLECTING_REQUIREMENTS' }).then(() => null), 'admin.conversations.returnedToAi', 'conversation.return_ai');
 }
 
 /**
@@ -56,7 +50,7 @@ export async function returnConversationToAiAction(id) {
  * skips CLOSED), with the assistant active by default.
  */
 export async function resolveConversationAction(id) {
-  return run(id, () => updateConversation(id, { state: 'CLOSED' }), 'admin.conversations.resolved');
+  return run(id, () => updateConversation(id, { state: 'CLOSED' }).then(() => null), 'admin.conversations.resolved', 'conversation.resolve');
 }
 
 /**
@@ -75,8 +69,10 @@ export async function assignConversationAgentAction(id, agentId) {
         if (!name) throw new Error(`No agent #${agentId}`);
       }
       await updateConversation(id, { assigned_agent: name });
+      return { agentId: agentId ?? null };
     },
     agentId == null ? 'admin.conversations.unassigned' : 'admin.conversations.assigned',
+    'conversation.assign',
   );
 }
 
@@ -86,5 +82,5 @@ export async function sendConversationReplyAction(id, text) {
     const t = await getT();
     return { ok: false, error: t('admin.conversations.emptyReply') };
   }
-  return run(id, () => sendManualReply(id, body), 'admin.conversations.replySent');
+  return run(id, () => sendManualReply(id, body).then(() => ({ length: body.length })), 'admin.conversations.replySent', 'conversation.reply');
 }

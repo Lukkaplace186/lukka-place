@@ -44,17 +44,33 @@ const PUBLIC_AGENT_PATHS = new Set([
   '/compte/agent/activer',
 ]);
 
+// /admin/activate is where an invited team member sets their first password —
+// necessarily reachable before a session exists, and gated instead by the
+// single-use activation token in its URL (lib/adminUsers.js).
+const PUBLIC_ADMIN_PATHS = new Set(['/admin/login', '/admin/activate']);
+
+/**
+ * Passes the request through with `x-admin-pathname` set, so the admin layout
+ * can decide which section is being opened and whether this role may open it.
+ * Always overwritten here, so a client cannot supply its own.
+ */
+function nextWithAdminPath(request, pathname) {
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-admin-pathname', pathname);
+  return NextResponse.next({ request: { headers: requestHeaders } });
+}
+
 export function middleware(request) {
   const { pathname, search } = request.nextUrl;
 
   if (pathname.startsWith('/admin')) {
-    if (pathname === '/admin/login') {
-      return NextResponse.next();
+    if (PUBLIC_ADMIN_PATHS.has(pathname)) {
+      return nextWithAdminPath(request, pathname);
     }
 
     const token = request.cookies.get(ADMIN_SESSION_COOKIE)?.value;
     if (isValidSessionToken(token)) {
-      return NextResponse.next();
+      return nextWithAdminPath(request, pathname);
     }
 
     const loginUrl = new URL('/admin/login', request.url);

@@ -7,7 +7,9 @@ import { getT } from '@/lib/i18n/server';
 import { ErrorNote, Stat } from '../LeadRoutingUI';
 import Pagination from '../table/Pagination';
 import TableToolbar from '../table/TableToolbar';
+import ServerViewTools from '../table/ServerViewTools';
 import AgentsTable from './AgentsTable';
+import { toAgentTableRows } from './agentRows';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,21 +20,11 @@ const SORT_LABEL_KEYS = {
   live: 'admin.agents.sortLive',
 };
 
-function formatDay(value) {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Africa/Kinshasa' }).format(date);
-}
-
 /**
- * The agent directory, built for tens of thousands of rows.
- *
- * One server page (LIMIT/OFFSET) per request, searched on name, agency, email,
- * any fragment of the phone digits, or `#id`; filtered by verification and
- * status; sorted by recency, name or portfolio size. The old version fetched
- * every agent with two correlated counts each and rendered a full commune
- * checkbox form and an agency <select> into every row.
+ * The agent directory, built for tens of thousands of rows: one server page
+ * (LIMIT/OFFSET) per request, searched on name, agency, email, any fragment of
+ * the phone digits, or `#id`; filtered by verification and status; sorted by
+ * recency, name or portfolio size; bulk activate/suspend; saved views; CSV.
  *
  * Duplicate detection stays: two real signals only (same normalised number,
  * same email), flagged for review, never merged automatically.
@@ -57,27 +49,6 @@ export default async function AdminAgentsPage({ searchParams }) {
   const list = listResult.status === 'fulfilled' ? listResult.value : null;
   const vendors = vendorsResult.status === 'fulfilled' ? vendorsResult.value : [];
   const duplicates = duplicatesResult.status === 'fulfilled' ? duplicatesResult.value : [];
-
-  // Plain, pre-formatted props for the client table: no Date objects crossing
-  // the boundary, so server and browser render identical text.
-  const rows = (list?.rows || []).map((agent) => ({
-    id: Number(agent.id),
-    name: agent.display_name,
-    email: agent.email || null,
-    phone: agent.phone || null,
-    verified: Boolean(agent.phone_verified_at),
-    routingEnabled: agent.direct_routing_enabled !== false,
-    vendorId: agent.vendor_id ?? null,
-    agency: agent.vendor_username || null,
-    primary: agent.primary_communes || [],
-    serviced: agent.serviced_communes || [],
-    live: agent.live_listing_count ?? 0,
-    total: agent.listing_count ?? 0,
-    limit: agent.listing_limit ?? null,
-    packageTitle: agent.package_title || null,
-    expireLabel: formatDay(agent.expire_date),
-    status: agent.status,
-  }));
 
   return (
     <div className="flex flex-col gap-5">
@@ -150,14 +121,16 @@ export default async function AdminAgentsPage({ searchParams }) {
             options: ADMIN_AGENT_SORTS.filter((value) => value !== 'newest').map((value) => ({ value, label: t(SORT_LABEL_KEYS[value]) })),
           },
         ]}
-      />
+      >
+        <ServerViewTools path="/admin/agents" params={params} exportDataset="agents" />
+      </TableToolbar>
 
       {listResult.status === 'rejected' ? (
         <ErrorNote>{t('admin.agents.loadError', { error: listResult.reason?.message })}</ErrorNote>
       ) : null}
 
       <AgentsTable
-        rows={rows}
+        rows={toAgentTableRows(list?.rows)}
         vendors={vendors.map((vendor) => ({ id: vendor.id, username: vendor.username }))}
         footer={list ? <Pagination pathname="/admin/agents" params={params} total={list.total} page={page} pageSize={pageSize} /> : null}
       />

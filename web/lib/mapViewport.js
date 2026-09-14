@@ -32,6 +32,21 @@ export const LOCATION_FILTER_PARAMS = ['commune', 'quartier', 'radius'];
  */
 const NON_FILTER_PARAMS = new Set(['page', 'sort', 'view', 'extent', ...MAP_BOUNDS_PARAMS]);
 
+/**
+ * Where the map opens when the search names no place: central Kinshasa. A
+ * fit to the extent of every listing was used first, and on a portrait phone
+ * that box — wider than it is tall — zoomed out until the river and
+ * Brazzaville filled the screen.
+ */
+export const KINSHASA_DEFAULT_VIEW = { center: { lat: -4.325, lng: 15.322 }, zoom: 13 };
+
+/**
+ * A generous envelope around Kinshasa province. The extent fallback ignores
+ * stored coordinates outside it, so one mistyped or swapped latitude can never
+ * drag the opening view across the continent.
+ */
+export const KINSHASA_PROVINCE_ENVELOPE = { south: -5.1, north: -3.9, west: 15.0, east: 16.6 };
+
 /** How long the map must sit still before it asks for markers. */
 export const FETCH_DEBOUNCE_MS = 350;
 

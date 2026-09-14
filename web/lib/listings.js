@@ -1,7 +1,7 @@
 import 'server-only';
 import { getPool } from './db';
 import { KINSHASA_COMMUNE_CENTROIDS } from './geocoding';
-import { boundsContain, resolveMarkerPosition } from './mapViewport';
+import { KINSHASA_PROVINCE_ENVELOPE, boundsContain, resolveMarkerPosition } from './mapViewport';
 import { AMENITY_GROUPS, AMENITY_KEYWORDS } from './constants';
 import { abbreviationVariants } from './textVariants';
 
@@ -824,12 +824,20 @@ export async function getMapExtent(options = {}) {
   const { whereClause, params } = buildFilters(options);
   const pool = getPool();
 
+  // COUNT(*) FILTER keeps `total` honest (every match), while MIN/MAX only
+  // see coordinates inside Kinshasa province — see KINSHASA_PROVINCE_ENVELOPE.
+  const env = KINSHASA_PROVINCE_ENVELOPE;
+  const boxParams = [...params, env.south, env.north, env.west, env.east];
+  const [s, n, w, e] = [boxParams.length - 3, boxParams.length - 2, boxParams.length - 1, boxParams.length];
+  const inProvince = `${LAT_EXPR} BETWEEN $${s} AND $${n} AND ${LNG_EXPR} BETWEEN $${w} AND $${e}`;
+
   const [{ rows: boxRows }, { rows: communeRows }] = await Promise.all([
     pool.query(
-      `SELECT MIN(${LAT_EXPR}) AS south, MAX(${LAT_EXPR}) AS north,
-              MIN(${LNG_EXPR}) AS west, MAX(${LNG_EXPR}) AS east, COUNT(*) AS total
+      `SELECT MIN(${LAT_EXPR}) FILTER (WHERE ${inProvince}) AS south, MAX(${LAT_EXPR}) FILTER (WHERE ${inProvince}) AS north,
+              MIN(${LNG_EXPR}) FILTER (WHERE ${inProvince}) AS west, MAX(${LNG_EXPR}) FILTER (WHERE ${inProvince}) AS east,
+              COUNT(*) AS total
        ${MARKER_FROM} WHERE ${whereClause}`,
-      params,
+      boxParams,
     ),
     pool.query(
       `SELECT DISTINCT ${COMMUNE_SUBQUERY}

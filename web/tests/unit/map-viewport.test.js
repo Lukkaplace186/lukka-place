@@ -10,9 +10,10 @@ import {
   locationTarget,
   locationGeocodeQueries,
   resolveMarkerPosition,
+  KINSHASA_DEFAULT_VIEW,
+  KINSHASA_PROVINCE_ENVELOPE,
 } from '@/lib/mapViewport';
 import { KINSHASA_COMMUNE_CENTROIDS } from '@/lib/geocoding';
-import { clusterBubbleGeometry } from '@/lib/mapIcons';
 import { LAT_EXPR, LNG_EXPR } from '@/lib/listings';
 
 /**
@@ -78,15 +79,13 @@ test('resolveMarkerPosition: stored point, commune centroid, address-text commun
   assert.equal(resolveMarkerPosition({ lat: null, lng: null, commune: null, address: 'Kin' }), null);
 });
 
-test('cluster bubbles grow logarithmically and always fit their label', () => {
-  const small = clusterBubbleGeometry(2);
-  const medium = clusterBubbleGeometry(40);
-  const huge = clusterBubbleGeometry(30000);
-  assert.ok(small.diameter < medium.diameter && medium.diameter <= huge.diameter);
-  assert.ok(huge.diameter <= 56);
-  assert.equal(huge.label, '30k+');
-  assert.equal(clusterBubbleGeometry(999).label, '999');
-  for (const g of [small, medium, huge]) assert.equal(g.size, g.diameter + g.pad * 2);
+test('the default view is central Kinshasa, south of the river, inside the province envelope', () => {
+  const { center, zoom } = KINSHASA_DEFAULT_VIEW;
+  assert.ok(zoom >= 12 && zoom <= 13, 'wide enough for the city, close enough not to be the river basin');
+  // Brazzaville's centre sits at about -4.27; the map must open south of it.
+  assert.ok(center.lat < -4.3);
+  assert.equal(boundsContain(KINSHASA_PROVINCE_ENVELOPE, center), true);
+  assert.equal(boundsContain(KINSHASA_PROVINCE_ENVELOPE, KINSHASA_COMMUNE_CENTROIDS.Nsele), true);
 });
 
 test('the coordinate expressions are exactly the ones the geo index is built on', () => {

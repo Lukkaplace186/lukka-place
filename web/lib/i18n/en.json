@@ -456,19 +456,16 @@
         "other": "{count} properties in this area"
       },
       "approximate": {
-        "one": "{count} property placed at the centre of its commune (address not geolocated)",
-        "other": "{count} properties placed at the centre of their commune (address not geolocated)"
+        "one": "{count} placed at the centre of its commune (address not geolocated)",
+        "other": "{count} placed at the centre of their commune (address not geolocated)"
       },
       "unlocated": {
-        "one": "{count} property without a location is not on the map",
-        "other": "{count} properties without a location are not on the map"
+        "one": "{count} without a location, not on the map",
+        "other": "{count} without a location, not on the map"
       },
-      "truncated": "Too many properties in this area: zoom in to see them all",
+      "truncated": "Too many properties here: zoom in to see them all",
       "fetchError": "Could not load the properties in this area.",
-      "clusterLabel": {
-        "one": "{count} property — click to zoom",
-        "other": "{count} properties — click to zoom"
-      }
+      "locationDetails": "Location details"
     },
     "alertModal": {
       "intro": "You'll be alerted to new properties matching:",

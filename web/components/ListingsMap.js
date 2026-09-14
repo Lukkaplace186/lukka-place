@@ -1,15 +1,16 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Info } from 'lucide-react';
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader';
-import { MarkerClusterer, SuperClusterAlgorithm } from '@googlemaps/markerclusterer';
-import { placeResolvedListings, KINSHASA_CENTER } from '@/lib/geocoding';
-import { buildPricePinIcon, buildBuildingPinIcon, buildClusterIcon, priceZIndex } from '@/lib/mapIcons';
+import { placeResolvedListings } from '@/lib/geocoding';
+import { buildPricePinIcon, buildBuildingPinIcon, priceZIndex } from '@/lib/mapIcons';
 import { spreadColocatedPins } from '@/lib/mapPinSpread';
 import { groupListingsByBuilding, buildingPinLabel } from '@/lib/buildingGroups';
 import { baseMapOptions } from '@/lib/mapBase';
 import {
   FETCH_DEBOUNCE_MS,
+  KINSHASA_DEFAULT_VIEW,
   boundsContain,
   boundsToQuery,
   boundsWithin,
@@ -18,6 +19,7 @@ import {
   mapFilterQuery,
   padBounds,
 } from '@/lib/mapViewport';
+import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
 
 /**
@@ -33,18 +35,23 @@ import { useT } from '@/lib/i18n/client';
  * - **Opening view.** A search naming a place (commune, quartier) opens on
  *   that place's real geocoded viewport; the visitor can then pan out and the
  *   other filters keep applying to the wider area. A search naming none opens
- *   on the box around everything that matches. Changing a non-location filter
- *   keeps the view where the visitor left it.
- * - **Clustering** (@googlemaps/markerclusterer) folds dense pins into a
- *   count bubble when zoomed out; past CLUSTER_MAX_ZOOM every pin is its own
- *   price tag again. The count is listings, so a building pin counts its units.
+ *   on central Kinshasa (KINSHASA_DEFAULT_VIEW) — deliberately NOT a fit to
+ *   the listings' extent, which on a portrait phone zoomed out far enough to
+ *   centre the river and Brazzaville. Changing a non-location filter keeps the
+ *   view where the visitor left it.
+ * - **Every listing is its own price tag at every zoom.** Clustering was tried
+ *   and removed on an explicit product direction: a field of scannable prices
+ *   is the point of this map, and a "13" bubble hides exactly that. Overlap is
+ *   handled by the co-location fan and the de-overlap net below, and stacking
+ *   is predictable — higher prices in front, the hovered/selected pin above all.
  * - **Positions** are the stored coordinates, or the commune centroid for a
- *   listing without them — both jittered and fanned exactly as before
- *   (lib/geocoding.js placeResolvedListings), so nothing about privacy or
- *   co-location changed. No client-side geocoding of listings happens here at
- *   all any more; the only geocoder call is for the opening view of a place.
- * - **Honesty.** The badge states how many listings are in view, how many sit
- *   on a commune centroid, and how many match but cannot be placed at all.
+ *   listing without them — both jittered and fanned (lib/geocoding.js
+ *   placeResolvedListings). No client-side geocoding of listings happens here;
+ *   the only geocoder call is for the opening view of a named place.
+ * - **Honesty, compactly.** One pill states how many listings are in view; an
+ *   info button beside it opens the breakdown (placed on a commune centroid,
+ *   matching but unplaceable, truncated) instead of stacking three pills over
+ *   the top of a phone-sized map.
  *
  * Tapping a pin opens MapListingPreview through `onListingSelect`. The marker
  * payload has no photos, so the full listing comes from the list page when it
@@ -52,8 +59,6 @@ import { useT } from '@/lib/i18n/client';
  */
 const MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
-/** Clusters break apart into individual price tags above this zoom. */
-const CLUSTER_MAX_ZOOM = 15;
 /** Opening on a place never zooms in past a neighbourhood. */
 const MAX_FIT_ZOOM = 15;
 /** A "place" wider than this many degrees is the city, not the quartier asked for. */
@@ -61,8 +66,6 @@ const MAX_PLACE_SPAN_DEG = 0.35;
 
 /** Geocoded viewports of named places, per tab — a place does not move. */
 const placeViewportCache = new Map();
-/** Listings behind each marker, for cluster counts. */
-const markerUnits = new WeakMap();
 
 function sameId(a, b) {
   return a != null && b != null && String(a) === String(b);
@@ -81,8 +84,9 @@ function iconFor(group, hovered) {
 }
 
 function zIndexFor(group) {
-  // A building stands for several listings, so it should not be buried under
-  // the single most expensive pin beside it.
+  // Higher prices in front, so where two tags overlap the pricier one stays
+  // readable. A building stands for several listings, so it sits one above
+  // its own most expensive unit's price.
   return group.isBuilding ? priceZIndex(group.priceMax) + 1 : priceZIndex(group.representative.price);
 }
 
@@ -112,6 +116,7 @@ async function geocodePlace(geocoder, target) {
   return null;
 }
 
+/** Fallback when a named place cannot be geocoded: the box around what matches it. */
 async function fetchExtent(filterQuery) {
   try {
     const qs = new URLSearchParams(filterQuery);
@@ -128,8 +133,8 @@ async function fetchExtent(filterQuery) {
 
 function fitTo(map, bounds) {
   if (!bounds) {
-    map.setCenter(KINSHASA_CENTER);
-    map.setZoom(12);
+    map.setCenter(KINSHASA_DEFAULT_VIEW.center);
+    map.setZoom(KINSHASA_DEFAULT_VIEW.zoom);
     return;
   }
   // One listing, or several on one point: a zero-size box would zoom to the street.
@@ -149,9 +154,9 @@ function fitTo(map, bounds) {
 
 export default function ListingsMap({ params, pageListings, hoveredId, onMarkerHover, onListingSelect, onBuildingSelect }) {
   const t = useT();
+  const detailsId = useId();
   const elementRef = useRef(null);
   const mapRef = useRef(null);
-  const clustererRef = useRef(null);
   const geocoderRef = useRef(null);
   // group key -> { marker, group, signature, lat, lng }
   const entriesRef = useRef(new Map());
@@ -165,12 +170,13 @@ export default function ListingsMap({ params, pageListings, hoveredId, onMarkerH
 
   const [status, setStatus] = useState(() => (MAPS_API_KEY ? 'loading' : 'error'));
   const [mapReady, setMapReady] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [view, setView] = useState({ loaded: false, inView: 0, approximate: 0, unlocated: 0, truncated: false, fetching: false, failed: false });
 
   const filterQuery = useMemo(() => mapFilterQuery(params), [params]);
 
   useEffect(() => {
-    propsRef.current = { pageListings, onMarkerHover, onListingSelect, onBuildingSelect, t };
+    propsRef.current = { pageListings, onMarkerHover, onListingSelect, onBuildingSelect };
   });
 
   const updateCounts = useCallback((viewport) => {
@@ -203,6 +209,7 @@ export default function ListingsMap({ params, pageListings, hoveredId, onMarkerH
     const current = find(id);
     if (current) {
       current.marker.setIcon(iconFor(current.group, true));
+      // Above every resting tag, whatever its price.
       current.marker.setZIndex(google.maps.Marker.MAX_ZINDEX + 1);
     }
     hoveredRef.current = id;
@@ -230,8 +237,8 @@ export default function ListingsMap({ params, pageListings, hoveredId, onMarkerH
   }, []);
 
   const renderMarkers = useCallback((markers) => {
-    const clusterer = clustererRef.current;
-    if (!clusterer) return;
+    const map = mapRef.current;
+    if (!map) return;
 
     markerDataRef.current = new Map(markers.map((m) => [String(m.id), m]));
 
@@ -259,7 +266,6 @@ export default function ListingsMap({ params, pageListings, hoveredId, onMarkerH
     // Marker, so panning never makes the whole map blink.
     const previous = new Map(entriesRef.current);
     const next = new Map();
-    const added = [];
     for (const { id, group } of placed) {
       const position = positions.get(id);
       if (!position) continue;
@@ -281,6 +287,7 @@ export default function ListingsMap({ params, pageListings, hoveredId, onMarkerH
       } else {
         entry = { group, signature, lat: position.lat, lng: position.lng, marker: null };
         const marker = new google.maps.Marker({
+          map,
           position: { lat: position.lat, lng: position.lng },
           title: group.isBuilding ? (group.buildingName || group.representative.title) : group.representative.title,
           icon: iconFor(group, false),
@@ -304,21 +311,15 @@ export default function ListingsMap({ params, pageListings, hoveredId, onMarkerH
         marker.addListener('mouseover', () => propsRef.current.onMarkerHover?.(current.group.representative.id));
         marker.addListener('mouseout', () => propsRef.current.onMarkerHover?.(null));
         entry.marker = marker;
-        added.push(marker);
       }
-      markerUnits.set(entry.marker, group.isBuilding ? group.unitCount : 1);
       next.set(group.key, entry);
     }
 
-    const removed = [...previous.values()].map((entry) => {
+    for (const entry of previous.values()) {
       google.maps.event.clearInstanceListeners(entry.marker);
-      return entry.marker;
-    });
+      entry.marker.setMap(null);
+    }
     entriesRef.current = next;
-
-    clusterer.removeMarkers(removed, true);
-    clusterer.addMarkers(added, true);
-    clusterer.render();
     applyHover(hoveredRef.current);
   }, [applyHover, selectListing]);
 
@@ -400,32 +401,19 @@ export default function ListingsMap({ params, pageListings, hoveredId, onMarkerH
       .then(() => {
         if (cancelled || !elementRef.current) return;
 
-        const map = new google.maps.Map(elementRef.current, baseMapOptions());
+        // Built straight on the default Kinshasa view, so a search naming no
+        // place never paints somewhere else first and then jumps.
+        const map = new google.maps.Map(elementRef.current, { ...baseMapOptions(), ...KINSHASA_DEFAULT_VIEW });
         mapRef.current = map;
         geocoderRef.current = new google.maps.Geocoder();
-        clustererRef.current = new MarkerClusterer({
-          map,
-          algorithm: new SuperClusterAlgorithm({ maxZoom: CLUSTER_MAX_ZOOM, radius: 64 }),
-          renderer: {
-            render: ({ markers, position }) => {
-              const count = markers.reduce((sum, marker) => sum + (markerUnits.get(marker) || 1), 0);
-              return new google.maps.Marker({
-                position,
-                icon: buildClusterIcon({ count }),
-                title: propsRef.current.t?.('listings.map.clusterLabel', { count }),
-                // Above every price tag, so a bubble never hides under a pin.
-                zIndex: google.maps.Marker.MAX_ZINDEX + count,
-              });
-            },
-          },
-        });
 
-        // Tapping the bare map dismisses an open preview card. Marker clicks
-        // do not propagate to the map, so this never closes the card a pin
-        // tap has just opened.
+        // Tapping the bare map dismisses an open preview card and the badge's
+        // breakdown. Marker clicks do not propagate to the map, so this never
+        // closes the card a pin tap has just opened.
         listeners.push(map.addListener('click', () => {
           selectSeqRef.current += 1;
           propsRef.current.onListingSelect?.(null);
+          setDetailsOpen(false);
         }));
         listeners.push(map.addListener('idle', () => scheduleFetch()));
 
@@ -442,9 +430,10 @@ export default function ListingsMap({ params, pageListings, hoveredId, onMarkerH
       for (const listener of listeners) listener.remove();
       clearTimeout(req.timer);
       req.controller?.abort();
-      for (const entry of entriesRef.current.values()) google.maps.event.clearInstanceListeners(entry.marker);
-      clustererRef.current?.clearMarkers();
-      clustererRef.current?.setMap(null);
+      for (const entry of entriesRef.current.values()) {
+        google.maps.event.clearInstanceListeners(entry.marker);
+        entry.marker.setMap(null);
+      }
       entriesRef.current = new Map();
       markerDataRef.current = new Map();
     };
@@ -472,10 +461,18 @@ export default function ListingsMap({ params, pageListings, hoveredId, onMarkerH
       return undefined;
     }
 
+    // No place named: central Kinshasa. On first load the map is already
+    // there; after a place is cleared, this brings it back.
+    if (!target) {
+      fitTo(mapRef.current, null);
+      scheduleFetch();
+      return undefined;
+    }
+
     let cancelled = false;
     req.positioning = true;
     (async () => {
-      const viewport = (target ? await geocodePlace(geocoderRef.current, target) : null) ?? (await fetchExtent(filterQuery));
+      const viewport = (await geocodePlace(geocoderRef.current, target)) ?? (await fetchExtent(filterQuery));
       if (cancelled) return;
       req.positioning = false;
       fitTo(mapRef.current, viewport);
@@ -495,11 +492,15 @@ export default function ListingsMap({ params, pageListings, hoveredId, onMarkerH
     if (mapReady) applyHover(hoveredId);
   }, [hoveredId, mapReady, applyHover]);
 
-  const notices = [];
-  if (view.failed) notices.push(t('listings.map.fetchError'));
-  if (view.truncated) notices.push(t('listings.map.truncated'));
-  if (view.approximate > 0) notices.push(t('listings.map.approximate', { count: view.approximate }));
-  if (view.unlocated > 0) notices.push(t('listings.map.unlocated', { count: view.unlocated }));
+  const details = [];
+  if (view.truncated) details.push(t('listings.map.truncated'));
+  if (view.approximate > 0) details.push(t('listings.map.approximate', { count: view.approximate }));
+  if (view.unlocated > 0) details.push(t('listings.map.unlocated', { count: view.unlocated }));
+  const hasDetails = details.length > 0 && !view.failed;
+
+  let pillText = t('listings.map.updating');
+  if (view.failed) pillText = t('listings.map.fetchError');
+  else if (view.loaded) pillText = t('listings.map.inArea', { count: view.inView });
 
   // No border/rounding of its own — every caller already owns its edge
   // treatment (see PropertyMap's same note).
@@ -519,22 +520,41 @@ export default function ListingsMap({ params, pageListings, hoveredId, onMarkerH
       <div ref={elementRef} className="h-full w-full" />
 
       {status === 'ready' ? (
-        <div className="pointer-events-none absolute inset-x-0 top-3 z-20 flex flex-col items-center gap-1.5 px-3" aria-live="polite">
-          <span
-            className={`u-lift u-tabular whitespace-nowrap rounded-xl border border-line bg-surface/95 px-4 py-2 text-[0.75rem] font-semibold text-ink backdrop-blur-md transition-opacity ${
-              view.fetching && view.loaded ? 'opacity-70' : ''
-            }`}
+        // One pill, ~28px tall, top-centre. Only the pill and its breakdown
+        // take pointer events, so the map stays draggable right up to it.
+        <div className="pointer-events-none absolute inset-x-0 top-2.5 z-20 flex flex-col items-center px-3">
+          <div
+            className={`u-lift pointer-events-auto flex items-center gap-0.5 rounded-full border border-line bg-surface/95 py-1 pl-3 backdrop-blur-md transition-opacity ${
+              hasDetails ? 'pr-1' : 'pr-3'
+            } ${view.fetching && view.loaded ? 'opacity-80' : ''}`}
           >
-            {view.loaded ? t('listings.map.inArea', { count: view.inView }) : t('listings.map.updating')}
-          </span>
-          {notices.map((notice) => (
-            <span
-              key={notice}
-              className="max-w-full rounded-lg border border-line bg-surface/95 px-3 py-1 text-center text-[0.6875rem] text-ink-70 backdrop-blur-md"
-            >
-              {notice}
+            <span aria-live="polite" className="u-tabular whitespace-nowrap text-[0.75rem] font-semibold leading-5 text-ink">
+              {pillText}
             </span>
-          ))}
+            {hasDetails ? (
+              <button
+                type="button"
+                onClick={() => setDetailsOpen((open) => !open)}
+                aria-expanded={detailsOpen}
+                aria-controls={detailsId}
+                aria-label={t('listings.map.locationDetails')}
+                title={t('listings.map.locationDetails')}
+                className="u-press flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-ink-45 transition-colors hover:bg-canvas-alt hover:text-ink"
+              >
+                <Info strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            ) : null}
+          </div>
+          {hasDetails && detailsOpen ? (
+            <ul
+              id={detailsId}
+              className="u-lift pointer-events-auto mt-1.5 max-w-[18rem] space-y-1 rounded-xl border border-line bg-surface/95 px-3 py-2 text-[0.6875rem] leading-snug text-ink-70 backdrop-blur-md"
+            >
+              {details.map((detail) => (
+                <li key={detail}>{detail}</li>
+              ))}
+            </ul>
+          ) : null}
         </div>
       ) : null}
     </div>

@@ -75,6 +75,9 @@ test('getMapExtent gates both reads and widens the stored box with commune centr
 
   assert.equal(calls.length, 2);
   for (const call of calls) assert.ok(call.sql.includes(APPROVED));
+  // One swapped latitude must not drag the opening view out of Kinshasa.
+  assert.ok(calls[0].sql.includes(`MIN(${listings.LAT_EXPR}) FILTER (WHERE ${listings.LAT_EXPR} BETWEEN`));
+  assert.deepEqual(calls[0].values.slice(-4), [-5.1, -3.9, 15.0, 16.6]);
   assert.equal(total, 3);
   assert.equal(extent.north, -4.3);
   assert.equal(extent.west, 15.2);

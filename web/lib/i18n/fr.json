@@ -456,19 +456,16 @@
         "other": "{count} biens dans cette zone"
       },
       "approximate": {
-        "one": "{count} bien placé au centre de sa commune (adresse non géolocalisée)",
-        "other": "{count} biens placés au centre de leur commune (adresse non géolocalisée)"
+        "one": "{count} placé au centre de sa commune (adresse non géolocalisée)",
+        "other": "{count} placés au centre de leur commune (adresse non géolocalisée)"
       },
       "unlocated": {
-        "one": "{count} bien sans localisation n’apparaît pas sur la carte",
-        "other": "{count} biens sans localisation n’apparaissent pas sur la carte"
+        "one": "{count} sans localisation, absent de la carte",
+        "other": "{count} sans localisation, absents de la carte"
       },
-      "truncated": "Trop de biens dans cette zone : zoomez pour tous les afficher",
+      "truncated": "Trop de biens ici : zoomez pour tous les afficher",
       "fetchError": "Impossible de charger les biens de cette zone.",
-      "clusterLabel": {
-        "one": "{count} bien — cliquez pour zoomer",
-        "other": "{count} biens — cliquez pour zoomer"
-      }
+      "locationDetails": "Détails de localisation"
     },
     "alertModal": {
       "intro": "Vous serez alerté des nouveaux biens correspondant à :",

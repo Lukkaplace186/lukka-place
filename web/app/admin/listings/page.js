@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { getLocationHierarchySafe } from '@/lib/locations';
-import { firstParam, parsePage, buildHref } from '@/lib/adminPagination';
+import { firstParam, parseCursor, parsePage, buildHref } from '@/lib/adminPagination';
 import { FILTERABLE_FLAGS, MODERATION_SORTS, getModerationCounts, listModerationQueue } from '@/lib/moderationQueue';
 import { MODERATION_QUEUE_STATUSES, QUALITY_FLAG_LABEL_KEYS } from '@/lib/moderation';
 import { LISTING_MODERATION_STATUS_LABEL_KEYS } from '@/lib/adminLabels';
@@ -52,7 +52,7 @@ export default async function AdminListingsPage({ searchParams }) {
 
   const session = await getAdminSession();
   const [queueResult, countsResult, locations] = await Promise.allSettled([
-    listModerationQueue({ ...filters, status, limit, offset }),
+    listModerationQueue({ ...filters, status, limit, offset, cursor: parseCursor(raw) }),
     getModerationCounts(),
     getLocationHierarchySafe(),
   ]);
@@ -131,7 +131,7 @@ export default async function AdminListingsPage({ searchParams }) {
         status={status}
         canModerate={can(session?.role, 'listings.moderate')}
         renderedAt={renderTime()}
-        footer={queue ? <Pagination pathname="/admin/listings" params={params} total={queue.total} page={page} pageSize={pageSize} /> : null}
+        footer={queue ? <Pagination pathname="/admin/listings" params={params} total={queue.total} page={page} pageSize={pageSize} cursors={queue.cursors} /> : null}
       />
 
       {status === 'pending' ? <NewItemsNotice keys={['pendingListings']} /> : null}

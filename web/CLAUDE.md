@@ -292,21 +292,50 @@ row. That is fine at 10 agents and a multi-megabyte page at 30,000.
   newest listings).
 - **`/admin/health`** reports Postgres/engine latency, last inbound WhatsApp
   traffic, scheduled-job outcomes, send failures and missing delivery config,
-  from what the platform records. It reports; it does not alert — there is no
-  alert destination while `OPS_WHATSAPP_NUMBER` is unset.
+  from what the platform records. **Alerts** come from the engine's
+  `ops-health-alerts` sweep (root CLAUDE.md, "Admin console at scale"): open
+  incidents show here and as the Health sidebar badge (`openAlerts`), and are
+  WhatsApped to the desk only when `OPS_WHATSAPP_NUMBER` is set.
+- **Keyset pagination** (`lib/adminPagination.js`: `parseCursor`,
+  `keysetClause`, `pageCursors`) on the tables that grow without bound — audit
+  log, customers, agents (newest sort), listing queue (oldest/newest sorts).
+  The pager's arrows carry `?after=`/`?before=` cursors; numbered pages still
+  jump by OFFSET; `buildHref` drops a cursor on any other change. The cursor's
+  sort value is `created_at::text`, **never a JS Date** — Postgres keeps
+  microseconds, a Date keeps milliseconds, and the round-trip would skip rows.
+  CSV export follows the same cursors. Price/name/portfolio sorts stay OFFSET.
+- **Branches** (`agency_branches`, `agency_branch_agents`,
+  `migrations/20260915_agency_branches.sql`, `lib/adminBranches.js`): on
+  `/admin/agencies/[id]` — create/edit/archive (`agents.manage`), filter the
+  roster by branch, move selected agents from the roster's bulk bar. New tables,
+  not an `agents.branch_id`, because `agents`/`vendors` are Laravel's too.
+  Every read joins `b.vendor_id = a.vendor_id`, so an agent moved to another
+  agency silently leaves their old branch. Communes come from the location
+  hierarchy only.
+- **Receipts** (`/admin/billing/[id]`): a printable receipt for a recorded
+  payment, numbered `LP-<Kinshasa year>-<membership id>` (derived, not
+  stored). Not a tax invoice, and says so; a trial or a row with no amount gets
+  no receipt. The console chrome is `print:hidden`.
+- **The migration also REVOKEs `anon`/`authenticated` on every `console_*`
+  and branch table.** Supabase's default privileges grant those roles access
+  to new `public` tables over its REST API; nothing here uses that path, and
+  `console_admin_users` holds password hashes. Whether older, Laravel-owned
+  tables carry the same grants has not been checked.
 
 ### Deliberately not done yet (and why)
 
 - **Engine leads/conversations/viewings are still SQLite.** Moving them to
   Postgres rewrites every synchronous `services/db.js` call on the live
-  WhatsApp path; it needs its own dual-write migration, not a console change.
-- **Agency → branch → user hierarchy and agency self-service staff** need new
-  tables alongside Laravel-owned `vendors`/`agents` and agent-portal work.
-- **Invoices, card payments and failed-payment tracking** need a payment
-  gateway, which is out by product decision.
-- **Pushed alerts** need a destination (ops number or email).
-- **Keyset pagination**: OFFSET is fine at today's volume with page size ≤100;
-  switch the biggest tables to cursors if deep pages get slow.
+  WhatsApp path (better-sqlite3 is synchronous; `pg` is not, so every caller
+  up the chain changes shape). That is a dual-write migration with its own
+  parity checks and cutover, not something to fold into a console deploy.
+- **Agency self-service staff** (an agency managing its own branches and
+  users from `/compte/agent`) needs an agency-level login, which does not
+  exist: agents log in individually and `vendors` has no account of its own.
+  Branches are admin-managed until then.
+- **Card payments, invoices issued before payment, and failed-payment
+  tracking** need a payment gateway, which is out by product decision.
+  Receipts cover what the ledger can honestly prove.
 
 ## Layout & shell
 

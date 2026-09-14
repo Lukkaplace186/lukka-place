@@ -69,13 +69,13 @@ export default async function AdminLayout({ children }) {
   return (
     <I18nProvider locale={locale} messages={messages}>
       <ToastProvider>
-      <div className="flex min-h-screen bg-canvas-alt">
-        <div className="hidden lg:flex">
+      <div className="flex min-h-screen bg-canvas-alt print:bg-white">
+        <div className="hidden lg:flex print:hidden">
           <AdminSidebar role={session.role} />
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="flex h-[76px] shrink-0 items-center gap-4 border-b border-line bg-surface px-6">
+          <header className="flex h-[76px] shrink-0 items-center gap-4 border-b border-line bg-surface px-6 print:hidden">
             <Link href="/admin/dashboard" className="hidden text-[1.3125rem] font-bold tracking-[-0.008em] text-ink sm:inline">
               Lukka <span className="text-blue-deep">{t('admin.chrome.brandSuffix')}</span>
             </Link>
@@ -95,7 +95,7 @@ export default async function AdminLayout({ children }) {
           </header>
 
           {session.shared ? (
-            <div className="flex flex-wrap items-center gap-2 border-b border-warning/30 bg-warning-tint px-6 py-2 text-sm text-ink-70">
+            <div className="flex flex-wrap items-center gap-2 border-b border-warning/30 bg-warning-tint px-6 py-2 text-sm text-ink-70 print:hidden">
               <ShieldAlert strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0 text-warning" />
               <span>{t('admin.chrome.sharedBanner')}</span>
               <Link href="/admin/team" className="font-semibold text-blue-deep hover:underline">{t('admin.chrome.sharedBannerLink')}</Link>
@@ -104,11 +104,11 @@ export default async function AdminLayout({ children }) {
 
           {/* Below lg the royal rail is hidden, so the same destinations ride
               here instead. */}
-          <div className="lg:hidden">
+          <div className="lg:hidden print:hidden">
             <AdminSidebar mobile role={session.role} />
           </div>
 
-          <main className="min-w-0 flex-1 px-6 py-7">
+          <main className="min-w-0 flex-1 px-6 py-7 print:p-0">
             {forbidden ? (
               <div className="mx-auto flex max-w-lg flex-col items-center gap-3 py-16 text-center">
                 <ShieldAlert strokeWidth={ICON_STROKE_WIDTH} className="h-10 w-10 text-warning" />

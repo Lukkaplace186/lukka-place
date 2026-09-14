@@ -17,6 +17,7 @@ import { Chip } from '../LeadRoutingUI';
 import { EmptyRow, TD_DENSE, TD_DENSE_RIGHT, TH_STICKY, TH_STICKY_RIGHT, TR_DENSE, TableFrame } from '../table/TableFrame';
 import { reassignAgentVendorAction, updateAgentStatusAction } from './actions';
 import { bulkUpdateAgentStatusAction } from './bulkActions';
+import { assignBranchAction } from '../agencies/[id]/branchActions';
 
 const BUTTON =
   'u-press u-micro-strong inline-flex h-8 items-center gap-1.5 rounded-md border border-line bg-surface px-2.5 text-ink transition-colors hover:border-blue disabled:opacity-50';
@@ -30,8 +31,11 @@ const BUTTON =
  * checkbox form in EVERY row, which is unusable past a few dozen agents.
  * Specialty vs coverage score differently in the matcher, so they are edited
  * on /admin/agents/[id] with both lists in view.
+ *
+ * `branchContext` ({vendorId, branches}) is passed on an agency's own page and
+ * adds "move to branch" to the bulk bar — branches only exist within an agency.
  */
-export default function AgentsTable({ rows, vendors, footer }) {
+export default function AgentsTable({ rows, vendors, footer, branchContext = null }) {
   const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
@@ -83,6 +87,11 @@ export default function AgentsTable({ rows, vendors, footer }) {
     run(() => bulkUpdateAgentStatusAction(ids, status), { onDone: () => setSelected(new Set()) });
   }
 
+  function moveToBranch(branchId) {
+    const ids = [...selected];
+    run(() => assignBranchAction(branchContext.vendorId, ids, branchId), { onDone: () => setSelected(new Set()) });
+  }
+
   return (
     <div className="flex flex-col gap-2">
       {selected.size > 0 ? (
@@ -96,6 +105,22 @@ export default function AgentsTable({ rows, vendors, footer }) {
             <PauseCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
             {t('admin.agents.bulkSuspend')}
           </button>
+          {branchContext ? (
+            <select
+              aria-label={t('admin.branches.moveTo')}
+              value=""
+              disabled={pending}
+              onChange={(event) => {
+                const value = event.target.value;
+                if (value) moveToBranch(value === 'none' ? null : value);
+              }}
+              className="u-micro-strong h-8 rounded-md border-0 bg-white/15 px-2 text-white hover:bg-white/25 [&>option]:text-ink"
+            >
+              <option value="">{t('admin.branches.moveTo')}</option>
+              {branchContext.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+              <option value="none">{t('admin.branches.removeFromBranch')}</option>
+            </select>
+          ) : null}
           <button type="button" onClick={() => setSelected(new Set())} className="u-micro ml-auto text-white/75 hover:text-white">
             {t('admin.agents.clearSelection')}
           </button>
@@ -155,7 +180,10 @@ export default function AgentsTable({ rows, vendors, footer }) {
                     {agent.verified && !agent.routingEnabled ? <Chip>{t('admin.agents.routingOff')}</Chip> : null}
                   </div>
                 </td>
-                <td className={TD_DENSE}>{agent.agency || <span className="text-ink-35">{t('admin.agents.noAgency')}</span>}</td>
+                <td className={TD_DENSE}>
+                  {agent.agency || <span className="text-ink-35">{t('admin.agents.noAgency')}</span>}
+                  {agent.branchName ? <div className="text-ink-45">{t('admin.branches.branchLabel', { name: agent.branchName })}</div> : null}
+                </td>
                 <td className={TD_DENSE}>
                   {agent.primary.length || agent.serviced.length ? (
                     <div className="flex max-w-[16rem] flex-wrap gap-1">

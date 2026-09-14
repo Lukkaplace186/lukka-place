@@ -54,6 +54,7 @@ export async function getWorkQueueCounts({ fresh = false } = {}) {
     humanConversations: e?.humanConversations ?? null,
     failedPushes24h: e?.failedPushes24h ?? null,
     newLeads24h: e?.newLeads24h ?? null,
+    openAlerts: e?.openAlerts ?? null,
     postgresError: pg.status === 'rejected' ? pg.reason?.message || 'unavailable' : null,
     engineError: engine.status === 'rejected' ? engine.reason?.message || 'unavailable' : null,
     at: new Date().toISOString(),

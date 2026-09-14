@@ -3162,6 +3162,66 @@ const VIEWING_REQUESTS_LIST_LIMIT_DEFAULT = 50;
 const VIEWING_REQUESTS_LIST_LIMIT_MAX = 100;
 
 /**
+ * Operational alert incidents (services/opsAlerts.js). One row per incident —
+ * opened when a health condition appears, resolved when it clears — so the
+ * desk is told once per outage, not once per sweep. The partial unique index
+ * allows exactly one OPEN row per alert_key; resolved rows are the history.
+ * Timestamps are ISO-8601 with a Z, written by the sweep, so they sort.
+ */
+db.exec(`
+  CREATE TABLE IF NOT EXISTS ops_alerts (
+    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+    alert_key            TEXT NOT NULL,
+    severity             TEXT NOT NULL,
+    message              TEXT NOT NULL,
+    opened_at            TEXT NOT NULL,
+    last_seen_at         TEXT NOT NULL,
+    resolved_at          TEXT,
+    notified_at          TEXT,
+    notify_attempted_at  TEXT,
+    notify_error         TEXT
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_ops_alerts_open_key ON ops_alerts (alert_key) WHERE resolved_at IS NULL;
+  CREATE INDEX IF NOT EXISTS idx_ops_alerts_resolved_at ON ops_alerts (resolved_at);
+`);
+
+function listOpenOpsAlerts() {
+  return db.prepare('SELECT * FROM ops_alerts WHERE resolved_at IS NULL ORDER BY opened_at, id').all();
+}
+
+function listRecentOpsAlerts(limit = 10) {
+  const n = Math.min(Math.max(Number.parseInt(limit, 10) || 10, 1), 100);
+  return db.prepare('SELECT * FROM ops_alerts WHERE resolved_at IS NOT NULL ORDER BY resolved_at DESC, id DESC LIMIT ?').all(n);
+}
+
+function openOpsAlert({ key, severity, message, at = new Date().toISOString() }) {
+  const info = db
+    .prepare('INSERT INTO ops_alerts (alert_key, severity, message, opened_at, last_seen_at) VALUES (?, ?, ?, ?, ?)')
+    .run(String(key), String(severity), String(message), at, at);
+  return db.prepare('SELECT * FROM ops_alerts WHERE id = ?').get(info.lastInsertRowid);
+}
+
+function touchOpsAlert(id, { message, severity, at = new Date().toISOString() }) {
+  db.prepare('UPDATE ops_alerts SET message = ?, severity = ?, last_seen_at = ? WHERE id = ? AND resolved_at IS NULL')
+    .run(String(message), String(severity), at, id);
+}
+
+function resolveOpsAlert(id, at = new Date().toISOString()) {
+  db.prepare('UPDATE ops_alerts SET resolved_at = ? WHERE id = ? AND resolved_at IS NULL').run(at, id);
+}
+
+/** A successful send sets notified_at; a failed one records only the attempt and the error. */
+function markOpsAlertNotified(id, { at = null, attemptedAt = null, error = null } = {}) {
+  db.prepare(
+    `UPDATE ops_alerts
+     SET notified_at = COALESCE(?, notified_at),
+         notify_attempted_at = COALESCE(?, ?, notify_attempted_at),
+         notify_error = ?
+     WHERE id = ?`,
+  ).run(at, attemptedAt, at, error, id);
+}
+
+/**
  * The engine's half of the admin console's "what needs doing" counts. Every
  * one is an indexed COUNT; web/lib/adminWorkQueues.js caches the result so the
  * console's 30-second polling does not multiply them per open tab.
@@ -3175,6 +3235,7 @@ function getWorkQueueCounts() {
     humanConversations: count("SELECT COUNT(*) AS n FROM conversations WHERE ai_active = 0 AND state != 'CLOSED'"),
     failedPushes24h: count("SELECT COUNT(*) AS n FROM lead_matches WHERE status = 'FAILED' AND created_at >= datetime('now', '-1 day')"),
     newLeads24h: count("SELECT COUNT(*) AS n FROM leads WHERE created_at >= datetime('now', '-1 day')"),
+    openAlerts: count('SELECT COUNT(*) AS n FROM ops_alerts WHERE resolved_at IS NULL'),
   };
 }
 
@@ -3211,6 +3272,7 @@ function getEngineHealth() {
       failedJobs: jobs.filter((job) => job.last_error && (!job.succeeded_at || job.last_run_at > job.succeeded_at)).length,
     },
     database: { path: DB_PATH, sizeBytes: dbSizeBytes },
+    alerts: { open: listOpenOpsAlerts(), recent: listRecentOpsAlerts(10) },
   };
 }
 
@@ -3414,4 +3476,11 @@ module.exports = {
   DECLINE_REASON_BY,
   LEAD_STATUSES,
   CONVERSATION_REQUIREMENT_FIELDS,
+  // Pushed operational alerts (services/opsAlerts.js).
+  listOpenOpsAlerts,
+  listRecentOpsAlerts,
+  openOpsAlert,
+  touchOpsAlert,
+  resolveOpsAlert,
+  markOpsAlertNotified,
 };

@@ -87,6 +87,35 @@ export async function searchFeaturableListings({ q, limit = 25 } = {}) {
   return rows.map((row) => ({ ...row, id: Number(row.id) }));
 }
 
+/**
+ * The receipt number for a ledger row: `LP-<year recorded, Kinshasa>-<row id>`.
+ * Derived, not stored — the membership id already is the unique, never-reused
+ * identifier, and a second numbering sequence would be a second truth to drift.
+ */
+export function receiptNumber({ id, created_at: createdAt }) {
+  const recorded = createdAt ? new Date(new Date(createdAt).getTime() + 60 * 60 * 1000) : null;
+  const year = recorded && !Number.isNaN(recorded.getTime()) ? recorded.getUTCFullYear() : '0000';
+  return `LP-${year}-${String(id).padStart(6, '0')}`;
+}
+
+/** One ledger row with what a receipt prints: the plan, the agency, the recorded payment. */
+export async function getMembershipReceipt(id) {
+  const membershipId = Number.parseInt(id, 10);
+  if (!Number.isSafeInteger(membershipId) || membershipId <= 0) return null;
+  const { rows } = await getPool().query(
+    `SELECT mem.id, mem.status, mem.is_trial, mem.price, mem.currency, mem.currency_symbol, mem.payment_method,
+            mem.transaction_id, mem.start_date, mem.expire_date, mem.created_at, mem.vendor_id,
+            pkg.title AS package_title, pkg.term AS package_term,
+            v.username AS agency_name, v.email AS agency_email, v.phone AS agency_phone
+     FROM memberships mem
+     LEFT JOIN packages pkg ON pkg.id = mem.package_id
+     LEFT JOIN vendors v ON v.id = mem.vendor_id
+     WHERE mem.id = $1`,
+    [membershipId],
+  );
+  return rows[0] || null;
+}
+
 export async function getBillingSummary() {
   const pool = getPool();
   const [counts, revenue] = await Promise.all([

@@ -132,6 +132,9 @@ export default async function AdminBillingPage({ searchParams }) {
                   <td className={TD_DENSE}>
                     {row.payment_method || '—'}
                     {row.transaction_id ? <div className="u-tabular text-ink-45">{row.transaction_id}</div> : null}
+                    {!row.is_trial && Number(row.price) > 0 ? (
+                      <Link href={`/admin/billing/${row.id}`} className="u-micro-strong text-blue-deep hover:underline">{t('admin.billing.receipt')}</Link>
+                    ) : null}
                   </td>
                   <td className={`${TD_DENSE} whitespace-nowrap`}>
                     {day(row.start_date)} → {day(row.expire_date)}

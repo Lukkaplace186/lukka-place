@@ -1,6 +1,7 @@
 import 'server-only';
 import { cookies } from 'next/headers';
 import { getPool } from './db';
+import { keysetClause, pageCursors } from './adminPagination';
 import { CUSTOMER_SESSION_COOKIE, verifyCustomerSessionToken } from './customerAuth';
 import { generateOtpCode, hashOtp, otpExpiresAt } from './authCrypto';
 import { sendOtpViaWhatsApp, otpFallbackText } from './otpDelivery';
@@ -224,7 +225,7 @@ export const ADMIN_CUSTOMER_STATUSES = ['active', 'locked', 'unverified'];
  * `q` matches the name, or the stored E.164 digits once separators are
  * stripped from what was typed — "+44 7932" finds 447932….
  */
-export async function adminListCustomersPage({ q, status, limit = 25, offset = 0 } = {}) {
+export async function adminListCustomersPage({ q, status, limit = 25, offset = 0, cursor = null } = {}) {
   const pool = getPool();
   const params = [];
   const where = [];
@@ -246,21 +247,24 @@ export async function adminListCustomersPage({ q, status, limit = 25, offset = 0
   const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
   const pageLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 25, 1), 100);
   const pageOffset = Math.max(Number.parseInt(offset, 10) || 0, 0);
+  const keyset = keysetClause(cursor, { ts: 'c.created_at', id: 'c.id', descending: true }, params.length + 1);
+  const pageWhere = [...where, keyset.condition].filter(Boolean);
+  const pageParams = [...params, ...keyset.values];
 
   const [countResult, pageResult, summaryResult] = await Promise.all([
     pool.query(`SELECT COUNT(*)::int AS total FROM customers c ${whereClause}`, params),
     pool.query(
-      `SELECT c.id, c.phone, c.full_name, c.created_at, c.last_login_at,
+      `SELECT c.id, c.phone, c.full_name, c.created_at, c.created_at::text AS cursor_ts, c.last_login_at,
               c.phone_verified_at, c.failed_login_count, c.locked_until,
               (c.locked_until IS NOT NULL AND c.locked_until > NOW()) AS is_locked,
               (c.password_hash IS NOT NULL AND c.password_hash <> '') AS has_password,
               (SELECT COUNT(*)::int FROM customer_saved_searches s WHERE s.customer_id = c.id) AS saved_searches_count,
               (SELECT COUNT(*)::int FROM customer_favorites f WHERE f.customer_id = c.id) AS favorites_count
        FROM customers c
-       ${whereClause}
-       ORDER BY c.created_at DESC, c.id DESC
-       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-      [...params, pageLimit, pageOffset],
+       ${pageWhere.length ? `WHERE ${pageWhere.join(' AND ')}` : ''}
+       ORDER BY ${keyset.orderBy}
+       LIMIT $${pageParams.length + 1} OFFSET $${pageParams.length + 2}`,
+      [...pageParams, pageLimit, cursor ? 0 : pageOffset],
     ),
     pool.query(
       `SELECT COUNT(*)::int AS total,
@@ -269,9 +273,11 @@ export async function adminListCustomersPage({ q, status, limit = 25, offset = 0
        FROM customers`,
     ),
   ]);
+  const rows = keyset.reverse ? [...pageResult.rows].reverse() : pageResult.rows;
   return {
     total: countResult.rows[0]?.total ?? 0,
-    rows: pageResult.rows,
+    rows,
+    cursors: pageCursors(rows),
     summary: summaryResult.rows[0] || { total: 0, locked: 0, unverified: 0 },
   };
 }

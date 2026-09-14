@@ -2,7 +2,7 @@ import { getAdminSession } from '@/lib/adminSession';
 import { can } from '@/lib/adminRoles';
 import { recordAudit, listAuditLog } from '@/lib/adminAudit';
 import { rowsToCsv } from '@/lib/csv';
-import { kinshasaDayEnd, kinshasaDayStart } from '@/lib/adminPagination';
+import { decodeCursor, kinshasaDayEnd, kinshasaDayStart } from '@/lib/adminPagination';
 import { listAgentsForAdmin, searchAgentIds } from '@/lib/agents';
 import { adminListCustomersPage } from '@/lib/customers';
 import { listModerationQueue } from '@/lib/moderationQueue';
@@ -24,11 +24,17 @@ const PAGE = 100;
 async function collect(fetchPage) {
   const rows = [];
   let offset = 0;
+  let cursor = null;
   for (;;) {
-    const { rows: batch, total } = await fetchPage({ limit: PAGE, offset });
+    const { rows: batch, total, cursors } = await fetchPage({ limit: PAGE, offset, cursor });
     rows.push(...batch);
     offset += batch.length;
     if (batch.length < PAGE || offset >= Math.min(total ?? Infinity, EXPORT_CAP)) break;
+    // Lists that page by keyset hand back a cursor: follow it, so exporting a
+    // table that is being written to (the audit log records this very export)
+    // neither repeats nor skips a row, and page 100 costs what page 1 did.
+    const next = decodeCursor(cursors?.next);
+    cursor = next ? { direction: 'after', values: next } : null;
   }
   return rows.slice(0, EXPORT_CAP);
 }
@@ -38,7 +44,7 @@ const iso = (value) => (value ? new Date(value).toISOString() : '');
 const DATASETS = {
   agents: {
     permission: 'data.export',
-    fetch: (p) => collect(({ limit, offset }) => listAgentsForAdmin({ q: p.get('q'), verified: p.get('verified'), status: p.get('status'), sort: p.get('sort') || 'newest', limit, offset })),
+    fetch: (p) => collect(({ limit, offset, cursor }) => listAgentsForAdmin({ q: p.get('q'), verified: p.get('verified'), status: p.get('status'), sort: p.get('sort') || 'newest', limit, offset, cursor })),
     columns: [
       ['id', (r) => r.id], ['name', (r) => r.display_name], ['email', (r) => r.email], ['phone', (r) => r.phone],
       ['phone_verified', (r) => Boolean(r.phone_verified_at)], ['status', (r) => r.status], ['agency', (r) => r.vendor_username],
@@ -48,7 +54,7 @@ const DATASETS = {
   },
   customers: {
     permission: 'data.export',
-    fetch: (p) => collect(({ limit, offset }) => adminListCustomersPage({ q: p.get('q'), status: p.get('status'), limit, offset })),
+    fetch: (p) => collect(({ limit, offset, cursor }) => adminListCustomersPage({ q: p.get('q'), status: p.get('status'), limit, offset, cursor })),
     columns: [
       ['id', (r) => r.id], ['name', (r) => r.full_name], ['phone', (r) => r.phone], ['joined', (r) => iso(r.created_at)],
       ['last_login', (r) => iso(r.last_login_at)], ['verified', (r) => Boolean(r.phone_verified_at)], ['locked', (r) => r.is_locked],
@@ -57,8 +63,8 @@ const DATASETS = {
   },
   listings: {
     permission: 'data.export',
-    fetch: (p) => collect(({ limit, offset }) => listModerationQueue({
-      status: p.get('status') || 'pending', q: p.get('q'), commune: p.get('commune'), purpose: p.get('purpose'), flag: p.get('flag'), sort: p.get('sort'), limit, offset,
+    fetch: (p) => collect(({ limit, offset, cursor }) => listModerationQueue({
+      status: p.get('status') || 'pending', q: p.get('q'), commune: p.get('commune'), purpose: p.get('purpose'), flag: p.get('flag'), sort: p.get('sort'), limit, offset, cursor,
     })),
     columns: [
       ['id', (r) => r.id], ['title', (r) => r.title], ['reference', (r) => r.reference], ['price', (r) => r.price], ['purpose', (r) => r.purpose],
@@ -87,9 +93,9 @@ const DATASETS = {
   },
   audit: {
     permission: 'audit.view',
-    fetch: (p) => collect(({ limit, offset }) => listAuditLog({
+    fetch: (p) => collect(({ limit, offset, cursor }) => listAuditLog({
       adminUserId: p.get('actor') || undefined, action: p.get('action') ? `${p.get('action')}.` : undefined, entityType: p.get('entity') || undefined,
-      entityId: p.get('q') || undefined, from: kinshasaDayStart(p.get('from')), to: kinshasaDayEnd(p.get('to')), limit, offset,
+      entityId: p.get('q') || undefined, from: kinshasaDayStart(p.get('from')), to: kinshasaDayEnd(p.get('to')), limit, offset, cursor,
     })),
     columns: [
       ['id', (r) => r.id], ['at', (r) => iso(r.created_at)], ['actor', (r) => r.admin_name || r.actor_label], ['action', (r) => r.action],

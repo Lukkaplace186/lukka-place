@@ -1,6 +1,7 @@
 import 'server-only';
 import { headers } from 'next/headers';
 import { getPool } from './db';
+import { keysetClause, pageCursors } from './adminPagination';
 
 /**
  * The console's audit trail (`console_admin_audit_log`).
@@ -68,7 +69,7 @@ export const AUDIT_ENTITY_TYPES = ['listing', 'agent', 'agency', 'customer', 'co
  * @param {{adminUserId?: number|'shared', action?: string, entityType?: string, entityId?: string,
  *          from?: string, to?: string, limit?: number, offset?: number}} [options]
  */
-export async function listAuditLog({ adminUserId, action, entityType, entityId, from, to, limit = 50, offset = 0 } = {}) {
+export async function listAuditLog({ adminUserId, action, entityType, entityId, from, to, limit = 50, offset = 0, cursor = null } = {}) {
   const params = [];
   const where = [];
   if (adminUserId === 'shared') where.push('l.admin_user_id IS NULL');
@@ -99,21 +100,26 @@ export async function listAuditLog({ adminUserId, action, entityType, entityId, 
   const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
   const pageLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 50, 1), 100);
   const pageOffset = Math.max(Number.parseInt(offset, 10) || 0, 0);
+  // Append-only and unbounded: the pager's arrows seek by (created_at, id).
+  const keyset = keysetClause(cursor, { ts: 'l.created_at', id: 'l.id', descending: true }, params.length + 1);
+  const pageWhere = [...where, keyset.condition].filter(Boolean);
+  const pageParams = [...params, ...keyset.values];
   const pool = getPool();
   const [count, page] = await Promise.all([
     pool.query(`SELECT COUNT(*)::int AS total FROM console_admin_audit_log l ${whereClause}`, params),
     pool.query(
       `SELECT l.id, l.admin_user_id, l.actor_label, l.action, l.entity_type, l.entity_id, l.details, l.ip, l.created_at,
-              u.full_name AS admin_name
+              l.created_at::text AS cursor_ts, u.full_name AS admin_name
        FROM console_admin_audit_log l
        LEFT JOIN console_admin_users u ON u.id = l.admin_user_id
-       ${whereClause}
-       ORDER BY l.created_at DESC, l.id DESC
-       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-      [...params, pageLimit, pageOffset],
+       ${pageWhere.length ? `WHERE ${pageWhere.join(' AND ')}` : ''}
+       ORDER BY ${keyset.orderBy}
+       LIMIT $${pageParams.length + 1} OFFSET $${pageParams.length + 2}`,
+      [...pageParams, pageLimit, cursor ? 0 : pageOffset],
     ),
   ]);
-  return { total: count.rows[0]?.total ?? 0, rows: page.rows };
+  const rows = keyset.reverse ? [...page.rows].reverse() : page.rows;
+  return { total: count.rows[0]?.total ?? 0, rows, cursors: pageCursors(rows) };
 }
 
 /** The recent history of one entity, for its detail page timeline. */

@@ -1,5 +1,6 @@
 import 'server-only';
 import { getPool } from './db';
+import { keysetClause, pageCursors } from './adminPagination';
 import { BLOCKING_FLAGS, EXTRACTION_FAILURE_MARKERS, MODERATION_QUEUE_STATUSES } from './moderation';
 
 /**
@@ -219,33 +220,45 @@ function toRow(row, medians) {
  *          agentId?: number, sort?: string, limit?: number, offset?: number}} [options]
  */
 export async function listModerationQueue({
-  status = 'pending', q, commune, purpose, flag, agentId, sort, limit = 25, offset = 0,
+  status = 'pending', q, commune, purpose, flag, agentId, sort, limit = 25, offset = 0, cursor = null,
 } = {}) {
   const resolvedStatus = MODERATION_QUEUE_STATUSES.includes(status) ? status : 'pending';
   const params = [];
   const cte = buildBase({ status: resolvedStatus, q, commune, purpose, agentId }, params);
   const flagWhere = FLAG_SQL[flag] ? `WHERE ${FLAG_SQL[flag]}` : '';
-  const orderBy = SORTS[sort] || (resolvedStatus === 'pending' ? SORTS.oldest : SORTS.newest);
+  const resolvedSort = SORTS[sort] ? sort : resolvedStatus === 'pending' ? 'oldest' : 'newest';
   const pageLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 25, 1), 100);
   const pageOffset = Math.max(Number.parseInt(offset, 10) || 0, 0);
+  // The two time orders page by cursor; price and moderated-at orders by offset.
+  const keysetable = resolvedSort === 'oldest' || resolvedSort === 'newest';
+  const keyset = keysetable
+    ? keysetClause(cursor, { ts: 'f.created_at', id: 'f.id', descending: resolvedSort === 'newest' }, params.length + 1)
+    : { condition: null, values: [], orderBy: SORTS[resolvedSort], reverse: false };
+  const pageWhere = [FLAG_SQL[flag], keyset.condition].filter(Boolean);
+  const pageParams = [...params, ...keyset.values];
   const pool = getPool();
 
   const [countResult, pageResult, medians] = await Promise.all([
     pool.query(`${cte} SELECT COUNT(*)::int AS total FROM flagged f ${flagWhere}`, params),
     pool.query(
       `${cte}
-       SELECT f.*, mu.full_name AS moderated_by_name
+       SELECT f.*, f.created_at::text AS cursor_ts, mu.full_name AS moderated_by_name
        FROM flagged f
        LEFT JOIN console_admin_users mu ON mu.id = f.moderated_by
-       ${flagWhere}
-       ORDER BY ${orderBy}
-       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-      [...params, pageLimit, pageOffset],
+       ${pageWhere.length ? `WHERE ${pageWhere.join(' AND ')}` : ''}
+       ORDER BY ${keyset.orderBy}
+       LIMIT $${pageParams.length + 1} OFFSET $${pageParams.length + 2}`,
+      [...pageParams, pageLimit, keyset.condition ? 0 : pageOffset],
     ),
     getCommuneMedians().catch(() => new Map()),
   ]);
 
-  return { total: countResult.rows[0]?.total ?? 0, rows: pageResult.rows.map((row) => toRow(row, medians)) };
+  const rawRows = keyset.reverse ? [...pageResult.rows].reverse() : pageResult.rows;
+  return {
+    total: countResult.rows[0]?.total ?? 0,
+    rows: rawRows.map((row) => toRow(row, medians)),
+    cursors: keysetable ? pageCursors(rawRows) : null,
+  };
 }
 
 /** Tab counts — one scan, every status. */

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { AlertTriangle } from 'lucide-react';
 import { ADMIN_AGENT_SORTS, findDuplicateAgents, getVendors, listAgentsForAdmin } from '@/lib/agents';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
-import { firstParam, parsePage } from '@/lib/adminPagination';
+import { firstParam, parseCursor, parsePage } from '@/lib/adminPagination';
 import { getT } from '@/lib/i18n/server';
 import { ErrorNote, Stat } from '../LeadRoutingUI';
 import Pagination from '../table/Pagination';
@@ -42,7 +42,7 @@ export default async function AdminAgentsPage({ searchParams }) {
   const params = { ...filters, page: page > 1 ? String(page) : undefined, size: pageSize === 25 ? undefined : String(pageSize) };
 
   const [listResult, vendorsResult, duplicatesResult] = await Promise.allSettled([
-    listAgentsForAdmin({ ...filters, limit, offset }),
+    listAgentsForAdmin({ ...filters, limit, offset, cursor: parseCursor(raw) }),
     getVendors(),
     findDuplicateAgents(),
   ]);
@@ -132,7 +132,7 @@ export default async function AdminAgentsPage({ searchParams }) {
       <AgentsTable
         rows={toAgentTableRows(list?.rows)}
         vendors={vendors.map((vendor) => ({ id: vendor.id, username: vendor.username }))}
-        footer={list ? <Pagination pathname="/admin/agents" params={params} total={list.total} page={page} pageSize={pageSize} /> : null}
+        footer={list ? <Pagination pathname="/admin/agents" params={params} total={list.total} page={page} pageSize={pageSize} cursors={list.cursors} /> : null}
       />
     </div>
   );

@@ -182,6 +182,17 @@ registerJob({
 }
 
 /**
+ * Pushed operational alerts: every five minutes, compare the engine's own
+ * health report with the open incidents and tell the desk what changed. Last,
+ * so a slow Postgres probe never delays the SLA sweep. See services/opsAlerts.js.
+ */
+{
+  // eslint-disable-next-line global-require
+  const { opsAlertJob } = require('./opsAlerts');
+  registerJob(opsAlertJob);
+}
+
+/**
  * Runs one job if it is due, recording the outcome.
  *
  * Isolated per job on purpose: a throw in the SLA sweep must not stop the

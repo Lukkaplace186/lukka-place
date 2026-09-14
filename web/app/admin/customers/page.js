@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { getLeadCountsByWaIds } from '@/lib/adminApi';
 import ServerViewTools from '../table/ServerViewTools';
 import { ADMIN_CUSTOMER_STATUSES, adminListCustomersPage } from '@/lib/customers';
-import { firstParam, parsePage } from '@/lib/adminPagination';
+import { firstParam, parseCursor, parsePage } from '@/lib/adminPagination';
 import { getT } from '@/lib/i18n/server';
 import { Chip, ErrorNote, Stat, formatKinshasa } from '../LeadRoutingUI';
 import Pagination from '../table/Pagination';
@@ -52,7 +52,7 @@ export default async function AdminCustomersPage({ searchParams }) {
   let result = null;
   let loadError = null;
   try {
-    result = await adminListCustomersPage({ ...filters, limit, offset });
+    result = await adminListCustomersPage({ ...filters, limit, offset, cursor: parseCursor(raw) });
   } catch (err) {
     loadError = err.message;
   }
@@ -101,7 +101,7 @@ export default async function AdminCustomersPage({ searchParams }) {
 
       <TableFrame
         minWidth="64rem"
-        footer={result ? <Pagination pathname="/admin/customers" params={params} total={result.total} page={page} pageSize={pageSize} /> : null}
+        footer={result ? <Pagination pathname="/admin/customers" params={params} total={result.total} page={page} pageSize={pageSize} cursors={result.cursors} /> : null}
       >
         <thead>
           <tr>

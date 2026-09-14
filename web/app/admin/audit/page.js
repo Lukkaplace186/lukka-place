@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { AUDIT_ENTITY_TYPES, listAuditLog } from '@/lib/adminAudit';
 import { listAdminUsers } from '@/lib/adminUsers';
-import { firstParam, kinshasaDayEnd, kinshasaDayStart, parsePage } from '@/lib/adminPagination';
+import { firstParam, kinshasaDayEnd, kinshasaDayStart, parseCursor, parsePage } from '@/lib/adminPagination';
 import { getT } from '@/lib/i18n/server';
 import { ErrorNote, formatKinshasa } from '../LeadRoutingUI';
 import Pagination from '../table/Pagination';
@@ -12,7 +12,7 @@ import { EmptyRow, TD_DENSE, TH_STICKY, TR_DENSE, TableFrame } from '../table/Ta
 export const dynamic = 'force-dynamic';
 
 const ACTION_PREFIXES = [
-  'listing', 'agent', 'customer', 'conversation', 'lead', 'viewing', 'membership', 'package', 'featured',
+  'listing', 'agent', 'agency', 'customer', 'conversation', 'lead', 'viewing', 'membership', 'package', 'featured',
   'plan_request', 'cms', 'team', 'session', 'export', 'note',
 ];
 
@@ -58,6 +58,7 @@ export default async function AdminAuditPage({ searchParams }) {
       to: kinshasaDayEnd(filters.to),
       limit,
       offset,
+      cursor: parseCursor(raw),
     }),
     listAdminUsers(),
   ]);
@@ -94,7 +95,7 @@ export default async function AdminAuditPage({ searchParams }) {
 
       <TableFrame
         minWidth="64rem"
-        footer={log ? <Pagination pathname="/admin/audit" params={params} total={log.total} page={page} pageSize={pageSize} /> : null}
+        footer={log ? <Pagination pathname="/admin/audit" params={params} total={log.total} page={page} pageSize={pageSize} cursors={log.cursors} /> : null}
       >
         <thead>
           <tr>

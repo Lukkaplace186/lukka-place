@@ -894,6 +894,29 @@ page at a time. What the engine added for that:
 - Admin sort/filter columns are indexed (`CREATE INDEX IF NOT EXISTS` at boot).
   Covered by `scripts/verify-pipeline.js` §23.
 
+### Pushed operational alerts (`services/opsAlerts.js`)
+
+A fourth scheduler job, `ops-health-alerts`, every 5 minutes. It evaluates the
+same `db.getEngineHealth()` report `/admin/health` shows, plus a live
+`SELECT 1` against Postgres (10s timeout), and alerts on: Postgres unreachable
+(critical), a job whose last run failed and has not succeeded since (never the
+alert job itself), no inbound WhatsApp traffic for `OPS_ALERT_SILENCE_HOURS`
+(24 — a database that never had traffic does not alert), and
+`OPS_ALERT_FAILED_PUSHES` (3) or more refused agency pushes in 24h.
+
+- **Incidents, not messages.** `ops_alerts` (SQLite) holds one row per
+  incident; a partial unique index allows one OPEN row per `alert_key`. The
+  desk hears the opening and the resolution, never every sweep in between.
+- **Nothing is marked notified that was not sent.** With
+  `OPS_WHATSAPP_NUMBER` unset (production today) incidents still open and show
+  on `/admin/health` and the console's Health badge (`openAlerts` on
+  `GET /admin/work-queues`, `alerts.open/recent` on `GET /admin/health`). An
+  incident opened while the number was unset is sent once a number exists, if
+  still open. A failed send records `notify_error` and retries hourly, not per
+  sweep. A resolution is only announced for an incident the desk was told of.
+- Session messages, same 24h rule as everything else in "Outbound WhatsApp".
+- Covered by `scripts/verify-pipeline.js` §29.
+
 ## Verification & Commands
 - **Verification Command**: Always run `npm run verify` before declaring a backend task complete.
 - **Test Coverage**: Do not touch schema fields without updating `scripts/verify-pipeline.js`.

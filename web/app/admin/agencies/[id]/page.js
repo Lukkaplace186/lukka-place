@@ -6,21 +6,24 @@ import { getVendors, listAgentsForAdmin } from '@/lib/agents';
 import { getAgentBillingHistory } from '@/lib/subscriptions';
 import { listEntityAudit } from '@/lib/adminAudit';
 import { listNotes } from '@/lib/adminNotes';
-import { parsePage } from '@/lib/adminPagination';
+import { countUnassignedAgents, listAgencyBranches } from '@/lib/adminBranches';
+import { getLocationHierarchySafe } from '@/lib/locations';
+import { firstParam, parsePage } from '@/lib/adminPagination';
 import { can } from '@/lib/adminRoles';
 import { getAdminSession } from '@/lib/adminSession';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { getT } from '@/lib/i18n/server';
-import { Stat, formatKinshasa } from '../../LeadRoutingUI';
+import { ErrorNote, Stat, formatKinshasa } from '../../LeadRoutingUI';
 import EntityTimeline from '../../EntityTimeline';
 import Pagination from '../../table/Pagination';
 import AgentsTable from '../../agents/AgentsTable';
 import { toAgentTableRows } from '../../agents/agentRows';
 import AgencyBulkActions from './AgencyBulkActions';
+import BranchesPanel from './BranchesPanel';
 
 export const dynamic = 'force-dynamic';
 
-/** One agency: its roster (with bulk actions), portfolio, plan history and notes. */
+/** One agency: its branches, roster (with bulk actions), portfolio, plan history and notes. */
 export default async function AdminAgencyDetailPage({ params, searchParams }) {
   const t = await getT();
   const { id } = await params;
@@ -30,17 +33,24 @@ export default async function AdminAgencyDetailPage({ params, searchParams }) {
   const session = await getAdminSession();
   const { page, pageSize, limit, offset } = parsePage(raw);
   const base = `/admin/agencies/${agency.id}`;
+  const branchParam = firstParam(raw.branch);
+  const branchFilter = branchParam === 'none' || /^\d+$/.test(branchParam || '') ? branchParam : undefined;
+  const canManageBranches = can(session?.role, 'agents.manage');
 
-  const [agentsResult, vendorsResult, billingResult, idsResult, notesResult, historyResult] = await Promise.allSettled([
-    listAgentsForAdmin({ vendorId: agency.id, sort: 'listings', limit, offset }),
+  const [agentsResult, vendorsResult, billingResult, idsResult, notesResult, historyResult, branchesResult, unassignedResult, locationsResult] = await Promise.allSettled([
+    listAgentsForAdmin({ vendorId: agency.id, branchId: branchFilter, withBranch: true, sort: 'listings', limit, offset }),
     getVendors(),
     getAgentBillingHistory(agency.id),
     getAgencyAgentIds(agency.id),
     listNotes('agency', agency.id),
     listEntityAudit('agency', agency.id, 50),
+    listAgencyBranches(agency.id),
+    countUnassignedAgents(agency.id),
+    getLocationHierarchySafe(),
   ]);
   const agents = agentsResult.status === 'fulfilled' ? agentsResult.value : { total: 0, rows: [] };
   const billing = billingResult.status === 'fulfilled' ? billingResult.value : [];
+  const branches = branchesResult.status === 'fulfilled' ? branchesResult.value : null;
 
   return (
     <div className="flex flex-col gap-5">
@@ -64,6 +74,20 @@ export default async function AdminAgencyDetailPage({ params, searchParams }) {
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="flex flex-col gap-5">
+          {branches ? (
+            <BranchesPanel
+              vendorId={agency.id}
+              basePath={base}
+              branches={branches}
+              unassigned={unassignedResult.status === 'fulfilled' ? unassignedResult.value : 0}
+              communes={locationsResult.status === 'fulfilled' ? locationsResult.value.communes || [] : []}
+              activeBranch={branchFilter || null}
+              canManage={canManageBranches}
+            />
+          ) : (
+            <ErrorNote>{t('admin.branches.loadError', { error: branchesResult.reason?.message })}</ErrorNote>
+          )}
+
           <section className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="u-title-card text-ink">{t('admin.agencies.rosterTitle')}</h2>
@@ -74,7 +98,8 @@ export default async function AdminAgencyDetailPage({ params, searchParams }) {
             <AgentsTable
               rows={toAgentTableRows(agents.rows)}
               vendors={(vendorsResult.status === 'fulfilled' ? vendorsResult.value : []).map((vendor) => ({ id: vendor.id, username: vendor.username }))}
-              footer={<Pagination pathname={base} params={{ page: page > 1 ? String(page) : undefined }} total={agents.total} page={page} pageSize={pageSize} />}
+              branchContext={canManageBranches && branches?.length ? { vendorId: agency.id, branches: branches.map((branch) => ({ id: branch.id, name: branch.name })) } : null}
+              footer={<Pagination pathname={base} params={{ branch: branchFilter, page: page > 1 ? String(page) : undefined }} total={agents.total} page={page} pageSize={pageSize} />}
             />
           </section>
 

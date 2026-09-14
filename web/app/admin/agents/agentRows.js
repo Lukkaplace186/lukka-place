@@ -30,5 +30,7 @@ export function toAgentTableRows(rows = []) {
     packageTitle: agent.package_title || null,
     expireLabel: formatDay(agent.expire_date),
     status: agent.status,
+    branchId: agent.branch_id != null ? Number(agent.branch_id) : null,
+    branchName: agent.branch_name || null,
   }));
 }

@@ -15,7 +15,7 @@ const CELL =
  * tap log and a follow-up queue) without their pages fighting over `?page=`.
  */
 export default async function Pagination({
-  pathname, params, total, page, pageSize, pageParam = 'page', sizeParam = 'size',
+  pathname, params, total, page, pageSize, pageParam = 'page', sizeParam = 'size', cursors = null,
 }) {
   const t = await getT();
   const pages = totalPages(total, pageSize);
@@ -25,6 +25,13 @@ export default async function Pagination({
   const pageHref = (n) => {
     const next = { ...params, [pageParam]: n };
     return buildHref(pathname, next, { [pageParam]: n === 1 ? '' : n });
+  };
+  // Tables that support keyset paging (lib/adminPagination.js) hand over the
+  // cursors of the page on screen: the arrows seek from them, the numbered
+  // buttons still jump by offset. Page 1 never needs a cursor.
+  const stepHref = (n, cursorKey, cursor) => {
+    if (!cursor || n === 1) return pageHref(n);
+    return buildHref(pathname, { ...params, [pageParam]: n }, { [pageParam]: n, [cursorKey]: cursor });
   };
 
   return (
@@ -59,7 +66,7 @@ export default async function Pagination({
         {pages > 1 ? (
           <div className="flex items-center gap-1">
             {page > 1 ? (
-              <Link href={pageHref(page - 1)} scroll={false} className={`${CELL} border-line bg-surface text-ink-70 hover:border-blue`} aria-label={t('admin.table.previous')}>
+              <Link href={stepHref(page - 1, 'before', cursors?.prev)} scroll={false} className={`${CELL} border-line bg-surface text-ink-70 hover:border-blue`} aria-label={t('admin.table.previous')}>
                 <ChevronLeft strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
               </Link>
             ) : (
@@ -83,7 +90,7 @@ export default async function Pagination({
               ),
             )}
             {page < pages ? (
-              <Link href={pageHref(page + 1)} scroll={false} className={`${CELL} border-line bg-surface text-ink-70 hover:border-blue`} aria-label={t('admin.table.next')}>
+              <Link href={stepHref(page + 1, 'after', cursors?.next)} scroll={false} className={`${CELL} border-line bg-surface text-ink-70 hover:border-blue`} aria-label={t('admin.table.next')}>
                 <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
               </Link>
             ) : (

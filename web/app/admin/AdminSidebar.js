@@ -59,6 +59,9 @@ const BADGE_FOR = {
   '/admin/viewings': 'escalatedViewings',
   '/admin/conversations': 'humanConversations',
   '/admin/subscriptions': 'pendingPlanRequests',
+  // Open ops incidents (services/opsAlerts.js) — where an alert lands when no
+  // desk number is configured to receive it.
+  '/admin/health': 'openAlerts',
 };
 
 export default function AdminSidebar({ mobile = false, role }) {

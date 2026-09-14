@@ -44,9 +44,11 @@ function StatusIcon({ level }) {
  * failures. A "last inbound WhatsApp message" that is many hours old is how a
  * broken webhook shows up before a customer complains.
  *
- * This page reports; it does not alert. Pushing alerts needs a destination
- * (OPS_WHATSAPP_NUMBER is unset on production), and an alert that fires into
- * nothing is worse than none.
+ * Alerts: the engine's ops-health-alerts sweep (services/opsAlerts.js) turns
+ * the same report into incidents — opened once, resolved once — and WhatsApps
+ * the desk when OPS_WHATSAPP_NUMBER is set. Open incidents always show here and
+ * as the Health badge in the sidebar, so an unset number degrades to "visible
+ * in the console", never to "fired into nothing".
  */
 export default async function AdminHealthPage() {
   const t = await getT();
@@ -109,6 +111,58 @@ export default async function AdminHealthPage() {
           </div>
         ))}
       </div>
+
+      {health?.alerts ? (
+        <section className="flex flex-col gap-2">
+          <div>
+            <h2 className="u-title-card text-ink">{t('admin.health.alertsTitle')}</h2>
+            <p className="u-micro text-ink-45">
+              {health.config.opsNumberConfigured ? t('admin.health.alertsHintSent') : t('admin.health.alertsHintConsole')}
+            </p>
+          </div>
+          {health.alerts.open.length === 0 ? (
+            <div className="u-card flex items-center gap-3 rounded-card bg-surface p-4">
+              <StatusIcon level="ok" />
+              <span className="u-micro text-ink-70">{t('admin.health.noOpenAlerts')}</span>
+            </div>
+          ) : (
+            <ul className="flex flex-col gap-2">
+              {health.alerts.open.map((alert) => (
+                <li key={alert.id} className="u-card flex items-start gap-3 rounded-card bg-surface p-4">
+                  <StatusIcon level={alert.severity === 'critical' ? 'down' : 'warn'} />
+                  <div className="min-w-0">
+                    <div className="u-micro-strong break-words text-ink">{alert.message}</div>
+                    <div className="u-micro text-ink-45">
+                      {t('admin.health.alertOpened', { time: formatKinshasa(alert.opened_at) })}
+                      {' · '}
+                      {alert.notified_at
+                        ? t('admin.health.alertNotified', { time: formatKinshasa(alert.notified_at) })
+                        : alert.notify_error
+                          ? t('admin.health.alertNotifyFailed', { error: alert.notify_error })
+                          : t('admin.health.alertNotSent')}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+          {health.alerts.recent.length > 0 ? (
+            <details className="u-card rounded-card bg-surface p-4">
+              <summary className="u-micro-strong cursor-pointer text-ink">{t('admin.health.recentAlerts', { count: health.alerts.recent.length })}</summary>
+              <ul className="mt-2 flex flex-col divide-y divide-line">
+                {health.alerts.recent.map((alert) => (
+                  <li key={alert.id} className="u-micro py-2 text-ink-70">
+                    <div className="break-words text-ink">{alert.message}</div>
+                    <div className="text-ink-45">
+                      {t('admin.health.alertWindow', { opened: formatKinshasa(alert.opened_at), resolved: formatKinshasa(alert.resolved_at) })}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
+        </section>
+      ) : null}
 
       {health ? (
         <>

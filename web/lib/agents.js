@@ -1,6 +1,7 @@
 import 'server-only';
 import { createHash, randomBytes } from 'node:crypto';
 import { getPool } from './db';
+import { keysetClause, pageCursors } from './adminPagination';
 import { generateOtpCode, hashOtp, otpExpiresAt } from './agentAuth';
 import { sendWhatsAppMessage, claimListingsForPhone } from './adminApi';
 import { sendOtpViaWhatsApp, otpFallbackText } from './otpDelivery';
@@ -113,6 +114,15 @@ const AGENT_SORTS = {
 };
 export const ADMIN_AGENT_SORTS = Object.keys(AGENT_SORTS);
 
+const AGENT_CREATED_KEY = "COALESCE(a.created_at, '-infinity')";
+
+// An agent's branch, only while the branch is live AND belongs to the agent's
+// current agency — an agent moved to another agency leaves their old branch
+// behind rather than showing up in someone else's office.
+const AGENT_BRANCH_FROM = `FROM agency_branch_agents ba
+  JOIN agency_branches b ON b.id = ba.branch_id AND b.archived_at IS NULL AND b.vendor_id = a.vendor_id
+  WHERE ba.agent_id = a.id`;
+
 /** `%`/`_` typed in an admin search box are text, not wildcards. */
 function ilikeTerm(value) {
   const term = String(value ?? '').trim();
@@ -147,7 +157,9 @@ function agentSearchWhere(q, params) {
  * @param {{q?: string, verified?: 'yes'|'no', status?: '0'|'1', sort?: string, limit?: number, offset?: number}} [options]
  * @returns {Promise<{total: number, rows: object[], summary: {total: number, verified: number, active: number}}>}
  */
-export async function listAgentsForAdmin({ q, verified, status, vendorId, sort = 'newest', limit = 25, offset = 0 } = {}) {
+export async function listAgentsForAdmin({
+  q, verified, status, vendorId, branchId, withBranch = false, sort = 'newest', limit = 25, offset = 0, cursor = null,
+} = {}) {
   const pool = getPool();
   const params = [];
   const where = [];
@@ -163,20 +175,37 @@ export async function listAgentsForAdmin({ q, verified, status, vendorId, sort =
     params.push(Number(vendorId));
     where.push(`a.vendor_id = $${params.length}`);
   }
+  if (branchId === 'none') {
+    where.push(`NOT EXISTS (SELECT 1 ${AGENT_BRANCH_FROM})`);
+  } else if (branchId != null && /^\d+$/.test(String(branchId))) {
+    params.push(Number(branchId));
+    where.push(`EXISTS (SELECT 1 ${AGENT_BRANCH_FROM} AND ba.branch_id = $${params.length})`);
+  }
   const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
-  const orderBy = AGENT_SORTS[sort] || AGENT_SORTS.newest;
   const pageLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 25, 1), 100);
   const pageOffset = Math.max(Number.parseInt(offset, 10) || 0, 0);
+  // Only "newest" is a (timestamp, id) order a cursor can seek on. Its keyset
+  // expression sorts a NULL created_at last, exactly as NULLS LAST did.
+  const keysetable = !AGENT_SORTS[sort] || sort === 'newest';
+  const keyset = keysetable
+    ? keysetClause(cursor, { ts: AGENT_CREATED_KEY, id: 'a.id', descending: true }, params.length + 1)
+    : { condition: null, values: [], orderBy: AGENT_SORTS[sort], reverse: false };
+  const pageWhere = [...where, keyset.condition].filter(Boolean);
+  const pageParams = [...params, ...keyset.values];
+  const branchFields = withBranch
+    ? `, (SELECT b.id ${AGENT_BRANCH_FROM}) AS branch_id, (SELECT b.name ${AGENT_BRANCH_FROM}) AS branch_name`
+    : '';
 
   const [countResult, pageResult, summaryResult] = await Promise.all([
     pool.query(`SELECT COUNT(*)::int AS total ${AGENT_SEARCH_JOINS} ${whereClause}`, params),
     pool.query(
-      `SELECT ${AGENT_FIELDS}, a.direct_routing_enabled, a.serviced_communes, a.created_at, ${ADMIN_AGENT_NAME}
+      `SELECT ${AGENT_FIELDS}, a.direct_routing_enabled, a.serviced_communes, a.created_at,
+              ${AGENT_CREATED_KEY}::text AS cursor_ts, ${ADMIN_AGENT_NAME}${branchFields}
        ${AGENT_JOINS}
-       ${whereClause}
-       ORDER BY ${orderBy}
-       LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-      [...params, pageLimit, pageOffset],
+       ${pageWhere.length ? `WHERE ${pageWhere.join(' AND ')}` : ''}
+       ORDER BY ${keyset.orderBy}
+       LIMIT $${pageParams.length + 1} OFFSET $${pageParams.length + 2}`,
+      [...pageParams, pageLimit, keyset.condition ? 0 : pageOffset],
     ),
     pool.query(
       `SELECT COUNT(*)::int AS total,
@@ -185,9 +214,11 @@ export async function listAgentsForAdmin({ q, verified, status, vendorId, sort =
        FROM agents`,
     ),
   ]);
+  const rows = keyset.reverse ? [...pageResult.rows].reverse() : pageResult.rows;
   return {
     total: countResult.rows[0]?.total ?? 0,
-    rows: pageResult.rows,
+    rows,
+    cursors: keysetable ? pageCursors(rows) : null,
     summary: summaryResult.rows[0] || { total: 0, verified: 0, active: 0 },
   };
 }

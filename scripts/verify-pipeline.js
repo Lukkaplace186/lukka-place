@@ -6273,9 +6273,9 @@ console.log('\n2. services/openai.js');
     );
   });
 
-  check('the weekly sweep and both speed-to-lead sweeps are registered', () => {
+  check('the weekly sweep, both speed-to-lead sweeps and the ops alert sweep are registered', () => {
     const names = sched.JOBS.map((j) => j.name);
-    assert.deepStrictEqual(names, ['search-alerts-weekly', 'viewing-sla', 'viewing-checkin']);
+    assert.deepStrictEqual(names, ['search-alerts-weekly', 'viewing-sla', 'viewing-checkin', 'ops-health-alerts']);
   });
 
   check('a malformed job is refused rather than silently never running', () => {
@@ -7331,6 +7331,118 @@ console.log('\n2. services/openai.js');
     assert.match(moderationMessages.rejected(12, {}), /quelques ajustements/));
   check("an unknown reason code is not echoed to the agent", () =>
     assert.doesNotMatch(moderationMessages.rejected(12, { code: 'DROP TABLE' }), /DROP/));
+
+  // -------------------------------------------------------------------------
+  // 29. Pushed operational alerts (services/opsAlerts.js)
+  //
+  // One message per incident: opened once, resolved once, never repeated per
+  // sweep; nothing marked notified that was not sent; an incident opened while
+  // OPS_WHATSAPP_NUMBER was unset is delivered once a number exists.
+  // -------------------------------------------------------------------------
+
+  console.log('\n29. Pushed operational alerts');
+
+  const opsAlerts = require('../services/opsAlerts');
+  const HOUR = 60 * 60 * 1000;
+  const baseHealth = {
+    jobs: [], traffic: { lastInboundMessageAt: null, lastListingAt: null }, failures: { failedPushes24h: 0 },
+  };
+  const at = Date.parse('2026-09-15T12:00:00Z');
+
+  check('a failing job alerts; a job that succeeded since, and the alert sweep itself, do not', () => {
+    const keys = opsAlerts.evaluateHealth({
+      ...baseHealth,
+      jobs: [
+        { name: 'broken', last_error: 'boom', last_run_at: '2026-09-15 11:00:00', succeeded_at: '2026-09-14 11:00:00' },
+        { name: 'recovered', last_error: 'old', last_run_at: '2026-09-15 11:00:00', succeeded_at: '2026-09-15 11:00:00' },
+        { name: opsAlerts.OPS_ALERT_JOB, last_error: 'self', last_run_at: '2026-09-15 11:00:00', succeeded_at: null },
+      ],
+    }, { now: at }).map((a) => a.key);
+    assert.deepStrictEqual(keys, ['job:broken']);
+  });
+  check('24 h without inbound traffic alerts; a database that never had traffic does not', () => {
+    const silent = (lastInboundMessageAt) => opsAlerts.evaluateHealth(
+      { ...baseHealth, traffic: { lastInboundMessageAt, lastListingAt: null } }, { now: at },
+    ).map((a) => a.key);
+    assert.deepStrictEqual(silent('2026-09-14 06:00:00'), ['traffic:silent']);
+    assert.deepStrictEqual(silent('2026-09-15 09:00:00'), []);
+    assert.deepStrictEqual(silent(null), [], 'a fresh install is not an outage');
+  });
+  check('refused agency pushes alert from the threshold, and unreachable Postgres is critical', () => {
+    assert.deepStrictEqual(opsAlerts.evaluateHealth({ ...baseHealth, failures: { failedPushes24h: 2 } }, { now: at }), []);
+    assert.strictEqual(opsAlerts.evaluateHealth({ ...baseHealth, failures: { failedPushes24h: 3 } }, { now: at })[0].key, 'sends:failed-pushes');
+    const pg = opsAlerts.evaluateHealth(baseHealth, { now: at, postgres: { configured: true, ok: false, error: 'ECONNREFUSED' } });
+    assert.strictEqual(pg[0].key, 'postgres:unreachable');
+    assert.strictEqual(pg[0].severity, 'critical');
+    assert.deepStrictEqual(opsAlerts.evaluateHealth(baseHealth, { now: at, postgres: { configured: false } }), []);
+  });
+
+  const savedOpsForAlerts = process.env.OPS_WHATSAPP_NUMBER;
+  const opsSends = [];
+  const okSend = async (to, text) => { opsSends.push({ to, text }); };
+  const pgDown = async () => ({ configured: true, ok: false, error: 'ECONNREFUSED' });
+  const pgUp = async () => ({ configured: true, ok: true });
+  const openKeys = () => dbService.listOpenOpsAlerts().map((a) => a.alert_key);
+  const baseline = openKeys();
+
+  delete process.env.OPS_WHATSAPP_NUMBER;
+  await checkAsync('with no desk number an incident opens for the console and nothing is sent', async () => {
+    const result = await opsAlerts.runOpsAlertSweep({ now: Date.now(), send: okSend, postgresCheck: pgDown });
+    assert.ok(result.opened.includes('postgres:unreachable'));
+    assert.strictEqual(opsSends.length, 0);
+    const row = dbService.listOpenOpsAlerts().find((a) => a.alert_key === 'postgres:unreachable');
+    assert.strictEqual(row.notified_at, null, 'nothing may be marked notified that was not sent');
+  });
+  await checkAsync('a condition that persists does not open a second incident', async () => {
+    const result = await opsAlerts.runOpsAlertSweep({ now: Date.now(), send: okSend, postgresCheck: pgDown });
+    assert.deepStrictEqual(result.opened, []);
+    assert.strictEqual(openKeys().filter((k) => k === 'postgres:unreachable').length, 1);
+  });
+  const workQueuesWithAlert = await adminRequest('GET', '/admin/work-queues');
+  const healthWithAlert = await adminRequest('GET', '/admin/health');
+  check('open incidents reach the console: the work-queue badge and the health report', () => {
+    assert.ok(workQueuesWithAlert.body.counts.openAlerts >= 1);
+    assert.ok(healthWithAlert.body.alerts.open.some((a) => a.alert_key === 'postgres:unreachable'));
+  });
+
+  process.env.OPS_WHATSAPP_NUMBER = '243815550000';
+  await checkAsync('once a desk number exists, an incident still open is sent exactly once', async () => {
+    const sendsBefore = opsSends.length;
+    await opsAlerts.runOpsAlertSweep({ now: Date.now(), send: okSend, postgresCheck: pgDown });
+    const pgSends = opsSends.slice(sendsBefore).filter((s) => /Postgres/.test(s.text));
+    assert.strictEqual(pgSends.length, 1);
+    assert.strictEqual(pgSends[0].to, '243815550000');
+    const again = opsSends.length;
+    await opsAlerts.runOpsAlertSweep({ now: Date.now(), send: okSend, postgresCheck: pgDown });
+    assert.strictEqual(opsSends.slice(again).filter((s) => /Postgres/.test(s.text)).length, 0, 'never once per sweep');
+  });
+  await checkAsync('a cleared condition resolves the incident and tells the desk it is fixed', async () => {
+    const sendsBefore = opsSends.length;
+    const result = await opsAlerts.runOpsAlertSweep({ now: Date.now(), send: okSend, postgresCheck: pgUp });
+    assert.ok(result.resolved.includes('postgres:unreachable'));
+    assert.ok(opsSends.slice(sendsBefore).some((s) => /résolu/.test(s.text) && /Postgres/.test(s.text)));
+    assert.ok(!openKeys().includes('postgres:unreachable'));
+  });
+  await checkAsync('a failed send is recorded, not marked notified, and retried hourly rather than every sweep', async () => {
+    const failingSend = async () => { throw new Error('131047 re-engagement'); };
+    const start = Date.now();
+    await opsAlerts.runOpsAlertSweep({ now: start, send: failingSend, postgresCheck: pgDown });
+    let row = dbService.listOpenOpsAlerts().find((a) => a.alert_key === 'postgres:unreachable');
+    assert.strictEqual(row.notified_at, null);
+    assert.match(row.notify_error, /131047/);
+    const sendsBefore = opsSends.length;
+    await opsAlerts.runOpsAlertSweep({ now: start + 10 * 60 * 1000, send: okSend, postgresCheck: pgDown });
+    assert.strictEqual(opsSends.length, sendsBefore, 'ten minutes later is too soon to retry');
+    await opsAlerts.runOpsAlertSweep({ now: start + 2 * HOUR, send: okSend, postgresCheck: pgDown });
+    row = dbService.listOpenOpsAlerts().find((a) => a.alert_key === 'postgres:unreachable');
+    assert.ok(row.notified_at, 'an hour on, the retry goes out');
+    assert.strictEqual(row.notify_error, null);
+    await opsAlerts.runOpsAlertSweep({ now: start + 2 * HOUR, send: okSend, postgresCheck: pgUp });
+  });
+  check('the sweep leaves no stray open incident behind', () =>
+    assert.deepStrictEqual(openKeys().filter((k) => !baseline.includes(k) && k === 'postgres:unreachable'), []));
+  if (savedOpsForAlerts === undefined) delete process.env.OPS_WHATSAPP_NUMBER;
+  else process.env.OPS_WHATSAPP_NUMBER = savedOpsForAlerts;
 
   // -------------------------------------------------------------------------
   console.log(`\n${'-'.repeat(60)}`);

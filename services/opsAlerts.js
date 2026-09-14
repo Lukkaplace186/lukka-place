@@ -108,11 +108,12 @@ function evaluateHealth(health, { now = Date.now(), postgres = null } = {}) {
     .sort((a, b) => b - a)[0];
   if (newest && now - newest.getTime() > silenceHours * HOUR_MS) {
     const hours = Math.floor((now - newest.getTime()) / HOUR_MS);
-    alerts.push({
-      key: 'traffic:silent',
-      severity: 'warning',
-      message: `Aucune activité WhatsApp enregistrée depuis ${hours} h (ni webhook, ni annonce, ni message client). Vérifier que le webhook Chakra arrive toujours.`,
-    });
+    // Say only what was observed: before the first recorded delivery, nothing
+    // is known about webhooks that arrived without producing a stored row.
+    const message = health?.traffic?.lastWebhookAt
+      ? `Aucun webhook WhatsApp reçu depuis ${hours} h. Vérifier que le webhook Chakra arrive toujours.`
+      : `Aucune annonce ni message client enregistré depuis ${hours} h, et aucun webhook reçu depuis que le moteur les enregistre. Vérifier que le webhook Chakra arrive toujours.`;
+    alerts.push({ key: 'traffic:silent', severity: 'warning', message });
   }
 
   const failedPushes = Number(health?.failures?.failedPushes24h) || 0;

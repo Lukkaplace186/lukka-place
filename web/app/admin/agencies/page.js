@@ -95,7 +95,7 @@ export default async function AdminAgenciesPage({ searchParams }) {
             list.rows.map((agency) => (
               <tr key={agency.id} className={TR_DENSE}>
                 <td className={TD_DENSE}>
-                  <Link href={`/admin/agencies/${agency.id}`} className="font-semibold text-ink hover:text-blue-deep hover:underline">{agency.username}</Link>
+                  <Link href={`/admin/agencies/${agency.id}`} className="font-semibold text-ink hover:text-blue-deep hover:underline">{agency.name}</Link>
                   <div className="text-ink-45">{[agency.email, agency.phone ? `+${agency.phone}` : null].filter(Boolean).join(' · ') || `#${agency.id}`}</div>
                 </td>
                 <td className={TD_DENSE_RIGHT}>

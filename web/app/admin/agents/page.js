@@ -131,7 +131,7 @@ export default async function AdminAgentsPage({ searchParams }) {
 
       <AgentsTable
         rows={toAgentTableRows(list?.rows)}
-        vendors={vendors.map((vendor) => ({ id: vendor.id, username: vendor.username }))}
+        vendors={vendors.map((vendor) => ({ id: vendor.id, username: vendor.name }))}
         footer={list ? <Pagination pathname="/admin/agents" params={params} total={list.total} page={page} pageSize={pageSize} cursors={list.cursors} /> : null}
       />
     </div>

@@ -96,7 +96,14 @@ function evaluateHealth(health, { now = Date.now(), postgres = null } = {}) {
   }
 
   const silenceHours = positiveEnv('OPS_ALERT_SILENCE_HOURS', 24);
-  const newest = [toInstant(health?.traffic?.lastInboundMessageAt), toInstant(health?.traffic?.lastListingAt)]
+  // Newest of: any webhook delivery at all, a stored listing, a stored
+  // customer message. The marker only exists from the deploy that added it, so
+  // the two stored signals still count for the time before it.
+  const newest = [
+    toInstant(health?.traffic?.lastWebhookAt),
+    toInstant(health?.traffic?.lastInboundMessageAt),
+    toInstant(health?.traffic?.lastListingAt),
+  ]
     .filter(Boolean)
     .sort((a, b) => b - a)[0];
   if (newest && now - newest.getTime() > silenceHours * HOUR_MS) {
@@ -104,7 +111,7 @@ function evaluateHealth(health, { now = Date.now(), postgres = null } = {}) {
     alerts.push({
       key: 'traffic:silent',
       severity: 'warning',
-      message: `Aucun message WhatsApp reçu depuis ${hours} h. Vérifier que le webhook Chakra arrive toujours.`,
+      message: `Aucune activité WhatsApp enregistrée depuis ${hours} h (ni webhook, ni annonce, ni message client). Vérifier que le webhook Chakra arrive toujours.`,
     });
   }
 

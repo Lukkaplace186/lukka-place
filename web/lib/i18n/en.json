@@ -2098,7 +2098,8 @@
       "alertNotSent": "not sent",
       "alertNotifyFailed": "sending failed: {error}",
       "recentAlerts": "Resolved incidents ({count})",
-      "alertWindow": "{opened} → {resolved}"
+      "alertWindow": "{opened} → {resolved}",
+      "lastWebhook": "Last WhatsApp webhook"
     },
     "live": {
       "newItems": "New items — refresh"

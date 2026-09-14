@@ -7376,6 +7376,15 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(pg[0].severity, 'critical');
     assert.deepStrictEqual(opsAlerts.evaluateHealth(baseHealth, { now: at, postgres: { configured: false } }), []);
   });
+  check('a recent webhook delivery keeps the silence alert quiet even when nothing was stored', () => {
+    const alerts = opsAlerts.evaluateHealth({
+      ...baseHealth,
+      traffic: { lastWebhookAt: '2026-09-15T11:30:00.000Z', lastInboundMessageAt: '2026-09-12 06:00:00', lastListingAt: null },
+    }, { now: at });
+    assert.deepStrictEqual(alerts, [], 'a status callback proves the webhook arrives');
+  });
+  check('every webhook delivery above was recorded as traffic', () =>
+    assert.ok(dbService.getEngineHealth().traffic.lastWebhookAt, 'the webhook route must touch the marker'));
 
   const savedOpsForAlerts = process.env.OPS_WHATSAPP_NUMBER;
   const opsSends = [];

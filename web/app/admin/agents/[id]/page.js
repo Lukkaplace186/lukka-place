@@ -70,7 +70,7 @@ export default async function AdminAgentDetailPage({ params, searchParams }) {
   const base = `/admin/agents/${agent.id}`;
 
   const displayName =
-    [agent.first_name, agent.last_name].filter(Boolean).join(' ') || agent.agency_name || agent.vendor_username || `Agent #${agent.id}`;
+    [agent.first_name, agent.last_name].filter(Boolean).join(' ') || agent.agency_name || agent.vendor_name || `Agent #${agent.id}`;
 
   let content = null;
 
@@ -274,7 +274,7 @@ export default async function AdminAgentDetailPage({ params, searchParams }) {
           <span className="u-tabular">{agent.phone ? `+${agent.phone}` : '—'}</span>
           {agent.vendor_id ? (
             <Link href={`/admin/agencies/${agent.vendor_id}`} className="font-semibold text-blue-deep hover:underline">
-              {agent.vendor_username || agent.agency_name}
+              {agent.vendor_name}
             </Link>
           ) : (
             <span>{agent.agency_name || t('admin.agents.noAgency')}</span>

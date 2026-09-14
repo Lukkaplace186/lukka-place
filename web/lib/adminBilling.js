@@ -1,5 +1,6 @@
 import 'server-only';
 import { getPool } from './db';
+import { vendorNameSql } from './vendorName';
 
 /**
  * Plans and payments for the admin console, over `memberships` — which is this
@@ -36,7 +37,7 @@ export async function listMembershipsForAdmin({ view = 'expiring', q, packageId,
   const term = String(q || '').trim();
   if (term) {
     params.push(`%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
-    where.push(`(v.username ILIKE $${params.length} OR COALESCE(mem.transaction_id, '') ILIKE $${params.length})`);
+    where.push(`(v.username ILIKE $${params.length} OR EXISTS (SELECT 1 FROM agents an WHERE an.vendor_id = v.id AND an.agency_name ILIKE $${params.length}) OR COALESCE(mem.transaction_id, '') ILIKE $${params.length})`);
   }
   if (packageId && Number.isFinite(Number(packageId))) {
     params.push(Number(packageId));
@@ -53,7 +54,7 @@ export async function listMembershipsForAdmin({ view = 'expiring', q, packageId,
       `SELECT mem.id, mem.status, mem.is_trial, mem.price, mem.currency, mem.currency_symbol, mem.payment_method,
               mem.transaction_id, mem.start_date, mem.expire_date, mem.created_at, mem.vendor_id,
               pkg.id AS package_id, pkg.title AS package_title, pkg.term AS package_term,
-              v.username AS agency_name,
+              ${vendorNameSql('v')} AS agency_name,
               (mem.expire_date - CURRENT_DATE) AS days_left
        ${from} ${whereClause}
        ORDER BY ${VIEW_ORDER[resolved]}
@@ -106,7 +107,7 @@ export async function getMembershipReceipt(id) {
     `SELECT mem.id, mem.status, mem.is_trial, mem.price, mem.currency, mem.currency_symbol, mem.payment_method,
             mem.transaction_id, mem.start_date, mem.expire_date, mem.created_at, mem.vendor_id,
             pkg.title AS package_title, pkg.term AS package_term,
-            v.username AS agency_name, v.email AS agency_email, v.phone AS agency_phone
+            ${vendorNameSql('v')} AS agency_name, v.email AS agency_email, v.phone AS agency_phone
      FROM memberships mem
      LEFT JOIN packages pkg ON pkg.id = mem.package_id
      LEFT JOIN vendors v ON v.id = mem.vendor_id

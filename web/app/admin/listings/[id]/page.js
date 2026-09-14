@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { displayableAgencyName } from '@/lib/agentIdentity';
 import { notFound } from 'next/navigation';
 import { ArrowLeft, ExternalLink } from 'lucide-react';
 import { getListingForAdmin, getCategoriesForAdmin } from '@/lib/adminListings';
@@ -102,7 +103,7 @@ export default async function AdminListingEditPage({ params }) {
             Agent :{' '}
             {listing.agent_id ? (
               <Link href={`/admin/agents?q=${listing.agent_phone || ''}`} className="font-semibold text-blue-deep hover:underline">
-                {listing.agency_name || listing.agent_username || `#${listing.agent_id}`}
+                {listing.agency_name || displayableAgencyName(listing.agent_username) || `#${listing.agent_id}`}
               </Link>
             ) : (
               <span className="font-semibold text-warning">{t('admin.actions.unassigned')}</span>

@@ -47,7 +47,7 @@ const DATASETS = {
     fetch: (p) => collect(({ limit, offset, cursor }) => listAgentsForAdmin({ q: p.get('q'), verified: p.get('verified'), status: p.get('status'), sort: p.get('sort') || 'newest', limit, offset, cursor })),
     columns: [
       ['id', (r) => r.id], ['name', (r) => r.display_name], ['email', (r) => r.email], ['phone', (r) => r.phone],
-      ['phone_verified', (r) => Boolean(r.phone_verified_at)], ['status', (r) => r.status], ['agency', (r) => r.vendor_username],
+      ['phone_verified', (r) => Boolean(r.phone_verified_at)], ['status', (r) => r.status], ['agency', (r) => r.vendor_name],
       ['listings_total', (r) => r.listing_count], ['listings_live', (r) => r.live_listing_count], ['package', (r) => r.package_title],
       ['package_expires', (r) => iso(r.expire_date)], ['primary_communes', (r) => (r.primary_communes || []).join('|')], ['created_at', (r) => iso(r.created_at)],
     ],
@@ -77,7 +77,7 @@ const DATASETS = {
     permission: 'data.export',
     fetch: (p) => collect(({ limit, offset }) => listAgenciesForAdmin({ q: p.get('q'), plan: p.get('plan'), sort: p.get('sort') || 'name', limit, offset })),
     columns: [
-      ['id', (r) => r.id], ['agency', (r) => r.username], ['email', (r) => r.email], ['phone', (r) => r.phone], ['agents', (r) => r.agents],
+      ['id', (r) => r.id], ['agency', (r) => r.name], ['email', (r) => r.email], ['phone', (r) => r.phone], ['agents', (r) => r.agents],
       ['verified_agents', (r) => r.verified_agents], ['live_listings', (r) => r.live_listings], ['pending_listings', (r) => r.pending_listings],
       ['package', (r) => r.package_title], ['expires', (r) => iso(r.expire_date)],
     ],

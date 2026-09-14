@@ -2,6 +2,7 @@ import 'server-only';
 import { createHash, randomBytes } from 'node:crypto';
 import { getPool } from './db';
 import { keysetClause, pageCursors } from './adminPagination';
+import { vendorNameSql } from './vendorName';
 import { generateOtpCode, hashOtp, otpExpiresAt } from './agentAuth';
 import { sendWhatsAppMessage, claimListingsForPhone } from './adminApi';
 import { sendOtpViaWhatsApp, otpFallbackText } from './otpDelivery';
@@ -25,6 +26,7 @@ const AGENT_FIELDS = `
   a.id, a.username, a.email, a.phone, a.status, a.vendor_id, a.image, a.primary_communes,
   a.working_hours, a.phone_verified_at,
   v.username AS vendor_username,
+  ${vendorNameSql('v')} AS vendor_name,
   ai.first_name, ai.last_name, ai.address, ai.city,
   p.title AS package_title, p.number_of_property AS listing_limit, p.term AS package_term,
   p.monthly_pitch_limit,
@@ -102,7 +104,8 @@ const AGENT_SEARCH_JOINS = `
 // web/CLAUDE.md). A person's name, else their agency, else the honest id.
 const ADMIN_AGENT_NAME = `COALESCE(
   NULLIF(TRIM(CONCAT_WS(' ', ai.first_name, ai.last_name)), ''),
-  NULLIF(v.username, ''),
+  NULLIF(TRIM(a.agency_name), ''),
+  NULLIF(CASE WHEN v.username ~ '^[+]?[0-9]{7,15}$' THEN NULL ELSE TRIM(v.username) END, ''),
   'Agent #' || a.id
 ) AS display_name`;
 
@@ -351,7 +354,9 @@ export async function getAgentById(id) {
 /** For the agency-reassignment dropdown — real vendors only, no fabricated list. */
 export async function getVendors() {
   const pool = getPool();
-  const { rows } = await pool.query('SELECT id, username, email FROM vendors ORDER BY username');
+  const { rows } = await pool.query(
+    `SELECT v.id, v.username, v.email, ${vendorNameSql('v')} AS name FROM vendors v ORDER BY LOWER(${vendorNameSql('v')}), v.id`,
+  );
   return rows;
 }
 

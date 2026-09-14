@@ -59,7 +59,7 @@ export default async function AdminAgencyDetailPage({ params, searchParams }) {
           <ArrowLeft strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
           {t('admin.agencies.back')}
         </Link>
-        <h1 className="u-title-page mt-2 text-ink">{agency.username}</h1>
+        <h1 className="u-title-page mt-2 text-ink">{agency.name}</h1>
         <p className="u-micro mt-1 text-ink-45">
           {[agency.email, agency.phone ? `+${agency.phone}` : null, `#${agency.id}`].filter(Boolean).join(' · ')}
         </p>
@@ -92,12 +92,12 @@ export default async function AdminAgencyDetailPage({ params, searchParams }) {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="u-title-card text-ink">{t('admin.agencies.rosterTitle')}</h2>
               {can(session?.role, 'agents.bulk') && idsResult.status === 'fulfilled' ? (
-                <AgencyBulkActions agentIds={idsResult.value} agencyName={agency.username} />
+                <AgencyBulkActions agentIds={idsResult.value} agencyName={agency.name} />
               ) : null}
             </div>
             <AgentsTable
               rows={toAgentTableRows(agents.rows)}
-              vendors={(vendorsResult.status === 'fulfilled' ? vendorsResult.value : []).map((vendor) => ({ id: vendor.id, username: vendor.username }))}
+              vendors={(vendorsResult.status === 'fulfilled' ? vendorsResult.value : []).map((vendor) => ({ id: vendor.id, username: vendor.name }))}
               branchContext={canManageBranches && branches?.length ? { vendorId: agency.id, branches: branches.map((branch) => ({ id: branch.id, name: branch.name })) } : null}
               footer={<Pagination pathname={base} params={{ branch: branchFilter, page: page > 1 ? String(page) : undefined }} total={agents.total} page={page} pageSize={pageSize} />}
             />

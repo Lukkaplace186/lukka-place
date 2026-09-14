@@ -21,7 +21,7 @@ export function toAgentTableRows(rows = []) {
     verified: Boolean(agent.phone_verified_at),
     routingEnabled: agent.direct_routing_enabled !== false,
     vendorId: agent.vendor_id ?? null,
-    agency: agent.vendor_username || null,
+    agency: agent.vendor_name || null,
     primary: agent.primary_communes || [],
     serviced: agent.serviced_communes || [],
     live: agent.live_listing_count ?? 0,

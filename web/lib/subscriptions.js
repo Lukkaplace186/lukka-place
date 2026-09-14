@@ -1,5 +1,6 @@
 import 'server-only';
 import { getPool } from './db';
+import { vendorNameSql } from './vendorName';
 
 /**
  * Real memberships/packages data (7 real membership rows, 9 real packages —
@@ -22,7 +23,7 @@ export async function getMemberships() {
     `SELECT mem.id, mem.status, mem.is_trial, mem.price, mem.currency, mem.currency_symbol,
             mem.payment_method, mem.transaction_id, mem.start_date, mem.expire_date, mem.created_at,
             pkg.id AS package_id, pkg.title AS package_title,
-            v.id AS vendor_id, v.username AS vendor_username
+            v.id AS vendor_id, ${vendorNameSql('v')} AS vendor_username
      FROM memberships mem
      LEFT JOIN packages pkg ON pkg.id = mem.package_id
      LEFT JOIN vendors v ON v.id = mem.vendor_id

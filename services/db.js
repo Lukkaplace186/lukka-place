@@ -3210,6 +3210,24 @@ function resolveOpsAlert(id, at = new Date().toISOString()) {
   db.prepare('UPDATE ops_alerts SET resolved_at = ? WHERE id = ? AND resolved_at IS NULL').run(at, id);
 }
 
+/**
+ * Named "last happened at" markers. `whatsapp_webhook` is touched by every
+ * authenticated webhook delivery — a message, a status callback, even a
+ * payload the parser cannot read — because only listings and assistant
+ * messages are stored, and "nothing stored for a day" is not the same claim as
+ * "the webhook stopped arriving". The ops alert sweep's silence check reads it.
+ */
+db.exec('CREATE TABLE IF NOT EXISTS engine_markers (name TEXT PRIMARY KEY, at TEXT NOT NULL)');
+
+function touchEngineMarker(name, at = new Date().toISOString()) {
+  db.prepare('INSERT INTO engine_markers (name, at) VALUES (?, ?) ON CONFLICT(name) DO UPDATE SET at = excluded.at')
+    .run(String(name), at);
+}
+
+function getEngineMarker(name) {
+  return db.prepare('SELECT at FROM engine_markers WHERE name = ?').get(String(name))?.at || null;
+}
+
 /** A successful send sets notified_at; a failed one records only the attempt and the error. */
 function markOpsAlertNotified(id, { at = null, attemptedAt = null, error = null } = {}) {
   db.prepare(
@@ -3259,6 +3277,7 @@ function getEngineHealth() {
   return {
     jobs,
     traffic: {
+      lastWebhookAt: getEngineMarker('whatsapp_webhook'),
       lastListingAt: latest('SELECT MAX(created_at) AS at FROM listings'),
       lastInboundMessageAt: latest("SELECT MAX(created_at) AS at FROM messages WHERE direction = 'inbound'"),
       lastLeadAt: latest('SELECT MAX(created_at) AS at FROM leads'),
@@ -3483,4 +3502,6 @@ module.exports = {
   touchOpsAlert,
   resolveOpsAlert,
   markOpsAlertNotified,
+  touchEngineMarker,
+  getEngineMarker,
 };

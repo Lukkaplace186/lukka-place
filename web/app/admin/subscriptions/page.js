@@ -7,6 +7,7 @@ import {
   PACKAGE_TERMS,
 } from '@/lib/subscriptions';
 import { getVendors } from '@/lib/agents';
+import { displayableAgencyName } from '@/lib/agentIdentity';
 import { searchFeaturableListings } from '@/lib/adminBilling';
 import AgentPicker from '../AgentPicker';
 import {
@@ -82,7 +83,7 @@ export default async function AdminSubscriptionsPage({ searchParams }) {
               <div key={req.id} className="rounded-card border border-line bg-white p-4">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <span className="text-sm font-bold text-ink">
-                    {req.agency_name || req.agent_username || `Agent #${req.agent_id}`}
+                    {req.agency_name || displayableAgencyName(req.agent_username) || `Agent #${req.agent_id}`}
                   </span>
                   <span className="u-tabular text-xs text-ink-45">{req.agent_phone || '—'}</span>
                   <span className="rounded-full bg-blue-tint px-2 py-0.5 text-[0.6875rem] font-bold text-blue-deep">
@@ -488,7 +489,7 @@ export default async function AdminSubscriptionsPage({ searchParams }) {
                             >
                               {vendors.map((v) => (
                                 <option key={v.id} value={v.id}>
-                                  {v.username}
+                                  {v.name}
                                 </option>
                               ))}
                             </select>

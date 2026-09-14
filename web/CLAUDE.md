@@ -316,6 +316,12 @@ row. That is fine at 10 agents and a multi-megabyte page at 30,000.
   payment, numbered `LP-<Kinshasa year>-<membership id>` (derived, not
   stored). Not a tax invoice, and says so; a trial or a row with no amount gets
   no receipt. The console chrome is `print:hidden`.
+- **An agency's name is `vendorNameSql()` (`lib/vendorName.js`), never
+  `vendors.username`.** For agencies created by WhatsApp onboarding or phone
+  signup the username IS the phone digits — the first deploy of the agencies
+  directory, billing ledger and receipts printed "243853580738" as the agency.
+  Order: non-phone username → an agent's `agency_name` → "Agence #id".
+  Covered by `tests/unit/admin-vendor-name.test.js`.
 - **The migration also REVOKEs `anon`/`authenticated` on every `console_*`
   and branch table.** Supabase's default privileges grant those roles access
   to new `public` tables over its REST API; nothing here uses that path, and

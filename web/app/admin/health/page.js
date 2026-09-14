@@ -59,9 +59,10 @@ export default async function AdminHealthPage() {
   ]);
   const health = engine.ok ? engine.value : null;
   const now = renderTime();
+  const lastWebhook = sqliteDate(health?.traffic?.lastWebhookAt);
   const lastInbound = sqliteDate(health?.traffic?.lastInboundMessageAt);
   const lastListing = sqliteDate(health?.traffic?.lastListingAt);
-  const newestTraffic = [lastInbound, lastListing].filter(Boolean).sort((a, b) => b - a)[0] || null;
+  const newestTraffic = [lastWebhook, lastInbound, lastListing].filter(Boolean).sort((a, b) => b - a)[0] || null;
 
   const checks = [
     { key: 'postgres', level: postgres.ok ? (postgres.ms > 1500 ? 'warn' : 'ok') : 'down', detail: postgres.ok ? `${postgres.ms} ms` : postgres.error },
@@ -198,6 +199,7 @@ export default async function AdminHealthPage() {
             <div className="u-card rounded-card bg-surface p-5">
               <h2 className="u-title-card text-ink">{t('admin.health.trafficTitle')}</h2>
               <dl className="u-micro mt-3 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-ink-70">
+                <dt className="text-ink-45">{t('admin.health.lastWebhook')}</dt><dd>{health.traffic.lastWebhookAt ? formatKinshasa(health.traffic.lastWebhookAt) : '—'}</dd>
                 <dt className="text-ink-45">{t('admin.health.lastListing')}</dt><dd>{formatKinshasa(health.traffic.lastListingAt)}</dd>
                 <dt className="text-ink-45">{t('admin.health.lastInbound')}</dt><dd>{formatKinshasa(health.traffic.lastInboundMessageAt)}</dd>
                 <dt className="text-ink-45">{t('admin.health.lastLead')}</dt><dd>{formatKinshasa(health.traffic.lastLeadAt)}</dd>

@@ -26,6 +26,7 @@ const {
   expandAndPublishListing,
   applyListingCorrection,
   getListing,
+  touchEngineMarker,
 } = require('../services/db');
 const chakra = require('../services/chakra');
 const { persistImages } = require('../services/mediaStorage');
@@ -1207,6 +1208,16 @@ router.post('/', verifyWebhookSecret, (req, res) => {
   // Acknowledge first: providers retry deliveries they consider failed, and a
   // gpt-4o call takes longer than the ack window allows.
   res.sendStatus(200);
+
+  // Any authenticated delivery — a message, a status callback, even a payload
+  // this parser cannot read — proves the webhook is arriving. The ops alert
+  // sweep's silence check reads it (services/opsAlerts.js); only listings and
+  // assistant messages are otherwise stored.
+  try {
+    touchEngineMarker('whatsapp_webhook');
+  } catch (err) {
+    console.warn(`[webhook] could not record the delivery time: ${err.message}`);
+  }
 
   const messages = extractInboundMessages(req.body);
 

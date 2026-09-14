@@ -1,5 +1,6 @@
 import 'server-only';
 import { getPool } from './db';
+import { vendorNameSql } from './vendorName';
 import { listConversations } from './adminApi';
 import { searchAgentsForAdmin } from './agents';
 import { can } from './adminRoles';
@@ -51,14 +52,16 @@ async function searchCustomers(term) {
 
 async function searchAgencies(term) {
   const { rows } = await getPool().query(
-    `SELECT v.id, v.username, v.email, (SELECT COUNT(*)::int FROM agents a WHERE a.vendor_id = v.id) AS agents
-     FROM vendors v WHERE v.username ILIKE $1 OR COALESCE(v.email, '') ILIKE $1
-     ORDER BY v.username LIMIT 4`,
+    `SELECT v.id, ${vendorNameSql('v')} AS name, v.email, (SELECT COUNT(*)::int FROM agents a WHERE a.vendor_id = v.id) AS agents
+     FROM vendors v
+     WHERE v.username ILIKE $1 OR COALESCE(v.email, '') ILIKE $1
+        OR EXISTS (SELECT 1 FROM agents an WHERE an.vendor_id = v.id AND an.agency_name ILIKE $1)
+     ORDER BY 2 LIMIT 4`,
     [like(term)],
   );
   return rows.map((row) => ({
     href: `/admin/agencies/${row.id}`,
-    title: row.username,
+    title: row.name,
     subtitle: `${row.agents} agent(s)${row.email ? ` · ${row.email}` : ''}`,
   }));
 }

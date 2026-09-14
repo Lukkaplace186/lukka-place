@@ -1,5 +1,6 @@
 import 'server-only';
 import { getPool } from './db';
+import { vendorNameSql } from './vendorName';
 
 /**
  * Agencies (`vendors`) for the admin console. At 30k agents the team manages
@@ -11,7 +12,7 @@ import { getPool } from './db';
  */
 
 const SORTS = {
-  name: 'LOWER(v.username) ASC, v.id ASC',
+  name: `LOWER(${vendorNameSql('v')}) ASC, v.id ASC`,
   newest: 'v.created_at DESC NULLS LAST, v.id DESC',
   agents: 'agents DESC, v.id ASC',
   listings: 'live_listings DESC, v.id ASC',
@@ -19,7 +20,7 @@ const SORTS = {
 export const AGENCY_SORTS = Object.keys(SORTS);
 
 const AGENCY_FIELDS = `
-  v.id, v.username, v.email, v.phone, v.status, v.created_at,
+  v.id, v.username, ${vendorNameSql('v')} AS name, v.email, v.phone, v.status, v.created_at,
   (SELECT COUNT(*)::int FROM agents a WHERE a.vendor_id = v.id) AS agents,
   (SELECT COUNT(*)::int FROM agents a WHERE a.vendor_id = v.id AND a.phone_verified_at IS NOT NULL) AS verified_agents,
   (SELECT COUNT(*)::int FROM properties p JOIN agents a ON a.id = p.agent_id
@@ -48,7 +49,7 @@ export async function listAgenciesForAdmin({ q, plan, sort = 'name', limit = 25,
     const n = params.length;
     const digits = term.replace(/\D/g, '');
     params.push(digits.length >= 3 ? `%${digits}%` : '');
-    where.push(`(v.username ILIKE $${n} OR COALESCE(v.email, '') ILIKE $${n} OR ($${n + 1} <> '' AND COALESCE(v.phone, '') LIKE $${n + 1}))`);
+    where.push(`(v.username ILIKE $${n} OR EXISTS (SELECT 1 FROM agents an WHERE an.vendor_id = v.id AND an.agency_name ILIKE $${n}) OR COALESCE(v.email, '') ILIKE $${n} OR ($${n + 1} <> '' AND COALESCE(v.phone, '') LIKE $${n + 1}))`);
   }
   if (plan === 'active') where.push('m.expire_date IS NOT NULL');
   if (plan === 'none') where.push('m.expire_date IS NULL');

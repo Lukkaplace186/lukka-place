@@ -1,6 +1,7 @@
 import 'server-only';
 import { getPool } from './db';
 import { KINSHASA_COMMUNE_CENTROIDS } from './geocoding';
+import { boundsContain, resolveMarkerPosition } from './mapViewport';
 import { AMENITY_GROUPS, AMENITY_KEYWORDS } from './constants';
 import { abbreviationVariants } from './textVariants';
 
@@ -660,6 +661,206 @@ export async function getListingsByIds(ids) {
     [numericIds],
   );
   return rows;
+}
+
+// ---------------------------------------------------------------------------
+// Viewport map — GET /api/listings/map, components/ListingsMap.js
+// ---------------------------------------------------------------------------
+
+/**
+ * `properties.latitude`/`longitude` are TEXT, filled by the engine's
+ * publish-time geocoder (services/geocoding.js), the admin editor, and older
+ * one-off scripts — and TEXT will hold anything. These expressions read a
+ * well-formed decimal and NULL for everything else (an empty string, a
+ * pasted "−4,32"), so one malformed value can never turn a bounding-box read
+ * into a cast error that takes the whole map down.
+ *
+ * The engine's migrations/20260916_properties_geo_index.sql indexes EXACTLY
+ * these expressions, under the same `status = 1 AND approve_status = 1`
+ * predicate. The planner only uses an expression index for an identical
+ * expression, so change one and the index silently stops being used —
+ * tests/unit/map-viewport.test.js compares the two texts.
+ *
+ * `[.]`, not a backslash-dot: this is a JS template literal, where a lone
+ * backslash is eaten before Postgres ever sees it (see AGENCY_NAME_EXPR).
+ */
+export const LAT_EXPR = `(CASE WHEN p.latitude ~ '^-?[0-9]+([.][0-9]+)?$' THEN p.latitude::double precision END)`;
+export const LNG_EXPR = `(CASE WHEN p.longitude ~ '^-?[0-9]+([.][0-9]+)?$' THEN p.longitude::double precision END)`;
+
+/**
+ * Hard ceiling on one map response. Far above what any viewport of Kinshasa
+ * holds today; what it guards against is a zoomed-out view at 30k listings.
+ * Past it the response says `truncated` and the map asks the visitor to zoom
+ * in, rather than shipping megabytes of pins nobody can tell apart.
+ */
+export const MAP_MARKERS_MAX = 2000;
+
+/** How many unlocated ids a response names, for the console warning. */
+const UNLOCATED_IDS_MAX = 50;
+
+// Only what a marker, its hover state and the building drawer need. The
+// preview card fetches the full listing through /api/listings?ids= when a pin
+// is actually tapped — shipping photos and descriptions for every pin in view
+// is exactly the payload this endpoint exists to avoid.
+const MARKER_FIELDS = `
+  p.id, p.price, p.purpose, p.price_period, p.beds, p.bath, p.quartier, p.listing_status,
+  p.parent_building_id, p.building_name,
+  pc.title, pc.slug, pc.address,
+  ${LAT_EXPR} AS lat, ${LNG_EXPR} AS lng,
+  ${COMMUNE_SUBQUERY}
+`;
+
+// The same inner joins as FROM_JOINS, so a map count and a list count for the
+// same filters can never disagree. The agent joins are LEFT/LIMIT 1 there and
+// change no row count, so they are left out here.
+const MARKER_FROM = `
+  FROM properties p
+  JOIN property_contents pc ON pc.property_id = p.id AND pc.language_id = ${CONTENT_LANGUAGE_ID}
+  JOIN property_categories cat ON cat.id = p.category_id
+  JOIN property_category_contents catc ON catc.category_id = cat.id AND catc.language_id = ${CATEGORY_LANGUAGE_ID}
+`;
+
+const LOCATION_FILTER_OPTIONS = ['commune', 'quartier', 'radius'];
+
+function withoutLocationFilters(options) {
+  const next = { ...options };
+  for (const key of LOCATION_FILTER_OPTIONS) delete next[key];
+  return next;
+}
+
+/**
+ * Every listing matching `options` inside `bounds`, as lightweight markers.
+ *
+ * With `bounds`, the location filters (commune / quartier / radius) are
+ * dropped and the box is the area — see lib/mapViewport.js for why. Every
+ * other filter still applies, and so does APPROVED_FILTER, which buildFilters
+ * always puts first.
+ *
+ * Listings with no stored coordinates are read regardless of the box and
+ * placed at their commune's centroid (lib/mapViewport.js's
+ * resolveMarkerPosition), then kept only if that point is in view. That set
+ * shrinks towards zero as the engine geocodes at publish time, which is what
+ * keeps reading it unbounded-by-area affordable.
+ *
+ * @param {Object} options  lib/searchQuery.js's parseListingsSearchParams shape.
+ * @param {{south:number, west:number, north:number, east:number}|null} bounds
+ * @returns {Promise<{markers: Object[], approximate: number, unlocated: number, unlocatedIds: Array<string|number>, truncated: boolean}>}
+ */
+export async function getMapMarkers(options = {}, bounds = null) {
+  const { whereClause, params } = buildFilters(bounds ? withoutLocationFilters(options) : options);
+  const conditions = [whereClause];
+  const values = [...params];
+
+  if (bounds) {
+    values.push(bounds.south, bounds.north, bounds.west, bounds.east);
+    const [s, n, w, e] = [values.length - 3, values.length - 2, values.length - 1, values.length];
+    conditions.push(`(
+      (${LAT_EXPR} BETWEEN $${s} AND $${n} AND ${LNG_EXPR} BETWEEN $${w} AND $${e})
+      OR ${LAT_EXPR} IS NULL OR ${LNG_EXPR} IS NULL
+    )`);
+  }
+
+  values.push(MAP_MARKERS_MAX + 1);
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT ${MARKER_FIELDS} ${MARKER_FROM} WHERE ${conditions.join(' AND ')}
+     ORDER BY p.created_at DESC
+     LIMIT $${values.length}`,
+    values,
+  );
+
+  const truncated = rows.length > MAP_MARKERS_MAX;
+  const markers = [];
+  const unlocatedIds = [];
+  let approximate = 0;
+  let unlocated = 0;
+
+  for (const row of rows.slice(0, MAP_MARKERS_MAX)) {
+    const position = resolveMarkerPosition(row);
+    if (!position) {
+      unlocated += 1;
+      if (unlocatedIds.length < UNLOCATED_IDS_MAX) unlocatedIds.push(row.id);
+      continue;
+    }
+    if (bounds && !boundsContain(bounds, position)) continue;
+    if (position.approximate) approximate += 1;
+
+    markers.push({
+      id: row.id,
+      lat: position.lat,
+      lng: position.lng,
+      approximate: position.approximate,
+      price: row.price,
+      purpose: row.purpose,
+      price_period: row.price_period,
+      beds: row.beds,
+      bath: row.bath,
+      title: row.title,
+      slug: row.slug,
+      address: row.address,
+      quartier: row.quartier,
+      commune: row.commune,
+      listing_status: row.listing_status,
+      parent_building_id: row.parent_building_id,
+      building_name: row.building_name,
+    });
+  }
+
+  return { markers, approximate, unlocated, unlocatedIds, truncated };
+}
+
+/**
+ * The area the map should open on when a search names no place: the box
+ * around every listing matching `options` (location filters included — this
+ * is also the fallback when a named place cannot be geocoded).
+ *
+ * Two aggregate reads, never a row per listing: stored coordinates by
+ * MIN/MAX, and the distinct communes of listings without them, whose
+ * centroids widen the box. `extent: null` when nothing matching can be placed.
+ *
+ * @returns {Promise<{extent: {south:number, west:number, north:number, east:number}|null, total: number}>}
+ */
+export async function getMapExtent(options = {}) {
+  const { whereClause, params } = buildFilters(options);
+  const pool = getPool();
+
+  const [{ rows: boxRows }, { rows: communeRows }] = await Promise.all([
+    pool.query(
+      `SELECT MIN(${LAT_EXPR}) AS south, MAX(${LAT_EXPR}) AS north,
+              MIN(${LNG_EXPR}) AS west, MAX(${LNG_EXPR}) AS east, COUNT(*) AS total
+       ${MARKER_FROM} WHERE ${whereClause}`,
+      params,
+    ),
+    pool.query(
+      `SELECT DISTINCT ${COMMUNE_SUBQUERY}
+       ${MARKER_FROM} WHERE ${whereClause} AND (${LAT_EXPR} IS NULL OR ${LNG_EXPR} IS NULL)`,
+      params,
+    ),
+  ]);
+
+  const box = boxRows[0] || {};
+  const total = Number.parseInt(box.total, 10) || 0;
+  const points = [];
+  if ([box.south, box.north, box.west, box.east].every((v) => v !== null && v !== undefined)) {
+    points.push({ lat: Number(box.south), lng: Number(box.west) }, { lat: Number(box.north), lng: Number(box.east) });
+  }
+  for (const { commune } of communeRows) {
+    const centroid = KINSHASA_COMMUNE_CENTROIDS[commune];
+    if (centroid) points.push(centroid);
+  }
+
+  const valid = points.filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+  if (valid.length === 0) return { extent: null, total };
+
+  return {
+    extent: {
+      south: Math.min(...valid.map((p) => p.lat)),
+      north: Math.max(...valid.map((p) => p.lat)),
+      west: Math.min(...valid.map((p) => p.lng)),
+      east: Math.max(...valid.map((p) => p.lng)),
+    },
+    total,
+  };
 }
 
 /**

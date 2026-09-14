@@ -37,7 +37,7 @@ function buildPageHref(searchParams, page) {
  * seat the map's top edge *underneath* the sticky filter bar, hidden
  * behind it rather than starting where the results column visually does.
  */
-export default function ListingsSplitView({ listings, isMapView, page, totalPages, params, popularCommunes, communes, total }) {
+export default function ListingsSplitView({ listings, isMapView, page, totalPages, params, popularCommunes, communes }) {
   const t = useT();
   const [hoveredId, setHoveredId] = useState(null);
   // A pin's preview card sits over the bottom of the map, exactly where the
@@ -173,15 +173,19 @@ export default function ListingsSplitView({ listings, isMapView, page, totalPage
             box, so the overlay's `top-4`/`bottom-6` land relative to the
             map's own bounds, not the sticky bar or the whole fixed layer. */}
         <div className="relative min-h-0 flex-1">
+          {/* `filterParams` makes this the viewport map: every listing
+              matching the URL's filters inside the visible area, not just
+              this page's 12 cards (see components/ListingsMap.js). */}
           <ResponsiveMapPane
             listings={listings}
+            filterParams={params}
             isMapView={isMapView}
             hoveredId={hoveredId}
             onMarkerHover={setHoveredId}
             onPreviewChange={setPreviewOpen}
             className="h-full w-full"
           />
-          {isMapView ? <MobileMapOverlay shown={listings.length} totalMatching={total} hideListButton={previewOpen} /> : null}
+          {isMapView ? <MobileMapOverlay hideListButton={previewOpen} /> : null}
         </div>
       </div>
     </div>

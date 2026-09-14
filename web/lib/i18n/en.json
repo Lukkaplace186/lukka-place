@@ -448,7 +448,27 @@
     "map": {
       "loading": "Loading the map…",
       "viewDetails": "View details →",
-      "closePreview": "Close preview"
+      "closePreview": "Close preview",
+      "loadError": "The map could not load. Please try again later.",
+      "updating": "Updating the map…",
+      "inArea": {
+        "one": "{count} property in this area",
+        "other": "{count} properties in this area"
+      },
+      "approximate": {
+        "one": "{count} property placed at the centre of its commune (address not geolocated)",
+        "other": "{count} properties placed at the centre of their commune (address not geolocated)"
+      },
+      "unlocated": {
+        "one": "{count} property without a location is not on the map",
+        "other": "{count} properties without a location are not on the map"
+      },
+      "truncated": "Too many properties in this area: zoom in to see them all",
+      "fetchError": "Could not load the properties in this area.",
+      "clusterLabel": {
+        "one": "{count} property — click to zoom",
+        "other": "{count} properties — click to zoom"
+      }
     },
     "alertModal": {
       "intro": "You'll be alerted to new properties matching:",

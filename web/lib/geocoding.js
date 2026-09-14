@@ -141,7 +141,7 @@ export function isLandmarkReference(reference) {
  * `placeResolvedListings` recognise them as co-located and fan them apart.
  */
 export function buildGeocodeQueries(listing) {
-  const commune = inferCommune(listing);
+  const commune = inferListingCommune(listing);
   const landmark = isLandmarkReference(listing?.reference) ? String(listing.reference).trim() : null;
   const tail = [listing?.quartier, commune, 'Kinshasa', 'RD Congo'];
 
@@ -302,7 +302,7 @@ export async function resolveListingBase({ listing, geocoder }) {
   // commune-level pin on one identical point is deliberate: it is exactly what
   // lets placeResolvedListings see them as a group and fan them apart, instead
   // of scattering them onto slightly different "approximate" guesses.
-  const centroid = KINSHASA_COMMUNE_CENTROIDS[inferCommune(listing)];
+  const centroid = KINSHASA_COMMUNE_CENTROIDS[inferListingCommune(listing)];
   if (centroid) {
     return { lat: centroid.lat, lng: centroid.lng, source: 'commune_fallback', precise: false, query: null };
   }
@@ -401,11 +401,19 @@ export async function resolveListingLocation({ listing, geocoder }) {
  * for one of the 24 known commune names before giving up — this is reading
  * data that is already there, not inventing anything.
  */
-function inferCommune(listing) {
+export function inferListingCommune(listing) {
   if (listing?.commune) return listing.commune;
 
+  // "Kinshasa" is skipped: it is both the city and one of the 24 communes, and
+  // every address here ends with the city — so it matched first, ahead of the
+  // real commune, and "Ngiri-Ngiri, Kinshasa" resolved to Kinshasa commune.
+  // Same exclusion scripts/backfill-commune-tags.js applies (web/CLAUDE.md).
   const haystack = `${listing?.address || ''} ${listing?.quartier || ''}`.toLowerCase();
-  return Object.keys(KINSHASA_COMMUNE_CENTROIDS).find((commune) => haystack.includes(commune.toLowerCase())) || null;
+  return (
+    Object.keys(KINSHASA_COMMUNE_CENTROIDS)
+      .filter((commune) => commune !== 'Kinshasa')
+      .find((commune) => haystack.includes(commune.toLowerCase())) || null
+  );
 }
 
 /**

@@ -19,8 +19,10 @@
 // The category glyphs and colour coding that used to live here are gone on
 // an explicit direction change: a map of 30+ listings reads better as a
 // field of scannable prices than as a field of icons, and the price is the
-// one value a visitor is actually comparing. lib/mapMarkerKinds.js, the
-// cluster bubble builders and the legend they fed were removed with them.
+// one value a visitor is actually comparing. lib/mapMarkerKinds.js and the
+// legend it fed were removed with them. Clustering came back with the
+// viewport map (components/ListingsMap.js) as a plain count bubble in the
+// same royal blue — see buildClusterIcon at the bottom of this file.
 //
 // Requested Tailwind classes for this (`text-slate-900 font-bold`,
 // `shadow-md border border-slate-200`) — not possible: a
@@ -248,6 +250,47 @@ export function buildBuildingPinIcon({ label, hovered = false }) {
     url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
     scaledSize: new google.maps.Size(g.width, g.height),
     anchor: new google.maps.Point(g.cx, g.tipY),
+  };
+}
+
+/**
+ * Geometry for a cluster bubble, in pixels. Pure, like pricePinGeometry.
+ *
+ * The bubble grows with the logarithm of its count, not linearly: a cluster of
+ * 400 is not drawn ten times the size of one of 40, or zoomed-out Kinshasa
+ * would be one blue blot. 1000 and up reads "1k+" so the label always fits.
+ */
+export function clusterBubbleGeometry(count) {
+  const n = Math.max(1, Math.round(Number(count) || 1));
+  const label = n >= 1000 ? `${Math.floor(n / 1000)}k+` : String(n);
+  const diameter = Math.round(Math.min(56, 30 + Math.log10(n) * 12));
+  const pad = 4;
+  const size = diameter + pad * 2;
+  return { label, diameter, pad, size, cx: size / 2, r: diameter / 2, fontSize: diameter < 40 ? 12 : 13 };
+}
+
+/**
+ * A cluster of listings when zoomed out: a solid royal-blue disc with a white
+ * ring and the listing count, over a translucent halo so a bubble reads as a
+ * group rather than as one oversized pin.
+ *
+ * @param {number} count Listings under the bubble (a building counts its units).
+ */
+export function buildClusterIcon({ count }) {
+  const g = clusterBubbleGeometry(count);
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${g.size}" height="${g.size}" viewBox="0 0 ${g.size} ${g.size}">` +
+    `<defs>${dropShadow('lkp-cluster-shadow')}</defs>` +
+    `<circle cx="${g.cx}" cy="${g.cx}" r="${g.r.toFixed(2)}" fill="${BLUE}" fill-opacity="0.22" />` +
+    `<circle cx="${g.cx}" cy="${g.cx}" r="${(g.r - 5).toFixed(2)}" fill="${BLUE}" stroke="${WHITE}" stroke-width="1.75" filter="url(#lkp-cluster-shadow)" />` +
+    `<text x="${g.cx}" y="${(g.cx + g.fontSize * 0.36).toFixed(2)}" font-family="${FONT_STACK}" font-size="${g.fontSize}" ` +
+    `font-weight="700" fill="${WHITE}" text-anchor="middle">${escapeXml(g.label)}</text>` +
+    `</svg>`;
+
+  return {
+    url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+    scaledSize: new google.maps.Size(g.size, g.size),
+    anchor: new google.maps.Point(g.cx, g.cx),
   };
 }
 

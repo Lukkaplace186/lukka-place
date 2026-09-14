@@ -146,7 +146,6 @@ export default async function ListingsPage({ searchParams }) {
             params={params}
             popularCommunes={popularCommunes}
             communes={communes}
-            total={total}
           />
         )}
       </div>

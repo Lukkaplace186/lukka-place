@@ -41,6 +41,7 @@
 const { Pool } = require('pg');
 const { uploadListingPhotos } = require('./supabaseStorage');
 const { resolveCommune, resolveQuartier } = require('./locations');
+const { storeListingCoordinates, locationInputsChanged } = require('./geocoding');
 
 // The site's own "no photo" asset — used verbatim so a WhatsApp listing with
 // no successfully-downloaded image looks exactly like any other unphotographed
@@ -688,8 +689,17 @@ async function syncListingToPostgres(row) {
       // sold or under-offer listing back on the public site — see
       // updatablePropertyValues(). Read inside the transaction, so it cannot
       // race a close happening concurrently.
+      //
+      // The same read carries what the listing was geocoded FROM (quartier,
+      // commune tag, landmark reference), so a correction that moves it can
+      // drop the old pin below.
       const { rows: statusRows } = await client.query(
-        'SELECT listing_status FROM properties WHERE id = $1',
+        `SELECT p.listing_status, p.quartier, p.reference,
+           (SELECT ac.name FROM property_amenities pa
+              JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = ${CONTENT_LANGUAGE_ID}
+             WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44
+             LIMIT 1) AS commune
+         FROM properties p WHERE p.id = $1`,
         [propertyId],
       );
       const currentListingStatus = statusRows[0]?.listing_status ?? null;
@@ -703,6 +713,15 @@ async function syncListingToPostgres(row) {
         `UPDATE properties SET ${setClause}, updated_at = NOW() WHERE id = $${updateKeys.length + 1}`,
         [...Object.values(updateValues), propertyId],
       );
+
+      // A correction that moves the listing (another quartier, commune or
+      // landmark) must not keep its old pin: the map filters on these columns,
+      // so a stale coordinate shows the listing in the wrong place. Cleared
+      // here, re-geocoded after COMMIT. A correction that only fixes the price
+      // keeps the coordinate — including one an admin set by hand.
+      if (locationInputsChanged(statusRows[0], row)) {
+        await client.query('UPDATE properties SET latitude = NULL, longitude = NULL WHERE id = $1', [propertyId]);
+      }
     } else {
       const keys = Object.keys(propertyValues);
       const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
@@ -780,6 +799,22 @@ async function syncListingToPostgres(row) {
       ]);
     } catch (err) {
       console.error(`[embeddings] generation failed for property #${propertyId}: ${err.message}`);
+    }
+
+    // Coordinates for the web map's bounding-box reads (services/geocoding.js).
+    // Same posture as the embedding above: after COMMIT, best-effort, never
+    // able to fail or roll back the sync. Only fills blank columns, so an
+    // admin-set pin survives every re-sync; a listing that does not resolve
+    // at place precision stays blank and the map uses its commune centroid.
+    try {
+      const geo = await storeListingCoordinates(client, propertyId, row);
+      if (geo.status === 'geocoded') {
+        console.log(`[geocoding] property #${propertyId} -> (${geo.lat}, ${geo.lng}) via "${geo.query}"`);
+      } else if (geo.status === 'unresolved') {
+        console.log(`[geocoding] property #${propertyId}: no place-level match — the map will use its commune centroid`);
+      }
+    } catch (err) {
+      console.error(`[geocoding] failed for property #${propertyId}: ${err.message}`);
     }
 
     // Photo upload is network I/O against a different service — deliberately

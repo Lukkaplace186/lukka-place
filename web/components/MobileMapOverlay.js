@@ -4,27 +4,23 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useT } from '@/lib/i18n/client';
 
 /**
- * The two pieces that float directly over the map CANVAS itself (not the
- * sticky search bar above it — see MobileMapChrome) — a real result-count
- * badge, top-center, and the single "Liste" action that returns to the
- * results list, bottom-center. A sibling of ResponsiveMapPane inside
- * ListingsSplitView's `relative` map-area box, which is why `top-4`/
- * `bottom-6` land relative to the map's own bounds rather than the whole
- * fixed layer (that box, not the sticky bar above it).
+ * The single "Liste" action floating over the mobile map canvas, bottom
+ * centre, returning to the results list. A sibling of ResponsiveMapPane inside
+ * ListingsSplitView's `relative` map-area box, which is why `bottom-6` lands
+ * relative to the map's own bounds rather than the whole fixed layer.
  *
- * Numbers are real, not fabricated: `shown` is this page's own result
- * count (what's actually plotted), `totalMatching` is the true count for
- * the active filters (getListings()'s own `total`) — the same "X of Y"
- * semantics a reference portal's own map badge uses.
+ * The result-count badge that used to sit top-centre here ("Affichage de 12
+ * sur 46 biens") is gone: it described the list PAGE, which is exactly what
+ * the map no longer shows. ListingsMap now renders its own badge — the real
+ * count of listings in the visible area — at every breakpoint.
  *
- * Badge/button chrome uses `.u-lift` (app/globals.css) for elevation, not
- * a bare `shadow-md` class — this app's own `--shadow-md` token isn't
- * registered in the Tailwind `@theme` block, so `shadow-md` here would
- * silently fall back to Tailwind's unrelated built-in shadow instead of
- * the design system's real one. `.u-lift` is the actual registered
- * elevation utility for floating surfaces like this.
+ * Button chrome uses `.u-lift` (app/globals.css) for elevation, not a bare
+ * `shadow-md` class — this app's own `--shadow-md` token isn't registered in
+ * the Tailwind `@theme` block, so `shadow-md` here would silently fall back to
+ * Tailwind's unrelated built-in shadow instead of the design system's real
+ * one.
  */
-export default function MobileMapOverlay({ shown, totalMatching, hideListButton = false }) {
+export default function MobileMapOverlay({ hideListButton = false }) {
   const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -36,21 +32,17 @@ export default function MobileMapOverlay({ shown, totalMatching, hideListButton 
     router.push(s ? `/listings?${s}` : '/listings');
   }
 
+  if (hideListButton) return null;
+
   return (
     <div className="pointer-events-none absolute inset-0 z-20 lg:hidden">
-      {totalMatching != null ? (
-        <span className="u-lift u-tabular pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 whitespace-nowrap rounded-xl border border-line bg-surface/95 px-4 py-2 text-[0.75rem] font-semibold text-ink backdrop-blur-md">
-          Affichage de {shown} sur {totalMatching.toLocaleString('fr-FR')} bien{totalMatching === 1 ? '' : 's'}
-        </span>
-      ) : null}
-
-      {hideListButton ? null : <button
+      <button
         type="button"
         onClick={backToList}
         className="u-lift u-press pointer-events-auto absolute bottom-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-line bg-surface px-6 py-2.5 text-[0.8125rem] font-semibold text-ink"
       >
         {t('listings.view.list')}
-      </button>}
+      </button>
     </div>
   );
 }

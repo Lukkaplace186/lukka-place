@@ -2,20 +2,28 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import PropertyMap from './PropertyMap';
+import ListingsMap from './ListingsMap';
 import BuildingUnitsDrawer from './BuildingUnitsDrawer';
 import MapListingPreview from './MapListingPreview';
 
 /**
- * Mounts PropertyMap only when it's actually going to be seen: on desktop
+ * Mounts a map only when it's actually going to be seen: on desktop
  * (>=1024px, the split-screen breakpoint — see app/listings/page.js) it's
  * always visible, on mobile only when the user has switched to the Carte
- * view. A plain `hidden lg:block` on <PropertyMap> directly would keep it
- * mounted (and its effect — sequential client-side geocoding of every
- * listing, see lib/geocoding.js — running) even while CSS-hidden on a
- * mobile visitor who never opens the map, silently burning through the
- * Geocoding API's real request quota for nothing. Deciding client-side
- * after mount (matchMedia) means a one-frame placeholder instead of a
- * server/client hydration mismatch, which is the correct tradeoff here.
+ * view. A plain `hidden lg:block` on the map directly would keep it mounted
+ * — loading the Maps JS API and, on /listings, fetching markers for the
+ * viewport — even while CSS-hidden on a mobile visitor who never opens the
+ * map. Deciding client-side after mount (matchMedia) means a one-frame
+ * placeholder instead of a server/client hydration mismatch, which is the
+ * correct tradeoff here.
+ *
+ * Two maps, one pane:
+ *   - `filterParams` given (/listings) → ListingsMap, the viewport map: every
+ *     listing matching those URL filters inside the visible area, fetched as
+ *     the visitor pans. `listings` is then only the list page's own cards,
+ *     used to open a preview without a round trip.
+ *   - no `filterParams` (the detail page) → PropertyMap, which plots exactly
+ *     the `listings` it is given.
  *
  * `listingPreview={false}` turns off the pin preview card — the detail page's
  * single-listing map, where the card would only link to the page already open.
@@ -23,19 +31,18 @@ import MapListingPreview from './MapListingPreview';
  * way (ListingsSplitView hides the mobile "Liste" button behind it).
  */
 export default function ResponsiveMapPane({
-  listings, isMapView, hoveredId, onMarkerHover, className, maxZoom, listingPreview = true, onPreviewChange,
+  listings, filterParams, isMapView, hoveredId, onMarkerHover, className, maxZoom, listingPreview = true, onPreviewChange,
 }) {
   const [shouldRender, setShouldRender] = useState(false);
   // The multi-unit building whose unit list is open, or null. Held here
-  // rather than inside PropertyMap because the drawer must render OUTSIDE
-  // the map element — Google owns that subtree and repaints it freely.
+  // rather than inside the map because the drawer must render OUTSIDE the
+  // map element — Google owns that subtree and repaints it freely.
   const [openBuilding, setOpenBuilding] = useState(null);
   // The single listing whose preview card is open, or null — same reason.
   const [selectedListing, setSelectedListing] = useState(null);
 
-  // Stable identity: PropertyMap deliberately excludes these from its
-  // geocoding effect's deps, and an inline arrow here would make that
-  // exclusion the only thing preventing a full re-geocode on every render.
+  // Stable identity: both maps register these once on Google's listeners, and
+  // PropertyMap deliberately excludes them from its geocoding effect's deps.
   const closeBuilding = useCallback(() => setOpenBuilding(null), []);
   const closePreview = useCallback(() => setSelectedListing(null), []);
 
@@ -67,20 +74,33 @@ export default function ResponsiveMapPane({
     return () => mql.removeEventListener('change', update);
   }, [isMapView]);
 
+  // The selected pin keeps the highlighted icon while its card is open, so
+  // the card visibly belongs to one price tag.
+  const highlightedId = hoveredId ?? selectedListing?.id ?? null;
+
   return (
     <div className={`relative ${className || ''}`}>
       {shouldRender ? (
         <>
-          <PropertyMap
-            listings={listings}
-            // The selected pin keeps the highlighted icon while its card is
-            // open, so the card visibly belongs to one price tag.
-            hoveredId={hoveredId ?? selectedListing?.id ?? null}
-            onMarkerHover={onMarkerHover}
-            maxZoom={maxZoom}
-            onBuildingSelect={setOpenBuilding}
-            onListingSelect={listingPreview ? setSelectedListing : undefined}
-          />
+          {filterParams ? (
+            <ListingsMap
+              params={filterParams}
+              pageListings={listings}
+              hoveredId={highlightedId}
+              onMarkerHover={onMarkerHover}
+              onBuildingSelect={setOpenBuilding}
+              onListingSelect={listingPreview ? setSelectedListing : undefined}
+            />
+          ) : (
+            <PropertyMap
+              listings={listings}
+              hoveredId={highlightedId}
+              onMarkerHover={onMarkerHover}
+              maxZoom={maxZoom}
+              onBuildingSelect={setOpenBuilding}
+              onListingSelect={listingPreview ? setSelectedListing : undefined}
+            />
+          )}
           {listingPreview ? (
             <MapListingPreview key={selectedListing?.id ?? 'none'} listing={selectedListing} onClose={closePreview} />
           ) : null}

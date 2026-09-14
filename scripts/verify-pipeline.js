@@ -7454,6 +7454,120 @@ console.log('\n2. services/openai.js');
   else process.env.OPS_WHATSAPP_NUMBER = savedOpsForAlerts;
 
   // -------------------------------------------------------------------------
+  // 30. Publish-time geocoding (services/geocoding.js)
+  //
+  // The web map filters on properties.latitude/longitude by bounding box, so
+  // what lands in those columns IS where a listing appears. Stored only at
+  // real place precision, only into blank columns, never from an
+  // identifier-shaped reference — and a refused key is an error, not a
+  // silent "no match" the cascade papers over with a vaguer query.
+  // -------------------------------------------------------------------------
+
+  console.log('\n30. Publish-time geocoding');
+
+  const geocoding = require('../services/geocoding');
+
+  /** Stands in for the Geocoding API: address -> point, 'DENIED', or absent. */
+  function fakeGoogle(answers) {
+    const asked = [];
+    const request = async (url) => {
+      const address = new URL(url).searchParams.get('address');
+      asked.push(address);
+      const hit = answers[address];
+      if (hit === 'DENIED') return { status: 'REQUEST_DENIED', error_message: 'API keys with referer restrictions cannot be used' };
+      if (!hit) return { status: 'ZERO_RESULTS', results: [] };
+      return {
+        status: 'OK',
+        results: [{
+          geometry: { location: { lat: hit.lat, lng: hit.lng }, location_type: hit.vague ? 'APPROXIMATE' : 'GEOMETRIC_CENTER' },
+          types: hit.vague ? ['locality', 'political'] : ['neighborhood', 'political'],
+        }],
+      };
+    };
+    return { asked, request };
+  }
+
+  /** A pg client that answers the coordinate read and records every statement. */
+  function fakeCoordinateDb(existing) {
+    const statements = [];
+    return {
+      statements,
+      async query(sql, params) {
+        statements.push({ sql, params });
+        if (/^SELECT latitude, longitude FROM properties/.test(sql)) return { rows: existing ? [existing] : [] };
+        return { rows: [], rowCount: 1 };
+      },
+    };
+  }
+
+  const geoRow = { quartier: 'Righini', commune: 'Lemba', reference: 'Demiap' };
+
+  check('a landmark reference is location text; an identifier is not', () => {
+    assert.strictEqual(geocoding.isLandmarkReference('Demiap'), true);
+    assert.strictEqual(geocoding.isLandmarkReference('Petit Boulevard, 2ᵉ Rue Industrielle'), true);
+    assert.strictEqual(geocoding.isLandmarkReference('LKP-2026-0091'), false);
+    assert.strictEqual(geocoding.isLandmarkReference('A1'), false);
+  });
+  check('queries run most specific first, and a row with only the city produces none', () => {
+    assert.deepStrictEqual(geocoding.buildGeocodeQueries(geoRow), [
+      'Demiap, Righini, Lemba, Kinshasa, RD Congo',
+      'Righini, Lemba, Kinshasa, RD Congo',
+    ]);
+    assert.deepStrictEqual(geocoding.buildGeocodeQueries({ reference: 'LKP-2026-0091' }), []);
+  });
+  await checkAsync('a commune-level outline is refused and the cascade moves on to the next query', async () => {
+    const google = fakeGoogle({
+      'Demiap, Righini, Lemba, Kinshasa, RD Congo': { lat: -4.39, lng: 15.33, vague: true },
+      'Righini, Lemba, Kinshasa, RD Congo': { lat: -4.401, lng: 15.312 },
+    });
+    const point = await geocoding.geocodeListingRow(geoRow, { apiKey: 'k', request: google.request });
+    assert.deepStrictEqual([point.lat, point.lng, point.query], [-4.401, 15.312, 'Righini, Lemba, Kinshasa, RD Congo']);
+    assert.strictEqual(google.asked.length, 2);
+  });
+  await checkAsync('a refused key throws instead of cascading to a vaguer query', async () => {
+    const google = fakeGoogle({ 'Demiap, Righini, Lemba, Kinshasa, RD Congo': 'DENIED' });
+    await assert.rejects(() => geocoding.geocodeListingRow(geoRow, { apiKey: 'k', request: google.request }), /REQUEST_DENIED/);
+    assert.strictEqual(google.asked.length, 1);
+  });
+  await checkAsync('blank coordinates are filled, and the UPDATE re-checks they are still blank', async () => {
+    const google = fakeGoogle({ 'Demiap, Righini, Lemba, Kinshasa, RD Congo': { lat: -4.4, lng: 15.31 } });
+    const db = fakeCoordinateDb({ latitude: '', longitude: null });
+    const result = await geocoding.storeListingCoordinates(db, 42, geoRow, { apiKey: 'k', request: google.request });
+    assert.strictEqual(result.status, 'geocoded');
+    const update = db.statements.find((s) => /^UPDATE properties/.test(s.sql));
+    assert.ok(update, 'expected an UPDATE');
+    assert.deepStrictEqual(update.params, ['-4.4', '15.31', 42]);
+    assert.match(update.sql, /NULLIF\(TRIM\(latitude\), ''\) IS NULL/);
+  });
+  await checkAsync('coordinates already on the row (an admin pin) are never overwritten or re-geocoded', async () => {
+    const google = fakeGoogle({});
+    const db = fakeCoordinateDb({ latitude: '-4.3', longitude: '15.3' });
+    const result = await geocoding.storeListingCoordinates(db, 42, geoRow, { apiKey: 'k', request: google.request });
+    assert.strictEqual(result.status, 'kept');
+    assert.strictEqual(google.asked.length, 0);
+    assert.ok(!db.statements.some((s) => /^UPDATE/.test(s.sql)));
+  });
+  await checkAsync('no server key: no query, no write', async () => {
+    const db = fakeCoordinateDb({ latitude: null, longitude: null });
+    const result = await geocoding.storeListingCoordinates(db, 42, geoRow, { apiKey: '' });
+    assert.strictEqual(result.status, 'unconfigured');
+    assert.strictEqual(db.statements.length, 0);
+  });
+  await checkAsync('an unresolvable listing stays blank rather than getting a guessed point', async () => {
+    const db = fakeCoordinateDb({ latitude: null, longitude: null });
+    const result = await geocoding.storeListingCoordinates(db, 42, geoRow, { apiKey: 'k', request: fakeGoogle({}).request });
+    assert.strictEqual(result.status, 'unresolved');
+    assert.ok(!db.statements.some((s) => /^UPDATE/.test(s.sql)));
+  });
+  check('a correction that moves the listing clears its pin; one that fixes the price or the casing does not', () => {
+    const before = { quartier: 'Righini', commune: 'Lemba', reference: 'Demiap' };
+    assert.strictEqual(geocoding.locationInputsChanged(before, { ...before, quartier: 'Salongo' }), true);
+    assert.strictEqual(geocoding.locationInputsChanged(before, { ...before, price: 900 }), false);
+    assert.strictEqual(geocoding.locationInputsChanged(before, { ...before, commune: ' lemba ' }), false);
+    assert.strictEqual(geocoding.locationInputsChanged(null, before), false);
+  });
+
+  // -------------------------------------------------------------------------
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

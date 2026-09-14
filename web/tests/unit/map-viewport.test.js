@@ -57,10 +57,14 @@ test('locationTarget: a commune opens the map there; citywide or no commune name
   assert.deepEqual(locationTarget({ commune: 'Bandalungwa', quartier: 'Lingwala' }), { commune: 'Bandalungwa', quartier: 'Lingwala' });
   assert.equal(locationTarget({ commune: 'Bandalungwa', radius: 'citywide' }), null);
   assert.equal(locationTarget({ beds_min: '2' }), null);
-  assert.deepEqual(locationGeocodeQueries({ commune: 'Gombe', quartier: 'Golf' }), [
-    'Golf, Gombe, Kinshasa, RD Congo',
-    'Commune de Gombe, Kinshasa, RD Congo',
-  ]);
+  assert.deepEqual(locationGeocodeQueries({ commune: 'Gombe', quartier: 'Golf' }), {
+    commune: 'Commune de Gombe, Kinshasa, RD Congo',
+    quartier: 'Golf, Gombe, Kinshasa, RD Congo',
+  });
+  assert.deepEqual(locationGeocodeQueries({ commune: 'Limete', quartier: null }), {
+    commune: 'Commune de Limete, Kinshasa, RD Congo',
+    quartier: null,
+  });
 });
 
 test('resolveMarkerPosition: stored point, commune centroid, address-text commune, or nothing', () => {

@@ -18,6 +18,7 @@ import {
   locationTarget,
   mapFilterQuery,
   padBounds,
+  targetView,
 } from '@/lib/mapViewport';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
@@ -32,13 +33,16 @@ import { useT } from '@/lib/i18n/client';
  *   area already fetched costs no request; one that leaves it waits
  *   FETCH_DEBOUNCE_MS for the map to settle, and aborts whatever was still in
  *   flight.
- * - **Opening view.** A search naming a place (commune, quartier) opens on
- *   that place's real geocoded viewport; the visitor can then pan out and the
- *   other filters keep applying to the wider area. A search naming none opens
- *   on central Kinshasa (KINSHASA_DEFAULT_VIEW) — deliberately NOT a fit to
- *   the listings' extent, which on a portrait phone zoomed out far enough to
- *   centre the river and Brazzaville. Changing a non-location filter keeps the
- *   view where the visitor left it.
+ * - **Opening view.** Every URL param travels into this view (the list/map
+ *   toggles copy the whole query string), so a search naming a place opens
+ *   ON that place: the commune's geocoded point at zoom 14, or the quartier's
+ *   at zoom 15 when it really lies in that commune (lib/mapViewport.js
+ *   targetView). Deliberately a centre and a zoom, never a fit to Google's
+ *   viewport for the place — Limete's reaches into the river, and fitting it
+ *   opened a phone on Brazzaville. The visitor can then pan out and the other
+ *   filters keep applying to the wider area. A search naming no place opens on
+ *   the Kinshasa core (KINSHASA_DEFAULT_VIEW). Changing a non-location filter
+ *   keeps the view where the visitor left it.
  * - **Every listing is its own price tag at every zoom.** Clustering was tried
  *   and removed on an explicit product direction: a field of scannable prices
  *   is the point of this map, and a "13" bubble hides exactly that. Overlap is
@@ -47,7 +51,7 @@ import { useT } from '@/lib/i18n/client';
  * - **Positions** are the stored coordinates, or the commune centroid for a
  *   listing without them — both jittered and fanned (lib/geocoding.js
  *   placeResolvedListings). No client-side geocoding of listings happens here;
- *   the only geocoder call is for the opening view of a named place.
+ *   the only geocoder calls are for the opening view of a named place.
  * - **Honesty, compactly.** One pill states how many listings are in view; an
  *   info button beside it opens the breakdown (placed on a commune centroid,
  *   matching but unplaceable, truncated) instead of stacking three pills over
@@ -59,13 +63,17 @@ import { useT } from '@/lib/i18n/client';
  */
 const MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
-/** Opening on a place never zooms in past a neighbourhood. */
+/** The extent fallback never zooms in past a neighbourhood. */
 const MAX_FIT_ZOOM = 15;
-/** A "place" wider than this many degrees is the city, not the quartier asked for. */
+/**
+ * A geocode whose own viewport is wider than this many degrees came back as
+ * the city ("Kinshasa"), not the commune or quartier asked for — its point is
+ * the city centre, not the place, and is ignored.
+ */
 const MAX_PLACE_SPAN_DEG = 0.35;
 
-/** Geocoded viewports of named places, per tab — a place does not move. */
-const placeViewportCache = new Map();
+/** Geocoded points of named places, per tab — a place does not move. */
+const placePointCache = new Map();
 
 function sameId(a, b) {
   return a != null && b != null && String(a) === String(b);
@@ -90,33 +98,34 @@ function zIndexFor(group) {
   return group.isBuilding ? priceZIndex(group.priceMax) + 1 : priceZIndex(group.representative.price);
 }
 
-function geocodeOnce(geocoder, address) {
+/** One geocode → the place's point, or null for no match or a city-level answer. */
+function geocodePoint(geocoder, address) {
+  if (!geocoder || !address) return Promise.resolve(null);
+  if (placePointCache.has(address)) return Promise.resolve(placePointCache.get(address));
   return new Promise((resolve) => {
     geocoder.geocode({ address, region: 'cd' }, (results, status) => {
-      resolve(status === 'OK' ? results?.[0] ?? null : null);
+      const geometry = status === 'OK' ? results?.[0]?.geometry : null;
+      let point = null;
+      if (geometry?.location) {
+        const area = geometry.viewport || geometry.bounds;
+        const span = area ? toBounds(area) : null;
+        const cityLevel = span && (span.north - span.south > MAX_PLACE_SPAN_DEG || span.east - span.west > MAX_PLACE_SPAN_DEG);
+        if (!cityLevel) point = { lat: geometry.location.lat(), lng: geometry.location.lng() };
+      }
+      placePointCache.set(address, point);
+      resolve(point);
     });
   });
 }
 
-/** The real viewport Google holds for a named place, most specific query first. */
-async function geocodePlace(geocoder, target) {
-  for (const query of locationGeocodeQueries(target)) {
-    if (!placeViewportCache.has(query)) {
-      const result = geocoder ? await geocodeOnce(geocoder, query) : null;
-      const area = result?.geometry?.viewport || result?.geometry?.bounds;
-      let viewport = area ? toBounds(area) : null;
-      if (viewport && (viewport.north - viewport.south > MAX_PLACE_SPAN_DEG || viewport.east - viewport.west > MAX_PLACE_SPAN_DEG)) {
-        viewport = null;
-      }
-      placeViewportCache.set(query, viewport);
-    }
-    const cached = placeViewportCache.get(query);
-    if (cached) return cached;
-  }
-  return null;
+/** The opening view for a searched place: its centre at a fixed zoom (lib/mapViewport.js targetView). */
+async function viewForTarget(geocoder, target) {
+  const queries = locationGeocodeQueries(target);
+  const [commune, quartier] = await Promise.all([geocodePoint(geocoder, queries.commune), geocodePoint(geocoder, queries.quartier)]);
+  return targetView(target, { commune, quartier });
 }
 
-/** Fallback when a named place cannot be geocoded: the box around what matches it. */
+/** Last resort when a named place resolves to nothing at all: the box around what matches it. */
 async function fetchExtent(filterQuery) {
   try {
     const qs = new URLSearchParams(filterQuery);
@@ -131,16 +140,19 @@ async function fetchExtent(filterQuery) {
   }
 }
 
+function showView(map, { center, zoom }) {
+  map.setCenter(center);
+  map.setZoom(zoom);
+}
+
 function fitTo(map, bounds) {
   if (!bounds) {
-    map.setCenter(KINSHASA_DEFAULT_VIEW.center);
-    map.setZoom(KINSHASA_DEFAULT_VIEW.zoom);
+    showView(map, KINSHASA_DEFAULT_VIEW);
     return;
   }
   // One listing, or several on one point: a zero-size box would zoom to the street.
   if (bounds.north - bounds.south < 0.004 && bounds.east - bounds.west < 0.004) {
-    map.setCenter({ lat: (bounds.north + bounds.south) / 2, lng: (bounds.east + bounds.west) / 2 });
-    map.setZoom(MAX_FIT_ZOOM - 1);
+    showView(map, { center: { lat: (bounds.north + bounds.south) / 2, lng: (bounds.east + bounds.west) / 2 }, zoom: MAX_FIT_ZOOM - 1 });
     return;
   }
   map.fitBounds(
@@ -401,8 +413,8 @@ export default function ListingsMap({ params, pageListings, hoveredId, onMarkerH
       .then(() => {
         if (cancelled || !elementRef.current) return;
 
-        // Built straight on the default Kinshasa view, so a search naming no
-        // place never paints somewhere else first and then jumps.
+        // Built on the default Kinshasa view; a searched place moves it there
+        // before any marker is fetched (see `positioning` below).
         const map = new google.maps.Map(elementRef.current, { ...baseMapOptions(), ...KINSHASA_DEFAULT_VIEW });
         mapRef.current = map;
         geocoderRef.current = new google.maps.Geocoder();
@@ -461,7 +473,7 @@ export default function ListingsMap({ params, pageListings, hoveredId, onMarkerH
       return undefined;
     }
 
-    // No place named: central Kinshasa. On first load the map is already
+    // No place named: the Kinshasa core. On first load the map is already
     // there; after a place is cleared, this brings it back.
     if (!target) {
       fitTo(mapRef.current, null);
@@ -472,12 +484,14 @@ export default function ListingsMap({ params, pageListings, hoveredId, onMarkerH
     let cancelled = false;
     req.positioning = true;
     (async () => {
-      const viewport = (await geocodePlace(geocoderRef.current, target)) ?? (await fetchExtent(filterQuery));
+      const placeView = await viewForTarget(geocoderRef.current, target);
+      const extent = placeView ? null : await fetchExtent(filterQuery);
       if (cancelled) return;
       req.positioning = false;
-      fitTo(mapRef.current, viewport);
-      // fitBounds fires `idle` when the view actually moves; ask directly as
-      // well for the case where it did not.
+      if (placeView) showView(mapRef.current, placeView);
+      else fitTo(mapRef.current, extent);
+      // Moving the map fires `idle`; ask directly as well for the case where
+      // the view did not actually change.
       scheduleFetch();
     })();
 

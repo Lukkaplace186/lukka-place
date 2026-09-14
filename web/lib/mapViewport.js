@@ -33,17 +33,30 @@ export const LOCATION_FILTER_PARAMS = ['commune', 'quartier', 'radius'];
 const NON_FILTER_PARAMS = new Set(['page', 'sort', 'view', 'extent', ...MAP_BOUNDS_PARAMS]);
 
 /**
- * Where the map opens when the search names no place: central Kinshasa. A
- * fit to the extent of every listing was used first, and on a portrait phone
- * that box — wider than it is tall — zoomed out until the river and
- * Brazzaville filled the screen.
+ * Where the map opens when the search names no place: the Kinshasa core
+ * (Gombe, Lingwala, Kasa-Vubu, Kintambo, Kalamu). A fit to the extent of every
+ * listing was used first, and on a portrait phone that box — wider than it is
+ * tall — zoomed out until the river and Brazzaville filled the screen.
+ * Zoom 13, not 12.5: the styled raster map rounds fractional zooms anyway.
  */
-export const KINSHASA_DEFAULT_VIEW = { center: { lat: -4.325, lng: 15.322 }, zoom: 13 };
+export const KINSHASA_DEFAULT_VIEW = { center: { lat: -4.325, lng: 15.312 }, zoom: 13 };
+
+/** A searched commune opens this close — the whole commune, not the city. */
+export const COMMUNE_VIEW_ZOOM = 14;
+/** A searched quartier opens a step closer than its commune. */
+export const QUARTIER_VIEW_ZOOM = 15;
+/**
+ * A quartier geocode further than this from its own commune is a same-named
+ * place somewhere else ("Industriel", "Salongo" exist in several communes),
+ * and the map opens on the commune instead.
+ */
+const QUARTIER_MAX_DISTANCE_KM = 5;
 
 /**
  * A generous envelope around Kinshasa province. The extent fallback ignores
  * stored coordinates outside it, so one mistyped or swapped latitude can never
- * drag the opening view across the continent.
+ * drag the opening view across the continent; a geocoded place outside it is
+ * not the Kinshasa place that was searched.
  */
 export const KINSHASA_PROVINCE_ENVELOPE = { south: -5.1, north: -3.9, west: 15.0, east: 16.6 };
 
@@ -168,13 +181,50 @@ export function locationTarget(params) {
   return { commune, quartier };
 }
 
-/** Geocoder queries for a target, most specific first. */
+/** Geocoder queries for a target: `{ commune, quartier }`, quartier null when not searched. */
 export function locationGeocodeQueries(target) {
-  if (!target?.commune) return [];
-  const queries = [];
-  if (target.quartier) queries.push(`${target.quartier}, ${target.commune}, Kinshasa, RD Congo`);
-  queries.push(`Commune de ${target.commune}, Kinshasa, RD Congo`);
-  return queries;
+  if (!target?.commune) return { commune: null, quartier: null };
+  return {
+    commune: `Commune de ${target.commune}, Kinshasa, RD Congo`,
+    quartier: target.quartier ? `${target.quartier}, ${target.commune}, Kinshasa, RD Congo` : null,
+  };
+}
+
+/** Great-circle distance in km — plenty precise across one city. */
+export function distanceKm(a, b) {
+  const toRad = (deg) => (deg * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 6371 * 2 * Math.asin(Math.sqrt(h));
+}
+
+/**
+ * The opening view for a searched place — a CENTRE at a fixed zoom, never a fit
+ * to Google's viewport for it. That viewport is what broke "Limete": Google's
+ * box for the commune reaches into the river, fitting it zoomed the phone out
+ * to the Pool Malebo and Brazzaville, and the search looked ignored.
+ *
+ * @param {{commune: string, quartier: string|null}} target
+ * @param {{commune?: {lat:number,lng:number}|null, quartier?: {lat:number,lng:number}|null}} geocoded
+ *   Points the geocoder returned for `locationGeocodeQueries(target)`; null
+ *   for a query that failed or came back at city level.
+ * @returns {{center: {lat:number,lng:number}, zoom: number}|null}
+ *   null only when neither a geocoded point nor a known centroid exists — the
+ *   caller then falls back to the extent of the matching listings.
+ */
+export function targetView(target, { commune = null, quartier = null } = {}) {
+  if (!target?.commune) return null;
+  const inProvince = (point) =>
+    Boolean(point && Number.isFinite(point.lat) && Number.isFinite(point.lng) && boundsContain(KINSHASA_PROVINCE_ENVELOPE, point));
+
+  const communePoint = inProvince(commune) ? commune : KINSHASA_COMMUNE_CENTROIDS[target.commune] || null;
+
+  if (target.quartier && inProvince(quartier) && (!communePoint || distanceKm(quartier, communePoint) <= QUARTIER_MAX_DISTANCE_KM)) {
+    return { center: { lat: quartier.lat, lng: quartier.lng }, zoom: QUARTIER_VIEW_ZOOM };
+  }
+  if (communePoint) return { center: { lat: communePoint.lat, lng: communePoint.lng }, zoom: COMMUNE_VIEW_ZOOM };
+  return null;
 }
 
 /**

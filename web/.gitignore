@@ -15,6 +15,11 @@
 
 # next.js
 /.next/
+# Rollback/broken copies of .next left beside it by deploys. Without these
+# lines Tailwind's source scan reads every copy, and on 2026-09-14 twelve of
+# them (3.7 GB) pushed `next build` on the VPS into the OOM killer.
+/.next-*/
+/.next.old-*/
 /out/
 
 # production

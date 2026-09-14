@@ -77,6 +77,13 @@ function buildGeocodeQueries(row) {
     [quartier, commune],
   ];
 
+  // A landmark with no quartier or commune beside it is not geocoded at all.
+  // Seen in the first production dry run: a `reference` of "7 maisons offres
+  // bien metriser" (promotional text that happens to read as words) came back
+  // as a ROOFTOP somewhere in the city — a confident point with nothing real
+  // behind it. The quartier/commune is what anchors a landmark to an area.
+  if (!quartier && !commune) return [];
+
   const queries = [];
   for (const parts of candidates) {
     const specific = parts.filter(Boolean);

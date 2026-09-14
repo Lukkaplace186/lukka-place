@@ -7514,6 +7514,8 @@ console.log('\n2. services/openai.js');
       'Righini, Lemba, Kinshasa, RD Congo',
     ]);
     assert.deepStrictEqual(geocoding.buildGeocodeQueries({ reference: 'LKP-2026-0091' }), []);
+    // Promotional text reads as words; without a quartier or commune it anchors to nothing.
+    assert.deepStrictEqual(geocoding.buildGeocodeQueries({ reference: '7 maisons offres bien metriser' }), []);
   });
   await checkAsync('a commune-level outline is refused and the cascade moves on to the next query', async () => {
     const google = fakeGoogle({

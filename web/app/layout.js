@@ -5,6 +5,7 @@ import { SITE_URL } from '@/lib/constants';
 import { getI18n, getT } from '@/lib/i18n/server';
 import { I18nProvider } from '@/lib/i18n/client';
 import LocaleSync from '@/components/LocaleSync';
+import { TRANSLATION_DOM_GUARD_SCRIPT } from '@/lib/translationDomGuard';
 
 /*
  * Two families, sans-led — matches web/Design's "WhiteBlue Royal" system
@@ -148,6 +149,23 @@ export default async function RootLayout({ children }) {
   return (
     <html lang={locale} className={`${plusJakartaSans.variable} ${dmSerifDisplay.variable} h-full`}>
       <body className="min-h-full">
+        {/*
+         * Must run before React's first commit, and hydration is one. Browser
+         * page translation (Edge, Chrome, Google Translate) swaps React's text
+         * nodes for <font> wrappers; the next commit's removeChild then throws
+         * and the whole route falls to "This page couldn't load" — reported on
+         * the agent dashboard's Visites tab. beforeInteractive inlines it into
+         * the initial HTML, so it runs while the document is parsed and before
+         * hydration — the moment that matters. It lands after the chunk
+         * <script> tags in <head>, which is fine: React DOM looks removeChild
+         * up on the node at call time. afterInteractive would install it too
+         * late. See lib/translationDomGuard.js.
+         */}
+        <Script
+          id="translation-dom-guard"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: TRANSLATION_DOM_GUARD_SCRIPT }}
+        />
         {/*
          * Plausible — cookieless, privacy-friendly page analytics.
          *

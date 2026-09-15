@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import Link from 'next/link';
 import { getCurrentAgentId } from '@/lib/agentSession';
 import { getAgentDashboardContext } from '@/lib/agentDashboard';
@@ -223,15 +224,28 @@ export default async function AgentInquiriesPage({ searchParams }) {
           ))}
         </div>
 
+        {/* Each tab's body carries its own key, so switching tabs REMOUNTS it
+            instead of reconciling one tab's markup into the other's. Both
+            bodies open with the same element shape (a header row, a title
+            div, a subtitle div), so without keys React reused those
+            elements and patched their text nodes in place — and under
+            browser page translation those text nodes have already been
+            swapped for <font> wrappers. That is what crashed this tab switch
+            ("This page couldn't load"), and with lib/translationDomGuard.js
+            in place it still left the previous tab's translated subtitle on
+            screen beside the new one. A remount only removes and inserts
+            whole elements, which translation never moves. */}
         {tab === 'visites' ? (
-          <VisitsTab
-            visitsPage={visitsPage}
-            statusFilter={visitStatusFilter}
-            listingById={listingById}
-            hasListings={listings.length > 0}
-          />
+          <Fragment key="visites">
+            <VisitsTab
+              visitsPage={visitsPage}
+              statusFilter={visitStatusFilter}
+              listingById={listingById}
+              hasListings={listings.length > 0}
+            />
+          </Fragment>
         ) : (
-          <>
+          <Fragment key="mes-demandes">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <div className="u-title-card text-ink">
@@ -319,7 +333,7 @@ export default async function AgentInquiriesPage({ searchParams }) {
                 );
               })
             )}
-          </>
+          </Fragment>
         )}
       </div>
     </>

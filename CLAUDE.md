@@ -256,6 +256,45 @@ them drives the rest. `services/viewingNotifications.js` owns the whole loop;
   swallowed because a questionnaire happened to be open, and it is tested
   end-to-end (§21: a listing sent mid-survey is still stored as a listing).
 
+#### Answering from the web dashboard — same loop, same messages
+
+`respondFromDashboard` in `services/viewingNotifications.js`, behind
+`POST /admin/viewing-requests/:id/agent-response`, called by `web/`'s
+`updateViewingRequestAction`. The agent portal's Visites tab used to `PATCH`
+the status and stop. Reported 2026-09-15: an agent confirmed four visits and no
+customer heard anything, while `first_response_at` stayed NULL, so every
+response metric said the agent had never answered.
+
+- **Same customer texts as the WhatsApp buttons** (`tenantAcceptedText`,
+  `tenantRescheduleText`, `sendAlternativesToTenant`), and none of the messages
+  addressed to the agent's own phone — they answered on the web.
+- **Transitions are a table, enforced twice**: `DASHBOARD_TRANSITIONS` here,
+  `web/lib/viewingActions.js` for which buttons exist. Confirm only from
+  PENDING / RESCHEDULED. A refusal before agreement is DECLINED (alternatives to
+  the customer, ops told); after agreement it is CANCELLED (customer and ops
+  told, no alternatives). Repeating the current status sends nothing, so a
+  double tap cannot message a customer twice.
+- **Authorised by `agents.id`**, not phone, since that is what the dashboard
+  session knows: the assigned agent once `reassigned_at` is set, otherwise the
+  listing's agent or the `agent_id` stamped at notify time (which keeps this
+  working while Postgres is unreachable).
+- **Clears any WhatsApp question still open about that request**
+  (`db.clearPendingAgentActionsForViewing`), so a later typed "1" cannot
+  re-answer it with a contradictory message.
+- **A reschedule to a phrase with no instant clears `scheduled_at`**, so a later
+  confirmation cannot check in against the old slot.
+- **CANCELLED is never written to `agent_performance_logs.outcome_status`** —
+  that column's CHECK has no CANCELLED, and the response was timed at the
+  confirmation.
+- **`PATCH /viewing-requests/:id` is unchanged**: it is the admin override and
+  still tells nobody (`/admin/viewings`' Annuler uses it).
+- **What `/admin/viewings` now shows**, stamped from both channels:
+  `viewing_requests.agent_response_via` (WHATSAPP | DASHBOARD, with the first
+  response time) and `customer_notified_at` — Chakra ACCEPTED the customer
+  message, not delivery. The session-window rule under "What still gates
+  delivery" still decides whether a customer who came in through the web form
+  actually receives it. Covered by `scripts/verify-pipeline.js` §21b.
+
 #### Status vocabulary — reused, not forked
 The three buttons map onto the states the agent dashboard's Visit Scheduler
 already renders:

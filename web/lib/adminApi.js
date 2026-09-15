@@ -191,6 +191,28 @@ export async function updateViewingRequest(id, { status, requestedTime } = {}) {
 }
 
 /**
+ * An AGENT's answer to a viewing request, from the dashboard's Visites tab —
+ * the web twin of the WhatsApp Accepter / Autre créneau / Décliner buttons.
+ *
+ * Deliberately not updateViewingRequest above. That one is a bare PATCH, kept
+ * for admin overrides; it changes the row and tells nobody. This goes through
+ * the engine's response path, which messages the customer, stamps the agent's
+ * first response and records that the answer came from the dashboard. The
+ * engine re-checks that `agentId` is the agent this request belongs to.
+ *
+ * @param {number} id
+ * @param {{agentId: number, status: 'CONFIRMED'|'RESCHEDULED'|'DECLINED'|'CANCELLED', requestedTime?: string}} answer
+ * @returns {Promise<{status: string, unchanged: boolean, tenantNotified: boolean, alternatives?: number, viewingRequest: Object}>}
+ *   `tenantNotified` is Chakra ACCEPTING the send — not delivery.
+ */
+export async function respondToViewingRequest(id, { agentId, status, requestedTime } = {}) {
+  return engineFetch(`/admin/viewing-requests/${id}/agent-response`, {
+    method: 'POST',
+    body: JSON.stringify({ agent_id: agentId, status, requested_time: requestedTime }),
+  });
+}
+
+/**
  * Public "Demander une visite" form (web/app/(site)/listings/[id]) — call
  * this after createLead() with the real lead id it returns; `requestedTime`
  * is the visitor's own free-text answer (same convention as every other

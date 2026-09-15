@@ -812,6 +812,49 @@ function tenantAlternativesText(alternatives) {
   return lines.join('\n');
 }
 
+/**
+ * The customer's side of an agent calling off a visit that was already agreed.
+ * No alternatives here, deliberately: that recovery belongs to DECLINED, and
+ * cancelling a confirmed visit is a different fact (root CLAUDE.md, "Status
+ * vocabulary"). The customer is pointed back to us to re-plan instead.
+ */
+function tenantCancelledText(listing, viewingRequest, propertyId) {
+  const label = listing?.reference ? `Réf: ${listing.reference}` : listingLabel(listing, propertyId);
+  const lines = [
+    `${HEADER_BRAND} Visite annulée`,
+    '',
+    `L'agent a dû annuler votre visite pour ${label}.`,
+  ];
+  if (viewingRequest?.requested_time) lines.push(`📅 Créneau prévu : ${viewingRequest.requested_time}`);
+  lines.push(
+    '',
+    'Répondez à ce message : nous vous aidons à fixer un autre créneau ou à trouver un bien similaire.',
+    listingLink(listing, propertyId),
+  );
+  return lines.join('\n');
+}
+
+/**
+ * The desk's copy of a decline or cancellation given on the dashboard. Unlike
+ * the WhatsApp decline, no reason survey follows, so this is the only moment
+ * ops hears about it — and it says plainly whether the customer was reached.
+ */
+function opsDashboardAnswerText({ listing, viewingRequest, propertyId, status, tenantNotified }) {
+  const verdict = status === 'CANCELLED' ? 'Visite annulée' : 'Visite déclinée';
+  return [
+    `${HEADER_BRAND} ${verdict} depuis le tableau de bord agent`,
+    '',
+    `📍 ${listingLabel(listing, propertyId)} (#${propertyId})`,
+    `📅 ${viewingRequest?.requested_time || 'Créneau non précisé'}`,
+    tenantNotified
+      ? '✅ Client prévenu sur WhatsApp.'
+      : '⚠️ Client NON prévenu — le message n\'a pas pu partir, à recontacter.',
+    '',
+    `Demande #${viewingRequest?.id}`,
+    listingLink(listing, propertyId),
+  ].join('\n');
+}
+
 function opsDeclineText({ listing, viewingRequest, propertyId, reasonCode, closedPrice, listPrice, delta }) {
   const lines = [
     `${HEADER_BRAND} Visite déclinée`,
@@ -952,13 +995,29 @@ async function resolveContext(viewingRequestId, from) {
  * the first; the Postgres log keeps the first latency and the latest outcome.
  * Never throws — a metrics write must not stop the customer being told.
  */
-async function recordAgentResponse(request, outcome) {
+async function recordAgentResponse(request, outcome, via = 'WHATSAPP') {
   try {
     dbService.recordViewingFirstResponse(request.id);
+    dbService.setViewingAgentResponseVia(request.id, via);
   } catch (err) {
     console.error(`[viewing] first-response stamp for #${request.id} failed: ${err.message}`);
   }
   await agentPerformance.logResponse({ viewingRequestId: request.id, outcome });
+}
+
+/**
+ * Stamp that a customer-facing message about this request left — accepted by
+ * Chakra, which is all this repo can know (no delivery receipts). Written from
+ * the WhatsApp and dashboard paths alike, so /admin/viewings can tell an
+ * answered request whose customer was told from one whose customer was not.
+ * Never throws, same posture as recordAgentResponse.
+ */
+function markCustomerNotified(viewingRequestId) {
+  try {
+    dbService.markViewingCustomerNotified(viewingRequestId);
+  } catch (err) {
+    console.error(`[viewing] customer-notified stamp for #${viewingRequestId} failed: ${err.message}`);
+  }
 }
 
 async function handleAccept({ request, listing, propertyId, from }) {
@@ -972,6 +1031,7 @@ async function handleAccept({ request, listing, propertyId, from }) {
     tenantAcceptedText(listing, request, propertyId),
     'accept confirmation',
   );
+  if (told) markCustomerNotified(request.id);
 
   const proposal = parseFrenchSlot(request.requested_time);
   if (proposal) {
@@ -1090,7 +1150,177 @@ async function sendAlternativesToTenant({ request, listing, propertyId }) {
     tenantAlternativesText(alternatives),
     'decline alternatives',
   );
+  if (sent) markCustomerNotified(request.id);
   return { count: alternatives.length, sent };
+}
+
+/**
+ * What an agent may set from the web dashboard, keyed by the TARGET status,
+ * listing the statuses it may come from. web/lib/viewingActions.js carries the
+ * same table for the UI (ESM, another app) — change one, change the other.
+ */
+const DASHBOARD_TRANSITIONS = Object.freeze({
+  CONFIRMED: Object.freeze(['PENDING', 'RESCHEDULED']),
+  RESCHEDULED: Object.freeze(['PENDING', 'RESCHEDULED', 'CONFIRMED']),
+  DECLINED: Object.freeze(['PENDING', 'RESCHEDULED']),
+  CANCELLED: Object.freeze(['CONFIRMED']),
+});
+
+/**
+ * An agent's answer given on the WEB dashboard (the Visites tab) — the twin of
+ * the WhatsApp buttons below, reached through
+ * POST /admin/viewing-requests/:id/agent-response.
+ *
+ * Before this the dashboard PATCHed the status and nothing else: the customer
+ * who had asked to visit heard nothing, first_response_at stayed NULL (so the
+ * admin console's response metrics said the agent never answered), and any
+ * WhatsApp question still open about the request stayed answerable.
+ *
+ * Same customer messages as the WhatsApp path, minus everything addressed to
+ * the agent's own phone — they acted on the web, and a WhatsApp questionnaire
+ * about an answer they already gave would be noise:
+ *   CONFIRMED   tenantAcceptedText; pins scheduled_at from the customer's own
+ *               parseable time, exactly as handleAccept does.
+ *   RESCHEDULED tenantRescheduleText with the new slot; scheduled_at follows it
+ *               and is CLEARED when the phrase names no instant, so a later
+ *               confirmation cannot check in against the old slot.
+ *   DECLINED    real alternatives to the customer (sendAlternativesToTenant);
+ *               ops told, since no decline survey follows.
+ *   CANCELLED   only from CONFIRMED; customer and ops told. Not logged as an
+ *               agent_performance_logs outcome: that column's CHECK has no
+ *               CANCELLED, and the response was already timed at confirmation.
+ *
+ * Authorisation is by Postgres agents.id — the dashboard session knows the
+ * agent's id, not their phone. Once an admin has reassigned the request only
+ * the assigned agent counts (the resolveContext rule); otherwise the listing's
+ * agent, or the agent_id stamped when the alert went out, which also keeps
+ * answering possible while Postgres is unreachable.
+ *
+ * Repeating the status a request already has is a no-op that sends nothing
+ * (RESCHEDULED excepted — a second proposal is a real answer).
+ *
+ * @returns {Promise<{ok: true, status: string, unchanged: boolean, tenantNotified: boolean, scheduledAt?: string|null, alternatives?: number}
+ *   | {ok: false, reason: string, current?: string}>}
+ */
+async function respondFromDashboard({ viewingRequestId, agentId, status, requestedTime } = {}) {
+  const request = dbService.getViewingRequestWithLead(viewingRequestId);
+  if (!request) return { ok: false, reason: 'unknown-request' };
+  if (!Object.prototype.hasOwnProperty.call(DASHBOARD_TRANSITIONS, status)) {
+    return { ok: false, reason: 'invalid-status' };
+  }
+
+  const propertyId = request.property_id;
+  let listing = null;
+  if (propertyId) {
+    try {
+      listing = await propertyRepository.getListingContactById(propertyId);
+    } catch (err) {
+      console.error(`[viewing] dashboard answer: listing #${propertyId} lookup failed: ${err.message}`);
+    }
+  }
+
+  const claimant = agentId == null ? '' : String(agentId);
+  const stampedAgent = request.agent_id == null ? '' : String(request.agent_id);
+  const listingAgent = listing?.agent_id == null ? '' : String(listing.agent_id);
+  const authorised = Boolean(claimant) && (
+    request.reassigned_at ? stampedAgent === claimant : listingAgent === claimant || stampedAgent === claimant
+  );
+  if (!authorised) return { ok: false, reason: 'not-this-requests-agent' };
+
+  if (request.status === status && status !== 'RESCHEDULED') {
+    return { ok: true, status, unchanged: true, tenantNotified: false };
+  }
+  if (!DASHBOARD_TRANSITIONS[status].includes(request.status)) {
+    return { ok: false, reason: 'invalid-transition', current: request.status };
+  }
+  const proposed = status === 'RESCHEDULED' ? String(requestedTime || '').trim() : '';
+  if (status === 'RESCHEDULED' && !proposed) return { ok: false, reason: 'requested-time-required' };
+
+  // A question still open on WhatsApp about THIS request would otherwise let a
+  // "1" typed later re-answer it, and message the customer a contradictory time.
+  dbService.clearPendingAgentActionsForViewing(request.id);
+
+  // Reassigned: the customer-facing text names the agent actually handling it.
+  if (listing && request.reassigned_at && request.agent_id) {
+    try {
+      const assigned = await propertyRepository.getAgentContactById(request.agent_id);
+      if (assigned) listing = withAgent(listing, assigned);
+    } catch (err) {
+      console.error(`[viewing] dashboard answer: assigned agent #${request.agent_id} lookup failed: ${err.message}`);
+    }
+  }
+
+  let tenantNotified = false;
+  let alternatives;
+  let scheduledAt = request.scheduled_at || null;
+
+  if (status === 'CONFIRMED') {
+    dbService.updateViewingRequest(request.id, { status: 'CONFIRMED' });
+    await recordAgentResponse(request, 'CONFIRMED', 'DASHBOARD');
+    const proposal = parseFrenchSlot(request.requested_time);
+    if (proposal) {
+      dbService.setViewingScheduledAt(request.id, proposal.iso);
+      scheduledAt = proposal.iso;
+    }
+    tenantNotified = await trySend(
+      request.lead_wa_id,
+      tenantAcceptedText(listing, request, propertyId),
+      'dashboard accept confirmation',
+    );
+  } else if (status === 'RESCHEDULED') {
+    dbService.updateViewingRequest(request.id, { status: 'RESCHEDULED', requestedTime: proposed });
+    await recordAgentResponse(request, 'RESCHEDULED', 'DASHBOARD');
+    const slot = parseFrenchSlot(proposed);
+    scheduledAt = slot ? slot.iso : null;
+    dbService.setViewingScheduledAt(request.id, scheduledAt);
+    tenantNotified = await trySend(
+      request.lead_wa_id,
+      tenantRescheduleText(listing, proposed, propertyId),
+      'dashboard reschedule proposal',
+    );
+  } else if (status === 'DECLINED') {
+    dbService.updateViewingRequest(request.id, { status: 'DECLINED' });
+    await recordAgentResponse(request, 'DECLINED', 'DASHBOARD');
+    const sent = await sendAlternativesToTenant({ request, listing, propertyId });
+    tenantNotified = sent.sent;
+    alternatives = sent.count;
+    await notifyOps(
+      opsDashboardAnswerText({ listing, viewingRequest: request, propertyId, status, tenantNotified }),
+      'dashboard decline ops copy',
+    );
+  } else {
+    dbService.updateViewingRequest(request.id, { status: 'CANCELLED' });
+    try {
+      dbService.recordViewingFirstResponse(request.id);
+      dbService.setViewingAgentResponseVia(request.id, 'DASHBOARD');
+    } catch (err) {
+      console.error(`[viewing] response stamp for #${request.id} failed: ${err.message}`);
+    }
+    tenantNotified = await trySend(
+      request.lead_wa_id,
+      tenantCancelledText(listing, request, propertyId),
+      'dashboard cancellation',
+    );
+    await notifyOps(
+      opsDashboardAnswerText({ listing, viewingRequest: request, propertyId, status, tenantNotified }),
+      'dashboard cancellation ops copy',
+    );
+  }
+
+  // sendAlternativesToTenant stamps its own send; every other branch stamps here.
+  if (tenantNotified && status !== 'DECLINED') markCustomerNotified(request.id);
+
+  console.log(
+    `[viewing] request #${request.id} ${status} by agent #${claimant} from the dashboard — client told: ${tenantNotified}`,
+  );
+  return {
+    ok: true,
+    status,
+    unchanged: false,
+    tenantNotified,
+    scheduledAt,
+    ...(alternatives === undefined ? {} : { alternatives }),
+  };
 }
 
 /**
@@ -1184,6 +1414,7 @@ async function handleAgentTextReply({ from, text }) {
       tenantRescheduleText(ctx.listing, proposed, ctx.propertyId),
       'reschedule proposal',
     );
+    if (told) markCustomerNotified(ctx.request.id);
     await trySend(
       from,
       `${HEADER_BRAND} Nouveau créneau transmis au client : ${proposed} ✅`,
@@ -1389,6 +1620,10 @@ module.exports = {
   // The feedback loop.
   handleViewingButtonReply,
   handleAgentTextReply,
+  respondFromDashboard,
+  DASHBOARD_TRANSITIONS,
+  tenantCancelledText,
+  opsDashboardAnswerText,
   parseViewingButtonId,
   parseNumberedChoice,
   parseDeclineReason,

@@ -2636,7 +2636,22 @@ const VIEWING_REQUESTS_EXTENDED_COLUMNS = [
   // /admin/viewings could only filter by commune by fetching every property id
   // in that commune first, which does not survive 30k listings.
   ['commune', 'TEXT'],
+  // Where the agent's latest answer came from — WHATSAPP (the Accepter /
+  // Autre créneau / Décliner buttons or a typed 1/2/3) or DASHBOARD (the
+  // agent portal's Visites tab). Before the dashboard went through the same
+  // response path as WhatsApp, an answer given there changed the status and
+  // left no trace that anybody had answered at all.
+  ['agent_response_via', 'TEXT'],
+  // The last time a customer-facing message about this request (confirmed,
+  // new slot, declined with alternatives, cancelled) was ACCEPTED by Chakra.
+  // Accepted, not delivered: Chakra does not forward Meta's receipts, and a
+  // customer outside the 24h window never receives a session message. NULL
+  // after an answer is the admin console's cue that nobody told the customer.
+  ['customer_notified_at', 'TEXT'],
 ];
+
+/** viewing_requests.agent_response_via. */
+const AGENT_RESPONSE_CHANNELS = ['WHATSAPP', 'DASHBOARD'];
 
 /** What a customer can answer to the post-visit check-in. */
 const CHECKIN_RESPONSES = ['GOOD', 'BAD', 'AGENT_ABSENT'];
@@ -2779,6 +2794,18 @@ function getPendingAgentAction(waId) {
 function clearPendingAgentAction(waId) {
   if (!waId) return false;
   return db.prepare('DELETE FROM pending_agent_actions WHERE wa_id = ?').run(String(waId)).changes > 0;
+}
+
+/**
+ * Drop every WhatsApp question still open about ONE request. Used when the
+ * agent answers somewhere else — the dashboard — so a "1" typed on WhatsApp
+ * later cannot re-answer a request that is already settled (and message the
+ * customer a second, contradictory time). Keyed by request, not by sender:
+ * the dashboard knows which request, not which phone the question went to.
+ */
+function clearPendingAgentActionsForViewing(viewingRequestId) {
+  if (!viewingRequestId) return 0;
+  return db.prepare('DELETE FROM pending_agent_actions WHERE viewing_request_id = ?').run(viewingRequestId).changes;
 }
 
 /**
@@ -3009,6 +3036,21 @@ function recordViewingFirstResponse(id, at = new Date().toISOString()) {
   return db
     .prepare('UPDATE viewing_requests SET first_response_at = ? WHERE id = ? AND first_response_at IS NULL')
     .run(at, id).changes > 0;
+}
+
+/** Which channel the agent's latest answer came through (AGENT_RESPONSE_CHANNELS). */
+function setViewingAgentResponseVia(id, via) {
+  if (!AGENT_RESPONSE_CHANNELS.includes(via)) {
+    throw new Error(`setViewingAgentResponseVia: unknown channel '${via}' (expected one of ${AGENT_RESPONSE_CHANNELS.join(', ')})`);
+  }
+  db.prepare('UPDATE viewing_requests SET agent_response_via = ? WHERE id = ?').run(via, id);
+  return getViewingRequest(id);
+}
+
+/** A customer-facing message about this request was accepted for sending. */
+function markViewingCustomerNotified(id, at = new Date().toISOString()) {
+  db.prepare('UPDATE viewing_requests SET customer_notified_at = ? WHERE id = ?').run(at, id);
+  return getViewingRequest(id);
 }
 
 function setViewingDeclineCode(id, code, by) {
@@ -3501,6 +3543,10 @@ module.exports = {
   // Direct-to-agent routing, performance and fall-through reasons.
   setViewingRouting,
   recordViewingFirstResponse,
+  setViewingAgentResponseVia,
+  markViewingCustomerNotified,
+  clearPendingAgentActionsForViewing,
+  AGENT_RESPONSE_CHANNELS,
   setViewingDeclineCode,
   reassignViewingRequest,
   listAllViewingRequests,

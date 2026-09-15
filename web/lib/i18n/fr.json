@@ -716,7 +716,15 @@
       "confirmed": "Visite confirmée.",
       "cancelled": "Visite annulée.",
       "rescheduled": "Nouveau créneau proposé.",
-      "proposeSlot": "Proposer ce créneau"
+      "proposeSlot": "Proposer ce créneau",
+      "decline": "Décliner",
+      "cancelVisit": "Annuler la visite",
+      "declined": "Visite déclinée.",
+      "clientNotified": "Le client a été prévenu sur WhatsApp.",
+      "clientNotNotified": "Le message WhatsApp au client n’a pas pu être envoyé — contactez-le directement.",
+      "alreadyDone": "Aucun changement : la visite était déjà dans cet état.",
+      "closed": "Plus aucune action possible sur cette visite.",
+      "clientNotifiedBadge": "Client prévenu"
     },
     "settings": {
       "title": "Paramètres",
@@ -1831,7 +1839,11 @@
       "cancelTitle": "Annuler cette visite ?",
       "cancelBody": "La demande passe en « annulée ». Personne n'est prévenu automatiquement — informez vous-même le client et l'agent.",
       "keep": "Conserver",
-      "confirmCancel": "Annuler la visite"
+      "confirmCancel": "Annuler la visite",
+      "viaDashboard": "Réponse via le tableau de bord",
+      "viaWhatsapp": "Réponse via WhatsApp",
+      "clientNotified": "Client prévenu",
+      "clientNotNotified": "Client non prévenu"
     },
     "marketData": {
       "title": "Données marché",

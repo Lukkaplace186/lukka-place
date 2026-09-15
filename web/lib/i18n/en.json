@@ -716,7 +716,15 @@
       "confirmed": "Viewing confirmed.",
       "cancelled": "Viewing cancelled.",
       "rescheduled": "New time proposed.",
-      "proposeSlot": "Propose this time"
+      "proposeSlot": "Propose this time",
+      "decline": "Decline",
+      "cancelVisit": "Cancel viewing",
+      "declined": "Viewing declined.",
+      "clientNotified": "The client has been notified on WhatsApp.",
+      "clientNotNotified": "The WhatsApp message to the client could not be sent — contact them directly.",
+      "alreadyDone": "No change: the viewing was already in this state.",
+      "closed": "No further action is possible on this viewing.",
+      "clientNotifiedBadge": "Client notified"
     },
     "settings": {
       "title": "Settings",
@@ -1831,7 +1839,11 @@
       "cancelTitle": "Cancel This Viewing?",
       "cancelBody": "The request is marked cancelled. Nobody is messaged automatically — tell the customer and the agent yourself.",
       "keep": "Keep it",
-      "confirmCancel": "Cancel viewing"
+      "confirmCancel": "Cancel viewing",
+      "viaDashboard": "Answered via dashboard",
+      "viaWhatsapp": "Answered via WhatsApp",
+      "clientNotified": "Client notified",
+      "clientNotNotified": "Client not notified"
     },
     "marketData": {
       "title": "Market Data",

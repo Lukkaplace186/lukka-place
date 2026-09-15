@@ -5872,6 +5872,223 @@ console.log('\n2. services/openai.js');
   dbService.clearPendingAgentAction(AGENT_WA);
 
   // ===========================================================================
+  // 21b. Agent answers from the web dashboard (respondFromDashboard)
+  //
+  //      The agent portal's Visites tab used to PATCH the status and stop: the
+  //      customer heard nothing, first_response_at stayed NULL, and nothing
+  //      told the admin console the agent had answered at all. Reported
+  //      2026-09-15 after an agent confirmed four visits and no customer got a
+  //      message. These pin the dashboard to the same loop as the buttons.
+  // ===========================================================================
+
+  console.log('\n21b. Agent answers from the web dashboard');
+
+  const DASHBOARD_AGENT_ID = Number(ATTRIBUTED_LISTING.agent_id);
+  const DASH_CUSTOMER = '243990111222';
+  const DASH_OPS = '243800000001';
+  const listingStubBefore21b = propertyRepo.getListingContactById;
+  const matchBefore21b = propertyMatching.matchProperties;
+  const opsBefore21b = process.env.OPS_WHATSAPP_NUMBER;
+  propertyRepo.getListingContactById = async () => ATTRIBUTED_LISTING;
+  propertyMatching.matchProperties = async () => ({
+    data: [{ id: 404, title: 'Studio Gombe', price: 500, slug: 'studio-gombe-404' }],
+  });
+  process.env.OPS_WHATSAPP_NUMBER = DASH_OPS;
+  const dashSendsTo = (wa) => httpCalls.filter((c) => c.data && String(c.data.to) === wa);
+  const dashBody = (call) => JSON.stringify(call.data);
+  const dashAnswer = (id, status, extra = {}) =>
+    viewingNotifications.respondFromDashboard({ viewingRequestId: id, agentId: DASHBOARD_AGENT_ID, status, ...extra });
+
+  // --- Confirm --------------------------------------------------------------
+
+  const dashConfirm = freshViewingRequest('samedi 14h');
+  dbService.setPendingAgentAction({ waId: AGENT_WA, kind: 'VIEWING_RESPONSE', viewingRequestId: dashConfirm.id });
+  httpCalls.length = 0;
+  const dashConfirmResult = await dashAnswer(dashConfirm.id, 'CONFIRMED');
+  const dashConfirmedRow = dbService.getViewingRequest(dashConfirm.id);
+
+  check('a dashboard Confirm sets CONFIRMED and tells the customer on WhatsApp', () => {
+    assert.strictEqual(dashConfirmResult.ok, true);
+    assert.strictEqual(dashConfirmedRow.status, 'CONFIRMED');
+    assert.strictEqual(dashConfirmResult.tenantNotified, true);
+    const toCustomer = dashSendsTo(DASH_CUSTOMER);
+    assert.strictEqual(toCustomer.length, 1, 'exactly one message to the customer');
+    assert.match(dashBody(toCustomer[0]), /confirm/i);
+  });
+
+  check('the agent is not messaged on WhatsApp about an answer they gave on the web', () =>
+    assert.strictEqual(dashSendsTo(AGENT_WA).length, 0));
+
+  check('the admin console can see it: response time, channel, customer notified', () => {
+    assert.ok(dashConfirmedRow.first_response_at, 'first_response_at stamped — metrics and the SLA read it');
+    assert.strictEqual(dashConfirmedRow.agent_response_via, 'DASHBOARD');
+    assert.ok(dashConfirmedRow.customer_notified_at);
+  });
+
+  check("a dashboard confirmation pins the check-in to the customer's own parseable time", () =>
+    assert.ok(dashConfirmedRow.scheduled_at));
+
+  check('the WhatsApp question still open about that request is withdrawn', () =>
+    assert.strictEqual(dbService.getPendingAgentAction(AGENT_WA), undefined));
+
+  httpCalls.length = 0;
+  const dashConfirmAgain = await dashAnswer(dashConfirm.id, 'CONFIRMED');
+  check('confirming twice sends nothing the second time', () => {
+    assert.strictEqual(dashConfirmAgain.ok, true);
+    assert.strictEqual(dashConfirmAgain.unchanged, true);
+    assert.strictEqual(httpCalls.length, 0);
+  });
+
+  // --- Authorisation --------------------------------------------------------
+
+  const dashStranger = freshViewingRequest();
+  httpCalls.length = 0;
+  const dashStrangerResult = await viewingNotifications.respondFromDashboard({
+    viewingRequestId: dashStranger.id,
+    agentId: 99999,
+    status: 'CONFIRMED',
+  });
+  check("another agent's dashboard cannot answer the request", () => {
+    assert.strictEqual(dashStrangerResult.ok, false);
+    assert.strictEqual(dashStrangerResult.reason, 'not-this-requests-agent');
+    assert.strictEqual(dbService.getViewingRequest(dashStranger.id).status, 'PENDING');
+    assert.strictEqual(httpCalls.length, 0);
+  });
+
+  const dashOffline = freshViewingRequest();
+  dbService.setViewingRouting(dashOffline.id, { agentId: DASHBOARD_AGENT_ID, routingType: 'DIRECT_WA' });
+  propertyRepo.getListingContactById = async () => null;
+  const dashOfflineResult = await dashAnswer(dashOffline.id, 'CONFIRMED');
+  propertyRepo.getListingContactById = async () => ATTRIBUTED_LISTING;
+  check('the agent stamped at notify time can still answer while Postgres is unreachable', () => {
+    assert.strictEqual(dashOfflineResult.ok, true);
+    assert.strictEqual(dbService.getViewingRequest(dashOffline.id).status, 'CONFIRMED');
+  });
+
+  const dashNotAgreed = freshViewingRequest();
+  const dashBadCancel = await dashAnswer(dashNotAgreed.id, 'CANCELLED');
+  check('a visit nobody agreed to cannot be CANCELLED — refusing it is a DECLINE', () => {
+    assert.strictEqual(dashBadCancel.ok, false);
+    assert.strictEqual(dashBadCancel.reason, 'invalid-transition');
+    assert.strictEqual(dbService.getViewingRequest(dashNotAgreed.id).status, 'PENDING');
+  });
+
+  // --- Reschedule -----------------------------------------------------------
+
+  const dashResched = freshViewingRequest('samedi 14h');
+  httpCalls.length = 0;
+  const dashReschedResult = await dashAnswer(dashResched.id, 'RESCHEDULED', { requestedTime: 'dimanche 10h' });
+  check('a dashboard Reschedule stores the new slot and sends it to the customer', () => {
+    assert.strictEqual(dashReschedResult.ok, true);
+    const row = dbService.getViewingRequest(dashResched.id);
+    assert.strictEqual(row.status, 'RESCHEDULED');
+    assert.strictEqual(row.requested_time, 'dimanche 10h');
+    const toCustomer = dashSendsTo(DASH_CUSTOMER);
+    assert.strictEqual(toCustomer.length, 1);
+    assert.match(dashBody(toCustomer[0]), /dimanche 10h/);
+    assert.strictEqual(row.agent_response_via, 'DASHBOARD');
+  });
+
+  const dashNoTime = await dashAnswer(dashResched.id, 'RESCHEDULED', { requestedTime: '   ' });
+  check('rescheduling needs a real slot', () =>
+    assert.strictEqual(dashNoTime.reason, 'requested-time-required'));
+
+  await dashAnswer(dashResched.id, 'RESCHEDULED', { requestedTime: 'quand vous voulez' });
+  check('a new slot that names no instant clears the old check-in time', () =>
+    assert.strictEqual(dbService.getViewingRequest(dashResched.id).scheduled_at, null));
+
+  // --- Decline --------------------------------------------------------------
+
+  const dashDecline = freshViewingRequest();
+  httpCalls.length = 0;
+  const dashDeclineResult = await dashAnswer(dashDecline.id, 'DECLINED');
+  check('a dashboard Decline sends the customer real alternatives', () => {
+    assert.strictEqual(dashDeclineResult.ok, true);
+    assert.strictEqual(dashDeclineResult.alternatives, 1);
+    const row = dbService.getViewingRequest(dashDecline.id);
+    assert.strictEqual(row.status, 'DECLINED');
+    assert.ok(row.customer_notified_at);
+    const toCustomer = dashSendsTo(DASH_CUSTOMER);
+    assert.strictEqual(toCustomer.length, 1);
+    assert.match(dashBody(toCustomer[0]), /Studio Gombe/);
+  });
+  check('ops hears about a dashboard decline, and whether the customer was reached', () => {
+    const toOps = dashSendsTo(DASH_OPS);
+    assert.strictEqual(toOps.length, 1);
+    assert.match(dashBody(toOps[0]), /tableau de bord/);
+    assert.match(dashBody(toOps[0]), /Client prévenu/);
+  });
+
+  // --- Cancel ---------------------------------------------------------------
+
+  const dashCancel = freshViewingRequest();
+  await dashAnswer(dashCancel.id, 'CONFIRMED');
+  httpCalls.length = 0;
+  const dashCancelResult = await dashAnswer(dashCancel.id, 'CANCELLED');
+  check('cancelling a confirmed visit tells the customer, with no alternatives pushed', () => {
+    assert.strictEqual(dashCancelResult.ok, true);
+    assert.strictEqual(dbService.getViewingRequest(dashCancel.id).status, 'CANCELLED');
+    const toCustomer = dashSendsTo(DASH_CUSTOMER);
+    assert.strictEqual(toCustomer.length, 1);
+    assert.match(dashBody(toCustomer[0]), /annul/i);
+    assert.doesNotMatch(dashBody(toCustomer[0]), /Studio Gombe/);
+  });
+  check('ops hears about a dashboard cancellation', () => {
+    const toOps = dashSendsTo(DASH_OPS);
+    assert.strictEqual(toOps.length, 1);
+    assert.match(dashBody(toOps[0]), /annulée/);
+  });
+
+  // --- Through the real route -----------------------------------------------
+
+  const dashRouteTarget = freshViewingRequest();
+  const dashRouteOk = await adminRequest('POST', `/admin/viewing-requests/${dashRouteTarget.id}/agent-response`, {
+    agent_id: DASHBOARD_AGENT_ID,
+    status: 'CONFIRMED',
+  });
+  check('POST /admin/viewing-requests/:id/agent-response answers through the real route', () => {
+    assert.strictEqual(dashRouteOk.status, 200);
+    assert.strictEqual(dbService.getViewingRequest(dashRouteTarget.id).status, 'CONFIRMED');
+  });
+
+  const dashRouteForbidden = await adminRequest('POST', `/admin/viewing-requests/${freshViewingRequest().id}/agent-response`, {
+    agent_id: 99999,
+    status: 'CONFIRMED',
+  });
+  check('the route refuses an agent the request does not belong to (403)', () =>
+    assert.strictEqual(dashRouteForbidden.status, 403));
+
+  const dashRouteBadStatus = await adminRequest('POST', `/admin/viewing-requests/${dashRouteTarget.id}/agent-response`, {
+    agent_id: DASHBOARD_AGENT_ID,
+    status: 'COMPLETED',
+  });
+  check('the route refuses a status an agent cannot set (400)', () =>
+    assert.strictEqual(dashRouteBadStatus.status, 400));
+
+  const dashRouteUnknown = await adminRequest('POST', '/admin/viewing-requests/999999/agent-response', {
+    agent_id: DASHBOARD_AGENT_ID,
+    status: 'CONFIRMED',
+  });
+  check('an unknown request is a 404', () => assert.strictEqual(dashRouteUnknown.status, 404));
+
+  // --- WhatsApp answers carry the same admin-visible stamps -----------------
+
+  const waParity = freshViewingRequest('samedi 14h');
+  await viewingNotifications.handleViewingButtonReply({ from: AGENT_WA, replyId: `viewing_accept:${waParity.id}` });
+  check('a WhatsApp Accepter records its channel and that the customer was told', () => {
+    const row = dbService.getViewingRequest(waParity.id);
+    assert.strictEqual(row.agent_response_via, 'WHATSAPP');
+    assert.ok(row.customer_notified_at);
+  });
+  dbService.clearPendingAgentAction(AGENT_WA);
+
+  propertyRepo.getListingContactById = listingStubBefore21b;
+  propertyMatching.matchProperties = matchBefore21b;
+  if (opsBefore21b === undefined) delete process.env.OPS_WHATSAPP_NUMBER;
+  else process.env.OPS_WHATSAPP_NUMBER = opsBefore21b;
+  httpCalls.length = 0;
+
+  // ===========================================================================
   // 22. Listing enquiry from the storefront's WhatsApp CTA
   //
   //     The message the site composes ("...Voir l'annonce :

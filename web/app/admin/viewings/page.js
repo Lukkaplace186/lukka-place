@@ -221,6 +221,27 @@ export default async function AdminViewingsPage({ searchParams }) {
                         {VIEWING_REQUEST_STATUS_LABEL_KEYS[row.status] ? t(VIEWING_REQUEST_STATUS_LABEL_KEYS[row.status]) : row.status}
                       </Chip>
                       {isEscalated ? <Chip tone="danger">{t('admin.viewings.escalated')}</Chip> : null}
+                      {/* The agent's answer, wherever it was given. Before the
+                          dashboard went through the engine's response path, an
+                          answer given there changed the status and left
+                          nothing else — no channel, no response time, no sign
+                          anyone had told the customer. `customer_notified_at`
+                          is Chakra ACCEPTING the message, not delivery. */}
+                      {row.agent_response_via ? (
+                        <div className="text-ink-45">
+                          {row.agent_response_via === 'DASHBOARD'
+                            ? t('admin.viewings.viaDashboard')
+                            : t('admin.viewings.viaWhatsapp')}
+                          {row.first_response_at ? ` · ${formatKinshasa(row.first_response_at)}` : ''}
+                        </div>
+                      ) : null}
+                      {row.agent_response_via || row.customer_notified_at ? (
+                        <Chip tone={row.customer_notified_at ? 'success' : 'danger'}>
+                          {row.customer_notified_at
+                            ? t('admin.viewings.clientNotified')
+                            : t('admin.viewings.clientNotNotified')}
+                        </Chip>
+                      ) : null}
                     </div>
                   </td>
                   <td className={`${TD_DENSE} whitespace-nowrap`}>

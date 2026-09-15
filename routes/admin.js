@@ -23,6 +23,8 @@ const {
   notifyViewingRequestInBackground,
   reassignViewing,
   nudgeViewingAgent,
+  respondFromDashboard,
+  DASHBOARD_TRANSITIONS,
 } = require('../services/viewingNotifications');
 const { parseFrenchSlot } = require('../services/visitSchedule');
 
@@ -761,6 +763,53 @@ router.patch('/viewing-requests/:id', (req, res) => {
     return res.json({ success: true, viewingRequest: db.getViewingRequest(id) });
   } catch (err) {
     return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * An AGENT's answer from the web dashboard (web/app/compte/agent/actions.js,
+ * updateViewingRequestAction) — the twin of the WhatsApp Accepter / Autre
+ * créneau / Décliner buttons. Deliberately not PATCH /viewing-requests/:id:
+ * that is an admin override which changes the row and tells nobody. This
+ * messages the customer, stamps the agent's first response and records the
+ * channel; respondFromDashboard re-checks that agent_id is this request's agent.
+ */
+router.post('/viewing-requests/:id/agent-response', async (req, res) => {
+  const id = Number.parseInt(req.params.id, 10);
+  if (!Number.isFinite(id)) {
+    return res.status(404).json({ success: false, error: 'Viewing request not found.' });
+  }
+  const agentId = Number.parseInt(req.body?.agent_id, 10);
+  if (!Number.isFinite(agentId)) {
+    return res.status(400).json({ success: false, error: 'agent_id must be a numeric agents.id.' });
+  }
+  const status = req.body?.status;
+  const allowed = Object.keys(DASHBOARD_TRANSITIONS);
+  if (!allowed.includes(status)) {
+    return res.status(400).json({ success: false, error: `status must be one of: ${allowed.join(', ')}` });
+  }
+
+  try {
+    const result = await respondFromDashboard({
+      viewingRequestId: id,
+      agentId,
+      status,
+      requestedTime: req.body?.requested_time,
+    });
+    if (!result.ok) {
+      const httpStatus = { 'unknown-request': 404, 'not-this-requests-agent': 403 }[result.reason] || 400;
+      const error = {
+        'unknown-request': 'Viewing request not found.',
+        'not-this-requests-agent': 'This viewing request does not belong to that agent.',
+        'invalid-transition': `A ${result.current} viewing request cannot be set to ${status}.`,
+        'requested-time-required': 'requested_time is required to reschedule.',
+      }[result.reason] || result.reason;
+      return res.status(httpStatus).json({ success: false, error, reason: result.reason });
+    }
+    return res.json({ success: true, ...result, viewingRequest: db.getViewingRequest(id) });
+  } catch (err) {
+    console.error(`[admin] POST /viewing-requests/${id}/agent-response failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not record the agent response.' });
   }
 });
 

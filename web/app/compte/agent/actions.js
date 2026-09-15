@@ -41,15 +41,16 @@ import {
   updateLeadStatus,
   sendWhatsAppMessage,
   listViewingRequests,
-  updateViewingRequest,
+  respondToViewingRequest,
   createLeadProposal,
   getAgentPitchUsage,
   parseAgentListingText,
 } from '@/lib/adminApi';
-import { LEAD_STATUSES, VIEWING_REQUEST_STATUSES } from '@/lib/adminLabels';
+import { LEAD_STATUSES } from '@/lib/adminLabels';
 import { currentQuotaPeriodStart, resolveLeadQuota } from '@/lib/leadQuota';
 import { createPlanChangeRequest, getPurchasablePackages } from '@/lib/subscriptions';
 import { getT } from '@/lib/i18n/server';
+import { AGENT_SETTABLE_VIEWING_STATUSES, canAgentSetStatus } from '@/lib/viewingActions';
 import { MAX_AVATAR_BYTES, megabytes, validatePhotoSelection } from '@/lib/uploadLimits.mjs';
 
 const ALLOWED_AVATAR_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
@@ -448,21 +449,32 @@ async function assertOwnedViewingRequest(agentId, viewingRequestId) {
 }
 
 /**
- * Backs "Confirmer" / "Annuler" / "Reprogrammer" on AgentVisitRequestCard.
- * Called imperatively (not a plain <form action>) so the card can show a
- * toast and stay in place instead of navigating, per this feature's ask —
- * unlike updateAgentLeadStatusAction above, which still uses this page's
- * older redirect+searchParams convention.
+ * Backs Confirmer / Reprogrammer / Décliner / Annuler la visite on
+ * AgentVisitRequestCard. Called imperatively so the card can toast and stay in
+ * place.
  *
- * `requested_time` is only meaningful (and only read) alongside
- * status='RESCHEDULED' — confirming or cancelling never touches it.
+ * This used to PATCH the status and stop. The row changed and nobody was told:
+ * not the customer who had asked to visit, and not the admin console, whose
+ * response metrics only moved for answers given on WhatsApp. It now goes
+ * through the engine's agent-response route, the dashboard twin of the
+ * WhatsApp buttons, which messages the customer, stamps the agent's first
+ * response and records that the answer came from the dashboard.
+ *
+ * What the agent may do next depends on the current status
+ * (lib/viewingActions.js); the engine enforces the same table. Repeating the
+ * status a request already has is answered as a no-op here, before anything is
+ * sent — a double tap must not message the customer twice.
+ *
+ * `tenantNotified` is Chakra accepting the send, not delivery: a customer
+ * outside WhatsApp's 24h window will not receive a session message. The card
+ * states which happened instead of claiming the customer was told.
  */
 export async function updateViewingRequestAction(viewingRequestId, formData) {
   const t = await getT();
   const agentId = await assertAgentSession();
   const status = String(formData.get('status') || '');
-  if (!VIEWING_REQUEST_STATUSES.includes(status)) {
-    return { ok: false, error: `status must be one of: ${VIEWING_REQUEST_STATUSES.join(', ')}` };
+  if (!AGENT_SETTABLE_VIEWING_STATUSES.includes(status)) {
+    return { ok: false, error: `status must be one of: ${AGENT_SETTABLE_VIEWING_STATUSES.join(', ')}` };
   }
 
   const requestedTime = status === 'RESCHEDULED' ? String(formData.get('requested_time') || '').trim() : undefined;
@@ -470,16 +482,36 @@ export async function updateViewingRequestAction(viewingRequestId, formData) {
     return { ok: false, error: t('errors.newSlotRequired') };
   }
 
+  let current;
   try {
-    await assertOwnedViewingRequest(agentId, viewingRequestId);
+    current = await assertOwnedViewingRequest(agentId, viewingRequestId);
   } catch (err) {
     return { ok: false, error: err.message };
   }
 
-  await updateViewingRequest(viewingRequestId, { status, requestedTime });
+  if (current.status === status && status !== 'RESCHEDULED') {
+    return { ok: true, status, unchanged: true, tenantNotified: false };
+  }
+  if (!canAgentSetStatus(current.status, status)) {
+    return { ok: false, error: t('agent.visits.closed') };
+  }
+
+  let result;
+  try {
+    result = await respondToViewingRequest(viewingRequestId, { agentId, status, requestedTime });
+  } catch (err) {
+    console.error(`[compte/agent] viewing request #${viewingRequestId} response failed: ${err.message}`);
+    return { ok: false, error: t('errors.sendFailed') };
+  }
+
   revalidatePath('/compte/agent/demandes');
   revalidatePath('/compte/agent');
-  return { ok: true, status };
+  return {
+    ok: true,
+    status: result.status || status,
+    unchanged: Boolean(result.unchanged),
+    tenantNotified: Boolean(result.tenantNotified),
+  };
 }
 
 /**

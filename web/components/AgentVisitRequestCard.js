@@ -2,9 +2,10 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Phone, MapPin, Clock, Check, X, CalendarClock } from 'lucide-react';
+import { Phone, MapPin, Clock, Check, X, CalendarClock, MessageCircle } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { updateViewingRequestAction } from '@/app/compte/agent/actions';
+import { agentActionsFor } from '@/lib/viewingActions';
 import { useToast } from './Toast';
 import { useT } from '@/lib/i18n/client';
 
@@ -17,13 +18,21 @@ const STATUS_TAG = {
   COMPLETED: 'bg-success-tint text-success',
 };
 
+const SECONDARY_BUTTON =
+  'u-press inline-flex h-9 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg text-[0.8125rem] font-semibold transition-colors disabled:opacity-60';
+
 /**
- * Confirm/Cancel are single-click; Reprogrammer expands an inline free-text
- * input for the new proposed time (same "expand inline" shape
- * AgentLeadCard's reply composer already uses) since a reschedule needs a
- * real value, not just a status flip. Calls updateViewingRequestAction
- * imperatively so this card can show a toast and stay in place — no
- * navigation, per this feature's ask.
+ * One viewing request, with only the answers its status allows
+ * (lib/viewingActions.js): Confirmer / Reprogrammer / Décliner before a visit is
+ * agreed, Reprogrammer / Annuler la visite after, nothing once it is settled.
+ * The card used to offer Confirm on every row, including confirmed ones, and a
+ * second confirmation messages the customer a second time.
+ *
+ * Every answer goes through updateViewingRequestAction, which now reaches the
+ * customer on WhatsApp. The toast says whether that message actually left — an
+ * agent who believes the client was told when they were not will not follow up
+ * themselves. Reprogrammer expands an inline free-text input, since a new slot
+ * needs a real value.
  */
 export default function AgentVisitRequestCard({ viewingRequest, statusLabel, relativeTime, target }) {
   const t = useT();
@@ -34,6 +43,15 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
   const { showToast } = useToast();
 
   const name = viewingRequest.lead_name || viewingRequest.lead_wa_id;
+  const actions = agentActionsFor(viewingRequest.status);
+  const can = (status) => actions.includes(status);
+
+  const doneMessage = {
+    CONFIRMED: t('agent.visits.confirmed'),
+    RESCHEDULED: t('agent.visits.rescheduled'),
+    DECLINED: t('agent.visits.declined'),
+    CANCELLED: t('agent.visits.cancelled'),
+  };
 
   function run(status, requestedTime) {
     const formData = new FormData();
@@ -41,17 +59,26 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
     if (requestedTime !== undefined) formData.set('requested_time', requestedTime);
 
     startTransition(async () => {
-      const result = await updateViewingRequestAction(viewingRequest.id, formData);
+      let result;
+      try {
+        result = await updateViewingRequestAction(viewingRequest.id, formData);
+      } catch (err) {
+        // A rejected Server Action (expired session, dropped connection) is not
+        // an {ok:false}; without this the buttons would simply go dead.
+        console.error('[AgentVisitRequestCard] updateViewingRequestAction failed', err);
+        showToast({ type: 'error', message: t('errors.submissionFailed') });
+        return;
+      }
       if (!result.ok) {
         showToast({ type: 'error', message: result.error });
         return;
       }
-      const messages = {
-        CONFIRMED: t('agent.visits.confirmed'),
-        CANCELLED: t('agent.visits.cancelled'),
-        RESCHEDULED: t('agent.visits.rescheduled'),
-      };
-      showToast({ type: 'success', message: messages[status] || 'Demande mise à jour.' });
+      if (result.unchanged) {
+        showToast({ type: 'success', message: t('agent.visits.alreadyDone') });
+      } else {
+        const notice = result.tenantNotified ? t('agent.visits.clientNotified') : t('agent.visits.clientNotNotified');
+        showToast({ type: result.tenantNotified ? 'success' : 'error', message: `${doneMessage[status]} ${notice}` });
+      }
       setReschedule(false);
       setNewTime('');
       router.refresh();
@@ -63,6 +90,8 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
     if (!newTime.trim()) return;
     run('RESCHEDULED', newTime.trim());
   }
+
+  const hasSecondary = can('RESCHEDULED') || can('DECLINED') || can('CANCELLED');
 
   return (
     <div className="u-card rounded-card bg-surface p-6">
@@ -95,44 +124,70 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
                 <span className="truncate">{target}</span>
               </span>
             )}
+            {viewingRequest.customer_notified_at && (
+              <span className="inline-flex items-center gap-1.5 text-success">
+                <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                {t('agent.visits.clientNotifiedBadge')}
+              </span>
+            )}
           </div>
         </div>
 
         <div className="flex flex-col gap-2">
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => run('CONFIRMED')}
-            className="u-btn-primary u-press inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-blue text-sm font-bold text-white disabled:opacity-60"
-          >
-            <Check strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-            Confirmer
-          </button>
-          <div className="flex gap-2">
+          {can('CONFIRMED') && (
             <button
               type="button"
               disabled={pending}
-              onClick={() => setReschedule((v) => !v)}
-              aria-expanded={reschedule}
-              className="u-press inline-flex h-9 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg text-[0.8125rem] font-semibold text-ink-45 transition-colors hover:bg-canvas-alt hover:text-ink disabled:opacity-60"
+              onClick={() => run('CONFIRMED')}
+              className="u-btn-primary u-press inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-blue text-sm font-bold text-white disabled:opacity-60"
             >
-              <CalendarClock strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-              {t('agent.visits.reschedule')}
+              <Check strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+              {t('agent.visits.confirm')}
             </button>
-            <button
-              type="button"
-              disabled={pending}
-              onClick={() => run('CANCELLED')}
-              className="u-press inline-flex h-9 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg text-[0.8125rem] font-semibold text-danger transition-colors hover:bg-danger-tint disabled:opacity-60"
-            >
-              <X strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-              {t('common.actions.cancel')}
-            </button>
-          </div>
+          )}
+          {hasSecondary && (
+            <div className="flex gap-2">
+              {can('RESCHEDULED') && (
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => setReschedule((v) => !v)}
+                  aria-expanded={reschedule}
+                  className={`${SECONDARY_BUTTON} text-ink-45 hover:bg-canvas-alt hover:text-ink`}
+                >
+                  <CalendarClock strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                  {t('agent.visits.reschedule')}
+                </button>
+              )}
+              {can('DECLINED') && (
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => run('DECLINED')}
+                  className={`${SECONDARY_BUTTON} text-danger hover:bg-danger-tint`}
+                >
+                  <X strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                  {t('agent.visits.decline')}
+                </button>
+              )}
+              {can('CANCELLED') && (
+                <button
+                  type="button"
+                  disabled={pending}
+                  onClick={() => run('CANCELLED')}
+                  className={`${SECONDARY_BUTTON} text-danger hover:bg-danger-tint`}
+                >
+                  <X strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                  {t('agent.visits.cancelVisit')}
+                </button>
+              )}
+            </div>
+          )}
+          {actions.length === 0 && <p className="text-xs text-ink-35">{t('agent.visits.closed')}</p>}
         </div>
       </div>
 
-      {reschedule && (
+      {reschedule && can('RESCHEDULED') && (
         <form onSubmit={submitReschedule} className="mt-4 flex flex-col gap-2.5 border-t border-line pt-4 sm:flex-row sm:items-end">
           <div className="flex-1">
             <label htmlFor={`reschedule-${viewingRequest.id}`} className="mb-1.5 block text-[0.8125rem] font-semibold text-ink-70">
@@ -144,7 +199,7 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
               required
               value={newTime}
               onChange={(e) => setNewTime(e.target.value)}
-              placeholder="Ex. Samedi matin, 10h"
+              placeholder={t('agent.visits.slotPlaceholder')}
               className="u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35"
             />
           </div>

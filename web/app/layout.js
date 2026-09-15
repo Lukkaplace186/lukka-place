@@ -123,6 +123,12 @@ export async function generateMetadata() {
 // This is what colors the browser chrome/status bar on mobile Safari and
 // Chrome/Android when the site is open or added to the home screen.
 export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  // Lets the page use the full screen on notched phones; the bottom bars
+  // already pad with env(safe-area-inset-bottom). No maximumScale on purpose —
+  // see the 16px field rule in globals.css for how input zoom is prevented.
+  viewportFit: 'cover',
   themeColor: '#1D5BD8',
 };
 

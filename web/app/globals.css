@@ -290,6 +290,32 @@
   }
 }
 
+/*
+ * iOS Safari zooms the page in when a focused field's text is under 16px, and
+ * never zooms back out: the visitor lands on the next screen magnified and
+ * shifted sideways, and has to pinch out by hand (reported 2026-09-15 after
+ * searching from the homepage). Most fields here are `text-sm` (14px) by
+ * design, so rather than chase every one — and every future one — this raises
+ * all text-entry fields to 16px wherever a finger or a phone-width screen is
+ * involved. Desktop keeps the compact sizes.
+ *
+ * Deliberately UNLAYERED: Tailwind v4 puts utilities in `@layer utilities`,
+ * and an unlayered rule wins over every layer regardless of specificity, so a
+ * `text-sm` class cannot undo it. `max(16px, 1em)` never shrinks a field that
+ * inherits something larger. Checkboxes, radios, ranges, file pickers and
+ * buttons have no text to zoom into and are left alone.
+ *
+ * Do NOT "fix" zoom with `maximum-scale=1` in the viewport: it takes pinch
+ * zoom away from people who need it, and iOS ignores it anyway.
+ */
+@media (pointer: coarse), (max-width: 767px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']):not([type='color']):not([type='button']):not([type='submit']):not([type='reset']):not([type='image']),
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
+}
+
 @layer utilities {
   /* Hides the scrollbar on the mobile snap-carousels (FeaturedListings,
      CardImageCarousel's parent) while leaving real touch/wheel scrolling

@@ -312,3 +312,41 @@ test('no client-rendered listing date is formatted in the runtime zone', () => {
     }
   }
 });
+
+// ---------------------------------------------------------------------------
+// iOS Safari input zoom
+// ---------------------------------------------------------------------------
+
+test('text fields are at least 16px on touch and phone-width screens, outside any layer', () => {
+  const css = read('app/globals.css');
+  const start = css.indexOf('@media (pointer: coarse), (max-width: 767px) {');
+  assert.ok(start > 0, 'the 16px field rule is missing');
+  // Unlayered: it must not sit inside an @layer block, or a text-sm utility wins.
+  const before = css.slice(0, start);
+  const opened = (before.match(/@layer [\w-]+ \{/g) || []).length;
+  const layerBlocks = [...before.matchAll(/@layer [\w-]+ \{/g)].map((m) => m.index);
+  for (const index of layerBlocks) {
+    let depth = 0;
+    let end = index;
+    for (let i = css.indexOf('{', index); i < css.length; i += 1) {
+      if (css[i] === '{') depth += 1;
+      else if (css[i] === '}') { depth -= 1; if (depth === 0) { end = i; break; } }
+    }
+    assert.ok(end < start, 'the 16px field rule is nested inside an @layer');
+  }
+  assert.ok(opened >= 1);
+  const block = css.slice(start, css.indexOf('\n}\n', start));
+  assert.match(block, /select,\s*textarea\s*\{\s*font-size: max\(16px, 1em\);/);
+  assert.match(block, /input:not\(\[type='checkbox'\]\)/);
+});
+
+test('the viewport is device-width, initial scale 1, covers notches, and never blocks pinch zoom', () => {
+  // Read as source: importing app/layout.js in Node would pull in next/font and globals.css.
+  const block = read('app/layout.js').match(/export const viewport = \{[\s\S]*?\n\};/)?.[0] || '';
+  assert.ok(block, 'viewport export not found');
+  assert.match(block, /width: 'device-width'/);
+  assert.match(block, /initialScale: 1/);
+  assert.match(block, /viewportFit: 'cover'/);
+  // As properties, not words: the export's own comment explains why there is no maximumScale.
+  assert.doesNotMatch(block, /^\s*(maximumScale|userScalable)\s*:/m);
+});

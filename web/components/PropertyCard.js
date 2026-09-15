@@ -9,6 +9,7 @@ import FavoriteButton from './FavoriteButton';
 import WhatsAppCTA from './WhatsAppCTA';
 import CallCTA from './CallCTA';
 import AgencyLogo from './AgencyLogo';
+import AgentVerificationBadge from './AgentVerificationBadge';
 import { displayableAgencyName } from '@/lib/agentIdentity';
 import Price from './Price';
 import SpecItem, { SpecCell } from './SpecItem';
@@ -277,7 +278,12 @@ export default function PropertyCard({
                 ragged two-line rail with a half-empty first line. The title
                 line is already `truncate`, so it gives the badge that width
                 without any wrap of its own. */}
-            {hasAgency ? <AgencyLogo logoUrl={agencyLogoUrl} name={agencyName} /> : null}
+            {hasAgency ? (
+              <span className="flex shrink-0 items-center gap-1.5">
+                <AgentVerificationBadge level={listing.agent_verification_level} t={t} variant="icon" />
+                <AgencyLogo logoUrl={agencyLogoUrl} name={agencyName} />
+              </span>
+            ) : null}
           </div>
         ) : null}
 

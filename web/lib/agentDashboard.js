@@ -1,4 +1,5 @@
 import 'server-only';
+import { cache } from 'react';
 import { getAgentProfile, getOwnListingsForDashboard, agentDisplayName, agentProfileCompletion } from './agencies';
 import { listLeads, listViewingRequests } from './adminApi';
 
@@ -18,8 +19,14 @@ import { listLeads, listViewingRequests } from './adminApi';
  * property_ids-OR-assigned_agent rule the rest of the dashboard uses (see
  * services/db.js's listLeads), so a general enquiry with no property
  * attached still counts here exactly as it does on the Demandes page.
+ *
+ * Wrapped in React's `cache()`: the layout AND the page both call this on
+ * every request (see above), and before the wrap each call did the full job
+ * twice — two agent-profile reads, two unbounded own-listings reads and FOUR
+ * HTTP round trips to the engine per page view. `cache()` memoises per server
+ * request only, so nothing is shared between two agents or two requests.
  */
-export async function getAgentDashboardContext(agentId) {
+export const getAgentDashboardContext = cache(async function getAgentDashboardContext(agentId) {
   const agent = await getAgentProfile(agentId);
   if (!agent) return null;
 
@@ -62,4 +69,4 @@ export async function getAgentDashboardContext(agentId) {
     pendingVisitsCount,
     completion: agentProfileCompletion(agent, { listingCount: listings.length }),
   };
-}
+});

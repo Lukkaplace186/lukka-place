@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Archive, ArchiveRestore, Copy, ExternalLink, MessageCircle, MoreHorizontal, Pencil, RotateCcw, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, Copy, ExternalLink, ImagePlus, MessageCircle, MoreHorizontal, Pencil, RotateCcw, Trash2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -21,6 +21,7 @@ import {
   updateListingStatusAction,
 } from '@/app/compte/agent/actions';
 import { useToast } from './Toast';
+import AgentListingShareKit from './AgentListingShareKit';
 import { useT } from '@/lib/i18n/client';
 
 /**
@@ -66,6 +67,7 @@ export default function AgentListingActionsMenu({ listing, isClosed }) {
   const { showToast } = useToast();
   const [pending, startTransition] = useTransition();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [shareKitOpen, setShareKitOpen] = useState(false);
 
   // Archived is `status = 0` — the same active/enabled flag the public
   // query filters on. Coerced because bigint/smallint columns arrive from
@@ -172,6 +174,11 @@ export default function AgentListingActionsMenu({ listing, isClosed }) {
             {t('agent.listings.duplicate')}
           </DropdownMenuItem>
 
+          <DropdownMenuItem onSelect={() => setShareKitOpen(true)} className="flex items-center gap-2.5">
+            <ImagePlus strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
+            {t('agent.share.menuItem')}
+          </DropdownMenuItem>
+
           <DropdownMenuItem asChild>
             <a
               href={shareHref}
@@ -242,6 +249,8 @@ export default function AgentListingActionsMenu({ listing, isClosed }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AgentListingShareKit listingId={listing.id} open={shareKitOpen} onOpenChange={setShareKitOpen} />
     </>
   );
 }

@@ -57,6 +57,18 @@
       "saveChanges": "Save changes",
       "viewOnline": "View online",
       "noData": "No data yet"
+    },
+    "verification": {
+      "standard": "Standard",
+      "verified": "ID verified",
+      "agencyPartner": "Partner agency",
+      "docIdCard": "ID card",
+      "docPassport": "Passport",
+      "docRccm": "RCCM (trade register)",
+      "docOther": "Other document",
+      "statusPending": "Awaiting review",
+      "statusApproved": "Approved",
+      "statusRejected": "Rejected"
     }
   },
   "nav": {
@@ -871,6 +883,70 @@
     "sold": {
       "notDeleted": "deleted: the property stays on your dashboard and can be put back online at any time.",
       "statsNote": "The price actually agreed — not the advertised price — and the date feed Lukka Place's market statistics. They are never published on the listing."
+    },
+    "share": {
+      "menuItem": "Graphic & sharing",
+      "title": "Graphic and Sharing",
+      "description": "A square image ready for your WhatsApp Status, with the text to paste as a caption.",
+      "loading": "Preparing the graphic…",
+      "loadFailed": "Sharing could not be prepared. Try again in a moment.",
+      "imageFailed": "The image could not be generated. The text below can still be used.",
+      "previewAlt": "Preview of the listing graphic",
+      "shareImage": "Share image",
+      "preparing": "Preparing…",
+      "download": "Download",
+      "statusHint": "On a phone: Share image → WhatsApp → My status. The text is copied automatically; paste it as the caption.",
+      "captionLabel": "Listing text",
+      "copyCaption": "Copy text",
+      "copied": "Text copied",
+      "sendWhatsApp": "Send on WhatsApp",
+      "captionCopied": "Text copied — paste it as the caption.",
+      "downloadedInstead": "Image downloaded — post it from your phone.",
+      "shareFailed": "Sharing failed. Try again.",
+      "blocked": {
+        "pending": "This listing is awaiting review. Sharing becomes available once it is published.",
+        "rejected": "This listing was rejected in moderation and cannot be shared.",
+        "archived": "This listing is archived (hidden from the site). Relist it to share it.",
+        "underOffer": "This listing is under offer and no longer offered to the public.",
+        "closed": "This property is already let or sold."
+      }
+    },
+    "drafts": {
+      "savedLocally": "Draft saved on this device",
+      "offline": "Offline — draft saved on this device",
+      "storageUnavailable": "Draft not saved: this browser does not allow local storage",
+      "restored": "Draft restored.",
+      "discard": "Discard draft",
+      "discarded": "Draft discarded.",
+      "queued": "Offline: the listing is kept on this device and will be sent as soon as the connection returns.",
+      "queuedPill": "1 listing waiting to send",
+      "cannotSaveOffline": "You are offline and this browser cannot keep the listing. Try again once connected.",
+      "synced": "Your listing saved offline has been sent — awaiting review.",
+      "syncRejected": "The listing saved offline could not be published: {error}",
+      "publishWhenOnline": "Send when back online"
+    },
+    "verification": {
+      "title": "Account Verification",
+      "hint": "Send an identity document, plus your agency’s RCCM if you have one. Once the Lukka Place team has reviewed it, a green badge appears on your profile and your listings.",
+      "levelNow": "Your level: {level}",
+      "levelStandardExplain": "No document has been approved yet.",
+      "docType": "Document type",
+      "file": "File (photo or PDF, 10 MB maximum)",
+      "submit": "Send for review",
+      "submitted": "Document sent. The Lukka Place team will review it shortly.",
+      "documentsTitle": "Documents Sent",
+      "noDocuments": "No documents sent yet.",
+      "privacy": "Your documents stay private: only the Lukka Place team can open them, never site visitors.",
+      "rejectedNote": "Reason: {note}",
+      "unavailable": "Verification is not available yet. Try again later.",
+      "errors": {
+        "invalid_type": "Choose the document type.",
+        "empty": "Add a file.",
+        "too_large": "The file is larger than 10 MB.",
+        "bad_format": "Format not accepted: send a photo (JPG, PNG, WebP) or a PDF.",
+        "too_many_pending": "You already have 5 documents awaiting review. Wait for them to be reviewed before sending more.",
+        "upload_failed": "Upload failed. Try again."
+      }
     }
   },
   "status": {
@@ -1181,7 +1257,8 @@
       "billing": "Billing",
       "team": "Team",
       "audit": "Audit log",
-      "health": "System health"
+      "health": "System health",
+      "verifications": "Verifications"
     },
     "login": {
       "intro": "Restricted to the Lukka Place team.",
@@ -2307,6 +2384,43 @@
       "unavailableTitle": "No Receipt for This Plan",
       "trial": "This is a trial: no payment was recorded, so there is nothing to give a receipt for.",
       "noAmount": "No amount was recorded for this plan, so no receipt can be issued."
+    },
+    "verifications": {
+      "title": "Agent Verification",
+      "subtitle": "Identity documents and RCCMs sent by agents. Every document opening is logged.",
+      "tabPending": "To review",
+      "tabApproved": "Approved",
+      "tabRejected": "Rejected",
+      "statPending": "Pending",
+      "colAgent": "Agent",
+      "colDocument": "Document",
+      "colSubmitted": "Sent",
+      "colStatus": "Status",
+      "colReview": "Review",
+      "open": "Open",
+      "approve": "Approve",
+      "reject": "Reject",
+      "rejectNotePlaceholder": "Reason for rejection (shown to the agent)",
+      "noteRequired": "Give a reason to reject a document.",
+      "invalid": "Invalid action or document not found.",
+      "empty": "No documents in this queue.",
+      "agentPanelTitle": "Verification Level",
+      "currentLevel": "Current level: {level}",
+      "setLevel": "Save level",
+      "levelSaved": "Verification level updated.",
+      "documentReviewed": "Document reviewed.",
+      "levelLowered": "Document rejected — the agent’s level was lowered to “{level}” for lack of an approved document.",
+      "showAllAgents": "Show all agents",
+      "agentFilter": "Documents from {name}",
+      "reviewedOn": "Reviewed on {date}",
+      "reviewNotAllowed": "Your role can view this queue but not review documents.",
+      "levelHint": "ID verified requires an approved identity document; Partner agency also requires an approved RCCM. Lowering a level is always allowed.",
+      "missing": {
+        "identity_required": "Approve an identity document (ID card or passport) first.",
+        "rccm_required": "The Partner agency level also requires an approved RCCM.",
+        "unknown_level": "Unknown level.",
+        "not_found": "Agent not found."
+      }
     }
   },
   "errors": {

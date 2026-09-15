@@ -193,6 +193,19 @@ registerJob({
 }
 
 /**
+ * Agent-dashboard analytics rollup: every ten minutes, recount the recent
+ * days of listing views / taps / saves into listing_stats_daily. Registered
+ * after everything customer- or ops-facing, because it is the one job whose
+ * lateness costs nothing but a slower dashboard (web falls back to raw
+ * tables). See services/listingStatsRollup.js.
+ */
+{
+  // eslint-disable-next-line global-require
+  const { listingStatsRollupJob } = require('./listingStatsRollup');
+  registerJob(listingStatsRollupJob);
+}
+
+/**
  * Runs one job if it is due, recording the outcome.
  *
  * Isolated per job on purpose: a throw in the SLA sweep must not stop the

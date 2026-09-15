@@ -9,6 +9,7 @@ import { trackLeadClick } from '@/lib/analyticsClient';
 import { resolveWhatsAppRouting } from '@/lib/leadRouting';
 import ShareButton from './ShareButton';
 import AgentMonogram from './AgentMonogram';
+import AgentVerificationBadge from './AgentVerificationBadge';
 import { displayableAgencyName } from '@/lib/agentIdentity';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { submitVisitRequestAction } from '@/app/(site)/listings/[id]/actions';
@@ -203,6 +204,7 @@ export default function EnquiryCard({ listing, visitSent, visitError }) {
         <div className="flex min-w-0 flex-col gap-0.5">
           <span className="truncate text-[0.875rem] font-bold text-ink">{displayName}</span>
           <span className="text-[0.8125rem] text-ink-45">{qualifier}</span>
+          {agentName ? <AgentVerificationBadge level={listing.agent_verification_level} t={t} className="mt-1" /> : null}
         </div>
       </div>
 

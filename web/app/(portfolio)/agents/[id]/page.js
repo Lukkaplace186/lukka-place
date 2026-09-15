@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { BadgeCheck, Phone, Mail, MapPin, Building2 } from 'lucide-react';
 import AgentAvatar from '@/components/AgentAvatar';
+import AgentVerificationBadge from '@/components/AgentVerificationBadge';
 import PropertyCard from '@/components/PropertyCard';
 import ShareOnWhatsAppButton from '@/components/ShareOnWhatsAppButton';
 import VCardButton from '@/components/VCardButton';
@@ -112,12 +113,14 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
 
   const communes = agent.primary_communes || [];
 
-  // "Agence partenaire · Vérifiée · Kinshasa" — every segment is a real fact
-  // about this agent, and any segment without backing data is simply not
-  // emitted rather than being padded with a plausible-looking default.
+  // Every segment is a real fact about this agent, and any segment without
+  // backing data is simply not emitted rather than being padded with a
+  // plausible-looking default. "Agence partenaire · Vérifiée" used to open
+  // this line for EVERY agent (the first segment unconditionally, the second
+  // on phone_verified_at). Both now mean something specific — a reviewed
+  // RCCM, reviewed identity documents — and are carried by the badge above
+  // the line, only when a team member actually approved them.
   const metaLine = [
-    t('agent.portfolio.partnerAgency'),
-    agent.phone_verified_at ? t('agent.portfolio.verifiedFem') : null,
     agent.city || (communes.length === 1 ? communes[0] : communes.length > 1 ? 'Kinshasa' : null),
   ]
     .filter(Boolean)
@@ -194,9 +197,12 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
               <div className="flex min-w-0 flex-col gap-3.5">
                 {/* Meta line, assembled only from parts that are actually
                     true for this agent — no segment is printed as filler. */}
-                <span className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-white/85">
-                  {metaLine}
-                </span>
+                <AgentVerificationBadge level={agent.verification_level} t={t} tone="onDark" />
+                {metaLine ? (
+                  <span className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-white/85">
+                    {metaLine}
+                  </span>
+                ) : null}
 
                 <h1 className="font-display text-[2rem] font-normal leading-[1.06] tracking-tight text-white sm:text-[2.75rem]">
                   {headingName}

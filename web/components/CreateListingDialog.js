@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, X } from 'lucide-react';
+import { CloudOff, HardDriveDownload, Plus, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { createListingAction } from '@/app/compte/agent/actions';
@@ -12,10 +12,16 @@ import { useT } from '@/lib/i18n/client';
 import SmartPasteSection from './SmartPasteSection';
 import { buildFormValuesFromParsed } from '@/lib/smartPaste';
 import { validatePhotoSelection } from '@/lib/uploadLimits.mjs';
+import { deleteDraft, fieldsFromForm, isEmptyDraft, loadDraft, looksOffline, saveDraft } from '@/lib/offlineDrafts';
 
 const FIELD_CLASS =
   'u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35';
 const LABEL_CLASS = 'mb-1.5 block text-[0.8125rem] font-semibold text-ink-70';
+
+const AUTOSAVE_DELAY_MS = 700;
+
+// The uncontrolled form fields a draft restores, by name.
+const DRAFT_FIELDS = ['title', 'purpose', 'category_id', 'commune', 'price', 'beds', 'bath', 'area', 'quartier', 'description'];
 
 /**
  * The agent-side "manually create a listing" form — real DB-backed
@@ -40,8 +46,22 @@ const LABEL_CLASS = 'mb-1.5 block text-[0.8125rem] font-semibold text-ink-70';
  *    render). sessionStorage rather than a `?new=1` query param on purpose
  *    — `useSearchParams()` would force a Suspense boundary around this
  *    component (see web/CLAUDE.md's documented gotcha).
+ *
+ * OFFLINE DRAFTS (lib/offlineDrafts.js). Agents fill this in on site visits,
+ * on a phone, on a connection that drops. So, when `draftKey` is given:
+ *  - every change (fields AND photos) is saved to IndexedDB on this device,
+ *    and the dialog says so;
+ *  - reopening the dialog restores the draft, with a way to discard it;
+ *  - "Publier" while offline — or a submit that dies on the network — keeps
+ *    the draft and marks it QUEUED instead of losing the form;
+ *  - a queued draft is sent as soon as this page is open and online (the
+ *    `online` event, or on load), exactly once across tabs (Web Locks), and
+ *    flagged `offline_replay` so the server refuses to create it twice when
+ *    the first attempt actually reached it before the connection died.
+ * A server verdict (a missing field, an invalid price) is NOT a network
+ * failure: the draft is un-queued and the dialog reopens with the error.
  */
-export default function CreateListingDialog({ communes, categories }) {
+export default function CreateListingDialog({ communes, categories, draftKey = null }) {
   const t = useT();
   // Lazy initializer: reads (and clears) the one-shot flag exactly once, at
   // first render — not in an effect. `typeof window` guards the server
@@ -62,7 +82,17 @@ export default function CreateListingDialog({ communes, categories }) {
   });
   const [pending, startTransition] = useTransition();
   const [photos, setPhotos] = useState([]);
+  // 'idle' | 'saved' | 'unavailable' — what the device actually did with the last save.
+  const [draftState, setDraftState] = useState('idle');
+  const [restored, setRestored] = useState(false);
+  const [offline, setOffline] = useState(false);
+  const [queued, setQueued] = useState(false);
   const formRef = useRef(null);
+  // True once the stored draft (if any) has been applied to the open form, so
+  // an autosave can never overwrite a real draft with the still-empty form.
+  const hydratedRef = useRef(false);
+  const saveTimerRef = useRef(null);
+  const syncingRef = useRef(false);
   const router = useRouter();
   const { showToast } = useToast();
 
@@ -74,17 +104,195 @@ export default function CreateListingDialog({ communes, categories }) {
     return () => window.removeEventListener(OPEN_CREATE_LISTING_EVENT, handleShortcut);
   }, []);
 
+  // ---------------------------------------------------------------------
+  // Drafts
+  // ---------------------------------------------------------------------
+
+  const persistDraft = useCallback(
+    async ({ queued: markQueued = false, photoList } = {}) => {
+      if (!draftKey) return false;
+      const draft = {
+        fields: fieldsFromForm(formRef.current),
+        photos: (photoList || []).map(({ file }) => ({ name: file.name, type: file.type, blob: file })),
+        queued: markQueued,
+      };
+      if (!markQueued && isEmptyDraft(draft)) {
+        await deleteDraft(draftKey);
+        setDraftState('idle');
+        return true;
+      }
+      const ok = await saveDraft(draftKey, draft);
+      setDraftState(ok ? 'saved' : 'unavailable');
+      return ok;
+    },
+    [draftKey],
+  );
+
+  function scheduleAutosave(photoList = photos) {
+    if (!draftKey || !hydratedRef.current) return;
+    clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      persistDraft({ photoList });
+    }, AUTOSAVE_DELAY_MS);
+  }
+
+  // Restore on open. The form is mounted by the time an effect runs.
+  useEffect(() => {
+    if (!open) {
+      hydratedRef.current = false;
+      return undefined;
+    }
+    if (!draftKey) {
+      hydratedRef.current = true;
+      return undefined;
+    }
+    let cancelled = false;
+    loadDraft(draftKey).then((draft) => {
+      if (cancelled) return;
+      if (draft && !isEmptyDraft(draft)) {
+        const form = formRef.current;
+        for (const name of DRAFT_FIELDS) {
+          if (form?.elements[name] && draft.fields?.[name] != null) form.elements[name].value = draft.fields[name];
+        }
+        const restoredPhotos = (draft.photos || [])
+          .filter((p) => p?.blob)
+          .map((p) => {
+            const file = new File([p.blob], p.name || 'photo.jpg', { type: p.type || p.blob.type });
+            return { file, url: URL.createObjectURL(file) };
+          });
+        setPhotos(restoredPhotos);
+        setRestored(true);
+        setDraftState('saved');
+      }
+      hydratedRef.current = true;
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, draftKey]);
+
+  // Online/offline indicator + the queued-draft sync.
+  const syncQueuedDraft = useCallback(async () => {
+    if (!draftKey || syncingRef.current) return;
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+
+    const run = async () => {
+      const draft = await loadDraft(draftKey);
+      if (!draft?.queued) {
+        setQueued(false);
+        return;
+      }
+      setQueued(true);
+      syncingRef.current = true;
+      try {
+        const formData = new FormData();
+        for (const [name, value] of Object.entries(draft.fields || {})) formData.set(name, value);
+        for (const p of draft.photos || []) {
+          if (p?.blob) formData.append('photos', new File([p.blob], p.name || 'photo.jpg', { type: p.type || p.blob.type }));
+        }
+        formData.set('offline_replay', '1');
+
+        let result;
+        try {
+          result = await createListingAction(communes, categories, formData);
+        } catch (err) {
+          if (looksOffline(err)) return; // still offline — stays queued for the next `online`
+          throw err;
+        }
+
+        if (result?.ok) {
+          await deleteDraft(draftKey);
+          setQueued(false);
+          setDraftState('idle');
+          showToast({ type: 'success', message: t('agent.drafts.synced') });
+          router.refresh();
+        } else {
+          await saveDraft(draftKey, { ...draft, queued: false });
+          setQueued(false);
+          showToast({ type: 'error', message: t('agent.drafts.syncRejected', { error: result?.error || '' }) });
+          setOpen(true);
+        }
+      } catch (err) {
+        console.error('[CreateListingDialog] queued draft sync failed', err);
+      } finally {
+        syncingRef.current = false;
+      }
+    };
+
+    // One tab sends it; another tab that comes online at the same moment
+    // finds the lock taken and does nothing.
+    if (typeof navigator !== 'undefined' && navigator.locks?.request) {
+      await navigator.locks.request(`lukka-sync:${draftKey}`, { ifAvailable: true }, async (lock) => {
+        if (lock) await run();
+      });
+    } else {
+      await run();
+    }
+  }, [draftKey, communes, categories, router, showToast, t]);
+
+  useEffect(() => {
+    function handleOnline() {
+      setOffline(false);
+      syncQueuedDraft();
+    }
+    function handleOffline() {
+      setOffline(true);
+    }
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    // An initial check, deferred so it is not a synchronous setState in the effect body.
+    const initial = setTimeout(() => {
+      setOffline(navigator.onLine === false);
+      syncQueuedDraft();
+    }, 0);
+    return () => {
+      clearTimeout(initial);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [syncQueuedDraft]);
+
+  useEffect(() => () => clearTimeout(saveTimerRef.current), []);
+
+  async function queueForLater(photoList) {
+    clearTimeout(saveTimerRef.current);
+    const ok = await persistDraft({ queued: true, photoList });
+    if (!ok) {
+      showToast({ type: 'error', message: t('agent.drafts.cannotSaveOffline') });
+      return;
+    }
+    setQueued(true);
+    showToast({ type: 'success', message: t('agent.drafts.queued') });
+    closeWithoutDiscarding();
+  }
+
+  async function handleDiscardDraft() {
+    clearTimeout(saveTimerRef.current);
+    if (draftKey) await deleteDraft(draftKey);
+    resetForm();
+    setRestored(false);
+    setQueued(false);
+    setDraftState('idle');
+    showToast({ type: 'success', message: t('agent.drafts.discarded') });
+  }
+
+  // ---------------------------------------------------------------------
+  // Form
+  // ---------------------------------------------------------------------
+
   function handlePhotoChange(event) {
     const files = Array.from(event.target.files || []).map((file) => ({ file, url: URL.createObjectURL(file) }));
-    setPhotos((prev) => [...prev, ...files]);
+    const next = [...photos, ...files];
+    setPhotos(next);
+    scheduleAutosave(next);
     event.target.value = '';
   }
 
   function removePhoto(index) {
-    setPhotos((prev) => {
-      URL.revokeObjectURL(prev[index].url);
-      return prev.filter((_, i) => i !== index);
-    });
+    URL.revokeObjectURL(photos[index].url);
+    const next = photos.filter((_, i) => i !== index);
+    setPhotos(next);
+    scheduleAutosave(next);
   }
 
   function resetForm() {
@@ -93,6 +301,14 @@ export default function CreateListingDialog({ communes, categories }) {
       prev.forEach((p) => URL.revokeObjectURL(p.url));
       return [];
     });
+  }
+
+  /** Closing keeps the stored draft; only a successful publish or "discard" removes it. */
+  function closeWithoutDiscarding() {
+    clearTimeout(saveTimerRef.current);
+    setOpen(false);
+    setRestored(false);
+    resetForm();
   }
 
   /**
@@ -117,6 +333,7 @@ export default function CreateListingDialog({ communes, categories }) {
     if (mapped.area) form.elements.area.value = mapped.area;
     if (mapped.quartier) form.elements.quartier.value = mapped.quartier;
     if (mapped.description) form.elements.description.value = mapped.description;
+    scheduleAutosave();
   }
 
   function handleSubmit(event) {
@@ -135,9 +352,16 @@ export default function CreateListingDialog({ communes, categories }) {
       return;
     }
 
+    // No connection: don't even try. Keep everything on the device, send later.
+    if (draftKey && navigator.onLine === false) {
+      queueForLater(photos);
+      return;
+    }
+
     const formData = new FormData(formRef.current);
     formData.delete('photos');
     for (const file of files) formData.append('photos', file);
+    const photoSnapshot = photos;
 
     startTransition(async () => {
       let result;
@@ -152,6 +376,10 @@ export default function CreateListingDialog({ communes, categories }) {
         // nothing at all: no toast, no error, form still full. That is the
         // symptom this whole fix started from.
         console.error('[CreateListingDialog] createListingAction failed', err);
+        if (draftKey && looksOffline(err)) {
+          await queueForLater(photoSnapshot);
+          return;
+        }
         showToast({ type: 'error', message: t('errors.submissionFailed') });
         return;
       }
@@ -160,28 +388,46 @@ export default function CreateListingDialog({ communes, categories }) {
         showToast({ type: 'error', message: result.error });
         return;
       }
+      if (draftKey) await deleteDraft(draftKey);
+      setDraftState('idle');
       showToast({
         type: result.photoWarning ? 'error' : 'success',
         message: result.photoWarning
           ? t('agent.editor.createdWithPhotoWarning')
           : t('agent.editor.createdPendingReview'),
       });
-      setOpen(false);
-      resetForm();
+      closeWithoutDiscarding();
       router.refresh();
     });
   }
 
+  let draftLine = null;
+  if (draftKey && offline) {
+    draftLine = { icon: CloudOff, text: t('agent.drafts.offline'), tone: 'text-warning' };
+  } else if (draftKey && draftState === 'saved') {
+    draftLine = { icon: HardDriveDownload, text: t('agent.drafts.savedLocally'), tone: 'text-ink-45' };
+  } else if (draftKey && draftState === 'unavailable') {
+    draftLine = { icon: CloudOff, text: t('agent.drafts.storageUnavailable'), tone: 'text-ink-45' };
+  }
+
   return (
-    <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (!next) resetForm(); }}>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="u-btn-secondary u-press inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 text-[0.8125rem] font-bold text-ink"
-      >
-        <Plus strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-        {t('agent.editor.addListing')}
-      </button>
+    <Dialog open={open} onOpenChange={(next) => { if (next) setOpen(true); else closeWithoutDiscarding(); }}>
+      <div className="flex items-center gap-2">
+        {queued && (
+          <span className="inline-flex h-8 items-center gap-1.5 rounded-full bg-canvas-alt px-3 text-xs font-semibold text-ink-70" role="status">
+            <CloudOff strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
+            {t('agent.drafts.queuedPill')}
+          </span>
+        )}
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="u-btn-secondary u-press inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 text-[0.8125rem] font-bold text-ink"
+        >
+          <Plus strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+          {t('agent.editor.addListing')}
+        </button>
+      </div>
 
       <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
@@ -191,7 +437,26 @@ export default function CreateListingDialog({ communes, categories }) {
           </DialogDescription>
         </DialogHeader>
 
-        <form ref={formRef} onSubmit={handleSubmit} className="flex flex-col gap-4">
+        {(draftLine || restored) && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-canvas-alt px-3 py-2 text-xs">
+            {draftLine ? (
+              <span className={`inline-flex items-center gap-1.5 font-semibold ${draftLine.tone}`} role="status" aria-live="polite">
+                <draftLine.icon strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
+                {draftLine.text}
+              </span>
+            ) : <span />}
+            {restored && (
+              <span className="inline-flex items-center gap-2 text-ink-45">
+                {t('agent.drafts.restored')}
+                <button type="button" onClick={handleDiscardDraft} className="font-semibold text-blue-deep underline">
+                  {t('agent.drafts.discard')}
+                </button>
+              </span>
+            )}
+          </div>
+        )}
+
+        <form ref={formRef} onSubmit={handleSubmit} onInput={() => scheduleAutosave()} className="flex flex-col gap-4">
           <SmartPasteSection onParsed={handleParsed} />
 
           <div>
@@ -312,7 +577,7 @@ export default function CreateListingDialog({ communes, categories }) {
               disabled={pending}
               className="u-btn-primary u-press h-11 rounded-lg bg-blue px-5 text-sm font-bold text-white disabled:opacity-60"
             >
-              {pending ? 'Publication en cours…' : 'Publier l’annonce'}
+              {pending ? 'Publication en cours…' : offline && draftKey ? t('agent.drafts.publishWhenOnline') : 'Publier l’annonce'}
             </button>
           </DialogFooter>
         </form>

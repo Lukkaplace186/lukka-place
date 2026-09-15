@@ -14,6 +14,7 @@ import { MODERATION_QUEUE_STATUSES } from '@/lib/moderation';
 import { listEntityAudit } from '@/lib/adminAudit';
 import { listNotes } from '@/lib/adminNotes';
 import { can } from '@/lib/adminRoles';
+import { LEVEL_LABEL_KEYS, isVerifiedLevel } from '@/lib/verificationLevels';
 import { getAdminSession } from '@/lib/adminSession';
 import { getT } from '@/lib/i18n/server';
 import AgentAdminPanel from './AgentAdminPanel';
@@ -267,6 +268,12 @@ export default async function AdminAgentDetailPage({ params, searchParams }) {
         <div className="mt-2 flex flex-wrap items-center gap-3">
           <h1 className="u-title-page text-ink">{displayName}</h1>
           {agent.phone_verified_at ? <Chip tone="success">{t('admin.agents.verified')}</Chip> : <Chip tone="warning">{t('admin.agents.notVerified')}</Chip>}
+          {/* The document-reviewed tier, linked to its evidence in the queue. */}
+          <Link href={`/admin/verifications?agent=${agent.id}`} className="hover:opacity-80">
+            <Chip tone={isVerifiedLevel(agent.verification_level) ? 'success' : 'neutral'}>
+              {t(LEVEL_LABEL_KEYS[agent.verification_level] || LEVEL_LABEL_KEYS.standard)}
+            </Chip>
+          </Link>
           {agent.status === 0 ? <Chip tone="danger">{t('admin.agents.statusSuspended')}</Chip> : null}
         </div>
 

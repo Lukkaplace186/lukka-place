@@ -25,6 +25,11 @@ import { sendOtpViaWhatsApp, otpFallbackText } from './otpDelivery';
 const AGENT_FIELDS = `
   a.id, a.username, a.email, a.phone, a.status, a.vendor_id, a.image, a.primary_communes,
   a.working_hours, a.phone_verified_at,
+  -- Document-reviewed tier (migrations/20260917_agent_verification.sql):
+  -- what the green public badge means. Not phone_verified_at. Through jsonb so
+  -- the agent directory, profiles and the agent dashboard keep working (as
+  -- 'no badge') before that migration runs — see lib/listings.js.
+  to_jsonb(a) ->> 'verification_level' AS verification_level,
   v.username AS vendor_username,
   ${vendorNameSql('v')} AS vendor_name,
   ai.first_name, ai.last_name, ai.address, ai.city,

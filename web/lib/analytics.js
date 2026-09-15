@@ -1,5 +1,33 @@
 import 'server-only';
+import { cache } from 'react';
 import { getPool } from './db';
+
+/**
+ * listing_stats_daily (engine: services/listingStatsRollup.js) is used for the
+ * agent-scoped reads below ONLY when it exists and was refreshed recently.
+ * Otherwise every function reads the raw event tables exactly as it always
+ * did. So: before the migration runs, or while the engine's job is down, a
+ * dashboard is slower — never wrong, and never an error.
+ *
+ * Memoised per request: one dashboard render asks up to four questions and
+ * should pay for the freshness probe once.
+ */
+export const ROLLUP_MAX_AGE_MINUTES = 30;
+
+export const isRollupFresh = cache(async function isRollupFresh() {
+  try {
+    const { rows } = await getPool().query(
+      `SELECT (max(refreshed_at) > now() - ($1 || ' minutes')::interval) AS fresh FROM listing_stats_daily`,
+      [String(ROLLUP_MAX_AGE_MINUTES)],
+    );
+    return rows[0]?.fresh === true;
+  } catch (err) {
+    // 42P01 undefined_table: migrations/20260917_agent_dashboard_scale.sql has
+    // not been applied yet. Expected during rollout, so not logged.
+    if (err?.code !== '42P01') console.error(`[analytics] rollup freshness probe failed: ${err.message}`);
+    return false;
+  }
+});
 
 /**
  * Reads against page_views/whatsapp_clicks — new tables this feature
@@ -93,6 +121,13 @@ export async function getAgentListingViews(propertyIds, sinceDays) {
 export async function getAgentWhatsAppClicks(propertyIds) {
   if (!propertyIds?.length) return 0;
   const pool = getPool();
+  if (await isRollupFresh()) {
+    const { rows } = await pool.query(
+      `SELECT COALESCE(sum(whatsapp_clicks), 0)::int AS total FROM listing_stats_daily WHERE listing_id = ANY($1::bigint[])`,
+      [propertyIds],
+    );
+    return rows[0].total;
+  }
   const { rows } = await pool.query(
     `SELECT count(*)::int AS total FROM whatsapp_clicks WHERE listing_id = ANY($1::bigint[])`,
     [propertyIds],
@@ -208,6 +243,23 @@ export async function getAgentListingViewsSeries(propertyIds, range = '7d') {
   if (!propertyIds?.length) return series;
 
   const pool = getPool();
+
+  // The rollup is day-grained on UTC days, and every bucket here (day, ISO
+  // week, month) is a whole number of UTC days — so it answers every range
+  // exactly, not approximately. date_trunc('week') on a timestamp starts on
+  // Monday, the same as the raw query below.
+  if (await isRollupFresh()) {
+    const { rows } = await pool.query(
+      `SELECT to_char(date_trunc($2, day::timestamp), 'YYYY-MM-DD') AS bucket, sum(views)::int AS total
+       FROM listing_stats_daily
+       WHERE listing_id = ANY($1::bigint[]) AND day >= $3::date
+       GROUP BY bucket`,
+      [propertyIds, unit, series[0].key],
+    );
+    const byBucket = new Map(rows.map((r) => [r.bucket, r.total]));
+    return series.map((b) => ({ ...b, views: byBucket.get(b.key) || 0 }));
+  }
+
   const paths = propertyIds.map((id) => `/listings/${id}`);
   // to_char, not ::date — a Postgres `date` comes back through node-pg as a
   // JS Date at LOCAL midnight, so `toISOString().slice(0,10)` shifts it a day
@@ -253,6 +305,28 @@ export async function getAgentMonthlyDeltas(agentId, propertyIds) {
   const paths = propertyIds.map((id) => `/listings/${id}`);
   const pctChange = (current, previous) => (previous > 0 ? Math.round(((current - previous) / previous) * 100) : null);
 
+  if (await isRollupFresh()) {
+    const { rows } = await pool.query(
+      `SELECT
+         COALESCE(sum(views) FILTER (WHERE day >= date_trunc('month', now())::date), 0)::int AS views_current,
+         COALESCE(sum(views) FILTER (WHERE day >= (date_trunc('month', now()) - interval '1 month')::date
+                                       AND day <  date_trunc('month', now())::date), 0)::int AS views_previous,
+         COALESCE(sum(whatsapp_clicks) FILTER (WHERE day >= date_trunc('month', now())::date), 0)::int AS clicks_current,
+         COALESCE(sum(whatsapp_clicks) FILTER (WHERE day >= (date_trunc('month', now()) - interval '1 month')::date
+                                                 AND day <  date_trunc('month', now())::date), 0)::int AS clicks_previous
+       FROM listing_stats_daily
+       WHERE listing_id = ANY($1::bigint[])
+         AND day >= (date_trunc('month', now()) - interval '1 month')::date`,
+      [propertyIds],
+    );
+    const r = rows[0] || {};
+    return {
+      views: pctChange(r.views_current ?? 0, r.views_previous ?? 0),
+      clicks: pctChange(r.clicks_current ?? 0, r.clicks_previous ?? 0),
+      listings,
+    };
+  }
+
   const [{ rows: viewRows }, { rows: clickRows }] = await Promise.all([
     pool.query(
       `SELECT
@@ -283,6 +357,24 @@ export async function getAgentMonthlyDeltas(agentId, propertyIds) {
 export async function getPerListingStats(propertyIds) {
   if (!propertyIds?.length) return { views: {}, clicks: {} };
   const pool = getPool();
+
+  // All-time totals are the query that grows without bound on raw tables —
+  // every event a listing ever drew. On the rollup it is at most one row per
+  // listing per day it had any traffic.
+  if (await isRollupFresh()) {
+    const { rows } = await pool.query(
+      `SELECT listing_id, sum(views)::int AS views, sum(whatsapp_clicks)::int AS clicks
+       FROM listing_stats_daily WHERE listing_id = ANY($1::bigint[]) GROUP BY listing_id`,
+      [propertyIds],
+    );
+    const views = {};
+    const clicks = {};
+    for (const row of rows) {
+      views[row.listing_id] = row.views;
+      clicks[row.listing_id] = row.clicks;
+    }
+    return { views, clicks };
+  }
 
   const { rows: viewRows } = await pool.query(
     `SELECT path, count(*)::int AS total FROM page_views WHERE path = ANY($1::text[]) GROUP BY path`,

@@ -7,6 +7,10 @@ import { formatPhoneDisplay } from '@/lib/phone';
 import { SITE_URL, ICON_STROKE_WIDTH } from '@/lib/constants';
 import AgentAvatarUpload from '@/components/AgentAvatarUpload';
 import AgentPageHeader from '@/components/AgentPageHeader';
+import AgentVerificationBadge from '@/components/AgentVerificationBadge';
+import { getAgentVerification } from '@/lib/agentVerification';
+import { DOC_STATUS_LABEL_KEYS, DOC_TYPE_LABEL_KEYS, LEVEL_LABEL_KEYS, VERIFICATION_DOC_TYPES } from '@/lib/verificationLevels';
+import { uploadVerificationDocumentAction } from '../verificationActions';
 import {
   updateAgentIdentityAction,
   changeAgentPasswordAction,
@@ -26,6 +30,16 @@ const ERROR_MESSAGE_KEYS = {
   name_required: 'agent.settings.nameRequired',
 };
 
+// lib/agentVerification.js's submitVerificationDocument failure codes; anything
+// else in the URL is ignored rather than echoed.
+const VERIFICATION_ERROR_CODES = ['invalid_type', 'empty', 'too_large', 'bad_format', 'too_many_pending', 'upload_failed'];
+
+const DOC_STATUS_TONE = {
+  pending: 'bg-canvas-alt text-ink-70',
+  approved: 'bg-success-tint text-success',
+  rejected: 'bg-danger-tint text-danger',
+};
+
 export default async function AgentSettingsPage({ searchParams }) {
   const t = await getT();
   const params = await searchParams;
@@ -34,9 +48,20 @@ export default async function AgentSettingsPage({ searchParams }) {
   const passwordSuccess = params.success === '1';
 
   const agentId = await getCurrentAgentId();
-  const [{ agent, completion }, { communes, degraded }] = await Promise.all([
+  const verificationError =
+    typeof params.verification_error === 'string' && VERIFICATION_ERROR_CODES.includes(params.verification_error)
+      ? params.verification_error
+      : null;
+
+  const [{ agent, completion }, { communes, degraded }, verification] = await Promise.all([
     getAgentDashboardContext(agentId),
     getLocationHierarchySafe(),
+    // Degrade, don't die: before the verification migration runs (or with
+    // Postgres briefly unreachable) the card says so; the page still renders.
+    getAgentVerification(agentId).catch((err) => {
+      console.error(`[compte/agent/parametres] verification read failed: ${err.message}`);
+      return null;
+    }),
   ]);
 
   const profileUrl = `${SITE_URL}/agents/${agent.id}`;
@@ -218,6 +243,101 @@ export default async function AgentSettingsPage({ searchParams }) {
         </div>
 
         <div className="flex flex-col gap-6">
+          <div id="verification" className="u-card flex scroll-mt-24 flex-col gap-4 rounded-card bg-surface p-6">
+            <div>
+              <h2 className="u-title-card text-ink">{t('agent.verification.title')}</h2>
+              <p className="mt-0.5 text-[0.8125rem] text-ink-45">{t('agent.verification.hint')}</p>
+            </div>
+
+            {verification ? (
+              <>
+                <div className="flex flex-wrap items-center gap-2 text-[0.8125rem] font-semibold text-ink-70">
+                  <span>
+                    {t('agent.verification.levelNow', {
+                      level: t(LEVEL_LABEL_KEYS[verification.level] || LEVEL_LABEL_KEYS.standard),
+                    })}
+                  </span>
+                  <AgentVerificationBadge level={verification.level} t={t} />
+                </div>
+                {verification.level === 'standard' && (
+                  <p className="-mt-2 text-xs text-ink-45">{t('agent.verification.levelStandardExplain')}</p>
+                )}
+
+                <form action={uploadVerificationDocumentAction} className="flex flex-col gap-3">
+                  <div>
+                    <label htmlFor="doc_type" className="mb-1.5 block text-[0.8125rem] font-semibold text-ink-70">
+                      {t('agent.verification.docType')}
+                    </label>
+                    <select
+                      id="doc_type"
+                      name="doc_type"
+                      required
+                      defaultValue=""
+                      className="u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink"
+                    >
+                      <option value="" disabled>{t('common.shared.choose')}</option>
+                      {VERIFICATION_DOC_TYPES.map((type) => (
+                        <option key={type} value={type}>{t(DOC_TYPE_LABEL_KEYS[type])}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="verification_document" className="mb-1.5 block text-[0.8125rem] font-semibold text-ink-70">
+                      {t('agent.verification.file')}
+                    </label>
+                    <input
+                      id="verification_document"
+                      name="document"
+                      type="file"
+                      required
+                      accept="image/jpeg,image/png,image/webp,application/pdf"
+                      className="block w-full max-w-full text-sm text-ink-70 file:mr-3 file:rounded-lg file:border file:border-line file:bg-surface file:px-3 file:py-2 file:text-sm file:font-semibold file:text-ink"
+                    />
+                  </div>
+
+                  {saved === 'verification' && (
+                    <p className="text-sm font-semibold text-success" role="status">{t('agent.verification.submitted')}</p>
+                  )}
+                  {verificationError && (
+                    <p className="text-sm font-semibold text-danger" role="alert">
+                      {t(`agent.verification.errors.${verificationError}`)}
+                    </p>
+                  )}
+
+                  <button type="submit" className="u-btn-secondary u-press h-11 w-full rounded-lg text-sm font-bold text-ink">
+                    {t('agent.verification.submit')}
+                  </button>
+                  <p className="text-xs text-ink-35">{t('agent.verification.privacy')}</p>
+                </form>
+
+                <div className="flex flex-col gap-2">
+                  <h3 className="u-title-sub text-ink">{t('agent.verification.documentsTitle')}</h3>
+                  {verification.documents.length === 0 ? (
+                    <p className="text-[0.8125rem] text-ink-45">{t('agent.verification.noDocuments')}</p>
+                  ) : (
+                    <ul className="flex flex-col gap-2">
+                      {verification.documents.map((doc) => (
+                        <li key={doc.id} className="flex flex-col gap-1 rounded-lg border border-line px-3 py-2 text-[0.8125rem]">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="font-semibold text-ink">{t(DOC_TYPE_LABEL_KEYS[doc.doc_type] || DOC_TYPE_LABEL_KEYS.other)}</span>
+                            <span className={`rounded-full px-2 py-0.5 text-[0.6875rem] font-bold ${DOC_STATUS_TONE[doc.status] || DOC_STATUS_TONE.pending}`}>
+                              {t(DOC_STATUS_LABEL_KEYS[doc.status] || DOC_STATUS_LABEL_KEYS.pending)}
+                            </span>
+                          </div>
+                          {doc.status === 'rejected' && doc.review_note && (
+                            <p className="text-xs text-ink-45">{t('agent.verification.rejectedNote', { note: doc.review_note })}</p>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p className="text-[0.8125rem] text-ink-45">{t('agent.verification.unavailable')}</p>
+            )}
+          </div>
+
           <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-6">
             <h2 className="u-title-card text-ink">{t('agent.settings.passwordTitle')}</h2>
 

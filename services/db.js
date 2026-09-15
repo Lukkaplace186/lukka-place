@@ -2696,6 +2696,20 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_viewing_requests_commune ON viewing_requests (commune);
 `);
 
+// The agent dashboard's ownership filters (listLeads, listViewingRequestsForOwner).
+// Every agent page load asks "leads on MY property ids, OR addressed to me by
+// name, OR assigned to my id" — and none of those three columns was indexed,
+// so each call was a full scan of `leads`. That is invisible at six leads and
+// is the first thing to fall over when 1,000 agents open their inbox. SQLite
+// can answer an OR of indexed predicates with a multi-index union; it cannot
+// when any branch is unindexed.
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_leads_property_id           ON leads (property_id);
+  CREATE INDEX IF NOT EXISTS idx_leads_assigned_agent        ON leads (assigned_agent);
+  CREATE INDEX IF NOT EXISTS idx_leads_agent_id              ON leads (agent_id);
+  CREATE INDEX IF NOT EXISTS idx_viewing_requests_property   ON viewing_requests (property_id);
+`);
+
 /**
  * One viewing request joined to the customer who made it.
  *

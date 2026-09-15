@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   BarChart3, Building2, CalendarClock, ChartNoAxesCombined, CreditCard, FileText, Gauge, HeartPulse, Mail, User, Users,
-  Landmark, MessageCircle, Radar, ScrollText, Settings, TrendingDown, UsersRound,
+  Landmark, MessageCircle, Radar, ScrollText, Settings, ShieldCheck, TrendingDown, UsersRound,
 } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { can, sectionPermission } from '@/lib/adminRoles';
@@ -44,6 +44,7 @@ const NAV = [
   { href: '/admin/telemetry', labelKey: 'admin.nav.telemetry', icon: ChartNoAxesCombined },
   { href: '/admin/agents', labelKey: 'admin.nav.agents', icon: User },
   { href: '/admin/agencies', labelKey: 'admin.nav.agencies', icon: Building2 },
+  { href: '/admin/verifications', labelKey: 'admin.nav.verifications', icon: ShieldCheck },
   { href: '/admin/customers', labelKey: 'admin.nav.customers', icon: Users },
   { href: '/admin/subscriptions', labelKey: 'admin.nav.subscriptions', icon: Landmark },
   { href: '/admin/billing', labelKey: 'admin.nav.billing', icon: CreditCard },

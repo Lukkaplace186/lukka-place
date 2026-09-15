@@ -6273,9 +6273,11 @@ console.log('\n2. services/openai.js');
     );
   });
 
-  check('the weekly sweep, both speed-to-lead sweeps and the ops alert sweep are registered', () => {
+  check('the weekly sweep, both speed-to-lead sweeps, the ops alert sweep and the analytics rollup are registered', () => {
     const names = sched.JOBS.map((j) => j.name);
-    assert.deepStrictEqual(names, ['search-alerts-weekly', 'viewing-sla', 'viewing-checkin', 'ops-health-alerts']);
+    assert.deepStrictEqual(names, [
+      'search-alerts-weekly', 'viewing-sla', 'viewing-checkin', 'ops-health-alerts', 'listing-stats-rollup',
+    ]);
   });
 
   check('a malformed job is refused rather than silently never running', () => {
@@ -7567,6 +7569,94 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(geocoding.locationInputsChanged(before, { ...before, price: 900 }), false);
     assert.strictEqual(geocoding.locationInputsChanged(before, { ...before, commune: ' lemba ' }), false);
     assert.strictEqual(geocoding.locationInputsChanged(null, before), false);
+  });
+
+  // -------------------------------------------------------------------------
+  // 31. Agent dashboard at scale — analytics rollup + ownership indexes
+  //
+  // listing_stats_daily is what keeps an agent's trend chart off the raw event
+  // tables. It must recount (never increment), bound its window on explicit
+  // UTC midnight, skip events for deleted listings, and roll back on failure.
+  // The SQLite indexes are what keep "my leads" from scanning `leads` on every
+  // dashboard load.
+  // -------------------------------------------------------------------------
+
+  console.log('\n31. Agent dashboard at scale (rollup + indexes)');
+
+  const rollup = require('../services/listingStatsRollup');
+
+  function fakeRollupPool({ since = '2026-09-14', fail = false } = {}) {
+    const statements = [];
+    const client = {
+      async query(sql, params) {
+        statements.push({ sql: String(sql).replace(/\s+/g, ' ').trim(), params });
+        if (/FROM listing_stats_daily$/.test(String(sql).replace(/\s+/g, ' ').trim()) || /max\(day\)/.test(sql)) {
+          return { rows: [{ since }] };
+        }
+        if (fail && /INSERT INTO listing_stats_daily/.test(sql)) throw new Error('statement timeout');
+        return { rows: [], rowCount: 7 };
+      },
+      release() {},
+    };
+    return { statements, pool: { connect: async () => client } };
+  }
+
+  check('the rollup is a recount upsert, not an increment', () => {
+    const sql = rollup.ROLLUP_SQL.replace(/\s+/g, ' ');
+    assert.match(sql, /ON CONFLICT \(listing_id, day\) DO UPDATE SET views = EXCLUDED\.views/);
+    assert.doesNotMatch(sql, /views = listing_stats_daily\.views \+/);
+  });
+  check('the window starts at an explicit UTC midnight, not the session timezone', () => {
+    assert.match(rollup.ROLLUP_SQL, /\(\$1::date\)::timestamp AT TIME ZONE 'UTC'/);
+    assert.match(rollup.ROLLUP_SQL, /AT TIME ZONE 'UTC'\)::date AS day/);
+  });
+  check('events for listings that no longer exist are dropped, not allowed to fail the statement', () => {
+    assert.match(rollup.ROLLUP_SQL, /JOIN properties p ON p\.id = k\.listing_id/);
+  });
+  check('only exact /listings/<id> paths count as listing views', () => {
+    const re = new RegExp(rollup.LISTING_PATH_PATTERN);
+    assert.strictEqual(re.test('/listings/286'), true);
+    assert.strictEqual(re.test('/listings/286/'), false);
+    assert.strictEqual(re.test('/listings/2-chambres-limete'), false);
+    assert.strictEqual(re.test(`/listings/${'9'.repeat(19)}`), false);
+  });
+  check('an empty rollup starts from the epoch (the backfill), otherwise one day of overlap', () => {
+    assert.match(rollup.WINDOW_START_SQL, /COALESCE\(max\(day\) - 1, DATE '1970-01-01'\)/);
+  });
+  await checkAsync('a run recounts inside one transaction with a statement timeout', async () => {
+    const fake = fakeRollupPool({ since: '2026-09-14' });
+    const result = await rollup.runListingStatsRollup({ pool: fake.pool });
+    const sqls = fake.statements.map((s) => s.sql);
+    assert.strictEqual(sqls[0], 'BEGIN');
+    assert.match(sqls[1], /SET LOCAL statement_timeout/);
+    const insert = fake.statements.find((s) => /INSERT INTO listing_stats_daily/.test(s.sql));
+    assert.deepStrictEqual(insert.params, ['2026-09-14']);
+    assert.strictEqual(sqls[sqls.length - 1], 'COMMIT');
+    assert.deepStrictEqual(result, { since: '2026-09-14', rows: 7 });
+  });
+  await checkAsync('a failed rollup rolls back and rethrows (the scheduler records the failure)', async () => {
+    const fake = fakeRollupPool({ fail: true });
+    await assert.rejects(() => rollup.runListingStatsRollup({ pool: fake.pool }), /statement timeout/);
+    assert.ok(fake.statements.some((s) => s.sql === 'ROLLBACK'));
+    assert.ok(!fake.statements.some((s) => s.sql === 'COMMIT'));
+  });
+  check('the rollup job is registered with the scheduler, after the ops-alert job', () => {
+    const source = fs.readFileSync(path.join(__dirname, '..', 'services', 'scheduler.js'), 'utf8');
+    const ops = source.indexOf('registerJob(opsAlertJob)');
+    const job = source.indexOf('registerJob(listingStatsRollupJob)');
+    assert.ok(ops > 0 && job > ops, 'listingStatsRollupJob must be registered after opsAlertJob');
+  });
+  check('the agent-dashboard ownership columns on leads / viewing_requests are indexed', () => {
+    const Database = require('better-sqlite3');
+    const ro = new Database(DB, { readonly: true });
+    try {
+      const names = new Set(ro.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").all().map((r) => r.name));
+      for (const name of ['idx_leads_property_id', 'idx_leads_assigned_agent', 'idx_leads_agent_id', 'idx_viewing_requests_property']) {
+        assert.ok(names.has(name), `missing index ${name}`);
+      }
+    } finally {
+      ro.close();
+    }
   });
 
   // -------------------------------------------------------------------------

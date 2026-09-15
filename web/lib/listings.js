@@ -184,6 +184,20 @@ const SELECT_FIELDS = `
   -- change the other. IS NOT FALSE so a NULL flag keeps today's behaviour.
   CASE WHEN a.phone_verified_at IS NOT NULL AND a.direct_routing_enabled IS NOT FALSE
        THEN NULLIF(TRIM(a.phone), '') END AS agent_phone,
+  -- The listing agent's reviewed-documents tier, for the green trust badge on
+  -- cards and the enquiry panel. NULL unless a team member actually approved
+  -- their documents ('verified' / 'agency_partner'); 'standard' is not sent,
+  -- so a card can never render a badge for an unreviewed agent by mistake.
+  --
+  -- Read through to_jsonb(a), not a.verification_level, ON PURPOSE: the column
+  -- comes from migrations/20260917_agent_verification.sql (engine repo), and a
+  -- plain column reference makes EVERY public listing query fail with 42703
+  -- until that migration has run — caught in local QA, where the homepage
+  -- 500'd. Through jsonb a missing column is just NULL: no badge, no outage.
+  -- Swap back to the column once the migration is applied in every
+  -- environment (the per-row cost is one small row serialisation per page row).
+  CASE WHEN to_jsonb(a) ->> 'verification_level' IN ('verified', 'agency_partner')
+       THEN to_jsonb(a) ->> 'verification_level' END AS agent_verification_level,
   ${COMMUNE_SUBQUERY},
   ${GALLERY_SUBQUERY}
 `;

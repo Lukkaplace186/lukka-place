@@ -77,6 +77,9 @@ export const SECTION_PERMISSIONS = {
   '/admin/audit': 'audit.view',
   '/admin/health': 'health.view',
   '/admin/export': 'data.export',
+  // Opening the queue is agents.view; approving, rejecting, opening a document
+  // and setting a level are agents.manage (enforced in each action/route).
+  '/admin/verifications': 'agents.view',
 };
 
 export function sectionPermission(pathname) {

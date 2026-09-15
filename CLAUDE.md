@@ -923,6 +923,31 @@ alert job itself), no inbound WhatsApp traffic for `OPS_ALERT_SILENCE_HOURS`
 - Session messages, same 24h rule as everything else in "Outbound WhatsApp".
 - Covered by `scripts/verify-pipeline.js` §29.
 
+## Agent dashboard at scale (engine side)
+
+- **`listing_stats_daily`** (`migrations/20260917_agent_dashboard_scale.sql`,
+  plus `page_views (path, created_at)`, `whatsapp_clicks (listing_id,
+  created_at)` and `listing_events (listing_id, created_at)` indexes — before
+  this, every agent view count scanned `page_views` whole). Written only by
+  `services/listingStatsRollup.js`, scheduler job `listing-stats-rollup`, every
+  10 minutes, registered last. It RECOUNTS whole UTC days from the day before
+  the newest rolled-up day and upserts them, so a missed tick, a late event or
+  a re-run cannot double-count; an empty table recounts all history, which is
+  the backfill. Window bound is explicit UTC midnight, events for deleted
+  listings are dropped by `JOIN properties`, one transaction with a 120s
+  statement timeout. web reads it only while fresh (≤30 min) and falls back to
+  raw events otherwise.
+- **SQLite ownership indexes** at boot: `leads (property_id)`,
+  `leads (assigned_agent)`, `leads (agent_id)`, `viewing_requests (property_id)`
+  — the three OR'd signals every agent inbox load filters on were unindexed.
+  `listViewingRequestsForOwner`'s `COALESCE(vr.property_id, l.property_id)` still
+  cannot use an index; stamping `agent_id` on leads/viewings at creation is the
+  real fix.
+- **Agent verification** (`migrations/20260917_agent_verification.sql`):
+  `agents.verification_level` / `verification_reviewed_at` / `_by` and
+  `agent_verification_documents`. No engine code reads it yet; see web/CLAUDE.md.
+- Covered by `scripts/verify-pipeline.js` §31.
+
 ## Verification & Commands
 - **Verification Command**: Always run `npm run verify` before declaring a backend task complete.
 - **Test Coverage**: Do not touch schema fields without updating `scripts/verify-pipeline.js`.

@@ -32,6 +32,7 @@ import {
   deleteListing,
   duplicateListing,
   getFeatureAmenities,
+  findRecentOwnDuplicate,
 } from '@/lib/agentListings';
 import { getCdfRate } from '@/lib/currencyRate';
 import { convertCdfToUsd } from '@/lib/format';
@@ -347,6 +348,16 @@ export async function createListingAction(validCommunes, validCategories, formDa
 
   const agent = await getAgentProfile(agentId);
   if (!agent) throw new Error('Not authenticated');
+
+  // A queued offline draft being re-sent (components/CreateListingDialog.js).
+  // On a connection that drops mid-upload the first attempt can reach this
+  // action, create the listing, and lose only the RESPONSE — the phone then
+  // believes it is still offline and sends it again. Only replays are checked,
+  // so an agent deliberately posting two identical units is unaffected.
+  if (formData.get('offline_replay') === '1') {
+    const existingId = await findRecentOwnDuplicate(agentId, { title, price });
+    if (existingId) return { ok: true, propertyId: existingId, photoWarning: false, replayed: true };
+  }
 
   const propertyId = await createListing({
     agentId,

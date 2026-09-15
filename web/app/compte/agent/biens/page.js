@@ -180,7 +180,7 @@ export default async function AgentListingsPage({ searchParams }) {
                 </button>
               </form>
 
-              <CreateListingDialog communes={communes} categories={categories} />
+              <CreateListingDialog communes={communes} categories={categories} draftKey={`agent:${agentId}:new-listing`} />
             </div>
           </div>
 

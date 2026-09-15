@@ -765,6 +765,60 @@ namespace; the two i18n tests above exist because of that.
 - **`npm run test:http` and `npm run test:chain` talk to live production data** and are gated behind an explicit `QA_ALLOW_PROD=1`. They are deliberately excluded from CI.
 - CI (`.github/workflows/ci.yml`) runs both suites on push. Node 22 is in the engine matrix as **non-blocking**: the production VPS runs 22, and 8 photo webhook tests fail there while passing on 24, with byte-identical code and dependencies (verified by checksum against the deployed server). Production photo handling works on 22, so this is a harness discrepancy — tracked rather than hidden. eslint is non-blocking too, over 3 pre-existing `react-hooks/set-state-in-effect` errors in deliberate hydration-safety code.
 
+## Agent growth toolkit (branch `feat/agent-growth-toolkit`)
+
+- **Dashboard context is memoised per request.** `getAgentDashboardContext`
+  is wrapped in React `cache()`; the layout and every page call it, and before
+  the wrap each request did the work twice (four engine round trips).
+- **Analytics read the rollup when it is fresh.** `lib/analytics.js`'s
+  `isRollupFresh()` (≤30 min, `listing_stats_daily`, written by the engine's
+  `listing-stats-rollup` job) routes per-listing totals, the trend chart and
+  month deltas to the rollup, and falls back to raw events otherwise —
+  including before `migrations/20260917_agent_dashboard_scale.sql` runs. UTC
+  days, same as every other bucket here. The rolling "30 derniers jours" card
+  stays on raw (indexed) events: a rolling window is not day-aligned.
+- **"Visuel & partage"** (actions menu on Mes biens): `lib/listingShareCopy.js`
+  (French caption — always French, it is read by the agent's customers),
+  `lib/listingFlyer.js` + `app/compte/agent/biens/[id]/visuel/route.js`
+  (1080×1080 PNG via `next/og`, ≤3 real photos fetched only from our hosts and
+  sniffed as JPEG/PNG, QR code via the `qrcode` dependency, Plus Jakarta Sans
+  fetched from Google Fonts once per process with a default-face fallback).
+  Ownership is `p.agent_id = $3` in SQL; `shareBlocker()` refuses pending,
+  rejected, archived, under-offer and closed listings because the QR and link
+  point at a public page that would 404 or mislead. There is no web link that
+  posts to a WhatsApp Status: the Web Share sheet with the image attached is
+  the one-tap path, and the caption is copied first because WhatsApp drops
+  text shared with an image to Status.
+- **Offline drafts** (`lib/offlineDrafts.js`, `CreateListingDialog`): fields
+  AND photos in IndexedDB per agent key; a publish while offline (or one that
+  dies on the network) is queued and re-sent when Mes biens is open and
+  online, once across tabs (Web Locks), flagged `offline_replay` so
+  `createListingAction` returns the existing listing
+  (`findRecentOwnDuplicate`, same agent + title + price within 24h) instead of
+  creating a second copy when only the response was lost. No service worker:
+  a page closed offline sends on its next online visit. A server verdict is not
+  a network failure — the draft is un-queued and the dialog reopens.
+- **Verification tiers** (`lib/verificationLevels.js`, `lib/agentVerification.js`,
+  `/admin/verifications`, settings card on `/compte/agent/parametres`):
+  `agents.verification_level` standard / verified / agency_partner, derived
+  `is_verified`, documents in a PRIVATE bucket opened only through an audited
+  5-minute signed-URL route (`agents.manage`). Raising a level requires the
+  approved documents it stands for; rejecting evidence lowers the level in the
+  same transaction. **The green public check now means this tier, not
+  `phone_verified_at`**, on `/agents`, `/agents/[id]`, `EnquiryCard` and
+  `PropertyCard`; the profile meta line no longer prints "Agence partenaire ·
+  Vérifiée" for every agent. Public reads use `to_jsonb(a) ->>
+  'verification_level'` so they keep working before
+  `migrations/20260917_agent_verification.sql` runs (a plain column reference
+  500'd the homepage in local QA); swap to the column once it is applied
+  everywhere. Setup: run that migration, then
+  `node web/scripts/setup-verification-bucket.js --write`.
+- **Known, not fixed here:** the agent dashboard layout still fails when the
+  engine is unreachable (`listLeads` throws; confirmed locally), `/agents`
+  (`getPublicAgents`) loads every agent unpaginated, Mes biens filters an
+  unbounded listing array in memory, and `createListingAction` takes its
+  commune/category allow-lists as arguments from the client.
+
 ## Deployment
 
 - PM2 process name `lukka-place-web`, port `3002` (the engine owns `3000` on the same VPS). Config: `ecosystem.config.js`.

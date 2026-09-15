@@ -1,8 +1,7 @@
 import Link from 'next/link';
-import { BadgeCheck } from 'lucide-react';
 import AgentAvatar from '@/components/AgentAvatar';
+import AgentVerificationBadge from '@/components/AgentVerificationBadge';
 import { getPublicAgents } from '@/lib/agents';
-import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { getT } from '@/lib/i18n/server';
 
 // generateMetadata, not a static object: a static export is evaluated at
@@ -62,9 +61,11 @@ export default async function AgentsDirectoryPage() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="truncate font-semibold text-ink">{name}</span>
-                    {agent.phone_verified_at ? (
-                      <BadgeCheck strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0 text-green-deep" />
-                    ) : null}
+                    {/* The green check is the document-reviewed tier now, not
+                        phone_verified_at: "holds this number" is true of
+                        almost every account and is not what a customer reads
+                        a green check on a person as meaning. */}
+                    <AgentVerificationBadge level={agent.verification_level} t={t} variant="icon" />
                   </div>
                   {agent.vendor_username ? (
                     <p className="truncate text-sm text-ink-45">{agent.vendor_username}</p>

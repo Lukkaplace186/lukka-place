@@ -204,6 +204,25 @@ export async function attachListingPhotos(propertyId, urls) {
 }
 
 /**
+ * The id of a listing this agent created in the last 24 hours with the same
+ * title and price, or null. Used ONLY to stop a re-sent offline draft from
+ * creating a second copy of a listing the first attempt already created (see
+ * createListingAction). Scoped by agent_id like every statement here.
+ */
+export async function findRecentOwnDuplicate(agentId, { title, price }) {
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT p.id FROM properties p
+     JOIN property_contents pc ON pc.property_id = p.id AND pc.language_id = $1
+     WHERE p.agent_id = $2 AND pc.title = $3 AND p.price = $4
+       AND p.created_at > NOW() - interval '24 hours'
+     ORDER BY p.created_at DESC LIMIT 1`,
+    [CONTENT_LANGUAGE_ID, agentId, title, price],
+  );
+  return rows[0] ? Number(rows[0].id) : null;
+}
+
+/**
  * One of this agent's own listings, with every field the native editor
  * (/compte/agent/biens/[id]/edit) writes back — scoped by agent_id in the
  * query itself, so an agent can never load a listing they don't own by

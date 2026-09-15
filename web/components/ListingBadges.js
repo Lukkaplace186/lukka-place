@@ -84,7 +84,7 @@ export function CardBadges({ listing }) {
 export function TypeBadge({ children }) {
   if (!children) return null;
   return (
-    <span className="u-glass-royal pointer-events-none rounded-full px-2.5 py-1 text-[0.625rem] font-semibold uppercase tracking-[0.08em]">
+    <span className="u-glass-royal pointer-events-none rounded-full px-2.5 py-1 text-[0.6875rem] font-semibold uppercase tracking-[0.08em]">
       {children}
     </span>
   );
@@ -118,7 +118,7 @@ export function ListingStatusBadge({ status }) {
   if (!labelKey) return null;
   const label = t(labelKey);
   return (
-    <span className="pointer-events-none rounded-full bg-ink px-2.5 py-1 text-[0.625rem] font-semibold uppercase tracking-[0.08em] text-white">
+    <span className="pointer-events-none rounded-full bg-ink px-2.5 py-1 text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-white">
       {label}
     </span>
   );

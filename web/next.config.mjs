@@ -30,15 +30,42 @@ const nextConfig = {
   turbopack: {
     root: __dirname,
   },
+  // Response compression. Next gzips by default, and nothing in front of it
+  // speaks brotli, which is ~15-20% smaller on the JS our visitors pay for by
+  // the megabyte. The plan is for Traefik's `compress` middleware (br + gzip)
+  // to do it instead — but Traefik skips a response that already carries a
+  // Content-Encoding, so Next's own gzip has to be switched off at the same
+  // moment. WEB_COMPRESS=off (read when the server starts) is that switch,
+  // and it must only be set once the Traefik middleware is live: set without
+  // it, every page ships uncompressed.
+  compress: process.env.WEB_COMPRESS !== 'off',
+  async headers() {
+    return [
+      {
+        // The service worker must never be served from an HTTP cache, or a
+        // fix to it (including its kill switch) cannot reach anyone.
+        source: '/sw.js',
+        headers: [
+          { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+          { key: 'Content-Type', value: 'application/javascript; charset=utf-8' },
+        ],
+      },
+    ];
+  },
   images: {
     // Next 16 defaults images.qualities to [75] and silently coerces any
-    // other `quality` prop to the nearest allowed value — no error, no
-    // warning (confirmed directly against the version-16 upgrade docs and
-    // a live q=75 URL after setting quality={90} on CardImageCarousel.js /
-    // ListingPhotoCollage.js). 75 stays as the default for every other
-    // next/image call site that never set quality explicitly; 90 is what
-    // those two components actually ask for.
-    qualities: [75, 90],
+    // other `quality` prop to the nearest allowed value. Everything uses 75
+    // now: the two card components that asked for 90 roughly doubled every
+    // grid photo on mobile data (64 KB at w=640 q=90 vs 34 KB at w=750 q=75,
+    // same photo, measured on production) for no difference visible on a
+    // phone, and made the detail page fetch a card's cover photo twice.
+    qualities: [75],
+    // Listing photos are content-addressed in Supabase Storage (the object
+    // name carries an md5 of the bytes — lib/listingStorage.js and the
+    // engine's services/supabaseStorage.js), so an optimised variant never
+    // goes stale. The 4h default made returning visitors revalidate and
+    // re-download photos they already had.
+    minimumCacheTTL: 60 * 60 * 24 * 30,
     remotePatterns: [
       {
         // Supabase Storage — listing photos (featured_image, property_slider_images).

@@ -15,6 +15,7 @@ import {
 import { useToast } from '@/components/Toast';
 import { buildWhatsAppLink } from '@/lib/whatsapp';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { isNetworkError } from '@/lib/networkError';
 import { VIEWING_CHECKIN_RESPONSES, VIEWING_FALLOFF_REASON_CODES } from '@/lib/viewingTimeline';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n/client';
@@ -56,8 +57,10 @@ const DOT_CLASS = {
   stopped: 'bg-danger-tint text-danger',
 };
 
+// 44px tall (min-h-11): these are thumb targets on a 360px phone, and a
+// mis-tap on "Agent absent" beside "👍" sends the agent's desk a false report.
 const CHOICE_CLASS =
-  'u-press rounded-full px-3.5 py-2 text-[0.8125rem] font-semibold text-ink-70 shadow-[inset_0_0_0_1px_var(--line)] transition-colors hover:bg-canvas-alt disabled:opacity-60';
+  'u-press inline-flex min-h-11 items-center gap-1.5 rounded-full px-4 py-2 text-[0.875rem] font-semibold shadow-[inset_0_0_0_1px_var(--line)] transition-colors disabled:opacity-60';
 
 /** The one line under a step, from real fields only — nothing when there is nothing to say. */
 function stepDetail(key, viewing, translate) {
@@ -102,6 +105,18 @@ function stepDetail(key, viewing, translate) {
  *
  * `viewing.timeline` is computed on the server (lib/viewingTimeline.js), so
  * which buttons exist is decided once, with the server's clock.
+ *
+ * INSTANT FEEDBACK. On a 3G link the engine round trip plus the refresh is
+ * seconds, and a button that merely greys out for that long reads as broken,
+ * so the tap is acknowledged at once: the chosen answer is marked, and every
+ * other answer is locked so a second tap cannot send a contradictory one.
+ * `sent` remembers which `viewing` object it was made against — the refresh
+ * delivers a new one, and at that moment the server's own timeline takes over
+ * with nothing to reset by hand. (Not `useOptimistic`: that reverts when the
+ * action's transition ends, which is BEFORE router.refresh() has delivered
+ * the new timeline, so the answer would visibly flicker off and back on.)
+ * A failure clears it and says why; a dropped connection says so and offers
+ * to retry, which is safe because the engine ignores a repeated answer.
  */
 export default function ViewingPanel({ viewing, actions, whatsappNumber }) {
   const t = useT();
@@ -109,25 +124,52 @@ export default function ViewingPanel({ viewing, actions, whatsappNumber }) {
   const { showToast } = useToast();
   const [pending, startTransition] = useTransition();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [sent, setSent] = useState(null);
   const { timeline } = viewing;
+  const shown = sent && sent.viewing === viewing ? sent : null;
+  const locked = pending || Boolean(shown);
 
-  function run(action, ...args) {
+  function run(kind, action, ...args) {
     if (!action) return;
+    setSent({ kind, value: args[0] ?? null, viewing });
+    setConfirmOpen(false);
     startTransition(async () => {
       let result;
       try {
         result = await action(viewing.id, ...args);
-      } catch {
+      } catch (err) {
+        setSent(null);
+        if (isNetworkError(err)) {
+          showToast({
+            type: 'error',
+            message: t('common.network.actionOffline'),
+            action: { label: t('common.network.retry'), onClick: () => run(kind, action, ...args) },
+          });
+          return;
+        }
         result = { ok: false, error: t('account.visits.errors.failed') };
       }
       if (!result?.ok) {
+        setSent(null);
         showToast({ type: 'error', message: result?.error || t('account.visits.errors.failed') });
         return;
       }
-      setConfirmOpen(false);
       if (result.message) showToast({ message: result.message });
       router.refresh();
     });
+  }
+
+  function choiceClass(kind, value) {
+    const chosen = shown?.kind === kind && shown.value === value;
+    return cn(
+      CHOICE_CLASS,
+      chosen ? 'bg-blue-tint text-blue-deep shadow-[inset_0_0_0_1.5px_var(--blue)]' : 'text-ink-70 hover:bg-canvas-alt',
+    );
+  }
+
+  function sendingMark(kind, value = null) {
+    if (shown?.kind !== kind || shown.value !== value) return null;
+    return <Check strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />;
   }
 
   // Questions still go to a person. French, like every message this product
@@ -137,7 +179,7 @@ export default function ViewingPanel({ viewing, actions, whatsappNumber }) {
     : null;
 
   return (
-    <div className="rounded-card bg-surface p-5 shadow-[var(--hairline)]">
+    <div className="rounded-card bg-surface p-5 shadow-[var(--hairline)]" aria-busy={pending || undefined}>
       <p className="u-eyebrow">{t('account.visits.timelineTitle')}</p>
 
       <ol className="mt-4 flex flex-col">
@@ -177,18 +219,26 @@ export default function ViewingPanel({ viewing, actions, whatsappNumber }) {
         })}
       </ol>
 
+      {shown ? (
+        <p role="status" className="mt-4 text-[0.8125rem] font-semibold text-blue-deep">
+          {t('account.visits.sending')}
+        </p>
+      ) : null}
+
       {timeline.canCheckin && actions?.checkin ? (
         <div className="mt-5 border-t border-line pt-4">
           <p className="u-title-sub text-ink">{t('account.visits.howWasItTitle')}</p>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap gap-2.5">
             {VIEWING_CHECKIN_RESPONSES.map((response) => (
               <button
                 key={response}
                 type="button"
-                disabled={pending}
-                onClick={() => run(actions.checkin, response)}
-                className={CHOICE_CLASS}
+                disabled={locked}
+                aria-pressed={shown?.kind === 'checkin' && shown.value === response}
+                onClick={() => run('checkin', actions.checkin, response)}
+                className={choiceClass('checkin', response)}
               >
+                {sendingMark('checkin', response)}
                 {t(CHECKIN_LABEL_KEYS[response])}
               </button>
             ))}
@@ -199,15 +249,17 @@ export default function ViewingPanel({ viewing, actions, whatsappNumber }) {
       {timeline.canGiveReason && actions?.falloff ? (
         <div className="mt-5 border-t border-line pt-4">
           <p className="u-title-sub text-ink">{t('account.visits.whyTitle')}</p>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap gap-2.5">
             {VIEWING_FALLOFF_REASON_CODES.map((code) => (
               <button
                 key={code}
                 type="button"
-                disabled={pending}
-                onClick={() => run(actions.falloff, code)}
-                className={CHOICE_CLASS}
+                disabled={locked}
+                aria-pressed={shown?.kind === 'falloff' && shown.value === code}
+                onClick={() => run('falloff', actions.falloff, code)}
+                className={choiceClass('falloff', code)}
               >
+                {sendingMark('falloff', code)}
                 {t(REASON_LABEL_KEYS[code])}
               </button>
             ))}
@@ -216,13 +268,13 @@ export default function ViewingPanel({ viewing, actions, whatsappNumber }) {
       ) : null}
 
       {(timeline.canAcceptSlot && actions?.acceptSlot) || (timeline.canCancel && actions?.cancel) || questionHref ? (
-        <div className="mt-5 flex flex-wrap items-center gap-2.5 border-t border-line pt-4">
+        <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-line pt-4">
           {timeline.canAcceptSlot && actions?.acceptSlot ? (
             <button
               type="button"
-              disabled={pending}
-              onClick={() => run(actions.acceptSlot)}
-              className="u-btn-primary u-press inline-flex items-center gap-2 rounded-full bg-blue px-4 py-2 text-[0.8125rem] font-semibold text-white disabled:opacity-60"
+              disabled={locked}
+              onClick={() => run('acceptSlot', actions.acceptSlot)}
+              className="u-btn-primary u-press inline-flex min-h-11 items-center gap-2 rounded-full bg-blue px-5 text-[0.875rem] font-semibold text-white disabled:opacity-60"
             >
               <Check strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
               {t('account.visits.acceptSlot')}
@@ -231,9 +283,9 @@ export default function ViewingPanel({ viewing, actions, whatsappNumber }) {
           {timeline.canCancel && actions?.cancel ? (
             <button
               type="button"
-              disabled={pending}
+              disabled={locked}
               onClick={() => setConfirmOpen(true)}
-              className="u-press rounded-full px-4 py-2 text-[0.8125rem] font-semibold text-ink-45 transition-colors hover:bg-danger-tint hover:text-danger disabled:opacity-60"
+              className="u-press inline-flex min-h-11 items-center rounded-full px-4 text-[0.875rem] font-semibold text-ink-45 transition-colors hover:bg-danger-tint hover:text-danger disabled:opacity-60"
             >
               {t('account.visits.cancel')}
             </button>
@@ -243,7 +295,7 @@ export default function ViewingPanel({ viewing, actions, whatsappNumber }) {
               href={questionHref}
               target="_blank"
               rel="noopener noreferrer"
-              className="ml-auto inline-flex items-center gap-1.5 text-[0.8125rem] font-semibold text-blue-deep hover:underline"
+              className="ml-auto inline-flex min-h-11 items-center gap-1.5 text-[0.875rem] font-semibold text-blue-deep hover:underline"
             >
               <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
               {t('account.visits.askQuestion')}
@@ -269,8 +321,8 @@ export default function ViewingPanel({ viewing, actions, whatsappNumber }) {
             </DialogClose>
             <button
               type="button"
-              disabled={pending}
-              onClick={() => run(actions?.cancel)}
+              disabled={locked}
+              onClick={() => run('cancel', actions?.cancel)}
               className="u-press h-11 rounded-lg bg-danger-tint px-5 text-sm font-bold text-danger disabled:opacity-60"
             >
               {t('account.visits.cancel')}

@@ -81,7 +81,7 @@ export default function AgentAvatarUpload({ initialSrc }) {
           type="button"
           onClick={() => inputRef.current?.click()}
           disabled={pending}
-          className="u-btn-secondary u-press h-9 rounded-lg px-4 text-xs font-bold text-ink disabled:opacity-60"
+          className="u-btn-secondary u-press h-11 rounded-lg px-4 text-xs font-bold text-ink disabled:opacity-60"
         >
           {pending ? 'Envoi en cours…' : t('agent.settings.changePhoto')}
         </button>

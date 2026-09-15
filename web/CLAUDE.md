@@ -389,7 +389,104 @@ row. That is fine at 10 agents and a multi-megabyte page at 30,000.
   - **Popover, not DropdownMenu, for filter panels.** DropdownMenu implements roving focus and typeahead over menu *items*, which fights any text or number input inside it. See `FilterPill.js`.
   - Radix content portals to `document.body`, so it is **outside the `<form>`**. `FilterBar` therefore owns every filter value in React state and renders hidden inputs inside the form; the pill panels and the sheet are pure UI. Don't put a named form field inside a portalled panel and expect it to submit.
 - **Icons are `lucide-react`, always**, with `ICON_SIZE` / `ICON_STROKE_WIDTH` from `lib/constants.js`. The hand-rolled WhatsApp/Facebook/Instagram brand SVGs in `Footer.js` and `WhatsAppCTA.js` are the one deliberate exception — this lucide version ships no brand glyphs (confirmed by a failed build, not assumed).
-- **Motion is `framer-motion` via `lib/motion.js`** — `revealUp`/`revealStagger` (section reveals), `imageZoom` (card photo on hover), `heroDrift`, `fadeScale`, `cardHoverProps`, `fadeInUp`. **Gate every decorative preset through `useMotionSafe()` (`lib/useMotionSafe.js`)** — `prefers-reduced-motion` was honoured nowhere before. Read the scope note at the top of `lib/motion.js` before wrapping a Radix `Dialog`/`Sheet` in `motion.div`: they animate via `data-state` + `tw-animate-css`, and layering framer-motion on top without `AnimatePresence` + `forceMount` breaks the exit rather than improving it.
+- **Motion is CSS, not a library.** `framer-motion`, `lib/motion.js` and `lib/useMotionSafe.js` are gone (see "Mobile performance & resilience" below). The presets live in `app/globals.css`: `.u-pop` (a toggled icon — key the span on a counter and apply the class only when it is > 0, so it never plays on mount), `.u-reveal` (entrance on mount), `.u-rise` (small panel over the map), `.u-reveal-in-view` (scroll-driven, `animation-timeline: view()`, no JS; a browser without it shows the element with no reveal). All are gated on `prefers-reduced-motion` in the CSS itself. Radix `Dialog`/`Sheet` animate via `data-state` + `tw-animate-css`. Don't add a motion library back for decoration: it was ~40 KB gzip on every page for effects most of them never ran on a phone.
+
+## Mobile performance & resilience
+
+95%+ of visitors are on mid/low-end Android phones on 3G/4G in Kinshasa, paying
+per megabyte. Baseline measured on production at 375px (2026-09-15), before this
+pass: ~257 KB gzip of first-party JS on `/` served gzip-only, card photos at
+q=90, the Maps JS API (~245 KB) loaded on every listing page before anyone
+scrolled to it, invisible-but-tappable photo arrows on every card, and no
+loading or error boundary anywhere outside the client portal and `/admin`.
+
+- **Data budget.**
+  - `images.qualities: [75]` and `minimumCacheTTL` 30 days (`next.config.mjs`).
+    Storage object names are content hashes, so an optimised photo never goes
+    stale. Don't reintroduce `quality={90}`: it doubled grid photo bytes, and a
+    card and the gallery asking for different qualities download the same photo
+    twice.
+  - Maps load on demand. `ResponsiveMapPane` imports every map module through
+    `next/dynamic`. `ListingLocationMap` shows an "Afficher la carte" button
+    below 1024px or with Data Saver on, and on desktop loads once the frame is
+    within 400px of the viewport. The frame keeps its height either way.
+  - `lib/useSaveData.js` (`saveData` or a 2G `effectiveType`) skips work nobody
+    asked for: auto-loading the map, preloading the neighbouring card photo.
+    It never hides content, and it is false on the server and in
+    Safari/Firefox.
+  - Dialogs that only open on a tap (`AuthPromptModal`,
+    `SearchAlertConfirmModal`) are `next/dynamic`. The DM Serif italic font
+    file is not loaded.
+  - **Compression**: `WEB_COMPRESS=off` turns off Next's own gzip so Traefik's
+    `compress` middleware can serve brotli. Traefik skips a response that
+    already has a Content-Encoding, so the two changes only work together. Set
+    the env without the middleware and every page ships uncompressed.
+- **Touch.**
+  - Controls a thumb uses are ≥44px (`min-h-11`/`h-11`). A control drawn
+    smaller gets `.u-hit`, whose `::after` pads the tap area to 44px. It needs
+    a positioned element.
+  - `CardImageCarousel`'s arrows are `hidden` below `sm` and
+    `pointer-events-none` until hover or keyboard focus. Its dots don't respond
+    to taps on a phone (a swipe is the control there).
+  - Hand-written `:hover` rules in `globals.css` sit inside
+    `@media (hover: hover)`, because Android keeps `:hover` on the last thing
+    tapped. Tailwind's own `hover:` variant is already gated that way.
+  - No `backdrop-filter` on touch devices: `.u-glass-*` switches to an opaque
+    fill under `(hover: none)`, and bottom bars use `lg:backdrop-blur-*`. One
+    blur per card is re-rendered on every scroll frame.
+  - Text floor on phone-facing surfaces is 11px.
+- **Agent photos are shrunk on the phone** (`lib/photoShrink.js`, used by
+  `CreateListingDialog` and `AgentListingEditor`): 1600px long edge, JPEG 0.82,
+  one photo at a time. A 4 MB camera photo becomes ~300 KB, and EXIF
+  (including GPS) is dropped. Anything that can't be decoded, or doesn't come
+  out smaller, is sent as the original. `lib/uploadLimits.mjs` still validates
+  whatever is sent.
+- **Slow and failed requests.**
+  - `loading.js` exists at `(site)/`, `(site)/listings/[id]/`, `compte/agent/`
+    and `(portfolio)/`, using `components/RouteSkeletons.js`.
+  - Each sits at a segment root, so a search-param change inside a page
+    (`/listings` filters, `?tab=`) does not flash the skeleton or remount the
+    map.
+  - `error.js` in the same three trees renders `components/RouteError.js`
+    (Next 16 passes `retry`). It shows an offline-specific message when the
+    browser reports no connection. `app/global-error.js` is inline-styled and
+    bilingual because it replaces the root layout.
+  - `OfflineBanner` (root layout) shows a pill while offline.
+    `lib/networkError.js`'s `isNetworkError` separates a dropped connection
+    from a server verdict. `ViewingPanel` and `AgentVisitRequestCard` offer
+    "Réessayer" on the toast for the first; retrying is safe because the
+    engine ignores a repeated status.
+  - `ViewingPanel` acknowledges a tap at once. `sent` is keyed to the
+    `viewing` object it was made against, so the refreshed timeline takes over
+    by itself. It is not `useOptimistic`, which reverts when the action ends,
+    before `router.refresh()` has delivered the new timeline.
+- **PWA.** `app/manifest.js` (icons `public/brand/icon-192.png` / `icon-512.png`,
+  resized from `app/icon.png`) and `public/sw.js`, registered in production only
+  after `load`.
+  - The worker caches `/_next/static` cache-first (200s only).
+  - It serves `/_next/image` stale-while-revalidate (80 entries).
+  - Navigations are network-first with a `/offline.html` fallback.
+  - **It never caches HTML** (sessions, prices, availability). It does not
+    touch `/api`, `/admin`, non-GET requests or other origins.
+  - `/sw.js` is served `no-cache`. The kill switch is in its header comment.
+    Pinned by `tests/unit/mobile-performance.test.js`, which runs the worker in
+    a VM.
+- **Real-user Web Vitals.** `components/WebVitals.js` beacons LCP/INP/CLS/FCP/TTFB
+  (route with ids collapsed, connection class, Data Saver) to
+  `POST /api/telemetry/vitals`. That route validates the payload and writes one
+  `[vitals] {json}` line per metric to the web process log, with no table and
+  no migration. Read with
+  `pm2 logs lukka-place-web --lines 5000 --nostream | grep '\[vitals\]'`.
+- **Deliberately not done here:**
+  - **Cacheable HTML.** The locale cookie makes every route dynamic (see
+    "Bilingual FR/EN"). The fix is the `app/[locale]/` migration, a URL change
+    that is a product decision in its own right.
+  - **Direct-to-Storage per-photo uploads with progress.** That needs
+    signed upload URLs, ownership checks on the returned paths, and a new
+    offline-replay contract. Shrinking already removes most of the upload time.
+  - **`PropertyCard` as a Server Component.** It renders inside client parents
+    (`ListingsSplitView`, both rails), so it stays a client component until
+    those are restructured.
 
 ## Phone numbers are international now — the country is data, not a guess
 

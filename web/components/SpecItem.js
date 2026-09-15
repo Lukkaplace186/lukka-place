@@ -53,7 +53,7 @@ const SPEC_COLUMN_LABEL_KEYS = {
  * treatment is written out at two call sites.
  */
 export const SPEC_LABEL_CLASS =
-  'text-[0.625rem] font-medium uppercase leading-none tracking-[0.09em] text-ink';
+  'text-[0.6875rem] font-medium uppercase leading-none tracking-[0.09em] text-ink';
 export const SPEC_VALUE_CLASS =
   'flex items-center gap-1.5 font-medium leading-none tracking-normal text-ink';
 

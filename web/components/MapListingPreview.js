@@ -2,7 +2,6 @@
 
 import { Fragment, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
 import { Camera, X } from 'lucide-react';
 import CardImageCarousel from './CardImageCarousel';
 import FavoriteButton from './FavoriteButton';
@@ -10,7 +9,6 @@ import Price from './Price';
 import { SPEC_ICONS } from './SpecIcons';
 import { listingImages, specItems, typeLabel } from '@/lib/listingView';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
-import { useMotionSafe } from '@/lib/useMotionSafe';
 import { useT } from '@/lib/i18n/client';
 
 /**
@@ -48,7 +46,6 @@ import { useT } from '@/lib/i18n/client';
  */
 export default function MapListingPreview({ listing, onClose }) {
   const t = useT();
-  const safe = useMotionSafe();
   const [activeIndex, setActiveIndex] = useState(0);
 
   useEffect(() => {
@@ -71,10 +68,7 @@ export default function MapListingPreview({ listing, onClose }) {
     // The caller keys this component by listing id, so tapping a second pin
     // remounts it: the entrance replays and the photo index starts at 1
     // rather than opening listing B on listing A's photo.
-    <motion.div
-      initial={safe ? { opacity: 0, y: 24 } : false}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+    <div
       role="dialog"
       aria-label={listing.title || t('listings.map.viewDetails')}
       // Bottom-anchored over the map. Centred with a ceiling on desktop,
@@ -82,7 +76,7 @@ export default function MapListingPreview({ listing, onClose }) {
       // cover most of it. A flex column capped at the map's own height, so
       // on a short map (landscape phone, browser chrome showing) the PHOTO
       // is what gives way — the price, specs and button never do.
-      className="absolute inset-x-3 bottom-3 z-30 mx-auto flex max-h-[calc(100%-1.5rem)] max-w-md flex-col sm:bottom-5 sm:max-h-[calc(100%-2.5rem)]"
+      className="u-rise absolute inset-x-3 bottom-3 z-30 mx-auto flex max-h-[calc(100%-1.5rem)] max-w-md flex-col sm:bottom-5 sm:max-h-[calc(100%-2.5rem)]"
     >
       <div className="u-lift-lg flex min-h-0 flex-col overflow-hidden rounded-2xl border border-line bg-surface">
         {/* Edge to edge, ~70% of the card. An explicit height, not an
@@ -173,13 +167,13 @@ export default function MapListingPreview({ listing, onClose }) {
             </Link>
             <Link
               href={href}
-              className="u-press inline-flex shrink-0 items-center rounded-full bg-blue px-3 py-1.5 text-[0.75rem] font-semibold text-white transition-colors hover:bg-blue-deep"
+              className="u-press inline-flex min-h-11 shrink-0 items-center rounded-full bg-blue px-4 text-[0.8125rem] font-semibold text-white transition-colors hover:bg-blue-deep"
             >
               {t('listings.map.viewDetails')}
             </Link>
           </div>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }

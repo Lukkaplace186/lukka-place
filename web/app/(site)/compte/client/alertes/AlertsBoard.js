@@ -82,7 +82,7 @@ export default async function AlertsBoard({ matches, whatsappHref, phone = null,
                       href={`/listings?${search.query}`}
                       aria-label={t('account.alerts.editSearchNamed', { label: search.label })}
                       title={t('account.alerts.editSearch')}
-                      className="u-press inline-flex h-8 w-8 items-center justify-center rounded-full text-ink-45 transition-colors hover:bg-canvas-deep hover:text-ink"
+                      className="u-press inline-flex h-11 w-11 items-center justify-center rounded-full text-ink-45 transition-colors hover:bg-canvas-deep hover:text-ink"
                     >
                       <SlidersHorizontal strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
                     </Link>

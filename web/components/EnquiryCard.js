@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
 import { useIsLoggedIn } from '@/lib/customerClient';
 import { MessageCircle, Phone, CalendarClock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
@@ -14,8 +13,6 @@ import AgentVerificationBadge from './AgentVerificationBadge';
 import { displayableAgencyName } from '@/lib/agentIdentity';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { submitVisitRequestAction } from '@/app/(site)/listings/[id]/actions';
-import { revealUp } from '@/lib/motion';
-import { useMotionSafe } from '@/lib/useMotionSafe';
 import PhoneField from './PhoneField';
 import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
 import { useLocale, useT } from '@/lib/i18n/client';
@@ -110,6 +107,8 @@ function VisitRequestDialog({ propertyId }) {
               key={prefillKey}
               id="visit-name"
               name="name"
+              autoComplete="name"
+              enterKeyHint="next"
               defaultValue={profile?.fullName || ''}
               placeholder={t('enquiry.namePlaceholder')}
               className={FIELD_CLASS}
@@ -137,6 +136,7 @@ function VisitRequestDialog({ propertyId }) {
             <input
               id="visit-time"
               name="requested_time"
+              enterKeyHint="send"
               required
               placeholder={t('enquiry.slotPlaceholder')}
               className={FIELD_CLASS}
@@ -197,8 +197,8 @@ function VisitRequestDialog({ propertyId }) {
  * system's normal card treatment as PhotoGallery.js's own frame (see its
  * doc comment).
  *
- * Also plays a quick `revealUp` entrance (lib/motion.js, gated by
- * `useMotionSafe()`) on mount — `animate="visible"`, not `whileInView`.
+ * Also plays a quick `.u-reveal` entrance (app/globals.css, gated on
+ * prefers-reduced-motion) on mount — `animate="visible"`, not `whileInView`.
  * This card shares the gallery's own top row (page.js), so it's normally
  * already inside the initial viewport on load; `whileInView` only fires
  * off an IntersectionObserver crossing, which is not guaranteed to run for
@@ -211,7 +211,6 @@ function VisitRequestDialog({ propertyId }) {
 
 export default function EnquiryCard({ listing, visitSent, visitError }) {
   const t = useT();
-  const safe = useMotionSafe();
   const {
     id, title,
     agency_name: agencyName, agent_phone: agentPhone, agency_logo_url: agencyLogoUrl,
@@ -233,11 +232,8 @@ export default function EnquiryCard({ listing, visitSent, visitError }) {
   const qualifier = agentName ? 'Agent partenaire' : 'Équipe Lukka Place';
 
   return (
-    <motion.div
-      variants={safe ? revealUp : undefined}
-      initial={safe ? 'hidden' : false}
-      animate={safe ? 'visible' : undefined}
-      className="u-lift flex flex-col gap-[1.125rem] rounded-card border border-line bg-surface p-6"
+    <div
+      className="u-reveal u-lift flex flex-col gap-[1.125rem] rounded-card border border-line bg-surface p-6"
     >
       <div className="flex items-center gap-3.5">
         <AgentMonogram
@@ -322,6 +318,6 @@ export default function EnquiryCard({ listing, visitSent, visitError }) {
           <ShareButton title={title} variant="icon" />
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }

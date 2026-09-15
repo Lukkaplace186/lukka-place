@@ -69,6 +69,21 @@
       "statusPending": "Awaiting review",
       "statusApproved": "Approved",
       "statusRejected": "Rejected"
+    },
+    "network": {
+      "offline": "No internet connection",
+      "actionOffline": "No connection — nothing was sent. Try again once you are back online.",
+      "retry": "Try again"
+    },
+    "errorBoundary": {
+      "title": "This Page Couldn’t Load",
+      "body": "A temporary problem is stopping this page from loading. Please try again in a moment.",
+      "offlineTitle": "No Internet Connection",
+      "offlineBody": "Check your mobile data or Wi-Fi, then try again.",
+      "reference": "Reference: {digest}",
+      "retry": "Try again",
+      "home": "Back to home",
+      "dashboard": "Dashboard"
     }
   },
   "nav": {
@@ -477,7 +492,9 @@
       },
       "truncated": "Too many properties here: zoom in to see them all",
       "fetchError": "Could not load the properties in this area.",
-      "locationDetails": "Location details"
+      "locationDetails": "Location details",
+      "show": "Show map",
+      "showHint": "The map loads on request to save your mobile data."
     },
     "alertModal": {
       "intro": "You'll be alerted to new properties matching:",
@@ -838,7 +855,8 @@
       "smartPasteButtonPending": "Parsing…",
       "smartPasteSuccess": "Fields filled automatically — review them before saving.",
       "smartPasteLowConfidence": "The pasted text doesn't clearly look like a listing — check every field before saving.",
-      "photos": "Photos"
+      "photos": "Photos",
+      "optimizingPhotos": "Optimising photos for a faster upload…"
     },
     "portfolio": {
       "toRent": "To rent",
@@ -1116,7 +1134,8 @@
         "failed": "That didn't work just now. Please try again.",
         "notAllowed": "This viewing can no longer be changed.",
         "notYet": "You can give feedback once the viewing time has passed."
-      }
+      },
+      "sending": "Sending…"
     },
     "favorites": {
       "title": "My Saved Listings",

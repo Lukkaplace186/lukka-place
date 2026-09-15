@@ -36,7 +36,7 @@ export default function MobileListingBar({ listing }) {
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 px-4 py-3 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 px-4 py-3 pb-[env(safe-area-inset-bottom)] lg:backdrop-blur-md lg:hidden"
       style={{ boxShadow: '0 -8px 24px -12px rgba(12, 29, 80, 0.25)' }}
     >
       <div className="flex items-center gap-3">

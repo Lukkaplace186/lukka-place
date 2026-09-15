@@ -349,7 +349,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
       // than trusting to compile.
       style={{ transform: 'translateZ(0)', willChange: 'transform' }}
     >
-      <div aria-hidden="true" className="absolute inset-0 bg-canvas/95 backdrop-blur-md" />
+      <div aria-hidden="true" className="absolute inset-0 bg-canvas/95 lg:backdrop-blur-md" />
       <form
         id={FORM_ID}
         ref={formRef}

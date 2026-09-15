@@ -6,6 +6,9 @@ import { getI18n, getT } from '@/lib/i18n/server';
 import { I18nProvider } from '@/lib/i18n/client';
 import LocaleSync from '@/components/LocaleSync';
 import { TRANSLATION_DOM_GUARD_SCRIPT } from '@/lib/translationDomGuard';
+import OfflineBanner from '@/components/OfflineBanner';
+import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
+import WebVitals from '@/components/WebVitals';
 
 /*
  * Two families, sans-led — matches web/Design's "WhiteBlue Royal" system
@@ -39,7 +42,9 @@ const dmSerifDisplay = DM_Serif_Display({
   variable: '--font-dmserif',
   subsets: ['latin'],
   weight: '400',
-  style: ['normal', 'italic'],
+  // Normal only: nothing sets the serif in italic, and the italic cut was a
+  // ~20 KB font file every visitor downloaded.
+  style: ['normal'],
   display: 'swap',
 });
 
@@ -198,6 +203,12 @@ plausible.init()`}
         </Script>
         <I18nProvider locale={locale} messages={messages}>
           <LocaleSync />
+          {/* Mobile resilience and measurement, on every surface: the offline
+              pill, the service worker (public/sw.js) and real-user Web
+              Vitals (/api/telemetry/vitals). Each renders nothing. */}
+          <OfflineBanner />
+          <ServiceWorkerRegister />
+          <WebVitals />
           {children}
         </I18nProvider>
       </body>

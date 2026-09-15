@@ -131,7 +131,7 @@ export default function Header() {
           <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
             <SheetTrigger
               aria-label={t('nav.openMenu')}
-              className="flex items-center justify-center rounded-md p-1.5 text-ink transition-colors hover:bg-canvas-deep lg:hidden"
+              className="flex h-11 w-11 items-center justify-center rounded-md text-ink transition-colors hover:bg-canvas-deep lg:hidden"
             >
               <Menu strokeWidth={ICON_STROKE_WIDTH} className="h-7 w-7" />
             </SheetTrigger>
@@ -311,7 +311,7 @@ export default function Header() {
             <DropdownMenu>
               <DropdownMenuTrigger
                 aria-label={t('nav.myAccount')}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-line text-ink-70 transition-colors hover:border-blue hover:text-blue-deep sm:h-11 sm:w-11"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-line text-ink-70 transition-colors hover:border-blue hover:text-blue-deep"
               >
                 <User strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
               </DropdownMenuTrigger>
@@ -335,7 +335,7 @@ export default function Header() {
             <Link
               href="/compte/connexion"
               aria-label={t('common.actions.login')}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-line text-ink-70 transition-colors hover:border-blue hover:text-blue-deep sm:h-11 sm:w-11"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-line text-ink-70 transition-colors hover:border-blue hover:text-blue-deep"
             >
               <User strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
             </Link>

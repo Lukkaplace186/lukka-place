@@ -1,12 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import SafeImage from './SafeImage';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
-import { imageZoom } from '@/lib/motion';
-import { useMotionSafe } from '@/lib/useMotionSafe';
+import { useSaveData } from '@/lib/useSaveData';
 import { useT } from '@/lib/i18n/client';
 
 const DOT_WINDOW = 5;
@@ -41,13 +39,21 @@ const DOT_WINDOW = 5;
  * the photo without dragging still opens the listing, same as every other
  * part of the card — deliberately not suppressed here.
  *
- * The scroll strip carries `imageZoom` (lib/motion.js) — the same
- * hover-scale preset ListingPhotoCollage.js already uses, picked up
- * automatically from the parent MotionLink's `whileHover="hover"` via
- * framer-motion's variant propagation, gated through useMotionSafe() like
- * every other decorative preset in this app. `quality={90}` (up from
- * next/image's default 75) plus a subtle contrast/brightness/saturate
- * lift on the image itself — real photos, just rendered a touch crisper.
+ * TOUCH: the arrows and dots are desktop controls. The arrows used to be
+ * `opacity-0` on a phone but still tappable — two invisible 28px targets in
+ * the middle of every card photo, so a tap meant to open the listing flipped
+ * the photo instead (measured on lukkaplace.com at 375px). They are now
+ * `hidden` below `sm` and `pointer-events-none` until the carousel is
+ * hovered or an arrow has keyboard focus. The dot row is decorative on a
+ * phone (`pointer-events-none` below `sm`): 6px dots are not a target anyone
+ * can hit, and the swipe is the real control.
+ *
+ * `quality` is next/image's default 75. It was 90, which roughly doubled the
+ * bytes of every grid photo on mobile data for a difference nobody can see
+ * on a phone screen (same photo, measured: 64 KB at w=640 q=90 vs 34 KB at
+ * w=750 q=75), and — because PhotoGallery asked for q=75 — made the detail
+ * page download a card's cover photo a second time. A subtle
+ * contrast/brightness/saturate lift on the image is kept.
  *
  * Only the cover photo (index 0) actually mounts a next/image on first
  * render — a listing can carry 10+ gallery photos, and every one of them
@@ -58,7 +64,8 @@ const DOT_WINDOW = 5;
  * index plus its immediate neighbours are added as `index` changes, so the
  * next/previous photo is already mounted (and starts decoding) before a
  * swipe or arrow-click finishes animating into view, without ever loading
- * the whole gallery up front. An unloaded slide renders an empty
+ * the whole gallery up front. With Data Saver on (lib/useSaveData.js) only
+ * the photo actually swiped to is loaded. An unloaded slide renders an empty
  * canvas-alt placeholder that still carries the real flex-shrink-0/w-full
  * sizing, so the scroller's snap points and scrollWidth stay correct
  * either way.
@@ -71,7 +78,7 @@ export default function CardImageCarousel({
   const [loaded, setLoaded] = useState(() => new Set([0]));
   const scrollerRef = useRef(null);
   const total = images.length;
-  const safe = useMotionSafe();
+  const lightData = useSaveData();
 
   // Marks a slide (and its immediate neighbours) as allowed to mount its
   // real image — called directly from the two places `index` actually
@@ -80,9 +87,10 @@ export default function CardImageCarousel({
   // event handler that causes the change, not a synchronous setState inside
   // an effect (see react-hooks/set-state-in-effect).
   function markLoadedAround(i) {
+    const wanted = lightData ? [i] : [i - 1, i, i + 1];
     setLoaded((prev) => {
       let next = prev;
-      for (const idx of [i - 1, i, i + 1]) {
+      for (const idx of wanted) {
         if (idx >= 0 && idx < total && !next.has(idx)) {
           if (next === prev) next = new Set(prev);
           next.add(idx);
@@ -164,12 +172,14 @@ export default function CardImageCarousel({
     }
   }
 
+  const arrowClass =
+    'u-press absolute top-1/2 hidden -translate-y-1/2 rounded-full bg-surface/90 p-1.5 text-ink opacity-0 pointer-events-none backdrop-blur-sm transition-opacity hover:bg-surface sm:flex sm:group-hover/carousel:pointer-events-auto sm:group-hover/carousel:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100';
+
   return (
     <div className="group/carousel relative h-full w-full overflow-hidden bg-canvas-alt" onPointerEnter={handlePointerEnter}>
-      <motion.div
+      <div
         ref={scrollerRef}
         onScroll={handleScroll}
-        variants={safe ? imageZoom : undefined}
         className="no-scrollbar flex h-full w-full snap-x snap-mandatory overflow-x-auto scroll-smooth"
       >
         {images.map((src, i) => (
@@ -180,14 +190,13 @@ export default function CardImageCarousel({
                 alt={i === 0 ? alt : `${alt} — photo ${i + 1}`}
                 fill
                 sizes={sizes}
-                quality={90}
                 priority={priority && i === 0}
                 className="object-cover contrast-[1.03] brightness-[1.02] saturate-[1.04]"
               />
             ) : null}
           </div>
         ))}
-      </motion.div>
+      </div>
 
       {total > 1 && (
         <>
@@ -195,7 +204,7 @@ export default function CardImageCarousel({
             type="button"
             onClick={(e) => go(-1, e)}
             aria-label={t('listings.gallery.previousPhoto')}
-            className="u-press absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-surface/90 p-1.5 text-ink opacity-0 backdrop-blur-sm transition-opacity hover:bg-surface sm:group-hover/carousel:opacity-100"
+            className={`${arrowClass} left-2`}
           >
             <ChevronLeft strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
           </button>
@@ -203,13 +212,13 @@ export default function CardImageCarousel({
             type="button"
             onClick={(e) => go(1, e)}
             aria-label={t('listings.gallery.nextPhoto')}
-            className="u-press absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-surface/90 p-1.5 text-ink opacity-0 backdrop-blur-sm transition-opacity hover:bg-surface sm:group-hover/carousel:opacity-100"
+            className={`${arrowClass} right-2`}
           >
             <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
           </button>
 
           <div
-            className="absolute inset-x-0 bottom-2 z-20 flex items-center justify-center gap-1.5"
+            className="pointer-events-none absolute inset-x-0 bottom-2 z-20 flex items-center justify-center gap-1.5 sm:pointer-events-auto"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -219,6 +228,7 @@ export default function CardImageCarousel({
               <button
                 key={photoIndex}
                 type="button"
+                tabIndex={-1}
                 onClick={(e) => scrollToIndex(photoIndex, e)}
                 aria-label={`Photo ${photoIndex + 1}`}
                 aria-current={photoIndex === index}

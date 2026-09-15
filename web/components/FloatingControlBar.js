@@ -63,7 +63,7 @@ export default function FloatingControlBar() {
             from a busy photo now instead of a dark fill. Text/icons flip to
             ink and hover/press go darker-on-light (bg-canvas-alt) since the
             surface itself is light now. */}
-        <div className="flex items-center gap-1 rounded-full border border-line/80 bg-surface/95 p-1.5 text-ink shadow-xl backdrop-blur-md">
+        <div className="flex items-center gap-1 rounded-full border border-line/80 bg-surface/95 p-1.5 text-ink shadow-xl lg:backdrop-blur-md">
           <button
             type="button"
             onClick={openMapView}

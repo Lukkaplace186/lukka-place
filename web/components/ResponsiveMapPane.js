@@ -1,10 +1,17 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import PropertyMap from './PropertyMap';
-import ListingsMap from './ListingsMap';
-import BuildingUnitsDrawer from './BuildingUnitsDrawer';
-import MapListingPreview from './MapListingPreview';
+import dynamic from 'next/dynamic';
+
+// The map modules — Google's loader, marker icons, the pin preview card, the
+// building drawer — are fetched only once a map is actually shown. They were
+// static imports, so the /listings list view on a phone downloaded them for a
+// map `shouldRender` below never mounted.
+const mapPlaceholder = () => <div className="h-full w-full bg-canvas-alt" />;
+const PropertyMap = dynamic(() => import('./PropertyMap'), { ssr: false, loading: mapPlaceholder });
+const ListingsMap = dynamic(() => import('./ListingsMap'), { ssr: false, loading: mapPlaceholder });
+const BuildingUnitsDrawer = dynamic(() => import('./BuildingUnitsDrawer'), { ssr: false });
+const MapListingPreview = dynamic(() => import('./MapListingPreview'), { ssr: false });
 
 /**
  * Mounts a map only when it's actually going to be seen: on desktop

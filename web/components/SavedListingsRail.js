@@ -1,13 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 import PropertyCard from './PropertyCard';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
-import { revealUp } from '@/lib/motion';
-import { useMotionSafe } from '@/lib/useMotionSafe';
 import { useT } from '@/lib/i18n/client';
 
 /**
@@ -44,7 +41,6 @@ import { useT } from '@/lib/i18n/client';
 const CARD_STEP = 304 + 16;
 
 export default function SavedListingsRail({ listings }) {
-  const safe = useMotionSafe();
   const t = useT();
   const railRef = useRef(null);
   const [overflow, setOverflow] = useState({ left: false, right: false });
@@ -78,17 +74,13 @@ export default function SavedListingsRail({ listings }) {
 
   return (
     <div className="relative">
-      <motion.div
+      <div
         ref={railRef}
         onScroll={measure}
-        variants={safe ? revealUp : undefined}
-        initial={safe ? 'hidden' : false}
-        whileInView={safe ? 'visible' : undefined}
-        viewport={{ once: true, amount: 0.15 }}
         tabIndex={0}
         role="group"
         aria-label={t('home.saved.title')}
-        className="flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth pb-4 no-scrollbar focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue focus-visible:ring-offset-2"
+        className="u-reveal-in-view flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth pb-4 no-scrollbar focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue focus-visible:ring-offset-2"
       >
         {listings.map((listing, i) => (
           <div key={listing.id} className="w-[85vw] max-w-[19rem] shrink-0 snap-start sm:w-[19rem]">
@@ -98,7 +90,7 @@ export default function SavedListingsRail({ listings }) {
             <PropertyCard listing={listing} priority={i < 4} />
           </div>
         ))}
-      </motion.div>
+      </div>
 
       {scrollable && (
         <div className="pointer-events-none absolute inset-y-0 left-0 right-0 hidden items-center justify-between lg:flex">

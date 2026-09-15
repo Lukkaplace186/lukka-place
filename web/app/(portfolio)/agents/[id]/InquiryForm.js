@@ -58,7 +58,7 @@ export default async function InquiryForm({ agentId, agentName, sent, error }) {
           <label htmlFor="inquiry-name" className="mb-1 block text-xs font-semibold text-ink-70">
             {t('account.profile.fullName')}
           </label>
-          <input id="inquiry-name" name="name" placeholder="Votre nom" className={FIELD_CLASS} />
+          <input id="inquiry-name" name="name" autoComplete="name" enterKeyHint="next" placeholder="Votre nom" className={FIELD_CLASS} />
         </div>
 
         <PhoneField

@@ -69,6 +69,21 @@
       "statusPending": "En attente d’examen",
       "statusApproved": "Approuvé",
       "statusRejected": "Refusé"
+    },
+    "network": {
+      "offline": "Pas de connexion internet",
+      "actionOffline": "Pas de connexion : rien n’a été envoyé. Réessayez dès que le réseau revient.",
+      "retry": "Réessayer"
+    },
+    "errorBoundary": {
+      "title": "La page n’a pas pu se charger",
+      "body": "Un problème temporaire nous empêche d’afficher cette page. Réessayez dans un instant.",
+      "offlineTitle": "Pas de connexion internet",
+      "offlineBody": "Vérifiez vos données mobiles ou votre Wi-Fi, puis réessayez.",
+      "reference": "Référence : {digest}",
+      "retry": "Réessayer",
+      "home": "Retour à l’accueil",
+      "dashboard": "Tableau de bord"
     }
   },
   "nav": {
@@ -477,7 +492,9 @@
       },
       "truncated": "Trop de biens ici : zoomez pour tous les afficher",
       "fetchError": "Impossible de charger les biens de cette zone.",
-      "locationDetails": "Détails de localisation"
+      "locationDetails": "Détails de localisation",
+      "show": "Afficher la carte",
+      "showHint": "La carte se charge à la demande pour économiser vos données mobiles."
     },
     "alertModal": {
       "intro": "Vous serez alerté des nouveaux biens correspondant à :",
@@ -838,7 +855,8 @@
       "smartPasteButton": "Analyser et remplir",
       "smartPasteButtonPending": "Analyse en cours…",
       "smartPasteSuccess": "Champs remplis automatiquement — vérifiez-les avant d’enregistrer.",
-      "smartPasteLowConfidence": "Le texte collé ne ressemble pas clairement à une annonce — vérifiez chaque champ avant d’enregistrer."
+      "smartPasteLowConfidence": "Le texte collé ne ressemble pas clairement à une annonce — vérifiez chaque champ avant d’enregistrer.",
+      "optimizingPhotos": "Optimisation des photos pour un envoi rapide…"
     },
     "portfolio": {
       "toRent": "À louer",
@@ -1116,7 +1134,8 @@
         "failed": "Action impossible pour le moment. Réessayez.",
         "notAllowed": "Cette visite ne peut plus être modifiée.",
         "notYet": "Vous pourrez donner votre avis après l'heure de la visite."
-      }
+      },
+      "sending": "Envoi en cours…"
     },
     "favorites": {
       "title": "Mes favoris",

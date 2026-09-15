@@ -7,6 +7,7 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { updateViewingRequestAction } from '@/app/compte/agent/actions';
 import { agentActionsFor } from '@/lib/viewingActions';
 import { useToast } from './Toast';
+import { isNetworkError } from '@/lib/networkError';
 import { useT } from '@/lib/i18n/client';
 
 const STATUS_TAG = {
@@ -19,7 +20,7 @@ const STATUS_TAG = {
 };
 
 const SECONDARY_BUTTON =
-  'u-press inline-flex h-9 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg text-[0.8125rem] font-semibold transition-colors disabled:opacity-60';
+  'u-press inline-flex h-11 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg text-[0.8125rem] font-semibold transition-colors disabled:opacity-60';
 
 /**
  * One viewing request, with only the answers its status allows
@@ -66,6 +67,16 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
         // A rejected Server Action (expired session, dropped connection) is not
         // an {ok:false}; without this the buttons would simply go dead.
         console.error('[AgentVisitRequestCard] updateViewingRequestAction failed', err);
+        // A dropped connection on a site visit is the common case, and it is
+        // safe to retry: the engine ignores a repeated status.
+        if (isNetworkError(err)) {
+          showToast({
+            type: 'error',
+            message: t('common.network.actionOffline'),
+            action: { label: t('common.network.retry'), onClick: () => run(status, requestedTime) },
+          });
+          return;
+        }
         showToast({ type: 'error', message: t('errors.submissionFailed') });
         return;
       }
@@ -139,7 +150,7 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
               type="button"
               disabled={pending}
               onClick={() => run('CONFIRMED')}
-              className="u-btn-primary u-press inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-blue text-sm font-bold text-white disabled:opacity-60"
+              className="u-btn-primary u-press inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-lg bg-blue text-sm font-bold text-white disabled:opacity-60"
             >
               <Check strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
               {t('agent.visits.confirm')}

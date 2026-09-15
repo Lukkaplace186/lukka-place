@@ -302,6 +302,59 @@
     display: none; /* Chrome, Safari */
   }
 
+  /* A 44×44px touch target around a control that is drawn smaller (a 40px
+     heart over a photo, a 36px header icon). The ::after overhangs the
+     element by however much it is short of 44px on each axis, and never
+     shrinks one that is already bigger. The element must be positioned
+     (`relative`, or already `absolute`/`fixed`). */
+  .u-hit::after {
+    content: '';
+    position: absolute;
+    top: min(0px, calc((100% - 44px) / 2));
+    bottom: min(0px, calc((100% - 44px) / 2));
+    left: min(0px, calc((100% - 44px) / 2));
+    right: min(0px, calc((100% - 44px) / 2));
+  }
+
+  /* Motion, in CSS. These replace framer-motion, which was ~40 KB of gzipped
+     script on every page — parsed on budget Android CPUs — for a heart pop,
+     two entrance reveals and a hover zoom that never fires on a touch screen.
+     All of it is gated on prefers-reduced-motion here, once, instead of per
+     component through a hook. */
+  @keyframes u-pop {
+    0% { transform: scale(0.6); }
+    60% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+  @keyframes u-rise {
+    from { opacity: 0; transform: translateY(var(--u-rise-from, 24px)); }
+    to { opacity: 1; transform: none; }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    /* A toggled icon (FavoriteButton, SaveSearchButton). */
+    .u-pop {
+      animation: u-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    /* An element entering on mount (EnquiryCard). */
+    .u-reveal {
+      animation: u-rise 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    /* A small panel arriving over the map (MapListingPreview). */
+    .u-rise {
+      animation: u-rise 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    /* A section revealed as it scrolls into view (the homepage rails). A
+       scroll-driven animation needs no JavaScript at all; a browser without
+       `animation-timeline` simply shows the section with no reveal. */
+    @supports (animation-timeline: view()) {
+      .u-reveal-in-view {
+        animation: u-rise linear both;
+        animation-timeline: view();
+        animation-range: entry 0% entry 35%;
+      }
+    }
+  }
+
   /* The workhorse of the editorial layer — commune labels, section
      kickers, spec-table keys. Matches web/Design's eyebrow spec exactly
      (11px / 700 / 0.12em / uppercase). */
@@ -541,17 +594,29 @@
     backdrop-filter: saturate(1.1) blur(14px);
     color: var(--ink);
   }
+  /* On touch devices the frost is replaced by a slightly more opaque fill.
+     A 14px backdrop blur is re-rendered on every scroll frame, and there is
+     one per listing card (photo counter + heart) — measurable jank on the
+     Mali/PowerVR GPUs in the budget Android phones most visitors use. */
+  @media (hover: none) {
+    .u-glass-royal {
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+      background: rgba(12, 29, 80, 0.62);
+    }
+    .u-glass-white {
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+      background: rgba(255, 255, 255, 0.94);
+    }
+  }
 
-  /* Tactile press feedback for plain (non-framer-motion) tappable elements
-     — filter pills, icon CTAs, nav items. Deliberately NOT gated behind
-     useMotionSafe()/prefers-reduced-motion the way the decorative presets
-     in lib/motion.js are: those are automatic/ambient (hover-zoom, hero
-     drift, scroll reveals), this is direct feedback to the visitor's own
-     tap, the same category of thing a native OS button already does
-     regardless of a reduced-motion setting. Motion-driven elements
-     (the three card designs' MotionLink) use framer-motion's own
-     `whileTap` instead of this class, so the two mechanisms never fight
-     over the same `transform`. */
+  /* Tactile press feedback for tappable elements — filter pills, icon CTAs,
+     nav items. Deliberately NOT gated behind prefers-reduced-motion the way
+     the decorative .u-pop/.u-reveal presets above are: those are ambient,
+     this is direct feedback to the visitor's own tap, the same category of
+     thing a native OS button already does regardless of a reduced-motion
+     setting. */
   .u-press {
     transition: transform 0.15s ease-out;
   }
@@ -585,10 +650,16 @@
   .u-btn-primary {
     transition: var(--transition-control, background-color 0.18s, box-shadow 0.18s, transform 0.12s);
   }
-  .u-btn-primary:hover {
-    background-color: var(--blue-deep);
-    box-shadow: var(--shadow-royal);
-    transform: translateY(-2px);
+  /* Hover styles are gated on (hover: hover). Android keeps :hover applied
+     to the last thing tapped, so an ungated lift left a button floating 2px
+     up with a shadow after every tap. (Tailwind's own hover: variant is
+     already gated this way; these hand-written rules were not.) */
+  @media (hover: hover) {
+    .u-btn-primary:hover {
+      background-color: var(--blue-deep);
+      box-shadow: var(--shadow-royal);
+      transform: translateY(-2px);
+    }
   }
   .u-btn-primary:active {
     background-color: var(--blue-900);
@@ -609,11 +680,17 @@
     box-shadow: inset 0 0 0 1.5px var(--ink);
     transition: var(--transition-control, background-color 0.18s, box-shadow 0.18s, color 0.18s);
   }
-  .u-btn-secondary:hover,
   .u-btn-secondary:active {
     background-color: var(--ink);
     box-shadow: inset 0 0 0 1.5px var(--ink);
     color: #fff;
+  }
+  @media (hover: hover) {
+    .u-btn-secondary:hover {
+      background-color: var(--ink);
+      box-shadow: inset 0 0 0 1.5px var(--ink);
+      color: #fff;
+    }
   }
 
   /*
@@ -638,9 +715,11 @@
       box-shadow 0.2s ease-out,
       transform 0.12s cubic-bezier(0.2, 0.7, 0.3, 1);
   }
-  .u-card-interactive:hover {
-    box-shadow: var(--hairline), var(--shadow-card-hover);
-    transform: translateY(-2px);
+  @media (hover: hover) {
+    .u-card-interactive:hover {
+      box-shadow: var(--hairline), var(--shadow-card-hover);
+      transform: translateY(-2px);
+    }
   }
 
   /*

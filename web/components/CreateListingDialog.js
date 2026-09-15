@@ -13,6 +13,7 @@ import SmartPasteSection from './SmartPasteSection';
 import { buildFormValuesFromParsed } from '@/lib/smartPaste';
 import { validatePhotoSelection } from '@/lib/uploadLimits.mjs';
 import { deleteDraft, fieldsFromForm, isEmptyDraft, loadDraft, looksOffline, saveDraft } from '@/lib/offlineDrafts';
+import { shrinkPhotos } from '@/lib/photoShrink';
 
 const FIELD_CLASS =
   'u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35';
@@ -280,12 +281,30 @@ export default function CreateListingDialog({ communes, categories, draftKey = n
   // Form
   // ---------------------------------------------------------------------
 
-  function handlePhotoChange(event) {
-    const files = Array.from(event.target.files || []).map((file) => ({ file, url: URL.createObjectURL(file) }));
-    const next = [...photos, ...files];
-    setPhotos(next);
-    scheduleAutosave(next);
-    event.target.value = '';
+  const [optimizingPhotos, setOptimizingPhotos] = useState(false);
+
+  // Photos are shrunk on the phone before they are previewed, saved to the
+  // offline draft or uploaded — lib/photoShrink.js. A 4 MB camera JPEG
+  // becomes ~300 KB, which is the difference between a publish that takes
+  // seconds and one that takes minutes on a Kinshasa 3G uplink.
+  async function handlePhotoChange(event) {
+    const input = event.target;
+    const picked = Array.from(input.files || []);
+    input.value = '';
+    if (!picked.length) return;
+    setOptimizingPhotos(true);
+    let shrunk;
+    try {
+      shrunk = await shrinkPhotos(picked);
+    } finally {
+      setOptimizingPhotos(false);
+    }
+    const files = shrunk.map((file) => ({ file, url: URL.createObjectURL(file) }));
+    setPhotos((prev) => {
+      const next = [...prev, ...files];
+      scheduleAutosave(next);
+      return next;
+    });
   }
 
   function removePhoto(index) {
@@ -552,7 +571,7 @@ export default function CreateListingDialog({ communes, categories, draftKey = n
                     type="button"
                     onClick={() => removePhoto(index)}
                     aria-label={t('agent.editor.removePhoto')}
-                    className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-full bg-black/60 text-white"
+                    className="absolute right-1 top-1 grid h-7 w-7 place-items-center rounded-full bg-black/60 text-white"
                   >
                     <X strokeWidth={2.5} className="h-3 w-3" />
                   </button>
@@ -563,7 +582,9 @@ export default function CreateListingDialog({ communes, categories, draftKey = n
                 <input type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={handlePhotoChange} />
               </label>
             </div>
-            <p className="mt-1.5 text-xs text-ink-35">{t('agent.editor.photoHint')}</p>
+            <p className="mt-1.5 text-xs text-ink-35" role={optimizingPhotos ? 'status' : undefined}>
+              {optimizingPhotos ? t('agent.editor.optimizingPhotos') : t('agent.editor.photoHint')}
+            </p>
           </div>
 
           <DialogFooter>

@@ -182,7 +182,7 @@ export default function AgentLeadCard({
             <input type="hidden" name="status" value={lead.status === 'QUALIFIED' ? 'CONVERTED' : 'QUALIFIED'} />
             <button
               type="submit"
-              className="u-press inline-flex h-9 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg text-[0.8125rem] font-semibold text-ink-45 transition-colors hover:bg-canvas-alt hover:text-ink"
+              className="u-press inline-flex h-11 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg text-[0.8125rem] font-semibold text-ink-45 transition-colors hover:bg-canvas-alt hover:text-ink"
             >
               <Check strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
               {lead.status === 'QUALIFIED' ? 'Marquer comme convertie' : t('agent.leads.markHandled')}
@@ -212,7 +212,7 @@ export default function AgentLeadCard({
                   key={q.labelKey}
                   type="button"
                   onClick={() => insertQuickReply(t(q.textKey))}
-                  className="u-press rounded-full bg-canvas-alt px-3 py-1.5 text-xs font-semibold text-ink-70 transition-colors hover:bg-canvas-deep hover:text-ink"
+                  className="u-press inline-flex min-h-11 items-center rounded-full bg-canvas-alt px-3.5 text-xs font-semibold text-ink-70 transition-colors hover:bg-canvas-deep hover:text-ink"
                 >
                   {t(q.labelKey)}
                 </button>
@@ -222,13 +222,13 @@ export default function AgentLeadCard({
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="u-press h-9 rounded-lg px-3.5 text-[0.8125rem] font-semibold text-ink-45 transition-colors hover:bg-canvas-alt hover:text-ink"
+                className="u-press h-11 rounded-lg px-3.5 text-[0.8125rem] font-semibold text-ink-45 transition-colors hover:bg-canvas-alt hover:text-ink"
               >
                 {t('common.actions.cancel')}
               </button>
               <button
                 type="submit"
-                className="u-btn-primary u-press inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-lg bg-blue px-3.5 text-[0.8125rem] font-bold text-white"
+                className="u-btn-primary u-press inline-flex h-11 items-center gap-1.5 whitespace-nowrap rounded-lg bg-blue px-3.5 text-[0.8125rem] font-bold text-white"
               >
                 <Send strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
                 {t('agent.leads.sendMessage')}
@@ -249,7 +249,7 @@ export default function AgentLeadCard({
           id={`status-${lead.id}`}
           name="status"
           defaultValue={lead.status}
-          className="u-focus-ring h-8 rounded-full border border-line bg-surface px-2.5 text-xs font-medium text-ink"
+          className="u-focus-ring h-11 rounded-full border border-line bg-surface px-2.5 text-xs font-medium text-ink"
         >
           {statusOptions.map((o) => (
             <option key={o.value} value={o.value}>
@@ -259,7 +259,7 @@ export default function AgentLeadCard({
         </select>
         <button
           type="submit"
-          className="u-press h-8 rounded-full border border-line px-2.5 text-xs font-medium text-ink transition-colors hover:bg-canvas-alt"
+          className="u-press h-11 rounded-full border border-line px-2.5 text-xs font-medium text-ink transition-colors hover:bg-canvas-alt"
         >
           {t('agent.leads.updateStatus')}
         </button>

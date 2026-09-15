@@ -73,7 +73,7 @@ export default function AgentPageHeader({
           >
             <Bell strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
             {!!newLeadsCount && (
-              <span className="u-tabular absolute right-1 top-1 min-w-[1rem] rounded-full bg-blue px-1 text-[0.5625rem] font-bold leading-4 text-white">
+              <span className="u-tabular absolute right-1 top-1 min-w-[1rem] rounded-full bg-blue px-1 text-[0.6875rem] font-bold leading-4 text-white">
                 {newLeadsCount}
               </span>
             )}

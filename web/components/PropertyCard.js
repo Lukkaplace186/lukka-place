@@ -352,7 +352,7 @@ export default function PropertyCard({
                 text element on the card is now the single `ink-70` token,
                 with the price figure alone left at full `ink` so it is the
                 one thing that stands out. */}
-            <span className="text-[0.6875rem] font-normal tracking-normal text-ink">{freshness || ''}</span>
+            <span className="text-[0.75rem] font-normal tracking-normal text-ink">{freshness || ''}</span>
             {/* Labelled "Réf: …", never the bare code. On its own, a
                 reference like "Demiap" reads as a place or an agency name
                 rather than as this listing's identifier — which is exactly
@@ -365,7 +365,7 @@ export default function PropertyCard({
                 row is already conditional above, and this stays null rather
                 than rendering a stranded "Réf:" with no code after it. */}
             {reference ? (
-              <span className="u-tabular shrink-0 text-[0.6875rem] font-normal text-ink">
+              <span className="u-tabular shrink-0 text-[0.75rem] font-normal text-ink">
                 {t('listings.facts.referenceTag', { reference })}
               </span>
             ) : null}

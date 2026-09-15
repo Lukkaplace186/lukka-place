@@ -24,7 +24,7 @@ import { useT } from '@/lib/i18n/client';
  * Escape and scroll locking; only arrow-key paging is added on top. Note it
  * is not wrapped in a motion.div: Radix unmounts the content the moment
  * `open` flips, so a framer-motion exit animation there would never run
- * (see the scope note in lib/motion.js).
+ * (Radix animates it through data-state and tw-animate-css instead).
  *
  * Below `sm`, the mosaic's side tiles were already hidden (no room for
  * them), which left mobile with a single static lead photo you had to tap

@@ -13,6 +13,7 @@ import { useT } from '@/lib/i18n/client';
 import SmartPasteSection from './SmartPasteSection';
 import { buildFormValuesFromParsed } from '@/lib/smartPaste';
 import { validatePhotoSelection } from '@/lib/uploadLimits.mjs';
+import { shrinkPhotos } from '@/lib/photoShrink';
 
 const FIELD_CLASS =
   'u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35';
@@ -99,16 +100,23 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
       : { value: convertToCdf(entered, cdfRate.cdfPerUsd), unit: 'FC' };
   }, [price, currency, cdfRate.cdfPerUsd]);
 
-  function addPhotos(event) {
-    const files = Array.from(event.target.files || []).map((file) => ({
-      file,
-      url: URL.createObjectURL(file),
-    }));
-    if (files.length) {
-      setPhotos((prev) => [...prev, ...files]);
-      setPhotosTouched(true);
+  const [optimizingPhotos, setOptimizingPhotos] = useState(false);
+
+  // Shrunk on the phone before upload — lib/photoShrink.js.
+  async function addPhotos(event) {
+    const input = event.target;
+    const picked = Array.from(input.files || []);
+    input.value = '';
+    if (!picked.length) return;
+    setOptimizingPhotos(true);
+    let shrunk;
+    try {
+      shrunk = await shrinkPhotos(picked);
+    } finally {
+      setOptimizingPhotos(false);
     }
-    event.target.value = '';
+    setPhotos((prev) => [...prev, ...shrunk.map((file) => ({ file, url: URL.createObjectURL(file) }))]);
+    setPhotosTouched(true);
   }
 
   function removePhoto(index) {
@@ -492,7 +500,7 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
                 <img src={photo.url} alt="" className="h-full w-full object-cover" />
 
                 {index === 0 && (
-                  <span className="absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded-full bg-blue px-2 py-0.5 text-[0.625rem] font-bold text-white">
+                  <span className="absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded-full bg-blue px-2 py-0.5 text-[0.6875rem] font-bold text-white">
                     <Star strokeWidth={2.5} className="h-2.5 w-2.5" />
                     Couverture
                   </span>
@@ -533,7 +541,7 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
                   type="button"
                   onClick={() => removePhoto(index)}
                   aria-label={t('agent.editor.removePhoto')}
-                  className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-white"
+                  className="absolute right-1.5 top-1.5 grid h-8 w-8 place-items-center rounded-full bg-black/60 text-white"
                 >
                   <X strokeWidth={2.5} className="h-3.5 w-3.5" />
                 </button>
@@ -542,15 +550,17 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
           </ul>
         )}
 
-        <label className="inline-flex h-10 w-fit cursor-pointer items-center gap-1.5 rounded-lg border border-dashed border-line px-3.5 text-[0.8125rem] font-bold text-ink-70 hover:bg-canvas-alt">
+        <label className="inline-flex h-11 w-fit cursor-pointer items-center gap-1.5 rounded-lg border border-dashed border-line px-3.5 text-[0.8125rem] font-bold text-ink-70 hover:bg-canvas-alt">
           <Plus strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
           {t('agent.editor.addPhotos')}
           <input type="file" accept="image/jpeg,image/png,image/webp" multiple hidden onChange={addPhotos} />
         </label>
-        <p className="text-xs text-ink-35">{t('agent.editor.photoHint')}</p>
+        <p className="text-xs text-ink-35" role={optimizingPhotos ? 'status' : undefined}>
+          {optimizingPhotos ? t('agent.editor.optimizingPhotos') : t('agent.editor.photoHint')}
+        </p>
       </div>
 
-      <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 border-t border-line bg-surface/95 px-1 py-4 backdrop-blur-md">
+      <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 border-t border-line bg-surface/95 px-1 py-4 lg:backdrop-blur-md">
         <Link
           href="/compte/agent/biens"
           className="u-press inline-flex h-11 items-center gap-1.5 rounded-lg px-4 text-sm font-semibold text-ink-45 hover:bg-canvas-alt hover:text-ink"

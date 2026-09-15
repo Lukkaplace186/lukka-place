@@ -74,7 +74,7 @@ export default function AlertPreferences({ savedSearchId, label, frequency, last
           value={value}
           onChange={changeFrequency}
           disabled={pending}
-          className="u-focus-ring h-9 rounded-full border border-line bg-surface px-3 text-[0.8125rem] text-ink disabled:opacity-60"
+          className="u-focus-ring h-11 rounded-full border border-line bg-surface px-3 text-[0.8125rem] text-ink disabled:opacity-60"
         >
           {ALERT_FREQUENCIES.map((option) => (
             <option key={option} value={option}>
@@ -89,7 +89,7 @@ export default function AlertPreferences({ savedSearchId, label, frequency, last
               setDraft(label);
               setRenaming(true);
             }}
-            className="u-press inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[0.8125rem] font-semibold text-ink-45 transition-colors hover:bg-canvas-alt hover:text-ink"
+            className="u-press inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-[0.8125rem] font-semibold text-ink-45 transition-colors hover:bg-canvas-alt hover:text-ink"
           >
             <Pencil strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
             {t('account.alerts.rename')}
@@ -109,19 +109,19 @@ export default function AlertPreferences({ savedSearchId, label, frequency, last
             aria-label={t('account.alerts.renamePlaceholder')}
             placeholder={t('account.alerts.renamePlaceholder')}
             autoFocus
-            className="u-focus-ring h-9 min-w-0 flex-1 basis-56 rounded-md border border-line bg-white px-3 text-[0.875rem] text-ink"
+            className="u-focus-ring h-11 min-w-0 flex-1 basis-56 rounded-md border border-line bg-white px-3 text-[0.875rem] text-ink"
           />
           <button
             type="submit"
             disabled={pending}
-            className="u-btn-primary u-press h-9 rounded-full bg-blue px-4 text-[0.8125rem] font-semibold text-white disabled:opacity-60"
+            className="u-btn-primary u-press h-11 rounded-full bg-blue px-4 text-[0.8125rem] font-semibold text-white disabled:opacity-60"
           >
             {t('common.actions.save')}
           </button>
           <button
             type="button"
             onClick={() => setRenaming(false)}
-            className="u-press h-9 rounded-full px-3 text-[0.8125rem] font-semibold text-ink-45 hover:bg-canvas-alt hover:text-ink"
+            className="u-press h-11 rounded-full px-3 text-[0.8125rem] font-semibold text-ink-45 hover:bg-canvas-alt hover:text-ink"
           >
             {t('common.actions.cancel')}
           </button>

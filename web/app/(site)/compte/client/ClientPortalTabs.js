@@ -100,6 +100,11 @@ export default function ClientPortalTabs({ counts = {} }) {
           );
         })}
       </nav>
+      {/* At 360px the last tab sits past the edge; the fade says the row scrolls. */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-surface to-transparent sm:hidden"
+      />
     </div>
   );
 }

@@ -32,7 +32,7 @@ const SEGMENT_CLASS = {
 };
 
 const TAG_CLASS =
-  'rounded-full border border-ink-25 px-1.5 py-0.5 text-[10px] leading-tight text-ink-70 sm:px-2.5 sm:py-1 sm:text-xs';
+  'rounded-full border border-ink-25 px-1.5 py-0.5 text-[11px] leading-tight text-ink-70 sm:px-2.5 sm:py-1 sm:text-xs';
 
 /**
  * Three postes stop fitting side by side below a 300px row. Measured in a

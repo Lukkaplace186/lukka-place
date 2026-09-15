@@ -538,7 +538,7 @@ export default function ListingsMap({ params, pageListings, hoveredId, onMarkerH
         // take pointer events, so the map stays draggable right up to it.
         <div className="pointer-events-none absolute inset-x-0 top-2.5 z-20 flex flex-col items-center px-3">
           <div
-            className={`u-lift pointer-events-auto flex items-center gap-0.5 rounded-full border border-line bg-surface/95 py-1 pl-3 backdrop-blur-md transition-opacity ${
+            className={`u-lift pointer-events-auto flex items-center gap-0.5 rounded-full border border-line bg-surface/95 py-1 pl-3 lg:backdrop-blur-md transition-opacity ${
               hasDetails ? 'pr-1' : 'pr-3'
             } ${view.fetching && view.loaded ? 'opacity-80' : ''}`}
           >
@@ -562,7 +562,7 @@ export default function ListingsMap({ params, pageListings, hoveredId, onMarkerH
           {hasDetails && detailsOpen ? (
             <ul
               id={detailsId}
-              className="u-lift pointer-events-auto mt-1.5 max-w-[18rem] space-y-1 rounded-xl border border-line bg-surface/95 px-3 py-2 text-[0.6875rem] leading-snug text-ink-70 backdrop-blur-md"
+              className="u-lift pointer-events-auto mt-1.5 max-w-[18rem] space-y-1 rounded-xl border border-line bg-surface/95 px-3 py-2 text-[0.6875rem] leading-snug text-ink-70 lg:backdrop-blur-md"
             >
               {details.map((detail) => (
                 <li key={detail}>{detail}</li>

@@ -474,7 +474,7 @@ export default function InquiryThreads({
         // as before this drill-down existed. `animate-in` is a real,
         // functional transition (which pane the customer is looking at just
         // changed) rather than decorative, so it isn't gated through
-        // useMotionSafe() the way lib/motion.js's hover/reveal presets are.
+        // prefers-reduced-motion the way app/globals.css's reveal presets are.
         <div className={cn('flex-col bg-canvas-alt lg:flex', mobileDetailOpen ? 'flex animate-in fade-in slide-in-from-right-2 duration-150' : 'hidden')}>
           <button
             type="button"

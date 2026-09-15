@@ -1,9 +1,6 @@
 'use client';
 
-import { motion } from 'framer-motion';
 import PropertyCard from './PropertyCard';
-import { revealUp } from '@/lib/motion';
-import { useMotionSafe } from '@/lib/useMotionSafe';
 
 /**
  * Client wrapper around FeaturedListings' server-fetched data.
@@ -38,22 +35,16 @@ import { useMotionSafe } from '@/lib/useMotionSafe';
  *     buttons and their scrollBy() handler are gone — they only ever did
  *     anything on the same widths that no longer scroll.
  *
- * The reveal lives on this wrapper, not on the cards — each card runs its
- * own independent hover variant, and framer-motion's `animate` prop takes
- * priority over `whileInView`, so combining both on one element makes the
- * scroll reveal silently lose.
+ * The reveal lives on this wrapper, not on the cards: `.u-reveal-in-view`
+ * (app/globals.css), a CSS scroll-driven animation with no JavaScript. It
+ * replaced a framer-motion `whileInView`, and a browser without
+ * `animation-timeline` simply shows the grid with no reveal.
  */
 export default function FeaturedListingsCarousel({ listings }) {
-  const safe = useMotionSafe();
-
   return (
-    <motion.div
-      variants={safe ? revealUp : undefined}
-      initial={safe ? 'hidden' : false}
-      whileInView={safe ? 'visible' : undefined}
-      viewport={{ once: true, amount: 0.15 }}
+    <div
       className={[
-        'flex w-full snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth pb-4 no-scrollbar',
+        'u-reveal-in-view flex w-full snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth pb-4 no-scrollbar',
         'sm:grid sm:grid-cols-2 sm:gap-6 sm:overflow-visible sm:pb-0',
         'md:grid-cols-3',
         'lg:grid-cols-4',
@@ -70,6 +61,6 @@ export default function FeaturedListingsCarousel({ listings }) {
           <PropertyCard listing={listing} priority={i < 4} />
         </div>
       ))}
-    </motion.div>
+    </div>
   );
 }

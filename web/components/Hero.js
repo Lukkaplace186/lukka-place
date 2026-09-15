@@ -49,7 +49,7 @@ import { useT } from '@/lib/i18n/client';
  * `heroDrift` (an 18s scale animation) stays REMOVED. It was originally
  * dropped because it forced a backdrop-filter to re-rasterise every frame;
  * that panel is gone now, so restoring the drift would be cheap again —
- * it is simply still out, for load speed. Re-add via lib/motion.js if the
+ * it is simply still out, for load speed. Re-add as CSS (app/globals.css) if the
  * movement is wanted back.
  * ---------------------------------------------------------------------------
  */

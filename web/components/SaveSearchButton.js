@@ -1,33 +1,29 @@
 'use client';
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import dynamic from 'next/dynamic';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { motion } from 'framer-motion';
 import { Bell } from 'lucide-react';
 import { isSearchSaved, removeSavedSearch, saveSearch, subscribeSavedSearches } from '@/lib/favorites';
 import { buildSearchLabel, searchCriteriaTags } from '@/lib/searchLabel';
 import { useT } from '@/lib/i18n/client';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useIsLoggedIn } from '@/lib/customerClient';
-import { useMotionSafe } from '@/lib/useMotionSafe';
-import { iconPop } from '@/lib/motion';
-import AuthPromptModal from './AuthPromptModal';
-import SearchAlertConfirmModal from './SearchAlertConfirmModal';
 
-// Same pop used for the saved-heart glyph (FavoriteButton.js) — reused
-// rather than re-invented so every toggled icon in the app feels consistent.
-// `key={pulseKey}` remounts the span on each real toggle, gated by `safe`
-// for reduced-motion visitors.
-function AnimatedBell({ pulseKey, safe, ...bellProps }) {
+// Both dialogs render only after a tap, so their code is fetched only then
+// rather than shipped to every /listings visit up front.
+const AuthPromptModal = dynamic(() => import('./AuthPromptModal'), { ssr: false });
+const SearchAlertConfirmModal = dynamic(() => import('./SearchAlertConfirmModal'), { ssr: false });
+
+// Same pop used for the saved-heart glyph (FavoriteButton.js) — the CSS
+// `.u-pop` keyframes in app/globals.css, which honour prefers-reduced-motion
+// on their own. `key={pulseKey}` remounts the span on each real toggle so
+// the animation replays; pulseKey 0 (first render) never animates.
+function AnimatedBell({ pulseKey, ...bellProps }) {
   return (
-    <motion.span
-      key={pulseKey}
-      className="inline-flex"
-      initial={safe ? { scale: 0.6 } : false}
-      animate={safe ? { scale: iconPop.scale, transition: iconPop.transition } : undefined}
-    >
+    <span key={pulseKey} className={pulseKey > 0 ? 'u-pop inline-flex' : 'inline-flex'}>
       <Bell {...bellProps} />
-    </motion.span>
+    </span>
   );
 }
 
@@ -79,7 +75,6 @@ export default function SaveSearchButton({ variant = 'default' }) {
   const searchParams = useSearchParams();
   const queryString = searchParams.toString();
   const loggedIn = useIsLoggedIn();
-  const safe = useMotionSafe();
   const [showAuthPrompt, setShowAuthPrompt] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   // Bumped on every real save/remove (handleClick and handleConfirm — the
@@ -173,13 +168,12 @@ export default function SaveSearchButton({ variant = 'default' }) {
           type="button"
           onClick={handleClick}
           aria-pressed={saved}
-          className={`u-press inline-flex items-center gap-1.5 whitespace-nowrap py-2.5 text-[0.8125rem] font-semibold transition-colors ${
+          className={`u-press inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap py-2.5 text-[0.8125rem] font-semibold transition-colors ${
             saved ? 'text-blue-deep' : 'text-ink-70 hover:text-blue-deep'
           }`}
         >
           <AnimatedBell
             pulseKey={pulseKey}
-            safe={safe}
             fill={saved ? 'currentColor' : 'none'}
             strokeWidth={ICON_STROKE_WIDTH}
             className="h-4 w-4"
@@ -206,7 +200,6 @@ export default function SaveSearchButton({ variant = 'default' }) {
       >
         <AnimatedBell
           pulseKey={pulseKey}
-          safe={safe}
           fill={saved ? 'currentColor' : 'none'}
           strokeWidth={ICON_STROKE_WIDTH}
           className="h-4 w-4"

@@ -336,7 +336,7 @@ export default function AgentListingsTable({ listings, perListingStats }) {
                 <div className="mt-[3px] flex items-center gap-2 text-xs text-ink-45">
                   <span className="truncate">{listing.quartier || 'Localisation non précisée'}</span>
                   {approve && (
-                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[0.625rem] font-bold ${approve.className}`}>
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[0.6875rem] font-bold ${approve.className}`}>
                       {t(approve.labelKey)}
                     </span>
                   )}
@@ -515,7 +515,7 @@ function PriceCell({ listing, isClosed, onSave }) {
             if (e.key === 'Enter') e.currentTarget.blur();
             if (e.key === 'Escape') setEditing(false);
           }}
-          className="u-focus-ring u-tabular h-9 w-24 rounded-md border border-line bg-surface px-2 text-sm font-bold text-ink"
+          className="u-focus-ring u-tabular h-11 w-24 rounded-md border border-line bg-surface px-2 text-sm font-bold text-ink"
         />
         <span className="text-xs font-semibold text-ink-45">{currencyLabel}</span>
       </div>

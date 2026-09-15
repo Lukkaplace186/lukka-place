@@ -477,6 +477,22 @@ loading or error boundary anywhere outside the client portal and `/admin`.
   `[vitals] {json}` line per metric to the web process log, with no table and
   no migration. Read with
   `pm2 logs lukka-place-web --lines 5000 --nostream | grep '\[vitals\]'`.
+- **Open: React hydration error #418 on lukkaplace.com.** It predates this
+  pass: the pre-deploy build, run on the VPS and reached through an SSH tunnel,
+  throws it too. One cause is found and fixed. Listing dates were formatted in
+  the runtime timezone, so the UTC server and a UTC+2 phone printed different
+  days. Every listing date is now pinned to `LISTING_TIME_ZONE` in
+  `lib/listingView.js`, and after that fix the live process reached directly
+  on :3002 hydrates cleanly.
+  - **Not the cause:** it still happens (3 errors per page) through
+    `https://lukkaplace.com`, and none of these change that: brotli vs Next's
+    own gzip, a service worker vs none, cleared storage and cookies.
+  - **Already ruled out:** server HTML through Traefik has the same visible
+    text as the direct HTML, and with vs without cookies.
+  - **Next step:** a build with `reactProductionProfiling` or a non-minified
+    React so the message names the mismatched node, loaded on the real
+    hostname. A mismatch makes React re-render the page on the client, which
+    is costly on low-end Android.
 - **Deliberately not done here:**
   - **Cacheable HTML.** The locale cookie makes every route dynamic (see
     "Bilingual FR/EN"). The fix is the `app/[locale]/` migration, a URL change

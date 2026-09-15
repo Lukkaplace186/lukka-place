@@ -1,5 +1,7 @@
 'use client';
 
+import { LISTING_TIME_ZONE } from '@/lib/listingView';
+
 import {
   Camera, Zap, Sun, Droplet, Route, ShieldCheck, Car, Snowflake, Sofa,
 } from 'lucide-react';
@@ -147,7 +149,7 @@ export function VerifiedBadge({ verifiedAt }) {
   const on = new Date(verifiedAt);
   const title = Number.isNaN(on.getTime())
     ? t('listings.badges.verified')
-    : t('listings.badges.verifiedOn', { date: on.toLocaleDateString('fr-FR') });
+    : t('listings.badges.verifiedOn', { date: on.toLocaleDateString('fr-FR', { timeZone: LISTING_TIME_ZONE }) });
   return (
     <span
       title={title}

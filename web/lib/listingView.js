@@ -30,10 +30,33 @@ const PARCELLE_SUBTYPE_LABEL_KEYS = Object.fromEntries(
  * ("18 avril 2026" vs "18 April 2026"). `en-GB`, not `en-US`: this is a
  * day-month-year market, and an American visitor is not the audience.
  */
+/*
+ * Every listing date is a Kinshasa calendar date, pinned with `timeZone`.
+ *
+ * Without it the SERVER (UTC on the VPS) and the visitor's PHONE each used
+ * their own zone, so a listing published between 23:00 and 24:00 UTC read
+ * "10 septembre" in the HTML and "11 septembre" once hydrated. React treats
+ * that as a hydration mismatch (#418, seen on every production page on
+ * 2026-09-15) and discards the server HTML to re-render the whole page on the
+ * phone — the single most expensive thing a budget Android can be asked to do
+ * on load. A fixed zone makes both sides print the same string, and it is
+ * also the right answer: the listing was published on a Kinshasa day.
+ */
+export const LISTING_TIME_ZONE = 'Africa/Kinshasa';
+
 const DATE_FORMATTERS = {
-  fr: new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }),
-  en: new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+  fr: new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: LISTING_TIME_ZONE }),
+  en: new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: LISTING_TIME_ZONE }),
 };
+
+// YYYY-MM-DD of an instant, on the Kinshasa calendar (en-CA formats that way).
+const DAY_KEY_FORMATTER = new Intl.DateTimeFormat('en-CA', {
+  year: 'numeric', month: '2-digit', day: '2-digit', timeZone: LISTING_TIME_ZONE,
+});
+
+function kinshasaDayNumber(date) {
+  return Date.parse(`${DAY_KEY_FORMATTER.format(date)}T00:00:00Z`) / 86400000;
+}
 
 function dateFormatter(locale) {
   return DATE_FORMATTERS[locale] || DATE_FORMATTERS.fr;
@@ -88,8 +111,9 @@ export function formatAddedOn(createdAt, locale) {
  * inventing a fact the database doesn't hold. The word changes; the green
  * treatment and the recency signal the design asked for do not.
  *
- * "aujourd'hui"/"hier" are computed against real local calendar days (not a
- * 24h/48h window off the raw timestamp), so a listing published at 23:00
+ * "aujourd'hui"/"hier" are computed against real Kinshasa calendar days (not a
+ * 24h/48h window off the raw timestamp, and not the server's or the phone's
+ * own zone — see LISTING_TIME_ZONE), so a listing published at 23:00
  * yesterday reads "hier" this morning rather than "aujourd'hui".
  */
 export function formatFreshness(createdAt, t) {
@@ -97,8 +121,7 @@ export function formatFreshness(createdAt, t) {
   const date = new Date(createdAt);
   if (Number.isNaN(date.getTime())) return null;
 
-  const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  const days = Math.round((startOfDay(new Date()) - startOfDay(date)) / 86400000);
+  const days = Math.round(kinshasaDayNumber(new Date()) - kinshasaDayNumber(date));
 
   // No translator supplied: keep the original French wording rather than
   // degrading to a bare date. This is the app's default language, so a call

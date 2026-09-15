@@ -289,3 +289,26 @@ test('vitals: free text cannot reach the log through route, rating or connection
   const clean = sanitizeVital({ name: 'INP', value: 180.7, rating: '<script>', route: '/x?token=abc', nav: 'evil', net: '5g-lol' }, 'desktop');
   assert.deepEqual(clean, { name: 'INP', value: 181, rating: null, route: null, nav: null, net: null, saveData: false, device: 'desktop' });
 });
+
+// ---------------------------------------------------------------------------
+// Hydration: listing dates are Kinshasa dates on server and phone alike
+// ---------------------------------------------------------------------------
+
+test('a listing date is printed on the Kinshasa calendar, whatever zone the process runs in', async () => {
+  const { formatAddedOn, LISTING_TIME_ZONE } = await import('@/lib/listingView');
+  assert.equal(LISTING_TIME_ZONE, 'Africa/Kinshasa');
+  // 23:30 UTC on the 10th is 00:30 on the 11th in Kinshasa (UTC+1). The VPS
+  // runs in UTC and printed "10 septembre" while a phone printed the 11th —
+  // React error #418 on every page.
+  assert.equal(formatAddedOn('2026-09-10T23:30:00Z'), '11 septembre 2026');
+  assert.equal(formatAddedOn('2026-09-10T22:30:00Z', 'en'), '10 September 2026');
+});
+
+test('no client-rendered listing date is formatted in the runtime zone', () => {
+  for (const file of ['components/ListingBadges.js', 'components/AgentListingsTable.js']) {
+    const source = read(file);
+    for (const call of source.match(/toLocaleDateString\([^)]*\)|new Intl\.DateTimeFormat\([^;]*\)/g) || []) {
+      assert.match(call, /timeZone/, `${file}: ${call}`);
+    }
+  }
+});

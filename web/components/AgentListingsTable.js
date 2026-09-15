@@ -20,6 +20,7 @@ import {
 } from '@/app/compte/agent/actions';
 import { useToast } from './Toast';
 import { useT } from '@/lib/i18n/client';
+import { LISTING_TIME_ZONE } from '@/lib/listingView';
 
 const LISTING_STATUS_EDIT_OPTIONS = [
   { value: 'active', labelKey: 'status.listing.active' },
@@ -42,7 +43,8 @@ function shortDate(value) {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  return new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }).format(date);
+  // Kinshasa calendar on both server and client, or hydration mismatches (lib/listingView.js).
+  return new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', timeZone: LISTING_TIME_ZONE }).format(date);
 }
 
 // Written out as a full literal (not composed or .replace()-d at runtime):

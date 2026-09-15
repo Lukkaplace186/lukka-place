@@ -4910,40 +4910,78 @@ console.log('\n2. services/openai.js');
   });
 
   // ===========================================================================
-  console.log('\n18. Weekly alert scheduler (services/scheduler.js)');
+  console.log('\n18. Daily alert scheduler (services/scheduler.js)');
   // ===========================================================================
+  //
+  // Daily since saved searches carry their own frequency (daily / weekly /
+  // off); the web sweep decides per search whether it is due.
 
   const scheduler = require('../services/scheduler');
 
-  check('the sweep fires in its configured window', () => {
+  check('the sweep fires in its configured hour, on any day', () => {
     const when = new Date();
-    // Walk forward to the next configured day/hour so this assertion does not
-    // depend on when the suite happens to run.
-    while (when.getDay() !== scheduler.ALERT_DAY || when.getHours() !== scheduler.ALERT_HOUR) {
-      when.setHours(when.getHours() + 1);
-    }
+    // Walk forward to the configured hour so this does not depend on when the
+    // suite happens to run.
+    while (when.getHours() !== scheduler.ALERT_HOUR) when.setHours(when.getHours() + 1);
     assert.strictEqual(scheduler.shouldRunNow(when), true);
+    const nextDay = new Date(when);
+    nextDay.setDate(nextDay.getDate() + 1);
+    assert.strictEqual(scheduler.shouldRunNow(nextDay), true, 'a weekly day gate would silence "chaque jour"');
   });
 
-  check('it does not fire outside that window', () => {
+  check('it does not fire outside that hour', () => {
     const when = new Date();
-    while (when.getDay() === scheduler.ALERT_DAY && when.getHours() === scheduler.ALERT_HOUR) {
-      when.setHours(when.getHours() + 1);
-    }
+    while (when.getHours() === scheduler.ALERT_HOUR) when.setHours(when.getHours() + 1);
     assert.strictEqual(scheduler.shouldRunNow(when), false);
   });
 
-  check('a successful run blocks a second sweep in the same week', () => {
+  check('a successful run blocks a second sweep inside the same window', () => {
     dbService.recordJobRun(scheduler.JOB_NAME, { ok: true, detail: '{}' });
     const when = new Date();
-    while (when.getDay() !== scheduler.ALERT_DAY || when.getHours() !== scheduler.ALERT_HOUR) {
-      when.setHours(when.getHours() + 1);
-    }
+    while (when.getHours() !== scheduler.ALERT_HOUR) when.setHours(when.getHours() + 1);
     assert.strictEqual(
       scheduler.shouldRunNow(when),
       false,
       'a deploy landing inside the firing window must not re-send every customer their alerts',
     );
+    assert.ok(scheduler.MIN_GAP_MS >= 20 * 60 * 60 * 1000, 'the gap must outlast the firing hour by far');
+  });
+
+  await checkAsync('the sweep follows the web cursor chunk by chunk until done', async () => {
+    const saved = process.env.CRON_SECRET;
+    process.env.CRON_SECRET = 'verify-cron-secret';
+    const sentCursors = [];
+    const pages = [
+      { done: false, cursor: 200, checked: 200, notifiedSearches: 3, notifiedListings: 5, errors: [] },
+      { done: true, cursor: null, checked: 40, notifiedSearches: 1, notifiedListings: 1, errors: [{ savedSearchId: 9 }] },
+    ];
+    const fakeFetch = async (url, init) => {
+      sentCursors.push(JSON.parse(init.body).cursor);
+      return { ok: true, status: 200, json: async () => pages.shift() };
+    };
+    try {
+      const totals = await scheduler.runSearchAlertSweep({ fetchImpl: fakeFetch });
+      assert.deepStrictEqual(sentCursors, [null, 200]);
+      assert.deepStrictEqual(totals, { chunks: 2, checked: 240, notifiedSearches: 4, notifiedListings: 6, errors: 1 });
+    } finally {
+      process.env.CRON_SECRET = saved;
+    }
+  });
+
+  await checkAsync('a cursor that does not advance ends the sweep instead of looping', async () => {
+    const saved = process.env.CRON_SECRET;
+    process.env.CRON_SECRET = 'verify-cron-secret';
+    let calls = 0;
+    const stuck = async () => {
+      calls += 1;
+      return { ok: true, status: 200, json: async () => ({ done: false, cursor: 7, checked: 1 }) };
+    };
+    try {
+      await scheduler.runSearchAlertSweep({ fetchImpl: stuck });
+      assert.strictEqual(calls, 2);
+    } finally {
+      process.env.CRON_SECRET = saved;
+    }
   });
 
   check('a FAILED run does not count as having run — the next tick retries', () => {
@@ -6490,10 +6528,10 @@ console.log('\n2. services/openai.js');
     );
   });
 
-  check('the weekly sweep, both speed-to-lead sweeps, the ops alert sweep and the analytics rollup are registered', () => {
+  check('the alert sweep, both speed-to-lead sweeps, the ops alert sweep and the analytics rollup are registered', () => {
     const names = sched.JOBS.map((j) => j.name);
     assert.deepStrictEqual(names, [
-      'search-alerts-weekly', 'viewing-sla', 'viewing-checkin', 'ops-health-alerts', 'listing-stats-rollup',
+      'search-alerts', 'viewing-sla', 'viewing-checkin', 'ops-health-alerts', 'listing-stats-rollup',
     ]);
   });
 
@@ -7875,6 +7913,242 @@ console.log('\n2. services/openai.js');
       ro.close();
     }
   });
+
+  // ===========================================================================
+  console.log('\n32. Multi-commune customer requests (services/leadCommunes.js)');
+  // ===========================================================================
+  //
+  // web/'s "Trouver pour moi" form lets a customer pick several communes; only
+  // the first used to reach the engine, so every other commune's agencies were
+  // never pushed the request.
+
+  const leadCommunesService = require('../services/leadCommunes');
+  const leadDispatchService = require('../services/leadDispatch');
+
+  check('commune lists are resolved, de-duplicated and capped, primary first', () => {
+    const list = leadCommunesService.normaliseLeadCommunes(['la gombe', 'Ngaliema', 'GOMBE', ''], 'Limete');
+    assert.deepStrictEqual(list, ['Limete', 'Gombe', 'Ngaliema']);
+    const many = leadCommunesService.normaliseLeadCommunes(
+      ['Gombe', 'Ngaliema', 'Limete', 'Kalamu', 'Bandalungwa', 'Lingwala', 'Barumbu'],
+    );
+    assert.strictEqual(many.length, leadCommunesService.MAX_LEAD_COMMUNES);
+  });
+
+  check('a legacy single-commune lead reads as a one-entry list', () => {
+    assert.deepStrictEqual(leadCommunesService.leadCommunes({ commune: 'Gombe', communes: null }), ['Gombe']);
+    assert.deepStrictEqual(leadCommunesService.leadCommunes({ commune: null, communes: 'not json' }), []);
+  });
+
+  const multiLeadResp = await adminRequest('POST', '/admin/leads', {
+    wa_id: '243950000321', source: 'espace-client-request', transaction_type: 'location',
+    commune: 'Gombe', communes: ['Gombe', 'Ngaliema', 'Lingwala'],
+  });
+  check('POST /admin/leads stores every requested commune, not just the first', () => {
+    assert.strictEqual(multiLeadResp.status, 201);
+    assert.strictEqual(multiLeadResp.body.lead.commune, 'Gombe');
+    assert.deepStrictEqual(JSON.parse(multiLeadResp.body.lead.communes), ['Gombe', 'Ngaliema', 'Lingwala']);
+  });
+
+  await checkAsync('dispatch ranks every requested commune and merges agencies across them', async () => {
+    const rankedCommunes = [];
+    const fakeRank = async ({ commune }) => {
+      rankedCommunes.push(commune);
+      if (commune === 'Gombe') return [{ agent_id: 9301, phone: '243950009301', base_score: 60, matching_listings: 1 }];
+      if (commune === 'Ngaliema') {
+        return [
+          { agent_id: 9302, phone: '243950009302', base_score: 70, matching_listings: 2 },
+          { agent_id: 9301, phone: '243950009301', base_score: 80, matching_listings: 3 },
+        ];
+      }
+      throw new Error('Postgres unreachable for this commune');
+    };
+    const result = await leadDispatchService.dispatchLead(multiLeadResp.body.lead, { rank: fakeRank });
+    assert.deepStrictEqual(rankedCommunes, ['Gombe', 'Ngaliema', 'Lingwala']);
+    assert.strictEqual(result.dispatched, 2, 'agency 9301 covers two communes but is pushed once');
+    const matches = dbService.getLeadMatches(multiLeadResp.body.lead.id);
+    assert.deepStrictEqual(matches.map((m) => m.agent_id).sort(), [9301, 9302]);
+  });
+
+  check('the agent message names the commune they were matched on first', () => {
+    const label = leadDispatchService.communesLabel(multiLeadResp.body.lead, { matched_commune: 'Ngaliema' });
+    assert.strictEqual(label, 'Ngaliema, Gombe, Lingwala');
+  });
+
+  const addCommuneResp = await adminRequest('PATCH', `/admin/leads/${multiLeadResp.body.lead.id}`, {
+    communes: ['Gombe', 'Ngaliema', 'Lingwala', 'Limete'],
+  });
+  check('adding a commune keeps existing proposals', () => {
+    assert.strictEqual(addCommuneResp.status, 200);
+    assert.strictEqual(addCommuneResp.body.proposals_reset, false);
+    assert.strictEqual(JSON.parse(addCommuneResp.body.lead.communes).length, 4);
+  });
+
+  const singleCommuneResp = await adminRequest('PATCH', `/admin/leads/${multiLeadResp.body.lead.id}`, {
+    commune: 'Kalamu',
+  });
+  check('a single-commune edit replaces the whole list and resets proposals', () => {
+    assert.strictEqual(singleCommuneResp.status, 200);
+    assert.strictEqual(singleCommuneResp.body.proposals_reset, true);
+    assert.strictEqual(singleCommuneResp.body.lead.commune, 'Kalamu');
+    assert.strictEqual(singleCommuneResp.body.lead.communes, null, 'no stale multi-commune list left behind');
+  });
+
+  // ===========================================================================
+  console.log('\n33. Customer visit hub (Espace Client timeline and answers)');
+  // ===========================================================================
+  //
+  // The customer's account could not see a single thing that happened to a
+  // visit after they asked for it: the agent's answer, the agreed time, the
+  // post-visit question. Their only "cancel" was a WhatsApp link that changed
+  // nothing. These pin the engine half of fixing that.
+
+  const HUB_CUSTOMER = '243990555111';
+  const HUB_STRANGER = '243990555999';
+  const HUB_OPS = '243800000033';
+  const hubListingBefore = propertyRepo.getListingContactById;
+  const hubOpsBefore = process.env.OPS_WHATSAPP_NUMBER;
+  propertyRepo.getListingContactById = async () => ATTRIBUTED_LISTING;
+  process.env.OPS_WHATSAPP_NUMBER = HUB_OPS;
+  const hubSendsTo = (wa) => httpCalls.filter((c) => c.data && String(c.data.to) === wa);
+
+  function hubViewing(requestedTime = 'samedi 14h') {
+    const lead = dbService.createLead({ wa_id: HUB_CUSTOMER, source: 'listing-visit-request', property_id: 303 });
+    return dbService.createViewingRequest({ leadId: lead.id, propertyId: 303, requestedTime });
+  }
+
+  const hubLeadResp = await adminRequest('POST', '/admin/leads', {
+    wa_id: HUB_CUSTOMER, source: 'listing-visit-request', property_id: 303,
+  });
+  const hubCreateResp = await adminRequest('POST', '/admin/viewing-requests', {
+    lead_id: hubLeadResp.body.lead.id, property_id: 303, requested_time: 'dimanche 10h',
+  });
+  check('a visit asked for on the web moves its lead to VIEWING_REQUESTED', () => {
+    assert.strictEqual(hubCreateResp.status, 201);
+    assert.strictEqual(dbService.getLead(hubLeadResp.body.lead.id).status, 'VIEWING_REQUESTED');
+  });
+
+  check('a later visit request never walks a lead backwards', () => {
+    const lead = dbService.createLead({ wa_id: HUB_CUSTOMER, source: 'listing-visit-request', status: 'CONVERTED' });
+    dbService.markLeadViewingRequested(lead.id);
+    assert.strictEqual(dbService.getLead(lead.id).status, 'CONVERTED');
+  });
+
+  const hubListResp = await adminRequest('GET', `/admin/viewing-requests/by-customer?wa_id=${HUB_CUSTOMER}`);
+  const hubStrangerList = await adminRequest('GET', `/admin/viewing-requests/by-customer?wa_id=${HUB_STRANGER}`);
+  const hubBadList = await adminRequest('GET', '/admin/viewing-requests/by-customer?wa_id=abc');
+  check("a customer's visit list is theirs only, and carries no agent internals", () => {
+    assert.strictEqual(hubListResp.status, 200);
+    assert.ok(hubListResp.body.data.length >= 1);
+    assert.ok(hubListResp.body.data.every((v) => !('agent_id' in v) && !('routing_type' in v)));
+    assert.strictEqual(hubStrangerList.body.data.length, 0);
+    assert.strictEqual(hubBadList.status, 400);
+  });
+
+  const hubCancel = hubViewing();
+  dbService.setPendingCustomerAction({ waId: HUB_CUSTOMER, kind: 'VISIT_CHECKIN', viewingRequestId: hubCancel.id });
+  httpCalls.length = 0;
+  const hubStrangerCancel = await viewingNotifications.respondFromCustomer({
+    viewingRequestId: hubCancel.id, waId: HUB_STRANGER, action: 'CANCEL',
+  });
+  check("somebody else cannot cancel a customer's visit, and learns nothing about it", () => {
+    assert.strictEqual(hubStrangerCancel.ok, false);
+    assert.strictEqual(hubStrangerCancel.reason, 'unknown-request');
+    assert.strictEqual(dbService.getViewingRequest(hubCancel.id).status, 'PENDING');
+    assert.strictEqual(httpCalls.length, 0);
+  });
+
+  const hubCancelResult = await viewingNotifications.respondFromCustomer({
+    viewingRequestId: hubCancel.id, waId: HUB_CUSTOMER, action: 'CANCEL',
+  });
+  check('a customer cancel is recorded as theirs and the agent and desk are told', () => {
+    assert.strictEqual(hubCancelResult.ok, true);
+    const row = dbService.getViewingRequest(hubCancel.id);
+    assert.strictEqual(row.status, 'CANCELLED');
+    assert.strictEqual(row.cancelled_by, 'CUSTOMER');
+    assert.strictEqual(hubCancelResult.agentNotified, true);
+    assert.strictEqual(hubSendsTo(ATTRIBUTED_LISTING.agent_phone).length, 1);
+    assert.strictEqual(hubSendsTo(HUB_OPS).length, 1);
+    assert.strictEqual(hubSendsTo(HUB_CUSTOMER).length, 0, 'they acted on the web — no WhatsApp echo');
+  });
+
+  check('a cancelled visit leaves no WhatsApp question open that could complete it', () =>
+    assert.strictEqual(dbService.getPendingCustomerAction(HUB_CUSTOMER), undefined));
+
+  httpCalls.length = 0;
+  const hubCancelAgain = await viewingNotifications.respondFromCustomer({
+    viewingRequestId: hubCancel.id, waId: HUB_CUSTOMER, action: 'CANCEL',
+  });
+  check('cancelling twice tells nobody twice', () => {
+    assert.strictEqual(hubCancelAgain.ok, true);
+    assert.strictEqual(hubCancelAgain.unchanged, true);
+    assert.strictEqual(httpCalls.length, 0);
+  });
+
+  const hubPendingAccept = await viewingNotifications.respondFromCustomer({
+    viewingRequestId: hubViewing().id, waId: HUB_CUSTOMER, action: 'ACCEPT_SLOT',
+  });
+  check('there is no slot to accept until an agent proposes one', () => {
+    assert.strictEqual(hubPendingAccept.ok, false);
+    assert.strictEqual(hubPendingAccept.reason, 'invalid-transition');
+  });
+
+  const hubResched = hubViewing('samedi 14h');
+  dbService.updateViewingRequest(hubResched.id, { status: 'RESCHEDULED', requestedTime: 'dimanche 11h' });
+  const hubAcceptResp = await adminRequest('POST', `/admin/viewing-requests/${hubResched.id}/customer-response`, {
+    wa_id: HUB_CUSTOMER, action: 'ACCEPT_SLOT',
+  });
+  check("accepting the agent's new slot confirms the visit and pins its time", () => {
+    assert.strictEqual(hubAcceptResp.status, 200);
+    const row = dbService.getViewingRequest(hubResched.id);
+    assert.strictEqual(row.status, 'CONFIRMED');
+    assert.ok(row.scheduled_at, 'the check-in needs an instant to fire against');
+  });
+
+  const hubStrangerRoute = await adminRequest('POST', `/admin/viewing-requests/${hubResched.id}/customer-response`, {
+    wa_id: HUB_STRANGER, action: 'CANCEL',
+  });
+  check('the route answers a stranger with 404, not 403', () => assert.strictEqual(hubStrangerRoute.status, 404));
+
+  const hubFuture = hubViewing();
+  dbService.updateViewingRequest(hubFuture.id, { status: 'CONFIRMED' });
+  dbService.setViewingScheduledAt(hubFuture.id, new Date(Date.now() + 86400000).toISOString());
+  const hubEarlyCheckin = await adminRequest('POST', `/admin/viewing-requests/${hubFuture.id}/checkin`, {
+    wa_id: HUB_CUSTOMER, response: 'GOOD',
+  });
+  check('a visit cannot be reviewed before its time', () => {
+    assert.strictEqual(hubEarlyCheckin.status, 400);
+    assert.strictEqual(dbService.getViewingRequest(hubFuture.id).checkin_response, null);
+  });
+
+  const hubPast = hubViewing();
+  dbService.updateViewingRequest(hubPast.id, { status: 'CONFIRMED' });
+  dbService.setViewingScheduledAt(hubPast.id, new Date(Date.now() - 3 * 3600000).toISOString());
+  httpCalls.length = 0;
+  const hubCheckin = await adminRequest('POST', `/admin/viewing-requests/${hubPast.id}/checkin`, {
+    wa_id: HUB_CUSTOMER, response: 'BAD',
+  });
+  check('a web check-in completes the visit through the same path, without a WhatsApp echo', () => {
+    assert.strictEqual(hubCheckin.status, 200);
+    const row = dbService.getViewingRequest(hubPast.id);
+    assert.strictEqual(row.status, 'COMPLETED');
+    assert.strictEqual(row.checkin_response, 'BAD');
+    assert.strictEqual(hubSendsTo(HUB_CUSTOMER).length, 0);
+    assert.strictEqual(dbService.getPendingCustomerAction(HUB_CUSTOMER), undefined, 'the page asks the reason itself');
+  });
+
+  const hubReason = await adminRequest('POST', `/admin/viewing-requests/${hubPast.id}/falloff-reason`, {
+    wa_id: HUB_CUSTOMER, code: 'PRICE_TOO_HIGH',
+  });
+  check("the customer's reason is stored as the customer's", () => {
+    assert.strictEqual(hubReason.status, 200);
+    const row = dbService.getViewingRequest(hubPast.id);
+    assert.strictEqual(row.decline_reason_code, 'PRICE_TOO_HIGH');
+    assert.strictEqual(row.decline_reason_by, 'CUSTOMER');
+  });
+
+  propertyRepo.getListingContactById = hubListingBefore;
+  if (hubOpsBefore === undefined) delete process.env.OPS_WHATSAPP_NUMBER;
+  else process.env.OPS_WHATSAPP_NUMBER = hubOpsBefore;
 
   // -------------------------------------------------------------------------
   console.log(`\n${'-'.repeat(60)}`);

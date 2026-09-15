@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getCurrentCustomerId, listFavoriteIds, addFavorite, removeFavorite } from '@/lib/customers';
+import { customerUnauthorized } from '@/lib/customerApiResponse';
+import { MAX_FAVORITES } from '@/lib/accountLimits';
 
 /**
  * Authenticated favorites CRUD, backing accountFavorites.js. Every method
@@ -10,7 +12,7 @@ import { getCurrentCustomerId, listFavoriteIds, addFavorite, removeFavorite } fr
 
 export async function GET() {
   const customerId = await getCurrentCustomerId();
-  if (!customerId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  if (!customerId) return customerUnauthorized();
 
   const ids = await listFavoriteIds(customerId);
   return NextResponse.json({ ids });
@@ -18,7 +20,7 @@ export async function GET() {
 
 export async function POST(request) {
   const customerId = await getCurrentCustomerId();
-  if (!customerId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  if (!customerId) return customerUnauthorized();
 
   const body = await request.json().catch(() => ({}));
   const propertyId = Number.parseInt(body.propertyId, 10);
@@ -26,13 +28,16 @@ export async function POST(request) {
     return NextResponse.json({ error: 'invalid propertyId' }, { status: 400 });
   }
 
-  await addFavorite(customerId, propertyId);
+  const status = await addFavorite(customerId, propertyId);
+  if (status === 'limit') {
+    return NextResponse.json({ error: 'limit', max: MAX_FAVORITES }, { status: 409 });
+  }
   return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(request) {
   const customerId = await getCurrentCustomerId();
-  if (!customerId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  if (!customerId) return customerUnauthorized();
 
   const { searchParams } = new URL(request.url);
   const propertyId = Number.parseInt(searchParams.get('propertyId'), 10);

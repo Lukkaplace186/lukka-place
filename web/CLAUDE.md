@@ -827,6 +827,69 @@ namespace; the two i18n tests above exist because of that.
   unbounded listing array in memory, and `createListingAction` takes its
   commune/category allow-lists as arguments from the client.
 
+## Espace Client at scale (`/compte/client/*`)
+
+Built toward 100k customer accounts. Engine half: root CLAUDE.md, "Customer
+side of requests and visits".
+
+**Deploy order: run `migrations/20260918_customer_alert_preferences.sql`
+(engine repo) before this web deploy.** It adds `alert_frequency`,
+`last_alerted_at`, `customers.whatsapp_alerts_opted_out_at` and
+`customer_favorites.note`. Every read goes through `to_jsonb(row) ->> '…'`, so
+no page 500s without it, but saving a frequency, an opt-out or a note fails
+(and says so) until it has run, and "weekly" alerts can arrive on consecutive
+days.
+
+- **Sessions are revocable.** `getCurrentCustomerId` →
+  `resolveCustomerSession` compares the token's version with
+  `customers.token_version`. Nothing compared it before, so logout-everywhere
+  and both password resets ended no other session. A 401 from `/api/account/*`
+  also clears the `lukka_logged_in` flag (`lib/customerApiResponse.js`).
+- **Per-request memoisation** (React `cache()`): `getCurrentCustomerId`,
+  `getCustomerById`, `listFavoriteIds`, `listSavedSearches`,
+  `getPortalCustomer`, `getCustomerInquiries`. The tab badges use the
+  engine's `GET /admin/leads/counts`, not the inquiry history.
+- **Every tab has a `loading.js`** (`components/PortalSkeleton.js`); Favoris &
+  Alertes streams its sub-tab under a keyed Suspense.
+- **Instant removes with undo.** Favourites and alerts hide on tap; the toast
+  (`components/Toast.js` now takes an `action`) offers "Annuler" through
+  `restoreFavoriteAction` / `restoreSavedSearchAction`.
+- **Ceilings** (`lib/accountLimits.js`): 200 favourites, 20 saved searches,
+  enforced by a COUNT guard in the INSERT (soft by design). A 409 raises
+  `ACCOUNT_LIMIT_EVENT` and `AccountLimitNotice` (site layout) says why.
+  Alertes re-runs saved searches four at a time (`mapWithConcurrency`).
+- **Multi-commune requests**: the form and edit dialog take up to
+  `MAX_REQUEST_COMMUNES` (5, same as the engine); `parseLeadCommunes` reads
+  them back.
+- **The visit form prefills the account's number** via `GET /api/account/me`.
+  Requests are found in the account by phone, so a differently typed number
+  used to create a visit the account never showed.
+- **Visits** (`messages/ViewingPanel.js`, `lib/viewingTimeline.js`): the real
+  timeline from the engine's viewing row, computed server-side with the
+  server clock. Cancel, accept a proposed slot, post-visit 👍/👎/agent absent
+  and the reason all go through the engine. The WhatsApp "reschedule/cancel"
+  links that changed nothing are gone.
+- **Alerts** (`lib/searchAlertSweep.js`): chunked, only new approved listings,
+  never a widened `getListings` result, verified and not-opted-out numbers
+  only, a session message when `SEARCH_ALERT_TEMPLATE` is unset (it no longer
+  defaults to an unapproved name). Every message ends with the link to stop it.
+  Per-alert frequency and rename on the Alertes tab; the account-wide switch on
+  Mon profil.
+- **Favourites**: shown in saved order, private notes, "Partager ma sélection"
+  (the same `/favoris?ids=` link), and a count of saved listings no longer
+  online instead of a silently shorter list.
+- **"Trouver pour moi" prefills from the latest saved search**
+  (`lib/requestPrefill.js`) and says so; nothing outside the query is guessed.
+- **English**: the portal's hardcoded French (dates included) goes through the
+  dictionary now; `customer-portal-polish.test.js` lists the phrases that must
+  not come back.
+- **`/compte/alertes` and `/compte/demandes` are redirects** into the portal;
+  they were drifting copies. "Mot de passe oublié" goes to `/mot-de-passe-oublie`.
+- **Still open:** alert messages are session messages until a template is
+  approved (the 24h window applies); there is no STOP keyword handling — the
+  engine does not own `customers`, so opting out is the link in each message;
+  customer inquiry history is still capped at the latest 100 leads.
+
 ## Deployment
 
 - PM2 process name `lukka-place-web`, port `3002` (the engine owns `3000` on the same VPS). Config: `ecosystem.config.js`.

@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { createCustomerSessionToken, CUSTOMER_SESSION_COOKIE, CUSTOMER_SESSION_TTL_SECONDS } from './customerAuth';
 
 const LOGGED_IN_FLAG_COOKIE = 'lukka_logged_in';
+export const CUSTOMER_LOGGED_IN_FLAG_COOKIE = LOGGED_IN_FLAG_COOKIE;
 
 /**
  * Sets both the real httpOnly session cookie and the client-readable

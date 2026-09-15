@@ -5,6 +5,7 @@ import { useFormStatus } from 'react-dom';
 import { ArrowRight, Check, CircleAlert } from 'lucide-react';
 import { PortalPanel } from '@/components/ClientPortalUI';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { MAX_REQUEST_COMMUNES } from '@/lib/leadCommunes';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n/client';
 
@@ -79,7 +80,7 @@ function SubmitButton() {
         pending ? 'cursor-wait bg-canvas-deep text-ink-45' : 'u-btn-primary bg-blue text-white',
       )}
     >
-      {pending ? 'Envoi en cours…' : t('account.requestForm.submit')}
+      {pending ? t('common.actions.sending') : t('account.requestForm.submit')}
       {pending ? null : <ArrowRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />}
     </button>
   );
@@ -88,17 +89,30 @@ function SubmitButton() {
 const FIELD_CLASS =
   'u-focus-ring w-full rounded-md border border-line bg-white px-3.5 py-2.5 text-[0.9375rem] text-ink placeholder:text-ink-25';
 
-export default function RequestForm({ action, communes }) {
+/**
+ * `prefill` (lib/requestPrefill.js) starts the form from the customer's most
+ * recent saved search, and says so above the form, so nothing looks typed by
+ * someone else. Every field stays editable.
+ */
+export default function RequestForm({ action, communes, prefill = null }) {
   const t = useT();
   const [state, formAction] = useActionState(action, null);
-  const [transactionType, setTransactionType] = useState('location');
-  const [selectedCommunes, setSelectedCommunes] = useState([]);
-  const [bedrooms, setBedrooms] = useState('');
+  const [transactionType, setTransactionType] = useState(prefill?.transactionType || 'location');
+  const [selectedCommunes, setSelectedCommunes] = useState(prefill?.communes || []);
+  const [bedrooms, setBedrooms] = useState(prefill?.bedrooms || '');
+
+  // Capped at the same number the server action and the engine enforce: every
+  // commune is pushed to its own agencies, so the cap is what keeps a request
+  // a targeted search. Past it, unselected chips are disabled rather than
+  // silently ignored on submit.
+  const atCommuneCap = selectedCommunes.length >= MAX_REQUEST_COMMUNES;
 
   function toggleCommune(name) {
-    setSelectedCommunes((current) =>
-      current.includes(name) ? current.filter((c) => c !== name) : [...current, name],
-    );
+    setSelectedCommunes((current) => {
+      if (current.includes(name)) return current.filter((c) => c !== name);
+      if (current.length >= MAX_REQUEST_COMMUNES) return current;
+      return [...current, name];
+    });
   }
 
   return (
@@ -109,6 +123,12 @@ export default function RequestForm({ action, communes }) {
       <p className="mt-3 max-w-[32.5rem] text-[0.9375rem] leading-[1.6] text-ink-45">
         {t('account.requestForm.lead')}
       </p>
+
+      {prefill ? (
+        <p className="mt-4 rounded-md bg-blue-tint px-4 py-3 text-[0.8125rem] leading-[1.5] text-blue-deep">
+          {t('account.requestForm.prefilledFrom', { label: prefill.label })}
+        </p>
+      ) : null}
 
       <div className="my-7 h-px bg-line" />
 
@@ -150,19 +170,22 @@ export default function RequestForm({ action, communes }) {
         <Step
           number={2}
           title={t('account.requestForm.targetCommunes')}
-          hint="Sélectionnez une ou plusieurs communes de Kinshasa."
+          hint={t('account.requestForm.communesHint', { max: MAX_REQUEST_COMMUNES })}
         >
           {communes.length > 0 ? (
             <div className="flex flex-wrap gap-2.5">
               {communes.map((name) => {
                 const active = selectedCommunes.includes(name);
+                const disabled = !active && atCommuneCap;
                 return (
                   <button
                     key={name}
                     type="button"
                     onClick={() => toggleCommune(name)}
                     aria-pressed={active}
+                    disabled={disabled}
                     className={cn(
+                      disabled && 'cursor-not-allowed opacity-45',
                       // Written out rather than composed on top of `.u-tag`:
                       // both `.u-tag` and `bg-blue` are single-class
                       // utilities, so which one wins the `background`
@@ -202,6 +225,7 @@ export default function RequestForm({ action, communes }) {
                 min="0"
                 inputMode="numeric"
                 placeholder="800"
+                defaultValue={prefill?.budgetMin || ''}
                 className={FIELD_CLASS}
               />
             </div>
@@ -216,6 +240,7 @@ export default function RequestForm({ action, communes }) {
                 min="0"
                 inputMode="numeric"
                 placeholder="1500"
+                defaultValue={prefill?.budgetMax || ''}
                 className={FIELD_CLASS}
               />
             </div>

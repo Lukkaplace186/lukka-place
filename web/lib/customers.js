@@ -1,10 +1,13 @@
 import 'server-only';
+import { cache } from 'react';
 import { cookies } from 'next/headers';
 import { getPool } from './db';
 import { keysetClause, pageCursors } from './adminPagination';
 import { CUSTOMER_SESSION_COOKIE, verifyCustomerSessionToken } from './customerAuth';
 import { generateOtpCode, hashOtp, otpExpiresAt } from './authCrypto';
 import { sendOtpViaWhatsApp, otpFallbackText } from './otpDelivery';
+import { MAX_FAVORITES, MAX_SAVED_SEARCHES, MAX_FAVORITE_NOTE_LENGTH } from './accountLimits';
+import { DEFAULT_ALERT_FREQUENCY } from './alertPreferences';
 
 /**
  * Customer-account DB access — mirrors lib/listings.js's shape (plain async
@@ -25,14 +28,16 @@ export async function getCustomerByPhone(phone) {
   return rows[0] || null;
 }
 
-export async function getCustomerById(id) {
+// Memoised per request (React `cache()`, a no-op outside a render): the
+// portal layout, its page and getCustomerInquiries all read the same row.
+export const getCustomerById = cache(async (id) => {
   const pool = getPool();
   const { rows } = await pool.query(
     `SELECT id, phone, full_name, token_version, created_at FROM customers WHERE id = $1`,
     [id],
   );
   return rows[0] || null;
-}
+});
 
 export async function createCustomer({ phone, passwordHash, fullName }) {
   const pool = getPool();
@@ -320,22 +325,65 @@ export async function adminGetCustomerById(customerId) {
   return rows[0] || null;
 }
 
-export async function listFavoriteIds(customerId) {
+export const listFavoriteIds = cache(async (customerId) => {
   const pool = getPool();
   const { rows } = await pool.query(
     `SELECT property_id FROM customer_favorites WHERE customer_id = $1 ORDER BY created_at DESC`,
     [customerId],
   );
   return rows.map((r) => r.property_id);
-}
+});
 
+/**
+ * @returns {Promise<'added'|'exists'|'limit'>} `limit` when the account is
+ *   already at MAX_FAVORITES (lib/accountLimits.js) — the callers turn that
+ *   into a message rather than a silent revert.
+ */
 export async function addFavorite(customerId, propertyId) {
   const pool = getPool();
-  await pool.query(
-    `INSERT INTO customer_favorites (customer_id, property_id) VALUES ($1, $2)
-     ON CONFLICT (customer_id, property_id) DO NOTHING`,
+  const { rows } = await pool.query(
+    `INSERT INTO customer_favorites (customer_id, property_id)
+     SELECT $1, $2
+     WHERE (SELECT COUNT(*) FROM customer_favorites WHERE customer_id = $1) < $3
+     ON CONFLICT (customer_id, property_id) DO NOTHING
+     RETURNING property_id`,
+    [customerId, propertyId, MAX_FAVORITES],
+  );
+  if (rows.length > 0) return 'added';
+  const { rows: existing } = await pool.query(
+    `SELECT 1 FROM customer_favorites WHERE customer_id = $1 AND property_id = $2`,
     [customerId, propertyId],
   );
+  return existing.length > 0 ? 'exists' : 'limit';
+}
+
+/**
+ * The customer's private notes on their saved listings, as {propertyId: note}.
+ * Through to_jsonb, so the Favoris tab still renders before
+ * migrations/20260918_customer_alert_preferences.sql adds the column.
+ */
+export async function listFavoriteNotes(customerId) {
+  const { rows } = await getPool().query(
+    `SELECT f.property_id, to_jsonb(f) ->> 'note' AS note
+       FROM customer_favorites f
+      WHERE f.customer_id = $1 AND COALESCE(to_jsonb(f) ->> 'note', '') <> ''`,
+    [customerId],
+  );
+  return Object.fromEntries(rows.map((row) => [String(row.property_id), row.note]));
+}
+
+/**
+ * Write (or clear, with an empty note) the note on one of THEIR favourites.
+ * Owner-scoped in the WHERE clause; a listing they have not saved is a no-op.
+ * @returns {Promise<boolean>} whether a favourite of theirs was updated
+ */
+export async function setFavoriteNote(customerId, propertyId, note) {
+  const clean = String(note || '').trim().slice(0, MAX_FAVORITE_NOTE_LENGTH);
+  const { rowCount } = await getPool().query(
+    `UPDATE customer_favorites SET note = $3 WHERE customer_id = $1 AND property_id = $2`,
+    [customerId, propertyId, clean || null],
+  );
+  return (rowCount ?? 0) > 0;
 }
 
 export async function removeFavorite(customerId, propertyId) {
@@ -346,23 +394,88 @@ export async function removeFavorite(customerId, propertyId) {
   ]);
 }
 
-export async function listSavedSearches(customerId) {
+export const listSavedSearches = cache(async (customerId) => {
   const pool = getPool();
+  // Preference columns through to_jsonb: safe before
+  // migrations/20260918_customer_alert_preferences.sql has run.
   const { rows } = await pool.query(
-    `SELECT id, query, label, created_at, last_viewed_at
-     FROM customer_saved_searches WHERE customer_id = $1 ORDER BY created_at DESC`,
+    `SELECT css.id, css.query, css.label, css.created_at, css.last_viewed_at,
+            COALESCE(to_jsonb(css) ->> 'alert_frequency', '${DEFAULT_ALERT_FREQUENCY}') AS alert_frequency,
+            to_jsonb(css) ->> 'last_alerted_at' AS last_alerted_at
+     FROM customer_saved_searches css WHERE css.customer_id = $1 ORDER BY css.created_at DESC`,
     [customerId],
   );
   return rows;
+});
+
+/**
+ * Rename an alert and/or change how often it WhatsApps. Scoped to the owner in
+ * the WHERE clause, so a guessed id changes nothing.
+ *
+ * @param {number} customerId from the session
+ * @param {number} savedSearchId
+ * @param {{label?: string, frequency?: 'daily'|'weekly'|'off'}} patch already validated by the caller
+ * @returns {Promise<boolean>} whether a row of theirs was updated
+ */
+export async function updateSavedSearchPreferences(customerId, savedSearchId, { label, frequency } = {}) {
+  const sets = [];
+  const params = [savedSearchId, customerId];
+  if (label !== undefined) {
+    params.push(label);
+    sets.push(`label = $${params.length}`);
+  }
+  if (frequency !== undefined) {
+    params.push(frequency);
+    sets.push(`alert_frequency = $${params.length}`);
+  }
+  if (sets.length === 0) return false;
+  const { rowCount } = await getPool().query(
+    `UPDATE customer_saved_searches SET ${sets.join(', ')} WHERE id = $1 AND customer_id = $2`,
+    params,
+  );
+  return (rowCount ?? 0) > 0;
 }
 
+/** When this account stopped WhatsApp alerts, or null. Safe before the migration. */
+export async function getWhatsAppAlertsOptOut(customerId) {
+  const { rows } = await getPool().query(
+    `SELECT to_jsonb(c) ->> 'whatsapp_alerts_opted_out_at' AS opted_out_at FROM customers c WHERE c.id = $1`,
+    [customerId],
+  );
+  return rows[0]?.opted_out_at || null;
+}
+
+/**
+ * Account-wide stop / restart. Stopping keeps the FIRST opt-out time (a second
+ * click must not move "since when"); restarting clears it. Saved searches and
+ * their per-search frequency are untouched either way.
+ */
+export async function setWhatsAppAlertsOptOut(customerId, optedOut) {
+  await getPool().query(
+    `UPDATE customers
+        SET whatsapp_alerts_opted_out_at = CASE WHEN $2::boolean THEN COALESCE(whatsapp_alerts_opted_out_at, now()) ELSE NULL END
+      WHERE id = $1`,
+    [customerId, Boolean(optedOut)],
+  );
+}
+
+/** @returns {Promise<'added'|'exists'|'limit'>} see addFavorite; ceiling is MAX_SAVED_SEARCHES. */
 export async function addSavedSearch(customerId, { query, label }) {
   const pool = getPool();
-  await pool.query(
-    `INSERT INTO customer_saved_searches (customer_id, query, label) VALUES ($1, $2, $3)
-     ON CONFLICT (customer_id, query) DO NOTHING`,
-    [customerId, query, label],
+  const { rows } = await pool.query(
+    `INSERT INTO customer_saved_searches (customer_id, query, label)
+     SELECT $1, $2, $3
+     WHERE (SELECT COUNT(*) FROM customer_saved_searches WHERE customer_id = $1) < $4
+     ON CONFLICT (customer_id, query) DO NOTHING
+     RETURNING id`,
+    [customerId, query, label, MAX_SAVED_SEARCHES],
   );
+  if (rows.length > 0) return 'added';
+  const { rows: existing } = await pool.query(
+    `SELECT 1 FROM customer_saved_searches WHERE customer_id = $1 AND query = $2`,
+    [customerId, query],
+  );
+  return existing.length > 0 ? 'exists' : 'limit';
 }
 
 export async function removeSavedSearch(customerId, query) {
@@ -394,17 +507,22 @@ export async function mergeAnonymousData(customerId, { favoriteIds = [], savedSe
   const numericFavoriteIds = favoriteIds.map((id) => Number.parseInt(id, 10)).filter((id) => Number.isFinite(id));
 
   if (numericFavoriteIds.length > 0) {
+    // Same ceiling as a one-at-a-time save: only as many as the account has
+    // room for, in the order they were saved on the device.
     await pool.query(
       `INSERT INTO customer_favorites (customer_id, property_id)
-       SELECT $1, unnest($2::int[])
+       SELECT $1, u.id FROM unnest($2::int[]) WITH ORDINALITY AS u(id, ord)
+       ORDER BY u.ord
+       LIMIT GREATEST($3 - (SELECT COUNT(*) FROM customer_favorites WHERE customer_id = $1), 0)
        ON CONFLICT (customer_id, property_id) DO NOTHING`,
-      [customerId, numericFavoriteIds],
+      [customerId, numericFavoriteIds, MAX_FAVORITES],
     );
   }
 
   for (const search of savedSearches) {
     if (!search?.query || !search?.label) continue;
-    await addSavedSearch(customerId, { query: search.query, label: search.label });
+    const status = await addSavedSearch(customerId, { query: search.query, label: search.label });
+    if (status === 'limit') break;
   }
 }
 
@@ -416,9 +534,37 @@ export async function mergeAnonymousData(customerId, { favoriteIds = [], savedSe
  *
  * @returns {Promise<number|null>}
  */
-export async function getCurrentCustomerId() {
+export const getCurrentCustomerId = cache(async () => {
   const cookieStore = await cookies();
-  const token = cookieStore.get(CUSTOMER_SESSION_COOKIE)?.value;
+  return resolveCustomerSession(cookieStore.get(CUSTOMER_SESSION_COOKIE)?.value);
+});
+
+/**
+ * A raw session token -> the customer id it still speaks for, or null.
+ *
+ * Signature and expiry are the pure-crypto half middleware.js also checks.
+ * The second half is the one that was missing: the token's `tokenVersion`
+ * must equal the account's CURRENT `token_version`. Logout, a self-service
+ * password reset and an admin password reset all bump that column to end
+ * every other session — and until this compared it, none of them did: a
+ * copied cookie kept working for its full 30 days. lib/adminSession.js has
+ * always made the same comparison for the console.
+ *
+ * A deleted account has no row, so its sessions end here too.
+ *
+ * One primary-key read. getCurrentCustomerId is wrapped in React `cache()`,
+ * so a layout and page asking in the same request share it.
+ *
+ * @param {string|undefined} token
+ * @returns {Promise<number|null>}
+ */
+export async function resolveCustomerSession(token) {
   const verified = verifyCustomerSessionToken(token);
-  return verified?.customerId ?? null;
+  if (!verified) return null;
+  const { rows } = await getPool().query('SELECT token_version FROM customers WHERE id = $1', [
+    verified.customerId,
+  ]);
+  const row = rows[0];
+  if (!row || Number(row.token_version) !== verified.tokenVersion) return null;
+  return verified.customerId;
 }

@@ -1,6 +1,7 @@
 import 'server-only';
+import { cache } from 'react';
 import { getCurrentCustomerId, getCustomerById, listFavoriteIds, listSavedSearches } from './customers';
-import { getCustomerInquiries } from './customerInquiries';
+import { getLeadCountsByWaIds } from './adminApi';
 
 /**
  * Shared server-side data for the Espace Client portal (`/compte/client/*`).
@@ -18,12 +19,15 @@ import { getCustomerInquiries } from './customerInquiries';
  */
 
 /**
- * The two real LEAD_STATUSES (lib/adminLabels.js) that represent a viewing.
- * The engine's `viewing_requests` table is NOT exposed through
- * routes/admin.js, so it is unreachable from this app — a lead's own status
- * is the only real viewing signal `web/` can read. That is why the Visites
- * page shows the request's own date rather than an appointment slot: no
- * scheduled date/time reaches this app to show.
+ * The two LEAD_STATUSES (lib/adminLabels.js) that represent a viewing.
+ *
+ * No longer the main viewing signal. The engine now exposes a customer's own
+ * `viewing_requests` (GET /admin/viewing-requests/by-customer), with the
+ * agent's answer, the agreed time and the post-visit check-in, and
+ * lib/customerInquiries.js attaches them to each lead. This remains only for
+ * leads that carry a viewing status with no request row behind them (the
+ * WhatsApp assistant's older rows). The comment here used to say that table
+ * was unreachable from this app; it was, until it wasn't.
  */
 export const VIEWING_LEAD_STATUSES = ['VIEWING_REQUESTED', 'VIEWING_COMPLETED'];
 
@@ -35,15 +39,18 @@ export function isViewingLead(lead) {
  * Resolves the signed-in customer, or null. Callers redirect; this never
  * does, so it stays usable from both the layout and each page.
  *
+ * Memoised per request: the layout and the page both ask, and before this
+ * each portal navigation read the session and the customer row twice.
+ *
  * @returns {Promise<{customerId: number, customer: Object}|null>}
  */
-export async function getPortalCustomer() {
+export const getPortalCustomer = cache(async () => {
   const customerId = await getCurrentCustomerId();
   if (!customerId) return null;
   const customer = await getCustomerById(customerId);
   if (!customer) return null;
   return { customerId, customer };
-}
+});
 
 /**
  * Real counts for the portal tab bar.
@@ -54,22 +61,38 @@ export async function getPortalCustomer() {
  * itself still computes the real new-match counts; the tab badge is the
  * number of saved searches, which is what it says it is.
  *
- * @returns {Promise<{favorites: number, alerts: number, inquiries: number, viewings: number}>}
+ * Requests come from the engine's COUNT endpoint (`GET /admin/leads/counts`),
+ * not from getCustomerInquiries. That call is a lead list, a proposals
+ * lookup and a Postgres listings read, and the layout used to make it on
+ * every tab — including Favoris, which shows none of it — while Messages
+ * and Demandes then made it again. `viewings` is now a count of real
+ * `viewing_requests` rows rather than leads at a viewing-stage status,
+ * which the web visit form never set.
+ *
+ * `inquiries`/`viewings` are null when the engine is unreachable, so the
+ * badge is omitted rather than claiming zero.
+ *
+ * @returns {Promise<{favorites: number, alerts: number, inquiries: number|null, viewings: number|null}>}
  */
 export async function getPortalCounts(customerId) {
-  const [favoriteIds, savedSearches, inquiries] = await Promise.all([
+  const customer = await getCustomerById(customerId);
+  const [favoriteIds, savedSearches, leadCounts] = await Promise.all([
     listFavoriteIds(customerId),
     listSavedSearches(customerId),
-    // Already non-throwing (the engine being down must not take the portal
-    // down) — see lib/customerInquiries.js.
-    getCustomerInquiries(customerId),
+    customer?.phone
+      ? getLeadCountsByWaIds([customer.phone]).catch((error) => {
+        console.warn('[customerPortal] lead counts unavailable:', error.message);
+        return null;
+      })
+      : Promise.resolve({}),
   ]);
 
+  const own = leadCounts ? leadCounts[customer?.phone] || { leads: 0, viewings: 0 } : null;
   return {
     favorites: favoriteIds.length,
     alerts: savedSearches.length,
-    inquiries: inquiries.length,
-    viewings: inquiries.filter(({ lead }) => isViewingLead(lead)).length,
+    inquiries: own ? own.leads : null,
+    viewings: own ? own.viewings : null,
   };
 }
 

@@ -374,7 +374,7 @@ function parseFalloffReason(text) {
  * resolveContext: the only person entitled to say how a visit went is the
  * customer who attended it.
  */
-async function recordCheckinResponse({ from, viewingRequestId, response }) {
+async function recordCheckinResponse({ from, viewingRequestId, response, notifyCustomer = true }) {
   const request = dbService.getViewingRequestWithLead(viewingRequestId);
   if (!request) return { handled: true, ignored: 'unknown-request' };
 
@@ -400,7 +400,9 @@ async function recordCheckinResponse({ from, viewingRequestId, response }) {
     }
     await agentPerformance.logOutcome({ viewingRequestId: request.id, outcome: 'COMPLETED' });
   }
-  if (response === 'BAD') {
+  // Answered on the web (notifyCustomer: false), the page asks the reason
+  // itself — a WhatsApp question as well would be the same question twice.
+  if (response === 'BAD' && notifyCustomer) {
     dbService.setPendingCustomerAction({
       waId: from,
       kind: PENDING_FALLOFF_KIND,
@@ -416,7 +418,9 @@ async function recordCheckinResponse({ from, viewingRequestId, response }) {
     console.error(`[sweep] lead #${request.lead_row_id} status update failed: ${err.message}`);
   }
 
-  await trySendCustomer(request.lead_wa_id, FEEDBACK_THANKS[response], null, 'checkin thanks');
+  if (notifyCustomer) {
+    await trySendCustomer(request.lead_wa_id, FEEDBACK_THANKS[response], null, 'checkin thanks');
+  }
 
   if (response === 'AGENT_ABSENT') {
     // The one answer that needs a human the same day.
@@ -439,7 +443,7 @@ async function recordCheckinResponse({ from, viewingRequestId, response }) {
 }
 
 /** The customer's reason after 👎, same authorisation rule as the check-in itself. */
-async function recordFalloffReason({ from, viewingRequestId, code }) {
+async function recordFalloffReason({ from, viewingRequestId, code, notifyCustomer = true }) {
   const request = dbService.getViewingRequestWithLead(viewingRequestId);
   if (!request) return { handled: true, ignored: 'unknown-request' };
   const senderDigits = String(from || '').replace(/\D/g, '');
@@ -450,7 +454,7 @@ async function recordFalloffReason({ from, viewingRequestId, code }) {
 
   dbService.setViewingDeclineCode(request.id, code, 'CUSTOMER');
   dbService.clearPendingCustomerAction(from);
-  await trySendCustomer(request.lead_wa_id, FALLOFF_THANKS, null, 'falloff thanks');
+  if (notifyCustomer) await trySendCustomer(request.lead_wa_id, FALLOFF_THANKS, null, 'falloff thanks');
   console.log(`[sweep] viewing #${request.id} fall-through reason (customer): ${code}`);
   return { handled: true, action: 'falloff-reason', code, viewingRequestId: request.id };
 }
@@ -522,6 +526,9 @@ module.exports = {
   runCheckinSweep,
   handleCheckinButtonReply,
   handleCustomerTextReply,
+  // The Espace Client answers through these too (routes/admin.js).
+  recordCheckinResponse,
+  recordFalloffReason,
   parseCheckinButtonId,
   checkinButtons,
   checkinText,

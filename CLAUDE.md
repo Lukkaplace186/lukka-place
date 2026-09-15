@@ -670,17 +670,30 @@ agree; changing one without the other reintroduces the gap.
 always-on single-instance component in the system (`ecosystem.config.js` pins
 it to one fork), which is why the timer lives here.
 
-- **Weekly customer alerts** — calls `web`'s own
-  `POST /api/cron/search-alerts` (Bearer `CRON_SECRET`). That endpoint had been
-  correct and complete for weeks with **nothing calling it**; its own doc
-  comment said so. The engine does not reimplement the sweep — a second
+- **Daily customer alerts** (job `search-alerts`, renamed from
+  `search-alerts-weekly`) — calls `web`'s own `POST /api/cron/search-alerts`
+  (Bearer `CRON_SECRET`). The engine does not reimplement the sweep — a second
   definition of "a new match" would drift from the one customers see on their
   Alertes tab.
+  - **Daily, because frequency is per search now** (`daily` / `weekly` / `off`,
+    `customer_saved_searches.alert_frequency`); the web side skips a search
+    alerted too recently for its own frequency. `SEARCH_ALERT_HOUR` (default 9)
+    is the only knob; `SEARCH_ALERT_DAY` is no longer read.
+  - **Chunked.** The web endpoint handles one keyset page of saved searches
+    under a 45s budget and returns `{done, cursor}`; `runSearchAlertSweep`
+    posts the cursor back until `done` (capped at `MAX_SWEEP_CHUNKS`, and a
+    cursor that does not move ends it). The old single five-minute request
+    loaded every saved search at once. A failed chunk fails the run and the
+    next tick starts over — `saved_search_notifications` means nothing already
+    sent is resent.
+  - web's `lib/searchAlertSweep.js` has the matching rules (new approved
+    listings only, a widened `getListings` result is never an alert, verified
+    and not-opted-out numbers only). §18 of verify-pipeline pins this side.
 - **Idempotent across restarts** via the `job_runs` table: a run is skipped
-  when one already succeeded within `MIN_GAP_MS` (6 days). A deploy landing
-  inside the Monday-09:00 firing window is a no-op, not a second round of real
+  when one already succeeded within `MIN_GAP_MS` (20 hours). A deploy landing
+  inside the 09:00 firing hour is a no-op, not a second round of real
   WhatsApp messages. A *failed* run deliberately does not advance
-  `succeeded_at`, so the next tick retries instead of skipping the week.
+  `succeeded_at`, so the next tick retries instead of skipping the day.
 
 ### One tick, many jobs — and two kinds of idempotence
 
@@ -689,8 +702,8 @@ of `{ name, shouldRun(now), run() }`. The old interval is what made the
 scheduler single-purpose: a 15-minute SLA checked every 10 minutes fires
 somewhere between 15 and 25 minutes late, which is not a 15-minute SLA.
 
-Three jobs are registered: `search-alerts-weekly`, `viewing-sla` and
-`viewing-checkin`. `shouldRun` must be **cheap** — it runs once a minute per
+Five jobs are registered, in order: `search-alerts`, `viewing-sla`,
+`viewing-checkin`, `ops-health-alerts`, `listing-stats-rollup`. `shouldRun` must be **cheap** — it runs once a minute per
 job forever — and is where "is there anything to do?" belongs, so `job_runs`
 records real work rather than a heartbeat. Jobs run sequentially and each
 swallows its own failure: the SLA sweep throwing must never stop the
@@ -702,6 +715,40 @@ and nothing finer. "Have we already alerted on viewing request #47" is a fact
 about the request and lives on the row — `viewing_requests.sla_alerted_at`,
 `.checkin_sent_at`. Confusing the two either spams one customer or skips every
 other one.
+
+## Customer side of requests and visits (Espace Client)
+
+What the customer's own account can see and do, engine half. web/CLAUDE.md,
+"Espace Client at scale", has the pages.
+
+- **A request names up to five communes** (`services/leadCommunes.js`).
+  `leads.communes` is a JSON array, primary first; `leads.commune` stays the
+  first entry so every single-commune reader is unchanged. `dispatchLead`
+  ranks each commune and merges agencies on their best score
+  (`matched_commune` leads their message). Before this, web's form sent only
+  the first commune and the other communes' agencies were never pushed. A
+  `PATCH /leads/:id` that removes a commune resets proposals; one that only
+  adds pushes the request to the new commune's agencies. §32.
+- **A web visit request moves its lead to `VIEWING_REQUESTED`**
+  (`db.markLeadViewingRequested`, only from NEW / CONTACTED / QUALIFIED). Only
+  the WhatsApp assistant used to set it.
+- **`GET /admin/viewing-requests/by-customer?wa_id=`** — a customer's own visits
+  with the agent's answer, `scheduled_at` and check-in; no agent id, routing
+  type or agent decline reason (`customer_reason_code` is only the customer's).
+- **`respondFromCustomer`** (`POST /admin/viewing-requests/:id/customer-response`)
+  with `CUSTOMER_TRANSITIONS`: `CANCEL` from PENDING / RESCHEDULED / CONFIRMED,
+  `ACCEPT_SLOT` only from RESCHEDULED (pins `scheduled_at`). Authorised by the
+  lead's `wa_id`; anybody else gets the same 404 as a missing id. Tells the
+  listing's verified agent and ops, never echoes to the customer, clears open
+  WhatsApp questions on both sides.
+- **`viewing_requests.cancelled_by`** (`CUSTOMER` | `AGENT`): the dashboard's
+  CANCELLED sets `AGENT`. A customer changing plans must never read as an
+  agent failure.
+- **Check-in and fall-through reason from the web**
+  (`POST …/:id/checkin`, `…/:id/falloff-reason`) go through the same
+  `recordCheckinResponse` / `recordFalloffReason` as WhatsApp, with
+  `notifyCustomer: false` (no WhatsApp thank-you, no WhatsApp reason question).
+  Refused before the agreed time. §33.
 
 ## Speed-to-lead: the 15-minute SLA and the post-visit check-in
 

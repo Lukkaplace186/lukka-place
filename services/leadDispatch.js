@@ -38,6 +38,7 @@
 const db = require('./db');
 const chakra = require('./chakra');
 const { rankAgentsForRequest, MAX_AGENTS_PER_LEAD } = require('./agentRanking');
+const { leadCommunes } = require('./leadCommunes');
 
 /**
  * Template name/language as approved in Meta's WhatsApp Manager. Env-driven
@@ -128,10 +129,48 @@ function budgetLabel(lead) {
  * an empty string parameter outright, so "Non précisé" is a required honest
  * stand-in rather than a fabricated value.
  */
+/**
+ * "Gombe, Ngaliema" — every commune the request names, with the one this
+ * agency was matched on first, so the commune they cover is the first word
+ * they read. A lead with no commune never reaches a send (dispatchLead skips
+ * it), so 'Kinshasa' is only a defensive stand-in.
+ */
+function communesLabel(lead, agent) {
+  const all = leadCommunes(lead);
+  if (all.length === 0) return 'Kinshasa';
+  const matched = agent?.matched_commune;
+  if (!matched) return all.join(', ');
+  const rest = all.filter((c) => c.toLowerCase() !== matched.toLowerCase());
+  return [matched, ...rest].join(', ');
+}
+
+/**
+ * One ranked list from one ranking per commune. An agency covering several
+ * of the requested communes appears once, on its best score, and remembers
+ * which commune earned it (`matched_commune`). Scores are not summed: an
+ * agency covering two communes is not twice as good a match for a customer
+ * who will live in one of them.
+ *
+ * @param {Array<{commune: string, rows: Object[]}>} perCommune
+ * @returns {Object[]} best score first
+ */
+function mergeRankedAcrossCommunes(perCommune) {
+  const byAgent = new Map();
+  for (const { commune, rows } of perCommune) {
+    for (const row of rows || []) {
+      const previous = byAgent.get(row.agent_id);
+      if (!previous || row.base_score > previous.base_score) {
+        byAgent.set(row.agent_id, { ...row, matched_commune: commune });
+      }
+    }
+  }
+  return [...byAgent.values()].sort((a, b) => b.base_score - a.base_score || a.agent_id - b.agent_id);
+}
+
 function templateParams(lead, agent, link) {
   return [
     agent.display_name || agent.agency_name || 'Agent',
-    lead.commune || 'Kinshasa',
+    communesLabel(lead, agent),
     lead.bedrooms != null ? String(lead.bedrooms) : 'Non précisé',
     budgetLabel(lead) || 'Budget non précisé',
     link,
@@ -153,7 +192,7 @@ function fallbackText(lead, agent, link) {
   const lines = [
     `Bonjour ${agent.display_name || ''}`.trim() + ',',
     '',
-    `Nouvelle demande client à ${lead.commune || 'Kinshasa'} :`,
+    `Nouvelle demande client à ${communesLabel(lead, agent)} :`,
   ];
   if (lead.transaction_type) lines.push(`• Type : ${lead.transaction_type === 'vente' ? 'Achat' : 'Location'}`);
   if (lead.bedrooms != null) lines.push(`• Chambres : ${lead.bedrooms}`);
@@ -180,33 +219,45 @@ function agentLink(leadId) {
  * @param {number} [options.limit] How many agencies to push to.
  * @returns {Promise<{dispatched: number, notified: number, failed: number, skipped?: string}>}
  */
-async function dispatchLead(lead, { limit = MAX_AGENTS_PER_LEAD } = {}) {
+async function dispatchLead(lead, { limit = MAX_AGENTS_PER_LEAD, rank = rankAgentsForRequest } = {}) {
   if (!lead || !lead.id) return { dispatched: 0, notified: 0, failed: 0, skipped: 'no-lead' };
 
   // A request with no commune cannot be routed to anyone honestly — coverage
   // is the whole basis of the match. It stays visible in /admin for a human
   // to route by hand rather than being blasted at every agency in the city.
-  if (!lead.commune) {
+  const communes = leadCommunes(lead);
+  if (communes.length === 0) {
     console.log(`[dispatch] lead #${lead.id} has no commune — not dispatched`);
     return { dispatched: 0, notified: 0, failed: 0, skipped: 'no-commune' };
   }
 
-  let ranked;
-  try {
-    ranked = await rankAgentsForRequest({
-      commune: lead.commune,
-      priceMin: lead.price_min ?? null,
-      priceMax: lead.price_max ?? null,
-      bedrooms: lead.bedrooms ?? null,
-      transactionType: lead.transaction_type ?? null,
-    }, limit);
-  } catch (err) {
-    console.error(`[dispatch] ranking failed for lead #${lead.id}: ${err.message}`);
+  // One ranking per requested commune, merged. Sequential: at most
+  // MAX_LEAD_COMMUNES queries, and one commune's failure must not hide the
+  // agencies another commune found.
+  const perCommune = [];
+  let rankingFailures = 0;
+  for (const commune of communes) {
+    try {
+      const rows = await rank({
+        commune,
+        priceMin: lead.price_min ?? null,
+        priceMax: lead.price_max ?? null,
+        bedrooms: lead.bedrooms ?? null,
+        transactionType: lead.transaction_type ?? null,
+      }, limit);
+      perCommune.push({ commune, rows });
+    } catch (err) {
+      rankingFailures += 1;
+      console.error(`[dispatch] ranking failed for lead #${lead.id} in ${commune}: ${err.message}`);
+    }
+  }
+  if (rankingFailures === communes.length) {
     return { dispatched: 0, notified: 0, failed: 0, skipped: 'ranking-failed' };
   }
 
+  const ranked = mergeRankedAcrossCommunes(perCommune);
   if (!ranked.length) {
-    console.log(`[dispatch] no agency covers ${lead.commune} — lead #${lead.id} not dispatched`);
+    console.log(`[dispatch] no agency covers ${communes.join(', ')} — lead #${lead.id} not dispatched`);
     return { dispatched: 0, notified: 0, failed: 0, skipped: 'no-coverage' };
   }
 
@@ -296,7 +347,7 @@ async function dispatchLead(lead, { limit = MAX_AGENTS_PER_LEAD } = {}) {
   }
 
   console.log(
-    `[dispatch] lead #${lead.id} (${lead.commune}) -> ${selected.length} agent(s): ` +
+    `[dispatch] lead #${lead.id} (${communes.join(', ')}) -> ${selected.length} agent(s): ` +
       `${notified} notified, ${failed} failed`,
   );
   return { dispatched: selected.length, notified, failed };
@@ -328,5 +379,7 @@ module.exports = {
   templateParams,
   fallbackText,
   agentLink,
+  communesLabel,
+  mergeRankedAcrossCommunes,
   MAX_AGENTS_PER_LEAD,
 };

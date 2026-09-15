@@ -677,6 +677,36 @@ export async function getListingsByIds(ids) {
   return rows;
 }
 
+/**
+ * Approved listings that became public since `since`, newest first — the only
+ * candidates the saved-search alert sweep considers (lib/searchAlertSweep.js).
+ *
+ * "Became public" is the later of creation and the moderation decision: a
+ * listing written two days before a moderator approved it is new to every
+ * customer on the day it was approved, and ordering on created_at alone would
+ * never alert anyone who saved their search in between. `moderated_at` is read
+ * through to_jsonb so this still works on a database without that column.
+ *
+ * @param {{since?: Date|string, limit?: number}} [options]
+ * @returns {Promise<Array<{id: number, publishedAt: Date}>>}
+ */
+export async function getRecentListingIds({ since = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000), limit = 500 } = {}) {
+  const sinceDate = new Date(since);
+  const parsedLimit = Number.parseInt(limit, 10);
+  const boundedLimit = Math.min(Math.max(Number.isFinite(parsedLimit) ? parsedLimit : 500, 1), 2000);
+  const publishedAt = `GREATEST(p.created_at, COALESCE(NULLIF(to_jsonb(p) ->> 'moderated_at', '')::timestamptz, p.created_at))`;
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT p.id, ${publishedAt} AS published_at
+       FROM properties p
+      WHERE ${APPROVED_FILTER} AND ${publishedAt} >= $1
+      ORDER BY published_at DESC
+      LIMIT $2`,
+    [Number.isNaN(sinceDate.getTime()) ? new Date(0).toISOString() : sinceDate.toISOString(), boundedLimit],
+  );
+  return rows.map((row) => ({ id: Number(row.id), publishedAt: new Date(row.published_at) }));
+}
+
 // ---------------------------------------------------------------------------
 // Viewport map — GET /api/listings/map, components/ListingsMap.js
 // ---------------------------------------------------------------------------

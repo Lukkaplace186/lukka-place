@@ -1,13 +1,15 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
-import { Scale, MessageCircle, CalendarDays, Trash2, ImageOff } from 'lucide-react';
+import { Scale, MessageCircle, CalendarDays, Trash2, ImageOff, Heart, Share2, StickyNote } from 'lucide-react';
 import SafeImage from '@/components/SafeImage';
 import Price from '@/components/Price';
 import { CardBadges } from '@/components/ListingBadges';
 import SpecItem, { SpecCell } from '@/components/SpecItem';
-import { PortalPanel, PortalSectionHeading } from '@/components/ClientPortalUI';
+import { PortalPanel, PortalSectionHeading, PortalEmpty } from '@/components/ClientPortalUI';
+import { useToast } from '@/components/Toast';
+import { MAX_FAVORITES, MAX_FAVORITE_NOTE_LENGTH } from '@/lib/accountLimits';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { listingImages, specItems, typeLabel, feedLocationLine, formatAddedOn } from '@/lib/listingView';
 import { buildWhatsAppMessage, buildWhatsAppLink } from '@/lib/whatsapp';
@@ -29,11 +31,11 @@ import { useT } from '@/lib/i18n/client';
  * same shared derivations (lib/listingView.js) instead of re-deriving
  * anything by hand.
  *
- * One deliberate departure from the frozen mockup: **no "Ma note" block.**
- * The design gives every favourite a personal note ("Vérifier l'état de la
- * toiture…"). There is no note column on `customer_favorites`, so rather
- * than invent copy the slot is gone (web/CLAUDE.md's no-fabricated-data
- * rule). The status badge stays, because `listing_status` is a real column
+ * The design's "Ma note" block exists now, over a real column
+ * (`customer_favorites.note`, migrations/20260918_customer_alert_preferences.sql).
+ * It was left out while no column existed rather than filled with invented
+ * copy; an empty note shows an "Ajouter une note" prompt, never a sample.
+ * The status badge stays, because `listing_status` is a real column
  * — CardBadges renders "Sous compromis" / "Loué / Vendu" from it, and
  * nothing when the listing carries neither.
  *
@@ -117,7 +119,107 @@ function ComparisonTable({ listings }) {
   );
 }
 
-function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, removeAction }) {
+/** The customer's private note on one saved listing — never shown to anyone else. */
+function FavoriteNote({ listingId, initialNote, saveNoteAction }) {
+  const t = useT();
+  const { showToast } = useToast();
+  const [pending, startTransition] = useTransition();
+  const [note, setNote] = useState(initialNote || '');
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(initialNote || '');
+
+  if (!saveNoteAction) return null;
+
+  function save(event) {
+    event.preventDefault();
+    const next = draft.trim().slice(0, MAX_FAVORITE_NOTE_LENGTH);
+    startTransition(async () => {
+      let result;
+      try {
+        result = await saveNoteAction(listingId, next);
+      } catch {
+        result = { ok: false };
+      }
+      if (!result?.ok) {
+        showToast({ type: 'error', message: t('account.favorites.noteFailed') });
+        return;
+      }
+      setNote(next);
+      setEditing(false);
+      showToast({ message: t('account.favorites.noteSaved') });
+    });
+  }
+
+  if (editing) {
+    return (
+      <form onSubmit={save} className="flex flex-col gap-2">
+        <textarea
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          maxLength={MAX_FAVORITE_NOTE_LENGTH}
+          rows={3}
+          autoFocus
+          aria-label={t('account.favorites.note')}
+          placeholder={t('account.favorites.notePlaceholder')}
+          className="u-focus-ring w-full resize-y rounded-md border border-line bg-white p-2.5 text-[0.8125rem] leading-[1.5] text-ink placeholder:text-ink-35"
+        />
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            disabled={pending}
+            className="u-btn-primary u-press rounded-full bg-blue px-3.5 py-1.5 text-[0.75rem] font-semibold text-white disabled:opacity-60"
+          >
+            {t('common.actions.save')}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setDraft(note);
+              setEditing(false);
+            }}
+            className="u-press rounded-full px-3 py-1.5 text-[0.75rem] font-semibold text-ink-45 hover:bg-canvas-alt hover:text-ink"
+          >
+            {t('common.actions.cancel')}
+          </button>
+        </div>
+      </form>
+    );
+  }
+
+  if (!note) {
+    return (
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        className="u-press inline-flex w-fit items-center gap-1.5 text-[0.75rem] font-semibold text-ink-45 hover:text-ink"
+      >
+        <StickyNote strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
+        {t('account.favorites.addNote')}
+      </button>
+    );
+  }
+
+  return (
+    <div className="rounded-md bg-canvas-alt px-3 py-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <p className="u-eyebrow">{t('account.favorites.note')}</p>
+        <button
+          type="button"
+          onClick={() => {
+            setDraft(note);
+            setEditing(true);
+          }}
+          className="text-[0.75rem] font-semibold text-blue-deep hover:underline"
+        >
+          {t('account.favorites.editNote')}
+        </button>
+      </div>
+      <p className="mt-1 whitespace-pre-line text-[0.8125rem] leading-[1.5] text-ink-70">{note}</p>
+    </div>
+  );
+}
+
+function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, onRemove, note, saveNoteAction }) {
   const t = useT();
   const images = listingImages(listing);
   const cover = images[0] || null;
@@ -186,16 +288,14 @@ function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, r
           {t('account.favorites.compare')}
         </label>
 
-        <form action={removeAction} className="absolute right-3.5 top-3.5 z-10">
-          <input type="hidden" name="propertyId" value={listing.id} />
-          <button
-            type="submit"
-            aria-label={t('account.favorites.remove', { title: listing.title })}
-            className="u-glass-white u-press inline-flex h-10 w-10 items-center justify-center rounded-full text-ink transition-colors hover:text-danger"
-          >
-            <Trash2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
-          </button>
-        </form>
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={t('account.favorites.remove', { title: listing.title })}
+          className="u-glass-white u-press absolute right-3.5 top-3.5 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full text-ink transition-colors hover:text-danger"
+        >
+          <Trash2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
+        </button>
 
         <div className="pointer-events-none absolute bottom-3.5 left-3.5 z-10 flex flex-wrap gap-1.5">
           <CardBadges listing={listing} />
@@ -260,6 +360,8 @@ function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, r
           </div>
         ) : null}
 
+        <FavoriteNote listingId={listing.id} initialNote={note} saveNoteAction={saveNoteAction} />
+
         <div className="flex-1" />
 
         <div className="flex flex-col gap-2.5 pt-1">
@@ -296,12 +398,136 @@ function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, r
   );
 }
 
-export default function FavoritesBoard({ listings, whatsappNumber, removeAction }) {
+/**
+ * Removing a favourite is instant: the card leaves the grid on tap, the
+ * server action runs behind it, and a toast offers "Annuler" for a few
+ * seconds. It used to be a form post that waited for the server and then
+ * re-rendered the whole portal (tab counts included) before anything moved.
+ * A failed remove puts the card back and says so.
+ *
+ * `listings` is the server's truth and is refreshed by the action's
+ * revalidatePath; `hidden` and `restoring` only bridge the moments before
+ * that refresh lands, so a card never flickers back or goes missing.
+ */
+export default function FavoritesBoard({
+  listings,
+  whatsappNumber,
+  removeAction,
+  restoreAction,
+  notes = {},
+  saveNoteAction = null,
+  unavailableCount = 0,
+}) {
   const t = useT();
+  const { showToast } = useToast();
   const [selected, setSelected] = useState([]);
   const [compareOpen, setCompareOpen] = useState(false);
+  const [hidden, setHidden] = useState(() => new Set());
+  // id -> { listing, index }: an undone remove, shown at its old position
+  // until the refreshed `listings` includes it again.
+  const [restoring, setRestoring] = useState(() => new Map());
 
-  const selectedListings = useMemo(() => listings.filter((l) => selected.includes(l.id)), [listings, selected]);
+  const visible = useMemo(() => {
+    const base = listings.filter((l) => !hidden.has(l.id));
+    for (const [id, { listing, index }] of restoring) {
+      if (!base.some((l) => l.id === id)) base.splice(Math.min(index, base.length), 0, listing);
+    }
+    return base;
+  }, [listings, hidden, restoring]);
+
+  function setIn(setter, id, present, value) {
+    setter((current) => {
+      const next = current instanceof Map ? new Map(current) : new Set(current);
+      if (present) {
+        if (next instanceof Map) next.set(id, value);
+        else next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
+    });
+  }
+
+  function restore(listing, index) {
+    setIn(setRestoring, listing.id, true, { listing, index });
+    setIn(setHidden, listing.id, false);
+    Promise.resolve(restoreAction ? restoreAction(listing.id) : { ok: false })
+      .catch(() => ({ ok: false }))
+      .then((result) => {
+        if (result?.ok) return;
+        setIn(setRestoring, listing.id, false);
+        setIn(setHidden, listing.id, true);
+        showToast({
+          type: 'error',
+          message: result?.reason === 'limit'
+            ? t('account.limits.favorites', { max: MAX_FAVORITES })
+            : t('account.favorites.restoreFailed'),
+        });
+      });
+  }
+
+  function remove(listing) {
+    const index = visible.findIndex((l) => l.id === listing.id);
+    setIn(setHidden, listing.id, true);
+    setIn(setRestoring, listing.id, false);
+    setSelected((current) => current.filter((id) => id !== listing.id));
+
+    Promise.resolve(removeAction(listing.id))
+      .catch(() => ({ ok: false }))
+      .then((result) => {
+        if (!result?.ok) {
+          setIn(setHidden, listing.id, false);
+          showToast({ type: 'error', message: t('account.favorites.removeFailed') });
+          return;
+        }
+        showToast({
+          message: t('account.favorites.removed'),
+          action: restoreAction
+            ? { label: t('account.portal.undo'), onClick: () => restore(listing, index) }
+            : null,
+        });
+      });
+  }
+
+  const selectedListings = useMemo(() => visible.filter((l) => selected.includes(l.id)), [visible, selected]);
+
+  /**
+   * The same `/favoris?ids=` link the public favourites page shares — anyone
+   * can open it, no account needed — so a customer can send their shortlist to
+   * family on WhatsApp. The phone's own share sheet when there is one; the
+   * clipboard otherwise, and only claims "copied" when the copy worked.
+   */
+  async function shareSelection() {
+    const url = `${SITE_URL}/favoris?ids=${visible.map((l) => l.id).join(',')}`;
+    const text = t('account.favorites.shareMessage', { url });
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ text });
+        return;
+      } catch (error) {
+        if (error?.name === 'AbortError') return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast({ message: t('account.favorites.linkCopied') });
+    } catch {
+      // Clipboard refused (permission, insecure context): say nothing false.
+    }
+  }
+
+  if (visible.length === 0) {
+    return (
+      <PortalEmpty
+        icon={Heart}
+        title={t('account.favorites.emptyTitle')}
+        actionLabel={t('account.favorites.browseListings')}
+        actionHref="/listings"
+      >
+        {t('account.favorites.emptyBody')}
+      </PortalEmpty>
+    );
+  }
 
   function toggle(id) {
     setSelected((current) =>
@@ -319,10 +545,17 @@ export default function FavoritesBoard({ listings, whatsappNumber, removeAction 
     <div>
       <PortalSectionHeading
         title={t('account.favorites.title')}
-        lead={`${listings.length} bien${listings.length > 1 ? 's' : ''} sauvegardé${
-          listings.length > 1 ? 's' : ''
-        } · sélectionnez-en deux ou plus pour les comparer`}
+        lead={t('account.favorites.savedCount', { count: visible.length })}
         action={
+          <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={shareSelection}
+            className="u-btn-secondary inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[0.875rem] font-semibold text-ink"
+          >
+            <Share2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
+            {t('account.favorites.shareSelection')}
+          </button>
           <button
             type="button"
             onClick={() => setCompareOpen(true)}
@@ -335,12 +568,19 @@ export default function FavoritesBoard({ listings, whatsappNumber, removeAction 
             <Scale strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
             {t('account.favorites.compareCount', { count: selectedListings.length })}
           </button>
+          </div>
         }
         className="mb-7"
       />
 
+      {unavailableCount > 0 ? (
+        <p role="status" className="mb-5 rounded-md bg-canvas-deep px-4 py-3 text-[0.8125rem] text-ink-70">
+          {t('account.favorites.unavailable', { count: unavailableCount })}
+        </p>
+      ) : null}
+
       <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-        {listings.map((listing) => (
+        {visible.map((listing) => (
           <FavoriteCard
             key={listing.id}
             listing={listing}
@@ -348,14 +588,16 @@ export default function FavoritesBoard({ listings, whatsappNumber, removeAction 
             disabled={!selected.includes(listing.id) && selected.length >= MAX_COMPARE}
             onToggle={() => toggle(listing.id)}
             whatsappNumber={whatsappNumber}
-            removeAction={removeAction}
+            onRemove={() => remove(listing)}
+            note={notes[String(listing.id)] || ''}
+            saveNoteAction={saveNoteAction}
           />
         ))}
       </div>
 
       {selected.length >= MAX_COMPARE ? (
         <p className="mt-5 text-[0.8125rem] text-ink-45">
-          Vous pouvez comparer jusqu&apos;à {MAX_COMPARE} biens à la fois.
+          {t('account.favorites.compareMax', { max: MAX_COMPARE })}
         </p>
       ) : null}
 
@@ -363,10 +605,7 @@ export default function FavoritesBoard({ listings, whatsappNumber, removeAction 
         <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle>{t('account.favorites.compareTitle', { count: selectedListings.length })}</DialogTitle>
-            <DialogDescription>
-              Uniquement les informations réellement enregistrées sur chaque annonce. Un critère qu&apos;aucune des
-              annonces sélectionnées ne renseigne n&apos;apparaît pas.
-            </DialogDescription>
+            <DialogDescription>{t('account.favorites.compareNote')}</DialogDescription>
           </DialogHeader>
           {selectedListings.length > 0 ? <ComparisonTable listings={selectedListings} /> : null}
         </DialogContent>

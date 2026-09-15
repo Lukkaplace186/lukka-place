@@ -1,11 +1,24 @@
 import Link from 'next/link';
-import { Bell, Trash2, SlidersHorizontal, Plus, MessageCircle, ArrowRight } from 'lucide-react';
+import { Bell, SlidersHorizontal, Plus, MessageCircle, ArrowRight } from 'lucide-react';
 import PropertyCard from '@/components/PropertyCard';
 import { PortalPanel, PortalSectionHeading, PortalEmpty } from '@/components/ClientPortalUI';
 import { searchCriteriaTags } from '@/lib/searchLabel';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
-import { removeSavedSearchAction } from '../actions';
-import { getT } from '@/lib/i18n/server';
+import { RemovableAlert, RemoveAlertButton } from './RemovableAlert';
+import AlertPreferences from './AlertPreferences';
+import { formatPhoneDisplay } from '@/lib/phone';
+
+function lastAlertedLabel(value, locale) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'fr-FR', {
+    day: 'numeric',
+    month: 'long',
+    timeZone: 'Africa/Kinshasa',
+  }).format(date);
+}
+import { getT, getLocale } from '@/lib/i18n/server';
 
 const SHOWN_PER_SEARCH = 3;
 
@@ -16,8 +29,9 @@ const SHOWN_PER_SEARCH = 3;
  * `matches` is the real, already-computed `getSavedSearchMatches()` result
  * (lib/alerts.js) — this component only renders, it never fetches.
  */
-export default async function AlertsBoard({ matches, whatsappHref }) {
+export default async function AlertsBoard({ matches, whatsappHref, phone = null, optedOut = false }) {
   const t = await getT();
+  const locale = await getLocale();
   if (matches.length === 0) {
     return (
       <PortalEmpty
@@ -36,9 +50,7 @@ export default async function AlertsBoard({ matches, whatsappHref }) {
       <div>
         <PortalSectionHeading
           title={t('account.alerts.title')}
-          lead={`${matches.length} recherche${matches.length > 1 ? 's' : ''} active${
-            matches.length > 1 ? 's' : ''
-          }. Les nouveaux biens correspondants apparaissent ici à chaque visite.`}
+          lead={t('account.alerts.activeCount', { count: matches.length })}
           className="mb-7"
         />
 
@@ -48,7 +60,8 @@ export default async function AlertsBoard({ matches, whatsappHref }) {
             const shown = newListings.slice(0, SHOWN_PER_SEARCH);
 
             return (
-              <PortalPanel key={search.id} className="p-6">
+              <RemovableAlert key={search.id} query={search.query} label={search.label}>
+              <PortalPanel className="p-6">
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <h3 className="u-title-card text-ink">{search.label}</h3>
@@ -73,19 +86,16 @@ export default async function AlertsBoard({ matches, whatsappHref }) {
                     >
                       <SlidersHorizontal strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
                     </Link>
-                    <form action={removeSavedSearchAction}>
-                      <input type="hidden" name="query" value={search.query} />
-                      <button
-                        type="submit"
-                        aria-label={`Supprimer l'alerte « ${search.label} »`}
-                        title={t('account.alerts.deleteAlert')}
-                        className="u-press inline-flex h-8 w-8 items-center justify-center rounded-full text-ink-45 transition-colors hover:bg-danger-tint hover:text-danger"
-                      >
-                        <Trash2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
-                      </button>
-                    </form>
+                    <RemoveAlertButton label={search.label} />
                   </div>
                 </div>
+
+                <AlertPreferences
+                  savedSearchId={search.id}
+                  label={search.label}
+                  frequency={search.alert_frequency || 'weekly'}
+                  lastAlertedLabel={lastAlertedLabel(search.last_alerted_at, locale)}
+                />
 
                 {tags.length > 0 ? (
                   <div className="mt-4 flex flex-wrap gap-2">
@@ -101,7 +111,7 @@ export default async function AlertsBoard({ matches, whatsappHref }) {
 
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <span className="u-tabular text-[0.8125rem] text-ink-45">
-                    {total} bien{total > 1 ? 's' : ''} correspond{total > 1 ? 'ent' : ''} à cette recherche
+                    {t('account.alerts.matchingTotal', { count: total })}
                   </span>
                   <Link
                     href={`/listings?${search.query}`}
@@ -120,6 +130,7 @@ export default async function AlertsBoard({ matches, whatsappHref }) {
                   </div>
                 ) : null}
               </PortalPanel>
+              </RemovableAlert>
             );
           })}
         </div>
@@ -135,10 +146,20 @@ export default async function AlertsBoard({ matches, whatsappHref }) {
 
         <div className="h-px bg-line" />
 
+        {/* This used to say there was no automatic WhatsApp sending at all,
+            while the weekly sweep was already sending. It now states what
+            actually happens for THIS account, and where to stop it. */}
         <p className="text-[0.8125rem] leading-[1.5] text-ink-45">
-          Il n&apos;y a pas encore d&apos;envoi automatique par WhatsApp ou par e-mail. Si vous voulez être prévenu
-          activement d&apos;un bien précis, dites-le-nous sur WhatsApp et l&apos;équipe s&apos;en charge.
+          {optedOut
+            ? t('account.alerts.whatsappOff')
+            : t('account.alerts.whatsappOn', { phone: formatPhoneDisplay(phone) })}
         </p>
+        <Link
+          href="/compte/client/parametres"
+          className="text-[0.8125rem] font-semibold text-blue-deep hover:underline"
+        >
+          {t('account.alerts.manageInProfile')}
+        </Link>
 
         {whatsappHref ? (
           <a

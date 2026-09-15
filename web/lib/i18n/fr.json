@@ -1035,7 +1035,88 @@
         "profile": "Mon profil"
       },
       "greeting": "Bonjour, {name}",
-      "accountLinkedTo": "Compte lié au {phone}"
+      "accountLinkedTo": "Compte lié au {phone}",
+      "undo": "Annuler",
+      "loading": "Chargement…",
+      "subtabs": {
+        "favorites": "Favoris",
+        "alerts": "Alertes"
+      }
+    },
+    "limits": {
+      "favorites": "Vous avez atteint la limite de {max} favoris. Retirez-en un pour en ajouter un autre.",
+      "savedSearches": "Vous avez atteint la limite de {max} alertes. Supprimez-en une pour en créer une autre.",
+      "manage": "Gérer"
+    },
+    "visits": {
+      "timelineTitle": "Votre visite",
+      "steps": {
+        "requested": "Demande envoyée",
+        "awaitingAgent": "En attente de l'agent",
+        "awaitingAgentAlternatives": "Toujours en attente de l'agent",
+        "newSlot": "Nouveau créneau proposé",
+        "confirmed": "Visite confirmée",
+        "declined": "Agent indisponible",
+        "cancelledByYou": "Annulée par vous",
+        "cancelledByAgent": "Annulée par l'agent",
+        "cancelled": "Visite annulée",
+        "visit": "Visite",
+        "agentAbsent": "Agent absent au rendez-vous",
+        "feedback": "Votre avis",
+        "feedbackGiven": "Avis envoyé"
+      },
+      "detail": {
+        "requestedOn": "Envoyée le {date}",
+        "slotRequested": "Créneau souhaité : {time}",
+        "awaitingAgent": "L'agent a été prévenu sur WhatsApp. Vous serez averti dès qu'il répond.",
+        "alternativesSent": "L'agent n'a pas encore répondu : nous vous avons envoyé des biens similaires sur WhatsApp.",
+        "proposedSlot": "L'agent propose : {time}",
+        "scheduledFor": "Prévue le {date}",
+        "slot": "Créneau : {time}",
+        "noInstant": "L'horaire exact reste à confirmer avec l'agent.",
+        "declined": "L'agent ne peut pas organiser cette visite. Des biens similaires vous ont été proposés sur WhatsApp.",
+        "agentAbsent": "Merci de nous l'avoir signalé : notre équipe vous recontacte."
+      },
+      "status": {
+        "PENDING": "Visite demandée",
+        "CONFIRMED": "Visite confirmée",
+        "RESCHEDULED": "Nouveau créneau",
+        "DECLINED": "Agent indisponible",
+        "CANCELLED": "Visite annulée",
+        "COMPLETED": "Visite effectuée"
+      },
+      "acceptSlot": "Accepter ce créneau",
+      "cancel": "Annuler la visite",
+      "cancelConfirmTitle": "Annuler cette visite ?",
+      "cancelConfirmBody": "L'agent sera prévenu. Pour visiter ce bien plus tard, il faudra refaire une demande.",
+      "keep": "Garder la visite",
+      "howWasItTitle": "Comment s'est passée la visite ?",
+      "checkin": {
+        "GOOD": "👍 Bien",
+        "BAD": "👎 Déçu",
+        "AGENT_ABSENT": "⚠️ Agent absent"
+      },
+      "whyTitle": "Qu'est-ce qui n'a pas convenu ?",
+      "reasons": {
+        "PRICE_TOO_HIGH": "Le prix",
+        "LOCATION_DESELECTED": "L'emplacement",
+        "TERMS_UNACCEPTABLE": "Les conditions",
+        "OTHER": "Autre raison"
+      },
+      "askQuestion": "Une question ? Écrire à Lukka Place",
+      "done": {
+        "cancelled": "Visite annulée. L'agent a été prévenu.",
+        "cancelledQuiet": "Visite annulée.",
+        "slotAccepted": "Créneau accepté. L'agent a été prévenu.",
+        "slotAcceptedQuiet": "Créneau accepté.",
+        "feedback": "Merci, votre avis est enregistré.",
+        "reason": "Merci, c'est noté."
+      },
+      "errors": {
+        "failed": "Action impossible pour le moment. Réessayez.",
+        "notAllowed": "Cette visite ne peut plus être modifiée.",
+        "notYet": "Vous pourrez donner votre avis après l'heure de la visite."
+      }
     },
     "favorites": {
       "title": "Mes favoris",
@@ -1072,7 +1153,28 @@
       },
       "syncedNote": "Vos biens et recherches enregistrés sont conservés sur votre compte, accessibles depuis n’importe quel appareil.",
       "whatsappAlert": "Bonjour, je souhaite être prévenu des nouveaux biens correspondant à ma recherche.",
-      "signInPrompt": "Connectez-vous pour retrouver vos biens favoris et vos recherches enregistrées."
+      "signInPrompt": "Connectez-vous pour retrouver vos biens favoris et vos recherches enregistrées.",
+      "removed": "Retiré de vos favoris.",
+      "removeFailed": "Ce bien n'a pas pu être retiré. Réessayez.",
+      "restoreFailed": "Ce bien n'a pas pu être remis dans vos favoris.",
+      "savedCount": {
+        "one": "{count} bien sauvegardé · sélectionnez-en deux ou plus pour les comparer",
+        "other": "{count} biens sauvegardés · sélectionnez-en deux ou plus pour les comparer"
+      },
+      "compareMax": "Vous pouvez comparer jusqu'à {max} biens à la fois.",
+      "compareNote": "Uniquement les informations réellement enregistrées sur chaque annonce. Un critère qu'aucune des annonces sélectionnées ne renseigne n'apparaît pas.",
+      "shareSelection": "Partager ma sélection",
+      "shareMessage": "Ma sélection de biens sur Lukka Place : {url}",
+      "unavailable": {
+        "one": "{count} bien enregistré n'est plus en ligne (loué, vendu ou retiré).",
+        "other": "{count} biens enregistrés ne sont plus en ligne (loués, vendus ou retirés)."
+      },
+      "note": "Ma note",
+      "addNote": "Ajouter une note",
+      "editNote": "Modifier",
+      "notePlaceholder": "Pour vous seul : état de la toiture, question pour l'agent…",
+      "noteSaved": "Note enregistrée.",
+      "noteFailed": "La note n'a pas pu être enregistrée."
     },
     "alerts": {
       "title": "Mes alertes",
@@ -1099,7 +1201,35 @@
         "one": "{count} nouveau résultat depuis votre dernière visite",
         "other": "{count} nouveaux résultats depuis votre dernière visite"
       },
-      "noneSinceLastVisit": "Aucun nouveau résultat depuis votre dernière visite"
+      "noneSinceLastVisit": "Aucun nouveau résultat depuis votre dernière visite",
+      "removed": "Alerte supprimée.",
+      "removeFailed": "L'alerte n'a pas pu être supprimée. Réessayez.",
+      "restoreFailed": "L'alerte n'a pas pu être rétablie.",
+      "frequencyLabel": "Alerte WhatsApp",
+      "frequency": {
+        "daily": "Chaque jour",
+        "weekly": "Chaque semaine",
+        "off": "Désactivée"
+      },
+      "rename": "Renommer",
+      "renamePlaceholder": "Nom de l'alerte",
+      "prefsSaved": "Alerte mise à jour.",
+      "prefsFailed": "L'alerte n'a pas pu être mise à jour. Réessayez.",
+      "lastAlerted": "Dernier envoi WhatsApp : {date}",
+      "whatsappOn": "Les nouveaux biens correspondant à vos alertes vous sont envoyés sur WhatsApp au {phone}, selon la fréquence choisie pour chacune.",
+      "whatsappOff": "Les alertes WhatsApp sont désactivées pour votre compte. Vos recherches restent enregistrées et visibles ici.",
+      "manageInProfile": "Gérer les alertes WhatsApp",
+      "whatsappSettingsTitle": "Alertes WhatsApp",
+      "whatsappDisable": "Arrêter les alertes WhatsApp",
+      "whatsappEnable": "Réactiver les alertes WhatsApp",
+      "activeCount": {
+        "one": "{count} recherche active. Les nouveaux biens correspondants apparaissent ici à chaque visite.",
+        "other": "{count} recherches actives. Les nouveaux biens correspondants apparaissent ici à chaque visite."
+      },
+      "matchingTotal": {
+        "one": "{count} bien correspond à cette recherche",
+        "other": "{count} biens correspondent à cette recherche"
+      }
     },
     "requests": {
       "title": "Mes demandes",
@@ -1169,12 +1299,30 @@
       },
       "viewProposalsBelow": "Voir les propositions ci-dessous",
       "submittedConfirmation": "Demande n° {id} envoyée aux agences partenaires. Suivez son avancement ici.",
-      "submitted": "Demandes soumises"
+      "submitted": "Demandes soumises",
+      "customSearch": "Recherche personnalisée",
+      "bedroomsShort": "{count} ch.",
+      "budgetValue": "Budget {budget}",
+      "budgetRange": "{min} – {max}",
+      "budgetFrom": "À partir de {min}",
+      "budgetUpTo": "Jusqu'à {max}",
+      "requestedOn": "Demande du {date}",
+      "sentOn": "Envoyée le {date}",
+      "activeProposals": {
+        "one": "{count} proposition active",
+        "other": "{count} propositions actives"
+      },
+      "noInternalMessaging": "Lukka Place n'a pas de messagerie interne : la réponse de l'agence vous parvient directement sur WhatsApp, au numéro rattaché à votre compte.",
+      "proposedByAgency": "Proposé par {agency}",
+      "requestNumber": "Demande n° {id}",
+      "submittedOn": "Soumise le {date}",
+      "messagesMetaTitle": "Messages & Visites — Lukka Place"
     },
     "requestForm": {
       "title": "Trouver pour moi",
       "lead": "Décrivez le bien que vous cherchez. Nous transmettons votre demande aux agences partenaires de Lukka Place.",
       "communesUnavailable": "La liste des communes n'est pas disponible pour le moment. Précisez la zone souhaitée dans le champ « Précisions » ci-dessous.",
+      "communesHint": "Sélectionnez jusqu'à {max} communes de Kinshasa. Votre demande est transmise aux agences de chacune.",
       "transactionType": "Type de transaction",
       "targetCommunes": "Communes visées",
       "budgetAndBedrooms": "Budget et chambres",
@@ -1207,7 +1355,8 @@
       "flexibleMonth": "Flexible à un mois près",
       "updatedWithReset": "Recherche mise à jour — nouvelles propositions réinitialisées.",
       "updated": "Recherche mise à jour.",
-      "submit": "Envoyer ma demande"
+      "submit": "Envoyer ma demande",
+      "prefilledFrom": "Prérempli à partir de votre alerte « {label} ». Modifiez ce qui ne convient pas."
     },
     "profile": {
       "title": "Mon profil",
@@ -1228,7 +1377,11 @@
       "deleteConfirm": "Supprimer votre compte ?",
       "deleteAccount": "Supprimer mon compte",
       "deleteBody": "Vos favoris et recherches sauvegardées seront définitivement supprimés. Cette action est irréversible.",
-      "resetNote": "passe toute réinitialisation de mot de passe."
+      "resetNote": "passe toute réinitialisation de mot de passe.",
+      "lead": "Vos informations et vos préférences d'affichage.",
+      "memberSince": "Membre depuis le {date}",
+      "currencyNote": "Les prix sont enregistrés en dollars. L'affichage en francs congolais utilise un taux indicatif de {rate} FC pour 1 USD, mis à jour le {date} — ce n'est pas un taux en temps réel.",
+      "securityNote": "Votre compte est rattaché au numéro {phone}. C'est par ce numéro que passe toute réinitialisation de mot de passe."
     }
   },
   "admin": {
@@ -2438,6 +2591,7 @@
   "errors": {
     "chooseBuyOrRent": "Choisissez d’abord si vous souhaitez acheter ou louer.",
     "selectAtLeastOneCommune": "Sélectionnez au moins une commune.",
+    "tooManyCommunes": "Sélectionnez au maximum {max} communes.",
     "requestNotFound": "Demande introuvable.",
     "selectACommune": "Sélectionnez une commune.",
     "budgetMinAboveMax": "Le budget minimum doit être inférieur ou égal au budget maximum.",

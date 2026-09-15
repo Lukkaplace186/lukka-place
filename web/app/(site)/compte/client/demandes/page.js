@@ -10,7 +10,9 @@ import { LEAD_STATUS_LABEL_KEYS } from '@/lib/adminLabels';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { submitPropertyRequestAction } from '../actions';
 import RequestForm from './RequestForm';
-import { getT } from '@/lib/i18n/server';
+import { getT, getLocale } from '@/lib/i18n/server';
+import { listSavedSearches } from '@/lib/customers';
+import { prefillFromSavedSearch } from '@/lib/requestPrefill';
 
 // generateMetadata, not a static object: a static export cannot see the
 // request locale — see app/(site)/a-propos/page.js.
@@ -24,11 +26,14 @@ export async function generateMetadata() {
 
 export const dynamic = 'force-dynamic';
 
-const DATE_FORMATTER = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
-
-function formatDate(value) {
+function formatDate(value, locale) {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '—' : DATE_FORMATTER.format(date);
+  if (Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'fr-FR', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(date);
 }
 
 const LEAD_TONES = {
@@ -61,14 +66,18 @@ export default async function DemandesPage() {
   const session = await getPortalCustomer();
   if (!session) redirect('/compte/connexion?next=/compte/client/demandes');
 
-  const [communes, inquiries] = await Promise.all([
+  const [communes, inquiries, savedSearches, locale] = await Promise.all([
     resolveCommunes(),
     getCustomerInquiries(session.customerId),
+    listSavedSearches(session.customerId),
+    getLocale(),
   ]);
+  // Their most recent alert already says what they want — see lib/requestPrefill.js.
+  const prefill = prefillFromSavedSearch(savedSearches[0], communes);
 
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_23.75rem] lg:items-start">
-      <RequestForm action={submitPropertyRequestAction} communes={communes} />
+      <RequestForm action={submitPropertyRequestAction} communes={communes} prefill={prefill} />
 
       <aside className="flex flex-col gap-5">
         <h3 className="u-eyebrow">{t('account.requests.submitted')}</h3>
@@ -86,7 +95,9 @@ export default async function DemandesPage() {
           inquiries.map(({ lead, listing }) => (
             <PortalPanel key={lead.id} className="p-5">
               <div className="flex items-center justify-between gap-3">
-                <span className="u-tabular text-[0.875rem] font-bold text-ink">Demande n° {lead.id}</span>
+                <span className="u-tabular text-[0.875rem] font-bold text-ink">
+                  {t('account.requests.requestNumber', { id: lead.id })}
+                </span>
                 <PortalBadge tone={LEAD_TONES[lead.status] || 'neutral'}>
                   {LEAD_STATUS_LABEL_KEYS[lead.status] ? t(LEAD_STATUS_LABEL_KEYS[lead.status]) : lead.status}
                 </PortalBadge>
@@ -98,7 +109,9 @@ export default async function DemandesPage() {
                 </p>
               ) : null}
 
-              <p className="mt-2 text-[0.75rem] text-ink-35">Soumise le {formatDate(lead.created_at)}</p>
+              <p className="mt-2 text-[0.75rem] text-ink-35">
+                {t('account.requests.submittedOn', { date: formatDate(lead.created_at, locale) })}
+              </p>
 
               <div className="my-4 h-px bg-line" />
 

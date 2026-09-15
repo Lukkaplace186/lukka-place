@@ -5,6 +5,8 @@ import {
   addSavedSearch,
   removeSavedSearch,
 } from '@/lib/customers';
+import { customerUnauthorized } from '@/lib/customerApiResponse';
+import { MAX_SAVED_SEARCHES } from '@/lib/accountLimits';
 
 /**
  * Authenticated saved-search CRUD, backing accountFavorites.js. `href` isn't
@@ -15,7 +17,7 @@ import {
 
 export async function GET() {
   const customerId = await getCurrentCustomerId();
-  if (!customerId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  if (!customerId) return customerUnauthorized();
 
   const rows = await listSavedSearches(customerId);
   const searches = rows.map((r) => ({
@@ -29,20 +31,23 @@ export async function GET() {
 
 export async function POST(request) {
   const customerId = await getCurrentCustomerId();
-  if (!customerId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  if (!customerId) return customerUnauthorized();
 
   const body = await request.json().catch(() => ({}));
   const query = String(body.query || '').trim();
   const label = String(body.label || '').trim();
   if (!query || !label) return NextResponse.json({ error: 'invalid search' }, { status: 400 });
 
-  await addSavedSearch(customerId, { query, label });
+  const status = await addSavedSearch(customerId, { query, label });
+  if (status === 'limit') {
+    return NextResponse.json({ error: 'limit', max: MAX_SAVED_SEARCHES }, { status: 409 });
+  }
   return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(request) {
   const customerId = await getCurrentCustomerId();
-  if (!customerId) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  if (!customerId) return customerUnauthorized();
 
   const { searchParams } = new URL(request.url);
   const query = searchParams.get('query');

@@ -15,7 +15,7 @@ export async function generateMetadata() {
 
 /**
  * Honest stub for anonymous visitors — real alerts now exist, but they're
- * account-scoped (/compte/alertes), so a logged-in visitor is sent straight
+ * account-scoped (the Espace Client's Alertes tab), so a logged-in visitor is sent straight
  * there instead of seeing this "not available" notice for a feature that,
  * for them, actually is available. `navItems.js`'s "Actus" entry keeps
  * pointing here unmodified; this redirect is what handles the split.
@@ -23,7 +23,7 @@ export async function generateMetadata() {
 export default async function UpdatesPage() {
   const t = await getT();
   const customerId = await getCurrentCustomerId();
-  if (customerId) redirect('/compte/alertes');
+  if (customerId) redirect('/compte/client?tab=alertes');
 
   return <UpdatesStub />;
 }
@@ -43,7 +43,7 @@ async function UpdatesStub() {
         <p className="text-[0.9375rem] leading-relaxed text-ink-70">
           {t('updates.saveSearchMeanwhile')}
         </p>
-        <PageAction href="/compte/inscription?next=/compte/alertes">{t('common.actions.signup')}</PageAction>
+        <PageAction href="/compte/inscription?next=%2Fcompte%2Fclient%3Ftab%3Dalertes">{t('common.actions.signup')}</PageAction>
       </div>
     </PageShell>
   );

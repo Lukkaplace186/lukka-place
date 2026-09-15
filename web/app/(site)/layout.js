@@ -2,6 +2,7 @@ import Header from '@/components/Header';
 import SiteShell from '@/components/SiteShell';
 import Footer from '@/components/Footer';
 import FavoriteResumeHandler from '@/components/FavoriteResumeHandler';
+import AccountLimitNotice from '@/components/AccountLimitNotice';
 import { CurrencyRateProvider } from '@/lib/CurrencyRateContext';
 import { getCdfRate } from '@/lib/currencyRate';
 import { getI18n } from '@/lib/i18n/server';
@@ -60,6 +61,7 @@ export default async function SiteLayout({ children }) {
     <I18nProvider locale={locale} messages={messages}>
       <CurrencyRateProvider rate={rate}>
         <FavoriteResumeHandler />
+        <AccountLimitNotice />
         <Header />
         <SiteShell>
           {/* min-h-0 alongside flex-1: a flex item's default min-height is

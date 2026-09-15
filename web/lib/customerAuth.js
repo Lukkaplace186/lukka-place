@@ -14,14 +14,18 @@ import { hashToStoredForm, verifyAgainstStoredForm, safeEqualHex, hmacSign } fro
  * `/listings` and `/listings/[id]`, all of which need to know login state,
  * not just pages under `/compte`.
  *
- * `tokenVersion` in the payload is a cheap revocation mechanism: bumping
- * `customers.token_version` (on logout or password change) invalidates every
- * outstanding token for that account, but this is only checked wherever a
- * page/action already does a DB read of the customer row (the dashboard,
- * mutations) — not inside middleware, which stays pure-crypto so its
- * per-request cost doesn't grow. Stated trade-off: "logout everywhere" takes
- * effect on the next DB-backed identity read, not instantly on every static
- * page — acceptable for a consumer account, unlike the admin dashboard.
+ * `tokenVersion` in the payload is the revocation mechanism: bumping
+ * `customers.token_version` (logout, password reset, admin reset) invalidates
+ * every outstanding token for that account. It is compared in
+ * lib/customers.js's `resolveCustomerSession`, which every page, action and
+ * /api/account route reaches through `getCurrentCustomerId` — NOT inside
+ * middleware, which stays pure-crypto so its per-request cost doesn't grow.
+ * So a revoked cookie still passes middleware's signature check, and is
+ * refused one step later by the first identity read.
+ *
+ * (This comment previously claimed the comparison happened "wherever a page
+ * already reads the customer row". Nothing compared it, so logout-everywhere
+ * and password resets ended no other session at all.)
  */
 
 const SESSION_COOKIE = 'lukka_customer_session';

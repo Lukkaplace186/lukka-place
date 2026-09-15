@@ -1035,7 +1035,88 @@
         "profile": "My profile"
       },
       "greeting": "Hello, {name}",
-      "accountLinkedTo": "Account linked to {phone}"
+      "accountLinkedTo": "Account linked to {phone}",
+      "undo": "Undo",
+      "loading": "Loading…",
+      "subtabs": {
+        "favorites": "Saved",
+        "alerts": "Alerts"
+      }
+    },
+    "limits": {
+      "favorites": "You've reached the limit of {max} saved listings. Remove one to add another.",
+      "savedSearches": "You've reached the limit of {max} alerts. Delete one to create another.",
+      "manage": "Manage"
+    },
+    "visits": {
+      "timelineTitle": "Your Viewing",
+      "steps": {
+        "requested": "Request sent",
+        "awaitingAgent": "Waiting for the agent",
+        "awaitingAgentAlternatives": "Still waiting for the agent",
+        "newSlot": "New time proposed",
+        "confirmed": "Viewing confirmed",
+        "declined": "Agent unavailable",
+        "cancelledByYou": "Cancelled by you",
+        "cancelledByAgent": "Cancelled by the agent",
+        "cancelled": "Viewing cancelled",
+        "visit": "Viewing",
+        "agentAbsent": "Agent didn't show up",
+        "feedback": "Your feedback",
+        "feedbackGiven": "Feedback sent"
+      },
+      "detail": {
+        "requestedOn": "Sent on {date}",
+        "slotRequested": "Preferred time: {time}",
+        "awaitingAgent": "The agent has been told on WhatsApp. You'll hear as soon as they reply.",
+        "alternativesSent": "The agent hasn't replied yet, so we've sent you similar properties on WhatsApp.",
+        "proposedSlot": "The agent suggests: {time}",
+        "scheduledFor": "Booked for {date}",
+        "slot": "Time: {time}",
+        "noInstant": "The exact time is still to be agreed with the agent.",
+        "declined": "The agent can't arrange this viewing. Similar properties have been sent to you on WhatsApp.",
+        "agentAbsent": "Thank you for letting us know: our team will get back to you."
+      },
+      "status": {
+        "PENDING": "Viewing requested",
+        "CONFIRMED": "Viewing confirmed",
+        "RESCHEDULED": "New time proposed",
+        "DECLINED": "Agent unavailable",
+        "CANCELLED": "Viewing cancelled",
+        "COMPLETED": "Viewing done"
+      },
+      "acceptSlot": "Accept this time",
+      "cancel": "Cancel the viewing",
+      "cancelConfirmTitle": "Cancel This Viewing?",
+      "cancelConfirmBody": "The agent will be told. To see this property later, you'll need to request a new viewing.",
+      "keep": "Keep the viewing",
+      "howWasItTitle": "How Did the Viewing Go?",
+      "checkin": {
+        "GOOD": "👍 Good",
+        "BAD": "👎 Disappointing",
+        "AGENT_ABSENT": "⚠️ Agent didn't come"
+      },
+      "whyTitle": "What Didn't Suit You?",
+      "reasons": {
+        "PRICE_TOO_HIGH": "The price",
+        "LOCATION_DESELECTED": "The location",
+        "TERMS_UNACCEPTABLE": "The terms",
+        "OTHER": "Something else"
+      },
+      "askQuestion": "A question? Write to Lukka Place",
+      "done": {
+        "cancelled": "Viewing cancelled. The agent has been told.",
+        "cancelledQuiet": "Viewing cancelled.",
+        "slotAccepted": "Time accepted. The agent has been told.",
+        "slotAcceptedQuiet": "Time accepted.",
+        "feedback": "Thank you, your feedback has been saved.",
+        "reason": "Thank you, noted."
+      },
+      "errors": {
+        "failed": "That didn't work just now. Please try again.",
+        "notAllowed": "This viewing can no longer be changed.",
+        "notYet": "You can give feedback once the viewing time has passed."
+      }
     },
     "favorites": {
       "title": "My Saved Listings",
@@ -1072,7 +1153,28 @@
       },
       "syncedNote": "Your saved properties and searches are kept on your account, reachable from any device.",
       "whatsappAlert": "Hello, I'd like to be notified about new properties matching my search.",
-      "signInPrompt": "Sign in to find your saved properties and searches again."
+      "signInPrompt": "Sign in to find your saved properties and searches again.",
+      "removed": "Removed from your saved listings.",
+      "removeFailed": "That property couldn't be removed. Please try again.",
+      "restoreFailed": "That property couldn't be put back in your saved listings.",
+      "savedCount": {
+        "one": "{count} saved property · select two or more to compare",
+        "other": "{count} saved properties · select two or more to compare"
+      },
+      "compareMax": "You can compare up to {max} properties at once.",
+      "compareNote": "Only what is actually recorded on each listing. A criterion none of the selected listings records is left out.",
+      "shareSelection": "Share my selection",
+      "shareMessage": "My property shortlist on Lukka Place: {url}",
+      "unavailable": {
+        "one": "{count} saved property is no longer online (let, sold or withdrawn).",
+        "other": "{count} saved properties are no longer online (let, sold or withdrawn)."
+      },
+      "note": "My note",
+      "addNote": "Add a note",
+      "editNote": "Edit",
+      "notePlaceholder": "Just for you: the roof's condition, a question for the agent…",
+      "noteSaved": "Note saved.",
+      "noteFailed": "The note couldn't be saved."
     },
     "alerts": {
       "title": "My Alerts",
@@ -1099,7 +1201,35 @@
         "one": "{count} new result since your last visit",
         "other": "{count} new results since your last visit"
       },
-      "noneSinceLastVisit": "No new results since your last visit"
+      "noneSinceLastVisit": "No new results since your last visit",
+      "removed": "Alert deleted.",
+      "removeFailed": "The alert couldn't be deleted. Please try again.",
+      "restoreFailed": "The alert couldn't be restored.",
+      "frequencyLabel": "WhatsApp alert",
+      "frequency": {
+        "daily": "Every day",
+        "weekly": "Every week",
+        "off": "Off"
+      },
+      "rename": "Rename",
+      "renamePlaceholder": "Alert name",
+      "prefsSaved": "Alert updated.",
+      "prefsFailed": "The alert couldn't be updated. Please try again.",
+      "lastAlerted": "Last WhatsApp alert: {date}",
+      "whatsappOn": "New properties matching your alerts are sent to you on WhatsApp at {phone}, as often as you've chosen for each one.",
+      "whatsappOff": "WhatsApp alerts are turned off for your account. Your searches stay saved and visible here.",
+      "manageInProfile": "Manage WhatsApp alerts",
+      "whatsappSettingsTitle": "WhatsApp Alerts",
+      "whatsappDisable": "Stop WhatsApp alerts",
+      "whatsappEnable": "Turn WhatsApp alerts back on",
+      "activeCount": {
+        "one": "{count} active search. New matching properties appear here each time you visit.",
+        "other": "{count} active searches. New matching properties appear here each time you visit."
+      },
+      "matchingTotal": {
+        "one": "{count} property matches this search",
+        "other": "{count} properties match this search"
+      }
     },
     "requests": {
       "title": "My Enquiries",
@@ -1169,12 +1299,30 @@
       },
       "viewProposalsBelow": "View proposals below",
       "submittedConfirmation": "Request no. {id} sent to our partner agencies. Follow its progress here.",
-      "submitted": "Submitted Enquiries"
+      "submitted": "Submitted Enquiries",
+      "customSearch": "Custom search",
+      "bedroomsShort": "{count} bd",
+      "budgetValue": "Budget {budget}",
+      "budgetRange": "{min} – {max}",
+      "budgetFrom": "From {min}",
+      "budgetUpTo": "Up to {max}",
+      "requestedOn": "Requested on {date}",
+      "sentOn": "Sent on {date}",
+      "activeProposals": {
+        "one": "{count} active proposal",
+        "other": "{count} active proposals"
+      },
+      "noInternalMessaging": "Lukka Place has no in-app messaging: the agency replies to you directly on WhatsApp, at the number linked to your account.",
+      "proposedByAgency": "Offered by {agency}",
+      "requestNumber": "Request no. {id}",
+      "submittedOn": "Submitted on {date}",
+      "messagesMetaTitle": "Messages & Viewings — Lukka Place"
     },
     "requestForm": {
       "title": "Find One for Me",
       "lead": "Describe the property you're looking for. We pass your request on to Lukka Place partner agencies.",
       "communesUnavailable": "The commune list is unavailable right now. Specify the area you want in the “Notes” field below.",
+      "communesHint": "Select up to {max} communes in Kinshasa. Your request goes to the agencies covering each one.",
       "transactionType": "Transaction Type",
       "targetCommunes": "Target Communes",
       "budgetAndBedrooms": "Budget and Bedrooms",
@@ -1207,7 +1355,8 @@
       "flexibleMonth": "Flexible within a month",
       "updatedWithReset": "Search updated — new proposals reset.",
       "updated": "Search updated.",
-      "submit": "Send my request"
+      "submit": "Send my request",
+      "prefilledFrom": "Pre-filled from your alert “{label}”. Change anything that doesn't fit."
     },
     "profile": {
       "title": "My Profile",
@@ -1228,7 +1377,11 @@
       "deleteConfirm": "Delete Your Account?",
       "deleteAccount": "Delete my account",
       "deleteBody": "Your saved listings and searches will be permanently deleted. This action cannot be undone.",
-      "resetNote": "any password reset goes through."
+      "resetNote": "any password reset goes through.",
+      "lead": "Your details and display preferences.",
+      "memberSince": "Member since {date}",
+      "currencyNote": "Prices are recorded in US dollars. Congolese franc amounts use an indicative rate of {rate} FC to 1 USD, updated on {date} — this is not a live rate.",
+      "securityNote": "Your account is linked to {phone}. Any password reset goes through this number."
     }
   },
   "admin": {
@@ -2438,6 +2591,7 @@
   "errors": {
     "chooseBuyOrRent": "First choose whether you want to buy or rent.",
     "selectAtLeastOneCommune": "Select at least one commune.",
+    "tooManyCommunes": "Select up to {max} communes.",
     "requestNotFound": "Request not found.",
     "selectACommune": "Select a commune.",
     "budgetMinAboveMax": "The minimum budget must be less than or equal to the maximum budget.",

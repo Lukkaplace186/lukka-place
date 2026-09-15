@@ -1,28 +1,30 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { getListings } from '@/lib/listings';
-import { parseListingsSearchParams } from '@/lib/searchQuery';
-import { getSavedSearchesWithPhone, getNotifiedPropertyIds, recordNotifiedProperties } from '@/lib/searchAlerts';
-import { sendWhatsAppTemplate } from '@/lib/adminApi';
-import { formatPrice } from '@/lib/format';
+import { getListings, getRecentListingIds } from '@/lib/listings';
+import {
+  getSavedSearchesDueForAlerts,
+  getNotifiedPropertyIds,
+  recordNotifiedProperties,
+  markSavedSearchAlerted,
+} from '@/lib/searchAlerts';
+import { sendWhatsAppTemplate, sendWhatsAppMessage } from '@/lib/adminApi';
+import { runAlertSweepChunk } from '@/lib/searchAlertSweep';
 
 /**
- * Proactive WhatsApp alert sweep — re-runs every real saved search through
- * the same getListings()/parseListingsSearchParams() the /listings page and
- * the pull-model Alertes tab already use (no second, divergent copy of the
- * filter logic), and texts the owner when a genuinely new match appears.
+ * Proactive WhatsApp alert sweep, ONE CHUNK per call — see
+ * lib/searchAlertSweep.js for what a chunk does and why it is chunked.
  *
- * Not self-scheduling: this route has no cron of its own (a Next.js app has
- * no persistent background process to host one in), so it's a plain
- * secret-protected endpoint meant to be called periodically by something
- * outside this app — a VPS crontab entry, or an external scheduled-ping
- * service. See the deploy notes for the exact command; this file only does
- * the work once invoked.
+ * Called by the engine's scheduler (services/scheduler.js, job
+ * `search-alerts`, daily), which posts `{cursor}` and calls again with the
+ * returned cursor until `done`. Secret-protected; nothing else should call it.
  *
- * Also requires a real Meta-approved WhatsApp template
- * (SEARCH_ALERT_TEMPLATE) before any message can actually be delivered —
- * same external, non-code dependency the existing OTP flow already has
- * (see lib/agents.js's sendAgentOtp).
+ * TEMPLATE FIRST, ONLY WHEN ONE IS CONFIGURED. `SEARCH_ALERT_TEMPLATE` used to
+ * default to 'search_alert', a name nobody has shown Meta approved — the same
+ * default the engine removed from its own templates because every send paid a
+ * guaranteed-failing round trip. Unset now means a plain session message,
+ * which reaches a customer who messaged us in the last 24 hours and silently
+ * nobody else (root CLAUDE.md, "Outbound WhatsApp"). A configured template
+ * that fails falls back to that same message.
  */
 export const dynamic = 'force-dynamic';
 
@@ -41,70 +43,44 @@ export async function POST(request) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 
-  const template = process.env.SEARCH_ALERT_TEMPLATE || 'search_alert';
+  const body = await request.json().catch(() => ({}));
+  const parsedCursor = Number.parseInt(body?.cursor, 10);
+  const template = process.env.SEARCH_ALERT_TEMPLATE || null;
   const languageCode = process.env.SEARCH_ALERT_TEMPLATE_LANG || 'fr';
 
-  // Absolute, because this goes into a WhatsApp message — there is no page
-  // for a relative URL to be relative to. Falls back to the production
-  // origin rather than localhost: a link to localhost in a customer's
-  // WhatsApp is worse than no alert at all.
-  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://lukkaplace.com').replace(/\/+$/, '');
-
-  const searches = await getSavedSearchesWithPhone();
-  let notifiedSearches = 0;
-  let notifiedListings = 0;
-  const errors = [];
-
-  for (const search of searches) {
-    try {
-      const filters = parseListingsSearchParams(new URLSearchParams(search.query));
-      const { data } = await getListings({ ...filters, sort: 'newest', limit: 10 });
-
-      const savedAt = new Date(search.created_at).getTime();
-      const alreadyNotified = await getNotifiedPropertyIds(search.id);
-      const freshMatches = data.filter(
-        (listing) => new Date(listing.created_at).getTime() > savedAt && !alreadyNotified.has(Number(listing.id)),
-      );
-      if (!freshMatches.length) continue;
-
-      const top = freshMatches[0];
-
-      // The link is the point of the whole alert: "nous avons trouvé 3 biens"
-      // has to open exactly those three. `ids` (lib/searchQuery.js) is what
-      // makes the page agree with the number in the message — re-running the
-      // saved search instead would show everything that has ever matched it,
-      // so a visitor told "3" could land on a page of 40.
-      //
-      // The saved search's own query string rides along so the filter bar
-      // opens in the state the customer saved, and clearing the id chip
-      // leaves them in a working search rather than an empty page.
-      const params = new URLSearchParams(search.query);
-      params.set('ids', freshMatches.map((l) => l.id).join(','));
-      const link = `${siteUrl}/listings?${params.toString()}`;
-
-      await sendWhatsAppTemplate(search.phone, {
-        template,
-        languageCode,
-        bodyParams: [
-          search.label,
-          String(freshMatches.length),
-          `${top.title} — ${formatPrice(top.price, top.purpose, top.price_period)}`,
-          link,
-        ],
-      });
-
-      await recordNotifiedProperties(search.id, freshMatches.map((l) => Number(l.id)));
-      notifiedSearches += 1;
-      notifiedListings += freshMatches.length;
-    } catch (err) {
-      // Best-effort across searches — one bad query string or one failed
-      // WhatsApp send must not stop the rest of the sweep, and a failure
-      // here deliberately does NOT record anything as notified, so it's
-      // retried on the next run rather than silently dropped.
-      console.error(`[search-alerts] saved search #${search.id} failed: ${err.message}`);
-      errors.push({ savedSearchId: search.id, error: err.message });
+  async function send(phone, { bodyParams, text }) {
+    if (template) {
+      try {
+        await sendWhatsAppTemplate(phone, { template, languageCode, bodyParams });
+        return;
+      } catch (err) {
+        console.warn(`[search-alerts] template '${template}' failed for ${phone}, sending a session message: ${err.message}`);
+      }
     }
+    await sendWhatsAppMessage(phone, text);
   }
 
-  return NextResponse.json({ checked: searches.length, notifiedSearches, notifiedListings, errors });
+  const result = await runAlertSweepChunk({
+    cursor: Number.isFinite(parsedCursor) ? parsedCursor : 0,
+    // Absolute, because this goes into a WhatsApp message. Falls back to the
+    // production origin rather than localhost: a localhost link in a
+    // customer's WhatsApp is worse than no alert at all.
+    siteUrl: process.env.NEXT_PUBLIC_SITE_URL || 'https://lukkaplace.com',
+    deps: {
+      getRecentListings: getRecentListingIds,
+      getDueSearches: getSavedSearchesDueForAlerts,
+      getListings,
+      getNotified: getNotifiedPropertyIds,
+      send,
+      recordNotified: recordNotifiedProperties,
+      markAlerted: markSavedSearchAlerted,
+    },
+  });
+
+  for (const { savedSearchId, error } of result.errors) {
+    console.error(`[search-alerts] saved search #${savedSearchId} failed: ${error}`);
+  }
+  for (const warning of result.warnings) console.warn(`[search-alerts] ${warning}`);
+
+  return NextResponse.json(result);
 }

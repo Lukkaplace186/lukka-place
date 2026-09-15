@@ -9,23 +9,80 @@ import { LEAD_STATUS_LABEL_KEYS } from '@/lib/adminLabels';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { listingImages, feedLocationLine } from '@/lib/listingView';
 import { formatPrice } from '@/lib/format';
-import { updatePropertyRequestAction } from '../actions';
+import { parseLeadCommunes } from '@/lib/leadCommunes';
+import { viewingTimeline, VIEWING_STATUS_LABEL_KEYS } from '@/lib/viewingTimeline';
+import {
+  updatePropertyRequestAction,
+  cancelViewingAction,
+  acceptViewingSlotAction,
+  checkinViewingAction,
+  viewingFalloffReasonAction,
+} from '../actions';
 import InquiryThreads from './InquiryThreads';
-import { getT } from '@/lib/i18n/server';
+import { getT, getLocale } from '@/lib/i18n/server';
 
-export const metadata = {
-  title: 'Messages & Visites — Lukka Place',
-  robots: { index: false, follow: false },
-};
+// generateMetadata, not a static object: the tab title follows the language.
+export async function generateMetadata() {
+  const t = await getT();
+  return {
+    title: t('account.requests.messagesMetaTitle'),
+    robots: { index: false, follow: false },
+  };
+}
 
 export const dynamic = 'force-dynamic';
 
-const LONG_DATE = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
-const SHORT_DATE = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' });
+/** Dates in the reader's language — these were French for every visitor. */
+function dateFormatters(locale) {
+  const tag = locale === 'en' ? 'en-GB' : 'fr-FR';
+  return {
+    long: new Intl.DateTimeFormat(tag, { day: 'numeric', month: 'long', year: 'numeric' }),
+    short: new Intl.DateTimeFormat(tag, { day: 'numeric', month: 'short' }),
+  };
+}
 
 function formatWith(formatter, value) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? '—' : formatter.format(date);
+}
+
+/**
+ * "samedi 20 septembre à 14:00" — the agreed visit, in Kinshasa's own time.
+ * `scheduled_at` is stored in UTC (services/visitSchedule.js); printing it in
+ * the server's or the browser's timezone would show a diaspora customer in
+ * London a visit an hour off. Null when no instant was agreed, which the
+ * timeline states honestly rather than inventing one.
+ */
+function formatSlot(iso, locale) {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'fr-FR', {
+    timeZone: 'Africa/Kinshasa',
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
+/**
+ * The lead's latest viewing request, as ViewingPanel renders it. The timeline
+ * (and so which buttons exist) is decided here with the server's clock, so the
+ * browser never re-decides "has the visit time passed?" differently.
+ */
+function serialiseViewing(viewing, { now, translate, locale, dates }) {
+  if (!viewing) return null;
+  return {
+    id: viewing.id,
+    status: viewing.status,
+    statusLabel: VIEWING_STATUS_LABEL_KEYS[viewing.status] ? translate(VIEWING_STATUS_LABEL_KEYS[viewing.status]) : viewing.status,
+    requestedTime: viewing.requested_time || null,
+    scheduledAtLabel: formatSlot(viewing.scheduled_at, locale),
+    createdAtLabel: formatWith(dates.long, viewing.created_at),
+    timeline: viewingTimeline(viewing, now),
+  };
 }
 
 /**
@@ -71,9 +128,10 @@ export default async function MessagesPage({ searchParams }) {
   const submittedId = Number.parseInt(String(params?.submitted ?? ''), 10);
   const justSubmitted = Number.isFinite(submittedId) ? submittedId : null;
 
-  const [inquiries, communes] = await Promise.all([
+  const [inquiries, communes, locale] = await Promise.all([
     getCustomerInquiries(session.customerId),
     resolveCommunes(),
+    getLocale(),
   ]);
 
   if (inquiries.length === 0) {
@@ -97,19 +155,26 @@ export default async function MessagesPage({ searchParams }) {
     );
   }
 
-  const threads = inquiries.map(({ lead, listing, proposals }) => ({
+  const now = new Date();
+  const dates = dateFormatters(locale);
+  const threads = inquiries.map(({ lead, listing, proposals, viewings }) => ({
     id: lead.id,
     status: lead.status,
     statusLabel: LEAD_STATUS_LABEL_KEYS[lead.status] ? t(LEAD_STATUS_LABEL_KEYS[lead.status]) : lead.status,
     summary: lead.requirements_summary || null,
-    createdAtLabel: formatWith(LONG_DATE, lead.created_at),
-    createdAtShort: formatWith(SHORT_DATE, lead.created_at),
-    isViewing: isViewingLead(lead),
+    createdAtLabel: formatWith(dates.long, lead.created_at),
+    createdAtShort: formatWith(dates.short, lead.created_at),
+    // A real viewing_requests row is the signal now; the lead status only
+    // covers older assistant leads with no request row behind them.
+    isViewing: (viewings?.length ?? 0) > 0 || isViewingLead(lead),
+    viewing: serialiseViewing(viewings?.[0], { now, translate: t, locale, dates }),
     // Real fields backing the "Recherche personnalisée" status banner below
     // (InquiryThreads.js) — commune is the request's own real column, and
     // agentId is the same real assignment /admin/leads now writes (Request
     // Assignment Routing), not a fabricated pipeline stage.
     commune: lead.commune || null,
+    // Every commune the request names, primary first (leads.communes).
+    communes: parseLeadCommunes(lead),
     agentId: lead.agent_id || null,
     // Structured request fields — real columns POST /leads already writes
     // (root CLAUDE.md's Lead Routing Rules), now also shown/editable in
@@ -175,6 +240,12 @@ export default async function MessagesPage({ searchParams }) {
         whatsappNumber={process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || null}
         communes={communes}
         updateAction={updatePropertyRequestAction}
+        viewingActions={{
+          cancel: cancelViewingAction,
+          acceptSlot: acceptViewingSlotAction,
+          checkin: checkinViewingAction,
+          falloff: viewingFalloffReasonAction,
+        }}
         initialThreadId={confirmed ? justSubmitted : null}
       />
     </div>

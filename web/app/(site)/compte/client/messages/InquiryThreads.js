@@ -20,9 +20,17 @@ import { buildWhatsAppLink } from '@/lib/whatsapp';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import EditPropertyRequestDialog from './EditPropertyRequestDialog';
+import ViewingPanel from './ViewingPanel';
+import { VIEWING_STATUS_TONES } from '@/lib/viewingTimeline';
 import { useT } from '@/lib/i18n/client';
 
 const TRANSACTION_TYPE_LABEL_KEYS = { vente: 'search.tags.purchase', location: 'search.tags.rental' };
+
+/** Every commune a thread names; `communes` is parsed server-side (messages/page.js). */
+function threadCommunes(thread) {
+  if (Array.isArray(thread.communes) && thread.communes.length > 0) return thread.communes;
+  return thread.commune ? [thread.commune] : [];
+}
 
 /**
  * "Location · Limete · 2 ch. · Budget 843 $ – 960 $" — a compact title built
@@ -40,20 +48,21 @@ const TRANSACTION_TYPE_LABEL_KEYS = { vente: 'search.tags.purchase', location: '
  * the fully generic label.
  */
 function customSearchTitle(thread, t) {
-  const hasStructured = thread.commune || thread.priceMin != null || thread.priceMax != null || thread.bedrooms != null;
+  const communes = threadCommunes(thread);
+  const hasStructured = communes.length > 0 || thread.priceMin != null || thread.priceMax != null || thread.bedrooms != null;
   if (hasStructured) {
     const parts = [];
     if (thread.transactionType) {
       const key = TRANSACTION_TYPE_LABEL_KEYS[thread.transactionType];
       parts.push(key ? t(key) : thread.transactionType);
     }
-    if (thread.commune) parts.push(thread.commune);
-    if (thread.bedrooms != null) parts.push(`${thread.bedrooms} ch.`);
-    const budget = budgetLabel(thread.priceMin, thread.priceMax);
-    if (budget) parts.push(`Budget ${budget}`);
+    if (communes.length > 0) parts.push(communes.join(', '));
+    if (thread.bedrooms != null) parts.push(t('account.requests.bedroomsShort', { count: thread.bedrooms }));
+    const budget = budgetLabel(thread.priceMin, thread.priceMax, t);
+    if (budget) parts.push(t('account.requests.budgetValue', { budget }));
     return parts.join(' · ');
   }
-  return thread.summary || 'Recherche personnalisée';
+  return thread.summary || t('account.requests.customSearch');
 }
 
 /**
@@ -81,8 +90,9 @@ function customSearchTrackerSteps(thread, t) {
     proposalsCount > 0
       ? t('account.requests.agenciesInterested', { count: proposalsCount })
       : t('account.requests.agenciesAnalysing');
-  const analysingDescription = thread.commune
-    ? t('account.requests.stepDescriptions.analysingWithCommune', { commune: thread.commune })
+  const communeList = threadCommunes(thread);
+  const analysingDescription = communeList.length > 0
+    ? t('account.requests.stepDescriptions.analysingWithCommune', { commune: communeList.join(', ') })
     : t('account.requests.stepDescriptions.analysing');
   const interestDescription =
     proposalsCount > 0
@@ -201,14 +211,14 @@ function StatusTracker({ steps, onProposalsClick, viewProposalsLabel }) {
   );
 }
 
-/** "800 $ – 1 500 $" / "à partir de 800 $" / "jusqu'à 1 500 $" — same rounding-free real figures the lead was submitted with. */
-function budgetLabel(priceMin, priceMax) {
-  const fmt = (n) => `${Number(n).toLocaleString('fr-FR')} $`;
+/** "800 $ – 1 500 $" / "à partir de 800 $" / "jusqu'à 1 500 $" — same rounding-free real figures the lead was submitted with, grouped for the reader's language. */
+function budgetLabel(priceMin, priceMax, t) {
+  const fmt = (n) => `${Number(n).toLocaleString(t.locale === 'en' ? 'en-US' : 'fr-FR')} $`;
   const hasMin = priceMin != null && Number.isFinite(Number(priceMin));
   const hasMax = priceMax != null && Number.isFinite(Number(priceMax));
-  if (hasMin && hasMax) return `${fmt(priceMin)} – ${fmt(priceMax)}`;
-  if (hasMin) return `À partir de ${fmt(priceMin)}`;
-  if (hasMax) return `Jusqu'à ${fmt(priceMax)}`;
+  if (hasMin && hasMax) return t('account.requests.budgetRange', { min: fmt(priceMin), max: fmt(priceMax) });
+  if (hasMin) return t('account.requests.budgetFrom', { min: fmt(priceMin) });
+  if (hasMax) return t('account.requests.budgetUpTo', { max: fmt(priceMax) });
   return null;
 }
 
@@ -319,6 +329,9 @@ export default function InquiryThreads({
   whatsappNumber,
   communes = [],
   updateAction,
+  // Server actions for a viewing's real answers (cancel, accept a new slot,
+  // check-in, reason) — see ./ViewingPanel.js and ../actions.js.
+  viewingActions = null,
   // Set when the customer arrives straight from submitting a request
   // (../actions.js redirects here with ?submitted=<id>), so the tab opens on
   // the thread they just created rather than on whatever sorts first. It is
@@ -365,24 +378,12 @@ export default function InquiryThreads({
   // several pitching proposals) — using the central number here is an
   // honest fallback to a real gap, not fabricating an agent contact that
   // isn't recorded. Worth a real product decision if this needs closing.
-  const rescheduleHref =
-    whatsappNumber && active?.isViewing
-      ? buildWhatsAppLink(
-          whatsappNumber,
-          active.listing
-            ? `Bonjour, je souhaite convenir d'un créneau pour la visite de l'annonce Ref: ${active.listing.reference || `#${active.listing.id}`}.`
-            : `Bonjour, je souhaite convenir d'un créneau pour ma demande de visite n° ${active.id}.`,
-        )
-      : null;
-  const cancelHref =
-    whatsappNumber && active?.isViewing
-      ? buildWhatsAppLink(
-          whatsappNumber,
-          active.listing
-            ? `Bonjour, je souhaite annuler ma demande de visite pour l'annonce Ref: ${active.listing.reference || `#${active.listing.id}`}.`
-            : `Bonjour, je souhaite annuler ma demande de visite n° ${active.id}.`,
-        )
-      : null;
+  //
+  // Superseded: a viewing's actions are real now (ViewingPanel — cancel and
+  // accept go through the engine, which tells the agent), and ViewingPanel
+  // keeps a central-number link for questions only. The note above about no
+  // agent being recorded on a viewing is also stale: viewing_requests.agent_id
+  // exists, and the engine resolves the agent itself.
 
   // `grid-cols-1` is load-bearing on mobile, not decorative. A bare `grid`
   // leaves the single track at `auto`, which sizes to the widest child's
@@ -442,7 +443,13 @@ export default function InquiryThreads({
                     </p>
                   ) : null}
                   <span className="mt-2 flex flex-wrap items-center gap-2">
-                    {thread.listing ? (
+                    {thread.viewing ? (
+                      // A visit's own state ("Visite confirmée") says far more
+                      // than the lead's CRM stage ever did.
+                      <PortalBadge tone={VIEWING_STATUS_TONES[thread.viewing.status] || 'neutral'}>
+                        {thread.viewing.statusLabel}
+                      </PortalBadge>
+                    ) : thread.listing ? (
                       <PortalBadge tone={THREAD_TONES[thread.status] || 'neutral'}>{thread.statusLabel}</PortalBadge>
                     ) : (
                       <PortalBadge tone={customSearchStatus(thread, t).tone}>{customSearchStatus(thread, t).label}</PortalBadge>
@@ -489,7 +496,7 @@ export default function InquiryThreads({
               </p>
               <p className="u-tabular mt-1 text-[0.8125rem] text-ink-45">
                 {active.listing?.priceLabel ? `${active.listing.priceLabel} · ` : ''}
-                Demande du {active.createdAtLabel}
+                {t('account.requests.requestedOn', { date: active.createdAtLabel })}
               </p>
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-3">
@@ -501,31 +508,6 @@ export default function InquiryThreads({
                   {t('account.requests.viewListing')}
                   <ArrowUpRight strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
                 </Link>
-              ) : null}
-              {active.isViewing ? (
-                <>
-                  {rescheduleHref ? (
-                    <a
-                      href={rescheduleHref}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 rounded-full bg-green px-4 py-2 text-[0.8125rem] font-semibold text-white transition-colors hover:bg-green-deep"
-                    >
-                      <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
-                      {t('account.requests.arrangeSlot')}
-                    </a>
-                  ) : null}
-                  {cancelHref ? (
-                    <a
-                      href={cancelHref}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center rounded-full px-4 py-2 text-[0.8125rem] font-semibold text-ink-45 transition-colors hover:bg-canvas-alt hover:text-ink"
-                    >
-                      {t('account.requests.cancelViewing')}
-                    </a>
-                  ) : null}
-                </>
               ) : null}
               {/* No generic "contact the platform" CTA here any more, for
                   either thread type — a listing-attached thread still has
@@ -552,6 +534,15 @@ export default function InquiryThreads({
               </div>
             ) : null}
 
+            {active.viewing ? (
+              <ViewingPanel
+                key={active.viewing.id}
+                viewing={active.viewing}
+                actions={viewingActions}
+                whatsappNumber={whatsappNumber}
+              />
+            ) : null}
+
             <div className="flex flex-wrap items-center gap-3">
               {active.listing ? (
                 <PortalBadge tone={THREAD_TONES[active.status] || 'neutral'}>{active.statusLabel}</PortalBadge>
@@ -559,9 +550,9 @@ export default function InquiryThreads({
                 <PortalBadge tone={customSearchStatus(active, t).tone}>{customSearchStatus(active, t).label}</PortalBadge>
               )}
               <span className="text-[0.8125rem] text-ink-45">
-                Envoyée le {active.createdAtLabel}
+                {t('account.requests.sentOn', { date: active.createdAtLabel })}
                 {active.proposals?.length > 0
-                  ? ` · ${active.proposals.length} proposition${active.proposals.length > 1 ? 's' : ''} active${active.proposals.length > 1 ? 's' : ''}`
+                  ? ` · ${t('account.requests.activeProposals', { count: active.proposals.length })}`
                   : ''}
               </span>
             </div>
@@ -575,7 +566,7 @@ export default function InquiryThreads({
                     action={updateAction}
                     communes={communes}
                     transactionType={active.transactionType}
-                    commune={active.commune}
+                    selectedCommunes={threadCommunes(active)}
                     priceMin={active.priceMin}
                     priceMax={active.priceMax}
                     bedrooms={active.bedrooms}
@@ -596,10 +587,10 @@ export default function InquiryThreads({
                       </dd>
                     </div>
                   ) : null}
-                  {active.commune ? (
+                  {threadCommunes(active).length > 0 ? (
                     <div>
                       <dt className="text-[0.75rem] text-ink-45">{t('account.requests.commune')}</dt>
-                      <dd className="mt-0.5 text-[0.875rem] font-bold text-ink">{active.commune}</dd>
+                      <dd className="mt-0.5 text-[0.875rem] font-bold text-ink">{threadCommunes(active).join(', ')}</dd>
                     </div>
                   ) : null}
                   {active.bedrooms != null ? (
@@ -608,11 +599,11 @@ export default function InquiryThreads({
                       <dd className="u-tabular mt-0.5 text-[0.875rem] font-bold text-ink">{active.bedrooms}</dd>
                     </div>
                   ) : null}
-                  {budgetLabel(active.priceMin, active.priceMax) ? (
+                  {budgetLabel(active.priceMin, active.priceMax, t) ? (
                     <div>
                       <dt className="text-[0.75rem] text-ink-45">{t('account.requests.budget')}</dt>
                       <dd className="u-tabular mt-0.5 text-[0.875rem] font-bold text-ink">
-                        {budgetLabel(active.priceMin, active.priceMax)}
+                        {budgetLabel(active.priceMin, active.priceMax, t)}
                       </dd>
                     </div>
                   ) : null}
@@ -630,8 +621,7 @@ export default function InquiryThreads({
 
             {active.listing ? (
               <p className="text-[0.8125rem] leading-[1.55] text-ink-45">
-                Lukka Place n&apos;a pas de messagerie interne : la réponse de l&apos;agence vous parvient directement
-                {t('account.requests.onWhatsAppAtNumber')}
+                {t('account.requests.noInternalMessaging')}
               </p>
             ) : active.proposals?.length === 0 ? (
               <div className="rounded-card bg-blue-tint p-5">
@@ -686,7 +676,7 @@ export default function InquiryThreads({
                             {property.beds != null ? (
                               <span className="inline-flex items-center gap-1">
                                 <BedDouble strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
-                                {property.beds} ch.
+                                {t('account.requests.bedroomsShort', { count: property.beds })}
                               </span>
                             ) : null}
                             {property.location ? (
@@ -697,7 +687,9 @@ export default function InquiryThreads({
                             ) : null}
                           </div>
                           {property.agencyName ? (
-                            <p className="text-[0.75rem] text-ink-45">Proposé par {property.agencyName}</p>
+                            <p className="text-[0.75rem] text-ink-45">
+                              {t('account.requests.proposedByAgency', { agency: property.agencyName })}
+                            </p>
                           ) : null}
                           <div className="mt-2 flex flex-wrap gap-2">
                             {whatsappHref && (

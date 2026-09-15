@@ -20,11 +20,19 @@ const chakra = require('../services/chakra');
 const { STATES } = require('../services/conversationState');
 const { dispatchLead, dispatchLeadInBackground } = require('../services/leadDispatch');
 const {
+  normaliseLeadCommunes,
+  leadCommunes,
+  communesRemoved,
+  communesAdded,
+} = require('../services/leadCommunes');
+const {
   notifyViewingRequestInBackground,
   reassignViewing,
   nudgeViewingAgent,
   respondFromDashboard,
   DASHBOARD_TRANSITIONS,
+  respondFromCustomer,
+  CUSTOMER_TRANSITIONS,
 } = require('../services/viewingNotifications');
 const { parseFrenchSlot } = require('../services/visitSchedule');
 
@@ -224,6 +232,10 @@ router.post('/leads', (req, res) => {
     // commune-based routing for every request submitted that way.
     transaction_type: transactionType,
     commune,
+    // Every commune the customer picked (services/leadCommunes.js). Before
+    // this, only the first reached the engine, and the agencies covering the
+    // rest were never pushed the request.
+    communes: communesRaw,
     price_min: priceMin,
     price_max: priceMax,
     bedrooms,
@@ -231,6 +243,8 @@ router.post('/leads', (req, res) => {
   if (!waId) {
     return res.status(400).json({ success: false, error: 'wa_id is required.' });
   }
+
+  const requestedCommunes = normaliseLeadCommunes(communesRaw, commune);
 
   try {
     const lead = db.createLead({
@@ -241,7 +255,8 @@ router.post('/leads', (req, res) => {
       assigned_agent: assignedAgent || null,
       requirements_summary: requirementsSummary || null,
       transaction_type: transactionType || null,
-      commune: commune || null,
+      commune: requestedCommunes[0] || null,
+      communes: requestedCommunes.length > 1 ? JSON.stringify(requestedCommunes) : null,
       price_min: priceMin ?? null,
       price_max: priceMax ?? null,
       bedrooms: bedrooms ?? null,
@@ -558,6 +573,7 @@ router.patch('/leads/:id', (req, res) => {
     // db.LEAD_REQUIREMENT_FIELDS exactly.
     transaction_type: transactionType,
     commune,
+    communes: communesRaw,
     quartier,
     price_min: priceMin,
     price_max: priceMax,
@@ -573,6 +589,16 @@ router.patch('/leads/:id', (req, res) => {
     bedrooms,
     requirements_summary: requirementsSummary,
   };
+
+  // A patch that touches location rewrites BOTH columns together, so a
+  // single-commune edit can never leave a stale multi-commune list behind it.
+  const previousCommunes = leadCommunes(existingLead);
+  let nextCommunes = null;
+  if (communesRaw !== undefined || commune !== undefined) {
+    nextCommunes = normaliseLeadCommunes(communesRaw, commune);
+    requirementsPatch.commune = nextCommunes[0] ?? null;
+    requirementsPatch.communes = nextCommunes.length > 1 ? JSON.stringify(nextCommunes) : null;
+  }
   const hasRequirementsPatch = Object.values(requirementsPatch).some((v) => v !== undefined);
 
   if (status === undefined && agentId === undefined && assignedAgent === undefined && !hasRequirementsPatch) {
@@ -589,8 +615,14 @@ router.patch('/leads/:id', (req, res) => {
   // commune (every other PATCH caller — status changes, Request Assignment
   // Routing — never touches this field, so `undefined` correctly means
   // "leave it alone", same as updateLeadRequirements' own convention.
-  const communeChanged =
-    requirementsPatch.commune !== undefined && requirementsPatch.commune !== existingLead.commune;
+  //
+  // With several communes per request, "changed" means a commune the request
+  // named is gone: a proposal does not record which commune it was pitched
+  // for, so any removal may have made one irrelevant. A pure addition keeps
+  // every proposal (each was pitched for a commune still wanted) and instead
+  // pushes the request to the agencies covering the new commune.
+  const communeChanged = nextCommunes !== null && communesRemoved(previousCommunes, nextCommunes);
+  const addedCommunes = nextCommunes !== null ? communesAdded(previousCommunes, nextCommunes) : [];
 
   try {
     if (status !== undefined) db.updateLeadStatus(id, status);
@@ -606,7 +638,11 @@ router.patch('/leads/:id', (req, res) => {
     // pitches_count=0 win over anything the requirements patch itself set —
     // a stale pitch count is exactly what this is meant to fix.
     if (communeChanged) db.resetLeadProposals(id);
-    return res.json({ success: true, lead: db.getLead(id), proposals_reset: communeChanged });
+    const updatedLead = db.getLead(id);
+    // Idempotent on (lead_id, agent_id): an agency already pushed this request
+    // is skipped, so only the new commune's agencies hear about it.
+    if (addedCommunes.length > 0) dispatchLeadInBackground(updatedLead);
+    return res.json({ success: true, lead: updatedLead, proposals_reset: communeChanged });
   } catch (err) {
     return res.status(400).json({ success: false, error: err.message });
   }
@@ -637,6 +673,9 @@ router.post('/viewing-requests', (req, res) => {
 
   try {
     const viewingRequest = db.createViewingRequest({ leadId: numericLeadId, propertyId, requestedTime });
+    // The lead IS a visit request now. Without this the web form's leads sat at
+    // NEW forever, and the customer's own account could not show them as visits.
+    db.markLeadViewingRequested(numericLeadId);
 
     // THE SEND THE LISTING PAGE ALREADY PROMISES.
     //
@@ -682,6 +721,26 @@ router.get('/viewing-requests', (req, res) => {
     return res.json({ success: true, ...page });
   } catch (err) {
     console.error(`[admin] GET /viewing-requests failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not read viewing requests.' });
+  }
+});
+
+const CUSTOMER_WA_ID = /^\d{7,15}$/;
+
+/**
+ * One customer's own viewing requests — web/'s Espace Client visit timeline.
+ * web/ passes the signed-in account's stored phone; the same digits-only gate
+ * as every other wa_id in this file.
+ */
+router.get('/viewing-requests/by-customer', (req, res) => {
+  const waId = String(req.query.wa_id || '');
+  if (!CUSTOMER_WA_ID.test(waId)) {
+    return res.status(400).json({ success: false, error: 'wa_id must be a real digits-only WhatsApp number.' });
+  }
+  try {
+    return res.json({ success: true, data: db.listViewingRequestsForCustomer(waId, { limit: req.query.limit }) });
+  } catch (err) {
+    console.error(`[admin] GET /viewing-requests/by-customer failed: ${err.message}`);
     return res.status(500).json({ success: false, error: 'Could not read viewing requests.' });
   }
 });
@@ -810,6 +869,119 @@ router.post('/viewing-requests/:id/agent-response', async (req, res) => {
   } catch (err) {
     console.error(`[admin] POST /viewing-requests/${id}/agent-response failed: ${err.message}`);
     return res.status(500).json({ success: false, error: 'Could not record the agent response.' });
+  }
+});
+
+/**
+ * A CUSTOMER's own answer from the Espace Client: cancel the visit, or accept
+ * the new slot an agent proposed. respondFromCustomer re-checks that wa_id is
+ * this request's customer, and a request that is not theirs is a 404 — the
+ * same answer as one that does not exist, so ids cannot be probed.
+ */
+router.post('/viewing-requests/:id/customer-response', async (req, res) => {
+  const id = Number.parseInt(req.params.id, 10);
+  if (!Number.isFinite(id)) {
+    return res.status(404).json({ success: false, error: 'Viewing request not found.' });
+  }
+  const waId = String(req.body?.wa_id || '');
+  if (!CUSTOMER_WA_ID.test(waId)) {
+    return res.status(400).json({ success: false, error: 'wa_id must be a real digits-only WhatsApp number.' });
+  }
+  const action = req.body?.action;
+  const allowed = Object.keys(CUSTOMER_TRANSITIONS);
+  if (!allowed.includes(action)) {
+    return res.status(400).json({ success: false, error: `action must be one of: ${allowed.join(', ')}` });
+  }
+
+  try {
+    const result = await respondFromCustomer({ viewingRequestId: id, waId, action });
+    if (!result.ok) {
+      const httpStatus = result.reason === 'unknown-request' ? 404 : 400;
+      const error = {
+        'unknown-request': 'Viewing request not found.',
+        'invalid-transition': `A ${result.current} viewing request cannot be ${action === 'CANCEL' ? 'cancelled' : 'accepted'}.`,
+      }[result.reason] || result.reason;
+      return res.status(httpStatus).json({ success: false, error, reason: result.reason });
+    }
+    return res.json({ success: true, ...result });
+  } catch (err) {
+    console.error(`[admin] POST /viewing-requests/${id}/customer-response failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not record the customer response.' });
+  }
+});
+
+const WEB_CHECKIN_RESPONSES = ['GOOD', 'BAD', 'AGENT_ABSENT'];
+
+/** The customer's viewing, only if it is theirs — or null. */
+function customersOwnViewing(id, waId) {
+  const request = Number.isFinite(id) ? db.getViewingRequestWithLead(id) : null;
+  if (!request) return null;
+  return String(request.lead_wa_id || '').replace(/\D/g, '') === waId ? request : null;
+}
+
+/**
+ * "Comment s'est passée la visite ?" answered in the Espace Client instead of
+ * on WhatsApp. Same recordCheckinResponse as the WhatsApp buttons — so the
+ * same COMPLETED / VIEWING_COMPLETED / no-show escalation — minus the WhatsApp
+ * thank-you and the WhatsApp reason question, which the page asks itself.
+ *
+ * Only once the agreed time has passed: asking how a visit went before it
+ * happened is exactly what the check-in sweep refuses to do.
+ */
+router.post('/viewing-requests/:id/checkin', async (req, res) => {
+  const id = Number.parseInt(req.params.id, 10);
+  const waId = String(req.body?.wa_id || '');
+  if (!CUSTOMER_WA_ID.test(waId)) {
+    return res.status(400).json({ success: false, error: 'wa_id must be a real digits-only WhatsApp number.' });
+  }
+  const response = req.body?.response;
+  if (!WEB_CHECKIN_RESPONSES.includes(response)) {
+    return res.status(400).json({ success: false, error: `response must be one of: ${WEB_CHECKIN_RESPONSES.join(', ')}` });
+  }
+  const request = customersOwnViewing(id, waId);
+  if (!request) return res.status(404).json({ success: false, error: 'Viewing request not found.' });
+  if (request.checkin_response) {
+    return res.json({ success: true, unchanged: true, response: request.checkin_response, status: request.status });
+  }
+  const scheduled = request.scheduled_at ? new Date(request.scheduled_at) : null;
+  if (request.status !== 'CONFIRMED' || !scheduled || Number.isNaN(scheduled.getTime()) || scheduled > new Date()) {
+    return res.status(400).json({ success: false, error: 'This visit cannot be reviewed yet.', reason: 'not-yet' });
+  }
+
+  try {
+    const { recordCheckinResponse } = require('../services/viewingSweeps');
+    await recordCheckinResponse({ from: waId, viewingRequestId: id, response, notifyCustomer: false });
+    return res.json({ success: true, unchanged: false, response, status: db.getViewingRequest(id).status });
+  } catch (err) {
+    console.error(`[admin] POST /viewing-requests/${id}/checkin failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not record the visit feedback.' });
+  }
+});
+
+/** Why a visit fell through, after a 👎 given in the Espace Client. */
+router.post('/viewing-requests/:id/falloff-reason', async (req, res) => {
+  const id = Number.parseInt(req.params.id, 10);
+  const waId = String(req.body?.wa_id || '');
+  if (!CUSTOMER_WA_ID.test(waId)) {
+    return res.status(400).json({ success: false, error: 'wa_id must be a real digits-only WhatsApp number.' });
+  }
+  const { recordFalloffReason, FALLOFF_REASON_BY_CHOICE } = require('../services/viewingSweeps');
+  const code = req.body?.code;
+  if (!Object.values(FALLOFF_REASON_BY_CHOICE).includes(code)) {
+    return res.status(400).json({ success: false, error: 'Unknown reason code.' });
+  }
+  const request = customersOwnViewing(id, waId);
+  if (!request) return res.status(404).json({ success: false, error: 'Viewing request not found.' });
+  if (request.checkin_response !== 'BAD') {
+    return res.status(400).json({ success: false, error: 'A reason follows a disappointing visit only.', reason: 'not-applicable' });
+  }
+
+  try {
+    await recordFalloffReason({ from: waId, viewingRequestId: id, code, notifyCustomer: false });
+    return res.json({ success: true, code });
+  } catch (err) {
+    console.error(`[admin] POST /viewing-requests/${id}/falloff-reason failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not record the reason.' });
   }
 });
 

@@ -45,15 +45,18 @@
 const db = require('./db');
 
 /**
- * Local-time day (0 = Sunday) and hour the weekly sweep should fire.
- * Monday 09:00 by default — Kinshasa is UTC+1, and the server clock is what
- * this reads, so a UTC box fires at 10:00 local. Env-driven precisely so that
- * can be corrected without a deploy.
+ * Local-time hour the daily alert sweep fires. 09:00 by default — Kinshasa is
+ * UTC+1, and the server clock is what this reads, so a UTC box fires at 10:00
+ * local. Env-driven precisely so that can be corrected without a deploy.
+ *
+ * DAILY, NOT WEEKLY. Each saved search now carries its own frequency
+ * (customer_saved_searches.alert_frequency: daily / weekly / off), and the web
+ * sweep skips a search whose last alert is too recent for its frequency. A
+ * weekly sweep could not honour "chaque jour"; a daily one honours both.
+ * SEARCH_ALERT_DAY is no longer read.
  */
-const WEEKLY_DAY = Number.parseInt(process.env.SEARCH_ALERT_DAY, 10);
-const WEEKLY_HOUR = Number.parseInt(process.env.SEARCH_ALERT_HOUR, 10);
-const ALERT_DAY = Number.isFinite(WEEKLY_DAY) ? WEEKLY_DAY : 1;
-const ALERT_HOUR = Number.isFinite(WEEKLY_HOUR) ? WEEKLY_HOUR : 9;
+const CONFIGURED_HOUR = Number.parseInt(process.env.SEARCH_ALERT_HOUR, 10);
+const ALERT_HOUR = Number.isFinite(CONFIGURED_HOUR) ? CONFIGURED_HOUR : 9;
 
 /**
  * How often the clock is checked.
@@ -67,14 +70,27 @@ const ALERT_HOUR = Number.isFinite(WEEKLY_HOUR) ? WEEKLY_HOUR : 9;
 const TICK_MS = 60 * 1000;
 
 /**
- * Minimum gap between two successful sweeps. Six days rather than seven so a
- * tick that lands a few minutes early, or a week where the process restarted
- * across the window, still fires — while remaining far too long to ever send
- * a customer two alert messages in the same week.
+ * Minimum gap between two successful sweeps. 20 hours rather than 24 so a tick
+ * that lands a few minutes early still fires the next day — while the sixty
+ * ticks inside the firing hour can never start a second sweep. A customer is
+ * protected from repeats twice over below that: per search by
+ * `last_alerted_at` against its frequency, and per listing by
+ * saved_search_notifications' UNIQUE (saved_search_id, property_id).
  */
-const MIN_GAP_MS = 6 * 24 * 60 * 60 * 1000;
+const MIN_GAP_MS = 20 * 60 * 60 * 1000;
 
-const JOB_NAME = 'search-alerts-weekly';
+/**
+ * Renamed from 'search-alerts-weekly' with the move to a daily cadence. The old
+ * job_runs row simply stops being written; nothing reads it.
+ */
+const JOB_NAME = 'search-alerts';
+
+/**
+ * The web endpoint works in chunks (one page of saved searches per call, under
+ * a time budget) and returns a cursor; the sweep calls it until it says done.
+ * This bounds a runaway: at 200 searches a chunk it is 100,000 searches.
+ */
+const MAX_SWEEP_CHUNKS = 500;
 
 function webBaseUrl() {
   return (process.env.WEB_BASE_URL || process.env.PUBLIC_SITE_URL || 'https://lukkaplace.com').replace(/\/+$/, '');
@@ -90,26 +106,46 @@ function webBaseUrl() {
  * in this repo would be a second definition of "a new match", free to drift
  * from the one customers actually see on their Alertes tab.
  */
-async function runSearchAlertSweep() {
+async function runSearchAlertSweep({ fetchImpl = fetch } = {}) {
   const secret = process.env.CRON_SECRET;
   if (!secret) {
     throw new Error('CRON_SECRET is not set — the alert endpoint would reject this call');
   }
 
   const url = `${webBaseUrl()}/api/cron/search-alerts`;
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' },
-    // The sweep walks every saved search and makes a WhatsApp call per hit,
-    // so it is genuinely slow. Long timeout, and it only ever runs weekly.
-    signal: AbortSignal.timeout(5 * 60 * 1000),
-  });
+  const totals = { chunks: 0, checked: 0, notifiedSearches: 0, notifiedListings: 0, errors: 0 };
+  let cursor = null;
 
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(`alert sweep returned ${response.status}: ${JSON.stringify(body).slice(0, 300)}`);
+  // One request used to walk every saved search in a single HTTP call with a
+  // five-minute timeout — fine at a few hundred searches, and a guaranteed
+  // timeout long before 100,000. Each chunk is now short, and a failure part
+  // way through retries on the next tick from the start: already-sent listings
+  // are skipped by the web side's per-listing bookkeeping, so a retry resends
+  // nothing.
+  for (let chunk = 0; chunk < MAX_SWEEP_CHUNKS; chunk += 1) {
+    const response = await fetchImpl(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cursor }),
+      signal: AbortSignal.timeout(2 * 60 * 1000),
+    });
+
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(`alert sweep returned ${response.status}: ${JSON.stringify(body).slice(0, 300)}`);
+    }
+
+    totals.chunks += 1;
+    totals.checked += Number(body.checked) || 0;
+    totals.notifiedSearches += Number(body.notifiedSearches) || 0;
+    totals.notifiedListings += Number(body.notifiedListings) || 0;
+    totals.errors += Array.isArray(body.errors) ? body.errors.length : 0;
+
+    // A cursor that does not move would loop forever on the same page.
+    if (body.done || body.cursor == null || body.cursor === cursor) return totals;
+    cursor = body.cursor;
   }
-  return body;
+  throw new Error(`alert sweep did not finish within ${MAX_SWEEP_CHUNKS} chunks`);
 }
 
 /**
@@ -120,7 +156,7 @@ async function runSearchAlertSweep() {
  * what stops the sixty ticks inside that hour from firing sixty sweeps.
  */
 function shouldRunNow(now = new Date()) {
-  if (now.getDay() !== ALERT_DAY || now.getHours() !== ALERT_HOUR) return false;
+  if (now.getHours() !== ALERT_HOUR) return false;
   const last = db.getLastJobRun(JOB_NAME);
   if (!last?.succeeded_at) return true;
   return Date.now() - new Date(last.succeeded_at).getTime() >= MIN_GAP_MS;
@@ -265,10 +301,9 @@ function start() {
   // Ctrl-C rather than hanging on the interval.
   timer.unref?.();
 
-  const dayNames = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
   console.log(
     `[scheduler] started — ${JOBS.length} job(s), tick ${TICK_MS / 1000}s; ` +
-      `alertes clients chaque ${dayNames[ALERT_DAY] || ALERT_DAY} à ${ALERT_HOUR}h`,
+      `alertes clients chaque jour à ${ALERT_HOUR}h`,
   );
   return timer;
 }
@@ -285,9 +320,9 @@ module.exports = {
   shouldRunNow,
   runSearchAlertSweep,
   JOB_NAME,
-  ALERT_DAY,
   ALERT_HOUR,
   MIN_GAP_MS,
+  MAX_SWEEP_CHUNKS,
   TICK_MS,
   // The multi-job runner.
   registerJob,

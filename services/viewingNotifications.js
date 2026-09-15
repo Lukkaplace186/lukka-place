@@ -1290,6 +1290,7 @@ async function respondFromDashboard({ viewingRequestId, agentId, status, request
     );
   } else {
     dbService.updateViewingRequest(request.id, { status: 'CANCELLED' });
+    dbService.setViewingCancelledBy(request.id, 'AGENT');
     try {
       dbService.recordViewingFirstResponse(request.id);
       dbService.setViewingAgentResponseVia(request.id, 'DASHBOARD');
@@ -1321,6 +1322,132 @@ async function respondFromDashboard({ viewingRequestId, agentId, status, request
     scheduledAt,
     ...(alternatives === undefined ? {} : { alternatives }),
   };
+}
+
+/**
+ * What a CUSTOMER may do to their own viewing request from the Espace Client.
+ * The mirror of DASHBOARD_TRANSITIONS, and deliberately smaller:
+ *   CANCEL       they changed their plans — from any state still in play.
+ *   ACCEPT_SLOT  they take the new time an agent proposed. Until now the only
+ *                answer was "reply to this WhatsApp and we pass it on".
+ * web/lib/viewingTimeline.js decides which buttons exist from the same rules.
+ */
+const CUSTOMER_TRANSITIONS = Object.freeze({
+  CANCEL: Object.freeze({ from: Object.freeze(['PENDING', 'RESCHEDULED', 'CONFIRMED']), to: 'CANCELLED' }),
+  ACCEPT_SLOT: Object.freeze({ from: Object.freeze(['RESCHEDULED']), to: 'CONFIRMED' }),
+});
+
+function agentCustomerCancelledText(listing, viewingRequest, propertyId) {
+  return [
+    `${HEADER_BRAND} Visite annulée par le client`,
+    '',
+    `📍 ${listingLabel(listing, propertyId)}`,
+    `📅 ${viewingRequest?.requested_time || 'Créneau non précisé'}`,
+    '',
+    "Le client a annulé depuis son Espace Client. Aucune action n'est nécessaire.",
+    schedulerLink(),
+  ].join('\n');
+}
+
+function agentCustomerAcceptedSlotText(listing, viewingRequest, propertyId) {
+  return [
+    `${HEADER_BRAND} Créneau accepté par le client ✅`,
+    '',
+    `📍 ${listingLabel(listing, propertyId)}`,
+    `📅 ${viewingRequest?.requested_time || 'Créneau à préciser'}`,
+    '',
+    'La visite est confirmée.',
+    schedulerLink(),
+  ].join('\n');
+}
+
+function opsCustomerAnswerText({ listing, viewingRequest, propertyId, action, agentNotified }) {
+  return [
+    `${HEADER_BRAND} ${action === 'CANCEL' ? 'Visite annulée' : 'Créneau accepté'} par le client (Espace Client)`,
+    '',
+    `📍 ${listingLabel(listing, propertyId)} (#${propertyId})`,
+    `📅 ${viewingRequest?.requested_time || 'Créneau non précisé'}`,
+    agentNotified ? "✅ Agent prévenu sur WhatsApp." : "⚠️ Agent NON prévenu — pas de numéro vérifié ou envoi refusé.",
+    '',
+    `Demande #${viewingRequest?.id}`,
+  ].join('\n');
+}
+
+/**
+ * A customer's answer from the Espace Client (POST
+ * /admin/viewing-requests/:id/customer-response).
+ *
+ * AUTHORISATION IS THE LEAD'S OWN NUMBER — the customer who asked for the
+ * visit, never the listing's agent (that is respondFromDashboard). A request
+ * that is not theirs answers exactly like one that does not exist, so a
+ * guessed id reveals nothing.
+ *
+ * The agent and the desk are told; the customer is not messaged on WhatsApp
+ * about something they just did on the web.
+ */
+async function respondFromCustomer({ viewingRequestId, waId, action } = {}) {
+  const rule = CUSTOMER_TRANSITIONS[action];
+  if (!rule) return { ok: false, reason: 'invalid-action' };
+
+  const request = dbService.getViewingRequestWithLead(viewingRequestId);
+  const sender = String(waId || '').replace(/\D/g, '');
+  const owner = String(request?.lead_wa_id || '').replace(/\D/g, '');
+  if (!request || !owner || owner !== sender) return { ok: false, reason: 'unknown-request' };
+
+  if (request.status === rule.to) {
+    return { ok: true, status: rule.to, unchanged: true, agentNotified: false };
+  }
+  if (!rule.from.includes(request.status)) {
+    return { ok: false, reason: 'invalid-transition', current: request.status };
+  }
+
+  const propertyId = request.property_id;
+  let listing = null;
+  if (propertyId) {
+    try {
+      listing = await propertyRepository.getListingContactById(propertyId);
+    } catch (err) {
+      console.error(`[viewing] customer answer: listing #${propertyId} lookup failed: ${err.message}`);
+    }
+  }
+  if (listing && request.reassigned_at && request.agent_id) {
+    try {
+      const assigned = await propertyRepository.getAgentContactById(request.agent_id);
+      if (assigned) listing = withAgent(listing, assigned);
+    } catch (err) {
+      console.error(`[viewing] customer answer: assigned agent #${request.agent_id} lookup failed: ${err.message}`);
+    }
+  }
+
+  // Nothing still open on WhatsApp may answer this request afterwards.
+  dbService.clearPendingAgentActionsForViewing(request.id);
+  dbService.clearPendingCustomerActionsForViewing(request.id);
+
+  let agentText;
+  if (action === 'CANCEL') {
+    dbService.updateViewingRequest(request.id, { status: 'CANCELLED' });
+    dbService.setViewingCancelledBy(request.id, 'CUSTOMER');
+    agentText = agentCustomerCancelledText(listing, request, propertyId);
+  } else {
+    dbService.updateViewingRequest(request.id, { status: 'CONFIRMED' });
+    // The instant the check-in will be asked against — same parser, same
+    // refusal of a day with no hour, as the agent's own confirmation.
+    const slot = parseFrenchSlot(request.requested_time);
+    if (slot) dbService.setViewingScheduledAt(request.id, slot.iso);
+    agentText = agentCustomerAcceptedSlotText(listing, request, propertyId);
+  }
+
+  // getListingContactById only returns a number for a phone-verified agent
+  // (see its doc comment), so an unverified claim is never messaged.
+  const agentPhone = listing?.phone_verified_at ? listing.agent_phone : null;
+  const agentNotified = await trySend(agentPhone, agentText, `customer ${action.toLowerCase()} agent copy`);
+  await notifyOps(
+    opsCustomerAnswerText({ listing, viewingRequest: request, propertyId, action, agentNotified }),
+    `customer ${action.toLowerCase()} ops copy`,
+  );
+
+  console.log(`[viewing] request #${request.id} ${rule.to} by its customer from the Espace Client — agent told: ${agentNotified}`);
+  return { ok: true, status: rule.to, unchanged: false, agentNotified };
 }
 
 /**
@@ -1622,6 +1749,8 @@ module.exports = {
   handleAgentTextReply,
   respondFromDashboard,
   DASHBOARD_TRANSITIONS,
+  respondFromCustomer,
+  CUSTOMER_TRANSITIONS,
   tenantCancelledText,
   opsDashboardAnswerText,
   parseViewingButtonId,

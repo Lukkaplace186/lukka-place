@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import { useIsLoggedIn } from '@/lib/customerClient';
 import { MessageCircle, Phone, CalendarClock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import FavoriteButton from './FavoriteButton';
@@ -42,11 +43,44 @@ const VISIT_ERROR_KEYS = {
  * the current viewport; auto-reopening both on error would show two
  * stacked dialogs at once.
  */
+// One request per page load: EnquiryCard renders twice on a listing page
+// (mobile inline + desktop rail), and both dialogs want the same profile.
+let accountProfilePromise = null;
+function loadAccountProfile() {
+  if (!accountProfilePromise) {
+    accountProfilePromise = fetch('/api/account/me', { credentials: 'same-origin' })
+      .then((res) => (res.ok ? res.json() : null))
+      .catch(() => null);
+  }
+  return accountProfilePromise;
+}
+
 function VisitRequestDialog({ propertyId }) {
   const t = useT();
   const locale = useLocale();
   const [open, setOpen] = useState(false);
   const bound = submitVisitRequestAction.bind(null, propertyId);
+
+  // A signed-in customer's visit request is found in their account by
+  // phone number, so the form opens with the account's own number (and
+  // name) already in it — see app/api/account/me/route.js. Still editable:
+  // someone booking for a relative may genuinely want another number.
+  const loggedIn = useIsLoggedIn();
+  const [profile, setProfile] = useState(null);
+  useEffect(() => {
+    if (!loggedIn) return undefined;
+    let live = true;
+    loadAccountProfile().then((value) => {
+      if (live && value) setProfile(value);
+    });
+    return () => {
+      live = false;
+    };
+  }, [loggedIn]);
+  // Uncontrolled fields read defaultValue once, so they remount when the
+  // profile arrives. It is fetched on page load, well before a visitor
+  // reaches the button, so nothing typed is lost to the remount.
+  const prefillKey = profile ? 'account' : 'anonymous';
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -72,13 +106,24 @@ function VisitRequestDialog({ propertyId }) {
             <label htmlFor="visit-name" className="mb-1.5 block text-[0.8125rem] font-semibold text-ink-70">
               {t('enquiry.nameOptional')}
             </label>
-            <input id="visit-name" name="name" placeholder={t('enquiry.namePlaceholder')} className={FIELD_CLASS} />
+            <input
+              key={prefillKey}
+              id="visit-name"
+              name="name"
+              defaultValue={profile?.fullName || ''}
+              placeholder={t('enquiry.namePlaceholder')}
+              className={FIELD_CLASS}
+            />
           </div>
 
           <PhoneField
+            key={prefillKey}
             name="phone"
             id="visit-phone"
             locale={locale}
+            {...(profile?.phoneCountry
+              ? { defaultCountry: profile.phoneCountry, defaultValue: profile.phoneNational, detectCountry: false }
+              : {})}
             labels={{ ...phoneFieldLabels(t), label: t('enquiry.whatsappNumber') }}
             labelClassName="mb-1.5 text-[0.8125rem] font-semibold normal-case tracking-normal text-ink-70"
             fieldClassName="h-11 rounded-lg bg-surface"
@@ -218,7 +263,7 @@ export default function EnquiryCard({ listing, visitSent, visitError }) {
         )}
         {visitError && (
           <p className="rounded-lg bg-danger-tint px-3.5 py-2.5 text-[0.8125rem] font-semibold text-danger" role="alert">
-            {VISIT_ERROR_KEYS[visitError] || VISIT_ERROR_KEYS[1]}
+            {t(VISIT_ERROR_KEYS[visitError] || VISIT_ERROR_KEYS[1])}
           </p>
         )}
 

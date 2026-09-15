@@ -13,8 +13,11 @@
  * localFavorites.js uses, so existing subscribers re-render unchanged; a
  * failed request reverts the optimistic change silently, matching the
  * existing silent-fail-on-clipboard-denial precedent already in this app
- * (favoris/page.js's share button).
+ * (favoris/page.js's share button) — except a refusal for hitting the
+ * account's ceiling, which is announced (see notifyLimit below).
  */
+
+import { ACCOUNT_LIMIT_EVENT } from './accountLimits';
 
 const FAVORITES_EVENT = 'lukka:favorites-changed';
 const SAVED_SEARCHES_EVENT = 'lukka:saved-searches-changed';
@@ -28,6 +31,15 @@ let savedSearchesLoading = false;
 
 function dispatch(eventName) {
   window.dispatchEvent(new CustomEvent(eventName));
+}
+
+/**
+ * A save the server refused because the account is at its ceiling
+ * (lib/accountLimits.js). The optimistic change is still reverted, but no
+ * longer silently: components/AccountLimitNotice.js says why.
+ */
+function notifyLimit(kind) {
+  window.dispatchEvent(new CustomEvent(ACCOUNT_LIMIT_EVENT, { detail: { kind } }));
 }
 
 function ensureFavoritesLoaded() {
@@ -79,6 +91,7 @@ export function toggleFavorite(id) {
       if (!res.ok) {
         favoritesCache = current;
         dispatch(FAVORITES_EVENT);
+        if (res.status === 409) notifyLimit('favorites');
       }
     })
     .catch(() => {
@@ -139,6 +152,7 @@ export function saveSearch(search) {
     if (!res.ok) {
       savedSearchesCache = current;
       dispatch(SAVED_SEARCHES_EVENT);
+      if (res.status === 409) notifyLimit('savedSearches');
     }
   }).catch(() => {
     savedSearchesCache = current;

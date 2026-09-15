@@ -153,6 +153,7 @@ export async function updateLeadRequirements(id, patch = {}) {
   const body = {};
   if (patch.transactionType !== undefined) body.transaction_type = patch.transactionType;
   if (patch.commune !== undefined) body.commune = patch.commune;
+  if (patch.communes !== undefined) body.communes = patch.communes;
   if (patch.priceMin !== undefined) body.price_min = patch.priceMin;
   if (patch.priceMax !== undefined) body.price_max = patch.priceMax;
   if (patch.bedrooms !== undefined) body.bedrooms = patch.bedrooms;
@@ -227,13 +228,48 @@ export async function createViewingRequest({ leadId, propertyId, requestedTime }
   });
 }
 
+// ---------------------------------------------------------------------------
+// The CUSTOMER's side of a viewing request (Espace Client). Every call takes
+// the signed-in account's own stored phone as `waId`; the engine re-checks it
+// against the request's lead and answers 404 for anybody else's.
+// ---------------------------------------------------------------------------
+
+/** @returns {Promise<{data: Object[]}>} newest first, customer-safe columns only. */
+export async function listCustomerViewingRequests(waId) {
+  return engineFetch(`/admin/viewing-requests/by-customer?wa_id=${encodeURIComponent(waId)}`);
+}
+
+/** @param {{waId: string, action: 'CANCEL'|'ACCEPT_SLOT'}} answer */
+export async function customerRespondToViewing(id, { waId, action }) {
+  return engineFetch(`/admin/viewing-requests/${id}/customer-response`, {
+    method: 'POST',
+    body: JSON.stringify({ wa_id: waId, action }),
+  });
+}
+
+/** @param {{waId: string, response: 'GOOD'|'BAD'|'AGENT_ABSENT'}} answer */
+export async function customerViewingCheckin(id, { waId, response }) {
+  return engineFetch(`/admin/viewing-requests/${id}/checkin`, {
+    method: 'POST',
+    body: JSON.stringify({ wa_id: waId, response }),
+  });
+}
+
+/** @param {{waId: string, code: string}} answer one of the engine's FALLOFF_REASON_BY_CHOICE codes */
+export async function customerViewingFalloffReason(id, { waId, code }) {
+  return engineFetch(`/admin/viewing-requests/${id}/falloff-reason`, {
+    method: 'POST',
+    body: JSON.stringify({ wa_id: waId, code }),
+  });
+}
+
 /**
  * Agent storefront's "Demandez ce bien à cet agent" inquiry form.
  * @returns {Promise<{lead: Object}>}
  */
 export async function createLead({
   waId, name, source, propertyId, assignedAgent, requirementsSummary,
-  transactionType, commune, priceMin, priceMax, bedrooms,
+  transactionType, commune, communes, priceMin, priceMax, bedrooms,
 }) {
   return engineFetch('/admin/leads', {
     method: 'POST',
@@ -246,6 +282,9 @@ export async function createLead({
       requirements_summary: requirementsSummary,
       transaction_type: transactionType,
       commune,
+      // Every commune picked; the engine stores the list and pushes the
+      // request to agencies in each (services/leadCommunes.js).
+      communes,
       price_min: priceMin,
       price_max: priceMax,
       bedrooms,

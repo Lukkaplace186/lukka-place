@@ -1447,6 +1447,11 @@ const LEADS_EXTENDED_COLUMNS = [
   // capped at 7 pitches per open request so a request doesn't silently
   // collect unlimited agent noise.
   ['pitches_count', 'INTEGER NOT NULL DEFAULT 0'],
+  // Every commune a request names, as a JSON array, primary first
+  // (services/leadCommunes.js). `commune` stays the first entry so every
+  // existing single-commune reader keeps working; NULL on rows that only
+  // ever named one.
+  ['communes', 'TEXT'],
 ];
 
 function migrateLeads() {
@@ -1827,7 +1832,7 @@ function getRecentMessages(conversationId, limit = 10) {
 const LEAD_FIELDS = [
   'conversation_id', 'wa_id', 'name', 'source', 'property_id', 'transaction_type',
   'commune', 'quartier', 'price_min', 'price_max', 'bedrooms', 'requirements_summary',
-  'status', 'assigned_agent',
+  'status', 'assigned_agent', 'communes',
 ];
 
 /**
@@ -1896,7 +1901,7 @@ function assignLead(id, { agentId, assignedAgent } = {}) {
 
 /** Fields a lead requirements edit may touch — the "Recherche personnalisée" columns POST /leads already accepts. */
 const LEAD_REQUIREMENT_FIELDS = [
-  'transaction_type', 'commune', 'quartier', 'price_min', 'price_max', 'bedrooms', 'requirements_summary',
+  'transaction_type', 'commune', 'communes', 'quartier', 'price_min', 'price_max', 'bedrooms', 'requirements_summary',
 ];
 
 /**
@@ -2648,6 +2653,11 @@ const VIEWING_REQUESTS_EXTENDED_COLUMNS = [
   // customer outside the 24h window never receives a session message. NULL
   // after an answer is the admin console's cue that nobody told the customer.
   ['customer_notified_at', 'TEXT'],
+  // Who called off a CANCELLED visit: 'CUSTOMER' (Espace Client) or 'AGENT'
+  // (the dashboard). A customer changing their plans must never read as the
+  // agent failing them in response metrics, and the customer's own timeline
+  // says which it was. NULL on older rows and on admin overrides.
+  ['cancelled_by', 'TEXT'],
 ];
 
 /** viewing_requests.agent_response_via. */
@@ -2744,6 +2754,69 @@ function getViewingRequestWithLead(id) {
     .get(id);
 }
 
+const CUSTOMER_VIEWINGS_LIMIT_DEFAULT = 50;
+const CUSTOMER_VIEWINGS_LIMIT_MAX = 100;
+
+/**
+ * One customer's own viewing requests, newest first — web/'s Espace Client
+ * visit timeline. Scoped through the parent lead's `wa_id`, the same identity
+ * every customer read in web/ is keyed on; web/ passes the signed-in account's
+ * own stored phone, never a value from the browser.
+ *
+ * Only what a customer may see. No agent id, routing type or response-latency
+ * stamps, and a decline reason only when the CUSTOMER gave it — an agent's
+ * survey answer ("déjà loué") is for the desk, not for the person turned away.
+ */
+function listViewingRequestsForCustomer(waId, { limit } = {}) {
+  const digits = String(waId || '').replace(/\D/g, '');
+  if (!digits) return [];
+  const parsed = Number.parseInt(limit, 10);
+  const resolved = Number.isFinite(parsed)
+    ? Math.min(Math.max(parsed, 1), CUSTOMER_VIEWINGS_LIMIT_MAX)
+    : CUSTOMER_VIEWINGS_LIMIT_DEFAULT;
+  return db
+    .prepare(
+      `SELECT vr.id, vr.lead_id, vr.property_id, vr.requested_time, vr.status, vr.scheduled_at,
+              vr.created_at, vr.first_response_at, vr.sla_alerted_at, vr.checkin_response,
+              vr.cancelled_by,
+              CASE WHEN vr.decline_reason_by = 'CUSTOMER' THEN vr.decline_reason_code END AS customer_reason_code
+         FROM viewing_requests vr
+         JOIN leads l ON l.id = vr.lead_id
+        WHERE l.wa_id = @waId
+        ORDER BY vr.created_at DESC, vr.id DESC
+        LIMIT @limit`,
+    )
+    .all({ waId: digits, limit: resolved });
+}
+
+const VIEWING_CANCELLED_BY = ['CUSTOMER', 'AGENT'];
+
+function setViewingCancelledBy(id, by) {
+  if (!VIEWING_CANCELLED_BY.includes(by)) {
+    throw new Error(`setViewingCancelledBy: unknown author '${by}' (expected one of ${VIEWING_CANCELLED_BY.join(', ')})`);
+  }
+  db.prepare('UPDATE viewing_requests SET cancelled_by = ? WHERE id = ?').run(by, id);
+  return getViewingRequest(id);
+}
+
+/**
+ * A lead that asked to visit is at VIEWING_REQUESTED. Only advances from the
+ * stages before a visit, so a request made after a completed or converted
+ * lead never walks it backwards.
+ *
+ * The web visit form never set this (only the WhatsApp assistant did), so
+ * every visit asked for on the site sat at NEW and the customer's own account
+ * could not tell it was a visit at all.
+ */
+function markLeadViewingRequested(leadId) {
+  db.prepare(
+    `UPDATE leads
+        SET status = 'VIEWING_REQUESTED', updated_at = CURRENT_TIMESTAMP, last_interaction_at = CURRENT_TIMESTAMP
+      WHERE id = ? AND status IN ('NEW', 'CONTACTED', 'QUALIFIED')`,
+  ).run(leadId);
+  return getLead(leadId);
+}
+
 /** Record why an agent turned a visit down. Free-form on purpose: '3' is
  *  "autre raison", and the words that follow it are the useful part. */
 function setViewingDeclineReason(id, reason) {
@@ -2838,6 +2911,16 @@ function getPendingCustomerAction(waId) {
 function clearPendingCustomerAction(waId) {
   if (!waId) return false;
   return db.prepare('DELETE FROM pending_customer_actions WHERE wa_id = ?').run(String(waId)).changes > 0;
+}
+
+/**
+ * Withdraw any WhatsApp question still open with the customer about THIS
+ * request — a visit they cancelled on the web must not stay answerable by a
+ * typed "1" that would then mark it COMPLETED.
+ */
+function clearPendingCustomerActionsForViewing(viewingRequestId) {
+  if (!viewingRequestId) return 0;
+  return db.prepare('DELETE FROM pending_customer_actions WHERE viewing_request_id = ?').run(viewingRequestId).changes;
 }
 
 /**
@@ -3522,6 +3605,10 @@ module.exports = {
   createViewingRequest,
   getViewingRequest,
   getViewingRequestWithLead,
+  listViewingRequestsForCustomer,
+  setViewingCancelledBy,
+  markLeadViewingRequested,
+  clearPendingCustomerActionsForViewing,
   setViewingDeclineReason,
   setPendingAgentAction,
   getPendingAgentAction,

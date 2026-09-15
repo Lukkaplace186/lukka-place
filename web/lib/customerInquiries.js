@@ -1,6 +1,7 @@
 import 'server-only';
+import { cache } from 'react';
 import { getCustomerById, getCurrentCustomerId } from './customers';
-import { listLeads, getLeadProposals } from './adminApi';
+import { listLeads, getLeadProposals, listCustomerViewingRequests } from './adminApi';
 import { getListingsByIds } from './listings';
 
 /**
@@ -24,12 +25,16 @@ import { getListingsByIds } from './listings';
  * losing it should degrade to an empty list, not a 500).
  *
  * @param {number} customerId
- * @returns {Promise<Array<{lead: Object, listing: Object|null, proposals: Object[]}>>}
+ * @returns {Promise<Array<{lead: Object, listing: Object|null, proposals: Object[], viewings: Object[]}>>}
+ *   `viewings` is this lead's own viewing_requests rows, newest first.
  *   `proposals` is the real listing rows agents have pitched against this
  *   lead in response to their request (web/lib/adminApi.js's
  *   getLeadProposals) — [] until at least one agent proposes something.
+ *
+ * Memoised per request (React `cache()`): two engine round trips and a
+ * listings read are too expensive to repeat within one render.
  */
-export async function getCustomerInquiries(customerId) {
+export const getCustomerInquiries = cache(async (customerId) => {
   const customer = await getCustomerById(customerId);
   if (!customer) return [];
 
@@ -46,11 +51,32 @@ export async function getCustomerInquiries(customerId) {
   // same non-throwing posture as the leads fetch above: a proposals lookup
   // failure should degrade to "no proposals shown yet", not break the whole
   // page.
+  //
+  // The customer's own viewing requests ride alongside, same posture: the
+  // agent's answer, the agreed time and the check-in are what the visit
+  // timeline shows, and an engine hiccup must only hide the timeline.
   let proposals = [];
-  try {
-    ({ proposals } = await getLeadProposals(leads.map((lead) => lead.id)));
-  } catch (error) {
-    console.warn('[customerInquiries] proposals unreachable, showing none:', error.message);
+  let viewings = [];
+  const [proposalsResult, viewingsResult] = await Promise.allSettled([
+    getLeadProposals(leads.map((lead) => lead.id)),
+    listCustomerViewingRequests(customer.phone),
+  ]);
+  if (proposalsResult.status === 'fulfilled') {
+    ({ proposals } = proposalsResult.value);
+  } else {
+    console.warn('[customerInquiries] proposals unreachable, showing none:', proposalsResult.reason?.message);
+  }
+  if (viewingsResult.status === 'fulfilled') {
+    viewings = viewingsResult.value?.data || [];
+  } else {
+    console.warn('[customerInquiries] viewing requests unreachable, showing none:', viewingsResult.reason?.message);
+  }
+  // Newest first already (engine ORDER BY), so [0] per lead is the latest.
+  const viewingsByLeadId = new Map();
+  for (const viewing of viewings) {
+    const list = viewingsByLeadId.get(viewing.lead_id) || [];
+    list.push(viewing);
+    viewingsByLeadId.set(viewing.lead_id, list);
   }
 
   const propertyIds = [
@@ -82,8 +108,9 @@ export async function getCustomerInquiries(customerId) {
     proposals: (proposalsByLeadId.get(lead.id) || [])
       .map((p) => listingById.get(String(p.property_id)))
       .filter(Boolean),
+    viewings: viewingsByLeadId.get(lead.id) || [],
   }));
-}
+});
 
 /** Resolves the current session itself — the one entry point /compte/demandes should use. */
 export async function getCurrentCustomerInquiries() {

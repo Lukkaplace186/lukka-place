@@ -158,3 +158,9 @@ test('a viewing or lead with no agent shows the listing’s agent, marked, with 
 test('the rep page can list the agents who already have a listing', () => {
   assert.ok(REFERRED_AGENT_FILTERS.includes('with_listing'));
 });
+
+test('an agency phone stored with a leading "+" is printed with exactly one', () => {
+  const page = read('../../app/admin/agencies/page.js');
+  const helper = page.slice(page.indexOf('function phoneLabel'), page.indexOf('function phoneLabel') + 160);
+  assert.ok(helper.includes(".replace(/\D/g, '')"), 'strip every non-digit, not the letter D');
+});

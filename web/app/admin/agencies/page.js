@@ -11,7 +11,7 @@ import { WhatsAppLink } from '../ContactCell';
 
 /** Stored with or without a leading "+"; shown with exactly one. */
 function phoneLabel(value) {
-  const digits = String(value || '').replace(/D/g, '');
+  const digits = String(value || '').replace(/\D/g, '');
   return digits ? `+${digits}` : null;
 }
 

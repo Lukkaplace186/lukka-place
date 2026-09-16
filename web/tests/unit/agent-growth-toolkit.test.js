@@ -5,7 +5,14 @@ import path from 'node:path';
 
 import { calls, enqueue, reset } from '../support/fakePool.js';
 import { formatPrice } from '@/lib/format';
-import { buildListingSocialCopy, roomSpecs, shareBlocker, listingPublicUrl } from '@/lib/listingShareCopy';
+import {
+  agentContactPhone,
+  buildListingSocialCopy,
+  compactSpecs,
+  roomSpecs,
+  shareBlocker,
+  listingPublicUrl,
+} from '@/lib/listingShareCopy';
 import {
   isVerifiedLevel,
   levelRequirementMissing,
@@ -52,13 +59,33 @@ const LISTING = {
 test('social copy states purpose, place, price, rooms, itemised terms, reference and the link last', () => {
   const copy = buildListingSocialCopy(LISTING, { typeText: 'Appartement', url: listingPublicUrl(286) });
   const lines = copy.split('\n');
-  assert.equal(lines[0], '🏠 À LOUER · Appartement');
-  assert.equal(lines[1], '📍 Righini, Lemba');
-  assert.match(lines[2], /^💰 700 \$ \/ mois$/);
+  // *…* is WhatsApp's own bold, where this text is posted.
+  assert.equal(lines[0], '🏠 *À LOUER* · Appartement');
+  assert.equal(lines[1], '📍 *Righini, Lemba*');
+  assert.match(lines[2], /^💰 \*700 \$ \/ mois\*$/);
   assert.equal(lines[3], '🛏️ 2 chambres · 1 salle de bain · 120 m²');
   assert.equal(lines[4], '🔑 Garantie : 3 + 1 + 1 mois');
   assert.equal(lines[5], 'Réf. Demiap');
   assert.match(lines[lines.length - 1], /https:\/\/[^ ]+\/listings\/286$/);
+});
+
+test('the caption carries the agent contact only when the listing page would publish that number', () => {
+  const verified = { ...LISTING, agent_phone_raw: '243990000000', agent_phone_verified_at: '2026-09-01', agent_direct_routing_enabled: true };
+  assert.match(buildListingSocialCopy(verified, { contactPhone: agentContactPhone(verified) }), /📞 \*Contact agent\* : \+243/);
+
+  for (const blocked of [
+    { ...verified, agent_phone_verified_at: null },
+    { ...verified, agent_direct_routing_enabled: false },
+  ]) {
+    assert.equal(agentContactPhone(blocked), null);
+    assert.doesNotMatch(buildListingSocialCopy(blocked, { contactPhone: agentContactPhone(blocked) }), /Contact agent/);
+  }
+});
+
+test('the flyer detail row abbreviates rooms; the caption keeps the long words', () => {
+  assert.deepEqual(compactSpecs(LISTING), ['2 ch', '1 sdb', '120 m²']);
+  assert.deepEqual(roomSpecs(LISTING), ['2 chambres', '1 salle de bain', '120 m²']);
+  assert.deepEqual(compactSpecs({ beds: 0, bath: null, area: '0', units_count: 6 }), ['6 portes']);
 });
 
 test('social copy never sums the entry costs into one "Garantie" figure', () => {
@@ -72,7 +99,7 @@ test('social copy leaves out every line it has no data for — no filler', () =>
     {},
   );
   // formatPrice's own thousands separator (fr-FR's narrow no-break space).
-  assert.equal(copy, `🏠 À VENDRE\n💰 ${formatPrice(85000, 'sale', null)}`);
+  assert.equal(copy, `🏠 *À VENDRE*\n💰 *${formatPrice(85000, 'sale', null)}*`);
 });
 
 test('a price of zero is "Prix sur demande", never "0 $"', () => {
@@ -123,9 +150,26 @@ test('the flyer carries the agent brand on royal blue, and no QR code anywhere',
   assert.match(lib, /export async function loadAgentBrand/);
 });
 
+test('the gold badge is only ever drawn for a reviewed agent, never as decoration', () => {
+  const lib = readFileSync(path.join(process.cwd(), 'lib/listingFlyer.js'), 'utf8');
+  const route = readFileSync(path.join(process.cwd(), 'app/compte/agent/biens/[id]/visuel/route.js'), 'utf8');
+  // The badge label comes from the reviewed tier, and nothing else can set it.
+  assert.match(lib, /const badge = isVerifiedLevel\(level\) \? BADGE_LABELS\[level\] : null/);
+  assert.match(route, /\{brand\.badge \? \(/);
+  assert.match(route, /const GOLD = '#f59e0b'/);
+});
+
+test('the flyer seams are 2px of white, and the watermark rides on the photo', () => {
+  const route = readFileSync(path.join(process.cwd(), 'app/compte/agent/biens/[id]/visuel/route.js'), 'utf8');
+  assert.match(route, /const GAP = 2;/);
+  // White behind the photo band is what the 2px gaps actually show.
+  assert.match(route, /height: PHOTO_HEIGHT, background: '#ffffff'/);
+  assert.match(route, /rgba\(255,255,255,0\.6\)/);
+});
+
 test('the flyer prints an agent phone only under the public listing rule, and never invents a logo', () => {
   const src = readFileSync(path.join(process.cwd(), 'lib/listingFlyer.js'), 'utf8');
-  assert.match(src, /agent_phone_verified_at && listing\?\.agent_direct_routing_enabled !== false/);
+  assert.match(src, /const phone = agentContactPhone\(listing\)/);
   // No logo and no name means no brand block — never a Lukka Place mark
   // standing in for the agent's own.
   const route = readFileSync(path.join(process.cwd(), 'app/compte/agent/biens/[id]/visuel/route.js'), 'utf8');

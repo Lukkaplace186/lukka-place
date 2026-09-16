@@ -2,7 +2,7 @@
 
 import { getCurrentAgentId } from '@/lib/agentSession';
 import { getFlyerListing, frenchTypeText } from '@/lib/listingFlyer';
-import { buildListingSocialCopy, listingPublicUrl, shareBlocker } from '@/lib/listingShareCopy';
+import { agentContactPhone, buildListingSocialCopy, listingPublicUrl, shareBlocker } from '@/lib/listingShareCopy';
 
 /**
  * Everything the "Visuel & partage" dialog needs for one of the agent's own
@@ -29,6 +29,10 @@ export async function getListingShareKitAction(listingId) {
     shareable: !blocker,
     blocker,
     url,
-    copy: buildListingSocialCopy(listing, { typeText: frenchTypeText(listing), url }),
+    copy: buildListingSocialCopy(listing, {
+      typeText: frenchTypeText(listing),
+      url,
+      contactPhone: agentContactPhone(listing),
+    }),
   };
 }

@@ -6,7 +6,8 @@ import { createTranslator } from './i18n/translate';
 import { sniffDocumentType } from './verificationLevels';
 import { AGENCY_NAME_EXPR, AGENT_INFOS_JOIN } from './listings';
 import { displayableAgencyName } from './agentIdentity';
-import { formatPhoneDisplay } from './phone';
+import { agentContactPhone } from './listingShareCopy';
+import { isVerifiedLevel } from './verificationLevels';
 import fr from './i18n/fr.json';
 
 /**
@@ -32,7 +33,11 @@ export async function getFlyerListing(agentId, propertyId) {
             -- only printed under the same rule the public listing page uses
             -- (verified AND direct routing not switched off by the team).
             a.image AS agent_image, a.phone AS agent_phone_raw, a.phone_verified_at AS agent_phone_verified_at,
-            a.direct_routing_enabled AS agent_direct_routing_enabled, ${AGENCY_NAME_EXPR},
+            a.direct_routing_enabled AS agent_direct_routing_enabled,
+            -- The reviewed-documents tier behind the gold badge. Through jsonb
+            -- for the same reason lib/listings.js reads it that way.
+            to_jsonb(a) ->> 'verification_level' AS agent_verification_level,
+            ${AGENCY_NAME_EXPR},
             (
               SELECT ac.name FROM property_amenities pa
               JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = $1
@@ -173,8 +178,17 @@ export async function loadFlyerPhotos(listing, max = 3) {
  * (lib/listings.js) — so the flyer can never publish a number the site itself
  * refuses to show.
  *
- * @returns {Promise<{logo: string|null, name: string|null, initials: string|null, phone: string|null}>}
+ * THE GOLD BADGE IS EARNED, NOT DECORATION. It renders only for an agent whose
+ * documents a team member actually approved — `agents.verification_level` of
+ * 'verified' or 'agency_partner', set from /admin/verifications. A 'standard'
+ * agent gets no badge at all rather than an unbacked trust mark, which is the
+ * whole reason the badge is worth anything to the agents who do hold it.
+ *
+ * @returns {Promise<{logo: string|null, name: string|null, initials: string|null,
+ *                    phone: string|null, badge: string|null}>}
  */
+const BADGE_LABELS = { verified: 'Agent vérifié', agency_partner: 'Agence partenaire' };
+
 export async function loadAgentBrand(listing) {
   const name = displayableAgencyName(listing?.agency_name);
   const initials =
@@ -185,9 +199,9 @@ export async function loadAgentBrand(listing) {
       .map((part) => part[0].toUpperCase())
       .join('') || null;
 
-  const routable =
-    listing?.agent_phone_verified_at && listing?.agent_direct_routing_enabled !== false;
-  const phone = routable ? formatPhoneDisplay(String(listing.agent_phone_raw || '').trim()) : null;
+  const phone = agentContactPhone(listing);
+  const level = listing?.agent_verification_level;
+  const badge = isVerifiedLevel(level) ? BADGE_LABELS[level] : null;
 
   let logo = null;
   if (usableImageSrc(listing?.agent_image)) {
@@ -197,7 +211,7 @@ export async function loadAgentBrand(listing) {
     if (buffer) logo = await normaliseImage(buffer, { maxWidth: 400, transparent: true });
   }
 
-  return { logo, name, initials, phone };
+  return { logo, name, initials, phone, badge };
 }
 
 // ---------------------------------------------------------------------------

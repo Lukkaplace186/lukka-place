@@ -919,6 +919,29 @@ namespace; the two i18n tests above exist because of that.
   public listing page's own rule (verified AND direct routing not switched
   off). **Most agents have no image yet** — 7 of 10 in production — so the
   initials fallback is the common case until they upload one in Paramètres.
+  - **The gold badge is earned, not decoration** (2026-09-16). It renders only
+    for `agents.verification_level` of 'verified' / 'agency_partner' — the tier
+    a team member sets from `/admin/verifications` after reviewing documents —
+    and a 'standard' agent gets nothing rather than an unbacked trust mark.
+    **Every production agent is 'standard' today, so no flyer shows it yet**;
+    that is what makes it worth something to the agents who earn it. Gold is
+    `#f59e0b` with INK text and check, not white: white on that gold is 2.1:1,
+    under even the 3:1 bar for a graphic.
+  - The photo seams are 2px of the white ground showing through (`GAP`), the
+    "Lukka Place" watermark sits on the main photo at 0.6 opacity so the brand
+    survives a crop, and the facts are one bullet line
+    ("Appartement • 24 Novembre, Lingwala • 2 ch • 2 sdb" — `compactSpecs`,
+    abbreviated because the long words wrap at this width; the caption keeps
+    the full ones). The WhatsApp glyph beside the phone is the same hand-rolled
+    path `WhatsAppCTA.js` carries (lucide ships no brand marks), drawn as an
+    `<img>` data URI because a missing glyph in the loaded face would render
+    as a blank box.
+  - **The caption is WhatsApp-formatted**: `*…*` bold on the purpose, place
+    and price, and a `📞 *Contact agent*` line carrying the number — gated by
+    `agentContactPhone`, the same verified/routing rule the listing page uses,
+    so the caption can never publish a number the site itself refuses to show.
+    The asterisks show literally outside WhatsApp; accepted, since that is
+    where this text is posted.
   Ownership is `p.agent_id = $3` in SQL; `shareBlocker()` refuses pending,
   rejected, archived, under-offer and closed listings because the link points
   at a public page that would 404 or mislead. There is no web link that

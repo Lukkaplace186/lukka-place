@@ -61,8 +61,15 @@ export default async function AdminAgencyDetailPage({ params, searchParams }) {
         </Link>
         <h1 className="u-title-page mt-2 text-ink">{agency.name}</h1>
         <p className="u-micro mt-1 text-ink-45">
-          {[agency.email, agency.phone ? `+${agency.phone}` : null, `#${agency.id}`].filter(Boolean).join(' · ')}
+          {[agency.email, agency.phone ? `+${String(agency.phone).replace(/\D/g, '')}` : null, `#${agency.id}`].filter(Boolean).join(' · ')}
         </p>
+        {agency.contact_id ? (
+          <p className="u-micro mt-1 text-ink-70">
+            {t('admin.agencies.colContact')} :{' '}
+            <Link href={`/admin/agents/${agency.contact_id}`} className="font-semibold text-blue-deep hover:underline">{agency.contact_name}</Link>
+            {agency.contact_phone ? ` · +${String(agency.contact_phone).replace(/\D/g, '')}` : ''}
+          </p>
+        ) : null}
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">

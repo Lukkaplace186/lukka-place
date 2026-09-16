@@ -2,6 +2,9 @@ import { getSliders, getAdvertisements, languageLabel } from '@/lib/cms';
 import { getCdfRate } from '@/lib/currencyRate';
 import { updateSliderAction, updateAdvertisementAction, updateExchangeRateAction } from './actions';
 import { getT } from '@/lib/i18n/server';
+import { getHeroSettingsRow } from '@/lib/cmsSettings';
+import { formatKinshasa } from '../LeadRoutingUI';
+import HeroManager from './HeroManager';
 
 // See web/app/admin/dashboard/page.js's identical comment — this page has
 // no searchParams/cookies() of its own, so without this it would statically
@@ -10,10 +13,13 @@ export const dynamic = 'force-dynamic';
 
 export default async function AdminCmsPage() {
   const t = await getT();
-  const [sliders, advertisements, exchangeRate] = await Promise.all([
+  const [sliders, advertisements, exchangeRate, heroRow] = await Promise.all([
     getSliders(),
     getAdvertisements(),
     getCdfRate(),
+    // Before migrations/20260921_cms_settings.sql runs the table is missing;
+    // the section still renders, on the built-in photo.
+    getHeroSettingsRow().catch(() => null),
   ]);
 
   return (
@@ -24,6 +30,17 @@ export default async function AdminCmsPage() {
           Contenu réel du CMS — certaines lignes datent de la maquette d&apos;origine et n&apos;ont jamais été
           personnalisées ; elles restent affichées telles quelles plutôt que masquées.
         </p>
+      </div>
+
+      <div>
+        <h2 className="u-title-card mb-1 text-ink">{t('admin.cms.hero.title')}</h2>
+        <p className="mb-3 max-w-2xl text-xs text-ink-45">{t('admin.cms.hero.subtitle')}</p>
+        <HeroManager
+          current={heroRow?.hero || null}
+          updatedLabel={heroRow?.updatedAt ? t('admin.cms.hero.updated', { time: formatKinshasa(heroRow.updatedAt), actor: heroRow.updatedBy || '—' }) : ''}
+          headline={t('home.hero.title')}
+          subheadline={t('home.hero.subtitle')}
+        />
       </div>
 
       <div>

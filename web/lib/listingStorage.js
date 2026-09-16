@@ -32,6 +32,26 @@ function getClient() {
 }
 
 /**
+ * A site image uploaded from /admin/cms (the homepage hero), under `cms/` in
+ * the same public bucket. Content-hashed name, so a new upload is a new URL
+ * and no CDN or browser cache can keep serving the previous picture.
+ * @returns {Promise<string>} public URL
+ */
+export async function uploadCmsImage(buffer, ext, folder = 'hero') {
+  const hash = crypto.createHash('md5').update(buffer).digest('hex').slice(0, 16);
+  const storagePath = `cms/${folder}/${hash}.${ext}`;
+  const storage = getClient().storage.from(BUCKET);
+  const { error } = await storage.upload(storagePath, buffer, {
+    contentType: CONTENT_TYPE_BY_EXT[ext] || 'application/octet-stream',
+    upsert: true,
+  });
+  if (error) throw new Error(`CMS image upload failed: ${error.message}`);
+  const { data } = storage.getPublicUrl(storagePath);
+  if (!data?.publicUrl) throw new Error('CMS image upload succeeded but no public URL was returned');
+  return data.publicUrl;
+}
+
+/**
  * @param {Buffer} buffer
  * @param {number} propertyId
  * @param {'jpg'|'jpeg'|'png'|'webp'} ext

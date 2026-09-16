@@ -3,6 +3,7 @@ import { getT } from '@/lib/i18n/server';
 import { Plus, Landmark, BarChart3, Phone, Mail } from 'lucide-react';
 import { getCurrentAgentId } from '@/lib/agentSession';
 import { getAgentDashboardContext } from '@/lib/agentDashboard';
+import { getListingQuota } from '@/lib/listingQuota';
 import {
   getAgentListingViews,
   getAgentWhatsAppClicks,
@@ -31,6 +32,7 @@ export default async function AgentOverviewPage({ searchParams }) {
   const agentId = await getCurrentAgentId();
   const { agent, listings, propertyIds, listingById, leadScope, hasLeadScope, newLeadsCount } =
     await getAgentDashboardContext(agentId);
+  const listingQuota = await getListingQuota(agentId).catch(() => null);
 
   const [views30d, whatsappClicks, leadsPage, series, deltas, leadQuota] = await Promise.all([
     getAgentListingViews(propertyIds, 30),
@@ -109,7 +111,7 @@ export default async function AgentOverviewPage({ searchParams }) {
               packageTerm={agent.package_term}
               isTrial={agent.subscription_is_trial}
               expireDate={agent.expire_date}
-              listingCount={listings.length}
+              listingCount={listingQuota?.capped ? listingQuota.used : listings.length}
               listingLimit={agent.listing_limit}
               leadQuota={leadQuota}
             />

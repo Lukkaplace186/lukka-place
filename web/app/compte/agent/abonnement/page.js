@@ -1,6 +1,7 @@
 import { CreditCard, ReceiptText } from 'lucide-react';
 import { getCurrentAgentId } from '@/lib/agentSession';
 import { getAgentDashboardContext } from '@/lib/agentDashboard';
+import { getListingQuota } from '@/lib/listingQuota';
 import { getAgentLeadQuota } from '@/lib/leadQuota';
 import {
   getPurchasablePackages,
@@ -64,6 +65,7 @@ export default async function AgentSubscriptionPage() {
   const t = await getT();
   const agentId = await getCurrentAgentId();
   const { agent, listings, newLeadsCount } = await getAgentDashboardContext(agentId);
+  const listingQuota = await getListingQuota(agentId).catch(() => null);
 
   const [leadQuota, packages, history, openRequests] = await Promise.all([
     getAgentLeadQuota(agentId, agent),
@@ -101,7 +103,7 @@ export default async function AgentSubscriptionPage() {
             packageTerm={agent.package_term}
             isTrial={agent.subscription_is_trial}
             expireDate={agent.expire_date}
-            listingCount={listings.length}
+            listingCount={listingQuota?.capped ? listingQuota.used : listings.length}
             listingLimit={agent.listing_limit}
             leadQuota={leadQuota}
             compact

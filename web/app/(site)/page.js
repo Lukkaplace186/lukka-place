@@ -1,4 +1,5 @@
 import Hero from '@/components/Hero';
+import { getHeroSettings } from '@/lib/cmsSettings';
 import FeaturedListings from '@/components/FeaturedListings';
 import SavedListings from '@/components/SavedListings';
 import ValueProposition from '@/components/ValueProposition';
@@ -94,16 +95,17 @@ import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB } from '@/lib/constants';
  * else imports it, same as the four other sections listed above.
  */
 export default async function HomePage() {
-  const [propertyTypes, communes, { total }, saved] = await Promise.all([
+  const [propertyTypes, communes, { total }, saved, heroImage] = await Promise.all([
     getPropertyTypeFacets(),
     getPopularCommunes(8),
     getListings({ limit: 1, transactionType: HERO_TRANSACTION_BY_TAB[HERO_DEFAULT_TAB] }),
     getSavedHomeSection(),
+    getHeroSettings(),
   ]);
 
   return (
     <>
-      <Hero propertyTypes={propertyTypes} communes={communes} initialCount={total} />
+      <Hero propertyTypes={propertyTypes} communes={communes} initialCount={total} image={heroImage} />
       {saved ? <SavedListings listings={saved.listings} firstName={saved.firstName} /> : <FeaturedListings />}
       <ValueProposition />
     </>

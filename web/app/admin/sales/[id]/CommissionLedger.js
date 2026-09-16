@@ -22,13 +22,19 @@ import { BUTTON, INPUT } from '../styles';
  * lines, and "pay" with nothing selected pays exactly those, not every
  * approved line the rep has.
  */
-export default function CommissionLedger({ repId, rows, openTotals, canManage, today, defaultCurrency, footer, scopeLines = null, scopeLabel = null }) {
+export default function CommissionLedger({
+  repId, rows, openTotals, canManage, today, defaultCurrency, footer, scopeLines = null, scopeLabel = null, openPayout = false,
+}) {
   const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
   const [pending, startTransition] = useTransition();
   const [selected, setSelected] = useState(() => new Set());
-  const [dialog, setDialog] = useState(null); // 'payout' | 'adjustment' | {void: row}
+  // `openPayout`: arriving from the team page's "pay" shortcut opens the payout
+  // dialog straight away, when there is something approved to pay.
+  const [dialog, setDialog] = useState(() => (
+    openPayout && canManage && ((scopeLines && scopeLines.length) || openTotals.some((total) => total.status === 'approved')) ? 'payout' : null
+  )); // 'payout' | 'adjustment' | {void: row}
   const [voidReason, setVoidReason] = useState('');
 
   const selectedRows = useMemo(() => rows.filter((row) => selected.has(row.id)), [rows, selected]);

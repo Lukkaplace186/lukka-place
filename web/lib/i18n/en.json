@@ -1007,6 +1007,14 @@
         "too_many_pending": "You already have 5 documents awaiting review. Wait for them to be reviewed before sending more.",
         "upload_failed": "Upload failed. Try again."
       }
+    },
+    "quota": {
+      "title": "Listing Limit Reached",
+      "reached": "You have reached the limit of {limit} listings for your current plan ({plan}). To publish more listings and boost your visibility, upgrade your subscription.",
+      "currentPlan": "current plan",
+      "usage": "{used} of {limit} listings used on your plan.",
+      "freeSlot": "Archiving a listing, or marking one as let or sold, also frees a slot.",
+      "upgrade": "Upgrade my plan"
     }
   },
   "status": {
@@ -1542,7 +1550,22 @@
       "whatsapp": "WhatsApp",
       "source": "Source",
       "update": "Update",
-      "propertyMissing": "Property #{id} (not found)"
+      "propertyMissing": "Property #{id} (not found)",
+      "subtitle": "{count} request(s). Each one shows the customer, what they asked for and the agent handling it.",
+      "scopedToCustomer": "Showing only the requests of {phone}.",
+      "clearCustomer": "Show all",
+      "searchPlaceholder": "Name, number, commune, request…",
+      "onlyUnassigned": "Not assigned by hand",
+      "loadError": "Requests could not be loaded: {error}",
+      "emptyFiltered": "No request matches these filters.",
+      "whatsappCustomerText": "Hello {name}, this is Lukka Place about your property request.",
+      "proposals": "Proposals: {count}/7",
+      "whatsappAgentText": "Hello, this is Lukka Place about a request from {customer} {listing}.",
+      "listingAgentNotAssigned": "listing’s agent · not assigned",
+      "assignListingAgent": "Assign the listing’s agent",
+      "reassign": "Reassign",
+      "assignTo": "Assign to…",
+      "saveStatus": "Save"
     },
     "conversations": {
       "title": "WhatsApp Conversations",
@@ -1927,7 +1950,32 @@
       "exchangeRate": "Exchange Rate (USD → CDF)",
       "homeBanners": "Home Banners (Sliders)",
       "adBanners": "Advertising Banners",
-      "rateNote": "Manual rate shown on the public site, never a live exchange feed — see web/CLAUDE.md. Edit"
+      "rateNote": "Manual rate shown on the public site, never a live exchange feed — see web/CLAUDE.md. Edit",
+      "hero": {
+        "title": "Homepage Hero Image",
+        "subtitle": "The photograph behind the headline on lukkaplace.com. It changes for every visitor at their next page load — no deploy needed.",
+        "updated": "Set {time} by {actor}.",
+        "preview": "Preview",
+        "usingBuiltIn": "The site is using its built-in photo.",
+        "unsaved": "Not saved yet — this is how it will look.",
+        "upload": "Upload a picture",
+        "uploadHint": "JPEG, PNG or WebP, 10 MB at most. Resized to 2,400 px wide. A wide landscape photo works best.",
+        "orUrl": "Or paste an image URL",
+        "badUrl": "Use an https image from Lukka Place’s Supabase Storage (…/storage/v1/object/public/…) or lukkaplace.com/assets/img — other hosts cannot be displayed by the site.",
+        "alt": "Description for screen readers (optional)",
+        "credit": "Photo credit (optional)",
+        "creditPlaceholder": "Photo: Name / licence",
+        "creditHint": "Shown at the bottom right of the photo. Required when the licence asks for attribution.",
+        "save": "Save the hero",
+        "reset": "Back to the built-in photo",
+        "resetDone": "The homepage is back on the built-in photo.",
+        "saved": "Hero saved. It is live on the homepage.",
+        "badType": "Upload a JPEG, PNG or WebP image.",
+        "tooLarge": "This image is larger than {max} MB.",
+        "chooseImage": "Choose a picture to upload or paste its URL.",
+        "altTooLong": "The description is limited to 160 characters.",
+        "creditTooLong": "The credit is limited to 200 characters."
+      }
     },
     "password": {
       "title": "Reset Password",
@@ -2050,7 +2098,17 @@
       "viaDashboard": "Answered via dashboard",
       "viaWhatsapp": "Answered via WhatsApp",
       "clientNotified": "Client notified",
-      "clientNotNotified": "Client not notified"
+      "clientNotNotified": "Client not notified",
+      "whatsappCustomer": "WhatsApp the customer",
+      "whatsappCustomerText": "Hello {name}, this is Lukka Place about your viewing request {listing}.",
+      "whatsappAgent": "WhatsApp the agent",
+      "whatsappAgentText": "Hello, this is Lukka Place about a viewing request for {listing} from {customer}.",
+      "agentUnroutable": "cannot receive alerts",
+      "listingAgentNotAlerted": "listing’s agent · not alerted",
+      "listingHasNoAgent": "This listing has no agent",
+      "alertListingAgent": "Alert the agent",
+      "alertListingAgentHint": "Send {name} the viewing request on WhatsApp and assign it to them",
+      "assign": "Assign"
     },
     "marketData": {
       "title": "Market Data",
@@ -2277,7 +2335,12 @@
       "activateAllTitle": "Activate Every Agent?",
       "suspendAllTitle": "Suspend Every Agent?",
       "bulkConfirm": "This changes the status of {count} agents of {agency}. Each change is recorded in the audit log.",
-      "confirm": "Confirm"
+      "confirm": "Confirm",
+      "colContact": "Principal contact",
+      "noAgencyName": "no agency name",
+      "contactUnverified": "number not verified",
+      "moreAgents": "+{count} other agent(s)",
+      "noAgentYet": "No agent yet"
     },
     "agentProfile": {
       "tabs": "Agent sections",
@@ -2966,7 +3029,8 @@
             "awaiting": "Awaiting validation",
             "validated": "Validated",
             "rejected": "Rejected",
-            "not_qualified": "Not qualified yet"
+            "not_qualified": "Not qualified yet",
+            "with_listing": "With a listing"
           }
         },
         "validation": {
@@ -3027,6 +3091,13 @@
           "second": "16–end {month}",
           "pay": "Pay this fortnight ({count})",
           "payoutHint": "Pays the {count} approved line(s) earned {fortnight}."
+        },
+        "empty": {
+          "title": "No Referred Agents Yet",
+          "body": "Nobody has signed up with the code {code} yet. Three ways to put it to work in the field:",
+          "stepLink": "Share the signup link above with agents on WhatsApp — the code is filled in for them.",
+          "stepQr": "Print the QR code on flyers and cards for office visits.",
+          "stepWhatsApp": "Send the WhatsApp signup link: agents register by sending their first listing, with the code already typed."
         }
       },
       "attribution": {
@@ -3091,6 +3162,24 @@
             "whatsapp": "WhatsApp"
           }
         }
+      },
+      "team": {
+        "agentsBrought": "Agents brought in",
+        "qualifiedHint": "{count} qualified (launch policy)",
+        "theirListings": "Their live listings",
+        "theirListingsHint": "Public listings of the agents each rep looks after",
+        "soldHint": "{count} subscription(s) sold",
+        "qualified": "Qualified",
+        "actions": "Shortcuts",
+        "viaCode": "{count} via their code",
+        "perAgent": "{value} per agent",
+        "credited": "{count} credited",
+        "awaiting": "{count} to validate",
+        "noCode": "no code",
+        "copyCode": "Copy the code {code}",
+        "copyLink": "Copy the signup link",
+        "downloadQr": "Download the QR code",
+        "pay": "Pay this fortnight"
       }
     }
   },

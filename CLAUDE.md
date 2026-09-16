@@ -650,6 +650,16 @@ and `token_version` is bumped alongside.
 The ask is capped at `MAX_ASKS` (3) per sender via `agent_onboarding` in
 SQLite, so someone who never answers is not nagged on every listing.
 
+### Plan listing limit on WhatsApp
+
+`services/listingQuota.js`, called in `routes/webhook.js`'s draft-confirmation
+branch after the photo gate and before `expandAndPublishListing`. A verified
+agent whose agency's active plan (`packages.number_of_property`) would be
+exceeded by the draft — a multi-unit/multi-property draft counts every listing
+it publishes — gets the limit message with the upgrade link, and the draft stays
+pending. Same counting rule as web/lib/listingQuotaRules.js. Fails open when
+Postgres is unreachable or the sender is not a verified agent. §35.
+
 ### Sales-rep referral codes on WhatsApp
 
 `services/salesReferral.js` (web half and the commission rules: web/CLAUDE.md,

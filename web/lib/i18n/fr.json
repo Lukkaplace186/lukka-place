@@ -1007,6 +1007,14 @@
         "too_many_pending": "Vous avez déjà 5 documents en attente d’examen. Attendez leur examen avant d’en envoyer d’autres.",
         "upload_failed": "L’envoi a échoué. Réessayez."
       }
+    },
+    "quota": {
+      "title": "Limite d’annonces atteinte",
+      "reached": "Vous avez atteint la limite de {limit} annonces pour votre forfait actuel ({plan}). Pour publier plus d’annonces et booster votre visibilité, mettez à jour votre abonnement.",
+      "currentPlan": "forfait actuel",
+      "usage": "{used} annonce(s) sur {limit} utilisées avec votre forfait.",
+      "freeSlot": "Archiver une annonce, ou la marquer louée ou vendue, libère aussi une place.",
+      "upgrade": "Mettre à niveau mon forfait"
     }
   },
   "status": {
@@ -1542,7 +1550,22 @@
       "whatsapp": "WhatsApp",
       "source": "Source",
       "update": "Mettre à jour",
-      "propertyMissing": "Bien #{id} (introuvable)"
+      "propertyMissing": "Bien #{id} (introuvable)",
+      "subtitle": "{count} demande(s). Chacune montre le client, ce qu’il cherche et l’agent qui s’en occupe.",
+      "scopedToCustomer": "Seules les demandes de {phone} sont affichées.",
+      "clearCustomer": "Tout afficher",
+      "searchPlaceholder": "Nom, numéro, commune, demande…",
+      "onlyUnassigned": "Non attribuées à la main",
+      "loadError": "Impossible de charger les demandes : {error}",
+      "emptyFiltered": "Aucune demande ne correspond à ces filtres.",
+      "whatsappCustomerText": "Bonjour {name}, ici Lukka Place au sujet de votre recherche de bien.",
+      "proposals": "Propositions : {count}/7",
+      "whatsappAgentText": "Bonjour, ici Lukka Place au sujet d’une demande de {customer} {listing}.",
+      "listingAgentNotAssigned": "agent de l’annonce · non attribué",
+      "assignListingAgent": "Attribuer à l’agent de l’annonce",
+      "reassign": "Réattribuer",
+      "assignTo": "Attribuer à…",
+      "saveStatus": "Enregistrer"
     },
     "conversations": {
       "title": "Conversations WhatsApp",
@@ -1927,7 +1950,32 @@
       "exchangeRate": "Taux de change (USD → CDF)",
       "homeBanners": "Bannières d'accueil (sliders)",
       "adBanners": "Bannières publicitaires (advertisements)",
-      "rateNote": "Taux manuel affiché sur le site public, jamais un flux de change en direct — voir web/CLAUDE.md. Modifier"
+      "rateNote": "Taux manuel affiché sur le site public, jamais un flux de change en direct — voir web/CLAUDE.md. Modifier",
+      "hero": {
+        "title": "Image d’accueil (hero)",
+        "subtitle": "La photo derrière le titre de lukkaplace.com. Elle change pour chaque visiteur au prochain chargement de page — sans redéploiement.",
+        "updated": "Définie le {time} par {actor}.",
+        "preview": "Aperçu",
+        "usingBuiltIn": "Le site utilise sa photo intégrée.",
+        "unsaved": "Pas encore enregistrée — voici le rendu.",
+        "upload": "Téléverser une image",
+        "uploadHint": "JPEG, PNG ou WebP, 10 Mo au maximum. Redimensionnée à 2 400 px de large. Une photo paysage large rend le mieux.",
+        "orUrl": "Ou coller l’URL d’une image",
+        "badUrl": "Utilisez une image https du stockage Supabase de Lukka Place (…/storage/v1/object/public/…) ou de lukkaplace.com/assets/img — le site ne peut pas afficher d’autres hébergeurs.",
+        "alt": "Description pour les lecteurs d’écran (facultatif)",
+        "credit": "Crédit photo (facultatif)",
+        "creditPlaceholder": "Photo : Nom / licence",
+        "creditHint": "Affiché en bas à droite de la photo. Obligatoire quand la licence demande une attribution.",
+        "save": "Enregistrer l’image",
+        "reset": "Revenir à la photo intégrée",
+        "resetDone": "La page d’accueil utilise de nouveau la photo intégrée.",
+        "saved": "Image enregistrée. Elle est en ligne sur la page d’accueil.",
+        "badType": "Téléversez une image JPEG, PNG ou WebP.",
+        "tooLarge": "Cette image dépasse {max} Mo.",
+        "chooseImage": "Choisissez une image à téléverser ou collez son URL.",
+        "altTooLong": "La description est limitée à 160 caractères.",
+        "creditTooLong": "Le crédit est limité à 200 caractères."
+      }
     },
     "password": {
       "title": "Réinitialiser le mot de passe",
@@ -2050,7 +2098,17 @@
       "viaDashboard": "Réponse via le tableau de bord",
       "viaWhatsapp": "Réponse via WhatsApp",
       "clientNotified": "Client prévenu",
-      "clientNotNotified": "Client non prévenu"
+      "clientNotNotified": "Client non prévenu",
+      "whatsappCustomer": "Écrire au client sur WhatsApp",
+      "whatsappCustomerText": "Bonjour {name}, ici Lukka Place au sujet de votre demande de visite {listing}.",
+      "whatsappAgent": "Écrire à l’agent sur WhatsApp",
+      "whatsappAgentText": "Bonjour, ici Lukka Place au sujet d’une demande de visite pour {listing} de la part de {customer}.",
+      "agentUnroutable": "ne peut pas recevoir d’alertes",
+      "listingAgentNotAlerted": "agent de l’annonce · non alerté",
+      "listingHasNoAgent": "Cette annonce n’a pas d’agent",
+      "alertListingAgent": "Alerter l’agent",
+      "alertListingAgentHint": "Envoyer la demande de visite à {name} sur WhatsApp et la lui attribuer",
+      "assign": "Attribuer"
     },
     "marketData": {
       "title": "Données marché",
@@ -2277,7 +2335,12 @@
       "activateAllTitle": "Activer tous les agents ?",
       "suspendAllTitle": "Suspendre tous les agents ?",
       "bulkConfirm": "Cela modifie le statut de {count} agent(s) de {agency}. Chaque modification est inscrite au journal d’audit.",
-      "confirm": "Confirmer"
+      "confirm": "Confirmer",
+      "colContact": "Contact principal",
+      "noAgencyName": "sans nom d’agence",
+      "contactUnverified": "numéro non vérifié",
+      "moreAgents": "+{count} autre(s) agent(s)",
+      "noAgentYet": "Aucun agent pour l’instant"
     },
     "agentProfile": {
       "tabs": "Sections de l’agent",
@@ -2966,7 +3029,8 @@
             "awaiting": "À valider",
             "validated": "Validés",
             "rejected": "Rejetés",
-            "not_qualified": "Pas encore qualifiés"
+            "not_qualified": "Pas encore qualifiés",
+            "with_listing": "Avec une annonce"
           }
         },
         "validation": {
@@ -3027,6 +3091,13 @@
           "second": "16–fin {month}",
           "pay": "Payer cette quinzaine ({count})",
           "payoutHint": "Paie les {count} ligne(s) approuvée(s) gagnées {fortnight}."
+        },
+        "empty": {
+          "title": "Aucun agent parrainé pour l’instant",
+          "body": "Personne ne s’est encore inscrit avec le code {code}. Trois façons de le mettre au travail sur le terrain :",
+          "stepLink": "Partagez le lien d’inscription ci-dessus avec les agents sur WhatsApp — le code est déjà rempli pour eux.",
+          "stepQr": "Imprimez le QR code sur des flyers et des cartes pour les visites d’agences.",
+          "stepWhatsApp": "Envoyez le lien d’inscription WhatsApp : l’agent s’inscrit en envoyant son premier bien, avec le code déjà saisi."
         }
       },
       "attribution": {
@@ -3091,6 +3162,24 @@
             "whatsapp": "WhatsApp"
           }
         }
+      },
+      "team": {
+        "agentsBrought": "Agents apportés",
+        "qualifiedHint": "{count} qualifié(s) (politique de lancement)",
+        "theirListings": "Leurs annonces en ligne",
+        "theirListingsHint": "Annonces publiques des agents suivis par chaque commercial",
+        "soldHint": "{count} abonnement(s) vendu(s)",
+        "qualified": "Qualifiés",
+        "actions": "Raccourcis",
+        "viaCode": "{count} via leur code",
+        "perAgent": "{value} par agent",
+        "credited": "{count} créditée(s)",
+        "awaiting": "{count} à valider",
+        "noCode": "pas de code",
+        "copyCode": "Copier le code {code}",
+        "copyLink": "Copier le lien d’inscription",
+        "downloadQr": "Télécharger le QR code",
+        "pay": "Payer la quinzaine"
       }
     }
   },

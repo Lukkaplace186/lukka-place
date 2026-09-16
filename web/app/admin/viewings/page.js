@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { listViewingFeed } from '@/lib/adminApi';
 import { getListingLabels } from '@/lib/adminLeadRouting';
-import { getAgentNamesByIds, searchAgentIds } from '@/lib/agents';
+import { getAgentContactsByIds, searchAgentIds } from '@/lib/agents';
 import {
   DECLINE_REASON_LABEL_KEYS,
   ROUTING_TYPES,
@@ -16,6 +16,7 @@ import Pagination from '../table/Pagination';
 import TableToolbar from '../table/TableToolbar';
 import { EmptyRow, TD_DENSE, TH_STICKY, TR_DENSE, TableFrame } from '../table/TableFrame';
 import ViewingRowActions from './ViewingRowActions';
+import { AgentContact, WhatsAppLink } from '../ContactCell';
 import ServerViewTools from '../table/ServerViewTools';
 import { NewItemsNotice } from '../LiveQueueCounts';
 
@@ -81,10 +82,19 @@ export default async function AdminViewingsPage({ searchParams }) {
   }
 
   const rows = feed?.data || [];
-  const [labels, agentNames] = await Promise.all([
-    getListingLabels(rows.map((row) => row.property_id)).catch(() => new Map()),
-    getAgentNamesByIds(rows.map((row) => row.agent_id)).catch(() => new Map()),
-  ]);
+  // A request with no agent_id was never routed to anyone (it predates
+  // routing, or fell back to the central number). The listing still names its
+  // agent, so that agent is shown — marked "not alerted" — with a one-click
+  // alert, instead of a bare dash that breaks the customer → agent chain.
+  const labels = await getListingLabels(rows.map((row) => row.property_id)).catch(() => new Map());
+  const listingAgentOf = (row) => {
+    const id = labels.get(Number(row.property_id))?.agent_id;
+    return id ? Number(id) : null;
+  };
+  const contacts = await getAgentContactsByIds([
+    ...rows.map((row) => row.agent_id),
+    ...rows.map(listingAgentOf),
+  ]).catch(() => new Map());
   const byStatus = feed?.summary?.byStatus || {};
   const byRouting = feed?.summary?.byRouting || {};
   const escalated = feed?.summary?.byView?.escalated || 0;
@@ -181,6 +191,9 @@ export default async function AdminViewingsPage({ searchParams }) {
             rows.map((row) => {
               const listing = labels.get(Number(row.property_id));
               const agentId = row.agent_id ? Number(row.agent_id) : null;
+              const listingAgentId = agentId ? null : listingAgentOf(row);
+              const shownAgent = contacts.get(agentId || listingAgentId) || null;
+              const listingLabel = listing?.reference ? `Réf. ${listing.reference}` : row.property_id ? `#${row.property_id}` : '';
               const isEscalated = row.status === 'PENDING' && row.sla_alerted_at;
               return (
                 <tr key={row.id} className={TR_DENSE}>
@@ -197,15 +210,28 @@ export default async function AdminViewingsPage({ searchParams }) {
                   </td>
                   <td className={TD_DENSE}>
                     <div className="max-w-[10rem] truncate text-ink">{row.lead_name || '—'}</div>
-                    <div className="u-tabular text-ink-45">{row.lead_wa_id ? `+${row.lead_wa_id}` : ''}</div>
+                    <div className="mt-1">
+                      <WhatsAppLink
+                        phone={row.lead_wa_id}
+                        label={t('admin.viewings.whatsappCustomer')}
+                        text={t('admin.viewings.whatsappCustomerText', { name: row.lead_name || '', listing: listingLabel })}
+                      />
+                    </div>
                   </td>
                   <td className={`${TD_DENSE} whitespace-nowrap`}>{formatKinshasa(row.created_at)}</td>
                   <td className={TD_DENSE}>
-                    {agentId ? (
-                      <Link href={`/admin/agents/${agentId}`} className="text-ink hover:text-blue-deep hover:underline">
-                        {agentNames.get(agentId)?.name || `#${agentId}`}
-                      </Link>
-                    ) : '—'}
+                    {agentId || listingAgentId ? (
+                      <AgentContact
+                        agent={shownAgent}
+                        fallbackId={agentId || listingAgentId}
+                        whatsappLabel={t('admin.viewings.whatsappAgent')}
+                        whatsappText={t('admin.viewings.whatsappAgentText', { listing: listingLabel, customer: row.lead_name || '' })}
+                        unroutableLabel={t('admin.viewings.agentUnroutable')}
+                        chips={listingAgentId ? <Chip tone="warning">{t('admin.viewings.listingAgentNotAlerted')}</Chip> : null}
+                      />
+                    ) : (
+                      <span className="text-ink-45">{row.property_id ? t('admin.viewings.listingHasNoAgent') : '—'}</span>
+                    )}
                     <div className="mt-1 flex flex-wrap gap-1">
                       {row.routing_type ? (
                         <Chip tone={ROUTING_TONE[row.routing_type]}>{t(ROUTING_TYPE_LABEL_KEYS[row.routing_type])}</Chip>
@@ -261,6 +287,7 @@ export default async function AdminViewingsPage({ searchParams }) {
                     <ViewingRowActions
                       viewingRequestId={row.id}
                       currentAgentId={agentId}
+                      listingAgent={listingAgentId && shownAgent?.routable ? { id: listingAgentId, name: shownAgent.name } : null}
                       commune={row.resolved_commune || null}
                       canNudge={row.routing_type === 'DIRECT_WA' && ['PENDING', 'RESCHEDULED'].includes(row.status)}
                       canCancel={CANCELLABLE.includes(row.status)}

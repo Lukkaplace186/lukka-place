@@ -53,7 +53,7 @@ import { useT } from '@/lib/i18n/client';
  * movement is wanted back.
  * ---------------------------------------------------------------------------
  */
-export default function Hero({ propertyTypes = [], communes = [], initialCount = null }) {
+export default function Hero({ propertyTypes = [], communes = [], initialCount = null, image = null }) {
   const t = useT();
 
   return (
@@ -61,15 +61,33 @@ export default function Hero({ propertyTypes = [], communes = [], initialCount =
       <section className="relative flex h-[26rem] w-full items-center overflow-hidden bg-ink sm:h-[30rem] lg:h-[33.75rem]">
         {/* Nothing sits between the photo and the type: no scrim, no
             gradient, no frosted panel. The sunlit sky is the hero. */}
-        <Image
-          src={heroSunlit}
-          alt=""
-          fill
-          priority
-          placeholder="blur"
-          sizes="100vw"
-          className="object-cover"
-        />
+        {/* `image` is the picture set from /admin/cms (lib/cmsSettings.js), on an
+            allowed image host; without one, the built-in photo above. */}
+        {image?.imageUrl ? (
+          <Image
+            src={image.imageUrl}
+            alt={image.alt || ''}
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover"
+          />
+        ) : (
+          <Image
+            src={heroSunlit}
+            alt=""
+            fill
+            priority
+            placeholder="blur"
+            sizes="100vw"
+            className="object-cover"
+          />
+        )}
+        {image?.credit ? (
+          <span className="absolute bottom-2 right-3 z-10 max-w-[60%] truncate text-[0.6875rem] text-white/90 [text-shadow:0_1px_2px_rgb(0_0_0_/_0.8)]">
+            {image.credit}
+          </span>
+        ) : null}
 
         <div className="relative z-10 mx-auto w-full max-w-[1240px] px-4 sm:px-6 lg:px-8">
           <div className="max-w-[41rem]">

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { BellRing, CalendarClock, MoreHorizontal, UserRoundCog, XCircle } from 'lucide-react';
+import { BellRing, CalendarClock, MoreHorizontal, Send, UserRoundCog, XCircle } from 'lucide-react';
 import { useToast } from '@/components/Toast';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -29,8 +29,12 @@ const SECONDARY =
  * Reassignment searches routable agents server-side (AgentPicker) instead of
  * rendering every agent into a <select> on every row — at 30k agents that
  * select was the page. The engine re-checks the routing gate on every call.
+ *
+ * A request no agent was ever alerted about offers `listingAgent` first: one
+ * click sends the listing's own agent the alert through the same engine
+ * reassign path (which notifies them), so the chain customer → agent exists.
  */
-export default function ViewingRowActions({ viewingRequestId, currentAgentId, commune, canNudge, canCancel }) {
+export default function ViewingRowActions({ viewingRequestId, currentAgentId, listingAgent = null, commune, canNudge, canCancel }) {
   const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
@@ -78,9 +82,28 @@ export default function ViewingRowActions({ viewingRequestId, currentAgentId, co
         </button>
       ) : null}
 
-      <button type="button" className={ICON_BUTTON} disabled={pending} onClick={() => setDialog('reassign')} title={t('admin.viewings.reassign')}>
+      {listingAgent ? (
+        <button
+          type="button"
+          className={`${ICON_BUTTON} border-blue text-blue-deep`}
+          disabled={pending}
+          onClick={() => run(() => reassignViewingAction(viewingRequestId, listingAgent.id))}
+          title={t('admin.viewings.alertListingAgentHint', { name: listingAgent.name })}
+        >
+          <Send strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
+          <span>{t('admin.viewings.alertListingAgent')}</span>
+        </button>
+      ) : null}
+
+      <button
+        type="button"
+        className={ICON_BUTTON}
+        disabled={pending}
+        onClick={() => setDialog('reassign')}
+        title={currentAgentId ? t('admin.viewings.reassign') : t('admin.viewings.assign')}
+      >
         <UserRoundCog strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
-        <span className="hidden xl:inline">{t('admin.viewings.reassign')}</span>
+        <span className="hidden xl:inline">{currentAgentId ? t('admin.viewings.reassign') : t('admin.viewings.assign')}</span>
       </button>
 
       <DropdownMenu>

@@ -45,6 +45,7 @@ const {
 } = require('../services/viewingSweeps');
 const { handleListingEnquiry } = require('../services/listingEnquiry');
 const salesReferral = require('../services/salesReferral');
+const listingQuota = require('../services/listingQuota');
 
 const router = express.Router();
 
@@ -794,6 +795,20 @@ async function processGroup(messages) {
           replyToMessageId: primaryWamid || undefined,
         });
         console.log(`[db] listing #${pending.id} NOT published — no photo (confirmed by ${from})`);
+        return;
+      }
+
+      // PLAN LISTING LIMIT. After the photo gate (a refusal for a missing
+      // photo is the more useful message), before anything is published. The
+      // draft stays pending, so archiving a listing or upgrading and replying
+      // OK again publishes it. Fails open — see services/listingQuota.js.
+      const quota = await listingQuota.checkQuotaForSender(from, listingQuota.listingsToPublish(pending));
+      if (quota?.blocked) {
+        await chakra.sendWhatsAppMessage(from, listingQuota.limitReachedReply(quota), {
+          replyToMessageId: primaryWamid || undefined,
+          previewUrl: true,
+        });
+        console.log(`[quota] listing #${pending.id} NOT published — ${quota.used}/${quota.limit} used (confirmed by ${from})`);
         return;
       }
 

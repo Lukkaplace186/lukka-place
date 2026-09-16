@@ -27,7 +27,9 @@ const AGENCY_FIELDS = `
     WHERE a.vendor_id = v.id AND p.status = 1 AND p.approve_status = 1) AS live_listings,
   (SELECT COUNT(*)::int FROM properties p JOIN agents a ON a.id = p.agent_id
     WHERE a.vendor_id = v.id AND p.approve_status = 0) AS pending_listings,
-  m.expire_date, m.is_trial, pk.title AS package_title
+  m.expire_date, m.is_trial, pk.title AS package_title,
+  pc.id AS contact_id, pc.name AS contact_name, pc.phone AS contact_phone, pc.email AS contact_email,
+  pc.verified AS contact_verified
 `;
 
 const AGENCY_JOINS = `
@@ -38,6 +40,21 @@ const AGENCY_JOINS = `
     ORDER BY expire_date DESC LIMIT 1
   ) m ON true
   LEFT JOIN packages pk ON pk.id = m.package_id
+  -- The principal contact: the agency's first agent, named the way the rest of
+  -- the console names a person (agent_infos, then their typed agency name,
+  -- never the phone digits in username). An agency created for one agent by
+  -- WhatsApp onboarding has no name of its own, and this is who it is.
+  LEFT JOIN LATERAL (
+    SELECT ca.id, ca.phone, ca.email, ca.phone_verified_at IS NOT NULL AS verified,
+           COALESCE(NULLIF(TRIM(CONCAT_WS(' ', cai.first_name, cai.last_name)), ''), NULLIF(TRIM(ca.agency_name), ''),
+                    'Agent #' || ca.id) AS name
+    FROM agents ca
+    LEFT JOIN LATERAL (
+      SELECT first_name, last_name FROM agent_infos WHERE agent_id = ca.id ORDER BY (language_id = 20) DESC, language_id LIMIT 1
+    ) cai ON true
+    WHERE ca.vendor_id = v.id
+    ORDER BY ca.id LIMIT 1
+  ) pc ON true
 `;
 
 export async function listAgenciesForAdmin({ q, plan, sort = 'name', limit = 25, offset = 0 } = {}) {
@@ -49,7 +66,14 @@ export async function listAgenciesForAdmin({ q, plan, sort = 'name', limit = 25,
     const n = params.length;
     const digits = term.replace(/\D/g, '');
     params.push(digits.length >= 3 ? `%${digits}%` : '');
-    where.push(`(v.username ILIKE $${n} OR EXISTS (SELECT 1 FROM agents an WHERE an.vendor_id = v.id AND an.agency_name ILIKE $${n}) OR COALESCE(v.email, '') ILIKE $${n} OR ($${n + 1} <> '' AND COALESCE(v.phone, '') LIKE $${n + 1}))`);
+    where.push(`(v.username ILIKE ${n}
+      OR EXISTS (
+        SELECT 1 FROM agents an LEFT JOIN agent_infos ain ON ain.agent_id = an.id
+        WHERE an.vendor_id = v.id
+          AND (an.agency_name ILIKE ${n} OR CONCAT_WS(' ', ain.first_name, ain.last_name) ILIKE ${n}
+               OR (${n + 1} <> '' AND COALESCE(an.phone, '') LIKE ${n + 1}))
+      )
+      OR COALESCE(v.email, '') ILIKE ${n} OR (${n + 1} <> '' AND COALESCE(v.phone, '') LIKE ${n + 1}))`);
   }
   if (plan === 'active') where.push('m.expire_date IS NOT NULL');
   if (plan === 'none') where.push('m.expire_date IS NULL');

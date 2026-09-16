@@ -50,6 +50,8 @@ import { LEAD_STATUSES } from '@/lib/adminLabels';
 import { currentQuotaPeriodStart, resolveLeadQuota } from '@/lib/leadQuota';
 import { createPlanChangeRequest, getPurchasablePackages } from '@/lib/subscriptions';
 import { getT } from '@/lib/i18n/server';
+import { getListingQuota } from '@/lib/listingQuota';
+import { quotaRefusal } from '@/lib/listingQuotaRules';
 import { AGENT_SETTABLE_VIEWING_STATUSES, canAgentSetStatus } from '@/lib/viewingActions';
 import { MAX_AVATAR_BYTES, megabytes, validatePhotoSelection } from '@/lib/uploadLimits.mjs';
 
@@ -244,7 +246,7 @@ export async function setListingArchivedAction(propertyId, archived) {
 
   if (!archived) {
     const { rows } = await pool.query(
-      'SELECT listing_status FROM properties WHERE id = $1 AND agent_id = $2',
+      'SELECT listing_status, status, approve_status FROM properties WHERE id = $1 AND agent_id = $2',
       [propertyId, agentId],
     );
     if (!rows.length) return { ok: false, error: t('errors.listingNotFoundOrNotYours') };
@@ -253,6 +255,11 @@ export async function setListingArchivedAction(propertyId, archived) {
         ok: false,
         error: t('errors.alreadyClosed'),
       };
+    }
+    // Putting an archived listing back online takes a slot of the plan again.
+    if (Number(rows[0].status) !== 1 && [0, 1].includes(Number(rows[0].approve_status))) {
+      const quota = await getListingQuota(agentId, 1);
+      if (quota?.blocked) return quotaRefusal(t, quota);
     }
   }
 
@@ -359,6 +366,11 @@ export async function createListingAction(validCommunes, validCategories, formDa
     const existingId = await findRecentOwnDuplicate(agentId, { title, price });
     if (existingId) return { ok: true, propertyId: existingId, photoWarning: false, replayed: true };
   }
+
+  // The plan's listing limit (lib/listingQuotaRules.js). Checked after the
+  // replay guard, so a re-sent draft that already exists is never refused.
+  const quota = await getListingQuota(agentId, 1);
+  if (quota?.blocked) return quotaRefusal(t, quota);
 
   const propertyId = await createListing({
     agentId,
@@ -969,6 +981,10 @@ export async function duplicateListingAction(propertyId) {
   const t = await getT();
   const agentId = await assertAgentSession();
 
+  // A duplicate is a new listing awaiting moderation, so it takes a slot.
+  const quota = await getListingQuota(agentId, 1);
+  if (quota?.blocked) return quotaRefusal(t, quota);
+
   const newId = await duplicateListing(agentId, propertyId);
   if (!newId) return { ok: false, error: t('errors.listingNotFoundOrNotYours') };
 
@@ -1067,6 +1083,20 @@ export async function bulkSetArchivedAction(propertyIds, archived) {
   if (ids.length === 0) return { ok: true, updated: 0, failed: 0 };
 
   const pool = getPool();
+  if (!archived) {
+    // Only listings that are not already taking a slot would take a new one.
+    const { rows } = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM properties p
+       WHERE p.id = ANY($1::bigint[]) AND p.agent_id = $2 AND p.status <> 1
+         AND p.approve_status IN (0, 1) AND COALESCE(p.listing_status, 'active') <> 'closed'`,
+      [ids, agentId],
+    );
+    const quota = await getListingQuota(agentId, rows[0]?.n || 0);
+    if (quota?.blocked) {
+      const t = await getT();
+      return { ...quotaRefusal(t, quota), updated: 0, failed: ids.length };
+    }
+  }
   const { rowCount } = await pool.query(
     `UPDATE properties
      SET status = $1, archived_at = $2, updated_at = NOW()

@@ -413,6 +413,52 @@ subscription steps skip launch reps and vice versa.
   hashed connection, listings before the referral, day-30 failures) — facts,
   never automatic penalties. `/admin/sales/me` sends a rep to their page.
 
+### Listing limits, the customer → agent chain, agencies, CMS hero
+
+- **Plan listing limits are enforced** (`lib/listingQuotaRules.js` pure,
+  `lib/listingQuota.js` SQL; engine twin `services/listingQuota.js` — change
+  one, change the other). The cap is `packages.number_of_property` of the
+  agency's active membership (vendor-wide; the most generous active listing
+  plan; a 0/NULL package such as Photography Service sets no cap; no active
+  membership → no cap). A slot is `status = 1 AND approve_status IN (0, 1)` and
+  not closed — pending counts, archived / rejected / let-sold free a slot.
+  Checked in `createListingAction` (after the offline-replay guard),
+  `duplicateListingAction`, single and bulk "put back online", and on WhatsApp
+  "OK" (after the photo gate; the draft stays pending). A refusal returns
+  `{quota}` and `announceListingQuota` opens `components/ListingLimitDialog.js`
+  (mounted in the agent layout) with "Mettre à niveau mon forfait" →
+  `/compte/agent/abonnement`; Mes biens shows the banner and the add button
+  opens the dialog instead of the form at the limit. **Production's Free plan
+  allows 2 listings while the launch policy needs 3 to qualify an agent** —
+  a pricing decision, not changed in code.
+- **Viewings and leads always name an agent when one exists.** A request with
+  no `agent_id` (pre-routing, or central fallback) shows the listing's own agent
+  marked "non alerté" / "non attribué", with WhatsApp links to customer and
+  agent (`app/admin/ContactCell.js`) and one click: "Alerter l'agent"
+  (engine reassign, which notifies them) on viewings, "Attribuer à l'agent de
+  l'annonce" on leads. `getAgentContactsByIds` (lib/agents.js) gives name,
+  agency, digits-only phone and `routable` (verified, routing on, active).
+  `/admin/leads` is now TableToolbar/TableFrame with engine-side search
+  (`q`: name, number, commune, request, assigned agent) and an unassigned filter.
+- **Agencies show a principal contact**: the agency's first agent, named like
+  every console person (never `username`). "Agence #id" stays the honest
+  agency name when none exists, flagged "sans nom d'agence"; search also finds
+  agents' person names and numbers. Stored vendor phones with a leading "+" no
+  longer print "++".
+- **Sales team page** is organised around agents brought in (active
+  assignments, which attributions mirror) and those agents' live listings, with
+  qualified / to-validate counts; every count links to the filtered list on the
+  rep page (`?gfilter=with_listing|qualified|awaiting#referred`), and each row has
+  copy code, copy link, QR download (`/admin/sales/[id]/qr?format=png|svg`, same
+  access as the rep page) and "pay this fortnight" (`?status=approved&fn=…&payout=1`
+  opens the payout dialog). A rep whose code brought nobody in gets a how-to card.
+- **CMS hero image** (`migrations/20260921_cms_settings.sql`, `lib/cmsSettings.js`,
+  `lib/cmsHeroRules.js`, `app/admin/cms/HeroManager.js`): upload (resized to
+  2400 px JPEG via sharp, stored under `cms/hero/` in the listing bucket) or a
+  pasted URL on a next/image-allowed host, alt text, optional credit, live
+  preview, reset. The homepage reads it per request (`getHeroSettings` never
+  throws) and falls back to `Hero/hero-sunlit.jpg`.
+
 ### "View as" an agent or a customer (impersonation)
 
 `lib/impersonationToken.js` (pure crypto + the edge decision),

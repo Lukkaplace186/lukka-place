@@ -7,6 +7,13 @@ import Pagination from '../table/Pagination';
 import TableToolbar from '../table/TableToolbar';
 import ServerViewTools from '../table/ServerViewTools';
 import { EmptyRow, TD_DENSE, TD_DENSE_RIGHT, TH_STICKY, TH_STICKY_RIGHT, TR_DENSE, TableFrame } from '../table/TableFrame';
+import { WhatsAppLink } from '../ContactCell';
+
+/** Stored with or without a leading "+"; shown with exactly one. */
+function phoneLabel(value) {
+  const digits = String(value || '').replace(/D/g, '');
+  return digits ? `+${digits}` : null;
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -82,6 +89,7 @@ export default async function AdminAgenciesPage({ searchParams }) {
         <thead>
           <tr>
             <th className={TH_STICKY}>{t('admin.agencies.colAgency')}</th>
+            <th className={TH_STICKY}>{t('admin.agencies.colContact')}</th>
             <th className={TH_STICKY_RIGHT}>{t('admin.agencies.colAgents')}</th>
             <th className={TH_STICKY_RIGHT}>{t('admin.agencies.colLive')}</th>
             <th className={TH_STICKY_RIGHT}>{t('admin.agencies.colPending')}</th>
@@ -90,13 +98,32 @@ export default async function AdminAgenciesPage({ searchParams }) {
         </thead>
         <tbody>
           {(list?.rows || []).length === 0 ? (
-            <EmptyRow colSpan={5}>{t('admin.agencies.empty')}</EmptyRow>
+            <EmptyRow colSpan={6}>{t('admin.agencies.empty')}</EmptyRow>
           ) : (
             list.rows.map((agency) => (
               <tr key={agency.id} className={TR_DENSE}>
                 <td className={TD_DENSE}>
                   <Link href={`/admin/agencies/${agency.id}`} className="font-semibold text-ink hover:text-blue-deep hover:underline">{agency.name}</Link>
-                  <div className="text-ink-45">{[agency.email, agency.phone ? `+${agency.phone}` : null].filter(Boolean).join(' · ') || `#${agency.id}`}</div>
+                  {agency.name === `Agence #${agency.id}` ? (
+                    <span className="ml-1.5"><Chip>{t('admin.agencies.noAgencyName')}</Chip></span>
+                  ) : null}
+                  <div className="text-ink-45">{[agency.email, phoneLabel(agency.phone)].filter(Boolean).join(' · ') || `#${agency.id}`}</div>
+                </td>
+                <td className={TD_DENSE}>
+                  {agency.contact_id ? (
+                    <div className="flex flex-col items-start gap-1">
+                      <Link href={`/admin/agents/${agency.contact_id}`} className="max-w-[14rem] truncate font-semibold text-ink hover:text-blue-deep hover:underline">
+                        {agency.contact_name}
+                      </Link>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <WhatsAppLink phone={agency.contact_phone} label={t('admin.viewings.whatsappAgent')} />
+                        {agency.contact_verified ? null : <Chip tone="warning">{t('admin.agencies.contactUnverified')}</Chip>}
+                      </div>
+                      {agency.agents > 1 ? <div className="text-ink-45">{t('admin.agencies.moreAgents', { count: agency.agents - 1 })}</div> : null}
+                    </div>
+                  ) : (
+                    <span className="text-ink-45">{t('admin.agencies.noAgentYet')}</span>
+                  )}
                 </td>
                 <td className={TD_DENSE_RIGHT}>
                   <span className="font-semibold text-ink">{agency.agents}</span>

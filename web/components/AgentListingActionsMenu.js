@@ -23,6 +23,7 @@ import {
 import { useToast } from './Toast';
 import AgentListingShareKit from './AgentListingShareKit';
 import { useT } from '@/lib/i18n/client';
+import { announceListingQuota } from '@/lib/listingQuotaRules';
 
 /**
  * The full per-listing management suite, replacing the row's old icon trio
@@ -92,6 +93,10 @@ export default function AgentListingActionsMenu({ listing, isClosed }) {
   function handleToggleArchive() {
     startTransition(async () => {
       const result = await setListingArchivedAction(listing.id, !isArchived);
+      if (!result.ok && result.quota) {
+        announceListingQuota(result.quota);
+        return;
+      }
       if (!result.ok) {
         showToast({ type: 'error', message: result.error });
         return;
@@ -119,6 +124,10 @@ export default function AgentListingActionsMenu({ listing, isClosed }) {
   function handleDuplicate() {
     startTransition(async () => {
       const result = await duplicateListingAction(listing.id);
+      if (!result.ok && result.quota) {
+        announceListingQuota(result.quota);
+        return;
+      }
       if (!result.ok) {
         showToast({ type: 'error', message: result.error });
         return;

@@ -21,7 +21,7 @@ export async function getListingLabels(ids) {
   const clean = [...new Set((ids || []).map((id) => Number(id)).filter((id) => Number.isFinite(id) && id > 0))];
   if (clean.length === 0) return new Map();
   const { rows } = await getPool().query(
-    `SELECT p.id, p.reference, pc.title, ${COMMUNE_EXPR} AS commune
+    `SELECT p.id, p.reference, p.agent_id, pc.title, ${COMMUNE_EXPR} AS commune
        FROM properties p
        LEFT JOIN property_contents pc ON pc.property_id = p.id AND pc.language_id = 20
       WHERE p.id = ANY($1::bigint[])`,

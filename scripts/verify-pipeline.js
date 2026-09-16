@@ -8305,6 +8305,70 @@ console.log('\n2. services/openai.js');
     }
   });
 
+  // ===========================================================================
+  console.log('\n35. Plan listing limit on WhatsApp, and lead search in the console');
+  // ===========================================================================
+  //
+  // An agent confirming a draft with OK is refused when publishing it would go
+  // past packages.number_of_property of their agency's active plan. The draft
+  // stays pending. Same counting rule as web/lib/listingQuotaRules.js.
+  const listingQuota = require('../services/listingQuota');
+
+  check('the limit blocks exactly when the listings would exceed it; no plan never blocks', () => {
+    assert.strictEqual(listingQuota.quotaVerdict({ limit: 2, used: 1 }).blocked, false);
+    assert.strictEqual(listingQuota.quotaVerdict({ limit: 2, used: 2 }).blocked, true);
+    assert.strictEqual(listingQuota.quotaVerdict({ limit: null, used: 50 }).blocked, false);
+    assert.strictEqual(listingQuota.quotaVerdict({ limit: 0, used: 50 }).blocked, false, 'a 0-listing package is not a listing plan');
+    assert.strictEqual(listingQuota.quotaVerdict({ limit: 15, used: 12 }, 4).blocked, true);
+  });
+
+  check('a multi-unit or multi-property draft counts as every listing it publishes', () => {
+    assert.strictEqual(listingQuota.listingsToPublish({ parsed_json: { is_multi_unit: true, units: [{}, {}, {}] } }), 3);
+    assert.strictEqual(listingQuota.listingsToPublish({ parsed_json: { is_multi_property: true, units: [{}, {}] } }), 2);
+    assert.strictEqual(listingQuota.listingsToPublish({ parsed_json: { is_multi_unit: true, units: [{}] } }), 1);
+    assert.strictEqual(listingQuota.listingsToPublish({}), 1);
+  });
+
+  check('the refusal names the limit, the plan and the upgrade link, and keeps the draft', () => {
+    const text = listingQuota.limitReachedReply({ limit: 5, used: 5, remaining: 0, adding: 1, planTitle: 'Bronze' });
+    assert.ok(text.includes('limite de 5 annonces pour votre forfait actuel (Bronze)'));
+    assert.ok(text.includes('https://lukkaplace.com/compte/agent/abonnement') || text.includes('/compte/agent/abonnement'));
+    assert.ok(text.includes('gardé en attente'));
+    assert.ok(text.includes('*OK*'));
+  });
+
+  await checkAsync('without Postgres the limit is not enforced (fails open)', async () => {
+    assert.strictEqual(await listingQuota.checkQuotaForSender('243810000000', 1), null);
+  });
+
+  check('only a verified agent is looked up, and the SQL counts like the web', () => {
+    const sql = listingQuota.SENDER_QUOTA_SQL.replace(/\s+/g, ' ');
+    assert.ok(sql.includes('a.phone_verified_at IS NOT NULL'));
+    assert.ok(sql.includes("p.status = 1 AND p.approve_status IN (0, 1) AND COALESCE(p.listing_status, 'active') <> 'closed'"));
+    assert.ok(sql.includes('pk.number_of_property > 0'));
+  });
+
+  check('the webhook checks the limit after the photo gate and before anything is published', () => {
+    const source = fs.readFileSync(path.join(__dirname, '..', 'routes', 'webhook.js'), 'utf8');
+    const photoGate = source.indexOf('PHOTO_REQUIRED_REPLY, {');
+    const quotaAt = source.indexOf('listingQuota.checkQuotaForSender(from');
+    const publishAt = source.indexOf('expandAndPublishListing(pending.id)');
+    assert.ok(photoGate > 0 && quotaAt > photoGate && publishAt > quotaAt);
+  });
+
+  check('lead search matches name, number and commune, treats % and _ as text, and filters unassigned', () => {
+    const SEARCH_A = '243899035001';
+    const SEARCH_B = '243899035002';
+    dbService.createLead({ wa_id: SEARCH_A, name: 'Zéphyrine 50% QA', source: 'verify-35', commune: 'Kintambo' });
+    dbService.createLead({ wa_id: SEARCH_B, name: 'Other QA', source: 'verify-35' });
+    assert.strictEqual(dbService.listLeads({ q: '50%' }).data.filter((l) => l.source === 'verify-35').length, 1);
+    assert.strictEqual(dbService.listLeads({ q: 'kintambo' }).data.filter((l) => l.source === 'verify-35').length, 1);
+    assert.strictEqual(dbService.listLeads({ q: '899035002' }).data.filter((l) => l.source === 'verify-35').length, 1);
+    assert.strictEqual(dbService.listLeads({ q: '_QA' }).data.filter((l) => l.source === 'verify-35').length, 0, '_ is not a wildcard');
+    const unassigned = dbService.listLeads({ unassigned: true, limit: 200 }).data;
+    assert.ok(unassigned.every((lead) => lead.agent_id == null));
+  });
+
   // -------------------------------------------------------------------------
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);

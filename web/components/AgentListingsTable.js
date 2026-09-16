@@ -21,6 +21,7 @@ import {
 import { useToast } from './Toast';
 import { useT } from '@/lib/i18n/client';
 import { LISTING_TIME_ZONE } from '@/lib/listingView';
+import { announceListingQuota } from '@/lib/listingQuotaRules';
 
 const LISTING_STATUS_EDIT_OPTIONS = [
   { value: 'active', labelKey: 'status.listing.active' },
@@ -213,6 +214,13 @@ export default function AgentListingsTable({ listings, perListingStats }) {
       }
       try {
         const result = await bulkSetArchivedAction(ids, archived);
+        if (result?.quota) {
+          announceListingQuota(result.quota);
+          clearSelection();
+          setBulkPending(false);
+          router.refresh();
+          return;
+        }
         showToast({
           type: 'success',
           message: archived

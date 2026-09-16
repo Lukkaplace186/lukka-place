@@ -90,10 +90,12 @@ export async function sendManualReply(id, text) {
  * @returns {Promise<{total: number, limit: number, offset: number, count: number, data: Object[]}>}
  */
 export async function listLeads({
-  status, propertyIds, assignedAgent, agentId, matchedAgentId, waId, limit, offset,
+  status, propertyIds, assignedAgent, agentId, matchedAgentId, waId, q, unassigned, limit, offset,
 } = {}) {
   const params = new URLSearchParams();
   if (status) params.set('status', status);
+  if (q) params.set('q', String(q).slice(0, 100));
+  if (unassigned) params.set('unassigned', '1');
   if (propertyIds?.length) params.set('property_ids', propertyIds.join(','));
   if (assignedAgent) params.set('assigned_agent', assignedAgent);
   if (agentId != null) params.set('agent_id', String(agentId));

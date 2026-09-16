@@ -392,7 +392,7 @@ export async function getLaunchCounts(repId = null) {
   return repId ? mapped[0] || null : mapped;
 }
 
-export const REFERRED_AGENT_FILTERS = ['all', 'qualified', 'awaiting', 'validated', 'rejected', 'not_qualified'];
+export const REFERRED_AGENT_FILTERS = ['all', 'with_listing', 'qualified', 'awaiting', 'validated', 'rejected', 'not_qualified'];
 
 /** The agents a rep brought in, with where each stands. */
 export async function listReferredAgents(repId, { filter = 'all', limit = 25, offset = 0 } = {}) {
@@ -400,6 +400,8 @@ export async function listReferredAgents(repId, { filter = 'all', limit = 25, of
   const skip = Math.max(Number.parseInt(offset, 10) || 0, 0);
   const where = {
     all: 'true',
+    with_listing: `EXISTS (SELECT 1 FROM properties wl JOIN sales_agent_attributions wa ON wa.agent_id = q.agent_id
+                   WHERE wl.agent_id = q.agent_id AND wl.created_at::timestamptz >= wa.credit_from)`,
     qualified: 'q.qualified',
     awaiting: "q.qualified AND q.validation_status = 'pending'",
     validated: "q.validation_status = 'validated'",

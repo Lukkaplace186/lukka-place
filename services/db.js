@@ -2020,9 +2020,20 @@ const LEADS_LIST_LIMIT_MAX = 100;
  * @param {number} [options.offset]
  * @returns {{total: number, limit: number, offset: number, count: number, data: Object[]}}
  */
-function listLeads({ status, propertyIds, assignedAgent, agentId, matchedAgentId, waId, limit, offset } = {}) {
+function listLeads({ status, propertyIds, assignedAgent, agentId, matchedAgentId, waId, q, unassigned, limit, offset } = {}) {
   const where = [];
   const params = {};
+  // /admin/leads search: the customer's name or number, the request text, the
+  // commune. `%`/`_` typed by an admin are text (likeTerm escapes them).
+  const search = likeTerm(q);
+  if (search) {
+    where.push(`(name LIKE @q ESCAPE '\\' OR wa_id LIKE @q ESCAPE '\\' OR COALESCE(requirements_summary, '') LIKE @q ESCAPE '\\'
+      OR COALESCE(commune, '') LIKE @q ESCAPE '\\' OR COALESCE(assigned_agent, '') LIKE @q ESCAPE '\\')`);
+    params.q = search;
+  }
+  // No agent chosen by hand yet. A request tied to a listing still has that
+  // listing's agent — the console shows it — but nobody assigned it.
+  if (unassigned) where.push('agent_id IS NULL');
   if (status) {
     where.push('status = @status');
     params.status = status;

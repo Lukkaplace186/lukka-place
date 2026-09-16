@@ -293,6 +293,34 @@ export async function getAgentNamesByIds(ids) {
   }]));
 }
 
+/**
+ * What the console needs to put an agent next to a lead or a visit: name,
+ * agency, number, and whether the WhatsApp alert can reach them (the same
+ * three conditions as the engine's directRoutingBlocker). Never
+ * `agents.username` as a name.
+ */
+export async function getAgentContactsByIds(ids) {
+  const clean = [...new Set((ids || []).map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0))];
+  if (clean.length === 0) return new Map();
+  const { rows } = await getPool().query(
+    `SELECT a.id, a.phone, a.email, a.status, a.phone_verified_at, a.direct_routing_enabled, a.vendor_id,
+            ${ADMIN_AGENT_NAME}, ${vendorNameSql('v')} AS agency_name
+     ${AGENT_SEARCH_JOINS}
+     WHERE a.id = ANY($1::bigint[])`,
+    [clean],
+  );
+  return new Map(rows.map((row) => [Number(row.id), {
+    id: Number(row.id),
+    name: row.display_name,
+    phone: row.phone ? String(row.phone).replace(/\D/g, '') : null,
+    email: row.email || null,
+    agencyName: row.vendor_id ? row.agency_name : null,
+    vendorId: row.vendor_id ? Number(row.vendor_id) : null,
+    verified: Boolean(row.phone_verified_at),
+    routable: Boolean(row.phone_verified_at) && row.direct_routing_enabled !== false && Number(row.status) === 1,
+  }]));
+}
+
 /** Agency search on /admin/viewings: names/number -> ids the engine can filter on. Capped at 500. */
 export async function searchAgentIds(q) {
   const params = [];

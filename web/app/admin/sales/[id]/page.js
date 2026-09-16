@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, MessageCircle, Printer, Share2 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { getAdminSession } from '@/lib/adminSession';
 import { can } from '@/lib/adminRoles';
@@ -36,6 +36,15 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 function day(value) {
   return value ? new Date(value).toLocaleDateString('fr-FR', { timeZone: 'UTC' }) : '—';
+}
+
+/** A metric that opens the list behind it. */
+function StatLink({ href, ...stat }) {
+  return (
+    <Link href={href} scroll className="block rounded-card transition-shadow hover:ring-2 hover:ring-blue/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue">
+      <Stat {...stat} />
+    </Link>
+  );
 }
 
 function money(amount, currency) {
@@ -151,6 +160,8 @@ export default async function AdminSalesRepPage({ params, searchParams }) {
   // A subscription-plan rep has a code too (every rep gets one); their launch
   // sections appear only once the code has actually brought someone in.
   const showLaunch = Boolean(counts) && (isLaunch || counts.registered > 0);
+  // A rep with a code that has brought nobody in yet gets the how-to card, not empty tables.
+  const noReferrals = Boolean(counts) && counts.registered === 0 && Boolean(rep.referral_code) && agentFilter === 'all';
 
   const sourceLabel = (row) => t(`admin.sales.source.${row.source_type}`);
   const ledgerDetail = (row) => {
@@ -312,9 +323,10 @@ export default async function AdminSalesRepPage({ params, searchParams }) {
           </div>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Stat label={t('admin.sales.launch.funnel.clicks')} value={counts.clicks} />
-            <Stat label={t('admin.sales.launch.funnel.registered')} value={counts.registered} />
-            <Stat label={t('admin.sales.launch.funnel.withListing')} value={counts.with_listing} />
-            <Stat
+            <StatLink href={`${buildHref(base, query, { gfilter: '', gpage: '' })}#referred`} label={t('admin.sales.launch.funnel.registered')} value={counts.registered} />
+            <StatLink href={`${buildHref(base, query, { gfilter: 'with_listing', gpage: '' })}#referred`} label={t('admin.sales.launch.funnel.withListing')} value={counts.with_listing} />
+            <StatLink
+              href={`${buildHref(base, query, { gfilter: 'qualified', gpage: '' })}#referred`}
               label={t('admin.sales.launch.funnel.qualified')}
               value={counts.qualified_agents}
               hint={t('admin.sales.launch.funnel.qualifiedHint', { validated: counts.payable_agents, awaiting: counts.awaiting_validation })}
@@ -372,8 +384,32 @@ export default async function AdminSalesRepPage({ params, searchParams }) {
         </>
       )}
 
-      {showLaunch ? (
-        <section className="flex flex-col gap-2">
+      {noReferrals ? (
+        <section id="referred" className="u-card scroll-mt-20 rounded-card bg-surface p-5">
+          <h2 className="u-title-card text-ink">{t('admin.sales.launch.empty.title')}</h2>
+          <p className="u-micro mt-1 text-ink-70">{t('admin.sales.launch.empty.body', { code: rep.referral_code })}</p>
+          <ol className="mt-4 grid gap-3 sm:grid-cols-3">
+            <li className="flex gap-3 rounded-lg border border-line p-3">
+              <Share2 strokeWidth={ICON_STROKE_WIDTH} className="mt-0.5 h-5 w-5 shrink-0 text-blue-deep" />
+              <span className="u-micro text-ink-70">{t('admin.sales.launch.empty.stepLink')}</span>
+            </li>
+            <li className="flex gap-3 rounded-lg border border-line p-3">
+              <Printer strokeWidth={ICON_STROKE_WIDTH} className="mt-0.5 h-5 w-5 shrink-0 text-blue-deep" />
+              <span className="u-micro text-ink-70">
+                {t('admin.sales.launch.empty.stepQr')}{' '}
+                <a href={`/admin/sales/${rep.id}/qr?format=png`} className="font-semibold text-blue-deep hover:underline">{t('admin.sales.team.downloadQr')}</a>
+              </span>
+            </li>
+            <li className="flex gap-3 rounded-lg border border-line p-3">
+              <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="mt-0.5 h-5 w-5 shrink-0 text-blue-deep" />
+              <span className="u-micro text-ink-70">{t('admin.sales.launch.empty.stepWhatsApp')}</span>
+            </li>
+          </ol>
+        </section>
+      ) : null}
+
+      {showLaunch && !noReferrals ? (
+        <section id="referred" className="flex scroll-mt-20 flex-col gap-2">
           <div className="flex flex-wrap items-end justify-between gap-2">
             <h2 className="u-title-card text-ink">{t('admin.sales.launch.agents.title')}</h2>
             <div className="flex flex-wrap gap-2">
@@ -401,7 +437,7 @@ export default async function AdminSalesRepPage({ params, searchParams }) {
         </section>
       ) : null}
 
-      {showLaunch ? (
+      {showLaunch && !noReferrals ? (
         <section className="flex flex-col gap-2">
           <h2 className="u-title-card text-ink">{t('admin.sales.launch.credits.title')}</h2>
           <ListingCredits
@@ -413,7 +449,7 @@ export default async function AdminSalesRepPage({ params, searchParams }) {
         </section>
       ) : null}
 
-      <section className="flex flex-col gap-2">
+      <section id="ledger" className="flex scroll-mt-20 flex-col gap-2">
         <div className="flex flex-wrap items-end justify-between gap-2">
           <h2 className="u-title-card text-ink">{t('admin.sales.ledger.title')}</h2>
           <div className="flex flex-wrap gap-2">
@@ -453,6 +489,7 @@ export default async function AdminSalesRepPage({ params, searchParams }) {
           defaultCurrency={rep.plan_currency || 'USD'}
           scopeLines={scopeLines}
           scopeLabel={fortnight ? fortnightLabel(fortnight) : null}
+          openPayout={firstParam(raw.payout) === '1'}
           footer={<Pagination pathname={base} params={query} total={ledger.total} page={ledgerPage.page} pageSize={ledgerPage.pageSize} pageParam="lpage" sizeParam="lsize" />}
         />
       </section>

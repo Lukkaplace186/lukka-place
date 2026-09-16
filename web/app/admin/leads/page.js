@@ -1,11 +1,19 @@
 import Link from 'next/link';
 import { listLeads } from '@/lib/adminApi';
 import { LEAD_STATUSES, LEAD_STATUS_LABEL_KEYS } from '@/lib/adminLabels';
+import { getListingLabels } from '@/lib/adminLeadRouting';
+import { getAgentContactsByIds } from '@/lib/agents';
 import { firstParam, parsePage } from '@/lib/adminPagination';
 import { updateLeadStatusAction, assignLeadAction } from '../actions';
 import { getT } from '@/lib/i18n/server';
 import AgentPicker from '../AgentPicker';
+import { AgentContact, WhatsAppLink } from '../ContactCell';
+import { Chip, ErrorNote } from '../LeadRoutingUI';
 import Pagination from '../table/Pagination';
+import TableToolbar from '../table/TableToolbar';
+import { EmptyRow, TD_DENSE, TH_STICKY, TR_DENSE, TableFrame } from '../table/TableFrame';
+
+export const dynamic = 'force-dynamic';
 
 function formatDate(value) {
   if (!value) return '—';
@@ -18,185 +26,233 @@ function budgetText(lead) {
   const min = lead.price_min != null ? Number(lead.price_min).toLocaleString('fr-FR') : null;
   const max = lead.price_max != null ? Number(lead.price_max).toLocaleString('fr-FR') : null;
   if (min && max) return `$${min}–$${max}`;
-  if (max) return `Jusqu'à $${max}`;
-  if (min) return `À partir de $${min}`;
+  if (max) return `≤ $${max}`;
+  if (min) return `≥ $${min}`;
   return null;
 }
 
-const TRANSACTION_LABELS_FR = { location: 'Location', vente: 'Vente' };
-
 /**
- * "Limete · Location · 2 ch. · $800–$1,000" — commune first (the field
+ * "Limete · location · 2 ch. · $800–$1,000" — commune first (the field
  * Request Assignment Routing actually matches agents on), then the real
- * structured columns Trouver pour moi now populates. There is no
- * `property_type` column on `leads` at all (only `conversations` has one,
- * for the WhatsApp buyer-assistant flow) — showing one here would be
- * inventing data this table doesn't have, so it's deliberately omitted
- * rather than faked.
+ * structured columns Trouver pour moi populates. There is no `property_type`
+ * column on `leads` (only `conversations` has one), so none is shown.
  */
 function researchLine(lead) {
   const parts = [
     lead.commune,
-    TRANSACTION_LABELS_FR[lead.transaction_type] || lead.transaction_type,
+    lead.transaction_type,
     lead.bedrooms ? `${lead.bedrooms} ch.` : null,
     budgetText(lead),
   ].filter(Boolean);
   return parts.join(' · ') || null;
 }
 
+const ASSIGNMENT_FILTERS = ['unassigned'];
+
+/**
+ * Prospects. Each row carries the whole chain an admin needs to act on:
+ * the customer (with a WhatsApp link), what they asked for, and the agent —
+ * the one assigned by hand, or, for a request about a specific listing that
+ * nobody assigned, that listing's own agent, marked as such, with one click
+ * to make it the assignment. Search, status and "unassigned" filters are SQL
+ * in the engine, one page at a time.
+ */
 export default async function AdminLeadsPage({ searchParams }) {
   const t = await getT();
-  const params = (await searchParams) || {};
-  const status = firstParam(params.status) || '';
+  const raw = (await searchParams) || {};
+  const status = LEAD_STATUSES.includes(firstParam(raw.status)) ? firstParam(raw.status) : undefined;
+  const q = String(firstParam(raw.q) || '').trim().slice(0, 100) || undefined;
+  const assignment = ASSIGNMENT_FILTERS.includes(firstParam(raw.assignment)) ? firstParam(raw.assignment) : undefined;
   // `?wa=` scopes the list to one customer — /admin/customers links here.
-  const wa = String(firstParam(params.wa) || '').replace(/\D/g, '');
-  const { page, pageSize, limit, offset } = parsePage(params);
-  const pageParams = {
-    status: status || undefined, wa: wa || undefined,
+  const wa = String(firstParam(raw.wa) || '').replace(/\D/g, '') || undefined;
+  const { page, pageSize, limit, offset } = parsePage(raw);
+  const params = {
+    q, status, assignment, wa,
     page: page > 1 ? String(page) : undefined, size: pageSize === 25 ? undefined : String(pageSize),
   };
 
-  const { total, data } = await listLeads({ status: status || undefined, waId: wa || undefined, limit, offset });
+  let result = { total: 0, data: [] };
+  let loadError = null;
+  try {
+    result = await listLeads({ status, waId: wa, q, unassigned: assignment === 'unassigned', limit, offset });
+  } catch (err) {
+    loadError = err.message;
+  }
+  const leads = result.data || [];
+
+  const labels = await getListingLabels(leads.map((lead) => lead.property_id)).catch(() => new Map());
+  const listingAgentOf = (lead) => {
+    const id = labels.get(Number(lead.property_id))?.agent_id;
+    return id ? Number(id) : null;
+  };
+  const contacts = await getAgentContactsByIds([
+    ...leads.map((lead) => lead.agent_id),
+    ...leads.map(listingAgentOf),
+  ]).catch(() => new Map());
+
+  const filtered = Boolean(q || status || assignment || wa);
 
   return (
-    <div>
-      <div className="mb-4 flex items-end justify-between gap-3">
-        <div>
-          <h1 className="u-title-page text-ink">{t('admin.leads.title')}</h1>
-          <p className="mt-1 text-sm text-ink-45">{total} prospect{total !== 1 ? 's' : ''}</p>
-        </div>
-
-        <form method="get" className="flex items-center gap-2">
-          {wa ? <input type="hidden" name="wa" value={wa} /> : null}
-          <select
-            name="status"
-            defaultValue={status}
-            className="rounded-md border border-line bg-white px-2.5 py-1.5 text-sm text-ink"
-          >
-            <option value="">{t('admin.leads.allStatuses')}</option>
-            {LEAD_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {t(LEAD_STATUS_LABEL_KEYS[s])}
-              </option>
-            ))}
-          </select>
-          <button type="submit" className="rounded-md border border-line bg-white px-3 py-1.5 text-sm font-medium text-ink hover:bg-canvas-alt">
-            {t('admin.leads.filter')}
-          </button>
-        </form>
+    <div className="flex flex-col gap-5">
+      <div>
+        <h1 className="u-title-page text-ink">{t('admin.leads.title')}</h1>
+        <p className="u-micro mt-1 text-ink-45">{t('admin.leads.subtitle', { count: result.total ?? 0 })}</p>
+        {wa ? (
+          <p className="u-micro mt-1 text-ink-70">
+            {t('admin.leads.scopedToCustomer', { phone: `+${wa}` })}{' '}
+            <Link href="/admin/leads" className="font-semibold text-blue-deep hover:underline">{t('admin.leads.clearCustomer')}</Link>
+          </p>
+        ) : null}
       </div>
 
-      {data.length === 0 ? (
-        <div className="rounded-card border border-dashed border-line bg-white p-10 text-center text-sm text-ink-45">
-          {t('admin.leads.empty')}
-        </div>
-      ) : (
-        <div className="overflow-hidden rounded-card border border-line bg-white">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-line bg-canvas-alt text-xs uppercase tracking-wide text-ink-45">
-              <tr>
-                <th className="px-4 py-2.5 font-semibold">{t('admin.leads.customer')}</th>
-                <th className="px-4 py-2.5 font-semibold">{t('admin.leads.search')}</th>
-                <th className="px-4 py-2.5 font-semibold">{t('admin.leads.assignedAgent')}</th>
-                <th className="px-4 py-2.5 font-semibold">{t('admin.leads.createdAt')}</th>
-                <th className="px-4 py-2.5 font-semibold">{t('admin.leads.status')}</th>
-                <th className="px-4 py-2.5 font-semibold" />
-              </tr>
-            </thead>
-            <tbody>
-              {data.map((lead) => {
-                const boundUpdateStatus = updateLeadStatusAction.bind(null, lead.id);
-                const boundAssign = assignLeadAction.bind(null, lead.id);
-                const research = researchLine(lead);
+      <TableToolbar
+        params={params}
+        search={{ placeholder: t('admin.leads.searchPlaceholder') }}
+        filters={[
+          {
+            type: 'select',
+            param: 'status',
+            label: t('admin.leads.status'),
+            options: LEAD_STATUSES.map((value) => ({ value, label: t(LEAD_STATUS_LABEL_KEYS[value]) })),
+          },
+          {
+            type: 'select',
+            param: 'assignment',
+            label: t('admin.leads.assignedAgent'),
+            options: [{ value: 'unassigned', label: t('admin.leads.onlyUnassigned') }],
+          },
+        ]}
+      />
 
-                return (
-                  <tr key={lead.id} className="border-b border-line last:border-b-0 hover:bg-canvas-alt align-top">
-                    <td className="px-4 py-2.5">
-                      {lead.conversation_id ? (
-                        <Link href={`/admin/conversations/${lead.conversation_id}`} className="font-medium text-blue-deep hover:underline">
-                          {lead.name || lead.wa_id}
-                        </Link>
-                      ) : (
-                        <span className="font-medium text-ink">{lead.name || lead.wa_id}</span>
-                      )}
-                      <div className="mt-0.5 text-xs text-ink-45">{lead.wa_id}</div>
-                    </td>
-                    <td className="max-w-[20rem] px-4 py-2.5 text-ink-70">
-                      {research ? (
-                        <>
-                          <div className="font-medium text-ink">{research}</div>
-                          {lead.requirements_summary && (
-                            <div className="mt-1 line-clamp-2 text-xs text-ink-45">{lead.requirements_summary}</div>
-                          )}
-                        </>
-                      ) : (
-                        // Legacy lead with none of the structured columns set
-                        // (predates the "Trouver pour moi" fix, or came in
-                        // through a path that never populated them) — fall
-                        // back to the free-text summary rather than a bare '—'.
-                        <div className="line-clamp-2 text-ink-70">
-                          {lead.requirements_summary || '—'}
-                        </div>
-                      )}
-                      <div className="mt-1.5 text-xs text-ink-45">
-                        Propositions : {lead.pitches_count || 0}/7
-                      </div>
-                    </td>
-                    <td className="px-4 py-2.5">
-                      {/* Commune specialists come first in the picker's
-                          suggestions — the same signal the old "Couvre
-                          {commune}" optgroup carried — without loading
-                          every agent into every row. */}
-                      <form action={boundAssign} className="flex items-center gap-1.5">
-                        <AgentPicker
-                          name="agent_id"
-                          activeOnly
-                          allowClear
-                          commune={lead.commune || null}
-                          defaultAgent={lead.agent_id ? { id: lead.agent_id, name: lead.assigned_agent || `Agent #${lead.agent_id}` } : null}
-                          placeholder={t('admin.leads.unassigned')}
-                          className="w-52"
-                        />
-                        <button type="submit" className="rounded-md border border-line px-2 py-1 text-xs font-medium text-ink hover:bg-canvas-alt">
-                          {t('admin.leads.assign')}
+      {loadError ? <ErrorNote>{t('admin.leads.loadError', { error: loadError })}</ErrorNote> : null}
+
+      <TableFrame
+        minWidth="72rem"
+        footer={<Pagination pathname="/admin/leads" params={params} total={result.total ?? 0} page={page} pageSize={pageSize} />}
+      >
+        <thead>
+          <tr>
+            <th className={TH_STICKY}>{t('admin.leads.customer')}</th>
+            <th className={TH_STICKY}>{t('admin.leads.search')}</th>
+            <th className={TH_STICKY}>{t('admin.leads.assignedAgent')}</th>
+            <th className={TH_STICKY}>{t('admin.leads.createdAt')}</th>
+            <th className={TH_STICKY}>{t('admin.leads.status')}</th>
+            <th className={TH_STICKY} aria-label={t('admin.table.moreActions')} />
+          </tr>
+        </thead>
+        <tbody>
+          {leads.length === 0 ? (
+            <EmptyRow colSpan={6}>{loadError ? '—' : filtered ? t('admin.leads.emptyFiltered') : t('admin.leads.empty')}</EmptyRow>
+          ) : leads.map((lead) => {
+            const boundUpdateStatus = updateLeadStatusAction.bind(null, lead.id);
+            const boundAssign = assignLeadAction.bind(null, lead.id);
+            const research = researchLine(lead);
+            const assignedId = lead.agent_id ? Number(lead.agent_id) : null;
+            const listingAgentId = listingAgentOf(lead);
+            const showListingAgent = !assignedId && listingAgentId;
+            const agent = contacts.get(assignedId || listingAgentId) || null;
+            const listing = labels.get(Number(lead.property_id));
+            const listingLabel = listing?.reference ? `Réf. ${listing.reference}` : lead.property_id ? `#${lead.property_id}` : '';
+
+            return (
+              <tr key={lead.id} className={`${TR_DENSE} align-top`}>
+                <td className={TD_DENSE}>
+                  {lead.conversation_id ? (
+                    <Link href={`/admin/conversations/${lead.conversation_id}`} className="font-semibold text-blue-deep hover:underline">
+                      {lead.name || `+${lead.wa_id}`}
+                    </Link>
+                  ) : (
+                    <span className="font-semibold text-ink">{lead.name || `+${lead.wa_id}`}</span>
+                  )}
+                  <div className="mt-1">
+                    <WhatsAppLink
+                      phone={lead.wa_id}
+                      label={t('admin.viewings.whatsappCustomer')}
+                      text={t('admin.leads.whatsappCustomerText', { name: lead.name || '' })}
+                    />
+                  </div>
+                </td>
+                <td className={`${TD_DENSE} max-w-[20rem]`}>
+                  {lead.property_id ? (
+                    <Link href={`/admin/listings/${lead.property_id}`} className="font-semibold text-blue-deep hover:underline">
+                      {listingLabel}
+                    </Link>
+                  ) : null}
+                  {listing?.title ? <div className="max-w-[18rem] truncate text-ink-45">{listing.title}</div> : null}
+                  {research ? <div className="text-ink">{research}</div> : null}
+                  {lead.requirements_summary ? <div className="line-clamp-2 text-ink-45">{lead.requirements_summary}</div> : null}
+                  {!research && !lead.requirements_summary && !lead.property_id ? '—' : null}
+                  <div className="mt-1 text-ink-35">{t('admin.leads.proposals', { count: lead.pitches_count || 0 })}</div>
+                </td>
+                <td className={TD_DENSE}>
+                  {agent || assignedId || listingAgentId ? (
+                    <AgentContact
+                      agent={agent}
+                      fallbackId={assignedId || listingAgentId}
+                      whatsappLabel={t('admin.viewings.whatsappAgent')}
+                      whatsappText={t('admin.leads.whatsappAgentText', { customer: lead.name || '', listing: listingLabel })}
+                      unroutableLabel={t('admin.viewings.agentUnroutable')}
+                      chips={showListingAgent ? <Chip tone="warning">{t('admin.leads.listingAgentNotAssigned')}</Chip> : null}
+                    />
+                  ) : (
+                    <span className="text-ink-45">{t('admin.leads.unassigned')}</span>
+                  )}
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    {showListingAgent ? (
+                      <form action={boundAssign}>
+                        <input type="hidden" name="agent_id" value={listingAgentId} />
+                        <button type="submit" className="u-press u-micro-strong rounded-md border border-blue bg-surface px-2 py-1 text-blue-deep hover:bg-blue-tint">
+                          {t('admin.leads.assignListingAgent')}
                         </button>
                       </form>
-                      {lead.assigned_agent && (
-                        <div className="mt-1 text-xs text-ink-45">Actuel : {lead.assigned_agent}</div>
-                      )}
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-2.5 text-xs text-ink-45">{formatDate(lead.created_at)}</td>
-                    <td className="px-4 py-2.5">
-                      <form action={boundUpdateStatus} className="flex items-center gap-1.5">
-                        <select
-                          name="status"
-                          defaultValue={lead.status}
-                          className="rounded-full border border-line bg-white px-2 py-1 text-xs font-medium text-ink"
-                        >
-                          {LEAD_STATUSES.map((s) => (
-                            <option key={s} value={s}>
-                              {t(LEAD_STATUS_LABEL_KEYS[s])}
-                            </option>
-                          ))}
-                        </select>
-                        <button type="submit" className="rounded-full border border-line px-2 py-1 text-xs font-medium text-ink hover:bg-canvas-alt">
-                          OK
-                        </button>
-                      </form>
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-2.5">
-                      <Link href={`/admin/leads/${lead.id}`} className="text-xs font-medium text-blue-deep hover:underline">
-                        {t('admin.leads.viewDetail')}
-                      </Link>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          <Pagination pathname="/admin/leads" params={pageParams} total={total} page={page} pageSize={pageSize} />
-        </div>
-      )}
+                    ) : null}
+                    <form action={boundAssign} className="flex items-center gap-1.5">
+                      <AgentPicker
+                        name="agent_id"
+                        activeOnly
+                        allowClear
+                        commune={lead.commune || null}
+                        defaultAgent={assignedId ? { id: assignedId, name: agent?.name || lead.assigned_agent || `Agent #${assignedId}` } : null}
+                        placeholder={assignedId ? t('admin.leads.reassign') : t('admin.leads.assignTo')}
+                        className="w-48"
+                      />
+                      <button type="submit" className="u-press u-micro-strong rounded-md border border-line px-2 py-1 text-ink hover:bg-canvas-alt">
+                        {assignedId ? t('admin.leads.reassign') : t('admin.leads.assign')}
+                      </button>
+                    </form>
+                  </div>
+                </td>
+                <td className={`${TD_DENSE} whitespace-nowrap text-ink-45`}>
+                  {formatDate(lead.created_at)}
+                  {lead.source ? <div className="text-ink-35">{lead.source}</div> : null}
+                </td>
+                <td className={TD_DENSE}>
+                  <form action={boundUpdateStatus} className="flex items-center gap-1.5">
+                    <select
+                      name="status"
+                      defaultValue={lead.status}
+                      aria-label={t('admin.leads.status')}
+                      className="u-micro rounded-full border border-line bg-surface px-2 py-1 text-ink"
+                    >
+                      {LEAD_STATUSES.map((value) => (
+                        <option key={value} value={value}>{t(LEAD_STATUS_LABEL_KEYS[value])}</option>
+                      ))}
+                    </select>
+                    <button type="submit" className="u-press u-micro-strong rounded-full border border-line px-2 py-1 text-ink hover:bg-canvas-alt">
+                      {t('admin.leads.saveStatus')}
+                    </button>
+                  </form>
+                </td>
+                <td className={`${TD_DENSE} whitespace-nowrap`}>
+                  <Link href={`/admin/leads/${lead.id}`} className="u-micro-strong text-blue-deep hover:underline">
+                    {t('admin.leads.viewDetail')}
+                  </Link>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </TableFrame>
     </div>
   );
 }

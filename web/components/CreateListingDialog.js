@@ -14,6 +14,7 @@ import { buildFormValuesFromParsed } from '@/lib/smartPaste';
 import { validatePhotoSelection } from '@/lib/uploadLimits.mjs';
 import { deleteDraft, fieldsFromForm, isEmptyDraft, loadDraft, looksOffline, saveDraft } from '@/lib/offlineDrafts';
 import { shrinkPhotos } from '@/lib/photoShrink';
+import { UPGRADE_PATH, announceListingQuota } from '@/lib/listingQuotaRules';
 
 const FIELD_CLASS =
   'u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35';
@@ -62,7 +63,7 @@ const DRAFT_FIELDS = ['title', 'purpose', 'category_id', 'commune', 'price', 'be
  * A server verdict (a missing field, an invalid price) is NOT a network
  * failure: the draft is un-queued and the dialog reopens with the error.
  */
-export default function CreateListingDialog({ communes, categories, draftKey = null }) {
+export default function CreateListingDialog({ communes, categories, draftKey = null, quota = null }) {
   const t = useT();
   // Lazy initializer: reads (and clears) the one-shot flag exactly once, at
   // first render — not in an effect. `typeof window` guards the server
@@ -97,13 +98,25 @@ export default function CreateListingDialog({ communes, categories, draftKey = n
   const router = useRouter();
   const { showToast } = useToast();
 
+  // Refuse before the agent fills in a whole form: the page already knows
+  // whether the plan's listing limit is reached (lib/listingQuota.js). The
+  // server still re-checks on submit.
+  function openForm() {
+    if (quota?.atLimit) {
+      announceListingQuota({ limit: quota.limit, used: quota.used, plan: quota.planTitle, upgradeHref: UPGRADE_PATH });
+      return;
+    }
+    setOpen(true);
+  }
+
   useEffect(() => {
     function handleShortcut() {
-      setOpen(true);
+      openForm();
     }
     window.addEventListener(OPEN_CREATE_LISTING_EVENT, handleShortcut);
     return () => window.removeEventListener(OPEN_CREATE_LISTING_EVENT, handleShortcut);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- openForm only reads `quota`
+  }, [quota]);
 
   // ---------------------------------------------------------------------
   // Drafts
@@ -404,6 +417,12 @@ export default function CreateListingDialog({ communes, categories, draftKey = n
       }
 
       if (!result.ok) {
+        // The plan's listing limit: the draft stays, the dialog explains and
+        // offers the upgrade instead of a toast that vanishes.
+        if (result.quota) {
+          announceListingQuota(result.quota);
+          return;
+        }
         showToast({ type: 'error', message: result.error });
         return;
       }
@@ -440,7 +459,7 @@ export default function CreateListingDialog({ communes, categories, draftKey = n
         )}
         <button
           type="button"
-          onClick={() => setOpen(true)}
+          onClick={openForm}
           className="u-btn-secondary u-press inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 text-[0.8125rem] font-bold text-ink"
         >
           <Plus strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />

@@ -9,6 +9,8 @@ import { getPropertyCategories } from '@/lib/agentListings';
 import AgentPageHeader from '@/components/AgentPageHeader';
 import CreateListingDialog from '@/components/CreateListingDialog';
 import AgentListingsTable from '@/components/AgentListingsTable';
+import { getListingQuota } from '@/lib/listingQuota';
+import { UPGRADE_PATH } from '@/lib/listingQuotaRules';
 
 // The full vocabulary, used by the top filter dropdown — a closed listing
 // must stay filterable even though it's no longer reachable from the
@@ -77,7 +79,7 @@ export default async function AgentListingsPage({ searchParams }) {
   // `listings`, which is already in hand. Analytics or the category list being
   // unreachable should cost an empty Vues/Clics column or a create dialog with
   // no categories to offer — never the agent's inventory list itself.
-  const [perListingStats, hierarchy, categories] = await Promise.all([
+  const [perListingStats, hierarchy, categories, quota] = await Promise.all([
     getPerListingStats(propertyIds).catch((error) => {
       console.error('[agent/biens] per-listing stats unavailable:', error.message);
       return { views: {}, clicks: {} };
@@ -89,6 +91,10 @@ export default async function AgentListingsPage({ searchParams }) {
     getPropertyCategories().catch((error) => {
       console.error('[agent/biens] property categories unavailable:', error.message);
       return [];
+    }),
+    getListingQuota(agentId).catch((error) => {
+      console.error('[agent/biens] listing quota unavailable:', error.message);
+      return null;
     }),
   ]);
   const communes = hierarchy?.communes ?? [];
@@ -125,6 +131,21 @@ export default async function AgentListingsPage({ searchParams }) {
       />
 
       <div className="flex flex-col gap-4 px-3 py-4 sm:px-8 sm:py-7">
+        {quota?.atLimit ? (
+          <div role="status" className="flex flex-col gap-3 rounded-card border border-warning/40 bg-warning-tint p-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-ink">
+              {t('agent.quota.reached', { limit: quota.limit, plan: quota.planTitle || t('agent.quota.currentPlan') })}
+            </p>
+            <Link
+              href={UPGRADE_PATH}
+              className="u-btn-primary u-press inline-flex h-10 shrink-0 items-center justify-center rounded-lg bg-blue px-4 text-sm font-bold text-white hover:bg-blue-deep"
+            >
+              {t('agent.quota.upgrade')}
+            </Link>
+          </div>
+        ) : quota?.capped ? (
+          <p className="text-xs text-ink-45">{t('agent.quota.usage', { used: quota.used, limit: quota.limit })}</p>
+        ) : null}
         <div className="flex flex-wrap items-center gap-2">
           {FILTER_PILLS.map((pill) => {
             const active = pill.value === statusFilter || (pill.value === '' && !statusFilter);
@@ -183,7 +204,12 @@ export default async function AgentListingsPage({ searchParams }) {
                 </button>
               </form>
 
-              <CreateListingDialog communes={communes} categories={categories} draftKey={`agent:${agentId}:new-listing`} />
+              <CreateListingDialog
+                communes={communes}
+                categories={categories}
+                draftKey={`agent:${agentId}:new-listing`}
+                quota={quota ? { atLimit: quota.atLimit, limit: quota.limit, used: quota.used, planTitle: quota.planTitle } : null}
+              />
             </div>
           </div>
 

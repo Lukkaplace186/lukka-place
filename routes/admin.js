@@ -155,7 +155,7 @@ router.post('/conversations/:id/reply', async (req, res) => {
 router.get('/leads', (req, res) => {
   const {
     status, property_ids: propertyIdsRaw, assigned_agent: assignedAgent,
-    agent_id: agentIdRaw, matched_agent_id: matchedAgentIdRaw, wa_id: waId, limit, offset,
+    agent_id: agentIdRaw, matched_agent_id: matchedAgentIdRaw, wa_id: waId, q, unassigned, limit, offset,
   } = req.query;
 
   if (status && !db.LEAD_STATUSES.includes(status)) {
@@ -202,7 +202,12 @@ router.get('/leads', (req, res) => {
   }
 
   try {
-    const page = db.listLeads({ status, propertyIds, assignedAgent, agentId, matchedAgentId, waId, limit, offset });
+    const page = db.listLeads({
+      status, propertyIds, assignedAgent, agentId, matchedAgentId, waId,
+      q: typeof q === 'string' ? q.slice(0, 100) : undefined,
+      unassigned: unassigned === '1' || unassigned === 'true',
+      limit, offset,
+    });
     return res.json({ success: true, ...page });
   } catch (err) {
     console.error(`[admin] GET /leads failed: ${err.message}`);

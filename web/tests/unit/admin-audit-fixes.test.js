@@ -162,5 +162,5 @@ test('the rep page can list the agents who already have a listing', () => {
 test('an agency phone stored with a leading "+" is printed with exactly one', () => {
   const page = read('../../app/admin/agencies/page.js');
   const helper = page.slice(page.indexOf('function phoneLabel'), page.indexOf('function phoneLabel') + 160);
-  assert.ok(helper.includes(".replace(/\D/g, '')"), 'strip every non-digit, not the letter D');
+  assert.ok(helper.includes(".replace(/\\D/g, '')"), 'strip every non-digit, not the letter D');
 });

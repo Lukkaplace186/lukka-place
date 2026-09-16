@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
  * still works when the admin session has expired underneath it; GET too,
  * because middleware sends an expired impersonation cookie here.
  */
-async function exit(request) {
+async function exit() {
   const cookieStore = await cookies();
   let destination = '/admin/dashboard';
   try {
@@ -37,7 +37,10 @@ async function exit(request) {
   } catch (err) {
     console.error(`[impersonation] exit failed: ${err.message}`);
   }
-  return NextResponse.redirect(new URL(destination, request.url), 303);
+  // A relative Location, like middleware.js's own redirects: behind nginx,
+  // request.url carries the upstream host (localhost:3002), and an absolute
+  // redirect built from it sent the browser there.
+  return new NextResponse(null, { status: 303, headers: { Location: destination } });
 }
 
 export const GET = exit;

@@ -44,6 +44,9 @@ export async function generateMetadata({ params }) {
   return {
     title,
     description,
+    // Shared links carry ?utm_source= (lib/listingShareCopy.js SHARE_SOURCES);
+    // every tagged variant is the same page.
+    alternates: { canonical: `/listings/${listing.id}` },
     openGraph: {
       title: ogTitle,
       description,

@@ -38,12 +38,28 @@ export function trackEvent(type, payload = {}) {
     fetch('/api/track', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, ...payload }),
+      body: JSON.stringify({ type, utmSource: landingUtmSource(), ...payload }),
       keepalive: true,
     }).catch(() => {});
   } catch {
     // fetch itself can throw synchronously on a malformed body — still not
     // the visitor's problem.
+  }
+}
+
+/**
+ * The `utm_source` on the page's own URL, or undefined.
+ *
+ * Both endpoints have always ACCEPTED `utmSource` (lib/requestContext.js), but
+ * nothing sent it, and a beacon's Referer is the page itself — so every
+ * visitor arriving from a tagged link an agent shared was stored as 'direct'.
+ * Read here, once, rather than by each caller.
+ */
+function landingUtmSource() {
+  try {
+    return new URLSearchParams(window.location.search).get('utm_source') || undefined;
+  } catch {
+    return undefined;
   }
 }
 
@@ -81,7 +97,7 @@ export function trackLeadClick(listing, routingType) {
     fetch('/api/telemetry/lead-click', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event: 'whatsapp_cta_clicked', ...listingEventPayload(listing), routingType }),
+      body: JSON.stringify({ event: 'whatsapp_cta_clicked', utmSource: landingUtmSource(), ...listingEventPayload(listing), routingType }),
       keepalive: true,
     }).catch(() => {});
   } catch {

@@ -11,6 +11,7 @@ import {
   roomSpecs,
   shareBlocker,
   listingPublicUrl,
+  SHARE_SOURCES,
 } from '@/lib/listingShareCopy';
 import {
   isVerifiedLevel,
@@ -283,4 +284,23 @@ test('per-listing totals fall back to raw events when the rollup is stale or mis
   await getPerListingStats([286]);
   assert.match(calls[1].sql, /FROM page_views/);
   assert.ok(!calls.slice(1).some((c) => /listing_stats_daily/.test(c.sql)));
+});
+
+test('shared links carry a per-channel utm_source, and the untagged URL stays clean', () => {
+  assert.equal(listingPublicUrl(305), 'https://lukkaplace.com/listings/305');
+  assert.equal(listingPublicUrl(305, { source: SHARE_SOURCES.image }), 'https://lukkaplace.com/listings/305?utm_source=wa_status');
+  assert.deepEqual(Object.values(SHARE_SOURCES), ['wa_status', 'wa_message', 'partage_agent']);
+  for (const label of Object.values(SHARE_SOURCES)) assert.match(label, /^[a-z_]+$/);
+});
+
+test('the beacon forwards the landing utm_source — the endpoints accepted it but nothing sent it', () => {
+  const client = readFileSync(path.join(process.cwd(), 'lib/analyticsClient.js'), 'utf8');
+  assert.equal(client.match(/utmSource: landingUtmSource\(\)/g)?.length, 2);
+});
+
+test('the flyer is sent as a mozjpeg JPEG, with the PNG only as a fallback', () => {
+  const route = readFileSync(path.join(process.cwd(), 'app/compte/agent/biens/[id]/visuel/route.js'), 'utf8');
+  assert.match(route, /jpeg\(\{ quality: FLYER_JPEG_QUALITY, mozjpeg: true \}\)/);
+  assert.match(route, /const FLYER_JPEG_QUALITY = 85;/);
+  assert.doesNotMatch(route, /^export const FLYER/m, 'a route file may only export handlers and route config');
 });

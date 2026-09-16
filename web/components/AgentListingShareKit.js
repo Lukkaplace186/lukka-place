@@ -84,12 +84,14 @@ export default function AgentListingShareKit({ listingId, open, onOpenChange }) 
   }
 
   const imageSrc = `/compte/agent/biens/${listingId}/visuel?v=${stamp}`;
-  const fileName = `lukka-place-bien-${listingId}.png`;
+  // Each way out carries its own utm_source; older action results had one copy.
+  const captionFor = (channel) => kit?.copies?.[channel] || kit?.copy || '';
 
-  async function copyCaption() {
-    if (!kit?.copy) return false;
+  async function copyCaption(channel = 'copy') {
+    const text = captionFor(channel);
+    if (!text) return false;
     try {
-      await navigator.clipboard.writeText(kit.copy);
+      await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
       return true;
@@ -102,14 +104,16 @@ export default function AgentListingShareKit({ listingId, open, onOpenChange }) 
     const res = await fetch(imageSrc, { cache: 'no-store' });
     if (!res.ok) throw new Error(`flyer ${res.status}`);
     const blob = await res.blob();
-    return new File([blob], fileName, { type: 'image/png' });
+    // JPEG normally; PNG only if the server's encoder was unavailable.
+    const ext = blob.type === 'image/png' ? 'png' : 'jpg';
+    return new File([blob], `lukka-place-bien-${listingId}.${ext}`, { type: blob.type || 'image/jpeg' });
   }
 
   function saveFile(file) {
     const href = URL.createObjectURL(file);
     const a = document.createElement('a');
     a.href = href;
-    a.download = fileName;
+    a.download = file.name;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -120,11 +124,11 @@ export default function AgentListingShareKit({ listingId, open, onOpenChange }) 
     setBusy(true);
     // Started before any await, while the tap still counts as a user gesture
     // for the clipboard in Safari.
-    const captionCopied = copyCaption();
+    const captionCopied = copyCaption('image');
     try {
       const file = await fetchImageFile();
       if (navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], text: kit.copy });
+        await navigator.share({ files: [file], text: captionFor('image') });
         if (await captionCopied) showToast({ type: 'success', message: t('agent.share.captionCopied') });
       } else {
         saveFile(file);
@@ -191,7 +195,7 @@ export default function AgentListingShareKit({ listingId, open, onOpenChange }) 
                 {busy ? t('agent.share.preparing') : t('agent.share.shareImage')}
               </button>
               <a
-                href={buildWhatsAppShareLink(kit.copy)}
+                href={buildWhatsAppShareLink(captionFor('whatsapp'))}
                 target="_blank"
                 rel="noopener noreferrer"
                 className={`${actionClass} border border-line text-ink`}
@@ -203,7 +207,7 @@ export default function AgentListingShareKit({ listingId, open, onOpenChange }) 
                 <Download strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0" />
                 {t('agent.share.download')}
               </button>
-              <button type="button" onClick={copyCaption} className={`${actionClass} border border-line text-ink`}>
+              <button type="button" onClick={() => copyCaption('copy')} className={`${actionClass} border border-line text-ink`}>
                 {copied ? <Check strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0" /> : <Copy strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0" />}
                 {copied ? t('agent.share.copied') : t('agent.share.copyCaption')}
               </button>
@@ -217,7 +221,7 @@ export default function AgentListingShareKit({ listingId, open, onOpenChange }) 
               <textarea
                 id={`share-copy-${listingId}`}
                 readOnly
-                value={kit.copy}
+                value={captionFor('copy')}
                 rows={7}
                 className="u-focus-ring w-full resize-none rounded-lg border border-line bg-surface p-3 text-base leading-relaxed text-ink sm:text-sm"
               />

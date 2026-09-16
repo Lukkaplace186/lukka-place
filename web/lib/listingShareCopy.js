@@ -91,8 +91,24 @@ export function roomSpecs(listing) {
   return specs;
 }
 
-export function listingPublicUrl(id) {
-  return `${SITE_URL}/listings/${id}`;
+/**
+ * `utm_source` labels for the links an agent shares, one per way out of the
+ * share kit, so /admin's traffic-source breakdown can say which channel
+ * actually brings visitors. They land in `page_views.source` and
+ * `whatsapp_clicks.source` via lib/analyticsClient.js, which forwards the
+ * label from the landing URL. Lower-case ASCII: sourceFromRequest lower-cases
+ * and truncates to 64 anyway, and a label that changes case between releases
+ * would split one channel into two rows.
+ */
+export const SHARE_SOURCES = Object.freeze({
+  image: 'wa_status',
+  whatsapp: 'wa_message',
+  copy: 'partage_agent',
+});
+
+export function listingPublicUrl(id, { source = null } = {}) {
+  const url = `${SITE_URL}/listings/${id}`;
+  return source ? `${url}?utm_source=${encodeURIComponent(source)}` : url;
 }
 
 /**

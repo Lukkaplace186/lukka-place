@@ -34,6 +34,12 @@ import { formatPriceParts } from '@/lib/format';
  * and ownership is enforced in the SQL (lib/listingFlyer.js).
  *
  * `?download=1` sends it as an attachment; otherwise inline, for the preview.
+ *
+ * JPEG, NOT PNG. satori only emits PNG, and for three photos that is ~970 KB —
+ * 10-20 s on the 3G most agents share from. The same pixels re-encoded with
+ * mozjpeg at quality 85 are ~100 KB and indistinguishable once WhatsApp has
+ * re-compressed them for Status anyway. If sharp cannot load, the PNG is sent
+ * as it was rendered rather than failing the flyer.
  */
 export const dynamic = 'force-dynamic';
 
@@ -101,7 +107,7 @@ export async function GET(request, { params }) {
 
   const download = new URL(request.url).searchParams.get('download') === '1';
 
-  return new ImageResponse(
+  const rendered = new ImageResponse(
     (
       <div style={{ width: SIZE, height: SIZE, display: 'flex', flexDirection: 'column', background: ROYAL, fontFamily: 'Jakarta' }}>
         <div style={{ position: 'relative', display: 'flex', width: SIZE, height: PHOTO_HEIGHT, background: '#ffffff' }}>
@@ -209,12 +215,32 @@ export async function GET(request, { params }) {
       width: SIZE,
       height: SIZE,
       fonts: fonts.length ? fonts : undefined,
-      headers: {
-        'Cache-Control': 'private, no-store',
-        'Content-Disposition': `${download ? 'attachment' : 'inline'}; filename="lukka-place-bien-${listing.id}.png"`,
-      },
     },
   );
+  const png = Buffer.from(await rendered.arrayBuffer());
+  const { body, type, ext } = await toJpeg(png);
+
+  return new Response(body, {
+    headers: {
+      'Content-Type': type,
+      'Content-Length': String(body.length),
+      'Cache-Control': 'private, no-store',
+      'Content-Disposition': `${download ? 'attachment' : 'inline'}; filename="lukka-place-bien-${listing.id}.${ext}"`,
+    },
+  });
+}
+
+const FLYER_JPEG_QUALITY = 85;
+
+async function toJpeg(png) {
+  try {
+    const { default: sharp } = await import('sharp');
+    const body = await sharp(png).jpeg({ quality: FLYER_JPEG_QUALITY, mozjpeg: true }).toBuffer();
+    return { body, type: 'image/jpeg', ext: 'jpg' };
+  } catch (err) {
+    console.error(`[flyer] JPEG encode failed, sending PNG: ${err.message}`);
+    return { body: png, type: 'image/png', ext: 'png' };
+  }
 }
 
 /**

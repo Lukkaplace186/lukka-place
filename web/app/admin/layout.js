@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { ShieldAlert } from 'lucide-react';
 import { logoutAction } from './actions';
 import AdminSidebar from './AdminSidebar';
+import ImpersonationBanner from '@/components/ImpersonationBanner';
 import GlobalSearch from './GlobalSearch';
 import LanguageToggle from '@/components/LanguageToggle';
 import { ToastProvider } from '@/components/Toast';
@@ -118,6 +119,7 @@ export default async function AdminLayout({ children }) {
               </div>
             ) : children}
           </main>
+          <ImpersonationBanner />
         </div>
       </div>
       </ToastProvider>

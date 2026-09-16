@@ -24,7 +24,7 @@ export const getAdminSession = cache(async () => {
 
   if (parsed.adminId === 0) {
     if (!sharedPasswordEnabled()) return null;
-    return { id: null, shared: true, role: 'owner', name: 'Mot de passe partagé', email: null };
+    return { id: null, shared: true, role: 'owner', name: 'Mot de passe partagé', email: null, tokenVersion: 0 };
   }
 
   let user = null;
@@ -35,7 +35,9 @@ export const getAdminSession = cache(async () => {
     return null;
   }
   if (!user || user.status !== 'active' || Number(user.token_version) !== parsed.tokenVersion) return null;
-  return { id: user.id, shared: false, role: user.role, name: user.full_name, email: user.email };
+  return {
+    id: user.id, shared: false, role: user.role, name: user.full_name, email: user.email, tokenVersion: Number(user.token_version),
+  };
 });
 
 export class AdminAccessError extends Error {}

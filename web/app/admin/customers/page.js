@@ -10,6 +10,9 @@ import TableToolbar from '../table/TableToolbar';
 import { EmptyRow, TD_DENSE, TD_DENSE_RIGHT, TH_STICKY, TH_STICKY_RIGHT, TR_DENSE, TableFrame } from '../table/TableFrame';
 import { adminSetCustomerPasswordAction, adminUnlockCustomerAction } from './actions';
 import CustomerRowActions from './CustomerRowActions';
+import ImpersonateButton from '../ImpersonateButton';
+import { can } from '@/lib/adminRoles';
+import { getAdminSession } from '@/lib/adminSession';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,6 +52,8 @@ export default async function AdminCustomersPage({ searchParams }) {
   const { page, pageSize, limit, offset } = parsePage(raw);
   const params = { ...filters, page: page > 1 ? String(page) : undefined, size: pageSize === 25 ? undefined : String(pageSize) };
 
+  const session = await getAdminSession();
+  const canImpersonate = can(session?.role, 'accounts.impersonate');
   let result = null;
   let loadError = null;
   try {
@@ -155,6 +160,16 @@ export default async function AdminCustomersPage({ searchParams }) {
                   </td>
                   <td className={`${TD_DENSE} whitespace-nowrap`}>{customer.last_login_at ? formatKinshasa(customer.last_login_at) : '—'}</td>
                   <td className={TD_DENSE}>
+                    <div className="flex items-center gap-1.5">
+                    {canImpersonate ? (
+                      <ImpersonateButton
+                        compact
+                        targetType="customer"
+                        targetId={customer.id}
+                        targetLabel={customer.full_name || `+${customer.phone}`}
+                        sharedSession={Boolean(session?.shared)}
+                      />
+                    ) : null}
                     <CustomerRowActions
                       phone={customer.phone}
                       isLocked={customer.is_locked}
@@ -162,6 +177,7 @@ export default async function AdminCustomersPage({ searchParams }) {
                       unlockAction={adminUnlockCustomerAction.bind(null, customer.id)}
                       leadsHref={`/admin/leads?wa=${encodeURIComponent(customer.phone)}`}
                     />
+                    </div>
                   </td>
                 </tr>
               );

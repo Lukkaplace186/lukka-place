@@ -1,0 +1,236 @@
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { requireAdmin } from '@/lib/adminSession';
+import { recordAudit } from '@/lib/adminAudit';
+import { kinshasaDayStart } from '@/lib/adminPagination';
+import { normaliseCurrency, parseAmount, validatePlanInput, validateRepInput } from '@/lib/salesRules';
+import {
+  addCommissionAdjustment, approveCommissions, assignAgentsToRep, endRepAssignment, recordSalesPayout,
+  saveSalesPlan, saveSalesRep, syncSalesCommissions, voidCommission,
+} from '@/lib/sales';
+import { getT } from '@/lib/i18n/server';
+
+/**
+ * Every write on /admin/sales. `sales.manage` (owner, finance) for all of them —
+ * a rep never approves, adjusts or pays their own commissions — and each one
+ * audited against the rep it touched.
+ */
+
+function adminIdOf(session) {
+  return session?.shared ? null : session?.id ?? null;
+}
+
+function positiveInt(value) {
+  const n = Number.parseInt(value, 10);
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
+}
+
+function refresh(repId) {
+  revalidatePath('/admin/sales');
+  if (repId) revalidatePath(`/admin/sales/${repId}`);
+}
+
+async function guarded(t, work) {
+  try {
+    const session = await requireAdmin('sales.manage');
+    return await work(session);
+  } catch (err) {
+    return { ok: false, error: err.message || t('errors.actionFailed') };
+  }
+}
+
+function todayInKinshasa() {
+  return new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+export async function syncCommissionsAction() {
+  const t = await getT();
+  return guarded(t, async (session) => {
+    const counts = await syncSalesCommissions();
+    await recordAudit(session, { action: 'sales.sync', details: counts });
+    refresh();
+    return { ok: true, message: t('admin.sales.synced', counts) };
+  });
+}
+
+export async function saveRepAction(repId, formData) {
+  const t = await getT();
+  return guarded(t, async (session) => {
+    const existing = repId ? positiveInt(repId) : null;
+    const checked = validateRepInput({
+      fullName: formData.get('full_name'),
+      phone: formData.get('phone'),
+      email: formData.get('email'),
+      planId: formData.get('plan_id'),
+      status: formData.get('status'),
+      adminUserId: formData.get('admin_user_id'),
+    });
+    if (checked.errorKey) return { ok: false, error: t(checked.errorKey) };
+    const result = await saveSalesRep(existing, checked.values, { adminId: adminIdOf(session) });
+    if (result.errorKey) return { ok: false, error: t(result.errorKey) };
+    await recordAudit(session, {
+      action: existing ? 'sales.rep_update' : 'sales.rep_create',
+      entityType: 'sales_rep',
+      entityId: result.id,
+      details: { ...checked.values, phone: checked.values.phone ? 'set' : null },
+    });
+    refresh(result.id);
+    return { ok: true, id: result.id, message: t(existing ? 'admin.sales.reps.updated' : 'admin.sales.reps.created') };
+  });
+}
+
+export async function savePlanAction(planId, formData) {
+  const t = await getT();
+  return guarded(t, async (session) => {
+    const existing = planId ? positiveInt(planId) : null;
+    const checked = validatePlanInput({
+      name: formData.get('name'),
+      currency: formData.get('currency'),
+      onboardingBonus: formData.get('onboarding_bonus'),
+      subscriptionRate: formData.get('subscription_rate'),
+      monthlyTarget: formData.get('monthly_target'),
+      targetBonus: formData.get('target_bonus'),
+      active: formData.get('active'),
+    });
+    if (checked.errorKey) return { ok: false, error: t(checked.errorKey) };
+    const result = await saveSalesPlan(existing, checked.values);
+    if (result.errorKey) return { ok: false, error: t(result.errorKey) };
+    await recordAudit(session, {
+      action: existing ? 'sales.plan_update' : 'sales.plan_create', entityType: 'sales_plan', entityId: result.id, details: checked.values,
+    });
+    revalidatePath('/admin/sales/plans');
+    refresh();
+    return { ok: true, message: t(existing ? 'admin.sales.plans.updated' : 'admin.sales.plans.created') };
+  });
+}
+
+/** `creditFromDay` "YYYY-MM-DD", Kinshasa; empty = from now. Never in the future. */
+export async function assignAgentsAction(repId, agentIds, creditFromDay) {
+  const t = await getT();
+  return guarded(t, async (session) => {
+    const rep = positiveInt(repId);
+    if (!rep) return { ok: false, error: t('admin.sales.reps.notFound') };
+    let creditFrom = new Date().toISOString();
+    if (creditFromDay) {
+      if (String(creditFromDay) > todayInKinshasa()) return { ok: false, error: t('admin.sales.accounts.creditFuture') };
+      creditFrom = kinshasaDayStart(creditFromDay);
+      if (!creditFrom) return { ok: false, error: t('admin.sales.accounts.creditInvalid') };
+    }
+    const result = await assignAgentsToRep({ repId: rep, agentIds, creditFrom, adminId: adminIdOf(session) });
+    if (result.errorKey) return { ok: false, error: t(result.errorKey) };
+    await recordAudit(session, {
+      action: 'sales.assign', entityType: 'sales_rep', entityId: rep,
+      details: { agentIds: result.assignedIds, movedFromOtherRep: result.movedIds, creditFrom },
+    });
+    for (const agentId of result.assignedIds) revalidatePath(`/admin/agents/${agentId}`);
+    refresh(rep);
+    return {
+      ok: true,
+      message: result.assignedIds.length
+        ? t('admin.sales.accounts.assigned', { count: result.assignedIds.length })
+        : t('admin.sales.accounts.alreadyAssigned'),
+    };
+  });
+}
+
+export async function endAssignmentAction(repId, agentId) {
+  const t = await getT();
+  return guarded(t, async (session) => {
+    const rep = positiveInt(repId);
+    const agent = positiveInt(agentId);
+    if (!rep || !agent) return { ok: false, error: t('admin.sales.accounts.notAssigned') };
+    const ended = await endRepAssignment({ repId: rep, agentId: agent, adminId: adminIdOf(session) });
+    if (!ended) return { ok: false, error: t('admin.sales.accounts.notAssigned') };
+    await recordAudit(session, { action: 'sales.unassign', entityType: 'sales_rep', entityId: rep, details: { agentId: agent } });
+    revalidatePath(`/admin/agents/${agent}`);
+    refresh(rep);
+    return { ok: true, message: t('admin.sales.accounts.unassigned') };
+  });
+}
+
+export async function approveCommissionsAction(repId, ids) {
+  const t = await getT();
+  return guarded(t, async (session) => {
+    const rep = positiveInt(repId);
+    if (!rep) return { ok: false, error: t('admin.sales.reps.notFound') };
+    const { approvedIds } = await approveCommissions({ repId: rep, ids, adminId: adminIdOf(session) });
+    if (approvedIds.length === 0) return { ok: false, error: t('admin.sales.ledger.nothingToApprove') };
+    await recordAudit(session, { action: 'sales.approve', entityType: 'sales_rep', entityId: rep, details: { commissionIds: approvedIds } });
+    refresh(rep);
+    return { ok: true, message: t('admin.sales.ledger.approved', { count: approvedIds.length }) };
+  });
+}
+
+export async function voidCommissionAction(repId, commissionId, reason) {
+  const t = await getT();
+  return guarded(t, async (session) => {
+    const rep = positiveInt(repId);
+    const id = positiveInt(commissionId);
+    const text = String(reason || '').trim().replace(/\s+/g, ' ');
+    if (text.length < 3 || text.length > 500) return { ok: false, error: t('admin.sales.ledger.reasonInvalid') };
+    const voided = rep && id ? await voidCommission({ repId: rep, id, reason: text }) : null;
+    if (!voided) return { ok: false, error: t('admin.sales.ledger.notVoidable') };
+    await recordAudit(session, {
+      action: 'sales.void', entityType: 'sales_rep', entityId: rep, details: { commissionId: id, reason: text, amount: voided.amount, currency: voided.currency },
+    });
+    refresh(rep);
+    return { ok: true, message: t('admin.sales.ledger.voided') };
+  });
+}
+
+export async function addAdjustmentAction(repId, formData) {
+  const t = await getT();
+  return guarded(t, async (session) => {
+    const rep = positiveInt(repId);
+    const amount = parseAmount(formData.get('amount'), { allowNegative: true, allowZero: false });
+    const currency = normaliseCurrency(formData.get('currency'));
+    const note = String(formData.get('note') || '').trim().replace(/\s+/g, ' ');
+    if (!rep) return { ok: false, error: t('admin.sales.reps.notFound') };
+    if (amount == null) return { ok: false, error: t('admin.sales.ledger.amountInvalid') };
+    if (!currency) return { ok: false, error: t('admin.sales.plans.currencyInvalid') };
+    if (note.length < 3 || note.length > 500) return { ok: false, error: t('admin.sales.ledger.reasonInvalid') };
+    const result = await addCommissionAdjustment({ repId: rep, amount, currency, note, adminId: adminIdOf(session) });
+    if (result.errorKey) return { ok: false, error: t(result.errorKey) };
+    await recordAudit(session, {
+      action: 'sales.adjustment', entityType: 'sales_rep', entityId: rep, details: { commissionId: result.id, amount, currency, note },
+    });
+    refresh(rep);
+    return { ok: true, message: t('admin.sales.ledger.adjustmentAdded') };
+  });
+}
+
+/** `ids` empty/null = every approved line in the chosen currency. */
+export async function recordPayoutAction(repId, ids, formData) {
+  const t = await getT();
+  return guarded(t, async (session) => {
+    const rep = positiveInt(repId);
+    const currency = normaliseCurrency(formData.get('currency'));
+    const method = String(formData.get('method') || '').trim();
+    const reference = String(formData.get('reference') || '').trim();
+    const note = String(formData.get('note') || '').trim();
+    const paidAt = String(formData.get('paid_at') || '');
+    if (!rep) return { ok: false, error: t('admin.sales.reps.notFound') };
+    if (!currency) return { ok: false, error: t('admin.sales.plans.currencyInvalid') };
+    if (!method || method.length > 60) return { ok: false, error: t('admin.sales.ledger.methodInvalid') };
+    if (reference.length > 120 || note.length > 500) return { ok: false, error: t('admin.sales.ledger.referenceInvalid') };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(paidAt) || paidAt > todayInKinshasa()) return { ok: false, error: t('admin.sales.ledger.paidAtInvalid') };
+    const result = await recordSalesPayout({
+      repId: rep,
+      currency,
+      ids: Array.isArray(ids) && ids.length ? ids : null,
+      method,
+      reference: reference || null,
+      note: note || null,
+      paidAt,
+      adminId: adminIdOf(session),
+    });
+    if (result.errorKey) return { ok: false, error: t(result.errorKey) };
+    await recordAudit(session, {
+      action: 'sales.payout', entityType: 'sales_rep', entityId: rep,
+      details: { payoutId: result.payoutId, total: result.total, currency, lines: result.count, method, reference: reference || null, paidAt },
+    });
+    refresh(rep);
+    return { ok: true, message: t('admin.sales.ledger.paid', { count: result.count }) };
+  });
+}

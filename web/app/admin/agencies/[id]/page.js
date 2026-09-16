@@ -98,6 +98,8 @@ export default async function AdminAgencyDetailPage({ params, searchParams }) {
             <AgentsTable
               rows={toAgentTableRows(agents.rows)}
               vendors={(vendorsResult.status === 'fulfilled' ? vendorsResult.value : []).map((vendor) => ({ id: vendor.id, username: vendor.name }))}
+              canImpersonate={can(session?.role, 'accounts.impersonate')}
+              sharedSession={Boolean(session?.shared)}
               branchContext={canManageBranches && branches?.length ? { vendorId: agency.id, branches: branches.map((branch) => ({ id: branch.id, name: branch.name })) } : null}
               footer={<Pagination pathname={base} params={{ branch: branchFilter, page: page > 1 ? String(page) : undefined }} total={agents.total} page={page} pageSize={pageSize} />}
             />

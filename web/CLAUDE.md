@@ -330,6 +330,68 @@ row. That is fine at 10 agents and a multi-megabyte page at 30,000.
   `console_admin_users` holds password hashes. Whether older, Laravel-owned
   tables carry the same grants has not been checked.
 
+### Sales team and commissions (`/admin/sales`)
+
+`migrations/20260919_sales_and_impersonation.sql`, `lib/sales.js` (SQL),
+`lib/salesRules.js` (pure: periods, amounts, validation — shared with forms).
+
+- **Nothing is typed in as a result.** A rep's figures come from agents assigned
+  to them (`sales_account_assignments`, one active rep per agent, history kept)
+  and what those agents' records say: "onboarded" = `phone_verified_at`;
+  "subscription sold" = a `memberships` row that is a real payment (not a trial,
+  price > 0, status 1) for the agent's vendor. **A vendor is credited only when
+  all its assigned agents share one rep** — ambiguity credits nobody.
+- **`credit_from`** is set when an agent is assigned (default today, never in
+  the future): nothing before it earns anything. Crediting a rep for an agent
+  they signed up last month is an explicit, audited date, not a default.
+- **Commissions are generated, idempotently**, by "Calculer les commissions"
+  (`syncSalesCommissions`, one transaction): subscription % of the payment in
+  its own currency, a fixed onboarding bonus, and a target bonus for CLOSED
+  Kinshasa months only. `UNIQUE (source_type, source_id)` means a membership,
+  an agent or a rep-month is credited once, ever — reassigning an agent never
+  double-pays. The plan's rate is snapshotted on each line, so editing a plan
+  never rewrites earned money. There is no scheduled run: press the button.
+- **Cancellations**: pending/approved subscription lines whose membership is no
+  longer active are voided on the next run; a PAID one is flagged
+  `clawback_due` and settled by a (negative) adjustment — a query never
+  reverses money already handed over.
+- **Lifecycle** pending → approved → paid (via a payout: one currency, rows
+  locked `FOR UPDATE`, total > 0) or void (reason required). Money is never
+  summed across USD/CDF anywhere.
+- **Roles**: `sales.manage` (owner, finance) does every write; a rep never
+  approves or pays their own lines. The new `sales` console role has
+  `sales.view` and is sent to the rep record whose `admin_user_id` is theirs —
+  any other rep id is a 404.
+- The agent profile shows (and, for `sales.manage`, changes) the agent's rep.
+
+### "View as" an agent or a customer (impersonation)
+
+`lib/impersonationToken.js` (pure crypto + the edge decision),
+`lib/impersonation.js` (sessions), `lib/impersonationCookies.js`,
+`app/admin/impersonation/{actions.js,exit/route.js,page.js}`,
+`components/ImpersonationBanner.js`.
+
+- **Read-only, enforced in middleware.js for every path outside /admin**: any
+  non-GET/HEAD/OPTIONS request is a 403 while the `lukka_impersonation` cookie
+  is present. One rule at the edge instead of a check in each action. Reason:
+  confirming a visit from an agent's dashboard WhatsApps a real customer, and a
+  change made "as" someone is indistinguishable afterwards from theirs. The
+  extra matcher entry uses `has: cookie`, so ordinary storefront traffic never
+  reaches the proxy.
+- **Who**: `accounts.impersonate` (owner, support), an individual console
+  account (the shared password is refused), a written reason (10–500 chars).
+- **How**: a real agent/customer session cookie is minted for the target with
+  a 60-minute token, next to a signed `imp1.…` cookie (ADMIN_SESSION_SECRET
+  under an `impersonation:` prefix) carrying session id + nonce + the admin's
+  token_version. One open session per admin; exit, console logout, expiry, or
+  the admin being disabled/reset ends it. The banner is fixed to the BOTTOM of
+  the viewport (the storefront header and its sticky offsets own the top).
+- **Logged** in `console_impersonation_sessions` (`/admin/impersonation`,
+  owner) and as `impersonation.start`/`.end` in the audit log.
+- **Known limit**: agent/customer tokens are stateless, so the minted target
+  cookie stays valid until its own 60 minutes even after the row is ended;
+  exit deletes it from the browser.
+
 ### Deliberately not done yet (and why)
 
 - **Engine leads/conversations/viewings are still SQLite.** Moving them to

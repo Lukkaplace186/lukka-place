@@ -55,8 +55,9 @@ function sign(value) {
 }
 
 /** `${agentId}.${tokenVersion}.${expiresAtMs}.${hmac}` */
-export function createAgentSessionToken({ agentId, tokenVersion }) {
-  const expiresAt = String(Date.now() + SESSION_TTL_MS);
+// `ttlMs` is shorter only for an admin's "view as" session (lib/impersonationCookies.js).
+export function createAgentSessionToken({ agentId, tokenVersion, ttlMs = SESSION_TTL_MS }) {
+  const expiresAt = String(Date.now() + ttlMs);
   const payload = `${agentId}.${tokenVersion}.${expiresAt}`;
   return `${payload}.${sign(payload)}`;
 }

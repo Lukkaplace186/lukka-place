@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { BadgeCheck, Building2, MoreHorizontal, PauseCircle, PlayCircle, Settings2 } from 'lucide-react';
+import { BadgeCheck, Building2, MoreHorizontal, PauseCircle, PlayCircle, ScanEye, Settings2 } from 'lucide-react';
 import { useToast } from '@/components/Toast';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -18,6 +18,7 @@ import { EmptyRow, TD_DENSE, TD_DENSE_RIGHT, TH_STICKY, TH_STICKY_RIGHT, TR_DENS
 import { reassignAgentVendorAction, updateAgentStatusAction } from './actions';
 import { bulkUpdateAgentStatusAction } from './bulkActions';
 import { assignBranchAction } from '../agencies/[id]/branchActions';
+import { ImpersonateDialog } from '../ImpersonateButton';
 
 const BUTTON =
   'u-press u-micro-strong inline-flex h-8 items-center gap-1.5 rounded-md border border-line bg-surface px-2.5 text-ink transition-colors hover:border-blue disabled:opacity-50';
@@ -35,7 +36,7 @@ const BUTTON =
  * `branchContext` ({vendorId, branches}) is passed on an agency's own page and
  * adds "move to branch" to the bulk bar — branches only exist within an agency.
  */
-export default function AgentsTable({ rows, vendors, footer, branchContext = null }) {
+export default function AgentsTable({ rows, vendors, footer, branchContext = null, canImpersonate = false, sharedSession = false }) {
   const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
@@ -43,6 +44,7 @@ export default function AgentsTable({ rows, vendors, footer, branchContext = nul
   const [selected, setSelected] = useState(() => new Set());
   const [vendorDialog, setVendorDialog] = useState(null);
   const [vendorId, setVendorId] = useState('');
+  const [impersonating, setImpersonating] = useState(null);
 
   const pageIds = useMemo(() => rows.map((row) => row.id), [rows]);
   const allSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
@@ -230,6 +232,12 @@ export default function AgentsTable({ rows, vendors, footer, branchContext = nul
                         <Building2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
                         {t('admin.agents.changeAgency')}
                       </DropdownMenuItem>
+                      {canImpersonate ? (
+                        <DropdownMenuItem onSelect={() => setImpersonating(agent)}>
+                          <ScanEye strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                          {t('admin.impersonation.button')}
+                        </DropdownMenuItem>
+                      ) : null}
                       <DropdownMenuSeparator />
                       {agent.status === 1 ? (
                         <DropdownMenuItem onSelect={() => setStatus(agent.id, 0)}>
@@ -250,6 +258,17 @@ export default function AgentsTable({ rows, vendors, footer, branchContext = nul
           )}
         </tbody>
       </TableFrame>
+
+      {canImpersonate ? (
+        <ImpersonateDialog
+          open={Boolean(impersonating)}
+          onOpenChange={(open) => { if (!open) setImpersonating(null); }}
+          targetType="agent"
+          targetId={impersonating?.id}
+          targetLabel={impersonating?.name || ''}
+          sharedSession={sharedSession}
+        />
+      ) : null}
 
       <Dialog open={Boolean(vendorDialog)} onOpenChange={(open) => { if (!open) setVendorDialog(null); }}>
         <DialogContent className="sm:max-w-sm">

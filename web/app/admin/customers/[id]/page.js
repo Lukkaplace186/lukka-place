@@ -14,6 +14,7 @@ import { getT } from '@/lib/i18n/server';
 import { Chip, ErrorNote, STATUS_TONE, formatKinshasa } from '../../LeadRoutingUI';
 import EntityTimeline from '../../EntityTimeline';
 import CustomerRowActions from '../CustomerRowActions';
+import ImpersonateButton from '../../ImpersonateButton';
 import { adminSetCustomerPasswordAction, adminUnlockCustomerAction } from '../actions';
 
 export const dynamic = 'force-dynamic';
@@ -92,6 +93,16 @@ export default async function AdminCustomerDetailPage({ params }) {
           <span>{t('admin.customerProfile.joined', { date: formatKinshasa(customer.created_at) })}</span>
           <span>{t('admin.customerProfile.lastLogin', { date: formatKinshasa(customer.last_login_at) })}</span>
         </div>
+        {can(session?.role, 'accounts.impersonate') ? (
+          <div className="mt-3">
+            <ImpersonateButton
+              targetType="customer"
+              targetId={customer.id}
+              targetLabel={customer.full_name || `+${phone}`}
+              sharedSession={Boolean(session?.shared)}
+            />
+          </div>
+        ) : null}
         {can(session?.role, 'customers.manage') ? (
           <div className="mt-3">
             <CustomerRowActions

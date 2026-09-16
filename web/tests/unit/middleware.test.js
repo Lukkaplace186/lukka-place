@@ -27,9 +27,35 @@ function outcome(response) {
   return { redirected: Boolean(location), location: location ? new URL(location) : null };
 }
 
-test('the matcher covers exactly the private realms', () => {
-  assert.deepEqual(config.matcher, ['/admin/:path*', '/compte/:path*']);
+test('the matcher covers exactly the private realms, plus everything for a "view as" browser', () => {
+  assert.deepEqual(config.matcher, [
+    '/admin/:path*',
+    '/compte/:path*',
+    { source: '/((?!_next/static|_next/image|favicon\\.ico).*)', has: [{ type: 'cookie', key: 'lukka_impersonation' }] },
+  ]);
   assert.equal(config.runtime, 'nodejs', 'node:crypto primitives require the Node runtime, not Edge');
+});
+
+test('while viewing as an agent, a write is refused but reading the dashboard is not', async () => {
+  const { createImpersonationToken, IMPERSONATION_COOKIE } = await import('@/lib/impersonationToken');
+  const impersonation = createImpersonationToken({
+    sessionId: 1, nonce: 'b'.repeat(32), adminId: 2, adminTokenVersion: 0, targetType: 'agent', targetId: 5, expiresAt: Date.now() + 60_000,
+  });
+  const agent = createAgentSessionToken({ agentId: 5, tokenVersion: 0 });
+  const cookies = { [IMPERSONATION_COOKIE]: impersonation, [AGENT_SESSION_COOKIE]: agent };
+
+  const write = middleware({ ...requestFor('/compte/agent/biens', { cookies }), method: 'POST' });
+  assert.equal(write.status, 403);
+  assert.equal(write.headers.get('x-lukka-impersonation'), 'read-only');
+
+  const read = middleware({ ...requestFor('/compte/agent', { cookies }), method: 'GET' });
+  assert.equal(outcome(read).redirected, false);
+
+  const expired = createImpersonationToken({
+    sessionId: 1, nonce: 'b'.repeat(32), adminId: 2, adminTokenVersion: 0, targetType: 'agent', targetId: 5, expiresAt: Date.now() - 1,
+  });
+  const stale = middleware({ ...requestFor('/compte/agent', { cookies: { ...cookies, [IMPERSONATION_COOKIE]: expired } }), method: 'GET' });
+  assert.equal(outcome(stale).location?.pathname, '/admin/impersonation/exit');
 });
 
 test('/admin/login stays public — no redirect loop', () => {

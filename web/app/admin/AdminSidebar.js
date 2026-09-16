@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  BarChart3, Building2, CalendarClock, ChartNoAxesCombined, CreditCard, FileText, Gauge, HeartPulse, Mail, User, Users,
+  BarChart3, Building2, CalendarClock, HandCoins, ChartNoAxesCombined, CreditCard, FileText, Gauge, HeartPulse, Mail, User, Users,
   Landmark, MessageCircle, Radar, ScrollText, Settings, ShieldCheck, TrendingDown, UsersRound,
 } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -48,6 +48,7 @@ const NAV = [
   { href: '/admin/customers', labelKey: 'admin.nav.customers', icon: Users },
   { href: '/admin/subscriptions', labelKey: 'admin.nav.subscriptions', icon: Landmark },
   { href: '/admin/billing', labelKey: 'admin.nav.billing', icon: CreditCard },
+  { href: '/admin/sales', labelKey: 'admin.nav.sales', icon: HandCoins },
   { href: '/admin/cms', labelKey: 'admin.nav.cms', icon: Settings },
   { href: '/admin/team', labelKey: 'admin.nav.team', icon: UsersRound },
   { href: '/admin/audit', labelKey: 'admin.nav.audit', icon: ScrollText },

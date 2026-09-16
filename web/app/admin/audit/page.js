@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
 
 const ACTION_PREFIXES = [
   'listing', 'agent', 'agency', 'customer', 'conversation', 'lead', 'viewing', 'membership', 'package', 'featured',
-  'plan_request', 'cms', 'team', 'session', 'export', 'note',
+  'plan_request', 'cms', 'team', 'session', 'export', 'note', 'sales', 'impersonation',
 ];
 
 function entityHref(type, id) {
@@ -26,6 +26,8 @@ function entityHref(type, id) {
     case 'conversation': return `/admin/conversations?c=${id}`;
     case 'lead': return `/admin/leads/${id}`;
     case 'team': return '/admin/team';
+    case 'sales_rep': return `/admin/sales/${id}`;
+    case 'sales_plan': return '/admin/sales/plans';
     default: return null;
   }
 }
@@ -70,6 +72,9 @@ export default async function AdminAuditPage({ searchParams }) {
       <div>
         <h1 className="u-title-page text-ink">{t('admin.audit.title')}</h1>
         <p className="u-micro mt-1 text-ink-45">{t('admin.audit.subtitle')}</p>
+        <Link href="/admin/impersonation" className="u-micro-strong mt-1 inline-block text-blue-deep hover:underline">
+          {t('admin.impersonation.logLink')}
+        </Link>
       </div>
 
       <TableToolbar

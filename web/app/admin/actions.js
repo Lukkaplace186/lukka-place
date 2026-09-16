@@ -13,6 +13,7 @@ import {
 import { ADMIN_SESSION_COOKIE } from '@/lib/adminAuth';
 import { getAdminSession, requireAdmin } from '@/lib/adminSession';
 import { recordAudit } from '@/lib/adminAudit';
+import { endImpersonationFromCookies } from '@/lib/impersonationCookies';
 import { getAgentById } from '@/lib/agents';
 import { agentDisplayName } from '@/lib/agencies';
 
@@ -107,6 +108,18 @@ export async function logoutAction() {
   const session = await getAdminSession();
   if (session) await recordAudit(session, { action: 'session.logout', entityType: 'session', entityId: session.id });
   const cookieStore = await cookies();
+  // Signing out of the console also ends any "view as" session this browser holds.
+  try {
+    const ended = await endImpersonationFromCookies(cookieStore, 'admin_logout');
+    if (session && ended?.ended) {
+      await recordAudit(session, {
+        action: 'impersonation.end', entityType: ended.parsed.targetType, entityId: ended.parsed.targetId,
+        details: { sessionId: ended.parsed.sessionId, reason: 'admin_logout' },
+      });
+    }
+  } catch (err) {
+    console.error(`[admin] ending impersonation on logout failed: ${err.message}`);
+  }
   // Must match the `path` the cookie was SET with (`path: '/admin'`) — cookies
   // with different Path attributes are distinct to the browser even with the
   // same name, so `.delete(name)` alone would leave the real session intact.

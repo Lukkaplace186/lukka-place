@@ -4,6 +4,7 @@ import { getAgentDashboardContext } from '@/lib/agentDashboard';
 import AgentSidebar from '@/components/AgentSidebar';
 import AgentKeyboardShortcuts from '@/components/AgentKeyboardShortcuts';
 import { ToastProvider } from '@/components/Toast';
+import ImpersonationBanner from '@/components/ImpersonationBanner';
 import { agentLogoutAction } from './actions';
 import { getI18n, getT } from '@/lib/i18n/server';
 import { I18nProvider } from '@/lib/i18n/client';
@@ -84,6 +85,7 @@ export default async function AgentDashboardLayout({ children }) {
         <ToastProvider>
           <div className="flex min-w-0 flex-1 flex-col pb-16 lg:pb-0">{children}</div>
         </ToastProvider>
+        <ImpersonationBanner />
       </div>
     </I18nProvider>
   );

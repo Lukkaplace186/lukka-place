@@ -18,6 +18,14 @@ import { LEVEL_LABEL_KEYS, isVerifiedLevel } from '@/lib/verificationLevels';
 import { getAdminSession } from '@/lib/adminSession';
 import { getT } from '@/lib/i18n/server';
 import AgentAdminPanel from './AgentAdminPanel';
+import AgentRepControl from './AgentRepControl';
+import ImpersonateButton from '../../ImpersonateButton';
+import { getAgentSalesAssignment, listActiveRepOptions } from '@/lib/sales';
+
+/** Today on the Kinshasa calendar (UTC+1), for date inputs. */
+function kinshasaToday() {
+  return new Date(Date.now() + 60 * 60 * 1000).toISOString().slice(0, 10);
+}
 import EntityTimeline from '../../EntityTimeline';
 import ModerationTable from '../../listings/ModerationTable';
 import Pagination from '../../table/Pagination';
@@ -69,6 +77,11 @@ export default async function AdminAgentDetailPage({ params, searchParams }) {
   if (!agent) notFound();
   const session = await getAdminSession();
   const base = `/admin/agents/${agent.id}`;
+  const canManageSales = can(session?.role, 'sales.manage');
+  const [salesAssignment, repOptions] = await Promise.all([
+    getAgentSalesAssignment(agent.id).catch(() => null),
+    canManageSales ? listActiveRepOptions().catch(() => []) : Promise.resolve([]),
+  ]);
 
   const displayName =
     [agent.first_name, agent.last_name].filter(Boolean).join(' ') || agent.agency_name || agent.vendor_name || `Agent #${agent.id}`;
@@ -291,6 +304,21 @@ export default async function AdminAgentDetailPage({ params, searchParams }) {
             {t('admin.agentProfile.publicPage')}
             <ExternalLink strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
           </Link>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {can(session?.role, 'accounts.impersonate') ? (
+            <ImpersonateButton targetType="agent" targetId={agent.id} targetLabel={displayName} sharedSession={Boolean(session?.shared)} />
+          ) : null}
+          {salesAssignment || canManageSales ? (
+            <AgentRepControl
+              agentId={agent.id}
+              assignment={salesAssignment ? { repId: salesAssignment.rep_id, repName: salesAssignment.rep_name, since: formatKinshasa(salesAssignment.credit_from) } : null}
+              reps={repOptions}
+              canManage={canManageSales}
+              today={kinshasaToday()}
+            />
+          ) : null}
         </div>
       </div>
 

@@ -62,7 +62,10 @@ export async function recordAudit(session, { action, entityType = null, entityId
   }
 }
 
-export const AUDIT_ENTITY_TYPES = ['listing', 'agent', 'agency', 'customer', 'conversation', 'lead', 'viewing', 'membership', 'package', 'cms', 'team', 'session'];
+export const AUDIT_ENTITY_TYPES = [
+  'listing', 'agent', 'agency', 'customer', 'conversation', 'lead', 'viewing', 'membership', 'package', 'cms', 'team', 'session',
+  'sales_rep', 'sales_plan',
+];
 
 /**
  * One page of the audit log, newest first.

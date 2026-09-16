@@ -3,6 +3,7 @@ import SiteShell from '@/components/SiteShell';
 import Footer from '@/components/Footer';
 import FavoriteResumeHandler from '@/components/FavoriteResumeHandler';
 import AccountLimitNotice from '@/components/AccountLimitNotice';
+import ImpersonationBanner from '@/components/ImpersonationBanner';
 import { CurrencyRateProvider } from '@/lib/CurrencyRateContext';
 import { getCdfRate } from '@/lib/currencyRate';
 import { getI18n } from '@/lib/i18n/server';
@@ -74,6 +75,7 @@ export default async function SiteLayout({ children }) {
           <main className="min-h-0 flex-1">{children}</main>
           <Footer />
         </SiteShell>
+        <ImpersonationBanner />
       </CurrencyRateProvider>
     </I18nProvider>
   );

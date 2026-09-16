@@ -12,7 +12,9 @@
  * including managing the team and reading the audit log.
  */
 
-export const ADMIN_ROLES = ['owner', 'moderator', 'support', 'finance', 'analyst'];
+// `sales` is a field rep: their own performance and commissions (/admin/sales),
+// plus the read-only views every role has.
+export const ADMIN_ROLES = ['owner', 'moderator', 'support', 'finance', 'analyst', 'sales'];
 
 const ALL = ADMIN_ROLES;
 
@@ -35,6 +37,11 @@ export const PERMISSIONS = {
   'conversations.reply': ['owner', 'support'],
   'viewings.manage': ['owner', 'support'],
   'billing.manage': ['owner', 'finance'],
+  // A `sales` user sees only the rep record linked to their own account.
+  'sales.view': ['owner', 'finance', 'sales'],
+  'sales.manage': ['owner', 'finance'],
+  // "View as" an agent or customer — read-only, reasoned, logged (lib/impersonation.js).
+  'accounts.impersonate': ['owner', 'support'],
   'routing.manage': ['owner'],
   'cms.manage': ['owner'],
   'data.export': ['owner', 'finance', 'analyst'],
@@ -72,6 +79,8 @@ export const SECTION_PERMISSIONS = {
   '/admin/customers': 'customers.view',
   '/admin/subscriptions': 'billing.view',
   '/admin/billing': 'billing.view',
+  '/admin/sales': 'sales.view',
+  '/admin/impersonation': 'audit.view',
   '/admin/cms': 'cms.manage',
   '/admin/team': 'team.manage',
   '/admin/audit': 'audit.view',

@@ -951,6 +951,61 @@ namespace; the two i18n tests above exist because of that.
   posts to a WhatsApp Status: the Web Share sheet with the image attached is
   the one-tap path, and the caption is copied first because WhatsApp drops
   text shared with an image to Status.
+- **Marketing toolkit: graphics drawn in the browser** (2026-09-16). The share
+  kit (`AgentListingShareKit`, tabs Visuel / Texte / Propriétaire) no longer
+  asks the server for its image.
+  - `getSharePackAction` sends a **share pack**
+    (`lib/marketing/sharePackData.js`): the text already formatted, and
+    same-origin `/_next/image?…&w=1080&q=75` photo URLs. Going through the
+    optimiser means the canvas is never tainted and a phone decodes 1080px,
+    not a 4000px original. Only hosts `remotePatterns` covers are sent.
+  - `lib/marketing/layout.js` turns a pack into draw operations — pure, no
+    DOM, unit-tested position by position.
+  - `components/marketing/CanvasRenderer.js` paints them with Canvas 2D (not
+    html2canvas, which cannot do `object-fit: cover`) and exports JPEG.
+    Square 1080², Story 1080×1920, Landscape 1200×675 — native sizes, not 2×.
+  - **The square reproduces the server flyer**: baselines use satori's
+    half-leading model with Plus Jakarta Sans's own metrics (ascent 1.038,
+    descent 0.222). Checked against the production PNG in the browser:
+    vertical offset 0px on every text block, mean pixel difference 2.8/255.
+    The one visible difference is the narrow space in "1 000 $", which the
+    canvas draws and satori dropped.
+  - **Export uses `toDataURL`, not `toBlob`.** In the app's browser pane
+    every `toBlob` took ~1,050 ms at any size (540px, 2160px, even PNG) —
+    Chromium defers it as an idle task — while `toDataURL` encoded the same
+    JPEG in 32 ms. Measured warm, desktop: square 39 ms / 125 KB, story
+    102 ms / 133 KB, landscape 33 ms / 90 KB, all under the 150 KB budget.
+    No CPU throttling was available to test a phone profile.
+  - **Offline**: `lib/sharePack.js` keeps the pack and the image Blobs in
+    IndexedDB (`lukka-share-packs`, separate from the drafts database). With
+    the server unreachable, the dialog draws from that copy and shows
+    "Hors ligne — données du …", with a warning past 24 h, because an offline
+    graphic can show an old price. A server answer of "not yours / gone" is
+    never replaced by a stored copy. Verified with the dev server stopped:
+    story drawn from IndexedDB in 175 ms. The dashboard page itself is not
+    cached by the service worker, so this works in a dashboard that is
+    already open, not from a cold start offline.
+  - The server route `/compte/agent/biens/:id/visuel` stays as the square
+    fallback when the browser cannot draw, online only. It now sends a
+    mozjpeg q85 JPEG (106 KB) instead of satori's PNG (970 KB).
+  - **Tagged links**: captions carry `?utm_source=` per way out
+    (`SHARE_SOURCES`: wa_status / wa_message / partage_agent;
+    rapport_proprietaire for the report). `lib/analyticsClient.js` now
+    forwards the landing URL's `utm_source` — both endpoints accepted it but
+    nothing sent it, so every tagged visit was stored as 'direct'. Listing
+    pages declare their canonical URL so tagged variants are one page.
+  - **Landlord report** (`getMandateReportAction`,
+    `lib/marketing/mandateReport.js` + `mandateReportCopy.js`): views,
+    WhatsApp taps, saves and visit requests for the last 7 whole UTC days
+    against the 7 before, read the way the dashboard reads them
+    (`listing_stats_daily` while fresh, raw events otherwise). Visit requests
+    come from the engine; when it cannot answer they are `null` and print
+    "non disponible", never 0. The card and the caption both say what the
+    counts cover (page openings including the agent's own, taps, saves,
+    requests via Lukka Place) and what they do not (calls and messages sent
+    straight to the agent, people who saw a Status without opening the
+    link). Live only — no offline report, since an old one shows the wrong
+    week.
 - **The agent dashboard on a phone** (reported from real 375px screens,
   2026-09-16). `.u-title-page` and `.u-stat` are 22px below 640px (they were
   28px, which alone pushed the header past the screen); agent pages are

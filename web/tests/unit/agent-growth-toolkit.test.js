@@ -163,7 +163,7 @@ test('the flyer seams are 6px of white, the Lukka Place mark sits in the footer,
   // Rooms get their own line in full words.
   assert.match(route, /const rooms = roomSpecs\(listing\)/);
   const lib = readFileSync(path.join(process.cwd(), 'lib/listingFlyer.js'), 'utf8');
-  assert.match(lib, /public\/brand\/icon-dark\.png/);
+  assert.match(lib, /PLATFORM_MARK_PATH = '\/brand\/icon-dark\.png'/);
 });
 
 test('the flyer prints an agent phone only under the public listing rule, and never invents a logo', () => {

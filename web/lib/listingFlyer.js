@@ -191,7 +191,13 @@ export async function loadFlyerPhotos(listing, max = 3) {
  */
 const BADGE_LABELS = { verified: 'Agent vérifié', agency_partner: 'Agence partenaire' };
 
-export async function loadAgentBrand(listing) {
+/**
+ * The brand block's text fields, with no fetch. Shared by the server flyer
+ * (loadAgentBrand, which adds the logo as a data URI) and the share pack the
+ * browser draws from (lib/marketing/sharePackData.js, which sends the logo's
+ * URL instead).
+ */
+export function agentBrandFields(listing) {
   const name = displayableAgencyName(listing?.agency_name);
   const initials =
     (name || '')
@@ -204,7 +210,11 @@ export async function loadAgentBrand(listing) {
   const phone = agentContactPhone(listing);
   const level = listing?.agent_verification_level;
   const badge = isVerifiedLevel(level) ? BADGE_LABELS[level] : null;
+  return { name, initials, phone, badge };
+}
 
+export async function loadAgentBrand(listing) {
+  const { name, initials, phone, badge } = agentBrandFields(listing);
   let logo = null;
   if (usableImageSrc(listing?.agent_image)) {
     const buffer = await fetchImageBuffer(listing.agent_image, allowedPhotoHosts());
@@ -232,11 +242,12 @@ export async function loadAgentBrand(listing) {
  * footer renders as text alone.
  */
 export const PLATFORM_MARK_ASPECT = 846 / 423;
+export const PLATFORM_MARK_PATH = '/brand/icon-dark.png';
 let platformMarkPromise = null;
 
 export function loadPlatformMark() {
   if (!platformMarkPromise) {
-    platformMarkPromise = readFile(path.join(process.cwd(), 'public/brand/icon-dark.png'))
+    platformMarkPromise = readFile(path.join(process.cwd(), 'public', PLATFORM_MARK_PATH))
       .then((buffer) => `data:image/png;base64,${buffer.toString('base64')}`)
       .catch((err) => {
         console.error(`[flyer] platform mark unreadable: ${err.message}`);

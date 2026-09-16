@@ -913,7 +913,7 @@
     "share": {
       "menuItem": "Graphic & sharing",
       "title": "Graphic and Sharing",
-      "description": "A square image ready for your WhatsApp Status, with the text to paste as a caption.",
+      "description": "Graphics ready for your WhatsApp Status and social networks, with the text to paste as a caption.",
       "loading": "Preparing the graphic…",
       "loadFailed": "Sharing could not be prepared. Try again in a moment.",
       "imageFailed": "The image could not be generated. The text below can still be used.",
@@ -935,6 +935,32 @@
         "archived": "This listing is archived (hidden from the site). Relist it to share it.",
         "underOffer": "This listing is under offer and no longer offered to the public.",
         "closed": "This property is already let or sold."
+      },
+      "tabs": {
+        "image": "Graphic",
+        "text": "Text",
+        "owner": "Owner"
+      },
+      "formatsLabel": "Graphic format",
+      "formats": {
+        "square": "Square",
+        "story": "Status 9:16",
+        "landscape": "Landscape 16:9"
+      },
+      "offlineStamp": "Offline — graphic made with the data from {date}.",
+      "staleWarning": "This data is more than 24 hours old: check the price and availability before posting.",
+      "offlineUnavailable": "No connection, and this property has not been prepared on this phone yet. Open “Graphic & sharing” once while online to be able to make it offline.",
+      "rendering": "Making the graphic…",
+      "owner": {
+        "intro": "Send the owner the last 7 days at a glance: views, WhatsApp taps, saves and visit requests.",
+        "prepare": "Prepare the report",
+        "preparing": "Counting…",
+        "failed": "The report could not be prepared. Try again.",
+        "offline": "The report uses live figures: connect to prepare it.",
+        "previewAlt": "Preview of the marketing report",
+        "share": "Share the report",
+        "hint": "On a phone: Share the report → WhatsApp → the owner. The text is copied — paste it under the image.",
+        "captionLabel": "Report text"
       }
     },
     "drafts": {

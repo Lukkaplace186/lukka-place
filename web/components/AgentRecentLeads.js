@@ -40,7 +40,7 @@ export default async function AgentRecentLeads({ leads, listingById }) {
   return (
     <Link
       href="/compte/agent/demandes"
-      className="u-card group u-press flex flex-col rounded-card bg-surface p-6 text-left transition-colors hover:bg-canvas-alt"
+      className="u-card group u-press flex flex-col rounded-card bg-surface p-4 sm:p-6 text-left transition-colors hover:bg-canvas-alt"
     >
       <div className="flex items-center justify-between gap-4">
         <h2 className="u-title-card text-ink">{t('agent.overview.recentLeads')}</h2>

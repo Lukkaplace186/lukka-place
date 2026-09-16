@@ -29,9 +29,16 @@ const BLOCKER_KEYS = {
  *                      IS the one-tap path, so we copy the caption first and
  *                      say so, because WhatsApp drops text attached to an image
  *                      shared to Status.
+ *   Envoyer sur        wa.me/?text= — WhatsApp's own contact / broadcast-list
+ *   WhatsApp           picker, text only.
  *   Télécharger        for a desktop, or to post later.
- *   Envoyer le lien    wa.me/?text= — WhatsApp's own contact / broadcast-list
- *                      picker, text only.
+ *
+ * PHONE LAYOUT. All four actions sit directly under a reduced preview, before
+ * the caption. They used to follow a full-width square preview and the
+ * caption box, which put "Envoyer sur WhatsApp" below the fold of a 92vh
+ * dialog on iPhone Safari — where `vh` includes the space the toolbar covers,
+ * so the last button could not be reached at all. Height is `dvh` now and the
+ * bottom padding clears the home indicator.
  *
  * Mounted as a SIBLING of the actions menu, never inside a menu item — see
  * AgentListingActionsMenu's note on Radix unmounting dialogs with the menu.
@@ -143,11 +150,11 @@ export default function AgentListingShareKit({ listingId, open, onOpenChange }) 
 
   const shareable = kit?.shareable === true;
   const actionClass =
-    'u-press inline-flex h-11 items-center justify-center gap-2 rounded-lg px-4 text-sm font-bold disabled:opacity-50';
+    'u-press inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg px-2.5 py-2 text-center text-[0.8125rem] font-bold leading-tight disabled:opacity-50 sm:gap-2 sm:px-4 sm:text-sm';
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-h-[92vh] max-w-lg overflow-y-auto">
+      <DialogContent className="max-h-[88dvh] gap-3 overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))] sm:max-w-md sm:gap-4">
         <DialogHeader>
           <DialogTitle>{t('agent.share.title')}</DialogTitle>
           <DialogDescription>{t('agent.share.description')}</DialogDescription>
@@ -163,10 +170,10 @@ export default function AgentListingShareKit({ listingId, open, onOpenChange }) 
         )}
 
         {shareable && (
-          <div className="flex flex-col gap-4">
-            <div className="aspect-square w-full max-w-full overflow-hidden rounded-xl border border-line bg-canvas-deep">
+          <div className="flex min-w-0 flex-col gap-3">
+            <div className="mx-auto aspect-square w-full max-w-[13.5rem] overflow-hidden rounded-xl border border-line bg-canvas-deep sm:max-w-full">
               {imageFailed ? (
-                <p className="grid h-full place-items-center p-6 text-center text-sm text-ink-45">{t('agent.share.imageFailed')}</p>
+                <p className="grid h-full place-items-center p-4 text-center text-xs text-ink-45">{t('agent.share.imageFailed')}</p>
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
@@ -178,19 +185,32 @@ export default function AgentListingShareKit({ listingId, open, onOpenChange }) 
               )}
             </div>
 
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="grid grid-cols-2 gap-2">
               <button type="button" onClick={handleShareImage} disabled={busy || imageFailed} className={`${actionClass} u-btn-primary bg-blue text-white`}>
-                <Share2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                <Share2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0" />
                 {busy ? t('agent.share.preparing') : t('agent.share.shareImage')}
               </button>
-              <button type="button" onClick={handleDownload} disabled={busy || imageFailed} className={`${actionClass} u-btn-secondary text-ink`}>
-                <Download strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+              <a
+                href={buildWhatsAppShareLink(kit.copy)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`${actionClass} border border-line text-ink`}
+              >
+                <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0 text-green-deep" />
+                {t('agent.share.sendWhatsApp')}
+              </a>
+              <button type="button" onClick={handleDownload} disabled={busy || imageFailed} className={`${actionClass} border border-line text-ink`}>
+                <Download strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0" />
                 {t('agent.share.download')}
+              </button>
+              <button type="button" onClick={copyCaption} className={`${actionClass} border border-line text-ink`}>
+                {copied ? <Check strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0" /> : <Copy strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0" />}
+                {copied ? t('agent.share.copied') : t('agent.share.copyCaption')}
               </button>
             </div>
             <p className="text-xs text-ink-45">{t('agent.share.statusHint')}</p>
 
-            <div>
+            <div className="min-w-0">
               <label htmlFor={`share-copy-${listingId}`} className="mb-1.5 block text-[0.8125rem] font-semibold text-ink-70">
                 {t('agent.share.captionLabel')}
               </label>
@@ -198,24 +218,9 @@ export default function AgentListingShareKit({ listingId, open, onOpenChange }) 
                 id={`share-copy-${listingId}`}
                 readOnly
                 value={kit.copy}
-                rows={8}
-                className="u-focus-ring w-full resize-none rounded-lg border border-line bg-surface p-3 text-sm leading-relaxed text-ink"
+                rows={7}
+                className="u-focus-ring w-full resize-none rounded-lg border border-line bg-surface p-3 text-base leading-relaxed text-ink sm:text-sm"
               />
-              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <button type="button" onClick={copyCaption} className={`${actionClass} border border-line text-ink`}>
-                  {copied ? <Check strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" /> : <Copy strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />}
-                  {copied ? t('agent.share.copied') : t('agent.share.copyCaption')}
-                </button>
-                <a
-                  href={buildWhatsAppShareLink(kit.copy)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`${actionClass} border border-line text-ink`}
-                >
-                  <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-                  {t('agent.share.sendWhatsApp')}
-                </a>
-              </div>
             </div>
           </div>
         )}

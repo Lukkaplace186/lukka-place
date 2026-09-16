@@ -31,8 +31,12 @@ export default function AgentPageHeader({
   newLeadsCount = 0,
 }) {
   return (
-    <header className="sticky top-0 z-20 border-b border-line bg-surface px-5 sm:px-8">
-      <div className="flex min-h-[4.75rem] flex-wrap items-center justify-between gap-x-4 gap-y-3 py-3">
+    // Phone: title on its own line, then search, bell and action sharing ONE
+    // row (the search takes what is left). It used to be three stacked rows
+    // under a 28px title, and the action group was `flex-none`, so its
+    // content width pushed the whole dashboard past a 375px screen.
+    <header className="sticky top-0 z-20 border-b border-line bg-surface px-3 sm:px-8">
+      <div className="flex min-h-[3.5rem] flex-wrap items-center justify-between gap-x-3 gap-y-2 py-2.5 sm:min-h-[4.75rem] sm:gap-x-4 sm:gap-y-3 sm:py-3">
         <div className="min-w-0">
           <h1 className="u-title-page truncate text-ink">
             {title}
@@ -40,9 +44,9 @@ export default function AgentPageHeader({
           {subtitle && <p className="mt-0.5 text-[0.8125rem] text-ink-45">{subtitle}</p>}
         </div>
 
-        <div className="flex flex-none flex-wrap items-center gap-2.5">
+        <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:flex-none sm:flex-wrap sm:gap-2.5">
           {searchAction && (
-            <form method="get" action={searchAction} className="relative w-full sm:w-[16rem]">
+            <form method="get" action={searchAction} className="relative min-w-0 flex-1 sm:w-[16rem] sm:flex-none">
               {Object.entries(hiddenSearchFields || {}).map(([name, value]) =>
                 value ? <input key={name} type="hidden" name={name} value={value} /> : null,
               )}

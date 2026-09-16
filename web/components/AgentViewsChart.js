@@ -19,7 +19,7 @@ export default async function AgentViewsChart({ series, rangeOptions, range, ran
   const hasAny = series.some((b) => b.views > 0);
 
   return (
-    <div className="u-card rounded-card bg-surface p-6">
+    <div className="u-card rounded-card bg-surface p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="u-title-card text-ink">{t('agent.overview.viewsChart')}</h2>

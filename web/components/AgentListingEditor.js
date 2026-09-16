@@ -251,7 +251,7 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
 
       <SmartPasteSection onParsed={handleParsed} />
 
-      <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-6">
+      <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-4 sm:p-6">
         <h2 className="text-[1.0625rem] font-bold text-ink">{t('agent.editor.descriptionSection')}</h2>
 
         <div>
@@ -285,7 +285,7 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
         </div>
       </div>
 
-      <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-6">
+      <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-4 sm:p-6">
         <h2 className="text-[1.0625rem] font-bold text-ink">{t('agent.editor.priceAndFeatures')}</h2>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -404,7 +404,7 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
         </div>
       </div>
 
-      <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-6">
+      <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-4 sm:p-6">
         <h2 className="text-[1.0625rem] font-bold text-ink">{t('common.shared.location')}</h2>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -438,7 +438,7 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
       </div>
 
       {amenities.length > 0 && (
-        <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-6">
+        <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-4 sm:p-6">
           <div>
             <h2 className="text-[1.0625rem] font-bold text-ink">{t('agent.editor.amenities')}</h2>
             <p className={HINT_CLASS}>
@@ -468,7 +468,7 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
         </div>
       )}
 
-      <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-6">
+      <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-4 sm:p-6">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-[1.0625rem] font-bold text-ink">{t('agent.editor.photos')}</h2>
           <span className="text-xs text-ink-35">{photos.length}/10 · glissez pour réordonner</span>

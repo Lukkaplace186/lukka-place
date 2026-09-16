@@ -208,7 +208,7 @@ export default async function AgentInquiriesPage({ searchParams }) {
         hiddenSearchFields={{ status: statusFilter }}
       />
 
-      <div className="flex flex-col gap-4 px-5 py-7 sm:px-8">
+      <div className="flex flex-col gap-4 px-3 py-4 sm:px-8 sm:py-7">
         <div className="flex items-center gap-1 border-b border-line">
           {TABS.map((item) => (
             <Link

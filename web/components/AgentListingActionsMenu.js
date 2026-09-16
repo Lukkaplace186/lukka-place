@@ -152,7 +152,16 @@ export default function AgentListingActionsMenu({ listing, isClosed }) {
           <MoreHorizontal strokeWidth={ICON_STROKE_WIDTH} className="h-[1.0625rem] w-[1.0625rem]" />
         </DropdownMenuTrigger>
 
-        <DropdownMenuContent align="end" className="w-56">
+        {/* collisionPadding keeps the whole menu above the phone's fixed bottom
+            nav (AgentSidebar, ~56px + safe area): Radix flips it upward or
+            caps its height (it already sets max-h to the available height, and
+            scrolls) instead of letting "Supprimer" slide under the nav. */}
+        <DropdownMenuContent
+          align="end"
+          sideOffset={6}
+          collisionPadding={{ top: 12, right: 12, bottom: 88, left: 12 }}
+          className="w-56 max-w-[calc(100vw-1.5rem)]"
+        >
           <DropdownMenuItem asChild>
             <Link href={`/compte/agent/biens/${listing.id}/edit`} className="flex items-center gap-2.5">
               <Pencil strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />

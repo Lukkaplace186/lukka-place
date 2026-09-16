@@ -105,7 +105,7 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
   const hasSecondary = can('RESCHEDULED') || can('DECLINED') || can('CANCELLED');
 
   return (
-    <div className="u-card rounded-card bg-surface p-6">
+    <div className="u-card rounded-card bg-surface p-4 sm:p-6">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_16.5rem] lg:items-center">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2.5">

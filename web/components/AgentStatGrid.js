@@ -67,8 +67,10 @@ function StatBody({ stat, t }) {
   return (
     <>
       <div className="min-w-0">
-        <div className="flex items-center gap-1 text-[0.8125rem] text-ink-45">
-          <span className="truncate">{stat.label}</span>
+        {/* Phone: the label may wrap to two short lines instead of being cut
+            to "Vues sur 30 …" / "Demandes r…". */}
+        <div className="flex items-center gap-1 text-xs leading-tight text-ink-45 sm:text-[0.8125rem]">
+          <span className="min-w-0 sm:truncate">{stat.label}</span>
           {stat.href && (
             <ArrowUpRight
               strokeWidth={ICON_STROKE_WIDTH}
@@ -77,19 +79,21 @@ function StatBody({ stat, t }) {
             />
           )}
         </div>
-        <div className="u-stat mt-1.5 text-ink">
+        <div className="u-stat mt-1 text-ink sm:mt-1.5">
           {stat.value.toLocaleString('fr-FR')}
         </div>
         <DeltaLine delta={stat.delta} t={t} />
       </div>
-      <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-blue-tint text-blue">
+      {/* The icon disc is decoration; on a two-column phone grid it was taking
+          the width the label needed. */}
+      <div className="hidden h-11 w-11 shrink-0 place-items-center rounded-full bg-blue-tint text-blue sm:grid">
         <stat.icon strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
       </div>
     </>
   );
 }
 
-const CELL_CLASS = 'flex items-center justify-between gap-3 bg-surface px-5 py-[1.375rem]';
+const CELL_CLASS = 'flex items-start justify-between gap-3 bg-surface px-3.5 py-3 sm:items-center sm:px-5 sm:py-[1.375rem]';
 
 export default async function AgentStatGrid({ stats }) {
   const t = await getT();

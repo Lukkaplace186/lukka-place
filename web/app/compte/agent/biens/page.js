@@ -124,7 +124,7 @@ export default async function AgentListingsPage({ searchParams }) {
         hiddenSearchFields={{ status: statusFilter }}
       />
 
-      <div className="flex flex-col gap-4 px-5 py-7 sm:px-8">
+      <div className="flex flex-col gap-4 px-3 py-4 sm:px-8 sm:py-7">
         <div className="flex flex-wrap items-center gap-2">
           {FILTER_PILLS.map((pill) => {
             const active = pill.value === statusFilter || (pill.value === '' && !statusFilter);
@@ -147,22 +147,25 @@ export default async function AgentListingsPage({ searchParams }) {
         </div>
 
         <div className="u-card overflow-hidden rounded-card bg-surface">
-          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-line px-6 py-5">
-            <div>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-3 py-3.5 sm:gap-4 sm:px-6 sm:py-5">
+            <div className="min-w-0">
               <div className="u-title-card text-ink">
                 {listings.length} bien{listings.length === 1 ? '' : 's'}
               </div>
-              <div className="mt-0.5 text-[0.8125rem] text-ink-45">{counts}</div>
+              <div className="mt-0.5 text-xs text-ink-45 sm:text-[0.8125rem]">{counts}</div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.5">
-              <form method="get" className="flex items-center gap-2">
+            {/* Phone: the status filter takes the row's remaining width and
+                "Ajouter un bien" sits beside it, instead of a fixed 10.6rem
+                select pushing the group past the screen. */}
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:gap-2.5">
+              <form method="get" className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none">
                 {q && <input type="hidden" name="q" value={q} />}
                 <select
                   name="status"
                   defaultValue={statusFilter}
                   aria-label={t('agent.listings.filterByStatus')}
-                  className="u-focus-ring h-10 w-[10.625rem] rounded-lg border border-line bg-surface px-3 text-[0.8125rem] font-medium text-ink"
+                  className="u-focus-ring h-10 min-w-0 flex-1 rounded-lg border border-line bg-surface px-2.5 text-[0.8125rem] font-medium text-ink sm:w-[10.625rem] sm:flex-none sm:px-3"
                 >
                   <option value="">{t('agent.listings.allStatuses')}</option>
                   {LISTING_STATUS_OPTIONS.map((o) => (
@@ -174,7 +177,7 @@ export default async function AgentListingsPage({ searchParams }) {
                 </select>
                 <button
                   type="submit"
-                  className="u-btn-secondary u-press h-10 rounded-lg px-3.5 text-[0.8125rem] font-bold text-ink"
+                  className="u-btn-secondary u-press h-10 shrink-0 rounded-lg px-3 text-[0.8125rem] font-bold text-ink sm:px-3.5"
                 >
                   {t('agent.listings.filter')}
                 </button>
@@ -185,7 +188,7 @@ export default async function AgentListingsPage({ searchParams }) {
           </div>
 
           {filtered.length === 0 ? (
-            <div className="px-6 py-16 text-center text-sm text-ink-45">
+            <div className="px-4 py-12 text-center text-sm text-ink-45 sm:px-6 sm:py-16">
               {listings.length === 0
                 ? t('agent.listings.emptyDashboard')
                 : 'Aucune annonce ne correspond à ces filtres.'}

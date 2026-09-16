@@ -111,6 +111,28 @@ test('the flyer refuses anything not owned by the session agent (ownership in SQ
   assert.match(src, /url\.protocol !== 'https:' \|\| !hosts\.has\(url\.host\)/);
 });
 
+test('the flyer carries the agent brand on royal blue, and no QR code anywhere', () => {
+  const lib = readFileSync(path.join(process.cwd(), 'lib/listingFlyer.js'), 'utf8');
+  const route = readFileSync(path.join(process.cwd(), 'app/compte/agent/biens/[id]/visuel/route.js'), 'utf8');
+  for (const [name, src] of [['lib', lib], ['route', route]]) {
+    assert.doesNotMatch(src, /qrcode|QRCode|qrDataUri/, `${name} must not reference the removed QR code`);
+  }
+  // The brand colour is the palette's own --blue, not a near-miss navy.
+  assert.match(route, /const ROYAL = '#1e3aa8'/);
+  assert.match(route, /background: ROYAL/);
+  assert.match(lib, /export async function loadAgentBrand/);
+});
+
+test('the flyer prints an agent phone only under the public listing rule, and never invents a logo', () => {
+  const src = readFileSync(path.join(process.cwd(), 'lib/listingFlyer.js'), 'utf8');
+  assert.match(src, /agent_phone_verified_at && listing\?\.agent_direct_routing_enabled !== false/);
+  // No logo and no name means no brand block — never a Lukka Place mark
+  // standing in for the agent's own.
+  const route = readFileSync(path.join(process.cwd(), 'app/compte/agent/biens/[id]/visuel/route.js'), 'utf8');
+  assert.match(route, /const hasBrand = Boolean\(brand\.logo \|\| brand\.initials\)/);
+  assert.match(route, /\{hasBrand \? \(/);
+});
+
 // ---------------------------------------------------------------------------
 // Verification tiers
 // ---------------------------------------------------------------------------

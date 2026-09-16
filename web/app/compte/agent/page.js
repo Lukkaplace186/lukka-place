@@ -78,7 +78,7 @@ export default async function AgentOverviewPage({ searchParams }) {
         action={
           <Link
             href="/compte/agent/biens"
-            className="u-btn-primary u-press inline-flex h-11 items-center gap-1.5 rounded-lg bg-blue px-5 text-sm font-bold text-white"
+            className="u-btn-primary u-press inline-flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-blue px-3 text-[0.8125rem] font-bold text-white sm:h-11 sm:px-5 sm:text-sm"
           >
             <Plus strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
             {t('agent.overview.addListing')}
@@ -86,7 +86,7 @@ export default async function AgentOverviewPage({ searchParams }) {
         }
       />
 
-      <div className="flex flex-col gap-6 px-5 py-7 sm:px-8">
+      <div className="flex flex-col gap-4 px-3 py-4 sm:gap-6 sm:px-8 sm:py-7">
         <AgentPortfolioBanner
           listingsCount={listings.length}
           profileUrl={`${SITE_URL}/agents/${agent.id}`}
@@ -95,7 +95,7 @@ export default async function AgentOverviewPage({ searchParams }) {
 
         <AgentStatGrid stats={stats} />
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)] lg:items-start">
+        <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)] lg:items-start">
           <AgentViewsChart
             series={series}
             rangeOptions={RANGE_OPTIONS}

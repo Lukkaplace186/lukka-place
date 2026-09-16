@@ -901,15 +901,51 @@ namespace; the two i18n tests above exist because of that.
 - **"Visuel & partage"** (actions menu on Mes biens): `lib/listingShareCopy.js`
   (French caption — always French, it is read by the agent's customers),
   `lib/listingFlyer.js` + `app/compte/agent/biens/[id]/visuel/route.js`
-  (1080×1080 PNG via `next/og`, ≤3 real photos fetched only from our hosts and
-  sniffed as JPEG/PNG, QR code via the `qrcode` dependency, Plus Jakarta Sans
-  fetched from Google Fonts once per process with a default-face fallback).
+  (1080×1080 PNG via `next/og`, ≤3 real photos fetched only from our hosts,
+  Plus Jakarta Sans fetched from Google Fonts once per process with a
+  default-face fallback). Images go through `sharp` (already a Next
+  dependency): WebP → PNG/JPEG, since satori decodes neither WebP nor AVIF,
+  EXIF rotation, since satori ignores orientation and a phone photo otherwise
+  renders on its side, and a resize so three 8 MB photos aren't a 30 MB
+  payload. sharp missing is survivable — a JPEG/PNG still renders, anything
+  else is skipped.
+  **The card is royal blue (`--blue`) and the QR code is gone**, both on an
+  explicit product decision (2026-09-16): the caption under the image already
+  carries the link, so the QR was a worse second route to the same page, and
+  the space now holds the AGENT's own logo, name and phone (`loadAgentBrand`)
+  so every share doubles as their marketing. No logo means their initials on a
+  white card; no name and no logo means no brand block at all, never a Lukka
+  Place mark passed off as the agent's. The phone appears only under the
+  public listing page's own rule (verified AND direct routing not switched
+  off). **Most agents have no image yet** — 7 of 10 in production — so the
+  initials fallback is the common case until they upload one in Paramètres.
   Ownership is `p.agent_id = $3` in SQL; `shareBlocker()` refuses pending,
-  rejected, archived, under-offer and closed listings because the QR and link
-  point at a public page that would 404 or mislead. There is no web link that
+  rejected, archived, under-offer and closed listings because the link points
+  at a public page that would 404 or mislead. There is no web link that
   posts to a WhatsApp Status: the Web Share sheet with the image attached is
   the one-tap path, and the caption is copied first because WhatsApp drops
   text shared with an image to Status.
+- **The agent dashboard on a phone** (reported from real 375px screens,
+  2026-09-16). `.u-title-page` and `.u-stat` are 22px below 640px (they were
+  28px, which alone pushed the header past the screen); agent pages are
+  `px-3 py-4` and cards `p-4` until `sm`. Three layouts were structurally
+  wrong rather than merely large, and each is fixed at its source:
+  - `AgentPageHeader` puts the search, bell and action on ONE row under the
+    title; its action group was `flex-none`, so its content width set the
+    page width.
+  - `AgentPortfolioBanner`'s two buttons stack full-width; they were a
+    `flex-none` row wider than the screen, so "Voir ma page" was cut off.
+  - **`.agent-listing-row` (app/globals.css) is the Mes biens row**: named
+    grid areas on a phone, the seven-column table row at `lg`, with
+    `.alr-main` / `.alr-stats` on `display: contents` so ONE markup serves
+    both. It was a single `flex-wrap` line, which squeezed the title to
+    nothing and left the price against the photo. GRID_COLS in
+    `AgentListingsTable.js` must stay identical to the `lg` columns there.
+  - The row menu takes `collisionPadding` with a 88px bottom so Radix keeps it
+    clear of the fixed bottom nav, and the bulk bar sits at `bottom-20`.
+  - The share dialog is `max-h-[88dvh]` with all four actions above the
+    caption: at `92vh` on iOS Safari the last button sat under the browser
+    toolbar and could not be reached.
 - **Offline drafts** (`lib/offlineDrafts.js`, `CreateListingDialog`): fields
   AND photos in IndexedDB per agent key; a publish while offline (or one that
   dies on the network) is queued and re-sent when Mes biens is open and

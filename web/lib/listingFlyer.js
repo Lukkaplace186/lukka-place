@@ -1,10 +1,12 @@
 import 'server-only';
-import QRCode from 'qrcode';
 import { getPool } from './db';
-import { listingImages, typeLabel } from './listingView';
+import { listingImages, typeLabel, usableImageSrc } from './listingView';
 import { NO_PHOTO_URL, SITE_URL } from './constants';
 import { createTranslator } from './i18n/translate';
 import { sniffDocumentType } from './verificationLevels';
+import { AGENCY_NAME_EXPR, AGENT_INFOS_JOIN } from './listings';
+import { displayableAgencyName } from './agentIdentity';
+import { formatPhoneDisplay } from './phone';
 import fr from './i18n/fr.json';
 
 /**
@@ -26,6 +28,11 @@ export async function getFlyerListing(agentId, propertyId) {
             p.quartier, p.parcelle_subtype, p.reference, p.deposit_months, p.advance_months,
             p.commission_months, p.featured_image, p.status, p.approve_status, p.listing_status,
             pc.title, catc.name AS category_name,
+            -- The agent's own brand for the flyer's logo slot. The phone is
+            -- only printed under the same rule the public listing page uses
+            -- (verified AND direct routing not switched off by the team).
+            a.image AS agent_image, a.phone AS agent_phone_raw, a.phone_verified_at AS agent_phone_verified_at,
+            a.direct_routing_enabled AS agent_direct_routing_enabled, ${AGENCY_NAME_EXPR},
             (
               SELECT ac.name FROM property_amenities pa
               JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = $1
@@ -39,6 +46,8 @@ export async function getFlyerListing(agentId, propertyId) {
      FROM properties p
      JOIN property_contents pc ON pc.property_id = p.id AND pc.language_id = $1
      LEFT JOIN property_category_contents catc ON catc.category_id = p.category_id AND catc.language_id = $4
+     LEFT JOIN agents a ON a.id = p.agent_id
+     ${AGENT_INFOS_JOIN}
      WHERE p.id = $2 AND p.agent_id = $3`,
     [CONTENT_LANGUAGE_ID, Number(propertyId), Number(agentId), CATEGORY_LANGUAGE_ID],
   );
@@ -87,7 +96,29 @@ function flyerImageType(buffer) {
 
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
 
-async function fetchPhotoDataUri(src, hosts) {
+/**
+ * sharp ships with Next (the image optimiser uses it) and is present in both
+ * deployed web directories. It buys three things the flyer needs:
+ * WebP → PNG/JPEG (satori decodes neither WebP nor AVIF), EXIF rotation (a
+ * phone photo otherwise renders on its side — satori ignores orientation),
+ * and a resize, so three 8 MB photos don't become a 30 MB base64 payload.
+ *
+ * It is optional: if the import fails, a JPEG or PNG still renders as it was
+ * downloaded and anything else is skipped.
+ */
+async function normaliseImage(buffer, { maxWidth, transparent = false }) {
+  try {
+    const { default: sharp } = await import('sharp');
+    const pipeline = sharp(buffer).rotate().resize({ width: maxWidth, withoutEnlargement: true });
+    const out = transparent ? await pipeline.png().toBuffer() : await pipeline.jpeg({ quality: 82 }).toBuffer();
+    return `data:${transparent ? 'image/png' : 'image/jpeg'};base64,${out.toString('base64')}`;
+  } catch {
+    const type = flyerImageType(buffer);
+    return type ? `data:${type};base64,${buffer.toString('base64')}` : null;
+  }
+}
+
+async function fetchImageBuffer(src, hosts) {
   let url;
   try {
     url = new URL(src, SITE_URL);
@@ -99,12 +130,15 @@ async function fetchPhotoDataUri(src, hosts) {
     const res = await fetch(url, { signal: AbortSignal.timeout(6000), cache: 'no-store' });
     if (!res.ok) return null;
     const buffer = Buffer.from(await res.arrayBuffer());
-    if (buffer.length > MAX_PHOTO_BYTES) return null;
-    const type = flyerImageType(buffer);
-    return type ? `data:${type};base64,${buffer.toString('base64')}` : null;
+    return buffer.length > MAX_PHOTO_BYTES ? null : buffer;
   } catch {
     return null;
   }
+}
+
+async function fetchPhotoDataUri(src, hosts) {
+  const buffer = await fetchImageBuffer(src, hosts);
+  return buffer ? normaliseImage(buffer, { maxWidth: 1080 }) : null;
 }
 
 /**
@@ -120,18 +154,55 @@ export async function loadFlyerPhotos(listing, max = 3) {
 }
 
 // ---------------------------------------------------------------------------
-// QR code and fonts
+// The agent's own brand
 // ---------------------------------------------------------------------------
 
-export async function qrDataUri(url) {
-  const svg = await QRCode.toString(url, {
-    type: 'svg',
-    margin: 0,
-    errorCorrectionLevel: 'M',
-    color: { dark: '#0b1120', light: '#ffffff' },
-  });
-  return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
+/**
+ * What goes in the flyer's brand block: the agent's logo (or profile photo),
+ * their name, and their phone.
+ *
+ * This slot held a QR code. It was dropped on an explicit product decision:
+ * the flyer goes out on the agent's WhatsApp Status with the listing link in
+ * the caption right under it, so the QR was a second, worse route to the same
+ * page — and the space is worth more as the agent's own marketing.
+ *
+ * Nothing is invented. No logo means the agent's initials on a white card; no
+ * name means no brand block at all rather than a Lukka Place mark passed off
+ * as theirs. The phone appears only under the rule the public listing page
+ * already applies — verified, and direct routing not switched off by the team
+ * (lib/listings.js) — so the flyer can never publish a number the site itself
+ * refuses to show.
+ *
+ * @returns {Promise<{logo: string|null, name: string|null, initials: string|null, phone: string|null}>}
+ */
+export async function loadAgentBrand(listing) {
+  const name = displayableAgencyName(listing?.agency_name);
+  const initials =
+    (name || '')
+      .split(/\s+/)
+      .filter((part) => /^[A-Za-zÀ-ÿ]/.test(part))
+      .slice(0, 2)
+      .map((part) => part[0].toUpperCase())
+      .join('') || null;
+
+  const routable =
+    listing?.agent_phone_verified_at && listing?.agent_direct_routing_enabled !== false;
+  const phone = routable ? formatPhoneDisplay(String(listing.agent_phone_raw || '').trim()) : null;
+
+  let logo = null;
+  if (usableImageSrc(listing?.agent_image)) {
+    const buffer = await fetchImageBuffer(listing.agent_image, allowedPhotoHosts());
+    // PNG, not JPEG: a logo with a transparent background must keep it, or it
+    // renders on a black box inside its white card.
+    if (buffer) logo = await normaliseImage(buffer, { maxWidth: 400, transparent: true });
+  }
+
+  return { logo, name, initials, phone };
 }
+
+// ---------------------------------------------------------------------------
+// Fonts
+// ---------------------------------------------------------------------------
 
 /**
  * Plus Jakarta Sans — the storefront's UI face — in the two weights the flyer

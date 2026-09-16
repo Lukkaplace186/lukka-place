@@ -102,7 +102,7 @@ export default function AgentLeadCard({
   }
 
   return (
-    <div className={`u-card rounded-card bg-surface p-6 ${highlighted ? 'ring-2 ring-blue' : ''}`}>
+    <div className={`u-card rounded-card bg-surface p-4 sm:p-6 ${highlighted ? 'ring-2 ring-blue' : ''}`}>
       {highlighted && (
         <p className="u-micro-strong mb-4 inline-flex items-center gap-1.5 rounded-full bg-blue-tint px-3 py-1 text-blue-deep">
           <Target strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />

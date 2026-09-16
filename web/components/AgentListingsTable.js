@@ -259,7 +259,9 @@ export default function AgentListingsTable({ listings, perListingStats }) {
         // lg:gap-3 must match the data rows below exactly — without it the
         // header's columns are each slightly wider than the rows spend on
         // gaps, so every column label sits off its own column.
-        className={`hidden ${GRID_COLS} items-center bg-canvas-alt px-6 py-3 text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-ink-35 lg:grid lg:gap-3`}
+        // GRID_COLS must stay identical to `.agent-listing-row`'s lg columns
+        // in app/globals.css, or every label sits off its own column.
+        className={`hidden ${GRID_COLS} items-center gap-3 bg-canvas-alt px-6 py-3 text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-ink-35 lg:grid`}
       >
         <input
           type="checkbox"
@@ -287,9 +289,13 @@ export default function AgentListingsTable({ listings, perListingStats }) {
         const isSelected = selected.has(listing.id);
 
         return (
+          // `agent-listing-row` (app/globals.css) owns the layout: named grid
+          // areas on a phone, the seven-column table row at lg. It replaced a
+          // single flex-wrap line, which on a 375px screen squeezed the title
+          // block to nothing and left the price sitting against the photo.
           <div
             key={listing.id}
-            className={`flex flex-wrap items-center gap-4 border-t border-line px-6 py-4 lg:grid ${GRID_COLS} lg:gap-3`}
+            className="agent-listing-row border-t border-line px-3 py-3.5 sm:px-6 lg:py-4"
           >
             <input
               type="checkbox"
@@ -297,46 +303,47 @@ export default function AgentListingsTable({ listings, perListingStats }) {
               onChange={() => toggleOne(listing.id)}
               disabled={isClosed}
               aria-label={t('agent.listings.selectOne', { title: listing.title })}
-              className="h-4 w-4 shrink-0 rounded-sm accent-[var(--blue)] disabled:opacity-30"
+              className="alr-check h-4 w-4 shrink-0 rounded-sm accent-[var(--blue)] disabled:opacity-30"
             />
 
-            <div className="flex min-w-0 flex-1 items-center gap-3.5 lg:flex-none">
-              <div className="grid h-12 w-16 shrink-0 place-items-center overflow-hidden rounded-[10px] bg-canvas-deep text-ink-25">
+            <div className="alr-main">
+              <div className="alr-thumb grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-[10px] bg-canvas-deep text-ink-25 lg:h-12">
                 {usableImageSrc(listing.featured_image) ? (
                   <SafeImage
                     src={listing.featured_image}
                     alt=""
                     width={64}
-                    height={48}
+                    height={64}
                     className="h-full w-full object-cover"
                   />
                 ) : (
                   <ImageIcon strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
                 )}
               </div>
-              <div className="min-w-0">
+              <div className="alr-info">
                 {listing.approve_status === 1 ? (
                   <Link
                     href={`/listings/${listing.id}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="group inline-flex max-w-full items-center gap-1 truncate text-sm font-bold text-ink hover:text-blue-deep hover:underline"
+                    className="group flex max-w-full items-start gap-1 text-sm font-bold text-ink hover:text-blue-deep hover:underline"
                     title={t('agent.listings.viewPublic')}
                   >
-                    <span className="truncate">{listing.title}</span>
+                    {/* Two lines on a phone, one truncated line in the table. */}
+                    <span className="line-clamp-2 lg:truncate">{listing.title}</span>
                     <ExternalLink
                       strokeWidth={ICON_STROKE_WIDTH}
                       aria-hidden="true"
-                      className="h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+                      className="mt-1 h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
                     />
                   </Link>
                 ) : (
-                  <div className="truncate text-sm font-bold text-ink" title={t('agent.listings.notPublishedYet')}>
+                  <div className="line-clamp-2 text-sm font-bold text-ink lg:truncate" title={t('agent.listings.notPublishedYet')}>
                     {listing.title}
                   </div>
                 )}
-                <div className="mt-[3px] flex items-center gap-2 text-xs text-ink-45">
-                  <span className="truncate">{listing.quartier || 'Localisation non précisée'}</span>
+                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-45">
+                  <span className="max-w-full truncate">{listing.quartier || 'Localisation non précisée'}</span>
                   {approve && (
                     <span className={`shrink-0 rounded-full px-2 py-0.5 text-[0.6875rem] font-bold ${approve.className}`}>
                       {t(approve.labelKey)}
@@ -346,40 +353,48 @@ export default function AgentListingsTable({ listings, perListingStats }) {
               </div>
             </div>
 
-            <PriceCell listing={listing} isClosed={isClosed} onSave={(value) => handlePriceSave(listing, value)} />
-
-            <div className="u-tabular text-sm text-ink-70">
-              <span className="lg:hidden">{t('agent.listings.viewsInline')} </span>
-              {(perListingStats.views[listing.id] || 0).toLocaleString('fr-FR')}
+            <div className="alr-price">
+              <PriceCell listing={listing} isClosed={isClosed} onSave={(value) => handlePriceSave(listing, value)} />
             </div>
 
-            <div className="u-tabular text-sm text-ink-70">
-              <span className="lg:hidden">{t('agent.listings.clicksInline')} </span>
-              {(perListingStats.clicks[listing.id] || 0).toLocaleString('fr-FR')}
+            {/* One line on a phone; `display: contents` at lg puts these two
+                back in their own table columns. */}
+            <div className="alr-stats">
+              <div className="u-tabular text-xs text-ink-70 lg:text-sm">
+                <span className="lg:hidden">{t('agent.listings.viewsInline')} </span>
+                {(perListingStats.views[listing.id] || 0).toLocaleString('fr-FR')}
+              </div>
+
+              <div className="u-tabular text-xs text-ink-70 lg:text-sm">
+                <span className="lg:hidden">{t('agent.listings.clicksInline')} </span>
+                {(perListingStats.clicks[listing.id] || 0).toLocaleString('fr-FR')}
+              </div>
             </div>
 
-            {isClosed ? (
-              <span className="w-full max-w-[10.5rem] rounded-full bg-canvas-deep px-3.5 py-[0.4375rem] text-center text-[0.8125rem] font-bold text-ink-70">
-                {listing.purpose === 'rent' ? t('agent.listings.let') : 'Vendu'}
-              </span>
-            ) : (
-              // Keyed on the optimistic status itself: AgentListingStatusSelect
-              // is an uncontrolled <select defaultValue=…>, which only applies
-              // on mount — without a key tied to the value, an optimistic
-              // status change would recolour the pill (a plain className) but
-              // leave the native <select>'s own selected option stale until
-              // the next full remount.
-              <AgentListingStatusSelect
-                key={listing.listing_status}
-                name="listing_status"
-                defaultValue={listing.listing_status}
-                options={LISTING_STATUS_EDIT_OPTIONS}
-                label={t('agent.listings.statusOf', { title: listing.title })}
-                onChange={(status) => handleStatusChange(listing, status)}
-              />
-            )}
+            <div className="alr-status w-full max-w-[10.5rem]">
+              {isClosed ? (
+                <span className="block w-full rounded-full bg-canvas-deep px-3.5 py-[0.4375rem] text-center text-[0.8125rem] font-bold text-ink-70">
+                  {listing.purpose === 'rent' ? t('agent.listings.let') : 'Vendu'}
+                </span>
+              ) : (
+                // Keyed on the optimistic status itself: AgentListingStatusSelect
+                // is an uncontrolled <select defaultValue=…>, which only applies
+                // on mount — without a key tied to the value, an optimistic
+                // status change would recolour the pill (a plain className) but
+                // leave the native <select>'s own selected option stale until
+                // the next full remount.
+                <AgentListingStatusSelect
+                  key={listing.listing_status}
+                  name="listing_status"
+                  defaultValue={listing.listing_status}
+                  options={LISTING_STATUS_EDIT_OPTIONS}
+                  label={t('agent.listings.statusOf', { title: listing.title })}
+                  onChange={(status) => handleStatusChange(listing, status)}
+                />
+              )}
+            </div>
 
-            <div className="flex items-center justify-end gap-1.5">
+            <div className="alr-actions flex items-center justify-end gap-1.5">
               {!isClosed && (
                 <MarkListingSoldDialog propertyId={listing.id} purpose={listing.purpose} title={listing.title} />
               )}
@@ -390,7 +405,9 @@ export default function AgentListingsTable({ listings, perListingStats }) {
       })}
 
       {selected.size > 0 && (
-        <div className="pointer-events-none fixed inset-x-0 bottom-5 z-40 flex justify-center px-4 lg:bottom-8 lg:pl-[260px]">
+        // bottom-20 clears the phone's fixed bottom nav (AgentSidebar); at
+        // bottom-5 the bulk bar sat on top of it.
+        <div className="pointer-events-none fixed inset-x-0 bottom-20 z-40 flex justify-center px-3 lg:bottom-8 lg:pl-[260px]">
           <div className="u-lift pointer-events-auto flex flex-wrap items-center gap-3 rounded-full bg-ink px-5 py-3 text-white">
             <span className="u-tabular text-[0.8125rem] font-bold">
               {selected.size} sélectionné{selected.size === 1 ? '' : 's'}
@@ -443,7 +460,7 @@ export default function AgentListingsTable({ listings, perListingStats }) {
           aria-modal="true"
           className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4"
         >
-          <div className="u-card w-full max-w-sm rounded-card bg-surface p-6">
+          <div className="u-card w-full max-w-sm rounded-card bg-surface p-4 sm:p-6">
             <h2 className="u-title-card text-ink">
               {t('agent.listings.deleteBulkTitle', { count: selected.size })}
             </h2>

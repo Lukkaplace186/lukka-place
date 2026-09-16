@@ -72,9 +72,9 @@ export default async function AgentSettingsPage({ searchParams }) {
     <>
       <AgentPageHeader title={t('agent.settings.title')} newLeadsCount={0} />
 
-      <div className="grid grid-cols-1 gap-6 px-5 py-7 sm:px-8 lg:grid-cols-[minmax(0,1fr)_22.5rem] lg:items-start">
+      <div className="grid grid-cols-1 gap-6 px-3 py-4 sm:px-8 sm:py-7 lg:grid-cols-[minmax(0,1fr)_22.5rem] lg:items-start">
         <div className="flex flex-col gap-6">
-        <div className="u-card flex flex-col gap-5 rounded-card bg-surface p-6">
+        <div className="u-card flex flex-col gap-5 rounded-card bg-surface p-4 sm:p-6">
           <div>
             <h2 className="u-title-card text-ink">{t('agent.settings.identityTitle')}</h2>
             <p className="mt-0.5 text-[0.8125rem] text-ink-45">
@@ -169,7 +169,7 @@ export default async function AgentSettingsPage({ searchParams }) {
           </form>
         </div>
 
-        <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-6">
+        <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-4 sm:p-6">
           <div>
             <h2 className="u-title-card text-ink">{t('agent.settings.communesTitle')}</h2>
             <p className="mt-0.5 text-[0.8125rem] text-ink-45">
@@ -208,7 +208,7 @@ export default async function AgentSettingsPage({ searchParams }) {
           )}
         </div>
 
-        <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-6">
+        <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-4 sm:p-6">
           <div>
             <h2 className="u-title-card text-ink">{t('agent.settings.hoursTitle')}</h2>
             <p className="mt-0.5 text-[0.8125rem] text-ink-45">
@@ -243,7 +243,7 @@ export default async function AgentSettingsPage({ searchParams }) {
         </div>
 
         <div className="flex flex-col gap-6">
-          <div id="verification" className="u-card flex scroll-mt-24 flex-col gap-4 rounded-card bg-surface p-6">
+          <div id="verification" className="u-card flex scroll-mt-24 flex-col gap-4 rounded-card bg-surface p-4 sm:p-6">
             <div>
               <h2 className="u-title-card text-ink">{t('agent.verification.title')}</h2>
               <p className="mt-0.5 text-[0.8125rem] text-ink-45">{t('agent.verification.hint')}</p>
@@ -338,7 +338,7 @@ export default async function AgentSettingsPage({ searchParams }) {
             )}
           </div>
 
-          <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-6">
+          <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-4 sm:p-6">
             <h2 className="u-title-card text-ink">{t('agent.settings.passwordTitle')}</h2>
 
             <form action={changeAgentPasswordAction} className="flex flex-col gap-3">
@@ -383,7 +383,7 @@ export default async function AgentSettingsPage({ searchParams }) {
             </form>
           </div>
 
-          <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-6">
+          <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-4 sm:p-6">
             <div className="flex items-center justify-between gap-3">
               <h2 className="u-title-card text-ink">{t('agent.settings.publicPageTitle')}</h2>
               <span className="u-tabular text-[0.8125rem] font-bold text-blue">{completion.percent} %</span>

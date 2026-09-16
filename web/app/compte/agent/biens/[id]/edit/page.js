@@ -82,7 +82,7 @@ export default async function EditListingPage({ params }) {
         }
       />
 
-      <div className="flex flex-col gap-5 px-5 py-7 sm:px-8">
+      <div className="flex flex-col gap-5 px-3 py-4 sm:px-8 sm:py-7">
         {approve && (
           <div className="flex flex-wrap items-center gap-2.5">
             <span className={`rounded-full px-2.5 py-1 text-[0.6875rem] font-bold uppercase tracking-[0.1em] ${approve.className}`}>

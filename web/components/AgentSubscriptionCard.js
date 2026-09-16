@@ -120,7 +120,7 @@ export default async function AgentSubscriptionCard({
         : { label: 'Actif', className: 'bg-success-tint text-success', Icon: BadgeCheck };
 
   return (
-    <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-6">
+    <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-4 sm:p-6">
       <div className="flex items-center justify-between gap-3">
         <h2 className="u-title-card text-ink">{t('agent.subscription.title')}</h2>
         {badge && (

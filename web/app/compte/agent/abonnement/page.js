@@ -94,7 +94,7 @@ export default async function AgentSubscriptionPage() {
     <>
       <AgentPageHeader title="Abonnement" newLeadsCount={newLeadsCount} />
 
-      <div className="flex flex-col gap-8 px-5 py-7 sm:px-8">
+      <div className="flex flex-col gap-8 px-3 py-4 sm:px-8 sm:py-7">
         <div className="grid gap-6 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:items-start">
           <AgentSubscriptionCard
             packageTitle={agent.package_title}
@@ -107,7 +107,7 @@ export default async function AgentSubscriptionPage() {
             compact
           />
 
-          <div className="u-card flex flex-col gap-3 rounded-card bg-surface p-6">
+          <div className="u-card flex flex-col gap-3 rounded-card bg-surface p-4 sm:p-6">
             <h2 className="u-title-card flex items-center gap-2 text-ink">
               <CreditCard strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem] text-blue" />
               {t('agent.subscription.howPaymentWorks')}

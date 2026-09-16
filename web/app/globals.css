@@ -507,9 +507,12 @@
   }
 
   /* Page title — the h1 in a page header. One per screen. */
+  /* 22px on a phone: at 28px a two-word French title ("Vue d'ensemble")
+     plus the header's search and bell pushed the agent dashboard wider than a
+     375px screen. */
   .u-title-page {
     font-family: var(--font-display), Georgia, 'Times New Roman', serif;
-    font-size: 1.75rem;
+    font-size: 1.375rem;
     line-height: 1.15;
     font-weight: 400;
     letter-spacing: -0.01em;
@@ -572,12 +575,17 @@
   /* A headline metric on a stat tile. Tabular by construction — a row of
      these goes visibly ragged with proportional digits. */
   .u-stat {
-    font-size: 1.75rem;
+    font-size: 1.375rem;
     line-height: 1.1;
     font-weight: 800;
     letter-spacing: -0.02em;
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum" 1;
+  }
+  @media (min-width: 640px) {
+    .u-stat {
+      font-size: 1.75rem;
+    }
   }
   /* The two real elevations in the system. Cards use hairlines instead;
      these are for things that genuinely float above the page. Shadow tint
@@ -782,4 +790,64 @@
     color: var(--ink-70);
     box-shadow: inset 0 0 0 1px var(--ink-25);
   }
+}
+
+/*
+ * Mes biens — one listing row (components/AgentListingsTable.js).
+ *
+ * Plain CSS rather than utility classes because the phone and desktop layouts
+ * are different SHAPES of the same seven cells, not the same shape resized:
+ *
+ *   phone                                   desktop (lg, a 7-column table row)
+ *   [☐][photo][title / quartier · badge]    [☐][photo title][price][vues][clics][statut][⋯]
+ *   [  ][photo][price                  ]
+ *   [  ][photo][Vues · Clics WhatsApp  ]
+ *   [  ][statut            ][ ✓  ⋯ ]
+ *
+ * The old row was one flex-wrap line on phones, so the title block shrank to
+ * nothing and the price landed beside (and visually over) the photo. Named
+ * grid areas give every cell a fixed place instead. `.alr-main` and
+ * `.alr-stats` are `display: contents` where their children need to be
+ * separate grid items, so one markup serves both layouts.
+ *
+ * The desktop columns MUST match GRID_COLS in AgentListingsTable.js, which
+ * lays out the header row above these.
+ */
+.agent-listing-row {
+  display: grid;
+  grid-template-columns: 1.25rem 4rem minmax(0, 1fr) auto;
+  grid-template-areas:
+    "check thumb info   info"
+    "check thumb price  price"
+    "check thumb stats  stats"
+    ".     status status actions";
+  column-gap: 0.75rem;
+  row-gap: 0.25rem;
+  align-items: start;
+}
+.agent-listing-row .alr-check { grid-area: check; margin-top: 0.125rem; }
+.agent-listing-row .alr-main { display: contents; }
+.agent-listing-row .alr-thumb { grid-area: thumb; }
+.agent-listing-row .alr-info { grid-area: info; min-width: 0; }
+.agent-listing-row .alr-price { grid-area: price; justify-self: start; }
+.agent-listing-row .alr-stats { grid-area: stats; display: flex; flex-wrap: wrap; column-gap: 0.75rem; row-gap: 0; }
+.agent-listing-row .alr-status { grid-area: status; justify-self: start; align-self: center; margin-top: 0.5rem; }
+.agent-listing-row .alr-actions { grid-area: actions; align-self: center; margin-top: 0.5rem; }
+
+@media (min-width: 64rem) {
+  .agent-listing-row {
+    grid-template-columns: 2.25rem minmax(0, 2.2fr) minmax(0, 1fr) minmax(0, 0.7fr) minmax(0, 0.7fr) minmax(0, 1.2fr) minmax(0, 0.6fr);
+    grid-template-areas: none;
+    row-gap: 0;
+    align-items: center;
+  }
+  .agent-listing-row .alr-check,
+  .agent-listing-row .alr-thumb,
+  .agent-listing-row .alr-info,
+  .agent-listing-row .alr-price,
+  .agent-listing-row .alr-status,
+  .agent-listing-row .alr-actions { grid-area: auto; margin-top: 0; }
+  .agent-listing-row .alr-main { display: flex; align-items: center; gap: 0.875rem; min-width: 0; }
+  .agent-listing-row .alr-stats { display: contents; }
+  .agent-listing-row .alr-status { justify-self: stretch; }
 }

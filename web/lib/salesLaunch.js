@@ -180,11 +180,11 @@ export const QUALITY_LINE_SQL = `
     GROUP BY rep_id
   )
   INSERT INTO sales_commissions (rep_id, source_type, source_id, basis_amount, amount, currency, earned_at, plan_id)
-  SELECT q.rep_id, 'quality', 'quality:' || q.rep_id, ROUND(q.valid * 100.0 / q.checked, 2), $3, '${LAUNCH_CURRENCY}', NOW(), pl.id
+  SELECT q.rep_id, 'quality', 'quality:' || q.rep_id, ROUND(q.valid * 100.0 / q.checked, 2), $3::numeric, '${LAUNCH_CURRENCY}', NOW(), pl.id
   FROM q
   JOIN sales_reps r ON r.id = q.rep_id AND r.status = 'active'
   JOIN sales_commission_plans pl ON pl.id = r.plan_id AND pl.active AND pl.kind = 'launch_milestones'
-  WHERE q.checked >= $1 AND q.valid >= $2 * q.checked
+  WHERE q.checked >= $1::int AND q.valid >= $2::numeric * q.checked
   ON CONFLICT (source_type, source_id) DO NOTHING`;
 
 const CURRENT_COUNTS_CTE = `${agentStatsCte()},

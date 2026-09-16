@@ -71,7 +71,7 @@ test('a tier no longer met voids unpaid lines and only flags paid ones', () => {
 test('the quality line is once per rep, from checked credits, with the thresholds passed in', async () => {
   const sql = normalizeSql(QUALITY_LINE_SQL);
   assert.ok(sql.includes("'quality:' || q.rep_id") && sql.includes('DO NOTHING'));
-  assert.ok(sql.includes('q.checked >= $1 AND q.valid >= $2 * q.checked'));
+  assert.ok(sql.includes('q.checked >= $1::int AND q.valid >= $2::numeric * q.checked'), 'a ratio parameter must not be inferred as an integer');
   await runLaunchSteps({ query: async (text, values) => { calls.push({ sql: normalizeSql(text), values }); return { rowCount: 0, rows: [] }; } });
   const quality = calls.find((c) => c.sql.includes("'quality:'"));
   assert.deepEqual(quality.values, [15, 0.8, 25]);

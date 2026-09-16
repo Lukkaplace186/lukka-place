@@ -44,6 +44,7 @@ const {
   handleCustomerTextReply,
 } = require('../services/viewingSweeps');
 const { handleListingEnquiry } = require('../services/listingEnquiry');
+const salesReferral = require('../services/salesReferral');
 
 const router = express.Router();
 
@@ -901,6 +902,28 @@ async function processGroup(messages) {
       } catch (err) {
         // Never costs the sender a reply: fall through to the ordinary path.
         console.error(`[enquiry] handling a listing enquiry from ${from} failed: ${err.message}`);
+      }
+    }
+
+    // SALES REFERRAL CODE — "… Code parrainage : JEAN01", the message a sales
+    // rep's wa.me link pre-types. Deterministic, before the model, like the
+    // listing enquiry above: the code is remembered for the account WhatsApp
+    // onboarding will create (services/salesReferral.js). Only a message that
+    // is NOTHING but the greeting and the code is answered and stops here; a
+    // code inside a listing, a name reply or a draft correction is recorded
+    // and the message carries on to ordinary processing.
+    if (hasText) {
+      try {
+        const referral = await salesReferral.handleReferralMessage({
+          from,
+          text,
+          primaryWamid,
+          canReply: !pending && mediaRefs.length === 0 && pdfRefs.length === 0 && !getActiveConversation(from),
+          midOnboarding: onboarding.getSession(from)?.state === 'AWAITING_NAME',
+        });
+        if (referral.handled) return;
+      } catch (err) {
+        console.error(`[sales-referral] handling a referral code from ${from} failed: ${err.message}`);
       }
     }
 

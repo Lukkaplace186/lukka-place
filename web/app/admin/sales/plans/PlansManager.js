@@ -18,6 +18,12 @@ export default function PlansManager({ plans, canManage }) {
   const { showToast } = useToast();
   const [pending, startTransition] = useTransition();
   const [editing, setEditing] = useState(null); // null | 'new' | plan
+  const [kind, setKind] = useState('subscription');
+
+  function edit(plan) {
+    setKind(plan === 'new' ? 'subscription' : plan.kind || 'subscription');
+    setEditing(plan);
+  }
 
   function submit(event) {
     event.preventDefault();
@@ -44,7 +50,7 @@ export default function PlansManager({ plans, canManage }) {
     <div className="flex flex-col gap-3">
       {canManage ? (
         <div>
-          <button type="button" className={BUTTON} onClick={() => setEditing('new')}>
+          <button type="button" className={BUTTON} onClick={() => edit('new')}>
             <Plus strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
             {t('admin.sales.plans.add')}
           </button>
@@ -68,14 +74,21 @@ export default function PlansManager({ plans, canManage }) {
               <td className={TD_DENSE}>
                 <span className="font-semibold text-ink">{plan.name}</span>
                 {plan.active ? null : <span className="ml-1.5"><Chip>{t('admin.sales.plans.inactive')}</Chip></span>}
+                <div className="text-ink-45">{t(`admin.sales.plans.kind.${plan.kind || 'subscription'}`)}</div>
               </td>
-              <td className={`${TD_DENSE_RIGHT} u-tabular`}>{plan.onboardingLabel}</td>
-              <td className={`${TD_DENSE_RIGHT} u-tabular`}>{plan.subscription_rate} %</td>
-              <td className={TD_DENSE}>{plan.targetLabel || '—'}</td>
+              {plan.kind === 'launch_milestones' ? (
+                <td className={TD_DENSE} colSpan={3}>{t('admin.sales.plans.launchSummary')}</td>
+              ) : (
+                <>
+                  <td className={`${TD_DENSE_RIGHT} u-tabular`}>{plan.onboardingLabel}</td>
+                  <td className={`${TD_DENSE_RIGHT} u-tabular`}>{plan.subscription_rate} %</td>
+                  <td className={TD_DENSE}>{plan.targetLabel || '—'}</td>
+                </>
+              )}
               <td className={TD_DENSE_RIGHT}>{plan.reps}</td>
               {canManage ? (
                 <td className={TD_DENSE}>
-                  <button type="button" className="u-press inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-45 hover:bg-canvas-alt hover:text-ink" aria-label={t('admin.sales.plans.edit')} onClick={() => setEditing(plan)}>
+                  <button type="button" className="u-press inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-45 hover:bg-canvas-alt hover:text-ink" aria-label={t('admin.sales.plans.edit')} onClick={() => edit(plan)}>
                     <Pencil strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
                   </button>
                 </td>
@@ -92,17 +105,37 @@ export default function PlansManager({ plans, canManage }) {
               <DialogTitle>{editing === 'new' ? t('admin.sales.plans.addTitle') : t('admin.sales.plans.editTitle')}</DialogTitle>
               <DialogDescription>{t('admin.sales.plans.formHint')}</DialogDescription>
             </DialogHeader>
+            <label className="flex flex-col gap-1">
+              <span className="u-micro-strong text-ink">{t('admin.sales.plans.kindLabel')}</span>
+              <select name="kind" value={kind} onChange={(event) => setKind(event.target.value)} className={INPUT}>
+                <option value="subscription">{t('admin.sales.plans.kind.subscription')}</option>
+                <option value="launch_milestones">{t('admin.sales.plans.kind.launch_milestones')}</option>
+              </select>
+            </label>
             <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_6rem]">
               <label className="flex flex-col gap-1">
                 <span className="u-micro-strong text-ink">{t('admin.sales.plans.name')}</span>
                 <input name="name" required maxLength={80} defaultValue={form.name || ''} className={INPUT} />
               </label>
-              <label className="flex flex-col gap-1">
-                <span className="u-micro-strong text-ink">{t('admin.sales.plans.currency')}</span>
-                <input name="currency" required maxLength={3} defaultValue={form.currency || 'USD'} className={`${INPUT} uppercase`} />
-              </label>
+              {kind === 'launch_milestones' ? null : (
+                <label className="flex flex-col gap-1">
+                  <span className="u-micro-strong text-ink">{t('admin.sales.plans.currency')}</span>
+                  <input name="currency" required maxLength={3} defaultValue={form.currency || 'USD'} className={`${INPUT} uppercase`} />
+                </label>
+              )}
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+            {kind === 'launch_milestones' ? (
+              <div className="u-micro rounded-lg border border-line bg-canvas p-3 text-ink-70">
+                <p className="font-semibold text-ink">{t('admin.sales.plans.launchTitle')}</p>
+                <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                  <li>{t('admin.sales.plans.launchAcquisition')}</li>
+                  <li>{t('admin.sales.plans.launchAdditional')}</li>
+                  <li>{t('admin.sales.plans.launchQuality')}</li>
+                  <li>{t('admin.sales.plans.launchQualified')}</li>
+                </ul>
+              </div>
+            ) : null}
+            <div className={`grid gap-3 sm:grid-cols-2 ${kind === 'launch_milestones' ? 'hidden' : ''}`}>
               <label className="flex flex-col gap-1">
                 <span className="u-micro-strong text-ink">{t('admin.sales.plans.onboardingBonus')}</span>
                 <input name="onboarding_bonus" inputMode="decimal" defaultValue={form.onboarding_bonus ?? '0'} className={INPUT} />

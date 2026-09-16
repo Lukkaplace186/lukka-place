@@ -1356,6 +1356,17 @@ db.exec(`
     updated_at  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 
+  -- A sales rep's referral code seen from a WhatsApp sender before their agent
+  -- account exists (services/salesReferral.js). One row per sender: the first
+  -- VALID code wins, and services/agentOnboarding.js turns it into the
+  -- permanent Postgres attribution when it creates the account. Conversation
+  -- state like agent_onboarding above — worthless once the account exists.
+  CREATE TABLE IF NOT EXISTS sales_referral_captures (
+    wa_id          TEXT PRIMARY KEY,
+    referral_code  TEXT NOT NULL,
+    captured_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+
   -- Scheduled-job bookkeeping (services/scheduler.js). One row per job name,
   -- not one per run: the only question ever asked of it is "when did this
   -- last SUCCEED?", which is what makes the weekly customer-alert sweep
@@ -1399,6 +1410,17 @@ function recordJobRun(name, { ok, detail = null } = {}) {
        run_count    = job_runs.run_count + 1`,
   ).run({ name: String(name), ok: ok ? 1 : 0, detail });
   return getLastJobRun(name);
+}
+
+/** @returns {{wa_id, referral_code, captured_at}|null} the referral code remembered for this sender. */
+function getReferralCapture(waId) {
+  return db.prepare('SELECT * FROM sales_referral_captures WHERE wa_id = ?').get(String(waId)) || null;
+}
+
+/** Remembers a sender's referral code. First one wins: a later code never replaces it. */
+function recordReferralCapture(waId, code) {
+  db.prepare('INSERT OR IGNORE INTO sales_referral_captures (wa_id, referral_code) VALUES (?, ?)').run(String(waId), String(code));
+  return getReferralCapture(waId);
 }
 
 /** @returns {Object|null} the onboarding session for this sender, if any. */
@@ -3536,6 +3558,8 @@ module.exports = {
   getListing,
   getListingByRemotePropertyId,
   getRemotePropertyIdsForWaId,
+  getReferralCapture,
+  recordReferralCapture,
   countListings,
   parseRow,
   migrate,

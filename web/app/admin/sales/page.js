@@ -1,12 +1,13 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Settings2 } from 'lucide-react';
+import { Scale, Settings2 } from 'lucide-react';
 import { getAdminSession } from '@/lib/adminSession';
 import { can } from '@/lib/adminRoles';
 import { firstParam } from '@/lib/adminPagination';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { SALES_PERIODS, formatMoneyList, periodRange, sumByCurrency } from '@/lib/salesRules';
 import { getLastSalesSync, getSalesRepIdForAdmin, listSalesConsoleAccounts, listSalesPlans, listSalesReps } from '@/lib/sales';
+import { getLaunchCounts } from '@/lib/salesLaunch';
 import { getT } from '@/lib/i18n/server';
 import { Chip, ErrorNote, Stat, formatKinshasa } from '../LeadRoutingUI';
 import { EmptyRow, TD_DENSE, TD_DENSE_RIGHT, TH_STICKY, TH_STICKY_RIGHT, TR_DENSE, TableFrame } from '../table/TableFrame';
@@ -43,12 +44,14 @@ export default async function AdminSalesPage({ searchParams }) {
   const params = { period: period === 'month' ? undefined : period };
   const canManage = can(session?.role, 'sales.manage');
 
-  const [repsResult, plansResult, accountsResult, syncResult] = await Promise.allSettled([
+  const [repsResult, plansResult, accountsResult, syncResult, launchResult] = await Promise.allSettled([
     listSalesReps(range),
     listSalesPlans(),
     canManage ? listSalesConsoleAccounts() : Promise.resolve([]),
     getLastSalesSync(),
+    getLaunchCounts(),
   ]);
+  const launchByRep = new Map((launchResult.status === 'fulfilled' ? launchResult.value : []).map((row) => [row.rep_id, row]));
   const reps = repsResult.status === 'fulfilled' ? repsResult.value : [];
   const plans = plansResult.status === 'fulfilled' ? plansResult.value : [];
   const accounts = accountsResult.status === 'fulfilled' ? accountsResult.value : [];
@@ -69,6 +72,12 @@ export default async function AdminSalesPage({ searchParams }) {
           <p className="u-micro mt-1 text-ink-45">{t('admin.sales.subtitle')}</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {canManage ? (
+            <Link href="/admin/sales/attribution" className={BUTTON}>
+              <Scale strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+              {t('admin.sales.attribution.link')}
+            </Link>
+          ) : null}
           <Link href="/admin/sales/plans" className={BUTTON}>
             <Settings2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
             {t('admin.sales.plans.link')}
@@ -100,6 +109,7 @@ export default async function AdminSalesPage({ searchParams }) {
             <th className={TH_STICKY}>{t('admin.sales.colRep')}</th>
             <th className={TH_STICKY_RIGHT}>{t('admin.sales.colAccounts')}</th>
             <th className={TH_STICKY_RIGHT}>{t('admin.sales.colOnboarded')}</th>
+            <th className={TH_STICKY_RIGHT}>{t('admin.sales.launch.colReferred')}</th>
             <th className={TH_STICKY_RIGHT}>{t('admin.sales.colSold')}</th>
             <th className={TH_STICKY}>{t('admin.sales.colRevenue')}</th>
             <th className={TH_STICKY}>{t('admin.sales.colEarned')}</th>
@@ -109,10 +119,11 @@ export default async function AdminSalesPage({ searchParams }) {
         </thead>
         <tbody>
           {reps.length === 0 ? (
-            <EmptyRow colSpan={8}>{t('admin.sales.empty')}</EmptyRow>
+            <EmptyRow colSpan={9}>{t('admin.sales.empty')}</EmptyRow>
           ) : reps.map((rep) => {
             const earnedByCurrency = (rep.commissions || []).map((c) => ({ currency: c.currency, amount: c.earned }));
             const toPay = (rep.commissions || []).map((c) => ({ currency: c.currency, amount: Number(c.pending) + Number(c.approved) }));
+            const launch = launchByRep.get(rep.id);
             return (
               <tr key={rep.id} className={TR_DENSE}>
                 <td className={TD_DENSE}>
@@ -120,11 +131,18 @@ export default async function AdminSalesPage({ searchParams }) {
                   <div className="mt-0.5 flex flex-wrap items-center gap-1 text-ink-45">
                     {rep.status === 'active' ? null : <Chip>{t('admin.sales.reps.statusInactive')}</Chip>}
                     <span>{rep.plan_name || t('admin.sales.reps.noPlan')}</span>
+                    {rep.referral_code ? <span className="u-ref">· {rep.referral_code}</span> : null}
                     {rep.account_name ? <span>· {t('admin.sales.reps.signsInAs', { name: rep.account_name })}</span> : null}
                   </div>
                 </td>
                 <td className={TD_DENSE_RIGHT}>{rep.accounts}</td>
                 <td className={TD_DENSE_RIGHT}>{rep.onboarded}</td>
+                <td className={TD_DENSE_RIGHT}>
+                  {launch ? launch.registered : '—'}
+                  {launch && launch.registered > 0 ? (
+                    <div className="text-ink-45">{t('admin.sales.launch.colReferredHint', { qualified: launch.qualified_agents, validated: launch.payable_agents })}</div>
+                  ) : null}
+                </td>
                 <td className={TD_DENSE_RIGHT}>{rep.soldCount}</td>
                 <td className={`${TD_DENSE} u-tabular`}>{formatMoneyList(rep.sold)}</td>
                 <td className={`${TD_DENSE} u-tabular`}>{formatMoneyList(earnedByCurrency)}</td>

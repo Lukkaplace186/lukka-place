@@ -242,6 +242,46 @@ registerJob({
 }
 
 /**
+ * The daily sales commission run (launch policy + subscription plan). Like the
+ * alert sweep it calls web's own endpoint rather than reimplementing the rules:
+ * the tiers, the confirmed-listing definition and the ledger all live in
+ * web/lib/salesLaunch.js and web/lib/sales.js, and the run is idempotent there
+ * (UNIQUE ledger keys), so a retry never pays anything twice.
+ *
+ * Fires in the Kinshasa hour SALES_COMMISSION_HOUR (default 6), read against
+ * UTC so the server's own clock does not move it; MIN_GAP_MS stops the sixty
+ * ticks inside that hour from running it sixty times.
+ */
+const SALES_JOB_NAME = 'sales-commissions';
+const CONFIGURED_SALES_HOUR = Number.parseInt(process.env.SALES_COMMISSION_HOUR, 10);
+const SALES_HOUR_KINSHASA = Number.isFinite(CONFIGURED_SALES_HOUR) ? CONFIGURED_SALES_HOUR : 6;
+
+function salesCommissionsDue(now = new Date()) {
+  if (now.getUTCHours() !== (SALES_HOUR_KINSHASA + 23) % 24) return false;
+  const last = db.getLastJobRun(SALES_JOB_NAME);
+  if (!last?.succeeded_at) return true;
+  return Date.now() - new Date(last.succeeded_at).getTime() >= MIN_GAP_MS;
+}
+
+async function runSalesCommissions({ fetchImpl = fetch } = {}) {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) throw new Error('CRON_SECRET is not set — the commission endpoint would reject this call');
+  const response = await fetchImpl(`${webBaseUrl()}/api/cron/sales-commissions`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' },
+    body: '{}',
+    signal: AbortSignal.timeout(2 * 60 * 1000),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok || body.ok === false) {
+    throw new Error(`commission run returned ${response.status}: ${JSON.stringify(body).slice(0, 300)}`);
+  }
+  return body;
+}
+
+registerJob({ name: SALES_JOB_NAME, shouldRun: salesCommissionsDue, run: () => runSalesCommissions() });
+
+/**
  * Runs one job if it is due, recording the outcome.
  *
  * Isolated per job on purpose: a throw in the SLA sweep must not stop the
@@ -324,6 +364,11 @@ module.exports = {
   MIN_GAP_MS,
   MAX_SWEEP_CHUNKS,
   TICK_MS,
+  // The daily sales commission run.
+  SALES_JOB_NAME,
+  SALES_HOUR_KINSHASA,
+  salesCommissionsDue,
+  runSalesCommissions,
   // The multi-job runner.
   registerJob,
   runJob,

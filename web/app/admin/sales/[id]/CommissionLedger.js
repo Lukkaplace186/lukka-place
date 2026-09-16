@@ -8,6 +8,7 @@ import { useToast } from '@/components/Toast';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
+import { PAYOUT_METHODS } from '@/lib/salesRules';
 import { Chip } from '../../LeadRoutingUI';
 import { EmptyRow, TD_DENSE, TD_DENSE_RIGHT, TH_STICKY, TH_STICKY_RIGHT, TR_DENSE, TableFrame } from '../../table/TableFrame';
 import { addAdjustmentAction, approveCommissionsAction, recordPayoutAction, voidCommissionAction } from '../actions';
@@ -17,8 +18,11 @@ import { BUTTON, INPUT } from '../styles';
  * The commission ledger: select pending lines to approve, approved lines to
  * pay; add a manual adjustment; void a line with a reason. A payout is always
  * one currency — its dialog offers only the currencies with approved lines.
+ * With a fortnight filter on, `scopeLines` holds that fortnight's approved
+ * lines, and "pay" with nothing selected pays exactly those, not every
+ * approved line the rep has.
  */
-export default function CommissionLedger({ repId, rows, openTotals, canManage, today, defaultCurrency, footer }) {
+export default function CommissionLedger({ repId, rows, openTotals, canManage, today, defaultCurrency, footer, scopeLines = null, scopeLabel = null }) {
   const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
@@ -32,7 +36,8 @@ export default function CommissionLedger({ repId, rows, openTotals, canManage, t
   const selectedApproved = selectedRows.filter((row) => row.status === 'approved');
   const approvedCurrencies = openTotals.filter((total) => total.status === 'approved').map((total) => total.currency);
   const selectedCurrencies = [...new Set(selectedApproved.map((row) => row.currency))];
-  const payoutCurrencies = selectedApproved.length ? selectedCurrencies : approvedCurrencies;
+  const scopeCurrencies = scopeLines ? [...new Set(scopeLines.map((line) => line.currency))] : null;
+  const payoutCurrencies = selectedApproved.length ? selectedCurrencies : scopeCurrencies || approvedCurrencies;
 
   function toggle(id) {
     setSelected((current) => {
@@ -65,7 +70,8 @@ export default function CommissionLedger({ repId, rows, openTotals, canManage, t
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
     const currency = formData.get('currency');
-    const ids = selectedApproved.filter((row) => row.currency === currency).map((row) => row.id);
+    const chosen = selectedApproved.length ? selectedApproved : scopeLines || [];
+    const ids = chosen.filter((row) => row.currency === currency).map((row) => row.id);
     run(() => recordPayoutAction(repId, ids, formData));
   }
 
@@ -95,7 +101,9 @@ export default function CommissionLedger({ repId, rows, openTotals, canManage, t
           </button>
           <button type="button" className={BUTTON} disabled={pending || payoutCurrencies.length === 0 || selectedCurrencies.length > 1} onClick={() => setDialog('payout')}>
             <Banknote strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-            {selectedApproved.length ? t('admin.sales.ledger.paySelected', { count: selectedApproved.length }) : t('admin.sales.ledger.payApproved')}
+            {selectedApproved.length
+              ? t('admin.sales.ledger.paySelected', { count: selectedApproved.length })
+              : scopeLines ? t('admin.sales.launch.fortnight.pay', { count: scopeLines.length }) : t('admin.sales.ledger.payApproved')}
           </button>
           <button type="button" className={BUTTON} disabled={pending} onClick={() => setDialog('adjustment')}>
             <PlusCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
@@ -177,7 +185,9 @@ export default function CommissionLedger({ repId, rows, openTotals, canManage, t
             <DialogHeader>
               <DialogTitle>{t('admin.sales.ledger.payoutTitle')}</DialogTitle>
               <DialogDescription>
-                {selectedApproved.length ? t('admin.sales.ledger.payoutSelected', { count: selectedApproved.length }) : t('admin.sales.ledger.payoutAll')}
+                {selectedApproved.length
+                  ? t('admin.sales.ledger.payoutSelected', { count: selectedApproved.length })
+                  : scopeLines ? t('admin.sales.launch.fortnight.payoutHint', { count: scopeLines.length, fortnight: scopeLabel || '' }) : t('admin.sales.ledger.payoutAll')}
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -194,7 +204,10 @@ export default function CommissionLedger({ repId, rows, openTotals, canManage, t
             </div>
             <label className="flex flex-col gap-1">
               <span className="u-micro-strong text-ink">{t('admin.sales.payouts.method')}</span>
-              <input name="method" required maxLength={60} placeholder={t('admin.sales.ledger.methodPlaceholder')} className={INPUT} />
+              <input name="method" required maxLength={60} list="sales-payout-methods" placeholder={t('admin.sales.ledger.methodPlaceholder')} className={INPUT} />
+              <datalist id="sales-payout-methods">
+                {PAYOUT_METHODS.map((method) => <option key={method} value={method} />)}
+              </datalist>
             </label>
             <label className="flex flex-col gap-1">
               <span className="u-micro-strong text-ink">{t('admin.sales.ledger.reference')}</span>

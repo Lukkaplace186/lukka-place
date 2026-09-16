@@ -80,6 +80,7 @@ export const SECTION_PERMISSIONS = {
   '/admin/subscriptions': 'billing.view',
   '/admin/billing': 'billing.view',
   '/admin/sales': 'sales.view',
+  '/admin/sales/attribution': 'sales.manage',
   '/admin/impersonation': 'audit.view',
   '/admin/cms': 'cms.manage',
   '/admin/team': 'team.manage',

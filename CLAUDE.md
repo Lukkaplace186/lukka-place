@@ -650,6 +650,29 @@ and `token_version` is bumped alongside.
 The ask is capped at `MAX_ASKS` (3) per sender via `agent_onboarding` in
 SQLite, so someone who never answers is not nagged on every listing.
 
+### Sales-rep referral codes on WhatsApp
+
+`services/salesReferral.js` (web half and the commission rules: web/CLAUDE.md,
+"Launch commission policy"). A rep's wa.me link pre-types "… Code parrainage :
+JEAN01".
+
+- **Deterministic, before the quick replies and the model** (`routes/webhook.js`).
+  Only the "parrain…" wording is matched, never "réf" (listings carry
+  "Réf: LKP-…"). The code is checked against `sales_reps` and the first valid
+  one is remembered per sender in SQLite `sales_referral_captures`.
+- **Only a bare greeting + code is answered and stops there** (≤240 chars, no
+  digits once the phrase is removed). A code inside a listing, a name reply
+  (`completeOnboarding` strips it before `parseNameReply`) or a draft
+  correction is recorded and the message carries on.
+- **Attribution happens inside `upsertAgentFromWhatsApp`'s transaction, only
+  for an account created there**, in a SAVEPOINT so a missing table or a bad
+  code never costs the agent their account. Unknown / inactive / self-referral
+  / existing agent → `sales_referral_refusals`, never credited.
+- **Scheduler job `sales-commissions`** (registered last): daily in the Kinshasa
+  hour `SALES_COMMISSION_HOUR` (default 6, read against UTC), calls web's
+  `POST /api/cron/sales-commissions` with `CRON_SECRET`; idempotent there.
+  §34 of verify-pipeline.
+
 ## wa_id validation is 7-15 digits, not 9-15
 
 `routes/admin.js` gates `phone`/`wa_id` on `POST /admin/send-whatsapp`,
@@ -702,7 +725,7 @@ of `{ name, shouldRun(now), run() }`. The old interval is what made the
 scheduler single-purpose: a 15-minute SLA checked every 10 minutes fires
 somewhere between 15 and 25 minutes late, which is not a 15-minute SLA.
 
-Five jobs are registered, in order: `search-alerts`, `viewing-sla`,
+Six jobs are registered, in order: `search-alerts`, `viewing-sla`,
 `viewing-checkin`, `ops-health-alerts`, `listing-stats-rollup`. `shouldRun` must be **cheap** — it runs once a minute per
 job forever — and is where "is there anything to do?" belongs, so `job_runs`
 records real work rather than a heartbeat. Jobs run sequentially and each

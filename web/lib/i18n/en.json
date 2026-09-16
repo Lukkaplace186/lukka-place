@@ -2725,7 +2725,10 @@
         "subscription": "Subscription",
         "onboarding": "Agent onboarded",
         "target": "Monthly target",
-        "adjustment": "Adjustment"
+        "adjustment": "Adjustment",
+        "milestone": "Acquisition tier",
+        "listing_bonus": "Additional listings",
+        "quality": "30-day quality bonus"
       },
       "status": {
         "pending": "Pending",
@@ -2761,7 +2764,13 @@
         "accountInvalid": "Only a console account with the Sales rep role can be linked.",
         "accountTaken": "That console account is already linked to another rep.",
         "notFound": "This rep no longer exists.",
-        "inactive": "An inactive rep cannot take new agents."
+        "inactive": "An inactive rep cannot take new agents.",
+        "referralCode": "Referral code",
+        "referralCodeHint": "Leave empty to create one from the first name (JEAN01). 3–10 letters then 2 digits.",
+        "referralCodeEditHint": "A code that has already brought in an agent can no longer change.",
+        "codeInvalid": "A referral code is 3 to 10 letters followed by 2 digits, e.g. JEAN01.",
+        "codeTaken": "Another rep already uses this referral code.",
+        "codeLocked": "This code has already brought in an agent and is part of their record: it can no longer change."
       },
       "plans": {
         "link": "Commission plans",
@@ -2793,7 +2802,18 @@
         "rateInvalid": "The rate must be between 0 and 100.",
         "targetInvalid": "The monthly target must be a whole number.",
         "targetPair": "A monthly target needs a bonus, and a bonus needs a target.",
-        "notFound": "This plan no longer exists."
+        "notFound": "This plan no longer exists.",
+        "kindLabel": "Commission model",
+        "kind": {
+          "subscription": "Subscriptions",
+          "launch_milestones": "Launch policy (tiers)"
+        },
+        "launchSummary": "Qualified-agent tiers, additional listings and 30-day quality bonus, in USD",
+        "launchTitle": "Launch Policy Tiers",
+        "launchAcquisition": "Qualified agents (cumulative totals): 5 = $15, 10 = $35, 15 = $60, 20 = $90, 30 = $150, 40 = $220, 50 = $300.",
+        "launchAdditional": "Confirmed listings above 3 per qualified agent: 10 = $5, 25 = $15, 50 = $35, 100 = $80.",
+        "launchQuality": "+$25 once, when at least 80% of credited listings are still valid 30 days after confirmation (at least 15 checked).",
+        "launchQualified": "A qualified agent: verified number, a name, at least 3 confirmed listings, not rejected. Only validated agents count towards what is payable."
       },
       "accounts": {
         "title": "Agents",
@@ -2881,6 +2901,196 @@
         "title": "Last Six Months",
         "month": "Month",
         "empty": "No history yet."
+      },
+      "launch": {
+        "synced": "Launch policy: {listingsCredited} listing(s) credited, {milestoneLines} tier line(s), {qualityLines} quality bonus, {milestonesVoided} voided.",
+        "title": "Launch Commission Policy",
+        "subtitle": "Agents brought in with this rep’s referral code, their confirmed listings, and the tiers they unlock. Amounts are cumulative totals; each tier adds only the difference to the ledger.",
+        "planLine": "{plan} · launch policy",
+        "rules": "A confirmed listing is approved and public, has a price, a commune, a description, at least 3 photos and no duplicate flag, and was created after the referral. A listing that is later let or sold stays credited; a rejected, deleted or taken-down one stops counting.",
+        "awaitingNote": "{count} qualified agent(s) are awaiting validation. Once validated, the acquisition tier would be {amount}.",
+        "clawbackNote": "{count} paid tier line(s) are no longer met. Recover them with a negative adjustment if that is justified.",
+        "topTier": "Highest tier reached",
+        "nextAgents": "{count} more qualified agent(s) for {amount}",
+        "nextListings": "{count} more listing(s) for {amount}",
+        "acquisition": "Acquisition tier",
+        "additional": "Additional listings",
+        "outstanding": "To pay",
+        "outstandingHint": "Earned {earned} · paid {paid}",
+        "colReferred": "Referred",
+        "colReferredHint": "{qualified} qualified · {validated} validated",
+        "agentMissing": "This agent is not attributed to this rep.",
+        "funnel": {
+          "clicks": "Link clicks",
+          "registered": "Registered",
+          "withListing": "With a listing",
+          "qualified": "Qualified agents",
+          "qualifiedHint": "{validated} validated · {awaiting} awaiting"
+        },
+        "quality": {
+          "title": "30-Day Quality Bonus",
+          "earned": "Earned · {amount}",
+          "passing": "Passing: at least {ratio}% valid ({valid}/{checked})",
+          "failing": "Below {ratio}%: {valid}/{checked} valid on day 30",
+          "maturing": "{count} listing(s) not yet 30 days old · tested from {min} checked listings ({days} days)"
+        },
+        "referral": {
+          "code": "Referral code",
+          "link": "Signup link",
+          "copy": "Copy",
+          "copied": "Copied",
+          "shareWhatsApp": "Share on WhatsApp",
+          "copyOnboarding": "Copy the WhatsApp signup link",
+          "hint": "An agent who registers through this link, the QR code, by typing the code, or by sending the WhatsApp message with the code is attributed to this rep permanently.",
+          "qrAlt": "QR code for referral code {code}",
+          "downloadQr": "Download the QR code"
+        },
+        "agents": {
+          "title": "Referred Agents",
+          "colAgent": "Agent",
+          "colSource": "Source",
+          "colListings": "Credited / since referral",
+          "colQualified": "Qualified",
+          "colValidation": "Validation",
+          "colRegistered": "Registered",
+          "empty": "No agent brought in with this code yet.",
+          "unverified": "number not verified",
+          "profileIncomplete": "profile incomplete",
+          "before": "{count} listing(s) before the referral",
+          "qualified": "Qualified",
+          "missing": "{count} confirmed listing(s) to go",
+          "qualifiedOn": "since {date}",
+          "filter": {
+            "all": "All",
+            "qualified": "Qualified",
+            "awaiting": "Awaiting validation",
+            "validated": "Validated",
+            "rejected": "Rejected",
+            "not_qualified": "Not qualified yet"
+          }
+        },
+        "validation": {
+          "pending": "To validate",
+          "validated": "Validated",
+          "rejected": "Rejected",
+          "validate": "Validate",
+          "reject": "Reject",
+          "reopen": "Back to “to validate”",
+          "rejectTitle": "Reject This Agent",
+          "rejectHint": "{agent} will count towards no tier. Say why (duplicate account, fraud, self-referral…).",
+          "done": {
+            "validated": "Agent validated. Commissions recalculated.",
+            "rejected": "Agent rejected. Commissions recalculated.",
+            "pending": "Agent back to “to validate”. Commissions recalculated."
+          }
+        },
+        "credits": {
+          "title": "Credited Listings",
+          "colListing": "Listing",
+          "colAgent": "Agent",
+          "colConfirmed": "Confirmed",
+          "colNow": "Today",
+          "colDay30": "Day 30",
+          "empty": "No confirmed listing credited yet.",
+          "dueOn": "checked on {date}",
+          "exclude": "Exclude",
+          "excludeTitle": "Exclude This Listing",
+          "excludeHint": "The listing stops counting for every tier and fails the 30-day test. Say why.",
+          "excluded": "Listing excluded. Commissions recalculated.",
+          "notExcludable": "This listing is already excluded or no longer credited to this rep.",
+          "state": {
+            "live": "Online",
+            "closed": "Let / sold",
+            "rejected": "Rejected",
+            "deleted": "Deleted",
+            "offline": "Offline",
+            "excluded": "Excluded"
+          }
+        },
+        "source": {
+          "link": "Link",
+          "qr": "QR code",
+          "form_code": "Code typed",
+          "whatsapp_code": "WhatsApp",
+          "admin_override": "Assigned by management"
+        },
+        "ledger": {
+          "milestoneDetail": "Tier reached: {count} validated qualified agents",
+          "listingBonusDetail": "Tier reached: {count} additional listings",
+          "qualityDetail": "{ratio}% of credited listings valid on day 30",
+          "voidBelowThreshold": "Tier no longer met"
+        },
+        "fortnight": {
+          "label": "Fortnight",
+          "all": "All dates",
+          "first": "1–15 {month}",
+          "second": "16–end {month}",
+          "pay": "Pay this fortnight ({count})",
+          "payoutHint": "Pays the {count} approved line(s) earned {fortnight}."
+        }
+      },
+      "attribution": {
+        "link": "Referrals",
+        "title": "Referrals and Attribution",
+        "subtitle": "Refused referrals, every change of attribution with its reason, and patterns worth checking before paying. Nothing here penalises anyone on its own.",
+        "change": "Change Rep",
+        "attribute": "Attribute to a Rep",
+        "referredBy": "Referred by",
+        "moveHint": "{agent} is attributed to {rep}. Moving them is a correction that needs clear evidence.",
+        "attributeHint": "{agent} was not brought in with a referral code. Attribute them only with clear evidence of who introduced them.",
+        "toRep": "Rep",
+        "reason": "Reason",
+        "reasonHint": "{count} character(s) — at least 20",
+        "evidence": "Evidence (optional)",
+        "evidenceLine": "Evidence: {evidence}",
+        "creditFrom": "Count listings from (optional)",
+        "creditFromHint": "Leave empty to keep the current date (or today for a new attribution). Never in the future.",
+        "paidStays": "Their credited listings move with them and both reps’ tiers are recalculated. Lines already paid stay with the rep they were paid to.",
+        "confirm": "Confirm",
+        "saved": "Attribution saved. Commissions recalculated.",
+        "chooseRep": "Choose an active rep.",
+        "reasonInvalid": "Give a reason of 20 to 1,000 characters.",
+        "evidenceInvalid": "Evidence is limited to 1,000 characters.",
+        "agentMissing": "This agent no longer exists.",
+        "sameRep": "This agent is already attributed to that rep.",
+        "suspicious": {
+          "title": "Patterns Worth a Look",
+          "hint": "Facts, not verdicts: check them before validating the agents or approving the lines.",
+          "shared": "Signups from one connection (3+)",
+          "agents": "Agents",
+          "prior": "Listings before the referral",
+          "listings": "Listings",
+          "day30": "Most listings invalid on day 30",
+          "valid": "Valid",
+          "none": "Nothing to report."
+        },
+        "changes": {
+          "title": "Attribution Changes",
+          "when": "When",
+          "move": "Change",
+          "by": "By",
+          "empty": "No attribution has been changed.",
+          "nobody": "Nobody",
+          "shared": "Shared password"
+        },
+        "refusals": {
+          "title": "Refused Referrals",
+          "code": "Code",
+          "reason": "Why",
+          "channel": "Channel",
+          "empty": "No referral has been refused.",
+          "reasons": {
+            "unknown_code": "Unknown code",
+            "inactive_rep": "Inactive rep",
+            "self_referral": "Self-referral",
+            "existing_agent": "Existing agent",
+            "malformed": "Malformed code"
+          },
+          "channels": {
+            "web": "Website",
+            "whatsapp": "WhatsApp"
+          }
+        }
       }
     }
   },
@@ -2981,7 +3191,8 @@
       "otpFailed": "Sending the verification code failed — please try again.",
       "badCredentials": "Incorrect number or password.",
       "locked": "Too many attempts — try again in 15 minutes.",
-      "expiredAttempt": "That verification expired — please sign up again."
+      "expiredAttempt": "That verification expired — please sign up again.",
+      "referralUnknown": "We don’t recognise that referral code. Check it with your sales rep, or leave the field empty to sign up without one."
     },
     "activate": {
       "expiredBody": "This activation link is no longer valid — it may already have been used, or it has passed its expiry. Your properties are still saved: only dashboard access is pending.",
@@ -3026,7 +3237,9 @@
       "sending": "Sending…",
       "retryIn": "Resend the code in {seconds}s",
       "now": "Resend the code"
-    }
+    },
+    "referralCode": "Referral code (optional)",
+    "referralCodeHint": "If a Lukka Place sales rep introduced you, enter their code, e.g. JEAN01."
   },
   "updates": {
     "title": "Updates",

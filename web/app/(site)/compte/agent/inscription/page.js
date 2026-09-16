@@ -1,5 +1,9 @@
 import Link from 'next/link';
+import { cookies } from 'next/headers';
 import { agentSignupAction } from './actions';
+import { normaliseReferralCode } from '@/lib/launchCommission';
+import { findRepByReferralCode } from '@/lib/salesLaunch';
+import { REFERRAL_COOKIE, parseReferralCookie } from '@/lib/salesReferral';
 import PhoneField from '@/components/PhoneField';
 import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
 import { getRequestCountry } from '@/lib/requestCountry';
@@ -25,7 +29,27 @@ const ERROR_MESSAGE_KEYS = {
   password: 'auth.errors.passwordMin8',
   exists: 'auth.errors.accountExists',
   otp_failed: 'auth.errors.otpFailed',
+  ref: 'auth.errors.referralUnknown',
 };
+
+/**
+ * The code to prefill: the referral this browser already carries (first valid
+ * referral wins), else a well-formed `?ref=`. A remembered code whose rep is
+ * no longer active is not offered — it would only be refused on submit.
+ */
+async function referralPrefill(refParam) {
+  const cookieStore = await cookies();
+  const remembered = parseReferralCookie(cookieStore.get(REFERRAL_COOKIE)?.value);
+  if (remembered) {
+    try {
+      const rep = await findRepByReferralCode(remembered.code);
+      if (rep?.status === 'active') return remembered.code;
+    } catch (err) {
+      console.error(`[agent-signup] referral lookup failed: ${err.message}`);
+    }
+  }
+  return normaliseReferralCode(refParam) || '';
+}
 
 export default async function AgentSignupPage({ searchParams }) {
   const t = await getT();
@@ -39,6 +63,7 @@ export default async function AgentSignupPage({ searchParams }) {
   // "Honest UI State" rule. The copy is chosen here, in a Server Component,
   // because the flag is server-only.
   const bypassing = otpBypassEnabled();
+  const referralCode = await referralPrefill(typeof params.ref === 'string' ? params.ref : null);
 
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-4">
@@ -89,6 +114,25 @@ export default async function AgentSignupPage({ searchParams }) {
               required
               className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
             />
+          </div>
+
+          <div>
+            <label htmlFor="referral_code" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
+              {t('auth.referralCode')}
+            </label>
+            <input
+              id="referral_code"
+              type="text"
+              name="referral_code"
+              defaultValue={referralCode}
+              autoComplete="off"
+              autoCapitalize="characters"
+              maxLength={20}
+              placeholder="JEAN01"
+              aria-describedby="referral_code_hint"
+              className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm uppercase text-ink"
+            />
+            <p id="referral_code_hint" className="mt-1 text-xs text-ink-45">{t('auth.referralCodeHint')}</p>
           </div>
 
           {error && (

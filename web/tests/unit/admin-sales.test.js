@@ -38,7 +38,7 @@ test('amounts typed the French way or the English way parse to two decimals', ()
 test('a plan is refused with a target but no bonus, or a bonus but no target', () => {
   const base = { name: 'Standard', currency: 'usd', onboardingBonus: '10', subscriptionRate: '12.5', monthlyTarget: '', targetBonus: '', active: 'true' };
   assert.deepEqual(validatePlanInput(base).values, {
-    name: 'Standard', currency: 'USD', onboardingBonus: 10, subscriptionRate: 12.5, monthlyTarget: 0, targetBonus: 0, active: true,
+    name: 'Standard', kind: 'subscription', currency: 'USD', onboardingBonus: 10, subscriptionRate: 12.5, monthlyTarget: 0, targetBonus: 0, active: true,
   });
   assert.equal(validatePlanInput({ ...base, monthlyTarget: '5' }).errorKey, 'admin.sales.plans.targetPair');
   assert.equal(validatePlanInput({ ...base, targetBonus: '50' }).errorKey, 'admin.sales.plans.targetPair');
@@ -87,10 +87,34 @@ test('a cancelled plan voids what is not paid yet — never what was already pai
   assert.ok(!sql.includes("'paid'"));
 });
 
-test('the four generation steps run in one transaction', async () => {
+test('both commission models run in one transaction, under a local statement timeout', async () => {
   await syncSalesCommissions();
   const statements = calls.map((c) => c.sql.split(' ')[0]);
-  assert.deepEqual(statements, ['BEGIN', 'WITH', 'INSERT', 'WITH', 'UPDATE', 'COMMIT']);
+  assert.deepEqual(statements, [
+    'BEGIN', 'SET', 'WITH', 'INSERT', 'WITH', 'UPDATE', // subscription model
+    'INSERT', 'UPDATE', 'WITH', 'WITH', 'WITH', 'WITH', 'WITH', // launch policy (a)–(h)
+    'COMMIT',
+  ]);
+  assert.equal(calls[1].sql, "SET LOCAL statement_timeout = '60s'", 'never a bare SET on the pooler');
+});
+
+test('the subscription steps skip reps on a launch plan', () => {
+  for (const sql of [SYNC_SUBSCRIPTIONS_SQL, SYNC_ONBOARDING_SQL, SYNC_TARGETS_SQL]) {
+    assert.ok(normalizeSql(sql).includes("p.active AND p.kind = 'subscription'"));
+  }
+});
+
+test('a launch plan stores no subscription amounts and is always USD', () => {
+  const { values } = validatePlanInput({ name: 'Lancement', kind: 'launch_milestones', currency: 'CDF', onboardingBonus: '99', active: 'true' });
+  assert.deepEqual(values, {
+    name: 'Lancement', kind: 'launch_milestones', currency: 'USD', onboardingBonus: 0, subscriptionRate: 0, monthlyTarget: 0, targetBonus: 0, active: true,
+  });
+});
+
+test('a referral code is normalised, and a malformed one refused', () => {
+  assert.equal(validateRepInput({ fullName: 'Jean K.', referralCode: ' jean01 ' }).values.referralCode, 'JEAN01');
+  assert.equal(validateRepInput({ fullName: 'Jean K.', referralCode: '' }).values.referralCode, null);
+  assert.equal(validateRepInput({ fullName: 'Jean K.', referralCode: 'J1' }).errorKey, 'admin.sales.reps.codeInvalid');
 });
 
 // ---------------------------------------------------------------------------

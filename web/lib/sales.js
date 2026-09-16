@@ -2,6 +2,7 @@ import 'server-only';
 import { randomBytes } from 'node:crypto';
 import { getPool } from './db';
 import { vendorNameSql } from './vendorName';
+import { runLaunchSteps } from './salesLaunch';
 
 /**
  * The sales team's performance and commissions.
@@ -84,7 +85,7 @@ async function inTransaction(work) {
 
 export async function listSalesPlans() {
   const { rows } = await getPool().query(
-    `SELECT p.id, p.name, p.currency, p.onboarding_bonus::float AS onboarding_bonus,
+    `SELECT p.id, p.name, p.kind, p.currency, p.onboarding_bonus::float AS onboarding_bonus,
             p.subscription_rate::float AS subscription_rate, p.monthly_target, p.target_bonus::float AS target_bonus,
             p.active, p.created_at,
             (SELECT COUNT(*)::int FROM sales_reps r WHERE r.plan_id = p.id AND r.status = 'active') AS reps
@@ -96,20 +97,23 @@ export async function listSalesPlans() {
 
 /** @returns {Promise<{id: number}|{errorKey: string}>} */
 export async function saveSalesPlan(id, values) {
-  const params = [values.name, values.currency, values.onboardingBonus, values.subscriptionRate, values.monthlyTarget, values.targetBonus, values.active];
+  const params = [
+    values.name, values.currency, values.onboardingBonus, values.subscriptionRate, values.monthlyTarget, values.targetBonus, values.active,
+    values.kind || 'subscription',
+  ];
   if (id) {
     const { rows } = await getPool().query(
       `UPDATE sales_commission_plans
        SET name = $1, currency = $2, onboarding_bonus = $3, subscription_rate = $4, monthly_target = $5,
-           target_bonus = $6, active = $7, updated_at = NOW()
-       WHERE id = $8 RETURNING id`,
+           target_bonus = $6, active = $7, kind = $8, updated_at = NOW()
+       WHERE id = $9 RETURNING id`,
       [...params, id],
     );
     return rows[0] ? { id: Number(rows[0].id) } : { errorKey: 'admin.sales.plans.notFound' };
   }
   const { rows } = await getPool().query(
-    `INSERT INTO sales_commission_plans (name, currency, onboarding_bonus, subscription_rate, monthly_target, target_bonus, active)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+    `INSERT INTO sales_commission_plans (name, currency, onboarding_bonus, subscription_rate, monthly_target, target_bonus, active, kind)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
     params,
   );
   return { id: Number(rows[0].id) };
@@ -159,8 +163,8 @@ export async function listSalesReps({ from = null, to = new Date().toISOString()
               COALESCE(SUM(amount) FILTER (WHERE status = 'paid'), 0)::float AS paid
        FROM sales_commissions GROUP BY 1, 2
      )
-     SELECT r.id, r.full_name, r.phone, r.email, r.status, r.admin_user_id, r.plan_id, r.created_at,
-            p.name AS plan_name, p.currency AS plan_currency, p.monthly_target, p.target_bonus::float AS target_bonus,
+     SELECT r.id, r.full_name, r.phone, r.email, r.status, r.admin_user_id, r.plan_id, r.created_at, r.referral_code,
+            p.name AS plan_name, p.kind AS plan_kind, p.currency AS plan_currency, p.monthly_target, p.target_bonus::float AS target_bonus,
             p.onboarding_bonus::float AS onboarding_bonus, p.subscription_rate::float AS subscription_rate,
             u.full_name AS account_name, u.email AS account_email, u.status AS account_status,
             COALESCE(ac.n, 0) AS accounts, COALESCE(ob.n, 0) AS onboarded, COALESCE(lv.n, 0) AS live_listings,
@@ -227,24 +231,36 @@ export async function saveSalesRep(id, values, { adminId = null } = {}) {
     const account = await pool.query("SELECT 1 FROM console_admin_users WHERE id = $1 AND role = 'sales'", [values.adminUserId]);
     if (!account.rows[0]) return { errorKey: 'admin.sales.reps.accountInvalid' };
   }
-  const params = [values.fullName, values.phone, values.email, values.planId, values.status, values.adminUserId];
+  const params = [values.fullName, values.phone, values.email, values.planId, values.status, values.adminUserId, values.referralCode ?? null];
   try {
     if (id) {
+      // A code that has already brought an agent in is part of that agent's
+      // permanent record: it can no longer change, or be freed for another rep.
+      const current = await pool.query('SELECT referral_code FROM sales_reps WHERE id = $1', [id]);
+      if (!current.rows[0]) return { errorKey: 'admin.sales.reps.notFound' };
+      const previousCode = current.rows[0].referral_code;
+      if (previousCode && previousCode !== values.referralCode) {
+        const used = await pool.query('SELECT 1 FROM sales_agent_attributions WHERE referral_code = $1 LIMIT 1', [previousCode]);
+        if (used.rows[0]) return { errorKey: 'admin.sales.reps.codeLocked' };
+      }
       const { rows } = await pool.query(
-        `UPDATE sales_reps SET full_name = $1, phone = $2, email = $3, plan_id = $4, status = $5, admin_user_id = $6, updated_at = NOW()
-         WHERE id = $7 RETURNING id`,
+        `UPDATE sales_reps SET full_name = $1, phone = $2, email = $3, plan_id = $4, status = $5, admin_user_id = $6,
+                referral_code = $7, updated_at = NOW()
+         WHERE id = $8 RETURNING id`,
         [...params, id],
       );
       return rows[0] ? { id: Number(rows[0].id) } : { errorKey: 'admin.sales.reps.notFound' };
     }
     const { rows } = await pool.query(
-      `INSERT INTO sales_reps (full_name, phone, email, plan_id, status, admin_user_id, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
+      `INSERT INTO sales_reps (full_name, phone, email, plan_id, status, admin_user_id, referral_code, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
       [...params, adminId],
     );
     return { id: Number(rows[0].id) };
   } catch (err) {
-    if (err.code === '23505') return { errorKey: 'admin.sales.reps.accountTaken' };
+    if (err.code === '23505') {
+      return { errorKey: String(err.constraint || '').includes('referral_code') ? 'admin.sales.reps.codeTaken' : 'admin.sales.reps.accountTaken' };
+    }
     throw err;
   }
 }
@@ -346,7 +362,7 @@ export const SYNC_SUBSCRIPTIONS_SQL = `
   FROM memberships mem
   JOIN vendor_rep vr ON vr.vendor_id = mem.vendor_id
   JOIN sales_reps r ON r.id = vr.rep_id AND r.status = 'active'
-  JOIN sales_commission_plans p ON p.id = r.plan_id AND p.active
+  JOIN sales_commission_plans p ON p.id = r.plan_id AND p.active AND p.kind = 'subscription'
   WHERE ${PAID_MEMBERSHIP}
     AND mem.created_at >= vr.credit_from
     AND p.subscription_rate > 0
@@ -359,7 +375,7 @@ export const SYNC_ONBOARDING_SQL = `
   FROM sales_account_assignments sa
   JOIN agents a ON a.id = sa.agent_id
   JOIN sales_reps r ON r.id = sa.rep_id AND r.status = 'active'
-  JOIN sales_commission_plans p ON p.id = r.plan_id AND p.active
+  JOIN sales_commission_plans p ON p.id = r.plan_id AND p.active AND p.kind = 'subscription'
   WHERE sa.ended_at IS NULL
     AND a.phone_verified_at IS NOT NULL
     AND a.phone_verified_at >= sa.credit_from
@@ -380,7 +396,7 @@ export const SYNC_TARGETS_SQL = `
          (m.month_start + INTERVAL '1 month') AT TIME ZONE ${KINSHASA}, p.id
   FROM monthly m
   JOIN sales_reps r ON r.id = m.rep_id AND r.status = 'active'
-  JOIN sales_commission_plans p ON p.id = r.plan_id AND p.active
+  JOIN sales_commission_plans p ON p.id = r.plan_id AND p.active AND p.kind = 'subscription'
   WHERE p.monthly_target > 0 AND p.target_bonus > 0 AND m.sold >= p.monthly_target
     AND m.month_start < date_trunc('month', NOW() AT TIME ZONE ${KINSHASA})
   ON CONFLICT (source_type, source_id) DO NOTHING`;
@@ -391,18 +407,26 @@ export const VOID_CANCELLED_SQL = `
   WHERE sc.source_type = 'subscription' AND sc.status IN ('pending', 'approved')
     AND NOT EXISTS (SELECT 1 FROM memberships mem WHERE mem.id = sc.membership_id AND mem.status = 1)`;
 
-/** @returns {Promise<{subscriptions: number, onboarding: number, targets: number, voided: number}>} */
+/**
+ * Both models in one transaction: the subscription plan's four steps, then the
+ * launch policy's (lib/salesLaunch.js). SET LOCAL, never a bare SET: on the
+ * Supabase pooler a session SET outlives the request that ran it.
+ * @returns {Promise<object>} row counts per step
+ */
 export async function syncSalesCommissions() {
   return inTransaction(async (client) => {
+    await client.query("SET LOCAL statement_timeout = '60s'");
     const subscriptions = await client.query(SYNC_SUBSCRIPTIONS_SQL);
     const onboarding = await client.query(SYNC_ONBOARDING_SQL);
     const targets = await client.query(SYNC_TARGETS_SQL);
     const voided = await client.query(VOID_CANCELLED_SQL);
+    const launch = await runLaunchSteps(client);
     return {
       subscriptions: subscriptions.rowCount ?? 0,
       onboarding: onboarding.rowCount ?? 0,
       targets: targets.rowCount ?? 0,
       voided: voided.rowCount ?? 0,
+      ...launch,
     };
   });
 }
@@ -418,12 +442,18 @@ export async function getLastSalesSync() {
 // Ledger, approvals, adjustments, payouts
 // ---------------------------------------------------------------------------
 
-export async function listRepCommissions(repId, { status, limit = 25, offset = 0 } = {}) {
+/** `from`/`to` narrow the ledger to lines earned in [from, to) — the fortnight filter. */
+export async function listRepCommissions(repId, { status, from = null, to = null, limit = 25, offset = 0 } = {}) {
   const bounds = pageBounds(limit, offset);
   const filter = ['pending', 'approved', 'paid', 'void'].includes(status) ? status : null;
   const pool = getPool();
   const [count, page, open] = await Promise.all([
-    pool.query('SELECT COUNT(*)::int AS total FROM sales_commissions WHERE rep_id = $1 AND ($2::text IS NULL OR status = $2)', [repId, filter]),
+    pool.query(
+      `SELECT COUNT(*)::int AS total FROM sales_commissions sc
+       WHERE sc.rep_id = $1 AND ($2::text IS NULL OR sc.status = $2)
+         AND ($3::timestamptz IS NULL OR sc.earned_at >= $3) AND ($4::timestamptz IS NULL OR sc.earned_at < $4)`,
+      [repId, filter, from, to],
+    ),
     pool.query(
       `SELECT sc.id, sc.source_type, sc.source_id, sc.agent_id, sc.membership_id, sc.basis_amount::float AS basis_amount,
               sc.rate::float AS rate, sc.amount::float AS amount, sc.currency, sc.earned_at, sc.status, sc.note,
@@ -431,8 +461,9 @@ export async function listRepCommissions(repId, { status, limit = 25, offset = 0
               CASE WHEN sc.source_type = 'subscription' THEN ${vendorNameSql('v')}
                    WHEN sc.agent_id IS NOT NULL THEN ${AGENT_NAME}
               END AS account_label,
-              (sc.status = 'paid' AND sc.source_type = 'subscription'
-                AND NOT EXISTS (SELECT 1 FROM memberships m2 WHERE m2.id = sc.membership_id AND m2.status = 1)) AS clawback_due
+              ((sc.status = 'paid' AND sc.source_type = 'subscription'
+                AND NOT EXISTS (SELECT 1 FROM memberships m2 WHERE m2.id = sc.membership_id AND m2.status = 1))
+               OR (sc.status = 'paid' AND sc.clawback_flagged_at IS NOT NULL)) AS clawback_due
        FROM sales_commissions sc
        LEFT JOIN memberships mem ON mem.id = sc.membership_id
        LEFT JOIN vendors v ON v.id = mem.vendor_id
@@ -440,9 +471,10 @@ export async function listRepCommissions(repId, { status, limit = 25, offset = 0
        LEFT JOIN agents a ON a.id = sc.agent_id
        ${AGENT_INFO_JOIN('sc.agent_id')}
        WHERE sc.rep_id = $1 AND ($2::text IS NULL OR sc.status = $2)
+         AND ($5::timestamptz IS NULL OR sc.earned_at >= $5) AND ($6::timestamptz IS NULL OR sc.earned_at < $6)
        ORDER BY sc.earned_at DESC, sc.id DESC
        LIMIT $3 OFFSET $4`,
-      [repId, filter, bounds.limit, bounds.offset],
+      [repId, filter, bounds.limit, bounds.offset, from, to],
     ),
     pool.query(
       `SELECT status, currency, COUNT(*)::int AS n, SUM(amount)::float AS amount
@@ -592,4 +624,16 @@ export async function getRepMonthlyTrend(repId) {
     [repId],
   );
   return rows;
+}
+
+/** Approved lines earned in [from, to), for paying one fortnight at a time. */
+export async function listApprovedLineRefs(repId, { from = null, to = null } = {}) {
+  const { rows } = await getPool().query(
+    `SELECT id, currency FROM sales_commissions
+     WHERE rep_id = $1 AND status = 'approved'
+       AND ($2::timestamptz IS NULL OR earned_at >= $2) AND ($3::timestamptz IS NULL OR earned_at < $3)
+     ORDER BY id LIMIT 500`,
+    [repId, from, to],
+  );
+  return rows.map((row) => ({ id: Number(row.id), currency: row.currency }));
 }

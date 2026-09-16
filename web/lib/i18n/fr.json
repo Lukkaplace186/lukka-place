@@ -2725,7 +2725,10 @@
         "subscription": "Abonnement",
         "onboarding": "Agent recruté",
         "target": "Objectif mensuel",
-        "adjustment": "Ajustement"
+        "adjustment": "Ajustement",
+        "milestone": "Palier d’acquisition",
+        "listing_bonus": "Annonces supplémentaires",
+        "quality": "Prime qualité 30 jours"
       },
       "status": {
         "pending": "En attente",
@@ -2761,7 +2764,13 @@
         "accountInvalid": "Seul un compte console au rôle Commercial peut être lié.",
         "accountTaken": "Ce compte console est déjà lié à un autre commercial.",
         "notFound": "Ce commercial n’existe plus.",
-        "inactive": "Un commercial inactif ne peut pas recevoir de nouveaux agents."
+        "inactive": "Un commercial inactif ne peut pas recevoir de nouveaux agents.",
+        "referralCode": "Code de parrainage",
+        "referralCodeHint": "Laissez vide pour le créer à partir du prénom (JEAN01). 3 à 10 lettres puis 2 chiffres.",
+        "referralCodeEditHint": "Un code qui a déjà amené un agent ne peut plus changer.",
+        "codeInvalid": "Un code de parrainage compte 3 à 10 lettres suivies de 2 chiffres, par ex. JEAN01.",
+        "codeTaken": "Un autre commercial utilise déjà ce code de parrainage.",
+        "codeLocked": "Ce code a déjà amené un agent et fait partie de son dossier : il ne peut plus changer."
       },
       "plans": {
         "link": "Barèmes de commission",
@@ -2793,7 +2802,18 @@
         "rateInvalid": "Le taux doit être compris entre 0 et 100.",
         "targetInvalid": "L’objectif mensuel doit être un nombre entier.",
         "targetPair": "Un objectif mensuel exige une prime, et une prime exige un objectif.",
-        "notFound": "Ce barème n’existe plus."
+        "notFound": "Ce barème n’existe plus.",
+        "kindLabel": "Modèle de commission",
+        "kind": {
+          "subscription": "Abonnements",
+          "launch_milestones": "Politique de lancement (paliers)"
+        },
+        "launchSummary": "Paliers d’agents qualifiés, annonces supplémentaires et prime qualité 30 jours, en USD",
+        "launchTitle": "Paliers de la politique de lancement",
+        "launchAcquisition": "Agents qualifiés (totaux cumulés) : 5 = 15 $, 10 = 35 $, 15 = 60 $, 20 = 90 $, 30 = 150 $, 40 = 220 $, 50 = 300 $.",
+        "launchAdditional": "Annonces confirmées au-delà de 3 par agent qualifié : 10 = 5 $, 25 = 15 $, 50 = 35 $, 100 = 80 $.",
+        "launchQuality": "+25 $ une fois, quand au moins 80 % des annonces créditées sont encore valides 30 jours après confirmation (15 vérifiées au minimum).",
+        "launchQualified": "Agent qualifié : numéro vérifié, un nom, au moins 3 annonces confirmées, non rejeté. Seuls les agents validés comptent pour ce qui est payable."
       },
       "accounts": {
         "title": "Agents",
@@ -2881,6 +2901,196 @@
         "title": "Six derniers mois",
         "month": "Mois",
         "empty": "Pas encore d’historique."
+      },
+      "launch": {
+        "synced": "Politique de lancement : {listingsCredited} annonce(s) créditée(s), {milestoneLines} ligne(s) de palier, {qualityLines} prime qualité, {milestonesVoided} annulée(s).",
+        "title": "Politique de commission de lancement",
+        "subtitle": "Les agents amenés avec le code de parrainage de ce commercial, leurs annonces confirmées et les paliers qu’ils débloquent. Les montants sont des totaux cumulés : chaque palier n’ajoute au registre que la différence.",
+        "planLine": "{plan} · politique de lancement",
+        "rules": "Une annonce confirmée est approuvée et en ligne, a un prix, une commune, une description, au moins 3 photos, aucun signalement de doublon, et a été créée après le parrainage. Une annonce louée ou vendue ensuite reste créditée ; une annonce rejetée, supprimée ou retirée ne compte plus.",
+        "awaitingNote": "{count} agent(s) qualifié(s) attendent une validation. Une fois validés, le palier d’acquisition serait de {amount}.",
+        "clawbackNote": "{count} ligne(s) de palier déjà payée(s) ne sont plus atteintes. Récupérez-les par un ajustement négatif si c’est justifié.",
+        "topTier": "Palier le plus haut atteint",
+        "nextAgents": "Encore {count} agent(s) qualifié(s) pour {amount}",
+        "nextListings": "Encore {count} annonce(s) pour {amount}",
+        "acquisition": "Palier d’acquisition",
+        "additional": "Annonces supplémentaires",
+        "outstanding": "Reste à payer",
+        "outstandingHint": "Gagné {earned} · payé {paid}",
+        "colReferred": "Parrainés",
+        "colReferredHint": "{qualified} qualifié(s) · {validated} validé(s)",
+        "agentMissing": "Cet agent n’est pas attribué à ce commercial.",
+        "funnel": {
+          "clicks": "Clics sur le lien",
+          "registered": "Inscrits",
+          "withListing": "Avec une annonce",
+          "qualified": "Agents qualifiés",
+          "qualifiedHint": "{validated} validé(s) · {awaiting} en attente"
+        },
+        "quality": {
+          "title": "Prime qualité 30 jours",
+          "earned": "Gagnée · {amount}",
+          "passing": "Atteint : au moins {ratio} % valides ({valid}/{checked})",
+          "failing": "Sous {ratio} % : {valid}/{checked} valides au 30e jour",
+          "maturing": "{count} annonce(s) n’ont pas encore 30 jours · test à partir de {min} annonces vérifiées ({days} jours)"
+        },
+        "referral": {
+          "code": "Code de parrainage",
+          "link": "Lien d’inscription",
+          "copy": "Copier",
+          "copied": "Copié",
+          "shareWhatsApp": "Partager sur WhatsApp",
+          "copyOnboarding": "Copier le lien d’inscription WhatsApp",
+          "hint": "Un agent qui s’inscrit par ce lien, le QR code, en saisissant le code ou en envoyant le message WhatsApp avec le code est attribué à ce commercial de façon permanente.",
+          "qrAlt": "QR code du code de parrainage {code}",
+          "downloadQr": "Télécharger le QR code"
+        },
+        "agents": {
+          "title": "Agents parrainés",
+          "colAgent": "Agent",
+          "colSource": "Origine",
+          "colListings": "Créditées / depuis le parrainage",
+          "colQualified": "Qualifié",
+          "colValidation": "Validation",
+          "colRegistered": "Inscrit le",
+          "empty": "Aucun agent amené avec ce code pour l’instant.",
+          "unverified": "numéro non vérifié",
+          "profileIncomplete": "profil incomplet",
+          "before": "{count} annonce(s) avant le parrainage",
+          "qualified": "Qualifié",
+          "missing": "Encore {count} annonce(s) confirmée(s)",
+          "qualifiedOn": "depuis le {date}",
+          "filter": {
+            "all": "Tous",
+            "qualified": "Qualifiés",
+            "awaiting": "À valider",
+            "validated": "Validés",
+            "rejected": "Rejetés",
+            "not_qualified": "Pas encore qualifiés"
+          }
+        },
+        "validation": {
+          "pending": "À valider",
+          "validated": "Validé",
+          "rejected": "Rejeté",
+          "validate": "Valider",
+          "reject": "Rejeter",
+          "reopen": "Remettre « à valider »",
+          "rejectTitle": "Rejeter cet agent",
+          "rejectHint": "{agent} ne comptera pour aucun palier. Indiquez pourquoi (compte en double, fraude, auto-parrainage…).",
+          "done": {
+            "validated": "Agent validé. Commissions recalculées.",
+            "rejected": "Agent rejeté. Commissions recalculées.",
+            "pending": "Agent remis « à valider ». Commissions recalculées."
+          }
+        },
+        "credits": {
+          "title": "Annonces créditées",
+          "colListing": "Annonce",
+          "colAgent": "Agent",
+          "colConfirmed": "Confirmée le",
+          "colNow": "Aujourd’hui",
+          "colDay30": "30e jour",
+          "empty": "Aucune annonce confirmée créditée pour l’instant.",
+          "dueOn": "vérifiée le {date}",
+          "exclude": "Exclure",
+          "excludeTitle": "Exclure cette annonce",
+          "excludeHint": "L’annonce ne compte plus pour aucun palier et échoue au test des 30 jours. Indiquez pourquoi.",
+          "excluded": "Annonce exclue. Commissions recalculées.",
+          "notExcludable": "Cette annonce est déjà exclue ou n’est plus créditée à ce commercial.",
+          "state": {
+            "live": "En ligne",
+            "closed": "Louée / vendue",
+            "rejected": "Rejetée",
+            "deleted": "Supprimée",
+            "offline": "Hors ligne",
+            "excluded": "Exclue"
+          }
+        },
+        "source": {
+          "link": "Lien",
+          "qr": "QR code",
+          "form_code": "Code saisi",
+          "whatsapp_code": "WhatsApp",
+          "admin_override": "Attribué par la direction"
+        },
+        "ledger": {
+          "milestoneDetail": "Palier atteint : {count} agents qualifiés validés",
+          "listingBonusDetail": "Palier atteint : {count} annonces supplémentaires",
+          "qualityDetail": "{ratio} % des annonces créditées valides au 30e jour",
+          "voidBelowThreshold": "Palier plus atteint"
+        },
+        "fortnight": {
+          "label": "Quinzaine",
+          "all": "Toutes les dates",
+          "first": "1–15 {month}",
+          "second": "16–fin {month}",
+          "pay": "Payer cette quinzaine ({count})",
+          "payoutHint": "Paie les {count} ligne(s) approuvée(s) gagnées {fortnight}."
+        }
+      },
+      "attribution": {
+        "link": "Parrainages",
+        "title": "Parrainages et attribution",
+        "subtitle": "Les parrainages refusés, chaque changement d’attribution avec sa raison, et ce qui mérite une vérification avant de payer. Rien ici ne pénalise qui que ce soit à lui seul.",
+        "change": "Changer de commercial",
+        "attribute": "Attribuer à un commercial",
+        "referredBy": "Parrainé par",
+        "moveHint": "{agent} est attribué à {rep}. Le déplacer est une correction qui exige une preuve claire.",
+        "attributeHint": "{agent} n’a pas été amené avec un code de parrainage. Ne l’attribuez qu’avec une preuve claire de qui l’a présenté.",
+        "toRep": "Commercial",
+        "reason": "Raison",
+        "reasonHint": "{count} caractère(s) — 20 au minimum",
+        "evidence": "Preuve (facultatif)",
+        "evidenceLine": "Preuve : {evidence}",
+        "creditFrom": "Compter les annonces à partir du (facultatif)",
+        "creditFromHint": "Laissez vide pour garder la date actuelle (ou aujourd’hui pour une nouvelle attribution). Jamais dans le futur.",
+        "paidStays": "Ses annonces créditées le suivent et les paliers des deux commerciaux sont recalculés. Les lignes déjà payées restent au commercial qui les a reçues.",
+        "confirm": "Confirmer",
+        "saved": "Attribution enregistrée. Commissions recalculées.",
+        "chooseRep": "Choisissez un commercial actif.",
+        "reasonInvalid": "Donnez une raison de 20 à 1 000 caractères.",
+        "evidenceInvalid": "La preuve est limitée à 1 000 caractères.",
+        "agentMissing": "Cet agent n’existe plus.",
+        "sameRep": "Cet agent est déjà attribué à ce commercial.",
+        "suspicious": {
+          "title": "À vérifier",
+          "hint": "Des faits, pas des verdicts : vérifiez-les avant de valider les agents ou d’approuver les lignes.",
+          "shared": "Inscriptions depuis une même connexion (3+)",
+          "agents": "Agents",
+          "prior": "Annonces avant le parrainage",
+          "listings": "Annonces",
+          "day30": "Majorité d’annonces invalides au 30e jour",
+          "valid": "Valides",
+          "none": "Rien à signaler."
+        },
+        "changes": {
+          "title": "Changements d’attribution",
+          "when": "Quand",
+          "move": "Changement",
+          "by": "Par",
+          "empty": "Aucune attribution n’a été modifiée.",
+          "nobody": "Personne",
+          "shared": "Mot de passe partagé"
+        },
+        "refusals": {
+          "title": "Parrainages refusés",
+          "code": "Code",
+          "reason": "Motif",
+          "channel": "Canal",
+          "empty": "Aucun parrainage refusé.",
+          "reasons": {
+            "unknown_code": "Code inconnu",
+            "inactive_rep": "Commercial inactif",
+            "self_referral": "Auto-parrainage",
+            "existing_agent": "Agent existant",
+            "malformed": "Code mal formé"
+          },
+          "channels": {
+            "web": "Site web",
+            "whatsapp": "WhatsApp"
+          }
+        }
       }
     }
   },
@@ -2981,7 +3191,8 @@
       "otpFailed": "L'envoi du code de vérification a échoué — réessayez.",
       "badCredentials": "Numéro ou mot de passe incorrect.",
       "locked": "Trop de tentatives — réessayez dans 15 minutes.",
-      "expiredAttempt": "Cette vérification a expiré — recommencez l’inscription."
+      "expiredAttempt": "Cette vérification a expiré — recommencez l’inscription.",
+      "referralUnknown": "Nous ne reconnaissons pas ce code de parrainage. Vérifiez-le auprès de votre commercial, ou laissez le champ vide pour vous inscrire sans code."
     },
     "activate": {
       "expiredBody": "Ce lien d’activation n’est plus valable — il a peut-être déjà été utilisé, ou il a dépassé sa durée de validité. Vos biens restent enregistrés : seul l’accès au tableau de bord attend.",
@@ -3026,7 +3237,9 @@
       "sending": "Envoi en cours…",
       "retryIn": "Renvoyer le code dans {seconds} s",
       "now": "Renvoyer le code"
-    }
+    },
+    "referralCode": "Code de parrainage (facultatif)",
+    "referralCodeHint": "Si un commercial Lukka Place vous a présenté la plateforme, saisissez son code, par ex. JEAN01."
   },
   "updates": {
     "title": "Actualités",

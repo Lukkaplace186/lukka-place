@@ -1,3 +1,5 @@
+import { LAUNCH_CURRENCY, normaliseReferralCode } from './launchCommission';
+
 /**
  * Pure rules for the sales console — no database, no `server-only`, so client
  * forms can use the same parsing the Server Actions enforce.
@@ -5,7 +7,9 @@
 
 export const SALES_PERIODS = ['month', '30d', '90d', 'year', 'all'];
 export const COMMISSION_STATUSES = ['pending', 'approved', 'paid', 'void'];
-export const COMMISSION_SOURCES = ['subscription', 'onboarding', 'target', 'adjustment'];
+export const COMMISSION_SOURCES = ['subscription', 'onboarding', 'target', 'adjustment', 'milestone', 'listing_bonus', 'quality'];
+export const PLAN_KINDS = ['subscription', 'launch_milestones'];
+export const PAYOUT_METHODS = ['M-Pesa', 'Airtel Money', 'Orange Money', 'Banque', 'Espèces'];
 export const REP_STATUSES = ['active', 'inactive'];
 
 const KINSHASA_OFFSET_MS = 60 * 60 * 1000; // UTC+1, no daylight saving
@@ -52,9 +56,20 @@ export function normaliseCurrency(value) {
 }
 
 /** @returns {{errorKey: string} | {values: object}} */
-export function validatePlanInput({ name, currency, onboardingBonus, subscriptionRate, monthlyTarget, targetBonus, active }) {
+export function validatePlanInput({ name, kind, currency, onboardingBonus, subscriptionRate, monthlyTarget, targetBonus, active }) {
   const cleanName = String(name ?? '').trim().replace(/\s+/g, ' ');
   if (!cleanName || cleanName.length > 80) return { errorKey: 'admin.sales.plans.nameInvalid' };
+  const isActive = active === true || active === 'on' || active === 'true';
+  // The launch policy's amounts are its own tiers (lib/launchCommission.js), in
+  // USD; the subscription fields mean nothing for it and are stored as zero.
+  if (kind === 'launch_milestones') {
+    return {
+      values: {
+        name: cleanName, kind, currency: LAUNCH_CURRENCY, onboardingBonus: 0, subscriptionRate: 0,
+        monthlyTarget: 0, targetBonus: 0, active: isActive,
+      },
+    };
+  }
   const code = normaliseCurrency(currency);
   if (!code) return { errorKey: 'admin.sales.plans.currencyInvalid' };
   const bonus = parseAmount(onboardingBonus === '' || onboardingBonus == null ? '0' : onboardingBonus);
@@ -67,14 +82,14 @@ export function validatePlanInput({ name, currency, onboardingBonus, subscriptio
   if ((target > 0) !== (tBonus > 0)) return { errorKey: 'admin.sales.plans.targetPair' };
   return {
     values: {
-      name: cleanName, currency: code, onboardingBonus: bonus, subscriptionRate: rate,
-      monthlyTarget: target, targetBonus: tBonus, active: active === true || active === 'on' || active === 'true',
+      name: cleanName, kind: 'subscription', currency: code, onboardingBonus: bonus, subscriptionRate: rate,
+      monthlyTarget: target, targetBonus: tBonus, active: isActive,
     },
   };
 }
 
 /** @returns {{errorKey: string} | {values: object}} */
-export function validateRepInput({ fullName, phone, email, planId, status, adminUserId }) {
+export function validateRepInput({ fullName, phone, email, planId, status, adminUserId, referralCode }) {
   const name = String(fullName ?? '').trim().replace(/\s+/g, ' ');
   if (!name || name.length > 120) return { errorKey: 'admin.sales.reps.nameInvalid' };
   const digits = String(phone ?? '').replace(/\D/g, '');
@@ -85,11 +100,14 @@ export function validateRepInput({ fullName, phone, email, planId, status, admin
   if (plan && !/^\d+$/.test(plan)) return { errorKey: 'admin.sales.reps.planInvalid' };
   const account = String(adminUserId ?? '').trim();
   if (account && !/^\d+$/.test(account)) return { errorKey: 'admin.sales.reps.accountInvalid' };
+  const typedCode = String(referralCode ?? '').trim();
+  const code = typedCode ? normaliseReferralCode(typedCode) : null;
+  if (typedCode && !code) return { errorKey: 'admin.sales.reps.codeInvalid' };
   const resolvedStatus = REP_STATUSES.includes(status) ? status : 'active';
   return {
     values: {
       fullName: name, phone: digits || null, email: mail || null, planId: plan ? Number(plan) : null,
-      status: resolvedStatus, adminUserId: account ? Number(account) : null,
+      status: resolvedStatus, adminUserId: account ? Number(account) : null, referralCode: code,
     },
   };
 }

@@ -9,6 +9,10 @@ import {
   addCommissionAdjustment, approveCommissions, assignAgentsToRep, endRepAssignment, recordSalesPayout,
   saveSalesPlan, saveSalesRep, syncSalesCommissions, voidCommission,
 } from '@/lib/sales';
+import { suggestReferralCode } from '@/lib/launchCommission';
+import {
+  excludeListingCredit, listReferralCodes, overrideAttribution, setAttributionValidation,
+} from '@/lib/salesLaunch';
 import { getT } from '@/lib/i18n/server';
 
 /**
@@ -50,7 +54,7 @@ export async function syncCommissionsAction() {
     const counts = await syncSalesCommissions();
     await recordAudit(session, { action: 'sales.sync', details: counts });
     refresh();
-    return { ok: true, message: t('admin.sales.synced', counts) };
+    return { ok: true, message: `${t('admin.sales.synced', counts)} ${t('admin.sales.launch.synced', counts)}` };
   });
 }
 
@@ -65,8 +69,13 @@ export async function saveRepAction(repId, formData) {
       planId: formData.get('plan_id'),
       status: formData.get('status'),
       adminUserId: formData.get('admin_user_id'),
+      referralCode: formData.get('referral_code'),
     });
     if (checked.errorKey) return { ok: false, error: t(checked.errorKey) };
+    // A new rep with no code typed gets one from their name (JEAN01, JEAN02 …).
+    if (!existing && !checked.values.referralCode) {
+      checked.values.referralCode = suggestReferralCode(checked.values.fullName, await listReferralCodes());
+    }
     const result = await saveSalesRep(existing, checked.values, { adminId: adminIdOf(session) });
     if (result.errorKey) return { ok: false, error: t(result.errorKey) };
     await recordAudit(session, {
@@ -86,6 +95,7 @@ export async function savePlanAction(planId, formData) {
     const existing = planId ? positiveInt(planId) : null;
     const checked = validatePlanInput({
       name: formData.get('name'),
+      kind: formData.get('kind'),
       currency: formData.get('currency'),
       onboardingBonus: formData.get('onboarding_bonus'),
       subscriptionRate: formData.get('subscription_rate'),
@@ -232,5 +242,100 @@ export async function recordPayoutAction(repId, ids, formData) {
     });
     refresh(rep);
     return { ok: true, message: t('admin.sales.ledger.paid', { count: result.count }) };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Launch commission policy: agent validation, listing exclusions, attribution
+// ---------------------------------------------------------------------------
+
+function cleanText(value, max) {
+  return String(value || '').trim().replace(/\s+/g, ' ').slice(0, max + 1);
+}
+
+/** Recount after a change that moves a rep's tiers; a failure is reported, never hidden. */
+async function rerun(session) {
+  const counts = await syncSalesCommissions();
+  await recordAudit(session, { action: 'sales.sync', details: { ...counts, trigger: 'change' } });
+  return counts;
+}
+
+/** `status` validated | rejected | pending. Rejection needs a reason. */
+export async function setAgentValidationAction(repId, agentId, status, reason) {
+  const t = await getT();
+  return guarded(t, async (session) => {
+    const rep = positiveInt(repId);
+    const agent = positiveInt(agentId);
+    const text = cleanText(reason, 500);
+    if (!rep || !agent || !['validated', 'rejected', 'pending'].includes(status)) return { ok: false, error: t('admin.sales.launch.agentMissing') };
+    if (status === 'rejected' && (text.length < 3 || text.length > 500)) return { ok: false, error: t('admin.sales.ledger.reasonInvalid') };
+    const updated = await setAttributionValidation({ repId: rep, agentId: agent, status, reason: text || null, adminId: adminIdOf(session) });
+    if (!updated) return { ok: false, error: t('admin.sales.launch.agentMissing') };
+    await recordAudit(session, {
+      action: `sales.agent_${status === 'pending' ? 'reopened' : status}`, entityType: 'agent', entityId: agent,
+      details: { repId: rep, reason: status === 'rejected' ? text : undefined },
+    });
+    await rerun(session);
+    refresh(rep);
+    revalidatePath(`/admin/agents/${agent}`);
+    return { ok: true, message: t(`admin.sales.launch.validation.done.${status}`) };
+  });
+}
+
+export async function excludeCreditAction(repId, creditId, reason) {
+  const t = await getT();
+  return guarded(t, async (session) => {
+    const rep = positiveInt(repId);
+    const credit = positiveInt(creditId);
+    const text = cleanText(reason, 500);
+    if (text.length < 3 || text.length > 500) return { ok: false, error: t('admin.sales.ledger.reasonInvalid') };
+    const excluded = rep && credit ? await excludeListingCredit({ repId: rep, creditId: credit, reason: text, adminId: adminIdOf(session) }) : null;
+    if (!excluded) return { ok: false, error: t('admin.sales.launch.credits.notExcludable') };
+    await recordAudit(session, {
+      action: 'sales.listing_excluded', entityType: 'listing', entityId: excluded.property_id,
+      details: { repId: rep, agentId: excluded.agent_id, creditId: credit, reason: text },
+    });
+    await rerun(session);
+    refresh(rep);
+    return { ok: true, message: t('admin.sales.launch.credits.excluded') };
+  });
+}
+
+/**
+ * Attribute an agent to a rep by hand — a correction with evidence, or an
+ * agent referred offline. Reason 20–1000 characters; `creditFromDay` (Kinshasa
+ * "YYYY-MM-DD", optional, never in the future) moves the date from which their
+ * listings count.
+ */
+export async function overrideAttributionAction(agentId, toRepId, reason, evidence, creditFromDay) {
+  const t = await getT();
+  return guarded(t, async (session) => {
+    const agent = positiveInt(agentId);
+    const rep = positiveInt(toRepId);
+    const text = cleanText(reason, 1000);
+    const proof = cleanText(evidence, 1000);
+    if (!agent || !rep) return { ok: false, error: t('admin.sales.attribution.chooseRep') };
+    if (text.length < 20 || text.length > 1000) return { ok: false, error: t('admin.sales.attribution.reasonInvalid') };
+    if (proof.length > 1000) return { ok: false, error: t('admin.sales.attribution.evidenceInvalid') };
+    let creditFrom = null;
+    if (creditFromDay) {
+      if (String(creditFromDay) > todayInKinshasa()) return { ok: false, error: t('admin.sales.accounts.creditFuture') };
+      creditFrom = kinshasaDayStart(creditFromDay) || null;
+      if (!creditFrom) return { ok: false, error: t('admin.sales.accounts.creditInvalid') };
+    }
+    const result = await overrideAttribution({
+      agentId: agent, toRepId: rep, reason: text, evidence: proof || null, creditFrom, adminId: adminIdOf(session),
+    });
+    if (result.errorKey) return { ok: false, error: t(result.errorKey) };
+    await recordAudit(session, {
+      action: 'sales.attribution_override', entityType: 'agent', entityId: agent,
+      details: { fromRepId: result.fromRepId, toRepId: result.toRepId, reason: text, evidence: proof || null, creditFrom },
+    });
+    await rerun(session);
+    refresh(rep);
+    if (result.fromRepId) revalidatePath(`/admin/sales/${result.fromRepId}`);
+    revalidatePath(`/admin/agents/${agent}`);
+    revalidatePath('/admin/sales/attribution');
+    return { ok: true, message: t('admin.sales.attribution.saved') };
   });
 }

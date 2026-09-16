@@ -364,6 +364,55 @@ row. That is fine at 10 agents and a multi-megabyte page at 30,000.
   any other rep id is a 404.
 - The agent profile shows (and, for `sales.manage`, changes) the agent's rep.
 
+#### Launch commission policy (plan kind `launch_milestones`)
+
+`migrations/20260920_sales_launch_policy.sql`, `lib/launchCommission.js`
+(pure: tiers, deltas, quality test, referral codes, fortnights),
+`lib/salesLaunch.js` (SQL), `lib/salesReferral.js` (cookie, links, IP hash).
+A plan is now `kind` subscription (above) or launch_milestones; the
+subscription steps skip launch reps and vice versa.
+
+- **Attribution is permanent and written once**, at account creation, in
+  `sales_agent_attributions` (one row per agent, first valid referral wins):
+  web signup (`/r/<CODE>` sets `lukka_ref` for 30 days without replacing a
+  valid one → `/compte/agent/inscription?ref=` prefills the optional code
+  field) or WhatsApp onboarding (engine, root CLAUDE.md). Never backfilled;
+  existing agents are attributed only by an override with a 20+ character
+  reason (`sales_attribution_changes`). An unknown code on the web form is sent
+  back before the account exists; a failed lookup never blocks signup.
+  Refusals (unknown, inactive, self-referral, existing agent) land in
+  `sales_referral_refusals`. Every rep gets a code (JEAN01, from the first name
+  if left empty); a code that brought an agent in can no longer change.
+- **A confirmed listing is frozen in `sales_listing_credits` the first time the
+  run sees it**: public, price, commune, title + description, ≥3 photos, none of
+  the moderation queue's blocking flags, created after the attribution's
+  `credit_from`. No FK to `properties` (agents hard-delete). It keeps counting
+  while approved and either public or let/sold; rejected, deleted, archived or
+  excluded stops it. Duplicate detection is title+price, so identical units in
+  one building are not credited — deliberate, flagged here.
+- **Qualified** = verified number + a name + ≥3 counting credits + not
+  rejected; **payable** = qualified AND `validation_status = 'validated'`. Tiers
+  are computed from payable counts only.
+- **Ledger lines hold tier DELTAS** (`milestone` acq:<rep>:<n>, `listing_bonus`
+  add:<rep>:<n>, `quality` quality:<rep>), so a rep's lines always sum to the
+  cumulative tier and "pay only the difference" needs no arithmetic. A tier no
+  longer met voids unpaid lines (`auto:below_threshold`, revived if met again;
+  a person's void stands) and flags paid ones (`clawback_flagged_at`) — never a
+  negative line by query. Quality: once, ≥15 checked credits, ≥80% valid on day
+  30 (let/sold counts as valid).
+- **The run** is `syncSalesCommissions` (one transaction, `SET LOCAL
+  statement_timeout`), from the button, after every validation / exclusion /
+  override, and daily at 06:00 Kinshasa via the engine's `sales-commissions`
+  job → `POST /api/cron/sales-commissions` (Bearer CRON_SECRET).
+- **Pages**: the rep page gains the referral toolkit (code, link, server-drawn
+  QR SVG via `qrcode`, WhatsApp share, WhatsApp signup link), funnel, tiers,
+  referred agents (validate / reject / move) and credited listings (exclude);
+  the ledger gains a fortnight filter whose "pay" pays exactly that fortnight's
+  approved lines, and payout-method suggestions. `/admin/sales/attribution`
+  (`sales.manage`) lists refusals, overrides and patterns (3+ signups from one
+  hashed connection, listings before the referral, day-30 failures) — facts,
+  never automatic penalties. `/admin/sales/me` sends a rep to their page.
+
 ### "View as" an agent or a customer (impersonation)
 
 `lib/impersonationToken.js` (pure crypto + the edge decision),

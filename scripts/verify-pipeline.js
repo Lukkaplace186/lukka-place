@@ -6528,10 +6528,10 @@ console.log('\n2. services/openai.js');
     );
   });
 
-  check('the alert sweep, both speed-to-lead sweeps, the ops alert sweep and the analytics rollup are registered', () => {
+  check('the alert sweep, both speed-to-lead sweeps, the ops alert sweep, the analytics rollup and the commission run are registered', () => {
     const names = sched.JOBS.map((j) => j.name);
     assert.deepStrictEqual(names, [
-      'search-alerts', 'viewing-sla', 'viewing-checkin', 'ops-health-alerts', 'listing-stats-rollup',
+      'search-alerts', 'viewing-sla', 'viewing-checkin', 'ops-health-alerts', 'listing-stats-rollup', 'sales-commissions',
     ]);
   });
 
@@ -8149,6 +8149,161 @@ console.log('\n2. services/openai.js');
   propertyRepo.getListingContactById = hubListingBefore;
   if (hubOpsBefore === undefined) delete process.env.OPS_WHATSAPP_NUMBER;
   else process.env.OPS_WHATSAPP_NUMBER = hubOpsBefore;
+
+  // ===========================================================================
+  console.log('\n34. Sales-rep referral codes on WhatsApp (launch commission policy)');
+  // ===========================================================================
+  //
+  // A rep's wa.me link pre-types "… Code parrainage : JEAN01". The code is
+  // recognised without the model, remembered per sender (first valid code
+  // wins), and becomes the permanent attribution only when WhatsApp onboarding
+  // creates a NEW account. Nothing here may swallow a listing.
+  const salesReferral = require('../services/salesReferral');
+  const referralTemplate = 'Bonjour Lukka Place, je suis agent immobilier et je souhaite publier mes biens. Code parrainage : JEAN01';
+
+  check('the rep link message is recognised, in any case and spacing', () => {
+    assert.strictEqual(salesReferral.extractReferralCode(referralTemplate), 'JEAN01');
+    assert.strictEqual(salesReferral.extractReferralCode('code de parrainage: jean 01'), 'JEAN01');
+    assert.strictEqual(salesReferral.extractReferralCode('Mon parrain JEAN01'), 'JEAN01');
+  });
+
+  check('a listing reference or a price is never read as a referral code', () => {
+    assert.strictEqual(salesReferral.extractReferralCode('Appartement Gombe 1200$ Réf: LKP-2026-0091'), null);
+    assert.strictEqual(salesReferral.extractReferralCode('Ref JEAN01 villa 3 chambres'), null, 'only the parrainage wording counts');
+    assert.strictEqual(salesReferral.extractReferralCode('code parrainage LUKKA-JEAN'), null);
+    assert.strictEqual(salesReferral.extractReferralCode(''), null);
+  });
+
+  check('only the bare greeting + code is answered; a code inside an advert falls through', () => {
+    assert.strictEqual(salesReferral.isReferralOnlyMessage(referralTemplate), true);
+    assert.strictEqual(
+      salesReferral.isReferralOnlyMessage('Villa 4 chambres à Ngaliema, 2500$/mois. Code parrainage JEAN01'),
+      false,
+    );
+  });
+
+  check('the code is stripped from a name reply so it never becomes the agency name', () => {
+    const stripped = salesReferral.stripReferralPhrase('Jean Kabeya, Agence Horizon, code parrainage JEAN01');
+    assert.strictEqual(stripped, 'Jean Kabeya, Agence Horizon');
+    assert.deepStrictEqual(
+      require('../services/agentOnboarding').parseNameReply(stripped),
+      { fullName: 'Jean Kabeya', agencyName: 'Agence Horizon' },
+    );
+  });
+
+  const REFERRED = '243899000134';
+  await checkAsync('without Postgres the code is remembered, nothing is sent, and processing continues', async () => {
+    const sendsBefore = httpCalls.length;
+    const outcome = await salesReferral.handleReferralMessage({ from: REFERRED, text: referralTemplate, canReply: true });
+    assert.strictEqual(outcome.handled, false);
+    assert.strictEqual(dbService.getReferralCapture(REFERRED).referral_code, 'JEAN01');
+    assert.strictEqual(httpCalls.length, sendsBefore);
+  });
+
+  check('the first code a sender gives is kept', () => {
+    assert.strictEqual(dbService.recordReferralCapture(REFERRED, 'MARIE02').referral_code, 'JEAN01');
+  });
+
+  function fakeSalesClient(answers) {
+    const seen = [];
+    return {
+      seen,
+      async query(text, values) {
+        const sql = String(text).replace(/\s+/g, ' ').trim();
+        seen.push({ sql, values });
+        const answer = answers.find(([pattern]) => sql.includes(pattern));
+        if (answer && answer[1] instanceof Error) throw answer[1];
+        const rows = answer ? answer[1] : [];
+        return { rows, rowCount: rows.length };
+      },
+    };
+  }
+
+  await checkAsync('a new account from a referred number is attributed and mirrored as the rep assignment', async () => {
+    const client = fakeSalesClient([
+      ['FROM sales_reps WHERE referral_code', [{ id: 7, phone: '243810000999', status: 'active' }]],
+      ['INSERT INTO sales_agent_attributions', [{ agent_id: 501 }]],
+    ]);
+    const result = await salesReferral.attributeNewAgentInTransaction(client, { agentId: 501, waId: REFERRED });
+    assert.deepStrictEqual(result, { attributed: true, repId: 7 });
+    const insert = client.seen.find((q) => q.sql.startsWith('INSERT INTO sales_agent_attributions'));
+    assert.ok(insert.sql.includes("'whatsapp_code'") && insert.sql.includes('ON CONFLICT (agent_id) DO NOTHING'));
+    assert.deepStrictEqual(insert.values, [501, 7, 'JEAN01']);
+    assert.ok(client.seen.some((q) => q.sql.startsWith('INSERT INTO sales_account_assignments')));
+    assert.strictEqual(client.seen[0].sql, 'SAVEPOINT sales_referral');
+    assert.strictEqual(client.seen[client.seen.length - 1].sql, 'RELEASE SAVEPOINT sales_referral');
+  });
+
+  await checkAsync('a rep using their own code is refused and recorded, not credited', async () => {
+    const client = fakeSalesClient([
+      ['FROM sales_reps WHERE referral_code', [{ id: 7, phone: REFERRED, status: 'active' }]],
+    ]);
+    const result = await salesReferral.attributeNewAgentInTransaction(client, { agentId: 502, waId: REFERRED });
+    assert.deepStrictEqual(result, { attributed: false, reason: 'self_referral' });
+    assert.ok(!client.seen.some((q) => q.sql.startsWith('INSERT INTO sales_agent_attributions')));
+    const refusal = client.seen.find((q) => q.sql.startsWith('INSERT INTO sales_referral_refusals'));
+    assert.deepStrictEqual(refusal.values, [7, 'JEAN01', 502, 'self_referral']);
+  });
+
+  await checkAsync('a failing attribution rolls back to its savepoint and never costs the agent their account', async () => {
+    const client = fakeSalesClient([['FROM sales_reps WHERE referral_code', new Error('relation "sales_reps" does not exist')]]);
+    const result = await salesReferral.attributeNewAgentInTransaction(client, { agentId: 503, waId: REFERRED });
+    assert.deepStrictEqual(result, { attributed: false, reason: 'error' });
+    assert.strictEqual(client.seen[client.seen.length - 1].sql, 'ROLLBACK TO SAVEPOINT sales_referral');
+  });
+
+  await checkAsync('a sender with no remembered code is left alone', async () => {
+    const client = fakeSalesClient([]);
+    const result = await salesReferral.attributeNewAgentInTransaction(client, { agentId: 504, waId: '243899000777' });
+    assert.deepStrictEqual(result, { attributed: false, reason: 'no_code' });
+    assert.strictEqual(client.seen.length, 0);
+  });
+
+  check('the webhook checks for a referral code before the quick replies and the model', () => {
+    const webhookSource = fs.readFileSync(path.join(__dirname, '..', 'routes', 'webhook.js'), 'utf8');
+    const referralAt = webhookSource.indexOf('salesReferral.handleReferralMessage(');
+    assert.ok(referralAt > 0);
+    assert.ok(referralAt < webhookSource.indexOf('const quick = matchQuickReply(text)'));
+    assert.ok(referralAt < webhookSource.indexOf('await parseMessage(text'));
+  });
+
+  check('the daily commission run fires in the Kinshasa hour, once', () => {
+    const salesSched = require('../services/scheduler');
+    assert.strictEqual(salesSched.SALES_JOB_NAME, 'sales-commissions');
+    const hourUtc = (salesSched.SALES_HOUR_KINSHASA + 23) % 24;
+    const inHour = new Date(Date.UTC(2026, 8, 20, hourUtc, 15));
+    const outOfHour = new Date(Date.UTC(2026, 8, 20, (hourUtc + 2) % 24, 15));
+    dbService.db.prepare('DELETE FROM job_runs WHERE name = ?').run('sales-commissions');
+    assert.strictEqual(salesSched.salesCommissionsDue(outOfHour), false);
+    assert.strictEqual(salesSched.salesCommissionsDue(inHour), true);
+    dbService.recordJobRun('sales-commissions', { ok: true, detail: '{}' });
+    assert.strictEqual(salesSched.salesCommissionsDue(inHour), false, 'a run inside the gap is skipped');
+  });
+
+  await checkAsync('the commission run calls the web endpoint with the cron secret and surfaces a failure', async () => {
+    const salesSched = require('../services/scheduler');
+    const secretBefore = process.env.CRON_SECRET;
+    process.env.CRON_SECRET = 'verify-secret';
+    try {
+      const requests = [];
+      const ok = await salesSched.runSalesCommissions({
+        fetchImpl: async (url, init) => {
+          requests.push({ url, init });
+          return { ok: true, status: 200, json: async () => ({ ok: true, milestoneLines: 2 }) };
+        },
+      });
+      assert.strictEqual(ok.milestoneLines, 2);
+      assert.ok(requests[0].url.endsWith('/api/cron/sales-commissions'));
+      assert.strictEqual(requests[0].init.headers.Authorization, 'Bearer verify-secret');
+      await assert.rejects(
+        () => salesSched.runSalesCommissions({ fetchImpl: async () => ({ ok: false, status: 500, json: async () => ({ ok: false, error: 'boom' }) }) }),
+        /returned 500/,
+      );
+    } finally {
+      if (secretBefore === undefined) delete process.env.CRON_SECRET;
+      else process.env.CRON_SECRET = secretBefore;
+    }
+  });
 
   // -------------------------------------------------------------------------
   console.log(`\n${'-'.repeat(60)}`);

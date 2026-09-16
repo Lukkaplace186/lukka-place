@@ -50,6 +50,7 @@ const crypto = require('crypto');
 const db = require('./db');
 const chakra = require('./chakra');
 const { getPool, isConfigured } = require('./postgres');
+const salesReferral = require('./salesReferral');
 
 const SITE_URL = (process.env.PUBLIC_SITE_URL || 'https://lukkaplace.com').replace(/\/+$/, '');
 
@@ -331,6 +332,13 @@ async function upsertAgentFromWhatsApp({ waId, fullName, agencyName }) {
       }
     }
 
+    // A sales rep's referral code sent earlier from this number becomes the
+    // permanent attribution — only for an account created right here, never
+    // for one that already existed (services/salesReferral.js).
+    if (created) {
+      await salesReferral.attributeNewAgentInTransaction(client, { agentId: Number(agentId), waId: digits });
+    }
+
     await client.query('COMMIT');
     return { agentId: Number(agentId), token, created };
   } catch (err) {
@@ -497,7 +505,9 @@ function startOnboarding(waId, listing, photoCount) {
  * @returns {Promise<{handled: boolean, reason?: string}>}
  */
 async function completeOnboarding(waId, text, { pendingListingId = null } = {}) {
-  const parsed = parseNameReply(text);
+  // "Jean Kabeya, Agence Horizon, code parrainage JEAN01": the code was already
+  // captured by the webhook; it is not part of the agency's name.
+  const parsed = parseNameReply(salesReferral.stripReferralPhrase(text));
   if (!parsed) return { handled: false, reason: 'unparseable' };
 
   let agentId;

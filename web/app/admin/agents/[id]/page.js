@@ -21,6 +21,8 @@ import AgentAdminPanel from './AgentAdminPanel';
 import AgentRepControl from './AgentRepControl';
 import ImpersonateButton from '../../ImpersonateButton';
 import { getAgentSalesAssignment, listActiveRepOptions } from '@/lib/sales';
+import { getAgentAttribution } from '@/lib/salesLaunch';
+import AttributionDialog from '../../sales/AttributionDialog';
 
 /** Today on the Kinshasa calendar (UTC+1), for date inputs. */
 function kinshasaToday() {
@@ -78,9 +80,10 @@ export default async function AdminAgentDetailPage({ params, searchParams }) {
   const session = await getAdminSession();
   const base = `/admin/agents/${agent.id}`;
   const canManageSales = can(session?.role, 'sales.manage');
-  const [salesAssignment, repOptions] = await Promise.all([
+  const [salesAssignment, repOptions, attribution] = await Promise.all([
     getAgentSalesAssignment(agent.id).catch(() => null),
     canManageSales ? listActiveRepOptions().catch(() => []) : Promise.resolve([]),
+    can(session?.role, 'sales.view') ? getAgentAttribution(agent.id).catch(() => null) : Promise.resolve(null),
   ]);
 
   const displayName =
@@ -316,6 +319,27 @@ export default async function AdminAgentDetailPage({ params, searchParams }) {
               assignment={salesAssignment ? { repId: salesAssignment.rep_id, repName: salesAssignment.rep_name, since: formatKinshasa(salesAssignment.credit_from) } : null}
               reps={repOptions}
               canManage={canManageSales}
+              today={kinshasaToday()}
+            />
+          ) : null}
+          {attribution ? (
+            <span className="u-micro inline-flex flex-wrap items-center gap-1.5 rounded-md border border-line bg-surface px-2.5 py-1 text-ink-70">
+              {t('admin.sales.attribution.referredBy')}{' '}
+              <Link href={`/admin/sales/${attribution.rep_id}`} className="font-semibold text-blue-deep hover:underline">{attribution.rep_name}</Link>
+              <span className="text-ink-45">
+                · {t(`admin.sales.launch.source.${attribution.source}`)}
+                {attribution.referral_code ? ` · ${attribution.referral_code}` : ''}
+                {' · '}{t(`admin.sales.launch.validation.${attribution.validation_status}`)}
+              </span>
+            </span>
+          ) : null}
+          {canManageSales ? (
+            <AttributionDialog
+              agentId={agent.id}
+              agentLabel={displayName}
+              currentRepId={attribution?.rep_id ?? null}
+              currentRepName={attribution?.rep_name ?? null}
+              reps={repOptions}
               today={kinshasaToday()}
             />
           ) : null}

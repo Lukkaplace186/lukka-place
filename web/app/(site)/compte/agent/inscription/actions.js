@@ -1,7 +1,11 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { cookies, headers } from 'next/headers';
 import { phoneFromForm } from '@/lib/phone';
+import { normaliseReferralCode } from '@/lib/launchCommission';
+import { attributeNewAgent, checkReferralForSignup, recordReferralRefusal } from '@/lib/salesLaunch';
+import { REFERRAL_COOKIE, clientIpFrom, hashReferralIp, parseReferralCookie } from '@/lib/salesReferral';
 import { getAgentByPhone, createAgent, sendAgentOtp, consumeAgentOtp } from '@/lib/agents';
 import { updateAgentIdentity } from '@/lib/agencies';
 import { hashPassword } from '@/lib/agentAuth';
@@ -42,9 +46,32 @@ export async function agentSignupAction(formData) {
     redirect(`/compte/agent/inscription?error=password&next=${encodeURIComponent(next)}`);
   }
 
+  const typedReferral = String(formData.get('referral_code') || '').trim().slice(0, 40);
+
   const existing = await getAgentByPhone(phone);
   if (existing) {
+    if (typedReferral) {
+      await recordReferralRefusal({ code: typedReferral, agentId: Number(existing.id) || null, channel: 'web', reason: 'existing_agent' });
+    }
     redirect(`/compte/agent/inscription?error=exists&next=${encodeURIComponent(next)}`);
+  }
+
+  // The optional referral code (lib/salesLaunch.js, launch commission policy).
+  // An unknown code is sent back BEFORE the account exists, so the agent can
+  // correct it or clear the field; a lookup that fails never blocks signup.
+  let referral = null;
+  if (typedReferral) {
+    let check = null;
+    try {
+      check = await checkReferralForSignup({ code: typedReferral, phoneDigits: phone });
+    } catch (err) {
+      console.error(`[agent-auth] referral check failed, signing up without it: ${err.message}`);
+    }
+    if (check && !check.ok && check.reason !== 'self_referral') {
+      await recordReferralRefusal({ repId: check.rep?.id ?? null, code: typedReferral, channel: 'web', reason: check.reason });
+      redirect(`/compte/agent/inscription?error=ref&next=${encodeURIComponent(next)}`);
+    }
+    referral = check;
   }
 
   const agent = await createAgent({ phone, passwordHash: hashPassword(password) });
@@ -61,6 +88,26 @@ export async function agentSignupAction(formData) {
     // A name that fails to save must not cost the agent their account — the
     // row already exists and the name is editable later in Paramètres.
     console.error(`[agent-auth] could not store name for agent #${agent.id}: ${err.message}`);
+  }
+
+  if (referral?.ok) {
+    try {
+      const cookieStore = await cookies();
+      const remembered = parseReferralCookie(cookieStore.get(REFERRAL_COOKIE)?.value);
+      const code = normaliseReferralCode(typedReferral);
+      await attributeNewAgent({
+        agentId: agent.id,
+        repId: referral.rep.id,
+        code,
+        source: remembered?.code === code ? remembered.source : 'form_code',
+        ipHash: hashReferralIp(clientIpFrom(await headers())),
+      });
+    } catch (err) {
+      // The account is theirs either way; management can attribute it by override.
+      console.error(`[agent-auth] referral attribution failed for agent #${agent.id}: ${err.message}`);
+    }
+  } else if (referral?.reason === 'self_referral') {
+    await recordReferralRefusal({ repId: referral.rep?.id ?? null, code: typedReferral, agentId: Number(agent.id), channel: 'web', reason: 'self_referral' });
   }
 
   // Testing mode: no code, straight to a session. consumeAgentOtp is reused

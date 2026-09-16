@@ -68,11 +68,25 @@ export default function RepDialog({ rep = null, plans, accounts }) {
               </label>
             </div>
             <label className="flex flex-col gap-1">
+              <span className="u-micro-strong text-ink">{t('admin.sales.reps.referralCode')}</span>
+              <input
+                name="referral_code"
+                maxLength={20}
+                defaultValue={rep?.referral_code || ''}
+                placeholder="JEAN01"
+                autoCapitalize="characters"
+                className={`${INPUT} uppercase`}
+              />
+              <span className="u-micro text-ink-45">{t(rep ? 'admin.sales.reps.referralCodeEditHint' : 'admin.sales.reps.referralCodeHint')}</span>
+            </label>
+            <label className="flex flex-col gap-1">
               <span className="u-micro-strong text-ink">{t('admin.sales.reps.plan')}</span>
               <select name="plan_id" defaultValue={rep?.plan_id ? String(rep.plan_id) : ''} className={INPUT}>
                 <option value="">{t('admin.sales.reps.noPlan')}</option>
                 {plans.map((plan) => (
-                  <option key={plan.id} value={plan.id}>{plan.name}{plan.active ? '' : ` (${t('admin.sales.plans.inactive')})`}</option>
+                  <option key={plan.id} value={plan.id}>
+                    {plan.name} · {t(`admin.sales.plans.kind.${plan.kind || 'subscription'}`)}{plan.active ? '' : ` (${t('admin.sales.plans.inactive')})`}
+                  </option>
                 ))}
               </select>
             </label>

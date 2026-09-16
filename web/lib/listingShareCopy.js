@@ -75,23 +75,6 @@ export function agentContactPhone(listing) {
   return formatPhoneDisplay(String(listing.agent_phone_raw || '').trim()) || null;
 }
 
-/**
- * The flyer's one-line detail row: "Appartement • 24 Novembre, Lingwala •
- * 2 ch • 2 sdb". Abbreviated because it is set at 30px across a 1080px card
- * where the full words wrap; the caption keeps the long forms.
- */
-export function compactSpecs(listing) {
-  const specs = [];
-  const beds = Number(listing.beds);
-  if (beds > 0) specs.push(`${beds} ch`);
-  const bath = Number(listing.bath);
-  if (bath > 0) specs.push(`${bath} sdb`);
-  if (hasArea(listing.area)) specs.push(`${listing.area} m²`);
-  const units = Number(listing.units_count);
-  if (listing.units_count != null && units > 0) specs.push(`${units} portes`);
-  return specs;
-}
-
 /** "2 chambres", "1 salle de bain", "120 m²", "6 portes" — only counts that are real. */
 export function roomSpecs(listing) {
   const specs = [];

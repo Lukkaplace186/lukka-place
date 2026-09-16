@@ -927,12 +927,15 @@ namespace; the two i18n tests above exist because of that.
     that is what makes it worth something to the agents who earn it. Gold is
     `#f59e0b` with INK text and check, not white: white on that gold is 2.1:1,
     under even the 3:1 bar for a graphic.
-  - The photo seams are 2px of the white ground showing through (`GAP`), the
-    "Lukka Place" watermark sits on the main photo at 0.6 opacity so the brand
-    survives a crop, and the facts are one bullet line
-    ("Appartement • 24 Novembre, Lingwala • 2 ch • 2 sdb" — `compactSpecs`,
-    abbreviated because the long words wrap at this width; the caption keeps
-    the full ones). The WhatsApp glyph beside the phone is the same hand-rolled
+  - The photo seams are 6px of the white ground showing through (`GAP`; 2px
+    read as a hairline at Status size). Under the price are two lines,
+    "Appartement • 24 Novembre, Lingwala" then "2 chambres • 2 salles de bain"
+    (`roomSpecs`, full words — the abbreviated one-line `compactSpecs` and the
+    0.6-opacity photo watermark were both removed 2026-09-16 on product
+    direction). The Lukka Place mark is the white roofline
+    (`public/brand/icon-dark.png`, `loadPlatformMark`) set above the
+    "Lukka Place lukkaplace.com" text — roof over name is the real lockup, and
+    the full wordmark PNG would print the name twice. The WhatsApp glyph beside the phone is the same hand-rolled
     path `WhatsAppCTA.js` carries (lucide ships no brand marks), drawn as an
     `<img>` data URI because a missing glyph in the loaded face would render
     as a blank box.

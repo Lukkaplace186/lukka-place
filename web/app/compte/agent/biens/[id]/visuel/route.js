@@ -6,15 +6,17 @@ import {
   loadFlyerPhotos,
   loadFlyerFonts,
   loadAgentBrand,
+  loadPlatformMark,
+  PLATFORM_MARK_ASPECT,
 } from '@/lib/listingFlyer';
-import { shareBlocker, compactSpecs } from '@/lib/listingShareCopy';
+import { shareBlocker, roomSpecs } from '@/lib/listingShareCopy';
 import { formatPriceParts } from '@/lib/format';
 
 /**
  * GET /compte/agent/biens/:id/visuel — the agent's 1080×1080 social graphic
- * for one of their own listings: up to three real photos, price, one bullet
- * line of facts, and the agent's own brand block beside the Lukka Place
- * wordmark.
+ * for one of their own listings: up to three real photos, then three lines —
+ * price, type • place, rooms — and the agent's own brand block beside the
+ * Lukka Place mark.
  *
  * Square because WhatsApp Status, Instagram and Facebook groups all crop to
  * it well. Rendered on demand rather than stored: the price or photos change,
@@ -39,11 +41,13 @@ const ROYAL = '#1e3aa8';
 const ROYAL_DEEP = '#16307e';
 const INK = '#0b1120';
 const GOLD = '#f59e0b';
-// 2px of white between photos — the crisp editorial seam, and the reason the
-// photo band sits on a white ground rather than the blue one.
-const GAP = 2;
+// 6px of white between photos — the editorial seam, and the reason the photo
+// band sits on a white ground rather than the blue one. It was 2px, which read
+// as a hairline at WhatsApp Status size.
+const GAP = 6;
 const SIZE = 1080;
 const PHOTO_HEIGHT = 640;
+const MARK_WIDTH = 150;
 
 /**
  * Two marks satori can draw: it renders `<img>` from a data URI reliably,
@@ -78,17 +82,21 @@ export async function GET(request, { params }) {
   const blocker = shareBlocker(listing);
   if (blocker) return Response.json({ error: blocker }, { status: 409 });
 
-  const [photos, fonts, brand] = await Promise.all([
+  const [photos, fonts, brand, mark] = await Promise.all([
     loadFlyerPhotos(listing),
     loadFlyerFonts(),
     loadAgentBrand(listing),
+    loadPlatformMark(),
   ]);
 
   const { amount, period } = formatPriceParts(listing.price, listing.purpose, listing.price_period);
   const purposeLabel = listing.purpose === 'sale' ? 'À VENDRE' : listing.purpose === 'rent' ? 'À LOUER' : null;
   const place = [listing.quartier, listing.commune].filter(Boolean).join(', ');
-  // "Appartement • 24 Novembre, Lingwala • 2 ch • 2 sdb"
-  const facts = [frenchTypeText(listing), place, ...compactSpecs(listing)].filter(Boolean).join('  •  ');
+  // Two lines under the price, not one: "Appartement • 24 Novembre, Lingwala"
+  // then "2 chambres • 2 salles de bain". With its own line the rooms keep
+  // their full words — abbreviating was only ever a fix for one crowded line.
+  const facts = [frenchTypeText(listing), place].filter(Boolean).join('  •  ');
+  const rooms = roomSpecs(listing).join('  •  ');
   const hasBrand = Boolean(brand.logo || brand.initials);
 
   const download = new URL(request.url).searchParams.get('download') === '1';
@@ -109,17 +117,6 @@ export async function GET(request, { params }) {
               {purposeLabel}
             </div>
           ) : null}
-          {/* Watermark on the photo itself, so the brand survives a crop or a
-              re-share that keeps only the image. */}
-          <div
-            style={{
-              position: 'absolute', bottom: 26, left: 36, display: 'flex',
-              fontSize: 30, fontWeight: 800, color: 'rgba(255,255,255,0.6)',
-              textShadow: '0 2px 10px rgba(11,17,32,0.55)',
-            }}
-          >
-            Lukka Place
-          </div>
         </div>
 
         <div style={{ display: 'flex', flex: 1, padding: '38px 48px', gap: 36 }}>
@@ -130,14 +127,27 @@ export async function GET(request, { params }) {
                 {period ? <span style={{ fontSize: 34, fontWeight: 500, marginLeft: 14, color: 'rgba(255,255,255,0.78)' }}>{period}</span> : null}
               </div>
               {facts ? (
-                <div style={{ display: 'flex', marginTop: 16, fontSize: 26, fontWeight: 500, lineHeight: 1.35, color: 'rgba(255,255,255,0.92)' }}>
+                <div style={{ display: 'flex', marginTop: 18, fontSize: 31, fontWeight: 500, lineHeight: 1.25, color: '#ffffff' }}>
                   {facts}
                 </div>
               ) : null}
+              {rooms ? (
+                <div style={{ display: 'flex', marginTop: 10, fontSize: 26, fontWeight: 500, lineHeight: 1.25, color: 'rgba(255,255,255,0.8)' }}>
+                  {rooms}
+                </div>
+              ) : null}
             </div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
-              <span style={{ fontSize: 38, fontWeight: 800, color: '#ffffff' }}>Lukka Place</span>
-              <span style={{ fontSize: 25, fontWeight: 500, color: '#ffffff' }}>• lukkaplace.com</span>
+            {/* The roofline over the name is the real logo lockup; the white
+                cut is the one that survives royal blue. */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+              {mark ? (
+                // eslint-disable-next-line @next/next/no-img-element, jsx-a11y/alt-text
+                <img src={mark} width={MARK_WIDTH} height={MARK_WIDTH / PLATFORM_MARK_ASPECT} style={{ width: MARK_WIDTH, height: MARK_WIDTH / PLATFORM_MARK_ASPECT, marginBottom: 6, marginLeft: 35 }} />
+              ) : null}
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
+                <span style={{ fontSize: 38, fontWeight: 800, color: '#ffffff' }}>Lukka Place</span>
+                <span style={{ fontSize: 25, fontWeight: 500, color: 'rgba(255,255,255,0.85)' }}>lukkaplace.com</span>
+              </div>
             </div>
           </div>
 

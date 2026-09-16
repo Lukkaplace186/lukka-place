@@ -1,4 +1,6 @@
 import 'server-only';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import { getPool } from './db';
 import { listingImages, typeLabel, usableImageSrc } from './listingView';
 import { NO_PHOTO_URL, SITE_URL } from './constants';
@@ -212,6 +214,37 @@ export async function loadAgentBrand(listing) {
   }
 
   return { logo, name, initials, phone, badge };
+}
+
+// ---------------------------------------------------------------------------
+// The Lukka Place mark
+// ---------------------------------------------------------------------------
+
+/**
+ * The roofline chevron from the supplied logo, in its white cut
+ * (public/brand/icon-dark.png, 846×423, alpha-transparent — see
+ * components/Brand.js). The flyer sets it above the "Lukka Place" wordmark
+ * text, which rebuilds the real lockup (roof over name) without printing the
+ * name twice, as the full wordmark PNG would. The coloured cut is not used: its
+ * blue disappears on the royal blue card.
+ *
+ * Read from disk once per process. A missing file resolves to null and the
+ * footer renders as text alone.
+ */
+export const PLATFORM_MARK_ASPECT = 846 / 423;
+let platformMarkPromise = null;
+
+export function loadPlatformMark() {
+  if (!platformMarkPromise) {
+    platformMarkPromise = readFile(path.join(process.cwd(), 'public/brand/icon-dark.png'))
+      .then((buffer) => `data:image/png;base64,${buffer.toString('base64')}`)
+      .catch((err) => {
+        console.error(`[flyer] platform mark unreadable: ${err.message}`);
+        platformMarkPromise = null;
+        return null;
+      });
+  }
+  return platformMarkPromise;
 }
 
 // ---------------------------------------------------------------------------

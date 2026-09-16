@@ -8,7 +8,6 @@ import { formatPrice } from '@/lib/format';
 import {
   agentContactPhone,
   buildListingSocialCopy,
-  compactSpecs,
   roomSpecs,
   shareBlocker,
   listingPublicUrl,
@@ -82,12 +81,6 @@ test('the caption carries the agent contact only when the listing page would pub
   }
 });
 
-test('the flyer detail row abbreviates rooms; the caption keeps the long words', () => {
-  assert.deepEqual(compactSpecs(LISTING), ['2 ch', '1 sdb', '120 m²']);
-  assert.deepEqual(roomSpecs(LISTING), ['2 chambres', '1 salle de bain', '120 m²']);
-  assert.deepEqual(compactSpecs({ beds: 0, bath: null, area: '0', units_count: 6 }), ['6 portes']);
-});
-
 test('social copy never sums the entry costs into one "Garantie" figure', () => {
   const copy = buildListingSocialCopy(LISTING, { typeText: 'Appartement' });
   assert.doesNotMatch(copy, /Garantie : 5 mois/);
@@ -159,12 +152,17 @@ test('the gold badge is only ever drawn for a reviewed agent, never as decoratio
   assert.match(route, /const GOLD = '#f59e0b'/);
 });
 
-test('the flyer seams are 2px of white, and the watermark rides on the photo', () => {
+test('the flyer seams are 6px of white, the Lukka Place mark sits in the footer, not on the photo', () => {
   const route = readFileSync(path.join(process.cwd(), 'app/compte/agent/biens/[id]/visuel/route.js'), 'utf8');
-  assert.match(route, /const GAP = 2;/);
-  // White behind the photo band is what the 2px gaps actually show.
+  assert.match(route, /const GAP = 6;/);
+  // White behind the photo band is what the gaps actually show.
   assert.match(route, /height: PHOTO_HEIGHT, background: '#ffffff'/);
-  assert.match(route, /rgba\(255,255,255,0\.6\)/);
+  assert.doesNotMatch(route, /rgba\(255,255,255,0\.6\)/, 'the photo watermark was removed');
+  assert.match(route, /loadPlatformMark\(\)/);
+  // Rooms get their own line in full words.
+  assert.match(route, /const rooms = roomSpecs\(listing\)/);
+  const lib = readFileSync(path.join(process.cwd(), 'lib/listingFlyer.js'), 'utf8');
+  assert.match(lib, /public\/brand\/icon-dark\.png/);
 });
 
 test('the flyer prints an agent phone only under the public listing rule, and never invents a logo', () => {

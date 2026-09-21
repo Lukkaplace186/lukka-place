@@ -7,8 +7,10 @@ import { recordAudit } from '@/lib/adminAudit';
 import {
   createPackage,
   updatePackage,
+  deletePackage,
   assignPackageToAgent,
   resolvePlanChangeRequest,
+  readPhotoAllowance,
   PACKAGE_TERMS,
 } from '@/lib/subscriptions';
 
@@ -25,7 +27,10 @@ function readPackageForm(formData) {
   if (!Number.isFinite(price) || price < 0) throw new Error('Indiquez un prix valide.');
   if (!PACKAGE_TERMS.includes(term)) throw new Error(`term must be one of: ${PACKAGE_TERMS.join(', ')}`);
 
-  return { title, price, term, numberOfProperty, isTrial, trialDays };
+  return {
+    title, price, term, numberOfProperty, isTrial, trialDays,
+    ...readPhotoAllowance(formData.get('photo_sessions_per_month'), formData.get('photo_discount_pct')),
+  };
 }
 
 function revalidateBilling() {
@@ -49,6 +54,35 @@ export async function updatePackageAction(packageId, formData) {
   await updatePackage(packageId, pkg);
   await recordAudit(session, { action: 'package.update', entityType: 'package', entityId: packageId, details: pkg });
   revalidateBilling();
+}
+
+/**
+ * "Supprimer le forfait". lib/subscriptions.js deletePackage moves agencies on
+ * an active membership to the Free plan first, then soft-deletes a package
+ * with history or deletes one nobody ever held. Returns a result for the
+ * dialog rather than throwing, so a refusal reads as a message.
+ */
+export async function deletePackageAction(packageId) {
+  const session = await requireAdmin('billing.manage');
+  const result = await deletePackage(packageId);
+  if (!result.ok) {
+    const error = {
+      not_found: 'Ce forfait n’existe plus.',
+      is_default: 'Le forfait Free ne peut pas être supprimé : c’est vers lui que les agences sont réaffectées.',
+      no_default: 'Des agences ont un abonnement actif sur ce forfait et aucun forfait Free actif n’existe pour les y réaffecter.',
+    }[result.reason];
+    return { ok: false, error: error || 'La suppression a échoué.' };
+  }
+  await recordAudit(session, { action: 'package.delete', entityType: 'package', entityId: Number(packageId), details: result });
+  revalidateBilling();
+  revalidatePath('/compte/agent/abonnement');
+  const moved = result.moved ? ` ${result.moved} agence(s) basculée(s) sur Free.` : '';
+  return {
+    ok: true,
+    message: result.mode === 'deleted'
+      ? `Forfait supprimé.${moved}`
+      : `Forfait supprimé (conservé dans l’historique de facturation).${moved}`,
+  };
 }
 
 /**

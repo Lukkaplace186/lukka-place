@@ -24,7 +24,7 @@ import { sendOtpViaWhatsApp, otpFallbackText } from './otpDelivery';
 
 const AGENT_FIELDS = `
   a.id, a.username, a.email, a.phone, a.status, a.vendor_id, a.image, a.primary_communes,
-  a.working_hours, a.phone_verified_at,
+  a.working_hours, a.phone_verified_at, a.agency_name,
   -- Document-reviewed tier (migrations/20260917_agent_verification.sql):
   -- what the green public badge means. Not phone_verified_at. Through jsonb so
   -- the agent directory, profiles and the agent dashboard keep working (as
@@ -35,6 +35,7 @@ const AGENT_FIELDS = `
   ai.first_name, ai.last_name, ai.address, ai.city,
   p.title AS package_title, p.number_of_property AS listing_limit, p.term AS package_term,
   p.monthly_pitch_limit,
+  p.photo_sessions_per_month AS package_photo_sessions, p.photo_discount_pct AS package_photo_discount,
   m.expire_date, m.is_trial AS subscription_is_trial,
   (SELECT count(*) FROM properties WHERE agent_id = a.id)::int AS listing_count,
   (SELECT count(*) FROM properties

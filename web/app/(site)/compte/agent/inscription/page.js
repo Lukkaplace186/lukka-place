@@ -25,6 +25,7 @@ export async function generateMetadata() {
 // lookup below resolves the key at render.
 const ERROR_MESSAGE_KEYS = {
   name: 'auth.errors.nameRequired',
+  agency: 'auth.errors.agencyNameRequired',
   phone: 'auth.errors.phoneInvalid',
   password: 'auth.errors.passwordMin8',
   exists: 'auth.errors.accountExists',
@@ -76,18 +77,39 @@ export default async function AgentSignupPage({ searchParams }) {
         <form action={agentSignupAction} className="mt-6 flex flex-col gap-3">
           <input type="hidden" name="next" value={next} />
 
+          {/* Two fields, not one "Nom complet": the agency or trade name is the
+              public heading (agents.agency_name — the column the WhatsApp
+              onboarding already fills), the person is who customers speak to
+              (agent_infos first/last name). */}
           <div>
-            <label htmlFor="full_name" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
-              {t('account.profile.fullName')}
+            <label htmlFor="agency_name" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
+              {t('auth.signup.agencyName')}
             </label>
             <input
-              id="full_name"
+              id="agency_name"
               type="text"
-              name="full_name"
+              name="agency_name"
               autoComplete="organization"
               placeholder="Ex. Espace Kin Immobilier"
               autoFocus
               required
+              maxLength={160}
+              className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="contact_name" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
+              {t('auth.signup.contactName')}
+            </label>
+            <input
+              id="contact_name"
+              type="text"
+              name="contact_name"
+              autoComplete="name"
+              placeholder="Ex. Jean Dupont"
+              required
+              maxLength={160}
               className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
             />
           </div>

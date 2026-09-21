@@ -201,14 +201,15 @@ for (const [name, run] of READ_PATHS) {
     assert.match(sql, /AS agency_name/, `${name} must still return an agency_name column`);
   });
 
-  test(`${name} resolves the agency name through agent_infos, first_name first`, async () => {
+  test(`${name} resolves the public name agency first, then the person through agent_infos`, async () => {
     await run();
     const sql = normalizeSql(allSql());
     assert.match(sql, /CONCAT_WS\(' ', ai\.first_name, ai\.last_name\)/);
-    // Priority order: person name, then trading name, then a non-phone username.
+    // Priority order (2026-09-21): trading name (the signup form's "Nom de
+    // l'agence"), then the person, then a non-phone username.
     assert.match(
       sql,
-      /COALESCE\( NULLIF\(TRIM\(CONCAT_WS\(' ', ai\.first_name, ai\.last_name\)\), ''\), NULLIF\(TRIM\(a\.agency_name\), ''\)/,
+      /COALESCE\( NULLIF\(TRIM\(a\.agency_name\), ''\), NULLIF\(TRIM\(CONCAT_WS\(' ', ai\.first_name, ai\.last_name\)\), ''\)/,
     );
   });
 

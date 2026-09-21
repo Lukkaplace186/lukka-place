@@ -117,10 +117,14 @@ const GALLERY_SUBQUERY = `(
 // the agency slot only when this or `agency_logo_url` is non-null, and
 // AgencyLogo/EnquiryCard fall back to Lukka Place's own mark, which is the
 // honest signal for a listing the platform handles directly.
+// Agency / trade name first (agents.agency_name — the signup form's "Nom de
+// l'agence" and the WhatsApp onboarding's agency), then the person, then a
+// username that is not just a phone number. Before 2026-09-21 the person came
+// first; agency_name was empty on every account, so nothing public changed.
 export const AGENCY_NAME_EXPR = `
   COALESCE(
-    NULLIF(TRIM(CONCAT_WS(' ', ai.first_name, ai.last_name)), ''),
     NULLIF(TRIM(a.agency_name), ''),
+    NULLIF(TRIM(CONCAT_WS(' ', ai.first_name, ai.last_name)), ''),
     NULLIF(TRIM(CASE WHEN a.username ~ '^[+]?[0-9]{7,15}$' THEN NULL ELSE a.username END), '')
   ) AS agency_name`;
 

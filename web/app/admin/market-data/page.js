@@ -3,6 +3,10 @@ import { getAgentPerformance, listViewingFeed } from '@/lib/adminApi';
 import { getClosedTransactions } from '@/lib/adminLeadRouting';
 import { DECLINE_REASON_CODES, DECLINE_REASON_LABEL_KEYS, PRICE_SOURCE_LABEL_KEYS } from '@/lib/adminLabels';
 import { getT } from '@/lib/i18n/server';
+import { getAdminSession } from '@/lib/adminSession';
+import { can } from '@/lib/adminRoles';
+import { Download } from 'lucide-react';
+import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { Chip, ErrorNote, Panel, Stat, TD, TD_RIGHT, TH, TH_RIGHT, formatPct, money } from '../LeadRoutingUI';
 import { firstParam } from '@/lib/adminPagination';
 import { MARKET_PURPOSES } from '@/lib/marketStats';
@@ -31,6 +35,8 @@ const SOURCE_TONE = { WHATSAPP_AGENT_REPLY: 'success', DIRECT_INPUT: 'blue', ADM
  */
 export default async function AdminMarketDataPage({ searchParams }) {
   const t = await getT();
+  const session = await getAdminSession();
+  const canExport = can(session?.role, 'data.export');
   const raw = (await searchParams) || {};
   const purpose = MARKET_PURPOSES.includes(firstParam(raw.purpose)) ? firstParam(raw.purpose) : 'rent';
   const priceCommune = firstParam(raw.pc) || null;
@@ -61,9 +67,28 @@ export default async function AdminMarketDataPage({ searchParams }) {
 
   return (
     <div className="flex flex-col gap-8">
-      <div>
-        <h1 className="u-title-page text-ink">{t('admin.marketData.title')}</h1>
-        <p className="u-micro mt-1 text-ink-45">{t('admin.marketData.subtitle')}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="u-title-page text-ink">{t('admin.marketData.title')}</h1>
+          <p className="u-micro mt-1 text-ink-45">{t('admin.marketData.subtitle')}</p>
+        </div>
+        {/* The whole listing dataset — asking and achieved prices, commune,
+            type, dates, status, views, WhatsApp taps, visit requests. Same
+            audited endpoint as before (/admin/export/listings.csv); "Excel"
+            is the semicolon flavour French Excel opens in columns. */}
+        {canExport ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="u-micro-strong text-ink-70">{t('admin.marketData.exportLabel')}</span>
+            <a href="/admin/export/listings.csv" download className="u-press u-micro-strong inline-flex h-9 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-ink hover:bg-canvas-alt">
+              <Download strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+              CSV
+            </a>
+            <a href="/admin/export/listings.csv?format=excel" download className="u-press u-micro-strong inline-flex h-9 items-center gap-1.5 rounded-lg bg-blue px-3 text-white hover:bg-blue-deep">
+              <Download strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+              Excel
+            </a>
+          </div>
+        ) : null}
       </div>
 
       <PublishedPriceStats purpose={purpose} commune={priceCommune} params={priceParams} />

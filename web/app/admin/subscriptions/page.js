@@ -10,6 +10,7 @@ import { getVendors } from '@/lib/agents';
 import { displayableAgencyName } from '@/lib/agentIdentity';
 import { searchFeaturableListings } from '@/lib/adminBilling';
 import AgentPicker from '../AgentPicker';
+import DeletePackageButton from './DeletePackageButton';
 import {
   setFeaturedAction,
   unsetFeaturedAction,
@@ -38,6 +39,40 @@ function formatDate(value) {
 }
 
 const FIELD = 'rounded-md border border-line bg-white px-2 py-1.5 text-sm text-ink';
+
+/**
+ * "SERVICES PHOTO": sessions included per month, and a discount on the paid
+ * Photography Service. Two real, separate terms (packages.photo_sessions_per_month
+ * / photo_discount_pct); 0 means none, which is what every plan starts at.
+ */
+function PhotoAllowanceFields({ pkg, t }) {
+  return (
+    <div className="flex items-center gap-1">
+      <input
+        name="photo_sessions_per_month"
+        type="number"
+        min="0"
+        max="100"
+        defaultValue={pkg?.photo_sessions_per_month ?? 0}
+        aria-label={t('admin.subscriptions.photoSessions')}
+        title={t('admin.subscriptions.photoSessions')}
+        className={`${FIELD} w-14`}
+      />
+      <span className="text-xs text-ink-45">{t('admin.subscriptions.photoSessionsShort')}</span>
+      <input
+        name="photo_discount_pct"
+        type="number"
+        min="0"
+        max="100"
+        defaultValue={pkg?.photo_discount_pct ?? 0}
+        aria-label={t('admin.subscriptions.photoDiscount')}
+        title={t('admin.subscriptions.photoDiscount')}
+        className={`${FIELD} w-14`}
+      />
+      <span className="text-xs text-ink-45">%</span>
+    </div>
+  );
+}
 
 export default async function AdminSubscriptionsPage({ searchParams }) {
   const t = await getT();
@@ -157,6 +192,7 @@ export default async function AdminSubscriptionsPage({ searchParams }) {
                 <th className="px-4 py-2.5 font-semibold">{t('admin.subscriptions.duration')}</th>
                 <th className="px-4 py-2.5 font-semibold">{t('admin.subscriptions.maxListings')}</th>
                 <th className="px-4 py-2.5 font-semibold">{t('admin.subscriptions.trialDays')}</th>
+                <th className="px-4 py-2.5 font-semibold">{t('admin.subscriptions.photoServices')}</th>
                 <th className="px-4 py-2.5 font-semibold">{t('admin.subscriptions.status')}</th>
                 <th className="px-4 py-2.5 font-semibold" />
               </tr>
@@ -166,8 +202,8 @@ export default async function AdminSubscriptionsPage({ searchParams }) {
                 const boundUpdate = updatePackageAction.bind(null, pkg.id);
                 return (
                   <tr key={pkg.id} className="border-b border-line last:border-b-0">
-                    <td colSpan={7} className="px-0 py-0">
-                      <form action={boundUpdate} className="grid grid-cols-7 items-center gap-2 px-4 py-2">
+                    <td colSpan={8} className="px-0 py-0">
+                      <form action={boundUpdate} className="grid grid-cols-8 items-center gap-2 px-4 py-2">
                         <input name="title" defaultValue={pkg.title} required className={FIELD} />
                         <input name="price" type="number" step="0.01" min="0" defaultValue={pkg.price} required className={FIELD} />
                         <select name="term" defaultValue={pkg.term} className={FIELD}>
@@ -180,13 +216,17 @@ export default async function AdminSubscriptionsPage({ searchParams }) {
                           <input type="checkbox" name="is_trial" defaultChecked={pkg.is_trial === 1} />
                           <input name="trial_days" type="number" min="0" defaultValue={pkg.trial_days ?? 0} className={`${FIELD} w-16`} />
                         </div>
+                        <PhotoAllowanceFields pkg={pkg} t={t} />
                         <select name="status" defaultValue={pkg.status} className={FIELD}>
                           <option value={1}>Actif</option>
                           <option value={0}>{t('status.agentAccount.0')}</option>
                         </select>
-                        <button type="submit" className="justify-self-start rounded-md border border-line px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-canvas-alt">
-                          {t('common.actions.save')}
-                        </button>
+                        <div className="flex items-center gap-1.5 justify-self-start">
+                          <button type="submit" className="rounded-md border border-line px-2.5 py-1.5 text-xs font-medium text-ink hover:bg-canvas-alt">
+                            {t('common.actions.save')}
+                          </button>
+                          <DeletePackageButton pkg={{ id: Number(pkg.id), title: pkg.title, activeMemberships: pkg.active_memberships ?? 0 }} />
+                        </div>
                       </form>
                     </td>
                   </tr>
@@ -196,7 +236,7 @@ export default async function AdminSubscriptionsPage({ searchParams }) {
           </table>
         </div>
 
-        <form action={createPackageAction} className="mt-3 grid grid-cols-7 items-center gap-2 rounded-card border border-dashed border-line bg-white px-4 py-3">
+        <form action={createPackageAction} className="mt-3 grid grid-cols-8 items-center gap-2 rounded-card border border-dashed border-line bg-white px-4 py-3">
           <input name="title" placeholder={t('admin.subscriptions.planName')} required className={FIELD} />
           <input name="price" type="number" step="0.01" min="0" placeholder={t('admin.subscriptions.price')} required className={FIELD} />
           <select name="term" defaultValue="monthly" className={FIELD}>
@@ -211,6 +251,7 @@ export default async function AdminSubscriptionsPage({ searchParams }) {
             </label>
             <input name="trial_days" type="number" min="0" placeholder="Jours" className={`${FIELD} w-16`} />
           </div>
+          <PhotoAllowanceFields pkg={null} t={t} />
           <div />
           <button type="submit" className="justify-self-start rounded-md border border-blue-deep bg-blue-tint px-2.5 py-1.5 text-xs font-medium text-blue-deep hover:bg-blue-deep hover:text-white">
             {t('admin.subscriptions.addPlan')}

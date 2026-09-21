@@ -34,13 +34,23 @@ export async function getMemberships() {
 
 export const PACKAGE_TERMS = ['monthly', 'yearly', 'lifetime'];
 
-/** @returns {Promise<Array<{id, title, price, term, number_of_property, is_trial, trial_days, status}>>} */
+/**
+ * Every package an admin manages — never a deleted one (`deleted_at`, see
+ * deletePackage). `active_memberships` is what the delete dialog warns about.
+ *
+ * @returns {Promise<Array<{id, title, price, term, number_of_property, is_trial, trial_days, status,
+ *   photo_sessions_per_month, photo_discount_pct, active_memberships}>>}
+ */
 export async function getPackages() {
   const pool = getPool();
   const { rows } = await pool.query(
-    `SELECT id, title, price, term, number_of_property, is_trial, trial_days, status
-     FROM packages
-     ORDER BY status DESC, price ASC`,
+    `SELECT p.id, p.title, p.price, p.term, p.number_of_property, p.is_trial, p.trial_days, p.status,
+            p.photo_sessions_per_month, p.photo_discount_pct,
+            (SELECT count(*) FROM memberships m
+              WHERE m.package_id = p.id AND m.status = 1 AND m.expire_date > NOW())::int AS active_memberships
+     FROM packages p
+     WHERE p.deleted_at IS NULL
+     ORDER BY p.status DESC, p.price ASC`,
   );
   return rows;
 }
@@ -66,27 +76,147 @@ async function nextId(client, table) {
  * @param {{title: string, price: number, term: string, numberOfProperty: number|null, isTrial: boolean, trialDays: number}} input
  * @returns {Promise<number>} the new package id
  */
-export async function createPackage({ title, price, term, numberOfProperty, isTrial, trialDays }) {
+export async function createPackage({ title, price, term, numberOfProperty, isTrial, trialDays, photoSessions = 0, photoDiscountPct = 0 }) {
   assertValidTerm(term);
   const pool = getPool();
-  const id = await nextId(pool, 'packages');
-  await pool.query(
-    `INSERT INTO packages (id, title, price, term, number_of_property, is_trial, trial_days, status, is_featured, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, 1, 1, NOW(), NOW())`,
-    [id, title, price, term, numberOfProperty, isTrial ? 1 : 0, trialDays || 0],
+  // packages.id is an identity column: the sequence allocates it. MAX(id) + 1
+  // would hand a deleted package's id — and the memberships still pointing at
+  // it — to the new plan (migrations/20260921_admin_deletions_and_photo_allowances.sql).
+  const { rows } = await pool.query(
+    `INSERT INTO packages (title, price, term, number_of_property, is_trial, trial_days, status, is_featured,
+                           photo_sessions_per_month, photo_discount_pct, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, 1, 1, $7, $8, NOW(), NOW())
+     RETURNING id`,
+    [title, price, term, numberOfProperty, isTrial ? 1 : 0, trialDays || 0, photoSessions || 0, photoDiscountPct || 0],
   );
-  return id;
+  return Number(rows[0].id);
 }
 
-export async function updatePackage(id, { title, price, term, numberOfProperty, isTrial, trialDays, status }) {
+export async function updatePackage(id, { title, price, term, numberOfProperty, isTrial, trialDays, status, photoSessions = 0, photoDiscountPct = 0 }) {
   assertValidTerm(term);
   const pool = getPool();
   await pool.query(
     `UPDATE packages
-     SET title = $1, price = $2, term = $3, number_of_property = $4, is_trial = $5, trial_days = $6, status = $7, updated_at = NOW()
-     WHERE id = $8`,
-    [title, price, term, numberOfProperty, isTrial ? 1 : 0, trialDays || 0, status, id],
+     SET title = $1, price = $2, term = $3, number_of_property = $4, is_trial = $5, trial_days = $6, status = $7,
+         photo_sessions_per_month = $8, photo_discount_pct = $9, updated_at = NOW()
+     WHERE id = $10 AND deleted_at IS NULL`,
+    [title, price, term, numberOfProperty, isTrial ? 1 : 0, trialDays || 0, status, photoSessions || 0, photoDiscountPct || 0, id],
   );
+}
+
+/** Photography terms as entered: whole numbers, sessions 0..100, discount 0..100 %. */
+export function readPhotoAllowance(sessionsRaw, discountRaw) {
+  const sessions = Number.parseInt(sessionsRaw, 10);
+  const discount = Number.parseInt(discountRaw, 10);
+  return {
+    photoSessions: Number.isFinite(sessions) ? Math.min(100, Math.max(0, sessions)) : 0,
+    photoDiscountPct: Number.isFinite(discount) ? Math.min(100, Math.max(0, discount)) : 0,
+  };
+}
+
+/**
+ * The plan agencies fall back to when theirs is deleted: the active, free
+ * package titled "Free". Found by what it is rather than by id 29, so a
+ * re-created Free plan is still the one used.
+ */
+export async function getDefaultFreePackage(client = getPool()) {
+  const { rows } = await client.query(
+    `SELECT id, title, term FROM packages
+      WHERE deleted_at IS NULL AND status = 1 AND price = 0 AND LOWER(TRIM(title)) = 'free'
+      ORDER BY id LIMIT 1`,
+  );
+  return rows[0] || null;
+}
+
+/**
+ * Deletes a package from /admin/subscriptions without breaking anyone.
+ *
+ *  - Agencies whose ACTIVE membership is on this package move to the default
+ *    Free plan first: the current membership ends now and a new Free
+ *    membership starts. The old row is never rewritten — memberships is the
+ *    payment ledger, and "paid $20 for Legacy" must still say Legacy.
+ *  - Pending plan requests for it are declined ("Forfait supprimé").
+ *  - A package any membership or request ever referenced is then soft-deleted
+ *    (`deleted_at`, status 0): hidden from every list and picker, with its name
+ *    still readable in billing history. One nobody ever held is deleted.
+ *  - The Free plan cannot be deleted: it is where everyone else lands.
+ *
+ * `dryRun` runs every statement and rolls back.
+ *
+ * @returns {Promise<{ok: true, mode: 'deleted'|'archived', moved: number, declined: number}
+ *                  |{ok: false, reason: 'not_found'|'is_default'|'no_default'}>}
+ */
+export async function deletePackage(packageId, { dryRun = false } = {}) {
+  const id = Number(packageId);
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    const { rows: found } = await client.query(
+      'SELECT id FROM packages WHERE id = $1 AND deleted_at IS NULL FOR UPDATE',
+      [id],
+    );
+    if (!found.length) {
+      await client.query('ROLLBACK');
+      return { ok: false, reason: 'not_found' };
+    }
+
+    const free = await getDefaultFreePackage(client);
+    if (free && Number(free.id) === id) {
+      await client.query('ROLLBACK');
+      return { ok: false, reason: 'is_default' };
+    }
+
+    const { rows: active } = await client.query(
+      `SELECT id, vendor_id FROM memberships
+        WHERE package_id = $1 AND status = 1 AND expire_date > NOW()
+        FOR UPDATE`,
+      [id],
+    );
+    if (active.length && !free) {
+      await client.query('ROLLBACK');
+      return { ok: false, reason: 'no_default' };
+    }
+
+    for (const membership of active) {
+      await client.query('UPDATE memberships SET expire_date = NOW(), updated_at = NOW() WHERE id = $1', [membership.id]);
+      const membershipId = await nextId(client, 'memberships');
+      await client.query(
+        `INSERT INTO memberships (id, price, currency, currency_symbol, payment_method, transaction_id, status, is_trial,
+                                  trial_days, package_id, vendor_id, start_date, expire_date, created_at, updated_at)
+         VALUES ($1, 0, 'USD', '$', 'Réaffectation', NULL, 1, 0, 0, $2, $3, NOW(), $4, NOW(), NOW())`,
+        [membershipId, free.id, membership.vendor_id, computeExpireDate(free.term, { isTrial: false, trialDays: 0 })],
+      );
+    }
+
+    const { rowCount: declined } = await client.query(
+      `UPDATE plan_change_requests
+          SET status = 'declined', handled_at = NOW(), handled_note = 'Forfait supprimé'
+        WHERE package_id = $1 AND status = 'pending'`,
+      [id],
+    );
+
+    const { rows: refs } = await client.query(
+      `SELECT (SELECT count(*) FROM memberships WHERE package_id = $1)
+            + (SELECT count(*) FROM plan_change_requests WHERE package_id = $1) AS n`,
+      [id],
+    );
+    let mode;
+    if (Number(refs[0].n) > 0) {
+      await client.query('UPDATE packages SET deleted_at = NOW(), status = 0, updated_at = NOW() WHERE id = $1', [id]);
+      mode = 'archived';
+    } else {
+      await client.query('DELETE FROM packages WHERE id = $1', [id]);
+      mode = 'deleted';
+    }
+
+    await client.query(dryRun ? 'ROLLBACK' : 'COMMIT');
+    return { ok: true, mode, moved: active.length, declined, dryRun };
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 /** monthly -> +1 month, yearly -> +1 year, lifetime -> the '9999' sentinel this schema already uses elsewhere (see web/app/admin/subscriptions/page.js's own formatDate). A real trial overrides the term entirely with a short, real expiry. */
@@ -217,9 +347,9 @@ export async function getPurchasablePackages() {
   const pool = getPool();
   const { rows } = await pool.query(
     `SELECT id, title, price, term, number_of_property, monthly_pitch_limit,
-            priority_multiplier, is_trial, trial_days
+            priority_multiplier, is_trial, trial_days, photo_sessions_per_month, photo_discount_pct
      FROM packages
-     WHERE status = 1
+     WHERE status = 1 AND deleted_at IS NULL
      ORDER BY price ASC, id ASC`,
   );
   return rows.map((r) => ({
@@ -227,6 +357,8 @@ export async function getPurchasablePackages() {
     id: Number(r.id),
     price: Number(r.price),
     priority_multiplier: r.priority_multiplier == null ? 1 : Number(r.priority_multiplier),
+    photo_sessions_per_month: Number(r.photo_sessions_per_month) || 0,
+    photo_discount_pct: Number(r.photo_discount_pct) || 0,
   }));
 }
 

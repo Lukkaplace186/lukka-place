@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { BadgeCheck, Building2, MoreHorizontal, PauseCircle, PlayCircle, ScanEye, Settings2 } from 'lucide-react';
+import { BadgeCheck, Building2, MoreHorizontal, PauseCircle, PlayCircle, ScanEye, Settings2, Trash2 } from 'lucide-react';
 import { useToast } from '@/components/Toast';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -19,6 +19,7 @@ import { reassignAgentVendorAction, updateAgentStatusAction } from './actions';
 import { bulkUpdateAgentStatusAction } from './bulkActions';
 import { assignBranchAction } from '../agencies/[id]/branchActions';
 import { ImpersonateDialog } from '../ImpersonateButton';
+import DeleteAgentDialog from './DeleteAgentDialog';
 
 const BUTTON =
   'u-press u-micro-strong inline-flex h-8 items-center gap-1.5 rounded-md border border-line bg-surface px-2.5 text-ink transition-colors hover:border-blue disabled:opacity-50';
@@ -36,7 +37,7 @@ const BUTTON =
  * `branchContext` ({vendorId, branches}) is passed on an agency's own page and
  * adds "move to branch" to the bulk bar — branches only exist within an agency.
  */
-export default function AgentsTable({ rows, vendors, footer, branchContext = null, canImpersonate = false, sharedSession = false }) {
+export default function AgentsTable({ rows, vendors, footer, branchContext = null, canImpersonate = false, canDelete = false, sharedSession = false }) {
   const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
@@ -45,6 +46,7 @@ export default function AgentsTable({ rows, vendors, footer, branchContext = nul
   const [vendorDialog, setVendorDialog] = useState(null);
   const [vendorId, setVendorId] = useState('');
   const [impersonating, setImpersonating] = useState(null);
+  const [deleting, setDeleting] = useState(null);
 
   const pageIds = useMemo(() => rows.map((row) => row.id), [rows]);
   const allSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
@@ -250,6 +252,12 @@ export default function AgentsTable({ rows, vendors, footer, branchContext = nul
                           {t('admin.agents.activate')}
                         </DropdownMenuItem>
                       )}
+                      {canDelete ? (
+                        <DropdownMenuItem onSelect={() => setDeleting(agent)} className="text-danger focus:text-danger">
+                          <Trash2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                          {t('admin.agents.delete')}
+                        </DropdownMenuItem>
+                      ) : null}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </td>
@@ -269,6 +277,8 @@ export default function AgentsTable({ rows, vendors, footer, branchContext = nul
           sharedSession={sharedSession}
         />
       ) : null}
+
+      {canDelete ? <DeleteAgentDialog agent={deleting} onClose={() => setDeleting(null)} /> : null}
 
       <Dialog open={Boolean(vendorDialog)} onOpenChange={(open) => { if (!open) setVendorDialog(null); }}>
         <DialogContent className="sm:max-w-sm">

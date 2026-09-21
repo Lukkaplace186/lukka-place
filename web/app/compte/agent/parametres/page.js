@@ -85,6 +85,20 @@ export default async function AgentSettingsPage({ searchParams }) {
           <AgentAvatarUpload initialSrc={agent.image} />
 
           <form action={updateAgentIdentityAction} className="flex flex-col gap-4">
+            <div>
+              <label htmlFor="agency_name" className="mb-1.5 block text-[0.8125rem] font-semibold text-ink-70">
+                {t('agent.settings.agencyName')}
+              </label>
+              <input
+                id="agency_name"
+                name="agency_name"
+                defaultValue={agent.agency_name || ''}
+                maxLength={160}
+                placeholder="Ex. Espace Kin Immobilier"
+                className="u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35"
+              />
+              <p className="mt-1 text-xs text-ink-45">{t('agent.settings.agencyNameHint')}</p>
+            </div>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label htmlFor="first_name" className="mb-1.5 block text-[0.8125rem] font-semibold text-ink-70">

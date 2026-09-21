@@ -32,6 +32,8 @@ export const PERMISSIONS = {
   'agents.manage': ['owner', 'moderator', 'support'],
   'agents.bulk': ['owner', 'moderator'],
   'agents.security': ['owner', 'support'],
+  // Irreversible: removes the account and its per-agent records (lib/adminAgentDeletion.js).
+  'agents.delete': ['owner'],
   'customers.manage': ['owner', 'support'],
   'leads.manage': ['owner', 'moderator', 'support'],
   'conversations.reply': ['owner', 'support'],

@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowUpRight, Check, Clock3, Star } from 'lucide-react';
+import { ArrowUpRight, Camera, Check, Clock3, Star } from 'lucide-react';
+import { photoPerkLines } from '@/lib/photoAllowance';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { requestPlanChangeAction } from '@/app/compte/agent/actions';
@@ -143,6 +144,12 @@ export default function AgentPlanPicker({ packages, currentPackageId, openReques
                   </span>
                 </li>
               )}
+              {photoPerkLines({ sessions: pkg.photo_sessions_per_month, discountPct: pkg.photo_discount_pct }, t).map((line) => (
+                <li key={line} className="u-micro flex items-start gap-2 text-ink-70">
+                  <Camera strokeWidth={ICON_STROKE_WIDTH} className="mt-0.5 h-4 w-4 shrink-0 text-blue" />
+                  <span>{line}</span>
+                </li>
+              ))}
             </ul>
 
             <div className="mt-auto pt-1">

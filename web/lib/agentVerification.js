@@ -161,6 +161,23 @@ export async function createDocumentSignedUrl(storagePath, seconds = 300) {
 }
 
 /**
+ * Removes stored documents from the private bucket — for an agent account
+ * being deleted (lib/adminAgentDeletion.js). An ID card must not outlive the
+ * account it was uploaded for. Returns how many paths the bucket refused, so
+ * the caller can log it; it never throws.
+ */
+export async function removeVerificationFiles(paths) {
+  const list = (paths || []).filter(Boolean);
+  if (!list.length) return 0;
+  try {
+    const { error } = await storage().remove(list);
+    return error ? list.length : 0;
+  } catch {
+    return list.length;
+  }
+}
+
+/**
  * Approve or reject one document. A rejection carries the reason the agent
  * will read on their settings page.
  *

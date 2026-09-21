@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { BadgeCheck, ArrowUpRight, CalendarClock, Sparkles, TriangleAlert } from 'lucide-react';
+import { BadgeCheck, ArrowUpRight, CalendarClock, Camera, Sparkles, TriangleAlert } from 'lucide-react';
+import { photoPerkLines } from '@/lib/photoAllowance';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { getT } from '@/lib/i18n/server';
@@ -90,6 +91,8 @@ function Quota({ label, used, limit, hint, danger = false }) {
  * @param {number|null} props.listingLimit `packages.number_of_property`.
  * @param {{limit: number, used: number, remaining: number, exhausted: boolean}|null} props.leadQuota
  *   real monthly lead-response allowance and usage, or null when unreadable.
+ * @param {number|null} [props.photoSessions] `packages.photo_sessions_per_month`.
+ * @param {number|null} [props.photoDiscountPct] `packages.photo_discount_pct`.
  * @param {boolean} [props.compact] Overview variant: drops the footer links,
  *   since the overview already sits one click from the full page.
  */
@@ -100,6 +103,8 @@ export default async function AgentSubscriptionCard({
   expireDate,
   listingCount,
   listingLimit,
+  photoSessions = 0,
+  photoDiscountPct = 0,
   leadQuota = null,
   compact = false,
 }) {
@@ -188,6 +193,18 @@ export default async function AgentSubscriptionCard({
                   : null
               }
             />
+          )}
+
+          {photoPerkLines({ sessions: photoSessions, discountPct: photoDiscountPct }, t).length > 0 && (
+            <div className="u-micro flex items-start gap-2 rounded-lg bg-blue-tint px-3.5 py-3 text-ink-70">
+              <Camera strokeWidth={ICON_STROKE_WIDTH} className="mt-0.5 h-4 w-4 shrink-0 text-blue" />
+              <div>
+                <div className="font-semibold text-ink">{t('agent.plans.photoServices')}</div>
+                {photoPerkLines({ sessions: photoSessions, discountPct: photoDiscountPct }, t).map((line) => (
+                  <div key={line}>{line}</div>
+                ))}
+              </div>
+            </div>
           )}
 
           {leadQuota && (

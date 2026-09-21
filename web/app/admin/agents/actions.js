@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { getPool } from '@/lib/db';
 import { requireAdmin } from '@/lib/adminSession';
 import { recordAudit } from '@/lib/adminAudit';
+import { deleteAgentAccount, getAgentDeletionImpact } from '@/lib/adminAgentDeletion';
 
 export async function updateAgentStatusAction(agentId, formData) {
   const session = await requireAdmin('agents.manage');
@@ -84,4 +85,49 @@ export async function updateAgentCommunesAction(agentId, validCommunes, formData
   } catch (err) {
     return { ok: false, error: err.message || 'La mise à jour a échoué.' };
   }
+}
+
+/** What the "Supprimer" dialog shows before anything is removed. */
+export async function getAgentDeletionImpactAction(agentId) {
+  await requireAdmin('agents.delete');
+  const impact = await getAgentDeletionImpact(agentId);
+  return impact ? { ok: true, impact } : { ok: false, error: 'Agent introuvable.' };
+}
+
+/**
+ * Permanently deletes an agent account — lib/adminAgentDeletion.js has what
+ * happens to every row that points at it. Owner-only (`agents.delete`), and the
+ * dialog makes the admin type the agent's id, so a misclick cannot do it.
+ */
+export async function deleteAgentAction(agentId, formData) {
+  const session = await requireAdmin('agents.delete');
+  const id = Number(agentId);
+  if (String(formData.get('confirm_id') || '').trim() !== String(id)) {
+    return { ok: false, error: `Saisissez ${id} pour confirmer la suppression.` };
+  }
+  const listings = String(formData.get('listings') || 'archive');
+  const impact = await getAgentDeletionImpact(id);
+  const result = await deleteAgentAccount(id, { listings });
+  if (!result.ok) {
+    const error = {
+      not_found: 'Cet agent n’existe plus.',
+      commissions: `Suppression refusée : ${result.count} commission(s) commerciale(s) en attente, approuvée(s) ou payée(s) sont liées à cet agent. Annulez-les ou réglez-les dans Commerciaux d’abord.`,
+      bad_mode: 'Choix des annonces invalide.',
+    }[result.reason];
+    return { ok: false, error: error || 'La suppression a échoué.' };
+  }
+  await recordAudit(session, {
+    action: 'agent.delete',
+    entityType: 'agent',
+    entityId: id,
+    // The account is gone after this; the audit row is what says who it was.
+    details: { name: impact?.name ?? null, phone: impact?.phone ?? null, ...result.summary },
+  });
+  revalidatePath('/admin/agents');
+  revalidatePath('/admin/agencies');
+  revalidatePath('/admin/listings');
+  return {
+    ok: true,
+    message: `Agent supprimé — ${result.summary.deletedListings} annonce(s) supprimée(s), ${result.summary.archivedListings} archivée(s).`,
+  };
 }

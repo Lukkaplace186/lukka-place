@@ -2,6 +2,7 @@ import 'server-only';
 import { getPool } from './db';
 import { getAgentById } from './agents';
 import { getListings } from './listings';
+import { displayableAgencyName } from './agentIdentity';
 
 /**
  * Public agent storefront (web/app/(site)/agents/[id]/page.js) — reuses
@@ -75,6 +76,24 @@ export function agentDisplayName(agent) {
 }
 
 /**
+ * The PUBLIC heading: the agency or trade name the agent gave
+ * (agents.agency_name), else their own name. Not a replacement for
+ * agentDisplayName, which stays the person's name because it is also the
+ * `assigned_agent` matching key on leads — changing it would orphan every lead
+ * already filed under the old string.
+ */
+export function agentPublicName(agent) {
+  return displayableAgencyName(agent?.agency_name) || agentDisplayName(agent);
+}
+
+/** The person behind an agency heading — only when both exist and differ. */
+export function agentContactName(agent) {
+  const agency = displayableAgencyName(agent?.agency_name);
+  const person = [agent?.first_name, agent?.last_name].filter(Boolean).join(' ').trim();
+  return agency && person && person.toLowerCase() !== agency.toLowerCase() ? person : null;
+}
+
+/**
  * Real save path behind the design's "Identité de l'agence" settings card.
  *
  * Both target tables are per-language content tables with NO unique
@@ -97,8 +116,16 @@ export function agentDisplayName(agent) {
  */
 const FRENCH_LANGUAGE_ID = 20;
 
-export async function updateAgentIdentity(agentId, { firstName, lastName, bio, vendorId }) {
+export async function updateAgentIdentity(agentId, { firstName, lastName, bio, vendorId, agencyName }) {
   const pool = getPool();
+
+  // `undefined` leaves the agency name as it is; an empty string clears it.
+  if (agencyName !== undefined) {
+    await pool.query('UPDATE agents SET agency_name = $1, updated_at = NOW() WHERE id = $2', [
+      String(agencyName || '').trim().slice(0, 160) || null,
+      agentId,
+    ]);
+  }
 
   const { rowCount: infoUpdated } = await pool.query(
     `UPDATE agent_infos SET first_name = $1, last_name = $2, updated_at = NOW()

@@ -181,6 +181,15 @@ export async function listViewingRequests({ status, propertyIds, assignedAgent, 
 }
 
 /**
+ * Visit requests per listing, all time — the market-data export.
+ * @returns {Promise<Map<number, number>>}
+ */
+export async function countViewingRequestsByProperty() {
+  const { data = [] } = await engineFetch('/admin/viewing-requests/counts-by-property');
+  return new Map(data.map((row) => [Number(row.property_id), Number(row.n)]));
+}
+
+/**
  * @param {number} id
  * @param {{status?: string, requestedTime?: string}} patch `requestedTime` lets
  *   "Reprogrammer" propose a new free-text time in the same write as the status change.

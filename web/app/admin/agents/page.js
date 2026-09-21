@@ -136,6 +136,7 @@ export default async function AdminAgentsPage({ searchParams }) {
         rows={toAgentTableRows(list?.rows)}
         vendors={vendors.map((vendor) => ({ id: vendor.id, username: vendor.name }))}
         canImpersonate={can(session?.role, 'accounts.impersonate')}
+        canDelete={can(session?.role, 'agents.delete')}
         sharedSession={Boolean(session?.shared)}
         footer={list ? <Pagination pathname="/admin/agents" params={params} total={list.total} page={page} pageSize={pageSize} cursors={list.cursors} /> : null}
       />

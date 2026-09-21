@@ -87,10 +87,12 @@ const FROM_JOINS = `
 // where agent #28 genuinely holds two rows — a plain LEFT JOIN fans one
 // listing out into two. Duplicated across repos because this engine is
 // CommonJS and outside that app's module graph; change one, change the other.
+// Agency first, same order as web/lib/listings.js AGENCY_NAME_EXPR — the name
+// a customer is shown is the business, the person second.
 const AGENT_NAME_EXPR = `
   COALESCE(
-    NULLIF(TRIM(CONCAT_WS(' ', ai.first_name, ai.last_name)), ''),
     NULLIF(TRIM(a.agency_name), ''),
+    NULLIF(TRIM(CONCAT_WS(' ', ai.first_name, ai.last_name)), ''),
     NULLIF(TRIM(CASE WHEN a.username ~ '^[+]?[0-9]{7,15}$' THEN NULL ELSE a.username END), '')
   ) AS agent_name`;
 

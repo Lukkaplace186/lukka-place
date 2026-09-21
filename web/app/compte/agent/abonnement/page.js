@@ -105,6 +105,8 @@ export default async function AgentSubscriptionPage() {
             expireDate={agent.expire_date}
             listingCount={listingQuota?.capped ? listingQuota.used : listings.length}
             listingLimit={agent.listing_limit}
+            photoSessions={agent.package_photo_sessions}
+            photoDiscountPct={agent.package_photo_discount}
             leadQuota={leadQuota}
             compact
           />

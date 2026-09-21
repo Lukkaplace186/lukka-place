@@ -71,7 +71,34 @@ export const LISTING_EXPORT_COLUMNS = [
   // is the honest state — verification is stamped per listing by a human and
   // nothing was backfilled.
   'verified_at',
+  // APPENDED 2026-09-21 for /admin/market-data's export: engagement, all time.
+  // views_total / whatsapp_clicks_total are read the way the agent dashboard
+  // reads them (listing_stats_daily while fresh, raw events otherwise) and
+  // include every visitor, bots and staff testing included; visit_requests_total
+  // comes from the engine and is EMPTY, not 0, when the engine did not answer.
+  'views_total',
+  'whatsapp_clicks_total',
+  'visit_requests_total',
 ];
+
+/**
+ * Adds the three engagement columns to export rows.
+ *
+ * @param {Array<Object>} rows          getListingExportRows() output.
+ * @param {{views: Object, clicks: Object}} stats  lib/analytics.js getPerListingStats (keyed by id).
+ * @param {Map<number, number>|null} visits  engine counts per listing, or null when unavailable.
+ */
+export function withEngagement(rows, stats, visits) {
+  return rows.map((row) => {
+    const id = String(row.property_id);
+    return {
+      ...row,
+      views_total: stats?.views?.[id] ?? 0,
+      whatsapp_clicks_total: stats?.clicks?.[id] ?? 0,
+      visit_requests_total: visits ? visits.get(Number(row.property_id)) ?? 0 : null,
+    };
+  });
+}
 
 const EXPORT_SQL = `
   SELECT
@@ -163,11 +190,12 @@ export async function getListingExportRows() {
  * and apostrophes, and a naive join would silently shift every later column
  * on those rows — the kind of corruption a buyer finds before we do.
  */
-function csvCell(value) {
+function csvCell(value, separator = ',') {
   if (value === null || value === undefined) return '';
   if (value instanceof Date) return value.toISOString();
   const text = String(value);
-  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+  const needsQuotes = /["\n\r]/.test(text) || text.includes(separator);
+  return needsQuotes ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
 /**
@@ -179,8 +207,17 @@ function csvCell(value) {
  * "Kinshasa" does, but "Entrepôt" and "Réf" do not). The BOM is what makes
  * Excel switch, and it is ignored by pandas, R and every CSV library.
  */
-export function toCsv(rows, columns = LISTING_EXPORT_COLUMNS) {
-  const header = columns.join(',');
-  const body = rows.map((row) => columns.map((col) => csvCell(row[col])).join(','));
+export function toCsv(rows, columns = LISTING_EXPORT_COLUMNS, { separator = ',' } = {}) {
+  const header = columns.join(separator);
+  const body = rows.map((row) => columns.map((col) => csvCell(row[col], separator)).join(separator));
   return `﻿${[header, ...body].join('\r\n')}\r\n`;
 }
+
+/**
+ * The "Excel" flavour of the same file: semicolon-separated, which is what
+ * Excel on a French-locale machine expects (it uses the comma as the decimal
+ * separator, so a comma CSV opens as one column). Same BOM, same columns,
+ * and decimals keep their dot so the file stays machine-readable — it is a
+ * CSV that opens cleanly in French Excel, not an .xlsx.
+ */
+export const EXCEL_CSV_OPTIONS = Object.freeze({ separator: ';' });

@@ -32,9 +32,17 @@ export async function agentSignupAction(formData) {
   const next = safeNext(formData.get('next'));
   const password = String(formData.get('password') || '');
   const phone = phoneFromForm(formData);
-  const fullName = String(formData.get('full_name') || '').trim().slice(0, 240);
+  // agency_name + contact_name since 2026-09-21. `full_name` is still read
+  // from a page rendered before that deploy, and keeps its old meaning (one
+  // name, stored as the person) rather than failing the signup.
+  const legacyFullName = String(formData.get('full_name') || '').trim().slice(0, 240);
+  const agencyName = String(formData.get('agency_name') || '').trim().slice(0, 160);
+  const contactName = String(formData.get('contact_name') || '').trim().slice(0, 160) || legacyFullName;
 
-  if (!fullName) {
+  if (!legacyFullName && !agencyName) {
+    redirect(`/compte/agent/inscription?error=agency&next=${encodeURIComponent(next)}`);
+  }
+  if (!contactName) {
     redirect(`/compte/agent/inscription?error=name&next=${encodeURIComponent(next)}`);
   }
 
@@ -76,14 +84,14 @@ export async function agentSignupAction(formData) {
 
   const agent = await createAgent({ phone, passwordHash: hashPassword(password) });
 
-  // Store the name straight away, on the same per-language agent_infos row
-  // the dashboard and public storefront both read. Without this the account
-  // is created with `username` = the phone digits, and the public page then
-  // renders a 12-digit number where the agency name belongs until the agent
-  // happens to find the settings form.
-  const [firstName, ...rest] = fullName.split(/\s+/);
+  // Store both names straight away. Without this the account is created with
+  // `username` = the phone digits, and the public page renders a 12-digit
+  // number where the agency name belongs until the agent finds the settings
+  // form. The person goes on the per-language agent_infos row; the agency on
+  // agents.agency_name, which is what the public heading shows first.
+  const [firstName, ...rest] = contactName.split(/\s+/);
   try {
-    await updateAgentIdentity(agent.id, { firstName, lastName: rest.join(' ') || null });
+    await updateAgentIdentity(agent.id, { firstName, lastName: rest.join(' ') || null, agencyName: agencyName || undefined });
   } catch (err) {
     // A name that fails to save must not cost the agent their account — the
     // row already exists and the name is editable later in Paramètres.

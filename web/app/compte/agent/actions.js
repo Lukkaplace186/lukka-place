@@ -588,13 +588,15 @@ export async function updateAgentIdentityAction(formData) {
   const firstName = String(formData.get('first_name') || '').trim().slice(0, 120);
   const lastName = String(formData.get('last_name') || '').trim().slice(0, 120);
   const bio = String(formData.get('bio') || '').trim().slice(0, 2000);
+  // Absent (a form rendered before the field existed) leaves it untouched.
+  const agencyName = formData.has('agency_name') ? String(formData.get('agency_name') || '').trim().slice(0, 160) : undefined;
 
   if (!firstName && !lastName) redirect('/compte/agent/parametres?error=name_required');
 
   const agent = await getAgentProfile(agentId);
   if (!agent) throw new Error('Not authenticated');
 
-  await updateAgentIdentity(agentId, { firstName, lastName, bio, vendorId: agent.vendor_id });
+  await updateAgentIdentity(agentId, { firstName, lastName, bio, vendorId: agent.vendor_id, agencyName });
 
   revalidatePath('/compte/agent/parametres');
   revalidatePath('/compte/agent');

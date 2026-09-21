@@ -9,7 +9,7 @@ import VCardButton from '@/components/VCardButton';
 import CopyLinkButton from '@/components/CopyLinkButton';
 import CurrencyToggle from '@/components/CurrencyToggle';
 import InquiryForm from './InquiryForm';
-import { getAgentProfile, getAgentListings, agentDisplayName } from '@/lib/agencies';
+import { getAgentProfile, getAgentListings, agentContactName, agentPublicName } from '@/lib/agencies';
 import { buildWhatsAppLink, getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { formatPhoneDisplay } from '@/lib/phone';
 import { SITE_URL, ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -45,7 +45,7 @@ export async function generateMetadata({ params }) {
   const agent = await getAgentProfile(id);
   if (!agent) return {};
 
-  const name = agentDisplayName(agent);
+  const name = agentPublicName(agent);
   return { title: `${name} — Lukka Place`, description: agent.bio?.slice(0, 160) };
 }
 
@@ -90,7 +90,9 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
 
   const filteredListings = listings.data;
 
-  const name = agentDisplayName(agent) || '—';
+  // The agency / trade name when the agent gave one, else their own name.
+  const name = agentPublicName(agent) || '—';
+  const contactName = agentContactName(agent);
   // An agent who signed up through this app and hasn't set a name yet has
   // `username` = their own phone digits (see createAgent), which renders as a
   // raw 12-digit string in the hero's 52px serif. Format it as a phone number
@@ -207,6 +209,9 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
                 <h1 className="font-display text-[2rem] font-normal leading-[1.06] tracking-tight text-white sm:text-[2.75rem]">
                   {headingName}
                 </h1>
+                {contactName ? (
+                  <p className="text-[0.9375rem] text-white/85">{t('agent.portfolio.contactPerson', { name: contactName })}</p>
+                ) : null}
 
                 {/* The phone is a quiet verified chip now, not the headline. */}
                 {agent.phone && hasRealName && (

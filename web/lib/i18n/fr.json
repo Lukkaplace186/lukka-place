@@ -785,7 +785,9 @@
       "passwordMismatch": "Les deux mots de passe ne correspondent pas.",
       "wrongPassword": "Mot de passe actuel incorrect.",
       "nameRequired": "Renseignez au moins un prénom ou un nom.",
-      "changePhoto": "Changer la photo"
+      "changePhoto": "Changer la photo",
+      "agencyName": "Nom de l’agence / nom commercial",
+      "agencyNameHint": "C’est le nom affiché sur vos annonces et votre page publique. Vide : votre nom est affiché à la place."
     },
     "subscription": {
       "title": "Abonnement",
@@ -890,7 +892,8 @@
       "yourMessage": "Votre message",
       "yourPublicPortfolio": "Votre portfolio public",
       "pageReady": "Votre page est prête à recevoir vos biens",
-      "numberVerifiedBy": "Numéro vérifié par Lukka Place"
+      "numberVerifiedBy": "Numéro vérifié par Lukka Place",
+      "contactPerson": "Contact : {name}"
     },
     "completion": {
       "nameLabel": "Nom renseigné",
@@ -912,7 +915,11 @@
       "none": "Aucun forfait n’est ouvert à la souscription pour le moment. Contactez l’équipe Lukka Place pour connaître les options disponibles.",
       "unlimitedListings": "Biens publiés illimités",
       "currentPlan": "Votre forfait actuel",
-      "request": "Demander ce forfait"
+      "request": "Demander ce forfait",
+      "photoServices": "Services photo inclus",
+      "photoSessionsOne": "{count} séance photo incluse par mois",
+      "photoSessionsMany": "{count} séances photo incluses par mois",
+      "photoDiscount": "−{pct} % sur le service photo"
     },
     "sold": {
       "notDeleted": "supprimé : le bien reste sur votre tableau de bord et peut être remis en ligne à tout moment.",
@@ -1708,7 +1715,8 @@
       "statActive": "Comptes actifs",
       "duplicatesTitle": "{count} doublon(s) potentiel(s)",
       "sortBy": "Trier par",
-      "loadError": "Impossible de charger les agents : {error}"
+      "loadError": "Impossible de charger les agents : {error}",
+      "delete": "Supprimer"
     },
     "actions": {
       "approve": "Approuver",
@@ -1865,7 +1873,11 @@
       "paymentsAndSubscriptions": "Paiements & abonnements",
       "featuredListings": "Annonces vedette",
       "featuredSearchHint": "Seules les annonces approuvées et publiques peuvent être mises en vedette. Recherchez par id, référence ou titre.",
-      "featuredSearchPlaceholder": "Id, référence ou titre de l’annonce"
+      "featuredSearchPlaceholder": "Id, référence ou titre de l’annonce",
+      "photoServices": "Services photo",
+      "photoSessions": "Séances photo incluses par mois",
+      "photoSessionsShort": "séances",
+      "photoDiscount": "Remise sur le service photo (%)"
     },
     "matching": {
       "engineUnreachable": "Le moteur d’attribution est injoignable.",
@@ -2178,7 +2190,8 @@
       "colAverage": "Moyenne",
       "colMin": "Min",
       "colMax": "Max",
-      "lowSample": "Petit échantillon"
+      "lowSample": "Petit échantillon",
+      "exportLabel": "Exporter les données"
     },
     "agentPerformance": {
       "title": "Performance des agents",
@@ -3281,7 +3294,8 @@
       "badCredentials": "Numéro ou mot de passe incorrect.",
       "locked": "Trop de tentatives — réessayez dans 15 minutes.",
       "expiredAttempt": "Cette vérification a expiré — recommencez l’inscription.",
-      "referralUnknown": "Nous ne reconnaissons pas ce code de parrainage. Vérifiez-le auprès de votre commercial, ou laissez le champ vide pour vous inscrire sans code."
+      "referralUnknown": "Nous ne reconnaissons pas ce code de parrainage. Vérifiez-le auprès de votre commercial, ou laissez le champ vide pour vous inscrire sans code.",
+      "agencyNameRequired": "Indiquez le nom de votre agence ou votre nom commercial."
     },
     "activate": {
       "expiredBody": "Ce lien d’activation n’est plus valable — il a peut-être déjà été utilisé, ou il a dépassé sa durée de validité. Vos biens restent enregistrés : seul l’accès au tableau de bord attend.",
@@ -3308,7 +3322,9 @@
     "signup": {
       "codeWillBeSent": "Un code de vérification sera envoyé sur WhatsApp à ce numéro.",
       "receiveCode": "Recevoir mon code",
-      "noCodeNeeded": "Votre compte est créé immédiatement — aucun code de vérification n’est nécessaire pour le moment."
+      "noCodeNeeded": "Votre compte est créé immédiatement — aucun code de vérification n’est nécessaire pour le moment.",
+      "agencyName": "Nom de l’agence / nom commercial",
+      "contactName": "Nom de l’agent / contact principal"
     },
     "createMyAccount": "Créer mon compte",
     "passwordReset": "Mot de passe réinitialisé — connectez-vous avec votre nouveau mot de passe.",

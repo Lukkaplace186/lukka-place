@@ -785,7 +785,9 @@
       "passwordMismatch": "The two passwords do not match.",
       "wrongPassword": "Current password is incorrect.",
       "nameRequired": "Enter at least a first or last name.",
-      "changePhoto": "Change photo"
+      "changePhoto": "Change photo",
+      "agencyName": "Agency / trading name",
+      "agencyNameHint": "This is the name shown on your listings and your public page. Left empty, your own name is shown instead."
     },
     "subscription": {
       "title": "Subscription",
@@ -890,7 +892,8 @@
       "yourMessage": "Your message",
       "yourPublicPortfolio": "Your public portfolio",
       "pageReady": "Your page is ready for your properties",
-      "numberVerifiedBy": "Number verified by Lukka Place"
+      "numberVerifiedBy": "Number verified by Lukka Place",
+      "contactPerson": "Contact: {name}"
     },
     "completion": {
       "nameLabel": "Name provided",
@@ -912,7 +915,11 @@
       "none": "No plan is open for subscription right now. Contact the Lukka Place team to find out what's available.",
       "unlimitedListings": "Unlimited published listings",
       "currentPlan": "Your current plan",
-      "request": "Request this plan"
+      "request": "Request this plan",
+      "photoServices": "Photography included",
+      "photoSessionsOne": "{count} photo session included per month",
+      "photoSessionsMany": "{count} photo sessions included per month",
+      "photoDiscount": "{pct}% off the photography service"
     },
     "sold": {
       "notDeleted": "deleted: the property stays on your dashboard and can be put back online at any time.",
@@ -1708,7 +1715,8 @@
       "statActive": "Active accounts",
       "duplicatesTitle": "{count} Potential Duplicates",
       "sortBy": "Sort by",
-      "loadError": "Agents could not be loaded: {error}"
+      "loadError": "Agents could not be loaded: {error}",
+      "delete": "Delete"
     },
     "actions": {
       "approve": "Approve",
@@ -1865,7 +1873,11 @@
       "paymentsAndSubscriptions": "Payments & Subscriptions",
       "featuredListings": "Featured Listings",
       "featuredSearchHint": "Only approved, public listings can be featured. Search by id, reference or title.",
-      "featuredSearchPlaceholder": "Listing id, reference or title"
+      "featuredSearchPlaceholder": "Listing id, reference or title",
+      "photoServices": "Photo services",
+      "photoSessions": "Photo sessions included per month",
+      "photoSessionsShort": "sessions",
+      "photoDiscount": "Discount on the photography service (%)"
     },
     "matching": {
       "engineUnreachable": "The matching engine is unreachable.",
@@ -2178,7 +2190,8 @@
       "colAverage": "Average",
       "colMin": "Min",
       "colMax": "Max",
-      "lowSample": "Small sample"
+      "lowSample": "Small sample",
+      "exportLabel": "Export data"
     },
     "agentPerformance": {
       "title": "Agent Performance",
@@ -3281,7 +3294,8 @@
       "badCredentials": "Incorrect number or password.",
       "locked": "Too many attempts — try again in 15 minutes.",
       "expiredAttempt": "That verification expired — please sign up again.",
-      "referralUnknown": "We don’t recognise that referral code. Check it with your sales rep, or leave the field empty to sign up without one."
+      "referralUnknown": "We don’t recognise that referral code. Check it with your sales rep, or leave the field empty to sign up without one.",
+      "agencyNameRequired": "Enter your agency or trading name."
     },
     "activate": {
       "expiredBody": "This activation link is no longer valid — it may already have been used, or it has passed its expiry. Your properties are still saved: only dashboard access is pending.",
@@ -3308,7 +3322,9 @@
     "signup": {
       "codeWillBeSent": "A verification code will be sent to this number on WhatsApp.",
       "receiveCode": "Get my code",
-      "noCodeNeeded": "Your account is created straight away — no verification code is needed at the moment."
+      "noCodeNeeded": "Your account is created straight away — no verification code is needed at the moment.",
+      "agencyName": "Agency / trading name",
+      "contactName": "Agent / main contact name"
     },
     "createMyAccount": "Create my account",
     "passwordReset": "Password reset — log in with your new password.",

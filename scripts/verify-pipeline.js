@@ -3741,6 +3741,12 @@ console.log('\n2. services/openai.js');
   });
   check('createViewingRequest requires leadId', () =>
     assert.throws(() => dbService.createViewingRequest({ propertyId: 1 }), /requires leadId/));
+  // web's market-data export (visit_requests_total) reads this; counts only.
+  check('countViewingRequestsByProperty groups requests per listing', () => {
+    const row = dbService.countViewingRequestsByProperty().find((r) => r.property_id === 102);
+    assert.ok(row && row.n >= 1);
+    assert.deepStrictEqual(Object.keys(row).sort(), ['n', 'property_id']);
+  });
 
   console.log('\n11b. services/db.js — conversations schema migration (ALTER TABLE, not just fresh CREATE TABLE)');
 
@@ -4851,6 +4857,15 @@ console.log('\n2. services/openai.js');
     assert.deepStrictEqual(onboarding.parseNameReply('Paul N - Immo Kin'), {
       fullName: 'Paul N', agencyName: 'Immo Kin',
     });
+  });
+
+  // agents.id is an identity column. MAX(id) + 1 never advanced its sequence
+  // (production reached seq 42 with agent #43 present, so the next web signup
+  // collided) and would reuse a deleted agent's id.
+  check('WhatsApp onboarding takes agents.id from the identity sequence, never MAX(id) + 1', () => {
+    const src = fs.readFileSync(path.join(__dirname, '../services/agentOnboarding.js'), 'utf8');
+    assert.doesNotMatch(src, /COALESCE\(MAX\(id\), 0\) \+ 1 AS id FROM agents/);
+    assert.match(src, /INSERT INTO agents\s*\(username, phone,[\s\S]*?RETURNING id/);
   });
 
   check('a name with no agency yields null, never a fabricated agency', () => {

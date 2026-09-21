@@ -3485,6 +3485,28 @@ function getEngineHealth() {
  * @param {number} [options.offset]
  * @returns {{total: number, limit: number, offset: number, count: number, data: Object[]}}
  */
+/**
+ * Visit requests per listing, all time — the `visit_requests_total` column of
+ * web's market-data export (lib/dataExport.js). The listing is the request's
+ * own property_id, else its lead's, the same COALESCE the owner-scoped list
+ * uses. Grouped here rather than paged out to web: one row per listing that
+ * ever had a request, not one per request.
+ *
+ * @returns {Array<{property_id: number, n: number}>}
+ */
+function countViewingRequestsByProperty() {
+  return db
+    .prepare(
+      `SELECT COALESCE(vr.property_id, l.property_id) AS property_id, COUNT(*) AS n
+         FROM viewing_requests vr
+         LEFT JOIN leads l ON l.id = vr.lead_id
+        WHERE COALESCE(vr.property_id, l.property_id) IS NOT NULL
+        GROUP BY 1`,
+    )
+    .all()
+    .map((row) => ({ property_id: Number(row.property_id), n: Number(row.n) }));
+}
+
 function listViewingRequestsForOwner({ propertyIds, assignedAgent, status, limit, offset } = {}) {
   const where = [];
   const params = {};
@@ -3653,6 +3675,7 @@ module.exports = {
   clearPendingCustomerAction,
   updateViewingRequest,
   listViewingRequestsForOwner,
+  countViewingRequestsByProperty,
   VIEWING_REQUEST_STATUSES,
   // Speed-to-lead: the SLA sweep and the post-visit check-in.
   setViewingScheduledAt,

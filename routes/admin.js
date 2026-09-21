@@ -737,6 +737,19 @@ const CUSTOMER_WA_ID = /^\d{7,15}$/;
  * web/ passes the signed-in account's stored phone; the same digits-only gate
  * as every other wa_id in this file.
  */
+/**
+ * Visit requests per listing — web's market-data export. Counts only: no
+ * customer, no agent, no free text leaves the engine through this route.
+ */
+router.get('/viewing-requests/counts-by-property', (req, res) => {
+  try {
+    return res.json({ success: true, data: db.countViewingRequestsByProperty() });
+  } catch (err) {
+    console.error(`[admin] GET /viewing-requests/counts-by-property failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not count viewing requests.' });
+  }
+});
+
 router.get('/viewing-requests/by-customer', (req, res) => {
   const waId = String(req.query.wa_id || '');
   if (!CUSTOMER_WA_ID.test(waId)) {

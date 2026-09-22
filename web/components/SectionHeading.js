@@ -10,7 +10,7 @@ import Link from 'next/link';
  * font-extrabold, which is the heaviest cut of a face whose whole character
  * lives at regular weight.
  */
-export default function SectionHeading({ eyebrow, title, lead, href, linkLabel = 'Voir tout', align = 'left', className = '' }) {
+export default function SectionHeading({ eyebrow, title, lead, href, linkLabel = 'Voir tout', align = 'left', className = '', eyebrowClassName = '' }) {
   const centered = align === 'center';
 
   return (
@@ -18,7 +18,11 @@ export default function SectionHeading({ eyebrow, title, lead, href, linkLabel =
       className={`flex flex-col gap-4 sm:flex-row sm:items-end ${centered ? 'sm:justify-center' : 'sm:justify-between'} ${className}`}
     >
       <div className={`max-w-2xl ${centered ? 'mx-auto text-center' : ''}`}>
-        {eyebrow && <p className="u-eyebrow mb-3">{eyebrow}</p>}
+        {/* `eyebrowClassName` exists for the homepage's brass kicker
+            (.u-eyebrow-accent). Both classes are our own utilities rather
+            than Tailwind ones, so there is nothing for tailwind-merge to
+            resolve between them and plain concatenation is correct here. */}
+        {eyebrow && <p className={`u-eyebrow mb-3 ${eyebrowClassName}`}>{eyebrow}</p>}
         <h2 className="font-display text-[1.375rem] font-normal leading-[1.2] tracking-[0.1px] text-ink sm:text-2xl">
           {title}
         </h2>

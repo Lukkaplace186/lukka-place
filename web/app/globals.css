@@ -43,6 +43,20 @@
      use it as a general page fill. */
   --canvas-warm: #f9f8f6;
   --canvas-alt: #f7f7f5;  /* alternating/sunken section fills (chalk) */
+  /* Sand — the storefront's one warm band fill. Distinct from --canvas-alt
+     (#f7f7f5), which is so close to white that a section carrying it reads
+     as no section at all: on a phone the homepage scrolled as one unbroken
+     white sheet from the hero to the footer, which is the specific
+     complaint this answers. Warm rather than a darker grey because the
+     ground is the only place this palette's brass accent has to live — a
+     cooler grey would fight it.
+       --ink    (#0b1120) on sand .... 17.2:1  passes AAA
+       --ink-45 (#5c6679) on sand ..... 5.3:1  passes AA
+       --brass-deep (#7a5619) on sand . 6.4:1  passes AA (7.3:1 on white)
+     Deliberately NOT --canvas-warm (#f9f8f6): that one is scoped to the
+     signed-in portal by the comment above it, and it is too faint to
+     separate a band anyway. */
+  --canvas-sand: #f6f1e8;
   --canvas-deep: #eff1f6; /* hover / pressed fills, image wells (mist) */
   --line: #e2e6ef;        /* hairline borders — replaces card shadows (ink-100) */
   --surface: #ffffff;     /* elevated cards sitting ON canvas */
@@ -189,6 +203,7 @@
   --color-canvas: var(--canvas);
   --color-canvas-alt: var(--canvas-alt);
   --color-canvas-warm: var(--canvas-warm);
+  --color-canvas-sand: var(--canvas-sand);
   --color-canvas-deep: var(--canvas-deep);
   --color-surface: var(--surface);
   --color-line: var(--line);
@@ -397,6 +412,18 @@
     letter-spacing: 1px;
     text-transform: uppercase;
     color: var(--ink-45);
+  }
+
+  /* The same label in brass, for the homepage's two section kickers only.
+     Brass is the palette's prestige accent and the token comment above it
+     is explicit that it is never a button — a small caps label is exactly
+     the badge/rule use it is reserved for, and --brass-deep is the text
+     cut (7.3:1 on white, 6.4:1 on sand), never --brass itself, which fails
+     AA at this size. Kept as a modifier rather than a change to
+     .u-eyebrow: that utility is the dashboard's spec-key label in ~60
+     places, where a warm accent would be noise. */
+  .u-eyebrow-accent {
+    color: var(--brass-deep);
   }
   /*
    * Rightmove's type scale, measured directly off their own live pages

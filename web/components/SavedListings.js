@@ -32,16 +32,24 @@ export default async function SavedListings({ listings, firstName }) {
   const t = await getT();
 
   return (
-    <section className="mx-auto max-w-[1600px] px-4 pt-8 pb-14 sm:px-6 sm:pt-14 sm:pb-24 lg:px-8">
-      <SectionHeading
-        eyebrow={firstName ? t('home.saved.eyebrow', { name: firstName }) : t('home.saved.eyebrowAnonymous')}
-        title={t('home.saved.title')}
-        lead={t('home.saved.lead', { count: listings.length })}
-        href="/compte/client"
-        linkLabel={t('home.saved.viewAll')}
-        className="mb-6 sm:mb-10"
-      />
-      <SavedListingsRail listings={listings} />
+    /* Carries the same warm band as FeaturedListings, because it stands in
+       the same slot: this component REPLACES that one for a signed-in
+       visitor with saved properties, so if only one of the two were warm
+       the homepage would alternate for signed-out visitors and stay flat
+       for signed-in ones. Band rhythm note above applies to the fill too. */
+    <section className="bg-canvas-sand">
+      <div className="mx-auto max-w-[1600px] px-4 pt-8 pb-14 sm:px-6 sm:pt-14 sm:pb-24 lg:px-8">
+        <SectionHeading
+          eyebrow={firstName ? t('home.saved.eyebrow', { name: firstName }) : t('home.saved.eyebrowAnonymous')}
+          title={t('home.saved.title')}
+          lead={t('home.saved.lead', { count: listings.length })}
+          href="/compte/client"
+          linkLabel={t('home.saved.viewAll')}
+          className="mb-6 sm:mb-10"
+          eyebrowClassName="u-eyebrow-accent"
+        />
+        <SavedListingsRail listings={listings} />
+      </div>
     </section>
   );
 }

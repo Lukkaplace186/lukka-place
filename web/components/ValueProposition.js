@@ -47,7 +47,15 @@ const VALUE_PROPS = [
 export default async function ValueProposition() {
   const t = await getT();
   return (
-    <section className="bg-canvas-alt py-11 shadow-[0_1px_0_var(--line)_inset] sm:py-20">
+    /* White, not --canvas-alt. This band and the listings section above it
+       were #f7f7f5 and #ffffff respectively — a 1.5% difference in
+       lightness, so neither read as a band and the whole page scrolled as
+       one sheet. The listings section is now the warm one
+       (--canvas-sand), and this one is plain white, so the homepage
+       alternates hero photo → sand → white → the footer's royal band
+       instead of fading out. The inset top hairline stays: it is what
+       separates the two pale grounds from each other. */
+    <section className="bg-canvas py-11 shadow-[0_1px_0_var(--line)_inset] sm:py-20">
       <div className="mx-auto max-w-[1240px] px-4 sm:px-6 lg:px-8">
         {/* The eyebrow IS the header. It previously sat above a serif title
             ("Ce qui change, concrètement" / "What actually changes") that
@@ -55,13 +63,18 @@ export default async function ValueProposition() {
             full — a label, a paraphrase of the section, and the section
             itself, in that order. The label is kept because it names the
             section in the page outline; the paraphrase is gone. */}
-        <h2 className="u-eyebrow mb-7 sm:mb-12">{t('home.value.eyebrow')}</h2>
+        <h2 className="u-eyebrow u-eyebrow-accent mb-7 sm:mb-12">{t('home.value.eyebrow')}</h2>
 
         <div className="grid grid-cols-1 gap-px border-y border-line bg-line md:grid-cols-3">
           {VALUE_PROPS.map(({ id, titleKey, bodyKey }) => (
             <div
               key={id}
-              className="flex flex-col gap-2 bg-canvas-alt py-6 sm:gap-2.5 sm:py-9 md:px-10 md:first:pl-0 md:last:pr-0"
+              /* Matches the section fill above, and must: these cells sit on
+                 a `bg-line` grid with a 1px gap, so the hairlines ARE the
+                 gap showing through. A cell filled with anything other than
+                 the section's own ground draws three visible blocks instead
+                 of one ruled band. */
+              className="flex flex-col gap-2 bg-canvas py-6 sm:gap-2.5 sm:py-9 md:px-10 md:first:pl-0 md:last:pr-0"
             >
               {/* Sans 700, not the display serif: with the numeral gone the
                   serif has no role in this section at all. */}

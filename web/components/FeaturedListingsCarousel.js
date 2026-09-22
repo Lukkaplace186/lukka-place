@@ -6,58 +6,48 @@ import PropertyCard from './PropertyCard';
  * Client wrapper around FeaturedListings' server-fetched data.
  *
  * Two distinct layouts, not one carousel styled two ways:
- *   - Below sm (640px): a real snap-scroll carousel — `overflow-x-auto
- *     snap-x snap-mandatory` with `no-scrollbar` since a touch carousel
- *     doesn't need a visible scrollbar track. Deliberately no extra
- *     horizontal padding or negative-margin breakout here: the parent
- *     <section> (FeaturedListings.js) already carries `px-4`, and each
- *     card is wrapped in its own `w-full shrink-0 snap-start` div — the
- *     doc comment here used to describe this same intent ("each card is
- *     w-full/min-w-full") without any class actually doing it: PropertyCard
- *     defaults to `layout="vertical"`, whose own root wrapper carries no
- *     width class at all (only the `layout="horizontal"` branch gets
- *     `w-full`), so every card in this flex row collapsed to its
- *     min-content width — confirmed directly, 2px per card on a real
- *     390px viewport, the whole row reading as a series of vertical
- *     hairlines. The wrapper below is what RelatedListings.js's own
- *     "Biens similaires" rail needed for the identical reason; `sm:contents`
- *     removes it from the box tree once the layout below switches to a
- *     real grid, so PropertyCard's own Link is the direct grid item there,
- *     same as before this fix.
- *     An earlier version broke out of the section's padding (`-mx-4/px-4`
- *     + `scroll-p-4`) to bleed cards near-full-bleed at 85vw with a
- *     deliberate sliver of the next card showing; on real devices that
- *     sliver read as a mid-scroll glitch rather than a hint, so this now
- *     shows exactly one full card at a time instead.
+ *   - Below sm (640px): a snap-scroll rail whose next card deliberately
+ *     PEEKS in from the right edge, so a visitor can see there is more to
+ *     swipe to (product direction, 2026-09-22 — this reverses an earlier
+ *     one-full-card-at-a-time version, where nothing on screen said the
+ *     section scrolled at all).
+ *     - The rail breaks out of the section's `px-4` (`-mx-4 px-4`) so cards
+ *       scroll all the way to the screen edge instead of being cut at the
+ *       gutter, and `scroll-px-4` keeps each snapped card aligned with the
+ *       heading above it.
+ *     - Each card is `w-[82vw] max-w-[310px]`: at 390px that is ~320px of
+ *       card, a 12px gap, and the next card's border and photo edge showing.
+ *       PropertyCard's own `border-line` + resting shadow is what makes the
+ *       peeking edge read as a card rather than a glitch.
+ *     - The wrapper carries the width because PropertyCard's default
+ *       `layout="vertical"` root has no width class — an unconstrained flex
+ *       child collapses to its min-content width (2px per card, confirmed on
+ *       a real 390px viewport). `sm:contents` removes the wrapper from the box
+ *       tree once the grid below takes over.
+ *     - `pt-2 pb-5`: an overflow-x container clips on both axes, so the
+ *       vertical padding is what leaves room for the card shadow.
  *   - sm and up: a real CSS grid (`grid-cols-2 md:grid-cols-3
- *     lg:grid-cols-4`), not a horizontal scroll strip. There is nothing to
- *     scroll on a wrapping grid, so the previous hover-revealed arrow
- *     buttons and their scrollBy() handler are gone — they only ever did
- *     anything on the same widths that no longer scroll.
+ *     lg:grid-cols-4`), not a horizontal scroll strip.
  *
  * The reveal lives on this wrapper, not on the cards: `.u-reveal-in-view`
- * (app/globals.css), a CSS scroll-driven animation with no JavaScript. It
- * replaced a framer-motion `whileInView`, and a browser without
- * `animation-timeline` simply shows the grid with no reveal.
+ * (app/globals.css), a CSS scroll-driven animation with no JavaScript; a
+ * browser without `animation-timeline` simply shows the rail with no reveal.
  */
 export default function FeaturedListingsCarousel({ listings }) {
   return (
     <div
       className={[
-        'u-reveal-in-view flex w-full snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth pb-4 no-scrollbar',
-        'sm:grid sm:grid-cols-2 sm:gap-6 sm:overflow-visible sm:pb-0',
+        'u-reveal-in-view -mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto overscroll-x-contain px-4 pt-2 pb-5 no-scrollbar',
+        'sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-6 sm:overflow-visible sm:px-0 sm:pt-0 sm:pb-0',
         'md:grid-cols-3',
         'lg:grid-cols-4',
       ].join(' ')}
     >
       {listings.map((listing, i) => (
-        <div key={listing.id} className="w-full shrink-0 snap-start sm:contents">
-          {/* First row of the lg:grid-cols-4 desktop grid (and the single
-              visible card on the mobile snap-carousel) is above the fold —
-              `priority` skips next/image's lazy-loading for those so the
-              LCP photo starts requesting immediately instead of waiting on
-              an IntersectionObserver, matching CardImageCarousel's own
-              cover-photo-only default. Everything past index 4 stays lazy. */}
+        <div key={listing.id} className="w-[82vw] max-w-[310px] shrink-0 snap-start sm:contents">
+          {/* The first cards (mobile: the one in view plus the peek; desktop:
+              the first grid row) are above the fold — `priority` skips
+              next/image's lazy-loading so the LCP photo requests immediately. */}
           <PropertyCard listing={listing} priority={i < 4} />
         </div>
       ))}

@@ -1586,6 +1586,28 @@ before it runs).
   print button would write a real row): check the poster/sheet print preview,
   Web Share with multiple files on Android, and the report card line.
 
+## Demandes lead card, simplified (2026-09-22)
+
+- **One full-width action: "Répondre sur WhatsApp"**, a `wa.me` link from the
+  agent's own WhatsApp (`lib/leadContact.js` `leadWhatsAppLink`, French, names
+  and links the enquired listing only when it is theirs and live). No 24h
+  window, and nothing recorded — like every direct chat. "Proposer des
+  alternatives" sits under it; quick replies, the Lukka Place composer,
+  "marquer comme traitée" and the status select are behind "Plus d'options".
+- **"Proposer un bien" is gone from the card**, and with it the only thing
+  that consumed the monthly lead quota (`packages.monthly_pitch_limit`), which
+  blocked agents on a 0-limit plan ("Vous avez traité vos 0 demandes du
+  mois"). The quota meter is off the overview and Abonnement.
+  `proposeListingAction` and `lib/leadQuota.js` still exist, unused by the UI.
+- **Alternatives were always empty — fixed.** `getListings` /
+  `getListingsByIds` gate on `status = 1 AND approve_status = 1` but do not
+  SELECT those columns, and `rankAlternatives` runs `shareBlocker`, which read
+  every row as pending. `lib/agentAlternatives.js` stamps rows from those reads
+  (`asPublicRows`). It also never dead-ends now: no purpose match → all of the
+  agent's live listings (flagged `ownWidened`); nothing of theirs → other
+  agencies' listings at once. "Ouvrir dans mon WhatsApp" is the primary
+  button, the Lukka Place send secondary. `tests/unit/agent-demandes-simplify.test.js`.
+
 ## Agent client book and "Proposer des alternatives" (2026-09-22)
 
 **Hidden from agents since 2026-09-22** (product decision: Biens / Demandes /

@@ -53,6 +53,9 @@ export default function AgentAlternativesDialog({ kind, id, emphasis = false }) 
         return;
       }
       setData(result);
+      // The server widens to other agencies by itself when the agent has
+      // nothing live to offer; keep the checkbox telling the truth.
+      if (result.includePublic) setIncludePublic(true);
       // Default: the best-ranked of the agent's OWN listings. Keep whatever
       // the agent already ticked when they widen to public listings.
       setSelected((prev) => (prev.length ? prev : result.own.slice(0, MAX_ALTERNATIVES).map((l) => l.id)));
@@ -146,7 +149,7 @@ export default function AgentAlternativesDialog({ kind, id, emphasis = false }) 
               ) : (
                 <>
                   <CandidateGroup
-                    label={t('agent.alternatives.ownGroup')}
+                    label={data.ownWidened ? t('agent.alternatives.ownGroupWidened') : t('agent.alternatives.ownGroup')}
                     items={data.own}
                     selected={selected}
                     onToggle={toggle}
@@ -185,26 +188,34 @@ export default function AgentAlternativesDialog({ kind, id, emphasis = false }) 
               )}
 
               <div className="flex flex-col gap-2 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={send}
-                  disabled={!chosen.length || sending}
-                  className="u-btn-primary u-press inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-lg bg-blue px-4 text-sm font-bold text-white disabled:opacity-60"
-                >
-                  <Send strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-                  {sending ? t('agent.alternatives.sending') : t('agent.alternatives.sendLukka')}
-                </button>
                 {ownLink ? (
                   <a
                     href={ownLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="u-btn-secondary u-press inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-lg px-4 text-sm font-bold text-ink"
+                    className="u-btn-primary u-press inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-lg bg-blue px-4 text-sm font-bold text-white"
                   >
                     <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
                     {t('agent.alternatives.openOwnWhatsApp')}
                   </a>
-                ) : null}
+                ) : (
+                  <span
+                    aria-disabled="true"
+                    className="u-btn-primary inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-lg bg-blue px-4 text-sm font-bold text-white opacity-60"
+                  >
+                    <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                    {t('agent.alternatives.openOwnWhatsApp')}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={send}
+                  disabled={!chosen.length || sending}
+                  className="u-btn-secondary u-press inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-lg px-4 text-sm font-bold text-ink disabled:opacity-60"
+                >
+                  <Send strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                  {sending ? t('agent.alternatives.sending') : t('agent.alternatives.sendLukka')}
+                </button>
               </div>
               <p className="text-xs text-ink-35">{t('agent.alternatives.deliveryNote')}</p>
             </div>

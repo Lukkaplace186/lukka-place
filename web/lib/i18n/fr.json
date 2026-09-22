@@ -734,7 +734,10 @@
       "updateStatus": "Mettre à jour",
       "reply": "Répondre",
       "markHandled": "Marquer comme traitée",
-      "proposeThis": "Proposer ce bien"
+      "proposeThis": "Proposer ce bien",
+      "replyOnWhatsApp": "Répondre sur WhatsApp",
+      "replyViaLukka": "Répondre via Lukka Place",
+      "moreOptions": "Plus d’options"
     },
     "visits": {
       "confirm": "Confirmer",
@@ -1318,6 +1321,7 @@
       "hint": "Choisissez jusqu’à {max} biens. Ils partent dans un seul message WhatsApp, chacun avec son lien.",
       "loading": "Recherche de biens similaires…",
       "ownGroup": "Vos biens en ligne",
+      "ownGroupWidened": "Vos biens en ligne — aucun ne correspond exactement, choisissez librement",
       "publicGroup": "Autres biens publiés sur Lukka Place",
       "publicGroupWidened": "Autres biens publiés — rien dans ces communes, toute la ville",
       "emptyOwn": "Aucun de vos biens en ligne ne correspond à ce type de transaction.",

@@ -12,7 +12,6 @@ import {
   VIEW_RANGES,
 } from '@/lib/analytics';
 import { listLeads } from '@/lib/adminApi';
-import { getAgentLeadQuota } from '@/lib/leadQuota';
 import { SITE_URL, ICON_STROKE_WIDTH } from '@/lib/constants';
 import AgentPageHeader from '@/components/AgentPageHeader';
 import AgentPortfolioBanner from '@/components/AgentPortfolioBanner';
@@ -52,18 +51,12 @@ export default async function AgentOverviewPage({ searchParams }) {
     getIncompleteListings(agentId, { limit: 200 }),
   ]);
 
-  const [views30d, whatsappClicks, leadsPage, series, deltas, leadQuota, todo, statusSuggestions] = await Promise.all([
+  const [views30d, whatsappClicks, leadsPage, series, deltas, todo, statusSuggestions] = await Promise.all([
     getAgentListingViews(propertyIds, 30),
     getAgentWhatsAppClicks(propertyIds),
     hasLeadScope ? listLeads({ ...leadScope, limit: 3 }) : Promise.resolve({ total: 0, data: [] }),
     getAgentListingViewsSeries(propertyIds, range),
     getAgentMonthlyDeltas(agentId, propertyIds),
-    // Same degrade-don't-die contract the rest of this dashboard follows: the
-    // engine being unreachable must not take the overview down. The card
-    // simply shows no quota bar rather than a fabricated one — and the write
-    // path re-checks the real count server-side before recording a response,
-    // so an unreadable count here can never grant one.
-    getAgentLeadQuota(agentId, agent),
     // "À faire aujourd'hui" + the morning reminder. Never throws: each engine
     // read degrades on its own and the panel says the list may be incomplete.
     loadAgentTodo({ agentId, leadScope, hasLeadScope }),
@@ -158,7 +151,6 @@ export default async function AgentOverviewPage({ searchParams }) {
               expireDate={agent.expire_date}
               listingCount={listingQuota?.capped ? listingQuota.used : listings.length}
               listingLimit={agent.listing_limit}
-              leadQuota={leadQuota}
             />
           </div>
         </div>

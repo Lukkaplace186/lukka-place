@@ -2,7 +2,6 @@ import { CreditCard, ReceiptText } from 'lucide-react';
 import { getCurrentAgentId } from '@/lib/agentSession';
 import { getAgentDashboardContext } from '@/lib/agentDashboard';
 import { getListingQuota } from '@/lib/listingQuota';
-import { getAgentLeadQuota } from '@/lib/leadQuota';
 import {
   getPurchasablePackages,
   getAgentBillingHistory,
@@ -67,8 +66,10 @@ export default async function AgentSubscriptionPage() {
   const { agent, listings, newLeadsCount } = await getAgentDashboardContext(agentId);
   const listingQuota = await getListingQuota(agentId).catch(() => null);
 
-  const [leadQuota, packages, history, openRequests] = await Promise.all([
-    getAgentLeadQuota(agentId, agent),
+  // No monthly lead quota meter: nothing on the dashboard counts against
+  // packages.monthly_pitch_limit any more (2026-09-22 — "Proposer un bien",
+  // the only quota-counted action, was removed from the lead card).
+  const [packages, history, openRequests] = await Promise.all([
     getPurchasablePackages(),
     getAgentBillingHistory(agent.vendor_id),
     getOpenPlanChangeRequests(agentId),
@@ -107,7 +108,6 @@ export default async function AgentSubscriptionPage() {
             listingLimit={agent.listing_limit}
             photoSessions={agent.package_photo_sessions}
             photoDiscountPct={agent.package_photo_discount}
-            leadQuota={leadQuota}
             compact
           />
 

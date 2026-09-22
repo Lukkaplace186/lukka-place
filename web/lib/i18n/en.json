@@ -734,7 +734,10 @@
       "updateStatus": "Update",
       "reply": "Reply",
       "markHandled": "Mark as handled",
-      "proposeThis": "Propose this property"
+      "proposeThis": "Propose this property",
+      "replyOnWhatsApp": "Reply on WhatsApp",
+      "replyViaLukka": "Reply via Lukka Place",
+      "moreOptions": "More options"
     },
     "visits": {
       "confirm": "Confirm",
@@ -1318,6 +1321,7 @@
       "hint": "Pick up to {max} properties. They go out in one WhatsApp message, each with its link.",
       "loading": "Looking for similar properties…",
       "ownGroup": "Your live properties",
+      "ownGroupWidened": "Your live listings — none is an exact match, pick freely",
       "publicGroup": "Other properties published on Lukka Place",
       "publicGroupWidened": "Other published properties — none in these communes, city-wide",
       "emptyOwn": "None of your live properties matches this transaction type.",

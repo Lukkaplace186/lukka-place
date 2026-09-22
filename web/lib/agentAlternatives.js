@@ -20,6 +20,18 @@ import { alternativesCriteria, rankAlternatives, alternativeSummary, MAX_ALTERNA
 const CANDIDATE_LIMIT = 60;
 const PUBLIC_LIMIT = 30;
 
+/*
+ * getListings / getListingsByIds already apply the public gate in SQL
+ * (status = 1 AND approve_status = 1) but do not SELECT those two columns.
+ * rankAlternatives runs shareBlocker, which reads them — so without this every
+ * row read as "pending" and was dropped, and the dialog always said "Aucun
+ * bien ne correspond" (reported 2026-09-22). Stamping them is not a guess:
+ * the WHERE clause that returned the row is what proves them.
+ */
+function asPublicRows(rows) {
+  return (rows || []).map((row) => ({ ...row, status: 1, approve_status: 1 }));
+}
+
 /**
  * @param {number} agentId
  * @param {'lead'|'visit'} kind
@@ -98,9 +110,27 @@ export async function getAlternativeSuggestions(agentId, target, { includePublic
   const excludeIds = [target.propertyId].filter(Boolean);
   const transactionType = TRANSACTION_BY_PURPOSE[criteria.purpose];
 
-  const own = await getListings({ agentId, transactionType, limit: CANDIDATE_LIMIT });
-  const ownRanked = rankAlternatives(own.data, criteria, { excludeIds });
+  let ownRanked = rankAlternatives(
+    asPublicRows((await getListings({ agentId, transactionType, limit: CANDIDATE_LIMIT })).data),
+    criteria,
+    { excludeIds },
+  );
+  // Never a dead end: when nothing of theirs matches the request's purpose,
+  // show every live listing they have and let the agent choose (flagged, so
+  // the dialog says these are not matches).
+  let ownWidened = false;
+  if (ownRanked.length === 0 && transactionType) {
+    ownRanked = rankAlternatives(
+      asPublicRows((await getListings({ agentId, limit: CANDIDATE_LIMIT })).data),
+      { ...criteria, purpose: null },
+      { excludeIds },
+    );
+    ownWidened = ownRanked.length > 0;
+  }
   const ownIds = new Set(ownRanked.map((e) => String(e.listing.id)));
+  // Nothing of their own to offer at all: widen to other agencies at once
+  // rather than showing an empty dialog behind an unticked checkbox.
+  if (ownRanked.length === 0) includePublic = true;
 
   let others = [];
   let widened = false;
@@ -111,10 +141,10 @@ export async function getAlternativeSuggestions(agentId, target, { includePublic
       const results = await Promise.all(
         communes.map((commune) => getListings({ transactionType, commune, limit: PUBLIC_LIMIT })),
       );
-      rows = results.flatMap((r) => r.data);
+      rows = asPublicRows(results.flatMap((r) => r.data));
     }
     if (rows.length === 0) {
-      rows = (await getListings({ transactionType, limit: PUBLIC_LIMIT })).data;
+      rows = asPublicRows((await getListings({ transactionType, limit: PUBLIC_LIMIT })).data);
       widened = communes.length > 0 && rows.length > 0;
     }
     others = rankAlternatives(
@@ -129,6 +159,8 @@ export async function getAlternativeSuggestions(agentId, target, { includePublic
     own: ownRanked.slice(0, 20).map((e) => alternativeSummary(e, { own: true })),
     others: others.slice(0, 20).map((e) => alternativeSummary(e)),
     widened,
+    ownWidened,
+    includePublic,
   };
 }
 
@@ -146,7 +178,7 @@ export async function loadChosenAlternatives(target, propertyIds) {
   }
   if (target.propertyId && ids.includes(String(target.propertyId))) return { ok: false, reason: 'excluded' };
 
-  const rows = await getListingsByIds(ids);
+  const rows = asPublicRows(await getListingsByIds(ids));
   const offerable = rankAlternatives(rows, {}, {}).map((e) => e.listing);
   if (offerable.length !== ids.length) return { ok: false, reason: 'unavailable' };
   const byId = new Map(offerable.map((l) => [String(l.id), l]));

@@ -1,16 +1,10 @@
 'use client';
 
-import { useMemo, useRef, useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
-import { Phone, Calculator, MapPin, Send, Check, Target, Building2 } from 'lucide-react';
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose,
-} from '@/components/ui/dialog';
+import { useMemo, useRef, useState } from 'react';
+import { Phone, Calculator, MapPin, Send, Check, Target, MessageCircle, ChevronDown } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
-import { formatPrice } from '@/lib/format';
 import { bestMatch } from '@/lib/agentMatching';
-import { proposeListingAction } from '@/app/compte/agent/actions';
-import { useToast } from './Toast';
+import { leadWhatsAppLink } from '@/lib/leadContact';
 import AgentQuickReplies from './AgentQuickReplies';
 import AgentAlternativesDialog from './AgentAlternativesDialog';
 import { useT } from '@/lib/i18n/client';
@@ -30,14 +24,17 @@ import { useT } from '@/lib/i18n/client';
  * themselves, and the agent always sees exactly what will go out before
  * pressing Envoyer.
  *
- * "Proposer un bien" moved here from AgentOpenLeadCard, which has been
- * deleted along with the open-request feed it belonged to. The action behind
- * it is unchanged (proposeListingAction -> a real lead_proposals row); what
- * changed is that an agent reaches it from a request the engine pushed to
- * them, rather than from a marketplace they had to go and browse. Match % is
- * still a real computed score (lib/agentMatching.js) against this agent's own
- * listings, and is absent rather than fabricated when the request gives
- * nothing to score against.
+ * Simplified 2026-09-22 (product direction: one tap to answer). The only
+ * full-width action is "Répondre sur WhatsApp" — a wa.me link from the
+ * agent's OWN WhatsApp, pre-filled in French (the customer reads it), which
+ * has no 24h-window limit. "Proposer des alternatives" sits under it.
+ * Everything else — quick replies, the Lukka Place composer, "marquer comme
+ * traitée" and the status select — is in the "Plus d'options" footer.
+ * "Proposer un bien" (proposeListingAction, the quota-counted lead_proposals
+ * write) is no longer offered: alternatives covers sharing listings, and its
+ * monthly quota was blocking agents from answering at all.
+ * Match % is a real computed score (lib/agentMatching.js), absent rather
+ * than fabricated when the request gives nothing to score against.
  *
  * `highlighted` marks the one request an agent arrived here to see from a
  * WhatsApp alert's deep link — see services/leadDispatch.js's agentLink.
@@ -72,29 +69,12 @@ export default function AgentLeadCard({
 }) {
   const t = useT();
   const [open, setOpen] = useState(false);
-  const [proposeOpen, setProposeOpen] = useState(false);
-  const [proposePending, startProposeTransition] = useTransition();
-  const router = useRouter();
-  const { showToast } = useToast();
+  const [moreOpen, setMoreOpen] = useState(false);
   const textareaRef = useRef(null);
   const name = lead.name || lead.wa_id;
 
   const best = useMemo(() => bestMatch(myListings, lead), [myListings, lead]);
-
-  function handlePropose(event) {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    startProposeTransition(async () => {
-      const result = await proposeListingAction(lead.id, formData);
-      if (!result.ok) {
-        showToast({ type: 'error', message: result.error });
-        return;
-      }
-      showToast({ type: 'success', message: t('agent.leads.propertyProposed') });
-      setProposeOpen(false);
-      router.refresh();
-    });
-  }
+  const directLink = useMemo(() => leadWhatsAppLink(lead, myListings), [lead, myListings]);
 
   function insertQuickReply(text) {
     const el = textareaRef.current;
@@ -159,30 +139,50 @@ export default function AgentLeadCard({
         </div>
 
         <div className="flex flex-col gap-2">
+          {directLink && (
+            <a
+              href={directLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="u-btn-primary u-press inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue text-sm font-bold text-white"
+            >
+              <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
+              {t('agent.leads.replyOnWhatsApp')}
+            </a>
+          )}
+          <AgentAlternativesDialog kind="lead" id={lead.id} />
+        </div>
+      </div>
+
+      <div className="mt-4 border-t border-line pt-3">
+        <button
+          type="button"
+          onClick={() => setMoreOpen((v) => !v)}
+          aria-expanded={moreOpen}
+          className="u-press inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-lg text-[0.8125rem] font-semibold text-ink-45 hover:bg-canvas-alt hover:text-ink"
+        >
+          {t('agent.leads.moreOptions')}
+          <ChevronDown
+            strokeWidth={ICON_STROKE_WIDTH}
+            className={`h-4 w-4 transition-transform ${moreOpen ? 'rotate-180' : ''}`}
+            aria-hidden="true"
+          />
+        </button>
+
+        {/* Hidden rather than unmounted, so a half-typed reply survives
+            closing the footer. */}
+        <div hidden={!moreOpen} className="mt-2 flex flex-col gap-2">
+          <AgentQuickReplies waId={lead.wa_id} clientName={lead.name} propertyId={lead.property_id} />
+
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
             aria-expanded={open}
-            className="u-btn-primary u-press inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue text-sm font-bold text-white"
+            className="u-btn-secondary u-press inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-lg text-[0.8125rem] font-bold text-ink"
           >
-            <Send strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
-            {open ? 'Fermer' : t('agent.leads.reply')}
+            <Send strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+            {open ? 'Fermer' : t('agent.leads.replyViaLukka')}
           </button>
-
-          <AgentQuickReplies waId={lead.wa_id} clientName={lead.name} propertyId={lead.property_id} />
-
-          {myListings.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setProposeOpen(true)}
-              className="u-btn-secondary u-press inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-lg text-[0.8125rem] font-bold text-ink"
-            >
-              <Building2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-              {t('agent.leads.proposeProperty')}
-            </button>
-          )}
-
-          <AgentAlternativesDialog kind="lead" id={lead.id} />
 
           <form action={statusAction}>
             <input type="hidden" name="status" value={lead.status === 'QUALIFIED' ? 'CONVERTED' : 'QUALIFIED'} />
@@ -192,6 +192,30 @@ export default function AgentLeadCard({
             >
               <Check strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
               {lead.status === 'QUALIFIED' ? 'Marquer comme convertie' : t('agent.leads.markHandled')}
+            </button>
+          </form>
+
+          <form action={statusAction} className="flex items-center gap-2">
+            <label htmlFor={`status-${lead.id}`} className="text-xs font-semibold text-ink-45">
+              Statut
+            </label>
+            <select
+              id={`status-${lead.id}`}
+              name="status"
+              defaultValue={lead.status}
+              className="u-focus-ring h-11 min-w-0 flex-1 rounded-full border border-line bg-surface px-2.5 text-xs font-medium text-ink"
+            >
+              {statusOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {t(o.labelKey)}
+                </option>
+              ))}
+            </select>
+            <button
+              type="submit"
+              className="u-press h-11 shrink-0 rounded-full border border-line px-2.5 text-xs font-medium text-ink transition-colors hover:bg-canvas-alt"
+            >
+              {t('agent.leads.updateStatus')}
             </button>
           </form>
         </div>
@@ -247,77 +271,7 @@ export default function AgentLeadCard({
         </form>
       )}
 
-      <form action={statusAction} className="mt-4 flex items-center gap-2 border-t border-line pt-4">
-        <label htmlFor={`status-${lead.id}`} className="text-xs font-semibold text-ink-45">
-          Statut
-        </label>
-        <select
-          id={`status-${lead.id}`}
-          name="status"
-          defaultValue={lead.status}
-          className="u-focus-ring h-11 rounded-full border border-line bg-surface px-2.5 text-xs font-medium text-ink"
-        >
-          {statusOptions.map((o) => (
-            <option key={o.value} value={o.value}>
-              {t(o.labelKey)}
-            </option>
-          ))}
-        </select>
-        <button
-          type="submit"
-          className="u-press h-11 rounded-full border border-line px-2.5 text-xs font-medium text-ink transition-colors hover:bg-canvas-alt"
-        >
-          {t('agent.leads.updateStatus')}
-        </button>
-      </form>
-
-      <Dialog open={proposeOpen} onOpenChange={setProposeOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t('agent.leads.proposeProperty')}</DialogTitle>
-            <DialogDescription>
-              {t('agent.leads.proposeHint')}
-            </DialogDescription>
-          </DialogHeader>
-
-          <form onSubmit={handlePropose} className="flex flex-col gap-4">
-            <select
-              name="property_id"
-              required
-              defaultValue={best ? String(best.listing.id) : ''}
-              className="u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink"
-            >
-              <option value="" disabled>
-                {t('agent.leads.choosePropertyPlaceholder')}
-              </option>
-              {myListings.map((listing) => (
-                <option key={listing.id} value={listing.id}>
-                  {listing.title} — {formatPrice(listing.price, listing.purpose)}
-                  {best?.listing.id === listing.id ? ` (${best.score}% correspondance)` : ''}
-                </option>
-              ))}
-            </select>
-
-            <DialogFooter>
-              <DialogClose asChild>
-                <button
-                  type="button"
-                  className="u-press inline-flex h-11 items-center rounded-lg px-4 text-sm font-semibold text-ink-45 hover:bg-canvas-alt hover:text-ink"
-                >
-                  {t('common.actions.cancel')}
-                </button>
-              </DialogClose>
-              <button
-                type="submit"
-                disabled={proposePending}
-                className="u-btn-primary u-press h-11 rounded-lg bg-blue px-5 text-sm font-bold text-white disabled:opacity-60"
-              >
-                {proposePending ? 'Envoi…' : t('agent.leads.proposeThis')}
-              </button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
+

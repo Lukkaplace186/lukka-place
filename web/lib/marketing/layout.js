@@ -507,6 +507,17 @@ export function buildReportOps(report, { measure, hasPhoto, hasMark }) {
   const tilesBottom = HEADER_H + 32 + TILE_H * 2 + 24;
   ops.push({ type: 'rect', x: PAD, y: tilesBottom + 30, w: 18, h: 18, fill: report.live ? COLORS.green : COLORS.gold, radius: 9 });
   ops.push({ type: 'text', text: report.statusText, x: PAD + 30, y: tilesBottom + 47, size: 28, weight: 800, color: COLORS.ink, align: 'left' });
+  // "Partagée N fois", right-aligned on the status row, only when there is one
+  // (buildMandateReport leaves it null at zero or unknown). The caption carries
+  // what a share is; the card has no room for the definition.
+  if (report.shareText) {
+    const statusW = measure(report.statusText, { size: 28, weight: 800 });
+    const room = W - PAD * 2 - 30 - statusW - 32;
+    const [shareLine] = room > 120 ? wrapText(report.shareText, room, { size: 26, weight: 500 }, 1, measure) : [];
+    if (shareLine) {
+      ops.push({ type: 'text', text: shareLine, x: W - PAD, y: tilesBottom + 47, size: 26, weight: 500, color: 'rgba(11,17,32,0.72)', align: 'right' });
+    }
+  }
   const [footnote] = wrapText(report.footnote, W - PAD * 2, { size: 21, weight: 500 }, 1, measure);
   ops.push({ type: 'text', text: footnote, x: PAD, y: tilesBottom + 88, size: 21, weight: 500, color: 'rgba(11,17,32,0.55)', align: 'left' });
 

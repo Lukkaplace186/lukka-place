@@ -1353,3 +1353,68 @@ days.
 - `.env.local` on the VPS is hand-maintained, not part of the deploy archive — don't overwrite it by including it in the tarball.
 
 @AGENTS.md
+
+## Statut du jour, share tracking and print pages (2026-09-22)
+
+Migration `migrations/20260922_listing_shares.sql` (new table only; code works
+before it runs).
+
+- **`listing_shares` records what the agent did, not what anyone saw.** One
+  row per listing each time the agent completes a share sheet with a graphic,
+  downloads one, opens or copies the caption, or presses our "Imprimer / PDF"
+  button (Ctrl+P is not counted). A cancelled share sheet records nothing. The
+  landlord report itself is never a share. Channels/formats are an allow-list
+  in `lib/listingShareRules.js` mirrored by the migration's CHECKs (a test
+  compares the two).
+- **Recording is fire-and-forget and server-validated.** The browser calls
+  `recordListingSharesAction` after the share, never awaited. The agent id comes
+  from the session; ownership AND `status = 1 AND approve_status = 1` are in the
+  INSERT, so a crafted id or a non-public listing writes nothing. One tap = one
+  record: an identical listing × channel × format row inside 30 s is skipped
+  (a genuinely simultaneous duplicate can slip through; accepted rather than a
+  lock per share), and an agent is capped at 60 rows a minute. Impersonation
+  blocks it at the edge like every POST.
+- **Missing table (42P01/42703)**: writes record nothing, the report count is
+  `null` (prints nothing), and Statut du jour falls back to the newest live
+  listings with `tracked: false` and says history is not available.
+- **Statut du jour** (`components/AgentStatusOfTheDay.js`, overview):
+  `getStatusSuggestions` — own live listings (shareBlocker's rule, in SQL) not
+  shared in `STATUS_RECENT_DAYS` (3), never-shared first, then least recently
+  shared, newest first, max 5. Images are drawn only on tap, via ONE
+  `getStatusPacksAction` round trip and the share kit's own pack + renderer
+  (9:16). Share all via `canShare({files})`, else sequential downloads (350 ms
+  apart, or browsers drop them). The empty states separate "nothing live" from
+  "all shared recently".
+- **"Partagée N fois"** on the landlord report counts `listing_shares` in the
+  report's own 7-day window, only when N > 0 (0 usually means shared by other
+  means, not a failure; null is unknown). The card puts it right-aligned on the
+  status row; the caption adds `SHARE_COUNT_DEFINITION` ("… pas une preuve que
+  quelqu'un l'a vu"). Kept out of `getMandateCounts` so its shape is unchanged.
+- **Print pages** `/compte/agent/biens/[id]/affiche` (A4 poster) and `/fiche`
+  (2-page technical sheet), linked from the share kit's Visuel tab (live kits
+  only) and the row menu (approved listings). Ownership is getFlyerListing's
+  SQL (404 otherwise); a blocked listing gets the share kit's blocker message
+  and no sheet, since its QR would lead to a 404.
+  - Content is **French always** (read by the market), only the toolbar is
+    translated. Only real fields; empty sections are not printed. Entry costs
+    are three separate lines (with per-line amounts only for a monthly rent),
+    never a sum. The landmark label is "Référence". Map link only for a parsed,
+    in-range, non-zero stored coordinate, labelled "position indicative".
+  - The phone is `agentContactPhone` (verified AND routing on). When a stored
+    number is withheld, the screen toolbar tells the agent why; the paper just
+    omits it (no central-number substitution).
+  - QR: the existing `qrcode` dependency, SVG generated server-side
+    (`lib/marketing/printSheetData.js`), URL
+    `?utm_source=print&utm_medium=poster|fiche`. `analyticsClient` forwards only
+    `utm_source`, so the medium is visible in the URL but not stored.
+  - Layout: `components/print/PrintStyles.js` ships its own CSS (not
+    globals.css). Each sheet is a size container `min(210mm, 100%)` wide with
+    A4's ratio and every length in `cqw`, so a phone shows a true miniature with
+    no sideways scroll and print is exactly A4. Print hides `aside`/`nav`/the
+    toolbar under `body:has(.lp-print)`.
+  - `lib/marketing/printSheetLoader.js` (imports listingFlyer, whose JSON import
+    the unit tier cannot load) is split from `printSheetData.js` so the SQL is
+    testable.
+- **Not verified in a browser here** (needs an agent session on real data; the
+  print button would write a real row): check the poster/sheet print preview,
+  Web Share with multiple files on Android, and the report card line.

@@ -1,5 +1,6 @@
 import { formatPrice } from '../format';
 import { listingPublicUrl, shareBlocker } from '../listingShareCopy';
+import { SHARE_COUNT_DEFINITION, shareCountText } from '../listingShareRules';
 
 /**
  * "Rapport de diffusion" — the pure half: the reporting window, the card's
@@ -76,9 +77,13 @@ export const REPORT_FOOTNOTE = 'Mesuré sur lukkaplace.com · appels et messages
 /**
  * @param {object} listing  getFlyerListing row.
  * @param {{current: object, previous: object}} counts  Each `{views, whatsappClicks, saves, visitRequests}`, numbers or null.
- * @param {{typeText, brand: {name, phone}, window}} options
+ * @param {{typeText, brand: {name, phone}, window, shares?: number|null}} options
+ *   `shares`: listing_shares rows in the same window (lib/listingShares.js).
+ *   Printed only when > 0 — "partagée 0 fois" would read as a failing to an
+ *   owner when it usually means the agent shared by other means, and an
+ *   unknown count (null) is not zero.
  */
-export function buildMandateReport(listing, counts, { typeText, brand, window }) {
+export function buildMandateReport(listing, counts, { typeText, brand, window, shares = null }) {
   const place = [listing.quartier, listing.commune].filter(Boolean).join(', ');
   const tiles = METRICS.map(({ key, label }) => {
     const value = counts.current?.[key];
@@ -95,6 +100,7 @@ export function buildMandateReport(listing, counts, { typeText, brand, window })
     live: !shareBlocker(listing),
     statusText: statusText(listing),
     footnote: REPORT_FOOTNOTE,
+    shareText: shareCountText(shares),
     agentName: brand?.name || null,
     agentPhone: brand?.phone || null,
   };
@@ -113,6 +119,7 @@ export function buildMandateCaption(listing, report, counts) {
       lines.push(`${caption} : *${count(value)}*${previous == null ? '' : ` (semaine précédente : ${count(previous)})`}`);
     }
   }
+  if (report.shareText) lines.push(`📣 ${report.shareText} par l’agent depuis Lukka Place`);
   lines.push('', `${report.live ? '✅' : '⏸️'} Statut : ${report.statusText.charAt(0).toLowerCase()}${report.statusText.slice(1)}`);
   if (report.live) lines.push(`👉 ${listingPublicUrl(listing.id, { source: REPORT_UTM_SOURCE })}`);
   lines.push(
@@ -120,5 +127,6 @@ export function buildMandateCaption(listing, report, counts) {
     'ℹ️ Ce que ces chiffres comptent : les ouvertures de la page de l’annonce sur lukkaplace.com (y compris celles de l’agent), les appuis sur son bouton WhatsApp, les mises en favori et les demandes de visite reçues via Lukka Place.',
     'Ce qu’ils ne comptent pas : les appels et messages envoyés directement à l’agent, ni les personnes qui ont vu l’annonce sur un statut ou dans un groupe sans ouvrir le lien.',
   );
+  if (report.shareText) lines.push(SHARE_COUNT_DEFINITION);
   return lines.join('\n');
 }

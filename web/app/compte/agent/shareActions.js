@@ -7,6 +7,8 @@ import { buildFlyerPack, optimisableImageSrc, optimisedImageUrl, LOGO_WIDTH } fr
 import { buildMandateCaption, buildMandateReport, reportWindow } from '@/lib/marketing/mandateReportCopy';
 import { getMandateCounts } from '@/lib/marketing/mandateReport';
 import { listingImages } from '@/lib/listingView';
+import { getListingShareCount, recordListingShares } from '@/lib/listingShares';
+import { MAX_IDS_PER_RECORD, normaliseShareRecord } from '@/lib/listingShareRules';
 
 function supabaseHost() {
   try {
@@ -45,7 +47,10 @@ async function ownedListing(listingId) {
 export async function getSharePackAction(listingId) {
   const { listing, error } = await ownedListing(listingId);
   if (error) return error;
+  return buildShareKit(listing);
+}
 
+function buildShareKit(listing) {
   const blocker = shareBlocker(listing);
   const typeText = frenchTypeText(listing);
   const contactPhone = agentContactPhone(listing);
@@ -73,6 +78,58 @@ export async function getSharePackAction(listingId) {
 }
 
 /**
+ * "Statut du jour" — the share kits for several of the agent's own listings
+ * in ONE round trip (a phone on 3G pays per request). Each id goes through the
+ * same ownership query as the single-listing kit; one that is not theirs, or
+ * no longer shareable, is left out rather than failing the batch.
+ *
+ * @returns {Promise<{ok: true, kits: Array<object>}|{ok: false, reason: 'auth'|'invalid'}>}
+ */
+export async function getStatusPacksAction(listingIds) {
+  const agentId = await getCurrentAgentId();
+  if (!agentId) return { ok: false, reason: 'auth' };
+  const ids = [...new Set((Array.isArray(listingIds) ? listingIds : []).map(Number))]
+    .filter((id) => Number.isSafeInteger(id) && id > 0)
+    .slice(0, MAX_IDS_PER_RECORD);
+  if (!ids.length) return { ok: false, reason: 'invalid' };
+
+  const kits = [];
+  for (const id of ids) {
+    const listing = await getFlyerListing(agentId, id);
+    if (!listing) continue;
+    const kit = buildShareKit(listing);
+    if (kit.shareable) kits.push(kit);
+  }
+  return { ok: true, kits };
+}
+
+/**
+ * Records that the agent shared, downloaded, copied or printed one or more of
+ * their listings (lib/listingShareRules.js says what counts). The browser
+ * calls this fire-and-forget AFTER the share has happened, so nothing here can
+ * delay or block one; a refusal, a missing table or a dead connection simply
+ * records nothing.
+ *
+ * The agent id comes from the session. Ownership and "is it live" are checked
+ * inside the INSERT (lib/listingShares.js), and a repeated tap inside the
+ * dedupe window writes nothing.
+ *
+ * @returns {Promise<{ok: boolean, recorded?: number}>}
+ */
+export async function recordListingSharesAction(input) {
+  const agentId = await getCurrentAgentId();
+  if (!agentId) return { ok: false };
+  const record = normaliseShareRecord(input);
+  if (!record) return { ok: false };
+  try {
+    return { ok: true, recorded: await recordListingShares(agentId, record) };
+  } catch (err) {
+    console.error(`[listing-shares] record failed for agent ${agentId}: ${err.message}`);
+    return { ok: false };
+  }
+}
+
+/**
  * The landlord report ("Rapport de diffusion") for one of the agent's own
  * listings: this week's and last week's counts, the card's fields and the
  * caption. Live numbers only — there is no offline copy of a report, since a
@@ -91,11 +148,16 @@ export async function getMandateReportAction(listingId) {
 
   try {
     const window = reportWindow(new Date());
-    const counts = await getMandateCounts(listing.id, window);
+    const [counts, shares] = await Promise.all([
+      getMandateCounts(listing.id, window),
+      // Same 7 days as the tiles. null (unknown) prints nothing.
+      getListingShareCount(listing.id, { from: window.from, until: window.end }),
+    ]);
     const report = buildMandateReport(listing, counts, {
       typeText: frenchTypeText(listing),
       brand: agentBrandFields(listing),
       window,
+      shares,
     });
     const cover = listingImages(listing).find((src) => optimisableImageSrc(src, { supabaseHost: supabaseHost() }));
     return {

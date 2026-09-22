@@ -20,6 +20,10 @@ import AgentStatGrid from '@/components/AgentStatGrid';
 import AgentViewsChart from '@/components/AgentViewsChart';
 import AgentRecentLeads from '@/components/AgentRecentLeads';
 import AgentSubscriptionCard from '@/components/AgentSubscriptionCard';
+import AgentStatusOfTheDay from '@/components/AgentStatusOfTheDay';
+import { getStatusSuggestions, serialiseSuggestion } from '@/lib/listingShares';
+import { STATUS_RECENT_DAYS } from '@/lib/listingShareRules';
+import { shareBlocker } from '@/lib/listingShareCopy';
 
 const RANGE_OPTIONS = Object.entries(VIEW_RANGES).map(([value, { label }]) => ({ value, label }));
 
@@ -34,7 +38,7 @@ export default async function AgentOverviewPage({ searchParams }) {
     await getAgentDashboardContext(agentId);
   const listingQuota = await getListingQuota(agentId).catch(() => null);
 
-  const [views30d, whatsappClicks, leadsPage, series, deltas, leadQuota] = await Promise.all([
+  const [views30d, whatsappClicks, leadsPage, series, deltas, leadQuota, statusSuggestions] = await Promise.all([
     getAgentListingViews(propertyIds, 30),
     getAgentWhatsAppClicks(propertyIds),
     hasLeadScope ? listLeads({ ...leadScope, limit: 3 }) : Promise.resolve({ total: 0, data: [] }),
@@ -46,7 +50,17 @@ export default async function AgentOverviewPage({ searchParams }) {
     // path re-checks the real count server-side before recording a response,
     // so an unreadable count here can never grant one.
     getAgentLeadQuota(agentId, agent),
+    // "Statut du jour". A failed read hides the card's list rather than the
+    // whole overview; getStatusSuggestions already degrades when
+    // listing_shares does not exist yet.
+    getStatusSuggestions(agentId).catch((err) => {
+      console.error(`[status-of-the-day] agent ${agentId}: ${err.message}`);
+      return null;
+    }),
   ]);
+  // Live = what the share kit would let them advertise (shareBlocker), so the
+  // card can tell "nothing live" from "everything shared recently".
+  const liveCount = listings.filter((l) => !shareBlocker(l)).length;
 
   const activeCount = listings.filter((l) => l.approve_status === 1 && l.listing_status === 'active').length;
 
@@ -96,6 +110,15 @@ export default async function AgentOverviewPage({ searchParams }) {
         />
 
         <AgentStatGrid stats={stats} />
+
+        {statusSuggestions && (
+          <AgentStatusOfTheDay
+            items={statusSuggestions.items.map(serialiseSuggestion)}
+            tracked={statusSuggestions.tracked}
+            liveCount={liveCount}
+            recentDays={STATUS_RECENT_DAYS}
+          />
+        )}
 
         <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)] lg:items-start">
           <AgentViewsChart

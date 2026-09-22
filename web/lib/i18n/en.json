@@ -1022,6 +1022,43 @@
       "usage": "{used} of {limit} listings used on your plan.",
       "freeSlot": "Archiving a listing, or marking one as let or sold, also frees a slot.",
       "upgrade": "Upgrade my plan"
+    },
+    "status": {
+      "title": "Today's Status",
+      "intro": "Your live listings not shared in the last {days} days, ready for your WhatsApp Status.",
+      "neverShared": "Never shared from Lukka Place",
+      "lastShared": "Last shared on {date}",
+      "untracked": "Share history is not available yet: these are your most recent live listings.",
+      "prepare": {
+        "one": "Prepare the status",
+        "other": "Prepare the {count} statuses"
+      },
+      "preparing": "Preparing images…",
+      "failed": "The images could not be prepared. Please try again.",
+      "offline": "Offline: the images cannot be prepared right now.",
+      "someSkipped": "Some listings could not be prepared and are not shown below.",
+      "shareOne": "Share",
+      "shareAll": "Share all",
+      "downloadAll": "Download all",
+      "downloaded": "Images downloaded. Post them from WhatsApp › Status.",
+      "shareFailed": "Sharing did not complete. Try “Download all”.",
+      "hint": "On a phone, pick WhatsApp then “My status”. Every share or download is counted in the owner report.",
+      "refresh": "New selection",
+      "previewAlt": "Status image: {title}",
+      "emptyNoLive": "No live listing to share yet.",
+      "emptyAllShared": "All your live listings have already been shared in the last {days} days.",
+      "openListings": "View my listings"
+    },
+    "print": {
+      "posterLink": "A4 poster",
+      "sheetLink": "Technical sheet",
+      "posterMenuItem": "Window poster (A4)",
+      "sheetMenuItem": "Technical sheet (A4)",
+      "back": "My listings",
+      "printButton": "Print / PDF",
+      "phoneHidden": "Your number is not shown: it is not verified yet, or direct contact is switched off for your account. The QR code leads to the listing.",
+      "posterMetaTitle": "A4 Poster",
+      "sheetMetaTitle": "Technical Sheet"
     }
   },
   "status": {

@@ -168,6 +168,7 @@ export function buildFormValuesFromParsed(extracted, { communes, categories = []
     categoryId,
     commune,
     quartier: extracted.quartier || '',
+    reference: extracted.reference || '',
     price: extracted.price != null ? String(extracted.price) : '',
     // null (not a defaulted 'USD') when no price was extracted, so a caller
     // never flips an existing listing's currency toggle off the back of a

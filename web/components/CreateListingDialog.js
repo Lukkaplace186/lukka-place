@@ -23,7 +23,7 @@ const LABEL_CLASS = 'mb-1.5 block text-[0.8125rem] font-semibold text-ink-70';
 const AUTOSAVE_DELAY_MS = 700;
 
 // The uncontrolled form fields a draft restores, by name.
-const DRAFT_FIELDS = ['title', 'purpose', 'category_id', 'commune', 'price', 'beds', 'bath', 'area', 'quartier', 'description'];
+const DRAFT_FIELDS = ['title', 'reference', 'purpose', 'category_id', 'commune', 'price', 'beds', 'bath', 'area', 'quartier', 'description'];
 
 /**
  * The agent-side "manually create a listing" form — real DB-backed
@@ -63,7 +63,7 @@ const DRAFT_FIELDS = ['title', 'purpose', 'category_id', 'commune', 'price', 'be
  * A server verdict (a missing field, an invalid price) is NOT a network
  * failure: the draft is un-queued and the dialog reopens with the error.
  */
-export default function CreateListingDialog({ communes, categories, draftKey = null, quota = null }) {
+export default function CreateListingDialog({ communes, categories, draftKey = null, quota = null, primary = false }) {
   const t = useT();
   // Lazy initializer: reads (and clears) the one-shot flag exactly once, at
   // first render — not in an effect. `typeof window` guards the server
@@ -364,6 +364,7 @@ export default function CreateListingDialog({ communes, categories, draftKey = n
     if (mapped.bath) form.elements.bath.value = mapped.bath;
     if (mapped.area) form.elements.area.value = mapped.area;
     if (mapped.quartier) form.elements.quartier.value = mapped.quartier;
+    if (mapped.reference) form.elements.reference.value = mapped.reference;
     if (mapped.description) form.elements.description.value = mapped.description;
     scheduleAutosave();
   }
@@ -460,7 +461,11 @@ export default function CreateListingDialog({ communes, categories, draftKey = n
         <button
           type="button"
           onClick={openForm}
-          className="u-btn-secondary u-press inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 text-[0.8125rem] font-bold text-ink"
+          className={
+            primary
+              ? 'u-btn-primary u-press inline-flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-blue px-3 text-[0.8125rem] font-bold text-white sm:h-11 sm:px-5 sm:text-sm'
+              : 'u-btn-secondary u-press inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 text-[0.8125rem] font-bold text-ink'
+          }
         >
           <Plus strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
           {t('agent.editor.addListing')}
@@ -500,6 +505,18 @@ export default function CreateListingDialog({ communes, categories, draftKey = n
           <div>
             <label htmlFor="title" className={LABEL_CLASS}>Titre</label>
             <input id="title" name="title" required maxLength={150} placeholder={t('agent.editor.titlePlaceholder')} className={FIELD_CLASS} />
+          </div>
+
+          <div>
+            <label htmlFor="reference" className={LABEL_CLASS}>{t('agent.editor.reference')}</label>
+            <input
+              id="reference"
+              name="reference"
+              maxLength={120}
+              placeholder={t('agent.editor.referencePlaceholder')}
+              className={FIELD_CLASS}
+            />
+            <p className="mt-1 text-xs text-ink-35">{t('agent.editor.referenceHint')}</p>
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

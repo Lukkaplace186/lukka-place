@@ -14,6 +14,9 @@ import {
 import { listLeads } from '@/lib/adminApi';
 import { SITE_URL, ICON_STROKE_WIDTH } from '@/lib/constants';
 import AgentPageHeader from '@/components/AgentPageHeader';
+import CreateListingDialog from '@/components/CreateListingDialog';
+import { getLocationHierarchyWithFallback } from '@/lib/locations';
+import { getPropertyCategories } from '@/lib/agentListings';
 import AgentPortfolioBanner from '@/components/AgentPortfolioBanner';
 import AgentStatGrid from '@/components/AgentStatGrid';
 import AgentViewsChart from '@/components/AgentViewsChart';
@@ -40,6 +43,13 @@ export default async function AgentOverviewPage({ searchParams }) {
   const { agent, listings, propertyIds, listingById, leadScope, hasLeadScope, newLeadsCount } =
     await getAgentDashboardContext(agentId);
   const listingQuota = await getListingQuota(agentId).catch(() => null);
+  // For the header's "Ajouter un bien" form. Same degrade posture as Mes biens:
+  // a failed read costs the dialog its options, never the overview.
+  const [createHierarchy, createCategories] = await Promise.all([
+    getLocationHierarchyWithFallback().catch(() => ({ communes: [] })),
+    getPropertyCategories().catch(() => []),
+  ]);
+  const createCommunes = createHierarchy?.communes ?? [];
 
   // Degrade, don't die: the checklist is a nudge, never a reason for the
   // overview to fail. getIncompleteListings already swallows its own errors.
@@ -102,13 +112,19 @@ export default async function AgentOverviewPage({ searchParams }) {
         searchAction="/compte/agent/biens"
         searchPlaceholder="Rechercher un bien, un client"
         action={
-          <Link
-            href="/compte/agent/biens"
-            className="u-btn-primary u-press inline-flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-blue px-3 text-[0.8125rem] font-bold text-white sm:h-11 sm:px-5 sm:text-sm"
-          >
-            <Plus strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-            {t('agent.overview.addListing')}
-          </Link>
+          // The creation form opens right here — it used to link to Mes biens,
+          // where the agent had to press "Ajouter un bien" a second time.
+          <CreateListingDialog
+            primary
+            communes={createCommunes}
+            categories={createCategories}
+            draftKey={`agent:${agentId}:new-listing`}
+            quota={
+              listingQuota
+                ? { atLimit: listingQuota.atLimit, limit: listingQuota.limit, used: listingQuota.used, planTitle: listingQuota.planTitle }
+                : null
+            }
+          />
         }
       />
 

@@ -119,7 +119,7 @@ export default async function AgentListingsPage({ searchParams }) {
   const filtered = listings.filter((l) => {
     if (!matchesFilter(l, statusFilter)) return false;
     if (!needle) return true;
-    return `${l.title || ''} ${l.quartier || ''}`.toLowerCase().includes(needle);
+    return `${l.title || ''} ${l.quartier || ''} ${l.reference || ''}`.toLowerCase().includes(needle);
   });
 
   // `o.label` here — not `t(o.labelKey)` — is what took this whole page down:

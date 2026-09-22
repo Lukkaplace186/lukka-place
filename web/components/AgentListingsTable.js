@@ -355,6 +355,11 @@ export default function AgentListingsTable({ listings, perListingStats, gapsByLi
                   </div>
                 )}
                 <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-45">
+                  {listing.reference && (
+                    <span className="u-ref max-w-full truncate rounded bg-canvas-alt px-1.5 py-0.5 text-[0.6875rem] font-semibold text-ink-70">
+                      Réf. {listing.reference}
+                    </span>
+                  )}
                   <span className="max-w-full truncate">{listing.quartier || 'Localisation non précisée'}</span>
                   {approve && (
                     <span className={`shrink-0 rounded-full px-2 py-0.5 text-[0.6875rem] font-bold ${approve.className}`}>

@@ -110,7 +110,7 @@ function capitalise(text) {
  * @param {number|null} input.bath
  * @returns {Promise<number>} the new properties.id
  */
-export async function createListing({ agentId, vendorId, category, title, description, commune, price, purpose, beds, bath, area = null, quartier = null }) {
+export async function createListing({ agentId, vendorId, category, title, description, commune, price, purpose, beds, bath, area = null, quartier = null, reference = null }) {
   const pool = getPool();
   const client = await pool.connect();
 
@@ -137,6 +137,9 @@ export async function createListing({ agentId, vendorId, category, title, descri
       // was permanently thinner than the same listing sent by WhatsApp.
       area: area != null ? String(area) : '0',
       quartier,
+      // The listing's own "référence" — a landmark agents and customers name
+      // the place by, or an agency code. Same column the WhatsApp intake fills.
+      reference,
       price_period: purpose === 'rent' ? 'mois' : null,
       status: 1,
       approve_status: 0,
@@ -306,7 +309,7 @@ export async function getOwnListingForEdit(agentId, propertyId) {
  */
 export async function updateListing(agentId, propertyId, {
   title, description, commune, price, priceOriginal, currency, beds, bath, area, quartier,
-  unitsCount, depositMonths, amenityIds,
+  unitsCount, depositMonths, amenityIds, reference = null,
 }) {
   const pool = getPool();
   const client = await pool.connect();
@@ -322,9 +325,9 @@ export async function updateListing(agentId, propertyId, {
     const { rowCount } = await client.query(
       `UPDATE properties
        SET price = $1, price_original = $2, currency = $3, beds = $4, bath = $5, area = $6,
-           quartier = $7, units_count = $8, deposit_months = $9, updated_at = NOW()
+           quartier = $7, units_count = $8, deposit_months = $9, reference = $12, updated_at = NOW()
        WHERE id = $10 AND agent_id = $11`,
-      [price, priceOriginal, currency, beds, bath, area, quartier, unitsCount, depositMonths, propertyId, agentId],
+      [price, priceOriginal, currency, beds, bath, area, quartier, unitsCount, depositMonths, propertyId, agentId, reference],
     );
     if (rowCount === 0) {
       await client.query('ROLLBACK');

@@ -339,6 +339,7 @@ export async function createListingAction(validCommunes, validCategories, formDa
   const areaRaw = formData.get('area');
   const area = areaRaw ? Number.parseInt(areaRaw, 10) : null;
   const quartier = String(formData.get('quartier') || '').trim() || null;
+  const reference = String(formData.get('reference') || '').trim().slice(0, 120) || null;
   const photos = formData.getAll('photos').filter((f) => f && typeof f !== 'string' && f.size > 0);
 
   if (!title) return { ok: false, error: t('errors.titleRequired') };
@@ -386,6 +387,7 @@ export async function createListingAction(validCommunes, validCategories, formDa
     bath,
     area,
     quartier,
+    reference,
   });
 
   let uploadedCount = 0;
@@ -834,6 +836,7 @@ export async function updateListingAction(propertyId, validCommunes, formData) {
   const description = String(formData.get('description') || '').trim().slice(0, 4000);
   const commune = String(formData.get('commune') || '');
   const quartier = String(formData.get('quartier') || '').trim().slice(0, 120) || null;
+  const reference = String(formData.get('reference') || '').trim().slice(0, 120) || null;
   const priceInput = Number.parseFloat(formData.get('price'));
   const currency = String(formData.get('currency') || 'USD').toUpperCase();
 
@@ -929,7 +932,7 @@ export async function updateListingAction(propertyId, validCommunes, formData) {
 
   const owned = await updateListing(agentId, propertyId, {
     title, description, commune, price, priceOriginal, currency, beds, bath, area, quartier,
-    unitsCount, depositMonths, amenityIds,
+    unitsCount, depositMonths, amenityIds, reference,
   });
   if (!owned) return { ok: false, error: t('errors.listingNotFoundOrNotYours') };
 

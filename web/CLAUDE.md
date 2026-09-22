@@ -1586,6 +1586,24 @@ before it runs).
   print button would write a real row): check the poster/sheet print preview,
   Web Share with multiple files on Android, and the report card line.
 
+## Add-listing from Vue, and the reference field (2026-09-22)
+
+- **Vue's "+ Ajouter un bien" opens `CreateListingDialog` in place** (`primary`
+  prop for the header styling). It linked to Mes biens, where the agent had to
+  press the same button again. There is still no `/biens/nouveau` route.
+- **Both agent forms now write `properties.reference`** — the column the
+  WhatsApp intake already fills, not a new `internal_code`. Agents and
+  customers name a place by it (a repère like "Mimosas, Camp Docteur", or an
+  agency code like "REF-101"), so the label is just "Référence" with both
+  examples. Create, edit, smart paste and offline drafts carry it; Mes biens
+  shows "Réf. …" on the card and its search matches it. The editor's quartier
+  field is labelled "Quartier" now, since "Quartier ou référence" no longer
+  fits. Public page, WhatsApp "Réf." line and geocoding already read the
+  column. Editing it does not clear coordinates (the web path never did for
+  quartier either). The write-path-parity check for `reference` had only
+  been passing on a code comment; `tests/unit/agent-listing-reference.test.js`
+  pins the real writes.
+
 ## Demandes lead card, simplified (2026-09-22)
 
 - **One full-width action: "Répondre sur WhatsApp"**, a `wa.me` link from the

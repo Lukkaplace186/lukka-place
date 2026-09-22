@@ -230,6 +230,7 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
     }
     if (mapped.commune) form.elements.commune.value = mapped.commune;
     if (mapped.quartier) form.elements.quartier.value = mapped.quartier;
+    if (mapped.reference) form.elements.reference.value = mapped.reference;
     if (mapped.area) form.elements.area.value = mapped.area;
     if (mapped.beds) form.elements.beds.value = mapped.beds;
     if (mapped.bath) form.elements.bath.value = mapped.bath;
@@ -424,15 +425,26 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
             </select>
           </div>
           <div>
-            <label htmlFor="quartier" className={LABEL_CLASS}>{t('agent.editor.quartierOrReference')}</label>
+            <label htmlFor="quartier" className={LABEL_CLASS}>{t('listings.filters.quartier')}</label>
             <input
               id="quartier"
               name="quartier"
               maxLength={120}
               defaultValue={listing.quartier || ''}
-              placeholder="Ex. Rond-point Ngaba"
               className={FIELD_CLASS}
             />
+          </div>
+          <div className="sm:col-span-2">
+            <label htmlFor="reference" className={LABEL_CLASS}>{t('agent.editor.reference')}</label>
+            <input
+              id="reference"
+              name="reference"
+              maxLength={120}
+              defaultValue={listing.reference || ''}
+              placeholder={t('agent.editor.referencePlaceholder')}
+              className={FIELD_CLASS}
+            />
+            <p className={HINT_CLASS}>{t('agent.editor.referenceHint')}</p>
           </div>
         </div>
       </div>

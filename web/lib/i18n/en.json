@@ -633,7 +633,9 @@
       "noLeadsYet": "No enquiries yet.",
       "viewsChart": "Views of Your Listings",
       "chartRange": "Chart period",
-      "copyPortfolioLink": "Copy my portfolio link"
+      "copyPortfolioLink": "Copy my portfolio link",
+      "showMore": "Show more",
+      "showLess": "Show less"
     },
     "listings": {
       "title": "My Listings",
@@ -702,7 +704,12 @@
       "bulkDeletedWithFailures": "{deleted} deleted, {failed} failed.",
       "let": "Let",
       "editPrice": "Edit price",
-      "markAsLet": "Mark as let"
+      "markAsLet": "Mark as let",
+      "toComplete": "To complete",
+      "select": "Select",
+      "doneSelecting": "Done",
+      "markActive": "Mark as active",
+      "markUnderOfferOne": "Mark as under offer"
     },
     "leads": {
       "title": "Enquiries",
@@ -1059,13 +1066,16 @@
         "confirmAvailability": "Confirm availability",
         "complete": "Complete",
         "confirmAt": "Confirm · {slot}",
-        "otherTime": "Other time"
+        "otherTime": "Other time",
+        "relaunch": "Follow up",
+        "closeVisit": "Close"
       },
       "badge": {
         "overdue": "Time passed",
         "slotProposed": "Time proposed",
         "unanswered": "Unanswered",
-        "newLead": "New"
+        "newLead": "New",
+        "stale": "Follow up or close"
       },
       "meta": {
         "slotPassed": "Due {slot}, unanswered",

@@ -1,12 +1,13 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
-import { Phone, Calculator, MapPin, Send, Check, Target, MessageCircle, ChevronDown } from 'lucide-react';
+import { useMemo, useOptimistic, useRef, useState } from 'react';
+import { Phone, Calculator, MapPin, Send, Check, Target, MessageCircle, MoreHorizontal } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { bestMatch } from '@/lib/agentMatching';
 import { leadWhatsAppLink } from '@/lib/leadContact';
 import AgentQuickReplies from './AgentQuickReplies';
 import AgentAlternativesDialog from './AgentAlternativesDialog';
+import { useToast } from './Toast';
 import { useT } from '@/lib/i18n/client';
 
 /**
@@ -33,6 +34,14 @@ import { useT } from '@/lib/i18n/client';
  * "Proposer un bien" (proposeListingAction, the quota-counted lead_proposals
  * write) is no longer offered: alternatives covers sharing listings, and its
  * monthly quota was blocking agents from answering at all.
+ *
+ * 2026-09-23: "Proposer des alternatives" moved in with the rest, behind ONE
+ * "…" button beside "Répondre sur WhatsApp" — the card had a second
+ * full-width button and a full-width "Plus d'options" row under it, three
+ * rows of chrome per request on a phone. A status change (Marquer comme
+ * traitée, the select) shows on the tag at once (useOptimistic) while the
+ * action runs; a failure puts the old status back with a toast.
+ *
  * Match % is a real computed score (lib/agentMatching.js), absent rather
  * than fabricated when the request gives nothing to score against.
  *
@@ -68,10 +77,29 @@ export default function AgentLeadCard({
   highlighted = false,
 }) {
   const t = useT();
+  const { showToast } = useToast();
   const [open, setOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [status, setOptimisticStatus] = useOptimistic(lead.status);
   const textareaRef = useRef(null);
   const name = lead.name || lead.wa_id;
+
+  const statusText =
+    status === lead.status
+      ? statusLabel
+      : t(statusOptions.find((o) => o.value === status)?.labelKey || '') || status;
+
+  // Form action: runs inside a transition, so the optimistic status holds
+  // until the server's revalidated page replaces it.
+  async function changeStatus(formData) {
+    setOptimisticStatus(String(formData.get('status') || lead.status));
+    try {
+      await statusAction(formData);
+    } catch (err) {
+      console.error('[AgentLeadCard] status change failed', err);
+      showToast({ type: 'error', message: t('errors.submissionFailed') });
+    }
+  }
 
   const best = useMemo(() => bestMatch(myListings, lead), [myListings, lead]);
   const directLink = useMemo(() => leadWhatsAppLink(lead, myListings), [lead, myListings]);
@@ -91,16 +119,16 @@ export default function AgentLeadCard({
           {t('agent.leads.fromWhatsAppAlert')}
         </p>
       )}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_16.5rem] lg:items-center">
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_16.5rem] lg:items-center">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="text-base font-bold text-ink">{name}</span>
             <span
               className={`rounded-full px-2.5 py-1 text-[0.6875rem] font-extrabold uppercase tracking-[0.12em] ${
-                STATUS_TAG[lead.status] || STATUS_TAG.NEW
+                STATUS_TAG[status] || STATUS_TAG.NEW
               }`}
             >
-              {statusLabel}
+              {statusText}
             </span>
             <span className="text-xs text-ink-35">{relativeTime}</span>
           </div>
@@ -138,40 +166,43 @@ export default function AgentLeadCard({
           </div>
         </div>
 
-        <div className="flex flex-col gap-2">
-          {directLink && (
+        <div className="flex items-center gap-2">
+          {directLink ? (
             <a
               href={directLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="u-btn-primary u-press inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-blue text-sm font-bold text-white"
+              className="u-btn-primary u-press inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg bg-blue text-sm font-bold text-white"
             >
-              <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
-              {t('agent.leads.replyOnWhatsApp')}
+              <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem] shrink-0" />
+              <span className="truncate">{t('agent.leads.replyOnWhatsApp')}</span>
             </a>
+          ) : (
+            <div className="min-w-0 flex-1">
+              <AgentAlternativesDialog kind="lead" id={lead.id} emphasis />
+            </div>
           )}
-          <AgentAlternativesDialog kind="lead" id={lead.id} />
+          <button
+            type="button"
+            onClick={() => setMoreOpen((v) => !v)}
+            aria-expanded={moreOpen}
+            aria-label={t('agent.leads.moreOptions')}
+            title={t('agent.leads.moreOptions')}
+            className={`u-press grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-line text-ink-70 transition-colors hover:bg-canvas-alt hover:text-ink ${
+              moreOpen ? 'bg-canvas-alt text-ink' : ''
+            }`}
+          >
+            <MoreHorizontal strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
+          </button>
         </div>
       </div>
 
-      <div className="mt-4 border-t border-line pt-3">
-        <button
-          type="button"
-          onClick={() => setMoreOpen((v) => !v)}
-          aria-expanded={moreOpen}
-          className="u-press inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-lg text-[0.8125rem] font-semibold text-ink-45 hover:bg-canvas-alt hover:text-ink"
-        >
-          {t('agent.leads.moreOptions')}
-          <ChevronDown
-            strokeWidth={ICON_STROKE_WIDTH}
-            className={`h-4 w-4 transition-transform ${moreOpen ? 'rotate-180' : ''}`}
-            aria-hidden="true"
-          />
-        </button>
+      {/* Hidden rather than unmounted, so a half-typed reply survives
+          closing the panel. */}
+      <div hidden={!moreOpen} className="mt-3 border-t border-line pt-3">
+        <div className="flex flex-col gap-2">
+          {directLink && <AgentAlternativesDialog kind="lead" id={lead.id} />}
 
-        {/* Hidden rather than unmounted, so a half-typed reply survives
-            closing the footer. */}
-        <div hidden={!moreOpen} className="mt-2 flex flex-col gap-2">
           <AgentQuickReplies waId={lead.wa_id} clientName={lead.name} propertyId={lead.property_id} />
 
           <button
@@ -184,25 +215,26 @@ export default function AgentLeadCard({
             {open ? 'Fermer' : t('agent.leads.replyViaLukka')}
           </button>
 
-          <form action={statusAction}>
-            <input type="hidden" name="status" value={lead.status === 'QUALIFIED' ? 'CONVERTED' : 'QUALIFIED'} />
+          <form action={changeStatus}>
+            <input type="hidden" name="status" value={status === 'QUALIFIED' ? 'CONVERTED' : 'QUALIFIED'} />
             <button
               type="submit"
               className="u-press inline-flex h-11 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg text-[0.8125rem] font-semibold text-ink-45 transition-colors hover:bg-canvas-alt hover:text-ink"
             >
               <Check strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-              {lead.status === 'QUALIFIED' ? 'Marquer comme convertie' : t('agent.leads.markHandled')}
+              {status === 'QUALIFIED' ? 'Marquer comme convertie' : t('agent.leads.markHandled')}
             </button>
           </form>
 
-          <form action={statusAction} className="flex items-center gap-2">
+          <form action={changeStatus} className="flex items-center gap-2">
             <label htmlFor={`status-${lead.id}`} className="text-xs font-semibold text-ink-45">
               Statut
             </label>
             <select
+              key={status}
               id={`status-${lead.id}`}
               name="status"
-              defaultValue={lead.status}
+              defaultValue={status}
               className="u-focus-ring h-11 min-w-0 flex-1 rounded-full border border-line bg-surface px-2.5 text-xs font-medium text-ink"
             >
               {statusOptions.map((o) => (

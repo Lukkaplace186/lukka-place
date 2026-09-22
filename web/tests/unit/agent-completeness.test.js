@@ -88,9 +88,11 @@ test('profile gaps: a phone-shaped or placeholder agency name is not a name', ()
 });
 
 test('every gap links to the exact field that fixes it', () => {
-  assert.equal(profileGapHref('no_communes'), '/compte/agent/parametres#communes');
-  assert.equal(profileGapHref('no_agency_name'), '/compte/agent/parametres#agency_name');
-  assert.equal(profileGapHref('no_working_hours'), '/compte/agent/parametres#hours');
+  // `?section=` opens the right card on a phone, where Réglages shows one at a time.
+  assert.equal(profileGapHref('no_communes'), '/compte/agent/parametres?section=communes#communes');
+  assert.equal(profileGapHref('no_agency_name'), '/compte/agent/parametres?section=identity#agency_name');
+  assert.equal(profileGapHref('no_working_hours'), '/compte/agent/parametres?section=hours#hours');
+  assert.equal(profileGapHref('no_logo'), '/compte/agent/parametres?section=identity#identity');
   assert.equal(listingGapHref(42, 'thin_photos'), '/compte/agent/biens/42/edit#photos');
   assert.equal(listingGapHref(42, 'missing_deposit'), '/compte/agent/biens/42/edit#deposit_months');
 

@@ -73,9 +73,14 @@ const LISTING_GAP_ANCHORS = {
   no_map_pin: 'quartier',
 };
 
+// Réglages opens one section at a time on a phone (`?section=`), so a link
+// names the section as well as the field's anchor.
+const ANCHOR_SECTION = { agency_name: 'identity' };
+
 export function profileGapHref(code) {
   const anchor = PROFILE_GAP_ANCHORS[code];
-  return anchor ? `/compte/agent/parametres#${anchor}` : '/compte/agent/parametres';
+  if (!anchor) return '/compte/agent/parametres';
+  return `/compte/agent/parametres?section=${ANCHOR_SECTION[anchor] || anchor}#${anchor}`;
 }
 
 export function listingGapHref(listingId, code) {

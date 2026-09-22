@@ -14,8 +14,12 @@ const SEE_ALL_KEY = {
   [TODO_KINDS.LISTING_INCOMPLETE]: 'agent.today.seeAll.incompleteListings',
 };
 
+// Lead rows carry `name`, visit rows `lead_name`; reading only the second is
+// what printed a lead's customer as a bare "+4479…" beside their own name.
 function customerLabel(row) {
-  return row?.lead_name || (row?.lead_wa_id || row?.wa_id ? `+${row.lead_wa_id || row.wa_id}` : null);
+  const name = row?.lead_name || row?.name;
+  if (name && /[A-Za-zÀ-ÿ]/.test(name)) return name;
+  return row?.lead_wa_id || row?.wa_id ? `+${row.lead_wa_id || row.wa_id}` : null;
 }
 
 /**
@@ -24,7 +28,15 @@ function customerLabel(row) {
  * list never reads the clock during render.
  */
 function toRow(item, { t, locale, listingById }) {
-  const base = { key: item.key, kind: item.kind, id: item.id, overdue: Boolean(item.overdue), primary: item.primary };
+  const base = {
+    key: item.key,
+    kind: item.kind,
+    id: item.id,
+    overdue: Boolean(item.overdue),
+    stale: Boolean(item.stale),
+    primary: item.primary,
+    secondary: item.secondary || null,
+  };
 
   if (item.kind === TODO_KINDS.VISIT) {
     const v = item.visit;
@@ -32,14 +44,16 @@ function toRow(item, { t, locale, listingById }) {
     const listing = propertyId ? listingById.get(String(propertyId)) : null;
     const ago = formatRelativeFr(v.created_at);
     let meta;
-    if (item.overdue) meta = t('agent.today.meta.slotPassed', { slot: formatVisitSlot(item.slotAt, locale) });
+    if (item.slotAt && (item.overdue || item.stale)) meta = t('agent.today.meta.slotPassed', { slot: formatVisitSlot(item.slotAt, locale) });
     else if (v.requested_time) meta = t('agent.today.meta.requested', { time: v.requested_time, ago });
     else meta = t('agent.today.meta.requestedNoTime', { ago });
     return {
       ...base,
-      title: customerLabel(v) || t('agent.today.unknownCustomer'),
+      title: item.customerName || customerLabel(v) || t('agent.today.unknownCustomer'),
       subtitle: listing?.title || [v.lead_quartier, v.lead_commune].filter(Boolean).join(', ') || null,
-      badge: item.overdue
+      badge: item.stale
+        ? t('agent.today.badge.stale')
+        : item.overdue
         ? t('agent.today.badge.overdue')
         : v.status === 'RESCHEDULED'
           ? t('agent.today.badge.slotProposed')
@@ -54,7 +68,7 @@ function toRow(item, { t, locale, listingById }) {
     const listing = l.property_id ? listingById.get(String(l.property_id)) : null;
     return {
       ...base,
-      title: customerLabel(l) || t('agent.today.unknownCustomer'),
+      title: item.customerName || customerLabel(l) || t('agent.today.unknownCustomer'),
       subtitle: listing?.title || l.requirements_summary || [l.quartier, l.commune].filter(Boolean).join(', ') || null,
       badge: t('agent.today.badge.newLead'),
       meta: t('agent.today.meta.leadReceived', { ago: formatRelativeFr(l.created_at) }),

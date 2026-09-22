@@ -80,11 +80,12 @@ test('ranking: overdue visits, then open visits by age, then new leads, then lis
 test('production shape: 6 unanswered visits, 3 past their time → 3 overdue on top, all asking for a new slot', () => {
   const visits = [1, 2, 3, 4, 5, 6].map((id) =>
     visit(id, {
-      created_at: `2026-09-1${id} 10:00:00`,
-      requested_slot_at: id <= 3 ? `2026-09-1${id + 1}T12:00:00.000Z` : null,
+      created_at: `2026-09-1${id + 3} 10:00:00`,
+      // Slots that passed within the last 48h: still "en retard", not stale.
+      requested_slot_at: id <= 3 ? `2026-09-20T0${id + 5}:00:00.000Z` : null,
     }),
   );
-  const todo = buildAgentTodo({ visits, now: NOW });
+  const todo = buildAgentTodo({ visits, now: NOW, limit: 6 });
   assert.equal(todo.total, 6);
   assert.equal(todo.overdueCount, 3);
   assert.deepEqual(todo.visible.slice(0, 3).map((i) => i.id), [1, 2, 3]);
@@ -93,6 +94,49 @@ test('production shape: 6 unanswered visits, 3 past their time → 3 overdue on 
     assert.equal(item.primary.type, 'confirm-visit');
     assert.equal(item.primary.prefill, null, 'no readable time → the form opens, nothing is guessed');
   }
+});
+
+test('a visit overdue for more than 48h, or asked a week ago with no time, drops below new leads as "relancer ou clore"', () => {
+  const todo = buildAgentTodo({
+    now: NOW,
+    limit: 50,
+    visits: [
+      visit(1, { requested_slot_at: '2026-09-15T09:00:00.000Z', created_at: '2026-09-13 10:00:00' }), // 6 days past
+      visit(2, { created_at: '2026-09-10 10:00:00' }), // 11 days, no time
+      visit(3, { requested_slot_at: '2026-09-20T13:00:00.000Z' }), // 19h past: still overdue
+    ],
+    leads: [{ id: 10, status: 'NEW', created_at: '2026-09-21 07:00:00' }],
+  });
+  assert.deepEqual(todo.items.map((i) => i.key), ['visit-3', 'lead-10', 'visit-2', 'visit-1']);
+  assert.equal(todo.overdueCount, 1, 'a stale row is not counted "en retard"');
+  const stale = todo.items.filter((i) => i.stale);
+  assert.equal(stale.length, 2);
+  for (const item of stale) {
+    assert.equal(item.primary.type, 'propose-slot');
+    assert.deepEqual(item.secondary, { type: 'close-visit', href: '/compte/agent/demandes?tab=visites' });
+  }
+});
+
+test('one row per request: the lead behind a visit is folded into it, and a bare number borrows the name', () => {
+  const todo = buildAgentTodo({
+    now: NOW,
+    limit: 50,
+    visits: [
+      visit(1, { lead_id: 50, lead_name: 'Mimbo', lead_wa_id: '447932673460', property_id: 286 }),
+      visit(2, { lead_id: 51, lead_name: 'Henoc Mimbo', lead_wa_id: '447932673460', property_id: 290 }),
+    ],
+    leads: [
+      { id: 50, status: 'NEW', wa_id: '447932673460', name: '447932673460', property_id: 286 }, // same ask as visit 1
+      { id: 52, status: 'NEW', wa_id: '447932673460', name: null, property_id: 290 }, // same number + listing as visit 2
+      { id: 53, status: 'NEW', wa_id: '447932673460', name: null, property_id: 999 }, // a different ask
+      { id: 54, status: 'NEW', wa_id: '243811111111', name: 'Aline', property_id: 286 },
+    ],
+  });
+  assert.deepEqual(todo.items.map((i) => i.key), ['visit-1', 'visit-2', 'lead-53', 'lead-54']);
+  const byKey = Object.fromEntries(todo.items.map((i) => [i.key, i]));
+  assert.equal(byKey['visit-1'].customerName, 'Mimbo');
+  assert.equal(byKey['lead-53'].customerName, 'Mimbo', 'the number is known by a name elsewhere');
+  assert.equal(byKey['lead-54'].customerName, 'Aline');
 });
 
 test('a visit whose slot is still ahead confirms in one tap with that slot', () => {
@@ -116,9 +160,9 @@ test('the cap keeps the ranking and counts what is hidden, per kind, for "voir t
   const visits = Array.from({ length: 5 }, (_, i) => visit(i + 1));
   const leads = Array.from({ length: 3 }, (_, i) => ({ id: 100 + i, status: 'NEW', created_at: '2026-09-20 10:00:00' }));
   const todo = buildAgentTodo({ visits, leads, listingsToConfirm: [{ id: 9, daysSince: 3 }], now: NOW });
-  assert.equal(todo.visible.length, 6);
+  assert.equal(todo.visible.length, 4, 'four rows on the overview, the rest behind "voir tout"');
   assert.equal(todo.total, 9);
-  assert.deepEqual(todo.hiddenByKind, { [TODO_KINDS.LEAD]: 2, [TODO_KINDS.LISTING_CONFIRM]: 1 });
+  assert.deepEqual(todo.hiddenByKind, { [TODO_KINDS.VISIT]: 1, [TODO_KINDS.LEAD]: 3, [TODO_KINDS.LISTING_CONFIRM]: 1 });
   assert.equal(TODO_SEE_ALL_HREF[TODO_KINDS.VISIT], '/compte/agent/demandes?tab=visites');
 });
 

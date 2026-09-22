@@ -119,3 +119,12 @@ export function AgentDashboardSkeleton({ label }) {
     </div>
   );
 }
+
+/**
+ * One streamed section of an agent page while its own data loads — the
+ * overview renders "À faire" first and the rest arrives behind <Suspense>.
+ * `className` sets the height (a full literal, so Tailwind sees it).
+ */
+export function AgentSectionSkeleton({ className = 'h-40' }) {
+  return <Block className={cn('w-full rounded-card', className)} />;
+}

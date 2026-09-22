@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { BadgeCheck, ArrowUpRight, Check, Circle } from 'lucide-react';
+import { BadgeCheck, ArrowUpRight, Check, Circle, ChevronLeft, ChevronRight, Clock, Globe, KeyRound, MapPin, MessageSquareText, ShieldCheck, UserRound } from 'lucide-react';
 import { getCurrentAgentId } from '@/lib/agentSession';
 import { getAgentDashboardContext } from '@/lib/agentDashboard';
 import { getLocationHierarchySafe } from '@/lib/locations';
@@ -36,6 +36,37 @@ const ERROR_MESSAGE_KEYS = {
 // else in the URL is ignored rather than echoed.
 const VERIFICATION_ERROR_CODES = ['invalid_type', 'empty', 'too_large', 'bad_format', 'too_many_pending', 'upload_failed'];
 
+/*
+ * On a phone Réglages is an index, like a phone's own settings app: one row
+ * per section, each opening that section alone (`?section=`). It was one page
+ * seven cards long. From `lg` up nothing changes — every card is shown, in
+ * its two columns — so the index and the back link are `lg:hidden` and a
+ * card outside the open section is `hidden lg:block`.
+ *
+ * A form's redirect (`?saved=`, `?error=`, `?success=`, `?verification_error=`)
+ * reopens the section it came from, so the confirmation is on screen.
+ */
+const SECTIONS = [
+  { key: 'identity', labelKey: 'agent.settings.identityTitle', Icon: UserRound },
+  { key: 'communes', labelKey: 'agent.settings.communesTitle', Icon: MapPin },
+  { key: 'hours', labelKey: 'agent.settings.hoursTitle', Icon: Clock },
+  { key: 'quick-replies', labelKey: 'agent.quickReplies.settingsTitle', Icon: MessageSquareText },
+  { key: 'verification', labelKey: 'agent.verification.title', Icon: ShieldCheck },
+  { key: 'password', labelKey: 'agent.settings.passwordTitle', Icon: KeyRound },
+  { key: 'public-page', labelKey: 'agent.settings.publicPageTitle', Icon: Globe },
+];
+const SECTION_KEYS = new Set(SECTIONS.map((section) => section.key));
+
+function openSection(params) {
+  if (typeof params.section === 'string' && SECTION_KEYS.has(params.section)) return params.section;
+  if (params.saved === 'identity' || params.error === 'name_required') return 'identity';
+  if (params.saved === 'communes') return 'communes';
+  if (params.saved === 'hours') return 'hours';
+  if (params.saved === 'verification' || params.verification_error) return 'verification';
+  if (params.error || params.success === '1') return 'password';
+  return null;
+}
+
 const DOC_STATUS_TONE = {
   pending: 'bg-canvas-alt text-ink-70',
   approved: 'bg-success-tint text-success',
@@ -48,6 +79,13 @@ export default async function AgentSettingsPage({ searchParams }) {
   const error = typeof params.error === 'string' ? params.error : null;
   const saved = typeof params.saved === 'string' ? params.saved : null;
   const passwordSuccess = params.success === '1';
+  const section = openSection(params);
+  // On a phone only the open section's card shows (and only its column).
+  // `max-lg:hidden` rather than `hidden lg:flex`, so it never fights a card's
+  // own `flex`.
+  const shown = (key) => (section === key ? '' : 'max-lg:hidden');
+  const LEFT = ['identity', 'communes', 'hours', 'quick-replies'];
+  const column = (keys) => (keys.includes(section) ? '' : 'max-lg:hidden');
 
   const agentId = await getCurrentAgentId();
   const verificationError =
@@ -80,9 +118,39 @@ export default async function AgentSettingsPage({ searchParams }) {
     <>
       <AgentPageHeader title={t('agent.settings.title')} newLeadsCount={0} />
 
-      <div className="grid grid-cols-1 gap-6 px-3 py-4 sm:px-8 sm:py-7 lg:grid-cols-[minmax(0,1fr)_22.5rem] lg:items-start">
-        <div className="flex flex-col gap-6">
-        <div id="identity" className="u-card flex scroll-mt-24 flex-col gap-5 rounded-card bg-surface p-4 sm:p-6">
+      {section ? (
+        <Link
+          href="/compte/agent/parametres"
+          className="u-press mx-3 mt-3 inline-flex min-h-10 items-center gap-1 self-start rounded-lg px-1 text-[0.8125rem] font-bold text-blue-deep lg:hidden"
+        >
+          <ChevronLeft strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+          {t('agent.settings.title')}
+        </Link>
+      ) : (
+        <nav aria-label={t('agent.settings.title')} className="px-3 py-4 lg:hidden">
+          <ul className="u-card divide-y divide-line overflow-hidden rounded-card bg-surface">
+            {SECTIONS.map(({ key, labelKey, Icon }) => (
+              <li key={key}>
+                <Link
+                  href={`/compte/agent/parametres?section=${key}`}
+                  className="u-press flex min-h-14 items-center gap-3 px-4 text-sm font-semibold text-ink hover:bg-canvas-alt"
+                >
+                  <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5 shrink-0 text-ink-45" />
+                  <span className="min-w-0 flex-1 truncate">{t(labelKey)}</span>
+                  {key === 'public-page' && (
+                    <span className="u-tabular text-[0.8125rem] font-bold text-blue">{completion.percent} %</span>
+                  )}
+                  <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0 text-ink-35" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      )}
+
+      <div className={`grid grid-cols-1 gap-6 px-3 py-4 sm:px-8 sm:py-7 lg:grid-cols-[minmax(0,1fr)_22.5rem] lg:items-start ${section ? '' : 'max-lg:hidden'}`}>
+        <div className={`flex flex-col gap-6 ${column(LEFT)}`}>
+        <div id="identity" className={`${shown('identity')} u-card flex scroll-mt-24 flex-col gap-5 rounded-card bg-surface p-4 sm:p-6`}>
           <div>
             <h2 className="u-title-card text-ink">{t('agent.settings.identityTitle')}</h2>
             <p className="mt-0.5 text-[0.8125rem] text-ink-45">
@@ -191,7 +259,7 @@ export default async function AgentSettingsPage({ searchParams }) {
           </form>
         </div>
 
-        <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-4 sm:p-6">
+        <div className={`${shown('communes')} u-card flex flex-col gap-4 rounded-card bg-surface p-4 sm:p-6`}>
           <div>
             <h2 id="communes" className="u-title-card scroll-mt-24 text-ink">{t('agent.settings.communesTitle')}</h2>
             <p className="mt-0.5 text-[0.8125rem] text-ink-45">
@@ -230,7 +298,7 @@ export default async function AgentSettingsPage({ searchParams }) {
           )}
         </div>
 
-        <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-4 sm:p-6">
+        <div className={`${shown('hours')} u-card flex flex-col gap-4 rounded-card bg-surface p-4 sm:p-6`}>
           <div>
             <h2 id="hours" className="u-title-card scroll-mt-24 text-ink">{t('agent.settings.hoursTitle')}</h2>
             <p className="mt-0.5 text-[0.8125rem] text-ink-45">
@@ -263,7 +331,7 @@ export default async function AgentSettingsPage({ searchParams }) {
           </form>
         </div>
 
-        <div id="quick-replies" className="u-card flex scroll-mt-24 flex-col gap-4 rounded-card bg-surface p-4 sm:p-6">
+        <div id="quick-replies" className={`${shown('quick-replies')} u-card flex scroll-mt-24 flex-col gap-4 rounded-card bg-surface p-4 sm:p-6`}>
           <div>
             <h2 className="u-title-card text-ink">{t('agent.quickReplies.settingsTitle')}</h2>
             <p className="mt-0.5 text-[0.8125rem] text-ink-45">{t('agent.quickReplies.settingsHint')}</p>
@@ -280,8 +348,8 @@ export default async function AgentSettingsPage({ searchParams }) {
         </div>
         </div>
 
-        <div className="flex flex-col gap-6">
-          <div id="verification" className="u-card flex scroll-mt-24 flex-col gap-4 rounded-card bg-surface p-4 sm:p-6">
+        <div className={`flex flex-col gap-6 ${column(['verification', 'password', 'public-page'])}`}>
+          <div id="verification" className={`${shown('verification')} u-card flex scroll-mt-24 flex-col gap-4 rounded-card bg-surface p-4 sm:p-6`}>
             <div>
               <h2 className="u-title-card text-ink">{t('agent.verification.title')}</h2>
               <p className="mt-0.5 text-[0.8125rem] text-ink-45">{t('agent.verification.hint')}</p>
@@ -376,7 +444,7 @@ export default async function AgentSettingsPage({ searchParams }) {
             )}
           </div>
 
-          <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-4 sm:p-6">
+          <div className={`${shown('password')} u-card flex flex-col gap-4 rounded-card bg-surface p-4 sm:p-6`}>
             <h2 className="u-title-card text-ink">{t('agent.settings.passwordTitle')}</h2>
 
             <form action={changeAgentPasswordAction} className="flex flex-col gap-3">
@@ -421,7 +489,7 @@ export default async function AgentSettingsPage({ searchParams }) {
             </form>
           </div>
 
-          <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-4 sm:p-6">
+          <div className={`${shown('public-page')} u-card flex flex-col gap-4 rounded-card bg-surface p-4 sm:p-6`}>
             <div className="flex items-center justify-between gap-3">
               <h2 className="u-title-card text-ink">{t('agent.settings.publicPageTitle')}</h2>
               <span className="u-tabular text-[0.8125rem] font-bold text-blue">{completion.percent} %</span>

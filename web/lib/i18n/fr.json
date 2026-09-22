@@ -633,7 +633,9 @@
       "noLeadsYet": "Aucune demande pour le moment.",
       "viewsChart": "Vues de vos annonces",
       "chartRange": "Période du graphique",
-      "copyPortfolioLink": "Copier mon lien portfolio"
+      "copyPortfolioLink": "Copier mon lien portfolio",
+      "showMore": "Voir plus",
+      "showLess": "Voir moins"
     },
     "listings": {
       "title": "Mes biens",
@@ -702,7 +704,12 @@
       "bulkDeletedWithFailures": "{deleted} supprimé(s), {failed} échec(s).",
       "let": "Loué",
       "editPrice": "Modifier le prix",
-      "markAsLet": "Marquer comme loué"
+      "markAsLet": "Marquer comme loué",
+      "toComplete": "À compléter",
+      "select": "Sélectionner",
+      "doneSelecting": "Terminé",
+      "markActive": "Remettre en actif",
+      "markUnderOfferOne": "Marquer sous compromis"
     },
     "leads": {
       "title": "Demandes",
@@ -1059,13 +1066,16 @@
         "confirmAvailability": "Confirmer la disponibilité",
         "complete": "Compléter",
         "confirmAt": "Confirmer · {slot}",
-        "otherTime": "Autre heure"
+        "otherTime": "Autre heure",
+        "relaunch": "Relancer",
+        "closeVisit": "Clore"
       },
       "badge": {
         "overdue": "Heure dépassée",
         "slotProposed": "Créneau proposé",
         "unanswered": "Sans réponse",
-        "newLead": "Nouvelle"
+        "newLead": "Nouvelle",
+        "stale": "Relancer ou clore"
       },
       "meta": {
         "slotPassed": "Prévue {slot}, sans réponse",

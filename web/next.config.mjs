@@ -24,6 +24,17 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: SERVER_ACTION_BODY_SIZE_LIMIT_BYTES,
     },
+    // Keep a page the visitor just saw in the in-memory router cache for 30s
+    // (Next 15+ defaults this to 0). Every route here is dynamic (the locale
+    // cookie), so without it going Vue → Demandes → Vue on the agent tab bar
+    // re-rendered the overview on the server each time, over 3G. Actions still
+    // invalidate it: revalidatePath and router.refresh drop the cached entry,
+    // so an answer the agent just gave is never shown stale. Browser memory
+    // only — nothing is cached on disk or in the service worker (which still
+    // never caches HTML).
+    staleTimes: {
+      dynamic: 30,
+    },
   },
   // Silences a workspace-root inference warning: the sibling package-lock.json
   // in the parent (lukka-place-engine) repo makes Turbopack guess wrong.

@@ -1,9 +1,9 @@
 'use client';
 
-import { useMemo, useOptimistic, useState, useTransition } from 'react';
+import { useMemo, useOptimistic, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { AlertTriangle, Archive, ArchiveRestore, ExternalLink, Image as ImageIcon, Trash2 } from 'lucide-react';
+import { AlertTriangle, Archive, ArchiveRestore, CheckSquare, ExternalLink, Image as ImageIcon, Trash2 } from 'lucide-react';
 import SafeImage from './SafeImage';
 import AgentListingStatusSelect from './AgentListingStatusSelect';
 import AgentListingActionsMenu from './AgentListingActionsMenu';
@@ -34,6 +34,14 @@ const APPROVE_STATUS = {
   1: { labelKey: 'status.listing.published', className: 'bg-success-tint text-success' },
   2: { labelKey: 'status.listing.rejected', className: 'bg-danger-tint text-danger' },
 };
+
+// The phone's status tag, beside the price (the table's own column is lg-only).
+const STATUS_TAG = {
+  active: { labelKey: 'status.listing.active', className: 'bg-success-tint text-success' },
+  under_offer: { labelKey: 'status.listing.under_offer', className: 'bg-warning-tint text-warning' },
+};
+
+const LONG_PRESS_MS = 500;
 
 // An archived listing (properties.status = 0) is invisible to the public
 // regardless of its moderation state, so showing it as "Publié" would be a
@@ -85,7 +93,14 @@ const GRID_COLS =
 // `gapsByListing`: { [listingId]: { gaps, photoCount } } from lib/completeness.js
 // getAgentListingGaps — only listings with at least one gap. Absent means the
 // listing is complete (or the read failed) and the card shows no hint.
-export default function AgentListingsTable({ listings, perListingStats, gapsByListing = {} }) {
+//
+// On a phone (2026-09-23): the status is a small tag beside the price and
+// changes from the row's "…" menu — the full-width "Actif" select took a
+// whole row per card. Checkboxes appear only in selection mode ("Sélectionner"
+// in the card header, or a long press on a card), since bulk actions are the
+// exception and the boxes cost every card a column. From `lg` up the table is
+// unchanged: checkbox and status columns are always there.
+export default function AgentListingsTable({ listings, perListingStats, gapsByListing = {}, title, action, emptyMessage }) {
   const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
@@ -93,6 +108,10 @@ export default function AgentListingsTable({ listings, perListingStats, gapsByLi
   const [selected, setSelected] = useState(() => new Set());
   const [bulkPending, setBulkPending] = useState(false);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [selecting, setSelecting] = useState(false);
+  const pressTimer = useRef(null);
+  const pressAt = useRef(null);
+  const longPressed = useRef(false);
 
   const [optimisticListings, applyOptimistic] = useOptimistic(listings, (state, patch) => {
     if (patch.type === 'update') {
@@ -137,6 +156,32 @@ export default function AgentListingsTable({ listings, perListingStats, gapsByLi
 
   function clearSelection() {
     setSelected(new Set());
+    setSelecting(false);
+  }
+
+  // Long press on a card (touch only) enters selection mode with that card
+  // selected — the gesture phones already use for "select" in every list.
+  function pressStart(event, listing) {
+    if (event.pointerType !== 'touch' || listing.listing_status === 'closed') return;
+    longPressed.current = false;
+    pressAt.current = { x: event.clientX, y: event.clientY };
+    clearTimeout(pressTimer.current);
+    pressTimer.current = setTimeout(() => {
+      longPressed.current = true;
+      setSelecting(true);
+      setSelected((prev) => new Set(prev).add(listing.id));
+      navigator.vibrate?.(10);
+    }, LONG_PRESS_MS);
+  }
+
+  function pressEnd() {
+    clearTimeout(pressTimer.current);
+  }
+
+  // A finger never holds perfectly still; only a real scroll cancels.
+  function pressMove(event) {
+    const from = pressAt.current;
+    if (from && Math.hypot(event.clientX - from.x, event.clientY - from.y) > 10) pressEnd();
   }
 
   function handleStatusChange(listing, status) {
@@ -267,13 +312,36 @@ export default function AgentListingsTable({ listings, perListingStats, gapsByLi
 
   return (
     <>
+      <div className="flex items-center justify-end gap-3 border-b border-line px-3 py-3 sm:justify-between sm:px-6 sm:py-5">
+        {/* The "Tous 19" chip already says it on a phone, where the two buttons need the row. */}
+        <div className="u-title-card min-w-0 truncate text-ink max-sm:sr-only">{title}</div>
+        <div className="flex shrink-0 items-center gap-2">
+          {optimisticListings.length > 0 && (
+            <button
+              type="button"
+              onClick={() => (selecting ? clearSelection() : setSelecting(true))}
+              aria-pressed={selecting}
+              className="u-press inline-flex h-10 items-center gap-1.5 rounded-lg px-2.5 text-[0.8125rem] font-bold text-ink-70 hover:bg-canvas-alt lg:hidden"
+            >
+              <CheckSquare strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+              {selecting ? t('agent.listings.doneSelecting') : t('agent.listings.select')}
+            </button>
+          )}
+          {action}
+        </div>
+      </div>
+
+      {optimisticListings.length === 0 && (
+        <div className="px-4 py-12 text-center text-sm text-ink-45 sm:px-6 sm:py-16">{emptyMessage}</div>
+      )}
+
       <div
         // lg:gap-3 must match the data rows below exactly — without it the
         // header's columns are each slightly wider than the rows spend on
         // gaps, so every column label sits off its own column.
         // GRID_COLS must stay identical to `.agent-listing-row`'s lg columns
         // in app/globals.css, or every label sits off its own column.
-        className={`hidden ${GRID_COLS} items-center gap-3 bg-canvas-alt px-6 py-3 text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-ink-35 lg:grid`}
+        className={`hidden ${optimisticListings.length === 0 ? '' : `${GRID_COLS} lg:grid`} items-center gap-3 bg-canvas-alt px-6 py-3 text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-ink-35`}
       >
         <input
           type="checkbox"
@@ -307,7 +375,16 @@ export default function AgentListingsTable({ listings, perListingStats, gapsByLi
           // block to nothing and left the price sitting against the photo.
           <div
             key={listing.id}
-            className="agent-listing-row border-t border-line px-3 py-3.5 sm:px-6 lg:py-4"
+            className={`agent-listing-row border-t border-line px-3 py-3 sm:px-6 lg:py-4 ${selecting ? 'is-selecting' : ''} ${
+              isSelected ? 'bg-blue-tint/40' : ''
+            }`}
+            onPointerDown={(event) => pressStart(event, listing)}
+            onPointerUp={pressEnd}
+            onPointerCancel={pressEnd}
+            onPointerMove={pressMove}
+            onContextMenu={(event) => {
+              if (longPressed.current) event.preventDefault();
+            }}
           >
             <input
               type="checkbox"
@@ -373,8 +450,18 @@ export default function AgentListingsTable({ listings, perListingStats, gapsByLi
               </div>
             </div>
 
-            <div className="alr-price">
+            <div className="alr-price flex flex-wrap items-center gap-x-2 gap-y-1">
               <PriceCell listing={listing} isClosed={isClosed} onSave={(value) => handlePriceSave(listing, value)} />
+              {(() => {
+                const tag = isClosed
+                  ? { label: listing.purpose === 'rent' ? t('agent.listings.let') : 'Vendu', className: 'bg-canvas-deep text-ink-70' }
+                  : STATUS_TAG[listing.listing_status]
+                    ? { label: t(STATUS_TAG[listing.listing_status].labelKey), className: STATUS_TAG[listing.listing_status].className }
+                    : null;
+                return tag ? (
+                  <span className={`rounded-full px-2 py-0.5 text-[0.6875rem] font-bold lg:hidden ${tag.className}`}>{tag.label}</span>
+                ) : null;
+              })()}
             </div>
 
             {/* One line on a phone; `display: contents` at lg puts these two
@@ -418,7 +505,11 @@ export default function AgentListingsTable({ listings, perListingStats, gapsByLi
               {!isClosed && (
                 <MarkListingSoldDialog propertyId={listing.id} purpose={listing.purpose} title={listing.title} />
               )}
-              <AgentListingActionsMenu listing={listing} isClosed={isClosed} />
+              <AgentListingActionsMenu
+                listing={listing}
+                isClosed={isClosed}
+                onStatusChange={(status) => handleStatusChange(listing, status)}
+              />
             </div>
           </div>
         );
@@ -428,7 +519,7 @@ export default function AgentListingsTable({ listings, perListingStats, gapsByLi
         // bottom-20 clears the phone's fixed bottom nav (AgentSidebar); at
         // bottom-5 the bulk bar sat on top of it.
         <div className="pointer-events-none fixed inset-x-0 bottom-20 z-40 flex justify-center px-3 lg:bottom-8 lg:pl-[260px]">
-          <div className="u-lift pointer-events-auto flex flex-wrap items-center gap-3 rounded-full bg-ink px-5 py-3 text-white">
+          <div className="u-lift pointer-events-auto flex flex-wrap items-center gap-2 rounded-2xl bg-ink px-4 py-3 text-white sm:gap-3 sm:rounded-full sm:px-5">
             <span className="u-tabular text-[0.8125rem] font-bold">
               {selected.size} sélectionné{selected.size === 1 ? '' : 's'}
             </span>

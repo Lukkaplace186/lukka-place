@@ -137,7 +137,7 @@ export default function AgentQuickReplies({ waId, clientName = null, propertyId 
             )}
 
             <Link
-              href="/compte/agent/parametres#quick-replies"
+              href="/compte/agent/parametres?section=quick-replies#quick-replies"
               className="u-press inline-flex h-10 items-center justify-center gap-1.5 self-center rounded-lg px-3 text-[0.8125rem] font-semibold text-ink-45 hover:bg-canvas-alt hover:text-ink"
             >
               <Settings2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />

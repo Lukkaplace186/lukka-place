@@ -1168,9 +1168,8 @@ namespace; the two i18n tests above exist because of that.
   28px, which alone pushed the header past the screen); agent pages are
   `px-3 py-4` and cards `p-4` until `sm`. Three layouts were structurally
   wrong rather than merely large, and each is fixed at its source:
-  - `AgentPageHeader` puts the search, bell and action on ONE row under the
-    title; its action group was `flex-none`, so its content width set the
-    page width.
+  - `AgentPageHeader` is ONE row on a phone since 2026-09-23 (title, search
+    icon, bell, icon-only "+"); see "Agent portal, streamlined for phones".
   - `AgentPortfolioBanner`'s two buttons stack full-width; they were a
     `flex-none` row wider than the screen, so "Voir ma page" was cut off.
   - **`.agent-listing-row` (app/globals.css) is the Mes biens row**: named
@@ -1401,7 +1400,8 @@ timestamptz`, NULL = never confirmed), `lib/listingAvailability.js`,
   `AgentTodayList.js`). Order is the product decision: overdue visits (the
   slot passed with no agreement) → PENDING/RESCHEDULED by request age → NEW
   leads by age → listings to confirm (longest first) → incomplete listings
-  (most gaps first). Six visible, "voir …" links per hidden kind. Each row has
+  (most gaps first). Four visible, "voir …" links per hidden kind (six until
+  2026-09-23; see "Agent portal, streamlined for phones"). Each row has
   one primary action; visit answers go through the existing
   `updateViewingRequestAction`, never a new write path. The two listing
   sources are `getListingsNeedingConfirmation` and `getIncompleteListings`
@@ -1699,3 +1699,49 @@ does not depend on the book and is unchanged.
   don't render.
 - The phone tab bar's columns now follow `NAV.length` (inline style), so a new
   sidebar entry needs no second edit.
+
+## Agent portal, streamlined for phones (2026-09-23)
+
+From real 375px screenshots. Desktop (`lg`) layouts are unchanged throughout.
+
+- **Header is one row.** `AgentHeaderSearch` is an icon on a phone that opens
+  over the row; it filters as you type (350ms, `router.replace`, no scroll)
+  when it searches its own page, and waits for Enter when it searches another
+  (the overview's box searches Mes biens). Still a GET form underneath. It
+  does not resync from the URL while focused, or a slow answer would eat
+  letters. `CreateListingDialog primary` is icon-only below `sm`.
+- **Filters are chips, never select + "Filtrer".** Mes biens: counted chips
+  (Tous / En ligne / À compléter / Sous compromis / Loués / Archivés; a zero
+  chip is not drawn unless selected); `incomplete` is a new `?status=` value
+  read from `gapsByListing`. Demandes: one chip row per tab; the unread and
+  pending counts moved into the tab labels.
+- **"À faire"** (`lib/agentTodo.js`): one row per REQUEST — a NEW lead is
+  folded into the open visit carrying its `lead_id` (or same number + same
+  listing), since a web visit request writes both rows; a phone-only row
+  borrows a name held elsewhere for that number (`customerName`). A visit
+  overdue by more than 48h, or asked for with no time more than 7 days ago, is
+  `stale`: ranked after new leads, not counted "en retard", badge "Relancer ou
+  clore", with "Clore" linking to the Visites tab. Rows are compact and leave
+  the list the moment they are answered (restored on failure).
+- **The overview streams.** It awaits only the to-do list; header action,
+  stats, completeness, statut du jour, chart, recent leads and subscription are
+  async components behind `<Suspense>`. On a phone everything below the stats
+  sits behind "Voir plus" (`AgentMoreOnPhone`, CSS-decided default, no
+  hydration difference).
+- **Mes biens rows on a phone**: status is a tag beside the price and changes
+  from the row menu (`AgentListingActionsMenu` `onStatusChange`); checkboxes
+  exist only in selection mode ("Sélectionner" or a 500ms long press,
+  `.agent-listing-row.is-selecting`). The table now renders its own card
+  header (`title`, `action`, `emptyMessage`).
+- **Lead card**: "Répondre sur WhatsApp" + one "…" holding alternatives, quick
+  replies, the Lukka Place composer and status. Status changes are
+  `useOptimistic`; `AgentVisitRequestCard` shows its answer at once (keyed to
+  the row object, ViewingPanel's pattern).
+- **Réglages** is an index of sections on a phone (`?section=`); a form's
+  redirect reopens its section; `profileGapHref` includes `?section=`.
+  Desktop shows every card as before (`max-lg:hidden`, never `hidden lg:flex`,
+  which fights a card's own `flex`).
+- **`experimental.staleTimes.dynamic: 30`** (next.config.mjs): a page seen in
+  the last 30s is reused by the client router, so tab-bar switching does not
+  re-render on the server. Server actions and `router.refresh()` invalidate it.
+  Site-wide, browser memory only.

@@ -12,6 +12,7 @@ import { useToast } from './Toast';
 import AgentQuickReplies from './AgentQuickReplies';
 import AgentAlternativesDialog from './AgentAlternativesDialog';
 import { isNetworkError } from '@/lib/networkError';
+import { VIEWING_REQUEST_STATUS_LABEL_KEYS } from '@/lib/adminLabels';
 import { useT } from '@/lib/i18n/client';
 
 const STATUS_TAG = {
@@ -50,8 +51,20 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
   const router = useRouter();
   const { showToast } = useToast();
 
+  // The answer shows on the card the moment it is tapped. Keyed to the
+  // `viewingRequest` object it was made against (ViewingPanel's pattern), so
+  // the refreshed row from the server takes over by itself; a failure clears it.
+  const [answered, setAnswered] = useState(null);
+  const status = answered?.for === viewingRequest ? answered.status : viewingRequest.status;
+  const statusText =
+    status === viewingRequest.status
+      ? statusLabel
+      : VIEWING_REQUEST_STATUS_LABEL_KEYS[status]
+        ? t(VIEWING_REQUEST_STATUS_LABEL_KEYS[status])
+        : status;
+
   const name = viewingRequest.lead_name || viewingRequest.lead_wa_id;
-  const actions = agentActionsFor(viewingRequest.status);
+  const actions = agentActionsFor(status);
   const can = (status) => actions.includes(status);
 
   const doneMessage = {
@@ -67,6 +80,10 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
     if (requestedTime !== undefined) formData.set('requested_time', requestedTime);
     if (scheduledAt !== undefined) formData.set('scheduled_at', scheduledAt);
 
+    setAnswered({ for: viewingRequest, status });
+    setReschedule(false);
+    setConfirming(false);
+
     startTransition(async () => {
       let result;
       try {
@@ -75,6 +92,7 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
         // A rejected Server Action (expired session, dropped connection) is not
         // an {ok:false}; without this the buttons would simply go dead.
         console.error('[AgentVisitRequestCard] updateViewingRequestAction failed', err);
+        setAnswered(null);
         // A dropped connection on a site visit is the common case, and it is
         // safe to retry: the engine ignores a repeated status.
         if (isNetworkError(err)) {
@@ -89,6 +107,7 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
         return;
       }
       if (!result.ok) {
+        setAnswered(null);
         showToast({ type: 'error', message: result.error });
         return;
       }
@@ -121,10 +140,10 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
             <span className="text-base font-bold text-ink">{name}</span>
             <span
               className={`rounded-full px-2.5 py-1 text-[0.6875rem] font-extrabold uppercase tracking-[0.12em] ${
-                STATUS_TAG[viewingRequest.status] || STATUS_TAG.PENDING
+                STATUS_TAG[status] || STATUS_TAG.PENDING
               }`}
             >
-              {statusLabel}
+              {statusText}
             </span>
             <span className="text-xs text-ink-35">{relativeTime}</span>
           </div>
@@ -214,7 +233,7 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
           <AgentAlternativesDialog
             kind="visit"
             id={viewingRequest.id}
-            emphasis={viewingRequest.status === 'DECLINED' || viewingRequest.status === 'CANCELLED'}
+            emphasis={status === 'DECLINED' || status === 'CANCELLED'}
           />
         </div>
       </div>

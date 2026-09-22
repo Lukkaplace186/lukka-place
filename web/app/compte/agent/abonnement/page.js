@@ -109,6 +109,7 @@ export default async function AgentSubscriptionPage() {
             photoSessions={agent.package_photo_sessions}
             photoDiscountPct={agent.package_photo_discount}
             compact
+            hideTitle
           />
 
           <div className="u-card flex flex-col gap-3 rounded-card bg-surface p-4 sm:p-6">

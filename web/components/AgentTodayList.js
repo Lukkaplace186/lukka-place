@@ -27,8 +27,12 @@ const PRIMARY_LABEL_KEY = {
   complete: 'agent.today.action.complete',
 };
 
+// Sized to its label, never full width: at full width on a phone every row was
+// ~180px tall and four rows filled the screen (2026-09-22 screenshots).
 const PRIMARY_BUTTON =
-  'u-btn-primary u-press inline-flex h-10 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-blue px-4 text-[0.8125rem] font-bold text-white disabled:opacity-60 sm:w-auto';
+  'u-btn-primary u-press inline-flex h-9 max-w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-blue px-3 text-[0.8125rem] font-bold text-white disabled:opacity-60';
+const SECONDARY_LINK =
+  'u-micro u-hit relative inline-flex h-9 items-center px-1.5 font-semibold text-blue-deep hover:underline';
 
 /**
  * "À faire aujourd'hui" rows (ranking: lib/agentTodo.js). Each row has ONE
@@ -45,6 +49,10 @@ const PRIMARY_BUTTON =
  *
  * `rows` arrive with their display text already resolved on the server
  * (title, subtitle, meta), so nothing here reads the clock during render.
+ *
+ * A row the agent has just answered leaves the list at once (`done`), before
+ * the server replies; a failure puts it back with the toast. router.refresh()
+ * then brings the server's own list, which no longer holds it.
  */
 export default function AgentTodayList({ rows, seeAll }) {
   const t = useT();
@@ -52,7 +60,16 @@ export default function AgentTodayList({ rows, seeAll }) {
   const { showToast } = useToast();
   const [open, setOpen] = useState(null); // `${key}:confirm` | `${key}:propose`
   const [pendingKey, setPendingKey] = useState(null);
+  const [done, setDone] = useState(() => new Set());
   const [pending, startTransition] = useTransition();
+
+  const mark = (key, on) =>
+    setDone((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(key);
+      else next.delete(key);
+      return next;
+    });
 
   function answer(row, status, { requestedTime, scheduledAt } = {}) {
     const formData = new FormData();
@@ -60,6 +77,8 @@ export default function AgentTodayList({ rows, seeAll }) {
     if (requestedTime !== undefined) formData.set('requested_time', requestedTime);
     if (scheduledAt !== undefined) formData.set('scheduled_at', scheduledAt);
     setPendingKey(row.key);
+    mark(row.key, true);
+    setOpen(null);
 
     startTransition(async () => {
       let result;
@@ -77,10 +96,12 @@ export default function AgentTodayList({ rows, seeAll }) {
             : { type: 'error', message: t('errors.submissionFailed') },
         );
         setPendingKey(null);
+        mark(row.key, false);
         return;
       }
       setPendingKey(null);
       if (!result.ok) {
+        mark(row.key, false);
         showToast({ type: 'error', message: result.error });
         return;
       }
@@ -90,15 +111,16 @@ export default function AgentTodayList({ rows, seeAll }) {
         type: result.unchanged || result.tenantNotified ? 'success' : 'error',
         message: result.unchanged ? t('agent.visits.alreadyDone') : `${done} ${notice}`,
       });
-      setOpen(null);
       router.refresh();
     });
   }
 
+  const visibleRows = rows.filter((row) => !done.has(row.key));
+
   return (
     <>
       <ul className="flex flex-col divide-y divide-line">
-        {rows.map((row) => {
+        {visibleRows.map((row) => {
           const Icon = KIND_ICON[row.kind] || ClipboardList;
           const busy = pending && pendingKey === row.key;
           const confirmOpen = open === `${row.key}:confirm`;
@@ -124,7 +146,7 @@ export default function AgentTodayList({ rows, seeAll }) {
                 onClick={() => toggle(which)}
               >
                 {which === 'confirm' ? <Check strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" /> : <CalendarClock strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />}
-                {t(PRIMARY_LABEL_KEY[row.primary.type])}
+                {row.stale ? t('agent.today.action.relaunch') : t(PRIMARY_LABEL_KEY[row.primary.type])}
               </button>
             );
           } else {
@@ -137,24 +159,28 @@ export default function AgentTodayList({ rows, seeAll }) {
           }
 
           return (
-            <li key={row.key} className="py-3.5 first:pt-0 last:pb-0">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <div className="flex min-w-0 flex-1 items-start gap-3">
-                  <span
-                    className={`mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
-                      row.overdue ? 'bg-danger-tint text-danger' : 'bg-blue-tint text-blue-deep'
-                    }`}
-                    aria-hidden="true"
-                  >
-                    {row.overdue ? <AlarmClock strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" /> : <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />}
-                  </span>
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <li key={row.key} className="py-3 first:pt-0 last:pb-0">
+              <div className="flex items-start gap-3">
+                <span
+                  className={`mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                    row.overdue ? 'bg-danger-tint text-danger' : row.stale ? 'bg-canvas-deep text-ink-45' : 'bg-blue-tint text-blue-deep'
+                  }`}
+                  aria-hidden="true"
+                >
+                  {row.overdue ? <AlarmClock strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" /> : <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />}
+                </span>
+                <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 items-center gap-2">
                       <span className="u-micro-strong truncate text-ink">{row.title}</span>
                       {row.badge && (
                         <span
-                          className={`rounded-full px-2 py-0.5 text-[0.6875rem] font-extrabold uppercase tracking-[0.1em] ${
-                            row.overdue ? 'bg-danger-tint text-danger' : 'bg-warning-tint text-warning'
+                          className={`shrink-0 rounded-full px-2 py-0.5 text-[0.6875rem] font-extrabold uppercase tracking-[0.08em] ${
+                            row.overdue
+                              ? 'bg-danger-tint text-danger'
+                              : row.stale
+                                ? 'bg-canvas-deep text-ink-70'
+                                : 'bg-warning-tint text-warning'
                           }`}
                         >
                           {row.badge}
@@ -162,26 +188,26 @@ export default function AgentTodayList({ rows, seeAll }) {
                       )}
                     </div>
                     {row.subtitle && <div className="u-micro truncate text-ink-70">{row.subtitle}</div>}
-                    {row.meta && <div className="u-micro text-ink-45">{row.meta}</div>}
+                    {row.meta && <div className="u-micro truncate text-ink-45">{row.meta}</div>}
                   </div>
-                </div>
-                <div className="flex flex-col items-stretch gap-1 sm:items-end">
-                  {primary}
-                  {row.primary.type === 'confirm-visit' && row.primary.prefill && (
-                    <button
-                      type="button"
-                      onClick={() => toggle('confirm')}
-                      aria-expanded={confirmOpen}
-                      className="u-micro inline-flex min-h-10 items-center justify-center px-2 font-semibold text-blue-deep hover:underline"
-                    >
-                      {t('agent.today.action.otherTime')}
-                    </button>
-                  )}
+                  <div className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1 sm:flex-none sm:justify-end">
+                    {primary}
+                    {row.primary.type === 'confirm-visit' && row.primary.prefill && (
+                      <button type="button" onClick={() => toggle('confirm')} aria-expanded={confirmOpen} className={SECONDARY_LINK}>
+                        {t('agent.today.action.otherTime')}
+                      </button>
+                    )}
+                    {row.secondary?.type === 'close-visit' && (
+                      <Link href={row.secondary.href} className={SECONDARY_LINK}>
+                        {t('agent.today.action.closeVisit')}
+                      </Link>
+                    )}
+                  </div>
                 </div>
               </div>
 
               {(confirmOpen || proposeOpen) && (
-                <div className="mt-3 rounded-lg bg-canvas-alt p-3">
+                <div className="mt-3 rounded-lg bg-canvas-alt p-3 sm:ml-11">
                   <VisitSlotForm
                     id={`todo-${row.id}`}
                     prefill={confirmOpen ? row.primary.prefill : null}

@@ -53,6 +53,42 @@ const VISIT_STATUS_OPTIONS = VIEWING_REQUEST_STATUSES.map((value) => ({
   labelKey: VIEWING_REQUEST_STATUS_LABEL_KEYS[value],
 }));
 
+/**
+ * The status filter on both tabs: a row of chips, each a plain link (soft
+ * navigation, no skeleton) into `?status=`. It replaced a <select> with a
+ * separate "Filtrer" submit — two taps and a full reload per filter.
+ */
+function StatusChips({ label, options, current, allLabel, extra }) {
+  const hrefFor = (value) => {
+    const query = new URLSearchParams(extra);
+    if (value) query.set('status', value);
+    const qs = query.toString();
+    return qs ? `/compte/agent/demandes?${qs}` : '/compte/agent/demandes';
+  };
+  const chip = (value, text) => {
+    const active = value === current;
+    return (
+      <Link
+        key={value || 'all'}
+        href={hrefFor(value)}
+        scroll={false}
+        aria-current={active ? 'page' : undefined}
+        className={`u-press inline-flex h-9 shrink-0 items-center whitespace-nowrap rounded-full px-3.5 text-[0.8125rem] font-bold transition-colors ${
+          active ? 'bg-ink text-white' : 'bg-surface text-ink-70 ring-1 ring-line hover:bg-canvas-deep'
+        }`}
+      >
+        {text}
+      </Link>
+    );
+  };
+  return (
+    <nav aria-label={label} className="no-scrollbar -mx-3 flex gap-2 overflow-x-auto px-3 sm:mx-0 sm:flex-wrap sm:px-0">
+      {chip('', allLabel)}
+      {options.map((o) => chip(o.value, o.label))}
+    </nav>
+  );
+}
+
 function budgetText(lead) {
   const min = lead.price_min != null ? Number(lead.price_min).toLocaleString('fr-FR') : null;
   const max = lead.price_max != null ? Number(lead.price_max).toLocaleString('fr-FR') : null;
@@ -68,10 +104,10 @@ function budgetText(lead) {
  * (AgentVisitRequestCard -> updateViewingRequestAction) — this only changes
  * where it lives, not what it can do.
  *
- * The status <select> reuses the shared `?status=` param the other two tabs
- * use, with `tab=visites` carried in a hidden field so filtering doesn't
- * bounce back to Mes demandes. The two vocabularies never collide because
- * each tab resolves the param against its own status list.
+ * The status chips reuse the shared `?status=` param the other tab uses, with
+ * `tab=visites` carried in each link so filtering doesn't bounce back to Mes
+ * demandes. The two vocabularies never collide because each tab resolves the
+ * param against its own status list.
  */
 // Async, so it can resolve its own translator — it is a Server Component
 // rendered by the page below, not a client child, so awaiting here is free.
@@ -81,39 +117,16 @@ async function VisitsTab({ visitsPage, statusFilter, listingById, hasListings })
 
   return (
     <>
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <div className="u-title-card text-ink">
-            {visitsPage.total} demande{visitsPage.total === 1 ? '' : 's'} de visite
-          </div>
-          <div className="mt-0.5 text-[0.8125rem] text-ink-45">
-            {pending} en attente · demandées par vos clients potentiels
-          </div>
-        </div>
-
-        <form method="get" className="flex items-center gap-2">
-          <input type="hidden" name="tab" value="visites" />
-          <select
-            name="status"
-            defaultValue={statusFilter}
-            aria-label={t('agent.leads.filterByStatus')}
-            className="u-focus-ring h-10 w-[11.25rem] rounded-lg border border-line bg-surface px-3 text-[0.8125rem] font-medium text-ink"
-          >
-            <option value="">{t('agent.leads.allVisits')}</option>
-            {VISIT_STATUS_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {t(o.labelKey)}
-              </option>
-            ))}
-          </select>
-          <button
-            type="submit"
-            className="u-btn-secondary u-press h-10 rounded-lg px-3.5 text-[0.8125rem] font-bold text-ink"
-          >
-            {t('agent.leads.filter')}
-          </button>
-        </form>
-      </div>
+      <StatusChips
+        label={t('agent.leads.filterByStatus')}
+        current={statusFilter}
+        allLabel={`${t('agent.leads.allVisits')} · ${visitsPage.total}`}
+        extra={{ tab: 'visites' }}
+        options={VISIT_STATUS_OPTIONS.map((o) => ({
+          value: o.value,
+          label: o.value === 'PENDING' && pending > 0 ? `${t(o.labelKey)} · ${pending}` : t(o.labelKey),
+        }))}
+      />
 
       {visitsPage.data.length === 0 ? (
         <div className="u-card rounded-card bg-surface px-6 py-16 text-center text-sm text-ink-45">
@@ -199,8 +212,6 @@ export default async function AgentInquiriesPage({ searchParams }) {
       )
     : leadsPage.data;
 
-  const unread = leadsPage.data.filter((l) => l.status === 'NEW').length;
-
   // The deep-linked request first, everything else in the order the engine
   // returned it. Sorting rather than filtering: an agent arriving from a
   // WhatsApp alert should see that request at the top AND still have their
@@ -230,12 +241,14 @@ export default async function AgentInquiriesPage({ searchParams }) {
             <Link
               key={item.value}
               href={`/compte/agent/demandes?tab=${item.value}`}
+              scroll={false}
               className={`-mb-px border-b-2 px-3.5 py-2.5 text-[0.8125rem] font-semibold transition-colors ${
                 tab === item.value ? 'border-blue text-blue-deep' : 'border-transparent text-ink-45 hover:text-ink'
               }`}
             >
               {t(item.labelKey)}
-              {item.value === 'visites' && pendingVisitsCount > 0 ? ` (${pendingVisitsCount})` : ''}
+              {item.value === 'visites' && pendingVisitsCount > 0 ? ` · ${pendingVisitsCount}` : ''}
+              {item.value === 'mes-demandes' && newLeadsCount > 0 ? ` · ${newLeadsCount}` : ''}
             </Link>
           ))}
         </div>
@@ -262,40 +275,13 @@ export default async function AgentInquiriesPage({ searchParams }) {
           </Fragment>
         ) : (
           <Fragment key="mes-demandes">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <div className="u-title-card text-ink">
-                  {leadsPage.total} demande{leadsPage.total === 1 ? '' : 's'}
-                </div>
-                <div className="u-micro mt-0.5 text-ink-45">
-                  {unread} non lue{unread === 1 ? '' : 's'} · reçues depuis votre page publique et via
-                  l’attribution automatique
-                </div>
-              </div>
-
-              <form method="get" className="flex items-center gap-2">
-                {q && <input type="hidden" name="q" value={q} />}
-                <select
-                  name="status"
-                  defaultValue={statusFilter}
-                  aria-label={t('agent.leads.filterByStatus')}
-                  className="u-focus-ring h-10 w-[11.25rem] rounded-lg border border-line bg-surface px-3 text-[0.8125rem] font-medium text-ink"
-                >
-                  <option value="">{t('agent.leads.allRequests')}</option>
-                  {STATUS_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {t(o.labelKey)}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="submit"
-                  className="u-btn-secondary u-press h-10 rounded-lg px-3.5 text-[0.8125rem] font-bold text-ink"
-                >
-                  {t('agent.leads.filter')}
-                </button>
-              </form>
-            </div>
+            <StatusChips
+              label={t('agent.leads.filterByStatus')}
+              current={statusFilter}
+              allLabel={t('agent.leads.allRequests')}
+              extra={q ? { q } : {}}
+              options={STATUS_OPTIONS.map((o) => ({ value: o.value, label: t(o.labelKey) }))}
+            />
 
             {Number.isFinite(focusLeadId) && !focusedLeadPresent && (
               <p className="u-micro rounded-lg bg-warning-tint px-4 py-3 font-semibold text-warning" role="status">

@@ -1,6 +1,7 @@
 import Link from 'next/link';
-import { Search, Bell } from 'lucide-react';
+import { Bell } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import AgentHeaderSearch from './AgentHeaderSearch';
 
 /**
  * The design's 76px sticky dashboard header: page title in DM Serif at
@@ -9,11 +10,11 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  *
  * Both of the design's "chrome" controls are wired to something real
  * rather than being decorative:
- *  - The search box is a plain GET form that re-renders the current
- *    section filtered (`?q=`), so it only appears on the two sections that
- *    genuinely have something to search — Mes biens and Demandes. Pages
- *    that pass no `searchAction` render no box at all rather than an input
- *    that does nothing.
+ *  - The search box (AgentHeaderSearch) filters the current section as the
+ *    agent types (`?q=`), and is still a plain GET form underneath. It only
+ *    appears where there is something to search; pages that pass no
+ *    `searchAction` render no box at all rather than an input that does
+ *    nothing.
  *  - The bell links to the real new-lead queue (`/demandes?status=NEW`)
  *    and carries a real count. There is no notification *system* on this
  *    app, and this does not pretend there is one: it is a live count of
@@ -31,43 +32,27 @@ export default function AgentPageHeader({
   newLeadsCount = 0,
 }) {
   return (
-    // Phone: title on its own line, then search, bell and action sharing ONE
-    // row (the search takes what is left). It used to be three stacked rows
-    // under a 28px title, and the action group was `flex-none`, so its
-    // content width pushed the whole dashboard past a 375px screen.
+    // ONE row on a phone too: title, then the search icon, bell and action
+    // (AgentHeaderSearch opens over this row when tapped). The earlier
+    // two-row version — title, then search + bell — cost ~110px of a phone
+    // screen and left a lone bell under short titles.
     <header className="sticky top-0 z-20 border-b border-line bg-surface px-3 sm:px-8">
-      <div className="flex min-h-[3.5rem] flex-wrap items-center justify-between gap-x-3 gap-y-2 py-2.5 sm:min-h-[4.75rem] sm:gap-x-4 sm:gap-y-3 sm:py-3">
-        <div className="min-w-0">
+      <div className="relative flex min-h-[3.5rem] items-center justify-between gap-2 py-2 sm:min-h-[4.75rem] sm:flex-wrap sm:gap-x-4 sm:gap-y-3 sm:py-3">
+        <div className="min-w-0 flex-1">
           <h1 className="u-title-page truncate text-ink">
             {title}
           </h1>
-          {subtitle && <p className="mt-0.5 text-[0.8125rem] text-ink-45">{subtitle}</p>}
+          {subtitle && <p className="mt-0.5 hidden text-[0.8125rem] text-ink-45 sm:block">{subtitle}</p>}
         </div>
 
-        <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:flex-none sm:flex-wrap sm:gap-2.5">
+        <div className="flex flex-none items-center gap-1 sm:flex-wrap sm:gap-2.5">
           {searchAction && (
-            <form method="get" action={searchAction} className="relative min-w-0 flex-1 sm:w-[16rem] sm:flex-none">
-              {Object.entries(hiddenSearchFields || {}).map(([name, value]) =>
-                value ? <input key={name} type="hidden" name={name} value={value} /> : null,
-              )}
-              <Search
-                strokeWidth={ICON_STROKE_WIDTH}
-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-35"
-                aria-hidden="true"
-              />
-              <input
-                // Global "/" shortcut (AgentKeyboardShortcuts.js) focuses by
-                // this id — every page that renders a search box shares it,
-                // since only one can ever be on screen at a time.
-                id="agent-page-search"
-                type="search"
-                name="q"
-                defaultValue={searchDefaultValue}
-                placeholder={searchPlaceholder}
-                aria-label={searchPlaceholder}
-                className="u-focus-ring h-10 w-full rounded-lg border border-line bg-surface pl-9 pr-3 text-sm text-ink placeholder:text-ink-35"
-              />
-            </form>
+            <AgentHeaderSearch
+              action={searchAction}
+              defaultValue={searchDefaultValue}
+              placeholder={searchPlaceholder}
+              hiddenFields={hiddenSearchFields}
+            />
           )}
 
           <Link

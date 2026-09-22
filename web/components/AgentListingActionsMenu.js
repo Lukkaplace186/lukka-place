@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Archive, ArchiveRestore, Copy, ExternalLink, FileText, ImagePlus, MessageCircle, MoreHorizontal, Pencil, Printer, RotateCcw, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, CircleCheck, CircleDot, Copy, ExternalLink, FileText, ImagePlus, MessageCircle, MoreHorizontal, Pencil, Printer, RotateCcw, Trash2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -63,7 +63,13 @@ import { announceListingQuota } from '@/lib/listingQuotaRules';
  * Collapsing the middle one into either neighbour is what forces agents to
  * delete inventory they only wanted to hide.
  */
-export default function AgentListingActionsMenu({ listing, isClosed }) {
+/*
+ * `onStatusChange` (Mes biens) adds the active ↔ sous compromis switch here:
+ * on a phone the row shows its status as a tag and this menu is where it
+ * changes (the table's status select is desktop-only). The caller keeps the
+ * optimistic update, so the tag moves the moment the item is tapped.
+ */
+export default function AgentListingActionsMenu({ listing, isClosed, onStatusChange }) {
   const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
@@ -187,6 +193,18 @@ export default function AgentListingActionsMenu({ listing, isClosed }) {
               </Link>
             </DropdownMenuItem>
           )}
+
+          {onStatusChange && !isClosed && (listing.listing_status === 'under_offer' ? (
+            <DropdownMenuItem onSelect={() => onStatusChange('active')} className="flex items-center gap-2.5">
+              <CircleCheck strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-success" />
+              {t('agent.listings.markActive')}
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem onSelect={() => onStatusChange('under_offer')} className="flex items-center gap-2.5">
+              <CircleDot strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-warning" />
+              {t('agent.listings.markUnderOfferOne')}
+            </DropdownMenuItem>
+          ))}
 
           <DropdownMenuItem onSelect={handleDuplicate} disabled={pending} className="flex items-center gap-2.5">
             <Copy strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />

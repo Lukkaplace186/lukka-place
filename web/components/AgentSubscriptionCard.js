@@ -95,6 +95,9 @@ function Quota({ label, used, limit, hint, danger = false }) {
  * @param {number|null} [props.photoDiscountPct] `packages.photo_discount_pct`.
  * @param {boolean} [props.compact] Overview variant: drops the footer links,
  *   since the overview already sits one click from the full page.
+ * @param {boolean} [props.hideTitle] On /compte/agent/abonnement, whose page
+ *   header already says "Abonnement": the card's own heading stays for screen
+ *   readers only, so the phone does not print the word twice in a row.
  */
 export default async function AgentSubscriptionCard({
   packageTitle,
@@ -107,6 +110,7 @@ export default async function AgentSubscriptionCard({
   photoDiscountPct = 0,
   leadQuota = null,
   compact = false,
+  hideTitle = false,
 }) {
   const t = await getT();
   const hasSubscription = !!packageTitle;
@@ -126,8 +130,8 @@ export default async function AgentSubscriptionCard({
 
   return (
     <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-4 sm:p-6">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="u-title-card text-ink">{t('agent.subscription.title')}</h2>
+      <div className={`flex items-center justify-between gap-3 ${hideTitle && !badge ? 'sr-only' : ''}`}>
+        <h2 className={hideTitle ? 'sr-only' : 'u-title-card text-ink'}>{t('agent.subscription.title')}</h2>
         {badge && (
           <span
             className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[0.6875rem] font-extrabold uppercase tracking-[0.1em] ${badge.className}`}

@@ -463,12 +463,14 @@ export default function CreateListingDialog({ communes, categories, draftKey = n
           onClick={openForm}
           className={
             primary
-              ? 'u-btn-primary u-press inline-flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-blue px-3 text-[0.8125rem] font-bold text-white sm:h-11 sm:px-5 sm:text-sm'
+              ? // Icon-only on a phone: the header is one row there (AgentPageHeader).
+                'u-btn-primary u-press inline-flex h-10 w-10 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg bg-blue text-[0.8125rem] font-bold text-white sm:h-11 sm:w-auto sm:px-5 sm:text-sm'
               : 'u-btn-secondary u-press inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-lg px-3.5 text-[0.8125rem] font-bold text-ink'
           }
+          aria-label={primary ? t('agent.editor.addListing') : undefined}
         >
-          <Plus strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-          {t('agent.editor.addListing')}
+          <Plus strokeWidth={ICON_STROKE_WIDTH} className={primary ? 'h-5 w-5 sm:h-4 sm:w-4' : 'h-4 w-4'} />
+          <span className={primary ? 'hidden sm:inline' : undefined}>{t('agent.editor.addListing')}</span>
         </button>
       </div>
 

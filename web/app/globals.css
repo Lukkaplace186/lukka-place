@@ -837,10 +837,10 @@
  * are different SHAPES of the same seven cells, not the same shape resized:
  *
  *   phone                                   desktop (lg, a 7-column table row)
- *   [☐][photo][title / quartier · badge]    [☐][photo title][price][vues][clics][statut][⋯]
- *   [  ][photo][price                  ]
- *   [  ][photo][Vues · Clics WhatsApp  ]
- *   [  ][statut            ][ ✓  ⋯ ]
+ *   [photo][title / quartier · badge]       [☐][photo title][price][vues][clics][statut][⋯]
+ *   [photo][price · statut ][ ✓  ⋯ ]
+ *   [photo][Vues · Clics   ][      ]
+ *   (a ☐ column is added in front only in selection mode)
  *
  * The old row was one flex-wrap line on phones, so the title block shrank to
  * nothing and the price landed beside (and visually over) the photo. Named
@@ -853,32 +853,47 @@
  */
 .agent-listing-row {
   display: grid;
-  grid-template-columns: 1.25rem 4rem minmax(0, 1fr) auto;
+  grid-template-columns: 4rem minmax(0, 1fr) auto;
   grid-template-areas:
-    "check thumb info   info"
-    "check thumb price  price"
-    "check thumb stats  stats"
-    ".     status status actions";
+    "thumb info   info"
+    "thumb price  actions"
+    "thumb stats  actions";
   column-gap: 0.75rem;
   row-gap: 0.25rem;
   align-items: start;
 }
+/* Selection mode on a phone (AgentListingsTable's "Sélectionner" / long
+   press) adds the checkbox column; outside it the box is not drawn at all.
+   The status select is lg-only: a phone shows a tag beside the price and
+   changes status from the row menu. */
+.agent-listing-row.is-selecting {
+  grid-template-columns: 1.25rem 4rem minmax(0, 1fr) auto;
+  grid-template-areas:
+    "check thumb info   info"
+    "check thumb price  actions"
+    "check thumb stats  actions";
+}
 .agent-listing-row .alr-check { grid-area: check; margin-top: 0.125rem; }
+.agent-listing-row:not(.is-selecting) .alr-check { display: none; }
 .agent-listing-row .alr-main { display: contents; }
 .agent-listing-row .alr-thumb { grid-area: thumb; }
 .agent-listing-row .alr-info { grid-area: info; min-width: 0; }
 .agent-listing-row .alr-price { grid-area: price; justify-self: start; }
 .agent-listing-row .alr-stats { grid-area: stats; display: flex; flex-wrap: wrap; column-gap: 0.75rem; row-gap: 0; }
-.agent-listing-row .alr-status { grid-area: status; justify-self: start; align-self: center; margin-top: 0.5rem; }
-.agent-listing-row .alr-actions { grid-area: actions; align-self: center; margin-top: 0.5rem; }
+.agent-listing-row .alr-status { display: none; }
+.agent-listing-row .alr-actions { grid-area: actions; align-self: end; }
 
 @media (min-width: 64rem) {
-  .agent-listing-row {
+  .agent-listing-row,
+  .agent-listing-row.is-selecting {
     grid-template-columns: 2.25rem minmax(0, 2.2fr) minmax(0, 1fr) minmax(0, 0.7fr) minmax(0, 0.7fr) minmax(0, 1.2fr) minmax(0, 0.6fr);
     grid-template-areas: none;
     row-gap: 0;
     align-items: center;
   }
+  .agent-listing-row .alr-check,
+  .agent-listing-row:not(.is-selecting) .alr-check { display: block; }
+  .agent-listing-row .alr-status { display: block; }
   .agent-listing-row .alr-check,
   .agent-listing-row .alr-thumb,
   .agent-listing-row .alr-info,

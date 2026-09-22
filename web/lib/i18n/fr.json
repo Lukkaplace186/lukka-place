@@ -1675,7 +1675,14 @@
       "editNote": "Modifier",
       "notePlaceholder": "Pour vous seul : état de la toiture, question pour l'agent…",
       "noteSaved": "Note enregistrée.",
-      "noteFailed": "La note n'a pas pu être enregistrée."
+      "noteFailed": "La note n'a pas pu être enregistrée.",
+      "shareCard": {
+        "title": "Sélection Lukka Place : {subject} — {price}",
+        "more": {
+          "one": "+ {count} autre bien",
+          "other": "+ {count} autres biens"
+        }
+      }
     },
     "alerts": {
       "title": "Mes alertes",

@@ -1675,7 +1675,14 @@
       "editNote": "Edit",
       "notePlaceholder": "Just for you: the roof's condition, a question for the agent…",
       "noteSaved": "Note saved.",
-      "noteFailed": "The note couldn't be saved."
+      "noteFailed": "The note couldn't be saved.",
+      "shareCard": {
+        "title": "Lukka Place Selection: {subject} — {price}",
+        "more": {
+          "one": "+ {count} more property",
+          "other": "+ {count} more properties"
+        }
+      }
     },
     "alerts": {
       "title": "My Alerts",

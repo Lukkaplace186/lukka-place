@@ -2,8 +2,8 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
-import { Scale, MessageCircle, CalendarDays, Trash2, ImageOff, Heart, Share2, StickyNote } from 'lucide-react';
-import SafeImage from '@/components/SafeImage';
+import { Scale, MessageCircle, CalendarDays, Trash2, ImageOff, Heart, Share2, StickyNote, Camera } from 'lucide-react';
+import CardImageCarousel from '@/components/CardImageCarousel';
 import Price from '@/components/Price';
 import { CardBadges } from '@/components/ListingBadges';
 import SpecItem, { SpecCell } from '@/components/SpecItem';
@@ -222,7 +222,8 @@ function FavoriteNote({ listingId, initialNote, saveNoteAction }) {
 function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, onRemove, note, saveNoteAction }) {
   const t = useT();
   const images = listingImages(listing);
-  const cover = images[0] || null;
+  const [activeIndex, setActiveIndex] = useState(0);
+  const listingHref = `/listings/${listing.id}`;
   const where = feedLocationLine(listing);
   const specs = specItems(listing, t);
   const type = typeLabel(listing, t);
@@ -256,19 +257,32 @@ function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, o
   return (
     <PortalPanel as="article" className="flex flex-col overflow-hidden">
       <div className="relative h-[13.125rem] shrink-0 bg-canvas-deep">
-        {cover ? (
-          <SafeImage
-            src={cover}
-            alt={listing.title}
-            fill
-            sizes="(min-width: 1280px) 25vw, (min-width: 640px) 50vw, 100vw"
-            className="object-cover"
-          />
-        ) : (
-          <span className="flex h-full w-full items-center justify-center text-ink-25">
-            <ImageOff strokeWidth={ICON_STROKE_WIDTH} className="h-7 w-7" aria-hidden="true" />
-          </span>
-        )}
+        {/* The photo opens the listing, like every other card on the site,
+            and swipes through the gallery (CardImageCarousel — the same
+            strip PropertyCard uses; its arrows and dots already stop the
+            tap from navigating). It was a single static cover with no link,
+            so the board read as a dead end next to the feed it came from.
+            The compare checkbox and the remove button sit BESIDE this link,
+            not inside it: interactive controls nested in an <a> are invalid
+            HTML and fire the navigation along with themselves. */}
+        <Link
+          href={listingHref}
+          aria-label={where || listing.title}
+          className="absolute inset-0 block"
+        >
+          {images.length > 0 ? (
+            <CardImageCarousel
+              images={images}
+              alt={listing.title}
+              sizes="(min-width: 1280px) 25vw, (min-width: 640px) 50vw, 100vw"
+              onIndexChange={setActiveIndex}
+            />
+          ) : (
+            <span className="flex h-full w-full items-center justify-center text-ink-25">
+              <ImageOff strokeWidth={ICON_STROKE_WIDTH} className="h-7 w-7" aria-hidden="true" />
+            </span>
+          )}
+        </Link>
 
         <div aria-hidden="true" className="pointer-events-none absolute inset-0" style={{ background: 'var(--scrim-image)' }} />
 
@@ -300,9 +314,22 @@ function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, o
         <div className="pointer-events-none absolute bottom-3.5 left-3.5 z-10 flex flex-wrap gap-1.5">
           <CardBadges listing={listing} />
         </div>
+
+        {/* Same glass counter as PropertyCard, bottom-right. */}
+        {images.length > 1 ? (
+          <span className="u-glass-royal u-tabular pointer-events-none absolute bottom-3.5 right-3.5 z-10 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[0.75rem] font-bold shadow-sm">
+            <Camera strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
+            {activeIndex + 1}/{images.length}
+          </span>
+        ) : null}
       </div>
 
       <div className="flex flex-1 flex-col gap-3.5 p-5">
+        {/* Price, place and facts are one link to the listing — the whole
+            informational half of the card, not just the location words.
+            The note and the CTAs below stay outside it (forms and links
+            cannot nest in an <a>). */}
+        <Link href={listingHref} className="group/details flex flex-col gap-3.5">
         {/* Aligned to components/PropertyCard: same 24px/800 figure, same
             inline chalk pill for the converted amount, same reference
             treatment. This card was 21px/800 with no converted figure at
@@ -337,10 +364,8 @@ function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, o
             card was the last public surface still carrying it. The link
             target is unchanged; only what it reads changed. */}
         <div>
-          <h3 className="text-base font-medium leading-snug tracking-normal text-ink">
-            <Link href={`/listings/${listing.id}`} className="transition-colors hover:text-blue-deep">
-              {where || listing.title}
-            </Link>
+          <h3 className="text-base font-medium leading-snug tracking-normal text-ink transition-colors group-hover/details:text-blue-deep">
+            {where || listing.title}
           </h3>
         </div>
 
@@ -359,6 +384,7 @@ function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, o
             {specs.map((spec) => <SpecItem key={spec.key} spec={spec} variant="stacked" />)}
           </div>
         ) : null}
+        </Link>
 
         <FavoriteNote listingId={listing.id} initialNote={note} saveNoteAction={saveNoteAction} />
 

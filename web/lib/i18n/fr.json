@@ -541,6 +541,9 @@
       "saved": "Enregistré",
       "remove": "Retirer des favoris",
       "add": "Ajouter aux favoris"
+    },
+    "availability": {
+      "confirmedOn": "Disponibilité confirmée le {date}"
     }
   },
   "enquiry": {
@@ -1022,6 +1025,50 @@
       "usage": "{used} annonce(s) sur {limit} utilisées avec votre forfait.",
       "freeSlot": "Archiver une annonce, ou la marquer louée ou vendue, libère aussi une place.",
       "upgrade": "Mettre à niveau mon forfait"
+    },
+    "availability": {
+      "title": "Toujours disponible ?",
+      "subtitle": {
+        "one": "Une annonce attend votre confirmation. Une annonce sans nouvelles ressemble à une arnaque : un tap suffit.",
+        "other": "{count} annonces attendent votre confirmation. Une annonce sans nouvelles ressemble à une arnaque : un tap suffit."
+      },
+      "singleSubtitle": "Confirmez que ce bien est toujours libre. La date s'affiche sur l'annonce publique pendant 30 jours.",
+      "confirmedAgo": {
+        "one": "Dernière confirmation il y a {count} jour",
+        "other": "Dernière confirmation il y a {count} jours"
+      },
+      "neverConfirmed": {
+        "one": "Jamais confirmée · dernière modification il y a {count} jour",
+        "other": "Jamais confirmée · dernière modification il y a {count} jours"
+      },
+      "untitled": "Annonce n° {id}",
+      "showMore": {
+        "one": "Afficher l'autre annonce",
+        "other": "Afficher les {count} autres"
+      },
+      "showLess": "Réduire",
+      "actions": {
+        "available": "Toujours disponible",
+        "let": "Loué",
+        "sold": "Vendu",
+        "soldOrLet": "Loué / vendu",
+        "priceChanged": "Prix modifié"
+      },
+      "price": {
+        "label": "Nouveau prix ({currency})",
+        "save": "Enregistrer et confirmer"
+      },
+      "toast": {
+        "confirmed": "« {title} » : disponibilité confirmée.",
+        "priceConfirmed": "Prix mis à jour et disponibilité confirmée.",
+        "priceSavedOnly": "Prix mis à jour. La confirmation n'a pas pu être enregistrée, réessayez plus tard."
+      },
+      "errors": {
+        "generic": "Échec de l'enregistrement. Réessayez.",
+        "network": "Pas de connexion. Vérifiez votre réseau et réessayez.",
+        "session": "Votre session a expiré. Reconnectez-vous.",
+        "unavailable": "La confirmation de disponibilité n'est pas encore activée. Réessayez plus tard."
+      }
     }
   },
   "status": {

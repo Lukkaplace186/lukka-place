@@ -9,6 +9,8 @@ import { getPropertyCategories } from '@/lib/agentListings';
 import AgentPageHeader from '@/components/AgentPageHeader';
 import CreateListingDialog from '@/components/CreateListingDialog';
 import AgentListingsTable from '@/components/AgentListingsTable';
+import AgentAvailabilityPrompt from '@/components/AgentAvailabilityPrompt';
+import { getAvailabilityPrompts } from '@/lib/listingAvailability';
 import { getListingQuota } from '@/lib/listingQuota';
 import { UPGRADE_PATH } from '@/lib/listingQuotaRules';
 
@@ -79,7 +81,7 @@ export default async function AgentListingsPage({ searchParams }) {
   // `listings`, which is already in hand. Analytics or the category list being
   // unreachable should cost an empty Vues/Clics column or a create dialog with
   // no categories to offer — never the agent's inventory list itself.
-  const [perListingStats, hierarchy, categories, quota] = await Promise.all([
+  const [perListingStats, hierarchy, categories, quota, availabilityPrompts] = await Promise.all([
     getPerListingStats(propertyIds).catch((error) => {
       console.error('[agent/biens] per-listing stats unavailable:', error.message);
       return { views: {}, clicks: {} };
@@ -95,6 +97,11 @@ export default async function AgentListingsPage({ searchParams }) {
     getListingQuota(agentId).catch((error) => {
       console.error('[agent/biens] listing quota unavailable:', error.message);
       return null;
+    }),
+    // "Toujours disponible ?" — a nudge, never a reason for the list to fail.
+    getAvailabilityPrompts(agentId, { limit: 50 }).catch((error) => {
+      console.error('[agent/biens] availability prompts unavailable:', error.message);
+      return [];
     }),
   ]);
   const communes = hierarchy?.communes ?? [];
@@ -146,6 +153,7 @@ export default async function AgentListingsPage({ searchParams }) {
         ) : quota?.capped ? (
           <p className="text-xs text-ink-45">{t('agent.quota.usage', { used: quota.used, limit: quota.limit })}</p>
         ) : null}
+        <AgentAvailabilityPrompt items={availabilityPrompts} />
         <div className="flex flex-wrap items-center gap-2">
           {FILTER_PILLS.map((pill) => {
             const active = pill.value === statusFilter || (pill.value === '' && !statusFilter);

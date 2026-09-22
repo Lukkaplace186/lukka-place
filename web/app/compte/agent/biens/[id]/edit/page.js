@@ -10,6 +10,8 @@ import { getCdfRate } from '@/lib/currencyRate';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import AgentPageHeader from '@/components/AgentPageHeader';
 import AgentListingEditor from '@/components/AgentListingEditor';
+import AgentAvailabilityPrompt from '@/components/AgentAvailabilityPrompt';
+import { getAvailabilityPrompts } from '@/lib/listingAvailability';
 import { getT } from '@/lib/i18n/server';
 
 export async function generateMetadata() {
@@ -50,12 +52,17 @@ export default async function EditListingPage({ params }) {
   // getOwnListingForEdit scopes on agent_id in the query itself, so a
   // guessed id belonging to another agency resolves to null and 404s here
   // rather than rendering someone else's listing in an editable form.
-  const [listing, { newLeadsCount }, communes, cdfRate, amenities] = await Promise.all([
+  const [listing, { newLeadsCount }, communes, cdfRate, amenities, availabilityPrompt] = await Promise.all([
     getOwnListingForEdit(agentId, id),
     getAgentDashboardContext(agentId),
     resolveCommunes(),
     getCdfRate(),
     getFeatureAmenities(),
+    // [] unless THIS listing is live and due for its weekly check.
+    getAvailabilityPrompts(agentId, { propertyId: id, limit: 1 }).catch((error) => {
+      console.error('[agent/biens/edit] availability prompt unavailable:', error.message);
+      return [];
+    }),
   ]);
 
   if (!listing) notFound();
@@ -95,6 +102,8 @@ export default async function EditListingPage({ params }) {
             )}
           </div>
         )}
+
+        <AgentAvailabilityPrompt items={availabilityPrompt} single />
 
         <AgentListingEditor listing={listing} communes={communes} cdfRate={cdfRate} amenities={amenities} />
       </div>

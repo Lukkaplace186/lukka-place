@@ -541,6 +541,9 @@
       "saved": "Saved",
       "remove": "Remove from saved",
       "add": "Add to saved"
+    },
+    "availability": {
+      "confirmedOn": "Availability confirmed on {date}"
     }
   },
   "enquiry": {
@@ -1131,6 +1134,50 @@
           "one": "and {count} more",
           "other": "and {count} more"
         }
+      }
+    },
+    "availability": {
+      "title": "Still Available?",
+      "subtitle": {
+        "one": "One listing is waiting for your confirmation. A listing that goes quiet looks like a scam: one tap is enough.",
+        "other": "{count} listings are waiting for your confirmation. A listing that goes quiet looks like a scam: one tap is enough."
+      },
+      "singleSubtitle": "Confirm this property is still free. The date shows on the public listing for 30 days.",
+      "confirmedAgo": {
+        "one": "Last confirmed {count} day ago",
+        "other": "Last confirmed {count} days ago"
+      },
+      "neverConfirmed": {
+        "one": "Never confirmed · last edited {count} day ago",
+        "other": "Never confirmed · last edited {count} days ago"
+      },
+      "untitled": "Listing #{id}",
+      "showMore": {
+        "one": "Show the other listing",
+        "other": "Show {count} more"
+      },
+      "showLess": "Show less",
+      "actions": {
+        "available": "Still available",
+        "let": "Let",
+        "sold": "Sold",
+        "soldOrLet": "Let / sold",
+        "priceChanged": "Price changed"
+      },
+      "price": {
+        "label": "New price ({currency})",
+        "save": "Save and confirm"
+      },
+      "toast": {
+        "confirmed": "“{title}”: availability confirmed.",
+        "priceConfirmed": "Price updated and availability confirmed.",
+        "priceSavedOnly": "Price updated. The confirmation could not be saved, try again later."
+      },
+      "errors": {
+        "generic": "Could not save. Try again.",
+        "network": "No connection. Check your network and try again.",
+        "session": "Your session has expired. Log in again.",
+        "unavailable": "Availability confirmation is not switched on yet. Try again later."
       }
     }
   },

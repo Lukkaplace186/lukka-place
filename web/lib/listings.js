@@ -957,8 +957,15 @@ export async function getListingById(id) {
   if (!Number.isFinite(numericId)) return null;
 
   const pool = getPool();
+  // availability_confirmed_at feeds the "Disponibilité confirmée le …" badge
+  // (lib/listingAvailability.js). Read through to_jsonb(p), like
+  // verification_level above, so this page keeps working before
+  // migrations/20260922_listing_availability.sql runs: a missing column is
+  // NULL (no badge), not a 42703 on every listing page. Detail page only —
+  // the cards don't show it, so the feed queries don't pay for the jsonb.
   const { rows } = await pool.query(
-    `SELECT ${SELECT_FIELDS}
+    `SELECT ${SELECT_FIELDS},
+       (to_jsonb(p) ->> 'availability_confirmed_at') AS availability_confirmed_at
      ${FROM_JOINS}
      WHERE p.id = $1 AND ${APPROVED_FILTER}`,
     [numericId],

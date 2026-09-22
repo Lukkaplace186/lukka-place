@@ -20,6 +20,7 @@ import { formatPrice } from '@/lib/format';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import ListingViewTracker from '@/components/ListingViewTracker';
 import PropertyDescription from '@/components/listings/PropertyDescription';
+import AvailabilityConfirmedBadge from '@/components/listings/AvailabilityConfirmedBadge';
 
 /**
  * `openGraph`/`twitter` here are what WhatsApp's own link-preview crawler
@@ -284,6 +285,10 @@ export default async function ListingDetailPage({ params, searchParams }) {
                   {addressDetail}
                 </p>
               ) : null}
+
+              {/* The agent's own weekly "still available" answer — only a
+                  real one, at most 30 days old; nothing otherwise. */}
+              <AvailabilityConfirmedBadge confirmedAt={listing.availability_confirmed_at} />
             </div>
 
             {/* One card, two halves: the facts grid, then what is due at

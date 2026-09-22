@@ -1352,6 +1352,46 @@ days.
 - Deploy = tar (excluding `node_modules`, `.next`, `.env.local`) → scp → extract over the existing `/var/www/lukka-place-web` → full `npm install` → `npm run build` → `pm2 restart lukka-place-web --update-env`.
 - `.env.local` on the VPS is hand-maintained, not part of the deploy archive — don't overwrite it by including it in the tarball.
 
+## "Toujours disponible ?" — weekly availability check (2026-09-22)
+
+`migrations/20260922_listing_availability.sql` (`properties.availability_confirmed_at
+timestamptz`, NULL = never confirmed), `lib/listingAvailability.js`,
+`app/compte/agent/availabilityActions.js`, `components/AgentAvailabilityPrompt.js`,
+`components/listings/AvailabilityConfirmedBadge.js`.
+
+- **No backfill, no history table.** Nobody had confirmed anything, so every
+  row starts NULL. A `listing_availability_checks` table was considered and
+  left out: nothing reads it — the badge and the to-do list need only the last
+  stamp, "Loué / vendu" is already `listing_status`/`sold_at`/`sold_price`, and
+  "Prix modifié" writes the price to the row. Add it when a report needs counts.
+- **"Due" = live AND stale.** Live is the public gate plus
+  `COALESCE(listing_status, 'active') = 'active'` — an under-offer listing is
+  not asked "still available?". Stale = older than `CONFIRM_AFTER_DAYS` (7)
+  measured from the last confirmation, or, never confirmed, from
+  `GREATEST(created_at, updated_at)`.
+- **`getListingsNeedingConfirmation(agentId, { limit })` is a contract** for the
+  dashboard to-do list: exactly `{ id, title, lastConfirmedAt, daysSince }`.
+  `lastConfirmedAt` is null when never confirmed (never the edit date);
+  `daysSince` counts from whichever baseline applied. The prompt card uses the
+  richer `getAvailabilityPrompts` (purpose, authored price + currency).
+- **The three answers reuse existing paths**: "Toujours disponible" stamps NOW
+  (ownership + liveness in the UPDATE's WHERE; `updated_at` deliberately not
+  touched); "Loué / vendu" opens `MarkListingSoldDialog` (new `renderTrigger`
+  prop) → `markListingSoldAction`, still the only way to `closed`; "Prix
+  modifié" calls `updateListingPriceAction` and stamps only once the price is
+  written. A saved price whose stamp fails reports `confirmed: false`, not a failure.
+- **Public badge** on `/listings/[id]` only (not cards, so the feed queries do
+  not pay for it): shown for a stamp ≤ `BADGE_MAX_AGE_DAYS` (30), Kinshasa day,
+  short month ("21 sept."); nothing otherwise — never "non confirmé". Worded as
+  the agent's confirmation, not "Vérifié" (that is `verified_at`). Read through
+  `to_jsonb(p) ->> 'availability_confirmed_at'` so the page cannot 42703 before
+  the migration; the agent-side reads catch 42703 and show no prompts.
+- **Revalidation**: confirm actions revalidate `/listings/:id`, Mes biens, the
+  overview and the editor (the detail page is dynamic, so this is the router cache).
+- Engine untouched: `syncListingToPostgres` never names the column (pinned in
+  verify-pipeline). WhatsApp replies are out of scope.
+- i18n keys: `agent.availability.*`, `listings.availability.confirmedOn`.
+
 @AGENTS.md
 
 ## "À faire aujourd'hui" and the visit agenda (2026-09-22)

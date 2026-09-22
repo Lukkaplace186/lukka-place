@@ -24,8 +24,12 @@ import { useT } from '@/lib/i18n/client';
  * `max` on the date input blocks a future date in the picker itself; the
  * server re-checks it (and that it isn't before the listing was published)
  * rather than trusting the attribute.
+ *
+ * `renderTrigger(open)` replaces the row icon with a caller's own button —
+ * the "Loué / vendu" answer on AgentAvailabilityPrompt opens this same
+ * dialog, so there is still exactly one way to close a listing.
  */
-export default function MarkListingSoldDialog({ propertyId, purpose, title }) {
+export default function MarkListingSoldDialog({ propertyId, purpose, title, renderTrigger }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -54,6 +58,7 @@ export default function MarkListingSoldDialog({ propertyId, purpose, title }) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
+      {renderTrigger ? renderTrigger(() => setOpen(true)) : (
       <button
         type="button"
         onClick={() => setOpen(true)}
@@ -63,6 +68,7 @@ export default function MarkListingSoldDialog({ propertyId, purpose, title }) {
       >
         <CheckCircle2 strokeWidth={ICON_STROKE_WIDTH} className="h-[1.0625rem] w-[1.0625rem]" />
       </button>
+      )}
 
       <DialogContent>
         <DialogHeader>

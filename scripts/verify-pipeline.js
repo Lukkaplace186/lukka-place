@@ -1367,6 +1367,18 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(values.approve_status, 0);
     assert.strictEqual(values.agent_id, 33);
   });
+  // properties.availability_confirmed_at (migrations/20260922_listing_availability.sql)
+  // is written only by the agent's "Toujours disponible" tap in web/. The
+  // sync's UPDATE is built from these keys, so naming the column here would
+  // wipe a real confirmation on every WhatsApp correction.
+  check('a re-sync never writes availability_confirmed_at (the agent\'s confirmation survives corrections)', () => {
+    const values = postgresService.buildPropertyValues(
+      { property_type: 'appartement', transaction_type: 'location', price: 500 },
+      { category: fakeCategory, location: fakeLocation, agentId: 33 },
+    );
+    assert.ok(!('availability_confirmed_at' in values));
+    assert.ok(!('availability_confirmed_at' in postgresService.updatablePropertyValues(values)));
+  });
   check('buildPropertyValues still computes purpose/area/quartier correctly (refactor did not regress existing fields)', () => {
     const values = postgresService.buildPropertyValues(
       { property_type: 'villa', transaction_type: 'vente', surface_area_sqm: 95.4, quartier: 'Kimwenza' },

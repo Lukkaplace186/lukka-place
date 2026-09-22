@@ -2,12 +2,11 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { Menu, Search, User, Heart, Bell, LogOut, ArrowUpRight, Mail, Briefcase } from 'lucide-react';
+import { usePathname, useRouter } from 'next/navigation';
+import { Menu, Search, User, Heart, Bell, LogOut, ArrowUpRight, Mail, ChevronRight } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetClose } from './ui/sheet';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from './ui/dropdown-menu';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
-import { NAV_ITEMS, isNavItemActive } from './navItems';
 import { Wordmark } from './Brand';
 import CurrencyToggle from './CurrencyToggle';
 import LanguageToggle from './LanguageToggle';
@@ -23,14 +22,28 @@ const ACCOUNT_LINKS = [
   { href: '/compte/alertes', labelKey: 'nav.alerts', icon: Bell },
 ];
 
-// The mobile Sheet's utility row (Rechercher/Favoris/Demandes) reuses
-// NAV_ITEMS but drops '/compte/client' — it duplicated ACCOUNT_LINKS' own
-// "Mon compte" entry under a different label ("Compte"), which is exactly
-// the kind of flat-list clutter the drawer restructure below is meant to
-// remove. Signed-out visitors get an explicit customer/agent choice instead
-// (see the Sheet content), so a bare third "Compte" link isn't needed either
-// way.
-const UTILITY_NAV_ITEMS = NAV_ITEMS.filter((item) => item.href !== '/compte/client');
+// What the mobile drawer shows under the site links. One list per session
+// state, so nothing appears twice: the drawer used to render NAV_ITEMS'
+// Favoris AND ACCOUNT_LINKS' "Mes favoris" for a signed-in visitor, offer
+// "Rechercher" beside Louer/Acheter (all three land on /listings), and show
+// a signed-out visitor "Demandes", which only bounced them to a login page.
+const DRAWER_GUEST_LINKS = [
+  { href: '/favoris', labelKey: 'nav.favorites', icon: Heart },
+  { href: '/compte/connexion', labelKey: 'nav.login', icon: User },
+];
+const DRAWER_ACCOUNT_LINKS = [
+  { href: '/favoris', labelKey: 'nav.favorites', icon: Heart },
+  { href: '/compte/demandes', labelKey: 'nav.myRequests', icon: Mail },
+  { href: '/compte/alertes', labelKey: 'nav.alerts', icon: Bell },
+  { href: '/compte/client', labelKey: 'nav.myAccount', icon: User },
+];
+
+// Tap feedback. `hover:` never fires on a touch screen, so a tapped row gave
+// no sign it had registered until the next page arrived. duration-75 keeps
+// the press instant rather than easing in after the finger has lifted.
+// canvas-deep is the design system's pressed fill (globals.css), used here
+// instead of a generic slate.
+const DRAWER_ROW = 'rounded-md transition-colors duration-75 hover:bg-canvas-alt active:bg-canvas-deep';
 
 /**
  * The four nav destinations of the "Landing refondue" header.
@@ -56,6 +69,10 @@ const PRIMARY_LINKS = [
   { href: '/agents', labelKey: 'nav.agencies' },
   { href: '/a-propos', labelKey: 'nav.about' },
 ];
+
+// The drawer's site links: PRIMARY_LINKS without À propos, which the footer
+// already lists. Desktop's nav row keeps it — the bar has the room there.
+const DRAWER_PRIMARY_LINKS = PRIMARY_LINKS.filter((link) => link.href !== '/a-propos');
 
 /**
  * Sticky site header.
@@ -101,7 +118,7 @@ const PRIMARY_LINKS = [
  *     currency pill and Demandes, which made the row read as three
  *     unrelated things wearing the same weight. Favorites did not lose a
  *     home — "Mes favoris" is in the account dropdown right of the wordmark,
- *     the mobile Sheet still carries it via NAV_ITEMS, and the footer's
+ *     the mobile drawer carries it in both session states, and the footer's
  *     Compte column now lists it too, which is what keeps /favoris reachable
  *     on desktop for a SIGNED-OUT visitor: favorites are local-only for
  *     them (lib/localFavorites.js), and the account affordance they see is a
@@ -118,9 +135,19 @@ const PRIMARY_LINKS = [
  */
 export default function Header() {
   const pathname = usePathname();
+  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const loggedIn = useIsLoggedIn();
   const t = useT();
+
+  // Warm the three site destinations the moment the drawer opens, so the page
+  // is usually already in the router cache by the time a row is tapped. The
+  // Links inside would prefetch on their own once visible, but only after the
+  // portal mounts; this starts during the slide. No-op in dev.
+  const handleMenuOpenChange = (open) => {
+    setMenuOpen(open);
+    if (open) DRAWER_PRIMARY_LINKS.forEach(({ href }) => router.prefetch(href));
+  };
 
   return (
     <header className="fixed inset-x-0 top-0 z-[60] h-16 border-b border-line bg-surface shadow-sm">
@@ -128,7 +155,7 @@ export default function Header() {
         <div className="flex items-center gap-3 lg:w-[76px] lg:shrink-0 lg:pl-0">
           {/* Mobile menu — Radix Sheet owns focus trapping, Escape and
               outside-click; don't hand-roll one (see web/CLAUDE.md). */}
-          <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+          <Sheet open={menuOpen} onOpenChange={handleMenuOpenChange}>
             <SheetTrigger
               aria-label={t('nav.openMenu')}
               className="flex h-11 w-11 items-center justify-center rounded-md text-ink transition-colors hover:bg-canvas-deep lg:hidden"
@@ -145,29 +172,31 @@ export default function Header() {
                   already renders top-3 right-3 over this header row — that's
                   the drawer's "X", not a second one hand-rolled here (see
                   web/CLAUDE.md on not hand-rolling what Radix Sheet owns). */}
-              <nav className="flex flex-1 flex-col overflow-y-auto px-3 py-4">
-                {/* Section 1 — primary navigation */}
+              {/* Four bands, one visual style each: site links, the
+                  visitor's own things, display preferences, and the agent
+                  ask pinned to the bottom. See the DRAWER_* constants above
+                  for what was removed as duplication. */}
+              <nav className="flex flex-1 flex-col overflow-y-auto px-3 py-3">
                 <div className="flex flex-col gap-0.5">
-                  {PRIMARY_LINKS.map(({ href, labelKey }) => (
+                  {DRAWER_PRIMARY_LINKS.map(({ href, labelKey }) => (
                     <SheetClose asChild key={href}>
-                      <Link href={href} className="rounded-md px-3 py-3 text-base font-semibold text-ink hover:bg-canvas-alt">
+                      <Link href={href} className={`${DRAWER_ROW} flex items-center justify-between px-3 py-3 text-base font-semibold text-ink`}>
                         {t(labelKey)}
+                        <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
                       </Link>
                     </SheetClose>
                   ))}
                 </div>
 
-                <span className="my-3 h-px bg-line" />
+                <span className="my-2 h-px bg-line" />
 
-                {/* Section 2 — utility links, then account/login, kept
-                    distinct from Section 1's site navigation. */}
                 <div className="flex flex-col gap-0.5">
-                  {UTILITY_NAV_ITEMS.map(({ href, labelKey, icon: Icon }) => (
+                  {(loggedIn ? DRAWER_ACCOUNT_LINKS : DRAWER_GUEST_LINKS).map(({ href, labelKey, icon: Icon }) => (
                     <SheetClose asChild key={href}>
                       <Link
                         href={href}
-                        className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-[0.9375rem] font-medium hover:bg-canvas-alt ${
-                          isNavItemActive(href, pathname) ? 'text-blue-deep' : 'text-ink'
+                        className={`${DRAWER_ROW} flex min-h-11 items-center gap-3 px-3 py-2.5 text-[0.9375rem] font-medium ${
+                          pathname === href ? 'text-blue-deep' : 'text-ink'
                         }`}
                       >
                         <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
@@ -175,94 +204,55 @@ export default function Header() {
                       </Link>
                     </SheetClose>
                   ))}
-                </div>
-
-                <span className="my-3 h-px bg-line" />
-
-                {/* Customer vs. agent/partner logins, kept as two explicit,
-                    visually distinct actions rather than one generic
-                    "Connexion" link — a visitor shouldn't have to guess
-                    which portal that leads to. */}
-                <div className="flex flex-col gap-1.5">
-                  {loggedIn ? (
-                    <>
-                      {ACCOUNT_LINKS.map(({ href, labelKey, icon: Icon }) => (
-                        <SheetClose asChild key={href}>
-                          <Link href={href} className="flex items-center gap-3 rounded-md px-3 py-2.5 text-[0.9375rem] font-medium text-ink hover:bg-canvas-alt">
-                            <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
-                            {t(labelKey)}
-                          </Link>
-                        </SheetClose>
-                      ))}
-                      <SheetClose asChild>
-                        <button
-                          type="button"
-                          onClick={() => logoutAction()}
-                          className="flex items-center gap-3 rounded-md px-3 py-2.5 text-left text-[0.9375rem] font-medium text-ink hover:bg-canvas-alt"
-                        >
-                          <LogOut strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
-                          {t('common.actions.logout')}
-                        </button>
-                      </SheetClose>
-                    </>
-                  ) : (
-                    <>
-                      <SheetClose asChild>
-                        <Link href="/compte/connexion" className="flex items-center gap-3 rounded-md px-3 py-2.5 text-[0.9375rem] font-medium text-ink hover:bg-canvas-alt">
-                          <User strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
-                          {t('nav.customerLogin')}
-                        </Link>
-                      </SheetClose>
-                      <SheetClose asChild>
-                        <Link
-                          href="/compte/agent/connexion"
-                          className="u-btn-secondary flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-[0.9375rem] font-bold text-ink"
-                        >
-                          <Briefcase strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
-                          {t('nav.agentSpace')}
-                        </Link>
-                      </SheetClose>
-                    </>
+                  {loggedIn && (
+                    <SheetClose asChild>
+                      <button
+                        type="button"
+                        onClick={() => logoutAction()}
+                        className={`${DRAWER_ROW} flex min-h-11 items-center gap-3 px-3 py-2.5 text-left text-[0.9375rem] font-medium text-ink-70`}
+                      >
+                        <LogOut strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
+                        {t('common.actions.logout')}
+                      </button>
+                    </SheetClose>
                   )}
                 </div>
 
-                <span className="my-3 h-px bg-line" />
+                <span className="my-2 h-px bg-line" />
 
-                {/* Section 2b — display preferences. The currency control's
-                    mobile home now that it is off the navbar (see the note
-                    at its desktop instance below). Explicitly labelled here,
-                    which the bare "$ | FC" pill in the header never was, and
-                    NOT wrapped in SheetClose: switching currency is a
-                    preference change the visitor should be able to see take
-                    effect, not a navigation that should dismiss the
-                    drawer. */}
-                <div className="flex items-center justify-between gap-3 rounded-md px-3 py-2">
-                  <span className="text-[0.9375rem] font-medium text-ink">{t('common.currency.label')}</span>
+                {/* Display preferences, one row. Both toggles carry their own
+                    aria-label, so the visible "Devise d'affichage" / "Langue"
+                    captions were two rows of words explaining two controls
+                    that already read as USD|FC and FR|EN. Not wrapped in
+                    SheetClose: a preference change should be watched taking
+                    effect, not dismiss the drawer. */}
+                <div className="flex items-center justify-between gap-3 px-3 py-2">
                   <CurrencyToggle longLabels />
-                </div>
-
-                {/* The language control's mobile home, beside the currency
-                    one: both are display preferences, and the drawer is
-                    where this header keeps preferences on small screens.
-                    Not wrapped in SheetClose, for the same reason the
-                    currency row above isn't — switching language is a change
-                    the visitor should watch take effect, not a navigation
-                    that dismisses the drawer out from under them. */}
-                <div className="flex items-center justify-between gap-3 rounded-md px-3 py-2">
-                  <span className="text-[0.9375rem] font-medium text-ink">{t('common.language.label')}</span>
                   <LanguageToggle />
                 </div>
 
-                {/* Section 3 — primary CTA, pinned to the bottom of the
-                    drawer via mt-auto so it stays reachable regardless of
-                    how tall Sections 1-2 grow. */}
-                <div className="mt-auto pt-4">
+                {/* The agent ask, pinned to the bottom. One block, one
+                    hierarchy: publishing is the filled action and the
+                    existing-agent login a quiet link under it. They used to
+                    be two competing buttons, "Espace Agent / Partenaire"
+                    (outlined, mid-drawer) and "Publier un bien" (filled). */}
+                <div className="mt-auto border-t border-line px-1 pt-4 pb-1">
+                  <p className="px-2 pb-2 text-[0.8125rem] font-medium text-ink-70">{t('nav.agentPrompt')}</p>
                   <SheetClose asChild>
                     <Link
                       href="/compte/agent/inscription"
                       className="u-press u-btn-primary flex w-full items-center justify-center gap-2 rounded-lg bg-blue py-3 text-[0.9375rem] font-bold text-white"
                     >
                       {t('nav.publishListing')}
+                      <ArrowUpRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                    </Link>
+                  </SheetClose>
+                  <SheetClose asChild>
+                    <Link
+                      href="/compte/agent/connexion"
+                      className={`${DRAWER_ROW} mt-1 flex min-h-11 items-center justify-center px-2 py-2.5 text-center text-[0.8125rem] font-semibold text-blue-deep`}
+                    >
+                      {t('nav.agentLogin')}
                     </Link>
                   </SheetClose>
                 </div>
@@ -367,8 +357,8 @@ export default function Header() {
               they have open. Favoris used to sit between them and no longer
               appears in this row at all (see the doc comment above).
 
-              Same real route it has always used (`/compte/demandes`, still
-              the one NAV_ITEMS uses in the mobile Sheet menu below): it
+              Same real route it has always used (`/compte/demandes`, also the
+              signed-in drawer's "Mes demandes" row above): it
               redirects to login with a `?next=` back to itself when signed
               out, so this link needs no logged-in branch of its own — the
               route already handles both states honestly. */}

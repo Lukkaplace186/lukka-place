@@ -14,10 +14,12 @@ import { Search, Heart, Mail, User } from 'lucide-react';
  * tab bar) — web/Design's screens never carried a left toolbar, and the
  * bottom bar was dropped on an explicit instruction to favour Header's own
  * hamburger menu + top-right utility row instead (see app/(site)/layout.js
- * and Header.js). Header's mobile Sheet menu is the last direct consumer
- * left; desktop reaches the same four destinations via Header's top-right
- * utility row (Rechercher through the search icon/FilterBar, Favoris and
- * Demandes as text links, Compte via the account dropdown).
+ * and Header.js). Header's mobile Sheet menu was the last one, and it
+ * stopped using this set on 2026-09-22: its "Rechercher" duplicated Louer /
+ * Acheter and a signed-out "Demandes" only led to a login, so the drawer now
+ * keeps its own per-session lists (DRAWER_* in Header.js). NAV_ITEMS has no
+ * consumer left; it stays as the reference for the labelKey pattern that
+ * many files point to.
  */
 /*
  * `labelKey`, not `label`: these are module-level constants, evaluated once

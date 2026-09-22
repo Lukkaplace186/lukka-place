@@ -109,8 +109,10 @@
     "publishListing": "List a property",
     "openMenu": "Open menu",
     "searchAria": "Search for a property",
-    "customerLogin": "Customer login",
-    "agentSpace": "Agent / Partner area"
+    "login": "Sign in",
+    "myRequests": "My requests",
+    "agentPrompt": "Are you an agent or agency?",
+    "agentLogin": "Already registered? Agent area"
   },
   "footer": {
     "columns": {

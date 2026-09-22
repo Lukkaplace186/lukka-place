@@ -109,8 +109,10 @@
     "publishListing": "Publier un bien",
     "openMenu": "Ouvrir le menu",
     "searchAria": "Rechercher un bien",
-    "customerLogin": "Connexion client",
-    "agentSpace": "Espace Agent / Partenaire"
+    "login": "Se connecter",
+    "myRequests": "Mes demandes",
+    "agentPrompt": "Vous êtes agent ou agence ?",
+    "agentLogin": "Déjà inscrit ? Espace agent"
   },
   "footer": {
     "columns": {

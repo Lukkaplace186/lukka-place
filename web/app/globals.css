@@ -43,20 +43,11 @@
      use it as a general page fill. */
   --canvas-warm: #f9f8f6;
   --canvas-alt: #f7f7f5;  /* alternating/sunken section fills (chalk) */
-  /* Sand — the storefront's one warm band fill. Distinct from --canvas-alt
-     (#f7f7f5), which is so close to white that a section carrying it reads
-     as no section at all: on a phone the homepage scrolled as one unbroken
-     white sheet from the hero to the footer, which is the specific
-     complaint this answers. Warm rather than a darker grey because the
-     ground is the only place this palette's brass accent has to live — a
-     cooler grey would fight it.
-       --ink    (#0b1120) on sand .... 17.2:1  passes AAA
-       --ink-45 (#5c6679) on sand ..... 5.3:1  passes AA
-       --brass-deep (#7a5619) on sand . 6.4:1  passes AA (7.3:1 on white)
-     Deliberately NOT --canvas-warm (#f9f8f6): that one is scoped to the
-     signed-in portal by the comment above it, and it is too faint to
-     separate a band anyway. */
-  --canvas-sand: #f6f1e8;
+  /* A warm sand band fill (#f6f1e8) lived here briefly and was removed on
+     an explicit product decision (2026-09-22): the storefront's ground is
+     prestige white, full stop. If the homepage ever needs its sections
+     separated again, do it with hairlines and spacing rather than a second
+     ground colour. */
   --canvas-deep: #eff1f6; /* hover / pressed fills, image wells (mist) */
   --line: #e2e6ef;        /* hairline borders — replaces card shadows (ink-100) */
   --surface: #ffffff;     /* elevated cards sitting ON canvas */
@@ -203,7 +194,6 @@
   --color-canvas: var(--canvas);
   --color-canvas-alt: var(--canvas-alt);
   --color-canvas-warm: var(--canvas-warm);
-  --color-canvas-sand: var(--canvas-sand);
   --color-canvas-deep: var(--canvas-deep);
   --color-surface: var(--surface);
   --color-line: var(--line);

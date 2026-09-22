@@ -20,16 +20,12 @@ export default async function FeaturedListings() {
   if (count === 0) return null;
 
   return (
-    /* The warm band. This section sits directly under the hero photograph
-       and used to be plain white, which made the page read as one unbroken
-       sheet from the hero all the way to the footer — the reason the
-       homepage was reported as looking empty on a phone. Sand also gives
-       the white listing cards a ground to be figure against, which is the
-       same figure/ground rule the canvas/surface split was introduced for.
-       The full-bleed fill is the outer element; the max-width container
-       moved inside it, so the colour reaches both edges of the screen
-       rather than stopping at the 1600px gutter. */
-    <section className="bg-canvas-sand">
+    /* Prestige white, on an explicit product decision — a warm sand band
+       was tried here and rejected. The outer/inner split is kept from that
+       attempt: the fill is the full-bleed element and the max-width
+       container sits inside it, so a future ground or rule reaches both
+       edges of the screen rather than stopping at the 1600px gutter. */
+    <section className="bg-canvas">
       <div className="mx-auto max-w-[1600px] px-4 pt-8 pb-14 sm:px-6 sm:pt-14 sm:pb-24 lg:px-8">
         {/* No `lead`. It read "Les annonces les plus récemment vérifiées et
             mises en ligne." directly under a title and an eyebrow that both

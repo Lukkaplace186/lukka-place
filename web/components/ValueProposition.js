@@ -47,14 +47,13 @@ const VALUE_PROPS = [
 export default async function ValueProposition() {
   const t = await getT();
   return (
-    /* White, not --canvas-alt. This band and the listings section above it
-       were #f7f7f5 and #ffffff respectively — a 1.5% difference in
-       lightness, so neither read as a band and the whole page scrolled as
-       one sheet. The listings section is now the warm one
-       (--canvas-sand), and this one is plain white, so the homepage
-       alternates hero photo → sand → white → the footer's royal band
-       instead of fading out. The inset top hairline stays: it is what
-       separates the two pale grounds from each other. */
+    /* White, not --canvas-alt. This band was #f7f7f5 against a #ffffff
+       listings section above it — a 1.5% difference in lightness, which
+       read as neither one ground nor two. With the storefront settled on
+       prestige white throughout, the honest version is a single ground and
+       a real rule: the inset top hairline is now the only thing separating
+       this section from the listings, and it does the job that the
+       almost-invisible fill was pretending to. */
     <section className="bg-canvas py-11 shadow-[0_1px_0_var(--line)_inset] sm:py-20">
       <div className="mx-auto max-w-[1240px] px-4 sm:px-6 lg:px-8">
         {/* The eyebrow IS the header. It previously sat above a serif title

@@ -283,6 +283,14 @@ response metric said the agent had never answered.
   re-answer it with a contradictory message.
 - **A reschedule to a phrase with no instant clears `scheduled_at`**, so a later
   confirmation cannot check in against the old slot.
+- **A confirmation carries the agent's picked `scheduled_at`** (2026-09-22;
+  `visitSchedule.resolveScheduledAtInput`, shared with the admin PATCH): a day
+  with no hour → `scheduled-at-invalid`, a past instant → `scheduled-at-past`,
+  both before anything is written or sent. Stored UTC `Z`; the customer is
+  told that time. Without one, the customer's parseable phrase still pins it.
+  `GET /viewing-requests` (owner list) now returns `scheduled_at`, the
+  response stamps and `requested_slot_at` (the phrase parsed against the
+  row's `created_at`). web/CLAUDE.md, "À faire aujourd'hui".
 - **CANCELLED is never written to `agent_performance_logs.outcome_status`** —
   that column's CHECK has no CANCELLED, and the response was timed at the
   confirmation.

@@ -20,6 +20,8 @@ import AgentStatGrid from '@/components/AgentStatGrid';
 import AgentViewsChart from '@/components/AgentViewsChart';
 import AgentRecentLeads from '@/components/AgentRecentLeads';
 import AgentSubscriptionCard from '@/components/AgentSubscriptionCard';
+import AgentTodayPanel, { AgentVisitReminderBanner } from '@/components/AgentTodayPanel';
+import { loadAgentTodo } from '@/lib/agentTodoLoader';
 
 const RANGE_OPTIONS = Object.entries(VIEW_RANGES).map(([value, { label }]) => ({ value, label }));
 
@@ -34,7 +36,7 @@ export default async function AgentOverviewPage({ searchParams }) {
     await getAgentDashboardContext(agentId);
   const listingQuota = await getListingQuota(agentId).catch(() => null);
 
-  const [views30d, whatsappClicks, leadsPage, series, deltas, leadQuota] = await Promise.all([
+  const [views30d, whatsappClicks, leadsPage, series, deltas, leadQuota, todo] = await Promise.all([
     getAgentListingViews(propertyIds, 30),
     getAgentWhatsAppClicks(propertyIds),
     hasLeadScope ? listLeads({ ...leadScope, limit: 3 }) : Promise.resolve({ total: 0, data: [] }),
@@ -46,6 +48,9 @@ export default async function AgentOverviewPage({ searchParams }) {
     // path re-checks the real count server-side before recording a response,
     // so an unreadable count here can never grant one.
     getAgentLeadQuota(agentId, agent),
+    // "À faire aujourd'hui" + the morning reminder. Never throws: each engine
+    // read degrades on its own and the panel says the list may be incomplete.
+    loadAgentTodo({ leadScope, hasLeadScope }),
   ]);
 
   const activeCount = listings.filter((l) => l.approve_status === 1 && l.listing_status === 'active').length;
@@ -89,6 +94,9 @@ export default async function AgentOverviewPage({ searchParams }) {
       />
 
       <div className="flex flex-col gap-4 px-3 py-4 sm:gap-6 sm:px-8 sm:py-7">
+        <AgentVisitReminderBanner visits={todo.todayVisits} listingById={listingById} />
+        <AgentTodayPanel todo={todo} listingById={listingById} />
+
         <AgentPortfolioBanner
           listingsCount={listings.length}
           profileUrl={`${SITE_URL}/agents/${agent.id}`}

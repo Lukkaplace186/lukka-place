@@ -1022,6 +1022,116 @@
       "usage": "{used} annonce(s) sur {limit} utilisées avec votre forfait.",
       "freeSlot": "Archiver une annonce, ou la marquer louée ou vendue, libère aussi une place.",
       "upgrade": "Mettre à niveau mon forfait"
+    },
+    "today": {
+      "title": "À faire aujourd'hui",
+      "count": {
+        "one": "{count} action",
+        "other": "{count} actions"
+      },
+      "overdueCount": {
+        "one": "{count} en retard",
+        "other": "{count} en retard"
+      },
+      "degraded": "Une partie de vos demandes n'a pas pu être chargée : cette liste est peut-être incomplète.",
+      "empty": "Rien en attente : toutes vos demandes ont une réponse.",
+      "unknownCustomer": "Client",
+      "untitledListing": "Bien sans titre",
+      "proposeHint": "Heure de Kinshasa. Le client reçoit ce créneau sur WhatsApp.",
+      "action": {
+        "confirmVisit": "Confirmer la visite",
+        "proposeSlot": "Proposer un autre créneau",
+        "openLead": "Ouvrir la demande",
+        "confirmAvailability": "Confirmer la disponibilité",
+        "complete": "Compléter",
+        "confirmAt": "Confirmer · {slot}",
+        "otherTime": "Autre heure"
+      },
+      "badge": {
+        "overdue": "Heure dépassée",
+        "slotProposed": "Créneau proposé",
+        "unanswered": "Sans réponse",
+        "newLead": "Nouvelle"
+      },
+      "meta": {
+        "slotPassed": "Prévue {slot}, sans réponse",
+        "requested": "Demande « {time} » · {ago}",
+        "requestedNoTime": "Aucun créneau précisé · {ago}",
+        "leadReceived": "Reçue {ago}",
+        "lastConfirmed": {
+          "one": "Disponibilité confirmée il y a {count} jour",
+          "other": "Disponibilité confirmée il y a {count} jours"
+        },
+        "neverConfirmed": "Disponibilité jamais confirmée",
+        "missing": "À compléter : {gaps}"
+      },
+      "seeAll": {
+        "visits": {
+          "one": "Voir {count} autre visite",
+          "other": "Voir les {count} autres visites"
+        },
+        "leads": {
+          "one": "Voir {count} autre demande",
+          "other": "Voir les {count} autres demandes"
+        },
+        "listingsToConfirm": {
+          "one": "Voir {count} autre bien à confirmer",
+          "other": "Voir les {count} autres biens à confirmer"
+        },
+        "incompleteListings": {
+          "one": "Voir {count} autre bien à compléter",
+          "other": "Voir les {count} autres biens à compléter"
+        }
+      }
+    },
+    "agenda": {
+      "title": "Agenda des visites",
+      "intro": "Vos visites confirmées, à l'heure de Kinshasa.",
+      "pendingRequests": {
+        "one": "{count} demande en attente",
+        "other": "{count} demandes en attente"
+      },
+      "allRequests": "Toutes les demandes de visite",
+      "weekLabel": "Les sept prochains jours",
+      "dayCount": {
+        "one": "{count} visite",
+        "other": "{count} visites"
+      },
+      "loadFailed": "Vos visites n'ont pas pu être chargées. Réessayez dans un instant.",
+      "empty": "Aucune visite confirmée pour le moment. Les visites que vous confirmez apparaissent ici.",
+      "today": "Aujourd'hui",
+      "unscheduledHeading": "Heure à fixer",
+      "unscheduledHint": "Confirmées sans heure convenue : fixez un créneau avec le client pour les placer dans l'agenda.",
+      "unscheduledAsked": "Le client a demandé : « {time} »",
+      "unscheduledNoTime": "Le client n'a pas précisé de créneau",
+      "addToCalendar": "Ajouter à mon agenda",
+      "directions": "Itinéraire",
+      "contactCustomer": "WhatsApp",
+      "setTime": "Proposer un créneau",
+      "pastHeading": {
+        "one": "Visite passée ({count})",
+        "other": "Visites passées ({count})"
+      },
+      "sending": "Envoi…",
+      "confirm": {
+        "dateLabel": "Date de la visite",
+        "timeLabel": "Heure",
+        "submit": "Confirmer la visite",
+        "kinshasaTime": "Heure de Kinshasa. Le client reçoit cette heure sur WhatsApp.",
+        "timeRequired": "Indiquez la date et l'heure de la visite.",
+        "timeInvalid": "Cette date ou cette heure n'est pas valide.",
+        "timeInPast": "Ce créneau est déjà passé : choisissez une date et une heure à venir."
+      },
+      "reminder": {
+        "summary": {
+          "one": "Aujourd'hui : {count} visite",
+          "other": "Aujourd'hui : {count} visites"
+        },
+        "more": {
+          "one": "et {count} autre",
+          "other": "et {count} autres"
+        }
+      }
     }
   },
   "status": {

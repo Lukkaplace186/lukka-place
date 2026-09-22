@@ -34,7 +34,7 @@ const {
   respondFromCustomer,
   CUSTOMER_TRANSITIONS,
 } = require('../services/viewingNotifications');
-const { parseFrenchSlot } = require('../services/visitSchedule');
+const { resolveScheduledAtInput, requestedSlotAt } = require('../services/visitSchedule');
 
 const router = express.Router();
 
@@ -723,7 +723,15 @@ router.get('/viewing-requests', (req, res) => {
 
   try {
     const page = db.listViewingRequestsForOwner({ propertyIds, assignedAgent, status, limit, offset });
-    return res.json({ success: true, ...page });
+    // The engine's own reading of the customer's phrase, relative to when they
+    // wrote it (visitSchedule.requestedSlotAt) — the agent dashboard prefills
+    // its confirmation with it and flags a request whose asked-for time has
+    // gone by unanswered. Computed here so web/ never re-implements the parser.
+    const data = page.data.map((row) => ({
+      ...row,
+      requested_slot_at: requestedSlotAt(row.requested_time, row.created_at),
+    }));
+    return res.json({ success: true, ...page, data });
   } catch (err) {
     console.error(`[admin] GET /viewing-requests failed: ${err.message}`);
     return res.status(500).json({ success: false, error: 'Could not read viewing requests.' });
@@ -804,14 +812,7 @@ router.get('/viewing-requests/feed', (req, res) => {
  */
 function resolveScheduledAt(raw) {
   if (raw === null || raw === '') return { value: null };
-  const text = String(raw).trim();
-  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/.test(text)) {
-    const date = new Date(text);
-    if (!Number.isNaN(date.getTime())) return { value: date.toISOString() };
-  }
-  const slot = parseFrenchSlot(text);
-  if (slot) return { value: slot.iso };
-  return { error: "scheduled_at must be an ISO instant with an offset, or a phrase with a day and an hour ('samedi 14h')." };
+  return resolveScheduledAtInput(raw);
 }
 
 router.patch('/viewing-requests/:id', (req, res) => {
@@ -872,6 +873,7 @@ router.post('/viewing-requests/:id/agent-response', async (req, res) => {
       agentId,
       status,
       requestedTime: req.body?.requested_time,
+      scheduledAt: req.body?.scheduled_at,
     });
     if (!result.ok) {
       const httpStatus = { 'unknown-request': 404, 'not-this-requests-agent': 403 }[result.reason] || 400;
@@ -880,6 +882,8 @@ router.post('/viewing-requests/:id/agent-response', async (req, res) => {
         'not-this-requests-agent': 'This viewing request does not belong to that agent.',
         'invalid-transition': `A ${result.current} viewing request cannot be set to ${status}.`,
         'requested-time-required': 'requested_time is required to reschedule.',
+        'scheduled-at-invalid': "scheduled_at must be an ISO instant with an offset, or a phrase with a day and an hour ('samedi 14h').",
+        'scheduled-at-past': 'scheduled_at is in the past — a visit cannot be confirmed for a time that has gone by.',
       }[result.reason] || result.reason;
       return res.status(httpStatus).json({ success: false, error, reason: result.reason });
     }

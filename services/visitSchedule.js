@@ -255,9 +255,60 @@ function formatSlotFr(iso) {
   return `${dayNames[parts.weekday]} ${parts.day} ${monthNames[parts.month]} à ${hh}h${mm}`;
 }
 
+/** An ISO-8601 instant that names an hour AND an offset. A bare date does not match. */
+const ISO_INSTANT_WITH_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/;
+
+/**
+ * A `scheduled_at` somebody TYPED or PICKED — the admin override
+ * (PATCH /admin/viewing-requests/:id) and the agent dashboard's confirmation
+ * (respondFromDashboard) — as opposed to one parsed out of the customer's own
+ * phrase. Either an ISO instant with an offset, or a French phrase with a day
+ * AND an hour ("samedi 14h"). A day with no hour is refused here exactly as
+ * parseFrenchSlot refuses it: nobody gets a 9am they did not agree to.
+ *
+ * @returns {{value: string}|{error: string}} `value` is UTC with a `Z`.
+ */
+function resolveScheduledAtInput(raw, now = new Date()) {
+  const text = String(raw ?? '').trim();
+  if (ISO_INSTANT_WITH_OFFSET.test(text)) {
+    const date = new Date(text);
+    if (!Number.isNaN(date.getTime())) return { value: date.toISOString() };
+  }
+  const slot = parseFrenchSlot(text, now);
+  if (slot) return { value: slot.iso };
+  return { error: "scheduled_at must be an ISO instant with an offset, or a phrase with a day and an hour ('samedi 14h')." };
+}
+
+/**
+ * The instant the CUSTOMER asked for, read relative to when they asked it.
+ *
+ * "demain 14h" written on Monday means Tuesday 14:00 — reading it against
+ * today's clock instead would slide it forward a day every day and it would
+ * never be overdue. So the phrase is parsed against the request's own
+ * `created_at`, which also means a slot that has since gone by is still
+ * returned (it is in the future relative to when it was written), and that is
+ * the point: the agent dashboard uses it to say "the time this customer asked
+ * for has passed and nobody answered". null when the phrase names no day and
+ * hour — never a guess.
+ *
+ * @param {string} requestedTime viewing_requests.requested_time
+ * @param {string} createdAt     viewing_requests.created_at (SQLite `YYYY-MM-DD HH:MM:SS`, UTC)
+ * @returns {string|null} UTC ISO (…Z)
+ */
+function requestedSlotAt(requestedTime, createdAt) {
+  if (!requestedTime || !createdAt) return null;
+  const raw = String(createdAt).trim();
+  const asked = new Date(/[zZ]|[+-]\d{2}:?\d{2}$/.test(raw) ? raw.replace(' ', 'T') : `${raw.replace(' ', 'T')}Z`);
+  if (Number.isNaN(asked.getTime())) return null;
+  const slot = parseFrenchSlot(requestedTime, asked);
+  return slot ? slot.iso : null;
+}
+
 module.exports = {
   parseFrenchSlot,
   formatSlotFr,
+  resolveScheduledAtInput,
+  requestedSlotAt,
   KINSHASA_UTC_OFFSET_HOURS,
   // Exposed for scripts/verify-pipeline.js.
   normalise,

@@ -6,6 +6,8 @@ import { Phone, MapPin, Clock, Check, X, CalendarClock, MessageCircle } from 'lu
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { updateViewingRequestAction } from '@/app/compte/agent/actions';
 import { agentActionsFor } from '@/lib/viewingActions';
+import { confirmPrefill } from '@/lib/visitAgenda';
+import VisitSlotForm from './VisitSlotForm';
 import { useToast } from './Toast';
 import { isNetworkError } from '@/lib/networkError';
 import { useT } from '@/lib/i18n/client';
@@ -38,6 +40,9 @@ const SECONDARY_BUTTON =
 export default function AgentVisitRequestCard({ viewingRequest, statusLabel, relativeTime, target }) {
   const t = useT();
   const [reschedule, setReschedule] = useState(false);
+  // Confirm opens a date + time step: a dashboard confirmation must carry the
+  // agreed instant (lib/visitAgenda.js, "`scheduled_at`" in root CLAUDE.md).
+  const [confirming, setConfirming] = useState(false);
   const [newTime, setNewTime] = useState('');
   const [pending, startTransition] = useTransition();
   const router = useRouter();
@@ -54,10 +59,11 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
     CANCELLED: t('agent.visits.cancelled'),
   };
 
-  function run(status, requestedTime) {
+  function run(status, requestedTime, scheduledAt) {
     const formData = new FormData();
     formData.set('status', status);
     if (requestedTime !== undefined) formData.set('requested_time', requestedTime);
+    if (scheduledAt !== undefined) formData.set('scheduled_at', scheduledAt);
 
     startTransition(async () => {
       let result;
@@ -73,7 +79,7 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
           showToast({
             type: 'error',
             message: t('common.network.actionOffline'),
-            action: { label: t('common.network.retry'), onClick: () => run(status, requestedTime) },
+            action: { label: t('common.network.retry'), onClick: () => run(status, requestedTime, scheduledAt) },
           });
           return;
         }
@@ -91,6 +97,7 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
         showToast({ type: result.tenantNotified ? 'success' : 'error', message: `${doneMessage[status]} ${notice}` });
       }
       setReschedule(false);
+      setConfirming(false);
       setNewTime('');
       router.refresh();
     });
@@ -149,7 +156,8 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
             <button
               type="button"
               disabled={pending}
-              onClick={() => run('CONFIRMED')}
+              onClick={() => setConfirming((v) => !v)}
+              aria-expanded={confirming}
               className="u-btn-primary u-press inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-lg bg-blue text-sm font-bold text-white disabled:opacity-60"
             >
               <Check strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
@@ -197,6 +205,18 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
           {actions.length === 0 && <p className="text-xs text-ink-35">{t('agent.visits.closed')}</p>}
         </div>
       </div>
+
+      {confirming && can('CONFIRMED') && (
+        <div className="mt-4 border-t border-line pt-4">
+          <VisitSlotForm
+            id={viewingRequest.id}
+            prefill={confirmPrefill(viewingRequest)}
+            submitLabel={t('agent.agenda.confirm.submit')}
+            pending={pending}
+            onSubmit={(iso) => run('CONFIRMED', undefined, iso)}
+          />
+        </div>
+      )}
 
       {reschedule && can('RESCHEDULED') && (
         <form onSubmit={submitReschedule} className="mt-4 flex flex-col gap-2.5 border-t border-line pt-4 sm:flex-row sm:items-end">

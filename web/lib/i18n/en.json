@@ -1022,6 +1022,116 @@
       "usage": "{used} of {limit} listings used on your plan.",
       "freeSlot": "Archiving a listing, or marking one as let or sold, also frees a slot.",
       "upgrade": "Upgrade my plan"
+    },
+    "today": {
+      "title": "To Do Today",
+      "count": {
+        "one": "{count} action",
+        "other": "{count} actions"
+      },
+      "overdueCount": {
+        "one": "{count} overdue",
+        "other": "{count} overdue"
+      },
+      "degraded": "Some of your requests could not be loaded: this list may be incomplete.",
+      "empty": "Nothing waiting: every request has an answer.",
+      "unknownCustomer": "Customer",
+      "untitledListing": "Untitled listing",
+      "proposeHint": "Kinshasa time. The customer receives this slot on WhatsApp.",
+      "action": {
+        "confirmVisit": "Confirm viewing",
+        "proposeSlot": "Propose another time",
+        "openLead": "Open request",
+        "confirmAvailability": "Confirm availability",
+        "complete": "Complete",
+        "confirmAt": "Confirm · {slot}",
+        "otherTime": "Other time"
+      },
+      "badge": {
+        "overdue": "Time passed",
+        "slotProposed": "Time proposed",
+        "unanswered": "Unanswered",
+        "newLead": "New"
+      },
+      "meta": {
+        "slotPassed": "Due {slot}, unanswered",
+        "requested": "Asked for “{time}” · {ago}",
+        "requestedNoTime": "No time given · {ago}",
+        "leadReceived": "Received {ago}",
+        "lastConfirmed": {
+          "one": "Availability confirmed {count} day ago",
+          "other": "Availability confirmed {count} days ago"
+        },
+        "neverConfirmed": "Availability never confirmed",
+        "missing": "To complete: {gaps}"
+      },
+      "seeAll": {
+        "visits": {
+          "one": "See {count} more viewing",
+          "other": "See {count} more viewings"
+        },
+        "leads": {
+          "one": "See {count} more request",
+          "other": "See {count} more requests"
+        },
+        "listingsToConfirm": {
+          "one": "See {count} more listing to confirm",
+          "other": "See {count} more listings to confirm"
+        },
+        "incompleteListings": {
+          "one": "See {count} more listing to complete",
+          "other": "See {count} more listings to complete"
+        }
+      }
+    },
+    "agenda": {
+      "title": "Viewing Agenda",
+      "intro": "Your confirmed viewings, in Kinshasa time.",
+      "pendingRequests": {
+        "one": "{count} request waiting",
+        "other": "{count} requests waiting"
+      },
+      "allRequests": "All viewing requests",
+      "weekLabel": "The next seven days",
+      "dayCount": {
+        "one": "{count} viewing",
+        "other": "{count} viewings"
+      },
+      "loadFailed": "Your viewings could not be loaded. Try again in a moment.",
+      "empty": "No confirmed viewings yet. Viewings you confirm appear here.",
+      "today": "Today",
+      "unscheduledHeading": "Time Still to Agree",
+      "unscheduledHint": "Confirmed without an agreed time: set one with the customer to place them in the agenda.",
+      "unscheduledAsked": "The customer asked for: “{time}”",
+      "unscheduledNoTime": "The customer gave no time",
+      "addToCalendar": "Add to my calendar",
+      "directions": "Directions",
+      "contactCustomer": "WhatsApp",
+      "setTime": "Propose a time",
+      "pastHeading": {
+        "one": "Past Viewing ({count})",
+        "other": "Past Viewings ({count})"
+      },
+      "sending": "Sending…",
+      "confirm": {
+        "dateLabel": "Viewing date",
+        "timeLabel": "Time",
+        "submit": "Confirm viewing",
+        "kinshasaTime": "Kinshasa time. The customer receives this time on WhatsApp.",
+        "timeRequired": "Enter the date and time of the viewing.",
+        "timeInvalid": "That date or time is not valid.",
+        "timeInPast": "That time has already passed: pick a date and time ahead."
+      },
+      "reminder": {
+        "summary": {
+          "one": "Today: {count} viewing",
+          "other": "Today: {count} viewings"
+        },
+        "more": {
+          "one": "and {count} more",
+          "other": "and {count} more"
+        }
+      }
     }
   },
   "status": {

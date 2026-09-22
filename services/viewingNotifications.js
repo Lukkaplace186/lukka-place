@@ -38,7 +38,7 @@
 const chakra = require('./chakra');
 const propertyRepository = require('./propertyRepository');
 const propertyMatchingService = require('./propertyMatching');
-const { parseFrenchSlot, formatSlotFr } = require('./visitSchedule');
+const { parseFrenchSlot, formatSlotFr, resolveScheduledAtInput } = require('./visitSchedule');
 const priceExtraction = require('./priceExtraction');
 const agentPerformance = require('./agentPerformance');
 
@@ -763,14 +763,21 @@ function acceptedAgentText(listing, viewingRequest, propertyId) {
   ].join('\n');
 }
 
-function tenantAcceptedText(listing, viewingRequest, propertyId) {
+/**
+ * `agreedAt` is the instant the agent picked on the dashboard. When there is
+ * one it is what the customer is told — the agent may have moved "samedi
+ * matin" to 10h30, and echoing the customer's own phrase back would hide that.
+ */
+function tenantAcceptedText(listing, viewingRequest, propertyId, agreedAt = null) {
   const label = listing?.reference ? `Réf: ${listing.reference}` : listingLabel(listing, propertyId);
   const lines = [
     `${HEADER_BRAND} Bonne nouvelle !`,
     '',
     `L'agent a confirmé votre visite pour ${label}.`,
   ];
-  if (viewingRequest?.requested_time) lines.push(`📅 Créneau : ${viewingRequest.requested_time}`);
+  const agreed = agreedAt ? formatSlotFr(agreedAt) : null;
+  if (agreed) lines.push(`📅 Créneau : ${agreed}`);
+  else if (viewingRequest?.requested_time) lines.push(`📅 Créneau : ${viewingRequest.requested_time}`);
   if (listing?.agent_name) lines.push(`👤 Agent : ${listing.agent_name}`);
   if (listing?.agent_phone) lines.push(`📞 ${displayPhone(listing.agent_phone)}`);
   lines.push('', listingLink(listing, propertyId));
@@ -1179,8 +1186,10 @@ const DASHBOARD_TRANSITIONS = Object.freeze({
  * Same customer messages as the WhatsApp path, minus everything addressed to
  * the agent's own phone — they acted on the web, and a WhatsApp questionnaire
  * about an answer they already gave would be noise:
- *   CONFIRMED   tenantAcceptedText; pins scheduled_at from the customer's own
- *               parseable time, exactly as handleAccept does.
+ *   CONFIRMED   tenantAcceptedText; pins scheduled_at to the `scheduledAt` the
+ *               agent picked (ISO with offset or "samedi 14h"; a day with no
+ *               hour or a past instant is refused before anything is sent),
+ *               else to the customer's own parseable time, as handleAccept does.
  *   RESCHEDULED tenantRescheduleText with the new slot; scheduled_at follows it
  *               and is CLEARED when the phrase names no instant, so a later
  *               confirmation cannot check in against the old slot.
@@ -1202,11 +1211,24 @@ const DASHBOARD_TRANSITIONS = Object.freeze({
  * @returns {Promise<{ok: true, status: string, unchanged: boolean, tenantNotified: boolean, scheduledAt?: string|null, alternatives?: number}
  *   | {ok: false, reason: string, current?: string}>}
  */
-async function respondFromDashboard({ viewingRequestId, agentId, status, requestedTime } = {}) {
+async function respondFromDashboard({ viewingRequestId, agentId, status, requestedTime, scheduledAt, now = new Date() } = {}) {
   const request = dbService.getViewingRequestWithLead(viewingRequestId);
   if (!request) return { ok: false, reason: 'unknown-request' };
   if (!Object.prototype.hasOwnProperty.call(DASHBOARD_TRANSITIONS, status)) {
     return { ok: false, reason: 'invalid-status' };
+  }
+
+  // The instant the agent picked when confirming (web's date + time fields).
+  // Only a confirmation carries one; a reschedule is still the free-text
+  // proposal the customer reads. Validated before anything is written or
+  // sent: a day with no hour is refused by resolveScheduledAtInput, and a time
+  // that has already gone by is not an appointment.
+  let agreedAt = null;
+  if (status === 'CONFIRMED' && scheduledAt !== undefined && scheduledAt !== null && scheduledAt !== '') {
+    const resolved = resolveScheduledAtInput(scheduledAt, now);
+    if (resolved.error) return { ok: false, reason: 'scheduled-at-invalid' };
+    if (new Date(resolved.value).getTime() <= now.getTime()) return { ok: false, reason: 'scheduled-at-past' };
+    agreedAt = resolved.value;
   }
 
   const propertyId = request.property_id;
@@ -1252,27 +1274,30 @@ async function respondFromDashboard({ viewingRequestId, agentId, status, request
 
   let tenantNotified = false;
   let alternatives;
-  let scheduledAt = request.scheduled_at || null;
+  let scheduledAtOut = request.scheduled_at || null;
 
   if (status === 'CONFIRMED') {
     dbService.updateViewingRequest(request.id, { status: 'CONFIRMED' });
     await recordAgentResponse(request, 'CONFIRMED', 'DASHBOARD');
-    const proposal = parseFrenchSlot(request.requested_time);
+    // The agent's own pick wins; without one (an older web build, or a caller
+    // that sends none) the customer's parseable phrase still pins it, as the
+    // WhatsApp accept does.
+    const proposal = agreedAt ? { iso: agreedAt } : parseFrenchSlot(request.requested_time);
     if (proposal) {
       dbService.setViewingScheduledAt(request.id, proposal.iso);
-      scheduledAt = proposal.iso;
+      scheduledAtOut = proposal.iso;
     }
     tenantNotified = await trySend(
       request.lead_wa_id,
-      tenantAcceptedText(listing, request, propertyId),
+      tenantAcceptedText(listing, request, propertyId, agreedAt),
       'dashboard accept confirmation',
     );
   } else if (status === 'RESCHEDULED') {
     dbService.updateViewingRequest(request.id, { status: 'RESCHEDULED', requestedTime: proposed });
     await recordAgentResponse(request, 'RESCHEDULED', 'DASHBOARD');
     const slot = parseFrenchSlot(proposed);
-    scheduledAt = slot ? slot.iso : null;
-    dbService.setViewingScheduledAt(request.id, scheduledAt);
+    scheduledAtOut = slot ? slot.iso : null;
+    dbService.setViewingScheduledAt(request.id, scheduledAtOut);
     tenantNotified = await trySend(
       request.lead_wa_id,
       tenantRescheduleText(listing, proposed, propertyId),
@@ -1319,7 +1344,7 @@ async function respondFromDashboard({ viewingRequestId, agentId, status, request
     status,
     unchanged: false,
     tenantNotified,
-    scheduledAt,
+    scheduledAt: scheduledAtOut,
     ...(alternatives === undefined ? {} : { alternatives }),
   };
 }

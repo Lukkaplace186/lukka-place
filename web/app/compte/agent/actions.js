@@ -40,7 +40,6 @@ import {
   listLeads,
   updateLeadStatus,
   sendWhatsAppMessage,
-  listViewingRequests,
   respondToViewingRequest,
   createLeadProposal,
   getAgentPitchUsage,
@@ -53,6 +52,8 @@ import { getT } from '@/lib/i18n/server';
 import { getListingQuota } from '@/lib/listingQuota';
 import { quotaRefusal } from '@/lib/listingQuotaRules';
 import { AGENT_SETTABLE_VIEWING_STATUSES, canAgentSetStatus } from '@/lib/viewingActions';
+import { validateAgreedSlot } from '@/lib/visitAgenda';
+import { findOwnedViewingRequest } from '@/lib/agentViewingOwnership';
 import { MAX_AVATAR_BYTES, megabytes, validatePhotoSelection } from '@/lib/uploadLimits.mjs';
 
 const ALLOWED_AVATAR_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
@@ -447,15 +448,8 @@ export async function updateAgentLeadStatusAction(leadId, formData) {
  * property_ids-OR-assigned_agent way, one hop through the parent lead.
  */
 async function assertOwnedViewingRequest(agentId, viewingRequestId) {
-  const [agent, listings] = await Promise.all([getAgentProfile(agentId), getOwnListingsForDashboard(agentId)]);
-  const propertyIds = listings.map((l) => l.id);
-  const displayName = agentDisplayName(agent);
-  const { data } =
-    propertyIds.length || displayName
-      ? await listViewingRequests({ propertyIds, assignedAgent: displayName || undefined, limit: 200 })
-      : { data: [] };
-
-  const viewingRequest = data.find((v) => v.id === viewingRequestId);
+  // lib/agentViewingOwnership.js — shared with the agenda's .ics route.
+  const viewingRequest = await findOwnedViewingRequest(agentId, viewingRequestId);
   if (!viewingRequest) throw new Error('Not your viewing request, or it does not exist.');
   return viewingRequest;
 }
@@ -494,6 +488,18 @@ export async function updateViewingRequestAction(viewingRequestId, formData) {
     return { ok: false, error: t('errors.newSlotRequired') };
   }
 
+  // A confirmation from the dashboard must name the instant agreed (date AND
+  // hour, Kinshasa time): without it the agenda, the .ics and the post-visit
+  // check-in have nothing to work from — none of production's first six
+  // requests carried a time the engine could read. lib/visitAgenda.js holds
+  // the rule the form applies too; the engine re-checks it.
+  let scheduledAt;
+  if (status === 'CONFIRMED') {
+    const agreed = validateAgreedSlot(formData.get('scheduled_at'));
+    if (agreed.errorKey) return { ok: false, error: t(agreed.errorKey) };
+    scheduledAt = agreed.value;
+  }
+
   let current;
   try {
     current = await assertOwnedViewingRequest(agentId, viewingRequestId);
@@ -510,13 +516,14 @@ export async function updateViewingRequestAction(viewingRequestId, formData) {
 
   let result;
   try {
-    result = await respondToViewingRequest(viewingRequestId, { agentId, status, requestedTime });
+    result = await respondToViewingRequest(viewingRequestId, { agentId, status, requestedTime, scheduledAt });
   } catch (err) {
     console.error(`[compte/agent] viewing request #${viewingRequestId} response failed: ${err.message}`);
     return { ok: false, error: t('errors.sendFailed') };
   }
 
   revalidatePath('/compte/agent/demandes');
+  revalidatePath('/compte/agent/visites');
   revalidatePath('/compte/agent');
   return {
     ok: true,

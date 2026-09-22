@@ -3556,6 +3556,8 @@ function listViewingRequestsForOwner({ propertyIds, assignedAgent, status, limit
   const data = db
     .prepare(
       `SELECT vr.id, vr.lead_id, vr.property_id, vr.requested_time, vr.status, vr.created_at,
+              vr.scheduled_at, vr.first_response_at, vr.customer_notified_at, vr.agent_response_via,
+              vr.checkin_response,
               l.wa_id AS lead_wa_id, l.name AS lead_name, l.assigned_agent,
               l.property_id AS lead_property_id, l.commune AS lead_commune, l.quartier AS lead_quartier
        ${fromJoin} ${whereClause}

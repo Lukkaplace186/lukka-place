@@ -213,14 +213,17 @@ export async function updateViewingRequest(id, { status, requestedTime } = {}) {
  * engine re-checks that `agentId` is the agent this request belongs to.
  *
  * @param {number} id
- * @param {{agentId: number, status: 'CONFIRMED'|'RESCHEDULED'|'DECLINED'|'CANCELLED', requestedTime?: string}} answer
- * @returns {Promise<{status: string, unchanged: boolean, tenantNotified: boolean, alternatives?: number, viewingRequest: Object}>}
+ * `scheduledAt` (CONFIRMED only) is the instant the agent picked, ISO with an
+ * offset; the engine stores it as UTC and tells the customer that time.
+ *
+ * @param {{agentId: number, status: 'CONFIRMED'|'RESCHEDULED'|'DECLINED'|'CANCELLED', requestedTime?: string, scheduledAt?: string}} answer
+ * @returns {Promise<{status: string, unchanged: boolean, tenantNotified: boolean, scheduledAt?: string|null, alternatives?: number, viewingRequest: Object}>}
  *   `tenantNotified` is Chakra ACCEPTING the send — not delivery.
  */
-export async function respondToViewingRequest(id, { agentId, status, requestedTime } = {}) {
+export async function respondToViewingRequest(id, { agentId, status, requestedTime, scheduledAt } = {}) {
   return engineFetch(`/admin/viewing-requests/${id}/agent-response`, {
     method: 'POST',
-    body: JSON.stringify({ agent_id: agentId, status, requested_time: requestedTime }),
+    body: JSON.stringify({ agent_id: agentId, status, requested_time: requestedTime, scheduled_at: scheduledAt }),
   });
 }
 

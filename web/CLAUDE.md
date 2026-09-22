@@ -1353,3 +1353,57 @@ days.
 - `.env.local` on the VPS is hand-maintained, not part of the deploy archive — don't overwrite it by including it in the tarball.
 
 @AGENTS.md
+
+## "À faire aujourd'hui" and the visit agenda (2026-09-22)
+
+- **One ranked list on the overview** (`lib/agentTodo.js` pure,
+  `lib/agentTodoLoader.js` reads, `components/AgentTodayPanel.js` +
+  `AgentTodayList.js`). Order is the product decision: overdue visits (the
+  slot passed with no agreement) → PENDING/RESCHEDULED by request age → NEW
+  leads by age → listings to confirm (longest first) → incomplete listings
+  (most gaps first). Six visible, "voir …" links per hidden kind. Each row has
+  one primary action; visit answers go through the existing
+  `updateViewingRequestAction`, never a new write path. The two listing
+  sources are `[]` until the coordinator wires them (comment in the loader);
+  both kinds are fully built and tested and link to `/compte/agent/biens/<id>`.
+- **"Overdue" needs a real instant.** For PENDING it is the engine's
+  `requested_slot_at` (new field on `GET /admin/viewing-requests`,
+  `visitSchedule.requestedSlotAt`): the customer's phrase parsed against the
+  request's own `created_at`, so "demain 14h" can actually go by. For
+  RESCHEDULED it is `scheduled_at` only — the phrase is the agent's later
+  proposal and `created_at` is the wrong anchor. An unparseable phrase is
+  never overdue and never prefilled.
+- **A dashboard confirmation must carry the agreed instant.** Confirm opens
+  date + time (`components/VisitSlotForm.js`, Kinshasa time whatever the
+  phone's timezone), prefilled only with a slot still ahead. It is sent as
+  `scheduled_at` (ISO, `+01:00`); `lib/visitAgenda.js`'s `validateAgreedSlot`
+  runs in the form and the action, and the engine's `respondFromDashboard`
+  re-checks it (day without hour or past instant → nothing written, nothing
+  sent), stores UTC `Z`, and tells the customer that time rather than their
+  own phrase. A to-do row whose slot is known and ahead confirms in one tap
+  with the slot printed on the button. An overdue row proposes a new slot as
+  French text in the engine's own `formatSlotFr` shape (`slotPhraseFr`) — the
+  weekday is computed, because the engine's parser trusts a weekday over a
+  date number.
+- **`/compte/agent/visites` is the agenda now**, not a redirect: CONFIRMED
+  visits by Kinshasa day, a 7-day strip with real counts, directions, a
+  customer WhatsApp link (French, the customer reads it) and "Ajouter à mon
+  agenda". Requests and their answer buttons stay on Demandes › Visites; the
+  pages link to each other. A confirmed visit without `scheduled_at` is listed
+  as "heure à fixer", never placed on the day its phrase names.
+- **.ics** (`visites/[id]/agenda.ics/route.js`): CONFIRMED + real
+  `scheduled_at` only (409 otherwise), same 404 for "not yours" and "missing",
+  `private, no-store` (it carries a customer's phone). No DTEND — nobody
+  agreed a duration. Ownership is `lib/agentViewingOwnership.js`, now also
+  what `updateViewingRequestAction` uses, so answers and exports cannot
+  disagree.
+- **Directions** (`directionsUrl`): stored coordinates when numeric and
+  non-zero, else address + quartier + commune + "Kinshasa" as a text search,
+  else no link. `lib/agentAgenda.js` reads places for the agent's OWN listings
+  (`p.agent_id = $1`) — a visit reached through a name-assigned lead gets no
+  place rather than someone else's.
+- **Morning reminder**: today's confirmed visits not finished more than an
+  hour ago, as a banner above the list; nothing renders on a day with none.
+- Known limit: the engine's owner list caps at 100 rows per status, and the
+  ownership lookup still asks for 200 (pre-existing); an agent past 100
+  confirmed visits would lose the oldest from the agenda and the .ics.

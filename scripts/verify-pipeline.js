@@ -5992,6 +5992,92 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(httpCalls.length, 0);
   });
 
+  // --- Confirm with the agent's own date + time (the dashboard's picker) -----
+  //
+  // None of production's first six requests carried a parseable time, so a
+  // dashboard confirmation that relied on requested_time pinned nothing and the
+  // check-in, the agenda and the .ics had nothing to work from. The confirm
+  // form now sends scheduled_at; these pin how the engine takes it.
+
+  const dashPicked = freshViewingRequest('quand vous voulez');
+  const pickedAt = new Date(Date.now() + 3 * 86400000);
+  pickedAt.setUTCHours(13, 30, 0, 0); // 14h30 in Kinshasa
+  const pickedIso = `${pickedAt.toISOString().slice(0, 10)}T14:30:00+01:00`;
+  httpCalls.length = 0;
+  const dashPickedResult = await dashAnswer(dashPicked.id, 'CONFIRMED', { scheduledAt: pickedIso });
+  const dashPickedRow = dbService.getViewingRequest(dashPicked.id);
+  check("a dashboard confirmation stores the agent's picked instant in UTC with a Z", () => {
+    assert.strictEqual(dashPickedResult.ok, true);
+    assert.strictEqual(dashPickedRow.status, 'CONFIRMED');
+    assert.strictEqual(dashPickedRow.scheduled_at, new Date(pickedIso).toISOString());
+    assert.match(dashPickedRow.scheduled_at, /T13:30:00\.000Z$/);
+    assert.strictEqual(dashPickedResult.scheduledAt, dashPickedRow.scheduled_at);
+  });
+  check('the customer is told the agreed time, not their own vague phrase', () => {
+    const toCustomer = dashSendsTo(DASH_CUSTOMER);
+    assert.strictEqual(toCustomer.length, 1);
+    assert.match(dashBody(toCustomer[0]), /14h30/);
+    assert.doesNotMatch(dashBody(toCustomer[0]), /quand vous voulez/);
+  });
+
+  const dashPickedOverParse = freshViewingRequest('samedi 14h');
+  await dashAnswer(dashPickedOverParse.id, 'CONFIRMED', { scheduledAt: pickedIso });
+  check("the agent's pick wins over the customer's parseable phrase", () =>
+    assert.strictEqual(dbService.getViewingRequest(dashPickedOverParse.id).scheduled_at, new Date(pickedIso).toISOString()));
+
+  for (const [label, bad] of [
+    ['a day with no hour', pickedIso.slice(0, 10)],
+    ['a phrase with a day and no hour', 'demain'],
+    ['garbage', 'bientôt'],
+  ]) {
+    const row = freshViewingRequest('samedi 14h');
+    httpCalls.length = 0;
+    const result = await dashAnswer(row.id, 'CONFIRMED', { scheduledAt: bad });
+    check(`a dashboard confirmation with ${label} is refused and sends nothing`, () => {
+      assert.strictEqual(result.ok, false);
+      assert.strictEqual(result.reason, 'scheduled-at-invalid');
+      assert.strictEqual(dbService.getViewingRequest(row.id).status, 'PENDING');
+      assert.strictEqual(httpCalls.length, 0);
+    });
+  }
+
+  const dashPast = freshViewingRequest('samedi 14h');
+  httpCalls.length = 0;
+  const dashPastResult = await dashAnswer(dashPast.id, 'CONFIRMED', { scheduledAt: '2026-01-05T10:00:00+01:00' });
+  check('a visit cannot be confirmed for a time that has already gone by', () => {
+    assert.strictEqual(dashPastResult.ok, false);
+    assert.strictEqual(dashPastResult.reason, 'scheduled-at-past');
+    assert.strictEqual(dbService.getViewingRequest(dashPast.id).status, 'PENDING');
+    assert.strictEqual(httpCalls.length, 0);
+  });
+
+  const dashReschedIgnoresPick = freshViewingRequest('samedi 14h');
+  await dashAnswer(dashReschedIgnoresPick.id, 'RESCHEDULED', { requestedTime: 'quand vous voulez', scheduledAt: pickedIso });
+  check('scheduled_at is a confirmation field only — a reschedule still follows its free-text proposal', () =>
+    assert.strictEqual(dbService.getViewingRequest(dashReschedIgnoresPick.id).scheduled_at, null));
+
+  // --- The owner list carries what the agenda and the to-do list read -------
+
+  {
+    const { requestedSlotAt } = require('../services/visitSchedule');
+    check("requestedSlotAt reads the customer's phrase against when they wrote it, so it can be overdue", () => {
+      // Written on Monday 2026-09-14 at 08:00 UTC: "demain 14h" is Tuesday 14h Kinshasa.
+      assert.strictEqual(requestedSlotAt('demain 14h', '2026-09-14 08:00:00'), '2026-09-15T13:00:00.000Z');
+      assert.strictEqual(requestedSlotAt('demain', '2026-09-14 08:00:00'), null, 'a day with no hour is never a slot');
+      assert.strictEqual(requestedSlotAt('', '2026-09-14 08:00:00'), null);
+      assert.strictEqual(requestedSlotAt('demain 14h', null), null);
+    });
+    const owned = dbService.listViewingRequestsForOwner({ propertyIds: [303], limit: 200 });
+    const pickedRow = owned.data.find((r) => r.id === dashPicked.id);
+    check('the owner-scoped list returns scheduled_at and the response stamps', () => {
+      assert.ok(pickedRow, 'the confirmed request is in its owner list');
+      assert.strictEqual(pickedRow.scheduled_at, dashPickedRow.scheduled_at);
+      assert.ok(pickedRow.first_response_at);
+      assert.strictEqual(pickedRow.agent_response_via, 'DASHBOARD');
+      assert.ok('customer_notified_at' in pickedRow);
+    });
+  }
+
   // --- Authorisation --------------------------------------------------------
 
   const dashStranger = freshViewingRequest();

@@ -15,6 +15,8 @@ import AgentLeadCard from '@/components/AgentLeadCard';
 import AgentVisitRequestCard from '@/components/AgentVisitRequestCard';
 import { updateAgentLeadStatusAction, replyToLeadAction } from '../actions';
 import { getT } from '@/lib/i18n/server';
+import { QuickRepliesProvider } from '@/components/AgentQuickReplies';
+import { listQuickReplies, getQuickReplyListings } from '@/lib/quickReplies';
 
 // `labelKey`, resolved at render — a module constant cannot hold translated
 // text (see components/navItems.js).
@@ -177,6 +179,19 @@ export default async function AgentInquiriesPage({ searchParams }) {
       ? await listViewingRequests({ ...leadScope, status: visitStatusFilter || undefined, limit: 100 })
       : { total: 0, data: [] };
 
+  // Réponses rapides on every card — loaded once per page. Degrade, don't
+  // die: without them the cards simply have no quick-reply button.
+  const [quickReplies, quickReplyListings] = await Promise.all([
+    listQuickReplies(agentId).catch((err) => {
+      console.error(`[agent/demandes] quick replies unavailable: ${err.message}`);
+      return { templates: [] };
+    }),
+    getQuickReplyListings(agentId).catch((err) => {
+      console.error(`[agent/demandes] quick-reply listings unavailable: ${err.message}`);
+      return [];
+    }),
+  ]);
+
   const needle = q.toLowerCase();
   const leads = needle
     ? leadsPage.data.filter((l) =>
@@ -208,6 +223,7 @@ export default async function AgentInquiriesPage({ searchParams }) {
         hiddenSearchFields={{ status: statusFilter }}
       />
 
+      <QuickRepliesProvider templates={quickReplies.templates} listings={quickReplyListings}>
       <div className="flex flex-col gap-4 px-3 py-4 sm:px-8 sm:py-7">
         <div className="flex items-center gap-1 border-b border-line">
           {TABS.map((item) => (
@@ -336,6 +352,7 @@ export default async function AgentInquiriesPage({ searchParams }) {
           </Fragment>
         )}
       </div>
+      </QuickRepliesProvider>
     </>
   );
 }

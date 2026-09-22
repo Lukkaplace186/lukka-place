@@ -9,6 +9,7 @@ import { agentActionsFor } from '@/lib/viewingActions';
 import { confirmPrefill } from '@/lib/visitAgenda';
 import VisitSlotForm from './VisitSlotForm';
 import { useToast } from './Toast';
+import AgentQuickReplies from './AgentQuickReplies';
 import { isNetworkError } from '@/lib/networkError';
 import { useT } from '@/lib/i18n/client';
 
@@ -202,6 +203,11 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
               )}
             </div>
           )}
+          <AgentQuickReplies
+            waId={viewingRequest.lead_wa_id}
+            clientName={viewingRequest.lead_name}
+            propertyId={viewingRequest.property_id || viewingRequest.lead_property_id}
+          />
           {actions.length === 0 && <p className="text-xs text-ink-35">{t('agent.visits.closed')}</p>}
         </div>
       </div>

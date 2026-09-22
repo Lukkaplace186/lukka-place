@@ -1179,6 +1179,100 @@
         "session": "Your session has expired. Log in again.",
         "unavailable": "Availability confirmation is not switched on yet. Try again later."
       }
+    },
+    "completeness": {
+      "cardTitle": "To Complete",
+      "cardHint": "What your profile and listings are still missing.",
+      "fix": "Complete",
+      "listingsToFix": {
+        "one": "{count} listing to complete",
+        "other": "{count} listings to complete"
+      },
+      "listingsTitle": {
+        "one": "{count} Listing to Complete",
+        "other": "{count} Listings to Complete"
+      },
+      "listingsHint": "Tap an item to go straight to the field to fill in.",
+      "photoOffer": "No time for photos? “{title}” ({price}): a photographer takes care of it.",
+      "photoOfferCta": "See the offer",
+      "termMonthly": "/ month",
+      "termYearly": "/ year",
+      "termOnce": "one-off",
+      "gaps": {
+        "no_communes": "Communes covered",
+        "phone_unverified": "Number not verified",
+        "no_logo": "Logo or photo",
+        "no_agency_name": "Agency name",
+        "no_working_hours": "Opening hours",
+        "missing_price": "Price missing",
+        "no_commune": "Commune missing",
+        "thin_photos": "Fewer than 3 photos",
+        "missing_description": "Description missing",
+        "missing_deposit": "Deposit not stated",
+        "no_map_pin": "Quartier missing (map)"
+      },
+      "hints": {
+        "no_communes": "Without a commune you receive no automatically matched customer requests.",
+        "phone_unverified": "An unverified number is not shown on your listings. Contact the Lukka Place team.",
+        "no_logo": "Shown on your public page and on your share graphics.",
+        "no_agency_name": "The name shown on your listings and public page.",
+        "no_working_hours": "Customers know when to reach you.",
+        "missing_price": "A listing with no price gets few requests.",
+        "no_commune": "Without a commune the listing does not show in commune searches.",
+        "thin_photos": "At least 3 photos for good visibility.",
+        "missing_description": "Describe the property in a few lines.",
+        "missing_deposit": "State the deposit required (in months).",
+        "no_map_pin": "The quartier is used to place the property on the map."
+      }
+    },
+    "quickReplies": {
+      "open": "Quick replies",
+      "sheetTitle": "Quick Replies",
+      "sheetHint": "WhatsApp opens to the customer ({number}) with the message ready. You can edit it before sending.",
+      "noNumber": "This customer’s number cannot be used for WhatsApp.",
+      "listingLabel": "Property concerned",
+      "noListing": "No specific property",
+      "emptySheet": "You have no quick replies. Add some in Settings.",
+      "nothingToSend": "Nothing to send: this message depends on details this property does not have.",
+      "droppedLines": "Lines removed for missing details: {fields}.",
+      "openWhatsApp": "Open in WhatsApp",
+      "manage": "Manage my quick replies",
+      "placeholders": {
+        "client_name": "Customer name",
+        "listing_title": "Property Title",
+        "price": "Price",
+        "commune": "Commune",
+        "quartier": "Quartier",
+        "deposit": "Deposit",
+        "link": "Listing link"
+      },
+      "settingsTitle": "Quick Replies",
+      "settingsHint": "Your ready-made WhatsApp messages, available on every request and every visit.",
+      "unavailableCard": "Quick replies are unavailable right now. Try again later.",
+      "defaultsNote": "Templates suggested by Lukka Place. Edit them, delete them or add your own. Messages stay in French, as your customers read them.",
+      "notEditableYet": "Editing quick replies is not available yet. The templates can still be used.",
+      "emptyList": "No quick replies yet.",
+      "edit": "Edit",
+      "delete": "Delete",
+      "confirmDelete": "Delete the reply “{title}”?",
+      "saved": "Quick reply saved.",
+      "deleted": "Quick reply deleted.",
+      "limitReached": "Maximum {max} quick replies.",
+      "add": "Add a reply",
+      "titleLabel": "Reply name",
+      "bodyLabel": "Message",
+      "placeholdersHint": "Insert a property detail: it is filled in automatically. A line whose detail is missing is removed.",
+      "errors": {
+        "titleRequired": "Give this reply a name.",
+        "titleTooLong": "Name too long (60 characters max).",
+        "bodyRequired": "The message is empty.",
+        "bodyTooLong": "Message too long (1,000 characters max).",
+        "unknownPlaceholder": "The message contains an unknown detail in braces.",
+        "unavailable": "Saving is unavailable right now.",
+        "notFound": "This reply no longer exists.",
+        "tooMany": "Maximum number of quick replies reached.",
+        "session": "Your session has expired. Please log in again."
+      }
     }
   },
   "status": {

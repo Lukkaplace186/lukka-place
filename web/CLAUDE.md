@@ -1447,3 +1447,65 @@ timestamptz`, NULL = never confirmed), `lib/listingAvailability.js`,
 - Known limit: the engine's owner list caps at 100 rows per status, and the
   ownership lookup still asks for 200 (pre-existing); an agent past 100
   confirmed visits would lose the oldest from the agenda and the .ics.
+## Completeness checklist and quick replies (2026-09-22)
+
+Migration `migrations/20260922_agent_quick_replies.sql` (new table only).
+
+- **Completeness is gap CODES, not a percentage** (`lib/completenessRules.js`
+  pure, `lib/completeness.js` SQL). Separate from `agentProfileCompletion`
+  (the sidebar's public-page percentage), which is unchanged.
+  `getIncompleteListings(agentId, { limit })` → `[{ id, title, gaps }]` is a
+  contract another surface consumes; it never throws (logs, returns `[]`).
+- **A gap is only listed when the agent can close it from the dashboard**,
+  and each links to the exact field (`profileGapHref` / `listingGapHref`;
+  anchors are ids on Paramètres and in `AgentListingEditor`, pinned by the
+  test). Consequences:
+  - `no_map_pin` fires only when coordinates are missing AND quartier is
+    blank. Nothing on the web write path geocodes (only the engine's publish
+    sync and its backfill script), so a pin nag with a quartier already set
+    would be unfixable.
+  - `missing_deposit` is rental-only and means `deposit_months IS NULL`
+    (0 is a stated value).
+  - `no_communes` needs BOTH primary and serviced empty — the matcher scores
+    either.
+  - `no_agency_name` accepts the vendor's name, but not a phone-shaped string
+    or `vendorNameSql`'s "Agence #N" placeholder.
+  - Thresholds reuse existing ones: 3 photos (the editor's hint), 15
+    description characters (the save path's floor).
+  - Closed and archived listings are skipped.
+- **Photography offer**: shown on Mes biens only when a listing has
+  `thin_photos`. The package is found live (`LOWER(title) LIKE '%photo%'`,
+  active, not deleted). Title and price come from the row, and the link goes
+  to its card on Abonnement (`#plan-<id>`, added to `AgentPlanPicker`). No
+  package means no offer.
+- **Quick replies** (`lib/quickReplyRules.js` pure, `lib/quickReplies.js`
+  SQL, `components/AgentQuickReplies.js`, `AgentQuickRepliesManager.js`).
+  - **Defaults live in code.** Five French templates. A read never inserts
+    anything.
+  - **The first write copies them in.** Any edit, add or delete copies the
+    defaults into the agent's rows, in the same transaction (`WHERE NOT
+    EXISTS` + the partial unique `(agent_id, default_key)` for racing tabs).
+  - **Deletion is soft** (`archived_at`). An agent who removes everything
+    gets an empty list, not the defaults back. Max 20 per agent.
+  - **Messages are French whatever the UI language.** Customers read them,
+    the same reason as `listingShareCopy`.
+- **Placeholders are filled line by line.** A line whose value is missing, or
+  whose placeholder is unknown, is dropped whole, and the sheet names what was
+  dropped. Where the values come from:
+  - `{price}` is null when there is no usable price. "Prix sur demande" is a
+    label, not a price to quote.
+  - `{deposit}` is `entryTerms`' "3 + 1 + 1 mois", rentals only.
+  - `{link}` is only filled for a public listing.
+  - `{client_name}` is never phone digits.
+  - Defaults put each fact on its own line, so one missing fact costs one
+    line, not the whole message.
+- **The sheet opens `wa.me/<client wa_id>` from the AGENT's own WhatsApp.**
+  It is not the engine send that "Répondre" uses, so nothing is recorded:
+  it is a direct chat, which we cannot see.
+  - Templates and the agent's listings are loaded once per page and passed
+    through `QuickRepliesProvider` (Demandes). Each shared card gained one
+    `<AgentQuickReplies>` element, which renders nothing without a provider.
+  - The sheet has a listing picker, defaulting to the lead's or visit's own
+    property, so a general enquiry can still quote a listing.
+- **Degrades before the migration**: 42P01/42703 → defaults shown,
+  `editable: false` (the settings card says so; the sheet still works).

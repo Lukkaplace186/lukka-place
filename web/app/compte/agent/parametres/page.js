@@ -18,6 +18,8 @@ import {
   updateWorkingHoursAction,
 } from '../actions';
 import { getT } from '@/lib/i18n/server';
+import { listQuickReplies } from '@/lib/quickReplies';
+import AgentQuickRepliesManager from '@/components/AgentQuickRepliesManager';
 
 // Keys, not text: this is a module-level constant, evaluated once at import
 // time, so `t` does not exist here and a string baked in would be frozen in
@@ -53,13 +55,19 @@ export default async function AgentSettingsPage({ searchParams }) {
       ? params.verification_error
       : null;
 
-  const [{ agent, completion }, { communes, degraded }, verification] = await Promise.all([
+  const [{ agent, completion }, { communes, degraded }, verification, quickReplies] = await Promise.all([
     getAgentDashboardContext(agentId),
     getLocationHierarchySafe(),
     // Degrade, don't die: before the verification migration runs (or with
     // Postgres briefly unreachable) the card says so; the page still renders.
     getAgentVerification(agentId).catch((err) => {
       console.error(`[compte/agent/parametres] verification read failed: ${err.message}`);
+      return null;
+    }),
+    // A missing table already reads as defaults inside listQuickReplies;
+    // anything else costs the card its edit buttons, not the page.
+    listQuickReplies(agentId).catch((err) => {
+      console.error(`[compte/agent/parametres] quick replies read failed: ${err.message}`);
       return null;
     }),
   ]);
@@ -74,7 +82,7 @@ export default async function AgentSettingsPage({ searchParams }) {
 
       <div className="grid grid-cols-1 gap-6 px-3 py-4 sm:px-8 sm:py-7 lg:grid-cols-[minmax(0,1fr)_22.5rem] lg:items-start">
         <div className="flex flex-col gap-6">
-        <div className="u-card flex flex-col gap-5 rounded-card bg-surface p-4 sm:p-6">
+        <div id="identity" className="u-card flex scroll-mt-24 flex-col gap-5 rounded-card bg-surface p-4 sm:p-6">
           <div>
             <h2 className="u-title-card text-ink">{t('agent.settings.identityTitle')}</h2>
             <p className="mt-0.5 text-[0.8125rem] text-ink-45">
@@ -185,7 +193,7 @@ export default async function AgentSettingsPage({ searchParams }) {
 
         <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-4 sm:p-6">
           <div>
-            <h2 className="u-title-card text-ink">{t('agent.settings.communesTitle')}</h2>
+            <h2 id="communes" className="u-title-card scroll-mt-24 text-ink">{t('agent.settings.communesTitle')}</h2>
             <p className="mt-0.5 text-[0.8125rem] text-ink-45">
               {t('agent.settings.communesHint')}
             </p>
@@ -224,7 +232,7 @@ export default async function AgentSettingsPage({ searchParams }) {
 
         <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-4 sm:p-6">
           <div>
-            <h2 className="u-title-card text-ink">{t('agent.settings.hoursTitle')}</h2>
+            <h2 id="hours" className="u-title-card scroll-mt-24 text-ink">{t('agent.settings.hoursTitle')}</h2>
             <p className="mt-0.5 text-[0.8125rem] text-ink-45">
               {t('agent.settings.hoursHint')}
             </p>
@@ -253,6 +261,22 @@ export default async function AgentSettingsPage({ searchParams }) {
               {t('common.actions.save')}
             </button>
           </form>
+        </div>
+
+        <div id="quick-replies" className="u-card flex scroll-mt-24 flex-col gap-4 rounded-card bg-surface p-4 sm:p-6">
+          <div>
+            <h2 className="u-title-card text-ink">{t('agent.quickReplies.settingsTitle')}</h2>
+            <p className="mt-0.5 text-[0.8125rem] text-ink-45">{t('agent.quickReplies.settingsHint')}</p>
+          </div>
+          {quickReplies ? (
+            <AgentQuickRepliesManager
+              templates={quickReplies.templates}
+              customised={quickReplies.customised}
+              editable={quickReplies.editable}
+            />
+          ) : (
+            <p className="text-[0.8125rem] text-ink-45">{t('agent.quickReplies.unavailableCard')}</p>
+          )}
         </div>
         </div>
 

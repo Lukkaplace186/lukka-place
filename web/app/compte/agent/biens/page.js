@@ -13,6 +13,8 @@ import AgentAvailabilityPrompt from '@/components/AgentAvailabilityPrompt';
 import { getAvailabilityPrompts } from '@/lib/listingAvailability';
 import { getListingQuota } from '@/lib/listingQuota';
 import { UPGRADE_PATH } from '@/lib/listingQuotaRules';
+import AgentListingGapsPanel from '@/components/AgentListingGapsPanel';
+import { getIncompleteListings, getPhotographyOffer } from '@/lib/completeness';
 
 // The full vocabulary, used by the top filter dropdown — a closed listing
 // must stay filterable even though it's no longer reachable from the
@@ -106,6 +108,16 @@ export default async function AgentListingsPage({ searchParams }) {
   ]);
   const communes = hierarchy?.communes ?? [];
 
+  // "Annonces à compléter" — same degrade posture: a failed read costs the
+  // panel, never the inventory.
+  const [incompleteListings, photographyOffer] = await Promise.all([
+    getIncompleteListings(agentId, { limit: 50 }),
+    getPhotographyOffer().catch((error) => {
+      console.error('[agent/biens] photography offer unavailable:', error.message);
+      return null;
+    }),
+  ]);
+
   const needle = q.toLowerCase();
   const filtered = listings.filter((l) => {
     if (!matchesFilter(l, statusFilter)) return false;
@@ -154,6 +166,7 @@ export default async function AgentListingsPage({ searchParams }) {
           <p className="text-xs text-ink-45">{t('agent.quota.usage', { used: quota.used, limit: quota.limit })}</p>
         ) : null}
         <AgentAvailabilityPrompt items={availabilityPrompts} />
+        <AgentListingGapsPanel listings={incompleteListings} photographyOffer={photographyOffer} />
         <div className="flex flex-wrap items-center gap-2">
           {FILTER_PILLS.map((pill) => {
             const active = pill.value === statusFilter || (pill.value === '' && !statusFilter);

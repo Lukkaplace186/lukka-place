@@ -4,7 +4,7 @@ import { getPopularCommunes } from '@/lib/listings';
 import { Wordmark } from './Brand';
 import CurrencyToggle from './CurrencyToggle';
 import LanguageToggle from './LanguageToggle';
-import HideOnPaths from './HideOnPaths';
+import FooterByPath from './FooterByPath';
 import { getT } from '@/lib/i18n/server';
 
 /**
@@ -88,6 +88,10 @@ const NAV_COLUMNS = [
   },
 ];
 
+// The signed-in customer's account (web/CLAUDE.md, "Espace Client") gets the
+// compact footer.
+const ACCOUNT_FOOTER_PATHS = ['/compte/client'];
+
 /**
  * The commune column is built from communes that actually have approved
  * listings, and is omitted entirely when none do.
@@ -124,47 +128,72 @@ export default async function Footer() {
 
   return (
     <footer className="mt-auto border-t border-line bg-canvas-alt">
-      {/* Agency recruitment band. Sits above the link columns rather than
-          inside one — it is a conversion ask, not a navigation item, and it
-          is now the only place on a public page that recruits supply: the
-          header's filled partner pill and the hero panel's fused royal
-          strip are both gone (Header.js, SearchBar.js), so this band
-          carries the whole message on its own and is sized like the real
-          section it is, not like a footer strip.
+      {/* Inside the customer's own account the full footer was a second
+          navigation (listings, communes, the account links the tab bar
+          already carries) plus the "become a partner agency" band — a
+          screen and a half of scrolling on a phone below every tab. There
+          it is one strip: the two real pages worth reaching from anywhere,
+          the display preferences, the copyright. No "Conditions" or
+          "Confidentialité" link: neither page exists yet, and a link to a
+          404 is worse than none. */}
+      <FooterByPath
+        prefixes={ACCOUNT_FOOTER_PATHS}
+        compact={
+          <div className="mx-auto flex max-w-[77.5rem] flex-col gap-4 px-4 py-6 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-6 lg:px-8">
+            <nav aria-label={t('footer.columns.brand')} className="flex items-center gap-4 text-[0.8125rem] font-medium text-ink-70">
+              <Link href="/contact" className="transition-colors hover:text-blue-deep">
+                {t('footer.links.contact')}
+              </Link>
+              <span aria-hidden="true" className="text-ink-25">•</span>
+              <Link href="/a-propos" className="transition-colors hover:text-blue-deep">
+                {t('footer.links.about')}
+              </Link>
+            </nav>
+            <div className="flex flex-wrap items-center gap-2.5">
+              <CurrencyToggle />
+              <LanguageToggle />
+            </div>
+            <p className="text-xs text-ink-35">{t('footer.copyright', { year: new Date().getFullYear() })}</p>
+          </div>
+        }
+      >
+        {/* Agency recruitment band. Sits above the link columns rather than
+            inside one — it is a conversion ask, not a navigation item, and it
+            is now the only place on a public page that recruits supply: the
+            header's filled partner pill and the hero panel's fused royal
+            strip are both gone (Header.js, SearchBar.js), so this band
+            carries the whole message on its own and is sized like the real
+            section it is, not like a footer strip.
 
-          bg-blue (real --blue, royal-600 #1E3AA8 — the token app/globals.css
-          already contrast-computes as "white text on --blue ... 7.9:1 AAA"),
-          not the previous bg-ink near-black. Royal blue is this design's one
-          voice of action, so the page's single supply-side conversion ask now
-          wears the brand colour instead of reading as a neutral dark slab.
-          Not the raw #233B93 from the brief: that is a hand-picked hex a few
-          points off the token every other blue surface on the site already
-          uses (the hero CTA, the primary buttons), and two royal blues that
-          nearly match is worse than one that does.
+            bg-blue (real --blue, royal-600 #1E3AA8 — the token app/globals.css
+            already contrast-computes as "white text on --blue ... 7.9:1 AAA"),
+            not the previous bg-ink near-black. Royal blue is this design's one
+            voice of action, so the page's single supply-side conversion ask now
+            wears the brand colour instead of reading as a neutral dark slab.
+            Not the raw #233B93 from the brief: that is a hand-picked hex a few
+            points off the token every other blue surface on the site already
+            uses (the hero CTA, the primary buttons), and two royal blues that
+            nearly match is worse than one that does.
 
-          border-white/15 replaces border-line here specifically — border-line
-          is tuned for hairlines on light surfaces and is invisible against a
-          saturated royal fill. Subtext is white/80, not white/70: on royal
-          blue that composites to 6.6:1 (white/70 drops to ~5.2:1), so the
-          second line clears AA on its own rather than borrowing the heading's
-          contrast.
+            border-white/15 replaces border-line here specifically — border-line
+            is tuned for hairlines on light surfaces and is invisible against a
+            saturated royal fill. Subtext is white/80, not white/70: on royal
+            blue that composites to 6.6:1 (white/70 drops to ~5.2:1), so the
+            second line clears AA on its own rather than borrowing the heading's
+            contrast.
 
-          The button reverts from the brass "metallic ghost" to a solid white
-          fill with royal text — the highest-contrast pairing available on this
-          background (7.9:1, the same ratio inverted), and brass-on-royal would
-          have put the one accent reserved for prestige marks onto a button,
-          which Readme.md forbids outright. Hover goes to --blue-tint (#EEF2FF,
-          the real token behind what the brief called blue-50).
+            The button reverts from the brass "metallic ghost" to a solid white
+            fill with royal text — the highest-contrast pairing available on this
+            background (7.9:1, the same ratio inverted), and brass-on-royal would
+            have put the one accent reserved for prestige marks onto a button,
+            which Readme.md forbids outright. Hover goes to --blue-tint (#EEF2FF,
+            the real token behind what the brief called blue-50).
 
-          Mobile: the band is a flex row that wraps, so below sm the button
-          landed at its natural ~210px width, left-aligned under the copy and
-          reading as a link rather than the section's action. It is now
-          full-width and centred until sm, at h-12 (48px, the documented tap
-          target), which is the only real CTA treatment on a stacked layout. */}
-      {/* Not inside the customer area: a signed-in customer managing their
-          own favourites and visits is not who "become a partner agency" is
-          for, and on a phone it was a full screen of blue under Messages. */}
-      <HideOnPaths prefixes={['/compte/client']}>
+            Mobile: the band is a flex row that wraps, so below sm the button
+            landed at its natural ~210px width, left-aligned under the copy and
+            reading as a link rather than the section's action. It is now
+            full-width and centred until sm, at h-12 (48px, the documented tap
+            target), which is the only real CTA treatment on a stacked layout. */}
         <div className="border-y border-white/15 bg-blue">
           <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-6 px-4 py-9 sm:px-6 sm:py-12 lg:px-8 lg:py-16">
             <div className="min-w-0 max-w-[40rem]">
@@ -183,94 +212,94 @@ export default async function Footer() {
             </Link>
           </div>
         </div>
-      </HideOnPaths>
 
-      <div className="mx-auto max-w-[1600px] px-4 py-10 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
-        {/* Six, not five. The brand block below spans two, so five left
-            exactly three slots for link columns — which was right for
-            Annonces + Communes + Lukka Place and wraps the moment there is a
-            fourth (the Compte column added above). At six, the full set fits
-            one row and the communes-less case simply leaves the last slot
-            empty rather than dropping a column onto its own line. Staying
-            within 1-6 is deliberate: web/CLAUDE.md records a `lg:grid-cols-10`
-            that silently never made it into the compiled CSS. */}
-        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 sm:gap-10 lg:grid-cols-6">
-          <div className="lg:col-span-2">
-            <Wordmark />
-            <p className="mt-4 max-w-xs text-sm leading-relaxed text-ink-45">
-              {t('footer.tagline')}
-            </p>
-            <div className="mt-5 flex items-center gap-3">
-              {whatsappHref ? (
-                <a
-                  href={whatsappHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={t('admin.leads.whatsapp')}
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-green text-white transition-colors hover:bg-green-deep"
-                >
-                  <WhatsAppIcon className="h-4.5 w-4.5" />
-                </a>
-              ) : (
+        <div className="mx-auto max-w-[1600px] px-4 py-10 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
+          {/* Six, not five. The brand block below spans two, so five left
+              exactly three slots for link columns — which was right for
+              Annonces + Communes + Lukka Place and wraps the moment there is a
+              fourth (the Compte column added above). At six, the full set fits
+              one row and the communes-less case simply leaves the last slot
+              empty rather than dropping a column onto its own line. Staying
+              within 1-6 is deliberate: web/CLAUDE.md records a `lg:grid-cols-10`
+              that silently never made it into the compiled CSS. */}
+          <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 sm:gap-10 lg:grid-cols-6">
+            <div className="lg:col-span-2">
+              <Wordmark />
+              <p className="mt-4 max-w-xs text-sm leading-relaxed text-ink-45">
+                {t('footer.tagline')}
+              </p>
+              <div className="mt-5 flex items-center gap-3">
+                {whatsappHref ? (
+                  <a
+                    href={whatsappHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={t('admin.leads.whatsapp')}
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-green text-white transition-colors hover:bg-green-deep"
+                  >
+                    <WhatsAppIcon className="h-4.5 w-4.5" />
+                  </a>
+                ) : (
+                  <span aria-hidden="true" className="flex h-9 w-9 items-center justify-center rounded-full bg-canvas-deep text-ink-25">
+                    <WhatsAppIcon className="h-4.5 w-4.5" />
+                  </span>
+                )}
                 <span aria-hidden="true" className="flex h-9 w-9 items-center justify-center rounded-full bg-canvas-deep text-ink-25">
-                  <WhatsAppIcon className="h-4.5 w-4.5" />
+                  <FacebookIcon className="h-4 w-4" />
                 </span>
-              )}
-              <span aria-hidden="true" className="flex h-9 w-9 items-center justify-center rounded-full bg-canvas-deep text-ink-25">
-                <FacebookIcon className="h-4 w-4" />
-              </span>
-              <span aria-hidden="true" className="flex h-9 w-9 items-center justify-center rounded-full bg-canvas-deep text-ink-25">
-                <InstagramIcon className="h-4 w-4" />
-              </span>
+                <span aria-hidden="true" className="flex h-9 w-9 items-center justify-center rounded-full bg-canvas-deep text-ink-25">
+                  <InstagramIcon className="h-4 w-4" />
+                </span>
+              </div>
             </div>
+
+            {columns.map(({ titleKey, links }) => (
+              <div key={titleKey}>
+                <h3 className="u-eyebrow mb-3">{t(titleKey)}</h3>
+                {/* Two columns on mobile, back to a single stack from sm up.
+                    The Communes group is the reason: it renders up to five
+                    real communes, and one-per-line put five rows of ~28px into
+                    a footer a mobile visitor has to scroll past. Paired up it
+                    is three rows instead — and the same treatment costs the
+                    two-link groups nothing, since they collapse to a single
+                    row rather than two. From sm up the outer grid already
+                    supplies real columns, so a nested 2-col there would just
+                    make each group's own links wrap oddly against its
+                    neighbours; the vertical list is correct at that width. */}
+                <ul className="grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-1 sm:gap-y-2">
+                  {links.map(({ label, labelKey, href }) => (
+                    <li key={href} className="min-w-0">
+                      <Link href={href} className="block truncate text-sm text-ink-70 transition-colors hover:text-blue-deep">
+                        {labelKey ? t(labelKey) : label}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
 
-          {columns.map(({ titleKey, links }) => (
-            <div key={titleKey}>
-              <h3 className="u-eyebrow mb-3">{t(titleKey)}</h3>
-              {/* Two columns on mobile, back to a single stack from sm up.
-                  The Communes group is the reason: it renders up to five
-                  real communes, and one-per-line put five rows of ~28px into
-                  a footer a mobile visitor has to scroll past. Paired up it
-                  is three rows instead — and the same treatment costs the
-                  two-link groups nothing, since they collapse to a single
-                  row rather than two. From sm up the outer grid already
-                  supplies real columns, so a nested 2-col there would just
-                  make each group's own links wrap oddly against its
-                  neighbours; the vertical list is correct at that width. */}
-              <ul className="grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-1 sm:gap-y-2">
-                {links.map(({ label, labelKey, href }) => (
-                  <li key={href} className="min-w-0">
-                    <Link href={href} className="block truncate text-sm text-ink-70 transition-colors hover:text-blue-deep">
-                      {labelKey ? t(labelKey) : label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
+          {/* Display preferences. The currency control's second home now that
+              it no longer rides in the mobile navbar (Header.js) — reachable
+              from the bottom of any page, and labelled, which the bare
+              "$ | FC" header pill never was. */}
+          <div className="mt-9 flex flex-wrap items-center gap-x-4 gap-y-3 border-t border-line pt-6">
+            <span className="u-eyebrow">{t('common.currency.label')}</span>
+            <CurrencyToggle longLabels />
 
-        {/* Display preferences. The currency control's second home now that
-            it no longer rides in the mobile navbar (Header.js) — reachable
-            from the bottom of any page, and labelled, which the bare
-            "$ | FC" header pill never was. */}
-        <div className="mt-9 flex flex-wrap items-center gap-x-4 gap-y-3 border-t border-line pt-6">
-          <span className="u-eyebrow">{t('common.currency.label')}</span>
-          <CurrencyToggle longLabels />
+            {/* The language control's third home, alongside the currency one.
+                Both are reachable from the bottom of any page at any scroll
+                depth without riding in the header on mobile — see Header.js. */}
+            <span className="u-eyebrow ml-2">{t('common.language.label')}</span>
+            <LanguageToggle longLabels />
+          </div>
 
-          {/* The language control's third home, alongside the currency one.
-              Both are reachable from the bottom of any page at any scroll
-              depth without riding in the header on mobile — see Header.js. */}
-          <span className="u-eyebrow ml-2">{t('common.language.label')}</span>
-          <LanguageToggle longLabels />
+          <div className="mt-8 border-t border-line pt-6">
+            <p className="max-w-4xl text-xs leading-relaxed text-ink-45">{t('footer.disclaimer')}</p>
+            <p className="mt-4 text-xs text-ink-25">{t('footer.copyright', { year: new Date().getFullYear() })}</p>
+          </div>
         </div>
-
-        <div className="mt-8 border-t border-line pt-6">
-          <p className="max-w-4xl text-xs leading-relaxed text-ink-45">{t('footer.disclaimer')}</p>
-          <p className="mt-4 text-xs text-ink-25">{t('footer.copyright', { year: new Date().getFullYear() })}</p>
-        </div>
-      </div>
+      </FooterByPath>
     </footer>
   );
 }

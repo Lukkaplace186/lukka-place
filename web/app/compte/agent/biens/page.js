@@ -9,14 +9,9 @@ import { getPropertyCategories } from '@/lib/agentListings';
 import AgentPageHeader from '@/components/AgentPageHeader';
 import CreateListingDialog from '@/components/CreateListingDialog';
 import AgentListingsTable from '@/components/AgentListingsTable';
-import AgentAvailabilityPrompt from '@/components/AgentAvailabilityPrompt';
-import { getAvailabilityPrompts } from '@/lib/listingAvailability';
 import { getListingQuota } from '@/lib/listingQuota';
 import { UPGRADE_PATH } from '@/lib/listingQuotaRules';
-import AgentListingGapsPanel from '@/components/AgentListingGapsPanel';
-import { getIncompleteListings, getPhotographyOffer } from '@/lib/completeness';
-import { getAgentClientBookSafe } from '@/lib/agentClients';
-import { matchEntriesByListing } from '@/lib/clientMatching';
+import { getAgentListingGaps } from '@/lib/completeness';
 
 // The full vocabulary, used by the top filter dropdown — a closed listing
 // must stay filterable even though it's no longer reachable from the
@@ -81,11 +76,17 @@ export default async function AgentListingsPage({ searchParams }) {
   const newLeadsCount = context.newLeadsCount ?? 0;
 
   // Degrade, don't die — the same contract the overview page follows. Not one
-  // of these three is what this page is *for*: the table renders from
-  // `listings`, which is already in hand. Analytics or the category list being
-  // unreachable should cost an empty Vues/Clics column or a create dialog with
-  // no categories to offer — never the agent's inventory list itself.
-  const [perListingStats, hierarchy, categories, quota, availabilityPrompts, clientBook] = await Promise.all([
+  // of these is what this page is *for*: the table renders from `listings`,
+  // which is already in hand. Analytics, categories or the gap read being
+  // unreachable should cost an empty Vues/Clics column, a create dialog with
+  // no categories, or cards without "À compléter" hints — never the list.
+  //
+  // What is missing from each listing sits ON its card (AgentListingsTable),
+  // not in a panel above the list: a wall of chips above the inventory pushed
+  // the first card below the fold and never said which property it meant.
+  // The "Toujours disponible ?" prompt lives on the overview's to-do list and
+  // in the editor, for the same reason.
+  const [perListingStats, hierarchy, categories, quota, listingGaps] = await Promise.all([
     getPerListingStats(propertyIds).catch((error) => {
       console.error('[agent/biens] per-listing stats unavailable:', error.message);
       return { views: {}, clicks: {} };
@@ -102,25 +103,17 @@ export default async function AgentListingsPage({ searchParams }) {
       console.error('[agent/biens] listing quota unavailable:', error.message);
       return null;
     }),
-    // "Toujours disponible ?" — a nudge, never a reason for the list to fail.
-    getAvailabilityPrompts(agentId, { limit: 50 }).catch((error) => {
-      console.error('[agent/biens] availability prompts unavailable:', error.message);
+    getAgentListingGaps(agentId).catch((error) => {
+      console.error('[agent/biens] listing gaps unavailable:', error.message);
       return [];
     }),
-    // Never throws; an empty book simply renders no "clients cherchent" chips.
-    getAgentClientBookSafe(agentId),
   ]);
   const communes = hierarchy?.communes ?? [];
-
-  // "Annonces à compléter" — same degrade posture: a failed read costs the
-  // panel, never the inventory.
-  const [incompleteListings, photographyOffer] = await Promise.all([
-    getIncompleteListings(agentId, { limit: 50 }),
-    getPhotographyOffer().catch((error) => {
-      console.error('[agent/biens] photography offer unavailable:', error.message);
-      return null;
-    }),
-  ]);
+  const gapsByListing = Object.fromEntries(
+    listingGaps
+      .filter((l) => l.gaps.length > 0)
+      .map((l) => [String(l.id), { gaps: l.gaps, photoCount: l.photoCount }]),
+  );
 
   const needle = q.toLowerCase();
   const filtered = listings.filter((l) => {
@@ -169,8 +162,6 @@ export default async function AgentListingsPage({ searchParams }) {
         ) : quota?.capped ? (
           <p className="text-xs text-ink-45">{t('agent.quota.usage', { used: quota.used, limit: quota.limit })}</p>
         ) : null}
-        <AgentAvailabilityPrompt items={availabilityPrompts} />
-        <AgentListingGapsPanel listings={incompleteListings} photographyOffer={photographyOffer} />
         <div className="flex flex-wrap items-center gap-2">
           {FILTER_PILLS.map((pill) => {
             const active = pill.value === statusFilter || (pill.value === '' && !statusFilter);
@@ -248,7 +239,7 @@ export default async function AgentListingsPage({ searchParams }) {
             <AgentListingsTable
               listings={filtered}
               perListingStats={perListingStats}
-              clientMatches={matchEntriesByListing(clientBook)}
+              gapsByListing={gapsByListing}
             />
           )}
         </div>

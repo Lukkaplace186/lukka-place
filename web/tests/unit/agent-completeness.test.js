@@ -150,7 +150,5 @@ test('the photography offer is read live from packages, never hardcoded', async 
   assert.match(calls[0].sql, /status = 1 AND deleted_at IS NULL/);
   assert.equal(await getPhotographyOffer(), null, 'no package, no offer');
 
-  const panel = read('components/AgentListingGapsPanel.js');
-  assert.ok(!/\b30\s*\$|\$30/.test(panel), 'no typed price');
   assert.ok(read('components/AgentPlanPicker.js').includes('id={`plan-${pkg.id}`}'), 'the offer link has a target');
 });

@@ -44,7 +44,7 @@ export default async function AgentCompletenessCard({ profileGaps = [], incomple
 
       {incompleteListingsCount > 0 && (
         <Link
-          href="/compte/agent/biens#a-completer"
+          href="/compte/agent/biens"
           className="u-press inline-flex min-h-10 items-center justify-between gap-2 rounded-lg bg-canvas-alt px-3 py-2 text-[0.8125rem] font-semibold text-ink hover:bg-canvas-deep"
         >
           {t('agent.completeness.listingsToFix', { count: incompleteListingsCount })}

@@ -1184,6 +1184,7 @@
       "cardTitle": "To Complete",
       "cardHint": "What your profile and listings are still missing.",
       "fix": "Complete",
+      "toComplete": "To complete:",
       "listingsToFix": {
         "one": "{count} listing to complete",
         "other": "{count} listings to complete"

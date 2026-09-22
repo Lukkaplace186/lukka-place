@@ -3,12 +3,11 @@
 import { useMemo, useOptimistic, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Archive, ArchiveRestore, ExternalLink, Image as ImageIcon, Trash2 } from 'lucide-react';
+import { AlertTriangle, Archive, ArchiveRestore, ExternalLink, Image as ImageIcon, Trash2 } from 'lucide-react';
 import SafeImage from './SafeImage';
 import AgentListingStatusSelect from './AgentListingStatusSelect';
 import AgentListingActionsMenu from './AgentListingActionsMenu';
 import MarkListingSoldDialog from './MarkListingSoldDialog';
-import AgentClientMatchesChip from './AgentClientMatches';
 import { formatPrice, formatPriceCdf } from '@/lib/format';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { usableImageSrc } from '@/lib/listingView';
@@ -23,6 +22,7 @@ import { useToast } from './Toast';
 import { useT } from '@/lib/i18n/client';
 import { LISTING_TIME_ZONE } from '@/lib/listingView';
 import { announceListingQuota } from '@/lib/listingQuotaRules';
+import { gapLabelKey, listingGapHref, MIN_PHOTOS } from '@/lib/completenessRules';
 
 const LISTING_STATUS_EDIT_OPTIONS = [
   { value: 'active', labelKey: 'status.listing.active' },
@@ -82,9 +82,10 @@ const GRID_COLS =
  *    so the title's click target is unambiguous: "see it live", not "edit
  *    it".
  */
-// `clientMatches`: { [listingId]: entries } from the agent's private client book
-// (lib/clientMatching.js matchEntriesByListing). Absent means no chip.
-export default function AgentListingsTable({ listings, perListingStats, clientMatches = {} }) {
+// `gapsByListing`: { [listingId]: { gaps, photoCount } } from lib/completeness.js
+// getAgentListingGaps — only listings with at least one gap. Absent means the
+// listing is complete (or the read failed) and the card shows no hint.
+export default function AgentListingsTable({ listings, perListingStats, gapsByListing = {} }) {
   const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
@@ -361,10 +362,8 @@ export default function AgentListingsTable({ listings, perListingStats, clientMa
                     </span>
                   )}
                 </div>
-                {clientMatches[String(listing.id)] && (
-                  <div className="mt-1.5">
-                    <AgentClientMatchesChip entries={clientMatches[String(listing.id)]} />
-                  </div>
+                {gapsByListing[String(listing.id)] && (
+                  <ListingGapHint listingId={listing.id} {...gapsByListing[String(listing.id)]} />
                 )}
               </div>
             </div>
@@ -502,6 +501,30 @@ export default function AgentListingsTable({ listings, perListingStats, clientMa
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * "À compléter : …" on the card it belongs to — one compact link into the
+ * editor, anchored on the most consequential gap's field. Replaces the panel
+ * that used to sit above the whole list and never said which listing it meant.
+ */
+function ListingGapHint({ listingId, gaps, photoCount }) {
+  const t = useT();
+  if (!gaps?.length) return null;
+  const labels = gaps.map((code) =>
+    code === 'thin_photos' ? `${t(gapLabelKey(code))} (${photoCount}/${MIN_PHOTOS})` : t(gapLabelKey(code)),
+  );
+  return (
+    <Link
+      href={listingGapHref(listingId, gaps[0])}
+      className="u-press mt-1.5 inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-full bg-warning-tint px-2.5 py-1 text-[0.6875rem] font-semibold text-warning hover:brightness-95"
+    >
+      <AlertTriangle strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+      <span className="min-w-0">
+        {t('agent.completeness.toComplete')} {labels.join(', ')}
+      </span>
+    </Link>
   );
 }
 

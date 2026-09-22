@@ -1184,6 +1184,7 @@
       "cardTitle": "À compléter",
       "cardHint": "Ce qui manque encore à votre profil et à vos annonces.",
       "fix": "Compléter",
+      "toComplete": "À compléter :",
       "listingsToFix": {
         "one": "{count} annonce à compléter",
         "other": "{count} annonces à compléter"

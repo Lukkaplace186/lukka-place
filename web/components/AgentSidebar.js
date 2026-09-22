@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { BarChart3, Landmark, Mail, BadgeCheck, SlidersHorizontal, Building2, BookUser } from 'lucide-react';
+import { BarChart3, Landmark, Mail, BadgeCheck, SlidersHorizontal, Building2 } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { Wordmark } from './Brand';
 import { useT } from '@/lib/i18n/client';
@@ -43,7 +43,6 @@ const NAV = [
   { href: '/compte/agent', labelKey: 'agent.nav.overview', shortKey: 'agent.nav.overviewShort', icon: BarChart3, exact: true },
   { href: '/compte/agent/biens', labelKey: 'agent.nav.listings', shortKey: 'agent.nav.listingsShort', icon: Landmark, countKey: 'listings' },
   { href: '/compte/agent/demandes', labelKey: 'agent.nav.leads', shortKey: 'agent.nav.leadsShort', icon: Mail, countKey: 'leads' },
-  { href: '/compte/agent/clients', labelKey: 'agent.clients.nav', shortKey: 'agent.clients.navShort', icon: BookUser },
   { href: '/compte/agent/abonnement', labelKey: 'agent.nav.subscription', shortKey: 'agent.nav.subscriptionShort', icon: BadgeCheck },
   { href: '/compte/agent/parametres', labelKey: 'agent.nav.settings', shortKey: 'agent.nav.settingsShort', icon: SlidersHorizontal },
 ];

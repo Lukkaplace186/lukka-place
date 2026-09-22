@@ -1476,7 +1476,15 @@ Migration `migrations/20260922_agent_quick_replies.sql` (new table only).
   - Thresholds reuse existing ones: 3 photos (the editor's hint), 15
     description characters (the save path's floor).
   - Closed and archived listings are skipped.
-- **Photography offer**: shown on Mes biens only when a listing has
+- **Mes biens shows gaps on each card, not in a panel** (2026-09-22). The
+  "N annonces à compléter" panel above the list is gone: it pushed the first
+  card below the fold on a phone and never said which listing a chip meant.
+  `AgentListingsTable` renders one "À compléter : …" link per incomplete card
+  (`getAgentListingGaps`, photos as "(2/3)"), anchored on the first gap's
+  field. The availability prompt left Mes biens too; it is on the overview's
+  to-do list and in the editor.
+- **Photography offer**: no longer rendered (it lived in the removed panel);
+  `getPhotographyOffer` is kept. It was shown on Mes biens only when a listing had
   `thin_photos`. The package is found live (`LOWER(title) LIKE '%photo%'`,
   active, not deleted). Title and price come from the row, and the link goes
   to its card on Abonnement (`#plan-<id>`, added to `AgentPlanPicker`). No
@@ -1579,6 +1587,13 @@ before it runs).
   Web Share with multiple files on Android, and the report card line.
 
 ## Agent client book and "Proposer des alternatives" (2026-09-22)
+
+**Hidden from agents since 2026-09-22** (product decision: Biens / Demandes /
+Abonnement / Réglages only). No nav entry, `/compte/agent/clients` redirects to
+Demandes, and the "clients cherchent" chips on Mes biens, the overview and the
+editor are gone. The tables, `lib/agentClients.js` and the components below are
+kept, so restoring it is a nav entry plus the page. "Proposer des alternatives"
+does not depend on the book and is unchanged.
 
 `migrations/20260922_agent_clients.sql` (`agent_clients`, `agent_client_contacts`),
 `lib/clientMatching.js` (pure), `lib/agentClients.js`, `lib/listingAlternatives.js`

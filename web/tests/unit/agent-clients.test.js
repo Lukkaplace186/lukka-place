@@ -349,10 +349,11 @@ test('the migration is idempotent, bigint, cascading, and revoked from PostgREST
   assert.doesNotMatch(sql, /CREATE (TABLE|INDEX|UNIQUE INDEX) (?!IF NOT EXISTS)/);
 });
 
-test('the sidebar links the client book on desktop and on the phone tab bar', () => {
+test('the client book is hidden: no nav entry, and its old URL redirects to Demandes', () => {
   const src = read('components/AgentSidebar.js');
-  assert.match(src, /href: '\/compte\/agent\/clients'/);
+  assert.doesNotMatch(src, /\/compte\/agent\/clients/);
   assert.match(src, /repeat\(\$\{NAV\.length\}/, 'phone bar columns follow NAV');
+  assert.match(read('app/compte/agent/clients/page.js'), /redirect\('\/compte\/agent\/demandes'\)/);
 });
 
 // --- alternatives -------------------------------------------------------------------

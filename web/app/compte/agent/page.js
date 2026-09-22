@@ -66,7 +66,7 @@ export default async function AgentOverviewPage({ searchParams }) {
     getAgentLeadQuota(agentId, agent),
     // "À faire aujourd'hui" + the morning reminder. Never throws: each engine
     // read degrades on its own and the panel says the list may be incomplete.
-    loadAgentTodo({ leadScope, hasLeadScope }),
+    loadAgentTodo({ agentId, leadScope, hasLeadScope }),
     // "Statut du jour". A failed read hides the card's list rather than the
     // whole overview; getStatusSuggestions already degrades when
     // listing_shares does not exist yet.

@@ -1404,8 +1404,10 @@ timestamptz`, NULL = never confirmed), `lib/listingAvailability.js`,
   (most gaps first). Six visible, "voir …" links per hidden kind. Each row has
   one primary action; visit answers go through the existing
   `updateViewingRequestAction`, never a new write path. The two listing
-  sources are `[]` until the coordinator wires them (comment in the loader);
-  both kinds are fully built and tested and link to `/compte/agent/biens/<id>`.
+  sources are `getListingsNeedingConfirmation` and `getIncompleteListings`
+  (both degrade to `[]`); a confirm row opens the listing's editor (where the
+  availability prompt is), an incomplete row goes to the field behind its
+  first gap (`listingGapHref`).
 - **"Overdue" needs a real instant.** For PENDING it is the engine's
   `requested_slot_at` (new field on `GET /admin/viewing-requests`,
   `visitSchedule.requestedSlotAt`): the customer's phrase parsed against the

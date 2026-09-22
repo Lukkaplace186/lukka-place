@@ -1,6 +1,8 @@
 import 'server-only';
 import { listLeads, listViewingRequests } from './adminApi';
 import { buildAgentTodo } from './agentTodo';
+import { getListingsNeedingConfirmation } from './listingAvailability';
+import { getIncompleteListings } from './completeness';
 import { todaysRemainingVisits } from './visitAgenda';
 
 /**
@@ -14,9 +16,18 @@ import { todaysRemainingVisits } from './visitAgenda';
  * may be incomplete instead of claiming "rien à faire".
  */
 export async function loadAgentTodo(context, { now = new Date(), limit } = {}) {
-  const { leadScope, hasLeadScope } = context || {};
+  const { agentId, leadScope, hasLeadScope } = context || {};
+  // Both listing sources degrade on their own (42703/42P01 before the
+  // migrations, any read failure) and return [].
+  const listingSources = agentId
+    ? Promise.all([
+        getListingsNeedingConfirmation(agentId, { limit: 20, now }).catch(() => []),
+        getIncompleteListings(agentId, { limit: 20 }).catch(() => []),
+      ])
+    : Promise.resolve([[], []]);
   if (!hasLeadScope) {
-    return { ...buildAgentTodo({ now, limit }), todayVisits: [], confirmedVisits: [], degraded: [] };
+    const [listingsToConfirm, incompleteListings] = await listingSources;
+    return { ...buildAgentTodo({ listingsToConfirm, incompleteListings, now, limit }), todayVisits: [], confirmedVisits: [], degraded: [] };
   }
 
   const degraded = [];
@@ -37,9 +48,7 @@ export async function loadAgentTodo(context, { now = new Date(), limit } = {}) {
     safe('leads', listLeads({ ...leadScope, status: 'NEW', limit: 50 })),
   ]);
 
-  // COORDINATOR: wire getListingsNeedingConfirmation + getIncompleteListings
-  const listingsToConfirm = [];
-  const incompleteListings = [];
+  const [listingsToConfirm, incompleteListings] = await listingSources;
 
   const todo = buildAgentTodo({
     visits: [...pending, ...rescheduled],

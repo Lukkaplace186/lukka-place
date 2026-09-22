@@ -1,4 +1,5 @@
 import { confirmPrefill, toTime, visitSlotAt } from './visitAgenda';
+import { listingGapHref } from './completenessRules';
 
 /**
  * "À faire aujourd'hui" — one ranked list of what is waiting on the agent,
@@ -103,7 +104,8 @@ function listingConfirmItem(listing) {
     rank: 3,
     // Longest unconfirmed first: negate so the ascending sort puts it on top.
     sortAt: Number.isFinite(Number(listing.daysSince)) ? -Number(listing.daysSince) : null,
-    primary: { type: 'confirm-availability', href: `/compte/agent/biens/${encodeURIComponent(listing.id)}` },
+    // The availability prompt is on the listing's editor page (and Mes biens).
+    primary: { type: 'confirm-availability', href: `/compte/agent/biens/${encodeURIComponent(listing.id)}/edit` },
     listing,
   };
 }
@@ -116,7 +118,8 @@ function listingIncompleteItem(listing) {
     id: listing.id,
     rank: 4,
     sortAt: -gaps.length,
-    primary: { type: 'complete', href: `/compte/agent/biens/${encodeURIComponent(listing.id)}` },
+    // Straight to the field behind the first gap.
+    primary: { type: 'complete', href: listingGapHref(listing.id, gaps[0]) },
     listing: { ...listing, gaps },
   };
 }

@@ -132,8 +132,8 @@ test('listing items link to the listing, leads to their focused inbox row; dupli
   assert.equal(todo.total, 3);
   const byKind = Object.fromEntries(todo.items.map((i) => [i.kind, i]));
   assert.deepEqual(byKind.lead.primary, { type: 'open-lead', href: '/compte/agent/demandes?lead=5' });
-  assert.deepEqual(byKind['listing-confirm'].primary, { type: 'confirm-availability', href: '/compte/agent/biens/42' });
-  assert.deepEqual(byKind['listing-incomplete'].primary, { type: 'complete', href: '/compte/agent/biens/43' });
+  assert.deepEqual(byKind['listing-confirm'].primary, { type: 'confirm-availability', href: '/compte/agent/biens/42/edit' });
+  assert.deepEqual(byKind['listing-incomplete'].primary, { type: 'complete', href: '/compte/agent/biens/43/edit' });
   assert.deepEqual(byKind['listing-incomplete'].listing.gaps, []);
 });
 
@@ -276,5 +276,7 @@ test('a dashboard confirmation must carry the agreed instant, through the existi
   assert.match(route, /findOwnedViewingRequest\(agentId, viewingRequestId, \{ status: 'CONFIRMED' \}\)/);
   assert.match(actions, /findOwnedViewingRequest\(agentId, viewingRequestId\)/, 'one ownership rule for answers and the .ics');
   const loader = readFileSync(new URL('../../lib/agentTodoLoader.js', import.meta.url), 'utf8');
-  assert.match(loader, /\/\/ COORDINATOR: wire getListingsNeedingConfirmation \+ getIncompleteListings/);
+  // Both listing sources are wired, each degrading to [] on its own.
+  assert.match(loader, /getListingsNeedingConfirmation\(agentId, \{ limit: 20, now \}\)\.catch\(\(\) => \[\]\)/);
+  assert.match(loader, /getIncompleteListings\(agentId, \{ limit: 20 \}\)\.catch\(\(\) => \[\]\)/);
 });

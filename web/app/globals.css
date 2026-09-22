@@ -404,16 +404,19 @@
     color: var(--ink-45);
   }
 
-  /* The same label in brass, for the homepage's two section kickers only.
-     Brass is the palette's prestige accent and the token comment above it
-     is explicit that it is never a button — a small caps label is exactly
-     the badge/rule use it is reserved for, and --brass-deep is the text
-     cut (7.3:1 on white, 6.4:1 on sand), never --brass itself, which fails
-     AA at this size. Kept as a modifier rather than a change to
-     .u-eyebrow: that utility is the dashboard's spec-key label in ~60
-     places, where a warm accent would be noise. */
-  .u-eyebrow-accent {
-    color: var(--brass-deep);
+  /* The same label at full ink, for the homepage's two section kickers.
+     These briefly ran in brass (--brass-deep) and it was rejected on
+     sight: the kicker reads as part of the heading block under it, so it
+     belongs to the same dark type, not to an accent.
+
+     A modifier rather than a change to .u-eyebrow, which is the
+     dashboard's spec-key label in ~60 places where --ink-45 is correct —
+     and a modifier rather than a Tailwind `text-ink` at the call site,
+     because both would be single-class utilities in the same
+     @layer utilities and the winner would come down to emitted source
+     order. Declared immediately after .u-eyebrow, this one always wins. */
+  .u-eyebrow-ink {
+    color: var(--ink);
   }
   /*
    * Rightmove's type scale, measured directly off their own live pages

@@ -19,9 +19,11 @@ import { getT } from '@/lib/i18n/server';
  * personalised section appears the moment there is something personal to
  * put in it.
  *
- * Same band rhythm as FeaturedListings (`pt-8 pb-14` mobile, `sm:` restoring
+ * Same band rhythm as FeaturedListings (`pt-8 pb-10` mobile, `sm:` restoring
  * the desktop values) so swapping one for the other never moves the sections
- * above or below it.
+ * above or below it. The two must be changed together: this component
+ * replaces that one for a signed-in visitor, so a padding set on only one
+ * of them moves the section below depending on who is looking.
  *
  * "Voir tout" points at /compte/client, the Espace Client's "Favoris &
  * Alertes" tab — the real, working home of a signed-in visitor's saved
@@ -38,7 +40,7 @@ export default async function SavedListings({ listings, firstName }) {
        grounds depending on who is looking at it. Band rhythm note above
        applies to the fill too. */
     <section className="bg-canvas">
-      <div className="mx-auto max-w-[1600px] px-4 pt-8 pb-14 sm:px-6 sm:pt-14 sm:pb-24 lg:px-8">
+      <div className="mx-auto max-w-[1600px] px-4 pt-8 pb-10 sm:px-6 sm:pt-14 sm:pb-16 lg:px-8">
         <SectionHeading
           eyebrow={firstName ? t('home.saved.eyebrow', { name: firstName }) : t('home.saved.eyebrowAnonymous')}
           title={t('home.saved.title')}
@@ -46,7 +48,7 @@ export default async function SavedListings({ listings, firstName }) {
           href="/compte/client"
           linkLabel={t('home.saved.viewAll')}
           className="mb-6 sm:mb-10"
-          eyebrowClassName="u-eyebrow-accent"
+          eyebrowClassName="u-eyebrow-ink"
         />
         <SavedListingsRail listings={listings} />
       </div>

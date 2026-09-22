@@ -18,8 +18,8 @@ export default function SectionHeading({ eyebrow, title, lead, href, linkLabel =
       className={`flex flex-col gap-4 sm:flex-row sm:items-end ${centered ? 'sm:justify-center' : 'sm:justify-between'} ${className}`}
     >
       <div className={`max-w-2xl ${centered ? 'mx-auto text-center' : ''}`}>
-        {/* `eyebrowClassName` exists for the homepage's brass kicker
-            (.u-eyebrow-accent). Both classes are our own utilities rather
+        {/* `eyebrowClassName` exists for the homepage's ink kicker
+            (.u-eyebrow-ink). Both classes are our own utilities rather
             than Tailwind ones, so there is nothing for tailwind-merge to
             resolve between them and plain concatenation is correct here. */}
         {eyebrow && <p className={`u-eyebrow mb-3 ${eyebrowClassName}`}>{eyebrow}</p>}

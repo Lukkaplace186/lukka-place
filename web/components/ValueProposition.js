@@ -54,7 +54,16 @@ export default async function ValueProposition() {
        a real rule: the inset top hairline is now the only thing separating
        this section from the listings, and it does the job that the
        almost-invisible fill was pretending to. */
-    <section className="bg-canvas py-11 shadow-[0_1px_0_var(--line)_inset] sm:py-20">
+    /* Asymmetric padding, deliberately: the top is roughly half the bottom.
+       The dead white space reported above this section's kicker was two
+       paddings stacked — the listings section's own pb plus this one's pt
+       — which came to 100px on a phone and 176px on desktop with nothing
+       in it. The hairline above already marks the break, so the label does
+       not need to be pushed away from it; the bottom keeps its old
+       generosity because the footer's royal band follows and wants the
+       air. Trimmed alongside the listings sections' pb, which owns the
+       other half of that gap. */
+    <section className="bg-canvas pt-6 pb-11 shadow-[0_1px_0_var(--line)_inset] sm:pt-10 sm:pb-20">
       <div className="mx-auto max-w-[1240px] px-4 sm:px-6 lg:px-8">
         {/* The eyebrow IS the header. It previously sat above a serif title
             ("Ce qui change, concrètement" / "What actually changes") that
@@ -62,7 +71,7 @@ export default async function ValueProposition() {
             full — a label, a paraphrase of the section, and the section
             itself, in that order. The label is kept because it names the
             section in the page outline; the paraphrase is gone. */}
-        <h2 className="u-eyebrow u-eyebrow-accent mb-7 sm:mb-12">{t('home.value.eyebrow')}</h2>
+        <h2 className="u-eyebrow u-eyebrow-ink mb-5 sm:mb-9">{t('home.value.eyebrow')}</h2>
 
         <div className="grid grid-cols-1 gap-px border-y border-line bg-line md:grid-cols-3">
           {VALUE_PROPS.map(({ id, titleKey, bodyKey }) => (

@@ -1022,6 +1022,138 @@
       "usage": "{used} of {limit} listings used on your plan.",
       "freeSlot": "Archiving a listing, or marking one as let or sold, also frees a slot.",
       "upgrade": "Upgrade my plan"
+    },
+    "alternatives": {
+      "open": "Suggest alternatives",
+      "title": "Suggest Alternatives",
+      "hint": "Pick up to {max} properties. They go out in one WhatsApp message, each with its link.",
+      "loading": "Looking for similar properties…",
+      "ownGroup": "Your live properties",
+      "publicGroup": "Other properties published on Lukka Place",
+      "publicGroupWidened": "Other published properties — none in these communes, city-wide",
+      "emptyOwn": "None of your live properties matches this transaction type.",
+      "emptyPublic": "No other published property matches.",
+      "emptyAll": "No published property matches right now.",
+      "includePublic": "Include other agencies’ properties",
+      "preview": "Message preview",
+      "sendLukka": "Send via Lukka Place",
+      "sending": "Sending…",
+      "openOwnWhatsApp": "Open in my WhatsApp",
+      "deliveryNote": "Via Lukka Place, the message only arrives if the client wrote to us in the last 24 hours. Your own WhatsApp has no such limit.",
+      "sent": {
+        "one": "{count} property sent to the client.",
+        "other": "{count} properties sent to the client."
+      },
+      "beds": {
+        "one": "{count} bedroom",
+        "other": "{count} bedrooms"
+      },
+      "sameCommune": "Same commune",
+      "errors": {
+        "auth": "Your session has expired. Please log in again.",
+        "notFound": "This request is not in your list.",
+        "loadFailed": "Couldn’t load suggestions. Please try again.",
+        "count": "Pick between 1 and 3 properties.",
+        "excluded": "The requested property can’t be suggested as an alternative.",
+        "unavailable": "One of the chosen properties is no longer live. Reload the suggestions.",
+        "noPhone": "This client’s number is unusable."
+      }
+    },
+    "clients": {
+      "nav": "My clients",
+      "navShort": "Clients",
+      "metaTitle": "My Clients",
+      "title": "My Clients",
+      "searchPlaceholder": "Search a client",
+      "count": {
+        "zero": "No clients",
+        "one": "{count} client",
+        "other": "{count} clients"
+      },
+      "summary": {
+        "zero": "No client has a matching property yet (budget ±{pct}%).",
+        "one": "{count} client has at least one of your properties matching (budget ±{pct}%).",
+        "other": "{count} clients have at least one of your properties matching (budget ±{pct}%)."
+      },
+      "empty": "Your client book is empty. Add the clients you chat with on WhatsApp: we’ll tell you as soon as one of your properties fits them.",
+      "noResults": "No client matches this search.",
+      "unavailable": "The client book isn’t available yet. Please try again a little later.",
+      "hiddenWhileImpersonating": "The agent’s client book is private and is not shown while viewing as the agent.",
+      "privacyNote": "Visible to you only. These clients are never shared with Lukka Place or with other agencies.",
+      "add": "Add a client",
+      "addTitle": "Add a Client",
+      "edit": "Edit",
+      "editTitle": "Edit Client",
+      "save": "Save",
+      "saving": "Saving…",
+      "added": "Client added.",
+      "updated": "Client updated.",
+      "delete": "Delete client",
+      "confirmDelete": "Delete",
+      "deleted": "Client deleted.",
+      "fields": {
+        "name": "Name",
+        "phone": "Client’s WhatsApp number",
+        "purpose": "Looking to",
+        "communes": "Communes (up to {max})",
+        "budgetMin": "Min budget ($)",
+        "budgetMax": "Max budget ($)",
+        "bedrooms": "Bedrooms",
+        "notes": "Notes"
+      },
+      "purpose": {
+        "location": "Rent",
+        "vente": "Buy"
+      },
+      "searchCommune": "Filter communes",
+      "removeCommune": "Remove {name}",
+      "communesHint": "No commune ticked = anywhere in the city.",
+      "communesUnavailable": "The commune list is unavailable right now.",
+      "budgetHint": "In dollars. A property up to {pct}% outside this budget is still suggested.",
+      "anyBedrooms": "Any",
+      "bedroomsAtLeast": {
+        "one": "{count} bedroom or more",
+        "other": "{count} bedrooms or more"
+      },
+      "anyCommune": "Anywhere in the city",
+      "budgetUpTo": "Up to {amount}",
+      "budgetFrom": "From {amount}",
+      "noMatches": "None of your live properties matches yet.",
+      "clientMatches": {
+        "one": "{count} property matches",
+        "other": "{count} properties match"
+      },
+      "listingMatches": {
+        "one": "{count} of your clients is looking for this",
+        "other": "{count} of your clients are looking for this"
+      },
+      "listingMatchesHint": "One tap opens your WhatsApp with the property link already typed.",
+      "whatsapp": "WhatsApp",
+      "whatsappAgain": "Send again",
+      "whatsappTo": "Message {name} on WhatsApp",
+      "openedOn": "WhatsApp opened {date}",
+      "noPhone": "Unusable number",
+      "overviewTitle": "Your Clients Are Looking for These",
+      "overviewLink": "My clients",
+      "overviewMore": {
+        "one": "And {count} more property.",
+        "other": "And {count} more properties."
+      },
+      "editorHint": "Clients in your book are looking for this property.",
+      "errors": {
+        "auth": "Your session has expired. Please log in again.",
+        "name": "Enter the client’s name (120 characters at most).",
+        "phone": "Invalid phone number.",
+        "purpose": "Choose rent or buy.",
+        "commune": "Pick the communes from the list.",
+        "tooManyCommunes": "10 communes at most.",
+        "budget": "Invalid budget: positive amounts, minimum below maximum.",
+        "bedrooms": "Invalid number of bedrooms.",
+        "notes": "Notes too long (2,000 characters at most).",
+        "duplicate": "This number is already in your client book.",
+        "unavailable": "The client book isn’t available yet. Please try again a little later.",
+        "notFound": "This client no longer exists."
+      }
     }
   },
   "status": {

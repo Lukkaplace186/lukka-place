@@ -20,6 +20,9 @@ import AgentStatGrid from '@/components/AgentStatGrid';
 import AgentViewsChart from '@/components/AgentViewsChart';
 import AgentRecentLeads from '@/components/AgentRecentLeads';
 import AgentSubscriptionCard from '@/components/AgentSubscriptionCard';
+import AgentClientMatchesCard from '@/components/AgentClientMatchesCard';
+import { getAgentClientBookSafe } from '@/lib/agentClients';
+import { matchEntriesByListing } from '@/lib/clientMatching';
 
 const RANGE_OPTIONS = Object.entries(VIEW_RANGES).map(([value, { label }]) => ({ value, label }));
 
@@ -34,7 +37,7 @@ export default async function AgentOverviewPage({ searchParams }) {
     await getAgentDashboardContext(agentId);
   const listingQuota = await getListingQuota(agentId).catch(() => null);
 
-  const [views30d, whatsappClicks, leadsPage, series, deltas, leadQuota] = await Promise.all([
+  const [views30d, whatsappClicks, leadsPage, series, deltas, leadQuota, clientBook] = await Promise.all([
     getAgentListingViews(propertyIds, 30),
     getAgentWhatsAppClicks(propertyIds),
     hasLeadScope ? listLeads({ ...leadScope, limit: 3 }) : Promise.resolve({ total: 0, data: [] }),
@@ -46,6 +49,7 @@ export default async function AgentOverviewPage({ searchParams }) {
     // path re-checks the real count server-side before recording a response,
     // so an unreadable count here can never grant one.
     getAgentLeadQuota(agentId, agent),
+    getAgentClientBookSafe(agentId),
   ]);
 
   const activeCount = listings.filter((l) => l.approve_status === 1 && l.listing_status === 'active').length;
@@ -106,6 +110,7 @@ export default async function AgentOverviewPage({ searchParams }) {
           />
           <div className="flex flex-col gap-6">
             <AgentRecentLeads leads={leadsPage.data} listingById={listingById} />
+            <AgentClientMatchesCard book={clientBook} entriesByListing={matchEntriesByListing(clientBook)} />
             <AgentSubscriptionCard
               packageTitle={agent.package_title}
               packageTerm={agent.package_term}

@@ -26,7 +26,7 @@ const CATEGORY_LANGUAGE_ID = 26;
  * engine repo). This subquery resolves that tag back to a name for display;
  * WHERE-clause filtering by commune uses the equivalent EXISTS form below.
  */
-const COMMUNE_SUBQUERY = `(
+export const COMMUNE_SUBQUERY = `(
   SELECT ac.name FROM property_amenities pa
   JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = ${CONTENT_LANGUAGE_ID}
   WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44

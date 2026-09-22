@@ -7,6 +7,7 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { updateViewingRequestAction } from '@/app/compte/agent/actions';
 import { agentActionsFor } from '@/lib/viewingActions';
 import { useToast } from './Toast';
+import AgentAlternativesDialog from './AgentAlternativesDialog';
 import { isNetworkError } from '@/lib/networkError';
 import { useT } from '@/lib/i18n/client';
 
@@ -195,6 +196,12 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
             </div>
           )}
           {actions.length === 0 && <p className="text-xs text-ink-35">{t('agent.visits.closed')}</p>}
+          {/* After a refusal the customer still needs somewhere to live. */}
+          <AgentAlternativesDialog
+            kind="visit"
+            id={viewingRequest.id}
+            emphasis={viewingRequest.status === 'DECLINED' || viewingRequest.status === 'CANCELLED'}
+          />
         </div>
       </div>
 

@@ -11,6 +11,9 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import AgentPageHeader from '@/components/AgentPageHeader';
 import AgentListingEditor from '@/components/AgentListingEditor';
 import { getT } from '@/lib/i18n/server';
+import { getAgentClientBookSafe } from '@/lib/agentClients';
+import { matchEntriesForListing } from '@/lib/clientMatching';
+import AgentClientMatchesChip from '@/components/AgentClientMatches';
 
 export async function generateMetadata() {
   const t = await getT();
@@ -50,17 +53,22 @@ export default async function EditListingPage({ params }) {
   // getOwnListingForEdit scopes on agent_id in the query itself, so a
   // guessed id belonging to another agency resolves to null and 404s here
   // rather than rendering someone else's listing in an editable form.
-  const [listing, { newLeadsCount }, communes, cdfRate, amenities] = await Promise.all([
+  const [listing, { newLeadsCount }, communes, cdfRate, amenities, clientBook] = await Promise.all([
     getOwnListingForEdit(agentId, id),
     getAgentDashboardContext(agentId),
     resolveCommunes(),
     getCdfRate(),
     getFeatureAmenities(),
+    getAgentClientBookSafe(agentId),
   ]);
 
   if (!listing) notFound();
 
   const approve = APPROVE_STATUS[listing.approve_status];
+  // Matched against the book's own copy of the listing (it carries the
+  // commune); a listing that is not live has no entry and shows nothing.
+  const bookListing = clientBook.listings.find((l) => String(l.id) === String(listing.id));
+  const clientEntries = bookListing ? matchEntriesForListing(clientBook, bookListing) : [];
 
   return (
     <>
@@ -93,6 +101,13 @@ export default async function EditListingPage({ params }) {
                 {t('agent.editor.editsPendingReview')}
               </span>
             )}
+          </div>
+        )}
+
+        {clientEntries.length > 0 && (
+          <div className="u-card flex flex-wrap items-center justify-between gap-2 rounded-card bg-surface px-4 py-3">
+            <span className="u-micro text-ink-70">{t('agent.clients.editorHint')}</span>
+            <AgentClientMatchesChip entries={clientEntries} align="end" />
           </div>
         )}
 

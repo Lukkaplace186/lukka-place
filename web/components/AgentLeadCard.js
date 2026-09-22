@@ -11,6 +11,7 @@ import { formatPrice } from '@/lib/format';
 import { bestMatch } from '@/lib/agentMatching';
 import { proposeListingAction } from '@/app/compte/agent/actions';
 import { useToast } from './Toast';
+import AgentAlternativesDialog from './AgentAlternativesDialog';
 import { useT } from '@/lib/i18n/client';
 
 /**
@@ -177,6 +178,8 @@ export default function AgentLeadCard({
               {t('agent.leads.proposeProperty')}
             </button>
           )}
+
+          <AgentAlternativesDialog kind="lead" id={lead.id} />
 
           <form action={statusAction}>
             <input type="hidden" name="status" value={lead.status === 'QUALIFIED' ? 'CONVERTED' : 'QUALIFIED'} />

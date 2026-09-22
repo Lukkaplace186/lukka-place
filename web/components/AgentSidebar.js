@@ -2,7 +2,7 @@
 
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { BarChart3, Landmark, Mail, BadgeCheck, SlidersHorizontal, Building2 } from 'lucide-react';
+import { BarChart3, Landmark, Mail, BadgeCheck, SlidersHorizontal, Building2, BookUser } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { Wordmark } from './Brand';
 import { useT } from '@/lib/i18n/client';
@@ -43,6 +43,7 @@ const NAV = [
   { href: '/compte/agent', labelKey: 'agent.nav.overview', shortKey: 'agent.nav.overviewShort', icon: BarChart3, exact: true },
   { href: '/compte/agent/biens', labelKey: 'agent.nav.listings', shortKey: 'agent.nav.listingsShort', icon: Landmark, countKey: 'listings' },
   { href: '/compte/agent/demandes', labelKey: 'agent.nav.leads', shortKey: 'agent.nav.leadsShort', icon: Mail, countKey: 'leads' },
+  { href: '/compte/agent/clients', labelKey: 'agent.clients.nav', shortKey: 'agent.clients.navShort', icon: BookUser },
   { href: '/compte/agent/abonnement', labelKey: 'agent.nav.subscription', shortKey: 'agent.nav.subscriptionShort', icon: BadgeCheck },
   { href: '/compte/agent/parametres', labelKey: 'agent.nav.settings', shortKey: 'agent.nav.settingsShort', icon: SlidersHorizontal },
 ];
@@ -155,7 +156,9 @@ export default function AgentSidebar({
         aria-label={t('agent.nav.ariaLabel')}
         className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden"
       >
-        <div className="grid grid-cols-5">
+        {/* Columns follow NAV's length (inline, since Tailwind cannot see a
+            composed grid-cols-N) so adding an entry never needs this line. */}
+        <div className="grid" style={{ gridTemplateColumns: `repeat(${NAV.length}, minmax(0, 1fr))` }}>
           {NAV.map((item) => {
             const active = isActive(pathname, item);
             const count = item.countKey ? counts[item.countKey] : null;

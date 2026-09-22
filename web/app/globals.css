@@ -418,6 +418,24 @@
   .u-eyebrow-ink {
     color: var(--ink);
   }
+
+  /* ValueProposition's kicker only, and it is not really a kicker: that
+     section's serif title was removed long ago (see the component), so
+     this label IS its header, while "Nouveautés vérifiées" one section up
+     is a true kicker sitting over a 22px serif title. Two different jobs
+     had been sharing one 12px/500 treatment, and the header-shaped one
+     read as too small for what it carries.
+
+     15px/700 at tighter tracking — a small-caps section header rather
+     than a micro label. Still not the display serif: reinstating a serif
+     title here is exactly what was deliberately removed. */
+  .u-eyebrow-section {
+    font-size: 0.9375rem;
+    line-height: 1.375rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--ink);
+  }
   /*
    * Rightmove's type scale, measured directly off their own live pages
    * (a property detail page and a search-results page) rather than eyeballed

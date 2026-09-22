@@ -62,8 +62,10 @@ export default async function ValueProposition() {
        not need to be pushed away from it; the bottom keeps its old
        generosity because the footer's royal band follows and wants the
        air. Trimmed alongside the listings sections' pb, which owns the
-       other half of that gap. */
-    <section className="bg-canvas pt-6 pb-11 shadow-[0_1px_0_var(--line)_inset] sm:pt-10 sm:pb-20">
+       other half of that gap — measured on a phone rather than guessed:
+       card bottom to hairline was 32px, hairline to label 24px, with the
+       carousel's own 16px scrollbar padding inside that again. */
+    <section className="bg-canvas pt-4 pb-11 shadow-[0_1px_0_var(--line)_inset] sm:pt-7 sm:pb-20">
       <div className="mx-auto max-w-[1240px] px-4 sm:px-6 lg:px-8">
         {/* The eyebrow IS the header. It previously sat above a serif title
             ("Ce qui change, concrètement" / "What actually changes") that
@@ -71,7 +73,7 @@ export default async function ValueProposition() {
             full — a label, a paraphrase of the section, and the section
             itself, in that order. The label is kept because it names the
             section in the page outline; the paraphrase is gone. */}
-        <h2 className="u-eyebrow u-eyebrow-ink mb-5 sm:mb-9">{t('home.value.eyebrow')}</h2>
+        <h2 className="u-eyebrow u-eyebrow-section mb-5 sm:mb-9">{t('home.value.eyebrow')}</h2>
 
         <div className="grid grid-cols-1 gap-px border-y border-line bg-line md:grid-cols-3">
           {VALUE_PROPS.map(({ id, titleKey, bodyKey }) => (

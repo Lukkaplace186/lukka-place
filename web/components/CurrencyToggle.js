@@ -43,14 +43,19 @@ const LONG_OPTIONS = [
   { value: 'CDF', label: 'FC' },
 ];
 
-export default function CurrencyToggle({ longLabels = false }) {
+// `tone="quiet"`: a light segmented control (canvas track, white active
+// chip) for places where the toggle is a setting among links, like the mobile
+// drawer. The default navy pill is right in the desktop header and footer,
+// where it is meant to be seen; in the drawer it outweighed the navigation.
+export default function CurrencyToggle({ longLabels = false, tone = 'royal' }) {
+  const quiet = tone === 'quiet';
   const currency = useSyncExternalStore(subscribeCurrency, getCurrency, () => 'USD');
 
   return (
     <div
       role="group"
       aria-label="Devise d'affichage"
-      className="flex items-center rounded-full border border-blue-deep bg-blue-deep p-0.5 shadow-sm transition-colors"
+      className={`flex items-center rounded-full border p-0.5 transition-colors ${quiet ? 'border-line bg-canvas-alt' : 'border-blue-deep bg-blue-deep shadow-sm'}`}
     >
       {(longLabels ? LONG_OPTIONS : OPTIONS).map(({ value, label }) => {
         const active = currency === value;
@@ -61,7 +66,7 @@ export default function CurrencyToggle({ longLabels = false }) {
             onClick={() => setCurrency(value)}
             aria-pressed={active}
             className={`inline-flex h-9 min-w-9 items-center justify-center rounded-full px-3 text-[0.8125rem] font-semibold transition-colors ${
-              active ? 'bg-white text-blue-deep shadow-sm' : 'text-white/75 hover:text-white'
+              active ? `bg-white shadow-sm ${quiet ? 'text-ink' : 'text-blue-deep'}` : quiet ? 'text-ink-45 hover:text-ink' : 'text-white/75 hover:text-white'
             }`}
           >
             {label}

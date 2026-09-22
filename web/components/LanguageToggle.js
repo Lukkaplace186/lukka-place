@@ -35,6 +35,8 @@ export default function LanguageToggle({ longLabels = false, tone = 'light', cla
   const [pending, startTransition] = useTransition();
 
   const royal = tone === 'royal';
+  // 'quiet': light track for the mobile drawer — see CurrencyToggle.
+  const quiet = tone === 'quiet';
 
   function select(next) {
     if (next === locale) return;
@@ -49,8 +51,8 @@ export default function LanguageToggle({ longLabels = false, tone = 'light', cla
       role="group"
       aria-label={t('common.language.switcherLabel')}
       data-pending={pending ? '' : undefined}
-      className={`flex items-center rounded-full border p-0.5 shadow-sm transition-opacity ${
-        royal ? 'border-white/25 bg-white/10' : 'border-blue-deep bg-blue-deep'
+      className={`flex items-center rounded-full border p-0.5 transition-opacity ${
+        quiet ? 'border-line bg-canvas-alt' : royal ? 'border-white/25 bg-white/10 shadow-sm' : 'border-blue-deep bg-blue-deep shadow-sm'
       } ${pending ? 'opacity-70' : ''} ${className}`}
     >
       {LOCALES.map((value) => {
@@ -68,8 +70,10 @@ export default function LanguageToggle({ longLabels = false, tone = 'light', cla
             aria-label={LOCALE_LABELS[value].long}
             className={`inline-flex h-9 min-w-9 items-center justify-center rounded-full px-3 text-[0.8125rem] font-semibold transition-colors ${
               active
-                ? 'bg-white text-blue-deep shadow-sm'
-                : royal
+                ? `bg-white shadow-sm ${quiet ? 'text-ink' : 'text-blue-deep'}`
+                : quiet
+                  ? 'text-ink-45 hover:text-ink'
+                  : royal
                   ? 'text-white/70 hover:text-white'
                   : 'text-white/75 hover:text-white'
             }`}

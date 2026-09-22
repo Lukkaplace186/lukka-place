@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { Menu, Search, User, Heart, Bell, LogOut, ArrowUpRight, Mail, ChevronRight } from 'lucide-react';
+import { Menu, Search, User, Heart, Bell, LogOut, ArrowRight, Mail, ChevronRight, SearchCheck } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetClose } from './ui/sheet';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from './ui/dropdown-menu';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -227,16 +227,48 @@ export default function Header() {
                     SheetClose: a preference change should be watched taking
                     effect, not dismiss the drawer. */}
                 <div className="flex items-center justify-between gap-3 px-3 py-2">
-                  <CurrencyToggle longLabels />
-                  <LanguageToggle />
+                  <CurrencyToggle longLabels tone="quiet" />
+                  <LanguageToggle tone="quiet" />
                 </div>
+
+                {/* "Trouver pour moi" — the customer's way in when browsing
+                    has not found it: the real request form, whose request is
+                    pushed to partner agencies (Automated Agent Matching). It
+                    had no entry point in the drawer, and it is what fills the
+                    space between the settings and the pinned agent block
+                    with something a customer can act on, rather than
+                    decoration. /compte/client/* sends a guest to sign in
+                    first, so no logged-in branch is needed. */}
+                <SheetClose asChild>
+                  <Link
+                    href="/compte/client/demandes"
+                    className="group mx-1 mt-3 flex min-h-11 flex-col gap-1.5 rounded-xl border border-blue/15 bg-blue-tint p-4 transition-colors duration-75 active:bg-canvas-deep [@media(max-height:780px)]:gap-1 [@media(max-height:780px)]:p-3"
+                  >
+                    <span className="flex items-center gap-2 text-[0.9375rem] font-bold text-ink">
+                      <SearchCheck strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5 text-blue-deep" />
+                      {t('nav.findPrompt')}
+                    </span>
+                    {/* Dropped on short phones (iPhone SE class): the title and the CTA
+                        still say what this is, and it keeps "Publier un bien"
+                        above the fold instead of behind a scroll. */}
+                    <span className="text-[0.8125rem] leading-snug text-ink-70 [@media(max-height:780px)]:hidden">{t('nav.findLead')}</span>
+                    <span className="inline-flex items-center gap-1.5 pt-1 text-[0.875rem] font-bold text-blue-deep">
+                      {t('nav.findCta')}
+                      <ArrowRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 transition-transform group-active:translate-x-0.5" />
+                    </span>
+                  </Link>
+                </SheetClose>
 
                 {/* The agent ask, pinned to the bottom. One block, one
                     hierarchy: publishing is the filled action and the
                     existing-agent login a quiet link under it. They used to
                     be two competing buttons, "Espace Agent / Partenaire"
                     (outlined, mid-drawer) and "Publier un bien" (filled). */}
-                <div className="mt-auto border-t border-line px-1 pt-4 pb-1">
+                {/* Spacer: pins the agent block to the bottom on a tall phone,
+                    and still keeps 1.5rem above it on a short one, where
+                    mt-auto alone would collapse to zero. */}
+                <div aria-hidden="true" className="min-h-5 flex-1" />
+                <div className="border-t border-line px-1 pt-4 pb-1">
                   <p className="px-2 pb-2 text-[0.8125rem] font-medium text-ink-70">{t('nav.agentPrompt')}</p>
                   <SheetClose asChild>
                     <Link
@@ -244,7 +276,7 @@ export default function Header() {
                       className="u-press u-btn-primary flex w-full items-center justify-center gap-2 rounded-lg bg-blue py-3 text-[0.9375rem] font-bold text-white"
                     >
                       {t('nav.publishListing')}
-                      <ArrowUpRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                      <ArrowRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
                     </Link>
                   </SheetClose>
                   <SheetClose asChild>
@@ -393,7 +425,7 @@ export default function Header() {
             className="u-press u-btn-secondary hidden h-9 items-center gap-1.5 rounded-lg px-4 text-[0.8125rem] font-bold text-ink lg:inline-flex"
           >
             {t('nav.publishListing')}
-            <ArrowUpRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+            <ArrowRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
           </Link>
         </div>
       </div>

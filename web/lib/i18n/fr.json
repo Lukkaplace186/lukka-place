@@ -112,7 +112,10 @@
     "login": "Se connecter",
     "myRequests": "Mes demandes",
     "agentPrompt": "Vous êtes agent ou agence ?",
-    "agentLogin": "Déjà inscrit ? Espace agent"
+    "agentLogin": "Déjà inscrit ? Espace agent",
+    "findPrompt": "Pas encore trouvé ?",
+    "findLead": "Décrivez ce que vous cherchez : nous transmettons votre demande aux agences partenaires de Lukka Place.",
+    "findCta": "Trouver pour moi"
   },
   "footer": {
     "columns": {

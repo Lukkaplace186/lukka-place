@@ -112,7 +112,10 @@
     "login": "Sign in",
     "myRequests": "My requests",
     "agentPrompt": "Are you an agent or agency?",
-    "agentLogin": "Already registered? Agent area"
+    "agentLogin": "Already registered? Agent area",
+    "findPrompt": "Still looking?",
+    "findLead": "Tell us what you're looking for and we'll pass your request to Lukka Place's partner agencies.",
+    "findCta": "Find it for me"
   },
   "footer": {
     "columns": {

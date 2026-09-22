@@ -65,7 +65,7 @@ export default async function ParametresPage() {
     : null;
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start">
+    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start">
       <div className="flex flex-col gap-6">
         <PortalSectionHeading title={t('account.profile.title')} lead={t('account.profile.lead')} className="hidden sm:flex" />
 

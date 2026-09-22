@@ -86,7 +86,7 @@ export default async function DemandesPage() {
   const prefill = prefillFromSavedSearch(savedSearches[0], communes);
 
   return (
-    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_23.75rem] lg:items-start">
+    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_23.75rem] lg:items-start">
       <RequestForm
         action={submitPropertyRequestAction}
         communes={communes}

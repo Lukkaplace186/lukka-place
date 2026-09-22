@@ -102,7 +102,8 @@ export default function AgentPlanPicker({ packages, currentPackageId, openReques
         return (
           <div
             key={pkg.id}
-            className={`u-card flex flex-col gap-4 rounded-card bg-surface p-5 ${
+            id={`plan-${pkg.id}`}
+            className={`u-card flex scroll-mt-24 flex-col gap-4 rounded-card bg-surface p-5 ${
               isCurrent ? 'ring-2 ring-blue' : ''
             }`}
           >

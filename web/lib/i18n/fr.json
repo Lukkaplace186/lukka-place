@@ -1022,6 +1022,100 @@
       "usage": "{used} annonce(s) sur {limit} utilisées avec votre forfait.",
       "freeSlot": "Archiver une annonce, ou la marquer louée ou vendue, libère aussi une place.",
       "upgrade": "Mettre à niveau mon forfait"
+    },
+    "completeness": {
+      "cardTitle": "À compléter",
+      "cardHint": "Ce qui manque encore à votre profil et à vos annonces.",
+      "fix": "Compléter",
+      "listingsToFix": {
+        "one": "{count} annonce à compléter",
+        "other": "{count} annonces à compléter"
+      },
+      "listingsTitle": {
+        "one": "{count} annonce à compléter",
+        "other": "{count} annonces à compléter"
+      },
+      "listingsHint": "Touchez un point pour aller directement au champ à remplir.",
+      "photoOffer": "Pas le temps de faire les photos ? « {title} » ({price}) : un photographe s’en charge.",
+      "photoOfferCta": "Voir l’offre",
+      "termMonthly": "/ mois",
+      "termYearly": "/ an",
+      "termOnce": "une fois",
+      "gaps": {
+        "no_communes": "Communes couvertes",
+        "phone_unverified": "Numéro non vérifié",
+        "no_logo": "Logo ou photo",
+        "no_agency_name": "Nom de l’agence",
+        "no_working_hours": "Horaires",
+        "missing_price": "Prix manquant",
+        "no_commune": "Commune manquante",
+        "thin_photos": "Moins de 3 photos",
+        "missing_description": "Description manquante",
+        "missing_deposit": "Garantie non précisée",
+        "no_map_pin": "Quartier manquant (carte)"
+      },
+      "hints": {
+        "no_communes": "Sans commune, vous ne recevez aucune demande client attribuée automatiquement.",
+        "phone_unverified": "Un numéro non vérifié n’est pas affiché sur vos annonces. Contactez l’équipe Lukka Place.",
+        "no_logo": "Il apparaît sur votre page publique et sur vos visuels de partage.",
+        "no_agency_name": "Le nom affiché sur vos annonces et votre page publique.",
+        "no_working_hours": "Les clients savent quand vous joindre.",
+        "missing_price": "Une annonce sans prix reçoit peu de demandes.",
+        "no_commune": "Sans commune, l’annonce n’apparaît pas dans les recherches par commune.",
+        "thin_photos": "Au moins 3 photos pour une bonne visibilité.",
+        "missing_description": "Décrivez le bien en quelques lignes.",
+        "missing_deposit": "Indiquez la garantie demandée (en mois).",
+        "no_map_pin": "Le quartier sert à placer le bien sur la carte."
+      }
+    },
+    "quickReplies": {
+      "open": "Réponses rapides",
+      "sheetTitle": "Réponses rapides",
+      "sheetHint": "WhatsApp s’ouvre vers le client ({number}) avec le message prêt. Vous pouvez le modifier avant d’envoyer.",
+      "noNumber": "Le numéro de ce client n’est pas utilisable pour WhatsApp.",
+      "listingLabel": "Bien concerné",
+      "noListing": "Aucun bien précis",
+      "emptySheet": "Vous n’avez aucune réponse rapide. Ajoutez-en dans Paramètres.",
+      "nothingToSend": "Rien à envoyer : ce message dépend d’informations que ce bien n’a pas.",
+      "droppedLines": "Lignes retirées faute d’information : {fields}.",
+      "openWhatsApp": "Ouvrir dans WhatsApp",
+      "manage": "Gérer mes réponses rapides",
+      "placeholders": {
+        "client_name": "Nom du client",
+        "listing_title": "Titre du bien",
+        "price": "Prix",
+        "commune": "Commune",
+        "quartier": "Quartier",
+        "deposit": "Garantie",
+        "link": "Lien de l’annonce"
+      },
+      "settingsTitle": "Réponses rapides",
+      "settingsHint": "Vos messages WhatsApp prêts à l’emploi, disponibles sur chaque demande et chaque visite.",
+      "unavailableCard": "Réponses rapides indisponibles pour le moment. Réessayez plus tard.",
+      "defaultsNote": "Modèles proposés par Lukka Place. Modifiez-les, supprimez-les ou ajoutez les vôtres.",
+      "notEditableYet": "La modification des réponses rapides n’est pas encore disponible. Les modèles restent utilisables.",
+      "emptyList": "Aucune réponse rapide pour le moment.",
+      "edit": "Modifier",
+      "delete": "Supprimer",
+      "confirmDelete": "Supprimer la réponse « {title} » ?",
+      "saved": "Réponse rapide enregistrée.",
+      "deleted": "Réponse rapide supprimée.",
+      "limitReached": "Maximum {max} réponses rapides.",
+      "add": "Ajouter une réponse",
+      "titleLabel": "Nom de la réponse",
+      "bodyLabel": "Message",
+      "placeholdersHint": "Insérez une information du bien : elle est remplie automatiquement. Une ligne dont l’information manque est retirée.",
+      "errors": {
+        "titleRequired": "Donnez un nom à cette réponse.",
+        "titleTooLong": "Nom trop long (60 caractères maximum).",
+        "bodyRequired": "Le message est vide.",
+        "bodyTooLong": "Message trop long (1 000 caractères maximum).",
+        "unknownPlaceholder": "Le message contient une information inconnue entre accolades.",
+        "unavailable": "Enregistrement indisponible pour le moment.",
+        "notFound": "Cette réponse n’existe plus.",
+        "tooMany": "Nombre maximum de réponses rapides atteint.",
+        "session": "Votre session a expiré. Reconnectez-vous."
+      }
     }
   },
   "status": {

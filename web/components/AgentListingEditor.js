@@ -468,7 +468,7 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
         </div>
       )}
 
-      <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-4 sm:p-6">
+      <div id="photos" className="u-card flex scroll-mt-24 flex-col gap-4 rounded-card bg-surface p-4 sm:p-6">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-[1.0625rem] font-bold text-ink">{t('agent.editor.photos')}</h2>
           <span className="text-xs text-ink-35">{photos.length}/10 · glissez pour réordonner</span>

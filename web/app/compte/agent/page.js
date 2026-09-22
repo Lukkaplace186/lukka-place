@@ -20,6 +20,8 @@ import AgentStatGrid from '@/components/AgentStatGrid';
 import AgentViewsChart from '@/components/AgentViewsChart';
 import AgentRecentLeads from '@/components/AgentRecentLeads';
 import AgentSubscriptionCard from '@/components/AgentSubscriptionCard';
+import AgentCompletenessCard from '@/components/AgentCompletenessCard';
+import { getIncompleteListings, getAgentProfileGaps } from '@/lib/completeness';
 
 const RANGE_OPTIONS = Object.entries(VIEW_RANGES).map(([value, { label }]) => ({ value, label }));
 
@@ -33,6 +35,16 @@ export default async function AgentOverviewPage({ searchParams }) {
   const { agent, listings, propertyIds, listingById, leadScope, hasLeadScope, newLeadsCount } =
     await getAgentDashboardContext(agentId);
   const listingQuota = await getListingQuota(agentId).catch(() => null);
+
+  // Degrade, don't die: the checklist is a nudge, never a reason for the
+  // overview to fail. getIncompleteListings already swallows its own errors.
+  const [profileGaps, incompleteListings] = await Promise.all([
+    getAgentProfileGaps(agent).catch((error) => {
+      console.error('[agent/overview] profile gaps unavailable:', error.message);
+      return [];
+    }),
+    getIncompleteListings(agentId, { limit: 200 }),
+  ]);
 
   const [views30d, whatsappClicks, leadsPage, series, deltas, leadQuota] = await Promise.all([
     getAgentListingViews(propertyIds, 30),
@@ -94,6 +106,8 @@ export default async function AgentOverviewPage({ searchParams }) {
           profileUrl={`${SITE_URL}/agents/${agent.id}`}
           profilePath={`/agents/${agent.id}`}
         />
+
+        <AgentCompletenessCard profileGaps={profileGaps} incompleteListingsCount={incompleteListings.length} />
 
         <AgentStatGrid stats={stats} />
 

@@ -11,6 +11,7 @@ import { formatPrice } from '@/lib/format';
 import { bestMatch } from '@/lib/agentMatching';
 import { proposeListingAction } from '@/app/compte/agent/actions';
 import { useToast } from './Toast';
+import AgentQuickReplies from './AgentQuickReplies';
 import { useT } from '@/lib/i18n/client';
 
 /**
@@ -166,6 +167,8 @@ export default function AgentLeadCard({
             <Send strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
             {open ? 'Fermer' : t('agent.leads.reply')}
           </button>
+
+          <AgentQuickReplies waId={lead.wa_id} clientName={lead.name} propertyId={lead.property_id} />
 
           {myListings.length > 0 && (
             <button

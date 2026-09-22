@@ -7,7 +7,7 @@ import CardImageCarousel from '@/components/CardImageCarousel';
 import Price from '@/components/Price';
 import { CardBadges } from '@/components/ListingBadges';
 import SpecItem, { SpecCell } from '@/components/SpecItem';
-import { PortalPanel, PortalSectionHeading, PortalEmpty } from '@/components/ClientPortalUI';
+import { PortalPanel, PortalEmpty } from '@/components/ClientPortalUI';
 import { useToast } from '@/components/Toast';
 import { MAX_FAVORITES, MAX_FAVORITE_NOTE_LENGTH } from '@/lib/accountLimits';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
@@ -219,7 +219,7 @@ function FavoriteNote({ listingId, initialNote, saveNoteAction }) {
   );
 }
 
-function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, onRemove, note, saveNoteAction }) {
+function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, onRemove, note, saveNoteAction, showCompare }) {
   const t = useT();
   const images = listingImages(listing);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -286,21 +286,23 @@ function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, o
 
         <div aria-hidden="true" className="pointer-events-none absolute inset-0" style={{ background: 'var(--scrim-image)' }} />
 
-        <label
-          className={cn(
-            'u-glass-white absolute left-3.5 top-3.5 z-10 inline-flex items-center gap-2 rounded-full py-1.5 pl-2.5 pr-3 text-[0.75rem] font-bold',
-            disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer',
-          )}
-        >
-          <input
-            type="checkbox"
-            checked={selected}
-            disabled={disabled}
-            onChange={onToggle}
-            className="h-3.5 w-3.5 rounded-sm accent-[var(--blue)]"
-          />
-          {t('account.favorites.compare')}
-        </label>
+        {showCompare ? (
+          <label
+            className={cn(
+              'u-glass-white absolute left-3.5 top-3.5 z-10 inline-flex items-center gap-2 rounded-full py-1.5 pl-2.5 pr-3 text-[0.75rem] font-bold',
+              disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer',
+            )}
+          >
+            <input
+              type="checkbox"
+              checked={selected}
+              disabled={disabled}
+              onChange={onToggle}
+              className="h-3.5 w-3.5 rounded-sm accent-[var(--blue)]"
+            />
+            {t('account.favorites.compare')}
+          </label>
+        ) : null}
 
         <button
           type="button"
@@ -565,39 +567,50 @@ export default function FavoritesBoard({
     );
   }
 
+  const canOfferCompare = visible.length >= 2;
   const canCompare = selectedListings.length >= 2;
 
   return (
     <div>
-      <PortalSectionHeading
-        title={t('account.favorites.title')}
-        lead={t('account.favorites.savedCount', { count: visible.length })}
-        action={
-          <div className="flex flex-wrap items-center gap-2">
+      {/* No heading here: the portal tab and the "Favoris (N)" pill above
+          already say what this is and how many. The old h2 + count sentence
+          were the third and fourth labels before the first photo on a
+          phone. Compare only appears once there are two listings to
+          compare — a greyed "Comparer (0)" on a one-favourite board is a
+          control that can never be used. */}
+      <div className="mb-5 flex items-center justify-between gap-3 sm:mb-7">
+        <p className="text-[0.8125rem] leading-[1.5] text-ink-45">
+          {canOfferCompare
+            ? t('account.favorites.compareHint')
+            : t('account.favorites.savedCountShort', { count: visible.length })}
+        </p>
+        <div className="flex shrink-0 items-center gap-2">
           <button
             type="button"
             onClick={shareSelection}
-            className="u-btn-secondary inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[0.875rem] font-semibold text-ink"
+            aria-label={t('account.favorites.shareSelection')}
+            title={t('account.favorites.shareSelection')}
+            className="u-btn-secondary u-press inline-flex h-10 items-center justify-center gap-2 rounded-full px-3 text-[0.875rem] font-semibold text-ink sm:px-5"
           >
             <Share2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
-            {t('account.favorites.shareSelection')}
+            <span className="hidden sm:inline">{t('account.favorites.shareSelection')}</span>
           </button>
-          <button
-            type="button"
-            onClick={() => setCompareOpen(true)}
-            disabled={!canCompare}
-            className={cn(
-              'inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[0.875rem] font-semibold transition-colors',
-              canCompare ? 'u-btn-primary bg-blue text-white' : 'cursor-not-allowed bg-canvas-deep text-ink-25',
-            )}
-          >
-            <Scale strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
-            {t('account.favorites.compareCount', { count: selectedListings.length })}
-          </button>
-          </div>
-        }
-        className="mb-7"
-      />
+          {canOfferCompare ? (
+            <button
+              type="button"
+              onClick={() => setCompareOpen(true)}
+              disabled={!canCompare}
+              className={cn(
+                'inline-flex h-10 items-center gap-2 rounded-full px-4 text-[0.875rem] font-semibold transition-colors sm:px-5',
+                canCompare ? 'u-btn-primary bg-blue text-white' : 'cursor-not-allowed bg-canvas-deep text-ink-35',
+              )}
+            >
+              <Scale strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
+              {t('account.favorites.compareCount', { count: selectedListings.length })}
+            </button>
+          ) : null}
+        </div>
+      </div>
 
       {unavailableCount > 0 ? (
         <p role="status" className="mb-5 rounded-md bg-canvas-deep px-4 py-3 text-[0.8125rem] text-ink-70">
@@ -615,6 +628,7 @@ export default function FavoritesBoard({
             onToggle={() => toggle(listing.id)}
             whatsappNumber={whatsappNumber}
             onRemove={() => remove(listing)}
+            showCompare={canOfferCompare}
             note={notes[String(listing.id)] || ''}
             saveNoteAction={saveNoteAction}
           />

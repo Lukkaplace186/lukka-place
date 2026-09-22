@@ -1,8 +1,8 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useMemo, useState } from 'react';
 import { useFormStatus } from 'react-dom';
-import { ArrowRight, Check, CircleAlert } from 'lucide-react';
+import { ArrowRight, Check, CircleAlert, Search, X } from 'lucide-react';
 import { PortalPanel } from '@/components/ClientPortalUI';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { MAX_REQUEST_COMMUNES } from '@/lib/leadCommunes';
@@ -86,6 +86,134 @@ function SubmitButton() {
   );
 }
 
+/** Accent/case-insensitive, so "ngiri" finds "Ngiri-Ngiri" and "kasa vubu" finds "Kasa-Vubu". */
+function foldName(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function CommuneChip({ name, active, disabled, onToggle }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(name)}
+      aria-pressed={active}
+      disabled={disabled}
+      className={cn(
+        disabled && 'cursor-not-allowed opacity-45',
+        // Written out rather than composed on top of `.u-tag`: both `.u-tag`
+        // and `bg-blue` are single-class utilities, so which one wins the
+        // `background` declaration would come down to stylesheet order.
+        'u-press inline-flex min-h-9 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-[0.8125rem] font-medium transition-colors',
+        active
+          ? 'bg-blue text-white shadow-[inset_0_0_0_1px_var(--blue)]'
+          : 'bg-surface text-ink-70 shadow-[inset_0_0_0_1px_var(--ink-25)] hover:text-ink',
+      )}
+    >
+      {active ? <Check strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" /> : null}
+      {name}
+    </button>
+  );
+}
+
+/**
+ * All 24 communes as chips was a wall on a phone. The picker shows what is
+ * chosen, then the communes that actually have listings (most first, from
+ * getPopularCommunes), then the rest behind "Toutes les communes" — and a
+ * search box that filters the full list. Every name still comes from the
+ * real `communes` list; `popular` only orders it.
+ */
+function CommunePicker({ communes, popular, selected, onToggle, atCap }) {
+  const t = useT();
+  const [query, setQuery] = useState('');
+  const [showAll, setShowAll] = useState(false);
+
+  const popularInList = useMemo(() => {
+    const known = new Set(communes);
+    return popular.filter((name) => known.has(name));
+  }, [communes, popular]);
+
+  const folded = foldName(query);
+  let shown;
+  if (folded) {
+    shown = communes.filter((name) => foldName(name).includes(folded));
+  } else if (showAll || popularInList.length === 0) {
+    shown = communes;
+  } else {
+    shown = popularInList;
+  }
+  shown = shown.filter((name) => !selected.includes(name));
+  const hiddenCount = communes.length - popularInList.length;
+
+  return (
+    <div className="flex flex-col gap-3">
+      {selected.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {selected.map((name) => (
+            <button
+              key={name}
+              type="button"
+              onClick={() => onToggle(name)}
+              aria-label={t('account.requestForm.removeCommune', { name })}
+              className="u-press inline-flex min-h-9 items-center gap-1.5 rounded-full bg-blue px-3 py-1.5 text-[0.8125rem] font-semibold text-white"
+            >
+              {name}
+              <X strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="relative">
+        <Search
+          strokeWidth={ICON_STROKE_WIDTH}
+          className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-35"
+          aria-hidden="true"
+        />
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={t('account.requestForm.searchCommune')}
+          aria-label={t('account.requestForm.searchCommune')}
+          disabled={atCap}
+          className="u-focus-ring h-11 w-full rounded-md border border-line bg-white pl-10 pr-3.5 text-[0.9375rem] text-ink placeholder:text-ink-35 disabled:bg-canvas-alt"
+        />
+      </div>
+
+      {!folded && !showAll && popularInList.length > 0 ? (
+        <p className="u-eyebrow">{t('account.requestForm.popularCommunes')}</p>
+      ) : null}
+
+      {shown.length > 0 ? (
+        <div className="flex flex-wrap gap-2">
+          {shown.map((name) => (
+            <CommuneChip key={name} name={name} active={false} disabled={atCap} onToggle={onToggle} />
+          ))}
+        </div>
+      ) : folded ? (
+        <p className="text-[0.8125rem] text-ink-45">{t('account.requestForm.noCommuneMatch')}</p>
+      ) : null}
+
+      {!folded && popularInList.length > 0 && hiddenCount > 0 ? (
+        <button
+          type="button"
+          onClick={() => setShowAll((value) => !value)}
+          className="w-fit text-[0.8125rem] font-semibold text-blue-deep hover:underline"
+        >
+          {showAll
+            ? t('account.requestForm.fewerCommunes')
+            : t('account.requestForm.allCommunes', { count: communes.length })}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
 const FIELD_CLASS =
   'u-focus-ring w-full rounded-md border border-line bg-white px-3.5 py-2.5 text-[0.9375rem] text-ink placeholder:text-ink-25';
 
@@ -94,7 +222,7 @@ const FIELD_CLASS =
  * recent saved search, and says so above the form, so nothing looks typed by
  * someone else. Every field stays editable.
  */
-export default function RequestForm({ action, communes, prefill = null }) {
+export default function RequestForm({ action, communes, popularCommunes = [], prefill = null }) {
   const t = useT();
   const [state, formAction] = useActionState(action, null);
   const [transactionType, setTransactionType] = useState(prefill?.transactionType || 'location');
@@ -116,11 +244,12 @@ export default function RequestForm({ action, communes, prefill = null }) {
   }
 
   return (
-    <PortalPanel className="p-6 sm:p-8">
-      <h2 className="u-title-page text-ink">
+    <PortalPanel className="p-5 sm:p-8">
+      {/* The tab already names this on a phone. */}
+      <h2 className="u-title-page hidden text-ink sm:block">
         {t('account.requestForm.title')}
       </h2>
-      <p className="mt-3 max-w-[32.5rem] text-[0.9375rem] leading-[1.6] text-ink-45">
+      <p className="max-w-[32.5rem] sm:mt-3 text-[0.9375rem] leading-[1.6] text-ink-45">
         {t('account.requestForm.lead')}
       </p>
 
@@ -130,7 +259,7 @@ export default function RequestForm({ action, communes, prefill = null }) {
         </p>
       ) : null}
 
-      <div className="my-7 h-px bg-line" />
+      <div className="my-6 h-px bg-line sm:my-7" />
 
       <form action={formAction} className="flex flex-col gap-8">
         <input type="hidden" name="transactionType" value={transactionType} />
@@ -173,38 +302,13 @@ export default function RequestForm({ action, communes, prefill = null }) {
           hint={t('account.requestForm.communesHint', { max: MAX_REQUEST_COMMUNES })}
         >
           {communes.length > 0 ? (
-            <div className="flex flex-wrap gap-2.5">
-              {communes.map((name) => {
-                const active = selectedCommunes.includes(name);
-                const disabled = !active && atCommuneCap;
-                return (
-                  <button
-                    key={name}
-                    type="button"
-                    onClick={() => toggleCommune(name)}
-                    aria-pressed={active}
-                    disabled={disabled}
-                    className={cn(
-                      disabled && 'cursor-not-allowed opacity-45',
-                      // Written out rather than composed on top of `.u-tag`:
-                      // both `.u-tag` and `bg-blue` are single-class
-                      // utilities, so which one wins the `background`
-                      // declaration would come down to stylesheet source
-                      // order, not the order they appear in this string.
-                      'u-press inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-[0.8125rem] font-medium transition-colors',
-                      active
-                        ? 'bg-blue text-white shadow-[inset_0_0_0_1px_var(--blue)]'
-                        : 'bg-surface text-ink-70 shadow-[inset_0_0_0_1px_var(--ink-25)] hover:text-ink',
-                    )}
-                  >
-                    {active ? (
-                      <Check strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
-                    ) : null}
-                    {name}
-                  </button>
-                );
-              })}
-            </div>
+            <CommunePicker
+              communes={communes}
+              popular={popularCommunes}
+              selected={selectedCommunes}
+              onToggle={toggleCommune}
+              atCap={atCommuneCap}
+            />
           ) : (
             <p className="text-[0.8125rem] text-ink-45">
               {t('account.requestForm.communesUnavailable')}
@@ -326,7 +430,9 @@ export default function RequestForm({ action, communes, prefill = null }) {
           </p>
         ) : null}
 
-        <div className="flex flex-wrap items-center gap-4">
+        {/* Sticky to the bottom of the screen on a phone, so the long form
+            never has to be scrolled to its end to find the button. */}
+        <div className="sticky bottom-0 z-10 -mx-5 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line bg-surface/95 px-5 py-3 sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:p-0">
           <SubmitButton />
           <span className="text-[0.8125rem] text-ink-45">
             {t('account.requestForm.sentWithAccountNumber')}

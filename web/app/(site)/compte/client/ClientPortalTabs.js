@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { Heart, Search, MessageCircle, UserRound } from 'lucide-react';
+import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n/client';
 
@@ -51,11 +53,14 @@ import { useT } from '@/lib/i18n/client';
  * Paramètres stays last: it is not part of the funnel.
  */
 // Keys, not text — see components/navItems.js.
+// `shortKey` + `icon` are the phone layout: four equal segments, nothing to
+// scroll sideways. At 375px the full labels ran past the edge, so "Mon
+// profil" and half of "Trouver pour moi" were off-screen.
 const TABS = [
-  { href: '/compte/client', labelKey: 'account.portal.tabs.favorites', exact: true, countKey: 'savedTotal' },
-  { href: '/compte/client/demandes', labelKey: 'account.portal.tabs.findForMe' },
-  { href: '/compte/client/messages', labelKey: 'account.portal.tabs.messages', countKey: 'inquiries' },
-  { href: '/compte/client/parametres', labelKey: 'account.portal.tabs.profile' },
+  { href: '/compte/client', labelKey: 'account.portal.tabs.favorites', shortKey: 'account.portal.tabsShort.favorites', icon: Heart, exact: true, countKey: 'savedTotal' },
+  { href: '/compte/client/demandes', labelKey: 'account.portal.tabs.findForMe', shortKey: 'account.portal.tabsShort.findForMe', icon: Search },
+  { href: '/compte/client/messages', labelKey: 'account.portal.tabs.messages', shortKey: 'account.portal.tabsShort.messages', icon: MessageCircle, countKey: 'inquiries' },
+  { href: '/compte/client/parametres', labelKey: 'account.portal.tabs.profile', shortKey: 'account.portal.tabsShort.profile', icon: UserRound },
 ];
 
 export default function ClientPortalTabs({ counts = {} }) {
@@ -66,9 +71,9 @@ export default function ClientPortalTabs({ counts = {} }) {
     <div className="sticky top-16 z-20 border-y border-line bg-surface">
       <nav
         aria-label={t('account.portal.title')}
-        className="no-scrollbar mx-auto flex max-w-[77.5rem] gap-1.5 overflow-x-auto px-4 sm:px-6 lg:px-8"
+        className="mx-auto grid max-w-[77.5rem] grid-cols-4 sm:flex sm:gap-1.5 sm:px-6 lg:px-8"
       >
-        {TABS.map(({ href, labelKey, exact, countKey }) => {
+        {TABS.map(({ href, labelKey, shortKey, icon: Icon, exact, countKey }) => {
           const active = exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
           const count = countKey ? counts[countKey] : null;
 
@@ -77,16 +82,33 @@ export default function ClientPortalTabs({ counts = {} }) {
               key={href}
               href={href}
               aria-current={active ? 'page' : undefined}
+              aria-label={t(labelKey)}
               className={cn(
-                'relative inline-flex shrink-0 items-center gap-2 whitespace-nowrap px-4 pb-[1.0625rem] pt-5 text-[0.875rem] transition-colors',
+                'relative flex min-w-0 flex-col items-center gap-1 px-1 pb-2 pt-2.5 text-[0.6875rem] transition-colors',
+                'sm:inline-flex sm:shrink-0 sm:flex-row sm:gap-2 sm:whitespace-nowrap sm:px-4 sm:pb-[1.0625rem] sm:pt-5 sm:text-[0.875rem]',
                 active ? 'font-bold text-ink' : 'font-medium text-ink-45 hover:text-ink-70',
               )}
             >
-              <span>{t(labelKey)}</span>
+              {/* Phone: icon with the count riding on it, short label under. */}
+              <span className="relative sm:hidden">
+                <Icon
+                  strokeWidth={ICON_STROKE_WIDTH}
+                  className={cn('h-5 w-5', active ? 'text-blue' : 'text-ink-45')}
+                  aria-hidden="true"
+                />
+                {count ? (
+                  <span className="u-tabular absolute -right-2.5 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-blue px-1 text-[0.625rem] font-bold leading-none text-white">
+                    {count}
+                  </span>
+                ) : null}
+              </span>
+              <span className="max-w-full truncate sm:hidden">{t(shortKey)}</span>
+
+              <span className="hidden sm:inline">{t(labelKey)}</span>
               {count ? (
                 <span
                   className={cn(
-                    'u-tabular inline-flex min-w-5 justify-center rounded-full px-1.5 py-0.5 text-[0.6875rem] font-bold',
+                    'u-tabular hidden min-w-5 justify-center rounded-full px-1.5 py-0.5 text-[0.6875rem] font-bold sm:inline-flex',
                     active ? 'bg-blue text-white' : 'bg-canvas-deep text-ink-45',
                   )}
                 >
@@ -94,17 +116,12 @@ export default function ClientPortalTabs({ counts = {} }) {
                 </span>
               ) : null}
               {active ? (
-                <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-[3px] bg-blue" />
+                <span aria-hidden="true" className="absolute inset-x-2 bottom-0 h-[3px] rounded-t bg-blue sm:inset-x-0 sm:rounded-none" />
               ) : null}
             </Link>
           );
         })}
       </nav>
-      {/* At 360px the last tab sits past the edge; the fade says the row scrolls. */}
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-surface to-transparent sm:hidden"
-      />
     </div>
   );
 }

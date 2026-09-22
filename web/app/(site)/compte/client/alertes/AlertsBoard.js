@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Bell, SlidersHorizontal, Plus, MessageCircle, ArrowRight } from 'lucide-react';
 import PropertyCard from '@/components/PropertyCard';
-import { PortalPanel, PortalSectionHeading, PortalEmpty } from '@/components/ClientPortalUI';
+import { PortalPanel, PortalEmpty } from '@/components/ClientPortalUI';
 import { searchCriteriaTags } from '@/lib/searchLabel';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { RemovableAlert, RemoveAlertButton } from './RemovableAlert';
@@ -48,12 +48,7 @@ export default async function AlertsBoard({ matches, whatsappHref, phone = null,
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start">
       <div>
-        <PortalSectionHeading
-          title={t('account.alerts.title')}
-          lead={t('account.alerts.activeCount', { count: matches.length })}
-          className="mb-7"
-        />
-
+        {/* No heading: the "Alertes (N)" pill above already names and counts these. */}
         <div className="flex flex-col gap-5">
           {matches.map(({ search, newListings, newCount, total }) => {
             const tags = searchCriteriaTags(new URLSearchParams(search.query), t);

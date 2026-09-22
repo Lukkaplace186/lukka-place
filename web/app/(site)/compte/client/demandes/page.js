@@ -54,11 +54,21 @@ const LEAD_TONES = {
  * /listings already relies on: an unreachable engine must not take this
  * page down, and no commune list is ever hardcoded here.
  */
+/**
+ * The real commune list, plus the communes that actually have approved
+ * listings, most first — the picker's default view. `popular` only ORDERS
+ * the real list; a failure to count leaves the picker showing everything.
+ */
 async function resolveCommunes() {
-  const { communes } = await getLocationHierarchyWithFallback();
-  if (communes.length > 0) return communes;
-  const popular = await getPopularCommunes(24);
-  return popular.map((c) => c.commune);
+  const [{ communes }, popular] = await Promise.all([
+    getLocationHierarchyWithFallback(),
+    getPopularCommunes(24).catch(() => []),
+  ]);
+  const popularNames = popular.map((c) => c.commune);
+  return {
+    communes: communes.length > 0 ? communes : popularNames,
+    popular: popularNames.slice(0, 8),
+  };
 }
 
 export default async function DemandesPage() {
@@ -66,7 +76,7 @@ export default async function DemandesPage() {
   const session = await getPortalCustomer();
   if (!session) redirect('/compte/connexion?next=/compte/client/demandes');
 
-  const [communes, inquiries, savedSearches, locale] = await Promise.all([
+  const [{ communes, popular }, inquiries, savedSearches, locale] = await Promise.all([
     resolveCommunes(),
     getCustomerInquiries(session.customerId),
     listSavedSearches(session.customerId),
@@ -77,7 +87,12 @@ export default async function DemandesPage() {
 
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_23.75rem] lg:items-start">
-      <RequestForm action={submitPropertyRequestAction} communes={communes} prefill={prefill} />
+      <RequestForm
+        action={submitPropertyRequestAction}
+        communes={communes}
+        popularCommunes={popular}
+        prefill={prefill}
+      />
 
       <aside className="flex flex-col gap-5">
         <h3 className="u-eyebrow">{t('account.requests.submitted')}</h3>

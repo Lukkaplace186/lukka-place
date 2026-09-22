@@ -11,6 +11,7 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { logoutAction, deleteAccountAction } from '../../actions';
 import { updateProfileNameAction, setWhatsAppAlertsAction } from '../actions';
 import { getWhatsAppAlertsOptOut } from '@/lib/customers';
+import { ProfileNameForm, WhatsAppAlertsSwitch } from './ProfileSettings';
 import { getT, getLocale } from '@/lib/i18n/server';
 
 // generateMetadata, not a static object: a static export is evaluated at
@@ -66,53 +67,22 @@ export default async function ParametresPage() {
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start">
       <div className="flex flex-col gap-6">
-        <PortalSectionHeading title={t('account.profile.title')} lead={t('account.profile.lead')} />
+        <PortalSectionHeading title={t('account.profile.title')} lead={t('account.profile.lead')} className="hidden sm:flex" />
 
         <PortalPanel className="p-6 sm:p-7">
           <h3 className="u-title-card text-ink">{t('account.profile.personalInfo')}</h3>
 
-          <form action={updateProfileNameAction} className="mt-5 grid gap-4 sm:grid-cols-2">
-            <div>
-              <label htmlFor="fullName" className="u-eyebrow mb-1.5 block">
-                {t('account.profile.fullName')}
-              </label>
-              <input
-                id="fullName"
-                name="fullName"
-                type="text"
-                autoComplete="name"
-                defaultValue={customer.full_name || ''}
-                placeholder={t('account.profile.namePlaceholder')}
-                className="u-focus-ring w-full rounded-md border border-line bg-white px-3.5 py-2.5 text-[0.9375rem] text-ink placeholder:text-ink-25"
-              />
-            </div>
+          <div className="mt-5 flex flex-col gap-5">
+            <ProfileNameForm initialName={customer.full_name || ''} saveAction={updateProfileNameAction} />
 
+            {/* Plain text, not a disabled input: a greyed box reads as a
+                field that is broken, when it is simply the account's id. */}
             <div>
-              <label htmlFor="phone" className="u-eyebrow mb-1.5 block">
-                {t('account.profile.phone')}
-              </label>
-              <input
-                id="phone"
-                type="tel"
-                value={formatPhoneDisplay(customer.phone)}
-                readOnly
-                aria-describedby="phone-help"
-                className="u-tabular w-full cursor-not-allowed rounded-md border border-line bg-canvas-alt px-3.5 py-2.5 text-[0.9375rem] text-ink-45"
-              />
-              <p id="phone-help" className="mt-1.5 text-[0.75rem] text-ink-35">
-                {t('account.profile.phoneNote')}
-              </p>
+              <p className="u-eyebrow mb-1.5">{t('account.profile.phone')}</p>
+              <p className="u-tabular text-[0.9375rem] font-semibold text-ink">{formatPhoneDisplay(customer.phone)}</p>
+              <p className="mt-1 text-[0.75rem] text-ink-35">{t('account.profile.phoneNote')}</p>
             </div>
-
-            <div className="sm:col-span-2">
-              <button
-                type="submit"
-                className="u-btn-primary inline-flex items-center rounded-full bg-blue px-6 py-2.5 text-[0.875rem] font-semibold text-white"
-              >
-                {t('account.profile.saveChanges')}
-              </button>
-            </div>
-          </form>
+          </div>
 
           {memberSince ? (
             <p className="mt-5 border-t border-line pt-4 text-[0.8125rem] text-ink-35">
@@ -126,21 +96,11 @@ export default async function ParametresPage() {
             an answer one tap away. Per-alert frequency lives on the Alertes
             tab; this switch overrides all of them. */}
         <PortalPanel className="p-6 sm:p-7">
-          <h3 className="u-title-card text-ink">{t('account.alerts.whatsappSettingsTitle')}</h3>
-          <p className="mt-2 max-w-lg text-[0.8125rem] leading-[1.5] text-ink-45">
-            {alertsOptedOut
-              ? t('account.alerts.whatsappOff')
-              : t('account.alerts.whatsappOn', { phone: formatPhoneDisplay(customer.phone) })}
-          </p>
-          <form action={setWhatsAppAlertsAction} className="mt-4">
-            <input type="hidden" name="enabled" value={alertsOptedOut ? '1' : '0'} />
-            <button
-              type="submit"
-              className="u-btn-secondary inline-flex items-center rounded-full px-5 py-2.5 text-[0.875rem] font-semibold text-ink"
-            >
-              {alertsOptedOut ? t('account.alerts.whatsappEnable') : t('account.alerts.whatsappDisable')}
-            </button>
-          </form>
+          <WhatsAppAlertsSwitch
+            initialEnabled={!alertsOptedOut}
+            phoneLabel={formatPhoneDisplay(customer.phone)}
+            setAction={setWhatsAppAlertsAction}
+          />
         </PortalPanel>
 
         <PortalPanel className="p-6 sm:p-7">

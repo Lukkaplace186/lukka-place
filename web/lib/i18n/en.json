@@ -1541,6 +1541,12 @@
       "subtabs": {
         "favorites": "Saved",
         "alerts": "Alerts"
+      },
+      "tabsShort": {
+        "favorites": "Saved",
+        "findForMe": "Find",
+        "messages": "Messages",
+        "profile": "Profile"
       }
     },
     "limits": {
@@ -1682,6 +1688,11 @@
           "one": "+ {count} more property",
           "other": "+ {count} more properties"
         }
+      },
+      "compareHint": "Tick two or more properties to compare them.",
+      "savedCountShort": {
+        "one": "{count} saved property",
+        "other": "{count} saved properties"
       }
     },
     "alerts": {
@@ -1824,7 +1835,8 @@
       "proposedByAgency": "Offered by {agency}",
       "requestNumber": "Request no. {id}",
       "submittedOn": "Submitted on {date}",
-      "messagesMetaTitle": "Messages & Viewings — Lukka Place"
+      "messagesMetaTitle": "Messages & Viewings — Lukka Place",
+      "nextVisit": "Next visit"
     },
     "requestForm": {
       "title": "Find One for Me",
@@ -1864,7 +1876,13 @@
       "updatedWithReset": "Search updated — new proposals reset.",
       "updated": "Search updated.",
       "submit": "Send my request",
-      "prefilledFrom": "Pre-filled from your alert “{label}”. Change anything that doesn't fit."
+      "prefilledFrom": "Pre-filled from your alert “{label}”. Change anything that doesn't fit.",
+      "removeCommune": "Remove {name}",
+      "searchCommune": "Search for a commune",
+      "popularCommunes": "Communes with listings",
+      "noCommuneMatch": "No commune matches.",
+      "allCommunes": "See all {count} communes",
+      "fewerCommunes": "Fewer communes"
     },
     "profile": {
       "title": "My Profile",
@@ -1889,7 +1907,9 @@
       "lead": "Your details and display preferences.",
       "memberSince": "Member since {date}",
       "currencyNote": "Prices are recorded in US dollars. Congolese franc amounts use an indicative rate of {rate} FC to 1 USD, updated on {date} — this is not a live rate.",
-      "securityNote": "Your account is linked to {phone}. Any password reset goes through this number."
+      "securityNote": "Your account is linked to {phone}. Any password reset goes through this number.",
+      "saved": "Name saved.",
+      "saveFailed": "Your change couldn't be saved. Please try again."
     }
   },
   "admin": {

@@ -53,17 +53,19 @@ export default async function ClientPortalLayout({ children }) {
 
   return (
     <div className="min-h-screen bg-canvas-warm">
-      {/* pt/pb compact on mobile (was a flat pt-11/pb-7 at every width) so
-          the tab bar and saved properties sit higher on a phone viewport
-          without scrolling past a tall greeting first; desktop keeps the
-          original spacing. */}
-      <div className="mx-auto max-w-[77.5rem] px-4 pb-4 pt-6 sm:px-6 sm:pb-7 sm:pt-11 lg:px-8">
-        <p className="u-eyebrow">{t('account.portal.title')}</p>
-        <h1 className="u-title-hero mt-2.5 text-ink">{t('account.portal.greeting', { name: firstName })}</h1>
-        <p className="mt-3 max-w-[38.75rem] text-[1rem] leading-[1.6] text-ink-45">
+      {/* On a phone the greeting is one heading and one line: the eyebrow
+          and the lead paragraph took ~40% of a 375px screen on every tab,
+          before any of the customer's own content. Desktop keeps the full
+          block. */}
+      <div className="mx-auto max-w-[77.5rem] px-4 pb-3 pt-4 sm:px-6 sm:pb-7 sm:pt-11 lg:px-8">
+        <p className="u-eyebrow hidden sm:block">{t('account.portal.title')}</p>
+        <h1 className="font-display text-[1.5rem] font-normal leading-[1.12] tracking-[-0.018em] text-ink sm:mt-2.5 sm:text-[2rem] lg:text-[2.5rem]">
+          {t('account.portal.greeting', { name: firstName })}
+        </h1>
+        <p className="mt-3 hidden max-w-[38.75rem] text-[1rem] leading-[1.6] text-ink-45 sm:block">
           {t('account.portal.lead')}
         </p>
-        <p className="mt-3 inline-flex items-center gap-1.5 text-[0.8125rem] font-semibold text-blue-deep">
+        <p className="mt-1.5 inline-flex items-center gap-1.5 text-[0.75rem] font-semibold text-blue-deep sm:mt-3 sm:text-[0.8125rem]">
           <ShieldCheck strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
           {/* The one identity fact this schema actually holds: the account is
               tied to a real phone number. There is no ID-verification column
@@ -76,7 +78,7 @@ export default async function ClientPortalLayout({ children }) {
       <ClientPortalTabs counts={tabCounts} />
 
       <ToastProvider>
-        <main className="mx-auto max-w-[77.5rem] px-4 pb-24 pt-10 sm:px-6 lg:px-8">{children}</main>
+        <main className="mx-auto max-w-[77.5rem] px-4 pb-16 pt-5 sm:px-6 sm:pb-24 sm:pt-10 lg:px-8">{children}</main>
       </ToastProvider>
     </div>
   );

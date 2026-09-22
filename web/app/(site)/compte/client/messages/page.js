@@ -218,13 +218,33 @@ export default async function MessagesPage({ searchParams }) {
   // submission that never happened to anyone who edited the query string.
   const confirmed = justSubmitted != null && threads.some((thread) => thread.id === justSubmitted);
 
+  // The next agreed visit, pinned above the list. Only a CONFIRMED visit with
+  // a real `scheduled_at` still ahead qualifies — a requested phrase
+  // ("mardi 10h") is not an appointment until the agent has agreed it.
+  let nextVisit = null;
+  for (const { lead, listing, viewings } of inquiries) {
+    const viewing = viewings?.[0];
+    if (viewing?.status !== 'CONFIRMED' || !viewing.scheduled_at) continue;
+    const at = new Date(viewing.scheduled_at);
+    if (Number.isNaN(at.getTime()) || at <= now) continue;
+    if (!nextVisit || at < nextVisit.at) {
+      nextVisit = {
+        at,
+        threadId: lead.id,
+        slotLabel: formatSlot(viewing.scheduled_at, locale),
+        title: listing?.title || null,
+        image: listing ? listingImages(listing)[0] || null : null,
+      };
+    }
+  }
+
   return (
     <div>
       <PortalSectionHeading
         title={t('account.portal.tabs.messages')}
         lead={t('account.requests.exchangeCount', { count: threads.length })}
         sublead={t('account.requests.trackHelp')}
-        className="mb-7"
+        className="mb-7 hidden sm:flex"
       />
       {confirmed ? (
         <p
@@ -247,6 +267,7 @@ export default async function MessagesPage({ searchParams }) {
           falloff: viewingFalloffReasonAction,
         }}
         initialThreadId={confirmed ? justSubmitted : null}
+        nextVisit={nextVisit ? { threadId: nextVisit.threadId, slotLabel: nextVisit.slotLabel, title: nextVisit.title, image: nextVisit.image } : null}
       />
     </div>
   );

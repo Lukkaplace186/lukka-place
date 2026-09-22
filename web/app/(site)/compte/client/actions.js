@@ -149,14 +149,25 @@ export async function restoreSavedSearchAction({ query, label } = {}) {
   return { ok: true };
 }
 
-export async function updateProfileNameAction(formData) {
+/**
+ * Returns {ok} for ProfileNameForm's instant feedback (the field and the
+ * greeting update on tap; a failure puts the old name back and says so).
+ * Accepts FormData or a bare string.
+ */
+export async function updateProfileNameAction(input) {
   const customerId = await requireCustomerId();
-  const fullName = String(formData.get('fullName') || '').trim();
+  const fullName = String(fieldFrom(input, 'fullName') || '').trim();
 
-  await updateCustomerName(customerId, fullName);
+  try {
+    await updateCustomerName(customerId, fullName);
+  } catch (error) {
+    console.warn('[compte/client] updateProfileNameAction failed:', error.message);
+    return { ok: false };
+  }
   revalidatePath('/compte/client/parametres');
   revalidatePath('/compte/client');
   revalidatePath('/compte');
+  return { ok: true };
 }
 
 /**
@@ -439,17 +450,25 @@ export async function updateAlertPreferencesAction(savedSearchId, { label, frequ
   return { ok: true, message: t('account.alerts.prefsSaved') };
 }
 
-/** Account-wide WhatsApp alerts on/off (Mon profil). A plain form post. */
-export async function setWhatsAppAlertsAction(formData) {
+/**
+ * Account-wide WhatsApp alerts on/off (Mon profil's switch). Returns {ok}:
+ * the switch flips on tap and flips back when this fails — it used to
+ * swallow the error, so a failed save looked exactly like a successful one.
+ * Accepts FormData (`enabled`) or a boolean.
+ */
+export async function setWhatsAppAlertsAction(input) {
   const customerId = await requireCustomerId();
-  const enabled = String(formData.get('enabled') || '') === '1';
+  const raw = fieldFrom(input, 'enabled');
+  const enabled = raw === true || String(raw ?? '') === '1';
   try {
     await setWhatsAppAlertsOptOut(customerId, !enabled);
   } catch (error) {
     console.warn('[compte/client] setWhatsAppAlertsAction failed:', error.message);
+    return { ok: false };
   }
   revalidatePath('/compte/client/parametres');
   revalidatePath('/compte/client');
+  return { ok: true };
 }
 
 // The callbacks below receive runVisitAnswer's translator as `translate`, not

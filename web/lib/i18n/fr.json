@@ -1541,6 +1541,12 @@
       "subtabs": {
         "favorites": "Favoris",
         "alerts": "Alertes"
+      },
+      "tabsShort": {
+        "favorites": "Favoris",
+        "findForMe": "Chercher",
+        "messages": "Messages",
+        "profile": "Profil"
       }
     },
     "limits": {
@@ -1682,6 +1688,11 @@
           "one": "+ {count} autre bien",
           "other": "+ {count} autres biens"
         }
+      },
+      "compareHint": "Cochez deux biens ou plus pour les comparer.",
+      "savedCountShort": {
+        "one": "{count} bien sauvegardé",
+        "other": "{count} biens sauvegardés"
       }
     },
     "alerts": {
@@ -1824,7 +1835,8 @@
       "proposedByAgency": "Proposé par {agency}",
       "requestNumber": "Demande n° {id}",
       "submittedOn": "Soumise le {date}",
-      "messagesMetaTitle": "Messages & Visites — Lukka Place"
+      "messagesMetaTitle": "Messages & Visites — Lukka Place",
+      "nextVisit": "Prochaine visite"
     },
     "requestForm": {
       "title": "Trouver pour moi",
@@ -1864,7 +1876,13 @@
       "updatedWithReset": "Recherche mise à jour — nouvelles propositions réinitialisées.",
       "updated": "Recherche mise à jour.",
       "submit": "Envoyer ma demande",
-      "prefilledFrom": "Prérempli à partir de votre alerte « {label} ». Modifiez ce qui ne convient pas."
+      "prefilledFrom": "Prérempli à partir de votre alerte « {label} ». Modifiez ce qui ne convient pas.",
+      "removeCommune": "Retirer {name}",
+      "searchCommune": "Rechercher une commune",
+      "popularCommunes": "Communes avec des annonces",
+      "noCommuneMatch": "Aucune commune ne correspond.",
+      "allCommunes": "Voir les {count} communes",
+      "fewerCommunes": "Moins de communes"
     },
     "profile": {
       "title": "Mon profil",
@@ -1889,7 +1907,9 @@
       "lead": "Vos informations et vos préférences d'affichage.",
       "memberSince": "Membre depuis le {date}",
       "currencyNote": "Les prix sont enregistrés en dollars. L'affichage en francs congolais utilise un taux indicatif de {rate} FC pour 1 USD, mis à jour le {date} — ce n'est pas un taux en temps réel.",
-      "securityNote": "Votre compte est rattaché au numéro {phone}. C'est par ce numéro que passe toute réinitialisation de mot de passe."
+      "securityNote": "Votre compte est rattaché au numéro {phone}. C'est par ce numéro que passe toute réinitialisation de mot de passe.",
+      "saved": "Nom enregistré.",
+      "saveFailed": "La modification n'a pas pu être enregistrée. Réessayez."
     }
   },
   "admin": {

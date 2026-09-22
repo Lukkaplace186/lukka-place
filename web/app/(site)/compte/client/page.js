@@ -1,5 +1,4 @@
 import { Suspense } from 'react';
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Heart } from 'lucide-react';
 import { PortalEmpty } from '@/components/ClientPortalUI';
@@ -15,10 +14,10 @@ import {
 import { getListingsByIds } from '@/lib/listings';
 import { getSavedSearchMatches } from '@/lib/alerts';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
-import { cn } from '@/lib/utils';
 import { removeFavoriteAction, restoreFavoriteAction, saveFavoriteNoteAction } from './actions';
 import FavoritesBoard from './favoris/FavoritesBoard';
 import AlertsBoard from './alertes/AlertsBoard';
+import SavedSubTabs from './SavedSubTabs';
 import { getT } from '@/lib/i18n/server';
 
 // generateMetadata, not a static object: a static export is evaluated at
@@ -127,26 +126,21 @@ export default async function EspaceClientPage({ searchParams }) {
 
   return (
     <div>
-      <div className="mb-7 inline-flex gap-1 rounded-full bg-canvas-deep p-1">
-        <Link
-          href="/compte/client"
-          className={cn(
-            'rounded-full px-4 py-2 text-[0.8125rem] font-bold transition-colors',
-            view === 'favoris' ? 'bg-surface text-ink shadow-sm' : 'text-ink-45 hover:text-ink',
-          )}
-        >
-          {t('account.portal.subtabs.favorites')}{favoriteIds.length > 0 ? ` (${favoriteIds.length})` : ''}
-        </Link>
-        <Link
-          href="/compte/client?tab=alertes"
-          className={cn(
-            'rounded-full px-4 py-2 text-[0.8125rem] font-bold transition-colors',
-            view === 'alertes' ? 'bg-surface text-ink shadow-sm' : 'text-ink-45 hover:text-ink',
-          )}
-        >
-          {t('account.portal.subtabs.alerts')}{savedSearches.length > 0 ? ` (${savedSearches.length})` : ''}
-        </Link>
-      </div>
+      <SavedSubTabs
+        view={view}
+        tabs={[
+          {
+            key: 'favoris',
+            href: '/compte/client',
+            label: `${t('account.portal.subtabs.favorites')}${favoriteIds.length > 0 ? ` (${favoriteIds.length})` : ''}`,
+          },
+          {
+            key: 'alertes',
+            href: '/compte/client?tab=alertes',
+            label: `${t('account.portal.subtabs.alerts')}${savedSearches.length > 0 ? ` (${savedSearches.length})` : ''}`,
+          },
+        ]}
+      />
 
       <Suspense key={view} fallback={<PortalBoardSkeleton label={t('account.portal.loading')} />}>
         {view === 'alertes' ? (

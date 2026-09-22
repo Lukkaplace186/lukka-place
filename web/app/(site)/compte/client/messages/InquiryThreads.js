@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import {
+  CalendarCheck,
   MessageCircle,
   ArrowUpRight,
   ArrowLeft,
@@ -338,6 +339,9 @@ export default function InquiryThreads({
   // only an initial selection — resolved against the threads this session
   // was already served, so an unknown id simply falls back to the default.
   initialThreadId = null,
+  // { threadId, slotLabel, title, image } — the next CONFIRMED visit still
+  // ahead, chosen server-side (./page.js). Pinned above the list.
+  nextVisit = null,
 }) {
   const t = useT();
   const [activeId, setActiveId] = useState(
@@ -394,7 +398,7 @@ export default function InquiryThreads({
   // track at the container. The `min-w-0`s below are the other half of the
   // same fix — a `truncate` (white-space:nowrap) flex item contributes its
   // full untruncated text width as min-content unless it can shrink.
-  return (
+  const panel = (
     <PortalPanel className="grid grid-cols-1 overflow-hidden lg:min-h-[36rem] lg:grid-cols-[22.5rem_minmax(0,1fr)]">
       {/* Hidden once a thread is open on a phone — see mobileDetailOpen
           above. `lg:flex` always wins back at the desktop breakpoint, where
@@ -729,5 +733,35 @@ export default function InquiryThreads({
         </div>
       )}
     </PortalPanel>
+  );
+
+  if (!nextVisit) return panel;
+
+  // The one thing a customer with a booked visit opens this tab for.
+  // Tapping it opens that thread (on a phone, straight into its detail).
+  return (
+    <div className="flex flex-col gap-4">
+      <button
+        type="button"
+        onClick={() => selectThread(nextVisit.threadId)}
+        className="u-card u-press flex w-full items-center gap-3.5 rounded-card bg-success-tint p-4 text-left"
+      >
+        {nextVisit.image ? (
+          <Thumbnail src={nextVisit.image} alt="" className="h-12 w-12" />
+        ) : (
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-surface text-success">
+            <CalendarCheck strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" aria-hidden="true" />
+          </span>
+        )}
+        <span className="min-w-0 flex-1">
+          <span className="u-eyebrow block text-success">{t('account.requests.nextVisit')}</span>
+          <span className="mt-1 block text-[0.9375rem] font-bold first-letter:uppercase text-ink">{nextVisit.slotLabel}</span>
+          {nextVisit.title ? (
+            <span className="mt-0.5 block truncate text-[0.8125rem] text-ink-70">{nextVisit.title}</span>
+          ) : null}
+        </span>
+      </button>
+      {panel}
+    </div>
   );
 }

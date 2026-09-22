@@ -28,6 +28,9 @@ import AgentStatusOfTheDay from '@/components/AgentStatusOfTheDay';
 import { getStatusSuggestions, serialiseSuggestion } from '@/lib/listingShares';
 import { STATUS_RECENT_DAYS } from '@/lib/listingShareRules';
 import { shareBlocker } from '@/lib/listingShareCopy';
+import AgentClientMatchesCard from '@/components/AgentClientMatchesCard';
+import { getAgentClientBookSafe } from '@/lib/agentClients';
+import { matchEntriesByListing } from '@/lib/clientMatching';
 
 const RANGE_OPTIONS = Object.entries(VIEW_RANGES).map(([value, { label }]) => ({ value, label }));
 
@@ -52,7 +55,7 @@ export default async function AgentOverviewPage({ searchParams }) {
     getIncompleteListings(agentId, { limit: 200 }),
   ]);
 
-  const [views30d, whatsappClicks, leadsPage, series, deltas, leadQuota, todo, statusSuggestions] = await Promise.all([
+  const [views30d, whatsappClicks, leadsPage, series, deltas, leadQuota, todo, statusSuggestions, clientBook] = await Promise.all([
     getAgentListingViews(propertyIds, 30),
     getAgentWhatsAppClicks(propertyIds),
     hasLeadScope ? listLeads({ ...leadScope, limit: 3 }) : Promise.resolve({ total: 0, data: [] }),
@@ -74,6 +77,7 @@ export default async function AgentOverviewPage({ searchParams }) {
       console.error(`[status-of-the-day] agent ${agentId}: ${err.message}`);
       return null;
     }),
+    getAgentClientBookSafe(agentId),
   ]);
   // Live = what the share kit would let them advertise (shareBlocker), so the
   // card can tell "nothing live" from "everything shared recently".
@@ -151,6 +155,7 @@ export default async function AgentOverviewPage({ searchParams }) {
           />
           <div className="flex flex-col gap-6">
             <AgentRecentLeads leads={leadsPage.data} listingById={listingById} />
+            <AgentClientMatchesCard book={clientBook} entriesByListing={matchEntriesByListing(clientBook)} />
             <AgentSubscriptionCard
               packageTitle={agent.package_title}
               packageTerm={agent.package_term}

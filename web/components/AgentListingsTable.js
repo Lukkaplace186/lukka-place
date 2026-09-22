@@ -8,6 +8,7 @@ import SafeImage from './SafeImage';
 import AgentListingStatusSelect from './AgentListingStatusSelect';
 import AgentListingActionsMenu from './AgentListingActionsMenu';
 import MarkListingSoldDialog from './MarkListingSoldDialog';
+import AgentClientMatchesChip from './AgentClientMatches';
 import { formatPrice, formatPriceCdf } from '@/lib/format';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { usableImageSrc } from '@/lib/listingView';
@@ -81,7 +82,9 @@ const GRID_COLS =
  *    so the title's click target is unambiguous: "see it live", not "edit
  *    it".
  */
-export default function AgentListingsTable({ listings, perListingStats }) {
+// `clientMatches`: { [listingId]: entries } from the agent's private client book
+// (lib/clientMatching.js matchEntriesByListing). Absent means no chip.
+export default function AgentListingsTable({ listings, perListingStats, clientMatches = {} }) {
   const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
@@ -358,6 +361,11 @@ export default function AgentListingsTable({ listings, perListingStats }) {
                     </span>
                   )}
                 </div>
+                {clientMatches[String(listing.id)] && (
+                  <div className="mt-1.5">
+                    <AgentClientMatchesChip entries={clientMatches[String(listing.id)]} />
+                  </div>
+                )}
               </div>
             </div>
 

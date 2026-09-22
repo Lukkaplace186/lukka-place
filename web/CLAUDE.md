@@ -1449,6 +1449,7 @@ timestamptz`, NULL = never confirmed), `lib/listingAvailability.js`,
 - Known limit: the engine's owner list caps at 100 rows per status, and the
   ownership lookup still asks for 200 (pre-existing); an agent past 100
   confirmed visits would lose the oldest from the agenda and the .ics.
+
 ## Completeness checklist and quick replies (2026-09-22)
 
 Migration `migrations/20260922_agent_quick_replies.sql` (new table only).
@@ -1576,3 +1577,70 @@ before it runs).
 - **Not verified in a browser here** (needs an agent session on real data; the
   print button would write a real row): check the poster/sheet print preview,
   Web Share with multiple files on Android, and the report card line.
+
+## Agent client book and "Proposer des alternatives" (2026-09-22)
+
+`migrations/20260922_agent_clients.sql` (`agent_clients`, `agent_client_contacts`),
+`lib/clientMatching.js` (pure), `lib/agentClients.js`, `lib/listingAlternatives.js`
+(pure), `lib/agentAlternatives.js`,
+`app/compte/agent/{clients/page.js,clientActions.js,alternativesActions.js}`,
+`components/AgentClient*.js`, `components/AgentAlternativesDialog.js`. Tests:
+`tests/unit/agent-clients.test.js`.
+
+- **The client book is private to one agent, end to end.** Every statement in
+  `lib/agentClients.js` carries `agent_id = $1` with the session's id; a client
+  or listing id from a form is only used together with it (the contact
+  marker's INSERT selects the agent's own client JOINed to the agent's own
+  listing, so a forged pair inserts nothing). Only `app/compte/agent/**`
+  imports it — a test enforces that; lead dispatch and `/admin` never read it.
+  Under "view as" (impersonation cookie present) the book renders as hidden.
+  PostgREST roles are revoked in the migration, as for `cms_settings`.
+- **Matching is computed at read time, never stored.** Listings are written by
+  the engine and by web, so a stored match would need triggers on both and go
+  stale on every price edit. Rules (`clientMismatchReason`): purpose exact;
+  listing commune in the client's communes (empty = anywhere; compared through
+  `communeKey`, which ignores accents, case and separators); price within budget
+  **±10 %** (`BUDGET_TOLERANCE`, stated in the form and on the page), USD
+  against `properties.price`; `beds >= bedrooms`. When the client set a
+  constraint and the listing doesn't state that fact (no price, beds or
+  commune tag), it is NOT a match. Only listings that `shareBlocker` passes
+  are matched, because the link has to open.
+- **Communes are picked from `getLocationHierarchyWithFallback()`, never
+  typed.** `saveAgentClientAction` fetches that allow-list itself rather than
+  taking it from the form (the gap still open on `createListingAction`). The
+  phone goes through `PhoneField` + `phoneFromForm`. There is one row per
+  number per agent: a unique index answers "déjà dans votre carnet".
+- **"WhatsApp ouvert le …", not "contacté".** The marker is stamped when the
+  agent taps the pre-filled `wa.me` link. Whether they then press send happens
+  on their phone, where we can't see it. `ON CONFLICT … DO UPDATE` keeps the
+  latest tap.
+- **Alternatives: purpose is a hard filter, everything else only ranks.** Same
+  commune first (the preference `propertyMatching` expresses by searching the
+  commune before widening), then `agentMatching.matchPercent`, then freshness.
+  The lead's own request wins. A visit request carries no budget or commune,
+  so the declined listing stands in for them. It is read in any state, own
+  listings only, and its price becomes a ranking ceiling that is never shown as
+  the customer's budget. The declined listing itself is never offered. Own live
+  listings are pre-selected. "Inclure les biens d'autres agences" adds public
+  listings, widened city-wide (and flagged) when the requested communes have
+  none.
+- **The server rebuilds the message** from listings re-read under the public
+  filter (`loadChosenAlternatives`) and sends it to the number on the stored
+  row. The browser preview calls the same `buildAlternativesMessage`. There are
+  two ways to send: through the engine (the Lukka Place number, subject to the
+  24h window) and through the agent's own WhatsApp (`wa.me`, same text).
+  Ownership uses the dashboard's full `leadScope`, including `matchedAgentId`.
+  **Not fixed here:** `actions.js`'s `assertOwnedLead` leaves out
+  `matchedAgentId`, so replying to a lead the dispatcher pushed, or changing
+  its status, fails with "Not your lead".
+- **Tracked links**: `?utm_source=whatsapp&utm_medium=agent&utm_campaign=alternatives`
+  (and `…=client_book`), through `listingPublicUrl`'s new optional
+  `medium`/`campaign`. Only `utm_source` is recorded (`analyticsClient.js`), so
+  both features show as source `whatsapp` in `/admin` until the campaign is
+  stored too.
+- **Degrades before the migration runs**: 42P01/42703 give an empty book with
+  `available: false` (the page says so), and writes answer "pas encore
+  disponible". The chips on Mes biens, the overview and the edit page simply
+  don't render.
+- The phone tab bar's columns now follow `NAV.length` (inline style), so a new
+  sidebar entry needs no second edit.

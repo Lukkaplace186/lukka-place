@@ -106,9 +106,18 @@ export const SHARE_SOURCES = Object.freeze({
   copy: 'partage_agent',
 });
 
-export function listingPublicUrl(id, { source = null } = {}) {
+/**
+ * `medium` / `campaign` are optional and only appended after a source. Only
+ * `utm_source` is recorded today (lib/analyticsClient.js forwards that one
+ * label); the other two survive in the link for any later reader.
+ */
+export function listingPublicUrl(id, { source = null, medium = null, campaign = null } = {}) {
   const url = `${SITE_URL}/listings/${id}`;
-  return source ? `${url}?utm_source=${encodeURIComponent(source)}` : url;
+  if (!source) return url;
+  const parts = [`utm_source=${encodeURIComponent(source)}`];
+  if (medium) parts.push(`utm_medium=${encodeURIComponent(medium)}`);
+  if (campaign) parts.push(`utm_campaign=${encodeURIComponent(campaign)}`);
+  return `${url}?${parts.join('&')}`;
 }
 
 /**

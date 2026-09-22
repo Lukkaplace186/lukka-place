@@ -10,6 +10,7 @@ import { confirmPrefill } from '@/lib/visitAgenda';
 import VisitSlotForm from './VisitSlotForm';
 import { useToast } from './Toast';
 import AgentQuickReplies from './AgentQuickReplies';
+import AgentAlternativesDialog from './AgentAlternativesDialog';
 import { isNetworkError } from '@/lib/networkError';
 import { useT } from '@/lib/i18n/client';
 
@@ -209,6 +210,12 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
             propertyId={viewingRequest.property_id || viewingRequest.lead_property_id}
           />
           {actions.length === 0 && <p className="text-xs text-ink-35">{t('agent.visits.closed')}</p>}
+          {/* After a refusal the customer still needs somewhere to live. */}
+          <AgentAlternativesDialog
+            kind="visit"
+            id={viewingRequest.id}
+            emphasis={viewingRequest.status === 'DECLINED' || viewingRequest.status === 'CANCELLED'}
+          />
         </div>
       </div>
 

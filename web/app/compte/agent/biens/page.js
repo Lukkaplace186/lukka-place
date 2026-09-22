@@ -15,6 +15,8 @@ import { getListingQuota } from '@/lib/listingQuota';
 import { UPGRADE_PATH } from '@/lib/listingQuotaRules';
 import AgentListingGapsPanel from '@/components/AgentListingGapsPanel';
 import { getIncompleteListings, getPhotographyOffer } from '@/lib/completeness';
+import { getAgentClientBookSafe } from '@/lib/agentClients';
+import { matchEntriesByListing } from '@/lib/clientMatching';
 
 // The full vocabulary, used by the top filter dropdown — a closed listing
 // must stay filterable even though it's no longer reachable from the
@@ -83,7 +85,7 @@ export default async function AgentListingsPage({ searchParams }) {
   // `listings`, which is already in hand. Analytics or the category list being
   // unreachable should cost an empty Vues/Clics column or a create dialog with
   // no categories to offer — never the agent's inventory list itself.
-  const [perListingStats, hierarchy, categories, quota, availabilityPrompts] = await Promise.all([
+  const [perListingStats, hierarchy, categories, quota, availabilityPrompts, clientBook] = await Promise.all([
     getPerListingStats(propertyIds).catch((error) => {
       console.error('[agent/biens] per-listing stats unavailable:', error.message);
       return { views: {}, clicks: {} };
@@ -105,6 +107,8 @@ export default async function AgentListingsPage({ searchParams }) {
       console.error('[agent/biens] availability prompts unavailable:', error.message);
       return [];
     }),
+    // Never throws; an empty book simply renders no "clients cherchent" chips.
+    getAgentClientBookSafe(agentId),
   ]);
   const communes = hierarchy?.communes ?? [];
 
@@ -241,7 +245,11 @@ export default async function AgentListingsPage({ searchParams }) {
                 : 'Aucune annonce ne correspond à ces filtres.'}
             </div>
           ) : (
-            <AgentListingsTable listings={filtered} perListingStats={perListingStats} />
+            <AgentListingsTable
+              listings={filtered}
+              perListingStats={perListingStats}
+              clientMatches={matchEntriesByListing(clientBook)}
+            />
           )}
         </div>
       </div>

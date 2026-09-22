@@ -1310,6 +1310,138 @@
       "phoneHidden": "Votre numéro n’apparaît pas : il n’est pas encore vérifié, ou le contact direct est désactivé pour votre compte. Le code QR mène à l’annonce.",
       "posterMetaTitle": "Affiche A4",
       "sheetMetaTitle": "Fiche technique"
+    },
+    "alternatives": {
+      "open": "Proposer des alternatives",
+      "title": "Proposer des alternatives",
+      "hint": "Choisissez jusqu’à {max} biens. Ils partent dans un seul message WhatsApp, chacun avec son lien.",
+      "loading": "Recherche de biens similaires…",
+      "ownGroup": "Vos biens en ligne",
+      "publicGroup": "Autres biens publiés sur Lukka Place",
+      "publicGroupWidened": "Autres biens publiés — rien dans ces communes, toute la ville",
+      "emptyOwn": "Aucun de vos biens en ligne ne correspond à ce type de transaction.",
+      "emptyPublic": "Aucun autre bien publié ne correspond.",
+      "emptyAll": "Aucun bien publié ne correspond pour le moment.",
+      "includePublic": "Inclure les biens d’autres agences",
+      "preview": "Aperçu du message",
+      "sendLukka": "Envoyer via Lukka Place",
+      "sending": "Envoi…",
+      "openOwnWhatsApp": "Ouvrir dans mon WhatsApp",
+      "deliveryNote": "Via Lukka Place, le message n’arrive que si le client nous a écrit dans les dernières 24 h. Votre propre WhatsApp n’a pas cette limite.",
+      "sent": {
+        "one": "{count} bien envoyé au client.",
+        "other": "{count} biens envoyés au client."
+      },
+      "beds": {
+        "one": "{count} chambre",
+        "other": "{count} chambres"
+      },
+      "sameCommune": "Même commune",
+      "errors": {
+        "auth": "Votre session a expiré. Reconnectez-vous.",
+        "notFound": "Cette demande n’est pas dans votre liste.",
+        "loadFailed": "Impossible de charger les suggestions. Réessayez.",
+        "count": "Choisissez entre 1 et 3 biens.",
+        "excluded": "Le bien demandé ne peut pas être proposé comme alternative.",
+        "unavailable": "Un des biens choisis n’est plus en ligne. Rechargez les suggestions.",
+        "noPhone": "Le numéro de ce client est inutilisable."
+      }
+    },
+    "clients": {
+      "nav": "Mes clients",
+      "navShort": "Clients",
+      "metaTitle": "Mes clients",
+      "title": "Mes clients",
+      "searchPlaceholder": "Rechercher un client",
+      "count": {
+        "zero": "Aucun client",
+        "one": "{count} client",
+        "other": "{count} clients"
+      },
+      "summary": {
+        "zero": "Aucun client n’a de bien correspondant pour l’instant (budget ±{pct} %).",
+        "one": "{count} client a au moins un de vos biens qui correspond (budget ±{pct} %).",
+        "other": "{count} clients ont au moins un de vos biens qui correspond (budget ±{pct} %)."
+      },
+      "empty": "Votre carnet est vide. Ajoutez les clients avec qui vous discutez sur WhatsApp : nous vous dirons dès qu’un de vos biens leur correspond.",
+      "noResults": "Aucun client ne correspond à cette recherche.",
+      "unavailable": "Le carnet de clients n’est pas encore disponible. Réessayez un peu plus tard.",
+      "hiddenWhileImpersonating": "Le carnet de clients de l’agent est privé et n’est pas affiché pendant une vue en tant qu’agent.",
+      "privacyNote": "Visible par vous seul. Ces clients ne sont jamais partagés avec Lukka Place ni avec d’autres agences.",
+      "add": "Ajouter un client",
+      "addTitle": "Ajouter un client",
+      "edit": "Modifier",
+      "editTitle": "Modifier le client",
+      "save": "Enregistrer",
+      "saving": "Enregistrement…",
+      "added": "Client ajouté.",
+      "updated": "Client mis à jour.",
+      "delete": "Supprimer le client",
+      "confirmDelete": "Supprimer",
+      "deleted": "Client supprimé.",
+      "fields": {
+        "name": "Nom",
+        "phone": "Numéro WhatsApp du client",
+        "purpose": "Recherche",
+        "communes": "Communes (jusqu’à {max})",
+        "budgetMin": "Budget min ($)",
+        "budgetMax": "Budget max ($)",
+        "bedrooms": "Chambres",
+        "notes": "Notes"
+      },
+      "purpose": {
+        "location": "Location",
+        "vente": "Achat"
+      },
+      "searchCommune": "Filtrer les communes",
+      "removeCommune": "Retirer {name}",
+      "communesHint": "Aucune commune cochée = toute la ville.",
+      "communesUnavailable": "La liste des communes est indisponible pour le moment.",
+      "budgetHint": "En dollars. Un bien jusqu’à {pct} % hors de ce budget est encore proposé.",
+      "anyBedrooms": "Indifférent",
+      "bedroomsAtLeast": {
+        "one": "{count} chambre ou plus",
+        "other": "{count} chambres ou plus"
+      },
+      "anyCommune": "Toute la ville",
+      "budgetUpTo": "Jusqu’à {amount}",
+      "budgetFrom": "À partir de {amount}",
+      "noMatches": "Aucun de vos biens en ligne ne correspond pour l’instant.",
+      "clientMatches": {
+        "one": "{count} bien correspond",
+        "other": "{count} biens correspondent"
+      },
+      "listingMatches": {
+        "one": "{count} de vos clients cherche ce bien",
+        "other": "{count} de vos clients cherchent ce bien"
+      },
+      "listingMatchesHint": "Un appui ouvre votre WhatsApp avec le lien du bien déjà écrit.",
+      "whatsapp": "WhatsApp",
+      "whatsappAgain": "Renvoyer",
+      "whatsappTo": "Écrire à {name} sur WhatsApp",
+      "openedOn": "WhatsApp ouvert le {date}",
+      "noPhone": "Numéro inutilisable",
+      "overviewTitle": "Vos clients cherchent ces biens",
+      "overviewLink": "Mes clients",
+      "overviewMore": {
+        "one": "Et {count} autre bien.",
+        "other": "Et {count} autres biens."
+      },
+      "editorHint": "Des clients de votre carnet cherchent ce bien.",
+      "errors": {
+        "auth": "Votre session a expiré. Reconnectez-vous.",
+        "name": "Indiquez le nom du client (120 caractères au plus).",
+        "phone": "Numéro de téléphone invalide.",
+        "purpose": "Choisissez location ou achat.",
+        "commune": "Choisissez les communes dans la liste.",
+        "tooManyCommunes": "10 communes au plus.",
+        "budget": "Budget invalide : des montants positifs, le minimum sous le maximum.",
+        "bedrooms": "Nombre de chambres invalide.",
+        "notes": "Notes trop longues (2 000 caractères au plus).",
+        "duplicate": "Ce numéro est déjà dans votre carnet.",
+        "unavailable": "Le carnet de clients n’est pas encore disponible. Réessayez un peu plus tard.",
+        "notFound": "Ce client n’existe plus."
+      }
     }
   },
   "status": {

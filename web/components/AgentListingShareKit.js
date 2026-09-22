@@ -1,12 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BarChart3, Check, Copy, Download, MessageCircle, Share2 } from 'lucide-react';
+import Link from 'next/link';
+import { BarChart3, Check, Copy, Download, FileText, MessageCircle, Printer, Share2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { buildWhatsAppShareLink } from '@/lib/whatsapp';
-import { getMandateReportAction, getSharePackAction } from '@/app/compte/agent/shareActions';
+import { getMandateReportAction, getSharePackAction, recordListingSharesAction } from '@/app/compte/agent/shareActions';
 import { FORMATS, FORMAT_KEYS, formatFileName } from '@/lib/marketing/formats';
 import { LISTING_TIME_ZONE } from '@/lib/listingView';
 import { fetchPackImages, isStale, loadSharePack, packTimestamp, saveSharePack } from '@/lib/sharePack';
@@ -217,12 +218,22 @@ export default function AgentListingShareKit({ listingId, open, onOpenChange }) 
 
   const captionFor = (channel) => kit?.copies?.[channel] || kit?.copy || '';
 
-  async function copyText(text, key) {
+  // listing_shares (lib/listingShareRules.js): fire-and-forget, AFTER the
+  // share happened, never awaited — a slow or failed record must not delay a
+  // share, and there is nothing to tell the agent if it fails. The report tab
+  // passes no record: a report goes to the owner, not the market.
+  const recordShare = (record) => {
+    if (!record) return;
+    recordListingSharesAction({ listingIds: [listingId], ...record }).catch(() => {});
+  };
+
+  async function copyText(text, key, record = null) {
     if (!text) return false;
     try {
       await navigator.clipboard.writeText(text);
       setCopied(key);
       setTimeout(() => setCopied((current) => (current === key ? null : current)), 2000);
+      recordShare(record);
       return true;
     } catch {
       return false;
@@ -251,7 +262,8 @@ export default function AgentListingShareKit({ listingId, open, onOpenChange }) 
     setTimeout(() => URL.revokeObjectURL(href), 1000);
   }
 
-  async function shareFile(getFile, text, copyKey) {
+  // `record` is the share's { channel, format } when it should count — see recordShare.
+  async function shareFile(getFile, text, copyKey, record = null) {
     setBusy(true);
     // Started before any await, while the tap still counts as a user gesture
     // for the clipboard in Safari.
@@ -260,9 +272,11 @@ export default function AgentListingShareKit({ listingId, open, onOpenChange }) 
       const file = await getFile();
       if (navigator.canShare?.({ files: [file] })) {
         await navigator.share({ files: [file], text });
+        recordShare(record && { ...record, channel: 'kit_share' });
         if (await captionCopied) showToast({ type: 'success', message: t('agent.share.captionCopied') });
       } else {
         saveFile(file);
+        recordShare(record && { ...record, channel: 'kit_download' });
         showToast({ type: 'success', message: t('agent.share.downloadedInstead') });
       }
     } catch (err) {
@@ -272,10 +286,11 @@ export default function AgentListingShareKit({ listingId, open, onOpenChange }) 
     }
   }
 
-  async function download(getFile) {
+  async function download(getFile, record = null) {
     setBusy(true);
     try {
       saveFile(await getFile());
+      recordShare(record && { ...record, channel: 'kit_download' });
     } catch {
       showToast({ type: 'error', message: t('agent.share.shareFailed') });
     } finally {
@@ -403,19 +418,31 @@ export default function AgentListingShareKit({ listingId, open, onOpenChange }) 
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
-                      onClick={() => shareFile(flyerFile, captionFor('image'), 'image')}
+                      onClick={() => shareFile(flyerFile, captionFor('image'), 'image', { format })}
                       disabled={busy || !graphicReady}
                       className={`${actionClass} u-btn-primary bg-blue text-white`}
                     >
                       <Share2 strokeWidth={ICON_STROKE_WIDTH} className={icon} />
                       {busy ? t('agent.share.preparing') : t('agent.share.shareImage')}
                     </button>
-                    <button type="button" onClick={() => download(flyerFile)} disabled={busy || !graphicReady} className={`${actionClass} border border-line text-ink`}>
+                    <button type="button" onClick={() => download(flyerFile, { format })} disabled={busy || !graphicReady} className={`${actionClass} border border-line text-ink`}>
                       <Download strokeWidth={ICON_STROKE_WIDTH} className={icon} />
                       {t('agent.share.download')}
                     </button>
                   </div>
                   <p className="text-xs text-ink-45">{t('agent.share.statusHint')}</p>
+                  {source?.type === 'live' && (
+                    <div className="grid grid-cols-2 gap-2 border-t border-line pt-3">
+                      <Link href={`/compte/agent/biens/${listingId}/affiche`} className={`${actionClass} border border-line text-ink`}>
+                        <Printer strokeWidth={ICON_STROKE_WIDTH} className={icon} />
+                        {t('agent.print.posterLink')}
+                      </Link>
+                      <Link href={`/compte/agent/biens/${listingId}/fiche`} className={`${actionClass} border border-line text-ink`}>
+                        <FileText strokeWidth={ICON_STROKE_WIDTH} className={icon} />
+                        {t('agent.print.sheetLink')}
+                      </Link>
+                    </div>
+                  )}
                 </>
               )}
             </TabsContent>
@@ -425,11 +452,17 @@ export default function AgentListingShareKit({ listingId, open, onOpenChange }) 
               {shareable && (
                 <>
                   <div className="grid grid-cols-2 gap-2">
-                    <a href={buildWhatsAppShareLink(captionFor('whatsapp'))} target="_blank" rel="noopener noreferrer" className={`${actionClass} border border-line text-ink`}>
+                    <a
+                      href={buildWhatsAppShareLink(captionFor('whatsapp'))}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => recordShare({ channel: 'kit_whatsapp', format: 'text' })}
+                      className={`${actionClass} border border-line text-ink`}
+                    >
                       <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className={`${icon} text-green-deep`} />
                       {t('agent.share.sendWhatsApp')}
                     </a>
-                    <button type="button" onClick={() => copyText(captionFor('copy'), 'copy')} className={`${actionClass} border border-line text-ink`}>
+                    <button type="button" onClick={() => copyText(captionFor('copy'), 'copy', { channel: 'kit_copy', format: 'text' })} className={`${actionClass} border border-line text-ink`}>
                       {copied === 'copy' ? <Check strokeWidth={ICON_STROKE_WIDTH} className={icon} /> : <Copy strokeWidth={ICON_STROKE_WIDTH} className={icon} />}
                       {copied === 'copy' ? t('agent.share.copied') : t('agent.share.copyCaption')}
                     </button>

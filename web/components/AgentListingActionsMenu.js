@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Archive, ArchiveRestore, Copy, ExternalLink, ImagePlus, MessageCircle, MoreHorizontal, Pencil, RotateCcw, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, Copy, ExternalLink, FileText, ImagePlus, MessageCircle, MoreHorizontal, Pencil, Printer, RotateCcw, Trash2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -20,6 +20,7 @@ import {
   setListingArchivedAction,
   updateListingStatusAction,
 } from '@/app/compte/agent/actions';
+import { recordListingSharesAction } from '@/app/compte/agent/shareActions';
 import { useToast } from './Toast';
 import AgentListingShareKit from './AgentListingShareKit';
 import { useT } from '@/lib/i18n/client';
@@ -202,12 +203,34 @@ export default function AgentListingActionsMenu({ listing, isClosed }) {
               href={shareHref}
               target="_blank"
               rel="noopener noreferrer"
+              // Counted like the share kit's WhatsApp link (listing_shares),
+              // fire-and-forget; the server ignores a listing that is not live.
+              onClick={() => recordListingSharesAction({ listingIds: [listing.id], channel: 'menu_whatsapp', format: 'text' }).catch(() => {})}
               className="flex items-center gap-2.5"
             >
               <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
               {t('agent.listings.shareWhatsApp')}
             </a>
           </DropdownMenuItem>
+
+          {/* Print pages. Shown for approved listings; the page itself explains
+              when one cannot be printed (archived, under offer, closed). */}
+          {listing.approve_status === 1 && (
+            <>
+              <DropdownMenuItem asChild>
+                <Link href={`/compte/agent/biens/${listing.id}/affiche`} className="flex items-center gap-2.5">
+                  <Printer strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
+                  {t('agent.print.posterMenuItem')}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href={`/compte/agent/biens/${listing.id}/fiche`} className="flex items-center gap-2.5">
+                  <FileText strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
+                  {t('agent.print.sheetMenuItem')}
+                </Link>
+              </DropdownMenuItem>
+            </>
+          )}
 
           {isClosed ? (
             <DropdownMenuItem onSelect={handleRepublish} disabled={pending} className="flex items-center gap-2.5">

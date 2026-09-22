@@ -1273,6 +1273,43 @@
         "tooMany": "Nombre maximum de réponses rapides atteint.",
         "session": "Votre session a expiré. Reconnectez-vous."
       }
+    },
+    "status": {
+      "title": "Statut du jour",
+      "intro": "Vos biens en ligne non partagés ces {days} derniers jours, prêts pour votre statut WhatsApp.",
+      "neverShared": "Jamais partagé depuis Lukka Place",
+      "lastShared": "Dernier partage le {date}",
+      "untracked": "L’historique des partages n’est pas encore disponible : voici vos biens en ligne les plus récents.",
+      "prepare": {
+        "one": "Préparer le statut",
+        "other": "Préparer les {count} statuts"
+      },
+      "preparing": "Préparation des images…",
+      "failed": "Les images n’ont pas pu être préparées. Réessayez.",
+      "offline": "Hors ligne : les images ne peuvent pas être préparées pour le moment.",
+      "someSkipped": "Certains biens n’ont pas pu être préparés et ne figurent pas ci-dessous.",
+      "shareOne": "Partager",
+      "shareAll": "Tout partager",
+      "downloadAll": "Tout télécharger",
+      "downloaded": "Images téléchargées. Publiez-les depuis WhatsApp › Statut.",
+      "shareFailed": "Le partage n’a pas abouti. Essayez « Tout télécharger ».",
+      "hint": "Sur téléphone, choisissez WhatsApp puis « Mon statut ». Chaque partage ou téléchargement est compté dans le rapport propriétaire.",
+      "refresh": "Nouvelle sélection",
+      "previewAlt": "Image de statut : {title}",
+      "emptyNoLive": "Aucun bien en ligne à partager pour l’instant.",
+      "emptyAllShared": "Tous vos biens en ligne ont déjà été partagés ces {days} derniers jours.",
+      "openListings": "Voir mes biens"
+    },
+    "print": {
+      "posterLink": "Affiche A4",
+      "sheetLink": "Fiche technique",
+      "posterMenuItem": "Affiche vitrine (A4)",
+      "sheetMenuItem": "Fiche technique (A4)",
+      "back": "Mes biens",
+      "printButton": "Imprimer / PDF",
+      "phoneHidden": "Votre numéro n’apparaît pas : il n’est pas encore vérifié, ou le contact direct est désactivé pour votre compte. Le code QR mène à l’annonce.",
+      "posterMetaTitle": "Affiche A4",
+      "sheetMetaTitle": "Fiche technique"
     }
   },
   "status": {

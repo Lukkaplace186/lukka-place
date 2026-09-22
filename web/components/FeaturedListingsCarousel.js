@@ -24,6 +24,13 @@ import PropertyCard from './PropertyCard';
  *       child collapses to its min-content width (2px per card, confirmed on
  *       a real 390px viewport). `sm:contents` removes the wrapper from the box
  *       tree once the grid below takes over.
+ *     - Equal heights, not equal content: the row stretches every wrapper to
+ *       the tallest card, and `[&>div]:h-full` passes that height through
+ *       PropertyCard's `@container` div (which has no height of its own) to
+ *       the Link's `h-full`. The card's `mt-auto` action bar then takes the
+ *       slack, so a card with no amenity chips keeps its natural spacing and
+ *       its buttons line up with its neighbour's — the difference shows as
+ *       air above the button rule, never as a stretched or padded section.
  *     - `pt-2 pb-5`: an overflow-x container clips on both axes, so the
  *       vertical padding is what leaves room for the card shadow.
  *   - sm and up: a real CSS grid (`grid-cols-2 md:grid-cols-3
@@ -44,7 +51,7 @@ export default function FeaturedListingsCarousel({ listings }) {
       ].join(' ')}
     >
       {listings.map((listing, i) => (
-        <div key={listing.id} className="w-[82vw] max-w-[310px] shrink-0 snap-start sm:contents">
+        <div key={listing.id} className="w-[82vw] max-w-[310px] shrink-0 snap-start sm:contents [&>div]:h-full">
           {/* The first cards (mobile: the one in view plus the peek; desktop:
               the first grid row) are above the fold — `priority` skips
               next/image's lazy-loading so the LCP photo requests immediately. */}

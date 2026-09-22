@@ -30,8 +30,11 @@ const AUTOLOAD_QUERY = '(min-width: 1024px)';
  *     "Afficher la carte" button and nothing is fetched until it is tapped;
  *   - on a desktop it still loads by itself, but only once the frame comes
  *     within 400px of the viewport.
- * The frame keeps its height either way, so nothing shifts when the map
- * arrives.
+ * On a desktop the frame keeps its full height either way, so nothing shifts
+ * when the map arrives by itself. Below 1024px the unloaded frame is a short
+ * strip instead of a 22rem empty box: there the map only ever arrives from a
+ * tap, and a layout change right after the visitor's own input is expected
+ * (it is not counted as layout shift).
  *
  * `isMapView` is forced true so ResponsiveMapPane mounts the map on mobile
  * too once asked — its matchMedia gate exists to protect the Geocoding quota
@@ -69,7 +72,12 @@ export default function ListingLocationMap({ listing }) {
 
   return (
     <div>
-      <div ref={frameRef} className="u-card h-[22rem] overflow-hidden rounded-lg border border-line sm:h-[26rem]">
+      <div
+        ref={frameRef}
+        className={`u-card overflow-hidden rounded-lg border border-line ${
+          show ? 'h-[22rem] sm:h-[26rem]' : 'h-32 lg:h-[26rem]'
+        }`}
+      >
         {show ? (
           <ResponsiveMapPane
             listings={[listing]}
@@ -84,9 +92,9 @@ export default function ListingLocationMap({ listing }) {
           <button
             type="button"
             onClick={() => setRequested(true)}
-            className="flex h-full w-full flex-col items-center justify-center gap-3 bg-canvas-alt px-6 text-center"
+            className="flex h-full w-full flex-col items-center justify-center gap-2 bg-canvas-alt px-6 text-center lg:gap-3"
           >
-            <span className="grid h-12 w-12 place-items-center rounded-full bg-surface text-blue shadow-sm">
+            <span className="hidden h-12 w-12 place-items-center rounded-full bg-surface text-blue shadow-sm lg:grid">
               <MapPin strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" aria-hidden="true" />
             </span>
             <span className="inline-flex min-h-11 items-center rounded-full bg-blue px-5 text-[0.9375rem] font-semibold text-white">

@@ -57,17 +57,19 @@ const STACKED_THEN_ROW = 'flex flex-col gap-2 md:flex-row md:items-center md:jus
 const GROUP = 'flex items-center gap-2.5';
 
 /**
- * ...but that grouping must be invisible at a width where the cell is NOT
- * stretched, or the one cell whose layout flips at `md` would sit its icon
- * beside its label on a phone while every other cell stacks its icon above.
- * Seen on the live six-cell grid, and it reads as a mistake because it is one.
+ * The last cell when it is exact on a phone but stretched on a desktop. Every
+ * cell on a phone now carries its icon beside its label (KeyFacts wraps the
+ * pair in a `md:contents` span), so this wrapper is a real flex row at every
+ * width — one line of icon + label, value underneath — and only its gap
+ * changes at `md`, where the cell turns into a row and the pair is ONE item
+ * again for `justify-between`.
  *
- * `display: contents` is the fix: the wrapper stops generating a box, the icon
- * and label become direct children of the cell's own flex column, and the cell
- * is pixel-identical to its neighbours. At `md` the wrapper becomes a real
- * flex item again and the grouping comes back.
+ * It used to be `contents` below `md`, because then every other cell stacked
+ * its icon ABOVE its label and a lone grouped cell read as a mistake. The
+ * stacked icon cost a line per cell on a phone for nothing the label didn't
+ * already say, so the rule flipped: grouped everywhere below `md`.
  */
-const GROUP_FROM_SM = 'contents md:flex md:items-center md:gap-2.5';
+const GROUP_FROM_SM = 'flex items-center gap-2 md:gap-2.5';
 
 /**
  * @param {number} count How many cells the grid renders.

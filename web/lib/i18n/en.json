@@ -522,7 +522,9 @@
     "alert": {
       "create": "Alert me about new properties",
       "created": "Alert created",
-      "createForSearch": "Create an Alert for This Search"
+      "createForSearch": "Create an Alert for This Search",
+      "short": "Alert",
+      "shortOn": "Alert on"
     },
     "authPrompt": {
       "save": "Log in or create an account to save this search",

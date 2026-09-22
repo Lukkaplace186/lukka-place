@@ -131,11 +131,10 @@ test('a cell exact on mobile but short on desktop stays stacked on the phone', (
   );
   assert.ok(!six.className.split(' ').includes('col-span-2'), 'must not stretch on mobile');
 
-  // The wrapper is present but `display: contents` until `md`. The DOM cannot
-  // change per breakpoint, so a real wrapper at mobile would put this one
-  // cell's icon beside its label while every other cell stacks its icon above
-  // — which is exactly how it shipped once, and it read as a mistake.
-  assert.equal(six.groupClassName, 'contents md:flex md:items-center md:gap-2.5');
+  // A real flex row at every width: on a phone every cell carries its icon
+  // beside its label (KeyFacts wraps the pair), so this one must too, or it
+  // is the odd cell out.
+  assert.equal(six.groupClassName, 'flex items-center gap-2 md:gap-2.5');
 });
 
 test('every class emitted is a literal Tailwind can actually see', () => {

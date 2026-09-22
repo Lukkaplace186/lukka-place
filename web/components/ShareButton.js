@@ -67,6 +67,28 @@ export default function ShareButton({ title, path, className = '', variant = 'pi
     }
   }
 
+  // Round frosted button over a photo — the same circle as FavoriteButton's
+  // default `icon` variant, so the pair reads as one set on the detail
+  // page's phone gallery.
+  if (variant === 'overlay') {
+    return (
+      <button
+        type="button"
+        onClick={handleShare}
+        aria-label={copied ? t('common.shared.linkCopied') : t('common.actions.share')}
+        className={`u-press u-hit relative u-glass-white flex h-10 w-10 items-center justify-center rounded-full shadow-sm transition-colors hover:bg-white ${
+          copied ? 'text-blue' : 'text-ink'
+        } ${className}`}
+      >
+        {copied ? (
+          <Check strokeWidth={ICON_STROKE_WIDTH} className="h-4.5 w-4.5" />
+        ) : (
+          <Share2 strokeWidth={ICON_STROKE_WIDTH} className="h-4.5 w-4.5" />
+        )}
+      </button>
+    );
+  }
+
   if (variant === 'icon') {
     return (
       <button

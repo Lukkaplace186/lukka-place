@@ -42,7 +42,7 @@ import { useT } from '@/lib/i18n/client';
  * lightbox, at whichever photo is actually on screen rather than always
  * photo 1.
  */
-export default function PhotoGallery({ images, alt }) {
+export default function PhotoGallery({ images, alt, mobileActions = null }) {
   const t = useT();
   const shots = images || [];
   const total = shots.length;
@@ -73,9 +73,12 @@ export default function PhotoGallery({ images, alt }) {
 
   if (total === 0) {
     return (
-      <div className="flex aspect-16/9 w-full flex-col items-center justify-center gap-2 rounded-card border border-line bg-canvas-alt text-ink-25">
+      <div className="relative flex aspect-16/9 w-full flex-col items-center justify-center gap-2 rounded-card border border-line bg-canvas-alt text-ink-25 max-sm:mt-4">
         <ImageOff strokeWidth={ICON_STROKE_WIDTH} className="h-6 w-6" />
         <p className="text-[0.8125rem]">{t('listings.gallery.noPhotos')}</p>
+        {mobileActions ? (
+          <span className="absolute right-3 top-3 z-10 flex gap-2 sm:hidden">{mobileActions}</span>
+        ) : null}
       </div>
     );
   }
@@ -111,8 +114,11 @@ export default function PhotoGallery({ images, alt }) {
   return (
     <>
       {/* Mobile only — real swipeable carousel (see doc comment above).
-          Hidden at sm+, where the desktop mosaic below takes over. */}
-      <div className="relative sm:hidden">
+          Hidden at sm+, where the desktop mosaic below takes over. Edge to
+          edge (-mx-4 cancels the page gutter), the way every app shows a
+          product photo on a phone; `mobileActions` (Partager/Enregistrer)
+          sit on the photo instead of on a row of their own above it. */}
+      <div className="relative -mx-4 sm:hidden">
         <div
           role="button"
           tabIndex={0}
@@ -121,7 +127,7 @@ export default function PhotoGallery({ images, alt }) {
             if (e.key === 'Enter' || e.key === ' ') setLightboxIndex(mobileIndex);
           }}
           aria-label={t('listings.gallery.enlargePhoto', { n: mobileIndex + 1 })}
-          className="u-lift h-[22rem] w-full cursor-pointer overflow-hidden rounded-xl border border-line bg-canvas-deep"
+          className="h-[22rem] w-full cursor-pointer overflow-hidden bg-canvas-deep"
         >
           <CardImageCarousel images={shots} alt={alt} sizes="100vw" priority onIndexChange={setMobileIndex} />
         </div>
@@ -138,6 +144,10 @@ export default function PhotoGallery({ images, alt }) {
         <span className="u-glass-royal u-tabular pointer-events-none absolute bottom-3.5 right-3.5 z-10 inline-flex items-center rounded-sm px-2.5 py-1.5 text-[0.8125rem] font-semibold">
           {mobileIndex + 1}/{total} photo{total !== 1 ? 's' : ''}
         </span>
+
+        {mobileActions ? (
+          <span className="absolute right-3.5 top-3.5 z-10 flex gap-2">{mobileActions}</span>
+        ) : null}
       </div>
 
       <div className="relative hidden sm:block">

@@ -101,23 +101,10 @@ export default async function ListingsPage({ searchParams }) {
         <ActiveFilterChips params={params} propertyTypeLabel={propertyTypeLabel} />
       </div>
 
-      {/* pb-8 uniformly now — FloatingControlBar.js (the floating "Carte /
-          Trier" pill this used to reserve extra mobile bottom clearance
-          for) is gone entirely: removed on an explicit instruction, with
-          "Carte" already reachable from FilterBar's own mobile utility row
-          and "Trier" moved into ResultsHeader.js next to the result count
-          (visible on every breakpoint now, not just lg: and up — see that
-          component). Nothing floats over the last card any more, so
-          there's nothing left to clear.
-          pt-3, not the previous pt-6, below sm: with the breadcrumb and
-          filter chips both hidden on mobile now (see above and
-          ResultsHeader.js), this is the last real gap left between the
-          utility row above and the first card — tightened so that card's
-          top edge lands closer to the initial viewport, per the "tight,
-          cohesive top block, no dead space" instruction. sm:pt-6 keeps
-          desktop's original spacing, which isn't under the same
-          above-the-fold pressure a phone screen is. */}
-      <div className="mx-auto max-w-[1600px] px-4 pb-8 pt-3 sm:px-6 sm:pt-6 lg:px-8">
+      {/* pb-28 below lg clears FloatingControlBar, which floats over the
+          last card and the pagination on a phone. pt-3 keeps the first card
+          close to the top of the screen; desktop keeps its own spacing. */}
+      <div className="mx-auto max-w-[1600px] px-4 pb-28 pt-3 sm:px-6 sm:pt-6 lg:px-8 lg:pb-8">
         <div className={isMapView ? 'hidden lg:block' : ''}>
           <ResultsHeader
             total={total}
@@ -152,8 +139,9 @@ export default async function ListingsPage({ searchParams }) {
 
       {/* List mode only — the mobile fullscreen map already has its own
           bottom-center floating control at this exact position
-          (MobileMapOverlay.js's "← Liste" button). */}
-      {!isMapView && count > 0 ? <FloatingControlBar /> : null}
+          (MobileMapOverlay.js's "← Liste" button). Rendered on an empty
+          search too: its alert is the phone's only way to ask for one. */}
+      {!isMapView ? <FloatingControlBar hasResults={count > 0} /> : null}
     </div>
   );
 }

@@ -1745,3 +1745,36 @@ From real 375px screenshots. Desktop (`lg`) layouts are unchanged throughout.
   the last 30s is reused by the client router, so tab-bar switching does not
   re-render on the server. Server actions and `router.refresh()` invalidate it.
   Site-wide, browser memory only.
+
+## Storefront, streamlined for phones (2026-09-23)
+
+From a 375px walk of home → /listings → a listing on production. Desktop
+(`lg`) is unchanged throughout; every change below is phone-only.
+
+- **/listings has one set of controls: FloatingControlBar's Carte | Trier |
+  Alerte pill.** Each used to exist twice — FilterBar's Carte/alert row under
+  the search box and ResultsHeader's sort dropdown duplicated the pill — which
+  cost two rows above the first card (first card top 302px → 201px). Both
+  in-page copies are gone below `lg` (FilterBar's row deleted, SortDropdown
+  `hidden lg:inline-flex`). The pill also renders on an empty search, showing
+  only Alerte: that is the phone's only way to set an alert. SaveSearchButton's
+  `variant="pill"` resumes as `'alert'` after signup; the old `alert` variant
+  had no caller left and was removed. The page has `pb-28` below `lg` so the
+  pill never covers the last card or the pagination.
+- **Card specs are one line on a phone** ("Appartement · 🛏 2 ch · 🛁 2 sdb",
+  `SpecItem` inline); the labelled Rightmove rail is `lg` only.
+- **Listing page: the photo is the first thing under the header.** No
+  breadcrumb row and no Partager/Enregistrer row below `sm`; the gallery is
+  edge to edge (`-mx-4`) and Partager + the heart sit on the photo
+  (`PhotoGallery mobileActions`, `ShareButton variant="overlay"`). The title
+  moved up ~160px and the page is ~350px shorter. The phone EnquiryCard drops
+  its own save/share pair (`saveShare={false}`) — the photo and
+  MobileListingBar already carry them.
+- **KeyFacts on a phone put the icon beside the label** (one line, cells
+  ~95px → ~71px). `lib/keyFactsGrid.js`'s `GROUP_FROM_SM` is now a real flex
+  row at every width, since every cell is grouped below `md` — the "one
+  grouped cell among stacked ones" problem its old `contents` solved no longer
+  exists. `tests/unit/key-facts.test.js` pins the new class.
+- **The unloaded map is a 128px strip below `lg`**, not a 22rem empty box. It
+  grows when tapped; a layout change right after the visitor's own input is
+  not layout shift. Desktop keeps the full-height frame, since it autoloads.

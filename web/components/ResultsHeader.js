@@ -157,13 +157,10 @@ export default function ResultsHeader({
           ) : null}
         </div>
 
-        {/* Visible on every breakpoint now, not just sm: and up — this is
-            "Trier"'s only home left. It used to duplicate the floating
-            FloatingControlBar.js pill's own sort dropdown on mobile
-            specifically because it was hidden here; that pill is gone
-            entirely now (removed on an explicit instruction), so hiding
-            this too would have left mobile with no way to sort at all. */}
-        <span className="shrink-0">
+        {/* Desktop only. On a phone, sorting lives in FloatingControlBar's
+            Carte | Trier | Alerte pill — this was its second copy, a whole
+            row above the first card. */}
+        <span className="hidden shrink-0 lg:inline-flex">
           <SortDropdown />
         </span>
       </div>

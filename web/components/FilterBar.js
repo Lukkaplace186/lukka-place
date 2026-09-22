@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { SlidersHorizontal, Map } from 'lucide-react';
+import { SlidersHorizontal } from 'lucide-react';
 import FilterPill, { PillFieldLabel, PillOption } from './FilterPill';
 import FiltersDrawer from './FiltersDrawer';
 import FilterModal from './FilterModal';
@@ -60,8 +60,8 @@ const numberInputClass =
  * (FiltersDrawer.js) it always had. Below `lg`, both are replaced by a
  * single compact "Filtres" button next to the location input, opening
  * FilterModal.js — one full-screen sheet covering every field from both of
- * desktop's surfaces at once, plus a Carte/alert utility row underneath the
- * input. FilterModal and FiltersDrawer share their non-primary fields via
+ * desktop's surfaces at once. Carte, Trier and the alert live in
+ * FloatingControlBar's pill on a phone, not here. FilterModal and FiltersDrawer share their non-primary fields via
  * AdvancedFilterFields.js rather than duplicating that markup.
  *
  * `sort` and `view` are carried through as hidden inputs too — previously,
@@ -257,20 +257,8 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
     (defaults.propertyType ? 1 : 0) +
     advancedCount;
 
-  const isMapView = defaults.view === 'map';
-
   function submit() {
     formRef.current?.requestSubmit();
-  }
-
-  function toggleMapView() {
-    const params = new URLSearchParams(searchParams.toString());
-    if (isMapView) {
-      params.delete('view');
-    } else {
-      params.set('view', 'map');
-    }
-    router.push(`/listings?${params.toString()}`);
   }
 
   // Set a value, then submit once React has committed it — the hidden
@@ -559,28 +547,6 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
                 type="button" so it can't trigger this form's submit. */}
             <SaveSearchButton />
           </div>
-        </div>
-
-        {/* Row 2, mobile only: Zoopla's own secondary utility bar directly
-            beneath the search input — a real map-view toggle (the same
-            `?view=map` param the map/list split has always used; this is
-            now the ONLY mobile entry point to it, since FloatingControlBar.js
-            — the floating "Carte / Trier" pill that used to duplicate this
-            same toggle — has been removed entirely, see
-            app/(site)/listings/page.js) and the real save-search/alert
-            action (SaveSearchButton's `variant="alert"` — see its own doc
-            comment for why this is the same feature relabelled, not a
-            second implementation). */}
-        <div className="mt-2 flex items-center divide-x divide-line border-t border-line lg:hidden">
-          <button
-            type="button"
-            onClick={toggleMapView}
-            className="u-press flex flex-1 items-center justify-center gap-1.5 py-2.5 text-[0.8125rem] font-semibold text-ink-70 transition-colors hover:text-blue-deep"
-          >
-            <Map strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-            {isMapView ? t('listings.filters.listView') : t('listings.filters.mapView')}
-          </button>
-          <SaveSearchButton variant="alert" />
         </div>
 
         <FiltersDrawer

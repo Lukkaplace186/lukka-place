@@ -301,8 +301,18 @@ export default function PropertyCard({
             drop cleanly to a second line at 320px instead of compressing all
             four. `items-start` keeps the agency badge on the label's baseline
             rather than centred against a two-line rail. */}
+        {/* Phones get the one-line "Appartement · 🛏 2 ch · 🛁 2 sdb" row
+            instead of the labelled rail: the rail's uppercase labels cost a
+            second line on every card in a feed the visitor is thumbing
+            through, for words the icons already say. lg keeps the rail. */}
         {(specs.length > 0 || type) ? (
-          <div className="flex flex-wrap items-start gap-x-4 gap-y-2.5 pt-0.5">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.875rem] text-ink lg:hidden">
+            {type ? <span className="font-medium">{type}</span> : null}
+            {specs.map((spec) => <SpecItem key={spec.key} spec={spec} />)}
+          </div>
+        ) : null}
+        {(specs.length > 0 || type) ? (
+          <div className="hidden flex-wrap items-start gap-x-4 gap-y-2.5 pt-0.5 lg:flex">
             {type ? (
               <SpecCell label={t('listings.facts.propertyType')}>
                 <span className="truncate">{type}</span>

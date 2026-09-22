@@ -522,7 +522,9 @@
     "alert": {
       "create": "M'alerter des nouveaux biens",
       "created": "Alerte créée",
-      "createForSearch": "Créer une alerte pour cette recherche"
+      "createForSearch": "Créer une alerte pour cette recherche",
+      "short": "Alerte",
+      "shortOn": "Alerte active"
     },
     "authPrompt": {
       "save": "Se connecter ou créer un compte pour enregistrer la recherche",

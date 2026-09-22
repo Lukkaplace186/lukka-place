@@ -40,8 +40,7 @@ const AUTH_RETURN_PARAM = 'lkp_auth_return';
  * exact same save/unsave toggle — confusing to anyone who noticed both,
  * since it read as two different features rather than one. `variant` still
  * picks a *layout* (a compact pill among FilterBar's desktop toolbar vs. a
- * half-width item in its mobile utility row), never the copy or icon
- * anymore — both are the same Bell + label now.
+ * segment of FloatingControlBar's phone pill), never the icon.
  *
  * Gated behind a real account (see AuthPromptModal.js): an explicit product
  * decision to match the Rightmove/Zoopla pattern of blocking Save/Alert
@@ -88,7 +87,7 @@ export default function SaveSearchButton({ variant = 'default' }) {
     () => false,
   );
 
-  const resumeKey = variant === 'alert' ? 'alert' : 'save';
+  const resumeKey = variant === 'pill' ? 'alert' : 'save';
 
   function cleanParams() {
     const params = new URLSearchParams(queryString);
@@ -161,15 +160,19 @@ export default function SaveSearchButton({ variant = 'default' }) {
     />
   ) : null;
 
-  if (variant === 'alert') {
+  // One segment of FloatingControlBar's Carte | Trier | Alerte pill — the
+  // only place the alert lives on a phone, so the short label has to carry
+  // the saved state on its own.
+  if (variant === 'pill') {
     return (
-      <span className="relative inline-flex flex-1 justify-center">
+      <span className="relative inline-flex">
         <button
           type="button"
           onClick={handleClick}
           aria-pressed={saved}
-          className={`u-press inline-flex min-h-11 items-center gap-1.5 whitespace-nowrap py-2.5 text-[0.8125rem] font-semibold transition-colors ${
-            saved ? 'text-blue-deep' : 'text-ink-70 hover:text-blue-deep'
+          aria-label={saved ? t('listings.alert.created') : t('listings.alert.create')}
+          className={`u-press flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 text-[0.8125rem] font-semibold transition-colors hover:bg-canvas-alt active:scale-95 ${
+            saved ? 'text-blue-deep' : ''
           }`}
         >
           <AnimatedBell
@@ -178,7 +181,7 @@ export default function SaveSearchButton({ variant = 'default' }) {
             strokeWidth={ICON_STROKE_WIDTH}
             className="h-4 w-4"
           />
-          {saved ? t('listings.alert.created') : t('listings.alert.create')}
+          {saved ? t('listings.alert.shortOn') : t('listings.alert.short')}
         </button>
         {authPrompt}
         {confirmModal}

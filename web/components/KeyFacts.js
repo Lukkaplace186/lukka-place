@@ -159,10 +159,11 @@ export default function KeyFacts({ listing }) {
           <span className={`u-tabular min-w-0 break-words ${VALUE_CLASS}`}>{value}</span>
         );
 
-        // gap-3 over the helper's gap-2 (cn resolves the clash): the design
-        // spaces icon, label and value wider than the feed card does.
+        // gap-3 over the helper's gap-2 from `md` (cn resolves the clash):
+        // the design spaces icon, label and value wider than the feed card
+        // does. A phone keeps it tight — icon and label share one line there.
         return (
-          <div key={key} className={cn('bg-canvas-alt p-4 sm:p-5', className, 'gap-3')}>
+          <div key={key} className={cn('bg-canvas-alt p-3.5 sm:p-5', className, 'gap-1.5 md:gap-3')}>
             {groupClassName ? (
               // Icon and label as ONE flex item where the cell is stretched, so
               // `justify-between` sends the value to the far end of the row.
@@ -174,10 +175,13 @@ export default function KeyFacts({ listing }) {
                 {labelEl}
               </span>
             ) : (
-              <>
+              // Icon beside its label on a phone (one line instead of two);
+              // `md:contents` hands both back to the cell's own column, so a
+              // desktop still stacks icon over label.
+              <span className="flex items-center gap-2 md:contents">
                 {icon}
                 {labelEl}
-              </>
+              </span>
             )}
             {valueEl}
           </div>

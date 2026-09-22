@@ -182,16 +182,12 @@ export default async function ListingDetailPage({ params, searchParams }) {
     // real margin above it.
     <div className="pb-28 lg:pb-0">
       <ListingViewTracker path={`/listings/${listing.id}`} commune={listing.commune} />
-      <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
-        {/* Stacked below `sm`, side by side above it. Sharing one row at
-            320-375px left the breadcrumb roughly 140px of a 288px content
-            box — enough to wrap "Accueil › Annonces › Kintambo › 3 chambres
-            — Appartement…" onto three lines and shove the two action
-            buttons into it, which is what a real phone screenshot showed.
-            `justify-end` on the action row keeps Partager/Enregistrer
-            right-aligned in the stacked layout too, so they stay where the
-            thumb expects them rather than jumping to the left margin. */}
-        <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 sm:pt-6 lg:px-8">
+        {/* sm and up: breadcrumb left, Partager/Enregistrer right. On a
+            phone neither row exists — the photo starts right under the
+            header and the two actions sit on it (PhotoGallery's
+            `mobileActions`), which gave back ~140px above the fold. */}
+        <div className="mb-5 hidden items-center justify-between gap-4 sm:flex">
           <Breadcrumb
             className="min-w-0"
             items={[
@@ -204,11 +200,6 @@ export default async function ListingDetailPage({ params, searchParams }) {
             ]}
           />
 
-          {/* Zoopla-style top-right action pair — Partager/Sauvegarder,
-              both real (Web Share API with a clipboard fallback; the same
-              localStorage favorite every other heart on the site reads),
-              not decorative buttons duplicating EnquiryCard's own pair
-              lower down. */}
           <div className="flex shrink-0 items-center justify-end gap-2">
             <ShareButton title={listing.title} />
             <FavoriteButton listingId={listing.id} variant="label" price={listing.price} commune={listing.commune} />
@@ -224,14 +215,23 @@ export default async function ListingDetailPage({ params, searchParams }) {
             `.u-lift` elevation and hairline — see that component's doc
             comment for why the gallery is a deliberate, scoped departure
             from this app's usual `.u-card` hairline-only treatment. */}
-        <PhotoGallery images={images} alt={listing.title} />
+        <PhotoGallery
+          images={images}
+          alt={listing.title}
+          mobileActions={(
+            <>
+              <ShareButton title={listing.title} variant="overlay" />
+              <FavoriteButton listingId={listing.id} price={listing.price} commune={listing.commune} />
+            </>
+          )}
+        />
 
         {/* Everything below the hero is the two-column split: narrative on
             the left, a permanently docked rail on the right. 68/32 as
             instructed, expressed in `fr` units rather than literal
             percentages so the 40px gap comes out of the tracks instead of
             overflowing the row (68% + 32% + gap > 100%). */}
-        <div className="mt-8 grid gap-10 lg:mt-10 lg:grid-cols-[minmax(0,68fr)_minmax(0,32fr)] lg:items-start">
+        <div className="mt-5 grid gap-8 sm:mt-8 sm:gap-10 lg:mt-10 lg:grid-cols-[minmax(0,68fr)_minmax(0,32fr)] lg:items-start">
           <div className="flex w-full min-w-0 flex-col gap-7">
             {/* Price leads the page — the design's single loudest number,
                 above the title rather than tucked into the enquiry panel. */}
@@ -304,7 +304,7 @@ export default async function ListingDetailPage({ params, searchParams }) {
 
             {/* Mobile only: the sticky right rail is off-screen below lg. */}
             <div className="flex flex-col gap-4 lg:hidden">
-              <EnquiryCard listing={listing} visitSent={visitSent} visitError={visitError} />
+              <EnquiryCard listing={listing} visitSent={visitSent} visitError={visitError} saveShare={false} />
               <AgentProfileLink agentId={listing.agent_id} />
               <PricePanel listing={listing} />
             </div>

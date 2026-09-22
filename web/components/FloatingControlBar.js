@@ -7,32 +7,30 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from './ui/sheet';
 import { SORT_OPTIONS } from './SortDropdown';
 import { useT } from '@/lib/i18n/client';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import SaveSearchButton from './SaveSearchButton';
 
 /**
- * A floating bottom-center Carte/Trier pill on mobile /listings — brought
- * back on an explicit instruction, over the same real actions that already
- * live in-page: FilterBar's own "Carte" toggle (its mobile utility row) and
- * ResultsHeader's SortDropdown ("Trier"). A component with this exact name
- * and role existed before and was deliberately deleted (see FilterBar.js's
- * and ResultsHeader.js's own doc comments) specifically to stop floating
- * chrome over the feed in favour of that in-page placement — this does not
- * remove that in-page placement, it adds a second, floating entry point to
- * the same two real actions back on top of it.
+ * The one set of list controls on a phone: a floating Carte | Trier | Alerte
+ * pill at the bottom of mobile /listings. It used to be the second copy of
+ * each — FilterBar carried its own Carte/alert row under the search box and
+ * ResultsHeader its own sort dropdown — which cost two rows above the first
+ * card and put every control on screen twice. Those in-page copies are now
+ * desktop-only (`lg:`), so this pill is their only mobile home.
+ *
+ * `hasResults` false (an empty search) leaves only Alerte: there is nothing
+ * to map or sort, and an alert is exactly what an empty search wants.
  *
  * List-mode only (`!isMapView` — see app/(site)/listings/page.js): the
  * mobile fullscreen map already has its own bottom-center floating control
- * at this exact position (MobileMapOverlay.js's "← Liste" button), so
- * rendering this pill there too would sit directly on top of it.
+ * at this exact position (MobileMapOverlay.js's "← Liste" button).
  *
  * "Carte" always sets `view=map` (never toggles it back off) — correct
  * specifically because this pill only ever renders in list mode.
  *
  * "Trier" opens a bottom sheet over SortDropdown.js's exact SORT_OPTIONS
- * (real `ORDER BY` values — no fabricated "verification status" option;
- * every listing reaching this page already passed moderation, so that
- * wouldn't distinguish anything) rather than a second sort implementation.
+ * rather than a second sort implementation.
  */
-export default function FloatingControlBar() {
+export default function FloatingControlBar({ hasResults = true }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [sortOpen, setSortOpen] = useState(false);
@@ -63,24 +61,30 @@ export default function FloatingControlBar() {
             from a busy photo now instead of a dark fill. Text/icons flip to
             ink and hover/press go darker-on-light (bg-canvas-alt) since the
             surface itself is light now. */}
-        <div className="flex items-center gap-1 rounded-full border border-line/80 bg-surface/95 p-1.5 text-ink shadow-xl lg:backdrop-blur-md">
-          <button
-            type="button"
-            onClick={openMapView}
-            className="u-press flex items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-[0.8125rem] font-semibold transition-colors hover:bg-canvas-alt active:scale-95"
-          >
-            <Map strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-            {t('listings.view.map')}
-          </button>
-          <span aria-hidden="true" className="h-5 w-px bg-line" />
-          <button
-            type="button"
-            onClick={() => setSortOpen(true)}
-            className="u-press flex items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-2 text-[0.8125rem] font-semibold transition-colors hover:bg-canvas-alt active:scale-95"
-          >
-            <ArrowUpDown strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-            {t('listings.sort.short')}
-          </button>
+        <div className="flex items-center gap-0.5 rounded-full border border-line/80 bg-surface/95 p-1 text-ink shadow-xl lg:backdrop-blur-md">
+          {hasResults ? (
+            <>
+              <button
+                type="button"
+                onClick={openMapView}
+                className="u-press flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 text-[0.8125rem] font-semibold transition-colors hover:bg-canvas-alt active:scale-95"
+              >
+                <Map strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                {t('listings.view.map')}
+              </button>
+              <span aria-hidden="true" className="h-5 w-px bg-line" />
+              <button
+                type="button"
+                onClick={() => setSortOpen(true)}
+                className="u-press flex min-h-11 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 text-[0.8125rem] font-semibold transition-colors hover:bg-canvas-alt active:scale-95"
+              >
+                <ArrowUpDown strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                {t('listings.sort.short')}
+              </button>
+              <span aria-hidden="true" className="h-5 w-px bg-line" />
+            </>
+          ) : null}
+          <SaveSearchButton variant="pill" />
         </div>
       </div>
 

@@ -209,7 +209,10 @@ function VisitRequestDialog({ propertyId }) {
  * `lg:sticky lg:top-24`.
  */
 
-export default function EnquiryCard({ listing, visitSent, visitError }) {
+// `saveShare={false}` on the phone copy of this card: the detail page already
+// puts Partager/Enregistrer on the photo and a heart in MobileListingBar, so a
+// third pair here was the same two actions again.
+export default function EnquiryCard({ listing, visitSent, visitError, saveShare = true }) {
   const t = useT();
   const {
     id, title,
@@ -307,16 +310,18 @@ export default function EnquiryCard({ listing, visitSent, visitError }) {
           </a>
         ) : null}
 
-        <div className="flex items-center gap-2">
-          <FavoriteButton
-            listingId={id}
-            variant="label"
-            className="flex-1 justify-center"
-            price={listing.price}
-            commune={listing.commune}
-          />
-          <ShareButton title={title} variant="icon" />
-        </div>
+        {saveShare ? (
+          <div className="flex items-center gap-2">
+            <FavoriteButton
+              listingId={id}
+              variant="label"
+              className="flex-1 justify-center"
+              price={listing.price}
+              commune={listing.commune}
+            />
+            <ShareButton title={title} variant="icon" />
+          </div>
+        ) : null}
       </div>
     </div>
   );

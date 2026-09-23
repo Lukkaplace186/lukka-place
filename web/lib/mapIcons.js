@@ -30,47 +30,45 @@ const WHITE = '#FFFFFF';
 const FONT_STACK = 'Arial, Helvetica, sans-serif';
 
 /**
- * Compact label for pin real estate ("185k $", not "185 000 $") — a separate
- * concern from lib/format.js's full formatPrice, which is for card/detail-
- * page display where the extra width is available.
+ * Compact label for pin real estate: "$750", "$1.5k", "$185k", "$1.2M" —
+ * the map's own format, separate from lib/format.js's full formatPrice
+ * ("1 500 $ / mois") on cards and detail pages where the width exists.
  *
- * Keeps one decimal between 1 000 and 10 000. Rounding straight to whole
- * thousands there printed a real 1 200 $/mois rent as "1k $/m" — a 200 $
- * understatement on the single number a visitor scans a map for.
+ * Map-only convention, on explicit product direction (2026-09-23, modelled on
+ * the reference portals): dollar sign first, a decimal POINT, one decimal
+ * only when it carries information ("$1.5k", never "$1.0k" or "$750.00").
  *
- * Currency after the amount with a decimal comma, like the rest of the app,
- * separated by a NARROW no-break space (U+202F): readable, a couple of pixels
- * wide, and never wrapped away from its number.
+ * No "/m": on a map of Kinshasa rents it was the same two characters on every
+ * pill. The preview card a tap opens states the full price and period. A
+ * YEARLY rent keeps "/an" — it is the exception, and a yearly figure read as
+ * monthly is a 12x error.
  *
- * The period. A yearly rent always says "/an" — it is the exception, and a
- * yearly figure read as monthly is a 12x error. A monthly rent says "/m" only
- * when `monthly` is true: the /listings map passes false whenever no sale is
- * among the pins it is showing, because "/m" on forty tags that are all
- * monthly rents is forty copies of nothing (2026-09-23). With a sale on
- * screen the suffix returns, so a rent can never be mistaken for a price.
+ * Keeps one decimal between 1 000 and 10 000: rounding to whole thousands
+ * printed a real 1 200 $ rent as "1k", a 200 $ understatement on the one
+ * number a visitor scans a map for.
  *
  * Guards through usablePrice: `properties.price` is nullable, and Number(null)
- * is 0, so an unguarded label read "0 $" on a listing whose price nobody
+ * is 0, so an unguarded label read "$0" on a listing whose price nobody
  * recorded. An unknown price renders no label at all.
  */
-export function compactPrice(price, purpose, { pricePeriod = null, monthly = true } = {}) {
+export function compactPrice(price, purpose, { pricePeriod = null } = {}) {
   const amount = usablePrice(price);
   if (amount === null) return '';
 
+  const oneDecimal = (value) => String(Math.round(value * 10) / 10);
   let label;
   if (amount < 1000) {
     label = String(Math.round(amount));
-  } else if (amount < 10000) {
-    const tenths = Math.round(amount / 100) / 10;
-    label = `${String(tenths).replace('.', ',')}k`;
-  } else {
+  } else if (amount < 9950) {
+    label = `${oneDecimal(amount / 1000)}k`;
+  } else if (amount < 999500) {
     label = `${Math.round(amount / 1000)}k`;
+  } else {
+    label = `${oneDecimal(amount / 1_000_000)}M`;
   }
 
-  const money = `${label}\u202F$`;
-  if (purpose !== 'rent') return money;
-  if (pricePeriod === 'an') return `${money}/an`;
-  return monthly ? `${money}/m` : money;
+  const money = `$${label}`;
+  return purpose === 'rent' && pricePeriod === 'an' ? `${money}/an` : money;
 }
 
 /**

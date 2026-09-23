@@ -1032,18 +1032,25 @@
 }
 
 /* ── /listings map pins (lib/mapPinLayer.js) ───────────────────────────────
-   HTML price pills drawn over Google's map by one OverlayView, replacing the
-   SVG-image markers there (2026-09-23, "sleek map" pass). Real DOM buys the
-   site's own font (Google sets Roboto on everything inside .gm-style, hence
-   the explicit family), crisp text at any pixel ratio, and transitions.
+   HTML price pills drawn over Google's map by one OverlayView (2026-09-23).
+   Real DOM buys the site's own font (Google sets Roboto on everything inside
+   .gm-style, hence the explicit family), crisp text and transitions.
 
-   Quiet by default, loud on focus: resting pills are white with ink text; the
-   active pin (hovered card, or the pin whose preview is open) is filled royal
-   blue; a listing this browser already opened is greyed like a visited link.
-   Where pills would overlap, lib/mapDeclutter.js turns the losers into dots
-   (data-mode="dot") that stay at their real position and stay tappable.
+   Every listing shows its price — overlapping pills are never collapsed into
+   dots (tried, removed the same day). The shape does the de-cluttering the
+   reference portals rely on: a speech bubble whose stem tip sits exactly on
+   the coordinate, so the eye reads "this price, that spot" even in a stack,
+   and a soft shadow that keeps one pill distinct from the one behind it.
+
+   Quiet by default, loud on focus: white with charcoal text at rest; the
+   active pin (hovered card, or the open preview) royal blue; a listing this
+   browser already opened greyed like a visited link; a commune-centroid
+   position a dashed edge; a verified listing a small check.
+
    Positioning is the wrapper's `transform`; the body uses the individual
-   `translate` / `scale` properties so hover and the entrance never fight it. */
+   `translate` / `scale` properties so hover and the entrance never fight it,
+   and `transform-origin` at the stem tip so a scaled pill grows away from
+   its coordinate instead of drifting off it. */
 .lkp-pin {
   position: absolute;
   left: 0;
@@ -1051,6 +1058,9 @@
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   outline: none;
+  --lkp-bg: #fff;
+  --lkp-fg: #1e1e1e;
+  --lkp-edge: rgb(0 0 0 / 0.08);
 }
 .lkp-pin__body {
   position: relative;
@@ -1059,20 +1069,57 @@
   gap: 3px;
   height: 24px;
   padding: 0 8px;
-  translate: -50% -50%;
+  /* Stem is 6px: the body's bottom edge sits 6px above the coordinate. */
+  translate: -50% calc(-100% - 6px);
+  transform-origin: 50% calc(100% + 6px);
   white-space: nowrap;
-  border-radius: 999px;
-  background: #fff;
-  color: var(--ink);
-  border: 1px solid rgb(11 17 32 / 0.1);
-  box-shadow: 0 1px 2px rgb(11 17 32 / 0.12), 0 2px 6px rgb(11 17 32 / 0.1);
+  border-radius: 6px;
+  background: var(--lkp-bg);
+  color: var(--lkp-fg);
+  border: 1px solid var(--lkp-edge);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.18);
   font-family: var(--font-sans), system-ui, sans-serif;
   font-size: 12px;
   font-weight: 700;
   line-height: 1;
-  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
   transition: scale 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.16s, color 0.16s, box-shadow 0.16s;
+}
+/* The stem: a rotated square half-hidden under the body, so it shares the
+   body's fill, edge and shadow and there is no seam where they meet. */
+.lkp-pin__body::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -5px;
+  width: 9px;
+  height: 9px;
+  translate: -50% 0;
+  rotate: 45deg;
+  background: var(--lkp-bg);
+  border-right: 1px solid var(--lkp-edge);
+  border-bottom: 1px solid var(--lkp-edge);
+  box-shadow: 2px 2px 3px rgb(0 0 0 / 0.1);
+  border-bottom-right-radius: 2px;
+  z-index: -1;
+}
+/* A white patch over the stem's inner half keeps the body's bottom edge
+   clean where the stem joins it. */
+.lkp-pin__body::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 14px;
+  height: 6px;
+  translate: -50% 0;
+  background: var(--lkp-bg);
+  border-radius: 0 0 6px 6px;
+}
+.lkp-pin__label,
+.lkp-pin__check {
+  position: relative;
+  z-index: 1;
 }
 .lkp-pin__check {
   width: 11px;
@@ -1080,27 +1127,23 @@
   flex: none;
   color: var(--blue);
 }
-/* Placed on its commune's centroid, not its own address: a dashed edge says
-   "around here" without a word of chrome (the ⓘ breakdown says it in words). */
 .lkp-pin[data-approximate='true'] .lkp-pin__body {
   border-style: dashed;
-  border-color: rgb(11 17 32 / 0.3);
+  --lkp-edge: rgb(0 0 0 / 0.3);
 }
-.lkp-pin[data-building='true'] .lkp-pin__body {
-  color: var(--blue-deep, #0c1d50);
-  border-color: rgb(30 58 168 / 0.35);
+.lkp-pin[data-building='true'] { --lkp-fg: var(--blue-deep, #0c1d50); }
+.lkp-pin[data-visited='true'] {
+  --lkp-bg: #eef0f3;
+  --lkp-fg: #6b7284;
 }
-.lkp-pin[data-visited='true'] .lkp-pin__body {
-  background: #f1f2f5;
-  color: var(--ink-45);
-  box-shadow: 0 1px 2px rgb(11 17 32 / 0.1);
+.lkp-pin[data-active='true'] {
+  --lkp-bg: var(--blue);
+  --lkp-fg: #fff;
+  --lkp-edge: var(--blue);
 }
 .lkp-pin[data-active='true'] .lkp-pin__body {
-  background: var(--blue);
-  color: #fff;
-  border: 1px solid #fff;
-  scale: 1.1;
-  box-shadow: 0 2px 4px rgb(11 17 32 / 0.2), 0 6px 16px rgb(30 58 168 / 0.35);
+  scale: 1.12;
+  box-shadow: 0 4px 14px rgb(30 58 168 / 0.4);
 }
 .lkp-pin[data-active='true'] .lkp-pin__check { color: #fff; }
 .lkp-pin:focus-visible .lkp-pin__body {
@@ -1109,29 +1152,7 @@
 }
 @media (hover: hover) {
   .lkp-pin:hover .lkp-pin__body { scale: 1.06; }
-  .lkp-pin[data-active='true']:hover .lkp-pin__body { scale: 1.1; }
-}
-
-/* The dot: same position, no label. 10px drawn, a 32px invisible hit area so
-   a thumb can still open it. */
-.lkp-pin[data-mode='dot'] .lkp-pin__body {
-  width: 12px;
-  height: 12px;
-  padding: 0;
-  gap: 0;
-  background: var(--blue);
-  border: 2px solid #fff;
-  box-shadow: 0 1px 3px rgb(11 17 32 / 0.35);
-}
-.lkp-pin[data-mode='dot'] .lkp-pin__label,
-.lkp-pin[data-mode='dot'] .lkp-pin__check { display: none; }
-.lkp-pin[data-mode='dot'][data-visited='true'] .lkp-pin__body { background: #9aa1b1; }
-.lkp-pin[data-mode='dot'][data-approximate='true'] .lkp-pin__body { border-style: solid; border-color: #fff; }
-.lkp-pin[data-mode='dot'] .lkp-pin__body::after {
-  content: '';
-  position: absolute;
-  inset: -12px;
-  border-radius: 999px;
+  .lkp-pin[data-active='true']:hover .lkp-pin__body { scale: 1.12; }
 }
 
 /* "Autour de moi": where the visitor is, only after they asked. */

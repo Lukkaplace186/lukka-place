@@ -47,12 +47,11 @@ import { useT } from '@/lib/i18n/client';
  *   filters keep applying to the wider area. A search naming no place opens on
  *   the Kinshasa core (KINSHASA_DEFAULT_VIEW). Changing a non-location filter
  *   keeps the view where the visitor left it.
- * - **Every listing is its own pin at every zoom.** Clustering was tried and
- *   removed on an explicit product direction: a "13" bubble hides the prices
- *   this map exists to show. Pins are HTML pills (lib/mapPinLayer.js); where
- *   two would overlap, the lower-priority one shrinks to a dot at its real
- *   position (lib/mapDeclutter.js) and gets its price back as you zoom in.
- *   The hovered/selected pin is always labelled and above everything.
+ * - **Every listing shows its price at every zoom.** Clustering, and later
+ *   collapsing overlapping pills into dots, were both removed on explicit
+ *   product direction: the price is what this map exists to show. Pins are
+ *   HTML speech-bubble pills (lib/mapPinLayer.js); higher prices sit in front
+ *   and the hovered/selected pin above everything.
  * - **Positions** are the stored coordinates, or the commune centroid for a
  *   listing without them — both jittered and fanned (lib/geocoding.js
  *   placeResolvedListings). No client-side geocoding of listings happens here;
@@ -136,10 +135,10 @@ function toBounds(latLngBounds) {
   return { south: sw.lat(), west: sw.lng(), north: ne.lat(), east: ne.lng() };
 }
 
-function labelFor(group, monthly) {
+function labelFor(group) {
   if (group.isBuilding) return buildingPinLabel(group, (value) => compactPrice(value, 'sale'));
   const listing = group.representative;
-  return compactPrice(listing.price, listing.purpose, { pricePeriod: listing.price_period, monthly }) || 'N.C.';
+  return compactPrice(listing.price, listing.purpose, { pricePeriod: listing.price_period }) || 'N.C.';
 }
 
 function zIndexFor(group) {
@@ -332,10 +331,6 @@ export default function ListingsMap({
     }
     const positions = spreadColocatedPins(placed.map(({ id, lat, lng }) => ({ id, lat, lng })));
 
-    // "/m" is only worth its width when a sale is on screen to tell a rent
-    // from (lib/mapIcons.js compactPrice).
-    const monthly = markers.some((m) => m.purpose !== 'rent');
-
     const pins = [];
     for (const { id, group } of placed) {
       const position = positions.get(id);
@@ -346,7 +341,7 @@ export default function ListingsMap({
         id: group.isBuilding ? null : String(r.id),
         lat: position.lat,
         lng: position.lng,
-        label: labelFor(group, monthly),
+        label: labelFor(group),
         title: group.isBuilding ? (group.buildingName || r.title) : r.title,
         building: group.isBuilding,
         approximate: Boolean(r.approximate),
@@ -599,12 +594,6 @@ export default function ListingsMap({
   useEffect(() => {
     if (mapReady) applyHover(hoveredId);
   }, [hoveredId, mapReady, applyHover]);
-
-  // The list page's own listings win label collisions, so a card and its pin
-  // can be matched by eye.
-  useEffect(() => {
-    if (mapReady) layerRef.current?.setPageIds((pageListings || []).map((listing) => listing.id));
-  }, [pageListings, mapReady]);
 
   const flash = useCallback((key) => {
     clearTimeout(noticeTimerRef.current);

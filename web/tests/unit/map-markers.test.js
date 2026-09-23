@@ -24,38 +24,32 @@ import {
  * asserting against deleted modules.)
  */
 
-const N = ' '; // narrow no-break space between amount and currency
-
-test('the pin price label never rounds a rent into a different price band', () => {
+test('the pin price label is compact and never rounds a rent into a different price band', () => {
   // Whole-thousand rounding printed 1 200 $ as "1k", understating it by
   // 200 $ and flattening every rent from 1 000 to 1 499 onto one label.
-  assert.equal(compactPrice(1200, 'rent'), `1,2k${N}$/m`);
-  assert.equal(compactPrice(1450, 'rent'), `1,5k${N}$/m`);
-  assert.equal(compactPrice(2000, 'rent'), `2k${N}$/m`);
-  assert.equal(compactPrice(400, 'rent'), `400${N}$/m`);
-  assert.equal(compactPrice(185000, 'sale'), `185k${N}$`);
-  assert.equal(compactPrice(45000, 'sale'), `45k${N}$`);
+  assert.equal(compactPrice(1200, 'rent'), '$1.2k');
+  assert.equal(compactPrice(1450, 'rent'), '$1.5k');
+  assert.equal(compactPrice(2000, 'rent'), '$2k');
+  assert.equal(compactPrice(1000, 'rent'), '$1k');
+  assert.equal(compactPrice(750, 'rent'), '$750');
+  assert.equal(compactPrice('750.00', 'rent'), '$750');
+  assert.equal(compactPrice(185000, 'sale'), '$185k');
+  assert.equal(compactPrice(1_200_000, 'sale'), '$1.2M');
+  assert.equal(compactPrice(2_000_000, 'sale'), '$2M');
+  // Rounding boundaries never print "$10.0k" or "$1000k".
+  assert.equal(compactPrice(9960, 'sale'), '$10k');
+  assert.equal(compactPrice(999_700, 'sale'), '$1M');
 
-  // Never a breakable space: the currency cannot wrap away from its number.
-  for (const label of [compactPrice(1200, 'rent'), compactPrice(185000, 'sale')]) {
-    assert.ok(!label.includes(' '), `"${label}" carries a breakable space`);
-  }
-
-  // An unknown price renders nothing at all rather than "0$/m" or
-  // "NaN$" — the same contract lib/format.js's formatPrice holds.
+  // An unknown price renders nothing at all rather than "$0" or "$NaN".
   for (const bad of [null, undefined, '', 'abc', NaN, 0]) {
     assert.equal(compactPrice(bad, 'rent'), '');
   }
 });
 
-test('"/m" is dropped only on request, and a yearly rent always says so', () => {
-  // The /listings map passes monthly:false when no sale is among its pins.
-  assert.equal(compactPrice(1200, 'rent', { monthly: false }), `1,2k${N}$`);
-  // A sale never had a period to drop.
-  assert.equal(compactPrice(185000, 'sale', { monthly: false }), `185k${N}$`);
-  // A yearly figure read as monthly is a 12x error: "/an" survives.
-  assert.equal(compactPrice(9000, 'rent', { pricePeriod: 'an', monthly: false }), `9k${N}$/an`);
-  assert.equal(compactPrice(9000, 'rent', { pricePeriod: 'an' }), `9k${N}$/an`);
+test('no "/m" on the map, but a yearly rent always says "/an"', () => {
+  assert.ok(!compactPrice(1200, 'rent').includes('/'));
+  assert.equal(compactPrice(9000, 'rent', { pricePeriod: 'an' }), '$9k/an');
+  assert.equal(compactPrice(9000, 'rent', { pricePeriod: 'mois' }), '$9k');
 });
 
 test('stacking order puts higher prices in front, and never above the hover slot', () => {
@@ -71,7 +65,7 @@ test('stacking order puts higher prices in front, and never above the hover slot
 
 test('the price tag fits its own canvas and anchors on the tail tip', () => {
   for (const hovered of [false, true]) {
-    const g = pricePinGeometry({ label: '1,2k$/m', hovered });
+    const g = pricePinGeometry({ label: '$1.2k', hovered });
 
     assert.equal(g.tipY, g.y + g.h + g.tailH);
     assert.ok(g.tipY <= g.height, 'tail tip falls outside the icon canvas');
@@ -80,14 +74,14 @@ test('the price tag fits its own canvas and anchors on the tail tip', () => {
   }
 
   // Hover scales the same tag up; it must not reflow into a different shape.
-  const rest = pricePinGeometry({ label: '450k$' });
-  const hover = pricePinGeometry({ label: '450k$', hovered: true });
+  const rest = pricePinGeometry({ label: '$450k' });
+  const hover = pricePinGeometry({ label: '$450k', hovered: true });
   assert.ok(hover.width > rest.width && hover.height > rest.height);
 });
 
 test('a long label widens the tag instead of overflowing it', () => {
-  const short = pricePinGeometry({ label: '9$' });
-  const long = pricePinGeometry({ label: '12500k$/m' });
+  const short = pricePinGeometry({ label: '$9' });
+  const long = pricePinGeometry({ label: '$12500k/an' });
   assert.ok(long.width > short.width);
   assert.ok(long.w <= long.width - long.pad * 2);
 });

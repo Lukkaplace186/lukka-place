@@ -22,7 +22,7 @@ function svgOf(icon) {
 
 test('the ground shadow sits on the tail tip and fits inside the canvas', () => {
   for (const hovered of [false, true]) {
-    for (const label of ['9$', '1,2k$/m', '12500k$/m']) {
+    for (const label of ['$9', '$1.2k', '$12500k/an']) {
       const g = pricePinGeometry({ label, hovered });
       assert.ok(g.tipY + g.groundRy + 2 <= g.height, `ground shadow clipped at the bottom (${label})`);
       assert.ok(g.cx - g.groundRx >= 0 && g.cx + g.groundRx <= g.width, `ground shadow clipped at the side (${label})`);
@@ -33,7 +33,7 @@ test('the ground shadow sits on the tail tip and fits inside the canvas', () => 
 
 test('the icon anchors on the tail tip, where the ground shadow is drawn', () => {
   const icon = buildPricePinIcon({ listing: { price: 1200, purpose: 'rent' } });
-  const g = pricePinGeometry({ label: '1,2k $/m' });
+  const g = pricePinGeometry({ label: '$1.2k' });
   assert.deepEqual([icon.anchor.x, icon.anchor.y], [g.cx, g.tipY]);
   assert.deepEqual([icon.scaledSize.width, icon.scaledSize.height], [g.width, g.height]);
   assert.match(svgOf(icon), new RegExp(`<ellipse cx="${g.cx.toFixed(2)}" cy="${g.tipY.toFixed(2)}"`));
@@ -47,12 +47,12 @@ test('resting is white with dark text; active is royal blue with white text and 
   const active = svgOf(buildPricePinIcon({ listing: { price: 500, purpose: 'rent' }, hovered: true }));
   assert.match(active, /<path [^>]*fill="#1E3AA8" stroke="#FFFFFF" stroke-width="1.5"/);
   assert.match(active, /<text [^>]*fill="#FFFFFF"/);
-  assert.match(active, />500 \$\/m</);
+  assert.match(active, />\$500</);
 });
 
 test('a yearly rent keeps "/an" on the detail-page pin', () => {
   const svg = svgOf(buildPricePinIcon({ listing: { price: 9000, purpose: 'rent', price_period: 'an' } }));
-  assert.match(svg, />9k \$\/an</);
+  assert.match(svg, />\$9k\/an</);
 });
 
 test('a building pin gets the same grounding and the same active state', () => {

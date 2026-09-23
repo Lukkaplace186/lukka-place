@@ -1,5 +1,3 @@
-import { declutterPins, orderForLabels } from './mapDeclutter';
-
 /**
  * The /listings map's pins, as HTML over Google's map — one OverlayView
  * holding every pill, instead of one `google.maps.Marker` per listing with an
@@ -8,12 +6,16 @@ import { declutterPins, orderForLabels } from './mapDeclutter';
  * - the site's own font, crisp at any pixel ratio (the SVG images drew Arial);
  * - CSS transitions and an entrance (app/globals.css, `.lkp-pin`), so a pin
  *   that arrives with a new viewport fetch fades in instead of popping;
- * - measurable boxes, which is what lets lib/mapDeclutter.js shrink
- *   overlapping pills to dots — the fix for the stacked blue blob a city-wide
- *   view used to be;
  * - no Map ID needed (AdvancedMarkerElement would force one, and a Map ID
  *   would retire the JSON basemap style in lib/mapStyle.js);
  * - and it leaves `google.maps.Marker`, which Google has deprecated.
+ *
+ * **Every listing shows its price, always.** A first version shrank
+ * overlapping pills to dots (2026-09-23); it was removed the same day on
+ * product direction — a dot said nothing to a visitor. Overlap is handled the
+ * way the reference portals handle it: speech-bubble pills whose stem points
+ * at the coordinate, a shadow that keeps stacked pills distinct, and
+ * predictable stacking (higher price in front, the active pin above all).
  *
  * Elements keep `role="button"` and `title` = the listing title, the handle
  * the live-site pin test uses (memory: map-pin-click-testing).
@@ -32,8 +34,6 @@ export function createPinLayer(map, handlers) {
       this.entries = new Map();
       this.activeId = null;
       this.visited = new Set();
-      this.pageIds = new Set();
-      this.labelZoom = null;
       this.me = null;
       this.meEl = null;
       this.container = null;
@@ -68,8 +68,6 @@ export function createPinLayer(map, handlers) {
         const point = projection.fromLatLngToDivPixel(new google.maps.LatLng(this.me.lat, this.me.lng));
         if (point) this.meEl.style.transform = `translate3d(${point.x.toFixed(1)}px, ${point.y.toFixed(1)}px, 0)`;
       }
-      const zoom = this.getMap()?.getZoom();
-      if (zoom !== this.labelZoom) this.relabel();
     }
 
     /**
@@ -87,10 +85,7 @@ export function createPinLayer(map, handlers) {
         let entry = previous.get(pin.key);
         if (entry) {
           previous.delete(pin.key);
-          if (entry.pin.label !== pin.label) {
-            entry.labelEl.textContent = pin.label;
-            entry.width = null;
-          }
+          if (entry.pin.label !== pin.label) entry.labelEl.textContent = pin.label;
           if (entry.pin.verified !== pin.verified) this.#setCheck(entry, pin.verified);
           entry.pin = pin;
         } else {
@@ -103,27 +98,19 @@ export function createPinLayer(map, handlers) {
       for (const entry of previous.values()) entry.el.remove();
       this.entries = next;
       this.draw();
-      this.relabel();
     }
 
-    /** The pinned pin: highlighted, always labelled, above everything. */
+    /** The active pin (hovered card, or the open preview): highlighted, above everything. */
     setActive(id) {
       const value = id == null ? null : String(id);
       if (value === this.activeId) return;
       this.activeId = value;
       for (const entry of this.entries.values()) this.#applyState(entry);
-      this.relabel();
     }
 
     setVisited(ids) {
       this.visited = new Set([...ids].map(String));
       for (const entry of this.entries.values()) this.#applyState(entry);
-    }
-
-    /** Listings on the list page beside the map win label collisions. */
-    setPageIds(ids) {
-      this.pageIds = new Set([...ids].map(String));
-      this.relabel();
     }
 
     setUserLocation(position) {
@@ -142,61 +129,10 @@ export function createPinLayer(map, handlers) {
       this.draw();
     }
 
-    /** Decide label vs dot for every pin at the current zoom. */
-    relabel() {
-      if (!this.container || !this.getProjection()) return;
-      this.labelZoom = this.getMap()?.getZoom() ?? null;
-
-      // Measure first (one layout for every unmeasured pill), then decide.
-      const all = [...this.entries.values()];
-      for (const entry of all) {
-        if (entry.width == null) {
-          const wasDot = entry.el.dataset.mode === 'dot';
-          if (wasDot) entry.el.dataset.mode = 'label';
-          entry.width = entry.body.offsetWidth || 48;
-          if (wasDot) entry.el.dataset.mode = 'dot';
-        }
-      }
-
-      const byId = new Map(all.map((entry) => [entry.pin.key, entry]));
-      const ordered = orderForLabels(
-        all.map((entry) => ({ id: entry.pin.key, listingId: entry.pin.id, approximate: entry.pin.approximate })),
-        { pinnedId: this.#activeKey(), pageIds: this.#pageKeys() },
-      );
-      const labelled = declutterPins(
-        ordered.map(({ id }) => {
-          const entry = byId.get(id);
-          return { id, x: entry.x, y: entry.y, w: entry.width, h: 24 };
-        }),
-        { always: this.#activeKey() },
-      );
-      for (const entry of all) {
-        const mode = labelled.has(entry.pin.key) ? 'label' : 'dot';
-        if (entry.el.dataset.mode !== mode) entry.el.dataset.mode = mode;
-        this.#applyZ(entry);
-      }
-    }
-
     destroy() {
       for (const entry of this.entries.values()) entry.el.remove();
       this.entries = new Map();
       this.setMap(null);
-    }
-
-    #activeKey() {
-      if (this.activeId == null) return null;
-      for (const entry of this.entries.values()) {
-        if (!entry.pin.building && entry.pin.id === this.activeId) return entry.pin.key;
-      }
-      return null;
-    }
-
-    #pageKeys() {
-      const keys = new Set();
-      for (const entry of this.entries.values()) {
-        if (!entry.pin.building && this.pageIds.has(entry.pin.id)) keys.add(entry.pin.key);
-      }
-      return keys;
     }
 
     #createEntry(pin) {
@@ -205,7 +141,6 @@ export function createPinLayer(map, handlers) {
       el.setAttribute('role', 'button');
       el.tabIndex = 0;
       el.title = pin.title || '';
-      el.dataset.mode = 'label';
       const body = document.createElement('span');
       body.className = 'lkp-pin__body';
       const labelEl = document.createElement('span');
@@ -215,10 +150,10 @@ export function createPinLayer(map, handlers) {
       el.appendChild(body);
       el.addEventListener('animationend', () => el.classList.remove('is-new'), { once: true });
       // Browsers that never run the animation (reduced motion) never fire
-      // animationend; drop the class anyway so a later relabel cannot replay it.
+      // animationend; drop the class anyway.
       setTimeout(() => el.classList.remove('is-new'), 400);
 
-      const entry = { pin, el, body, labelEl, checkEl: null, width: null, x: NaN, y: NaN };
+      const entry = { pin, el, body, labelEl, checkEl: null };
       this.#setCheck(entry, pin.verified);
 
       // Clicks stop at the pin (the map's own click closes the preview), but
@@ -252,11 +187,9 @@ export function createPinLayer(map, handlers) {
         svg.appendChild(path);
         entry.body.insertBefore(svg, entry.labelEl);
         entry.checkEl = svg;
-        entry.width = null;
       } else if (!verified && entry.checkEl) {
         entry.checkEl.remove();
         entry.checkEl = null;
-        entry.width = null;
       }
     }
 
@@ -272,13 +205,10 @@ export function createPinLayer(map, handlers) {
       this.#applyZ(entry);
     }
 
-    // Stacking: the active pin over everything, labels over dots, and among
-    // labels the higher price in front (the rule the SVG markers had).
+    // Stacking: the active pin over everything, then the higher price in
+    // front (the rule the SVG markers had).
     #applyZ(entry) {
-      let z;
-      if (entry.el.dataset.active === 'true') z = 3000000;
-      else if (entry.el.dataset.mode === 'dot') z = 10;
-      else z = 1000 + (entry.pin.zIndex || 0);
+      const z = entry.el.dataset.active === 'true' ? 3000000 : 1000 + (entry.pin.zIndex || 0);
       const value = String(z);
       if (entry.el.style.zIndex !== value) entry.el.style.zIndex = value;
     }

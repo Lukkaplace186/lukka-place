@@ -75,7 +75,7 @@ export function createPinLayer(map, handlers) {
      * pan never makes the whole map blink; a new one gets the entrance.
      *
      * @param {Array<{key: string, id: string|null, lat: number, lng: number,
-     *   label: string, title: string, building: boolean, approximate: boolean,
+     *   label: string, title: string, building: boolean,
      *   verified: boolean, zIndex: number, payload: any}>} pins
      */
     setPins(pins) {
@@ -199,7 +199,6 @@ export function createPinLayer(map, handlers) {
       const visited = !active && !pin.building && this.visited.has(pin.id);
       el.dataset.active = String(active);
       el.dataset.visited = String(visited);
-      el.dataset.approximate = String(Boolean(pin.approximate));
       el.dataset.building = String(Boolean(pin.building));
       if (el.title !== (pin.title || '')) el.title = pin.title || '';
       this.#applyZ(entry);

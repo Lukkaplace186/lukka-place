@@ -344,7 +344,6 @@ export default function ListingsMap({
         label: labelFor(group),
         title: group.isBuilding ? (group.buildingName || r.title) : r.title,
         building: group.isBuilding,
-        approximate: Boolean(r.approximate),
         verified: !group.isBuilding && Boolean(r.verified),
         zIndex: zIndexFor(group),
         group,

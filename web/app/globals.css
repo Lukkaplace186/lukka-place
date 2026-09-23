@@ -1044,8 +1044,10 @@
 
    Quiet by default, loud on focus: white with charcoal text at rest; the
    active pin (hovered card, or the open preview) royal blue; a listing this
-   browser already opened greyed like a visited link; a commune-centroid
-   position a dashed edge; a verified listing a small check.
+   browser already opened greyed like a visited link; a verified listing a
+   small check. Every pill has the same solid hairline edge — a dashed edge
+   for commune-centroid positions was tried and removed on product direction
+   (the ⓘ breakdown still says how many are placed that way).
 
    Positioning is the wrapper's `transform`; the body uses the individual
    `translate` / `scale` properties so hover and the entrance never fight it,
@@ -1077,7 +1079,7 @@
   background: var(--lkp-bg);
   color: var(--lkp-fg);
   border: 1px solid var(--lkp-edge);
-  box-shadow: 0 2px 6px rgb(0 0 0 / 0.18);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.12);
   font-family: var(--font-sans), system-ui, sans-serif;
   font-size: 12px;
   font-weight: 700;
@@ -1126,10 +1128,6 @@
   height: 11px;
   flex: none;
   color: var(--blue);
-}
-.lkp-pin[data-approximate='true'] .lkp-pin__body {
-  border-style: dashed;
-  --lkp-edge: rgb(0 0 0 / 0.3);
 }
 .lkp-pin[data-building='true'] { --lkp-fg: var(--blue-deep, #0c1d50); }
 .lkp-pin[data-visited='true'] {

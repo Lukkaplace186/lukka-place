@@ -26,13 +26,20 @@
  * labels are kept, because those are the landmarks people actually navigate
  * Kinshasa by.
  *
- * 2026-09-23, "sleek map" pass: the same geography, one more stop quieter.
- * Price pills are white now (lib/mapPinLayer.js), so the basemap has to stay
- * lighter than a white tag's shadow can read against, and busier details were
- * cut: local street names are off (arterial names such as Boulevard du 30
- * Juin stay, people navigate by them), land parcels are off, vegetation is
- * barely tinted, and the highway yellow is a pale cream rather than a stripe.
- * Commune and neighbourhood names stay — in Kinshasa they are the address.
+ * 2026-09-23, vibrant pass (product direction, replacing the "one stop
+ * quieter" pass of the same morning): the geography POPS — rich green parks,
+ * a vivid blue Congo, a clean off-white canvas, white streets and soft yellow
+ * highways. That works now because the price pills are white cards with a
+ * shadow (lib/mapPinLayer.js), not blue fills: they read against saturated
+ * colour instead of drowning in it. Parks carry the strongest green; the wide
+ * natural landcover around the city is a lighter one, or the outskirts would
+ * turn into one solid green slab. Clutter stays cut: POI icons and business
+ * labels off, transit off, local street names and land parcels off. Commune
+ * and neighbourhood names stay — in Kinshasa they are the address.
+ *
+ * Feature names are the classic `styles` vocabulary (`poi.park`,
+ * `landscape.natural`); `landuse.park` / `natural.landcover` are Cloud-styling
+ * names and would be ignored by this API.
  *
  * Values are hardcoded hexes rather than CSS custom properties because this
  * array is handed to the Maps JS API, which resolves nothing from the
@@ -46,28 +53,28 @@
  * need a second vendor, a second key and a rewrite of PropertyMap.js.
  */
 
-// A cool, near-white paper: the white pills and their shadows sit on it.
-const CANVAS = '#F4F4F1';
-const CANVAS_ALT = '#EEEEEA';
-const INK = '#2A3040';
-const INK_SOFT = '#7A8193';
+// Clean off-white canvas; built-up land one hair darker.
+const CANVAS = '#F8F9FA';
+const CANVAS_ALT = '#F1F3F5';
+const INK = '#263238';
+const INK_SOFT = '#5F6B7A';
 const HALO = '#FFFFFF';
 
-// Real geography, muted well below Google's own defaults.
-const WATER = '#BCDDF0';
-const WATER_LABEL = '#4F86AE';
-const PARK = '#DCEAD3';
-const PARK_LABEL = '#5A8248';
-const VEGETATION = '#E9EEE3';
+// Vivid geography.
+const WATER = '#4FC3F7';
+const WATER_LABEL = '#01579B';
+const PARK = '#81C784';
+const PARK_LABEL = '#1B5E20';
+const VEGETATION = '#C5E8C8';
 
-// Road hierarchy: white streets, a faint warm tint on arterials and highways.
+// Roads: white streets and arterials, soft yellow highways.
 const ROAD_LOCAL = '#FFFFFF';
 const ROAD_ARTERIAL = '#FFFFFF';
-const ROAD_HIGHWAY = '#FCF2DC';
-const ROAD_HIGHWAY_EDGE = '#EEDDB8';
-const ROAD_EDGE = '#E5E3DD';
+const ROAD_HIGHWAY = '#FFE7A0';
+const ROAD_HIGHWAY_EDGE = '#F2C94C';
+const ROAD_EDGE = '#E3E6EA';
 
-const ADMIN_LINE = '#D6D3CB';
+const ADMIN_LINE = '#C9CED6';
 
 export const MAP_STYLES = [
   { elementType: 'geometry', stylers: [{ color: CANVAS }] },

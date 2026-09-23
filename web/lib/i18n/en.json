@@ -520,14 +520,6 @@
         "one": "{count} property in this area",
         "other": "{count} properties in this area"
       },
-      "approximate": {
-        "one": "{count} placed at the centre of its commune (address not geolocated)",
-        "other": "{count} placed at the centre of their commune (address not geolocated)"
-      },
-      "unlocated": {
-        "one": "{count} without a location, not on the map",
-        "other": "{count} without a location, not on the map"
-      },
       "truncated": "Too many properties here: zoom in to see them all",
       "fetchError": "Could not load the properties in this area.",
       "locate": "Near me",
@@ -535,7 +527,6 @@
       "locateFailed": "Couldn't find your position right now. Try again in a moment.",
       "locateOutside": "You seem to be outside Kinshasa, so the map stays on the city.",
       "locateUnavailable": "Your browser doesn't support location.",
-      "locationDetails": "Location details",
       "show": "Show map",
       "showHint": "The map loads on request to save your mobile data."
     },

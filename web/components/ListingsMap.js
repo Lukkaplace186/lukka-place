@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Info, LocateFixed, Loader2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { LocateFixed, Loader2 } from 'lucide-react';
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader';
 import { placeResolvedListings } from '@/lib/geocoding';
 import { compactPrice, priceZIndex } from '@/lib/mapIcons';
@@ -56,12 +56,12 @@ import { useT } from '@/lib/i18n/client';
  *   listing without them — both jittered and fanned (lib/geocoding.js
  *   placeResolvedListings). No client-side geocoding of listings happens here;
  *   the only geocoder calls are for the opening view of a named place.
- * - **Honesty, compactly.** One pill states how many listings are in view; an
- *   info button beside it opens the breakdown (placed on a commune centroid,
- *   matching but unplaceable, truncated) instead of stacking three pills over
- *   the top of a phone-sized map. On a phone the count itself is left to the
- *   "Voir N biens" button (MobileMapOverlay) — the pill shows only loading,
- *   failure, or the ⓘ alone, so one number is not printed twice.
+ * - **One plain-text counter pill** ("35 biens dans cette zone") on desktop.
+ *   The ⓘ breakdown beside it (commune-centroid / unplaceable counts) was
+ *   removed on product direction, 2026-09-23 — an icon nobody understood.
+ *   On a phone the count is the "Voir N biens" button's job (MobileMapOverlay),
+ *   so the pill appears there only while loading, on a failure, or when the
+ *   answer is capped (it then says to zoom in instead of a false count).
  * - **"Autour de moi"** centres on the visitor's own position, only when they
  *   tap it, and only inside Kinshasa province: a diaspora visitor in Brussels
  *   is told so rather than flown to Belgium.
@@ -232,7 +232,6 @@ export default function ListingsMap({
   params, pageListings, hoveredId, onMarkerHover, onListingSelect, onBuildingSelect, onAreaChange, onInViewChange,
 }) {
   const t = useT();
-  const detailsId = useId();
   const elementRef = useRef(null);
   const mapRef = useRef(null);
   const geocoderRef = useRef(null);
@@ -250,11 +249,10 @@ export default function ListingsMap({
 
   const [status, setStatus] = useState(() => (MAPS_API_KEY ? 'loading' : 'error'));
   const [mapReady, setMapReady] = useState(false);
-  const [detailsOpen, setDetailsOpen] = useState(false);
   const [locating, setLocating] = useState(false);
   const [notice, setNotice] = useState(null);
   const noticeTimerRef = useRef(null);
-  const [view, setView] = useState({ loaded: false, inView: 0, approximate: 0, unlocated: 0, truncated: false, fetching: false, failed: false });
+  const [view, setView] = useState({ loaded: false, inView: 0, truncated: false, fetching: false, failed: false });
 
   const filterQuery = useMemo(() => mapFilterQuery(params), [params]);
   // Whether the URL currently carries a map area. Only its removal matters
@@ -268,13 +266,10 @@ export default function ListingsMap({
 
   const updateCounts = useCallback((viewport) => {
     let inView = 0;
-    let approximate = 0;
     for (const marker of markerDataRef.current.values()) {
-      if (!boundsContain(viewport, marker)) continue;
-      inView += 1;
-      if (marker.approximate) approximate += 1;
+      if (boundsContain(viewport, marker)) inView += 1;
     }
-    setView((v) => (v.inView === inView && v.approximate === approximate ? v : { ...v, inView, approximate }));
+    setView((v) => (v.inView === inView ? v : { ...v, inView }));
   }, []);
 
   const applyHover = useCallback((id) => {
@@ -402,7 +397,6 @@ export default function ListingsMap({
         loaded: true,
         fetching: false,
         failed: false,
-        unlocated: body.unlocated || 0,
         truncated: Boolean(body.truncated),
       }));
       const now = mapRef.current?.getBounds();
@@ -476,13 +470,12 @@ export default function ListingsMap({
         });
         layerRef.current.setVisited([...getRecentIds(), ...tappedThisSession]);
 
-        // Tapping the bare map dismisses an open preview card and the badge's
-        // breakdown. Marker clicks do not propagate to the map, so this never
-        // closes the card a pin tap has just opened.
+        // Tapping the bare map dismisses an open preview card. Marker clicks
+        // do not propagate to the map, so this never closes the card a pin
+        // tap has just opened.
         listeners.push(map.addListener('click', () => {
           selectSeqRef.current += 1;
           propsRef.current.onListingSelect?.(null);
-          setDetailsOpen(false);
         }));
         listeners.push(map.addListener('idle', () => {
           scheduleFetch();
@@ -629,17 +622,16 @@ export default function ListingsMap({
     );
   }, [flash]);
 
-  const details = [];
-  if (view.truncated) details.push(t('listings.map.truncated'));
-  if (view.approximate > 0) details.push(t('listings.map.approximate', { count: view.approximate }));
-  if (view.unlocated > 0) details.push(t('listings.map.unlocated', { count: view.unlocated }));
-  const hasDetails = details.length > 0 && !view.failed;
-
+  // One line of text, never an icon to decode. A capped answer (more
+  // matches than the map will draw) replaces the count, because "2000 biens"
+  // would then be false.
   let pillText = t('listings.map.updating');
   if (view.failed) pillText = t('listings.map.fetchError');
+  else if (view.truncated) pillText = t('listings.map.truncated');
   else if (view.loaded) pillText = t('listings.map.inArea', { count: view.inView });
-  // On a phone a settled count is the "Voir N biens" button's job.
-  const phoneQuiet = view.loaded && !view.failed;
+  // On a phone the settled count is the "Voir N biens" button's job, so the
+  // pill only appears there for loading, a failure, or a capped answer.
+  const phoneHidden = view.loaded && !view.failed && !view.truncated;
 
   // No border/rounding of its own — every caller already owns its edge
   // treatment (see PropertyMap's same note).
@@ -659,48 +651,21 @@ export default function ListingsMap({
       <div ref={elementRef} className="h-full w-full" />
 
       {status === 'ready' ? (
-        // One pill, ~28px tall, top-centre. Only the pill and its breakdown
-        // take pointer events, so the map stays draggable right up to it.
+        // A text-only counter pill, top-centre. Only the pill takes pointer
+        // events, so the map stays draggable right up to it.
         <div
-          className={`pointer-events-none absolute inset-x-0 top-2.5 z-20 flex-col items-center px-3 ${
-            phoneQuiet && !hasDetails ? 'hidden lg:flex' : 'flex'
+          className={`pointer-events-none absolute inset-x-0 top-3 z-20 justify-center px-3 ${
+            phoneHidden ? 'hidden lg:flex' : 'flex'
           }`}
         >
-          <div
-            className={`u-lift pointer-events-auto flex items-center gap-0.5 rounded-full border border-line bg-surface/95 py-1 lg:backdrop-blur-md transition-opacity ${
-              hasDetails ? 'pr-1' : 'pr-3'
-            } ${phoneQuiet ? 'pl-1 lg:pl-3' : 'pl-3'} ${view.fetching && view.loaded ? 'opacity-80' : ''}`}
+          <p
+            aria-live="polite"
+            className={`u-tabular rounded-full bg-surface px-3.5 py-1.5 text-[0.75rem] font-semibold leading-5 text-ink shadow-[0_2px_8px_rgba(0,0,0,0.12)] transition-opacity ${
+              view.fetching && view.loaded ? 'opacity-80' : ''
+            }`}
           >
-            <span
-              aria-live="polite"
-              className={`u-tabular whitespace-nowrap text-[0.75rem] font-semibold leading-5 text-ink ${phoneQuiet ? 'max-lg:sr-only' : ''}`}
-            >
-              {pillText}
-            </span>
-            {hasDetails ? (
-              <button
-                type="button"
-                onClick={() => setDetailsOpen((open) => !open)}
-                aria-expanded={detailsOpen}
-                aria-controls={detailsId}
-                aria-label={t('listings.map.locationDetails')}
-                title={t('listings.map.locationDetails')}
-                className="u-press flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-ink-45 transition-colors hover:bg-canvas-alt hover:text-ink"
-              >
-                <Info strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
-              </button>
-            ) : null}
-          </div>
-          {hasDetails && detailsOpen ? (
-            <ul
-              id={detailsId}
-              className="u-lift pointer-events-auto mt-1.5 max-w-[18rem] space-y-1 rounded-xl border border-line bg-surface/95 px-3 py-2 text-[0.6875rem] leading-snug text-ink-70 lg:backdrop-blur-md"
-            >
-              {details.map((detail) => (
-                <li key={detail}>{detail}</li>
-              ))}
-            </ul>
-          ) : null}
+            {pillText}
+          </p>
         </div>
       ) : null}
 

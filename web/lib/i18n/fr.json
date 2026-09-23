@@ -520,14 +520,6 @@
         "one": "{count} bien dans cette zone",
         "other": "{count} biens dans cette zone"
       },
-      "approximate": {
-        "one": "{count} placé au centre de sa commune (adresse non géolocalisée)",
-        "other": "{count} placés au centre de leur commune (adresse non géolocalisée)"
-      },
-      "unlocated": {
-        "one": "{count} sans localisation, absent de la carte",
-        "other": "{count} sans localisation, absents de la carte"
-      },
       "truncated": "Trop de biens ici : zoomez pour tous les afficher",
       "fetchError": "Impossible de charger les biens de cette zone.",
       "locate": "Autour de moi",
@@ -535,7 +527,6 @@
       "locateFailed": "Position introuvable pour le moment. Réessayez dans un instant.",
       "locateOutside": "Vous semblez être hors de Kinshasa : la carte reste sur la ville.",
       "locateUnavailable": "Votre navigateur ne permet pas la localisation.",
-      "locationDetails": "Détails de localisation",
       "show": "Afficher la carte",
       "showHint": "La carte se charge à la demande pour économiser vos données mobiles."
     },

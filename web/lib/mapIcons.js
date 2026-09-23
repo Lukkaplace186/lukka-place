@@ -1,48 +1,31 @@
-// Price-tag marker icons for the maps (components/ListingsMap.js on /listings,
-// components/PropertyMap.js on the detail page). Classic
-// `google.maps.Marker.icon` data-URI SVGs — not `AdvancedMarkerElement`,
+// Price-tag marker icons for the detail page's single-listing map
+// (components/PropertyMap.js), plus the compact price label every map shares.
+// The /listings viewport map no longer uses these SVGs: it draws HTML pills
+// through lib/mapPinLayer.js (brand font, CSS transitions, collision dots).
+// Classic `google.maps.Marker.icon` data-URI SVGs — not `AdvancedMarkerElement`,
 // which needs a Cloud Console Map ID even for a plain pixel-styled pin. Must
 // only be called after the Maps JS API has loaded (references the global
 // `google.maps.Size`/`Point`).
 //
-// Shape: the grounded price pin the reference portals use (Booking.com is the
-// one this was matched to) — a compact rounded rectangle carrying the price,
-// a short tail beneath it whose tip sits exactly on the coordinate, and three
-// layers of depth that make it read as standing ON the map rather than
-// floating over it:
-//   1. a soft drop shadow under the tag and its tail;
-//   2. a small blurred ground shadow — an ellipse centred on the tail tip —
-//      the "landing" spot where the pin meets the land;
-//   3. an active state (hovered card, or the pin whose preview is open) that
-//      flips to white with dark text and a thick blue border, so the one pin
-//      that matters stands out of a field of blue ones.
+// Shape: a compact rounded tag carrying the price, a short tail whose tip sits
+// exactly on the coordinate, a soft drop shadow and a small ground shadow.
 //
-// Filled in the brand's royal blue with white text rather than Booking's
-// navy, on an explicit branding decision: the map is the densest single
-// screen on the site, so it is also the cheapest place to make the brand
-// colour read at a glance. Body and tail are one unioned path so the border
-// traces a continuous outline with no seam where the two meet.
+// Resting tags are WHITE with dark text, the active one (hovered card, or the
+// pin whose preview is open) is filled royal blue (2026-09-23, "sleek map"
+// pass). The old resting blue fill made a field of 40 tags read as one blue
+// mass; the reference portals keep every resting pin quiet and spend the brand
+// colour on the one that matters. Same language as the /listings HTML pills.
 //
-// The category glyphs and colour coding that used to live here are gone on
-// an explicit direction change: a map of 30+ listings reads better as a
-// field of scannable prices than as a field of icons, and the price is the
-// one value a visitor is actually comparing. lib/mapMarkerKinds.js, the
-// cluster bubble builders and the legend they fed were removed with them.
-// (Clustering briefly returned with the viewport map on 2026-09-14 and was
-// removed again the same day, for the same reason: every listing is a price.)
-//
-// Tailwind classes (`shadow-md`, `border-blue-600`) cannot reach these: a
-// marker icon is a flat SVG string handed to the Maps JS API, never a DOM
-// element. The SVG attributes and filters below are the real mechanism, using
-// this app's own palette values.
+// Tailwind classes cannot reach these: a marker icon is a flat SVG string
+// handed to the Maps JS API, never a DOM element.
 import { usablePrice } from './format';
 
 const INK = '#0B1120'; // --ink, for the shadows
 // The royal ladder, straight out of app/globals.css. Its own comment there
 // has already computed the contrast: white text on --blue is 7.9:1, which
 // passes AAA, so this is a legitimate fill for text at tag size.
-const BLUE = '#1E3AA8'; // --blue (royal-600), the brand fill — resting tag
-const BLUE_PRESSED = '#0C1D50'; // --blue-900 — a resting building, and active text
+const BLUE = '#1E3AA8'; // --blue (royal-600), the active fill
+const BLUE_PRESSED = '#0C1D50'; // --blue-900 — a building's text
 const WHITE = '#FFFFFF';
 const FONT_STACK = 'Arial, Helvetica, sans-serif';
 
@@ -53,25 +36,24 @@ const FONT_STACK = 'Arial, Helvetica, sans-serif';
  *
  * Keeps one decimal between 1 000 and 10 000. Rounding straight to whole
  * thousands there printed a real 1 200 $/mois rent as "1k $/m" — a 200 $
- * understatement on the single number a visitor scans a map for, and it
- * collapsed the entire mid-market rent band (1 000-1 499) onto one label.
+ * understatement on the single number a visitor scans a map for.
  *
- * Currency sits AFTER the amount with a decimal comma, and — unlike
- * everywhere else in this app — with NO space before it: "1,2k$/m", not
- * "1,2k $/m". That is a deliberate, map-only exception to the French
- * spacing lib/format.js uses on cards and detail pages. A tag is ~40px of
- * map real estate that has to stay readable in a crowded field, and the
- * thin space is the cheapest character to spend. The order (amount, then
- * currency) still matches the rest of the app, so the tag and the card
- * beside it still read as the same price.
+ * Currency after the amount with a decimal comma, like the rest of the app,
+ * separated by a NARROW no-break space (U+202F): readable, a couple of pixels
+ * wide, and never wrapped away from its number.
  *
- * Guards through usablePrice for the same reason every other price render
- * does: `properties.price` is nullable, and Number(null) is 0, so an
- * unguarded pin label read "0 $/m" — a real price claim — on a listing whose
- * price nobody recorded. An unknown price renders no label at all; the pin
- * still plots, because its position is real either way.
+ * The period. A yearly rent always says "/an" — it is the exception, and a
+ * yearly figure read as monthly is a 12x error. A monthly rent says "/m" only
+ * when `monthly` is true: the /listings map passes false whenever no sale is
+ * among the pins it is showing, because "/m" on forty tags that are all
+ * monthly rents is forty copies of nothing (2026-09-23). With a sale on
+ * screen the suffix returns, so a rent can never be mistaken for a price.
+ *
+ * Guards through usablePrice: `properties.price` is nullable, and Number(null)
+ * is 0, so an unguarded label read "0 $" on a listing whose price nobody
+ * recorded. An unknown price renders no label at all.
  */
-export function compactPrice(price, purpose) {
+export function compactPrice(price, purpose, { pricePeriod = null, monthly = true } = {}) {
   const amount = usablePrice(price);
   if (amount === null) return '';
 
@@ -85,7 +67,10 @@ export function compactPrice(price, purpose) {
     label = `${Math.round(amount / 1000)}k`;
   }
 
-  return purpose === 'rent' ? `${label}$/m` : `${label}$`;
+  const money = `${label}\u202F$`;
+  if (purpose !== 'rent') return money;
+  if (pricePeriod === 'an') return `${money}/an`;
+  return monthly ? `${money}/m` : money;
 }
 
 /**
@@ -189,17 +174,16 @@ export function pricePinGeometry({ label, hovered = false }) {
 
 /**
  * The shared pin drawing: ground shadow, then the tag with its drop shadow,
- * then the label. Resting pins are a solid fill with a thin white ring (the
- * ring is not optional: a blue tag over the basemap's blue water has almost
- * no edge without it); the active pin is white with a thick blue border and
- * dark text.
+ * then the label. Resting pins are white with a hairline ink edge and dark
+ * text; the active pin is filled royal blue with white text and a white ring
+ * (the ring keeps its edge over the basemap's blue water).
  */
-function pinIcon({ label, hovered, restingFill }) {
+function pinIcon({ label, hovered, restingText }) {
   const g = pricePinGeometry({ label, hovered });
-  const fill = hovered ? WHITE : restingFill;
-  const stroke = hovered ? BLUE : 'rgba(255,255,255,0.92)';
-  const strokeWidth = hovered ? 2.2 : 1.25;
-  const textFill = hovered ? BLUE_PRESSED : WHITE;
+  const fill = hovered ? BLUE : WHITE;
+  const stroke = hovered ? WHITE : 'rgba(11,17,32,0.14)';
+  const strokeWidth = hovered ? 1.5 : 1;
+  const textFill = hovered ? WHITE : restingText;
 
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="${g.width}" height="${g.height}" viewBox="0 0 ${g.width} ${g.height}">` +
@@ -233,8 +217,8 @@ export function buildPricePinIcon({ listing, hovered = false }) {
   // "N.C." (non communiqué) rather than an empty tag. compactPrice returns
   // '' for a listing with no usable price, and a blank pill on the map is
   // meaningless noise — it neither states a price nor admits it is missing.
-  const label = compactPrice(listing?.price, listing?.purpose) || 'N.C.';
-  return pinIcon({ label, hovered, restingFill: BLUE });
+  const label = compactPrice(listing?.price, listing?.purpose, { pricePeriod: listing?.price_period }) || 'N.C.';
+  return pinIcon({ label, hovered, restingText: INK });
 }
 
 /**
@@ -243,14 +227,14 @@ export function buildPricePinIcon({ listing, hovered = false }) {
  *
  * Deliberately not a price tag: a building has a price RANGE, and showing one
  * of its prices on a pin that opens four listings is a small lie. It reads
- * "4 unités · 600$–1500$" instead, and rests one step darker than a price tag
- * so the two are distinguishable at a glance on a crowded map.
+ * "4 unités · 600$–1500$" instead, in royal-900 text so the two are
+ * distinguishable at a glance.
  *
  * @param {string} label   From lib/buildingGroups.js's buildingPinLabel().
  * @param {boolean} [hovered]
  */
 export function buildBuildingPinIcon({ label, hovered = false }) {
-  return pinIcon({ label: String(label || ''), hovered, restingFill: BLUE_PRESSED });
+  return pinIcon({ label: String(label || ''), hovered, restingText: BLUE_PRESSED });
 }
 
 /** The label is French prose, not a number — `&` and `<` must not break the SVG. */

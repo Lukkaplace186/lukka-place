@@ -1,16 +1,19 @@
 'use client';
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Info } from 'lucide-react';
+import { Info, LocateFixed, Loader2 } from 'lucide-react';
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader';
 import { placeResolvedListings } from '@/lib/geocoding';
-import { buildPricePinIcon, buildBuildingPinIcon, priceZIndex } from '@/lib/mapIcons';
+import { compactPrice, priceZIndex } from '@/lib/mapIcons';
+import { createPinLayer } from '@/lib/mapPinLayer';
 import { spreadColocatedPins } from '@/lib/mapPinSpread';
+import { getRecentIds } from '@/lib/recentlyViewed';
 import { groupListingsByBuilding, buildingPinLabel } from '@/lib/buildingGroups';
 import { baseMapOptions } from '@/lib/mapBase';
 import {
   FETCH_DEBOUNCE_MS,
   KINSHASA_DEFAULT_VIEW,
+  KINSHASA_PROVINCE_ENVELOPE,
   boundsContain,
   boundsToQuery,
   boundsWithin,
@@ -44,11 +47,12 @@ import { useT } from '@/lib/i18n/client';
  *   filters keep applying to the wider area. A search naming no place opens on
  *   the Kinshasa core (KINSHASA_DEFAULT_VIEW). Changing a non-location filter
  *   keeps the view where the visitor left it.
- * - **Every listing is its own price tag at every zoom.** Clustering was tried
- *   and removed on an explicit product direction: a field of scannable prices
- *   is the point of this map, and a "13" bubble hides exactly that. Overlap is
- *   handled by the co-location fan and the de-overlap net below, and stacking
- *   is predictable — higher prices in front, the hovered/selected pin above all.
+ * - **Every listing is its own pin at every zoom.** Clustering was tried and
+ *   removed on an explicit product direction: a "13" bubble hides the prices
+ *   this map exists to show. Pins are HTML pills (lib/mapPinLayer.js); where
+ *   two would overlap, the lower-priority one shrinks to a dot at its real
+ *   position (lib/mapDeclutter.js) and gets its price back as you zoom in.
+ *   The hovered/selected pin is always labelled and above everything.
  * - **Positions** are the stored coordinates, or the commune centroid for a
  *   listing without them — both jittered and fanned (lib/geocoding.js
  *   placeResolvedListings). No client-side geocoding of listings happens here;
@@ -56,7 +60,12 @@ import { useT } from '@/lib/i18n/client';
  * - **Honesty, compactly.** One pill states how many listings are in view; an
  *   info button beside it opens the breakdown (placed on a commune centroid,
  *   matching but unplaceable, truncated) instead of stacking three pills over
- *   the top of a phone-sized map.
+ *   the top of a phone-sized map. On a phone the count itself is left to the
+ *   "Voir N biens" button (MobileMapOverlay) — the pill shows only loading,
+ *   failure, or the ⓘ alone, so one number is not printed twice.
+ * - **"Autour de moi"** centres on the visitor's own position, only when they
+ *   tap it, and only inside Kinshasa province: a diaspora visitor in Brussels
+ *   is told so rather than flown to Belgium.
  *
  * **The list follows the map.** Once the visitor has moved the map themselves
  * — any view other than the one this component opened on — every settled view
@@ -85,6 +94,38 @@ const MAX_PLACE_SPAN_DEG = 0.35;
 /** Geocoded points of named places, per tab — a place does not move. */
 const placePointCache = new Map();
 
+/**
+ * Recent marker answers, per tab, keyed by the exact query. Toggling Liste →
+ * Carte remounts this component on the same view, so its first fetch repeats
+ * the last one: served from here, the pins are on screen at once instead of
+ * after a round trip on a Kinshasa 3G connection. Short-lived on purpose — a
+ * listing approved a minute ago should appear.
+ */
+const markerResponseCache = new Map();
+const MARKER_CACHE_TTL_MS = 60_000;
+const MARKER_CACHE_MAX = 16;
+
+function cachedMarkers(key) {
+  const hit = markerResponseCache.get(key);
+  if (!hit) return null;
+  if (Date.now() - hit.at > MARKER_CACHE_TTL_MS) {
+    markerResponseCache.delete(key);
+    return null;
+  }
+  return hit.body;
+}
+
+function rememberMarkers(key, body) {
+  markerResponseCache.delete(key);
+  markerResponseCache.set(key, { at: Date.now(), body });
+  while (markerResponseCache.size > MARKER_CACHE_MAX) {
+    markerResponseCache.delete(markerResponseCache.keys().next().value);
+  }
+}
+
+/** Pins tapped in this tab, greyed like visited links alongside opened listings. */
+const tappedThisSession = new Set();
+
 function sameId(a, b) {
   return a != null && b != null && String(a) === String(b);
 }
@@ -95,10 +136,10 @@ function toBounds(latLngBounds) {
   return { south: sw.lat(), west: sw.lng(), north: ne.lat(), east: ne.lng() };
 }
 
-function iconFor(group, hovered) {
-  return group.isBuilding
-    ? buildBuildingPinIcon({ label: buildingPinLabel(group), hovered })
-    : buildPricePinIcon({ listing: group.representative, hovered });
+function labelFor(group, monthly) {
+  if (group.isBuilding) return buildingPinLabel(group, (value) => compactPrice(value, 'sale'));
+  const listing = group.representative;
+  return compactPrice(listing.price, listing.purpose, { pricePeriod: listing.price_period, monthly }) || 'N.C.';
 }
 
 function zIndexFor(group) {
@@ -196,8 +237,7 @@ export default function ListingsMap({
   const elementRef = useRef(null);
   const mapRef = useRef(null);
   const geocoderRef = useRef(null);
-  // group key -> { marker, group, signature, lat, lng }
-  const entriesRef = useRef(new Map());
+  const layerRef = useRef(null);
   // listing id -> marker data, for the in-view counts
   const markerDataRef = useRef(new Map());
   const requestRef = useRef({ controller: null, timer: null, fetched: null, filterQuery: null, targetKey: null, positioning: false });
@@ -212,6 +252,9 @@ export default function ListingsMap({
   const [status, setStatus] = useState(() => (MAPS_API_KEY ? 'loading' : 'error'));
   const [mapReady, setMapReady] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const [notice, setNotice] = useState(null);
+  const noticeTimerRef = useRef(null);
   const [view, setView] = useState({ loaded: false, inView: 0, approximate: 0, unlocated: 0, truncated: false, fetching: false, failed: false });
 
   const filterQuery = useMemo(() => mapFilterQuery(params), [params]);
@@ -236,33 +279,15 @@ export default function ListingsMap({
   }, []);
 
   const applyHover = useCallback((id) => {
-    const find = (target) => {
-      if (target == null) return null;
-      for (const entry of entriesRef.current.values()) {
-        if (!entry.group.isBuilding && sameId(entry.group.representative.id, target)) return entry;
-      }
-      return null;
-    };
-    const previousId = hoveredRef.current;
-    if (!sameId(previousId, id)) {
-      const previous = find(previousId);
-      if (previous) {
-        previous.marker.setIcon(iconFor(previous.group, false));
-        previous.marker.setZIndex(zIndexFor(previous.group));
-      }
-    }
-    const current = find(id);
-    if (current) {
-      current.marker.setIcon(iconFor(current.group, true));
-      // Above every resting tag, whatever its price.
-      current.marker.setZIndex(google.maps.Marker.MAX_ZINDEX + 1);
-    }
     hoveredRef.current = id;
+    layerRef.current?.setActive(id);
   }, []);
 
   const selectListing = useCallback(async (id) => {
     const { pageListings: page, onListingSelect: select } = propsRef.current;
     if (!select) return;
+    tappedThisSession.add(String(id));
+    layerRef.current?.setVisited([...getRecentIds(), ...tappedThisSession]);
     const seq = ++selectSeqRef.current;
     const local = page?.find((listing) => sameId(listing.id, id));
     if (local) {
@@ -307,66 +332,32 @@ export default function ListingsMap({
     }
     const positions = spreadColocatedPins(placed.map(({ id, lat, lng }) => ({ id, lat, lng })));
 
-    // Reconcile rather than rebuild: a pin that is still in view keeps its
-    // Marker, so panning never makes the whole map blink.
-    const previous = new Map(entriesRef.current);
-    const next = new Map();
+    // "/m" is only worth its width when a sale is on screen to tell a rent
+    // from (lib/mapIcons.js compactPrice).
+    const monthly = markers.some((m) => m.purpose !== 'rent');
+
+    const pins = [];
     for (const { id, group } of placed) {
       const position = positions.get(id);
       if (!position) continue;
-      const signature = group.isBuilding
-        ? `b:${buildingPinLabel(group)}`
-        : `l:${group.representative.price}:${group.representative.purpose}`;
-
-      let entry = previous.get(group.key);
-      if (entry) {
-        previous.delete(group.key);
-        if (entry.lat !== position.lat || entry.lng !== position.lng) {
-          entry.marker.setPosition({ lat: position.lat, lng: position.lng });
-        }
-        if (entry.signature !== signature) {
-          entry.marker.setIcon(iconFor(group, false));
-          entry.marker.setZIndex(zIndexFor(group));
-        }
-        Object.assign(entry, { group, signature, lat: position.lat, lng: position.lng });
-      } else {
-        entry = { group, signature, lat: position.lat, lng: position.lng, marker: null };
-        const marker = new google.maps.Marker({
-          map,
-          position: { lat: position.lat, lng: position.lng },
-          title: group.isBuilding ? (group.buildingName || group.representative.title) : group.representative.title,
-          icon: iconFor(group, false),
-          zIndex: zIndexFor(group),
-        });
-        // Listeners read `entry`, which is updated in place above, so a pin
-        // whose listing changed between fetches never acts on stale data.
-        const current = entry;
-        marker.addListener('click', () => {
-          const { onListingSelect: select, onBuildingSelect: selectBuilding } = propsRef.current;
-          if (current.group.isBuilding) {
-            // A building opens the unit list rather than a preview card: there
-            // is no single listing to preview.
-            selectSeqRef.current += 1;
-            select?.(null);
-            selectBuilding?.(current.group);
-            return;
-          }
-          selectListing(current.group.representative.id);
-        });
-        marker.addListener('mouseover', () => propsRef.current.onMarkerHover?.(current.group.representative.id));
-        marker.addListener('mouseout', () => propsRef.current.onMarkerHover?.(null));
-        entry.marker = marker;
-      }
-      next.set(group.key, entry);
+      const r = group.representative;
+      pins.push({
+        key: group.key,
+        id: group.isBuilding ? null : String(r.id),
+        lat: position.lat,
+        lng: position.lng,
+        label: labelFor(group, monthly),
+        title: group.isBuilding ? (group.buildingName || r.title) : r.title,
+        building: group.isBuilding,
+        approximate: Boolean(r.approximate),
+        verified: !group.isBuilding && Boolean(r.verified),
+        zIndex: zIndexFor(group),
+        group,
+      });
     }
-
-    for (const entry of previous.values()) {
-      google.maps.event.clearInstanceListeners(entry.marker);
-      entry.marker.setMap(null);
-    }
-    entriesRef.current = next;
-    applyHover(hoveredRef.current);
-  }, [applyHover, selectListing]);
+    layerRef.current?.setPins(pins);
+    layerRef.current?.setActive(hoveredRef.current);
+  }, []);
 
   const fetchMarkers = useCallback(async ({ force = false } = {}) => {
     const map = mapRef.current;
@@ -392,9 +383,14 @@ export default function ListingsMap({
     try {
       const qs = new URLSearchParams(filterQuery);
       for (const [key, value] of Object.entries(boundsToQuery(bounds))) qs.set(key, value);
-      const response = await fetch(`/api/listings/map?${qs}`, { signal: controller.signal });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const body = await response.json();
+      const cacheKey = qs.toString();
+      let body = cachedMarkers(cacheKey);
+      if (!body) {
+        const response = await fetch(`/api/listings/map?${qs}`, { signal: controller.signal });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        body = await response.json();
+        rememberMarkers(cacheKey, body);
+      }
       if (controller.signal.aborted || req.filterQuery !== filterQuery) return;
 
       req.fetched = { filterQuery, bounds, truncated: Boolean(body.truncated) };
@@ -469,6 +465,22 @@ export default function ListingsMap({
         const map = new google.maps.Map(elementRef.current, { ...baseMapOptions(), ...KINSHASA_DEFAULT_VIEW });
         mapRef.current = map;
         geocoderRef.current = new google.maps.Geocoder();
+        layerRef.current = createPinLayer(map, {
+          onClick: (pin) => {
+            const { onListingSelect: select, onBuildingSelect: selectBuilding } = propsRef.current;
+            if (pin.building) {
+              // A building opens the unit list rather than a preview card:
+              // there is no single listing to preview.
+              selectSeqRef.current += 1;
+              select?.(null);
+              selectBuilding?.(pin.group);
+              return;
+            }
+            selectListing(pin.id);
+          },
+          onHover: (pin) => propsRef.current.onMarkerHover?.(pin && !pin.building ? pin.group.representative.id : null),
+        });
+        layerRef.current.setVisited([...getRecentIds(), ...tappedThisSession]);
 
         // Tapping the bare map dismisses an open preview card and the badge's
         // breakdown. Marker clicks do not propagate to the map, so this never
@@ -495,15 +507,13 @@ export default function ListingsMap({
       cancelled = true;
       for (const listener of listeners) listener.remove();
       clearTimeout(req.timer);
+      clearTimeout(noticeTimerRef.current);
       req.controller?.abort();
-      for (const entry of entriesRef.current.values()) {
-        google.maps.event.clearInstanceListeners(entry.marker);
-        entry.marker.setMap(null);
-      }
-      entriesRef.current = new Map();
+      layerRef.current?.destroy();
+      layerRef.current = null;
       markerDataRef.current = new Map();
     };
-  }, [scheduleFetch, reportArea]);
+  }, [scheduleFetch, reportArea, selectListing]);
 
   // Filters changed (or the map just became ready): decide where to look,
   // then fetch for it.
@@ -585,10 +595,51 @@ export default function ListingsMap({
     onInViewChange?.(view.loaded && !view.failed ? view.inView : null);
   }, [view.loaded, view.failed, view.inView, onInViewChange]);
 
-  // Card -> map hover sync: only ever touches the two markers affected.
+  // Card -> map hover sync.
   useEffect(() => {
     if (mapReady) applyHover(hoveredId);
   }, [hoveredId, mapReady, applyHover]);
+
+  // The list page's own listings win label collisions, so a card and its pin
+  // can be matched by eye.
+  useEffect(() => {
+    if (mapReady) layerRef.current?.setPageIds((pageListings || []).map((listing) => listing.id));
+  }, [pageListings, mapReady]);
+
+  const flash = useCallback((key) => {
+    clearTimeout(noticeTimerRef.current);
+    setNotice(key);
+    noticeTimerRef.current = setTimeout(() => setNotice(null), 3500);
+  }, []);
+
+  const locate = useCallback(() => {
+    if (!navigator.geolocation) {
+      flash('listings.map.locateUnavailable');
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLocating(false);
+        const point = { lat: position.coords.latitude, lng: position.coords.longitude };
+        const env = KINSHASA_PROVINCE_ENVELOPE;
+        if (point.lat < env.south || point.lat > env.north || point.lng < env.west || point.lng > env.east) {
+          flash('listings.map.locateOutside');
+          return;
+        }
+        const map = mapRef.current;
+        if (!map) return;
+        layerRef.current?.setUserLocation(point);
+        map.panTo(point);
+        if ((map.getZoom() ?? 0) < 15) map.setZoom(15);
+      },
+      (error) => {
+        setLocating(false);
+        flash(error?.code === 1 ? 'listings.map.locateDenied' : 'listings.map.locateFailed');
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },
+    );
+  }, [flash]);
 
   const details = [];
   if (view.truncated) details.push(t('listings.map.truncated'));
@@ -599,6 +650,8 @@ export default function ListingsMap({
   let pillText = t('listings.map.updating');
   if (view.failed) pillText = t('listings.map.fetchError');
   else if (view.loaded) pillText = t('listings.map.inArea', { count: view.inView });
+  // On a phone a settled count is the "Voir N biens" button's job.
+  const phoneQuiet = view.loaded && !view.failed;
 
   // No border/rounding of its own — every caller already owns its edge
   // treatment (see PropertyMap's same note).
@@ -620,13 +673,20 @@ export default function ListingsMap({
       {status === 'ready' ? (
         // One pill, ~28px tall, top-centre. Only the pill and its breakdown
         // take pointer events, so the map stays draggable right up to it.
-        <div className="pointer-events-none absolute inset-x-0 top-2.5 z-20 flex flex-col items-center px-3">
+        <div
+          className={`pointer-events-none absolute inset-x-0 top-2.5 z-20 flex-col items-center px-3 ${
+            phoneQuiet && !hasDetails ? 'hidden lg:flex' : 'flex'
+          }`}
+        >
           <div
-            className={`u-lift pointer-events-auto flex items-center gap-0.5 rounded-full border border-line bg-surface/95 py-1 pl-3 lg:backdrop-blur-md transition-opacity ${
+            className={`u-lift pointer-events-auto flex items-center gap-0.5 rounded-full border border-line bg-surface/95 py-1 lg:backdrop-blur-md transition-opacity ${
               hasDetails ? 'pr-1' : 'pr-3'
-            } ${view.fetching && view.loaded ? 'opacity-80' : ''}`}
+            } ${phoneQuiet ? 'pl-1 lg:pl-3' : 'pl-3'} ${view.fetching && view.loaded ? 'opacity-80' : ''}`}
           >
-            <span aria-live="polite" className="u-tabular whitespace-nowrap text-[0.75rem] font-semibold leading-5 text-ink">
+            <span
+              aria-live="polite"
+              className={`u-tabular whitespace-nowrap text-[0.75rem] font-semibold leading-5 text-ink ${phoneQuiet ? 'max-lg:sr-only' : ''}`}
+            >
               {pillText}
             </span>
             {hasDetails ? (
@@ -653,6 +713,35 @@ export default function ListingsMap({
               ))}
             </ul>
           ) : null}
+        </div>
+      ) : null}
+
+      {status === 'ready' ? (
+        // Bottom-right on a phone, clear of the centred "Voir N biens"
+        // button; top-right on desktop, clear of Google's zoom buttons.
+        <div className="pointer-events-none absolute bottom-6 right-3 z-20 flex flex-col items-end gap-2 lg:bottom-auto lg:top-2.5">
+          {notice ? (
+            <p
+              role="status"
+              className="u-lift u-rise pointer-events-auto max-w-[15rem] rounded-xl border border-line bg-surface px-3 py-2 text-[0.75rem] leading-snug text-ink-70 lg:order-last"
+            >
+              {t(notice)}
+            </p>
+          ) : null}
+          <button
+            type="button"
+            onClick={locate}
+            disabled={locating}
+            aria-label={t('listings.map.locate')}
+            title={t('listings.map.locate')}
+            className="u-lift u-press pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full border border-line bg-surface text-ink-70 transition-colors hover:text-blue disabled:opacity-70"
+          >
+            {locating ? (
+              <Loader2 strokeWidth={ICON_STROKE_WIDTH} className="h-[18px] w-[18px] animate-spin" aria-hidden="true" />
+            ) : (
+              <LocateFixed strokeWidth={ICON_STROKE_WIDTH} className="h-[18px] w-[18px]" aria-hidden="true" />
+            )}
+          </button>
         </div>
       ) : null}
     </div>

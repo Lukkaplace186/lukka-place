@@ -810,7 +810,7 @@ const UNLOCATED_IDS_MAX = 50;
 // is exactly the payload this endpoint exists to avoid.
 const MARKER_FIELDS = `
   p.id, p.price, p.purpose, p.price_period, p.beds, p.bath, p.quartier, p.listing_status,
-  p.parent_building_id, p.building_name,
+  p.parent_building_id, p.building_name, p.verified_at,
   pc.title, pc.slug, pc.address,
   ${LAT_EXPR} AS lat, ${LNG_EXPR} AS lng,
   ${COMMUNE_SUBQUERY}
@@ -909,6 +909,9 @@ export async function getMapMarkers(options = {}, bounds = null) {
       listing_status: row.listing_status,
       parent_building_id: row.parent_building_id,
       building_name: row.building_name,
+      // "Vérifié par Lukka Place" — a human confirmed the property, never
+      // derived. Drawn as a small check in the map pill.
+      verified: row.verified_at != null,
     });
   }
 

@@ -33,6 +33,12 @@ export function baseMapOptions() {
     zoom: 12,
     ...(coarsePointer ? { gestureHandling: 'greedy' } : null),
     zoomControl: !coarsePointer,
+    // Google's newer camera control (a four-arrow pad, bottom-right) duplicates
+    // pinch on a phone and the zoom buttons on desktop — clutter either way.
+    cameraControl: false,
+    // The "Keyboard shortcuts" attribution link means nothing on a touch
+    // screen; it stays where there is a keyboard.
+    keyboardShortcuts: !coarsePointer,
     streetViewControl: false,
     fullscreenControl: false,
     mapTypeControl: false,

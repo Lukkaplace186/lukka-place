@@ -4,8 +4,8 @@ import { pricePinGeometry, buildPricePinIcon, buildBuildingPinIcon } from '@/lib
 
 /**
  * The grounded pin (Booking.com style): a ground shadow centred on the tail
- * tip, the tip anchored on the coordinate, and a white-with-blue-border active
- * state. The icon builders need `google.maps.Size`/`Point`, so those two are
+ * tip, the tip anchored on the coordinate, white at rest and royal blue when
+ * active (the detail page's map; /listings draws HTML pills instead). The icon builders need `google.maps.Size`/`Point`, so those two are
  * stubbed with plain value objects — the SVG they wrap is the real output.
  */
 
@@ -33,28 +33,33 @@ test('the ground shadow sits on the tail tip and fits inside the canvas', () => 
 
 test('the icon anchors on the tail tip, where the ground shadow is drawn', () => {
   const icon = buildPricePinIcon({ listing: { price: 1200, purpose: 'rent' } });
-  const g = pricePinGeometry({ label: '1,2k$/m' });
+  const g = pricePinGeometry({ label: '1,2k $/m' });
   assert.deepEqual([icon.anchor.x, icon.anchor.y], [g.cx, g.tipY]);
   assert.deepEqual([icon.scaledSize.width, icon.scaledSize.height], [g.width, g.height]);
   assert.match(svgOf(icon), new RegExp(`<ellipse cx="${g.cx.toFixed(2)}" cy="${g.tipY.toFixed(2)}"`));
 });
 
-test('resting is blue with white text; active is white with a thick blue border and dark text', () => {
+test('resting is white with dark text; active is royal blue with white text and a white ring', () => {
   const resting = svgOf(buildPricePinIcon({ listing: { price: 500, purpose: 'rent' } }));
-  assert.match(resting, /<path [^>]*fill="#1E3AA8"/);
-  assert.match(resting, /<text [^>]*fill="#FFFFFF"/);
+  assert.match(resting, /<path [^>]*fill="#FFFFFF"/);
+  assert.match(resting, /<text [^>]*fill="#0B1120"/);
 
   const active = svgOf(buildPricePinIcon({ listing: { price: 500, purpose: 'rent' }, hovered: true }));
-  assert.match(active, /<path [^>]*fill="#FFFFFF" stroke="#1E3AA8" stroke-width="2.2"/);
-  assert.match(active, /<text [^>]*fill="#0C1D50"/);
-  assert.match(active, />500\$\/m</);
+  assert.match(active, /<path [^>]*fill="#1E3AA8" stroke="#FFFFFF" stroke-width="1.5"/);
+  assert.match(active, /<text [^>]*fill="#FFFFFF"/);
+  assert.match(active, />500 \$\/m</);
+});
+
+test('a yearly rent keeps "/an" on the detail-page pin', () => {
+  const svg = svgOf(buildPricePinIcon({ listing: { price: 9000, purpose: 'rent', price_period: 'an' } }));
+  assert.match(svg, />9k \$\/an</);
 });
 
 test('a building pin gets the same grounding and the same active state', () => {
   const resting = svgOf(buildBuildingPinIcon({ label: '4 unités · 600$–1500$' }));
   assert.match(resting, /<ellipse /);
-  assert.match(resting, /<path [^>]*fill="#0C1D50"/);
+  assert.match(resting, /<text [^>]*fill="#0C1D50"/);
   const active = svgOf(buildBuildingPinIcon({ label: 'A & B', hovered: true }));
-  assert.match(active, /<path [^>]*fill="#FFFFFF" stroke="#1E3AA8"/);
+  assert.match(active, /<path [^>]*fill="#1E3AA8" stroke="#FFFFFF"/);
   assert.match(active, />A &amp; B</, 'label must stay escaped');
 });

@@ -530,6 +530,11 @@
       },
       "truncated": "Too many properties here: zoom in to see them all",
       "fetchError": "Could not load the properties in this area.",
+      "locate": "Near me",
+      "locateDenied": "Allow location access in your browser to see listings near you.",
+      "locateFailed": "Couldn't find your position right now. Try again in a moment.",
+      "locateOutside": "You seem to be outside Kinshasa, so the map stays on the city.",
+      "locateUnavailable": "Your browser doesn't support location.",
       "locationDetails": "Location details",
       "show": "Show map",
       "showHint": "The map loads on request to save your mobile data."

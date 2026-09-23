@@ -24,20 +24,21 @@ import {
  * asserting against deleted modules.)
  */
 
+const N = ' '; // narrow no-break space between amount and currency
+
 test('the pin price label never rounds a rent into a different price band', () => {
   // Whole-thousand rounding printed 1 200 $ as "1k", understating it by
   // 200 $ and flattening every rent from 1 000 to 1 499 onto one label.
-  assert.equal(compactPrice(1200, 'rent'), '1,2k$/m');
-  assert.equal(compactPrice(1450, 'rent'), '1,5k$/m');
-  assert.equal(compactPrice(2000, 'rent'), '2k$/m');
-  assert.equal(compactPrice(400, 'rent'), '400$/m');
-  assert.equal(compactPrice(185000, 'sale'), '185k$');
-  assert.equal(compactPrice(45000, 'sale'), '45k$');
+  assert.equal(compactPrice(1200, 'rent'), `1,2k${N}$/m`);
+  assert.equal(compactPrice(1450, 'rent'), `1,5k${N}$/m`);
+  assert.equal(compactPrice(2000, 'rent'), `2k${N}$/m`);
+  assert.equal(compactPrice(400, 'rent'), `400${N}$/m`);
+  assert.equal(compactPrice(185000, 'sale'), `185k${N}$`);
+  assert.equal(compactPrice(45000, 'sale'), `45k${N}$`);
 
-  // No space before the currency — a map-only exception to the spacing
-  // lib/format.js uses everywhere else, to buy width back on a ~40px tag.
+  // Never a breakable space: the currency cannot wrap away from its number.
   for (const label of [compactPrice(1200, 'rent'), compactPrice(185000, 'sale')]) {
-    assert.ok(!label.includes(' '), `"${label}" still carries a space`);
+    assert.ok(!label.includes(' '), `"${label}" carries a breakable space`);
   }
 
   // An unknown price renders nothing at all rather than "0$/m" or
@@ -45,6 +46,16 @@ test('the pin price label never rounds a rent into a different price band', () =
   for (const bad of [null, undefined, '', 'abc', NaN, 0]) {
     assert.equal(compactPrice(bad, 'rent'), '');
   }
+});
+
+test('"/m" is dropped only on request, and a yearly rent always says so', () => {
+  // The /listings map passes monthly:false when no sale is among its pins.
+  assert.equal(compactPrice(1200, 'rent', { monthly: false }), `1,2k${N}$`);
+  // A sale never had a period to drop.
+  assert.equal(compactPrice(185000, 'sale', { monthly: false }), `185k${N}$`);
+  // A yearly figure read as monthly is a 12x error: "/an" survives.
+  assert.equal(compactPrice(9000, 'rent', { pricePeriod: 'an', monthly: false }), `9k${N}$/an`);
+  assert.equal(compactPrice(9000, 'rent', { pricePeriod: 'an' }), `9k${N}$/an`);
 });
 
 test('stacking order puts higher prices in front, and never above the hover slot', () => {

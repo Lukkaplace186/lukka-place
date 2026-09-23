@@ -26,6 +26,14 @@
  * labels are kept, because those are the landmarks people actually navigate
  * Kinshasa by.
  *
+ * 2026-09-23, "sleek map" pass: the same geography, one more stop quieter.
+ * Price pills are white now (lib/mapPinLayer.js), so the basemap has to stay
+ * lighter than a white tag's shadow can read against, and busier details were
+ * cut: local street names are off (arterial names such as Boulevard du 30
+ * Juin stay, people navigate by them), land parcels are off, vegetation is
+ * barely tinted, and the highway yellow is a pale cream rather than a stripe.
+ * Commune and neighbourhood names stay — in Kinshasa they are the address.
+ *
  * Values are hardcoded hexes rather than CSS custom properties because this
  * array is handed to the Maps JS API, which resolves nothing from the
  * document's stylesheet.
@@ -38,30 +46,28 @@
  * need a second vendor, a second key and a rewrite of PropertyMap.js.
  */
 
-// Paper, not white: a hair of warmth, so the tags and their white rings read
-// as objects sitting on the map rather than holes punched through it.
-const CANVAS = '#F7F5F0';
-const CANVAS_ALT = '#F1EEE7';
+// A cool, near-white paper: the white pills and their shadows sit on it.
+const CANVAS = '#F4F4F1';
+const CANVAS_ALT = '#EEEEEA';
 const INK = '#2A3040';
-const INK_SOFT = '#6B7284';
+const INK_SOFT = '#7A8193';
 const HALO = '#FFFFFF';
 
-// Real geography, muted one stop below Google's own defaults.
-const WATER = '#A9D3EE';
-const WATER_LABEL = '#3E7CA6';
-const PARK = '#CFE6C2';
-const PARK_LABEL = '#4E7A3C';
-const VEGETATION = '#E2EBD8';
+// Real geography, muted well below Google's own defaults.
+const WATER = '#BCDDF0';
+const WATER_LABEL = '#4F86AE';
+const PARK = '#DCEAD3';
+const PARK_LABEL = '#5A8248';
+const VEGETATION = '#E9EEE3';
 
-// Road hierarchy, warm side — the classic cartographic convention, and the
-// only cue that tells a motorway from a residential street at a glance.
+// Road hierarchy: white streets, a faint warm tint on arterials and highways.
 const ROAD_LOCAL = '#FFFFFF';
-const ROAD_ARTERIAL = '#FDF3DC';
-const ROAD_HIGHWAY = '#FBE3AE';
-const ROAD_HIGHWAY_EDGE = '#EFC978';
-const ROAD_EDGE = '#E6E1D6';
+const ROAD_ARTERIAL = '#FFFFFF';
+const ROAD_HIGHWAY = '#FCF2DC';
+const ROAD_HIGHWAY_EDGE = '#EEDDB8';
+const ROAD_EDGE = '#E5E3DD';
 
-const ADMIN_LINE = '#D9D3C6';
+const ADMIN_LINE = '#D6D3CB';
 
 export const MAP_STYLES = [
   { elementType: 'geometry', stylers: [{ color: CANVAS }] },
@@ -93,7 +99,9 @@ export const MAP_STYLES = [
   { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: ROAD_HIGHWAY }] },
   { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: ROAD_HIGHWAY_EDGE }] },
   { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: INK }] },
-  { featureType: 'road.local', elementType: 'labels', stylers: [{ visibility: 'simplified' }] },
+  { featureType: 'road.local', elementType: 'labels', stylers: [{ visibility: 'off' }] },
+  { featureType: 'road.arterial', elementType: 'labels.text.fill', stylers: [{ color: INK_SOFT }] },
+  { featureType: 'administrative.land_parcel', stylers: [{ visibility: 'off' }] },
 
   { featureType: 'water', elementType: 'geometry', stylers: [{ color: WATER }] },
   { featureType: 'water', elementType: 'labels.text', stylers: [{ visibility: 'on' }] },

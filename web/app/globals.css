@@ -464,13 +464,20 @@
 
     @supports (animation-timeline: view()) {
       /* Every child reveals as it scrolls in; across a grid row the columns
-         cascade left to right (each starts 7% later in its entry range). */
-      .u-stagger-in-view > *,
-      .u-stagger-in-view-inner > * > * {
-        --u-rise-from: 20px;
-        animation: u-rise linear both;
-        animation-timeline: view();
-        animation-range: entry calc(var(--u-col) * 7%) entry calc(40% + var(--u-col) * 7%);
+         cascade left to right (each starts 7% later in its entry range).
+         Pointer devices only: on a touch screen these wrap listing cards,
+         and a card whose transform is scrubbed by the page scroll is an
+         animated ancestor around its own photo strip — reported 2026-09-23
+         as photos that would not swipe on an iPhone. The cards simply
+         appear, as they did before this layer existed. */
+      @media (hover: hover) {
+        .u-stagger-in-view > *,
+        .u-stagger-in-view-inner > * > * {
+          --u-rise-from: 20px;
+          animation: u-rise linear both;
+          animation-timeline: view();
+          animation-range: entry calc(var(--u-col) * 7%) entry calc(40% + var(--u-col) * 7%);
+        }
       }
 
       /* FeaturedListingsCarousel. Below sm it is a horizontal snap strip: the
@@ -478,6 +485,10 @@
          vertically, so the reveal stays on the strip as a whole. From sm it is
          a real grid whose item wrappers are `display: contents`, so the cards
          (the wrappers' children) cascade per column instead. */
+      /* Phones: the whole featured strip once, never per card — and the strip
+         holds the cards' own photo strips, so this is the one scroll-driven
+         entrance left on touch. It animates only as the strip enters and is
+         settled long before anyone can swipe a photo in it. */
       @media (max-width: 639.98px) {
         .u-rail-reveal {
           animation: u-rise linear both;

@@ -48,6 +48,25 @@ const DOT_WINDOW = 5;
  * phone (`pointer-events-none` below `sm`): 6px dots are not a target anyone
  * can hit, and the swipe is the real control.
  *
+ * SWIPE ON iOS (2026-09-23, reported from an iPhone: the photos would not
+ * swipe). The strip itself was always a correct snap scroller; what can take
+ * the gesture away on iOS Safari is around it, so each is handled here or at
+ * its source:
+ *   - `touch-action: pan-x pan-y` is explicit on the strip, so no ancestor
+ *     rule can ever narrow it; `overscroll-behavior-x: contain` keeps the
+ *     end-of-strip bounce from handing the swipe to the page;
+ *   - the photo cannot be lifted for drag-and-drop (`-webkit-user-drag`,
+ *     `draggable={false}`): the card is a link, and a finger that rests a
+ *     moment before swiping otherwise starts a link drag instead;
+ *   - `data-card-photo` lets PropertyCard skip its press-shrink while the
+ *     press is on the photo — scaling the scroller's ancestor at touchstart
+ *     is what WebKit can drop the pan over;
+ *   - `snap-always`: one photo per swipe, however hard the flick;
+ *   - no `scroll-smooth` on the strip (the arrows pass `behavior: 'smooth'`
+ *     themselves), so nothing animates the scroll position under a finger.
+ * The list's scroll-driven card entrance is off on touch screens for the same
+ * reason (app/globals.css, `.u-stagger-in-view`).
+ *
  * `quality` is next/image's default 75. It was 90, which roughly doubled the
  * bytes of every grid photo on mobile data for a difference nobody can see
  * on a phone screen (same photo, measured: 64 KB at w=640 q=90 vs 34 KB at
@@ -180,12 +199,13 @@ export default function CardImageCarousel({
       <div
         ref={scrollerRef}
         onScroll={handleScroll}
-        className="no-scrollbar flex h-full w-full snap-x snap-mandatory overflow-x-auto scroll-smooth"
+        data-card-photo=""
+        className="no-scrollbar flex h-full w-full snap-x snap-mandatory overflow-x-auto overscroll-x-contain [touch-action:pan-x_pan-y] [-webkit-overflow-scrolling:touch] [-webkit-user-drag:none]"
       >
         {images.map((src, i) => (
           // `overflow-hidden` keeps the hover zoom below inside its own slide;
           // without it the NEXT slide's scaled photo paints over this one's edge.
-          <div key={`${src}-${i}`} className="relative h-full w-full flex-shrink-0 snap-center overflow-hidden">
+          <div key={`${src}-${i}`} className="relative h-full w-full flex-shrink-0 snap-center snap-always overflow-hidden">
             {loaded.has(i) ? (
               <SafeImage
                 src={src}
@@ -193,6 +213,7 @@ export default function CardImageCarousel({
                 fill
                 sizes={sizes}
                 priority={priority && i === 0}
+                draggable={false}
                 // A slow inner zoom while the pointer is on the card (the card's
                 // Link is the `group`). Tailwind's hover variant is already
                 // (hover: hover)-gated, so it never sticks on a phone.

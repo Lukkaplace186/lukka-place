@@ -151,7 +151,10 @@ export default function PropertyCard({
         // tapped button reads as the wrong thing responding. `scale` is its
         // own property in Tailwind v4, so it composes with the hover lift's
         // `translate` instead of replacing it.
-        '[&:active:not(:has(button:active))]:scale-[0.985]',
+        // Nor while it is on the photo strip: shrinking the scroller's own
+        // ancestor as a finger lands is how iOS Safari loses the swipe
+        // (CardImageCarousel's `data-card-photo`).
+        '[&:active:not(:has(button:active)):not(:has([data-card-photo]:active))]:scale-[0.985]',
         // ListingsSplitView syncs card<->map-pin hover; a synced card gets
         // the same royal ring the map pin uses rather than a second,
         // competing hover treatment.

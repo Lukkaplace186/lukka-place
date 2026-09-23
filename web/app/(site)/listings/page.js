@@ -4,7 +4,13 @@ import ListingsSplitView from '@/components/ListingsSplitView';
 import ResultsHeader from '@/components/ResultsHeader';
 import ListingsEmptyState from '@/components/ListingsEmptyState';
 import FloatingControlBar from '@/components/FloatingControlBar';
-import { getListings, getPopularCommunes, getCommuneShowcase, getPropertyTypeFacets, getPriceRange } from '@/lib/listings';
+import { getListings, getNearbyExtras, THIN_RESULTS_MAX } from '@/lib/listings';
+import {
+  cachedCommuneShowcase,
+  cachedPopularCommunes,
+  cachedPriceRange,
+  cachedPropertyTypeFacets,
+} from '@/lib/listingsCached';
 import { getLocationHierarchySafe } from '@/lib/locations';
 import { parseListingsSearchParams } from '@/lib/searchQuery';
 import { PROPERTY_TYPE_PLURAL_KEYS } from '@/lib/constants';
@@ -61,11 +67,24 @@ export default async function ListingsPage({ searchParams }) {
     // alternatives, each step named in `relaxation` (lib/listings.js
     // relaxSearch) and shown by ResultsHeader.
     getListings({ ...filters, limit, offset, allowRelax: true }),
-    getPopularCommunes(24),
-    getCommuneShowcase(24),
-    getPriceRange(),
+    // Counts, showcase and price ceiling: 60-second copies. The results
+    // above are always live.
+    cachedPopularCommunes(24),
+    cachedCommuneShowcase(24),
+    cachedPriceRange(),
   ]);
-  const propertyTypes = await getPropertyTypeFacets();
+  const propertyTypes = await cachedPropertyTypeFacets();
+
+  // A place search with only one or two exact results also shows the nearest
+  // others beneath them (lib/listings.js getNearbyExtras). Not on the map
+  // area, not on later pages, not when the results are already a fallback.
+  const nearbyExtras =
+    page === 1 && !mapArea && !relaxation && total > 0 && total <= THIN_RESULTS_MAX && filters.commune
+      ? await getNearbyExtras(filters, data.map((l) => l.id)).catch((err) => {
+          console.error(`[listings] nearby extras unavailable: ${err.message}`);
+          return null;
+        })
+      : null;
 
   const popularCommunes = communeCounts.slice(0, 6);
   const nearbyCommunes = communesByDistance(communeCounts, params.commune);
@@ -193,6 +212,7 @@ export default async function ListingsPage({ searchParams }) {
             popularCommunes={popularCommunes}
             communes={communes}
             clearAreaHref={clearAreaHref}
+            nearby={nearbyExtras ? { ...nearbyExtras, place: params.commune } : null}
           />
         )}
       </div>

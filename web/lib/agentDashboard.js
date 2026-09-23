@@ -45,10 +45,22 @@ export const getAgentDashboardContext = cache(async function getAgentDashboardCo
   // three call sites assume it.
   const hasLeadScope = propertyIds.length > 0 || !!displayName || Number.isFinite(Number(agentId));
 
-  const [{ total: newLeadsCount }, { total: pendingVisitsCount }] = await Promise.all([
+  // The two counts come from the WhatsApp engine. When it is unreachable the
+  // dashboard must still open — listings, stats and settings live in Postgres
+  // — so a failure here zeroes the badges and says so (`leadsUnavailable`)
+  // instead of taking every /compte/agent page down with it, which is what
+  // an uncaught rejection in this layout-level read used to do.
+  const [leadsResult, visitsResult] = await Promise.allSettled([
     hasLeadScope ? listLeads({ ...leadScope, status: 'NEW', limit: 1 }) : Promise.resolve({ total: 0 }),
     hasLeadScope ? listViewingRequests({ ...leadScope, status: 'PENDING', limit: 1 }) : Promise.resolve({ total: 0 }),
   ]);
+  const leadsUnavailable = leadsResult.status === 'rejected' || visitsResult.status === 'rejected';
+  if (leadsUnavailable) {
+    const reason = (leadsResult.reason || visitsResult.reason)?.message;
+    console.error(`[agent-dashboard] engine unavailable for agent #${agentId}: ${reason}`);
+  }
+  const newLeadsCount = leadsResult.status === 'fulfilled' ? leadsResult.value.total || 0 : 0;
+  const pendingVisitsCount = visitsResult.status === 'fulfilled' ? visitsResult.value.total || 0 : 0;
 
   return {
     agent,
@@ -67,6 +79,7 @@ export const getAgentDashboardContext = cache(async function getAgentDashboardCo
     hasLeadScope,
     newLeadsCount,
     pendingVisitsCount,
+    leadsUnavailable,
     completion: agentProfileCompletion(agent, { listingCount: listings.length }),
   };
 });

@@ -22,6 +22,7 @@ import {
 } from '@/app/compte/agent/actions';
 import { recordListingSharesAction } from '@/app/compte/agent/shareActions';
 import { useToast } from './Toast';
+import { actionFailureToast } from '@/lib/actionFailure';
 import AgentListingShareKit from './AgentListingShareKit';
 import { useT } from '@/lib/i18n/client';
 import { announceListingQuota } from '@/lib/listingQuotaRules';
@@ -92,14 +93,20 @@ export default function AgentListingActionsMenu({ listing, isClosed, onStatusCha
         showToast({ type: 'success', message: t('agent.listings.relisted', { title: listing.title }) });
         router.refresh();
       } catch (err) {
-        showToast({ type: 'error', message: err.message || "Échec de la remise en ligne." });
+        showToast(actionFailureToast(t, err, handleRepublish));
       }
     });
   }
 
   function handleToggleArchive() {
     startTransition(async () => {
-      const result = await setListingArchivedAction(listing.id, !isArchived);
+      let result;
+      try {
+        result = await setListingArchivedAction(listing.id, !isArchived);
+      } catch (err) {
+        showToast(actionFailureToast(t, err, handleToggleArchive));
+        return;
+      }
       if (!result.ok && result.quota) {
         announceListingQuota(result.quota);
         return;
@@ -130,7 +137,15 @@ export default function AgentListingActionsMenu({ listing, isClosed, onStatusCha
 
   function handleDuplicate() {
     startTransition(async () => {
-      const result = await duplicateListingAction(listing.id);
+      let result;
+      try {
+        result = await duplicateListingAction(listing.id);
+      } catch (err) {
+        // No automatic retry: a duplicate that was created before the
+        // connection dropped would be created twice.
+        showToast(actionFailureToast(t, err));
+        return;
+      }
       if (!result.ok && result.quota) {
         announceListingQuota(result.quota);
         return;
@@ -147,7 +162,13 @@ export default function AgentListingActionsMenu({ listing, isClosed, onStatusCha
 
   function handleDelete() {
     startTransition(async () => {
-      const result = await deleteListingAction(listing.id);
+      let result;
+      try {
+        result = await deleteListingAction(listing.id);
+      } catch (err) {
+        showToast(actionFailureToast(t, err, handleDelete));
+        return;
+      }
       if (!result.ok) {
         showToast({ type: 'error', message: result.error });
         return;

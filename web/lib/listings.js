@@ -825,6 +825,35 @@ async function findNearby(options) {
   return { ids: kept.map((s) => s.id), origin: origins.map((o) => o.commune), places };
 }
 
+/** A search this thin also gets a short "aussi à proximité" row under it. */
+export const THIN_RESULTS_MAX = 2;
+const NEARBY_EXTRAS_LIMIT = 6;
+
+/**
+ * The nearest other listings to a place search that found only a few — the
+ * same distance rule as the zero-result fallback (findNearby), for the same
+ * non-location filters, minus the ones already on the page. Shown UNDER the
+ * exact results, never mixed into them, so the count and the heading still
+ * describe the exact search.
+ *
+ * @param {Object} options      the page's getListings options
+ * @param {Array} excludeIds    ids already shown
+ * @returns {Promise<{listings: Object[], places: Array<{commune: string, km: number}>}|null>}
+ */
+export async function getNearbyExtras(options, excludeIds = []) {
+  if (communeListOf(options).length === 0) return null;
+  const near = await findNearby(options);
+  if (!near) return null;
+  const shown = new Set(excludeIds.map(Number));
+  const ids = near.ids.filter((id) => !shown.has(id)).slice(0, NEARBY_EXTRAS_LIMIT);
+  if (ids.length === 0) return null;
+  const rows = await getListingsByIds(ids);
+  // Nearest first — getListingsByIds orders by date.
+  const order = new Map(ids.map((id, i) => [id, i]));
+  rows.sort((a, b) => order.get(Number(a.id)) - order.get(Number(b.id)));
+  return { listings: rows, places: near.places };
+}
+
 /**
  * When a search finds nothing, the closest honest alternative instead of an
  * empty page. Steps, each kept only if the previous ones still found nothing,

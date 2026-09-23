@@ -50,6 +50,25 @@ const FILTER_PILLS = [
  * 'active' additionally excludes archived rows: an agent asking for their
  * live inventory does not mean "including the ones hidden from the site".
  */
+/**
+ * Cards per page. The whole inventory is still read (it is a light row per
+ * listing, and the shared dashboard context needs every id for lead
+ * ownership), but only one page of cards is rendered and shipped to the
+ * phone: 300 cards with their photos, stats and menus was the slow part, not
+ * the query. Filter chips count and search across ALL listings.
+ */
+const PAGE_SIZE = 20;
+
+/** Current query plus a page number; page 1 is the bare URL. */
+function pageHref(status, q, page) {
+  const query = new URLSearchParams();
+  if (status) query.set('status', status);
+  if (q) query.set('q', q);
+  if (page > 1) query.set('page', String(page));
+  const qs = query.toString();
+  return qs ? `/compte/agent/biens?${qs}` : '/compte/agent/biens';
+}
+
 function matchesFilter(listing, filter, gapsByListing = {}) {
   if (!filter) return true;
   const archived = Number(listing.status) === 0;
@@ -64,6 +83,7 @@ export default async function AgentListingsPage({ searchParams }) {
   const params = await searchParams;
   const statusFilter = typeof params.status === 'string' ? params.status : '';
   const q = typeof params.q === 'string' ? params.q.trim() : '';
+  const requestedPage = Math.max(Number.parseInt(params.page, 10) || 1, 1);
 
   const agentId = await getCurrentAgentId();
   // getAgentDashboardContext returns null when the session's agent row is gone
@@ -124,6 +144,12 @@ export default async function AgentListingsPage({ searchParams }) {
     if (!needle) return true;
     return `${l.title || ''} ${l.quartier || ''} ${l.reference || ''}`.toLowerCase().includes(needle);
   });
+
+  const totalPages = Math.max(Math.ceil(filtered.length / PAGE_SIZE), 1);
+  // A page past the end (a listing was deleted, a bookmark is old) shows the
+  // last page rather than an empty list.
+  const page = Math.min(requestedPage, totalPages);
+  const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const pills = FILTER_PILLS.map((pill) => ({
     ...pill,
@@ -186,7 +212,7 @@ export default async function AgentListingsPage({ searchParams }) {
 
         <div className="u-card overflow-hidden rounded-card bg-surface">
           <AgentListingsTable
-            listings={filtered}
+            listings={pageRows}
             perListingStats={perListingStats}
             gapsByListing={gapsByListing}
             title={`${listings.length} bien${listings.length === 1 ? '' : 's'}`}
@@ -201,6 +227,37 @@ export default async function AgentListingsPage({ searchParams }) {
             }
           />
         </div>
+
+        {totalPages > 1 ? (
+          <nav
+            aria-label={t('agent.listings.pager.label')}
+            className="flex items-center justify-between gap-3 text-[0.8125rem] font-semibold"
+          >
+            {page > 1 ? (
+              <Link
+                href={pageHref(statusFilter, q, page - 1)}
+                className="u-press inline-flex h-10 items-center rounded-lg bg-surface px-4 text-ink-70 ring-1 ring-line hover:bg-canvas-deep"
+              >
+                ← {t('agent.listings.pager.previous')}
+              </Link>
+            ) : (
+              <span />
+            )}
+            <span className="u-tabular text-ink-45">
+              {t('agent.listings.pager.pageOf', { page, pages: totalPages })}
+            </span>
+            {page < totalPages ? (
+              <Link
+                href={pageHref(statusFilter, q, page + 1)}
+                className="u-press inline-flex h-10 items-center rounded-lg bg-surface px-4 text-ink-70 ring-1 ring-line hover:bg-canvas-deep"
+              >
+                {t('agent.listings.pager.next')} →
+              </Link>
+            ) : (
+              <span />
+            )}
+          </nav>
+        ) : null}
       </div>
     </>
   );

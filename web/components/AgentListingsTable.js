@@ -19,6 +19,7 @@ import {
   bulkDeleteListingsAction,
 } from '@/app/compte/agent/actions';
 import { useToast } from './Toast';
+import { actionFailureToast } from '@/lib/actionFailure';
 import { useT } from '@/lib/i18n/client';
 import { LISTING_TIME_ZONE } from '@/lib/listingView';
 import { announceListingQuota } from '@/lib/listingQuotaRules';
@@ -193,7 +194,7 @@ export default function AgentListingsTable({ listings, perListingStats, gapsByLi
         await updateListingStatusAction(listing.id, formData);
         router.refresh();
       } catch (err) {
-        showToast({ type: 'error', message: err.message || 'Échec de la mise à jour du statut.' });
+        showToast(actionFailureToast(t, err));
         router.refresh();
       }
     });
@@ -219,9 +220,14 @@ export default function AgentListingsTable({ listings, perListingStats, gapsByLi
       const formData = new FormData();
       formData.set('price', String(value));
       formData.set('currency', listing.currency || 'USD');
-      const result = await updateListingPriceAction(listing.id, formData);
-      if (!result.ok) {
-        showToast({ type: 'error', message: result.error });
+      try {
+        const result = await updateListingPriceAction(listing.id, formData);
+        if (!result.ok) {
+          showToast({ type: 'error', message: result.error });
+        }
+      } catch (err) {
+        // The optimistic price reverts on its own when the transition ends.
+        showToast(actionFailureToast(t, err));
       }
       router.refresh();
     });
@@ -245,7 +251,7 @@ export default function AgentListingsTable({ listings, perListingStats, gapsByLi
           message: t('agent.listings.markedUnderOffer', { count: result.updated }),
         });
       } catch (err) {
-        showToast({ type: 'error', message: err.message || 'Échec de la mise à jour groupée.' });
+        showToast(actionFailureToast(t, err));
       }
       clearSelection();
       setBulkPending(false);
@@ -277,7 +283,7 @@ export default function AgentListingsTable({ listings, perListingStats, gapsByLi
             : t('agent.listings.bulkUnarchived', { count: result.updated }),
         });
       } catch (err) {
-        showToast({ type: 'error', message: err.message || 'Échec de la mise à jour groupée.' });
+        showToast(actionFailureToast(t, err));
       }
       clearSelection();
       setBulkPending(false);
@@ -301,7 +307,7 @@ export default function AgentListingsTable({ listings, perListingStats, gapsByLi
               : t('agent.listings.bulkDeleted', { count: result.deleted }),
         });
       } catch (err) {
-        showToast({ type: 'error', message: err.message || 'Échec de la suppression groupée.' });
+        showToast(actionFailureToast(t, err));
       }
       clearSelection();
       setConfirmBulkDelete(false);

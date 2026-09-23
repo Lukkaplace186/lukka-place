@@ -1906,3 +1906,39 @@ the real phrases, `search-relaxation.test.js` the SQL.
   `pm2 logs lukka-place-web --lines 5000 --nostream | grep '\[search\]'`.
 - The test hooks now load `.json` imports (`tests/support/hooks.mjs`), so
   `lib/gazetteer.js` is testable.
+
+## Speed and agent reliability pass (2026-09-23)
+
+- **Measured first**: on the VPS every public page renders in 50-95 ms; the
+  ~650 ms visitors see is network (TLS, distance), and HTTP/2 + brotli are
+  already on. So caching here is about database load, not page speed.
+  - `lib/memo.js` — in-process, 60 s, shared in-flight promise, failures not
+    kept (one PM2 fork, so process memory is the whole cache; not
+    `unstable_cache`, which JSON-serialises Dates). `lib/listingsCached.js`
+    wraps facets, commune counts, showcase, price ceiling, the hero count and
+    the featured cards. Search results are never cached.
+  - The listing page reads its listing through React `cache()` so metadata
+    and page share one query per request.
+  - Not done, and the real lever for phones in Kinshasa: HTTP/3 on Traefik
+    (UDP 443 published, shared with n8n) or a CDN edge nearer Central Africa.
+- **"Aussi à proximité de {commune}"** under a place search with 1–2 exact
+  results (`getNearbyExtras`, `THIN_RESULTS_MAX`): up to 6 nearest others by
+  the same distance rule as the zero-result fallback, below the exact list,
+  never counted in it. Page 1 only, never on a map area or a relaxed result.
+- **Silent buttons**: every imperative Server Action call in the agent
+  dashboard is now in a try/catch; a rejection shows `actionFailureToast`
+  (`lib/actionFailure.js`) — "Connexion perdue … Réessayer" for a network
+  drop, "session peut-être expirée, rechargez" otherwise. It replaced
+  `err.message`, which production turns into React's generic English text.
+  Duplicate is never auto-retried (it could create two copies).
+- **Engine down ≠ dashboard down**: `getAgentDashboardContext` uses
+  `allSettled` (badges 0, `leadsUnavailable`), Demandes shows a
+  "momentanément indisponibles" banner instead of an empty inbox, the
+  overview's request stat shows "—" and its recent-leads card says so.
+- **Mes biens pages at 20** (`?page=`, filters and search kept; chips count
+  across all listings). The inventory read is still whole — it is light and
+  the shared context needs every id for lead ownership — only the cards
+  shipped to the phone are paged.
+- Old-site `/shopdetail/:id` requests (~1,500 in a week, all flagged as bots)
+  were NOT redirected: no archived page, table or log shows they were ever
+  property pages, so any target would be a guess.

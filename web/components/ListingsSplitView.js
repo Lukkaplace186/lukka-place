@@ -40,7 +40,7 @@ function buildPageHref(searchParams, page) {
  * behind it rather than starting where the results column visually does.
  */
 export default function ListingsSplitView({
-  listings, isMapView, page, totalPages, params, popularCommunes, communes, clearAreaHref = null,
+  listings, isMapView, page, totalPages, params, popularCommunes, communes, clearAreaHref = null, nearby = null,
 }) {
   const t = useT();
   const router = useRouter();
@@ -146,6 +146,34 @@ export default function ListingsSplitView({
             />
           ))}
         </div>
+
+        {/* Only one or two exact results: the nearest others, below and
+            labelled, never mixed into the exact list (app/(site)/listings/
+            page.js, lib/listings.js getNearbyExtras). */}
+        {nearby?.listings?.length ? (
+          <section className="mt-8" aria-labelledby="nearby-extras-title">
+            <p id="nearby-extras-title" className="u-eyebrow mb-1">
+              {t('listings.results.nearbyExtrasTitle', { place: nearby.place })}
+            </p>
+            {nearby.places?.length ? (
+              <p className="mb-3 text-[0.8125rem] text-ink-45">
+                {nearby.places.map(({ commune, km }) => `${commune} (${km} km)`).join(', ')}
+              </p>
+            ) : null}
+            <div className="flex flex-col gap-5">
+              {nearby.listings.map((listing) => (
+                <PropertyCard
+                  key={listing.id}
+                  listing={listing}
+                  layout="horizontal"
+                  isHovered={hoveredId === listing.id}
+                  onHoverStart={() => setHoveredId(listing.id)}
+                  onHoverEnd={() => setHoveredId((current) => (current === listing.id ? null : current))}
+                />
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         {totalPages > 1 ? (
           <nav className="mt-8 flex items-center justify-center gap-3" aria-label="Pagination">

@@ -319,6 +319,7 @@
       "radiusExpanded": "Aucun résultat à moins de {requested} km — élargi automatiquement à {effective} km.",
       "heading": "{subject} {transaction} à {place}",
       "headingNear": "{subject} {transaction} près de {place}",
+      "nearbyExtrasTitle": "Aussi à proximité de {place}",
       "relaxedKeywords": {
         "one": "Aucune annonce ne mentionne « {words} » — ce mot a été retiré de la recherche.",
         "other": "Aucune annonce ne mentionne « {words} » — ces mots ont été retirés de la recherche."
@@ -649,6 +650,11 @@
     }
   },
   "agent": {
+    "actionError": {
+      "offline": "Connexion perdue — rien n’a été enregistré. Vérifiez votre réseau et réessayez.",
+      "failed": "L’action n’a pas abouti. Votre session a peut-être expiré : rechargez la page, puis réessayez.",
+      "retry": "Réessayer"
+    },
     "nav": {
       "eyebrow": "Espace agent",
       "ariaLabel": "Navigation espace agent",
@@ -682,6 +688,12 @@
       "showLess": "Voir moins"
     },
     "listings": {
+      "pager": {
+        "label": "Pages de vos biens",
+        "previous": "Précédent",
+        "next": "Suivant",
+        "pageOf": "Page {page} sur {pages}"
+      },
       "title": "Mes biens",
       "allStatuses": "Tous les statuts",
       "filterByStatus": "Filtrer par statut",
@@ -785,6 +797,7 @@
       "noVisitsYet": "Aucune demande de visite pour le moment.",
       "otherAgencyOrFiltered": "une autre agence ou filtrée par le statut sélectionné.",
       "emptyMessage": "Votre message était vide — rien n’a été envoyé.",
+      "unavailable": "Les demandes sont momentanément indisponibles. Vos annonces et statistiques restent accessibles — réessayez dans quelques minutes.",
       "noRequestsForFilters": "Aucune demande ne correspond à ces filtres.",
       "addListingToReceive": "Ajoutez un bien pour commencer à recevoir des demandes.",
       "updateStatus": "Mettre à jour",

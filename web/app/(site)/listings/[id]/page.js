@@ -15,13 +15,19 @@ import RecentlyViewed from '@/components/RecentlyViewed';
 import MobileListingBar from '@/components/MobileListingBar';
 import ShareButton from '@/components/ShareButton';
 import FavoriteButton from '@/components/FavoriteButton';
-import { getListingById, getListings, getSimilarListings } from '@/lib/listings';
+import { cache } from 'react';
+import { getListingById as readListingById, getListings, getSimilarListings } from '@/lib/listings';
 import { listingImages, locationLine, typeLabel, specItems } from '@/lib/listingView';
 import { formatPrice } from '@/lib/format';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import ListingViewTracker from '@/components/ListingViewTracker';
 import PropertyDescription from '@/components/listings/PropertyDescription';
 import AvailabilityConfirmedBadge from '@/components/listings/AvailabilityConfirmedBadge';
+
+// generateMetadata and the page both read the listing; per-request dedupe so
+// one visit costs one query, not two. Per request only (React cache): an
+// approval or a price change still shows on the very next visit.
+const getListingById = cache(readListingById);
 
 /**
  * `openGraph`/`twitter` here are what WhatsApp's own link-preview crawler

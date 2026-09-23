@@ -1,6 +1,6 @@
 import FeaturedListingsCarousel from './FeaturedListingsCarousel';
 import SectionHeading from './SectionHeading';
-import { getListings } from '@/lib/listings';
+import { cachedFeaturedListings } from '@/lib/listingsCached';
 import { getT } from '@/lib/i18n/server';
 
 /**
@@ -15,7 +15,8 @@ import { getT } from '@/lib/i18n/server';
  */
 export default async function FeaturedListings() {
   const t = await getT();
-  const { data, count } = await getListings({ limit: 8 });
+  // A 60-second copy: the same eight cards for every visitor in that minute.
+  const { data, count } = await cachedFeaturedListings();
 
   if (count === 0) return null;
 

@@ -4,7 +4,7 @@ import FeaturedListings from '@/components/FeaturedListings';
 import SavedListings from '@/components/SavedListings';
 import ValueProposition from '@/components/ValueProposition';
 import RecentlyViewed from '@/components/RecentlyViewed';
-import { getListings, getPopularCommunes, getPropertyTypeFacets } from '@/lib/listings';
+import { cachedListingsTotal, cachedPopularCommunes, cachedPropertyTypeFacets } from '@/lib/listingsCached';
 import { getSavedHomeSection } from '@/lib/savedHome';
 import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB } from '@/lib/constants';
 
@@ -97,9 +97,10 @@ import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB } from '@/lib/constants';
  */
 export default async function HomePage() {
   const [propertyTypes, communes, { total }, saved, heroImage] = await Promise.all([
-    getPropertyTypeFacets(),
-    getPopularCommunes(8),
-    getListings({ limit: 1, transactionType: HERO_TRANSACTION_BY_TAB[HERO_DEFAULT_TAB] }),
+    // 60-second copies (lib/listingsCached.js): counts and facets, not results.
+    cachedPropertyTypeFacets(),
+    cachedPopularCommunes(8),
+    cachedListingsTotal(HERO_TRANSACTION_BY_TAB[HERO_DEFAULT_TAB]),
     getSavedHomeSection(),
     getHeroSettings(),
   ]);

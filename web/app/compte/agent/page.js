@@ -149,7 +149,13 @@ async function OverviewStats({ agentId, listings, propertyIds, leadScope, hasLea
   const [views30d, whatsappClicks, leadsPage, deltas] = await Promise.all([
     getAgentListingViews(propertyIds, 30),
     getAgentWhatsAppClicks(propertyIds),
-    hasLeadScope ? listLeads({ ...leadScope, limit: 1 }) : Promise.resolve({ total: 0, data: [] }),
+    // Engine down: the cell shows "—" rather than a false 0 or a broken page.
+    hasLeadScope
+      ? listLeads({ ...leadScope, limit: 1 }).catch((err) => {
+          console.error(`[agent/overview] lead count unavailable: ${err.message}`);
+          return { total: null, data: [] };
+        })
+      : Promise.resolve({ total: 0, data: [] }),
     getAgentMonthlyDeltas(agentId, propertyIds),
   ]);
   const activeCount = listings.filter((l) => l.approve_status === 1 && l.listing_status === 'active').length;
@@ -216,8 +222,17 @@ async function OverviewChart({ propertyIds, range }) {
 }
 
 async function OverviewRecentLeads({ leadScope, hasLeadScope, listingById }) {
-  const leadsPage = hasLeadScope ? await listLeads({ ...leadScope, limit: 3 }) : { total: 0, data: [] };
-  return <AgentRecentLeads leads={leadsPage.data} listingById={listingById} />;
+  let leadsPage = { total: 0, data: [] };
+  let unavailable = false;
+  if (hasLeadScope) {
+    try {
+      leadsPage = await listLeads({ ...leadScope, limit: 3 });
+    } catch (err) {
+      console.error(`[agent/overview] recent leads unavailable: ${err.message}`);
+      unavailable = true;
+    }
+  }
+  return <AgentRecentLeads leads={leadsPage.data} listingById={listingById} unavailable={unavailable} />;
 }
 
 async function OverviewSubscription({ agent, agentId, listingsCount }) {

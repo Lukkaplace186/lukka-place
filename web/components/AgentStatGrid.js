@@ -80,7 +80,9 @@ function StatBody({ stat, t }) {
           )}
         </div>
         <div className="u-stat mt-1 text-ink sm:mt-1.5">
-          {stat.value.toLocaleString('fr-FR')}
+          {/* null = the source could not answer (the engine is down): a dash,
+              never a 0 that reads as "nobody asked". */}
+          {stat.value == null ? '—' : stat.value.toLocaleString('fr-FR')}
         </div>
         <DeltaLine delta={stat.delta} t={t} />
       </div>

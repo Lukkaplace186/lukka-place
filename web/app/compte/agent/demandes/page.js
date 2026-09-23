@@ -186,14 +186,25 @@ export default async function AgentInquiriesPage({ searchParams }) {
   const { agent, listingById, leadScope, hasLeadScope, newLeadsCount, pendingVisitsCount, listings } =
     await getAgentDashboardContext(agentId);
 
-  const leadsPage = hasLeadScope
-    ? await listLeads({ ...leadScope, status: statusFilter || undefined, limit: 100 })
-    : { total: 0, data: [] };
-
-  const visitsPage =
+  // Both lists come from the WhatsApp engine. When it is unreachable the page
+  // still opens and says the requests are temporarily unavailable, instead of
+  // an empty inbox (which reads as "nobody asked") or an error screen.
+  let leadsUnavailable = false;
+  const unavailable = (label) => (err) => {
+    console.error(`[agent/demandes] ${label} unavailable: ${err.message}`);
+    leadsUnavailable = true;
+    return { total: 0, data: [] };
+  };
+  const [leadsPage, visitsPage] = await Promise.all([
+    hasLeadScope
+      ? listLeads({ ...leadScope, status: statusFilter || undefined, limit: 100 }).catch(unavailable('leads'))
+      : { total: 0, data: [] },
     tab === 'visites' && hasLeadScope
-      ? await listViewingRequests({ ...leadScope, status: visitStatusFilter || undefined, limit: 100 })
-      : { total: 0, data: [] };
+      ? listViewingRequests({ ...leadScope, status: visitStatusFilter || undefined, limit: 100 }).catch(
+          unavailable('visits'),
+        )
+      : { total: 0, data: [] },
+  ]);
 
   // Réponses rapides on every card — loaded once per page. Degrade, don't
   // die: without them the cards simply have no quick-reply button.
@@ -239,6 +250,11 @@ export default async function AgentInquiriesPage({ searchParams }) {
 
       <QuickRepliesProvider templates={quickReplies.templates} listings={quickReplyListings}>
       <div className="flex flex-col gap-4 px-3 py-4 sm:px-8 sm:py-7">
+        {leadsUnavailable && (
+          <p className="u-micro rounded-lg bg-warning-tint px-4 py-3 font-semibold text-warning" role="status">
+            {t('agent.leads.unavailable')}
+          </p>
+        )}
         <div className="flex items-center gap-1 border-b border-line">
           {TABS.map((item) => (
             <Link

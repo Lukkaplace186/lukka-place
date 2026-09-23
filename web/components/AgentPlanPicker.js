@@ -8,6 +8,7 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { requestPlanChangeAction } from '@/app/compte/agent/actions';
 import { useToast } from './Toast';
+import { actionFailureToast } from '@/lib/actionFailure';
 import { useT } from '@/lib/i18n/client';
 
 const TERM_SUFFIX = { monthly: '/ mois', yearly: '/ an', lifetime: 'une fois' };
@@ -66,7 +67,14 @@ export default function AgentPlanPicker({ packages, currentPackageId, openReques
     if (whatsappHref) window.open(whatsappHref, '_blank', 'noopener');
 
     startTransition(async () => {
-      const result = await requestPlanChangeAction(pkg.id);
+      let result;
+      try {
+        result = await requestPlanChangeAction(pkg.id);
+      } catch (err) {
+        setRequestedId(null);
+        showToast(actionFailureToast(t, err));
+        return;
+      }
       setRequestedId(null);
       if (!result.ok) {
         showToast({ type: 'error', message: result.error });

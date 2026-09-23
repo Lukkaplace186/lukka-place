@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { markListingSoldAction } from '@/app/compte/agent/actions';
 import { useToast } from './Toast';
+import { actionFailureToast } from '@/lib/actionFailure';
 import { useT } from '@/lib/i18n/client';
 
 /**
@@ -45,7 +46,14 @@ export default function MarkListingSoldDialog({ propertyId, purpose, title, rend
     const formData = new FormData(event.currentTarget);
 
     startTransition(async () => {
-      const result = await markListingSoldAction(propertyId, formData);
+      let result;
+      try {
+        result = await markListingSoldAction(propertyId, formData);
+      } catch (err) {
+        // The dialog stays open with what the agent typed, so a retry is one tap.
+        showToast(actionFailureToast(t, err));
+        return;
+      }
       if (!result.ok) {
         showToast({ type: 'error', message: result.error });
         return;

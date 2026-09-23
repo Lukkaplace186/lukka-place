@@ -319,6 +319,7 @@
       "radiusExpanded": "No results within {requested} km — automatically widened to {effective} km.",
       "heading": "{subject} {transaction} in {place}",
       "headingNear": "{subject} {transaction} near {place}",
+      "nearbyExtrasTitle": "Also near {place}",
       "relaxedKeywords": {
         "one": "No listing mentions “{words}” — that word was left out of the search.",
         "other": "No listing mentions “{words}” — those words were left out of the search."
@@ -649,6 +650,11 @@
     }
   },
   "agent": {
+    "actionError": {
+      "offline": "Connection lost — nothing was saved. Check your network and try again.",
+      "failed": "That didn’t go through. Your session may have expired: reload the page, then try again.",
+      "retry": "Try again"
+    },
     "nav": {
       "eyebrow": "Agent Area",
       "ariaLabel": "Agent area navigation",
@@ -682,6 +688,12 @@
       "showLess": "Show less"
     },
     "listings": {
+      "pager": {
+        "label": "Listing pages",
+        "previous": "Previous",
+        "next": "Next",
+        "pageOf": "Page {page} of {pages}"
+      },
       "title": "My Listings",
       "allStatuses": "All statuses",
       "filterByStatus": "Filter by status",
@@ -785,6 +797,7 @@
       "noVisitsYet": "No viewing requests yet.",
       "otherAgencyOrFiltered": "another agency, or filtered out by the selected status.",
       "emptyMessage": "Your message was empty — nothing was sent.",
+      "unavailable": "Requests are temporarily unavailable. Your listings and stats are still here — try again in a few minutes.",
       "noRequestsForFilters": "No enquiries match these filters.",
       "addListingToReceive": "Add a property to start receiving enquiries.",
       "updateStatus": "Update",

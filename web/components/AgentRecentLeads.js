@@ -35,7 +35,7 @@ function metaLine(lead, propertyTitle) {
   return [budget, target].filter(Boolean).join(' · ');
 }
 
-export default async function AgentRecentLeads({ leads, listingById }) {
+export default async function AgentRecentLeads({ leads, listingById, unavailable = false }) {
   const t = await getT();
   return (
     <Link
@@ -54,7 +54,9 @@ export default async function AgentRecentLeads({ leads, listingById }) {
         </span>
       </div>
 
-      {leads.length === 0 ? (
+      {unavailable ? (
+        <p className="mt-6 text-sm text-ink-45">{t('agent.leads.unavailable')}</p>
+      ) : leads.length === 0 ? (
         <p className="mt-6 text-sm text-ink-45">{t('agent.overview.noLeadsYet')}</p>
       ) : (
         <div className="mt-2 flex flex-col">

@@ -107,7 +107,9 @@ export default async function DemandesPage() {
             </p>
           </PortalPanel>
         ) : (
-          inquiries.map(({ lead, listing }) => (
+          <div className="u-stagger contents">
+          {/* `contents`: no box of its own, so the rows keep the parent's gap; it only scopes .u-stagger's row entrance (app/globals.css). */}
+          {inquiries.map(({ lead, listing }) => (
             <PortalPanel key={lead.id} className="p-5">
               <div className="flex items-center justify-between gap-3">
                 <span className="u-tabular text-[0.875rem] font-bold text-ink">
@@ -155,7 +157,8 @@ export default async function DemandesPage() {
                 </Link>
               </div>
             </PortalPanel>
-          ))
+          ))}
+          </div>
         )}
       </aside>
     </div>

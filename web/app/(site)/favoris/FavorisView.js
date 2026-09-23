@@ -220,7 +220,7 @@ function FavoritesSection() {
           </Link>
         </div>
       ) : (
-        <div className="flex flex-col gap-4">
+        <div className="u-stagger-in-view flex flex-col gap-4">
           {displayListings.map((listing) => (
             <PropertyCard key={listing.id} listing={listing} layout="horizontal" />
           ))}

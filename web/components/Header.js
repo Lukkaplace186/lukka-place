@@ -150,7 +150,7 @@ export default function Header() {
   };
 
   return (
-    <header className="fixed inset-x-0 top-0 z-[60] h-16 border-b border-line bg-surface shadow-sm">
+    <header className="u-header-elevate fixed inset-x-0 top-0 z-[60] h-16 border-b border-line bg-surface shadow-sm">
       <div className="mx-auto flex h-full max-w-[1600px] items-center gap-4 px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-3 lg:w-[76px] lg:shrink-0 lg:pl-0">
           {/* Mobile menu — Radix Sheet owns focus trapping, Escape and

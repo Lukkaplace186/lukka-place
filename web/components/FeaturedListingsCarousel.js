@@ -36,15 +36,17 @@ import PropertyCard from './PropertyCard';
  *   - sm and up: a real CSS grid (`grid-cols-2 md:grid-cols-3
  *     lg:grid-cols-4`), not a horizontal scroll strip.
  *
- * The reveal lives on this wrapper, not on the cards: `.u-reveal-in-view`
- * (app/globals.css), a CSS scroll-driven animation with no JavaScript; a
- * browser without `animation-timeline` simply shows the rail with no reveal.
+ * The reveal is `.u-rail-reveal` (app/globals.css), a CSS scroll-driven
+ * animation with no JavaScript: the whole strip reveals below sm (the cards'
+ * nearest scroller is the strip, which never scrolls vertically), and from sm
+ * each card reveals on its own, cascading across the grid row. A browser
+ * without `animation-timeline` simply shows the cards with no reveal.
  */
 export default function FeaturedListingsCarousel({ listings }) {
   return (
     <div
       className={[
-        'u-reveal-in-view -mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto overscroll-x-contain px-4 pt-2 pb-5 no-scrollbar',
+        'u-rail-reveal -mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto overscroll-x-contain px-4 pt-2 pb-5 no-scrollbar',
         'sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-6 sm:overflow-visible sm:px-0 sm:pt-0 sm:pb-0',
         'md:grid-cols-3',
         'lg:grid-cols-4',

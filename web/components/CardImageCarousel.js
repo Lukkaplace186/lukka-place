@@ -183,7 +183,9 @@ export default function CardImageCarousel({
         className="no-scrollbar flex h-full w-full snap-x snap-mandatory overflow-x-auto scroll-smooth"
       >
         {images.map((src, i) => (
-          <div key={`${src}-${i}`} className="relative h-full w-full flex-shrink-0 snap-center">
+          // `overflow-hidden` keeps the hover zoom below inside its own slide;
+          // without it the NEXT slide's scaled photo paints over this one's edge.
+          <div key={`${src}-${i}`} className="relative h-full w-full flex-shrink-0 snap-center overflow-hidden">
             {loaded.has(i) ? (
               <SafeImage
                 src={src}
@@ -191,7 +193,10 @@ export default function CardImageCarousel({
                 fill
                 sizes={sizes}
                 priority={priority && i === 0}
-                className="object-cover contrast-[1.03] brightness-[1.02] saturate-[1.04]"
+                // A slow inner zoom while the pointer is on the card (the card's
+                // Link is the `group`). Tailwind's hover variant is already
+                // (hover: hover)-gated, so it never sticks on a phone.
+                className="object-cover contrast-[1.03] brightness-[1.02] saturate-[1.04] transition-transform duration-500 ease-out motion-safe:group-hover:scale-[1.04]"
               />
             ) : null}
           </div>

@@ -42,7 +42,7 @@ export default async function FeaturedListings() {
           title={t('home.featuredHeading')}
           href="/listings"
           linkLabel={t('listings.empty.seeAll')}
-          className="mb-6 sm:mb-10"
+          className="u-reveal-in-view mb-6 sm:mb-10"
           eyebrowClassName="u-eyebrow-ink"
         />
         <FeaturedListingsCarousel listings={data} />

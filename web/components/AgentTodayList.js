@@ -119,7 +119,7 @@ export default function AgentTodayList({ rows, seeAll }) {
 
   return (
     <>
-      <ul className="flex flex-col divide-y divide-line">
+      <ul className="u-stagger flex flex-col divide-y divide-line">
         {visibleRows.map((row) => {
           const Icon = KIND_ICON[row.kind] || ClipboardList;
           const busy = pending && pendingKey === row.key;
@@ -177,7 +177,7 @@ export default function AgentTodayList({ rows, seeAll }) {
                         <span
                           className={`shrink-0 rounded-full px-2 py-0.5 text-[0.6875rem] font-extrabold uppercase tracking-[0.08em] ${
                             row.overdue
-                              ? 'bg-danger-tint text-danger'
+                              ? 'u-attention bg-danger-tint text-danger'
                               : row.stale
                                 ? 'bg-canvas-deep text-ink-70'
                                 : 'bg-warning-tint text-warning'

@@ -70,7 +70,7 @@ export default function Hero({ propertyTypes = [], communes = [], initialCount =
             fill
             priority
             sizes="100vw"
-            className="object-cover"
+            className="u-hero-settle object-cover"
           />
         ) : (
           <Image
@@ -80,7 +80,7 @@ export default function Hero({ propertyTypes = [], communes = [], initialCount =
             priority
             placeholder="blur"
             sizes="100vw"
-            className="object-cover"
+            className="u-hero-settle object-cover"
           />
         )}
         {image?.credit ? (
@@ -115,11 +115,11 @@ export default function Hero({ propertyTypes = [], communes = [], initialCount =
                 background behind the type, or moving the block down-left
                 over the dark road surface. Both were measured; both work.
                 Neither is in effect. */}
-            <h1 className="text-4xl font-extrabold leading-[1.02] tracking-tight text-white [text-shadow:0_1px_3px_rgb(0_0_0_/_0.75),0_6px_24px_rgb(0_0_0_/_0.55)] min-[360px]:tracking-tighter sm:text-5xl md:text-6xl">
+            <h1 className="u-lift-in text-4xl font-extrabold leading-[1.02] tracking-tight text-white [text-shadow:0_1px_3px_rgb(0_0_0_/_0.75),0_6px_24px_rgb(0_0_0_/_0.55)] min-[360px]:tracking-tighter sm:text-5xl md:text-6xl">
               {t('home.hero.title')}
             </h1>
 
-            <p className="mt-3 max-w-md text-sm font-bold text-white [text-shadow:0_1px_3px_rgb(0_0_0_/_0.8),0_4px_16px_rgb(0_0_0_/_0.6)] sm:text-base md:max-w-lg">
+            <p style={{ '--u-delay': '90ms' }} className="u-lift-in mt-3 max-w-md text-sm font-bold text-white [text-shadow:0_1px_3px_rgb(0_0_0_/_0.8),0_4px_16px_rgb(0_0_0_/_0.6)] sm:text-base md:max-w-lg">
               {t('home.hero.subtitle')}
             </p>
           </div>
@@ -130,7 +130,7 @@ export default function Hero({ propertyTypes = [], communes = [], initialCount =
           where the real call-to-action lives (the "Rechercher" submit inside
           SearchBar); the -mt-16 overlap is the documented anatomy of this
           screen. */}
-      <div className="relative z-20 mx-auto -mt-16 w-full max-w-[1240px] px-4 sm:px-6 lg:-mt-[5.75rem] lg:px-8">
+      <div style={{ '--u-delay': '160ms', '--u-lift-from': '24px' }} className="u-lift-in relative z-20 mx-auto -mt-16 w-full max-w-[1240px] px-4 sm:px-6 lg:-mt-[5.75rem] lg:px-8">
         <SearchBar propertyTypes={propertyTypes} communes={communes} initialCount={initialCount} />
       </div>
     </>

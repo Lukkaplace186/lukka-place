@@ -92,7 +92,7 @@ export default function ListingsSplitView({ listings, isMapView, page, totalPage
             — not a two-up grid of vertical ones. Each card carries its own
             @container and stacks its image above the body when the column
             is too narrow for the 300px thumbnail. */}
-        <div className="flex flex-col gap-5">
+        <div className="u-stagger-in-view flex flex-col gap-5">
           {/* Single column, so only the first couple of rows are ever
               actually above the fold — priority for those skips next/image's
               lazy-loading for the real LCP candidate on this page. */}

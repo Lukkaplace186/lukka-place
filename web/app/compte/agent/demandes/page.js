@@ -137,7 +137,9 @@ async function VisitsTab({ visitsPage, statusFilter, listingById, hasListings })
               : 'Ajoutez un bien pour commencer à recevoir des demandes de visite.'}
         </div>
       ) : (
-        visitsPage.data.map((viewingRequest) => {
+        <div className="u-stagger contents">
+        {/* `contents`: no box of its own, so the rows keep the parent's gap; it only scopes .u-stagger's row entrance (app/globals.css). */}
+        {visitsPage.data.map((viewingRequest) => {
           const propertyId = viewingRequest.property_id || viewingRequest.lead_property_id;
           const property = propertyId ? listingById.get(String(propertyId)) : null;
           const target =
@@ -158,7 +160,8 @@ async function VisitsTab({ visitsPage, statusFilter, listingById, hasListings })
               target={target}
             />
           );
-        })
+        })}
+        </div>
       )}
     </>
   );
@@ -316,7 +319,9 @@ export default async function AgentInquiriesPage({ searchParams }) {
                     : 'Aucune demande pour le moment. Partagez votre page publique pour en recevoir.'}
               </div>
             ) : (
-              orderedLeads.map((lead) => {
+              <div className="u-stagger contents">
+              {/* `contents`: no box of its own, so the rows keep the parent's gap; it only scopes .u-stagger's row entrance (app/globals.css). */}
+              {orderedLeads.map((lead) => {
                 const property = lead.property_id ? listingById.get(String(lead.property_id)) : null;
                 return (
                   <AgentLeadCard
@@ -333,7 +338,8 @@ export default async function AgentInquiriesPage({ searchParams }) {
                     statusAction={updateAgentLeadStatusAction.bind(null, lead.id)}
                   />
                 );
-              })
+              })}
+              </div>
             )}
           </Fragment>
         )}

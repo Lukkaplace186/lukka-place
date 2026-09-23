@@ -357,9 +357,14 @@
     60% { transform: scale(1.15); }
     100% { transform: scale(1); }
   }
+  /* `translate`, not `transform`: an entrance's `both` fill holds its end
+     value forever, and a held `transform: none` would override every
+     transform-based hover or press on the same element (.u-press,
+     .u-card-interactive, .u-btn-primary). The individual property composes
+     with them instead. */
   @keyframes u-rise {
-    from { opacity: 0; transform: translateY(var(--u-rise-from, 24px)); }
-    to { opacity: 1; transform: none; }
+    from { opacity: 0; translate: 0 var(--u-rise-from, 24px); }
+    to { opacity: 1; translate: none; }
   }
   @media (prefers-reduced-motion: no-preference) {
     /* A toggled icon (FavoriteButton, SaveSearchButton). */
@@ -382,6 +387,127 @@
         animation: u-rise linear both;
         animation-timeline: view();
         animation-range: entry 0% entry 35%;
+      }
+    }
+  }
+
+  /* The motion layer (2026-09-23). Same rules as the presets above: CSS only,
+     transform + opacity only (compositor properties, no layout or paint on
+     the budget GPUs), every entrance gated on prefers-reduced-motion, and
+     nothing that is ever hidden before hydration — each one is either a
+     scroll-driven animation (runs from the first paint, no JS) or a short
+     mount animation. An element already on screen when the page loads has
+     finished its scroll range and renders exactly as before. Keyframes use
+     `translate`/`scale`, never `transform` (see u-rise above).
+
+     Index hooks. Custom properties inherit, so a child's content can read
+     its row's index (`.u-stagger-in-view-inner`) without prop threading.
+     --u-i is the position in a list (entrance delay, capped at 7 so a long
+     list never waits); --u-col is the position in a 4-wide row (scroll
+     cascade across a grid row, which enters the viewport all at once). */
+  .u-stagger > *, .u-stagger-in-view > *, .u-stagger-in-view-inner > *, .u-rail-reveal > *, .u-stagger-inner > * { --u-i: 0; --u-col: 0; }
+  .u-stagger > :nth-child(2), .u-stagger-in-view > :nth-child(2), .u-stagger-in-view-inner > :nth-child(2), .u-rail-reveal > :nth-child(2), .u-stagger-inner > :nth-child(2) { --u-i: 1; }
+  .u-stagger > :nth-child(3), .u-stagger-in-view > :nth-child(3), .u-stagger-in-view-inner > :nth-child(3), .u-rail-reveal > :nth-child(3), .u-stagger-inner > :nth-child(3) { --u-i: 2; }
+  .u-stagger > :nth-child(4), .u-stagger-in-view > :nth-child(4), .u-stagger-in-view-inner > :nth-child(4), .u-rail-reveal > :nth-child(4), .u-stagger-inner > :nth-child(4) { --u-i: 3; }
+  .u-stagger > :nth-child(5), .u-stagger-in-view > :nth-child(5), .u-stagger-in-view-inner > :nth-child(5), .u-rail-reveal > :nth-child(5), .u-stagger-inner > :nth-child(5) { --u-i: 4; }
+  .u-stagger > :nth-child(6), .u-stagger-in-view > :nth-child(6), .u-stagger-in-view-inner > :nth-child(6), .u-rail-reveal > :nth-child(6), .u-stagger-inner > :nth-child(6) { --u-i: 5; }
+  .u-stagger > :nth-child(7), .u-stagger-in-view > :nth-child(7), .u-stagger-in-view-inner > :nth-child(7), .u-rail-reveal > :nth-child(7), .u-stagger-inner > :nth-child(7) { --u-i: 6; }
+  .u-stagger > :nth-child(n+8), .u-stagger-in-view > :nth-child(n+8), .u-stagger-in-view-inner > :nth-child(n+8), .u-rail-reveal > :nth-child(n+8), .u-stagger-inner > :nth-child(n+8) { --u-i: 7; }
+  .u-stagger-in-view > :nth-child(4n+2), .u-stagger-in-view-inner > :nth-child(4n+2), .u-rail-reveal > :nth-child(4n+2) { --u-col: 1; }
+  .u-stagger-in-view > :nth-child(4n+3), .u-stagger-in-view-inner > :nth-child(4n+3), .u-rail-reveal > :nth-child(4n+3) { --u-col: 2; }
+  .u-stagger-in-view > :nth-child(4n+4), .u-stagger-in-view-inner > :nth-child(4n+4), .u-rail-reveal > :nth-child(4n+4) { --u-col: 3; }
+
+  /* The hero photograph settles from a slight zoom; the headline block lifts
+     into place. Transform only, never opacity: the hero is the LCP element
+     and an opacity-0 start would push LCP back by the length of the fade. */
+  @keyframes u-settle {
+    from { scale: 1.06; }
+    to { scale: none; }
+  }
+  @keyframes u-lift {
+    from { translate: 0 var(--u-lift-from, 14px); }
+    to { translate: none; }
+  }
+  /* A gentle "look here" for an overdue badge: three beats, then still. An
+     endless pulse on a to-do list reads as an alarm, not a nudge. */
+  @keyframes u-attention {
+    0%, 100% { scale: none; }
+    50% { scale: 1.06; }
+  }
+  @keyframes u-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .u-hero-settle {
+      animation: u-settle 1.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    .u-lift-in {
+      animation: u-lift 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+      animation-delay: var(--u-delay, 0ms);
+    }
+    .u-attention {
+      animation: u-attention 1.4s ease-in-out 0.6s 3;
+    }
+
+    /* A list entering on mount, one row after another (to-do rows, stat
+       tiles). 60ms apart, the eighth row onward all at 420ms. `-inner`
+       animates each row's CONTENT instead of the row, for a hairline grid
+       (gap-px over bg-line) where a fading cell would flash the rule colour. */
+    .u-stagger > *,
+    .u-stagger-inner > * > * {
+      --u-rise-from: 10px;
+      animation: u-rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+      animation-delay: calc(var(--u-i) * 60ms);
+    }
+
+    @supports (animation-timeline: view()) {
+      /* Every child reveals as it scrolls in; across a grid row the columns
+         cascade left to right (each starts 7% later in its entry range). */
+      .u-stagger-in-view > *,
+      .u-stagger-in-view-inner > * > * {
+        --u-rise-from: 20px;
+        animation: u-rise linear both;
+        animation-timeline: view();
+        animation-range: entry calc(var(--u-col) * 7%) entry calc(40% + var(--u-col) * 7%);
+      }
+
+      /* FeaturedListingsCarousel. Below sm it is a horizontal snap strip: the
+         cards' nearest scroller is the strip itself, which does not scroll
+         vertically, so the reveal stays on the strip as a whole. From sm it is
+         a real grid whose item wrappers are `display: contents`, so the cards
+         (the wrappers' children) cascade per column instead. */
+      @media (max-width: 639.98px) {
+        .u-rail-reveal {
+          animation: u-rise linear both;
+          animation-timeline: view();
+          animation-range: entry 0% entry 35%;
+        }
+      }
+      @media (min-width: 640px) {
+        .u-rail-reveal > * > * {
+          --u-rise-from: 20px;
+          animation: u-rise linear both;
+          animation-timeline: view();
+          animation-range: entry calc(var(--u-col) * 7%) entry calc(40% + var(--u-col) * 7%);
+        }
+      }
+
+      /* The site header deepens its shadow over the first 120px of scroll —
+         the "lifted off the page" cue, with no scroll listener. The deeper
+         shadow lives on a pseudo-element whose OPACITY is scrubbed, so the
+         header's own shadow-sm (and therefore its resting look) is untouched
+         and nothing but a composited opacity changes per frame. */
+      .u-header-elevate::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        box-shadow: 0 8px 24px -12px rgba(16, 26, 46, 0.28);
+        animation: u-fade-in linear both;
+        animation-timeline: scroll(root block);
+        animation-range: 0px 120px;
       }
     }
   }

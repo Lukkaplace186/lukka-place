@@ -145,6 +145,13 @@ export default function PropertyCard({
         // body — below that it stacks, or the text column collapses to
         // nothing in a narrow results pane.
         horizontal ? 'flex-col @[34rem]:flex-row' : 'flex-col',
+        // Press feedback for the card as a whole, but not while the press is
+        // on one of its own buttons (heart, Appeler, WhatsApp, photo arrows)
+        // — those carry their own .u-press, and the card shrinking under a
+        // tapped button reads as the wrong thing responding. `scale` is its
+        // own property in Tailwind v4, so it composes with the hover lift's
+        // `translate` instead of replacing it.
+        '[&:active:not(:has(button:active))]:scale-[0.985]',
         // ListingsSplitView syncs card<->map-pin hover; a synced card gets
         // the same royal ring the map pin uses rather than a second,
         // competing hover treatment.

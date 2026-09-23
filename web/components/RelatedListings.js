@@ -56,7 +56,7 @@ export default async function RelatedListings({ listings, commune, widened = fal
             w-[19rem] shrink-0 gives each card the fixed rail-item width it
             needs; snap-start (missing before) is what the row's own
             snap-x/snap-mandatory was already set up to use per card. */}
-        <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4">
+        <div className="u-reveal-in-view flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4">
           {listings.map((listing) => (
             <div key={listing.id} className="w-[19rem] shrink-0 snap-start">
               <PropertyCard listing={listing} />

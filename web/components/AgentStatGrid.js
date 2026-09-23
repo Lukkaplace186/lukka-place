@@ -101,7 +101,7 @@ export default async function AgentStatGrid({ stats }) {
     // gap-px over a --line background paints the design's hairline dividers
     // between cells at every breakpoint, without nth-child variants that
     // Tailwind can silently fail to generate (see web/CLAUDE.md).
-    <div className="u-card grid grid-cols-2 gap-px overflow-hidden rounded-card bg-line lg:grid-cols-4">
+    <div className="u-card u-stagger-inner grid grid-cols-2 gap-px overflow-hidden rounded-card bg-line lg:grid-cols-4">
       {stats.map((stat) =>
         stat.href ? (
           <Link

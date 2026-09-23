@@ -73,9 +73,9 @@ export default async function ValueProposition() {
             full — a label, a paraphrase of the section, and the section
             itself, in that order. The label is kept because it names the
             section in the page outline; the paraphrase is gone. */}
-        <h2 className="u-eyebrow u-eyebrow-section mb-5 sm:mb-9">{t('home.value.eyebrow')}</h2>
+        <h2 className="u-reveal-in-view u-eyebrow u-eyebrow-section mb-5 sm:mb-9">{t('home.value.eyebrow')}</h2>
 
-        <div className="grid grid-cols-1 gap-px border-y border-line bg-line md:grid-cols-3">
+        <div className="u-stagger-in-view-inner grid grid-cols-1 gap-px border-y border-line bg-line md:grid-cols-3">
           {VALUE_PROPS.map(({ id, titleKey, bodyKey }) => (
             <div
               key={id}

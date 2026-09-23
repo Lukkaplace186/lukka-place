@@ -15,6 +15,7 @@ import { useT } from '@/lib/i18n/client';
 // Exported so FloatingControlBar.js's mobile "Trier" sheet offers the exact
 // same real options rather than a second, driftable copy of this list.
 export const SORT_OPTIONS = [
+  { value: 'complete', labelKey: 'listings.sort.complete' },
   { value: 'newest', labelKey: 'listings.sort.newest' },
   { value: 'price_asc', labelKey: 'listings.sort.priceAsc' },
   { value: 'price_desc', labelKey: 'listings.sort.priceDesc' },
@@ -22,14 +23,15 @@ export const SORT_OPTIONS = [
 
 /**
  * Real sort options only — no fabricated "Homes for You" recommendation
- * ranking (we have no such engine). `newest` (default) and price ASC/DESC
- * are genuine `ORDER BY` clauses in lib/listings.js.
+ * ranking (we have no such engine). `complete` (default: photo first, then
+ * how complete the listing is — a rule its label states), `newest` and price
+ * ASC/DESC are genuine `ORDER BY` clauses in lib/listings.js.
  */
 export default function SortDropdown() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const t = useT();
-  const current = searchParams.get('sort') || 'newest';
+  const current = searchParams.get('sort') || 'complete';
   const currentKey = SORT_OPTIONS.find((o) => o.value === current)?.labelKey;
   const currentLabel = currentKey ? t(currentKey) : '';
 

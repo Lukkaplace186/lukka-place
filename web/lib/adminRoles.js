@@ -55,6 +55,20 @@ export const PERMISSIONS = {
 };
 
 /** @returns {boolean} */
+/**
+ * Where each role lands on /admin: the queue that is its job. The console
+ * used to send everyone to Conversations, which a sales rep or an analyst is
+ * not even allowed to open.
+ */
+export const ROLE_HOME = {
+  owner: '/admin/dashboard',
+  moderator: '/admin/listings',
+  support: '/admin/viewings',
+  finance: '/admin/billing',
+  analyst: '/admin/telemetry',
+  sales: '/admin/sales/me',
+};
+
 export function can(role, permission) {
   if (!permission) return true;
   const allowed = PERMISSIONS[permission];

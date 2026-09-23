@@ -14,13 +14,17 @@ import { useT } from '@/lib/i18n/client';
  * the map no longer shows. ListingsMap now renders its own badge — the real
  * count of listings in the visible area — at every breakpoint.
  *
+ * The search params are read at tap time, so the map area ListingsSplitView
+ * wrote with history.replaceState travels with them: the list then shows
+ * exactly the listings the button counts.
+ *
  * Button chrome uses `.u-lift` (app/globals.css) for elevation, not a bare
  * `shadow-md` class — this app's own `--shadow-md` token isn't registered in
  * the Tailwind `@theme` block, so `shadow-md` here would silently fall back to
  * Tailwind's unrelated built-in shadow instead of the design system's real
  * one.
  */
-export default function MobileMapOverlay({ hideListButton = false }) {
+export default function MobileMapOverlay({ hideListButton = false, inView = null }) {
   const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -41,7 +45,7 @@ export default function MobileMapOverlay({ hideListButton = false }) {
         onClick={backToList}
         className="u-lift u-press pointer-events-auto absolute bottom-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-line bg-surface px-6 py-2.5 text-[0.8125rem] font-semibold text-ink"
       >
-        {t('listings.view.list')}
+        {inView === null ? t('listings.view.list') : t('listings.view.listCount', { count: inView })}
       </button>
     </div>
   );

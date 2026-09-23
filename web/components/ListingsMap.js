@@ -18,6 +18,7 @@ import {
   locationTarget,
   mapFilterQuery,
   padBounds,
+  parseBounds,
   targetView,
 } from '@/lib/mapViewport';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -56,6 +57,15 @@ import { useT } from '@/lib/i18n/client';
  *   info button beside it opens the breakdown (placed on a commune centroid,
  *   matching but unplaceable, truncated) instead of stacking three pills over
  *   the top of a phone-sized map.
+ *
+ * **The list follows the map.** Once the visitor has moved the map themselves
+ * — any view other than the one this component opened on — every settled view
+ * is reported through `onAreaChange(bounds)`, and the caller writes it into
+ * the URL (`sw_lat`…), which lists exactly the listings counted in the pill
+ * (lib/listings.js getListings). The view we set ourselves (the opening view,
+ * a new place) is never reported, so opening "Bandal" keeps the Bandal search
+ * until the visitor pans. A URL that already carries an area opens on it.
+ * `onInViewChange(count)` reports the pill's count, for the mobile Liste button.
  *
  * Tapping a pin opens MapListingPreview through `onListingSelect`. The marker
  * payload has no photos, so the full listing comes from the list page when it
@@ -140,14 +150,28 @@ async function fetchExtent(filterQuery) {
   }
 }
 
+/** Centre + zoom, to tell a visitor's pan or zoom from the view we set ourselves. */
+function viewKey(map) {
+  const center = map.getCenter();
+  return center ? `${map.getZoom()}:${center.lat().toFixed(5)}:${center.lng().toFixed(5)}` : null;
+}
+
 function showView(map, { center, zoom }) {
   map.setCenter(center);
   map.setZoom(zoom);
 }
 
-function fitTo(map, bounds) {
+function fitTo(map, bounds, { exact = false } = {}) {
   if (!bounds) {
     showView(map, KINSHASA_DEFAULT_VIEW);
+    return;
+  }
+  // A saved map area: back to that box as closely as the zoom steps allow.
+  if (exact) {
+    map.fitBounds(
+      new google.maps.LatLngBounds({ lat: bounds.south, lng: bounds.west }, { lat: bounds.north, lng: bounds.east }),
+      0,
+    );
     return;
   }
   // One listing, or several on one point: a zero-size box would zoom to the street.
@@ -164,7 +188,9 @@ function fitTo(map, bounds) {
   });
 }
 
-export default function ListingsMap({ params, pageListings, hoveredId, onMarkerHover, onListingSelect, onBuildingSelect }) {
+export default function ListingsMap({
+  params, pageListings, hoveredId, onMarkerHover, onListingSelect, onBuildingSelect, onAreaChange, onInViewChange,
+}) {
   const t = useT();
   const detailsId = useId();
   const elementRef = useRef(null);
@@ -177,6 +203,9 @@ export default function ListingsMap({ params, pageListings, hoveredId, onMarkerH
   const requestRef = useRef({ controller: null, timer: null, fetched: null, filterQuery: null, targetKey: null, positioning: false });
   const hoveredRef = useRef(null);
   const selectSeqRef = useRef(0);
+  // The view we positioned the map on (null until it has settled there), and
+  // the last view reported — see "The list follows the map" above.
+  const areaRef = useRef({ baseline: null, reported: null });
   // Google listeners are registered once; they read the latest props from here.
   const propsRef = useRef({});
 
@@ -186,9 +215,13 @@ export default function ListingsMap({ params, pageListings, hoveredId, onMarkerH
   const [view, setView] = useState({ loaded: false, inView: 0, approximate: 0, unlocated: 0, truncated: false, fetching: false, failed: false });
 
   const filterQuery = useMemo(() => mapFilterQuery(params), [params]);
+  // Whether the URL currently carries a map area. Only its removal matters
+  // here ("Effacer la zone"): the map then goes back to the searched place.
+  const hasUrlArea = useMemo(() => Boolean(parseBounds(params).bounds), [params]);
+  const hadUrlAreaRef = useRef(hasUrlArea);
 
   useEffect(() => {
-    propsRef.current = { pageListings, onMarkerHover, onListingSelect, onBuildingSelect };
+    propsRef.current = { pageListings, onMarkerHover, onListingSelect, onBuildingSelect, onAreaChange };
   });
 
   const updateCounts = useCallback((viewport) => {
@@ -391,6 +424,24 @@ export default function ListingsMap({ params, pageListings, hoveredId, onMarkerH
     }
   }, [renderMarkers, updateCounts]);
 
+  // Runs on every `idle`. The first settled view after we position the map is
+  // the baseline; any later view that differs from it is the visitor's.
+  const reportArea = useCallback(() => {
+    const map = mapRef.current;
+    const area = areaRef.current;
+    if (!map || requestRef.current.positioning) return;
+    const key = viewKey(map);
+    if (!key) return;
+    if (area.baseline === null) {
+      area.baseline = key;
+      return;
+    }
+    if (key === area.reported || (area.reported === null && key === area.baseline)) return;
+    area.reported = key;
+    const latLngBounds = map.getBounds();
+    if (latLngBounds) propsRef.current.onAreaChange?.(toBounds(latLngBounds));
+  }, []);
+
   const scheduleFetch = useCallback(() => {
     const req = requestRef.current;
     clearTimeout(req.timer);
@@ -427,7 +478,10 @@ export default function ListingsMap({ params, pageListings, hoveredId, onMarkerH
           propsRef.current.onListingSelect?.(null);
           setDetailsOpen(false);
         }));
-        listeners.push(map.addListener('idle', () => scheduleFetch()));
+        listeners.push(map.addListener('idle', () => {
+          scheduleFetch();
+          reportArea();
+        }));
 
         setStatus('ready');
         setMapReady(true);
@@ -449,7 +503,7 @@ export default function ListingsMap({ params, pageListings, hoveredId, onMarkerH
       entriesRef.current = new Map();
       markerDataRef.current = new Map();
     };
-  }, [scheduleFetch]);
+  }, [scheduleFetch, reportArea]);
 
   // Filters changed (or the map just became ready): decide where to look,
   // then fetch for it.
@@ -460,11 +514,27 @@ export default function ListingsMap({ params, pageListings, hoveredId, onMarkerH
     const firstRun = req.filterQuery === null;
     const target = locationTarget(new URLSearchParams(filterQuery));
     const targetKey = target ? `${target.commune}|${target.quartier || ''}` : '';
-    const placeChanged = firstRun || targetKey !== req.targetKey;
+    const areaCleared = hadUrlAreaRef.current && !hasUrlArea;
+    hadUrlAreaRef.current = hasUrlArea;
+    const placeChanged = firstRun || areaCleared || targetKey !== req.targetKey;
+
+    // Only the area we reported has landed in the URL: nothing to redo.
+    if (!placeChanged && filterQuery === req.filterQuery) return undefined;
 
     req.filterQuery = filterQuery;
     req.targetKey = targetKey;
     req.fetched = null;
+
+    // A URL that already names an area (a shared link, back from the list,
+    // the Carte toggle) opens on that area — once, on the first run. After
+    // that the area is whatever the visitor is looking at.
+    const urlArea = firstRun ? parseBounds(params).bounds : null;
+    if (urlArea) {
+      areaRef.current = { baseline: null, reported: null };
+      fitTo(mapRef.current, urlArea, { exact: true });
+      scheduleFetch();
+      return undefined;
+    }
 
     // Same place, different filters ("2 chambres" → "3 chambres"): the
     // visitor's view stays exactly where they left it.
@@ -477,6 +547,7 @@ export default function ListingsMap({ params, pageListings, hoveredId, onMarkerH
     // there; after a place is cleared, this brings it back.
     if (!target) {
       fitTo(mapRef.current, null);
+      areaRef.current = { baseline: viewKey(mapRef.current), reported: null };
       scheduleFetch();
       return undefined;
     }
@@ -488,8 +559,14 @@ export default function ListingsMap({ params, pageListings, hoveredId, onMarkerH
       const extent = placeView ? null : await fetchExtent(filterQuery);
       if (cancelled) return;
       req.positioning = false;
-      if (placeView) showView(mapRef.current, placeView);
-      else fitTo(mapRef.current, extent);
+      if (placeView) {
+        showView(mapRef.current, placeView);
+        areaRef.current = { baseline: viewKey(mapRef.current), reported: null };
+      } else {
+        // fitBounds settles asynchronously: the next idle is the baseline.
+        areaRef.current = { baseline: null, reported: null };
+        fitTo(mapRef.current, extent);
+      }
       // Moving the map fires `idle`; ask directly as well for the case where
       // the view did not actually change.
       scheduleFetch();
@@ -499,7 +576,14 @@ export default function ListingsMap({ params, pageListings, hoveredId, onMarkerH
       cancelled = true;
       req.positioning = false;
     };
-  }, [mapReady, filterQuery, fetchMarkers, scheduleFetch]);
+    // `params` is read only on the first run (the URL's area); every later
+    // change that matters is already in `filterQuery`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapReady, filterQuery, hasUrlArea, fetchMarkers, scheduleFetch]);
+
+  useEffect(() => {
+    onInViewChange?.(view.loaded && !view.failed ? view.inView : null);
+  }, [view.loaded, view.failed, view.inView, onInViewChange]);
 
   // Card -> map hover sync: only ever touches the two markers affected.
   useEffect(() => {

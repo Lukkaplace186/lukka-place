@@ -30,30 +30,60 @@ import { QueueBadge, useQueueCounts } from './LiveQueueCounts';
  * passed. Same destination, no duplicated source of truth.
  */
 // Keys, not text — see components/navItems.js.
-const NAV = [
-  { href: '/admin/dashboard', labelKey: 'admin.nav.dashboard', icon: BarChart3 },
-  { href: '/admin/listings', labelKey: 'admin.nav.listings', icon: FileText },
-  { href: '/admin/conversations', labelKey: 'admin.nav.conversations', icon: MessageCircle },
-  { href: '/admin/leads', labelKey: 'admin.nav.leads', icon: Mail },
-  { href: '/admin/matching', labelKey: 'admin.nav.matching', icon: Radar },
-  { href: '/admin/viewings', labelKey: 'admin.nav.viewings', icon: CalendarClock },
-  { href: '/admin/market-data', labelKey: 'admin.nav.marketData', icon: TrendingDown },
-  { href: '/admin/benchmarks', labelKey: 'admin.nav.agentPerformance', icon: Gauge },
-  // Labelled "Lead Analytics"; the URL stays /admin/telemetry so existing
-  // bookmarks and revalidatePath calls keep working.
-  { href: '/admin/telemetry', labelKey: 'admin.nav.telemetry', icon: ChartNoAxesCombined },
-  { href: '/admin/agents', labelKey: 'admin.nav.agents', icon: User },
-  { href: '/admin/agencies', labelKey: 'admin.nav.agencies', icon: Building2 },
-  { href: '/admin/verifications', labelKey: 'admin.nav.verifications', icon: ShieldCheck },
-  { href: '/admin/customers', labelKey: 'admin.nav.customers', icon: Users },
-  { href: '/admin/subscriptions', labelKey: 'admin.nav.subscriptions', icon: Landmark },
-  { href: '/admin/billing', labelKey: 'admin.nav.billing', icon: CreditCard },
-  { href: '/admin/sales', labelKey: 'admin.nav.sales', icon: HandCoins },
-  { href: '/admin/cms', labelKey: 'admin.nav.cms', icon: Settings },
-  { href: '/admin/team', labelKey: 'admin.nav.team', icon: UsersRound },
-  { href: '/admin/audit', labelKey: 'admin.nav.audit', icon: ScrollText },
-  { href: '/admin/health', labelKey: 'admin.nav.health', icon: HeartPulse },
+// Grouped by the job each area serves, so a console built for 30k agents
+// reads as five areas rather than one twenty-item column. A role only sees
+// the groups it has at least one section in.
+const NAV_GROUPS = [
+  {
+    labelKey: 'admin.nav.groups.operations',
+    items: [
+      { href: '/admin/dashboard', labelKey: 'admin.nav.dashboard', icon: BarChart3 },
+      { href: '/admin/listings', labelKey: 'admin.nav.listings', icon: FileText },
+      { href: '/admin/viewings', labelKey: 'admin.nav.viewings', icon: CalendarClock },
+      { href: '/admin/leads', labelKey: 'admin.nav.leads', icon: Mail },
+      { href: '/admin/conversations', labelKey: 'admin.nav.conversations', icon: MessageCircle },
+      { href: '/admin/matching', labelKey: 'admin.nav.matching', icon: Radar },
+    ],
+  },
+  {
+    labelKey: 'admin.nav.groups.network',
+    items: [
+      { href: '/admin/agents', labelKey: 'admin.nav.agents', icon: User },
+      { href: '/admin/agencies', labelKey: 'admin.nav.agencies', icon: Building2 },
+      { href: '/admin/verifications', labelKey: 'admin.nav.verifications', icon: ShieldCheck },
+      { href: '/admin/sales', labelKey: 'admin.nav.sales', icon: HandCoins },
+      { href: '/admin/customers', labelKey: 'admin.nav.customers', icon: Users },
+    ],
+  },
+  {
+    labelKey: 'admin.nav.groups.revenue',
+    items: [
+      { href: '/admin/subscriptions', labelKey: 'admin.nav.subscriptions', icon: Landmark },
+      { href: '/admin/billing', labelKey: 'admin.nav.billing', icon: CreditCard },
+    ],
+  },
+  {
+    labelKey: 'admin.nav.groups.insights',
+    items: [
+      // Labelled "Lead Analytics"; the URL stays /admin/telemetry so existing
+      // bookmarks and revalidatePath calls keep working.
+      { href: '/admin/telemetry', labelKey: 'admin.nav.telemetry', icon: ChartNoAxesCombined },
+      { href: '/admin/benchmarks', labelKey: 'admin.nav.agentPerformance', icon: Gauge },
+      { href: '/admin/market-data', labelKey: 'admin.nav.marketData', icon: TrendingDown },
+    ],
+  },
+  {
+    labelKey: 'admin.nav.groups.system',
+    items: [
+      { href: '/admin/health', labelKey: 'admin.nav.health', icon: HeartPulse },
+      { href: '/admin/team', labelKey: 'admin.nav.team', icon: UsersRound },
+      { href: '/admin/audit', labelKey: 'admin.nav.audit', icon: ScrollText },
+      { href: '/admin/cms', labelKey: 'admin.nav.cms', icon: Settings },
+    ],
+  },
 ];
+
+const NAV = NAV_GROUPS.flatMap((group) => group.items);
 
 /** Which live work-queue count (lib/adminWorkQueues.js) badges which item. */
 const BADGE_FOR = {
@@ -72,7 +102,9 @@ export default function AdminSidebar({ mobile = false, role }) {
   const counts = useQueueCounts();
   // A role only sees the sections it may open. The layout and every action
   // enforce the same table server-side; hiding a link is not the security.
-  const items = NAV.filter(({ href }) => can(role, sectionPermission(href)));
+  const allowed = ({ href }) => can(role, sectionPermission(href));
+  const items = NAV.filter(allowed);
+  const groups = NAV_GROUPS.map((group) => ({ ...group, items: group.items.filter(allowed) })).filter((g) => g.items.length);
 
   // Below lg the royal rail is hidden (see layout.js) and the same real
   // destinations ride in a horizontal scroller instead — the design only
@@ -111,24 +143,29 @@ export default function AdminSidebar({ mobile = false, role }) {
         <span className="u-eyebrow text-white/60">{t('admin.chrome.eyebrow')}</span>
       </div>
 
-      <nav className="flex flex-col gap-1">
-        {items.map(({ href, labelKey, icon: Icon }) => {
-          const active = pathname === href || pathname.startsWith(`${href}/`);
-          return (
-            <Link
-              key={href}
-              href={href}
-              aria-current={active ? 'page' : undefined}
-              className={`flex items-center gap-2.5 rounded-md px-3 py-2.5 text-[0.875rem] transition-colors ${
-                active ? 'bg-white/15 font-bold text-white' : 'font-semibold text-white/75 hover:bg-white/10 hover:text-white'
-              }`}
-            >
-              <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem] shrink-0" />
-              <span className="flex-1">{t(labelKey)}</span>
-              <QueueBadge count={counts?.[BADGE_FOR[href]]} />
-            </Link>
-          );
-        })}
+      <nav className="flex flex-col gap-4">
+        {groups.map((group) => (
+          <div key={group.labelKey} className="flex flex-col gap-0.5">
+            <span className="u-eyebrow px-3 pb-1 text-white/45">{t(group.labelKey)}</span>
+            {group.items.map(({ href, labelKey, icon: Icon }) => {
+              const active = pathname === href || pathname.startsWith(`${href}/`);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  aria-current={active ? 'page' : undefined}
+                  className={`flex items-center gap-2.5 rounded-md px-3 py-2 text-[0.875rem] transition-colors ${
+                    active ? 'bg-white/15 font-bold text-white' : 'font-semibold text-white/75 hover:bg-white/10 hover:text-white'
+                  }`}
+                >
+                  <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem] shrink-0" />
+                  <span className="flex-1">{t(labelKey)}</span>
+                  <QueueBadge count={counts?.[BADGE_FOR[href]]} />
+                </Link>
+              );
+            })}
+          </div>
+        ))}
       </nav>
 
       <div className="mt-auto flex flex-col gap-2">

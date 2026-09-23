@@ -242,6 +242,29 @@ registerJob({
 }
 
 /**
+ * Auto-approval of pending listings from TRUSTED agents, every 5 minutes
+ * (services/trustedAutoApprove.js). Everything else stays in the human queue.
+ * AUTO_APPROVE_TRUSTED=off disables it without a deploy.
+ */
+{
+  // eslint-disable-next-line global-require
+  const { trustedAutoApproveJob } = require('./trustedAutoApprove');
+  registerJob(trustedAutoApproveJob);
+}
+
+/**
+ * The agent's morning WhatsApp digest (services/agentDigest.js): pending
+ * visits, today's visits, new customer requests, listings to confirm, and on
+ * Mondays last week's views. Once per agent per Kinshasa day, claimed in its
+ * own table, so the per-job MIN_GAP here is not what prevents a double send.
+ */
+{
+  // eslint-disable-next-line global-require
+  const { agentDigestJob } = require('./agentDigest');
+  registerJob(agentDigestJob);
+}
+
+/**
  * The daily sales commission run (launch policy + subscription plan). Like the
  * alert sweep it calls web's own endpoint rather than reimplementing the rules:
  * the tiers, the confirmed-listing definition and the ledger all live in

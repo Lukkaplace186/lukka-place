@@ -1782,3 +1782,43 @@ From a 375px walk of home → /listings → a listing on production. Desktop
 - **The unloaded map is a 128px strip below `lg`**, not a 22rem empty box. It
   grows when tapped; a layout change right after the visitor's own input is
   not layout shift. Desktop keeps the full-height frame, since it autoloads.
+
+## Launch-readiness pass (2026-09-23)
+
+- **The list follows the map** (`?sw_lat&sw_lng&ne_lat&ne_lng`). Once the
+  visitor has moved the /listings map (not our own positioning — the first
+  settled view is the baseline), `ListingsMap` reports the visible area. Desktop:
+  `router.replace` and the list pane re-renders on that area. Phone:
+  `history.replaceState` only (no server round trip per pan); the "Voir N
+  biens" button carries it. `getListings` resolves an area through
+  `getMapMarkers` and lists those ids, so the list always equals the pin count
+  (`mapArea` in the result). Location filters give way to the area, as on the
+  map; FilterBar keeps the area across non-location changes and drops it for a
+  new place; "Zone de la carte ×" / "Effacer la zone" remove it and the map
+  returns to the searched place. An empty area keeps the split view (the map
+  is the way out). tests/unit/map-area-list.test.js.
+- **"Annonce vérifiée" on the gallery renders only on `verified_at`.** It was
+  unconditional, so every live listing claimed a check none had. Homepage /
+  about copy that said "vérifié" for moderation now says "relue par notre
+  équipe"; "Une seule ligne WhatsApp" (false since direct agent contact) is gone.
+- **Default sort is `complete`** ("Annonces complètes d'abord"): real photo
+  first, then photo count (≤3), commune tag, price, entry costs, newest within
+  a tier. A stated rule, not a recommendation engine; `newest` is still offered.
+- **`/robots.txt` and `/sitemap.xml`** (app/robots.js, app/sitemap.js,
+  `getSitemapListings` — public gate, hourly). Both were 404.
+- **"Vérifier via WhatsApp"** (`lib/whatsappVerify.js`,
+  `app/(site)/compte/whatsappVerifyActions.js`, `components/WhatsAppVerifyPanel.js`,
+  engine `services/phoneChallenges.js`). Both verify pages lead with it: the
+  person sends a shown code from their own WhatsApp; the page polls and then
+  runs the same consumeAgentOtp / consumeCustomerOtp a typed code uses. With
+  `AUTH_OTP_BYPASS=1` no code is sent and this is the only way in — the four
+  sign-in paths no longer stamp a number verified on their own
+  (tests/unit/whatsapp-verify.test.js). Needs the engine migration
+  `20260923_phone_verification_challenges.sql`.
+- **Visit request confirmation** links to /compte/client/visites instead of
+  promising a WhatsApp reply the 24h window may never deliver.
+- **Admin**: the sidebar is five groups (Opérations, Réseau & ventes, Revenus,
+  Analyses, Système); `/admin` opens each role's own queue (`ROLE_HOME`,
+  lib/adminRoles.js — a sales rep used to land on a page they may not open).
+  The rep page opens on a field view (`getRepFieldView`): signups today / 7
+  days and agents quiet for 7 days with a wa.me nudge from the rep's phone.

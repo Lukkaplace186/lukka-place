@@ -5,6 +5,9 @@ import ResendButton from '@/components/OtpResendButton';
 import { getVerifyAttempt, maskPhone } from '@/lib/verifyAttempt';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { getT } from '@/lib/i18n/server';
+import WhatsAppVerifyPanel from '@/components/WhatsAppVerifyPanel';
+import { ensureChallenge, whatsappVerifyHref } from '@/lib/whatsappVerify';
+import { otpBypassEnabled } from '@/lib/otpBypass';
 
 // generateMetadata, not a static object: a static export cannot see the
 // request locale — see app/(site)/a-propos/page.js.
@@ -41,12 +44,38 @@ export default async function AgentVerifyOtpPage({ searchParams }) {
     redirect('/compte/agent/inscription');
   }
 
+  // "Vérifier via WhatsApp" is offered first: an inbound message always
+  // reaches us, while a sent code needs a Meta template that may not exist.
+  // With AUTH_OTP_BYPASS=1 it is the only way — no code is sent, and nothing
+  // is verified until the number itself has spoken (lib/whatsappVerify.js).
+  const codeless = otpBypassEnabled();
+  let challenge = null;
+  try {
+    challenge = await ensureChallenge(attempt);
+  } catch (err) {
+    console.error(`[verify] could not open a WhatsApp challenge for ${attempt.role} #${attempt.id}: ${err.message}`);
+  }
+
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm rounded-card border border-line bg-surface p-6 u-lift sm:p-8">
         <h1 className="u-title-section text-ink">{t('auth.numberVerification')}</h1>
-        <p className="mt-1 text-sm text-ink-45">
-          {t('auth.codeSentTo', { phone: maskPhone(attempt.phone) })}
+        {challenge ? (
+          <WhatsAppVerifyPanel
+            code={challenge.code}
+            href={whatsappVerifyHref(challenge.code)}
+            maskedPhone={maskPhone(attempt.phone)}
+            next={next}
+            restartHref="/compte/agent/inscription"
+          />
+        ) : codeless ? (
+          <p className="mt-4 text-sm text-red-600" role="alert">{t('auth.whatsappVerify.noNumber')}</p>
+        ) : null}
+
+        {codeless ? null : (
+        <>
+        <p className="mt-6 text-sm text-ink-45">
+          {challenge ? t('auth.whatsappVerify.haveCode') : t('auth.codeSentTo', { phone: maskPhone(attempt.phone) })}
           {sent ? ` ${t('auth.newCodeSent')}` : ''}
         </p>
 
@@ -68,7 +97,7 @@ export default async function AgentVerifyOtpPage({ searchParams }) {
               autoComplete="one-time-code"
               pattern="[0-9]{6}"
               maxLength={6}
-              autoFocus
+              
               required
               className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-center text-lg tracking-[0.3em] text-ink"
             />
@@ -102,6 +131,9 @@ export default async function AgentVerifyOtpPage({ searchParams }) {
           >
             {t('auth.forgot.contactSupport')}
           </a>
+        )}
+
+        </>
         )}
 
         <p className="mt-5 text-center text-sm text-ink-45">

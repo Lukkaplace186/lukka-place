@@ -9,6 +9,8 @@ import { getLocationHierarchySafe } from '@/lib/locations';
 import { parseListingsSearchParams } from '@/lib/searchQuery';
 import { PROPERTY_TYPE_PLURAL_KEYS } from '@/lib/constants';
 import { getT } from '@/lib/i18n/server';
+import { MAP_BOUNDS_PARAMS } from '@/lib/mapViewport';
+import { hrefWithoutKeys } from '@/lib/urlParams';
 
 export default async function ListingsPage({ searchParams }) {
   const params = await searchParams;
@@ -25,7 +27,7 @@ export default async function ListingsPage({ searchParams }) {
   // the database can prove have approved listings.
   const [
     hierarchy,
-    { total, count, data, locationRelaxed, relaxedFromCommune, requestedRadius, radiusExpanded, effectiveRadius },
+    { total, count, data, locationRelaxed, relaxedFromCommune, requestedRadius, radiusExpanded, effectiveRadius, mapArea },
     popularCommunes,
     showcase,
     { maxPrice },
@@ -42,6 +44,9 @@ export default async function ListingsPage({ searchParams }) {
   const communes = hierarchy.communes.length > 0 ? hierarchy.communes : showcase.map((c) => c.commune);
 
   const totalPages = Math.max(Math.ceil(total / limit), 1);
+  // The results are the map's visible area (the visitor moved the map). The
+  // location filters are still in the URL — clearing the area returns to them.
+  const clearAreaHref = mapArea ? hrefWithoutKeys(params, [...MAP_BOUNDS_PARAMS, 'page']) : null;
   const isMapView = params.view === 'map';
   // The plural form is dictionary copy ("Appartements" / "Apartments"); the
   // facet fallback is a real category name out of the database, so it is used
@@ -119,10 +124,14 @@ export default async function ListingsPage({ searchParams }) {
             radiusExpanded={radiusExpanded}
             requestedRadius={requestedRadius}
             effectiveRadius={effectiveRadius}
+            mapArea={Boolean(mapArea)}
+            clearAreaHref={clearAreaHref}
           />
         </div>
 
-        {count === 0 ? (
+        {/* An empty map area keeps the split view: the map is how the visitor
+            gets out of it, and the full empty state would take it away. */}
+        {count === 0 && !mapArea ? (
           <ListingsEmptyState popularCommunes={popularCommunes} params={params} propertyTypeLabel={propertyTypeLabel} />
         ) : (
           <ListingsSplitView
@@ -133,6 +142,7 @@ export default async function ListingsPage({ searchParams }) {
             params={params}
             popularCommunes={popularCommunes}
             communes={communes}
+            clearAreaHref={clearAreaHref}
           />
         )}
       </div>

@@ -143,7 +143,7 @@
   "home": {
     "hero": {
       "title": "Apartments. Villas. Plots. Agencies.",
-      "subtitle": "Verified properties, transparent prices & direct contact on WhatsApp.",
+      "subtitle": "Listings reviewed by our team, prices shown upfront & direct contact on WhatsApp.",
       "photoCredit": "Photo by kaysha on Unsplash"
     },
     "search": {
@@ -160,16 +160,16 @@
       "allPrices": "Any price"
     },
     "value": {
-      "verifiedTitle": "Verified Listings",
+      "verifiedTitle": "Reviewed Listings",
       "verifiedBody": "Every property goes through a human check before publication — details, photos and location are reviewed, not simply copied across.",
       "contactTitle": "Direct Contact",
-      "contactBody": "One WhatsApp line, the same for every listing. No forms, no unsolicited sales calls.",
+      "contactBody": "The agent's own number when it is verified, otherwise our WhatsApp line. No forms, no unsolicited sales calls.",
       "pricesTitle": "Transparent Prices",
       "pricesBody": "Price, floor area and reference shown as they are, in dollars and in francs. No platform admin fees added.",
       "eyebrow": "Our Approach"
     },
     "trustHeading": "Who's Behind This",
-    "featuredEyebrow": "Newly Verified",
+    "featuredEyebrow": "Newly Listed",
     "featuredHeading": "Featured Properties",
     "saved": {
       "eyebrow": "Welcome Back, {name}",
@@ -192,7 +192,7 @@
     },
     "transactions": {
       "rentTitle": "Rent",
-      "rentBody": "Apartments and houses to rent, verified and ready to view.",
+      "rentBody": "Apartments and houses to rent, reviewed by our team before publication.",
       "buyTitle": "Buy",
       "buyBody": "Apartments, villas and plots for sale in Kinshasa.",
       "buyCta": "Properties for sale",
@@ -210,8 +210,8 @@
     "metaDescription": "How Lukka Place, Kinshasa's property listings platform, works.",
     "eyebrow": "About",
     "title": "A Platform Built for Kinshasa",
-    "lead": "Agents and private owners submit their properties over WhatsApp. Every listing is structured, verified, then published.",
-    "body1": "Lukka Place is a property listings platform dedicated to Kinshasa. Agents and private owners submit their properties directly over WhatsApp — text or photos — and every listing is structured and then verified before being published on the site.",
+    "lead": "Agents and private owners submit their properties over WhatsApp. Every listing is structured, reviewed by our team, then published.",
+    "body1": "Lukka Place is a property listings platform dedicated to Kinshasa. Agents and private owners submit their properties directly over WhatsApp — text, photos or a voice note — and every listing is structured and then reviewed by our team before being published on the site.",
     "body2": "The aim is simple: to give people looking for an apartment, a villa or a plot in Kinshasa one single, up-to-date place where every listing corresponds to a property that is genuinely available — and a direct way to get in touch about a property, with no account and no form.",
     "body3": "Prices are set in US dollars. The Congolese franc display is an indicative estimate, converted at a dated reference rate that is updated manually, and is never presented as the contractual price.",
     "body4": "Lukka Place does not provide direct financial brokerage services; the platform facilitates introductions between advertisers and interested parties via listing reference."
@@ -277,6 +277,7 @@
       "searchButton": "Search"
     },
     "sort": {
+      "complete": "Complete listings first",
       "label": "Sort By",
       "newest": "Newest first",
       "priceAsc": "Price: low to high",
@@ -286,7 +287,12 @@
     },
     "view": {
       "map": "Map",
-      "list": "List"
+      "list": "List",
+      "listCount": {
+        "zero": "List (0)",
+        "one": "See {count} property",
+        "other": "See {count} properties"
+      }
     },
     "results": {
       "count": {
@@ -305,7 +311,12 @@
       },
       "locationRelaxed": "No exact match in {commune} — search widened to all of Kinshasa for these keywords.",
       "citywideFrom": "Radius widened to all of Kinshasa from {place}.",
-      "communeWideFrom": "Radius widened to all of {commune} from {quartier}."
+      "communeWideFrom": "Radius widened to all of {commune} from {quartier}.",
+      "areaHeading": "{subject} {transaction} in the Map Area",
+      "mapAreaNote": "The properties visible on the map",
+      "clearArea": "Clear map area",
+      "emptyAreaTitle": "No Properties in This Area",
+      "emptyAreaHint": "Zoom out or move the map to see more properties."
     },
     "empty": {
       "title": "No Properties Match",
@@ -438,7 +449,8 @@
       "radiusKm": "+{km} km",
       "priceRange": "${min} - ${max}",
       "priceFrom": "From ${min}",
-      "priceUpTo": "Up to ${max}"
+      "priceUpTo": "Up to ${max}",
+      "mapArea": "Map area"
     },
     "specs": {
       "beds": "bed",
@@ -541,7 +553,7 @@
       "nearby": "Nearby",
       "noneLeftIn": "No other property available in {commune} right now."
     },
-    "viewVerified": "See verified listings",
+    "viewVerified": "See listings",
     "saveContact": "Save contact",
     "favorite": {
       "save": "Save",
@@ -563,7 +575,7 @@
     "preferredSlot": "Preferred time",
     "slotPlaceholder": "e.g. Saturday morning, 10am",
     "submit": "Send request",
-    "sent": "Your viewing request has been sent — the agent will reply on WhatsApp.",
+    "sent": "Your viewing request has been sent to the agent.",
     "contactWhatsApp": "Contact on WhatsApp",
     "contactUnavailable": "Contact unavailable",
     "callAgent": "Call the agent",
@@ -572,7 +584,8 @@
       "phone": "Invalid number — check it and try again.",
       "time": "Tell us the time that suits you.",
       "failed": "Sending failed, please try again."
-    }
+    },
+    "trackVisit": "Follow their answer in My viewings →"
   },
   "search": {
     "label": {
@@ -1960,7 +1973,14 @@
       "audit": "Audit log",
       "health": "System health",
       "verifications": "Verifications",
-      "sales": "Sales Team"
+      "sales": "Sales Team",
+      "groups": {
+        "operations": "Operations",
+        "network": "Network & sales",
+        "revenue": "Revenue",
+        "insights": "Insights",
+        "system": "System"
+      }
     },
     "login": {
       "intro": "Restricted to the Lukka Place team.",
@@ -3665,6 +3685,16 @@
         "copyLink": "Copy the signup link",
         "downloadQr": "Download the QR code",
         "pay": "Pay this fortnight"
+      },
+      "field": {
+        "title": "Today in the Field",
+        "signupsToday": "signups today",
+        "signupsWeek": "signups in 7 days",
+        "quietTitle": "Agents to Follow Up",
+        "quietNone": "All your agents listed something this week.",
+        "lastListing": "Last listing {date} · {count} live",
+        "noListingYet": "No listing since signing up",
+        "nudge": "Nudge"
       }
     }
   },
@@ -3816,7 +3846,18 @@
       "now": "Resend the code"
     },
     "referralCode": "Referral code (optional)",
-    "referralCodeHint": "If a Lukka Place sales rep introduced you, enter their code, e.g. JEAN01."
+    "referralCodeHint": "If a Lukka Place sales rep introduced you, enter their code, e.g. JEAN01.",
+    "whatsappVerify": {
+      "intro": "Send this code from the WhatsApp account of {phone}. That is what proves the number is yours.",
+      "send": "Send the code on WhatsApp",
+      "waiting": "Waiting for your message…",
+      "verified": "Number verified, opening your account…",
+      "hint": "The message is already written: just tap Send, then come back here.",
+      "expired": "This verification has expired.",
+      "restart": "Start again",
+      "noNumber": "WhatsApp verification is not available right now. Please contact the Lukka Place team.",
+      "haveCode": "Received a code by message? Enter it here."
+    }
   },
   "updates": {
     "title": "Updates",

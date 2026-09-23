@@ -675,3 +675,52 @@ export async function listSuspiciousReferrals() {
   ]);
   return { sharedConnections: shared.rows, priorListings: prior.rows, day30Failures: failing.rows };
 }
+
+/** An agent is "quiet" when neither a listing nor their signup is this recent. */
+export const QUIET_AFTER_DAYS = 7;
+
+/**
+ * The rep's field view (/admin/sales/[id], top card, phone-first): who signed
+ * up through them today and this week, and which of their agents have gone
+ * quiet — no new listing for QUIET_AFTER_DAYS — so the next call is obvious.
+ * Quiet agents are oldest-activity first and come with the phone digits the
+ * nudge link needs; a phone is shown to the rep who brought that agent in,
+ * never on a list of anyone else's.
+ */
+export async function getRepFieldView(repId, { limit = 8 } = {}) {
+  const pool = getPool();
+  const [signups, quiet] = await Promise.all([
+    pool.query(
+      `SELECT COUNT(*) FILTER (WHERE att.attributed_at >= date_trunc('day', NOW() AT TIME ZONE 'Africa/Kinshasa') AT TIME ZONE 'Africa/Kinshasa')::int AS today,
+              COUNT(*) FILTER (WHERE att.attributed_at >= NOW() - INTERVAL '7 days')::int AS week
+         FROM sales_agent_attributions att WHERE att.rep_id = $1`,
+      [repId],
+    ),
+    pool.query(
+      `SELECT att.agent_id, a.phone, ${AGENT_NAME} AS name, last.at AS last_listing_at,
+              (SELECT COUNT(*)::int FROM properties p WHERE p.agent_id = a.id AND p.status = 1 AND p.approve_status = 1) AS live
+         FROM sales_agent_attributions att
+         JOIN agents a ON a.id = att.agent_id AND a.status = 1
+         LEFT JOIN LATERAL (
+           SELECT first_name, last_name FROM agent_infos WHERE agent_id = a.id ORDER BY (language_id = 20) DESC, language_id LIMIT 1
+         ) ai ON true
+         LEFT JOIN LATERAL (SELECT MAX(p.created_at::timestamptz) AS at FROM properties p WHERE p.agent_id = a.id) last ON true
+        WHERE att.rep_id = $1
+          AND COALESCE(last.at, a.created_at::timestamptz) < NOW() - ($2 || ' days')::interval
+        ORDER BY COALESCE(last.at, a.created_at::timestamptz) ASC
+        LIMIT $3`,
+      [repId, String(QUIET_AFTER_DAYS), limit],
+    ),
+  ]);
+  return {
+    today: signups.rows[0]?.today ?? 0,
+    week: signups.rows[0]?.week ?? 0,
+    quiet: quiet.rows.map((row) => ({
+      agentId: Number(row.agent_id),
+      name: row.name,
+      phone: String(row.phone || '').replace(/\D/g, ''),
+      lastListingAt: row.last_listing_at,
+      live: row.live,
+    })),
+  };
+}

@@ -86,10 +86,11 @@ export async function loginAction(formData) {
   // Both are the same one-time step, and it is the same step an agent with
   // an unverified account already goes through.
   if (!customer.phone_verified_at && otpBypassEnabled()) {
-    // Testing mode — the password already matched, so the only thing being
-    // skipped is proof of the number. See lib/otpBypass.js.
+    // No code is sent; the verify page proves the number by a WhatsApp
+    // message from it (lib/whatsappVerify.js).
     logOtpBypass('customer-auth', { id: customer.id, phone });
-    await consumeCustomerOtp(customer.id);
+    await setVerifyAttemptCookie({ role: 'customer', id: customer.id, phone });
+    redirect(`/compte/inscription/verifier?next=${encodeURIComponent(next)}`);
   } else if (!customer.phone_verified_at) {
     await setVerifyAttemptCookie({ role: 'customer', id: customer.id, phone });
     const verifyUrl = `/compte/inscription/verifier?next=${encodeURIComponent(next)}`;

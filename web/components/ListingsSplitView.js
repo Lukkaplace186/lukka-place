@@ -1,14 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { ChevronLeft, ChevronRight, MapPinned } from 'lucide-react';
 import PropertyCard from './PropertyCard';
 import SidebarInsights from './SidebarInsights';
 import ResponsiveMapPane from './ResponsiveMapPane';
 import MobileMapChrome from './MobileMapChrome';
 import MobileMapOverlay from './MobileMapOverlay';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { boundsToQuery } from '@/lib/mapViewport';
 import { useT } from '@/lib/i18n/client';
 
 function buildPageHref(searchParams, page) {
@@ -37,8 +39,29 @@ function buildPageHref(searchParams, page) {
  * seat the map's top edge *underneath* the sticky filter bar, hidden
  * behind it rather than starting where the results column visually does.
  */
-export default function ListingsSplitView({ listings, isMapView, page, totalPages, params, popularCommunes, communes }) {
+export default function ListingsSplitView({
+  listings, isMapView, page, totalPages, params, popularCommunes, communes, clearAreaHref = null,
+}) {
   const t = useT();
+  const router = useRouter();
+  // How many listings the map counts in view — the mobile Liste button says it.
+  const [inView, setInView] = useState(null);
+
+  // The visitor moved the map: the list becomes that area (lib/listings.js
+  // getListings, `bounds`). On desktop the list pane is on screen, so the
+  // server re-renders it (router.replace, no scroll jump). On a phone the list
+  // is hidden behind the fullscreen map, so re-rendering it on every pan would
+  // spend the visitor's data for nothing: the URL is updated in place — Next
+  // keeps useSearchParams in step with history.replaceState — and the Liste
+  // button carries the area when it is tapped.
+  const onAreaChange = useCallback((bounds) => {
+    const qs = new URLSearchParams(window.location.search);
+    for (const [key, value] of Object.entries(boundsToQuery(bounds))) qs.set(key, value);
+    qs.delete('page');
+    const url = `/listings?${qs.toString()}`;
+    if (window.matchMedia('(min-width: 1024px)').matches) router.replace(url, { scroll: false });
+    else window.history.replaceState(null, '', url);
+  }, [router]);
   const [hoveredId, setHoveredId] = useState(null);
   // A pin's preview card sits over the bottom of the map, exactly where the
   // mobile "Liste" button floats — so the button steps aside while it is open.
@@ -92,6 +115,21 @@ export default function ListingsSplitView({ listings, isMapView, page, totalPage
             — not a two-up grid of vertical ones. Each card carries its own
             @container and stacks its image above the body when the column
             is too narrow for the 300px thumbnail. */}
+        {listings.length === 0 ? (
+          // Only reachable with a map area (page.js renders the full empty
+          // state otherwise): the map stays on screen, so the way out is to
+          // move it — or to drop the area and go back to the search.
+          <div className="rounded-lg border border-line bg-surface px-6 py-10 text-center">
+            <MapPinned strokeWidth={ICON_STROKE_WIDTH} className="mx-auto mb-3 h-5 w-5 text-ink-45" aria-hidden="true" />
+            <p className="text-[0.9375rem] font-semibold text-ink">{t('listings.results.emptyAreaTitle')}</p>
+            <p className="mt-1 text-[0.8125rem] text-ink-45">{t('listings.results.emptyAreaHint')}</p>
+            {clearAreaHref ? (
+              <Link href={clearAreaHref} className="mt-4 inline-block text-[0.8125rem] font-semibold text-blue-deep underline-offset-2 hover:underline">
+                {t('listings.results.clearArea')}
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
         <div className="u-stagger-in-view flex flex-col gap-5">
           {/* Single column, so only the first couple of rows are ever
               actually above the fold — priority for those skips next/image's
@@ -183,9 +221,11 @@ export default function ListingsSplitView({ listings, isMapView, page, totalPage
             hoveredId={hoveredId}
             onMarkerHover={setHoveredId}
             onPreviewChange={setPreviewOpen}
+            onAreaChange={onAreaChange}
+            onInViewChange={setInView}
             className="h-full w-full"
           />
-          {isMapView ? <MobileMapOverlay hideListButton={previewOpen} /> : null}
+          {isMapView ? <MobileMapOverlay hideListButton={previewOpen} inView={inView} /> : null}
         </div>
       </div>
     </div>

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useIsLoggedIn } from '@/lib/customerClient';
 import { MessageCircle, Phone, CalendarClock } from 'lucide-react';
@@ -256,9 +257,16 @@ export default function EnquiryCard({ listing, visitSent, visitError, saveShare 
 
       <div className="flex flex-col gap-2.5">
         {visitSent && (
-          <p className="rounded-lg bg-success-tint px-3.5 py-2.5 text-[0.8125rem] font-semibold text-success" role="status">
-            {t('enquiry.sent')}
-          </p>
+          // The account's Visites tab is where the agent's answer is certain to
+          // show: a WhatsApp confirmation only reaches a customer who messaged
+          // the business number in the last 24h (root CLAUDE.md, "Outbound
+          // WhatsApp"), and a web visitor usually has not.
+          <div className="rounded-lg bg-success-tint px-3.5 py-2.5 text-[0.8125rem] text-success" role="status">
+            <p className="font-semibold">{t('enquiry.sent')}</p>
+            <Link href="/compte/client/visites" className="mt-1 inline-block font-semibold underline underline-offset-2">
+              {t('enquiry.trackVisit')}
+            </Link>
+          </div>
         )}
         {visitError && (
           <p className="rounded-lg bg-danger-tint px-3.5 py-2.5 text-[0.8125rem] font-semibold text-danger" role="alert">

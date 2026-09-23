@@ -35,7 +35,7 @@ export default function FloatingControlBar({ hasResults = true }) {
   const searchParams = useSearchParams();
   const [sortOpen, setSortOpen] = useState(false);
   const t = useT();
-  const currentSort = searchParams.get('sort') || 'newest';
+  const currentSort = searchParams.get('sort') || 'complete';
 
   function openMapView() {
     const params = new URLSearchParams(searchParams.toString());

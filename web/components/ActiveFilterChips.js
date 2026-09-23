@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { X } from 'lucide-react';
 import { AMENITY_GROUPS, DEPOSIT_MAX_OPTIONS, ICON_STROKE_WIDTH } from '@/lib/constants';
 import { hrefWithoutKeys, hrefWithoutAmenity } from '@/lib/urlParams';
+import { MAP_BOUNDS_PARAMS, parseBounds } from '@/lib/mapViewport';
 import { getT } from '@/lib/i18n/server';
 
 const AMENITY_LABEL_KEYS = Object.fromEntries(
@@ -37,13 +38,19 @@ export default async function ActiveFilterChips({ params = {}, propertyTypeLabel
     });
   }
 
-  if (params.quartier) {
+  // The map's visible area replaces the location filters while it is set
+  // (lib/listings.js getListings), so their chips would name a place the
+  // results no longer follow. Removing the area brings them back.
+  const hasMapArea = Boolean(parseBounds(params).bounds);
+  if (hasMapArea) {
+    chips.push({ key: 'map_area', label: t('listings.chips.mapArea'), href: hrefWithoutKeys(params, [...MAP_BOUNDS_PARAMS, 'page']) });
+  } else if (params.quartier) {
     chips.push({ key: 'quartier', label: params.quartier, href: hrefWithoutKeys(params, ['quartier', 'radius']) });
   } else if (params.commune) {
     chips.push({ key: 'commune', label: params.commune, href: hrefWithoutKeys(params, ['commune', 'quartier', 'radius']) });
   }
 
-  if (params.commune && params.radius) {
+  if (!hasMapArea && params.commune && params.radius) {
     const radiusLabel = KM_RADIUS_VALUES.has(params.radius)
       ? t('listings.chips.radiusKm', { km: params.radius })
       : params.radius === 'commune'

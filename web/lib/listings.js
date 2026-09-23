@@ -511,7 +511,25 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
   return { whereClause: where.join(' AND '), params };
 }
 
+/**
+ * "Annonces complètes d'abord" — the default order. A transparent rule, not a
+ * recommendation engine: listings with a real photo come first (a photo-less
+ * card reads as a scam in Kinshasa and is a third of the live catalogue),
+ * then those with more photos (capped at 3 — the editor's own threshold),
+ * a commune, a price and stated entry costs; newest first within a tier.
+ * It is also the agents' reason to complete a listing: the more complete it
+ * is, the higher it shows. `newest` stays available as a plain date sort.
+ */
+const COMPLETENESS_SCORE = `(
+  (CASE WHEN COALESCE(p.featured_image, '') <> '' AND p.featured_image NOT ILIKE '%noimage%' THEN 6 ELSE 0 END)
+  + LEAST((SELECT COUNT(*) FROM property_slider_images psi WHERE psi.property_id = p.id), 3)
+  + (CASE WHEN EXISTS (SELECT 1 FROM property_amenities pa WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44) THEN 1 ELSE 0 END)
+  + (CASE WHEN p.price > 0 THEN 1 ELSE 0 END)
+  + (CASE WHEN p.deposit_months IS NOT NULL THEN 1 ELSE 0 END)
+)`;
+
 const SORT_COLUMNS = {
+  complete: `${COMPLETENESS_SCORE} DESC, p.created_at DESC`,
   newest: 'p.created_at DESC',
   price_asc: 'p.price ASC',
   price_desc: 'p.price DESC',
@@ -540,6 +558,26 @@ const SORT_COLUMNS = {
  * @returns {Promise<{total: number, limit: number, offset: number, count: number, data: Object[], locationRelaxed: boolean, relaxedFromCommune: string|null, requestedRadius: string|null, radiusExpanded: boolean, effectiveRadius: string|null}>}
  */
 export async function getListings(options = {}) {
+  // The map's visible area. The list must show exactly what the map counts
+  // "dans cette zone", and the map places a listing by rules SQL alone cannot
+  // express (stored coordinates, else the centroid of a commune read from the
+  // tag or the address text — lib/mapViewport.js resolveMarkerPosition). So
+  // the area is resolved through the map's own read and becomes an id set;
+  // re-deriving it here would be a second definition of "in this area" that
+  // drifts from the pins. As on the map, commune / quartier / radius give way
+  // to the box, and the relax / radius ladders below never fire.
+  let mapArea = null;
+  if (options.bounds) {
+    const { markers, truncated } = await getMapMarkers(options, options.bounds);
+    let areaIds = markers.map((m) => Number(m.id));
+    if (Array.isArray(options.ids)) {
+      const wanted = new Set(options.ids.map(Number));
+      areaIds = areaIds.filter((id) => wanted.has(id));
+    }
+    mapArea = { truncated };
+    options = { ...withoutLocationFilters(options), bounds: null, ids: areaIds };
+  }
+
   let { whereClause, params } = buildFilters(options);
 
   const parsedLimit = Number.parseInt(options.limit, 10);
@@ -550,7 +588,7 @@ export async function getListings(options = {}) {
   const parsedOffset = Number.parseInt(options.offset, 10);
   const offset = Number.isFinite(parsedOffset) ? Math.max(parsedOffset, 0) : 0;
 
-  const orderBy = SORT_COLUMNS[options.sort] || SORT_COLUMNS.newest;
+  const orderBy = SORT_COLUMNS[options.sort] || SORT_COLUMNS.complete;
 
   const pool = getPool();
 
@@ -653,6 +691,9 @@ export async function getListings(options = {}) {
     requestedRadius,
     radiusExpanded,
     effectiveRadius,
+    // Set when the results are the map's visible area, not the location
+    // filters. `truncated` mirrors the map's own MAP_MARKERS_MAX ceiling.
+    mapArea,
   };
 }
 
@@ -679,6 +720,23 @@ export async function getListingsByIds(ids) {
     [numericIds],
   );
   return rows;
+}
+
+/**
+ * Every public listing's id and last change, for app/sitemap.js. Same public
+ * gate as every other read: a pending or archived listing must not be
+ * announced to search engines any more than it is shown to visitors.
+ *
+ * @returns {Promise<Array<{id: number, updatedAt: Date}>>}
+ */
+export async function getSitemapListings(limit = 45000) {
+  const { rows } = await getPool().query(
+    `SELECT p.id, GREATEST(p.created_at, COALESCE(p.updated_at, p.created_at)) AS updated_at
+       FROM properties p WHERE ${APPROVED_FILTER}
+      ORDER BY p.id DESC LIMIT $1`,
+    [limit],
+  );
+  return rows.map((row) => ({ id: Number(row.id), updatedAt: new Date(row.updated_at) }));
 }
 
 /**

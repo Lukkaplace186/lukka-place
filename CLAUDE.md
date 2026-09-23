@@ -1075,6 +1075,57 @@ alert job itself), no inbound WhatsApp traffic for `OPS_ALERT_SILENCE_HOURS`
   `agent_verification_documents`. No engine code reads it yet; see web/CLAUDE.md.
 - Covered by `scripts/verify-pipeline.js` §31.
 
+## Launch-readiness pass (2026-09-23)
+
+- **The intake card is rendered from the stored row** (`services/listingCard.js`).
+  The model still writes the greeting above it (in the agent's language); every
+  fact on the card comes from `getListing(id)` after insert / correction, so
+  what the agent approves with "OK" is what gets published. Before, the card
+  was the model's prose and the row was post-processed separately — "pas
+  3+1+1 mais 2+1+1" showed 2 months of garantie while 3 were stored.
+  Multi-unit / multi-property drafts keep the model's itemised recap. A bare
+  "non" (is_correction false) keeps the model's "which line is wrong?" reply.
+- **Correction rules** (SYSTEM_PROMPT, "BOUCLE DE CORRECTION"): touch only
+  what the message corrects; "pas X mais Y" / "Y au lieu de X" mean Y;
+  "pas de commission" is 0; a bare "non" asks which line is wrong.
+  `normaliseEntryCosts` now defers to the model when a message holds two
+  different additive expressions, reads spoken "3 plus 1 plus 1", and only
+  applies the "N mois" convention when that N is in THIS message (correction
+  mode hands it the merged draft). `isAffirmative` also takes "ok merci",
+  "c'est correct", 👍. Live eval: 15/15 messy French corrections.
+- **Voice notes** (`services/voiceNotes.js`, `VOICE_TRANSCRIBE_MODEL`, default
+  whisper-1): transcribed and folded into the message text exactly like a PDF
+  flyer's text layer, so intake, corrections and "OK" work spoken. No language
+  is forced (French/Lingala mix); an inaudible note gets `VOICE_UNREADABLE_REPLY`.
+- **Reverse phone verification** (`services/phoneChallenges.js`,
+  `migrations/20260923_phone_verification_challenges.sql`, web
+  `lib/whatsappVerify.js`): the web verify page shows a 6-digit code the person
+  sends FROM their WhatsApp; a message from number X holding a code that
+  matches an open challenge FOR X marks it verified, before any listing logic.
+  Matched on sender AND code — a number alone would let an agent's ordinary
+  messages verify an account someone else opened on their number. Needs no
+  Meta template. `AUTH_OTP_BYPASS=1` now means "send no code, verify this way"
+  instead of "skip proof" (which let anyone claim an agency's listings).
+- **Agent morning digest** (`services/agentDigest.js`, job
+  `agent-daily-digest`, `AGENT_DIGEST_HOUR` default 8 Kinshasa): pending and
+  today's visits, new customer requests, listings to confirm, listings in
+  review; Mondays add last week's views/taps from `listing_stats_daily`.
+  Nothing is sent to an agent with nothing to say. Once per agent per day
+  (`agent_digest_sends`), "STOP RÉSUMÉ" opts out (`agent_digest_optouts`).
+  Session message: reaches agents inside the 24h window until a template exists.
+- **Trusted-agent auto-approval** (`services/trustedAutoApprove.js`, job
+  `trusted-auto-approve`, every 5 min, `AUTO_APPROVE_TRUSTED=off` disables):
+  promotes a pending listing only when its agent is active, phone-verified,
+  holds a human-granted verification tier, has ≥5 HUMAN-approved listings and
+  no rejection in 90 days — and the listing passes the moderator's publish
+  checks plus a real photo and a commune tag. Recorded as a moderation
+  (`moderation_note = 'auto:trusted-agent'`, `moderated_by` NULL); the agent gets
+  the normal "en ligne" message. Both write paths still create
+  `approve_status = 0`. With no verified-tier agent today, it approves nothing.
+- Scheduler order is now: search-alerts, viewing-sla, viewing-checkin,
+  ops-health-alerts, listing-stats-rollup, trusted-auto-approve,
+  agent-daily-digest, sales-commissions.
+
 ## Verification & Commands
 - **Verification Command**: Always run `npm run verify` before declaring a backend task complete.
 - **Test Coverage**: Do not touch schema fields without updating `scripts/verify-pipeline.js`.

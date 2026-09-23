@@ -218,6 +218,7 @@ export default async function ListingDetailPage({ params, searchParams }) {
         <PhotoGallery
           images={images}
           alt={listing.title}
+          verifiedAt={listing.verified_at}
           mobileActions={(
             <>
               <ShareButton title={listing.title} variant="overlay" />

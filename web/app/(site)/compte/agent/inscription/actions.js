@@ -118,21 +118,20 @@ export async function agentSignupAction(formData) {
     await recordReferralRefusal({ repId: referral.rep?.id ?? null, code: typedReferral, agentId: Number(agent.id), channel: 'web', reason: 'self_referral' });
   }
 
-  // Testing mode: no code, straight to a session. consumeAgentOtp is reused
-  // rather than a second UPDATE, which also means the bypassed path still
-  // runs the retroactive listing claim — the thing that makes an agent who
-  // already WhatsApped listings find them on their dashboard.
-  if (otpBypassEnabled()) {
-    logOtpBypass('agent-auth', { id: agent.id, phone });
-    await consumeAgentOtp(agent.id);
-    await establishAgentSession({ id: agent.id, tokenVersion: agent.token_version });
-    redirect(next);
-  }
-
   // Which account is being verified travels in a signed httpOnly cookie
   // rather than the `?agent=<id>` query param this flow used to key on —
   // see lib/verifyAttempt.js for what that param made possible.
   await setVerifyAttemptCookie({ role: 'agent', id: agent.id, phone });
+
+  // AUTH_OTP_BYPASS=1: no code is SENT (no Meta template exists), but the
+  // number is still proven — the verify page asks for a WhatsApp message
+  // from it (lib/whatsappVerify.js). This used to establish a session and
+  // run consumeAgentOtp right here, which let anyone register an agency's
+  // number and claim every listing it had WhatsApped in.
+  if (otpBypassEnabled()) {
+    logOtpBypass('agent-auth', { id: agent.id, phone });
+    redirect(`/compte/agent/inscription/verifier?next=${encodeURIComponent(next)}`);
+  }
 
   try {
     await sendAgentOtp(agent.id, phone);

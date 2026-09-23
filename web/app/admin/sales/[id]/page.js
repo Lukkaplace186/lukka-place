@@ -15,7 +15,7 @@ import {
   getRepMonthlyTrend, getSalesRep, listActiveRepOptions, listApprovedLineRefs, listRepAccounts, listRepCommissions,
   listRepPayouts, listRepRenewalsDue, listSalesConsoleAccounts, listSalesPlans,
 } from '@/lib/sales';
-import { AUTO_VOID_REASON, REFERRED_AGENT_FILTERS, getLaunchCounts, listListingCredits, listReferredAgents } from '@/lib/salesLaunch';
+import { AUTO_VOID_REASON, REFERRED_AGENT_FILTERS, getLaunchCounts, getRepFieldView, listListingCredits, listReferredAgents } from '@/lib/salesLaunch';
 import { referralLink, whatsappOnboardingLink, whatsappShareLink } from '@/lib/salesReferral';
 import { getLocale, getT } from '@/lib/i18n/server';
 import { Chip, ErrorNote, Stat, formatKinshasa } from '../../LeadRoutingUI';
@@ -27,6 +27,7 @@ import CommissionLedger from './CommissionLedger';
 import ListingCredits from './ListingCredits';
 import ReferralToolkit from './ReferralToolkit';
 import ReferredAgents from './ReferredAgents';
+import FieldView from './FieldView';
 import RepAccounts from './RepAccounts';
 
 export const dynamic = 'force-dynamic';
@@ -113,7 +114,7 @@ export default async function AdminSalesRepPage({ params, searchParams }) {
 
   const [
     accountsResult, ledgerResult, payoutsResult, renewalsResult, trendResult, plansResult, consoleAccountsResult,
-    countsResult, agentsResult, creditsResult, repOptionsResult, scopeResult, qrResult,
+    countsResult, agentsResult, creditsResult, repOptionsResult, scopeResult, qrResult, fieldResult,
   ] = await Promise.allSettled([
     listRepAccounts(rep.id, accountsPage),
     listRepCommissions(rep.id, { status, from: ledgerWindow?.from, to: ledgerWindow?.to, limit: ledgerPage.limit, offset: ledgerPage.offset }),
@@ -128,6 +129,7 @@ export default async function AdminSalesRepPage({ params, searchParams }) {
     canManage && loadLaunch ? listActiveRepOptions() : Promise.resolve([]),
     canManage && ledgerWindow ? listApprovedLineRefs(rep.id, ledgerWindow) : Promise.resolve(null),
     rep.referral_code ? qrSvgFor(referralLink(rep.referral_code, { qr: true })) : Promise.resolve(null),
+    getRepFieldView(rep.id),
   ]);
   const settled = (result, fallback) => (result.status === 'fulfilled' ? result.value : fallback);
   const accounts = settled(accountsResult, { total: 0, rows: [] });
@@ -141,6 +143,7 @@ export default async function AdminSalesRepPage({ params, searchParams }) {
   const repOptions = settled(repOptionsResult, []);
   const scopeLines = settled(scopeResult, null);
   const qrSvg = settled(qrResult, null);
+  const fieldView = settled(fieldResult, null);
   const loadErrors = [accountsResult, ledgerResult, payoutsResult, renewalsResult, trendResult, countsResult, agentsResult, creditsResult]
     .filter((r) => r.status === 'rejected');
 
@@ -304,6 +307,9 @@ export default async function AdminSalesRepPage({ params, searchParams }) {
       </div>
 
       {loadErrors.length ? <ErrorNote>{t('admin.sales.loadError', { error: loadErrors[0].reason?.message })}</ErrorNote> : null}
+
+      {/* First on the page: on a rep's phone in the field, this is the screen. */}
+      {fieldView ? <FieldView view={fieldView} t={t} locale={locale} /> : null}
 
       {rep.referral_code ? (
         <ReferralToolkit

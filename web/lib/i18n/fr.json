@@ -143,7 +143,7 @@
   "home": {
     "hero": {
       "title": "Appartements. Villas. Terrains. Agences.",
-      "subtitle": "Biens vérifiés, prix transparents & contact direct sur WhatsApp.",
+      "subtitle": "Annonces relues par notre équipe, prix affichés & contact direct sur WhatsApp.",
       "photoCredit": "Photo par kaysha sur Unsplash"
     },
     "search": {
@@ -160,16 +160,16 @@
       "allPrices": "Tous prix"
     },
     "value": {
-      "verifiedTitle": "Annonces vérifiées",
+      "verifiedTitle": "Annonces relues",
       "verifiedBody": "Chaque bien passe par un contrôle humain avant publication — informations, photos et localisation sont revues, pas simplement recopiées.",
       "contactTitle": "Contact direct",
-      "contactBody": "Une seule ligne WhatsApp, la même pour toutes les annonces. Pas de formulaire, pas de rappel commercial non sollicité.",
+      "contactBody": "Le numéro de l'agent quand il est vérifié, sinon notre ligne WhatsApp. Pas de formulaire, pas de rappel commercial non sollicité.",
       "pricesTitle": "Prix transparents",
       "pricesBody": "Prix, superficie et référence affichés tels quels, en dollars comme en francs. Aucun frais de dossier ajouté par la plateforme.",
       "eyebrow": "Notre approche"
     },
     "trustHeading": "Qui est derrière",
-    "featuredEyebrow": "Nouveautés vérifiées",
+    "featuredEyebrow": "Nouveautés",
     "featuredHeading": "Sélection de la Semaine",
     "saved": {
       "eyebrow": "Bon retour, {name}",
@@ -192,7 +192,7 @@
     },
     "transactions": {
       "rentTitle": "Louer",
-      "rentBody": "Appartements et maisons à louer, vérifiés et prêts à visiter.",
+      "rentBody": "Appartements et maisons à louer, relus par notre équipe avant publication.",
       "buyTitle": "Acheter",
       "buyBody": "Appartements, villas et parcelles à vendre à Kinshasa.",
       "buyCta": "Biens à vendre",
@@ -210,8 +210,8 @@
     "metaDescription": "Comment fonctionne Lukka Place, la plateforme d'annonces immobilières de Kinshasa.",
     "eyebrow": "À propos",
     "title": "Une plateforme faite pour Kinshasa",
-    "lead": "Les agents et particuliers soumettent leurs biens par WhatsApp. Chaque annonce est structurée, vérifiée, puis publiée.",
-    "body1": "Lukka Place est une plateforme d'annonces immobilières dédiée à Kinshasa. Les agents et particuliers soumettent leurs biens directement par WhatsApp — texte ou photos — et chaque annonce est structurée puis vérifiée avant d'être publiée sur le site.",
+    "lead": "Les agents et particuliers soumettent leurs biens par WhatsApp. Chaque annonce est structurée, relue par notre équipe, puis publiée.",
+    "body1": "Lukka Place est une plateforme d'annonces immobilières dédiée à Kinshasa. Les agents et particuliers soumettent leurs biens directement par WhatsApp — texte, photos ou message vocal — et chaque annonce est structurée puis relue par notre équipe avant d'être publiée sur le site.",
     "body2": "L'objectif est simple : donner aux personnes qui cherchent un appartement, une villa ou une parcelle à Kinshasa un endroit unique, à jour, où chaque annonce correspond à un bien réellement disponible — et un moyen direct de contacter au sujet d'un bien, sans compte ni formulaire.",
     "body3": "Les prix sont établis en dollars américains. L'affichage en francs congolais est une estimation indicative, convertie à un taux de référence daté et mis à jour manuellement, jamais présentée comme le prix contractuel.",
     "body4": "Lukka Place ne fournit pas de services de courtage financier direct ; la plateforme facilite la mise en relation entre les annonceurs et les personnes intéressées via référence d'annonce."
@@ -277,6 +277,7 @@
       "searchButton": "Rechercher"
     },
     "sort": {
+      "complete": "Annonces complètes d’abord",
       "label": "Trier par",
       "newest": "Plus récents",
       "priceAsc": "Prix croissant",
@@ -286,7 +287,12 @@
     },
     "view": {
       "map": "Carte",
-      "list": "Liste"
+      "list": "Liste",
+      "listCount": {
+        "zero": "Liste (0)",
+        "one": "Voir {count} bien",
+        "other": "Voir {count} biens"
+      }
     },
     "results": {
       "count": {
@@ -305,7 +311,12 @@
       },
       "locationRelaxed": "Aucun résultat exact à {commune} — recherche élargie à Kinshasa pour ces mots-clés.",
       "citywideFrom": "Rayon élargi à Kinshasa entière depuis {place}.",
-      "communeWideFrom": "Rayon élargi à {commune} entière depuis {quartier}."
+      "communeWideFrom": "Rayon élargi à {commune} entière depuis {quartier}.",
+      "areaHeading": "{subject} {transaction} dans la zone de la carte",
+      "mapAreaNote": "Les biens visibles sur la carte",
+      "clearArea": "Effacer la zone",
+      "emptyAreaTitle": "Aucun bien dans cette zone",
+      "emptyAreaHint": "Dézoomez ou déplacez la carte pour voir plus de biens."
     },
     "empty": {
       "title": "Aucun bien ne correspond",
@@ -438,7 +449,8 @@
       "radiusKm": "+{km} km",
       "priceRange": "{min}$ - {max}$",
       "priceFrom": "Dès {min}$",
-      "priceUpTo": "Max {max}$"
+      "priceUpTo": "Max {max}$",
+      "mapArea": "Zone de la carte"
     },
     "specs": {
       "beds": "ch",
@@ -541,7 +553,7 @@
       "nearby": "À proximité",
       "noneLeftIn": "Aucun autre bien disponible à {commune} pour le moment."
     },
-    "viewVerified": "Voir les annonces vérifiées",
+    "viewVerified": "Voir les annonces",
     "saveContact": "Enregistrer le contact",
     "favorite": {
       "save": "Enregistrer",
@@ -563,7 +575,7 @@
     "preferredSlot": "Créneau souhaité",
     "slotPlaceholder": "Ex. Samedi matin, 10h",
     "submit": "Envoyer la demande",
-    "sent": "Votre demande de visite est partie — l'agent vous répondra sur WhatsApp.",
+    "sent": "Votre demande de visite est envoyée à l’agent.",
     "contactWhatsApp": "Contacter par WhatsApp",
     "contactUnavailable": "Contact indisponible",
     "callAgent": "Appeler l'agent",
@@ -572,7 +584,8 @@
       "phone": "Numéro invalide — vérifiez et réessayez.",
       "time": "Indiquez le créneau qui vous arrange.",
       "failed": "L'envoi a échoué, réessayez."
-    }
+    },
+    "trackVisit": "Suivre sa réponse dans Mes visites →"
   },
   "search": {
     "label": {
@@ -1960,7 +1973,14 @@
       "audit": "Journal d’audit",
       "health": "Santé du système",
       "verifications": "Vérifications",
-      "sales": "Équipe commerciale"
+      "sales": "Équipe commerciale",
+      "groups": {
+        "operations": "Opérations",
+        "network": "Réseau & ventes",
+        "revenue": "Revenus",
+        "insights": "Analyses",
+        "system": "Système"
+      }
     },
     "login": {
       "intro": "Accès réservé à l'équipe Lukka Place.",
@@ -3665,6 +3685,16 @@
         "copyLink": "Copier le lien d’inscription",
         "downloadQr": "Télécharger le QR code",
         "pay": "Payer la quinzaine"
+      },
+      "field": {
+        "title": "Aujourd’hui sur le terrain",
+        "signupsToday": "inscriptions aujourd’hui",
+        "signupsWeek": "inscriptions sur 7 jours",
+        "quietTitle": "Agents à relancer",
+        "quietNone": "Tous vos agents ont publié cette semaine.",
+        "lastListing": "Dernière annonce le {date} · {count} en ligne",
+        "noListingYet": "Aucune annonce depuis l’inscription",
+        "nudge": "Relancer"
       }
     }
   },
@@ -3816,7 +3846,18 @@
       "now": "Renvoyer le code"
     },
     "referralCode": "Code de parrainage (facultatif)",
-    "referralCodeHint": "Si un commercial Lukka Place vous a présenté la plateforme, saisissez son code, par ex. JEAN01."
+    "referralCodeHint": "Si un commercial Lukka Place vous a présenté la plateforme, saisissez son code, par ex. JEAN01.",
+    "whatsappVerify": {
+      "intro": "Envoyez ce code depuis le WhatsApp du {phone}. C’est ce qui prouve que le numéro est bien le vôtre.",
+      "send": "Envoyer le code sur WhatsApp",
+      "waiting": "En attente de votre message…",
+      "verified": "Numéro vérifié, ouverture de votre compte…",
+      "hint": "Le message est déjà écrit : il suffit d’appuyer sur Envoyer, puis de revenir ici.",
+      "expired": "Cette vérification a expiré.",
+      "restart": "Recommencer",
+      "noNumber": "La vérification WhatsApp n’est pas disponible pour le moment. Contactez l’équipe Lukka Place.",
+      "haveCode": "Vous avez reçu un code par message ? Saisissez-le ici."
+    }
   },
   "updates": {
     "title": "Actualités",

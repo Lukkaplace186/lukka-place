@@ -42,7 +42,14 @@ import { useT } from '@/lib/i18n/client';
  * lightbox, at whichever photo is actually on screen rather than always
  * photo 1.
  */
-export default function PhotoGallery({ images, alt, mobileActions = null }) {
+/**
+ * `verifiedAt` is `properties.verified_at`. The "Annonce vérifiée" badge on the
+ * photo renders only when it is set — the rule ListingBadges' VerifiedBadge
+ * states: moderation (approve_status) says a listing was fit to publish, not
+ * that anyone checked the property. It used to render on every listing, so
+ * 46 of 46 live listings claimed a verification none of them had.
+ */
+export default function PhotoGallery({ images, alt, mobileActions = null, verifiedAt = null }) {
   const t = useT();
   const shots = images || [];
   const total = shots.length;
@@ -132,9 +139,11 @@ export default function PhotoGallery({ images, alt, mobileActions = null }) {
           <CardImageCarousel images={shots} alt={alt} sizes="100vw" priority onIndexChange={setMobileIndex} />
         </div>
 
-        <span className="pointer-events-none absolute left-3.5 top-3.5 z-10 flex flex-wrap gap-2">
-          <Badge tone="white">{t('listings.gallery.verified')}</Badge>
-        </span>
+        {verifiedAt ? (
+          <span className="pointer-events-none absolute left-3.5 top-3.5 z-10 flex flex-wrap gap-2">
+            <Badge tone="white">{t('listings.gallery.verified')}</Badge>
+          </span>
+        ) : null}
 
         {/* Live count, not a static "1/N" — CardImageCarousel already
             reports the on-screen index via onIndexChange, so this can track
@@ -171,16 +180,12 @@ export default function PhotoGallery({ images, alt, mobileActions = null }) {
               className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]"
             />
 
-            {/* Real: every listing reaching this page has already passed
-                the approve_status=1 moderation gate (lib/listings.js). The
-                "Nouveau" badge that used to sit beside this (from
-                created_at, same 14-day window the cards used) is gone
-                entirely on an explicit instruction — see ListingBadges.js's
-                CardBadges, where the matching card-grid badge was removed
-                the same way. */}
-            <span className="pointer-events-none absolute left-3.5 top-3.5 z-10 flex flex-wrap gap-2">
-              <Badge tone="white">{t('listings.gallery.verified')}</Badge>
-            </span>
+            {/* Only on a real verified_at — see the component's doc comment. */}
+            {verifiedAt ? (
+              <span className="pointer-events-none absolute left-3.5 top-3.5 z-10 flex flex-wrap gap-2">
+                <Badge tone="white">{t('listings.gallery.verified')}</Badge>
+              </span>
+            ) : null}
 
             <span className="u-glass-royal u-tabular pointer-events-none absolute bottom-3.5 right-3.5 z-10 inline-flex items-center rounded-sm px-2.5 py-1.5 text-[0.8125rem] font-semibold">
               1/{total} photo{total !== 1 ? 's' : ''}

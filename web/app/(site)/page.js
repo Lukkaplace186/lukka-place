@@ -56,8 +56,8 @@ import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB } from '@/lib/constants';
  * carry a tighter mobile band (`sm:` restores the previous desktop values
  * verbatim, so only narrow viewports move), and FeaturedListings lost its
  * `lead` line, which restated its own title and eyebrow. The one duplicate
- * deliberately left standing is the hero's subhead — "Biens vérifiés, prix
- * transparents & contact direct sur WhatsApp." — against ValueProposition's
+ * deliberately left standing is the hero's subhead — "Annonces relues par notre équipe, prix
+ * affichés & contact direct sur WhatsApp." — against ValueProposition's
  * three numbered props, which are the same three claims. That is a promise
  * made once above the fold and then evidenced at length in the section that
  * exists to evidence it, not a section repeating itself; cutting either one

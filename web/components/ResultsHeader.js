@@ -23,7 +23,7 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  * `${subject} ${label} à ${place}` concatenation hardcodes the French
  * preposition into the structure itself.
  */
-function buildHeading({ t, commune, quartier, transactionType, propertyTypeLabel, citywide, communeWide }) {
+function buildHeading({ t, commune, quartier, transactionType, propertyTypeLabel, citywide, communeWide, mapArea }) {
   const subject = propertyTypeLabel || t('listings.results.subjectFallback');
   // Place names are real data and are never translated.
   const place = citywide ? 'Kinshasa' : communeWide ? commune : quartier || commune || 'Kinshasa';
@@ -33,6 +33,9 @@ function buildHeading({ t, commune, quartier, transactionType, propertyTypeLabel
       : transactionType === 'vente'
         ? t('search.label.toBuy')
         : t('search.label.available');
+  // The map's visible area has no name: saying "à Bandalungwa" over results
+  // the visitor panned away from would be claiming a place they left.
+  if (mapArea) return t('listings.results.areaHeading', { subject, transaction });
   return t('listings.results.heading', { subject, transaction, place });
 }
 
@@ -60,9 +63,12 @@ export default function ResultsHeader({
   radiusExpanded = false,
   requestedRadius = null,
   effectiveRadius = null,
+  // The results are the map's visible area (lib/listings.js getListings).
+  mapArea = false,
+  clearAreaHref = null,
 }) {
   const t = useT();
-  const heading = buildHeading({ t, commune, quartier, transactionType, propertyTypeLabel, citywide, communeWide });
+  const heading = buildHeading({ t, commune, quartier, transactionType, propertyTypeLabel, citywide, communeWide, mapArea });
 
   const crumbs = [
     { label: t('breadcrumb.home'), href: '/' },
@@ -137,6 +143,19 @@ export default function ResultsHeader({
           <p className="u-tabular mt-1 text-sm font-normal text-ink-45">
             {t('listings.results.resultCount', { count: total })}
           </p>
+          {mapArea ? (
+            <p className="mt-1 text-[0.8125rem] text-ink-45">
+              {t('listings.results.mapAreaNote')}
+              {clearAreaHref ? (
+                <>
+                  {' · '}
+                  <Link href={clearAreaHref} className="font-semibold text-blue-deep underline-offset-2 hover:underline">
+                    {t('listings.results.clearArea')}
+                  </Link>
+                </>
+              ) : null}
+            </p>
+          ) : null}
           {locationRelaxed ? (
             <p className="mt-1 text-[0.8125rem] text-ink-45">
               {t('listings.results.locationRelaxed', { commune: relaxedFromCommune })}

@@ -1,3 +1,5 @@
+import { parseBounds } from './mapViewport';
+
 /**
  * Maps /listings-style query params onto lib/listings.js's `getListings()`
  * options shape. Extracted out of app/(site)/listings/page.js so
@@ -53,5 +55,11 @@ export function parseListingsSearchParams(searchParamsLike) {
           .map((id) => Number.parseInt(id, 10))
           .filter(Number.isFinite)
       : null,
+    // The map's visible area (sw_lat/sw_lng/ne_lat/ne_lng), written once the
+    // visitor has moved the map. getListings then lists exactly the listings
+    // the map counts "dans cette zone" — see getListings. A half-specified or
+    // malformed box is ignored here rather than widening or failing the page;
+    // /api/listings/map is the endpoint that answers such a box with a 400.
+    bounds: parseBounds(searchParamsLike).bounds || null,
   };
 }

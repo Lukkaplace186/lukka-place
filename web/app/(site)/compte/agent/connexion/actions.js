@@ -50,11 +50,12 @@ export async function agentLoginAction(formData) {
   await clearAgentFailedLogins(agent.id);
 
   if (!agent.phone_verified_at && otpBypassEnabled()) {
-    // Testing mode — the password already matched; only proof of the number
-    // is being skipped. See lib/otpBypass.js. consumeAgentOtp also claims any
-    // listings this number already sent in over WhatsApp.
+    // No code is sent, but the number is still proven: the verify page asks
+    // for a WhatsApp message from it (lib/whatsappVerify.js). A matching
+    // password proves the account, never the number.
     logOtpBypass('agent-auth', { id: agent.id, phone });
-    await consumeAgentOtp(agent.id);
+    await setVerifyAttemptCookie({ role: 'agent', id: agent.id, phone });
+    redirect(`/compte/agent/inscription/verifier?next=${encodeURIComponent(next)}`);
   } else if (!agent.phone_verified_at) {
     await setVerifyAttemptCookie({ role: 'agent', id: agent.id, phone });
     try {

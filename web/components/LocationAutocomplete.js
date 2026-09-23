@@ -419,10 +419,16 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
     return params;
   }
 
+  // Choosing a place replaces the map area the visitor had panned to.
+  function dropMapArea(params) {
+    for (const key of ['sw_lat', 'sw_lng', 'ne_lat', 'ne_lng']) params.delete(key);
+  }
+
   function navigateTo(result) {
     const params = buildParams();
     params.delete('quartier');
     params.delete('q');
+    if (result.commune) dropMapArea(params);
 
     // The rest of what was typed can carry real structured filters too
     // (beds/price/type/reference) — clicking a place suggestion previously
@@ -465,6 +471,7 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
     const parsed = parseSearchQuery(text);
     applyParsedFilters(params, parsed);
     if (parsed.commune) {
+      dropMapArea(params);
       params.set('commune', parsed.commune);
       if (parsed.quartier) params.set('quartier', parsed.quartier);
       else params.delete('quartier');

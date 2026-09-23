@@ -20,6 +20,7 @@ import {
 } from '@/lib/searchHistory';
 import { subscribeOpenFiltersDrawer } from '@/lib/mapFilterDrawer';
 import { cn } from '@/lib/utils';
+import { MAP_BOUNDS_PARAMS } from '@/lib/mapViewport';
 
 const FORM_ID = 'listings-filter-form';
 const ADVANCED_KEYS = ['quartier', 'parcelleSubtype', 'bathMin'];
@@ -163,6 +164,14 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
   // flash of a generic label on mount. `resultPending` drives a subtle
   // opacity dip on the CTA while a fetch is in flight — the count itself
   // never blanks mid-fetch, it just holds the last real value.
+  // The map's visible area, kept while the place is unchanged — the rule the
+  // hidden inputs below follow too. A different commune or quartier is a new
+  // place, and the area goes with the old one.
+  const keepMapArea = commune === (defaults.commune || '') && quartier === (defaults.quartier || '');
+  const areaQuery = keepMapArea
+    ? new URLSearchParams(MAP_BOUNDS_PARAMS.map((key) => [key, searchParams.get(key) || '']).filter(([, v]) => v)).toString()
+    : '';
+
   const [resultCount, setResultCount] = useState(initialTotal);
   const [resultPending, setResultPending] = useState(false);
   const isFirstRun = useRef(true);
@@ -189,6 +198,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
       if (priceMax) qs.set('price_max', priceMax);
       if (depositMax) qs.set('deposit_max', depositMax);
       if (amenities.length) qs.set('amenities', amenities.join(','));
+      for (const [key, value] of new URLSearchParams(areaQuery)) qs.set(key, value);
 
       fetch(`/api/listings/count?${qs.toString()}`, { signal: controller.signal })
         .then((res) => res.json())
@@ -220,6 +230,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
     priceMax,
     depositMax,
     amenities,
+    areaQuery,
   ]);
 
   // "résultats", not the previous "biens" — matches the literal wording
@@ -294,6 +305,9 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
     ['amenities', amenities.join(',')],
     ['sort', defaults.sort || ''],
     ['view', defaults.view || ''],
+    // The map's visible area survives a change of beds, price or type — the
+    // map stays where the visitor put it, so the list must too.
+    ...MAP_BOUNDS_PARAMS.map((key) => [key, keepMapArea ? searchParams.get(key) || '' : '']),
   ];
 
   const priceLabel = priceMin && priceMax

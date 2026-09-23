@@ -453,6 +453,66 @@ check('a NAMED poste always beats the convention', () => {
   assert.strictEqual(named.deposit_months, 3);
   assert.strictEqual(named.advance_months, null);
 });
+check('a correction naming only the rent never rewrites a stated garantie', () => {
+  // Correction mode hands normaliseEntryCosts the MERGED draft, whose
+  // "garantie 3 mois" came from an earlier turn; "par mois" is the rent's
+  // period. This used to become 2 avance + 1 garantie.
+  const merged = openaiService.normaliseEntryCosts(
+    { price: 600, deposit_months: 3, advance_months: null, commission_months: null },
+    "non le loyer c'est 600$ par mois",
+  );
+  assert.strictEqual(merged.deposit_months, 3);
+  assert.strictEqual(merged.advance_months, null);
+});
+check('"pas 3+1+1 mais 2+1+1" keeps the model\'s reading, never the first match', () => {
+  // The first match is the OLD terms: storing it put figures on the site that
+  // the agent had just corrected, while the reply showed them the new ones.
+  const corrected = openaiService.normaliseEntryCosts(
+    { deposit_months: 2, advance_months: 1, commission_months: 1 },
+    'non pas 3+1+1 mais 2+1+1',
+  );
+  assert.deepStrictEqual(
+    [corrected.deposit_months, corrected.advance_months, corrected.commission_months],
+    [2, 1, 1],
+  );
+  const repeated = openaiService.normaliseEntryCosts(
+    { deposit_months: 5, advance_months: null, commission_months: null },
+    'garantie 3+1+1 (oui 3+1+1)',
+  );
+  assert.strictEqual(repeated.deposit_months, 3, 'one expression written twice is still unambiguous');
+});
+check('short approvals publish without a model call; refusals and edits never do', () => {
+  for (const yes of ['OK', 'ok merci', 'Oui, merci !', "c'est correct", '👍', '👍🏾', 'oui vous pouvez publier']) {
+    assert.ok(webhookRouter.isAffirmative(yes), `"${yes}" should confirm`);
+  }
+  for (const no of ['non', 'pas correct', "c'est pas correct", 'ok mais 3ch', 'ok 570', 'correct?']) {
+    assert.ok(!webhookRouter.isAffirmative(no), `"${no}" must not confirm`);
+  }
+});
+check('the intake card is rendered from the stored row, never the model\'s retelling', () => {
+  const listingCard = require('../services/listingCard');
+  // The model said 3 months of garantie; the row (what gets published) says 2.
+  const reply = listingCard.composeIntakeReply(
+    'Merci pour la correction.\n\n*Garantie* : 3 mois\n*Loyer* : 500$\n\nRépondez "OK" pour publier.',
+    { transaction_type: 'location', property_type: 'appartement', commune: 'Limete', price: 500, currency: 'USD',
+      price_period: 'mois', deposit_months: 2, advance_months: 1, commission_months: 1, bedrooms: 2, photos: ['a.jpg'] },
+  );
+  assert.ok(reply.startsWith('Merci pour la correction.'), 'the model keeps the greeting');
+  assert.ok(reply.includes('*Garantie* : 2 mois (1 000 $)'), reply);
+  assert.ok(!reply.includes('3 mois'), 'the model\'s figure never reaches the agent');
+  assert.ok(reply.includes('*Total à prévoir à l\'entrée* : 4 mois (2 000 $)'));
+  assert.strictEqual((reply.match(/OK/g) || []).length, 1, 'one instruction to reply OK, not two');
+  const noPhoto = listingCard.renderListingCard({ commune: 'Gombe', photos: [] });
+  assert.ok(noPhoto.includes('*Photos* : aucune'));
+  assert.deepStrictEqual(listingCard.missingFields({ property_type: 'terrain', commune: 'Gombe', price: 9 }), ['transaction_type']);
+  assert.ok(!listingCard.composeIntakeReply('Bonjour', { commune: 'Gombe' }, { mode: 'onboarding' }).includes('OK'));
+});
+check('the correction prompt covers "pas X mais Y" and a bare "non"', () => {
+  const prompt = openaiService.SYSTEM_PROMPT;
+  assert.ok(prompt.includes('"pas X mais Y"'));
+  assert.ok(prompt.includes('NE TOUCHE QU\'À CE QUE LE MESSAGE CORRIGE'));
+  assert.ok(prompt.includes('NON SANS PRÉCISION'));
+});
 check('a listing that states no entry costs at all is left completely alone', () => {
   const untouched = openaiService.normaliseEntryCosts(
     { deposit_months: null, advance_months: null, commission_months: null },
@@ -675,6 +735,99 @@ check('cascadeCommuneChange with no commune yields an empty option list and a nu
 console.log('\n2. services/openai.js');
 
 (async () => {
+  console.log('\n0b. Phone challenges and the agent digest (Postgres stubbed, run in sequence)');
+  await checkAsync('a phone challenge is matched on the SENDER\'s number AND the code', async () => {
+    const pgModule = require('../services/postgres');
+    const challenges = require('../services/phoneChallenges');
+    const saved = { isConfigured: pgModule.isConfigured, getPool: pgModule.getPool };
+    const seen = [];
+    pgModule.isConfigured = () => true;
+    pgModule.getPool = () => ({
+      query: async (sql, params) => {
+        seen.push({ sql, params });
+        return { rows: params[1].includes('482913') ? [{ id: 7 }] : [] };
+      },
+    });
+    try {
+      const hit = await challenges.matchPhoneChallenge({ from: '+243812345678', text: 'Code Lukka Place : 482913' });
+      assert.strictEqual(hit.handled, true);
+      assert.strictEqual(hit.reply, challenges.VERIFIED_REPLY);
+      assert.deepStrictEqual(seen[0].params, ['243812345678', ['482913']]);
+      assert.match(seen[0].sql, /WHERE phone = \$1 AND code = ANY/);
+      assert.match(seen[0].sql, /expires_at > NOW\(\)/);
+      const miss = await challenges.matchPhoneChallenge({ from: '243812345678', text: 'Villa 150000$ à vendre' });
+      assert.strictEqual(miss.handled, false, 'a price with no open challenge falls through to intake');
+      const none = await challenges.matchPhoneChallenge({ from: '243812345678', text: 'Appartement 3ch Gombe 1500$' });
+      assert.strictEqual(none.handled, false);
+      assert.strictEqual(seen.length, 2, 'a message with no 6-digit run costs no query');
+    } finally {
+      Object.assign(pgModule, saved);
+    }
+  });
+  await checkAsync('auto-approval only ever promotes a trusted agent’s complete, pending listing', async () => {
+    const pgModule = require('../services/postgres');
+    const auto = require('../services/trustedAutoApprove');
+    const saved = { isConfigured: pgModule.isConfigured, getPool: pgModule.getPool };
+    const updates = [];
+    pgModule.isConfigured = () => true;
+    pgModule.getPool = () => ({
+      query: async (sql, params) => {
+        if (/^\s*WITH trusted/.test(sql)) return { rows: [{ id: 501, agent_id: 9 }, { id: 502, agent_id: 9 }] };
+        updates.push({ sql, params });
+        return { rowCount: params[0] === 502 ? 0 : 1 };
+      },
+    });
+    try {
+      const result = await auto.runTrustedAutoApprove({ notify: false });
+      assert.deepStrictEqual(result.ids, [501], 'a listing a moderator already decided (0 rows) is not counted');
+      assert.match(updates[0].sql, /WHERE id = \$1 AND approve_status = 0/);
+      const rule = auto.CANDIDATES_SQL;
+      for (const needle of ['p.approve_status = 0', "verification_level' = ANY", 'phone_verified_at IS NOT NULL',
+        'p.price > 0', 'featured_image NOT ILIKE', 'amenity_id BETWEEN 21 AND 44', 'r.approve_status = 2', ") >= $2"]) {
+        assert.ok(rule.includes(needle), `rule is missing: ${needle}`);
+      }
+      assert.ok(rule.includes(`<> '${auto.AUTO_NOTE}'`), 'trust is earned from HUMAN approvals, never from its own');
+    } finally {
+      Object.assign(pgModule, saved);
+    }
+  });
+  await checkAsync('the agent digest sends real counts once per day, and nothing when there is nothing', async () => {
+    const pgModule = require('../services/postgres');
+    const digest = require('../services/agentDigest');
+    const saved = { isConfigured: pgModule.isConfigured, getPool: pgModule.getPool };
+    pgModule.isConfigured = () => true;
+    pgModule.getPool = () => ({
+      query: async (sql) => ({
+        rows: /FROM agents a/.test(sql)
+          ? [
+            { id: 9001, phone: '243811000001', first_name: 'Marie', live: 3, to_confirm: 2, in_review: 0 },
+            { id: 9002, phone: '243811000002', first_name: 'Jean', live: 1, to_confirm: 0, in_review: 0 },
+            { id: 9003, phone: '243811000003', first_name: 'Opt', live: 1, to_confirm: 4, in_review: 0 },
+          ]
+          : [],
+      }),
+    });
+    digest.optOut('+243 811 000 003');
+    const outbox = [];
+    const send = async (to, text) => outbox.push({ to, text });
+    const tuesday = new Date('2026-09-22T07:05:00Z');
+    try {
+      const first = await digest.runAgentDigest({ now: tuesday, send });
+      assert.strictEqual(first.sent, 1);
+      assert.strictEqual(outbox[0].to, '243811000001');
+      assert.match(outbox[0].text, /Bonjour Marie/);
+      assert.match(outbox[0].text, /2 biens à confirmer/);
+      assert.ok(!outbox.some((m) => m.to === '243811000002'), 'nothing to say → no message');
+      assert.ok(!outbox.some((m) => m.to === '243811000003'), 'STOP RÉSUMÉ is honoured');
+      await digest.runAgentDigest({ now: tuesday, send });
+      assert.strictEqual(outbox.length, 1, 'a second run the same day sends nothing');
+      assert.strictEqual(digest.digestDue(tuesday), false, 'the day is recorded as done');
+      assert.ok(digest.isDigestOptOut('Stop résumé'));
+      assert.ok(!digest.isDigestOptOut('stop'), 'a bare "stop" is not claimed by the digest');
+    } finally {
+      Object.assign(pgModule, saved);
+    }
+  });
   const result = await openaiService.parseMessage('Villa a louer Ngaliema 4 chambres 2500$/mois', {
     senderPhone: '243810000000',
   });
@@ -2772,6 +2925,62 @@ console.log('\n2. services/openai.js');
   mediaContentType = savedMediaType;
 
   // -------------------------------------------------------------------------
+  // 6a4. Voice notes — transcribed, then the ordinary pipeline
+  // -------------------------------------------------------------------------
+
+  console.log('\n6a4. Voice notes: download -> transcript -> extraction');
+
+  const voiceNotesService = require('../services/voiceNotes');
+  const voiceAiBefore = openaiCalls.length;
+  const voiceRowsBefore = dbService.countListings();
+  mediaBinaryResponse = Buffer.from('OggS-fake-opus');
+  mediaContentType = 'audio/ogg';
+  let transcribedMime = null;
+  voiceNotesService.setTranscriber(async (buffer, mime) => {
+    transcribedMime = mime;
+    return { ok: true, text: 'Appartement à louer à Kintambo, deux chambres, 600 dollars, garantie trois plus un plus un' };
+  });
+  const voiceMessage = (wamid, from) => ({
+    object: 'whatsapp_business_account',
+    entry: [{ id: '1', changes: [{ field: 'messages', value: {
+      metadata: { phone_number_id: '987654321' },
+      contacts: [{ wa_id: from, profile: { name: 'Agent Vocal' } }],
+      messages: [{ from, id: wamid, timestamp: '1', type: 'audio', audio: { id: 'media.voice.1', mime_type: 'audio/ogg; codecs=opus', voice: true } }],
+    } }] }],
+  });
+  httpCalls.length = 0;
+  await post('/webhook', voiceMessage('wamid.VOICE1', '243850000888'));
+  await settle(500);
+
+  check('a voice note is transcribed and extracted like typed text', () => {
+    assert.ok(/audio\/ogg/.test(transcribedMime || ''), 'the audio reached the transcriber');
+    assert.strictEqual(openaiCalls.length - voiceAiBefore, 1, 'the transcript reached the model');
+    const parts = lastUserParts();
+    const sent = typeof parts === 'string' ? parts : parts.map((p) => p.text || '').join('\n');
+    assert.ok(/Kintambo/.test(sent), sent.slice(0, 200));
+    assert.strictEqual(dbService.countListings() - voiceRowsBefore, 1);
+  });
+  check('a voice note is never answered with "format not supported"', () => {
+    const bodies = httpCalls.filter((c) => c.data?.text?.body).map((c) => c.data.text.body);
+    assert.ok(bodies.length >= 1);
+    assert.ok(!bodies.some((b) => b === webhookRouter.UNSUPPORTED_MEDIA_REPLY));
+  });
+
+  voiceNotesService.setTranscriber(async () => ({ ok: false, reason: 'no_speech' }));
+  httpCalls.length = 0;
+  const silentAiBefore = openaiCalls.length;
+  await post('/webhook', voiceMessage('wamid.VOICE2', '243850000889'));
+  await settle(400);
+  check('an inaudible voice note gets a clear ask, and costs no extraction', () => {
+    assert.strictEqual(openaiCalls.length - silentAiBefore, 0);
+    const bodies = httpCalls.filter((c) => c.data?.text?.body).map((c) => c.data.text.body);
+    assert.ok(bodies.includes(webhookRouter.VOICE_UNREADABLE_REPLY), bodies.join(' | '));
+  });
+  voiceNotesService.setTranscriber(null);
+  mediaBinaryResponse = savedMediaBytes;
+  mediaContentType = savedMediaType;
+
+  // -------------------------------------------------------------------------
   // 6b. Photo listings end-to-end
   // -------------------------------------------------------------------------
 
@@ -3264,7 +3473,7 @@ console.log('\n2. services/openai.js');
     { price: 1100, bedrooms: 4, is_confirmed: true },
     'Parfait, je publie.',
   ));
-  await post('/webhook', inbound('wamid.LOOPE2E3', "c'est bon, publiez", loopE2EWaId));
+  await post('/webhook', inbound('wamid.LOOPE2E3', "c'est bon vous pouvez mettre en ligne svp", loopE2EWaId));
   await settle(400);
 
   check('is_confirmed publishes the pending draft', () =>
@@ -3345,7 +3554,7 @@ console.log('\n2. services/openai.js');
   // The conversational path must refuse identically, not slip through.
   httpCalls.length = 0;
   completionQueue.push(intakeCompletion({ is_confirmed: true }, 'Parfait, je publie.'));
-  await post('/webhook', inbound('wamid.NOPIC2', "c'est bon, publiez", noPhotoWaId));
+  await post('/webhook', inbound('wamid.NOPIC2', "c'est bon vous pouvez mettre en ligne svp", noPhotoWaId));
   await settle(400);
 
   check('is_confirmed cannot bypass the photo gate either', () => {
@@ -6644,7 +6853,8 @@ console.log('\n2. services/openai.js');
   check('the alert sweep, both speed-to-lead sweeps, the ops alert sweep, the analytics rollup and the commission run are registered', () => {
     const names = sched.JOBS.map((j) => j.name);
     assert.deepStrictEqual(names, [
-      'search-alerts', 'viewing-sla', 'viewing-checkin', 'ops-health-alerts', 'listing-stats-rollup', 'sales-commissions',
+      'search-alerts', 'viewing-sla', 'viewing-checkin', 'ops-health-alerts', 'listing-stats-rollup', 'trusted-auto-approve', 'agent-daily-digest',
+      'sales-commissions',
     ]);
   });
 

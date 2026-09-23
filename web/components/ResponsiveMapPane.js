@@ -39,6 +39,7 @@ const MapListingPreview = dynamic(() => import('./MapListingPreview'), { ssr: fa
  */
 export default function ResponsiveMapPane({
   listings, filterParams, isMapView, hoveredId, onMarkerHover, className, maxZoom, listingPreview = true, onPreviewChange,
+  onAreaChange, onInViewChange,
 }) {
   const [shouldRender, setShouldRender] = useState(false);
   // The multi-unit building whose unit list is open, or null. Held here
@@ -97,6 +98,8 @@ export default function ResponsiveMapPane({
               onMarkerHover={onMarkerHover}
               onBuildingSelect={setOpenBuilding}
               onListingSelect={listingPreview ? setSelectedListing : undefined}
+              onAreaChange={onAreaChange}
+              onInViewChange={onInViewChange}
             />
           ) : (
             <PropertyMap

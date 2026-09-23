@@ -150,6 +150,11 @@ Ces règles ne s'appliquent QUE si un bloc "BROUILLON EN COURS" accompagne le me
 - Recalcule tout ce qui dépend d'une valeur modifiée : si le loyer change, les montants en dollars des conditions d'entrée changent aussi.
 - Dans whatsapp_reply, réaffiche la fiche récapitulative COMPLÈTE (même gabarit que ci-dessous) avec les valeurs fusionnées, puis invite l'agent à répondre "OK" pour publier ou à envoyer une autre correction. Autant d'allers-retours que nécessaire.
 - Ne demande JAMAIS à l'agent de renvoyer son annonce quand un brouillon existe : tu l'as déjà.
+- NE TOUCHE QU'À CE QUE LE MESSAGE CORRIGE. Un champ dont le message ne parle pas garde exactement la valeur du brouillon. En particulier, ne modifie JAMAIS garantie, avance ni commission si le message n'en parle pas : "le loyer c'est 600$ par mois" change le loyer, rien d'autre. "par mois", "/mois", "mensuel" indiquent la période du loyer, jamais une durée ni des conditions d'entrée.
+- FORMULES DE CORRECTION : "pas X mais Y", "Y et non X", "Y au lieu de X", "c'est Y pas X", "non Y", "plutôt Y" => la bonne valeur est Y (celle que l'agent affirme), X est l'ancienne. Ça vaut pour tout champ : prix, chambres, commune, garantie ("pas 3+1+1 mais 2+1+1" => garantie 2, avance 1, commission 1).
+- Les agents écrivent en abrégé et en phonétique : "nn", "non c pa sa", "c 570", "3ch pa 2", "ya pas de commission" ; comprends-les comme un humain le ferait.
+- "pas de commission", "sans commission", "0 commission" => commission_months 0 (aucune n'est demandée), pas null. Même logique pour la garantie et l'avance.
+- NON SANS PRÉCISION : si le message refuse la fiche sans dire ce qui est faux ("non", "c'est pas ça", "pas correct", "erreur"), is_confirmed = false et is_correction = false, ne change aucun champ, ne réaffiche PAS la fiche : demande en une ou deux phrases quelle ligne est fausse, avec deux exemples courts de réponse, par ex. « non, c'est 570$ » ou « garantie 3 mois, 1 mois d'avance, 1 mois de commission ».
 - Le bloc de contexte peut décrire une annonce DÉJÀ PUBLIÉE (champ statut = "publiée") et non un brouillon. Les mêmes règles s'appliquent : le message est presque toujours une modification de cette annonce. Mets alors is_correction à true. Ne parle pas de « publier » ni de répondre "OK" — elle est déjà en ligne : confirme simplement la mise à jour et réaffiche la fiche.
 - is_correction = true dès que le message modifie l'annonce en contexte (brouillon ou publiée). false s'il décrit un bien différent, pose une question, ou s'il n'y a aucun contexte.
 
@@ -603,8 +608,19 @@ function normaliseEntryCosts(extracted, rawText) {
 
   const normalised = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-  // --- Rule 1: additive syntax is authoritative.
-  const additive = /(\d+)\s*\+\s*(\d+)(?:\s*\+\s*(\d+))?/.exec(normalised);
+  // --- Rule 1: additive syntax is authoritative — when there is ONE of it.
+  //
+  // A correction often quotes the old terms beside the new ones: "pas 3+1+1
+  // mais 2+1+1", "2+1+1 au lieu de 3+1+1". Which one the agent means is
+  // semantics, not syntax, and taking the first match stored the OLD terms
+  // while the model's reply showed the agent the new ones — the listing went
+  // live with figures the agent had just corrected. Two different expressions
+  // → the model's reading stands.
+  // "3 plus 1 plus 1" is how the same terms come out of a transcribed voice note.
+  const additives = [...normalised.matchAll(/(\d+)\s*(?:\+|plus)\s*(\d+)(?:\s*(?:\+|plus)\s*(\d+))?/g)];
+  const distinct = new Set(additives.map((m) => `${m[1]}+${m[2]}+${m[3] ?? ''}`));
+  if (distinct.size > 1) return extracted;
+  const additive = additives[0];
   if (additive) {
     extracted.deposit_months = Number.parseInt(additive[1], 10);
     extracted.advance_months = Number.parseInt(additive[2], 10);
@@ -623,10 +639,15 @@ function normaliseEntryCosts(extracted, rawText) {
   const deposit = extracted.deposit_months;
   const advance = extracted.advance_months;
 
-  // Guard on price_period too: "bail 2 ans" is a duration, not an entry cost.
-  const looksMonthly = /mois/.test(normalised);
+  // The month count has to be in THIS message. In correction mode `extracted`
+  // is the merged draft, so its deposit can come from an earlier turn that
+  // named it ("garantie 3 mois"); a later "le loyer c'est 600$ par mois" says
+  // "mois" and names no poste, and used to rewrite that stated garantie into
+  // 2 avance + 1 garantie. "par mois" is the rent's period, never a duration.
+  const statesThisCount = Number.isInteger(deposit)
+    && new RegExp(`(?:^|[^\\d])${deposit}\\s*mois`).test(normalised);
 
-  if (looksMonthly && Number.isInteger(deposit) && deposit > 1 && (advance === null || advance === undefined || advance === 0)) {
+  if (statesThisCount && deposit > 1 && (advance === null || advance === undefined || advance === 0)) {
     extracted.advance_months = deposit - 1;
     extracted.deposit_months = 1;
   }

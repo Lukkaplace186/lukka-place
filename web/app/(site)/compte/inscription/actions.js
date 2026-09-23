@@ -75,23 +75,19 @@ export async function signupAction(formData) {
     await mergeAnonymousData(customer.id, { favoriteIds, savedSearches });
   }
 
-  // Testing mode: no code, straight to a session. consumeCustomerOtp is
-  // reused rather than a second UPDATE — it is already the one statement
-  // that means "this number is verified", so the bypassed path and the real
-  // one leave the row in exactly the same state.
-  if (otpBypassEnabled()) {
-    logOtpBypass('customer-auth', { id: customer.id, phone });
-    await consumeCustomerOtp(customer.id);
-    await establishCustomerSession({ id: customer.id, tokenVersion: customer.token_version });
-    redirect(next);
-  }
-
   // Which account is being verified travels in a signed httpOnly cookie,
   // not the URL — see lib/verifyAttempt.js. Set before the send so that a
   // delivery failure still lands on a page that can offer a real resend.
   await setVerifyAttemptCookie({ role: 'customer', id: customer.id, phone });
 
   const verifyUrl = `/compte/inscription/verifier?next=${encodeURIComponent(next)}`;
+
+  // AUTH_OTP_BYPASS=1: no code is sent; the verify page proves the number by
+  // a WhatsApp message from it instead (lib/whatsappVerify.js).
+  if (otpBypassEnabled()) {
+    logOtpBypass('customer-auth', { id: customer.id, phone });
+    redirect(verifyUrl);
+  }
 
   try {
     await sendCustomerOtp(customer.id, phone);

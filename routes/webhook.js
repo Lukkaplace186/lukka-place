@@ -35,6 +35,10 @@ const { handleBuyerMessage } = require('../services/buyerConversation');
 const { matchQuickReply } = require('../services/quickReplies');
 const { extractPdfText } = require('../services/documentText');
 const onboarding = require('../services/agentOnboarding');
+const listingCard = require('../services/listingCard');
+const voiceNotes = require('../services/voiceNotes');
+const phoneChallenges = require('../services/phoneChallenges');
+const agentDigest = require('../services/agentDigest');
 const {
   handleViewingButtonReply,
   handleAgentTextReply,
@@ -179,6 +183,10 @@ function normaliseMessage(message, contacts = [], fallbackWamid = null) {
     // services/documentText.js). Other document types are deliberately left
     // out so they still get the "send text or a photo" reply.
     looksLikePdf(message.document) ? message.document : null,
+    // Voice notes are transcribed (services/voiceNotes.js). Tagged with an
+    // audio mime type so the burst splits them from photos by that alone.
+    message.audio ? { ...message.audio, mime_type: message.audio.mime_type || 'audio/ogg' } : null,
+    message.voice ? { ...message.voice, mime_type: message.voice.mime_type || 'audio/ogg' } : null,
     message.media,
     message.attachment,
     ...(Array.isArray(message.attachments) ? message.attachments : []),
@@ -232,6 +240,8 @@ function isUsable(message) {
  * reply telling the agent so, rather than a silent drop (previously logged as
  * an "UNRECOGNISED payload" with no feedback to the sender at all).
  */
+// 'audio' / 'voice' stay listed: a voice note whose media reference is
+// missing still deserves the reply rather than silence.
 const UNSUPPORTED_MESSAGE_TYPES = new Set([
   'video', 'audio', 'voice', 'document', 'sticker', 'location', 'contacts',
 ]);
@@ -436,12 +446,16 @@ const PDF_UNREADABLE_REPLY =
 
 const UNSUPPORTED_MEDIA_REPLY =
   'Bonjour 👋 Pour publier une annonce, envoyez-la en *texte* ou en *photo* (avec légende). ' +
-  'Les autres formats (vidéo, audio, document, position, contact) ne sont pas encore pris en charge.';
+  'Les messages vocaux sont aussi acceptés. Les autres formats (vidéo, document, position, contact) ne sont pas encore pris en charge.';
+
+const VOICE_UNREADABLE_REPLY =
+  "Désolé, nous n'avons pas pu écouter votre message vocal. 🎙️ Pouvez-vous le renvoyer, " +
+  "ou écrire l'annonce (type de bien, commune, prix, chambres) ?";
 
 /** Short, affirmative-only phrases — deliberately narrow so a real correction
  *  that happens to mention "publier" elsewhere in a sentence isn't swallowed. */
 const AFFIRMATIVE_PATTERN =
-  /^(ok(ay)?|oui|d.accord|c.est bon|c.est ca|nickel|parfait|publier|publie[sz]?)[\s!.]*$/i;
+  /^(?:(?:ok(?:ay)?|oui|d.accord|c.est bon|c.est ca|c.est correct|c.est juste|correct|exact|nickel|parfait|publier|publie[sz]?)(?:[\s,!.]+(?:merci(?: beaucoup)?|c.est bon|publie[sz]?|vous pouvez publier))?|👍(?:🏾|🏿|🏽|🏼|🏻)?)[\s!.]*$/iu;
 
 /** Strip accents so "c'est bon" matches "c'est bon" and "cest bon" alike. */
 function normaliseForMatch(text) {
@@ -701,17 +715,37 @@ async function processGroup(messages) {
     }
   }
 
+  // PHONE VERIFICATION — "Code Lukka Place : 482913" sent from the web
+  // verify screen's wa.me link (services/phoneChallenges.js). Matched on the
+  // sender's number AND the code, before any listing logic, so the message is
+  // never read as a price or a correction.
+  // "STOP RÉSUMÉ" — the morning digest's opt-out (services/agentDigest.js).
+  if (hasText && agentDigest.isDigestOptOut(text)) {
+    agentDigest.optOut(from);
+    await chakra.sendWhatsAppMessage(from, agentDigest.OPT_OUT_REPLY, { replyToMessageId: primaryWamid || undefined });
+    return;
+  }
+
+  if (hasText) {
+    const proof = await phoneChallenges.matchPhoneChallenge({ from, text });
+    if (proof.handled) {
+      await chakra.sendWhatsAppMessage(from, proof.reply, { replyToMessageId: primaryWamid || undefined });
+      return;
+    }
+  }
+
   const allMediaRefs = messages.flatMap((m) => m.media || []);
 
   // PDF flyers take a different route from photos: they carry a text layer the
   // ordinary extraction can read, whereas the vision model cannot open them.
   const isPdfRef = (ref) => /pdf/i.test(ref.mimeType || '');
   const pdfRefs = allMediaRefs.filter(isPdfRef);
-  const mediaRefs = allMediaRefs.filter((ref) => !isPdfRef(ref));
+  const audioRefs = allMediaRefs.filter((ref) => voiceNotes.isAudioMime(ref.mimeType));
+  const mediaRefs = allMediaRefs.filter((ref) => !isPdfRef(ref) && !voiceNotes.isAudioMime(ref.mimeType));
   const profileName = messages.find((m) => m.profileName)?.profileName;
 
-  if (!hasText && mediaRefs.length === 0 && pdfRefs.length === 0) {
-    // Voice notes, stickers, locations: nothing to read, text or visual.
+  if (!hasText && mediaRefs.length === 0 && pdfRefs.length === 0 && audioRefs.length === 0) {
+    // Stickers, locations: nothing to read, text, visual or spoken.
     console.log(`[chakra] ${label} has no text and no media — skipped`);
     return;
   }
@@ -751,6 +785,34 @@ async function processGroup(messages) {
           replyToMessageId: primaryWamid || undefined,
         });
         console.log(`[pdf] ${label}: no text layer — asked for a photo instead`);
+        return;
+      }
+    }
+
+    // VOICE NOTES — the same move as a PDF flyer: the transcript becomes the
+    // message text, so "non c'est 570" said aloud corrects a draft exactly as
+    // typed. Per-note failures are never fatal while anything else was sent.
+    if (audioRefs.length) {
+      const spoken = [];
+      for (const ref of audioRefs) {
+        if (!ref.id) continue;
+        try {
+          const { buffer, contentType } = await chakra.downloadMediaRaw(ref.id);
+          const result = await voiceNotes.transcribeAudio(buffer, contentType || ref.mimeType);
+          if (result.ok) spoken.push(result.text);
+          else console.log(`[voice] ${label}: note skipped (${result.reason})`);
+        } catch (err) {
+          console.warn(`[voice] ${label}: could not transcribe: ${err.message}`);
+        }
+      }
+      if (spoken.length) {
+        text = [text, ...spoken].filter(Boolean).join('\n');
+        hasText = true;
+        console.log(`[voice] ${label}: ${spoken.join(' ').length} chars transcribed from ${spoken.length} note(s)`);
+      } else if (!hasText && mediaRefs.length === 0) {
+        await chakra.sendWhatsAppMessage(from, VOICE_UNREADABLE_REPLY, {
+          replyToMessageId: primaryWamid || undefined,
+        });
         return;
       }
     }
@@ -996,11 +1058,17 @@ async function processGroup(messages) {
     // as context, so a two-word follow-up ("non 1100$") is understood as an edit
     // of that draft rather than as an unreadable new submission. Nothing is
     // added when there is no pending listing — see draftContextFromListing.
-    const { extracted_data: extracted, whatsapp_reply: reply, _meta } = await parseMessage(text, {
+    const { extracted_data: extracted, whatsapp_reply: modelReply, _meta } = await parseMessage(text, {
       senderPhone: from,
       images,
       ...(contextListing ? draftContextFromListing(contextListing) : {}),
     });
+
+    // What the agent is sent. The model's prose by default; for a listing or a
+    // correction, its greeting plus a card rendered from the STORED row
+    // (services/listingCard.js) — so the card the agent approves is exactly
+    // what gets published, not the model's own retelling of it.
+    let reply = modelReply;
 
     console.log(
       `[openai] ${label} — listing=${extracted.is_listing} intent=${extracted.intent} ` +
@@ -1098,6 +1166,10 @@ async function processGroup(messages) {
     if (!extracted.is_listing && !pending && recentlyPublished && extracted.is_correction) {
       applyListingCorrection(recentlyPublished.id, extracted, text, wamids, photoPaths);
       resyncListing(recentlyPublished.id);
+      const corrected = getListing(recentlyPublished.id);
+      if (!listingCard.isGroupedListing(corrected)) {
+        reply = listingCard.composeIntakeReply(modelReply, corrected, { mode: 'published' });
+      }
       console.log(`[db] published listing #${recentlyPublished.id} corrected by ${from}`);
       await chakra.sendWhatsAppMessage(from, reply, {
         replyToMessageId: primaryWamid || undefined,
@@ -1209,13 +1281,15 @@ async function processGroup(messages) {
       try {
         const identity = await onboarding.identifySender(from);
 
+        // `{}` for the listing: the reply above already carries the full card
+        // from the row, and the short card these used to append repeated it.
         if (identity.registered) {
           attributeListingToAgent(id, identity.agentId);
           console.log(`[recognition] listing #${id} from ${from} attributed to agent #${identity.agentId}`);
-          intakeSuffix = onboarding.recognitionNote(identity, getListing(id), photoPaths.length);
+          intakeSuffix = onboarding.recognitionNote(identity, {}, 0);
           suffixKind = 'recognition';
         } else if (await onboarding.shouldOnboard(from, { agent: identity.agent })) {
-          const prompt = onboarding.startOnboarding(from, getListing(id), photoPaths.length);
+          const prompt = onboarding.startOnboarding(from, {}, 0);
           if (prompt) {
             intakeSuffix = prompt;
             suffixKind = 'registration';
@@ -1224,11 +1298,24 @@ async function processGroup(messages) {
       } catch (err) {
         console.warn(`[intake] sender recognition failed for ${from}: ${err.message}`);
       }
+
+      const stored = getListing(id);
+      if (!listingCard.isGroupedListing(stored)) {
+        reply = listingCard.composeIntakeReply(modelReply, stored, {
+          mode: suffixKind === 'registration' ? 'onboarding' : 'draft',
+        });
+      }
     } else if (pending) {
       // Doesn't stand alone as a listing, but a prior one is still pending —
       // treat it as a correction/refinement of that listing rather than noise.
       applyListingCorrection(pending.id, extracted, text, wamids, photoPaths);
       console.log(`[db] listing #${pending.id} updated (correction from ${from})`);
+      // A bare "non" changes nothing and the model asks which line is wrong —
+      // that reply stands. A real correction gets the card from the row.
+      const updated = getListing(pending.id);
+      if (extracted.is_correction && !listingCard.isGroupedListing(updated)) {
+        reply = listingCard.composeIntakeReply(modelReply, updated);
+      }
     }
 
     await chakra.sendWhatsAppMessage(from, intakeSuffix ? `${reply}
@@ -1336,6 +1423,7 @@ module.exports.STATUS_CLOSED_REPLY = STATUS_CLOSED_REPLY;
 module.exports.STATUS_AVAILABLE_REPLY = STATUS_AVAILABLE_REPLY;
 module.exports.PDF_UNREADABLE_REPLY = PDF_UNREADABLE_REPLY;
 module.exports.PUBLISHED_REPLY = PUBLISHED_REPLY;
+module.exports.VOICE_UNREADABLE_REPLY = VOICE_UNREADABLE_REPLY;
 module.exports.PHOTO_REQUIRED_REPLY = PHOTO_REQUIRED_REPLY;
 module.exports.publishedReply = publishedReply;
 module.exports.isUnsupportedType = isUnsupportedType;

@@ -29,7 +29,7 @@ const ADVANCED_KEYS = ['quartier', 'parcelleSubtype', 'bathMin'];
 // remembering. sort/view/page deliberately excluded: they don't filter the
 // result set, so changing only those shouldn't spawn a new history entry.
 const FILTER_PARAM_KEYS = [
-  'transaction_type', 'commune', 'quartier', 'radius', 'property_type', 'parcelle_subtype',
+  'transaction_type', 'commune', 'communes', 'quartier', 'radius', 'property_type', 'parcelle_subtype',
   'price_min', 'price_max', 'beds_min', 'bath_min', 'deposit_max', 'amenities', 'q', 'reference',
 ];
 // Fallback only for the genuinely-empty-catalog case (lib/listings.js's
@@ -189,6 +189,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
       const qs = new URLSearchParams();
       if (transaction) qs.set('transaction_type', transaction);
       if (commune) qs.set('commune', commune);
+      if (commune && defaults.communes) qs.set('communes', defaults.communes);
       if (quartier) qs.set('quartier', quartier);
       if (propertyType) qs.set('property_type', propertyType);
       if (propertyType === 'parcelle' && parcelleSubtype) qs.set('parcelle_subtype', parcelleSubtype);
@@ -231,6 +232,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
     depositMax,
     amenities,
     areaQuery,
+    defaults.communes,
   ]);
 
   // "résultats", not the previous "biens" — matches the literal wording
@@ -294,6 +296,10 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
     ['q', defaults.search || ''],
     ['transaction_type', transaction],
     ['commune', commune],
+    // "Gombe ou Ngaliema" — the extra communes the search box resolved.
+    // Commune never changes inside this bar (it remounts on a new place), so
+    // carrying the URL's value forward is always the current choice.
+    ['communes', commune ? defaults.communes || '' : ''],
     ['quartier', quartier],
     ['property_type', propertyType],
     ['parcelle_subtype', propertyType === 'parcelle' ? parcelleSubtype : ''],

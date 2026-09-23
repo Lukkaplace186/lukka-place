@@ -23,10 +23,16 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  * `${subject} ${label} à ${place}` concatenation hardcodes the French
  * preposition into the structure itself.
  */
-function buildHeading({ t, commune, quartier, transactionType, propertyTypeLabel, citywide, communeWide, mapArea }) {
+function buildHeading({ t, commune, communes, quartier, transactionType, propertyTypeLabel, citywide, communeWide, mapArea, relaxation }) {
   const subject = propertyTypeLabel || t('listings.results.subjectFallback');
-  // Place names are real data and are never translated.
-  const place = citywide ? 'Kinshasa' : communeWide ? commune : quartier || commune || 'Kinshasa';
+  // Place names are real data and are never translated. Several communes
+  // ("Gombe ou Ngaliema") are all named — the search covers every one.
+  const communePlace = Array.isArray(communes) && communes.length > 1 ? communes.join(', ') : commune;
+  const place = citywide
+    ? 'Kinshasa'
+    : communeWide || relaxation?.quartierWidened
+      ? communePlace
+      : quartier || communePlace || 'Kinshasa';
   const transaction =
     transactionType === 'location'
       ? t('search.label.toRent')
@@ -36,12 +42,53 @@ function buildHeading({ t, commune, quartier, transactionType, propertyTypeLabel
   // The map's visible area has no name: saying "à Bandalungwa" over results
   // the visitor panned away from would be claiming a place they left.
   if (mapArea) return t('listings.results.areaHeading', { subject, transaction });
+  // Nearest alternatives are not "in" the place searched — they are near it.
+  if (relaxation?.nearby) return t('listings.results.headingNear', { subject, transaction, place: communePlace || place });
   return t('listings.results.heading', { subject, transaction, place });
+}
+
+/**
+ * What lib/listings.js relaxSearch changed to find these results, one line per
+ * step, in the order it took them. Every step is said out loud: a visitor
+ * shown Masina listings for a Kimbanseke search must know that is what
+ * happened.
+ */
+function relaxationNotes(t, relaxation) {
+  if (!relaxation) return [];
+  const notes = [];
+  if (relaxation.keywordsIgnored?.length) {
+    notes.push(t('listings.results.relaxedKeywords', {
+        count: relaxation.keywordsIgnored.length,
+        words: relaxation.keywordsIgnored.join(' '),
+      }));
+  }
+  if (relaxation.quartierWidened) {
+    notes.push(t('listings.results.relaxedQuartier', relaxation.quartierWidened));
+  }
+  if (relaxation.nearby) {
+    const origin = relaxation.nearby.origin.join(', ');
+    const places = (relaxation.nearby.places || []).map(({ commune, km }) => `${commune} (${km} km)`).join(', ');
+    notes.push(
+      places
+        ? t('listings.results.relaxedNearby', { origin, places })
+        : t('listings.results.relaxedNearbyPlain', { origin }),
+    );
+  }
+  if (relaxation.priceMax) {
+    const locale = t.locale === 'en' ? 'en-GB' : 'fr-FR';
+    const figure = relaxation.priceMax.to.toLocaleString(locale);
+    notes.push(t('listings.results.relaxedPrice', { amount: t.locale === 'en' ? `$${figure}` : `${figure} $` }));
+  }
+  if (relaxation.beds) {
+    notes.push(t('listings.results.relaxedBeds', relaxation.beds));
+  }
+  return notes;
 }
 
 export default function ResultsHeader({
   total,
   commune,
+  communes = null,
   quartier,
   transactionType,
   propertyTypeLabel,
@@ -66,9 +113,23 @@ export default function ResultsHeader({
   // The results are the map's visible area (lib/listings.js getListings).
   mapArea = false,
   clearAreaHref = null,
+  // lib/listings.js relaxSearch: what was changed to find these results.
+  relaxation = null,
 }) {
   const t = useT();
-  const heading = buildHeading({ t, commune, quartier, transactionType, propertyTypeLabel, citywide, communeWide, mapArea });
+  const heading = buildHeading({
+    t,
+    commune,
+    communes,
+    quartier,
+    transactionType,
+    propertyTypeLabel,
+    citywide,
+    communeWide,
+    mapArea,
+    relaxation,
+  });
+  const notes = relaxationNotes(t, relaxation);
 
   const crumbs = [
     { label: t('breadcrumb.home'), href: '/' },
@@ -156,6 +217,11 @@ export default function ResultsHeader({
               ) : null}
             </p>
           ) : null}
+          {notes.map((note) => (
+            <p key={note} className="mt-1 text-[0.8125rem] text-ink-45">
+              {note}
+            </p>
+          ))}
           {locationRelaxed ? (
             <p className="mt-1 text-[0.8125rem] text-ink-45">
               {t('listings.results.locationRelaxed', { commune: relaxedFromCommune })}

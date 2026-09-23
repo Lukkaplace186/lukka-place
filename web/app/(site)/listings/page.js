@@ -11,6 +11,30 @@ import { PROPERTY_TYPE_PLURAL_KEYS } from '@/lib/constants';
 import { getT } from '@/lib/i18n/server';
 import { MAP_BOUNDS_PARAMS } from '@/lib/mapViewport';
 import { hrefWithoutKeys } from '@/lib/urlParams';
+import { distanceKm } from '@/lib/mapViewport';
+import { KINSHASA_COMMUNE_CENTROIDS } from '@/lib/geocoding';
+
+/** Filters worth logging as "a search" (sort/view/page are not). */
+const SEARCH_LOG_KEYS = [
+  'transaction_type', 'commune', 'communes', 'quartier', 'radius', 'property_type', 'parcelle_subtype',
+  'price_min', 'price_max', 'beds_min', 'bath_min', 'deposit_max', 'amenities', 'q', 'reference',
+];
+
+/**
+ * Communes that have listings, nearest to the one searched first, each with
+ * its distance — the empty state's escape routes. Distances are between real
+ * geocoded commune centres (KINSHASA_COMMUNE_CENTROIDS), rounded, never below
+ * 1 km. Without a searched commune, the busiest communes as before.
+ */
+function communesByDistance(allCommunes, from, limit = 6) {
+  const origin = from ? KINSHASA_COMMUNE_CENTROIDS[from] : null;
+  if (!origin) return allCommunes.slice(0, limit);
+  return allCommunes
+    .filter(({ commune }) => commune !== from && KINSHASA_COMMUNE_CENTROIDS[commune])
+    .map((row) => ({ ...row, km: Math.max(1, Math.round(distanceKm(origin, KINSHASA_COMMUNE_CENTROIDS[row.commune]))) }))
+    .sort((a, b) => a.km - b.km || b.count - a.count)
+    .slice(0, limit);
+}
 
 export default async function ListingsPage({ searchParams }) {
   const params = await searchParams;
@@ -27,18 +51,41 @@ export default async function ListingsPage({ searchParams }) {
   // the database can prove have approved listings.
   const [
     hierarchy,
-    { total, count, data, locationRelaxed, relaxedFromCommune, requestedRadius, radiusExpanded, effectiveRadius, mapArea },
-    popularCommunes,
+    { total, count, data, locationRelaxed, relaxedFromCommune, requestedRadius, radiusExpanded, effectiveRadius, mapArea, relaxation },
+    communeCounts,
     showcase,
     { maxPrice },
   ] = await Promise.all([
     getLocationHierarchySafe(),
-    getListings({ ...filters, limit, offset }),
-    getPopularCommunes(),
+    // allowRelax: an empty exact search falls back to the closest real
+    // alternatives, each step named in `relaxation` (lib/listings.js
+    // relaxSearch) and shown by ResultsHeader.
+    getListings({ ...filters, limit, offset, allowRelax: true }),
+    getPopularCommunes(24),
     getCommuneShowcase(24),
     getPriceRange(),
   ]);
   const propertyTypes = await getPropertyTypeFacets();
+
+  const popularCommunes = communeCounts.slice(0, 6);
+  const nearbyCommunes = communesByDistance(communeCounts, params.commune);
+
+  // One line per search in the web process log — what people look for and
+  // which searches come back empty. Structured filters only (what the URL
+  // carries), no visitor identifier. Read with
+  // `pm2 logs lukka-place-web --lines 5000 --nostream | grep '\[search\]'`.
+  if (page === 1 && !mapArea && SEARCH_LOG_KEYS.some((key) => params[key])) {
+    const logged = {};
+    for (const key of SEARCH_LOG_KEYS) if (params[key]) logged[key] = String(params[key]).slice(0, 120);
+    console.log(
+      `[search] ${JSON.stringify({
+        ...logged,
+        total,
+        exact: !relaxation && !locationRelaxed && !radiusExpanded,
+        relaxed: relaxation ? Object.keys(relaxation) : undefined,
+      })}`,
+    );
+  }
 
   const { locations } = hierarchy;
   const communes = hierarchy.communes.length > 0 ? hierarchy.communes : showcase.map((c) => c.commune);
@@ -76,6 +123,7 @@ export default async function ListingsPage({ searchParams }) {
           defaults={{
             transactionType: params.transaction_type,
             commune: params.commune,
+            communes: params.communes,
             quartier: params.quartier,
             radius: params.radius,
             propertyType: params.property_type,
@@ -114,6 +162,7 @@ export default async function ListingsPage({ searchParams }) {
           <ResultsHeader
             total={total}
             commune={params.commune}
+            communes={filters.communes}
             quartier={params.quartier}
             transactionType={params.transaction_type}
             propertyTypeLabel={propertyTypeLabel}
@@ -126,13 +175,14 @@ export default async function ListingsPage({ searchParams }) {
             effectiveRadius={effectiveRadius}
             mapArea={Boolean(mapArea)}
             clearAreaHref={clearAreaHref}
+            relaxation={relaxation}
           />
         </div>
 
         {/* An empty map area keeps the split view: the map is how the visitor
             gets out of it, and the full empty state would take it away. */}
         {count === 0 && !mapArea ? (
-          <ListingsEmptyState popularCommunes={popularCommunes} params={params} propertyTypeLabel={propertyTypeLabel} />
+          <ListingsEmptyState popularCommunes={nearbyCommunes} params={params} propertyTypeLabel={propertyTypeLabel} />
         ) : (
           <ListingsSplitView
             listings={data}

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getPopularCommunes } from '@/lib/listings';
-import { searchGazetteer, defaultCommuneOrder } from '@/lib/gazetteer';
+import { searchGazetteer, findLocationMention, defaultCommuneOrder } from '@/lib/gazetteer';
 
 const MAX_RESULTS = 8;
 
@@ -63,7 +63,15 @@ export async function GET(request) {
     return NextResponse.json({ results });
   }
 
-  const matches = searchGazetteer(q, MAX_RESULTS);
+  let matches = searchGazetteer(q, MAX_RESULTS);
+  // A whole sentence ("villa ma campagne 2000$") is not a substring of any
+  // place name, so the search above finds nothing in it. Offer the place the
+  // sentence names instead — the same reading lib/searchParser.js applies on
+  // submit, so the suggestion and the search agree.
+  if (matches.length === 0 && /\s/.test(q)) {
+    const mention = findLocationMention(q);
+    if (mention) matches = [mention];
+  }
   const results = matches.map((m) => ({
     type: m.type,
     label: m.label,

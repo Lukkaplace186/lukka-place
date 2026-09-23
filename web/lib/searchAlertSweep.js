@@ -126,7 +126,9 @@ export async function runAlertSweepChunk({
       if (candidateIds.length === 0) continue;
 
       const matched = await deps.getListings({ ...filters, ids: candidateIds, sort: 'newest', limit: MAX_LISTINGS_PER_ALERT });
-      if (matched.locationRelaxed || matched.radiusExpanded) continue;
+      // `relaxation` never appears here (the sweep does not pass allowRelax),
+      // but an alternative must never become an alert if that ever changes.
+      if (matched.locationRelaxed || matched.radiusExpanded || matched.relaxation) continue;
 
       const alreadyNotified = await deps.getNotified(search.id);
       const fresh = (matched.data || []).filter((listing) => !alreadyNotified.has(Number(listing.id)));

@@ -186,6 +186,9 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
   // unfiltered total so the button ships with a real number in its first
   // paint instead of flashing a placeholder.
   const [count, setCount] = useState(initialCount);
+  // Alternatives the results page would show when the exact count is zero
+  // (the count endpoint's `suggested`) — see lib/listings.js relaxSearch.
+  const [suggested, setSuggested] = useState(0);
   const isFirstRun = useRef(true);
 
   useEffect(() => {
@@ -219,6 +222,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
       }
       if (parsed.commune) {
         qs.set('commune', parsed.commune);
+        if (parsed.communes?.length > 1) qs.set('communes', parsed.communes.join(','));
         if (parsed.quartier) qs.set('quartier', parsed.quartier);
       }
       if (parsed.keywords) qs.set('q', parsed.keywords);
@@ -227,6 +231,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
         .then((res) => res.json())
         .then((json) => {
           if (typeof json.total === 'number') setCount(json.total);
+          setSuggested(typeof json.suggested === 'number' ? json.suggested : 0);
         })
         .catch(() => {
           // Aborted (a newer change superseded this request) or a real
@@ -399,7 +404,11 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
             a region that appears at the same moment as its content is not
             reliably announced. */}
         <span className="u-tabular font-medium text-white/80" aria-live="polite">
-          {count != null ? `(${formatCount(count)})` : ''}
+          {count === 0 && suggested > 0
+            ? `(${t('home.search.suggestedCount', { count: suggested })})`
+            : count != null
+              ? `(${formatCount(count)})`
+              : ''}
         </span>
       </button>
 

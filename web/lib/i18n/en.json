@@ -167,6 +167,10 @@
       "budget": "Maximum budget",
       "budgetMax": "Max ${amount}",
       "submit": "Search",
+      "suggestedCount": {
+        "one": "{count} suggestion",
+        "other": "{count} suggestions"
+      },
       "popularCommunes": "Popular Communes",
       "allPrices": "Any price"
     },
@@ -314,6 +318,16 @@
       "communeWide": "Widened to the whole commune",
       "radiusExpanded": "No results within {requested} km — automatically widened to {effective} km.",
       "heading": "{subject} {transaction} in {place}",
+      "headingNear": "{subject} {transaction} near {place}",
+      "relaxedKeywords": {
+        "one": "No listing mentions “{words}” — that word was left out of the search.",
+        "other": "No listing mentions “{words}” — those words were left out of the search."
+      },
+      "relaxedQuartier": "Nothing in {quartier} yet — here are properties elsewhere in {commune}.",
+      "relaxedNearby": "Nothing in {origin} yet — here are the closest properties: {places}.",
+      "relaxedNearbyPlain": "Nothing in {origin} yet — here are the closest properties.",
+      "relaxedPrice": "Budget stretched by 15%: up to {amount}.",
+      "relaxedBeds": "Widened to {to}+ bedrooms instead of {from}+.",
       "subjectFallback": "Properties",
       "resultCount": {
         "zero": "0 results",
@@ -334,6 +348,7 @@
       "titleAt": "No property exactly matches your search in {location}",
       "widen": "Widen to all of Kinshasa",
       "communesWithListings": "Communes with available properties",
+      "nearestCommunes": "Nearest communes with properties",
       "seeAll": "See all listings",
       "findForMe": "Find one for me",
       "noneWithin5km": "No properties found even when widening to 5 km around {commune}.",

@@ -17,6 +17,17 @@ export function parseListingsSearchParams(searchParamsLike) {
     propertyType: get('property_type'),
     parcelleSubtype: get('parcelle_subtype'),
     commune: get('commune'),
+    // "Gombe ou Ngaliema" — extra communes searched alongside `commune`
+    // (comma-separated; lib/searchParser.js writes it). `commune` stays the
+    // first one, so every single-commune reader (heading, map, breadcrumb)
+    // is unchanged. Capped at five, like a customer request.
+    communes: get('communes')
+      ? get('communes')
+          .split(',')
+          .map((name) => name.trim())
+          .filter(Boolean)
+          .slice(0, 5)
+      : null,
     quartier: get('quartier'),
     // 'citywide' honestly widens past the selected commune (see
     // FilterBar.js's "Rayon" toggle) — there is no real commune-adjacency

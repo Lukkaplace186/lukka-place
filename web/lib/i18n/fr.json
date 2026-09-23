@@ -167,6 +167,10 @@
       "budget": "Budget maximum",
       "budgetMax": "Max {amount} $",
       "submit": "Rechercher",
+      "suggestedCount": {
+        "one": "{count} suggestion",
+        "other": "{count} suggestions"
+      },
       "popularCommunes": "Communes populaires",
       "allPrices": "Tous prix"
     },
@@ -314,6 +318,16 @@
       "communeWide": "Élargi à toute la commune",
       "radiusExpanded": "Aucun résultat à moins de {requested} km — élargi automatiquement à {effective} km.",
       "heading": "{subject} {transaction} à {place}",
+      "headingNear": "{subject} {transaction} près de {place}",
+      "relaxedKeywords": {
+        "one": "Aucune annonce ne mentionne « {words} » — ce mot a été retiré de la recherche.",
+        "other": "Aucune annonce ne mentionne « {words} » — ces mots ont été retirés de la recherche."
+      },
+      "relaxedQuartier": "Rien à {quartier} pour l’instant — voici les biens ailleurs à {commune}.",
+      "relaxedNearby": "Rien à {origin} pour l’instant — voici les biens les plus proches : {places}.",
+      "relaxedNearbyPlain": "Rien à {origin} pour l’instant — voici les biens les plus proches.",
+      "relaxedPrice": "Budget élargi de 15 % : jusqu’à {amount}.",
+      "relaxedBeds": "Élargi à {to}+ chambres au lieu de {from}+.",
       "subjectFallback": "Biens",
       "resultCount": {
         "zero": "0 résultat",
@@ -334,6 +348,7 @@
       "titleAt": "Aucun bien ne correspond exactement à votre recherche à {location}",
       "widen": "Élargir à Kinshasa entière",
       "communesWithListings": "Communes avec des biens disponibles",
+      "nearestCommunes": "Communes les plus proches avec des biens",
       "seeAll": "Voir toutes les annonces",
       "findForMe": "Trouver pour moi",
       "noneWithin5km": "Aucun bien trouvé même en élargissant jusqu’à 5 km autour de {commune}.",

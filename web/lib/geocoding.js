@@ -36,29 +36,46 @@ import { COLOCATION_EPSILON_DEG } from './mapPinSpread';
  * Congo" (region-biased to 'cd') on 2026-08-17, not hand-typed from memory.
  * Keys match the canonical spelling `services/locations.js` already uses
  * elsewhere (Ndjili/Nsele, not N'Djili/N'Sele).
+ *
+ * RE-CHECKED 2026-09-23 against the Geocoding API (server key, `components=
+ * country:CD`), accepting only a `sublocality_level_1` answer — the commune
+ * itself, not a building or the whole city. Several 2026-08-17 values were
+ * not the commune: Masina and Ndjili sat beside Gombe (Masina 1 km from
+ * Lingwala), Maluku in Limete, Kasa-Vubu 3 km west in Bandalungwa, and
+ * Mont-Ngafula on the commune office, a single building. The "biens proches"
+ * fallback (lib/listings.js findNearby) measures from these points, so each
+ * wrong one offered the wrong side of the city as "near". Replaced with the
+ * sublocality answer:
+ *   Kasa-Vubu, Kimbanseke, Kisenso, Maluku, Masina, Mont-Ngafula (queried
+ *   as "Mont Ngafula"), Ndjili; Barumbu, Kalamu, Makala, Matete, Ngaba
+ *   moved < 1 km. Unchanged (same answer): the other eleven.
+ * Nsele is the exception: Google returns no sublocality for it under any
+ * spelling tried, only the maison communale (-4.42573, 15.38484), which is
+ * what this table already held. It is a real point in the commune, at its
+ * western, city-side edge — kept, and flagged here rather than guessed.
  */
 export const KINSHASA_COMMUNE_CENTROIDS = {
   Bandalungwa: { lat: -4.341671, lng: 15.28124 },
-  Barumbu: { lat: -4.3218224, lng: 15.3262058 },
+  Barumbu: { lat: -4.32256, lng: 15.32911 },
   Bumbu: { lat: -4.3728081, lng: 15.2941103 },
   Gombe: { lat: -4.3047981, lng: 15.3053546 },
-  Kalamu: { lat: -4.3410501, lng: 15.3157198 },
-  'Kasa-Vubu': { lat: -4.3437187, lng: 15.2752223 },
-  Kimbanseke: { lat: -4.4050512, lng: 15.4122534 },
+  Kalamu: { lat: -4.34266, lng: 15.31943 },
+  'Kasa-Vubu': { lat: -4.34245, lng: 15.30392 },
+  Kimbanseke: { lat: -4.43135, lng: 15.38105 },
   Kinshasa: { lat: -4.3251555, lng: 15.3128644 },
   Kintambo: { lat: -4.3380529, lng: 15.2664192 },
-  Kisenso: { lat: -4.423151, lng: 15.3215725 },
+  Kisenso: { lat: -4.41768, lng: 15.34127 },
   Lemba: { lat: -4.393511, lng: 15.3330474 },
   Limete: { lat: -4.3546851, lng: 15.3475693 },
   Lingwala: { lat: -4.3174464, lng: 15.2993463 },
-  Makala: { lat: -4.3759995, lng: 15.3031833 },
-  Maluku: { lat: -4.356125, lng: 15.3284104 },
-  Masina: { lat: -4.3019746, lng: 15.2985576 },
-  Matete: { lat: -4.3913489, lng: 15.3465319 },
-  'Mont-Ngafula': { lat: -4.3557905, lng: 15.2026348 },
-  Ndjili: { lat: -4.3229805, lng: 15.2922932 },
+  Makala: { lat: -4.37447, lng: 15.30867 },
+  Maluku: { lat: -4.28651, lng: 15.99056 },
+  Masina: { lat: -4.38639, lng: 15.39675 },
+  Matete: { lat: -4.38736, lng: 15.35221 },
+  'Mont-Ngafula': { lat: -4.44489, lng: 15.29343 },
+  Ndjili: { lat: -4.40645, lng: 15.37463 },
   Nsele: { lat: -4.4257319, lng: 15.3848449 },
-  Ngaba: { lat: -4.3755865, lng: 15.3199624 },
+  Ngaba: { lat: -4.37608, lng: 15.32366 },
   Ngaliema: { lat: -4.3713817, lng: 15.2534377 },
   'Ngiri-Ngiri': { lat: -4.356336, lng: 15.2993696 },
   Selembao: { lat: -4.398257, lng: 15.2764818 },

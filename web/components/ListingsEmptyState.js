@@ -120,16 +120,24 @@ export default function ListingsEmptyState({ popularCommunes = [], params = {}, 
 
       {popularCommunes.length > 0 ? (
         <>
-          <p className="u-eyebrow mt-8 mb-3">{t('listings.empty.communesWithListings')}</p>
+          {/* Nearest first, with the distance, when a commune was searched
+              (app/(site)/listings/page.js communesByDistance) — "the closest
+              places that do have something" rather than the busiest ones
+              across town. */}
+          <p className="u-eyebrow mt-8 mb-3">
+            {popularCommunes.some((c) => c.km != null)
+              ? t('listings.empty.nearestCommunes')
+              : t('listings.empty.communesWithListings')}
+          </p>
           <div className="flex flex-wrap justify-center gap-2">
-            {popularCommunes.map(({ commune, count }) => (
+            {popularCommunes.map(({ commune, count, km }) => (
               <Link
                 key={commune}
                 href={`/listings?commune=${encodeURIComponent(commune)}`}
                 className="inline-flex items-center gap-1.5 rounded-full border border-line bg-canvas px-3.5 py-1.5 text-[0.8125rem] font-medium text-ink-70 transition-colors hover:border-blue hover:text-blue-deep"
               >
                 {commune}
-                <span className="u-tabular text-ink-25">{count}</span>
+                <span className="u-tabular text-ink-25">{km != null ? `${km} km · ${count}` : count}</span>
               </Link>
             ))}
           </div>

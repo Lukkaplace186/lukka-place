@@ -5,116 +5,196 @@
  * beds_min/transaction_type/price_max instead of a doomed literal-substring
  * search for that whole sentence.
  *
+ * Written for how people in Kinshasa actually type, not for tidy input
+ * (2026-09-23 pass — every phrase below was a real miss before it):
+ *   - prices with no "sous"/"max": "500$", "800 usd", "1000 dollars",
+ *     "1500usd", "1.5k", "budget 800", and ranges ("entre 500 et 1000",
+ *     "500-800$", "de 300 à 600 $");
+ *   - rooms as words ("deux chambres", Lingala "suku mibale"), as pièces
+ *     ("3 pièces" = 2 chambres + salon), and "chambre salon" — the commonest
+ *     rental phrase in the city, which used to resolve to the quartier
+ *     Salongo;
+ *   - abbreviations and typos ("appart", "apt", "appartemnt");
+ *   - several places at once ("Gombe ou Ngaliema"), all searched;
+ *   - "Kinshasa" meaning the city, not the commune of that name.
+ *
  * Deliberately does NOT try to extract "meublé"/"piscine"/"forage" into a
- * structured filter: the AI intake parser (services/openai.js, engine repo)
- * does capture a free-text `amenities` array and `furnished` boolean, but
- * services/postgres.js's sync path never writes either past the local
- * intake queue — there is no `furnished` or amenity column on the public
+ * structured filter: there is no `furnished` or amenity column on the public
  * `properties` table to filter against. Words like that are left in
- * `keywords` and ride the real ILIKE fallback in lib/listings.js
- * (title/description/address/quartier/reference/commune) instead of being
- * silently dropped or filtered against a column that doesn't exist.
+ * `keywords` and reach the description search in lib/listings.js, which
+ * matches each word on its own and drops them — saying so — when they would
+ * empty the page. Filler ("pas cher", "near", "svp") is removed here, by
+ * lib/searchKeywords.js, the same list the server applies.
  */
 import { findLocationMention } from './gazetteer';
+import { cleanKeywords } from './searchKeywords';
 
-// English forms added alongside the French ones — a real gap found while
-// testing "under 800": bilingual was previously only applied to
-// beds/bath/transaction/property-type, not price.
+/** Most places one search may name — same ceiling as a customer request
+ *  (MAX_REQUEST_COMMUNES) and the engine's leadCommunes. */
+export const MAX_SEARCH_COMMUNES = 5;
+
+// ---------------------------------------------------------------------------
+// Numbers
+// ---------------------------------------------------------------------------
+
+// French, English, and Lingala (moko, mibale, misato, minei, mitano — the
+// standard Lingala cardinals).
+const NUMBER_WORDS = {
+  un: 1, une: 1, deux: 2, trois: 3, quatre: 4, cinq: 5, six: 6, sept: 7, huit: 8,
+  one: 1, two: 2, three: 3, four: 4, five: 5,
+  moko: 1, mibale: 2, misato: 3, minei: 4, mitano: 5,
+};
+const NUMBER_WORD_SOURCE = Object.keys(NUMBER_WORDS).join('|');
+const COUNT = `(\\d{1,2}|${NUMBER_WORD_SOURCE})`;
+
+function countValue(raw) {
+  const lower = String(raw).toLowerCase();
+  if (NUMBER_WORDS[lower] != null) return NUMBER_WORDS[lower];
+  const n = Number.parseInt(lower, 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+// An amount as typed: "1500", "1 500", "1.500", "1,500", "1.5k", "2k",
+// "150 mille". Capture 1 = the digits, capture 2 = a thousands suffix.
+const AMT = '(\\d{1,3}(?:[ .,]\\d{3})+|\\d+(?:[.,]\\d+)?)(\\s*(?:k|mille)\\b)?';
+const CUR = '(?:\\$|(?:us\\$|usd|dollars?|dol)\\b)';
+
+/** Returns a number in dollars, or null. */
+function parseAmount(digits, suffix) {
+  if (!digits) return null;
+  const compact = digits.replace(/\s/g, '');
+  if (suffix && suffix.trim()) {
+    const value = Number.parseFloat(compact.replace(',', '.'));
+    return Number.isFinite(value) ? Math.round(value * 1000) : null;
+  }
+  const cleaned = compact.replace(/[.,](?=\d{3}(?:\D|$))/g, '').replace(',', '.');
+  const value = Number.parseFloat(cleaned);
+  return Number.isFinite(value) ? value : null;
+}
+
+const re = (source) => new RegExp(source, 'i');
+
+// Ranges come first: "entre 500 et 1000" must not be read as a max of 500.
+const PRICE_RANGE_PATTERNS = [
+  re(`\\b(?:entre|between)\\s+\\$?\\s*${AMT}\\s*${CUR}?\\s*(?:et|and|-|–|à|a|to)\\s*\\$?\\s*${AMT}\\s*${CUR}?`),
+  re(`\\b(?:de|from)\\s+\\$?\\s*${AMT}\\s*${CUR}?\\s*(?:à|a|to|-|–)\\s*\\$?\\s*${AMT}\\s*${CUR}?`),
+  // "500-800$", "$500 - $800": a currency sign somewhere makes it a price.
+  re(`\\$\\s*${AMT}\\s*(?:-|–|à|to)\\s*\\$?\\s*${AMT}`),
+  re(`(?:^|\\s)${AMT}\\s*(?:-|–|à|to)\\s*${AMT}\\s*${CUR}`),
+  // "500-800" with no sign at all: two amounts that both look like rents.
+  re(`(?:^|\\s)(\\d{3,6})()\\s*[-–]\\s*(\\d{3,6})()(?=\\s|$)`),
+];
+
+// English forms alongside the French ones — "under 800" was a real miss.
 const PRICE_MAX_PATTERNS = [
-  /\bsous\s+\$?\s*([\d.,]+)\s*\$?/i,
-  /\bmoins\s+de\s+\$?\s*([\d.,]+)\s*\$?/i,
-  /\bmax(?:imum)?\s+\$?\s*([\d.,]+)\s*\$?/i,
-  /\bjusqu'?[àa]\s+\$?\s*([\d.,]+)\s*\$?/i,
-  /\bunder\s+\$?\s*([\d.,]+)\s*\$?/i,
-  /\bbelow\s+\$?\s*([\d.,]+)\s*\$?/i,
-  /\bless\s+than\s+\$?\s*([\d.,]+)\s*\$?/i,
-  /\$?\s*([\d.,]+)\s*\$?\s*max(?:imum)?\b/i,
+  re(`\\bsous\\s+(?:les\\s+)?\\$?\\s*${AMT}\\s*${CUR}?`),
+  re(`\\b(?:pas\\s+plus\\s+de|moins\\s+de)\\s+\\$?\\s*${AMT}\\s*${CUR}?`),
+  re(`\\bmax(?:imum)?\\s*:?\\s*\\$?\\s*${AMT}\\s*${CUR}?`),
+  re(`\\bjusqu'?\\s*[àa]\\s+\\$?\\s*${AMT}\\s*${CUR}?`),
+  re(`\\bbudget\\s*(?:de|max(?:imum)?|:)?\\s*\\$?\\s*${AMT}\\s*${CUR}?`),
+  re(`\\b(?:under|below|up\\s+to|less\\s+than|max)\\s+\\$?\\s*${AMT}\\s*${CUR}?`),
+  re(`\\$?\\s*${AMT}\\s*${CUR}?\\s*max(?:imum)?\\b`),
 ];
 
 // (?:^|\s) rather than \b before [àa]: JS's \b only recognizes ASCII word
-// characters, so \bà never matches — confirmed directly (/\b[àa]\s+louer\b/
-// fails against "à louer") rather than assumed. Every other boundary here
-// sits next to a plain ASCII letter, where \b works as expected.
+// characters, so \bà never matches.
 const PRICE_MIN_PATTERNS = [
-  /(?:^|\s)[àa]\s+partir\s+de\s+\$?\s*([\d.,]+)\s*\$?/i,
-  /\bplus\s+de\s+\$?\s*([\d.,]+)\s*\$?/i,
-  /\bmin(?:imum)?\s+\$?\s*([\d.,]+)\s*\$?/i,
-  /\bover\s+\$?\s*([\d.,]+)\s*\$?/i,
-  /\babove\s+\$?\s*([\d.,]+)\s*\$?/i,
-  /\bmore\s+than\s+\$?\s*([\d.,]+)\s*\$?/i,
+  re(`(?:^|\\s)[àa]\\s+partir\\s+de\\s+\\$?\\s*${AMT}\\s*${CUR}?`),
+  re(`\\bplus\\s+de\\s+\\$?\\s*${AMT}\\s*${CUR}?`),
+  re(`\\bmin(?:imum)?\\s*:?\\s*\\$?\\s*${AMT}\\s*${CUR}?`),
+  re(`\\b(?:over|above|more\\s+than|from)\\s+\\$?\\s*${AMT}\\s*${CUR}?`),
 ];
 
-// Trilingual on purpose — the diaspora audience CurrencyToggle.js's own
-// comment already calls out as a headline consideration searches in
-// English too ("2 bedroom apartment"), not just French. Real report:
-// that phrase produced 0 results because only French room/type words were
-// recognized, so the whole English phrase fell through to a literal ILIKE
-// search against French-language descriptions.
-//
-// Lingala terms (suku/basuku "room", ndako "house", lopango "plot",
-// kofuta/kofutela "pay/rent", kosomba "buy") — verified against real
-// dictionary sources before adding, not guessed: lingala.uk's dictionary
-// entry for "suku" (plural "basuku"), and, specifically for the real-estate
-// sense of "kofutela", two actual Kinshasa property listings using it in
-// context (imcongo.com — "ndaku ... kofutela kinshasa lingwala"). See the
-// commit message / conversation for the full source list — not repeated
-// here since a dictionary can drift and this comment shouldn't become the
-// thing that goes stale.
-const BEDS_PATTERN = /\b(\d+)\s*(?:chambres?|ch\.?|bedrooms?|beds?|bd|basuku|sukus?|cukus?)\b/i;
-const BATH_PATTERN = /\b(\d+)\s*(?:salles?\s+de\s+bain|sdb|bathrooms?|baths?)\b/i;
+// An amount with a currency and no qualifier — "appart 500$", "800 usd".
+// Read as a ceiling: nobody types their budget hoping to pay more.
+const PRICE_BARE_CURRENCY_PATTERNS = [re(`\\$\\s*${AMT}`), re(`(?:^|\\s)${AMT}\\s*${CUR}`)];
+
+// A standalone number with nothing around it ("maison lemba 400"). Only a
+// whole word — "15x20" and "500m2" are dimensions, not prices — and only from
+// 150 up, below which it is a street or door number far more often than a
+// rent. Applied last, after rooms, references and qualified prices are gone.
+const PRICE_BARE_NUMBER = re(`(?:^|\\s)(\\d{3,7}|\\d{1,3}(?:[ .,]\\d{3})+|\\d+(?:[.,]\\d+)?)(\\s*(?:k|mille)\\b)?(?=\\s|$)`);
+const BARE_NUMBER_MIN = 150;
+
+// ---------------------------------------------------------------------------
+// Rooms
+// ---------------------------------------------------------------------------
+
+// "chambre salon", "1 chambre-salon", "2 chambres et salon", "ch+salon" — a
+// unit with N bedrooms and a living room. Before this it resolved to the
+// quartier Salongo.
+const CHAMBRE_SALON_PATTERN = re(
+  `(?:(?:^|\\s)${COUNT}\\s*)?\\b(?:chambres?|ch)\\s*(?:[-+&/]|et|\\s)\\s*salons?\\b`,
+);
+
+// Trilingual on purpose — the diaspora audience searches in English too
+// ("2 bedroom apartment"). Lingala: suku/basuku (room), verified against
+// dictionary sources when first added.
+const BEDS_PATTERN = re(
+  `(?:^|\\s)${COUNT}\\s*(?:chambres?|chambr|chbres?|chbrs?|chb|ch\\.?|bedrooms?|beds?|bd|br|basuku|sukus?|cukus?)\\b`,
+);
+// Lingala puts the number after the noun: "basuku mibale".
+const BEDS_LINGALA_PATTERN = re(`\\b(?:basuku|suku)\\s+(moko|mibale|misato|minei|mitano)\\b`);
+// "3 pièces" = 3 rooms counting the living room, i.e. 2 bedrooms.
+const PIECES_PATTERN = re(`(?:^|\\s)${COUNT}\\s*(?:pi[eè]ces?|pcs?)\\b`);
+const BATH_PATTERN = re(
+  `(?:^|\\s)${COUNT}\\s*(?:salles?\\s+de\\s+bains?|sdb|bathrooms?|baths?|douches?)\\b`,
+);
+
+// ---------------------------------------------------------------------------
+// Transaction and type
+// ---------------------------------------------------------------------------
 
 const TRANSACTION_TYPE_PATTERNS = [
   [/(?:^|\s)[àa]\s+louer\b/i, 'location'],
+  [/\ben\s+location\b/i, 'location'],
   [/\blocation\b/i, 'location'],
-  [/\bto\s+rent\b/i, 'location'],
-  [/\bfor\s+rent\b/i, 'location'],
-  [/\brent\b/i, 'location'],
+  [/\blouer\b/i, 'location'],
+  [/\b(?:to|for)\s+rent\b/i, 'location'],
+  [/\brent(?:al|ing)?\b/i, 'location'],
   [/\bkofutela\b/i, 'location'],
   [/\bkofuta\b/i, 'location'],
   [/(?:^|\s)[àa]\s+vendre\b/i, 'vente'],
   [/\bvente\b/i, 'vente'],
+  [/\bvendre\b/i, 'vente'],
+  [/\b(?:achat|acheter|acqu[ée]rir)\b/i, 'vente'],
   [/\bfor\s+sale\b/i, 'vente'],
-  [/\bto\s+buy\b/i, 'vente'],
+  [/\b(?:to\s+)?buy(?:ing)?\b/i, 'vente'],
   [/\bkosomba\b/i, 'vente'],
 ];
 
-// Mapped only to real, currently-queryable values — checked directly
-// against the live category_content table before writing this, not
-// assumed: today only "appartement" and "maison" have real approved
-// listings, and "villa"/"terrain" only exist as PARCELLE_SUBTYPES
-// (lib/constants.js), never as a top-level property_type on their own.
-// "villa"/"terrain nu" therefore resolve through parcelle_subtype, matching
-// exactly how root CLAUDE.md's classification rules define them — mapping
-// "villa" straight to property_type=maison would be a real, wrong guess.
+// Mapped only to real, currently-queryable values: "appartement" and
+// "maison" are the live categories; "villa"/"terrain" exist as
+// PARCELLE_SUBTYPES (lib/constants.js), never as a top-level property_type.
+// `ap+ar?t\w*` covers appartement, appart, apparts, apartment, apartement and
+// the typo "appartemnt"; `ap+t` covers apt/appt.
 const PROPERTY_TYPE_PATTERNS = [
-  [/\b(?:appartements?|apartments?|flats?|studios?)\b/i, { property_type: 'appartement' }],
+  [/\b(?:ap+ar?t\w*|ap+ts?|flats?|studios?)\b/i, { property_type: 'appartement' }],
   [/\bvillas?\b/i, { property_type: 'parcelle', parcelle_subtype: 'villa' }],
   [/\b(?:terrains?|plots?|land|lopango)\b/i, { property_type: 'parcelle', parcelle_subtype: 'terrain_nu' }],
-  [/\b(?:maisons?|houses?|ndako|ndaku)\b/i, { property_type: 'maison' }],
+  [/\b(?:maisons?|maisonnettes?|houses?|homes?|ndako|ndaku)\b/i, { property_type: 'maison' }],
 ];
 
 // LKP-2026-0091 (services/openai.js's real generated format, engine repo) —
 // tolerant of missing dashes/spaces and case. Also the informal ways a
 // visitor might type a remembered reference: "réf 91", "ref: 91", "#91" —
-// these carry only the trailing digits, matched as a loose ILIKE fallback
-// (there's no way to reconstruct the full LKP-YYYY-NNNN code from a bare
-// number) rather than a structured exact filter.
+// these carry only the trailing digits, matched as a loose ILIKE fallback.
 const REFERENCE_PATTERNS = [
   { pattern: /\bLKP[-\s]?(\d{4})[-\s]?(\d+)\b/i, build: (m) => `LKP-${m[1]}-${m[2]}` },
   { pattern: /\b(?:r[ée]f(?:[ée]rence)?s?|ref)\s*[:\s]?\s*(\d+)\b/i, build: (m) => m[1] },
   { pattern: /#(\d+)\b/, build: (m) => m[1] },
 ];
 
-/** "1.500" / "1,500" / "1500" -> 1500. Returns null if not a finite number. */
-function parseAmount(raw) {
-  const cleaned = raw.replace(/[.,](?=\d{3}\b)/g, '').replace(',', '.');
-  const value = Number.parseFloat(cleaned);
-  return Number.isFinite(value) ? value : null;
-}
+// A locative word before a place ("à Ngaliema", "au Ma Campagne", "in
+// Gombe", Lingala "na Ngaliema"), consumed with it so it never strands in
+// the keywords.
+const PREPOSITIONS = '(?:[àa]|au|aux|en|dans|de|du|des|vers|pr[eè]s\\s+de|c[oô]t[ée]\\s+de|in|at|near|around|na)';
 
-// Exported so SearchBar.js's live preview can build the exact same kind of
-// "remove this one matched span" regex it uses internally, without a second
-// copy of this one-liner drifting out of sync.
+// Kinshasa's centre-ville is Gombe; this is how people ask for it.
+const DOWNTOWN_PATTERN = /(?:(?:^|\s)(?:[àa]u|in|dans\s+le)\s+)?\b(?:centre[\s-]?ville|kin[\s-]?centre|downtown|city\s+cent(?:er|re))\b/i;
+
+// Exported so LocationAutocomplete's live preview can build the exact same
+// kind of "remove this one matched span" regex.
 export function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -131,151 +211,230 @@ export function escapeRegExp(value) {
  *   beds_min: number|undefined,
  *   bath_min: number|undefined,
  *   commune: string|undefined,
+ *   communes: string[]|undefined,
  *   quartier: string|undefined,
  *   keywords: string,
- *   spans: Object<string, string>,
+ *   spans: Object<string, string|string[]>,
  * }}
  */
 export function parseSearchQuery(text) {
-  // typeof-checked rather than String(text || '') — the latter happily
-  // stringifies a stray non-string (a React SyntheticEvent, an object) into
-  // literal text like "[object Object]" instead of failing safe. That
-  // exact class of bug reached production once already (a bare
-  // `onClick={submitFreeText}` handing its click event to this function) —
-  // this is the second layer of defense, not just the onClick fix.
+  // typeof-checked rather than String(text || '') — a stray non-string (a
+  // React SyntheticEvent) once reached production as the literal search
+  // "[object Object]". This is the second layer of defense.
   let remaining = typeof text === 'string' ? text : '';
+  const original = remaining.toLowerCase();
   const result = {};
-  // The exact raw substring each field was parsed from, keyed the same as
-  // the field itself — SearchBar.js's live preview uses this to remove one
-  // filter's own text from the input when its pill is tapped, without
-  // touching any other recognized field's text.
+  // The exact raw substring each field was parsed from — the live preview
+  // removes one filter's own text from the input when its pill is tapped.
   const spans = {};
 
-  const referenceMatch = REFERENCE_PATTERNS.map(({ pattern, build }) => {
-    const m = remaining.match(pattern);
-    return m ? { m, build } : null;
-  }).find(Boolean);
-  if (referenceMatch) {
-    result.reference = referenceMatch.build(referenceMatch.m);
-    spans.reference = referenceMatch.m[0];
-    remaining = remaining.replace(referenceMatch.m[0], ' ');
-  }
-
-  for (const pattern of PRICE_MAX_PATTERNS) {
-    const match = remaining.match(pattern);
-    if (!match) continue;
-    const amount = parseAmount(match[1]);
-    if (amount != null) {
-      result.price_max = amount;
-      spans.price_max = match[0];
-      remaining = remaining.replace(match[0], ' ');
-      break;
-    }
-  }
-
-  for (const pattern of PRICE_MIN_PATTERNS) {
-    const match = remaining.match(pattern);
-    if (!match) continue;
-    const amount = parseAmount(match[1]);
-    if (amount != null) {
-      result.price_min = amount;
-      spans.price_min = match[0];
-      remaining = remaining.replace(match[0], ' ');
-      break;
-    }
-  }
-
-  const bedsMatch = remaining.match(BEDS_PATTERN);
-  if (bedsMatch) {
-    result.beds_min = Number.parseInt(bedsMatch[1], 10);
-    spans.beds_min = bedsMatch[0];
-    remaining = remaining.replace(bedsMatch[0], ' ');
-  }
-
-  const bathMatch = remaining.match(BATH_PATTERN);
-  if (bathMatch) {
-    result.bath_min = Number.parseInt(bathMatch[1], 10);
-    spans.bath_min = bathMatch[0];
-    remaining = remaining.replace(bathMatch[0], ' ');
-  }
-
-  for (const [pattern, value] of TRANSACTION_TYPE_PATTERNS) {
-    const match = remaining.match(pattern);
-    if (!match) continue;
-    result.transaction_type = value;
-    spans.transaction_type = match[0];
+  function take(match, field) {
+    spans[field] = spans[field] ? `${spans[field]} ${match[0].trim()}` : match[0].trim();
     remaining = remaining.replace(match[0], ' ');
+  }
+
+  // --- Reference ------------------------------------------------------------
+  for (const { pattern, build } of REFERENCE_PATTERNS) {
+    const m = remaining.match(pattern);
+    if (!m) continue;
+    result.reference = build(m);
+    take(m, 'reference');
+    break;
+  }
+
+  // --- Rooms (before prices, so "2 chambres 1 500$" is 2 rooms and $1,500) --
+  const chambreSalon = remaining.match(CHAMBRE_SALON_PATTERN);
+  if (chambreSalon) {
+    const n = chambreSalon[1] != null ? countValue(chambreSalon[1]) : 1;
+    if (n != null && n > 0) result.beds_min = n;
+    take(chambreSalon, 'beds_min');
+  }
+
+  if (result.beds_min == null) {
+    const beds = remaining.match(BEDS_PATTERN);
+    const lingala = beds ? null : remaining.match(BEDS_LINGALA_PATTERN);
+    const pieces = beds || lingala ? null : remaining.match(PIECES_PATTERN);
+    if (beds) {
+      const n = countValue(beds[1]);
+      if (n != null && n > 0) result.beds_min = n;
+      take(beds, 'beds_min');
+    } else if (lingala) {
+      result.beds_min = countValue(lingala[1]);
+      take(lingala, 'beds_min');
+    } else if (pieces) {
+      const n = countValue(pieces[1]);
+      // A studio is one pièce; it still has somewhere to sleep.
+      if (n != null && n > 0) result.beds_min = Math.max(n - 1, 1);
+      take(pieces, 'beds_min');
+    }
+  }
+
+  const bath = remaining.match(BATH_PATTERN);
+  if (bath) {
+    const n = countValue(bath[1]);
+    if (n != null && n > 0) result.bath_min = n;
+    take(bath, 'bath_min');
+  }
+
+  // --- Price ----------------------------------------------------------------
+  for (const pattern of PRICE_RANGE_PATTERNS) {
+    const m = remaining.match(pattern);
+    if (!m) continue;
+    const a = parseAmount(m[1], m[2]);
+    const b = parseAmount(m[3], m[4]);
+    if (a == null || b == null) continue;
+    result.price_min = Math.min(a, b);
+    result.price_max = Math.max(a, b);
+    take(m, 'price_max');
+    spans.price_min = spans.price_max;
+    break;
+  }
+
+  if (result.price_max == null) {
+    for (const pattern of PRICE_MAX_PATTERNS) {
+      const m = remaining.match(pattern);
+      if (!m) continue;
+      const amount = parseAmount(m[1], m[2]);
+      if (amount == null) continue;
+      result.price_max = amount;
+      take(m, 'price_max');
+      break;
+    }
+  }
+
+  if (result.price_min == null) {
+    for (const pattern of PRICE_MIN_PATTERNS) {
+      const m = remaining.match(pattern);
+      if (!m) continue;
+      const amount = parseAmount(m[1], m[2]);
+      if (amount == null) continue;
+      result.price_min = amount;
+      take(m, 'price_min');
+      break;
+    }
+  }
+
+  if (result.price_max == null && result.price_min == null) {
+    for (const pattern of PRICE_BARE_CURRENCY_PATTERNS) {
+      const m = remaining.match(pattern);
+      if (!m) continue;
+      const amount = parseAmount(m[1], m[2]);
+      if (amount == null || amount <= 0) continue;
+      result.price_max = amount;
+      take(m, 'price_max');
+      break;
+    }
+  }
+
+  if (result.price_max == null && result.price_min == null) {
+    const m = remaining.match(PRICE_BARE_NUMBER);
+    if (m) {
+      const amount = parseAmount(m[1], m[2]);
+      if (amount != null && amount >= BARE_NUMBER_MIN) {
+        result.price_max = amount;
+        take(m, 'price_max');
+      }
+    }
+  }
+
+  // --- Transaction and type ---------------------------------------------------
+  for (const [pattern, value] of TRANSACTION_TYPE_PATTERNS) {
+    const m = remaining.match(pattern);
+    if (!m) continue;
+    result.transaction_type = value;
+    take(m, 'transaction_type');
     break;
   }
 
   for (const [pattern, values] of PROPERTY_TYPE_PATTERNS) {
-    const match = remaining.match(pattern);
-    if (!match) continue;
+    const m = remaining.match(pattern);
+    if (!m) continue;
     Object.assign(result, values);
-    spans.property_type = match[0];
-    remaining = remaining.replace(match[0], ' ');
+    take(m, 'property_type');
     break;
   }
 
+  // --- Places -----------------------------------------------------------------
   // Real communes/quartiers/landmarks (lib/gazetteer.js — the same curated
-  // data LocationAutocomplete.js's dropdown uses), not a guess: "à
-  // Ngaliema" resolves to a real `commune` filter the same way picking it
-  // from the dropdown would. A landmark match (e.g. "Saint Luc") sets
-  // `commune` too but deliberately isn't stripped from the text below — it
-  // still needs to reach the real ILIKE fallback in lib/listings.js, since
-  // there's no structured landmark column to filter on directly.
-  const location = findLocationMention(remaining);
-  if (location) {
-    result.commune = location.commune;
-    if (location.type === 'quartier') result.quartier = location.label;
-    spans.commune = location.matchedText;
-    if (location.type !== 'landmark') {
-      // Also consumes a preceding locative preposition ("à Ngaliema", "au
-      // Ma Campagne") so it doesn't strand a dangling "à" in `keywords` —
-      // remaining.keywords is matched as one literal ILIKE phrase (see
-      // lib/listings.js), so a stray connector word makes an otherwise-real
-      // match fail.
-      // (?:^|\s) rather than \b before the preposition group: same ASCII-only
-      // \b limitation as the price/transaction patterns above — \bà never
-      // matches.
-      // matchedText, not location.label: for a fuzzy/typo match ("limite"
-      // resolving to the real commune "Limete") the canonical label never
-      // actually appears in the text — stripping it would be a no-op and
-      // leave the typo itself sitting in `keywords`, polluting the ILIKE
-      // fallback with a literal misspelling no real listing would contain.
-      // English prepositions (in/at/near) alongside the French ones, and
-      // Lingala's own catch-all locative "na" ("na Ngaliema" — verified,
-      // Lingala has essentially one general-purpose preposition, not a
-      // separate word per relation) — a real case this surfaced: "house for
-      // rent in Ngaliema" left a dangling "in" in keywords, which as a bare
-      // ILIKE term matches almost any description (a near-universal 2-letter
-      // substring), silently over-broadening rather than failing loudly.
-      const prepositionPattern = new RegExp(
-        `(?:(?:^|\\s)(?:[àa]|au|aux|en|dans|de|du|des|in|at|near|na)\\s+)?${escapeRegExp(location.matchedText)}`,
-        'i',
-      );
-      const prepositionMatch = remaining.match(prepositionPattern);
-      if (prepositionMatch) spans.commune = prepositionMatch[0].trim();
-      remaining = remaining.replace(prepositionPattern, ' ');
-    }
+  // data LocationAutocomplete.js's dropdown uses). Up to five, all searched:
+  // "Gombe ou Ngaliema" used to keep only one and drop the other in silence.
+  //
+  // `lookIn` is the text still searched for places; `remaining` is what
+  // becomes keywords. They differ for a landmark ("Saint Luc"): its words
+  // stay in the keywords, since there is no landmark column and the listing
+  // text is where it shows up, but it must not be found twice.
+  let lookIn = remaining;
+  const places = [];
+  const placeSpans = [];
 
-    // A second, distinct real place named in the same sentence ("Gombe ou
-    // Limete", "villa à Gombe ou à Limete sous 2000$") — there is no
-    // structural multi-area filter yet (getListings() only ever takes one
-    // `commune`), so this can't widen the actual query. Real report from
-    // testing: "3 bedroom villa gombe or limete under 2000" silently kept
-    // only Limete with zero trace of Gombe anywhere — not even in
-    // `keywords`, since findLocationMention already only returns its single
-    // best match. Surfacing it here lets the caller (LocationAutocomplete.js)
-    // at least tell the visitor what was left out instead of staying silent
-    // about it, which is the actually misleading part.
-    const second = findLocationMention(remaining);
-    if (second && (second.commune !== location.commune || second.label !== location.label)) {
-      result.secondaryLocation = { label: second.label, commune: second.commune, type: second.type };
-    }
+  // "centre-ville" / "Kin centre" / "downtown" is how Kinshasa names Gombe.
+  const downtown = lookIn.match(DOWNTOWN_PATTERN);
+  if (downtown) {
+    lookIn = lookIn.replace(downtown[0], ' ');
+    remaining = remaining.replace(downtown[0], ' ');
+    places.push({ type: 'commune', label: 'Gombe', commune: 'Gombe', matchedText: downtown[0].trim(), alsoIn: [] });
+    placeSpans.push(downtown[0].trim());
   }
 
-  result.keywords = remaining.replace(/\s+/g, ' ').trim();
+  for (let guard = 0; guard < 8 && places.length < MAX_SEARCH_COMMUNES; guard += 1) {
+    const location = findLocationMention(lookIn);
+    if (!location) break;
+
+    const prepositionPattern = new RegExp(
+      `(?:(?:^|\\s)${PREPOSITIONS}\\s+)?${escapeRegExp(location.matchedText)}`,
+      'i',
+    );
+
+    // "Kinshasa" is the city every listing is in far more often than the
+    // commune of that name — unless the visitor says "commune de Kinshasa".
+    const isCityName =
+      location.type === 'commune' &&
+      location.commune === 'Kinshasa' &&
+      !new RegExp(`commune\\s+(?:de\\s+)?${escapeRegExp(location.matchedText)}`, 'i').test(lookIn);
+
+    const spanMatch = lookIn.match(prepositionPattern);
+    lookIn = lookIn.replace(prepositionPattern, ' ');
+
+    if (isCityName) {
+      remaining = remaining.replace(prepositionPattern, ' ');
+      continue;
+    }
+
+    if (location.type !== 'landmark') {
+      remaining = remaining.replace(prepositionPattern, ' ');
+    }
+    places.push(location);
+    placeSpans.push(spanMatch ? spanMatch[0].trim() : location.matchedText);
+  }
+
+  if (places.length > 0) {
+    // In the order the visitor typed them: the first place named is the one
+    // the heading, the map and a single-commune reader use.
+    const order = places.map((place, i) => ({ place, span: placeSpans[i], at: original.indexOf(String(placeSpans[i]).toLowerCase()) }));
+    order.sort((a, b) => (a.at === -1 ? Infinity : a.at) - (b.at === -1 ? Infinity : b.at));
+    places.splice(0, places.length, ...order.map((o) => o.place));
+    placeSpans.splice(0, placeSpans.length, ...order.map((o) => o.span));
+
+    const [primary] = places;
+    result.commune = primary.commune;
+    // A single named quartier narrows to it. Two different places in one
+    // search ("Binza ou Ma Campagne") mean the area around both — searching
+    // one quartier would drop the other.
+    const quartiers = new Set(places.filter((p) => p.type === 'quartier').map((p) => p.label));
+    if (primary.type === 'quartier' && places.every((p) => p.type === 'quartier') && quartiers.size === 1) {
+      result.quartier = primary.label;
+    }
+    const communes = [];
+    for (const place of places) {
+      for (const name of [place.commune, ...(place.alsoIn || [])]) {
+        if (!communes.includes(name) && communes.length < MAX_SEARCH_COMMUNES) communes.push(name);
+      }
+    }
+    if (communes.length > 1) result.communes = communes;
+    spans.commune = placeSpans.length === 1 ? placeSpans[0] : placeSpans;
+  }
+
+  result.keywords = cleanKeywords(remaining);
   result.spans = spans;
   return result;
 }

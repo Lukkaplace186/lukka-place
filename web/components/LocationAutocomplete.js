@@ -28,7 +28,12 @@ function buildPreviewPills(parsed) {
     pills.push({ field: 'reference', icon: Hash, label: `Réf ${parsed.reference}` });
   }
   if (parsed.commune) {
-    const place = parsed.quartier ? `${parsed.quartier} (${parsed.commune})` : parsed.commune;
+    const place =
+      parsed.communes?.length > 1
+        ? parsed.communes.join(', ')
+        : parsed.quartier
+          ? `${parsed.quartier} (${parsed.commune})`
+          : parsed.commune;
     pills.push({ field: 'commune', icon: MapPin, label: place });
   }
   if (parsed.beds_min != null) {
@@ -311,7 +316,10 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
     for (const field of fields) {
       const span = livePreview?.spans?.[field];
       if (!span) continue;
-      next = next.replace(new RegExp(escapeRegExp(span), 'i'), ' ');
+      // Several places ("Gombe ou Ngaliema") record one span each.
+      for (const piece of Array.isArray(span) ? span : [span]) {
+        next = next.replace(new RegExp(escapeRegExp(piece), 'i'), ' ');
+      }
     }
     next = next.replace(/\s+/g, ' ').trim();
     setValue(next);
@@ -427,6 +435,7 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
   function navigateTo(result) {
     const params = buildParams();
     params.delete('quartier');
+    params.delete('communes');
     params.delete('q');
     if (result.commune) dropMapArea(params);
 
@@ -473,6 +482,9 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
     if (parsed.commune) {
       dropMapArea(params);
       params.set('commune', parsed.commune);
+      // "Gombe ou Ngaliema": every commune named, the first as `commune`.
+      if (parsed.communes?.length > 1) params.set('communes', parsed.communes.join(','));
+      else params.delete('communes');
       if (parsed.quartier) params.set('quartier', parsed.quartier);
       else params.delete('quartier');
     }
@@ -618,17 +630,6 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
             </span>
           ))}
         </div>
-      ) : null}
-
-      {/* One area can be filtered on at a time today (getListings() takes a
-          single `commune`) — this says so honestly instead of quietly
-          keeping only the first place mentioned and dropping the second
-          without a trace, which is what happened before this existed. */}
-      {hideDropdown && livePreview?.secondaryLocation ? (
-        <p className="mt-1.5 text-[0.75rem] text-ink-45" aria-live="polite">
-          « {livePreview.secondaryLocation.label} » a aussi été repéré — la recherche sur plusieurs zones à la fois
-          n&apos;est pas encore possible. Essayez-la séparément pour l&apos;instant.
-        </p>
       ) : null}
 
       {showPanel

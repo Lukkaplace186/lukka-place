@@ -47,7 +47,11 @@ export default async function ActiveFilterChips({ params = {}, propertyTypeLabel
   } else if (params.quartier) {
     chips.push({ key: 'quartier', label: params.quartier, href: hrefWithoutKeys(params, ['quartier', 'radius']) });
   } else if (params.commune) {
-    chips.push({ key: 'commune', label: params.commune, href: hrefWithoutKeys(params, ['commune', 'quartier', 'radius']) });
+    // "Gombe ou Ngaliema" is one location choice, so one chip naming both,
+    // and removing it removes both.
+    const extra = params.communes ? String(params.communes).split(',').map((c) => c.trim()).filter(Boolean) : [];
+    const label = extra.length > 1 ? [...new Set([params.commune, ...extra])].join(', ') : params.commune;
+    chips.push({ key: 'commune', label, href: hrefWithoutKeys(params, ['commune', 'communes', 'quartier', 'radius']) });
   }
 
   if (!hasMapArea && params.commune && params.radius) {

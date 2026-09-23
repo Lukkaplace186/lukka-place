@@ -49,7 +49,12 @@ export function buildSearchLabel(searchParams, t) {
   const commune = searchParams.get('commune');
   // Place names are real data, never translated — only the preposition is.
   if (quartier) parts.push(t('search.label.in', { place: quartier }));
-  else if (commune) parts.push(t('search.label.in', { place: commune }));
+  else if (commune) {
+    // "Gombe ou Ngaliema" names every commune the search covers.
+    const extra = (searchParams.get('communes') || '').split(',').map((c) => c.trim()).filter(Boolean);
+    const place = extra.length > 1 ? [...new Set([commune, ...extra])].join(', ') : commune;
+    parts.push(t('search.label.in', { place }));
+  }
 
   const radius = searchParams.get('radius');
   if (commune && radius) {
@@ -100,6 +105,9 @@ export function searchCriteriaTags(searchParams, t) {
   // Commune and quartier are real place names — pushed through untouched.
   const commune = get('commune');
   if (commune) tags.push(commune);
+  for (const extra of (get('communes') || '').split(',').map((c) => c.trim()).filter(Boolean)) {
+    if (extra !== commune && !tags.includes(extra)) tags.push(extra);
+  }
   const quartier = get('quartier');
   if (quartier) tags.push(quartier);
   if (commune && get('radius') === 'citywide') tags.push(t('search.tags.citywide'));

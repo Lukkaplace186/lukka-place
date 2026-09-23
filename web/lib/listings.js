@@ -1,9 +1,9 @@
 import 'server-only';
 import { getPool } from './db';
 import { KINSHASA_COMMUNE_CENTROIDS } from './geocoding';
-import { KINSHASA_PROVINCE_ENVELOPE, boundsContain, resolveMarkerPosition } from './mapViewport';
+import { KINSHASA_PROVINCE_ENVELOPE, boundsContain, distanceKm, resolveMarkerPosition } from './mapViewport';
 import { AMENITY_GROUPS, AMENITY_KEYWORDS } from './constants';
-import { abbreviationVariants } from './textVariants';
+import { keywordTokens } from './searchKeywords';
 
 /**
  * Every read against `properties` filters on this — no exceptions. There is
@@ -262,6 +262,45 @@ const LISTINGS_LIMIT_MAX = 60;
 const KM_RADIUS_KM = { 1: 1, 3: 3, 5: 5 };
 
 /**
+ * Accent- and case-folding for the free-text search, in SQL. `translate()`
+ * rather than the `unaccent` extension, which nothing confirms is installed
+ * on this database. Both character lists are built from one table so they
+ * cannot drift out of step (translate() pairs them by position).
+ */
+const FOLD_PAIRS = [
+  ['àáâäãåā', 'a'], ['ç', 'c'], ['èéêëē', 'e'], ['ìíîïī', 'i'], ['ñ', 'n'], ['òóôöõō', 'o'], ['ùúûüū', 'u'],
+  ['ýÿ', 'y'],
+];
+const FOLD_FROM = FOLD_PAIRS.map(([from]) => from).join('');
+const FOLD_TO = FOLD_PAIRS.map(([from, to]) => to.repeat(from.length)).join('');
+const fold = (expr) => `translate(lower(COALESCE(${expr}, '')), '${FOLD_FROM}', '${FOLD_TO}')`;
+
+/**
+ * One search word as a Postgres regex: a leading word boundary and no
+ * trailing one, the same rule the amenity checkboxes use ("climatisé" must
+ * find "climatisées"; "meuble" must not find "immeuble"). "St"/"Saint" are
+ * interchangeable in Kinshasa place names ("St Luc" / "Saint-Luc").
+ */
+function tokenPattern(token) {
+  if (token === 'saint' || token === 'st') return '\\y(saint|st)\\y';
+  if (token === 'sainte' || token === 'ste') return '\\y(sainte|ste)\\y';
+  return `\\y${escapeRegex(token)}`;
+}
+
+/** Most places one search may name — lib/searchParser.js MAX_SEARCH_COMMUNES. */
+const MAX_SEARCH_COMMUNES = 5;
+
+/** The commune plus any extra ones (`?communes=`), de-duplicated, capped. */
+function communeListOf({ commune, communes } = {}) {
+  const out = [];
+  for (const name of [commune, ...(Array.isArray(communes) ? communes : [])]) {
+    const trimmed = typeof name === 'string' ? name.trim() : '';
+    if (trimmed && !out.includes(trimmed)) out.push(trimmed);
+  }
+  return out.slice(0, MAX_SEARCH_COMMUNES);
+}
+
+/**
  * Build the WHERE clause + params shared by getListings and its COUNT query.
  *
  * "Parcelle" and "Appartement" are filtered on the fields that actually carry
@@ -275,7 +314,7 @@ const KM_RADIUS_KM = { 1: 1, 3: 3, 5: 5 };
  *     path has parcelle_subtype set. Filtering on parcelle_subtype is the
  *     precise match for "this is a parcelle listing".
  */
-function buildFilters({ transactionType, propertyType, parcelleSubtype, commune, quartier, radius, reference, priceMin, priceMax, bedsMin, bathMin, depositMax, amenities, search, excludeId, agentId, ids }) {
+function buildFilters({ transactionType, propertyType, parcelleSubtype, commune, communes, quartier, radius, reference, priceMin, priceMax, bedsMin, bathMin, depositMax, amenities, search, excludeId, agentId, ids }) {
   const where = [APPROVED_FILTER];
   const params = [];
 
@@ -398,6 +437,7 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
   //   'citywide' -> drop both.
   //   '1'|'3'|'5' -> real kilometer radius (see below).
   const isCitywide = radius === 'citywide';
+  const communeList = communeListOf({ commune, communes });
   const isCommuneWide = radius === 'commune';
   const kmValue = KM_RADIUS_KM[radius];
   const isKmRadius = Boolean(kmValue) && Boolean(commune) && Boolean(KINSHASA_COMMUNE_CENTROIDS[commune]);
@@ -448,12 +488,20 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
         )
       )
     )`);
-  } else if (commune && !isCitywide) {
-    params.push(commune);
+  } else if (communeList.length === 1 && !isCitywide) {
+    params.push(communeList[0]);
     where.push(`EXISTS (
       SELECT 1 FROM property_amenities pa
       JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = ${CONTENT_LANGUAGE_ID}
       WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44 AND ac.name = $${params.length}
+    )`);
+  } else if (communeList.length > 1 && !isCitywide) {
+    // "Gombe ou Ngaliema" (?communes=Gombe,Ngaliema): any of them.
+    params.push(communeList);
+    where.push(`EXISTS (
+      SELECT 1 FROM property_amenities pa
+      JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = ${CONTENT_LANGUAGE_ID}
+      WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44 AND ac.name = ANY($${params.length}::text[])
     )`);
   }
 
@@ -473,39 +521,34 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
     where.push(`p.reference ILIKE $${params.length}`);
   }
 
-  // Free-text search box (Zillow-style sticky pill on /listings): real
-  // ILIKE matching against the columns a visitor would actually type —
-  // title, description, address, quartier, reference, or a commune name —
-  // not a cosmetic wrapper around the existing cascading dropdowns. `pc.
-  // description` matters specifically for landmark-style queries ("Saint
-  // Luc", "après la paroisse..."): agents write that wayfinding text into
-  // the free-text description, not into any structured column, so a search
-  // limited to title/address/quartier/reference silently misses it.
+  // Free-text words: whatever lib/searchParser.js could not turn into a
+  // structured filter ("meublé", "piscine", a landmark like "Saint Luc").
+  // Each word is matched on its own, accent-insensitively, against the
+  // columns a visitor would mean — title, description (where agents write
+  // wayfinding), address, quartier, reference, commune — and every word must
+  // be found somewhere (AND across words, OR across columns).
   //
-  // Each abbreviation variant (see abbreviationVariants() above) gets its
-  // own OR'd column group, since ILIKE is a literal substring match and
-  // "St Luc" / "Saint Luc" don't substring-match each other. Same $n
-  // placeholder is referenced multiple times per group, which Postgres
-  // allows.
-  const term = typeof search === 'string' ? search.trim() : '';
-  if (term) {
-    const groups = abbreviationVariants(term).map((variant) => {
-      params.push(`%${variant}%`);
-      const idx = params.length;
-      return `
-        pc.title ILIKE $${idx} OR
-        pc.description ILIKE $${idx} OR
-        pc.address ILIKE $${idx} OR
-        p.quartier ILIKE $${idx} OR
-        p.reference ILIKE $${idx} OR
-        EXISTS (
-          SELECT 1 FROM property_amenities pa
-          JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = ${CONTENT_LANGUAGE_ID}
-          WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44 AND ac.name ILIKE $${idx}
-        )
-      `;
-    });
-    where.push(`(${groups.join(' OR ')})`);
+  // This used to be ONE ILIKE phrase for the whole leftover text, so filler
+  // sank the search: "pas cher" or "near UPN" had to appear verbatim.
+  // Filler is dropped by keywordTokens (lib/searchKeywords.js, shared with
+  // the parser), and getListings drops the words altogether — and says so —
+  // when they would still empty the page.
+  const tokens = keywordTokens(typeof search === 'string' ? search : '');
+  for (const token of tokens) {
+    params.push(tokenPattern(token));
+    const idx = params.length;
+    where.push(`(
+      ${fold('pc.title')} ~* $${idx} OR
+      ${fold('pc.description')} ~* $${idx} OR
+      ${fold('pc.address')} ~* $${idx} OR
+      ${fold('p.quartier')} ~* $${idx} OR
+      ${fold('p.reference')} ~* $${idx} OR
+      EXISTS (
+        SELECT 1 FROM property_amenities pa
+        JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = ${CONTENT_LANGUAGE_ID}
+        WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44 AND ${fold('ac.name')} ~* $${idx}
+      )
+    )`);
   }
 
   return { whereClause: where.join(' AND '), params };
@@ -612,7 +655,7 @@ export async function getListings(options = {}) {
   let locationRelaxed = false;
 
   if (total === 0 && hasCommune && hasSearch) {
-    const relaxedFilters = buildFilters({ ...options, commune: undefined });
+    const relaxedFilters = buildFilters({ ...options, commune: undefined, communes: undefined });
     const { rows: relaxedCountRows } = await pool.query(
       `SELECT COUNT(*) AS total ${FROM_JOINS} WHERE ${relaxedFilters.whereClause}`,
       relaxedFilters.params,
@@ -667,11 +710,37 @@ export async function getListings(options = {}) {
     }
   }
 
+  // Zero results is never the end of a search a visitor typed — see
+  // relaxSearch. Opt-in (`allowRelax`): only /listings and its live count
+  // ask for it. Saved-search alerts and every internal reader keep the
+  // exact answer, since an alert about a listing that does not match is a
+  // false alert.
+  let relaxation = null;
+  let orderIds = null;
+  const canRelax =
+    options.allowRelax &&
+    total === 0 &&
+    !mapArea &&
+    !locationRelaxed &&
+    !radiusExpanded &&
+    !Array.isArray(options.ids) &&
+    !options.reference &&
+    !Number.isFinite(Number.parseInt(options.agentId, 10)) &&
+    !Number.isFinite(Number.parseInt(options.excludeId, 10));
+  if (canRelax) {
+    const relaxed = await relaxSearch(pool, options);
+    if (relaxed) {
+      ({ whereClause, params, total, relaxation, orderIds } = relaxed);
+    }
+  }
+
+  // Nearby results are listed nearest first — that order IS the answer.
+  const order = orderIds ? `array_position($${params.length + 3}::int[], p.id)` : orderBy;
   const { rows: data } = await pool.query(
     `SELECT ${SELECT_FIELDS} ${FROM_JOINS} WHERE ${whereClause}
-     ORDER BY ${orderBy}
+     ORDER BY ${order}
      LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
-    [...params, limit, offset],
+    orderIds ? [...params, limit, offset, orderIds] : [...params, limit, offset],
   );
 
   return {
@@ -694,7 +763,140 @@ export async function getListings(options = {}) {
     // Set when the results are the map's visible area, not the location
     // filters. `truncated` mirrors the map's own MAP_MARKERS_MAX ceiling.
     mapArea,
+    // Set when the exact search found nothing and these are the closest real
+    // alternatives — see relaxSearch. Every step taken is named, so the page
+    // can say exactly what changed; null means the results are exact.
+    relaxation,
   };
+}
+
+/** How far "nearby" reaches from the searched commune's centre. Kinshasa's
+ *  central communes are 2-5 km apart; 15 km reaches the neighbours of an
+ *  outer commune without offering the other end of the city as "proche". */
+const NEARBY_MAX_KM = 15;
+/** Four pages of cards — enough to choose from, nearest first. */
+const NEARBY_MAX_RESULTS = 48;
+/** "Budget élargi de 15 %" — a stretch a renter can plausibly consider. */
+const BUDGET_STRETCH = 0.15;
+
+/**
+ * The closest real listings to the searched commune(s), for everything else
+ * the visitor asked for (type, rooms, budget, purpose).
+ *
+ * Positions come from the map's own read (getMapMarkers +
+ * resolveMarkerPosition): stored coordinates, else the listing's commune
+ * centroid, else no position and the listing is left out — never a made-up
+ * point. Distance is measured from the commune centroids in
+ * KINSHASA_COMMUNE_CENTROIDS, which are real geocoded points. Because it goes
+ * by position rather than by the commune tag, a listing with no tag but real
+ * coordinates is found here too.
+ *
+ * @returns {Promise<{ids: number[], origin: string[], places: Array<{commune: string, km: number}>}|null>}
+ */
+async function findNearby(options) {
+  const origins = communeListOf(options)
+    .map((commune) => ({ commune, ...KINSHASA_COMMUNE_CENTROIDS[commune] }))
+    .filter((o) => Number.isFinite(o.lat) && Number.isFinite(o.lng));
+  if (origins.length === 0) return null;
+
+  const { markers } = await getMapMarkers(withoutLocationFilters(options), null);
+  const scored = [];
+  for (const marker of markers) {
+    const km = Math.min(...origins.map((o) => distanceKm(o, marker)));
+    if (!Number.isFinite(km) || km > NEARBY_MAX_KM) continue;
+    scored.push({ id: Number(marker.id), km, commune: marker.commune || null });
+  }
+  if (scored.length === 0) return null;
+
+  scored.sort((a, b) => a.km - b.km || a.id - b.id);
+  const kept = scored.slice(0, NEARBY_MAX_RESULTS);
+
+  // The communes the alternatives are in, nearest first, for the notice
+  // ("Masina (4 km), Ndjili (6 km)"). Rounded to whole km, never below 1:
+  // these are centroid-to-listing distances, not a door-to-door promise.
+  const originNames = new Set(origins.map((o) => o.commune));
+  const places = [];
+  for (const { commune, km } of kept) {
+    if (!commune || originNames.has(commune) || places.some((p) => p.commune === commune)) continue;
+    places.push({ commune, km: Math.max(1, Math.round(km)) });
+    if (places.length === 3) break;
+  }
+
+  return { ids: kept.map((s) => s.id), origin: origins.map((o) => o.commune), places };
+}
+
+/**
+ * When a search finds nothing, the closest honest alternative instead of an
+ * empty page. Steps, each kept only if the previous ones still found nothing,
+ * and every one taken recorded in `relaxation` so the page says what changed:
+ *
+ *   1. words the listings do not contain ("meublé", "UPN") are dropped;
+ *   2. a quartier widens to its commune;
+ *   3. the searched commune(s) give way to the nearest listings, by distance;
+ *   4. the budget stretches by 15 %, then 5. one bedroom fewer — each first
+ *      at the searched place, then nearby.
+ *
+ * Purpose (louer/acheter) and property type are never relaxed: a buyer shown
+ * rentals, or a flat-hunter shown plots, has not been helped. The engine's
+ * WhatsApp matching follows the same rule (`widened: true`).
+ */
+async function relaxSearch(pool, options) {
+  const relaxation = {};
+  let current = { ...options };
+  const hasPlace = communeListOf(current).length > 0;
+
+  async function exact(opts) {
+    const f = buildFilters(opts);
+    const { rows } = await pool.query(`SELECT COUNT(*) AS total ${FROM_JOINS} WHERE ${f.whereClause}`, f.params);
+    const total = Number.parseInt(rows[0].total, 10);
+    return total > 0 ? { whereClause: f.whereClause, params: f.params, total, relaxation, orderIds: null } : null;
+  }
+
+  async function nearby(opts) {
+    if (!hasPlace) return null;
+    const near = await findNearby(opts);
+    if (!near) return null;
+    const f = buildFilters({ ...withoutLocationFilters(opts), ids: near.ids });
+    relaxation.nearby = { origin: near.origin, places: near.places };
+    return { whereClause: f.whereClause, params: f.params, total: near.ids.length, relaxation, orderIds: near.ids };
+  }
+
+  const tokens = keywordTokens(typeof current.search === 'string' ? current.search : '');
+  if (tokens.length > 0) {
+    current = { ...current, search: undefined };
+    relaxation.keywordsIgnored = tokens;
+    const found = await exact(current);
+    if (found) return found;
+  }
+
+  if (current.quartier && current.commune && !current.radius) {
+    relaxation.quartierWidened = { quartier: current.quartier, commune: current.commune };
+    current = { ...current, quartier: undefined };
+    const found = await exact(current);
+    if (found) return found;
+  }
+
+  const near = await nearby(current);
+  if (near) return near;
+
+  const maxPrice = Number.parseFloat(current.priceMax);
+  if (Number.isFinite(maxPrice) && maxPrice > 0) {
+    const to = Math.round(maxPrice * (1 + BUDGET_STRETCH));
+    relaxation.priceMax = { from: maxPrice, to };
+    current = { ...current, priceMax: to };
+    const found = (await exact(current)) || (await nearby(current));
+    if (found) return found;
+  }
+
+  const beds = Number.parseInt(current.bedsMin, 10);
+  if (Number.isFinite(beds) && beds >= 2) {
+    relaxation.beds = { from: beds, to: beds - 1 };
+    current = { ...current, bedsMin: beds - 1 };
+    const found = (await exact(current)) || (await nearby(current));
+    if (found) return found;
+  }
+
+  return null;
 }
 
 /**
@@ -826,7 +1028,7 @@ const MARKER_FROM = `
   JOIN property_category_contents catc ON catc.category_id = cat.id AND catc.language_id = ${CATEGORY_LANGUAGE_ID}
 `;
 
-const LOCATION_FILTER_OPTIONS = ['commune', 'quartier', 'radius'];
+const LOCATION_FILTER_OPTIONS = ['commune', 'communes', 'quartier', 'radius'];
 
 function withoutLocationFilters(options) {
   const next = { ...options };

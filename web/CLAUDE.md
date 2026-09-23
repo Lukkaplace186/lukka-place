@@ -1862,3 +1862,47 @@ From a 375px walk of home → /listings → a listing on production. Desktop
   one, so page content looks un-hydrated (no `__reactFiber` on `h1`,
   "Chargement…" still in the DOM) until the first screenshot or click. Take a
   screenshot before asserting on client behaviour.
+
+## Search that understands Kinshasa (2026-09-23)
+
+The hero box and the /listings box both go through `lib/searchParser.js` →
+URL params → `getListings`. Same look; what changed is what they understand
+and what happens on zero results. `tests/unit/search-parser.test.js` holds
+the real phrases, `search-relaxation.test.js` the SQL.
+
+- **Parser** reads bare prices ("500$", "800 usd", "1.5k", "budget 800"),
+  ranges ("entre 500 et 1000", "500-800"), number words and Lingala
+  ("deux chambres", "basuku mibale"), "3 pièces" (= 2 ch), "chambre salon"
+  (= 1 ch — it used to resolve to the quartier Salongo), "appart"/"apt"/typos,
+  "centre-ville"/"Kin centre" (= Gombe), and "Kinshasa" as the city unless
+  "commune de Kinshasa". Up to five places, all searched, in typed order.
+- **`?communes=Gombe,Ngaliema`** carries the extra places; `commune` stays the
+  first, so every single-commune reader is unchanged. FilterBar, chips, saved
+  search labels and the count endpoint carry it.
+- **Gazetteer**: hyphens/apostrophes read as spaces ("cite verte" =
+  Cité-Verte); `FUZZY_STOPWORDS` stops everyday words being guessed into
+  places; an ambiguous prefix inside one commune ("binza") is that commune; a
+  quartier name in several communes (Salongo) searches all of them.
+- **Leftover words** (`lib/searchKeywords.js`, shared client/server): filler is
+  dropped, each remaining word is matched on its own, accent-folded in SQL
+  (`translate()`, not `unaccent`), with a leading word boundary. It used to be
+  one ILIKE phrase, so "pas cher" or "near UPN" emptied the page.
+- **Zero results → `relaxSearch`**, only when the caller passes `allowRelax`
+  (the /listings page and `/api/listings/count`; never saved-search alerts):
+  drop unmatched words → quartier to commune → nearest listings by distance
+  from the commune centroid (≤15 km, ≤48, nearest first, via the map's own
+  marker read so untagged listings with coordinates count) → budget +15 % →
+  one bedroom fewer. Purpose and type are never relaxed. Every step taken is
+  in `relaxation` and printed by ResultsHeader; the heading says "près de".
+  The count endpoint returns `{ total: 0, suggested: N }` and the hero button
+  shows "N suggestions".
+- **Empty state** chips are the nearest communes with listings, with km.
+- **`KINSHASA_COMMUNE_CENTROIDS` was re-verified** — Masina, Ndjili, Maluku,
+  Kasa-Vubu and Mont-Ngafula were wrong; see the comment in `lib/geocoding.js`.
+  This also moves commune-fallback map pins and km-radius searches for those
+  communes to the right place.
+- **Search log**: one `[search] {…}` line per page-1 search in the web process
+  log (filters, total, whether exact, which relax steps). No visitor id.
+  `pm2 logs lukka-place-web --lines 5000 --nostream | grep '\[search\]'`.
+- The test hooks now load `.json` imports (`tests/support/hooks.mjs`), so
+  `lib/gazetteer.js` is testable.

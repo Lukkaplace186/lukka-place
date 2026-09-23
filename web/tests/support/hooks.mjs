@@ -57,6 +57,15 @@ registerHooks({
       return { url: maybeFakeDb(pathToFileURL(target).href), shortCircuit: true };
     }
 
+    // A bare `import data from './x.json'` — Next bundles it; plain Node ESM
+    // refuses it without `with { type: 'json' }`. Supply the attribute here
+    // so lib modules that import JSON (lib/gazetteer.js) load in tests.
+    if (specifier.endsWith('.json') && !context.importAttributes?.type) {
+      const importAttributes = { ...context.importAttributes, type: 'json' };
+      const resolved = nextResolve(specifier, { ...context, importAttributes });
+      return { ...resolved, importAttributes };
+    }
+
     // Extensionless *relative* imports (`./db`, `../lib/format`) are the same
     // bundler affordance, and this codebase uses them throughout. Plain Node
     // ESM requires the extension, so retry once with `.js` when the real

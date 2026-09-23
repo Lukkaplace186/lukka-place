@@ -39,8 +39,39 @@ function normalize(value) {
  *  kinshasa_locations.json itself spells it) lines up with this gazetteer's
  *  "Ma Campagne" without needing a second hardcoded spelling on file. */
 function looseNormalize(value) {
-  return normalize(value).replace(/[\s'-]/g, '');
+  return normalize(value).replace(/[\s'’-]/g, '');
 }
+
+/** normalize(), with hyphens and apostrophes read as spaces: "Cité-Verte",
+ *  "cite verte" and "cité verte" are the same place to a visitor typing it.
+ *  Character-for-character the same length as its input (each separator is
+ *  replaced, never removed), so an index found here is an index into the
+ *  original text — see findLocationMention's matchedText. */
+function spaced(value) {
+  return stripDiacritics(String(value || '')).toLowerCase().replace(/[-'’]/g, ' ');
+}
+
+/**
+ * Everyday words that must never be read as a place by the fuzzy tiers below.
+ * Each of these was a real misfire: "chambre salon" (the commonest rental
+ * phrase in Kinshasa) became the quartier Salongo, "petit appart" became the
+ * landmark "Petites Sœurs des Pauvres", "cité" became "Cité de l'O.U.A.",
+ * "mont" became Mont-Fleury. An exact, whole-label match still works — a
+ * visitor who types "Salongo" gets Salongo — only the guessing is refused.
+ */
+const FUZZY_STOPWORDS = new Set([
+  'chambre', 'chambres', 'salon', 'salons', 'petit', 'petite', 'petits', 'petites', 'grand', 'grande', 'grands',
+  'grandes', 'cite', 'mont', 'maison', 'maisons', 'appartement', 'appartements', 'appart', 'apparts', 'studio',
+  'studios', 'villa', 'villas', 'terrain', 'terrains', 'parcelle', 'parcelles', 'duplex', 'immeuble', 'bureau',
+  'bureaux', 'magasin', 'depot', 'entrepot', 'avec', 'pour', 'dans', 'louer', 'vendre', 'vente', 'location',
+  'achat', 'acheter', 'prix', 'budget', 'dollars', 'moins', 'entre', 'sous', 'quartier', 'commune', 'avenue',
+  'route', 'place', 'rond', 'point', 'marche', 'pont', 'port', 'hopital', 'ecole', 'eglise', 'universite',
+  'hotel', 'residence', 'meuble', 'meublee', 'meubles', 'piscine', 'garage', 'jardin', 'neuf', 'neuve',
+  'nouveau', 'nouvelle', 'belle', 'propre', 'calme', 'securise', 'securisee', 'house', 'houses', 'apartment',
+  'apartments', 'flat', 'flats', 'bedroom', 'bedrooms', 'room', 'rooms', 'near', 'with', 'rent', 'sale',
+  'kinshasa', 'cherche', 'recherche', 'pieces', 'douche', 'douches', 'toilette', 'toilettes', 'cuisine',
+  'porte', 'portes', 'etage', 'niveau', 'plain', 'pied', 'haut', 'standing', 'luxe', 'moderne',
+]);
 
 /** Classic edit distance (insert/delete/substitute), O(a.length * b.length).
  *  Both inputs here are always short place names, so this is cheap even run
@@ -68,12 +99,12 @@ function editDistance(a, b) {
 // one searchable row. ~600 short strings; a linear scan per request is
 // well under a millisecond, no search index needed.
 const INDEX = gazetteer.flatMap(({ commune, quartiers, landmarks }) => {
-  const rows = [{ type: 'commune', label: commune, commune, norm: normalize(commune) }];
+  const rows = [{ type: 'commune', label: commune, commune, norm: normalize(commune), spaced: spaced(commune).trim() }];
   for (const quartier of quartiers) {
-    rows.push({ type: 'quartier', label: quartier, commune, norm: normalize(quartier) });
+    rows.push({ type: 'quartier', label: quartier, commune, norm: normalize(quartier), spaced: spaced(quartier).trim() });
   }
   for (const landmark of landmarks) {
-    rows.push({ type: 'landmark', label: landmark, commune, norm: normalize(landmark) });
+    rows.push({ type: 'landmark', label: landmark, commune, norm: normalize(landmark), spaced: spaced(landmark).trim() });
   }
   return rows;
 });
@@ -105,19 +136,43 @@ function fuzzyLocationMatch(text) {
   // verbatim in the text at all. Every case this exists for (a misspelled
   // commune, a spaced-out one typed as one word, an abbreviation) is a
   // single token anyway.
-  const words = normalize(text).split(/[\s-]+/).filter(Boolean);
+  //
+  // Everyday words (FUZZY_STOPWORDS) are never candidates: "salon" is a
+  // prefix of Salongo, and "chambre salon" is not a search for Salongo.
+  const words = normalize(text)
+    .split(/[\s'’-]+/)
+    .filter(Boolean)
+    .filter((word) => !FUZZY_STOPWORDS.has(word));
   if (!words.length) return null;
 
   for (const word of words) {
     const looseWord = word.replace(/'/g, '');
     if (looseWord.length < 4) continue;
+
+    const hits = [];
     for (const row of INDEX) {
       const looseLabel = looseNormalize(row.label);
       if (looseLabel.length < 4) continue;
-      if (looseWord === looseLabel || looseLabel.startsWith(looseWord)) {
-        return { ...row, matchedText: word };
-      }
+      if (looseWord === looseLabel) return { ...row, matchedText: word };
+      if (looseLabel.startsWith(looseWord)) hits.push(row);
     }
+    if (hits.length === 0) continue;
+
+    // A commune prefix ("bandal", "kasa") wins outright.
+    const communeHit = hits.find((row) => row.type === 'commune');
+    if (communeHit) return { ...communeHit, matchedText: word };
+
+    // "binza" is the start of four different Ngaliema quartiers
+    // (Binza-Delvaux, -IPN, -Météo, -Pigeon). Picking the first one narrowed
+    // a search for the whole Binza area to Delvaux alone. When every hit
+    // lies in one commune, the honest reading is that commune.
+    const distinct = new Set(hits.map((row) => `${row.type}:${row.label}`));
+    const communes = new Set(hits.map((row) => row.commune));
+    if (distinct.size > 1 && communes.size === 1) {
+      const [commune] = communes;
+      return { type: 'commune', label: commune, commune, norm: normalize(commune), matchedText: word };
+    }
+    return { ...hits[0], matchedText: word };
   }
 
   for (const word of words) {
@@ -160,18 +215,20 @@ function fuzzyLocationMatch(text) {
  * @returns {Array<{type: 'commune'|'quartier'|'landmark', label: string, commune: string, matchIndex: number}>}
  */
 export function searchGazetteer(query, limit = 8) {
-  const q = normalize(query);
+  // Hyphens and apostrophes read as spaces on both sides, so "cite verte"
+  // finds "Cité-Verte" and "mont fleury" finds "Mont-Fleury".
+  const q = spaced(query).replace(/\s+/g, ' ').trim();
   if (!q) return [];
 
   const matches = [];
   for (const row of INDEX) {
-    const matchIndex = row.norm.indexOf(q);
+    const matchIndex = row.spaced.indexOf(q);
     if (matchIndex === -1) continue;
     // Also matches a word boundary within the label ("marché" inside
     // "marché de matete" should rank like a prefix match, not a mid-word
     // substring) — cheap enough to check per candidate since the list is
     // already narrowed to real substring hits.
-    const isWordStart = matchIndex === 0 || row.norm[matchIndex - 1] === ' ' || row.norm[matchIndex - 1] === '-';
+    const isWordStart = matchIndex === 0 || row.spaced[matchIndex - 1] === ' ';
     matches.push({ ...row, matchIndex, rank: isWordStart ? 0 : 1 });
   }
 
@@ -200,7 +257,8 @@ export function searchGazetteer(query, limit = 8) {
     const key = `${m.type}:${m.commune}:${m.label}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push(m);
+    const { spaced: _spaced, ...rest } = m;
+    out.push(rest);
     if (out.length >= limit) break;
   }
   return out;
@@ -214,60 +272,75 @@ export function searchGazetteer(query, limit = 8) {
  * "2 chambres à louer à Ngaliema" resolves a real `commune` filter instead
  * of leaving "Ngaliema" as a doomed literal-substring keyword search.
  *
- * Requires the label to start at a word boundary in the text (not just
- * anywhere mid-word) and picks the longest match when several are found —
- * both cut down on a short, common quartier name (e.g. a 4-letter one)
- * accidentally firing on an unrelated word.
+ * Requires the label to start AND end at a word boundary in the text and
+ * picks the longest match when several are found — both cut down on a
+ * short, common quartier name accidentally firing on an unrelated word.
+ *
+ * Hyphens and apostrophes count as spaces on both sides ("cite verte" is
+ * Cité-Verte), and `matchedText` is always the visitor's OWN text at that
+ * position — what the parser has to strip — never the canonical label.
+ *
+ * `alsoIn` lists the other communes where the same quartier name exists
+ * (Salongo is a quartier of Kasa-Vubu, Limete AND Lemba): the parser searches
+ * all of them rather than silently picking the first.
  *
  * @param {string} text
- * @returns {{type: 'commune'|'quartier'|'landmark', label: string, commune: string}|null}
+ * @returns {{type: 'commune'|'quartier'|'landmark', label: string, commune: string, matchedText: string, alsoIn: string[]}|null}
  */
 export function findLocationMention(text) {
-  const norm = normalize(text);
-  if (!norm) return null;
+  const source = String(text || '');
+  const norm = spaced(source);
+  if (!norm.trim()) return null;
+  const sameLength = norm.length === source.length;
 
   let best = null;
+  let bestIndex = -1;
   for (const row of INDEX) {
-    // Floor of 3, not 4: real short labels exist in this gazetteer today
-    // (CPA, a real Ngaliema quartier; Yuo) that a 4-char floor silently
-    // made unreachable here even though they already work fine in the
-    // autocomplete dropdown (searchGazetteer has no such gate at all) —
-    // confirmed by checking every label's length before picking this
-    // number, not guessed. Safe to lower because of the *added* trailing-
-    // boundary check just below, which this function didn't have before:
-    // previously a short label only had to *start* at a word boundary, so
-    // "Golf" could in principle have matched the first four letters of an
-    // unrelated longer word. Requiring the match to also *end* at a word
-    // boundary (or the end of the string) is what actually makes a 3-char
-    // floor safe, not the floor number itself.
-    if (row.norm.length < 3) continue;
-    const matchIndex = norm.indexOf(row.norm);
-    if (matchIndex === -1) continue;
-    // Apostrophe counts as a leading boundary too — real French elision
-    // ("l'UPN", "d'Ozone") puts a vowel-initial name directly against a
-    // preceding apostrophe with no space at all. Confirmed this was a real
-    // gap while adding UPN: "près de l'UPN" would otherwise fail the
-    // word-start check entirely (the character right before "upn" is "'",
-    // which wasn't in the accepted boundary set).
-    const isWordStart =
-      matchIndex === 0 || [' ', '-', "'"].includes(norm[matchIndex - 1]);
-    if (!isWordStart) continue;
-    const endIndex = matchIndex + row.norm.length;
-    const isWordEnd = endIndex === norm.length || norm[endIndex] === ' ' || norm[endIndex] === '-';
-    if (!isWordEnd) continue;
-    if (!best || row.norm.length > best.norm.length) best = row;
+    // Floor of 3, not 4: real short labels exist in this gazetteer (CPA, a
+    // real Ngaliema quartier; Yuo). Safe because the match must also END at
+    // a word boundary, so "Golf" can never fire on the start of a longer word.
+    if (row.spaced.length < 3) continue;
+    let from = 0;
+    while (from <= norm.length) {
+      const matchIndex = norm.indexOf(row.spaced, from);
+      if (matchIndex === -1) break;
+      from = matchIndex + 1;
+      // Apostrophe counts as a leading boundary too (French elision:
+      // "près de l'UPN") — spaced() already turned it into a space.
+      const isWordStart = matchIndex === 0 || !/[\p{L}\p{N}]/u.test(norm[matchIndex - 1]);
+      if (!isWordStart) continue;
+      const endIndex = matchIndex + row.spaced.length;
+      const isWordEnd = endIndex === norm.length || !/[\p{L}\p{N}]/u.test(norm[endIndex]);
+      if (!isWordEnd) continue;
+      if (!best || row.spaced.length > best.spaced.length) {
+        best = row;
+        bestIndex = matchIndex;
+      }
+      break;
+    }
   }
 
-  // `matchedText` is what the caller (lib/searchParser.js) actually strips
-  // out of the free text — the real label for an exact match (it appears
-  // verbatim), but the literal typed word for a fuzzy one, since the
-  // canonical label ("Limete") never appears in a text that only contains
-  // the typo ("limite").
-  if (best) return { type: best.type, label: best.label, commune: best.commune, matchedText: best.label };
+  if (best) {
+    const matchedText = sameLength ? source.slice(bestIndex, bestIndex + best.spaced.length) : best.label;
+    const alsoIn =
+      best.type === 'quartier'
+        ? [
+            ...new Set(
+              INDEX.filter((r) => r.type === 'quartier' && r.spaced === best.spaced && r.commune !== best.commune).map(
+                (r) => r.commune,
+              ),
+            ),
+          ]
+        : [];
+    return { type: best.type, label: best.label, commune: best.commune, matchedText, alsoIn };
+  }
 
-  const fuzzy = fuzzyLocationMatch(text);
-  return fuzzy ? { type: fuzzy.type, label: fuzzy.label, commune: fuzzy.commune, matchedText: fuzzy.matchedText } : null;
+  const fuzzy = fuzzyLocationMatch(source);
+  return fuzzy
+    ? { type: fuzzy.type, label: fuzzy.label, commune: fuzzy.commune, matchedText: fuzzy.matchedText, alsoIn: [] }
+    : null;
 }
+
 
 /** @returns {string[]} every real commune name, in gazetteer order */
 export function allCommuneNames() {

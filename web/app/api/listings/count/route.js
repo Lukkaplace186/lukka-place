@@ -17,6 +17,12 @@ import { parseListingsSearchParams } from '@/lib/searchQuery';
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const filters = parseListingsSearchParams(searchParams);
-  const { total } = await getListings({ ...filters, limit: 1 });
-  return NextResponse.json({ total });
+  // allowRelax, like the page itself: `total` stays the EXACT count, and
+  // `suggested` says how many alternatives the page would show instead when
+  // that is zero (lib/listings.js relaxSearch). The hero button can then say
+  // "12 suggestions" rather than a flat "0 bien" for a search that will
+  // land on real, labelled results.
+  const { total, relaxation } = await getListings({ ...filters, limit: 1, allowRelax: true });
+  if (relaxation) return NextResponse.json({ total: 0, suggested: total });
+  return NextResponse.json({ total, suggested: 0 });
 }

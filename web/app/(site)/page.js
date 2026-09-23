@@ -3,6 +3,7 @@ import { getHeroSettings } from '@/lib/cmsSettings';
 import FeaturedListings from '@/components/FeaturedListings';
 import SavedListings from '@/components/SavedListings';
 import ValueProposition from '@/components/ValueProposition';
+import RecentlyViewed from '@/components/RecentlyViewed';
 import { getListings, getPopularCommunes, getPropertyTypeFacets } from '@/lib/listings';
 import { getSavedHomeSection } from '@/lib/savedHome';
 import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB } from '@/lib/constants';
@@ -106,6 +107,8 @@ export default async function HomePage() {
   return (
     <>
       <Hero propertyTypes={propertyTypes} communes={communes} initialCount={total} image={heroImage} />
+      {/* Returning visitors pick up where they left off; renders nothing on a first visit. */}
+      <RecentlyViewed />
       {saved ? <SavedListings listings={saved.listings} firstName={saved.firstName} /> : <FeaturedListings />}
       <ValueProposition />
     </>

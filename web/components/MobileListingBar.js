@@ -1,8 +1,8 @@
 'use client';
 
-import { MessageCircle } from 'lucide-react';
+import { MessageCircle, CalendarClock } from 'lucide-react';
 import Price from './Price';
-import FavoriteButton from './FavoriteButton';
+import { OPEN_VISIT_EVENT } from './EnquiryCard';
 import { resolveWhatsAppRouting } from '@/lib/leadRouting';
 import { trackLeadClick } from '@/lib/analyticsClient';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -29,6 +29,11 @@ import { useT } from '@/lib/i18n/client';
  * agent directly, the central number otherwise. It used to go central
  * unconditionally, so the same listing offered a different contact on a
  * phone than on a laptop.
+ *
+ * "Visiter" sits beside WhatsApp so the tracked path (a real visit request,
+ * followed up and measured) is as close to the thumb as the untracked chat.
+ * It opens EnquiryCard's own dialog rather than a second form. The heart
+ * made room for it: the same button is already on the photo.
  */
 export default function MobileListingBar({ listing }) {
   const t = useT();
@@ -39,19 +44,19 @@ export default function MobileListingBar({ listing }) {
       className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 px-4 py-3 pb-[env(safe-area-inset-bottom)] lg:backdrop-blur-md lg:hidden"
       style={{ boxShadow: '0 -8px 24px -12px rgba(12, 29, 80, 0.25)' }}
     >
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <p className="u-tabular min-w-0 flex-1 text-lg font-medium leading-none tracking-[0.1px] text-ink">
           <Price amount={listing.price} purpose={listing.purpose} pricePeriod={listing.price_period} />
         </p>
 
-        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-line transition-colors hover:border-blue">
-          <FavoriteButton
-            listingId={listing.id}
-            className="bg-transparent"
-            price={listing.price}
-            commune={listing.commune}
-          />
-        </span>
+        <button
+          type="button"
+          onClick={() => window.dispatchEvent(new CustomEvent(OPEN_VISIT_EVENT, { detail: { propertyId: listing.id } }))}
+          className="u-press u-focus-ring inline-flex shrink-0 items-center gap-1.5 rounded-full border border-line bg-surface px-4 py-2.5 text-[0.8125rem] font-semibold text-ink transition-colors hover:border-blue"
+        >
+          <CalendarClock strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+          {t('enquiry.visitShort')}
+        </button>
 
         {href ? (
           <a
@@ -59,7 +64,7 @@ export default function MobileListingBar({ listing }) {
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => trackLeadClick(listing, routingType)}
-            className="u-press u-focus-ring inline-flex shrink-0 items-center gap-2 rounded-full border border-transparent bg-green px-5 py-2.5 text-[0.8125rem] font-semibold text-white transition-colors hover:bg-green-deep"
+            className="u-press u-focus-ring inline-flex shrink-0 items-center gap-2 rounded-full border border-transparent bg-green px-4 py-2.5 text-[0.8125rem] font-semibold text-white transition-colors hover:bg-green-deep"
           >
             <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
             {t('common.shared.whatsapp')}

@@ -1822,3 +1822,42 @@ From a 375px walk of home → /listings → a listing on production. Desktop
   lib/adminRoles.js — a sales rep used to land on a page they may not open).
   The rep page opens on a field view (`getRepFieldView`): signups today / 7
   days and agents quiet for 7 days with a wa.me nudge from the rep's phone.
+
+## Pre-launch UX pass (2026-09-23)
+
+- **Logo no longer reads "LukkaPlacer".** The roof's right-hand vertical
+  stroke sat directly after the "e" and read as an "r" at header size. It was
+  erased from `public/brand/logo-light.png` and `logo-dark.png` (pixels right
+  of x≈2160 below the eave, via sharp); the roof and eave are otherwise the
+  supplied art. `public/og-image.png` was regenerated from the new dark logo
+  (505px wide on #1d5bd8, 1200×630). Every reference carries `?v=2` so phones
+  and WhatsApp's link-preview cache fetch the new files — bump it if the art
+  changes again.
+- **Listing page kicker** above the price: "APPARTEMENT À LOUER · 2 CH · 2 SDB"
+  (`typeLabel` + `listings.transaction.*` + `specItems`). The h1 stays the
+  place; this line says what the property is on a phone's first screen.
+- **"Visiter" in `MobileListingBar`**, beside WhatsApp; the heart moved out
+  (it is on the photo already). It dispatches `OPEN_VISIT_EVENT`
+  (`components/EnquiryCard.js`) and the `VisitRequestDialog` whose trigger is
+  actually displayed opens — the page mounts two EnquiryCards (phone column +
+  desktop rail), so without the `offsetParent` check both dialogs would open.
+- **"Récemment consultés"** (`components/RecentlyViewed.js`,
+  `lib/recentlyViewed.js`): ids in localStorage, recorded by
+  `ListingViewTracker`'s `listingId`, turned into listings through
+  `/api/listings?ids=` (public gate applies). On the homepage under the hero
+  and at the foot of each listing (self excluded). Renders nothing on the
+  server or on a first visit. `tests/unit/recently-viewed.test.js`.
+- **404s**: `app/(site)/listings/[id]/not-found.js` ("Cette annonce n'est
+  plus en ligne" + three live listings — the dead link people actually hit is
+  a listing shared weeks ago), `app/(site)/not-found.js`, and `app/not-found.js`
+  for unmatched URLs (outside the site header, so it carries the wordmark).
+  Before, all three were Next's default English page. The listing one answers
+  200 with `noindex` (streamed under `loading.js`), unmatched URLs 404.
+- **Empty search state**: "Retirer la limite de prix" chip, and the last
+  hardcoded French string there moved to `listings.empty.allIn`.
+- **Hydration #418 does not reproduce** on the live home, listings or listing
+  pages (2026-09-23). Testing note: the in-app test browser does not paint
+  frames until a screenshot or input, and React 19's Suspense reveal waits for
+  one, so page content looks un-hydrated (no `__reactFiber` on `h1`,
+  "Chargement…" still in the DOM) until the first screenshot or click. Take a
+  screenshot before asserting on client behaviour.

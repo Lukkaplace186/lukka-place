@@ -92,6 +92,17 @@
       "exit": "Exit",
       "roleAgent": "agent",
       "roleCustomer": "customer"
+    },
+    "notFound": {
+      "page": {
+        "title": "This Page Doesn't Exist",
+        "body": "The link may be incomplete, or the page has moved."
+      },
+      "listing": {
+        "title": "This Listing Is No Longer Online",
+        "body": "The property may have been let, sold or withdrawn by the agent. Here are other properties available in Kinshasa."
+      },
+      "browse": "See available properties"
     }
   },
   "nav": {
@@ -328,7 +339,9 @@
       "noneWithin5km": "No properties found even when widening to 5 km around {commune}.",
       "noExactAt": "No property exactly matches your search in {commune}.",
       "generic": "Try widening your search — fewer filters, a broader price range, or a different commune.",
-      "widenToCommune": "Widen to all of {commune}"
+      "widenToCommune": "Widen to all of {commune}",
+      "allIn": "See all properties in {commune}",
+      "removePrice": "Remove the price limit"
     },
     "badges": {
       "rental": "To rent",
@@ -553,6 +566,10 @@
       "nearby": "Nearby",
       "noneLeftIn": "No other property available in {commune} right now."
     },
+    "recent": {
+      "eyebrow": "Your History",
+      "title": "Recently Viewed"
+    },
     "viewVerified": "See listings",
     "saveContact": "Save contact",
     "favorite": {
@@ -585,7 +602,8 @@
       "time": "Tell us the time that suits you.",
       "failed": "Sending failed, please try again."
     },
-    "trackVisit": "Follow their answer in My viewings →"
+    "trackVisit": "Follow their answer in My viewings →",
+    "visitShort": "Visit"
   },
   "search": {
     "label": {

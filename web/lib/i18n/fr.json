@@ -92,6 +92,17 @@
       "exit": "Quitter",
       "roleAgent": "agent",
       "roleCustomer": "client"
+    },
+    "notFound": {
+      "page": {
+        "title": "Cette page n'existe pas",
+        "body": "Le lien est peut-être incomplet, ou la page a été déplacée."
+      },
+      "listing": {
+        "title": "Cette annonce n'est plus en ligne",
+        "body": "Le bien a peut-être été loué, vendu ou retiré par l'agent. Voici d'autres biens disponibles à Kinshasa."
+      },
+      "browse": "Voir les biens disponibles"
     }
   },
   "nav": {
@@ -328,7 +339,9 @@
       "noneWithin5km": "Aucun bien trouvé même en élargissant jusqu’à 5 km autour de {commune}.",
       "noExactAt": "Aucun bien ne correspond exactement à votre recherche à {commune}.",
       "generic": "Essayez d'élargir votre recherche — moins de filtres, une fourchette de prix plus large, ou une autre commune.",
-      "widenToCommune": "Élargir à {commune} entière"
+      "widenToCommune": "Élargir à {commune} entière",
+      "allIn": "Voir tous les biens à {commune}",
+      "removePrice": "Retirer la limite de prix"
     },
     "badges": {
       "rental": "Location",
@@ -553,6 +566,10 @@
       "nearby": "À proximité",
       "noneLeftIn": "Aucun autre bien disponible à {commune} pour le moment."
     },
+    "recent": {
+      "eyebrow": "Votre historique",
+      "title": "Récemment consultés"
+    },
     "viewVerified": "Voir les annonces",
     "saveContact": "Enregistrer le contact",
     "favorite": {
@@ -585,7 +602,8 @@
       "time": "Indiquez le créneau qui vous arrange.",
       "failed": "L'envoi a échoué, réessayez."
     },
-    "trackVisit": "Suivre sa réponse dans Mes visites →"
+    "trackVisit": "Suivre sa réponse dans Mes visites →",
+    "visitShort": "Visiter"
   },
   "search": {
     "label": {

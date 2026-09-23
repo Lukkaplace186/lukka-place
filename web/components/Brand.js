@@ -40,7 +40,7 @@ const LOGO_SIZES = {
 
 export function Wordmark({ inverted = false, className = '', size = 'base' }) {
   const t = useT();
-  const src = inverted ? '/brand/logo-dark.png' : '/brand/logo-light.png';
+  const src = inverted ? '/brand/logo-dark.png?v=2' : '/brand/logo-light.png?v=2';
 
   return (
     <Link href="/" aria-label="Lukka Place — accueil" className={`inline-flex items-center ${className}`}>

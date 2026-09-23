@@ -11,11 +11,12 @@ import PricePanel from '@/components/PricePanel';
 import EnquiryCard from '@/components/EnquiryCard';
 import ListingLocationMap from '@/components/ListingLocationMap';
 import RelatedListings from '@/components/RelatedListings';
+import RecentlyViewed from '@/components/RecentlyViewed';
 import MobileListingBar from '@/components/MobileListingBar';
 import ShareButton from '@/components/ShareButton';
 import FavoriteButton from '@/components/FavoriteButton';
 import { getListingById, getListings, getSimilarListings } from '@/lib/listings';
-import { listingImages, locationLine } from '@/lib/listingView';
+import { listingImages, locationLine, typeLabel, specItems } from '@/lib/listingView';
 import { formatPrice } from '@/lib/format';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import ListingViewTracker from '@/components/ListingViewTracker';
@@ -145,6 +146,15 @@ export default async function ListingDetailPage({ params, searchParams }) {
     const remainder = a.replace(w, ' ').replace(/\bkinshasa\b/g, ' ').replace(/[^a-z0-9]+/g, '');
     return remainder ? address : null;
   })();
+  const purposeLabel = listing.purpose === 'rent'
+    ? t('listings.transaction.rent')
+    : listing.purpose === 'sale' ? t('listings.transaction.sale') : null;
+  const kindLabel = typeLabel(listing, t);
+  const kicker = [
+    [kindLabel, purposeLabel ? purposeLabel.toLowerCase() : null].filter(Boolean).join(' '),
+    ...specItems(listing, t).filter((s) => s.key === 'beds' || s.key === 'bath').map((s) => `${s.value} ${s.label}`),
+  ].filter(Boolean).join(' · ');
+
   // Up to 5 here rather than a card's 2 — the detail page has a dedicated
   // "Équipements" section with room for the full matched set.
 
@@ -181,7 +191,7 @@ export default async function ListingDetailPage({ params, searchParams }) {
     // close to 96px, so this went up slightly rather than down to keep a
     // real margin above it.
     <div className="pb-28 lg:pb-0">
-      <ListingViewTracker path={`/listings/${listing.id}`} commune={listing.commune} />
+      <ListingViewTracker path={`/listings/${listing.id}`} commune={listing.commune} listingId={listing.id} />
       <div className="mx-auto max-w-7xl px-4 sm:px-6 sm:pt-6 lg:px-8">
         {/* sm and up: breadcrumb left, Partager/Enregistrer right. On a
             phone neither row exists — the photo starts right under the
@@ -237,6 +247,13 @@ export default async function ListingDetailPage({ params, searchParams }) {
             {/* Price leads the page — the design's single loudest number,
                 above the title rather than tucked into the enquiry panel. */}
             <div className="flex flex-col gap-2.5">
+              {/* What the property IS, before what it costs — "Appartement à
+                  louer · 2 ch · 2 sdb". The h1 below is the place, so without
+                  this line a phone's first screen said where and how much but
+                  never what. KeyFacts still carries the full grid. */}
+              {kicker ? (
+                <p className="text-[0.8125rem] font-semibold uppercase tracking-[0.06em] text-blue">{kicker}</p>
+              ) : null}
               {/* Explicit classes, not `.u-price` / `.u-h1`. Those globals are
                   24px/500 and 20px/500 — the "font-medium, washed out"
                   pairing this page was called out for — but they are shared
@@ -340,6 +357,8 @@ export default async function ListingDetailPage({ params, searchParams }) {
       <div className="mt-16">
         <RelatedListings listings={related} commune={listing.commune} widened={widened} mode={relatedMode} />
       </div>
+
+      <RecentlyViewed excludeId={listing.id} />
 
       <MobileListingBar listing={listing} />
     </div>

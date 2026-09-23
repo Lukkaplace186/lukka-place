@@ -139,7 +139,7 @@ export default function AdminSidebar({ mobile = false, role }) {
       <div className="flex flex-col gap-1">
         {/* eslint-disable-next-line @next/next/no-img-element -- static local
             brand asset, same reasoning as components/Brand.js */}
-        <img src="/brand/logo-dark.png" alt={t('footer.columns.brand')} className="h-6 w-auto self-start" />
+        <img src="/brand/logo-dark.png?v=2" alt={t('footer.columns.brand')} className="h-6 w-auto self-start" />
         <span className="u-eyebrow text-white/60">{t('admin.chrome.eyebrow')}</span>
       </div>
 

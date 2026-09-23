@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useIsLoggedIn } from '@/lib/customerClient';
 import { MessageCircle, Phone, CalendarClock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
@@ -22,6 +22,9 @@ const FIELD_CLASS =
   'u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35';
 
 // Keys, not text — see components/navItems.js.
+/** MobileListingBar's "Visiter" opens the dialog through this event. */
+export const OPEN_VISIT_EVENT = 'lukka:open-visit';
+
 const VISIT_ERROR_KEYS = {
   phone: 'enquiry.errors.phone',
   time: 'enquiry.errors.time',
@@ -58,6 +61,20 @@ function VisitRequestDialog({ propertyId }) {
   const locale = useLocale();
   const [open, setOpen] = useState(false);
   const bound = submitVisitRequestAction.bind(null, propertyId);
+  const triggerRef = useRef(null);
+
+  // The page mounts two EnquiryCards (phone column + desktop rail, one of
+  // them display:none), so only the copy whose button is actually on
+  // screen answers — otherwise the sticky bar would open two dialogs.
+  useEffect(() => {
+    const onOpen = (event) => {
+      if (event.detail?.propertyId !== propertyId) return;
+      if (!triggerRef.current || triggerRef.current.offsetParent === null) return;
+      setOpen(true);
+    };
+    window.addEventListener(OPEN_VISIT_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_VISIT_EVENT, onOpen);
+  }, [propertyId]);
 
   // A signed-in customer's visit request is found in their account by
   // phone number, so the form opens with the account's own number (and
@@ -83,6 +100,7 @@ function VisitRequestDialog({ propertyId }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen(true)}
         className="u-press u-btn-secondary inline-flex w-full items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold text-ink"

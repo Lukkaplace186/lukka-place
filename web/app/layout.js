@@ -57,7 +57,7 @@ const dmSerifDisplay = DM_Serif_Display({
 // transparency for the surfaces (favicon tiles, share-card previews) that
 // need one. Regenerate by re-running the compositing script (sharp is
 // already a project dependency) if the source lockup ever changes.
-const OG_IMAGE = '/og-image.png';
+const OG_IMAGE = '/og-image.png?v=2';
 
 /*
  * generateMetadata rather than a static object: the site title, description

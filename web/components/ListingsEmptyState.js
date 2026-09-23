@@ -41,6 +41,10 @@ export default function ListingsEmptyState({ popularCommunes = [], params = {}, 
     params.bath_min
       ? { key: 'bath_min', label: t('listings.filters.removeFilter', { label: RELAXABLE_LABEL.bath_min(t, params.bath_min) }) }
       : null,
+    // Budget is the filter most often set too tight in Kinshasa searches.
+    params.price_min || params.price_max
+      ? { key: ['price_min', 'price_max'], label: t('listings.empty.removePrice') }
+      : null,
     params.property_type
       ? {
           key: 'property_type',
@@ -99,12 +103,12 @@ export default function ListingsEmptyState({ popularCommunes = [], params = {}, 
               href={`/listings?commune=${encodeURIComponent(commune)}`}
               className="u-press inline-flex items-center rounded-full border border-line bg-canvas px-3.5 py-1.5 text-[0.8125rem] font-medium text-ink-70 transition-colors hover:border-blue hover:text-blue-deep"
             >
-              Voir tous les biens à {commune}
+              {t('listings.empty.allIn', { commune })}
             </Link>
           ) : null}
           {relaxable.map(({ key, label }) => (
             <Link
-              key={key}
+              key={String(key)}
               href={hrefWithoutKeys(params, key)}
               className="u-press inline-flex items-center rounded-full border border-line bg-canvas px-3.5 py-1.5 text-[0.8125rem] font-medium text-ink-70 transition-colors hover:border-blue hover:text-blue-deep"
             >

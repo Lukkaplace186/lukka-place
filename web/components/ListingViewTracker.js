@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 
 import { trackEvent } from '@/lib/analyticsClient';
+import { rememberViewed } from '@/lib/recentlyViewed';
 
 /**
  * Fires once per detail-page mount — the page_view side of web/lib/analytics.js.
@@ -10,10 +11,15 @@ import { trackEvent } from '@/lib/analyticsClient';
  * page it sits in, and a failed/blocked request (ad blockers routinely block
  * analytics-shaped endpoints) is swallowed rather than surfaced to the visitor.
  */
-export default function ListingViewTracker({ path, commune }) {
+export default function ListingViewTracker({ path, commune, listingId = null }) {
   useEffect(() => {
     trackEvent('page_view', { path, commune });
   }, [path, commune]);
+
+  // Feeds the "Récemment consultés" rail (components/RecentlyViewed.js).
+  useEffect(() => {
+    if (listingId != null) rememberViewed(listingId);
+  }, [listingId]);
 
   return null;
 }

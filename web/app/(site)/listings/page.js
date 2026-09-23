@@ -19,6 +19,7 @@ import { MAP_BOUNDS_PARAMS } from '@/lib/mapViewport';
 import { hrefWithoutKeys } from '@/lib/urlParams';
 import { distanceKm } from '@/lib/mapViewport';
 import { KINSHASA_COMMUNE_CENTROIDS } from '@/lib/geocoding';
+import { seoPathForParams } from '@/lib/seoPages';
 
 /** Filters worth logging as "a search" (sort/view/page are not). */
 const SEARCH_LOG_KEYS = [
@@ -40,6 +41,26 @@ function communesByDistance(allCommunes, from, limit = 6) {
     .map((row) => ({ ...row, km: Math.max(1, Math.round(distanceKm(origin, KINSHASA_COMMUNE_CENTROIDS[row.commune]))) }))
     .sort((a, b) => a.km - b.km || b.count - a.count)
     .slice(0, limit);
+}
+
+/**
+ * Search results are a tool, not a page Google should rank on its own: a
+ * filter combination that a landing page already covers
+ * (?transaction_type=location&commune=Gombe) names that page as canonical;
+ * the bare /listings is indexable; anything narrower (budget, quartier, map
+ * box, page 2) is noindex but followed, so its listing links still count.
+ * lib/seoPages.js seoPathForParams.
+ */
+export async function generateMetadata({ searchParams }) {
+  const params = await searchParams;
+  const t = await getT();
+  const landing = seoPathForParams(params);
+  const hasFilters = Object.entries(params).some(([k, v]) => v && !['sort', 'view'].includes(k) && !k.startsWith('utm_'));
+  return {
+    title: `${t('breadcrumb.listings')} — ${t('site.metaTitle')}`,
+    alternates: { canonical: landing || '/listings' },
+    robots: !hasFilters || landing ? undefined : { index: false, follow: true },
+  };
 }
 
 export default async function ListingsPage({ searchParams }) {

@@ -114,6 +114,13 @@ export async function generateMetadata() {
       icon: '/icon.png',
       apple: '/brand/apple-touch-icon.png',
     },
+    // Search Console / Bing Webmaster ownership, pasted into .env.local:
+    // GOOGLE_SITE_VERIFICATION / BING_SITE_VERIFICATION (the token only, not
+    // the whole <meta> tag). Absent = no tag, e.g. when verified by DNS.
+    verification: {
+      ...(process.env.GOOGLE_SITE_VERIFICATION ? { google: process.env.GOOGLE_SITE_VERIFICATION } : {}),
+      ...(process.env.BING_SITE_VERIFICATION ? { other: { 'msvalidate.01': process.env.BING_SITE_VERIFICATION } } : {}),
+    },
   };
 }
 

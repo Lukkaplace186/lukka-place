@@ -7,6 +7,8 @@ import RecentlyViewed from '@/components/RecentlyViewed';
 import { cachedListingsTotal, cachedPopularCommunes, cachedPropertyTypeFacets } from '@/lib/listingsCached';
 import { getSavedHomeSection } from '@/lib/savedHome';
 import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB } from '@/lib/constants';
+import JsonLd from '@/components/seo/JsonLd';
+import { organizationSchema, websiteSchema } from '@/lib/seoSchema';
 
 /**
  * The homepage, section for section as web/Design/Landing's "Lukka Place —
@@ -95,6 +97,10 @@ import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB } from '@/lib/constants';
  * of each other was the alternative. The component still exists and nothing
  * else imports it, same as the four other sections listed above.
  */
+export async function generateMetadata() {
+  return { alternates: { canonical: '/' } };
+}
+
 export default async function HomePage() {
   const [propertyTypes, communes, { total }, saved, heroImage] = await Promise.all([
     // 60-second copies (lib/listingsCached.js): counts and facets, not results.
@@ -107,6 +113,8 @@ export default async function HomePage() {
 
   return (
     <>
+      {/* Who Lukka Place is and the sitelinks search box — lib/seoSchema.js. */}
+      <JsonLd data={{ '@context': 'https://schema.org', '@graph': [organizationSchema(), websiteSchema()] }} />
       <Hero propertyTypes={propertyTypes} communes={communes} initialCount={total} image={heroImage} />
       {/* Returning visitors pick up where they left off; renders nothing on a first visit. */}
       <RecentlyViewed />

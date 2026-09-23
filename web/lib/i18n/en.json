@@ -133,13 +133,15 @@
       "listings": "Listings",
       "brand": "Lukka Place",
       "account": "Account",
-      "communes": "Communes"
+      "communes": "Communes",
+      "popularSearches": "Popular searches"
     },
     "links": {
       "forSale": "For sale",
       "forRent": "For rent",
       "about": "About",
-      "contact": "Contact"
+      "contact": "Contact",
+      "guides": "Guides"
     },
     "partnerBand": {
       "title": "Are You an Estate Agent or Agency?",
@@ -3919,5 +3921,90 @@
   "site": {
     "metaTitle": "Lukka Place — Property in Kinshasa",
     "metaDescription": "Find your next property to rent or buy in Kinshasa."
+  },
+  "seo": {
+    "forRent": "for rent",
+    "forSale": "for sale",
+    "allTypes": "Properties",
+    "penthouses": "Penthouses",
+    "heading": "{type} {transaction} in {place}",
+    "headingLower": "{type} {transaction} in {place}",
+    "city": "Kinshasa",
+    "communeKinshasa": "Kinshasa (commune)",
+    "metaTitle": "{heading} | Lukka Place",
+    "metaDescription": {
+      "one": "{count} listing online — {heading}. Photos, stated prices, map and direct contact with the agent on WhatsApp.",
+      "other": "{count} listings online — {heading}. Photos, stated prices, map and direct contact with the agent on WhatsApp."
+    },
+    "metaDescriptionNone": "{heading}: get notified as soon as a listing is published on Lukka Place, Kinshasa's property platform.",
+    "lead": {
+      "one": "{count} listing online, reviewed by our team before publication.",
+      "other": "{count} listings online, reviewed by our team before publication."
+    },
+    "leadNone": "No listings here yet. The nearby communes below have some, and an alert tells you as soon as one is published.",
+    "refine": "Refine the search and see the map",
+    "createAlert": "Create an alert",
+    "statsTitle": "The Market in Figures",
+    "statsListings": "Listings online",
+    "statsRange": "Price range",
+    "statsMedian": "Median price",
+    "statsMedianNote": {
+      "one": "from {count} listing",
+      "other": "from {count} listings"
+    },
+    "statsDeposit": "Median deposit",
+    "statsDepositValue": "{months} months",
+    "statsBeds": "Bedrooms",
+    "statsBedsRange": "{min} to {max}",
+    "statsSource": "Calculated from the listings published on Lukka Place today. Yearly rents are left out of monthly prices.",
+    "quartiersTitle": "Neighbourhoods",
+    "otherCommunes": "In other communes",
+    "otherTypes": "Other Properties {transaction} in {place}",
+    "otherTransaction": "See Also",
+    "nearbyCommunes": "Nearby communes with listings",
+    "faqTitle": "Frequently Asked Questions",
+    "faqPriceQ": "What do {headingLower} cost?",
+    "faqPriceA": "Listings online show prices from {min} to {max}.",
+    "faqPriceMedian": "The median price is {median}, from {count} listings.",
+    "faqPriceSingle": "The listing online shows {min}.",
+    "faqDepositQ": "How many months of deposit should I expect?",
+    "faqDepositA": {
+      "one": "The listing that states it asks for {months} months of deposit.",
+      "other": "Across the {count} listings that state it, the median deposit is {months} months."
+    },
+    "faqDepositExplain": "In Kinshasa the move-in cost is often three separate amounts: the deposit (refundable at the end of the lease), rent paid in advance, and the agency commission. \"3 + 1 + 1\" reads in that order.",
+    "faqContactQ": "How do I contact the agent or owner?",
+    "faqContactA": "Each listing shows the agent's number when the agent is verified, to call or message on WhatsApp; otherwise Lukka Place's number. The \"Request a visit\" button passes your request to the agent and to our team.",
+    "faqAlertQ": "How do I hear about new listings?",
+    "faqAlertA": "Run the search, then \"Create an alert\": you receive new matching listings daily or weekly.",
+    "guidesTitle": "Practical Guides",
+    "breadcrumbRent": "Rent",
+    "breadcrumbSale": "Sale",
+    "listingTitle": "{beds}{kind} {purpose} in {place} — {price}",
+    "listingBeds": {
+      "one": "{count}-bedroom ",
+      "other": "{count}-bedroom "
+    },
+    "listingDescription": "{kind} {purpose} in {place} — {price}. {facts}",
+    "factBeds": {
+      "one": "{count} bedroom",
+      "other": "{count} bedrooms"
+    },
+    "factBath": {
+      "one": "{count} bathroom",
+      "other": "{count} bathrooms"
+    },
+    "factArea": "{n} m²",
+    "factDeposit": "{n} months deposit"
+  },
+  "guides": {
+    "title": "Property Guides for Kinshasa",
+    "lead": "Renting, buying, reading a listing: the essentials, without jargon.",
+    "breadcrumb": "Guides",
+    "readMore": "Read the guide",
+    "updated": "Updated {date}",
+    "related": "More Guides",
+    "searchCta": "See listings",
+    "frenchOnly": "This guide is written in French."
   }
 }

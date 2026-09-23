@@ -1499,3 +1499,91 @@ export async function getPropertyTypeFacets() {
 
   return facets;
 }
+
+/**
+ * Market figures for a landing page (/location/appartements/gombe), from the
+ * same filters and approval gate getListings applies — so the numbers
+ * describe exactly the listings on the page, never a wider set.
+ *
+ * Rents are compared per month: a yearly rent is left out of the price
+ * figures rather than divided (the agent stated a yearly figure; dividing it
+ * would print a monthly price nobody quoted). `pricedCount` says how many
+ * listings the price figures rest on, so the page can suppress a median
+ * drawn from too few.
+ *
+ * @param {object} options Same filter options as getListings.
+ */
+export async function getListingStats(options = {}) {
+  const { whereClause, params } = buildFilters(options);
+  const priced = `p.price > 0 AND (p.purpose <> 'rent' OR p.price_period IS DISTINCT FROM 'an')`;
+  const pool = getPool();
+  const [{ rows }, { rows: quartierRows }] = await Promise.all([
+    pool.query(
+      `SELECT COUNT(*) AS total,
+         COUNT(*) FILTER (WHERE ${priced}) AS priced_count,
+         MIN(p.price) FILTER (WHERE ${priced}) AS price_min,
+         MAX(p.price) FILTER (WHERE ${priced}) AS price_max,
+         percentile_cont(0.5) WITHIN GROUP (ORDER BY p.price) FILTER (WHERE ${priced}) AS price_median,
+         COUNT(p.deposit_months) AS deposit_count,
+         percentile_cont(0.5) WITHIN GROUP (ORDER BY p.deposit_months) FILTER (WHERE p.deposit_months IS NOT NULL) AS deposit_median,
+         MIN(p.beds) FILTER (WHERE p.beds > 0) AS beds_min,
+         MAX(p.beds) FILTER (WHERE p.beds > 0) AS beds_max
+       ${FROM_JOINS} WHERE ${whereClause}`,
+      params,
+    ),
+    pool.query(
+      `SELECT p.quartier, COUNT(*) AS n
+       ${FROM_JOINS} WHERE ${whereClause} AND COALESCE(TRIM(p.quartier), '') <> ''
+       GROUP BY p.quartier ORDER BY n DESC, p.quartier ASC LIMIT 8`,
+      params,
+    ),
+  ]);
+  const r = rows[0] || {};
+  const num = (v) => (v == null ? null : Number(v));
+  return {
+    total: Number(r.total || 0),
+    pricedCount: Number(r.priced_count || 0),
+    priceMin: num(r.price_min),
+    priceMax: num(r.price_max),
+    priceMedian: num(r.price_median),
+    depositCount: Number(r.deposit_count || 0),
+    depositMedian: num(r.deposit_median),
+    bedsMin: num(r.beds_min),
+    bedsMax: num(r.beds_max),
+    quartiers: quartierRows.map((q) => ({ name: q.quartier, count: Number(q.n) })),
+  };
+}
+
+/**
+ * Every (commune, purpose, property type) combination that has approved
+ * listings, with counts — the landing pages' link graph and the sitemap are
+ * built from this, so neither ever points at an empty page. `commune` is NULL
+ * for an untagged listing; `propertyType` is the lowercased category name,
+ * the same value getListings filters on. Parcelle is a separate axis
+ * (`parcelle_subtype`), counted in its own rows with propertyType 'parcelle'.
+ */
+export async function getSeoFacets() {
+  const pool = getPool();
+  const communeExpr = `(
+    SELECT ac.name FROM property_amenities pa
+    JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = ${CONTENT_LANGUAGE_ID}
+    WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44
+    LIMIT 1
+  )`;
+  const [{ rows }, { rows: parcelleRows }] = await Promise.all([
+    pool.query(
+      `SELECT ${communeExpr} AS commune, p.purpose, LOWER(catc.name) AS property_type, COUNT(*) AS n
+       ${FROM_JOINS} WHERE ${APPROVED_FILTER}
+       GROUP BY 1, 2, 3`,
+    ),
+    pool.query(
+      `SELECT ${communeExpr} AS commune, p.purpose, COUNT(*) AS n
+       ${FROM_JOINS} WHERE ${APPROVED_FILTER} AND p.parcelle_subtype IS NOT NULL
+       GROUP BY 1, 2`,
+    ),
+  ]);
+  return [
+    ...rows.map((r) => ({ commune: r.commune || null, purpose: r.purpose, propertyType: r.property_type, count: Number(r.n) })),
+    ...parcelleRows.map((r) => ({ commune: r.commune || null, purpose: r.purpose, propertyType: 'parcelle', count: Number(r.n) })),
+  ];
+}

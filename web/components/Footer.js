@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
-import { getPopularCommunes } from '@/lib/listings';
+import { cachedSeoFacets } from '@/lib/listingsCached';
+import { seoPath } from '@/lib/seoPages';
+import { socialProfiles } from '@/lib/seoSchema';
 import { Wordmark } from './Brand';
 import CurrencyToggle from './CurrencyToggle';
 import LanguageToggle from './LanguageToggle';
@@ -8,7 +10,8 @@ import FooterByPath from './FooterByPath';
 import { getT } from '@/lib/i18n/server';
 
 /**
- * Social icons: only WhatsApp is a real, working link (same central number
+ * Social icons: WhatsApp always; Facebook / Instagram become real links once
+ * their URL is set in the environment (lib/seoSchema.js). Previously: only WhatsApp is a real, working link (same central number
  * used everywhere else — see CLAUDE.md's Lead Routing Rules). Facebook/
  * Instagram/LinkedIn have no real Lukka Place accounts to link to yet, so
  * they render as inert placeholders (not <a> tags — a fake href pointing
@@ -56,14 +59,17 @@ const NAV_COLUMNS = [
   {
     titleKey: 'footer.columns.listings',
     links: [
-      { labelKey: 'footer.links.forSale', href: '/listings?transaction_type=vente' },
-      { labelKey: 'footer.links.forRent', href: '/listings?transaction_type=location' },
+      // The search landing pages (lib/seoPages.js), not /listings filters:
+      // a link from every page is what tells Google these pages matter.
+      { labelKey: 'footer.links.forSale', href: '/vente' },
+      { labelKey: 'footer.links.forRent', href: '/location' },
     ],
   },
   {
     titleKey: 'footer.columns.brand',
     links: [
       { labelKey: 'footer.links.about', href: '/a-propos' },
+      { labelKey: 'footer.links.guides', href: '/guides' },
       { labelKey: 'footer.links.contact', href: '/contact' },
     ],
   },
@@ -104,7 +110,21 @@ const ACCOUNT_FOOTER_PATHS = ['/compte/client'];
  */
 export default async function Footer() {
   const t = await getT();
-  const popularCommunes = await getPopularCommunes(5);
+  // Communes with the most approved listings, each linked to its landing
+  // page for whichever transaction it has more of (almost always rentals).
+  const facets = await cachedSeoFacets().catch(() => []);
+  const byCommune = new Map();
+  for (const f of facets) {
+    if (!f.commune || f.propertyType === 'parcelle') continue;
+    const row = byCommune.get(f.commune) || { commune: f.commune, rent: 0, sale: 0 };
+    if (f.purpose === 'rent') row.rent += f.count;
+    if (f.purpose === 'sale') row.sale += f.count;
+    byCommune.set(f.commune, row);
+  }
+  const popularCommunes = [...byCommune.values()]
+    .sort((a, b) => b.rent + b.sale - (a.rent + a.sale) || a.commune.localeCompare(b.commune))
+    .slice(0, 6);
+  const social = socialProfiles();
   const columns = popularCommunes.length
     ? [
         NAV_COLUMNS[0],
@@ -112,9 +132,9 @@ export default async function Footer() {
           titleKey: 'footer.columns.communes',
           // `label` (already-resolved text), not `labelKey`: these are real
           // commune names out of the database, not dictionary entries.
-          links: popularCommunes.map(({ commune }) => ({
+          links: popularCommunes.map(({ commune, rent, sale }) => ({
             label: commune,
-            href: `/listings?commune=${encodeURIComponent(commune)}`,
+            href: seoPath({ transaction: sale > rent ? 'vente' : 'location', commune }) || `/listings?commune=${encodeURIComponent(commune)}`,
           })),
         },
         ...NAV_COLUMNS.slice(1),
@@ -244,12 +264,29 @@ export default async function Footer() {
                     <WhatsAppIcon className="h-4.5 w-4.5" />
                   </span>
                 )}
-                <span aria-hidden="true" className="flex h-9 w-9 items-center justify-center rounded-full bg-canvas-deep text-ink-25">
-                  <FacebookIcon className="h-4 w-4" />
-                </span>
-                <span aria-hidden="true" className="flex h-9 w-9 items-center justify-center rounded-full bg-canvas-deep text-ink-25">
-                  <InstagramIcon className="h-4 w-4" />
-                </span>
+                {/* Live links once NEXT_PUBLIC_FACEBOOK_URL / _INSTAGRAM_URL are
+                    set (lib/seoSchema.js socialProfiles); inert until then. */}
+                {[
+                  ['facebook', 'Facebook', <FacebookIcon key="i" className="h-4 w-4" />],
+                  ['instagram', 'Instagram', <InstagramIcon key="i" className="h-4 w-4" />],
+                ].map(([key, name, icon]) =>
+                  social[key] ? (
+                    <a
+                      key={key}
+                      href={social[key]}
+                      target="_blank"
+                      rel="noopener noreferrer me"
+                      aria-label={name}
+                      className="flex h-9 w-9 items-center justify-center rounded-full bg-ink text-white transition-colors hover:bg-blue-deep"
+                    >
+                      {icon}
+                    </a>
+                  ) : (
+                    <span key={key} aria-hidden="true" className="flex h-9 w-9 items-center justify-center rounded-full bg-canvas-deep text-ink-25">
+                      {icon}
+                    </span>
+                  ),
+                )}
               </div>
             </div>
 

@@ -1942,3 +1942,55 @@ the real phrases, `search-relaxation.test.js` the SQL.
 - Old-site `/shopdetail/:id` requests (~1,500 in a week, all flagged as bots)
   were NOT redirected: no archived page, table or log shows they were ever
   property pages, so any target would be a guess.
+
+## Search engine visibility (2026-09-23)
+
+Goal: rank for "appartement à louer Gombe"-style searches. Before this,
+`/listings?commune=Gombe` shared the homepage's title and had no canonical,
+so to Google it was a copy of the homepage; there was no structured data
+anywhere. `tests/unit/seo-pages.test.js`.
+
+- **Landing pages** — `/location` and `/vente`, each `[[...slug]]`:
+  `/{tx}`, `/{tx}/{commune}`, `/{tx}/{type}`, `/{tx}/{type}/{commune}`
+  (`lib/seoPages.js`: plural type slugs, commune slugs from the 24 centroid
+  names; the commune named Kinshasa is `commune-de-kinshasa` so it cannot read
+  as the city). One component, `components/seo/SeoLandingPage.js`: heading,
+  up to 24 cards (`getListings`, same gate), "Le marché en chiffres"
+  (`getListingStats` — the page's own listings only; a median needs a type and
+  ≥5 priced listings; yearly rents are left out of monthly figures, never
+  divided), quartiers, a FAQ whose answers are either those figures or a true
+  description of the product, and links to other communes / types / the other
+  transaction built from `getSeoFacets` counts — never to an empty page. An
+  empty page is `noindex, follow` and lists the nearest communes that have
+  listings. Unknown segments 404.
+- **`/listings` canonical**: a filter set that equals a landing page
+  (`seoPathForParams` — transaction + optional commune/type, ignoring
+  sort/view/utm) names it as canonical; bare `/listings` is indexable;
+  anything narrower is `noindex, follow`.
+- **Structured data** (`components/seo/JsonLd.js`, `<` escaped):
+  RealEstateAgent + WebSite search box on `/` (`lib/seoSchema.js`),
+  RealEstateListing + BreadcrumbList on each listing (`lib/listingSeo.js` — no
+  coordinates, no agent phone), BreadcrumbList/CollectionPage/FAQPage on
+  landing pages, Article on guides, RealEstateAgent on `/agents/[id]` (only
+  when the agent has a real name).
+- **Listing `<title>`/description** come from structured facts ("Appartement
+  2 chambres à louer à Limete — 1 100 $ / mois"), not the agent's free-text
+  title; OG/Twitter cards unchanged. The commune crumb goes to its landing
+  page.
+- **`/guides`** (`lib/guides.js`): four French articles — garantie 3+1+1,
+  reading a listing, renting without scams, buying from the diaspora. No
+  market figures in them (those live on the landing pages); the diaspora one
+  says to consult an avocat/notaire. Review the copy before promoting it.
+- **Sitemap** now lists landing pages with listings and the guides instead
+  of `/listings?commune=` URLs. Footer's Annonces/Communes columns link the
+  landing pages; Guides joined the Lukka Place column.
+- **Environment switches, no code change needed**:
+  `GOOGLE_SITE_VERIFICATION` / `BING_SITE_VERIFICATION` (token only) emit the
+  Search Console / Bing meta tags; `NEXT_PUBLIC_FACEBOOK_URL`,
+  `_INSTAGRAM_URL`, `_TIKTOK_URL`, `_LINKEDIN_URL` (https only) become the
+  footer icons' links and the Organization `sameAs`. `NEXT_PUBLIC_*` are
+  inlined at build time — rebuild after setting them.
+- Not done, deliberately: English URLs (locale is a cookie, so Google only
+  sees French — the /en migration is `lib/i18n/config.js`'s note), and keeping
+  sold listings indexable (would need a read outside `APPROVED_FILTER`; the
+  listing 404 page already offers live alternatives).

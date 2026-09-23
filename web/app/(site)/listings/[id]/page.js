@@ -23,6 +23,8 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import ListingViewTracker from '@/components/ListingViewTracker';
 import PropertyDescription from '@/components/listings/PropertyDescription';
 import AvailabilityConfirmedBadge from '@/components/listings/AvailabilityConfirmedBadge';
+import JsonLd from '@/components/seo/JsonLd';
+import { communeHref, listingJsonLd, listingMetaDescription, listingMetaTitle } from '@/lib/listingSeo';
 
 // generateMetadata and the page both read the listing; per-request dedupe so
 // one visit costs one query, not two. Per request only (React cache): an
@@ -43,8 +45,12 @@ export async function generateMetadata({ params }) {
   const listing = await getListingById(id);
   if (!listing) return {};
 
-  const title = `${listing.title} — Lukka Place`;
-  const description = listing.description?.slice(0, 160);
+  // Built from the listing's structured facts (type, bedrooms, commune,
+  // price) — what people actually type into Google — not the agent's own
+  // free-text title. lib/listingSeo.js.
+  const t = await getT();
+  const title = `${listingMetaTitle(listing, t)} | Lukka Place`;
+  const description = listingMetaDescription(listing, t);
   const priceText = formatPrice(listing.price, listing.purpose, listing.price_period);
   const ogTitle = `${priceText} — ${listing.title}`;
   const image = listingImages(listing)[0];
@@ -198,6 +204,7 @@ export default async function ListingDetailPage({ params, searchParams }) {
     // real margin above it.
     <div className="pb-28 lg:pb-0">
       <ListingViewTracker path={`/listings/${listing.id}`} commune={listing.commune} listingId={listing.id} />
+      <JsonLd data={listingJsonLd(listing, t)} />
       <div className="mx-auto max-w-7xl px-4 sm:px-6 sm:pt-6 lg:px-8">
         {/* sm and up: breadcrumb left, Partager/Enregistrer right. On a
             phone neither row exists — the photo starts right under the
@@ -210,7 +217,7 @@ export default async function ListingDetailPage({ params, searchParams }) {
               { label: t('breadcrumb.home'), href: '/' },
               { label: t('breadcrumb.listings'), href: '/listings' },
               ...(listing.commune
-                ? [{ label: listing.commune, href: `/listings?commune=${encodeURIComponent(listing.commune)}` }]
+                ? [{ label: listing.commune, href: communeHref(listing) }]
                 : []),
               { label: listing.title },
             ]}

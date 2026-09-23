@@ -133,13 +133,15 @@
       "listings": "Annonces",
       "brand": "Lukka Place",
       "account": "Compte",
-      "communes": "Communes"
+      "communes": "Communes",
+      "popularSearches": "Recherches populaires"
     },
     "links": {
       "forSale": "À vendre",
       "forRent": "À louer",
       "about": "À propos",
-      "contact": "Contact"
+      "contact": "Contact",
+      "guides": "Guides"
     },
     "partnerBand": {
       "title": "Vous êtes agent ou agence immobilière ?",
@@ -3919,5 +3921,90 @@
   "site": {
     "metaTitle": "Lukka Place — Immobilier à Kinshasa",
     "metaDescription": "Trouvez votre prochain bien à louer ou à vendre à Kinshasa."
+  },
+  "seo": {
+    "forRent": "à louer",
+    "forSale": "à vendre",
+    "allTypes": "Biens immobiliers",
+    "penthouses": "Penthouses",
+    "heading": "{type} {transaction} à {place}",
+    "headingLower": "{type} {transaction} à {place}",
+    "city": "Kinshasa",
+    "communeKinshasa": "Kinshasa (commune)",
+    "metaTitle": "{heading} | Lukka Place",
+    "metaDescription": {
+      "one": "{count} annonce en ligne — {heading}. Photos, prix affichés, carte et contact direct de l'agent sur WhatsApp.",
+      "other": "{count} annonces en ligne — {heading}. Photos, prix affichés, carte et contact direct de l'agent sur WhatsApp."
+    },
+    "metaDescriptionNone": "{heading} : soyez prévenu dès qu'une annonce est publiée sur Lukka Place, la plateforme immobilière de Kinshasa.",
+    "lead": {
+      "one": "{count} annonce en ligne, relue par notre équipe avant publication.",
+      "other": "{count} annonces en ligne, relues par notre équipe avant publication."
+    },
+    "leadNone": "Aucune annonce en ligne ici pour le moment. Les communes voisines ci-dessous en ont, et une alerte vous prévient dès qu'une annonce est publiée.",
+    "refine": "Affiner la recherche et voir la carte",
+    "createAlert": "Créer une alerte",
+    "statsTitle": "Le marché en chiffres",
+    "statsListings": "Annonces en ligne",
+    "statsRange": "Fourchette de prix",
+    "statsMedian": "Prix médian",
+    "statsMedianNote": {
+      "one": "sur {count} annonce",
+      "other": "sur {count} annonces"
+    },
+    "statsDeposit": "Garantie médiane",
+    "statsDepositValue": "{months} mois",
+    "statsBeds": "Chambres",
+    "statsBedsRange": "de {min} à {max}",
+    "statsSource": "Calculé à partir des annonces publiées sur Lukka Place aujourd'hui. Un loyer annuel n'entre pas dans les prix mensuels.",
+    "quartiersTitle": "Quartiers représentés",
+    "otherCommunes": "Dans d'autres communes",
+    "otherTypes": "Autres biens {transaction} à {place}",
+    "otherTransaction": "Voir aussi",
+    "nearbyCommunes": "Communes proches avec des annonces",
+    "faqTitle": "Questions fréquentes",
+    "faqPriceQ": "Quels sont les prix des {headingLower} ?",
+    "faqPriceA": "Les annonces en ligne affichent des prix de {min} à {max}.",
+    "faqPriceMedian": "Le prix médian est de {median}, calculé sur {count} annonces.",
+    "faqPriceSingle": "L'annonce en ligne affiche {min}.",
+    "faqDepositQ": "Combien de mois de garantie faut-il prévoir ?",
+    "faqDepositA": {
+      "one": "L'annonce qui l'indique demande {months} mois de garantie.",
+      "other": "Parmi les {count} annonces qui l'indiquent, la garantie médiane est de {months} mois."
+    },
+    "faqDepositExplain": "À Kinshasa, l'entrée se compose souvent de trois montants distincts : la garantie (remboursable en fin de bail), le loyer payé d'avance et la commission de l'agence. « 3 + 1 + 1 » se lit dans cet ordre.",
+    "faqContactQ": "Comment contacter l'agent ou le propriétaire ?",
+    "faqContactA": "Chaque annonce affiche le numéro de l'agent lorsque celui-ci est vérifié, pour l'appeler ou lui écrire sur WhatsApp ; sinon le numéro de Lukka Place. Le bouton « Demander une visite » transmet votre demande à l'agent et à notre équipe.",
+    "faqAlertQ": "Comment être prévenu des nouvelles annonces ?",
+    "faqAlertA": "Lancez la recherche puis « Créer une alerte » : vous recevez les nouvelles annonces qui correspondent, chaque jour ou chaque semaine.",
+    "guidesTitle": "Guides pratiques",
+    "breadcrumbRent": "Location",
+    "breadcrumbSale": "Vente",
+    "listingTitle": "{kind}{beds} {purpose} à {place} — {price}",
+    "listingBeds": {
+      "one": " {count} chambre",
+      "other": " {count} chambres"
+    },
+    "listingDescription": "{kind} {purpose} à {place} — {price}. {facts}",
+    "factBeds": {
+      "one": "{count} chambre",
+      "other": "{count} chambres"
+    },
+    "factBath": {
+      "one": "{count} salle de bain",
+      "other": "{count} salles de bain"
+    },
+    "factArea": "{n} m²",
+    "factDeposit": "garantie {n} mois"
+  },
+  "guides": {
+    "title": "Guides immobiliers pour Kinshasa",
+    "lead": "Louer, acheter, comprendre les annonces : l’essentiel, sans jargon.",
+    "breadcrumb": "Guides",
+    "readMore": "Lire le guide",
+    "updated": "Mis à jour le {date}",
+    "related": "Autres guides",
+    "searchCta": "Voir les annonces",
+    "frenchOnly": "Ce guide est rédigé en français."
   }
 }

@@ -6,6 +6,7 @@ import {
   getPopularCommunes,
   getPriceRange,
   getPropertyTypeFacets,
+  getSeoFacets,
 } from './listings';
 
 /**
@@ -43,3 +44,6 @@ export const cachedFeaturedListings = () =>
     const { data, count } = await getListings({ limit: 8 });
     return { data, count };
   });
+
+/** Landing-page link graph, footer and sitemap: counts only, a minute old at most. */
+export const cachedSeoFacets = () => memo('seo-facets', TTL_MS, () => getSeoFacets());

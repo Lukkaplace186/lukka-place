@@ -14,6 +14,7 @@ import { buildWhatsAppLink, getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { formatPhoneDisplay } from '@/lib/phone';
 import { SITE_URL, ICON_STROKE_WIDTH } from '@/lib/constants';
 import { getT } from '@/lib/i18n/server';
+import JsonLd from '@/components/seo/JsonLd';
 
 const PROFILE_MESSAGE =
   "Bonjour, j'ai vu votre profil sur Lukka Place et j'aimerais en savoir plus sur vos biens.";
@@ -46,7 +47,7 @@ export async function generateMetadata({ params }) {
   if (!agent) return {};
 
   const name = agentPublicName(agent);
-  return { title: `${name} — Lukka Place`, description: agent.bio?.slice(0, 160) };
+  return { title: `${name} — Lukka Place`, description: agent.bio?.slice(0, 160), alternates: { canonical: `/agents/${agent.id}` } };
 }
 
 /**
@@ -137,8 +138,28 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
     ? buildWhatsAppLink(agent.phone, PROFILE_MESSAGE)
     : getCentralWhatsAppHref(PROFILE_MESSAGE);
 
+  // RealEstateAgent structured data — only facts the page itself shows; no
+  // phone (it has its own verification rule) and no name when the agent has
+  // only a phone number for one.
+  const agentJsonLd = hasRealName
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'RealEstateAgent',
+        name,
+        url: profileUrl,
+        ...(typeof agent.image === 'string' && /^https:\/\//.test(agent.image) ? { image: agent.image } : {}),
+        ...(agent.bio ? { description: String(agent.bio).slice(0, 300) } : {}),
+        areaServed: communes.length
+          ? communes.map((c) => ({ '@type': 'Place', name: `${c}, Kinshasa` }))
+          : { '@type': 'City', name: 'Kinshasa' },
+        address: { '@type': 'PostalAddress', addressLocality: agent.city || 'Kinshasa', addressCountry: 'CD' },
+        parentOrganization: { '@id': `${SITE_URL.replace(/\/+$/, '')}/#organization`, '@type': 'Organization', name: 'Lukka Place' },
+      }
+    : null;
+
   return (
     <div>
+      <JsonLd data={agentJsonLd} />
       {/*
         Editorial hero on the site's royal ground (`bg-blue-deep`, royal-700)
         — the same field the rest of Lukka Place uses, so this page reads as

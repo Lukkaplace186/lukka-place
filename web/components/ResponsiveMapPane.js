@@ -40,7 +40,7 @@ const MapCardCarousel = dynamic(() => import('./MapCardCarousel'), { ssr: false 
  */
 export default function ResponsiveMapPane({
   listings, filterParams, isMapView, hoveredId, onMarkerHover, className, maxZoom, listingPreview = true, onPreviewChange,
-  onAreaChange, onInViewChange,
+  onAreaChange, onInViewChange, openCardsRequest = 0,
 }) {
   const [shouldRender, setShouldRender] = useState(false);
   // Phone /listings map: a pin opens swipeable cards (MapCardCarousel)
@@ -113,6 +113,18 @@ export default function ResponsiveMapPane({
       return visibleIds.includes(id) ? visibleIds : [id, ...visibleIds];
     });
   }, [visibleIds]);
+
+  // "Voir N biens" on the phone map's bar: the cards of everything in view,
+  // starting with the westernmost. Adjusted during render (a new request
+  // number), the same pattern as the reset on new results above.
+  const [handledCardsRequest, setHandledCardsRequest] = useState(openCardsRequest);
+  if (openCardsRequest !== handledCardsRequest) {
+    setHandledCardsRequest(openCardsRequest);
+    if (visibleIds.length) {
+      setCarouselIds(visibleIds);
+      setSelectedListing({ id: visibleIds[0] });
+    }
+  }
 
   // A swipe settled on a card: light its pin, and bring the pin on screen.
   const settleCard = useCallback((id) => {

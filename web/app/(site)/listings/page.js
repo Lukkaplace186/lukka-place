@@ -251,7 +251,7 @@ export default async function ListingsPage({ searchParams }) {
 
       {/* List mode only — the mobile fullscreen map already has its own
           bottom-center floating control at this exact position
-          (MobileListSheet.js's "← Liste" button). Rendered on an empty
+          (MobileMapBar.js's "← Liste" button). Rendered on an empty
           search too: its alert is the phone's only way to ask for one. */}
       {!isMapView ? <FloatingControlBar hasResults={count > 0} /> : null}
     </div>

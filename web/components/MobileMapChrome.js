@@ -24,14 +24,16 @@ import { useT } from '@/lib/i18n/client';
  * FiltersDrawer) via lib/mapFilterDrawer.js rather than a second, duplicate
  * sheet.
  *
- * The "back to list" action lives in MobileListSheet now, as a single
+ * The "back to list" action lives in MobileMapBar now, as a single
  * floating button over the map itself — not here, per the explicit
  * "one clean Liste control" instruction.
  */
 export default function MobileMapChrome({ params }) {
   const t = useT();
   return (
-    <div className="flex shrink-0 items-center gap-1.5 border-b border-line bg-surface p-2.5 lg:hidden">
+    // Floats over the phone map (ListingsSplitView gives it a pointer-events-
+    // none layer, so the map stays draggable around the two controls).
+    <div className="flex items-center gap-2 lg:hidden">
       <LocationAutocomplete
         preserveParams
         initialValue={params.q || params.near || ''}
@@ -41,14 +43,14 @@ export default function MobileMapChrome({ params }) {
         showClear
         rowClassName="flex min-w-0 flex-1 items-center gap-2"
         inputClassName="min-w-0 flex-1 bg-transparent text-[0.875rem] text-ink placeholder:text-ink-25 focus:outline-none"
-        className="min-w-0 flex-1 rounded-full border border-line bg-canvas px-3.5 py-2"
+        className="u-lift pointer-events-auto min-w-0 flex-1 rounded-full border border-line bg-surface px-4 py-2.5"
       />
 
       <button
         type="button"
         onClick={() => openFiltersDrawer()}
         aria-label={t('listings.filters.moreFilters')}
-        className="u-press flex shrink-0 items-center justify-center rounded-full bg-canvas-alt p-2.5 text-ink-70"
+        className="u-press u-lift pointer-events-auto flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line bg-surface text-ink-70"
       >
         <SlidersHorizontal strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
       </button>

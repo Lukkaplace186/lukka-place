@@ -12,6 +12,7 @@ import { getRecentIds } from '@/lib/recentlyViewed';
 import { groupListingsByBuilding, buildingPinLabel } from '@/lib/buildingGroups';
 import { baseMapOptions } from '@/lib/mapBase';
 import { flyTo } from '@/lib/mapFly';
+import { useCountUp } from '@/lib/useCountUp';
 import { landmarkPoint } from '@/lib/landmarks';
 import {
   FETCH_DEBOUNCE_MS,
@@ -62,7 +63,7 @@ import { useT } from '@/lib/i18n/client';
  * - **One plain-text counter pill** ("35 biens dans cette zone") on desktop.
  *   The ⓘ breakdown beside it (commune-centroid / unplaceable counts) was
  *   removed on product direction, 2026-09-23 — an icon nobody understood.
- *   On a phone the count is the "Voir N biens" button's job (MobileListSheet),
+ *   On a phone the count is the "Voir N biens" button's job (MobileMapBar),
  *   so the pill appears there only while loading, on a failure, or when the
  *   answer is capped (it then says to zoom in instead of a false count).
  * - **"Autour de moi"** centres on the visitor's own position, only when they
@@ -272,6 +273,8 @@ export default function ListingsMap({
   const [view, setView] = useState({ loaded: false, inView: 0, truncated: false, fetching: false, failed: false });
 
   const filterQuery = useMemo(() => mapFilterQuery(params), [params]);
+  // The desktop pill's count rolls to its new value as the map moves.
+  const shownInView = useCountUp(view.loaded && !view.failed ? view.inView : null);
   // Whether the URL currently carries a map area. Only its removal matters
   // here ("Effacer la zone"): the map then goes back to the searched place.
   const hasUrlArea = useMemo(() => Boolean(parseBounds(params).bounds), [params]);
@@ -555,7 +558,11 @@ export default function ListingsMap({
           selectSeqRef.current += 1;
           propsRef.current.onListingSelect?.(null);
         }));
+        // Pills step back while the map moves and come forward as it settles.
+        listeners.push(map.addListener('dragstart', () => layerRef.current?.setMoving(true)));
+        listeners.push(map.addListener('zoom_changed', () => layerRef.current?.setMoving(true)));
         listeners.push(map.addListener('idle', () => {
+          layerRef.current?.setMoving(false);
           scheduleFetch();
           reportArea();
         }));
@@ -655,6 +662,8 @@ export default function ListingsMap({
         if (firstRun) showView(mapRef.current, placeView);
         else if (!(await flyTo(mapRef.current, placeView)) || cancelled) return;
         req.positioning = false;
+        // Show where the search landed.
+        google.maps.event.addListenerOnce(mapRef.current, 'idle', () => layerRef.current?.pulseAt(placeView.center));
         areaRef.current = { baseline: viewKey(mapRef.current), reported: null };
       } else {
         req.positioning = false;
@@ -743,7 +752,7 @@ export default function ListingsMap({
   let pillText = t('listings.map.updating');
   if (view.failed) pillText = t('listings.map.fetchError');
   else if (view.truncated) pillText = t('listings.map.truncated');
-  else if (view.loaded) pillText = t('listings.map.inArea', { count: view.inView });
+  else if (view.loaded) pillText = t('listings.map.inArea', { count: shownInView ?? view.inView });
   // On a phone the settled count is the "Voir N biens" button's job, so the
   // pill only appears there for loading, a failure, or a capped answer.
   const phoneHidden = view.loaded && !view.failed && !view.truncated;
@@ -768,7 +777,8 @@ export default function ListingsMap({
       {status === 'ready' ? (
         // A text-only counter pill, top-centre. Only the pill takes pointer
         // events, so the map stays draggable right up to it.
-        <div className="pointer-events-none absolute inset-x-0 top-3 z-20 flex flex-col items-center gap-2 px-3">
+        // Below the floating search bar on a phone.
+        <div className="pointer-events-none absolute inset-x-0 top-[4.5rem] z-20 flex flex-col items-center gap-2 px-3 lg:top-3">
           <p
             aria-live="polite"
             className={`u-tabular rounded-full bg-surface px-3.5 py-1.5 text-[0.75rem] font-semibold leading-5 text-ink shadow-[0_2px_8px_rgba(0,0,0,0.12)] transition-opacity ${

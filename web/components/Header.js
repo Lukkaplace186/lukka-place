@@ -333,6 +333,8 @@ export default function Header() {
             <DropdownMenu>
               <DropdownMenuTrigger
                 aria-label={t('nav.myAccount')}
+                // Where a saved listing's heart flies to (lib/flyToAccount.js).
+                data-fly-target="account"
                 className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-line text-ink-70 transition-colors hover:border-blue hover:text-blue-deep"
               >
                 <User strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />

@@ -557,11 +557,7 @@
       "show": "Afficher la carte",
       "showHint": "La carte se charge à la demande pour économiser vos données mobiles.",
       "cardsLabel": "Biens de la zone",
-      "sheetLabel": "Liste des biens",
-      "sheetShow": "Liste",
-      "sheetFullList": "Liste complète",
-      "sheetLower": "Réduire la liste",
-      "sheetMore": "Plus de biens dans « Liste complète »."
+      "sheetShow": "Liste"
     },
     "alertModal": {
       "intro": "Vous serez alerté des nouveaux biens correspondant à :",

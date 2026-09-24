@@ -41,6 +41,7 @@ export function createPinLayer(map, handlers) {
 
     onAdd() {
       this.container = document.createElement('div');
+      this.container.className = 'lkp-layer';
       this.container.style.position = 'absolute';
       this.container.style.left = '0';
       this.container.style.top = '0';
@@ -81,6 +82,7 @@ export function createPinLayer(map, handlers) {
     setPins(pins) {
       const previous = new Map(this.entries);
       const next = new Map();
+      let arriving = 0;
       for (const pin of pins) {
         let entry = previous.get(pin.key);
         if (entry) {
@@ -89,7 +91,10 @@ export function createPinLayer(map, handlers) {
           if (entry.pin.verified !== pin.verified) this.#setCheck(entry, pin.verified);
           entry.pin = pin;
         } else {
-          entry = this.#createEntry(pin);
+          // New pins drop in one after another, 28ms apart (capped), rather
+          // than all popping at once when a new area loads.
+          entry = this.#createEntry(pin, Math.min(arriving * 28, 420));
+          arriving += 1;
           this.container?.appendChild(entry.el);
         }
         this.#applyState(entry);
@@ -105,7 +110,44 @@ export function createPinLayer(map, handlers) {
       const value = id == null ? null : String(id);
       if (value === this.activeId) return;
       this.activeId = value;
-      for (const entry of this.entries.values()) this.#applyState(entry);
+      for (const entry of this.entries.values()) {
+        const wasActive = entry.el.dataset.active === 'true';
+        this.#applyState(entry);
+        // A small hop when a pin becomes the active one — a hovered card on
+        // desktop, a swiped card on a phone — so the eye finds it.
+        if (!wasActive && entry.el.dataset.active === 'true') this.#bounce(entry.el);
+      }
+    }
+
+    /** Pills dim a touch while the map moves, and come back as it settles. */
+    setMoving(moving) {
+      this.container?.classList.toggle('is-moving', Boolean(moving));
+    }
+
+    /**
+     * A ring that pulses out from a point three times, then goes — shown
+     * where a flight lands, so the visitor sees the place they searched.
+     * (A real commune outline would need boundary geometry this app does
+     * not have; a ring at the verified point claims nothing it can't back.)
+     */
+    pulseAt(point) {
+      const projection = this.getProjection();
+      if (!this.container || !projection || !point) return;
+      const at = projection.fromLatLngToDivPixel(new google.maps.LatLng(point.lat, point.lng));
+      if (!at) return;
+      const ring = document.createElement('div');
+      ring.className = 'lkp-pulse';
+      ring.style.transform = `translate3d(${at.x.toFixed(1)}px, ${at.y.toFixed(1)}px, 0)`;
+      this.container.appendChild(ring);
+      setTimeout(() => ring.remove(), 2600);
+    }
+
+    #bounce(el) {
+      el.classList.remove('is-bounce');
+      // Restart the animation even if a bounce is still running.
+      void el.offsetWidth;
+      el.classList.add('is-bounce');
+      el.addEventListener('animationend', () => el.classList.remove('is-bounce'), { once: true });
     }
 
     setVisited(ids) {
@@ -144,9 +186,10 @@ export function createPinLayer(map, handlers) {
       this.setMap(null);
     }
 
-    #createEntry(pin) {
+    #createEntry(pin, delayMs = 0) {
       const el = document.createElement('div');
       el.className = 'lkp-pin is-new';
+      el.style.setProperty('--lkp-delay', `${delayMs}ms`);
       el.setAttribute('role', 'button');
       el.tabIndex = 0;
       el.title = pin.title || '';
@@ -157,10 +200,9 @@ export function createPinLayer(map, handlers) {
       labelEl.textContent = pin.label;
       body.appendChild(labelEl);
       el.appendChild(body);
-      el.addEventListener('animationend', () => el.classList.remove('is-new'), { once: true });
-      // Browsers that never run the animation (reduced motion) never fire
-      // animationend; drop the class anyway.
-      setTimeout(() => el.classList.remove('is-new'), 400);
+      // Dropped once the entrance is over (a timer, not animationend: reduced
+      // motion runs no animation and would never fire it).
+      setTimeout(() => el.classList.remove('is-new'), delayMs + 450);
 
       const entry = { pin, el, body, labelEl, checkEl: null };
       this.#setCheck(entry, pin.verified);

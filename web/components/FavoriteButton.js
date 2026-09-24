@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { Heart } from 'lucide-react';
 import { isFavorite, subscribeFavorites, toggleFavorite } from '@/lib/favorites';
+import { flyHeartToAccount } from '@/lib/flyToAccount';
 import { useIsLoggedIn } from '@/lib/customerClient';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { trackEvent } from '@/lib/analyticsClient';
@@ -132,6 +133,7 @@ export default function FavoriteButton({
     try {
       const nowFavorited = toggleFavorite(listingId);
       setPulseKey((k) => k + 1);
+      if (nowFavorited) flyHeartToAccount(e.currentTarget);
       trackEvent(nowFavorited ? 'listing_saved' : 'listing_unsaved', {
         listingId,
         price,

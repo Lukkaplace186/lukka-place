@@ -493,7 +493,12 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
 
   function submitFreeText(overrideText) {
     const text = overrideText != null ? overrideText : value;
-    if (!hideDropdown && !String(text ?? '').trim()) {
+    // An empty box only means "clear the place" on the listings page itself.
+    // Everywhere else (the homepage hero) it is a search for everything the
+    // other fields allow: clearSearch() navigates nowhere without
+    // preserveParams, so returning here made "Rechercher (46 biens)" a dead
+    // button whenever the visitor had not typed a place (reported 2026-09-24).
+    if (preserveParams && !hideDropdown && !String(text ?? '').trim()) {
       clearSearch();
       return;
     }

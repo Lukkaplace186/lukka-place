@@ -64,6 +64,8 @@ const NAV_COLUMNS = [
       // a link from every page is what tells Google these pages matter.
       { labelKey: 'footer.links.forSale', href: '/vente' },
       { labelKey: 'footer.links.forRent', href: '/location' },
+      { labelKey: 'footer.links.projects', href: '/projets' },
+      { labelKey: 'footer.links.developers', href: '/promoteurs' },
     ],
   },
   {

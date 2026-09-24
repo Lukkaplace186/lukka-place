@@ -1994,3 +1994,47 @@ anywhere. `tests/unit/seo-pages.test.js`.
   sees French — the /en migration is `lib/i18n/config.js`'s note), and keeping
   sold listings indexable (would need a read outside `APPROVED_FILTER`; the
   listing 404 page already offers live alternatives).
+
+## Projets neufs & terrains — `/projets` (2026-09-24)
+
+Developers' buildings (off-plan or completed) sold/let by UNIT TYPE, and land
+sold in lots or portions. Engine migration `migrations/20260924_developments.sql`
+(`developments`, `development_unit_types`, `development_updates`,
+`development_lots`); reads degrade to "no projects" on 42P01.
+
+- **Separate entity, separate map.** Not `properties` rows: a 40-unit tower is
+  marketed by type, has a stage and a delivery date, and a lot plan has no
+  listing equivalent. `/projets` has its own list + map (`ProjectsMap`, ink
+  pills via `.lkp-projects`), so projects never crowd the `/listings` map. The
+  existing `parent_building_id` grouping for multi-unit WhatsApp pastes is
+  unchanged.
+- **Public gate** `d.status = 1 AND d.approve_status = 1` on every public read
+  (`lib/developments.js`, pinned by `tests/unit/developments.test.js`). Created
+  as drafts from `/admin/projets` (`projects.manage`: owner, moderator);
+  publish is refused until there is media, a commune and a unit type / lot
+  (`publishBlockers`).
+- **Honesty rules**: renders always labelled "Image d'illustration" and kept
+  apart from `photos`; `verified_at` set only by a person with a written note
+  (published); unstated availability is shown as nothing, not 0; a payment plan
+  that does not sum to 100 % is not shown; an off-plan timeline older than 90
+  days says so; a project without coordinates sits at its commune centroid and
+  the map says "position indicative".
+- **Land**: portions (`share_percent`) → `PortionSelector` (bar fill, price/m²,
+  saving vs the smallest portion, from the seller's own prices); traced lots
+  (`polygon`, 0..1000 box over the plan image) → `LotPlan`, traced in admin by
+  clicking corners (`LotPlanEditor`).
+- **Enquiries**: the form → engine `POST /admin/project-enquiries`
+  (`services/projectEnquiry.js`): lead `source: 'project-enquiry'`,
+  `development_id`, `agent_id` = the developer (their Demandes), WhatsApp to a
+  verified developer + ops. No commune → never dispatched to ranked agencies.
+  Direct WhatsApp/call buttons only for a verified, routing-enabled developer;
+  deliberately no central-number fallback (the engine would give its generic
+  model reply to a pre-typed project message).
+- **Developers**: `/promoteurs` (pitch, public demand by commune — only
+  communes with ≥3 distinct customers, 90 days — and an application saved as a
+  `developer-application` lead). Their projects show on `/agents/[id]`; an
+  overview card + `/compte/agent/projets` let them set units left and lot
+  status (scoped by `d.agent_id` in the UPDATE). No new sidebar entry.
+- **`/admin/demande`**: engine `GET /admin/demand-report` (distinct customers
+  per commune × rent/buy × bedrooms × budget band) against live supply
+  (`lib/demandRules.js`), printable — the report to take to a developer.

@@ -32,6 +32,7 @@ import { STATUS_RECENT_DAYS } from '@/lib/listingShareRules';
 import { shareBlocker } from '@/lib/listingShareCopy';
 import AgentMoreOnPhone from '@/components/AgentMoreOnPhone';
 import { AgentSectionSkeleton } from '@/components/RouteSkeletons';
+import AgentProjectsCard from '@/components/projects/AgentProjectsCard';
 
 const RANGE_OPTIONS = Object.entries(VIEW_RANGES).map(([value, { label }]) => ({ value, label }));
 
@@ -82,6 +83,11 @@ export default async function AgentOverviewPage({ searchParams }) {
       <div className="flex flex-col gap-4 px-3 py-4 sm:gap-6 sm:px-8 sm:py-7">
         <AgentVisitReminderBanner visits={todo.todayVisits} listingById={listingById} />
         <AgentTodayPanel todo={todo} listingById={listingById} />
+
+        {/* Only for a developer with at least one project (/projets). */}
+        <Suspense fallback={null}>
+          <AgentProjectsCard agentId={agentId} />
+        </Suspense>
 
         <Suspense fallback={<AgentSectionSkeleton className="h-48 sm:h-28" />}>
           <OverviewStats agentId={agentId} listings={listings} propertyIds={propertyIds} leadScope={leadScope} hasLeadScope={hasLeadScope} />

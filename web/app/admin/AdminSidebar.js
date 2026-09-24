@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   BarChart3, Building2, CalendarClock, HandCoins, ChartNoAxesCombined, CreditCard, FileText, Gauge, HeartPulse, Mail, User, Users,
-  Landmark, MessageCircle, Radar, ScrollText, Settings, ShieldCheck, TrendingDown, UsersRound,
+  Building, Landmark, MessageCircle, Radar, ScrollText, Settings, ShieldCheck, Target, TrendingDown, UsersRound,
 } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { can, sectionPermission } from '@/lib/adminRoles';
@@ -39,6 +39,7 @@ const NAV_GROUPS = [
     items: [
       { href: '/admin/dashboard', labelKey: 'admin.nav.dashboard', icon: BarChart3 },
       { href: '/admin/listings', labelKey: 'admin.nav.listings', icon: FileText },
+      { href: '/admin/projets', labelKey: 'admin.nav.projects', icon: Building },
       { href: '/admin/viewings', labelKey: 'admin.nav.viewings', icon: CalendarClock },
       { href: '/admin/leads', labelKey: 'admin.nav.leads', icon: Mail },
       { href: '/admin/conversations', labelKey: 'admin.nav.conversations', icon: MessageCircle },
@@ -70,6 +71,7 @@ const NAV_GROUPS = [
       { href: '/admin/telemetry', labelKey: 'admin.nav.telemetry', icon: ChartNoAxesCombined },
       { href: '/admin/benchmarks', labelKey: 'admin.nav.agentPerformance', icon: Gauge },
       { href: '/admin/market-data', labelKey: 'admin.nav.marketData', icon: TrendingDown },
+      { href: '/admin/demande', labelKey: 'admin.nav.demand', icon: Target },
     ],
   },
   {

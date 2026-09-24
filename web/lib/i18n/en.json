@@ -126,7 +126,8 @@
     "agentLogin": "Already registered? Agent area",
     "findPrompt": "Still looking?",
     "findLead": "Tell us what you're looking for and we'll pass your request to Lukka Place's partner agencies.",
-    "findCta": "Find it for me"
+    "findCta": "Find it for me",
+    "projects": "New Developments"
   },
   "footer": {
     "columns": {
@@ -141,7 +142,9 @@
       "forRent": "For rent",
       "about": "About",
       "contact": "Contact",
-      "guides": "Guides"
+      "guides": "Guides",
+      "projects": "New Developments & Land",
+      "developers": "For Developers"
     },
     "partnerBand": {
       "title": "Are You an Estate Agent or Agency?",
@@ -1543,6 +1546,22 @@
         "unavailable": "The client book isn’t available yet. Please try again a little later.",
         "notFound": "This client no longer exists."
       }
+    },
+    "projects": {
+      "title": "My Projects",
+      "cardTitle": "My Projects",
+      "manage": "Manage",
+      "draft": "draft",
+      "intro": "Keep the number of units left and each lot’s status up to date: the public page changes straight away. The rest of the page is prepared with the Lukka Place team.",
+      "empty": "No project is linked to your account.",
+      "emptyLink": "Present a project",
+      "unitsLeft": "Left",
+      "lotStatus": "Lot status",
+      "save": "Save",
+      "saved": "Saved.",
+      "error": "This value could not be saved.",
+      "viewPublic": "View page",
+      "teamEdits": "To change prices, photos or construction updates, write to the Lukka Place team."
     }
   },
   "status": {
@@ -2043,7 +2062,9 @@
         "revenue": "Revenue",
         "insights": "Insights",
         "system": "System"
-      }
+      },
+      "projects": "New developments",
+      "demand": "Demand"
     },
     "login": {
       "intro": "Restricted to the Lukka Place team.",
@@ -3759,6 +3780,248 @@
         "noListingYet": "No listing since signing up",
         "nudge": "Nudge"
       }
+    },
+    "projects": {
+      "title": "New Developments",
+      "subtitle": "Buildings, off-plan projects and land in lots. A project stays a draft until it is published.",
+      "new": "New Project",
+      "newIntro": "Start with the project details. Photos, unit types, lots and construction updates are added next.",
+      "createDraft": "Create draft",
+      "back": "All projects",
+      "editTitle": "Project",
+      "empty": "No projects yet.",
+      "migrationMissing": "The project tables do not exist yet: run migrations/20260924_developments.sql.",
+      "readOnly": "Read only: your role cannot edit projects.",
+      "viewPublic": "View public page",
+      "save": "Save",
+      "delete": "Delete",
+      "unitTypeCount": {
+        "zero": "No types",
+        "one": "{count} type",
+        "other": "{count} types"
+      },
+      "lotCount": {
+        "zero": "No lots",
+        "one": "{count} lot",
+        "other": "{count} lots"
+      },
+      "cols": {
+        "name": "Project",
+        "kind": "Type",
+        "developer": "Developer",
+        "commune": "Commune",
+        "content": "Content",
+        "lastUpdate": "Last construction update",
+        "status": "Status"
+      },
+      "status": {
+        "published": "Published",
+        "draft": "Draft"
+      },
+      "kinds": {
+        "building": "Building",
+        "land": "Land in lots"
+      },
+      "purposes": {
+        "sale": "Sale",
+        "rent": "Rent",
+        "mixed": "Sale and rent"
+      },
+      "publishTitle": "Publication",
+      "publishIntro": "A published project appears on /projets, on its map and on the developer’s profile.",
+      "publish": "Publish",
+      "unpublish": "Take off the market",
+      "verifyTitle": "Verification",
+      "verifyIntro": "Only after seeing the building permit and the land title and visiting the site. Write down what was checked: this note is published.",
+      "verifyNotePlaceholder": "E.g.: building permit no. … seen, land title checked, site visit on 24/09/2026.",
+      "verify": "Mark as verified",
+      "unverify": "Remove verification",
+      "verifiedBy": "Verified by {who} on {date}",
+      "detailsTitle": "Project Details",
+      "deleteTitle": "Delete Project",
+      "deleteIntro": "Deletes the project, its unit types, lots and construction updates. Type {id} to confirm.",
+      "deleteConfirmLabel": "Project id",
+      "deleteProject": "Delete permanently",
+      "saved": {
+        "created": "Draft created. Now add photos and unit types or lots.",
+        "details": "Details saved.",
+        "published": "Project published.",
+        "unpublished": "Project taken off the market.",
+        "verified": "Project marked as verified.",
+        "unverified": "Verification removed.",
+        "photos": "Photos updated.",
+        "renders": "Artist’s impressions updated.",
+        "plan": "Plan saved.",
+        "units": "Unit types updated.",
+        "lots": "Lots updated.",
+        "timeline": "Construction updates saved.",
+        "deleted": "Project deleted."
+      },
+      "errors": {
+        "generic": "Saving failed.",
+        "name": "Enter the project name.",
+        "kind": "Choose a project type.",
+        "stage": "Choose the construction stage.",
+        "coordinates": "Latitude and longitude go together and must be in Kinshasa.",
+        "paymentPlan": "The payment plan percentages must add up to 100%.",
+        "delivery": "Invalid completion date.",
+        "commune": "Unknown commune.",
+        "unitLabel": "Enter the unit type name.",
+        "priceRange": "The maximum price is below the minimum price.",
+        "units": "Available units cannot exceed the total.",
+        "lotLabel": "Enter the lot name.",
+        "share": "The share must be between 0 and 100%.",
+        "polygon": "A lot outline needs at least three points on the plan.",
+        "verifyNote": "Write down what was checked (at least 10 characters).",
+        "deleteConfirm": "The id you typed does not match.",
+        "badType": "Accepted formats: JPEG, PNG, WebP.",
+        "tooLarge": "Each image must be under 10 MB.",
+        "upload": "Uploading the images failed.",
+        "updateDate": "Enter the date the photos were taken (not in the future).",
+        "updateEmpty": "Add a caption or photos.",
+        "publish_media": "Add at least one photo or artist’s impression.",
+        "publish_commune": "Enter the commune.",
+        "publish_units": "Add at least one unit type.",
+        "publish_lots": "Add at least one lot or portion."
+      },
+      "form": {
+        "name": "Project name",
+        "kind": "Type",
+        "kindHint": "Changing the type hides unit types or lots already entered, without deleting them.",
+        "stage": "Stage (building)",
+        "stageHint": "Off-plan = pre-launch or under construction.",
+        "delivery": "Expected completion",
+        "deliveryHint": "The date the developer announces. Shown as month and year.",
+        "purpose": "Offer",
+        "developerAccount": "Developer account",
+        "developerAccountHint": "Receives enquiries on WhatsApp (verified number) and in their dashboard.",
+        "chooseDeveloper": "Choose an agent or agency",
+        "developerName": "Developer name (shown)",
+        "developerNameHint": "Used when no account is linked.",
+        "commune": "Commune",
+        "quartier": "Quartier",
+        "address": "Address / landmark",
+        "latitude": "Latitude",
+        "longitude": "Longitude",
+        "coordinatesHint": "Copy them from Google Maps. Without coordinates the project is placed at its commune’s centre, and the map says so.",
+        "video": "Video (YouTube link)",
+        "videoHint": "A YouTube link is embedded on the page; any other link is shown as a link.",
+        "landLegend": "Land",
+        "landArea": "Total area (m²)",
+        "landTitle": "Land Title",
+        "description": "Description",
+        "amenities": "Amenities",
+        "amenitiesHint": "Comma separated: generator, borehole, security…",
+        "planLegend": "Payment plan",
+        "planHint": "Stages and percentages, which must add up to 100%. Leave empty if there is none.",
+        "planLabel": "Stage",
+        "planPercent": "Percentage",
+        "planLabelExample": "On reservation"
+      },
+      "media": {
+        "photosTitle": "Real Photos",
+        "photosIntro": "The site or building as it is today. Never a 3D render here.",
+        "rendersTitle": "Artist’s Impressions",
+        "rendersIntro": "Architect renders. Always shown labelled “Artist’s impression”.",
+        "none": "No images.",
+        "upload": "Add",
+        "remove": "Remove"
+      },
+      "units": {
+        "title": "Unit Types",
+        "intro": "One type per line of the developer’s price list. Leave empty what is not known: nothing is shown rather than a zero.",
+        "new": "Add a type",
+        "add": "Add type",
+        "label": "Name",
+        "labelExample": "2-bedroom apartment",
+        "purpose": "Sale / rent",
+        "period": "Period (rent)",
+        "month": "per month",
+        "year": "per year",
+        "bedrooms": "Bedrooms",
+        "bathrooms": "Bathrooms",
+        "area": "Area (m²)",
+        "order": "Order",
+        "priceMin": "Price from ($)",
+        "priceMax": "Price up to ($)",
+        "total": "Units in total",
+        "available": "Units available"
+      },
+      "lots": {
+        "planTitle": "Subdivision Plan",
+        "planIntro": "The plan image the lots are traced on. Replacing the plan does not move existing outlines.",
+        "uploadPlan": "Upload plan",
+        "replacePlan": "Replace plan",
+        "title": "Lots and Portions",
+        "intro": "A portion (30%, 50%, 100% of one plot): enter the share. A lot on the plan: trace it.",
+        "new": "Add a lot",
+        "add": "Add lot",
+        "label": "Lot name",
+        "status": "Status",
+        "area": "Area (m²)",
+        "price": "Price ($)",
+        "share": "Share of the plot (%)",
+        "trace": "Outline on the plan: click the lot’s corners in order",
+        "undo": "Undo last point",
+        "clear": "Clear",
+        "points": {
+          "zero": "No points",
+          "one": "{count} point",
+          "other": "{count} points"
+        },
+        "polygon": "Outline (x,y …)",
+        "noPlan": "Upload the plan image first to trace lots.",
+        "traced": "traced"
+      },
+      "timeline": {
+        "title": "Construction",
+        "intro": "The date is when the photos were taken, not when they were entered. With no update for 90 days, the public page says so.",
+        "date": "Photo date",
+        "caption": "Caption",
+        "captionExample": "Third-floor slab poured",
+        "add": "Publish update",
+        "photos": {
+          "zero": "no photos",
+          "one": "{count} photo",
+          "other": "{count} photos"
+        }
+      }
+    },
+    "demand": {
+      "title": "Demand",
+      "subtitle": "What customers asked for, by commune, rent or buy, bedrooms and budget, against the live listings that answer it. The report to show a developer before they fix their unit mix and prices.",
+      "days": {
+        "one": "{count} day",
+        "other": "{count} days"
+      },
+      "print": "Print",
+      "loadError": "Could not load demand: {error}",
+      "customers": "Distinct customers",
+      "requests": "Requests",
+      "liveListings": "Live listings",
+      "byCommune": "By Commune",
+      "cellsTitle": "Demand and Supply",
+      "cellsIntro": "Each row: customers looking for the same thing. “Supply” counts the live listings answering it today; a positive gap is demand nobody serves.",
+      "cols": {
+        "commune": "Commune",
+        "transaction": "Looking to",
+        "bedrooms": "Bedrooms",
+        "budget": "Budget",
+        "customers": "Customers",
+        "supply": "Supply",
+        "gap": "Gap"
+      },
+      "rent": "Rent",
+      "buy": "Buy",
+      "bedroomsMin": {
+        "one": "{count}+ bed",
+        "other": "{count}+ beds"
+      },
+      "budgetAny": "Not stated",
+      "budgetUnder": "under {max}",
+      "budgetOver": "{min} and over",
+      "empty": "No requests in this period.",
+      "method": "Source: requests recorded on Lukka Place (“Find it for me” form, WhatsApp assistant, agent forms). A multi-commune request counts in each commune. Budget: the stated maximum, else the minimum. Yearly rents are compared per month."
     }
   },
   "errors": {
@@ -4025,5 +4288,268 @@
     "related": "More Guides",
     "searchCta": "See listings",
     "frenchOnly": "This guide is written in French."
+  },
+  "projects": {
+    "meta": {
+      "title": "New Developments, Buildings and Land in Kinshasa | Lukka Place",
+      "description": "Off-plan apartments, completed buildings and land sold in lots in Kinshasa: unit types, prices, payment plans, construction progress and lot plans.",
+      "detailFallback": "{name} — {kind} in Kinshasa on Lukka Place."
+    },
+    "kind": {
+      "building": "Completed building",
+      "offPlan": "Off-plan project",
+      "land": "Land in lots"
+    },
+    "stage": {
+      "pre_launch": "Pre-launch",
+      "under_construction": "Under construction",
+      "delivered": "Completed"
+    },
+    "lot": {
+      "available": "Available",
+      "reserved": "Reserved",
+      "sold": "Sold"
+    },
+    "title": {
+      "own_title": "Own Title per Lot",
+      "shared_title": "Share of a Common Title",
+      "in_progress": "Title in progress",
+      "unknown": "Not stated"
+    },
+    "badge": {
+      "verified": "Verified by Lukka Place"
+    },
+    "render": "Artist’s impression",
+    "realPhoto": "Real photo",
+    "pin": {
+      "building": "Project",
+      "buildingUnits": {
+        "one": "{count} left",
+        "other": "{count} left"
+      },
+      "land": "Land",
+      "landLots": {
+        "one": "{count} lot",
+        "other": "{count} lots"
+      }
+    },
+    "card": {
+      "from": "from",
+      "priceOnRequest": "Price on request",
+      "beds": {
+        "one": "{count} bedroom",
+        "other": "{count} bedrooms"
+      },
+      "bedsRange": "{min} to {max} bedrooms",
+      "unitsAvailable": {
+        "one": "{count} available",
+        "other": "{count} available"
+      },
+      "unitsAvailableOf": {
+        "one": "{count} of {total} available",
+        "other": "{count} of {total} available"
+      },
+      "soldOut": "Sold out",
+      "lotsAvailable": {
+        "one": "{count} of {total} lots available",
+        "other": "{count} of {total} lots available"
+      },
+      "allLotsTaken": "All lots taken",
+      "by": "By {name}"
+    },
+    "filters": {
+      "label": "Project type",
+      "all": "All",
+      "offPlan": "Off-plan",
+      "underConstruction": "Under construction",
+      "delivered": "Completed",
+      "land": "Land",
+      "allCommunes": "All communes"
+    },
+    "hub": {
+      "crumb": "New developments",
+      "eyebrow": "New Developments & Land",
+      "title": "Kinshasa’s New Buildings and Land",
+      "subtitle": "Off-plan apartments, completed buildings and land sold in lots, presented by the developers themselves: unit types, prices, payment plans and construction progress.",
+      "promiseTimeline": "Construction dated photo by photo: you see when a project moves forward, and when it stops.",
+      "promiseVerified": "The “Verified” badge only appears once our team has seen the documents and visited the site.",
+      "promiseLots": "For land, the lot plan shows what is available, reserved or sold.",
+      "count": {
+        "zero": "No projects",
+        "one": "{count} project",
+        "other": "{count} projects"
+      },
+      "showMap": "Map",
+      "showList": "List",
+      "emptyTitle": "No Projects for This Choice",
+      "emptyBody": "The first developers are coming on board. Check back soon, or try another filter.",
+      "developerEyebrow": "Are You a Developer?",
+      "developerTitle": "Launch Your Project on Lukka Place",
+      "developerBody": "A dedicated page, enquiries on WhatsApp and in your dashboard, and real demand figures by commune.",
+      "developerCta": "Present my project"
+    },
+    "map": {
+      "show": "Show map",
+      "loading": "Loading map…",
+      "unavailable": "The map is not available right now.",
+      "approximate": "Approximate position: centre of the commune",
+      "approximateShort": "Approximate position (centre of the commune)",
+      "open": "View project",
+      "close": "Close",
+      "unplaced": {
+        "one": "{count} project without a position is not on the map.",
+        "other": "{count} projects without a position are not on the map."
+      }
+    },
+    "gallery": {
+      "count": "{photos} real photo(s) · {renders} artist’s impression(s)"
+    },
+    "facts": {
+      "delivery": "Expected completion",
+      "availability": "Availability",
+      "landArea": "Land area",
+      "title": "Land Title",
+      "types": "Unit types",
+      "typesCount": {
+        "one": "{count} type",
+        "other": "{count} types"
+      },
+      "developer": "Developer"
+    },
+    "verification": {
+      "verifiedTitle": "Project Verified by Lukka Place on {date}",
+      "verifiedBody": "Our team reviewed the project documents and visited the site.",
+      "pendingTitle": "Awaiting Verification by Lukka Place",
+      "pendingBody": "The information comes from the developer. Before paying anything, ask for the building permit and the land title, and visit the site."
+    },
+    "units": {
+      "title": "Unit Types",
+      "baths": {
+        "one": "{count} bathroom",
+        "other": "{count} bathrooms"
+      },
+      "area": "{area} m²",
+      "rent": "To rent",
+      "sale": "For sale",
+      "soldOut": "Sold out",
+      "available": {
+        "one": "{count} available",
+        "other": "{count} available"
+      },
+      "availableOf": {
+        "one": "{count} of {total} available",
+        "other": "{count} of {total} available"
+      },
+      "interested": "I’m interested"
+    },
+    "plan": {
+      "title": "Payment Plan",
+      "simulate": "Work it out for a unit",
+      "customOption": "Other amount…",
+      "customPlaceholder": "Price in dollars",
+      "total": "Total",
+      "pickPrice": "Choose a unit or enter a price to see each instalment.",
+      "disclaimer": "Worked out from the developer’s stated percentages, with no fees or interest. The exact terms are in the reservation contract."
+    },
+    "timeline": {
+      "title": "Construction Progress",
+      "none": "The developer has not published construction photos yet.",
+      "stale": "No construction update for more than {days} days. Ask the developer how the works are going."
+    },
+    "portions": {
+      "title": "Portions of the Plot",
+      "intro": "The plot is sold in portions. Pick one to see its area, price and price per m².",
+      "choose": "Choose a portion",
+      "saving": "That is {amount} less per m² than the smallest portion.",
+      "titleLine": "Title: {status}",
+      "interested": "I’m interested in {share}%"
+    },
+    "lots": {
+      "planTitle": "Lot Plan",
+      "planAlt": "Subdivision plan — {name}",
+      "planLabel": "Lots on the plan",
+      "listTitle": "Lots",
+      "lot": "Lot",
+      "area": "Area",
+      "price": "Price",
+      "perM2": "Price per m²",
+      "status": "Status",
+      "title": "Title",
+      "ask": "ask",
+      "interested": "I’m interested in this lot"
+    },
+    "enquiry": {
+      "developer": "Developer",
+      "team": "Lukka Place team",
+      "whatsapp": "Message the developer on WhatsApp",
+      "call": "Call the developer",
+      "formTitle": "Get More Information",
+      "name": "Your name",
+      "interest": "What you are interested in",
+      "interestGeneral": "The project in general",
+      "message": "Your message (optional)",
+      "messagePlaceholder": "Budget, move-in date, questions…",
+      "submit": "Send my enquiry",
+      "privacy": "Your number is shared with this project’s developer and the Lukka Place team, and nobody else.",
+      "sentTitle": "Enquiry Sent",
+      "sentBody": "The developer has received your enquiry and will get back to you on WhatsApp.",
+      "error": "Your enquiry could not be sent. Please try again in a moment.",
+      "errorPhone": "Enter a valid WhatsApp number.",
+      "developerProfile": "See all of this developer’s projects",
+      "contactBar": "Contact the developer"
+    },
+    "description": "Description",
+    "amenities": "Amenities",
+    "video": "Video",
+    "videoLink": "Watch the project video",
+    "location": "Location",
+    "profile": {
+      "eyebrow": "Projects",
+      "title": "New Developments & Land"
+    },
+    "developers": {
+      "metaTitle": "Developers: Launch Your Project on Lukka Place",
+      "metaDescription": "Present your building, off-plan project or subdivision to buyers and tenants in Kinshasa and the diaspora.",
+      "eyebrow": "For Developers",
+      "title": "Kinshasa Is Building. Launch Your Project Where Buyers Are Looking.",
+      "subtitle": "A complete project page, enquiries on WhatsApp, and real demand by commune to decide your unit mix and prices.",
+      "cta": "Present my project",
+      "seeProjects": "See live projects",
+      "featuresTitle": "What You Get",
+      "f1Title": "A Dedicated Project Page",
+      "f1Body": "Each unit type with its area, price and number of units left. On the map your project has its own marker, not lost among listings.",
+      "f2Title": "Construction Progress",
+      "f2Body": "Dated photos published as the works advance. It is what reassures an off-plan buyer, and what your competitors do not show.",
+      "f3Title": "The Interactive Lot Plan",
+      "f3Body": "For a subdivision, every lot on the plan, coloured by whether it is available, reserved or sold, with its area and price per m².",
+      "f4Title": "Your Payment Plan",
+      "f4Body": "Reservation, payments during construction, balance at handover: buyers see every instalment for the unit they want.",
+      "f5Title": "Enquiries Come to You",
+      "f5Body": "Every enquiry reaches your WhatsApp and your dashboard, never a competitor.",
+      "f6Title": "The Diaspora Too",
+      "f6Body": "The site is in French and English, with prices in dollars and Congolese francs, for buyers in Brussels, Paris or Johannesburg.",
+      "demandTitle": "What Customers Are Asking for Right Now",
+      "demandBody": "The communes where the most distinct customers gave us a search in the last 90 days. For each developer we prepare the detail by bedrooms and budget.",
+      "demandNote": "Distinct customers, not messages. A commune only appears from {min} customers.",
+      "demandEmpty": "Not enough requests yet to publish a ranking.",
+      "customers": {
+        "one": "{count} customer",
+        "other": "{count} customers"
+      },
+      "verifyTitle": "The “Verified” Badge, Earned",
+      "verifyBody": "Before marking a project “Verified by Lukka Place”, our team reviews the building permit and the land title, then visits the site. The badge is never automatic and never sold, which is why it matters to buyers.",
+      "formTitle": "Present My Project",
+      "formBody": "Leave your details and a few words about the project. We will call you to prepare the page together.",
+      "haveAccount": "No professional account yet?",
+      "createAccount": "Create my account",
+      "name": "Your name",
+      "company": "Company / developer",
+      "kind": "Project type",
+      "project": "Your project",
+      "projectPlaceholder": "Commune, number of units or lots, expected completion date…",
+      "submit": "Send",
+      "sentTitle": "Thank You, Noted",
+      "sentBody": "Our team will contact you on WhatsApp to prepare your project page."
+    }
   }
 }

@@ -66,6 +66,8 @@ const DRAWER_ROW = 'rounded-md transition-colors duration-75 hover:bg-canvas-alt
 const PRIMARY_LINKS = [
   { href: '/listings?transaction_type=location', labelKey: 'nav.rent' },
   { href: '/listings?transaction_type=vente', labelKey: 'nav.buy' },
+  // New developments and land in lots — their own hub and map (/projets).
+  { href: '/projets', labelKey: 'nav.projects' },
   { href: '/agents', labelKey: 'nav.agencies' },
   { href: '/a-propos', labelKey: 'nav.about' },
 ];

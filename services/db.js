@@ -1474,6 +1474,10 @@ const LEADS_EXTENDED_COLUMNS = [
   // existing single-commune reader keeps working; NULL on rows that only
   // ever named one.
   ['communes', 'TEXT'],
+  // The /projets project a 'project-enquiry' lead is about
+  // (services/projectEnquiry.js). Postgres developments.id; no FK across
+  // databases. NULL on every other kind of lead.
+  ['development_id', 'INTEGER'],
 ];
 
 function migrateLeads() {
@@ -1854,7 +1858,7 @@ function getRecentMessages(conversationId, limit = 10) {
 const LEAD_FIELDS = [
   'conversation_id', 'wa_id', 'name', 'source', 'property_id', 'transaction_type',
   'commune', 'quartier', 'price_min', 'price_max', 'bedrooms', 'requirements_summary',
-  'status', 'assigned_agent', 'communes',
+  'status', 'assigned_agent', 'communes', 'development_id',
 ];
 
 /**
@@ -2246,6 +2250,99 @@ function getLeadProposals(leadIds) {
  *
  * @param {{since: string}} options ISO timestamp — the window start.
  */
+/**
+ * Demand report for developers and the /admin/demande page: what customers
+ * have ASKED for, by commune × transaction × bedrooms × budget band.
+ *
+ * Only structured requests count — a lead with no commune (a visit request,
+ * a listing or project enquiry) names a property, not a need. A multi-commune
+ * request counts once in each commune it names, and the per-cell `customers`
+ * figure counts distinct wa_ids so one person asking three times is one
+ * customer. Budget bands read `price_max` (what they can pay), falling back to
+ * `price_min`; a request with neither lands in band `null` ("budget non
+ * précisé") rather than being guessed into one.
+ *
+ * Supply (matching live listings) is NOT computed here — listings are in
+ * Postgres; web/lib/demandReport.js joins the two.
+ */
+const DEMAND_BUDGET_BANDS = {
+  location: [300, 600, 1000, 2000],
+  vente: [50000, 100000, 250000, 500000],
+};
+
+function demandBudgetBand(transactionType, priceMin, priceMax) {
+  const bands = DEMAND_BUDGET_BANDS[transactionType];
+  const value = priceMax ?? priceMin;
+  if (!bands || value === null || value === undefined || !Number.isFinite(Number(value))) return null;
+  const n = Number(value);
+  for (let i = 0; i < bands.length; i += 1) {
+    if (n < bands[i]) return { min: i === 0 ? null : bands[i - 1], max: bands[i] };
+  }
+  return { min: bands[bands.length - 1], max: null };
+}
+
+function getDemandReport({ since, limit = 40 } = {}) {
+  const rows = db
+    .prepare(
+      `SELECT wa_id, commune, communes, transaction_type, bedrooms, price_min, price_max, created_at
+         FROM leads
+        WHERE created_at >= datetime(@since)
+          AND (commune IS NOT NULL OR communes IS NOT NULL)`,
+    )
+    .all({ since });
+
+  const cells = new Map();
+  const communeTotals = new Map();
+  const customersAll = new Set();
+
+  for (const row of rows) {
+    let communes = [];
+    if (row.communes) {
+      try {
+        const parsed = JSON.parse(row.communes);
+        if (Array.isArray(parsed)) communes = parsed.filter((c) => typeof c === 'string' && c.trim());
+      } catch { /* fall back to the single column */ }
+    }
+    if (!communes.length && row.commune) communes = [row.commune];
+    customersAll.add(row.wa_id);
+    const tx = row.transaction_type === 'vente' ? 'vente' : row.transaction_type === 'location' ? 'location' : null;
+    const band = demandBudgetBand(tx, row.price_min, row.price_max);
+    const bedrooms = Number.isFinite(Number(row.bedrooms)) && row.bedrooms !== null ? Number(row.bedrooms) : null;
+
+    for (const commune of communes) {
+      const key = [commune, tx, bedrooms, band?.min ?? '', band?.max ?? ''].join('|');
+      let cell = cells.get(key);
+      if (!cell) {
+        cell = {
+          commune, transaction_type: tx, bedrooms,
+          budget_min: band?.min ?? null, budget_max: band?.max ?? null,
+          requests: 0, customers: new Set(), last_request_at: null,
+        };
+        cells.set(key, cell);
+      }
+      cell.requests += 1;
+      cell.customers.add(row.wa_id);
+      if (!cell.last_request_at || row.created_at > cell.last_request_at) cell.last_request_at = row.created_at;
+
+      const total = communeTotals.get(commune) || { commune, requests: 0, customers: new Set() };
+      total.requests += 1;
+      total.customers.add(row.wa_id);
+      communeTotals.set(commune, total);
+    }
+  }
+
+  const finish = (entry) => ({ ...entry, customers: entry.customers.size });
+  const sortByDemand = (a, b) => b.customers - a.customers || b.requests - a.requests;
+
+  return {
+    since,
+    requests: rows.length,
+    customers: customersAll.size,
+    cells: [...cells.values()].map(finish).sort(sortByDemand).slice(0, Math.max(1, Math.min(200, Number(limit) || 40))),
+    communes: [...communeTotals.values()].map(finish).sort(sortByDemand),
+  };
+}
+
 function getMatchingStats({ since }) {
   const totals = db
     .prepare(
@@ -3636,6 +3733,8 @@ module.exports = {
   getRecentMessages,
   createLead,
   getLead,
+  getDemandReport,
+  demandBudgetBand,
   getLeadByConversationId,
   getLeadsByConversation,
   updateLeadStatus,

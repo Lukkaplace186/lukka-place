@@ -19,6 +19,7 @@ const db = require('../services/db');
 const chakra = require('../services/chakra');
 const { STATES } = require('../services/conversationState');
 const { dispatchLead, dispatchLeadInBackground } = require('../services/leadDispatch');
+const { handleProjectEnquiry } = require('../services/projectEnquiry');
 const {
   normaliseLeadCommunes,
   leadCommunes,
@@ -222,6 +223,50 @@ router.get('/leads', (req, res) => {
  * wa_id is required (matches db.createLead's own invariant) since the whole
  * point of a lead is the agent following up on WhatsApp.
  */
+// ---------------------------------------------------------------------------
+// /projets enquiries (services/projectEnquiry.js) — the web form on a project
+// page. The project is re-read under the public gate there, so a crafted id
+// for an unpublished project is a 404, and the developer is alerted only on a
+// verified, routing-enabled number. Never dispatched to ranked agencies.
+// ---------------------------------------------------------------------------
+router.post('/project-enquiries', async (req, res) => {
+  const {
+    development_id: developmentId, wa_id: waId, name, interest, message,
+  } = req.body || {};
+  if (!/^\d{7,15}$/.test(String(waId || '').replace(/\D/g, ''))) {
+    return res.status(400).json({ success: false, error: 'wa_id is required.' });
+  }
+  try {
+    const result = await handleProjectEnquiry({ developmentId, waId, name, interest, message });
+    if (!result.ok) {
+      const status = result.error === 'Project not found.' ? 404 : 400;
+      return res.status(status).json({ success: false, error: result.error });
+    }
+    return res.status(201).json({
+      success: true,
+      lead: result.lead,
+      developer_notified: result.developerNotified,
+      ops_notified: result.opsNotified,
+    });
+  } catch (err) {
+    console.error(`[admin] POST /project-enquiries failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Enquiry could not be recorded.' });
+  }
+});
+
+// Demand report — what customers asked for, by commune × transaction ×
+// bedrooms × budget band (db.getDemandReport). `days` 7..365, default 90.
+router.get('/demand-report', (req, res) => {
+  const days = Math.min(365, Math.max(7, Number.parseInt(req.query.days, 10) || 90));
+  const since = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 19).replace('T', ' ');
+  try {
+    return res.json({ success: true, days, ...db.getDemandReport({ since, limit: req.query.limit }) });
+  } catch (err) {
+    console.error(`[admin] GET /demand-report failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 router.post('/leads', (req, res) => {
   const {
     wa_id: waId,

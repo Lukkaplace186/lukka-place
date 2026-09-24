@@ -72,3 +72,33 @@ export async function uploadListingPhoto(buffer, propertyId, ext) {
   if (!data?.publicUrl) throw new Error('Listing photo upload succeeded but no public URL was returned');
   return data.publicUrl;
 }
+
+/**
+ * A /projets image (photo, render, plan, construction update), under
+ * `projects/{id}/` in the same public bucket. Resized to 2000px JPEG when
+ * sharp is available; content-hashed so a re-upload is a new URL.
+ * @returns {Promise<string>} public URL
+ */
+export async function uploadProjectImage(buffer, projectId, ext) {
+  let body = buffer;
+  let finalExt = ext;
+  try {
+    const { default: sharp } = await import('sharp');
+    body = await sharp(buffer).rotate().resize({ width: 2000, height: 2000, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 82, mozjpeg: true }).toBuffer();
+    finalExt = 'jpg';
+  } catch {
+    // sharp unavailable: keep the original bytes.
+  }
+  const hash = crypto.createHash('md5').update(body).digest('hex').slice(0, 16);
+  const storagePath = `projects/${projectId}/${hash}.${finalExt}`;
+  const storage = getClient().storage.from(BUCKET);
+  const { error } = await storage.upload(storagePath, body, {
+    contentType: CONTENT_TYPE_BY_EXT[finalExt] || 'application/octet-stream',
+    upsert: true,
+  });
+  if (error) throw new Error(`Project image upload failed: ${error.message}`);
+  const { data } = storage.getPublicUrl(storagePath);
+  if (!data?.publicUrl) throw new Error('Project image upload succeeded but no public URL was returned');
+  return data.publicUrl;
+}

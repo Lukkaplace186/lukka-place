@@ -8692,6 +8692,73 @@ console.log('\n2. services/openai.js');
     assert.ok(unassigned.every((lead) => lead.agent_id == null));
   });
 
+  // ===========================================================================
+  console.log('\n36. /projets enquiries and the demand report');
+  // ===========================================================================
+  //
+  // A project enquiry is recorded for the developer (leads.agent_id) and never
+  // dispatched to ranked agencies; the demand report counts distinct customers
+  // per commune x transaction x bedrooms x budget band.
+  const projectEnquiry = require('../services/projectEnquiry');
+
+  check('leads carry development_id, writable through createLead', () => {
+    const cols = new Set(dbService.db.prepare('PRAGMA table_info(leads)').all().map((c) => c.name));
+    assert.ok(cols.has('development_id'));
+    const lead = dbService.createLead({ wa_id: '243899036001', source: 'project-enquiry', development_id: 12 });
+    assert.strictEqual(lead.development_id, 12);
+    assert.strictEqual(lead.commune, null, 'no commune: leadDispatch can never pick it up');
+  });
+
+  await checkAsync('an enquiry for a project that cannot be read as public is refused', async () => {
+    const result = await projectEnquiry.handleProjectEnquiry({ developmentId: 9999, waId: '243899036002' });
+    assert.deepStrictEqual(result, { ok: false, error: 'Project not found.' });
+    const bad = await projectEnquiry.handleProjectEnquiry({ developmentId: 1, waId: '12' });
+    assert.strictEqual(bad.ok, false);
+  });
+
+  check('the developer and desk messages name the project, the interest and the customer', () => {
+    const project = { id: 3, slug: 'residence-3', name: 'Résidence Test', commune: 'Gombe', agent_id: 8, developer_name: 'Promo SA' };
+    const dev = projectEnquiry.developerMessage({ project, picked: { kind: 'unit', label: '2 chambres' }, from: '243811111111', name: 'Aline', message: 'Budget 900' });
+    assert.ok(dev.includes('Résidence Test'));
+    assert.ok(dev.includes('type « 2 chambres »'));
+    assert.ok(dev.includes('+243811111111'));
+    assert.ok(dev.includes('/projets/residence-3'));
+    const ops = projectEnquiry.opsMessage({ project, picked: null, from: '243811111111', developerNotified: false, skipReason: 'numéro agent non vérifié' });
+    assert.ok(ops.includes('Promoteur NON prévenu (numéro agent non vérifié)'));
+    assert.ok(ops.includes('le projet en général'));
+  });
+
+  check('the project routes are registered and never dispatch to ranked agencies', () => {
+    const source = fs.readFileSync(path.join(__dirname, '..', 'routes', 'admin.js'), 'utf8');
+    const start = source.indexOf("router.post('/project-enquiries'");
+    const end = source.indexOf("router.get('/demand-report'");
+    assert.ok(start > 0 && end > start);
+    assert.ok(!source.slice(start, end).includes('dispatchLead'));
+  });
+
+  check('budget bands read price_max, fall back to price_min, and never guess', () => {
+    assert.deepStrictEqual(dbService.demandBudgetBand('location', null, 750), { min: 600, max: 1000 });
+    assert.deepStrictEqual(dbService.demandBudgetBand('location', 250, null), { min: null, max: 300 });
+    assert.deepStrictEqual(dbService.demandBudgetBand('vente', null, 900000), { min: 500000, max: null });
+    assert.strictEqual(dbService.demandBudgetBand('location', null, null), null);
+    assert.strictEqual(dbService.demandBudgetBand(null, null, 500), null);
+  });
+
+  check('the demand report counts distinct customers per cell, in each commune a request names', () => {
+    const since = '2000-01-01 00:00:00';
+    const cellOf = (report, commune) => report.cells.find((c) => c.commune === commune && c.transaction_type === 'location' && c.bedrooms === 2 && c.budget_max === 1000);
+    dbService.createLead({ wa_id: '243899036010', source: 'verify-36', transaction_type: 'location', commune: 'Limete-QA36', communes: JSON.stringify(['Limete-QA36', 'Kalamu-QA36']), bedrooms: 2, price_max: 800 });
+    dbService.createLead({ wa_id: '243899036010', source: 'verify-36', transaction_type: 'location', commune: 'Limete-QA36', bedrooms: 2, price_max: 900 });
+    dbService.createLead({ wa_id: '243899036011', source: 'verify-36', transaction_type: 'location', commune: 'Limete-QA36', bedrooms: 2, price_max: 700 });
+    dbService.createLead({ wa_id: '243899036012', source: 'project-enquiry' });
+    const report = dbService.getDemandReport({ since, limit: 200 });
+    const limete = cellOf(report, 'Limete-QA36');
+    assert.strictEqual(limete.customers, 2, 'one person asking twice is one customer');
+    assert.strictEqual(limete.requests, 3);
+    assert.strictEqual(cellOf(report, 'Kalamu-QA36').customers, 1, 'the second commune of one request counts there too');
+    assert.ok(report.communes.some((c) => c.commune === 'Kalamu-QA36'));
+  });
+
   // -------------------------------------------------------------------------
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);

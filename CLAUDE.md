@@ -1131,3 +1131,19 @@ alert job itself), no inbound WhatsApp traffic for `OPS_ALERT_SILENCE_HOURS`
 ## Verification & Commands
 - **Verification Command**: Always run `npm run verify` before declaring a backend task complete.
 - **Test Coverage**: Do not touch schema fields without updating `scripts/verify-pipeline.js`.
+
+## Projets neufs — project enquiries and the demand report (2026-09-24)
+
+web/CLAUDE.md, "Projets neufs & terrains", has the product. Engine half:
+
+- `services/projectEnquiry.js` behind `POST /admin/project-enquiries`: re-reads
+  the project under `status = 1 AND approve_status = 1`, records a lead
+  (`source: 'project-enquiry'`, new SQLite column `leads.development_id`, no
+  commune so `leadDispatch` never sees it), assigns it to the developer's
+  `agents.id`, and alerts the developer (only through
+  `propertyRepository.directRoutingBlocker`) plus `OPS_WHATSAPP_NUMBER`.
+- `db.getDemandReport` behind `GET /admin/demand-report?days=`: distinct wa_ids
+  per commune × transaction × bedrooms × budget band (`demandBudgetBand` reads
+  price_max, else price_min, else "not stated"); multi-commune requests count
+  in each commune. Supply is joined on the web side.
+- Covered by `scripts/verify-pipeline.js` §36.

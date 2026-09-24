@@ -9,6 +9,8 @@ import VCardButton from '@/components/VCardButton';
 import CopyLinkButton from '@/components/CopyLinkButton';
 import CurrencyToggle from '@/components/CurrencyToggle';
 import InquiryForm from './InquiryForm';
+import ProjectCard from '@/components/projects/ProjectCard';
+import { getPublicProjects } from '@/lib/developments';
 import { getAgentProfile, getAgentListings, agentContactName, agentPublicName } from '@/lib/agencies';
 import { buildWhatsAppLink, getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { formatPhoneDisplay } from '@/lib/phone';
@@ -90,6 +92,13 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
   });
 
   const filteredListings = listings.data;
+
+  // The developer's published projects (/projets). Never lets a projects
+  // failure take the profile down.
+  const projects = await getPublicProjects({ agentId: agent.id }).catch((err) => {
+    console.error(`[agents/${agent.id}] projects unavailable: ${err.message}`);
+    return [];
+  });
 
   // The agency / trade name when the agent gave one, else their own name.
   const name = agentPublicName(agent) || '—';
@@ -319,6 +328,19 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
           `stretch` would make the aside full-height, leaving it nothing to
           stick within. */}
       <div className="mx-auto max-w-[77.5rem] px-4 pb-14 pt-8 sm:px-6 sm:pb-16 sm:pt-9">
+        {projects.length ? (
+          <section className="mb-12 flex flex-col gap-5">
+            <div>
+              <span className="u-eyebrow">{t('projects.profile.eyebrow')}</span>
+              <h2 className="font-display mt-1.5 text-[2rem] font-normal tracking-[-0.01em] text-ink sm:text-[2.375rem]">
+                {t('projects.profile.title')}
+              </h2>
+            </div>
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {projects.map((project) => <ProjectCard key={project.id} project={project} />)}
+            </div>
+          </section>
+        ) : null}
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-12">
           <section>
             <div className="flex flex-wrap items-end justify-between gap-6">

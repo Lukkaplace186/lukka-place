@@ -2,6 +2,7 @@ import { SITE_URL } from '@/lib/constants';
 import { getSitemapListings, getSeoFacets } from '@/lib/listings';
 import { GUIDES } from '@/lib/guides';
 import { landingPathsFromFacets } from '@/lib/seoPages';
+import { getSitemapProjects } from '@/lib/developments';
 
 /**
  * /sitemap.xml — every public listing, the search landing pages that have
@@ -14,7 +15,7 @@ export const revalidate = 3600;
 export default async function sitemap() {
   const base = SITE_URL.replace(/\/+$/, '');
   const now = new Date();
-  const pages = ['', '/listings', '/agents', '/guides', '/a-propos', '/contact'].map((path) => ({
+  const pages = ['', '/listings', '/projets', '/promoteurs', '/agents', '/guides', '/a-propos', '/contact'].map((path) => ({
     url: `${base}${path}`,
     lastModified: now,
     changeFrequency: path === '' || path === '/listings' ? 'daily' : 'monthly',
@@ -22,13 +23,17 @@ export default async function sitemap() {
   }));
 
   // A sitemap that fails to build must still list the pages it can.
-  const [listings, facets] = await Promise.all([
+  const [listings, facets, projects] = await Promise.all([
     getSitemapListings().catch((err) => {
       console.error('[sitemap] listings unavailable', err);
       return [];
     }),
     getSeoFacets().catch((err) => {
       console.error('[sitemap] landing facets unavailable', err);
+      return [];
+    }),
+    getSitemapProjects().catch((err) => {
+      console.error('[sitemap] projects unavailable', err);
       return [];
     }),
   ]);
@@ -47,6 +52,12 @@ export default async function sitemap() {
       lastModified: new Date(g.updated),
       changeFrequency: 'monthly',
       priority: 0.6,
+    })),
+    ...projects.map(({ slug, updated_at: updatedAt }) => ({
+      url: `${base}/projets/${slug}`,
+      lastModified: updatedAt ? new Date(updatedAt) : now,
+      changeFrequency: 'weekly',
+      priority: 0.8,
     })),
     ...listings.map(({ id, updatedAt }) => ({
       url: `${base}/listings/${id}`,

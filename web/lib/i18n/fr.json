@@ -126,7 +126,8 @@
     "agentLogin": "Déjà inscrit ? Espace agent",
     "findPrompt": "Pas encore trouvé ?",
     "findLead": "Décrivez ce que vous cherchez : nous transmettons votre demande aux agences partenaires de Lukka Place.",
-    "findCta": "Trouver pour moi"
+    "findCta": "Trouver pour moi",
+    "projects": "Projets neufs"
   },
   "footer": {
     "columns": {
@@ -141,7 +142,9 @@
       "forRent": "À louer",
       "about": "À propos",
       "contact": "Contact",
-      "guides": "Guides"
+      "guides": "Guides",
+      "projects": "Projets neufs & terrains",
+      "developers": "Espace promoteurs"
     },
     "partnerBand": {
       "title": "Vous êtes agent ou agence immobilière ?",
@@ -1543,6 +1546,22 @@
         "unavailable": "Le carnet de clients n’est pas encore disponible. Réessayez un peu plus tard.",
         "notFound": "Ce client n’existe plus."
       }
+    },
+    "projects": {
+      "title": "Mes projets",
+      "cardTitle": "Mes projets",
+      "manage": "Gérer",
+      "draft": "brouillon",
+      "intro": "Tenez à jour le nombre de logements restants et le statut de chaque lot : la page publique change aussitôt. Le reste de la page est préparé avec l’équipe Lukka Place.",
+      "empty": "Aucun projet n’est rattaché à votre compte.",
+      "emptyLink": "Présenter un projet",
+      "unitsLeft": "Restants",
+      "lotStatus": "Statut du lot",
+      "save": "Enregistrer",
+      "saved": "Enregistré.",
+      "error": "Cette valeur n’a pas pu être enregistrée.",
+      "viewPublic": "Voir la page",
+      "teamEdits": "Pour modifier les prix, les photos ou le chantier, écrivez à l’équipe Lukka Place."
     }
   },
   "status": {
@@ -2043,7 +2062,9 @@
         "revenue": "Revenus",
         "insights": "Analyses",
         "system": "Système"
-      }
+      },
+      "projects": "Projets neufs",
+      "demand": "Demande"
     },
     "login": {
       "intro": "Accès réservé à l'équipe Lukka Place.",
@@ -3759,6 +3780,248 @@
         "noListingYet": "Aucune annonce depuis l’inscription",
         "nudge": "Relancer"
       }
+    },
+    "projects": {
+      "title": "Projets neufs",
+      "subtitle": "Immeubles, projets sur plan et terrains en lots. Un projet reste en brouillon jusqu’à sa publication.",
+      "new": "Nouveau projet",
+      "newIntro": "Commencez par les informations du projet. Photos, types de logements, lots et chantier s’ajoutent ensuite.",
+      "createDraft": "Créer le brouillon",
+      "back": "Tous les projets",
+      "editTitle": "Projet",
+      "empty": "Aucun projet pour l’instant.",
+      "migrationMissing": "Les tables des projets n’existent pas encore : lancez migrations/20260924_developments.sql.",
+      "readOnly": "Lecture seule : votre rôle ne permet pas de modifier les projets.",
+      "viewPublic": "Voir la page publique",
+      "save": "Enregistrer",
+      "delete": "Supprimer",
+      "unitTypeCount": {
+        "zero": "Aucun type",
+        "one": "{count} type",
+        "other": "{count} types"
+      },
+      "lotCount": {
+        "zero": "Aucun lot",
+        "one": "{count} lot",
+        "other": "{count} lots"
+      },
+      "cols": {
+        "name": "Projet",
+        "kind": "Type",
+        "developer": "Promoteur",
+        "commune": "Commune",
+        "content": "Contenu",
+        "lastUpdate": "Dernier chantier",
+        "status": "Statut"
+      },
+      "status": {
+        "published": "Publié",
+        "draft": "Brouillon"
+      },
+      "kinds": {
+        "building": "Immeuble",
+        "land": "Terrain en lots"
+      },
+      "purposes": {
+        "sale": "Vente",
+        "rent": "Location",
+        "mixed": "Vente et location"
+      },
+      "publishTitle": "Publication",
+      "publishIntro": "Un projet publié apparaît sur /projets, sur sa carte et sur le profil du promoteur.",
+      "publish": "Publier",
+      "unpublish": "Retirer de la vente",
+      "verifyTitle": "Vérification",
+      "verifyIntro": "Uniquement après avoir vu le permis de bâtir, le titre foncier et visité le site. Écrivez ce qui a été vérifié : cette note est publiée.",
+      "verifyNotePlaceholder": "Ex. : permis de bâtir n° … vu, titre foncier vérifié, visite du site le 24/09/2026.",
+      "verify": "Marquer comme vérifié",
+      "unverify": "Retirer la vérification",
+      "verifiedBy": "Vérifié par {who} le {date}",
+      "detailsTitle": "Informations du projet",
+      "deleteTitle": "Supprimer le projet",
+      "deleteIntro": "Supprime le projet, ses types de logements, ses lots et son chantier. Tapez {id} pour confirmer.",
+      "deleteConfirmLabel": "Identifiant du projet",
+      "deleteProject": "Supprimer définitivement",
+      "saved": {
+        "created": "Brouillon créé. Ajoutez maintenant les photos et les types de logements ou les lots.",
+        "details": "Informations enregistrées.",
+        "published": "Projet publié.",
+        "unpublished": "Projet retiré de la vente.",
+        "verified": "Projet marqué comme vérifié.",
+        "unverified": "Vérification retirée.",
+        "photos": "Photos mises à jour.",
+        "renders": "Images d’illustration mises à jour.",
+        "plan": "Plan enregistré.",
+        "units": "Types de logements mis à jour.",
+        "lots": "Lots mis à jour.",
+        "timeline": "Chantier mis à jour.",
+        "deleted": "Projet supprimé."
+      },
+      "errors": {
+        "generic": "L’enregistrement a échoué.",
+        "name": "Indiquez le nom du projet.",
+        "kind": "Choisissez un type de projet.",
+        "stage": "Choisissez l’étape du chantier.",
+        "coordinates": "Latitude et longitude vont ensemble et doivent être à Kinshasa.",
+        "paymentPlan": "Les pourcentages du calendrier de paiement doivent faire 100 %.",
+        "delivery": "Date de livraison invalide.",
+        "commune": "Commune inconnue.",
+        "unitLabel": "Indiquez le nom du type de logement.",
+        "priceRange": "Le prix maximum est inférieur au prix minimum.",
+        "units": "Les unités disponibles ne peuvent pas dépasser le total.",
+        "lotLabel": "Indiquez le nom du lot.",
+        "share": "La part doit être comprise entre 0 et 100 %.",
+        "polygon": "Le tracé du lot doit compter au moins trois points sur le plan.",
+        "verifyNote": "Écrivez ce qui a été vérifié (10 caractères au moins).",
+        "deleteConfirm": "L’identifiant tapé ne correspond pas.",
+        "badType": "Formats acceptés : JPEG, PNG, WebP.",
+        "tooLarge": "Chaque image doit faire moins de 10 Mo.",
+        "upload": "L’envoi des images a échoué.",
+        "updateDate": "Indiquez la date des photos (pas dans le futur).",
+        "updateEmpty": "Ajoutez une légende ou des photos.",
+        "publish_media": "Ajoutez au moins une photo ou une image d’illustration.",
+        "publish_commune": "Indiquez la commune.",
+        "publish_units": "Ajoutez au moins un type de logement.",
+        "publish_lots": "Ajoutez au moins un lot ou une portion."
+      },
+      "form": {
+        "name": "Nom du projet",
+        "kind": "Type",
+        "kindHint": "Changer le type masque les types de logements ou les lots déjà saisis, sans les supprimer.",
+        "stage": "Étape (immeuble)",
+        "stageHint": "Sur plan = pré-lancement ou en construction.",
+        "delivery": "Livraison prévue",
+        "deliveryHint": "Date annoncée par le promoteur. Affichée en mois et année.",
+        "purpose": "Offre",
+        "developerAccount": "Compte du promoteur",
+        "developerAccountHint": "Reçoit les demandes sur WhatsApp (numéro vérifié) et dans son tableau de bord.",
+        "chooseDeveloper": "Choisir un agent ou une agence",
+        "developerName": "Nom du promoteur (affiché)",
+        "developerNameHint": "Utilisé si aucun compte n’est rattaché.",
+        "commune": "Commune",
+        "quartier": "Quartier",
+        "address": "Adresse / repère",
+        "latitude": "Latitude",
+        "longitude": "Longitude",
+        "coordinatesHint": "Copiez-les depuis Google Maps. Sans coordonnées, le projet est placé au centre de sa commune, et la carte le signale.",
+        "video": "Vidéo (lien YouTube)",
+        "videoHint": "Un lien YouTube est intégré à la page ; tout autre lien est affiché comme lien.",
+        "landLegend": "Terrain",
+        "landArea": "Surface totale (m²)",
+        "landTitle": "Titre foncier",
+        "description": "Description",
+        "amenities": "Équipements",
+        "amenitiesHint": "Séparés par des virgules : groupe électrogène, forage, gardiennage…",
+        "planLegend": "Calendrier de paiement",
+        "planHint": "Étapes et pourcentages, qui doivent faire 100 %. Laissez vide s’il n’y en a pas.",
+        "planLabel": "Étape",
+        "planPercent": "Pourcentage",
+        "planLabelExample": "À la réservation"
+      },
+      "media": {
+        "photosTitle": "Photos réelles",
+        "photosIntro": "Le site ou l’immeuble tel qu’il est aujourd’hui. Jamais de rendu 3D ici.",
+        "rendersTitle": "Images d’illustration",
+        "rendersIntro": "Rendus d’architecte. Toujours affichés avec la mention « Image d’illustration ».",
+        "none": "Aucune image.",
+        "upload": "Ajouter",
+        "remove": "Retirer"
+      },
+      "units": {
+        "title": "Types de logements",
+        "intro": "Un type par ligne de la grille de prix du promoteur. Laissez vide ce qui n’est pas connu : rien n’est affiché plutôt qu’un zéro.",
+        "new": "Ajouter un type",
+        "add": "Ajouter le type",
+        "label": "Nom",
+        "labelExample": "Appartement 2 chambres",
+        "purpose": "Vente / location",
+        "period": "Période (location)",
+        "month": "par mois",
+        "year": "par an",
+        "bedrooms": "Chambres",
+        "bathrooms": "Salles de bain",
+        "area": "Surface (m²)",
+        "order": "Ordre",
+        "priceMin": "Prix dès ($)",
+        "priceMax": "Prix jusqu’à ($)",
+        "total": "Unités au total",
+        "available": "Unités disponibles"
+      },
+      "lots": {
+        "planTitle": "Plan de lotissement",
+        "planIntro": "L’image du plan sur laquelle les lots sont tracés. Remplacer le plan ne déplace pas les tracés existants.",
+        "uploadPlan": "Envoyer le plan",
+        "replacePlan": "Remplacer le plan",
+        "title": "Lots et portions",
+        "intro": "Une portion (30 %, 50 %, 100 % d’un même terrain) : indiquez la part. Un lot du plan : tracez-le.",
+        "new": "Ajouter un lot",
+        "add": "Ajouter le lot",
+        "label": "Nom du lot",
+        "status": "Statut",
+        "area": "Surface (m²)",
+        "price": "Prix ($)",
+        "share": "Part du terrain (%)",
+        "trace": "Tracé sur le plan : cliquez les coins du lot dans l’ordre",
+        "undo": "Annuler le dernier point",
+        "clear": "Effacer",
+        "points": {
+          "zero": "Aucun point",
+          "one": "{count} point",
+          "other": "{count} points"
+        },
+        "polygon": "Tracé (x,y …)",
+        "noPlan": "Envoyez d’abord l’image du plan pour tracer les lots.",
+        "traced": "tracé"
+      },
+      "timeline": {
+        "title": "Chantier",
+        "intro": "La date est celle des photos, pas celle de la saisie. Sans mise à jour depuis 90 jours, la page publique le signale.",
+        "date": "Date des photos",
+        "caption": "Légende",
+        "captionExample": "Coulage de la dalle du 3e étage",
+        "add": "Publier la mise à jour",
+        "photos": {
+          "zero": "aucune photo",
+          "one": "{count} photo",
+          "other": "{count} photos"
+        }
+      }
+    },
+    "demand": {
+      "title": "Demande",
+      "subtitle": "Ce que les clients ont demandé, par commune, location ou achat, nombre de chambres et budget, face aux annonces en ligne qui y répondent. Le rapport à montrer à un promoteur avant qu’il fixe ses typologies et ses prix.",
+      "days": {
+        "one": "{count} jour",
+        "other": "{count} jours"
+      },
+      "print": "Imprimer",
+      "loadError": "Impossible de charger la demande : {error}",
+      "customers": "Clients distincts",
+      "requests": "Demandes",
+      "liveListings": "Annonces en ligne",
+      "byCommune": "Par commune",
+      "cellsTitle": "Demande et offre",
+      "cellsIntro": "Chaque ligne : des clients qui cherchent la même chose. « Offre » compte les annonces en ligne qui y répondent aujourd’hui ; un écart positif est une demande que personne ne sert.",
+      "cols": {
+        "commune": "Commune",
+        "transaction": "Recherche",
+        "bedrooms": "Chambres",
+        "budget": "Budget",
+        "customers": "Clients",
+        "supply": "Offre",
+        "gap": "Écart"
+      },
+      "rent": "Location",
+      "buy": "Achat",
+      "bedroomsMin": {
+        "one": "{count} ch. et +",
+        "other": "{count} ch. et +"
+      },
+      "budgetAny": "Non précisé",
+      "budgetUnder": "moins de {max}",
+      "budgetOver": "{min} et plus",
+      "empty": "Aucune demande sur cette période.",
+      "method": "Source : demandes enregistrées sur Lukka Place (formulaire « Trouver pour moi », assistant WhatsApp, formulaires agents). Une demande multi-communes compte dans chaque commune. Budget : le maximum indiqué, sinon le minimum. Les loyers annuels sont comparés au mois."
     }
   },
   "errors": {
@@ -4025,5 +4288,268 @@
     "related": "Autres guides",
     "searchCta": "Voir les annonces",
     "frenchOnly": "Ce guide est rédigé en français."
+  },
+  "projects": {
+    "meta": {
+      "title": "Projets neufs, immeubles et terrains à Kinshasa | Lukka Place",
+      "description": "Appartements sur plan, immeubles livrés et terrains en lots à Kinshasa : types de logements, prix, calendrier de paiement, avancement du chantier et plan des lots.",
+      "detailFallback": "{name} — {kind} à Kinshasa sur Lukka Place."
+    },
+    "kind": {
+      "building": "Immeuble livré",
+      "offPlan": "Projet sur plan",
+      "land": "Terrain en lots"
+    },
+    "stage": {
+      "pre_launch": "Pré-lancement",
+      "under_construction": "En construction",
+      "delivered": "Livré"
+    },
+    "lot": {
+      "available": "Disponible",
+      "reserved": "Réservé",
+      "sold": "Vendu"
+    },
+    "title": {
+      "own_title": "Titre propre par lot",
+      "shared_title": "Part d’un titre commun",
+      "in_progress": "Titre en cours",
+      "unknown": "Non précisé"
+    },
+    "badge": {
+      "verified": "Vérifié par Lukka Place"
+    },
+    "render": "Image d’illustration",
+    "realPhoto": "Photo réelle",
+    "pin": {
+      "building": "Projet",
+      "buildingUnits": {
+        "one": "{count} dispo",
+        "other": "{count} dispo"
+      },
+      "land": "Terrain",
+      "landLots": {
+        "one": "{count} lot",
+        "other": "{count} lots"
+      }
+    },
+    "card": {
+      "from": "dès",
+      "priceOnRequest": "Prix sur demande",
+      "beds": {
+        "one": "{count} chambre",
+        "other": "{count} chambres"
+      },
+      "bedsRange": "{min} à {max} chambres",
+      "unitsAvailable": {
+        "one": "{count} disponible",
+        "other": "{count} disponibles"
+      },
+      "unitsAvailableOf": {
+        "one": "{count} disponible sur {total}",
+        "other": "{count} disponibles sur {total}"
+      },
+      "soldOut": "Tout est vendu",
+      "lotsAvailable": {
+        "one": "{count} lot disponible sur {total}",
+        "other": "{count} lots disponibles sur {total}"
+      },
+      "allLotsTaken": "Tous les lots sont pris",
+      "by": "Par {name}"
+    },
+    "filters": {
+      "label": "Type de projet",
+      "all": "Tous",
+      "offPlan": "Sur plan",
+      "underConstruction": "En construction",
+      "delivered": "Livrés",
+      "land": "Terrains",
+      "allCommunes": "Toutes les communes"
+    },
+    "hub": {
+      "crumb": "Projets neufs",
+      "eyebrow": "Projets neufs & terrains",
+      "title": "Les nouveaux immeubles et terrains de Kinshasa",
+      "subtitle": "Appartements sur plan, immeubles livrés et terrains vendus en lots, présentés par les promoteurs eux-mêmes : types de logements, prix, calendrier de paiement et avancement du chantier.",
+      "promiseTimeline": "Un chantier daté, photo après photo : vous voyez quand un projet avance, et quand il s’arrête.",
+      "promiseVerified": "Le badge « Vérifié » n’apparaît que lorsque notre équipe a vu les documents et visité le site.",
+      "promiseLots": "Pour un terrain, le plan des lots montre ce qui est disponible, réservé ou vendu.",
+      "count": {
+        "zero": "Aucun projet",
+        "one": "{count} projet",
+        "other": "{count} projets"
+      },
+      "showMap": "Carte",
+      "showList": "Liste",
+      "emptyTitle": "Aucun projet pour ce choix",
+      "emptyBody": "Les premiers promoteurs arrivent. Revenez bientôt, ou essayez un autre filtre.",
+      "developerEyebrow": "Vous êtes promoteur ?",
+      "developerTitle": "Lancez votre projet sur Lukka Place",
+      "developerBody": "Une page dédiée, vos demandes sur WhatsApp et dans votre tableau de bord, et les chiffres de la demande réelle par commune.",
+      "developerCta": "Présenter mon projet"
+    },
+    "map": {
+      "show": "Afficher la carte",
+      "loading": "Chargement de la carte…",
+      "unavailable": "La carte n’est pas disponible pour le moment.",
+      "approximate": "Position indicative : centre de la commune",
+      "approximateShort": "Position indicative (centre de la commune)",
+      "open": "Voir le projet",
+      "close": "Fermer",
+      "unplaced": {
+        "one": "{count} projet sans position n’apparaît pas sur la carte.",
+        "other": "{count} projets sans position n’apparaissent pas sur la carte."
+      }
+    },
+    "gallery": {
+      "count": "{photos} photo(s) réelle(s) · {renders} image(s) d’illustration"
+    },
+    "facts": {
+      "delivery": "Livraison prévue",
+      "availability": "Disponibilité",
+      "landArea": "Surface du terrain",
+      "title": "Titre foncier",
+      "types": "Types de logements",
+      "typesCount": {
+        "one": "{count} type",
+        "other": "{count} types"
+      },
+      "developer": "Promoteur"
+    },
+    "verification": {
+      "verifiedTitle": "Projet vérifié par Lukka Place le {date}",
+      "verifiedBody": "Notre équipe a consulté les documents du projet et s’est rendue sur le site.",
+      "pendingTitle": "Pas encore vérifié par Lukka Place",
+      "pendingBody": "Les informations viennent du promoteur. Avant tout paiement, demandez le permis de bâtir et le titre foncier, et visitez le site."
+    },
+    "units": {
+      "title": "Types de logements",
+      "baths": {
+        "one": "{count} salle de bain",
+        "other": "{count} salles de bain"
+      },
+      "area": "{area} m²",
+      "rent": "À louer",
+      "sale": "À vendre",
+      "soldOut": "Complet",
+      "available": {
+        "one": "{count} disponible",
+        "other": "{count} disponibles"
+      },
+      "availableOf": {
+        "one": "{count} disponible sur {total}",
+        "other": "{count} disponibles sur {total}"
+      },
+      "interested": "Je suis intéressé(e)"
+    },
+    "plan": {
+      "title": "Calendrier de paiement",
+      "simulate": "Simuler pour un logement",
+      "customOption": "Autre montant…",
+      "customPlaceholder": "Prix en dollars",
+      "total": "Total",
+      "pickPrice": "Choisissez un logement ou saisissez un prix pour voir chaque versement.",
+      "disclaimer": "Calcul fait sur les pourcentages indiqués par le promoteur, sans frais ni intérêts. Les conditions exactes figurent dans le contrat de réservation."
+    },
+    "timeline": {
+      "title": "Avancement du chantier",
+      "none": "Le promoteur n’a pas encore publié de photos du chantier.",
+      "stale": "Aucune mise à jour du chantier depuis plus de {days} jours. Demandez au promoteur où en sont les travaux."
+    },
+    "portions": {
+      "title": "Portions du terrain",
+      "intro": "Le terrain est vendu en portions. Choisissez une portion pour voir sa surface, son prix et son prix au m².",
+      "choose": "Choisir une portion",
+      "saving": "Soit {amount} de moins par m² que la plus petite portion.",
+      "titleLine": "Titre : {status}",
+      "interested": "Je suis intéressé(e) par {share} %"
+    },
+    "lots": {
+      "planTitle": "Plan des lots",
+      "planAlt": "Plan de lotissement — {name}",
+      "planLabel": "Lots du plan",
+      "listTitle": "Lots",
+      "lot": "Lot",
+      "area": "Surface",
+      "price": "Prix",
+      "perM2": "Prix au m²",
+      "status": "Statut",
+      "title": "Titre",
+      "ask": "demander",
+      "interested": "Je suis intéressé(e) par ce lot"
+    },
+    "enquiry": {
+      "developer": "Promoteur",
+      "team": "Équipe Lukka Place",
+      "whatsapp": "Écrire au promoteur sur WhatsApp",
+      "call": "Appeler le promoteur",
+      "formTitle": "Recevoir plus d’informations",
+      "name": "Votre nom",
+      "interest": "Ce qui vous intéresse",
+      "interestGeneral": "Le projet en général",
+      "message": "Votre message (facultatif)",
+      "messagePlaceholder": "Budget, date d’emménagement, questions…",
+      "submit": "Envoyer ma demande",
+      "privacy": "Votre numéro est transmis au promoteur de ce projet et à l’équipe Lukka Place, et à personne d’autre.",
+      "sentTitle": "Demande envoyée",
+      "sentBody": "Le promoteur a reçu votre demande et vous recontactera sur WhatsApp.",
+      "error": "Votre demande n’a pas pu être envoyée. Réessayez dans un instant.",
+      "errorPhone": "Indiquez un numéro WhatsApp valide.",
+      "developerProfile": "Voir tous les projets de ce promoteur",
+      "contactBar": "Contacter le promoteur"
+    },
+    "description": "Description",
+    "amenities": "Équipements",
+    "video": "Vidéo",
+    "videoLink": "Voir la vidéo du projet",
+    "location": "Emplacement",
+    "profile": {
+      "eyebrow": "Projets",
+      "title": "Projets neufs & terrains"
+    },
+    "developers": {
+      "metaTitle": "Promoteurs : lancez votre projet sur Lukka Place",
+      "metaDescription": "Présentez votre immeuble, votre projet sur plan ou votre lotissement aux acheteurs et locataires de Kinshasa et de la diaspora.",
+      "eyebrow": "Espace promoteurs",
+      "title": "Kinshasa se construit. Lancez votre projet là où les acheteurs cherchent.",
+      "subtitle": "Une page projet complète, vos demandes sur WhatsApp, et la demande réelle par commune pour décider de vos typologies et de vos prix.",
+      "cta": "Présenter mon projet",
+      "seeProjects": "Voir les projets en ligne",
+      "featuresTitle": "Ce que vous obtenez",
+      "f1Title": "Une page projet dédiée",
+      "f1Body": "Chaque type de logement avec sa surface, son prix et le nombre d’unités restantes. Sur la carte, votre projet a son propre repère, sans être noyé parmi les annonces.",
+      "f2Title": "L’avancement du chantier",
+      "f2Body": "Des photos datées publiées au fil des travaux. C’est ce qui rassure un acheteur sur plan, et ce que vos concurrents ne montrent pas.",
+      "f3Title": "Le plan interactif des lots",
+      "f3Body": "Pour un lotissement, chaque lot sur le plan, coloré selon qu’il est disponible, réservé ou vendu, avec sa surface et son prix au m².",
+      "f4Title": "Votre calendrier de paiement",
+      "f4Body": "Réservation, paiements pendant les travaux, solde à la remise des clés : l’acheteur voit chaque versement pour le logement qui l’intéresse.",
+      "f5Title": "Les demandes chez vous",
+      "f5Body": "Chaque demande arrive sur votre WhatsApp et dans votre tableau de bord, jamais chez un concurrent.",
+      "f6Title": "La diaspora aussi",
+      "f6Body": "Le site est en français et en anglais, avec les prix en dollars et en francs congolais, pour les acheteurs de Bruxelles, Paris ou Johannesburg.",
+      "demandTitle": "Ce que les clients demandent en ce moment",
+      "demandBody": "Les communes où le plus de clients distincts nous ont confié une recherche au cours des 90 derniers jours. Nous préparons pour chaque promoteur le détail par nombre de chambres et par budget.",
+      "demandNote": "Clients distincts, pas messages. Une commune n’apparaît qu’à partir de {min} clients.",
+      "demandEmpty": "Pas encore assez de demandes pour publier un classement.",
+      "customers": {
+        "one": "{count} client",
+        "other": "{count} clients"
+      },
+      "verifyTitle": "Le badge « Vérifié », mérité",
+      "verifyBody": "Avant de marquer un projet « Vérifié par Lukka Place », notre équipe consulte le permis de bâtir et le titre foncier, puis se rend sur le site. Le badge n’est jamais attribué automatiquement ni vendu, et c’est pour cela qu’il compte pour les acheteurs.",
+      "formTitle": "Présenter mon projet",
+      "formBody": "Laissez-nous vos coordonnées et quelques mots sur le projet. Nous vous appelons pour préparer la page avec vous.",
+      "haveAccount": "Pas encore de compte professionnel ?",
+      "createAccount": "Créer mon compte",
+      "name": "Votre nom",
+      "company": "Société / promoteur",
+      "kind": "Type de projet",
+      "project": "Votre projet",
+      "projectPlaceholder": "Commune, nombre de logements ou de lots, date de livraison prévue…",
+      "submit": "Envoyer",
+      "sentTitle": "Merci, c’est noté",
+      "sentBody": "Notre équipe vous contacte sur WhatsApp pour préparer la page de votre projet."
+    }
   }
 }

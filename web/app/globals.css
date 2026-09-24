@@ -1240,3 +1240,23 @@
   }
   .lkp-me::before { animation: lkp-me-pulse 2s ease-out infinite; }
 }
+
+/* /projets map (components/projects/ProjectsMap.js): project pills are ink,
+   so a development never reads as a listing's price tag. Active stays blue. */
+.lkp-projects .lkp-pin:not([data-active='true']) {
+  --lkp-bg: var(--ink, #1e1e1e);
+  --lkp-fg: #fff;
+  --lkp-edge: var(--ink, #1e1e1e);
+}
+.lkp-projects .lkp-pin:not([data-active='true']) .lkp-pin__check { color: #fff; }
+
+/* Lot plan (components/projects/LotPlan.js). Fills are the lot's status. */
+.lkp-lot { cursor: pointer; stroke: #fff; stroke-width: 3; transition: fill-opacity 0.15s, stroke-width 0.15s; }
+.lkp-lot[data-status='available'] { fill: var(--success-500, #1f7a4d); fill-opacity: 0.55; }
+.lkp-lot[data-status='reserved'] { fill: var(--warning-500, #b7791f); fill-opacity: 0.6; }
+.lkp-lot[data-status='sold'] { fill: var(--danger-500, #b42318); fill-opacity: 0.55; }
+.lkp-lot[data-active='true'] { fill-opacity: 0.85; stroke: var(--ink, #1e1e1e); stroke-width: 5; }
+@media (hover: hover) {
+  .lkp-lot:hover { fill-opacity: 0.8; }
+}
+.lkp-lot:focus-visible { outline: none; stroke: var(--blue, #1d5bd8); stroke-width: 6; }

@@ -29,6 +29,8 @@ export const PERMISSIONS = {
   // Acting
   'listings.moderate': ['owner', 'moderator'],
   'listings.edit': ['owner', 'moderator'],
+  // /admin/projets: create, edit, publish and verify developer projects.
+  'projects.manage': ['owner', 'moderator'],
   'agents.manage': ['owner', 'moderator', 'support'],
   'agents.bulk': ['owner', 'moderator'],
   'agents.security': ['owner', 'support'],
@@ -83,6 +85,8 @@ export function can(role, permission) {
 export const SECTION_PERMISSIONS = {
   '/admin/dashboard': 'analytics.view',
   '/admin/listings': 'listings.view',
+  '/admin/projets': 'listings.view',
+  '/admin/demande': 'analytics.view',
   '/admin/conversations': 'leads.view',
   '/admin/leads': 'leads.view',
   '/admin/matching': 'analytics.view',

@@ -557,3 +557,25 @@ export async function scheduleViewingRequest(id, scheduledAt) {
 export async function getAgentPerformance({ days = 90 } = {}) {
   return engineFetch(`/api/admin/benchmarks/agent-performance?days=${encodeURIComponent(days)}`);
 }
+
+/**
+ * A /projets enquiry (engine services/projectEnquiry.js). The engine re-reads
+ * the project under the public gate and alerts the developer + desk.
+ * @returns {Promise<{lead: Object, developer_notified: boolean, ops_notified: boolean}>}
+ */
+export async function createProjectEnquiry({ developmentId, waId, name, interest, message }) {
+  return engineFetch('/admin/project-enquiries', {
+    method: 'POST',
+    body: JSON.stringify({ development_id: developmentId, wa_id: waId, name, interest, message }),
+  });
+}
+
+/**
+ * What customers asked for (engine db.getDemandReport): cells by commune ×
+ * transaction × bedrooms × budget band, plus per-commune totals.
+ * @returns {Promise<{days: number, since: string, requests: number, customers: number, cells: Object[], communes: Object[]}>}
+ */
+export async function getDemandReport({ days = 90, limit = 40 } = {}) {
+  const params = new URLSearchParams({ days: String(days), limit: String(limit) });
+  return engineFetch(`/admin/demand-report?${params}`);
+}

@@ -51,7 +51,7 @@ import { I18nProvider } from '@/lib/i18n/client';
  * payload.
  */
 const SITE_NAMESPACES = [
-  'home', 'about', 'contact', 'breadcrumb', 'listings', 'enquiry', 'account', 'search', 'auth', 'updates',
+  'home', 'about', 'contact', 'breadcrumb', 'listings', 'enquiry', 'account', 'search', 'auth', 'updates', 'projects',
 ];
 
 export default async function SiteLayout({ children }) {

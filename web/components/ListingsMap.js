@@ -815,7 +815,8 @@ export default function ListingsMap({
       {status === 'ready' ? (
         // Bottom-right on a phone, clear of the centred "Voir N biens"
         // button; top-right on desktop, clear of Google's zoom buttons.
-        <div className="pointer-events-none absolute bottom-6 right-3 z-20 flex flex-col items-end gap-2 lg:bottom-auto lg:top-2.5">
+        // On a phone it sits above the floating "Voir N biens · Liste" pills.
+        <div className="pointer-events-none absolute bottom-[5.75rem] right-3 z-20 flex flex-col items-end gap-2 lg:bottom-auto lg:top-2.5">
           {notice ? (
             <p
               role="status"

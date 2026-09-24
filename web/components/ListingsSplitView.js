@@ -246,10 +246,10 @@ export default function ListingsSplitView({
           {/* `filterParams` makes this the viewport map: every listing
               matching the URL's filters inside the visible area, not just
               this page's 12 cards (see components/ListingsMap.js). */}
-          {/* On the phone map the map ends above the list sheet's handle, so
-              Google's logo and attribution stay visible (required) while the
-              sheet is down. */}
-          <div className={isMapView ? 'absolute inset-x-0 top-0 bottom-14 lg:static lg:h-full' : 'h-full'}>
+          {/* The phone map runs edge to edge; its controls float over it
+              (MobileMapBar), kept above Google's logo and attribution line,
+              which must stay visible. */}
+          <div className={isMapView ? 'absolute inset-0 lg:static lg:h-full' : 'h-full'}>
             <ResponsiveMapPane
               listings={listings}
               filterParams={params}
@@ -269,7 +269,7 @@ export default function ListingsSplitView({
               <MobileMapChrome params={params} />
             </div>
           ) : null}
-          {isMapView ? <MobileMapBar inView={inView} onOpenCards={openCards} /> : null}
+          {isMapView && !previewOpen ? <MobileMapBar inView={inView} onOpenCards={openCards} /> : null}
         </div>
       </div>
     </div>

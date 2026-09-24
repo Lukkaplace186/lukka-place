@@ -137,7 +137,8 @@ export default function MapCardCarousel({ ids, selectedId, onSettle, onClose, ne
   const ordered = ids.map((id) => byId.get(id)).filter(Boolean);
 
   return (
-    <div className="u-rise pointer-events-none absolute inset-x-0 bottom-3 z-30" role="region" aria-label={t('listings.map.cardsLabel')}>
+    // Clear of Google's logo and attribution line at the map's bottom edge.
+    <div className="u-rise pointer-events-none absolute inset-x-0 bottom-8 z-30" role="region" aria-label={t('listings.map.cardsLabel')}>
       <div className="pointer-events-auto mb-2 flex justify-end px-3">
         <button
           type="button"

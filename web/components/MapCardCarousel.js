@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { X } from 'lucide-react';
-import SafeImage from './SafeImage';
+import { Camera, X } from 'lucide-react';
+import CardImageCarousel from './CardImageCarousel';
 import Price from './Price';
 import FavoriteButton from './FavoriteButton';
 import { listingImages, specItems, typeLabel, feedLocationLine } from '@/lib/listingView';
@@ -34,8 +34,12 @@ async function loadListings(ids) {
  * The phone map's swipeable cards (Airbnb / Zillow pattern). Tapping a pin
  * opens this row with that listing's card centred; swiping left and right
  * walks through every listing in view, west to east, and each card that
- * settles in the middle lights up its pin (`onSettle`). Tapping another pin
- * scrolls the row to its card. × or a tap on the bare map closes it.
+ * settles in the middle lights up its pin and glides the map to it
+ * (`onSettle` → ListingsMap's reveal). Tapping another pin scrolls the row to
+ * its card. × or a tap on the bare map closes it.
+ *
+ * Two swipe zones, on purpose: the PHOTO swipes through that listing's
+ * pictures (MapCard below), the price and details swipe between listings.
  *
  * `ids` is a snapshot the caller takes when the row opens, so cards never
  * reorder under a thumb while the map pans to reveal a pin. Details come from
@@ -155,49 +159,78 @@ export default function MapCardCarousel({ ids, selectedId, onSettle, onClose, ne
         ) : null}
         {ordered.map((listing) => {
           const id = String(listing.id);
-          const href = `/listings/${encodeURIComponent(id)}`;
-          const [photo] = listingImages(listing);
-          const specs = specItems(listing, t).slice(0, 2);
-          const km = near?.point ? listingDistanceKm(listing, near.point) : null;
-          const active = id === String(selectedId);
           return (
-            <article
+            <MapCard
               key={id}
-              data-id={id}
-              ref={(node) => {
+              listing={listing}
+              active={id === String(selectedId)}
+              near={near}
+              cardRef={(node) => {
                 if (node) cardRefs.current.set(id, node);
                 else cardRefs.current.delete(id);
               }}
-              className={`u-lift relative flex w-[84vw] max-w-sm shrink-0 snap-center overflow-hidden rounded-2xl bg-surface transition-shadow ${
-                active ? 'ring-2 ring-blue' : ''
-              }`}
-            >
-              <Link href={href} className="relative block h-28 w-28 shrink-0 bg-canvas-deep">
-                {photo ? (
-                  <SafeImage src={photo} alt={listing.title || ''} fill sizes="112px" className="object-cover" loading="lazy" />
-                ) : null}
-              </Link>
-              <Link href={href} className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 py-2.5 pl-3 pr-11">
-                <span className="u-tabular truncate text-[1.0625rem] font-semibold leading-tight text-ink">
-                  <Price amount={listing.price} purpose={listing.purpose} pricePeriod={listing.price_period} currency={listing.currency} priceOriginal={listing.price_original} />
-                </span>
-                <span className="truncate text-[0.8125rem] text-ink-70">
-                  {[typeLabel(listing, t), ...specs.map((spec) => `${spec.value} ${spec.label}`)].filter(Boolean).join(' · ')}
-                </span>
-                <span className="truncate text-[0.8125rem] text-ink-45">{feedLocationLine(listing)}</span>
-                {Number.isFinite(km) ? (
-                  <span className="truncate text-[0.75rem] font-semibold text-blue-deep">
-                    {t('listings.results.distanceFrom', { distance: formatDistance(km), place: near.label })}
-                  </span>
-                ) : null}
-              </Link>
-              <div className="absolute right-1.5 top-1.5">
-                <FavoriteButton listingId={listing.id} price={listing.price} commune={listing.commune} />
-              </div>
-            </article>
+            />
           );
         })}
       </div>
     </div>
+  );
+}
+
+/**
+ * One card: the listing's photos on top, swipeable (CardImageCarousel — the
+ * same snap strip as the list cards, with `overscroll-behavior-x: contain`,
+ * so a swipe on the photo turns the photo and never throws the row to the
+ * next listing; the price and details below are where a swipe changes
+ * listing). The strip mounts photos lazily, so a card costs one photo until
+ * someone swipes it.
+ */
+function MapCard({ listing, active, near, cardRef }) {
+  const t = useT();
+  const [photoIndex, setPhotoIndex] = useState(0);
+  const id = String(listing.id);
+  const href = `/listings/${encodeURIComponent(id)}`;
+  const images = listingImages(listing);
+  const specs = specItems(listing, t).slice(0, 2);
+  const km = near?.point ? listingDistanceKm(listing, near.point) : null;
+
+  return (
+    <article
+      data-id={id}
+      ref={cardRef}
+      className={`u-lift relative flex w-[84vw] max-w-sm shrink-0 snap-center flex-col overflow-hidden rounded-2xl bg-surface transition-shadow ${
+        active ? 'ring-2 ring-blue' : ''
+      }`}
+    >
+      <div className="relative h-36 w-full shrink-0 overflow-hidden bg-canvas-deep">
+        <Link href={href} className="absolute inset-0 block" aria-label={listing.title || t('listings.map.viewDetails')}>
+          {images.length > 0 ? (
+            <CardImageCarousel images={images} alt={listing.title || ''} sizes="(min-width: 640px) 24rem, 84vw" onIndexChange={setPhotoIndex} />
+          ) : null}
+        </Link>
+        {images.length > 1 ? (
+          <span className="u-glass-royal u-tabular pointer-events-none absolute left-2.5 top-2.5 z-10 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[0.6875rem] font-semibold">
+            <Camera strokeWidth={ICON_STROKE_WIDTH} className="h-3 w-3" aria-hidden="true" />
+            {photoIndex + 1}/{images.length}
+          </span>
+        ) : null}
+        <div className="absolute right-2 top-2 z-10">
+          <FavoriteButton listingId={listing.id} price={listing.price} commune={listing.commune} />
+        </div>
+      </div>
+      <Link href={href} className="flex min-w-0 flex-col gap-0.5 px-3 py-2">
+        <span className="u-tabular truncate text-[1.0625rem] font-semibold leading-tight text-ink">
+          <Price amount={listing.price} purpose={listing.purpose} pricePeriod={listing.price_period} currency={listing.currency} priceOriginal={listing.price_original} />
+        </span>
+        <span className="truncate text-[0.8125rem] text-ink-70">
+          {[typeLabel(listing, t), ...specs.map((spec) => `${spec.value} ${spec.label}`), feedLocationLine(listing)].filter(Boolean).join(' · ')}
+        </span>
+        {Number.isFinite(km) ? (
+          <span className="truncate text-[0.75rem] font-semibold text-blue-deep">
+            {t('listings.results.distanceFrom', { distance: formatDistance(km), place: near.label })}
+          </span>
+        ) : null}
+      </Link>
+    </article>
   );
 }

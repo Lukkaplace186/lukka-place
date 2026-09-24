@@ -688,13 +688,25 @@ export default function ListingsMap({
     if (mapReady) applyHover(hoveredId);
   }, [hoveredId, mapReady, applyHover]);
 
-  // A swiped-to card whose pin is off screen: glide the map to it.
+  // A swiped-to card: glide the map so its pin sits in the middle of what
+  // the cards leave visible. On a phone the cards cover the bottom ~230px,
+  // so the target is raised by half of that: the map centre moves DOWN from
+  // the pin, which puts the pin higher on screen, clear of the cards.
   useEffect(() => {
     const map = mapRef.current;
     if (!mapReady || !map || revealId == null) return;
     const point = layerRef.current?.positionOf(revealId);
-    const bounds = map.getBounds();
-    if (point && bounds && !bounds.contains(point)) map.panTo(point);
+    const projection = map.getProjection();
+    if (!point) return;
+    const coveredPx = window.matchMedia('(max-width: 1023.98px)').matches ? 230 : 0;
+    if (!projection || !coveredPx) {
+      map.panTo(point);
+      return;
+    }
+    const world = projection.fromLatLngToPoint(new google.maps.LatLng(point.lat, point.lng));
+    const scale = 2 ** (map.getZoom() ?? 13);
+    const target = projection.fromPointToLatLng(new google.maps.Point(world.x, world.y + coveredPx / 2 / scale));
+    map.panTo(target);
   }, [revealId, mapReady]);
 
   // The searched landmark, for the cards' "à 1,2 km de …" line.

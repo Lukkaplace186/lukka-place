@@ -98,14 +98,42 @@ function editDistance(a, b) {
 // Flattened once at module load — every commune, quartier and landmark as
 // one searchable row. ~600 short strings; a linear scan per request is
 // well under a millisecond, no search index needed.
+// How Kinshasa writes the same place two ways: "St Luc" / "Saint Luc",
+// "Rond-Point Victoire" / "RP Victoire", "Bd du 30 Juin". Each pair is
+// word-bounded and applied to the SPACED label, both directions.
+const WORD_ALIASES = [
+  ['saint', 'st'],
+  ['sainte', 'ste'],
+  ['rond point', 'rp'],
+  ['boulevard', 'bd'],
+  ['avenue', 'av'],
+  ['universite', 'univ'],
+];
+
+/** Every other spelling of a spaced label under WORD_ALIASES (excluding itself). */
+export function labelAliases(spacedLabel) {
+  const out = new Set();
+  for (const [long, short] of WORD_ALIASES) {
+    for (const [from, to] of [[long, short], [short, long]]) {
+      const re = new RegExp(`(^|\\s)${from}(?=\\s|$)`, 'g');
+      if (re.test(spacedLabel)) out.add(spacedLabel.replace(re, `$1${to}`));
+    }
+  }
+  out.delete(spacedLabel);
+  return [...out];
+}
+
+function indexRows(type, label, commune) {
+  const base = spaced(label).trim();
+  // Alias rows keep the real label: a search for "Saint Luc" still answers
+  // "St Luc", the spelling the data (and the listings) use.
+  return [base, ...labelAliases(base)].map((form) => ({ type, label, commune, norm: normalize(label), spaced: form }));
+}
+
 const INDEX = gazetteer.flatMap(({ commune, quartiers, landmarks }) => {
-  const rows = [{ type: 'commune', label: commune, commune, norm: normalize(commune), spaced: spaced(commune).trim() }];
-  for (const quartier of quartiers) {
-    rows.push({ type: 'quartier', label: quartier, commune, norm: normalize(quartier), spaced: spaced(quartier).trim() });
-  }
-  for (const landmark of landmarks) {
-    rows.push({ type: 'landmark', label: landmark, commune, norm: normalize(landmark), spaced: spaced(landmark).trim() });
-  }
+  const rows = indexRows('commune', commune, commune);
+  for (const quartier of quartiers) rows.push(...indexRows('quartier', quartier, commune));
+  for (const landmark of landmarks) rows.push(...indexRows('landmark', landmark, commune));
   return rows;
 });
 

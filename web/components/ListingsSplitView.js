@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, ChevronRight, MapPinned } from 'lucide-react';
@@ -8,7 +8,7 @@ import PropertyCard from './PropertyCard';
 import SidebarInsights from './SidebarInsights';
 import ResponsiveMapPane from './ResponsiveMapPane';
 import MobileMapChrome from './MobileMapChrome';
-import MobileMapOverlay from './MobileMapOverlay';
+import MobileListSheet from './MobileListSheet';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { boundsToQuery } from '@/lib/mapViewport';
 import { useT } from '@/lib/i18n/client';
@@ -54,13 +54,24 @@ export default function ListingsSplitView({
   // spend the visitor's data for nothing: the URL is updated in place — Next
   // keeps useSearchParams in step with history.replaceState — and the Liste
   // button carries the area when it is tapped.
+  // Whether the phone's list sheet is up (MobileListSheet).
+  const sheetOpenRef = useRef(false);
   const onAreaChange = useCallback((bounds) => {
     const qs = new URLSearchParams(window.location.search);
     for (const [key, value] of Object.entries(boundsToQuery(bounds))) qs.set(key, value);
     qs.delete('page');
     const url = `/listings?${qs.toString()}`;
-    if (window.matchMedia('(min-width: 1024px)').matches) router.replace(url, { scroll: false });
+    // The phone's list sheet, when open, is a list on screen too.
+    if (window.matchMedia('(min-width: 1024px)').matches || sheetOpenRef.current) router.replace(url, { scroll: false });
     else window.history.replaceState(null, '', url);
+  }, [router]);
+
+  // Opening the phone's list sheet: the list is about to be read, so bring it
+  // up to the area the map has been showing (written in place until now).
+  const onSheetOpenChange = useCallback((open) => {
+    const wasOpen = sheetOpenRef.current;
+    sheetOpenRef.current = open;
+    if (open && !wasOpen) router.replace(`${window.location.pathname}${window.location.search}`, { scroll: false });
   }, [router]);
   const [hoveredId, setHoveredId] = useState(null);
   // A pin's preview card sits over the bottom of the map, exactly where the
@@ -219,7 +230,7 @@ export default function ListingsSplitView({
           seated ~64px of it underneath that bar, unusable — the same class
           of correction as the `top-[8.5rem]` sticky offset above. That bar
           is gone entirely now (see app/(site)/layout.js), so there is
-          nothing left to clear; MobileMapOverlay's own "Liste" button
+          nothing left to clear; MobileListSheet's own "Liste" button
           (`absolute bottom-6` *within* this box) already follows this
           box's real bottom edge automatically. */}
       <div
@@ -234,7 +245,7 @@ export default function ListingsSplitView({
             the viewport" with flex-1 instead of a guessed pixel offset. */}
         {isMapView ? <MobileMapChrome params={params} /> : null}
 
-        {/* The map area itself: ResponsiveMapPane and MobileMapOverlay
+        {/* The map area itself: ResponsiveMapPane and MobileListSheet
             (badge + Liste button) are siblings sharing this `relative`
             box, so the overlay's `top-4`/`bottom-6` land relative to the
             map's own bounds, not the sticky bar or the whole fixed layer. */}
@@ -242,18 +253,38 @@ export default function ListingsSplitView({
           {/* `filterParams` makes this the viewport map: every listing
               matching the URL's filters inside the visible area, not just
               this page's 12 cards (see components/ListingsMap.js). */}
-          <ResponsiveMapPane
-            listings={listings}
-            filterParams={params}
-            isMapView={isMapView}
-            hoveredId={hoveredId}
-            onMarkerHover={setHoveredId}
-            onPreviewChange={setPreviewOpen}
-            onAreaChange={onAreaChange}
-            onInViewChange={setInView}
-            className="h-full w-full"
-          />
-          {isMapView ? <MobileMapOverlay hideListButton={previewOpen} inView={inView} /> : null}
+          {/* On the phone map the map ends above the list sheet's handle, so
+              Google's logo and attribution stay visible (required) while the
+              sheet is down. */}
+          <div className={isMapView ? 'absolute inset-x-0 top-0 bottom-16 lg:static lg:h-full' : 'h-full'}>
+            <ResponsiveMapPane
+              listings={listings}
+              filterParams={params}
+              isMapView={isMapView}
+              hoveredId={hoveredId}
+              onMarkerHover={setHoveredId}
+              onPreviewChange={setPreviewOpen}
+              onAreaChange={onAreaChange}
+              onInViewChange={setInView}
+              className="h-full w-full"
+            />
+          </div>
+          {isMapView ? (
+            <MobileListSheet inView={inView} hidden={previewOpen} onOpenChange={onSheetOpenChange}>
+              {listings.length === 0 ? (
+                <p className="px-3 py-8 text-center text-[0.875rem] text-ink-45">{t('listings.results.emptyAreaTitle')}</p>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  {listings.map((listing) => (
+                    <PropertyCard key={listing.id} listing={listing} layout="horizontal" />
+                  ))}
+                  {totalPages > 1 ? (
+                    <p className="pb-2 text-center text-[0.8125rem] text-ink-45">{t('listings.map.sheetMore')}</p>
+                  ) : null}
+                </div>
+              )}
+            </MobileListSheet>
+          ) : null}
         </div>
       </div>
     </div>

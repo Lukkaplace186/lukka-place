@@ -12,6 +12,7 @@ const PropertyMap = dynamic(() => import('./PropertyMap'), { ssr: false, loading
 const ListingsMap = dynamic(() => import('./ListingsMap'), { ssr: false, loading: mapPlaceholder });
 const BuildingUnitsDrawer = dynamic(() => import('./BuildingUnitsDrawer'), { ssr: false });
 const MapListingPreview = dynamic(() => import('./MapListingPreview'), { ssr: false });
+const MapCardCarousel = dynamic(() => import('./MapCardCarousel'), { ssr: false });
 
 /**
  * Mounts a map only when it's actually going to be seen: on desktop
@@ -42,6 +43,13 @@ export default function ResponsiveMapPane({
   onAreaChange, onInViewChange,
 }) {
   const [shouldRender, setShouldRender] = useState(false);
+  // Phone /listings map: a pin opens swipeable cards (MapCardCarousel)
+  // instead of the single preview card desktop keeps.
+  const [isPhone, setIsPhone] = useState(false);
+  const [visibleIds, setVisibleIds] = useState([]);
+  const [carouselIds, setCarouselIds] = useState(null);
+  const [revealId, setRevealId] = useState(null);
+  const [near, setNear] = useState(null);
   // The multi-unit building whose unit list is open, or null. Held here
   // rather than inside the map because the drawer must render OUTSIDE the
   // map element — Google owns that subtree and repaints it freely.
@@ -52,7 +60,10 @@ export default function ResponsiveMapPane({
   // Stable identity: both maps register these once on Google's listeners, and
   // PropertyMap deliberately excludes them from its geocoding effect's deps.
   const closeBuilding = useCallback(() => setOpenBuilding(null), []);
-  const closePreview = useCallback(() => setSelectedListing(null), []);
+  const closePreview = useCallback(() => {
+    setSelectedListing(null);
+    setCarouselIds(null);
+  }, []);
 
   // A filter change swaps the listings out from under an open drawer, which
   // would otherwise keep showing units no longer in the results. Adjusted
@@ -64,6 +75,7 @@ export default function ResponsiveMapPane({
     setRenderedListings(listings);
     setOpenBuilding(null);
     setSelectedListing(null);
+    setCarouselIds(null);
   }
 
   // Telling the PARENT is an effect, not a call during render: setting
@@ -76,11 +88,37 @@ export default function ResponsiveMapPane({
 
   useEffect(() => {
     const mql = window.matchMedia('(min-width: 1024px)');
-    const update = () => setShouldRender(mql.matches || isMapView);
+    const update = () => {
+      setShouldRender(mql.matches || isMapView);
+      setIsPhone(!mql.matches);
+    };
     update();
     mql.addEventListener('change', update);
     return () => mql.removeEventListener('change', update);
   }, [isMapView]);
+
+  const useCarousel = Boolean(filterParams) && isPhone;
+
+  // A pin tap. On a phone it opens (or re-aims) the card row; the ids are a
+  // snapshot of what is in view, so cards never reorder under a thumb.
+  const selectFromMap = useCallback((listing) => {
+    setSelectedListing(listing);
+    if (!listing) {
+      setCarouselIds(null);
+      return;
+    }
+    setCarouselIds((current) => {
+      const id = String(listing.id);
+      if (current && current.includes(id)) return current;
+      return visibleIds.includes(id) ? visibleIds : [id, ...visibleIds];
+    });
+  }, [visibleIds]);
+
+  // A swipe settled on a card: light its pin, and bring the pin on screen.
+  const settleCard = useCallback((id) => {
+    setSelectedListing((current) => (current && String(current.id) === String(id) ? current : { id }));
+    setRevealId(id);
+  }, []);
 
   // The selected pin keeps the highlighted icon while its card is open, so
   // the card visibly belongs to one price tag.
@@ -97,9 +135,12 @@ export default function ResponsiveMapPane({
               hoveredId={highlightedId}
               onMarkerHover={onMarkerHover}
               onBuildingSelect={setOpenBuilding}
-              onListingSelect={listingPreview ? setSelectedListing : undefined}
+              onListingSelect={listingPreview ? selectFromMap : undefined}
               onAreaChange={onAreaChange}
               onInViewChange={onInViewChange}
+              onVisibleIdsChange={setVisibleIds}
+              revealId={revealId}
+              onNearChange={setNear}
             />
           ) : (
             <PropertyMap
@@ -111,7 +152,16 @@ export default function ResponsiveMapPane({
               onListingSelect={listingPreview ? setSelectedListing : undefined}
             />
           )}
-          {listingPreview ? (
+          {listingPreview && useCarousel && carouselIds ? (
+            <MapCardCarousel
+              ids={carouselIds}
+              selectedId={selectedListing?.id ?? null}
+              onSettle={settleCard}
+              onClose={closePreview}
+              near={near}
+            />
+          ) : null}
+          {listingPreview && !useCarousel ? (
             <MapListingPreview key={selectedListing?.id ?? 'none'} listing={selectedListing} onClose={closePreview} />
           ) : null}
           <BuildingUnitsDrawer group={openBuilding} onClose={closeBuilding} />

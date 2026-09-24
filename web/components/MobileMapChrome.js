@@ -24,7 +24,7 @@ import { useT } from '@/lib/i18n/client';
  * FiltersDrawer) via lib/mapFilterDrawer.js rather than a second, duplicate
  * sheet.
  *
- * The "back to list" action lives in MobileMapOverlay now, as a single
+ * The "back to list" action lives in MobileListSheet now, as a single
  * floating button over the map itself — not here, per the explicit
  * "one clean Liste control" instruction.
  */

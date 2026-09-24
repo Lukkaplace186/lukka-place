@@ -11,6 +11,8 @@ import { spreadColocatedPins } from '@/lib/mapPinSpread';
 import { getRecentIds } from '@/lib/recentlyViewed';
 import { groupListingsByBuilding, buildingPinLabel } from '@/lib/buildingGroups';
 import { baseMapOptions } from '@/lib/mapBase';
+import { flyTo } from '@/lib/mapFly';
+import { landmarkPoint } from '@/lib/landmarks';
 import {
   FETCH_DEBOUNCE_MS,
   KINSHASA_DEFAULT_VIEW,
@@ -60,7 +62,7 @@ import { useT } from '@/lib/i18n/client';
  * - **One plain-text counter pill** ("35 biens dans cette zone") on desktop.
  *   The ⓘ breakdown beside it (commune-centroid / unplaceable counts) was
  *   removed on product direction, 2026-09-23 — an icon nobody understood.
- *   On a phone the count is the "Voir N biens" button's job (MobileMapOverlay),
+ *   On a phone the count is the "Voir N biens" button's job (MobileListSheet),
  *   so the pill appears there only while loading, on a failure, or when the
  *   answer is capped (it then says to zoom in instead of a false count).
  * - **"Autour de moi"** centres on the visitor's own position, only when they
@@ -172,10 +174,13 @@ function geocodePoint(geocoder, address) {
 /** The opening view for a searched place: its centre at a fixed zoom (lib/mapViewport.js targetView). */
 async function viewForTarget(geocoder, target) {
   const queries = locationGeocodeQueries(target);
+  // A landmark with a verified stored point (lib/landmarks.js) needs no
+  // geocoder round trip — and gets the same point the list measures from.
+  const storedNear = landmarkPoint(target.commune, target.near);
   const [commune, quartier, near] = await Promise.all([
     geocodePoint(geocoder, queries.commune),
     geocodePoint(geocoder, queries.quartier),
-    geocodePoint(geocoder, queries.near),
+    storedNear ? Promise.resolve(storedNear) : geocodePoint(geocoder, queries.near),
   ]);
   return targetView(target, { commune, quartier, near });
 }
@@ -235,6 +240,7 @@ function fitTo(map, bounds, { exact = false } = {}) {
 
 export default function ListingsMap({
   params, pageListings, hoveredId, onMarkerHover, onListingSelect, onBuildingSelect, onAreaChange, onInViewChange,
+  onVisibleIdsChange, revealId, onNearChange,
 }) {
   const t = useT();
   const router = useRouter();
@@ -262,6 +268,7 @@ export default function ListingsMap({
   const [relaxed, setRelaxed] = useState(null);
   const relaxRef = useRef({ run: null, checked: null, sourceQuery: null, producedQuery: null });
   const noticeTimerRef = useRef(null);
+  const visibleKeyRef = useRef('');
   const [view, setView] = useState({ loaded: false, inView: 0, truncated: false, fetching: false, failed: false });
 
   const filterQuery = useMemo(() => mapFilterQuery(params), [params]);
@@ -271,15 +278,23 @@ export default function ListingsMap({
   const hadUrlAreaRef = useRef(hasUrlArea);
 
   useEffect(() => {
-    propsRef.current = { pageListings, onMarkerHover, onListingSelect, onBuildingSelect, onAreaChange };
+    propsRef.current = { pageListings, onMarkerHover, onListingSelect, onBuildingSelect, onAreaChange, onVisibleIdsChange };
   });
 
   const updateCounts = useCallback((viewport) => {
-    let inView = 0;
+    const visible = [];
     for (const marker of markerDataRef.current.values()) {
-      if (boundsContain(viewport, marker)) inView += 1;
+      if (boundsContain(viewport, marker)) visible.push(marker);
     }
+    const inView = visible.length;
     setView((v) => (v.inView === inView ? v : { ...v, inView }));
+    // West to east, the order the phone's swipeable cards walk them in.
+    const ids = visible.sort((a, b) => a.lng - b.lng || b.lat - a.lat).map((m) => String(m.id));
+    const key = ids.join(',');
+    if (key !== visibleKeyRef.current) {
+      visibleKeyRef.current = key;
+      propsRef.current.onVisibleIdsChange?.(ids);
+    }
   }, []);
 
   const applyHover = useCallback((id) => {
@@ -604,12 +619,27 @@ export default function ListingsMap({
     }
 
     // No place named: the Kinshasa core. On first load the map is already
-    // there; after a place is cleared, this brings it back.
+    // there; after a place is cleared, this brings it back — flying, so the
+    // visitor sees where they came from (lib/mapFly.js).
     if (!target) {
-      fitTo(mapRef.current, null);
-      areaRef.current = { baseline: viewKey(mapRef.current), reported: null };
-      scheduleFetch();
-      return undefined;
+      if (firstRun) {
+        fitTo(mapRef.current, null);
+        areaRef.current = { baseline: viewKey(mapRef.current), reported: null };
+        scheduleFetch();
+        return undefined;
+      }
+      let cancelledHome = false;
+      req.positioning = true;
+      flyTo(mapRef.current, KINSHASA_DEFAULT_VIEW).then(() => {
+        if (cancelledHome) return;
+        req.positioning = false;
+        areaRef.current = { baseline: viewKey(mapRef.current), reported: null };
+        scheduleFetch();
+      });
+      return () => {
+        cancelledHome = true;
+        req.positioning = false;
+      };
     }
 
     let cancelled = false;
@@ -618,11 +648,16 @@ export default function ListingsMap({
       const placeView = await viewForTarget(geocoderRef.current, target);
       const extent = placeView ? null : await fetchExtent(filterQuery);
       if (cancelled) return;
-      req.positioning = false;
       if (placeView) {
-        showView(mapRef.current, placeView);
+        // A new place while the map is already open: fly there across the
+        // city rather than blinking. The first view of the page opens in
+        // place — there is nowhere to fly from.
+        if (firstRun) showView(mapRef.current, placeView);
+        else if (!(await flyTo(mapRef.current, placeView)) || cancelled) return;
+        req.positioning = false;
         areaRef.current = { baseline: viewKey(mapRef.current), reported: null };
       } else {
+        req.positioning = false;
         // fitBounds settles asynchronously: the next idle is the baseline.
         areaRef.current = { baseline: null, reported: null };
         fitTo(mapRef.current, extent);
@@ -649,6 +684,23 @@ export default function ListingsMap({
   useEffect(() => {
     if (mapReady) applyHover(hoveredId);
   }, [hoveredId, mapReady, applyHover]);
+
+  // A swiped-to card whose pin is off screen: glide the map to it.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!mapReady || !map || revealId == null) return;
+    const point = layerRef.current?.positionOf(revealId);
+    const bounds = map.getBounds();
+    if (point && bounds && !bounds.contains(point)) map.panTo(point);
+  }, [revealId, mapReady]);
+
+  // The searched landmark, for the cards' "à 1,2 km de …" line.
+  const nearLabel = useMemo(() => locationTarget(new URLSearchParams(filterQuery))?.near || null, [filterQuery]);
+  const nearCommune = useMemo(() => locationTarget(new URLSearchParams(filterQuery))?.commune || null, [filterQuery]);
+  useEffect(() => {
+    const point = landmarkPoint(nearCommune, nearLabel);
+    onNearChange?.(point ? { label: nearLabel, point } : null);
+  }, [nearLabel, nearCommune, onNearChange]);
 
   const flash = useCallback((key) => {
     clearTimeout(noticeTimerRef.current);

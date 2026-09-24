@@ -1170,7 +1170,7 @@
   --lkp-edge: var(--blue);
 }
 .lkp-pin[data-active='true'] .lkp-pin__body {
-  scale: 1.12;
+  scale: 1.15;
   box-shadow: 0 4px 14px rgb(30 58 168 / 0.4);
 }
 .lkp-pin[data-active='true'] .lkp-pin__check { color: #fff; }
@@ -1180,7 +1180,7 @@
 }
 @media (hover: hover) {
   .lkp-pin:hover .lkp-pin__body { scale: 1.06; }
-  .lkp-pin[data-active='true']:hover .lkp-pin__body { scale: 1.12; }
+  .lkp-pin[data-active='true']:hover .lkp-pin__body { scale: 1.15; }
 }
 
 /* "Autour de moi": where the visitor is, only after they asked. */

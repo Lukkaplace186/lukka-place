@@ -1,6 +1,7 @@
 import 'server-only';
 import { getPool } from './db';
 import { KINSHASA_COMMUNE_CENTROIDS } from './geocoding';
+import { landmarkPoint, NEAR_DEFAULT_RADIUS } from './landmarks';
 import { KINSHASA_PROVINCE_ENVELOPE, boundsContain, distanceKm, resolveMarkerPosition } from './mapViewport';
 import { AMENITY_GROUPS, AMENITY_KEYWORDS, DEPOSIT_RANGE_OPTIONS } from './constants';
 import { keywordTokens } from './searchKeywords';
@@ -314,7 +315,7 @@ function communeListOf({ commune, communes } = {}) {
  *     path has parcelle_subtype set. Filtering on parcelle_subtype is the
  *     precise match for "this is a parcelle listing".
  */
-function buildFilters({ transactionType, propertyType, parcelleSubtype, commune, communes, quartier, radius, reference, priceMin, priceMax, bedsMin, bathMin, depositMax, depositRange, amenities, search, excludeId, agentId, ids }) {
+function buildFilters({ transactionType, propertyType, parcelleSubtype, commune, communes, quartier, radius, near, reference, priceMin, priceMax, bedsMin, bathMin, depositMax, depositRange, amenities, search, excludeId, agentId, ids }) {
   const where = [APPROVED_FILTER];
   const params = [];
 
@@ -456,7 +457,10 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
   const communeList = communeListOf({ commune, communes });
   const isCommuneWide = radius === 'commune';
   const kmValue = KM_RADIUS_KM[radius];
-  const isKmRadius = Boolean(kmValue) && Boolean(commune) && Boolean(KINSHASA_COMMUNE_CENTROIDS[commune]);
+  // "Près de UPN": centred on the landmark's own verified point
+  // (lib/landmarks.js) rather than the commune's, when it has one.
+  const nearPoint = landmarkPoint(commune, near);
+  const isKmRadius = Boolean(kmValue) && Boolean(commune) && Boolean(nearPoint || KINSHASA_COMMUNE_CENTROIDS[commune]);
 
   if (isKmRadius) {
     // A real Haversine distance, centered on the commune's real,
@@ -478,7 +482,7 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
     // domain is NaN in Postgres — a real failure mode of this exact formula,
     // not a hypothetical one, so it's guarded here rather than shipped as
     // written in the original spec.
-    const centroid = KINSHASA_COMMUNE_CENTROIDS[commune];
+    const centroid = nearPoint || KINSHASA_COMMUNE_CENTROIDS[commune];
     params.push(centroid.lat, centroid.lng, kmValue, commune);
     const latIdx = params.length - 3;
     const lngIdx = params.length - 2;
@@ -617,6 +621,11 @@ const SORT_COLUMNS = {
  * @returns {Promise<{total: number, limit: number, offset: number, count: number, data: Object[], locationRelaxed: boolean, relaxedFromCommune: string|null, requestedRadius: string|null, radiusExpanded: boolean, effectiveRadius: string|null}>}
  */
 export async function getListings(options = {}) {
+  // A landmark with a real point is a distance search: 3 km around it by
+  // default, widened by the radius ladder below when that finds nothing.
+  if (!options.radius && landmarkPoint(options.commune, options.near)) {
+    options = { ...options, radius: NEAR_DEFAULT_RADIUS };
+  }
   // The map's visible area. The list must show exactly what the map counts
   // "dans cette zone", and the map places a listing by rules SQL alone cannot
   // express (stored coordinates, else the centroid of a commune read from the
@@ -1073,7 +1082,7 @@ const MARKER_FROM = `
   JOIN property_category_contents catc ON catc.category_id = cat.id AND catc.language_id = ${CATEGORY_LANGUAGE_ID}
 `;
 
-const LOCATION_FILTER_OPTIONS = ['commune', 'communes', 'quartier', 'radius'];
+const LOCATION_FILTER_OPTIONS = ['commune', 'communes', 'quartier', 'radius', 'near'];
 
 function withoutLocationFilters(options) {
   const next = { ...options };

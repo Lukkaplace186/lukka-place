@@ -22,7 +22,7 @@ import SaveSearchButton from './SaveSearchButton';
  *
  * List-mode only (`!isMapView` — see app/(site)/listings/page.js): the
  * mobile fullscreen map already has its own bottom-center floating control
- * at this exact position (MobileMapOverlay.js's "← Liste" button).
+ * at this exact position (MobileListSheet.js's "← Liste" button).
  *
  * "Carte" always sets `view=map` (never toggles it back off) — correct
  * specifically because this pill only ever renders in list mode.

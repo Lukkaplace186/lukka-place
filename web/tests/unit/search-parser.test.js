@@ -62,8 +62,10 @@ const CASES = [
   // Real requests stay as words
   ['studio meublé kintambo', { property_type: 'appartement', commune: 'Kintambo', keywords: 'meublé' }],
   ['villa avec piscine ma campagne', { property_type: 'parcelle', parcelle_subtype: 'villa', commune: 'Ngaliema', quartier: 'Ma Campagne', keywords: 'piscine' }],
-  // A landmark keeps its words for the description search
-  ['house near UPN', { property_type: 'maison', commune: 'Ngaliema', keywords: 'upn' }],
+  // A landmark is a place to search around (`near`), never leftover words:
+  // as keywords it filtered the map and the list down to nothing.
+  ['house near UPN', { property_type: 'maison', commune: 'Ngaliema', near: 'UPN', keywords: '' }],
+  ['appartement près de saint luc', { property_type: 'appartement', commune: 'Ngaliema', near: 'St Luc', keywords: '' }],
   ['LKP-2026-0091', { reference: 'LKP-2026-0091', keywords: '' }],
 ];
 
@@ -101,6 +103,15 @@ test('matchedText is the visitor’s own text, so the parser can strip it', () =
   const mention = findLocationMention('à louer cite verte svp');
   assert.equal(mention.label, 'Cité-Verte');
   assert.equal(mention.matchedText, 'cite verte');
+});
+
+test('the autocomplete forgives how a place is written: St/Saint, RP/Rond-Point, a cut-off word', () => {
+  for (const q of ['St lu', 'Saint Luc', 'saint luc', 'st luc']) {
+    assert.equal(searchGazetteer(q)[0]?.label, 'St Luc', q);
+  }
+  assert.equal(searchGazetteer('RP Victoire')[0]?.label, 'Rond-Point Victoire');
+  // An alias never changes the label the search answers with.
+  assert.equal(findLocationMention('près de saint luc')?.label, 'St Luc');
 });
 
 test('the autocomplete finds hyphenated names typed with spaces', () => {

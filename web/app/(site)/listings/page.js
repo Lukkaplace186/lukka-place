@@ -20,6 +20,7 @@ import { hrefWithoutKeys } from '@/lib/urlParams';
 import { distanceKm } from '@/lib/mapViewport';
 import { KINSHASA_COMMUNE_CENTROIDS } from '@/lib/geocoding';
 import { seoPathForParams } from '@/lib/seoPages';
+import { landmarkPoint, listingDistanceKm } from '@/lib/landmarks';
 
 /** Filters worth logging as "a search" (sort/view/page are not). */
 const SEARCH_LOG_KEYS = [
@@ -95,6 +96,14 @@ export default async function ListingsPage({ searchParams }) {
     cachedPriceRange(),
   ]);
   const propertyTypes = await cachedPropertyTypeFacets();
+
+  // "Près de UPN": each card says how far it is from the landmark, from the
+  // listing's own stored point only (lib/landmarks.js).
+  const nearPoint = landmarkPoint(params.commune, params.near);
+  const withNearDistance = (rows) =>
+    nearPoint && Array.isArray(rows)
+      ? rows.map((row) => ({ ...row, near_distance_km: listingDistanceKm(row, nearPoint), near_label: params.near }))
+      : rows;
 
   // A place search with only one or two exact results also shows the nearest
   // others beneath them (lib/listings.js getNearbyExtras). Not on the map
@@ -227,7 +236,7 @@ export default async function ListingsPage({ searchParams }) {
           <ListingsEmptyState popularCommunes={nearbyCommunes} params={params} propertyTypeLabel={propertyTypeLabel} />
         ) : (
           <ListingsSplitView
-            listings={data}
+            listings={withNearDistance(data)}
             isMapView={isMapView}
             page={page}
             totalPages={totalPages}
@@ -235,14 +244,14 @@ export default async function ListingsPage({ searchParams }) {
             popularCommunes={popularCommunes}
             communes={communes}
             clearAreaHref={clearAreaHref}
-            nearby={nearbyExtras ? { ...nearbyExtras, place: params.commune } : null}
+            nearby={nearbyExtras ? { ...nearbyExtras, listings: withNearDistance(nearbyExtras.listings), place: params.commune } : null}
           />
         )}
       </div>
 
       {/* List mode only — the mobile fullscreen map already has its own
           bottom-center floating control at this exact position
-          (MobileMapOverlay.js's "← Liste" button). Rendered on an empty
+          (MobileListSheet.js's "← Liste" button). Rendered on an empty
           search too: its alert is the phone's only way to ask for one. */}
       {!isMapView ? <FloatingControlBar hasResults={count > 0} /> : null}
     </div>

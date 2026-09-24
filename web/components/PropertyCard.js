@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { formatDistance } from '@/lib/landmarks';
 import Link from 'next/link';
 import { Camera, KeyRound, Wallet } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -283,7 +284,18 @@ export default function PropertyCard({
             up from 14px/700. */}
         {(where || hasAgency) ? (
           <div className="flex items-center justify-between gap-3">
-            {where ? <p className="min-w-0 truncate text-base font-medium leading-snug tracking-normal text-ink">{where}</p> : <span />}
+            {where ? (
+              <div className="min-w-0">
+                <p className="truncate text-base font-medium leading-snug tracking-normal text-ink">{where}</p>
+                {/* "Près de UPN": measured from the listing's own stored
+                    point only (lib/landmarks.js listingDistanceKm). */}
+                {Number.isFinite(listing.near_distance_km) && listing.near_label ? (
+                  <p className="truncate text-[0.8125rem] font-semibold text-blue-deep">
+                    {t('listings.card.distanceFrom', { distance: formatDistance(listing.near_distance_km), place: listing.near_label })}
+                  </p>
+                ) : null}
+              </div>
+            ) : <span />}
             {/* The agency badge sits on the title row, not on the spec rail
                 below it. Measured at 375px: sharing the rail's row cost it
                 ~52px of width, which was exactly enough to push the third

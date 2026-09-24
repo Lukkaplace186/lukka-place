@@ -7,6 +7,7 @@ import { MapPin, Landmark, Search, Sparkles, X, Clock, BedDouble, Bath, Home, Do
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { parseSearchQuery, escapeRegExp } from '@/lib/searchParser';
+import { searchGazetteer } from '@/lib/gazetteer';
 import { useT } from '@/lib/i18n/client';
 
 const PROPERTY_TYPE_LABEL_KEYS = {
@@ -436,7 +437,7 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
     for (const key of ['sw_lat', 'sw_lng', 'ne_lat', 'ne_lng']) params.delete(key);
   }
 
-  function navigateTo(result) {
+  function navigateTo(result, { dropKeywords = false } = {}) {
     const params = buildParams();
     params.delete('quartier');
     params.delete('communes');
@@ -457,10 +458,10 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
     // A landmark is a PLACE, not words a listing has to contain. It used to
     // go into `q`, which the map applies as a text filter: picking "St Luc"
     // opened Ngaliema and then hid every pin, since no listing's text says
-    // "St Luc". As `near` it only decides where the map opens (lib/
-    // mapViewport.js targetView); the list shows the commune.
+    // "St Luc". As `near` it decides where the map opens and centres a km
+    // radius for the list (lib/landmarks.js).
     if (result.type === 'landmark') params.set('near', result.label);
-    if (parsed.keywords && result.type !== 'landmark') params.set('q', parsed.keywords);
+    if (parsed.keywords && result.type !== 'landmark' && !dropKeywords) params.set('q', parsed.keywords);
 
     setOpen(false);
     router.push(`/listings?${params.toString()}`);
@@ -519,9 +520,21 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
     // "meublé") stays in `q` and still reaches the real description search.
     const parsed = parseSearchQuery(text);
     applyParsedFilters(params, parsed);
+    // Enter before picking a suggestion: words the parser could not place
+    // ("St lu" — half a word) are tried against the same gazetteer the
+    // dropdown uses, so they land exactly where picking the suggestion would.
+    if (!hideDropdown && !parsed.commune && parsed.keywords) {
+      const [placeHit] = searchGazetteer(parsed.keywords, 1);
+      if (placeHit) {
+        navigateTo(placeHit, { dropKeywords: true });
+        return;
+      }
+    }
+
     if (parsed.commune) {
       dropMapArea(params);
-      params.delete('near');
+      if (parsed.near) params.set('near', parsed.near);
+      else params.delete('near');
       params.set('commune', parsed.commune);
       // "Gombe ou Ngaliema": every commune named, the first as `commune`.
       if (parsed.communes?.length > 1) params.set('communes', parsed.communes.join(','));

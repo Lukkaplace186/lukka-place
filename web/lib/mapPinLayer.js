@@ -129,6 +129,15 @@ export function createPinLayer(map, handlers) {
       this.draw();
     }
 
+    /** Where a listing's pin is drawn (its jittered/fanned point), or null. */
+    positionOf(id) {
+      const value = String(id);
+      for (const entry of this.entries.values()) {
+        if (!entry.pin.building && entry.pin.id === value) return { lat: entry.pin.lat, lng: entry.pin.lng };
+      }
+      return null;
+    }
+
     destroy() {
       for (const entry of this.entries.values()) entry.el.remove();
       this.entries = new Map();

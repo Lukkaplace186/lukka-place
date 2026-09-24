@@ -1,0 +1,426 @@
+{
+  "Gombe|Boulevard du 30 Juin": {
+    "lat": -4.303452,
+    "lng": 15.309649
+  },
+  "Gombe|Forescom": {
+    "lat": -4.300783,
+    "lng": 15.308682
+  },
+  "Gombe|Shoprite": {
+    "lat": -4.328893,
+    "lng": 15.275098
+  },
+  "Gombe|Hôtel Memling": {
+    "lat": -4.304039,
+    "lng": 15.31193
+  },
+  "Gombe|Pullman Kinshasa Grand Hôtel": {
+    "lat": -4.312448,
+    "lng": 15.27344
+  },
+  "Gombe|Gare Centrale": {
+    "lat": -4.307117,
+    "lng": 15.318721
+  },
+  "Gombe|Place du 30 Juin": {
+    "lat": -4.301447,
+    "lng": 15.316872
+  },
+  "Gombe|Utexafrica": {
+    "lat": -4.325501,
+    "lng": 15.268167
+  },
+  "Gombe|Kin Plaza Mall": {
+    "lat": -4.318661,
+    "lng": 15.274283
+  },
+  "Gombe|Premier Shopping Mall": {
+    "lat": -4.304903,
+    "lng": 15.29967
+  },
+  "Gombe|Ambassade de France": {
+    "lat": -4.303215,
+    "lng": 15.310552
+  },
+  "Gombe|Ambassade des Etats-Unis": {
+    "lat": -4.30068,
+    "lng": 15.31366
+  },
+  "Gombe|Banque Centrale du Congo (BCC)": {
+    "lat": -4.305107,
+    "lng": 15.282018
+  },
+  "Gombe|REGIDESO": {
+    "lat": -4.306187,
+    "lng": 15.300943
+  },
+  "Gombe|SNEL": {
+    "lat": -4.316637,
+    "lng": 15.277774
+  },
+  "Gombe|Maison de France": {
+    "lat": -4.319107,
+    "lng": 15.28601
+  },
+  "Gombe|Place de l'Indépendance": {
+    "lat": -4.310237,
+    "lng": 15.281108
+  },
+  "Ngaliema|Place Commerciale Ma Campagne": {
+    "lat": -4.353786,
+    "lng": 15.256052
+  },
+  "Ngaliema|Paroisse Saint Luc": {
+    "lat": -4.348954,
+    "lng": 15.251069
+  },
+  "Ngaliema|St Luc": {
+    "lat": -4.348954,
+    "lng": 15.251069
+  },
+  "Ngaliema|UPN": {
+    "lat": -4.405488,
+    "lng": 15.257213
+  },
+  "Ngaliema|Mont Ngaliema": {
+    "lat": -4.329163,
+    "lng": 15.244348
+  },
+  "Ngaliema|TASOK (The American School of Kinshasa)": {
+    "lat": -4.335696,
+    "lng": 15.243982
+  },
+  "Ngaliema|Pigeon": {
+    "lat": -4.371344,
+    "lng": 15.25349
+  },
+  "Ngaliema|Camp Tshatshi": {
+    "lat": -4.336464,
+    "lng": 15.241699
+  },
+  "Ngaliema|Hôpital de Binza": {
+    "lat": -4.35,
+    "lng": 15.233333
+  },
+  "Kintambo|Kintambo Magasin": {
+    "lat": -4.333702,
+    "lng": 15.257843
+  },
+  "Kintambo|Hôpital Général de Kintambo": {
+    "lat": -4.334916,
+    "lng": 15.2708
+  },
+  "Kintambo|Stade Vélodrome": {
+    "lat": -4.339183,
+    "lng": 15.265947
+  },
+  "Kintambo|Baie de Ngaliema": {
+    "lat": -4.325002,
+    "lng": 15.256625
+  },
+  "Lingwala|Palais du Peuple": {
+    "lat": -4.332427,
+    "lng": 15.303124
+  },
+  "Lingwala|RTNC (Télévision Nationale)": {
+    "lat": -4.329627,
+    "lng": 15.298846
+  },
+  "Lingwala|Cathédrale Notre-Dame du Congo": {
+    "lat": -4.323867,
+    "lng": 15.29457
+  },
+  "Lingwala|Avenue Huileries": {
+    "lat": -4.322884,
+    "lng": 15.305976
+  },
+  "Lingwala|Avenue Liberation (ex-24 Novembre)": {
+    "lat": -4.322705,
+    "lng": 15.295151
+  },
+  "Barumbu|Bon Marché": {
+    "lat": -4.319963,
+    "lng": 15.329218
+  },
+  "Barumbu|Aéroport de Ndolo": {
+    "lat": -4.326899,
+    "lng": 15.329706
+  },
+  "Barumbu|Aéroclub de Ndolo": {
+    "lat": -4.319963,
+    "lng": 15.329218
+  },
+  "Barumbu|Avenue Flambeau": {
+    "lat": -4.315689,
+    "lng": 15.330943
+  },
+  "Barumbu|Bracongo": {
+    "lat": -4.325406,
+    "lng": 15.342698
+  },
+  "Kinshasa|Marché Central (Zando)": {
+    "lat": -4.31032,
+    "lng": 15.312465
+  },
+  "Kinshasa|Avenue Bokassa": {
+    "lat": -4.317387,
+    "lng": 15.32
+  },
+  "Kinshasa|Avenue Luambo Makiadi (ex-Okey)": {
+    "lat": -4.30398,
+    "lng": 15.313913
+  },
+  "Kinshasa|Jardin Botanique de Kinshasa": {
+    "lat": -4.309811,
+    "lng": 15.30946
+  },
+  "Kasa-Vubu|Place Victoire": {
+    "lat": -4.338763,
+    "lng": 15.307253
+  },
+  "Kasa-Vubu|Rond-Point Victoire": {
+    "lat": -4.340816,
+    "lng": 15.313708
+  },
+  "Kasa-Vubu|Maison Communale de Kasa-Vubu": {
+    "lat": -4.342156,
+    "lng": 15.302565
+  },
+  "Kasa-Vubu|Avenue Assossa": {
+    "lat": -4.340243,
+    "lng": 15.304356
+  },
+  "Kalamu|Matonge": {
+    "lat": -4.340085,
+    "lng": 15.317509
+  },
+  "Kalamu|Stade Tata Raphaël": {
+    "lat": -4.338892,
+    "lng": 15.323756
+  },
+  "Kalamu|YMCA": {
+    "lat": -4.340998,
+    "lng": 15.315757
+  },
+  "Kalamu|Rond-Point Victoire (border)": {
+    "lat": -4.340816,
+    "lng": 15.313708
+  },
+  "Kalamu|Place YMCA": {
+    "lat": -4.340998,
+    "lng": 15.315757
+  },
+  "Kalamu|Eglise Kimbanguiste": {
+    "lat": -4.326609,
+    "lng": 15.302922
+  },
+  "Bandalungwa|Rond-Point Moulaert": {
+    "lat": -4.348072,
+    "lng": 15.291813
+  },
+  "Bandalungwa|Bakayawu": {
+    "lat": -4.341444,
+    "lng": 15.313627
+  },
+  "Bandalungwa|Maison Communale de Bandal": {
+    "lat": -4.348542,
+    "lng": 15.282342
+  },
+  "Bandalungwa|Terrain Synthétique de Bandal": {
+    "lat": -4.341671,
+    "lng": 15.28124
+  },
+  "Bandalungwa|Avenue Kasa-Vubu": {
+    "lat": -4.346802,
+    "lng": 15.287912
+  },
+  "Limete|Echangeur de Limete": {
+    "lat": -4.374286,
+    "lng": 15.345456
+  },
+  "Limete|7ème Rue Résidentiel": {
+    "lat": -4.351062,
+    "lng": 15.333203
+  },
+  "Limete|10ème Rue Résidentiel": {
+    "lat": -4.355082,
+    "lng": 15.338435
+  },
+  "Limete|FIKIN (Foire Internationale de Kinshasa)": {
+    "lat": -4.371981,
+    "lng": 15.338
+  },
+  "Limete|Boulevard Lumumba": {
+    "lat": -4.362075,
+    "lng": 15.33999
+  },
+  "Limete|Port de Kingabwa": {
+    "lat": -4.33648,
+    "lng": 15.344012
+  },
+  "Limete|Hôpital Saint-Joseph": {
+    "lat": -4.366011,
+    "lng": 15.341008
+  },
+  "Lemba|Université de Kinshasa (UNIKIN)": {
+    "lat": -4.419397,
+    "lng": 15.309373
+  },
+  "Lemba|Terminus Lemba": {
+    "lat": -4.385974,
+    "lng": 15.330016
+  },
+  "Lemba|Rond-Point Super": {
+    "lat": -4.379652,
+    "lng": 15.335365
+  },
+  "Lemba|Echangeur de Lemba": {
+    "lat": -4.374286,
+    "lng": 15.345456
+  },
+  "Lemba|Cliniques Universitaires de Kinshasa": {
+    "lat": -4.414361,
+    "lng": 15.304937
+  },
+  "Lemba|Cité CNPP": {
+    "lat": -4.406483,
+    "lng": 15.304032
+  },
+  "Mont-Ngafula|Cité-Verte": {
+    "lat": -4.44084,
+    "lng": 15.258978
+  },
+  "Mont-Ngafula|Kimwenza Gare": {
+    "lat": -4.471086,
+    "lng": 15.301411
+  },
+  "Mont-Ngafula|Université Loyola du Congo (ULC)": {
+    "lat": -4.454791,
+    "lng": 15.289188
+  },
+  "Ngaba|Rond-Point Ngaba": {
+    "lat": -4.37608,
+    "lng": 15.323662
+  },
+  "Ngaba|Avenue de l'Université": {
+    "lat": -4.371385,
+    "lng": 15.319404
+  },
+  "Ngaba|Maison Communale de Ngaba": {
+    "lat": -4.375586,
+    "lng": 15.319962
+  },
+  "Ngiri-Ngiri|Avenue Assossa": {
+    "lat": -4.357948,
+    "lng": 15.298825
+  },
+  "Ngiri-Ngiri|Avenue Saio": {
+    "lat": -4.34316,
+    "lng": 15.298777
+  },
+  "Ngiri-Ngiri|Maison Communale de Ngiri-Ngiri": {
+    "lat": -4.361037,
+    "lng": 15.296701
+  },
+  "Selembao|Prison Centrale de Makala": {
+    "lat": -4.362491,
+    "lng": 15.286046
+  },
+  "Bumbu|Avenue Landu": {
+    "lat": -4.372864,
+    "lng": 15.294671
+  },
+  "Bumbu|Maison Communale de Bumbu": {
+    "lat": -4.375977,
+    "lng": 15.295751
+  },
+  "Makala|Rond-Point Elengesa": {
+    "lat": -4.356121,
+    "lng": 15.308856
+  },
+  "Makala|Avenue Elengesa": {
+    "lat": -4.356121,
+    "lng": 15.308856
+  },
+  "Kisenso|Gare de Kisenso": {
+    "lat": -4.41543,
+    "lng": 15.342403
+  },
+  "Matete|Marché de Matete": {
+    "lat": -4.392151,
+    "lng": 15.347331
+  },
+  "Matete|Pont Matete": {
+    "lat": -4.382227,
+    "lng": 15.352492
+  },
+  "Matete|Debonhomme": {
+    "lat": -4.387825,
+    "lng": 15.358568
+  },
+  "Matete|Maison Communale de Matete": {
+    "lat": -4.391178,
+    "lng": 15.346532
+  },
+  "Matete|TGI Matete (Tribunal de Grande Instance)": {
+    "lat": -4.389359,
+    "lng": 15.345983
+  },
+  "Masina|Marché de la Liberté": {
+    "lat": -4.392356,
+    "lng": 15.384501
+  },
+  "Masina|Pascal": {
+    "lat": -4.397975,
+    "lng": 15.394663
+  },
+  "Masina|Petro-Congo": {
+    "lat": -4.378369,
+    "lng": 15.369905
+  },
+  "Masina|Abattoir de Masina": {
+    "lat": -4.37855,
+    "lng": 15.367173
+  },
+  "Masina|Marché Sans-Fil": {
+    "lat": -4.378826,
+    "lng": 15.370059
+  },
+  "Masina|Boulevard Lumumba (Saut-de-mouton Pascal)": {
+    "lat": -4.394055,
+    "lng": 15.383979
+  },
+  "Ndjili|Terrain Sainte-Thérèse": {
+    "lat": -4.407855,
+    "lng": 15.371244
+  },
+  "Ndjili|Maison Communale de N'djili": {
+    "lat": -4.400382,
+    "lng": 15.371897
+  },
+  "Ndjili|Sainte-Thérèse": {
+    "lat": -4.404878,
+    "lng": 15.374774
+  },
+  "Ndjili|Hôpital Général de N'djili (Pavillon)": {
+    "lat": -4.402892,
+    "lng": 15.373934
+  },
+  "Kimbanseke|Kingasani ya Suka": {
+    "lat": -4.410243,
+    "lng": 15.411201
+  },
+  "Kimbanseke|Rond-Point Kingasani": {
+    "lat": -4.410243,
+    "lng": 15.411201
+  },
+  "Kimbanseke|Marché Mokali": {
+    "lat": -4.413072,
+    "lng": 15.397515
+  },
+  "Kimbanseke|Hôpital Roi Baudouin": {
+    "lat": -4.389651,
+    "lng": 15.381846
+  }
+}

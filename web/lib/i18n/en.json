@@ -347,7 +347,8 @@
       "mapAreaNote": "The properties visible on the map",
       "clearArea": "Clear map area",
       "emptyAreaTitle": "No Properties in This Area",
-      "emptyAreaHint": "Zoom out or move the map to see more properties."
+      "emptyAreaHint": "Zoom out or move the map to see more properties.",
+      "distanceFrom": "{distance} from {place}"
     },
     "empty": {
       "title": "No Properties Match",
@@ -554,7 +555,13 @@
       "dismiss": "Close",
       "locateUnavailable": "Your browser doesn't support location.",
       "show": "Show map",
-      "showHint": "The map loads on request to save your mobile data."
+      "showHint": "The map loads on request to save your mobile data.",
+      "cardsLabel": "Listings in this area",
+      "sheetLabel": "Listings",
+      "sheetShow": "List",
+      "sheetFullList": "Full list",
+      "sheetLower": "Lower the list",
+      "sheetMore": "More listings in “Full list”."
     },
     "alertModal": {
       "intro": "You'll be alerted to new properties matching:",

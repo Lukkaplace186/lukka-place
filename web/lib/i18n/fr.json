@@ -347,7 +347,8 @@
       "mapAreaNote": "Les biens visibles sur la carte",
       "clearArea": "Effacer la zone",
       "emptyAreaTitle": "Aucun bien dans cette zone",
-      "emptyAreaHint": "Dézoomez ou déplacez la carte pour voir plus de biens."
+      "emptyAreaHint": "Dézoomez ou déplacez la carte pour voir plus de biens.",
+      "distanceFrom": "à {distance} de {place}"
     },
     "empty": {
       "title": "Aucun bien ne correspond",
@@ -554,7 +555,13 @@
       "dismiss": "Fermer",
       "locateUnavailable": "Votre navigateur ne permet pas la localisation.",
       "show": "Afficher la carte",
-      "showHint": "La carte se charge à la demande pour économiser vos données mobiles."
+      "showHint": "La carte se charge à la demande pour économiser vos données mobiles.",
+      "cardsLabel": "Biens de la zone",
+      "sheetLabel": "Liste des biens",
+      "sheetShow": "Liste",
+      "sheetFullList": "Liste complète",
+      "sheetLower": "Réduire la liste",
+      "sheetMore": "Plus de biens dans « Liste complète »."
     },
     "alertModal": {
       "intro": "Vous serez alerté des nouveaux biens correspondant à :",

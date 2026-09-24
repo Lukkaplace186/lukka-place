@@ -36,6 +36,9 @@ export function parseListingsSearchParams(searchParamsLike) {
     // which only carries commune -> quartier names, no geometry), so this
     // is a real broaden-to-Kinshasa toggle rather than a distance claim.
     radius: get('radius'),
+    // A picked landmark ("St Luc") — lib/landmarks.js turns it into a km
+    // radius around the landmark's real point when it has one.
+    near: get('near'),
     reference: get('reference'),
     priceMin: get('price_min'),
     priceMax: get('price_max'),

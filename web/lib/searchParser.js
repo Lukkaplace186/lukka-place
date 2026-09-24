@@ -360,9 +360,10 @@ export function parseSearchQuery(text) {
   // "Gombe ou Ngaliema" used to keep only one and drop the other in silence.
   //
   // `lookIn` is the text still searched for places; `remaining` is what
-  // becomes keywords. They differ for a landmark ("Saint Luc"): its words
-  // stay in the keywords, since there is no landmark column and the listing
-  // text is where it shows up, but it must not be found twice.
+  // becomes keywords. A landmark ("Saint Luc", "près de UPN") is a PLACE
+  // too since 2026-09-24: it becomes `near` (a km radius around its real
+  // point, lib/landmarks.js), not keywords. As keywords it was a text filter
+  // almost no listing matched, which emptied the map and the list.
   let lookIn = remaining;
   const places = [];
   const placeSpans = [];
@@ -400,9 +401,7 @@ export function parseSearchQuery(text) {
       continue;
     }
 
-    if (location.type !== 'landmark') {
-      remaining = remaining.replace(prepositionPattern, ' ');
-    }
+    remaining = remaining.replace(prepositionPattern, ' ');
     places.push(location);
     placeSpans.push(spanMatch ? spanMatch[0].trim() : location.matchedText);
   }
@@ -417,6 +416,7 @@ export function parseSearchQuery(text) {
 
     const [primary] = places;
     result.commune = primary.commune;
+    if (primary.type === 'landmark') result.near = primary.label;
     // A single named quartier narrows to it. Two different places in one
     // search ("Binza ou Ma Campagne") mean the area around both — searching
     // one quartier would drop the other.

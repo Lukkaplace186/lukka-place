@@ -49,7 +49,8 @@ export default function MapCardCarousel({ ids, selectedId, onSettle, onClose, ne
   const t = useT();
   const scrollerRef = useRef(null);
   const cardRefs = useRef(new Map());
-  const programmaticRef = useRef(false);
+  // True once the visitor has touched the row since the last pin tap.
+  const userRef = useRef(false);
   const [listings, setListings] = useState(() => ids.map((id) => detailCache.get(id)).filter(Boolean));
   const [failed, setFailed] = useState(false);
   const idsKey = ids.join(',');
@@ -71,37 +72,34 @@ export default function MapCardCarousel({ ids, selectedId, onSettle, onClose, ne
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idsKey]);
 
-  // A pin tap: bring its card to the middle. Scrolls this component starts
-  // itself are marked, so the cards it glides past are never read as swipes
-  // (the first version did, and a tap on "$1k" stopped on the "$800" it
-  // passed on the way).
+  // A pin tap: bring its card to the middle. Only a swipe the visitor makes
+  // may pick a card: a scroll this component starts, or one caused by the
+  // row being rebuilt for a new set of pins, is never read as a choice. (Both
+  // happened in the first versions: a tap on "$1k" stopped on the "$800" it
+  // glided past, and a rebuilt row settled on whatever card sat in the
+  // middle.)
   useEffect(() => {
+    userRef.current = false;
     const card = cardRefs.current.get(String(selectedId));
     const scroller = scrollerRef.current;
-    if (!card || !scroller) return undefined;
+    if (!card || !scroller) return;
     const left = card.offsetLeft - (scroller.clientWidth - card.clientWidth) / 2;
-    if (Math.abs(scroller.scrollLeft - left) < 4) return undefined;
-    programmaticRef.current = true;
+    if (Math.abs(scroller.scrollLeft - left) < 4) return;
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     scroller.scrollTo({ left, behavior: reduce ? 'auto' : 'smooth' });
-    // Safety net for a scroll that never fires (already in place).
-    const timer = setTimeout(() => {
-      programmaticRef.current = false;
-    }, 1500);
-    return () => clearTimeout(timer);
   }, [selectedId, listings]);
 
-  // A swipe: once the row has been still for a moment, the card nearest the
-  // middle is the chosen one — never a card merely passed over.
+  // A swipe: once the row the visitor touched has been still for a moment,
+  // the card nearest the middle is the chosen one.
   useEffect(() => {
     const scroller = scrollerRef.current;
     if (!scroller) return undefined;
     let timer;
+    const touched = () => {
+      userRef.current = true;
+    };
     const settle = () => {
-      if (programmaticRef.current) {
-        programmaticRef.current = false;
-        return;
-      }
+      if (!userRef.current) return;
       const centre = scroller.scrollLeft + scroller.clientWidth / 2;
       let best = null;
       let bestDistance = Infinity;
@@ -118,9 +116,15 @@ export default function MapCardCarousel({ ids, selectedId, onSettle, onClose, ne
       clearTimeout(timer);
       timer = setTimeout(settle, 140);
     };
+    scroller.addEventListener('pointerdown', touched, { passive: true });
+    scroller.addEventListener('touchstart', touched, { passive: true });
+    scroller.addEventListener('wheel', touched, { passive: true });
     scroller.addEventListener('scroll', onScroll, { passive: true });
     return () => {
       clearTimeout(timer);
+      scroller.removeEventListener('pointerdown', touched);
+      scroller.removeEventListener('touchstart', touched);
+      scroller.removeEventListener('wheel', touched);
       scroller.removeEventListener('scroll', onScroll);
     };
   }, [onSettle]);

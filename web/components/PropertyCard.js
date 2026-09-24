@@ -291,7 +291,7 @@ export default function PropertyCard({
                     point only (lib/landmarks.js listingDistanceKm). */}
                 {Number.isFinite(listing.near_distance_km) && listing.near_label ? (
                   <p className="truncate text-[0.8125rem] font-semibold text-blue-deep">
-                    {t('listings.card.distanceFrom', { distance: formatDistance(listing.near_distance_km), place: listing.near_label })}
+                    {t('listings.results.distanceFrom', { distance: formatDistance(listing.near_distance_km), place: listing.near_label })}
                   </p>
                 ) : null}
               </div>

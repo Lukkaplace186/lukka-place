@@ -20,7 +20,7 @@
  */
 
 export const FLY_MIN_ZOOM = 11;
-const STEP_TIMEOUT_MS = 650;
+const STEP_TIMEOUT_MS = 1200;
 /** Both ends must fit inside this share of the smaller viewport side. */
 const FIT_SHARE = 0.7;
 
@@ -59,16 +59,27 @@ export function cruiseZoom(from, to, { fromZoom, toZoom, viewportPx }) {
   return zoom;
 }
 
-function waitIdle(map, flight) {
+/**
+ * Run one camera step and wait until it has really finished: the `idle` that
+ * follows the step's own movement event, not one left over from the step
+ * before. Waiting on the first `idle` was the bug in the first version — it
+ * resolved at once, the zoom-in started while the glide was still under way,
+ * and the map dropped back in over the old place before moving.
+ */
+function step(map, flight, movedEvent, run) {
   return new Promise((resolve) => {
-    const timer = setTimeout(() => {
-      listener.remove();
-      resolve();
-    }, STEP_TIMEOUT_MS);
-    const listener = google.maps.event.addListenerOnce(map, 'idle', () => {
+    let idleListener = null;
+    const finish = () => {
       clearTimeout(timer);
+      movedListener.remove();
+      idleListener?.remove();
       resolve();
+    };
+    const movedListener = google.maps.event.addListenerOnce(map, movedEvent, () => {
+      idleListener = google.maps.event.addListenerOnce(map, 'idle', finish);
     });
+    const timer = setTimeout(finish, STEP_TIMEOUT_MS);
+    run();
   }).then(() => flight === currentFlight);
 }
 
@@ -93,14 +104,11 @@ export async function flyTo(map, { center, zoom }) {
   const cruise = cruiseZoom(from, center, { fromZoom: startZoom, toZoom: zoom, viewportPx });
 
   for (let z = startZoom - 1; z >= cruise; z -= 1) {
-    map.setZoom(z);
-    if (!(await waitIdle(map, flight))) return false;
+    if (!(await step(map, flight, 'zoom_changed', () => map.setZoom(z)))) return false;
   }
-  map.panTo(center);
-  if (!(await waitIdle(map, flight))) return false;
+  if (!(await step(map, flight, 'center_changed', () => map.panTo(center)))) return false;
   for (let z = Math.max(cruise, map.getZoom()) + 1; z <= zoom; z += 1) {
-    map.setZoom(z);
-    if (!(await waitIdle(map, flight))) return false;
+    if (!(await step(map, flight, 'zoom_changed', () => map.setZoom(z)))) return false;
   }
   // Land exactly: zooming about the centre can leave a sub-pixel drift.
   if (map.getZoom() !== zoom) map.setZoom(zoom);

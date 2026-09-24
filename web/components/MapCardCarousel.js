@@ -71,37 +71,59 @@ export default function MapCardCarousel({ ids, selectedId, onSettle, onClose, ne
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idsKey]);
 
-  // A pin tap: bring its card to the middle.
+  // A pin tap: bring its card to the middle. Scrolls this component starts
+  // itself are marked, so the cards it glides past are never read as swipes
+  // (the first version did, and a tap on "$1k" stopped on the "$800" it
+  // passed on the way).
   useEffect(() => {
     const card = cardRefs.current.get(String(selectedId));
     const scroller = scrollerRef.current;
-    if (!card || !scroller) return;
+    if (!card || !scroller) return undefined;
     const left = card.offsetLeft - (scroller.clientWidth - card.clientWidth) / 2;
-    if (Math.abs(scroller.scrollLeft - left) < 4) return;
+    if (Math.abs(scroller.scrollLeft - left) < 4) return undefined;
     programmaticRef.current = true;
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     scroller.scrollTo({ left, behavior: reduce ? 'auto' : 'smooth' });
+    // Safety net for a scroll that never fires (already in place).
     const timer = setTimeout(() => {
       programmaticRef.current = false;
-    }, 600);
+    }, 1500);
     return () => clearTimeout(timer);
   }, [selectedId, listings]);
 
-  // A swipe: the card that settles mostly in view becomes the selected one.
+  // A swipe: once the row has been still for a moment, the card nearest the
+  // middle is the chosen one — never a card merely passed over.
   useEffect(() => {
     const scroller = scrollerRef.current;
-    if (!scroller || !listings.length) return undefined;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (programmaticRef.current) return;
-        const settled = entries.find((entry) => entry.isIntersecting && entry.intersectionRatio >= 0.75);
-        if (settled) onSettle?.(settled.target.dataset.id);
-      },
-      { root: scroller, threshold: [0.75] },
-    );
-    for (const card of cardRefs.current.values()) observer.observe(card);
-    return () => observer.disconnect();
-  }, [listings, onSettle]);
+    if (!scroller) return undefined;
+    let timer;
+    const settle = () => {
+      if (programmaticRef.current) {
+        programmaticRef.current = false;
+        return;
+      }
+      const centre = scroller.scrollLeft + scroller.clientWidth / 2;
+      let best = null;
+      let bestDistance = Infinity;
+      for (const [id, card] of cardRefs.current) {
+        const distance = Math.abs(card.offsetLeft + card.clientWidth / 2 - centre);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          best = id;
+        }
+      }
+      if (best) onSettle?.(best);
+    };
+    const onScroll = () => {
+      clearTimeout(timer);
+      timer = setTimeout(settle, 140);
+    };
+    scroller.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      clearTimeout(timer);
+      scroller.removeEventListener('scroll', onScroll);
+    };
+  }, [onSettle]);
 
   const byId = useMemo(() => new Map(listings.map((row) => [String(row.id), row])), [listings]);
   const ordered = ids.map((id) => byId.get(id)).filter(Boolean);

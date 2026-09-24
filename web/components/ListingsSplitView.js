@@ -236,7 +236,7 @@ export default function ListingsSplitView({
       <div
         className={`flex flex-col ${
           isMapView
-            ? 'fixed inset-x-0 top-16 bottom-0 z-30'
+            ? 'fixed inset-x-0 top-16 bottom-0 z-30 bg-canvas'
             : 'hidden'
         } lg:inset-auto lg:z-auto lg:flex lg:overflow-hidden lg:rounded-2xl lg:sticky lg:top-[8.5rem] lg:h-[calc(100vh-10rem)]`}
       >

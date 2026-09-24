@@ -1115,11 +1115,10 @@
   font-weight: 700;
   line-height: 1;
   font-variant-numeric: tabular-nums;
-  transition: scale 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.16s, color 0.16s, box-shadow 0.16s, opacity 0.25s;
+  transition: scale 0.16s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.16s, color 0.16s, box-shadow 0.16s;
 }
-/* While the map is dragged or zoomed the pills step back a little; they
-   come forward again when it settles (lib/mapPinLayer.js setMoving). */
-.lkp-layer.is-moving .lkp-pin:not([data-active='true']) .lkp-pin__body { opacity: 0.72; }
+/* Pills stay at full strength while the map is dragged or zoomed: dimming
+   them was tried (2026-09-24) and removed the same day on product direction. */
 /* The stem: a rotated square half-hidden under the body, so it shares the
    body's fill, edge and shadow and there is no seam where they meet. */
 .lkp-pin__body::before {
@@ -1186,28 +1185,6 @@
   .lkp-pin[data-active='true']:hover .lkp-pin__body { scale: 1.15; }
 }
 
-/* Where a flight landed (lib/mapPinLayer.js pulseAt). The ring itself is the
-   ::before, so the wrapper keeps the position transform. Without motion it
-   is simply not drawn. */
-.lkp-pulse {
-  position: absolute;
-  left: 0;
-  top: 0;
-  pointer-events: none;
-  z-index: 0;
-}
-.lkp-pulse::before {
-  content: '';
-  position: absolute;
-  width: 160px;
-  height: 160px;
-  translate: -50% -50%;
-  border-radius: 999px;
-  border: 3px solid var(--blue);
-  background: rgb(30 58 168 / 0.08);
-  opacity: 0;
-}
-
 /* "Autour de moi": where the visitor is, only after they asked. */
 .lkp-me {
   position: absolute;
@@ -1257,12 +1234,6 @@
     80% { top: -3px; }
   }
   .lkp-pin.is-bounce { animation: lkp-pin-bounce 0.5s ease-out; }
-  /* Where a flight landed: three rings, then nothing. */
-  @keyframes lkp-pulse {
-    0% { opacity: 0.55; scale: 0.2; }
-    100% { opacity: 0; scale: 1; }
-  }
-  .lkp-pulse::before { animation: lkp-pulse 0.8s ease-out 3; }
   @keyframes lkp-me-pulse {
     0% { opacity: 0.9; scale: 0.5; }
     100% { opacity: 0; scale: 1.6; }

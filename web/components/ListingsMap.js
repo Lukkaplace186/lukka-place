@@ -558,11 +558,7 @@ export default function ListingsMap({
           selectSeqRef.current += 1;
           propsRef.current.onListingSelect?.(null);
         }));
-        // Pills step back while the map moves and come forward as it settles.
-        listeners.push(map.addListener('dragstart', () => layerRef.current?.setMoving(true)));
-        listeners.push(map.addListener('zoom_changed', () => layerRef.current?.setMoving(true)));
         listeners.push(map.addListener('idle', () => {
-          layerRef.current?.setMoving(false);
           scheduleFetch();
           reportArea();
         }));
@@ -662,8 +658,6 @@ export default function ListingsMap({
         if (firstRun) showView(mapRef.current, placeView);
         else if (!(await flyTo(mapRef.current, placeView)) || cancelled) return;
         req.positioning = false;
-        // Show where the search landed.
-        google.maps.event.addListenerOnce(mapRef.current, 'idle', () => layerRef.current?.pulseAt(placeView.center));
         areaRef.current = { baseline: viewKey(mapRef.current), reported: null };
       } else {
         req.positioning = false;

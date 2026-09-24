@@ -119,29 +119,6 @@ export function createPinLayer(map, handlers) {
       }
     }
 
-    /** Pills dim a touch while the map moves, and come back as it settles. */
-    setMoving(moving) {
-      this.container?.classList.toggle('is-moving', Boolean(moving));
-    }
-
-    /**
-     * A ring that pulses out from a point three times, then goes — shown
-     * where a flight lands, so the visitor sees the place they searched.
-     * (A real commune outline would need boundary geometry this app does
-     * not have; a ring at the verified point claims nothing it can't back.)
-     */
-    pulseAt(point) {
-      const projection = this.getProjection();
-      if (!this.container || !projection || !point) return;
-      const at = projection.fromLatLngToDivPixel(new google.maps.LatLng(point.lat, point.lng));
-      if (!at) return;
-      const ring = document.createElement('div');
-      ring.className = 'lkp-pulse';
-      ring.style.transform = `translate3d(${at.x.toFixed(1)}px, ${at.y.toFixed(1)}px, 0)`;
-      this.container.appendChild(ring);
-      setTimeout(() => ring.remove(), 2600);
-    }
-
     #bounce(el) {
       el.classList.remove('is-bounce');
       // Restart the animation even if a bounce is still running.

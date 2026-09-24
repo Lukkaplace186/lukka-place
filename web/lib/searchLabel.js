@@ -1,4 +1,4 @@
-import { PARCELLE_SUBTYPES, AMENITY_GROUPS } from './constants';
+import { PARCELLE_SUBTYPES, AMENITY_GROUPS, DEPOSIT_RANGE_OPTIONS } from './constants';
 
 const PARCELLE_LABEL_KEYS = Object.fromEntries(PARCELLE_SUBTYPES.map(({ value, labelKey }) => [value, labelKey]));
 
@@ -126,6 +126,8 @@ export function searchCriteriaTags(searchParams, t) {
 
   const depositMax = get('deposit_max');
   if (depositMax) tags.push(t('search.tags.depositMax', { count: depositMax }));
+  const depositRange = DEPOSIT_RANGE_OPTIONS.find((o) => o.value && o.value === get('deposit_range'));
+  if (depositRange) tags.push(t('search.tags.depositRange', { value: t(depositRange.labelKey) }));
 
   const amenities = (get('amenities') || '').split(',').filter(Boolean);
   for (const key of amenities) {

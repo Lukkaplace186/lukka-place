@@ -29,8 +29,8 @@ function Section({ label, children }) {
  * sections here (the four fields both the Rightmove-style and Zoopla-style
  * specs asked for explicitly, styled as large `size="lg"` pills where the
  * desktop pill-panel equivalent uses small ones — this sheet has the room).
- * Everything else FiltersDrawer.js already covers on desktop (Quartier,
- * Sous-type de parcelle, amenity groups, Conditions de location) is real,
+ * Everything else FiltersDrawer.js already covers on desktop (Commune,
+ * Quartier, Sous-type de parcelle, amenity groups, Conditions de paiement) is real,
  * working filter state too, not something to drop just because mobile's
  * top-level list didn't name it — AdvancedFilterFields.js is the same
  * shared component FiltersDrawer.js renders, with `includeBedsBaths={false}`
@@ -52,7 +52,7 @@ export default function FilterModal({
   onClose,
   onApply,
   propertyTypes = [],
-  quartiers,
+  locations,
   commune,
   priceSliderMax,
   values = {},
@@ -63,11 +63,11 @@ export default function FilterModal({
   const t = useT();
   const {
     propertyType = '', priceMin = '', priceMax = '', bedsMin = '', bathMin = '',
-    quartier = '', parcelleSubtype = '', depositMax = '', amenities = [],
+    quartier = '', parcelleSubtype = '', depositRange = '', amenities = [],
   } = values;
   const {
     setPropertyType, setPriceMin, setPriceMax, setBedsMin, setBathMin,
-    setQuartier, setParcelleSubtype, setDepositMax, setAmenities,
+    setCommune, setQuartier, setParcelleSubtype, setDepositRange, setAmenities,
   } = setters;
 
   function reset() {
@@ -76,9 +76,10 @@ export default function FilterModal({
     setPriceMax?.('');
     setBedsMin?.('');
     setBathMin?.('');
+    setCommune?.('');
     setQuartier?.('');
     setParcelleSubtype?.('');
-    setDepositMax?.('');
+    setDepositRange?.('');
     setAmenities?.([]);
   }
 
@@ -172,11 +173,11 @@ export default function FilterModal({
           </Section>
 
           <AdvancedFilterFields
-            quartiers={quartiers}
+            locations={locations}
             commune={commune}
             propertyType={propertyType}
-            values={{ quartier, parcelleSubtype, depositMax, amenities }}
-            setters={{ setQuartier, setParcelleSubtype, setDepositMax, setAmenities }}
+            values={{ quartier, parcelleSubtype, depositRange, amenities }}
+            setters={{ setCommune, setQuartier, setParcelleSubtype, setDepositRange, setAmenities }}
             includeBedsBaths={false}
           />
         </div>

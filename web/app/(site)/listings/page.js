@@ -24,7 +24,7 @@ import { seoPathForParams } from '@/lib/seoPages';
 /** Filters worth logging as "a search" (sort/view/page are not). */
 const SEARCH_LOG_KEYS = [
   'transaction_type', 'commune', 'communes', 'quartier', 'radius', 'property_type', 'parcelle_subtype',
-  'price_min', 'price_max', 'beds_min', 'bath_min', 'deposit_max', 'amenities', 'q', 'reference',
+  'price_min', 'price_max', 'beds_min', 'bath_min', 'deposit_max', 'deposit_range', 'amenities', 'q', 'reference',
 ];
 
 /**
@@ -173,6 +173,7 @@ export default async function ListingsPage({ searchParams }) {
             bedsMin: params.beds_min,
             bathMin: params.bath_min,
             depositMax: params.deposit_max,
+            depositRange: params.deposit_range,
             // Same comma-separated-string -> array parsing as lib/searchQuery.js's
             // parseListingsSearchParams (kept in step with it manually since this
             // object is FilterBar's *initial client state* seed, not the query

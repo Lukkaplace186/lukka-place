@@ -2,7 +2,7 @@ import 'server-only';
 import { getPool } from './db';
 import { KINSHASA_COMMUNE_CENTROIDS } from './geocoding';
 import { KINSHASA_PROVINCE_ENVELOPE, boundsContain, distanceKm, resolveMarkerPosition } from './mapViewport';
-import { AMENITY_GROUPS, AMENITY_KEYWORDS } from './constants';
+import { AMENITY_GROUPS, AMENITY_KEYWORDS, DEPOSIT_RANGE_OPTIONS } from './constants';
 import { keywordTokens } from './searchKeywords';
 
 /**
@@ -314,7 +314,7 @@ function communeListOf({ commune, communes } = {}) {
  *     path has parcelle_subtype set. Filtering on parcelle_subtype is the
  *     precise match for "this is a parcelle listing".
  */
-function buildFilters({ transactionType, propertyType, parcelleSubtype, commune, communes, quartier, radius, reference, priceMin, priceMax, bedsMin, bathMin, depositMax, amenities, search, excludeId, agentId, ids }) {
+function buildFilters({ transactionType, propertyType, parcelleSubtype, commune, communes, quartier, radius, reference, priceMin, priceMax, bedsMin, bathMin, depositMax, depositRange, amenities, search, excludeId, agentId, ids }) {
   const where = [APPROVED_FILTER];
   const params = [];
 
@@ -391,6 +391,22 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
   if (Number.isFinite(maxDeposit)) {
     params.push(maxDeposit);
     where.push(`p.deposit_months IS NOT NULL AND p.deposit_months <= $${params.length}`);
+  }
+
+  // "Avance exigée" — see DEPOSIT_RANGE_OPTIONS. The total is derived here
+  // from the three stated figures; lower bounds are exclusive.
+  const range = DEPOSIT_RANGE_OPTIONS.find((o) => o.value && o.value === depositRange);
+  if (range) {
+    const total = '(p.deposit_months + COALESCE(p.advance_months, 0) + COALESCE(p.commission_months, 0))';
+    where.push('p.deposit_months IS NOT NULL');
+    if (range.min != null) {
+      params.push(range.min);
+      where.push(`${total} > $${params.length}`);
+    }
+    if (range.max != null) {
+      params.push(range.max);
+      where.push(`${total} <= $${params.length}`);
+    }
   }
 
   // "Plus de filtres" amenity checkboxes (Énergie & Eau / Accessibilité &

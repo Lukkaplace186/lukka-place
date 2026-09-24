@@ -30,7 +30,7 @@ const ADVANCED_KEYS = ['quartier', 'parcelleSubtype', 'bathMin'];
 // result set, so changing only those shouldn't spawn a new history entry.
 const FILTER_PARAM_KEYS = [
   'transaction_type', 'commune', 'communes', 'quartier', 'radius', 'property_type', 'parcelle_subtype',
-  'price_min', 'price_max', 'beds_min', 'bath_min', 'deposit_max', 'amenities', 'q', 'reference',
+  'price_min', 'price_max', 'beds_min', 'bath_min', 'deposit_max', 'deposit_range', 'amenities', 'q', 'reference',
 ];
 // Fallback only for the genuinely-empty-catalog case (lib/listings.js's
 // getPriceRange() returns null) — otherwise the real ceiling comes from
@@ -110,10 +110,13 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
   );
 
   const [transaction] = useState(defaults.transactionType || '');
-  // No local setter: commune is no longer chosen via a pill in this bar — it
-  // only ever comes from the location input above (a full navigation that
-  // remounts this component with a new `defaults.commune`) or the URL.
-  const [commune] = useState(defaults.commune || '');
+  // Set from the location input above (a full navigation that remounts this
+  // component with a new `defaults.commune`), the URL, or the Commune select
+  // in the filter sheets (AdvancedFilterFields). The extra communes and the
+  // landmark the search box resolved belong to the URL's commune only, so
+  // they are dropped the moment the sheet picks a different one.
+  const [commune, setCommune] = useState(defaults.commune || '');
+  const sameCommune = commune === (defaults.commune || '');
   const [quartier, setQuartier] = useState(defaults.quartier || '');
   const [propertyType, setPropertyType] = useState(defaults.propertyType || '');
   const [parcelleSubtype, setParcelleSubtype] = useState(defaults.parcelleSubtype || '');
@@ -121,7 +124,10 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
   const [bathMin, setBathMin] = useState(defaults.bathMin || '');
   const [priceMin, setPriceMin] = useState(defaults.priceMin || '');
   const [priceMax, setPriceMax] = useState(defaults.priceMax || '');
-  const [depositMax, setDepositMax] = useState(defaults.depositMax || '');
+  const [depositRange, setDepositRange] = useState(defaults.depositRange || '');
+  // A legacy `deposit_max` link keeps filtering until the visitor picks an
+  // Avance exigée band, which replaces it.
+  const legacyDepositMax = depositRange ? '' : defaults.depositMax || '';
   const [amenities, setAmenities] = useState(defaults.amenities || []);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
@@ -189,7 +195,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
       const qs = new URLSearchParams();
       if (transaction) qs.set('transaction_type', transaction);
       if (commune) qs.set('commune', commune);
-      if (commune && defaults.communes) qs.set('communes', defaults.communes);
+      if (commune && sameCommune && defaults.communes) qs.set('communes', defaults.communes);
       if (quartier) qs.set('quartier', quartier);
       if (propertyType) qs.set('property_type', propertyType);
       if (propertyType === 'parcelle' && parcelleSubtype) qs.set('parcelle_subtype', parcelleSubtype);
@@ -197,7 +203,8 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
       if (bathMin) qs.set('bath_min', bathMin);
       if (priceMin) qs.set('price_min', priceMin);
       if (priceMax) qs.set('price_max', priceMax);
-      if (depositMax) qs.set('deposit_max', depositMax);
+      if (legacyDepositMax) qs.set('deposit_max', legacyDepositMax);
+      if (depositRange) qs.set('deposit_range', depositRange);
       if (amenities.length) qs.set('amenities', amenities.join(','));
       for (const [key, value] of new URLSearchParams(areaQuery)) qs.set(key, value);
 
@@ -229,9 +236,11 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
     bathMin,
     priceMin,
     priceMax,
-    depositMax,
+    depositRange,
+    legacyDepositMax,
     amenities,
     areaQuery,
+    sameCommune,
     defaults.communes,
   ]);
 
@@ -253,13 +262,12 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
           countFormatted: resultCount.toLocaleString(t.locale === 'en' ? 'en-GB' : 'fr-FR'),
         });
 
-  const quartiers = commune ? locations[commune] || [] : [];
   // amenities is always an array (never absent) — counted by length, not by
   // ADVANCED_KEYS' plain truthiness check, since `Boolean([])` is true and
   // would otherwise always count as "1 active filter" even with nothing
   // checked.
   const advancedCount =
-    ADVANCED_KEYS.filter((key) => defaults[key]).length + (defaults.amenities?.length || 0) + (defaults.depositMax ? 1 : 0);
+    ADVANCED_KEYS.filter((key) => defaults[key]).length + (defaults.amenities?.length || 0) + (defaults.depositMax || defaults.depositRange ? 1 : 0);
   // Mobile's single "Filtres" button badge — the primary pills' own active
   // count (Chambres/Prix-as-one/Type de bien) plus everything advancedCount
   // already tracks, since FilterModal.js is the one screen covering both
@@ -299,10 +307,10 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
     // "Gombe ou Ngaliema" — the extra communes the search box resolved.
     // Commune never changes inside this bar (it remounts on a new place), so
     // carrying the URL's value forward is always the current choice.
-    ['communes', commune ? defaults.communes || '' : ''],
+    ['communes', commune && sameCommune ? defaults.communes || '' : ''],
     // A picked landmark ("St Luc") — where the map opens, never a text
     // filter. Same lifetime as the commune it was listed under.
-    ['near', commune ? defaults.near || '' : ''],
+    ['near', commune && sameCommune ? defaults.near || '' : ''],
     ['quartier', quartier],
     ['property_type', propertyType],
     ['parcelle_subtype', propertyType === 'parcelle' ? parcelleSubtype : ''],
@@ -310,7 +318,8 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
     ['bath_min', bathMin],
     ['price_min', priceMin],
     ['price_max', priceMax],
-    ['deposit_max', depositMax],
+    ['deposit_max', legacyDepositMax],
+    ['deposit_range', depositRange],
     ['amenities', amenities.join(',')],
     ['sort', defaults.sort || ''],
     ['view', defaults.view || ''],
@@ -576,11 +585,11 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
           open={drawerOpen}
           onClose={() => setDrawerOpen(false)}
           onApply={submit}
-          quartiers={quartiers}
+          locations={locations}
           commune={commune}
           propertyType={propertyType}
-          values={{ quartier, parcelleSubtype, bedsMin, bathMin, depositMax, amenities }}
-          setters={{ setQuartier, setParcelleSubtype, setBedsMin, setBathMin, setDepositMax, setAmenities }}
+          values={{ quartier, parcelleSubtype, bedsMin, bathMin, depositRange, amenities }}
+          setters={{ setCommune, setQuartier, setParcelleSubtype, setBedsMin, setBathMin, setDepositRange, setAmenities }}
           resultCountLabel={resultCountLabel}
           resultPending={resultPending}
         />
@@ -590,13 +599,13 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
           onClose={() => setFilterModalOpen(false)}
           onApply={submit}
           propertyTypes={propertyTypes}
-          quartiers={quartiers}
+          locations={locations}
           commune={commune}
           priceSliderMax={PRICE_SLIDER_MAX}
-          values={{ propertyType, priceMin, priceMax, bedsMin, bathMin, quartier, parcelleSubtype, depositMax, amenities }}
+          values={{ propertyType, priceMin, priceMax, bedsMin, bathMin, quartier, parcelleSubtype, depositRange, amenities }}
           setters={{
             setPropertyType, setPriceMin, setPriceMax, setBedsMin, setBathMin,
-            setQuartier, setParcelleSubtype, setDepositMax, setAmenities,
+            setCommune, setQuartier, setParcelleSubtype, setDepositRange, setAmenities,
           }}
           resultCountLabel={resultCountLabel}
           resultPending={resultPending}

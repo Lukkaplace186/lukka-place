@@ -255,7 +255,7 @@
       "quartier": "Quartier",
       "propertyType": "Type de bien",
       "allTypes": "Tous",
-      "allCommunes": "Toutes",
+      "allCommunes": "Toutes les communes",
       "bedrooms": "Chambres",
       "bedroomsMin": "Chambres (minimum)",
       "bathrooms": "Salles de bain",
@@ -291,7 +291,10 @@
       "mapView": "Carte",
       "listView": "Vue liste",
       "any": "Toutes",
-      "searchButton": "Rechercher"
+      "searchButton": "Rechercher",
+      "depositRangeChip": "Avance {value}",
+      "depositRangeLabel": "Avance exigée",
+      "depositRangeHint": "Total à verser à l’entrée, tel que l’annonce l’indique : garantie + avance + commission."
     },
     "sort": {
       "complete": "Annonces complètes d’abord",
@@ -404,6 +407,7 @@
       "referenceTag": "Réf: {reference}",
       "entryTerms": "Conditions d'entrée",
       "entryTermsMonths": "{parts} mois",
+      "entryTermsChip": "Garantie {parts} mois",
       "type": "Type"
     },
     "entryCosts": {
@@ -442,7 +446,8 @@
     "amenityGroups": {
       "energyWater": "Énergie & Eau",
       "accessSecurity": "Accessibilité & Sécurité",
-      "rentalTerms": "Conditions de location"
+      "rentalTerms": "Conditions de location",
+      "paymentTerms": "Conditions de paiement"
     },
     "amenities": {
       "generator": "Groupe électrogène",
@@ -597,6 +602,13 @@
     },
     "availability": {
       "confirmedOn": "Disponibilité confirmée le {date}"
+    },
+    "depositRange": {
+      "any": "Toutes",
+      "le3": "≤ 3 mois",
+      "3-6": "3 - 6 mois",
+      "6-12": "6 - 12 mois",
+      "gt12": "> 12 mois"
     }
   },
   "enquiry": {
@@ -651,7 +663,8 @@
       "priceUpTo": "Max {max}",
       "depositMax": "Garantie max {count} mois",
       "reference": "Réf. {reference}",
-      "query": "« {query} »"
+      "query": "« {query} »",
+      "depositRange": "Avance {value}"
     }
   },
   "agent": {

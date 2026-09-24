@@ -246,3 +246,23 @@ test('the COUNT query carries the same agent_infos join as the data query', asyn
     );
   }
 });
+
+test('"Avance exigée" bands sum the three stated entry costs, lower bound exclusive', async () => {
+  await listings.getListings({ depositRange: '3-6' });
+  const sql = allSql();
+  const total = '(p.deposit_months + COALESCE(p.advance_months, 0) + COALESCE(p.commission_months, 0))';
+  assert.ok(sql.includes('p.deposit_months IS NOT NULL'), 'a listing with no stated garantie must not match');
+  assert.ok(sql.includes(`${total} > $1`), 'lower bound is exclusive: 3 + 0 + 0 belongs to ≤ 3');
+  assert.ok(sql.includes(`${total} <= $2`));
+  assert.deepEqual(calls[0].values.slice(0, 2), [3, 6]);
+  assert.ok(sql.includes(APPROVED));
+});
+
+test('an open-ended band has one bound, and an unknown band filters nothing', async () => {
+  await listings.getListings({ depositRange: 'gt12' });
+  assert.ok(allSql().includes('COALESCE(p.commission_months, 0)) > $1'));
+  assert.ok(!allSql().includes('COALESCE(p.commission_months, 0)) <='));
+  reset();
+  await listings.getListings({ depositRange: '1-999' });
+  assert.ok(!allSql().includes('COALESCE(p.advance_months, 0)'), 'a hand-edited URL must not reach the SQL');
+});

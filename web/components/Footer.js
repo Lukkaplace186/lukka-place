@@ -3,6 +3,7 @@ import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { cachedSeoFacets } from '@/lib/listingsCached';
 import { seoPath } from '@/lib/seoPages';
 import { socialProfiles } from '@/lib/seoSchema';
+import { ChevronDown } from 'lucide-react';
 import { Wordmark } from './Brand';
 import CurrencyToggle from './CurrencyToggle';
 import LanguageToggle from './LanguageToggle';
@@ -233,7 +234,11 @@ export default async function Footer() {
           </div>
         </div>
 
-        <div className="mx-auto max-w-[1600px] px-4 py-10 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
+        {/* pb-28 below md: FloatingControlBar (Carte / Trier / Alerte) and
+            MobileListingBar are fixed to the bottom of a phone screen, and
+            without the extra room they sat over the disclaimer and the
+            copyright line — the last things on the page. */}
+        <div className="mx-auto max-w-[1600px] px-4 pb-28 pt-10 sm:px-6 sm:pt-14 md:pb-14 lg:px-8 lg:py-16">
           {/* Six, not five. The brand block below spans two, so five left
               exactly three slots for link columns — which was right for
               Annonces + Communes + Lukka Place and wraps the moment there is a
@@ -242,8 +247,8 @@ export default async function Footer() {
               empty rather than dropping a column onto its own line. Staying
               within 1-6 is deliberate: web/CLAUDE.md records a `lg:grid-cols-10`
               that silently never made it into the compiled CSS. */}
-          <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 sm:gap-10 lg:grid-cols-6">
-            <div className="lg:col-span-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 md:gap-10 lg:grid-cols-6">
+            <div className="border-b border-line pb-6 md:border-b-0 md:pb-0 lg:col-span-2">
               <Wordmark />
               <p className="mt-4 max-w-xs text-sm leading-relaxed text-ink-45">
                 {t('footer.tagline')}
@@ -290,37 +295,66 @@ export default async function Footer() {
               </div>
             </div>
 
-            {columns.map(({ titleKey, links }) => (
-              <div key={titleKey}>
-                <h3 className="u-eyebrow mb-3">{t(titleKey)}</h3>
-                {/* Two columns on mobile, back to a single stack from sm up.
-                    The Communes group is the reason: it renders up to five
-                    real communes, and one-per-line put five rows of ~28px into
-                    a footer a mobile visitor has to scroll past. Paired up it
-                    is three rows instead — and the same treatment costs the
-                    two-link groups nothing, since they collapse to a single
-                    row rather than two. From sm up the outer grid already
-                    supplies real columns, so a nested 2-col there would just
-                    make each group's own links wrap oddly against its
-                    neighbours; the vertical list is correct at that width. */}
-                <ul className="grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-1 sm:gap-y-2">
+            {columns.map(({ titleKey, links }) => {
+              const list = (
+                <ul className="grid grid-cols-2 gap-x-4 gap-y-1.5 md:grid-cols-1 md:gap-y-2">
                   {links.map(({ label, labelKey, href }) => (
                     <li key={href} className="min-w-0">
-                      <Link href={href} className="block truncate text-sm text-ink-70 transition-colors hover:text-blue-deep">
+                      <Link href={href} className="block truncate py-1 text-sm text-ink-70 transition-colors hover:text-blue-deep md:py-0">
                         {labelKey ? t(labelKey) : label}
                       </Link>
                     </li>
                   ))}
                 </ul>
-              </div>
-            ))}
+              );
+              return (
+                <div key={titleKey}>
+                  {/* Below md each group is a native <details> accordion,
+                      closed by default: four open groups were a screen of
+                      links a phone visitor had to scroll past to reach the
+                      disclaimer. No JavaScript — this stays a Server
+                      Component, and the links are in the HTML either way.
+                      From md the groups are ordinary open columns; the list is
+                      rendered twice rather than forcing a <details> open with
+                      CSS, which browsers do not honour for closed content. */}
+                  <details className="u-accordion group border-b border-line md:hidden">
+                    <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between py-2 [&::-webkit-details-marker]:hidden">
+                      <span className="u-eyebrow">{t(titleKey)}</span>
+                      <ChevronDown
+                        aria-hidden="true"
+                        className="h-4 w-4 text-ink-45 transition-transform duration-200 group-open:rotate-180"
+                      />
+                    </summary>
+                    <div className="pb-3">{list}</div>
+                  </details>
+                  <div className="hidden md:block">
+                    <h3 className="u-eyebrow mb-3">{t(titleKey)}</h3>
+                    {list}
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           {/* Display preferences. The currency control's second home now that
               it no longer rides in the mobile navbar (Header.js) — reachable
               from the bottom of any page, and labelled, which the bare
               "$ | FC" header pill never was. */}
-          <div className="mt-9 flex flex-wrap items-center gap-x-4 gap-y-3 border-t border-line pt-6">
+          {/* Phone: one compact row, each control under its own label, with
+              the short "$ | FC" / "FR | EN" labels — the long ones wrapped
+              into two stacked full-width rows at 375px. md and up keep the
+              labelled inline row. */}
+          <div className="mt-6 grid grid-cols-2 gap-4 md:hidden">
+            <div className="flex flex-col items-start gap-2">
+              <span className="u-eyebrow">{t('common.currency.label')}</span>
+              <CurrencyToggle />
+            </div>
+            <div className="flex flex-col items-start gap-2">
+              <span className="u-eyebrow">{t('common.language.label')}</span>
+              <LanguageToggle />
+            </div>
+          </div>
+          <div className="mt-9 hidden flex-wrap items-center gap-x-4 gap-y-3 border-t border-line pt-6 md:flex">
             <span className="u-eyebrow">{t('common.currency.label')}</span>
             <CurrencyToggle longLabels />
 
@@ -331,7 +365,7 @@ export default async function Footer() {
             <LanguageToggle longLabels />
           </div>
 
-          <div className="mt-8 border-t border-line pt-6">
+          <div className="mt-6 border-t border-line pt-6 md:mt-8">
             <p className="max-w-4xl text-xs leading-relaxed text-ink-45">{t('footer.disclaimer')}</p>
             <p className="mt-4 text-xs text-ink-25">{t('footer.copyright', { year: new Date().getFullYear() })}</p>
           </div>

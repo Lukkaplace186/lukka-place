@@ -21,7 +21,7 @@ export default function FiltersDrawer({
   open,
   onClose,
   onApply,
-  quartiers,
+  locations,
   commune,
   propertyType,
   values = {},
@@ -30,14 +30,15 @@ export default function FiltersDrawer({
   resultPending,
 }) {
   const t = useT();
-  const { setQuartier, setParcelleSubtype, setBedsMin, setBathMin, setDepositMax, setAmenities } = setters;
+  const { setCommune, setQuartier, setParcelleSubtype, setBedsMin, setBathMin, setDepositRange, setAmenities } = setters;
 
   function reset() {
+    setCommune?.('');
     setQuartier?.('');
     setParcelleSubtype?.('');
     setBedsMin?.('');
     setBathMin?.('');
-    setDepositMax?.('');
+    setDepositRange?.('');
     setAmenities?.([]);
   }
 
@@ -50,7 +51,7 @@ export default function FiltersDrawer({
 
         <div className="flex flex-col gap-6 overflow-y-auto px-4 py-5">
           <AdvancedFilterFields
-            quartiers={quartiers}
+            locations={locations}
             commune={commune}
             propertyType={propertyType}
             values={values}

@@ -391,6 +391,25 @@
     }
   }
 
+  /* The phone footer's link groups (Footer.js) open smoothly where the
+     browser can animate a <details> body; everywhere else they simply open.
+     interpolate-size is what lets block-size transition to `auto`. */
+  @media (prefers-reduced-motion: no-preference) {
+    @supports (interpolate-size: allow-keywords) {
+      .u-accordion {
+        interpolate-size: allow-keywords;
+      }
+      .u-accordion::details-content {
+        block-size: 0;
+        overflow: hidden;
+        transition: block-size 0.25s ease, content-visibility 0.25s allow-discrete;
+      }
+      .u-accordion[open]::details-content {
+        block-size: auto;
+      }
+    }
+  }
+
   /* The motion layer (2026-09-23). Same rules as the presets above: CSS only,
      transform + opacity only (compositor properties, no layout or paint on
      the budget GPUs), every entrance gated on prefers-reduced-motion, and

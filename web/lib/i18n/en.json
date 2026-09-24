@@ -255,7 +255,7 @@
       "quartier": "Neighbourhood",
       "propertyType": "Property type",
       "allTypes": "All",
-      "allCommunes": "All",
+      "allCommunes": "All communes",
       "bedrooms": "Bedrooms",
       "bedroomsMin": "Bedrooms (minimum)",
       "bathrooms": "Bathrooms",
@@ -291,7 +291,10 @@
       "mapView": "Map",
       "listView": "List view",
       "any": "Any",
-      "searchButton": "Search"
+      "searchButton": "Search",
+      "depositRangeChip": "Upfront {value}",
+      "depositRangeLabel": "Upfront payment",
+      "depositRangeHint": "Total due before moving in, as the listing states it: deposit + rent in advance + agency commission."
     },
     "sort": {
       "complete": "Complete listings first",
@@ -404,6 +407,7 @@
       "referenceTag": "Ref: {reference}",
       "entryTerms": "Entry terms",
       "entryTermsMonths": "{parts} months",
+      "entryTermsChip": "Move-in {parts} months",
       "type": "Type"
     },
     "entryCosts": {
@@ -442,7 +446,8 @@
     "amenityGroups": {
       "energyWater": "Power & Water",
       "accessSecurity": "Access & Security",
-      "rentalTerms": "Rental terms"
+      "rentalTerms": "Rental terms",
+      "paymentTerms": "Payment Terms"
     },
     "amenities": {
       "generator": "Generator",
@@ -597,6 +602,13 @@
     },
     "availability": {
       "confirmedOn": "Availability confirmed on {date}"
+    },
+    "depositRange": {
+      "any": "Any",
+      "le3": "≤ 3 months",
+      "3-6": "3 - 6 months",
+      "6-12": "6 - 12 months",
+      "gt12": "> 12 months"
     }
   },
   "enquiry": {
@@ -651,7 +663,8 @@
       "priceUpTo": "Up to {max}",
       "depositMax": "Deposit up to {count} months",
       "reference": "Ref. {reference}",
-      "query": "“{query}”"
+      "query": "“{query}”",
+      "depositRange": "Upfront {value}"
     }
   },
   "agent": {

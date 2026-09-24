@@ -169,3 +169,23 @@ export const DEPOSIT_MAX_OPTIONS = [
   { value: '6', labelKey: 'listings.depositMax.6' },
   { value: '10', labelKey: 'listings.depositMax.10' },
 ];
+
+/**
+ * "Avance exigée" (Conditions de paiement) — the months a tenant pays before
+ * moving in, as the listing states them: garantie + avance + commission,
+ * summed at query time from the three separate columns, never stored (the
+ * engine CLAUDE.md's entry-cost rule). A listing with no stated garantie is
+ * excluded, as with DEPOSIT_MAX_OPTIONS; a missing avance or commission
+ * counts as nothing stated. Bands do not overlap: each lower bound is
+ * exclusive, so "3 + 1 + 1" (5) is in 3–6 and nowhere else.
+ *
+ * Replaces the DEPOSIT_MAX_OPTIONS control in the filter sheets; `deposit_max`
+ * links and saved searches still filter and still show their chip.
+ */
+export const DEPOSIT_RANGE_OPTIONS = [
+  { value: '', labelKey: 'listings.depositRange.any' },
+  { value: 'le3', labelKey: 'listings.depositRange.le3', min: null, max: 3 },
+  { value: '3-6', labelKey: 'listings.depositRange.3-6', min: 3, max: 6 },
+  { value: '6-12', labelKey: 'listings.depositRange.6-12', min: 6, max: 12 },
+  { value: 'gt12', labelKey: 'listings.depositRange.gt12', min: 12, max: null },
+];

@@ -42,6 +42,7 @@ export function parseListingsSearchParams(searchParamsLike) {
     bedsMin: get('beds_min'),
     bathMin: get('bath_min'),
     depositMax: get('deposit_max'),
+    depositRange: get('deposit_range'),
     // Comma-separated checkbox keys (lib/constants.js's AMENITY_GROUPS,
     // FiltersDrawer.js) -> an array, or [] rather than [''] for an absent/
     // empty param — '' would otherwise become a single bogus key that

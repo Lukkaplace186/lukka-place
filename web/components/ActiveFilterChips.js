@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { X } from 'lucide-react';
-import { AMENITY_GROUPS, DEPOSIT_MAX_OPTIONS, ICON_STROKE_WIDTH } from '@/lib/constants';
+import { AMENITY_GROUPS, DEPOSIT_MAX_OPTIONS, DEPOSIT_RANGE_OPTIONS, ICON_STROKE_WIDTH } from '@/lib/constants';
 import { hrefWithoutKeys, hrefWithoutAmenity } from '@/lib/urlParams';
 import { MAP_BOUNDS_PARAMS, parseBounds } from '@/lib/mapViewport';
 import { getT } from '@/lib/i18n/server';
@@ -110,6 +110,15 @@ export default async function ActiveFilterChips({ params = {}, propertyTypeLabel
         value: option ? t(option.labelKey) : t('listings.depositMax.months', { count: params.deposit_max }),
       }),
       href: hrefWithoutKeys(params, 'deposit_max'),
+    });
+  }
+
+  const depositRange = DEPOSIT_RANGE_OPTIONS.find((o) => o.value && o.value === params.deposit_range);
+  if (depositRange) {
+    chips.push({
+      key: 'deposit_range',
+      label: t('listings.filters.depositRangeChip', { value: t(depositRange.labelKey) }),
+      href: hrefWithoutKeys(params, 'deposit_range'),
     });
   }
 

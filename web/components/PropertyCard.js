@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Camera } from 'lucide-react';
+import { Camera, KeyRound, Wallet } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import CardImageCarousel from './CardImageCarousel';
 import FavoriteButton from './FavoriteButton';
@@ -16,7 +16,7 @@ import SpecItem, { SpecCell } from './SpecItem';
 import { useT } from '@/lib/i18n/client';
 import { CardBadges, AmenityTag } from './ListingBadges';
 import {
-  listingImages, formatFreshness, specItems, typeLabel, feedLocationLine, matchedAmenities,
+  listingImages, formatFreshness, specItems, typeLabel, feedLocationLine, matchedAmenities, entryTerms,
 } from '@/lib/listingView';
 import { cn } from '@/lib/utils';
 
@@ -52,8 +52,10 @@ import { cn } from '@/lib/utils';
  * (421px without chips, 462px with). That was the wrong trade and was
  * corrected: the chips are the highest-value content on the card, and the
  * height is bought back elsewhere instead — the converted-currency figure
- * went back inline rather than stacked (~16px), and the chip row is not
- * height-reserved, so a listing matching nothing simply doesn't render it.
+ * went back inline rather than stacked (~16px). The chip row is one row
+ * tall on every card (2026-09-24): a card with no chip row read as empty
+ * beside one with chips, so free slots now carry the listing's own entry
+ * terms or purpose instead of vanishing.
  *
  * Contact CTAs are on the card, reversing an earlier note here that
  * deferred all contact to the listing page's EnquiryCard / MobileListingBar.
@@ -74,9 +76,9 @@ import { cn } from '@/lib/utils';
  * the grid stretches each card (`h-full` on the Link) and `mt-auto` on the
  * action bar consumes whatever slack is left, so the bar lands at the same
  * y on every card in a row. Those reservations were belt-and-braces on top
- * of that mechanism, never the mechanism itself. A card that matches more
- * chips is genuinely taller than one that matches none, and within a grid
- * row the tallest sets the row — that is correct, not a defect.
+ * of that mechanism, never the mechanism itself. Every row is now present
+ * on every card at a fixed height (one chip row, one date/reference line),
+ * so the slack mt-auto absorbs is a few pixels, not a blank band.
  *
  * Card chrome (border-line plus a real resting shadow that lifts on hover,
  * rounded-t-lg over rounded-b-card) is unchanged.
@@ -105,6 +107,7 @@ export default function PropertyCard({
   const where = feedLocationLine(listing);
   const freshness = formatFreshness(createdAt, t);
   const amenities = matchedAmenities(listing, 3);
+  const factChips = cardFactChips(listing, 3 - amenities.length, t);
   // Only when this listing genuinely has an agency attached. AgencyLogo's own
   // no-agent fallback is the Lukka Place wordmark, which is honest on a
   // detail page but wrong in a feed — an unconditional slot would stamp the
@@ -350,16 +353,36 @@ export default function PropertyCard({
             wraps (`flex-wrap`) and each chip is `shrink-0 whitespace-nowrap`,
             so on a 320px screen a third chip drops to a second line intact
             rather than compressing or clipping the other two. */}
-        {amenities.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-            {amenities.map(({ key, matched }) => (
-              <AmenityTag key={key} amenityKey={key} matched={matched} size="compact" />
-            ))}
-          </div>
-        ) : null}
+        {/* Always rendered, always exactly one row tall (`h-6` + wrap +
+            overflow-hidden: a chip that would wrap drops out of sight whole
+            rather than being clipped mid-label). Before, a listing matching
+            no amenity simply had no row, so on the homepage rail its
+            neighbour's chips left it with a band of blank card above the
+            buttons (reported 2026-09-24). The slots amenities leave free are
+            filled from the listing's own structured data — its stated entry
+            terms, then whether it is to let or for sale — never an invented
+            feature (cardFactChips below). */}
+        <div className="flex h-6 flex-wrap items-center gap-1.5 overflow-hidden">
+          {amenities.map(({ key, matched }) => (
+            <AmenityTag key={key} amenityKey={key} matched={matched} size="compact" />
+          ))}
+          {factChips.map(({ key, icon: Icon, label }) => (
+            <span
+              key={key}
+              className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-line bg-canvas-alt px-2.5 py-1 text-[0.6875rem] font-medium leading-none text-ink"
+            >
+              <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-3 w-3 shrink-0" aria-hidden="true" />
+              {label}
+            </span>
+          ))}
+        </div>
 
         {(freshness || reference) ? (
-          <div className="flex items-center justify-between gap-3">
+          // One line, whatever the reference's length: the date keeps its
+          // width and a long repère ("Petit Boulevard, 2ᵉ Rue Industrielle")
+          // truncates instead of pushing the date onto two lines and the
+          // card out of step with its neighbours.
+          <div className="flex min-w-0 items-center justify-between gap-3">
             {/* Emerald, matching the spec's freshness pill. The wording is
                 "Publiée", not "Vérifiée" — see formatFreshness's own note in
                 lib/listingView.js: there is no verification timestamp in the
@@ -372,7 +395,7 @@ export default function PropertyCard({
                 text element on the card is now the single `ink-70` token,
                 with the price figure alone left at full `ink` so it is the
                 one thing that stands out. */}
-            <span className="text-[0.75rem] font-normal tracking-normal text-ink">{freshness || ''}</span>
+            <span className="shrink-0 whitespace-nowrap text-[0.75rem] font-normal tracking-normal text-ink">{freshness || ''}</span>
             {/* Labelled "Réf: …", never the bare code. On its own, a
                 reference like "Demiap" reads as a place or an agency name
                 rather than as this listing's identifier — which is exactly
@@ -385,7 +408,7 @@ export default function PropertyCard({
                 row is already conditional above, and this stays null rather
                 than rendering a stranded "Réf:" with no code after it. */}
             {reference ? (
-              <span className="u-tabular shrink-0 text-[0.75rem] font-normal text-ink">
+              <span className="u-tabular min-w-0 truncate text-[0.75rem] font-normal text-ink" title={reference}>
                 {t('listings.facts.referenceTag', { reference })}
               </span>
             ) : null}
@@ -423,4 +446,31 @@ export default function PropertyCard({
     </Link>
     </div>
   );
+}
+
+/**
+ * Chips for the slots the amenity matches leave free, from structured facts
+ * only: the entry terms the listing states ("Garantie 3 + 1 + 1 mois", in
+ * the local notation, never summed — see entryTerms), then its purpose.
+ * A sale has no entry terms. Nothing here is inferred from text.
+ */
+function cardFactChips(listing, slots, t) {
+  if (slots <= 0) return [];
+  const chips = [];
+  const terms = listing.purpose === 'rent' ? entryTerms(listing) : null;
+  if (terms) {
+    chips.push({
+      key: 'entry-terms',
+      icon: Wallet,
+      label: t('listings.facts.entryTermsChip', { parts: terms.parts.join(' + ') }),
+    });
+  }
+  if (listing.purpose === 'rent' || listing.purpose === 'sale') {
+    chips.push({
+      key: 'purpose',
+      icon: KeyRound,
+      label: t(listing.purpose === 'rent' ? 'listings.transaction.rent' : 'listings.transaction.sale'),
+    });
+  }
+  return chips.slice(0, slots);
 }

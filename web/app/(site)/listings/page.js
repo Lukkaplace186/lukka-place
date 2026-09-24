@@ -179,6 +179,7 @@ export default async function ListingsPage({ searchParams }) {
             // options passed to getListings()).
             amenities: params.amenities ? params.amenities.split(',').filter(Boolean) : [],
             search: params.q,
+            near: params.near,
             sort: params.sort,
             view: params.view,
           }}

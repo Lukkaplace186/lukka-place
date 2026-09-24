@@ -475,6 +475,7 @@
       "entrepot": "Warehouses"
     },
     "chips": {
+      "near": "Near {place}",
       "wholeCommune": "Whole commune",
       "citywide": "Citywide",
       "radiusKm": "+{km} km",
@@ -544,6 +545,8 @@
       "locateDenied": "Allow location access in your browser to see listings near you.",
       "locateFailed": "Couldn't find your position right now. Try again in a moment.",
       "locateOutside": "You seem to be outside Kinshasa, so the map stays on the city.",
+      "relaxedText": "No listing matches “{text}” — here are the listings nearby.",
+      "dismiss": "Close",
       "locateUnavailable": "Your browser doesn't support location.",
       "show": "Show map",
       "showHint": "The map loads on request to save your mobile data."

@@ -4,6 +4,7 @@ import {
   targetView,
   distanceKm,
   locationTarget,
+  locationGeocodeQueries,
   mapFilterQuery,
   COMMUNE_VIEW_ZOOM,
   QUARTIER_VIEW_ZOOM,
@@ -24,7 +25,7 @@ const LIMETE = { lat: -4.3547, lng: 15.3476 };
 test('the list → map toggle keeps the place, and the place becomes the map target', () => {
   // What FloatingControlBar / FilterBar produce: the same query plus view=map.
   const toggled = new URLSearchParams('commune=Limete&quartier=Industriel&beds_min=2&price_max=1500&view=map');
-  assert.deepEqual(locationTarget(toggled), { commune: 'Limete', quartier: 'Industriel' });
+  assert.deepEqual(locationTarget(toggled), { commune: 'Limete', quartier: 'Industriel', near: null });
   assert.equal(mapFilterQuery(toggled), 'beds_min=2&commune=Limete&price_max=1500&quartier=Industriel');
 });
 
@@ -48,6 +49,21 @@ test('a quartier opens a step closer, but only when it really lies in its commun
     targetView({ commune: 'Limete', quartier: 'Industriel' }, { commune: LIMETE, quartier: elsewhere }),
     { center: LIMETE, zoom: COMMUNE_VIEW_ZOOM },
   );
+});
+
+test('a picked landmark opens on the landmark, and is a place — never a text filter', () => {
+  // "St Luc" (Ngaliema): once `q`, which hid every pin because no listing's
+  // text says "St Luc". As `near` it moves the map and filters nothing.
+  const params = new URLSearchParams('commune=Ngaliema&near=St%20Luc&view=map');
+  assert.deepEqual(locationTarget(params), { commune: 'Ngaliema', quartier: null, near: 'St Luc' });
+  assert.equal(locationGeocodeQueries(locationTarget(params)).near, 'St Luc, Ngaliema, Kinshasa, RD Congo');
+
+  const ngaliema = { lat: -4.37, lng: 15.25 };
+  const stLuc = { lat: -4.345, lng: 15.26 };
+  assert.deepEqual(targetView(locationTarget(params), { commune: ngaliema, near: stLuc }), { center: stLuc, zoom: QUARTIER_VIEW_ZOOM });
+  // A geocode that lands across the city is not trusted: the commune instead.
+  const far = { lat: -4.45, lng: 15.4 };
+  assert.deepEqual(targetView(locationTarget(params), { commune: ngaliema, near: far }), { center: ngaliema, zoom: COMMUNE_VIEW_ZOOM });
 });
 
 test('no usable geocode: the verified commune centroid; nothing at all: null (extent fallback)', () => {

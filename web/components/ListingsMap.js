@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { LocateFixed, Loader2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { LocateFixed, Loader2, X } from 'lucide-react';
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader';
 import { placeResolvedListings } from '@/lib/geocoding';
 import { compactPrice, priceZIndex } from '@/lib/mapIcons';
@@ -171,8 +172,12 @@ function geocodePoint(geocoder, address) {
 /** The opening view for a searched place: its centre at a fixed zoom (lib/mapViewport.js targetView). */
 async function viewForTarget(geocoder, target) {
   const queries = locationGeocodeQueries(target);
-  const [commune, quartier] = await Promise.all([geocodePoint(geocoder, queries.commune), geocodePoint(geocoder, queries.quartier)]);
-  return targetView(target, { commune, quartier });
+  const [commune, quartier, near] = await Promise.all([
+    geocodePoint(geocoder, queries.commune),
+    geocodePoint(geocoder, queries.quartier),
+    geocodePoint(geocoder, queries.near),
+  ]);
+  return targetView(target, { commune, quartier, near });
 }
 
 /** Last resort when a named place resolves to nothing at all: the box around what matches it. */
@@ -232,6 +237,7 @@ export default function ListingsMap({
   params, pageListings, hoveredId, onMarkerHover, onListingSelect, onBuildingSelect, onAreaChange, onInViewChange,
 }) {
   const t = useT();
+  const router = useRouter();
   const elementRef = useRef(null);
   const mapRef = useRef(null);
   const geocoderRef = useRef(null);
@@ -251,6 +257,10 @@ export default function ListingsMap({
   const [mapReady, setMapReady] = useState(false);
   const [locating, setLocating] = useState(false);
   const [notice, setNotice] = useState(null);
+  // The words dropped from a search that matched nothing anywhere, and the
+  // filter query that dropping produced (the banner lasts until it changes).
+  const [relaxed, setRelaxed] = useState(null);
+  const relaxRef = useRef({ run: null, checked: null, sourceQuery: null, producedQuery: null });
   const noticeTimerRef = useRef(null);
   const [view, setView] = useState({ loaded: false, inView: 0, truncated: false, fetching: false, failed: false });
 
@@ -384,6 +394,7 @@ export default function ListingsMap({
 
       req.fetched = { filterQuery, bounds, truncated: Boolean(body.truncated) };
       renderMarkers(body.markers || []);
+      if (!(body.markers || []).length) relaxRef.current.run?.(filterQuery);
 
       if (body.unlocated > 0) {
         console.warn(
@@ -425,6 +436,58 @@ export default function ListingsMap({
     const latLngBounds = map.getBounds();
     if (latLngBounds) propsRef.current.onAreaChange?.(toBounds(latLngBounds));
   }, []);
+
+  /**
+   * A text search (`q`) that leaves this view empty. World-class portals never
+   * answer a search with a blank map, and neither does this one:
+   *
+   *   - the words match listings elsewhere in the city → go there (the box
+   *     around them, the same extent the opening view falls back to);
+   *   - they match nothing anywhere → drop the words, keep every other filter
+   *     and the view, and say so in a banner ("Aucun bien pour « St lu » —
+   *     voici les biens à proximité"). The URL loses `q` too, so the list and
+   *     the "Voir N biens" count agree with the pins.
+   *
+   * Checked once per filter query. Place filters are never dropped here — the
+   * map already lets the viewport replace them.
+   */
+  // Assigned in an effect (never during render); it reads the latest router.
+  useEffect(() => {
+    relaxRef.current.run = async (filterQuery) => {
+      const state = relaxRef.current;
+      const text = new URLSearchParams(filterQuery).get('q');
+      if (!text || state.checked === filterQuery) return;
+      state.checked = filterQuery;
+      try {
+        const qs = new URLSearchParams(filterQuery);
+        qs.set('extent', '1');
+        const response = await fetch(`/api/listings/map?${qs}`);
+        if (!response.ok) return;
+        const body = await response.json();
+        if (requestRef.current.filterQuery !== filterQuery || !mapRef.current) return;
+        if (body.total > 0 && body.extent) {
+          fitTo(mapRef.current, padBounds(body.extent, 0.08));
+          return;
+        }
+        const url = new URL(window.location.href);
+        url.searchParams.delete('q');
+        url.searchParams.delete('page');
+        state.sourceQuery = filterQuery;
+      state.producedQuery = mapFilterQuery(url.searchParams);
+        setRelaxed(text);
+        router.replace(`${url.pathname}?${url.searchParams.toString()}`, { scroll: false });
+      } catch (err) {
+        console.error('[ListingsMap] could not relax an empty text search', err);
+      }
+    };
+  });
+
+  // A new search retires the banner — anything but the query that was relaxed
+  // (still in the URL for a moment) or the one the relaxation produced.
+  useEffect(() => {
+    const { sourceQuery, producedQuery } = relaxRef.current;
+    if (relaxed && filterQuery !== sourceQuery && filterQuery !== producedQuery) setRelaxed(null);
+  }, [filterQuery, relaxed]);
 
   const scheduleFetch = useCallback(() => {
     const req = requestRef.current;
@@ -510,7 +573,7 @@ export default function ListingsMap({
     const req = requestRef.current;
     const firstRun = req.filterQuery === null;
     const target = locationTarget(new URLSearchParams(filterQuery));
-    const targetKey = target ? `${target.commune}|${target.quartier || ''}` : '';
+    const targetKey = target ? `${target.commune}|${target.quartier || ''}|${target.near || ''}` : '';
     const areaCleared = hadUrlAreaRef.current && !hasUrlArea;
     hadUrlAreaRef.current = hasUrlArea;
     const placeChanged = firstRun || areaCleared || targetKey !== req.targetKey;
@@ -653,19 +716,31 @@ export default function ListingsMap({
       {status === 'ready' ? (
         // A text-only counter pill, top-centre. Only the pill takes pointer
         // events, so the map stays draggable right up to it.
-        <div
-          className={`pointer-events-none absolute inset-x-0 top-3 z-20 justify-center px-3 ${
-            phoneHidden ? 'hidden lg:flex' : 'flex'
-          }`}
-        >
+        <div className="pointer-events-none absolute inset-x-0 top-3 z-20 flex flex-col items-center gap-2 px-3">
           <p
             aria-live="polite"
             className={`u-tabular rounded-full bg-surface px-3.5 py-1.5 text-[0.75rem] font-semibold leading-5 text-ink shadow-[0_2px_8px_rgba(0,0,0,0.12)] transition-opacity ${
               view.fetching && view.loaded ? 'opacity-80' : ''
-            }`}
+            } ${phoneHidden ? 'hidden lg:block' : ''}`}
           >
             {pillText}
           </p>
+          {relaxed ? (
+            <div
+              role="status"
+              className="u-rise pointer-events-auto flex max-w-[22rem] items-start gap-2 rounded-2xl bg-surface py-2 pl-3.5 pr-2 text-[0.75rem] leading-snug text-ink shadow-[0_2px_8px_rgba(0,0,0,0.12)]"
+            >
+              <span className="min-w-0 flex-1">{t('listings.map.relaxedText', { text: relaxed })}</span>
+              <button
+                type="button"
+                onClick={() => setRelaxed(null)}
+                aria-label={t('listings.map.dismiss')}
+                className="u-press -my-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-ink-45 hover:bg-canvas-alt hover:text-ink"
+              >
+                <X strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            </div>
+          ) : null}
         </div>
       ) : null}
 

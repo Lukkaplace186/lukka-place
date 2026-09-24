@@ -404,6 +404,10 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
     };
   }, [open]);
 
+  // Any press outside the box and its panel closes the panel. `pointerdown`
+  // in the capture phase, not `mousedown`: on a phone, Google's map handles
+  // touches itself and no compatibility mouse event ever reaches the
+  // document, so a tap on the map used to leave the suggestions covering it.
   useEffect(() => {
     function onPointerDown(e) {
       const insideInput = containerRef.current && containerRef.current.contains(e.target);
@@ -412,8 +416,8 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
         setOpen(false);
       }
     }
-    document.addEventListener('mousedown', onPointerDown);
-    return () => document.removeEventListener('mousedown', onPointerDown);
+    document.addEventListener('pointerdown', onPointerDown, true);
+    return () => document.removeEventListener('pointerdown', onPointerDown, true);
   }, []);
 
   function buildParams() {
@@ -436,6 +440,7 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
     const params = buildParams();
     params.delete('quartier');
     params.delete('communes');
+    params.delete('near');
     params.delete('q');
     if (result.commune) dropMapArea(params);
 
@@ -449,8 +454,13 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
 
     if (result.commune) params.set('commune', result.commune);
     if (result.type === 'quartier') params.set('quartier', result.label);
-    if (result.type === 'landmark') params.set('q', result.label);
-    else if (parsed.keywords) params.set('q', parsed.keywords);
+    // A landmark is a PLACE, not words a listing has to contain. It used to
+    // go into `q`, which the map applies as a text filter: picking "St Luc"
+    // opened Ngaliema and then hid every pin, since no listing's text says
+    // "St Luc". As `near` it only decides where the map opens (lib/
+    // mapViewport.js targetView); the list shows the commune.
+    if (result.type === 'landmark') params.set('near', result.label);
+    if (parsed.keywords && result.type !== 'landmark') params.set('q', parsed.keywords);
 
     setOpen(false);
     router.push(`/listings?${params.toString()}`);
@@ -460,8 +470,33 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
   // directly rather than the input's current (possibly stale) state value —
   // setValue() is async, so reading `value` right after calling it would
   // still see the old string.
+  /**
+   * Emptying the box ends the search. The × used to blank the text and
+   * nothing else: the URL still said `q=St lu`, so the map and the "Liste (0)"
+   * count stayed on zero until the visitor found another way out. On the
+   * listings page (`preserveParams`) it now drops every place and text filter
+   * and the map area — the map goes back to the whole city — while price,
+   * bedrooms and type stay as they were.
+   */
+  function clearSearch() {
+    setValue('');
+    setResults([]);
+    setOpen(false);
+    onValueChange?.('');
+    if (!preserveParams) return;
+    const params = buildParams();
+    const before = params.toString();
+    for (const key of ['q', 'near', 'commune', 'communes', 'quartier', 'radius', 'reference']) params.delete(key);
+    dropMapArea(params);
+    if (params.toString() !== before) router.push(`/listings?${params.toString()}`);
+  }
+
   function submitFreeText(overrideText) {
     const text = overrideText != null ? overrideText : value;
+    if (!hideDropdown && !String(text ?? '').trim()) {
+      clearSearch();
+      return;
+    }
     const params = buildParams();
 
     // AI-mode natural-language searches only — classic mode's free text is
@@ -481,6 +516,7 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
     applyParsedFilters(params, parsed);
     if (parsed.commune) {
       dropMapArea(params);
+      params.delete('near');
       params.set('commune', parsed.commune);
       // "Gombe ou Ngaliema": every commune named, the first as `commune`.
       if (parsed.communes?.length > 1) params.set('communes', parsed.communes.join(','));
@@ -571,7 +607,9 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
           onChange={(e) => {
             setValue(e.target.value);
             onValueChange?.(e.target.value);
-            setOpen(true);
+            // Deleting everything closes the panel rather than swapping the
+            // suggestions for a list of communes over the map.
+            setOpen(Boolean(e.target.value));
           }}
           onFocus={() => setOpen(true)}
           onKeyDown={handleKeyDown}
@@ -582,8 +620,9 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
           <button
             type="button"
             onClick={() => {
-              setValue('');
-              setResults([]);
+              clearSearch();
+              // Put the keyboard away too: the visitor is done searching.
+              if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
             }}
             aria-label={t('listings.autocomplete.clear')}
             className="shrink-0 rounded-full p-0.5 text-ink-25 transition-colors hover:bg-canvas-deep hover:text-ink"

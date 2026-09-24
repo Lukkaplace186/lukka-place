@@ -51,7 +51,11 @@ export default async function ActiveFilterChips({ params = {}, propertyTypeLabel
     // and removing it removes both.
     const extra = params.communes ? String(params.communes).split(',').map((c) => c.trim()).filter(Boolean) : [];
     const label = extra.length > 1 ? [...new Set([params.commune, ...extra])].join(', ') : params.commune;
-    chips.push({ key: 'commune', label, href: hrefWithoutKeys(params, ['commune', 'communes', 'quartier', 'radius']) });
+    chips.push({ key: 'commune', label, href: hrefWithoutKeys(params, ['commune', 'communes', 'quartier', 'radius', 'near']) });
+  }
+  // A picked landmark: where the map opened. Removing it keeps the commune.
+  if (!hasMapArea && params.commune && params.near) {
+    chips.push({ key: 'near', label: t('listings.chips.near', { place: params.near }), href: hrefWithoutKeys(params, ['near']) });
   }
 
   if (!hasMapArea && params.commune && params.radius) {

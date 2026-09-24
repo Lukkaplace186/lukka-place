@@ -300,6 +300,9 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
     // Commune never changes inside this bar (it remounts on a new place), so
     // carrying the URL's value forward is always the current choice.
     ['communes', commune ? defaults.communes || '' : ''],
+    // A picked landmark ("St Luc") — where the map opens, never a text
+    // filter. Same lifetime as the commune it was listed under.
+    ['near', commune ? defaults.near || '' : ''],
     ['quartier', quartier],
     ['property_type', propertyType],
     ['parcelle_subtype', propertyType === 'parcelle' ? parcelleSubtype : ''],
@@ -406,7 +409,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
               focus colour used everywhere else a field gets one. */}
           <LocationAutocomplete
             preserveParams
-            initialValue={defaults.search || ''}
+            initialValue={defaults.search || defaults.near || ''}
             placeholder={t('listings.filters.searchPlaceholder')}
             ariaLabel="Rechercher"
             showIcon

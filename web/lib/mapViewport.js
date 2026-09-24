@@ -24,7 +24,7 @@ import { KINSHASA_COMMUNE_CENTROIDS, inferListingCommune } from './geocoding';
 export const MAP_BOUNDS_PARAMS = ['sw_lat', 'sw_lng', 'ne_lat', 'ne_lng'];
 
 /** Filters that say WHERE to look. On the map the viewport replaces them. */
-export const LOCATION_FILTER_PARAMS = ['commune', 'quartier', 'radius'];
+export const LOCATION_FILTER_PARAMS = ['commune', 'quartier', 'radius', 'near'];
 
 /**
  * Params that never change WHICH listings match: paging and sort belong to the
@@ -178,15 +178,21 @@ export function locationTarget(params) {
   const commune = readParam(params, 'commune') || null;
   const quartier = readParam(params, 'quartier') || null;
   if (!commune || readParam(params, 'radius') === 'citywide') return null;
-  return { commune, quartier };
+  return { commune, quartier, near: readParam(params, 'near') || null };
 }
 
-/** Geocoder queries for a target: `{ commune, quartier }`, quartier null when not searched. */
+/**
+ * Geocoder queries for a target: `{ commune, quartier, near }`, each null when
+ * not searched. `near` is a landmark the visitor picked ("St Luc", in
+ * Ngaliema) — a place to centre on, never a text filter (see
+ * LocationAutocomplete's navigateTo).
+ */
 export function locationGeocodeQueries(target) {
-  if (!target?.commune) return { commune: null, quartier: null };
+  if (!target?.commune) return { commune: null, quartier: null, near: null };
   return {
     commune: `Commune de ${target.commune}, Kinshasa, RD Congo`,
     quartier: target.quartier ? `${target.quartier}, ${target.commune}, Kinshasa, RD Congo` : null,
+    near: target.near ? `${target.near}, ${target.commune}, Kinshasa, RD Congo` : null,
   };
 }
 
@@ -213,12 +219,18 @@ export function distanceKm(a, b) {
  *   null only when neither a geocoded point nor a known centroid exists — the
  *   caller then falls back to the extent of the matching listings.
  */
-export function targetView(target, { commune = null, quartier = null } = {}) {
+export function targetView(target, { commune = null, quartier = null, near = null } = {}) {
   if (!target?.commune) return null;
   const inProvince = (point) =>
     Boolean(point && Number.isFinite(point.lat) && Number.isFinite(point.lng) && boundsContain(KINSHASA_PROVINCE_ENVELOPE, point));
 
   const communePoint = inProvince(commune) ? commune : KINSHASA_COMMUNE_CENTROIDS[target.commune] || null;
+
+  // A landmark is the most precise thing the visitor named — same sanity
+  // rule as a quartier: it has to lie near the commune it was listed under.
+  if (target.near && inProvince(near) && (!communePoint || distanceKm(near, communePoint) <= QUARTIER_MAX_DISTANCE_KM)) {
+    return { center: { lat: near.lat, lng: near.lng }, zoom: QUARTIER_VIEW_ZOOM };
+  }
 
   if (target.quartier && inProvince(quartier) && (!communePoint || distanceKm(quartier, communePoint) <= QUARTIER_MAX_DISTANCE_KM)) {
     return { center: { lat: quartier.lat, lng: quartier.lng }, zoom: QUARTIER_VIEW_ZOOM };

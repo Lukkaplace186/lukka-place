@@ -475,6 +475,7 @@
       "entrepot": "Entrepôts"
     },
     "chips": {
+      "near": "Près de {place}",
       "wholeCommune": "Toute la commune",
       "citywide": "Toute la ville",
       "radiusKm": "+{km} km",
@@ -544,6 +545,8 @@
       "locateDenied": "Autorisez la localisation dans votre navigateur pour voir les biens autour de vous.",
       "locateFailed": "Position introuvable pour le moment. Réessayez dans un instant.",
       "locateOutside": "Vous semblez être hors de Kinshasa : la carte reste sur la ville.",
+      "relaxedText": "Aucun bien ne correspond à « {text} » — voici les biens à proximité.",
+      "dismiss": "Fermer",
       "locateUnavailable": "Votre navigateur ne permet pas la localisation.",
       "show": "Afficher la carte",
       "showHint": "La carte se charge à la demande pour économiser vos données mobiles."

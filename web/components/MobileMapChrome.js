@@ -34,7 +34,7 @@ export default function MobileMapChrome({ params }) {
     <div className="flex shrink-0 items-center gap-1.5 border-b border-line bg-surface p-2.5 lg:hidden">
       <LocationAutocomplete
         preserveParams
-        initialValue={params.q || ''}
+        initialValue={params.q || params.near || ''}
         placeholder="Commune, quartier…"
         ariaLabel="Rechercher sur la carte"
         showIcon

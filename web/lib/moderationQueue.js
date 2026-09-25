@@ -21,8 +21,11 @@ import { BLOCKING_FLAGS, EXTRACTION_FAILURE_MARKERS, MODERATION_QUEUE_STATUSES }
  * no longer overlap as they did in the old queue.
  */
 
+// A developer's unit listing (development_id set) is reviewed WITH its
+// project on /admin/projets — publishing the project approves its units in
+// the same transaction — so it never waits in this queue as well.
 export const STATUS_WHERE = {
-  pending: 'p.approve_status = 0',
+  pending: 'p.approve_status = 0 AND p.development_id IS NULL',
   approved: 'p.approve_status = 1 AND p.status = 1',
   rejected: 'p.approve_status = 2',
   suspended: 'p.approve_status = 1 AND p.status = 0',
@@ -264,11 +267,11 @@ export async function listModerationQueue({
 /** Tab counts — one scan, every status. */
 export async function getModerationCounts() {
   const { rows } = await getPool().query(`
-    SELECT COUNT(*) FILTER (WHERE approve_status = 0)::int                 AS pending,
+    SELECT COUNT(*) FILTER (WHERE approve_status = 0 AND development_id IS NULL)::int AS pending,
            COUNT(*) FILTER (WHERE approve_status = 1 AND status = 1)::int  AS approved,
            COUNT(*) FILTER (WHERE approve_status = 2)::int                 AS rejected,
            COUNT(*) FILTER (WHERE approve_status = 1 AND status = 0)::int  AS suspended,
-           MIN(created_at) FILTER (WHERE approve_status = 0)               AS oldest_pending_at
+           MIN(created_at) FILTER (WHERE approve_status = 0 AND development_id IS NULL) AS oldest_pending_at
     FROM properties
   `);
   return rows[0];

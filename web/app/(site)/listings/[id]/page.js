@@ -23,6 +23,7 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import ListingViewTracker from '@/components/ListingViewTracker';
 import PropertyDescription from '@/components/listings/PropertyDescription';
 import AvailabilityConfirmedBadge from '@/components/listings/AvailabilityConfirmedBadge';
+import ProjectUnitStrip from '@/components/projects/ProjectUnitStrip';
 import JsonLd from '@/components/seo/JsonLd';
 import { communeHref, listingJsonLd, listingMetaDescription, listingMetaTitle } from '@/lib/listingSeo';
 
@@ -328,6 +329,8 @@ export default async function ListingDetailPage({ params, searchParams }) {
                 cell for exactly that case — and drops its own top rule when
                 it is the card's first child. `empty:hidden` covers a listing
                 with neither. */}
+            {listing.development_id ? <ProjectUnitStrip developmentId={listing.development_id} listingId={listing.id} /> : null}
+
             <section className="rounded-2xl border border-line bg-surface p-5 empty:hidden sm:p-6">
               <KeyFacts listing={listing} />
               <EntryCostsBreakdown listing={listing} />

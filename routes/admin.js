@@ -254,6 +254,26 @@ router.post('/project-enquiries', async (req, res) => {
   }
 });
 
+// A one-line heads-up to Lukka Place's desk (OPS_WHATSAPP_NUMBER, read at call
+// time) — used by web when a developer submits a project for review. Unset
+// number → 200 with sent:false, never an error: the project is still in the
+// /admin/projets queue, which is the record; this message is a courtesy.
+router.post('/ops-notify', async (req, res) => {
+  const message = String((req.body || {}).message || '').trim();
+  if (!message || message.length > 1000) {
+    return res.status(400).json({ success: false, error: 'message is required (max 1000 chars).' });
+  }
+  const ops = (process.env.OPS_WHATSAPP_NUMBER || '').replace(/\D/g, '');
+  if (!ops) return res.json({ success: true, sent: false, reason: 'OPS_WHATSAPP_NUMBER is not set' });
+  try {
+    await chakra.sendWhatsAppMessage(ops, message);
+    return res.json({ success: true, sent: true });
+  } catch (err) {
+    console.error(`[admin] ops-notify failed: ${err.message}`);
+    return res.json({ success: true, sent: false, reason: 'send failed' });
+  }
+});
+
 // Demand report — what customers asked for, by commune × transaction ×
 // bedrooms × budget band (db.getDemandReport). `days` 7..365, default 90.
 router.get('/demand-report', (req, res) => {

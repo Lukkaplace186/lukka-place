@@ -76,6 +76,14 @@ export default async function ProjectsHubPage({ searchParams }) {
     })
     .filter(Boolean);
 
+  // Real counts only, and only for the whole catalogue: a filtered view would
+  // make "3 projets" read as the city's total. Zero counters are left out.
+  const totals = filter === 'all' && !commune && projects.length ? {
+    projects: projects.length,
+    units: projects.reduce((sum, p) => sum + (p.unit_summary?.available || 0), 0),
+    lots: projects.reduce((sum, p) => sum + (p.lot_summary?.available || 0), 0),
+  } : null;
+
   return (
     <div className="pb-16">
       <section className="border-b border-line bg-surface">
@@ -87,6 +95,15 @@ export default async function ProjectsHubPage({ searchParams }) {
           <p className="u-eyebrow text-blue-deep">{t('projects.hub.eyebrow')}</p>
           <h1 className="u-title-hero max-w-3xl text-ink">{t('projects.hub.title')}</h1>
           <p className="max-w-2xl text-[0.9375rem] leading-relaxed text-ink-70">{t('projects.hub.subtitle')}</p>
+          {totals ? (
+            <p className="u-tabular text-sm font-semibold text-ink">
+              {[
+                t('projects.hub.countProjects', { count: totals.projects }),
+                totals.units ? t('projects.hub.countUnits', { count: totals.units }) : null,
+                totals.lots ? t('projects.hub.countLots', { count: totals.lots }) : null,
+              ].filter(Boolean).join(' · ')}
+            </p>
+          ) : null}
           <ul className="mt-2 grid gap-3 text-[0.8125rem] text-ink-70 sm:grid-cols-3">
             <li className="flex items-start gap-2">
               <HardHat strokeWidth={ICON_STROKE_WIDTH} className="mt-0.5 h-4 w-4 shrink-0 text-blue-deep" />

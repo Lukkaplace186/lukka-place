@@ -3,16 +3,18 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft, BadgeCheck, ExternalLink, Trash2 } from 'lucide-react';
 import SafeImage from '@/components/SafeImage';
 import ProjectDetailsForm from '../ProjectDetailsForm';
-import LotPlanEditor from '../LotPlanEditor';
+import LotPlanEditor from '@/components/projects/LotPlanEditor';
+import { planEditorLabels } from '@/lib/projectLabels';
 import {
-  addUpdateAction, deleteLotAction, deleteProjectAction, deleteUnitTypeAction, deleteUpdateAction,
+  acknowledgeChangesAction, addUpdateAction, deleteLotAction, requestChangesAction, deleteProjectAction, deleteUnitTypeAction, deleteUpdateAction,
   removeImageAction, saveLotAction, saveUnitTypeAction, setPublishedAction, setVerifiedAction,
   updateProjectAction, uploadImagesAction, uploadPlanAction,
 } from '../actions';
 import { getProjectForAdmin } from '@/lib/developments';
 import { dayLabel } from '@/lib/projectView';
 import {
-  LOT_STATUSES, LOT_STATUS_LABEL_KEYS, TITLE_STATUSES, TITLE_STATUS_LABEL_KEYS, polygonToText, publishBlockers,
+  LOT_STATUSES, LOT_STATUS_LABEL_KEYS, TITLE_STATUSES, TITLE_STATUS_LABEL_KEYS, polygonToText, projectReviewState, publishBlockers,
+  unitListingState,
 } from '@/lib/developmentRules';
 import { can } from '@/lib/adminRoles';
 import { getAdminSession } from '@/lib/adminSession';
@@ -113,7 +115,7 @@ function LotForm({ project, lot = null, t }) {
       <Num name="price" label={t('admin.projects.lots.price')} value={lot?.price} />
       <Num name="share_percent" label={t('admin.projects.lots.share')} value={lot?.share_percent} />
       <div className="sm:col-span-4">
-        <LotPlanEditor planImage={project.plan_image} initial={lot?.polygon || null} others={others} />
+        <LotPlanEditor planImage={project.plan_image} initial={lot?.polygon || null} others={others} labels={planEditorLabels(t)} />
       </div>
       <div className="sm:col-span-4">
         <button type="submit" className="u-btn-primary inline-flex min-h-10 items-center rounded-full bg-blue px-4 text-sm font-semibold text-white">
@@ -121,6 +123,61 @@ function LotForm({ project, lot = null, t }) {
         </button>
       </div>
     </form>
+  );
+}
+
+/**
+ * Where the project stands with the team: a developer's submission waiting,
+ * changes asked, or edits made on a live project. Approving is the Publish
+ * button below (it approves the project's pending unit listings with it).
+ */
+function ReviewPanel({ project, t }) {
+  const state = projectReviewState(project);
+  const waiting = state === 'submitted';
+  const edited = state === 'live_edited';
+  if (!waiting && !edited && state !== 'changes' && !project.created_by_agent) return null;
+  const pendingUnits = (project.unit_types || []).flatMap((u) => u.live_units || []).filter((u) => unitListingState(u) === 'pending').length;
+  return (
+    <Card id="review" title={t('admin.projects.review.title')} intro={t(`admin.projects.review.state.${state}`)}>
+      {project.submitted_at ? (
+        <p className="text-sm text-ink-70">{t('admin.projects.review.submittedOn', { date: new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Africa/Kinshasa' }).format(new Date(project.submitted_at)) })}</p>
+      ) : null}
+      {project.trace_by_team ? <p className="rounded-lg bg-blue-tint px-3 py-2 text-sm font-semibold text-blue-deep">{t('admin.projects.review.traceByTeam')}</p> : null}
+      {pendingUnits ? <p className="text-sm text-ink">{t('admin.projects.review.pendingUnits', { count: pendingUnits })}</p> : null}
+      <ul className="list-disc pl-5 text-sm text-ink-70">
+        <li>{t('admin.projects.review.check.identity')}</li>
+        <li>{t('admin.projects.review.check.deed')}</li>
+        <li>{t('admin.projects.review.check.photos')}</li>
+        <li>{t('admin.projects.review.check.renders')}</li>
+      </ul>
+      {project.review_note ? (
+        <p className="rounded-lg bg-warning-tint px-3 py-2 text-sm text-ink">{t('admin.projects.review.lastNote')} {project.review_note}</p>
+      ) : null}
+      {edited ? (
+        <form action={acknowledgeChangesAction.bind(null, project.id)}>
+          <button type="submit" className="u-btn-primary rounded-full bg-blue px-4 py-2 text-sm font-semibold text-white">{t('admin.projects.review.acknowledge')}</button>
+        </form>
+      ) : null}
+      <form action={requestChangesAction.bind(null, project.id)} className="flex flex-col gap-2">
+        <textarea name="note" rows={3} minLength={10} maxLength={1000} required placeholder={t('admin.projects.review.notePlaceholder')} className="rounded-lg border border-line px-3 py-2 text-sm" />
+        <button type="submit" className="self-start rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink">{t('admin.projects.review.requestChanges')}</button>
+      </form>
+    </Card>
+  );
+}
+
+function AdminUnitList({ units, t }) {
+  return (
+    <ul className="flex flex-wrap gap-1.5">
+      {units.map((u) => (
+        <li key={u.id}>
+          <Link href={`/admin/listings/${u.id}`} className="inline-flex items-center gap-1 rounded-full bg-canvas-alt px-2.5 py-1 text-[0.75rem] text-ink hover:underline">
+            <span className="font-semibold">{u.unit_label}</span>
+            <span className="text-ink-45">· {t(`admin.projects.review.unitState.${unitListingState(u)}`)}</span>
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -203,6 +260,8 @@ export default async function AdminProjectPage({ params, searchParams }) {
       {savedKey && t.has(savedKey) ? <p className="rounded-lg bg-success-tint px-4 py-2 text-sm text-success" role="status">{t(savedKey)}</p> : null}
       {!canManage ? <p className="rounded-lg bg-warning-tint px-4 py-2 text-sm text-ink">{t('admin.projects.readOnly')}</p> : null}
 
+      <ReviewPanel project={project} t={t} />
+
       <Card id="publication" title={t('admin.projects.publishTitle')} intro={t('admin.projects.publishIntro')}>
         {blockers.length && !published ? (
           <ul className="list-disc pl-5 text-sm text-ink-70">
@@ -261,6 +320,7 @@ export default async function AdminProjectPage({ params, searchParams }) {
           {(project.unit_types || []).map((unit) => (
             <div key={unit.id} className="flex flex-col gap-2 border-b border-line pb-4">
               <UnitForm projectId={project.id} unit={unit} t={t} />
+              {(unit.live_units || []).length ? <AdminUnitList units={unit.live_units} t={t} /> : null}
               <form action={deleteUnitTypeAction.bind(null, project.id, unit.id)}>
                 <button type="submit" className="inline-flex items-center gap-1 text-[0.75rem] font-semibold text-danger hover:underline">
                   <Trash2 strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />{t('admin.projects.delete')}

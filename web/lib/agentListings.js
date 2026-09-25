@@ -110,14 +110,29 @@ function capitalise(text) {
  * @param {number|null} input.bath
  * @returns {Promise<number>} the new properties.id
  */
-export async function createListing({ agentId, vendorId, category, title, description, commune, price, purpose, beds, bath, area = null, quartier = null, reference = null }) {
+/**
+ * Extra `properties` columns a caller may set on create, and nothing else.
+ * Only lib/projectUnits.js passes them: a developer's unit is an ordinary
+ * listing that also names its project, its unit type, its label and floor,
+ * and shares the building's `parent_building_id` (one map pin) and exact
+ * coordinates. latitude/longitude are TEXT columns, written as text.
+ */
+const EXTRA_LISTING_COLUMNS = [
+  'development_id', 'development_unit_type_id', 'unit_label', 'unit_floor',
+  'parent_building_id', 'building_name', 'latitude', 'longitude', 'price_period',
+];
+
+export async function createListing({ agentId, vendorId, category, title, description, commune, price, purpose, beds, bath, area = null, quartier = null, reference = null, extra = null, client: existingClient = null }) {
   const pool = getPool();
-  const client = await pool.connect();
+  // With an existing client the caller owns the transaction (several units
+  // created as one); otherwise this is its own transaction, as before.
+  const client = existingClient || await pool.connect();
+  const ownTransaction = !existingClient;
 
   try {
     const location = await resolveKinshasaLocation(client);
 
-    await client.query('BEGIN');
+    if (ownTransaction) await client.query('BEGIN');
 
     const propertyValues = {
       vendor_id: vendorId,
@@ -144,6 +159,14 @@ export async function createListing({ agentId, vendorId, category, title, descri
       status: 1,
       approve_status: 0,
     };
+    for (const column of EXTRA_LISTING_COLUMNS) {
+      // price_period may be overridden with null (a sale has none) — the rest only set when stated.
+      if (extra && column === 'price_period' && extra[column] !== undefined) {
+        propertyValues.price_period = extra.price_period;
+      } else if (extra && extra[column] !== undefined && extra[column] !== null) {
+        propertyValues[column] = column === 'latitude' || column === 'longitude' ? String(extra[column]) : extra[column];
+      }
+    }
 
     const keys = Object.keys(propertyValues);
     const placeholders = keys.map((_, i) => `$${i + 1}`).join(', ');
@@ -171,13 +194,13 @@ export async function createListing({ agentId, vendorId, category, title, descri
       );
     }
 
-    await client.query('COMMIT');
+    if (ownTransaction) await client.query('COMMIT');
     return propertyId;
   } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
+    if (ownTransaction) await client.query('ROLLBACK').catch(() => {});
     throw err;
   } finally {
-    client.release();
+    if (ownTransaction) client.release();
   }
 }
 
@@ -190,10 +213,10 @@ export async function createListing({ agentId, vendorId, category, title, descri
  * @param {number} propertyId
  * @param {string[]} urls
  */
-export async function attachListingPhotos(propertyId, urls) {
+export async function attachListingPhotos(propertyId, urls, existingClient = null) {
   if (!urls.length) return;
 
-  const pool = getPool();
+  const pool = existingClient || getPool();
   await pool.query('UPDATE properties SET featured_image = $1, updated_at = NOW() WHERE id = $2', [
     urls[0],
     propertyId,

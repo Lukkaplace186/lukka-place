@@ -8667,7 +8667,7 @@ console.log('\n2. services/openai.js');
   check('only a verified agent is looked up, and the SQL counts like the web', () => {
     const sql = listingQuota.SENDER_QUOTA_SQL.replace(/\s+/g, ' ');
     assert.ok(sql.includes('a.phone_verified_at IS NOT NULL'));
-    assert.ok(sql.includes("p.status = 1 AND p.approve_status IN (0, 1) AND COALESCE(p.listing_status, 'active') <> 'closed'"));
+    assert.ok(sql.includes("p.status = 1 AND p.approve_status IN (0, 1) AND COALESCE(p.listing_status, 'active') <> 'closed' AND p.development_id IS NULL"));
     assert.ok(sql.includes('pk.number_of_property > 0'));
   });
 
@@ -8757,6 +8757,49 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(limete.requests, 3);
     assert.strictEqual(cellOf(report, 'Kalamu-QA36').customers, 1, 'the second commune of one request counts there too');
     assert.ok(report.communes.some((c) => c.commune === 'Kalamu-QA36'));
+  });
+
+
+  // ===========================================================================
+  console.log('\n37. Developer self-serve projects: units as listings, review, desk heads-up');
+  // ===========================================================================
+  //
+  // A developer's unit is an ordinary listing carrying properties.development_id
+  // (written by web/lib/projectUnits.js). The engine never writes that column,
+  // must never let it count against a plan (web/lib/listingQuotaRules.js twin),
+  // and must never auto-approve it apart from its project.
+  const listingQuotaSvc = require('../services/listingQuota');
+
+  check('project units take no plan slot — same clause as web', () => {
+    assert.ok(listingQuotaSvc.SENDER_QUOTA_SQL.includes('p.development_id IS NULL'));
+  });
+
+  check('trusted auto-approval never approves a project unit on its own', () => {
+    const source = fs.readFileSync(path.join(__dirname, '..', 'services', 'trustedAutoApprove.js'), 'utf8');
+    assert.ok(source.includes('AND p.development_id IS NULL'));
+  });
+
+  check('the listing sync never writes the project columns (web owns them)', () => {
+    const source = fs.readFileSync(path.join(__dirname, '..', 'services', 'postgres.js'), 'utf8');
+    for (const column of ['development_id', 'development_unit_type_id', 'unit_label', 'unit_floor']) {
+      assert.ok(!source.includes(column), `postgres.js must not name ${column}`);
+    }
+  });
+
+  check('the Monday digest asks a developer for a construction photo, and says nothing otherwise', () => {
+    const agentDigest = require('../services/agentDigest');
+    const msg = agentDigest.composeDigest({ first_name: 'Paul' }, {}, null, ['Résidence Lumière']);
+    assert.ok(msg && msg.includes('Résidence Lumière : aucune photo de chantier depuis 60 jours'));
+    assert.strictEqual(agentDigest.composeDigest({ first_name: 'Paul' }, {}, null, []), null);
+  });
+
+  check('POST /admin/ops-notify: validates, and an unset desk number is a quiet sent:false', () => {
+    const source = fs.readFileSync(path.join(__dirname, '..', 'routes', 'admin.js'), 'utf8');
+    const start = source.indexOf("router.post('/ops-notify'");
+    assert.ok(start > 0, 'route registered');
+    const body = source.slice(start, source.indexOf('// Demand report', start));
+    assert.ok(body.includes("process.env.OPS_WHATSAPP_NUMBER"), 'read at call time');
+    assert.ok(body.includes('sent: false'));
   });
 
   // -------------------------------------------------------------------------

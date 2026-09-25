@@ -90,6 +90,7 @@ const NAV = NAV_GROUPS.flatMap((group) => group.items);
 /** Which live work-queue count (lib/adminWorkQueues.js) badges which item. */
 const BADGE_FOR = {
   '/admin/listings': 'pendingListings',
+  '/admin/projets': 'projectsToReview',
   '/admin/viewings': 'escalatedViewings',
   '/admin/conversations': 'humanConversations',
   '/admin/subscriptions': 'pendingPlanRequests',

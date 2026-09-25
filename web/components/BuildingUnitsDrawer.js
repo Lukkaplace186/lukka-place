@@ -34,6 +34,8 @@ export default function BuildingUnitsDrawer({ group, onClose }) {
   const units = orderedUnits(group);
   const bedrooms = buildingBedroomsLabel(group);
   const heading = group.buildingName || group.representative?.address || 'Immeuble';
+  // A developer's building (lib/projectUnits.js) links back to its project page.
+  const project = group.listings.find((l) => l.project)?.project || null;
 
   return (
     <div className="absolute inset-0 z-30 flex justify-end" role="dialog" aria-modal="true" aria-label={heading}>
@@ -49,6 +51,11 @@ export default function BuildingUnitsDrawer({ group, onClose }) {
               {group.unitCount} unités disponibles
               {bedrooms ? ` · ${bedrooms}` : ''}
             </p>
+            {project ? (
+              <Link href={`/projets/${project.slug}`} className="mt-1 inline-block text-sm font-semibold text-blue-deep hover:underline">
+                Voir le projet →
+              </Link>
+            ) : null}
           </div>
           <button
             type="button"
@@ -77,6 +84,8 @@ export default function BuildingUnitsDrawer({ group, onClose }) {
                 </p>
                 <p className="mt-0.5 truncate text-xs text-slate-600">
                   {[
+                    unit.unit_label || null,
+                    unit.unit_floor != null ? (Number(unit.unit_floor) === 0 ? 'RDC' : `${unit.unit_floor}e ét.`) : null,
                     unit.beds != null ? `${unit.beds} ch.` : null,
                     unit.bath != null ? `${unit.bath} sdb` : null,
                     unit.floor || null,
@@ -86,7 +95,7 @@ export default function BuildingUnitsDrawer({ group, onClose }) {
                 </p>
               </div>
               <Link
-                href={`/listings/${unit.slug || unit.id}`}
+                href={`/listings/${unit.id}`}
                 className="shrink-0 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-900 hover:bg-slate-50"
               >
                 Voir détails

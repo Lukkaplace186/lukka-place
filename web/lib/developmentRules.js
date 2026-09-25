@@ -16,6 +16,8 @@ export const DEVELOPMENT_STAGES = ['pre_launch', 'under_construction', 'delivere
 export const DEVELOPMENT_PURPOSES = ['sale', 'rent', 'mixed'];
 export const LOT_STATUSES = ['available', 'reserved', 'sold'];
 export const TITLE_STATUSES = ['own_title', 'shared_title', 'in_progress', 'unknown'];
+/** Land is sold either as shares of ONE parcel (30 % / 50 % / 100 %) or as numbered lots of a lotissement. */
+export const LAND_MODES = ['portions', 'lots'];
 
 /** The public filter chips on /projets, in order. `all` is no filter. */
 export const PROJECT_FILTERS = ['all', 'off_plan', 'under_construction', 'delivered', 'land'];
@@ -129,19 +131,47 @@ export function unitTypeSummary(unitTypes = []) {
   };
 }
 
-/** Lots by status, plus the cheapest AVAILABLE lot. */
+/**
+ * Lots by status, plus the cheapest AVAILABLE lot. A portion that can no
+ * longer be sold (portionBlockedIds) is not "available", whatever its row
+ * says: it is counted apart as `blocked`.
+ */
 export function lotSummary(lots = []) {
-  const counts = { available: 0, reserved: 0, sold: 0 };
+  const counts = { available: 0, reserved: 0, sold: 0, blocked: 0 };
+  const blocked = portionBlockedIds(lots);
   let priceMin = null;
   let areaTotal = null;
   for (const lot of lots) {
-    if (counts[lot.status] !== undefined) counts[lot.status] += 1;
+    const isBlocked = lot.status === 'available' && blocked.has(String(lot.id));
+    if (isBlocked) counts.blocked += 1;
+    else if (counts[lot.status] !== undefined) counts[lot.status] += 1;
     const price = num(lot.price);
-    if (lot.status === 'available' && price !== null) priceMin = priceMin === null ? price : Math.min(priceMin, price);
+    if (lot.status === 'available' && !isBlocked && price !== null) priceMin = priceMin === null ? price : Math.min(priceMin, price);
     const area = num(lot.area_m2);
     if (area !== null) areaTotal = (areaTotal ?? 0) + area;
   }
   return { ...counts, total: lots.length, priceMin, areaTotal };
+}
+
+/**
+ * Portions are shares of ONE parcel, so selling one changes what is left:
+ * once 30 % is sold or reserved, only 70 % remains and "100 %" can no longer
+ * be bought. Returns the ids (as strings) of AVAILABLE portions whose share
+ * exceeds what the sold and reserved portions leave. Derived from the
+ * seller's own numbers every time — nothing is stored, so a sale that falls
+ * through (sold → available) frees the others again by itself.
+ */
+export function portionBlockedIds(lots = []) {
+  const portions = (lots || []).filter((lot) => num(lot.share_percent) !== null);
+  const taken = portions
+    .filter((lot) => lot.status === 'sold' || lot.status === 'reserved')
+    .reduce((sum, lot) => sum + num(lot.share_percent), 0);
+  const left = 100 - taken;
+  const blocked = new Set();
+  for (const lot of portions) {
+    if (lot.status === 'available' && num(lot.share_percent) > left + 0.001) blocked.add(String(lot.id));
+  }
+  return blocked;
 }
 
 /** Price per m², rounded to the dollar. Null unless both numbers are real. */
@@ -161,6 +191,7 @@ export function pricePerM2(price, area) {
  */
 export function portionRows(lots = [], landAreaM2 = null) {
   const plot = num(landAreaM2);
+  const blocked = portionBlockedIds(lots);
   const rows = lots
     .filter((lot) => num(lot.share_percent) !== null)
     .map((lot) => {
@@ -175,6 +206,7 @@ export function portionRows(lots = [], landAreaM2 = null) {
         status: lot.status,
         titleStatus: lot.title_status || null,
         perM2: pricePerM2(lot.price, area),
+        blocked: blocked.has(String(lot.id)),
       };
     })
     .sort((a, b) => a.share - b.share);
@@ -327,6 +359,7 @@ export function validateDevelopmentInput(input) {
       payment_plan: plan.rows,
       land_area_m2: kind === 'land' ? num(input.land_area_m2) : null,
       land_title_status: kind === 'land' && TITLE_STATUSES.includes(input.land_title_status) ? input.land_title_status : null,
+      land_mode: kind === 'land' ? (LAND_MODES.includes(input.land_mode) ? input.land_mode : 'lots') : null,
     },
   };
 }
@@ -384,6 +417,8 @@ export function validateUnitTypeInput(input) {
       units_total: total,
       units_available: available,
       sort_order: num(input.sort_order) ?? 0,
+      category_id: num(input.category_id),
+      ready_now: input.ready_now === true || input.ready_now === 'on' || input.ready_now === '1',
     },
   };
 }
@@ -449,4 +484,252 @@ export function dateOnly(value) {
 export function dateOnlyInputValue(value) {
   const d = dateOnly(value);
   return d ? d.toISOString().slice(0, 10) : '';
+}
+
+// ---------------------------------------------------------------------------
+// Developer self-serve (/compte/agent/projets): the wizard, the generators
+// that turn "20 lots" or "étages 1 à 5 × 4" into rows, and units as listings.
+// ---------------------------------------------------------------------------
+
+/** The wizard's steps, in order. `offre` is unit types (a building) or portions / lots (land). */
+export const WIZARD_STEPS = ['etat', 'lieu', 'medias', 'offre', 'paiement', 'apercu'];
+
+/**
+ * Which steps a project has filled in — the stepper's ticks. Derived from the
+ * row, never stored: a developer who deletes their last photo loses the tick.
+ */
+export function wizardProgress(project) {
+  const media = [...(project.photos || []), ...(project.renders || [])].filter(Boolean);
+  const offer = project.kind === 'land' ? (project.lots || []).length > 0 : (project.unit_types || []).length > 0;
+  return {
+    etat: project.kind === 'land'
+      ? num(project.land_area_m2) !== null
+      : Boolean(project.stage) && Boolean(project.description),
+    lieu: Boolean(project.commune),
+    medias: media.length > 0,
+    offre: offer,
+    paiement: normalisePaymentPlan(project.payment_plan).complete,
+    apercu: Boolean(project.submitted_at) || (project.status === 1 && project.approve_status === 1),
+  };
+}
+
+/**
+ * Where a developer's project stands, from their side:
+ *   draft       — being filled in, never submitted
+ *   submitted   — waiting for the team
+ *   changes     — the team asked for changes (a review note newer than the submission)
+ *   live        — public
+ *   live_edited — public, with edits the team has not looked at yet
+ */
+export function projectReviewState(project) {
+  const live = project.status === 1 && project.approve_status === 1;
+  if (live) return project.changes_pending ? 'live_edited' : 'live';
+  if (project.review_note && project.reviewed_at
+    && (!project.submitted_at || new Date(project.reviewed_at) >= new Date(project.submitted_at))) {
+    return 'changes';
+  }
+  if (project.submitted_at) return 'submitted';
+  return 'draft';
+}
+
+/**
+ * How far a map pin may sit from its commune's centroid before it is refused
+ * as a mis-tap or the wrong commune. Most communes are a few km across; the
+ * peripheral ones are huge (Maluku runs ~80 km east), so they get their real
+ * reach rather than a limit that refuses genuine sites.
+ */
+const PIN_REACH_KM = { Maluku: 60, Nsele: 30, 'Mont-Ngafula': 18, Kimbanseke: 14, Ngaliema: 14 };
+const DEFAULT_PIN_REACH_KM = 8;
+
+export function pinReachKm(commune) {
+  return PIN_REACH_KM[commune] ?? DEFAULT_PIN_REACH_KM;
+}
+
+function kmBetween(a, b) {
+  const rad = (d) => (d * Math.PI) / 180;
+  const dLat = rad(b.lat - a.lat);
+  const dLng = rad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(h));
+}
+
+/** True when the pin is plausibly inside the chosen commune (or there is nothing to check against). */
+export function pinWithinCommune(point, centroid, commune) {
+  if (!point || !centroid) return true;
+  return kmBetween(point, centroid) <= pinReachKm(commune);
+}
+
+export const MAX_GENERATED = 300;
+const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+/**
+ * Individual units from a building's shape: floors `from`..`to` (0 = rez-de-
+ * chaussée) × `perFloor`, in one of the two naming schemes Kinshasa buildings
+ * use:
+ *   letters → "1A", "1B", … ("RDC-A" on the ground floor)
+ *   numbers → "101", "102", … ("R01" on the ground floor)
+ * with an optional prefix ("Apt "). Capped at MAX_GENERATED — a bigger tower
+ * is entered in several goes, and `truncated` says so rather than dropping
+ * units silently.
+ */
+export function generateUnits({ from = 1, to = 1, perFloor = 1, naming = 'letters', prefix = '' } = {}) {
+  const lo = Math.max(0, Math.floor(num(from) ?? 0));
+  const hi = Math.min(99, Math.max(lo, Math.floor(num(to) ?? lo)));
+  const per = Math.min(26, Math.max(1, Math.floor(num(perFloor) ?? 1)));
+  const head = String(prefix || '').slice(0, 20);
+  const units = [];
+  let truncated = false;
+  for (let floor = lo; floor <= hi && !truncated; floor += 1) {
+    for (let n = 1; n <= per; n += 1) {
+      if (units.length >= MAX_GENERATED) {
+        truncated = true;
+        break;
+      }
+      let code;
+      if (naming === 'numbers') code = floor === 0 ? `R${String(n).padStart(2, '0')}` : `${floor}${String(n).padStart(2, '0')}`;
+      else code = floor === 0 ? `RDC-${LETTERS[n - 1]}` : `${floor}${LETTERS[n - 1]}`;
+      units.push({ label: `${head}${code}`, floor });
+    }
+  }
+  return { units, truncated };
+}
+
+/** "20 lots de 300 m² à 12 000 $" → Lot 1 … Lot 20, each editable afterwards. */
+export function generateLots({ count = 1, start = 1, area = null, price = null, prefix = 'Lot ' } = {}) {
+  const n = Math.min(MAX_GENERATED, Math.max(1, Math.floor(num(count) ?? 1)));
+  const first = Math.max(1, Math.floor(num(start) ?? 1));
+  return Array.from({ length: n }, (_, i) => ({
+    label: `${String(prefix ?? '').slice(0, 20)}${first + i}`,
+    area_m2: num(area),
+    price: num(price),
+    status: 'available',
+    share_percent: null,
+    title_status: null,
+    polygon: null,
+    sort_order: first + i,
+  }));
+}
+
+/** The share presets offered for a parcel sold in portions. */
+export const PORTION_PRESETS = [25, 30, 50, 75, 100];
+
+/**
+ * A warning (never a refusal) for the portion editor: a bigger share that
+ * costs MORE per m² than a smaller one is usually a typing slip. Takes
+ * portionRows() output; returns the ids flagged.
+ */
+export function portionPriceWarnings(rows = []) {
+  const flagged = new Set();
+  const sorted = [...rows].filter((r) => r.perM2 !== null).sort((a, b) => a.share - b.share);
+  let lowest = null;
+  for (const row of sorted) {
+    if (lowest !== null && row.perM2 > lowest) flagged.add(row.id);
+    lowest = lowest === null ? row.perM2 : Math.min(lowest, row.perM2);
+  }
+  return flagged;
+}
+
+/**
+ * Where one individual unit (a real listing) stands, from its own columns —
+ * the three lifecycle axes the rest of the site uses:
+ *   pending   — not approved yet (only the developer and the team see it)
+ *   taken     — closed: let or sold (public: "Loué ✓ / Vendu ✓")
+ *   reserved  — under offer
+ *   withdrawn — archived, or rejected (not shown publicly)
+ *   available — on the market
+ */
+export function unitListingState(listing) {
+  if (Number(listing.approve_status) === 2) return 'withdrawn';
+  if (Number(listing.approve_status) !== 1) return 'pending';
+  if (listing.listing_status === 'closed') return 'taken';
+  if (listing.listing_status === 'under_offer') return 'reserved';
+  if (Number(listing.status) !== 1) return 'withdrawn';
+  return 'available';
+}
+
+/**
+ * A unit type's availability once it has individual units: COUNTED from its
+ * listings, replacing whatever number was typed. `total` counts the units that
+ * have been public (available, reserved or taken); pending and withdrawn ones
+ * are not on offer. "dès" follows what is actually on the market. A type with
+ * no individual units is returned unchanged (plus an empty `live_units`).
+ */
+export function withLiveUnitCounts(unitType, units = []) {
+  if (!unitType.ready_now || !units.length) return { ...unitType, live_units: units, counted: false };
+  const states = units.map(unitListingState);
+  const shown = states.filter((s) => s === 'available' || s === 'reserved' || s === 'taken').length;
+  if (shown === 0) return { ...unitType, live_units: units, counted: false };
+  const available = states.filter((s) => s === 'available').length;
+  const prices = units.filter((_, i) => states[i] === 'available').map((u) => num(u.price)).filter((p) => p !== null);
+  return {
+    ...unitType,
+    live_units: units,
+    units_available: available,
+    units_total: shown,
+    price_min: prices.length ? Math.min(...prices) : unitType.price_min,
+    price_max: prices.length ? Math.max(...prices) : unitType.price_max,
+    counted: true,
+  };
+}
+
+/**
+ * Sales progress ("68 % vendu") — only from real counts: every unit type
+ * states a total and an availability (or is counted from its units), or every
+ * lot has a status. Null when anything is unknown or nothing is sold yet: a
+ * bar built on a guess is worse than no bar, and "0 % vendu" sells nothing.
+ */
+export function salesProgress(project) {
+  if (project.kind === 'land') {
+    const lots = project.lots || [];
+    if (!lots.length) return null;
+    const portions = lots.filter((l) => num(l.share_percent) !== null);
+    if (portions.length === lots.length) {
+      const sold = portions.filter((l) => l.status === 'sold').reduce((s, l) => s + num(l.share_percent), 0);
+      return sold > 0 ? { percent: Math.min(100, Math.round(sold)), sold: null, total: null } : null;
+    }
+    const sold = lots.filter((l) => l.status === 'sold').length;
+    return sold > 0 ? { percent: Math.round((sold / lots.length) * 100), sold, total: lots.length } : null;
+  }
+  const types = project.unit_types || [];
+  if (!types.length) return null;
+  let total = 0;
+  let available = 0;
+  for (const type of types) {
+    const tot = num(type.units_total);
+    const avail = num(type.units_available);
+    if (tot === null || avail === null || tot <= 0) return null;
+    total += tot;
+    available += avail;
+  }
+  const sold = total - available;
+  return sold > 0 ? { percent: Math.round((sold / total) * 100), sold, total } : null;
+}
+
+/** A unit's listing title: "Apt 3B · T3 · Résidence Lumière". */
+export function unitListingTitle(project, unitType, unit) {
+  return [unit.label, unitType.label, project.name].filter(Boolean).join(' · ').slice(0, 150);
+}
+
+/**
+ * The description a unit's listing carries: the unit's own facts first, then
+ * the project's description. Nothing is added that the developer did not say.
+ */
+export function unitListingDescription(project, unitType, unit) {
+  const lines = [
+    `${unit.label} — ${unitType.label}${unit.floor !== null && unit.floor !== undefined ? `, ${unit.floor === 0 ? 'rez-de-chaussée' : `étage ${unit.floor}`}` : ''}.`,
+    `Fait partie du projet « ${project.name} »${project.commune ? ` à ${project.commune}` : ''}.`,
+  ];
+  if (project.description) lines.push('', project.description);
+  return lines.join('\n').slice(0, 4000);
+}
+
+/** Validate one individual unit row (label, floor, price). The price may be left to the type's. */
+export function validateUnitInput(input, unitType = {}) {
+  const label = String(input.label || '').trim().slice(0, 40);
+  if (!label) return { errorKey: 'admin.projects.errors.unitLabel' };
+  const floor = num(input.floor);
+  if (floor !== null && (floor < 0 || floor > 99 || !Number.isInteger(floor))) return { errorKey: 'admin.projects.errors.floor' };
+  const price = num(input.price) ?? num(unitType.price_min) ?? num(unitType.price_max);
+  if (price === null || price <= 0) return { errorKey: 'admin.projects.errors.unitPrice' };
+  return { value: { label, floor, price } };
 }

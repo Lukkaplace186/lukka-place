@@ -1147,3 +1147,16 @@ web/CLAUDE.md, "Projets neufs & terrains", has the product. Engine half:
   price_max, else price_min, else "not stated"); multi-commune requests count
   in each commune. Supply is joined on the web side.
 - Covered by `scripts/verify-pipeline.js` §36.
+
+## Developer self-serve projects — engine half (2026-09-25)
+
+web/CLAUDE.md, "Developers publish their own projects", has the product.
+`migrations/20260925_developer_self_serve.sql` adds review columns on
+`developments` and `properties.development_id` / `development_unit_type_id` /
+`unit_label` / `unit_floor` (written by web only — `syncListingToPostgres`
+never names them). Engine changes: `services/listingQuota.js` excludes
+`development_id IS NOT NULL` (same clause as web); `trustedAutoApprove` never
+approves a project unit (they are approved with their project);
+`POST /admin/ops-notify` sends a one-line heads-up to `OPS_WHATSAPP_NUMBER`
+(unset → `sent: false`, never an error); the Monday agent digest names a
+public off-plan project with no construction photo for 60 days. §37.

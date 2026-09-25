@@ -560,7 +560,11 @@
       "show": "Show map",
       "showHint": "The map loads on request to save your mobile data.",
       "cardsLabel": "Listings in this area",
-      "sheetShow": "List"
+      "sheetShow": "List",
+      "projectsHere": {
+        "one": "{count} new-build project here",
+        "other": "{count} new-build projects here"
+      }
     },
     "alertModal": {
       "intro": "You'll be alerted to new properties matching:",
@@ -1561,7 +1565,304 @@
       "saved": "Saved.",
       "error": "This value could not be saved.",
       "viewPublic": "View page",
-      "teamEdits": "To change prices, photos or construction updates, write to the Lukka Place team."
+      "teamEdits": "To change prices, photos or construction updates, write to the Lukka Place team.",
+      "wizard": {
+        "newTitle": "Publish a Project",
+        "editTitle": "My Project",
+        "newIntro": "A new or off-plan building, a plot sold in portions, a subdivision: put it online yourself. We guide you one screen at a time, and everything is saved as you go.",
+        "promise": {
+          "time": "About 10 minutes",
+          "review": "Reviewed by our team before publication",
+          "free": "Free during the launch"
+        },
+        "unverifiedTitle": "Verify Your WhatsApp Number First",
+        "unverifiedBody": "A project carries your name in public: a verified number is needed to publish one.",
+        "unverifiedLink": "Verify my number",
+        "typeLegend": "What Are You Selling?",
+        "types": {
+          "building": {
+            "title": "Building / Residence",
+            "body": "Apartments or houses in one project — off-plan, under construction or completed."
+          },
+          "portions": {
+            "title": "Plot in Portions",
+            "body": "One plot sold in shares: 30%, 50% or 100%."
+          },
+          "lots": {
+            "title": "Subdivision",
+            "body": "A site divided into numbered lots, with or without a plan."
+          }
+        },
+        "nameLabel": "Project name",
+        "namePlaceholder": "Les Palmiers Residence",
+        "start": "Start",
+        "backToList": "My projects",
+        "stepsLabel": "Steps",
+        "steps": {
+          "etat": "The project",
+          "lieu": "Location",
+          "medias": "Photos",
+          "offre": "The offer",
+          "paiement": "Payment",
+          "apercu": "Preview"
+        },
+        "state": {
+          "draft": "Draft",
+          "submitted": "Being reviewed",
+          "changes": "Changes requested",
+          "live": "Live",
+          "live_edited": "Live · edits in review"
+        },
+        "save": "Save",
+        "saveNext": "Save and continue",
+        "next": "Continue",
+        "skip": "Skip this step",
+        "cancel": "Cancel",
+        "optional": "optional",
+        "complete": "Complete",
+        "continue": "Continue",
+        "edit": "Edit",
+        "toFinish": {
+          "one": "{count} step to complete",
+          "other": "{count} steps to complete"
+        },
+        "addUpdate": "Add a construction photo",
+        "emptyTitle": "Put Your First Project Online",
+        "emptyBody": "A building, a residence, a plot in portions or a subdivision: publish it yourself in a few minutes; our team reviews it before it goes live.",
+        "sessionExpired": "Your session has expired. Reload the page and sign in again.",
+        "uploadFailed": "The upload failed. Try again.",
+        "noFile": "Choose at least one image.",
+        "upload": {
+          "optimising": "Preparing photos…",
+          "sending": "Sending…",
+          "done": "Saved.",
+          "offline": "No connection. Try again once you are online.",
+          "tooLarge": "These images are too heavy. Send fewer at a time."
+        },
+        "errors": {
+          "generic": "Saving failed. Try again.",
+          "unverified": "Verify your WhatsApp number before publishing a project.",
+          "kind": "Choose what you are selling.",
+          "notFound": "This project could not be found.",
+          "pinFar": "The map point is far from the chosen commune. Check the commune or move the point.",
+          "typeHasUnits": "This type has units online: close or delete them first.",
+          "pasteEmpty": "No valid line to import.",
+          "tooManyUnits": "Too many units at once (120 at most). Create them in several goes.",
+          "unitsExist": "These units already exist.",
+          "unitLive": "This unit has already been published: manage it from My listings (let, sold or archived).",
+          "lotsExist": "These lots already exist.",
+          "deleteConfirm": "Type SUPPRIMER to confirm.",
+          "deleteLive": "A project that has been published cannot be deleted here. Contact us.",
+          "units_notBuilding": "Individual units belong to a building.",
+          "units_notReady": "Tick \"Available now\" on this type first.",
+          "units_requiresPhoto": "Add at least one real photo of the building: the units' listings use it (never an architect's image).",
+          "units_requiresCommune": "Set the commune first (Location step).",
+          "publish_media": "Add at least one photo or illustration.",
+          "publish_commune": "Set the commune.",
+          "publish_units": "Add at least one unit type.",
+          "publish_lots": "Add at least one lot or portion."
+        },
+        "saved": {
+          "etat": "Saved.",
+          "lieu": "Saved.",
+          "video": "Saved.",
+          "paiement": "Saved.",
+          "media": "Image removed.",
+          "units": "Saved.",
+          "lots": "Saved.",
+          "imported": {
+            "one": "{count} line imported ({skipped} skipped).",
+            "other": "{count} lines imported ({skipped} skipped)."
+          },
+          "unitsCreated": {
+            "one": "{count} unit created. It goes live with the project, after our review.",
+            "other": "{count} units created. They go live with the project, after our review."
+          },
+          "unitDeleted": "Unit deleted.",
+          "lotsCreated": {
+            "one": "{count} lot added.",
+            "other": "{count} lots added."
+          },
+          "submitted": "Sent! Our team is reviewing your project, usually within 24 business hours.",
+          "deleted": "Draft deleted."
+        },
+        "etat": {
+          "title": "The Project",
+          "introBuilding": "Where construction stands, when it will be delivered, and what a buyer needs to know.",
+          "introLand": "The plot, its title, and how it is sold.",
+          "stage": "Stage",
+          "stageHint": "Off-plan: not started yet. Under construction: work is under way. Completed: ready to move in.",
+          "delivery": "Expected delivery",
+          "deliveryHint": "Month and year. Leave empty if you don't know.",
+          "purpose": "Sale or rent",
+          "landMode": "How the plot is sold",
+          "landArea": "Total area (m²)",
+          "landAreaHint": "Used to work out each portion's area and price per m².",
+          "titleHint": "Say it as it is: buyers ask about it first.",
+          "description": "Description",
+          "descriptionHint": "What you would tell a buyer: materials, security, water, power, access.",
+          "amenitiesExample": "Generator, borehole, parking, security guard"
+        },
+        "lieu": {
+          "title": "Location",
+          "intro": "The commune comes from the official list. The address helps visitors find the site.",
+          "address": "Address or landmark",
+          "addressHint": "Avenue, number, a known landmark (\"near the Victoire roundabout\").",
+          "pinTitle": "The Map Point",
+          "pinIntro": "Move the map to put the point on the site, or use your position if you are on site. Optional, but a well-placed project is easier to find.",
+          "mapLoading": "Loading the map…",
+          "dragHint": "Move the map under the point",
+          "manualHint": "The map could not load. Use your position or type the coordinates.",
+          "locate": "I'm on the site",
+          "locating": "Locating…",
+          "locateUnavailable": "Your phone does not share its position.",
+          "locateRefused": "Position refused. Allow location or move the map.",
+          "clearPin": "Remove the point",
+          "noPin": "No point: the project will sit at the centre of the commune, marked as approximate."
+        },
+        "medias": {
+          "photosTitle": "Real Photos of the Site",
+          "photosIntro": "What a visitor would see today. The first photo is the cover.",
+          "photosHint": "Photos are made lighter on your phone before sending.",
+          "addPhotos": "Add photos",
+          "rendersTitle": "Architect's Images (3D Renders)",
+          "rendersIntro": "Always shown labelled \"Illustration\", never mixed with the real photos.",
+          "addRenders": "Add architect's images",
+          "videoTitle": "Video (Optional)",
+          "cover": "Cover"
+        },
+        "offre": {
+          "buildingTitle": "Unit Types",
+          "buildingIntro": "One card per type (2-bed, 3-bed, villa…). Tick \"Available now\" when units are ready: each becomes a real listing on the map, under one point for the whole building.",
+          "noTypes": "No type yet. Add one below or paste your price grid from Excel."
+        },
+        "units": {
+          "labelExample": "3-bed apartment",
+          "category": "Property type",
+          "categoryDefault": "Apartment (default)",
+          "readyNow": "Available now",
+          "readyNowHint": "Units are ready to rent or sell: create them one by one (Apt 1A, 1B…). Each gets its own listing and price.",
+          "newIntro": "Leave empty what you don't know: nothing is shown rather than a zero.",
+          "edit": "Edit this type",
+          "availableShort": {
+            "zero": "sold out",
+            "one": "{count} available",
+            "other": "{count} available"
+          },
+          "counted": "counted from the listings",
+          "listTitle": {
+            "zero": "Units (none yet)",
+            "one": "Units ({count})",
+            "other": "Units ({count})"
+          },
+          "listIntro": "Each unit is a listing. Once online, manage it from My listings (price, let, sold): the available count updates by itself.",
+          "floor": "Floor",
+          "floorN": "floor {floor}",
+          "groundFloor": "Ground",
+          "state": {
+            "pending": "Pending",
+            "available": "Online",
+            "reserved": "Reserved",
+            "taken": "Let/sold ✓",
+            "withdrawn": "Withdrawn"
+          },
+          "deleteUnit": "Delete this unit",
+          "manage": "Manage",
+          "goPhotos": "Add photos",
+          "generatorTitle": "Create the Units in One Go",
+          "fromFloor": "From level",
+          "toFloor": "To level",
+          "groundHint": "0 = ground floor",
+          "perFloor": "Per level",
+          "naming": "Numbering",
+          "prefix": "Prefix",
+          "price": "Price of each unit ($)",
+          "priceHint": "You can change it unit by unit afterwards.",
+          "generate": "Create the units"
+        },
+        "portions": {
+          "title": "Portions of the Plot",
+          "intro": "One line per portion on offer. Area and price per m² are worked out from the total area.",
+          "needArea": "Enter the plot's total area first (\"The project\" step) to see each portion's area and price per m².",
+          "parcel": "Plot of {area} m².",
+          "taken": "{share}% already sold or reserved: {left}% left.",
+          "presets": "Common shares",
+          "noArea": "area unknown",
+          "add": "Add the portion",
+          "new": "New portion",
+          "blocked": "No longer possible",
+          "priceWarning": "This portion costs more per m² than a smaller one. Is that intended?"
+        },
+        "lots": {
+          "title": "The Lots",
+          "intro": "Generate your lots in one go, then correct them one by one.",
+          "planIntro": "A photo or scan of the subdivision plan. Lots can be traced on it so buyers can tap them on the plan.",
+          "planHint": "Tracing the lots is optional: without it, the plan is shown next to the lot table.",
+          "traceByTeam": "Lukka Place traces the plan for me (free)",
+          "tracedCount": "{traced} of {total} lot(s) traced.",
+          "generatorTitle": "Generate Lots",
+          "count": "Number of lots",
+          "start": "First number",
+          "prefix": "Prefix",
+          "generate": "Generate"
+        },
+        "paste": {
+          "open": {
+            "unitTypes": "Paste from Excel",
+            "units": "Paste a list of units",
+            "lots": "Paste from Excel"
+          },
+          "intro": "Copy the cells in your spreadsheet and paste them here. Every line is checked before import; lines in red will be skipped.",
+          "placeholder": {
+            "unitTypes": "T2\t2\t1\t65\t45000\t52000\t12\t5",
+            "units": "Apt 1A\t1\t48000",
+            "lots": "Lot 1\t300\t12000"
+          },
+          "columns": {
+            "label": "Name"
+          },
+          "headerSkipped": "The first line looks like column titles: it is skipped.",
+          "truncated": "300 lines at most per import.",
+          "submit": "Import {count} line(s)"
+        },
+        "paiement": {
+          "title": "Payment Plan",
+          "intro": "How the buyer pays. The total must be exactly 100%, otherwise the plan is not shown.",
+          "addRow": "Add an instalment",
+          "totalOk": "Total: 100% ✓",
+          "totalMissing": "Total: {total}% — {missing}% missing",
+          "preset": {
+            "booking": "On reservation",
+            "signature": "On signing",
+            "foundations": "Foundations",
+            "structure": "Structural work",
+            "finishing": "Finishing",
+            "keys": "On handover of keys"
+          }
+        },
+        "apercu": {
+          "checkTitle": "Where Your Project Stands",
+          "preview": "See the preview",
+          "submitTitle": "Send to Lukka Place",
+          "submitIntro": "Our team reviews every project before publication, usually within 24 business hours. You will be told on WhatsApp.",
+          "submit": "Submit to Lukka Place",
+          "resubmit": "Resubmit after changes",
+          "submittedTitle": "Being Reviewed",
+          "submittedIntro": "Thank you! Our team is reviewing your project. You will be told on WhatsApp as soon as it is live.",
+          "submittedEdit": "You can still edit your project during the review.",
+          "liveTitle": "Your Project Is Live 🎉",
+          "liveIntro": "Keep it alive: a construction photo every month, and sold units kept up to date.",
+          "liveEdited": "Your latest edits are live; our team is looking at them.",
+          "updatesTitle": "Construction Photos",
+          "updatesIntro": "Dated and published on the project page. With no new photo for 90 days, the page tells buyers so.",
+          "updateDone": "Update published.",
+          "deleteTitle": "Delete This Draft",
+          "deleteIntro": "The draft and everything in it will be deleted. Type SUPPRIMER to confirm.",
+          "deleteConfirm": "Confirmation",
+          "deleteButton": "Delete"
+        },
+        "changesIntro": "Our team asks for a few changes ({date}):"
+      }
     }
   },
   "status": {
@@ -3855,7 +4156,9 @@
         "units": "Unit types updated.",
         "lots": "Lots updated.",
         "timeline": "Construction updates saved.",
-        "deleted": "Project deleted."
+        "deleted": "Project deleted.",
+        "changesRequested": "Change request sent to the developer.",
+        "acknowledged": "Changes seen; the new units are live."
       },
       "errors": {
         "generic": "Saving failed.",
@@ -3882,7 +4185,11 @@
         "publish_media": "Add at least one photo or artist’s impression.",
         "publish_commune": "Enter the commune.",
         "publish_units": "Add at least one unit type.",
-        "publish_lots": "Add at least one lot or portion."
+        "publish_lots": "Add at least one lot or portion.",
+        "pasteNumber": "A number could not be read.",
+        "floor": "The floor must be a number from 0 to 99.",
+        "unitPrice": "Enter the unit's price (or a \"from\" price on the type).",
+        "reviewNote": "Write what needs fixing (at least 10 characters)."
       },
       "form": {
         "name": "Project name",
@@ -3930,7 +4237,7 @@
       "units": {
         "title": "Unit Types",
         "intro": "One type per line of the developer’s price list. Leave empty what is not known: nothing is shown rather than a zero.",
-        "new": "Add a type",
+        "new": "Add a Type",
         "add": "Add type",
         "label": "Name",
         "labelExample": "2-bedroom apartment",
@@ -3984,6 +4291,48 @@
           "zero": "no photos",
           "one": "{count} photo",
           "other": "{count} photos"
+        }
+      },
+      "review": {
+        "title": "Project Review",
+        "queue": {
+          "one": "{count} project is waiting for your review.",
+          "other": "{count} projects are waiting for your review."
+        },
+        "submittedOn": "Submitted by the developer on {date}.",
+        "traceByTeam": "The developer asks the team to trace the lot plan.",
+        "pendingUnits": {
+          "one": "{count} unit (listing) will be published with the project.",
+          "other": "{count} units (listings) will be published with the project."
+        },
+        "check": {
+          "identity": "The developer is who they say they are (verified account, agency).",
+          "photos": "The real photos really show this site.",
+          "renders": "No architect's images among the real photos.",
+          "deed": "The land title or permit has been seen."
+        },
+        "lastNote": "Last request:",
+        "notePlaceholder": "What needs fixing before publication…",
+        "requestChanges": "Request Changes",
+        "acknowledge": "I've Seen the Changes",
+        "state": {
+          "draft": "Developer's draft, not submitted yet.",
+          "submitted": "Submitted by the developer: to review. \"Publish\" below approves it with its units.",
+          "changes": "Changes requested, waiting for the developer.",
+          "live": "Live.",
+          "live_edited": "Live, with developer edits nobody has looked at yet."
+        },
+        "badge": {
+          "submitted": "To review",
+          "live_edited": "Edited",
+          "changes": "Changes"
+        },
+        "unitState": {
+          "pending": "pending",
+          "available": "available",
+          "reserved": "reserved",
+          "taken": "let/sold",
+          "withdrawn": "withdrawn"
         }
       }
     },
@@ -4386,7 +4735,19 @@
       "developerEyebrow": "Are You a Developer?",
       "developerTitle": "Launch Your Project on Lukka Place",
       "developerBody": "A dedicated page, enquiries on WhatsApp and in your dashboard, and real demand figures by commune.",
-      "developerCta": "Present my project"
+      "developerCta": "Present my project",
+      "countProjects": {
+        "one": "{count} project",
+        "other": "{count} projects"
+      },
+      "countUnits": {
+        "one": "{count} unit available",
+        "other": "{count} units available"
+      },
+      "countLots": {
+        "one": "{count} lot available",
+        "other": "{count} lots available"
+      }
     },
     "map": {
       "show": "Show map",
@@ -4440,7 +4801,13 @@
         "one": "{count} of {total} available",
         "other": "{count} of {total} available"
       },
-      "interested": "I’m interested"
+      "interested": "I’m interested",
+      "floorN": "floor {floor}",
+      "groundFloor": "ground floor",
+      "let": "Let",
+      "sold": "Sold",
+      "reserved": "Reserved",
+      "seeListing": "View"
     },
     "plan": {
       "title": "Payment Plan",
@@ -4462,7 +4829,11 @@
       "choose": "Choose a portion",
       "saving": "That is {amount} less per m² than the smallest portion.",
       "titleLine": "Title: {status}",
-      "interested": "I’m interested in {share}%"
+      "interested": "I’m interested in {share}%",
+      "blocked": "No longer available: only {left}% of the plot is left.",
+      "blockedShort": "No longer available",
+      "schematic": "Schematic — proportions only, not the plot's real shape.",
+      "takenShare": "{share}% taken"
     },
     "lots": {
       "planTitle": "Lot Plan",
@@ -4549,7 +4920,29 @@
       "projectPlaceholder": "Commune, number of units or lots, expected completion date…",
       "submit": "Send",
       "sentTitle": "Thank You, Noted",
-      "sentBody": "Our team will contact you on WhatsApp to prepare your project page."
+      "sentBody": "Our team will contact you on WhatsApp to prepare your project page.",
+      "selfServe": "Publish My Project Now"
+    },
+    "preview": {
+      "banner": "Preview — this project is not public yet. This is what buyers will see.",
+      "enquiryOff": "The contact form will appear here once the project is published."
+    },
+    "progress": {
+      "sold": "{percent}% sold",
+      "units": "{sold} of {total}"
+    },
+    "unitStrip": {
+      "partOf": "Part of",
+      "available": {
+        "one": "{count} unit available",
+        "other": "{count} units available"
+      },
+      "seeProject": "See the project →"
+    },
+    "home": {
+      "eyebrow": "New Homes",
+      "title": "New Projects",
+      "all": "All projects →"
     }
   }
 }

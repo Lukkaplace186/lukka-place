@@ -1067,6 +1067,10 @@ const UNLOCATED_IDS_MAX = 50;
 const MARKER_FIELDS = `
   p.id, p.price, p.purpose, p.price_period, p.beds, p.bath, p.quartier, p.listing_status,
   p.parent_building_id, p.building_name, p.verified_at,
+  p.development_id, p.unit_label, p.unit_floor,
+  (SELECT json_build_object('slug', d.slug, 'name', d.name, 'photo', d.photos[1])
+     FROM developments d
+    WHERE d.id = p.development_id AND d.status = 1 AND d.approve_status = 1) AS project,
   pc.title, pc.slug, pc.address,
   ${LAT_EXPR} AS lat, ${LNG_EXPR} AS lng,
   ${COMMUNE_SUBQUERY}
@@ -1165,6 +1169,12 @@ export async function getMapMarkers(options = {}, bounds = null) {
       listing_status: row.listing_status,
       parent_building_id: row.parent_building_id,
       building_name: row.building_name,
+      // A developer's unit (lib/projectUnits.js): at the building's own pin,
+      // never jittered — the building is publicly marketed at that address.
+      exact: row.development_id != null && !position.approximate,
+      unit_label: row.unit_label ?? null,
+      unit_floor: row.unit_floor ?? null,
+      project: row.project || null,
       // "Vérifié par Lukka Place" — a human confirmed the property, never
       // derived. Drawn as a small check in the map pill.
       verified: row.verified_at != null,
@@ -1282,7 +1292,9 @@ export async function getListingById(id) {
   // the cards don't show it, so the feed queries don't pay for the jsonb.
   const { rows } = await pool.query(
     `SELECT ${SELECT_FIELDS},
-       (to_jsonb(p) ->> 'availability_confirmed_at') AS availability_confirmed_at
+       (to_jsonb(p) ->> 'availability_confirmed_at') AS availability_confirmed_at,
+       (to_jsonb(p) ->> 'development_id') AS development_id,
+       (to_jsonb(p) ->> 'unit_label') AS unit_label
      ${FROM_JOINS}
      WHERE p.id = $1 AND ${APPROVED_FILTER}`,
     [numericId],

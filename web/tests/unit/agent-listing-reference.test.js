@@ -8,7 +8,7 @@ const read = (rel) => readFileSync(path.join(process.cwd(), rel), 'utf8');
 
 test('the agent form writes the listing reference on create and on edit', () => {
   const lib = read('lib/agentListings.js');
-  assert.match(lib, /quartier = null, reference = null \}\) \{/, 'createListing takes a reference');
+  assert.match(lib, /quartier = null, reference = null[,}]/, 'createListing takes a reference');
   assert.match(lib, /\s+reference,\s+price_period:/, 'and inserts it into properties');
   assert.match(lib, /reference = \$12/, 'updateListing writes it');
   const actions = read('app/compte/agent/actions.js');

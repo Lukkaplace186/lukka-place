@@ -20,8 +20,12 @@ let cached = { at: 0, value: null };
 
 const POSTGRES_QUEUES_SQL = `
   SELECT
-    (SELECT COUNT(*) FROM properties WHERE approve_status = 0)::int                      AS pending_listings,
-    (SELECT MIN(created_at) FROM properties WHERE approve_status = 0)                    AS oldest_pending_at,
+    (SELECT COUNT(*) FROM properties WHERE approve_status = 0 AND development_id IS NULL)::int AS pending_listings,
+    (SELECT MIN(created_at) FROM properties WHERE approve_status = 0 AND development_id IS NULL) AS oldest_pending_at,
+    (SELECT COUNT(*) FROM developments d
+      WHERE (d.approve_status = 0 AND d.submitted_at IS NOT NULL
+             AND (d.reviewed_at IS NULL OR d.reviewed_at < d.submitted_at))
+         OR (d.approve_status = 1 AND d.changes_pending))::int                           AS projects_to_review,
     (SELECT COUNT(*) FROM properties WHERE status = 0 AND approve_status = 1)::int       AS suspended_listings,
     (SELECT COUNT(*) FROM agents WHERE phone_verified_at IS NULL AND status = 1)::int    AS unverified_agents,
     (SELECT COUNT(*) FROM plan_change_requests WHERE status = 'pending')::int            AS pending_plan_requests,
@@ -42,6 +46,7 @@ export async function getWorkQueueCounts({ fresh = false } = {}) {
 
   const value = {
     pendingListings: p?.pending_listings ?? null,
+    projectsToReview: p?.projects_to_review ?? null,
     oldestPendingAt: p?.oldest_pending_at ?? null,
     suspendedListings: p?.suspended_listings ?? null,
     unverifiedAgents: p?.unverified_agents ?? null,

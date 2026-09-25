@@ -168,6 +168,42 @@ async function weeklyStats(agentIds) {
   return byAgent;
 }
 
+/**
+ * Mondays only: the developer's public off-plan projects with no dated
+ * construction photo for PROJECT_STALE_DAYS (or none since approval) — the
+ * public page starts warning buyers at 90 days (web developmentRules
+ * STALE_UPDATE_DAYS), so this asks a month earlier. A missing developments
+ * table (migration not run) is "no projects", never a failed digest.
+ */
+const PROJECT_STALE_DAYS = 60;
+
+async function staleProjects(agentIds) {
+  if (!agentIds.length) return new Map();
+  try {
+    const { rows } = await pg.getPool().query(
+      `SELECT d.agent_id, d.name
+         FROM developments d
+        WHERE d.agent_id = ANY($1::bigint[])
+          AND d.status = 1 AND d.approve_status = 1
+          AND d.kind = 'building' AND d.stage <> 'delivered'
+          AND COALESCE((SELECT MAX(u.taken_on) FROM development_updates u WHERE u.development_id = d.id)::timestamptz,
+                       d.approved_at, d.created_at) < NOW() - ($2 || ' days')::interval
+        ORDER BY d.name`,
+      [agentIds, String(PROJECT_STALE_DAYS)],
+    );
+    const byAgent = new Map();
+    for (const row of rows) {
+      const id = Number(row.agent_id);
+      byAgent.set(id, [...(byAgent.get(id) || []), row.name]);
+    }
+    return byAgent;
+  } catch (err) {
+    if (err.code === '42P01' || err.code === '42703') return new Map();
+    console.warn(`[digest] stale-project lookup failed, skipped: ${err.message}`);
+    return new Map();
+  }
+}
+
 function plural(n, one, many) {
   return `${n} ${n === 1 ? one : many}`;
 }
@@ -186,7 +222,7 @@ function kinshasaTime(iso) {
  * @param {{pendingVisits?: number, visitsToday?: string[], newRequests?: number}} counts
  * @param {{views: number, clicks: number, top: {title: string, views: number}|null}|null} weekly
  */
-function composeDigest(agent, counts = {}, weekly = null) {
+function composeDigest(agent, counts = {}, weekly = null, stale = []) {
   const lines = [];
   const pending = counts.pendingVisits || 0;
   const today = counts.visitsToday || [];
@@ -202,6 +238,9 @@ function composeDigest(agent, counts = {}, weekly = null) {
   if (requests) lines.push(`• ${plural(requests, 'nouvelle demande client', 'nouvelles demandes clients')} dans vos communes`);
   if (toConfirm) lines.push(`• ${plural(toConfirm, 'bien à confirmer', 'biens à confirmer')} (« toujours disponible ? »)`);
   if (inReview) lines.push(`• ${plural(inReview, 'annonce en cours de relecture', 'annonces en cours de relecture')} par notre équipe`);
+  for (const name of (stale || []).slice(0, 3)) {
+    lines.push(`• ${name} : aucune photo de chantier depuis ${PROJECT_STALE_DAYS} jours — ajoutez-en une pour rassurer les acheteurs`);
+  }
 
   const weeklyLines = [];
   if (weekly && weekly.views > 0) {
@@ -231,6 +270,7 @@ async function runAgentDigest({ now = new Date(), send = chakra.sendWhatsAppMess
   const agents = await loadAgents();
   const counts = engineCounts(now);
   const weekly = weeklyDay ? await weeklyStats(agents.map((a) => Number(a.id))) : new Map();
+  const stale = weeklyDay ? await staleProjects(agents.map((a) => Number(a.id))) : new Map();
   const optedOut = new Set(db.prepare('SELECT phone FROM agent_digest_optouts').all().map((r) => r.phone));
   const claim = db.prepare('INSERT OR IGNORE INTO agent_digest_sends (agent_id, day, weekly) VALUES (?, ?, ?)');
   const settle = db.prepare('UPDATE agent_digest_sends SET status = ?, error = ? WHERE agent_id = ? AND day = ?');
@@ -242,7 +282,7 @@ async function runAgentDigest({ now = new Date(), send = chakra.sendWhatsAppMess
     const id = Number(agent.id);
     const phone = digits(agent.phone);
     if (!phone || optedOut.has(phone)) continue;
-    const message = composeDigest(agent, counts.get(id), weekly.get(id) || null);
+    const message = composeDigest(agent, counts.get(id), weekly.get(id) || null, stale.get(id) || []);
     if (!message) {
       quiet += 1;
       continue;

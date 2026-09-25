@@ -22,7 +22,7 @@ const { getPool, isConfigured } = require('./postgres');
 const SITE_URL = (process.env.PUBLIC_SITE_URL || 'https://lukkaplace.com').replace(/\/+$/, '');
 const UPGRADE_URL = `${SITE_URL}/compte/agent/abonnement`;
 
-const QUOTA_COUNTED_SQL = "p.status = 1 AND p.approve_status IN (0, 1) AND COALESCE(p.listing_status, 'active') <> 'closed'";
+const QUOTA_COUNTED_SQL = "p.status = 1 AND p.approve_status IN (0, 1) AND COALESCE(p.listing_status, 'active') <> 'closed' AND p.development_id IS NULL";
 
 const SENDER_QUOTA_SQL = `
   SELECT a.id, a.vendor_id, q.listing_limit, q.plan_title,

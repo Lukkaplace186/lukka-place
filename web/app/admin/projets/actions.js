@@ -8,7 +8,7 @@ import { getLocationHierarchyWithFallback } from '@/lib/locations';
 import { KINSHASA_COMMUNE_CENTROIDS } from '@/lib/geocoding';
 import { uploadProjectImage } from '@/lib/listingStorage';
 import {
-  addProjectImages, addProjectUpdate, createProject, deleteLot, deleteProject, deleteProjectUpdate,
+  acknowledgeProjectChanges, addProjectImages, addProjectUpdate, createProject, requestProjectChanges, deleteLot, deleteProject, deleteProjectUpdate,
   deleteUnitType, getProjectForAdmin, removeProjectImage, saveLot, saveUnitType, setProjectPlanImage,
   setProjectPublished, setProjectVerified, updateProject,
 } from '@/lib/developments';
@@ -16,6 +16,8 @@ import {
   publishBlockers, validateDevelopmentInput, validateLotInput, validateUnitTypeInput,
 } from '@/lib/developmentRules';
 import { HERO_MAX_UPLOAD_BYTES, HERO_UPLOAD_TYPES } from '@/lib/cmsHeroRules';
+import { sendWhatsAppMessage } from '@/lib/adminApi';
+import { forget } from '@/lib/memo';
 
 /**
  * /admin/projets writes. Plain form posts that redirect back with
@@ -52,7 +54,11 @@ async function communeAllowList() {
 }
 
 function revalidateProject(project) {
+  forget('projects:');
   revalidatePath('/projets');
+  revalidatePath('/listings');
+  revalidatePath('/compte/agent/projets');
+  if (project?.id) revalidatePath(`/compte/agent/projets/${project.id}/modifier`);
   if (project?.slug) revalidatePath(`/projets/${project.slug}`);
   if (project?.agent_id) revalidatePath(`/agents/${project.agent_id}`);
 }
@@ -98,9 +104,17 @@ export async function setPublishedAction(id, publish) {
     const blockers = publishBlockers(project);
     if (blockers.length) redirect(back(id, { error: `publish_${blockers[0]}` }));
   }
-  await setProjectPublished(id, publish);
+  await setProjectPublished(id, publish, { moderatorId: session.id || null });
   await recordAudit(session, { action: publish ? 'projects.publish' : 'projects.unpublish', entityType: 'project', entityId: id });
   revalidateProject(project);
+  if (publish && project.approve_status !== 1) {
+    await tellDeveloper(project, [
+      `🎉 Votre projet « ${project.name} » est en ligne sur Lukka Place.`,
+      `https://lukkaplace.com/projets/${project.slug}`,
+      '',
+      'Gardez-le vivant : ajoutez une photo du chantier chaque mois et mettez à jour les unités vendues depuis votre tableau de bord.',
+    ].join('\n'));
+  }
   redirect(back(id, { saved: publish ? 'published' : 'unpublished' }));
 }
 
@@ -246,4 +260,53 @@ export async function deleteUpdateAction(id, updateId) {
   await recordAudit(session, { action: 'projects.update.delete', entityType: 'project', entityId: id, details: { updateId } });
   revalidateProject(await getProjectForAdmin(id));
   redirect(`${back(id, { saved: 'timeline' })}#chantier`);
+}
+
+/**
+ * WhatsApp to the project's developer — only a verified, routing-enabled
+ * number (agent_phone is NULL otherwise, in SQL: lib/developments.js
+ * DEVELOPER_FIELDS). A session message: it reaches them only inside the 24h
+ * window, so the dashboard banner is the record and this is the courtesy.
+ */
+async function tellDeveloper(project, message) {
+  const phone = String(project.agent_phone || '').replace(/\D/g, '');
+  if (!phone) return false;
+  try {
+    await sendWhatsAppMessage(phone, message);
+    return true;
+  } catch (err) {
+    console.error(`[admin/projets/${project.id}] developer message failed: ${err.message}`);
+    return false;
+  }
+}
+
+/** Send the draft back with what to fix. The note shows in the developer's wizard. */
+export async function requestChangesAction(id, formData) {
+  const session = await requireAdmin('projects.manage');
+  const project = await getProjectForAdmin(id);
+  if (!project) redirect('/admin/projets');
+  const note = String(formData.get('note') || '').trim().slice(0, 1000);
+  if (note.length < 10) redirect(back(id, { error: 'reviewNote' }));
+  await requestProjectChanges(id, { note, by: actorLabel(session).slice(0, 120) });
+  await recordAudit(session, { action: 'projects.requestChanges', entityType: 'project', entityId: id, details: { length: note.length } });
+  await tellDeveloper(project, [
+    `Lukka Place — votre projet « ${project.name} » : quelques corrections avant publication.`,
+    '',
+    note,
+    '',
+    `https://lukkaplace.com/compte/agent/projets/${project.id}/modifier?step=apercu`,
+  ].join('\n'));
+  revalidateProject(project);
+  redirect(back(id, { saved: 'changesRequested' }));
+}
+
+/** The team has looked at a live project's edits (and approves units added since). */
+export async function acknowledgeChangesAction(id) {
+  const session = await requireAdmin('projects.manage');
+  const project = await getProjectForAdmin(id);
+  if (!project) redirect('/admin/projets');
+  await acknowledgeProjectChanges(id, { moderatorId: session.id || null });
+  await recordAudit(session, { action: 'projects.acknowledge', entityType: 'project', entityId: id });
+  revalidateProject(project);
+  redirect(back(id, { saved: 'acknowledged' }));
 }

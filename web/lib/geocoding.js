@@ -344,15 +344,21 @@ export async function resolveListingBase({ listing, geocoder }) {
 export function placeResolvedListings(entries) {
   const groups = new Map();
 
+  const placed = new Map();
+
   for (const entry of entries ?? []) {
     const base = entry?.base;
     if (!base || !Number.isFinite(base.lat) || !Number.isFinite(base.lng)) continue;
+    // An exact point (a developer's building, publicly marketed at that
+    // address) is plotted where it is: no privacy jitter, no ring.
+    if (base.exact) {
+      placed.set(entry.id, { lat: base.lat, lng: base.lng, source: base.source, precise: true, colocated: false, groupSize: 1 });
+      continue;
+    }
     const key = colocationKey(base);
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(entry);
   }
-
-  const placed = new Map();
 
   for (const [key, group] of groups) {
     // Sorted by id, not by arrival order: `listings` order changes with the

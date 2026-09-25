@@ -579,3 +579,19 @@ export async function getDemandReport({ days = 90, limit = 40 } = {}) {
   const params = new URLSearchParams({ days: String(days), limit: String(limit) });
   return engineFetch(`/admin/demand-report?${params}`);
 }
+
+/**
+ * A heads-up to Lukka Place's desk (engine POST /admin/ops-notify →
+ * OPS_WHATSAPP_NUMBER). Never throws: the record is elsewhere (the review
+ * queue), this is a courtesy that may reach nobody when the number is unset.
+ * @returns {Promise<boolean>} whether the engine accepted a send
+ */
+export async function notifyOps(message) {
+  try {
+    const result = await engineFetch('/admin/ops-notify', { method: 'POST', body: JSON.stringify({ message }) });
+    return Boolean(result?.sent);
+  } catch (err) {
+    console.error(`[adminApi] ops-notify failed: ${err.message}`);
+    return false;
+  }
+}

@@ -73,6 +73,8 @@ const CANDIDATES_SQL = `
     JOIN trusted t ON t.id = p.agent_id
     JOIN property_contents pc ON pc.property_id = p.id AND pc.language_id = 20
    WHERE p.status = 1 AND p.approve_status = 0
+     -- A developer's unit is approved with its project (web /admin/projets), never on its own.
+     AND p.development_id IS NULL
      AND p.created_at < NOW() - ($4 || ' minutes')::interval
      AND p.price > 0
      AND COALESCE(pc.title, '') <> '' AND COALESCE(pc.description, '') <> ''

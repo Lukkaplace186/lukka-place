@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { BadgeCheck, Plus } from 'lucide-react';
 import { listProjectsForAdmin } from '@/lib/developments';
-import { STAGE_LABEL_KEYS } from '@/lib/developmentRules';
+import { STAGE_LABEL_KEYS, projectReviewState } from '@/lib/developmentRules';
 import { dayLabel } from '@/lib/projectView';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { getT } from '@/lib/i18n/server';
@@ -22,7 +22,13 @@ function formatDate(value) {
 export default async function AdminProjectsPage({ searchParams }) {
   const t = await getT();
   const sp = await searchParams;
-  const { projects, missing } = await listProjectsForAdmin();
+  const { projects: all, missing } = await listProjectsForAdmin();
+  // The review queue first — a developer's submission (oldest first), then a
+  // live project with edits nobody has looked at — then everything else.
+  const rank = (p) => ({ submitted: 0, live_edited: 1 }[projectReviewState(p)] ?? 2);
+  const projects = [...all].sort((a, b) => rank(a) - rank(b)
+    || (rank(a) === 0 ? new Date(a.submitted_at) - new Date(b.submitted_at) : 0));
+  const queue = projects.filter((p) => rank(p) < 2).length;
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
@@ -37,6 +43,7 @@ export default async function AdminProjectsPage({ searchParams }) {
         </Link>
       </div>
 
+      {queue ? <p className="rounded-lg bg-blue-tint px-4 py-2 text-sm font-semibold text-blue-deep">{t('admin.projects.review.queue', { count: queue })}</p> : null}
       {sp.saved === 'deleted' ? <p className="rounded-lg bg-success-tint px-4 py-2 text-sm text-success">{t('admin.projects.saved.deleted')}</p> : null}
       {missing ? <p className="rounded-lg bg-warning-tint px-4 py-2 text-sm text-ink">{t('admin.projects.migrationMissing')}</p> : null}
 
@@ -75,6 +82,9 @@ export default async function AdminProjectsPage({ searchParams }) {
                   </td>
                   <td className="px-4 py-3 text-ink-70">{formatDate(p.last_update_on)}</td>
                   <td className="px-4 py-3">
+                    {['submitted', 'live_edited', 'changes'].includes(projectReviewState(p)) ? (
+                      <span className="mr-1 rounded-full bg-blue-tint px-2.5 py-0.5 text-[0.75rem] font-semibold text-blue-deep">{t(`admin.projects.review.badge.${projectReviewState(p)}`)}</span>
+                    ) : null}
                     {p.approve_status === 1 && p.status === 1 ? (
                       <span className="rounded-full bg-success-tint px-2.5 py-0.5 text-[0.75rem] font-semibold text-success">{t('admin.projects.status.published')}</span>
                     ) : (

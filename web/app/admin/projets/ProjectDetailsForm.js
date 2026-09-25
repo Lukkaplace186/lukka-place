@@ -94,6 +94,12 @@ export default async function ProjectDetailsForm({ action, project = null, submi
 
       <fieldset className="grid gap-4 rounded-lg border border-line p-4 sm:grid-cols-2">
         <legend className="px-1 u-micro-strong text-ink">{t('admin.projects.form.landLegend')}</legend>
+        <Field label={t('agent.projects.wizard.etat.landMode')}>
+          <select name="land_mode" defaultValue={project?.land_mode || 'lots'} className={INPUT}>
+            <option value="portions">{t('agent.projects.wizard.types.portions.title')}</option>
+            <option value="lots">{t('agent.projects.wizard.types.lots.title')}</option>
+          </select>
+        </Field>
         <Field label={t('admin.projects.form.landArea')}>
           <input name="land_area_m2" inputMode="decimal" defaultValue={project?.land_area_m2 ?? ''} className={INPUT} />
         </Field>

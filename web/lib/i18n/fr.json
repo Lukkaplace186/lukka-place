@@ -560,7 +560,11 @@
       "show": "Afficher la carte",
       "showHint": "La carte se charge à la demande pour économiser vos données mobiles.",
       "cardsLabel": "Biens de la zone",
-      "sheetShow": "Liste"
+      "sheetShow": "Liste",
+      "projectsHere": {
+        "one": "{count} projet neuf ici",
+        "other": "{count} projets neufs ici"
+      }
     },
     "alertModal": {
       "intro": "Vous serez alerté des nouveaux biens correspondant à :",
@@ -1561,7 +1565,304 @@
       "saved": "Enregistré.",
       "error": "Cette valeur n’a pas pu être enregistrée.",
       "viewPublic": "Voir la page",
-      "teamEdits": "Pour modifier les prix, les photos ou le chantier, écrivez à l’équipe Lukka Place."
+      "teamEdits": "Pour modifier les prix, les photos ou le chantier, écrivez à l’équipe Lukka Place.",
+      "wizard": {
+        "newTitle": "Publier un projet",
+        "editTitle": "Mon projet",
+        "newIntro": "Un immeuble neuf ou sur plan, un terrain vendu en portions, un lotissement : mettez-le en ligne vous-même. On vous guide écran par écran, et tout est enregistré au fur et à mesure.",
+        "promise": {
+          "time": "Environ 10 minutes",
+          "review": "Relu par notre équipe avant publication",
+          "free": "Gratuit pendant le lancement"
+        },
+        "unverifiedTitle": "Vérifiez d’abord votre numéro WhatsApp",
+        "unverifiedBody": "Un projet porte votre nom en public : il faut un numéro vérifié pour le publier.",
+        "unverifiedLink": "Vérifier mon numéro",
+        "typeLegend": "Qu’est-ce que vous vendez ?",
+        "types": {
+          "building": {
+            "title": "Immeuble / résidence",
+            "body": "Appartements ou maisons dans un même projet, sur plan, en construction ou livrés."
+          },
+          "portions": {
+            "title": "Terrain en portions",
+            "body": "Un même terrain vendu en parts : 30 %, 50 % ou 100 %."
+          },
+          "lots": {
+            "title": "Lotissement",
+            "body": "Un site découpé en lots numérotés, avec ou sans plan."
+          }
+        },
+        "nameLabel": "Nom du projet",
+        "namePlaceholder": "Résidence Les Palmiers",
+        "start": "Commencer",
+        "backToList": "Mes projets",
+        "stepsLabel": "Étapes",
+        "steps": {
+          "etat": "Le projet",
+          "lieu": "Lieu",
+          "medias": "Photos",
+          "offre": "L’offre",
+          "paiement": "Paiement",
+          "apercu": "Aperçu"
+        },
+        "state": {
+          "draft": "Brouillon",
+          "submitted": "En cours de vérification",
+          "changes": "Corrections demandées",
+          "live": "En ligne",
+          "live_edited": "En ligne · modifications en revue"
+        },
+        "save": "Enregistrer",
+        "saveNext": "Enregistrer et continuer",
+        "next": "Continuer",
+        "skip": "Passer cette étape",
+        "cancel": "Annuler",
+        "optional": "facultatif",
+        "complete": "Compléter",
+        "continue": "Continuer",
+        "edit": "Modifier",
+        "toFinish": {
+          "one": "{count} étape à compléter",
+          "other": "{count} étapes à compléter"
+        },
+        "addUpdate": "Ajouter une photo du chantier",
+        "emptyTitle": "Mettez votre premier projet en ligne",
+        "emptyBody": "Un immeuble, une résidence, un terrain en portions ou un lotissement : publiez-le vous-même en quelques minutes, notre équipe le relit avant publication.",
+        "sessionExpired": "Votre session a expiré. Rechargez la page et reconnectez-vous.",
+        "uploadFailed": "L’envoi a échoué. Réessayez.",
+        "noFile": "Choisissez au moins une image.",
+        "upload": {
+          "optimising": "Préparation des photos…",
+          "sending": "Envoi…",
+          "done": "C’est enregistré.",
+          "offline": "Pas de connexion. Réessayez quand vous êtes en ligne.",
+          "tooLarge": "Ces images sont trop lourdes. Envoyez-en moins à la fois."
+        },
+        "errors": {
+          "generic": "L’enregistrement a échoué. Réessayez.",
+          "unverified": "Vérifiez votre numéro WhatsApp avant de publier un projet.",
+          "kind": "Choisissez ce que vous vendez.",
+          "notFound": "Ce projet est introuvable.",
+          "pinFar": "Le point sur la carte est loin de la commune choisie. Vérifiez la commune ou déplacez le point.",
+          "typeHasUnits": "Ce type a des unités en ligne : clôturez-les ou supprimez-les d’abord.",
+          "pasteEmpty": "Aucune ligne valide à importer.",
+          "tooManyUnits": "Trop d’unités en une fois (120 au plus). Créez-les en plusieurs fois.",
+          "unitsExist": "Ces unités existent déjà.",
+          "unitLive": "Cette unité a déjà été publiée : gérez-la depuis Mes biens (louée, vendue ou archivée).",
+          "lotsExist": "Ces lots existent déjà.",
+          "deleteConfirm": "Tapez SUPPRIMER pour confirmer.",
+          "deleteLive": "Un projet déjà publié ne peut pas être supprimé ici. Contactez-nous.",
+          "units_notBuilding": "Les unités individuelles concernent un immeuble.",
+          "units_notReady": "Cochez d’abord « Disponible maintenant » sur ce type.",
+          "units_requiresPhoto": "Ajoutez au moins une vraie photo du bâtiment : les annonces des unités l’utilisent (jamais une image d’architecte).",
+          "units_requiresCommune": "Indiquez d’abord la commune (étape Lieu).",
+          "publish_media": "Ajoutez au moins une photo ou une image d’illustration.",
+          "publish_commune": "Indiquez la commune.",
+          "publish_units": "Ajoutez au moins un type de logement.",
+          "publish_lots": "Ajoutez au moins un lot ou une portion."
+        },
+        "saved": {
+          "etat": "Enregistré.",
+          "lieu": "Enregistré.",
+          "video": "Enregistré.",
+          "paiement": "Enregistré.",
+          "media": "Image retirée.",
+          "units": "Enregistré.",
+          "lots": "Enregistré.",
+          "imported": {
+            "one": "{count} ligne importée ({skipped} ignorée).",
+            "other": "{count} lignes importées ({skipped} ignorées)."
+          },
+          "unitsCreated": {
+            "one": "{count} unité créée. Elle sera en ligne avec le projet, après notre revue.",
+            "other": "{count} unités créées. Elles seront en ligne avec le projet, après notre revue."
+          },
+          "unitDeleted": "Unité supprimée.",
+          "lotsCreated": {
+            "one": "{count} lot ajouté.",
+            "other": "{count} lots ajoutés."
+          },
+          "submitted": "Envoyé ! Notre équipe vérifie votre projet, en général sous 24 h ouvrées.",
+          "deleted": "Brouillon supprimé."
+        },
+        "etat": {
+          "title": "Le projet",
+          "introBuilding": "Où en est le chantier, quand il sera livré, et ce qu’un acheteur doit savoir.",
+          "introLand": "Le terrain, son titre, et comment il est vendu.",
+          "stage": "Étape",
+          "stageHint": "Sur plan : pas encore commencé. En construction : le chantier avance. Livré : on peut emménager.",
+          "delivery": "Livraison prévue",
+          "deliveryHint": "Mois et année. Laissez vide si vous ne savez pas.",
+          "purpose": "Vente ou location",
+          "landMode": "Comment le terrain est vendu",
+          "landArea": "Surface totale (m²)",
+          "landAreaHint": "Sert à calculer la surface et le prix au m² de chaque portion.",
+          "titleHint": "Dites-le tel quel : les acheteurs le demandent en premier.",
+          "description": "Description",
+          "descriptionHint": "Ce que vous diriez à un acheteur : matériaux, sécurité, eau, électricité, accès.",
+          "amenitiesExample": "Groupe électrogène, forage, parking, gardiennage"
+        },
+        "lieu": {
+          "title": "Lieu",
+          "intro": "La commune vient de la liste officielle. L’adresse aide les visiteurs à trouver le site.",
+          "address": "Adresse ou référence",
+          "addressHint": "Avenue, numéro, repère connu (« près du rond-point Victoire »).",
+          "pinTitle": "Le point sur la carte",
+          "pinIntro": "Déplacez la carte pour placer le point sur le terrain, ou utilisez votre position si vous êtes sur le chantier. Facultatif, mais un projet bien placé est plus visible.",
+          "mapLoading": "Chargement de la carte…",
+          "dragHint": "Déplacez la carte sous le point",
+          "manualHint": "La carte n’a pas pu se charger. Utilisez votre position ou tapez les coordonnées.",
+          "locate": "Je suis sur le chantier",
+          "locating": "Localisation…",
+          "locateUnavailable": "Votre téléphone ne donne pas sa position.",
+          "locateRefused": "Position refusée. Autorisez la localisation ou déplacez la carte.",
+          "clearPin": "Retirer le point",
+          "noPin": "Aucun point : le projet sera placé au centre de la commune, indiqué comme approximatif."
+        },
+        "medias": {
+          "photosTitle": "Photos réelles du site ou du chantier",
+          "photosIntro": "Ce qu’un visiteur verrait aujourd’hui. La première photo est la couverture.",
+          "photosHint": "Les photos sont allégées sur votre téléphone avant l’envoi.",
+          "addPhotos": "Ajouter des photos",
+          "rendersTitle": "Images d’architecte (rendus 3D)",
+          "rendersIntro": "Toujours affichées avec la mention « Image d’illustration », jamais mêlées aux photos réelles.",
+          "addRenders": "Ajouter des images d’architecte",
+          "videoTitle": "Vidéo (facultatif)",
+          "cover": "Couverture"
+        },
+        "offre": {
+          "buildingTitle": "Les types de logements",
+          "buildingIntro": "Une carte par type (T2, T3, villa…). Cochez « Disponible maintenant » quand des unités sont prêtes : chacune devient une vraie annonce sur la carte, sous un seul point pour tout l’immeuble.",
+          "noTypes": "Aucun type pour l’instant. Ajoutez-en un ci-dessous ou collez votre grille depuis Excel."
+        },
+        "units": {
+          "labelExample": "T3 — 3 chambres",
+          "category": "Type de bien",
+          "categoryDefault": "Appartement (par défaut)",
+          "readyNow": "Disponible maintenant",
+          "readyNowHint": "Des unités sont prêtes à louer ou à vendre : créez-les une par une (Apt 1A, 1B…). Chacune aura sa propre annonce et son prix.",
+          "newIntro": "Laissez vide ce que vous ne savez pas : rien n’est affiché plutôt qu’un zéro.",
+          "edit": "Modifier ce type",
+          "availableShort": {
+            "zero": "complet",
+            "one": "{count} disponible",
+            "other": "{count} disponibles"
+          },
+          "counted": "compté depuis les annonces",
+          "listTitle": {
+            "zero": "Unités (aucune pour l’instant)",
+            "one": "Unités ({count})",
+            "other": "Unités ({count})"
+          },
+          "listIntro": "Chaque unité est une annonce. Une fois en ligne, gérez-la depuis Mes biens (prix, louée, vendue) : le nombre disponible se met à jour tout seul.",
+          "floor": "Étage",
+          "floorN": "étage {floor}",
+          "groundFloor": "RDC",
+          "state": {
+            "pending": "En attente",
+            "available": "En ligne",
+            "reserved": "Réservée",
+            "taken": "Louée/vendue ✓",
+            "withdrawn": "Retirée"
+          },
+          "deleteUnit": "Supprimer cette unité",
+          "manage": "Gérer",
+          "goPhotos": "Ajouter des photos",
+          "generatorTitle": "Créer les unités d’un coup",
+          "fromFloor": "Du niveau",
+          "toFloor": "Au niveau",
+          "groundHint": "0 = rez-de-chaussée",
+          "perFloor": "Par niveau",
+          "naming": "Numérotation",
+          "prefix": "Préfixe",
+          "price": "Prix de chaque unité ($)",
+          "priceHint": "Modifiable ensuite unité par unité.",
+          "generate": "Créer les unités"
+        },
+        "portions": {
+          "title": "Les portions du terrain",
+          "intro": "Une ligne par portion proposée. La surface et le prix au m² sont calculés à partir de la surface totale.",
+          "needArea": "Indiquez d’abord la surface totale du terrain (étape « Le projet ») pour voir la surface et le prix au m² de chaque portion.",
+          "parcel": "Terrain de {area} m².",
+          "taken": "{share} % déjà vendu ou réservé : il reste {left} %.",
+          "presets": "Parts courantes",
+          "noArea": "surface inconnue",
+          "add": "Ajouter la portion",
+          "new": "Nouvelle portion",
+          "blocked": "Plus possible",
+          "priceWarning": "Cette portion est plus chère au m² qu’une portion plus petite. C’est voulu ?"
+        },
+        "lots": {
+          "title": "Les lots",
+          "intro": "Générez vos lots d’un coup, puis corrigez-les un par un.",
+          "planIntro": "Une photo ou un scan du plan de lotissement. Les lots peuvent y être tracés pour que les acheteurs les touchent sur le plan.",
+          "planHint": "Tracer les lots est facultatif : sans tracé, le plan est montré à côté du tableau des lots.",
+          "traceByTeam": "Lukka Place trace le plan pour moi (gratuit)",
+          "tracedCount": "{traced} lot(s) tracé(s) sur {total}.",
+          "generatorTitle": "Générer des lots",
+          "count": "Nombre de lots",
+          "start": "Premier numéro",
+          "prefix": "Préfixe",
+          "generate": "Générer"
+        },
+        "paste": {
+          "open": {
+            "unitTypes": "Coller depuis Excel",
+            "units": "Coller une liste d’unités",
+            "lots": "Coller depuis Excel"
+          },
+          "intro": "Copiez les cellules dans votre tableur et collez-les ici. Chaque ligne est vérifiée avant l’import ; les lignes en rouge seront ignorées.",
+          "placeholder": {
+            "unitTypes": "T2\t2\t1\t65\t45000\t52000\t12\t5",
+            "units": "Apt 1A\t1\t48000",
+            "lots": "Lot 1\t300\t12000"
+          },
+          "columns": {
+            "label": "Nom"
+          },
+          "headerSkipped": "La première ligne ressemble à des titres de colonnes : elle est ignorée.",
+          "truncated": "300 lignes au plus par import.",
+          "submit": "Importer {count} ligne(s)"
+        },
+        "paiement": {
+          "title": "Calendrier de paiement",
+          "intro": "Comment l’acheteur paie. Le total doit faire exactement 100 %, sinon le calendrier n’est pas affiché.",
+          "addRow": "Ajouter une échéance",
+          "totalOk": "Total : 100 % ✓",
+          "totalMissing": "Total : {total} % — il manque {missing} %",
+          "preset": {
+            "booking": "À la réservation",
+            "signature": "À la signature",
+            "foundations": "Fondations",
+            "structure": "Gros œuvre",
+            "finishing": "Finitions",
+            "keys": "À la remise des clés"
+          }
+        },
+        "apercu": {
+          "checkTitle": "Où en est votre projet",
+          "preview": "Voir l’aperçu",
+          "submitTitle": "Envoyer à Lukka Place",
+          "submitIntro": "Notre équipe relit chaque projet avant publication, en général sous 24 h ouvrées. Vous serez prévenu sur WhatsApp.",
+          "submit": "Soumettre à Lukka Place",
+          "resubmit": "Renvoyer après corrections",
+          "submittedTitle": "En cours de vérification",
+          "submittedIntro": "Merci ! Notre équipe vérifie votre projet. Vous serez prévenu sur WhatsApp dès qu’il est en ligne.",
+          "submittedEdit": "Vous pouvez encore modifier votre projet pendant la vérification.",
+          "liveTitle": "Votre projet est en ligne 🎉",
+          "liveIntro": "Gardez-le vivant : une photo du chantier chaque mois, et les unités vendues à jour.",
+          "liveEdited": "Vos dernières modifications sont en ligne ; notre équipe les regarde.",
+          "updatesTitle": "Photos du chantier",
+          "updatesIntro": "Datées et publiées sur la page du projet. Sans nouvelle photo depuis 90 jours, la page le signale aux acheteurs.",
+          "updateDone": "Mise à jour publiée.",
+          "deleteTitle": "Supprimer ce brouillon",
+          "deleteIntro": "Le brouillon et tout son contenu seront supprimés. Tapez SUPPRIMER pour confirmer.",
+          "deleteConfirm": "Confirmation",
+          "deleteButton": "Supprimer"
+        },
+        "changesIntro": "Notre équipe demande quelques corrections ({date}) :"
+      }
     }
   },
   "status": {
@@ -3855,7 +4156,9 @@
         "units": "Types de logements mis à jour.",
         "lots": "Lots mis à jour.",
         "timeline": "Chantier mis à jour.",
-        "deleted": "Projet supprimé."
+        "deleted": "Projet supprimé.",
+        "changesRequested": "Demande de corrections envoyée au promoteur.",
+        "acknowledged": "Modifications vues ; les nouvelles unités sont en ligne."
       },
       "errors": {
         "generic": "L’enregistrement a échoué.",
@@ -3882,7 +4185,11 @@
         "publish_media": "Ajoutez au moins une photo ou une image d’illustration.",
         "publish_commune": "Indiquez la commune.",
         "publish_units": "Ajoutez au moins un type de logement.",
-        "publish_lots": "Ajoutez au moins un lot ou une portion."
+        "publish_lots": "Ajoutez au moins un lot ou une portion.",
+        "pasteNumber": "Un nombre n’a pas pu être lu.",
+        "floor": "L’étage doit être un nombre entre 0 et 99.",
+        "unitPrice": "Indiquez le prix de l’unité (ou un prix « dès » sur le type).",
+        "reviewNote": "Écrivez ce qu’il faut corriger (10 caractères au moins)."
       },
       "form": {
         "name": "Nom du projet",
@@ -3984,6 +4291,48 @@
           "zero": "aucune photo",
           "one": "{count} photo",
           "other": "{count} photos"
+        }
+      },
+      "review": {
+        "title": "Revue du projet",
+        "queue": {
+          "one": "{count} projet attend votre revue.",
+          "other": "{count} projets attendent votre revue."
+        },
+        "submittedOn": "Soumis par le promoteur le {date}.",
+        "traceByTeam": "Le promoteur demande que l’équipe trace le plan des lots.",
+        "pendingUnits": {
+          "one": "{count} unité (annonce) sera publiée avec le projet.",
+          "other": "{count} unités (annonces) seront publiées avec le projet."
+        },
+        "check": {
+          "identity": "Le promoteur est bien celui qu’il dit être (compte vérifié, agence).",
+          "photos": "Les photos réelles montrent bien ce site.",
+          "renders": "Les images d’architecte ne sont pas dans les photos réelles.",
+          "deed": "Le titre foncier ou le permis a été vu."
+        },
+        "lastNote": "Dernière demande :",
+        "notePlaceholder": "Ce qu’il faut corriger avant publication…",
+        "requestChanges": "Demander des corrections",
+        "acknowledge": "J’ai vu les modifications",
+        "state": {
+          "draft": "Brouillon du promoteur, pas encore soumis.",
+          "submitted": "Soumis par le promoteur : à valider. « Publier » ci-dessous l’approuve avec ses unités.",
+          "changes": "Corrections demandées, en attente du promoteur.",
+          "live": "En ligne.",
+          "live_edited": "En ligne, avec des modifications du promoteur que personne n’a encore vues."
+        },
+        "badge": {
+          "submitted": "À valider",
+          "live_edited": "Modifié",
+          "changes": "Corrections"
+        },
+        "unitState": {
+          "pending": "en attente",
+          "available": "disponible",
+          "reserved": "réservé",
+          "taken": "loué/vendu",
+          "withdrawn": "retiré"
         }
       }
     },
@@ -4386,7 +4735,19 @@
       "developerEyebrow": "Vous êtes promoteur ?",
       "developerTitle": "Lancez votre projet sur Lukka Place",
       "developerBody": "Une page dédiée, vos demandes sur WhatsApp et dans votre tableau de bord, et les chiffres de la demande réelle par commune.",
-      "developerCta": "Présenter mon projet"
+      "developerCta": "Présenter mon projet",
+      "countProjects": {
+        "one": "{count} projet",
+        "other": "{count} projets"
+      },
+      "countUnits": {
+        "one": "{count} unité disponible",
+        "other": "{count} unités disponibles"
+      },
+      "countLots": {
+        "one": "{count} lot disponible",
+        "other": "{count} lots disponibles"
+      }
     },
     "map": {
       "show": "Afficher la carte",
@@ -4440,7 +4801,13 @@
         "one": "{count} disponible sur {total}",
         "other": "{count} disponibles sur {total}"
       },
-      "interested": "Je suis intéressé(e)"
+      "interested": "Je suis intéressé(e)",
+      "floorN": "étage {floor}",
+      "groundFloor": "rez-de-chaussée",
+      "let": "Loué",
+      "sold": "Vendu",
+      "reserved": "Réservé",
+      "seeListing": "Voir"
     },
     "plan": {
       "title": "Calendrier de paiement",
@@ -4462,7 +4829,11 @@
       "choose": "Choisir une portion",
       "saving": "Soit {amount} de moins par m² que la plus petite portion.",
       "titleLine": "Titre : {status}",
-      "interested": "Je suis intéressé(e) par {share} %"
+      "interested": "Je suis intéressé(e) par {share} %",
+      "blocked": "Plus disponible : il ne reste que {left} % du terrain.",
+      "blockedShort": "Plus disponible",
+      "schematic": "Schéma indicatif — proportions seulement, pas la forme réelle du terrain.",
+      "takenShare": "{share} % pris"
     },
     "lots": {
       "planTitle": "Plan des lots",
@@ -4549,7 +4920,29 @@
       "projectPlaceholder": "Commune, nombre de logements ou de lots, date de livraison prévue…",
       "submit": "Envoyer",
       "sentTitle": "Merci, c’est noté",
-      "sentBody": "Notre équipe vous contacte sur WhatsApp pour préparer la page de votre projet."
+      "sentBody": "Notre équipe vous contacte sur WhatsApp pour préparer la page de votre projet.",
+      "selfServe": "Publier mon projet maintenant"
+    },
+    "preview": {
+      "banner": "Aperçu — ce projet n’est pas encore public. Voici ce que verront les acheteurs.",
+      "enquiryOff": "Le formulaire de contact apparaîtra ici une fois le projet publié."
+    },
+    "progress": {
+      "sold": "{percent} % vendu",
+      "units": "{sold} sur {total}"
+    },
+    "unitStrip": {
+      "partOf": "Fait partie de",
+      "available": {
+        "one": "{count} unité disponible",
+        "other": "{count} unités disponibles"
+      },
+      "seeProject": "Voir le projet →"
+    },
+    "home": {
+      "eyebrow": "Neuf",
+      "title": "Nouveaux projets",
+      "all": "Tous les projets →"
     }
   }
 }

@@ -2038,3 +2038,70 @@ sold in lots or portions. Engine migration `migrations/20260924_developments.sql
 - **`/admin/demande`**: engine `GET /admin/demand-report` (distinct customers
   per commune × rent/buy × bedrooms × budget band) against live supply
   (`lib/demandRules.js`), printable — the report to take to a developer.
+
+## Developers publish their own projects (2026-09-25)
+
+Engine migration `migrations/20260925_developer_self_serve.sql` (run it BEFORE
+this web deploy: the map markers, the listing quota and the moderation queue
+read `properties.development_id`). Tests: `tests/unit/project-self-serve.test.js`.
+
+- **The wizard** — `/compte/agent/projets/nouveau` (type: immeuble / terrain en
+  portions / lotissement, and a name), then `/compte/agent/projets/[id]/modifier?step=`
+  etat → lieu → medias → offre → paiement → apercu. Each step saves to the row
+  (`saveProjectStepAction` re-validates the WHOLE project with the admin's
+  `validateDevelopmentInput`, then writes only that step's columns). Ticks come
+  from the row (`wizardProgress`), never from clicks. A verified phone is
+  needed to start. Photos are shrunk on the phone (`ImageUploader`).
+- **Authority** — every developer write goes through `lib/developments.js` with
+  `scope = { agentId }`, which puts `agent_id = $n` (or `EXISTS … d.agent_id =
+  $n` for child rows) into the statement. `agent_id` is never writable from a
+  form. The team's writes pass `scope = null`.
+- **Nothing a developer does publishes.** Submit sets `submitted_at` and pings
+  the desk (engine `POST /admin/ops-notify`). The team reviews on
+  `/admin/projets` (queue first, sidebar badge `projectsToReview`): Publier, or
+  "Demander des corrections" with a note (shown in the wizard, WhatsApped to a
+  verified developer). An edit to a live project stays live and sets
+  `changes_pending` ("J'ai vu les modifications" clears it).
+  `projectReviewState` names the five states.
+- **Units that are ready now are real listings.** A unit type ticked
+  `ready_now` gets individual units (generator: floors × per floor, `1A…` or
+  `101…`; or pasted), each created by `lib/projectUnits.js` through
+  `createListing` with `development_id`, `development_unit_type_id`,
+  `unit_label`, `unit_floor`, `parent_building_id = developments.building_uuid`,
+  `building_name`, the project's coordinates, and the project's REAL photos
+  only (no real photo → refused; a render must never sit in a listing
+  gallery). They are `approve_status = 0` and are approved WITH the project
+  (`setProjectPublished` / `acknowledgeProjectChanges`, one transaction); they
+  are therefore kept out of `/admin/listings`' pending queue, the work-queue
+  count and the engine's trusted auto-approval. Taking a project down puts its
+  approved units back to pending, except let/sold ones (the market record).
+- **Availability is counted, not typed**, for a ready type with public units
+  (`withLiveUnitCounts`): marking a unit let/sold in Mes biens is what lowers
+  "N disponibles". `units_available` is only typed for off-plan types.
+- **On the main map** those units are ONE building pin (the existing
+  `groupListingsByBuilding`) at the building's exact point — `exact: true`
+  skips the privacy jitter in `placeResolvedListings`. The drawer links to the
+  project. Off-plan projects and land never become `/listings` pins: the map
+  shows a "N projets neufs ici" chip (`GET /api/projects/count`) that opens
+  `/projets`. A unit's listing page shows "Fait partie de …"
+  (`ProjectUnitStrip`).
+- **Plan limits**: a listing with `development_id` takes no slot during the
+  launch (`QUOTA_COUNTED_SQL`, engine twin identical).
+- **Land**: portions are shares of ONE parcel — `portionBlockedIds` derives
+  (never stores) which available portions can no longer be sold once others
+  are sold/reserved; the public bar is labelled "Schéma indicatif". Lots:
+  generator, paste, optional plan tracing (shared `components/projects/LotPlanEditor.js`,
+  words passed in `labels`) or "Lukka Place trace le plan pour moi"
+  (`trace_by_team`, shown to the team).
+- **"Coller depuis Excel"** (`lib/projectPaste.js`): tab/semicolon/comma
+  rows, French numbers ("1 200,50", "1.200.000", "85 000 $"); every row goes
+  through the same validator as the form; bad rows are shown with their reason
+  and skipped, never guessed. The server re-parses; the preview is not trusted.
+- **Preview**: `/projets/apercu/[id]` renders `ProjectDetailView` (the public
+  page body, now shared) for the owner only, no enquiry form, pending units hidden.
+- **Also**: sales progress ("68 % vendu", real totals only), `/projets` hub
+  counts, a homepage "Nouveaux projets" strip (renders nothing when empty), a
+  Monday digest line for a public off-plan project with no construction photo
+  for 60 days, construction updates from the developer's phone.
+- **Not built yet**: WhatsApp commands ("Lot 7 vendu"), brochure-to-draft over
+  WhatsApp, launch alerts to matching saved searches, the project share card.

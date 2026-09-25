@@ -2,7 +2,6 @@
 
 import { useRef, useState } from 'react';
 import { PLAN_BOX, parsePolygon, polygonToText } from '@/lib/developmentRules';
-import { useT } from '@/lib/i18n/client';
 
 /**
  * Trace one lot on the site plan: click the plan to drop the lot's corners in
@@ -14,9 +13,19 @@ import { useT } from '@/lib/i18n/client';
  *
  * `others` are the project's other traced lots, drawn faintly so a new lot is
  * placed beside them rather than over them.
+ *
+ * Used by the team (/admin/projets) and by developers (the wizard), under two
+ * layouts with two dictionaries — so its words arrive resolved in `labels`
+ * (trace, polygon, noPlan, undo, clear, and `points` as the plural object).
+ * A tap is a click, so it works on a phone as it does with a mouse.
  */
-export default function LotPlanEditor({ planImage, initial = null, others = [] }) {
-  const t = useT();
+/** `forms` is the dictionary's plural object ({ zero, one, other }). */
+function pointsLabel(forms, count) {
+  const form = typeof forms === 'string' ? forms : (count === 0 ? forms.zero : count === 1 ? forms.one : forms.other) || forms.other;
+  return String(form || '').replace('{count}', String(count));
+}
+
+export default function LotPlanEditor({ planImage, initial = null, others = [], labels }) {
   const [points, setPoints] = useState(() => (Array.isArray(initial) ? initial : []));
   const [text, setText] = useState(() => polygonToText(initial));
   const frameRef = useRef(null);
@@ -43,16 +52,16 @@ export default function LotPlanEditor({ planImage, initial = null, others = [] }
   if (!planImage) {
     return (
       <label className="flex flex-col gap-1">
-        <span className="u-micro-strong text-ink-70">{t('admin.projects.lots.polygon')}</span>
+        <span className="u-micro-strong text-ink-70">{labels.polygon}</span>
         <input name="polygon" defaultValue={polygonToText(initial)} className="min-h-10 rounded-lg border border-line px-3 font-mono text-xs" />
-        <span className="text-[0.75rem] text-ink-45">{t('admin.projects.lots.noPlan')}</span>
+        <span className="text-[0.75rem] text-ink-45">{labels.noPlan}</span>
       </label>
     );
   }
 
   return (
     <div className="flex flex-col gap-2">
-      <span className="u-micro-strong text-ink-70">{t('admin.projects.lots.trace')}</span>
+      <span className="u-micro-strong text-ink-70">{labels.trace}</span>
       <div ref={frameRef} className="relative cursor-crosshair overflow-hidden rounded-lg border border-line" onClick={onClick} role="presentation">
         {/* eslint-disable-next-line @next/next/no-img-element -- natural aspect ratio is the geometry */}
         <img src={planImage} alt="" className="block h-auto w-full select-none" draggable={false} />
@@ -74,18 +83,18 @@ export default function LotPlanEditor({ planImage, initial = null, others = [] }
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" onClick={() => commit(points.slice(0, -1))} disabled={!points.length} className="rounded-full border border-line px-3 py-1.5 text-xs font-semibold text-ink disabled:opacity-40">
-          {t('admin.projects.lots.undo')}
+          {labels.undo}
         </button>
         <button type="button" onClick={() => commit([])} disabled={!points.length} className="rounded-full border border-line px-3 py-1.5 text-xs font-semibold text-ink disabled:opacity-40">
-          {t('admin.projects.lots.clear')}
+          {labels.clear}
         </button>
-        <span className="text-[0.75rem] text-ink-45">{t('admin.projects.lots.points', { count: points.length })}</span>
+        <span className="text-[0.75rem] text-ink-45">{pointsLabel(labels.points, points.length)}</span>
       </div>
       <input
         name="polygon"
         value={text}
         onChange={(event) => onText(event.target.value)}
-        aria-label={t('admin.projects.lots.polygon')}
+        aria-label={labels.polygon}
         className="min-h-9 rounded-lg border border-line px-3 font-mono text-xs text-ink-70"
       />
     </div>

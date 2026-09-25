@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LocateFixed, Loader2, X } from 'lucide-react';
@@ -328,6 +329,20 @@ export default function ListingsMap({
     }
   }, []);
 
+  // "N projets neufs ici": a count of public projects in view, never pins —
+  // projects have their own map (/projets). Asked once per settled view.
+  const [projectsHere, setProjectsHere] = useState(0);
+  const projectsKeyRef = useRef(null);
+  const refreshProjectsHere = useCallback((viewport) => {
+    const qs = new URLSearchParams(boundsToQuery(viewport)).toString();
+    if (projectsKeyRef.current === qs) return;
+    projectsKeyRef.current = qs;
+    fetch(`/api/projects/count?${qs}`)
+      .then((r) => (r.ok ? r.json() : { count: 0 }))
+      .then((body) => { if (projectsKeyRef.current === qs) setProjectsHere(Number(body.count) || 0); })
+      .catch(() => {});
+  }, []);
+
   const renderMarkers = useCallback((markers) => {
     const map = mapRef.current;
     if (!map) return;
@@ -343,7 +358,14 @@ export default function ListingsMap({
       return {
         id: r.id,
         group,
-        base: { lat: r.lat, lng: r.lng, source: r.approximate ? 'commune_fallback' : 'existing', precise: !r.approximate },
+        base: {
+          lat: r.lat,
+          lng: r.lng,
+          source: r.approximate ? 'commune_fallback' : 'existing',
+          precise: !r.approximate,
+          // Every unit of a developer's building shares its exact pin.
+          exact: group.listings.every((l) => l.exact),
+        },
       };
     });
     const placements = placeResolvedListings(bases);
@@ -384,6 +406,7 @@ export default function ListingsMap({
 
     const viewport = toBounds(latLngBounds);
     updateCounts(viewport);
+    refreshProjectsHere(viewport);
 
     const fetched = req.fetched;
     if (!force && fetched && fetched.filterQuery === req.filterQuery && !fetched.truncated && boundsWithin(viewport, fetched.bounds)) {
@@ -435,7 +458,7 @@ export default function ListingsMap({
       console.error('[ListingsMap] marker fetch failed', err);
       if (req.controller === controller) setView((v) => ({ ...v, fetching: false, failed: true }));
     }
-  }, [renderMarkers, updateCounts]);
+  }, [renderMarkers, updateCounts, refreshProjectsHere]);
 
   // Runs on every `idle`. The first settled view after we position the map is
   // the baseline; any later view that differs from it is the visitor's.
@@ -793,6 +816,14 @@ export default function ListingsMap({
           >
             {pillText}
           </p>
+          {projectsHere > 0 ? (
+            <Link
+              href="/projets?view=map"
+              className="u-rise pointer-events-auto rounded-full bg-ink px-3.5 py-1.5 text-[0.75rem] font-semibold leading-5 text-white shadow-[0_2px_8px_rgba(0,0,0,0.12)] hover:bg-ink/90"
+            >
+              🏗 {t('listings.map.projectsHere', { count: projectsHere })}
+            </Link>
+          ) : null}
           {relaxed ? (
             <div
               role="status"

@@ -4,6 +4,7 @@ import FeaturedListings from '@/components/FeaturedListings';
 import SavedListings from '@/components/SavedListings';
 import ValueProposition from '@/components/ValueProposition';
 import RecentlyViewed from '@/components/RecentlyViewed';
+import NewProjectsStrip from '@/components/projects/NewProjectsStrip';
 import { cachedListingsTotal, cachedPopularCommunes, cachedPropertyTypeFacets } from '@/lib/listingsCached';
 import { getSavedHomeSection } from '@/lib/savedHome';
 import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB } from '@/lib/constants';
@@ -119,6 +120,7 @@ export default async function HomePage() {
       {/* Returning visitors pick up where they left off; renders nothing on a first visit. */}
       <RecentlyViewed />
       {saved ? <SavedListings listings={saved.listings} firstName={saved.firstName} /> : <FeaturedListings />}
+      <NewProjectsStrip />
       <ValueProposition />
     </>
   );

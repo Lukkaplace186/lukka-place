@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Building2, ChevronRight } from 'lucide-react';
 import { getAgentProjects } from '@/lib/developments';
 import { availabilityLine } from '@/lib/projectView';
+import { projectReviewState } from '@/lib/developmentRules';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { getT } from '@/lib/i18n/server';
 
@@ -22,6 +23,9 @@ export default async function AgentProjectsCard({ agentId }) {
           <Building2 strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5 text-blue-deep" />
           {t('agent.projects.cardTitle')}
         </h2>
+        <Link href="/compte/agent/projets/nouveau" className="ml-auto text-sm font-semibold text-blue-deep hover:underline">
+          + {t('agent.projects.wizard.newTitle')}
+        </Link>
         <Link href="/compte/agent/projets" className="inline-flex items-center gap-1 text-sm font-semibold text-blue-deep hover:underline">
           {t('agent.projects.manage')}
           <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
@@ -33,7 +37,7 @@ export default async function AgentProjectsCard({ agentId }) {
             <span className="font-semibold text-ink">{project.name}</span>
             <span className="text-ink-70">
               {availabilityLine(project, t) || '—'}
-              {project.approve_status !== 1 ? ` · ${t('agent.projects.draft')}` : ''}
+              {project.approve_status !== 1 ? ` · ${t(`agent.projects.wizard.state.${projectReviewState(project)}`)}` : ''}
             </span>
           </li>
         ))}

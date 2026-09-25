@@ -43,7 +43,7 @@ test('a refusal carries the message and what the upgrade prompt needs', () => {
 });
 
 test('pending listings take a slot; archived, rejected and closed ones do not', () => {
-  assert.equal(QUOTA_COUNTED_SQL, "p.status = 1 AND p.approve_status IN (0, 1) AND COALESCE(p.listing_status, 'active') <> 'closed'");
+  assert.equal(QUOTA_COUNTED_SQL, "p.status = 1 AND p.approve_status IN (0, 1) AND COALESCE(p.listing_status, 'active') <> 'closed' AND p.development_id IS NULL");
   const sql = normalizeSql(LISTING_QUOTA_SQL);
   assert.ok(sql.includes('p.agent_id IN (SELECT o.id FROM agents o WHERE o.vendor_id = a.vendor_id)'), 'an agency counts all its agents');
   assert.ok(sql.includes('m.status = 1 AND m.expire_date > NOW() AND pk.number_of_property > 0'));

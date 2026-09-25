@@ -15,11 +15,16 @@
  * listings count, or an agent could queue 50 for moderation on a 5-listing
  * plan. Archived, rejected and sold/let listings free their slot, which is the
  * way out the upgrade message names besides upgrading.
+ *
+ * A developer's unit listing (`development_id` set — lib/projectUnits.js) does
+ * not take a slot during the launch: getting developers to publish their
+ * buildings here first is the point, and a 40-unit tower on a 5-listing plan
+ * would stop that at the door. A pricing decision, one clause to remove.
  */
 
 export const UPGRADE_PATH = '/compte/agent/abonnement';
 
-export const QUOTA_COUNTED_SQL = "p.status = 1 AND p.approve_status IN (0, 1) AND COALESCE(p.listing_status, 'active') <> 'closed'";
+export const QUOTA_COUNTED_SQL = "p.status = 1 AND p.approve_status IN (0, 1) AND COALESCE(p.listing_status, 'active') <> 'closed' AND p.development_id IS NULL";
 
 /**
  * @param {{limit: number|null, used: number, planTitle?: string|null}} quota

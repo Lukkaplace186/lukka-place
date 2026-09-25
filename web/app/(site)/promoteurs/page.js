@@ -66,7 +66,10 @@ export default async function DevelopersPage({ searchParams }) {
           <h1 className="u-title-hero max-w-3xl text-white">{t('projects.developers.title')}</h1>
           <p className="max-w-2xl text-[1rem] leading-relaxed text-white/80">{t('projects.developers.subtitle')}</p>
           <div className="flex flex-wrap gap-3">
-            <a href="#presenter" className="u-press inline-flex min-h-11 items-center rounded-full bg-white px-5 text-sm font-semibold text-ink">
+            <Link href="/compte/agent/projets/nouveau" className="u-press inline-flex min-h-11 items-center rounded-full bg-white px-5 text-sm font-semibold text-ink">
+              {t('projects.developers.selfServe')}
+            </Link>
+            <a href="#presenter" className="inline-flex min-h-11 items-center rounded-full px-5 text-sm font-semibold text-white shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.6)] hover:bg-white/10">
               {t('projects.developers.cta')}
             </a>
             <Link href="/projets" className="inline-flex min-h-11 items-center rounded-full px-5 text-sm font-semibold text-white shadow-[inset_0_0_0_1.5px_rgb(255_255_255/0.6)] hover:bg-white/10">

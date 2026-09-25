@@ -85,7 +85,7 @@ export default function BuildingUnitsDrawer({ group, onClose }) {
                 <p className="mt-0.5 truncate text-xs text-slate-600">
                   {[
                     unit.unit_label || null,
-                    unit.unit_floor != null ? (Number(unit.unit_floor) === 0 ? 'RDC' : `${unit.unit_floor}e ét.`) : null,
+                    unit.unit_floor != null ? (Number(unit.unit_floor) === 0 ? 'RDC' : Number(unit.unit_floor) === 1 ? '1er ét.' : `${unit.unit_floor}e ét.`) : null,
                     unit.beds != null ? `${unit.beds} ch.` : null,
                     unit.bath != null ? `${unit.bath} sdb` : null,
                     unit.floor || null,

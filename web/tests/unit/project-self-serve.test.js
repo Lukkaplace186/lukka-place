@@ -7,7 +7,7 @@ import {
 } from '@/lib/developmentRules';
 import { parseLooseNumber, parsePastedRows } from '@/lib/projectPaste';
 import { placeResolvedListings } from '@/lib/geocoding';
-import { groupListingsByBuilding } from '@/lib/buildingGroups';
+import { groupListingsByBuilding, orderedUnits } from '@/lib/buildingGroups';
 import { QUOTA_COUNTED_SQL } from '@/lib/listingQuotaRules';
 import { STATUS_WHERE } from '@/lib/moderationQueue';
 import { calls, enqueue, reset } from '../support/fakePool.js';
@@ -204,4 +204,13 @@ test('a developer’s units share ONE exact pin: grouped into a building, never 
   assert.deepEqual([placed.get(1).lat, placed.get(1).lng], [-4.3, 15.3]);
   const jittered = placeResolvedListings([{ id: 1, base: { lat: -4.3, lng: 15.3, source: 'existing', precise: true } }]);
   assert.notEqual(jittered.get(1).lat, -4.3, 'an ordinary listing keeps its privacy jitter');
+});
+
+test('a developer’s building lists its units floor by floor, not by price', () => {
+  const group = groupListingsByBuilding([
+    { id: 1, price: 500, parent_building_id: 'b', unit_label: '2A', unit_floor: 2 },
+    { id: 2, price: 900, parent_building_id: 'b', unit_label: '1B', unit_floor: 1 },
+    { id: 3, price: 700, parent_building_id: 'b', unit_label: '1A', unit_floor: 1 },
+  ])[0];
+  assert.deepEqual(orderedUnits(group).map((u) => u.unit_label), ['1A', '1B', '2A']);
 });

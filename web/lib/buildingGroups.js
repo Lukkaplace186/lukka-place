@@ -160,6 +160,16 @@ function defaultPrice(value) {
  * with no price last rather than sorted as if it were free.
  */
 export function orderedUnits(group) {
+  // A developer's building (lib/projectUnits.js) is read floor by floor, the
+  // way its owner numbers it: floor, then the unit's own label.
+  if (group.listings.some((l) => l.unit_label)) {
+    return [...group.listings].sort((a, b) => {
+      const fa = toNumber(a.unit_floor);
+      const fb = toNumber(b.unit_floor);
+      if (fa !== fb) return fa === null ? 1 : fb === null ? -1 : fa - fb;
+      return String(a.unit_label || '').localeCompare(String(b.unit_label || ''), 'fr', { numeric: true });
+    });
+  }
   return [...group.listings].sort((a, b) => {
     const pa = toNumber(a.price);
     const pb = toNumber(b.price);

@@ -32,12 +32,12 @@ function buildPageHref(searchParams, page) {
  * needs a `hoveredId` somewhere and the page itself is an async Server
  * Component that cannot hold state.
  *
- * Sticky offset is 8.5rem (h-16 fixed Header + the sticky FilterBar
- * directly beneath it), not the 80px a literal instruction asked for —
- * measured directly against FilterBar.js's own rendered height, which
- * varies with whether the active-filter-chips row is present. 80px would
- * seat the map's top edge *underneath* the sticky filter bar, hidden
- * behind it rather than starting where the results column visually does.
+ * Desktop map sticks at top-16 (flush under the fixed h-16 Header) and is
+ * 100vh - 4rem tall, so it runs from the header to the viewport bottom.
+ * It used to stick at 8.5rem to clear FilterBar, but on /listings the
+ * FilterBar's sticky box is only as tall as its own wrapper and scrolls
+ * away (measured live 2026-09-25), which left a 72px gap above a map that
+ * stopped 1.5rem short of the bottom.
  */
 export default function ListingsSplitView({
   listings, isMapView, page, totalPages, params, popularCommunes, communes, clearAreaHref = null, nearby = null,
@@ -222,7 +222,7 @@ export default function ListingsSplitView({
           fixed BottomNav.js tab bar a reference portal's own app chrome
           doesn't, so pinning the map to the raw viewport bottom would have
           seated ~64px of it underneath that bar, unusable — the same class
-          of correction as the `top-[8.5rem]` sticky offset above. That bar
+          of correction as the desktop sticky offset. That bar
           is gone entirely now (see app/(site)/layout.js), so there is
           nothing left to clear; MobileMapBar's own "Liste" button
           (`absolute bottom-6` *within* this box) already follows this
@@ -232,7 +232,7 @@ export default function ListingsSplitView({
           isMapView
             ? 'fixed inset-x-0 top-16 bottom-0 z-30 bg-canvas'
             : 'hidden'
-        } lg:inset-auto lg:z-auto lg:flex lg:overflow-hidden lg:rounded-2xl lg:sticky lg:top-[8.5rem] lg:h-[calc(100vh-10rem)]`}
+        } lg:inset-auto lg:z-auto lg:flex lg:overflow-hidden lg:rounded-2xl lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)]`}
       >
         {/* Sticky top bar — a real in-flow row (shrink-0), not floating
             over the map, so the map area below it can claim "the rest of

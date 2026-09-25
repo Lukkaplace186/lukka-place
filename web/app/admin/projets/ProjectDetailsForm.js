@@ -1,7 +1,7 @@
 import AgentPicker from '../AgentPicker';
 import { getLocationHierarchyWithFallback } from '@/lib/locations';
 import { KINSHASA_COMMUNE_CENTROIDS } from '@/lib/geocoding';
-import { DEVELOPMENT_STAGES, TITLE_STATUSES, STAGE_LABEL_KEYS, TITLE_STATUS_LABEL_KEYS } from '@/lib/developmentRules';
+import { DEVELOPMENT_STAGES, TITLE_STATUSES, STAGE_LABEL_KEYS, TITLE_STATUS_LABEL_KEYS, dateOnlyInputValue } from '@/lib/developmentRules';
 import { getT } from '@/lib/i18n/server';
 
 const PLAN_ROWS = 5;
@@ -18,11 +18,6 @@ function Field({ label, hint, children }) {
 
 const INPUT = 'min-h-10 rounded-lg border border-line bg-surface px-3 text-sm text-ink';
 
-function dateValue(value) {
-  if (!value) return '';
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10);
-}
 
 /**
  * The project's own facts. One form for create and edit; `action` decides
@@ -54,7 +49,7 @@ export default async function ProjectDetailsForm({ action, project = null, submi
           </select>
         </Field>
         <Field label={t('admin.projects.form.delivery')} hint={t('admin.projects.form.deliveryHint')}>
-          <input type="date" name="delivery_expected" defaultValue={dateValue(project?.delivery_expected)} className={INPUT} />
+          <input type="date" name="delivery_expected" defaultValue={dateOnlyInputValue(project?.delivery_expected)} className={INPUT} />
         </Field>
         <Field label={t('admin.projects.form.purpose')}>
           <select name="purpose" defaultValue={project?.purpose || 'sale'} className={INPUT}>

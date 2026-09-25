@@ -256,8 +256,7 @@ export const STALE_UPDATE_DAYS = 90;
 
 export function timelineIsStale(project, updates = [], now = new Date()) {
   if (project.kind !== 'building' || project.stage === 'delivered') return false;
-  const latest = updates.map((u) => new Date(u.taken_on)).filter((d) => !Number.isNaN(d.getTime()))
-    .sort((a, b) => b - a)[0];
+  const latest = updates.map((u) => dateOnly(u.taken_on)).filter(Boolean).sort((a, b) => b - a)[0];
   if (!latest) return false;
   return (now - latest) / 86_400_000 > STALE_UPDATE_DAYS;
 }
@@ -425,4 +424,29 @@ export function publishBlockers(project) {
   if (project.kind === 'building' && !(project.unit_types || []).length) blockers.push('units');
   if (project.kind === 'land' && !(project.lots || []).length) blockers.push('lots');
   return blockers;
+}
+
+/**
+ * A Postgres DATE (delivery_expected, taken_on) as a UTC-midnight Date, or
+ * null. node-postgres builds a DATE with the process's LOCAL components, so
+ * `toISOString()` or formatting in another time zone shifts it by a day on any
+ * machine not running UTC. Read the components back the way they were built,
+ * then format with `timeZone: 'UTC'`. A 'YYYY-MM-DD' string is taken as is.
+ */
+export function dateOnly(value) {
+  if (!value) return null;
+  if (typeof value === 'string') {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+    return m ? new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))) : null;
+  }
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return new Date(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate()));
+  }
+  return null;
+}
+
+/** 'YYYY-MM-DD' for a date input, from a DATE value. */
+export function dateOnlyInputValue(value) {
+  const d = dateOnly(value);
+  return d ? d.toISOString().slice(0, 10) : '';
 }

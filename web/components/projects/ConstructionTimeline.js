@@ -3,7 +3,7 @@ import { AlertTriangle } from 'lucide-react';
 import { getT } from '@/lib/i18n/server';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { STALE_UPDATE_DAYS, timelineIsStale } from '@/lib/developmentRules';
-import { shortDate } from '@/lib/projectView';
+import { dayLabel } from '@/lib/projectView';
 
 /**
  * Dated construction progress — the date is the day the photos show, entered
@@ -37,7 +37,7 @@ export default async function ConstructionTimeline({ project }) {
           {updates.map((update) => (
             <li key={update.id} className="relative flex flex-col gap-2">
               <span className="absolute -left-[1.6rem] top-1 h-3 w-3 rounded-full border-2 border-surface bg-blue" aria-hidden="true" />
-              <p className="u-micro-strong text-ink">{shortDate(update.taken_on, t.locale)}</p>
+              <p className="u-micro-strong text-ink">{dayLabel(update.taken_on, t.locale)}</p>
               {update.caption ? <p className="text-sm text-ink-70">{update.caption}</p> : null}
               {update.photos?.length ? (
                 <div className="flex gap-2 overflow-x-auto pb-1">

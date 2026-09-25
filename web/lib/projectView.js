@@ -3,7 +3,7 @@
  * lib/listingView.js. Every function takes `t` as an argument (never a
  * module-level translator; web/CLAUDE.md, "t in a module-level constant").
  */
-import { STAGE_LABEL_KEYS } from './developmentRules';
+import { STAGE_LABEL_KEYS, dateOnly } from './developmentRules';
 import { LISTING_TIME_ZONE } from './listingView';
 
 export function projectKindLabel(project, t) {
@@ -17,11 +17,19 @@ export function stageLabel(project, t) {
 
 /** "Livraison prévue : T3 2027" is a guess we won't make — the stored date, as month + year. */
 export function deliveryLabel(date, locale) {
-  if (!date) return null;
-  const d = new Date(date);
-  if (Number.isNaN(d.getTime())) return null;
+  const d = dateOnly(date);
+  if (!d) return null;
   return new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'fr-FR', {
-    month: 'long', year: 'numeric', timeZone: LISTING_TIME_ZONE,
+    month: 'long', year: 'numeric', timeZone: 'UTC',
+  }).format(d);
+}
+
+/** A DATE column (a construction update's day) — never shifted by a time zone. */
+export function dayLabel(date, locale) {
+  const d = dateOnly(date);
+  if (!d) return null;
+  return new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'fr-FR', {
+    day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
   }).format(d);
 }
 

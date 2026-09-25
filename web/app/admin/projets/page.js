@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { BadgeCheck, Plus } from 'lucide-react';
 import { listProjectsForAdmin } from '@/lib/developments';
 import { STAGE_LABEL_KEYS } from '@/lib/developmentRules';
+import { dayLabel } from '@/lib/projectView';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { getT } from '@/lib/i18n/server';
 
@@ -11,9 +12,7 @@ export async function generateMetadata() {
 }
 
 function formatDate(value) {
-  if (!value) return '—';
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? '—' : new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium' }).format(d);
+  return dayLabel(value, 'fr') || '—';
 }
 
 /**

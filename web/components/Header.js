@@ -302,7 +302,7 @@ export default function Header() {
             <Link
               key={href}
               href={href}
-              className="text-sm font-medium text-ink-70 transition-colors hover:text-blue-deep"
+              className="whitespace-nowrap text-sm font-medium text-ink-70 transition-colors hover:text-blue-deep"
             >
               {t(labelKey)}
             </Link>

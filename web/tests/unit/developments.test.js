@@ -182,3 +182,15 @@ test('demand cells match live supply on commune, purpose, bedrooms and budget', 
   assert.equal(matchesDemandCell({ commune: 'Gombe', purpose: 'rent', beds: 2, price: '9600', price_period: 'an' }, cell), true, 'yearly rent compared per month');
   assert.equal(comparablePrice({ purpose: 'rent', price_period: 'an', price: '1200' }), 100);
 });
+
+test('a DATE column is never shifted a day by the time zone it is read in', async () => {
+  const { dateOnly, dateOnlyInputValue } = await import('@/lib/developmentRules');
+  const { dayLabel, deliveryLabel } = await import('@/lib/projectView');
+  // node-postgres builds a DATE with LOCAL components, whatever the machine's zone.
+  const fromPg = new Date(2026, 7, 20);
+  assert.equal(dateOnlyInputValue(fromPg), '2026-08-20');
+  assert.equal(dayLabel(fromPg, 'fr'), '20 août 2026');
+  assert.equal(dayLabel('2026-04-02', 'fr'), '2 avril 2026');
+  assert.equal(deliveryLabel(new Date(2027, 5, 30), 'fr'), 'juin 2027');
+  assert.equal(dateOnly(null), null);
+});

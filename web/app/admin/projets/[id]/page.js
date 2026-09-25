@@ -10,6 +10,7 @@ import {
   updateProjectAction, uploadImagesAction, uploadPlanAction,
 } from '../actions';
 import { getProjectForAdmin } from '@/lib/developments';
+import { dayLabel } from '@/lib/projectView';
 import {
   LOT_STATUSES, LOT_STATUS_LABEL_KEYS, TITLE_STATUSES, TITLE_STATUS_LABEL_KEYS, polygonToText, publishBlockers,
 } from '@/lib/developmentRules';
@@ -320,7 +321,7 @@ export default async function AdminProjectPage({ params, searchParams }) {
             {project.updates.map((u) => (
               <li key={u.id} className="flex flex-wrap items-center justify-between gap-3 border-b border-line pb-3 text-sm">
                 <span>
-                  <span className="font-semibold text-ink">{new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeZone: 'UTC' }).format(new Date(u.taken_on))}</span>
+                  <span className="font-semibold text-ink">{dayLabel(u.taken_on, 'fr')}</span>
                   {u.caption ? ` — ${u.caption}` : ''}
                   <span className="text-ink-45"> · {t('admin.projects.timeline.photos', { count: (u.photos || []).length })}</span>
                 </span>

@@ -569,9 +569,15 @@ loading or error boundary anywhere outside the client portal and `/admin`.
     card and the gallery asking for different qualities download the same photo
     twice.
   - Maps load on demand. `ResponsiveMapPane` imports every map module through
-    `next/dynamic`. `ListingLocationMap` shows an "Afficher la carte" button
-    below 1024px or with Data Saver on, and on desktop loads once the frame is
-    within 400px of the viewport. The frame keeps its height either way.
+    `next/dynamic`. `ListingLocationMap` loads by itself once the frame is
+    within 400px of the viewport, at every width (2026-09-28, product
+    direction: no tap on phones); only Data Saver / 2G still gets the
+    "Afficher la carte" button. The frame keeps its height either way.
+    With stored coordinates it is `ListingComparablesMap` (its own chunk):
+    this listing as a big blue pill with its full price, up to 8 comparables
+    within 3 km as small pills (`lib/comparables.js`: same purpose, same type
+    or parcelle sub-type, exact bedroom count), a tap opens a mini card.
+    Without coordinates it keeps the geocoding single-pin `PropertyMap`.
   - `lib/useSaveData.js` (`saveData` or a 2G `effectiveType`) skips work nobody
     asked for: auto-loading the map, preloading the neighbouring card photo.
     It never hides content, and it is false on the server and in

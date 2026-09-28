@@ -102,7 +102,11 @@ test('the map modules are loaded on demand, not bundled with the list view', () 
   assert.doesNotMatch(pane, /^import (PropertyMap|ListingsMap|MapListingPreview|BuildingUnitsDrawer) from/m);
   assert.match(pane, /dynamic\(\(\) => import\('\.\/ListingsMap'\)/);
   const detail = read('components/ListingLocationMap.js');
-  assert.match(detail, /show \? \(\s*<ResponsiveMapPane/);
+  // Nothing map-shaped mounts before the frame nears the viewport (or a
+  // Data Saver tap), and the comparison map is its own chunk.
+  assert.match(detail, /show \? \(\s*position \? \(\s*<ListingComparablesMap[\s\S]*?<ResponsiveMapPane/);
+  assert.match(detail, /dynamic\(\(\) => import\('\.\/ListingComparablesMap'\)/);
+  assert.doesNotMatch(detail, /^import ListingComparablesMap from/m);
 });
 
 test('no serif italic font file is requested', () => {

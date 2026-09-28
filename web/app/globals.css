@@ -1250,6 +1250,43 @@
 }
 .lkp-projects .lkp-pin:not([data-active='true']) .lkp-pin__check { color: #fff; }
 
+/* Listing detail page comparison map (components/ListingComparablesMap.js):
+   this listing big and royal blue with its full price; comparable listings
+   nearby small and quiet, full strength once tapped (active). */
+.lkp-pin[data-variant='featured'] {
+  --lkp-bg: var(--blue);
+  --lkp-fg: #fff;
+  --lkp-edge: var(--blue);
+  cursor: default;
+}
+.lkp-pin[data-variant='featured'] .lkp-pin__body {
+  height: 34px;
+  padding: 0 13px;
+  gap: 5px;
+  border-radius: 9px;
+  font-size: 15px;
+  box-shadow: 0 6px 18px rgb(30 58 168 / 0.38), 0 1px 3px rgb(0 0 0 / 0.18);
+}
+.lkp-pin[data-variant='featured'] .lkp-pin__body::before { width: 11px; height: 11px; bottom: -6px; }
+.lkp-pin[data-variant='featured'] .lkp-pin__check { width: 14px; height: 14px; color: #fff; }
+.lkp-pin[data-variant='minor']:not([data-active='true']) {
+  --lkp-fg: #4b5262;
+}
+.lkp-pin[data-variant='minor'] .lkp-pin__body {
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 5px;
+  font-size: 10.5px;
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.14);
+}
+.lkp-pin[data-variant='minor']:not([data-active='true']) .lkp-pin__body { opacity: 0.94; }
+.lkp-pin[data-variant='minor'][data-active='true'] .lkp-pin__body { scale: 1.2; }
+@media (hover: hover) {
+  .lkp-pin[data-variant='featured']:hover .lkp-pin__body { scale: 1; }
+  .lkp-pin[data-variant='minor'][data-active='true']:hover .lkp-pin__body { scale: 1.2; }
+}
+
 /* Lot plan (components/projects/LotPlan.js). Fills are the lot's status. */
 .lkp-lot { cursor: pointer; stroke: #fff; stroke-width: 3; transition: fill-opacity 0.15s, stroke-width 0.15s; }
 .lkp-lot[data-status='available'] { fill: var(--success-500, #1f7a4d); fill-opacity: 0.55; }

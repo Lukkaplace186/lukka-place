@@ -77,7 +77,8 @@ export function createPinLayer(map, handlers) {
      *
      * @param {Array<{key: string, id: string|null, lat: number, lng: number,
      *   label: string, title: string, building: boolean,
-     *   verified: boolean, zIndex: number, payload: any}>} pins
+     *   verified: boolean, zIndex: number, variant?: 'featured'|'minor',
+     *   payload: any}>} pins
      */
     setPins(pins) {
       const previous = new Map(this.entries);
@@ -228,6 +229,10 @@ export function createPinLayer(map, handlers) {
       el.dataset.active = String(active);
       el.dataset.visited = String(visited);
       el.dataset.building = String(Boolean(pin.building));
+      // The detail page's comparison map: 'featured' (this listing, big) and
+      // 'minor' (comparables nearby, small). Absent on /listings.
+      if (pin.variant) el.dataset.variant = pin.variant;
+      else delete el.dataset.variant;
       if (el.title !== (pin.title || '')) el.title = pin.title || '';
       this.#applyZ(entry);
     }

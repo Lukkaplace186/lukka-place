@@ -198,11 +198,20 @@ function enhancePixels(data, channels = 4) {
  * Bumped whenever the correction above changes, so a re-run writes new object
  * names instead of overwriting URLs next/image has cached for 30 days.
  */
-const ENHANCE_VERSION = 'e1';
+const ENHANCE_VERSION = 'e2';
 const ENHANCEABLE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
-const OUTPUT_JPEG_QUALITY = 85;
+/**
+ * Re-encoding a WhatsApp photo is a SECOND JPEG generation, and at q85 with
+ * mozjpeg (trellis quantisation) and 4:2:0 chroma it measurably softened
+ * edges (-3 to -8% Laplacian energy on production photos; e1, reported as
+ * "fuzzy" 2026-09-28). q92 with full-resolution chroma keeps them, and a
+ * light unsharp mask (radius 0.5, far below the halo range) offsets the
+ * generation loss: +12-19% edge energy against the original, ~150-200 KB.
+ */
+const OUTPUT_JPEG = { quality: 92, chromaSubsampling: '4:4:4' };
+const OUTPUT_SHARPEN = { sigma: 0.5, m1: 0.3, m2: 0.6 };
 
-/** 'properties/9/whatsapp_ab12.png' -> 'properties/9/whatsapp_ab12_e1.jpg' (output is always JPEG). */
+/** 'properties/9/whatsapp_ab12.png' -> 'properties/9/whatsapp_ab12_e2.jpg' (output is always JPEG). */
 function enhancedObjectName(name) {
   const base = String(name).replace(/\.[^./]+$/, '');
   return `${base}_${ENHANCE_VERSION}.jpg`;
@@ -234,7 +243,8 @@ async function enhanceImageBuffer(buffer) {
       .toBuffer({ resolveWithObject: true });
     if (!enhancePixels(data, info.channels)) return { buffer, enhanced: false };
     const out = await sharp(data, { raw: { width: info.width, height: info.height, channels: info.channels } })
-      .jpeg({ quality: OUTPUT_JPEG_QUALITY, mozjpeg: true })
+      .sharpen(OUTPUT_SHARPEN)
+      .jpeg(OUTPUT_JPEG)
       .toBuffer();
     return { buffer: out, enhanced: true };
   } catch (err) {
@@ -268,6 +278,8 @@ module.exports = {
   applyEnhancement,
   enhancePixels,
   ENHANCE_VERSION,
+  OUTPUT_JPEG,
+  OUTPUT_SHARPEN,
   enhancedObjectName,
   isEnhancedObjectName,
   isEnhanceableExtension,

@@ -80,6 +80,10 @@ export async function shrinkPhoto(file) {
     // A transparent PNG would otherwise flatten onto black.
     context.fillStyle = '#ffffff';
     context.fillRect(0, 0, width, height);
+    // The default ('low') is a cheap filter that blurs a 4000px → 1600px
+    // downscale; 'high' keeps edges sharp for a few ms more.
+    context.imageSmoothingEnabled = true;
+    context.imageSmoothingQuality = 'high';
     context.drawImage(bitmap, 0, 0, width, height);
     enhanceCanvas(context, width, height);
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', SHRINK_QUALITY));

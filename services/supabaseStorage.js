@@ -95,7 +95,7 @@ async function uploadListingPhotos(localWebPaths, propertyId) {
 
       const ext = path.extname(localPath).slice(1).toLowerCase() || 'jpg';
       // The name hashes the ORIGINAL bytes, so a re-sync lands on the same
-      // object; a corrected photo gets the versioned _e1.jpg name
+      // object; a corrected photo gets the versioned _eN.jpg name
       // (services/photoEnhance.js), never the original's. The local file in
       // UPLOADS_DIR is not touched — the original is always kept.
       const originalPath = `properties/${propertyId}/whatsapp_${contentHash(buffer)}.${ext}`;

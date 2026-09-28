@@ -1181,11 +1181,17 @@ disagree on a single pixel. It corrects the camera, never the property:
   own try/catch; always on, no agent toggle (product decision).
 - **WhatsApp**: `uploadListingPhotos` runs it through `sharp` (new engine
   dependency). The object name still hashes the ORIGINAL bytes; a corrected
-  photo is stored as `…_e1.jpg` (`ENHANCE_VERSION`), never over the original,
+  photo is stored as `…_e2.jpg` (`ENHANCE_VERSION`), never over the original,
   because next/image caches a URL for 30 days. The local file in UPLOADS_DIR
   is never modified. Bump `ENHANCE_VERSION` whenever the correction changes.
 - **Existing photos**: `node scripts/backfill-photo-enhance.js` (dry run,
-  saves 5 before/after pairs) → `--write` (uploads `_e1` copies, repoints
+  saves 5 before/after pairs) → `--write` (uploads `_e2` copies, repoints
   `featured_image` + `property_slider_images` per listing in one transaction,
   writes a rollback map) → `--rollback <file>` undoes it. Own bucket only;
   originals are never deleted. `services/photoBackfill.js`, §38.
+- **e2 (2026-09-28):** e1 re-encoded at q85 mozjpeg 4:2:0, which softened
+  edges on already-compressed WhatsApp JPEGs (reported "fuzzy"). e2 is q92,
+  4:4:4 chroma, plus `sharpen({ sigma: 0.5, m1: 0.3, m2: 0.6 })` — measured
+  +12-19% edge energy vs the original, no halos. The web path only encodes
+  once from the camera original, so it gets no sharpen; it does draw with
+  `imageSmoothingQuality = 'high'` (the default 'low' blurred the downscale).

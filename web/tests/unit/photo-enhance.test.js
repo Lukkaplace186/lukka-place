@@ -170,4 +170,7 @@ test('shrinkPhoto corrects the canvas inside its own try/catch, before encoding'
   const enhance = source.indexOf('enhanceCanvas(context, width, height);');
   const encode = source.indexOf("canvas.toBlob");
   assert.ok(draw > 0 && draw < enhance && enhance < encode);
+  // The default 'low' smoothing blurs a 4000px -> 1600px downscale.
+  const smoothing = source.indexOf("context.imageSmoothingQuality = 'high'");
+  assert.ok(smoothing > 0 && smoothing < draw, 'high-quality smoothing is set before drawing');
 });

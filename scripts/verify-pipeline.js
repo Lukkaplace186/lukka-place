@@ -8844,6 +8844,32 @@ console.log('\n2. services/openai.js');
     assert.ok(after.channels[1].mean > before.channels[1].mean, 'lifted');
   });
 
+  await checkAsync('a corrected photo keeps at least the original edge detail (no soft re-encode)', async () => {
+    // Mean absolute Laplacian on luminance — e1 (q85 mozjpeg 4:2:0) lost
+    // 3-8% of it on real WhatsApp photos, which read as "fuzzy".
+    async function edgeEnergy(buf) {
+      const { data, info } = await sharpLib(buf).greyscale().raw().toBuffer({ resolveWithObject: true });
+      const w = info.width;
+      let sum = 0;
+      let n = 0;
+      for (let y = 1; y < info.height - 1; y += 1) {
+        for (let x = 1; x < w - 1; x += 1) {
+          const i = y * w + x;
+          sum += Math.abs(4 * data[i] - data[i - 1] - data[i + 1] - data[i - w] - data[i + w]);
+          n += 1;
+        }
+      }
+      return sum / n;
+    }
+    const input = await warmRoomJpeg();
+    const result = await photoEnhance.enhanceImageBuffer(input);
+    assert.strictEqual(result.enhanced, true);
+    const before = await edgeEnergy(input);
+    const after = await edgeEnergy(result.buffer);
+    assert.ok(after >= before, `edge energy ${before.toFixed(2)} -> ${after.toFixed(2)}`);
+    assert.strictEqual(photoEnhance.OUTPUT_JPEG.chromaSubsampling, '4:4:4');
+  });
+
   await checkAsync('anything that cannot be decoded is uploaded exactly as it arrived', async () => {
     const junk = Buffer.from('not an image at all');
     const result = await photoEnhance.enhanceImageBuffer(junk);
@@ -8852,7 +8878,7 @@ console.log('\n2. services/openai.js');
   });
 
   check('corrected objects get a versioned JPEG name, never the original one', () => {
-    assert.strictEqual(photoEnhance.enhancedObjectName('properties/9/whatsapp_ab12.png'), 'properties/9/whatsapp_ab12_e1.jpg');
+    assert.strictEqual(photoEnhance.enhancedObjectName('properties/9/whatsapp_ab12.png'), 'properties/9/whatsapp_ab12_e2.jpg');
     assert.strictEqual(photoEnhance.isEnhancedObjectName('properties/9/whatsapp_ab12_e1.jpg'), true);
     assert.strictEqual(photoEnhance.isEnhancedObjectName('properties/9/whatsapp_ab12.jpg'), false);
     assert.strictEqual(photoEnhance.isEnhanceableExtension('gif'), false);
@@ -8862,7 +8888,7 @@ console.log('\n2. services/openai.js');
     const source = fs.readFileSync(path.join(__dirname, '..', 'services', 'supabaseStorage.js'), 'utf8');
     const named = source.indexOf('whatsapp_${contentHash(buffer)}');
     const corrected = source.indexOf('await enhanceImageBuffer(buffer)');
-    assert.ok(named > 0 && corrected > named, 'hash of the original, so a re-sync lands on the same _e1 object');
+    assert.ok(named > 0 && corrected > named, 'hash of the original, so a re-sync lands on the same _eN object');
     assert.ok(source.includes('enhancedObjectName(originalPath)'));
   });
 
@@ -8932,10 +8958,10 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(dry.tally.foreign, 2);
 
     const { changes } = await photoBackfill.backfillPhotoEnhancement({ ...common, write: true });
-    assert.deepStrictEqual(uploads.sort(), ['properties/1/whatsapp_aaa_e1.jpg', 'properties/1/whatsapp_ccc_e1.jpg']);
-    assert.strictEqual(rows.properties.get(1), pub('properties/1/whatsapp_aaa_e1.jpg'));
-    assert.strictEqual(rows.slider[0].image, pub('properties/1/whatsapp_aaa_e1.jpg'));
-    assert.strictEqual(rows.slider[1].image, pub('properties/1/whatsapp_ccc_e1.jpg'));
+    assert.deepStrictEqual(uploads.sort(), ['properties/1/whatsapp_aaa_e2.jpg', 'properties/1/whatsapp_ccc_e2.jpg']);
+    assert.strictEqual(rows.properties.get(1), pub('properties/1/whatsapp_aaa_e2.jpg'));
+    assert.strictEqual(rows.slider[0].image, pub('properties/1/whatsapp_aaa_e2.jpg'));
+    assert.strictEqual(rows.slider[1].image, pub('properties/1/whatsapp_ccc_e2.jpg'));
     assert.strictEqual(rows.properties.get(2), 'https://lukkaplace.com/assets/img/noimage.jpg');
     assert.strictEqual(log.filter((l) => l === 'BEGIN').length, 1, 'one transaction, for listing 1 only');
     assert.ok(log.includes('SET LOCAL'), 'never a bare SET on the pooler');

@@ -1432,8 +1432,8 @@
       "emptyAllShared": "All your live listings have already been shared in the last {days} days.",
       "openListings": "View my listings",
       "launcherHint": {
-        "one": "{count} listing to share on your Status",
-        "other": "{count} listings to share on your Status"
+        "one": "{count} listing to share",
+        "other": "{count} listings to share"
       },
       "launcherCta": "Prepare"
     },

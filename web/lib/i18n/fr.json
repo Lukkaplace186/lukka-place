@@ -1432,8 +1432,8 @@
       "emptyAllShared": "Tous vos biens en ligne ont déjà été partagés ces {days} derniers jours.",
       "openListings": "Voir mes biens",
       "launcherHint": {
-        "one": "{count} bien à partager sur votre statut",
-        "other": "{count} biens à partager sur votre statut"
+        "one": "{count} bien à partager",
+        "other": "{count} biens à partager"
       },
       "launcherCta": "Préparer"
     },

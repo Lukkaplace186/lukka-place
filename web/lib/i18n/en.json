@@ -792,8 +792,20 @@
       "toComplete": "To complete",
       "select": "Select",
       "doneSelecting": "Done",
-      "markActive": "Mark as active",
-      "markUnderOfferOne": "Mark as under offer"
+      "markActive": "Mark as available",
+      "markUnderOfferOne": "Mark as under offer",
+      "markAsSold": "Mark as sold",
+      "madeAvailable": "Listing available again.",
+      "madeUnderOffer": "Listing marked under offer.",
+      "undo": "Undo",
+      "state": {
+        "live": "Live",
+        "underOffer": "Under offer",
+        "pending": "In review",
+        "rejected": "Rejected",
+        "archived": "Archived",
+        "sold": "Sold"
+      }
     },
     "leads": {
       "title": "Enquiries",
@@ -890,7 +902,9 @@
       "nameRequired": "Enter at least a first or last name.",
       "changePhoto": "Change photo",
       "agencyName": "Agency / trading name",
-      "agencyNameHint": "This is the name shown on your listings and your public page. Left empty, your own name is shown instead."
+      "agencyNameHint": "This is the name shown on your listings and your public page. Left empty, your own name is shown instead.",
+      "savedShort": "Saved",
+      "passwordSavedShort": "Password changed"
     },
     "subscription": {
       "title": "Subscription",
@@ -972,7 +986,12 @@
       "smartPasteSuccess": "Fields filled automatically — review them before saving.",
       "smartPasteLowConfidence": "The pasted text doesn't clearly look like a listing — check every field before saving.",
       "photos": "Photos",
-      "optimizingPhotos": "Optimising photos for a faster upload…"
+      "optimizingPhotos": "Optimising photos for a faster upload…",
+      "cover": "Cover",
+      "makeCover": "Cover",
+      "removePhotoShort": "Delete",
+      "photoPosition": "Photo {n} — hold to move, tap for options",
+      "photoOrderHint": "{count}/10 · hold a photo to move it"
     },
     "portfolio": {
       "toRent": "To rent",
@@ -1134,7 +1153,8 @@
         "bad_format": "Format not accepted: send a photo (JPG, PNG, WebP) or a PDF.",
         "too_many_pending": "You already have 5 documents awaiting review. Wait for them to be reviewed before sending more.",
         "upload_failed": "Upload failed. Try again."
-      }
+      },
+      "submittedShort": "Sent"
     },
     "quota": {
       "title": "Listing Limit Reached",

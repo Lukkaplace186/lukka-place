@@ -3,12 +3,9 @@
 import { useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { AlertTriangle, Archive, ArchiveRestore, CheckSquare, ExternalLink, Image as ImageIcon, Trash2 } from 'lucide-react';
+import { AlertTriangle, Archive, ArchiveRestore, CheckSquare, ExternalLink, Image as ImageIcon, RotateCcw, Trash2 } from 'lucide-react';
 import SafeImage from './SafeImage';
-import AgentListingStatusSelect from './AgentListingStatusSelect';
 import AgentListingActionsMenu from './AgentListingActionsMenu';
-import AgentListingWhatsAppButton from './AgentListingWhatsAppButton';
-import MarkListingSoldDialog from './MarkListingSoldDialog';
 import { formatPrice, formatPriceCdf } from '@/lib/format';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { usableImageSrc } from '@/lib/listingView';
@@ -28,30 +25,34 @@ import { LISTING_TIME_ZONE } from '@/lib/listingView';
 import { announceListingQuota } from '@/lib/listingQuotaRules';
 import { gapLabelKey, listingGapHref, MIN_PHOTOS } from '@/lib/completenessRules';
 
-const LISTING_STATUS_EDIT_OPTIONS = [
-  { value: 'active', labelKey: 'status.listing.active' },
-  { value: 'under_offer', labelKey: 'status.listing.under_offer' },
-];
-
-const APPROVE_STATUS = {
-  0: { labelKey: 'status.listing.pending', className: 'bg-warning-tint text-warning' },
-  1: { labelKey: 'status.listing.published', className: 'bg-success-tint text-success' },
-  2: { labelKey: 'status.listing.rejected', className: 'bg-danger-tint text-danger' },
+/**
+ * ONE status per card (2026-09-28). A card used to carry up to three chips at
+ * once — moderation ("Publié", "En attente"), market ("Actif", "Sous
+ * compromis") and visibility ("Archivée") — which agents read as clutter and,
+ * worse, as contradictions. The three axes are still separate in the data
+ * (web/CLAUDE.md, "Listing lifecycle"); this picks the one that matters most
+ * to the agent right now, in this order: closed, archived, rejected, pending
+ * review, under offer, live.
+ */
+const LISTING_STATE = {
+  closed: { labelKey: null, className: 'bg-canvas-deep text-ink-70' },
+  archived: { labelKey: 'agent.listings.state.archived', className: 'bg-canvas-deep text-ink-45' },
+  rejected: { labelKey: 'agent.listings.state.rejected', className: 'bg-danger-tint text-danger' },
+  pending: { labelKey: 'agent.listings.state.pending', className: 'bg-warning-tint text-warning' },
+  under_offer: { labelKey: 'agent.listings.state.underOffer', className: 'bg-[#FDEBD8] text-[#9A4A0B]' },
+  live: { labelKey: 'agent.listings.state.live', className: 'bg-success-tint text-success' },
 };
 
-// The phone's status tag, beside the price (the table's own column is lg-only).
-const STATUS_TAG = {
-  active: { labelKey: 'status.listing.active', className: 'bg-success-tint text-success' },
-  under_offer: { labelKey: 'status.listing.under_offer', className: 'bg-warning-tint text-warning' },
-};
+function listingState(listing) {
+  if (listing.listing_status === 'closed') return 'closed';
+  if (Number(listing.status) === 0) return 'archived';
+  if (listing.approve_status === 2) return 'rejected';
+  if (listing.approve_status !== 1) return 'pending';
+  if (listing.listing_status === 'under_offer') return 'under_offer';
+  return 'live';
+}
 
 const LONG_PRESS_MS = 500;
-
-// An archived listing (properties.status = 0) is invisible to the public
-// regardless of its moderation state, so showing it as "Publié" would be a
-// straightforward lie about where it is. This badge replaces the
-// approve-status one rather than sitting beside it.
-const ARCHIVED_BADGE = { labelKey: 'status.listing.archived', className: 'bg-canvas-deep text-ink-45' };
 
 function shortDate(value) {
   if (!value) return null;
@@ -209,13 +210,23 @@ export default function AgentListingsTable({ listings, perListingStats, gapsByLi
     if (from && Math.hypot(event.clientX - from.x, event.clientY - from.y) > 10) pressEnd();
   }
 
-  function handleStatusChange(listing, status) {
+  // `undoable`: the badge tap (Sous compromis → disponible) is one touch on a
+  // phone, so its toast carries "Annuler" to put it straight back.
+  function handleStatusChange(listing, status, { undoable = false } = {}) {
+    const previous = listing.listing_status;
     startTransition(async () => {
       applyOptimistic({ type: 'update', id: listing.id, changes: { listing_status: status, sold_price: null } });
       try {
         const formData = new FormData();
         formData.set('listing_status', status);
         await updateListingStatusAction(listing.id, formData);
+        showToast({
+          type: 'success',
+          message: status === 'active' ? t('agent.listings.madeAvailable') : t('agent.listings.madeUnderOffer'),
+          action: undoable && previous && previous !== status
+            ? { label: t('agent.listings.undo'), onClick: () => handleStatusChange({ ...listing, listing_status: status }, previous) }
+            : undefined,
+        });
         router.refresh();
       } catch (err) {
         showToast(actionFailureToast(t, err));
@@ -391,11 +402,18 @@ export default function AgentListingsTable({ listings, perListingStats, gapsByLi
 
       {optimisticListings.map((listing) => {
         const isClosed = listing.listing_status === 'closed';
-        const isArchived = Number(listing.status) === 0;
-        // A closed listing is archived too (markListingSoldAction retires it
-        // from public search), but "Loué / Vendu" already says that in the
-        // status column — a second "Archivée" chip beside it is noise.
-        const approve = isArchived && !isClosed ? ARCHIVED_BADGE : APPROVE_STATUS[listing.approve_status];
+        const state = listingState(listing);
+        // The public page exists only for a live (or under-offer) listing;
+        // anything else would open a 404, so the title opens the editor then.
+        const isPublic = state === 'live' || state === 'under_offer';
+        const editHref = `/compte/agent/biens/${listing.id}/edit`;
+        const badge = (
+          <ListingStateBadge
+            listing={listing}
+            state={state}
+            onMakeAvailable={() => handleStatusChange(listing, 'active', { undoable: true })}
+          />
+        );
         const isSelected = selected.has(listing.id);
 
         return (
@@ -426,7 +444,13 @@ export default function AgentListingsTable({ listings, perListingStats, gapsByLi
             />
 
             <div className="alr-main">
-              <div className="alr-thumb grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-[10px] bg-canvas-deep text-ink-25 lg:h-12">
+              {/* Photo → the editor; title → the live page (new tab). Two
+                  targets, two meanings, the way agents asked for them. */}
+              <Link
+                href={editHref}
+                aria-label={`${t('agent.listings.edit')} — ${listing.title}`}
+                className="alr-thumb grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-[10px] bg-canvas-deep text-ink-25 lg:h-12"
+              >
                 {usableImageSrc(listing.featured_image) ? (
                   <SafeImage
                     src={listing.featured_image}
@@ -438,29 +462,24 @@ export default function AgentListingsTable({ listings, perListingStats, gapsByLi
                 ) : (
                   <ImageIcon strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
                 )}
-              </div>
+              </Link>
               <div className="alr-info">
-                {listing.approve_status === 1 ? (
-                  <Link
-                    href={`/listings/${listing.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="group flex max-w-full items-start gap-1 text-sm font-bold text-ink hover:text-blue-deep hover:underline"
-                    title={t('agent.listings.viewPublic')}
-                  >
-                    {/* Two lines on a phone, one truncated line in the table. */}
-                    <span className="line-clamp-2 lg:truncate">{listing.title}</span>
+                <Link
+                  href={isPublic ? `/listings/${listing.id}` : editHref}
+                  {...(isPublic ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                  className="group flex max-w-full items-start gap-1 text-sm font-bold text-ink hover:text-blue-deep hover:underline"
+                  title={isPublic ? t('agent.listings.viewPublic') : t('agent.listings.notPublishedYet')}
+                >
+                  {/* Two lines on a phone, one truncated line in the table. */}
+                  <span className="line-clamp-2 lg:truncate">{listing.title}</span>
+                  {isPublic && (
                     <ExternalLink
                       strokeWidth={ICON_STROKE_WIDTH}
                       aria-hidden="true"
-                      className="mt-1 h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+                      className="mt-1 h-3 w-3 shrink-0 text-ink-35 group-hover:text-blue-deep"
                     />
-                  </Link>
-                ) : (
-                  <div className="line-clamp-2 text-sm font-bold text-ink lg:truncate" title={t('agent.listings.notPublishedYet')}>
-                    {listing.title}
-                  </div>
-                )}
+                  )}
+                </Link>
                 <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-45">
                   {listing.reference && (
                     <span className="u-ref max-w-full truncate rounded bg-canvas-alt px-1.5 py-0.5 text-[0.6875rem] font-semibold text-ink-70">
@@ -468,11 +487,6 @@ export default function AgentListingsTable({ listings, perListingStats, gapsByLi
                     </span>
                   )}
                   <span className="max-w-full truncate">{listing.quartier || 'Localisation non précisée'}</span>
-                  {approve && (
-                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[0.6875rem] font-bold ${approve.className}`}>
-                      {t(approve.labelKey)}
-                    </span>
-                  )}
                 </div>
                 {gapsByListing[String(listing.id)] && (
                   <ListingGapHint listingId={listing.id} {...gapsByListing[String(listing.id)]} />
@@ -482,16 +496,7 @@ export default function AgentListingsTable({ listings, perListingStats, gapsByLi
 
             <div className="alr-price flex flex-wrap items-center gap-x-2 gap-y-1">
               <PriceCell listing={listing} isClosed={isClosed} onSave={(value) => handlePriceSave(listing, value)} />
-              {(() => {
-                const tag = isClosed
-                  ? { label: listing.purpose === 'rent' ? t('agent.listings.let') : 'Vendu', className: 'bg-canvas-deep text-ink-70' }
-                  : STATUS_TAG[listing.listing_status]
-                    ? { label: t(STATUS_TAG[listing.listing_status].labelKey), className: STATUS_TAG[listing.listing_status].className }
-                    : null;
-                return tag ? (
-                  <span className={`rounded-full px-2 py-0.5 text-[0.6875rem] font-bold lg:hidden ${tag.className}`}>{tag.label}</span>
-                ) : null;
-              })()}
+              <span className="lg:hidden">{badge}</span>
             </div>
 
             {/* One line on a phone; `display: contents` at lg puts these two
@@ -508,39 +513,13 @@ export default function AgentListingsTable({ listings, perListingStats, gapsByLi
               </div>
             </div>
 
-            <div className="alr-status w-full max-w-[10.5rem]">
-              {isClosed ? (
-                <span className="block w-full rounded-full bg-canvas-deep px-3.5 py-[0.4375rem] text-center text-[0.8125rem] font-bold text-ink-70">
-                  {listing.purpose === 'rent' ? t('agent.listings.let') : 'Vendu'}
-                </span>
-              ) : (
-                // Keyed on the optimistic status itself: AgentListingStatusSelect
-                // is an uncontrolled <select defaultValue=…>, which only applies
-                // on mount — without a key tied to the value, an optimistic
-                // status change would recolour the pill (a plain className) but
-                // leave the native <select>'s own selected option stale until
-                // the next full remount.
-                <AgentListingStatusSelect
-                  key={listing.listing_status}
-                  name="listing_status"
-                  defaultValue={listing.listing_status}
-                  options={LISTING_STATUS_EDIT_OPTIONS}
-                  label={t('agent.listings.statusOf', { title: listing.title })}
-                  onChange={(status) => handleStatusChange(listing, status)}
-                />
-              )}
-            </div>
+            <div className="alr-status">{badge}</div>
 
             <div className="alr-actions flex items-center justify-end gap-1.5">
-              {!shareBlocker(listing) && (
-                <AgentListingWhatsAppButton listing={listing} caption={captions[String(listing.id)]} />
-              )}
-              {!isClosed && (
-                <MarkListingSoldDialog propertyId={listing.id} purpose={listing.purpose} title={listing.title} />
-              )}
               <AgentListingActionsMenu
                 listing={listing}
                 isClosed={isClosed}
+                caption={captions[String(listing.id)]}
                 onStatusChange={(status) => handleStatusChange(listing, status)}
               />
             </div>
@@ -631,6 +610,39 @@ export default function AgentListingsTable({ listings, perListingStats, gapsByLi
       )}
     </>
   );
+}
+
+/**
+ * The card's one status. "Sous compromis" is a button: tapping it puts the
+ * listing back on the market (with an "Annuler" on the toast), because agents
+ * reported no way back from it — the menu item existed but nobody found it.
+ */
+function ListingStateBadge({ listing, state, onMakeAvailable }) {
+  const t = useT();
+  const style = LISTING_STATE[state];
+  const label =
+    state === 'closed'
+      ? listing.purpose === 'rent'
+        ? t('agent.listings.let')
+        : t('agent.listings.state.sold')
+      : t(style.labelKey);
+  const base = `inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-[0.6875rem] font-bold ${style.className}`;
+
+  if (state === 'under_offer') {
+    return (
+      <button
+        type="button"
+        onClick={onMakeAvailable}
+        title={t('agent.listings.markActive')}
+        aria-label={`${label} — ${t('agent.listings.markActive')}`}
+        className={`${base} u-press relative u-hit hover:brightness-95`}
+      >
+        {label}
+        <RotateCcw strokeWidth={2.5} className="h-3 w-3" aria-hidden="true" />
+      </button>
+    );
+  }
+  return <span className={base}>{label}</span>;
 }
 
 /**

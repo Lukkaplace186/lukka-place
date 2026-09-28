@@ -30,9 +30,14 @@ import { useT } from '@/lib/i18n/client';
  * the "Loué / vendu" answer on AgentAvailabilityPrompt opens this same
  * dialog, so there is still exactly one way to close a listing.
  */
-export default function MarkListingSoldDialog({ propertyId, purpose, title, renderTrigger }) {
+export default function MarkListingSoldDialog({ propertyId, purpose, title, renderTrigger, open: openProp, onOpenChange }) {
   const t = useT();
-  const [open, setOpen] = useState(false);
+  // Controlled when the caller passes `open` (the Mes biens row menu opens it
+  // from a menu item and renders no trigger); otherwise it owns its state.
+  const [ownOpen, setOwnOpen] = useState(false);
+  const controlled = openProp !== undefined;
+  const open = controlled ? openProp : ownOpen;
+  const setOpen = (value) => (controlled ? onOpenChange?.(value) : setOwnOpen(value));
   const [pending, startTransition] = useTransition();
   const router = useRouter();
   const { showToast } = useToast();
@@ -66,7 +71,7 @@ export default function MarkListingSoldDialog({ propertyId, purpose, title, rend
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      {renderTrigger ? renderTrigger(() => setOpen(true)) : (
+      {controlled ? null : renderTrigger ? renderTrigger(() => setOpen(true)) : (
       <button
         type="button"
         onClick={() => setOpen(true)}

@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, CircleCheck, GripVertical, Plus, Sparkles, Star, X } from 'lucide-react';
+import { ArrowLeft, CircleCheck, Plus, Sparkles } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { convertToCdf } from '@/lib/currency';
 import { convertCdfToUsd } from '@/lib/format';
@@ -14,6 +14,7 @@ import SmartPasteSection from './SmartPasteSection';
 import { buildFormValuesFromParsed } from '@/lib/smartPaste';
 import { validatePhotoSelection } from '@/lib/uploadLimits.mjs';
 import { shrinkPhotos } from '@/lib/photoShrink';
+import AgentPhotoSorter from './AgentPhotoSorter';
 
 const FIELD_CLASS =
   'u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35';
@@ -42,10 +43,10 @@ const HINT_CLASS = 'mt-1.5 text-xs text-ink-35';
  *    communes are ids 21-44 and features are 45+, and each write path is
  *    scoped to its own range.
  *
- * Photo reorder is drag-and-drop over the real gallery. The first photo is
- * the cover (featured_image), which is what the card grids and every
- * WhatsApp share preview use — so it is labelled as such rather than left
- * as an invisible side effect of ordering.
+ * Photo reorder is drag-and-drop over the real gallery (AgentPhotoSorter —
+ * touch, mouse and keyboard). The first photo is the cover (featured_image),
+ * which is what the card grids and every WhatsApp share preview use — so it
+ * is labelled as such rather than left as an invisible side effect of ordering.
  */
 export default function AgentListingEditor({ listing, communes, cdfRate, amenities = [] }) {
   const t = useT();
@@ -58,11 +59,11 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
   // only on a not-yet-uploaded one. Keeping them in a single ordered array
   // is what lets an agent drag a brand-new photo into the cover slot before
   // ever saving.
+  // `id` is what the sorter tracks an item by across reorders.
   const [photos, setPhotos] = useState(() =>
-    (listing.gallery || []).map((url) => ({ url, file: null })),
+    (listing.gallery || []).map((url, index) => ({ id: `saved:${index}:${url}`, url, file: null })),
   );
   const [photosTouched, setPhotosTouched] = useState(false);
-  const [dragIndex, setDragIndex] = useState(null);
   // Seeded from what the agent actually authored (price_original), not from
   // the canonical USD `price` — reopening an FC listing must show the FC
   // figure they typed, not a converted round-trip of it.
@@ -115,29 +116,23 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
     } finally {
       setOptimizingPhotos(false);
     }
-    setPhotos((prev) => [...prev, ...shrunk.map((file) => ({ file, url: URL.createObjectURL(file) }))]);
+    setPhotos((prev) => [
+      ...prev,
+      ...shrunk.map((file) => {
+        const url = URL.createObjectURL(file);
+        return { id: `new:${url}`, file, url };
+      }),
+    ]);
     setPhotosTouched(true);
   }
 
-  function removePhoto(index) {
-    setPhotos((prev) => {
-      const target = prev[index];
-      // Only a locally-created object URL is ours to revoke — revoking a
-      // real Supabase Storage URL would be a no-op at best.
-      if (target.file) URL.revokeObjectURL(target.url);
-      return prev.filter((_, i) => i !== index);
-    });
-    setPhotosTouched(true);
-  }
-
-  function movePhoto(from, to) {
-    if (from === to || to < 0 || to >= photos.length) return;
-    setPhotos((prev) => {
-      const next = [...prev];
-      const [moved] = next.splice(from, 1);
-      next.splice(to, 0, moved);
-      return next;
-    });
+  // The sorter hands back the whole new order (a move, a new cover or a
+  // removal). Only a locally-created object URL is ours to revoke — revoking
+  // a real Supabase Storage URL would be a no-op at best.
+  function changePhotos(next) {
+    const kept = new Set(next.map((p) => p.id));
+    for (const photo of photos) if (photo.file && !kept.has(photo.id)) URL.revokeObjectURL(photo.url);
+    setPhotos(next);
     setPhotosTouched(true);
   }
 
@@ -483,7 +478,7 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
       <div id="photos" className="u-card flex scroll-mt-24 flex-col gap-4 rounded-card bg-surface p-4 sm:p-6">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-[1.0625rem] font-bold text-ink">{t('agent.editor.photos')}</h2>
-          <span className="text-xs text-ink-35">{photos.length}/10 · glissez pour réordonner</span>
+          <span className="text-xs text-ink-35">{t('agent.editor.photoOrderHint', { count: photos.length })}</span>
         </div>
 
         {photos.length === 0 ? (
@@ -491,75 +486,7 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
             {t('agent.editor.noPhotos')}
           </p>
         ) : (
-          <ul className="flex flex-wrap gap-3">
-            {photos.map((photo, index) => (
-              <li
-                key={`${photo.url}-${index}`}
-                draggable
-                onDragStart={() => setDragIndex(index)}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  if (dragIndex !== null) movePhoto(dragIndex, index);
-                  setDragIndex(null);
-                }}
-                onDragEnd={() => setDragIndex(null)}
-                className={`group relative h-28 w-36 shrink-0 cursor-grab overflow-hidden rounded-lg bg-canvas-deep ${
-                  dragIndex === index ? 'opacity-50' : ''
-                }`}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={photo.url} alt="" className="h-full w-full object-cover" />
-
-                {index === 0 && (
-                  <span className="absolute left-1.5 top-1.5 inline-flex items-center gap-1 rounded-full bg-blue px-2 py-0.5 text-[0.6875rem] font-bold text-white">
-                    <Star strokeWidth={2.5} className="h-2.5 w-2.5" />
-                    Couverture
-                  </span>
-                )}
-
-                <span
-                  aria-hidden="true"
-                  className="absolute bottom-1.5 left-1.5 grid h-6 w-6 place-items-center rounded-md bg-black/55 text-white"
-                >
-                  <GripVertical strokeWidth={2} className="h-3.5 w-3.5" />
-                </span>
-
-                {/* Keyboard-reachable equivalent of the drag handle — drag
-                    and drop alone would make reordering impossible without
-                    a mouse. */}
-                <div className="absolute inset-x-1.5 bottom-1.5 flex justify-end gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
-                  <button
-                    type="button"
-                    onClick={() => movePhoto(index, index - 1)}
-                    disabled={index === 0}
-                    aria-label={t('agent.editor.movePhotoLeft')}
-                    className="grid h-6 w-6 place-items-center rounded-md bg-black/55 text-xs font-bold text-white disabled:opacity-40"
-                  >
-                    ←
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => movePhoto(index, index + 1)}
-                    disabled={index === photos.length - 1}
-                    aria-label={t('agent.editor.movePhotoRight')}
-                    className="grid h-6 w-6 place-items-center rounded-md bg-black/55 text-xs font-bold text-white disabled:opacity-40"
-                  >
-                    →
-                  </button>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => removePhoto(index)}
-                  aria-label={t('agent.editor.removePhoto')}
-                  className="absolute right-1.5 top-1.5 grid h-8 w-8 place-items-center rounded-full bg-black/60 text-white"
-                >
-                  <X strokeWidth={2.5} className="h-3.5 w-3.5" />
-                </button>
-              </li>
-            ))}
-          </ul>
+          <AgentPhotoSorter photos={photos} onChange={changePhotos} />
         )}
 
         <label className="inline-flex h-11 w-fit cursor-pointer items-center gap-1.5 rounded-lg border border-dashed border-line px-3.5 text-[0.8125rem] font-bold text-ink-70 hover:bg-canvas-alt">

@@ -21,7 +21,9 @@ import { WhatsAppIcon } from './WhatsAppCTA';
  * Rendered only for a listing the public can see (the caller checks
  * shareBlocker); counted in listing_shares like the menu link it replaces.
  */
-export default function AgentListingWhatsAppButton({ listing, caption }) {
+// `className`/`children` let the row menu render it as a full menu row
+// (2026-09-28: the icon left the card, the menu holds it now).
+export default function AgentListingWhatsAppButton({ listing, caption, className, children, onDone }) {
   const t = useT();
   const text =
     caption ||
@@ -38,15 +40,22 @@ export default function AgentListingWhatsAppButton({ listing, caption }) {
       href={buildWhatsAppShareLink(text)}
       target="_blank"
       rel="noopener noreferrer"
-      onClick={() => recordListingSharesAction({ listingIds: [listing.id], channel: 'menu_whatsapp', format: 'text' }).catch(() => {})}
-      aria-label={`${t('agent.listings.shareWhatsApp')} — ${listing.title}`}
+      onClick={() => {
+        recordListingSharesAction({ listingIds: [listing.id], channel: 'menu_whatsapp', format: 'text' }).catch(() => {});
+        onDone?.();
+      }}
+      aria-label={children ? undefined : `${t('agent.listings.shareWhatsApp')} — ${listing.title}`}
       title={t('agent.listings.shareWhatsApp')}
       // Icon only: a label widened the card's actions column enough to wrap
       // the price onto three lines on a 375px phone. The green glyph is the
       // most recognisable mark an agent in Kinshasa sees all day.
-      className="u-press grid h-[2.125rem] w-[2.125rem] shrink-0 place-items-center rounded-lg border border-line text-green-deep transition-colors hover:bg-canvas-alt"
+      className={
+        className ||
+        'u-press grid h-[2.125rem] w-[2.125rem] shrink-0 place-items-center rounded-lg border border-line text-green-deep transition-colors hover:bg-canvas-alt'
+      }
     >
-      <WhatsAppIcon className="h-[1.0625rem] w-[1.0625rem]" />
+      <WhatsAppIcon className="h-[1.0625rem] w-[1.0625rem] shrink-0 text-green-deep" />
+      {children}
     </a>
   );
 }

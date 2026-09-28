@@ -3,7 +3,11 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Archive, ArchiveRestore, CircleCheck, CircleDot, Copy, ExternalLink, Megaphone, MoreHorizontal, Pencil, RotateCcw, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, CheckCircle2, CircleCheck, CircleDot, Copy, ExternalLink, Megaphone, MoreHorizontal, Pencil, RotateCcw, Trash2 } from 'lucide-react';
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
+import MarkListingSoldDialog from './MarkListingSoldDialog';
+import AgentListingWhatsAppButton from './AgentListingWhatsAppButton';
+import { shareBlocker } from '@/lib/listingShareCopy';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -36,10 +40,9 @@ import { announceListingQuota } from '@/lib/listingQuotaRules';
  * therefore siblings of the menu, driven by state the menu items set — the
  * standard Radix pattern for menu-triggered dialogs.
  *
- * "Marquer comme loué / vendu" is deliberately NOT here: it needs a real
- * final price, which MarkListingSoldDialog collects, and that dialog stays
- * its own control on the row (see actions.js's LISTING_STATUSES comment for
- * why 'closed' can only be reached through it).
+ * "Marquer comme loué / vendu" opens MarkListingSoldDialog, which collects the
+ * real final price (see actions.js's LISTING_STATUSES comment for why
+ * 'closed' can only be reached through it).
  *
  * "Remettre en ligne" is the reverse path, for a listing already closed: it
  * calls the same updateListingStatusAction the per-row status select uses
@@ -71,18 +74,29 @@ import { announceListingQuota } from '@/lib/listingQuotaRules';
  * "Partager sur WhatsApp" left the menu for the card itself
  * (AgentListingWhatsAppButton): it is the one thing agents do every day.
  *
- * `onStatusChange` (Mes biens) adds the active ↔ sous compromis switch here:
- * on a phone the row shows its status as a tag and this menu is where it
- * changes (the table's status select is desktop-only). The caller keeps the
- * optimistic update, so the tag moves the moment the item is tapped.
+ * `onStatusChange` (Mes biens) adds the active ↔ sous compromis switch here.
+ * The caller keeps the optimistic update, so the badge moves the moment the
+ * item is tapped.
+ *
+ * 2026-09-28, second pass (agents found the card cluttered, and could not
+ * find how to put an under-offer listing back): the card's WhatsApp and ✓
+ * "loué / vendu" icons moved IN here, so a card carries one "…" and nothing
+ * else. Order: Voir l'annonce, Modifier; the status switch ("Marquer comme
+ * disponible" ↔ "Marquer sous compromis") and Marquer loué / vendu; Partager
+ * sur WhatsApp and Marketing & documents; Dupliquer / Archiver; Supprimer.
+ * On a phone it opens as a bottom sheet with full-width rows (a dropdown
+ * anchored to a 34px icon was a list of small targets); from `lg` it stays a
+ * dropdown. One item list feeds both.
  */
-export default function AgentListingActionsMenu({ listing, isClosed, onStatusChange }) {
+export default function AgentListingActionsMenu({ listing, isClosed, onStatusChange, caption }) {
   const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
   const [pending, startTransition] = useTransition();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [shareKitOpen, setShareKitOpen] = useState(false);
+  const [soldOpen, setSoldOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   // Archived is `status = 0` — the same active/enabled flag the public
   // query filters on. Coerced because bigint/smallint columns arrive from
@@ -175,97 +189,198 @@ export default function AgentListingActionsMenu({ listing, isClosed, onStatusCha
     });
   }
 
+  const isLive = listing.approve_status === 1 && !isArchived && !isClosed;
+  const isRent = listing.purpose === 'rent';
+
+  // One list, two renderers (dropdown from lg, bottom sheet below). `href`
+  // items are links, `onSelect` items are actions, `whatsapp` is the share link.
+  const groups = [
+    [
+      isLive && { key: 'view', Icon: ExternalLink, label: t('agent.listings.viewPublic'), href: `/listings/${listing.id}`, external: true },
+      { key: 'edit', Icon: Pencil, label: t('agent.listings.edit'), href: `/compte/agent/biens/${listing.id}/edit` },
+    ],
+    [
+      onStatusChange && !isClosed && listing.listing_status === 'under_offer' && {
+        key: 'available', Icon: CircleCheck, tone: 'text-success', label: t('agent.listings.markActive'), onSelect: () => onStatusChange('active'),
+      },
+      onStatusChange && !isClosed && listing.listing_status !== 'under_offer' && {
+        key: 'under-offer', Icon: CircleDot, tone: 'text-warning', label: t('agent.listings.markUnderOfferOne'), onSelect: () => onStatusChange('under_offer'),
+      },
+      !isClosed && {
+        key: 'sold', Icon: CheckCircle2, label: isRent ? t('agent.listings.markAsLet') : t('agent.listings.markAsSold'), onSelect: () => setSoldOpen(true),
+      },
+    ],
+    [
+      !shareBlocker(listing) && { key: 'whatsapp', whatsapp: true, label: t('agent.listings.shareWhatsApp') },
+      { key: 'marketing', Icon: Megaphone, label: t('agent.share.menuItem'), onSelect: () => setShareKitOpen(true) },
+    ],
+    [
+      { key: 'duplicate', Icon: Copy, label: t('agent.listings.duplicate'), onSelect: handleDuplicate, disabled: pending },
+      isClosed
+        ? { key: 'relist', Icon: RotateCcw, label: t('agent.listings.relist'), onSelect: handleRepublish, disabled: pending }
+        : {
+            key: 'archive',
+            Icon: isArchived ? ArchiveRestore : Archive,
+            label: isArchived ? t('agent.listings.relistForSale') : t('agent.listings.archiveHide'),
+            onSelect: handleToggleArchive,
+            disabled: pending,
+          },
+    ],
+    [{ key: 'delete', Icon: Trash2, danger: true, label: t('common.actions.delete'), onSelect: () => setConfirmDelete(true) }],
+  ]
+    .map((group) => group.filter(Boolean))
+    .filter((group) => group.length > 0);
+
+  const triggerClass =
+    'u-press place-items-center rounded-lg text-ink-45 transition-colors hover:bg-canvas-alt hover:text-ink data-[state=open]:bg-canvas-alt data-[state=open]:text-ink';
+
+  const sheetRow =
+    'u-press flex min-h-12 w-full items-center gap-3 rounded-lg px-3 text-left text-[0.9375rem] font-semibold text-ink hover:bg-canvas-alt disabled:opacity-50';
+
   return (
     <>
+      {/* Phone: bottom sheet. */}
+      <button
+        type="button"
+        onClick={() => setSheetOpen(true)}
+        aria-label={t('agent.listings.actionsFor', { title: listing.title })}
+        aria-haspopup="dialog"
+        className={`${triggerClass} grid h-10 w-10 lg:hidden`}
+      >
+        <MoreHorizontal strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
+      </button>
+      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <SheetContent
+          side="bottom"
+          className="max-h-[85dvh] gap-0 overflow-y-auto rounded-t-card p-0 pb-[env(safe-area-inset-bottom)] lg:hidden"
+        >
+          <div className="border-b border-line px-4 py-3.5 pr-12">
+            <SheetTitle className="u-title-card line-clamp-1 text-ink">{listing.title}</SheetTitle>
+            <SheetDescription className="sr-only">{t('agent.listings.actionsFor', { title: listing.title })}</SheetDescription>
+          </div>
+          <div className="flex flex-col px-2 py-2">
+            {groups.map((group, i) => (
+              <div key={i} className={i > 0 ? 'mt-1 border-t border-line pt-1' : ''}>
+                {group.map((item) => {
+                  const close = () => setSheetOpen(false);
+                  const tone = item.danger ? 'text-danger' : '';
+                  const icon = item.Icon && (
+                    <item.Icon strokeWidth={ICON_STROKE_WIDTH} className={`h-5 w-5 shrink-0 ${item.tone || (item.danger ? '' : 'text-ink-45')}`} />
+                  );
+                  if (item.whatsapp) {
+                    return (
+                      <AgentListingWhatsAppButton key={item.key} listing={listing} caption={caption} className={sheetRow} onDone={close}>
+                        {item.label}
+                      </AgentListingWhatsAppButton>
+                    );
+                  }
+                  if (item.href) {
+                    return (
+                      <Link
+                        key={item.key}
+                        href={item.href}
+                        onClick={close}
+                        {...(item.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                        className={`${sheetRow} ${tone}`}
+                      >
+                        {icon}
+                        {item.label}
+                      </Link>
+                    );
+                  }
+                  return (
+                    <button
+                      key={item.key}
+                      type="button"
+                      disabled={item.disabled}
+                      onClick={() => {
+                        close();
+                        item.onSelect();
+                      }}
+                      className={`${sheetRow} ${tone}`}
+                    >
+                      {icon}
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Desktop: dropdown. */}
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label={t('agent.listings.actionsFor', { title: listing.title })}
-          className="u-press grid h-[2.125rem] w-[2.125rem] place-items-center rounded-lg text-ink-45 transition-colors hover:bg-canvas-alt hover:text-ink data-[state=open]:bg-canvas-alt data-[state=open]:text-ink"
+          className={`${triggerClass} hidden h-[2.125rem] w-[2.125rem] lg:grid`}
         >
           <MoreHorizontal strokeWidth={ICON_STROKE_WIDTH} className="h-[1.0625rem] w-[1.0625rem]" />
         </DropdownMenuTrigger>
 
-        {/* collisionPadding keeps the whole menu above the phone's fixed bottom
-            nav (AgentSidebar, ~56px + safe area): Radix flips it upward or
-            caps its height (it already sets max-h to the available height, and
-            scrolls) instead of letting "Supprimer" slide under the nav. */}
         <DropdownMenuContent
           align="end"
           sideOffset={6}
-          collisionPadding={{ top: 12, right: 12, bottom: 88, left: 12 }}
-          className="w-56 max-w-[calc(100vw-1.5rem)]"
+          collisionPadding={{ top: 12, right: 12, bottom: 24, left: 12 }}
+          className="w-60 max-w-[calc(100vw-1.5rem)]"
         >
-          <DropdownMenuItem asChild>
-            <Link href={`/compte/agent/biens/${listing.id}/edit`} className="flex items-center gap-2.5">
-              <Pencil strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
-              {t('agent.listings.edit')}
-            </Link>
-          </DropdownMenuItem>
-
-          {listing.approve_status === 1 && (
-            <DropdownMenuItem asChild>
-              <Link href={`/listings/${listing.id}`} target="_blank" className="flex items-center gap-2.5">
-                <ExternalLink strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
-                {t('agent.listings.viewPublic')}
-              </Link>
-            </DropdownMenuItem>
-          )}
-
-          <DropdownMenuItem onSelect={() => setShareKitOpen(true)} className="flex items-center gap-2.5">
-            <Megaphone strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
-            {t('agent.share.menuItem')}
-          </DropdownMenuItem>
-
-          <DropdownMenuSeparator />
-
-          {onStatusChange && !isClosed && (listing.listing_status === 'under_offer' ? (
-            <DropdownMenuItem onSelect={() => onStatusChange('active')} className="flex items-center gap-2.5">
-              <CircleCheck strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-success" />
-              {t('agent.listings.markActive')}
-            </DropdownMenuItem>
-          ) : (
-            <DropdownMenuItem onSelect={() => onStatusChange('under_offer')} className="flex items-center gap-2.5">
-              <CircleDot strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-warning" />
-              {t('agent.listings.markUnderOfferOne')}
-            </DropdownMenuItem>
+          {groups.map((group, i) => (
+            <div key={i}>
+              {i > 0 && <DropdownMenuSeparator />}
+              {group.map((item) => {
+                const icon = item.Icon && (
+                  <item.Icon strokeWidth={ICON_STROKE_WIDTH} className={`h-4 w-4 ${item.tone || (item.danger ? '' : 'text-ink-45')}`} />
+                );
+                if (item.whatsapp) {
+                  return (
+                    <DropdownMenuItem key={item.key} asChild>
+                      <AgentListingWhatsAppButton listing={listing} caption={caption} className="flex items-center gap-2.5">
+                        {item.label}
+                      </AgentListingWhatsAppButton>
+                    </DropdownMenuItem>
+                  );
+                }
+                if (item.href) {
+                  return (
+                    <DropdownMenuItem key={item.key} asChild>
+                      <Link
+                        href={item.href}
+                        {...(item.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
+                        className="flex items-center gap-2.5"
+                      >
+                        {icon}
+                        {item.label}
+                      </Link>
+                    </DropdownMenuItem>
+                  );
+                }
+                return (
+                  <DropdownMenuItem
+                    key={item.key}
+                    onSelect={item.onSelect}
+                    disabled={item.disabled}
+                    className={`flex items-center gap-2.5 ${item.danger ? 'text-danger focus:text-danger' : ''}`}
+                  >
+                    {icon}
+                    {item.label}
+                  </DropdownMenuItem>
+                );
+              })}
+            </div>
           ))}
-
-          <DropdownMenuItem onSelect={handleDuplicate} disabled={pending} className="flex items-center gap-2.5">
-            <Copy strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
-            {t('agent.listings.duplicate')}
-          </DropdownMenuItem>
-
-          {isClosed ? (
-            <DropdownMenuItem onSelect={handleRepublish} disabled={pending} className="flex items-center gap-2.5">
-              <RotateCcw strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
-              {t('agent.listings.relist')}
-            </DropdownMenuItem>
-          ) : (
-            <DropdownMenuItem
-              onSelect={handleToggleArchive}
-              disabled={pending}
-              className="flex items-center gap-2.5"
-            >
-              {isArchived ? (
-                <ArchiveRestore strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
-              ) : (
-                <Archive strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
-              )}
-              {isArchived ? t('agent.listings.relistForSale') : t('agent.listings.archiveHide')}
-            </DropdownMenuItem>
-          )}
-
-          <DropdownMenuSeparator />
-
-          <DropdownMenuItem
-            onSelect={() => setConfirmDelete(true)}
-            className="flex items-center gap-2.5 text-danger focus:text-danger"
-          >
-            <Trash2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-            {t('common.actions.delete')}
-          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {!isClosed && (
+        <MarkListingSoldDialog
+          propertyId={listing.id}
+          purpose={listing.purpose}
+          title={listing.title}
+          open={soldOpen}
+          onOpenChange={setSoldOpen}
+        />
+      )}
 
       <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <DialogContent>

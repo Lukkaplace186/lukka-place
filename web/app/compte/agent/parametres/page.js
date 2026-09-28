@@ -20,6 +20,7 @@ import {
 import { getT } from '@/lib/i18n/server';
 import { listQuickReplies } from '@/lib/quickReplies';
 import AgentQuickRepliesManager from '@/components/AgentQuickRepliesManager';
+import SettingsSaveButton from '@/components/SettingsSaveButton';
 import AgentCompletenessCard from '@/components/AgentCompletenessCard';
 import { getAgentProfileGaps } from '@/lib/completeness';
 
@@ -247,11 +248,6 @@ export default async function AgentSettingsPage({ searchParams }) {
               </p>
             </div>
 
-            {saved === 'identity' && (
-              <p className="text-sm font-semibold text-success" role="status">
-                {t('agent.settings.saved')}
-              </p>
-            )}
             {error === 'name_required' && (
               <p className="text-sm font-semibold text-danger" role="alert">
                 {t(ERROR_MESSAGE_KEYS.name_required)}
@@ -259,12 +255,12 @@ export default async function AgentSettingsPage({ searchParams }) {
             )}
 
             <div className="flex gap-2.5">
-              <button
-                type="submit"
+              <SettingsSaveButton
+                done={saved === 'identity'}
                 className="u-btn-primary u-press h-11 rounded-lg bg-blue px-5 text-sm font-bold text-white"
               >
                 {t('agent.settings.saveChanges')}
-              </button>
+              </SettingsSaveButton>
               <Link
                 href="/compte/agent/parametres"
                 className="u-press inline-flex h-11 items-center rounded-lg px-4 text-sm font-semibold text-ink-45 transition-colors hover:bg-canvas-alt hover:text-ink"
@@ -298,18 +294,12 @@ export default async function AgentSettingsPage({ searchParams }) {
                 ))}
               </div>
 
-              {saved === 'communes' && (
-                <p className="text-sm font-semibold text-success" role="status">
-                  {t('agent.settings.communesSaved')}
-                </p>
-              )}
-
-              <button
-                type="submit"
-                className="u-btn-primary u-press h-10 self-start rounded-lg bg-blue px-5 text-sm font-bold text-white"
+              <SettingsSaveButton
+                done={saved === 'communes'}
+                className="u-btn-primary u-press h-11 self-start rounded-lg bg-blue px-5 text-sm font-bold text-white"
               >
                 {t('common.actions.save')}
-              </button>
+              </SettingsSaveButton>
             </form>
           )}
         </div>
@@ -332,18 +322,12 @@ export default async function AgentSettingsPage({ searchParams }) {
               className="u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35"
             />
 
-            {saved === 'hours' && (
-              <p className="text-sm font-semibold text-success" role="status">
-                {t('agent.settings.hoursSaved')}
-              </p>
-            )}
-
-            <button
-              type="submit"
-              className="u-btn-secondary u-press h-10 self-start rounded-lg px-5 text-sm font-bold text-ink"
+            <SettingsSaveButton
+              done={saved === 'hours'}
+              className="u-btn-primary u-press h-11 self-start rounded-lg bg-blue px-5 text-sm font-bold text-white"
             >
               {t('common.actions.save')}
-            </button>
+            </SettingsSaveButton>
           </form>
         </div>
 
@@ -417,18 +401,19 @@ export default async function AgentSettingsPage({ searchParams }) {
                     />
                   </div>
 
-                  {saved === 'verification' && (
-                    <p className="text-sm font-semibold text-success" role="status">{t('agent.verification.submitted')}</p>
-                  )}
                   {verificationError && (
                     <p className="text-sm font-semibold text-danger" role="alert">
                       {t(`agent.verification.errors.${verificationError}`)}
                     </p>
                   )}
 
-                  <button type="submit" className="u-btn-secondary u-press h-11 w-full rounded-lg text-sm font-bold text-ink">
+                  <SettingsSaveButton
+                    done={saved === 'verification'}
+                    doneLabel={t('agent.verification.submittedShort')}
+                    className="u-btn-secondary u-press h-11 w-full rounded-lg text-sm font-bold text-ink"
+                  >
                     {t('agent.verification.submit')}
-                  </button>
+                  </SettingsSaveButton>
                   <p className="text-xs text-ink-35">{t('agent.verification.privacy')}</p>
                 </form>
 
@@ -485,23 +470,19 @@ export default async function AgentSettingsPage({ searchParams }) {
                 </div>
               ))}
 
-              {passwordSuccess && (
-                <p className="text-sm font-semibold text-success" role="status">
-                  {t('agent.settings.passwordSaved')}
-                </p>
-              )}
               {error && error !== 'name_required' && (
                 <p className="text-sm font-semibold text-danger" role="alert">
                   {t(ERROR_MESSAGE_KEYS[error] || ERROR_MESSAGE_KEYS.wrong_password)}
                 </p>
               )}
 
-              <button
-                type="submit"
+              <SettingsSaveButton
+                done={passwordSuccess}
+                doneLabel={t('agent.settings.passwordSavedShort')}
                 className="u-btn-secondary u-press mt-1 h-11 w-full rounded-lg text-sm font-bold text-ink"
               >
                 {t('agent.settings.updatePassword')}
-              </button>
+              </SettingsSaveButton>
             </form>
           </div>
 

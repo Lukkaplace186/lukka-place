@@ -792,8 +792,20 @@
       "toComplete": "À compléter",
       "select": "Sélectionner",
       "doneSelecting": "Terminé",
-      "markActive": "Remettre en actif",
-      "markUnderOfferOne": "Marquer sous compromis"
+      "markActive": "Marquer comme disponible",
+      "markUnderOfferOne": "Marquer sous compromis",
+      "markAsSold": "Marquer comme vendu",
+      "madeAvailable": "Annonce de nouveau disponible.",
+      "madeUnderOffer": "Annonce marquée sous compromis.",
+      "undo": "Annuler",
+      "state": {
+        "live": "En ligne",
+        "underOffer": "Sous compromis",
+        "pending": "En validation",
+        "rejected": "Refusée",
+        "archived": "Archivée",
+        "sold": "Vendu"
+      }
     },
     "leads": {
       "title": "Demandes",
@@ -890,7 +902,9 @@
       "nameRequired": "Renseignez au moins un prénom ou un nom.",
       "changePhoto": "Changer la photo",
       "agencyName": "Nom de l’agence / nom commercial",
-      "agencyNameHint": "C’est le nom affiché sur vos annonces et votre page publique. Vide : votre nom est affiché à la place."
+      "agencyNameHint": "C’est le nom affiché sur vos annonces et votre page publique. Vide : votre nom est affiché à la place.",
+      "savedShort": "Enregistré",
+      "passwordSavedShort": "Mot de passe changé"
     },
     "subscription": {
       "title": "Abonnement",
@@ -972,7 +986,12 @@
       "smartPasteButtonPending": "Analyse en cours…",
       "smartPasteSuccess": "Champs remplis automatiquement — vérifiez-les avant d’enregistrer.",
       "smartPasteLowConfidence": "Le texte collé ne ressemble pas clairement à une annonce — vérifiez chaque champ avant d’enregistrer.",
-      "optimizingPhotos": "Optimisation des photos pour un envoi rapide…"
+      "optimizingPhotos": "Optimisation des photos pour un envoi rapide…",
+      "cover": "Couverture",
+      "makeCover": "Couverture",
+      "removePhotoShort": "Supprimer",
+      "photoPosition": "Photo {n} — maintenez pour déplacer, touchez pour les options",
+      "photoOrderHint": "{count}/10 · maintenez une photo pour la déplacer"
     },
     "portfolio": {
       "toRent": "À louer",
@@ -1134,7 +1153,8 @@
         "bad_format": "Format non accepté : envoyez une photo (JPG, PNG, WebP) ou un PDF.",
         "too_many_pending": "Vous avez déjà 5 documents en attente d’examen. Attendez leur examen avant d’en envoyer d’autres.",
         "upload_failed": "L’envoi a échoué. Réessayez."
-      }
+      },
+      "submittedShort": "Envoyé"
     },
     "quota": {
       "title": "Limite d’annonces atteinte",

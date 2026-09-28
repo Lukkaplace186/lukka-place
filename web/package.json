@@ -13,6 +13,9 @@
     "test:chain": "node --no-warnings --test --conditions=react-server --import ./tests/support/register.mjs --test-timeout=180000 tests/chain/whatsapp-to-site.test.js"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@googlemaps/js-api-loader": "^2.1.1",
     "@googlemaps/markerclusterer": "^2.6.2",
     "@supabase/supabase-js": "^2.112.4",

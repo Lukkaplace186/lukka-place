@@ -2117,3 +2117,28 @@ read `properties.development_id`). Tests: `tests/unit/project-self-serve.test.js
   for 60 days, construction updates from the developer's phone.
 - **Not built yet**: WhatsApp commands ("Lot 7 vendu"), brochure-to-draft over
   WhatsApp, launch alerts to matching saved searches, the project share card.
+
+## Agent listing actions, photo order, settings return (2026-09-28)
+
+- **Mes biens card**: ONE status badge (`listingState` in
+  `AgentListingsTable.js`: closed → archived → rejected → pending → under offer
+  → live), not the moderation + market + visibility chips side by side. The
+  title opens the public page in a new tab when there is one (live or under
+  offer), else the editor; the photo always opens the editor. "Sous compromis"
+  is a button that puts the listing back on the market, with "Annuler" on the
+  toast. The card's WhatsApp and ✓ icons moved into the "…" menu.
+- **Row menu** (`AgentListingActionsMenu`): one item list, rendered as a
+  bottom sheet below `lg` and a dropdown above. Voir l'annonce, Modifier;
+  Marquer comme disponible ↔ sous compromis, Marquer loué / vendu (opens
+  `MarkListingSoldDialog`, now controllable via `open`/`onOpenChange`);
+  Partager sur WhatsApp (`AgentListingWhatsAppButton` as a row), Marketing &
+  documents; Dupliquer, Archiver; Supprimer.
+- **Photo order** (`components/AgentPhotoSorter.js`, `@dnd-kit/core` +
+  `sortable`, editor route only): the HTML5 drag grid never fired from a finger.
+  Hold ~180ms to drag on touch, 6px on a mouse, keyboard too; every tile shows
+  its position; a tap opens "Couverture" / "Supprimer". Items are tracked by a
+  stable `id` (`saved:<i>:<url>` / `new:<objectURL>`).
+- **Réglages save** (`components/SettingsSaveButton.js`): "Enregistrement…"
+  while the action runs; the `?saved=` / `?success=1` redirect renders
+  "✓ Enregistré", and 700ms later `router.replace('/compte/agent/parametres')`
+  — on a phone that is the section list. Errors stay on the section.

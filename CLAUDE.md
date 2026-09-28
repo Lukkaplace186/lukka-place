@@ -1160,3 +1160,32 @@ approves a project unit (they are approved with their project);
 `POST /admin/ops-notify` sends a one-line heads-up to `OPS_WHATSAPP_NUMBER`
 (unset → `sent: false`, never an error); the Monday agent digest names a
 public off-plan project with no construction photo for 60 days. §37.
+
+## Listing photo auto-correction (2026-09-28)
+
+`services/photoEnhance.js` (engine) and `web/lib/photoEnhance.js` (browser):
+one conservative correction, deliberately duplicated (CJS vs ESM) — change
+one, change the other; `web/tests/unit/photo-enhance.test.js` fails if the two
+disagree on a single pixel. It corrects the camera, never the property:
+
+- **White balance** from near-neutral pixels only, 60% of the estimate,
+  ±12% per channel. A room that really is yellow or green has few neutral
+  pixels and keeps its colour. No grey-world average.
+- **Contrast**: luminance stretch between the 0.5/99.5 percentiles, black
+  point ≤20 (ignored below 6), gain ≤1.25, then a shadow lift ≤0.12 that is
+  zero at black and white.
+- **Vibrance** on every hue by how unsaturated it is — never per channel
+  (that shifts hue); near-grey pixels and the skin/beige band are protected.
+  No sharpening (amplifies phone noise and JPEG blocks).
+- **Web**: `lib/photoShrink.js` runs it on the canvas before encoding, in its
+  own try/catch; always on, no agent toggle (product decision).
+- **WhatsApp**: `uploadListingPhotos` runs it through `sharp` (new engine
+  dependency). The object name still hashes the ORIGINAL bytes; a corrected
+  photo is stored as `…_e1.jpg` (`ENHANCE_VERSION`), never over the original,
+  because next/image caches a URL for 30 days. The local file in UPLOADS_DIR
+  is never modified. Bump `ENHANCE_VERSION` whenever the correction changes.
+- **Existing photos**: `node scripts/backfill-photo-enhance.js` (dry run,
+  saves 5 before/after pairs) → `--write` (uploads `_e1` copies, repoints
+  `featured_image` + `property_slider_images` per listing in one transaction,
+  writes a rollback map) → `--rollback <file>` undoes it. Own bucket only;
+  originals are never deleted. `services/photoBackfill.js`, §38.

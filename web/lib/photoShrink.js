@@ -13,6 +13,10 @@
  * position included, which is a privacy improvement rather than a loss: a
  * listing photo taken at the property should not publish its coordinates.
  *
+ * Before the re-encode the pixels get lib/photoEnhance.js's conservative
+ * correction (white balance, contrast, vibrance, all capped). Its own failure
+ * encodes the uncorrected canvas.
+ *
  * Never worse than before: anything this cannot decode, an already-small
  * file, or a result that is not actually smaller returns the ORIGINAL file,
  * and the server's own validation (lib/uploadLimits.mjs) still applies to
@@ -20,6 +24,8 @@
  * 4000×3000 decode is ~48 MB of pixels, and doing ten at once is how a 2 GB
  * phone kills the tab.
  */
+
+import { enhancePixels } from './photoEnhance';
 
 export const SHRINK_MAX_EDGE = 1600;
 export const SHRINK_QUALITY = 0.82;
@@ -48,6 +54,16 @@ export function shrunkFileName(name) {
   return `${base}.jpg`;
 }
 
+/** Corrects the drawn photo in place; any failure leaves the canvas as drawn. */
+function enhanceCanvas(context, width, height) {
+  try {
+    const image = context.getImageData(0, 0, width, height);
+    if (enhancePixels(image.data, 4)) context.putImageData(image, 0, 0);
+  } catch {
+    // Uncorrected is what was uploaded before this existed.
+  }
+}
+
 export async function shrinkPhoto(file) {
   if (!shouldShrink(file)) return file;
   if (typeof createImageBitmap !== 'function' || typeof document === 'undefined') return file;
@@ -65,6 +81,7 @@ export async function shrinkPhoto(file) {
     context.fillStyle = '#ffffff';
     context.fillRect(0, 0, width, height);
     context.drawImage(bitmap, 0, 0, width, height);
+    enhanceCanvas(context, width, height);
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', SHRINK_QUALITY));
     if (!blob || blob.size >= file.size) return file;
     return new File([blob], shrunkFileName(file.name), { type: 'image/jpeg', lastModified: file.lastModified });

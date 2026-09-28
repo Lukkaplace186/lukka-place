@@ -54,3 +54,7 @@ web/assets/
 # reproducible and never useful to anybody else — and they carry listing
 # copy verbatim, which has no business in the repo.
 scripts/*.report.json
+
+# scripts/backfill-photo-enhance.js dry-run previews and rollback maps
+photo-enhance-samples/
+backfill-photo-enhance-*.json

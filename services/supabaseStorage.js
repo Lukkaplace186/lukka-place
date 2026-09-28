@@ -19,6 +19,7 @@ const fs = require('fs');
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
 const { UPLOADS_ROOT } = require('./mediaStorage');
+const { enhanceImageBuffer, enhancedObjectName, isEnhanceableExtension } = require('./photoEnhance');
 
 const BUCKET = process.env.SUPABASE_STORAGE_BUCKET || 'Property_images';
 
@@ -93,10 +94,25 @@ async function uploadListingPhotos(localWebPaths, propertyId) {
       }
 
       const ext = path.extname(localPath).slice(1).toLowerCase() || 'jpg';
-      const storagePath = `properties/${propertyId}/whatsapp_${contentHash(buffer)}.${ext}`;
+      // The name hashes the ORIGINAL bytes, so a re-sync lands on the same
+      // object; a corrected photo gets the versioned _e1.jpg name
+      // (services/photoEnhance.js), never the original's. The local file in
+      // UPLOADS_DIR is not touched — the original is always kept.
+      const originalPath = `properties/${propertyId}/whatsapp_${contentHash(buffer)}.${ext}`;
+      let body = buffer;
+      let storagePath = originalPath;
+      let uploadExt = ext;
+      if (isEnhanceableExtension(ext)) {
+        const result = await enhanceImageBuffer(buffer);
+        if (result.enhanced) {
+          body = result.buffer;
+          storagePath = enhancedObjectName(originalPath);
+          uploadExt = 'jpg';
+        }
+      }
 
-      const { error: uploadError } = await storage.upload(storagePath, buffer, {
-        contentType: CONTENT_TYPE_BY_EXT[ext] || 'application/octet-stream',
+      const { error: uploadError } = await storage.upload(storagePath, body, {
+        contentType: CONTENT_TYPE_BY_EXT[uploadExt] || 'application/octet-stream',
         upsert: true,
       });
       if (uploadError) {
@@ -115,6 +131,7 @@ async function uploadListingPhotos(localWebPaths, propertyId) {
 module.exports = {
   uploadListingPhotos,
   isConfigured,
+  getClient,
   resolveLocalPath,
   BUCKET,
 };

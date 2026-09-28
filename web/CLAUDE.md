@@ -602,7 +602,10 @@ loading or error boundary anywhere outside the client portal and `/admin`.
   one photo at a time. A 4 MB camera photo becomes ~300 KB, and EXIF
   (including GPS) is dropped. Anything that can't be decoded, or doesn't come
   out smaller, is sent as the original. `lib/uploadLimits.mjs` still validates
-  whatever is sent.
+  whatever is sent. Before encoding, `lib/photoEnhance.js` applies a capped
+  white-balance / contrast / vibrance correction (root CLAUDE.md, "Listing
+  photo auto-correction"); the engine carries an identical copy for WhatsApp
+  photos.
 - **Slow and failed requests.**
   - `loading.js` exists at `(site)/`, `(site)/listings/[id]/`, `compte/agent/`
     and `(portfolio)/`, using `components/RouteSkeletons.js`.

@@ -8802,6 +8802,149 @@ console.log('\n2. services/openai.js');
     assert.ok(body.includes('sent: false'));
   });
 
+  // ===========================================================================
+  console.log('\n38. Listing photos: conservative auto-correction, forward and backfill');
+  // ===========================================================================
+  //
+  // services/photoEnhance.js is the engine copy of web/lib/photoEnhance.js
+  // (web/tests/unit/photo-enhance.test.js pins the two to the same pixels).
+  // Here: the path WhatsApp photos take, the versioned object names, and the
+  // backfill against a fake pool and bucket.
+  const photoEnhance = require('../services/photoEnhance');
+  const photoBackfill = require('../services/photoBackfill');
+  const sharpLib = require('sharp');
+
+  async function warmRoomJpeg() {
+    const w = 96;
+    const h = 64;
+    const raw = Buffer.alloc(w * h * 3);
+    for (let y = 0; y < h; y += 1) {
+      for (let x = 0; x < w; x += 1) {
+        const shade = 50 + x + y * 0.8 + ((x * 7 + y * 13) % 17);
+        const i = (y * w + x) * 3;
+        raw[i] = Math.min(255, shade * 1.12);
+        raw[i + 1] = shade;
+        raw[i + 2] = shade * 0.78;
+      }
+    }
+    return sharpLib(raw, { raw: { width: w, height: h, channels: 3 } }).jpeg({ quality: 90 }).toBuffer();
+  }
+
+  await checkAsync('a dim, warm-cast photo comes back corrected, as a JPEG with no metadata', async () => {
+    const input = await warmRoomJpeg();
+    const result = await photoEnhance.enhanceImageBuffer(input);
+    assert.strictEqual(result.enhanced, true);
+    const meta = await sharpLib(result.buffer).metadata();
+    assert.strictEqual(meta.format, 'jpeg');
+    assert.ok(!meta.exif, 'no EXIF (GPS) carried over');
+    const before = await sharpLib(input).stats();
+    const after = await sharpLib(result.buffer).stats();
+    const gap = (s) => s.channels[0].mean - s.channels[2].mean;
+    assert.ok(gap(after) < gap(before), 'cast reduced');
+    assert.ok(after.channels[1].mean > before.channels[1].mean, 'lifted');
+  });
+
+  await checkAsync('anything that cannot be decoded is uploaded exactly as it arrived', async () => {
+    const junk = Buffer.from('not an image at all');
+    const result = await photoEnhance.enhanceImageBuffer(junk);
+    assert.strictEqual(result.enhanced, false);
+    assert.strictEqual(result.buffer, junk);
+  });
+
+  check('corrected objects get a versioned JPEG name, never the original one', () => {
+    assert.strictEqual(photoEnhance.enhancedObjectName('properties/9/whatsapp_ab12.png'), 'properties/9/whatsapp_ab12_e1.jpg');
+    assert.strictEqual(photoEnhance.isEnhancedObjectName('properties/9/whatsapp_ab12_e1.jpg'), true);
+    assert.strictEqual(photoEnhance.isEnhancedObjectName('properties/9/whatsapp_ab12.jpg'), false);
+    assert.strictEqual(photoEnhance.isEnhanceableExtension('gif'), false);
+  });
+
+  check('uploadListingPhotos names the object from the ORIGINAL bytes, then corrects', () => {
+    const source = fs.readFileSync(path.join(__dirname, '..', 'services', 'supabaseStorage.js'), 'utf8');
+    const named = source.indexOf('whatsapp_${contentHash(buffer)}');
+    const corrected = source.indexOf('await enhanceImageBuffer(buffer)');
+    assert.ok(named > 0 && corrected > named, 'hash of the original, so a re-sync lands on the same _e1 object');
+    assert.ok(source.includes('enhancedObjectName(originalPath)'));
+  });
+
+  await checkAsync('backfill: only our bucket, skips corrected objects, one transaction per listing, rollback restores', async () => {
+    const SUPA = 'https://abc.supabase.co';
+    const pub = (p) => `${SUPA}/storage/v1/object/public/Property_images/${p}`;
+    const warm = await warmRoomJpeg();
+    const rows = {
+      properties: new Map([
+        [1, pub('properties/1/whatsapp_aaa.jpg')],
+        [2, 'https://lukkaplace.com/assets/img/noimage.jpg'],
+        [3, pub('properties/3/agent_bbb_e1.jpg')],
+      ]),
+      slider: [
+        { property_id: 1, image: pub('properties/1/whatsapp_aaa.jpg') },
+        { property_id: 1, image: pub('properties/1/whatsapp_ccc.jpg') },
+        { property_id: 2, image: 'https://old-laravel.example/img/x.jpg' },
+        { property_id: 3, image: pub('properties/3/agent_bbb_e1.jpg') },
+      ],
+    };
+    const log = [];
+    const runUpdate = (sql, params) => {
+      log.push(sql.trim().split(/\s+/).slice(0, 2).join(' '));
+      if (sql.startsWith('UPDATE properties')) {
+        if (rows.properties.get(params[1]) === params[2]) rows.properties.set(params[1], params[0]);
+      } else if (sql.startsWith('UPDATE property_slider_images')) {
+        for (const s of rows.slider) if (s.property_id === params[1] && s.image === params[2]) s.image = params[0];
+      }
+      return { rows: [] };
+    };
+    const pool = {
+      async query(sql) {
+        assert.ok(sql.includes('FROM properties p'));
+        return {
+          rows: [...rows.properties].map(([id, featured]) => ({
+            id,
+            featured_image: featured,
+            slider: rows.slider.filter((s) => s.property_id === id).map((s) => s.image),
+          })),
+        };
+      },
+      async connect() {
+        return { query: async (sql, params) => runUpdate(sql, params), release() {} };
+      },
+    };
+    const uploads = [];
+    const storage = {
+      async download(p) {
+        assert.ok(p.startsWith('properties/1/'), `only our own objects are read (${p})`);
+        return { data: { arrayBuffer: async () => warm }, error: null };
+      },
+      async upload(p) {
+        uploads.push(p);
+        return { error: null };
+      },
+      getPublicUrl(p) {
+        return { data: { publicUrl: pub(p) } };
+      },
+    };
+    const common = { pool, storage, supabaseUrl: SUPA, bucket: 'Property_images', log: () => {} };
+
+    const dry = await photoBackfill.backfillPhotoEnhancement({ ...common, write: false });
+    assert.strictEqual(uploads.length, 0, 'dry run uploads nothing');
+    assert.ok(!log.includes('BEGIN'), 'dry run writes nothing');
+    assert.strictEqual(dry.tally.enhanced, 2);
+    assert.strictEqual(dry.tally.alreadyEnhanced, 1);
+    assert.strictEqual(dry.tally.foreign, 2);
+
+    const { changes } = await photoBackfill.backfillPhotoEnhancement({ ...common, write: true });
+    assert.deepStrictEqual(uploads.sort(), ['properties/1/whatsapp_aaa_e1.jpg', 'properties/1/whatsapp_ccc_e1.jpg']);
+    assert.strictEqual(rows.properties.get(1), pub('properties/1/whatsapp_aaa_e1.jpg'));
+    assert.strictEqual(rows.slider[0].image, pub('properties/1/whatsapp_aaa_e1.jpg'));
+    assert.strictEqual(rows.slider[1].image, pub('properties/1/whatsapp_ccc_e1.jpg'));
+    assert.strictEqual(rows.properties.get(2), 'https://lukkaplace.com/assets/img/noimage.jpg');
+    assert.strictEqual(log.filter((l) => l === 'BEGIN').length, 1, 'one transaction, for listing 1 only');
+    assert.ok(log.includes('SET LOCAL'), 'never a bare SET on the pooler');
+
+    await photoBackfill.rollbackPhotoEnhancement({ pool, changes, log: () => {} });
+    assert.strictEqual(rows.properties.get(1), pub('properties/1/whatsapp_aaa.jpg'));
+    assert.strictEqual(rows.slider[1].image, pub('properties/1/whatsapp_ccc.jpg'));
+  });
+
   // -------------------------------------------------------------------------
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);

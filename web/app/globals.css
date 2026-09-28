@@ -1250,9 +1250,9 @@
 }
 .lkp-projects .lkp-pin:not([data-active='true']) .lkp-pin__check { color: #fff; }
 
-/* Listing detail page comparison map (components/ListingComparablesMap.js):
-   this listing big and royal blue with its full price; comparable listings
-   nearby small and quiet, full strength once tapped (active). */
+/* Listing detail page (components/ListingPinMap.js): the one listing, big
+   and royal blue, with a symbol for its type (lib/listingPin.js) and its
+   full price. */
 .lkp-pin[data-variant='featured'] {
   --lkp-bg: var(--blue);
   --lkp-fg: #fff;
@@ -1260,31 +1260,31 @@
   cursor: default;
 }
 .lkp-pin[data-variant='featured'] .lkp-pin__body {
-  height: 34px;
-  padding: 0 13px;
-  gap: 5px;
-  border-radius: 9px;
+  height: 44px;
+  padding: 0 14px 0 5px;
+  gap: 8px;
+  border-radius: 999px;
   font-size: 15px;
   box-shadow: 0 6px 18px rgb(30 58 168 / 0.38), 0 1px 3px rgb(0 0 0 / 0.18);
 }
-.lkp-pin[data-variant='featured'] .lkp-pin__body::before { width: 11px; height: 11px; bottom: -6px; }
+.lkp-pin[data-variant='featured'] .lkp-pin__body::before { width: 12px; height: 12px; bottom: -6px; }
+.lkp-pin[data-variant='featured'] .lkp-pin__body::after { border-radius: 0 0 8px 8px; }
+.lkp-pin__icon {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--blue);
+}
+.lkp-pin__icon svg { width: 19px; height: 19px; }
 .lkp-pin[data-variant='featured'] .lkp-pin__check { width: 14px; height: 14px; color: #fff; }
-.lkp-pin[data-variant='minor']:not([data-active='true']) {
-  --lkp-fg: #4b5262;
-}
-.lkp-pin[data-variant='minor'] .lkp-pin__body {
-  height: 20px;
-  padding: 0 6px;
-  border-radius: 5px;
-  font-size: 10.5px;
-  font-weight: 600;
-  box-shadow: 0 1px 4px rgb(0 0 0 / 0.14);
-}
-.lkp-pin[data-variant='minor']:not([data-active='true']) .lkp-pin__body { opacity: 0.94; }
-.lkp-pin[data-variant='minor'][data-active='true'] .lkp-pin__body { scale: 1.2; }
 @media (hover: hover) {
   .lkp-pin[data-variant='featured']:hover .lkp-pin__body { scale: 1; }
-  .lkp-pin[data-variant='minor'][data-active='true']:hover .lkp-pin__body { scale: 1.2; }
 }
 
 /* Lot plan (components/projects/LotPlan.js). Fills are the lot's status. */

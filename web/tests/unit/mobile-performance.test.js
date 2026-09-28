@@ -103,10 +103,10 @@ test('the map modules are loaded on demand, not bundled with the list view', () 
   assert.match(pane, /dynamic\(\(\) => import\('\.\/ListingsMap'\)/);
   const detail = read('components/ListingLocationMap.js');
   // Nothing map-shaped mounts before the frame nears the viewport (or a
-  // Data Saver tap), and the comparison map is its own chunk.
-  assert.match(detail, /show \? \(\s*position \? \(\s*<ListingComparablesMap[\s\S]*?<ResponsiveMapPane/);
-  assert.match(detail, /dynamic\(\(\) => import\('\.\/ListingComparablesMap'\)/);
-  assert.doesNotMatch(detail, /^import ListingComparablesMap from/m);
+  // Data Saver tap), and the single-pin map is its own chunk.
+  assert.match(detail, /show \? \(\s*position \? \(\s*<ListingPinMap[\s\S]*?<ResponsiveMapPane/);
+  assert.match(detail, /dynamic\(\(\) => import\('\.\/ListingPinMap'\)/);
+  assert.doesNotMatch(detail, /^import ListingPinMap from/m);
 });
 
 test('no serif italic font file is requested', () => {

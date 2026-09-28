@@ -561,15 +561,6 @@
       "showHint": "La carte se charge à la demande pour économiser vos données mobiles.",
       "cardsLabel": "Biens de la zone",
       "sheetShow": "Liste",
-      "compareSelf": "Ce bien",
-      "compareLegend": {
-        "one": "{count} bien similaire à proximité",
-        "other": "{count} biens similaires à proximité"
-      },
-      "compareLegendBeds": {
-        "one": "{count} bien similaire ({beds} ch.) à proximité",
-        "other": "{count} biens similaires ({beds} ch.) à proximité"
-      },
       "projectsHere": {
         "one": "{count} projet neuf ici",
         "other": "{count} projets neufs ici"

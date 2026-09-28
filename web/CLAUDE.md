@@ -573,11 +573,12 @@ loading or error boundary anywhere outside the client portal and `/admin`.
     within 400px of the viewport, at every width (2026-09-28, product
     direction: no tap on phones); only Data Saver / 2G still gets the
     "Afficher la carte" button. The frame keeps its height either way.
-    With stored coordinates it is `ListingComparablesMap` (its own chunk):
-    this listing as a big blue pill with its full price, up to 8 comparables
-    within 3 km as small pills (`lib/comparables.js`: same purpose, same type
-    or parcelle sub-type, exact bedroom count), a tap opens a mini card.
-    Without coordinates it keeps the geocoding single-pin `PropertyMap`.
+    With stored coordinates it is `ListingPinMap` (its own chunk): this
+    listing alone at zoom 14, a big blue pill with a symbol for its type
+    (`lib/listingPin.js`: apartment building / house / plot) and its full
+    price. A comparison with nearby similar listings was tried and reverted
+    the same day (2026-09-28) on product direction. Without coordinates it
+    keeps the geocoding single-pin `PropertyMap` (max zoom 14).
   - `lib/useSaveData.js` (`saveData` or a 2G `effectiveType`) skips work nobody
     asked for: auto-loading the map, preloading the neighbouring card photo.
     It never hides content, and it is false on the server and in

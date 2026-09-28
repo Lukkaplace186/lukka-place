@@ -4,12 +4,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { MapPin } from 'lucide-react';
 import ResponsiveMapPane from './ResponsiveMapPane';
-import { storedPosition } from '@/lib/comparables';
+import { storedPosition } from '@/lib/listingPin';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useSaveData } from '@/lib/useSaveData';
 import { useT } from '@/lib/i18n/client';
 
-const ListingComparablesMap = dynamic(() => import('./ListingComparablesMap'), { ssr: false });
+const ListingPinMap = dynamic(() => import('./ListingPinMap'), { ssr: false });
 
 /**
  * The detail page's "Emplacement" map.
@@ -25,9 +25,10 @@ const ListingComparablesMap = dynamic(() => import('./ListingComparablesMap'), {
  * placeholder at the map's full height, so nothing shifts when it does.
  *
  * WHICH MAP:
- *   - the listing has stored coordinates → ListingComparablesMap: this
- *     listing as a big pin, comparable listings nearby as small ones
- *     (lib/comparables.js);
+ *   - the listing has stored coordinates → ListingPinMap: this listing
+ *     alone, as a big blue pin with a symbol for its type and its price,
+ *     at zoom 14 (a comparison with nearby listings was tried and reverted
+ *     the same day, on product direction);
  *   - it has none → the geocoding single-pin map (ResponsiveMapPane →
  *     PropertyMap), which can still find its street from the address.
  *
@@ -77,14 +78,14 @@ export default function ListingLocationMap({ listing }) {
       >
         {show ? (
           position ? (
-            <ListingComparablesMap listing={listing} position={position} />
+            <ListingPinMap listing={listing} position={position} />
           ) : (
             <ResponsiveMapPane
               listings={[listing]}
               isMapView
               hoveredId={null}
               onMarkerHover={() => {}}
-              maxZoom={15}
+              maxZoom={14}
               listingPreview={false}
               className="h-full"
             />

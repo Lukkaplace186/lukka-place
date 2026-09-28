@@ -561,15 +561,6 @@
       "showHint": "The map loads on request to save your mobile data.",
       "cardsLabel": "Listings in this area",
       "sheetShow": "List",
-      "compareSelf": "This property",
-      "compareLegend": {
-        "one": "{count} similar property nearby",
-        "other": "{count} similar properties nearby"
-      },
-      "compareLegendBeds": {
-        "one": "{count} similar {beds}-bed nearby",
-        "other": "{count} similar {beds}-beds nearby"
-      },
       "projectsHere": {
         "one": "{count} new-build project here",
         "other": "{count} new-build projects here"

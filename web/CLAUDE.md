@@ -573,10 +573,12 @@ loading or error boundary anywhere outside the client portal and `/admin`.
     within 400px of the viewport, at every width (2026-09-28, product
     direction: no tap on phones); only Data Saver / 2G still gets the
     "Afficher la carte" button. The frame keeps its height either way.
-    With stored coordinates it is `ListingPinMap` (its own chunk): this
-    listing alone at zoom 14, a big blue pill with a symbol for its type
-    (`lib/listingPin.js`: apartment building / house / plot) and its full
-    price. A comparison with nearby similar listings was tried and reverted
+    With stored coordinates it is `ListingPinMap` (its own chunk),
+    Rightmove-style: one round navy point at zoom 14 with a type symbol
+    (`lib/listingPin.js`: apartment building / house / plot), a soft pulse,
+    the commune on a pill under it and a 500 m pale disc for the approximate
+    zone (wider than the ≤400 m jitter, so the real spot is inside it). No
+    price on the map — the page shows it twice. A price pill was tried first. A comparison with nearby similar listings was tried and reverted
     the same day (2026-09-28) on product direction. Without coordinates it
     keeps the geocoding single-pin `PropertyMap` (max zoom 14).
   - `lib/useSaveData.js` (`saveData` or a 2G `effectiveType`) skips work nobody

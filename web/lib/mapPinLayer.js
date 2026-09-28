@@ -77,8 +77,7 @@ export function createPinLayer(map, handlers) {
      *
      * @param {Array<{key: string, id: string|null, lat: number, lng: number,
      *   label: string, title: string, building: boolean,
-     *   verified: boolean, zIndex: number, variant?: 'featured', icon?: string,
-     *   payload: any}>} pins
+     *   verified: boolean, zIndex: number, payload: any}>} pins
      */
     setPins(pins) {
       const previous = new Map(this.entries);
@@ -176,14 +175,6 @@ export function createPinLayer(map, handlers) {
       const labelEl = document.createElement('span');
       labelEl.className = 'lkp-pin__label';
       labelEl.textContent = pin.label;
-      // The detail page's single pin carries a symbol for the property type
-      // (lib/listingPin.js PIN_ICONS — static markup of our own, never data).
-      if (pin.icon) {
-        const iconEl = document.createElement('span');
-        iconEl.className = 'lkp-pin__icon';
-        iconEl.innerHTML = pin.icon;
-        body.appendChild(iconEl);
-      }
       body.appendChild(labelEl);
       el.appendChild(body);
       // Dropped once the entrance is over (a timer, not animationend: reduced
@@ -237,10 +228,6 @@ export function createPinLayer(map, handlers) {
       el.dataset.active = String(active);
       el.dataset.visited = String(visited);
       el.dataset.building = String(Boolean(pin.building));
-      // 'featured': the detail page's single listing pin, big (ListingPinMap).
-      // Absent on /listings.
-      if (pin.variant) el.dataset.variant = pin.variant;
-      else delete el.dataset.variant;
       if (el.title !== (pin.title || '')) el.title = pin.title || '';
       this.#applyZ(entry);
     }

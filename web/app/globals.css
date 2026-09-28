@@ -1250,41 +1250,68 @@
 }
 .lkp-projects .lkp-pin:not([data-active='true']) .lkp-pin__check { color: #fff; }
 
-/* Listing detail page (components/ListingPinMap.js): the one listing, big
-   and royal blue, with a symbol for its type (lib/listingPin.js) and its
-   full price. */
-.lkp-pin[data-variant='featured'] {
-  --lkp-bg: var(--blue);
-  --lkp-fg: #fff;
-  --lkp-edge: var(--blue);
-  cursor: default;
+/* Listing detail page (components/ListingPinMap.js), Rightmove-style: one
+   round navy point with a type symbol, a soft pulse, and the commune under
+   it. No price — the page already shows it twice. The pale disc around it is
+   a google.maps.Circle, the approximate privacy zone. */
+.lkp-point {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
 }
-.lkp-pin[data-variant='featured'] .lkp-pin__body {
-  height: 44px;
-  padding: 0 14px 0 5px;
-  gap: 8px;
-  border-radius: 999px;
-  font-size: 15px;
-  box-shadow: 0 6px 18px rgb(30 58 168 / 0.38), 0 1px 3px rgb(0 0 0 / 0.18);
-}
-.lkp-pin[data-variant='featured'] .lkp-pin__body::before { width: 12px; height: 12px; bottom: -6px; }
-.lkp-pin[data-variant='featured'] .lkp-pin__body::after { border-radius: 0 0 8px 8px; }
-.lkp-pin__icon {
-  position: relative;
-  z-index: 1;
+.lkp-point__dot {
+  position: absolute;
+  left: 0;
+  top: 0;
+  translate: -50% -50%;
   display: grid;
   place-items: center;
-  flex: none;
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: #1e3a8a;
+  color: #fff;
+  border: 3px solid #fff;
+  box-shadow: 0 3px 10px rgb(15 23 42 / 0.35);
+}
+.lkp-point__dot svg { width: 18px; height: 18px; }
+.lkp-point__pulse {
+  position: absolute;
+  left: 0;
+  top: 0;
+  translate: -50% -50%;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  background: rgb(30 58 138 / 0.28);
+}
+.lkp-point__label {
+  position: absolute;
+  left: 0;
+  top: 28px;
+  translate: -50% 0;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 3px 9px;
   border-radius: 999px;
   background: #fff;
-  color: var(--blue);
+  color: #1e1e1e;
+  border: 1px solid rgb(0 0 0 / 0.08);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.12);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
 }
-.lkp-pin__icon svg { width: 19px; height: 19px; }
-.lkp-pin[data-variant='featured'] .lkp-pin__check { width: 14px; height: 14px; color: #fff; }
-@media (hover: hover) {
-  .lkp-pin[data-variant='featured']:hover .lkp-pin__body { scale: 1; }
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes lkp-point-pulse {
+    0% { opacity: 0.9; scale: 1; }
+    100% { opacity: 0; scale: 2.8; }
+  }
+  .lkp-point__pulse { animation: lkp-point-pulse 2.2s ease-out infinite; }
 }
 
 /* Lot plan (components/projects/LotPlan.js). Fills are the lot's status. */

@@ -1042,7 +1042,7 @@
 @media (min-width: 64rem) {
   .agent-listing-row,
   .agent-listing-row.is-selecting {
-    grid-template-columns: 2.25rem minmax(0, 2.2fr) minmax(0, 1fr) minmax(0, 0.7fr) minmax(0, 0.7fr) minmax(0, 1.2fr) minmax(0, 0.6fr);
+    grid-template-columns: 2.25rem minmax(0, 2fr) minmax(0, 1fr) minmax(0, 0.7fr) minmax(0, 0.7fr) minmax(0, 1.2fr) minmax(0, 0.85fr);
     grid-template-areas: none;
     row-gap: 0;
     align-items: center;

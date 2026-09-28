@@ -3,16 +3,9 @@ import { CalendarDays, CheckCircle2 } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { formatRelativeFr } from '@/lib/format';
 import { formatVisitSlot, formatVisitTime } from '@/lib/visitAgenda';
-import { TODO_KINDS, TODO_SEE_ALL_HREF } from '@/lib/agentTodo';
+import { TODO_ALL_HREF, TODO_KINDS } from '@/lib/agentTodo';
 import { getLocale, getT } from '@/lib/i18n/server';
 import AgentTodayList from './AgentTodayList';
-
-const SEE_ALL_KEY = {
-  [TODO_KINDS.VISIT]: 'agent.today.seeAll.visits',
-  [TODO_KINDS.LEAD]: 'agent.today.seeAll.leads',
-  [TODO_KINDS.LISTING_CONFIRM]: 'agent.today.seeAll.listingsToConfirm',
-  [TODO_KINDS.LISTING_INCOMPLETE]: 'agent.today.seeAll.incompleteListings',
-};
 
 // Lead rows carry `name`, visit rows `lead_name`; reading only the second is
 // what printed a lead's customer as a bare "+4479…" beside their own name.
@@ -102,16 +95,19 @@ function toRow(item, { t, locale, listingById }) {
  * result. An empty list says so plainly — but only when every source was read;
  * with an engine read down it says the list may be incomplete instead of
  * claiming there is nothing to do.
+ *
+ * What the cap hides is ONE link, "Voir les N actions", to /compte/agent/a-faire
+ * (the same panel, uncapped, `showAll`) — not one link per kind.
  */
-export default async function AgentTodayPanel({ todo, listingById }) {
+export default async function AgentTodayPanel({ todo, listingById, showAll = false }) {
   const t = await getT();
   const locale = await getLocale();
   const rows = todo.visible.map((item) => toRow(item, { t, locale, listingById }));
-  const seeAll = Object.entries(todo.hiddenByKind).map(([kind, count]) => ({
-    kind,
-    href: TODO_SEE_ALL_HREF[kind],
-    label: t(SEE_ALL_KEY[kind], { count }),
-  }));
+  const hidden = Object.values(todo.hiddenByKind).reduce((sum, count) => sum + count, 0);
+  const seeAll =
+    !showAll && hidden > 0
+      ? [{ kind: 'all', href: TODO_ALL_HREF, label: t('agent.today.seeAllActions', { count: todo.total }) }]
+      : [];
 
   return (
     <section aria-labelledby="agent-today-title" className="u-card rounded-card bg-surface p-4 sm:p-6">

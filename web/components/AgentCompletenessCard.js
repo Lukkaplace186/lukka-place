@@ -5,11 +5,12 @@ import { gapHintKey, gapLabelKey, profileGapHref } from '@/lib/completenessRules
 import { getT } from '@/lib/i18n/server';
 
 /**
- * The overview's "À compléter" card: each real profile gap with one line of
- * why it matters and a "Compléter" link to the exact settings field, plus a
- * pointer to Mes biens when listings have gaps of their own. Renders nothing
- * when there is nothing to do — a card saying "all done" would push the stats
- * down for no information.
+ * The "À compléter" profile checklist — at the top of Réglages since
+ * 2026-09-28 (it was a card on the overview; the overview now shows a one-line
+ * AgentProfileGapsBanner pointing here). Each real profile gap gets one line
+ * of why it matters and a "Compléter" link to the exact settings field, plus
+ * an optional pointer to Mes biens when listings have gaps of their own.
+ * Renders nothing when there is nothing to do.
  */
 export default async function AgentCompletenessCard({ profileGaps = [], incompleteListingsCount = 0 }) {
   const t = await getT();

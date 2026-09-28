@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Archive, ArchiveRestore, CircleCheck, CircleDot, Copy, ExternalLink, FileText, ImagePlus, MessageCircle, MoreHorizontal, Pencil, Printer, RotateCcw, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, CircleCheck, CircleDot, Copy, ExternalLink, Megaphone, MoreHorizontal, Pencil, RotateCcw, Trash2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -13,14 +13,12 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
-import { buildWhatsAppShareLink, buildListingShareMessage } from '@/lib/whatsapp';
 import {
   deleteListingAction,
   duplicateListingAction,
   setListingArchivedAction,
   updateListingStatusAction,
 } from '@/app/compte/agent/actions';
-import { recordListingSharesAction } from '@/app/compte/agent/shareActions';
 import { useToast } from './Toast';
 import { actionFailureToast } from '@/lib/actionFailure';
 import AgentListingShareKit from './AgentListingShareKit';
@@ -65,6 +63,14 @@ import { announceListingQuota } from '@/lib/listingQuotaRules';
  * delete inventory they only wanted to hide.
  */
 /*
+ * SEVEN ITEMS, in three groups (2026-09-28 — it had grown to ten, mixing the
+ * everyday with the occasional): open it (Modifier, Voir l'annonce), make
+ * something from it (Marketing & Documents: graphics, the A4 poster and
+ * sheet, the owner report — one dialog, AgentListingShareKit), change its
+ * state (compromis, Dupliquer, Archiver), then Supprimer on its own.
+ * "Partager sur WhatsApp" left the menu for the card itself
+ * (AgentListingWhatsAppButton): it is the one thing agents do every day.
+ *
  * `onStatusChange` (Mes biens) adds the active ↔ sous compromis switch here:
  * on a phone the row shows its status as a tag and this menu is where it
  * changes (the table's status select is desktop-only). The caller keeps the
@@ -124,16 +130,6 @@ export default function AgentListingActionsMenu({ listing, isClosed, onStatusCha
       router.refresh();
     });
   }
-
-  const shareHref = buildWhatsAppShareLink(
-    buildListingShareMessage({
-      title: listing.title,
-      price: listing.price,
-      purpose: listing.purpose,
-      pricePeriod: listing.price_period,
-      id: listing.id,
-    }),
-  );
 
   function handleDuplicate() {
     startTransition(async () => {
@@ -215,6 +211,13 @@ export default function AgentListingActionsMenu({ listing, isClosed, onStatusCha
             </DropdownMenuItem>
           )}
 
+          <DropdownMenuItem onSelect={() => setShareKitOpen(true)} className="flex items-center gap-2.5">
+            <Megaphone strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
+            {t('agent.share.menuItem')}
+          </DropdownMenuItem>
+
+          <DropdownMenuSeparator />
+
           {onStatusChange && !isClosed && (listing.listing_status === 'under_offer' ? (
             <DropdownMenuItem onSelect={() => onStatusChange('active')} className="flex items-center gap-2.5">
               <CircleCheck strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-success" />
@@ -231,45 +234,6 @@ export default function AgentListingActionsMenu({ listing, isClosed, onStatusCha
             <Copy strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
             {t('agent.listings.duplicate')}
           </DropdownMenuItem>
-
-          <DropdownMenuItem onSelect={() => setShareKitOpen(true)} className="flex items-center gap-2.5">
-            <ImagePlus strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
-            {t('agent.share.menuItem')}
-          </DropdownMenuItem>
-
-          <DropdownMenuItem asChild>
-            <a
-              href={shareHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              // Counted like the share kit's WhatsApp link (listing_shares),
-              // fire-and-forget; the server ignores a listing that is not live.
-              onClick={() => recordListingSharesAction({ listingIds: [listing.id], channel: 'menu_whatsapp', format: 'text' }).catch(() => {})}
-              className="flex items-center gap-2.5"
-            >
-              <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
-              {t('agent.listings.shareWhatsApp')}
-            </a>
-          </DropdownMenuItem>
-
-          {/* Print pages. Shown for approved listings; the page itself explains
-              when one cannot be printed (archived, under offer, closed). */}
-          {listing.approve_status === 1 && (
-            <>
-              <DropdownMenuItem asChild>
-                <Link href={`/compte/agent/biens/${listing.id}/affiche`} className="flex items-center gap-2.5">
-                  <Printer strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
-                  {t('agent.print.posterMenuItem')}
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href={`/compte/agent/biens/${listing.id}/fiche`} className="flex items-center gap-2.5">
-                  <FileText strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-45" />
-                  {t('agent.print.sheetMenuItem')}
-                </Link>
-              </DropdownMenuItem>
-            </>
-          )}
 
           {isClosed ? (
             <DropdownMenuItem onSelect={handleRepublish} disabled={pending} className="flex items-center gap-2.5">

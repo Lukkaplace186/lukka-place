@@ -20,6 +20,8 @@ import {
 import { getT } from '@/lib/i18n/server';
 import { listQuickReplies } from '@/lib/quickReplies';
 import AgentQuickRepliesManager from '@/components/AgentQuickRepliesManager';
+import AgentCompletenessCard from '@/components/AgentCompletenessCard';
+import { getAgentProfileGaps } from '@/lib/completeness';
 
 // Keys, not text: this is a module-level constant, evaluated once at import
 // time, so `t` does not exist here and a string baked in would be frozen in
@@ -110,6 +112,14 @@ export default async function AgentSettingsPage({ searchParams }) {
     }),
   ]);
 
+  // The profile checklist ("À compléter") moved here from the overview
+  // (2026-09-28): every gap it lists is a field on this page. A failed read
+  // costs the card, never the page.
+  const profileGaps = await getAgentProfileGaps(agent).catch((err) => {
+    console.error(`[compte/agent/parametres] profile gaps unavailable: ${err.message}`);
+    return [];
+  });
+
   const profileUrl = `${SITE_URL}/agents/${agent.id}`;
   const selectedCommunes = new Set(agent.primary_communes || []);
   const boundUpdateCommunes = updateOwnCommunesAction.bind(null, communes);
@@ -117,6 +127,12 @@ export default async function AgentSettingsPage({ searchParams }) {
   return (
     <>
       <AgentPageHeader title={t('agent.settings.title')} newLeadsCount={0} />
+
+      {!section && profileGaps.length > 0 && (
+        <div id="a-completer" className="scroll-mt-24 px-3 pt-4 sm:px-8 sm:pt-7">
+          <AgentCompletenessCard profileGaps={profileGaps} />
+        </div>
+      )}
 
       {section ? (
         <Link

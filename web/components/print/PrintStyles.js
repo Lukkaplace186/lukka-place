@@ -11,7 +11,7 @@
  * box at full width and scroll the phone sideways.
  *
  * PRINTING hides the dashboard chrome (sidebar, bottom nav, toolbar) and
- * breaks after each sheet. `print-color-adjust: exact` keeps the blue band —
+ * gives each sheet one page. `print-color-adjust: exact` keeps the blue band —
  * browsers drop backgrounds by default when printing.
  */
 const CSS = `
@@ -53,48 +53,81 @@ const CSS = `
 .lp-poster-ref { font-size: 2.6cqw; margin: 1.4cqw 0 0; }
 .lp-brandbar { flex: none; display: flex; justify-content: space-between; align-items: center; padding: 2.2cqw 5cqw; font-size: 2.6cqw; font-weight: 700; }
 
-/* Technical sheet */
-.lp-fiche-head { flex: none; padding: 4.5cqw 5cqw 4cqw; }
-.lp-fiche-head .lp-pill { background: #fff; color: var(--blue); font-size: 2.4cqw; padding: .9cqw 2cqw; }
-.lp-fiche-title { font-size: 5.6cqw; line-height: 1.1; margin: 1.8cqw 0 0; }
-.lp-fiche-sub { font-size: 2.8cqw; margin: 1cqw 0 0; opacity: .88; }
-.lp-fiche-price { font-size: 6cqw; font-weight: 800; margin: 1.6cqw 0 0; }
-.lp-fiche-main { flex: 1; min-height: 0; padding: 4cqw 5cqw 0; display: flex; flex-direction: column; gap: 3.6cqw; }
-.lp-gallery { display: grid; grid-template-columns: 2fr 1fr; gap: 1.2cqw; height: 50cqw; flex: none; }
-.lp-gallery.lp-single { grid-template-columns: 1fr; }
-.lp-gallery-side { display: grid; grid-template-rows: repeat(2, minmax(0,1fr)); grid-template-columns: repeat(2, minmax(0,1fr)); gap: 1.2cqw; min-height: 0; }
-.lp-gallery-side.lp-one { grid-template-rows: 1fr; grid-template-columns: 1fr; }
-.lp-gallery-side.lp-two { grid-template-columns: 1fr; }
-.lp-gallery img { border-radius: 1.2cqw; min-height: 0; }
-.lp-section-title { font-size: 3.6cqw; margin: 0 0 1.6cqw; color: var(--ink); }
-.lp-table { width: 100%; border-collapse: collapse; font-size: 2.8cqw; }
-.lp-table th { text-align: left; font-weight: 500; color: var(--ink-45); padding: 1.1cqw 0; width: 42%; vertical-align: top; }
-.lp-table td { font-weight: 700; padding: 1.1cqw 0; vertical-align: top; }
-.lp-table tr + tr th, .lp-table tr + tr td { border-top: .2cqw solid var(--line); }
-.lp-cols { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 5cqw; }
-.lp-note { font-size: 2.2cqw; margin: 1.2cqw 0 0; }
-.lp-list { margin: 0; padding: 0; list-style: none; font-size: 2.8cqw; display: grid; gap: 1cqw; }
-.lp-list li { padding-left: 3cqw; position: relative; }
-.lp-list li::before { content: ''; position: absolute; left: 0; top: 1.1cqw; width: 1.2cqw; height: 1.2cqw; border-radius: 50%; background: var(--blue); }
-.lp-list.lp-two-cols { grid-template-columns: repeat(2, minmax(0,1fr)); column-gap: 4cqw; }
-.lp-map a { color: var(--blue-deep); font-weight: 700; font-size: 2.8cqw; }
-.lp-contact { display: grid; grid-template-columns: minmax(0,1fr) 22cqw; gap: 4cqw; align-items: center; border: .25cqw solid var(--line); border-radius: 2cqw; padding: 3cqw 3.6cqw; }
-.lp-contact-name { font-size: 3.4cqw; font-weight: 800; margin: 0; }
-.lp-contact-phone { font-size: 4.2cqw; font-weight: 800; color: var(--blue); margin: .6cqw 0 0; }
-.lp-contact-url { font-size: 2.4cqw; margin: 1.4cqw 0 0; word-break: break-all; }
-.lp-page-no { font-size: 2.2cqw; }
+/* Technical sheet — one A4 page. Vertical budget in cqw (the page is
+   141.4cqw tall): header ~22, photos 38, figures ~8, contact ~17, brand bar
+   ~5.5, paddings and gaps ~14; .lp-details takes what is left and clips. */
+.lp-fiche-head { flex: none; padding: 3cqw 5cqw 3cqw; }
+.lp-fiche-top { display: flex; justify-content: space-between; align-items: center; gap: 3cqw; }
+.lp-logo { display: block; height: 3.2cqw; width: auto; }
+.lp-fiche-ref { font-size: 1.8cqw; font-weight: 700; letter-spacing: .04em; opacity: .9; text-align: right; min-width: 0; overflow-wrap: anywhere; }
+.lp-fiche-headrow { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4cqw; align-items: end; margin-top: 2cqw; }
+.lp-fiche-head .lp-pill { background: #fff; color: var(--blue); font-size: 1.7cqw; padding: .6cqw 1.6cqw; }
+.lp-fiche-title { font-size: 4.2cqw; line-height: 1.1; margin: 1cqw 0 0; }
+.lp-fiche-sub { font-size: 2cqw; margin: .6cqw 0 0; opacity: .88; }
+.lp-fiche-price { font-size: 5cqw; font-weight: 800; line-height: 1; margin: 0; white-space: nowrap; }
+.lp-fiche-main { flex: 1; min-height: 0; padding: 3cqw 5cqw 3cqw; display: flex; flex-direction: column; gap: 2.4cqw; }
+
+.lp-gallery { position: relative; flex: none; height: 38cqw; }
+.lp-ph { position: absolute; overflow: hidden; border-radius: 1.2cqw; background: var(--canvas-deep); }
+.lp-ph img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; }
+.lp-g1 .lp-ph-hero { inset: 0; }
+.lp-g2 .lp-ph-hero, .lp-g3 .lp-ph-hero { top: 0; bottom: 0; left: 0; width: calc(60% - .6cqw); }
+.lp-g2 .lp-ph-side-1 { top: 0; bottom: 0; right: 0; width: calc(40% - .6cqw); }
+.lp-g3 .lp-ph-side-1 { top: 0; right: 0; width: calc(40% - .6cqw); height: calc(50% - .6cqw); }
+.lp-g3 .lp-ph-side-2 { bottom: 0; right: 0; width: calc(40% - .6cqw); height: calc(50% - .6cqw); }
+
+.lp-specs { flex: none; display: grid; margin: 0; border: .2cqw solid var(--line); border-radius: 1.4cqw; overflow: hidden; }
+.lp-spec { padding: 1.2cqw 1.8cqw; min-width: 0; }
+.lp-spec + .lp-spec { border-left: .2cqw solid var(--line); }
+.lp-spec dt { font-size: 1.5cqw; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+.lp-spec dd { margin: .4cqw 0 0; font-size: 2.6cqw; font-weight: 800; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.lp-details { flex: 1; min-height: 0; overflow: hidden; display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 4cqw; align-content: start; }
+.lp-col { display: flex; flex-direction: column; gap: 2.2cqw; min-width: 0; }
+.lp-block { min-width: 0; }
+.lp-section-title { font-size: 2.2cqw; font-weight: 800; margin: 0 0 1cqw; color: var(--blue); text-transform: uppercase; letter-spacing: .05em; }
+.lp-gap-top { margin-top: 2cqw; }
+.lp-table { width: 100%; border-collapse: collapse; font-size: 1.75cqw; table-layout: fixed; }
+.lp-table th { text-align: left; font-weight: 500; color: var(--ink-45); padding: .5cqw 1.5cqw .5cqw 0; width: 42%; vertical-align: top; }
+.lp-table td { font-weight: 700; padding: .5cqw 0; vertical-align: top; overflow-wrap: anywhere; }
+.lp-table tr + tr th, .lp-table tr + tr td { border-top: .15cqw solid var(--line); }
+.lp-note { font-size: 1.45cqw; margin: .8cqw 0 0; }
+.lp-list { margin: 0; padding: 0; list-style: none; font-size: 1.75cqw; line-height: 1.3; display: grid; gap: .7cqw; }
+.lp-list li { padding-left: 2.4cqw; position: relative; }
+.lp-list li::before { content: ''; position: absolute; left: 0; top: .75cqw; width: 1cqw; height: 1cqw; border-radius: 50%; background: var(--blue); }
+.lp-map a { color: var(--blue-deep); font-weight: 700; }
+
+.lp-contact { flex: none; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4cqw; align-items: center; border: .2cqw solid var(--line); border-radius: 1.6cqw; padding: 1.8cqw 2.4cqw; background: var(--canvas-alt, #f6f7fb); }
+.lp-contact-label { font-size: 1.5cqw; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin: 0; }
+.lp-contact-name { font-size: 2.6cqw; font-weight: 800; margin: .4cqw 0 0; }
+.lp-contact-phone { font-size: 3.4cqw; font-weight: 800; color: var(--blue); margin: .3cqw 0 0; }
+.lp-contact-url { font-size: 1.6cqw; margin: .8cqw 0 0; overflow-wrap: anywhere; }
+.lp-qr-wrap { width: 12cqw; text-align: center; }
+.lp-qr-wrap .lp-qr { background: #fff; border-radius: .8cqw; }
+.lp-qr-caption { font-size: 1.3cqw; margin: .4cqw 0 0; }
+.lp-fiche .lp-brandbar { padding: 1.6cqw 5cqw; font-size: 1.8cqw; }
 
 @media print {
   @page { size: A4; margin: 0; }
   html, body { background: #fff !important; }
   body:has(.lp-print) aside,
   body:has(.lp-print) nav,
+  body:has(.lp-print) header:not(.lp-fiche-head),
   body:has(.lp-print) .lp-screen-only { display: none !important; }
   body:has(.lp-print) .bg-canvas-alt { background: #fff !important; }
   body:has(.lp-print) .pb-16 { padding-bottom: 0 !important; }
   body:has(.lp-print) .min-h-screen { min-height: 0 !important; }
   .lp-print { display: block; padding: 0; gap: 0; }
-  .lp-sheet { width: 210mm; height: 297mm; aspect-ratio: auto; box-shadow: none; break-after: page; page-break-after: always; }
+  /* The printable width, whatever margins the browser adds (iPhone Safari
+     keeps its own), minus half a millimetre: a sheet exactly as tall as the
+     page rounds over it and prints a blank second page. The height follows
+     A4's ratio, and every length inside is cqw, so the layout only scales. */
+  .lp-sheet {
+    width: calc(100% - .5mm); max-width: 209.5mm; height: auto; aspect-ratio: 210 / 297;
+    margin: 0 auto; box-shadow: none;
+    break-inside: avoid; page-break-inside: avoid;
+    break-after: page; page-break-after: always;
+  }
   .lp-sheet:last-child { break-after: auto; page-break-after: auto; }
 }
 `;

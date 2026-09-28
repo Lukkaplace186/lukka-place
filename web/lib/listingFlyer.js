@@ -24,10 +24,7 @@ import fr from './i18n/fr.json';
 const CONTENT_LANGUAGE_ID = 20;
 const CATEGORY_LANGUAGE_ID = 26;
 
-export async function getFlyerListing(agentId, propertyId) {
-  if (!Number.isFinite(Number(agentId)) || !Number.isFinite(Number(propertyId))) return null;
-  const { rows } = await getPool().query(
-    `SELECT p.id, p.price, p.purpose, p.price_period, p.beds, p.bath, p.area, p.units_count,
+const FLYER_SELECT = `SELECT p.id, p.price, p.purpose, p.price_period, p.beds, p.bath, p.area, p.units_count,
             p.quartier, p.parcelle_subtype, p.reference, p.deposit_months, p.advance_months,
             p.commission_months, p.featured_image, p.status, p.approve_status, p.listing_status,
             pc.title, catc.name AS category_name,
@@ -54,11 +51,32 @@ export async function getFlyerListing(agentId, propertyId) {
      JOIN property_contents pc ON pc.property_id = p.id AND pc.language_id = $1
      LEFT JOIN property_category_contents catc ON catc.category_id = p.category_id AND catc.language_id = $4
      LEFT JOIN agents a ON a.id = p.agent_id
-     ${AGENT_INFOS_JOIN}
+     ${AGENT_INFOS_JOIN}`;
+
+export async function getFlyerListing(agentId, propertyId) {
+  if (!Number.isFinite(Number(agentId)) || !Number.isFinite(Number(propertyId))) return null;
+  const { rows } = await getPool().query(
+    `${FLYER_SELECT}
      WHERE p.id = $2 AND p.agent_id = $3`,
     [CONTENT_LANGUAGE_ID, Number(propertyId), Number(agentId), CATEGORY_LANGUAGE_ID],
   );
   return rows[0] || null;
+}
+
+/**
+ * The same rows for several of the agent's own listings in ONE query (Mes
+ * biens' direct WhatsApp buttons). Same ownership clause; an id that is not
+ * theirs simply returns no row.
+ */
+export async function getFlyerListings(agentId, propertyIds) {
+  const ids = [...new Set((propertyIds || []).map(Number))].filter((id) => Number.isSafeInteger(id) && id > 0);
+  if (!Number.isFinite(Number(agentId)) || !ids.length) return [];
+  const { rows } = await getPool().query(
+    `${FLYER_SELECT}
+     WHERE p.id = ANY($2::bigint[]) AND p.agent_id = $3`,
+    [CONTENT_LANGUAGE_ID, ids, Number(agentId), CATEGORY_LANGUAGE_ID],
+  );
+  return rows;
 }
 
 /** French, always — see lib/listingShareCopy.js for why the market language wins. */

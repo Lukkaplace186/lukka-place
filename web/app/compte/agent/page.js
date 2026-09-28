@@ -20,23 +20,15 @@ import { getPropertyCategories } from '@/lib/agentListings';
 import AgentPortfolioBanner from '@/components/AgentPortfolioBanner';
 import AgentStatGrid from '@/components/AgentStatGrid';
 import AgentViewsChart from '@/components/AgentViewsChart';
-import AgentRecentLeads from '@/components/AgentRecentLeads';
-import AgentSubscriptionCard from '@/components/AgentSubscriptionCard';
 import AgentTodayPanel, { AgentVisitReminderBanner } from '@/components/AgentTodayPanel';
 import { loadAgentTodo } from '@/lib/agentTodoLoader';
-import AgentCompletenessCard from '@/components/AgentCompletenessCard';
-import { getIncompleteListings, getAgentProfileGaps } from '@/lib/completeness';
-import AgentStatusOfTheDay from '@/components/AgentStatusOfTheDay';
-import { getStatusSuggestions, serialiseSuggestion } from '@/lib/listingShares';
-import { STATUS_RECENT_DAYS } from '@/lib/listingShareRules';
-import { shareBlocker } from '@/lib/listingShareCopy';
-import AgentMoreOnPhone from '@/components/AgentMoreOnPhone';
+import AgentProfileGapsBanner from '@/components/AgentProfileGapsBanner';
+import { getAgentProfileGaps } from '@/lib/completeness';
 import { AgentSectionSkeleton } from '@/components/RouteSkeletons';
 import AgentProjectsCard from '@/components/projects/AgentProjectsCard';
 
 const RANGE_OPTIONS = Object.entries(VIEW_RANGES).map(([value, { label }]) => ({ value, label }));
 
-// Read by the header's "Ajouter un bien" and the subscription card — once.
 const quotaFor = cache((agentId) => getListingQuota(agentId).catch(() => null));
 
 /**
@@ -45,10 +37,24 @@ const quotaFor = cache((agentId) => getListingQuota(agentId).catch(() => null));
  * slowest of them — usually the chart series. Now the page waits only for
  * "À faire aujourd'hui" (the reason anyone opens it) and every other section
  * is its own async component behind <Suspense>, arriving as its data does.
- * Each one degrades on its own, exactly as the single page used to.
+ * Each one degrades on its own.
  *
- * On a phone, everything under the four figures sits behind "Voir plus"
- * (AgentMoreOnPhone); from `sm` up the page reads as before.
+ * ONE SCROLL, FOUR THINGS (2026-09-28). The page had grown to eight sections
+ * — a to-do list, figures, a portfolio banner, an onboarding checklist, the
+ * Status tool, a chart, recent requests and a subscription card — and read as
+ * everything at once. Now, in this order:
+ *
+ *   1. the four figures
+ *   2. "À faire aujourd'hui", three rows + one "Voir les N actions" link
+ *   3. the portfolio link
+ *   4. the views chart
+ *
+ * Everything that left has a better home: recent requests and the plan are
+ * their own bottom-nav tabs (Demandes, Abonnement), "Statut du jour" is on
+ * Mes biens, and the profile checklist is at the top of Réglages — the
+ * overview keeps only a one-line banner pointing there when something is
+ * missing. Today's confirmed-visit reminder stays above everything: it is
+ * the one thing more urgent than the figures.
  */
 export default async function AgentOverviewPage({ searchParams }) {
   const t = await getT();
@@ -82,46 +88,31 @@ export default async function AgentOverviewPage({ searchParams }) {
 
       <div className="flex flex-col gap-4 px-3 py-4 sm:gap-6 sm:px-8 sm:py-7">
         <AgentVisitReminderBanner visits={todo.todayVisits} listingById={listingById} />
-        <AgentTodayPanel todo={todo} listingById={listingById} />
 
-        {/* Only for a developer with at least one project (/projets). */}
         <Suspense fallback={null}>
-          <AgentProjectsCard agentId={agentId} />
+          <OverviewProfileGaps agent={agent} />
         </Suspense>
 
         <Suspense fallback={<AgentSectionSkeleton className="h-48 sm:h-28" />}>
           <OverviewStats agentId={agentId} listings={listings} propertyIds={propertyIds} leadScope={leadScope} hasLeadScope={hasLeadScope} />
         </Suspense>
 
-        <AgentMoreOnPhone>
-          <AgentPortfolioBanner
-            listingsCount={listings.length}
-            profileUrl={`${SITE_URL}/agents/${agent.id}`}
-            profilePath={`/agents/${agent.id}`}
-          />
+        <AgentTodayPanel todo={todo} listingById={listingById} />
 
-          <Suspense fallback={null}>
-            <OverviewCompleteness agent={agent} agentId={agentId} />
-          </Suspense>
+        <AgentPortfolioBanner
+          listingsCount={listings.length}
+          profileUrl={`${SITE_URL}/agents/${agent.id}`}
+          profilePath={`/agents/${agent.id}`}
+        />
 
-          <Suspense fallback={null}>
-            <OverviewStatusOfTheDay agentId={agentId} listings={listings} />
-          </Suspense>
+        {/* Only for a developer with at least one project (/projets). */}
+        <Suspense fallback={null}>
+          <AgentProjectsCard agentId={agentId} />
+        </Suspense>
 
-          <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)] lg:items-start">
-            <Suspense fallback={<AgentSectionSkeleton className="h-72" />}>
-              <OverviewChart propertyIds={propertyIds} range={range} />
-            </Suspense>
-            <div className="flex flex-col gap-6">
-              <Suspense fallback={<AgentSectionSkeleton className="h-48" />}>
-                <OverviewRecentLeads leadScope={leadScope} hasLeadScope={hasLeadScope} listingById={listingById} />
-              </Suspense>
-              <Suspense fallback={<AgentSectionSkeleton className="h-40" />}>
-                <OverviewSubscription agent={agent} agentId={agentId} listingsCount={listings.length} />
-              </Suspense>
-            </div>
-          </div>
-        </AgentMoreOnPhone>
+        <Suspense fallback={<AgentSectionSkeleton className="h-72" />}>
+          <OverviewChart propertyIds={propertyIds} range={range} />
+        </Suspense>
       </div>
     </>
   );
@@ -188,69 +179,16 @@ async function OverviewStats({ agentId, listings, propertyIds, leadScope, hasLea
   return <AgentStatGrid stats={stats} />;
 }
 
-async function OverviewCompleteness({ agent, agentId }) {
-  // Degrade, don't die: the checklist is a nudge, never a reason for the
-  // overview to fail. getIncompleteListings already swallows its own errors.
-  const [profileGaps, incompleteListings] = await Promise.all([
-    getAgentProfileGaps(agent).catch((error) => {
-      console.error('[agent/overview] profile gaps unavailable:', error.message);
-      return [];
-    }),
-    getIncompleteListings(agentId, { limit: 200 }),
-  ]);
-  return <AgentCompletenessCard profileGaps={profileGaps} incompleteListingsCount={incompleteListings.length} />;
-}
-
-async function OverviewStatusOfTheDay({ agentId, listings }) {
-  // A failed read hides the card rather than the whole overview;
-  // getStatusSuggestions already degrades when listing_shares does not exist yet.
-  const statusSuggestions = await getStatusSuggestions(agentId).catch((err) => {
-    console.error(`[status-of-the-day] agent ${agentId}: ${err.message}`);
-    return null;
-  });
-  if (!statusSuggestions) return null;
-  // Live = what the share kit would let them advertise (shareBlocker), so the
-  // card can tell "nothing live" from "everything shared recently".
-  const liveCount = listings.filter((l) => !shareBlocker(l)).length;
-  return (
-    <AgentStatusOfTheDay
-      items={statusSuggestions.items.map(serialiseSuggestion)}
-      tracked={statusSuggestions.tracked}
-      liveCount={liveCount}
-      recentDays={STATUS_RECENT_DAYS}
-    />
-  );
-}
-
 async function OverviewChart({ propertyIds, range }) {
   const series = await getAgentListingViewsSeries(propertyIds, range);
   return <AgentViewsChart series={series} rangeOptions={RANGE_OPTIONS} range={range} rangeLabel={VIEW_RANGES[range].caption} />;
 }
 
-async function OverviewRecentLeads({ leadScope, hasLeadScope, listingById }) {
-  let leadsPage = { total: 0, data: [] };
-  let unavailable = false;
-  if (hasLeadScope) {
-    try {
-      leadsPage = await listLeads({ ...leadScope, limit: 3 });
-    } catch (err) {
-      console.error(`[agent/overview] recent leads unavailable: ${err.message}`);
-      unavailable = true;
-    }
-  }
-  return <AgentRecentLeads leads={leadsPage.data} listingById={listingById} unavailable={unavailable} />;
-}
-
-async function OverviewSubscription({ agent, agentId, listingsCount }) {
-  const listingQuota = await quotaFor(agentId);
-  return (
-    <AgentSubscriptionCard
-      packageTitle={agent.package_title}
-      packageTerm={agent.package_term}
-      isTrial={agent.subscription_is_trial}
-      expireDate={agent.expire_date}
-      listingCount={listingQuota?.capped ? listingQuota.used : listingsCount}
-      listingLimit={agent.listing_limit}
-    />
-  );
+async function OverviewProfileGaps({ agent }) {
+  // A nudge, never a reason for the overview to fail.
+  const profileGaps = await getAgentProfileGaps(agent).catch((error) => {
+    console.error('[agent/overview] profile gaps unavailable:', error.message);
+    return [];
+  });
+  return <AgentProfileGapsBanner profileGaps={profileGaps} />;
 }

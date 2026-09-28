@@ -1,7 +1,7 @@
 'use server';
 
 import { getCurrentAgentId } from '@/lib/agentSession';
-import { agentBrandFields, getFlyerListing, frenchTypeText, PLATFORM_MARK_PATH } from '@/lib/listingFlyer';
+import { agentBrandFields, getFlyerListing, getFlyerListings, frenchTypeText, PLATFORM_MARK_PATH } from '@/lib/listingFlyer';
 import { SHARE_SOURCES, agentContactPhone, buildListingSocialCopy, listingPublicUrl, shareBlocker } from '@/lib/listingShareCopy';
 import { buildFlyerPack, optimisableImageSrc, optimisedImageUrl, LOGO_WIDTH } from '@/lib/marketing/sharePackData';
 import { buildMandateCaption, buildMandateReport, reportWindow } from '@/lib/marketing/mandateReportCopy';
@@ -101,6 +101,44 @@ export async function getStatusPacksAction(listingIds) {
     if (kit.shareable) kits.push(kit);
   }
   return { ok: true, kits };
+}
+
+/** A page of Mes biens is at most this many rows; anything past it is ignored. */
+const MAX_CAPTION_IDS = 60;
+
+/**
+ * The WhatsApp caption for each of the agent's own LIVE listings on the page,
+ * in one round trip — what the card's direct "Partager sur WhatsApp" button
+ * opens wa.me with. Fetched once when Mes biens mounts so the button is a
+ * real link at tap time: an `await` between the tap and `window.open` is what
+ * iPhone Safari blocks as a popup.
+ *
+ * Same text as the share kit's "Envoyer sur WhatsApp" (utm_source
+ * wa_message). A listing that is not theirs, or not shareable (shareBlocker),
+ * is left out; the button falls back to the short title + link message.
+ *
+ * @returns {Promise<{ok: true, captions: Record<string, string>}|{ok: false, reason: 'auth'|'failed'}>}
+ */
+export async function getWhatsAppCaptionsAction(listingIds) {
+  const agentId = await getCurrentAgentId();
+  if (!agentId) return { ok: false, reason: 'auth' };
+  const ids = (Array.isArray(listingIds) ? listingIds : []).slice(0, MAX_CAPTION_IDS);
+  try {
+    const rows = await getFlyerListings(agentId, ids);
+    const captions = {};
+    for (const listing of rows) {
+      if (shareBlocker(listing)) continue;
+      captions[String(listing.id)] = buildListingSocialCopy(listing, {
+        typeText: frenchTypeText(listing),
+        contactPhone: agentContactPhone(listing),
+        url: listingPublicUrl(listing.id, { source: SHARE_SOURCES.whatsapp }),
+      });
+    }
+    return { ok: true, captions };
+  } catch (err) {
+    console.error(`[share-captions] agent ${agentId}: ${err.message}`);
+    return { ok: false, reason: 'failed' };
+  }
 }
 
 /**

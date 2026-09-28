@@ -96,5 +96,5 @@ test('the agent dashboard reads engine data defensively', () => {
   const read = (p) => readFileSync(new URL(`../../${p}`, import.meta.url), 'utf8');
   assert.match(read('lib/agentDashboard.js'), /Promise\.allSettled/);
   assert.match(read('app/compte/agent/demandes/page.js'), /leadsUnavailable/);
-  assert.match(read('app/compte/agent/page.js'), /recent leads unavailable/);
+  assert.match(read('app/compte/agent/page.js'), /lead count unavailable/);
 });

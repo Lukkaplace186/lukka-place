@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { buildAgentTodo, TODO_KINDS, TODO_SEE_ALL_HREF } from '@/lib/agentTodo';
+import { buildAgentTodo, TODO_ALL_HREF, TODO_KINDS, TODO_SEE_ALL_HREF } from '@/lib/agentTodo';
 import {
   buildVisitIcs,
   confirmPrefill,
@@ -160,10 +160,11 @@ test('the cap keeps the ranking and counts what is hidden, per kind, for "voir t
   const visits = Array.from({ length: 5 }, (_, i) => visit(i + 1));
   const leads = Array.from({ length: 3 }, (_, i) => ({ id: 100 + i, status: 'NEW', created_at: '2026-09-20 10:00:00' }));
   const todo = buildAgentTodo({ visits, leads, listingsToConfirm: [{ id: 9, daysSince: 3 }], now: NOW });
-  assert.equal(todo.visible.length, 4, 'four rows on the overview, the rest behind "voir tout"');
+  assert.equal(todo.visible.length, 3, 'three rows on the overview, the rest behind one "voir les N actions" link');
   assert.equal(todo.total, 9);
-  assert.deepEqual(todo.hiddenByKind, { [TODO_KINDS.VISIT]: 1, [TODO_KINDS.LEAD]: 3, [TODO_KINDS.LISTING_CONFIRM]: 1 });
+  assert.deepEqual(todo.hiddenByKind, { [TODO_KINDS.VISIT]: 2, [TODO_KINDS.LEAD]: 3, [TODO_KINDS.LISTING_CONFIRM]: 1 });
   assert.equal(TODO_SEE_ALL_HREF[TODO_KINDS.VISIT], '/compte/agent/demandes?tab=visites');
+  assert.equal(TODO_ALL_HREF, '/compte/agent/a-faire');
 });
 
 test('listing items link to the listing, leads to their focused inbox row; duplicates are dropped', () => {

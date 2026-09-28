@@ -793,7 +793,8 @@
       "select": "Sélectionner",
       "doneSelecting": "Terminé",
       "markActive": "Remettre en actif",
-      "markUnderOfferOne": "Marquer sous compromis"
+      "markUnderOfferOne": "Marquer sous compromis",
+      "shareWhatsAppShort": "WhatsApp"
     },
     "leads": {
       "title": "Demandes",
@@ -1032,9 +1033,9 @@
       "statsNote": "Le prix réellement convenu — pas le prix affiché — et la date alimentent les statistiques de marché de Lukka Place. Ils ne sont jamais publiés sur l’annonce."
     },
     "share": {
-      "menuItem": "Visuel & partage",
-      "title": "Visuel et partage",
-      "description": "Des visuels prêts pour votre statut WhatsApp et vos réseaux, avec le texte à coller en légende.",
+      "menuItem": "Marketing & Documents",
+      "title": "Marketing & Documents",
+      "description": "Visuels pour vos réseaux, documents A4 à imprimer et rapport pour le propriétaire.",
       "loading": "Préparation du visuel…",
       "loadFailed": "Impossible de préparer le partage. Réessayez dans un instant.",
       "imageFailed": "L’image n’a pas pu être générée. Le texte ci-dessous reste utilisable.",
@@ -1070,7 +1071,7 @@
       },
       "offlineStamp": "Hors ligne — visuel préparé avec les données du {date}.",
       "staleWarning": "Ces données ont plus de 24 h : vérifiez le prix et la disponibilité avant de publier.",
-      "offlineUnavailable": "Pas de connexion, et ce bien n’a pas encore été préparé sur ce téléphone. Ouvrez « Visuel & partage » une fois en ligne pour pouvoir le refaire hors ligne.",
+      "offlineUnavailable": "Pas de connexion, et ce bien n’a pas encore été préparé sur ce téléphone. Ouvrez « Marketing & Documents » une fois en ligne pour pouvoir le refaire hors ligne.",
       "rendering": "Création du visuel…",
       "owner": {
         "intro": "Envoyez au propriétaire le bilan des 7 derniers jours : vues, clics WhatsApp, mises en favori et demandes de visite.",
@@ -1082,6 +1083,21 @@
         "share": "Partager le rapport",
         "hint": "Sur téléphone : Partager le rapport → WhatsApp → le propriétaire. Le texte est copié, collez-le sous l’image.",
         "captionLabel": "Texte du rapport"
+      },
+      "sections": {
+        "social": "Réseaux sociaux",
+        "print": "Documents A4",
+        "owner": "Rapport propriétaire"
+      },
+      "rows": {
+        "visual": "Visuel de l’annonce",
+        "visualHint": "Statut WhatsApp 9:16 ou publication carrée",
+        "text": "Texte de l’annonce",
+        "textHint": "Prêt à coller sur WhatsApp ou Facebook",
+        "posterHint": "Pour une vitrine ou un portail, avec code QR",
+        "sheetHint": "Toutes les caractéristiques sur une page",
+        "owner": "Bilan de la semaine",
+        "ownerHint": "Vues, clics et visites des 7 derniers jours"
       }
     },
     "drafts": {
@@ -1191,7 +1207,12 @@
           "one": "Voir {count} autre bien à compléter",
           "other": "Voir les {count} autres biens à compléter"
         }
-      }
+      },
+      "seeAllActions": {
+        "one": "Voir l’action →",
+        "other": "Voir les {count} actions →"
+      },
+      "allTitle": "Toutes les actions"
     },
     "agenda": {
       "title": "Agenda des visites",
@@ -1330,6 +1351,11 @@
         "missing_description": "Décrivez le bien en quelques lignes.",
         "missing_deposit": "Indiquez la garantie demandée (en mois).",
         "no_map_pin": "Le quartier sert à placer le bien sur la carte."
+      },
+      "bannerTitle": "Profil incomplet :",
+      "bannerCount": {
+        "one": "{count} élément à compléter",
+        "other": "{count} éléments à compléter"
       }
     },
     "quickReplies": {
@@ -1405,7 +1431,12 @@
       "previewAlt": "Image de statut : {title}",
       "emptyNoLive": "Aucun bien en ligne à partager pour l’instant.",
       "emptyAllShared": "Tous vos biens en ligne ont déjà été partagés ces {days} derniers jours.",
-      "openListings": "Voir mes biens"
+      "openListings": "Voir mes biens",
+      "launcherHint": {
+        "one": "{count} bien pas partagé depuis {days} jours",
+        "other": "{count} biens pas partagés depuis {days} jours"
+      },
+      "launcherCta": "Préparer"
     },
     "print": {
       "posterLink": "Affiche A4",

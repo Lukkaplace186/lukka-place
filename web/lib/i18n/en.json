@@ -793,7 +793,8 @@
       "select": "Select",
       "doneSelecting": "Done",
       "markActive": "Mark as active",
-      "markUnderOfferOne": "Mark as under offer"
+      "markUnderOfferOne": "Mark as under offer",
+      "shareWhatsAppShort": "WhatsApp"
     },
     "leads": {
       "title": "Enquiries",
@@ -1032,9 +1033,9 @@
       "statsNote": "The price actually agreed — not the advertised price — and the date feed Lukka Place's market statistics. They are never published on the listing."
     },
     "share": {
-      "menuItem": "Graphic & sharing",
-      "title": "Graphic and Sharing",
-      "description": "Graphics ready for your WhatsApp Status and social networks, with the text to paste as a caption.",
+      "menuItem": "Marketing & Documents",
+      "title": "Marketing & Documents",
+      "description": "Graphics for your social networks, A4 documents to print and a report for the owner.",
       "loading": "Preparing the graphic…",
       "loadFailed": "Sharing could not be prepared. Try again in a moment.",
       "imageFailed": "The image could not be generated. The text below can still be used.",
@@ -1070,7 +1071,7 @@
       },
       "offlineStamp": "Offline — graphic made with the data from {date}.",
       "staleWarning": "This data is more than 24 hours old: check the price and availability before posting.",
-      "offlineUnavailable": "No connection, and this property has not been prepared on this phone yet. Open “Graphic & sharing” once while online to be able to make it offline.",
+      "offlineUnavailable": "No connection, and this property has not been prepared on this phone yet. Open “Marketing & Documents” once while online to be able to make it offline.",
       "rendering": "Making the graphic…",
       "owner": {
         "intro": "Send the owner the last 7 days at a glance: views, WhatsApp taps, saves and visit requests.",
@@ -1082,6 +1083,21 @@
         "share": "Share the report",
         "hint": "On a phone: Share the report → WhatsApp → the owner. The text is copied — paste it under the image.",
         "captionLabel": "Report text"
+      },
+      "sections": {
+        "social": "Social Networks",
+        "print": "A4 Documents",
+        "owner": "Owner Report"
+      },
+      "rows": {
+        "visual": "Listing graphic",
+        "visualHint": "9:16 WhatsApp Status or square post",
+        "text": "Listing text",
+        "textHint": "Ready to paste on WhatsApp or Facebook",
+        "posterHint": "For a shop window or a gate, with a QR code",
+        "sheetHint": "Every detail on one page",
+        "owner": "This week’s report",
+        "ownerHint": "Views, clicks and visits over the last 7 days"
       }
     },
     "drafts": {
@@ -1191,7 +1207,12 @@
           "one": "See {count} more listing to complete",
           "other": "See {count} more listings to complete"
         }
-      }
+      },
+      "seeAllActions": {
+        "one": "See the action →",
+        "other": "See all {count} actions →"
+      },
+      "allTitle": "All Actions"
     },
     "agenda": {
       "title": "Viewing Agenda",
@@ -1330,6 +1351,11 @@
         "missing_description": "Describe the property in a few lines.",
         "missing_deposit": "State the deposit required (in months).",
         "no_map_pin": "The quartier is used to place the property on the map."
+      },
+      "bannerTitle": "Profile Incomplete:",
+      "bannerCount": {
+        "one": "{count} item to complete",
+        "other": "{count} items to complete"
       }
     },
     "quickReplies": {
@@ -1405,7 +1431,12 @@
       "previewAlt": "Status image: {title}",
       "emptyNoLive": "No live listing to share yet.",
       "emptyAllShared": "All your live listings have already been shared in the last {days} days.",
-      "openListings": "View my listings"
+      "openListings": "View my listings",
+      "launcherHint": {
+        "one": "{count} listing not shared in {days} days",
+        "other": "{count} listings not shared in {days} days"
+      },
+      "launcherCta": "Prepare"
     },
     "print": {
       "posterLink": "A4 poster",

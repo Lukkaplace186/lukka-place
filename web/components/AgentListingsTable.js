@@ -1,12 +1,13 @@
 'use client';
 
-import { useMemo, useOptimistic, useRef, useState, useTransition } from 'react';
+import { useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AlertTriangle, Archive, ArchiveRestore, CheckSquare, ExternalLink, Image as ImageIcon, Trash2 } from 'lucide-react';
 import SafeImage from './SafeImage';
 import AgentListingStatusSelect from './AgentListingStatusSelect';
 import AgentListingActionsMenu from './AgentListingActionsMenu';
+import AgentListingWhatsAppButton from './AgentListingWhatsAppButton';
 import MarkListingSoldDialog from './MarkListingSoldDialog';
 import { formatPrice, formatPriceCdf } from '@/lib/format';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -18,6 +19,8 @@ import {
   bulkSetArchivedAction,
   bulkDeleteListingsAction,
 } from '@/app/compte/agent/actions';
+import { getWhatsAppCaptionsAction } from '@/app/compte/agent/shareActions';
+import { shareBlocker } from '@/lib/listingShareCopy';
 import { useToast } from './Toast';
 import { actionFailureToast } from '@/lib/actionFailure';
 import { useT } from '@/lib/i18n/client';
@@ -63,7 +66,7 @@ function shortDate(value) {
 // spelled out simply doesn't get generated (see web/CLAUDE.md). One extra
 // column versus the previous grid — a checkbox — for bulk selection.
 const GRID_COLS =
-  'lg:grid-cols-[2.25rem_minmax(0,2.2fr)_minmax(0,1fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_minmax(0,1.2fr)_minmax(0,0.6fr)]';
+  'lg:grid-cols-[2.25rem_minmax(0,2fr)_minmax(0,1fr)_minmax(0,0.7fr)_minmax(0,0.7fr)_minmax(0,1.2fr)_minmax(0,0.85fr)]';
 
 /**
  * The Mes biens row list — a client component (unlike the surrounding
@@ -113,6 +116,27 @@ export default function AgentListingsTable({ listings, perListingStats, gapsByLi
   const pressTimer = useRef(null);
   const pressAt = useRef(null);
   const longPressed = useRef(false);
+
+  // Each live listing's WhatsApp caption, read once for the whole page so the
+  // card's direct share button is a ready link at tap time
+  // (AgentListingWhatsAppButton explains why it cannot be fetched on tap).
+  const [captions, setCaptions] = useState({});
+  const captionIdsKey = listings
+    .filter((l) => !shareBlocker(l))
+    .map((l) => l.id)
+    .join(',');
+  useEffect(() => {
+    if (!captionIdsKey) return undefined;
+    let cancelled = false;
+    getWhatsAppCaptionsAction(captionIdsKey.split(',').map(Number))
+      .then((result) => {
+        if (!cancelled && result?.ok) setCaptions(result.captions);
+      })
+      .catch(() => {}); // the button falls back to the short message
+    return () => {
+      cancelled = true;
+    };
+  }, [captionIdsKey]);
 
   const [optimisticListings, applyOptimistic] = useOptimistic(listings, (state, patch) => {
     if (patch.type === 'update') {
@@ -508,6 +532,9 @@ export default function AgentListingsTable({ listings, perListingStats, gapsByLi
             </div>
 
             <div className="alr-actions flex items-center justify-end gap-1.5">
+              {!shareBlocker(listing) && (
+                <AgentListingWhatsAppButton listing={listing} caption={captions[String(listing.id)]} />
+              )}
               {!isClosed && (
                 <MarkListingSoldDialog propertyId={listing.id} purpose={listing.purpose} title={listing.title} />
               )}

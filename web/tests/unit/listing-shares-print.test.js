@@ -19,7 +19,7 @@ import {
 import { getListingShareCount, getStatusSuggestions, recordListingShares, serialiseSuggestion } from '@/lib/listingShares';
 import { buildMandateCaption, buildMandateReport, reportWindow } from '@/lib/marketing/mandateReportCopy';
 import { buildReportOps } from '@/lib/marketing/layout';
-import { buildPrintSheet, entryCostLines, keyFactRows } from '@/lib/marketing/printSheet';
+import { buildPrintSheet, entryCostLines, keyFactRows, sheetHighlights, specStrip, SHEET_MAX_HIGHLIGHTS } from '@/lib/marketing/printSheet';
 import { getPrintExtras } from '@/lib/marketing/printSheetData';
 
 /**
@@ -283,11 +283,36 @@ test('print pages: A4 page size, a print button, and the poster/sheet reachable 
   assert.match(styles, /aspect-ratio: 210 \/ 297/);
   const toolbar = readFileSync(path.join(ROOT, 'components/print/PrintToolbar.js'), 'utf8');
   assert.match(toolbar, /window\.print\(\)/);
-  for (const file of ['components/AgentListingShareKit.js', 'components/AgentListingActionsMenu.js']) {
-    const src = readFileSync(path.join(ROOT, file), 'utf8');
-    assert.match(src, /\/compte\/agent\/biens\/\$\{[a-zA-Z.]+\}\/affiche/, `${file} links the poster`);
-    assert.match(src, /\/compte\/agent\/biens\/\$\{[a-zA-Z.]+\}\/fiche/, `${file} links the sheet`);
-  }
+  // Both print pages live in "Marketing & Documents" (the share kit); the row
+  // menu opens that dialog instead of listing them (2026-09-28).
+  const kitSrc = readFileSync(path.join(ROOT, 'components/AgentListingShareKit.js'), 'utf8');
+  assert.match(kitSrc, /\/compte\/agent\/biens\/\$\{[a-zA-Z.]+\}\/affiche/, 'the kit links the poster');
+  assert.match(kitSrc, /\/compte\/agent\/biens\/\$\{[a-zA-Z.]+\}\/fiche/, 'the kit links the sheet');
+  const menu = readFileSync(path.join(ROOT, 'components/AgentListingActionsMenu.js'), 'utf8');
+  assert.match(menu, /setShareKitOpen\(true\)/);
+  assert.doesNotMatch(menu, /\/affiche|\/fiche|wa\.me|buildWhatsAppShareLink/, 'print pages and WhatsApp are no longer menu items');
+});
+
+test('the technical sheet is ONE A4 page and its photos cannot overflow into the text', () => {
+  const sheetSrc = readFileSync(path.join(ROOT, 'components/print/ListingTechSheet.js'), 'utf8');
+  assert.equal((sheetSrc.match(/className="lp-sheet/g) || []).length, 1, 'one sheet, not two');
+  const styles = readFileSync(path.join(ROOT, 'components/print/PrintStyles.js'), 'utf8');
+  assert.match(styles, /\.lp-ph img \{ position: absolute; inset: 0;/, 'photos fill absolutely-positioned boxes, no % heights through a grid');
+  assert.match(styles, /\.lp-gallery \{ position: relative; flex: none; height: 38cqw; \}/);
+  assert.match(styles, /\.lp-details \{ flex: 1; min-height: 0; overflow: hidden;/);
+  assert.match(styles, /break-inside: avoid/);
+});
+
+test('the one-page sheet keeps points forts and equipment as two lists within one budget', () => {
+  const { sheetFeatures, sheetAmenities } = sheetHighlights({
+    features: ['Eau 24h/24', 'Parking', 'Groupe électrogène'],
+    amenities: ['parking', 'Climatisation', ...Array.from({ length: 20 }, (_, i) => `Équipement ${i}`)],
+  });
+  assert.deepEqual(sheetFeatures, ['Eau 24h/24', 'Parking', 'Groupe électrogène']);
+  assert.equal(sheetAmenities[0], 'Climatisation', 'equipment already said as a point fort is not repeated');
+  assert.equal(sheetFeatures.length + sheetAmenities.length, SHEET_MAX_HIGHLIGHTS);
+  const specs = specStrip({ beds: 3, bath: 1, area: '120', units_count: null }, 'Appartement');
+  assert.deepEqual(specs.map((s) => [s.label, s.value]), [['Type', 'Appartement'], ['Chambres', '3'], ['Salle de bain', '1'], ['Surface', '120 m²']]);
 });
 
 test('the share kit records after the share, fire-and-forget, and never for the landlord report', () => {
@@ -296,4 +321,30 @@ test('the share kit records after the share, fire-and-forget, and never for the 
   assert.match(kit, /await navigator\.share\(\{ files: \[file\], text \}\);\s*recordShare\(record && \{ \.\.\.record, channel: 'kit_share' \}\)/);
   assert.match(kit, /onClick=\{\(\) => shareFile\(reportFile, report\.caption, 'report'\)\}/, 'report shares pass no record');
   assert.doesNotMatch(kit, /await recordListingSharesAction/);
+});
+
+test('Mes biens: WhatsApp is a direct link on the card, captions read once per page, owner-scoped', () => {
+  const button = readFileSync(path.join(ROOT, 'components/AgentListingWhatsAppButton.js'), 'utf8');
+  // A real <a href> — resolving the text after the tap would be a blocked popup on iPhone.
+  assert.match(button, /<a\s+href=\{buildWhatsAppShareLink\(text\)\}/);
+  assert.match(button, /caption \|\|\s+buildListingShareMessage\(/, 'falls back to the short message');
+  const table = readFileSync(path.join(ROOT, 'components/AgentListingsTable.js'), 'utf8');
+  assert.equal((table.match(/getWhatsAppCaptionsAction\(/g) || []).length, 1);
+  assert.match(table, /!shareBlocker\(listing\) && \(\s+<AgentListingWhatsAppButton/);
+  const flyer = readFileSync(path.join(ROOT, 'lib/listingFlyer.js'), 'utf8');
+  assert.match(flyer, /WHERE p\.id = ANY\(\$2::bigint\[\]\) AND p\.agent_id = \$3/);
+  const actions = readFileSync(path.join(ROOT, 'app/compte/agent/shareActions.js'), 'utf8');
+  assert.match(actions, /if \(shareBlocker\(listing\)\) continue;/);
+});
+
+test('the overview is four things; the rest moved to its own tab', () => {
+  const overview = readFileSync(path.join(ROOT, 'app/compte/agent/page.js'), 'utf8');
+  for (const gone of ['AgentRecentLeads', 'AgentSubscriptionCard', 'AgentStatusOfTheDay', 'AgentCompletenessCard', 'AgentMoreOnPhone']) {
+    assert.doesNotMatch(overview, new RegExp(gone), `${gone} is not on the overview`);
+  }
+  const order = ['<OverviewStats', '<AgentTodayPanel', '<AgentPortfolioBanner', '<OverviewChart'].map((tag) => overview.indexOf(tag));
+  assert.ok(order.every((i) => i > 0), 'all four sections render');
+  assert.deepEqual([...order].sort((a, b) => a - b), order, 'figures, to-dos, portfolio, chart — in that order');
+  assert.match(readFileSync(path.join(ROOT, 'app/compte/agent/biens/page.js'), 'utf8'), /<AgentStatusOfTheDayLauncher/);
+  assert.match(readFileSync(path.join(ROOT, 'app/compte/agent/parametres/page.js'), 'utf8'), /<AgentCompletenessCard profileGaps=\{profileGaps\} \/>/);
 });

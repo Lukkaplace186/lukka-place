@@ -5,7 +5,7 @@ import { coordinateText, mapPinUrl, printListingUrl } from '../listingShareRules
 import { optimisableImageSrc, optimisedImageUrl, purposeLabel } from './sharePackData';
 
 /**
- * The window poster (A4, one page) and the technical sheet (A4, two pages) —
+ * The window poster and the technical sheet (each ONE A4 page) —
  * the pure half: every string both pages print, from a getFlyerListing row
  * plus the extras lib/marketing/printSheetData.js reads.
  *
@@ -22,9 +22,13 @@ import { optimisableImageSrc, optimisedImageUrl, purposeLabel } from './sharePac
 
 export const POSTER_PHOTO_WIDTH = 1920;
 export const SHEET_PHOTO_WIDTH = 1080;
-export const SHEET_MAX_PHOTOS = 5;
+export const SHEET_MAX_PHOTOS = 3;
 const MAX_FEATURES = 12;
 const MAX_AMENITIES = 24;
+// The one-page sheet's "Points forts & équipements" column holds this many
+// lines before it would run into the contact block (2026-09-28: the sheet was
+// two pages, the second mostly empty).
+export const SHEET_MAX_HIGHLIGHTS = 10;
 
 const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
 
@@ -72,6 +76,24 @@ export function keyFactRows(listing, typeText) {
   return rows;
 }
 
+/**
+ * The sheet's strip of big figures under the photos: type, rooms, bathrooms,
+ * surface, doors — only the real ones. Price and transaction are in the
+ * header, so they are not repeated here.
+ */
+export function specStrip(listing, typeText) {
+  const specs = [];
+  if (typeText) specs.push({ label: 'Type', value: typeText });
+  const beds = Number(listing.beds);
+  if (beds > 0) specs.push({ label: beds > 1 ? 'Chambres' : 'Chambre', value: String(beds) });
+  const bath = Number(listing.bath);
+  if (bath > 0) specs.push({ label: bath > 1 ? 'Salles de bain' : 'Salle de bain', value: String(bath) });
+  if (hasArea(listing.area)) specs.push({ label: 'Surface', value: `${listing.area} m²` });
+  const units = Number(listing.units_count);
+  if (listing.units_count != null && units > 0) specs.push({ label: units > 1 ? 'Portes' : 'Porte', value: String(units) });
+  return specs;
+}
+
 function cleanList(values, max) {
   if (!Array.isArray(values)) return [];
   const seen = new Set();
@@ -86,6 +108,16 @@ function cleanList(values, max) {
     if (out.length >= max) break;
   }
   return out;
+}
+
+/** Points forts, then equipment not already said in the agent's words, within SHEET_MAX_HIGHLIGHTS lines. */
+export function sheetHighlights(extras) {
+  const sheetFeatures = cleanList(extras?.features, SHEET_MAX_HIGHLIGHTS);
+  const said = new Set(sheetFeatures.map((f) => f.toLowerCase()));
+  const sheetAmenities = cleanList(extras?.amenities, MAX_AMENITIES)
+    .filter((a) => !said.has(a.toLowerCase()))
+    .slice(0, SHEET_MAX_HIGHLIGHTS - sheetFeatures.length);
+  return { sheetFeatures, sheetAmenities };
 }
 
 const trimmed = (value) => (typeof value === 'string' ? value.trim() : '') || null;
@@ -126,6 +158,11 @@ export function buildPrintSheet(listing, extras, { typeText, brand, supabaseHost
     entryCosts: entryCostLines(listing),
     features: cleanList(extras?.features, MAX_FEATURES),
     amenities: cleanList(extras?.amenities, MAX_AMENITIES),
+    // The one-page sheet's column: the agent's points forts and the tagged
+    // equipment stay TWO lists (never merged — CLAUDE.md, `features`), sharing
+    // one line budget, points forts first.
+    ...sheetHighlights(extras),
+    specs: specStrip(listing, typeText),
     location,
     mapUrl: mapPinUrl(extras?.latitude, extras?.longitude),
     coordinates: coordinateText(extras?.latitude, extras?.longitude),

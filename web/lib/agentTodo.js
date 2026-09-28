@@ -57,7 +57,12 @@ export const TODO_KINDS = Object.freeze({
   LISTING_INCOMPLETE: 'listing-incomplete',
 });
 
-export const TODO_VISIBLE_DEFAULT = 4;
+// Three on the overview (2026-09-28: it showed four, then per-kind "voir les N
+// autres" links, and read as 31 things to do at once). The rest are one tap
+// away on /compte/agent/a-faire, which asks for TODO_ALL_LIMIT.
+export const TODO_VISIBLE_DEFAULT = 3;
+export const TODO_ALL_LIMIT = 500;
+export const TODO_ALL_HREF = '/compte/agent/a-faire';
 
 /** A slot that passed this long ago is no longer "en retard", it is stale. */
 export const STALE_AFTER_MS = 48 * 60 * 60 * 1000;

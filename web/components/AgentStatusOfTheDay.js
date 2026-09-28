@@ -44,8 +44,12 @@ const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  * sheet records nothing; a completed share or a download records one row per
  * listing (listing_shares), fire-and-forget. Images are drawn on demand, not
  * on page load — five photos at 1080px is real data on a prepaid phone.
+ *
+ * Lives on Mes biens since 2026-09-28, inside AgentStatusOfTheDayLauncher's
+ * dialog (`embedded`: no card frame, no heading — the dialog has both). It used
+ * to be a card on the overview, which is now figures and to-dos only.
  */
-export default function AgentStatusOfTheDay({ items, tracked, liveCount, recentDays }) {
+export default function AgentStatusOfTheDay({ items, tracked, liveCount, recentDays, embedded = false }) {
   const t = useT();
   const locale = useLocale();
   const router = useRouter();
@@ -150,18 +154,23 @@ export default function AgentStatusOfTheDay({ items, tracked, liveCount, recentD
   const icon = 'h-4 w-4 shrink-0';
 
   return (
-    <section className="rounded-2xl border border-line bg-surface p-4 sm:p-6" aria-labelledby="status-of-the-day-title">
-      <div className="flex items-start gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-tint text-blue">
-          <Smartphone strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
-        </span>
-        <div className="min-w-0">
-          <h2 id="status-of-the-day-title" className="u-title-card text-ink">
-            {t('agent.status.title')}
-          </h2>
-          <p className="u-micro mt-0.5 text-ink-45">{t('agent.status.intro', { days: recentDays })}</p>
+    <section
+      className={embedded ? 'min-w-0' : 'rounded-2xl border border-line bg-surface p-4 sm:p-6'}
+      aria-labelledby={embedded ? undefined : 'status-of-the-day-title'}
+    >
+      {!embedded && (
+        <div className="flex items-start gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-tint text-blue">
+            <Smartphone strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+            <h2 id="status-of-the-day-title" className="u-title-card text-ink">
+              {t('agent.status.title')}
+            </h2>
+            <p className="u-micro mt-0.5 text-ink-45">{t('agent.status.intro', { days: recentDays })}</p>
+          </div>
         </div>
-      </div>
+      )}
 
       {liveCount === 0 && (
         <p className="mt-4 rounded-lg bg-canvas-alt p-3 text-sm text-ink-70" role="status">

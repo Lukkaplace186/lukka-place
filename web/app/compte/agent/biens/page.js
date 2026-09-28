@@ -12,6 +12,10 @@ import AgentListingsTable from '@/components/AgentListingsTable';
 import { getListingQuota } from '@/lib/listingQuota';
 import { UPGRADE_PATH } from '@/lib/listingQuotaRules';
 import { getAgentListingGaps } from '@/lib/completeness';
+import AgentStatusOfTheDayLauncher from '@/components/AgentStatusOfTheDayLauncher';
+import { getStatusSuggestions, serialiseSuggestion } from '@/lib/listingShares';
+import { STATUS_RECENT_DAYS } from '@/lib/listingShareRules';
+import { shareBlocker } from '@/lib/listingShareCopy';
 
 // The listing_status vocabulary. A closed listing must stay filterable even
 // though it's no longer reachable from a row's own status actions.
@@ -109,7 +113,7 @@ export default async function AgentListingsPage({ searchParams }) {
   // the first card below the fold and never said which property it meant.
   // The "Toujours disponible ?" prompt lives on the overview's to-do list and
   // in the editor, for the same reason.
-  const [perListingStats, hierarchy, categories, quota, listingGaps] = await Promise.all([
+  const [perListingStats, hierarchy, categories, quota, listingGaps, statusSuggestions] = await Promise.all([
     getPerListingStats(propertyIds).catch((error) => {
       console.error('[agent/biens] per-listing stats unavailable:', error.message);
       return { views: {}, clicks: {} };
@@ -129,6 +133,12 @@ export default async function AgentListingsPage({ searchParams }) {
     getAgentListingGaps(agentId).catch((error) => {
       console.error('[agent/biens] listing gaps unavailable:', error.message);
       return [];
+    }),
+    // "Statut du jour" (moved here from the overview). A failed read hides the
+    // line; getStatusSuggestions already degrades before listing_shares exists.
+    getStatusSuggestions(agentId).catch((error) => {
+      console.error('[agent/biens] status suggestions unavailable:', error.message);
+      return null;
     }),
   ]);
   const communes = hierarchy?.communes ?? [];
@@ -209,6 +219,15 @@ export default async function AgentListingsPage({ searchParams }) {
             );
           })}
         </nav>
+
+        {statusSuggestions && (
+          <AgentStatusOfTheDayLauncher
+            items={statusSuggestions.items.map(serialiseSuggestion)}
+            tracked={statusSuggestions.tracked}
+            liveCount={listings.filter((l) => !shareBlocker(l)).length}
+            recentDays={STATUS_RECENT_DAYS}
+          />
+        )}
 
         <div className="u-card overflow-hidden rounded-card bg-surface">
           <AgentListingsTable

@@ -2,13 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { BarChart3, Check, Copy, Download, FileText, MessageCircle, Printer, Share2 } from 'lucide-react';
+import { ArrowLeft, BarChart3, Check, ChevronRight, Copy, Download, FileText, Image as ImageIcon, MessageCircle, Printer, Share2, Type } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { buildWhatsAppShareLink } from '@/lib/whatsapp';
 import { getMandateReportAction, getSharePackAction, recordListingSharesAction } from '@/app/compte/agent/shareActions';
-import { FORMATS, FORMAT_KEYS, formatFileName } from '@/lib/marketing/formats';
+import { FORMATS, formatFileName } from '@/lib/marketing/formats';
 import { LISTING_TIME_ZONE } from '@/lib/listingView';
 import { fetchPackImages, isStale, loadSharePack, packTimestamp, saveSharePack } from '@/lib/sharePack';
 import { decodeAssets, loadRenderFont, renderFlyer, renderReport } from './marketing/CanvasRenderer';
@@ -31,23 +30,35 @@ const PREVIEW_CLASS = {
   landscape: 'max-w-[18rem] sm:max-w-full',
 };
 
+// The two formats agents actually post (2026-09-28, product direction): a
+// feed post and a WhatsApp Status. The 16:9 link card is still drawable
+// (lib/marketing/formats.js) but no longer offered here.
+const KIT_FORMATS = ['square', 'story'];
+
 function releaseAssets(assets) {
   for (const image of Object.values(assets?.images || {})) image?.close?.();
 }
 
 /**
- * "Visuel & partage" — the agent's marketing kit for a listing, in three tabs:
+ * "Marketing & Documents" — everything an agent makes FROM a listing, off the
+ * daily menu (2026-09-28: the row menu had grown to ten items). The dialog
+ * opens on a short list in three sections, and each row drills into one tool:
  *
- *   Visuel        the listing graphic in three formats (square post, 9:16
- *                 Status, 16:9 link card), DRAWN IN THE BROWSER from a share
- *                 pack (components/marketing/CanvasRenderer.js). No server
- *                 render, and it works offline from the copy lib/sharePack.js
- *                 keeps — stamped with the date of that copy, because an
- *                 offline graphic can show an old price.
- *   Texte         the caption, copy + wa.me.
- *   Propriétaire  the landlord report: live counts from the server, card
- *                 drawn in the browser, caption that says what the counts
- *                 cover and what they do not.
+ *   Réseaux sociaux       the listing graphic (square post, 9:16 Status),
+ *                         DRAWN IN THE BROWSER from a share pack
+ *                         (components/marketing/CanvasRenderer.js), and the
+ *                         caption (copy + wa.me). No server render, and it
+ *                         works offline from the copy lib/sharePack.js keeps —
+ *                         stamped with the date of that copy, because an
+ *                         offline graphic can show an old price.
+ *   Documents A4          the window poster and the technical sheet — links
+ *                         to their print pages (…/affiche, …/fiche).
+ *   Rapport propriétaire  the landlord report: live counts from the server,
+ *                         card drawn in the browser, caption that says what
+ *                         the counts cover and what they do not.
+ *
+ * The everyday "send this listing on WhatsApp" is NOT here: it is the card's
+ * own direct button (AgentListingWhatsAppButton), one tap to wa.me.
  *
  * The server flyer (/compte/agent/biens/:id/visuel) stays as the square
  * fallback when the browser cannot draw (a failed decode, an old canvas), and
@@ -83,6 +94,7 @@ export default function AgentListingShareKit({ listingId, open, onOpenChange }) 
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(null);
   const [report, setReport] = useState({ status: 'idle' });
+  const [view, setView] = useState('home'); // 'home' | 'visual' | 'text' | 'owner'
   const previewUrlRef = useRef(null);
   const reportUrlRef = useRef(null);
 
@@ -201,6 +213,7 @@ export default function AgentListingShareKit({ listingId, open, onOpenChange }) 
     setRenderFailed(false);
     setCopied(null);
     setReport({ status: 'idle' });
+    setView('home');
   }, []);
 
   useEffect(() => reset, [reset]);
@@ -349,196 +362,291 @@ export default function AgentListingShareKit({ listingId, open, onOpenChange }) 
     </p>
   );
 
+  const viewTitle = {
+    home: t('agent.share.title'),
+    visual: t('agent.share.rows.visual'),
+    text: t('agent.share.rows.text'),
+    owner: t('agent.share.rows.owner'),
+  }[view];
+  const loadingKit = !kit && !failure;
+  // Print pages need the live listing (their QR must lead somewhere real), so
+  // they are offered only when the server answered and the listing is public.
+  const printable = shareable && source?.type === 'live';
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-h-[88dvh] gap-3 overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))] sm:max-w-md sm:gap-4">
         <DialogHeader>
-          <DialogTitle>{t('agent.share.title')}</DialogTitle>
-          <DialogDescription>{t('agent.share.description')}</DialogDescription>
+          {view !== 'home' && (
+            <button
+              type="button"
+              onClick={() => setView('home')}
+              className="u-press -ml-1 mb-1 inline-flex min-h-9 items-center gap-1 self-start rounded-lg px-1 text-[0.8125rem] font-semibold text-ink-70 hover:text-ink"
+            >
+              <ArrowLeft strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+              {t('agent.share.title')}
+            </button>
+          )}
+          <DialogTitle>{viewTitle}</DialogTitle>
+          <DialogDescription className={view === 'home' ? '' : 'sr-only'}>{t('agent.share.description')}</DialogDescription>
         </DialogHeader>
 
         {failure === 'load' && <p className="text-sm text-danger" role="alert">{t('agent.share.loadFailed')}</p>}
-        {failure === 'offline' && <p className="text-sm text-ink-70" role="alert">{t('agent.share.offlineUnavailable')}</p>}
-        {!kit && !failure && <p className="text-sm text-ink-45" role="status">{t('agent.share.loading')}</p>}
 
-        {kit && (
-          <Tabs defaultValue="image" className="min-w-0 gap-3">
-            <TabsList className="h-10 w-full bg-canvas-alt">
-              <TabsTrigger value="image" className="h-full">{t('agent.share.tabs.image')}</TabsTrigger>
-              <TabsTrigger value="text" className="h-full">{t('agent.share.tabs.text')}</TabsTrigger>
-              <TabsTrigger value="owner" className="h-full">{t('agent.share.tabs.owner')}</TabsTrigger>
-            </TabsList>
+        {view === 'home' && failure !== 'load' && (
+          <div className="flex min-w-0 flex-col gap-4">
+            <KitSection title={t('agent.share.sections.social')}>
+              {failure === 'offline' && <p className="px-3 py-2.5 text-sm text-ink-70" role="alert">{t('agent.share.offlineUnavailable')}</p>}
+              {blockedNote && <div className="p-2">{blockedNote}</div>}
+              <KitRow
+                icon={ImageIcon}
+                title={t('agent.share.rows.visual')}
+                hint={t('agent.share.rows.visualHint')}
+                onClick={() => setView('visual')}
+                disabled={!shareable}
+                loading={loadingKit}
+              />
+              <KitRow
+                icon={Type}
+                title={t('agent.share.rows.text')}
+                hint={t('agent.share.rows.textHint')}
+                onClick={() => setView('text')}
+                disabled={!shareable}
+                loading={loadingKit}
+              />
+            </KitSection>
 
-            <TabsContent value="image" className="flex min-w-0 flex-col gap-3">
-              {blockedNote}
-              {shareable && (
-                <>
-                  {source?.type === 'cache' && (
-                    <p
-                      className={`rounded-lg p-2.5 text-xs ${stale ? 'bg-warning-tint text-ink' : 'bg-canvas-alt text-ink-70'}`}
-                      role="status"
-                      data-testid="share-offline-stamp"
-                    >
-                      {t('agent.share.offlineStamp', { date: stampDate || '—' })}
-                      {stale && <span className="mt-1 block font-semibold">{t('agent.share.staleWarning')}</span>}
-                    </p>
-                  )}
+            <KitSection title={t('agent.share.sections.print')}>
+              <KitRow
+                icon={Printer}
+                title={t('agent.print.posterMenuItem')}
+                hint={t('agent.share.rows.posterHint')}
+                href={`/compte/agent/biens/${listingId}/affiche`}
+                disabled={!printable}
+                loading={loadingKit}
+              />
+              <KitRow
+                icon={FileText}
+                title={t('agent.print.sheetMenuItem')}
+                hint={t('agent.share.rows.sheetHint')}
+                href={`/compte/agent/biens/${listingId}/fiche`}
+                disabled={!printable}
+                loading={loadingKit}
+              />
+            </KitSection>
 
-                  <div role="radiogroup" aria-label={t('agent.share.formatsLabel')} className="grid grid-cols-3 gap-1.5">
-                    {FORMAT_KEYS.map((key) => (
-                      <button
-                        key={key}
-                        type="button"
-                        role="radio"
-                        aria-checked={format === key}
-                        onClick={() => setFormat(key)}
-                        className={`u-press min-h-10 rounded-lg border px-1.5 text-xs font-bold sm:text-[0.8125rem] ${
-                          format === key ? 'border-blue bg-blue-tint text-blue' : 'border-line text-ink-70'
-                        }`}
-                      >
-                        {t(`agent.share.formats.${key}`)}
-                      </button>
-                    ))}
-                  </div>
+            <KitSection title={t('agent.share.sections.owner')}>
+              <KitRow
+                icon={BarChart3}
+                title={t('agent.share.rows.owner')}
+                hint={t('agent.share.rows.ownerHint')}
+                onClick={() => setView('owner')}
+              />
+            </KitSection>
+          </div>
+        )}
 
-                  <div
-                    className={`mx-auto w-full overflow-hidden rounded-xl border border-line bg-canvas-deep ${PREVIEW_CLASS[format]}`}
-                    style={{ aspectRatio: `${FORMATS[format].width} / ${FORMATS[format].height}` }}
-                  >
-                    {previewSrc ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={previewSrc} alt={t('agent.share.previewAlt')} className="h-full w-full object-cover" data-format={format} />
-                    ) : (
-                      <p className="grid h-full place-items-center p-4 text-center text-xs text-ink-45" role="status">
-                        {renderFailed ? t('agent.share.imageFailed') : t('agent.share.rendering')}
-                      </p>
-                    )}
-                  </div>
+        {view === 'visual' && shareable && (
+          <div className="flex min-w-0 flex-col gap-3">
+            {source?.type === 'cache' && (
+              <p
+                className={`rounded-lg p-2.5 text-xs ${stale ? 'bg-warning-tint text-ink' : 'bg-canvas-alt text-ink-70'}`}
+                role="status"
+                data-testid="share-offline-stamp"
+              >
+                {t('agent.share.offlineStamp', { date: stampDate || '—' })}
+                {stale && <span className="mt-1 block font-semibold">{t('agent.share.staleWarning')}</span>}
+              </p>
+            )}
 
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => shareFile(flyerFile, captionFor('image'), 'image', { format })}
-                      disabled={busy || !graphicReady}
-                      className={`${actionClass} u-btn-primary bg-blue text-white`}
-                    >
-                      <Share2 strokeWidth={ICON_STROKE_WIDTH} className={icon} />
-                      {busy ? t('agent.share.preparing') : t('agent.share.shareImage')}
-                    </button>
-                    <button type="button" onClick={() => download(flyerFile, { format })} disabled={busy || !graphicReady} className={`${actionClass} border border-line text-ink`}>
-                      <Download strokeWidth={ICON_STROKE_WIDTH} className={icon} />
-                      {t('agent.share.download')}
-                    </button>
-                  </div>
-                  <p className="text-xs text-ink-45">{t('agent.share.statusHint')}</p>
-                  {source?.type === 'live' && (
-                    <div className="grid grid-cols-2 gap-2 border-t border-line pt-3">
-                      <Link href={`/compte/agent/biens/${listingId}/affiche`} className={`${actionClass} border border-line text-ink`}>
-                        <Printer strokeWidth={ICON_STROKE_WIDTH} className={icon} />
-                        {t('agent.print.posterLink')}
-                      </Link>
-                      <Link href={`/compte/agent/biens/${listingId}/fiche`} className={`${actionClass} border border-line text-ink`}>
-                        <FileText strokeWidth={ICON_STROKE_WIDTH} className={icon} />
-                        {t('agent.print.sheetLink')}
-                      </Link>
-                    </div>
-                  )}
-                </>
-              )}
-            </TabsContent>
-
-            <TabsContent value="text" className="flex min-w-0 flex-col gap-3">
-              {blockedNote}
-              {shareable && (
-                <>
-                  <div className="grid grid-cols-2 gap-2">
-                    <a
-                      href={buildWhatsAppShareLink(captionFor('whatsapp'))}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={() => recordShare({ channel: 'kit_whatsapp', format: 'text' })}
-                      className={`${actionClass} border border-line text-ink`}
-                    >
-                      <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className={`${icon} text-green-deep`} />
-                      {t('agent.share.sendWhatsApp')}
-                    </a>
-                    <button type="button" onClick={() => copyText(captionFor('copy'), 'copy', { channel: 'kit_copy', format: 'text' })} className={`${actionClass} border border-line text-ink`}>
-                      {copied === 'copy' ? <Check strokeWidth={ICON_STROKE_WIDTH} className={icon} /> : <Copy strokeWidth={ICON_STROKE_WIDTH} className={icon} />}
-                      {copied === 'copy' ? t('agent.share.copied') : t('agent.share.copyCaption')}
-                    </button>
-                  </div>
-                  <div className="min-w-0">
-                    <label htmlFor={`share-copy-${listingId}`} className="mb-1.5 block text-[0.8125rem] font-semibold text-ink-70">
-                      {t('agent.share.captionLabel')}
-                    </label>
-                    <textarea
-                      id={`share-copy-${listingId}`}
-                      readOnly
-                      value={captionFor('copy')}
-                      rows={9}
-                      className="u-focus-ring w-full resize-none rounded-lg border border-line bg-surface p-3 text-base leading-relaxed text-ink sm:text-sm"
-                    />
-                  </div>
-                </>
-              )}
-            </TabsContent>
-
-            <TabsContent value="owner" className="flex min-w-0 flex-col gap-3">
-              <p className="text-sm text-ink-70">{t('agent.share.owner.intro')}</p>
-
-              {report.status !== 'ready' && (
-                <button type="button" onClick={prepareReport} disabled={report.status === 'loading'} className={`${actionClass} u-btn-primary bg-blue text-white`}>
-                  <BarChart3 strokeWidth={ICON_STROKE_WIDTH} className={icon} />
-                  {report.status === 'loading' ? t('agent.share.owner.preparing') : t('agent.share.owner.prepare')}
+            <div role="radiogroup" aria-label={t('agent.share.formatsLabel')} className="grid grid-cols-2 gap-1.5">
+              {KIT_FORMATS.map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  role="radio"
+                  aria-checked={format === key}
+                  onClick={() => setFormat(key)}
+                  className={`u-press min-h-10 rounded-lg border px-1.5 text-xs font-bold sm:text-[0.8125rem] ${
+                    format === key ? 'border-blue bg-blue-tint text-blue' : 'border-line text-ink-70'
+                  }`}
+                >
+                  {t(`agent.share.formats.${key}`)}
                 </button>
-              )}
-              {report.status === 'failed' && <p className="text-sm text-danger" role="alert">{t('agent.share.owner.failed')}</p>}
-              {report.status === 'offline' && <p className="text-sm text-ink-70" role="alert">{t('agent.share.owner.offline')}</p>}
+              ))}
+            </div>
 
-              {report.status === 'ready' && (
-                <>
-                  <div className="mx-auto aspect-square w-full max-w-[13.5rem] overflow-hidden rounded-xl border border-line sm:max-w-[18rem]">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={report.url} alt={t('agent.share.owner.previewAlt')} className="h-full w-full object-cover" />
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => shareFile(reportFile, report.caption, 'report')}
-                      disabled={busy}
-                      className={`${actionClass} u-btn-primary col-span-2 bg-blue text-white`}
-                    >
-                      <Share2 strokeWidth={ICON_STROKE_WIDTH} className={icon} />
-                      {busy ? t('agent.share.preparing') : t('agent.share.owner.share')}
-                    </button>
-                    <a href={buildWhatsAppShareLink(report.caption)} target="_blank" rel="noopener noreferrer" className={`${actionClass} border border-line text-ink`}>
-                      <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className={`${icon} text-green-deep`} />
-                      {t('agent.share.sendWhatsApp')}
-                    </a>
-                    <button type="button" onClick={() => download(reportFile)} disabled={busy} className={`${actionClass} border border-line text-ink`}>
-                      <Download strokeWidth={ICON_STROKE_WIDTH} className={icon} />
-                      {t('agent.share.download')}
-                    </button>
-                  </div>
-                  <p className="text-xs text-ink-45">{t('agent.share.owner.hint')}</p>
-                  <div className="min-w-0">
-                    <label htmlFor={`report-copy-${listingId}`} className="mb-1.5 block text-[0.8125rem] font-semibold text-ink-70">
-                      {t('agent.share.owner.captionLabel')}
-                    </label>
-                    <textarea
-                      id={`report-copy-${listingId}`}
-                      readOnly
-                      value={report.caption}
-                      rows={9}
-                      className="u-focus-ring w-full resize-none rounded-lg border border-line bg-surface p-3 text-base leading-relaxed text-ink sm:text-sm"
-                    />
-                  </div>
-                </>
+            <div
+              className={`mx-auto w-full overflow-hidden rounded-xl border border-line bg-canvas-deep ${PREVIEW_CLASS[format]}`}
+              style={{ aspectRatio: `${FORMATS[format].width} / ${FORMATS[format].height}` }}
+            >
+              {previewSrc ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={previewSrc} alt={t('agent.share.previewAlt')} className="h-full w-full object-cover" data-format={format} />
+              ) : (
+                <p className="grid h-full place-items-center p-4 text-center text-xs text-ink-45" role="status">
+                  {renderFailed ? t('agent.share.imageFailed') : t('agent.share.rendering')}
+                </p>
               )}
-            </TabsContent>
-          </Tabs>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => shareFile(flyerFile, captionFor('image'), 'image', { format })}
+                disabled={busy || !graphicReady}
+                className={`${actionClass} u-btn-primary bg-blue text-white`}
+              >
+                <Share2 strokeWidth={ICON_STROKE_WIDTH} className={icon} />
+                {busy ? t('agent.share.preparing') : t('agent.share.shareImage')}
+              </button>
+              <button type="button" onClick={() => download(flyerFile, { format })} disabled={busy || !graphicReady} className={`${actionClass} border border-line text-ink`}>
+                <Download strokeWidth={ICON_STROKE_WIDTH} className={icon} />
+                {t('agent.share.download')}
+              </button>
+            </div>
+            <p className="text-xs text-ink-45">{t('agent.share.statusHint')}</p>
+          </div>
+        )}
+
+        {view === 'text' && shareable && (
+          <div className="flex min-w-0 flex-col gap-3">
+            <div className="grid grid-cols-2 gap-2">
+              <a
+                href={buildWhatsAppShareLink(captionFor('whatsapp'))}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => recordShare({ channel: 'kit_whatsapp', format: 'text' })}
+                className={`${actionClass} border border-line text-ink`}
+              >
+                <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className={`${icon} text-green-deep`} />
+                {t('agent.share.sendWhatsApp')}
+              </a>
+              <button type="button" onClick={() => copyText(captionFor('copy'), 'copy', { channel: 'kit_copy', format: 'text' })} className={`${actionClass} border border-line text-ink`}>
+                {copied === 'copy' ? <Check strokeWidth={ICON_STROKE_WIDTH} className={icon} /> : <Copy strokeWidth={ICON_STROKE_WIDTH} className={icon} />}
+                {copied === 'copy' ? t('agent.share.copied') : t('agent.share.copyCaption')}
+              </button>
+            </div>
+            <div className="min-w-0">
+              <label htmlFor={`share-copy-${listingId}`} className="mb-1.5 block text-[0.8125rem] font-semibold text-ink-70">
+                {t('agent.share.captionLabel')}
+              </label>
+              <textarea
+                id={`share-copy-${listingId}`}
+                readOnly
+                value={captionFor('copy')}
+                rows={9}
+                className="u-focus-ring w-full resize-none rounded-lg border border-line bg-surface p-3 text-base leading-relaxed text-ink sm:text-sm"
+              />
+            </div>
+          </div>
+        )}
+
+        {view === 'owner' && (
+          <div className="flex min-w-0 flex-col gap-3">
+            <p className="text-sm text-ink-70">{t('agent.share.owner.intro')}</p>
+
+            {report.status !== 'ready' && (
+              <button type="button" onClick={prepareReport} disabled={report.status === 'loading'} className={`${actionClass} u-btn-primary bg-blue text-white`}>
+                <BarChart3 strokeWidth={ICON_STROKE_WIDTH} className={icon} />
+                {report.status === 'loading' ? t('agent.share.owner.preparing') : t('agent.share.owner.prepare')}
+              </button>
+            )}
+            {report.status === 'failed' && <p className="text-sm text-danger" role="alert">{t('agent.share.owner.failed')}</p>}
+            {report.status === 'offline' && <p className="text-sm text-ink-70" role="alert">{t('agent.share.owner.offline')}</p>}
+
+            {report.status === 'ready' && (
+              <>
+                <div className="mx-auto aspect-square w-full max-w-[13.5rem] overflow-hidden rounded-xl border border-line sm:max-w-[18rem]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={report.url} alt={t('agent.share.owner.previewAlt')} className="h-full w-full object-cover" />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => shareFile(reportFile, report.caption, 'report')}
+                    disabled={busy}
+                    className={`${actionClass} u-btn-primary col-span-2 bg-blue text-white`}
+                  >
+                    <Share2 strokeWidth={ICON_STROKE_WIDTH} className={icon} />
+                    {busy ? t('agent.share.preparing') : t('agent.share.owner.share')}
+                  </button>
+                  <a href={buildWhatsAppShareLink(report.caption)} target="_blank" rel="noopener noreferrer" className={`${actionClass} border border-line text-ink`}>
+                    <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className={`${icon} text-green-deep`} />
+                    {t('agent.share.sendWhatsApp')}
+                  </a>
+                  <button type="button" onClick={() => download(reportFile)} disabled={busy} className={`${actionClass} border border-line text-ink`}>
+                    <Download strokeWidth={ICON_STROKE_WIDTH} className={icon} />
+                    {t('agent.share.download')}
+                  </button>
+                </div>
+                <p className="text-xs text-ink-45">{t('agent.share.owner.hint')}</p>
+                <div className="min-w-0">
+                  <label htmlFor={`report-copy-${listingId}`} className="mb-1.5 block text-[0.8125rem] font-semibold text-ink-70">
+                    {t('agent.share.owner.captionLabel')}
+                  </label>
+                  <textarea
+                    id={`report-copy-${listingId}`}
+                    readOnly
+                    value={report.caption}
+                    rows={9}
+                    className="u-focus-ring w-full resize-none rounded-lg border border-line bg-surface p-3 text-base leading-relaxed text-ink sm:text-sm"
+                  />
+                </div>
+              </>
+            )}
+          </div>
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function KitSection({ title, children }) {
+  return (
+    <section className="min-w-0">
+      <h3 className="u-micro-strong mb-1.5 px-0.5 uppercase tracking-wide text-ink-45">{title}</h3>
+      <div className="overflow-hidden rounded-xl border border-line [&>*+*]:border-t [&>*+*]:border-line">{children}</div>
+    </section>
+  );
+}
+
+/**
+ * One tool in the home list: drills into a view (`onClick`) or opens a print
+ * page (`href`). A disabled row stays visible — the section's note says why —
+ * so an agent learns the tool exists before their listing is live.
+ */
+function KitRow({ icon: Icon, title, hint, onClick, href, disabled = false, loading = false }) {
+  const inner = (
+    <>
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-blue-tint text-blue">
+        <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-bold text-ink">{title}</span>
+        {hint && <span className="block text-xs text-ink-45">{hint}</span>}
+      </span>
+      <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0 text-ink-25" aria-hidden="true" />
+    </>
+  );
+  const rowClass = 'u-press flex min-h-14 w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-canvas-alt';
+  if (disabled || loading) {
+    return (
+      <div className={`${rowClass} pointer-events-none ${loading ? 'animate-pulse' : 'opacity-50'}`} aria-disabled="true">
+        {inner}
+      </div>
+    );
+  }
+  if (href) {
+    return (
+      <Link href={href} className={rowClass}>
+        {inner}
+      </Link>
+    );
+  }
+  return (
+    <button type="button" onClick={onClick} className={rowClass}>
+      {inner}
+    </button>
   );
 }

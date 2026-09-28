@@ -793,8 +793,7 @@
       "select": "Sélectionner",
       "doneSelecting": "Terminé",
       "markActive": "Remettre en actif",
-      "markUnderOfferOne": "Marquer sous compromis",
-      "shareWhatsAppShort": "WhatsApp"
+      "markUnderOfferOne": "Marquer sous compromis"
     },
     "leads": {
       "title": "Demandes",
@@ -1433,8 +1432,8 @@
       "emptyAllShared": "Tous vos biens en ligne ont déjà été partagés ces {days} derniers jours.",
       "openListings": "Voir mes biens",
       "launcherHint": {
-        "one": "{count} bien pas partagé depuis {days} jours",
-        "other": "{count} biens pas partagés depuis {days} jours"
+        "one": "{count} bien à partager sur votre statut",
+        "other": "{count} biens à partager sur votre statut"
       },
       "launcherCta": "Préparer"
     },

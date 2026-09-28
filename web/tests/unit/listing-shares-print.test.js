@@ -298,8 +298,10 @@ test('the technical sheet is ONE A4 page and its photos cannot overflow into the
   assert.equal((sheetSrc.match(/className="lp-sheet/g) || []).length, 1, 'one sheet, not two');
   const styles = readFileSync(path.join(ROOT, 'components/print/PrintStyles.js'), 'utf8');
   assert.match(styles, /\.lp-ph img \{ position: absolute; inset: 0;/, 'photos fill absolutely-positioned boxes, no % heights through a grid');
-  assert.match(styles, /\.lp-gallery \{ position: relative; flex: none; height: 38cqw; \}/);
-  assert.match(styles, /\.lp-details \{ flex: 1; min-height: 0; overflow: hidden;/);
+  // Photos flex (22–46cqw) so long details shrink them rather than spill; the contact block is pinned.
+  assert.match(styles, /\.lp-gallery \{ position: relative; flex: 1 1 0; min-height: 22cqw; max-height: 46cqw; \}/);
+  assert.match(styles, /\.lp-details \{ flex: 0 1 auto; min-height: 0; overflow: hidden;/);
+  assert.match(styles, /\.lp-contact \{ flex: none; margin-top: auto;/);
   assert.match(styles, /break-inside: avoid/);
 });
 

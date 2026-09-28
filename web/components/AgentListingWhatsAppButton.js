@@ -41,10 +41,12 @@ export default function AgentListingWhatsAppButton({ listing, caption }) {
       onClick={() => recordListingSharesAction({ listingIds: [listing.id], channel: 'menu_whatsapp', format: 'text' }).catch(() => {})}
       aria-label={`${t('agent.listings.shareWhatsApp')} — ${listing.title}`}
       title={t('agent.listings.shareWhatsApp')}
-      className="u-press inline-flex h-[2.125rem] shrink-0 items-center gap-1.5 rounded-lg border border-line px-2.5 lg:w-[2.125rem] lg:justify-center lg:px-0 text-[0.8125rem] font-bold text-ink-70 transition-colors hover:border-green-deep/40 hover:bg-canvas-alt hover:text-ink"
+      // Icon only: a label widened the card's actions column enough to wrap
+      // the price onto three lines on a 375px phone. The green glyph is the
+      // most recognisable mark an agent in Kinshasa sees all day.
+      className="u-press grid h-[2.125rem] w-[2.125rem] shrink-0 place-items-center rounded-lg border border-line text-green-deep transition-colors hover:bg-canvas-alt"
     >
-      <WhatsAppIcon className="h-4 w-4 text-green-deep" />
-      <span className="lg:hidden">{t('agent.listings.shareWhatsAppShort')}</span>
+      <WhatsAppIcon className="h-[1.0625rem] w-[1.0625rem]" />
     </a>
   );
 }

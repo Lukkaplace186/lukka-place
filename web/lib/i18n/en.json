@@ -793,8 +793,7 @@
       "select": "Select",
       "doneSelecting": "Done",
       "markActive": "Mark as active",
-      "markUnderOfferOne": "Mark as under offer",
-      "shareWhatsAppShort": "WhatsApp"
+      "markUnderOfferOne": "Mark as under offer"
     },
     "leads": {
       "title": "Enquiries",
@@ -1433,8 +1432,8 @@
       "emptyAllShared": "All your live listings have already been shared in the last {days} days.",
       "openListings": "View my listings",
       "launcherHint": {
-        "one": "{count} listing not shared in {days} days",
-        "other": "{count} listings not shared in {days} days"
+        "one": "{count} listing to share on your Status",
+        "other": "{count} listings to share on your Status"
       },
       "launcherCta": "Prepare"
     },

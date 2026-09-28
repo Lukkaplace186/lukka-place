@@ -64,9 +64,9 @@ function BulletList({ items }) {
  *
  * Entry costs stay three lines (deposit, advance, commission), never a sum.
  * French content only; a section with nothing in it is not printed. The
- * details area is the only part that flexes: the lists are capped in
- * lib/marketing/printSheet.js so they fit, and anything past the page is
- * clipped by the sheet rather than spilling onto a second sheet.
+ * photos are the part that flexes (PrintStyles.js): long details shrink the
+ * gallery, the lists are capped in lib/marketing/printSheet.js, and anything
+ * still past the page is clipped rather than spilling onto a second sheet.
  */
 export default function ListingTechSheet({ sheet, qr }) {
   const hasHighlights = sheet.sheetFeatures.length > 0 || sheet.sheetAmenities.length > 0;
@@ -110,10 +110,11 @@ export default function ListingTechSheet({ sheet, qr }) {
   );
 
   // Points forts get their own column when there are any; otherwise the
-  // conditions and the location sit side by side.
-  const columns = hasHighlights
-    ? [[conditions, location], [highlights]]
-    : [[conditions], [location]];
+  // conditions and the location sit side by side. An empty column is dropped,
+  // so a lone section sits on the left rather than leaving the left blank.
+  const columns = (hasHighlights ? [[conditions, location], [highlights]] : [[conditions], [location]])
+    .map((blocks) => blocks.filter(Boolean))
+    .filter((blocks) => blocks.length > 0);
 
   return (
     <section className="lp-sheet lp-fiche" aria-label="Fiche technique">

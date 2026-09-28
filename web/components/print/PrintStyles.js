@@ -53,12 +53,16 @@ const CSS = `
 .lp-poster-ref { font-size: 2.6cqw; margin: 1.4cqw 0 0; }
 .lp-brandbar { flex: none; display: flex; justify-content: space-between; align-items: center; padding: 2.2cqw 5cqw; font-size: 2.6cqw; font-weight: 700; }
 
-/* Technical sheet — one A4 page. Vertical budget in cqw (the page is
-   141.4cqw tall): header ~22, photos 38, figures ~8, contact ~17, brand bar
-   ~5.5, paddings and gaps ~14; .lp-details takes what is left and clips. */
+/* Technical sheet — one A4 page (141.4cqw tall). Fixed parts: header ~22,
+   figures ~8, contact ~17, brand bar ~5.5, paddings and gaps ~14. The PHOTOS
+   are the flexible part: the details take their natural height and the
+   gallery gets what is left, between 22cqw and 46cqw — a listing with ten
+   points forts gets smaller photos instead of a second page. Only if the
+   details would still not fit do they clip (never the contact block, which
+   is pinned to the bottom). */
 .lp-fiche-head { flex: none; padding: 3cqw 5cqw 3cqw; }
 .lp-fiche-top { display: flex; justify-content: space-between; align-items: center; gap: 3cqw; }
-.lp-logo { display: block; height: 3.2cqw; width: auto; }
+.lp-logo { display: block; height: 3.8cqw; width: auto; }
 .lp-fiche-ref { font-size: 1.8cqw; font-weight: 700; letter-spacing: .04em; opacity: .9; text-align: right; min-width: 0; overflow-wrap: anywhere; }
 .lp-fiche-headrow { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4cqw; align-items: end; margin-top: 2cqw; }
 .lp-fiche-head .lp-pill { background: #fff; color: var(--blue); font-size: 1.7cqw; padding: .6cqw 1.6cqw; }
@@ -67,7 +71,7 @@ const CSS = `
 .lp-fiche-price { font-size: 5cqw; font-weight: 800; line-height: 1; margin: 0; white-space: nowrap; }
 .lp-fiche-main { flex: 1; min-height: 0; padding: 3cqw 5cqw 3cqw; display: flex; flex-direction: column; gap: 2.4cqw; }
 
-.lp-gallery { position: relative; flex: none; height: 38cqw; }
+.lp-gallery { position: relative; flex: 1 1 0; min-height: 22cqw; max-height: 46cqw; }
 .lp-ph { position: absolute; overflow: hidden; border-radius: 1.2cqw; background: var(--canvas-deep); }
 .lp-ph img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; }
 .lp-g1 .lp-ph-hero { inset: 0; }
@@ -82,7 +86,7 @@ const CSS = `
 .lp-spec dt { font-size: 1.5cqw; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
 .lp-spec dd { margin: .4cqw 0 0; font-size: 2.6cqw; font-weight: 800; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.lp-details { flex: 1; min-height: 0; overflow: hidden; display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 4cqw; align-content: start; }
+.lp-details { flex: 0 1 auto; min-height: 0; overflow: hidden; display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 4cqw; align-content: start; }
 .lp-col { display: flex; flex-direction: column; gap: 2.2cqw; min-width: 0; }
 .lp-block { min-width: 0; }
 .lp-section-title { font-size: 2.2cqw; font-weight: 800; margin: 0 0 1cqw; color: var(--blue); text-transform: uppercase; letter-spacing: .05em; }
@@ -97,7 +101,7 @@ const CSS = `
 .lp-list li::before { content: ''; position: absolute; left: 0; top: .75cqw; width: 1cqw; height: 1cqw; border-radius: 50%; background: var(--blue); }
 .lp-map a { color: var(--blue-deep); font-weight: 700; }
 
-.lp-contact { flex: none; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4cqw; align-items: center; border: .2cqw solid var(--line); border-radius: 1.6cqw; padding: 1.8cqw 2.4cqw; background: var(--canvas-alt, #f6f7fb); }
+.lp-contact { flex: none; margin-top: auto; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4cqw; align-items: center; border: .2cqw solid var(--line); border-radius: 1.6cqw; padding: 1.8cqw 2.4cqw; background: var(--canvas-alt, #f6f7fb); }
 .lp-contact-label { font-size: 1.5cqw; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin: 0; }
 .lp-contact-name { font-size: 2.6cqw; font-weight: 800; margin: .4cqw 0 0; }
 .lp-contact-phone { font-size: 3.4cqw; font-weight: 800; color: var(--blue); margin: .3cqw 0 0; }

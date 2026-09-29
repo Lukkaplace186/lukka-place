@@ -2748,7 +2748,8 @@
         "duplicate_photo": "Photo used on another listing",
         "duplicate_listing": "Same title and price as another listing",
         "agent_unverified": "Agent number unverified",
-        "no_agent": "No agent attached"
+        "no_agent": "No agent attached",
+        "availability_unanswered": "Availability: 2 checks unanswered"
       }
     },
     "subscriptions": {
@@ -3456,7 +3457,8 @@
       "lockedCustomers": "Locked customers",
       "suspendedListings": "Suspended listings",
       "oldestHours": "oldest waiting {count} h",
-      "oldestDays": "oldest waiting {count} days"
+      "oldestDays": "oldest waiting {count} days",
+      "unansweredAvailability": "Availability unanswered"
     },
     "search": {
       "placeholder": "Search listings, agents, agencies, customers, phones…",

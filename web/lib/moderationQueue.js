@@ -52,7 +52,45 @@ const FLAG_SQL = {
   duplicate_listing: 'f.f_duplicate_listing',
   agent_unverified: 'f.f_agent_unverified',
   no_agent: 'f.f_no_agent',
+  availability_unanswered: 'f.f_availability_unanswered',
 };
+
+/**
+ * A live listing whose two most recent WhatsApp availability questions
+ * (services/availabilityCheck.js) both went unanswered, and which nobody has
+ * confirmed on the dashboard since. Not proof the agent ignored them — a
+ * session message outside the 24h window is accepted and never delivered —
+ * but it is the listing somebody should call about.
+ */
+export const AVAILABILITY_UNANSWERED_SQL = `(
+  p.status = 1 AND p.approve_status = 1 AND COALESCE(p.listing_status, 'active') = 'active'
+  AND (
+    SELECT COUNT(*) FILTER (WHERE last_two.answered_at IS NULL) = 2
+      FROM (SELECT c.answered_at FROM listing_availability_checks c
+             WHERE c.property_id = p.id AND c.channel = 'WHATSAPP'
+             ORDER BY c.asked_at DESC LIMIT 2) last_two
+  )
+  AND COALESCE(NULLIF(to_jsonb(p) ->> 'availability_confirmed_at', '')::timestamptz, 'epoch'::timestamptz)
+      < (SELECT MAX(c.asked_at) FROM listing_availability_checks c WHERE c.property_id = p.id AND c.channel = 'WHATSAPP')
+)`;
+
+let availabilityTable = { at: 0, value: null };
+
+/**
+ * Whether migrations/20260929_listing_availability_checks.sql has run. The
+ * flag's subquery names that table, and a missing table would fail the whole
+ * moderation queue rather than just the flag. Cached for ten minutes.
+ */
+export async function hasAvailabilityChecks() {
+  if (availabilityTable.value !== null && Date.now() - availabilityTable.at < 10 * 60 * 1000) return availabilityTable.value;
+  try {
+    const { rows } = await getPool().query("SELECT to_regclass('public.listing_availability_checks') IS NOT NULL AS ok");
+    availabilityTable = { at: Date.now(), value: Boolean(rows[0]?.ok) };
+  } catch {
+    availabilityTable = { at: Date.now(), value: false };
+  }
+  return availabilityTable.value;
+}
 export const FILTERABLE_FLAGS = Object.keys(FLAG_SQL);
 
 export const COMMUNE_OF_P = `(
@@ -62,7 +100,7 @@ export const COMMUNE_OF_P = `(
   LIMIT 1
 )`;
 
-function buildBase({ status, q, commune, purpose, agentId }, params) {
+function buildBase({ status, q, commune, purpose, agentId, availabilityChecks = false }, params) {
   const where = [STATUS_WHERE[status] || STATUS_WHERE.pending];
   const term = String(q || '').trim();
   if (term) {
@@ -105,6 +143,7 @@ function buildBase({ status, q, commune, purpose, agentId }, params) {
              ${COMMUNE_OF_P} AS commune,
              (SELECT COUNT(*)::int FROM property_slider_images si WHERE si.property_id = p.id) AS photo_count,
              (a.phone_verified_at IS NOT NULL) AS agent_verified,
+             ${availabilityChecks ? AVAILABILITY_UNANSWERED_SQL : 'false'} AS availability_unanswered,
              a.phone AS agent_phone,
              COALESCE(NULLIF(TRIM(CONCAT_WS(' ', ai.first_name, ai.last_name)), ''), NULLIF(v.username, '')) AS agent_name
       FROM properties p
@@ -141,7 +180,8 @@ function buildBase({ status, q, commune, purpose, agentId }, params) {
             AND o.price = b.price AND o.approve_status <> 2
         )) AS f_duplicate_listing,
         (b.agent_id IS NOT NULL AND NOT b.agent_verified) AS f_agent_unverified,
-        (b.agent_id IS NULL) AS f_no_agent
+        (b.agent_id IS NULL) AS f_no_agent,
+        b.availability_unanswered AS f_availability_unanswered
       FROM base b
     )
   `;
@@ -227,7 +267,8 @@ export async function listModerationQueue({
 } = {}) {
   const resolvedStatus = MODERATION_QUEUE_STATUSES.includes(status) ? status : 'pending';
   const params = [];
-  const cte = buildBase({ status: resolvedStatus, q, commune, purpose, agentId }, params);
+  const availabilityChecks = await hasAvailabilityChecks();
+  const cte = buildBase({ status: resolvedStatus, q, commune, purpose, agentId, availabilityChecks }, params);
   const flagWhere = FLAG_SQL[flag] ? `WHERE ${FLAG_SQL[flag]}` : '';
   const resolvedSort = SORTS[sort] ? sort : resolvedStatus === 'pending' ? 'oldest' : 'newest';
   const pageLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 25, 1), 100);

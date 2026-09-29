@@ -14,6 +14,8 @@ import {
   formatConfirmationDate,
   getAvailabilityPrompts,
   getListingsNeedingConfirmation,
+  recordDashboardAvailabilityAnswer,
+  RECORD_DASHBOARD_ANSWER_SQL,
 } from '@/lib/listingAvailability';
 import { getListingById } from '@/lib/listings';
 
@@ -64,7 +66,7 @@ test('the to-do contract is exactly { id, title, lastConfirmedAt, daysSince }', 
   assert.equal(rows[1].title, null);
 });
 
-test('the due query is scoped to the agent, live listings only, and the 7-day threshold', async () => {
+test('the due query is scoped to the agent, live listings only, and the 14-day threshold', async () => {
   enqueue([]);
   await getListingsNeedingConfirmation(33, { limit: 5 });
   const { sql, values } = calls[0];
@@ -76,7 +78,35 @@ test('the due query is scoped to the agent, live listings only, and the 7-day th
   assert.ok(sql.includes('COALESCE(p.availability_confirmed_at, GREATEST(p.created_at, p.updated_at), p.created_at)'));
   assert.ok(sql.includes('make_interval(days => $2)'));
   assert.deepEqual(values, [33, CONFIRM_AFTER_DAYS, 5]);
-  assert.equal(CONFIRM_AFTER_DAYS, 7);
+  assert.equal(CONFIRM_AFTER_DAYS, 14);
+});
+
+test('the dashboard, the WhatsApp check and the digest use one threshold', () => {
+  // The engine asks on WhatsApp after the same number of days the dashboard
+  // uses; a drift would ask on one channel what the other already considers
+  // fresh. Read from the engine source, which the unit tier cannot import.
+  const engine = readFileSync(path.join(process.cwd(), '..', 'services', 'availabilityCheck.js'), 'utf8');
+  const digest = readFileSync(path.join(process.cwd(), '..', 'services', 'agentDigest.js'), 'utf8');
+  assert.match(engine, new RegExp(`const CONFIRM_AFTER_DAYS = ${CONFIRM_AFTER_DAYS};`));
+  assert.match(digest, new RegExp(`const STALE_DAYS = ${CONFIRM_AFTER_DAYS};`));
+});
+
+test('a dashboard answer is recorded beside the WhatsApp ones, only for the agent’s own listing', async () => {
+  enqueue([{}]);
+  const recorded = await recordDashboardAvailabilityAnswer(33, '12', { answer: 'LET_OR_SOLD', closedPrice: 700 });
+  assert.equal(recorded, true);
+  assert.equal(calls[0].sql, RECORD_DASHBOARD_ANSWER_SQL.replace(/\s+/g, ' ').trim());
+  assert.match(calls[0].sql, /WHERE p\.id = \$1 AND p\.agent_id = \$2/);
+  assert.match(calls[0].sql, /'DASHBOARD'/);
+  assert.deepEqual(calls[0].values, [12, 33, 'LET_OR_SOLD', null, 700]);
+  reset();
+  assert.equal(await recordDashboardAvailabilityAnswer(33, 12, { answer: 'WITHDRAWN' }), false, 'not a dashboard answer');
+  assert.equal(calls.length, 0);
+});
+
+test('a missing answers table records nothing and never fails the answer itself', async () => {
+  failNextQuery('42P01');
+  assert.equal(await recordDashboardAvailabilityAnswer(33, 12, { answer: 'AVAILABLE' }), false);
 });
 
 test('limit is clamped and a non-numeric agent id queries nothing', async () => {
@@ -110,7 +140,7 @@ test('prompt rows carry the authored price in its own currency, narrowed to one 
   assert.equal(row.authoredPrice, 1_000_000);
   assert.equal(row.purpose, 'rent');
   assert.ok(calls[0].sql.includes('AND p.id = $4'));
-  assert.deepEqual(calls[0].values, [33, 7, 1, 5]);
+  assert.deepEqual(calls[0].values, [33, CONFIRM_AFTER_DAYS, 1, 5]);
 });
 
 test('confirming stamps NOW only on the agent\'s own live listing, and leaves updated_at alone', async () => {

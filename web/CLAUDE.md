@@ -1370,6 +1370,13 @@ days.
 
 ## "Toujours disponible ?" — weekly availability check (2026-09-22)
 
+**Updated 2026-09-29**: the threshold is 14 days, shared with the engine's
+WhatsApp check (root CLAUDE.md, "Toujours disponible ? on WhatsApp") and the
+digest; each dashboard answer (confirm, price changed, marked let/sold) is
+also recorded in `listing_availability_checks` with `channel = 'DASHBOARD'`
+(`recordDashboardAvailabilityAnswer`, never blocks the answer, silent before the
+migration). The "no history table" note below is superseded.
+
 `migrations/20260922_listing_availability.sql` (`properties.availability_confirmed_at
 timestamptz`, NULL = never confirmed), `lib/listingAvailability.js`,
 `app/compte/agent/availabilityActions.js`, `components/AgentAvailabilityPrompt.js`,

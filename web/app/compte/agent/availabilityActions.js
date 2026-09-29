@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { getCurrentAgentId } from '@/lib/agentSession';
-import { confirmListingAvailable } from '@/lib/listingAvailability';
+import { confirmListingAvailable, recordDashboardAvailabilityAnswer } from '@/lib/listingAvailability';
 import { getT } from '@/lib/i18n/server';
 import { updateListingPriceAction } from './actions';
 
@@ -46,6 +46,7 @@ export async function confirmListingAvailableAction(propertyId) {
   const result = await confirmListingAvailable(agentId, propertyId);
   if (!result.ok) return refusal(t, result.reason);
 
+  await recordDashboardAvailabilityAnswer(agentId, propertyId, { answer: 'AVAILABLE' });
   revalidateAvailabilitySurfaces(propertyId);
   return { ok: true, confirmedAt: result.confirmedAt };
 }
@@ -63,6 +64,7 @@ export async function confirmListingPriceChangedAction(propertyId, formData) {
 
   const priced = await updateListingPriceAction(propertyId, formData);
   if (!priced?.ok) return priced;
+  await recordDashboardAvailabilityAnswer(agentId, propertyId, { answer: 'PRICE_CHANGED', newPrice: priced.price });
 
   const result = await confirmListingAvailable(agentId, propertyId);
   if (!result.ok) {

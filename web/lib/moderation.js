@@ -20,6 +20,7 @@ export const REJECTION_REASON_LABEL_KEYS = Object.fromEntries(
 export const QUALITY_FLAGS = [
   'no_photos', 'few_photos', 'missing_commune', 'missing_price', 'missing_content', 'extraction_failure',
   'price_outlier', 'duplicate_photo', 'duplicate_listing', 'agent_unverified', 'no_agent',
+  'availability_unanswered',
 ];
 
 export const QUALITY_FLAG_LABEL_KEYS = Object.fromEntries(

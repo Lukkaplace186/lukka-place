@@ -1272,6 +1272,37 @@ db.exec(`
     created_at         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 
+  -- The availability check's own questions (services/availabilityCheck.js):
+  -- "toujours disponible ?", then "loué/vendu ou retiré ?", "à quel prix ?",
+  -- "le client venait-il de Lukka Place ?". Keyed by a Postgres property id,
+  -- not a viewing request — which is why it cannot live in
+  -- pending_agent_actions, whose viewing_request_id is NOT NULL.
+  --
+  -- ONE OPEN QUESTION PER NUMBER, across both agent tables: setting a row here
+  -- deletes the sender's pending_agent_actions row and vice versa, so a typed
+  -- "1" can never be read as the answer to two different questions.
+  --
+  -- STALE ROWS ARE DELETED, NOT JUST IGNORED (24h, PENDING_ACTION_TTL_MS). An
+  -- agent who answers "700" three days later is not answering a price question
+  -- we asked three days ago — and a stale row kept around could be picked up by
+  -- the next ask's typed answer. getPendingListingAction deletes on read and
+  -- the scheduler sweeps the rest. A tapped BUTTON still works after that: it
+  -- names its listing, and the handler re-checks the listing's state.
+  CREATE TABLE IF NOT EXISTS pending_listing_actions (
+    wa_id        TEXT PRIMARY KEY,
+    -- 'AVAILABILITY_RESPONSE'  waiting for 1 / 2 / 3 against the check itself
+    -- 'AVAILABILITY_GONE'      waiting for 1 (loué/vendu) / 2 (retiré)
+    -- 'CLOSING_PRICE'          waiting for the figure it let / sold at
+    -- 'CLOSING_PRICE_CONFIRM'  a figure read back, waiting for OUI
+    -- 'NEW_PRICE'              waiting for the new asking price
+    -- 'NEW_PRICE_CONFIRM'      a new price read back, waiting for OUI
+    -- 'VIA_PLATFORM'           waiting for 1 (oui) / 2 (non)
+    kind         TEXT    NOT NULL,
+    property_id  INTEGER NOT NULL,
+    amount       REAL,
+    created_at   TEXT    NOT NULL
+  );
+
   -- Agent Demand Feed's multi-proposal pitching — up to 7 agents can each
   -- pitch one of their own listings against the same open "Trouver pour
   -- moi" request. property_id is a loose, unenforced integer pointing at
@@ -2967,6 +2998,9 @@ function setPendingAgentAction({ waId, kind, viewingRequestId, amount = null }) 
   if (!waId || !kind || !viewingRequestId) {
     throw new Error('setPendingAgentAction requires waId, kind and viewingRequestId');
   }
+  // One open question per number: a newer viewing question replaces any
+  // availability question still open (see pending_listing_actions).
+  db.prepare('DELETE FROM pending_listing_actions WHERE wa_id = ?').run(String(waId));
   db.prepare(
     `INSERT INTO pending_agent_actions (wa_id, kind, viewing_request_id, amount, created_at)
      VALUES (?, ?, ?, ?, ?)
@@ -2992,6 +3026,64 @@ function getPendingAgentAction(waId) {
   return db
     .prepare('SELECT * FROM pending_agent_actions WHERE wa_id = ? AND created_at >= ?')
     .get(String(waId), cutoff);
+}
+
+/**
+ * The availability check's pending question — see pending_listing_actions.
+ * Replaces any viewing question this number still owes an answer to, the same
+ * "newer question wins" rule setPendingAgentAction applies the other way.
+ */
+function setPendingListingAction({ waId, kind, propertyId, amount = null }) {
+  if (!waId || !kind || !propertyId) {
+    throw new Error('setPendingListingAction requires waId, kind and propertyId');
+  }
+  const wa = String(waId);
+  db.prepare('DELETE FROM pending_agent_actions WHERE wa_id = ?').run(wa);
+  db.prepare(
+    `INSERT INTO pending_listing_actions (wa_id, kind, property_id, amount, created_at)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT (wa_id) DO UPDATE SET
+       kind = excluded.kind,
+       property_id = excluded.property_id,
+       amount = excluded.amount,
+       created_at = excluded.created_at`,
+  ).run(
+    wa,
+    String(kind),
+    Number(propertyId),
+    amount !== null && Number.isFinite(Number(amount)) ? Number(amount) : null,
+    new Date().toISOString(),
+  );
+  return getPendingListingAction(wa);
+}
+
+/**
+ * The availability question this sender still owes, or undefined. A row past
+ * the 24h TTL is DELETED here rather than skipped, so a late reply falls
+ * through to ordinary processing and can never be matched to it again.
+ */
+function getPendingListingAction(waId) {
+  if (!waId) return undefined;
+  const wa = String(waId);
+  const cutoff = new Date(Date.now() - PENDING_ACTION_TTL_MS).toISOString();
+  db.prepare('DELETE FROM pending_listing_actions WHERE wa_id = ? AND created_at < ?').run(wa, cutoff);
+  return db.prepare('SELECT * FROM pending_listing_actions WHERE wa_id = ?').get(wa);
+}
+
+function clearPendingListingAction(waId) {
+  if (!waId) return false;
+  return db.prepare('DELETE FROM pending_listing_actions WHERE wa_id = ?').run(String(waId)).changes > 0;
+}
+
+/** Deletes every availability question past its TTL. Returns how many. */
+function sweepStalePendingListingActions(now = Date.now()) {
+  const cutoff = new Date(now - PENDING_ACTION_TTL_MS).toISOString();
+  return db.prepare('DELETE FROM pending_listing_actions WHERE created_at < ?').run(cutoff).changes;
+}
+
+/** Whether this number owes us an answer to ANY question still in its window. */
+function hasOpenAgentQuestion(waId) {
+  return Boolean(getPendingAgentAction(waId) || getPendingListingAction(waId));
 }
 
 function clearPendingAgentAction(waId) {
@@ -3799,6 +3891,12 @@ module.exports = {
   setPendingAgentAction,
   getPendingAgentAction,
   clearPendingAgentAction,
+  setPendingListingAction,
+  getPendingListingAction,
+  clearPendingListingAction,
+  sweepStalePendingListingActions,
+  hasOpenAgentQuestion,
+  PENDING_ACTION_TTL_MS,
   setPendingCustomerAction,
   getPendingCustomerAction,
   clearPendingCustomerAction,

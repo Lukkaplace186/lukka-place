@@ -2748,7 +2748,8 @@
         "duplicate_photo": "Photo utilisée ailleurs",
         "duplicate_listing": "Même titre et prix qu’une autre annonce",
         "agent_unverified": "Numéro de l’agent non vérifié",
-        "no_agent": "Aucun agent rattaché"
+        "no_agent": "Aucun agent rattaché",
+        "availability_unanswered": "Disponibilité : 2 questions sans réponse"
       }
     },
     "subscriptions": {
@@ -3456,7 +3457,8 @@
       "lockedCustomers": "Clients bloqués",
       "suspendedListings": "Annonces suspendues",
       "oldestHours": "la plus ancienne attend depuis {count} h",
-      "oldestDays": "la plus ancienne attend depuis {count} j"
+      "oldestDays": "la plus ancienne attend depuis {count} j",
+      "unansweredAvailability": "Disponibilité sans réponse"
     },
     "search": {
       "placeholder": "Rechercher annonces, agents, agences, clients, numéros…",

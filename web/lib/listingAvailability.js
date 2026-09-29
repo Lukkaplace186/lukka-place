@@ -17,8 +17,14 @@ import { LISTING_TIME_ZONE } from '@/lib/listingView';
  * reads it through to_jsonb(p) in lib/listings.js so it can never 500.
  */
 
-/** A listing is due for a check this long after its last confirmation (or edit). */
-export const CONFIRM_AFTER_DAYS = 7;
+/**
+ * A listing is due for a check this long after its last confirmation (or
+ * edit). 14 since 2026-09-29, when the engine started asking the same
+ * question on WhatsApp every 14 days (services/availabilityCheck.js
+ * CONFIRM_AFTER_DAYS, and the digest's STALE_DAYS) — change one, change the
+ * others; tests/unit/listing-availability.test.js reads the engine file.
+ */
+export const CONFIRM_AFTER_DAYS = 14;
 
 /** The public badge is shown only while the confirmation is this fresh. */
 export const BADGE_MAX_AGE_DAYS = 30;
@@ -172,6 +178,47 @@ export async function confirmListingAvailable(agentId, propertyId) {
   } catch (err) {
     if (isMissingColumn(err)) return { ok: false, reason: 'unavailable' };
     throw err;
+  }
+}
+
+/**
+ * The answers given on the dashboard, recorded beside the WhatsApp ones in
+ * `listing_availability_checks` (migrations/20260929_listing_availability_checks.sql)
+ * with `channel = 'DASHBOARD'` and no question behind them. This is what lets
+ * the market data say how a listing left the market whichever channel the
+ * agent used.
+ *
+ * Never throws and never blocks the answer itself: the answer is already
+ * written to `properties` when this runs. Ownership is in the INSERT, so a
+ * crafted id records nothing. A missing table (migration not run) records
+ * nothing and says so in the log.
+ *
+ * @param {'AVAILABLE'|'PRICE_CHANGED'|'LET_OR_SOLD'} answer
+ * @returns {Promise<boolean>}
+ */
+export const DASHBOARD_ANSWERS = ['AVAILABLE', 'PRICE_CHANGED', 'LET_OR_SOLD'];
+
+export const RECORD_DASHBOARD_ANSWER_SQL = `
+  INSERT INTO listing_availability_checks
+    (property_id, agent_id, channel, answered_at, answer, new_price, closed_price)
+  SELECT p.id, p.agent_id, 'DASHBOARD', NOW(), $3, $4, $5
+    FROM properties p
+   WHERE p.id = $1 AND p.agent_id = $2
+`;
+
+export async function recordDashboardAvailabilityAnswer(agentId, propertyId, { answer, newPrice = null, closedPrice = null } = {}) {
+  const aid = Number.parseInt(agentId, 10);
+  const pid = Number.parseInt(propertyId, 10);
+  if (!Number.isFinite(aid) || !Number.isFinite(pid) || !DASHBOARD_ANSWERS.includes(answer)) return false;
+  const positive = (value) => (Number.isFinite(Number(value)) && Number(value) > 0 ? Number(value) : null);
+  try {
+    const { rowCount } = await getPool().query(RECORD_DASHBOARD_ANSWER_SQL, [
+      pid, aid, answer, positive(newPrice), positive(closedPrice),
+    ]);
+    return rowCount > 0;
+  } catch (err) {
+    if (!isMissingColumn(err)) console.error(`[availability] dashboard answer for #${pid} not recorded: ${err.message}`);
+    return false;
   }
 }
 

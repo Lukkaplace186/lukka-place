@@ -54,6 +54,7 @@ import { quotaRefusal } from '@/lib/listingQuotaRules';
 import { AGENT_SETTABLE_VIEWING_STATUSES, canAgentSetStatus } from '@/lib/viewingActions';
 import { validateAgreedSlot } from '@/lib/visitAgenda';
 import { findOwnedViewingRequest } from '@/lib/agentViewingOwnership';
+import { recordDashboardAvailabilityAnswer } from '@/lib/listingAvailability';
 import { MAX_AVATAR_BYTES, megabytes, validatePhotoSelection } from '@/lib/uploadLimits.mjs';
 
 const ALLOWED_AVATAR_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
@@ -207,6 +208,8 @@ export async function markListingSoldAction(propertyId, formData) {
   );
   if (rowCount === 0) return { ok: false, error: t('errors.listingNotFoundOrNotYours') };
 
+  // How it left the market, beside the WhatsApp answers (lib/listingAvailability.js).
+  await recordDashboardAvailabilityAnswer(agentId, propertyId, { answer: 'LET_OR_SOLD', closedPrice: soldPrice });
   revalidateListingSurfaces(agentId, propertyId);
   return { ok: true };
 }

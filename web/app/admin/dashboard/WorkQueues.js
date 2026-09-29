@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import {
-  AlertTriangle, BellRing, CalendarClock, FileText, Hand, Landmark, Lock, PauseCircle, Send, ShieldQuestion,
+  AlertTriangle, BellRing, CalendarClock, FileText, Hand, HelpCircle, Landmark, Lock, PauseCircle, Send, ShieldQuestion,
 } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { can } from '@/lib/adminRoles';
@@ -34,6 +34,9 @@ export default async function WorkQueues({ role }) {
     { key: 'unverifiedAgents', icon: ShieldQuestion, href: '/admin/agents?verified=no&status=1', permission: 'agents.manage' },
     { key: 'lockedCustomers', icon: Lock, href: '/admin/customers?status=locked', permission: 'customers.manage' },
     { key: 'suspendedListings', icon: PauseCircle, href: '/admin/listings?status=suspended', permission: 'listings.moderate' },
+    // Two WhatsApp "toujours disponible ?" in a row with no answer
+    // (services/availabilityCheck.js) — a listing somebody should call about.
+    { key: 'unansweredAvailability', icon: HelpCircle, href: '/admin/listings?status=approved&flag=availability_unanswered', permission: 'listings.moderate' },
   ].filter((card) => can(role, card.permission));
 
   return (

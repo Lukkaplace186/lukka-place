@@ -47,6 +47,10 @@ const {
   handleCheckinButtonReply,
   handleCustomerTextReply,
 } = require('../services/viewingSweeps');
+const {
+  handleAvailabilityButtonReply,
+  handleAvailabilityTextReply,
+} = require('../services/availabilityCheck');
 const { handleListingEnquiry } = require('../services/listingEnquiry');
 const salesReferral = require('../services/salesReferral');
 const listingQuota = require('../services/listingQuota');
@@ -713,6 +717,16 @@ async function processGroup(messages) {
       console.error(`[checkin] button '${buttonReplyId}' from ${from} failed: ${err.message}`);
       return;
     }
+    try {
+      // "Toujours disponible ?" (services/availabilityCheck.js). The id names
+      // the listing; the handler re-checks the sender is its verified agent
+      // and that the listing is still in a state the answer applies to.
+      const availability = await handleAvailabilityButtonReply({ from, replyId: buttonReplyId });
+      if (availability.handled) return;
+    } catch (err) {
+      console.error(`[availability] button '${buttonReplyId}' from ${from} failed: ${err.message}`);
+      return;
+    }
   }
 
   // PHONE VERIFICATION — "Code Lukka Place : 482913" sent from the web
@@ -910,6 +924,15 @@ async function processGroup(messages) {
         if (feedback.handled) return;
       } catch (err) {
         console.error(`[checkin] typed reply from ${from} failed: ${err.message}`);
+      }
+      try {
+        // A typed answer to the availability check — "1", "oui", "700 $".
+        // Same fall-through posture; its pending row expires after 24h, so a
+        // reply days later reaches ordinary processing.
+        const availability = await handleAvailabilityTextReply({ from, text });
+        if (availability.handled) return;
+      } catch (err) {
+        console.error(`[availability] typed reply from ${from} failed: ${err.message}`);
       }
     }
 

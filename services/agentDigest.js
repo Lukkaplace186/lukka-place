@@ -34,7 +34,9 @@ const CONFIGURED_HOUR = Number.parseInt(process.env.AGENT_DIGEST_HOUR, 10);
 /** Kinshasa hour (UTC+1) the digest goes out. 8h: before the day's visits. */
 const DIGEST_HOUR_KINSHASA = Number.isFinite(CONFIGURED_HOUR) ? CONFIGURED_HOUR : 8;
 const SEND_GAP_MS = Number.parseInt(process.env.AGENT_DIGEST_GAP_MS, 10) || 250;
-const STALE_DAYS = 7;
+// "À confirmer" is the same threshold the WhatsApp check asks on
+// (services/availabilityCheck.js, web/lib/listingAvailability.js).
+const STALE_DAYS = 14;
 const JOB_NAME = 'agent-daily-digest';
 
 db.exec(`

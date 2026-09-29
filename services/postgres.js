@@ -609,6 +609,143 @@ async function markPropertyAvailable(remotePropertyId) {
   return rowCount > 0;
 }
 
+/**
+ * The owner took it off the market without it being let or sold — the
+ * availability check's "Retiré du marché". The same columns web's archive
+ * action writes (`status = 0`, `archived_at`), so the dashboard shows it as
+ * archived and "Remettre en ligne" works on it.
+ *
+ * Deliberately NOT under_offer or closed: nothing was transacted, and the
+ * market export must not count a withdrawal as a let. A closed listing is
+ * never touched — its transaction record stands.
+ *
+ * @returns {Promise<boolean>} whether a row was updated.
+ */
+async function archivePropertyAsWithdrawn(remotePropertyId) {
+  if (!isConfigured() || !remotePropertyId) return false;
+  const { rowCount } = await getPool().query(
+    `UPDATE properties SET status = 0, archived_at = NOW(), updated_at = NOW()
+      WHERE id = $1 AND listing_status IS DISTINCT FROM 'closed'`,
+    [remotePropertyId],
+  );
+  return rowCount > 0;
+}
+
+/** Where an asking-price change came from. Read by the price-history trigger. */
+const PRICE_CHANGE_SOURCES = ['WHATSAPP_AGENT_REPLY', 'AGENT_DASHBOARD', 'ADMIN_DASHBOARD'];
+
+/**
+ * Change a published listing's asking price in BOTH stores.
+ *
+ * WHY BOTH
+ * A listing that came in over WhatsApp lives in this engine's SQLite
+ * `listings` row as well as in Postgres, and `syncListingToPostgres` rewrites
+ * `properties.price` from SQLite on every re-sync (a WhatsApp correction to a
+ * published listing triggers one). A price changed in Postgres alone was
+ * therefore silently put back the next time the agent corrected anything
+ * else. This is the one path every asking-price change should take.
+ *
+ * NOT A DISTRIBUTED TRANSACTION
+ * SQLite and Postgres cannot share one. The order makes the failure cases
+ * recoverable: Postgres is changed inside BEGIN; SQLite is written (a local,
+ * synchronous write) before COMMIT; if anything fails before the COMMIT
+ * returns, Postgres rolls back and the SQLite rows get their previous values
+ * back. The one window left is a COMMIT that succeeds while its reply is lost
+ * — then Postgres holds the new price and SQLite the old, i.e. exactly the
+ * state this function exists to prevent, so the SQLite write is NOT undone
+ * when COMMIT throws after it may have landed: it is re-checked instead.
+ *
+ * The price is USD (the same convention as every WhatsApp price in this
+ * engine), so `price_original` and `currency` are rewritten with it — the
+ * same three columns web's updateListingPrice sets, so a listing first priced
+ * in francs does not keep showing the old franc figure as "exact".
+ *
+ * `lukka.change_source` is set for the transaction so the price-history
+ * trigger (migrations/20260929_market_history.sql) records where the change
+ * came from; before that migration nothing reads it.
+ *
+ * @param {number} propertyId  properties.id
+ * @param {number} price       USD, > 0
+ * @param {{source: string, pool?: import('pg').Pool, sqlite?: import('better-sqlite3').Database}} options
+ * @returns {Promise<{updated: boolean, previousPrice: number|null, sqliteRows: number}>}
+ */
+async function setListingPrice(propertyId, price, { source, pool = null, sqlite = null } = {}) {
+  const id = Number(propertyId);
+  const amount = Number(price);
+  if (!Number.isSafeInteger(id) || id <= 0) throw new Error('setListingPrice requires a property id');
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error('setListingPrice requires a real positive price');
+  if (!PRICE_CHANGE_SOURCES.includes(source)) {
+    throw new Error(`setListingPrice: unknown source '${source}' (expected one of ${PRICE_CHANGE_SOURCES.join(', ')})`);
+  }
+  const pg = pool || (isConfigured() ? getPool() : null);
+  if (!pg) return { updated: false, previousPrice: null, sqliteRows: 0 };
+  // eslint-disable-next-line global-require
+  const local = sqlite || require('./db').db;
+
+  const client = await pg.connect();
+  let sqliteBefore = [];
+  let sqliteWritten = false;
+  let committed = false;
+  try {
+    await client.query('BEGIN');
+    await client.query("SELECT set_config('lukka.change_source', $1, true)", [source]);
+    const { rows } = await client.query(
+      `UPDATE properties p
+          SET price = $1, price_original = $1, currency = 'USD', updated_at = NOW()
+         FROM (SELECT id, price AS previous_price FROM properties WHERE id = $2 FOR UPDATE) prev
+        WHERE p.id = prev.id
+        RETURNING prev.previous_price`,
+      [amount, id],
+    );
+    if (!rows.length) {
+      await client.query('ROLLBACK');
+      return { updated: false, previousPrice: null, sqliteRows: 0 };
+    }
+
+    sqliteBefore = local
+      .prepare('SELECT id, price, currency FROM listings WHERE remote_property_id = ?')
+      .all(id);
+    if (sqliteBefore.length) {
+      local.prepare("UPDATE listings SET price = ?, currency = 'USD' WHERE remote_property_id = ?").run(amount, id);
+      sqliteWritten = true;
+    }
+
+    await client.query('COMMIT');
+    committed = true;
+    const previous = rows[0].previous_price;
+    return {
+      updated: true,
+      previousPrice: previous != null ? Number(previous) : null,
+      sqliteRows: sqliteBefore.length,
+    };
+  } catch (err) {
+    if (!committed) {
+      await client.query('ROLLBACK').catch(() => {});
+      if (sqliteWritten && !(await priceLanded(pg, id, amount))) {
+        const restore = local.prepare('UPDATE listings SET price = ?, currency = ? WHERE id = ?');
+        for (const row of sqliteBefore) restore.run(row.price, row.currency, row.id);
+      }
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * After a failed COMMIT: did the new price reach Postgres anyway? Only then is
+ * the SQLite write kept, so the two stores agree whichever way it went. An
+ * unreachable Postgres answers "no", which restores SQLite to its previous
+ * value — the state before the call, and the safe one.
+ */
+async function priceLanded(pg, id, amount) {
+  try {
+    const { rows } = await pg.query('SELECT price FROM properties WHERE id = $1', [id]);
+    return rows.length > 0 && Number(rows[0].price) === amount;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Does the live `properties` table carry the multi-unit building columns yet?
@@ -860,6 +997,9 @@ async function syncListingToPostgres(row) {
 
 module.exports = {
   markPropertyUnderOffer,
+  archivePropertyAsWithdrawn,
+  setListingPrice,
+  PRICE_CHANGE_SOURCES,
   markPropertySold,
   recordSoldPrice,
   PRICE_SOURCES,

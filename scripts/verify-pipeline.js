@@ -6854,7 +6854,7 @@ console.log('\n2. services/openai.js');
     const names = sched.JOBS.map((j) => j.name);
     assert.deepStrictEqual(names, [
       'search-alerts', 'viewing-sla', 'viewing-checkin', 'ops-health-alerts', 'listing-stats-rollup', 'trusted-auto-approve', 'agent-daily-digest',
-      'sales-commissions',
+      'listing-availability-check', 'sales-commissions',
     ]);
   });
 
@@ -9071,6 +9071,594 @@ console.log('\n2. services/openai.js');
     assert.ok(statements.includes('ROLLBACK'));
     assert.ok(!statements.includes('COMMIT'));
   });
+
+  // -------------------------------------------------------------------------
+  // 40. "Toujours disponible ?" on WhatsApp — the 2-weekly availability check
+  //
+  // The listing's verified agent is asked every 14 days; one tap confirms it,
+  // "Non" leads to let/sold (with the price and whether the client came
+  // through us) or withdrawn, "Prix modifié" writes a new price to BOTH
+  // stores. Postgres is a fake keyed on the statements' own text; postgres.js's
+  // write helpers are stubbed on the module object (they use their own pool).
+  // -------------------------------------------------------------------------
+
+  console.log('\n40. Availability check on WhatsApp');
+
+  const availability = require('../services/availabilityCheck');
+  const pgAvail = require('../services/postgres');
+  const AVAIL_AGENT = '243811400040';
+  const AVAIL_STRANGER = '243811400099';
+
+  function availListing(overrides = {}) {
+    return {
+      id: 4001, agent_id: 400, price: '1500.00', purpose: 'rent', price_period: null, reference: null,
+      status: 1, approve_status: 1, listing_status: 'active', archived_at: null,
+      title: 'Appartement 3 chambres à louer à Kintambo', commune: 'Kintambo',
+      agent_phone: `+${AVAIL_AGENT}`, phone_verified_at: '2026-09-01T00:00:00Z', first_name: 'Marie',
+      ...overrides,
+    };
+  }
+
+  /** A Postgres fake that answers each availabilityCheck statement by its text. */
+  function availabilityFakePg({ listings = [], due = null, askedToday = [], missingChecksTable = false } = {}) {
+    const byId = new Map(listings.map((l) => [Number(l.id), { ...l }]));
+    const log = [];
+    const checks = [];
+    const query = async (sql, params = []) => {
+      const text = String(sql).replace(/\s+/g, ' ').trim();
+      log.push({ sql: text, params });
+      if (text.startsWith('SELECT') && text.includes('agent_phone') && text.endsWith('WHERE p.id = $1')) {
+        const row = byId.get(Number(params[0]));
+        return { rows: row ? [{ ...row }] : [], rowCount: row ? 1 : 0 };
+      }
+      if (text.includes('NOT EXISTS ( SELECT 1 FROM listing_availability_checks')) {
+        if (missingChecksTable) {
+          const err = new Error('relation "listing_availability_checks" does not exist');
+          err.code = '42P01';
+          throw err;
+        }
+        return { rows: (due || listings).map((l) => ({ ...l })) };
+      }
+      if (text.includes("channel = 'WHATSAPP' AND asked_at >= $1")) return { rows: askedToday };
+      if (text.startsWith('INSERT INTO listing_availability_checks')) {
+        const id = checks.length + 1;
+        checks.push({ id, property_id: params[0], agent_id: params[1], previous_price: params[2], delivery: null });
+        return { rows: [{ id }], rowCount: 1 };
+      }
+      if (text.startsWith('UPDATE listing_availability_checks SET delivery')) {
+        const row = checks.find((c) => c.id === params[0]);
+        if (row) row.delivery = params[1];
+        return { rows: [], rowCount: row ? 1 : 0 };
+      }
+      if (text.startsWith('DELETE FROM listing_availability_checks')) {
+        const index = checks.findIndex((c) => c.id === params[0]);
+        if (index >= 0) checks.splice(index, 1);
+        return { rows: [], rowCount: 1 };
+      }
+      if (text.startsWith('UPDATE listing_availability_checks SET answer')) {
+        const row = [...checks].reverse().find((c) => Number(c.property_id) === Number(params[0]));
+        if (!row) return { rows: [], rowCount: 0 };
+        if (params[1] !== null) row.answer = params[1];
+        if (params[2] !== null) row.new_price = params[2];
+        if (params[3] !== null) row.closed_price = params[3];
+        if (params[4] !== null) row.closed_via_platform = params[4];
+        return { rows: [{ id: row.id }], rowCount: 1 };
+      }
+      if (text.startsWith('UPDATE properties SET availability_confirmed_at = NOW()')) {
+        const row = byId.get(Number(params[0]));
+        const ok = row && Number(row.agent_id) === Number(params[1]) && availability.isLiveAndActive(row);
+        if (ok) row.availability_confirmed_at = new Date().toISOString();
+        return { rows: ok ? [{ availability_confirmed_at: row.availability_confirmed_at }] : [], rowCount: ok ? 1 : 0 };
+      }
+      return { rows: [], rowCount: 0 };
+    };
+    return { log, checks, byId, pool: { query, connect: async () => ({ query, release() {} }) } };
+  }
+
+  /** Run `fn` with Postgres faked and postgres.js's write helpers recording instead of writing. */
+  async function withAvailabilityPg(fake, fn) {
+    const saved = {
+      isConfigured: pgAvail.isConfigured,
+      getPool: pgAvail.getPool,
+      markPropertyUnderOffer: pgAvail.markPropertyUnderOffer,
+      recordSoldPrice: pgAvail.recordSoldPrice,
+      archivePropertyAsWithdrawn: pgAvail.archivePropertyAsWithdrawn,
+      setListingPrice: pgAvail.setListingPrice,
+    };
+    const writes = [];
+    pgAvail.isConfigured = () => true;
+    pgAvail.getPool = () => fake.pool;
+    pgAvail.markPropertyUnderOffer = async (id) => {
+      writes.push({ fn: 'underOffer', id });
+      const row = fake.byId.get(Number(id));
+      if (row) row.listing_status = 'under_offer';
+      return true;
+    };
+    pgAvail.recordSoldPrice = async (id, amount, options) => {
+      writes.push({ fn: 'sold', id, amount, source: options?.source });
+      const row = fake.byId.get(Number(id));
+      if (row) Object.assign(row, { listing_status: 'closed', status: 0 });
+      return { updated: true, listPrice: row ? Number(row.price) : null };
+    };
+    pgAvail.archivePropertyAsWithdrawn = async (id) => {
+      writes.push({ fn: 'withdrawn', id });
+      const row = fake.byId.get(Number(id));
+      if (row) row.status = 0;
+      return true;
+    };
+    pgAvail.setListingPrice = async (id, amount, options) => {
+      writes.push({ fn: 'price', id, amount, source: options?.source });
+      const row = fake.byId.get(Number(id));
+      const previousPrice = row ? Number(row.price) : null;
+      if (row) row.price = String(amount);
+      return { updated: true, previousPrice, sqliteRows: 0 };
+    };
+    try {
+      return await fn(writes);
+    } finally {
+      Object.assign(pgAvail, saved);
+      dbService.clearPendingListingAction(AVAIL_AGENT);
+      dbService.clearPendingAgentAction(AVAIL_AGENT);
+    }
+  }
+
+  const availPosts = () => httpCalls.filter((c) => c.method === 'post').map((c) => c.data);
+  const availTexts = () => availPosts().map((d) => d.text?.body || d.interactive?.body?.text || '').join('\n---\n');
+
+  check('availability button ids name the action and the listing, nothing else matches', () => {
+    assert.deepStrictEqual(availability.parseAvailabilityButtonId('avail_yes:310'), { action: 'yes', propertyId: 310 });
+    assert.deepStrictEqual(availability.parseAvailabilityButtonId('avail_via_no:310'), { action: 'via_no', propertyId: 310 });
+    assert.strictEqual(availability.parseAvailabilityButtonId('viewing_accept:3'), null);
+    assert.strictEqual(availability.parseAvailabilityButtonId('avail_yes:abc'), null);
+    assert.strictEqual(availability.parseAvailabilityButtonId('avail_delete:310'), null);
+  });
+
+  check('typed answers: digits and the words agents actually type, nothing looser', () => {
+    assert.strictEqual(availability.parseAskAnswer('1'), 'yes');
+    assert.strictEqual(availability.parseAskAnswer('Oui'), 'yes');
+    assert.strictEqual(availability.parseAskAnswer('2️⃣'), 'no');
+    assert.strictEqual(availability.parseAskAnswer('3'), 'price');
+    assert.strictEqual(availability.parseAskAnswer('Appartement 2 chambres Limete 500$'), null);
+    assert.strictEqual(availability.parseGoneAnswer('déjà loué'), 'let');
+    assert.strictEqual(availability.parseGoneAnswer('2'), 'withdrawn');
+    assert.strictEqual(availability.parseViaAnswer('1'), true);
+    assert.strictEqual(availability.parseViaAnswer('non'), false);
+    assert.strictEqual(availability.parseViaAnswer('peut-être'), null);
+  });
+
+  check('a price more than 50% from the one on record is read back first — both ways', () => {
+    assert.strictEqual(availability.priceNeedsReadBack(150, 1500), true, '150 typed for 1 500');
+    assert.strictEqual(availability.priceNeedsReadBack(15000, 1500), true, '15 000 typed for 1 500');
+    assert.strictEqual(availability.priceNeedsReadBack(1350, 1500), false);
+    assert.strictEqual(availability.priceNeedsReadBack(700, null), false, 'no reference, no check');
+    assert.strictEqual(availability.PRICE_DEVIATION_LIMIT, 0.5);
+  });
+
+  check('the template variables are one line each and never invent a reference', () => {
+    const params = availability.templateParams(availListing());
+    assert.strictEqual(params.length, 3);
+    assert.strictEqual(params[0], 'Marie');
+    assert.match(params[1], /^Appartement 3 chambres à louer à Kintambo — 1\s500 \$ \/ mois$/);
+    assert.strictEqual(params[2], 'annonce n° 4001', 'no reference → the listing number, never a made-up code');
+    assert.strictEqual(availability.referenceLine(availListing({ reference: 'École petits lutins' })), 'Réf. École petits lutins');
+    for (const p of params) assert.ok(!/\n/.test(p), 'Meta refuses a newline in a template parameter');
+  });
+
+  check('the three answers are in the template\'s order and within WhatsApp\'s 20 characters', () => {
+    const buttons = availability.askButtons(4001);
+    assert.deepStrictEqual(buttons.map((b) => b.id), ['avail_yes:4001', 'avail_no:4001', 'avail_price:4001']);
+    assert.deepStrictEqual(buttons.map((b) => b.title), ['Oui, disponible', 'Non, plus disponible', 'Prix modifié']);
+    for (const b of [...buttons, ...availability.goneButtons(1), ...availability.viaButtons(1)]) {
+      assert.ok([...b.title].length <= 20, b.title);
+    }
+  });
+
+  check('the web dashboard, the WhatsApp check and the digest share one 14-day threshold', () => {
+    const web = fs.readFileSync(path.join(__dirname, '..', 'web', 'lib', 'listingAvailability.js'), 'utf8');
+    assert.strictEqual(availability.CONFIRM_AFTER_DAYS, 14);
+    assert.match(web, new RegExp(`export const CONFIRM_AFTER_DAYS = ${availability.CONFIRM_AFTER_DAYS};`));
+    const digestSource = fs.readFileSync(path.join(__dirname, '..', 'services', 'agentDigest.js'), 'utf8');
+    assert.match(digestSource, new RegExp(`const STALE_DAYS = ${availability.CONFIRM_AFTER_DAYS};`));
+  });
+
+  await checkAsync('"Oui" from the listing\'s own agent stamps it confirmed and records the answer', async () => {
+    const fake = availabilityFakePg({ listings: [availListing()] });
+    fake.checks.push({ id: 1, property_id: 4001, agent_id: 400 });
+    httpCalls.length = 0;
+    await withAvailabilityPg(fake, async () => {
+      const outcome = await availability.handleAvailabilityButtonReply({ from: AVAIL_AGENT, replyId: 'avail_yes:4001' });
+      assert.strictEqual(outcome.handled, true);
+      assert.strictEqual(outcome.action, 'confirmed');
+      assert.ok(fake.byId.get(4001).availability_confirmed_at, 'availability_confirmed_at stamped');
+      assert.strictEqual(fake.checks[0].answer, 'AVAILABLE');
+      assert.match(availTexts(), /Disponibilité confirmée/);
+    });
+  });
+
+  await checkAsync('a tap from anyone but the verified agent is refused in silence', async () => {
+    const fake = availabilityFakePg({ listings: [availListing(), availListing({ id: 4002, phone_verified_at: null })] });
+    httpCalls.length = 0;
+    await withAvailabilityPg(fake, async (writes) => {
+      const stranger = await availability.handleAvailabilityButtonReply({ from: AVAIL_STRANGER, replyId: 'avail_no:4001' });
+      assert.deepStrictEqual([stranger.handled, stranger.ignored], [true, 'not-authorised']);
+      const unverified = await availability.handleAvailabilityButtonReply({ from: AVAIL_AGENT, replyId: 'avail_yes:4002' });
+      assert.strictEqual(unverified.ignored, 'not-authorised', 'an unverified number is not proof');
+      const unknown = await availability.handleAvailabilityButtonReply({ from: AVAIL_AGENT, replyId: 'avail_yes:9999' });
+      assert.strictEqual(unknown.ignored, 'unknown-listing');
+      assert.strictEqual(writes.length, 0);
+      assert.strictEqual(availPosts().length, 0, 'nothing is said to a stranger');
+      assert.ok(!fake.log.some((q) => q.sql.startsWith('UPDATE')), 'nothing written');
+    });
+  });
+
+  await checkAsync('a late tap on a listing that has since closed changes nothing and says so', async () => {
+    const fake = availabilityFakePg({ listings: [availListing({ listing_status: 'closed', status: 0 })] });
+    httpCalls.length = 0;
+    await withAvailabilityPg(fake, async (writes) => {
+      for (const action of ['yes', 'no', 'price', 'let', 'withdrawn']) {
+        const outcome = await availability.handleAvailabilityButtonReply({ from: AVAIL_AGENT, replyId: `avail_${action}:4001` });
+        assert.strictEqual(outcome.action, 'already-updated', action);
+      }
+      assert.strictEqual(writes.length, 0);
+      assert.ok(!fake.byId.get(4001).availability_confirmed_at);
+      assert.match(availTexts(), /déjà été mis à jour/);
+    });
+  });
+
+  await checkAsync('"Non" → "Loué / vendu" → under offer, then the price; 150 for 1 500 is read back, OUI writes it', async () => {
+    const fake = availabilityFakePg({ listings: [availListing()] });
+    fake.checks.push({ id: 1, property_id: 4001, agent_id: 400 });
+    httpCalls.length = 0;
+    await withAvailabilityPg(fake, async (writes) => {
+      const no = await availability.handleAvailabilityButtonReply({ from: AVAIL_AGENT, replyId: 'avail_no:4001' });
+      assert.strictEqual(no.awaiting, availability.KINDS.gone);
+      const gone = availPosts().find((d) => d.type === 'interactive');
+      assert.deepStrictEqual(gone.interactive.action.buttons.map((b) => b.reply.id), ['avail_let:4001', 'avail_withdrawn:4001']);
+
+      const let_ = await availability.handleAvailabilityTextReply({ from: AVAIL_AGENT, text: '1' });
+      assert.strictEqual(let_.action, 'let-or-sold');
+      assert.deepStrictEqual(writes[0], { fn: 'underOffer', id: 4001 });
+      assert.strictEqual(fake.checks[0].answer, 'LET_OR_SOLD');
+      assert.match(availTexts(), /loyer mensuel/, 'a rental is asked for its monthly rent');
+
+      const slip = await availability.handleAvailabilityTextReply({ from: AVAIL_AGENT, text: '150' });
+      assert.strictEqual(slip.action, 'closing-price-read-back');
+      assert.ok(!writes.some((w) => w.fn === 'sold'), 'nothing is written on a suspicious figure');
+      assert.match(availTexts(), /Vous avez indiqué 150 \$[\s\S]*1\s500 \$/);
+      assert.strictEqual(dbService.getPendingListingAction(AVAIL_AGENT).kind, availability.KINDS.closingPriceConfirm);
+
+      const confirmed = await availability.handleAvailabilityTextReply({ from: AVAIL_AGENT, text: 'OUI' });
+      assert.strictEqual(confirmed.action, 'closing-price-recorded');
+      assert.deepStrictEqual(writes.find((w) => w.fn === 'sold'), { fn: 'sold', id: 4001, amount: 150, source: 'WHATSAPP_AGENT_REPLY' });
+      assert.strictEqual(fake.checks[0].closed_price, 150);
+      assert.strictEqual(dbService.getPendingListingAction(AVAIL_AGENT).kind, availability.KINDS.viaPlatform);
+
+      const via = await availability.handleAvailabilityTextReply({ from: AVAIL_AGENT, text: '1' });
+      assert.strictEqual(via.action, 'via-platform-recorded');
+      assert.strictEqual(fake.checks[0].closed_via_platform, true);
+      assert.strictEqual(dbService.getPendingListingAction(AVAIL_AGENT), undefined);
+    });
+  });
+
+  await checkAsync('a close price in francs is refused and asked again in dollars; a correction is itself read back', async () => {
+    const fake = availabilityFakePg({ listings: [availListing({ listing_status: 'under_offer' })] });
+    httpCalls.length = 0;
+    await withAvailabilityPg(fake, async (writes) => {
+      dbService.setPendingListingAction({ waId: AVAIL_AGENT, kind: availability.KINDS.closingPrice, propertyId: 4001 });
+      const cdf = await availability.handleAvailabilityTextReply({ from: AVAIL_AGENT, text: 'loué à 3 000 000 FC' });
+      assert.strictEqual(cdf.action, 'closing-price-needs-usd');
+      dbService.setPendingListingAction({ waId: AVAIL_AGENT, kind: availability.KINDS.closingPriceConfirm, propertyId: 4001, amount: 150 });
+      const again = await availability.handleAvailabilityTextReply({ from: AVAIL_AGENT, text: '15' });
+      assert.strictEqual(again.action, 'price-read-back', 'correcting 150 to 15 is still read back');
+      assert.strictEqual(dbService.getPendingListingAction(AVAIL_AGENT).amount, 15);
+      const fixed = await availability.handleAvailabilityTextReply({ from: AVAIL_AGENT, text: '1400' });
+      assert.strictEqual(fixed.action, 'closing-price-recorded');
+      assert.strictEqual(writes.find((w) => w.fn === 'sold').amount, 1400);
+    });
+  });
+
+  await checkAsync('"Retiré du marché" archives it as withdrawn — not a let, and never a sold price', async () => {
+    const fake = availabilityFakePg({ listings: [availListing()] });
+    fake.checks.push({ id: 1, property_id: 4001, agent_id: 400 });
+    httpCalls.length = 0;
+    await withAvailabilityPg(fake, async (writes) => {
+      dbService.setPendingListingAction({ waId: AVAIL_AGENT, kind: availability.KINDS.gone, propertyId: 4001 });
+      const outcome = await availability.handleAvailabilityTextReply({ from: AVAIL_AGENT, text: '2' });
+      assert.strictEqual(outcome.action, 'withdrawn');
+      assert.deepStrictEqual(writes, [{ fn: 'withdrawn', id: 4001 }]);
+      assert.strictEqual(fake.checks[0].answer, 'WITHDRAWN');
+      assert.strictEqual(fake.checks[0].closed_price, undefined);
+      assert.strictEqual(dbService.getPendingListingAction(AVAIL_AGENT), undefined);
+    });
+  });
+
+  await checkAsync('"Prix modifié": a close figure is written through the dual-write helper and confirms the listing', async () => {
+    const fake = availabilityFakePg({ listings: [availListing()] });
+    fake.checks.push({ id: 1, property_id: 4001, agent_id: 400 });
+    httpCalls.length = 0;
+    await withAvailabilityPg(fake, async (writes) => {
+      const asked = await availability.handleAvailabilityButtonReply({ from: AVAIL_AGENT, replyId: 'avail_price:4001' });
+      assert.strictEqual(asked.awaiting, availability.KINDS.newPrice);
+      const outcome = await availability.handleAvailabilityTextReply({ from: AVAIL_AGENT, text: '1 350 $' });
+      assert.strictEqual(outcome.action, 'new-price-recorded');
+      assert.deepStrictEqual(writes, [{ fn: 'price', id: 4001, amount: 1350, source: 'WHATSAPP_AGENT_REPLY' }]);
+      assert.ok(fake.byId.get(4001).availability_confirmed_at, 'a new price is also a confirmation');
+      assert.strictEqual(fake.checks[0].answer, 'PRICE_CHANGED');
+      assert.strictEqual(fake.checks[0].new_price, 1350);
+      assert.match(availTexts(), /Prix mis à jour : 1\s350 \$ \/ mois[\s\S]*avant : 1\s500 \$ \/ mois/);
+    });
+  });
+
+  await checkAsync('a new price 50% off is read back before it touches either store', async () => {
+    const fake = availabilityFakePg({ listings: [availListing()] });
+    httpCalls.length = 0;
+    await withAvailabilityPg(fake, async (writes) => {
+      dbService.setPendingListingAction({ waId: AVAIL_AGENT, kind: availability.KINDS.newPrice, propertyId: 4001 });
+      const slip = await availability.handleAvailabilityTextReply({ from: AVAIL_AGENT, text: '150' });
+      assert.strictEqual(slip.action, 'new-price-read-back');
+      assert.strictEqual(writes.length, 0);
+      const yes = await availability.handleAvailabilityTextReply({ from: AVAIL_AGENT, text: 'oui' });
+      assert.strictEqual(yes.action, 'new-price-recorded');
+      assert.strictEqual(writes[0].amount, 150, 'OUI keeps the figure the agent confirmed');
+    });
+  });
+
+  await checkAsync('a property advert sent while a question is open is still a property advert', async () => {
+    const fake = availabilityFakePg({ listings: [availListing()] });
+    await withAvailabilityPg(fake, async (writes) => {
+      dbService.setPendingListingAction({ waId: AVAIL_AGENT, kind: availability.KINDS.closingPrice, propertyId: 4001 });
+      const advert = await availability.handleAvailabilityTextReply({
+        from: AVAIL_AGENT, text: 'Appartement 2 chambres à louer à Limete, 500$ par mois, garantie 3 mois',
+      });
+      assert.strictEqual(advert.handled, false);
+      assert.strictEqual(writes.length, 0);
+    });
+  });
+
+  check('a question left unanswered for 24h is DELETED, so a late reply cannot answer it', () => {
+    dbService.setPendingListingAction({ waId: AVAIL_AGENT, kind: availability.KINDS.closingPrice, propertyId: 4001 });
+    const stale = new Date(Date.now() - dbService.PENDING_ACTION_TTL_MS - 60_000).toISOString();
+    dbService.db.prepare('UPDATE pending_listing_actions SET created_at = ? WHERE wa_id = ?').run(stale, AVAIL_AGENT);
+    assert.strictEqual(dbService.getPendingListingAction(AVAIL_AGENT), undefined);
+    const left = dbService.db.prepare('SELECT COUNT(*) AS n FROM pending_listing_actions WHERE wa_id = ?').get(AVAIL_AGENT).n;
+    assert.strictEqual(left, 0, 'deleted on read, not merely skipped');
+
+    dbService.setPendingListingAction({ waId: '243811400041', kind: availability.KINDS.response, propertyId: 4001 });
+    dbService.setPendingListingAction({ waId: '243811400042', kind: availability.KINDS.response, propertyId: 4001 });
+    dbService.db.prepare('UPDATE pending_listing_actions SET created_at = ? WHERE wa_id = ?').run(stale, '243811400041');
+    assert.strictEqual(dbService.sweepStalePendingListingActions(), 1, 'the sweep removes only what has expired');
+    assert.ok(dbService.getPendingListingAction('243811400042'));
+    dbService.clearPendingListingAction('243811400042');
+  });
+
+  await checkAsync('a late typed reply after the question expired falls through to ordinary processing', async () => {
+    const fake = availabilityFakePg({ listings: [availListing()] });
+    await withAvailabilityPg(fake, async (writes) => {
+      dbService.setPendingListingAction({ waId: AVAIL_AGENT, kind: availability.KINDS.response, propertyId: 4001 });
+      const stale = new Date(Date.now() - dbService.PENDING_ACTION_TTL_MS - 1000).toISOString();
+      dbService.db.prepare('UPDATE pending_listing_actions SET created_at = ? WHERE wa_id = ?').run(stale, AVAIL_AGENT);
+      const late = await availability.handleAvailabilityTextReply({ from: AVAIL_AGENT, text: '1' });
+      assert.strictEqual(late.handled, false);
+      assert.strictEqual(writes.length, 0);
+      assert.ok(!fake.byId.get(4001).availability_confirmed_at);
+    });
+  });
+
+  check('one open question per number: a new availability question replaces a viewing one, and back', () => {
+    const viewingLead = dbService.createLead({ wa_id: '243811400050', source: 'listing-visit-request' });
+    const viewing = dbService.createViewingRequest({ leadId: viewingLead.id, propertyId: 4001, requestedTime: 'samedi 10h' });
+    dbService.setPendingAgentAction({ waId: AVAIL_AGENT, kind: 'VIEWING_RESPONSE', viewingRequestId: viewing.id });
+    dbService.setPendingListingAction({ waId: AVAIL_AGENT, kind: availability.KINDS.response, propertyId: 4001 });
+    assert.strictEqual(dbService.getPendingAgentAction(AVAIL_AGENT), undefined);
+    assert.ok(dbService.hasOpenAgentQuestion(AVAIL_AGENT));
+    dbService.setPendingAgentAction({ waId: AVAIL_AGENT, kind: 'VIEWING_RESPONSE', viewingRequestId: viewing.id });
+    assert.strictEqual(dbService.getPendingListingAction(AVAIL_AGENT), undefined);
+    dbService.clearPendingAgentAction(AVAIL_AGENT);
+    assert.strictEqual(dbService.hasOpenAgentQuestion(AVAIL_AGENT), false);
+  });
+
+  await checkAsync('setListingPrice writes Postgres and the engine\'s own row, so a resync cannot put the old price back', async () => {
+    const local = dbService.db;
+    const insert = local.prepare('INSERT INTO listings (wa_id, raw_text, price, currency, remote_property_id) VALUES (?, ?, ?, ?, ?)');
+    const rowId = Number(insert.run(AVAIL_AGENT, 'Appartement Kintambo', 1500, 'USD', 4077).lastInsertRowid);
+    const statements = [];
+    const client = {
+      async query(sql, params) {
+        const text = String(sql).replace(/\s+/g, ' ').trim();
+        statements.push({ sql: text, params });
+        if (text.startsWith('UPDATE properties p SET price')) return { rows: [{ previous_price: '1500.00' }], rowCount: 1 };
+        return { rows: [], rowCount: 0 };
+      },
+      release() {},
+    };
+    const result = await pgAvail.setListingPrice(4077, 1350, {
+      source: 'WHATSAPP_AGENT_REPLY', pool: { connect: async () => client, query: client.query }, sqlite: local,
+    });
+    assert.deepStrictEqual(result, { updated: true, previousPrice: 1500, sqliteRows: 1 });
+    assert.strictEqual(local.prepare('SELECT price FROM listings WHERE id = ?').get(rowId).price, 1350);
+    const sqls = statements.map((s) => s.sql);
+    assert.strictEqual(sqls[0], 'BEGIN');
+    assert.match(sqls[1], /set_config\('lukka\.change_source', \$1, true\)/);
+    assert.deepStrictEqual(statements[1].params, ['WHATSAPP_AGENT_REPLY']);
+    assert.match(sqls[2], /SET price = \$1, price_original = \$1, currency = 'USD'/);
+    assert.strictEqual(sqls[sqls.length - 1], 'COMMIT');
+  });
+
+  await checkAsync('a failed COMMIT puts the engine row back unless the price actually landed', async () => {
+    const local = dbService.db;
+    const rowId = Number(local.prepare('INSERT INTO listings (wa_id, raw_text, price, currency, remote_property_id) VALUES (?, ?, ?, ?, ?)')
+      .run(AVAIL_AGENT, 'Villa Ngaliema', 2000, 'USD', 4078).lastInsertRowid);
+    const failingClient = (landedPrice) => ({
+      async query(sql) {
+        const text = String(sql).replace(/\s+/g, ' ').trim();
+        if (text.startsWith('UPDATE properties p SET price')) return { rows: [{ previous_price: '2000' }], rowCount: 1 };
+        if (text === 'COMMIT') throw Object.assign(new Error('connection reset'), { code: '08006' });
+        if (text.startsWith('SELECT price FROM properties')) return { rows: [{ price: String(landedPrice) }] };
+        return { rows: [], rowCount: 0 };
+      },
+      release() {},
+    });
+    const lost = failingClient(2000);
+    await assert.rejects(
+      () => pgAvail.setListingPrice(4078, 1800, { source: 'WHATSAPP_AGENT_REPLY', pool: { connect: async () => lost, query: lost.query }, sqlite: local }),
+      /connection reset/,
+    );
+    assert.strictEqual(local.prepare('SELECT price FROM listings WHERE id = ?').get(rowId).price, 2000, 'restored: Postgres kept the old price');
+
+    const landed = failingClient(1800);
+    await assert.rejects(
+      () => pgAvail.setListingPrice(4078, 1800, { source: 'WHATSAPP_AGENT_REPLY', pool: { connect: async () => landed, query: landed.query }, sqlite: local }),
+      /connection reset/,
+    );
+    assert.strictEqual(local.prepare('SELECT price FROM listings WHERE id = ?').get(rowId).price, 1800, 'kept: the new price did land in Postgres');
+  });
+
+  await checkAsync('setListingPrice refuses an unknown source and a non-positive price', async () => {
+    await assert.rejects(() => pgAvail.setListingPrice(1, 500, { source: 'SOMEWHERE' }), /unknown source/);
+    await assert.rejects(() => pgAvail.setListingPrice(1, 0, { source: 'WHATSAPP_AGENT_REPLY' }), /positive price/);
+    await assert.rejects(() => pgAvail.setListingPrice('x', 500, { source: 'WHATSAPP_AGENT_REPLY' }), /property id/);
+  });
+
+  await checkAsync('the daily run asks at most three per agent, skips an agent who owes an answer, and records each ask', async () => {
+    const busy = '243811400060';
+    const listings = [
+      availListing({ id: 5001 }), availListing({ id: 5002 }), availListing({ id: 5003 }), availListing({ id: 5004 }),
+      availListing({ id: 5101, agent_id: 401, agent_phone: busy }),
+    ];
+    const fake = availabilityFakePg({ listings });
+    dbService.setPendingListingAction({ waId: busy, kind: availability.KINDS.closingPrice, propertyId: 9999 });
+    httpCalls.length = 0;
+    await withAvailabilityPg(fake, async () => {
+      const tally = await availability.runAvailabilityCheck({ pool: fake.pool, gapMs: 0 });
+      assert.strictEqual(tally.asked, 3);
+      assert.strictEqual(tally.skippedOpenQuestion, 1);
+      assert.deepStrictEqual(fake.checks.map((c) => c.property_id), [5001, 5002, 5003]);
+      assert.ok(fake.checks.every((c) => c.delivery === 'buttons'));
+      const asks = availPosts().filter((d) => d.type === 'interactive');
+      assert.strictEqual(asks.length, 3);
+      assert.deepStrictEqual(asks[0].interactive.action.buttons.map((b) => b.reply.id), ['avail_yes:5001', 'avail_no:5001', 'avail_price:5001']);
+      assert.ok(!availPosts().some((d) => d.to === busy), 'an agent with an open question is asked nothing');
+    });
+    dbService.clearPendingListingAction(busy);
+  });
+
+  await checkAsync('when buttons do not go through, one numbered question per agent, and it claims their next message', async () => {
+    const fake = availabilityFakePg({ listings: [availListing({ id: 5201 }), availListing({ id: 5202 })] });
+    const saved = chakra.sendInteractiveButtons;
+    chakra.sendInteractiveButtons = async () => { throw new Error('interactive not enabled on this plan'); };
+    httpCalls.length = 0;
+    try {
+      await withAvailabilityPg(fake, async () => {
+        const tally = await availability.runAvailabilityCheck({ pool: fake.pool, gapMs: 0 });
+        assert.strictEqual(tally.asked, 1, 'a typed "1" can only mean one question');
+        assert.strictEqual(fake.checks[0].delivery, 'session-numbered');
+        assert.match(availTexts(), /1️⃣ Oui, toujours disponible/);
+        const pending = dbService.getPendingListingAction(AVAIL_AGENT);
+        assert.deepStrictEqual([pending.kind, pending.property_id], [availability.KINDS.response, 5201]);
+      });
+    } finally {
+      chakra.sendInteractiveButtons = saved;
+    }
+  });
+
+  await checkAsync('with an approved template, the ask goes as a template carrying the three payloads in order', async () => {
+    const fake = availabilityFakePg({ listings: [availListing({ id: 5301 })] });
+    process.env.LISTING_AVAILABILITY_TEMPLATE = 'listing_availability_check';
+    httpCalls.length = 0;
+    try {
+      await withAvailabilityPg(fake, async () => {
+        await availability.runAvailabilityCheck({ pool: fake.pool, gapMs: 0 });
+        const template = availPosts().find((d) => d.type === 'template');
+        assert.ok(template, 'no template was sent');
+        assert.strictEqual(template.template.name, 'listing_availability_check');
+        const body = template.template.components.find((c) => c.type === 'body');
+        assert.strictEqual(body.parameters.length, 3);
+        const payloads = template.template.components.filter((c) => c.sub_type === 'quick_reply')
+          .map((c) => [c.index, c.parameters[0].payload]);
+        assert.deepStrictEqual(payloads, [['0', 'avail_yes:5301'], ['1', 'avail_no:5301'], ['2', 'avail_price:5301']]);
+        assert.strictEqual(fake.checks[0].delivery, 'template');
+      });
+    } finally {
+      delete process.env.LISTING_AVAILABILITY_TEMPLATE;
+    }
+  });
+
+  await checkAsync('a failed send releases the claim, so the listing is asked again another day', async () => {
+    const fake = availabilityFakePg({ listings: [availListing({ id: 5401 })] });
+    const saved = { buttons: chakra.sendInteractiveButtons, text: chakra.sendWhatsAppMessage };
+    chakra.sendInteractiveButtons = async () => { throw new Error('down'); };
+    chakra.sendWhatsAppMessage = async () => { throw new Error('down'); };
+    try {
+      await withAvailabilityPg(fake, async () => {
+        const tally = await availability.runAvailabilityCheck({ pool: fake.pool, gapMs: 0 });
+        assert.strictEqual(tally.failed, 1);
+        assert.strictEqual(fake.checks.length, 0, 'the ask row is deleted when nothing went out');
+      });
+    } finally {
+      chakra.sendInteractiveButtons = saved.buttons;
+      chakra.sendWhatsAppMessage = saved.text;
+    }
+  });
+
+  await checkAsync('without the question log the run refuses to start rather than ask every day', async () => {
+    const fake = availabilityFakePg({ listings: [availListing()], missingChecksTable: true });
+    await withAvailabilityPg(fake, async () => {
+      await assert.rejects(() => availability.runAvailabilityCheck({ pool: fake.pool, gapMs: 0 }), /20260929_listing_availability_checks/);
+    });
+  });
+
+  check('the check runs once, at the configured Kinshasa hour', () => {
+    const saved = pgAvail.isConfigured;
+    pgAvail.isConfigured = () => true;
+    try {
+      assert.strictEqual(availability.checkDue(new Date('2026-09-30T09:05:00Z')), true, '10h Kinshasa');
+      assert.strictEqual(availability.checkDue(new Date('2026-09-30T08:05:00Z')), false);
+      dbService.recordJobRun(availability.JOB_NAME, { ok: true });
+      assert.strictEqual(availability.checkDue(new Date(Date.now() + 60_000)), false, 'not twice within 20h');
+    } finally {
+      pgAvail.isConfigured = saved;
+    }
+  });
+
+  check('the job is registered after the morning digest, the sales run still last', () => {
+    const source = fs.readFileSync(path.join(__dirname, '..', 'services', 'scheduler.js'), 'utf8');
+    const digestAt = source.indexOf('registerJob(agentDigestJob)');
+    const availAt = source.indexOf('registerJob(availabilityCheckJob)');
+    const salesAt = source.indexOf('registerJob({ name: SALES_JOB_NAME');
+    assert.ok(digestAt > 0 && availAt > digestAt && salesAt > availAt);
+  });
+
+  // Through the real webhook route: a tap is answered before the model, and
+  // is never parsed as a listing.
+  {
+    const fake = availabilityFakePg({ listings: [availListing({ id: 5501 })] });
+    fake.checks.push({ id: 1, property_id: 5501, agent_id: 400 });
+    const aiBefore = openaiCalls.length;
+    httpCalls.length = 0;
+    await withAvailabilityPg(fake, async () => {
+      const status = await post('/webhook', inboundButton('wamid.AVAILTAP', 'avail_yes:5501', AVAIL_AGENT));
+      await settle();
+      check('an availability tap through the real webhook confirms the listing', () => {
+        assert.strictEqual(status, 200);
+        assert.ok(fake.byId.get(5501).availability_confirmed_at);
+        assert.strictEqual(fake.checks[0].answer, 'AVAILABLE');
+      });
+      check('the tap costs no model call and is not stored as a listing', () => {
+        assert.strictEqual(openaiCalls.length, aiBefore);
+        assert.strictEqual(dbService.findByWamid('wamid.AVAILTAP'), undefined);
+      });
+
+      dbService.setPendingListingAction({ waId: AVAIL_AGENT, kind: availability.KINDS.gone, propertyId: 5501 });
+      httpCalls.length = 0;
+      await post('/webhook', inbound('wamid.AVAILTYPED', '2', AVAIL_AGENT));
+      await settle();
+      check('a typed "2" through the real route withdraws the listing', () => {
+        assert.strictEqual(fake.byId.get(5501).status, 0);
+        assert.strictEqual(fake.checks[0].answer, 'WITHDRAWN');
+        assert.strictEqual(openaiCalls.length, aiBefore);
+      });
+    });
+  }
 
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);

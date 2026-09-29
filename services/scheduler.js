@@ -265,6 +265,19 @@ registerJob({
 }
 
 /**
+ * "Toujours disponible ?" on WhatsApp (services/availabilityCheck.js): once a
+ * day at AVAILABILITY_CHECK_HOUR, every live listing unconfirmed for 14 days
+ * gets one question to its verified agent — at most three per agent per day,
+ * none to an agent who still owes us another answer. After the digest, so an
+ * agent's morning starts with the summary rather than a question.
+ */
+{
+  // eslint-disable-next-line global-require
+  const { availabilityCheckJob } = require('./availabilityCheck');
+  registerJob(availabilityCheckJob);
+}
+
+/**
  * The daily sales commission run (launch policy + subscription plan). Like the
  * alert sweep it calls web's own endpoint rather than reimplementing the rules:
  * the tiers, the confirmed-listing definition and the ledger all live in

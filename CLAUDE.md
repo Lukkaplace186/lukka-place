@@ -1126,7 +1126,7 @@ alert job itself), no inbound WhatsApp traffic for `OPS_ALERT_SILENCE_HOURS`
   `approve_status = 0`. With no verified-tier agent today, it approves nothing.
 - Scheduler order is now: search-alerts, viewing-sla, viewing-checkin,
   ops-health-alerts, listing-stats-rollup, trusted-auto-approve,
-  agent-daily-digest, sales-commissions.
+  agent-daily-digest, listing-availability-check, sales-commissions.
 
 ## Verification & Commands
 - **Verification Command**: Always run `npm run verify` before declaring a backend task complete.
@@ -1160,6 +1160,61 @@ approves a project unit (they are approved with their project);
 `POST /admin/ops-notify` sends a one-line heads-up to `OPS_WHATSAPP_NUMBER`
 (unset → `sent: false`, never an error); the Monday agent digest names a
 public off-plan project with no construction photo for 60 days. §37.
+
+## "Toujours disponible ?" on WhatsApp — every 14 days (2026-09-29)
+
+`services/availabilityCheck.js`, scheduler job `listing-availability-check`
+(daily at `AVAILABILITY_CHECK_HOUR`, default 10 Kinshasa, after the digest).
+Record: Postgres `listing_availability_checks`
+(`migrations/20260929_listing_availability_checks.sql`) — one row per question
+sent, answers written onto it; web's dashboard answers add `channel =
+'DASHBOARD'` rows. **Without that table the job refuses to run**: it is the only
+thing that stops a daily re-ask.
+
+- **Who is asked**: live, active listings (not project units) whose
+  `availability_confirmed_at` — or, never confirmed, last change — is older
+  than 14 days, not asked in 14 days, agent `status = 1` with a VERIFIED phone.
+  Max 3 per agent per day; none to an agent who still owes an answer to any
+  question (`db.hasOpenAgentQuestion`). 14 is shared with web's
+  `CONFIRM_AFTER_DAYS` and the digest's `STALE_DAYS` (pinned on both sides).
+- **The flow**: `Oui, disponible` stamps `availability_confirmed_at` (same WHERE
+  as web). `Non, plus disponible` → `Loué / vendu` (under_offer now, "à quel
+  loyer / prix ?", `recordSoldPrice` WHATSAPP_AGENT_REPLY, receipt with the
+  delta, then "le client venait-il de Lukka Place ?") or `Retiré du marché`
+  (`postgres.archivePropertyAsWithdrawn`: status 0 + archived_at — never a
+  transaction). `Prix modifié` → new price through `postgres.setListingPrice`,
+  then stamped. Ops is told of let/sold and withdrawn, not of price changes.
+- **Anti-loop**:
+  - `pending_listing_actions` (SQLite, keyed by wa_id + property id) rows are
+    DELETED after 24h — on read and by each run's sweep — so a reply days later
+    reaches ordinary processing instead of answering a newer question.
+  - One open question per number across `pending_agent_actions` and
+    `pending_listing_actions`: setting either deletes the other.
+  - Numbered-text delivery (no buttons) asks that agent nothing else that day.
+  - A button is honoured whenever it arrives, but only against the listing's
+    current state: closed / archived / under offer → "déjà mis à jour", no write.
+  - Any price more than 50% from the one on record (new asking or closing) is
+    read back for OUI first; a typed correction is itself re-checked.
+- **Authorisation**: every handler re-reads the listing's agent and refuses a
+  sender who is not its verified number, silently.
+- **`postgres.setListingPrice`**: Postgres UPDATE inside BEGIN, SQLite
+  `listings.price` written before COMMIT, SQLite restored on failure unless the
+  price is found to have landed. Sets `lukka.change_source` for the price-history
+  trigger. The WhatsApp path uses it now; web's price edits move onto it with
+  the engine endpoint in the data-integrity phase.
+- **Template (to submit in Meta WhatsApp Manager, UTILITY, fr)**:
+  "Bonjour {{1}}, concernant votre bien : {{2}} ({{3}}). Est-il toujours
+  disponible ?" — {{1}} first name, {{2}} "Appartement … à Kintambo — 1 300 $ /
+  mois", {{3}} "Réf. …" or "annonce n° 310" (never an invented reference).
+  Quick replies in this order: **Oui, disponible · Non, plus disponible · Prix
+  modifié**. Then set `LISTING_AVAILABILITY_TEMPLATE` (read at call time).
+  Until then asks are session messages and only reach agents active in the
+  last 24h.
+- Admin: quality flag `availability_unanswered` (last two WhatsApp questions
+  unanswered, nothing confirmed since) and the dashboard card "Disponibilité
+  sans réponse" (web `lib/moderationQueue.js`, `lib/adminWorkQueues.js`; both
+  read the table only once `to_regclass` finds it).
+- §40 of verify-pipeline.
 
 ## Engagement tracking — the full funnel rollup (2026-09-29)
 

@@ -1,6 +1,7 @@
 import 'server-only';
 import { getPool } from './db';
 import { getEngineWorkQueueCounts } from './adminApi';
+import { AVAILABILITY_UNANSWERED_SQL, hasAvailabilityChecks } from './moderationQueue';
 
 /**
  * "What needs doing right now" — the counts behind the dashboard's work queues
@@ -34,12 +35,26 @@ const POSTGRES_QUEUES_SQL = `
       WHERE status = 1 AND expire_date BETWEEN CURRENT_DATE AND CURRENT_DATE + 14)::int   AS expiring_memberships
 `;
 
+/**
+ * Separate from POSTGRES_QUEUES_SQL on purpose: it names a table that only
+ * exists once migrations/20260929_listing_availability_checks.sql has run,
+ * and one missing table must not blank every other queue. null before then.
+ */
+async function countUnansweredAvailability() {
+  if (!(await hasAvailabilityChecks())) return null;
+  const { rows } = await getPool().query(
+    `SELECT COUNT(*)::int AS n FROM properties p WHERE ${AVAILABILITY_UNANSWERED_SQL}`,
+  );
+  return rows[0]?.n ?? null;
+}
+
 export async function getWorkQueueCounts({ fresh = false } = {}) {
   if (!fresh && cached.value && Date.now() - cached.at < CACHE_MS) return cached.value;
 
-  const [pg, engine] = await Promise.allSettled([
+  const [pg, engine, unanswered] = await Promise.allSettled([
     getPool().query(POSTGRES_QUEUES_SQL).then((r) => r.rows[0]),
     getEngineWorkQueueCounts(),
+    countUnansweredAvailability(),
   ]);
   const p = pg.status === 'fulfilled' ? pg.value : null;
   const e = engine.status === 'fulfilled' ? engine.value?.counts : null;
@@ -53,6 +68,7 @@ export async function getWorkQueueCounts({ fresh = false } = {}) {
     pendingPlanRequests: p?.pending_plan_requests ?? null,
     lockedCustomers: p?.locked_customers ?? null,
     expiringMemberships: p?.expiring_memberships ?? null,
+    unansweredAvailability: unanswered.status === 'fulfilled' ? unanswered.value : null,
     escalatedViewings: e?.escalatedViewings ?? null,
     awaitingAgent: e?.awaitingAgent ?? null,
     pendingViewings: e?.pendingViewings ?? null,

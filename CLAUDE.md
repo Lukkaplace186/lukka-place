@@ -1317,6 +1317,10 @@ disagree on a single pixel. It corrects the camera, never the property:
   photo is stored as `…_e2.jpg` (`ENHANCE_VERSION`), never over the original,
   because next/image caches a URL for 30 days. The local file in UPLOADS_DIR
   is never modified. Bump `ENHANCE_VERSION` whenever the correction changes.
+- **After any bulk URL change, warm the storefront's image cache**:
+  `node scripts/warm-image-cache.js` on the VPS. New URLs start with no resized
+  variants, and a first resize costs ~600 ms per photo flip (web/CLAUDE.md,
+  "Deployment", has the permanent cache this fills).
 - **Existing photos**: `node scripts/backfill-photo-enhance.js` (dry run,
   saves 5 before/after pairs) → `--write` (uploads `_e2` copies, repoints
   `featured_image` + `property_slider_images` per listing in one transaction,

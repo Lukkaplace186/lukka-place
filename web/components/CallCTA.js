@@ -3,6 +3,7 @@
 import { Phone } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
+import { trackCallClick } from '@/lib/analyticsClient';
 
 /**
  * "Appeler" — a real `tel:` call to the listing's own per-listing agent
@@ -53,6 +54,9 @@ export default function CallCTA({ listing, variant = 'pill' }) {
   function handleClick(e) {
     e.preventDefault();
     e.stopPropagation();
+    // Before the navigation: `keepalive` carries the beacon out even though
+    // the dialer takes over the page.
+    trackCallClick(listing);
     window.location.href = `tel:${phoneNumber}`;
   }
 

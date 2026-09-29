@@ -1161,6 +1161,31 @@ approves a project unit (they are approved with their project);
 (unset → `sent: false`, never an error); the Monday agent digest names a
 public off-plan project with no construction photo for 60 days. §37.
 
+## Engagement tracking — the full funnel rollup (2026-09-29)
+
+`migrations/20260929_engagement_tracking.sql` adds `visitor_id` to the three
+event tables, `page_views.listing_id` (backfilled from the path — a
+derivation, not a guess), `listing_events.routing_type`, `search_events`, and
+six `listing_stats_daily` columns. web/CLAUDE.md, "Engagement tracking", has
+the write side.
+
+- `services/listingStatsRollup.js` now recounts, per listing per UTC day:
+  views, WhatsApp taps, saves, **calls, gallery opens, gallery completions,
+  shares, unique visitors and visit requests**. Visit requests are this
+  engine's SQLite (`db.countViewingRequestsByPropertyDay`, the same
+  `COALESCE(vr.property_id, l.property_id)` attribution as the export count),
+  handed to Postgres as a JSON parameter — the rollup is the only place both
+  stores are in reach.
+- `unique_visitors` is per day. A weekly "personnes" figure must be counted
+  from raw events (`COUNT(DISTINCT visitor_id)`), never by summing days.
+- Bots are not filtered in the rollup: they are no longer written at all, and
+  filtering only here would make the rollup disagree with web's raw-table
+  fallback for the same week.
+- Before the migration runs, the full statement fails with 42703 inside a
+  SAVEPOINT and the original three-column statement runs instead
+  (`legacy: true` in the result). Any other failure still rolls back.
+- §39 of verify-pipeline.
+
 ## Listing photo auto-correction (2026-09-28)
 
 `services/photoEnhance.js` (engine) and `web/lib/photoEnhance.js` (browser):

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Check, Share2 } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
+import { listingIdFromPath, trackEvent } from '@/lib/analyticsClient';
 
 /**
  * Share the current listing.
@@ -32,6 +33,12 @@ import { useT } from '@/lib/i18n/client';
  * The button sits inside a card's outer <Link> (ListingCardVertical.js /
  * FeaturedListingCard.js), so the click must stop it from also triggering
  * that Link's navigation — same guard FavoriteButton uses.
+ *
+ * A completed share of a LISTING is a `share_click` event (lib/analyticsClient):
+ * the share sheet resolving, or the link landing on the clipboard. A
+ * dismissed sheet that falls back to copying counts once, on the copy. The
+ * listing is read off the shared URL itself, so a project page or any other
+ * non-listing share records nothing.
  */
 export default function ShareButton({ title, path, className = '', variant = 'pill' }) {
   const t = useT();
@@ -47,9 +54,15 @@ export default function ShareButton({ title, path, className = '', variant = 'pi
         : window.location.href;
     if (!url) return;
 
+    const listingId = listingIdFromPath(url);
+    const recordShare = () => {
+      if (listingId) trackEvent('share_click', { listingId });
+    };
+
     if (navigator.share) {
       try {
         await navigator.share({ title, url });
+        recordShare();
         return;
       } catch {
         // Share sheet dismissed — fall through to copying instead.
@@ -58,6 +71,7 @@ export default function ShareButton({ title, path, className = '', variant = 'pi
 
     try {
       await navigator.clipboard.writeText(url);
+      recordShare();
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {

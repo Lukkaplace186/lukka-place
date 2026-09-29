@@ -3604,6 +3604,33 @@ function countViewingRequestsByProperty() {
     .map((row) => ({ property_id: Number(row.property_id), n: Number(row.n) }));
 }
 
+/**
+ * Visit requests per listing per UTC day, from `sinceDay` (YYYY-MM-DD) on —
+ * the `visit_requests` column of Postgres's listing_stats_daily, written by
+ * services/listingStatsRollup.js. Same listing attribution as
+ * countViewingRequestsByProperty. `created_at` is SQLite's UTC
+ * `YYYY-MM-DD HH:MM:SS`, so its first ten characters ARE the UTC day, the
+ * key the rollup is built on.
+ *
+ * @param {string} sinceDay
+ * @returns {Array<{listing_id: number, day: string, n: number}>}
+ */
+function countViewingRequestsByPropertyDay(sinceDay) {
+  return db
+    .prepare(
+      `SELECT COALESCE(vr.property_id, l.property_id) AS listing_id,
+              substr(vr.created_at, 1, 10) AS day,
+              COUNT(*) AS n
+         FROM viewing_requests vr
+         LEFT JOIN leads l ON l.id = vr.lead_id
+        WHERE COALESCE(vr.property_id, l.property_id) IS NOT NULL
+          AND substr(vr.created_at, 1, 10) >= @since
+        GROUP BY 1, 2`,
+    )
+    .all({ since: sinceDay })
+    .map((row) => ({ listing_id: Number(row.listing_id), day: String(row.day), n: Number(row.n) }));
+}
+
 function listViewingRequestsForOwner({ propertyIds, assignedAgent, status, limit, offset } = {}) {
   const where = [];
   const params = {};
@@ -3672,6 +3699,7 @@ function close() {
 
 module.exports = {
   db,
+  countViewingRequestsByPropertyDay,
   saveListing,
   insertListing,
   attributeListingToAgent,

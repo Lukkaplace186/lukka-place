@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Expand, ImageOff } from 'lucide-react';
 import SafeImage from './SafeImage';
 import CardImageCarousel from './CardImageCarousel';
@@ -8,6 +8,8 @@ import { Badge } from './ListingBadges';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
+import { listingEventPayload, trackEvent } from '@/lib/analyticsClient';
+import { initialGalleryState, noteGalleryStep } from '@/lib/galleryEngagement';
 
 /**
  * Detail-page gallery: web/Design's 2fr/1fr three-tile grid (one tall lead
@@ -48,8 +50,14 @@ import { useT } from '@/lib/i18n/client';
  * states: moderation (approve_status) says a listing was fit to publish, not
  * that anyone checked the property. It used to render on every listing, so
  * 46 of 46 live listings claimed a verification none of them had.
+ *
+ * `eventListing` ({ id, price, commune }) turns on the two gallery steps of
+ * the listing funnel — `gallery_open` and `gallery_complete`, once each per
+ * page view (rules in lib/galleryEngagement.js). This is what lets a landlord
+ * report say how many people went through the photos, not just opened the
+ * page. Without it the gallery records nothing.
  */
-export default function PhotoGallery({ images, alt, mobileActions = null, verifiedAt = null }) {
+export default function PhotoGallery({ images, alt, mobileActions = null, verifiedAt = null, eventListing = null }) {
   const t = useT();
   const shots = images || [];
   const total = shots.length;
@@ -57,6 +65,31 @@ export default function PhotoGallery({ images, alt, mobileActions = null, verifi
 
   const [lightboxIndex, setLightboxIndex] = useState(null);
   const isOpen = lightboxIndex !== null;
+
+  // A ref, not state: counting what the visitor has seen must never re-render
+  // the gallery, and each event must leave exactly once per mount.
+  const engagement = useRef(initialGalleryState());
+  const noteSeen = useCallback(
+    (index, engaged) => {
+      if (!eventListing?.id) return;
+      const { state, events } = noteGalleryStep(engagement.current, { index, total, engaged });
+      engagement.current = state;
+      for (const event of events) trackEvent(event, listingEventPayload(eventListing));
+    },
+    [eventListing, total],
+  );
+
+  const onMobileIndexChange = useCallback(
+    (index) => {
+      setMobileIndex(index);
+      noteSeen(index, false);
+    },
+    [noteSeen],
+  );
+
+  useEffect(() => {
+    if (lightboxIndex !== null) noteSeen(lightboxIndex, true);
+  }, [lightboxIndex, noteSeen]);
 
   const step = useCallback(
     (delta) => {
@@ -136,7 +169,7 @@ export default function PhotoGallery({ images, alt, mobileActions = null, verifi
           aria-label={t('listings.gallery.enlargePhoto', { n: mobileIndex + 1 })}
           className="h-[22rem] w-full cursor-pointer overflow-hidden bg-canvas-deep"
         >
-          <CardImageCarousel images={shots} alt={alt} sizes="100vw" priority onIndexChange={setMobileIndex} />
+          <CardImageCarousel images={shots} alt={alt} sizes="100vw" priority onIndexChange={onMobileIndexChange} />
         </div>
 
         {verifiedAt ? (

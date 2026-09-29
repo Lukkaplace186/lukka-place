@@ -2142,3 +2142,50 @@ read `properties.development_id`). Tests: `tests/unit/project-self-serve.test.js
   while the action runs; the `?saved=` / `?success=1` redirect renders
   "✓ Enregistré", and 700ms later `router.replace('/compte/agent/parametres')`
   — on a phone that is the section list. Errors stay on the section.
+
+## Engagement tracking — every step of the listing funnel (2026-09-29)
+
+Migration `migrations/20260929_engagement_tracking.sql` (engine repo; additive,
+and the code writes correctly before and after it runs). Write side is
+`lib/trackIngest.js`; the client beacon is `lib/analyticsClient.js`.
+
+- **New `listing_events` types**: `call_click` (with `routing_type` DIRECT |
+  CENTRAL — `CallCTA`, `EnquiryCard`'s tel link, and a new call icon in
+  `MobileListingBar`), `gallery_open` / `gallery_complete` (`PhotoGallery`'s
+  `eventListing` prop; rules in `lib/galleryEngagement.js`: opening the viewer
+  or swiping past photo 1 opens, 80% of the photos seen — never fewer than 2 —
+  completes; the desktop mosaic's static tiles do not count as seen) and
+  `share_click` (`ShareButton`, only a completed share of a `/listings/<id>`
+  URL). None of them go near `whatsapp_clicks`, so the WhatsApp conversion rate
+  is unchanged.
+- **`search_events`**: one row per distinct committed /listings search per tab
+  session (`components/SearchTracker.js`, page 1, not on a map area), with the
+  EXACT match count — 0 when the page had to relax the search. This is the
+  demand side of the market data; the `[search]` log line is still written.
+- **`lp_vid`**: a random first-party visitor id (cookie + localStorage copy,
+  1 year, not httpOnly — the browser creates it and nothing about it is
+  secret). Lets a report count different people. The server prefers the
+  cookie over the body's copy and stores anything malformed as NULL.
+- **Never written**: `device = 'bot'` (the classifier now also catches the
+  WhatsApp / Facebook link-preview fetchers — anchored `^whatsapp/`, since the
+  in-app browser is a normal WebView UA and a person), prefetch/prerender
+  requests, and any listing-scoped event from the listing's OWN agent (the
+  agent session cookie is `path: '/'`; the INSERT carries
+  `NOT EXISTS (… agent_id = $owner)`). The client also sends nothing from a
+  driven browser (`navigator.webdriver`) and defers events on a prerendered page
+  until it is actually shown. The admin cookie is scoped to `/admin`, so an
+  admin browsing the storefront is indistinguishable from a visitor;
+  impersonation is refused by middleware.
+- **Before the migration**: a 42703 retries the INSERT without the new columns
+  (a view is never lost), a search on a missing table (42P01) is skipped.
+- **Mobile bar**: with the call icon, the price is one size down and its
+  period sits under it (`Price`'s `periodClassName`), so "1 300 $ / mois" never
+  splits after the slash and a sale price up to ~450 000 $ fits at 375px.
+- **Testing without polluting production**: the local dev server writes to the
+  production database. To exercise beacons locally, open a page with no
+  tracker (`/a-propos`), take a screenshot (the pane hydrates only then),
+  replace `window.fetch` for `/api/track` + `/api/telemetry/lead-click` with a
+  recorder, then `window.next.router.push('/listings/<id>')` — a hard load of a
+  listing page would send a real page view.
+- Engine half (rollup columns): root CLAUDE.md, "Engagement tracking".
+- Tests: `tests/unit/engagement-tracking.test.js`.

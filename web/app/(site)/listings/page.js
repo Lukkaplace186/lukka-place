@@ -4,6 +4,7 @@ import ListingsSplitView from '@/components/ListingsSplitView';
 import ResultsHeader from '@/components/ResultsHeader';
 import ListingsEmptyState from '@/components/ListingsEmptyState';
 import FloatingControlBar from '@/components/FloatingControlBar';
+import SearchTracker from '@/components/SearchTracker';
 import { getListings, getNearbyExtras, THIN_RESULTS_MAX } from '@/lib/listings';
 import {
   cachedCommuneShowcase,
@@ -123,6 +124,27 @@ export default async function ListingsPage({ searchParams }) {
   // which searches come back empty. Structured filters only (what the URL
   // carries), no visitor identifier. Read with
   // `pm2 logs lukka-place-web --lines 5000 --nostream | grep '\[search\]'`.
+  // The same search, recorded where it can be queried (search_events, via the
+  // visitor's own beacon so bots and prefetches drop out — see
+  // components/SearchTracker.js). `resultCount` is what matched EXACTLY: a
+  // relaxed search that fell back to alternatives matched nothing, and that
+  // zero is the unmet demand the market data is for.
+  const trackedSearch =
+    page === 1 && !mapArea && SEARCH_LOG_KEYS.some((key) => params[key])
+      ? {
+          transactionType: params.transaction_type || null,
+          communes: [filters.commune, ...(filters.communes || [])].filter(Boolean),
+          quartier: params.quartier || null,
+          propertyType: params.property_type || null,
+          bedsMin: params.beds_min || null,
+          priceMin: params.price_min || null,
+          priceMax: params.price_max || null,
+          amenities: filters.amenities,
+          q: params.q || null,
+          resultCount: !relaxation && !locationRelaxed && !radiusExpanded ? total : 0,
+        }
+      : null;
+
   if (page === 1 && !mapArea && SEARCH_LOG_KEYS.some((key) => params[key])) {
     const logged = {};
     for (const key of SEARCH_LOG_KEYS) if (params[key]) logged[key] = String(params[key]).slice(0, 120);
@@ -156,6 +178,7 @@ export default async function ListingsPage({ searchParams }) {
 
   return (
     <div>
+      {trackedSearch ? <SearchTracker search={trackedSearch} /> : null}
       {/* Hidden on mobile once the immersive fullscreen map takes over
           (see ListingsSplitView's map wrapper) — FilterBar sticks at z-40,
           above the map's z-30, so left visible it would float on top of

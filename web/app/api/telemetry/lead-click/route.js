@@ -2,6 +2,7 @@ import { getPool } from '@/lib/db';
 import { analyticsDimensions } from '@/lib/requestContext';
 import { clientKey, rateLimited, usableAmount } from '@/lib/eventIngest';
 import { recordLeadClick, LEAD_CLICK_ROUTING_TYPES } from '@/lib/leadClicks';
+import { ownerAgentIdFrom, shouldSkipRequest, visitorIdFrom } from '@/lib/trackIngest';
 
 /**
  * POST /api/telemetry/lead-click — one tap on a listing's WhatsApp button,
@@ -9,9 +10,10 @@ import { recordLeadClick, LEAD_CLICK_ROUTING_TYPES } from '@/lib/leadClicks';
  *
  * Same trust posture as /api/track: unauthenticated, write-only, rate limited
  * per IP through the shared lib/eventIngest.js budget, device and source taken
- * from the request headers rather than the body. What this adds is the
- * routing the button took, which is the one thing /admin/telemetry needs that
- * a plain `whatsapp_click` never recorded.
+ * from the request headers rather than the body, bots and prefetches dropped,
+ * and the listing's own agent never counted (lib/trackIngest.js). What this
+ * adds is the routing the button took, which is the one thing /admin/telemetry
+ * needs that a plain `whatsapp_click` never recorded.
  */
 export async function POST(request) {
   if (rateLimited(clientKey(request))) {
@@ -38,19 +40,25 @@ export async function POST(request) {
   }
 
   const { device, source } = analyticsDimensions(request.headers, { utmSource });
+  const skipped = shouldSkipRequest(request.headers, device);
+  if (skipped) return Response.json({ success: true, recorded: false, skipped });
+
+  let recorded;
   try {
-    await recordLeadClick(getPool(), {
+    recorded = await recordLeadClick(getPool(), {
       listingId: id,
       commune,
       device,
       source,
       price: usableAmount(price),
       routingType,
+      visitorId: visitorIdFrom(request, body?.visitorId),
+      ownerAgentId: ownerAgentIdFrom(request),
     });
   } catch (err) {
     console.error(`[api/telemetry/lead-click] insert failed: ${err.message}`);
     return Response.json({ success: false }, { status: 500 });
   }
 
-  return Response.json({ success: true });
+  return Response.json({ success: true, recorded });
 }

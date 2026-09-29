@@ -25,6 +25,12 @@ export function deviceFromUserAgent(userAgent) {
   const ua = userAgent.toLowerCase();
 
   if (/bot|crawler|spider|crawling|slurp|bingpreview|headlesschrome|lighthouse/.test(ua)) return 'bot';
+  // Link-preview fetchers: the card WhatsApp or Facebook draws under a shared
+  // link. They carry no "bot" token, and every listing an agent posts to a
+  // Status or a group is fetched by one — counting them would turn a share
+  // into a view. Anchored for WhatsApp: its in-app browser is a normal
+  // Android WebView UA with no "WhatsApp/" prefix, and that IS a person.
+  if (/^whatsapp\//.test(ua) || /facebookexternalhit|meta-externalagent|google-inspectiontool/.test(ua)) return 'bot';
 
   // Unambiguous phone markers first. The Android-tablet heuristic below keys
   // on the ABSENCE of "Mobile", and Opera Mini's UA is

@@ -295,7 +295,11 @@ test('shared links carry a per-channel utm_source, and the untagged URL stays cl
 
 test('the beacon forwards the landing utm_source — the endpoints accepted it but nothing sent it', () => {
   const client = readFileSync(path.join(process.cwd(), 'lib/analyticsClient.js'), 'utf8');
-  assert.equal(client.match(/utmSource: landingUtmSource\(\)/g)?.length, 2);
+  // One shared beacon() sends it, and both endpoints go through that beacon.
+  assert.equal(client.match(/utmSource: landingUtmSource\(\)/g)?.length, 1);
+  assert.match(client, /function beacon\(url, body\)[\s\S]*utmSource: landingUtmSource\(\)/);
+  assert.match(client, /beacon\('\/api\/track'/);
+  assert.match(client, /beacon\('\/api\/telemetry\/lead-click'/);
 });
 
 test('the flyer is sent as a mozjpeg JPEG, with the PNG only as a fallback', () => {

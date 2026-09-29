@@ -6,7 +6,7 @@ import { useIsLoggedIn } from '@/lib/customerClient';
 import { MessageCircle, Phone, CalendarClock } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import FavoriteButton from './FavoriteButton';
-import { trackLeadClick } from '@/lib/analyticsClient';
+import { trackCallClick, trackLeadClick } from '@/lib/analyticsClient';
 import { resolveWhatsAppRouting } from '@/lib/leadRouting';
 import ShareButton from './ShareButton';
 import AgentMonogram from './AgentMonogram';
@@ -329,6 +329,7 @@ export default function EnquiryCard({ listing, visitSent, visitError, saveShare 
         {agentPhone ? (
           <a
             href={`tel:${agentPhone}`}
+            onClick={() => trackCallClick(listing)}
             className="u-press u-btn-secondary inline-flex w-full items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold text-ink"
           >
             <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />

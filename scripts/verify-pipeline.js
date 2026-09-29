@@ -8208,9 +8208,11 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(sqls[0], 'BEGIN');
     assert.match(sqls[1], /SET LOCAL statement_timeout/);
     const insert = fake.statements.find((s) => /INSERT INTO listing_stats_daily/.test(s.sql));
-    assert.deepStrictEqual(insert.params, ['2026-09-14']);
+    // $2 is the engine's own visit requests, as JSON (see §39).
+    assert.strictEqual(insert.params[0], '2026-09-14');
+    assert.ok(Array.isArray(JSON.parse(insert.params[1])));
     assert.strictEqual(sqls[sqls.length - 1], 'COMMIT');
-    assert.deepStrictEqual(result, { since: '2026-09-14', rows: 7 });
+    assert.deepStrictEqual(result, { since: '2026-09-14', rows: 7, legacy: false });
   });
   await checkAsync('a failed rollup rolls back and rethrows (the scheduler records the failure)', async () => {
     const fake = fakeRollupPool({ fail: true });
@@ -8972,6 +8974,104 @@ console.log('\n2. services/openai.js');
   });
 
   // -------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // 39. Engagement tracking — the full listing funnel in one rollup row
+  //
+  // Calls, gallery opens/completions, shares, unique visitors and visit
+  // requests join views/taps/saves in listing_stats_daily. Visit requests come
+  // from THIS engine's SQLite and are handed to Postgres as JSON; the run must
+  // keep working before migrations/20260929_engagement_tracking.sql adds the
+  // columns (42703 -> the old three-column statement, same transaction).
+  // -------------------------------------------------------------------------
+
+  console.log('\n39. Engagement tracking: full funnel rollup');
+
+  check('the full rollup recounts every funnel column (a recount, never an increment)', () => {
+    const sql = rollup.ROLLUP_SQL.replace(/\s+/g, ' ');
+    for (const column of ['calls', 'gallery_opens', 'gallery_completes', 'shares', 'unique_visitors', 'visit_requests']) {
+      assert.match(sql, new RegExp(`${column} = EXCLUDED\.${column}`), column);
+      assert.doesNotMatch(sql, new RegExp(`${column} = listing_stats_daily\.${column} \+`), column);
+    }
+    assert.match(sql, /count\(DISTINCT pv\.visitor_id\)::int AS people/);
+    assert.match(sql, /jsonb_to_recordset\(\$2::jsonb\)/);
+    // An unsave is a real event but not a funnel step: it must not create a
+    // day row of zeros.
+    assert.match(sql, /le\.event IN \('listing_saved', 'call_click', 'gallery_open', 'gallery_complete', 'share_click'\)/);
+  });
+  check('the legacy statement names only the columns that existed before the migration', () => {
+    const sql = rollup.LEGACY_ROLLUP_SQL;
+    assert.match(sql, /saves = EXCLUDED\.saves/);
+    for (const column of ['calls', 'gallery_opens', 'unique_visitors', 'visit_requests', 'visitor_id']) {
+      assert.ok(!sql.includes(column), `legacy SQL must not name ${column}`);
+    }
+  });
+  check('visit requests are counted per listing per UTC day, falling back to the lead\'s listing', () => {
+    const lead = dbService.createLead({ wa_id: '243811100039', source: 'listing-visit-request', property_id: 3901 });
+    dbService.createViewingRequest({ leadId: lead.id, propertyId: 3902, requestedTime: 'samedi 10h' });
+    dbService.createViewingRequest({ leadId: lead.id, propertyId: 3902, requestedTime: 'samedi 11h' });
+    dbService.createViewingRequest({ leadId: lead.id, propertyId: null, requestedTime: 'lundi 9h' });
+    const today = new Date().toISOString().slice(0, 10);
+    const rows = dbService.countViewingRequestsByPropertyDay(today);
+    const byListing = Object.fromEntries(rows.filter((r) => r.day === today).map((r) => [r.listing_id, r.n]));
+    assert.strictEqual(byListing[3902], 2);
+    assert.strictEqual(byListing[3901], 1, 'a request with no property_id counts for its lead\'s listing');
+    assert.deepStrictEqual(dbService.countViewingRequestsByPropertyDay('2999-01-01'), []);
+  });
+  await checkAsync('the run hands the engine\'s visit requests to Postgres as JSON', async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const fake = fakeRollupPool({ since: today });
+    await rollup.runListingStatsRollup({ pool: fake.pool });
+    const insert = fake.statements.find((s) => /INSERT INTO listing_stats_daily/.test(s.sql));
+    const visits = JSON.parse(insert.params[1]);
+    assert.ok(visits.some((v) => v.listing_id === 3902 && v.day === today && v.n === 2), JSON.stringify(visits));
+  });
+  await checkAsync('before the migration, the run falls back to the three-column statement in the same transaction', async () => {
+    const statements = [];
+    const client = {
+      async query(sql, params) {
+        const text = String(sql).replace(/\s+/g, ' ').trim();
+        statements.push({ sql: text, params });
+        if (/max\(day\)/.test(text)) return { rows: [{ since: '2026-09-20' }] };
+        if (/INSERT INTO listing_stats_daily/.test(text) && /visit_requests/.test(text)) {
+          const err = new Error('column "calls" of relation "listing_stats_daily" does not exist');
+          err.code = '42703';
+          throw err;
+        }
+        return { rows: [], rowCount: 3 };
+      },
+      release() {},
+    };
+    const result = await rollup.runListingStatsRollup({ pool: { connect: async () => client } });
+    const sqls = statements.map((s) => s.sql);
+    assert.ok(sqls.includes('SAVEPOINT full_funnel'));
+    assert.ok(sqls.includes('ROLLBACK TO SAVEPOINT full_funnel'));
+    const legacyInsert = statements.filter((s) => /INSERT INTO listing_stats_daily/.test(s.sql)).pop();
+    assert.deepStrictEqual(legacyInsert.params, ['2026-09-20']);
+    assert.strictEqual(sqls[sqls.length - 1], 'COMMIT');
+    assert.ok(!sqls.includes('ROLLBACK'), 'a missing column must not abort the whole run');
+    assert.deepStrictEqual(result, { since: '2026-09-20', rows: 3, legacy: true });
+  });
+  await checkAsync('any other failure still rolls back and rethrows', async () => {
+    const statements = [];
+    const client = {
+      async query(sql) {
+        const text = String(sql).replace(/\s+/g, ' ').trim();
+        statements.push(text);
+        if (/max\(day\)/.test(text)) return { rows: [{ since: '2026-09-20' }] };
+        if (/INSERT INTO listing_stats_daily/.test(text)) {
+          const err = new Error('deadlock detected');
+          err.code = '40P01';
+          throw err;
+        }
+        return { rows: [], rowCount: 0 };
+      },
+      release() {},
+    };
+    await assert.rejects(() => rollup.runListingStatsRollup({ pool: { connect: async () => client } }), /deadlock/);
+    assert.ok(statements.includes('ROLLBACK'));
+    assert.ok(!statements.includes('COMMIT'));
+  });
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

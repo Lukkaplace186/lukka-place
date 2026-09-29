@@ -27,6 +27,7 @@ export const LOGO_WIDTH = 384;
 // next.config.mjs sets `images.qualities: [75]` — any other value is coerced.
 export const IMAGE_QUALITY = 75;
 export const MAX_PHOTOS = 3;
+export const MAX_GALLERY = 10;
 
 export function optimisableImageSrc(src, { supabaseHost = null } = {}) {
   if (typeof src !== 'string') return false;
@@ -67,6 +68,12 @@ export function buildFlyerPack(listing, { typeText, brand, supabaseHost = null, 
     // by the browser, and the next one takes its slot.
     .slice(0, MAX_PHOTOS + 2)
     .map((src) => optimisedImageUrl(src, PHOTO_WIDTH));
+  // Every photo (up to MAX_GALLERY), for "Photos avec mon logo" — fetched on
+  // demand by that tab, never stored offline with the pack.
+  const gallery = listingImages(listing)
+    .filter((src) => optimisableImageSrc(src, { supabaseHost }))
+    .slice(0, MAX_GALLERY)
+    .map((src) => optimisedImageUrl(src, PHOTO_WIDTH));
   const logo = optimisableImageSrc(listing.agent_image, { supabaseHost })
     ? optimisedImageUrl(listing.agent_image, LOGO_WIDTH)
     : null;
@@ -82,6 +89,7 @@ export function buildFlyerPack(listing, { typeText, brand, supabaseHost = null, 
     facts: [typeText, place].filter(Boolean).join(' • '),
     rooms: roomSpecs(listing).join(' • '),
     photos,
+    gallery,
     mark: markPath,
     agent: {
       name: brand?.name || null,

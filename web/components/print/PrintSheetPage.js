@@ -6,6 +6,7 @@ import PrintStyles from './PrintStyles';
 import PrintToolbar from './PrintToolbar';
 import ListingPoster from './ListingPoster';
 import ListingTechSheet from './ListingTechSheet';
+import { sheetVariant } from '@/lib/listingShareRules';
 
 // labelKey, not label: resolved at render (see components/navItems.js).
 const BLOCKER_KEYS = {
@@ -21,7 +22,7 @@ const BLOCKER_KEYS = {
  * layout already requires a session; ownership is the SQL in
  * getPrintSheetData, so another agency's id is a 404, never a sheet.
  */
-export default async function PrintSheetPage({ params, medium }) {
+export default async function PrintSheetPage({ params, searchParams, medium }) {
   const t = await getT();
   const { id } = await params;
   const listingId = Number.parseInt(id, 10);
@@ -31,18 +32,21 @@ export default async function PrintSheetPage({ params, medium }) {
   const data = agentId ? await getPrintSheetData(agentId, listingId, medium) : null;
   if (!data) notFound();
 
-  const note = data.phoneHidden ? t('agent.print.phoneHidden') : null;
+  // The technical sheet has two variants (ListingTechSheet): complete and
+  // neutral. Anything else in the URL is the complete one.
+  const variant = medium === 'fiche' && sheetVariant((await searchParams) || {}) === 'neutre' ? 'neutre' : 'complete';
+  const note = data.phoneHidden && variant === 'complete' ? t('agent.print.phoneHidden') : null;
 
   return (
     <div>
       <PrintStyles />
-      <PrintToolbar listingId={listingId} medium={medium} canPrint={Boolean(data.sheet)} note={note} />
+      <PrintToolbar listingId={listingId} medium={medium} variant={medium === 'fiche' ? variant : null} canPrint={Boolean(data.sheet)} note={note} />
       {data.sheet ? (
         <div className="lp-print">
           {medium === 'poster' ? (
             <ListingPoster sheet={data.sheet} qr={data.qr} />
           ) : (
-            <ListingTechSheet sheet={data.sheet} qr={data.qr} />
+            <ListingTechSheet sheet={data.sheet} qr={data.qr} neutral={variant === 'neutre'} />
           )}
         </div>
       ) : (

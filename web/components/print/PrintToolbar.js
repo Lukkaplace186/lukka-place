@@ -13,11 +13,12 @@ import { useT } from '@/lib/i18n/client';
  * before the dialog opens, so a slow network never delays printing. Printing
  * with Ctrl+P is not counted — only our own button is.
  */
-export default function PrintToolbar({ listingId, medium, canPrint, note = null }) {
+export default function PrintToolbar({ listingId, medium, variant = null, canPrint, note = null }) {
   const t = useT();
 
   function handlePrint() {
-    recordListingSharesAction({ listingIds: [listingId], channel: 'print', format: medium }).catch(() => {});
+    const format = medium === 'fiche' && variant === 'neutre' ? 'fiche_neutre' : medium;
+    recordListingSharesAction({ listingIds: [listingId], channel: 'print', format }).catch(() => {});
     window.print();
   }
 
@@ -31,6 +32,22 @@ export default function PrintToolbar({ listingId, medium, canPrint, note = null 
           <ArrowLeft strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
           {t('agent.print.back')}
         </Link>
+        {variant && (
+          <div role="radiogroup" aria-label={t('agent.print.variantLabel')} className="inline-flex rounded-full bg-canvas-alt p-1">
+            {['complete', 'neutre'].map((key) => (
+              <Link
+                key={key}
+                role="radio"
+                aria-checked={variant === key}
+                href={`/compte/agent/biens/${listingId}/fiche${key === 'neutre' ? '?variant=neutre' : ''}`}
+                replace
+                className={`inline-flex min-h-9 items-center rounded-full px-3 text-[0.8125rem] font-semibold ${variant === key ? 'bg-surface text-ink shadow-sm' : 'text-ink-70'}`}
+              >
+                {t(`agent.print.variant.${key}`)}
+              </Link>
+            ))}
+          </div>
+        )}
         {canPrint && (
           <button
             type="button"
@@ -43,6 +60,7 @@ export default function PrintToolbar({ listingId, medium, canPrint, note = null 
         )}
       </div>
       {note && <p className="mx-auto mt-2 max-w-[210mm] text-xs text-ink-45">{note}</p>}
+      {variant === 'neutre' && <p className="mx-auto mt-2 max-w-[210mm] text-xs text-ink-45">{t('agent.print.neutralNote')}</p>}
     </div>
   );
 }

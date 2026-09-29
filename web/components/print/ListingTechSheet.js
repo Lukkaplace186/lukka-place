@@ -1,3 +1,5 @@
+import { Fragment } from 'react';
+
 /* eslint-disable @next/next/no-img-element -- print pages: a plain <img> of an
    already-optimised /_next/image URL prints at the size the sheet gives it. */
 
@@ -67,8 +69,15 @@ function BulletList({ items }) {
  * photos are the part that flexes (PrintStyles.js): long details shrink the
  * gallery, the lists are capped in lib/marketing/printSheet.js, and anything
  * still past the page is clipped rather than spilling onto a second sheet.
+ *
+ * `neutral` ("Fiche neutre", ?variant=neutre): for an agent handing the
+ * property to a client or a sub-broker without revealing where it comes from.
+ * No Lukka Place logo, reference, agent name or phone, QR code, link or map
+ * pin — any of them leads back to the public page, which names the agent. A
+ * blank "Contact : ______" line takes their place, for whoever hands it on.
+ * The facts are the same as the complete sheet's.
  */
-export default function ListingTechSheet({ sheet, qr }) {
+export default function ListingTechSheet({ sheet, qr, neutral = false }) {
   const hasHighlights = sheet.sheetFeatures.length > 0 || sheet.sheetAmenities.length > 0;
   const hasLocation = sheet.location.length > 0 || Boolean(sheet.mapUrl);
 
@@ -83,7 +92,7 @@ export default function ListingTechSheet({ sheet, qr }) {
     <div className="lp-block">
       <h2 className="lp-section-title">Emplacement</h2>
       {sheet.location.length > 0 && <FactTable rows={sheet.location} />}
-      {sheet.mapUrl && (
+      {sheet.mapUrl && !neutral && (
         <p className="lp-map lp-note">
           <a href={sheet.mapUrl}>Voir sur Google Maps</a>
           <span className="lp-muted"> · {sheet.coordinates} (position indicative)</span>
@@ -120,8 +129,8 @@ export default function ListingTechSheet({ sheet, qr }) {
     <section className="lp-sheet lp-fiche" aria-label="Fiche technique">
       <header className="lp-fiche-head lp-band">
         <div className="lp-fiche-top">
-          <img className="lp-logo" src="/brand/logo-dark.png" alt="Lukka Place" />
-          {sheet.reference && <span className="lp-fiche-ref">Réf. {sheet.reference}</span>}
+          {neutral ? <span className="lp-fiche-ref">Fiche descriptive</span> : <img className="lp-logo" src="/brand/logo-dark.png" alt="Lukka Place" />}
+          {sheet.reference && !neutral && <span className="lp-fiche-ref">Réf. {sheet.reference}</span>}
         </div>
         <div className="lp-fiche-headrow">
           <div className="lp-fiche-headtext">
@@ -150,11 +159,20 @@ export default function ListingTechSheet({ sheet, qr }) {
         <div className="lp-details">
           {columns.map((blocks, i) => (
             <div key={i} className="lp-col">
-              {blocks}
+              {blocks.map((block, j) => <Fragment key={j}>{block}</Fragment>)}
             </div>
           ))}
         </div>
 
+        {neutral ? (
+          <div className="lp-contact">
+            <div className="lp-contact-text">
+              <p className="lp-contact-label lp-muted">Contact</p>
+              <p className="lp-contact-blank">Nom : ________________________________</p>
+              <p className="lp-contact-blank">Téléphone : ___________________________</p>
+            </div>
+          </div>
+        ) : (
         <div className="lp-contact">
           <div className="lp-contact-text">
             <p className="lp-contact-label lp-muted">Contact</p>
@@ -168,12 +186,19 @@ export default function ListingTechSheet({ sheet, qr }) {
             <p className="lp-qr-caption lp-muted">Scannez pour voir l’annonce</p>
           </div>
         </div>
+        )}
       </div>
 
-      <div className="lp-brandbar lp-band">
-        <span>Fiche technique · Lukka Place</span>
-        <span>lukkaplace.com</span>
-      </div>
+      {neutral ? (
+        <div className="lp-brandbar lp-band">
+          <span>Fiche descriptive</span>
+        </div>
+      ) : (
+        <div className="lp-brandbar lp-band">
+          <span>Fiche technique · Lukka Place</span>
+          <span>lukkaplace.com</span>
+        </div>
+      )}
     </section>
   );
 }

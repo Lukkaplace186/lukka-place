@@ -1,6 +1,7 @@
 'use client';
 
 import { buildFlyerOps, buildReportOps } from '@/lib/marketing/layout';
+import { buildWatermarkOps, watermarkSize } from '@/lib/marketing/watermark';
 import { EXPORT_BYTE_BUDGET, EXPORT_JPEG_QUALITY } from '@/lib/marketing/formats';
 import { CHECK_PATH, CHECK_STROKE_WIDTH, WHATSAPP_PATH } from '@/lib/marketing/icons';
 
@@ -265,5 +266,24 @@ export function renderReport(report, assets, family) {
     family,
     assets.images,
     'lp-report',
+  );
+}
+
+/**
+ * One listing photo with the agent's band (lib/marketing/watermark.js). `logo`
+ * is an already-decoded image (decodeAssets' `images.logo`) or null. Returns
+ * null when the photo cannot be decoded.
+ */
+export async function renderWatermarked(photoBlob, { agent, logo = null }, family) {
+  const photo = await decode(photoBlob);
+  if (!photo) return null;
+  const { width: iw, height: ih } = sourceSize(photo);
+  const size = watermarkSize(iw, ih);
+  if (!size) return null;
+  return render(
+    (measure) => buildWatermarkOps({ ...size, agent, hasLogo: Boolean(logo), measure }),
+    family,
+    { 'photo:0': photo, ...(logo ? { logo } : {}) },
+    'lp-watermark',
   );
 }

@@ -6,7 +6,7 @@ export async function generateMetadata() {
   return { title: t('agent.print.sheetMetaTitle'), robots: { index: false, follow: false } };
 }
 
-/** Two-page technical sheet — see components/print/ListingTechSheet.js. */
-export default function ListingTechSheetPage({ params }) {
-  return <PrintSheetPage params={params} medium="fiche" />;
+/** One-page technical sheet, complete or ?variant=neutre — see components/print/ListingTechSheet.js. */
+export default function ListingTechSheetPage({ params, searchParams }) {
+  return <PrintSheetPage params={params} searchParams={searchParams} medium="fiche" />;
 }

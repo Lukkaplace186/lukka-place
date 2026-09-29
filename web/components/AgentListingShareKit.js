@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, BarChart3, Check, ChevronRight, Copy, Download, FileText, Image as ImageIcon, MessageCircle, Printer, Share2, Type } from 'lucide-react';
+import { ArrowLeft, BarChart3, Check, ChevronRight, Copy, Download, FileText, Image as ImageIcon, Images, MessageCircle, Printer, Share2, Type } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { buildWhatsAppShareLink } from '@/lib/whatsapp';
@@ -13,6 +13,7 @@ import { fetchPackImages, isStale, loadSharePack, packTimestamp, saveSharePack }
 import { decodeAssets, loadRenderFont, renderFlyer, renderReport } from './marketing/CanvasRenderer';
 import { useToast } from './Toast';
 import ReportLinkQuick from './ReportLinkQuick';
+import WatermarkedPhotos from './marketing/WatermarkedPhotos';
 import { useLocale, useT } from '@/lib/i18n/client';
 
 const BLOCKER_KEYS = {
@@ -95,7 +96,7 @@ export default function AgentListingShareKit({ listingId, open, onOpenChange }) 
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(null);
   const [report, setReport] = useState({ status: 'idle' });
-  const [view, setView] = useState('home'); // 'home' | 'visual' | 'text' | 'owner'
+  const [view, setView] = useState('home'); // 'home' | 'visual' | 'photos' | 'text' | 'owner'
   const previewUrlRef = useRef(null);
   const reportUrlRef = useRef(null);
 
@@ -366,6 +367,7 @@ export default function AgentListingShareKit({ listingId, open, onOpenChange }) 
   const viewTitle = {
     home: t('agent.share.title'),
     visual: t('agent.share.rows.visual'),
+    photos: t('agent.share.rows.photos'),
     text: t('agent.share.rows.text'),
     owner: t('agent.share.rows.owner'),
   }[view];
@@ -408,6 +410,14 @@ export default function AgentListingShareKit({ listingId, open, onOpenChange }) 
                 loading={loadingKit}
               />
               <KitRow
+                icon={Images}
+                title={t('agent.share.rows.photos')}
+                hint={t('agent.share.rows.photosHint')}
+                onClick={() => setView('photos')}
+                disabled={!shareable || source?.type !== 'live'}
+                loading={loadingKit}
+              />
+              <KitRow
                 icon={Type}
                 title={t('agent.share.rows.text')}
                 hint={t('agent.share.rows.textHint')}
@@ -445,6 +455,21 @@ export default function AgentListingShareKit({ listingId, open, onOpenChange }) 
               />
             </KitSection>
           </div>
+        )}
+
+        {view === 'photos' && shareable && (
+          family && assets ? (
+            <WatermarkedPhotos
+              listingId={listingId}
+              pack={kit.pack}
+              logo={assets.images?.logo || null}
+              family={family}
+              caption={captionFor('image')}
+              onRecord={recordShare}
+            />
+          ) : (
+            <p className="text-sm text-ink-70">{t('agent.share.preparing')}</p>
+          )
         )}
 
         {view === 'visual' && shareable && (

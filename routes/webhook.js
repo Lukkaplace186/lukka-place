@@ -52,6 +52,7 @@ const {
   handleAvailabilityTextReply,
 } = require('../services/availabilityCheck');
 const { handleVisitDoneButtonReply } = require('../services/visitReceipt');
+const { handleAgentCommand, parseAgentCommand } = require('../services/agentCommands');
 const { handleListingEnquiry } = require('../services/listingEnquiry');
 const salesReferral = require('../services/salesReferral');
 const listingQuota = require('../services/listingQuota');
@@ -735,6 +736,20 @@ async function processGroup(messages) {
       if (visitDone.handled) return;
     } catch (err) {
       console.error(`[visit-receipt] button '${buttonReplyId}' from ${from} failed: ${err.message}`);
+      return;
+    }
+  }
+
+  // AGENT COMMANDS — "!mesbiens", "!share 310" (services/agentCommands.js).
+  // Only a text of under 40 characters starting with "!" and carrying no
+  // media, so nothing else can be read as one; ahead of the pending-draft
+  // branch because the prefix is unambiguous.
+  if (hasText && messages.every((m) => !(m.media && m.media.length)) && parseAgentCommand(text)) {
+    try {
+      const outcome = await handleAgentCommand({ from, text });
+      if (outcome.handled) return;
+    } catch (err) {
+      console.error(`[agent-command] from ${from} failed: ${err.message}`);
       return;
     }
   }

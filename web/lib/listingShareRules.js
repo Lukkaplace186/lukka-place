@@ -14,19 +14,26 @@ import { SITE_URL } from './constants';
  * is not a share of the listing (it goes to the owner, not the market).
  *
  * Channel and format are an allow-list, mirrored by the CHECK constraints in
- * migrations/20260922_listing_shares.sql — change one, change the other.
+ * migrations/20260929_listing_share_formats.sql, which replaced both CHECKs
+ * first declared in 20260922_listing_shares.sql — change one, change the other.
  */
 
 /** channel → the formats it can carry. */
 export const CHANNEL_FORMATS = Object.freeze({
-  kit_share: Object.freeze(['square', 'story', 'landscape']),
-  kit_download: Object.freeze(['square', 'story', 'landscape']),
+  // `watermarked_photo`: one listing photo with the agent's band ("Photos
+  // avec mon logo", lib/marketing/watermark.js).
+  kit_share: Object.freeze(['square', 'story', 'landscape', 'watermarked_photo']),
+  kit_download: Object.freeze(['square', 'story', 'landscape', 'watermarked_photo']),
   kit_whatsapp: Object.freeze(['text']),
   kit_copy: Object.freeze(['text']),
   menu_whatsapp: Object.freeze(['text']),
   status_share: Object.freeze(['story']),
   status_download: Object.freeze(['story']),
-  print: Object.freeze(['poster', 'fiche']),
+  // `fiche_neutre`: the technical sheet without anything identifying the
+  // listing agent or Lukka Place (?variant=neutre).
+  print: Object.freeze(['poster', 'fiche', 'fiche_neutre']),
+  // "!share 310" typed to our WhatsApp number (engine services/agentCommands.js).
+  wa_command: Object.freeze(['text']),
 });
 
 export const SHARE_CHANNELS = Object.freeze(Object.keys(CHANNEL_FORMATS));
@@ -140,4 +147,10 @@ function parseCoordinate(value) {
   if (!/^-?\d+(\.\d+)?$/.test(text)) return null;
   const n = Number(text);
   return Number.isFinite(n) ? n : null;
+}
+
+/** The technical sheet's variant from the URL: 'neutre' or 'complete'. */
+export function sheetVariant(searchParams) {
+  const raw = Array.isArray(searchParams?.variant) ? searchParams.variant[0] : searchParams?.variant;
+  return raw === 'neutre' ? 'neutre' : 'complete';
 }

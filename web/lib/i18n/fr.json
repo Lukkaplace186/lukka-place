@@ -1175,7 +1175,24 @@
         "posterHint": "Pour une vitrine ou un portail, avec code QR",
         "sheetHint": "Toutes les caractéristiques sur une page",
         "owner": "Bilan de la semaine",
-        "ownerHint": "Vues, clics et visites des 7 derniers jours"
+        "ownerHint": "Vues, clics et visites des 7 derniers jours",
+        "photos": "Photos avec mon logo",
+        "photosHint": "Chaque photo avec votre nom et votre numéro"
+      },
+      "photos": {
+        "intro": "Toutes les photos de l’annonce, avec votre logo, votre nom et votre numéro en bas. Aucune photo n’est recadrée.",
+        "noBrand": "Ajoutez votre logo et votre nom dans Réglages : sans eux, seules les photos et « lukkaplace.com » apparaissent.",
+        "shareAll": {
+          "one": "Partager la photo",
+          "other": "Partager les {count} photos"
+        },
+        "downloadOne": "Télécharger {name}",
+        "downloaded": {
+          "one": "Photo téléchargée.",
+          "other": "{count} photos téléchargées."
+        },
+        "failed": "Les photos n’ont pas pu être préparées. Vérifiez votre connexion.",
+        "hint": "Touchez une photo pour la télécharger seule. Votre numéro n’apparaît que s’il est vérifié."
       }
     },
     "drafts": {
@@ -1549,7 +1566,13 @@
       "printButton": "Imprimer / PDF",
       "phoneHidden": "Votre numéro n’apparaît pas : il n’est pas encore vérifié, ou le contact direct est désactivé pour votre compte. Le code QR mène à l’annonce.",
       "posterMetaTitle": "Affiche A4",
-      "sheetMetaTitle": "Fiche technique"
+      "sheetMetaTitle": "Fiche technique",
+      "variantLabel": "Version de la fiche",
+      "variant": {
+        "complete": "Complète",
+        "neutre": "Neutre"
+      },
+      "neutralNote": "Fiche neutre : ni votre nom, ni votre numéro, ni Lukka Place, ni lien vers l’annonce. Une ligne « Contact » vide est prévue pour la personne qui la transmet."
     },
     "alternatives": {
       "open": "Proposer des alternatives",

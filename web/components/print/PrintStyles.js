@@ -104,6 +104,7 @@ const CSS = `
 .lp-contact { flex: none; margin-top: auto; display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 4cqw; align-items: center; border: .2cqw solid var(--line); border-radius: 1.6cqw; padding: 1.8cqw 2.4cqw; background: var(--canvas-alt, #f6f7fb); }
 .lp-contact-label { font-size: 1.5cqw; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin: 0; }
 .lp-contact-name { font-size: 2.6cqw; font-weight: 800; margin: .4cqw 0 0; }
+.lp-contact-blank { font-size: 1.9cqw; margin: 1.2cqw 0 0; letter-spacing: .02em; }
 .lp-contact-phone { font-size: 3.4cqw; font-weight: 800; color: var(--blue); margin: .3cqw 0 0; }
 .lp-contact-url { font-size: 1.6cqw; margin: .8cqw 0 0; overflow-wrap: anywhere; }
 .lp-qr-wrap { width: 12cqw; text-align: center; }

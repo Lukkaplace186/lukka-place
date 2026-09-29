@@ -10024,6 +10024,83 @@ console.log('\n2. services/openai.js');
   process.env.OPS_WHATSAPP_NUMBER = ops43;
   dbService.clearPendingAgentAction(AGENT_WA);
 
+  // ===========================================================================
+  // 44. Agent WhatsApp commands: !mesbiens, !share 310, !aide
+  //
+  //     Only "!" + under 40 characters is a command, so a listing or an answer
+  //     is never read as one. Verified agents only; the reply is web's (one
+  //     caption definition), relayed; web down is an honest "réessayez".
+  // ===========================================================================
+
+  console.log('\n44. Agent WhatsApp commands');
+
+  const agentCommands = require('../services/agentCommands');
+
+  check('only a short "!" message is a command, and aliases fold onto three commands', () => {
+    const p = agentCommands.parseAgentCommand;
+    assert.deepStrictEqual(p('!mesbiens'), { command: 'mesbiens', listingId: null });
+    assert.deepStrictEqual(p('  !Mes biens '), { command: 'mesbiens', listingId: null });
+    assert.deepStrictEqual(p('!share 310'), { command: 'share', listingId: 310 });
+    assert.deepStrictEqual(p('!partager n° 310'), { command: 'share', listingId: 310 });
+    assert.deepStrictEqual(p('!aide'), { command: 'aide', listingId: null });
+    assert.deepStrictEqual(p('!supprimer 310'), { command: 'unknown' });
+    assert.strictEqual(p('mesbiens'), null, 'no prefix, no command');
+    assert.strictEqual(p('Appartement 2 chambres à Limete !'), null);
+    assert.strictEqual(p(`!share ${'1'.repeat(40)}`), null, '40 characters or more is not a command');
+  });
+
+  const webCalls44 = [];
+  const fakeWeb44 = (answer, status = 200) => async (url, init) => {
+    webCalls44.push({ url, body: JSON.parse(init.body), auth: init.headers.Authorization });
+    return { ok: status < 400, status, json: async () => answer };
+  };
+  const sent44 = [];
+  const send44 = async (to, text) => sent44.push({ to, text });
+  const cronBefore44 = process.env.CRON_SECRET;
+  process.env.CRON_SECRET = 'cron-secret-44';
+
+  const stranger44 = await agentCommands.handleAgentCommand({
+    from: '243999000144', text: '!mesbiens', identify: async () => ({ registered: false, agentId: null }), fetchImpl: fakeWeb44({ ok: true, text: 'x' }), send: send44,
+  });
+  check('a number that is not a verified agent gets one refusal and web is never asked', () => {
+    assert.strictEqual(stranger44.reason, 'not-an-agent');
+    assert.strictEqual(webCalls44.length, 0);
+    assert.strictEqual(sent44.length, 1);
+    assert.strictEqual(sent44[0].text, agentCommands.NOT_AN_AGENT);
+  });
+
+  const share44 = await agentCommands.handleAgentCommand({
+    from: AGENT_WA, text: '!share 310', identify: async () => ({ registered: true, agentId: 43 }),
+    fetchImpl: fakeWeb44({ ok: true, text: '*À louer* — Kintambo…' }), send: send44,
+  });
+  check("a verified agent's command goes to web with THEIR agents.id and the secret, and web's text is relayed", () => {
+    assert.deepStrictEqual(webCalls44[0].body, { agentId: 43, command: 'share', listingId: 310 });
+    assert.ok(webCalls44[0].url.endsWith('/api/internal/agent-command'));
+    assert.strictEqual(webCalls44[0].auth, 'Bearer cron-secret-44');
+    assert.strictEqual(share44.reply, '*À louer* — Kintambo…');
+  });
+
+  const down44 = await agentCommands.handleAgentCommand({
+    from: AGENT_WA, text: '!mesbiens', identify: async () => ({ registered: true, agentId: 43 }),
+    fetchImpl: fakeWeb44({ error: 'failed' }, 500), send: send44,
+  });
+  check('web unreachable is an honest "réessayez", never a caption made up by the engine', () => {
+    assert.strictEqual(down44.reason, 'unavailable');
+    assert.strictEqual(down44.reply, agentCommands.UNAVAILABLE);
+  });
+  process.env.CRON_SECRET = cronBefore44;
+
+  httpCalls.length = 0;
+  const openaiBefore44 = openaiCalls.length;
+  await post('/webhook', inbound('wamid.cmd44', '!mesbiens', '243999000244'));
+  await settle();
+  check('through the webhook: a command is answered without the model and stores nothing', () => {
+    assert.strictEqual(openaiCalls.length, openaiBefore44, 'no extraction call');
+    const reply = httpCalls.find((c) => c.data && String(c.data.to) === '243999000244');
+    assert.ok(reply, 'the sender got an answer');
+    assert.match(JSON.stringify(reply.data), /réservées aux agents/);
+  });
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

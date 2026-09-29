@@ -2322,3 +2322,38 @@ multi-visit".
   guards the storefront visit components.
 - `lib/adminApi.js`'s `engineFetch` errors now carry `.status`.
 - Tests: `tests/unit/visit-booking.test.js`.
+
+## Agent tools: photos with my logo, neutral sheet, WhatsApp commands (2026-09-29)
+
+Migration `migrations/20260929_listing_share_formats.sql` (engine repo)
+replaces both `listing_shares` CHECKs: channel gains `wa_command`, format gains
+`watermarked_photo` and `fiche_neutre`. Until it runs, those records fail the
+CHECK and record nothing; the share itself is unaffected.
+
+- **"Photos avec mon logo"** (share kit row → `components/marketing/WatermarkedPhotos.js`,
+  layout `lib/marketing/watermark.js`, `renderWatermarked` in CanvasRenderer):
+  every photo in the pack's new `gallery` (≤ 10, same-origin /_next/image URLs)
+  drawn in the browser at its own aspect (longest edge ≤ 1080, never cropped or
+  upscaled) with a band over the bottom: the agent's logo or initials, name,
+  and phone only under `agentContactPhone`; "lukkaplace.com" on the right; no
+  brand → only "lukkaplace.com". "Partager les N photos" uses the share sheet
+  with every file, else sequential downloads 350 ms apart; a tap on one
+  downloads it. Recorded `kit_share` / `kit_download` × `watermarked_photo`.
+  Online only (the gallery is not stored with the offline pack).
+- **Fiche neutre** (`/compte/agent/biens/[id]/fiche?variant=neutre`,
+  `sheetVariant`, toolbar toggle Complète | Neutre): the same one-page sheet
+  without the Lukka Place logo, the reference, the agent's name and phone, the
+  QR code, the link and the map pin — anything that leads back to the public
+  page, which names the agent — and a blank "Contact : Nom / Téléphone" block
+  for whoever hands it on. Printing records `print` × `fiche_neutre`. The
+  sheet's columns now key their sections (React warned on every render).
+- **WhatsApp commands** (engine `services/agentCommands.js`): the engine
+  identifies the verified sender and relays to `POST /api/internal/agent-command`
+  (Bearer CRON_SECRET, timing-safe; `lib/agentCommands.js`). `!mesbiens`: up to
+  10 of the agent's public listings (ownership + public gate in SQL) with
+  `?utm_source=wa_command` links. `!share 310`: the share kit's own caption
+  (`buildListingSocialCopy`, `agentContactPhone`), only for the sender's own
+  listing (`getFlyerListing`'s `p.agent_id`) and only when `shareBlocker`
+  passes — otherwise one honest line; recorded as `wa_command` × `text`.
+  `!aide`: the list.
+- Tests: `tests/unit/agent-tools.test.js`, `listing-shares-print.test.js`.

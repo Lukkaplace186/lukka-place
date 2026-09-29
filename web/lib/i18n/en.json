@@ -1175,7 +1175,24 @@
         "posterHint": "For a shop window or a gate, with a QR code",
         "sheetHint": "Every detail on one page",
         "owner": "This week’s report",
-        "ownerHint": "Views, clicks and visits over the last 7 days"
+        "ownerHint": "Views, clicks and visits over the last 7 days",
+        "photos": "Photos with My Logo",
+        "photosHint": "Every photo with your name and number"
+      },
+      "photos": {
+        "intro": "Every photo of the listing, with your logo, name and number along the bottom. No photo is cropped.",
+        "noBrand": "Add your logo and name in Settings: without them only the photos and “lukkaplace.com” appear.",
+        "shareAll": {
+          "one": "Share the photo",
+          "other": "Share the {count} photos"
+        },
+        "downloadOne": "Download {name}",
+        "downloaded": {
+          "one": "Photo downloaded.",
+          "other": "{count} photos downloaded."
+        },
+        "failed": "The photos couldn’t be prepared. Check your connection.",
+        "hint": "Tap a photo to download it on its own. Your number only appears once it is verified."
       }
     },
     "drafts": {
@@ -1549,7 +1566,13 @@
       "printButton": "Print / PDF",
       "phoneHidden": "Your number is not shown: it is not verified yet, or direct contact is switched off for your account. The QR code leads to the listing.",
       "posterMetaTitle": "A4 Poster",
-      "sheetMetaTitle": "Technical Sheet"
+      "sheetMetaTitle": "Technical Sheet",
+      "variantLabel": "Sheet version",
+      "variant": {
+        "complete": "Complete",
+        "neutre": "Neutral"
+      },
+      "neutralNote": "Neutral sheet: no name, number, Lukka Place branding or link to the listing. A blank “Contact” line is left for whoever passes it on."
     },
     "alternatives": {
       "open": "Suggest alternatives",

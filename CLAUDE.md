@@ -1168,6 +1168,18 @@ web/CLAUDE.md, "Visit booking, both agendas…", has the pages. Engine half:
   CONFIRMED instants in the next 8 days, instants only.
 - §43 of verify-pipeline.
 
+## WhatsApp commands for agents (2026-09-29)
+
+`services/agentCommands.js`, routed in `routes/webhook.js` right after the
+button taps: a text under 40 characters that starts with "!" and carries no
+media — `!mesbiens`, `!share 310` / `!partager 310`, `!aide`; anything else
+starting with "!" gets the command list. The sender must pass
+`agentOnboarding.identifySender` (verified phone); others get one refusal and
+web is never asked. The reply is built by web (`POST /api/internal/agent-command`,
+Bearer `CRON_SECRET`, `WEB_BASE_URL`), so the caption is the share kit's own
+and ownership / public rules are checked there; web unreachable → "réessayez",
+never an engine-made caption. No model call, nothing stored in SQLite. §44.
+
 ## Verification & Commands
 - **Verification Command**: Always run `npm run verify` before declaring a backend task complete.
 - **Test Coverage**: Do not touch schema fields without updating `scripts/verify-pipeline.js`.

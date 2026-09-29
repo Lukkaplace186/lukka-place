@@ -9,6 +9,7 @@
  * so nothing latency-sensitive is waiting on them.
  */
 
+const { normaliseUtilities } = require('./utilities');
 const crypto = require('crypto');
 const path = require('path');
 const Database = require('better-sqlite3');
@@ -100,6 +101,9 @@ const EXTENDED_COLUMNS = [
   // equipment word covers ("eau et électricité 24h/24"). Synced to
   // `properties.features` (text[]) by services/postgres.js.
   ['features', 'TEXT'],
+  // Kinshasa utility codes (services/utilities.js), JSON text — what the
+  // agent's own message states about SNEL, water, security and access.
+  ['utilities', 'TEXT'],
   ['summary_fr', 'TEXT'],
   ['missing_fields', 'TEXT'],
   // Complete aiParser output, so no future field is ever lost to the schema.
@@ -405,6 +409,7 @@ function saveListing(listingData, senderInfo = {}) {
       furnished: toSqliteBool(listingData.furnished),
       amenities: toJsonText(listingData.amenities),
       features: toJsonText(listingData.features),
+      utilities: toJsonText(normaliseUtilities(listingData.utilities)),
       summary_fr: toNullable(listingData.summary_fr),
       missing_fields: toJsonText(listingData.missing_fields),
       parsed_json: toJsonText(listingData),
@@ -612,7 +617,7 @@ const CORRECTABLE_FIELDS = [
   'intent', 'transaction_type', 'property_type', 'parcelle_subtype', 'commune', 'quartier',
   'price', 'currency', 'price_period', 'deposit_months', 'advance_months',
   'commission_months', 'bedrooms', 'bathrooms',
-  'surface_area_sqm', 'units_count', 'furnished', 'amenities', 'features', 'reference',
+  'surface_area_sqm', 'units_count', 'furnished', 'amenities', 'features', 'utilities', 'reference',
   'summary_fr', 'missing_fields',
 ];
 
@@ -628,6 +633,7 @@ const CORRECTABLE_COERCERS = {
   furnished: toSqliteBool,
   amenities: toJsonText,
   features: toJsonText,
+  utilities: (value) => toJsonText(normaliseUtilities(value)),
   missing_fields: toJsonText,
 };
 
@@ -873,6 +879,8 @@ function expandAndPublishListing(id) {
         // `units` schema), and a unit inheriting "eau et électricité 24h/24"
         // from its own building is a true statement, not a copied guess.
         features: draft.features || [],
+        // Same for the building's power, water, security and access.
+        utilities: draft.utilities || [],
         units_count: null,
         missing_fields: [],
         confidence: parsed.confidence ?? null,
@@ -950,6 +958,7 @@ function parseRow(row) {
     furnished: row.furnished === null ? null : Boolean(row.furnished),
     amenities: fromJsonText(row.amenities, []),
     features: fromJsonText(row.features, []),
+    utilities: fromJsonText(row.utilities, []),
     missing_fields: fromJsonText(row.missing_fields, []),
     photos: fromJsonText(row.photos, []),
     group_wamids: fromJsonText(row.group_wamids, []),

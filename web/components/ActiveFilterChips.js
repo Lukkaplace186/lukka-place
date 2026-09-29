@@ -4,9 +4,14 @@ import { AMENITY_GROUPS, DEPOSIT_MAX_OPTIONS, DEPOSIT_RANGE_OPTIONS, ICON_STROKE
 import { hrefWithoutKeys, hrefWithoutAmenity } from '@/lib/urlParams';
 import { MAP_BOUNDS_PARAMS, parseBounds } from '@/lib/mapViewport';
 import { getT } from '@/lib/i18n/server';
+import { UTILITY_FILTERS } from '@/lib/utilityTags';
 
 const AMENITY_LABEL_KEYS = Object.fromEntries(
-  AMENITY_GROUPS.flatMap((g) => g.options).map(({ key, labelKey }) => [key, labelKey]),
+  [
+    ...AMENITY_GROUPS.flatMap((g) => g.options).map(({ key, labelKey }) => [key, labelKey]),
+    // The four utility chips ride in `amenities` too (lib/utilityTags.js).
+    ...Object.entries(UTILITY_FILTERS).map(([key, { labelKey }]) => [key, labelKey]),
+  ],
 );
 const KM_RADIUS_VALUES = new Set(['1', '3', '5']);
 

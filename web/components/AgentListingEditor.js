@@ -15,6 +15,7 @@ import { buildFormValuesFromParsed } from '@/lib/smartPaste';
 import { validatePhotoSelection } from '@/lib/uploadLimits.mjs';
 import { shrinkPhotos } from '@/lib/photoShrink';
 import AgentPhotoSorter from './AgentPhotoSorter';
+import { UTILITY_FILTERS, UTILITY_FILTER_KEYS, normaliseUtilities, utilityLabelKey } from '@/lib/utilityTags';
 
 const FIELD_CLASS =
   'u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35';
@@ -75,6 +76,20 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
 
   const [amenityIds, setAmenityIds] = useState(() => new Set(listing.amenity_ids || []));
   const [amenitiesTouched, setAmenitiesTouched] = useState(false);
+  // Kinshasa utility codes (lib/utilityTags.js) — sent only once touched, like
+  // the amenities, so an untouched form never clears codes from WhatsApp.
+  const [utilities, setUtilities] = useState(() => new Set(normaliseUtilities(listing.utilities)));
+  const [utilitiesTouched, setUtilitiesTouched] = useState(false);
+
+  function toggleUtility(code) {
+    setUtilitiesTouched(true);
+    setUtilities((prev) => {
+      const next = new Set(prev);
+      if (next.has(code)) next.delete(code);
+      else next.add(code);
+      return next;
+    });
+  }
 
   // Tracked only for the live quality hint below — the textarea itself
   // stays uncontrolled (defaultValue), so this doesn't change what actually
@@ -154,6 +169,9 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
     formData.delete('amenities');
     formData.set('amenities_touched', amenitiesTouched ? '1' : '0');
     if (amenitiesTouched) for (const id of amenityIds) formData.append('amenities', String(id));
+    formData.delete('utilities');
+    formData.set('utilities_touched', utilitiesTouched ? '1' : '0');
+    if (utilitiesTouched) for (const code of utilities) formData.append('utilities', code);
     // Same pre-flight as CreateListingDialog, with the already-stored photos
     // counted toward the per-listing maximum but not toward the byte budget:
     // those are URLs being kept, not files being uploaded.
@@ -474,6 +492,38 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
           </div>
         </div>
       )}
+
+      <div id="utilities" className="u-card flex scroll-mt-24 flex-col gap-4 rounded-card bg-surface p-4 sm:p-6">
+        <div>
+          <h2 className="text-[1.0625rem] font-bold text-ink">{t('agent.editor.utilities')}</h2>
+          <p className={HINT_CLASS}>{t('agent.editor.utilitiesHint')}</p>
+        </div>
+        <div className="flex flex-col gap-3">
+          {UTILITY_FILTER_KEYS.map((group) => (
+            <div key={group}>
+              <p className="mb-1.5 text-[0.8125rem] font-semibold text-ink-70">{t(UTILITY_FILTERS[group].labelKey)}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {UTILITY_FILTERS[group].codes.map((code) => {
+                  const on = utilities.has(code);
+                  return (
+                    <button
+                      key={code}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => toggleUtility(code)}
+                      className={`u-press min-h-10 rounded-full border px-3 text-sm font-semibold ${
+                        on ? 'border-blue bg-blue-tint text-blue-deep' : 'border-line bg-surface text-ink-70'
+                      }`}
+                    >
+                      {t(utilityLabelKey(code))}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
 
       <div id="photos" className="u-card flex scroll-mt-24 flex-col gap-4 rounded-card bg-surface p-4 sm:p-6">
         <div className="flex flex-wrap items-baseline justify-between gap-2">

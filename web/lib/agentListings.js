@@ -274,6 +274,7 @@ export async function getOwnListingForEdit(agentId, propertyId) {
             p.parcelle_subtype, p.reference, p.price_period, p.deposit_months,
             p.category_id, p.approve_status, p.listing_status, p.featured_image, p.sold_price,
             p.currency, p.price_original,
+            COALESCE(to_jsonb(p) -> 'utilities', '[]'::jsonb) AS utilities,
             pc.title, pc.description, pc.address,
             (
               SELECT COALESCE(array_agg(pa.amenity_id ORDER BY pa.amenity_id), ARRAY[]::bigint[])
@@ -684,4 +685,25 @@ export async function updateListingPrice(agentId, propertyId, { price, priceOrig
     propertyId, price, priceOriginal, currency, agentId, source: 'AGENT_DASHBOARD',
   });
   return owned;
+}
+
+/**
+ * The agent's Kinshasa utility codes for one of their own listings
+ * (lib/utilityTags.js). Its own statement — ownership in the WHERE — and
+ * separate from updateListing, so a database without the column (before
+ * migrations/20260929_listing_utilities.sql) loses only this, never the edit.
+ *
+ * @returns {Promise<'saved'|'not_found'|'unavailable'>}
+ */
+export async function setListingUtilities(agentId, propertyId, codes) {
+  try {
+    const { rowCount } = await getPool().query(
+      'UPDATE properties SET utilities = $1::text[], updated_at = NOW() WHERE id = $2 AND agent_id = $3',
+      [codes.length ? codes : null, Number(propertyId), Number(agentId)],
+    );
+    return rowCount > 0 ? 'saved' : 'not_found';
+  } catch (err) {
+    if (err?.code === '42703') return 'unavailable';
+    throw err;
+  }
 }

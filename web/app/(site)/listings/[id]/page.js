@@ -24,6 +24,7 @@ import ListingViewTracker from '@/components/ListingViewTracker';
 import PropertyDescription from '@/components/listings/PropertyDescription';
 import AvailabilityConfirmedBadge from '@/components/listings/AvailabilityConfirmedBadge';
 import MarketMedianLine from '@/components/listings/MarketMedianLine';
+import UtilityBadges from '@/components/listings/UtilityBadges';
 import ProjectUnitStrip from '@/components/projects/ProjectUnitStrip';
 import JsonLd from '@/components/seo/JsonLd';
 import { communeHref, listingJsonLd, listingMetaDescription, listingMetaTitle } from '@/lib/listingSeo';
@@ -337,6 +338,9 @@ export default async function ListingDetailPage({ params, searchParams }) {
               <KeyFacts listing={listing} />
               <EntryCostsBreakdown listing={listing} />
             </section>
+
+            {/* Power, water, security, access — as the agent declared them. */}
+            <UtilityBadges utilities={listing.utilities} />
 
             {/* Streams in: a like-for-like median of live listings in the
                 commune, only from 5 comparables up (MarketMedianLine). */}

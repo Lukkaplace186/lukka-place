@@ -626,6 +626,27 @@
       "rent": "rent",
       "sale": "price",
       "more": "See the market in {commune}"
+    },
+    "utilityFilters": {
+      "label": "Services",
+      "electricite": "Power",
+      "eau": "Water",
+      "securite": "Security",
+      "acces": "Access"
+    },
+    "utilities": {
+      "title": "Power, Water, Security, Access",
+      "declared": "Declared by the agent",
+      "snel_stable": "Stable SNEL power",
+      "groupe": "Generator",
+      "solaire": "Solar panels",
+      "regideso": "Regideso water",
+      "citerne": "Water tank",
+      "forage": "Borehole",
+      "gardiennage": "Guard",
+      "cloture": "Walled plot",
+      "route_asphaltee": "Paved road",
+      "acces_facile": "Easy car access"
     }
   },
   "enquiry": {
@@ -1043,7 +1064,9 @@
       "makeCover": "Cover",
       "removePhotoShort": "Delete",
       "photoPosition": "Photo {n} — hold to move, tap for options",
-      "photoOrderHint": "{count}/10 · hold a photo to move it"
+      "photoOrderHint": "{count}/10 · hold a photo to move it",
+      "utilities": "Power, Water, Security, Access",
+      "utilitiesHint": "Only tick what is true: customers filter on it, and the listing shows “Declared by the agent”."
     },
     "portfolio": {
       "toRent": "To rent",

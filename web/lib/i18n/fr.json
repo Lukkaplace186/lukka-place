@@ -626,6 +626,27 @@
       "rent": "Loyer",
       "sale": "Prix",
       "more": "Voir le marché à {commune}"
+    },
+    "utilityFilters": {
+      "label": "Services",
+      "electricite": "Électricité",
+      "eau": "Eau",
+      "securite": "Sécurité",
+      "acces": "Accès"
+    },
+    "utilities": {
+      "title": "Courant, eau, sécurité, accès",
+      "declared": "Déclaré par l’agent",
+      "snel_stable": "Courant SNEL stable",
+      "groupe": "Groupe électrogène",
+      "solaire": "Panneaux solaires",
+      "regideso": "Eau Regideso",
+      "citerne": "Citerne",
+      "forage": "Forage",
+      "gardiennage": "Gardiennage",
+      "cloture": "Parcelle clôturée",
+      "route_asphaltee": "Route asphaltée",
+      "acces_facile": "Accès facile en voiture"
     }
   },
   "enquiry": {
@@ -1043,7 +1064,9 @@
       "makeCover": "Couverture",
       "removePhotoShort": "Supprimer",
       "photoPosition": "Photo {n} — maintenez pour déplacer, touchez pour les options",
-      "photoOrderHint": "{count}/10 · maintenez une photo pour la déplacer"
+      "photoOrderHint": "{count}/10 · maintenez une photo pour la déplacer",
+      "utilities": "Courant, eau, sécurité, accès",
+      "utilitiesHint": "Cochez seulement ce qui est vrai : les clients filtrent là-dessus, et la fiche affiche « Déclaré par l’agent »."
     },
     "portfolio": {
       "toRent": "À louer",

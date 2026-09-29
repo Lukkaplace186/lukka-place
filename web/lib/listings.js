@@ -5,6 +5,7 @@ import { landmarkPoint, NEAR_DEFAULT_RADIUS } from './landmarks';
 import { KINSHASA_PROVINCE_ENVELOPE, boundsContain, distanceKm, resolveMarkerPosition } from './mapViewport';
 import { AMENITY_GROUPS, AMENITY_KEYWORDS, DEPOSIT_RANGE_OPTIONS } from './constants';
 import { keywordTokens } from './searchKeywords';
+import { UTILITY_FILTERS } from './utilityTags';
 
 /**
  * Every read against `properties` filters on this — no exceptions. There is
@@ -176,6 +177,9 @@ const SELECT_FIELDS = `
   p.features,
   pc.title, pc.slug, pc.address,
   catc.name AS category_name, p.category_id,
+  -- Kinshasa utility codes the agent stated (lib/utilityTags.js); a jsonb
+  -- array, [] before the migration or when none were stated.
+  COALESCE(to_jsonb(p) -> 'utilities', '[]'::jsonb) AS utilities,
   pc.description,
   a.id AS agent_id, a.image AS agency_logo_url, ${AGENCY_NAME_EXPR},
   -- DIRECT-TO-AGENT ROUTING. The agent's number reaches a public page only
@@ -250,6 +254,24 @@ function escapeRegex(value) {
 // Derived, not hand-duplicated, from lib/constants.js's AMENITY_GROUPS — the
 // UI can only ever send a key that's actually offered as a checkbox.
 const VALID_AMENITY_KEYS = new Set(AMENITY_GROUPS.flatMap((group) => group.options.map((o) => o.key)));
+
+/**
+ * `properties.utilities` read through to_jsonb, so a query never fails with
+ * 42703 before migrations/20260929_listing_utilities.sql runs (the same
+ * pattern as verification_level). NULL → an empty jsonb array.
+ */
+const UTILITIES_JSONB = `COALESCE(to_jsonb(p) -> 'utilities', '[]'::jsonb)`;
+
+/**
+ * An amenity / utility keyword against the listing's own words: title,
+ * description AND the extracted `features` bullets. Checked against production
+ * (2026-09-29): "groupe électrogène", "courant", "forage" appear in features on
+ * 4–14 live listings and in no description at all, so a title/description-only
+ * match returned nothing for every one of them.
+ */
+function keywordTextMatch(idx) {
+  return `pc.title ~* $${idx} OR pc.description ~* $${idx} OR array_to_string(COALESCE(p.features, '{}'::text[]), ' ') ~* $${idx}`;
+}
 
 const LISTINGS_LIMIT_DEFAULT = 12; // 12 cards per feed page
 const LISTINGS_LIMIT_MAX = 60;
@@ -423,12 +445,27 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
   // of VALID_AMENITY_KEYS, but a stale/hand-edited URL shouldn't 500.
   if (Array.isArray(amenities)) {
     for (const key of amenities) {
+      // A utility chip (lib/utilityTags.js): the agent's structured codes, OR
+      // — for the many listings nobody has tagged yet — the same word-boundary
+      // text match as the amenity checkboxes below. Never AND-ed across the
+      // two: a tagged listing whose description does not repeat the words
+      // must still match.
+      const utility = UTILITY_FILTERS[key];
+      if (utility) {
+        params.push(utility.codes);
+        const codesIdx = params.length;
+        const text = utility.keywords.map((keyword) => {
+          params.push(`\\y${escapeRegex(keyword)}`);
+          return keywordTextMatch(params.length);
+        });
+        where.push(`(${UTILITIES_JSONB} ?| $${codesIdx}::text[] OR ${text.join(' OR ')})`);
+        continue;
+      }
       if (!VALID_AMENITY_KEYS.has(key)) continue;
       const keywords = AMENITY_KEYWORDS[key];
       const group = keywords.map((keyword) => {
         params.push(`\\y${escapeRegex(keyword)}`);
-        const idx = params.length;
-        return `pc.title ~* $${idx} OR pc.description ~* $${idx}`;
+        return keywordTextMatch(params.length);
       });
       where.push(`(${group.join(' OR ')})`);
     }

@@ -9,6 +9,7 @@
  * (`whatsapp_reply`) — no second call, and no reply-formatting code to maintain.
  */
 
+const { UTILITY_CODES } = require('./utilities');
 const OpenAI = require('openai');
 
 const { LOCATIONS, COMMUNES: KINSHASA_COMMUNES } = require('./locations');
@@ -126,6 +127,11 @@ POINTS FORTS (champ features) — LISTE À PUCES DU SITE
 - Ne répète pas dans features ce que la fiche affiche TOUJOURS ailleurs : nombre de chambres et de salles de bain, prix de vente ou loyer, garantie/avance/commission, commune, quartier, référence, et le titre accrocheur de l'annonce ("APPARTEMENT À LOUER À …").
 - amenities reste la liste brute des équipements (un mot ou deux, pour la recherche). features est la version lisible destinée au client, et peut porter ce qu'aucun mot d'équipement ne couvre.
 - Si le message ne donne aucun point fort exploitable, renvoie [] — une liste vide est une réponse correcte, jamais une liste inventée pour remplir la section.
+
+SERVICES (champ utilities) — CODES FIXES, CE QUE LE MESSAGE AFFIRME
+- utilities est une liste de codes parmi : snel_stable (courant SNEL stable, « 5/5 », « départ unique », « courant 24h/24 », « cabine »), groupe (groupe électrogène), solaire (panneaux solaires, inverseur/onduleur), regideso (eau de la Regideso, « eau 5/5 », « eau courante »), citerne (citerne, réservoir), forage (forage, puits), gardiennage (gardien, sentinelle, gardiennage), cloture (clôture, parcelle clôturée, mur), route_asphaltee (route asphaltée / bitumée / goudronnée), acces_facile (« accès facile », « accessible en voiture », « au bord de la route »).
+- Un code seulement quand le message le dit explicitement. « Courant » sans précision n'est PAS snel_stable ; « eau » sans précision n'est PAS regideso. Dans le doute, n'ajoute pas le code.
+- [] quand le message n'en mentionne aucun.
 
 RÈGLES D'EXTRACTION
 1. N'invente rien. Tout champ absent du message doit être null (ou [] pour les listes). Une annonce partielle est normale.
@@ -250,7 +256,7 @@ const RESPONSE_FORMAT = {
             'commune', 'quartier', 'price', 'currency', 'price_period', 'deposit_months',
             'advance_months', 'commission_months',
             'bedrooms', 'bathrooms', 'surface_area_sqm', 'units_count', 'furnished',
-            'amenities', 'features', 'reference', 'agent_name', 'agency_name', 'summary_fr',
+            'amenities', 'features', 'utilities', 'reference', 'agent_name', 'agency_name', 'summary_fr',
             'missing_fields', 'confidence',
             'is_multi_unit', 'is_multi_property', 'building_name', 'units',
             'is_correction', 'listing_status_update',
@@ -329,6 +335,14 @@ const RESPONSE_FORMAT = {
               items: { type: 'string' },
               description:
                 "Points forts du bien, en français, une phrase courte par point (max ~60 caractères), tirés UNIQUEMENT du message. [] si le message n'en donne aucun.",
+            },
+            // Kinshasa utility tags (services/utilities.js) — fixed codes, only
+            // what the message states. Re-filtered by normaliseUtilities on
+            // every write, so an unknown code can never reach a row.
+            utilities: {
+              type: 'array',
+              items: { type: 'string', enum: [...UTILITY_CODES] },
+              description: "Codes des services affirmés par le message (courant, eau, sécurité, accès). [] si aucun.",
             },
             reference: {
               type: ['string', 'null'],
@@ -520,7 +534,7 @@ const DRAFT_CONTEXT_FIELDS = [
   'transaction_type', 'property_type', 'parcelle_subtype', 'commune', 'quartier',
   'price', 'currency', 'price_period', 'deposit_months', 'advance_months',
   'commission_months', 'bedrooms', 'bathrooms', 'surface_area_sqm', 'units_count',
-  'furnished', 'amenities', 'features', 'reference', 'agent_name', 'summary_fr',
+  'furnished', 'amenities', 'features', 'utilities', 'reference', 'agent_name', 'summary_fr',
 ];
 
 /**

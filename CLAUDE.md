@@ -1328,3 +1328,26 @@ disagree on a single pixel. It corrects the camera, never the property:
   +12-19% edge energy vs the original, no halos. The web path only encodes
   once from the camera original, so it gets no sharpen; it does draw with
   `imageSmoothingQuality = 'high'` (the default 'low' blurred the downscale).
+
+## Kinshasa utility tags — engine half (2026-09-29)
+
+`services/utilities.js` holds the ten codes (`snel_stable`, `groupe`,
+`solaire`, `regideso`, `citerne`, `forage`, `gardiennage`, `cloture`,
+`route_asphaltee`, `acces_facile`) — duplicated in web `lib/utilityTags.js`
+and the CHECK of `migrations/20260929_listing_utilities.sql` (web's
+`utility-tags.test.js` compares all three).
+
+- **Extraction**: `parseMessage` fills `utilities` (strict enum in the schema,
+  prompt section "SERVICES") from the agent's own words only — the same "never
+  add a detail" rule as POINTS FORTS; `[]` is a correct answer.
+  `normaliseUtilities` drops anything off the list.
+- **SQLite** `listings.utilities` (JSON text, idempotent ALTER), correctable,
+  inherited by multi-unit expansion.
+- **Postgres**: `syncListingToPostgres` writes `utilities` on INSERT only, in a
+  SAVEPOINT that tolerates 42703 (before the migration). Web's editor owns the
+  codes after publication, so a WhatsApp correction's resync can never undo an
+  agent's edit.
+- **Backfill** `node scripts/backfill-listing-utilities.js [--write]`: re-runs
+  `parseMessage` over `raw_text` (costs one OpenAI call per listing), fills
+  blanks only, writes SQLite and Postgres. Not run yet.
+- §45 of verify-pipeline.

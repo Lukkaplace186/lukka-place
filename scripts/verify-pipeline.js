@@ -10101,6 +10101,67 @@ console.log('\n2. services/openai.js');
     assert.match(JSON.stringify(reply.data), /réservées aux agents/);
   });
 
+  // ===========================================================================
+  // 45. Kinshasa utility tags (power, water, security, access)
+  //
+  //     Fixed codes, only what the message states; SQLite keeps them; the
+  //     Postgres sync writes them on INSERT only (the agent's editor owns
+  //     them afterwards) inside a SAVEPOINT that survives a missing column.
+  // ===========================================================================
+
+  console.log('\n45. Kinshasa utility tags');
+
+  const utilities45 = require('../services/utilities');
+
+  check('only known codes survive, once each, in a fixed order', () => {
+    assert.deepStrictEqual(
+      utilities45.normaliseUtilities(['FORAGE', 'piscine', 'snel_stable', 'forage', null]),
+      ['snel_stable', 'forage'],
+    );
+    assert.deepStrictEqual(utilities45.normaliseUtilities('snel_stable'), [], 'not an array: nothing');
+    assert.strictEqual(utilities45.UTILITY_CODES.length, 10);
+  });
+
+  check('the extraction schema offers exactly the codes, and the prompt forbids guessing', () => {
+    const schema = openaiService.RESPONSE_FORMAT
+      ? openaiService.RESPONSE_FORMAT.json_schema.schema.properties.extracted_data
+      : null;
+    const source = fs.readFileSync(path.join(__dirname, '..', 'services', 'openai.js'), 'utf8');
+    if (schema) {
+      assert.ok(schema.required.includes('utilities'));
+      assert.deepStrictEqual(schema.properties.utilities.items.enum, [...utilities45.UTILITY_CODES]);
+    } else {
+      assert.match(source, /items: \{ type: 'string', enum: \[\.\.\.UTILITY_CODES\] \}/);
+    }
+    assert.match(source, /« Courant » sans précision n'est PAS snel_stable/);
+  });
+
+  const tagged45 = dbService.insertListing(
+    { is_listing: true, property_type: 'appartement', commune: 'Limete', utilities: ['snel_stable', 'forage', 'gardiennage', 'wifi'] },
+    '243970004545',
+    { rawText: 'Appartement Limete, courant SNEL 5/5, forage, gardien' },
+  );
+  check('an intake row stores the codes, unknown ones dropped, and reads them back as an array', () => {
+    const row = dbService.getListing(tagged45.id ?? tagged45);
+    assert.deepStrictEqual(row.utilities, ['snel_stable', 'forage', 'gardiennage']);
+  });
+
+  check('the Postgres sync writes utilities on INSERT only, in a SAVEPOINT that tolerates a missing column', () => {
+    const source = fs.readFileSync(path.join(__dirname, '..', 'services', 'postgres.js'), 'utf8');
+    const insertAt = source.indexOf('INSERT INTO properties (${keys.join');
+    const savepointAt = source.indexOf("SAVEPOINT lukka_utilities");
+    const updatePathAt = source.indexOf('UPDATE properties SET ${setClause}');
+    assert.ok(insertAt > 0 && savepointAt > insertAt, 'written after the INSERT');
+    assert.ok(updatePathAt < insertAt, 'the UPDATE path (a re-sync) comes before and never names utilities');
+    assert.ok(!/utilities/.test(source.slice(updatePathAt, insertAt)), 'a re-sync never touches the codes');
+    assert.match(source, /if \(err\?\.code !== '42703'\) throw err;/);
+  });
+
+  check('the backfill only ever fills a blank', () => {
+    const source = fs.readFileSync(path.join(__dirname, 'backfill-listing-utilities.js'), 'utf8');
+    assert.match(source, /WHERE id = \$2 AND \(utilities IS NULL OR cardinality\(utilities\) = 0\)/);
+  });
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

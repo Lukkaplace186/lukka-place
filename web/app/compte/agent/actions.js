@@ -33,6 +33,7 @@ import {
   duplicateListing,
   getFeatureAmenities,
   findRecentOwnDuplicate,
+  setListingUtilities,
 } from '@/lib/agentListings';
 import { getCdfRate } from '@/lib/currencyRate';
 import { convertCdfToUsd } from '@/lib/format';
@@ -56,6 +57,7 @@ import { validateAgreedSlot } from '@/lib/visitAgenda';
 import { findOwnedViewingRequest } from '@/lib/agentViewingOwnership';
 import { recordDashboardAvailabilityAnswer } from '@/lib/listingAvailability';
 import { PriceSyncError } from '@/lib/enginePrice';
+import { normaliseUtilities } from '@/lib/utilityTags';
 import { MAX_AVATAR_BYTES, megabytes, validatePhotoSelection } from '@/lib/uploadLimits.mjs';
 
 const ALLOWED_AVATAR_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
@@ -945,6 +947,17 @@ export async function updateListingAction(propertyId, validCommunes, formData) {
     throw err;
   }
   if (!owned) return { ok: false, error: t('errors.listingNotFoundOrNotYours') };
+
+  // Kinshasa utility codes — only when the agent touched them; unknown codes
+  // are dropped (lib/utilityTags.js), and a missing column never fails the edit.
+  if (formData.get('utilities_touched') === '1') {
+    try {
+      const saved = await setListingUtilities(agentId, propertyId, normaliseUtilities(formData.getAll('utilities')));
+      if (saved === 'unavailable') console.warn(`[compte/agent] utilities for #${propertyId} not saved — column missing`);
+    } catch (err) {
+      console.error(`[compte/agent] utilities for #${propertyId}: ${err.message}`);
+    }
+  }
 
   let photoWarning = false;
   if (touchedPhotos) {

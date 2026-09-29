@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { SlidersHorizontal } from 'lucide-react';
+import { Droplets, Route, Shield, SlidersHorizontal, Zap } from 'lucide-react';
 import FilterPill, { PillFieldLabel, PillOption } from './FilterPill';
 import FiltersDrawer from './FiltersDrawer';
 import FilterModal from './FilterModal';
@@ -21,6 +21,9 @@ import {
 import { subscribeOpenFiltersDrawer } from '@/lib/mapFilterDrawer';
 import { cn } from '@/lib/utils';
 import { MAP_BOUNDS_PARAMS } from '@/lib/mapViewport';
+import { UTILITY_FILTERS, UTILITY_FILTER_KEYS } from '@/lib/utilityTags';
+
+const UTILITY_ICONS = { zap: Zap, droplets: Droplets, shield: Shield, route: Route };
 
 const FORM_ID = 'listings-filter-form';
 const ADVANCED_KEYS = ['quartier', 'parcelleSubtype', 'bathMin'];
@@ -266,8 +269,12 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
   // ADVANCED_KEYS' plain truthiness check, since `Boolean([])` is true and
   // would otherwise always count as "1 active filter" even with nothing
   // checked.
+  // The four utility chips (⚡ 💧 🛡 🛣) have their own row and show their own
+  // state, so they are not counted again on "Plus de filtres".
   const advancedCount =
-    ADVANCED_KEYS.filter((key) => defaults[key]).length + (defaults.amenities?.length || 0) + (defaults.depositMax || defaults.depositRange ? 1 : 0);
+    ADVANCED_KEYS.filter((key) => defaults[key]).length
+    + (defaults.amenities || []).filter((key) => !UTILITY_FILTER_KEYS.includes(key)).length
+    + (defaults.depositMax || defaults.depositRange ? 1 : 0);
   // Mobile's single "Filtres" button badge — the primary pills' own active
   // count (Chambres/Prix-as-one/Type de bien) plus everything advancedCount
   // already tracks, since FilterModal.js is the one screen covering both
@@ -580,6 +587,34 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
             <SaveSearchButton />
           </div>
         </div>
+
+        {/* Kinshasa's four questions — courant, eau, sécurité, accès — one tap
+            each (lib/utilityTags.js). They ride in `amenities`, so saved
+            searches, alerts and the map carry them. Hidden once the bar
+            condenses on scroll, like the pills' second line would be. */}
+        {!condensed ? (
+          <div className="-mx-1 mt-2 flex gap-1.5 overflow-x-auto px-1 pb-0.5" role="group" aria-label={t('listings.utilityFilters.label')}>
+            {UTILITY_FILTER_KEYS.map((key) => {
+              const on = amenities.includes(key);
+              const Icon = UTILITY_ICONS[UTILITY_FILTERS[key].icon];
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => apply(setAmenities)(on ? amenities.filter((k) => k !== key) : [...amenities, key])}
+                  className={cn(
+                    'u-press inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[0.8125rem] font-semibold transition-colors',
+                    on ? 'border-blue bg-blue-tint text-blue-deep' : 'border-line bg-surface text-ink-70 hover:border-ink-25',
+                  )}
+                >
+                  <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
+                  {t(UTILITY_FILTERS[key].labelKey)}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
 
         <FiltersDrawer
           open={drawerOpen}

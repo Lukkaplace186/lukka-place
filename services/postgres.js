@@ -38,6 +38,7 @@
  * publishListing, which calls this fire-and-forget.
  */
 
+const { normaliseUtilities } = require('./utilities');
 const { Pool } = require('pg');
 const { uploadListingPhotos } = require('./supabaseStorage');
 const { resolveCommune, resolveQuartier } = require('./locations');
@@ -884,6 +885,23 @@ async function syncListingToPostgres(row) {
         Object.values(propertyValues),
       );
       propertyId = rows[0].id;
+
+      // Kinshasa utility tags, on INSERT ONLY: once published, the agent's
+      // editor owns them, and a re-sync after a WhatsApp correction must not
+      // undo a change made there. In a SAVEPOINT so a database without the
+      // column (migration not run) still publishes the listing.
+      const utilities = normaliseUtilities(row.utilities);
+      if (utilities.length) {
+        await client.query('SAVEPOINT lukka_utilities');
+        try {
+          await client.query('UPDATE properties SET utilities = $1::text[] WHERE id = $2', [utilities, propertyId]);
+          await client.query('RELEASE SAVEPOINT lukka_utilities');
+        } catch (err) {
+          await client.query('ROLLBACK TO SAVEPOINT lukka_utilities');
+          if (err?.code !== '42703') throw err;
+          console.warn(`[postgres] properties.utilities missing — tags for #${propertyId} not synced (run migrations/20260929_listing_utilities.sql)`);
+        }
+      }
     }
 
     const title = buildTitle(row);

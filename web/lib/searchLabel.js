@@ -1,9 +1,14 @@
 import { PARCELLE_SUBTYPES, AMENITY_GROUPS, DEPOSIT_RANGE_OPTIONS } from './constants';
+import { UTILITY_FILTERS } from '@/lib/utilityTags';
 
 const PARCELLE_LABEL_KEYS = Object.fromEntries(PARCELLE_SUBTYPES.map(({ value, labelKey }) => [value, labelKey]));
 
 const AMENITY_LABEL_KEYS = Object.fromEntries(
-  AMENITY_GROUPS.flatMap(({ options }) => options.map(({ key, labelKey }) => [key, labelKey])),
+  [
+    ...AMENITY_GROUPS.flatMap(({ options }) => options.map(({ key, labelKey }) => [key, labelKey])),
+    // The four utility chips ride in `amenities` too (lib/utilityTags.js).
+    ...Object.entries(UTILITY_FILTERS).map(([key, { labelKey }]) => [key, labelKey]),
+  ],
 );
 
 /**

@@ -9,6 +9,7 @@ import {
   adminSaveAgentAction,
   adminResetAgentAccessAction,
   adminRevokeAgentSessionsAction,
+  adminSetAgentTestAction,
   adminReassignListingsAction,
   adminSetAgentPasswordAction,
 } from './actions';
@@ -232,6 +233,26 @@ export default function AgentAdminPanel({ agent, communes, listingCount }) {
         <p className="u-micro text-ink-45">
           {t('admin.agentPanel.loginLinkHint')}
         </p>
+
+        <label className="flex items-start gap-2.5 border-t border-line pt-4 text-[0.8125rem] text-ink">
+          <input
+            type="checkbox"
+            defaultChecked={Boolean(agent.is_test)}
+            disabled={pending}
+            onChange={(event) => {
+              const next = event.currentTarget.checked;
+              run(
+                () => adminSetAgentTestAction(agent.id, next),
+                () => (next ? t('admin.agentPanel.markedTest') : t('admin.agentPanel.unmarkedTest')),
+              );
+            }}
+            className="mt-0.5 h-4 w-4"
+          />
+          <span>
+            <span className="font-semibold">{t('admin.agentPanel.testAccount')}</span>
+            <span className="u-micro block text-ink-45">{t('admin.agentPanel.testAccountHint')}</span>
+          </span>
+        </label>
 
         {/* The offline counterpart to the WhatsApp link above: same card,
             because an admin looking for "how do I get this agent back in"

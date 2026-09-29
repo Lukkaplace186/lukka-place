@@ -1,5 +1,6 @@
 import 'server-only';
 import { getPool } from './db';
+import { NOT_TEST_LISTING_SQL } from './marketExclusions';
 import { getMandateCounts } from './marketing/mandateReport';
 
 /**
@@ -200,6 +201,7 @@ export const MARKET_POSITION_SQL = `
       FROM properties p
      WHERE p.status = 1 AND p.approve_status = 1 AND p.price > 0
        AND p.purpose = $1 AND p.id <> $2
+       AND ${NOT_TEST_LISTING_SQL}
        AND EXISTS (SELECT 1 FROM property_amenities pa
                      JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = ${CONTENT_LANGUAGE_ID}
                     WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44 AND ac.name = $3)

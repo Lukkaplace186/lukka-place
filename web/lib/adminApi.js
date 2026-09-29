@@ -595,3 +595,27 @@ export async function notifyOps(message) {
     return false;
   }
 }
+
+/**
+ * Change a listing's asking price through the engine, which writes Postgres
+ * AND its own SQLite row in one step (engine services/postgres.js
+ * setListingPrice), so a later WhatsApp correction cannot re-sync the old
+ * price over it. Returns the HTTP status with the body, so a 404 (not this
+ * agent's listing) is told apart from the engine being unreachable, which
+ * throws.
+ *
+ * @param {number} propertyId
+ * @param {{price: number, priceOriginal: number, currency: 'USD'|'CDF', source: 'AGENT_DASHBOARD'|'ADMIN_DASHBOARD', agentId?: number|null}} change
+ * @returns {Promise<{status: number, body: object|null}>}
+ */
+export async function setEnginePrice(propertyId, { price, priceOriginal, currency, source, agentId = null }) {
+  const res = await fetch(`${base()}/admin/properties/${Number(propertyId)}/price`, {
+    method: 'PATCH',
+    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ price, price_original: priceOriginal, currency, source, agent_id: agentId }),
+    cache: 'no-store',
+    signal: AbortSignal.timeout(15_000),
+  });
+  const body = await res.json().catch(() => null);
+  return { status: res.status, body };
+}

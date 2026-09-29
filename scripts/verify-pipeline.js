@@ -6854,7 +6854,7 @@ console.log('\n2. services/openai.js');
     const names = sched.JOBS.map((j) => j.name);
     assert.deepStrictEqual(names, [
       'search-alerts', 'viewing-sla', 'viewing-checkin', 'ops-health-alerts', 'listing-stats-rollup', 'trusted-auto-approve', 'agent-daily-digest',
-      'listing-availability-check', 'sales-commissions',
+      'listing-availability-check', 'market-snapshot', 'sales-commissions',
     ]);
   });
 
@@ -9480,7 +9480,8 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(sqls[0], 'BEGIN');
     assert.match(sqls[1], /set_config\('lukka\.change_source', \$1, true\)/);
     assert.deepStrictEqual(statements[1].params, ['WHATSAPP_AGENT_REPLY']);
-    assert.match(sqls[2], /SET price = \$1, price_original = \$1, currency = 'USD'/);
+    assert.match(sqls[2], /SET price = \$1, price_original = \$3, currency = \$4/);
+    assert.deepStrictEqual(statements[2].params, [1350, 4077, 1350, 'USD', null]);
     assert.strictEqual(sqls[sqls.length - 1], 'COMMIT');
   });
 
@@ -9681,6 +9682,116 @@ console.log('\n2. services/openai.js');
     assert.match(msg, /Rapport propriétaire : https:\/\/lukkaplace\.com\/compte\/agent\/biens\/310/);
     assert.match(msg, /• Studio à Gombe : 30 vues · 3 WhatsApp\n/, 'an unknown count is left out, not 0');
     assert.ok(!msg.includes('Villa sans vue'), 'a listing nobody saw gets no line');
+  });
+
+  // -------------------------------------------------------------------------
+  // 42. Market record: dual-write price endpoint, history, monthly snapshots
+  // -------------------------------------------------------------------------
+
+  console.log('\n42. Market record (price endpoint, history, snapshots)');
+
+  const snapshot = require('../services/marketSnapshot');
+  const historyMigration = fs.readFileSync(path.join(__dirname, '..', 'migrations', '20260929_market_history.sql'), 'utf8');
+
+  await checkAsync('a web price change keeps the authored francs and is scoped to the agent\'s own listing', async () => {
+    const statements = [];
+    const client = {
+      async query(sql, params) {
+        const text = String(sql).replace(/\s+/g, ' ').trim();
+        statements.push({ sql: text, params });
+        if (text.startsWith('UPDATE properties p SET price')) return { rows: [{ previous_price: '400' }], rowCount: 1 };
+        return { rows: [], rowCount: 0 };
+      },
+      release() {},
+    };
+    const result = await pgAvail.setListingPrice(4090, 450, {
+      source: 'AGENT_DASHBOARD', priceOriginal: 1040000, currency: 'CDF', agentId: 37,
+      pool: { connect: async () => client, query: client.query }, sqlite: dbService.db,
+    });
+    assert.strictEqual(result.updated, true);
+    const update = statements.find((s) => s.sql.startsWith('UPDATE properties p SET price'));
+    assert.match(update.sql, /\$5::bigint IS NULL OR agent_id = \$5::bigint/);
+    assert.deepStrictEqual(update.params, [450, 4090, 1040000, 'CDF', 37]);
+    await assert.rejects(() => pgAvail.setListingPrice(1, 450, { source: 'AGENT_DASHBOARD', currency: 'EUR' }), /unknown currency/);
+  });
+
+  check('the price endpoint is registered and only takes the two dashboard sources', () => {
+    const source = fs.readFileSync(path.join(__dirname, '..', 'routes', 'admin.js'), 'utf8');
+    assert.match(source, /router\.patch\('\/properties\/:id\/price'/);
+    assert.match(source, /\['AGENT_DASHBOARD', 'ADMIN_DASHBOARD'\]\.includes\(source\)/);
+    assert.match(source, /agent_id is required for an agent price change/);
+  });
+
+  check('history triggers record every writer, only on a real change, and never fail the write', () => {
+    assert.match(historyMigration, /AFTER INSERT OR UPDATE OF price, price_original, currency, purpose, price_period ON properties/);
+    assert.match(historyMigration, /AFTER INSERT OR UPDATE OF status, approve_status, listing_status, archived_at ON properties/);
+    assert.match(historyMigration, /NEW\.price IS DISTINCT FROM OLD\.price/);
+    assert.match(historyMigration, /EXCEPTION WHEN OTHERS THEN\s+RAISE WARNING 'property_price_history/);
+    assert.match(historyMigration, /current_setting\('lukka\.change_source', true\)/);
+    assert.ok(!/^\s*SET\s+/mi.test(historyMigration), 'never a bare SET on the pooler');
+    assert.ok(!/REFERENCES properties/.test(historyMigration.split('market_snapshots_monthly')[0]),
+      'history outlives a deleted listing');
+  });
+
+  check('months are Kinshasa months; the job writes the one that just ended', () => {
+    assert.deepStrictEqual(snapshot.monthBounds('2026-09'), {
+      month: '2026-09-01', start: '2026-08-31T23:00:00.000Z', end: '2026-09-30T23:00:00.000Z',
+    });
+    assert.strictEqual(snapshot.previousMonth(new Date('2026-10-01T02:30:00Z')).month, '2026-09-01');
+    assert.strictEqual(snapshot.previousMonth(new Date('2026-01-01T02:00:00Z')).month, '2025-12-01');
+    assert.throws(() => snapshot.monthBounds('2026-9'), /YYYY-MM/);
+  });
+
+  check('snapshots never rewrite a month, exclude test agents, and keep withdrawals apart from closes', () => {
+    const sql = snapshot.SUPPLY_SQL.replace(/\s+/g, ' ');
+    assert.match(sql, /ON CONFLICT DO NOTHING/);
+    assert.match(sql, /NOT COALESCE\(a\.is_test, false\)/);
+    assert.match(sql, /b\.listing_status IS DISTINCT FROM 'closed'\) AS withdrawn_in_month/);
+    assert.match(sql, /p\.price_period = 'an' THEN p\.price \/ 12\.0/);
+    assert.match(sql, /steps\.price < steps\.previous/);
+    assert.strictEqual(snapshot.bedsBucket(null), 'na');
+    assert.strictEqual(snapshot.bedsBucket(6), '4+');
+    assert.strictEqual(snapshot.bedsBucket('2'), '2');
+  });
+
+  check('demand counts search requests once per commune they name, never visit requests', () => {
+    const inMonth = '2031-03-10 10:00:00';
+    const add = (data) => dbService.db.prepare(
+      `INSERT INTO leads (wa_id, source, property_id, transaction_type, commune, communes, bedrooms, created_at)
+       VALUES (@wa_id, @source, @property_id, @transaction_type, @commune, @communes, @bedrooms, @created_at)`,
+    ).run({ source: 'web', property_id: null, commune: null, communes: null, bedrooms: null, transaction_type: null, created_at: inMonth, ...data });
+    add({ wa_id: '243811420001', transaction_type: 'location', commune: 'Limete', communes: JSON.stringify(['Limete', 'Lemba']), bedrooms: 2 });
+    add({ wa_id: '243811420002', transaction_type: 'vente', commune: 'Gombe', bedrooms: 5 });
+    add({ wa_id: '243811420003', transaction_type: 'location', commune: 'Limete', property_id: 310, source: 'listing-visit-request' });
+    const counts = snapshot.leadDemand('2031-02-28T23:00:00.000Z', '2031-03-31T22:00:00.000Z');
+    assert.strictEqual(counts.get('Limete|rent|2'), 1);
+    assert.strictEqual(counts.get('Lemba|rent|2'), 1);
+    assert.strictEqual(counts.get('Gombe|sale|4+'), 1);
+    assert.strictEqual([...counts.values()].reduce((a, b) => a + b, 0), 3, 'the visit request is not demand');
+  });
+
+  await checkAsync('a snapshot run writes supply and demand in one transaction; a dry run writes nothing', async () => {
+    const statements = [];
+    const client = {
+      async query(sql) {
+        const text = String(sql).replace(/\s+/g, ' ').trim();
+        statements.push(text);
+        if (text.startsWith('WITH base AS')) return { rows: [], rowCount: 12 };
+        if (text.startsWith('SELECT COALESCE(c.commune')) return { rows: [{ commune: 'Limete', purpose: 'rent', beds_bucket: '2', searches: 41, zero_result: 41 }] };
+        if (text.startsWith('INSERT INTO market_demand_monthly')) return { rows: [], rowCount: 1 };
+        return { rows: [], rowCount: 0 };
+      },
+      release() {},
+    };
+    const pool = { connect: async () => client };
+    const result = await snapshot.runMarketSnapshot({ month: '2031-03', pool });
+    assert.deepStrictEqual([result.month, result.supplyRows], ['2031-03-01', 12]);
+    assert.ok(result.demandRows >= 3, 'leads and searches both land');
+    assert.strictEqual(statements[0], 'BEGIN');
+    assert.strictEqual(statements[statements.length - 1], 'COMMIT');
+    statements.length = 0;
+    await snapshot.runMarketSnapshot({ month: '2031-03', pool, dryRun: true });
+    assert.strictEqual(statements[statements.length - 1], 'ROLLBACK');
   });
 
   console.log(`\n${'-'.repeat(60)}`);

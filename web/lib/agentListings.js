@@ -1,4 +1,5 @@
 import 'server-only';
+import { applyPriceChange } from './enginePrice';
 import { getPool } from './db';
 
 /**
@@ -334,6 +335,14 @@ export async function updateListing(agentId, propertyId, {
   title, description, commune, price, priceOriginal, currency, beds, bath, area, quartier,
   unitsCount, depositMonths, amenityIds, reference = null,
 }) {
+  // A changed price goes through the engine first so its SQLite copy agrees
+  // (lib/enginePrice.js); an unchanged one never calls it. Throws
+  // PriceSyncError when the engine cannot take the change.
+  const priced = await applyPriceChange({
+    propertyId, price, priceOriginal, currency, agentId, source: 'AGENT_DASHBOARD',
+  });
+  if (!priced.owned) return false;
+
   const pool = getPool();
   const client = await pool.connect();
 
@@ -670,11 +679,9 @@ export async function setListingAmenities(propertyId, amenityIds, existingClient
  * @returns {Promise<boolean>} false when the listing isn't this agent's.
  */
 export async function updateListingPrice(agentId, propertyId, { price, priceOriginal, currency }) {
-  const pool = getPool();
-  const { rowCount } = await pool.query(
-    `UPDATE properties SET price = $1, price_original = $2, currency = $3, updated_at = NOW()
-     WHERE id = $4 AND agent_id = $5`,
-    [price, priceOriginal, currency, propertyId, agentId],
-  );
-  return rowCount > 0;
+  // The engine writes both stores (lib/enginePrice.js), scoped to this agent.
+  const { owned } = await applyPriceChange({
+    propertyId, price, priceOriginal, currency, agentId, source: 'AGENT_DASHBOARD',
+  });
+  return owned;
 }

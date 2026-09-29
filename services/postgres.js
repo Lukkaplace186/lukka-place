@@ -633,6 +633,7 @@ async function archivePropertyAsWithdrawn(remotePropertyId) {
 
 /** Where an asking-price change came from. Read by the price-history trigger. */
 const PRICE_CHANGE_SOURCES = ['WHATSAPP_AGENT_REPLY', 'AGENT_DASHBOARD', 'ADMIN_DASHBOARD'];
+const PRICE_CURRENCIES = ['USD', 'CDF'];
 
 /**
  * Change a published listing's asking price in BOTH stores.
@@ -666,10 +667,19 @@ const PRICE_CHANGE_SOURCES = ['WHATSAPP_AGENT_REPLY', 'AGENT_DASHBOARD', 'ADMIN_
  *
  * @param {number} propertyId  properties.id
  * @param {number} price       USD, > 0
- * @param {{source: string, pool?: import('pg').Pool, sqlite?: import('better-sqlite3').Database}} options
+ * Web price edits reach this through `PATCH /admin/properties/:id/price`
+ * (routes/admin.js), passing what the person typed as `priceOriginal` +
+ * `currency` (a franc price keeps its francs; `price` is always the USD
+ * figure) and, for an agent, their `agentId` — then the UPDATE only matches
+ * their own listing.
+ *
+ * @param {{source: string, priceOriginal?: number, currency?: 'USD'|'CDF', agentId?: number|null,
+ *          pool?: import('pg').Pool, sqlite?: import('better-sqlite3').Database}} options
  * @returns {Promise<{updated: boolean, previousPrice: number|null, sqliteRows: number}>}
  */
-async function setListingPrice(propertyId, price, { source, pool = null, sqlite = null } = {}) {
+async function setListingPrice(propertyId, price, {
+  source, priceOriginal = null, currency = 'USD', agentId = null, pool = null, sqlite = null,
+} = {}) {
   const id = Number(propertyId);
   const amount = Number(price);
   if (!Number.isSafeInteger(id) || id <= 0) throw new Error('setListingPrice requires a property id');
@@ -677,6 +687,10 @@ async function setListingPrice(propertyId, price, { source, pool = null, sqlite 
   if (!PRICE_CHANGE_SOURCES.includes(source)) {
     throw new Error(`setListingPrice: unknown source '${source}' (expected one of ${PRICE_CHANGE_SOURCES.join(', ')})`);
   }
+  if (!PRICE_CURRENCIES.includes(currency)) throw new Error(`setListingPrice: unknown currency '${currency}'`);
+  const original = priceOriginal == null ? amount : Number(priceOriginal);
+  if (!Number.isFinite(original) || original <= 0) throw new Error('setListingPrice requires a real positive original price');
+  const owner = agentId == null ? null : Number(agentId);
   const pg = pool || (isConfigured() ? getPool() : null);
   if (!pg) return { updated: false, previousPrice: null, sqliteRows: 0 };
   // eslint-disable-next-line global-require
@@ -691,11 +705,12 @@ async function setListingPrice(propertyId, price, { source, pool = null, sqlite 
     await client.query("SELECT set_config('lukka.change_source', $1, true)", [source]);
     const { rows } = await client.query(
       `UPDATE properties p
-          SET price = $1, price_original = $1, currency = 'USD', updated_at = NOW()
-         FROM (SELECT id, price AS previous_price FROM properties WHERE id = $2 FOR UPDATE) prev
+          SET price = $1, price_original = $3, currency = $4, updated_at = NOW()
+         FROM (SELECT id, price AS previous_price FROM properties
+                WHERE id = $2 AND ($5::bigint IS NULL OR agent_id = $5::bigint) FOR UPDATE) prev
         WHERE p.id = prev.id
         RETURNING prev.previous_price`,
-      [amount, id],
+      [amount, id, original, currency, owner],
     );
     if (!rows.length) {
       await client.query('ROLLBACK');

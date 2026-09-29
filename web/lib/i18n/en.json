@@ -1357,7 +1357,8 @@
         "thin_photos": "Fewer than 3 photos",
         "missing_description": "Description missing",
         "missing_deposit": "Deposit not stated",
-        "no_map_pin": "Quartier missing (map)"
+        "no_map_pin": "Quartier missing (map)",
+        "missing_area": "Floor area missing"
       },
       "hints": {
         "no_communes": "Without a commune you receive no automatically matched customer requests.",
@@ -1370,7 +1371,8 @@
         "thin_photos": "At least 3 photos for good visibility.",
         "missing_description": "Describe the property in a few lines.",
         "missing_deposit": "State the deposit required (in months).",
-        "no_map_pin": "The quartier is used to place the property on the map."
+        "no_map_pin": "The quartier is used to place the property on the map.",
+        "missing_area": "Add the floor area in m² so your price per m² can be compared with the market."
       },
       "bannerTitle": "Profile Incomplete:",
       "bannerCount": {
@@ -2935,7 +2937,12 @@
       "transferHint": "to do before suspending an account: with no agent attached, every listing falls back to the central WhatsApp number.",
       "chooseAgent": "Choose an agent…",
       "transfer": "Transfer",
-      "subscriptionHistory": "Subscription History"
+      "subscriptionHistory": "Subscription History",
+      "testAccount": "Test account",
+      "testAccountHint": "Its listings are excluded from market statistics, exports and reports. To take them off the site, archive them.",
+      "markedTest": "Account marked as a test account.",
+      "unmarkedTest": "The account counts in market data again.",
+      "testAccountUnavailable": "Unavailable until the market-data migration has been applied."
     },
     "cms": {
       "exchangeRate": "Exchange Rate (USD → CDF)",
@@ -4474,6 +4481,61 @@
       "budgetOver": "{min} and over",
       "empty": "No requests in this period.",
       "method": "Source: requests recorded on Lukka Place (“Find it for me” form, WhatsApp assistant, agent forms). A multi-commune request counts in each commune. Budget: the stated maximum, else the minimum. Yearly rents are compared per month."
+    },
+    "marketTools": {
+      "sectionTitle": "Trends and Demand",
+      "priceCheckLink": "Check a price",
+      "evolutionTitle": "Monthly Trend",
+      "evolutionTitleFor": "Monthly Trend — {commune}",
+      "pickCommune": "Pick a commune above to see its month-by-month trend.",
+      "evolutionNote": "Recorded on the 1st of each month. Medians from {min} listings, otherwise \"—\" (sample in brackets).",
+      "evolutionEmpty": "No month recorded yet.",
+      "notMigrated": "Not available yet: the market-data migration has not been applied.",
+      "colMonth": "Month",
+      "colActive": "Live",
+      "colNew": "New",
+      "colMedianAsk": "Median asking",
+      "colPerSqm": "Price per m²",
+      "colPriceCuts": "Price cuts",
+      "colClosed": "Closed",
+      "colAchieved": "Median achieved",
+      "colDays": "Days to close",
+      "colWithdrawn": "Withdrawn",
+      "colDemand": "Requests · searches",
+      "unmetTitle": "Unmet Demand (30 Days)",
+      "unmetNote": "/listings searches that found nothing, counted once per visitor.",
+      "unmetEmpty": "No empty searches in this period.",
+      "anyPurpose": "Rent or sale",
+      "colPurpose": "Transaction",
+      "colBeds": "Bedrooms",
+      "colBudget": "Budget",
+      "colPeople": "People",
+      "colSearches": "Searches",
+      "priceCheckTitle": "Check a Price",
+      "priceCheckSubtitle": "Against comparable live listings, recorded closes and demand. Figures from {min} listings.",
+      "type": "Type",
+      "anyType": "Any type",
+      "area": "Area (m²)",
+      "price": "Price (USD){period}",
+      "perMonth": " / month",
+      "check": "Check",
+      "verdictThin": "Not enough comparable listings in {commune} ({n}, minimum {min}).",
+      "medianAsk": "Median asking",
+      "sample": "{n} comparable listings",
+      "percentile": "Position",
+      "percentileHint": "Share of comparables priced lower",
+      "noSqmMedian": "No per-m² median (areas missing)",
+      "sqmMedian": "Median: {median} / m²",
+      "closedTitle": "Median Achieved",
+      "closesThin": "{n} closes — not enough",
+      "closesDays": "{n} closes · {days} days typical",
+      "demandUnavailable": "Demand: not measured yet.",
+      "demandLine": "Demand over 90 days in {commune} at this budget: {people} people, {unserved} of them found nothing.",
+      "verdict": {
+        "above": "{pct} above the median of {n} comparable listings ({scope}): {median}.",
+        "below": "{pct} below the median of {n} comparable listings ({scope}): {median}.",
+        "inline": "In line with the market: median of {n} comparable listings ({scope}): {median}."
+      }
     }
   },
   "errors": {
@@ -4541,7 +4603,8 @@
     "actionFailed": "The action failed.",
     "tooManyPhotos": "Maximum {max} photos per listing.",
     "uploadTooLarge": "Your photos total {total} MB, over the {max} MB limit per upload. Remove a few, or save them in two goes.",
-    "submissionFailed": "The upload failed. Your session may have expired, or the connection dropped — reload the page and try again."
+    "submissionFailed": "The upload failed. Your session may have expired, or the connection dropped — reload the page and try again.",
+    "priceSyncUnavailable": "The price could not be saved right now (server unavailable). Try again in a moment."
   },
   "auth": {
     "forgotPassword": "Forgotten Password",

@@ -679,6 +679,25 @@ export async function peekAgentActivation({ phone, token }) {
  * getAgentById's fields plus the columns that only /admin touches
  * (activation state, onboarding provenance, serviced territory).
  */
+/**
+ * Mark an account as a test / demo account (`agents.is_test`,
+ * migrations/20260929_market_history.sql). Its listings then never enter a
+ * market figure, benchmark, snapshot or export (lib/marketExclusions.js). The
+ * listings themselves are untouched — hiding them is a separate, deliberate
+ * archive. `unavailable` before the migration.
+ *
+ * @returns {Promise<'ok'|'not_found'|'unavailable'>}
+ */
+export async function setAgentTestFlag(agentId, isTest) {
+  try {
+    const { rowCount } = await getPool().query('UPDATE agents SET is_test = $2 WHERE id = $1', [Number(agentId), Boolean(isTest)]);
+    return rowCount ? 'ok' : 'not_found';
+  } catch (err) {
+    if (err?.code === '42703') return 'unavailable';
+    throw err;
+  }
+}
+
 export async function getAgentForAdmin(agentId) {
   const id = Number.parseInt(agentId, 10);
   if (!Number.isFinite(id)) return null;
@@ -688,7 +707,8 @@ export async function getAgentForAdmin(agentId) {
     `SELECT ${AGENT_FIELDS},
             a.serviced_communes, a.agency_name, a.onboarding_source,
             a.activation_expires_at, a.password_hash IS NOT NULL AS has_password,
-            a.locked_until, a.failed_login_count, a.created_at
+            a.locked_until, a.failed_login_count, a.created_at,
+            COALESCE((to_jsonb(a) ->> 'is_test')::boolean, false) AS is_test
      ${AGENT_JOINS}
      WHERE a.id = $1`,
     [id],

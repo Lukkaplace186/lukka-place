@@ -27,7 +27,7 @@ const CONTENT_LANGUAGE_ID = 20;
  * a cover and no gallery rows still has one photo, not zero.
  */
 const LISTING_GAP_SQL = `
-  SELECT p.id, pc.title, pc.description, p.price, p.purpose, p.deposit_months,
+  SELECT p.id, pc.title, pc.description, p.price, p.purpose, p.deposit_months, p.area,
          p.latitude, p.longitude, p.quartier,
          GREATEST(
            (SELECT count(*) FROM property_slider_images psi WHERE psi.property_id = p.id),

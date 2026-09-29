@@ -1,5 +1,6 @@
 import 'server-only';
 import { getPool } from './db';
+import { NOT_TEST_LISTING_SQL } from './marketExclusions';
 
 /**
  * Internal benchmark pricing, built from real closed transactions.
@@ -80,6 +81,7 @@ const BENCHMARK_SQL = `
     LEFT JOIN property_category_contents catc
       ON catc.category_id = cat.id AND catc.language_id = 26
     WHERE p.approve_status = 1
+      AND ${NOT_TEST_LISTING_SQL}
       AND p.listing_status = 'closed'
       -- No imputation: a close with no recorded figure cannot contribute to
       -- an achieved-price median, and must not be stood in for by the asking

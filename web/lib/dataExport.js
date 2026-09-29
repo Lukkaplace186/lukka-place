@@ -1,5 +1,6 @@
 import 'server-only';
 import { getPool } from './db';
+import { NOT_TEST_LISTING_SQL } from './marketExclusions';
 
 /**
  * Listing-level market data export.
@@ -174,6 +175,8 @@ const EXPORT_SQL = `
   --
   -- Consumers who want only live supply filter on "currently_listed".
   WHERE p.approve_status = 1
+    -- Test and demo accounts never reach the dataset (lib/marketExclusions.js).
+    AND ${NOT_TEST_LISTING_SQL}
   ORDER BY p.created_at DESC
 `;
 

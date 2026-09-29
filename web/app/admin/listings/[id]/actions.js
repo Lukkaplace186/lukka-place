@@ -1,5 +1,6 @@
 'use server';
 
+import { PriceSyncError } from '@/lib/enginePrice';
 import { revalidatePath } from 'next/cache';
 import { requireAdmin } from '@/lib/adminSession';
 import { recordAudit } from '@/lib/adminAudit';
@@ -111,7 +112,13 @@ export async function adminUpdateListingAction(propertyId, validCommunes, validC
       latitude: text(formData, 'latitude', 32),
       longitude: text(formData, 'longitude', 32),
     };
-    const updated = await adminUpdateListing(propertyId, patch);
+    let updated;
+    try {
+      updated = await adminUpdateListing(propertyId, patch);
+    } catch (err) {
+      if (err instanceof PriceSyncError) return { ok: false, error: t('errors.priceSyncUnavailable') };
+      throw err;
+    }
     if (!updated) return { ok: false, error: t('errors.listingNotFound') };
 
     // Record which fields actually changed, with before/after for the ones an

@@ -278,6 +278,16 @@ registerJob({
 }
 
 /**
+ * The monthly market record (services/marketSnapshot.js): on the 1st at 3h
+ * Kinshasa, the month that just ended is written once and never rewritten.
+ */
+{
+  // eslint-disable-next-line global-require
+  const { marketSnapshotJob } = require('./marketSnapshot');
+  registerJob(marketSnapshotJob);
+}
+
+/**
  * The daily sales commission run (launch policy + subscription plan). Like the
  * alert sweep it calls web's own endpoint rather than reimplementing the rules:
  * the tiers, the confirmed-listing definition and the ledger all live in

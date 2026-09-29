@@ -9,6 +9,7 @@ import {
   issueAgentActivationLink,
   reassignAgentListings,
   getAgentById,
+  setAgentTestFlag,
 } from '@/lib/agents';
 import { adminSetAccountPassword } from '@/lib/adminPasswordReset';
 import { getT } from '@/lib/i18n/server';
@@ -96,6 +97,22 @@ export async function adminSetAgentPasswordAction(agentId, formData) {
     return result;
   } catch (err) {
     console.error(`[admin/agents] password reset #${agentId} failed: ${err.message}`);
+    return { ok: false, error: err.message || t('errors.actionFailed') };
+  }
+}
+
+/** Test / demo account: its listings are kept out of every market figure. */
+export async function adminSetAgentTestAction(agentId, isTest) {
+  const t = await getT();
+  try {
+    const session = await requireAdmin('agents.manage');
+    const result = await setAgentTestFlag(agentId, isTest);
+    if (result === 'unavailable') return { ok: false, error: t('admin.agentPanel.testAccountUnavailable') };
+    if (result !== 'ok') return { ok: false, error: t('errors.agentNotFound') };
+    await recordAudit(session, { action: isTest ? 'agent.marked_test' : 'agent.unmarked_test', entityType: 'agent', entityId: agentId });
+    revalidateAgent(agentId);
+    return { ok: true };
+  } catch (err) {
     return { ok: false, error: err.message || t('errors.actionFailed') };
   }
 }

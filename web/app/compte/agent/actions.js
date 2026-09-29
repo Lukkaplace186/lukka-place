@@ -55,6 +55,7 @@ import { AGENT_SETTABLE_VIEWING_STATUSES, canAgentSetStatus } from '@/lib/viewin
 import { validateAgreedSlot } from '@/lib/visitAgenda';
 import { findOwnedViewingRequest } from '@/lib/agentViewingOwnership';
 import { recordDashboardAvailabilityAnswer } from '@/lib/listingAvailability';
+import { PriceSyncError } from '@/lib/enginePrice';
 import { MAX_AVATAR_BYTES, megabytes, validatePhotoSelection } from '@/lib/uploadLimits.mjs';
 
 const ALLOWED_AVATAR_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
@@ -933,10 +934,16 @@ export async function updateListingAction(propertyId, validCommunes, formData) {
     if (photoProblem) return photoProblem;
   }
 
-  const owned = await updateListing(agentId, propertyId, {
-    title, description, commune, price, priceOriginal, currency, beds, bath, area, quartier,
-    unitsCount, depositMonths, amenityIds, reference,
-  });
+  let owned;
+  try {
+    owned = await updateListing(agentId, propertyId, {
+      title, description, commune, price, priceOriginal, currency, beds, bath, area, quartier,
+      unitsCount, depositMonths, amenityIds, reference,
+    });
+  } catch (err) {
+    if (err instanceof PriceSyncError) return { ok: false, error: t('errors.priceSyncUnavailable') };
+    throw err;
+  }
   if (!owned) return { ok: false, error: t('errors.listingNotFoundOrNotYours') };
 
   let photoWarning = false;
@@ -1038,7 +1045,13 @@ export async function updateListingPriceAction(propertyId, formData) {
     }
   }
 
-  const owned = await updateListingPrice(agentId, propertyId, { price, priceOriginal: priceInput, currency });
+  let owned;
+  try {
+    owned = await updateListingPrice(agentId, propertyId, { price, priceOriginal: priceInput, currency });
+  } catch (err) {
+    if (err instanceof PriceSyncError) return { ok: false, error: t('errors.priceSyncUnavailable') };
+    throw err;
+  }
   if (!owned) return { ok: false, error: t('errors.listingNotFoundOrNotYours') };
 
   revalidateListingSurfaces(agentId, propertyId);

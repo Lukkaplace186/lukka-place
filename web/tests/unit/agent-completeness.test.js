@@ -28,6 +28,7 @@ const COMPLETE_LISTING = {
   price: 700,
   purpose: 'rent',
   deposit_months: 3,
+  area: '85',
   latitude: '-4.32',
   longitude: '15.30',
   quartier: 'Righini',

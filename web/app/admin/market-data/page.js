@@ -14,6 +14,7 @@ import EmptyChart from './EmptyChart';
 import InfoTip from './InfoTip';
 import PricingBenchmarks from './PricingBenchmarks';
 import PublishedPriceStats from './PublishedPriceStats';
+import { MarketEvolution, UnmetDemand } from './MarketEvolution';
 
 export const metadata = {
   title: 'Données marché — Admin — Lukka Place',
@@ -92,6 +93,18 @@ export default async function AdminMarketDataPage({ searchParams }) {
       </div>
 
       <PublishedPriceStats purpose={purpose} commune={priceCommune} params={priceParams} />
+
+      {/* The recorded monthly series and the demand nobody supplies —
+          services/marketSnapshot.js and search_events. The price check is the
+          tool the sales team runs with a developer or a bank. */}
+      <div className="flex flex-wrap items-center gap-3 border-t border-line pt-6">
+        <h2 className="u-title-section text-ink">{t('admin.marketTools.sectionTitle')}</h2>
+        <Link href="/admin/market-data/prix" className="u-micro-strong rounded-lg border border-line bg-surface px-3 py-1.5 text-ink hover:border-blue">
+          {t('admin.marketTools.priceCheckLink')}
+        </Link>
+      </div>
+      <MarketEvolution commune={priceCommune} purpose={purpose} />
+      <UnmetDemand />
 
       <div className="flex items-center gap-1.5 border-t border-line pt-6">
         <h2 className="u-title-section text-ink">{t('admin.marketData.closedSectionTitle')}</h2>

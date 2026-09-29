@@ -1357,7 +1357,8 @@
         "thin_photos": "Moins de 3 photos",
         "missing_description": "Description manquante",
         "missing_deposit": "Garantie non précisée",
-        "no_map_pin": "Quartier manquant (carte)"
+        "no_map_pin": "Quartier manquant (carte)",
+        "missing_area": "Surface non précisée"
       },
       "hints": {
         "no_communes": "Sans commune, vous ne recevez aucune demande client attribuée automatiquement.",
@@ -1370,7 +1371,8 @@
         "thin_photos": "Au moins 3 photos pour une bonne visibilité.",
         "missing_description": "Décrivez le bien en quelques lignes.",
         "missing_deposit": "Indiquez la garantie demandée (en mois).",
-        "no_map_pin": "Le quartier sert à placer le bien sur la carte."
+        "no_map_pin": "Le quartier sert à placer le bien sur la carte.",
+        "missing_area": "Indiquez la surface en m² : elle permet de comparer votre prix au m² avec le marché."
       },
       "bannerTitle": "Profil incomplet :",
       "bannerCount": {
@@ -2935,7 +2937,12 @@
       "transferHint": "faire avant de suspendre un compte : sans agent attribué, chaque annonce retombe sur le numéro WhatsApp central.",
       "chooseAgent": "Choisir un agent…",
       "transfer": "Transférer",
-      "subscriptionHistory": "Historique d’abonnement"
+      "subscriptionHistory": "Historique d’abonnement",
+      "testAccount": "Compte de test",
+      "testAccountHint": "Ses annonces sont exclues des statistiques du marché, des exports et des rapports. Pour les retirer du site, archivez-les.",
+      "markedTest": "Compte marqué comme compte de test.",
+      "unmarkedTest": "Le compte compte à nouveau dans les données du marché.",
+      "testAccountUnavailable": "Indisponible tant que la migration des données du marché n’a pas été appliquée."
     },
     "cms": {
       "exchangeRate": "Taux de change (USD → CDF)",
@@ -4474,6 +4481,61 @@
       "budgetOver": "{min} et plus",
       "empty": "Aucune demande sur cette période.",
       "method": "Source : demandes enregistrées sur Lukka Place (formulaire « Trouver pour moi », assistant WhatsApp, formulaires agents). Une demande multi-communes compte dans chaque commune. Budget : le maximum indiqué, sinon le minimum. Les loyers annuels sont comparés au mois."
+    },
+    "marketTools": {
+      "sectionTitle": "Évolution et demande",
+      "priceCheckLink": "Vérifier un prix",
+      "evolutionTitle": "Évolution mensuelle",
+      "evolutionTitleFor": "Évolution mensuelle — {commune}",
+      "pickCommune": "Choisissez une commune ci-dessus pour voir son évolution mois par mois.",
+      "evolutionNote": "Relevé figé chaque 1er du mois. Médianes à partir de {min} annonces, sinon « — » (effectif entre parenthèses).",
+      "evolutionEmpty": "Aucun mois enregistré pour l’instant.",
+      "notMigrated": "Pas encore disponible : la migration des données du marché n’a pas été appliquée.",
+      "colMonth": "Mois",
+      "colActive": "En ligne",
+      "colNew": "Nouvelles",
+      "colMedianAsk": "Médiane demandée",
+      "colPerSqm": "Prix au m²",
+      "colPriceCuts": "Baisses de prix",
+      "colClosed": "Conclues",
+      "colAchieved": "Médiane conclue",
+      "colDays": "Jours avant conclusion",
+      "colWithdrawn": "Retirées",
+      "colDemand": "Demandes · recherches",
+      "unmetTitle": "Demande sans offre (30 jours)",
+      "unmetNote": "Recherches sur /listings qui n’ont trouvé aucun bien, comptées une fois par visiteur.",
+      "unmetEmpty": "Aucune recherche sans résultat sur la période.",
+      "anyPurpose": "Location ou vente",
+      "colPurpose": "Transaction",
+      "colBeds": "Chambres",
+      "colBudget": "Budget",
+      "colPeople": "Personnes",
+      "colSearches": "Recherches",
+      "priceCheckTitle": "Vérifier un prix",
+      "priceCheckSubtitle": "Comparé aux annonces en ligne comparables, aux transactions conclues et à la demande. Chiffres donnés à partir de {min} annonces.",
+      "type": "Type",
+      "anyType": "Tous types",
+      "area": "Surface (m²)",
+      "price": "Prix (USD){period}",
+      "perMonth": " / mois",
+      "check": "Vérifier",
+      "verdictThin": "Pas assez d’annonces comparables à {commune} ({n}, minimum {min}).",
+      "medianAsk": "Médiane demandée",
+      "sample": "{n} annonces comparables",
+      "percentile": "Position",
+      "percentileHint": "Part des comparables moins chères",
+      "noSqmMedian": "Pas de médiane au m² (surfaces manquantes)",
+      "sqmMedian": "Médiane : {median} / m²",
+      "closedTitle": "Médiane conclue",
+      "closesThin": "{n} transactions — pas assez",
+      "closesDays": "{n} transactions · {days} jours en moyenne",
+      "demandUnavailable": "Demande : pas encore mesurée.",
+      "demandLine": "Demande sur 90 jours à {commune} pour ce budget : {people} personnes, dont {unserved} sans résultat.",
+      "verdict": {
+        "above": "{pct} au-dessus de la médiane de {n} annonces comparables ({scope}) : {median}.",
+        "below": "{pct} en dessous de la médiane de {n} annonces comparables ({scope}) : {median}.",
+        "inline": "Au niveau du marché : médiane de {n} annonces comparables ({scope}) : {median}."
+      }
     }
   },
   "errors": {
@@ -4541,7 +4603,8 @@
     "actionFailed": "L'action a échoué.",
     "tooManyPhotos": "Maximum {max} photos par annonce.",
     "uploadTooLarge": "Vos photos totalisent {total} Mo, au-delà de la limite de {max} Mo par envoi. Retirez-en quelques-unes ou enregistrez-les en deux fois.",
-    "submissionFailed": "L’envoi a échoué. Votre session a peut-être expiré, ou la connexion a été interrompue — rechargez la page et réessayez."
+    "submissionFailed": "L’envoi a échoué. Votre session a peut-être expiré, ou la connexion a été interrompue — rechargez la page et réessayez.",
+    "priceSyncUnavailable": "Le prix n’a pas pu être enregistré pour le moment (serveur indisponible). Réessayez dans un instant."
   },
   "auth": {
     "forgotPassword": "Mot de passe oublié",

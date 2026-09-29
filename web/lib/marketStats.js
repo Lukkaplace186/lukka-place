@@ -1,5 +1,6 @@
 import 'server-only';
 import { getPool } from './db';
+import { NOT_TEST_LISTING_SQL } from './marketExclusions';
 
 /**
  * Asking-price statistics over PUBLISHED listings — /admin/market-data's top
@@ -52,6 +53,7 @@ const PUBLISHED_CTE = `
     WHERE p.status = 1 AND p.approve_status = 1
       AND p.purpose = $1
       AND p.price > 0
+      AND ${NOT_TEST_LISTING_SQL}
   )
 `;
 

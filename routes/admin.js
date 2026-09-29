@@ -1248,6 +1248,47 @@ router.post('/agents/claim-listings', async (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// Asking-price changes from web/ — one writer for both stores
+// ---------------------------------------------------------------------------
+
+/**
+ * PATCH /admin/properties/:id/price  { price, price_original?, currency?, source, agent_id? }
+ *
+ * Every price edit on lukkaplace.com (the agent's Mes biens cell and editor,
+ * the admin listing editor) comes through here, so the engine's SQLite
+ * `listings.price` changes with Postgres and a later syncListingToPostgres
+ * cannot put the old price back (postgres.setListingPrice). `agent_id` scopes
+ * the UPDATE to that agent's own listing; 404 when nothing matched.
+ */
+router.patch('/properties/:id/price', async (req, res) => {
+  const id = Number.parseInt(req.params.id, 10);
+  const price = Number(req.body?.price);
+  const source = String(req.body?.source || '');
+  const currency = String(req.body?.currency || 'USD').toUpperCase();
+  const agentId = req.body?.agent_id == null ? null : Number.parseInt(req.body.agent_id, 10);
+  const priceOriginal = req.body?.price_original == null ? null : Number(req.body.price_original);
+  if (!Number.isSafeInteger(id) || id <= 0 || !Number.isFinite(price) || price <= 0) {
+    return res.status(400).json({ success: false, error: 'a property id and a positive price are required' });
+  }
+  if (!['AGENT_DASHBOARD', 'ADMIN_DASHBOARD'].includes(source)) {
+    return res.status(400).json({ success: false, error: 'source must be AGENT_DASHBOARD or ADMIN_DASHBOARD' });
+  }
+  if (source === 'AGENT_DASHBOARD' && !Number.isSafeInteger(agentId)) {
+    return res.status(400).json({ success: false, error: 'agent_id is required for an agent price change' });
+  }
+  const pg = require('../services/postgres');
+  if (!pg.isConfigured()) return res.status(503).json({ success: false, error: 'Postgres is not configured' });
+  try {
+    const result = await pg.setListingPrice(id, price, { source, priceOriginal, currency, agentId });
+    if (!result.updated) return res.status(404).json({ success: false, error: 'listing not found' });
+    return res.json({ success: true, previousPrice: result.previousPrice, sqliteRows: result.sqliteRows });
+  } catch (err) {
+    console.error(`[admin] price change for property #${id} failed: ${err.message}`);
+    return res.status(/unknown|requires/.test(err.message) ? 400 : 500).json({ success: false, error: err.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Smart Paste (agent dashboard "Auto-Fill from WhatsApp Text", web/)
 // ---------------------------------------------------------------------------
 

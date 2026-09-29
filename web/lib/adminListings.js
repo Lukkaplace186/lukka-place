@@ -1,4 +1,5 @@
 import 'server-only';
+import { applyPriceChange } from './enginePrice';
 import { getPool } from './db';
 import { COMMUNE_AMENITY_IDS } from './agentListings';
 
@@ -99,6 +100,19 @@ export async function getCategoriesForAdmin() {
 export async function adminUpdateListing(propertyId, patch) {
   const id = Number.parseInt(propertyId, 10);
   if (!Number.isFinite(id)) return false;
+
+  // A changed price goes through the engine first (lib/enginePrice.js), so
+  // the engine's own copy of a WhatsApp listing cannot re-sync the old one.
+  if (patch.price != null) {
+    const priced = await applyPriceChange({
+      propertyId: id,
+      price: patch.price,
+      priceOriginal: patch.priceOriginal ?? null,
+      currency: patch.currency || 'USD',
+      source: 'ADMIN_DASHBOARD',
+    });
+    if (!priced.owned) return false;
+  }
 
   const pool = getPool();
   const client = await pool.connect();

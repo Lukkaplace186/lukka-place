@@ -2196,3 +2196,41 @@ and the code writes correctly before and after it runs). Write side is
   listing page would send a real page view.
 - Engine half (rollup columns): root CLAUDE.md, "Engagement tracking".
 - Tests: `tests/unit/engagement-tracking.test.js`.
+
+## Listing performance page and the owner's live report (2026-09-29)
+
+- **`/compte/agent/biens/[id]`** — the listing's own page for its agent
+  (404 unless `properties.agent_id` is the session's): status, days on market,
+  the full funnel for `?range=` 7d / 30d / 12m against the previous period of
+  the same length (`lib/listingPerformance.js` + `lib/listingFunnel.js`,
+  drawn by `components/listings/ListingFunnel.js`), the views chart
+  (`getAgentListingViewsSeries([id])`), the price against comparable live
+  listings, the owner's report link, edit / print links. Reached from the Mes
+  biens row menu ("Statistiques & rapport") and by tapping the view count.
+- **Funnel reads**: views / WhatsApp / saves / visit requests through
+  `getMandateCounts` (rollup while fresh); people, photo steps, calls and
+  shares from raw events. A figure whose column does not exist yet is `null` →
+  "non disponible", never 0. Steps measured only from `TRACKING_STARTED_AT`
+  (2026-09-29) carry a `*` and the page says so.
+- **Market position** (`MARKET_POSITION_SQL` / `pickMarketPosition`): public
+  listings, same purpose and commune, the listing itself excluded; the
+  narrowest of same type + bedrooms → same type → commune that reaches
+  `MARKET_MIN_SAMPLE` (5); rent per month. Below 5 at every level: the count,
+  no figure.
+- **Owner's live report** `/rapport/<id>-<signature>` (`app/(site)/rapport/[token]`,
+  `lib/reportLinks.js`, `migrations/20260929_property_report_links.sql`).
+  French always, `noindex`, `force-dynamic`, listing facts and counts only (no
+  customer data), any listing status. The signature is an HMAC of
+  (id, property id, nonce) under `REPORT_LINK_SECRET` (fallback
+  `AGENT_SESSION_SECRET`, prefixed) — the table stores no secret and the agent
+  can always be shown their link again. One active link per listing; "Nouveau
+  lien" revokes the old one. Openings by the listing's own agent are not
+  counted in `view_count`. Missing table → "unavailable" / 404, never a 500.
+  **Set `REPORT_LINK_SECRET` in production** so rotating the agent session
+  secret does not break every link already forwarded.
+- **The WhatsApp button opens the agent's own WhatsApp with no recipient** and
+  a French message; Lukka Place never messages the owner.
+- The weekly report caption now says the agent's own views are excluded.
+- The Monday digest lists up to 3 listings with their own counts and a link to
+  this page (root CLAUDE.md digest; §41 of verify-pipeline).
+- Tests: `tests/unit/listing-hub-report.test.js`.

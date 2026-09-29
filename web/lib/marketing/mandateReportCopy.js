@@ -124,8 +124,8 @@ export function buildMandateCaption(listing, report, counts) {
   if (report.live) lines.push(`👉 ${listingPublicUrl(listing.id, { source: REPORT_UTM_SOURCE })}`);
   lines.push(
     '',
-    'ℹ️ Ce que ces chiffres comptent : les ouvertures de la page de l’annonce sur lukkaplace.com (y compris celles de l’agent), les appuis sur son bouton WhatsApp, les mises en favori et les demandes de visite reçues via Lukka Place.',
-    'Ce qu’ils ne comptent pas : les appels et messages envoyés directement à l’agent, ni les personnes qui ont vu l’annonce sur un statut ou dans un groupe sans ouvrir le lien.',
+    'ℹ️ Ce que ces chiffres comptent : les ouvertures de la page de l’annonce sur lukkaplace.com (hors celles de l’agent lui-même), les appuis sur son bouton WhatsApp, les mises en favori et les demandes de visite reçues via Lukka Place.',
+    'Ce qu’ils ne comptent pas : les appels et messages envoyés à l’agent sans passer par la page, ni les personnes qui ont vu l’annonce sur un statut ou dans un groupe sans ouvrir le lien.',
   );
   if (report.shareText) lines.push(SHARE_COUNT_DEFINITION);
   return lines.join('\n');

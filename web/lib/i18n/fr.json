@@ -805,7 +805,8 @@
         "rejected": "Refusée",
         "archived": "Archivée",
         "sold": "Vendu"
-      }
+      },
+      "performance": "Statistiques & rapport"
     },
     "leads": {
       "title": "Demandes",
@@ -1912,6 +1913,56 @@
           "deleteButton": "Supprimer"
         },
         "changesIntro": "Notre équipe demande quelques corrections ({date}) :"
+      }
+    },
+    "hub": {
+      "metaTitle": "Performance de l’annonce",
+      "title": "Performance",
+      "funnelTitle": "Ce que l’annonce a produit",
+      "previousPeriod": "à droite : période précédente",
+      "unknown": "non disponible",
+      "sinceNote": "* Mesuré depuis le {date}.",
+      "publishedOn": "Publiée le {date}",
+      "onlineFor": "En ligne depuis {days} j",
+      "confirmedOn": "Disponibilité confirmée le {date}",
+      "marketTitle": "Votre prix face au marché",
+      "marketMedian": "Médiane de {n} annonces comparables ({scope}) : {median}",
+      "marketThin": "Pas encore assez d’annonces comparables à {commune} ({n}).",
+      "marketNone": "Ajoutez une commune et un prix pour comparer avec le marché.",
+      "marketAbove": "Votre prix : {pct} au-dessus",
+      "marketBelow": "Votre prix : {pct} en dessous",
+      "marketLevel": "Votre prix est au niveau du marché",
+      "scope": {
+        "beds": "même type et nombre de chambres",
+        "type": "même type",
+        "commune": "même commune"
+      },
+      "steps": {
+        "views": "Vues de l’annonce",
+        "people": "Personnes différentes",
+        "galleryPeople": "Ont regardé les photos",
+        "galleryCompletePeople": "Ont vu toutes les photos",
+        "whatsappClicks": "Clics WhatsApp",
+        "calls": "Appuis sur Appeler",
+        "saves": "Mises en favori",
+        "shares": "Partages",
+        "visitRequests": "Demandes de visite"
+      },
+      "report": {
+        "title": "Rapport propriétaire en direct",
+        "body": "Un lien à envoyer une fois à votre propriétaire : il y voit à tout moment les vues, les personnes, les appels, les messages et les demandes de visite de ce bien, toujours à jour.",
+        "create": "Créer le lien",
+        "copy": "Copier le lien",
+        "copied": "Lien copié",
+        "sendWhatsApp": "Envoyer sur WhatsApp",
+        "regenerate": "Nouveau lien",
+        "replaceWarning": "L’ancien lien ne fonctionnera plus.",
+        "replaceConfirm": "Remplacer",
+        "revoke": "Désactiver",
+        "views": "Consulté {count} fois — dernière fois le {date}",
+        "notViewed": "Pas encore consulté",
+        "unavailable": "Le rapport en direct n’est pas encore disponible.",
+        "error": "Une erreur est survenue. Réessayez."
       }
     }
   },

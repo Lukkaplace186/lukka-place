@@ -145,29 +145,65 @@ async function loadAgents() {
   return rows;
 }
 
-/** Last 7 whole days of views and WhatsApp taps, per agent, with their best listing. */
+const WEEKLY_SQL = (withFunnel) => `
+  SELECT p.agent_id, p.id, pc.title,
+         SUM(s.views)::int AS views, SUM(s.whatsapp_clicks)::int AS clicks
+         ${withFunnel ? ', SUM(s.calls)::int AS calls, SUM(s.visit_requests)::int AS visits' : ''}
+    FROM listing_stats_daily s
+    JOIN properties p ON p.id = s.listing_id
+    LEFT JOIN property_contents pc ON pc.property_id = p.id AND pc.language_id = $2
+   WHERE s.day >= CURRENT_DATE - 7 AND s.day < CURRENT_DATE AND p.agent_id = ANY($1::bigint[])
+   GROUP BY p.agent_id, p.id, pc.title`;
+
+/**
+ * Last 7 whole days per agent: totals, the best listing, and each listing's
+ * own line (views, WhatsApp, calls, visit requests) for the Monday per-listing
+ * report. Calls and visit requests come from the engagement migration's rollup
+ * columns; before it runs they are simply left out (null), never shown as 0.
+ */
 async function weeklyStats(agentIds) {
   if (!agentIds.length) return new Map();
-  const { rows } = await pg.getPool().query(
-    `SELECT p.agent_id, p.id, pc.title,
-            SUM(s.views)::int AS views, SUM(s.whatsapp_clicks)::int AS clicks
-       FROM listing_stats_daily s
-       JOIN properties p ON p.id = s.listing_id
-       LEFT JOIN property_contents pc ON pc.property_id = p.id AND pc.language_id = $2
-      WHERE s.day >= CURRENT_DATE - 7 AND s.day < CURRENT_DATE AND p.agent_id = ANY($1::bigint[])
-      GROUP BY p.agent_id, p.id, pc.title`,
-    [agentIds, CONTENT_LANGUAGE_ID],
-  );
+  let rows;
+  try {
+    ({ rows } = await pg.getPool().query(WEEKLY_SQL(true), [agentIds, CONTENT_LANGUAGE_ID]));
+  } catch (err) {
+    if (err.code !== '42703') throw err;
+    ({ rows } = await pg.getPool().query(WEEKLY_SQL(false), [agentIds, CONTENT_LANGUAGE_ID]));
+  }
   const byAgent = new Map();
   for (const row of rows) {
     const id = Number(row.agent_id);
-    const entry = byAgent.get(id) || { views: 0, clicks: 0, top: null };
+    const entry = byAgent.get(id) || { views: 0, clicks: 0, top: null, listings: [] };
     entry.views += row.views || 0;
     entry.clicks += row.clicks || 0;
     if (!entry.top || (row.views || 0) > entry.top.views) entry.top = { id: Number(row.id), title: row.title, views: row.views || 0 };
+    entry.listings.push({
+      id: Number(row.id),
+      title: row.title,
+      views: row.views || 0,
+      clicks: row.clicks || 0,
+      calls: row.calls == null ? null : Number(row.calls),
+      visits: row.visits == null ? null : Number(row.visits),
+    });
     byAgent.set(id, entry);
   }
   return byAgent;
+}
+
+/** How many listings get their own line on Monday — WhatsApp truncates long messages behind "Lire la suite". */
+const WEEKLY_LISTING_LINES = 3;
+
+/**
+ * "• Appartement à Kintambo : 120 vues · 9 WhatsApp · 3 appels · 1 visite"
+ * then the link to that listing's page, where the owner's live report is.
+ * A count we do not have is left out, not printed as 0.
+ */
+function listingLine(listing) {
+  const parts = [plural(listing.views, 'vue', 'vues'), `${listing.clicks} WhatsApp`];
+  if (listing.calls != null) parts.push(plural(listing.calls, 'appel', 'appels'));
+  if (listing.visits != null) parts.push(plural(listing.visits, 'demande de visite', 'demandes de visite'));
+  const title = String(listing.title || `Annonce n° ${listing.id}`).slice(0, 60);
+  return `• ${title} : ${parts.join(' · ')}\n  Rapport propriétaire : ${SITE_URL}/compte/agent/biens/${listing.id}`;
 }
 
 /**
@@ -247,7 +283,12 @@ function composeDigest(agent, counts = {}, weekly = null, stale = []) {
   const weeklyLines = [];
   if (weekly && weekly.views > 0) {
     weeklyLines.push(`📈 La semaine dernière : ${plural(weekly.views, 'vue', 'vues')} de vos annonces, ${plural(weekly.clicks, 'clic', 'clics')} WhatsApp.`);
-    if (weekly.top?.title && weekly.top.views > 0) weeklyLines.push(`La plus vue : ${weekly.top.title} (${plural(weekly.top.views, 'vue', 'vues')}).`);
+    const perListing = (weekly.listings || [])
+      .filter((l) => l.views > 0)
+      .sort((a, b) => b.views - a.views)
+      .slice(0, WEEKLY_LISTING_LINES);
+    if (perListing.length) weeklyLines.push(perListing.map(listingLine).join('\n'));
+    else if (weekly.top?.title && weekly.top.views > 0) weeklyLines.push(`La plus vue : ${weekly.top.title} (${plural(weekly.top.views, 'vue', 'vues')}).`);
   }
 
   if (!lines.length && !weeklyLines.length) return null;

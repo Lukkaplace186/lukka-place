@@ -9660,6 +9660,29 @@ console.log('\n2. services/openai.js');
     });
   }
 
+  // -------------------------------------------------------------------------
+  // 41. Monday digest: one line per listing, linking to its performance page
+  // -------------------------------------------------------------------------
+
+  console.log('\n41. Monday digest per-listing lines');
+
+  check('Monday lists the best listings with their own counts and a link to their page', () => {
+    const agentDigest = require('../services/agentDigest');
+    const weekly = {
+      views: 150, clicks: 12, top: { id: 310, title: 'Appartement à Kintambo', views: 120 },
+      listings: [
+        { id: 310, title: 'Appartement à Kintambo', views: 120, clicks: 9, calls: 3, visits: 1 },
+        { id: 311, title: 'Studio à Gombe', views: 30, clicks: 3, calls: null, visits: null },
+        { id: 312, title: 'Villa sans vue', views: 0, clicks: 0, calls: 0, visits: 0 },
+      ],
+    };
+    const msg = agentDigest.composeDigest({ first_name: 'Marie' }, {}, weekly, []);
+    assert.match(msg, /• Appartement à Kintambo : 120 vues · 9 WhatsApp · 3 appels · 1 demande de visite/);
+    assert.match(msg, /Rapport propriétaire : https:\/\/lukkaplace\.com\/compte\/agent\/biens\/310/);
+    assert.match(msg, /• Studio à Gombe : 30 vues · 3 WhatsApp\n/, 'an unknown count is left out, not 0');
+    assert.ok(!msg.includes('Villa sans vue'), 'a listing nobody saw gets no line');
+  });
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

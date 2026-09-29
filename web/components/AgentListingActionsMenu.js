@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Archive, ArchiveRestore, CheckCircle2, CircleCheck, CircleDot, Copy, ExternalLink, Megaphone, MoreHorizontal, Pencil, RotateCcw, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, BarChart3, CheckCircle2, CircleCheck, CircleDot, Copy, ExternalLink, Megaphone, MoreHorizontal, Pencil, RotateCcw, Trash2 } from 'lucide-react';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import MarkListingSoldDialog from './MarkListingSoldDialog';
 import AgentListingWhatsAppButton from './AgentListingWhatsAppButton';
@@ -196,6 +196,7 @@ export default function AgentListingActionsMenu({ listing, isClosed, onStatusCha
   // items are links, `onSelect` items are actions, `whatsapp` is the share link.
   const groups = [
     [
+      { key: 'performance', Icon: BarChart3, label: t('agent.listings.performance'), href: `/compte/agent/biens/${listing.id}` },
       isLive && { key: 'view', Icon: ExternalLink, label: t('agent.listings.viewPublic'), href: `/listings/${listing.id}`, external: true },
       { key: 'edit', Icon: Pencil, label: t('agent.listings.edit'), href: `/compte/agent/biens/${listing.id}/edit` },
     ],

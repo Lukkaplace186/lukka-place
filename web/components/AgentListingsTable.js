@@ -502,10 +502,12 @@ export default function AgentListingsTable({ listings, perListingStats, gapsByLi
             {/* One line on a phone; `display: contents` at lg puts these two
                 back in their own table columns. */}
             <div className="alr-stats">
-              <div className="u-tabular text-xs text-ink-70 lg:text-sm">
+              {/* The count opens the listing's own page — the full funnel and
+                  the owner's report link (app/compte/agent/biens/[id]). */}
+              <Link href={`/compte/agent/biens/${listing.id}`} className="u-tabular text-xs text-ink-70 underline-offset-2 hover:text-blue hover:underline lg:text-sm">
                 <span className="lg:hidden">{t('agent.listings.viewsInline')} </span>
                 {(perListingStats.views[listing.id] || 0).toLocaleString('fr-FR')}
-              </div>
+              </Link>
 
               <div className="u-tabular text-xs text-ink-70 lg:text-sm">
                 <span className="lg:hidden">{t('agent.listings.clicksInline')} </span>

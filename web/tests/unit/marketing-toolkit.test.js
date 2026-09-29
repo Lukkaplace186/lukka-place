@@ -283,8 +283,8 @@ test('the report caption states what the counts cover and what they do not', () 
   assert.match(caption, /📊 \*Rapport de diffusion\* — 7 derniers jours · Du 10\/09 au 16\/09\/2026/);
   assert.match(caption, /Vues de l’annonce : \*42\* \(semaine précédente : 30\)/);
   assert.match(caption, /Clics sur WhatsApp : \*5\*/);
-  assert.match(caption, /Ce que ces chiffres comptent : .*y compris celles de l’agent/);
-  assert.match(caption, /Ce qu’ils ne comptent pas : les appels et messages envoyés directement à l’agent/);
+  assert.match(caption, /Ce que ces chiffres comptent : .*hors celles de l’agent lui-même/);
+  assert.match(caption, /Ce qu’ils ne comptent pas : les appels et messages envoyés à l’agent sans passer par la page/);
   assert.match(caption, /https:\/\/lukkaplace\.com\/listings\/305\?utm_source=rapport_proprietaire/);
   // "Clics", never "demandes": a tap is not an enquiry.
   assert.doesNotMatch(caption, /demandes WhatsApp/i);

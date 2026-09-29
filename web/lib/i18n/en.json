@@ -805,7 +805,8 @@
         "rejected": "Rejected",
         "archived": "Archived",
         "sold": "Sold"
-      }
+      },
+      "performance": "Stats & report"
     },
     "leads": {
       "title": "Enquiries",
@@ -1912,6 +1913,56 @@
           "deleteButton": "Delete"
         },
         "changesIntro": "Our team asks for a few changes ({date}):"
+      }
+    },
+    "hub": {
+      "metaTitle": "Listing Performance",
+      "title": "Performance",
+      "funnelTitle": "What the Listing Produced",
+      "previousPeriod": "right: previous period",
+      "unknown": "not available",
+      "sinceNote": "* Measured since {date}.",
+      "publishedOn": "Published {date}",
+      "onlineFor": "Live for {days} days",
+      "confirmedOn": "Availability confirmed {date}",
+      "marketTitle": "Your Price and the Market",
+      "marketMedian": "Median of {n} comparable listings ({scope}): {median}",
+      "marketThin": "Not enough comparable listings in {commune} yet ({n}).",
+      "marketNone": "Add a commune and a price to compare with the market.",
+      "marketAbove": "Your price: {pct} above",
+      "marketBelow": "Your price: {pct} below",
+      "marketLevel": "Your price is in line with the market",
+      "scope": {
+        "beds": "same type and bedrooms",
+        "type": "same type",
+        "commune": "same commune"
+      },
+      "steps": {
+        "views": "Listing views",
+        "people": "Different people",
+        "galleryPeople": "Looked at the photos",
+        "galleryCompletePeople": "Saw every photo",
+        "whatsappClicks": "WhatsApp taps",
+        "calls": "Call taps",
+        "saves": "Saves",
+        "shares": "Shares",
+        "visitRequests": "Visit requests"
+      },
+      "report": {
+        "title": "Live Owner Report",
+        "body": "One link to send your landlord once: they can see this property’s views, people, calls, messages and visit requests at any time, always up to date.",
+        "create": "Create the link",
+        "copy": "Copy link",
+        "copied": "Link copied",
+        "sendWhatsApp": "Send on WhatsApp",
+        "regenerate": "New link",
+        "replaceWarning": "The old link will stop working.",
+        "replaceConfirm": "Replace",
+        "revoke": "Turn off",
+        "views": "Opened {count} times — last on {date}",
+        "notViewed": "Not opened yet",
+        "unavailable": "The live report is not available yet.",
+        "error": "Something went wrong. Try again."
       }
     }
   },

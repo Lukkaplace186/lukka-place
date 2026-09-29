@@ -35,15 +35,14 @@
  * cleared cookie does not mint a second "person". Not httpOnly on purpose:
  * the browser creates it, and nothing about it is secret.
  *
- * AUTOMATED CLIENTS SEND NOTHING
- * No id is created and no beacon leaves a browser that is being driven
- * (`navigator.webdriver`), a crawler or link-preview User-Agent, or a page
- * that is still being prerendered by the browser's speculation rules — a
- * prerendered page the visitor never opens was never seen. A prerendered page
- * that IS opened sends its events at that moment (`prerenderingchange`), so
- * a real view is delayed, never lost. The server applies the same User-Agent
- * rule (lib/requestContext.js), since this check can be skipped by anything
- * that does not run our JavaScript.
+ * EVERY BROWSER SENDS (product decision, 2026-09-29)
+ * A driven browser (`navigator.webdriver`) or a crawler / link-preview
+ * User-Agent is not silenced any more: it sends its events with
+ * `automated: true`, and the server stores them tagged `viewer_kind = 'bot'`
+ * (lib/trackIngest.js), beside the listing's own agent (`owner`) and the team
+ * (`staff`). Only a page the browser is still PRERENDERING waits: its events
+ * go out the moment the visitor actually opens it (`prerenderingchange`); a
+ * prerendered page that is never opened was never on anybody's screen.
  */
 
 export const VISITOR_COOKIE = 'lp_vid';
@@ -53,10 +52,10 @@ const VISITOR_MAX_AGE_SECONDS = 365 * 24 * 60 * 60;
 export const AUTOMATED_UA_RE =
   /bot|crawler|spider|crawling|slurp|bingpreview|headlesschrome|lighthouse|facebookexternalhit|meta-externalagent|google-inspectiontool|prerender|^whatsapp\//i;
 
-/** True when this browser is not a person looking at the page. */
+/** True when this browser says it is automated (sent as `automated`, never used to drop an event). */
 export function isAutomatedClient() {
   try {
-    if (typeof navigator === 'undefined') return true;
+    if (typeof navigator === 'undefined') return false;
     if (navigator.webdriver) return true;
     return AUTOMATED_UA_RE.test(navigator.userAgent || '');
   } catch {
@@ -76,12 +75,12 @@ function newVisitorId() {
 }
 
 /**
- * This browser's visitor id, created on first use. Undefined for an automated
- * client and wherever storage is refused entirely — the event is then stored
- * without one, which counts it as a view but not as a person.
+ * This browser's visitor id, created on first use. Undefined wherever storage
+ * is refused entirely — the event is then stored without one, which counts it
+ * as a view but not as a person.
  */
 export function getVisitorId() {
-  if (typeof window === 'undefined' || isAutomatedClient()) return undefined;
+  if (typeof window === 'undefined') return undefined;
   try {
     const fromCookie = new RegExp(`(?:^|;\\s*)${VISITOR_COOKIE}=([^;]+)`).exec(document.cookie)?.[1];
     if (fromCookie && VISITOR_ID_RE.test(fromCookie)) return fromCookie;
@@ -125,13 +124,18 @@ function whenVisible(send) {
 }
 
 function beacon(url, body) {
-  if (typeof window === 'undefined' || isAutomatedClient()) return;
+  if (typeof window === 'undefined') return;
   whenVisible(() => {
     try {
       fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ utmSource: landingUtmSource(), visitorId: getVisitorId(), ...body }),
+        body: JSON.stringify({
+          utmSource: landingUtmSource(),
+          visitorId: getVisitorId(),
+          ...(isAutomatedClient() ? { automated: true } : {}),
+          ...body,
+        }),
         keepalive: true,
       }).catch(() => {});
     } catch {

@@ -9,14 +9,16 @@ import {
   RECORD_PAGE_VIEW_SQL,
   cleanVisitorId,
   listingIdFromPath,
+  VIEWER_KINDS,
   normaliseSearch,
-  ownerAgentIdFrom,
   recordListingEvent,
   recordPageView,
   recordSearch,
-  shouldSkipRequest,
+  signedInAgentIdFrom,
+  viewerKindFor,
   visitorIdFrom,
 } from '@/lib/trackIngest';
+import { readFileSync } from 'node:fs';
 import { RECORD_LEAD_CLICK_LEGACY_SQL, recordLeadClick } from '@/lib/leadClicks';
 import { deviceFromUserAgent } from '@/lib/requestContext';
 import { createAgentSessionToken, AGENT_SESSION_COOKIE } from '@/lib/agentAuth';
@@ -45,19 +47,40 @@ function recordingPool({ failWith = null, failTimes = 1, rowCount = 1 } = {}) {
 }
 
 /** Just enough of NextRequest for the cookie readers. */
-function fakeRequest(cookies = {}) {
-  return { cookies: { get: (name) => (name in cookies ? { value: cookies[name] } : undefined) } };
+function fakeRequest(cookies = {}, headers = new Headers()) {
+  return { headers, cookies: { get: (name) => (name in cookies ? { value: cookies[name] } : undefined) } };
 }
 
-// --- who never becomes a row ---------------------------------------------------
+// --- everybody becomes a row, labelled ------------------------------------------
 
-test('bots, link-preview fetchers and prefetches are skipped; people are not', () => {
-  const plain = new Headers();
-  assert.equal(shouldSkipRequest(plain, 'bot'), 'bot');
-  assert.equal(shouldSkipRequest(plain, 'mobile'), null);
-  assert.equal(shouldSkipRequest(new Headers({ 'sec-purpose': 'prefetch;prerender' }), 'mobile'), 'prefetch');
-  assert.equal(shouldSkipRequest(new Headers({ purpose: 'prefetch' }), 'desktop'), 'prefetch');
-  assert.equal(shouldSkipRequest(new Headers({ 'next-router-prefetch': '1' }), 'desktop'), 'prefetch');
+test('every viewer is recorded and labelled: team, bot, prefetch, agent, visitor', () => {
+  assert.deepEqual(VIEWER_KINDS, ['visitor', 'owner', 'agent', 'staff', 'bot', 'prefetch']);
+  assert.equal(viewerKindFor(fakeRequest(), 'mobile'), 'visitor');
+  assert.equal(viewerKindFor(fakeRequest(), 'bot'), 'bot');
+  assert.equal(viewerKindFor(fakeRequest(), 'desktop', { automated: true }), 'bot');
+  assert.equal(viewerKindFor(fakeRequest({}, new Headers({ 'sec-purpose': 'prefetch;prerender' })), 'mobile'), 'prefetch');
+  assert.equal(viewerKindFor(fakeRequest({}, new Headers({ purpose: 'prefetch' })), 'desktop'), 'prefetch');
+  assert.equal(viewerKindFor(fakeRequest({}, new Headers({ 'next-router-prefetch': '1' })), 'desktop'), 'prefetch');
+  assert.equal(viewerKindFor(fakeRequest(), 'mobile', { agentId: 7 }), 'agent');
+  // The team outranks everything else: an admin who is also an agent is staff.
+  assert.equal(viewerKindFor(fakeRequest({ lp_staff: '1' }), 'bot', { agentId: 7 }), 'staff');
+  assert.equal(viewerKindFor(fakeRequest({ lukka_impersonation: 'imp1.x' }), 'mobile'), 'staff');
+  assert.equal(viewerKindFor(fakeRequest({ lp_staff: 'yes' }), 'mobile'), 'visitor', 'only the exact marker');
+});
+
+test('middleware marks an authenticated admin browser as staff, path /', () => {
+  const source = readFileSync(new URL('../../middleware.js', import.meta.url), 'utf8');
+  assert.match(source, /response\.cookies\.set\('lp_staff', '1', \{\s*path: '\/'/);
+  assert.match(source, /isValidSessionToken\(token\)\) \{\s*return withStaffMarker\(/);
+});
+
+test('the migration allows exactly the viewer kinds the writer uses', () => {
+  const sql = readFileSync(new URL('../../../migrations/20260929_engagement_tracking.sql', import.meta.url), 'utf8');
+  for (const table of ['page_views', 'whatsapp_clicks', 'listing_events', 'search_events']) {
+    assert.ok(sql.includes(`'${table}'`), table);
+  }
+  const inner = /viewer_kind IN \(([^)]*)\)/.exec(sql)[1].replace(/''/g, "'");
+  assert.deepEqual(inner.match(/'([a-z]+)'/g).map((v) => v.slice(1, -1)), VIEWER_KINDS);
 });
 
 test('the WhatsApp link-preview fetcher is a bot; a person in WhatsApp\'s in-app browser is not', () => {
@@ -70,19 +93,19 @@ test('the WhatsApp link-preview fetcher is a bot; a person in WhatsApp\'s in-app
     ),
     'mobile',
   );
-  // The client-side guard agrees on the same strings.
+  // The client flags the same strings as automated (stored as 'bot', never dropped).
   assert.ok(AUTOMATED_UA_RE.test('WhatsApp/2.23.20.0 A'));
   assert.ok(AUTOMATED_UA_RE.test('Mozilla/5.0 HeadlessChrome/120.0'));
   assert.ok(!AUTOMATED_UA_RE.test('Mozilla/5.0 (Linux; Android 13; wv) Chrome/122.0.0.0 Mobile Safari/537.36'));
 });
 
-test('the owner is read from a genuine agent session cookie only', () => {
+test('the signed-in agent is read from a genuine agent session cookie only', () => {
   const token = createAgentSessionToken({ agentId: 42, tokenVersion: 0 });
-  assert.equal(ownerAgentIdFrom(fakeRequest({ [AGENT_SESSION_COOKIE]: token })), 42);
+  assert.equal(signedInAgentIdFrom(fakeRequest({ [AGENT_SESSION_COOKIE]: token })), 42);
   // Someone else's id with this token's signature: refused.
   const forged = token.replace(/^42\./, '43.');
-  assert.equal(ownerAgentIdFrom(fakeRequest({ [AGENT_SESSION_COOKIE]: forged })), null);
-  assert.equal(ownerAgentIdFrom(fakeRequest({})), null);
+  assert.equal(signedInAgentIdFrom(fakeRequest({ [AGENT_SESSION_COOKIE]: forged })), null);
+  assert.equal(signedInAgentIdFrom(fakeRequest({})), null);
 });
 
 test('the visitor id prefers the cookie, and only a well-formed id is ever stored', () => {
@@ -96,14 +119,23 @@ test('the visitor id prefers the cookie, and only a well-formed id is ever store
 
 // --- page views ---------------------------------------------------------------
 
-test('a listing page view stores its listing id and visitor, and is guarded against the owner in SQL', async () => {
+test('a listing page view stores its listing id, visitor and viewer kind, the owner included', async () => {
   const pool = recordingPool();
-  await recordPageView(pool, {
-    path: '/listings/310', commune: 'Kintambo', device: 'mobile', source: 'direct', visitorId: 'visitor-0001', ownerAgentId: 7,
+  const written = await recordPageView(pool, {
+    path: '/listings/310', commune: 'Kintambo', device: 'mobile', source: 'direct', visitorId: 'visitor-0001', viewerKind: 'agent', agentId: 7,
   });
+  assert.equal(written, true);
   assert.equal(pool.calls[0].sql, squash(RECORD_PAGE_VIEW_SQL));
-  assert.match(pool.calls[0].sql, /WHERE NOT EXISTS \(SELECT 1 FROM properties WHERE id = \$5::bigint AND agent_id = \$7::bigint\)/);
-  assert.deepEqual(pool.calls[0].values, ['/listings/310', 'Kintambo', 'mobile', 'direct', 310, 'visitor-0001', 7]);
+  assert.ok(!/NOT EXISTS/.test(pool.calls[0].sql), 'nobody is filtered out');
+  // A signed-in agent on their OWN listing is stored as `owner`, decided in SQL.
+  assert.match(pool.calls[0].sql, /CASE WHEN \$7::text = 'agent' AND EXISTS \(SELECT 1 FROM properties WHERE id = \$5::bigint AND agent_id = \$8::bigint\) THEN 'owner' ELSE \$7::text END/);
+  assert.deepEqual(pool.calls[0].values, ['/listings/310', 'Kintambo', 'mobile', 'direct', 310, 'visitor-0001', 'agent', 7]);
+});
+
+test('an unknown viewer kind is stored as a visitor, never as free text', async () => {
+  const pool = recordingPool();
+  await recordPageView(pool, { path: '/', device: 'mobile', source: 'direct', viewerKind: 'landlord' });
+  assert.equal(pool.calls[0].values[6], 'visitor');
 });
 
 test('a non-listing path is still a view, with no listing id', async () => {
@@ -118,13 +150,13 @@ test('a non-listing path is still a view, with no listing id', async () => {
 test('before the migration a page view is retried without the new columns — never lost', async () => {
   const pool = recordingPool({ failWith: '42703' });
   const written = await recordPageView(pool, {
-    path: '/listings/310', device: 'mobile', source: 'direct', visitorId: 'visitor-0001', ownerAgentId: null,
+    path: '/listings/310', device: 'mobile', source: 'direct', visitorId: 'visitor-0001', viewerKind: 'bot',
   });
   assert.equal(written, true);
   assert.equal(pool.calls.length, 2);
   assert.equal(pool.calls[1].sql, squash(RECORD_PAGE_VIEW_LEGACY_SQL));
-  assert.ok(!/visitor_id|listing_id\)/.test(pool.calls[1].sql.split('SELECT')[0]), 'legacy insert names no new column');
-  assert.deepEqual(pool.calls[1].values, ['/listings/310', null, 'mobile', 'direct', 310, null]);
+  assert.ok(!/visitor_id|listing_id|viewer_kind/.test(pool.calls[1].sql), 'legacy insert names no new column');
+  assert.deepEqual(pool.calls[1].values, ['/listings/310', null, 'mobile', 'direct']);
 });
 
 test('any other database error is not swallowed', async () => {
@@ -147,7 +179,7 @@ test('a call keeps its routing; no other event can carry one', async () => {
   const pool = recordingPool();
   await recordListingEvent(pool, {
     event: 'call_click', listingId: 310, commune: 'Kintambo', price: 1300, device: 'mobile', source: 'direct',
-    visitorId: 'visitor-0001', routingType: 'DIRECT', ownerAgentId: null,
+    visitorId: 'visitor-0001', routingType: 'DIRECT', viewerKind: 'visitor',
   });
   await recordListingEvent(pool, {
     event: 'gallery_open', listingId: 310, device: 'mobile', source: 'direct', routingType: 'DIRECT',
@@ -156,31 +188,34 @@ test('a call keeps its routing; no other event can carry one', async () => {
     event: 'call_click', listingId: 310, device: 'mobile', source: 'direct', routingType: 'SOMEWHERE',
   });
   assert.equal(pool.calls[0].sql, squash(RECORD_LISTING_EVENT_SQL));
-  assert.deepEqual(pool.calls[0].values, ['call_click', 310, 'Kintambo', 1300, 'mobile', 'direct', 'visitor-0001', 'DIRECT', null]);
+  assert.deepEqual(pool.calls[0].values, ['call_click', 310, 'Kintambo', 1300, 'mobile', 'direct', 'visitor-0001', 'DIRECT', 'visitor', null]);
   assert.equal(pool.calls[1].values[7], null, 'a gallery event has no routing');
   assert.equal(pool.calls[2].values[7], null, 'an unknown routing is dropped, not stored');
 });
 
-test('listing events are owner-guarded, with a legacy retry, and unknown events are refused', async () => {
-  assert.match(squash(RECORD_LISTING_EVENT_SQL), /NOT EXISTS \(SELECT 1 FROM properties WHERE id = \$2::bigint AND agent_id = \$9::bigint\)/);
+test('listing events label the owner in SQL, retry without new columns, and unknown events are refused', async () => {
+  assert.match(squash(RECORD_LISTING_EVENT_SQL), /EXISTS \(SELECT 1 FROM properties WHERE id = \$2::bigint AND agent_id = \$10::bigint\) THEN 'owner'/);
+  assert.ok(!/NOT EXISTS/.test(RECORD_LISTING_EVENT_SQL));
   const pool = recordingPool({ failWith: '42703' });
-  await recordListingEvent(pool, { event: 'share_click', listingId: 5, device: 'desktop', source: 'direct', ownerAgentId: 3 });
+  await recordListingEvent(pool, { event: 'share_click', listingId: 5, device: 'desktop', source: 'direct', viewerKind: 'agent', agentId: 3 });
   assert.equal(pool.calls[1].sql, squash(RECORD_LISTING_EVENT_LEGACY_SQL));
-  assert.deepEqual(pool.calls[1].values, ['share_click', 5, null, undefined, 'desktop', 'direct', 3]);
+  assert.deepEqual(pool.calls[1].values, ['share_click', 5, null, undefined, 'desktop', 'direct']);
   await assert.rejects(() => recordListingEvent(recordingPool(), { event: 'page_view', listingId: 1 }), /unknown event/);
 });
 
-test('a WhatsApp tap carries the visitor and the owner guard, and retries without visitor_id before the migration', async () => {
+test('a WhatsApp tap carries the visitor and viewer kind (owner included), and retries without them before the migration', async () => {
   const pool = recordingPool({ failWith: '42703' });
   await recordLeadClick(pool, {
     listingId: 293, commune: 'Limete', device: 'mobile', source: 'direct', price: 1100, routingType: 'DIRECT_WA',
-    visitorId: 'visitor-0001', ownerAgentId: 9,
+    visitorId: 'visitor-0001', viewerKind: 'agent', agentId: 9,
   });
-  assert.match(pool.calls[0].sql, /visitor_id/);
-  assert.match(pool.calls[0].sql, /agent_id = \$8::bigint/);
+  assert.match(pool.calls[0].sql, /visitor_id, viewer_kind/);
+  assert.match(pool.calls[0].sql, /agent_id = \$9::bigint\) THEN 'owner'/);
+  assert.ok(!/NOT EXISTS/.test(pool.calls[0].sql));
+  assert.deepEqual(pool.calls[0].values, [293, 'Limete', 'mobile', 'direct', 1100, 'DIRECT_WA', 'visitor-0001', 'agent', 9]);
   assert.equal(pool.calls[1].sql, squash(RECORD_LEAD_CLICK_LEGACY_SQL));
-  assert.ok(!pool.calls[1].sql.includes('visitor_id'));
-  assert.deepEqual(pool.calls[1].values, [293, 'Limete', 'mobile', 'direct', 1100, 'DIRECT_WA', 9]);
+  assert.ok(!/visitor_id|viewer_kind/.test(pool.calls[1].sql));
+  assert.deepEqual(pool.calls[1].values, [293, 'Limete', 'mobile', 'direct', 1100, 'DIRECT_WA']);
 });
 
 // --- searches -------------------------------------------------------------------
@@ -215,8 +250,9 @@ test('a search with no result count is not stored, and a missing table skips qui
   assert.equal(await recordSearch(missing, normaliseSearch({ resultCount: 3 }), { device: 'mobile', source: 'direct' }), false);
 
   const ok = recordingPool();
-  assert.equal(await recordSearch(ok, normaliseSearch({ resultCount: 3, communes: 'Gombe' }), { device: 'mobile', source: 'direct', visitorId: 'visitor-0001' }), true);
+  assert.equal(await recordSearch(ok, normaliseSearch({ resultCount: 3, communes: 'Gombe' }), { device: 'mobile', source: 'direct', visitorId: 'visitor-0001', viewerKind: 'staff' }), true);
   assert.equal(ok.calls[0].values[0], 'visitor-0001');
+  assert.equal(ok.calls[0].values[13], 'staff');
   assert.deepEqual(ok.calls[0].values[2], ['Gombe']);
 });
 

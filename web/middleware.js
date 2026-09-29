@@ -74,6 +74,27 @@ function nextWithAdminPath(request, pathname) {
   return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
+/**
+ * `lp_staff=1`, path `/`: marks this browser as the Lukka Place team's, so the
+ * storefront's event beacons (which never see the /admin-scoped session
+ * cookie) store its views as `viewer_kind = 'staff'` (lib/trackIngest.js).
+ * A label, not a credential — it grants nothing, and a visitor who set it
+ * would only relabel their own views. Refreshed while the session is used.
+ */
+const STAFF_MARKER_MAX_AGE = 30 * 24 * 60 * 60;
+function withStaffMarker(request, response) {
+  if (request.cookies.get('lp_staff')?.value !== '1') {
+    response.cookies.set('lp_staff', '1', {
+      path: '/',
+      maxAge: STAFF_MARKER_MAX_AGE,
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: request.nextUrl.protocol === 'https:',
+    });
+  }
+  return response;
+}
+
 export function middleware(request) {
   const { pathname, search } = request.nextUrl;
 
@@ -99,7 +120,7 @@ export function middleware(request) {
 
     const token = request.cookies.get(ADMIN_SESSION_COOKIE)?.value;
     if (isValidSessionToken(token)) {
-      return nextWithAdminPath(request, pathname);
+      return withStaffMarker(request, nextWithAdminPath(request, pathname));
     }
 
     const loginUrl = new URL('/admin/login', request.url);

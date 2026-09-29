@@ -40,6 +40,12 @@
 --    shares, unique_visitors (per day — a weekly "personnes" figure is
 --    counted from raw events, since summing daily uniques double-counts a
 --    returning visitor) and visit_requests (from the engine's own SQLite).
+--
+-- 6. `viewer_kind` on the four event tables: every viewer is recorded
+--    (product decision, 2026-09-29) and each row says who it was — visitor,
+--    owner (the listing's own agent), agent (another signed-in agent), staff
+--    (the Lukka Place team), bot, prefetch. Decided by web/lib/trackIngest.js.
+--    NULL on rows written before this ran: those were never classified.
 
 BEGIN;
 
@@ -48,6 +54,9 @@ ALTER TABLE page_views      ADD COLUMN IF NOT EXISTS listing_id bigint;
 ALTER TABLE whatsapp_clicks ADD COLUMN IF NOT EXISTS visitor_id text;
 ALTER TABLE listing_events  ADD COLUMN IF NOT EXISTS visitor_id text;
 ALTER TABLE listing_events  ADD COLUMN IF NOT EXISTS routing_type text;
+ALTER TABLE page_views      ADD COLUMN IF NOT EXISTS viewer_kind text;
+ALTER TABLE whatsapp_clicks ADD COLUMN IF NOT EXISTS viewer_kind text;
+ALTER TABLE listing_events  ADD COLUMN IF NOT EXISTS viewer_kind text;
 
 DO $$
 BEGIN
@@ -87,8 +96,23 @@ CREATE TABLE IF NOT EXISTS search_events (
   result_count   integer     NOT NULL CHECK (result_count >= 0),
   device         text,
   source         text,
+  viewer_kind    text,
   created_at     timestamptz NOT NULL DEFAULT NOW()
 );
+ALTER TABLE search_events ADD COLUMN IF NOT EXISTS viewer_kind text;
+
+DO $$
+DECLARE
+  t TEXT;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['page_views', 'whatsapp_clicks', 'listing_events', 'search_events'] LOOP
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = t || '_viewer_kind_check') THEN
+      EXECUTE format(
+        'ALTER TABLE %I ADD CONSTRAINT %I CHECK (viewer_kind IS NULL OR viewer_kind IN (''visitor'', ''owner'', ''agent'', ''staff'', ''bot'', ''prefetch''))',
+        t, t || '_viewer_kind_check');
+    END IF;
+  END LOOP;
+END $$;
 
 CREATE INDEX IF NOT EXISTS search_events_created_idx ON search_events (created_at);
 CREATE INDEX IF NOT EXISTS search_events_zero_idx ON search_events (created_at) WHERE result_count = 0;

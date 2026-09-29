@@ -5,28 +5,30 @@ import { AGENT_SESSION_COOKIE, verifyAgentSessionToken } from './agentAuth';
  * The write side of every storefront engagement event: page views, the
  * listing-scoped events in `listing_events`, and committed searches.
  * app/api/track/route.js is the only caller; it decides WHICH event, this
- * decides whether and how it is stored.
+ * decides how it is stored.
  *
- * THREE THINGS NEVER BECOME A ROW
+ * EVERY VIEWER IS RECORDED, AND SAYS WHO THEY WERE (product decision,
+ * 2026-09-29). Bots, prefetches, the listing's own agent, other signed-in
+ * agents and the Lukka Place team all write a row, like any visitor. Each row
+ * carries `viewer_kind` (VIEWER_KINDS), decided here from the request, so a
+ * reader that wants "people only" can filter later without the event having
+ * been thrown away:
  *
- *  - **A bot or a prefetch.** `analyticsDimensions` already buckets crawler
- *    User-Agents as `device = 'bot'`; they used to be stored and filtered at
- *    read time, which meant every per-agent count (and the landlord report)
- *    silently included them. A request the browser marks as a prefetch is not
- *    a visit either. See `shouldSkipRequest`.
- *  - **The listing's own agent.** An agent opening their own listing to check
- *    it was counted as a view, and the landlord report had to say "including
- *    the agent's own". The agent session cookie is `path: '/'`, so it reaches
- *    this endpoint; every listing-scoped INSERT carries
- *    `WHERE NOT EXISTS (… agent_id = $owner)`, so the check costs no extra
- *    round trip and a crafted body cannot get around it. (The admin cookie is
- *    scoped to `/admin` and never reaches /api/track, so an admin browsing the
- *    storefront cannot be told apart from a visitor; impersonation is refused
- *    earlier, by middleware.js, like every write.)
- *  - **A visitor id we did not issue the shape of.** `lp_vid` is a random id
- *    the browser keeps (lib/analyticsClient.js). Anything not matching
- *    `VISITOR_ID_RE` is stored as NULL rather than as a free-text field
- *    anybody can write into.
+ *  - `staff`    the Lukka Place team: the `lp_staff` marker cookie that
+ *               middleware.js sets on every authenticated /admin request (the
+ *               admin session cookie itself is scoped to /admin and never
+ *               reaches /api/track), or a "view as" session.
+ *  - `bot`      analyticsDimensions' `device = 'bot'`, or a browser that says
+ *               it is driven (`navigator.webdriver`, sent as `automated`).
+ *  - `prefetch` a request the browser marks as speculative.
+ *  - `owner`    the listing's own agent (agent session cookie, `path: '/'`),
+ *               resolved in the INSERT against properties.agent_id, so a
+ *               crafted body cannot claim or dodge it.
+ *  - `agent`    any other signed-in agent.
+ *  - `visitor`  everybody else.
+ *
+ * A visitor id not matching `VISITOR_ID_RE` is stored as NULL rather than as a
+ * free-text field anybody can write into.
  *
  * DEPLOY ORDER DOES NOT MATTER
  * The new columns come from migrations/20260929_engagement_tracking.sql. Until
@@ -37,7 +39,10 @@ import { AGENT_SESSION_COOKIE, verifyAgentSessionToken } from './agentAuth';
  */
 
 export const VISITOR_COOKIE = 'lp_vid';
+export const STAFF_COOKIE = 'lp_staff';
 export const VISITOR_ID_RE = /^[A-Za-z0-9_-]{8,64}$/;
+
+export const VIEWER_KINDS = ['visitor', 'owner', 'agent', 'staff', 'bot', 'prefetch'];
 
 /** Events that name one listing and land in `listing_events`. */
 export const LISTING_EVENT_TYPES = [
@@ -54,6 +59,7 @@ export const CALL_ROUTING_TYPES = ['DIRECT', 'CENTRAL'];
 
 const MISSING_COLUMN = '42703';
 const MISSING_TABLE = '42P01';
+const IMPERSONATION_COOKIE = 'lukka_impersonation';
 
 /** A well-formed visitor id, or null. */
 export function cleanVisitorId(value) {
@@ -74,79 +80,79 @@ export function positiveId(value) {
   return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
 
-/**
- * Why this request should write nothing, or null.
- *
- * `device` is analyticsDimensions' own verdict on the User-Agent. The prefetch
- * headers are what Chromium (`Sec-Purpose`), older browsers (`Purpose`,
- * `X-Moz`) and Next's router (`Next-Router-Prefetch`) send when a request is
- * speculative rather than something a person did. A beacon is a POST fired
- * from an effect, so none of these should ever be present — which is exactly
- * why one being present means the request is not what it claims.
- */
-export function shouldSkipRequest(headers, device) {
-  if (device === 'bot') return 'bot';
-  const purpose = `${headers.get('sec-purpose') || ''} ${headers.get('purpose') || ''} ${headers.get('x-moz') || ''}`;
-  if (/prefetch|prerender/i.test(purpose)) return 'prefetch';
-  if (headers.get('next-router-prefetch')) return 'prefetch';
-  return null;
-}
-
-/** The signed-in agent's id from the request's cookie, or null. */
-export function ownerAgentIdFrom(request) {
+function cookieValue(request, name) {
   try {
-    const token = request.cookies?.get?.(AGENT_SESSION_COOKIE)?.value;
-    return verifyAgentSessionToken(token)?.agentId ?? null;
+    return request.cookies?.get?.(name)?.value ?? null;
   } catch {
     return null;
   }
 }
 
-/** The visitor id: the cookie first (the browser's own), then the body's copy. */
-export function visitorIdFrom(request, bodyValue) {
-  let cookieValue = null;
+/** The signed-in agent's id from the request's cookie, or null. */
+export function signedInAgentIdFrom(request) {
   try {
-    cookieValue = request.cookies?.get?.(VISITOR_COOKIE)?.value ?? null;
+    return verifyAgentSessionToken(cookieValue(request, AGENT_SESSION_COOKIE))?.agentId ?? null;
   } catch {
-    cookieValue = null;
+    return null;
   }
-  return cleanVisitorId(cookieValue) || cleanVisitorId(bodyValue);
 }
 
-// The owner guard. `$owner` NULL (no agent session) never matches, and neither
-// does a NULL listing id, so a visitor's event always passes.
-const notOwner = (listingParam, ownerParam) =>
-  `NOT EXISTS (SELECT 1 FROM properties WHERE id = ${listingParam}::bigint AND agent_id = ${ownerParam}::bigint)`;
+/**
+ * Who sent this request, before the listing is known (`owner` is decided in
+ * the INSERT, from `agent`). Checked in this order: team, automation,
+ * speculation, signed-in agent, visitor.
+ *
+ * The prefetch headers are what Chromium (`Sec-Purpose`), older browsers
+ * (`Purpose`, `X-Moz`) and Next's router (`Next-Router-Prefetch`) send when a
+ * request is speculative rather than something a person did.
+ */
+export function viewerKindFor(request, device, { automated = false, agentId = null } = {}) {
+  const headers = request.headers;
+  if (cookieValue(request, STAFF_COOKIE) === '1' || cookieValue(request, IMPERSONATION_COOKIE)) return 'staff';
+  if (device === 'bot' || automated === true) return 'bot';
+  const purpose = `${headers?.get?.('sec-purpose') || ''} ${headers?.get?.('purpose') || ''} ${headers?.get?.('x-moz') || ''}`;
+  if (/prefetch|prerender/i.test(purpose) || headers?.get?.('next-router-prefetch')) return 'prefetch';
+  if (agentId) return 'agent';
+  return 'visitor';
+}
+
+/** The visitor id: the cookie first (the browser's own), then the body's copy. */
+export function visitorIdFrom(request, bodyValue) {
+  return cleanVisitorId(cookieValue(request, VISITOR_COOKIE)) || cleanVisitorId(bodyValue);
+}
+
+/**
+ * The stored `viewer_kind`: a signed-in agent looking at their OWN listing is
+ * `owner`. `$agent` NULL, or a NULL listing id, never matches.
+ */
+export const viewerKindSql = (kindParam, listingParam, agentParam) =>
+  `CASE WHEN ${kindParam}::text = 'agent' AND EXISTS (SELECT 1 FROM properties WHERE id = ${listingParam}::bigint AND agent_id = ${agentParam}::bigint) THEN 'owner' ELSE ${kindParam}::text END`;
 
 export const RECORD_PAGE_VIEW_SQL = `
-  INSERT INTO page_views (path, commune, device, source, listing_id, visitor_id)
-  SELECT $1::text, $2::text, $3::text, $4::text, $5::bigint, $6::text
-  WHERE ${notOwner('$5', '$7')}
+  INSERT INTO page_views (path, commune, device, source, listing_id, visitor_id, viewer_kind)
+  VALUES ($1::text, $2::text, $3::text, $4::text, $5::bigint, $6::text, ${viewerKindSql('$7', '$5', '$8')})
 `;
 
-// Before the migration: no listing_id / visitor_id columns yet.
+// Before the migration: no listing_id / visitor_id / viewer_kind columns yet.
 export const RECORD_PAGE_VIEW_LEGACY_SQL = `
   INSERT INTO page_views (path, commune, device, source)
-  SELECT $1::text, $2::text, $3::text, $4::text
-  WHERE ${notOwner('$5', '$6')}
+  VALUES ($1::text, $2::text, $3::text, $4::text)
 `;
 
 export const RECORD_LISTING_EVENT_SQL = `
-  INSERT INTO listing_events (event, listing_id, commune, price, device, source, visitor_id, routing_type)
-  SELECT $1::text, $2::bigint, $3::text, $4::numeric, $5::text, $6::text, $7::text, $8::text
-  WHERE ${notOwner('$2', '$9')}
+  INSERT INTO listing_events (event, listing_id, commune, price, device, source, visitor_id, routing_type, viewer_kind)
+  VALUES ($1::text, $2::bigint, $3::text, $4::numeric, $5::text, $6::text, $7::text, $8::text, ${viewerKindSql('$9', '$2', '$10')})
 `;
 
 export const RECORD_LISTING_EVENT_LEGACY_SQL = `
   INSERT INTO listing_events (event, listing_id, commune, price, device, source)
-  SELECT $1::text, $2::bigint, $3::text, $4::numeric, $5::text, $6::text
-  WHERE ${notOwner('$2', '$7')}
+  VALUES ($1::text, $2::bigint, $3::text, $4::numeric, $5::text, $6::text)
 `;
 
 export const RECORD_SEARCH_SQL = `
   INSERT INTO search_events
-    (visitor_id, purpose, communes, quartier, property_type, beds_min, price_min, price_max, amenities, q, result_count, device, source)
-  VALUES ($1, $2, $3::text[], $4, $5, $6, $7, $8, $9::text[], $10, $11, $12, $13)
+    (visitor_id, purpose, communes, quartier, property_type, beds_min, price_min, price_max, amenities, q, result_count, device, source, viewer_kind)
+  VALUES ($1, $2, $3::text[], $4, $5, $6, $7, $8, $9::text[], $10, $11, $12, $13, $14)
 `;
 
 async function withLegacyFallback(pool, [sql, values], [legacySql, legacyValues]) {
@@ -160,26 +166,28 @@ async function withLegacyFallback(pool, [sql, values], [legacySql, legacyValues]
   }
 }
 
-/** @returns {Promise<boolean>} whether a row was written (false = the owner's own view). */
-export async function recordPageView(pool, { path, commune, device, source, visitorId, ownerAgentId }) {
+const kindOrVisitor = (kind) => (VIEWER_KINDS.includes(kind) ? kind : 'visitor');
+
+/** @returns {Promise<boolean>} whether a row was written. */
+export async function recordPageView(pool, { path, commune, device, source, visitorId, viewerKind, agentId }) {
   const listingId = listingIdFromPath(path);
   return withLegacyFallback(
     pool,
-    [RECORD_PAGE_VIEW_SQL, [path, commune || null, device, source, listingId, visitorId || null, ownerAgentId || null]],
-    [RECORD_PAGE_VIEW_LEGACY_SQL, [path, commune || null, device, source, listingId, ownerAgentId || null]],
+    [RECORD_PAGE_VIEW_SQL, [path, commune || null, device, source, listingId, visitorId || null, kindOrVisitor(viewerKind), agentId || null]],
+    [RECORD_PAGE_VIEW_LEGACY_SQL, [path, commune || null, device, source]],
   );
 }
 
 /** @returns {Promise<boolean>} whether a row was written. */
 export async function recordListingEvent(pool, {
-  event, listingId, commune, price, device, source, visitorId, routingType, ownerAgentId,
+  event, listingId, commune, price, device, source, visitorId, routingType, viewerKind, agentId,
 }) {
   if (!LISTING_EVENT_TYPES.includes(event)) throw new Error(`recordListingEvent: unknown event '${event}'`);
   const routing = event === 'call_click' && CALL_ROUTING_TYPES.includes(routingType) ? routingType : null;
   return withLegacyFallback(
     pool,
-    [RECORD_LISTING_EVENT_SQL, [event, listingId, commune || null, price, device, source, visitorId || null, routing, ownerAgentId || null]],
-    [RECORD_LISTING_EVENT_LEGACY_SQL, [event, listingId, commune || null, price, device, source, ownerAgentId || null]],
+    [RECORD_LISTING_EVENT_SQL, [event, listingId, commune || null, price, device, source, visitorId || null, routing, kindOrVisitor(viewerKind), agentId || null]],
+    [RECORD_LISTING_EVENT_LEGACY_SQL, [event, listingId, commune || null, price, device, source]],
   );
 }
 
@@ -233,7 +241,7 @@ export function normaliseSearch(body) {
 }
 
 /** @returns {Promise<boolean>} whether a row was written (false before the migration). */
-export async function recordSearch(pool, search, { device, source, visitorId }) {
+export async function recordSearch(pool, search, { device, source, visitorId, viewerKind }) {
   if (search.resultCount === null) return false;
   try {
     await pool.query(RECORD_SEARCH_SQL, [
@@ -250,6 +258,7 @@ export async function recordSearch(pool, search, { device, source, visitorId }) 
       search.resultCount,
       device,
       source,
+      kindOrVisitor(viewerKind),
     ]);
     return true;
   } catch (err) {

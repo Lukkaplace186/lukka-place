@@ -1233,9 +1233,10 @@ the write side.
   stores are in reach.
 - `unique_visitors` is per day. A weekly "personnes" figure must be counted
   from raw events (`COUNT(DISTINCT visitor_id)`), never by summing days.
-- Bots are not filtered in the rollup: they are no longer written at all, and
-  filtering only here would make the rollup disagree with web's raw-table
-  fallback for the same week.
+- Nothing is filtered in the rollup: every viewer is written (tagged
+  `viewer_kind` — visitor / owner / agent / staff / bot / prefetch, web
+  `lib/trackIngest.js`) and counted, and filtering only here would make the
+  rollup disagree with web's raw-table fallback for the same week.
 - Before the migration runs, the full statement fails with 42703 inside a
   SAVEPOINT and the original three-column statement runs instead
   (`legacy: true` in the result). Any other failure still rolls back.

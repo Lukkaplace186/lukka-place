@@ -133,8 +133,8 @@ test('a lead click takes its agent from the listing row, never from the request 
   const call = calls[calls.length - 1];
   assert.equal(normalizeSql(call.sql), normalizeSql(RECORD_LEAD_CLICK_SQL));
   assert.match(normalizeSql(call.sql), /\(SELECT agent_id FROM properties WHERE id = \$1::bigint\)/);
-  // visitor id and owner agent id last, both NULL when the caller has none.
-  assert.deepEqual(call.values, [293, 'Limete', 'mobile', 'direct', 1100, 'DIRECT_WA', null, null]);
+  // visitor id, viewer kind and signed-in agent last: a plain visitor by default.
+  assert.deepEqual(call.values, [293, 'Limete', 'mobile', 'direct', 1100, 'DIRECT_WA', null, 'visitor', null]);
 });
 
 test('an unknown routing type is refused rather than stored', async () => {

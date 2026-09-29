@@ -56,7 +56,7 @@ export function marketPositionText(position, listing) {
 }
 
 export const WHAT_IS_COUNTED =
-  'Mesuré sur lukkaplace.com : ouvertures de la page de l’annonce, personnes différentes (un même téléphone compte une fois), photos parcourues, appuis sur les boutons WhatsApp et « Appeler », mises en favori, partages et demandes de visite. Les visites de l’agent lui-même ne sont pas comptées.';
+  'Mesuré sur lukkaplace.com : ouvertures de la page de l’annonce, personnes différentes (un même téléphone compte une fois), photos parcourues, appuis sur les boutons WhatsApp et « Appeler », mises en favori, partages et demandes de visite. Toutes les ouvertures sont comptées, y compris celles de l’agent et des outils automatiques.';
 
 export const WHAT_IS_NOT_COUNTED =
   'Ne sont pas comptés : les appels et messages envoyés à l’agent sans passer par la page, et les personnes qui ont vu l’annonce sur un statut ou dans un groupe WhatsApp sans ouvrir le lien.';

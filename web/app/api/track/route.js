@@ -4,12 +4,12 @@ import { clientKey, rateLimited, usableAmount } from '@/lib/eventIngest';
 import {
   LISTING_EVENT_TYPES,
   normaliseSearch,
-  ownerAgentIdFrom,
   positiveId,
   recordListingEvent,
   recordPageView,
   recordSearch,
-  shouldSkipRequest,
+  signedInAgentIdFrom,
+  viewerKindFor,
   visitorIdFrom,
 } from '@/lib/trackIngest';
 
@@ -38,10 +38,9 @@ import {
  *  - `search` → `search_events`, with the count of listings that matched
  *    the search exactly — the demand side of the market data.
  *
- * WHAT IS NEVER STORED (lib/trackIngest.js): bots and prefetches, and any
- * listing-scoped event from the listing's own agent. Both used to be stored
- * and inflated every per-listing count, including the one an agent forwards
- * to a landlord.
+ * EVERY VIEWER IS STORED, tagged with `viewer_kind` (lib/trackIngest.js):
+ * visitors, the listing's own agent, other agents, the Lukka Place team, bots
+ * and prefetches alike.
  *
  * `price` is the listing's canonical USD figure at the moment of the event.
  * Recorded on the row rather than joined back from `properties` at read
@@ -77,22 +76,20 @@ export async function POST(request) {
   const { type, path, commune, listingId, price, utmSource } = body || {};
   const { device, source } = analyticsDimensions(request.headers, { utmSource });
 
-  const skipped = shouldSkipRequest(request.headers, device);
-  if (skipped) return Response.json({ success: true, recorded: false, skipped });
-
   const pool = getPool();
   const visitorId = visitorIdFrom(request, body?.visitorId);
-  const ownerAgentId = ownerAgentIdFrom(request);
+  const agentId = signedInAgentIdFrom(request);
+  const viewerKind = viewerKindFor(request, device, { automated: body?.automated === true, agentId });
   let recorded = true;
 
   try {
     if (type === 'page_view') {
       if (!path) return Response.json({ success: false, error: 'path is required' }, { status: 400 });
-      recorded = await recordPageView(pool, { path, commune, device, source, visitorId, ownerAgentId });
+      recorded = await recordPageView(pool, { path, commune, device, source, visitorId, viewerKind, agentId });
     } else if (type === 'whatsapp_click') {
       await pool.query(
         'INSERT INTO whatsapp_clicks (listing_id, commune, device, source, price) VALUES ($1, $2, $3, $4, $5)',
-        [listingId || null, commune || null, device, source, usableAmount(price)],
+        [positiveId(listingId), commune || null, device, source, usableAmount(price)],
       );
     } else if (LISTING_EVENT_TYPES.includes(type)) {
       // A listing-scoped event with no listing is not a usable row — there is
@@ -111,10 +108,11 @@ export async function POST(request) {
         source,
         visitorId,
         routingType: body?.routingType,
-        ownerAgentId,
+        viewerKind,
+        agentId,
       });
     } else if (type === 'search') {
-      recorded = await recordSearch(pool, normaliseSearch(body), { device, source, visitorId });
+      recorded = await recordSearch(pool, normaliseSearch(body), { device, source, visitorId, viewerKind });
     } else {
       return Response.json(
         {

@@ -2173,16 +2173,22 @@ and the code writes correctly before and after it runs). Write side is
   1 year, not httpOnly — the browser creates it and nothing about it is
   secret). Lets a report count different people. The server prefers the
   cookie over the body's copy and stores anything malformed as NULL.
-- **Never written**: `device = 'bot'` (the classifier now also catches the
-  WhatsApp / Facebook link-preview fetchers — anchored `^whatsapp/`, since the
-  in-app browser is a normal WebView UA and a person), prefetch/prerender
-  requests, and any listing-scoped event from the listing's OWN agent (the
-  agent session cookie is `path: '/'`; the INSERT carries
-  `NOT EXISTS (… agent_id = $owner)`). The client also sends nothing from a
-  driven browser (`navigator.webdriver`) and defers events on a prerendered page
-  until it is actually shown. The admin cookie is scoped to `/admin`, so an
-  admin browsing the storefront is indistinguishable from a visitor;
-  impersonation is refused by middleware.
+- **Everybody is written, labelled** (product decision, 2026-09-29 — it
+  replaced a first version that dropped bots, prefetches and the owner's own
+  views). Each row of `page_views` / `whatsapp_clicks` / `listing_events` /
+  `search_events` carries `viewer_kind` (`lib/trackIngest.js` `viewerKindFor`):
+  `staff` (the `lp_staff=1` marker cookie, path `/`, that middleware.js sets on
+  every authenticated /admin request — the admin session cookie itself never
+  reaches /api/track — or a "view as" session), `bot` (`device = 'bot'`, which
+  also catches the WhatsApp / Facebook link-preview fetchers, anchored
+  `^whatsapp/`; or `automated: true` from a `navigator.webdriver` browser),
+  `prefetch`, `owner` (a signed-in agent on their OWN listing, decided in the
+  INSERT against `properties.agent_id`), `agent`, `visitor`. Every count
+  (dashboard, rollup, landlord report) includes all of them; filter on
+  `viewer_kind` to see people only. NULL on rows written before the migration.
+  The client still defers events on a page the browser is only prerendering
+  until it is shown (a never-opened prerender was on nobody's screen). Most
+  crawlers run no JavaScript, so they still produce no beacon at all.
 - **Before the migration**: a 42703 retries the INSERT without the new columns
   (a view is never lost), a search on a missing table (42P01) is skipped.
 - **Mobile bar**: with the call icon, the price is one size down and its
@@ -2230,7 +2236,7 @@ and the code writes correctly before and after it runs). Write side is
   secret does not break every link already forwarded.
 - **The WhatsApp button opens the agent's own WhatsApp with no recipient** and
   a French message; Lukka Place never messages the owner.
-- The weekly report caption now says the agent's own views are excluded.
+- The report captions say every opening is counted, the agent's own and automated tools included.
 - The Monday digest lists up to 3 listings with their own counts and a link to
   this page (root CLAUDE.md digest; §41 of verify-pipeline).
 - Tests: `tests/unit/listing-hub-report.test.js`.

@@ -619,6 +619,13 @@
       "3-6": "3 - 6 months",
       "6-12": "6 - 12 months",
       "gt12": "> 12 months"
+    },
+    "marketMedian": {
+      "beds": "Median asking {label} in {commune} ({type}, {beds}): {median} — {count} comparable live listings",
+      "type": "Median asking {label} in {commune} ({type}): {median} — {count} comparable live listings",
+      "rent": "rent",
+      "sale": "price",
+      "more": "See the market in {commune}"
     }
   },
   "enquiry": {
@@ -1101,7 +1108,15 @@
         "previewAlt": "Preview of the marketing report",
         "share": "Share the report",
         "hint": "On a phone: Share the report → WhatsApp → the owner. The text is copied — paste it under the image.",
-        "captionLabel": "Report text"
+        "captionLabel": "Report text",
+        "liveTitle": "Live Report Link",
+        "liveHint": "The owner follows up-to-date figures without you resending an image every week.",
+        "liveCopy": "Copy the report link",
+        "liveCopied": "Link copied",
+        "liveSend": "Send on WhatsApp",
+        "liveManage": "Manage the link and see statistics",
+        "liveUnavailable": "The report link isn’t available yet.",
+        "liveFailed": "Couldn’t prepare the link. Try again."
       },
       "sections": {
         "social": "Social Networks",
@@ -4535,7 +4550,11 @@
         "above": "{pct} above the median of {n} comparable listings ({scope}): {median}.",
         "below": "{pct} below the median of {n} comparable listings ({scope}): {median}.",
         "inline": "In line with the market: median of {n} comparable listings ({scope}): {median}."
-      }
+      },
+      "reportLink": "Printable Report — {commune}",
+      "reportPick": "Pick a commune to print its report",
+      "print": "Print / PDF",
+      "back": "Market data"
     }
   },
   "errors": {

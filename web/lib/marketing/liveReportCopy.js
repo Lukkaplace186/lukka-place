@@ -65,3 +65,12 @@ export function sinceNote(trackingStartedAt) {
   const date = frenchDate(`${trackingStartedAt}T12:00:00Z`);
   return date ? `* Mesuré depuis le ${date}.` : null;
 }
+
+/**
+ * What the agent sends the owner with the live link — from their OWN
+ * WhatsApp, no recipient pre-filled (ReportLinkCard, the share kit).
+ */
+export function ownerReportMessage(url) {
+  return `Bonjour, voici le rapport en direct de votre bien sur Lukka Place : vues, personnes intéressées, appels, messages et demandes de visite, toujours à jour.
+${url}`;
+}

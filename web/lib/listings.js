@@ -175,7 +175,7 @@ const SELECT_FIELDS = `
   -- keyword pass, so neither case needs special-casing here.
   p.features,
   pc.title, pc.slug, pc.address,
-  catc.name AS category_name,
+  catc.name AS category_name, p.category_id,
   pc.description,
   a.id AS agent_id, a.image AS agency_logo_url, ${AGENCY_NAME_EXPR},
   -- DIRECT-TO-AGENT ROUTING. The agent's number reaches a public page only

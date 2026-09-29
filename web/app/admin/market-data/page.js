@@ -102,6 +102,16 @@ export default async function AdminMarketDataPage({ searchParams }) {
         <Link href="/admin/market-data/prix" className="u-micro-strong rounded-lg border border-line bg-surface px-3 py-1.5 text-ink hover:border-blue">
           {t('admin.marketTools.priceCheckLink')}
         </Link>
+        {priceCommune ? (
+          <Link
+            href={`/admin/market-data/rapport/${encodeURIComponent(priceCommune)}${purpose === 'sale' ? '?purpose=sale' : ''}`}
+            className="u-micro-strong rounded-lg border border-line bg-surface px-3 py-1.5 text-ink hover:border-blue"
+          >
+            {t('admin.marketTools.reportLink', { commune: priceCommune })}
+          </Link>
+        ) : (
+          <span className="u-micro text-ink-45">{t('admin.marketTools.reportPick')}</span>
+        )}
       </div>
       <MarketEvolution commune={priceCommune} purpose={purpose} />
       <UnmetDemand />

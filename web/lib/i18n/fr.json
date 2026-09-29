@@ -619,6 +619,13 @@
       "3-6": "3 - 6 mois",
       "6-12": "6 - 12 mois",
       "gt12": "> 12 mois"
+    },
+    "marketMedian": {
+      "beds": "{label} médian demandé à {commune} ({type}, {beds}) : {median} — {count} annonces comparables en ligne",
+      "type": "{label} médian demandé à {commune} ({type}) : {median} — {count} annonces comparables en ligne",
+      "rent": "Loyer",
+      "sale": "Prix",
+      "more": "Voir le marché à {commune}"
     }
   },
   "enquiry": {
@@ -1101,7 +1108,15 @@
         "previewAlt": "Aperçu du rapport de diffusion",
         "share": "Partager le rapport",
         "hint": "Sur téléphone : Partager le rapport → WhatsApp → le propriétaire. Le texte est copié, collez-le sous l’image.",
-        "captionLabel": "Texte du rapport"
+        "captionLabel": "Texte du rapport",
+        "liveTitle": "Lien du rapport en direct",
+        "liveHint": "Le propriétaire suit les chiffres à jour, sans que vous renvoyiez d’image chaque semaine.",
+        "liveCopy": "Copier le lien du rapport",
+        "liveCopied": "Lien copié",
+        "liveSend": "Envoyer sur WhatsApp",
+        "liveManage": "Gérer le lien et voir les statistiques",
+        "liveUnavailable": "Le lien du rapport n’est pas encore disponible.",
+        "liveFailed": "Impossible de préparer le lien. Réessayez."
       },
       "sections": {
         "social": "Réseaux sociaux",
@@ -4535,7 +4550,11 @@
         "above": "{pct} au-dessus de la médiane de {n} annonces comparables ({scope}) : {median}.",
         "below": "{pct} en dessous de la médiane de {n} annonces comparables ({scope}) : {median}.",
         "inline": "Au niveau du marché : médiane de {n} annonces comparables ({scope}) : {median}."
-      }
+      },
+      "reportLink": "Rapport imprimable — {commune}",
+      "reportPick": "Choisissez une commune pour imprimer son rapport",
+      "print": "Imprimer / PDF",
+      "back": "Données marché"
     }
   },
   "errors": {

@@ -15,7 +15,7 @@ import RecentlyViewed from '@/components/RecentlyViewed';
 import MobileListingBar from '@/components/MobileListingBar';
 import ShareButton from '@/components/ShareButton';
 import FavoriteButton from '@/components/FavoriteButton';
-import { cache } from 'react';
+import { cache, Suspense } from 'react';
 import { getListingById as readListingById, getListings, getSimilarListings } from '@/lib/listings';
 import { listingImages, locationLine, typeLabel, specItems } from '@/lib/listingView';
 import { formatPrice } from '@/lib/format';
@@ -23,6 +23,7 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import ListingViewTracker from '@/components/ListingViewTracker';
 import PropertyDescription from '@/components/listings/PropertyDescription';
 import AvailabilityConfirmedBadge from '@/components/listings/AvailabilityConfirmedBadge';
+import MarketMedianLine from '@/components/listings/MarketMedianLine';
 import ProjectUnitStrip from '@/components/projects/ProjectUnitStrip';
 import JsonLd from '@/components/seo/JsonLd';
 import { communeHref, listingJsonLd, listingMetaDescription, listingMetaTitle } from '@/lib/listingSeo';
@@ -336,6 +337,12 @@ export default async function ListingDetailPage({ params, searchParams }) {
               <KeyFacts listing={listing} />
               <EntryCostsBreakdown listing={listing} />
             </section>
+
+            {/* Streams in: a like-for-like median of live listings in the
+                commune, only from 5 comparables up (MarketMedianLine). */}
+            <Suspense fallback={null}>
+              <MarketMedianLine listing={listing} />
+            </Suspense>
 
             {/* Mobile only: the sticky right rail is off-screen below lg. */}
             <div className="flex flex-col gap-4 lg:hidden">

@@ -2240,3 +2240,34 @@ and the code writes correctly before and after it runs). Write side is
 - The Monday digest lists up to 3 listings with their own counts and a link to
   this page (root CLAUDE.md digest; §41 of verify-pipeline).
 - Tests: `tests/unit/listing-hub-report.test.js`.
+
+## Commune market report, public median line, report link in the share kit (2026-09-29)
+
+- **`/admin/market-data/rapport/[commune]`** (`lib/communeReport.js` reads,
+  `lib/communeReportRules.js` pure + French copy; `analytics.view`, printable).
+  Only the 24 verified commune names are accepted (anything else 404s).
+  Sections: live supply by type × bedrooms (median, quartiles, $/m², median
+  age), the 12-month snapshot series, closes of the last 24 months (achieved
+  median, gap to asking, days to close — sold rows only, never the public
+  gate), and 90 days of demand (distinct searchers, how many found nothing,
+  median budget; the engine's distinct customer count for the commune).
+  Every median is `—` below `MIN_SAMPLE` (5) with its count kept. Content is
+  French whatever the console language. Linked from /admin/market-data once a
+  commune is picked.
+- **`AREA_M2_SQL`** (`lib/marketExclusions.js`): an area counts only when it is
+  a plain number (optionally m / m2 / m²). The price check used to strip
+  letters, reading "12x20" as 1 220 m².
+- **Listing page median line** (`components/listings/MarketMedianLine.js`,
+  streamed under Suspense): "Loyer médian demandé à Kintambo (appartement) :
+  750 $ / mois — 7 annonces comparables en ligne", from the agent hub's
+  `getMarketPosition` (listing excluded, test agents excluded). Only the
+  same-type or same-type-and-bedrooms level, never the whole-commune mix, only
+  from 5 comparables, and no percentage against the listing — pricing is the
+  agent's conversation with the landlord. `SELECT_FIELDS` now carries
+  `p.category_id`. Landing pages already show a median once a type is chosen.
+- **Share kit → Propriétaire** starts with `ReportLinkQuick`: copy the live
+  report link (created on first tap, idempotent) or send it from the agent's
+  own WhatsApp; managing / revoking stays on `/compte/agent/biens/[id]`. The
+  owner message is `ownerReportMessage` (lib/marketing/liveReportCopy.js),
+  shared with ReportLinkCard.
+- Tests: `tests/unit/commune-report.test.js`.

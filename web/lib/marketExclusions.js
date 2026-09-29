@@ -13,3 +13,12 @@ export const NOT_TEST_LISTING_SQL = `NOT EXISTS (
    WHERE test_agent.id = p.agent_id
      AND COALESCE((to_jsonb(test_agent) ->> 'is_test')::boolean, false)
 )`;
+
+/**
+ * `properties.area` in square metres, or NULL. The column is TEXT and agents
+ * type "12x20", "600 m²", "0": only a plain number (optionally followed by
+ * m / m2 / m²) is read. "12x20" is a plot's sides — stripping its letters
+ * would read 1220 m². Used by every market figure per m².
+ */
+export const AREA_M2_SQL = `CASE WHEN p.area::text ~ '^[[:space:]]*[0-9]+([.,][0-9]+)?[[:space:]]*(m|m2|m²)?[[:space:]]*$'
+  THEN NULLIF(replace(regexp_replace(p.area::text, '[^0-9.,]', '', 'g'), ',', '.'), '')::numeric END`;

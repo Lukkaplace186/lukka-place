@@ -1,7 +1,7 @@
 import 'server-only';
 import { getPool } from './db';
 import { MIN_SAMPLE } from './marketBenchmarks';
-import { NOT_TEST_LISTING_SQL } from './marketExclusions';
+import { AREA_M2_SQL, NOT_TEST_LISTING_SQL } from './marketExclusions';
 
 /**
  * "Is this price right for this commune?" — the developer price check on
@@ -33,7 +33,7 @@ const COMMUNE_OF_P = `(
 export const COMPARABLES_SQL = `
   WITH comps AS (
     SELECT CASE WHEN p.purpose = 'rent' AND p.price_period = 'an' THEN p.price / 12.0 ELSE p.price END AS amount,
-           NULLIF(regexp_replace(COALESCE(p.area::text, ''), '[^0-9.]', '', 'g'), '')::numeric AS area,
+           ${AREA_M2_SQL} AS area,
            p.category_id, p.beds
       FROM properties p
      WHERE p.status = 1 AND p.approve_status = 1 AND p.price > 0

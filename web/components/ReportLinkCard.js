@@ -6,6 +6,7 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
 import { useToast } from './Toast';
 import { createReportLinkAction, revokeReportLinkAction } from '@/app/compte/agent/reportLinkActions';
+import { ownerReportMessage } from '@/lib/marketing/liveReportCopy';
 
 /**
  * The owner's live report link on the agent's listing page: create it once,
@@ -18,9 +19,7 @@ import { createReportLinkAction, revokeReportLinkAction } from '@/app/compte/age
  * from their contacts; Lukka Place never messages the owner.
  */
 
-function ownerMessage(url) {
-  return `Bonjour, voici le rapport en direct de votre bien sur Lukka Place : vues, personnes intéressées, appels, messages et demandes de visite, toujours à jour.\n${url}`;
-}
+const ownerMessage = ownerReportMessage;
 
 export default function ReportLinkCard({ propertyId, initialLink, available }) {
   const t = useT();

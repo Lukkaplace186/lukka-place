@@ -12,6 +12,7 @@ import { LISTING_TIME_ZONE } from '@/lib/listingView';
 import { fetchPackImages, isStale, loadSharePack, packTimestamp, saveSharePack } from '@/lib/sharePack';
 import { decodeAssets, loadRenderFont, renderFlyer, renderReport } from './marketing/CanvasRenderer';
 import { useToast } from './Toast';
+import ReportLinkQuick from './ReportLinkQuick';
 import { useLocale, useT } from '@/lib/i18n/client';
 
 const BLOCKER_KEYS = {
@@ -545,6 +546,8 @@ export default function AgentListingShareKit({ listingId, open, onOpenChange }) 
         {view === 'owner' && (
           <div className="flex min-w-0 flex-col gap-3">
             <p className="text-sm text-ink-70">{t('agent.share.owner.intro')}</p>
+
+            <ReportLinkQuick listingId={listingId} />
 
             {report.status !== 'ready' && (
               <button type="button" onClick={prepareReport} disabled={report.status === 'loading'} className={`${actionClass} u-btn-primary bg-blue text-white`}>

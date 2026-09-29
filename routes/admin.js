@@ -34,8 +34,10 @@ const {
   DASHBOARD_TRANSITIONS,
   respondFromCustomer,
   CUSTOMER_TRANSITIONS,
+  notifyOps,
 } = require('../services/viewingNotifications');
-const { resolveScheduledAtInput, requestedSlotAt } = require('../services/visitSchedule');
+const { resolveScheduledAtInput, requestedSlotAt, resolvePreferredSlotInput, formatSlotFr } = require('../services/visitSchedule');
+const visitReceipt = require('../services/visitReceipt');
 
 const router = express.Router();
 
@@ -735,14 +737,24 @@ router.patch('/leads/:id', (req, res) => {
  * internally (services/openai.js).
  */
 router.post('/viewing-requests', (req, res) => {
-  const { lead_id: leadId, property_id: propertyId, requested_time: requestedTime } = req.body || {};
+  const {
+    lead_id: leadId, property_id: propertyId, requested_time: requestedTime, preferred_slot_at: preferredSlotRaw,
+  } = req.body || {};
   const numericLeadId = Number.parseInt(leadId, 10);
   if (!Number.isFinite(numericLeadId) || !db.getLead(numericLeadId)) {
     return res.status(400).json({ success: false, error: 'lead_id must reference a real lead.' });
   }
+  // The listing page's picker (web VisitSlotPicker) sends the exact instant;
+  // older pages send only the phrase. A present-but-invalid slot is refused.
+  let preferredSlotAt = null;
+  if (preferredSlotRaw !== undefined && preferredSlotRaw !== null && preferredSlotRaw !== '') {
+    const resolved = resolvePreferredSlotInput(preferredSlotRaw);
+    if (resolved.error) return res.status(400).json({ success: false, error: resolved.error });
+    preferredSlotAt = resolved.value;
+  }
 
   try {
-    const viewingRequest = db.createViewingRequest({ leadId: numericLeadId, propertyId, requestedTime });
+    const viewingRequest = db.createViewingRequest({ leadId: numericLeadId, propertyId, requestedTime, preferredSlotAt });
     // The lead IS a visit request now. Without this the web form's leads sat at
     // NEW forever, and the customer's own account could not show them as visits.
     db.markLeadViewingRequested(numericLeadId);
@@ -794,7 +806,8 @@ router.get('/viewing-requests', (req, res) => {
     // gone by unanswered. Computed here so web/ never re-implements the parser.
     const data = page.data.map((row) => ({
       ...row,
-      requested_slot_at: requestedSlotAt(row.requested_time, row.created_at),
+      // A structured pick wins while the request is still the customer's own.
+      requested_slot_at: (row.status === 'PENDING' && row.preferred_slot_at) || requestedSlotAt(row.requested_time, row.created_at),
     }));
     return res.json({ success: true, ...page, data });
   } catch (err) {
@@ -804,6 +817,155 @@ router.get('/viewing-requests', (req, res) => {
 });
 
 const CUSTOMER_WA_ID = /^\d{7,15}$/;
+
+/** "Mes visites": at most this many listings in one submission. */
+const VISIT_BATCH_MAX = 4;
+const VISIT_BATCH_PER_HOUR = 1;
+
+/**
+ * POST /admin/viewing-requests/batch — "Mes visites", up to four listings in one
+ * go (web's visit cart). Body: { wa_id, name?, items: [{ property_id,
+ * preferred_slot_at, requested_time }] }. web re-reads every listing under the
+ * public gate before calling this.
+ *
+ * One lead + one viewing request per listing, sharing a batch id, so each is
+ * an ordinary request everywhere else (agent inbox, SLA, check-in). Each
+ * listing's OWN agent is alerted about their listing only — never the other
+ * listings, never competing agencies (the leadDispatch separation rule). The
+ * desk gets ONE summary instead of four copies. One batch per number per hour.
+ */
+router.post('/viewing-requests/batch', (req, res) => {
+  const { wa_id: waId, name } = req.body || {};
+  const items = Array.isArray(req.body?.items) ? req.body.items : [];
+  if (!CUSTOMER_WA_ID.test(String(waId || ''))) {
+    return res.status(400).json({ success: false, error: 'wa_id must be 7-15 digits.' });
+  }
+  if (items.length < 1 || items.length > VISIT_BATCH_MAX) {
+    return res.status(400).json({ success: false, error: `items must hold 1 to ${VISIT_BATCH_MAX} listings.` });
+  }
+  const now = new Date();
+  const parsed = [];
+  const seen = new Set();
+  for (const item of items) {
+    const propertyId = Number.parseInt(item?.property_id, 10);
+    if (!Number.isSafeInteger(propertyId) || propertyId <= 0 || seen.has(propertyId)) {
+      return res.status(400).json({ success: false, error: 'Each item needs a distinct numeric property_id.' });
+    }
+    seen.add(propertyId);
+    const slot = resolvePreferredSlotInput(item?.preferred_slot_at, now);
+    if (slot.error) return res.status(400).json({ success: false, error: slot.error, property_id: propertyId });
+    const requestedTime = String(item?.requested_time || formatSlotFr(slot.value) || '').trim().slice(0, 200);
+    parsed.push({ propertyId, preferredSlotAt: slot.value, requestedTime });
+  }
+  if (db.countRecentVisitBatches(waId, new Date(now.getTime() - 3600 * 1000).toISOString()) >= VISIT_BATCH_PER_HOUR) {
+    return res.status(429).json({ success: false, error: 'One multi-visit request per hour.' });
+  }
+
+  const batchId = `b${now.getTime().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  const created = [];
+  try {
+    for (const item of parsed) {
+      const lead = db.createLead({
+        wa_id: String(waId),
+        name: name ? String(name).trim().slice(0, 120) : null,
+        source: 'listing-visit-request',
+        property_id: item.propertyId,
+        requirements_summary: `Demande de visite (sélection de ${parsed.length}) — créneau souhaité : ${item.requestedTime}`,
+      });
+      const viewingRequest = db.createViewingRequest({
+        leadId: lead.id,
+        propertyId: item.propertyId,
+        requestedTime: item.requestedTime,
+        preferredSlotAt: item.preferredSlotAt,
+        batchId,
+      });
+      db.markLeadViewingRequested(lead.id);
+      created.push({ lead, viewingRequest });
+    }
+  } catch (err) {
+    console.error(`[admin] POST /viewing-requests/batch failed: ${err.message}`);
+    return res.status(400).json({ success: false, error: err.message });
+  }
+
+  for (const { lead, viewingRequest } of created) {
+    notifyViewingRequestInBackground({
+      viewingRequest,
+      lead: db.getLead(lead.id),
+      propertyId: viewingRequest.property_id,
+      notifyOpsCopy: false,
+    });
+  }
+  setImmediate(() => {
+    const lines = [
+      `🏠 [Lukka Place] Demande de visites groupée (${created.length} biens)`,
+      '',
+      `Client : ${name || ''} +${String(waId).replace(/\D/g, '')}`.replace('  ', ' '),
+      ...created.map(({ viewingRequest }) => `• Bien #${viewingRequest.property_id} — ${viewingRequest.requested_time}`),
+      '',
+      'Chaque agent a été alerté pour son propre bien uniquement.',
+    ];
+    notifyOps(lines.join('\n'), 'batch summary').catch(() => {});
+  });
+
+  return res.status(201).json({
+    success: true,
+    batchId,
+    viewingRequests: created.map(({ viewingRequest }) => viewingRequest),
+  });
+});
+
+/**
+ * GET /admin/viewing-requests/busy-slots?property_ids=1,2&agent_id=7 — the
+ * confirmed visit instants of one agent in the next 8 days, for the public
+ * slot picker to grey out a clash. Instants only: no customer, no listing.
+ */
+router.get('/viewing-requests/busy-slots', (req, res) => {
+  const propertyIds = String(req.query.property_ids || '')
+    .split(',')
+    .map((id) => Number.parseInt(id, 10))
+    .filter((id) => Number.isSafeInteger(id) && id > 0);
+  const agentId = Number.parseInt(req.query.agent_id, 10);
+  const now = Date.now();
+  try {
+    const data = db.listBusySlots({
+      propertyIds,
+      agentId: Number.isSafeInteger(agentId) ? agentId : null,
+      fromIso: new Date(now - 2 * 3600 * 1000).toISOString(),
+      toIso: new Date(now + 8 * 86400 * 1000).toISOString(),
+    });
+    return res.json({ success: true, data });
+  } catch (err) {
+    console.error(`[admin] GET /viewing-requests/busy-slots failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not read busy slots.' });
+  }
+});
+
+/**
+ * POST /admin/viewing-requests/:id/agent-completed — the agent dashboard's
+ * "Visite effectuée" / "Pas eu lieu" (services/visitReceipt.js). Body:
+ * { agent_id, outcome: 'DONE' | 'NOT_DONE' }. Status stays CONFIRMED.
+ */
+router.post('/viewing-requests/:id/agent-completed', async (req, res) => {
+  const id = Number.parseInt(req.params.id, 10);
+  const agentId = Number.parseInt(req.body?.agent_id, 10);
+  const outcome = req.body?.outcome;
+  if (!Number.isFinite(id)) return res.status(404).json({ success: false, error: 'Viewing request not found.' });
+  if (!Number.isFinite(agentId)) return res.status(400).json({ success: false, error: 'agent_id must be a numeric agents.id.' });
+  if (!db.AGENT_VISIT_OUTCOMES.includes(outcome)) {
+    return res.status(400).json({ success: false, error: `outcome must be one of: ${db.AGENT_VISIT_OUTCOMES.join(', ')}` });
+  }
+  try {
+    const result = await visitReceipt.completeFromDashboard({ viewingRequestId: id, agentId, outcome });
+    if (!result.ok) {
+      const httpStatus = { 'unknown-request': 404, 'not-this-requests-agent': 403 }[result.reason] || 400;
+      return res.status(httpStatus).json({ success: false, reason: result.reason });
+    }
+    return res.json({ success: true, ...result });
+  } catch (err) {
+    console.error(`[admin] POST /viewing-requests/${id}/agent-completed failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not record the visit.' });
+  }
+});
 
 /**
  * One customer's own viewing requests — web/'s Espace Client visit timeline.

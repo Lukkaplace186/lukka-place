@@ -3,6 +3,7 @@ import SiteShell from '@/components/SiteShell';
 import Footer from '@/components/Footer';
 import FavoriteResumeHandler from '@/components/FavoriteResumeHandler';
 import AccountLimitNotice from '@/components/AccountLimitNotice';
+import VisitCartMount from '@/components/VisitCartMount';
 import ImpersonationBanner from '@/components/ImpersonationBanner';
 import { CurrencyRateProvider } from '@/lib/CurrencyRateContext';
 import { getCdfRate } from '@/lib/currencyRate';
@@ -63,6 +64,7 @@ export default async function SiteLayout({ children }) {
       <CurrencyRateProvider rate={rate}>
         <FavoriteResumeHandler />
         <AccountLimitNotice />
+        <VisitCartMount />
         <Header />
         <SiteShell>
           {/* min-h-0 alongside flex-1: a flex item's default min-height is

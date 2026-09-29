@@ -649,7 +649,51 @@
       "failed": "Sending failed, please try again."
     },
     "trackVisit": "Follow their answer in My viewings →",
-    "visitShort": "Visit"
+    "visitShort": "Visit",
+    "picker": {
+      "day": "Day",
+      "time": "Time",
+      "today": "Today",
+      "tomorrow": "Tomorrow",
+      "kinshasaTime": "Kinshasa time",
+      "busy": "The agent already has a visit at this time",
+      "tooSoon": "Too soon to get there",
+      "busyNote": "Struck-through times are already taken by the agent.",
+      "chosen": "Requested visit: {slot}"
+    },
+    "cart": {
+      "add": "Add to my visits",
+      "inCart": "In my visits ({count}/{max})",
+      "added": "Added to your visits ({count}/{max}).",
+      "full": "You already have {max} properties in your visits.",
+      "open": "View",
+      "pill": "My visits · {count}/{max}",
+      "title": "My Visits",
+      "intro": "Up to {max} properties in one request. Pick a time for each: every agent gets the request for their own property only.",
+      "empty": "Nothing selected yet. On a listing, tap “Add to my visits”.",
+      "remove": "Remove from my visits",
+      "change": "Change",
+      "tight": "Two visits are less than an hour apart. That works if the properties are close; otherwise change a time.",
+      "pickAll": "Pick a time for each property",
+      "submit": {
+        "one": "Request {count} visit",
+        "other": "Request {count} visits"
+      },
+      "sending": "Sending…",
+      "sent": {
+        "one": "Request sent. The agent has been told.",
+        "other": "{count} requests sent. Each agent has been told about their property."
+      },
+      "seeAgenda": "See my visits",
+      "errors": {
+        "phone": "Enter a valid WhatsApp number.",
+        "items": "Select between 1 and {max} properties.",
+        "slot": "One of the times is no longer available. Pick another.",
+        "gone": "One of the properties is no longer online: it was removed from your selection.",
+        "hour": "You already sent a multi-visit request less than an hour ago.",
+        "failed": "Sending failed. Try again in a moment."
+      }
+    }
   },
   "search": {
     "label": {
@@ -1296,6 +1340,27 @@
           "one": "and {count} more",
           "other": "and {count} more"
         }
+      },
+      "callCustomer": "Call the customer",
+      "toConfirmHeading": {
+        "one": "To Confirm · {count}",
+        "other": "To Confirm · {count}"
+      },
+      "declareHeading": "Past Visits to Record",
+      "declareHint": "Say whether the visit happened: the customer receives a dated visit receipt.",
+      "done": {
+        "done": "Visit done",
+        "notDone": "Didn’t happen",
+        "sendFromMine": "Send the receipt from my WhatsApp",
+        "receiptSent": "Visit recorded. The customer received their visit receipt.",
+        "receiptNotSent": "Visit recorded. Send the receipt from your WhatsApp.",
+        "notDoneSaved": "Noted: the visit didn’t happen.",
+        "marked": "Visit done",
+        "markedWithReceipt": "Visit done · receipt sent",
+        "markedNotDone": "Visit didn’t happen",
+        "notYet": "This visit can’t be recorded yet.",
+        "auth": "Your session has expired. Log in again.",
+        "failed": "Couldn’t save right now. Try again."
       }
     },
     "availability": {
@@ -2436,6 +2501,47 @@
       "securityNote": "Your account is linked to {phone}. Any password reset goes through this number.",
       "saved": "Name saved.",
       "saveFailed": "Your change couldn't be saved. Please try again."
+    },
+    "agenda": {
+      "metaTitle": "My Visits — Lukka Place",
+      "title": "My Visits",
+      "lead": "Your visits day by day, in Kinshasa time.",
+      "toMessages": "See conversations",
+      "openAgenda": "My visits, day by day",
+      "unavailable": "Your visits can’t be loaded right now. Try again in a few minutes.",
+      "emptyTitle": "No Visits Planned",
+      "emptyBody": "Pick a property and tap “Request a viewing”: the day and time will appear here.",
+      "emptyAction": "Browse listings",
+      "groups": {
+        "today": "Today",
+        "tomorrow": "Tomorrow",
+        "upcoming": "Upcoming",
+        "unscheduled": "Time to Be Set",
+        "past": "Past"
+      },
+      "tone": {
+        "pending": "Pending",
+        "confirmed": "Confirmed",
+        "rescheduled": "New time proposed",
+        "cancelled": "Cancelled",
+        "done": "Done"
+      },
+      "noTime": "Time to be set",
+      "requested": "requested, waiting for the agent",
+      "proposed": "The agent proposes: {slot}",
+      "receipt": "Visit receipt sent on WhatsApp",
+      "listingGone": "Listing no longer online",
+      "callAgent": "Call the agent",
+      "callLukka": "Call Lukka Place",
+      "whatsappAgent": "WhatsApp the agent",
+      "whatsappLukka": "WhatsApp Lukka Place",
+      "centralNote": "This agent’s number isn’t verified yet: Lukka Place puts you in touch.",
+      "viewListing": "View the property",
+      "addToCalendar": "Add to my calendar",
+      "acceptSlot": "Accept this time",
+      "cancel": "Cancel",
+      "cancelConfirm": "Confirm cancellation",
+      "actionFailed": "Couldn’t do that right now. Try again."
     }
   },
   "admin": {

@@ -408,6 +408,7 @@ async function runVisitAnswer(label, call) {
   try {
     const message = await call(t);
     revalidatePath('/compte/client/messages');
+    revalidatePath('/compte/client/visites');
     return { ok: true, message };
   } catch (error) {
     console.warn(`[compte/client] ${label} failed:`, error.message);

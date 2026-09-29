@@ -2727,11 +2727,14 @@ function countAgentMatchesSince({ agentId, since }) {
  * @param {string} [data.requestedTime] Free text — see the column comment above.
  * @returns {Object} The new viewing_requests row.
  */
-function createViewingRequest({ leadId, propertyId, requestedTime } = {}) {
+function createViewingRequest({ leadId, propertyId, requestedTime, preferredSlotAt = null, batchId = null } = {}) {
   if (!leadId) throw new Error('createViewingRequest requires leadId');
   const info = db
-    .prepare(`INSERT INTO viewing_requests (lead_id, property_id, requested_time) VALUES (?, ?, ?)`)
-    .run(leadId, toNullable(propertyId), toNullable(requestedTime));
+    .prepare(
+      `INSERT INTO viewing_requests (lead_id, property_id, requested_time, preferred_slot_at, batch_id)
+       VALUES (?, ?, ?, ?, ?)`,
+    )
+    .run(leadId, toNullable(propertyId), toNullable(requestedTime), toNullable(preferredSlotAt), toNullable(batchId));
   return db.prepare('SELECT * FROM viewing_requests WHERE id = ?').get(Number(info.lastInsertRowid));
 }
 
@@ -2819,7 +2822,27 @@ const VIEWING_REQUESTS_EXTENDED_COLUMNS = [
   // agent failing them in response metrics, and the customer's own timeline
   // says which it was. NULL on older rows and on admin overrides.
   ['cancelled_by', 'TEXT'],
+  // Structured booking (2026-09-29, web VisitSlotPicker): the exact instant the
+  // customer picked, UTC with a Z. `requested_time` still carries the French
+  // phrase generated from it, so every existing reader and message is
+  // unchanged. Pinned as scheduled_at when the agent accepts a PENDING request.
+  ['preferred_slot_at', 'TEXT'],
+  // One "Mes visites" submission of up to four listings shares a batch id.
+  ['batch_id', 'TEXT'],
+  // Bon de visite: when the agent was asked "la visite a-t-elle eu lieu ?"
+  // (once per request), their answer (DONE | NOT_DONE), when, and the receipt
+  // sent to the customer — its text kept verbatim as the proof of
+  // introduction, its time stamped only when Chakra accepted it. The agent's
+  // DONE never sets status COMPLETED: that stays the customer's check-in.
+  ['agent_done_asked_at', 'TEXT'],
+  ['agent_completed_at', 'TEXT'],
+  ['agent_visit_outcome', 'TEXT'],
+  ['visit_receipt_text', 'TEXT'],
+  ['visit_receipt_sent_at', 'TEXT'],
 ];
+
+/** viewing_requests.agent_visit_outcome. */
+const AGENT_VISIT_OUTCOMES = ['DONE', 'NOT_DONE'];
 
 /** viewing_requests.agent_response_via. */
 const AGENT_RESPONSE_CHANNELS = ['WHATSAPP', 'DASHBOARD'];
@@ -2939,7 +2962,8 @@ function listViewingRequestsForCustomer(waId, { limit } = {}) {
     .prepare(
       `SELECT vr.id, vr.lead_id, vr.property_id, vr.requested_time, vr.status, vr.scheduled_at,
               vr.created_at, vr.first_response_at, vr.sla_alerted_at, vr.checkin_response,
-              vr.cancelled_by,
+              vr.cancelled_by, vr.preferred_slot_at, vr.batch_id, vr.agent_visit_outcome,
+              vr.agent_completed_at, vr.visit_receipt_sent_at,
               CASE WHEN vr.decline_reason_by = 'CUSTOMER' THEN vr.decline_reason_code END AS customer_reason_code
          FROM viewing_requests vr
          JOIN leads l ON l.id = vr.lead_id
@@ -3219,6 +3243,103 @@ function updateViewingRequest(id, { status, requestedTime } = {}) {
  * @param {number} id
  * @param {string|null} scheduledAt ISO-8601 in UTC (…Z) — see the column note.
  */
+/**
+ * Confirmed visits whose slot passed at least an hour ago and whose agent was
+ * never asked whether it took place — the bon de visite sweep
+ * (services/visitReceipt.js). `afterIso` stops a first deploy from asking
+ * about visits from weeks ago.
+ */
+function listVisitsToAskAgentDone(beforeIso, afterIso) {
+  return db
+    .prepare(
+      `SELECT v.*, l.wa_id AS lead_wa_id, l.name AS lead_name, l.id AS lead_row_id
+         FROM viewing_requests v
+         JOIN leads l ON l.id = v.lead_id
+        WHERE v.status = 'CONFIRMED'
+          AND v.scheduled_at IS NOT NULL
+          AND v.scheduled_at <= ? AND v.scheduled_at >= ?
+          AND v.agent_done_asked_at IS NULL
+          AND v.agent_visit_outcome IS NULL
+        ORDER BY v.scheduled_at ASC
+        LIMIT 50`,
+    )
+    .all(beforeIso, afterIso);
+}
+
+function markAgentDoneAsked(id, at = new Date().toISOString()) {
+  db.prepare('UPDATE viewing_requests SET agent_done_asked_at = COALESCE(agent_done_asked_at, ?) WHERE id = ?').run(at, id);
+}
+
+/**
+ * The agent's answer, written once: a second tap, or the dashboard after
+ * WhatsApp, changes nothing (`agent_visit_outcome IS NULL` in the WHERE).
+ * @returns {boolean} whether this call recorded it.
+ */
+function recordAgentVisitOutcome(id, { outcome, at = new Date().toISOString(), receiptText = null }) {
+  if (!AGENT_VISIT_OUTCOMES.includes(outcome)) throw new Error(`recordAgentVisitOutcome: unknown outcome '${outcome}'`);
+  const info = db
+    .prepare(
+      `UPDATE viewing_requests
+          SET agent_visit_outcome = @outcome,
+              agent_completed_at = CASE WHEN @outcome = 'DONE' THEN @at ELSE NULL END,
+              visit_receipt_text = @receipt
+        WHERE id = @id AND agent_visit_outcome IS NULL`,
+    )
+    .run({ outcome, at, receipt: toNullable(receiptText), id });
+  return info.changes > 0;
+}
+
+function markVisitReceiptSent(id, at = new Date().toISOString()) {
+  db.prepare('UPDATE viewing_requests SET visit_receipt_sent_at = ? WHERE id = ?').run(at, id);
+}
+
+/**
+ * Confirmed visits of one agent between two instants — only the instants, for
+ * the public slot picker to grey out a clash. Matched by the agent stamped at
+ * notify time OR any of their listings, so a request routed before the stamp
+ * existed still counts. No customer data leaves this function.
+ */
+function listBusySlots({ propertyIds = [], agentId = null, fromIso, toIso }) {
+  const ids = (propertyIds || []).map((id) => Number(id)).filter((id) => Number.isSafeInteger(id) && id > 0).slice(0, 500);
+  const clauses = [];
+  const params = { from: fromIso, to: toIso };
+  if (agentId != null && Number.isSafeInteger(Number(agentId))) {
+    clauses.push('vr.agent_id = @agent');
+    params.agent = Number(agentId);
+  }
+  if (ids.length) {
+    clauses.push(`COALESCE(vr.property_id, l.property_id) IN (${ids.map((_, i) => `@p${i}`).join(', ')})`);
+    ids.forEach((id, i) => { params[`p${i}`] = id; });
+  }
+  if (!clauses.length) return [];
+  return db
+    .prepare(
+      `SELECT DISTINCT vr.scheduled_at
+         FROM viewing_requests vr
+         JOIN leads l ON l.id = vr.lead_id
+        WHERE vr.status = 'CONFIRMED'
+          AND vr.scheduled_at IS NOT NULL
+          AND vr.scheduled_at >= @from AND vr.scheduled_at <= @to
+          AND (${clauses.join(' OR ')})
+        ORDER BY vr.scheduled_at`,
+    )
+    .all(params)
+    .map((row) => row.scheduled_at);
+}
+
+/** Multi-visit submissions from one number since an instant — one batch an hour. */
+function countRecentVisitBatches(waId, sinceIso) {
+  const row = db
+    .prepare(
+      `SELECT COUNT(DISTINCT vr.batch_id) AS n
+         FROM viewing_requests vr
+         JOIN leads l ON l.id = vr.lead_id
+        WHERE vr.batch_id IS NOT NULL AND l.wa_id = ? AND vr.created_at >= datetime(?)`,
+    )
+    .get(String(waId), sinceIso);
+  return Number(row?.n) || 0;
+}
+
 function setViewingScheduledAt(id, scheduledAt) {
   db.prepare('UPDATE viewing_requests SET scheduled_at = ? WHERE id = ?')
     .run(toNullable(scheduledAt), id);
@@ -3918,6 +4039,13 @@ module.exports = {
   setViewingAgentResponseVia,
   markViewingCustomerNotified,
   clearPendingAgentActionsForViewing,
+  listVisitsToAskAgentDone,
+  markAgentDoneAsked,
+  recordAgentVisitOutcome,
+  markVisitReceiptSent,
+  listBusySlots,
+  countRecentVisitBatches,
+  AGENT_VISIT_OUTCOMES,
   AGENT_RESPONSE_CHANNELS,
   setViewingDeclineCode,
   reassignViewingRequest,

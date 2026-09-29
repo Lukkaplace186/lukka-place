@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { phoneFromForm } from '@/lib/phone';
 import { createLead, createViewingRequest } from '@/lib/adminApi';
 import { getListingById } from '@/lib/listings';
+import { validatePickedSlot } from '@/lib/visitSlots';
 
 /**
  * Public "Demander une visite" form (EnquiryCard.js) — creates a real lead
@@ -23,7 +24,12 @@ import { getListingById } from '@/lib/listings';
 export async function submitVisitRequestAction(propertyId, formData) {
   const name = String(formData.get('name') || '').trim().slice(0, 120);
   const phone = phoneFromForm(formData);
-  const requestedTime = String(formData.get('requested_time') || '').trim().slice(0, 200);
+  // The picker (components/VisitSlotPicker.js) posts the exact instant; the
+  // French phrase is derived from it here, never trusted from the form. A page
+  // cached before the picker shipped still posts free text, which is kept.
+  const pickedRaw = String(formData.get('preferred_slot_at') || '').trim();
+  const picked = pickedRaw ? validatePickedSlot(pickedRaw) : null;
+  const requestedTime = picked?.phrase || (pickedRaw ? '' : String(formData.get('requested_time') || '').trim().slice(0, 200));
 
   if (!phone) redirect(`/listings/${propertyId}?visit_error=phone`);
   if (!requestedTime) redirect(`/listings/${propertyId}?visit_error=time`);
@@ -40,7 +46,7 @@ export async function submitVisitRequestAction(propertyId, formData) {
       assignedAgent: listing.agency_name || null,
       requirementsSummary: `Demande de visite — créneau souhaité : ${requestedTime}`,
     });
-    await createViewingRequest({ leadId: lead.id, propertyId: listing.id, requestedTime });
+    await createViewingRequest({ leadId: lead.id, propertyId: listing.id, requestedTime, preferredSlotAt: picked?.iso || null });
   } catch (err) {
     console.error(`[listings/${propertyId}] visit request failed: ${err.message}`);
     redirect(`/listings/${propertyId}?visit_error=1`);

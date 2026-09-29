@@ -649,7 +649,51 @@
       "failed": "L'envoi a échoué, réessayez."
     },
     "trackVisit": "Suivre sa réponse dans Mes visites →",
-    "visitShort": "Visiter"
+    "visitShort": "Visiter",
+    "picker": {
+      "day": "Jour",
+      "time": "Heure",
+      "today": "Aujourd’hui",
+      "tomorrow": "Demain",
+      "kinshasaTime": "heure de Kinshasa",
+      "busy": "L’agent a déjà une visite à cette heure",
+      "tooSoon": "Trop proche pour s’y rendre",
+      "busyNote": "Les heures barrées sont déjà prises par l’agent.",
+      "chosen": "Visite souhaitée : {slot}"
+    },
+    "cart": {
+      "add": "Ajouter à mes visites",
+      "inCart": "Dans mes visites ({count}/{max})",
+      "added": "Ajouté à vos visites ({count}/{max}).",
+      "full": "Vous avez déjà {max} biens dans vos visites.",
+      "open": "Voir",
+      "pill": "Mes visites · {count}/{max}",
+      "title": "Mes visites",
+      "intro": "Jusqu’à {max} biens en une seule demande. Choisissez un créneau pour chacun : chaque agent reçoit la demande pour son bien uniquement.",
+      "empty": "Aucun bien sélectionné. Sur une annonce, appuyez sur « Ajouter à mes visites ».",
+      "remove": "Retirer de mes visites",
+      "change": "Changer",
+      "tight": "Deux visites sont à moins d’une heure d’intervalle. C’est possible si les biens sont proches ; sinon, changez un créneau.",
+      "pickAll": "Choisissez un créneau pour chaque bien",
+      "submit": {
+        "one": "Demander {count} visite",
+        "other": "Demander {count} visites"
+      },
+      "sending": "Envoi…",
+      "sent": {
+        "one": "Demande envoyée. L’agent a été prévenu.",
+        "other": "{count} demandes envoyées. Chaque agent a été prévenu pour son bien."
+      },
+      "seeAgenda": "Voir mes visites",
+      "errors": {
+        "phone": "Indiquez un numéro WhatsApp valide.",
+        "items": "Sélectionnez entre 1 et {max} biens.",
+        "slot": "Un des créneaux n’est plus disponible. Choisissez-en un autre.",
+        "gone": "Un des biens n’est plus en ligne : il a été retiré de votre sélection.",
+        "hour": "Vous avez déjà envoyé une demande groupée il y a moins d’une heure.",
+        "failed": "L’envoi a échoué. Réessayez dans un instant."
+      }
+    }
   },
   "search": {
     "label": {
@@ -1296,6 +1340,27 @@
           "one": "et {count} autre",
           "other": "et {count} autres"
         }
+      },
+      "callCustomer": "Appeler le client",
+      "toConfirmHeading": {
+        "one": "À confirmer · {count}",
+        "other": "À confirmer · {count}"
+      },
+      "declareHeading": "Visites passées à déclarer",
+      "declareHint": "Indiquez si la visite a eu lieu : le client reçoit un bon de visite daté.",
+      "done": {
+        "done": "Visite effectuée",
+        "notDone": "Pas eu lieu",
+        "sendFromMine": "Envoyer le bon depuis mon WhatsApp",
+        "receiptSent": "Visite enregistrée. Le client a reçu son bon de visite.",
+        "receiptNotSent": "Visite enregistrée. Envoyez le bon de visite depuis votre WhatsApp.",
+        "notDoneSaved": "Noté : la visite n’a pas eu lieu.",
+        "marked": "Visite effectuée",
+        "markedWithReceipt": "Visite effectuée · bon envoyé",
+        "markedNotDone": "Visite non effectuée",
+        "notYet": "Cette visite ne peut pas encore être déclarée.",
+        "auth": "Votre session a expiré. Reconnectez-vous.",
+        "failed": "Impossible d’enregistrer pour le moment. Réessayez."
       }
     },
     "availability": {
@@ -2436,6 +2501,47 @@
       "securityNote": "Votre compte est rattaché au numéro {phone}. C'est par ce numéro que passe toute réinitialisation de mot de passe.",
       "saved": "Nom enregistré.",
       "saveFailed": "La modification n'a pas pu être enregistrée. Réessayez."
+    },
+    "agenda": {
+      "metaTitle": "Mes visites — Lukka Place",
+      "title": "Mes visites",
+      "lead": "Vos visites jour par jour, en heure de Kinshasa.",
+      "toMessages": "Voir les échanges",
+      "openAgenda": "Mes visites, jour par jour",
+      "unavailable": "Vos visites ne peuvent pas être chargées pour le moment. Réessayez dans quelques minutes.",
+      "emptyTitle": "Aucune visite prévue",
+      "emptyBody": "Choisissez un bien et appuyez sur « Demander une visite » : le jour et l’heure apparaîtront ici.",
+      "emptyAction": "Voir les annonces",
+      "groups": {
+        "today": "Aujourd’hui",
+        "tomorrow": "Demain",
+        "upcoming": "À venir",
+        "unscheduled": "Heure à préciser",
+        "past": "Passées"
+      },
+      "tone": {
+        "pending": "En attente",
+        "confirmed": "Confirmée",
+        "rescheduled": "Autre créneau proposé",
+        "cancelled": "Annulée",
+        "done": "Effectuée"
+      },
+      "noTime": "Heure à préciser",
+      "requested": "demandé, en attente de l’agent",
+      "proposed": "L’agent propose : {slot}",
+      "receipt": "Bon de visite reçu sur WhatsApp",
+      "listingGone": "Annonce plus en ligne",
+      "callAgent": "Appeler l’agent",
+      "callLukka": "Appeler Lukka Place",
+      "whatsappAgent": "WhatsApp l’agent",
+      "whatsappLukka": "WhatsApp Lukka Place",
+      "centralNote": "Le numéro de cet agent n’est pas encore vérifié : Lukka Place fait le lien.",
+      "viewListing": "Voir le bien",
+      "addToCalendar": "Ajouter à mon agenda",
+      "acceptSlot": "Accepter ce créneau",
+      "cancel": "Annuler",
+      "cancelConfirm": "Confirmer l’annulation",
+      "actionFailed": "Action impossible pour le moment. Réessayez."
     }
   },
   "admin": {

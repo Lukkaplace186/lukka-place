@@ -33,7 +33,9 @@ async function engineFetch(path, options = {}) {
 
   const body = await res.json().catch(() => null);
   if (!res.ok) {
-    throw new Error(body?.error || `${options.method || 'GET'} ${path} failed: ${res.status}`);
+    const error = new Error(body?.error || `${options.method || 'GET'} ${path} failed: ${res.status}`);
+    error.status = res.status;
+    throw error;
   }
   return body;
 }
@@ -235,10 +237,53 @@ export async function respondToViewingRequest(id, { agentId, status, requestedTi
  * @param {{leadId: number, propertyId?: number, requestedTime?: string}} options
  * @returns {Promise<{viewingRequest: Object}>}
  */
-export async function createViewingRequest({ leadId, propertyId, requestedTime }) {
+export async function createViewingRequest({ leadId, propertyId, requestedTime, preferredSlotAt = null }) {
   return engineFetch('/admin/viewing-requests', {
     method: 'POST',
-    body: JSON.stringify({ lead_id: leadId, property_id: propertyId, requested_time: requestedTime }),
+    body: JSON.stringify({
+      lead_id: leadId,
+      property_id: propertyId,
+      requested_time: requestedTime,
+      ...(preferredSlotAt ? { preferred_slot_at: preferredSlotAt } : {}),
+    }),
+  });
+}
+
+/**
+ * "Mes visites" — up to four listings at once (engine POST
+ * /admin/viewing-requests/batch). Each listing's own agent is alerted about
+ * their listing only; one batch per number per hour (429 otherwise).
+ * @param {{waId: string, name?: string|null, items: {propertyId: number, preferredSlotAt: string, requestedTime: string}[]}} batch
+ */
+export async function createViewingBatch({ waId, name = null, items }) {
+  return engineFetch('/admin/viewing-requests/batch', {
+    method: 'POST',
+    body: JSON.stringify({
+      wa_id: waId,
+      name,
+      items: items.map((item) => ({
+        property_id: item.propertyId,
+        preferred_slot_at: item.preferredSlotAt,
+        requested_time: item.requestedTime,
+      })),
+    }),
+  });
+}
+
+/** The confirmed visit instants of one agent in the next 8 days — instants only. */
+export async function getBusySlots({ agentId = null, propertyIds = [] }) {
+  const params = new URLSearchParams();
+  if (agentId) params.set('agent_id', String(agentId));
+  if (propertyIds.length) params.set('property_ids', propertyIds.slice(0, 500).join(','));
+  const { data = [] } = await engineFetch(`/admin/viewing-requests/busy-slots?${params}`);
+  return data;
+}
+
+/** The agent's "Visite effectuée" / "Pas eu lieu" (engine services/visitReceipt.js). */
+export async function recordAgentVisitOutcome(id, { agentId, outcome }) {
+  return engineFetch(`/admin/viewing-requests/${id}/agent-completed`, {
+    method: 'POST',
+    body: JSON.stringify({ agent_id: agentId, outcome }),
   });
 }
 

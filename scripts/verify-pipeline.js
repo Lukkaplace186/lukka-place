@@ -6853,7 +6853,7 @@ console.log('\n2. services/openai.js');
   check('the alert sweep, both speed-to-lead sweeps, the ops alert sweep, the analytics rollup and the commission run are registered', () => {
     const names = sched.JOBS.map((j) => j.name);
     assert.deepStrictEqual(names, [
-      'search-alerts', 'viewing-sla', 'viewing-checkin', 'ops-health-alerts', 'listing-stats-rollup', 'trusted-auto-approve', 'agent-daily-digest',
+      'search-alerts', 'viewing-sla', 'viewing-checkin', 'viewing-agent-done', 'ops-health-alerts', 'listing-stats-rollup', 'trusted-auto-approve', 'agent-daily-digest',
       'listing-availability-check', 'market-snapshot', 'sales-commissions',
     ]);
   });
@@ -9793,6 +9793,236 @@ console.log('\n2. services/openai.js');
     await snapshot.runMarketSnapshot({ month: '2031-03', pool, dryRun: true });
     assert.strictEqual(statements[statements.length - 1], 'ROLLBACK');
   });
+
+  // ===========================================================================
+  // 43. Visit booking: the picked slot, the bon de visite, "Mes visites"
+  //
+  //     The listing page now sends the exact instant the customer picked
+  //     (preferred_slot_at). Accepting pins it — no "is this the right time?"
+  //     round trip. An hour after a confirmed slot the agent is asked whether
+  //     the visit took place; DONE sends the customer a dated receipt and never
+  //     completes the request on the agent's word alone. A multi-visit request
+  //     alerts each listing's own agent about their listing only.
+  // ===========================================================================
+
+  console.log('\n43. Visit booking: picked slot, bon de visite, multi-visit');
+
+  const visitSchedule43 = require('../services/visitSchedule');
+  const visitReceipt = require('../services/visitReceipt');
+  const listingStub43 = propertyRepo.getListingContactById;
+  const ops43 = process.env.OPS_WHATSAPP_NUMBER;
+  propertyRepo.getListingContactById = async () => ATTRIBUTED_LISTING;
+  process.env.OPS_WHATSAPP_NUMBER = '243800000043';
+  const CUSTOMER_43 = '243990111222';
+  const sendsTo43 = (wa) => httpCalls.filter((c) => c.data && String(c.data.to) === wa);
+  const body43 = (call) => JSON.stringify(call.data);
+
+  function pickedRequest(iso, phrase = 'samedi à 14h00') {
+    const lead = dbService.createLead({ wa_id: CUSTOMER_43, name: 'Henoc Mimbo', source: 'listing-visit-request', property_id: 303 });
+    return dbService.createViewingRequest({ leadId: lead.id, propertyId: 303, requestedTime: phrase, preferredSlotAt: iso });
+  }
+  const inDays = (days, hourKin) => {
+    const d = new Date(Date.now() + days * 86400000);
+    return new Date(`${d.toISOString().slice(0, 10)}T${String(hourKin).padStart(2, '0')}:00:00+01:00`).toISOString();
+  };
+
+  check('a picked slot must be a future instant with an offset, at most 30 days ahead', () => {
+    const now = new Date('2031-05-01T08:00:00Z');
+    assert.deepStrictEqual(visitSchedule43.resolvePreferredSlotInput('2031-05-02T14:00:00+01:00', now), { value: '2031-05-02T13:00:00.000Z' });
+    assert.ok(visitSchedule43.resolvePreferredSlotInput('2031-04-30T14:00:00+01:00', now).error, 'past');
+    assert.ok(visitSchedule43.resolvePreferredSlotInput('2031-06-15T14:00:00+01:00', now).error, 'too far');
+    assert.ok(visitSchedule43.resolvePreferredSlotInput('samedi 14h', now).error, 'a phrase is not a pick');
+    assert.ok(visitSchedule43.resolvePreferredSlotInput('2031-05-02', now).error, 'a day with no hour');
+  });
+
+  const picked43 = inDays(3, 14);
+  const pickedReq = pickedRequest(picked43);
+  httpCalls.length = 0;
+  const acceptPicked = await viewingNotifications.handleViewingButtonReply({ from: AGENT_WA, replyId: `viewing_accept:${pickedReq.id}` });
+  const pickedRow = dbService.getViewingRequest(pickedReq.id);
+  check('accepting a picked slot pins it at once and tells the customer that exact time', () => {
+    assert.strictEqual(pickedRow.status, 'CONFIRMED');
+    assert.strictEqual(pickedRow.preferred_slot_at, picked43);
+    assert.strictEqual(pickedRow.scheduled_at, picked43);
+    assert.strictEqual(acceptPicked.scheduledAt, picked43);
+    const toCustomer = sendsTo43(CUSTOMER_43);
+    assert.strictEqual(toCustomer.length, 1);
+    assert.match(body43(toCustomer[0]), /14h00/);
+  });
+  check('no "is this the right time?" buttons for a slot the customer picked', () => {
+    assert.ok(!httpCalls.some((c) => body43(c).includes('viewing_slot_ok')));
+    assert.strictEqual(acceptPicked.awaiting, null);
+  });
+
+  const dashPicked43 = pickedRequest(inDays(4, 11));
+  await viewingNotifications.respondFromDashboard({ viewingRequestId: dashPicked43.id, agentId: Number(ATTRIBUTED_LISTING.agent_id), status: 'CONFIRMED' });
+  check('a dashboard confirmation with no time of its own pins the picked slot', () =>
+    assert.strictEqual(dbService.getViewingRequest(dashPicked43.id).scheduled_at, dashPicked43.preferred_slot_at));
+
+  check("once the agent proposed another slot, the customer's original pick no longer applies", () => {
+    assert.strictEqual(viewingNotifications.pickedSlot({ ...dashPicked43, status: 'RESCHEDULED' }), null);
+    assert.strictEqual(viewingNotifications.pickedSlot({ ...dashPicked43, status: 'PENDING' }), dashPicked43.preferred_slot_at);
+  });
+
+  // --- bon de visite -----------------------------------------------------------
+
+  const past43 = new Date(Date.now() - 2 * 3600 * 1000).toISOString();
+  const doneReq = pickedRequest(inDays(2, 9));
+  dbService.updateViewingRequest(doneReq.id, { status: 'CONFIRMED' });
+  dbService.setViewingScheduledAt(doneReq.id, past43);
+  const tooOld = pickedRequest(inDays(2, 9));
+  dbService.updateViewingRequest(tooOld.id, { status: 'CONFIRMED' });
+  dbService.setViewingScheduledAt(tooOld.id, new Date(Date.now() - 5 * 86400000).toISOString());
+  dbService.clearPendingAgentAction(AGENT_WA);
+  httpCalls.length = 0;
+  const sweep43 = await visitReceipt.runVisitDoneSweep();
+  check('an hour after a confirmed slot the agent is asked, with the two buttons, once', () => {
+    assert.ok(sweep43.asked >= 1);
+    const asks = sendsTo43(AGENT_WA).filter((c) => body43(c).includes(`visit_done:${doneReq.id}`));
+    assert.strictEqual(asks.length, 1);
+    assert.match(body43(asks[0]), /visit_notdone/);
+    assert.ok(dbService.getViewingRequest(doneReq.id).agent_done_asked_at);
+  });
+  check('a visit more than three days old is never asked about', () =>
+    assert.strictEqual(dbService.getViewingRequest(tooOld.id).agent_done_asked_at, null));
+  httpCalls.length = 0;
+  await visitReceipt.runVisitDoneSweep();
+  check('the sweep never asks twice', () => assert.ok(!httpCalls.some((c) => body43(c).includes(`visit_done:${doneReq.id}`))));
+
+  httpCalls.length = 0;
+  const stranger43 = await visitReceipt.handleVisitDoneButtonReply({ from: STRANGER_WA, replyId: `visit_done:${doneReq.id}` });
+  check("a stranger's tap is refused silently and records nothing", () => {
+    assert.strictEqual(stranger43.handled, true);
+    assert.ok(stranger43.ignored);
+    assert.strictEqual(dbService.getViewingRequest(doneReq.id).agent_visit_outcome, null);
+    assert.strictEqual(httpCalls.length, 0);
+  });
+
+  httpCalls.length = 0;
+  const done43 = await visitReceipt.handleVisitDoneButtonReply({ from: AGENT_WA, replyId: `visit_done:${doneReq.id}` });
+  const doneRow = dbService.getViewingRequest(doneReq.id);
+  check('DONE stamps the agent, keeps the receipt verbatim and sends it to the customer', () => {
+    assert.strictEqual(done43.outcome, 'DONE');
+    assert.strictEqual(doneRow.agent_visit_outcome, 'DONE');
+    assert.ok(doneRow.agent_completed_at);
+    assert.match(doneRow.visit_receipt_text, /Merci pour votre visite du bien/);
+    assert.match(doneRow.visit_receipt_text, /Notre Dame/);
+    assert.ok(doneRow.visit_receipt_sent_at, 'stamped because Chakra accepted it');
+    assert.strictEqual(sendsTo43(CUSTOMER_43).length, 1);
+  });
+  check("the agent's word alone never completes the visit — that stays the customer's check-in", () =>
+    assert.strictEqual(doneRow.status, 'CONFIRMED'));
+  check('the agent gets a wa.me link carrying the same receipt, to send from their own WhatsApp', () => {
+    const ack = sendsTo43(AGENT_WA).map(body43).find((b) => b.includes('wa.me'));
+    assert.ok(ack);
+    assert.ok(ack.includes(`wa.me/${CUSTOMER_43}`));
+  });
+  httpCalls.length = 0;
+  const again43 = await visitReceipt.handleVisitDoneButtonReply({ from: AGENT_WA, replyId: `visit_done:${doneReq.id}` });
+  check('a second tap changes nothing and sends the customer nothing', () => {
+    assert.strictEqual(again43.unchanged, true);
+    assert.strictEqual(sendsTo43(CUSTOMER_43).length, 0);
+  });
+
+  const futureReq = pickedRequest(inDays(2, 16));
+  dbService.updateViewingRequest(futureReq.id, { status: 'CONFIRMED' });
+  dbService.setViewingScheduledAt(futureReq.id, futureReq.preferred_slot_at);
+  const notYet = await visitReceipt.completeFromDashboard({ viewingRequestId: futureReq.id, agentId: Number(ATTRIBUTED_LISTING.agent_id), outcome: 'DONE' });
+  check('a visit whose slot is still ahead cannot be declared done', () => assert.strictEqual(notYet.reason, 'not-yet'));
+
+  const notDoneReq = pickedRequest(inDays(2, 9));
+  dbService.updateViewingRequest(notDoneReq.id, { status: 'CONFIRMED' });
+  dbService.setViewingScheduledAt(notDoneReq.id, past43);
+  const wrongAgent = await visitReceipt.completeFromDashboard({ viewingRequestId: notDoneReq.id, agentId: 999999, outcome: 'NOT_DONE' });
+  httpCalls.length = 0;
+  const notDone = await visitReceipt.completeFromDashboard({ viewingRequestId: notDoneReq.id, agentId: Number(ATTRIBUTED_LISTING.agent_id), outcome: 'NOT_DONE' });
+  check('the dashboard answer is authorised by agents.id; NOT_DONE tells the desk, not the customer', () => {
+    assert.strictEqual(wrongAgent.reason, 'not-this-requests-agent');
+    assert.strictEqual(notDone.outcome, 'NOT_DONE');
+    assert.strictEqual(dbService.getViewingRequest(notDoneReq.id).agent_completed_at, null);
+    assert.strictEqual(sendsTo43('243800000043').length, 1);
+    assert.strictEqual(sendsTo43(CUSTOMER_43).length, 0);
+  });
+
+  const typedReq = pickedRequest(inDays(2, 9));
+  dbService.updateViewingRequest(typedReq.id, { status: 'CONFIRMED' });
+  dbService.setViewingScheduledAt(typedReq.id, past43);
+  dbService.setPendingAgentAction({ waId: AGENT_WA, kind: visitReceipt.PENDING_KIND, viewingRequestId: typedReq.id });
+  const typedNoise = await viewingNotifications.handleAgentTextReply({ from: AGENT_WA, text: 'Appartement 2 chambres à Limete 500$' });
+  const typed43 = await viewingNotifications.handleAgentTextReply({ from: AGENT_WA, text: 'Oui' });
+  check('a typed OUI answers the open question; anything else falls through to intake', () => {
+    assert.strictEqual(typedNoise.handled, false);
+    assert.strictEqual(typed43.handled, true);
+    assert.strictEqual(dbService.getViewingRequest(typedReq.id).agent_visit_outcome, 'DONE');
+    assert.strictEqual(visitReceipt.parseVisitDoneText('non'), 'NOT_DONE');
+    assert.strictEqual(visitReceipt.parseVisitDoneText('2️⃣'), 'NOT_DONE');
+  });
+
+  check('the bon de visite sweep is a scheduled job', () => {
+    const scheduler43 = require('../services/scheduler');
+    assert.ok(scheduler43.JOBS.some((job) => job.name === 'viewing-agent-done'));
+  });
+
+  // --- busy slots + "Mes visites" -------------------------------------------------
+
+  check("busy slots are the agent's confirmed instants only — no customer data", () => {
+    const slots = dbService.listBusySlots({
+      propertyIds: [303],
+      fromIso: new Date(Date.now() - 3600000).toISOString(),
+      toIso: new Date(Date.now() + 8 * 86400000).toISOString(),
+    });
+    assert.ok(slots.includes(picked43));
+    assert.ok(slots.every((s) => typeof s === 'string'));
+    assert.deepStrictEqual(dbService.listBusySlots({ fromIso: '2000-01-01', toIso: '2100-01-01' }), [], 'no agent, no listing: nothing');
+  });
+
+  const BATCH_WA = '243970004343';
+  propertyRepo.getListingContactById = async (id) => ({ ...ATTRIBUTED_LISTING, id: String(id) });
+  httpCalls.length = 0;
+  const batch = await adminRequest('POST', '/admin/viewing-requests/batch', {
+    wa_id: BATCH_WA,
+    name: 'Grace',
+    items: [
+      { property_id: 303, preferred_slot_at: `${inDays(2, 9).slice(0, 19)}Z`, requested_time: 'mardi à 09h00' },
+      { property_id: 304, preferred_slot_at: `${inDays(2, 11).slice(0, 19)}Z`, requested_time: 'mardi à 11h00' },
+    ],
+  });
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  check('a multi-visit request creates one request per listing, sharing a batch id', () => {
+    assert.strictEqual(batch.status, 201);
+    assert.strictEqual(batch.body.viewingRequests.length, 2);
+    const ids = new Set(batch.body.viewingRequests.map((v) => v.batch_id));
+    assert.strictEqual(ids.size, 1);
+    assert.ok(batch.body.viewingRequests.every((v) => v.preferred_slot_at));
+  });
+  check('the desk gets one summary, not one copy per listing', () =>
+    assert.strictEqual(sendsTo43('243800000043').length, 1));
+  check("each agent alert names only that agent's own listing", () => {
+    const alerts = sendsTo43(AGENT_WA).map(body43);
+    assert.strictEqual(alerts.length, 2);
+    assert.ok(alerts.every((b) => !(b.includes('bien #303') && b.includes('bien #304'))));
+  });
+  const batchAgain = await adminRequest('POST', '/admin/viewing-requests/batch', {
+    wa_id: BATCH_WA,
+    items: [{ property_id: 305, preferred_slot_at: `${inDays(3, 9).slice(0, 19)}Z` }],
+  });
+  const batchTooMany = await adminRequest('POST', '/admin/viewing-requests/batch', {
+    wa_id: '243970009999',
+    items: [1, 2, 3, 4, 5].map((n) => ({ property_id: n, preferred_slot_at: `${inDays(3, 9).slice(0, 19)}Z` })),
+  });
+  const batchPast = await adminRequest('POST', '/admin/viewing-requests/batch', {
+    wa_id: '243970008888',
+    items: [{ property_id: 303, preferred_slot_at: '2020-01-01T09:00:00Z' }],
+  });
+  check('one batch per number per hour, at most four listings, never a past slot', () => {
+    assert.strictEqual(batchAgain.status, 429);
+    assert.strictEqual(batchTooMany.status, 400);
+    assert.strictEqual(batchPast.status, 400);
+  });
+
+  propertyRepo.getListingContactById = listingStub43;
+  process.env.OPS_WHATSAPP_NUMBER = ops43;
+  dbService.clearPendingAgentAction(AGENT_WA);
 
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);

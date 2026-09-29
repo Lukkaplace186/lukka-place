@@ -1027,10 +1027,40 @@ function markCustomerNotified(viewingRequestId) {
   }
 }
 
+/**
+ * The exact instant the customer PICKED on the listing page (VisitSlotPicker),
+ * while it is still their request: only a PENDING one. Once the agent has
+ * proposed another slot, `requested_time` is the agent's proposal and the
+ * original pick no longer applies.
+ */
+function pickedSlot(request) {
+  if (request?.status !== 'PENDING' || !request.preferred_slot_at) return null;
+  const date = new Date(request.preferred_slot_at);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
 async function handleAccept({ request, listing, propertyId, from }) {
   dbService.updateViewingRequest(request.id, { status: 'CONFIRMED' });
   await recordAgentResponse(request, 'CONFIRMED');
   dbService.clearPendingAgentAction(from);
+
+  // A structured pick is the appointment: pinned at once, the customer told the
+  // exact day and hour, and no "is this the right time?" round trip — that
+  // step exists only for a slot we READ out of free text.
+  const picked = pickedSlot(request);
+  if (picked) {
+    dbService.setViewingScheduledAt(request.id, picked);
+    await trySend(from, acceptedAgentText(listing, request, propertyId), 'accept ack');
+    const toldPicked = await trySend(
+      request.lead_wa_id,
+      tenantAcceptedText(listing, request, propertyId, picked),
+      'accept confirmation',
+    );
+    if (toldPicked) markCustomerNotified(request.id);
+    await trySend(from, slotAgreedText(picked), 'slot agreed');
+    console.log(`[viewing] request #${request.id} ACCEPTED by agent ${from} — picked slot ${picked}, client told: ${toldPicked}`);
+    return { action: 'accept', status: 'CONFIRMED', tenantNotified: toldPicked, scheduledAt: picked, awaiting: null };
+  }
 
   await trySend(from, acceptedAgentText(listing, request, propertyId), 'accept ack');
   const told = await trySend(
@@ -1282,14 +1312,16 @@ async function respondFromDashboard({ viewingRequestId, agentId, status, request
     // The agent's own pick wins; without one (an older web build, or a caller
     // that sends none) the customer's parseable phrase still pins it, as the
     // WhatsApp accept does.
-    const proposal = agreedAt ? { iso: agreedAt } : parseFrenchSlot(request.requested_time);
+    // Then the customer's structured pick (PENDING only), then their phrase.
+    const picked = agreedAt ? null : pickedSlot(request);
+    const proposal = agreedAt ? { iso: agreedAt } : picked ? { iso: picked } : parseFrenchSlot(request.requested_time);
     if (proposal) {
       dbService.setViewingScheduledAt(request.id, proposal.iso);
       scheduledAtOut = proposal.iso;
     }
     tenantNotified = await trySend(
       request.lead_wa_id,
-      tenantAcceptedText(listing, request, propertyId, agreedAt),
+      tenantAcceptedText(listing, request, propertyId, agreedAt || picked),
       'dashboard accept confirmation',
     );
   } else if (status === 'RESCHEDULED') {
@@ -1524,6 +1556,13 @@ async function handleAgentTextReply({ from, text }) {
   if (!ctx.request) {
     dbService.clearPendingAgentAction(from);
     return { handled: false };
+  }
+
+  if (pending.kind === 'VISIT_DONE') {
+    // The bon de visite question (services/visitReceipt.js — required here, not
+    // at the top: it requires this module).
+    // eslint-disable-next-line global-require
+    return require('./visitReceipt').handleVisitDoneTextReply({ from, text, pending });
   }
 
   if (pending.kind === PENDING_KINDS.viewingResponse) {
@@ -1791,4 +1830,10 @@ module.exports = {
   CLOSING_PRICE_ASK,
   DECLINE_REASONS,
   PENDING_KINDS,
+  // Shared with services/visitReceipt.js (bon de visite).
+  resolveContext,
+  trySend,
+  sendWithButtons,
+  withAgent,
+  pickedSlot,
 };

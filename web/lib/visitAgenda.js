@@ -308,12 +308,15 @@ function fold(line) {
  */
 export function buildVisitIcs({
   id, scheduledAt, title, customerName, customerPhone, requestedTime, place, directions, listingUrl, dashboardUrl, now = new Date(),
+  // Whose name the description carries: the customer on the agent's file, the
+  // agent on the customer's.
+  contactLabel = 'Client',
 }) {
   const start = toTime(scheduledAt);
   if (start == null) return null;
   const summary = title ? `Visite · ${title}` : 'Visite Lukka Place';
   const description = [
-    customerName ? `Client : ${customerName}` : null,
+    customerName ? `${contactLabel} : ${customerName}` : null,
     customerPhone ? `Téléphone : +${String(customerPhone).replace(/\D/g, '')}` : null,
     requestedTime ? `Demande du client : ${requestedTime}` : null,
     directions ? `Itinéraire : ${directions}` : null,

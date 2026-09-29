@@ -14,6 +14,10 @@ import AgentVerificationBadge from './AgentVerificationBadge';
 import { displayableAgencyName } from '@/lib/agentIdentity';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { submitVisitRequestAction } from '@/app/(site)/listings/[id]/actions';
+import VisitSlotPicker from './VisitSlotPicker';
+import AddToVisitCartButton from './AddToVisitCartButton';
+import { feedLocationLine, listingImages } from '@/lib/listingView';
+import { formatPrice } from '@/lib/format';
 import PhoneField from './PhoneField';
 import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
 import { useLocale, useT } from '@/lib/i18n/client';
@@ -60,6 +64,7 @@ function VisitRequestDialog({ propertyId }) {
   const t = useT();
   const locale = useLocale();
   const [open, setOpen] = useState(false);
+  const [slot, setSlot] = useState(null);
   const bound = submitVisitRequestAction.bind(null, propertyId);
   const triggerRef = useRef(null);
 
@@ -148,19 +153,9 @@ function VisitRequestDialog({ propertyId }) {
             required
           />
 
-          <div>
-            <label htmlFor="visit-time" className="mb-1.5 block text-[0.8125rem] font-semibold text-ink-70">
-              {t('enquiry.preferredSlot')}
-            </label>
-            <input
-              id="visit-time"
-              name="requested_time"
-              enterKeyHint="send"
-              required
-              placeholder={t('enquiry.slotPlaceholder')}
-              className={FIELD_CLASS}
-            />
-          </div>
+          {/* A real day and hour (lib/visitSlots.js), not free text: the
+              agent's Accepter pins it straight onto both agendas. */}
+          <VisitSlotPicker propertyId={propertyId} name="preferred_slot_at" value={slot} onChange={setSlot} />
 
           <DialogFooter>
             <DialogClose asChild>
@@ -168,7 +163,11 @@ function VisitRequestDialog({ propertyId }) {
                 {t('common.actions.cancel')}
               </button>
             </DialogClose>
-            <button type="submit" className="u-btn-primary u-press rounded-lg bg-blue px-5 py-2 text-sm font-bold text-white">
+            <button
+              type="submit"
+              disabled={!slot}
+              className="u-btn-primary u-press rounded-lg bg-blue px-5 py-2 text-sm font-bold text-white disabled:opacity-50"
+            >
               {t('enquiry.submit')}
             </button>
           </DialogFooter>
@@ -323,6 +322,16 @@ export default function EnquiryCard({ listing, visitSent, visitError, saveShare 
         )}
 
         <VisitRequestDialog propertyId={id} />
+        {/* "Mes visites": several listings, one request (lib/visitCart.js). */}
+        <AddToVisitCartButton
+          listing={{
+            id,
+            title: listing.title,
+            image: listingImages(listing)[0] || null,
+            place: feedLocationLine(listing),
+            priceLabel: formatPrice(listing.price, listing.purpose, listing.price_period),
+          }}
+        />
 
         {/* Real per-listing number only — renders nothing at all rather than
             a tel: link to a number we don't have. */}

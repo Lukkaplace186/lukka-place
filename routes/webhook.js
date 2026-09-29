@@ -51,6 +51,7 @@ const {
   handleAvailabilityButtonReply,
   handleAvailabilityTextReply,
 } = require('../services/availabilityCheck');
+const { handleVisitDoneButtonReply } = require('../services/visitReceipt');
 const { handleListingEnquiry } = require('../services/listingEnquiry');
 const salesReferral = require('../services/salesReferral');
 const listingQuota = require('../services/listingQuota');
@@ -725,6 +726,15 @@ async function processGroup(messages) {
       if (availability.handled) return;
     } catch (err) {
       console.error(`[availability] button '${buttonReplyId}' from ${from} failed: ${err.message}`);
+      return;
+    }
+    try {
+      // Bon de visite: "la visite a-t-elle eu lieu ?" (services/visitReceipt.js).
+      // The id names the request; the handler re-checks the sender is its agent.
+      const visitDone = await handleVisitDoneButtonReply({ from, replyId: buttonReplyId });
+      if (visitDone.handled) return;
+    } catch (err) {
+      console.error(`[visit-receipt] button '${buttonReplyId}' from ${from} failed: ${err.message}`);
       return;
     }
   }

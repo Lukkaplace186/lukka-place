@@ -2271,3 +2271,54 @@ and the code writes correctly before and after it runs). Write side is
   owner message is `ownerReportMessage` (lib/marketing/liveReportCopy.js),
   shared with ReportLinkCard.
 - Tests: `tests/unit/commune-report.test.js`.
+
+## Visit booking, both agendas, bon de visite, "Mes visites" (2026-09-29)
+
+Engine half: root CLAUDE.md, "Visit booking — picked slot, bon de visite,
+multi-visit".
+
+- **The visit form is a picker, not free text** (`components/VisitSlotPicker.js`,
+  rules in `lib/visitSlots.js`): the next 7 Kinshasa days, 09:00 / 11:00 / 14:00
+  / 16:00. A slot is greyed out only when it starts < 2 h from now or within
+  an hour of the agent's CONFIRMED visits (`GET /api/listings/:id/visit-slots`
+  → engine busy-slots — instants only, fails open to "everything free"). There
+  is no working-hours data, so nothing else is blocked. It posts
+  `preferred_slot_at` (`YYYY-MM-DDTHH:00:00+01:00`); the action re-checks it
+  (`validatePickedSlot`) and derives `requested_time` with `slotPhraseFr`, so
+  every existing agent message and reader is unchanged. A page cached before
+  the picker still posts free text, which is kept. The picker renders only
+  inside a dialog/sheet opened in the browser, which is why it reads the clock
+  in its initial state.
+- **Customer agenda `/compte/client/visites`** (was a redirect;
+  `lib/customerAgenda.js`): Aujourd'hui / Demain / À venir / Heure à préciser /
+  Passées. The time is `scheduled_at` once agreed, the customer's own pick while
+  PENDING (labelled "demandé"), nothing otherwise — a slot the agent proposed in
+  words is never placed on a day. Call / WhatsApp the agent (the listing page's
+  verified-agent rule, else Lukka Place's number, labelled), view the listing,
+  cancel / accept a proposed slot (the Messages tab's own actions, now also
+  revalidating this page), `.ics` for a confirmed visit
+  (`visites/[id]/agenda.ics`, own visits only, commune as location — no
+  directions, the address stays with the agent). Linked from Messages.
+- **Agent agenda** (`/compte/agent/visites`): "À confirmer" on top (PENDING +
+  RESCHEDULED, answered with the Demandes tab's `AgentVisitRequestCard`, whose
+  confirm now prefills the customer's pick via `requested_slot_at`), "Appeler le
+  client" beside WhatsApp, and "Visite effectuée" / "Pas eu lieu"
+  (`components/AgentVisitDoneButtons.js` → `app/compte/agent/visitOutcomeActions.js`
+  → engine `agent-completed`) once a confirmed slot has started
+  (`lib/visitOutcome.js`). DONE sends the customer the bon de visite and offers
+  the same text from the agent's own WhatsApp. Past visits still to declare get
+  their own section.
+- **"Mes visites"** (`lib/visitCart.js`, `lib/useVisitCart.js`,
+  `components/AddToVisitCartButton.js` under "Demander une visite",
+  `components/VisitCartSheet.js` mounted site-wide through `VisitCartMount`
+  (dynamic, no SSR)): up to 4 listings in localStorage, a floating pill while
+  non-empty, one picker per listing, a warning (not a refusal) when two slots are
+  < 1 h apart, then `submitVisitBatchAction` → engine batch. Every listing is
+  re-read under the public gate and every slot re-checked; a listing gone
+  offline is removed from the cart. One batch per number per hour (429).
+- **The storefront has no ToastProvider** — only the portals and /admin do,
+  and `useToast` throws outside one. The cart button crashed every listing page
+  in local QA until it switched to inline feedback; `visit-booking.test.js`
+  guards the storefront visit components.
+- `lib/adminApi.js`'s `engineFetch` errors now carry `.status`.
+- Tests: `tests/unit/visit-booking.test.js`.

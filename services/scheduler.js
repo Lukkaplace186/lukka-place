@@ -215,6 +215,10 @@ registerJob({
   const { slaJob, checkinJob } = require('./viewingSweeps');
   registerJob(slaJob);
   registerJob(checkinJob);
+  // Bon de visite: one hour after a confirmed slot, ask the agent whether it
+  // took place (services/visitReceipt.js).
+  // eslint-disable-next-line global-require
+  registerJob(require('./visitReceipt').visitDoneJob);
 }
 
 /**

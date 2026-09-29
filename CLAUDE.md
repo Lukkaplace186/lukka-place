@@ -1127,6 +1127,46 @@ alert job itself), no inbound WhatsApp traffic for `OPS_ALERT_SILENCE_HOURS`
 - Scheduler order is now: search-alerts, viewing-sla, viewing-checkin,
   ops-health-alerts, listing-stats-rollup, trusted-auto-approve,
   agent-daily-digest, listing-availability-check, sales-commissions.
+
+## Visit booking — picked slot, bon de visite, multi-visit (2026-09-29)
+
+web/CLAUDE.md, "Visit booking, both agendas…", has the pages. Engine half:
+
+- **`viewing_requests` columns** (idempotent ALTER list): `preferred_slot_at`
+  (the customer's pick, UTC `Z`), `batch_id`, `agent_done_asked_at`,
+  `agent_completed_at`, `agent_visit_outcome` (DONE | NOT_DONE),
+  `visit_receipt_text`, `visit_receipt_sent_at`.
+- **`POST /admin/viewing-requests`** takes `preferred_slot_at`
+  (`visitSchedule.resolvePreferredSlotInput`: ISO with offset, future, ≤ 30
+  days; anything else is a 400). `requested_time` is still the French phrase.
+  The owner list's `requested_slot_at` prefers the pick while PENDING.
+- **Accepting pins the pick** (`viewingNotifications.pickedSlot`, PENDING only —
+  once the agent proposed another slot the original pick no longer applies):
+  WhatsApp Accepter and a dashboard confirmation with no time of its own set
+  `scheduled_at` to it and tell the customer that exact time; no slot-confirm
+  buttons (that step exists only for a slot read out of free text).
+- **Bon de visite** (`services/visitReceipt.js`, scheduler job
+  `viewing-agent-done`, registered after `viewing-checkin`): 1 h after a
+  CONFIRMED `scheduled_at` (never for visits older than 3 days) the verified
+  agent is asked once, buttons `visit_done:<id>` / `visit_notdone:<id>` or a
+  typed OUI / NON (pending kind `VISIT_DONE`, set only when the number has no
+  other open question). `POST /admin/viewing-requests/:id/agent-completed`
+  (`agent_id`, `outcome`) is the dashboard's path, authorised by agents.id like
+  `respondFromDashboard`. DONE keeps the receipt text verbatim, sends it to the
+  customer (template `VISIT_RECEIPT_TEMPLATE` when set — body "Merci pour votre
+  visite du bien {{1}} le {{2}} avec {{3}}. Cette visite a été organisée par
+  l'intermédiaire de Lukka Place." — else a session message), stamps
+  `visit_receipt_sent_at` only when Chakra accepted it, and answers the agent
+  with a wa.me link carrying the receipt. NOT_DONE tells ops. Written once;
+  **the status stays CONFIRMED** — COMPLETED is still only the customer's
+  check-in.
+- **`POST /admin/viewing-requests/batch`** ("Mes visites"): ≤ 4 distinct
+  listings, a valid pick each, one batch per number per hour (429). One lead +
+  request per listing sharing `batch_id`; each listing's own agent is alerted
+  about their listing only (`notifyOpsCopy: false`), and ops gets one summary.
+- **`GET /admin/viewing-requests/busy-slots`** (`agent_id`, `property_ids`):
+  CONFIRMED instants in the next 8 days, instants only.
+- §43 of verify-pipeline.
 
 ## Verification & Commands
 - **Verification Command**: Always run `npm run verify` before declaring a backend task complete.

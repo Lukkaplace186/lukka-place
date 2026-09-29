@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { CalendarPlus, Clock, MapPin, Navigation, Phone, ArrowRight } from 'lucide-react';
+import { CalendarPlus, CheckCircle2, Clock, MapPin, MessageCircle, Navigation, Phone, ArrowRight } from 'lucide-react';
 import { getCurrentAgentId } from '@/lib/agentSession';
 import { getAgentDashboardContext } from '@/lib/agentDashboard';
 import { listViewingRequests } from '@/lib/adminApi';
@@ -15,6 +15,11 @@ import {
 import { buildWhatsAppLink } from '@/lib/whatsapp';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import AgentPageHeader from '@/components/AgentPageHeader';
+import AgentVisitRequestCard from '@/components/AgentVisitRequestCard';
+import AgentVisitDoneButtons from '@/components/AgentVisitDoneButtons';
+import { VIEWING_REQUEST_STATUS_LABEL_KEYS } from '@/lib/adminLabels';
+import { formatRelativeFr } from '@/lib/format';
+import { canDeclareVisitOutcome } from '@/lib/visitOutcome';
 import { getLocale, getT } from '@/lib/i18n/server';
 
 /**
@@ -43,12 +48,22 @@ export default async function AgentVisitAgendaPage() {
     await getAgentDashboardContext(agentId);
 
   let visits = [];
+  // "À confirmer": what still needs the agent's answer, on the same page as
+  // what is agreed — answered with the Demandes tab's own card and actions.
+  let toConfirm = [];
   let failed = false;
   if (hasLeadScope) {
     try {
-      ({ data: visits } = await listViewingRequests({ ...leadScope, status: 'CONFIRMED', limit: 100 }));
+      const [confirmed, pendingPage, rescheduledPage] = await Promise.all([
+        listViewingRequests({ ...leadScope, status: 'CONFIRMED', limit: 100 }),
+        listViewingRequests({ ...leadScope, status: 'PENDING', limit: 30 }),
+        listViewingRequests({ ...leadScope, status: 'RESCHEDULED', limit: 30 }),
+      ]);
+      visits = confirmed.data;
+      toConfirm = [...pendingPage.data, ...rescheduledPage.data].sort((a, b) =>
+        String(a.requested_slot_at || a.created_at).localeCompare(String(b.requested_slot_at || b.created_at)));
     } catch (err) {
-      console.error(`[agenda] confirmed visits for agent #${agentId} failed: ${err.message}`);
+      console.error(`[agenda] visits for agent #${agentId} failed: ${err.message}`);
       failed = true;
     }
   }
@@ -127,10 +142,26 @@ export default async function AgentVisitAgendaPage() {
             </a>
           )}
           {phone && (
-            <a href={buildWhatsAppLink(phone, message)} target="_blank" rel="noopener noreferrer" className={action}>
+            <a href={`tel:+${phone}`} className={action}>
               <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+              {t('agent.agenda.callCustomer')}
+            </a>
+          )}
+          {phone && (
+            <a href={buildWhatsAppLink(phone, message)} target="_blank" rel="noopener noreferrer" className={action}>
+              <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-green-deep" />
               {t('agent.agenda.contactCustomer')}
             </a>
+          )}
+          {scheduled && canDeclareVisitOutcome(visit, now) && <AgentVisitDoneButtons viewingRequestId={visit.id} />}
+          {visit.agent_visit_outcome === 'DONE' && (
+            <span className="u-micro inline-flex min-h-10 items-center gap-1 font-semibold text-success">
+              <CheckCircle2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+              {visit.visit_receipt_sent_at ? t('agent.agenda.done.markedWithReceipt') : t('agent.agenda.done.marked')}
+            </span>
+          )}
+          {visit.agent_visit_outcome === 'NOT_DONE' && (
+            <span className="u-micro inline-flex min-h-10 items-center text-ink-45">{t('agent.agenda.done.markedNotDone')}</span>
           )}
           {!scheduled && (
             <Link href="/compte/agent/demandes?tab=visites" className={action}>
@@ -142,7 +173,9 @@ export default async function AgentVisitAgendaPage() {
     );
   }
 
-  const hasAnything = agenda.days.length > 0 || agenda.unscheduled.length > 0 || agenda.past.length > 0;
+  const hasAnything = toConfirm.length > 0 || agenda.days.length > 0 || agenda.unscheduled.length > 0 || agenda.past.length > 0;
+  // Past visits still waiting for "Visite effectuée", beside the day sections.
+  const pastToDeclare = agenda.past.filter((visit) => canDeclareVisitOutcome(visit, now)).slice(0, 10);
 
   return (
     <>
@@ -201,6 +234,41 @@ export default async function AgentVisitAgendaPage() {
           <div className="u-card rounded-card bg-surface px-6 py-12 text-center">
             <p className="u-micro text-ink-45">{t('agent.agenda.empty')}</p>
           </div>
+        )}
+
+        {toConfirm.length > 0 && (
+          <section aria-labelledby="agenda-to-confirm-title" className="flex flex-col gap-2.5">
+            <h2 id="agenda-to-confirm-title" className="u-title-sub text-ink">
+              {t('agent.agenda.toConfirmHeading', { count: toConfirm.length })}
+            </h2>
+            {toConfirm.map((viewingRequest) => {
+              const propertyId = viewingRequest.property_id || viewingRequest.lead_property_id;
+              const property = propertyId ? listingById.get(String(propertyId)) : null;
+              return (
+                <AgentVisitRequestCard
+                  key={viewingRequest.id}
+                  viewingRequest={viewingRequest}
+                  statusLabel={
+                    VIEWING_REQUEST_STATUS_LABEL_KEYS[viewingRequest.status]
+                      ? t(VIEWING_REQUEST_STATUS_LABEL_KEYS[viewingRequest.status])
+                      : viewingRequest.status
+                  }
+                  relativeTime={formatRelativeFr(viewingRequest.created_at)}
+                  target={property?.title || [viewingRequest.lead_quartier, viewingRequest.lead_commune].filter(Boolean).join(', ') || null}
+                />
+              );
+            })}
+          </section>
+        )}
+
+        {pastToDeclare.length > 0 && (
+          <section aria-labelledby="agenda-declare-title">
+            <h2 id="agenda-declare-title" className="u-title-sub mb-1 text-ink">{t('agent.agenda.declareHeading')}</h2>
+            <p className="u-micro mb-2.5 text-ink-45">{t('agent.agenda.declareHint')}</p>
+            <ul className="flex flex-col gap-2.5">
+              {pastToDeclare.map((visit) => renderVisit(visit, true))}
+            </ul>
+          </section>
         )}
 
         {agenda.days.map((day) => (

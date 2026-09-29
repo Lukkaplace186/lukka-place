@@ -304,7 +304,31 @@ function requestedSlotAt(requestedTime, createdAt) {
   return slot ? slot.iso : null;
 }
 
+/** How far ahead a customer may book from the listing page's picker. */
+const PREFERRED_SLOT_MAX_DAYS = 30;
+
+/**
+ * The slot a customer PICKED (web VisitSlotPicker): an ISO instant with an
+ * offset, strictly in the future, at most PREFERRED_SLOT_MAX_DAYS ahead.
+ * Anything else is refused — never coerced into a guess.
+ *
+ * @returns {{value: string}|{error: string}} `value` is UTC with a `Z`.
+ */
+function resolvePreferredSlotInput(raw, now = new Date()) {
+  const text = String(raw ?? '').trim();
+  if (!ISO_INSTANT_WITH_OFFSET.test(text)) return { error: 'preferred_slot_at must be an ISO instant with an offset.' };
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) return { error: 'preferred_slot_at is not a real instant.' };
+  if (date.getTime() <= now.getTime()) return { error: 'preferred_slot_at is in the past.' };
+  if (date.getTime() > now.getTime() + PREFERRED_SLOT_MAX_DAYS * 86400000) {
+    return { error: `preferred_slot_at is more than ${PREFERRED_SLOT_MAX_DAYS} days ahead.` };
+  }
+  return { value: date.toISOString() };
+}
+
 module.exports = {
+  resolvePreferredSlotInput,
+  PREFERRED_SLOT_MAX_DAYS,
   parseFrenchSlot,
   formatSlotFr,
   resolveScheduledAtInput,

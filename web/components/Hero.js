@@ -1,6 +1,6 @@
 'use client';
 
-import Image from 'next/image';
+import { getImageProps } from 'next/image';
 import SearchBar from './SearchBar';
 import heroSunlit from '../Hero/hero-sunlit.jpg';
 import { useT } from '@/lib/i18n/client';
@@ -53,6 +53,31 @@ import { useT } from '@/lib/i18n/client';
  * movement is wanted back.
  * ---------------------------------------------------------------------------
  */
+/**
+ * The hero photo is the LCP on `/`. On a phone the 26rem band is taller than
+ * it is wide, so object-cover draws the photo ~630 CSS px wide, and
+ * `sizes="100vw"` had a DPR-3 phone download the 1080/1200 variant. Below
+ * 640px the `<source>` pins the 640w variant whatever the density — ~1x under
+ * the headline, a fraction of the bytes on 3G. Wider screens keep the
+ * responsive `100vw` set. `fetchPriority="high"` + eager replace `priority`,
+ * deprecated in Next 16; the <img> is in the server HTML, so the preload
+ * scanner finds it without a <link>.
+ */
+function HeroPicture({ src, alt, blur = false }) {
+  const common = { src, alt, fill: true, ...(blur ? { placeholder: 'blur' } : {}) };
+  const { props } = getImageProps({ ...common, sizes: '100vw', fetchPriority: 'high', loading: 'eager' });
+  const mobile = getImageProps({ ...common, sizes: '640px' }).props.srcSet
+    ?.split(', ')
+    .find((entry) => entry.endsWith(' 640w'))
+    ?.replace(/ 640w$/, '');
+  return (
+    <picture>
+      {mobile ? <source media="(max-width: 640px)" srcSet={mobile} /> : null}
+      <img {...props} alt={alt} className="u-hero-settle object-cover" />
+    </picture>
+  );
+}
+
 export default function Hero({ propertyTypes = [], communes = [], initialCount = null, image = null }) {
   const t = useT();
 
@@ -64,24 +89,9 @@ export default function Hero({ propertyTypes = [], communes = [], initialCount =
         {/* `image` is the picture set from /admin/cms (lib/cmsSettings.js), on an
             allowed image host; without one, the built-in photo above. */}
         {image?.imageUrl ? (
-          <Image
-            src={image.imageUrl}
-            alt={image.alt || ''}
-            fill
-            priority
-            sizes="100vw"
-            className="u-hero-settle object-cover"
-          />
+          <HeroPicture src={image.imageUrl} alt={image.alt || ''} />
         ) : (
-          <Image
-            src={heroSunlit}
-            alt=""
-            fill
-            priority
-            placeholder="blur"
-            sizes="100vw"
-            className="u-hero-settle object-cover"
-          />
+          <HeroPicture src={heroSunlit} alt="" blur />
         )}
         {image?.credit ? (
           <span className="absolute bottom-2 right-3 z-10 max-w-[60%] truncate text-[0.6875rem] text-white/90 [text-shadow:0_1px_2px_rgb(0_0_0_/_0.8)]">

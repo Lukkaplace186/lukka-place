@@ -52,8 +52,9 @@ import { I18nProvider } from '@/lib/i18n/client';
  * payload.
  */
 const SITE_NAMESPACES = [
-  'home', 'about', 'contact', 'breadcrumb', 'listings', 'enquiry', 'account', 'search', 'auth', 'updates', 'projects',
+  'home', 'about', 'contact', 'breadcrumb', 'listings', 'enquiry', 'account', 'search', 'auth', 'updates',
 ];
+// `projects` ships from app/(site)/projets/layout.js only.
 
 export default async function SiteLayout({ children }) {
   const rate = await getCdfRate();

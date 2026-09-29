@@ -2357,3 +2357,45 @@ CHECK and record nothing; the share itself is unaffected.
   passes — otherwise one honest line; recorded as `wa_command` × `text`.
   `!aide`: the list.
 - Tests: `tests/unit/agent-tools.test.js`, `listing-shares-print.test.js`.
+
+## Kinshasa utility tags and filters (2026-09-29)
+
+Engine migration `migrations/20260929_listing_utilities.sql` (`properties.utilities
+text[]`, CHECK against the ten codes, GIN index). Every read goes through
+`to_jsonb(p) -> 'utilities'`, so nothing 42703s before it runs.
+
+- **Four chips on /listings** (`FilterBar`, above the results, hidden when the
+  bar is condensed): Électricité, Eau, Sécurité, Accès (`lib/utilityTags.js`
+  `UTILITY_FILTERS`). They ride the existing `amenities` URL param, so saved
+  searches, alerts, labels (`searchCriteriaTags`, `ActiveFilterChips`), the map
+  and `search_events` carry them with no new plumbing.
+- **A chip matches the structured codes OR the listing's words** —
+  `utilities ?| codes` OR a word-boundary match of its keywords against title,
+  description **and `features`** (`keywordTextMatch`, also used by the "Plus de
+  filtres" amenity boxes). Checked on production: the words ("groupe
+  électrogène", "courant", "forage") were in `features` on 4–14 live listings
+  and in no description, so the title/description-only match — the amenity
+  boxes' rule until now — found nothing at all.
+- **Listing page**: `components/listings/UtilityBadges.js`, captioned
+  "Déclaré par l'agent", never "vérifié" (`verified_at` owns that word).
+  Nothing renders without codes.
+- **Agent editor**: one-tap chips grouped by chip (`#utilities`), sent only
+  when touched (`utilities_touched`), saved by `setListingUtilities`
+  (ownership in the WHERE, its own statement, `'unavailable'` before the
+  migration — the rest of the edit still saves).
+- Tests: `tests/unit/utility-tags.test.js`.
+
+## Speed pass — hero source, namespace split (2026-09-29)
+
+- **Hero** (`components/Hero.js` `HeroPicture`): a `<picture>` built with
+  `getImageProps`. Below 640px a `<source>` pins the 640w variant: the 26rem
+  band is taller than a phone is wide, so the photo draws ~630 CSS px wide and
+  `sizes="100vw"` had DPR-3 phones fetch 1080/1200w. Wider screens keep the
+  `100vw` set. `fetchPriority="high"` + `loading="eager"` replace `priority`
+  (deprecated in Next 16). The blur placeholder stays as the img background.
+- **`projects` copy ships from `app/(site)/projets/layout.js` only** (~11 KB of
+  French off every other public page). `account` was measured too (17.6 KB)
+  but stays site-wide: `CallCTA`, `AccountLimitNotice`, `/favoris` and the
+  whole Espace Client read it, and the namespace test works per top-level
+  namespace.
+- Tests: `tests/unit/speed-pass.test.js`, `i18n-namespaces.test.js`.

@@ -8880,10 +8880,45 @@ console.log('\n2. services/openai.js');
   });
 
   check('corrected objects get a versioned JPEG name, never the original one', () => {
-    assert.strictEqual(photoEnhance.enhancedObjectName('properties/9/whatsapp_ab12.png'), 'properties/9/whatsapp_ab12_e2.jpg');
+    assert.strictEqual(photoEnhance.ENHANCE_VERSION, 'e3');
+    assert.strictEqual(photoEnhance.enhancedObjectName('properties/9/whatsapp_ab12.png'), 'properties/9/whatsapp_ab12_e3.jpg');
     assert.strictEqual(photoEnhance.isEnhancedObjectName('properties/9/whatsapp_ab12_e1.jpg'), true);
     assert.strictEqual(photoEnhance.isEnhancedObjectName('properties/9/whatsapp_ab12.jpg'), false);
     assert.strictEqual(photoEnhance.isEnhanceableExtension('gif'), false);
+  });
+
+  await checkAsync('never darker: a bright room with a window comes back at least as light (e2 darkened it)', async () => {
+    // e2 moved the black point up to 20 levels while a photo with a window
+    // got no white lift, so 4 of 5 production samples came out darker
+    // (2026-10-02). e3 only ever lightens.
+    const w = 96;
+    const h = 64;
+    const raw = Buffer.alloc(w * h * 3);
+    for (let y = 0; y < h; y += 1) {
+      for (let x = 0; x < w; x += 1) {
+        const i = (y * w + x) * 3;
+        if (x > 70 && y < 26) {
+          raw[i] = 250;
+          raw[i + 1] = 250;
+          raw[i + 2] = 248;
+          continue;
+        }
+        const v = 105 + x * 0.6 + ((x * 7 + y * 13) % 23);
+        raw[i] = Math.min(255, v * 1.06);
+        raw[i + 1] = v;
+        raw[i + 2] = v * 0.9;
+      }
+    }
+    const input = await sharpLib(raw, { raw: { width: w, height: h, channels: 3 } }).jpeg({ quality: 90 }).toBuffer();
+    const result = await photoEnhance.enhanceImageBuffer(input);
+    const mean = async (b) => (await sharpLib(b).greyscale().stats()).channels[0].mean;
+    const before = await mean(input);
+    const after = await mean(result.buffer);
+    assert.ok(after >= before - 0.5, `mean luminance ${before.toFixed(1)} -> ${after.toFixed(1)}`);
+    // The window stays white, not tinted.
+    const { data } = await sharpLib(result.buffer).raw().toBuffer({ resolveWithObject: true });
+    const i = (5 * w + 85) * 3;
+    assert.ok(Math.max(data[i], data[i + 1], data[i + 2]) - Math.min(data[i], data[i + 1], data[i + 2]) <= 6, `window ${data[i]},${data[i + 1]},${data[i + 2]}`);
   });
 
   check('uploadListingPhotos names the object from the ORIGINAL bytes, then corrects', () => {
@@ -8894,22 +8929,30 @@ console.log('\n2. services/openai.js');
     assert.ok(source.includes('enhancedObjectName(originalPath)'));
   });
 
-  await checkAsync('backfill: only our bucket, skips corrected objects, one transaction per listing, rollback restores', async () => {
+  await checkAsync('backfill: rebuilds from ORIGINALS, skips the current version, warms before switching, rollback restores', async () => {
     const SUPA = 'https://abc.supabase.co';
     const pub = (p) => `${SUPA}/storage/v1/object/public/Property_images/${p}`;
-    const warm = await warmRoomJpeg();
+    const warmRoom = await warmRoomJpeg();
     const rows = {
       properties: new Map([
-        [1, pub('properties/1/whatsapp_aaa.jpg')],
+        [1, pub('properties/1/whatsapp_aaa_e2.jpg')],
         [2, 'https://lukkaplace.com/assets/img/noimage.jpg'],
-        [3, pub('properties/3/agent_bbb_e1.jpg')],
+        [3, pub('properties/3/agent_bbb_e3.jpg')],
+        [4, pub('properties/4/whatsapp_ddd_e2.jpg')],
       ]),
       slider: [
-        { property_id: 1, image: pub('properties/1/whatsapp_aaa.jpg') },
-        { property_id: 1, image: pub('properties/1/whatsapp_ccc.jpg') },
+        { property_id: 1, image: pub('properties/1/whatsapp_aaa_e2.jpg') },
+        { property_id: 1, image: pub('properties/1/whatsapp_ccc.png') },
         { property_id: 2, image: 'https://old-laravel.example/img/x.jpg' },
-        { property_id: 3, image: pub('properties/3/agent_bbb_e1.jpg') },
+        { property_id: 3, image: pub('properties/3/agent_bbb_e3.jpg') },
+        { property_id: 4, image: pub('properties/4/whatsapp_ddd_e2.jpg') },
       ],
+    };
+    // What the bucket holds: listing 1 still has both originals; listing 4's
+    // original is gone.
+    const bucket = {
+      'properties/1': ['whatsapp_aaa.jpg', 'whatsapp_aaa_e1.jpg', 'whatsapp_aaa_e2.jpg', 'whatsapp_ccc.png'],
+      'properties/4': ['whatsapp_ddd_e2.jpg'],
     };
     const log = [];
     const runUpdate = (sql, params) => {
@@ -8937,10 +8980,14 @@ console.log('\n2. services/openai.js');
       },
     };
     const uploads = [];
+    const downloads = [];
     const storage = {
+      async list(folder) {
+        return { data: (bucket[folder] || []).map((name) => ({ name })), error: null };
+      },
       async download(p) {
-        assert.ok(p.startsWith('properties/1/'), `only our own objects are read (${p})`);
-        return { data: { arrayBuffer: async () => warm }, error: null };
+        downloads.push(p);
+        return { data: { arrayBuffer: async () => warmRoom }, error: null };
       },
       async upload(p) {
         uploads.push(p);
@@ -8950,27 +8997,90 @@ console.log('\n2. services/openai.js');
         return { data: { publicUrl: pub(p) } };
       },
     };
+    const warmed = [];
+    const warm = async (urls) => {
+      warmed.push(...urls);
+      log.push('WARM');
+      return { MISS: urls.length * 15 };
+    };
     const common = { pool, storage, supabaseUrl: SUPA, bucket: 'Property_images', log: () => {} };
 
     const dry = await photoBackfill.backfillPhotoEnhancement({ ...common, write: false });
     assert.strictEqual(uploads.length, 0, 'dry run uploads nothing');
     assert.ok(!log.includes('BEGIN'), 'dry run writes nothing');
     assert.strictEqual(dry.tally.enhanced, 2);
-    assert.strictEqual(dry.tally.alreadyEnhanced, 1);
+    assert.strictEqual(dry.tally.alreadyCurrent, 1);
+    assert.strictEqual(dry.tally.noOriginal, 1);
     assert.strictEqual(dry.tally.foreign, 2);
+    assert.deepStrictEqual(
+      [...new Set(downloads)].sort(),
+      ['properties/1/whatsapp_aaa.jpg', 'properties/1/whatsapp_ccc.png'],
+      'the originals are read, never an older correction',
+    );
 
-    const { changes } = await photoBackfill.backfillPhotoEnhancement({ ...common, write: true });
-    assert.deepStrictEqual(uploads.sort(), ['properties/1/whatsapp_aaa_e2.jpg', 'properties/1/whatsapp_ccc_e2.jpg']);
-    assert.strictEqual(rows.properties.get(1), pub('properties/1/whatsapp_aaa_e2.jpg'));
-    assert.strictEqual(rows.slider[0].image, pub('properties/1/whatsapp_aaa_e2.jpg'));
-    assert.strictEqual(rows.slider[1].image, pub('properties/1/whatsapp_ccc_e2.jpg'));
+    const { changes } = await photoBackfill.backfillPhotoEnhancement({ ...common, write: true, warm });
+    assert.deepStrictEqual(uploads.sort(), ['properties/1/whatsapp_aaa_e3.jpg', 'properties/1/whatsapp_ccc_e3.jpg']);
+    assert.strictEqual(rows.properties.get(1), pub('properties/1/whatsapp_aaa_e3.jpg'));
+    assert.strictEqual(rows.slider[0].image, pub('properties/1/whatsapp_aaa_e3.jpg'));
+    assert.strictEqual(rows.slider[1].image, pub('properties/1/whatsapp_ccc_e3.jpg'));
+    assert.strictEqual(rows.properties.get(4), pub('properties/4/whatsapp_ddd_e2.jpg'), 'no original: URL kept');
     assert.strictEqual(rows.properties.get(2), 'https://lukkaplace.com/assets/img/noimage.jpg');
+    assert.deepStrictEqual(warmed.sort(), [pub('properties/1/whatsapp_aaa_e3.jpg'), pub('properties/1/whatsapp_ccc_e3.jpg')]);
+    assert.ok(log.indexOf('WARM') >= 0 && log.indexOf('WARM') < log.indexOf('BEGIN'), 'resized BEFORE the listing is switched');
     assert.strictEqual(log.filter((l) => l === 'BEGIN').length, 1, 'one transaction, for listing 1 only');
     assert.ok(log.includes('SET LOCAL'), 'never a bare SET on the pooler');
 
     await photoBackfill.rollbackPhotoEnhancement({ pool, changes, log: () => {} });
-    assert.strictEqual(rows.properties.get(1), pub('properties/1/whatsapp_aaa.jpg'));
-    assert.strictEqual(rows.slider[1].image, pub('properties/1/whatsapp_ccc.jpg'));
+    assert.strictEqual(rows.properties.get(1), pub('properties/1/whatsapp_aaa_e2.jpg'));
+    assert.strictEqual(rows.slider[1].image, pub('properties/1/whatsapp_ccc.png'));
+  });
+
+  await checkAsync('backfill: a listing whose new photo the image optimiser refuses is not switched', async () => {
+    const SUPA = 'https://abc.supabase.co';
+    const pub = (p) => `${SUPA}/storage/v1/object/public/Property_images/${p}`;
+    const warmRoom = await warmRoomJpeg();
+    let featured = pub('properties/7/whatsapp_eee.jpg');
+    let began = false;
+    const pool = {
+      async query() {
+        return { rows: [{ id: 7, featured_image: featured, slider: [] }] };
+      },
+      async connect() {
+        began = true;
+        return { query: async () => ({ rows: [] }), release() {} };
+      },
+    };
+    const storage = {
+      async list() {
+        return { data: [], error: null };
+      },
+      async download() {
+        return { data: { arrayBuffer: async () => warmRoom }, error: null };
+      },
+      async upload() {
+        return { error: null };
+      },
+      getPublicUrl(p) {
+        return { data: { publicUrl: pub(p) } };
+      },
+    };
+    const { tally } = await photoBackfill.backfillPhotoEnhancement({
+      pool,
+      storage,
+      supabaseUrl: SUPA,
+      bucket: 'Property_images',
+      write: true,
+      warm: async () => ({ http400: 15 }),
+      log: () => {},
+    });
+    assert.strictEqual(tally.notSwitched, 1);
+    assert.strictEqual(began, false, 'no transaction opened');
+    assert.strictEqual(featured, pub('properties/7/whatsapp_eee.jpg'));
+  });
+
+  check('imageCacheWarm covers every width next/image can emit', () => {
+    const { WARM_WIDTHS } = require('../services/imageCacheWarm');
+    for (const w of [32, 64, 128, 256, 384, 640, 750, 828, 1080, 1200, 1920, 2048, 3840]) assert.ok(WARM_WIDTHS.includes(w), `width ${w}`);
   });
 
   // -------------------------------------------------------------------------

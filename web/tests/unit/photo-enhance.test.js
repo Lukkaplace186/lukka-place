@@ -67,6 +67,52 @@ test('a warm bulb cast on grey walls is pulled toward neutral, not all the way',
   assert.ok(after > 0, 'the correction is partial: still slightly warm');
 });
 
+// Scenes a phone actually takes: most have a bright window or wall, which is
+// exactly what made e2 darken them (black point pulled down, no white lift).
+const SCENES = {
+  'bright room with a window': (x, y, rand) => {
+    if (x > 48 && y < 20) return [250, 250, 248]; // window
+    const v = 110 + x * 0.9 + rand() * 25;
+    return [v * 1.06, v, v * 0.9];
+  },
+  'mid-grey room': (x, y, rand) => {
+    const v = 40 + x * 2 + rand() * 30;
+    return [v, v * 0.98, v * 0.94];
+  },
+  'dark room': (x, y, rand) => {
+    const v = 12 + x * 0.9 + y * 0.4 + rand() * 15;
+    return [v * 1.1, v, v * 0.85];
+  },
+  'colourful bright exterior': (x, y, rand) => {
+    if (y < 16) return [150 + rand() * 20, 190 + rand() * 20, 235];
+    if (x % 9 < 4) return [60 + rand() * 30, 140 + rand() * 30, 50];
+    return [200 + rand() * 40, 120 + rand() * 30, 90];
+  },
+};
+
+for (const [name, pixel] of Object.entries(SCENES)) {
+  test(`never darker: ${name}`, () => {
+    const data = image(64, 48, pixel);
+    const before = lumaOf(data);
+    enhancePixels(data);
+    const after = lumaOf(data);
+    assert.ok(after >= before - 0.5, `mean luminance ${before.toFixed(1)} -> ${after.toFixed(1)}`);
+  });
+}
+
+test('black stays black and white stays white', () => {
+  const data = image(64, 48, (x, y, rand) => {
+    if (x < 4) return [0, 0, 0];
+    if (x > 59) return [255, 255, 255];
+    const v = 60 + x + rand() * 20;
+    return [v, v, v];
+  });
+  enhancePixels(data);
+  assert.deepEqual([data[0], data[1], data[2]], [0, 0, 0]);
+  const last = (48 * 64 - 1) * 4;
+  assert.deepEqual([data[last], data[last + 1], data[last + 2]], [255, 255, 255]);
+});
+
 test('a room that really is yellow stays yellow', () => {
   const data = image(64, 48, (x, y, rand) => {
     const v = rand() * 20;
@@ -79,12 +125,12 @@ test('a room that really is yellow stays yellow', () => {
   assert.ok(mean(data, 1) - mean(data, 2) > 60);
 });
 
-test('a well-exposed, neutral, colourful photo is not touched at all', () => {
-  // Full tonal range on neutral surfaces, strong colours elsewhere.
-  const colours = [[240, 80, 80], [60, 200, 80], [70, 120, 240]];
+test('a light, neutral, colourful photo is not touched at all', () => {
+  // Already light (median above LIGHTNESS_TARGET), neutral greys, strong colours.
+  const colours = [[255, 120, 40], [80, 240, 60], [70, 180, 255]];
   const data = image(64, 48, (x, y, rand) => {
     if (y < 18) {
-      const v = Math.min(255, (x * 4 + rand() * 4) | 0);
+      const v = Math.min(255, (100 + x * 2.4 + rand() * 4) | 0);
       return [v, v, v];
     }
     return colours[x % 3];

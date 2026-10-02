@@ -6,8 +6,19 @@
  * CLI: scripts/backfill-photo-enhance.js (dry run by default).
  *
  * - Only photos in our own bucket. Legacy/Laravel hosts and the
- *   noimage.jpg placeholder are left alone; so is an object already
- *   carrying an `_eN.jpg` name.
+ *   noimage.jpg placeholder are left alone; so is an object already at the
+ *   CURRENT version (`_<ENHANCE_VERSION>.jpg`).
+ * - Always from the ORIGINAL. A URL at an older version (`_e2.jpg`) is
+ *   resolved to the untouched object it was made from — same folder, same
+ *   name without the suffix, any extension — and that is what gets
+ *   corrected, never the older correction (no double processing). No
+ *   original found → the URL is kept and counted as `noOriginal`. When the
+ *   current correction leaves the original as it is, the listing goes back
+ *   to the original.
+ * - With `warm`, every new URL is pre-resized by the storefront's image
+ *   optimiser (services/imageCacheWarm.js) BEFORE its listing is switched,
+ *   so no visitor ever waits on a first resize. A URL the optimiser refuses
+ *   leaves that listing unswitched.
  * - The corrected photo is uploaded under a NEW name
  *   (`enhancedObjectName`) and the original object is never deleted or
  *   overwritten: next/image caches a URL for 30 days, and the original is
@@ -24,11 +35,48 @@
  */
 
 const {
+  ENHANCE_VERSION,
   enhanceImageBuffer,
   enhancedObjectName,
   isEnhancedObjectName,
   isEnhanceableExtension,
 } = require('./photoEnhance');
+
+/** True for an object this version produced. */
+function isCurrentVersionName(objectPath) {
+  return String(objectPath).toLowerCase().endsWith(`_${ENHANCE_VERSION}.jpg`);
+}
+
+/**
+ * The untouched object an `_eN.jpg` was made from: same folder, same name
+ * without the suffix, any enhanceable extension. `listings` caches one
+ * storage.list() per folder. Resolves null when there is none.
+ */
+async function findOriginalObject(storage, enhancedPath, listings = new Map()) {
+  const base = String(enhancedPath).replace(/_e\d+\.jpg$/i, '');
+  const slash = base.lastIndexOf('/');
+  const folder = slash >= 0 ? base.slice(0, slash) : '';
+  const stem = base.slice(slash + 1);
+  if (!listings.has(folder)) {
+    const { data, error } = await storage.list(folder, { limit: 1000 });
+    listings.set(folder, error ? [] : (data || []).map((o) => o.name));
+  }
+  const match = listings
+    .get(folder)
+    .find(
+      (name) =>
+        !isEnhancedObjectName(name) &&
+        name.slice(0, name.lastIndexOf('.')) === stem &&
+        isEnhanceableExtension(extensionOf(name)),
+    );
+  if (!match) return null;
+  return folder ? `${folder}/${match}` : match;
+}
+
+/** Public URL of another object in the same folder as `url`. */
+function siblingUrl(url, objectPath) {
+  return url.replace(/[^/]+$/, encodeURIComponent(objectPath.split('/').pop()));
+}
 
 /** Public URL -> object path inside `bucket`, or null when it is not ours. */
 function objectPathFromUrl(url, { supabaseUrl, bucket }) {
@@ -115,12 +163,14 @@ async function applyUrlChanges(pool, propertyId, changes) {
  * @param {object} deps.storage   a Supabase `storage.from(bucket)` handle
  * @param {string} deps.supabaseUrl
  * @param {string} deps.bucket
- * @param {Function} [deps.enhance]  defaults to enhanceImageBuffer
+ * @param {Function} [deps.enhance]  defaults to enhanceImageBuffer(buffer, enhanceOptions)
+ * @param {object} [deps.enhanceOptions]  e.g. { lightnessTarget } for a preview at another strength
+ * @param {Function} [deps.warm]  async (urls) => tally; a listing's new URLs, before it is switched
  * @param {boolean} [deps.write]
  * @param {number|null} [deps.propertyId]
  * @param {number|null} [deps.limit]   number of properties
  * @param {Function} [deps.log]
- * @param {Function} [deps.onSample]  (objectPath, before, after) for dry-run previews
+ * @param {Function} [deps.onSample]  (originalPath, original, after, { currentPath }) for dry-run previews
  * @returns {Promise<{ tally: object, changes: Array<{propertyId, oldUrl, newUrl}> }>}
  */
 async function backfillPhotoEnhancement({
@@ -128,16 +178,30 @@ async function backfillPhotoEnhancement({
   storage,
   supabaseUrl,
   bucket,
-  enhance = enhanceImageBuffer,
+  enhanceOptions = {},
+  enhance = (buffer) => enhanceImageBuffer(buffer, enhanceOptions),
+  warm = null,
   write = false,
   propertyId = null,
   limit = null,
   log = console.log,
   onSample = null,
 }) {
-  const tally = { properties: 0, photos: 0, enhanced: 0, alreadyFine: 0, alreadyEnhanced: 0, foreign: 0, failed: 0 };
+  const tally = {
+    properties: 0,
+    photos: 0,
+    enhanced: 0,
+    alreadyFine: 0,
+    alreadyCurrent: 0,
+    noOriginal: 0,
+    foreign: 0,
+    failed: 0,
+    notSwitched: 0,
+  };
   const changes = [];
-  const done = new Map(); // object path -> new URL, so a photo shared by two listings is processed once
+  // ORIGINAL path -> new public URL (or null), so a photo shared by two listings is processed once.
+  const done = new Map();
+  const listings = new Map();
 
   const properties = await loadPropertyPhotos(pool, { propertyId, limit });
   for (const property of properties) {
@@ -147,33 +211,52 @@ async function backfillPhotoEnhancement({
     for (const url of property.urls) {
       tally.photos += 1;
       const objectPath = objectPathFromUrl(url, { supabaseUrl, bucket });
-      if (!objectPath || !isEnhanceableExtension(extensionOf(objectPath))) {
+      if (!objectPath) {
         tally.foreign += 1;
         continue;
       }
-      if (isEnhancedObjectName(objectPath)) {
-        tally.alreadyEnhanced += 1;
+      if (isCurrentVersionName(objectPath)) {
+        tally.alreadyCurrent += 1;
         continue;
       }
-      if (done.has(objectPath)) {
-        const newUrl = done.get(objectPath);
-        if (newUrl) propertyChanges.push({ propertyId: property.id, oldUrl: url, newUrl });
+
+      let originalPath = objectPath;
+      try {
+        if (isEnhancedObjectName(objectPath)) originalPath = await findOriginalObject(storage, objectPath, listings);
+      } catch (err) {
+        originalPath = null;
+        log(`#${property.id}: ${objectPath} — original lookup failed: ${err.message}`);
+      }
+      if (!originalPath) {
+        tally.noOriginal += 1;
+        continue;
+      }
+      if (!isEnhanceableExtension(extensionOf(originalPath))) {
+        tally.foreign += 1;
+        continue;
+      }
+      if (done.has(originalPath)) {
+        const newUrl = done.get(originalPath);
+        if (newUrl && newUrl !== url) propertyChanges.push({ propertyId: property.id, oldUrl: url, newUrl });
         continue;
       }
 
       try {
-        const { data, error } = await storage.download(objectPath);
+        const { data, error } = await storage.download(originalPath);
         if (error || !data) throw new Error(error?.message || 'empty download');
         const original = Buffer.from(await data.arrayBuffer());
         const result = await enhance(original);
         if (!result.enhanced) {
+          // Needs nothing now: the listing shows the untouched original.
           tally.alreadyFine += 1;
-          done.set(objectPath, null);
+          const originalUrl = siblingUrl(url, originalPath);
+          done.set(originalPath, originalUrl);
+          if (originalUrl !== url) propertyChanges.push({ propertyId: property.id, oldUrl: url, newUrl: originalUrl });
           continue;
         }
 
-        const newPath = enhancedObjectName(objectPath);
-        if (onSample) await onSample(objectPath, original, result.buffer);
+        const newPath = enhancedObjectName(originalPath);
+        if (onSample) await onSample(originalPath, original, result.buffer, { currentPath: objectPath });
         let newUrl = null;
         if (write) {
           const { error: uploadError } = await storage.upload(newPath, result.buffer, {
@@ -184,20 +267,30 @@ async function backfillPhotoEnhancement({
           newUrl = storage.getPublicUrl(newPath)?.data?.publicUrl || null;
           if (!newUrl) throw new Error(`no public URL for ${newPath}`);
         } else {
-          newUrl = url.replace(/[^/]+$/, encodeURIComponent(newPath.split('/').pop()));
+          newUrl = siblingUrl(url, newPath);
         }
         tally.enhanced += 1;
-        done.set(objectPath, newUrl);
+        done.set(originalPath, newUrl);
         propertyChanges.push({ propertyId: property.id, oldUrl: url, newUrl });
       } catch (err) {
         tally.failed += 1;
-        done.set(objectPath, null);
-        log(`#${property.id}: ${objectPath} left as-is — ${err.message}`);
+        done.set(originalPath, null);
+        log(`#${property.id}: ${originalPath} left as-is — ${err.message}`);
       }
     }
 
     if (propertyChanges.length === 0) continue;
     if (write) {
+      if (warm) {
+        // Resize before switching: the first visitor must not pay for it.
+        const warmed = await warm([...new Set(propertyChanges.map((c) => c.newUrl))]);
+        const refused = Object.keys(warmed || {}).filter((k) => k.startsWith('http') || k === 'err');
+        if (refused.length) {
+          tally.notSwitched += 1;
+          log(`#${property.id}: NOT switched — the image optimiser refused a new URL (${JSON.stringify(warmed)})`);
+          continue;
+        }
+      }
       try {
         await applyUrlChanges(pool, property.id, propertyChanges);
       } catch (err) {
@@ -230,6 +323,8 @@ async function rollbackPhotoEnhancement({ pool, changes, log = console.log }) {
 
 module.exports = {
   objectPathFromUrl,
+  isCurrentVersionName,
+  findOriginalObject,
   loadPropertyPhotos,
   backfillPhotoEnhancement,
   rollbackPhotoEnhancement,

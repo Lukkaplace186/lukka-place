@@ -21,13 +21,11 @@ const WB_STRENGTH = 0.6;
 const WB_MAX_GAIN = 0.12;
 const WB_MIN_CORRECTION = 0.015;
 
-const BLACK_POINT_MIN = 6;
-const BLACK_POINT_MAX = 20;
 const WHITE_POINT_MIN = 235;
 const STRETCH_MAX_GAIN = 1.25;
 
-const SHADOW_TARGET = 0.42;
-const SHADOW_LIFT_MAX = 0.12;
+const LIGHTNESS_TARGET = 0.6;
+const LIGHTNESS_GAMMA_MIN = 0.72;
 
 const VIBRANCE_MAX = 0.18;
 const VIVID_SATURATION = 0.4;
@@ -96,7 +94,7 @@ function percentile(hist, total, fraction) {
   return 255;
 }
 
-/** Per-channel white-balance gains, luminance-preserving; [1,1,1] when no reliable cast. */
+/** Per-channel white-balance gains, all ≥ 1 (the smallest is exactly 1); [1,1,1] when no reliable cast. */
 function whiteBalanceGains(stats) {
   if (!stats.neutralMean || stats.neutralCount < stats.samples * WB_MIN_NEUTRAL_FRACTION) return [1, 1, 1];
   const [r, g, b] = stats.neutralMean;
@@ -105,44 +103,55 @@ function whiteBalanceGains(stats) {
   let gains = [grey / r, grey / g, grey / b].map((gain) =>
     clamp(1 + (gain - 1) * WB_STRENGTH, 1 - WB_MAX_GAIN, 1 + WB_MAX_GAIN),
   );
-  const norm = luma(gains[0], gains[1], gains[2]);
+  const norm = Math.min(gains[0], gains[1], gains[2]);
   gains = gains.map((gain) => gain / norm);
   if (gains.every((gain) => Math.abs(gain - 1) < WB_MIN_CORRECTION)) return [1, 1, 1];
   return gains;
 }
 
 /**
- * The correction for one photo: three 256-entry lookup tables (white balance,
- * stretch and shadow lift folded together) and a vibrance amount — or null
- * when the photo already needs nothing.
+ * A white-balance gain applied to channel value v (0..255), faded out toward
+ * pure white. Monotonic for gain - 1 < 1/3 (WB gains stay under ~1.27).
  */
-function buildEnhancement(stats) {
+function whiteRolloff(v, gain) {
+  const t = v / 255;
+  return v * (1 + (gain - 1) * (1 - t * t * t));
+}
+
+/**
+ * The gamma for a photo whose median luminance is `median` (0..1): moves the
+ * median toward `target`, never darkens (γ ≤ 1), never more than `gammaMin`.
+ */
+function lightnessGamma(median, target = LIGHTNESS_TARGET, gammaMin = LIGHTNESS_GAMMA_MIN) {
+  if (!(median > 0 && median < 1)) return 1;
+  return clamp(Math.log(target) / Math.log(median), gammaMin, 1);
+}
+
+/**
+ * The correction for one photo: three 256-entry lookup tables (white balance,
+ * white stretch and lightness curve folded together) and a vibrance amount —
+ * or null when the photo already needs nothing.
+ */
+function buildEnhancement(stats, options = {}) {
+  const target = options.lightnessTarget ?? LIGHTNESS_TARGET;
+  const gammaMin = options.lightnessGammaMin ?? LIGHTNESS_GAMMA_MIN;
   if (!stats || !stats.samples) return null;
   const gains = whiteBalanceGains(stats);
 
-  const lo = percentile(stats.hist, stats.samples, CLIP_PCT);
   const hi = percentile(stats.hist, stats.samples, 1 - CLIP_PCT);
   const median = percentile(stats.hist, stats.samples, 0.5);
 
-  // A black point a few levels up is sensor noise, not a haze to remove.
-  const blackPoint = lo < BLACK_POINT_MIN ? 0 : Math.min(lo, BLACK_POINT_MAX);
-  const whitePoint = hi >= WHITE_POINT_MIN ? 255 : hi;
-  let gain = whitePoint > blackPoint ? 255 / (whitePoint - blackPoint) : 1;
-  gain = clamp(gain, 1, STRETCH_MAX_GAIN);
-
-  const stretchedMedian = clamp(((median - blackPoint) * gain) / 255, 0, 1);
-  const lift = stretchedMedian < SHADOW_TARGET ? Math.min(SHADOW_LIFT_MAX, (SHADOW_TARGET - stretchedMedian) * 0.6) : 0;
+  // Only ever a gain ≥ 1 from black: the white stretch lightens or does nothing.
+  const gain = hi >= WHITE_POINT_MIN || hi <= 0 ? 1 : clamp(255 / hi, 1, STRETCH_MAX_GAIN);
+  const gamma = lightnessGamma(clamp((median * gain) / 255, 0, 1), target, gammaMin);
 
   const vibrance = VIBRANCE_MAX * clamp((VIVID_SATURATION - stats.meanSaturation) / 0.25, 0, 1);
 
   const luts = gains.map((channelGain) => {
     const lut = new Array(256);
     for (let v = 0; v < 256; v += 1) {
-      let x = clamp(((v * channelGain - blackPoint) * gain) / 255, 0, 1);
-      // Peaks at x = 1/3 with exactly `lift`, zero at black and white,
-      // monotonic for lift < 0.44.
-      x += lift * 6.75 * x * (1 - x) * (1 - x);
-      lut[v] = toByte(x * 255);
+      const x = clamp((whiteRolloff(v, channelGain) * gain) / 255, 0, 1);
+      lut[v] = toByte(Math.pow(x, gamma) * 255);
     }
     return lut;
   });
@@ -183,8 +192,8 @@ function applyEnhancement(data, enhancement, channels = 4) {
 }
 
 /** analyse → build → apply. Returns true when the pixels were changed. */
-function enhancePixels(data, channels = 4) {
-  const enhancement = buildEnhancement(analyseImage(data, channels));
+function enhancePixels(data, channels = 4, options = {}) {
+  const enhancement = buildEnhancement(analyseImage(data, channels), options);
   if (!enhancement) return false;
   applyEnhancement(data, enhancement, channels);
   return true;
@@ -198,7 +207,7 @@ function enhancePixels(data, channels = 4) {
  * Bumped whenever the correction above changes, so a re-run writes new object
  * names instead of overwriting URLs next/image has cached for 30 days.
  */
-const ENHANCE_VERSION = 'e2';
+const ENHANCE_VERSION = 'e3';
 const ENHANCEABLE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
 /**
  * Re-encoding a WhatsApp photo is a SECOND JPEG generation, and at q85 with
@@ -211,7 +220,7 @@ const ENHANCEABLE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
 const OUTPUT_JPEG = { quality: 92, chromaSubsampling: '4:4:4' };
 const OUTPUT_SHARPEN = { sigma: 0.5, m1: 0.3, m2: 0.6 };
 
-/** 'properties/9/whatsapp_ab12.png' -> 'properties/9/whatsapp_ab12_e2.jpg' (output is always JPEG). */
+/** 'properties/9/whatsapp_ab12.png' -> 'properties/9/whatsapp_ab12_e3.jpg' (output is always JPEG). */
 function enhancedObjectName(name) {
   const base = String(name).replace(/\.[^./]+$/, '');
   return `${base}_${ENHANCE_VERSION}.jpg`;
@@ -233,7 +242,7 @@ function isEnhanceableExtension(ext) {
  * happened before this existed. EXIF orientation is baked in and metadata
  * (GPS included) is not carried to the output.
  */
-async function enhanceImageBuffer(buffer) {
+async function enhanceImageBuffer(buffer, options = {}) {
   try {
     const sharp = require('sharp');
     const { data, info } = await sharp(buffer, { failOn: 'none' })
@@ -241,7 +250,7 @@ async function enhanceImageBuffer(buffer) {
       .flatten({ background: '#ffffff' })
       .raw()
       .toBuffer({ resolveWithObject: true });
-    if (!enhancePixels(data, info.channels)) return { buffer, enhanced: false };
+    if (!enhancePixels(data, info.channels, options)) return { buffer, enhanced: false };
     const out = await sharp(data, { raw: { width: info.width, height: info.height, channels: info.channels } })
       .sharpen(OUTPUT_SHARPEN)
       .jpeg(OUTPUT_JPEG)
@@ -263,17 +272,17 @@ module.exports = {
   WB_STRENGTH,
   WB_MAX_GAIN,
   WB_MIN_CORRECTION,
-  BLACK_POINT_MIN,
-  BLACK_POINT_MAX,
   WHITE_POINT_MIN,
   STRETCH_MAX_GAIN,
-  SHADOW_TARGET,
-  SHADOW_LIFT_MAX,
+  LIGHTNESS_TARGET,
+  LIGHTNESS_GAMMA_MIN,
   VIBRANCE_MAX,
   VIVID_SATURATION,
   SKIN_PROTECT,
   analyseImage,
   whiteBalanceGains,
+  whiteRolloff,
+  lightnessGamma,
   buildEnhancement,
   applyEnhancement,
   enhancePixels,

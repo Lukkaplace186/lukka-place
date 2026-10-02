@@ -2,7 +2,8 @@
  * Pre-generates the storefront's resized photos (next/image variants) for
  * every listing photo at every width next/image can emit, so no visitor waits
  * ~600 ms for a first resize. Run on the VPS after anything that changes
- * photo URLs in bulk (scripts/backfill-photo-enhance.js, a bucket move).
+ * photo URLs in bulk (a bucket move; scripts/backfill-photo-enhance.js now
+ * warms each listing itself before switching it).
  *
  *   node scripts/warm-image-cache.js            # against http://127.0.0.1:3002
  *   WEB_ORIGIN=http://host:port node scripts/warm-image-cache.js
@@ -13,11 +14,9 @@
  */
 const { Pool } = require('pg');
 require('dotenv').config({ quiet: true });
+const { DEFAULT_WEB_ORIGIN, WARM_WIDTHS, warmUrls } = require('../services/imageCacheWarm');
 
-const WEB_ORIGIN = process.env.WEB_ORIGIN || 'http://127.0.0.1:3002';
-
-// Next 16 defaults: imageSizes + deviceSizes (next.config.mjs overrides neither).
-const WIDTHS = [32, 48, 64, 96, 128, 256, 384, 640, 750, 828, 1080, 1200, 1920, 2048, 3840];
+const WEB_ORIGIN = process.env.WEB_ORIGIN || DEFAULT_WEB_ORIGIN;
 
 (async () => {
   const p = new Pool({
@@ -38,30 +37,18 @@ const WIDTHS = [32, 48, 64, 96, 128, 256, 384, 640, 750, 828, 1080, 1200, 1920, 
   c.release();
   await p.end();
 
-  const jobs = [];
-  for (const { u } of rows) for (const w of WIDTHS) jobs.push([u, w]);
-  console.log(`urls ${rows.length}, requests ${jobs.length}`);
-  const tally = {};
-  let done = 0;
+  console.log(`urls ${rows.length}, requests ${rows.length * WARM_WIDTHS.length}`);
   const t0 = Date.now();
-  async function worker() {
-    while (jobs.length) {
-      const [u, w] = jobs.shift();
-      let k;
-      try {
-        const r = await fetch(`${WEB_ORIGIN}/_next/image?url=${encodeURIComponent(u)}&w=${w}&q=75`, {
-          headers: { accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8' },
-        });
-        await r.arrayBuffer();
-        k = r.ok ? r.headers.get('x-nextjs-cache') || 'other' : `http${r.status}`;
-      } catch {
-        k = 'err';
-      }
-      tally[k] = (tally[k] || 0) + 1;
-      if (++done % 500 === 0) console.log(done, JSON.stringify(tally), `${((Date.now() - t0) / 1000) | 0}s`);
-    }
-  }
-  await Promise.all([worker(), worker()]);
+  const tally = await warmUrls(
+    rows.map((row) => row.u),
+    {
+      origin: WEB_ORIGIN,
+      onProgress: (done, t) => {
+        if (done % 500 === 0) console.log(done, JSON.stringify(t), `${((Date.now() - t0) / 1000) | 0}s`);
+      },
+    },
+  );
+  const done = Object.values(tally).reduce((a, b) => a + b, 0);
   console.log('done', done, JSON.stringify(tally), `${((Date.now() - t0) / 1000) | 0}s`);
 })().catch((err) => {
   console.error(err);

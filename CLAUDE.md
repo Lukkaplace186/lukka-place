@@ -1304,9 +1304,11 @@ disagree on a single pixel. It corrects the camera, never the property:
 - **White balance** from near-neutral pixels only, 60% of the estimate,
   ±12% per channel. A room that really is yellow or green has few neutral
   pixels and keeps its colour. No grey-world average.
-- **Contrast**: luminance stretch between the 0.5/99.5 percentiles, black
-  point ≤20 (ignored below 6), gain ≤1.25, then a shadow lift ≤0.12 that is
-  zero at black and white.
+- **Lightness (e3)**: never darker. No black-point shift; a white stretch
+  only when the photo has no real white (gain ≤1.25); then a gamma curve
+  x^γ moving the median toward `LIGHTNESS_TARGET` 0.60, γ clamped to
+  [0.72, 1]. White balance raises the weak channels only (smallest gain 1)
+  and fades out at pure white, so windows stay clean white.
 - **Vibrance** on every hue by how unsaturated it is — never per channel
   (that shifts hue); near-grey pixels and the skin/beige band are protected.
   No sharpening (amplifies phone noise and JPEG blocks).
@@ -1314,7 +1316,7 @@ disagree on a single pixel. It corrects the camera, never the property:
   own try/catch; always on, no agent toggle (product decision).
 - **WhatsApp**: `uploadListingPhotos` runs it through `sharp` (new engine
   dependency). The object name still hashes the ORIGINAL bytes; a corrected
-  photo is stored as `…_e2.jpg` (`ENHANCE_VERSION`), never over the original,
+  photo is stored as `…_e3.jpg` (`ENHANCE_VERSION`), never over the original,
   because next/image caches a URL for 30 days. The local file in UPLOADS_DIR
   is never modified. Bump `ENHANCE_VERSION` whenever the correction changes.
 - **After any bulk URL change, warm the storefront's image cache**:
@@ -1322,10 +1324,18 @@ disagree on a single pixel. It corrects the camera, never the property:
   variants, and a first resize costs ~600 ms per photo flip (web/CLAUDE.md,
   "Deployment", has the permanent cache this fills).
 - **Existing photos**: `node scripts/backfill-photo-enhance.js` (dry run,
-  saves 5 before/after pairs) → `--write` (uploads `_e2` copies, repoints
+  saves previews + measures every photo; `--strength` previews another
+  target) → `--write` (uploads `_e3` copies built from the ORIGINALS — an
+  `_e2` URL is resolved to its untouched object, never re-corrected — warms
+  them through `services/imageCacheWarm.js` BEFORE switching, repoints
   `featured_image` + `property_slider_images` per listing in one transaction,
   writes a rollback map) → `--rollback <file>` undoes it. Own bucket only;
   originals are never deleted. `services/photoBackfill.js`, §38.
+- **e3 (2026-10-02):** e2 made 107 of 215 live photos darker (black point
+  pulled down, no white lift on photos with a window or white wall), against a
+  light brand. e3 is never darker: measured on all 215, average +22 mean
+  brightness, 0 darker. "Lighter" (0.60) was picked over "moderate" (0.55)
+  from a preview of real photos. Pinned by the web "never darker" tests and §38.
 - **e2 (2026-09-28):** e1 re-encoded at q85 mozjpeg 4:2:0, which softened
   edges on already-compressed WhatsApp JPEGs (reported "fuzzy"). e2 is q92,
   4:4:4 chroma, plus `sharpen({ sigma: 0.5, m1: 0.3, m2: 0.6 })` — measured

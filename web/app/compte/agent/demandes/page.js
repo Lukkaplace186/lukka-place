@@ -183,7 +183,7 @@ export default async function AgentInquiriesPage({ searchParams }) {
   const replyError = typeof params.reply_error === 'string' ? params.reply_error : null;
 
   const agentId = await getCurrentAgentId();
-  const { agent, listingById, leadScope, hasLeadScope, newLeadsCount, pendingVisitsCount, listings } =
+  const { agent, listingById, leadScope, hasLeadScope, newLeadsCount, pendingVisitsCount, waitingCount, listings } =
     await getAgentDashboardContext(agentId);
 
   // Both lists come from the WhatsApp engine. When it is unreachable the page
@@ -241,7 +241,7 @@ export default async function AgentInquiriesPage({ searchParams }) {
     <>
       <AgentPageHeader
         title={t('agent.leads.title')}
-        newLeadsCount={newLeadsCount}
+        newLeadsCount={waitingCount}
         searchAction="/compte/agent/demandes"
         searchDefaultValue={q}
         searchPlaceholder="Rechercher un client"
@@ -250,27 +250,44 @@ export default async function AgentInquiriesPage({ searchParams }) {
 
       <QuickRepliesProvider templates={quickReplies.templates} listings={quickReplyListings}>
       <div className="flex flex-col gap-4 px-3 py-4 sm:px-8 sm:py-7">
+        {/* Two-way segmented switch (2026-10-05), held under the page header
+            while the list scrolls on a phone. Each side counts what waits on
+            the agent: new requests, visits still to answer. */}
+        <nav
+          aria-label={t('agent.leads.title')}
+          className="sticky top-[3.5625rem] z-10 -mx-3 -mt-4 bg-canvas-alt px-3 py-3 sm:top-[4.8125rem] sm:-mx-8 sm:-mt-7 sm:px-8 sm:py-4 lg:static lg:mx-0 lg:mt-0 lg:bg-transparent lg:px-0 lg:py-0"
+        >
+          <div className="flex rounded-xl bg-canvas-deep p-[3px] lg:max-w-md">
+            {TABS.map((item) => {
+              const active = tab === item.value;
+              const count = item.value === 'visites' ? pendingVisitsCount : newLeadsCount;
+              return (
+                <Link
+                  key={item.value}
+                  href={`/compte/agent/demandes?tab=${item.value}`}
+                  scroll={false}
+                  aria-current={active ? 'page' : undefined}
+                  className={`u-press inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-[9px] text-sm font-bold transition-colors ${
+                    active ? 'bg-surface text-ink shadow-[0_1px_2px_rgba(16,26,46,0.08)]' : 'text-ink-45 hover:text-ink'
+                  }`}
+                >
+                  {t(item.labelKey)}
+                  {count > 0 && (
+                    <span className="u-tabular inline-grid h-5 min-w-5 place-items-center rounded-full bg-blue-tint px-1.5 text-[0.6875rem] font-extrabold text-blue">
+                      {count}
+                    </span>
+                  )}
+                </Link>
+              );
+            })}
+          </div>
+        </nav>
+
         {leadsUnavailable && (
           <p className="u-micro rounded-lg bg-warning-tint px-4 py-3 font-semibold text-warning" role="status">
             {t('agent.leads.unavailable')}
           </p>
         )}
-        <div className="flex items-center gap-1 border-b border-line">
-          {TABS.map((item) => (
-            <Link
-              key={item.value}
-              href={`/compte/agent/demandes?tab=${item.value}`}
-              scroll={false}
-              className={`-mb-px border-b-2 px-3.5 py-2.5 text-[0.8125rem] font-semibold transition-colors ${
-                tab === item.value ? 'border-blue text-blue-deep' : 'border-transparent text-ink-45 hover:text-ink'
-              }`}
-            >
-              {t(item.labelKey)}
-              {item.value === 'visites' && pendingVisitsCount > 0 ? ` · ${pendingVisitsCount}` : ''}
-              {item.value === 'mes-demandes' && newLeadsCount > 0 ? ` · ${newLeadsCount}` : ''}
-            </Link>
-          ))}
-        </div>
 
         {/* Each tab's body carries its own key, so switching tabs REMOUNTS it
             instead of reconciling one tab's markup into the other's. Both

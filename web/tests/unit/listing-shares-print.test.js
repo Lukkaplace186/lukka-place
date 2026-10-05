@@ -354,9 +354,10 @@ test('the overview is four things; the rest moved to its own tab', () => {
   for (const gone of ['AgentRecentLeads', 'AgentSubscriptionCard', 'AgentStatusOfTheDay', 'AgentCompletenessCard', 'AgentMoreOnPhone']) {
     assert.doesNotMatch(overview, new RegExp(gone), `${gone} is not on the overview`);
   }
-  const order = ['<OverviewStats', '<AgentTodayPanel', '<AgentPortfolioBanner', '<OverviewChart'].map((tag) => overview.indexOf(tag));
+  // Order from the approved 2026-10-05 redesign (web/Design/agent-portal-prototype.html).
+  const order = ['<AgentPortfolioBanner', '<OverviewStats', '<AgentTodayPanel', '<OverviewChart'].map((tag) => overview.indexOf(tag));
   assert.ok(order.every((i) => i > 0), 'all four sections render');
-  assert.deepEqual([...order].sort((a, b) => a - b), order, 'figures, to-dos, portfolio, chart — in that order');
+  assert.deepEqual([...order].sort((a, b) => a - b), order, 'portfolio, figures, to-dos, chart — in that order');
   assert.match(readFileSync(path.join(ROOT, 'app/compte/agent/biens/page.js'), 'utf8'), /<AgentStatusOfTheDayLauncher/);
   assert.match(readFileSync(path.join(ROOT, 'app/compte/agent/parametres/page.js'), 'utf8'), /<AgentCompletenessCard profileGaps=\{profileGaps\} \/>/);
 });

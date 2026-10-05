@@ -4,6 +4,8 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { formatRelativeFr } from '@/lib/format';
 import { formatVisitSlot, formatVisitTime } from '@/lib/visitAgenda';
 import { TODO_ALL_HREF, TODO_KINDS } from '@/lib/agentTodo';
+import { leadWhatsAppLink } from '@/lib/leadContact';
+import { gapLabelKey } from '@/lib/completenessRules';
 import { getLocale, getT } from '@/lib/i18n/server';
 import AgentTodayList from './AgentTodayList';
 
@@ -24,6 +26,7 @@ function toRow(item, { t, locale, listingById }) {
   const base = {
     key: item.key,
     kind: item.kind,
+    kindLabel: t(`agent.today.kind.${KIND_LABEL[item.kind] || 'listingIncomplete'}`),
     id: item.id,
     overdue: Boolean(item.overdue),
     stale: Boolean(item.stale),
@@ -61,6 +64,9 @@ function toRow(item, { t, locale, listingById }) {
     const listing = l.property_id ? listingById.get(String(l.property_id)) : null;
     return {
       ...base,
+      // The answer to a new enquiry is a WhatsApp message from the agent's own
+      // phone (lib/leadContact.js) — "Ouvrir la demande" stays as the second action.
+      waHref: leadWhatsAppLink({ ...l, name: item.customerName || l.name }, [...listingById.values()]),
       title: item.customerName || customerLabel(l) || t('agent.today.unknownCustomer'),
       subtitle: listing?.title || l.requirements_summary || [l.quartier, l.commune].filter(Boolean).join(', ') || null,
       badge: t('agent.today.badge.newLead'),
@@ -81,14 +87,24 @@ function toRow(item, { t, locale, listingById }) {
     };
   }
 
+  // `gaps` are codes (lib/completenessRules.js); they used to be joined raw into
+  // the meta line, which printed "À compléter : missing_area".
   return {
     ...base,
     title: item.listing.title || t('agent.today.untitledListing'),
     subtitle: null,
     badge: null,
-    meta: item.listing.gaps.length ? t('agent.today.meta.missing', { gaps: item.listing.gaps.join(', ') }) : null,
+    meta: null,
+    gapLabels: item.listing.gaps.map((code) => t(gapLabelKey(code))),
   };
 }
+
+const KIND_LABEL = {
+  [TODO_KINDS.VISIT]: 'visit',
+  [TODO_KINDS.LEAD]: 'lead',
+  [TODO_KINDS.LISTING_CONFIRM]: 'listingConfirm',
+  [TODO_KINDS.LISTING_INCOMPLETE]: 'listingIncomplete',
+};
 
 /**
  * The overview's "À faire aujourd'hui" card. `todo` is lib/agentTodoLoader.js's
@@ -110,8 +126,10 @@ export default async function AgentTodayPanel({ todo, listingById, showAll = fal
       : [];
 
   return (
-    <section aria-labelledby="agent-today-title" className="u-card rounded-card bg-surface p-4 sm:p-6">
-      <div className="mb-3.5 flex flex-wrap items-baseline justify-between gap-2">
+    // On a phone the section has no card of its own: its rows ARE cards, in a
+    // swipeable rail (AgentTodayList). From `lg` it is the bordered panel.
+    <section aria-labelledby="agent-today-title" className="lg:rounded-card lg:bg-surface lg:p-6 lg:shadow-[var(--hairline),var(--shadow-card)]">
+      <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-2 lg:mb-3.5">
         <h2 id="agent-today-title" className="u-title-card text-ink">
           {t('agent.today.title')}
         </h2>
@@ -131,7 +149,7 @@ export default async function AgentTodayPanel({ todo, listingById, showAll = fal
 
       {rows.length === 0 ? (
         todo.degraded.length === 0 && (
-          <p className="u-micro flex items-center gap-2 text-ink-45">
+          <p className="u-card u-micro flex items-center gap-2 rounded-card bg-surface p-4 text-ink-45 lg:rounded-none lg:bg-transparent lg:p-0 lg:shadow-none">
             <CheckCircle2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-success" />
             {t('agent.today.empty')}
           </p>

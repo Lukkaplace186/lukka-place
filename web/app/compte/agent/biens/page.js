@@ -16,44 +16,17 @@ import AgentStatusOfTheDayLauncher from '@/components/AgentStatusOfTheDayLaunche
 import { getStatusSuggestions, serialiseSuggestion } from '@/lib/listingShares';
 import { STATUS_RECENT_DAYS } from '@/lib/listingShareRules';
 import { shareBlocker } from '@/lib/listingShareCopy';
+import { LISTING_FILTER_PILLS, LISTING_FILTER_VALUES, matchesListingFilter } from '@/lib/agentListingFilters';
 
-// The listing_status vocabulary. A closed listing must stay filterable even
-// though it's no longer reachable from a row's own status actions.
-const LISTING_STATUS_OPTIONS = [
-  { value: 'active', labelKey: 'status.listing.active' },
-  { value: 'under_offer', labelKey: 'status.listing.under_offer' },
-  { value: 'closed', labelKey: 'status.listing.closed' },
-];
+// The filter chips (2026-10-05): Tous · En ligne · À compléter · En revue ·
+// Sous offre, plus Loués / vendus, Refusées and Archivées when they hold
+// something. Their rule lives in lib/agentListingFilters.js, shared with the
+// overview's "Biens en ligne" figure and each card's badge, so a count here
+// can no longer disagree with one there. "En ligne" (URL value `active`) is
+// what the public sees, under offer included; "En revue" is waiting for
+// moderation. A plain link per chip into `?status=`, counted across ALL
+// listings, not just the page shown.
 
-// The one filter control: a row of chips, each a plain link into `?status=`
-// with its count on it. It replaced a pill row PLUS a status <select> with a
-// "Filtrer" button beside it — two controls for one question, the second a
-// full page submit. A chip with nothing behind it is not drawn (unless it is
-// the one selected), so the row stays short on a phone.
-//
-// 'archived' is deliberately in this list even though it is NOT a
-// listing_status value — it's `properties.status = 0`, a different axis (see
-// setListingArchivedAction). 'incomplete' is a third thing again: listings with
-// at least one gap (lib/completeness.js). `matchesFilter` below is what keeps
-// these axes from being conflated in the data.
-const FILTER_PILLS = [
-  { value: '', labelKey: 'listings.filters.allTypes', always: true },
-  { value: 'active', labelKey: 'agent.listings.online', always: true },
-  { value: 'incomplete', labelKey: 'agent.listings.toComplete' },
-  { value: 'under_offer', labelKey: LISTING_STATUS_OPTIONS[1].labelKey },
-  { value: 'closed', labelKey: 'agent.listings.soldOrLet' },
-  { value: 'archived', labelKey: 'agent.listings.archived' },
-];
-
-/**
- * One place that knows `?status=` spans independent columns:
- *   'archived'                     -> properties.status = 0 (visibility)
- *   'incomplete'                   -> has a completeness gap
- *   'active' | 'under_offer' | ... -> properties.listing_status (market)
- *
- * 'active' additionally excludes archived rows: an agent asking for their
- * live inventory does not mean "including the ones hidden from the site".
- */
 /**
  * Cards per page. The whole inventory is still read (it is a light row per
  * listing, and the shared dashboard context needs every id for lead
@@ -73,19 +46,10 @@ function pageHref(status, q, page) {
   return qs ? `/compte/agent/biens?${qs}` : '/compte/agent/biens';
 }
 
-function matchesFilter(listing, filter, gapsByListing = {}) {
-  if (!filter) return true;
-  const archived = Number(listing.status) === 0;
-  if (filter === 'incomplete') return Boolean(gapsByListing[String(listing.id)]);
-  if (filter === 'archived') return archived && listing.listing_status !== 'closed';
-  if (filter === 'active') return listing.listing_status === 'active' && !archived;
-  return listing.listing_status === filter;
-}
-
 export default async function AgentListingsPage({ searchParams }) {
   const t = await getT();
   const params = await searchParams;
-  const statusFilter = typeof params.status === 'string' ? params.status : '';
+  const statusFilter = typeof params.status === 'string' && LISTING_FILTER_VALUES.has(params.status) ? params.status : '';
   const q = typeof params.q === 'string' ? params.q.trim() : '';
   const requestedPage = Math.max(Number.parseInt(params.page, 10) || 1, 1);
 
@@ -100,7 +64,7 @@ export default async function AgentListingsPage({ searchParams }) {
 
   const listings = Array.isArray(context.listings) ? context.listings : [];
   const propertyIds = Array.isArray(context.propertyIds) ? context.propertyIds : [];
-  const newLeadsCount = context.newLeadsCount ?? 0;
+  const waitingCount = context.waitingCount ?? 0;
 
   // Degrade, don't die — the same contract the overview page follows. Not one
   // of these is what this page is *for*: the table renders from `listings`,
@@ -150,7 +114,7 @@ export default async function AgentListingsPage({ searchParams }) {
 
   const needle = q.toLowerCase();
   const filtered = listings.filter((l) => {
-    if (!matchesFilter(l, statusFilter, gapsByListing)) return false;
+    if (!matchesListingFilter(l, statusFilter, gapsByListing)) return false;
     if (!needle) return true;
     return `${l.title || ''} ${l.quartier || ''} ${l.reference || ''}`.toLowerCase().includes(needle);
   });
@@ -161,16 +125,16 @@ export default async function AgentListingsPage({ searchParams }) {
   const page = Math.min(requestedPage, totalPages);
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  const pills = FILTER_PILLS.map((pill) => ({
+  const pills = LISTING_FILTER_PILLS.map((pill) => ({
     ...pill,
-    count: listings.filter((l) => matchesFilter(l, pill.value, gapsByListing)).length,
+    count: listings.filter((l) => matchesListingFilter(l, pill.value, gapsByListing)).length,
   })).filter((pill) => pill.always || pill.count > 0 || pill.value === statusFilter);
 
   return (
     <>
       <AgentPageHeader
         title={t('agent.listings.title')}
-        newLeadsCount={newLeadsCount}
+        newLeadsCount={waitingCount}
         searchAction="/compte/agent/biens"
         searchDefaultValue={q}
         searchPlaceholder={t('nav.searchAria')}
@@ -178,6 +142,35 @@ export default async function AgentListingsPage({ searchParams }) {
       />
 
       <div className="flex flex-col gap-4 px-3 py-4 sm:px-8 sm:py-7">
+        {/* Stays under the page header while the list scrolls (the header is
+            sticky at 56px + its hairline on a phone, 76px from sm). */}
+        <nav
+          aria-label={t('agent.listings.filterByStatus')}
+          className="no-scrollbar sticky top-[3.5625rem] z-10 -mx-3 -mt-4 flex gap-2 overflow-x-auto bg-canvas-alt px-3 py-3 sm:top-[4.8125rem] sm:-mx-8 sm:-mt-7 sm:px-8 sm:py-4 lg:static lg:mx-0 lg:mt-0 lg:flex-wrap lg:bg-transparent lg:px-0 lg:py-0"
+        >
+          {pills.map((pill) => {
+            const active = pill.value === statusFilter;
+            const query = new URLSearchParams();
+            if (pill.value) query.set('status', pill.value);
+            if (q) query.set('q', q);
+            const qs = query.toString();
+            return (
+              <Link
+                key={pill.value}
+                href={qs ? `/compte/agent/biens?${qs}` : '/compte/agent/biens'}
+                scroll={false}
+                aria-current={active ? 'page' : undefined}
+                className={`u-press inline-flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-4 text-[0.8125rem] font-bold transition-colors ${
+                  active ? 'bg-ink text-white' : 'bg-surface text-ink-70 ring-1 ring-inset ring-ink-25 hover:bg-canvas-deep'
+                }`}
+              >
+                {t(pill.labelKey)}
+                <span className={`u-tabular text-[0.75rem] ${active ? 'text-white/70' : 'text-ink-45'}`}>{pill.count}</span>
+              </Link>
+            );
+          })}
+        </nav>
+
         {quota?.atLimit ? (
           <div role="status" className="flex flex-col gap-3 rounded-card border border-warning/40 bg-warning-tint p-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm text-ink">
@@ -193,33 +186,6 @@ export default async function AgentListingsPage({ searchParams }) {
         ) : quota?.capped ? (
           <p className="text-xs text-ink-45">{t('agent.quota.usage', { used: quota.used, limit: quota.limit })}</p>
         ) : null}
-        <nav
-          aria-label={t('agent.listings.filterByStatus')}
-          className="no-scrollbar -mx-3 flex gap-2 overflow-x-auto px-3 sm:mx-0 sm:flex-wrap sm:px-0"
-        >
-          {pills.map((pill) => {
-            const active = pill.value === statusFilter;
-            const query = new URLSearchParams();
-            if (pill.value) query.set('status', pill.value);
-            if (q) query.set('q', q);
-            const qs = query.toString();
-            return (
-              <Link
-                key={pill.value}
-                href={qs ? `/compte/agent/biens?${qs}` : '/compte/agent/biens'}
-                scroll={false}
-                aria-current={active ? 'page' : undefined}
-                className={`u-press inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 text-[0.8125rem] font-bold transition-colors ${
-                  active ? 'bg-ink text-white' : 'bg-surface text-ink-70 ring-1 ring-line hover:bg-canvas-deep'
-                }`}
-              >
-                {t(pill.labelKey)}
-                <span className={`u-tabular text-[0.75rem] ${active ? 'text-white/70' : 'text-ink-45'}`}>{pill.count}</span>
-              </Link>
-            );
-          })}
-        </nav>
-
         {statusSuggestions && (
           <AgentStatusOfTheDayLauncher
             items={statusSuggestions.items.map(serialiseSuggestion)}

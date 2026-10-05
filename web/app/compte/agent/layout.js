@@ -1,6 +1,8 @@
 import { redirect } from 'next/navigation';
 import { getCurrentAgentId } from '@/lib/agentSession';
 import { getAgentDashboardContext } from '@/lib/agentDashboard';
+import { getAgentProfileGaps } from '@/lib/completeness';
+import { gapHintKey, profileChecklist } from '@/lib/completenessRules';
 import AgentSidebar from '@/components/AgentSidebar';
 import AgentKeyboardShortcuts from '@/components/AgentKeyboardShortcuts';
 import { ToastProvider } from '@/components/Toast';
@@ -57,6 +59,17 @@ export default async function AgentDashboardLayout({ children }) {
 
   const { agent, listings, newLeadsCount, pendingVisitsCount, completion, displayName } = context;
 
+  // The rail's "Profil complété" is the same checklist Réglages shows and the
+  // overview's "Profil incomplet" banner reads (profileChecklist), so the
+  // three can no longer say 100 % here and "1 élément à compléter" there.
+  const profileGaps = await getAgentProfileGaps(agent).catch(() => []);
+  const checklist = profileChecklist(completion, profileGaps);
+  const railCompletion = completion && {
+    ...completion,
+    percent: checklist.percent,
+    nextHintKey: completion.nextHintKey || (profileGaps[0] ? gapHintKey(profileGaps[0]) : null),
+  };
+
   const name = displayName || agent.username || 'Agent';
   // Initials are built from LETTERS only. An agent who hasn't set a name yet
   // has `username` = their own phone digits, and slicing that gives a stray
@@ -80,7 +93,7 @@ export default async function AgentDashboardLayout({ children }) {
           listingsCount={listings.length}
           newLeadsCount={newLeadsCount}
           pendingVisitsCount={pendingVisitsCount}
-          completion={completion}
+          completion={railCompletion}
           logoutAction={agentLogoutAction}
         />
         <ToastProvider>

@@ -3,9 +3,11 @@
 import { useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { AlertTriangle, Archive, ArchiveRestore, CheckSquare, ExternalLink, Image as ImageIcon, RotateCcw, Trash2 } from 'lucide-react';
+import { AlertTriangle, Archive, ArchiveRestore, CheckSquare, Eye, ExternalLink, Image as ImageIcon, MousePointerClick, Pencil, RotateCcw, Trash2 } from 'lucide-react';
 import SafeImage from './SafeImage';
 import AgentListingActionsMenu from './AgentListingActionsMenu';
+import AgentListingWhatsAppButton from './AgentListingWhatsAppButton';
+import { agentListingState } from '@/lib/agentListingFilters';
 import { formatPrice, formatPriceCdf } from '@/lib/format';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { usableImageSrc } from '@/lib/listingView';
@@ -26,31 +28,23 @@ import { announceListingQuota } from '@/lib/listingQuotaRules';
 import { gapLabelKey, listingGapHref, MIN_PHOTOS } from '@/lib/completenessRules';
 
 /**
- * ONE status per card (2026-09-28). A card used to carry up to three chips at
- * once — moderation ("Publié", "En attente"), market ("Actif", "Sous
- * compromis") and visibility ("Archivée") — which agents read as clutter and,
- * worse, as contradictions. The three axes are still separate in the data
- * (web/CLAUDE.md, "Listing lifecycle"); this picks the one that matters most
- * to the agent right now, in this order: closed, archived, rejected, pending
- * review, under offer, live.
+ * ONE status per card (2026-09-28). The state itself comes from
+ * lib/agentListingFilters.js, the same rule the filter chips and the
+ * overview's "Biens en ligne" count with. Colours (2026-10-05): En ligne
+ * green, En revue amber, Sous offre royal, Refusée red, the rest grey. The
+ * grey "Brouillon" belongs to a form saved on the phone and not yet sent
+ * (CreateListingDialog), never to a listing waiting for moderation.
  */
 const LISTING_STATE = {
   closed: { labelKey: null, className: 'bg-canvas-deep text-ink-70' },
-  archived: { labelKey: 'agent.listings.state.archived', className: 'bg-canvas-deep text-ink-45' },
+  archived: { labelKey: 'agent.listings.state.archived', className: 'bg-canvas-deep text-ink-70' },
   rejected: { labelKey: 'agent.listings.state.rejected', className: 'bg-danger-tint text-danger' },
-  pending: { labelKey: 'agent.listings.state.pending', className: 'bg-warning-tint text-warning' },
-  under_offer: { labelKey: 'agent.listings.state.underOffer', className: 'bg-[#FDEBD8] text-[#9A4A0B]' },
+  pending: { labelKey: 'agent.listings.state.pending', className: 'bg-warning-tint text-warning-ink' },
+  under_offer: { labelKey: 'agent.listings.state.underOffer', className: 'bg-blue-tint text-blue-deep' },
   live: { labelKey: 'agent.listings.state.live', className: 'bg-success-tint text-success' },
 };
 
-function listingState(listing) {
-  if (listing.listing_status === 'closed') return 'closed';
-  if (Number(listing.status) === 0) return 'archived';
-  if (listing.approve_status === 2) return 'rejected';
-  if (listing.approve_status !== 1) return 'pending';
-  if (listing.listing_status === 'under_offer') return 'under_offer';
-  return 'live';
-}
+const listingState = agentListingState;
 
 const LONG_PRESS_MS = 500;
 
@@ -449,14 +443,14 @@ export default function AgentListingsTable({ listings, perListingStats, gapsByLi
               <Link
                 href={editHref}
                 aria-label={`${t('agent.listings.edit')} — ${listing.title}`}
-                className="alr-thumb grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-[10px] bg-canvas-deep text-ink-25 lg:h-12"
+                className="alr-thumb grid h-[5.5rem] w-[5.5rem] shrink-0 place-items-center overflow-hidden rounded-[10px] bg-canvas-deep text-ink-25 lg:h-12 lg:w-16"
               >
                 {usableImageSrc(listing.featured_image) ? (
                   <SafeImage
                     src={listing.featured_image}
                     alt=""
-                    width={64}
-                    height={64}
+                    width={88}
+                    height={88}
                     className="h-full w-full object-cover"
                   />
                 ) : (
@@ -504,20 +498,50 @@ export default function AgentListingsTable({ listings, perListingStats, gapsByLi
             <div className="alr-stats">
               {/* The count opens the listing's own page — the full funnel and
                   the owner's report link (app/compte/agent/biens/[id]). */}
-              <Link href={`/compte/agent/biens/${listing.id}`} className="u-tabular text-xs text-ink-70 underline-offset-2 hover:text-blue hover:underline lg:text-sm">
-                <span className="lg:hidden">{t('agent.listings.viewsInline')} </span>
+              <Link
+                href={`/compte/agent/biens/${listing.id}`}
+                title={t('agent.listings.viewsInline')}
+                className="u-tabular inline-flex items-center gap-1 text-xs text-ink-45 underline-offset-2 hover:text-blue hover:underline lg:text-sm lg:text-ink-70"
+              >
+                <Eye strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5 lg:hidden" aria-hidden="true" />
                 {(perListingStats.views[listing.id] || 0).toLocaleString('fr-FR')}
+                <span className="lg:hidden"> {t('agent.listings.viewsUnit', { count: perListingStats.views[listing.id] || 0 })}</span>
               </Link>
 
-              <div className="u-tabular text-xs text-ink-70 lg:text-sm">
-                <span className="lg:hidden">{t('agent.listings.clicksInline')} </span>
+              <div className="u-tabular inline-flex items-center gap-1 text-xs text-ink-45 lg:text-sm lg:text-ink-70" title={t('agent.listings.clicksInline')}>
+                <MousePointerClick strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5 lg:hidden" aria-hidden="true" />
                 {(perListingStats.clicks[listing.id] || 0).toLocaleString('fr-FR')}
+                <span className="lg:hidden"> {t('agent.listings.clicksUnit', { count: perListingStats.clicks[listing.id] || 0 })}</span>
               </div>
             </div>
 
             <div className="alr-status">{badge}</div>
 
-            <div className="alr-actions flex items-center justify-end gap-1.5">
+            <div className="alr-actions">
+              <Link
+                href={editHref}
+                className="u-press inline-flex h-11 items-center justify-center gap-1.5 rounded-lg text-sm font-bold text-ink ring-1 ring-inset ring-ink-25 hover:bg-canvas-alt lg:hidden"
+              >
+                <Pencil strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
+                {t('agent.listings.edit')}
+              </Link>
+              {isPublic && !shareBlocker(listing) ? (
+                <AgentListingWhatsAppButton
+                  listing={listing}
+                  caption={captions[String(listing.id)]}
+                  className="u-press inline-flex h-11 items-center justify-center gap-1.5 rounded-lg text-sm font-bold text-green-ink ring-1 ring-inset ring-ink-25 hover:bg-canvas-alt lg:hidden"
+                >
+                  {t('agent.listings.share')}
+                </AgentListingWhatsAppButton>
+              ) : (
+                <span
+                  aria-disabled="true"
+                  title={t('agent.listings.notPublishedYet')}
+                  className="inline-flex h-11 items-center justify-center rounded-lg text-sm font-bold text-ink-35 ring-1 ring-inset ring-line lg:hidden"
+                >
+                  {t('agent.listings.share')}
+                </span>
+              )}
               <AgentListingActionsMenu
                 listing={listing}
                 isClosed={isClosed}
@@ -648,26 +672,40 @@ function ListingStateBadge({ listing, state, onMakeAvailable }) {
 }
 
 /**
- * "À compléter : …" on the card it belongs to — one compact link into the
- * editor, anchored on the most consequential gap's field. Replaces the panel
- * that used to sit above the whole list and never said which listing it meant.
+ * What is missing, on the card it belongs to: one amber pill per gap, each
+ * opening the editor on that field (2026-10-05 — it was one "À compléter : a,
+ * b" link that only reached the first field).
  */
 function ListingGapHint({ listingId, gaps, photoCount }) {
   const t = useT();
   if (!gaps?.length) return null;
-  const labels = gaps.map((code) =>
-    code === 'thin_photos' ? `${t(gapLabelKey(code))} (${photoCount}/${MIN_PHOTOS})` : t(gapLabelKey(code)),
-  );
+  const labelOf = (code) => (code === 'thin_photos' ? `${t(gapLabelKey(code))} (${photoCount}/${MIN_PHOTOS})` : t(gapLabelKey(code)));
   return (
-    <Link
-      href={listingGapHref(listingId, gaps[0])}
-      className="u-press mt-1.5 inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-full bg-warning-tint px-2.5 py-1 text-[0.6875rem] font-semibold text-warning hover:brightness-95"
-    >
-      <AlertTriangle strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-      <span className="min-w-0">
-        {t('agent.completeness.toComplete')} {labels.join(', ')}
-      </span>
-    </Link>
+    <>
+      {/* Phone: one pill per gap. Desktop table: one compact line, so a row
+          stays one row tall. */}
+      <div className="mt-2 flex flex-wrap gap-1.5 lg:hidden">
+        {gaps.map((code) => (
+          <Link
+            key={code}
+            href={listingGapHref(listingId, code)}
+            className="u-press inline-flex min-h-8 max-w-full items-center gap-1.5 rounded-lg bg-warning-tint px-2.5 text-xs font-semibold text-warning-ink hover:brightness-95"
+          >
+            <AlertTriangle strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span className="min-w-0 truncate">{labelOf(code)}</span>
+          </Link>
+        ))}
+      </div>
+      <Link
+        href={listingGapHref(listingId, gaps[0])}
+        className="u-press mt-1.5 hidden max-w-full items-center gap-1.5 rounded-full bg-warning-tint px-2.5 py-1 text-[0.6875rem] font-semibold text-warning-ink hover:brightness-95 lg:inline-flex"
+      >
+        <AlertTriangle strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        <span className="min-w-0 truncate">
+          {t('agent.completeness.toComplete')} {gaps.map(labelOf).join(', ')}
+        </span>
+      </Link>
+    </>
   );
 }
 
@@ -729,7 +767,7 @@ function PriceCell({ listing, isClosed, onSave }) {
       onClick={startEdit}
       disabled={isClosed}
       title={isClosed ? undefined : t('agent.listings.editPrice')}
-      className={`u-tabular rounded-md px-1.5 py-0.5 text-left text-sm font-bold text-ink ${
+      className={`u-tabular -ml-1.5 rounded-md px-1.5 py-0.5 text-left text-sm font-bold text-ink lg:ml-0 ${
         isClosed ? 'cursor-default' : 'cursor-text hover:bg-canvas-alt'
       }`}
     >

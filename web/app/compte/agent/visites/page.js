@@ -44,7 +44,7 @@ export default async function AgentVisitAgendaPage() {
   const now = new Date();
 
   const agentId = await getCurrentAgentId();
-  const { listingById, leadScope, hasLeadScope, newLeadsCount, pendingVisitsCount } =
+  const { listingById, leadScope, hasLeadScope, waitingCount, pendingVisitsCount } =
     await getAgentDashboardContext(agentId);
 
   let visits = [];
@@ -179,7 +179,7 @@ export default async function AgentVisitAgendaPage() {
 
   return (
     <>
-      <AgentPageHeader title={t('agent.agenda.title')} newLeadsCount={newLeadsCount} />
+      <AgentPageHeader title={t('agent.agenda.title')} newLeadsCount={waitingCount} />
 
       <div className="flex flex-col gap-5 px-3 py-4 sm:px-8 sm:py-7">
         <div className="flex flex-wrap items-center justify-between gap-2">

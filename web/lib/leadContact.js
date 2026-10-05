@@ -27,3 +27,14 @@ export function leadWhatsAppLink(lead, myListings = []) {
   if (live) lines.push(listingPublicUrl(live.id));
   return buildWhatsAppLink(digits, lines.join('\n'));
 }
+
+/**
+ * `tel:` to the customer's own number (the wa_id is a full E.164 number
+ * without its "+"), or null when it is unusable. Same digit bounds as the
+ * WhatsApp link above.
+ */
+export function leadTelHref(waId) {
+  const digits = String(waId || '').replace(/\D/g, '');
+  if (digits.length < 7 || digits.length > 15) return null;
+  return `tel:+${digits}`;
+}

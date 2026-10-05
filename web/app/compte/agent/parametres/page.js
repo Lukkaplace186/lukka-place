@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { BadgeCheck, ArrowUpRight, Check, Circle, ChevronLeft, ChevronRight, Clock, Globe, KeyRound, MapPin, MessageSquareText, ShieldCheck, UserRound } from 'lucide-react';
+import { BadgeCheck, ArrowUpRight, Building2, Check, Circle, ChevronLeft, Clock, Globe, KeyRound, Languages, MapPin, MessageSquareText, ShieldCheck } from 'lucide-react';
 import { getCurrentAgentId } from '@/lib/agentSession';
 import { getAgentDashboardContext } from '@/lib/agentDashboard';
 import { getLocationHierarchySafe } from '@/lib/locations';
@@ -16,13 +16,17 @@ import {
   changeAgentPasswordAction,
   updateOwnCommunesAction,
   updateWorkingHoursAction,
+  agentLogoutAction,
 } from '../actions';
+import AgentSettingsIndex from '@/components/AgentSettingsIndex';
+import { agentPublicName } from '@/lib/agencies';
 import { getT } from '@/lib/i18n/server';
 import { listQuickReplies } from '@/lib/quickReplies';
 import AgentQuickRepliesManager from '@/components/AgentQuickRepliesManager';
 import SettingsSaveButton from '@/components/SettingsSaveButton';
 import AgentCompletenessCard from '@/components/AgentCompletenessCard';
 import { getAgentProfileGaps } from '@/lib/completeness';
+import { profileChecklist } from '@/lib/completenessRules';
 
 // Keys, not text: this is a module-level constant, evaluated once at import
 // time, so `t` does not exist here and a string baked in would be frozen in
@@ -50,7 +54,7 @@ const VERIFICATION_ERROR_CODES = ['invalid_type', 'empty', 'too_large', 'bad_for
  * reopens the section it came from, so the confirmation is on screen.
  */
 const SECTIONS = [
-  { key: 'identity', labelKey: 'agent.settings.identityTitle', Icon: UserRound },
+  { key: 'identity', labelKey: 'agent.settings.identityTitle', Icon: Building2 },
   { key: 'communes', labelKey: 'agent.settings.communesTitle', Icon: MapPin },
   { key: 'hours', labelKey: 'agent.settings.hoursTitle', Icon: Clock },
   { key: 'quick-replies', labelKey: 'agent.quickReplies.settingsTitle', Icon: MessageSquareText },
@@ -68,6 +72,20 @@ function openSection(params) {
   if (params.saved === 'verification' || params.verification_error) return 'verification';
   if (params.error || params.success === '1') return 'password';
   return null;
+}
+
+const sectionHref = (key) => `/compte/agent/parametres?section=${key}`;
+
+// Letters only: an account with no name yet has its phone digits as username.
+function initialsOf(name) {
+  return (
+    String(name || '')
+      .split(/\s+/)
+      .filter((part) => /^[A-Za-zÀ-ÿ]/.test(part))
+      .slice(0, 2)
+      .map((part) => part[0].toUpperCase())
+      .join('') || null
+  );
 }
 
 const DOC_STATUS_TONE = {
@@ -96,7 +114,7 @@ export default async function AgentSettingsPage({ searchParams }) {
       ? params.verification_error
       : null;
 
-  const [{ agent, completion }, { communes, degraded }, verification, quickReplies] = await Promise.all([
+  const [{ agent, completion, waitingCount, displayName }, { communes, degraded }, verification, quickReplies] = await Promise.all([
     getAgentDashboardContext(agentId),
     getLocationHierarchySafe(),
     // Degrade, don't die: before the verification migration runs (or with
@@ -122,15 +140,16 @@ export default async function AgentSettingsPage({ searchParams }) {
   });
 
   const profileUrl = `${SITE_URL}/agents/${agent.id}`;
+  const checklist = profileChecklist(completion, profileGaps);
   const selectedCommunes = new Set(agent.primary_communes || []);
   const boundUpdateCommunes = updateOwnCommunesAction.bind(null, communes);
 
   return (
     <>
-      <AgentPageHeader title={t('agent.settings.title')} newLeadsCount={0} />
+      <AgentPageHeader title={t('agent.settings.title')} newLeadsCount={waitingCount} />
 
       {!section && profileGaps.length > 0 && (
-        <div id="a-completer" className="scroll-mt-24 px-3 pt-4 sm:px-8 sm:pt-7">
+        <div id="a-completer" className="scroll-mt-24 px-3 pt-4 max-lg:hidden sm:px-8 sm:pt-7">
           <AgentCompletenessCard profileGaps={profileGaps} />
         </div>
       )}
@@ -144,25 +163,59 @@ export default async function AgentSettingsPage({ searchParams }) {
           {t('agent.settings.title')}
         </Link>
       ) : (
-        <nav aria-label={t('agent.settings.title')} className="px-3 py-4 lg:hidden">
-          <ul className="u-card divide-y divide-line overflow-hidden rounded-card bg-surface">
-            {SECTIONS.map(({ key, labelKey, Icon }) => (
-              <li key={key}>
-                <Link
-                  href={`/compte/agent/parametres?section=${key}`}
-                  className="u-press flex min-h-14 items-center gap-3 px-4 text-sm font-semibold text-ink hover:bg-canvas-alt"
-                >
-                  <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5 shrink-0 text-ink-45" />
-                  <span className="min-w-0 flex-1 truncate">{t(labelKey)}</span>
-                  {key === 'public-page' && (
-                    <span className="u-tabular text-[0.8125rem] font-bold text-blue">{completion.percent} %</span>
-                  )}
-                  <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0 text-ink-35" />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
+        <AgentSettingsIndex
+          agentName={agentPublicName(agent) || displayName || t('agent.nav.eyebrow')}
+          agentInitials={initialsOf(agentPublicName(agent))}
+          checklist={checklist}
+          profilePath={`/agents/${agent.id}`}
+          logoutAction={agentLogoutAction}
+          groups={[
+            {
+              key: 'agency',
+              labelKey: 'agent.settings.groupAgency',
+              rows: [
+                { key: 'identity', labelKey: 'agent.settings.identityTitle', Icon: Building2, href: sectionHref('identity'), sub: t('agent.settings.identitySub') },
+                {
+                  key: 'communes',
+                  labelKey: 'agent.settings.communesTitle',
+                  Icon: MapPin,
+                  href: sectionHref('communes'),
+                  sub: t('agent.settings.communesCount', { count: selectedCommunes.size }),
+                },
+                { key: 'hours', labelKey: 'agent.settings.hoursTitle', Icon: Clock, href: sectionHref('hours'), sub: agent.working_hours || t('agent.settings.hoursUnset') },
+              ],
+            },
+            {
+              key: 'sales',
+              labelKey: 'agent.settings.groupSales',
+              rows: [
+                {
+                  key: 'quick-replies',
+                  labelKey: 'agent.quickReplies.settingsTitle',
+                  Icon: MessageSquareText,
+                  href: sectionHref('quick-replies'),
+                  sub: quickReplies ? t('agent.settings.quickRepliesCount', { count: quickReplies.templates.length }) : null,
+                },
+              ],
+            },
+            {
+              key: 'account',
+              labelKey: 'agent.settings.groupAccount',
+              rows: [
+                {
+                  key: 'verification',
+                  labelKey: 'agent.verification.title',
+                  Icon: ShieldCheck,
+                  href: sectionHref('verification'),
+                  sub: verification ? t(LEVEL_LABEL_KEYS[verification.level] || LEVEL_LABEL_KEYS.standard) : null,
+                },
+                { key: 'language', Icon: Languages },
+                { key: 'password', labelKey: 'agent.settings.passwordTitle', Icon: KeyRound, href: sectionHref('password') },
+                { key: 'public-page', labelKey: 'agent.settings.publicPageTitle', Icon: Globe, href: sectionHref('public-page'), sub: `${checklist.percent} %` },
+              ],
+            },
+          ]}
+        />
       )}
 
       <div className={`grid grid-cols-1 gap-6 px-3 py-4 sm:px-8 sm:py-7 lg:grid-cols-[minmax(0,1fr)_22.5rem] lg:items-start ${section ? '' : 'max-lg:hidden'}`}>

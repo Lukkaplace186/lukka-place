@@ -21,13 +21,13 @@ export default async function AgentActionsPage() {
   const agentId = await getCurrentAgentId();
   const context = await getAgentDashboardContext(agentId);
   if (!context) redirect('/compte/agent/connexion');
-  const { listingById, leadScope, hasLeadScope, newLeadsCount } = context;
+  const { listingById, leadScope, hasLeadScope, waitingCount } = context;
 
   const todo = await loadAgentTodo({ agentId, leadScope, hasLeadScope }, { limit: TODO_ALL_LIMIT });
 
   return (
     <>
-      <AgentPageHeader title={t('agent.today.allTitle')} newLeadsCount={newLeadsCount} />
+      <AgentPageHeader title={t('agent.today.allTitle')} newLeadsCount={waitingCount} />
       <div className="flex flex-col gap-3 px-3 py-4 sm:px-8 sm:py-7">
         <Link
           href="/compte/agent"

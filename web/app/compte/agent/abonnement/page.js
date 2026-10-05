@@ -63,7 +63,7 @@ function money(value, symbol) {
 export default async function AgentSubscriptionPage() {
   const t = await getT();
   const agentId = await getCurrentAgentId();
-  const { agent, listings, newLeadsCount } = await getAgentDashboardContext(agentId);
+  const { agent, listings, waitingCount } = await getAgentDashboardContext(agentId);
   const listingQuota = await getListingQuota(agentId).catch(() => null);
 
   // No monthly lead quota meter: nothing on the dashboard counts against
@@ -95,7 +95,7 @@ export default async function AgentSubscriptionPage() {
 
   return (
     <>
-      <AgentPageHeader title="Abonnement" newLeadsCount={newLeadsCount} />
+      <AgentPageHeader title={t('agent.subscription.title')} newLeadsCount={waitingCount} />
 
       <div className="flex flex-col gap-8 px-3 py-4 sm:px-8 sm:py-7">
         <div className="grid gap-6 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:items-start">

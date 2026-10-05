@@ -56,7 +56,7 @@ export default async function ListingPerformancePage({ params, searchParams }) {
   if (!listing || !agentId || Number(listing.agent_id) !== Number(agentId)) notFound();
 
   const window = performanceWindow(PERFORMANCE_RANGES[range]);
-  const [{ newLeadsCount }, counts, series, position, link, prompts] = await Promise.all([
+  const [{ waitingCount }, counts, series, position, link, prompts] = await Promise.all([
     getAgentDashboardContext(agentId),
     getListingFunnel(listing.id, window),
     getAgentListingViewsSeries([Number(listing.id)], range),
@@ -93,7 +93,7 @@ export default async function ListingPerformancePage({ params, searchParams }) {
       <AgentPageHeader
         title={t('agent.hub.title')}
         subtitle={listing.title}
-        newLeadsCount={newLeadsCount}
+        newLeadsCount={waitingCount}
         action={live ? (
           <Link href={`/listings/${listing.id}`} target="_blank" className="u-btn-secondary u-press inline-flex h-11 items-center gap-1.5 rounded-lg px-4 text-sm font-bold text-ink">
             <ExternalLink strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />

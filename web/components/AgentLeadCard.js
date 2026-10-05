@@ -1,10 +1,11 @@
 'use client';
 
 import { useMemo, useOptimistic, useRef, useState } from 'react';
-import { Phone, Calculator, MapPin, Send, Check, Target, MessageCircle, MoreHorizontal } from 'lucide-react';
+import { Phone, Calculator, MapPin, Send, Check, Target, MoreHorizontal } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { bestMatch } from '@/lib/agentMatching';
-import { leadWhatsAppLink } from '@/lib/leadContact';
+import { leadTelHref, leadWhatsAppLink } from '@/lib/leadContact';
+import { WhatsAppIcon } from './WhatsAppCTA';
 import AgentQuickReplies from './AgentQuickReplies';
 import AgentAlternativesDialog from './AgentAlternativesDialog';
 import { useToast } from './Toast';
@@ -48,15 +49,28 @@ import { useT } from '@/lib/i18n/client';
  * `highlighted` marks the one request an agent arrived here to see from a
  * WhatsApp alert's deep link — see services/leadDispatch.js's agentLink.
  */
+// One colour per stage (2026-10-05): Nouvelle solid royal (it waits on the
+// agent), Contactée grey, Qualifiée green, Visite demandée amber. Every pair
+// is ≥4.5:1 for its 11px text (amber uses --warning-ink, see globals.css).
 const STATUS_TAG = {
-  NEW: 'bg-blue-tint text-blue-deep',
-  CONTACTED: 'bg-warning-tint text-warning',
+  NEW: 'bg-blue text-white',
+  CONTACTED: 'bg-canvas-deep text-ink-70',
   QUALIFIED: 'bg-success-tint text-success',
-  VIEWING_REQUESTED: 'bg-warning-tint text-warning',
+  VIEWING_REQUESTED: 'bg-warning-tint text-warning-ink',
   VIEWING_COMPLETED: 'bg-blue-tint text-blue-deep',
   CONVERTED: 'bg-success-tint text-success',
   LOST: 'bg-canvas-deep text-ink-45',
 };
+
+function initials(name) {
+  const letters = String(name || '')
+    .split(/\s+/)
+    .filter((part) => /^[A-Za-zÀ-ÿ]/.test(part))
+    .slice(0, 2)
+    .map((part) => part[0].toUpperCase())
+    .join('');
+  return letters || null;
+}
 
 const QUICK_REPLIES = [
   { labelKey: 'agent.leads.quickReplies.availableLabel', textKey: 'agent.leads.quickReplies.availableBody' },
@@ -121,20 +135,30 @@ export default function AgentLeadCard({
       )}
       <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_16.5rem] lg:items-center">
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <span className="text-base font-bold text-ink">{name}</span>
+          <div className="flex items-start gap-3">
             <span
-              className={`rounded-full px-2.5 py-1 text-[0.6875rem] font-extrabold uppercase tracking-[0.12em] ${
-                STATUS_TAG[status] || STATUS_TAG.NEW
-              }`}
+              aria-hidden="true"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-canvas-deep text-sm font-extrabold text-ink-70"
             >
-              {statusText}
+              {initials(lead.name) || <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />}
             </span>
-            <span className="text-xs text-ink-35">{relativeTime}</span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-start justify-between gap-2">
+                <span className="min-w-0 truncate text-base font-bold text-ink">{name}</span>
+                <span
+                  className={`shrink-0 rounded-full px-2.5 py-1 text-[0.6875rem] font-extrabold uppercase tracking-[0.1em] ${
+                    STATUS_TAG[status] || STATUS_TAG.NEW
+                  }`}
+                >
+                  {statusText}
+                </span>
+              </div>
+              <span className="text-xs text-ink-45">{relativeTime}</span>
+            </div>
           </div>
 
           {lead.requirements_summary && (
-            <p className="mt-2 max-w-[72ch] text-sm leading-relaxed text-ink-70">{lead.requirements_summary}</p>
+            <p className="mt-3 max-w-[72ch] rounded-lg bg-canvas-alt px-3 py-2.5 text-sm leading-relaxed text-ink-70">{lead.requirements_summary}</p>
           )}
 
           <div className="mt-3.5 flex flex-wrap gap-x-[1.125rem] gap-y-2 border-t border-line pt-3.5 text-[0.8125rem] text-ink-70">
@@ -166,21 +190,35 @@ export default function AgentLeadCard({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* "Répondre sur WhatsApp" is the card's one primary action: the
+            customer's chat, opened from the agent's own WhatsApp with a
+            greeting and the enquired listing already written
+            (lib/leadContact.js). Call sits beside the options. */}
+        <div className="flex flex-col gap-2">
           {directLink ? (
             <a
               href={directLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="u-btn-primary u-press inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg bg-blue text-sm font-bold text-white"
+              className="u-press inline-flex h-12 min-w-0 items-center justify-center gap-2 rounded-lg bg-green-ink text-[0.9375rem] font-bold text-white hover:brightness-110"
             >
-              <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem] shrink-0" />
+              <WhatsAppIcon className="h-5 w-5 shrink-0" />
               <span className="truncate">{t('agent.leads.replyOnWhatsApp')}</span>
             </a>
           ) : (
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0">
               <AgentAlternativesDialog kind="lead" id={lead.id} emphasis />
             </div>
+          )}
+          <div className="flex items-center gap-2">
+          {leadTelHref(lead.wa_id) && (
+            <a
+              href={leadTelHref(lead.wa_id)}
+              className="u-press inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg text-sm font-bold text-ink ring-1 ring-inset ring-ink-25 hover:bg-canvas-alt"
+            >
+              <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0" />
+              {t('agent.leads.call')}
+            </a>
           )}
           <button
             type="button"
@@ -188,12 +226,13 @@ export default function AgentLeadCard({
             aria-expanded={moreOpen}
             aria-label={t('agent.leads.moreOptions')}
             title={t('agent.leads.moreOptions')}
-            className={`u-press grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-line text-ink-70 transition-colors hover:bg-canvas-alt hover:text-ink ${
+            className={`u-press grid h-11 w-11 shrink-0 place-items-center rounded-lg text-ink-70 ring-1 ring-inset ring-ink-25 transition-colors hover:bg-canvas-alt hover:text-ink ${
               moreOpen ? 'bg-canvas-alt text-ink' : ''
             }`}
           >
             <MoreHorizontal strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
           </button>
+          </div>
         </div>
       </div>
 

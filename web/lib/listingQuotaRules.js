@@ -69,3 +69,14 @@ export function announceListingQuota(quota) {
   if (typeof window === 'undefined' || !quota) return;
   window.dispatchEvent(new CustomEvent(LISTING_QUOTA_EVENT, { detail: quota }));
 }
+
+/**
+ * Colour of the "biens publiés" bar on Abonnement: 'ok' (blue) below 80 % of
+ * the plan, 'warn' (amber, "Plus que N places") from 80 %, 'full' (red) at
+ * the limit. A plan with no cap is always 'ok'.
+ */
+export function quotaTone(used, limit) {
+  if (!(Number(limit) > 0)) return 'ok';
+  if (used >= limit) return 'full';
+  return used / limit >= 0.8 ? 'warn' : 'ok';
+}

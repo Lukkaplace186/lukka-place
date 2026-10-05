@@ -246,7 +246,7 @@ export default function AgentListingActionsMenu({ listing, isClosed, onStatusCha
         onClick={() => setSheetOpen(true)}
         aria-label={t('agent.listings.actionsFor', { title: listing.title })}
         aria-haspopup="dialog"
-        className={`${triggerClass} grid h-10 w-10 lg:hidden`}
+        className={`${triggerClass} grid h-11 w-11 ring-1 ring-inset ring-ink-25 lg:hidden`}
       >
         <MoreHorizontal strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
       </button>

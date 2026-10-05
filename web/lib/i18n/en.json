@@ -785,7 +785,19 @@
       "chartRange": "Chart period",
       "copyPortfolioLink": "Copy my portfolio link",
       "showMore": "Show more",
-      "showLess": "Show less"
+      "showLess": "Show less",
+      "liveListings": "Live listings",
+      "underOfferFoot": {
+        "one": "incl. {count} under offer",
+        "other": "incl. {count} under offer"
+      },
+      "views": "Views",
+      "windowCaption": "Views, clicks and new listings: last 30 days, compared with the 30 days before.",
+      "vsPrevious": "vs the previous 30 days",
+      "viewsUnit": {
+        "one": "view",
+        "other": "views"
+      }
     },
     "listings": {
       "pager": {
@@ -878,7 +890,24 @@
         "archived": "Archived",
         "sold": "Sold"
       },
-      "performance": "Stats & report"
+      "performance": "Stats & report",
+      "filters": {
+        "all": "All",
+        "live": "Live",
+        "incomplete": "To complete",
+        "review": "In review",
+        "underOffer": "Under offer",
+        "rejected": "Rejected"
+      },
+      "viewsUnit": {
+        "one": "view",
+        "other": "views"
+      },
+      "clicksUnit": {
+        "one": "click",
+        "other": "clicks"
+      },
+      "share": "Share"
     },
     "leads": {
       "title": "Enquiries",
@@ -919,7 +948,8 @@
       "proposeThis": "Propose this property",
       "replyOnWhatsApp": "Reply on WhatsApp",
       "replyViaLukka": "Reply via Lukka Place",
-      "moreOptions": "More options"
+      "moreOptions": "More options",
+      "call": "Call"
     },
     "visits": {
       "confirm": "Confirm",
@@ -937,7 +967,11 @@
       "clientNotNotified": "The WhatsApp message to the client could not be sent — contact them directly.",
       "alreadyDone": "No change: the viewing was already in this state.",
       "closed": "No further action is possible on this viewing.",
-      "clientNotifiedBadge": "Client notified"
+      "clientNotifiedBadge": "Client notified",
+      "noSlot": "No time given",
+      "slotAgreed": "Confirmed · Kinshasa time",
+      "slotPicked": "Time picked by the customer · Kinshasa time",
+      "slotInWords": "Asked for by the customer, in their words"
     },
     "settings": {
       "title": "Settings",
@@ -977,7 +1011,27 @@
       "agencyName": "Agency / trading name",
       "agencyNameHint": "This is the name shown on your listings and your public page. Left empty, your own name is shown instead.",
       "savedShort": "Saved",
-      "passwordSavedShort": "Password changed"
+      "passwordSavedShort": "Password changed",
+      "progressTitle": "Profile {percent} % Complete",
+      "progressHint": "A complete profile gets more requests.",
+      "add": "Add",
+      "doneItems": {
+        "one": "See the completed item",
+        "other": "See the {count} completed items"
+      },
+      "groupAgency": "Agency",
+      "groupSales": "Sales",
+      "groupAccount": "Account",
+      "identitySub": "Name, contact, number, introduction",
+      "communesCount": {
+        "one": "{count} commune",
+        "other": "{count} communes"
+      },
+      "hoursUnset": "Not set",
+      "quickRepliesCount": {
+        "one": "{count} template ready to send",
+        "other": "{count} templates ready to send"
+      }
     },
     "subscription": {
       "title": "Subscription",
@@ -1009,9 +1063,13 @@
       "manage": "Manage my subscription",
       "seePlans": "See plans",
       "howPaymentBody": "Lukka Place subscriptions are paid directly to the team — cash, bank transfer or Mobile Money. Choose your plan below: your request is recorded and an adviser contacts you on WhatsApp to activate it.",
-      "whatPlanDetermines": "Your plan determines three things: how many properties you can publish, how many customer enquiries you can handle each month, and your priority in the automatic matching of new requests in your communes.",
+      "whatPlanDetermines": "Your plan determines two things: how many properties you can publish, and your priority in the automatic matching of new requests in your communes. Customer enquiries and WhatsApp leads are never capped.",
       "beingProcessed": "being processed.",
-      "noPaymentsYet": "No payments recorded yet. Your history will appear here after your first activation."
+      "noPaymentsYet": "No payments recorded yet. Your history will appear here after your first activation.",
+      "placesLeft": {
+        "one": "Only {count} slot left",
+        "other": "Only {count} slots left"
+      }
     },
     "meta": {
       "title": "Agent Area — Lukka Place"
@@ -1093,7 +1151,13 @@
       "yourPublicPortfolio": "Your public portfolio",
       "pageReady": "Your page is ready for your properties",
       "numberVerifiedBy": "Number verified by Lukka Place",
-      "contactPerson": "Contact: {name}"
+      "contactPerson": "Contact: {name}",
+      "shareHeadline": {
+        "one": "{count} listing, one page to share",
+        "other": "{count} listings, one page to share"
+      },
+      "copyLink": "Copy link",
+      "shareWhatsApp": "WhatsApp"
     },
     "completion": {
       "nameLabel": "Name provided",
@@ -1119,7 +1183,11 @@
       "photoServices": "Photography included",
       "photoSessionsOne": "{count} photo session included per month",
       "photoSessionsMany": "{count} photo sessions included per month",
-      "photoDiscount": "{pct}% off the photography service"
+      "photoDiscount": "{pct}% off the photography service",
+      "listingsIncluded": {
+        "one": "{count} published listing",
+        "other": "{count} published listings"
+      }
     },
     "sold": {
       "notDeleted": "deleted: the property stays on your dashboard and can be put back online at any time.",
@@ -1288,7 +1356,8 @@
         "confirmAt": "Confirm · {slot}",
         "otherTime": "Other time",
         "relaunch": "Follow up",
-        "closeVisit": "Close"
+        "closeVisit": "Close",
+        "open": "Open"
       },
       "badge": {
         "overdue": "Time passed",
@@ -1331,7 +1400,13 @@
         "one": "See the action →",
         "other": "See all {count} actions →"
       },
-      "allTitle": "All Actions"
+      "allTitle": "All Actions",
+      "kind": {
+        "visit": "Viewing to confirm",
+        "lead": "New enquiry",
+        "listingConfirm": "Availability",
+        "listingIncomplete": "To complete"
+      }
     },
     "agenda": {
       "title": "Viewing Agenda",

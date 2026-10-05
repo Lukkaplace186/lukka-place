@@ -193,14 +193,21 @@ export async function getAgentListingViewsByDay(propertyIds, days = 7) {
  * @param {'7d'|'30d'|'12m'} [range='7d']
  * @returns {Promise<Array<{key: string, label: string, views: number}>>}
  */
+// '30d' is 30 DAILY bars (2026-10-05). It was five ISO weeks, which reach back
+// 29 to 35 days depending on the weekday, so the bars never added up to the
+// "Vues · 30 jours" figure above them (183 drawn under a headline of 198).
+// Thirty whole UTC days is exactly getAgentWindowStats' window.
 export const VIEW_RANGES = {
   '7d': { label: '7 derniers jours', caption: '7 derniers jours, par jour', unit: 'day', buckets: 7 },
-  '30d': { label: '30 derniers jours', caption: '30 derniers jours, par semaine', unit: 'week', buckets: 5 },
+  '30d': { label: '30 derniers jours', caption: '30 derniers jours, par jour', unit: 'day', buckets: 30 },
   '12m': { label: '12 derniers mois', caption: '12 derniers mois, par mois', unit: 'month', buckets: 12 },
 };
 
 const DAY_LABEL = new Intl.DateTimeFormat('fr-FR', { weekday: 'short', timeZone: 'UTC' });
 const MONTH_LABEL = new Intl.DateTimeFormat('fr-FR', { month: 'short', timeZone: 'UTC' });
+// The bar's own date, for its tooltip and the axis ends of a dense chart.
+const DAY_FULL_LABEL = new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+const MONTH_FULL_LABEL = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 
 function bucketStart(date, unit) {
   const d = new Date(date);
@@ -234,10 +241,18 @@ export async function getAgentListingViewsSeries(propertyIds, range = '7d') {
     const start = shiftBuckets(now, unit, -(buckets - 1 - i));
     const key = start.toISOString().slice(0, 10);
     let label;
-    if (unit === 'day') label = DAY_LABEL.format(start);
-    else if (unit === 'month') label = MONTH_LABEL.format(start);
-    else label = `S${i + 1}`;
-    return { key, label, views: 0 };
+    let fullLabel;
+    if (unit === 'day') {
+      label = DAY_LABEL.format(start);
+      fullLabel = DAY_FULL_LABEL.format(start);
+    } else if (unit === 'month') {
+      label = MONTH_LABEL.format(start);
+      fullLabel = MONTH_FULL_LABEL.format(start);
+    } else {
+      label = `S${i + 1}`;
+      fullLabel = label;
+    }
+    return { key, label, fullLabel, views: 0 };
   });
 
   if (!propertyIds?.length) return series;
@@ -280,76 +295,107 @@ export async function getAgentListingViewsSeries(propertyIds, range = '7d') {
 }
 
 /**
- * Real month-over-month movement for the dashboard's stat cards — the
- * design puts a delta line under every number, and this is the only honest
- * way to fill it. Returns `null` for any metric whose previous month was
- * zero: a percentage change from nothing is not a real number, and the UI
- * renders nothing at all rather than a fabricated "+100 %". `listings` is a
- * plain count of this agent's own properties created this month (not a
- * percentage) — matching the design's own "+2 ce mois" phrasing.
- *
- * @returns {Promise<{views: number|null, clicks: number|null, listings: number}>}
+ * The first UTC day (`YYYY-MM-DD`) of a window of `days` whole UTC days that
+ * ends today. getAgentWindowStats and the chart's '30d' series both start
+ * here, which is what makes the bars add up to the headline figure.
  */
-export async function getAgentMonthlyDeltas(agentId, propertyIds) {
+export function windowStartKey(days, now = new Date()) {
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  d.setUTCDate(d.getUTCDate() - (days - 1));
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Percentage change, or null when there is nothing honest to show: no
+ * previous figure (a change from zero is not a number) or an unreadable one.
+ */
+export function trendPercent(current, previous) {
+  if (!Number.isFinite(current) || !Number.isFinite(previous) || previous <= 0) return null;
+  return Math.round(((current - previous) / previous) * 100);
+}
+
+/**
+ * The overview's figures, each over the same window: the last `days` whole
+ * UTC days, compared with the `days` before them.
+ *
+ * Replaced getAgentMonthlyDeltas (2026-10-05), which compared the month so far
+ * with the whole previous month: on the 5th of a month that is five days
+ * against thirty, so a normal week read "−100 %". The views and clicks figures
+ * also came from different windows than their trends (a rolling 720 hours, and
+ * clicks were ALL-TIME under a "30 jours" label).
+ *
+ * `newListings` counts this agent's listings created in the window.
+ *
+ * @returns {Promise<{start: string, views: number, viewsPrev: number, clicks: number, clicksPrev: number, newListings: number}>}
+ */
+export async function getAgentWindowStats({ agentId, propertyIds, days = 30 }) {
+  const start = windowStartKey(days);
+  const prevStart = windowStartKey(days * 2);
   const pool = getPool();
 
-  const { rows: listingRows } = await pool.query(
-    `SELECT count(*)::int AS total FROM properties
-     WHERE agent_id = $1 AND created_at >= date_trunc('month', now())`,
-    [agentId],
-  );
-  const listings = listingRows[0].total;
+  const listingsQuery = Number.isFinite(Number(agentId))
+    ? pool.query(
+        `SELECT count(*)::int AS total FROM properties WHERE agent_id = $1 AND created_at >= $2::date`,
+        [agentId, start],
+      )
+    : Promise.resolve({ rows: [{ total: 0 }] });
 
-  if (!propertyIds?.length) return { views: null, clicks: null, listings };
-
-  const paths = propertyIds.map((id) => `/listings/${id}`);
-  const pctChange = (current, previous) => (previous > 0 ? Math.round(((current - previous) / previous) * 100) : null);
+  if (!propertyIds?.length) {
+    const { rows } = await listingsQuery;
+    return { start, views: 0, viewsPrev: 0, clicks: 0, clicksPrev: 0, newListings: rows[0]?.total ?? 0 };
+  }
 
   if (await isRollupFresh()) {
-    const { rows } = await pool.query(
-      `SELECT
-         COALESCE(sum(views) FILTER (WHERE day >= date_trunc('month', now())::date), 0)::int AS views_current,
-         COALESCE(sum(views) FILTER (WHERE day >= (date_trunc('month', now()) - interval '1 month')::date
-                                       AND day <  date_trunc('month', now())::date), 0)::int AS views_previous,
-         COALESCE(sum(whatsapp_clicks) FILTER (WHERE day >= date_trunc('month', now())::date), 0)::int AS clicks_current,
-         COALESCE(sum(whatsapp_clicks) FILTER (WHERE day >= (date_trunc('month', now()) - interval '1 month')::date
-                                                 AND day <  date_trunc('month', now())::date), 0)::int AS clicks_previous
-       FROM listing_stats_daily
-       WHERE listing_id = ANY($1::bigint[])
-         AND day >= (date_trunc('month', now()) - interval '1 month')::date`,
-      [propertyIds],
-    );
+    const [{ rows }, { rows: listingRows }] = await Promise.all([
+      pool.query(
+        `SELECT
+           COALESCE(sum(views) FILTER (WHERE day >= $2::date), 0)::int AS views,
+           COALESCE(sum(views) FILTER (WHERE day < $2::date), 0)::int AS views_prev,
+           COALESCE(sum(whatsapp_clicks) FILTER (WHERE day >= $2::date), 0)::int AS clicks,
+           COALESCE(sum(whatsapp_clicks) FILTER (WHERE day < $2::date), 0)::int AS clicks_prev
+         FROM listing_stats_daily
+         WHERE listing_id = ANY($1::bigint[]) AND day >= $3::date`,
+        [propertyIds, start, prevStart],
+      ),
+      listingsQuery,
+    ]);
     const r = rows[0] || {};
     return {
-      views: pctChange(r.views_current ?? 0, r.views_previous ?? 0),
-      clicks: pctChange(r.clicks_current ?? 0, r.clicks_previous ?? 0),
-      listings,
+      start,
+      views: r.views ?? 0,
+      viewsPrev: r.views_prev ?? 0,
+      clicks: r.clicks ?? 0,
+      clicksPrev: r.clicks_prev ?? 0,
+      newListings: listingRows[0]?.total ?? 0,
     };
   }
 
-  const [{ rows: viewRows }, { rows: clickRows }] = await Promise.all([
+  const paths = propertyIds.map((id) => `/listings/${id}`);
+  const [{ rows: viewRows }, { rows: clickRows }, { rows: listingRows }] = await Promise.all([
     pool.query(
       `SELECT
-         count(*) FILTER (WHERE created_at >= date_trunc('month', now()))::int AS current,
-         count(*) FILTER (WHERE created_at >= date_trunc('month', now()) - interval '1 month'
-                            AND created_at <  date_trunc('month', now()))::int AS previous
-       FROM page_views WHERE path = ANY($1::text[])`,
-      [paths],
+         count(*) FILTER (WHERE created_at >= $2::date)::int AS current,
+         count(*) FILTER (WHERE created_at < $2::date)::int AS previous
+       FROM page_views WHERE path = ANY($1::text[]) AND created_at >= $3::date`,
+      [paths, start, prevStart],
     ),
     pool.query(
       `SELECT
-         count(*) FILTER (WHERE created_at >= date_trunc('month', now()))::int AS current,
-         count(*) FILTER (WHERE created_at >= date_trunc('month', now()) - interval '1 month'
-                            AND created_at <  date_trunc('month', now()))::int AS previous
-       FROM whatsapp_clicks WHERE listing_id = ANY($1::bigint[])`,
-      [propertyIds],
+         count(*) FILTER (WHERE created_at >= $2::date)::int AS current,
+         count(*) FILTER (WHERE created_at < $2::date)::int AS previous
+       FROM whatsapp_clicks WHERE listing_id = ANY($1::bigint[]) AND created_at >= $3::date`,
+      [propertyIds, start, prevStart],
     ),
+    listingsQuery,
   ]);
 
   return {
-    views: pctChange(viewRows[0].current, viewRows[0].previous),
-    clicks: pctChange(clickRows[0].current, clickRows[0].previous),
-    listings,
+    start,
+    views: viewRows[0].current,
+    viewsPrev: viewRows[0].previous,
+    clicks: clickRows[0].current,
+    clicksPrev: clickRows[0].previous,
+    newListings: listingRows[0]?.total ?? 0,
   };
 }
 

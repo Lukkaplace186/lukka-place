@@ -4,6 +4,7 @@ import { photoPerkLines } from '@/lib/photoAllowance';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { getT } from '@/lib/i18n/server';
+import { quotaTone } from '@/lib/listingQuotaRules';
 
 const TERM_LABELS_FR = { monthly: 'Mensuel', yearly: 'Annuel', lifetime: 'À vie' };
 
@@ -31,23 +32,39 @@ function daysUntil(value) {
   return Math.round((endDay - today) / 86400000);
 }
 
-function Quota({ label, used, limit, hint, danger = false }) {
+// The listings bar: "21 / 25", blue, then amber from 80 % with the places
+// left, red at the limit (lib/listingQuotaRules.js quotaTone).
+function Quota({ label, used, limit, hint }) {
   const percent = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 0;
+  const tone = quotaTone(used, limit);
   return (
     <div>
-      <div className="u-micro-strong mb-1.5 flex items-center justify-between text-ink-70">
+      <div className="mb-2 flex items-baseline justify-between gap-3 text-[0.875rem] font-semibold text-ink-70">
         <span>{label}</span>
-        <span className="u-tabular">
+        <span className="u-tabular text-[0.9375rem] font-extrabold text-ink">
           {used} / {limit}
         </span>
       </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-line">
+      <div
+        className="h-2.5 overflow-hidden rounded-full bg-canvas-deep"
+        role="progressbar"
+        aria-label={label}
+        aria-valuemin={0}
+        aria-valuemax={limit}
+        aria-valuenow={Math.min(used, limit)}
+      >
         <div
-          className={`h-full rounded-full ${danger ? 'bg-danger' : 'bg-blue'}`}
+          className={`h-full rounded-full transition-[width] duration-500 ${
+            tone === 'full' ? 'bg-danger' : tone === 'warn' ? 'bg-brass' : 'bg-blue'
+          }`}
           style={{ width: `${percent}%` }}
         />
       </div>
-      {hint ? <p className="u-micro mt-1.5 text-ink-45">{hint}</p> : null}
+      {hint ? (
+        <p className={`u-micro mt-1.5 ${tone === 'warn' ? 'font-semibold text-warning-ink' : tone === 'full' ? 'text-danger' : 'text-ink-45'}`}>
+          {hint}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -89,8 +106,6 @@ function Quota({ label, used, limit, hint, danger = false }) {
  * @param {string|Date|null} props.expireDate
  * @param {number} props.listingCount
  * @param {number|null} props.listingLimit `packages.number_of_property`.
- * @param {{limit: number, used: number, remaining: number, exhausted: boolean}|null} props.leadQuota
- *   real monthly lead-response allowance and usage, or null when unreadable.
  * @param {number|null} [props.photoSessions] `packages.photo_sessions_per_month`.
  * @param {number|null} [props.photoDiscountPct] `packages.photo_discount_pct`.
  * @param {boolean} [props.compact] Overview variant: drops the footer links,
@@ -108,7 +123,6 @@ export default async function AgentSubscriptionCard({
   listingLimit,
   photoSessions = 0,
   photoDiscountPct = 0,
-  leadQuota = null,
   compact = false,
   hideTitle = false,
 }) {
@@ -190,11 +204,12 @@ export default async function AgentSubscriptionCard({
               label={t('agent.subscription.publishedListings')}
               used={listingCount}
               limit={listingLimit}
-              danger={listingCount >= listingLimit}
               hint={
                 listingCount >= listingLimit
                   ? t('agent.subscription.listingQuotaReached')
-                  : null
+                  : quotaTone(listingCount, listingLimit) === 'warn'
+                    ? t('agent.subscription.placesLeft', { count: listingLimit - listingCount })
+                    : null
               }
             />
           )}
@@ -211,19 +226,10 @@ export default async function AgentSubscriptionCard({
             </div>
           )}
 
-          {leadQuota && (
-            <Quota
-              label={t('agent.subscription.leadsHandledThisMonth')}
-              used={leadQuota.used}
-              limit={leadQuota.limit}
-              danger={leadQuota.exhausted}
-              hint={
-                leadQuota.exhausted
-                  ? t('agent.subscription.leadQuotaReached')
-                  : `${leadQuota.remaining} restante${leadQuota.remaining === 1 ? '' : 's'} ce mois-ci.`
-              }
-            />
-          )}
+          {/* No client-request bar (product decision 2026-10-05): agents are
+              never capped on enquiries or WhatsApp leads. The listings bar
+              above is the only quota, read from the plan in Supabase
+              (packages.number_of_property, lib/listingQuota.js). */}
         </>
       ) : (
         <>

@@ -52,7 +52,7 @@ export default async function EditListingPage({ params }) {
   // getOwnListingForEdit scopes on agent_id in the query itself, so a
   // guessed id belonging to another agency resolves to null and 404s here
   // rather than rendering someone else's listing in an editable form.
-  const [listing, { newLeadsCount }, communes, cdfRate, amenities, availabilityPrompt] = await Promise.all([
+  const [listing, { waitingCount }, communes, cdfRate, amenities, availabilityPrompt] = await Promise.all([
     getOwnListingForEdit(agentId, id),
     getAgentDashboardContext(agentId),
     resolveCommunes(),
@@ -74,7 +74,7 @@ export default async function EditListingPage({ params }) {
       <AgentPageHeader
         title={t('agent.editor.editListing')}
         subtitle={listing.title}
-        newLeadsCount={newLeadsCount}
+        newLeadsCount={waitingCount}
         action={
           listing.approve_status === 1 ? (
             <Link

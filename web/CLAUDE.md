@@ -2400,3 +2400,43 @@ text[]`, CHECK against the ten codes, GIN index). Every read goes through
   whole Espace Client read it, and the namespace test works per top-level
   namespace.
 - Tests: `tests/unit/speed-pass.test.js`, `i18n-namespaces.test.js`.
+
+## Agent portal redesign (2026-10-05)
+
+Approved from `web/Design/agent-portal-prototype.html` (gitignored, like the
+rest of `web/Design/`). Mobile-first; the `lg` layouts are unchanged in shape.
+
+- **One state per listing, one file**: `lib/agentListingFilters.js`
+  (`agentListingState`, `isLiveListing`, `matchesListingFilter`,
+  `LISTING_FILTER_PILLS`). The overview's "Biens en ligne", the Mes biens
+  chips and each card's badge all read it — before, the overview counted
+  approved listings (18) while "En ligne" also counted pending ones (20).
+  "En ligne" (`?status=active`) = public, under offer included; "En revue"
+  (`review`) = waiting for moderation. The grey "Brouillon" is only an offline
+  draft not yet sent, never a listing row. French says "sous offre" everywhere
+  (it said "sous compromis").
+- **One 30-day window**: `getAgentWindowStats` (lib/analytics.js) gives views,
+  clicks and new listings for the last 30 whole UTC days and the 30 before;
+  `trendPercent` returns null rather than a change from zero. It replaced
+  `getAgentMonthlyDeltas`, whose month-to-date comparison read "−100 %" early
+  in a month. `VIEW_RANGES['30d']` is 30 daily bars starting on the same day
+  (`windowStartKey`), so the chart adds up to the "Vues" figure. WhatsApp
+  clicks on the overview are now 30-day, not all-time.
+- **One waiting count**: `waitingCount` (new requests + visits to answer) on
+  the dashboard context drives every header bell and the Demandes tab badge.
+- **One profile checklist**: `profileChecklist` (lib/completenessRules.js)
+  merges agentProfileCompletion with the profile gaps; Réglages' ring and the
+  desktop rail's "Profil complété" both use it, so neither says 100 % while the
+  overview banner lists a missing item.
+- **No lead quota in the agent UI** (product decision): the plan cards and the
+  subscription card show only the listings allowance; the bar turns amber from
+  80 % (`quotaTone`, lib/listingQuotaRules.js). `monthly_pitch_limit` stays
+  editable in /admin. Plans come from `packages`; a new plan (Pro) appears when
+  its row exists.
+- **Leads**: "Répondre sur WhatsApp" (green, `--green-ink`) is every enquiry's
+  primary action, with a call link (`leadTelHref`). Visit cards open with the
+  slot: the agreed instant, else the customer's picked `requested_slot_at`,
+  else their own words.
+- **`--warning-ink`** (#7a5619) is the text colour on `--warning-50`; the old
+  amber text measured 3.4:1 (the token comment claimed 4.9). Amber chips use it.
+- Tests: `tests/unit/agent-portal-redesign.test.js`.

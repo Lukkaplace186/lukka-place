@@ -94,24 +94,26 @@ test('no file that defines only `labelKey:` reads `.label`', () => {
 });
 
 /**
- * The constant behind the outage, pinned directly: every LISTING_STATUS_OPTIONS
- * entry must expose a key the dictionary actually resolves. The scan above
- * proves the page does not read a field that does not exist; this proves the
- * field it does read points at real copy, and that the value is a string the
- * counts line can call `.toLowerCase()` on.
+ * The constant behind the outage, pinned directly. It was LISTING_STATUS_OPTIONS
+ * in app/compte/agent/biens/page.js; since the 2026-10-05 redesign the Mes
+ * biens chips are LISTING_FILTER_PILLS in lib/agentListingFilters.js (shared
+ * with the cards and the overview). Every chip must expose a key both
+ * dictionaries actually resolve, to a string.
  */
-test('every LISTING_STATUS_OPTIONS entry on Mes biens resolves to real French copy', async () => {
+test('every Mes biens filter chip resolves to real French and English copy', async () => {
   const source = readFileSync(path.join(ROOT, 'app/compte/agent/biens/page.js'), 'utf8');
-  const block = source.match(/const LISTING_STATUS_OPTIONS = \[([\s\S]*?)\];/);
-  assert.ok(block, 'LISTING_STATUS_OPTIONS not found — did the constant move?');
+  assert.match(source, /LISTING_FILTER_PILLS/, 'Mes biens no longer builds its chips from LISTING_FILTER_PILLS');
 
-  const keys = [...block[1].matchAll(/labelKey:\s*'([^']+)'/g)].map((m) => m[1]);
-  assert.equal(keys.length, 3, 'expected three listing statuses');
+  const { LISTING_FILTER_PILLS } = await import('@/lib/agentListingFilters');
+  assert.ok(LISTING_FILTER_PILLS.length >= 5, 'expected the five main chips at least');
 
   const { default: fr } = await import('@/lib/i18n/fr.json', { with: { type: 'json' } });
-  for (const key of keys) {
-    const value = key.split('.').reduce((node, segment) => (node == null ? node : node[segment]), fr);
-    assert.equal(typeof value, 'string', `${key} has no French string — the counts line would render the raw key`);
-    assert.doesNotThrow(() => value.toLowerCase());
+  const { default: en } = await import('@/lib/i18n/en.json', { with: { type: 'json' } });
+  for (const { labelKey } of LISTING_FILTER_PILLS) {
+    for (const [lang, dict] of [['fr', fr], ['en', en]]) {
+      const value = labelKey.split('.').reduce((node, segment) => (node == null ? node : node[segment]), dict);
+      assert.equal(typeof value, 'string', `${labelKey} has no ${lang} string — the chip would render the raw key`);
+      assert.doesNotThrow(() => value.toLowerCase());
+    }
   }
 });

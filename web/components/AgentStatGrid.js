@@ -1,124 +1,62 @@
 import Link from 'next/link';
-import { ArrowUpRight } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
-import { getT } from '@/lib/i18n/server';
+import TrendChip from './TrendChip';
 
 /**
- * The design's stat strip: ONE white card at card radius with shadow-xs,
- * split into cells by hairline dividers — not a row of separate bordered
- * boxes. Each cell is label / big tabular value / delta on the left, with a
- * 44px royal-50 icon disc on the right.
+ * The overview's four figures, as a 2×2 grid of tappable cards on a phone and
+ * one row of four from `lg` (2026-10-05 redesign).
  *
- * The design shows four cells with deltas like "+18 %". Six real metrics
- * exist here, so the grid carries six and reflows (2 / 3 / 6) instead of
- * dropping two real numbers to match a sample layout.
+ * Each card: an icon + label, the big tabular value, then a foot row holding
+ * the trend chip and an optional one-line fact ("dont 1 sous offre"). Every
+ * trend compares the same window as its figure — the last 30 days against
+ * the 30 before (lib/analytics.js getAgentWindowStats) — and the page says so
+ * once above the grid instead of "ce mois" under every number.
  *
- * Deltas are real month-over-month movement (lib/analytics.js's
- * getAgentMonthlyDeltas) and a cell simply renders none when there is no
- * honest one to show — a metric with no prior month to compare against
- * gets nothing rather than a fabricated "+100 %". Sign drives the colour:
- * the design's green is only correct for a rise.
+ * `delta`:
+ *   { kind: 'pct', value }   a percentage; null renders nothing (no honest
+ *                            change from a zero baseline, see trendPercent)
+ *   { kind: 'count', value } a signed count ("+2")
+ * Sign drives colour: green for a rise, red for a fall, grey for no change.
  *
- * A stat carrying an `href` renders as a real link into the list its number
- * came from, so the strip is a navigation surface rather than a read-only
- * scoreboard. One without an href stays a plain cell — the affordance
- * (hover fill + corner arrow) only ever appears where there is genuinely
- * somewhere to go.
+ * A stat with an `href` is a link into the list its number came from.
  */
-// `t` is a prop, not a useT() call: this file is a Server Component module
-// (the default export below is async and awaits getT()), so a client hook
-// here throws at request time — and /compte/agent is dynamic, so the build
-// never catches it. The server parent already holds a translator; passing
-// it down keeps this whole file off the client bundle.
-function DeltaLine({ delta, t }) {
-  if (delta == null) return null;
-
-  if (delta.kind === 'count') {
-    if (!delta.value) return null;
-    return (
-      <div className="mt-1 text-xs font-semibold text-success">
-        +{delta.value.toLocaleString('fr-FR')} ce mois
-      </div>
-    );
-  }
-
-  // `null` means there was no previous month to compare against, so there is
-  // no honest percentage to show — getAgentMonthlyDeltas returns it rather
-  // than inventing a "+100 %" out of a zero baseline. This has to be checked
-  // BEFORE the numeric branches: `null === 0` is false and `Math.abs(null)`
-  // is 0, so falling through renders a nonsensical "−0 %".
-  if (delta.value == null) return null;
-
-  if (delta.value === 0) {
-    return <div className="mt-1 text-xs font-semibold text-ink-35">{t('agent.overview.stableThisMonth')}</div>;
-  }
-  const up = delta.value > 0;
-  return (
-    <div className={`mt-1 text-xs font-semibold ${up ? 'text-success' : 'text-danger'}`}>
-      {up ? '+' : '−'}
-      {Math.abs(delta.value)} % ce mois
-    </div>
-  );
-}
-
-// `t` is threaded down from the async server default export rather than
-// pulled from a hook — see the note on DeltaLine below.
-function StatBody({ stat, t }) {
+function StatBody({ stat }) {
   return (
     <>
-      <div className="min-w-0">
-        {/* Phone: the label may wrap to two short lines instead of being cut
-            to "Vues sur 30 …" / "Demandes r…". */}
-        <div className="flex items-center gap-1 text-xs leading-tight text-ink-45 sm:text-[0.8125rem]">
-          <span className="min-w-0 sm:truncate">{stat.label}</span>
-          {stat.href && (
-            <ArrowUpRight
-              strokeWidth={ICON_STROKE_WIDTH}
-              aria-hidden="true"
-              className="h-3.5 w-3.5 shrink-0 text-ink-25 opacity-0 transition-opacity group-hover:opacity-100"
-            />
-          )}
-        </div>
-        <div className="u-stat mt-1 text-ink sm:mt-1.5">
-          {/* null = the source could not answer (the engine is down): a dash,
-              never a 0 that reads as "nobody asked". */}
-          {stat.value == null ? '—' : stat.value.toLocaleString('fr-FR')}
-        </div>
-        <DeltaLine delta={stat.delta} t={t} />
-      </div>
-      {/* The icon disc is decoration; on a two-column phone grid it was taking
-          the width the label needed. */}
-      <div className="hidden h-11 w-11 shrink-0 place-items-center rounded-full bg-blue-tint text-blue sm:grid">
-        <stat.icon strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
-      </div>
+      <span className="flex items-center gap-1.5 text-[0.8125rem] font-semibold leading-tight text-ink-45">
+        <stat.icon strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0 text-blue" aria-hidden="true" />
+        <span className="min-w-0 truncate">{stat.label}</span>
+      </span>
+      {/* null = the source could not answer (the engine is down): a dash,
+          never a 0 that reads as "nobody asked". */}
+      <span className="u-stat mt-1.5 block text-ink">{stat.value == null ? '—' : stat.value.toLocaleString('fr-FR')}</span>
+      <span className="mt-auto flex flex-wrap items-center gap-x-1.5 gap-y-1 pt-2 text-xs text-ink-45">
+        <TrendChip delta={stat.delta} />
+        {stat.foot && <span className="min-w-0">{stat.foot}</span>}
+      </span>
     </>
   );
 }
 
-const CELL_CLASS = 'flex items-start justify-between gap-3 bg-surface px-3.5 py-3 sm:items-center sm:px-5 sm:py-[1.375rem]';
+const CARD_CLASS = 'u-card flex min-h-[7.5rem] flex-col rounded-card bg-surface p-3.5 text-left sm:p-5';
 
-export default async function AgentStatGrid({ stats }) {
-  const t = await getT();
+export default function AgentStatGrid({ stats, caption }) {
   return (
-    // gap-px over a --line background paints the design's hairline dividers
-    // between cells at every breakpoint, without nth-child variants that
-    // Tailwind can silently fail to generate (see web/CLAUDE.md).
-    <div className="u-card u-stagger-inner grid grid-cols-2 gap-px overflow-hidden rounded-card bg-line lg:grid-cols-4">
-      {stats.map((stat) =>
-        stat.href ? (
-          <Link
-            key={stat.key}
-            href={stat.href}
-            className={`${CELL_CLASS} group u-press text-left transition-colors hover:bg-canvas-alt`}
-          >
-            <StatBody stat={stat} t={t} />
-          </Link>
-        ) : (
-          <div key={stat.key} className={CELL_CLASS}>
-            <StatBody stat={stat} t={t} />
-          </div>
-        ),
-      )}
-    </div>
+    <section aria-label={caption || undefined}>
+      {caption && <p className="u-micro mb-2 text-ink-45">{caption}</p>}
+      <div className="u-stagger grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4">
+        {stats.map((stat) =>
+          stat.href ? (
+            <Link key={stat.key} href={stat.href} className={`${CARD_CLASS} u-press transition-shadow hover:shadow-md`}>
+              <StatBody stat={stat} />
+            </Link>
+          ) : (
+            <div key={stat.key} className={CARD_CLASS}>
+              <StatBody stat={stat} />
+            </div>
+          ),
+        )}
+      </div>
+    </section>
   );
 }

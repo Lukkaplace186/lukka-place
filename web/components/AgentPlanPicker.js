@@ -20,10 +20,12 @@ function priceLabel(pkg) {
 
 /**
  * The real plan ladder: one card per active `packages` row, with that row's
- * own real quotas. There is no invented feature matrix — this schema carries
- * exactly two entitlements per plan (`number_of_property`,
- * `monthly_pitch_limit`) plus the lead-routing weight
- * (`priority_multiplier`), and those three are what's shown.
+ * own real values. There is no invented feature matrix: a card shows the
+ * listing allowance (`number_of_property`), the lead-routing weight
+ * (`priority_multiplier`) and the photo perks. `monthly_pitch_limit` is no
+ * longer shown (2026-10-05): agents are never capped on client requests, so
+ * listing volume is the one thing a plan changes. A new plan (Pro) appears
+ * here as soon as its `packages` row exists — nothing is hardcoded.
  *
  * Requesting a plan does two real things, in this order:
  *
@@ -112,7 +114,7 @@ export default function AgentPlanPicker({ packages, currentPackageId, openReques
             key={pkg.id}
             id={`plan-${pkg.id}`}
             className={`u-card flex scroll-mt-24 flex-col gap-4 rounded-card bg-surface p-5 ${
-              isCurrent ? 'ring-2 ring-blue' : ''
+              isCurrent ? 'ring-2 ring-inset ring-blue' : ''
             }`}
           >
             <div className="flex items-start justify-between gap-3">
@@ -138,12 +140,8 @@ export default function AgentPlanPicker({ packages, currentPackageId, openReques
                 <span>
                   {pkg.number_of_property == null
                     ? t('agent.plans.unlimitedListings')
-                    : `${pkg.number_of_property} biens publiés`}
+                    : t('agent.plans.listingsIncluded', { count: pkg.number_of_property })}
                 </span>
-              </li>
-              <li className="u-micro flex items-start gap-2 text-ink-70">
-                <Check strokeWidth={ICON_STROKE_WIDTH} className="mt-0.5 h-4 w-4 shrink-0 text-blue" />
-                <span>{pkg.monthly_pitch_limit ?? 10} demandes clients traitées par mois</span>
               </li>
               {priority > 1 && (
                 <li className="u-micro flex items-start gap-2 text-ink-70">
@@ -163,7 +161,7 @@ export default function AgentPlanPicker({ packages, currentPackageId, openReques
 
             <div className="mt-auto pt-1">
               {isCurrent ? (
-                <span className="u-micro-strong inline-flex h-10 items-center text-ink-45">
+                <span className="u-micro-strong inline-flex h-11 w-full items-center justify-center rounded-lg bg-canvas-deep text-ink-45">
                   {t('agent.plans.currentPlan')}
                 </span>
               ) : isRequested ? (
@@ -176,7 +174,7 @@ export default function AgentPlanPicker({ packages, currentPackageId, openReques
                   type="button"
                   onClick={() => handleRequest(pkg)}
                   disabled={pending}
-                  className="u-btn-primary u-press inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-lg bg-blue px-4 text-[0.8125rem] font-bold text-white disabled:opacity-60"
+                  className="u-btn-primary u-press inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-lg bg-blue px-4 text-sm font-bold text-white disabled:opacity-60"
                 >
                   {pending && requestedId === pkg.id ? 'Envoi…' : t('agent.plans.request')}
                   <ArrowUpRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />

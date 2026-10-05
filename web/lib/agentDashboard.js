@@ -79,6 +79,10 @@ export const getAgentDashboardContext = cache(async function getAgentDashboardCo
     hasLeadScope,
     newLeadsCount,
     pendingVisitsCount,
+    // What waits on the agent: new requests plus visits still to answer. The
+    // bell in every page header and the Demandes tab badge both show this, so
+    // they can no longer disagree (they did: 3 on the tab, 2 on the bell).
+    waitingCount: newLeadsCount + pendingVisitsCount,
     leadsUnavailable,
     completion: agentProfileCompletion(agent, { listingCount: listings.length }),
   };

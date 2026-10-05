@@ -2,27 +2,31 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { Phone, MapPin, Clock, Check, X, CalendarClock, MessageCircle } from 'lucide-react';
+import { Phone, MapPin, Clock, Check, X, CalendarCheck, CalendarClock, MessageCircle } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { updateViewingRequestAction } from '@/app/compte/agent/actions';
 import { agentActionsFor } from '@/lib/viewingActions';
-import { confirmPrefill } from '@/lib/visitAgenda';
+import { confirmPrefill, formatVisitDay, formatVisitTime } from '@/lib/visitAgenda';
+import { leadTelHref, leadWhatsAppLink } from '@/lib/leadContact';
+import { WhatsAppIcon } from './WhatsAppCTA';
 import VisitSlotForm from './VisitSlotForm';
 import { useToast } from './Toast';
 import AgentQuickReplies from './AgentQuickReplies';
 import AgentAlternativesDialog from './AgentAlternativesDialog';
 import { isNetworkError } from '@/lib/networkError';
 import { VIEWING_REQUEST_STATUS_LABEL_KEYS } from '@/lib/adminLabels';
-import { useT } from '@/lib/i18n/client';
+import { useLocale, useT } from '@/lib/i18n/client';
 
 const STATUS_TAG = {
-  PENDING: 'bg-warning-tint text-warning',
+  PENDING: 'bg-warning-tint text-warning-ink',
   CONFIRMED: 'bg-success-tint text-success',
   RESCHEDULED: 'bg-blue-tint text-blue-deep',
   CANCELLED: 'bg-canvas-deep text-ink-45',
   DECLINED: 'bg-danger-tint text-danger',
   COMPLETED: 'bg-success-tint text-success',
 };
+
+const upperFirst = (text) => (text ? text.charAt(0).toUpperCase() + text.slice(1) : text);
 
 const SECONDARY_BUTTON =
   'u-press inline-flex h-11 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg text-[0.8125rem] font-semibold transition-colors disabled:opacity-60';
@@ -42,6 +46,7 @@ const SECONDARY_BUTTON =
  */
 export default function AgentVisitRequestCard({ viewingRequest, statusLabel, relativeTime, target }) {
   const t = useT();
+  const locale = useLocale();
   const [reschedule, setReschedule] = useState(false);
   // Confirm opens a date + time step: a dashboard confirmation must carry the
   // agreed instant (lib/visitAgenda.js, "`scheduled_at`" in root CLAUDE.md).
@@ -132,8 +137,43 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
 
   const hasSecondary = can('RESCHEDULED') || can('DECLINED') || can('CANCELLED');
 
+  // The time comes first (2026-10-05): the agreed instant once there is one,
+  // else the slot the customer picked in the visit form (`requested_slot_at`,
+  // engine-parsed), else their own words. Kinshasa time, never the phone's.
+  const agreed = status === 'CONFIRMED' && viewingRequest.scheduled_at ? viewingRequest.scheduled_at : null;
+  const slotAt = agreed || (status === 'PENDING' ? viewingRequest.requested_slot_at : null) || null;
+  const slotDay = slotAt ? formatVisitDay(slotAt, locale) : null;
+  const slotTime = slotAt ? formatVisitTime(slotAt, locale) : null;
+  const waHref = leadWhatsAppLink({
+    wa_id: viewingRequest.lead_wa_id,
+    name: viewingRequest.lead_name,
+    property_id: viewingRequest.property_id || viewingRequest.lead_property_id,
+  });
+  const telHref = leadTelHref(viewingRequest.lead_wa_id);
+
   return (
-    <div className="u-card rounded-card bg-surface p-4 sm:p-6">
+    <div className="u-card overflow-hidden rounded-card bg-surface">
+      <div
+        className={`flex items-center gap-3 px-4 py-3.5 sm:px-6 ${
+          agreed ? 'bg-success-tint text-success' : 'bg-blue-tint text-blue-deep'
+        }`}
+      >
+        {agreed ? (
+          <CalendarCheck strokeWidth={ICON_STROKE_WIDTH} className="h-6 w-6 shrink-0" aria-hidden="true" />
+        ) : (
+          <CalendarClock strokeWidth={ICON_STROKE_WIDTH} className="h-6 w-6 shrink-0" aria-hidden="true" />
+        )}
+        <div className="min-w-0">
+          <div className="text-base font-extrabold leading-tight text-ink">
+            {/* First letter only: French months stay lowercase ("Lundi 14 septembre"). */}
+            {upperFirst(slotDay && slotTime ? `${slotDay} · ${slotTime}` : viewingRequest.requested_time || t('agent.visits.noSlot'))}
+          </div>
+          <div className="text-xs font-semibold">
+            {agreed ? t('agent.visits.slotAgreed') : slotAt ? t('agent.visits.slotPicked') : t('agent.visits.slotInWords')}
+          </div>
+        </div>
+      </div>
+      <div className="p-4 sm:p-6">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_16.5rem] lg:items-center">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2.5">
@@ -149,10 +189,12 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
           </div>
 
           <div className="mt-3.5 flex flex-wrap gap-x-[1.125rem] gap-y-2 border-t border-line pt-3.5 text-[0.8125rem] text-ink-70">
-            <span className="inline-flex items-center gap-1.5">
-              <Clock strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-35" />
-              {viewingRequest.requested_time || 'Créneau non précisé'}
-            </span>
+            {slotAt && viewingRequest.requested_time && (
+              <span className="inline-flex items-center gap-1.5">
+                <Clock strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-35" />
+                {viewingRequest.requested_time}
+              </span>
+            )}
             <span className="inline-flex items-center gap-1.5">
               <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-35" />
               {viewingRequest.lead_wa_id}
@@ -223,6 +265,30 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
               )}
             </div>
           )}
+          {(waHref || telHref) && (
+            <div className="flex gap-2">
+              {waHref && (
+                <a
+                  href={waHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="u-press inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg text-[0.8125rem] font-bold text-green-ink ring-1 ring-inset ring-ink-25 hover:bg-canvas-alt"
+                >
+                  <WhatsAppIcon className="h-4 w-4 shrink-0" />
+                  <span className="truncate">{t('agent.leads.replyOnWhatsApp')}</span>
+                </a>
+              )}
+              {telHref && (
+                <a
+                  href={telHref}
+                  aria-label={t('agent.leads.call')}
+                  className="u-press grid h-11 w-11 shrink-0 place-items-center rounded-lg text-ink-70 ring-1 ring-inset ring-ink-25 hover:bg-canvas-alt"
+                >
+                  <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                </a>
+              )}
+            </div>
+          )}
           <AgentQuickReplies
             waId={viewingRequest.lead_wa_id}
             clientName={viewingRequest.lead_name}
@@ -275,6 +341,7 @@ export default function AgentVisitRequestCard({ viewingRequest, statusLabel, rel
           </button>
         </form>
       )}
+      </div>
     </div>
   );
 }

@@ -166,14 +166,22 @@ export default function AgentSidebar({
                 key={item.href}
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
-                className={`u-press relative flex min-h-14 flex-col items-center justify-center gap-1 py-2 text-[0.6875rem] font-semibold transition-colors ${
-                  active ? 'text-blue' : 'text-ink-35'
+                className={`u-press relative flex min-h-[3.625rem] flex-col items-center justify-center gap-1 py-2 text-[0.6875rem] font-semibold transition-colors ${
+                  active ? 'text-blue' : 'text-ink-45'
                 }`}
               >
+                {/* The active tab carries a short bar on its top edge. */}
+                {active && <span aria-hidden="true" className="absolute inset-x-[28%] top-0 h-[3px] rounded-b-[3px] bg-blue" />}
                 <span className="relative">
                   <item.icon strokeWidth={ICON_STROKE_WIDTH} className="h-[1.375rem] w-[1.375rem]" />
                   {!!count && (
-                    <span className="u-tabular absolute -right-2 -top-1 rounded-full bg-blue px-[5px] text-[0.6875rem] font-bold text-white">
+                    // Listings: a quiet grey total. Demandes: blue, because
+                    // it counts what is waiting on the agent.
+                    <span
+                      className={`u-tabular absolute -right-3 -top-1.5 grid h-[1.125rem] min-w-[1.125rem] place-items-center rounded-full px-[5px] text-[0.65625rem] font-extrabold ring-2 ring-surface ${
+                        item.countKey === 'leads' ? 'bg-blue text-white' : 'bg-canvas-deep text-ink-70'
+                      }`}
+                    >
                       {count}
                     </span>
                   )}

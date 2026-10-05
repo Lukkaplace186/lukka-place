@@ -56,7 +56,7 @@ export default function AgentPageHeader({
           )}
 
           <Link
-            href="/compte/agent/demandes?status=NEW"
+            href="/compte/agent/demandes"
             aria-label={`Demandes non traitées${newLeadsCount ? ` (${newLeadsCount})` : ''}`}
             className="u-press relative grid h-10 w-10 shrink-0 place-items-center rounded-lg text-ink-70 transition-colors hover:bg-canvas-alt hover:text-ink"
           >

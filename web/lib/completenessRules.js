@@ -160,3 +160,41 @@ export function profileGaps(agent) {
 
   return PROFILE_GAP_CODES.filter((code) => gaps.has(code));
 }
+
+// A profile gap that is the same fact as an agentProfileCompletion item.
+const GAP_COVERED_BY = {
+  no_logo: 'agent.completion.photoLabel',
+  phone_unverified: 'agent.completion.verifiedLabel',
+  no_communes: 'agent.completion.communesLabel',
+};
+// Gaps with no completion item of their own; always listed, done or not, so
+// the percentage does not move just because one of them is missing.
+const EXTRA_PROFILE_ITEMS = ['no_agency_name', 'no_working_hours'];
+
+/**
+ * ONE profile checklist for Réglages (2026-10-05): agentProfileCompletion's
+ * items plus the profile gaps the overview's "Profil incomplet" banner reads
+ * (profileGaps). They were two lists, so an agent could see "Profil incomplet :
+ * 1 élément" on the overview and "Profil complété à 100 %" in Réglages.
+ *
+ * @param {{items: {labelKey: string, done: boolean}[]}} completion
+ * @param {string[]} gaps profile gap codes
+ * @returns {{items: {key: string, labelKey: string, done: boolean, href: string|null}[], percent: number}}
+ */
+export function profileChecklist(completion, gaps = []) {
+  const missing = new Set(gaps);
+  const items = (completion?.items || []).map((item) => ({ key: item.labelKey, labelKey: item.labelKey, done: item.done, href: null }));
+  for (const [code, labelKey] of Object.entries(GAP_COVERED_BY)) {
+    if (!missing.has(code)) continue;
+    const item = items.find((i) => i.labelKey === labelKey);
+    if (item) {
+      item.done = false;
+      item.href = profileGapHref(code);
+    }
+  }
+  for (const code of EXTRA_PROFILE_ITEMS) {
+    items.push({ key: code, labelKey: gapLabelKey(code), done: !missing.has(code), href: profileGapHref(code) });
+  }
+  const done = items.filter((i) => i.done).length;
+  return { items, percent: items.length ? Math.round((done / items.length) * 100) : 100 };
+}

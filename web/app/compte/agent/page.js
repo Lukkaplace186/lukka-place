@@ -1,16 +1,12 @@
 import { cache, Suspense } from 'react';
 import { getT } from '@/lib/i18n/server';
-import { Landmark, BarChart3, Phone, Mail } from 'lucide-react';
+import { Landmark, Eye, MousePointerClick, Mail } from 'lucide-react';
 import { getCurrentAgentId } from '@/lib/agentSession';
 import { getAgentDashboardContext } from '@/lib/agentDashboard';
 import { getListingQuota } from '@/lib/listingQuota';
-import {
-  getAgentListingViews,
-  getAgentWhatsAppClicks,
-  getAgentListingViewsSeries,
-  getAgentMonthlyDeltas,
-  VIEW_RANGES,
-} from '@/lib/analytics';
+import { getAgentListingViewsSeries, getAgentWindowStats, trendPercent, VIEW_RANGES } from '@/lib/analytics';
+import { isLiveListing } from '@/lib/agentListingFilters';
+import TrendChip from '@/components/TrendChip';
 import { listLeads } from '@/lib/adminApi';
 import { SITE_URL } from '@/lib/constants';
 import AgentPageHeader from '@/components/AgentPageHeader';
@@ -39,15 +35,13 @@ const quotaFor = cache((agentId) => getListingQuota(agentId).catch(() => null));
  * is its own async component behind <Suspense>, arriving as its data does.
  * Each one degrades on its own.
  *
- * ONE SCROLL, FOUR THINGS (2026-09-28). The page had grown to eight sections
- * — a to-do list, figures, a portfolio banner, an onboarding checklist, the
- * Status tool, a chart, recent requests and a subscription card — and read as
- * everything at once. Now, in this order:
+ * ONE SCROLL, FOUR THINGS (2026-09-28; reordered 2026-10-05 with the
+ * redesign approved from web/Design/agent-portal-prototype.html):
  *
- *   1. the four figures
- *   2. "À faire aujourd'hui", three rows + one "Voir les N actions" link
- *   3. the portfolio link
- *   4. the views chart
+ *   1. the portfolio share card (copy link, share on WhatsApp)
+ *   2. the four figures, each over the last 30 days with its trend
+ *   3. "À faire aujourd'hui", swipeable cards on a phone
+ *   4. the views chart, whose 30-day bars add up to the "Vues" figure
  *
  * Everything that left has a better home: recent requests and the plan are
  * their own bottom-nav tabs (Demandes, Abonnement), "Statut du jour" is on
@@ -64,7 +58,7 @@ export default async function AgentOverviewPage({ searchParams }) {
 
   const agentId = await getCurrentAgentId();
   const context = await getAgentDashboardContext(agentId);
-  const { agent, listings, propertyIds, listingById, leadScope, hasLeadScope, newLeadsCount } = context;
+  const { agent, listings, propertyIds, listingById, leadScope, hasLeadScope, waitingCount } = context;
 
   // "À faire aujourd'hui" + the morning reminder. Never throws: each engine
   // read degrades on its own and the panel says the list may be incomplete.
@@ -74,7 +68,7 @@ export default async function AgentOverviewPage({ searchParams }) {
     <>
       <AgentPageHeader
         title={t('agent.overview.title')}
-        newLeadsCount={newLeadsCount}
+        newLeadsCount={waitingCount}
         searchAction="/compte/agent/biens"
         searchPlaceholder="Rechercher un bien, un client"
         action={
@@ -93,25 +87,25 @@ export default async function AgentOverviewPage({ searchParams }) {
           <OverviewProfileGaps agent={agent} />
         </Suspense>
 
-        <Suspense fallback={<AgentSectionSkeleton className="h-48 sm:h-28" />}>
+        <AgentPortfolioBanner
+          liveCount={listings.filter(isLiveListing).length}
+          profileUrl={`${SITE_URL}/agents/${agent.id}`}
+          profilePath={`/agents/${agent.id}`}
+        />
+
+        <Suspense fallback={<AgentSectionSkeleton className="h-[16.5rem] lg:h-36" />}>
           <OverviewStats agentId={agentId} listings={listings} propertyIds={propertyIds} leadScope={leadScope} hasLeadScope={hasLeadScope} />
         </Suspense>
 
         <AgentTodayPanel todo={todo} listingById={listingById} />
-
-        <AgentPortfolioBanner
-          listingsCount={listings.length}
-          profileUrl={`${SITE_URL}/agents/${agent.id}`}
-          profilePath={`/agents/${agent.id}`}
-        />
 
         {/* Only for a developer with at least one project (/projets). */}
         <Suspense fallback={null}>
           <AgentProjectsCard agentId={agentId} />
         </Suspense>
 
-        <Suspense fallback={<AgentSectionSkeleton className="h-72" />}>
-          <OverviewChart propertyIds={propertyIds} range={range} />
+        <Suspense fallback={<AgentSectionSkeleton className="h-[22rem]" />}>
+          <OverviewChart agentId={agentId} propertyIds={propertyIds} range={range} />
         </Suspense>
       </div>
     </>
@@ -141,11 +135,19 @@ async function OverviewCreateAction({ agentId }) {
   );
 }
 
+// Same request, same window: the stat cards and the chart's 30-day trend both
+// read it, and React's cache() runs the queries once.
+const windowStatsFor = cache((agentId, propertyIds) =>
+  getAgentWindowStats({ agentId, propertyIds }).catch((error) => {
+    console.error(`[agent/overview] window stats unavailable: ${error.message}`);
+    return null;
+  }),
+);
+
 async function OverviewStats({ agentId, listings, propertyIds, leadScope, hasLeadScope }) {
   const t = await getT();
-  const [views30d, whatsappClicks, leadsPage, deltas] = await Promise.all([
-    getAgentListingViews(propertyIds, 30),
-    getAgentWhatsAppClicks(propertyIds),
+  const [stats, leadsPage] = await Promise.all([
+    windowStatsFor(agentId, propertyIds),
     // Engine down: the cell shows "—" rather than a false 0 or a broken page.
     hasLeadScope
       ? listLeads({ ...leadScope, limit: 1 }).catch((err) => {
@@ -153,35 +155,70 @@ async function OverviewStats({ agentId, listings, propertyIds, leadScope, hasLea
           return { total: null, data: [] };
         })
       : Promise.resolve({ total: 0, data: [] }),
-    getAgentMonthlyDeltas(agentId, propertyIds),
   ]);
-  const activeCount = listings.filter((l) => l.approve_status === 1 && l.listing_status === 'active').length;
+  // "En ligne" is lib/agentListingFilters.js's rule, the same one the Mes
+  // biens chip counts with — the two used to disagree (18 here, 20 there).
+  const live = listings.filter(isLiveListing);
+  const underOffer = live.filter((l) => l.listing_status === 'under_offer').length;
 
-  // Exactly the design's four cells, in its order, with its labels. The
-  // remaining real metrics (profile views, favourites, pending moderation)
-  // are not crammed in beside them — the design's strip is four, and the
-  // pending count already has a home on Mes biens.
-  //
-  // Every cell deep-links into the list that actually contains the rows
-  // behind the number, rather than being a dead figure:
-  //   Biens actifs      the listings table, pre-filtered to status=active
-  //   Vues / Clics      the same table, which carries a real per-listing
-  //                     Vues and Clics column (getPerListingStats) — there
-  //                     is no separate analytics page, and inventing one
-  //                     would be a bigger claim than the data supports
-  //   Demandes reçues   the inbox
-  const stats = [
-    { key: 'active', label: t('agent.overview.activeListings'), value: activeCount, icon: Landmark, href: '/compte/agent/biens?status=active', delta: { kind: 'count', value: deltas.listings } },
-    { key: 'views', label: t('agent.overview.views30d'), value: views30d, icon: BarChart3, href: '/compte/agent/biens', delta: { kind: 'pct', value: deltas.views } },
-    { key: 'clicks', label: t('agent.overview.whatsappClicks'), value: whatsappClicks, icon: Phone, href: '/compte/agent/biens', delta: { kind: 'pct', value: deltas.clicks } },
+  // Every cell deep-links into the list behind its number.
+  const cells = [
+    {
+      key: 'active',
+      label: t('agent.overview.liveListings'),
+      value: live.length,
+      icon: Landmark,
+      href: '/compte/agent/biens?status=active',
+      delta: stats ? { kind: 'count', value: stats.newListings } : null,
+      foot: underOffer > 0 ? t('agent.overview.underOfferFoot', { count: underOffer }) : null,
+    },
+    {
+      key: 'views',
+      label: t('agent.overview.views'),
+      value: stats ? stats.views : null,
+      icon: Eye,
+      href: '#agent-views-chart-title',
+      delta: stats ? { kind: 'pct', value: trendPercent(stats.views, stats.viewsPrev) } : null,
+    },
+    {
+      key: 'clicks',
+      label: t('agent.overview.whatsappClicks'),
+      value: stats ? stats.clicks : null,
+      icon: MousePointerClick,
+      href: '/compte/agent/biens',
+      delta: stats ? { kind: 'pct', value: trendPercent(stats.clicks, stats.clicksPrev) } : null,
+    },
     { key: 'leads', label: t('agent.overview.leadsReceived'), value: leadsPage.total, icon: Mail, href: '/compte/agent/demandes' },
   ];
-  return <AgentStatGrid stats={stats} />;
+  return <AgentStatGrid stats={cells} caption={t('agent.overview.windowCaption')} />;
 }
 
-async function OverviewChart({ propertyIds, range }) {
+async function OverviewChart({ agentId, propertyIds, range }) {
+  const t = await getT();
   const series = await getAgentListingViewsSeries(propertyIds, range);
-  return <AgentViewsChart series={series} rangeOptions={RANGE_OPTIONS} range={range} rangeLabel={VIEW_RANGES[range].caption} />;
+  // Only the 30-day view has a previous period measured the same way.
+  let trend = null;
+  if (range === '30d') {
+    const stats = await windowStatsFor(agentId, propertyIds);
+    const value = stats ? trendPercent(stats.views, stats.viewsPrev) : null;
+    if (value != null) {
+      trend = (
+        <>
+          <TrendChip delta={{ kind: 'pct', value }} />
+          <span className="u-micro text-ink-45">{t('agent.overview.vsPrevious')}</span>
+        </>
+      );
+    }
+  }
+  return (
+    <AgentViewsChart
+      series={series}
+      rangeOptions={RANGE_OPTIONS}
+      range={range}
+      rangeLabel={VIEW_RANGES[range].caption}
+      trend={trend}
+    />
+  );
 }
 
 async function OverviewProfileGaps({ agent }) {

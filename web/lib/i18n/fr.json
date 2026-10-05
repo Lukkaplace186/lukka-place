@@ -388,7 +388,7 @@
       "furnished": "Meublé",
       "semiFurnished": "Semi-meublé",
       "snelLine": "Ligne SNEL",
-      "underOffer": "Sous compromis",
+      "underOffer": "Sous offre",
       "closed": "Loué / Vendu",
       "cistern": "Citerne",
       "depositMonths": "Garantie {count} mois",
@@ -785,7 +785,19 @@
       "chartRange": "Période du graphique",
       "copyPortfolioLink": "Copier mon lien portfolio",
       "showMore": "Voir plus",
-      "showLess": "Voir moins"
+      "showLess": "Voir moins",
+      "liveListings": "Biens en ligne",
+      "underOfferFoot": {
+        "one": "dont {count} sous offre",
+        "other": "dont {count} sous offre"
+      },
+      "views": "Vues",
+      "windowCaption": "Vues, clics et nouveaux biens : 30 derniers jours, comparés aux 30 jours précédents.",
+      "vsPrevious": "vs les 30 jours précédents",
+      "viewsUnit": {
+        "one": "vue",
+        "other": "vues"
+      }
     },
     "listings": {
       "pager": {
@@ -816,12 +828,12 @@
       "selectOne": "Sélectionner {title}",
       "viewPublic": "Voir l’annonce publique",
       "notPublishedYet": "Annonce pas encore publiée",
-      "markUnderOffer": "Marquer sous compromis",
+      "markUnderOffer": "Marquer sous offre",
       "deleteConfirm": "Ces annonces et leurs photos seront définitivement retirées du site. Cette action est irréversible.",
       "invalidPrice": "Indiquez un prix valide.",
       "markedUnderOffer": {
-        "one": "{count} bien marqué sous compromis.",
-        "other": "{count} biens marqués sous compromis."
+        "one": "{count} bien marqué sous offre.",
+        "other": "{count} biens marqués sous offre."
       },
       "actionsFor": "Actions pour {title}",
       "edit": "Modifier",
@@ -865,20 +877,37 @@
       "select": "Sélectionner",
       "doneSelecting": "Terminé",
       "markActive": "Marquer comme disponible",
-      "markUnderOfferOne": "Marquer sous compromis",
+      "markUnderOfferOne": "Marquer sous offre",
       "markAsSold": "Marquer comme vendu",
       "madeAvailable": "Annonce de nouveau disponible.",
-      "madeUnderOffer": "Annonce marquée sous compromis.",
+      "madeUnderOffer": "Annonce marquée sous offre.",
       "undo": "Annuler",
       "state": {
         "live": "En ligne",
-        "underOffer": "Sous compromis",
-        "pending": "En validation",
+        "underOffer": "Sous offre",
+        "pending": "En revue",
         "rejected": "Refusée",
         "archived": "Archivée",
         "sold": "Vendu"
       },
-      "performance": "Statistiques & rapport"
+      "performance": "Statistiques & rapport",
+      "filters": {
+        "all": "Tous",
+        "live": "En ligne",
+        "incomplete": "À compléter",
+        "review": "En revue",
+        "underOffer": "Sous offre",
+        "rejected": "Refusées"
+      },
+      "viewsUnit": {
+        "one": "vue",
+        "other": "vues"
+      },
+      "clicksUnit": {
+        "one": "clic",
+        "other": "clics"
+      },
+      "share": "Partager"
     },
     "leads": {
       "title": "Demandes",
@@ -919,7 +948,8 @@
       "proposeThis": "Proposer ce bien",
       "replyOnWhatsApp": "Répondre sur WhatsApp",
       "replyViaLukka": "Répondre via Lukka Place",
-      "moreOptions": "Plus d’options"
+      "moreOptions": "Plus d’options",
+      "call": "Appeler"
     },
     "visits": {
       "confirm": "Confirmer",
@@ -937,7 +967,11 @@
       "clientNotNotified": "Le message WhatsApp au client n’a pas pu être envoyé — contactez-le directement.",
       "alreadyDone": "Aucun changement : la visite était déjà dans cet état.",
       "closed": "Plus aucune action possible sur cette visite.",
-      "clientNotifiedBadge": "Client prévenu"
+      "clientNotifiedBadge": "Client prévenu",
+      "noSlot": "Créneau non précisé",
+      "slotAgreed": "Confirmée · heure de Kinshasa",
+      "slotPicked": "Créneau choisi par le client · heure de Kinshasa",
+      "slotInWords": "Demandé par le client, en ses mots"
     },
     "settings": {
       "title": "Paramètres",
@@ -977,7 +1011,27 @@
       "agencyName": "Nom de l’agence / nom commercial",
       "agencyNameHint": "C’est le nom affiché sur vos annonces et votre page publique. Vide : votre nom est affiché à la place.",
       "savedShort": "Enregistré",
-      "passwordSavedShort": "Mot de passe changé"
+      "passwordSavedShort": "Mot de passe changé",
+      "progressTitle": "Profil complété à {percent} %",
+      "progressHint": "Un profil complet reçoit plus de demandes.",
+      "add": "Ajouter",
+      "doneItems": {
+        "one": "Voir l’élément complété",
+        "other": "Voir les {count} éléments complétés"
+      },
+      "groupAgency": "Agence",
+      "groupSales": "Ventes",
+      "groupAccount": "Compte",
+      "identitySub": "Nom, contact, numéro, présentation",
+      "communesCount": {
+        "one": "{count} commune",
+        "other": "{count} communes"
+      },
+      "hoursUnset": "Non renseignés",
+      "quickRepliesCount": {
+        "one": "{count} modèle prêt à envoyer",
+        "other": "{count} modèles prêts à envoyer"
+      }
     },
     "subscription": {
       "title": "Abonnement",
@@ -1009,9 +1063,13 @@
       "manage": "Gérer mon abonnement",
       "seePlans": "Voir les forfaits",
       "howPaymentBody": "Les abonnements Lukka Place sont réglés directement auprès de l’équipe — espèces, virement bancaire ou Mobile Money. Choisissez votre forfait ci-dessous : votre demande est enregistrée et un conseiller vous contacte sur WhatsApp pour l’activation.",
-      "whatPlanDetermines": "Votre forfait détermine trois choses : le nombre de biens que vous pouvez publier, le nombre de demandes clients que vous pouvez traiter chaque mois, et votre priorité dans l’attribution automatique des nouvelles demandes de vos communes.",
+      "whatPlanDetermines": "Votre forfait détermine deux choses : le nombre de biens que vous pouvez publier et votre priorité dans l’attribution automatique des nouvelles demandes de vos communes. Les demandes clients et les messages WhatsApp ne sont jamais plafonnés.",
       "beingProcessed": "cours de traitement.",
-      "noPaymentsYet": "Aucun paiement enregistré pour le moment. L’historique apparaîtra ici dès votre première activation."
+      "noPaymentsYet": "Aucun paiement enregistré pour le moment. L’historique apparaîtra ici dès votre première activation.",
+      "placesLeft": {
+        "one": "Plus que {count} place",
+        "other": "Plus que {count} places"
+      }
     },
     "meta": {
       "title": "Espace agent — Lukka Place"
@@ -1093,7 +1151,13 @@
       "yourPublicPortfolio": "Votre portfolio public",
       "pageReady": "Votre page est prête à recevoir vos biens",
       "numberVerifiedBy": "Numéro vérifié par Lukka Place",
-      "contactPerson": "Contact : {name}"
+      "contactPerson": "Contact : {name}",
+      "shareHeadline": {
+        "one": "{count} bien, une seule page à partager",
+        "other": "{count} biens, une seule page à partager"
+      },
+      "copyLink": "Copier le lien",
+      "shareWhatsApp": "WhatsApp"
     },
     "completion": {
       "nameLabel": "Nom renseigné",
@@ -1119,7 +1183,11 @@
       "photoServices": "Services photo inclus",
       "photoSessionsOne": "{count} séance photo incluse par mois",
       "photoSessionsMany": "{count} séances photo incluses par mois",
-      "photoDiscount": "−{pct} % sur le service photo"
+      "photoDiscount": "−{pct} % sur le service photo",
+      "listingsIncluded": {
+        "one": "{count} bien publié",
+        "other": "{count} biens publiés"
+      }
     },
     "sold": {
       "notDeleted": "supprimé : le bien reste sur votre tableau de bord et peut être remis en ligne à tout moment.",
@@ -1148,7 +1216,7 @@
         "pending": "Cette annonce est en attente de validation. Le partage sera disponible dès sa publication.",
         "rejected": "Cette annonce a été refusée par la modération : elle ne peut pas être partagée.",
         "archived": "Cette annonce est archivée (masquée du site). Remettez-la en ligne pour la partager.",
-        "underOffer": "Cette annonce est sous compromis : elle n’est plus proposée au public.",
+        "underOffer": "Cette annonce est sous offre : elle n’est plus proposée au public.",
         "closed": "Ce bien est déjà loué ou vendu."
       },
       "tabs": {
@@ -1288,7 +1356,8 @@
         "confirmAt": "Confirmer · {slot}",
         "otherTime": "Autre heure",
         "relaunch": "Relancer",
-        "closeVisit": "Clore"
+        "closeVisit": "Clore",
+        "open": "Ouvrir"
       },
       "badge": {
         "overdue": "Heure dépassée",
@@ -1331,7 +1400,13 @@
         "one": "Voir l’action →",
         "other": "Voir les {count} actions →"
       },
-      "allTitle": "Toutes les actions"
+      "allTitle": "Toutes les actions",
+      "kind": {
+        "visit": "Visite à confirmer",
+        "lead": "Nouvelle demande",
+        "listingConfirm": "Disponibilité",
+        "listingIncomplete": "À compléter"
+      }
     },
     "agenda": {
       "title": "Agenda des visites",
@@ -2136,7 +2211,7 @@
     },
     "listing": {
       "active": "Actif",
-      "under_offer": "Sous compromis",
+      "under_offer": "Sous offre",
       "closed": "Loué / Vendu",
       "pending": "En attente",
       "published": "Publié",

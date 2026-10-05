@@ -1552,8 +1552,7 @@
         "thin_photos": "Moins de 3 photos",
         "missing_description": "Description manquante",
         "missing_deposit": "Garantie non précisée",
-        "no_map_pin": "Quartier manquant (carte)",
-        "missing_area": "Surface non précisée"
+        "no_map_pin": "Quartier manquant (carte)"
       },
       "hints": {
         "no_communes": "Sans commune, vous ne recevez aucune demande client attribuée automatiquement.",
@@ -1566,8 +1565,7 @@
         "thin_photos": "Au moins 3 photos pour une bonne visibilité.",
         "missing_description": "Décrivez le bien en quelques lignes.",
         "missing_deposit": "Indiquez la garantie demandée (en mois).",
-        "no_map_pin": "Le quartier sert à placer le bien sur la carte.",
-        "missing_area": "Indiquez la surface en m² : elle permet de comparer votre prix au m² avec le marché."
+        "no_map_pin": "Le quartier sert à placer le bien sur la carte."
       },
       "bannerTitle": "Profil incomplet :",
       "bannerCount": {

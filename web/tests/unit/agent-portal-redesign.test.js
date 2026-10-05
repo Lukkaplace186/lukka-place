@@ -166,3 +166,14 @@ test('Réglages and the overview banner read one profile checklist', async () =>
   assert.equal(photo.done, false, 'the same fact is one item, not two');
   assert.match(photo.href, /section=identity/);
 });
+
+test('a missing floor area is never a reminder (most Kinshasa listings state none)', async () => {
+  const { listingGaps, LISTING_GAP_CODES } = await import('@/lib/completenessRules');
+  assert.ok(!LISTING_GAP_CODES.includes('missing_area'));
+  const complete = {
+    price: 800, commune: 'Gombe', photo_count: 5, description: 'Appartement de 2 chambres, eau et courant.',
+    purpose: 'rent', deposit_months: 3, quartier: 'Golf', area: '0',
+  };
+  assert.deepEqual(listingGaps(complete), [], 'area "0" (not given) leaves a listing complete');
+  assert.deepEqual(listingGaps({ ...complete, area: null }), []);
+});

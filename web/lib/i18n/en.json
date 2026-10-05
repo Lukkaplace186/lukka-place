@@ -1552,8 +1552,7 @@
         "thin_photos": "Fewer than 3 photos",
         "missing_description": "Description missing",
         "missing_deposit": "Deposit not stated",
-        "no_map_pin": "Quartier missing (map)",
-        "missing_area": "Floor area missing"
+        "no_map_pin": "Quartier missing (map)"
       },
       "hints": {
         "no_communes": "Without a commune you receive no automatically matched customer requests.",
@@ -1566,8 +1565,7 @@
         "thin_photos": "At least 3 photos for good visibility.",
         "missing_description": "Describe the property in a few lines.",
         "missing_deposit": "State the deposit required (in months).",
-        "no_map_pin": "The quartier is used to place the property on the map.",
-        "missing_area": "Add the floor area in m² so your price per m² can be compared with the market."
+        "no_map_pin": "The quartier is used to place the property on the map."
       },
       "bannerTitle": "Profile Incomplete:",
       "bannerCount": {

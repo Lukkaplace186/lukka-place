@@ -44,7 +44,6 @@ export const LISTING_GAP_CODES = [
   'thin_photos',
   'missing_description',
   'missing_deposit',
-  'missing_area',
   'no_map_pin',
 ];
 
@@ -71,7 +70,6 @@ const LISTING_GAP_ANCHORS = {
   thin_photos: 'photos',
   missing_description: 'description',
   missing_deposit: 'deposit_months',
-  missing_area: 'area',
   no_map_pin: 'quartier',
 };
 
@@ -128,10 +126,10 @@ export function listingGaps(listing) {
   if ((Number(listing.photo_count) || 0) < MIN_PHOTOS) gaps.add('thin_photos');
   if (String(listing.description ?? '').trim().length < MIN_DESCRIPTION_CHARS) gaps.add('missing_description');
   if (listing.purpose === 'rent' && blank(listing.deposit_months)) gaps.add('missing_deposit');
-  // The surface: `area` is TEXT and '0' has always meant "not given". Without
-  // it there is no price per m², the first figure a developer or a bank asks
-  // for in the market data.
-  if (!(Number.parseFloat(String(listing.area ?? '').replace(',', '.')) > 0)) gaps.add('missing_area');
+  // No surface gap (2026-10-06, product decision): most Kinshasa listings
+  // never state an area in m², so flagging it put a warning on nearly every
+  // card and kept almost the whole inventory under "À compléter". The area
+  // field stays in the editor; it is simply not a reminder.
   const pinned = coordinate(listing.latitude) !== null && coordinate(listing.longitude) !== null;
   if (!pinned && blank(listing.quartier)) gaps.add('no_map_pin');
 

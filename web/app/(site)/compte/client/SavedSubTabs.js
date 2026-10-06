@@ -6,8 +6,8 @@ import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
 /**
- * The Favoris / Alertes switch. Still two real URLs (`/compte/client` and
- * `?tab=alertes`), so a switch stays linkable and the server still fetches
+ * The Favoris / Alertes switch. Still two real URLs (`/compte/client/favoris`
+ * and `?tab=alertes`), so a switch stays linkable and the server still fetches
  * only the active board — Alertes re-runs every saved search and must not
  * be computed for someone looking at their favourites.
  *
@@ -23,7 +23,7 @@ export default function SavedSubTabs({ view, tabs }) {
   const [active, setActive] = useOptimistic(view);
 
   return (
-    <div className="mb-5 inline-flex gap-1 rounded-full bg-canvas-deep p-1 sm:mb-7">
+    <div className="mb-4 flex w-full rounded-xl bg-canvas-deep p-[3px] sm:mb-6 sm:inline-flex sm:w-auto">
       {tabs.map(({ key, href, label }) => (
         <Link
           key={key}
@@ -40,8 +40,8 @@ export default function SavedSubTabs({ view, tabs }) {
             });
           }}
           className={cn(
-            'rounded-full px-4 py-2 text-[0.8125rem] font-bold transition-colors',
-            active === key ? 'bg-surface text-ink shadow-sm' : 'text-ink-45 hover:text-ink',
+            'inline-flex min-h-10 flex-1 items-center justify-center rounded-[0.5625rem] px-5 text-sm font-bold transition-colors sm:flex-none',
+            active === key ? 'bg-surface text-ink shadow-[0_1px_2px_rgba(16,26,46,.08)]' : 'text-ink-45 hover:text-ink',
           )}
         >
           {label}

@@ -45,7 +45,7 @@ test('notes are read without depending on the column existing yet', async () => 
 });
 
 test('the legacy account pages redirect to the portal instead of drifting beside it', () => {
-  assert.match(read('app/(site)/compte/alertes/page.js'), /redirect\('\/compte\/client\?tab=alertes'\)/);
+  assert.match(read('app/(site)/compte/alertes/page.js'), /redirect\('\/compte\/client\/favoris\?tab=alertes'\)/);
   assert.match(read('app/(site)/compte/demandes/page.js'), /redirect\('\/compte\/client\/messages'\)/);
 });
 

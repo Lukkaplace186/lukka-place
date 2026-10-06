@@ -9,5 +9,5 @@ import { redirect } from 'next/navigation';
  * none of them. Kept only so existing links (Header, bookmarks) still land.
  */
 export default function AlertesPage() {
-  redirect('/compte/client?tab=alertes');
+  redirect('/compte/client/favoris?tab=alertes');
 }

@@ -62,7 +62,7 @@ test('a search is matched against the new listings only, and alerted once', asyn
   assert.deepEqual(asked.ids, [11], 'listing 12 was published before the search was saved');
   assert.equal(h.sent.length, 1);
   assert.match(h.sent[0].text, /ids=11/);
-  assert.match(h.sent[0].text, /compte\/client\?tab=alertes/, 'every alert says how to stop it');
+  assert.match(h.sent[0].text, /compte\/client\/favoris\?tab=alertes/, 'every alert says how to stop it');
   assert.deepEqual(h.recorded, [{ id: 1, ids: [11] }]);
   assert.deepEqual(h.marked, [1]);
   assert.equal(result.notifiedSearches, 1);
@@ -157,7 +157,7 @@ test('the new-listing read keeps the public approval gate', async () => {
 
 test('an alert message fits a WhatsApp session message', () => {
   const text = alertMessageText({
-    label: 'x'.repeat(500), count: 3, topLine: 'y'.repeat(800), link: 'https://lukkaplace.com/listings?ids=1', manageLink: 'https://lukkaplace.com/compte/client?tab=alertes',
+    label: 'x'.repeat(500), count: 3, topLine: 'y'.repeat(800), link: 'https://lukkaplace.com/listings?ids=1', manageLink: 'https://lukkaplace.com/compte/client/favoris?tab=alertes',
   });
   assert.ok(text.length <= 1000);
   assert.match(text, /3 nouveaux biens/);

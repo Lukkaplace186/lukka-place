@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { Mail, Check, CalendarClock } from 'lucide-react';
+import { Mail, Check, CalendarClock, Plus } from 'lucide-react';
 import { PortalSectionHeading, PortalEmpty } from '@/components/ClientPortalUI';
 import { getPortalCustomer, isViewingLead } from '@/lib/customerPortal';
 import { getCustomerInquiries } from '@/lib/customerInquiries';
@@ -247,14 +247,25 @@ export default async function MessagesPage({ searchParams }) {
         sublead={t('account.requests.trackHelp')}
         className="mb-7 hidden sm:flex"
       />
-      {/* The same visits, day by day, with call / WhatsApp buttons. */}
-      <Link
-        href="/compte/client/visites"
-        className="u-micro-strong mb-5 inline-flex min-h-11 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-ink"
-      >
-        <CalendarClock strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-blue-deep" aria-hidden="true" />
-        {t('account.agenda.openAgenda')}
-      </Link>
+      <h1 className="u-title-page mb-1 text-ink sm:hidden">{t('account.portal.nav.requests')}</h1>
+      {/* "Nouvelle demande" opens the Trouver pour moi form (/demandes,
+          prefilled from the latest alert); the visits have their own tab. */}
+      <div className="mb-5 flex flex-wrap gap-2">
+        <Link
+          href="/compte/client/demandes"
+          className="u-press inline-flex min-h-11 items-center gap-1.5 rounded-[0.625rem] bg-blue px-4 text-sm font-bold text-white"
+        >
+          <Plus strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" aria-hidden="true" />
+          {t('account.home.newRequest')}
+        </Link>
+        <Link
+          href="/compte/client/visites"
+          className="u-micro-strong inline-flex min-h-11 items-center gap-1.5 rounded-[0.625rem] bg-surface px-3 text-ink shadow-[inset_0_0_0_1.5px_var(--ink-25)]"
+        >
+          <CalendarClock strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-blue-deep" aria-hidden="true" />
+          {t('account.agenda.openAgenda')}
+        </Link>
+      </div>
       {confirmed ? (
         <p
           role="status"

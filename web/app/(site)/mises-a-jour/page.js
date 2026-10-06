@@ -23,7 +23,7 @@ export async function generateMetadata() {
 export default async function UpdatesPage() {
   const t = await getT();
   const customerId = await getCurrentCustomerId();
-  if (customerId) redirect('/compte/client?tab=alertes');
+  if (customerId) redirect('/compte/client/favoris?tab=alertes');
 
   return <UpdatesStub />;
 }

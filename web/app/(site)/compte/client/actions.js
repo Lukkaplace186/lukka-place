@@ -50,11 +50,11 @@ function fieldFrom(input, name) {
 }
 
 function revalidateSaved() {
-  // '/compte/client/favoris' and '/compte/client/alertes' are redirects to
-  // '/compte/client' (the merged Favoris & Alertes tab), so revalidating the
-  // real route is what matters. The public /favoris page reads the same rows
-  // for a signed-in visitor.
+  // Enregistrés (Favoris & Alertes) is '/compte/client/favoris'; Accueil
+  // ('/compte/client') shows the same counts and alert matches. The public
+  // /favoris page reads the same rows for a signed-in visitor.
   revalidatePath('/compte/client');
+  revalidatePath('/compte/client/favoris');
   revalidatePath('/favoris');
 }
 
@@ -90,7 +90,7 @@ export async function saveFavoriteNoteAction(propertyIdInput, note) {
     console.warn('[compte/client] saveFavoriteNoteAction failed:', error.message);
     return { ok: false };
   }
-  revalidatePath('/compte/client');
+  revalidatePath('/compte/client/favoris');
   return { ok: true };
 }
 
@@ -409,6 +409,7 @@ async function runVisitAnswer(label, call) {
     const message = await call(t);
     revalidatePath('/compte/client/messages');
     revalidatePath('/compte/client/visites');
+    revalidatePath('/compte/client');
     return { ok: true, message };
   } catch (error) {
     console.warn(`[compte/client] ${label} failed:`, error.message);

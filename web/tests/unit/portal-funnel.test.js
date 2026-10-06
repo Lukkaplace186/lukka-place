@@ -13,11 +13,15 @@ import path from 'node:path';
  * walks files with readFileSync instead of importing them.
  *
  * What this pins is the loop:
- *   tab 2 (Trouver pour moi) submits  -> lands on tab 3
- *   tab 3 (Messages & Visites) empty  -> points back at tab 2
- * Break either direction and a customer either meets an empty inbox before
- * being offered the form that fills it, or fills the form and is left on it
- * with no idea what happens next. Both were real states of this page.
+ *   the request form (/demandes) submits -> lands on Demandes (/messages)
+ *   Demandes, empty or not               -> offers "Nouvelle demande"
+ * Break either direction and a customer either meets an empty inbox without
+ * the form that fills it, or fills the form and is left on it with no idea
+ * what happens next. Both were real states of this page.
+ *
+ * Since the 2026-10-05 redesign the form is no longer a tab of its own: it is
+ * part of Demandes (the tab also matches /demandes) and a quick action on
+ * Accueil, which opens the bar.
  */
 
 const ROOT = process.cwd();
@@ -33,25 +37,25 @@ const MESSAGES_FILE = 'app/(site)/compte/client/messages/page.js';
 /** The `href` values of the TABS array, in the order they are declared. */
 function declaredTabOrder() {
   const source = read(TABS_FILE);
-  const block = source.slice(source.indexOf('const TABS = ['), source.indexOf('];', source.indexOf('const TABS = [')));
+  const block = source.slice(source.indexOf('const PORTAL_TABS = ['), source.indexOf('];', source.indexOf('const PORTAL_TABS = [')));
   return [...block.matchAll(/href: '([^']+)'/g)].map((m) => m[1]);
 }
 
 test('the portal tabs follow the customer journey, not an arbitrary order', () => {
   assert.deepEqual(declaredTabOrder(), [
-    '/compte/client', // 1. Favoris & Alertes — what they saved while browsing
-    '/compte/client/demandes', // 2. Trouver pour moi — the request they make next
-    '/compte/client/messages', // 3. Messages & Visites — where it is answered
+    '/compte/client', // Accueil — what waits on the customer
+    '/compte/client/favoris', // Enregistrés — what they saved while browsing
+    '/compte/client/visites', // Visites — the visits they asked for
+    '/compte/client/messages', // Demandes — requests and the answers to them
     '/compte/client/parametres', // not part of the funnel; stays last
   ]);
 });
 
-test('"Trouver pour moi" is offered BEFORE the tab that tracks its answers', () => {
-  const order = declaredTabOrder();
-  assert.ok(
-    order.indexOf('/compte/client/demandes') < order.indexOf('/compte/client/messages'),
-    'the request form must come before the inbox it fills',
-  );
+test('"Trouver pour moi" is reachable from the tab that tracks its answers, and from Accueil', () => {
+  const tabs = read(TABS_FILE);
+  assert.match(tabs, /p\.startsWith\('\/compte\/client\/demandes'\)/, 'the form lights the Demandes tab');
+  assert.match(read(MESSAGES_FILE), /href="\/compte\/client\/demandes"/, 'Demandes offers "Nouvelle demande"');
+  assert.match(read('app/(site)/compte/client/page.js'), /href: '\/compte\/client\/demandes'/, 'Accueil offers it as a quick action');
 });
 
 test('submitting a request hands the customer to the tracking tab, not back to the form', () => {

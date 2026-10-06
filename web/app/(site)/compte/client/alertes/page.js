@@ -1,10 +1,9 @@
 import { redirect } from 'next/navigation';
 
 /**
- * "Mes alertes" merged into the "Favoris & Alertes" tab (../page.js) behind
- * a `?tab=alertes` sub-toggle. This route stays only so an old bookmark or
- * link still lands somewhere real.
+ * "Mes alertes" lives on Enregistrés (../favoris/page.js) behind a
+ * `?tab=alertes` switch. This route stays so an old bookmark still lands.
  */
 export default function AlertesPage() {
-  redirect('/compte/client?tab=alertes');
+  redirect('/compte/client/favoris?tab=alertes');
 }

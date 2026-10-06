@@ -8,8 +8,8 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
 
 const NOTICES = {
-  favorites: { key: 'account.limits.favorites', max: MAX_FAVORITES, href: '/compte/client' },
-  savedSearches: { key: 'account.limits.savedSearches', max: MAX_SAVED_SEARCHES, href: '/compte/client?tab=alertes' },
+  favorites: { key: 'account.limits.favorites', max: MAX_FAVORITES, href: '/compte/client/favoris' },
+  savedSearches: { key: 'account.limits.savedSearches', max: MAX_SAVED_SEARCHES, href: '/compte/client/favoris?tab=alertes' },
 };
 
 /**

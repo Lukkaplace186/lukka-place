@@ -50,6 +50,22 @@ const nextConfig = {
   // and it must only be set once the Traefik middleware is live: set without
   // it, every page ships uncompressed.
   compress: process.env.WEB_COMPRESS !== 'off',
+  // Favoris & Alertes moved from /compte/client (now Accueil) to
+  // /compte/client/favoris on 2026-10-05. Every WhatsApp alert already sent
+  // links to /compte/client?tab=alertes; this answers those with a real 307
+  // before the portal renders (the page's own redirect() runs inside a stream
+  // and becomes a client-side hop). The query string is passed through, so
+  // ?tab=alertes survives.
+  async redirects() {
+    return [
+      {
+        source: '/compte/client',
+        has: [{ type: 'query', key: 'tab', value: '(?<tab>alertes|favoris)' }],
+        destination: '/compte/client/favoris',
+        permanent: false,
+      },
+    ];
+  },
   async headers() {
     return [
       {

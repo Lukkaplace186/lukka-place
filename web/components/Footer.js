@@ -162,7 +162,8 @@ export default async function Footer() {
       <FooterByPath
         prefixes={ACCOUNT_FOOTER_PATHS}
         compact={
-          <div className="mx-auto flex max-w-[77.5rem] flex-col gap-4 px-4 py-6 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-6 lg:px-8">
+          // pb clears the portal's fixed phone tab bar (58px + safe area).
+          <div className="mx-auto flex max-w-[77.5rem] flex-col gap-4 px-4 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-6 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:px-6 lg:px-8 lg:pb-6">
             <nav aria-label={t('footer.columns.brand')} className="flex items-center gap-4 text-[0.8125rem] font-medium text-ink-70">
               <Link href="/contact" className="transition-colors hover:text-blue-deep">
                 {t('footer.links.contact')}

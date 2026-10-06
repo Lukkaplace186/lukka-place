@@ -2257,6 +2257,13 @@
         "findForMe": "Chercher",
         "messages": "Messages",
         "profile": "Profil"
+      },
+      "nav": {
+        "home": "Accueil",
+        "saved": "Enregistrés",
+        "visits": "Visites",
+        "requests": "Demandes",
+        "profile": "Profil"
       }
     },
     "limits": {
@@ -2619,7 +2626,15 @@
       "currencyNote": "Les prix sont enregistrés en dollars. L'affichage en francs congolais utilise un taux indicatif de {rate} FC pour 1 USD, mis à jour le {date} — ce n'est pas un taux en temps réel.",
       "securityNote": "Votre compte est rattaché au numéro {phone}. C'est par ce numéro que passe toute réinitialisation de mot de passe.",
       "saved": "Nom enregistré.",
-      "saveFailed": "La modification n'a pas pu être enregistrée. Réessayez."
+      "saveFailed": "La modification n'a pas pu être enregistrée. Réessayez.",
+      "groups": {
+        "account": "Compte",
+        "notifications": "Notifications",
+        "app": "Application"
+      },
+      "password": "Mot de passe",
+      "passwordSub": "Réinitialiser par WhatsApp",
+      "language": "Langue"
     },
     "agenda": {
       "metaTitle": "Mes visites — Lukka Place",
@@ -2636,7 +2651,8 @@
         "tomorrow": "Demain",
         "upcoming": "À venir",
         "unscheduled": "Heure à préciser",
-        "past": "Passées"
+        "past": "Passées",
+        "answer": "À répondre"
       },
       "tone": {
         "pending": "En attente",
@@ -2660,7 +2676,85 @@
       "acceptSlot": "Accepter ce créneau",
       "cancel": "Annuler",
       "cancelConfirm": "Confirmer l’annulation",
-      "actionFailed": "Action impossible pour le moment. Réessayez."
+      "actionFailed": "Action impossible pour le moment. Réessayez.",
+      "band": {
+        "proposed": "Créneau proposé par l’agent",
+        "confirmed": "Confirmée · heure de Kinshasa",
+        "confirmedNoTime": "Confirmée · l’heure reste à fixer avec l’agent",
+        "waiting": "Demandée · l’agent n’a pas encore répondu",
+        "past": "Visite passée",
+        "proposalPassed": "Ce créneau proposé est passé — écrivez à l’agent"
+      },
+      "whatsappShort": "WhatsApp",
+      "callShort": "Appeler",
+      "checkinQuestion": "Comment s’est passée la visite ?",
+      "checkin": {
+        "GOOD": "Bien",
+        "BAD": "Pas pour moi",
+        "AGENT_ABSENT": "Agent absent"
+      },
+      "acceptShort": "Accepter"
+    },
+    "home": {
+      "metaTitle": "Accueil — Espace client Lukka Place",
+      "answerEyebrow": "Réponse attendue",
+      "answerTitle": "L’agent propose : {slot}",
+      "answerTitleNoSlot": "L’agent propose un autre créneau",
+      "answerOptions": "Autres options",
+      "answerMore": {
+        "one": "+ {count} autre visite",
+        "other": "+ {count} autres visites"
+      },
+      "stats": {
+        "favorites": "Favoris",
+        "alerts": "Alertes",
+        "proposals": "Propositions"
+      },
+      "checkinTitle": "Comment s’est passée votre visite ?",
+      "nextVisit": "Prochaine visite",
+      "seeAll": "Tout voir",
+      "newForAlerts": "Nouveaux pour vos alertes",
+      "sinceLastVisit": {
+        "one": "{count} bien depuis votre dernière visite des alertes",
+        "other": "{count} biens depuis votre dernière visite des alertes"
+      },
+      "requestsTitle": "Vos demandes",
+      "requestUntitled": "Recherche personnalisée",
+      "proposalsReceived": {
+        "one": "{count} proposition reçue",
+        "other": "{count} propositions reçues"
+      },
+      "waitingProposals": "En attente de propositions des agences",
+      "quick": {
+        "search": "Chercher un bien",
+        "findForMe": "Trouver pour moi",
+        "map": "Voir la carte"
+      },
+      "startHint": "Touchez le cœur sur une annonce pour l’enregistrer, ou créez une alerte depuis une recherche : les nouveaux biens apparaîtront ici.",
+      "alertHint": "Créez une alerte depuis une recherche pour recevoir les nouveaux biens ici et sur WhatsApp.",
+      "newRequest": "Nouvelle demande"
+    },
+    "entry": {
+      "label": "Frais d’entrée",
+      "deposit": {
+        "one": "Garantie {count} mois",
+        "other": "Garantie {count} mois"
+      },
+      "advance": {
+        "one": "Avance {count} mois",
+        "other": "Avance {count} mois"
+      },
+      "commission": {
+        "one": "Commission {count} mois",
+        "other": "Commission {count} mois"
+      },
+      "depositLabel": "Garantie",
+      "advanceLabel": "Avance",
+      "commissionLabel": "Commission",
+      "months": {
+        "one": "{count} mois",
+        "other": "{count} mois"
+      }
     }
   },
   "admin": {

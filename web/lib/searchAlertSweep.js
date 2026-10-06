@@ -149,7 +149,7 @@ export async function runAlertSweepChunk({
           count: fresh.length,
           topLine,
           link,
-          manageLink: `${base}/compte/client?tab=alertes`,
+          manageLink: `${base}/compte/client/favoris?tab=alertes`,
         }),
       });
 

@@ -2257,6 +2257,13 @@
         "findForMe": "Find",
         "messages": "Messages",
         "profile": "Profile"
+      },
+      "nav": {
+        "home": "Home",
+        "saved": "Saved",
+        "visits": "Viewings",
+        "requests": "Requests",
+        "profile": "Profile"
       }
     },
     "limits": {
@@ -2619,7 +2626,15 @@
       "currencyNote": "Prices are recorded in US dollars. Congolese franc amounts use an indicative rate of {rate} FC to 1 USD, updated on {date} — this is not a live rate.",
       "securityNote": "Your account is linked to {phone}. Any password reset goes through this number.",
       "saved": "Name saved.",
-      "saveFailed": "Your change couldn't be saved. Please try again."
+      "saveFailed": "Your change couldn't be saved. Please try again.",
+      "groups": {
+        "account": "Account",
+        "notifications": "Notifications",
+        "app": "App"
+      },
+      "password": "Password",
+      "passwordSub": "Reset through WhatsApp",
+      "language": "Language"
     },
     "agenda": {
       "metaTitle": "My Visits — Lukka Place",
@@ -2636,7 +2651,8 @@
         "tomorrow": "Tomorrow",
         "upcoming": "Upcoming",
         "unscheduled": "Time to Be Set",
-        "past": "Past"
+        "past": "Past",
+        "answer": "Needs Your Answer"
       },
       "tone": {
         "pending": "Pending",
@@ -2660,7 +2676,85 @@
       "acceptSlot": "Accept this time",
       "cancel": "Cancel",
       "cancelConfirm": "Confirm cancellation",
-      "actionFailed": "Couldn’t do that right now. Try again."
+      "actionFailed": "Couldn’t do that right now. Try again.",
+      "band": {
+        "proposed": "Time proposed by the agent",
+        "confirmed": "Confirmed · Kinshasa time",
+        "confirmedNoTime": "Confirmed · the time is still to be set with the agent",
+        "waiting": "Requested · the agent has not answered yet",
+        "past": "Past viewing",
+        "proposalPassed": "This proposed time has passed — message the agent"
+      },
+      "whatsappShort": "WhatsApp",
+      "callShort": "Call",
+      "checkinQuestion": "How did the viewing go?",
+      "checkin": {
+        "GOOD": "Good",
+        "BAD": "Not for me",
+        "AGENT_ABSENT": "Agent absent"
+      },
+      "acceptShort": "Accept"
+    },
+    "home": {
+      "metaTitle": "Home — Lukka Place Customer Area",
+      "answerEyebrow": "Your Answer Is Needed",
+      "answerTitle": "The Agent Proposes: {slot}",
+      "answerTitleNoSlot": "The Agent Proposes Another Time",
+      "answerOptions": "Other options",
+      "answerMore": {
+        "one": "+ {count} more viewing",
+        "other": "+ {count} more viewings"
+      },
+      "stats": {
+        "favorites": "Favourites",
+        "alerts": "Alerts",
+        "proposals": "Proposals"
+      },
+      "checkinTitle": "How Did Your Viewing Go?",
+      "nextVisit": "Next Viewing",
+      "seeAll": "See all",
+      "newForAlerts": "New for Your Alerts",
+      "sinceLastVisit": {
+        "one": "{count} listing since you last opened your alerts",
+        "other": "{count} listings since you last opened your alerts"
+      },
+      "requestsTitle": "Your Requests",
+      "requestUntitled": "Custom search",
+      "proposalsReceived": {
+        "one": "{count} proposal received",
+        "other": "{count} proposals received"
+      },
+      "waitingProposals": "Waiting for proposals from agencies",
+      "quick": {
+        "search": "Search",
+        "findForMe": "Find for me",
+        "map": "Map"
+      },
+      "startHint": "Tap the heart on a listing to save it, or create an alert from a search: new listings will show up here.",
+      "alertHint": "Create an alert from a search to get new listings here and on WhatsApp.",
+      "newRequest": "New request"
+    },
+    "entry": {
+      "label": "Entry costs",
+      "deposit": {
+        "one": "Deposit {count} month",
+        "other": "Deposit {count} months"
+      },
+      "advance": {
+        "one": "Advance {count} month",
+        "other": "Advance {count} months"
+      },
+      "commission": {
+        "one": "Commission {count} month",
+        "other": "Commission {count} months"
+      },
+      "depositLabel": "Deposit",
+      "advanceLabel": "Advance rent",
+      "commissionLabel": "Commission",
+      "months": {
+        "one": "{count} month",
+        "other": "{count} months"
+      }
     }
   },
   "admin": {

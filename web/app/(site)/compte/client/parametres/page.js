@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { LogOut, ShieldCheck } from 'lucide-react';
+import { ChevronRight, Coins, KeyRound, Languages, LogOut, Phone, UserRound } from 'lucide-react';
 import CurrencyToggle from '@/components/CurrencyToggle';
-import { PortalPanel, PortalSectionHeading } from '@/components/ClientPortalUI';
+import LanguageToggle from '@/components/LanguageToggle';
 import DeleteAccountButton from '../../DeleteAccountButton';
 import { getPortalCustomer } from '@/lib/customerPortal';
 import { getCdfRate } from '@/lib/currencyRate';
@@ -26,25 +26,34 @@ export async function generateMetadata() {
 
 export const dynamic = 'force-dynamic';
 
+const INSET = 'divide-y divide-line overflow-hidden rounded-card bg-surface shadow-[var(--hairline)]';
+
+function GroupLabel({ children }) {
+  return <h2 className="mx-1 mb-1.5 mt-2 text-[0.75rem] font-bold uppercase tracking-[0.08em] text-ink-45">{children}</h2>;
+}
+
+function RowIcon({ icon: Icon }) {
+  return (
+    <span className="grid h-[2.125rem] w-[2.125rem] flex-none place-items-center rounded-[0.625rem] bg-blue-tint text-blue">
+      <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" aria-hidden="true" />
+    </span>
+  );
+}
+
 /**
- * "Paramètres" — the design's settings screen, reduced to the fields this
- * schema genuinely has.
+ * "Mon profil" (2026-10-05 redesign) — grouped inset lists like the agent
+ * Réglages: Compte, Notifications, Application, then log out and close.
  *
  * `customers` holds exactly: phone, password hash, full name, and the
- * session/lockout bookkeeping. So the design's "Adresse e-mail" and
- * "Langue" fields are deliberately absent — there is no column behind
- * either, and a field that silently discards what you typed is worse than
- * no field at all. Its "Identité vérifiée" panel is likewise not
- * reproduced: no ID-verification state exists on this table. What replaces
- * it is the one real security fact — the account is tied to a verified
- * phone number, which is also the only channel a password reset can go
- * through.
+ * session/lockout bookkeeping. So there is no e-mail field and no
+ * "identité vérifiée" panel — no column behind either. Language is not a
+ * column either: it is the NEXT_LOCALE cookie, and the row here is the same
+ * LanguageToggle the desktop header carries, so a phone has one too.
  *
- * One contact preference exists now because something stores it and acts on
- * it: the WhatsApp alerts switch (`customers.whatsapp_alerts_opted_out_at`,
- * read by the alert sweep). "Mot de passe oublié" goes to the real
- * self-service reset (/mot-de-passe-oublie, WhatsApp OTP) rather than a
- * pre-typed message to the team.
+ * One contact preference exists because something stores it and acts on it:
+ * the WhatsApp alerts switch (`customers.whatsapp_alerts_opted_out_at`, read
+ * by the alert sweep). "Mot de passe" goes to the real self-service reset
+ * (/mot-de-passe-oublie, WhatsApp OTP).
  */
 export default async function ParametresPage() {
   const t = await getT();
@@ -59,107 +68,113 @@ export default async function ParametresPage() {
   ]);
   const alertsOptedOut = Boolean(alertsOptedOutAt);
   const dateTag = locale === 'en' ? 'en-GB' : 'fr-FR';
+  const phone = formatPhoneDisplay(customer.phone);
+  const name = (customer.full_name || '').trim();
+  const initials = name
+    ? name.split(/\s+/).slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join('')
+    : null;
 
   const memberSince = customer.created_at
     ? new Intl.DateTimeFormat(dateTag, { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(customer.created_at))
     : null;
 
   return (
-    <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start">
-      <div className="flex flex-col gap-6">
-        <PortalSectionHeading title={t('account.profile.title')} lead={t('account.profile.lead')} className="hidden sm:flex" />
+    <div className="mx-auto flex max-w-[45rem] flex-col gap-4">
+      <h1 className="u-title-page text-ink">{t('account.profile.title')}</h1>
 
-        <PortalPanel className="p-6 sm:p-7">
-          <h3 className="u-title-card text-ink">{t('account.profile.personalInfo')}</h3>
-
-          <div className="mt-5 flex flex-col gap-5">
-            <ProfileNameForm initialName={customer.full_name || ''} saveAction={updateProfileNameAction} />
-
-            {/* Plain text, not a disabled input: a greyed box reads as a
-                field that is broken, when it is simply the account's id. */}
-            <div>
-              <p className="u-eyebrow mb-1.5">{t('account.profile.phone')}</p>
-              <p className="u-tabular text-[0.9375rem] font-semibold text-ink">{formatPhoneDisplay(customer.phone)}</p>
-              <p className="mt-1 text-[0.75rem] text-ink-35">{t('account.profile.phoneNote')}</p>
-            </div>
-          </div>
-
-          {memberSince ? (
-            <p className="mt-5 border-t border-line pt-4 text-[0.8125rem] text-ink-35">
-              {t('account.profile.memberSince', { date: memberSince })}
-            </p>
-          ) : null}
-        </PortalPanel>
-
-        {/* The account-wide stop for saved-search alerts. Every alert message
-            also ends with a link here, so "how do I make it stop" always has
-            an answer one tap away. Per-alert frequency lives on the Alertes
-            tab; this switch overrides all of them. */}
-        <PortalPanel className="p-6 sm:p-7">
-          <WhatsAppAlertsSwitch
-            initialEnabled={!alertsOptedOut}
-            phoneLabel={formatPhoneDisplay(customer.phone)}
-            setAction={setWhatsAppAlertsAction}
-          />
-        </PortalPanel>
-
-        <PortalPanel className="p-6 sm:p-7">
-          <h3 className="u-title-card text-ink">{t('common.currency.label')}</h3>
-          <p className="mt-2 max-w-lg text-[0.8125rem] leading-[1.5] text-ink-45">
-            {t('account.profile.currencyNote', {
-              rate: Number(rate.cdfPerUsd).toLocaleString(locale === 'en' ? 'en-US' : 'fr-FR'),
-              date: rate.updatedAt,
-            })}
-          </p>
-          <div className="mt-4">
-            <CurrencyToggle longLabels />
-          </div>
-        </PortalPanel>
+      <div className="flex items-center gap-3 rounded-card bg-surface p-4 shadow-[var(--hairline),var(--shadow-card)]">
+        <span className="grid h-14 w-14 flex-none place-items-center rounded-2xl bg-blue-tint text-[1.1875rem] font-extrabold text-blue-deep">
+          {initials || <UserRound strokeWidth={ICON_STROKE_WIDTH} className="h-6 w-6" aria-hidden="true" />}
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-[1.0625rem] font-bold text-ink">{name || phone}</p>
+          {name ? <p className="u-tabular text-[0.8125rem] text-ink-45">{phone}</p> : null}
+          {memberSince ? <p className="text-[0.75rem] text-ink-35">{t('account.profile.memberSince', { date: memberSince })}</p> : null}
+        </div>
       </div>
 
-      <aside className="flex flex-col gap-5">
-        <PortalPanel className="p-6">
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-tint text-blue-deep">
-            <ShieldCheck strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" aria-hidden="true" />
-          </span>
-          <h3 className="mt-3.5 text-[1.0625rem] font-bold text-ink">{t('account.profile.security')}</h3>
-          <p className="mt-2 text-[0.8125rem] leading-[1.55] text-ink-45">
-            {t('account.profile.securityNote', { phone: formatPhoneDisplay(customer.phone) })}
-          </p>
-          <Link
-            href="/mot-de-passe-oublie"
-            className="mt-3.5 inline-block text-[0.8125rem] font-semibold text-blue-deep hover:underline"
-          >
-            {t('account.profile.forgotPassword')}
-          </Link>
-        </PortalPanel>
-
-        <PortalPanel className="p-6">
-          <h3 className="text-[1.0625rem] font-bold text-ink">{t('account.profile.session')}</h3>
-          <p className="mt-2 text-[0.8125rem] leading-[1.55] text-ink-45">
-            {t('account.profile.sessionNote')}
-          </p>
-          <form action={logoutAction} className="mt-4">
-            <button
-              type="submit"
-              className="u-btn-secondary inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[0.875rem] font-semibold text-ink"
-            >
-              <LogOut strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
-              {t('common.actions.logout')}
-            </button>
-          </form>
-        </PortalPanel>
-
-        <PortalPanel className="p-6">
-          <h3 className="text-[1.0625rem] font-bold text-ink">{t('account.profile.closeAccount')}</h3>
-          <p className="mt-2 text-[0.8125rem] leading-[1.55] text-ink-45">
-            {t('account.profile.closeAccountNote')}
-          </p>
-          <div className="mt-4">
-            <DeleteAccountButton action={deleteAccountAction} />
+      <section>
+        <GroupLabel>{t('account.profile.groups.account')}</GroupLabel>
+        <div className={INSET}>
+          <div className="flex gap-3 px-3.5 py-3.5">
+            <RowIcon icon={UserRound} />
+            <div className="min-w-0 flex-1">
+              <ProfileNameForm initialName={customer.full_name || ''} saveAction={updateProfileNameAction} />
+            </div>
           </div>
-        </PortalPanel>
-      </aside>
+          {/* Plain text, not a disabled input: a greyed box reads as a field
+              that is broken, when it is simply the account's id. */}
+          <div className="flex min-h-14 items-center gap-3 px-3.5 py-2">
+            <RowIcon icon={Phone} />
+            <div className="min-w-0 flex-1">
+              <p className="text-[0.90625rem] font-semibold text-ink">{t('account.profile.phone')}</p>
+              <p className="u-tabular text-[0.78125rem] text-ink-45">{phone}</p>
+              <p className="text-[0.75rem] text-ink-35">{t('account.profile.phoneNote')}</p>
+            </div>
+          </div>
+          <Link href="/mot-de-passe-oublie" className="flex min-h-14 items-center gap-3 px-3.5 py-2 hover:bg-canvas-alt">
+            <RowIcon icon={KeyRound} />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[0.90625rem] font-semibold text-ink">{t('account.profile.password')}</span>
+              <span className="block text-[0.78125rem] text-ink-45">{t('account.profile.passwordSub')}</span>
+            </span>
+            <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5 text-ink-35" aria-hidden="true" />
+          </Link>
+        </div>
+      </section>
+
+      {/* The account-wide stop for saved-search alerts. Every alert message
+          also ends with a link here, so "how do I make it stop" always has an
+          answer one tap away. Per-alert frequency lives on the Alertes tab;
+          this switch overrides all of them. */}
+      <section>
+        <GroupLabel>{t('account.profile.groups.notifications')}</GroupLabel>
+        <div className={`${INSET} p-4`}>
+          <WhatsAppAlertsSwitch initialEnabled={!alertsOptedOut} phoneLabel={phone} setAction={setWhatsAppAlertsAction} />
+        </div>
+      </section>
+
+      <section>
+        <GroupLabel>{t('account.profile.groups.app')}</GroupLabel>
+        <div className={INSET}>
+          <div className="flex min-h-14 items-center gap-3 px-3.5 py-2">
+            <RowIcon icon={Languages} />
+            <p className="min-w-0 flex-1 text-[0.90625rem] font-semibold text-ink">{t('account.profile.language')}</p>
+            <LanguageToggle />
+          </div>
+          <div className="flex flex-col gap-3 px-3.5 py-3">
+            <div className="flex items-center gap-3">
+              <RowIcon icon={Coins} />
+              <p className="min-w-0 flex-1 text-[0.90625rem] font-semibold text-ink">{t('common.currency.label')}</p>
+            </div>
+            <CurrencyToggle longLabels />
+            <p className="text-[0.75rem] leading-[1.5] text-ink-45">
+              {t('account.profile.currencyNote', {
+                rate: Number(rate.cdfPerUsd).toLocaleString(locale === 'en' ? 'en-US' : 'fr-FR'),
+                date: rate.updatedAt,
+              })}
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <div className={INSET}>
+        <form action={logoutAction}>
+          <button type="submit" className="u-press flex min-h-14 w-full items-center justify-center gap-2 text-[0.9375rem] font-bold text-danger hover:bg-canvas-alt">
+            <LogOut strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" aria-hidden="true" />
+            {t('common.actions.logout')}
+          </button>
+        </form>
+      </div>
+      <p className="-mt-2 px-1 text-[0.75rem] text-ink-35">{t('account.profile.sessionNote')}</p>
+
+      <section className="mt-2 rounded-card bg-surface p-4 shadow-[var(--hairline)]">
+        <h2 className="text-[0.9375rem] font-bold text-ink">{t('account.profile.closeAccount')}</h2>
+        <p className="mt-1.5 text-[0.8125rem] leading-[1.55] text-ink-45">{t('account.profile.closeAccountNote')}</p>
+        <div className="mt-3">
+          <DeleteAccountButton action={deleteAccountAction} />
+        </div>
+      </section>
     </div>
   );
 }

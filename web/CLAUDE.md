@@ -2440,3 +2440,51 @@ rest of `web/Design/`). Mobile-first; the `lg` layouts are unchanged in shape.
 - **`--warning-ink`** (#7a5619) is the text colour on `--warning-50`; the old
   amber text measured 3.4:1 (the token comment claimed 4.9). Amber chips use it.
 - Tests: `tests/unit/agent-portal-redesign.test.js`.
+
+## Espace Client redesign (2026-10-05)
+
+Approved from `web/Design/client-portal-prototype.html` (gitignored), same
+language as the agent portal redesign. Mobile-first; desktop keeps the sticky
+strip under the header.
+
+- **Five tabs** (`ClientPortalTabs.js`, `PORTAL_TABS`): Accueil
+  `/compte/client`, Enregistrés `/compte/client/favoris` (Favoris | Alertes,
+  `?tab=alertes`), Visites, Demandes `/compte/client/messages` (also lit on
+  `/demandes`, the form), Profil. On a phone they are a fixed bottom bar —
+  the one exception to "no persistent bottom bar" (Layout & shell), because it
+  only exists inside the signed-in portal. The compact portal footer
+  (`components/Footer.js`) carries the bar's clearance. Counts are grey totals
+  from `getPortalCounts` (now memoised per request); nothing re-runs a search.
+- **Accueil is an inbox, not a page of numbers** (`lib/clientPortalView.js`,
+  pure, `tests/unit/client-portal-redesign.test.js`): a royal "Réponse
+  attendue" card when an agent proposed another slot (one-tap Accepter), three
+  counters, visits to rate (`needsCheckin`: CONFIRMED, agreed, slot passed,
+  not rated), the next confirmed visit, new listings for the alerts, the
+  customer's own search requests, quick actions. Each engine/search block
+  streams under its own Suspense. **Accueil never stamps saved searches
+  viewed** — only the Alertes tab does — so its "N nouveaux" survive a visit
+  to Accueil. Request rows leave out `NON_SEARCH_LEAD_SOURCES` (developer
+  application, project/listing enquiries, visit requests).
+- **An agent's proposal is read from its own phrase** (`proposedSlotAt`, the
+  engine's formatSlotFr shape only, nearest year). On a RESCHEDULED row
+  `scheduled_at` can still hold the slot the proposal replaced (production:
+  proposal "30 septembre", stored 23 September). A proposal whose time has
+  passed is not offered for acceptance: the card turns grey and offers
+  WhatsApp + cancel. The Messages tab's ViewingPanel still offers Accept on
+  such a row (unchanged).
+- **Visites** (`visites/VisitCard.js`, shared with Accueil): each card opens
+  with a time band — amber proposed, green confirmed, blue asked, grey past —
+  then the listing, then the actions (WhatsApp green-ink, call, .ics, cancel,
+  `VisitCheckin` after the slot). "À répondre" heads the list.
+- **Entry costs are three chips** (`components/EntryCostChips.js`,
+  `entryCostParts`): Garantie / Avance / Commission, each only when stated
+  (0 kept, NULL dropped), never summed, none on a sale. On favourite cards and
+  as three rows in the compare table.
+- **Old links**: `/compte/client?tab=alertes|favoris` answers a real 307 from
+  `next.config.mjs` `redirects()` (the page's own `redirect()` runs inside the
+  stream and would be a client hop) — every WhatsApp alert already sent links
+  there. `/compte/client/alertes`, `/compte/alertes`, `/mises-a-jour`,
+  `AccountLimitNotice` and the alert sweep's `manageLink` point at
+  `/compte/client/favoris?tab=alertes`.
+- **Profil**: grouped inset lists (Compte, Notifications, Application) with a
+  language row (`LanguageToggle`, the cookie — there is still no column).

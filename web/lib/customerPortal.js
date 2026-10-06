@@ -72,9 +72,11 @@ export const getPortalCustomer = cache(async () => {
  * `inquiries`/`viewings` are null when the engine is unreachable, so the
  * badge is omitted rather than claiming zero.
  *
+ * Memoised per request: the layout's tab bar and Accueil's counters both ask.
+ *
  * @returns {Promise<{favorites: number, alerts: number, inquiries: number|null, viewings: number|null}>}
  */
-export async function getPortalCounts(customerId) {
+export const getPortalCounts = cache(async (customerId) => {
   const customer = await getCustomerById(customerId);
   const [favoriteIds, savedSearches, leadCounts] = await Promise.all([
     listFavoriteIds(customerId),
@@ -94,7 +96,7 @@ export async function getPortalCounts(customerId) {
     inquiries: own ? own.leads : null,
     viewings: own ? own.viewings : null,
   };
-}
+});
 
 /**
  * A human-readable one-line summary of a custom property request, built

@@ -8,10 +8,12 @@ import Price from '@/components/Price';
 import { CardBadges } from '@/components/ListingBadges';
 import SpecItem, { SpecCell } from '@/components/SpecItem';
 import { PortalPanel, PortalEmpty } from '@/components/ClientPortalUI';
+import EntryCostChips from '@/components/EntryCostChips';
 import { useToast } from '@/components/Toast';
 import { MAX_FAVORITES, MAX_FAVORITE_NOTE_LENGTH } from '@/lib/accountLimits';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { listingImages, specItems, typeLabel, feedLocationLine, formatAddedOn } from '@/lib/listingView';
+import { entryCostParts } from '@/lib/clientPortalView';
 import { buildWhatsAppMessage, buildWhatsAppLink } from '@/lib/whatsapp';
 import { ICON_STROKE_WIDTH, SITE_URL } from '@/lib/constants';
 import { cn } from '@/lib/utils';
@@ -67,6 +69,16 @@ function compareRows(t) {
     },
     { key: 'units', label: t('account.favorites.columns.doors'), get: (l) => spec(l, 'units')?.value ?? null },
     { key: 'place', label: t('account.favorites.columns.location'), get: (l) => feedLocationLine(l) },
+    // The three entry costs on three rows, never summed: a total labelled
+    // "Garantie" is the overstatement the engine's 3 + 1 + 1 split undid.
+    ...['deposit', 'advance', 'commission'].map((cost) => ({
+      key: cost,
+      label: t(`account.entry.${cost}Label`),
+      get: (l) => {
+        const part = entryCostParts(l).find((p) => p.key === cost);
+        return part ? t('account.entry.months', { count: part.months }) : null;
+      },
+    })),
     { key: 'reference', label: t('account.favorites.columns.reference'), get: (l) => l.reference || null },
     { key: 'added', label: t('account.favorites.columns.addedOn'), get: (l) => formatAddedOn(l.created_at, t.locale) },
   ];
@@ -386,6 +398,7 @@ function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, o
             {specs.map((spec) => <SpecItem key={spec.key} spec={spec} variant="stacked" />)}
           </div>
         ) : null}
+        <EntryCostChips parts={entryCostParts(listing)} t={t} />
         </Link>
 
         <FavoriteNote listingId={listing.id} initialNote={note} saveNoteAction={saveNoteAction} />
@@ -398,7 +411,7 @@ function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, o
               href={contactHref}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-green px-4 py-2.5 text-[0.8125rem] font-semibold text-white transition-colors hover:bg-green-deep"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-green-ink px-4 py-2.5 text-[0.8125rem] font-semibold text-white transition-colors hover:bg-green-deep"
             >
               <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
               {t('account.favorites.contactWhatsApp')}

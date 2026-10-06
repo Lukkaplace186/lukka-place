@@ -1,8 +1,5 @@
 import { redirect } from 'next/navigation';
-import { ShieldCheck } from 'lucide-react';
 import { getPortalCustomer, getPortalCounts } from '@/lib/customerPortal';
-import { formatPhoneDisplay } from '@/lib/phone';
-import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { ToastProvider } from '@/components/Toast';
 import ClientPortalTabs from './ClientPortalTabs';
 import { getT } from '@/lib/i18n/server';
@@ -34,51 +31,28 @@ export async function generateMetadata() {
  * coupling FilterBar.js already depends on (web/CLAUDE.md's layout notes).
  */
 export default async function ClientPortalLayout({ children }) {
-  const t = await getT();
   const session = await getPortalCustomer();
   if (!session) redirect('/compte/connexion?next=/compte/client');
 
-  const { customerId, customer } = session;
+  const { customerId } = session;
   const counts = await getPortalCounts(customerId);
   // Favoris+Alertes collapsed into one tab (ClientPortalTabs.js), so its nav
   // pill shows the combined total rather than picking just one of the two
   // real per-metric counts getPortalCounts() already returns.
   const tabCounts = { ...counts, savedTotal: counts.favorites + counts.alerts };
 
-  // The account's own stored name, never a fabricated one. A customer who
-  // signed up without giving a name gets their real phone number as the
-  // greeting rather than an invented "Bonjour, Client".
-  const fullName = (customer.full_name || '').trim();
-  const firstName = fullName ? fullName.split(/\s+/)[0] : formatPhoneDisplay(customer.phone);
-
   return (
+    // Ground is canvas-warm, the portal's own fill. The greeting that sat
+    // above the tabs on every page now opens Accueil only (2026-10-05): each
+    // tab carries its own title, and on a phone the old block took a fifth of
+    // the screen before any of the customer's content.
     <div className="min-h-screen bg-canvas-warm">
-      {/* On a phone the greeting is one heading and one line: the eyebrow
-          and the lead paragraph took ~40% of a 375px screen on every tab,
-          before any of the customer's own content. Desktop keeps the full
-          block. */}
-      <div className="mx-auto max-w-[77.5rem] px-4 pb-3 pt-4 sm:px-6 sm:pb-7 sm:pt-11 lg:px-8">
-        <p className="u-eyebrow hidden sm:block">{t('account.portal.title')}</p>
-        <h1 className="font-display text-[1.5rem] font-normal leading-[1.12] tracking-[-0.018em] text-ink sm:mt-2.5 sm:text-[2rem] lg:text-[2.5rem]">
-          {t('account.portal.greeting', { name: firstName })}
-        </h1>
-        <p className="mt-3 hidden max-w-[38.75rem] text-[1rem] leading-[1.6] text-ink-45 sm:block">
-          {t('account.portal.lead')}
-        </p>
-        <p className="mt-1.5 inline-flex items-center gap-1.5 text-[0.75rem] font-semibold text-blue-deep sm:mt-3 sm:text-[0.8125rem]">
-          <ShieldCheck strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
-          {/* The one identity fact this schema actually holds: the account is
-              tied to a real phone number. There is no ID-verification column
-              on `customers`, so the design's "Compte vérifié / Identité
-              vérifiée" badge is deliberately not reproduced as such. */}
-          {t('account.portal.accountLinkedTo', { phone: formatPhoneDisplay(customer.phone) })}
-        </p>
-      </div>
-
       <ClientPortalTabs counts={tabCounts} />
 
       <ToastProvider>
-        <main className="mx-auto max-w-[77.5rem] px-4 pb-16 pt-5 sm:px-6 sm:pb-24 sm:pt-10 lg:px-8">{children}</main>
+        {/* The phone's fixed bottom bar is cleared by the compact footer
+            below the page (components/Footer.js), not by this padding. */}
+        <main className="mx-auto max-w-[77.5rem] px-4 pb-10 pt-5 sm:px-6 sm:pt-8 lg:px-8 lg:pb-24 lg:pt-10">{children}</main>
       </ToastProvider>
     </div>
   );

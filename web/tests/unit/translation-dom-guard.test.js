@@ -156,12 +156,14 @@ test('the root layout mounts it before hydration', () => {
   assert.match(tag, /TRANSLATION_DOM_GUARD_SCRIPT/);
 });
 
-test('the Demandes/Visites tab bodies are keyed, so a tab switch remounts instead of patching text', () => {
-  // The reported crash site. Without distinct keys both bodies reconcile
-  // element-for-element (same header-row shape), so React rewrites text nodes
-  // that translation has already replaced — the crash, and with the guard in
-  // place, a stale translated subtitle left beside the new one.
+test('the Demandes inbox keys every card by kind and id, so a filter change remounts instead of patching text', () => {
+  // The reported crash site (2026-09-15, then two tabs). The inbox is one list
+  // since 2026-10-06; a visit card and an enquiry card can land in the same
+  // slot when a filter changes, and without distinct keys React would patch
+  // one's text nodes into the other — which translation has already replaced.
   const page = readFileSync(new URL('../../app/compte/agent/demandes/page.js', import.meta.url), 'utf8');
-  assert.match(page, /<Fragment key="visites">\s*<VisitsTab/);
-  assert.match(page, /<Fragment key="mes-demandes">/);
+  assert.equal((page.match(/key=\{item\.key\}/g) || []).length, 2);
+  const inbox = readFileSync(new URL('../../lib/agentInbox.js', import.meta.url), 'utf8');
+  assert.match(inbox, /key: `v-\$\{row\.id\}`/);
+  assert.match(inbox, /key: `l-\$\{row\.id\}`/);
 });

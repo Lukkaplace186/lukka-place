@@ -7,6 +7,7 @@ import { Archive, ArchiveRestore, BarChart3, CheckCircle2, CircleCheck, CircleDo
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import MarkListingSoldDialog from './MarkListingSoldDialog';
 import ListingQuickShare from './ListingQuickShare';
+import { prepareListingCard } from '@/lib/listingCardCache';
 import { WhatsAppIcon } from './WhatsAppCTA';
 import { shareBlocker } from '@/lib/listingShareCopy';
 import {
@@ -70,7 +71,8 @@ import { announceListingQuota } from '@/lib/listingQuotaRules';
  * SEVEN ITEMS, in three groups (2026-09-28 — it had grown to ten, mixing the
  * everyday with the occasional): open it (Modifier, Voir l'annonce), make
  * something from it (Marketing & Documents: graphics, the A4 poster and
- * sheet, the owner report — one dialog, AgentListingShareKit), change its
+ * sheet, the owner report — one dialog, AgentListingShareKit, "Documents et
+ * rapports" since 2026-10-06), change its
  * state (compromis, Dupliquer, Archiver), then Supprimer on its own.
  * "Partager sur WhatsApp" left the menu for the card itself
  * (AgentListingWhatsAppButton): it is the one thing agents do every day.
@@ -107,6 +109,12 @@ export default function AgentListingActionsMenu({ listing, isClosed, onStatusCha
   // node-postgres as strings often enough that `=== 0` silently never
   // matches.
   const isArchived = Number(listing.status) === 0;
+
+  // Opening the menu is intent: start drawing the share card now, so
+  // "Partager sur WhatsApp" opens on a finished one (lib/listingCardCache.js).
+  const warmShare = () => {
+    if (!shareBlocker(listing)) prepareListingCard(listing);
+  };
 
   function handleRepublish() {
     startTransition(async () => {
@@ -255,7 +263,7 @@ export default function AgentListingActionsMenu({ listing, isClosed, onStatusCha
       >
         <MoreHorizontal strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
       </button>
-      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+      <Sheet open={sheetOpen} onOpenChange={(next) => { if (next) warmShare(); setSheetOpen(next); }}>
         <SheetContent
           side="bottom"
           className="max-h-[85dvh] gap-0 overflow-y-auto rounded-t-card p-0 pb-[env(safe-area-inset-bottom)] lg:hidden"
@@ -314,7 +322,7 @@ export default function AgentListingActionsMenu({ listing, isClosed, onStatusCha
       </Sheet>
 
       {/* Desktop: dropdown. */}
-      <DropdownMenu>
+      <DropdownMenu onOpenChange={(next) => next && warmShare()}>
         <DropdownMenuTrigger
           aria-label={t('agent.listings.actionsFor', { title: listing.title })}
           className={`${triggerClass} hidden h-[2.125rem] w-[2.125rem] lg:grid`}
@@ -407,7 +415,7 @@ export default function AgentListingActionsMenu({ listing, isClosed, onStatusCha
         </DialogContent>
       </Dialog>
 
-      <AgentListingShareKit listingId={listing.id} open={shareKitOpen} onOpenChange={setShareKitOpen} />
+      <AgentListingShareKit listingId={listing.id} blocker={shareBlocker(listing)} open={shareKitOpen} onOpenChange={setShareKitOpen} />
       <ListingQuickShare listing={listing} caption={caption} open={quickShareOpen} onOpenChange={setQuickShareOpen} />
     </>
   );

@@ -4,7 +4,7 @@ import { getCurrentAgentId } from '@/lib/agentSession';
 import { agentBrandFields, getFlyerListing, getFlyerListings, frenchTypeText, PLATFORM_MARK_PATH, PLATFORM_MARK_LIGHT_PATH } from '@/lib/listingFlyer';
 import { SHARE_SOURCES, agentContactPhone, buildListingSocialCopy, listingPublicUrl, shareBlocker } from '@/lib/listingShareCopy';
 import { buildFlyerPack, optimisableImageSrc, optimisedImageUrl, LOGO_WIDTH } from '@/lib/marketing/sharePackData';
-import { buildMandateCaption, buildMandateReport, reportWindow } from '@/lib/marketing/mandateReportCopy';
+import { allTimeWindow, buildMandateCaption, buildMandateReport } from '@/lib/marketing/mandateReportCopy';
 import { getMandateCounts } from '@/lib/marketing/mandateReport';
 import { listingImages } from '@/lib/listingView';
 import { getListingShareCount, recordListingShares } from '@/lib/listingShares';
@@ -172,9 +172,9 @@ export async function recordListingSharesAction(input) {
 
 /**
  * The landlord report ("Rapport de diffusion") for one of the agent's own
- * listings: this week's and last week's counts, the card's fields and the
- * caption. Live numbers only — there is no offline copy of a report, since a
- * report that is a day old is a report with the wrong week on it.
+ * listings: the counts since the listing went online, the card's fields and
+ * the caption. Live numbers only — there is no offline copy of a report, since
+ * a report that is a day old is a report with the wrong numbers on it.
  *
  * Allowed for a listing in any state: an owner whose property is pending or
  * under offer still wants to know what happened, and the status line says
@@ -188,7 +188,8 @@ export async function getMandateReportAction(listingId) {
   if (error) return error;
 
   try {
-    const window = reportWindow(new Date());
+    // Since the listing went online (2026-10-06): every visit, not 7 days.
+    const window = allTimeWindow(listing.created_at, new Date());
     const [counts, shares] = await Promise.all([
       getMandateCounts(listing.id, window),
       // Same 7 days as the tiles. null (unknown) prints nothing.

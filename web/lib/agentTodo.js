@@ -71,8 +71,8 @@ export const STALE_REQUEST_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Where "voir tout" goes for each kind. */
 export const TODO_SEE_ALL_HREF = Object.freeze({
-  [TODO_KINDS.VISIT]: '/compte/agent/demandes?tab=visites',
-  [TODO_KINDS.LEAD]: '/compte/agent/demandes?status=NEW',
+  [TODO_KINDS.VISIT]: '/compte/agent/demandes?filtre=a-traiter',
+  [TODO_KINDS.LEAD]: '/compte/agent/demandes?filtre=a-traiter',
   [TODO_KINDS.LISTING_CONFIRM]: '/compte/agent/biens',
   [TODO_KINDS.LISTING_INCOMPLETE]: '/compte/agent/biens',
 });
@@ -80,7 +80,7 @@ export const TODO_SEE_ALL_HREF = Object.freeze({
 const OPEN_VISIT_STATUSES = new Set(['PENDING', 'RESCHEDULED']);
 
 /** Where a stale visit is closed (Décliner / Annuler live on the Visites tab). */
-export const TODO_CLOSE_VISIT_HREF = '/compte/agent/demandes?tab=visites';
+export const TODO_CLOSE_VISIT_HREF = '/compte/agent/demandes?filtre=a-traiter';
 
 const digits = (value) => String(value ?? '').replace(/\D/g, '');
 

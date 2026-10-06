@@ -2584,3 +2584,58 @@ sends, not a bare link that WhatsApp unfurls into a small grey preview.
 - Previews: `web/Design/share-card/` (gitignored).
 - Tests: `tests/unit/marketing-toolkit.test.js`, `agent-growth-toolkit.test.js`,
   `listing-shares-print.test.js`.
+
+## Agent portal speed and cleanup (2026-10-06, later the same day)
+
+Measured first: every agent page renders in 70–160 ms on the VPS; from
+outside, ~0.6 s goes on opening the TLS connection alone. The fixes cut round
+trips and bytes, not server time.
+
+- **Share card is prepared before the tap** (`lib/listingCardCache.js`).
+  `prepareListingCard(listing)` is one shared promise per listing version
+  (id + price + title + cover + updated_at, 5 min TTL, failures never kept).
+  `AgentListingWhatsAppButton` warms it when it scrolls into view
+  (`warmListingCard`: idle time, one at a time, max 6 per page, never on Data
+  Saver / 2G); the row menu warms it on open; `ListingQuickShare` awaits the
+  same promise. Measured before: ~1.9 s, almost all photo downloads.
+  Not pre-rendered on the server at publish time, deliberately: one renderer
+  (the browser canvas), and a stored card of last month's price would lie.
+- **The pack sends exactly the three photos drawn**: cover at 1080 px, side
+  tiles at 640 (`SIDE_PHOTO_WIDTH`) — it used to send five at 1080.
+  `fetchPackImages` asks for `image/avif,image/webp`: fetch()'s default
+  `*/*` made /_next/image answer JPEG (44 KB vs 26 KB WebP on listing 310).
+- **"Marketing & Documents" → "Documents et rapports"**
+  (`AgentListingShareKit`): only the A4 poster, the A4 sheet and the owner
+  report. The listing graphic, "Photos avec mon logo" and the listing text
+  are gone (the WhatsApp share does all three); so are
+  `components/marketing/WatermarkedPhotos.js`, `lib/marketing/watermark.js`,
+  `renderWatermarked` and the pack's `gallery`. The dialog loads no share pack
+  and opens instantly; the menu passes `shareBlocker(listing)` for the print
+  rows. `watermarked_photo` stays in `CHANNEL_FORMATS` for the DB CHECK only.
+- **The owner report is all-time** (`allTimeWindow(listing.created_at)`,
+  `getMandateReportAction`): whole UTC days since the listing went online,
+  no "semaine précédente" (`previousFrom === from`); no creation date →
+  from 2026-01-01, before which nothing was tracked. `reportWindow` (7 days)
+  stays for other readers. `FLYER_SELECT` now carries `p.created_at`.
+- **Demandes is one inbox** (`lib/agentInbox.js`, `app/compte/agent/demandes`):
+  enquiries and visit requests in one list, a web visit request once (its
+  lead folded into the visit — `lead_id`, or same number + listing while
+  NEW / VIEWING_REQUESTED, agentTodo's rule). Pills Toutes · À traiter ·
+  Confirmées · Traitées (`?filtre=`), counted; order: waiting first, confirmed
+  visits soonest first, then handled; newest first inside each. `?lead=` pins
+  the request (or the visit it was folded into); `?tab=visites` / `?status=`
+  still land (`inboxFilterFromParams`). Every in-app link now uses `?filtre=`.
+- **Cards: one primary action + call + "···"** (`AgentVisitRequestCard`,
+  `AgentLeadCard`): name, badge and age on top; slot in bold (or the request)
+  and the listing; then "Confirmer la visite" (to confirm) / "Contacter sur
+  WhatsApp" (confirmed) / "Répondre sur WhatsApp". Déplacer, Refuser /
+  Annuler, quick replies, alternatives, the Lukka Place composer and the
+  status select are behind "···". Every label through `agent.inbox.*`;
+  relative times via `formatRelative(value, locale)` (an EN dashboard printed
+  "il y a 8 jours"). The customer's own words ("Demande de visite — créneau
+  souhaité : …", "mercredi 30 septembre à 09h30") are data and stay as written.
+- **Agent tabs are fully prefetched**: the sidebar and bottom-bar `<Link>`s
+  carry `prefetch`, so a tab's payload arrives while the agent reads the
+  current one; `staleTimes.static: 60` bounds how old a prefetched tab may be
+  (the default is 5 min, too long for an inbox). Actions still invalidate it.
+- Tests: `tests/unit/agent-inbox.test.js`, `marketing-toolkit.test.js`.

@@ -15,7 +15,7 @@ import AgentHeaderSearch from './AgentHeaderSearch';
  *    appears where there is something to search; pages that pass no
  *    `searchAction` render no box at all rather than an input that does
  *    nothing.
- *  - The bell links to the real new-lead queue (`/demandes?status=NEW`)
+ *  - The bell links to what waits on the agent (`/demandes?filtre=a-traiter`)
  *    and carries a real count. There is no notification *system* on this
  *    app, and this does not pretend there is one: it is a live count of
  *    real unworked leads, which is the only thing a bell here could
@@ -56,7 +56,7 @@ export default function AgentPageHeader({
           )}
 
           <Link
-            href="/compte/agent/demandes"
+            href="/compte/agent/demandes?filtre=a-traiter"
             aria-label={`Demandes non traitées${newLeadsCount ? ` (${newLeadsCount})` : ''}`}
             className="u-press relative grid h-10 w-10 shrink-0 place-items-center rounded-lg text-ink-70 transition-colors hover:bg-canvas-alt hover:text-ink"
           >

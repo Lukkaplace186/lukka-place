@@ -80,6 +80,13 @@ export default function AgentSidebar({
               <Link
                 key={item.href}
                 href={item.href}
+                // Full prefetch (2026-10-06 speed pass): every agent page is
+                // dynamic, and the network — not the server (≤0.1 s) — is the
+                // cost from Kinshasa (~0.6 s just to open a connection). The
+                // tab's whole payload is fetched while the agent reads the
+                // current one, so a tap shows it at once. next.config's
+                // staleTimes.static bounds how old a prefetched tab may be.
+                prefetch
                 aria-current={active ? 'page' : undefined}
                 className={`flex items-center gap-3 rounded-[10px] px-3 py-[0.6875rem] text-sm font-semibold transition-colors ${
                   active ? 'bg-blue text-white' : 'text-ink-70 hover:bg-canvas-alt'
@@ -165,6 +172,8 @@ export default function AgentSidebar({
               <Link
                 key={item.href}
                 href={item.href}
+                // Full prefetch: see the sidebar link above.
+                prefetch
                 aria-current={active ? 'page' : undefined}
                 className={`u-press relative flex min-h-[3.625rem] flex-col items-center justify-center gap-1 py-2 text-[0.6875rem] font-semibold transition-colors ${
                   active ? 'text-blue' : 'text-ink-45'

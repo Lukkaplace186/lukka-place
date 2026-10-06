@@ -22,12 +22,14 @@ import { NO_PHOTO_URL } from '../constants';
  */
 
 export const PHOTO_WIDTH = 1080;
+// The two small tiles are at most 502px wide (9:16) / 338px (square), so 640
+// is enough and about half the bytes of 1080 (measured on listing 310).
+export const SIDE_PHOTO_WIDTH = 640;
 // Must be one of Next's `imageSizes`/`deviceSizes`; 384 is the largest imageSize.
 export const LOGO_WIDTH = 384;
 // next.config.mjs sets `images.qualities: [75]` — any other value is coerced.
 export const IMAGE_QUALITY = 75;
 export const MAX_PHOTOS = 3;
-export const MAX_GALLERY = 10;
 
 export function optimisableImageSrc(src, { supabaseHost = null } = {}) {
   if (typeof src !== 'string') return false;
@@ -63,18 +65,14 @@ export function purposeLabel(purpose) {
 export function buildFlyerPack(listing, { typeText, brand, supabaseHost = null, markPath, markLightPath = null, fetchedAt }) {
   const { amount, period } = formatPriceParts(listing.price, listing.purpose, listing.price_period);
   const place = [listing.quartier, listing.commune].filter(Boolean).join(', ');
-  const photos = listingImages(listing)
-    .filter((src) => optimisableImageSrc(src, { supabaseHost }))
-    // A couple of spares: a photo that fails to download or decode is skipped
-    // by the browser, and the next one takes its slot.
-    .slice(0, MAX_PHOTOS + 2)
-    .map((src) => optimisedImageUrl(src, PHOTO_WIDTH));
-  // Every photo (up to MAX_GALLERY), for "Photos avec mon logo" — fetched on
-  // demand by that tab, never stored offline with the pack.
+  // Exactly the three the card shows (2026-10-06 speed pass — it used to send
+  // two spares, five downloads where three are drawn). The cover at full
+  // width, the two side tiles at SIDE_PHOTO_WIDTH. A photo that fails is
+  // simply not drawn; the layout adapts to however many arrive.
   const usable = listingImages(listing).filter((src) => optimisableImageSrc(src, { supabaseHost }));
-  const gallery = usable
-    .slice(0, MAX_GALLERY)
-    .map((src) => optimisedImageUrl(src, PHOTO_WIDTH));
+  const photos = usable
+    .slice(0, MAX_PHOTOS)
+    .map((src, i) => optimisedImageUrl(src, i === 0 ? PHOTO_WIDTH : SIDE_PHOTO_WIDTH));
   const logo = optimisableImageSrc(listing.agent_image, { supabaseHost })
     ? optimisedImageUrl(listing.agent_image, LOGO_WIDTH)
     : null;
@@ -94,7 +92,6 @@ export function buildFlyerPack(listing, { typeText, brand, supabaseHost = null, 
     specs: roomSpecItems(listing),
     photoTotal: usable.length,
     photos,
-    gallery,
     mark: markPath,
     markLight: markLightPath,
     agent: {

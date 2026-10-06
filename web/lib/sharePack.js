@@ -85,10 +85,16 @@ export async function loadSharePack(listingId) {
   }
 }
 
+// fetch() sends `Accept: */*`, and /_next/image answers that with JPEG; a
+// browser <img> gets WebP because it asks for it. Asking the same way cuts
+// the card's photos by ~40% (44 KB → 26 KB on listing 310). Every browser
+// that runs the share card decodes WebP.
+const IMAGE_ACCEPT = 'image/avif,image/webp,image/*;q=0.8';
+
 async function fetchBlob(url, signal) {
   if (!url) return null;
   try {
-    const res = await fetch(url, { signal });
+    const res = await fetch(url, { signal, headers: { Accept: IMAGE_ACCEPT } });
     if (!res.ok) return null;
     const blob = await res.blob();
     return blob.type.startsWith('image/') ? blob : null;

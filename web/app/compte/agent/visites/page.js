@@ -164,7 +164,7 @@ export default async function AgentVisitAgendaPage() {
             <span className="u-micro inline-flex min-h-10 items-center text-ink-45">{t('agent.agenda.done.markedNotDone')}</span>
           )}
           {!scheduled && (
-            <Link href="/compte/agent/demandes?tab=visites" className={action}>
+            <Link href="/compte/agent/demandes?filtre=a-traiter" className={action}>
               {t('agent.agenda.setTime')}
             </Link>
           )}
@@ -185,7 +185,7 @@ export default async function AgentVisitAgendaPage() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="u-micro text-ink-45">{t('agent.agenda.intro')}</p>
           <Link
-            href="/compte/agent/demandes?tab=visites"
+            href="/compte/agent/demandes?filtre=a-traiter"
             className="u-micro inline-flex min-h-10 items-center gap-1 font-semibold text-blue-deep hover:underline"
           >
             {pendingVisitsCount > 0

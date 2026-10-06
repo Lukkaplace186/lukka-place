@@ -1239,9 +1239,9 @@
       "statsNote": "Le prix réellement convenu — pas le prix affiché — et la date alimentent les statistiques de marché de Lukka Place. Ils ne sont jamais publiés sur l’annonce."
     },
     "share": {
-      "menuItem": "Marketing & Documents",
-      "title": "Marketing & Documents",
-      "description": "Visuels pour vos réseaux, documents A4 à imprimer et rapport pour le propriétaire.",
+      "menuItem": "Documents et rapports",
+      "title": "Documents et rapports",
+      "description": "Fiches A4 à imprimer et rapport de performance pour le propriétaire.",
       "loading": "Préparation du visuel…",
       "loadFailed": "Impossible de préparer le partage. Réessayez dans un instant.",
       "imageFailed": "L’image n’a pas pu être générée. Le texte ci-dessous reste utilisable.",
@@ -1280,7 +1280,7 @@
       "offlineUnavailable": "Pas de connexion, et ce bien n’a pas encore été préparé sur ce téléphone. Ouvrez « Marketing & Documents » une fois en ligne pour pouvoir le refaire hors ligne.",
       "rendering": "Création du visuel…",
       "owner": {
-        "intro": "Envoyez au propriétaire le bilan des 7 derniers jours : vues, clics WhatsApp, mises en favori et demandes de visite.",
+        "intro": "Envoyez au propriétaire le bilan depuis la mise en ligne de l’annonce : vues, clics WhatsApp, mises en favori et demandes de visite.",
         "prepare": "Préparer le rapport",
         "preparing": "Calcul des chiffres…",
         "failed": "Le rapport n’a pas pu être préparé. Réessayez.",
@@ -1299,21 +1299,14 @@
         "liveFailed": "Impossible de préparer le lien. Réessayez."
       },
       "sections": {
-        "social": "Réseaux sociaux",
         "print": "Documents A4",
         "owner": "Rapport propriétaire"
       },
       "rows": {
-        "visual": "Visuel de l’annonce",
-        "visualHint": "Statut WhatsApp 9:16 ou publication carrée",
-        "text": "Texte de l’annonce",
-        "textHint": "Prêt à coller sur WhatsApp ou Facebook",
         "posterHint": "Pour une vitrine ou un portail, avec code QR",
         "sheetHint": "Toutes les caractéristiques sur une page",
-        "owner": "Bilan de la semaine",
-        "ownerHint": "Vues, clics et visites des 7 derniers jours",
-        "photos": "Photos avec mon logo",
-        "photosHint": "Chaque photo avec votre nom et votre numéro"
+        "owner": "Rapport de performance",
+        "ownerHint": "Vues, clics et visites depuis la mise en ligne"
       },
       "photos": {
         "intro": "Toutes les photos de l’annonce, avec votre logo, votre nom et votre numéro en bas. Aucune photo n’est recadrée.",
@@ -2220,6 +2213,42 @@
       "textOnly": "Envoyer le texte seulement",
       "hint": "Le texte est copié en même temps : si WhatsApp ne l’affiche pas sous l’image, collez-le.",
       "imageFailed": "L’image n’a pas pu être préparée. Vous pouvez envoyer le texte."
+    },
+    "inbox": {
+      "filterLabel": "Filtrer les demandes",
+      "filters": {
+        "all": "Toutes",
+        "waiting": "À traiter",
+        "confirmed": "Confirmées",
+        "done": "Traitées"
+      },
+      "kind": {
+        "visit": "Demande de visite",
+        "enquiry": "Demande"
+      },
+      "badge": {
+        "toConfirm": "À confirmer",
+        "slotProposed": "Créneau proposé",
+        "confirmed": "Confirmée"
+      },
+      "confirmVisit": "Confirmer la visite",
+      "contactWhatsApp": "Contacter sur WhatsApp",
+      "move": "Déplacer la visite",
+      "decline": "Refuser la visite",
+      "searchPlaceholder": "Rechercher un client",
+      "empty": "Aucune demande pour le moment. Partagez vos annonces pour en recevoir.",
+      "emptyFilter": "Aucune demande dans ce filtre.",
+      "focusMissing": "La demande n° {id} ne figure plus dans votre liste : elle a peut-être été traitée par une autre agence.",
+      "replyFailed": "L’envoi WhatsApp a échoué. Réessayez dans un instant.",
+      "replyTo": "Votre réponse à {name}",
+      "replySentFrom": "Envoyé sur WhatsApp au {number} depuis le numéro Lukka Place.",
+      "markConverted": "Marquer comme convertie",
+      "matchScore": "{score} % correspondance",
+      "budget": {
+        "range": "{min} – {max} $",
+        "upTo": "Jusqu’à {max} $",
+        "from": "À partir de {min} $"
+      }
     }
   },
   "status": {

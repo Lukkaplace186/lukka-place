@@ -11,6 +11,7 @@ import {
   buildMandateCaption,
   buildMandateReport,
   reportWindow,
+  allTimeWindow,
   REPORT_FOOTNOTE,
 } from '@/lib/marketing/mandateReportCopy';
 import { getMandateCounts, parseEngineTimestamp } from '@/lib/marketing/mandateReport';
@@ -319,7 +320,10 @@ test('the share pack sends only same-origin optimiser URLs, never a foreign host
     supabaseHost: SUPABASE, markPath: '/brand/icon-dark.png', fetchedAt: '2026-09-16T11:00:00.000Z',
   });
   assert.equal(pack.photos.length, 2);
-  assert.ok(pack.photos.every((url) => url.startsWith('/_next/image?url=https%3A%2F%2Fhavyrzfdksabghgbrxfy.supabase.co') && url.endsWith('&w=1080&q=75')));
+  assert.ok(pack.photos.every((url) => url.startsWith('/_next/image?url=https%3A%2F%2Fhavyrzfdksabghgbrxfy.supabase.co')));
+  // The cover at full width, the side tiles at 640 — only what the card draws.
+  assert.ok(pack.photos[0].endsWith('&w=1080&q=75'));
+  assert.ok(pack.photos[1].endsWith('&w=640&q=75'));
   assert.equal(pack.agent.logo, null, 'a logo on a host the optimiser refuses is dropped');
   assert.equal(pack.facts, 'Appartement • 24 Novembre, Lingwala');
   assert.equal(pack.rooms, '2 chambres • 2 salles de bain');
@@ -344,21 +348,26 @@ test('an offline copy is stamped with the server time and goes stale after 24 h'
   assert.equal(packTimestamp({ pack: {} }), null);
 });
 
-test('the share kit draws in the browser, the only renderer — the server flyer is retired', () => {
+test('Documents et rapports: the two A4 documents and the owner report, no graphic, no caption, no share pack', () => {
   const kit = readFileSync(path.join(process.cwd(), 'components/AgentListingShareKit.js'), 'utf8');
-  assert.match(kit, /renderFlyer\(kit\.pack, format, assets, family\)/);
-  assert.doesNotMatch(kit, /serverImageSrc|serverFallback/);
+  assert.doesNotMatch(kit, /getSharePackAction|renderFlyer|WatermarkedPhotos|captionFor/);
+  assert.match(kit, /\/affiche`/);
+  assert.match(kit, /\/fiche`/);
+  assert.match(kit, /getMandateReportAction\(listingId\)/);
   assert.ok(!existsSync(path.join(process.cwd(), 'app/compte/agent/biens/[id]/visuel/route.js')));
-  // A server verdict (not yours / deleted) must never be papered over with a stored copy.
-  assert.match(kit, /if \(result && !result\.ok\) \{[\s\S]*?setFailure\('load'\)/);
   const renderer = readFileSync(path.join(process.cwd(), 'components/marketing/CanvasRenderer.js'), 'utf8');
   assert.doesNotMatch(renderer, /from ['"](html2canvas|dom-to-image|html2pdf|jspdf)/);
 });
 
 test('Partager sur WhatsApp sends the listing card with its caption, the text link one tap away', () => {
   const quick = readFileSync(path.join(process.cwd(), 'components/ListingQuickShare.js'), 'utf8');
-  assert.match(quick, /renderFlyer\(kit\.pack, FORMAT, decoded, family\)/);
+  assert.match(quick, /prepareListingCard\(listing\)/);
   assert.match(quick, /const FORMAT = 'square'/);
+  const cache = readFileSync(path.join(process.cwd(), 'lib/listingCardCache.js'), 'utf8');
+  assert.match(cache, /renderFlyer\(kit\.pack, 'square', decoded, family\)/);
+  // Warm-up respects the data plan: never on Data Saver or 2G, capped per page.
+  assert.match(cache, /if \(connection\.saveData\) return false;/);
+  assert.match(cache, /const WARM_LIMIT = 6;/);
   assert.match(quick, /navigator\.share\(\{ files: \[file\], text: imageCaption \}\)/);
   assert.match(quick, /buildWhatsAppShareLink\(textCaption\)/);
   // Recorded with values listing_shares' CHECKs already allow.
@@ -402,6 +411,24 @@ test('the report caption states what the counts cover and what they do not', () 
   assert.match(caption, /https:\/\/lukkaplace\.com\/listings\/305\?utm_source=rapport_proprietaire/);
   // "Clics", never "demandes": a tap is not an enquiry.
   assert.doesNotMatch(caption, /demandes WhatsApp/i);
+});
+
+test('the owner report is all-time: from the day the listing went online, no "previous week"', () => {
+  const window = allTimeWindow('2026-09-05T18:49:50.932Z', NOW);
+  assert.equal(window.from.toISOString(), '2026-09-05T00:00:00.000Z');
+  assert.equal(window.previousFrom.getTime(), window.from.getTime(), 'no comparison block');
+  assert.equal(window.end.toISOString(), '2026-09-17T00:00:00.000Z', 'today included');
+  const report = buildMandateReport(ROW, COUNTS, { ...REPORT_OPTS, window: allTimeWindow('2026-09-01T10:00:00Z', NOW) });
+  assert.match(report.periodText, /^Depuis la mise en ligne · Du 01\/09 au 16\/09\/2026$/);
+  assert.ok(report.tiles.every((tile) => tile.note === null));
+  const caption = buildMandateCaption(ROW, report, COUNTS);
+  assert.doesNotMatch(caption, /semaine précédente/);
+  assert.match(caption, /Vues de l’annonce : \*42\*/);
+  // No creation date on file: from the start of tracking, never an invented date.
+  assert.equal(allTimeWindow(null, NOW).from.toISOString(), '2026-01-01T00:00:00.000Z');
+  // The action uses it.
+  const actions = readFileSync(path.join(process.cwd(), 'app/compte/agent/shareActions.js'), 'utf8');
+  assert.match(actions, /allTimeWindow\(listing\.created_at, new Date\(\)\)/);
 });
 
 test('a count the server could not establish is "non disponible", never 0', () => {

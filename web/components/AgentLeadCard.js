@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useOptimistic, useRef, useState } from 'react';
-import { Phone, Calculator, MapPin, Send, Check, Target, MoreHorizontal } from 'lucide-react';
+import { Phone, Calculator, Home, Send, Check, Target, MoreHorizontal } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { bestMatch } from '@/lib/agentMatching';
 import { leadTelHref, leadWhatsAppLink } from '@/lib/leadContact';
@@ -12,46 +12,28 @@ import { useToast } from './Toast';
 import { useT } from '@/lib/i18n/client';
 
 /**
- * The design's inquiry card, cloned: contact name + state tag + relative
- * time on one row, the message body, a hairline-topped meta row of
- * icon/value pairs, and a fixed 264px action column carrying a primary
- * t('agent.leads.reply') over a ghost t('agent.leads.markHandled'). Opening Répondre expands
- * a full-width composer across the bottom of the card.
+ * One customer enquiry in the agent's single Demandes inbox (2026-10-06
+ * redesign, same anatomy as AgentVisitRequestCard): name, state and age on
+ * top; what they asked for, the listing and the budget under it; then ONE
+ * primary action — "Répondre sur WhatsApp", a wa.me link from the agent's
+ * OWN WhatsApp, pre-filled in French (lib/leadContact.js), which has no 24h
+ * window — beside a call icon and "···".
  *
- * Everything the composer does is real: the textarea posts to
- * replyToLeadAction, which sends an actual WhatsApp message through the
- * engine's Chakra connection. The design's quick-reply chips are wired to
- * insert real French starter text into that same textarea rather than being
- * decorative tags — they save typing, they don't send anything by
- * themselves, and the agent always sees exactly what will go out before
- * pressing Envoyer.
+ * "···" holds the rest: alternatives, quick replies, the Lukka Place
+ * composer (replyToLeadAction, a real WhatsApp send through the engine),
+ * "Marquer comme traitée" and the status select. A status change shows on
+ * the tag at once (useOptimistic); a failure puts the old status back with a
+ * toast.
  *
- * Simplified 2026-09-22 (product direction: one tap to answer). The only
- * full-width action is "Répondre sur WhatsApp" — a wa.me link from the
- * agent's OWN WhatsApp, pre-filled in French (the customer reads it), which
- * has no 24h-window limit. "Proposer des alternatives" sits under it.
- * Everything else — quick replies, the Lukka Place composer, "marquer comme
- * traitée" and the status select — is in the "Plus d'options" footer.
- * "Proposer un bien" (proposeListingAction, the quota-counted lead_proposals
- * write) is no longer offered: alternatives covers sharing listings, and its
- * monthly quota was blocking agents from answering at all.
- *
- * 2026-09-23: "Proposer des alternatives" moved in with the rest, behind ONE
- * "…" button beside "Répondre sur WhatsApp" — the card had a second
- * full-width button and a full-width "Plus d'options" row under it, three
- * rows of chrome per request on a phone. A status change (Marquer comme
- * traitée, the select) shows on the tag at once (useOptimistic) while the
- * action runs; a failure puts the old status back with a toast.
- *
- * Match % is a real computed score (lib/agentMatching.js), absent rather
- * than fabricated when the request gives nothing to score against.
+ * Match % is a real computed score (lib/agentMatching.js), absent rather than
+ * fabricated when the request gives nothing to score against.
  *
  * `highlighted` marks the one request an agent arrived here to see from a
  * WhatsApp alert's deep link — see services/leadDispatch.js's agentLink.
  */
-// One colour per stage (2026-10-05): Nouvelle solid royal (it waits on the
-// agent), Contactée grey, Qualifiée green, Visite demandée amber. Every pair
-// is ≥4.5:1 for its 11px text (amber uses --warning-ink, see globals.css).
+// One colour per stage: Nouvelle solid royal (it waits on the agent),
+// Contactée grey, Qualifiée green, Visite demandée amber. Every pair is ≥4.5:1
+// for its 11px text (amber uses --warning-ink, see globals.css).
 const STATUS_TAG = {
   NEW: 'bg-blue text-white',
   CONTACTED: 'bg-canvas-deep text-ink-70',
@@ -62,21 +44,15 @@ const STATUS_TAG = {
   LOST: 'bg-canvas-deep text-ink-45',
 };
 
-function initials(name) {
-  const letters = String(name || '')
-    .split(/\s+/)
-    .filter((part) => /^[A-Za-zÀ-ÿ]/.test(part))
-    .slice(0, 2)
-    .map((part) => part[0].toUpperCase())
-    .join('');
-  return letters || null;
-}
-
 const QUICK_REPLIES = [
   { labelKey: 'agent.leads.quickReplies.availableLabel', textKey: 'agent.leads.quickReplies.availableBody' },
   { labelKey: 'agent.leads.quickReplies.viewingLabel', textKey: 'agent.leads.quickReplies.viewingBody' },
   { labelKey: 'agent.leads.quickReplies.documentsLabel', textKey: 'agent.leads.quickReplies.documentsBody' },
 ];
+
+const PRIMARY = 'u-press inline-flex h-12 min-w-0 flex-1 items-center justify-center gap-2 rounded-xl px-3 text-[0.9375rem] font-bold';
+const ICON_BUTTON = 'u-press grid h-12 w-12 shrink-0 place-items-center rounded-xl text-ink-70 ring-1 ring-inset ring-ink-25 transition-colors hover:bg-canvas-alt hover:text-ink';
+const SECONDARY = 'u-press inline-flex h-11 w-full items-center justify-center gap-1.5 rounded-lg text-[0.8125rem] font-semibold transition-colors';
 
 export default function AgentLeadCard({
   lead,
@@ -92,7 +68,7 @@ export default function AgentLeadCard({
 }) {
   const t = useT();
   const { showToast } = useToast();
-  const [open, setOpen] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [status, setOptimisticStatus] = useOptimistic(lead.status);
   const textareaRef = useRef(null);
@@ -117,6 +93,7 @@ export default function AgentLeadCard({
 
   const best = useMemo(() => bestMatch(myListings, lead), [myListings, lead]);
   const directLink = useMemo(() => leadWhatsAppLink(lead, myListings), [lead, myListings]);
+  const telHref = leadTelHref(lead.wa_id);
 
   function insertQuickReply(text) {
     const el = textareaRef.current;
@@ -126,148 +103,147 @@ export default function AgentLeadCard({
   }
 
   return (
-    <div className={`u-card rounded-card bg-surface p-4 sm:p-6 ${highlighted ? 'ring-2 ring-blue' : ''}`}>
+    <article className={`u-card rounded-card bg-surface p-4 sm:p-5 ${highlighted ? 'ring-2 ring-blue' : ''}`}>
       {highlighted && (
-        <p className="u-micro-strong mb-4 inline-flex items-center gap-1.5 rounded-full bg-blue-tint px-3 py-1 text-blue-deep">
+        <p className="u-micro-strong mb-3 inline-flex items-center gap-1.5 rounded-full bg-blue-tint px-3 py-1 text-blue-deep">
           <Target strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
           {t('agent.leads.fromWhatsAppAlert')}
         </p>
       )}
-      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-[minmax(0,1fr)_16.5rem] lg:items-center">
+
+      <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-start gap-3">
-            <span
-              aria-hidden="true"
-              className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-canvas-deep text-sm font-extrabold text-ink-70"
-            >
-              {initials(lead.name) || <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />}
-            </span>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-start justify-between gap-2">
-                <span className="min-w-0 truncate text-base font-bold text-ink">{name}</span>
-                <span
-                  className={`shrink-0 rounded-full px-2.5 py-1 text-[0.6875rem] font-extrabold uppercase tracking-[0.1em] ${
-                    STATUS_TAG[status] || STATUS_TAG.NEW
-                  }`}
-                >
-                  {statusText}
-                </span>
-              </div>
-              <span className="text-xs text-ink-45">{relativeTime}</span>
-            </div>
-          </div>
+          <p className="truncate text-base font-bold text-ink">{name}</p>
+          <p className="text-xs text-ink-45">
+            {t('agent.inbox.kind.enquiry')} · {relativeTime}
+          </p>
+        </div>
+        <span className={`shrink-0 rounded-full px-2.5 py-1 text-[0.6875rem] font-extrabold uppercase tracking-[0.1em] ${STATUS_TAG[status] || STATUS_TAG.NEW}`}>
+          {statusText}
+        </span>
+      </header>
 
-          {lead.requirements_summary && (
-            <p className="mt-3 max-w-[72ch] rounded-lg bg-canvas-alt px-3 py-2.5 text-sm leading-relaxed text-ink-70">{lead.requirements_summary}</p>
-          )}
-
-          <div className="mt-3.5 flex flex-wrap gap-x-[1.125rem] gap-y-2 border-t border-line pt-3.5 text-[0.8125rem] text-ink-70">
-            <span className="inline-flex items-center gap-1.5">
-              <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-35" />
-              {lead.wa_id}
-            </span>
+      <div className="mt-3 flex flex-col gap-1.5">
+        {lead.requirements_summary && (
+          <p className="line-clamp-3 text-[0.9375rem] font-semibold leading-snug text-ink">{lead.requirements_summary}</p>
+        )}
+        {target && (
+          <p className="flex min-w-0 items-center gap-2 text-sm text-ink-70">
+            <Home strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0 text-ink-35" aria-hidden="true" />
+            <span className="truncate">{target}</span>
+          </p>
+        )}
+        {(budget || best) && (
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ink-70">
             {budget && (
-              <span className="inline-flex items-center gap-1.5">
-                <Calculator strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-ink-35" />
+              <span className="inline-flex items-center gap-2">
+                <Calculator strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0 text-ink-35" aria-hidden="true" />
                 {budget}
-              </span>
-            )}
-            {target && (
-              <span className="inline-flex min-w-0 items-center gap-1.5">
-                <MapPin strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0 text-ink-35" />
-                <span className="truncate">{target}</span>
               </span>
             )}
             {best && (
               <span
-                title={`Meilleure correspondance dans votre portefeuille : ${best.listing.title}`}
+                title={t('agent.leads.bestMatchAria', { title: best.listing.title })}
                 className="inline-flex items-center gap-1 rounded-full bg-blue-tint px-2 py-0.5 text-[0.75rem] font-bold text-blue-deep"
               >
                 <Target strokeWidth={ICON_STROKE_WIDTH} className="h-3 w-3" />
-                {best.score}% correspondance
+                {t('agent.inbox.matchScore', { score: best.score })}
               </span>
             )}
-          </div>
-        </div>
-
-        {/* "Répondre sur WhatsApp" is the card's one primary action: the
-            customer's chat, opened from the agent's own WhatsApp with a
-            greeting and the enquired listing already written
-            (lib/leadContact.js). Call sits beside the options. */}
-        <div className="flex flex-col gap-2">
-          {directLink ? (
-            <a
-              href={directLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="u-press inline-flex h-12 min-w-0 items-center justify-center gap-2 rounded-lg bg-green-ink text-[0.9375rem] font-bold text-white hover:brightness-110"
-            >
-              <WhatsAppIcon className="h-5 w-5 shrink-0" />
-              <span className="truncate">{t('agent.leads.replyOnWhatsApp')}</span>
-            </a>
-          ) : (
-            <div className="min-w-0">
-              <AgentAlternativesDialog kind="lead" id={lead.id} emphasis />
-            </div>
-          )}
-          <div className="flex items-center gap-2">
-          {leadTelHref(lead.wa_id) && (
-            <a
-              href={leadTelHref(lead.wa_id)}
-              className="u-press inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg text-sm font-bold text-ink ring-1 ring-inset ring-ink-25 hover:bg-canvas-alt"
-            >
-              <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0" />
-              {t('agent.leads.call')}
-            </a>
-          )}
-          <button
-            type="button"
-            onClick={() => setMoreOpen((v) => !v)}
-            aria-expanded={moreOpen}
-            aria-label={t('agent.leads.moreOptions')}
-            title={t('agent.leads.moreOptions')}
-            className={`u-press grid h-11 w-11 shrink-0 place-items-center rounded-lg text-ink-70 ring-1 ring-inset ring-ink-25 transition-colors hover:bg-canvas-alt hover:text-ink ${
-              moreOpen ? 'bg-canvas-alt text-ink' : ''
-            }`}
-          >
-            <MoreHorizontal strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
-          </button>
-          </div>
-        </div>
+          </p>
+        )}
       </div>
 
-      {/* Hidden rather than unmounted, so a half-typed reply survives
-          closing the panel. */}
+      <div className="mt-4 flex items-center gap-2">
+        {directLink ? (
+          <a href={directLink} target="_blank" rel="noopener noreferrer" className={`${PRIMARY} bg-green-ink text-white hover:brightness-110`}>
+            <WhatsAppIcon className="h-5 w-5 shrink-0" />
+            <span className="truncate">{t('agent.leads.replyOnWhatsApp')}</span>
+          </a>
+        ) : (
+          <div className="min-w-0 flex-1">
+            <AgentAlternativesDialog kind="lead" id={lead.id} emphasis />
+          </div>
+        )}
+        {telHref && (
+          <a href={telHref} aria-label={t('agent.leads.call')} title={t('agent.leads.call')} className={ICON_BUTTON}>
+            <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
+          </a>
+        )}
+        <button
+          type="button"
+          onClick={() => setMoreOpen((v) => !v)}
+          aria-expanded={moreOpen}
+          aria-label={t('agent.leads.moreOptions')}
+          title={t('agent.leads.moreOptions')}
+          className={`${ICON_BUTTON} ${moreOpen ? 'bg-canvas-alt text-ink' : ''}`}
+        >
+          <MoreHorizontal strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
+        </button>
+      </div>
+
+      {/* Hidden rather than unmounted, so a half-typed reply survives closing it. */}
       <div hidden={!moreOpen} className="mt-3 border-t border-line pt-3">
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-1.5">
           {directLink && <AgentAlternativesDialog kind="lead" id={lead.id} />}
 
           <AgentQuickReplies waId={lead.wa_id} clientName={lead.name} propertyId={lead.property_id} />
 
           <button
             type="button"
-            onClick={() => setOpen((v) => !v)}
-            aria-expanded={open}
-            className="u-btn-secondary u-press inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-lg text-[0.8125rem] font-bold text-ink"
+            onClick={() => setComposerOpen((v) => !v)}
+            aria-expanded={composerOpen}
+            className={`${SECONDARY} text-ink hover:bg-canvas-alt`}
           >
             <Send strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-            {open ? 'Fermer' : t('agent.leads.replyViaLukka')}
+            {composerOpen ? t('common.actions.close') : t('agent.leads.replyViaLukka')}
           </button>
+
+          {composerOpen && (
+            <form action={replyAction} className="flex flex-col gap-2.5 rounded-lg bg-canvas-alt p-3">
+              <label htmlFor={`reply-${lead.id}`} className="text-[0.8125rem] font-semibold text-ink-70">
+                {t('agent.inbox.replyTo', { name })}
+              </label>
+              <textarea
+                id={`reply-${lead.id}`}
+                ref={textareaRef}
+                name="text"
+                rows={3}
+                required
+                placeholder={t('agent.leads.quickReplies.viewingBody')}
+                className="u-focus-ring resize-y rounded-lg border border-line bg-surface p-3 text-base leading-relaxed text-ink placeholder:text-ink-35 sm:text-sm"
+              />
+              <div className="flex flex-wrap gap-2">
+                {QUICK_REPLIES.map((q) => (
+                  <button
+                    key={q.labelKey}
+                    type="button"
+                    onClick={() => insertQuickReply(t(q.textKey))}
+                    className="u-press inline-flex min-h-11 items-center rounded-full bg-surface px-3.5 text-xs font-semibold text-ink-70 ring-1 ring-line transition-colors hover:text-ink"
+                  >
+                    {t(q.labelKey)}
+                  </button>
+                ))}
+              </div>
+              <button type="submit" className="u-btn-primary u-press inline-flex h-11 items-center justify-center gap-1.5 rounded-lg bg-blue px-4 text-sm font-bold text-white">
+                <Send strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                {t('agent.leads.sendMessage')}
+              </button>
+              <p className="text-xs text-ink-45">{t('agent.inbox.replySentFrom', { number: lead.wa_id })}</p>
+            </form>
+          )}
 
           <form action={changeStatus}>
             <input type="hidden" name="status" value={status === 'QUALIFIED' ? 'CONVERTED' : 'QUALIFIED'} />
-            <button
-              type="submit"
-              className="u-press inline-flex h-11 w-full items-center justify-center gap-1.5 whitespace-nowrap rounded-lg text-[0.8125rem] font-semibold text-ink-45 transition-colors hover:bg-canvas-alt hover:text-ink"
-            >
+            <button type="submit" className={`${SECONDARY} text-ink-70 hover:bg-canvas-alt hover:text-ink`}>
               <Check strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-              {status === 'QUALIFIED' ? 'Marquer comme convertie' : t('agent.leads.markHandled')}
+              {status === 'QUALIFIED' ? t('agent.inbox.markConverted') : t('agent.leads.markHandled')}
             </button>
           </form>
 
           <form action={changeStatus} className="flex items-center gap-2">
             <label htmlFor={`status-${lead.id}`} className="text-xs font-semibold text-ink-45">
-              Statut
+              {t('agent.leads.status')}
             </label>
             <select
               key={status}
@@ -282,67 +258,12 @@ export default function AgentLeadCard({
                 </option>
               ))}
             </select>
-            <button
-              type="submit"
-              className="u-press h-11 shrink-0 rounded-full border border-line px-2.5 text-xs font-medium text-ink transition-colors hover:bg-canvas-alt"
-            >
+            <button type="submit" className="u-press h-11 shrink-0 rounded-full border border-line px-3 text-xs font-medium text-ink transition-colors hover:bg-canvas-alt">
               {t('agent.leads.updateStatus')}
             </button>
           </form>
         </div>
       </div>
-
-      {open && (
-        <form action={replyAction} className="mt-4 flex flex-col gap-2.5 border-t border-line pt-4">
-          <label htmlFor={`reply-${lead.id}`} className="text-[0.8125rem] font-semibold text-ink-70">
-            Votre réponse à {name}
-          </label>
-          <textarea
-            id={`reply-${lead.id}`}
-            ref={textareaRef}
-            name="text"
-            rows={3}
-            required
-            placeholder={t('agent.leads.quickReplies.viewingBody')}
-            className="u-focus-ring resize-y rounded-lg border border-line bg-surface p-3 text-sm leading-relaxed text-ink placeholder:text-ink-35"
-          />
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex flex-wrap gap-2">
-              {QUICK_REPLIES.map((q) => (
-                <button
-                  key={q.labelKey}
-                  type="button"
-                  onClick={() => insertQuickReply(t(q.textKey))}
-                  className="u-press inline-flex min-h-11 items-center rounded-full bg-canvas-alt px-3.5 text-xs font-semibold text-ink-70 transition-colors hover:bg-canvas-deep hover:text-ink"
-                >
-                  {t(q.labelKey)}
-                </button>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="u-press h-11 rounded-lg px-3.5 text-[0.8125rem] font-semibold text-ink-45 transition-colors hover:bg-canvas-alt hover:text-ink"
-              >
-                {t('common.actions.cancel')}
-              </button>
-              <button
-                type="submit"
-                className="u-btn-primary u-press inline-flex h-11 items-center gap-1.5 whitespace-nowrap rounded-lg bg-blue px-3.5 text-[0.8125rem] font-bold text-white"
-              >
-                <Send strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-                {t('agent.leads.sendMessage')}
-              </button>
-            </div>
-          </div>
-          <p className="text-xs text-ink-35">
-            Envoyé sur WhatsApp au {lead.wa_id} depuis le numéro Lukka Place.
-          </p>
-        </form>
-      )}
-
-    </div>
+    </article>
   );
 }
-

@@ -323,12 +323,14 @@ test('the one-page sheet keeps points forts and equipment as two lists within on
   assert.deepEqual(specs.map((s) => [s.label, s.value]), [['Type', 'Appartement'], ['Chambres', '3'], ['Salle de bain', '1'], ['Surface', '120 m²']]);
 });
 
-test('the share kit records after the share, fire-and-forget, and never for the landlord report', () => {
+test('shares record after the share, fire-and-forget, and never for the landlord report', () => {
+  const quick = readFileSync(path.join(ROOT, 'components/ListingQuickShare.js'), 'utf8');
+  assert.match(quick, /recordListingSharesAction\(\{ listingIds: \[listing\.id\], channel, format \}\)\.catch\(\(\) => \{\}\)/);
+  assert.match(quick, /await navigator\.share\(\{ files: \[file\], text: imageCaption \}\);\s*record\('kit_share', FORMAT\)/);
+  assert.doesNotMatch(quick, /await recordListingSharesAction/);
+  // The documents & reports dialog records nothing: a report goes to the owner, not the market.
   const kit = readFileSync(path.join(ROOT, 'components/AgentListingShareKit.js'), 'utf8');
-  assert.match(kit, /recordListingSharesAction\(\{ listingIds: \[listingId\], \.\.\.record \}\)\.catch\(\(\) => \{\}\)/);
-  assert.match(kit, /await navigator\.share\(\{ files: \[file\], text \}\);\s*recordShare\(record && \{ \.\.\.record, channel: 'kit_share' \}\)/);
-  assert.match(kit, /onClick=\{\(\) => shareFile\(reportFile, report\.caption, 'report'\)\}/, 'report shares pass no record');
-  assert.doesNotMatch(kit, /await recordListingSharesAction/);
+  assert.doesNotMatch(kit, /recordListingSharesAction/);
 });
 
 test('Mes biens: WhatsApp opens the listing card share from the card and the row menu, captions read once per page, owner-scoped', () => {

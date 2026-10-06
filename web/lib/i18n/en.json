@@ -1239,9 +1239,9 @@
       "statsNote": "The price actually agreed — not the advertised price — and the date feed Lukka Place's market statistics. They are never published on the listing."
     },
     "share": {
-      "menuItem": "Marketing & Documents",
-      "title": "Marketing & Documents",
-      "description": "Graphics for your social networks, A4 documents to print and a report for the owner.",
+      "menuItem": "Documents & Reports",
+      "title": "Documents & Reports",
+      "description": "Printable A4 sheets and a performance report for the owner.",
       "loading": "Preparing the graphic…",
       "loadFailed": "Sharing could not be prepared. Try again in a moment.",
       "imageFailed": "The image could not be generated. The text below can still be used.",
@@ -1280,7 +1280,7 @@
       "offlineUnavailable": "No connection, and this property has not been prepared on this phone yet. Open “Marketing & Documents” once while online to be able to make it offline.",
       "rendering": "Making the graphic…",
       "owner": {
-        "intro": "Send the owner the last 7 days at a glance: views, WhatsApp taps, saves and visit requests.",
+        "intro": "Send the owner the results since the listing went online: views, WhatsApp clicks, saves and visit requests.",
         "prepare": "Prepare the report",
         "preparing": "Counting…",
         "failed": "The report could not be prepared. Try again.",
@@ -1299,21 +1299,14 @@
         "liveFailed": "Couldn’t prepare the link. Try again."
       },
       "sections": {
-        "social": "Social Networks",
         "print": "A4 Documents",
         "owner": "Owner Report"
       },
       "rows": {
-        "visual": "Listing graphic",
-        "visualHint": "9:16 WhatsApp Status or square post",
-        "text": "Listing text",
-        "textHint": "Ready to paste on WhatsApp or Facebook",
         "posterHint": "For a shop window or a gate, with a QR code",
         "sheetHint": "Every detail on one page",
-        "owner": "This week’s report",
-        "ownerHint": "Views, clicks and visits over the last 7 days",
-        "photos": "Photos with My Logo",
-        "photosHint": "Every photo with your name and number"
+        "owner": "Performance Report",
+        "ownerHint": "Views, clicks and visits since the listing went online"
       },
       "photos": {
         "intro": "Every photo of the listing, with your logo, name and number along the bottom. No photo is cropped.",
@@ -2220,6 +2213,42 @@
       "textOnly": "Send the text only",
       "hint": "The text is copied at the same time: if WhatsApp does not show it under the image, paste it.",
       "imageFailed": "The image could not be prepared. You can send the text instead."
+    },
+    "inbox": {
+      "filterLabel": "Filter requests",
+      "filters": {
+        "all": "All",
+        "waiting": "To handle",
+        "confirmed": "Confirmed",
+        "done": "Handled"
+      },
+      "kind": {
+        "visit": "Viewing request",
+        "enquiry": "Enquiry"
+      },
+      "badge": {
+        "toConfirm": "To confirm",
+        "slotProposed": "Time proposed",
+        "confirmed": "Confirmed"
+      },
+      "confirmVisit": "Confirm the viewing",
+      "contactWhatsApp": "Contact on WhatsApp",
+      "move": "Move the viewing",
+      "decline": "Decline the viewing",
+      "searchPlaceholder": "Search a client",
+      "empty": "No requests yet. Share your listings to receive some.",
+      "emptyFilter": "No requests in this filter.",
+      "focusMissing": "Request no. {id} is no longer in your list: another agency may have handled it.",
+      "replyFailed": "The WhatsApp message could not be sent. Try again in a moment.",
+      "replyTo": "Your reply to {name}",
+      "replySentFrom": "Sent on WhatsApp to {number} from the Lukka Place number.",
+      "markConverted": "Mark as converted",
+      "matchScore": "{score}% match",
+      "budget": {
+        "range": "{min} – {max} $",
+        "upTo": "Up to {max} $",
+        "from": "From {min} $"
+      }
     }
   },
   "status": {

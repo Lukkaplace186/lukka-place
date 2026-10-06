@@ -2,52 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
-import {
-  WATERMARK_BAND_MAX, WATERMARK_BAND_MIN, WATERMARK_MAX_EDGE, buildWatermarkOps, watermarkFileName, watermarkSize,
-} from '@/lib/marketing/watermark';
 import { CHANNEL_FORMATS, normaliseShareRecord, sheetVariant } from '@/lib/listingShareRules';
 import { AGENT_LIVE_LISTINGS_SQL, HELP_TEXT, MES_BIENS_MAX, mesBiensText } from '@/lib/agentCommands';
 
 const read = (rel) => readFileSync(new URL(`../../${rel}`, import.meta.url), 'utf8');
-const measure = (text, { size }) => String(text).length * size * 0.55;
-const texts = (ops) => ops.filter((op) => op.type === 'text').map((op) => op.text);
 
-// --- watermarked photos -------------------------------------------------------------
-
-test('a photo keeps its own aspect, longest edge at most 1080, never upscaled', () => {
-  assert.deepEqual(watermarkSize(4000, 3000), { width: WATERMARK_MAX_EDGE, height: 810 });
-  assert.deepEqual(watermarkSize(900, 1600), { width: 608, height: WATERMARK_MAX_EDGE });
-  assert.deepEqual(watermarkSize(800, 600), { width: 800, height: 600 });
-  assert.equal(watermarkSize(0, 600), null);
-});
-
-test('the band covers the bottom edge, sized from the shorter side within its bounds', () => {
-  const { ops } = buildWatermarkOps({ width: 1080, height: 810, agent: { name: 'Makam Immo', phone: '+243 81 234 5678' }, hasLogo: true, measure });
-  assert.deepEqual(ops[0], { type: 'image', key: 'photo:0', x: 0, y: 0, w: 1080, h: 810, fit: 'cover' });
-  const band = ops[1];
-  assert.equal(band.type, 'rect');
-  assert.equal(band.y + band.h, 810);
-  assert.ok(band.h >= WATERMARK_BAND_MIN && band.h <= WATERMARK_BAND_MAX);
-  assert.deepEqual(texts(ops), ['lukkaplace.com', 'Makam Immo', '+243 81 234 5678']);
-  assert.ok(ops.some((op) => op.type === 'image' && op.key === 'logo'));
-});
-
-test('no phone passed, no phone drawn; initials stand in for a missing logo', () => {
-  const { ops } = buildWatermarkOps({ width: 1080, height: 1080, agent: { name: 'Makam Immo', initials: 'MI' }, hasLogo: false, measure });
-  assert.deepEqual(texts(ops), ['lukkaplace.com', 'MI', 'Makam Immo']);
-  assert.ok(!ops.some((op) => op.key === 'logo'));
-});
-
-test('no brand at all: only "lukkaplace.com" — never a Lukka Place mark passed off as the agent', () => {
-  const { ops } = buildWatermarkOps({ width: 1080, height: 720, agent: {}, hasLogo: false, measure });
-  assert.deepEqual(texts(ops), ['lukkaplace.com']);
-  assert.equal(watermarkFileName(310, 1), 'lukka-310-photo-2-logo.jpg');
-});
-
-test('the phone on the pack is the verified-number rule (agentContactPhone), not the raw number', () => {
-  const flyer = read('lib/listingFlyer.js');
-  assert.match(flyer, /agentContactPhone/);
-  assert.match(read('lib/marketing/sharePackData.js'), /gallery,/);
+test('"Photos avec mon logo" is gone (2026-10-06): no watermark module, nothing in the pack for it', () => {
+  assert.throws(() => read('lib/marketing/watermark.js'));
+  assert.throws(() => read('components/marketing/WatermarkedPhotos.js'));
+  assert.doesNotMatch(read('lib/marketing/sharePackData.js'), /gallery/);
+  assert.match(read('lib/listingFlyer.js'), /agentContactPhone/);
 });
 
 test('share records accept watermarked photos, the neutral sheet and "!share", nothing else new', () => {

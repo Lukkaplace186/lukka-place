@@ -145,14 +145,26 @@ const RELATIVE_STEPS = [
  * here now so there is one copy of it.
  */
 export function formatRelativeFr(value) {
+  return formatRelative(value, 'fr');
+}
+
+const RELATIVE_EN = new Intl.RelativeTimeFormat('en-GB', { numeric: 'auto' });
+
+/**
+ * formatRelativeFr in the reader's language: an English dashboard printed
+ * "il y a 8 jours" beside English labels (reported 2026-10-06). Same
+ * timestamp normalisation.
+ */
+export function formatRelative(value, locale = 'fr') {
   if (!value) return '—';
   const date = value instanceof Date ? value : new Date(`${String(value).replace(' ', 'T')}Z`);
   if (Number.isNaN(date.getTime())) return '—';
 
+  const format = locale === 'en' ? RELATIVE_EN : RELATIVE_FR;
   const diff = date.getTime() - Date.now();
   const abs = Math.abs(diff);
   for (const { unit, ms } of RELATIVE_STEPS) {
-    if (abs >= ms) return RELATIVE_FR.format(Math.round(diff / ms), unit);
+    if (abs >= ms) return format.format(Math.round(diff / ms), unit);
   }
-  return "à l'instant";
+  return locale === 'en' ? 'just now' : "à l'instant";
 }

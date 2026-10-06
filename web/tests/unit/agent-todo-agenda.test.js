@@ -113,7 +113,7 @@ test('a visit overdue for more than 48h, or asked a week ago with no time, drops
   assert.equal(stale.length, 2);
   for (const item of stale) {
     assert.equal(item.primary.type, 'propose-slot');
-    assert.deepEqual(item.secondary, { type: 'close-visit', href: '/compte/agent/demandes?tab=visites' });
+    assert.deepEqual(item.secondary, { type: 'close-visit', href: '/compte/agent/demandes?filtre=a-traiter' });
   }
 });
 
@@ -163,7 +163,7 @@ test('the cap keeps the ranking and counts what is hidden, per kind, for "voir t
   assert.equal(todo.visible.length, 3, 'three rows on the overview, the rest behind one "voir les N actions" link');
   assert.equal(todo.total, 9);
   assert.deepEqual(todo.hiddenByKind, { [TODO_KINDS.VISIT]: 2, [TODO_KINDS.LEAD]: 3, [TODO_KINDS.LISTING_CONFIRM]: 1 });
-  assert.equal(TODO_SEE_ALL_HREF[TODO_KINDS.VISIT], '/compte/agent/demandes?tab=visites');
+  assert.equal(TODO_SEE_ALL_HREF[TODO_KINDS.VISIT], '/compte/agent/demandes?filtre=a-traiter');
   assert.equal(TODO_ALL_HREF, '/compte/agent/a-faire');
 });
 

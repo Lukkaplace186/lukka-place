@@ -34,6 +34,10 @@ const nextConfig = {
     // never caches HTML).
     staleTimes: {
       dynamic: 30,
+      // A tab fetched ahead by a `prefetch` Link (the agent tab bar,
+      // AgentSidebar) is shown for up to 60s without asking again — the
+      // default is 5 minutes, too long for an inbox. Actions still drop it.
+      static: 60,
     },
   },
   // Silences a workspace-root inference warning: the sibling package-lock.json

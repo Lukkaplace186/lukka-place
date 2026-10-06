@@ -4,10 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import { Download } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { buildListingShareMessage, buildWhatsAppShareLink } from '@/lib/whatsapp';
-import { getSharePackAction, recordListingSharesAction } from '@/app/compte/agent/shareActions';
+import { recordListingSharesAction } from '@/app/compte/agent/shareActions';
 import { formatFileName } from '@/lib/marketing/formats';
-import { fetchPackImages, loadSharePack, saveSharePack } from '@/lib/sharePack';
-import { decodeAssets, loadRenderFont, renderFlyer } from './marketing/CanvasRenderer';
+import { prepareListingCard } from '@/lib/listingCardCache';
 import { WhatsAppIcon } from './WhatsAppCTA';
 import { useToast } from './Toast';
 import { useT } from '@/lib/i18n/client';
@@ -20,8 +19,9 @@ const FORMAT = 'square';
  * standard share; a text message only unfurls into WhatsApp's small grey
  * link preview).
  *
- * Opens on the card itself, drawn in the browser exactly as the share kit
- * draws its square (lib/marketing/layout.js → CanvasRenderer), then ONE button
+ * Opens on the card itself, drawn in the browser (lib/marketing/layout.js →
+ * CanvasRenderer) and usually drawn already — lib/listingCardCache.js warms
+ * it while the agent scrolls Mes biens — then ONE button
  * hands the JPEG and the caption to the phone's share sheet → WhatsApp → a
  * chat, a group or "Mon statut". The image is ready BEFORE that tap, which is
  * what keeps iPhone Safari's share sheet working: `navigator.share` must run
@@ -55,59 +55,22 @@ export default function ListingQuickShare({ listing, caption, open, onOpenChange
   useEffect(() => {
     if (!open) return undefined;
     let cancelled = false;
-    const controller = new AbortController();
-    let assets = null;
-
-    (async () => {
-      let kit = null;
-      let blobs = null;
-      try {
-        const result = await getSharePackAction(listing.id);
-        if (result?.ok) {
-          kit = result;
-          blobs = await fetchPackImages(result.pack, { signal: controller.signal });
-          if (blobs.photos.length || !result.pack.photos.length) saveSharePack(listing.id, { kit: result, ...blobs });
-        } else if (result) {
-          // "Not yours" / gone: never papered over with a stored copy.
-          if (!cancelled) setState({ status: 'failed' });
-          return;
-        }
-      } catch (err) {
-        if (err?.name === 'AbortError' || cancelled) return;
-      }
-      if (!kit) {
-        const stored = await loadSharePack(listing.id);
-        if (stored) {
-          kit = stored.kit;
-          blobs = { photos: stored.photos || [], logo: stored.logo || null, mark: stored.mark || null, markLight: stored.markLight || null };
-        }
-      }
+    // Usually already drawn: the share button warms the card when it scrolls
+    // into view, the row menu when it opens (lib/listingCardCache.js).
+    prepareListingCard(listing).then((result) => {
       if (cancelled) return;
-      if (!kit?.shareable || !blobs) {
-        setState({ status: 'failed', kit });
+      if (result.status !== 'ready') {
+        setState({ status: 'failed', kit: result.kit });
         return;
       }
-      try {
-        const [family, decoded] = await Promise.all([loadRenderFont(), decodeAssets(blobs)]);
-        assets = decoded;
-        if (cancelled) return;
-        const { blob } = await renderFlyer(kit.pack, FORMAT, decoded, family);
-        if (cancelled) return;
-        if (urlRef.current) URL.revokeObjectURL(urlRef.current);
-        urlRef.current = URL.createObjectURL(blob);
-        setState({ status: 'ready', kit, blob, url: urlRef.current });
-      } catch {
-        if (!cancelled) setState({ status: 'failed', kit });
-      } finally {
-        for (const image of Object.values(assets?.images || {})) image?.close?.();
-      }
-    })();
-
+      if (urlRef.current) URL.revokeObjectURL(urlRef.current);
+      urlRef.current = URL.createObjectURL(result.blob);
+      setState({ status: 'ready', kit: result.kit, blob: result.blob, url: urlRef.current });
+    });
     return () => {
       cancelled = true;
-      controller.abort();
     };
-  }, [open, listing.id]);
+  }, [open, listing]);
 
   useEffect(
     () => () => {

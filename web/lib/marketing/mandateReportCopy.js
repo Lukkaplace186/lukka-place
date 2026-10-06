@@ -38,6 +38,26 @@ export function reportWindow(now = new Date()) {
   return { previousFrom, from, end, lastDay: new Date(today) };
 }
 
+/**
+ * The window since the listing went online (2026-10-06, product direction:
+ * the owner report is all-time, so it captures every visit, not the last 7
+ * days). Whole UTC days from the day of `createdAt` through today; there is
+ * no "previous" block (`previousFrom === from`), so nothing compares against
+ * a week that is not shown. A listing with no creation date falls back to
+ * LAUNCH_DAY, before which nothing was tracked.
+ */
+const LAUNCH_DAY = Date.UTC(2026, 0, 1);
+
+export function allTimeWindow(createdAt, now = new Date()) {
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const created = createdAt ? new Date(createdAt) : null;
+  const start = created && !Number.isNaN(created.getTime())
+    ? Date.UTC(created.getUTCFullYear(), created.getUTCMonth(), created.getUTCDate())
+    : LAUNCH_DAY;
+  const from = new Date(Math.min(start, today));
+  return { previousFrom: from, from, end: new Date(today + DAY_MS), lastDay: new Date(today), allTime: true };
+}
+
 const dayMonth = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', timeZone: 'UTC' });
 const dayMonthYear = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
 
@@ -89,13 +109,15 @@ export function buildMandateReport(listing, counts, { typeText, brand, window, s
     const value = counts.current?.[key];
     const previous = counts.previous?.[key];
     if (value == null) return { key, label, value: '—', note: 'Non disponible pour le moment' };
+    if (window.allTime) return { key, label, value: count(value), note: null };
     return { key, label, value: count(value), note: previous == null ? null : `Semaine précédente : ${count(previous)}` };
   });
   return {
     listingId: Number(listing.id),
     title: [typeText, place].filter(Boolean).join(' • ') || listing.title || `Annonce ${listing.id}`,
     priceText: formatPrice(listing.price, listing.purpose, listing.price_period),
-    periodText: `7 derniers jours · ${periodText(window)}`,
+    periodText: window.allTime ? `Depuis la mise en ligne · ${periodText(window)}` : `7 derniers jours · ${periodText(window)}`,
+    allTime: Boolean(window.allTime),
     tiles,
     live: !shareBlocker(listing),
     statusText: statusText(listing),
@@ -116,7 +138,8 @@ export function buildMandateCaption(listing, report, counts) {
     if (value == null) {
       lines.push(`${caption} : non disponible pour le moment`);
     } else {
-      lines.push(`${caption} : *${count(value)}*${previous == null ? '' : ` (semaine précédente : ${count(previous)})`}`);
+      const compare = report.allTime || previous == null ? '' : ` (semaine précédente : ${count(previous)})`;
+      lines.push(`${caption} : *${count(value)}*${compare}`);
     }
   }
   if (report.shareText) lines.push(`📣 ${report.shareText} par l’agent depuis Lukka Place`);

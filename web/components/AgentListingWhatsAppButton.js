@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useT } from '@/lib/i18n/client';
 import { WhatsAppIcon } from './WhatsAppCTA';
 import ListingQuickShare from './ListingQuickShare';
+import { warmListingCard } from '@/lib/listingCardCache';
 
 /**
  * Mes biens' "Partager sur WhatsApp". Since 2026-10-06 it opens
@@ -28,10 +29,28 @@ import ListingQuickShare from './ListingQuickShare';
 export default function AgentListingWhatsAppButton({ listing, caption, className, children, onDone, onOpenShare }) {
   const t = useT();
   const [open, setOpen] = useState(false);
+  const buttonRef = useRef(null);
+
+  // Draw the card in the background once the button is on screen, so the
+  // tap opens on a finished card (lib/listingCardCache.js decides whether the
+  // connection allows it).
+  useEffect(() => {
+    const node = buttonRef.current;
+    if (!node || typeof IntersectionObserver === 'undefined') return undefined;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        warmListingCard(listing);
+        observer.disconnect();
+      }
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [listing]);
 
   return (
     <>
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => {
           onDone?.();

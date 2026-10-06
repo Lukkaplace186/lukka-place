@@ -26,7 +26,7 @@ const CATEGORY_LANGUAGE_ID = 26;
 
 const FLYER_SELECT = `SELECT p.id, p.price, p.purpose, p.price_period, p.beds, p.bath, p.area, p.units_count,
             p.quartier, p.parcelle_subtype, p.reference, p.deposit_months, p.advance_months,
-            p.commission_months, p.featured_image, p.status, p.approve_status, p.listing_status,
+            p.commission_months, p.featured_image, p.status, p.approve_status, p.listing_status, p.created_at,
             pc.title, catc.name AS category_name,
             -- The agent's own brand for the flyer's logo slot. The phone is
             -- only printed under the same rule the public listing page uses

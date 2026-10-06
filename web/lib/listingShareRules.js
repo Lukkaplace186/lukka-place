@@ -21,7 +21,8 @@ import { SITE_URL } from './constants';
 /** channel → the formats it can carry. */
 export const CHANNEL_FORMATS = Object.freeze({
   // `watermarked_photo`: one listing photo with the agent's band ("Photos
-  // avec mon logo", lib/marketing/watermark.js).
+  // avec mon logo", removed 2026-10-06). Kept so the DB CHECK and old rows
+  // still agree; nothing records it any more.
   kit_share: Object.freeze(['square', 'story', 'landscape', 'watermarked_photo']),
   kit_download: Object.freeze(['square', 'story', 'landscape', 'watermarked_photo']),
   kit_whatsapp: Object.freeze(['text']),

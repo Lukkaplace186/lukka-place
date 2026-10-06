@@ -432,9 +432,8 @@
       "referenceTag": "Ref: {reference}",
       "entryTerms": "Entry terms",
       "entryTermsMonths": "{parts} months",
-      "entryTermsChip": "Deposit {parts} months",
-      "type": "Type",
-      "entryItemizedChip": "Entry {parts} months"
+      "entryTermsChip": "Move-in {parts} months",
+      "type": "Type"
     },
     "entryCosts": {
       "heading": "Financial Terms",

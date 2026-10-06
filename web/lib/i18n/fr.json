@@ -433,8 +433,7 @@
       "entryTerms": "Conditions d'entrée",
       "entryTermsMonths": "{parts} mois",
       "entryTermsChip": "Garantie {parts} mois",
-      "type": "Type",
-      "entryItemizedChip": "Entrée {parts} mois"
+      "type": "Type"
     },
     "entryCosts": {
       "heading": "Conditions financières",

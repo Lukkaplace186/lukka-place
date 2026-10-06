@@ -199,22 +199,6 @@ export function entryTerms(listing) {
   };
 }
 
-/**
- * The entry terms the listing states, in the local notation and never summed
- * (see entryTerms): "Entrée 3 + 1 + 1 mois" when more than the deposit is
- * stated, "Garantie 4 mois" when only the deposit is. It used to read
- * "Garantie 3 + 1 + 1 mois" in both cases, which named the whole entry
- * package the deposit — the confusion the engine's three-way split was made
- * to remove. A sale has none. Used by the feed card and the map card.
- */
-export function entryChipLabel(listing, t) {
-  const terms = listing?.purpose === 'rent' ? entryTerms(listing) : null;
-  if (!terms) return null;
-  return terms.itemized
-    ? t('listings.facts.entryItemizedChip', { parts: terms.parts.join(' + ') })
-    : t('listings.facts.entryTermsChip', { parts: terms.parts[0] });
-}
-
 /** A month count that is really a number. '' and null both mean "not stated". */
 function monthsValue(value) {
   if (value === null || value === undefined || value === '') return null;

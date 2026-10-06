@@ -2507,24 +2507,26 @@ structure; desktop layouts are unchanged unless stated.
   `PropertyTypeTiles` (one tile per type with listings, counts from the same
   `getPropertyTypeFacets` as the hero dropdown) sits above "Notre approche",
   which is now three numbered cards (copy unchanged).
-- **Entry chip** (`entryChipLabel`, lib/listingView.js; feed card and map
-  card): "Entrée 3 + 1 + 1 mois" when more than the deposit is stated,
-  "Garantie 4 mois" when only the deposit is. It read "Garantie 3 + 1 + 1
-  mois" for both, naming the whole entry package the deposit. It takes the
-  first chip slot (amber), before amenity matches.
+- **Card chips, rolled back the same day** (product direction: "too
+  clustered"): feed cards show amenity matches only, and only when there is
+  one — no entry-terms chip, no "À louer" chip (the card had both before the
+  upgrade too; they were removed, not restored). Map cards are as before the
+  upgrade. A card with no amenity match now has no chip row, so cards in a
+  rail can differ by one row in height; the action bar still aligns
+  (`mt-auto`).
 - **Phone map**: Prix · Chambres · Type chips under the search
   (`components/MapQuickFilters.js`, `lib/mapQuickFilters.js`) open a small
   sheet and push the new param, keeping every other filter and the map area;
   `page` is dropped. Types are the real facets (passed down from
-  /listings/page.js through ListingsSplitView). Map cards show the entry chip.
+  /listings/page.js through ListingsSplitView).
 - **Listing page (phone)**: a sticky section strip under the header,
   Aperçu · Coûts · Caractéristiques · Emplacement
   (`components/listings/ListingSectionNav.js`, IntersectionObserver
   scroll-spy), naming only sections that render — "Coûts" only when
   `entryCostBreakdown` is non-null. Anchors: `#apercu` (the facts card),
   `#couts` (EntryCostsBreakdown), `#caracteristiques`, `#emplacement`.
-  KeyFacts below `md` is one row of up to three big counts (beds, baths,
-  doors or m², `phoneFactLayout` in lib/keyFactsGrid.js) plus label/value
-  rows; the md+ grid is unchanged. "Voir les N photos" opens a photo grid
+  KeyFacts is the original two-column grid on phones (a compact row of
+  counts was tried and rolled back the same day, on product direction).
+  "Voir les N photos" opens a photo grid
   (PhotoGallery, phone only) whose tiles open the lightbox.
 - Tests: `tests/unit/storefront-upgrade.test.js`.

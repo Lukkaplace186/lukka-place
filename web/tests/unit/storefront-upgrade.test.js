@@ -3,11 +3,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { entryChipLabel } from '@/lib/listingView';
 import { understoodChips } from '@/lib/searchUnderstood';
 import { parseSearchQuery } from '@/lib/searchParser';
 import { mapFilterHref } from '@/lib/mapQuickFilters';
-import { phoneFactLayout } from '@/lib/keyFactsGrid';
 
 /**
  * The storefront upgrade (2026-10-06, prototype in
@@ -25,19 +23,11 @@ const lookup = (key, vars = {}) => {
 };
 const t = Object.assign(lookup, { locale: 'fr' });
 
-test('the entry chip never calls the whole entry package the deposit', () => {
-  const rent = { purpose: 'rent', deposit_months: 3, advance_months: 1, commission_months: 1 };
-  assert.equal(entryChipLabel(rent, t), 'Entrée 3 + 1 + 1 mois');
-  assert.equal(entryChipLabel({ purpose: 'rent', deposit_months: 4 }, t), 'Garantie 4 mois');
-  assert.equal(entryChipLabel({ purpose: 'rent', deposit_months: 4, advance_months: 1 }, t), 'Entrée 4 + 1 mois');
-  assert.equal(entryChipLabel({ purpose: 'sale', deposit_months: 3 }, t), null, 'a sale has no entry costs');
-  assert.equal(entryChipLabel({ purpose: 'rent' }, t), null);
-});
-
-test('the entry chip takes the first slot on the card, before amenities', () => {
+test('listing cards carry no entry-terms or "À louer" chip (rolled back 2026-10-06)', () => {
   const card = read('components/PropertyCard.js');
-  assert.match(card, /matchedAmenities\(listing, entry \? 2 : 3\)/);
-  assert.doesNotMatch(card, /entryTermsChip', \{ parts: terms\.parts\.join/);
+  assert.doesNotMatch(card, /entryTermsChip|entryItemizedChip|cardFactChips|listings\.transaction\.rent/);
+  assert.match(card, /matchedAmenities\(listing, 3\)/);
+  assert.doesNotMatch(read('components/MapCardCarousel.js'), /entryChipLabel/);
 });
 
 test('the search card reads back what it understood, and nothing it did not', () => {
@@ -66,11 +56,10 @@ test('map quick filters keep every other param, including the map area', () => {
   assert.equal(new URLSearchParams(mapFilterHref('?property_type=parcelle&parcelle_subtype=villa', 'property_type', 'maison').split('?')[1]).get('parcelle_subtype'), null);
 });
 
-test('phone key facts: up to three counts in a row, the rest as rows', () => {
-  const items = [{ key: 'type' }, { key: 'beds' }, { key: 'bath' }, { key: 'area' }, { key: 'units' }, { key: 'reference' }];
-  const { counts, rows } = phoneFactLayout(items);
-  assert.deepEqual(counts.map((i) => i.key), ['beds', 'bath', 'units']);
-  assert.deepEqual(rows.map((i) => i.key), ['type', 'area', 'reference']);
+test('key facts are the two-column grid again on phones (rolled back 2026-10-06)', () => {
+  const facts = read('components/KeyFacts.js');
+  assert.doesNotMatch(facts, /phoneFactLayout|md:hidden/);
+  assert.match(facts, /grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-line md:grid-cols-4/);
 });
 
 test('the phone section strip only names sections that render', () => {

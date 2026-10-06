@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { formatDistance } from '@/lib/landmarks';
 import Link from 'next/link';
-import { Camera, KeyRound, Wallet } from 'lucide-react';
+import { Camera } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import CardImageCarousel from './CardImageCarousel';
 import FavoriteButton from './FavoriteButton';
@@ -17,7 +17,7 @@ import SpecItem, { SpecCell } from './SpecItem';
 import { useT } from '@/lib/i18n/client';
 import { CardBadges, AmenityTag } from './ListingBadges';
 import {
-  listingImages, formatFreshness, specItems, typeLabel, feedLocationLine, matchedAmenities, entryChipLabel,
+  listingImages, formatFreshness, specItems, typeLabel, feedLocationLine, matchedAmenities,
 } from '@/lib/listingView';
 import { cn } from '@/lib/utils';
 
@@ -54,9 +54,9 @@ import { cn } from '@/lib/utils';
  * corrected: the chips are the highest-value content on the card, and the
  * height is bought back elsewhere instead — the converted-currency figure
  * went back inline rather than stacked (~16px). The chip row is one row
- * tall on every card (2026-09-24): a card with no chip row read as empty
- * beside one with chips, so free slots now carry the listing's own entry
- * terms or purpose instead of vanishing.
+ * shown only when the listing matches an amenity (2026-10-06): the entry
+ * terms and "À louer" chips that used to fill its free slots were removed on
+ * product direction — the card read as cluttered with them.
  *
  * Contact CTAs are on the card, reversing an earlier note here that
  * deferred all contact to the listing page's EnquiryCard / MobileListingBar.
@@ -107,12 +107,7 @@ export default function PropertyCard({
   const type = typeLabel(listing, t);
   const where = feedLocationLine(listing);
   const freshness = formatFreshness(createdAt, t);
-  // The entry terms come first and always have a slot (2026-10-06): what is
-  // due on entry is the first question a renter in Kinshasa asks, and three
-  // amenity matches used to push it off the card entirely.
-  const entry = entryChipLabel(listing, t);
-  const amenities = matchedAmenities(listing, entry ? 2 : 3);
-  const factChips = cardFactChips(listing, 3 - amenities.length - (entry ? 1 : 0), t);
+  const amenities = matchedAmenities(listing, 3);
   // Only when this listing genuinely has an agency attached. AgencyLogo's own
   // no-agent fallback is the Lukka Place wordmark, which is honest on a
   // detail page but wrong in a feed — an unconditional slot would stamp the
@@ -369,35 +364,18 @@ export default function PropertyCard({
             wraps (`flex-wrap`) and each chip is `shrink-0 whitespace-nowrap`,
             so on a 320px screen a third chip drops to a second line intact
             rather than compressing or clipping the other two. */}
-        {/* Always rendered, always exactly one row tall (`h-6` + wrap +
-            overflow-hidden: a chip that would wrap drops out of sight whole
-            rather than being clipped mid-label). Before, a listing matching
-            no amenity simply had no row, so on the homepage rail its
-            neighbour's chips left it with a band of blank card above the
-            buttons (reported 2026-09-24). The slots amenities leave free are
-            filled from the listing's own structured data — its stated entry
-            terms, then whether it is to let or for sale — never an invented
-            feature (cardFactChips below). */}
-        <div className="flex h-6 flex-wrap items-center gap-1.5 overflow-hidden">
-          {entry ? (
-            <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-warning-tint px-2.5 py-1 text-[0.6875rem] font-bold leading-none text-warning-ink">
-              <Wallet strokeWidth={ICON_STROKE_WIDTH} className="h-3 w-3 shrink-0" aria-hidden="true" />
-              {entry}
-            </span>
-          ) : null}
-          {amenities.map(({ key, matched }) => (
-            <AmenityTag key={key} amenityKey={key} matched={matched} size="compact" />
-          ))}
-          {factChips.map(({ key, icon: Icon, label }) => (
-            <span
-              key={key}
-              className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-line bg-canvas-alt px-2.5 py-1 text-[0.6875rem] font-medium leading-none text-ink"
-            >
-              <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-3 w-3 shrink-0" aria-hidden="true" />
-              {label}
-            </span>
-          ))}
-        </div>
+        {/* Amenity matches only, and only when there is one (2026-10-06,
+            product direction: the entry-terms and "À louer" chips that used to
+            fill the free slots made the card read as cluttered). One row tall
+            at most (`h-6` + wrap + overflow-hidden: a chip that would wrap
+            drops out of sight whole rather than being clipped mid-label). */}
+        {amenities.length > 0 ? (
+          <div className="flex h-6 flex-wrap items-center gap-1.5 overflow-hidden">
+            {amenities.map(({ key, matched }) => (
+              <AmenityTag key={key} amenityKey={key} matched={matched} size="compact" />
+            ))}
+          </div>
+        ) : null}
 
         {(freshness || reference) ? (
           // One line, whatever the reference's length: the date keeps its
@@ -468,22 +446,4 @@ export default function PropertyCard({
     </Link>
     </div>
   );
-}
-
-/**
- * Chips for the slots the entry terms and amenity matches leave free, from
- * structured facts only: whether the listing is to let or for sale. Nothing
- * here is inferred from text.
- */
-function cardFactChips(listing, slots, t) {
-  if (slots <= 0) return [];
-  const chips = [];
-  if (listing.purpose === 'rent' || listing.purpose === 'sale') {
-    chips.push({
-      key: 'purpose',
-      icon: KeyRound,
-      label: t(listing.purpose === 'rent' ? 'listings.transaction.rent' : 'listings.transaction.sale'),
-    });
-  }
-  return chips.slice(0, slots);
 }

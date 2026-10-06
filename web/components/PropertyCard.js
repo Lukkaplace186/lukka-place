@@ -134,7 +134,12 @@ export default function PropertyCard({
     // this card's own rendered width, not a caller's grid — the card is
     // dropped into panes of very different widths (/favoris full bleed, the
     // /listings results column beside a 400px map) and must self-correct.
-    <div className={cn('@container', horizontal && 'w-full')}>
+    // h-full: in a rail (RecentlyViewed, SavedListingsRail, the featured
+    // carousel) the cards' wrappers stretch to the tallest card, and without
+    // it a shorter card ended early and left a blank band under itself —
+    // read as dead space between homepage sections (2026-10-06). Ignored
+    // where the parent has no definite height.
+    <div className={cn('@container h-full', horizontal && 'w-full')}>
     <Link
       href={`/listings/${id}`}
       // Mouse only, for the same iOS reason as CardImageCarousel's

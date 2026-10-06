@@ -1,7 +1,6 @@
 /**
- * Glyph paths shared by the server flyer (app/compte/agent/biens/[id]/visuel,
- * as SVG data URIs) and the browser renderer (components/marketing/CanvasRenderer.js,
- * as Path2D). Both on a 24×24 grid.
+ * Glyph paths for the browser renderer (components/marketing/CanvasRenderer.js,
+ * as Path2D), on a 24×24 grid.
  *
  * The WhatsApp path is the same one components/WhatsAppCTA.js hand-rolls —
  * this lucide version ships no brand glyphs. Drawn rather than typed because
@@ -13,3 +12,29 @@ export const WHATSAPP_PATH =
 /** lucide "check", stroked at CHECK_STROKE_WIDTH with round caps and joins. */
 export const CHECK_PATH = 'M20 6 9 17l-5-5';
 export const CHECK_STROKE_WIDTH = 3.5;
+
+/**
+ * Line icons for the listing card (2026-10-06 redesign), copied from the
+ * lucide-react version this app ships (map-pin, bed, bath, maximize,
+ * door-closed) so the graphic speaks the same icon language as the site.
+ * Stroked at LINE_ICON_STROKE_WIDTH on the 24×24 grid, round caps and joins.
+ * The map pin's circle is written as two arcs, since Path2D takes paths only.
+ */
+export const LINE_ICONS = Object.freeze({
+  pin: [
+    'M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0',
+    'M15 10a3 3 0 1 1-6 0a3 3 0 1 1 6 0',
+  ],
+  bed: ['M2 4v16', 'M2 8h18a2 2 0 0 1 2 2v10', 'M2 17h20', 'M6 8v9'],
+  bath: [
+    'M10 4 8 6',
+    'M17 19v2',
+    'M2 12h20',
+    'M7 19v2',
+    'M9 5 7.621 3.621A2.121 2.121 0 0 0 4 5v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-5',
+  ],
+  area: ['M8 3H5a2 2 0 0 0-2 2v3', 'M21 8V5a2 2 0 0 0-2-2h-3', 'M3 16v3a2 2 0 0 0 2 2h3', 'M16 21h3a2 2 0 0 0 2-2v-3'],
+  door: ['M10 12h.01', 'M18 20V6a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v14', 'M2 20h20'],
+});
+
+export const LINE_ICON_STROKE_WIDTH = 2.25;

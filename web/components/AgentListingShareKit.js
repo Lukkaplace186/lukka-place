@@ -60,11 +60,13 @@ function releaseAssets(assets) {
  *                         the counts cover and what they do not.
  *
  * The everyday "send this listing on WhatsApp" is NOT here: it is the card's
- * own direct button (AgentListingWhatsAppButton), one tap to wa.me.
+ * own button (AgentListingWhatsAppButton → ListingQuickShare), which sends
+ * this same square card with its caption.
  *
- * The server flyer (/compte/agent/biens/:id/visuel) stays as the square
- * fallback when the browser cannot draw (a failed decode, an old canvas), and
- * only while online.
+ * The browser is the only renderer. The server flyer that used to be the
+ * square fallback (/compte/agent/biens/:id/visuel) was retired with the
+ * 2026-10-06 card redesign rather than kept drawing the old design; a phone
+ * that cannot draw gets the "image failed" note and the caption.
  *
  * Sharing: Web Share with the JPEG attached. On a phone that is the system
  * sheet → WhatsApp → "Mon statut" (or a chat, a broadcast list, a Facebook
@@ -147,7 +149,7 @@ export default function AgentListingShareKit({ listingId, open, onOpenChange }) 
       }
       setKit(stored.kit);
       setSource({ type: 'cache', at: packTimestamp(stored.kit) ?? stored.savedAt });
-      setBlobs({ photos: stored.photos || [], logo: stored.logo || null, mark: stored.mark || null });
+      setBlobs({ photos: stored.photos || [], logo: stored.logo || null, mark: stored.mark || null, markLight: stored.markLight || null });
     })();
 
     return () => {
@@ -225,11 +227,9 @@ export default function AgentListingShareKit({ listingId, open, onOpenChange }) 
     onOpenChange(next);
   }
 
-  // The server-drawn square, only when the browser could not draw and the
-  // server is reachable.
-  const serverFallback = renderFailed && format === 'square' && source?.type === 'live';
-  const serverImageSrc = `/compte/agent/biens/${listingId}/visuel`;
-  const previewSrc = preview?.format === format ? preview.url : serverFallback ? serverImageSrc : null;
+  // The browser is the only renderer (the server flyer was retired with the
+  // 2026-10-06 card redesign); when it cannot draw, the caption still works.
+  const previewSrc = preview?.format === format ? preview.url : null;
 
   const captionFor = (channel) => kit?.copies?.[channel] || kit?.copy || '';
 
@@ -256,14 +256,8 @@ export default function AgentListingShareKit({ listingId, open, onOpenChange }) 
   }
 
   async function flyerFile() {
-    if (preview?.format === format) {
-      return new File([preview.blob], formatFileName(listingId, format), { type: 'image/jpeg' });
-    }
-    if (!serverFallback) throw new Error('no graphic');
-    const res = await fetch(serverImageSrc, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`flyer ${res.status}`);
-    const blob = await res.blob();
-    return new File([blob], formatFileName(listingId, format), { type: blob.type || 'image/jpeg' });
+    if (preview?.format !== format) throw new Error('no graphic');
+    return new File([preview.blob], formatFileName(listingId, format), { type: 'image/jpeg' });
   }
 
   function saveFile(file) {

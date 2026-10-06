@@ -2210,6 +2210,16 @@
         "unavailable": "The live report is not available yet.",
         "error": "Something went wrong. Try again."
       }
+    },
+    "quickShare": {
+      "title": "Share on WhatsApp",
+      "description": "Your listing as an image, with its text as the caption.",
+      "preparing": "Preparing the image…",
+      "share": "Share on WhatsApp",
+      "download": "Download the image",
+      "textOnly": "Send the text only",
+      "hint": "The text is copied at the same time: if WhatsApp does not show it under the image, paste it.",
+      "imageFailed": "The image could not be prepared. You can send the text instead."
     }
   },
   "status": {

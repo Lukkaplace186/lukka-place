@@ -1,11 +1,7 @@
 import 'server-only';
-import { readFile } from 'node:fs/promises';
-import path from 'node:path';
 import { getPool } from './db';
-import { listingImages, typeLabel, usableImageSrc } from './listingView';
-import { NO_PHOTO_URL, SITE_URL } from './constants';
+import { typeLabel } from './listingView';
 import { createTranslator } from './i18n/translate';
-import { sniffDocumentType } from './verificationLevels';
 import { AGENCY_NAME_EXPR, AGENT_INFOS_JOIN } from './listings';
 import { displayableAgencyName } from './agentIdentity';
 import { agentContactPhone } from './listingShareCopy';
@@ -13,8 +9,12 @@ import { isVerifiedLevel } from './verificationLevels';
 import fr from './i18n/fr.json';
 
 /**
- * Data and assets for the agent's square social graphic
- * (app/compte/agent/biens/[id]/visuel/route.js).
+ * The rows and brand fields behind the agent's listing graphics and captions
+ * (app/compte/agent/shareActions.js → the share pack the browser draws from,
+ * lib/marketing/sharePackData.js; the print pages; the "!share" command). The
+ * server-drawn flyer that used to live at /compte/agent/biens/:id/visuel was
+ * retired on 2026-10-06 with the card redesign: the browser renderer is the
+ * only one, so there is one design to keep right.
  *
  * Ownership is in the SQL: `p.agent_id = $3`, the same rule lib/agentListings.js
  * applies to every statement, so a guessed listing id returns nothing rather
@@ -87,103 +87,11 @@ export function frenchTypeText(listing) {
 }
 
 // ---------------------------------------------------------------------------
-// Photos
+// Agent brand
 // ---------------------------------------------------------------------------
 
 /**
- * Only our own storage hosts. The URLs come from our own write paths, but the
- * server is about to fetch whatever the row says, and a row is not a place a
- * server should take an arbitrary URL from.
- */
-function allowedPhotoHosts() {
-  const hosts = new Set(['lukkaplace.com', 'www.lukkaplace.com']);
-  try {
-    if (process.env.SUPABASE_URL) hosts.add(new URL(process.env.SUPABASE_URL).host);
-  } catch {
-    // A malformed SUPABASE_URL just means no Supabase photos on the flyer.
-  }
-  return hosts;
-}
-
-/**
- * JPEG and PNG only, identified by magic bytes (the same sniffer verification
- * uploads use). The flyer renderer (satori, behind next/og) decodes those
- * reliably; anything else — including a 200 HTML error page — is skipped
- * rather than risking a broken tile. Every stored photo checked in production
- * is .jpg or .png.
- */
-const FLYER_IMAGE_TYPES = ['image/jpeg', 'image/png'];
-
-function flyerImageType(buffer) {
-  const kind = sniffDocumentType(buffer.subarray(0, 16));
-  return kind && FLYER_IMAGE_TYPES.includes(kind.mime) ? kind.mime : null;
-}
-
-const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
-
-/**
- * sharp ships with Next (the image optimiser uses it) and is present in both
- * deployed web directories. It buys three things the flyer needs:
- * WebP → PNG/JPEG (satori decodes neither WebP nor AVIF), EXIF rotation (a
- * phone photo otherwise renders on its side — satori ignores orientation),
- * and a resize, so three 8 MB photos don't become a 30 MB base64 payload.
- *
- * It is optional: if the import fails, a JPEG or PNG still renders as it was
- * downloaded and anything else is skipped.
- */
-async function normaliseImage(buffer, { maxWidth, transparent = false }) {
-  try {
-    const { default: sharp } = await import('sharp');
-    const pipeline = sharp(buffer).rotate().resize({ width: maxWidth, withoutEnlargement: true });
-    const out = transparent ? await pipeline.png().toBuffer() : await pipeline.jpeg({ quality: 82 }).toBuffer();
-    return `data:${transparent ? 'image/png' : 'image/jpeg'};base64,${out.toString('base64')}`;
-  } catch {
-    const type = flyerImageType(buffer);
-    return type ? `data:${type};base64,${buffer.toString('base64')}` : null;
-  }
-}
-
-async function fetchImageBuffer(src, hosts) {
-  let url;
-  try {
-    url = new URL(src, SITE_URL);
-  } catch {
-    return null;
-  }
-  if (url.protocol !== 'https:' || !hosts.has(url.host)) return null;
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(6000), cache: 'no-store' });
-    if (!res.ok) return null;
-    const buffer = Buffer.from(await res.arrayBuffer());
-    return buffer.length > MAX_PHOTO_BYTES ? null : buffer;
-  } catch {
-    return null;
-  }
-}
-
-async function fetchPhotoDataUri(src, hosts) {
-  const buffer = await fetchImageBuffer(src, hosts);
-  return buffer ? normaliseImage(buffer, { maxWidth: 1080 }) : null;
-}
-
-/**
- * Up to three real photos, cover first. Fewer is fine and the layout adapts;
- * zero renders a branded panel — never a stock photo standing in for a
- * property nobody photographed.
- */
-export async function loadFlyerPhotos(listing, max = 3) {
-  const hosts = allowedPhotoHosts();
-  const candidates = listingImages(listing).filter((src) => src !== NO_PHOTO_URL).slice(0, max + 3);
-  const results = await Promise.all(candidates.map((src) => fetchPhotoDataUri(src, hosts)));
-  return results.filter(Boolean).slice(0, max);
-}
-
-// ---------------------------------------------------------------------------
-// The agent's own brand
-// ---------------------------------------------------------------------------
-
-/**
- * What goes in the flyer's brand block: the agent's logo (or profile photo),
+ * What goes in the card's brand block: the agent's logo (or profile photo),
  * their name, and their phone.
  *
  * This slot held a QR code. It was dropped on an explicit product decision:
@@ -204,16 +112,14 @@ export async function loadFlyerPhotos(listing, max = 3) {
  * agent gets no badge at all rather than an unbacked trust mark, which is the
  * whole reason the badge is worth anything to the agents who do hold it.
  *
- * @returns {Promise<{logo: string|null, name: string|null, initials: string|null,
- *                    phone: string|null, badge: string|null}>}
  */
 const BADGE_LABELS = { verified: 'Agent vérifié', agency_partner: 'Agence partenaire' };
 
 /**
- * The brand block's text fields, with no fetch. Shared by the server flyer
- * (loadAgentBrand, which adds the logo as a data URI) and the share pack the
- * browser draws from (lib/marketing/sharePackData.js, which sends the logo's
- * URL instead).
+ * The brand block's text fields, with no fetch. The share pack
+ * (lib/marketing/sharePackData.js) sends the logo's URL beside them.
+ *
+ * @returns {{name: string|null, initials: string|null, phone: string|null, badge: string|null}}
  */
 export function agentBrandFields(listing) {
   const name = displayableAgencyName(listing?.agency_name);
@@ -231,96 +137,15 @@ export function agentBrandFields(listing) {
   return { name, initials, phone, badge };
 }
 
-export async function loadAgentBrand(listing) {
-  const { name, initials, phone, badge } = agentBrandFields(listing);
-  let logo = null;
-  if (usableImageSrc(listing?.agent_image)) {
-    const buffer = await fetchImageBuffer(listing.agent_image, allowedPhotoHosts());
-    // PNG, not JPEG: a logo with a transparent background must keep it, or it
-    // renders on a black box inside its white card.
-    if (buffer) logo = await normaliseImage(buffer, { maxWidth: 400, transparent: true });
-  }
-
-  return { logo, name, initials, phone, badge };
-}
-
 // ---------------------------------------------------------------------------
 // The Lukka Place mark
 // ---------------------------------------------------------------------------
 
 /**
- * The roofline chevron from the supplied logo, in its white cut
- * (public/brand/icon-dark.png, 846×423, alpha-transparent — see
- * components/Brand.js). The flyer sets it above the "Lukka Place" wordmark
- * text, which rebuilds the real lockup (roof over name) without printing the
- * name twice, as the full wordmark PNG would. The coloured cut is not used: its
- * blue disappears on the royal blue card.
- *
- * Read from disk once per process. A missing file resolves to null and the
- * footer renders as text alone.
+ * The roofline chevron from the supplied logo (components/Brand.js), as
+ * same-origin paths the share pack hands the browser renderer: the white cut
+ * for a blue ground, and the blue + green cut for the listing card's white
+ * contact bar (lib/marketing/layout.js).
  */
-export const PLATFORM_MARK_ASPECT = 846 / 423;
 export const PLATFORM_MARK_PATH = '/brand/icon-dark.png';
-let platformMarkPromise = null;
-
-export function loadPlatformMark() {
-  if (!platformMarkPromise) {
-    platformMarkPromise = readFile(path.join(process.cwd(), 'public', PLATFORM_MARK_PATH))
-      .then((buffer) => `data:image/png;base64,${buffer.toString('base64')}`)
-      .catch((err) => {
-        console.error(`[flyer] platform mark unreadable: ${err.message}`);
-        platformMarkPromise = null;
-        return null;
-      });
-  }
-  return platformMarkPromise;
-}
-
-// ---------------------------------------------------------------------------
-// Fonts
-// ---------------------------------------------------------------------------
-
-/**
- * Plus Jakarta Sans — the storefront's UI face — in the two weights the flyer
- * uses, fetched once per process from Google Fonts (OFL) and kept in memory.
- * next/font only ships woff2 into the client bundle, which satori cannot read,
- * so the TrueType files are requested directly; Google serves TTF to a client
- * that does not claim to be a modern browser.
- *
- * A failed fetch resolves to [] and the flyer renders in next/og's bundled
- * default face. A slightly plainer graphic beats no graphic.
- */
-let fontsPromise = null;
-
-export function loadFlyerFonts() {
-  if (!fontsPromise) {
-    fontsPromise = fetchJakarta().catch((err) => {
-      console.error(`[flyer] font fetch failed, using default face: ${err.message}`);
-      fontsPromise = null; // retry on a later request
-      return [];
-    });
-  }
-  return fontsPromise;
-}
-
-async function fetchJakarta() {
-  const cssRes = await fetch('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;800', {
-    headers: { 'User-Agent': 'Mozilla/4.0' },
-    signal: AbortSignal.timeout(5000),
-  });
-  if (!cssRes.ok) throw new Error(`css ${cssRes.status}`);
-  const css = await cssRes.text();
-
-  const faces = [...css.matchAll(/font-weight:\s*(\d+);[\s\S]*?src:\s*url\(([^)]+)\)/g)];
-  const wanted = new Map(faces.map(([, weight, src]) => [Number(weight), src]));
-  const fonts = [];
-  for (const weight of [500, 800]) {
-    const src = wanted.get(weight);
-    if (!src) continue;
-    const res = await fetch(src, { signal: AbortSignal.timeout(5000) });
-    if (!res.ok) continue;
-    fonts.push({ name: 'Jakarta', data: await res.arrayBuffer(), weight, style: 'normal' });
-  }
-  if (!fonts.length) throw new Error('no TrueType faces in the stylesheet');
-  return fonts;
-}
+export const PLATFORM_MARK_LIGHT_PATH = '/brand/icon-light.png';

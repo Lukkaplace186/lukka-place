@@ -3,7 +3,7 @@
 import { buildFlyerOps, buildReportOps } from '@/lib/marketing/layout';
 import { buildWatermarkOps, watermarkSize } from '@/lib/marketing/watermark';
 import { EXPORT_BYTE_BUDGET, EXPORT_JPEG_QUALITY } from '@/lib/marketing/formats';
-import { CHECK_PATH, CHECK_STROKE_WIDTH, WHATSAPP_PATH } from '@/lib/marketing/icons';
+import { CHECK_PATH, CHECK_STROKE_WIDTH, LINE_ICONS, LINE_ICON_STROKE_WIDTH, WHATSAPP_PATH } from '@/lib/marketing/icons';
 
 /**
  * Paints lib/marketing/layout.js's draw operations onto a canvas, in the
@@ -24,7 +24,7 @@ const FALLBACK_FAMILY = "'Plus Jakarta Sans', system-ui, sans-serif";
 
 /**
  * The page's own Plus Jakarta Sans, as next/font named it (a hashed family
- * behind `--font-jakarta`), loaded in both weights the graphics use. Offline
+ * behind `--font-jakarta`), loaded in the four weights the graphics use. Offline
  * this still works: next/font self-hosts the files under /_next/static, which
  * the service worker caches.
  */
@@ -33,7 +33,7 @@ export async function loadRenderFont() {
   try {
     const declared = getComputedStyle(document.documentElement).getPropertyValue('--font-jakarta').trim();
     if (declared) family = declared;
-    await Promise.all([500, 800].map((weight) => document.fonts.load(`${weight} 40px ${family}`)));
+    await Promise.all([500, 600, 700, 800].map((weight) => document.fonts.load(`${weight} 40px ${family}`)));
   } catch {
     // Canvas falls back through the stack; a plainer face beats no graphic.
   }
@@ -65,11 +65,12 @@ async function decode(blob) {
  * Decodes once, so switching format does not decode three photos again.
  * A photo that fails to decode is dropped and the next one moves up.
  */
-export async function decodeAssets({ photos = [], logo = null, mark = null }) {
-  const [decodedPhotos, decodedLogo, decodedMark] = await Promise.all([
+export async function decodeAssets({ photos = [], logo = null, mark = null, markLight = null }) {
+  const [decodedPhotos, decodedLogo, decodedMark, decodedMarkLight] = await Promise.all([
     Promise.all(photos.map(decode)),
     decode(logo),
     decode(mark),
+    decode(markLight),
   ]);
   const images = {};
   decodedPhotos.filter(Boolean).slice(0, 3).forEach((bitmap, i) => {
@@ -77,11 +78,13 @@ export async function decodeAssets({ photos = [], logo = null, mark = null }) {
   });
   if (decodedLogo) images.logo = decodedLogo;
   if (decodedMark) images.mark = decodedMark;
+  if (decodedMarkLight) images.markLight = decodedMarkLight;
   return {
     images,
     photoCount: decodedPhotos.filter(Boolean).slice(0, 3).length,
     hasLogo: Boolean(decodedLogo),
     hasMark: Boolean(decodedMark),
+    hasMarkLight: Boolean(decodedMarkLight),
   };
 }
 
@@ -135,7 +138,14 @@ function drawImage(ctx, image, op) {
 
 let paths = null;
 function glyphs() {
-  if (!paths) paths = { whatsapp: new Path2D(WHATSAPP_PATH), check: new Path2D(CHECK_PATH) };
+  if (!paths) {
+    paths = { whatsapp: new Path2D(WHATSAPP_PATH), check: new Path2D(CHECK_PATH), line: {} };
+    for (const [name, parts] of Object.entries(LINE_ICONS)) {
+      const path = new Path2D();
+      parts.forEach((d) => path.addPath(new Path2D(d)));
+      paths.line[name] = path;
+    }
+  }
   return paths;
 }
 
@@ -143,12 +153,13 @@ function drawIcon(ctx, op) {
   ctx.save();
   ctx.translate(op.x, op.y);
   ctx.scale(op.size / 24, op.size / 24);
-  if (op.name === 'check') {
+  const line = glyphs().line[op.name];
+  if (op.name === 'check' || line) {
     ctx.strokeStyle = op.color;
-    ctx.lineWidth = CHECK_STROKE_WIDTH;
+    ctx.lineWidth = line ? LINE_ICON_STROKE_WIDTH : CHECK_STROKE_WIDTH;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.stroke(glyphs().check);
+    ctx.stroke(line || glyphs().check);
   } else {
     ctx.fillStyle = op.color;
     ctx.fill(glyphs().whatsapp);
@@ -253,7 +264,9 @@ async function render(build, family, images, markName) {
  */
 export function renderFlyer(pack, formatKey, assets, family) {
   return render(
-    (measure) => buildFlyerOps(pack, formatKey, { measure, photoCount: assets.photoCount, hasLogo: assets.hasLogo, hasMark: assets.hasMark }),
+    (measure) => buildFlyerOps(pack, formatKey, {
+      measure, photoCount: assets.photoCount, hasLogo: assets.hasLogo, hasMark: assets.hasMark, hasMarkLight: assets.hasMarkLight,
+    }),
     family,
     assets.images,
     `lp-flyer-${formatKey}`,

@@ -1,11 +1,11 @@
 import test, { afterEach, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { calls, enqueue, reset } from '../support/fakePool.js';
 import { FORMATS, FORMAT_KEYS, REPORT_FORMAT, EXPORT_BYTE_BUDGET } from '@/lib/marketing/formats';
-import { buildFlyerOps, buildReportOps, baselineOffset, lineBox, wrapText, COLORS } from '@/lib/marketing/layout';
+import { buildFlyerOps, buildReportOps, baselineOffset, displayAmount, lineBox, wrapText, COLORS } from '@/lib/marketing/layout';
 import { buildFlyerPack, optimisableImageSrc, optimisedImageUrl } from '@/lib/marketing/sharePackData';
 import {
   buildMandateCaption,
@@ -40,8 +40,12 @@ const PACK = {
   purposeLabel: 'À LOUER',
   amount: '1 000 $',
   period: '/ mois',
-  facts: 'Appartement • 24 Novembre, Lingwala',
+  typeText: 'Appartement',
+  place: 'Lingwala',
+  facts: 'Appartement • Lingwala',
   rooms: '2 chambres • 2 salles de bain',
+  specs: [{ icon: 'bed', text: '2 chambres' }, { icon: 'bath', text: '2 salles de bain' }],
+  photoTotal: 10,
   photos: ['a', 'b', 'c'],
   mark: '/brand/icon-dark.png',
   agent: { name: 'Makam B', initials: 'MB', phone: '+44 7932673460', badge: null, logo: null },
@@ -68,49 +72,91 @@ test('text baselines follow the half-leading model with Plus Jakarta Sans metric
   near(baselineOffset(31, 1.25), 32.0225, 'facts baseline');
 });
 
-test('square: the photo band matches the server flyer — 700px cover, 6px white seams', () => {
+test('square: rounded photo tiles on the royal ground — 676px cover, 10px gaps, "+N photos" on the last', () => {
   const { width, height, ops } = buildFlyerOps(PACK, 'square', env());
   assert.deepEqual([width, height], [1080, 1080]);
+  assert.deepEqual(ops[0], { type: 'rect', x: 0, y: 0, w: 1080, h: 1080, fill: COLORS.royal });
   const photos = images(ops).filter((op) => op.key.startsWith('photo:'));
   assert.deepEqual(
     photos.map(({ key, x, y, w, h }) => [key, x, y, w, h]),
     [
-      ['photo:0', 0, 0, 700, 640],
-      ['photo:1', 706, 0, 374, 317],
-      ['photo:2', 706, 323, 374, 317],
+      ['photo:0', 28, 28, 676, 616],
+      ['photo:1', 714, 28, 338, 303],
+      ['photo:2', 714, 341, 338, 303],
     ],
   );
-  assert.ok(photos.every((op) => op.fit === 'cover'));
-  // The seams are the white ground under the photos, not drawn lines.
-  assert.deepEqual(ops[1], { type: 'rect', x: 0, y: 0, w: 1080, h: 640, fill: COLORS.white });
+  assert.ok(photos.every((op) => op.fit === 'cover' && op.radius === 26));
+  // PACK.photoTotal 10, three drawn: the veil says how many more there are.
+  assert.ok(textOp(ops, '+7'));
+  assert.ok(textOp(ops, 'photos'));
+  const veil = ops.find((op) => op.type === 'rect' && op.x === 714 && op.y === 341);
+  assert.equal(veil.radius, 26);
+  // Purpose and type ride on the cover photo.
+  assert.equal(textOp(ops, 'À LOUER').color, COLORS.royal);
+  assert.ok(textOp(ops, 'Appartement').y < 644);
 });
 
-test('square: price, facts and rooms sit on the server flyer baselines, on three lines', () => {
+test('no "+N" when every photo is already on the card, or when the pack predates the count', () => {
+  for (const pack of [{ ...PACK, photoTotal: 3 }, { ...PACK, photoTotal: undefined }]) {
+    assert.ok(!texts(buildFlyerOps(pack, 'square', env()).ops).some((op) => /^\+\d+$/.test(op.text)));
+  }
+});
+
+test('square: price, pin + place, then the counts as chips with line icons', () => {
   const { ops } = buildFlyerOps(PACK, 'square', env());
-  near(textOp(ops, '1 000 $').y, 678 + 72.64, 'price');
-  assert.equal(textOp(ops, '1 000 $').size, 80);
+  const price = textOp(ops, '1 000 $');
+  assert.equal(price.size, 88);
   const period = textOp(ops, '/ mois');
-  assert.equal(period.x, 48 + measure('1 000 $', { size: 80, weight: 800 }) + 14);
-  near(textOp(ops, PACK.facts).y, 808.21, 'facts');
-  near(textOp(ops, PACK.rooms).y, 851.8, 'rooms');
+  assert.equal(period.y, price.y, 'period on the price baseline');
+  assert.equal(period.x, price.x + measure('1 000 $', { size: 88, weight: 800 }) + 14);
+  const place = textOp(ops, 'Lingwala');
+  assert.ok(place.y > price.y);
+  assert.ok(ops.some((op) => op.type === 'icon' && op.name === 'pin'));
+  const icons = ops.filter((op) => op.type === 'icon').map((op) => op.name);
+  assert.ok(icons.includes('bed') && icons.includes('bath'));
+  const chip = textOp(ops, '2 chambres');
+  assert.ok(chip.y > place.y);
+  // Everything above the contact bar.
+  assert.ok(chip.y < 920);
 });
 
-test('square: roofline mark above the Lukka Place lockup, agent card on the right', () => {
-  const { ops } = buildFlyerOps(PACK, 'square', env());
-  const mark = images(ops).find((op) => op.key === 'mark');
-  assert.equal(mark.x, 83);
-  assert.equal(mark.w, 150);
-  assert.equal(mark.h, 75);
-  near(mark.y, 913.12, 'mark top');
-  near(textOp(ops, 'Lukka Place').y, 1033.56, 'lockup baseline');
-  assert.ok(textOp(ops, 'lukkaplace.com'));
-  assert.ok(ops.some((op) => op.type === 'rect' && op.x === 799 && op.y === 678 && op.w === 176 && op.fill === COLORS.white));
+test('the thousands separator is drawn as a plain space — the narrow one vanishes in Plus Jakarta Sans', () => {
+  const ops = buildFlyerOps({ ...PACK, amount: '1\u202f300 $' }, 'square', env()).ops;
+  assert.ok(textOp(ops, '1 300 $'));
+  assert.equal(displayAmount('185\u00a0000 $'), '185 000 $');
+});
+
+test('a pack stored before the chips existed still draws its rooms, without icons', () => {
+  const { specs, ...old } = PACK;
+  assert.ok(specs);
+  const ops = buildFlyerOps(old, 'square', env()).ops;
+  assert.ok(textOp(ops, '2 chambres'));
+  assert.ok(!ops.some((op) => op.type === 'icon' && op.name === 'bed'));
+});
+
+test('square: the white contact bar carries the agent on the left and the Lukka Place lockup on the right', () => {
+  const { ops } = buildFlyerOps(PACK, 'square', env({ hasMarkLight: true }));
+  const bar = ops.find((op) => op.type === 'rect' && op.fill === COLORS.white && op.y === 920);
+  assert.deepEqual([bar.x, bar.w, bar.h, bar.radius], [28, 1024, 132, 30]);
   const initials = textOp(ops, 'MB');
-  assert.equal(initials.x, 887);
-  near(textOp(ops, 'Makam B').y, 893.2, 'agent name');
-  assert.ok(ops.some((op) => op.type === 'icon' && op.name === 'whatsapp'));
-  // No watermark on the photo any more.
-  assert.ok(!texts(ops).some((op) => op.y < 640 && op.text === 'Lukka Place'));
+  assert.equal(initials.color, COLORS.white);
+  assert.ok(initials.x < 200);
+  assert.equal(textOp(ops, 'Makam B').color, COLORS.ink);
+  const glyph = ops.find((op) => op.type === 'icon' && op.name === 'whatsapp');
+  assert.equal(glyph.color, COLORS.whatsapp);
+  const mark = images(ops).find((op) => op.key === 'markLight');
+  assert.ok(mark.x > 700, 'lockup on the right');
+  assert.equal(textOp(ops, 'Lukka Place').color, COLORS.royal);
+  assert.ok(textOp(ops, 'lukkaplace.com'));
+  // No Lukka Place text on the photos.
+  assert.ok(!texts(ops).some((op) => op.y < 644 && op.text === 'Lukka Place'));
+});
+
+test('a pack stored before the colour mark puts the white roofline on a blue tile instead', () => {
+  const ops = buildFlyerOps(PACK, 'square', env({ hasMarkLight: false })).ops;
+  assert.ok(!images(ops).some((op) => op.key === 'markLight'));
+  const mark = images(ops).find((op) => op.key === 'mark');
+  assert.ok(ops.some((op) => op.type === 'rect' && op.fill === COLORS.royal && op.x <= mark.x && op.y <= mark.y && op.y > 900));
 });
 
 test('the gold badge is drawn only when the pack carries one', () => {
@@ -125,22 +171,27 @@ test('the gold badge is drawn only when the pack carries one', () => {
   }
 });
 
-test('a logo replaces the initials; no logo and no name means no brand block at all', () => {
+test('a logo replaces the initials; no logo and no name means the lockup alone, centred', () => {
   const withLogo = buildFlyerOps(PACK, 'square', env({ hasLogo: true })).ops;
   assert.ok(images(withLogo).some((op) => op.key === 'logo' && op.fit === 'contain'));
   assert.ok(!textOp(withLogo, 'MB'));
 
   const bare = { ...PACK, agent: { name: null, initials: null, phone: null, badge: null, logo: null } };
-  const ops = buildFlyerOps(bare, 'square', env()).ops;
-  assert.ok(!ops.some((op) => op.type === 'rect' && op.w === 176));
+  const { ops } = buildFlyerOps(bare, 'square', env({ hasMarkLight: true }));
   assert.ok(!images(ops).some((op) => op.key === 'logo'));
+  assert.ok(!ops.some((op) => op.type === 'icon' && op.name === 'whatsapp'));
+  const mark = images(ops).find((op) => op.key === 'markLight');
+  const name = textOp(ops, 'Lukka Place');
+  const url = textOp(ops, 'lukkaplace.com');
+  const right = Math.max(name.x + measure('Lukka Place', { size: 26, weight: 800 }), url.x + measure('lukkaplace.com', { size: 20, weight: 600 }));
+  near((mark.x + right) / 2, 540, 'lockup centred');
 });
 
-test('fewer photos adapt the grid; none draws the branded panel, never a stand-in photo', () => {
+test('fewer photos adapt the tiles; none draws the branded tile, never a stand-in photo', () => {
   const two = images(buildFlyerOps(PACK, 'square', env({ photoCount: 2 })).ops).filter((op) => op.key.startsWith('photo:'));
-  assert.deepEqual(two.map((op) => [op.x, op.w]), [[0, 537], [543, 537]]);
+  assert.deepEqual(two.map((op) => [op.x, op.w]), [[28, 507], [545, 507]]);
   const one = images(buildFlyerOps(PACK, 'square', env({ photoCount: 1 })).ops).filter((op) => op.key.startsWith('photo:'));
-  assert.deepEqual(one.map((op) => [op.w, op.h]), [[1080, 640]]);
+  assert.deepEqual(one.map((op) => [op.w, op.h]), [[1024, 616]]);
   const none = buildFlyerOps(PACK, 'square', env({ photoCount: 0 })).ops;
   assert.equal(images(none).filter((op) => op.key.startsWith('photo:')).length, 0);
   assert.ok(none.some((op) => op.fill === COLORS.royalDeep));
@@ -149,13 +200,19 @@ test('fewer photos adapt the grid; none draws the branded panel, never a stand-i
 test('every format keeps every operation inside the canvas, even with long text', () => {
   const long = {
     ...PACK,
+    typeText: 'Maison Type Locataire',
+    place: 'Quartier Righini, référence Université de Kinshasa, Lemba',
     facts: 'Maison Type Locataire • Quartier Righini, référence Université de Kinshasa, Lemba',
     rooms: '4 chambres • 3 salles de bain • 450 m² • 12 portes',
+    specs: [
+      { icon: 'bed', text: '4 chambres' }, { icon: 'bath', text: '3 salles de bain' },
+      { icon: 'area', text: '450 m²' }, { icon: 'door', text: '12 portes' },
+    ],
     agent: { ...PACK.agent, name: 'Agence Immobilière Les Grands Horizons de Kinshasa', badge: 'Agence partenaire' },
   };
   for (const format of FORMAT_KEYS) {
     for (const photoCount of [0, 1, 2, 3]) {
-      const { width, height, ops } = buildFlyerOps(long, format, env({ photoCount, hasLogo: true }));
+      const { width, height, ops } = buildFlyerOps(long, format, env({ photoCount, hasLogo: true, hasMarkLight: photoCount % 2 === 0 }));
       for (const op of ops) {
         const label = `${format}/${photoCount} ${op.type} ${op.text || op.key || op.name || ''}`;
         for (const value of [op.x, op.y, op.w ?? 0, op.h ?? 0]) assert.ok(Number.isFinite(value), label);
@@ -172,21 +229,23 @@ test('every format keeps every operation inside the canvas, even with long text'
   }
 });
 
-test('the 9:16 keeps the pill and the lockup clear of WhatsApp Status chrome', () => {
+test('the 9:16 keeps the pills and the contact bar clear of WhatsApp Status chrome', () => {
   const { ops, height } = buildFlyerOps(PACK, 'story', env());
-  const pill = ops.find((op) => op.type === 'rect' && op.fill === COLORS.white && op.radius);
-  assert.ok(pill.y >= 150, 'pill below the progress bar and name');
-  assert.ok(textOp(ops, 'Lukka Place').y <= height - 150, 'lockup above the reply bar');
+  const pill = textOp(ops, 'À LOUER');
+  assert.ok(pill.y - 30 >= 150, 'pills below the progress bar and name');
+  const bar = ops.find((op) => op.type === 'rect' && op.fill === COLORS.white && op.w === 1016);
+  assert.ok(bar.y + bar.h <= height - 150, 'contact bar above the reply bar');
+  assert.ok(textOp(ops, 'Lukka Place').y <= height - 150);
   const photos = images(ops).filter((op) => op.key.startsWith('photo:'));
-  assert.equal(photos[0].w, 1080);
-  assert.equal(photos[1].y - (photos[0].y + photos[0].h), 6, 'same 6px seam');
+  assert.equal(photos[0].w, 1016);
+  assert.equal(photos[1].y - (photos[0].y + photos[0].h), 12, '12px gap');
 });
 
 test('the 16:9 puts photos left and the text panel right', () => {
   const { ops } = buildFlyerOps(PACK, 'landscape', env());
   const photos = images(ops).filter((op) => op.key.startsWith('photo:'));
-  assert.ok(photos.every((op) => op.x + op.w <= 720));
-  assert.ok(textOp(ops, '1 000 $').x >= 720);
+  assert.ok(photos.every((op) => op.x + op.w <= 684));
+  assert.ok(textOp(ops, '1 000 $').x >= 684);
 });
 
 test('wrapText stops at maxLines with an ellipsis and never overflows a line', () => {
@@ -248,14 +307,32 @@ test('an offline copy is stamped with the server time and goes stale after 24 h'
   assert.equal(packTimestamp({ pack: {} }), null);
 });
 
-test('the share kit draws in the browser and keeps the server flyer only as a square fallback', () => {
+test('the share kit draws in the browser, the only renderer — the server flyer is retired', () => {
   const kit = readFileSync(path.join(process.cwd(), 'components/AgentListingShareKit.js'), 'utf8');
   assert.match(kit, /renderFlyer\(kit\.pack, format, assets, family\)/);
-  assert.match(kit, /const serverFallback = renderFailed && format === 'square' && source\?\.type === 'live'/);
+  assert.doesNotMatch(kit, /serverImageSrc|serverFallback/);
+  assert.ok(!existsSync(path.join(process.cwd(), 'app/compte/agent/biens/[id]/visuel/route.js')));
   // A server verdict (not yours / deleted) must never be papered over with a stored copy.
   assert.match(kit, /if \(result && !result\.ok\) \{[\s\S]*?setFailure\('load'\)/);
   const renderer = readFileSync(path.join(process.cwd(), 'components/marketing/CanvasRenderer.js'), 'utf8');
   assert.doesNotMatch(renderer, /from ['"](html2canvas|dom-to-image|html2pdf|jspdf)/);
+});
+
+test('Partager sur WhatsApp sends the listing card with its caption, the text link one tap away', () => {
+  const quick = readFileSync(path.join(process.cwd(), 'components/ListingQuickShare.js'), 'utf8');
+  assert.match(quick, /renderFlyer\(kit\.pack, FORMAT, decoded, family\)/);
+  assert.match(quick, /const FORMAT = 'square'/);
+  assert.match(quick, /navigator\.share\(\{ files: \[file\], text: imageCaption \}\)/);
+  assert.match(quick, /buildWhatsAppShareLink\(textCaption\)/);
+  // Recorded with values listing_shares' CHECKs already allow.
+  assert.match(quick, /record\('kit_share', FORMAT\)/);
+  assert.match(quick, /record\('menu_whatsapp', 'text'\)/);
+  const button = readFileSync(path.join(process.cwd(), 'components/AgentListingWhatsAppButton.js'), 'utf8');
+  assert.match(button, /<ListingQuickShare /);
+  assert.doesNotMatch(button, /<a\s/);
+  const menu = readFileSync(path.join(process.cwd(), 'components/AgentListingActionsMenu.js'), 'utf8');
+  // A sibling of the menu, never inside an item that unmounts on close.
+  assert.match(menu, /<ListingQuickShare listing=\{listing\} caption=\{caption\} open=\{quickShareOpen\}/);
 });
 
 // ---------------------------------------------------------------------------

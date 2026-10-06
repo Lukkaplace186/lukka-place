@@ -1,7 +1,7 @@
 'use server';
 
 import { getCurrentAgentId } from '@/lib/agentSession';
-import { agentBrandFields, getFlyerListing, getFlyerListings, frenchTypeText, PLATFORM_MARK_PATH } from '@/lib/listingFlyer';
+import { agentBrandFields, getFlyerListing, getFlyerListings, frenchTypeText, PLATFORM_MARK_PATH, PLATFORM_MARK_LIGHT_PATH } from '@/lib/listingFlyer';
 import { SHARE_SOURCES, agentContactPhone, buildListingSocialCopy, listingPublicUrl, shareBlocker } from '@/lib/listingShareCopy';
 import { buildFlyerPack, optimisableImageSrc, optimisedImageUrl, LOGO_WIDTH } from '@/lib/marketing/sharePackData';
 import { buildMandateCaption, buildMandateReport, reportWindow } from '@/lib/marketing/mandateReportCopy';
@@ -54,10 +54,11 @@ function buildShareKit(listing) {
   const blocker = shareBlocker(listing);
   const typeText = frenchTypeText(listing);
   const contactPhone = agentContactPhone(listing);
+  const brand = agentBrandFields(listing);
   const copies = Object.fromEntries(
     Object.entries(SHARE_SOURCES).map(([channel, source]) => [
       channel,
-      buildListingSocialCopy(listing, { typeText, contactPhone, url: listingPublicUrl(listing.id, { source }) }),
+      buildListingSocialCopy(listing, { typeText, contactPhone, contactName: brand.name, url: listingPublicUrl(listing.id, { source }) }),
     ]),
   );
   return {
@@ -69,9 +70,10 @@ function buildShareKit(listing) {
     copies,
     pack: buildFlyerPack(listing, {
       typeText,
-      brand: agentBrandFields(listing),
+      brand,
       supabaseHost: supabaseHost(),
       markPath: PLATFORM_MARK_PATH,
+      markLightPath: PLATFORM_MARK_LIGHT_PATH,
       fetchedAt: new Date().toISOString(),
     }),
   };
@@ -131,6 +133,7 @@ export async function getWhatsAppCaptionsAction(listingIds) {
       captions[String(listing.id)] = buildListingSocialCopy(listing, {
         typeText: frenchTypeText(listing),
         contactPhone: agentContactPhone(listing),
+        contactName: agentBrandFields(listing).name,
         url: listingPublicUrl(listing.id, { source: SHARE_SOURCES.whatsapp }),
       });
     }

@@ -2210,6 +2210,16 @@
         "unavailable": "Le rapport en direct n’est pas encore disponible.",
         "error": "Une erreur est survenue. Réessayez."
       }
+    },
+    "quickShare": {
+      "title": "Partager sur WhatsApp",
+      "description": "Votre annonce en image, avec son texte en légende.",
+      "preparing": "Préparation de l’image…",
+      "share": "Partager sur WhatsApp",
+      "download": "Télécharger l’image",
+      "textOnly": "Envoyer le texte seulement",
+      "hint": "Le texte est copié en même temps : si WhatsApp ne l’affiche pas sous l’image, collez-le.",
+      "imageFailed": "L’image n’a pas pu être préparée. Vous pouvez envoyer le texte."
     }
   },
   "status": {

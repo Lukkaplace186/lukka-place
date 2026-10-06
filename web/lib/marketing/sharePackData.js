@@ -1,5 +1,5 @@
 import { formatPriceParts } from '../format';
-import { roomSpecs } from '../listingShareCopy';
+import { roomSpecItems, roomSpecs } from '../listingShareCopy';
 import { listingImages } from '../listingView';
 import { NO_PHOTO_URL } from '../constants';
 
@@ -57,9 +57,10 @@ export function purposeLabel(purpose) {
 /**
  * @param {object} listing  A lib/listingFlyer.js getFlyerListing row.
  * @param {{typeText: string|null, brand: {name, initials, phone, badge},
- *          supabaseHost?: string|null, markPath: string, fetchedAt: string}} options
+ *          supabaseHost?: string|null, markPath: string, markLightPath?: string|null,
+ *          fetchedAt: string}} options
  */
-export function buildFlyerPack(listing, { typeText, brand, supabaseHost = null, markPath, fetchedAt }) {
+export function buildFlyerPack(listing, { typeText, brand, supabaseHost = null, markPath, markLightPath = null, fetchedAt }) {
   const { amount, period } = formatPriceParts(listing.price, listing.purpose, listing.price_period);
   const place = [listing.quartier, listing.commune].filter(Boolean).join(', ');
   const photos = listingImages(listing)
@@ -70,8 +71,8 @@ export function buildFlyerPack(listing, { typeText, brand, supabaseHost = null, 
     .map((src) => optimisedImageUrl(src, PHOTO_WIDTH));
   // Every photo (up to MAX_GALLERY), for "Photos avec mon logo" — fetched on
   // demand by that tab, never stored offline with the pack.
-  const gallery = listingImages(listing)
-    .filter((src) => optimisableImageSrc(src, { supabaseHost }))
+  const usable = listingImages(listing).filter((src) => optimisableImageSrc(src, { supabaseHost }));
+  const gallery = usable
     .slice(0, MAX_GALLERY)
     .map((src) => optimisedImageUrl(src, PHOTO_WIDTH));
   const logo = optimisableImageSrc(listing.agent_image, { supabaseHost })
@@ -88,9 +89,14 @@ export function buildFlyerPack(listing, { typeText, brand, supabaseHost = null, 
     place: place || null,
     facts: [typeText, place].filter(Boolean).join(' • '),
     rooms: roomSpecs(listing).join(' • '),
+    // The card's chips (icon + text) and its "+N photos": the listing's real
+    // photo count, of which the card shows up to three.
+    specs: roomSpecItems(listing),
+    photoTotal: usable.length,
     photos,
     gallery,
     mark: markPath,
+    markLight: markLightPath,
     agent: {
       name: brand?.name || null,
       initials: brand?.initials || null,

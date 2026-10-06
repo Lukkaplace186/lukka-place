@@ -6,7 +6,8 @@ import Link from 'next/link';
 import { Archive, ArchiveRestore, BarChart3, CheckCircle2, CircleCheck, CircleDot, Copy, ExternalLink, Megaphone, MoreHorizontal, Pencil, RotateCcw, Trash2 } from 'lucide-react';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import MarkListingSoldDialog from './MarkListingSoldDialog';
-import AgentListingWhatsAppButton from './AgentListingWhatsAppButton';
+import ListingQuickShare from './ListingQuickShare';
+import { WhatsAppIcon } from './WhatsAppCTA';
 import { shareBlocker } from '@/lib/listingShareCopy';
 import {
   DropdownMenu,
@@ -73,6 +74,8 @@ import { announceListingQuota } from '@/lib/listingQuotaRules';
  * state (compromis, Dupliquer, Archiver), then Supprimer on its own.
  * "Partager sur WhatsApp" left the menu for the card itself
  * (AgentListingWhatsAppButton): it is the one thing agents do every day.
+ * (It came back in the second pass below; since 2026-10-06 it opens
+ * ListingQuickShare, the listing card + caption, mounted here as a sibling.)
  *
  * `onStatusChange` (Mes biens) adds the active ↔ sous compromis switch here.
  * The caller keeps the optimistic update, so the badge moves the moment the
@@ -95,6 +98,7 @@ export default function AgentListingActionsMenu({ listing, isClosed, onStatusCha
   const [pending, startTransition] = useTransition();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [shareKitOpen, setShareKitOpen] = useState(false);
+  const [quickShareOpen, setQuickShareOpen] = useState(false);
   const [soldOpen, setSoldOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -193,7 +197,8 @@ export default function AgentListingActionsMenu({ listing, isClosed, onStatusCha
   const isRent = listing.purpose === 'rent';
 
   // One list, two renderers (dropdown from lg, bottom sheet below). `href`
-  // items are links, `onSelect` items are actions, `whatsapp` is the share link.
+  // items are links, `onSelect` items are actions; `whatsapp` only swaps in the
+  // green glyph — it opens ListingQuickShare (the listing card + caption).
   const groups = [
     [
       { key: 'performance', Icon: BarChart3, label: t('agent.listings.performance'), href: `/compte/agent/biens/${listing.id}` },
@@ -212,7 +217,7 @@ export default function AgentListingActionsMenu({ listing, isClosed, onStatusCha
       },
     ],
     [
-      !shareBlocker(listing) && { key: 'whatsapp', whatsapp: true, label: t('agent.listings.shareWhatsApp') },
+      !shareBlocker(listing) && { key: 'whatsapp', whatsapp: true, label: t('agent.listings.shareWhatsApp'), onSelect: () => setQuickShareOpen(true) },
       { key: 'marketing', Icon: Megaphone, label: t('agent.share.menuItem'), onSelect: () => setShareKitOpen(true) },
     ],
     [
@@ -265,16 +270,13 @@ export default function AgentListingActionsMenu({ listing, isClosed, onStatusCha
                 {group.map((item) => {
                   const close = () => setSheetOpen(false);
                   const tone = item.danger ? 'text-danger' : '';
-                  const icon = item.Icon && (
-                    <item.Icon strokeWidth={ICON_STROKE_WIDTH} className={`h-5 w-5 shrink-0 ${item.tone || (item.danger ? '' : 'text-ink-45')}`} />
+                  const icon = item.whatsapp ? (
+                    <WhatsAppIcon className="h-5 w-5 shrink-0 text-green-deep" />
+                  ) : (
+                    item.Icon && (
+                      <item.Icon strokeWidth={ICON_STROKE_WIDTH} className={`h-5 w-5 shrink-0 ${item.tone || (item.danger ? '' : 'text-ink-45')}`} />
+                    )
                   );
-                  if (item.whatsapp) {
-                    return (
-                      <AgentListingWhatsAppButton key={item.key} listing={listing} caption={caption} className={sheetRow} onDone={close}>
-                        {item.label}
-                      </AgentListingWhatsAppButton>
-                    );
-                  }
                   if (item.href) {
                     return (
                       <Link
@@ -330,18 +332,13 @@ export default function AgentListingActionsMenu({ listing, isClosed, onStatusCha
             <div key={i}>
               {i > 0 && <DropdownMenuSeparator />}
               {group.map((item) => {
-                const icon = item.Icon && (
-                  <item.Icon strokeWidth={ICON_STROKE_WIDTH} className={`h-4 w-4 ${item.tone || (item.danger ? '' : 'text-ink-45')}`} />
+                const icon = item.whatsapp ? (
+                  <WhatsAppIcon className="h-4 w-4 shrink-0 text-green-deep" />
+                ) : (
+                  item.Icon && (
+                    <item.Icon strokeWidth={ICON_STROKE_WIDTH} className={`h-4 w-4 ${item.tone || (item.danger ? '' : 'text-ink-45')}`} />
+                  )
                 );
-                if (item.whatsapp) {
-                  return (
-                    <DropdownMenuItem key={item.key} asChild>
-                      <AgentListingWhatsAppButton listing={listing} caption={caption} className="flex items-center gap-2.5">
-                        {item.label}
-                      </AgentListingWhatsAppButton>
-                    </DropdownMenuItem>
-                  );
-                }
                 if (item.href) {
                   return (
                     <DropdownMenuItem key={item.key} asChild>
@@ -411,6 +408,7 @@ export default function AgentListingActionsMenu({ listing, isClosed, onStatusCha
       </Dialog>
 
       <AgentListingShareKit listingId={listing.id} open={shareKitOpen} onOpenChange={setShareKitOpen} />
+      <ListingQuickShare listing={listing} caption={caption} open={quickShareOpen} onOpenChange={setQuickShareOpen} />
     </>
   );
 }

@@ -331,18 +331,20 @@ test('the share kit records after the share, fire-and-forget, and never for the 
   assert.doesNotMatch(kit, /await recordListingSharesAction/);
 });
 
-test('Mes biens: WhatsApp is a direct link in the row menu, captions read once per page, owner-scoped', () => {
-  const button = readFileSync(path.join(ROOT, 'components/AgentListingWhatsAppButton.js'), 'utf8');
-  // A real <a href> — resolving the text after the tap would be a blocked popup on iPhone.
-  assert.match(button, /<a\s+href=\{buildWhatsAppShareLink\(text\)\}/);
-  assert.match(button, /caption \|\|\s+buildListingShareMessage\(/, 'falls back to the short message');
+test('Mes biens: WhatsApp opens the listing card share from the card and the row menu, captions read once per page, owner-scoped', () => {
+  // 2026-10-06: the card + caption (ListingQuickShare) is the standard share.
+  // Its text-only link stays a real <a href> — resolving the text after the
+  // tap would be a blocked popup on iPhone.
+  const quick = readFileSync(path.join(ROOT, 'components/ListingQuickShare.js'), 'utf8');
+  assert.match(quick, /<a\s+href=\{buildWhatsAppShareLink\(textCaption\)\}/);
+  assert.match(quick, /caption \|\|\s+buildListingShareMessage\(/, 'falls back to the short message');
   const table = readFileSync(path.join(ROOT, 'components/AgentListingsTable.js'), 'utf8');
   assert.equal((table.match(/getWhatsAppCaptionsAction\(/g) || []).length, 1);
   // 2026-09-28: the icon left the card for the row menu (one "…" per card).
   assert.match(table, /caption=\{captions\[String\(listing\.id\)\]\}/);
   const menu = readFileSync(path.join(ROOT, 'components/AgentListingActionsMenu.js'), 'utf8');
   assert.match(menu, /!shareBlocker\(listing\) && \{ key: 'whatsapp'/);
-  assert.match(menu, /<AgentListingWhatsAppButton key=\{item\.key\} listing=\{listing\} caption=\{caption\}/);
+  assert.match(menu, /key: 'whatsapp', whatsapp: true, label: t\('agent\.listings\.shareWhatsApp'\), onSelect: \(\) => setQuickShareOpen\(true\)/);
   const flyer = readFileSync(path.join(ROOT, 'lib/listingFlyer.js'), 'utf8');
   assert.match(flyer, /WHERE p\.id = ANY\(\$2::bigint\[\]\) AND p\.agent_id = \$3/);
   const actions = readFileSync(path.join(ROOT, 'app/compte/agent/shareActions.js'), 'utf8');

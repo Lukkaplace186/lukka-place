@@ -1,6 +1,6 @@
 import test, { beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { calls, enqueue, reset } from '../support/fakePool.js';
@@ -8,6 +8,8 @@ import { formatPrice } from '@/lib/format';
 import {
   agentContactPhone,
   buildListingSocialCopy,
+  entryCostLine,
+  roomSpecItems,
   roomSpecs,
   shareBlocker,
   listingPublicUrl,
@@ -56,35 +58,48 @@ const LISTING = {
 // Social copy
 // ---------------------------------------------------------------------------
 
-test('social copy states purpose, place, price, rooms, itemised terms, reference and the link last', () => {
+test('social copy states purpose, price, place, then the details as a list, the agent and the link last', () => {
   const copy = buildListingSocialCopy(LISTING, { typeText: 'Appartement', url: listingPublicUrl(286) });
   const lines = copy.split('\n');
   // *…* is WhatsApp's own bold, where this text is posted.
-  assert.equal(lines[0], '🏠 *À LOUER* · Appartement');
-  assert.equal(lines[1], '📍 *Righini, Lemba*');
-  assert.match(lines[2], /^💰 \*700 \$ \/ mois\*$/);
-  assert.equal(lines[3], '🛏️ 2 chambres · 1 salle de bain · 120 m²');
-  assert.equal(lines[4], '🔑 Garantie : 3 + 1 + 1 mois');
-  assert.equal(lines[5], 'Réf. Demiap');
-  assert.match(lines[lines.length - 1], /https:\/\/[^ ]+\/listings\/286$/);
+  assert.equal(lines[0], '*À LOUER* · Appartement');
+  assert.match(lines[1], /^\*700 \$\* \/ mois$/);
+  assert.equal(lines[2], '📍 Righini, Lemba');
+  assert.equal(lines[3], '');
+  assert.equal(lines[4], '▸ 2 chambres · 1 salle de bain · 120 m²');
+  assert.equal(lines[5], '▸ Garantie 3 mois · Avance 1 mois · Commission 1 mois');
+  assert.equal(lines[6], '▸ Réf. Demiap');
+  assert.equal(lines[lines.length - 2], 'Photos et visite ↓');
+  assert.match(lines[lines.length - 1], /^https:\/\/[^ ]+\/listings\/286$/);
+});
+
+test('the caption keeps to one pin and plain list markers — no emoji on every line', () => {
+  const copy = buildListingSocialCopy(LISTING, { typeText: 'Appartement', contactPhone: '+243 990 000 000', contactName: 'Makam B', url: listingPublicUrl(286) });
+  assert.doesNotMatch(copy, /🏠|💰|🛏|🔑|📞|👉/u);
+  assert.match(copy, /\n\*Makam B\* · \+243 990 000 000\n/);
 });
 
 test('the caption carries the agent contact only when the listing page would publish that number', () => {
   const verified = { ...LISTING, agent_phone_raw: '243990000000', agent_phone_verified_at: '2026-09-01', agent_direct_routing_enabled: true };
-  assert.match(buildListingSocialCopy(verified, { contactPhone: agentContactPhone(verified) }), /📞 \*Contact agent\* : \+243/);
+  assert.match(buildListingSocialCopy(verified, { contactPhone: agentContactPhone(verified) }), /\*Contact\* · \+243/);
+  assert.match(buildListingSocialCopy(verified, { contactPhone: agentContactPhone(verified), contactName: 'Makam B' }), /\*Makam B\* · \+243/);
 
   for (const blocked of [
     { ...verified, agent_phone_verified_at: null },
     { ...verified, agent_direct_routing_enabled: false },
   ]) {
     assert.equal(agentContactPhone(blocked), null);
-    assert.doesNotMatch(buildListingSocialCopy(blocked, { contactPhone: agentContactPhone(blocked) }), /Contact agent/);
+    // A name alone is not a contact line.
+    assert.doesNotMatch(buildListingSocialCopy(blocked, { contactPhone: agentContactPhone(blocked), contactName: 'Makam B' }), /Makam B|\+243/);
   }
 });
 
-test('social copy never sums the entry costs into one "Garantie" figure', () => {
+test('social copy never sums the entry costs into one "Garantie" figure, and names each part', () => {
   const copy = buildListingSocialCopy(LISTING, { typeText: 'Appartement' });
-  assert.doesNotMatch(copy, /Garantie : 5 mois/);
+  assert.doesNotMatch(copy, /Garantie : 5 mois|Garantie 5 mois|3 \+ 1 \+ 1/);
+  assert.equal(entryCostLine({ deposit_months: 3 }), 'Garantie 3 mois');
+  assert.equal(entryCostLine({ deposit_months: 4, advance_months: 1 }), 'Garantie 4 mois · Avance 1 mois');
+  assert.equal(entryCostLine({ deposit_months: null, advance_months: 1 }), null);
 });
 
 test('social copy leaves out every line it has no data for — no filler', () => {
@@ -93,7 +108,7 @@ test('social copy leaves out every line it has no data for — no filler', () =>
     {},
   );
   // formatPrice's own thousands separator (fr-FR's narrow no-break space).
-  assert.equal(copy, `🏠 *À VENDRE*\n💰 *${formatPrice(85000, 'sale', null)}*`);
+  assert.equal(copy, `*À VENDRE*\n*${formatPrice(85000, 'sale', null)}*`);
 });
 
 test('a price of zero is "Prix sur demande", never "0 $"', () => {
@@ -116,64 +131,35 @@ test('only a public, on-market listing can be shared — anything else would sha
 
 // lib/listingFlyer.js imports the French dictionary as JSON, which this plain
 // Node test tier cannot load without an import attribute; its rules are
-// asserted through the pure sniffer it uses and on its source text instead.
-test('flyer photos are accepted by magic bytes, not by extension — and an HTML error page is not a photo', () => {
-  const pad = (bytes) => Buffer.from([...bytes, ...new Array(16).fill(0)]);
-  assert.equal(sniffDocumentType(pad([0xff, 0xd8, 0xff, 0xe0]))?.mime, 'image/jpeg');
-  assert.equal(sniffDocumentType(pad([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))?.mime, 'image/png');
-  assert.equal(sniffDocumentType(Buffer.from('<html><body>404 Not Found</body></html>')), null);
-  const src = readFileSync(path.join(process.cwd(), 'lib/listingFlyer.js'), 'utf8');
-  assert.match(src, /FLYER_IMAGE_TYPES = \['image\/jpeg', 'image\/png'\]/);
-});
-
-test('the flyer refuses anything not owned by the session agent (ownership in SQL) and fetches only our hosts', () => {
+// asserted on its source text instead.
+test('the share data refuses anything not owned by the session agent (ownership in SQL)', () => {
   const src = readFileSync(path.join(process.cwd(), 'lib/listingFlyer.js'), 'utf8');
   assert.match(src, /WHERE p\.id = \$2 AND p\.agent_id = \$3/);
-  assert.match(src, /url\.protocol !== 'https:' \|\| !hosts\.has\(url\.host\)/);
 });
 
-test('the flyer carries the agent brand on royal blue, and no QR code anywhere', () => {
+test('no QR code, and the server-drawn flyer is gone — one renderer, in the browser', () => {
   const lib = readFileSync(path.join(process.cwd(), 'lib/listingFlyer.js'), 'utf8');
-  const route = readFileSync(path.join(process.cwd(), 'app/compte/agent/biens/[id]/visuel/route.js'), 'utf8');
-  for (const [name, src] of [['lib', lib], ['route', route]]) {
-    assert.doesNotMatch(src, /qrcode|QRCode|qrDataUri/, `${name} must not reference the removed QR code`);
-  }
-  // The brand colour is the palette's own --blue, not a near-miss navy.
-  assert.match(route, /const ROYAL = '#1e3aa8'/);
-  assert.match(route, /background: ROYAL/);
-  assert.match(lib, /export async function loadAgentBrand/);
+  assert.doesNotMatch(lib, /qrcode|QRCode|qrDataUri/);
+  assert.doesNotMatch(lib, /loadFlyerPhotos|loadFlyerFonts|loadAgentBrand|loadPlatformMark/);
+  assert.ok(!existsSync(path.join(process.cwd(), 'app/compte/agent/biens/[id]/visuel/route.js')));
+  assert.match(lib, /PLATFORM_MARK_PATH = '\/brand\/icon-dark\.png'/);
+  assert.match(lib, /PLATFORM_MARK_LIGHT_PATH = '\/brand\/icon-light\.png'/);
 });
 
 test('the gold badge is only ever drawn for a reviewed agent, never as decoration', () => {
   const lib = readFileSync(path.join(process.cwd(), 'lib/listingFlyer.js'), 'utf8');
-  const route = readFileSync(path.join(process.cwd(), 'app/compte/agent/biens/[id]/visuel/route.js'), 'utf8');
   // The badge label comes from the reviewed tier, and nothing else can set it.
   assert.match(lib, /const badge = isVerifiedLevel\(level\) \? BADGE_LABELS\[level\] : null/);
-  assert.match(route, /\{brand\.badge \? \(/);
-  assert.match(route, /const GOLD = '#f59e0b'/);
 });
 
-test('the flyer seams are 6px of white, the Lukka Place mark sits in the footer, not on the photo', () => {
-  const route = readFileSync(path.join(process.cwd(), 'app/compte/agent/biens/[id]/visuel/route.js'), 'utf8');
-  assert.match(route, /const GAP = 6;/);
-  // White behind the photo band is what the gaps actually show.
-  assert.match(route, /height: PHOTO_HEIGHT, background: '#ffffff'/);
-  assert.doesNotMatch(route, /rgba\(255,255,255,0\.6\)/, 'the photo watermark was removed');
-  assert.match(route, /loadPlatformMark\(\)/);
-  // Rooms get their own line in full words.
-  assert.match(route, /const rooms = roomSpecs\(listing\)/);
-  const lib = readFileSync(path.join(process.cwd(), 'lib/listingFlyer.js'), 'utf8');
-  assert.match(lib, /PLATFORM_MARK_PATH = '\/brand\/icon-dark\.png'/);
-});
-
-test('the flyer prints an agent phone only under the public listing rule, and never invents a logo', () => {
+test('the card prints an agent phone only under the public listing rule', () => {
   const src = readFileSync(path.join(process.cwd(), 'lib/listingFlyer.js'), 'utf8');
   assert.match(src, /const phone = agentContactPhone\(listing\)/);
-  // No logo and no name means no brand block — never a Lukka Place mark
-  // standing in for the agent's own.
-  const route = readFileSync(path.join(process.cwd(), 'app/compte/agent/biens/[id]/visuel/route.js'), 'utf8');
-  assert.match(route, /const hasBrand = Boolean\(brand\.logo \|\| brand\.initials\)/);
-  assert.match(route, /\{hasBrand \? \(/);
+});
+
+test('room chips carry their line icon, in the caption order', () => {
+  assert.deepEqual(roomSpecItems({ beds: 2, bath: 1, area: '120', units_count: 6 }).map((item) => item.icon), ['bed', 'bath', 'area', 'door']);
+  assert.deepEqual(roomSpecItems({ beds: 2, bath: 1, area: '120', units_count: 6 }).map((item) => item.text), roomSpecs({ beds: 2, bath: 1, area: '120', units_count: 6 }));
 });
 
 // ---------------------------------------------------------------------------
@@ -302,9 +288,3 @@ test('the beacon forwards the landing utm_source — the endpoints accepted it b
   assert.match(client, /beacon\('\/api\/telemetry\/lead-click'/);
 });
 
-test('the flyer is sent as a mozjpeg JPEG, with the PNG only as a fallback', () => {
-  const route = readFileSync(path.join(process.cwd(), 'app/compte/agent/biens/[id]/visuel/route.js'), 'utf8');
-  assert.match(route, /jpeg\(\{ quality: FLYER_JPEG_QUALITY, mozjpeg: true \}\)/);
-  assert.match(route, /const FLYER_JPEG_QUALITY = 85;/);
-  assert.doesNotMatch(route, /^export const FLYER/m, 'a route file may only export handlers and route config');
-});

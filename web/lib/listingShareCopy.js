@@ -1,16 +1,23 @@
-import { formatPrice } from './format';
+import { formatPriceParts } from './format';
 import { formatPhoneDisplay } from './phone';
 import { entryTerms, hasArea } from './listingView';
 import { SITE_URL } from './constants';
 
 /**
- * The ready-to-paste text an agent posts with one of their listings — a
- * WhatsApp Status caption, a broadcast-list message, a Facebook group post.
+ * The ready-to-paste text an agent posts with one of their listings — the
+ * caption under the listing card on WhatsApp, a broadcast-list message, a
+ * Facebook group post.
  *
  * Shaped for how Kinshasa commissionnaires actually advertise: purpose in
  * capitals first (À LOUER / À VENDRE is what people scan a Status for), then
- * place, price, rooms, the "Garantie 3 + 1 + 1" terms, and the link last so it
- * stays tappable and unfurls into the listing card.
+ * price and place, the counts and entry terms as a short list, the agent, and
+ * the link last so it stays tappable.
+ *
+ * THE SYMBOLS (2026-10-06 redesign, product direction "slick, modern"): one
+ * 📍 for the place and "▸" list markers, instead of an emoji on every line
+ * (🏠 💰 🛏️ 🔑 📞 👉). "▸" is a plain text character, so it renders the same
+ * small and quiet way on every phone, and the caption reads like the card it
+ * sits under rather than a chain message.
  *
  * ALWAYS FRENCH, deliberately — not the agent's UI language. This text is
  * read by the agent's own customers in Kinshasa, not by the agent; rendering
@@ -19,16 +26,17 @@ import { SITE_URL } from './constants';
  * for the `flexibility` option values.
  *
  * Every line is a real field or it is left out — no "Idéal pour famille", no
- * invented selling point, no "Garantie : 5 mois" summed total (the itemised
- * parts are shown, the way KeyFacts shows them).
+ * invented selling point, and the entry costs itemised by name (garantie,
+ * avance, commission), never one summed "Garantie : 5 mois".
  *
  * @param {object} listing  A row with price/purpose/price_period/beds/bath/
  *   area/units_count/quartier/commune/reference/deposit_months/advance_months/
  *   commission_months.
- * @param {{typeText?: string|null, url?: string|null}} [options]
+ * @param {{typeText?: string|null, url?: string|null, contactPhone?: string|null,
+ *          contactName?: string|null}} [options]
  *   typeText is resolved by the caller (typeLabel with a French translator).
  */
-export function buildListingSocialCopy(listing, { typeText = null, url = null, contactPhone = null } = {}) {
+export function buildListingSocialCopy(listing, { typeText = null, url = null, contactPhone = null, contactName = null } = {}) {
   const lines = [];
   // WhatsApp renders *…* as bold. Elsewhere (a Facebook group, a pasted SMS)
   // the asterisks show literally — accepted deliberately, since WhatsApp is
@@ -38,30 +46,46 @@ export function buildListingSocialCopy(listing, { typeText = null, url = null, c
 
   const purpose = listing.purpose === 'sale' ? 'À VENDRE' : listing.purpose === 'rent' ? 'À LOUER' : null;
   const head = [purpose ? bold(purpose) : null, typeText].filter(Boolean).join(' · ');
-  if (head) lines.push(`🏠 ${head}`);
+  if (head) lines.push(head);
+
+  const { amount, period } = formatPriceParts(listing.price, listing.purpose, listing.price_period);
+  lines.push(period ? `${bold(amount)} ${period}` : bold(amount));
 
   const place = [listing.quartier, listing.commune].filter(Boolean).join(', ');
-  if (place) lines.push(`📍 ${bold(place)}`);
+  if (place) lines.push(`📍 ${place}`);
 
-  lines.push(`💰 ${bold(formatPrice(listing.price, listing.purpose, listing.price_period))}`);
-
+  const details = [];
   const specs = roomSpecs(listing);
-  if (specs.length) lines.push(`🛏️ ${specs.join(' · ')}`);
-
-  const terms = entryTerms(listing);
-  if (terms) lines.push(`🔑 Garantie : ${terms.parts.join(' + ')} mois`);
-
+  if (specs.length) details.push(specs.join(' · '));
+  const entry = entryCostLine(listing);
+  if (entry) details.push(entry);
   const reference = typeof listing.reference === 'string' ? listing.reference.trim() : '';
-  if (reference) lines.push(`Réf. ${reference}`);
+  if (reference) details.push(`Réf. ${reference}`);
+  if (details.length) lines.push('', ...details.map((line) => `▸ ${line}`));
 
   // Only a number the public listing page would itself publish — see
   // agentContactPhone. An agent sharing their own listing usually wants to be
   // called directly; a caption is not the place to leak an unverified number.
-  if (contactPhone) lines.push('', `📞 ${bold('Contact agent')} : ${contactPhone}`);
+  if (contactPhone) {
+    const name = typeof contactName === 'string' && contactName.trim() ? contactName.trim() : 'Contact';
+    lines.push('', `${bold(name)} · ${contactPhone}`);
+  }
 
-  if (url) lines.push('', `👉 Photos et visite : ${url}`);
+  if (url) lines.push('', 'Photos et visite ↓', url);
 
   return lines.join('\n');
+}
+
+/**
+ * "Garantie 3 mois · Avance 1 mois · Commission 1 mois" — each stated part by
+ * its own name, in the order of the local "3 + 1 + 1" notation; a deposit
+ * alone is "Garantie 3 mois". Null when no entry terms are stated.
+ */
+export function entryCostLine(listing) {
+  const terms = entryTerms(listing);
+  if (!terms) return null;
+  const names = ['Garantie', 'Avance', 'Commission'];
+  return terms.parts.map((months, i) => `${names[i]} ${months} mois`).join(' · ');
 }
 
 /**
@@ -77,18 +101,26 @@ export function agentContactPhone(listing) {
 
 /** "2 chambres", "1 salle de bain", "120 m²", "6 portes" — only counts that are real. */
 export function roomSpecs(listing) {
-  const specs = [];
+  return roomSpecItems(listing).map((item) => item.text);
+}
+
+/**
+ * The same counts with the line icon the listing card draws beside each
+ * (lib/marketing/icons.js LINE_ICONS): bed, bath, area, door.
+ */
+export function roomSpecItems(listing) {
+  const items = [];
   const plural = (n, one, many) => `${n} ${n > 1 ? many : one}`;
 
   const beds = Number(listing.beds);
-  if (beds > 0) specs.push(plural(beds, 'chambre', 'chambres'));
+  if (beds > 0) items.push({ icon: 'bed', text: plural(beds, 'chambre', 'chambres') });
   const bath = Number(listing.bath);
-  if (bath > 0) specs.push(plural(bath, 'salle de bain', 'salles de bain'));
-  if (hasArea(listing.area)) specs.push(`${listing.area} m²`);
+  if (bath > 0) items.push({ icon: 'bath', text: plural(bath, 'salle de bain', 'salles de bain') });
+  if (hasArea(listing.area)) items.push({ icon: 'area', text: `${listing.area} m²` });
   const units = Number(listing.units_count);
-  if (listing.units_count != null && units > 0) specs.push(plural(units, 'porte', 'portes'));
+  if (listing.units_count != null && units > 0) items.push({ icon: 'door', text: plural(units, 'porte', 'portes') });
 
-  return specs;
+  return items;
 }
 
 /**

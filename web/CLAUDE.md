@@ -1075,7 +1075,8 @@ namespace; the two i18n tests above exist because of that.
 - **"Visuel & partage"** (actions menu on Mes biens): `lib/listingShareCopy.js`
   (French caption — always French, it is read by the agent's customers),
   `lib/listingFlyer.js` + `app/compte/agent/biens/[id]/visuel/route.js`
-  (1080×1080 PNG via `next/og`, ≤3 real photos fetched only from our hosts,
+  (**route retired 2026-10-06** — see "Listing card share" at the end of
+  this file; the rest of this bullet is history) (1080×1080 PNG via `next/og`, ≤3 real photos fetched only from our hosts,
   Plus Jakarta Sans fetched from Google Fonts once per process with a
   default-face fallback). Images go through `sharp` (already a Next
   dependency): WebP → PNG/JPEG, since satori decodes neither WebP nor AVIF,
@@ -1159,9 +1160,9 @@ namespace; the two i18n tests above exist because of that.
     story drawn from IndexedDB in 175 ms. The dashboard page itself is not
     cached by the service worker, so this works in a dashboard that is
     already open, not from a cold start offline.
-  - The server route `/compte/agent/biens/:id/visuel` stays as the square
-    fallback when the browser cannot draw, online only. It now sends a
-    mozjpeg q85 JPEG (106 KB) instead of satori's PNG (970 KB).
+  - ~~The server route `/compte/agent/biens/:id/visuel` stays as the square
+    fallback~~ — retired 2026-10-06 with the card redesign (see "Listing card
+    share"). The browser is the only renderer.
   - **Tagged links**: captions carry `?utm_source=` per way out
     (`SHARE_SOURCES`: wa_status / wa_message / partage_agent;
     rapport_proprietaire for the report). `lib/analyticsClient.js` now
@@ -2530,3 +2531,47 @@ structure; desktop layouts are unchanged unless stated.
   "Voir les N photos" opens a photo grid
   (PhotoGallery, phone only) whose tiles open the lightbox.
 - Tests: `tests/unit/storefront-upgrade.test.js`.
+
+## Listing card share — the standard WhatsApp share (2026-10-06)
+
+Product direction: the branded image (photos, price, agent) is what an agent
+sends, not a bare link that WhatsApp unfurls into a small grey preview.
+
+- **Mes biens' "Partager sur WhatsApp"** (the card button and the "…" menu
+  row) opens `components/ListingQuickShare.js`: the square card drawn in the
+  browser (same pack and renderer as the share kit), then ONE button →
+  `navigator.share({ files: [jpg], text: caption })` → WhatsApp → chat, group
+  or Status. The card is drawn BEFORE that tap so iPhone Safari keeps the
+  user gesture. The caption is copied in the same tap (WhatsApp drops text
+  shared with an image to a Status). No file sharing (most desktops) →
+  "Télécharger l'image". "Envoyer le texte seulement" stays a real wa.me
+  `<a>`. In the menu the dialog is a sibling (`quickShareOpen`), never inside
+  an item — Radix unmounts the menu content on close.
+- **Recorded with existing CHECK values**: image `kit_share` / `kit_download`
+  × `square`; text `menu_whatsapp` × `text`. No migration.
+- **The card** (`lib/marketing/layout.js`, square / 9:16 / 16:9): rounded
+  photo tiles on royal blue; purpose + type pills on the cover; "+N photos"
+  veil on the last tile from the pack's `photoTotal` (the listing's real
+  count); price (thousands separator drawn as a plain space —
+  `displayAmount`, U+202F has almost no width in Plus Jakarta Sans); pin +
+  place; chips with lucide line icons (`LINE_ICONS` in
+  `lib/marketing/icons.js`: pin, bed, bath, area, door — stroked by
+  CanvasRenderer); a white contact bar: agent avatar (logo or initials),
+  name, gold badge only when earned, WhatsApp number only under
+  `agentContactPhone`, and the Lukka Place lockup (colour roofline
+  `/brand/icon-light.png`, pack field `markLight`). No agent brand → the
+  lockup alone, centred. Packs stored offline before this (no `specs`,
+  `photoTotal`, `markLight`) still draw: icon-less chips, no "+N", white
+  roofline on a blue tile.
+- **The caption** (`buildListingSocialCopy`): `*À LOUER* · Type`, `*amount*
+  / mois`, `📍 place`, then a "▸" list (rooms, `entryCostLine` — "Garantie 3
+  mois · Avance 1 mois · Commission 1 mois", each part named, never summed —
+  and "Réf. …"), `*Agent name* · phone` (only under `agentContactPhone`;
+  "Contact" when there is no displayable name), "Photos et visite ↓" + link.
+  One emoji (📍) instead of one per line.
+- **The server flyer is retired**: `app/compte/agent/biens/[id]/visuel` and
+  the satori/sharp helpers in `lib/listingFlyer.js` are gone, so there is one
+  design and one renderer. A phone that cannot draw gets the caption.
+- Previews: `web/Design/share-card/` (gitignored).
+- Tests: `tests/unit/marketing-toolkit.test.js`, `agent-growth-toolkit.test.js`,
+  `listing-shares-print.test.js`.

@@ -1,6 +1,6 @@
 import 'server-only';
 import { getPool } from './db';
-import { getFlyerListing, frenchTypeText } from './listingFlyer';
+import { agentBrandFields, getFlyerListing, frenchTypeText } from './listingFlyer';
 import { agentContactPhone, buildListingSocialCopy, listingPublicUrl, shareBlocker } from './listingShareCopy';
 import { recordListingShares } from './listingShares';
 import { formatPrice } from './format';
@@ -88,6 +88,7 @@ export async function runAgentCommand({ agentId, command, listingId = null }) {
     const caption = buildListingSocialCopy(listing, {
       typeText: frenchTypeText(listing),
       contactPhone: agentContactPhone(listing),
+      contactName: agentBrandFields(listing).name,
       url: listingPublicUrl(listing.id, { source: COMMAND_SOURCE }),
     });
     const recorded = (await recordListingShares(agentId, { ids: [listing.id], channel: 'wa_command', format: 'text' })) > 0;

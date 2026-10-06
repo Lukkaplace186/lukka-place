@@ -44,10 +44,14 @@ export default function RecentlyViewed({ excludeId = null, minItems = 1, classNa
   if (listings.length < minItems) return null;
 
   return (
-    <section className={`py-12 ${className}`}>
+    // pt-6/pb-1 on a phone (was py-12 + the rail's pb-4): with the next
+    // section's own top padding that left ~100px of blank band between two
+    // rails (reported 2026-10-06). The rail keeps a little bottom room for
+    // card shadows.
+    <section className={`pt-6 pb-1 sm:py-12 ${className}`}>
       <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8">
-        <SectionHeading eyebrow={t('listings.recent.eyebrow')} title={t('listings.recent.title')} className="mb-6" />
-        <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4">
+        <SectionHeading eyebrow={t('listings.recent.eyebrow')} title={t('listings.recent.title')} className="mb-4 sm:mb-6" />
+        <div className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2 sm:pb-4">
           {listings.map((listing) => (
             <div key={listing.id} className="w-[17rem] shrink-0 snap-start sm:w-[19rem]">
               <PropertyCard listing={listing} />

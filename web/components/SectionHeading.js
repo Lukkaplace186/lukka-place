@@ -15,7 +15,7 @@ export default function SectionHeading({ eyebrow, title, lead, href, linkLabel =
 
   return (
     <div
-      className={`flex flex-col gap-4 sm:flex-row sm:items-end ${centered ? 'sm:justify-center' : 'sm:justify-between'} ${className}`}
+      className={`flex flex-col gap-2 sm:flex-row sm:items-end sm:gap-4 ${centered ? 'sm:justify-center' : 'sm:justify-between'} ${className}`}
     >
       <div className={`max-w-2xl ${centered ? 'mx-auto text-center' : ''}`}>
         {/* `eyebrowClassName` exists for the homepage's ink kicker

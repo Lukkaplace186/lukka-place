@@ -40,14 +40,14 @@ export default async function SavedListings({ listings, firstName }) {
        grounds depending on who is looking at it. Band rhythm note above
        applies to the fill too. */
     <section className="bg-canvas">
-      <div className="mx-auto max-w-[1600px] px-4 pt-8 pb-5 sm:px-6 sm:pt-14 sm:pb-10 lg:px-8">
+      <div className="mx-auto max-w-[1600px] px-4 pt-5 pb-5 sm:px-6 sm:pt-14 sm:pb-10 lg:px-8">
         <SectionHeading
           eyebrow={firstName ? t('home.saved.eyebrow', { name: firstName }) : t('home.saved.eyebrowAnonymous')}
           title={t('home.saved.title')}
           lead={t('home.saved.lead', { count: listings.length })}
-          href="/compte/client"
+          href="/compte/client/favoris"
           linkLabel={t('home.saved.viewAll')}
-          className="mb-6 sm:mb-10"
+          className="mb-4 sm:mb-10"
           eyebrowClassName="u-eyebrow-ink"
         />
         <SavedListingsRail listings={listings} />

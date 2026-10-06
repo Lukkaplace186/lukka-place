@@ -176,27 +176,20 @@ test('square: the white contact bar carries the agent name and number on the lef
 test('a pack stored before the colour mark puts the white roofline on a blue tile instead', () => {
   const ops = buildFlyerOps(PACK, 'square', env({ hasMarkLight: false })).ops;
   assert.ok(!images(ops).some((op) => op.key === 'markLight'));
-  // (The other 'mark' is the 6% watermark on the blue panel.)
-  const mark = images(ops).find((op) => op.key === 'mark' && op.alpha == null);
+  const mark = images(ops).find((op) => op.key === 'mark');
   assert.ok(ops.some((op) => op.type === 'rect' && op.fill === COLORS.royal && op.x <= mark.x && op.y <= mark.y && op.y > 900));
 });
 
-test('brand accents: green period and pin, a green rim on the bar, a faint roof watermark, lifted white cards', () => {
+test('lift and legibility: shadows under the white cards, a dark band behind the photo pills', () => {
   const { ops } = buildFlyerOps(PACK, 'square', env());
-  assert.equal(textOp(ops, '/ mois').color, COLORS.greenOnBlue);
-  assert.equal(ops.find((op) => op.type === 'icon' && op.name === 'pin').color, COLORS.greenOnBlue);
-  const rim = ops.find((op) => op.type === 'rect' && op.fill === COLORS.brandGreen);
-  const bar = ops.find((op) => op.type === 'rect' && op.fill === COLORS.white && op.y === 920);
-  assert.equal(rim.y, bar.y - 5);
-  assert.ok(ops.indexOf(rim) < ops.indexOf(bar), 'rim under the bar');
-  const watermark = images(ops).find((op) => op.key === 'mark' && op.alpha === 0.06);
-  assert.equal(ops.indexOf(watermark), 1, 'right after the ground, under everything else');
+  // Removed on product direction (2026-10-06): no green accents, no watermark.
+  assert.equal(textOp(ops, '/ mois').color, 'rgba(255,255,255,0.75)');
+  assert.ok(!images(ops).some((op) => op.alpha));
+  assert.ok(!ops.some((op) => op.fill === '#00b050'));
+  assert.ok(ops.find((op) => op.type === 'rect' && op.fill === COLORS.white && op.y === 920).shadow, 'bar lifted');
   assert.ok(ops.find((op) => op.type === 'rect' && op.fill === COLORS.white && op.w === 200).shadow, 'logo card lifted');
-  // The cover's top darkens for the pills; it is drawn before them.
   const gradient = ops.find((op) => op.gradient);
   assert.ok(ops.indexOf(gradient) < ops.indexOf(textOp(ops, 'À LOUER')));
-  // No watermark when the white mark did not load.
-  assert.ok(!images(buildFlyerOps(PACK, 'square', env({ hasMark: false })).ops).some((op) => op.alpha));
 });
 
 test('the 9:16 has the biggest price', () => {

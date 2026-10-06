@@ -50,11 +50,6 @@ export const COLORS = Object.freeze({
   inkSoft: '#2c3444',
   muted: '#5c6679',
   line: '#e2e6ef',
-  // The roof logo's green (--green), for the rim on the contact bar, and a
-  // lighter cut of it for small text on royal blue: #00b050 on #1e3aa8 is
-  // 3.2:1, #4ade80 is 5.5:1.
-  brandGreen: '#00b050',
-  greenOnBlue: '#4ade80',
 });
 
 /** The lift under the white elements on the blue ground. */
@@ -267,7 +262,7 @@ function priceRow(pack, { x, top, size, periodSize, gap }, measure) {
     const amountW = measure(amount, { size, weight: 800 });
     ops.push({
       type: 'text', text: pack.period, x: x + amountW + gap, y: top + amountBaseline,
-      size: periodSize, weight: 600, color: COLORS.greenOnBlue, align: 'left',
+      size: periodSize, weight: 500, color: 'rgba(255,255,255,0.75)', align: 'left',
     });
   }
   return { ops, bottom: top + lineBox(size, 1) };
@@ -282,7 +277,7 @@ function placeRow(text, { x, top, width, size, iconSize, gap }, measure) {
     drawn: true,
     bottom: top + h,
     ops: [
-      { type: 'icon', name: 'pin', x, y: top + (h - iconSize) / 2, size: iconSize, color: COLORS.greenOnBlue },
+      { type: 'icon', name: 'pin', x, y: top + (h - iconSize) / 2, size: iconSize, color: 'rgba(255,255,255,0.85)' },
       { type: 'text', text: line, x: x + iconSize + gap, y: top + (h - lineBox(size)) / 2 + baselineOffset(size), size, weight: 700, color: COLORS.white, align: 'left' },
     ],
   };
@@ -329,13 +324,7 @@ function contactBar(pack, s, { measure, hasLogo, hasMark, hasMarkLight }) {
   const { x, y, w, h, radius, pad } = s;
   const agent = pack.agent || {};
   const hasBrand = Boolean(hasLogo || agent.initials);
-  // A green rim along the top edge (the roof logo's inner line), drawn as the
-  // same rounded shape 5px higher so it follows the corners; the white bar on
-  // top carries the lift.
-  const ops = [
-    { type: 'rect', x, y: y - 5, w, h, fill: COLORS.brandGreen, radius, shadow: SHADOW },
-    { type: 'rect', x, y, w, h, fill: COLORS.white, radius },
-  ];
+  const ops = [{ type: 'rect', x, y, w, h, fill: COLORS.white, radius, shadow: SHADOW }];
 
   const nameW = measure('Lukka Place', { size: s.lockupName, weight: 800 });
   const urlW = measure('lukkaplace.com', { size: s.lockupUrl, weight: 600 });
@@ -470,16 +459,6 @@ function agentLogoCard(pack, { x, y, size, radius }, hasLogo) {
 
 const hasAgentBrand = (pack, hasLogo) => Boolean(hasLogo || pack.agent?.initials);
 
-/**
- * The roofline, very large and at 6% white, across the blue panel — texture
- * and depth so the blue is not a flat fill. Drawn right after the ground, so
- * everything else sits on top. Only when the white mark loaded.
- */
-function roofWatermark({ x, y, w }, hasMark) {
-  if (!hasMark) return [];
-  return [{ type: 'image', key: 'mark', x, y, w, h: w / 2, fit: 'contain', alpha: 0.06 }];
-}
-
 /** Price, place and chips, flowing down from `top`. */
 function listingBlock(pack, { x, top, width, price, place, chips }, measure) {
   const ops = [];
@@ -520,7 +499,6 @@ function squareFlyer(pack, { measure, photoCount, hasLogo, hasMark, hasMarkLight
   const barY = H - M - BAR_H;
 
   const ops = [{ type: 'rect', x: 0, y: 0, w: W, h: H, fill: COLORS.royal }];
-  ops.push(...roofWatermark({ x: 300, y: 560, w: 760 }, hasMark));
   ops.push(...photoTiles(PHOTO, photoCount, {
     mode: 'side', gap: 10, radius: 26, mainSize: 676, wordmarkSize: 96, more: moreCount(pack, photoCount), moreSize: 64,
   }));
@@ -562,7 +540,6 @@ function storyFlyer(pack, { measure, photoCount, hasLogo, hasMark, hasMarkLight 
   const barY = H - SAFE_BOTTOM - BAR_H;
 
   const ops = [{ type: 'rect', x: 0, y: 0, w: W, h: H, fill: COLORS.royal }];
-  ops.push(...roofWatermark({ x: 120, y: 1060, w: 940 }, hasMark));
   ops.push(...photoTiles(PHOTO, photoCount, {
     mode: 'below', gap: 12, radius: 32, mainSize: 750, wordmarkSize: 120, more: moreCount(pack, photoCount), moreSize: 80, gradientH: 320,
   }));
@@ -602,7 +579,6 @@ function landscapeFlyer(pack, { measure, photoCount, hasLogo, hasMark, hasMarkLi
   const barY = H - M - BAR_H;
 
   const ops = [{ type: 'rect', x: 0, y: 0, w: W, h: H, fill: COLORS.royal }];
-  ops.push(...roofWatermark({ x: 700, y: 300, w: 480 }, hasMark));
   ops.push(...photoTiles(PHOTO, photoCount, {
     mode: 'below', gap: 8, radius: 20, mainSize: 410, gradientH: 120, wordmarkSize: 64, more: moreCount(pack, photoCount), moreSize: 44,
   }));

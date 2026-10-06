@@ -2566,14 +2566,12 @@ sends, not a bare link that WhatsApp unfurls into a small grey preview.
   lockup alone, centred. Packs stored offline before this (no `specs`,
   `photoTotal`, `markLight`) still draw: icon-less chips, no "+N", white
   roofline on a blue tile.
-- **Brand accents** (same day, "make it pop"): "/ mois" and the place pin in
-  a light cut of the roof green (`greenOnBlue` #4ade80 — the brand #00b050 is
-  3.2:1 on royal), a #00b050 rim along the top of the white bar, the white
-  roofline at 6% across the blue panel (`roofWatermark`, needs the `mark`
-  image), soft shadows under the logo card, the bar and the purpose pill, a
-  dark-to-clear band across the top of the cover photo behind the pills, and
-  a 144px price on the 9:16. CanvasRenderer now takes rect `shadow` /
-  `gradient` and image `alpha`.
+- **Lift** (same day): soft shadows under the logo card, the bar and the
+  purpose pill, a dark-to-clear band across the top of the cover photo behind
+  the pills, and a 144px price on the 9:16. CanvasRenderer takes rect
+  `shadow` / `gradient` and image `alpha`. Green accents ("/ mois", pin, a
+  green rim on the bar) and a 6% roofline watermark were tried and removed
+  the same day on product direction.
 - **The caption** (`buildListingSocialCopy`): `*À LOUER* · Type`, `*amount*
   / mois`, `📍 place`, then a "▸" list (rooms, `entryCostLine` — "Garantie 3
   mois · Avance 1 mois · Commission 1 mois", each part named, never summed —

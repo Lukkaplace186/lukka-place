@@ -3,6 +3,7 @@ import { getHeroSettings } from '@/lib/cmsSettings';
 import FeaturedListings from '@/components/FeaturedListings';
 import SavedListings from '@/components/SavedListings';
 import ValueProposition from '@/components/ValueProposition';
+import PropertyTypeTiles from '@/components/PropertyTypeTiles';
 import RecentlyViewed from '@/components/RecentlyViewed';
 import NewProjectsStrip from '@/components/projects/NewProjectsStrip';
 import { cachedListingsTotal, cachedPopularCommunes, cachedPropertyTypeFacets } from '@/lib/listingsCached';
@@ -121,6 +122,8 @@ export default async function HomePage() {
       <RecentlyViewed />
       {saved ? <SavedListings listings={saved.listings} firstName={saved.firstName} /> : <FeaturedListings />}
       <NewProjectsStrip />
+      {/* One tile per property type with listings, counts from the same facets as the hero dropdown. */}
+      <PropertyTypeTiles propertyTypes={propertyTypes} />
       <ValueProposition />
     </>
   );

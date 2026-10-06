@@ -17,7 +17,7 @@ import ShareButton from '@/components/ShareButton';
 import FavoriteButton from '@/components/FavoriteButton';
 import { cache, Suspense } from 'react';
 import { getListingById as readListingById, getListings, getSimilarListings } from '@/lib/listings';
-import { listingImages, locationLine, typeLabel, specItems } from '@/lib/listingView';
+import { listingImages, locationLine, typeLabel, specItems, entryCostBreakdown } from '@/lib/listingView';
 import { formatPrice } from '@/lib/format';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import ListingViewTracker from '@/components/ListingViewTracker';
@@ -25,6 +25,7 @@ import PropertyDescription from '@/components/listings/PropertyDescription';
 import AvailabilityConfirmedBadge from '@/components/listings/AvailabilityConfirmedBadge';
 import MarketMedianLine from '@/components/listings/MarketMedianLine';
 import UtilityBadges from '@/components/listings/UtilityBadges';
+import ListingSectionNav from '@/components/listings/ListingSectionNav';
 import ProjectUnitStrip from '@/components/projects/ProjectUnitStrip';
 import JsonLd from '@/components/seo/JsonLd';
 import { communeHref, listingJsonLd, listingMetaDescription, listingMetaTitle } from '@/lib/listingSeo';
@@ -180,6 +181,15 @@ export default async function ListingDetailPage({ params, searchParams }) {
   // price range, different neighborhood). Falls back to the previous
   // commune-then-citywide chain when there's no embedding yet or nothing
   // comes back — never a dead rail.
+  // The phone's section strip names only sections this listing renders, so
+  // a tab never jumps to nothing (components/listings/ListingSectionNav.js).
+  const sectionNav = [
+    { id: 'apercu', label: t('listings.detail.sections.overview') },
+    entryCostBreakdown(listing) ? { id: 'couts', label: t('listings.detail.sections.costs') } : null,
+    listing.description ? { id: 'caracteristiques', label: t('listings.detail.sections.features') } : null,
+    { id: 'emplacement', label: t('listings.detail.sections.location') },
+  ].filter(Boolean);
+
   let related = await getSimilarListings(listing.id, 6);
   let relatedMode = 'similar';
   let widened = false;
@@ -332,9 +342,11 @@ export default async function ListingDetailPage({ params, searchParams }) {
                 cell for exactly that case — and drops its own top rule when
                 it is the card's first child. `empty:hidden` covers a listing
                 with neither. */}
+            <ListingSectionNav sections={sectionNav} label={t('listings.detail.sections.label')} />
+
             {listing.development_id ? <ProjectUnitStrip developmentId={listing.development_id} listingId={listing.id} /> : null}
 
-            <section className="rounded-2xl border border-line bg-surface p-5 empty:hidden sm:p-6">
+            <section id="apercu" className="scroll-mt-32 rounded-2xl border border-line bg-surface p-5 empty:hidden sm:p-6">
               <KeyFacts listing={listing} />
               <EntryCostsBreakdown listing={listing} />
             </section>
@@ -361,9 +373,11 @@ export default async function ListingDetailPage({ params, searchParams }) {
                 the separate "Équipements confirmés" chip section that used
                 to follow it; rendering either alongside this would state
                 the same amenities twice on one page. */}
-            <PropertyDescription listing={listing} />
+            <div id="caracteristiques" className="scroll-mt-32">
+              <PropertyDescription listing={listing} />
+            </div>
 
-            <div className="flex flex-col gap-3">
+            <div id="emplacement" className="flex scroll-mt-32 flex-col gap-3">
               <h2 className="u-h2 text-ink">{t('listings.detail.location')}</h2>
               <ListingLocationMap listing={listing} />
             </div>

@@ -177,7 +177,21 @@
         "other": "{count} suggestions"
       },
       "popularCommunes": "Communes populaires",
-      "allPrices": "Tous prix"
+      "allPrices": "Tous prix",
+      "understood": "Nous avons compris :",
+      "near": "Près de {place}",
+      "bedsMin": {
+        "one": "{count} ch.+",
+        "other": "{count} ch.+"
+      },
+      "seeCount": {
+        "one": "Voir {count} bien",
+        "other": "Voir {count} biens"
+      },
+      "seeSuggestions": {
+        "one": "Voir {count} suggestion",
+        "other": "Voir {count} suggestions"
+      }
     },
     "value": {
       "verifiedTitle": "Annonces relues",
@@ -223,6 +237,13 @@
     "trust": {
       "oneTeam": "Une seule équipe, un seul numéro",
       "body": "pas de fiches abandonnées. Une seule ligne WhatsApp pour une question, une visite ou un signalement."
+    },
+    "types": {
+      "title": "Par type de bien",
+      "count": {
+        "one": "{count} annonce",
+        "other": "{count} annonces"
+      }
     }
   },
   "about": {
@@ -412,7 +433,8 @@
       "entryTerms": "Conditions d'entrée",
       "entryTermsMonths": "{parts} mois",
       "entryTermsChip": "Garantie {parts} mois",
-      "type": "Type"
+      "type": "Type",
+      "entryItemizedChip": "Entrée {parts} mois"
     },
     "entryCosts": {
       "heading": "Conditions financières",
@@ -511,7 +533,14 @@
       "featuresFromAgent": "Points forts extraits du message de l'agent, revus à la publication. Une caractéristique absente de cette liste n'est pas forcément absente du bien.",
       "featuresFromText": "Les équipements proviennent du texte de l'annonce, revu à la publication. Ils ne sont pas issus d'un champ structuré de la base — un bien peut en disposer sans l'avoir précisé.",
       "featuresFromDescription": "Reprise de la description de l'annonce, mise en liste. Aucune information n'a été ajoutée.",
-      "location": "Emplacement"
+      "location": "Emplacement",
+      "sections": {
+        "label": "Sections de l’annonce",
+        "overview": "Aperçu",
+        "costs": "Coûts",
+        "features": "Caractéristiques",
+        "location": "Emplacement"
+      }
     },
     "sidebar": {
       "relatedSearches": "Recherches associées",
@@ -526,7 +555,11 @@
       "enlargePhoto": "Agrandir la photo {n}",
       "previousPhoto": "Photo précédente",
       "nextPhoto": "Photo suivante",
-      "allPhotos": "Toutes les photos"
+      "allPhotos": "Toutes les photos",
+      "seeAllCount": {
+        "one": "Voir la photo",
+        "other": "Voir les {count} photos"
+      }
     },
     "metrics": {
       "price": "Prix",
@@ -564,6 +597,19 @@
       "projectsHere": {
         "one": "{count} projet neuf ici",
         "other": "{count} projets neufs ici"
+      },
+      "quick": {
+        "price": "Prix",
+        "beds": "Chambres",
+        "type": "Type",
+        "any": "Tous",
+        "priceTitle": "Prix maximum",
+        "bedsTitle": "Chambres (au moins)",
+        "typeTitle": "Type de bien",
+        "bedsValue": {
+          "one": "{count} ch.+",
+          "other": "{count} ch.+"
+        }
       }
     },
     "alertModal": {

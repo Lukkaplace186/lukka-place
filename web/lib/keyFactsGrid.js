@@ -100,3 +100,15 @@ export function lastCellPresentation(count) {
 
 /** The stacked layout every other cell uses. Exported so KeyFacts has one source for it. */
 export const STACKED_CELL_CLASS = STACKED;
+
+/**
+ * Which facts make the phone's row of big numbers: beds, baths, then doors
+ * or area, at most three, in that order; everything else (and a fourth
+ * count) becomes a label/value row. Used by components/KeyFacts.js below `md`.
+ */
+const COUNT_KEYS = ['beds', 'bath', 'units', 'area'];
+export function phoneFactLayout(items) {
+  const counts = COUNT_KEYS.map((key) => items.find((item) => item.key === key)).filter(Boolean).slice(0, 3);
+  const inRow = new Set(counts.map((item) => item.key));
+  return { counts, rows: items.filter((item) => !inRow.has(item.key)) };
+}

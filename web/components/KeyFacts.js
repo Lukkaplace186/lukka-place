@@ -2,7 +2,7 @@
 
 import { BedDouble, Bath, Ruler, DoorOpen, FileText, Landmark } from 'lucide-react';
 import { hasArea, entryTerms } from '@/lib/listingView';
-import { lastCellPresentation, STACKED_CELL_CLASS } from '@/lib/keyFactsGrid';
+import { lastCellPresentation, phoneFactLayout, STACKED_CELL_CLASS } from '@/lib/keyFactsGrid';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
 
@@ -132,16 +132,43 @@ export default function KeyFacts({ listing }) {
   // half-empty stretched cell that reads as one. lib/keyFactsGrid.js owns and
   // documents both halves of that.
   const lastCell = lastCellPresentation(items.length);
+  const { counts, rows } = phoneFactLayout(items);
 
+  // The grid: 2-up until `md`, not `sm`: at 640-767px four cells are ~160px
+  // wide and a value like "Appartement" at 21px wraps inside its own cell.
+  // The 1px `gap` over a `bg-line` ground is what draws the dividers.
+  // lib/keyFactsGrid.js's span classes are tied to this same breakpoint; they
+  // move together or the last cell spans a row that isn't there yet. Below
+  // `md` it is hidden in favour of the phone layout (2026-10-06): the counts a
+  // visitor compares (chambres, salles de bain, portes or m²) as one row of
+  // big numbers, the rest (type, garantie, référence) as label/value rows.
+  // The 2-column grid was ~5 rows tall on a 375px screen for six facts.
   return (
-    // 2-up until `md`, not `sm`: at 640-767px four cells are ~160px wide and a
-    // value like "Appartement" at 21px wraps inside its own cell. The 1px
-    // `gap` over a `bg-line` ground is what draws the dividers — between the
-    // two rows and the two columns on a phone, between all four cells on a
-    // desktop. lib/keyFactsGrid.js's span classes are tied to this same
-    // breakpoint; they move together or the last cell spans a row that isn't
-    // there yet.
-    <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl bg-line md:grid-cols-4">
+    <>
+    <div className="overflow-hidden rounded-xl bg-canvas-alt md:hidden">
+      {counts.length > 0 ? (
+        <div className="grid divide-x divide-line" style={{ gridTemplateColumns: `repeat(${counts.length}, minmax(0, 1fr))` }}>
+          {counts.map(({ key, icon: Icon, label, value }) => (
+            <div key={key} className="flex flex-col items-center gap-1 px-2 py-3.5 text-center">
+              <Icon strokeWidth={1.75} className="h-5 w-5 text-blue" aria-hidden="true" />
+              <span className="u-tabular text-[1.25rem] font-extrabold leading-none text-ink">{value}</span>
+              <span className="text-[0.75rem] font-semibold text-ink-45">{label}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {rows.length > 0 ? (
+        <dl className={cn('divide-y divide-line', counts.length > 0 && 'border-t border-line')}>
+          {rows.map(({ key, label, value }) => (
+            <div key={key} className="flex items-baseline justify-between gap-4 px-3.5 py-2.5">
+              <dt className="shrink-0 text-[0.8125rem] text-ink-45">{label}</dt>
+              <dd className="min-w-0 text-right text-[0.875rem] font-bold text-ink">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+    </div>
+    <div className="hidden grid-cols-2 gap-px overflow-hidden rounded-xl bg-line md:grid md:grid-cols-4">
       {items.map(({ key, icon: Icon, label, value }, index) => {
         const { className, groupClassName } = index === items.length - 1
           ? lastCell
@@ -188,5 +215,6 @@ export default function KeyFacts({ listing }) {
         );
       })}
     </div>
+    </>
   );
 }

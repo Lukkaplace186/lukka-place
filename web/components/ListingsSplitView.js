@@ -40,7 +40,7 @@ function buildPageHref(searchParams, page) {
  * stopped 1.5rem short of the bottom.
  */
 export default function ListingsSplitView({
-  listings, isMapView, page, totalPages, params, popularCommunes, communes, clearAreaHref = null, nearby = null,
+  listings, isMapView, page, totalPages, params, popularCommunes, communes, clearAreaHref = null, nearby = null, propertyTypes = [],
 }) {
   const t = useT();
   const router = useRouter();
@@ -266,7 +266,7 @@ export default function ListingsSplitView({
           {/* Phone map: the search floats over the full-height map. */}
           {isMapView ? (
             <div className="pointer-events-none absolute inset-x-0 top-0 z-20 p-2.5 lg:hidden">
-              <MobileMapChrome params={params} />
+              <MobileMapChrome params={params} propertyTypes={propertyTypes} />
             </div>
           ) : null}
           {isMapView && !previewOpen ? <MobileMapBar inView={inView} onOpenCards={openCards} /> : null}

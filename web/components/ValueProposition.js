@@ -75,24 +75,23 @@ export default async function ValueProposition() {
             section in the page outline; the paraphrase is gone. */}
         <h2 className="u-reveal-in-view u-eyebrow u-eyebrow-section mb-5 sm:mb-9">{t('home.value.eyebrow')}</h2>
 
-        <div className="u-stagger-in-view-inner grid grid-cols-1 gap-px border-y border-line bg-line md:grid-cols-3">
-          {VALUE_PROPS.map(({ id, titleKey, bodyKey }) => (
-            <div
-              key={id}
-              /* Matches the section fill above, and must: these cells sit on
-                 a `bg-line` grid with a 1px gap, so the hairlines ARE the
-                 gap showing through. A cell filled with anything other than
-                 the section's own ground draws three visible blocks instead
-                 of one ruled band. */
-              className="flex flex-col gap-2 bg-canvas py-6 sm:gap-2.5 sm:py-9 md:px-10 md:first:pl-0 md:last:pr-0"
-            >
-              {/* Sans 700, not the display serif: with the numeral gone the
-                  serif has no role in this section at all. */}
-              <h3 className="text-[1.3125rem] font-bold leading-snug tracking-[-0.008em] text-ink">{t(titleKey)}</h3>
-              <p className="text-[1rem] leading-[1.6] text-ink-70 text-pretty">{t(bodyKey)}</p>
-            </div>
+        {/* Three numbered cards (2026-10-06 storefront upgrade, the same card
+            language as the portals): the three promises read as steps a
+            visitor goes through — reviewed listings, direct contact, prices
+            stated — rather than as a ruled band. Copy unchanged. */}
+        <ol className="u-stagger-in-view grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-5">
+          {VALUE_PROPS.map(({ id, titleKey, bodyKey }, index) => (
+            <li key={id} className="flex gap-3.5 rounded-card bg-surface p-4 shadow-[var(--hairline),var(--shadow-card)] sm:p-6 md:flex-col md:gap-3">
+              <span className="u-tabular grid h-9 w-9 shrink-0 place-items-center rounded-full bg-blue text-[0.9375rem] font-extrabold text-white">
+                {index + 1}
+              </span>
+              <div className="flex flex-col gap-1.5">
+                <h3 className="text-[1.0625rem] font-bold leading-snug text-ink sm:text-[1.1875rem]">{t(titleKey)}</h3>
+                <p className="text-[0.9375rem] leading-[1.55] text-ink-70 text-pretty">{t(bodyKey)}</p>
+              </div>
+            </li>
           ))}
-        </div>
+        </ol>
 
         <Link
           href="/listings"

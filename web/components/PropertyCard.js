@@ -17,7 +17,7 @@ import SpecItem, { SpecCell } from './SpecItem';
 import { useT } from '@/lib/i18n/client';
 import { CardBadges, AmenityTag } from './ListingBadges';
 import {
-  listingImages, formatFreshness, specItems, typeLabel, feedLocationLine, matchedAmenities, entryTerms,
+  listingImages, formatFreshness, specItems, typeLabel, feedLocationLine, matchedAmenities, entryChipLabel,
 } from '@/lib/listingView';
 import { cn } from '@/lib/utils';
 
@@ -107,8 +107,12 @@ export default function PropertyCard({
   const type = typeLabel(listing, t);
   const where = feedLocationLine(listing);
   const freshness = formatFreshness(createdAt, t);
-  const amenities = matchedAmenities(listing, 3);
-  const factChips = cardFactChips(listing, 3 - amenities.length, t);
+  // The entry terms come first and always have a slot (2026-10-06): what is
+  // due on entry is the first question a renter in Kinshasa asks, and three
+  // amenity matches used to push it off the card entirely.
+  const entry = entryChipLabel(listing, t);
+  const amenities = matchedAmenities(listing, entry ? 2 : 3);
+  const factChips = cardFactChips(listing, 3 - amenities.length - (entry ? 1 : 0), t);
   // Only when this listing genuinely has an agency attached. AgencyLogo's own
   // no-agent fallback is the Lukka Place wordmark, which is honest on a
   // detail page but wrong in a feed — an unconditional slot would stamp the
@@ -375,6 +379,12 @@ export default function PropertyCard({
             terms, then whether it is to let or for sale — never an invented
             feature (cardFactChips below). */}
         <div className="flex h-6 flex-wrap items-center gap-1.5 overflow-hidden">
+          {entry ? (
+            <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full bg-warning-tint px-2.5 py-1 text-[0.6875rem] font-bold leading-none text-warning-ink">
+              <Wallet strokeWidth={ICON_STROKE_WIDTH} className="h-3 w-3 shrink-0" aria-hidden="true" />
+              {entry}
+            </span>
+          ) : null}
           {amenities.map(({ key, matched }) => (
             <AmenityTag key={key} amenityKey={key} matched={matched} size="compact" />
           ))}
@@ -461,22 +471,13 @@ export default function PropertyCard({
 }
 
 /**
- * Chips for the slots the amenity matches leave free, from structured facts
- * only: the entry terms the listing states ("Garantie 3 + 1 + 1 mois", in
- * the local notation, never summed — see entryTerms), then its purpose.
- * A sale has no entry terms. Nothing here is inferred from text.
+ * Chips for the slots the entry terms and amenity matches leave free, from
+ * structured facts only: whether the listing is to let or for sale. Nothing
+ * here is inferred from text.
  */
 function cardFactChips(listing, slots, t) {
   if (slots <= 0) return [];
   const chips = [];
-  const terms = listing.purpose === 'rent' ? entryTerms(listing) : null;
-  if (terms) {
-    chips.push({
-      key: 'entry-terms',
-      icon: Wallet,
-      label: t('listings.facts.entryTermsChip', { parts: terms.parts.join(' + ') }),
-    });
-  }
   if (listing.purpose === 'rent' || listing.purpose === 'sale') {
     chips.push({
       key: 'purpose',

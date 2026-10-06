@@ -88,7 +88,8 @@ export default async function EntryCostsBreakdown({ listing }) {
 
   return (
     <section
-      className="mt-6 border-t border-line pt-7 first:mt-0 first:border-t-0 first:pt-0"
+      id="couts"
+      className="mt-6 scroll-mt-32 border-t border-line pt-7 first:mt-0 first:border-t-0 first:pt-0"
       style={{ '--entry-cols': segments }}
     >
       {/* Side by side at every width, including a 390px phone: the total and

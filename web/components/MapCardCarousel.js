@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Camera, X } from 'lucide-react';
+import { Camera, Wallet, X } from 'lucide-react';
 import CardImageCarousel from './CardImageCarousel';
 import Price from './Price';
 import FavoriteButton from './FavoriteButton';
-import { listingImages, specItems, typeLabel, feedLocationLine } from '@/lib/listingView';
+import { listingImages, specItems, typeLabel, feedLocationLine, entryChipLabel } from '@/lib/listingView';
 import { formatDistance, listingDistanceKm } from '@/lib/landmarks';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
@@ -194,6 +194,7 @@ function MapCard({ listing, active, near, cardRef }) {
   const images = listingImages(listing);
   const specs = specItems(listing, t).slice(0, 2);
   const km = near?.point ? listingDistanceKm(listing, near.point) : null;
+  const entry = entryChipLabel(listing, t);
 
   return (
     <article
@@ -226,6 +227,13 @@ function MapCard({ listing, active, near, cardRef }) {
         <span className="truncate text-[0.8125rem] text-ink-70">
           {[typeLabel(listing, t), ...specs.map((spec) => `${spec.value} ${spec.label}`), feedLocationLine(listing)].filter(Boolean).join(' · ')}
         </span>
+        {/* What is due on entry, as on the feed card (2026-10-06). */}
+        {entry ? (
+          <span className="mt-0.5 inline-flex max-w-full items-center gap-1 self-start truncate rounded-full bg-warning-tint px-2 py-0.5 text-[0.6875rem] font-bold text-warning-ink">
+            <Wallet strokeWidth={ICON_STROKE_WIDTH} className="h-3 w-3 shrink-0" aria-hidden="true" />
+            {entry}
+          </span>
+        ) : null}
         {Number.isFinite(km) ? (
           <span className="truncate text-[0.75rem] font-semibold text-blue-deep">
             {t('listings.results.distanceFrom', { distance: formatDistance(km), place: near.label })}

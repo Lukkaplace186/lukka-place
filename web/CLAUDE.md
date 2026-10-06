@@ -2488,3 +2488,43 @@ strip under the header.
   `/compte/client/favoris?tab=alertes`.
 - **Profil**: grouped inset lists (Compte, Notifications, Application) with a
   language row (`LanguageToggle`, the cookie — there is still no column).
+
+## Storefront upgrade (2026-10-06)
+
+Approved from `web/Design/storefront-prototype.html` (gitignored), same
+language as the two portal redesigns. An upgrade of what was live, not a new
+structure; desktop layouts are unchanged unless stated.
+
+- **Landing**: the phone hero band is 19.5rem (was 26rem) and the search card
+  overlaps it deeper, so the card starts in the top half of the screen (the
+  button used to sit at the fold). Louer | Acheter is full width on phones.
+  The button reads "Voir 47 biens" (the live count is the label). As the
+  visitor types, the card reads back what `lib/searchParser.js` understood
+  as chips ("Nous avons compris : Kintambo · 2 ch.+ · ≤ 1 500 $",
+  `lib/searchUnderstood.js`) — a read-back only, never a filter of its own.
+  **No "Essayez…" example chips**: removed on product direction until there
+  are enough listings that an example search is never empty.
+  `PropertyTypeTiles` (one tile per type with listings, counts from the same
+  `getPropertyTypeFacets` as the hero dropdown) sits above "Notre approche",
+  which is now three numbered cards (copy unchanged).
+- **Entry chip** (`entryChipLabel`, lib/listingView.js; feed card and map
+  card): "Entrée 3 + 1 + 1 mois" when more than the deposit is stated,
+  "Garantie 4 mois" when only the deposit is. It read "Garantie 3 + 1 + 1
+  mois" for both, naming the whole entry package the deposit. It takes the
+  first chip slot (amber), before amenity matches.
+- **Phone map**: Prix · Chambres · Type chips under the search
+  (`components/MapQuickFilters.js`, `lib/mapQuickFilters.js`) open a small
+  sheet and push the new param, keeping every other filter and the map area;
+  `page` is dropped. Types are the real facets (passed down from
+  /listings/page.js through ListingsSplitView). Map cards show the entry chip.
+- **Listing page (phone)**: a sticky section strip under the header,
+  Aperçu · Coûts · Caractéristiques · Emplacement
+  (`components/listings/ListingSectionNav.js`, IntersectionObserver
+  scroll-spy), naming only sections that render — "Coûts" only when
+  `entryCostBreakdown` is non-null. Anchors: `#apercu` (the facts card),
+  `#couts` (EntryCostsBreakdown), `#caracteristiques`, `#emplacement`.
+  KeyFacts below `md` is one row of up to three big counts (beds, baths,
+  doors or m², `phoneFactLayout` in lib/keyFactsGrid.js) plus label/value
+  rows; the md+ grid is unchanged. "Voir les N photos" opens a photo grid
+  (PhotoGallery, phone only) whose tiles open the lightbox.
+- Tests: `tests/unit/storefront-upgrade.test.js`.

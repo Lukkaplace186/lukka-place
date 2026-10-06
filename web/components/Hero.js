@@ -83,7 +83,7 @@ export default function Hero({ propertyTypes = [], communes = [], initialCount =
 
   return (
     <>
-      <section className="relative flex h-[26rem] w-full items-center overflow-hidden bg-ink sm:h-[30rem] lg:h-[33.75rem]">
+      <section className="relative flex h-[19.5rem] w-full items-start overflow-hidden bg-ink pt-7 sm:h-[30rem] sm:items-center sm:pt-0 lg:h-[33.75rem]">
         {/* Nothing sits between the photo and the type: no scrim, no
             gradient, no frosted panel. The sunlit sky is the hero. */}
         {/* `image` is the picture set from /admin/cms (lib/cmsSettings.js), on an
@@ -125,7 +125,7 @@ export default function Hero({ propertyTypes = [], communes = [], initialCount =
                 background behind the type, or moving the block down-left
                 over the dark road surface. Both were measured; both work.
                 Neither is in effect. */}
-            <h1 className="u-lift-in text-4xl font-extrabold leading-[1.02] tracking-tight text-white [text-shadow:0_1px_3px_rgb(0_0_0_/_0.75),0_6px_24px_rgb(0_0_0_/_0.55)] min-[360px]:tracking-tighter sm:text-5xl md:text-6xl">
+            <h1 className="u-lift-in text-[2rem] font-extrabold leading-[1.02] tracking-tight text-white [text-shadow:0_1px_3px_rgb(0_0_0_/_0.75),0_6px_24px_rgb(0_0_0_/_0.55)] min-[360px]:tracking-tighter sm:text-5xl md:text-6xl">
               {t('home.hero.title')}
             </h1>
 
@@ -137,10 +137,11 @@ export default function Hero({ propertyTypes = [], communes = [], initialCount =
       </section>
 
       {/* The panel straddles the hero's bottom edge, per the design. This is
-          where the real call-to-action lives (the "Rechercher" submit inside
-          SearchBar); the -mt-16 overlap is the documented anatomy of this
-          screen. */}
-      <div style={{ '--u-delay': '160ms', '--u-lift-from': '24px' }} className="u-lift-in relative z-20 mx-auto -mt-16 w-full max-w-[1240px] px-4 sm:px-6 lg:-mt-[5.75rem] lg:px-8">
+          where the real call-to-action lives (the "Voir N biens" submit inside
+          SearchBar). On a phone the band is shorter (19.5rem, was 26rem) and
+          the overlap deeper, so the search card starts in the top half of the
+          screen instead of at the fold (2026-10-06 storefront upgrade). */}
+      <div style={{ '--u-delay': '160ms', '--u-lift-from': '24px' }} className="u-lift-in relative z-20 mx-auto -mt-[5.5rem] w-full sm:-mt-16 max-w-[1240px] px-4 sm:px-6 lg:-mt-[5.75rem] lg:px-8">
         <SearchBar propertyTypes={propertyTypes} communes={communes} initialCount={initialCount} />
       </div>
     </>

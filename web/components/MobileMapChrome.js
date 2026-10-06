@@ -2,6 +2,7 @@
 
 import { SlidersHorizontal } from 'lucide-react';
 import LocationAutocomplete from './LocationAutocomplete';
+import MapQuickFilters from './MapQuickFilters';
 import { openFiltersDrawer } from '@/lib/mapFilterDrawer';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
@@ -28,12 +29,13 @@ import { useT } from '@/lib/i18n/client';
  * floating button over the map itself — not here, per the explicit
  * "one clean Liste control" instruction.
  */
-export default function MobileMapChrome({ params }) {
+export default function MobileMapChrome({ params, propertyTypes = [] }) {
   const t = useT();
   return (
     // Floats over the phone map (ListingsSplitView gives it a pointer-events-
     // none layer, so the map stays draggable around the two controls).
-    <div className="flex items-center gap-2 lg:hidden">
+    <div className="lg:hidden">
+    <div className="flex items-center gap-2">
       <LocationAutocomplete
         preserveParams
         initialValue={params.q || params.near || ''}
@@ -54,6 +56,9 @@ export default function MobileMapChrome({ params }) {
       >
         <SlidersHorizontal strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
       </button>
+    </div>
+    {/* Prix · Chambres · Type, applied without leaving the map. */}
+    <MapQuickFilters params={params} propertyTypes={propertyTypes} />
     </div>
   );
 }

@@ -177,7 +177,21 @@
         "other": "{count} suggestions"
       },
       "popularCommunes": "Popular Communes",
-      "allPrices": "Any price"
+      "allPrices": "Any price",
+      "understood": "We understood:",
+      "near": "Near {place}",
+      "bedsMin": {
+        "one": "{count}+ bed",
+        "other": "{count}+ bed"
+      },
+      "seeCount": {
+        "one": "See {count} listing",
+        "other": "See {count} listings"
+      },
+      "seeSuggestions": {
+        "one": "See {count} suggestion",
+        "other": "See {count} suggestions"
+      }
     },
     "value": {
       "verifiedTitle": "Reviewed Listings",
@@ -223,6 +237,13 @@
     "trust": {
       "oneTeam": "One Team, One Number",
       "body": "no abandoned listings. One WhatsApp line for a question, a viewing or a report."
+    },
+    "types": {
+      "title": "By Property Type",
+      "count": {
+        "one": "{count} listing",
+        "other": "{count} listings"
+      }
     }
   },
   "about": {
@@ -411,8 +432,9 @@
       "referenceTag": "Ref: {reference}",
       "entryTerms": "Entry terms",
       "entryTermsMonths": "{parts} months",
-      "entryTermsChip": "Move-in {parts} months",
-      "type": "Type"
+      "entryTermsChip": "Deposit {parts} months",
+      "type": "Type",
+      "entryItemizedChip": "Entry {parts} months"
     },
     "entryCosts": {
       "heading": "Financial Terms",
@@ -511,7 +533,14 @@
       "featuresFromAgent": "Highlights taken from the agent's own message, reviewed at publication. A feature missing from this list is not necessarily missing from the property.",
       "featuresFromText": "Features are drawn from the listing's own text, reviewed at publication. They do not come from a structured database field — a property may have one without having mentioned it.",
       "featuresFromDescription": "The listing's own description, set out as a list. Nothing has been added to it.",
-      "location": "Location"
+      "location": "Location",
+      "sections": {
+        "label": "Listing sections",
+        "overview": "Overview",
+        "costs": "Costs",
+        "features": "Features",
+        "location": "Location"
+      }
     },
     "sidebar": {
       "relatedSearches": "Related Searches",
@@ -526,7 +555,11 @@
       "enlargePhoto": "Enlarge photo {n}",
       "previousPhoto": "Previous photo",
       "nextPhoto": "Next photo",
-      "allPhotos": "All photos"
+      "allPhotos": "All photos",
+      "seeAllCount": {
+        "one": "See the Photo",
+        "other": "See All {count} Photos"
+      }
     },
     "metrics": {
       "price": "Price",
@@ -564,6 +597,19 @@
       "projectsHere": {
         "one": "{count} new-build project here",
         "other": "{count} new-build projects here"
+      },
+      "quick": {
+        "price": "Price",
+        "beds": "Bedrooms",
+        "type": "Type",
+        "any": "Any",
+        "priceTitle": "Maximum Price",
+        "bedsTitle": "Bedrooms (At Least)",
+        "typeTitle": "Property Type",
+        "bedsValue": {
+          "one": "{count}+ bed",
+          "other": "{count}+ bed"
+        }
       }
     },
     "alertModal": {

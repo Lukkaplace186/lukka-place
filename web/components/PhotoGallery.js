@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Expand, ImageOff } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Expand, ImageOff, LayoutGrid } from 'lucide-react';
 import SafeImage from './SafeImage';
 import CardImageCarousel from './CardImageCarousel';
 import { Badge } from './ListingBadges';
@@ -65,6 +65,10 @@ export default function PhotoGallery({ images, alt, mobileActions = null, verifi
 
   const [lightboxIndex, setLightboxIndex] = useState(null);
   const isOpen = lightboxIndex !== null;
+  // Phone only: every photo as a scrollable grid (2026-10-06). A swipe
+  // through 13 photos one at a time is how a visitor gives up at photo 4;
+  // the grid shows the whole set and a tap opens the lightbox there.
+  const [gridOpen, setGridOpen] = useState(false);
 
   // A ref, not state: counting what the visitor has seen must never re-render
   // the gallery, and each event must leave exactly once per mount.
@@ -190,7 +194,42 @@ export default function PhotoGallery({ images, alt, mobileActions = null, verifi
         {mobileActions ? (
           <span className="absolute right-3.5 top-3.5 z-10 flex gap-2">{mobileActions}</span>
         ) : null}
+
+        {total > 2 ? (
+          <button
+            type="button"
+            onClick={() => setGridOpen(true)}
+            className="u-press absolute bottom-3.5 left-3.5 z-10 inline-flex h-9 items-center gap-1.5 rounded-full bg-white/95 px-3.5 text-[0.8125rem] font-bold text-ink shadow-sm"
+          >
+            <LayoutGrid strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
+            {t('listings.gallery.seeAllCount', { count: total })}
+          </button>
+        ) : null}
       </div>
+
+      <Dialog open={gridOpen} onOpenChange={setGridOpen}>
+        <DialogContent showCloseButton className="max-h-[78dvh] max-w-[min(96vw,40rem)] gap-0 overflow-y-auto p-3 sm:hidden">
+          <DialogTitle className="px-1 pb-3 pt-1 text-[1.0625rem] font-bold text-ink">
+            {t('listings.gallery.seeAllCount', { count: total })}
+          </DialogTitle>
+          <div className="grid grid-cols-2 gap-1.5">
+            {shots.map((src, index) => (
+              <button
+                key={`${src}-${index}`}
+                type="button"
+                onClick={() => {
+                  setGridOpen(false);
+                  setLightboxIndex(index);
+                }}
+                aria-label={t('listings.gallery.enlargePhoto', { n: index + 1 })}
+                className={`relative overflow-hidden rounded-lg bg-canvas-deep ${index === 0 ? 'col-span-2 h-52' : 'h-32'}`}
+              >
+                <SafeImage src={src} alt="" fill sizes={index === 0 ? '96vw' : '48vw'} className="object-cover" />
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="relative hidden sm:block">
         <div

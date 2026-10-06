@@ -268,6 +268,7 @@ export default async function ListingsPage({ searchParams }) {
             communes={communes}
             clearAreaHref={clearAreaHref}
             nearby={nearbyExtras ? { ...nearbyExtras, listings: withNearDistance(nearbyExtras.listings), place: params.commune } : null}
+            propertyTypes={propertyTypes}
           />
         )}
       </div>

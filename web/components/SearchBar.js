@@ -5,6 +5,7 @@ import { Search, MapPin, ChevronDown, Building2, Wallet } from 'lucide-react';
 import LocationAutocomplete from './LocationAutocomplete';
 import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB, ICON_STROKE_WIDTH } from '@/lib/constants';
 import { parseSearchQuery } from '@/lib/searchParser';
+import { understoodChips } from '@/lib/searchUnderstood';
 import { useT } from '@/lib/i18n/client';
 
 /**
@@ -103,10 +104,6 @@ function buildBudgetMaxOptions(t) {
 
 const COUNT_DEBOUNCE_MS = 350;
 
-/** "31 biens" / "1 bien" / "0 bien" — French takes the singular at zero. */
-function formatCount(n) {
-  return `${n.toLocaleString('fr-FR')} bien${n > 1 ? 's' : ''}`;
-}
 
 /**
  * One row inside the fused field block. `focus-within` paints the whole
@@ -246,6 +243,14 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
     };
   }, [transactionType, propertyType, budgetMax, location]);
 
+  // What the parser takes from the typed text, read back as chips — so a
+  // visitor sees that "Gombe" and "2 chambres" were understood before they
+  // search. Never a filter of its own (lib/searchUnderstood.js).
+  const understood = useMemo(
+    () => (location.trim().length >= 3 ? understoodChips(parseSearchQuery(location), t) : []),
+    [location, t],
+  );
+
   function applyCommune(name) {
     // Tapping the lit pill clears it — a one-tap filter needs a one-tap
     // undo, otherwise the only way out of a chip is to select its text.
@@ -267,7 +272,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
       <div
         role="tablist"
         aria-label={t('home.search.transactionType')}
-        className="mb-4 inline-flex rounded-full bg-canvas-alt p-1"
+        className="mb-4 flex w-full rounded-full bg-canvas-alt p-1 sm:inline-flex sm:w-auto"
       >
         {HOME_TABS.map(({ value, labelKey }) => {
           const on = homeTab === value;
@@ -291,7 +296,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
               // 48px, not the 44px a segmented control usually gets: the
               // brief sets one floor for every interactive control in this
               // panel and the toggle is no exception.
-              className={`u-press min-h-12 rounded-full px-6 text-[0.9375rem] font-semibold transition-colors ${
+              className={`u-press min-h-11 flex-1 rounded-full px-6 text-[0.9375rem] font-semibold transition-colors sm:min-h-12 sm:flex-none ${
                 on
                   ? 'bg-surface text-blue-deep shadow-[var(--shadow-card)]'
                   : 'text-ink-45 hover:text-ink'
@@ -392,6 +397,17 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
         </div>
       </div>
 
+      {understood.length > 0 ? (
+        <p className="u-reveal mt-3 flex flex-wrap items-center gap-1.5 text-[0.75rem] text-ink-45" aria-live="polite">
+          {t('home.search.understood')}
+          {understood.map((chip) => (
+            <span key={chip.key} className="inline-flex h-6 items-center rounded-full bg-ink px-2.5 text-[0.75rem] font-bold text-white">
+              {chip.label}
+            </span>
+          ))}
+        </p>
+      ) : null}
+
       {/* --- 3. Primary CTA ----------------------------------------------- */}
       <button
         type="button"
@@ -399,16 +415,17 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
         className="u-press u-btn-primary mt-4 inline-flex h-[3.25rem] w-full items-center justify-center gap-2 rounded-2xl bg-blue px-6 text-[1rem] font-semibold text-white"
       >
         <Search strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className="h-5 w-5" />
-        <span>{t('home.search.submit')}</span>
-        {/* Always mounted, so the live region exists before its text does —
+        {/* "Voir 47 biens": the count IS the label once it is known (it
+            always is on first paint — the homepage passes the real total).
+            Always mounted, so the live region exists before its text does —
             a region that appears at the same moment as its content is not
             reliably announced. */}
-        <span className="u-tabular font-medium text-white/80" aria-live="polite">
+        <span className="u-tabular" aria-live="polite">
           {count === 0 && suggested > 0
-            ? `(${t('home.search.suggestedCount', { count: suggested })})`
-            : count != null
-              ? `(${formatCount(count)})`
-              : ''}
+            ? t('home.search.seeSuggestions', { count: suggested })
+            : count != null && count > 0
+              ? t('home.search.seeCount', { count })
+              : t('home.search.submit')}
         </span>
       </button>
 

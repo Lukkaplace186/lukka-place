@@ -134,14 +134,32 @@ test('a pack stored before the chips existed still draws its rooms, without icon
   assert.ok(!ops.some((op) => op.type === 'icon' && op.name === 'bed'));
 });
 
-test('square: the white contact bar carries the agent on the left and the Lukka Place lockup on the right', () => {
+test('square: the agent has their own white card on the blue panel, right of the price', () => {
+  const { ops } = buildFlyerOps(PACK, 'square', env());
+  const card = ops.find((op) => op.type === 'rect' && op.fill === COLORS.white && op.w === 200);
+  assert.deepEqual([card.x, card.h, card.radius], [852, 200, 28]);
+  assert.ok(card.y >= 644 && card.y + card.h <= 920, 'between the photos and the bar');
+  // No logo: the initials, large, in royal blue on the card.
+  const initials = textOp(ops, 'MB');
+  assert.equal(initials.color, COLORS.royal);
+  assert.equal(initials.x, 852 + 100);
+  // The price block stays clear of the card.
+  const chip = textOp(ops, '2 salles de bain');
+  assert.ok(chip.x + measure(chip.text, { size: 24, weight: 700 }) < 852);
+
+  const withLogo = buildFlyerOps(PACK, 'square', env({ hasLogo: true })).ops;
+  const logo = images(withLogo).find((op) => op.key === 'logo');
+  assert.ok(logo.x > 852 && logo.y > 644 && logo.fit === 'contain');
+  assert.equal(images(withLogo).filter((op) => op.key === 'logo').length, 1, 'the logo is drawn once, not again in the bar');
+});
+
+test('square: the white contact bar carries the agent name and number on the left and the Lukka Place lockup on the right', () => {
   const { ops } = buildFlyerOps(PACK, 'square', env({ hasMarkLight: true }));
   const bar = ops.find((op) => op.type === 'rect' && op.fill === COLORS.white && op.y === 920);
   assert.deepEqual([bar.x, bar.w, bar.h, bar.radius], [28, 1024, 132, 30]);
-  const initials = textOp(ops, 'MB');
-  assert.equal(initials.color, COLORS.white);
-  assert.ok(initials.x < 200);
-  assert.equal(textOp(ops, 'Makam B').color, COLORS.ink);
+  const name = textOp(ops, 'Makam B');
+  assert.equal(name.color, COLORS.ink);
+  assert.ok(name.x < 80 && name.y > 920, 'name starts the bar, no avatar before it');
   const glyph = ops.find((op) => op.type === 'icon' && op.name === 'whatsapp');
   assert.equal(glyph.color, COLORS.whatsapp);
   const mark = images(ops).find((op) => op.key === 'markLight');

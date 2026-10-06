@@ -27,7 +27,8 @@ import { FORMATS, REPORT_FORMAT } from './formats';
  * THE LISTING CARD (2026-10-06 redesign). Rounded photo tiles on the royal
  * ground with the purpose and type as pills on the cover and "+N photos" on
  * the last tile; the price, a pin + place line and line-icon chips for the
- * counts; a white contact bar with the agent and the Lukka Place lockup. This
+ * counts beside the agent's own white logo card (square and 9:16); a white
+ * contact bar with the agent's name and number and the Lukka Place lockup. This
  * card is what Mes biens' "Partager sur WhatsApp" sends (ListingQuickShare).
  * Text baselines use satori's half-leading model with Plus Jakarta Sans's own
  * metrics (ascender 1038, descender 222 per 1000 em, read from the TTF), the
@@ -357,10 +358,14 @@ function contactBar(pack, s, { measure, hasLogo, hasMark, hasMarkLight }) {
     return ops;
   }
 
-  // Agent column first, so the lockup knows how much room is left.
+  // Agent column first, so the lockup knows how much room is left. With
+  // `avatar: 0` the logo is drawn on the blue panel instead (agentLogoCard)
+  // and the bar carries only the name, badge and number.
   const avatarX = x + pad;
   const avatarY = y + (h - s.avatar) / 2;
-  if (hasLogo) {
+  if (!s.avatar) {
+    // nothing here
+  } else if (hasLogo) {
     ops.push(
       { type: 'rect', x: avatarX, y: avatarY, w: s.avatar, h: s.avatar, fill: COLORS.line, radius: s.avatar / 2 },
       { type: 'rect', x: avatarX + 2, y: avatarY + 2, w: s.avatar - 4, h: s.avatar - 4, fill: COLORS.white, radius: s.avatar / 2 - 2 },
@@ -377,7 +382,7 @@ function contactBar(pack, s, { measure, hasLogo, hasMark, hasMarkLight }) {
     );
   }
 
-  const colX = avatarX + s.avatar + s.colGap;
+  const colX = s.avatar ? avatarX + s.avatar + s.colGap : x + pad + 6;
   const fullLockupW = markW + s.lockupGap + wordsW;
   const withWords = x + w - pad - fullLockupW - s.divider - colX >= s.minCol;
   const lockupW = withWords ? fullLockupW : markW;
@@ -417,6 +422,32 @@ function contactBar(pack, s, { measure, hasLogo, hasMark, hasMarkLight }) {
   });
   return ops;
 }
+
+/**
+ * The agent's own space (2026-10-06, product direction: "the agents to have
+ * their own space to shine"): a white rounded card on the blue panel, right
+ * of the price, holding their logo — or their initials, large, in royal blue,
+ * which is what most agents have until they upload one. Lukka Place keeps its
+ * own place in the white bar. Never drawn without an agent brand: no logo and
+ * no name means no card, rather than an empty white square.
+ */
+function agentLogoCard(pack, { x, y, size, radius }, hasLogo) {
+  const agent = pack.agent || {};
+  const ops = [{ type: 'rect', x, y, w: size, h: size, fill: COLORS.white, radius }];
+  if (hasLogo) {
+    const inset = size * 0.12;
+    ops.push({ type: 'image', key: 'logo', x: x + inset, y: y + inset, w: size - inset * 2, h: size - inset * 2, fit: 'contain' });
+  } else {
+    const textSize = Math.round(size * 0.36);
+    ops.push({
+      type: 'text', text: agent.initials, x: x + size / 2, y: y + (size - lineBox(textSize)) / 2 + baselineOffset(textSize),
+      size: textSize, weight: 800, color: COLORS.royal, align: 'center',
+    });
+  }
+  return ops;
+}
+
+const hasAgentBrand = (pack, hasLogo) => Boolean(hasLogo || pack.agent?.initials);
 
 /** Price, place and chips, flowing down from `top`. */
 function listingBlock(pack, { x, top, width, price, place, chips }, measure) {
@@ -470,11 +501,15 @@ function squareFlyer(pack, { measure, photoCount, hasLogo, hasMark, hasMarkLight
   };
   const room = barY - (PHOTO.y + PHOTO.h);
   const top = PHOTO.y + PHOTO.h + Math.max(28, (room - listingBlockHeight(pack, spec)) / 2);
-  ops.push(...listingBlock(pack, { x: M + 8, top, width: W - M * 2 - 16, ...spec }, measure).ops);
+  const CARD = 200;
+  const brand = hasAgentBrand(pack, hasLogo);
+  const cardX = W - M - CARD;
+  if (brand) ops.push(...agentLogoCard(pack, { x: cardX, y: PHOTO.y + PHOTO.h + (room - CARD) / 2, size: CARD, radius: 28 }, hasLogo));
+  ops.push(...listingBlock(pack, { x: M + 8, top, width: (brand ? cardX - 24 : W - M) - (M + 8), ...spec }, measure).ops);
 
   ops.push(...contactBar(pack, {
     x: M, y: barY, w: W - M * 2, h: BAR_H, radius: 30, pad: 24,
-    avatar: 84, colGap: 18, name: 30, phone: 25, glyph: 26, glyphGap: 9, rowGap: 6,
+    avatar: 0, colGap: 18, name: 30, phone: 25, glyph: 26, glyphGap: 9, rowGap: 6,
     badge: { size: 18, padX: 12, padY: 5, iconSize: 17, gap: 6 },
     tile: 64, lockupGap: 14, lockupName: 26, lockupUrl: 20, divider: 48, minCol: 300,
   }, { measure, hasLogo, hasMark, hasMarkLight }));
@@ -507,11 +542,15 @@ function storyFlyer(pack, { measure, photoCount, hasLogo, hasMark, hasMarkLight 
   };
   const room = barY - (PHOTO.y + PHOTO.h);
   const top = PHOTO.y + PHOTO.h + Math.max(36, (room - listingBlockHeight(pack, spec)) / 2);
-  ops.push(...listingBlock(pack, { x: M + 12, top, width: W - M * 2 - 24, ...spec }, measure).ops);
+  const CARD = 248;
+  const brand = hasAgentBrand(pack, hasLogo);
+  const cardX = W - M - CARD;
+  if (brand) ops.push(...agentLogoCard(pack, { x: cardX, y: PHOTO.y + PHOTO.h + (room - CARD) / 2, size: CARD, radius: 34 }, hasLogo));
+  ops.push(...listingBlock(pack, { x: M + 12, top, width: (brand ? cardX - 28 : W - M) - (M + 12), ...spec }, measure).ops);
 
   ops.push(...contactBar(pack, {
     x: M, y: barY, w: W - M * 2, h: BAR_H, radius: 36, pad: 30,
-    avatar: 104, colGap: 22, name: 36, phone: 30, glyph: 32, glyphGap: 11, rowGap: 8,
+    avatar: 0, colGap: 22, name: 36, phone: 30, glyph: 32, glyphGap: 11, rowGap: 8,
     badge: { size: 22, padX: 14, padY: 6, iconSize: 21, gap: 7 },
     tile: 80, lockupGap: 16, lockupName: 30, lockupUrl: 23, divider: 56, minCol: 340,
   }, { measure, hasLogo, hasMark, hasMarkLight }));

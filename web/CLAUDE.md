@@ -2556,10 +2556,13 @@ sends, not a bare link that WhatsApp unfurls into a small grey preview.
   `displayAmount`, U+202F has almost no width in Plus Jakarta Sans); pin +
   place; chips with lucide line icons (`LINE_ICONS` in
   `lib/marketing/icons.js`: pin, bed, bath, area, door — stroked by
-  CanvasRenderer); a white contact bar: agent avatar (logo or initials),
+  CanvasRenderer); the agent's OWN white card on the blue panel, right of
+  the price (`agentLogoCard`: their logo, or their initials large in royal —
+  product direction "agents have their own space to shine", square and
+  9:16; the 16:9 keeps a small avatar in the bar); a white contact bar:
   name, gold badge only when earned, WhatsApp number only under
-  `agentContactPhone`, and the Lukka Place lockup (colour roofline
-  `/brand/icon-light.png`, pack field `markLight`). No agent brand → the
+  `agentContactPhone`, and the Lukka Place lockup on the right (colour
+  roofline `/brand/icon-light.png`, pack field `markLight`). No agent brand → the
   lockup alone, centred. Packs stored offline before this (no `specs`,
   `photoTotal`, `markLight`) still draw: icon-less chips, no "+N", white
   roofline on a blue tile.

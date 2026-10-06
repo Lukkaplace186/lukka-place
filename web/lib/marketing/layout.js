@@ -8,8 +8,8 @@ import { FORMATS, REPORT_FORMAT } from './formats';
  * design lives rather than one per renderer.
  *
  * Operations (all coordinates in output pixels; text `y` is the BASELINE):
- *   { type: 'rect',  x, y, w, h, fill, radius? }
- *   { type: 'image', key, x, y, w, h, fit: 'cover'|'contain', radius? }
+ *   { type: 'rect',  x, y, w, h, fill, radius?, shadow?: {color, blur, y}, gradient?: [top, bottom] }
+ *   { type: 'image', key, x, y, w, h, fit: 'cover'|'contain', radius?, alpha? }
  *   { type: 'text',  text, x, y, size, weight, color, align: 'left'|'center'|'right', letterSpacing? }
  *   { type: 'icon',  name, x, y, size, color }  — 'whatsapp' and 'check'
  *     (lib/marketing/icons.js), or a stroked line icon from LINE_ICONS there:
@@ -50,7 +50,15 @@ export const COLORS = Object.freeze({
   inkSoft: '#2c3444',
   muted: '#5c6679',
   line: '#e2e6ef',
+  // The roof logo's green (--green), for the rim on the contact bar, and a
+  // lighter cut of it for small text on royal blue: #00b050 on #1e3aa8 is
+  // 3.2:1, #4ade80 is 5.5:1.
+  brandGreen: '#00b050',
+  greenOnBlue: '#4ade80',
 });
+
+/** The lift under the white elements on the blue ground. */
+const SHADOW = Object.freeze({ color: 'rgba(8, 20, 70, 0.38)', blur: 28, y: 10 });
 
 // Plus Jakarta Sans vertical metrics, per em.
 const ASCENT = 1.038;
@@ -120,7 +128,7 @@ const VEIL = 'rgba(11,17,32,0.55)';
  * `more` (photoTotal − photos drawn) veils the last tile with "+N photos": the
  * listing's real count, and the reason to open the link.
  */
-function photoTiles(box, count, { mode, gap, radius, mainSize, wordmarkSize, more = 0, moreSize }) {
+function photoTiles(box, count, { mode, gap, radius, mainSize, wordmarkSize, more = 0, moreSize, gradientH = 180 }) {
   const ops = [];
   const tile = (i, x, y, w, h) => ({ type: 'image', key: `photo:${i}`, x, y, w, h, fit: 'cover', radius });
 
@@ -165,6 +173,10 @@ function photoTiles(box, count, { mode, gap, radius, mainSize, wordmarkSize, mor
   // than blue (2026-10-06, product direction); same corners as the tiles.
   ops.push({ type: 'rect', x: box.x, y: box.y, w: box.w, h: box.h, fill: COLORS.white, radius });
   tiles.forEach((args) => ops.push(tile(...args)));
+  // A soft dark band across the top of the cover, so the white "À LOUER"
+  // pill and the type pill read on a bright ceiling.
+  const [, cx, cy, cw, ch] = tiles[0];
+  ops.push({ type: 'rect', x: cx, y: cy, w: cw, h: Math.min(ch, gradientH), radius, gradient: ['rgba(11,17,32,0.42)', 'rgba(11,17,32,0)'] });
 
   // The veil goes on the last tile, and only when it is not also the cover.
   if (more > 0 && tiles.length > 1) {
@@ -200,7 +212,7 @@ function pillRow(items, { x, y, size, padX, padY, gap, maxWidth }, measure) {
     const w = measure(item.text, style) + padX * 2;
     if (cursor + w > x + maxWidth) break;
     ops.push(
-      { type: 'rect', x: cursor, y, w, h, fill: item.fill, radius: h / 2 },
+      { type: 'rect', x: cursor, y, w, h, fill: item.fill, radius: h / 2, ...(item.shadow ? { shadow: item.shadow } : {}) },
       {
         type: 'text', text: item.text, x: cursor + padX, y: y + padY + baselineOffset(size), size, weight: 800,
         color: item.color, align: 'left', ...(item.letterSpacing ? { letterSpacing: item.letterSpacing } : {}),
@@ -214,7 +226,7 @@ function pillRow(items, { x, y, size, padX, padY, gap, maxWidth }, measure) {
 function photoPills(pack, spec, measure) {
   return pillRow(
     [
-      { text: pack.purposeLabel, fill: COLORS.white, color: COLORS.royal, letterSpacing: spec.letterSpacing },
+      { text: pack.purposeLabel, fill: COLORS.white, color: COLORS.royal, letterSpacing: spec.letterSpacing, shadow: { ...SHADOW, blur: 16, y: 4 } },
       { text: pack.typeText, fill: VEIL, color: COLORS.white },
     ],
     spec,
@@ -255,7 +267,7 @@ function priceRow(pack, { x, top, size, periodSize, gap }, measure) {
     const amountW = measure(amount, { size, weight: 800 });
     ops.push({
       type: 'text', text: pack.period, x: x + amountW + gap, y: top + amountBaseline,
-      size: periodSize, weight: 500, color: 'rgba(255,255,255,0.75)', align: 'left',
+      size: periodSize, weight: 600, color: COLORS.greenOnBlue, align: 'left',
     });
   }
   return { ops, bottom: top + lineBox(size, 1) };
@@ -270,7 +282,7 @@ function placeRow(text, { x, top, width, size, iconSize, gap }, measure) {
     drawn: true,
     bottom: top + h,
     ops: [
-      { type: 'icon', name: 'pin', x, y: top + (h - iconSize) / 2, size: iconSize, color: 'rgba(255,255,255,0.85)' },
+      { type: 'icon', name: 'pin', x, y: top + (h - iconSize) / 2, size: iconSize, color: COLORS.greenOnBlue },
       { type: 'text', text: line, x: x + iconSize + gap, y: top + (h - lineBox(size)) / 2 + baselineOffset(size), size, weight: 700, color: COLORS.white, align: 'left' },
     ],
   };
@@ -317,7 +329,13 @@ function contactBar(pack, s, { measure, hasLogo, hasMark, hasMarkLight }) {
   const { x, y, w, h, radius, pad } = s;
   const agent = pack.agent || {};
   const hasBrand = Boolean(hasLogo || agent.initials);
-  const ops = [{ type: 'rect', x, y, w, h, fill: COLORS.white, radius }];
+  // A green rim along the top edge (the roof logo's inner line), drawn as the
+  // same rounded shape 5px higher so it follows the corners; the white bar on
+  // top carries the lift.
+  const ops = [
+    { type: 'rect', x, y: y - 5, w, h, fill: COLORS.brandGreen, radius, shadow: SHADOW },
+    { type: 'rect', x, y, w, h, fill: COLORS.white, radius },
+  ];
 
   const nameW = measure('Lukka Place', { size: s.lockupName, weight: 800 });
   const urlW = measure('lukkaplace.com', { size: s.lockupUrl, weight: 600 });
@@ -436,7 +454,7 @@ function contactBar(pack, s, { measure, hasLogo, hasMark, hasMarkLight }) {
  */
 function agentLogoCard(pack, { x, y, size, radius }, hasLogo) {
   const agent = pack.agent || {};
-  const ops = [{ type: 'rect', x, y, w: size, h: size, fill: COLORS.white, radius }];
+  const ops = [{ type: 'rect', x, y, w: size, h: size, fill: COLORS.white, radius, shadow: SHADOW }];
   if (hasLogo) {
     const inset = size * 0.12;
     ops.push({ type: 'image', key: 'logo', x: x + inset, y: y + inset, w: size - inset * 2, h: size - inset * 2, fit: 'contain' });
@@ -451,6 +469,16 @@ function agentLogoCard(pack, { x, y, size, radius }, hasLogo) {
 }
 
 const hasAgentBrand = (pack, hasLogo) => Boolean(hasLogo || pack.agent?.initials);
+
+/**
+ * The roofline, very large and at 6% white, across the blue panel — texture
+ * and depth so the blue is not a flat fill. Drawn right after the ground, so
+ * everything else sits on top. Only when the white mark loaded.
+ */
+function roofWatermark({ x, y, w }, hasMark) {
+  if (!hasMark) return [];
+  return [{ type: 'image', key: 'mark', x, y, w, h: w / 2, fit: 'contain', alpha: 0.06 }];
+}
 
 /** Price, place and chips, flowing down from `top`. */
 function listingBlock(pack, { x, top, width, price, place, chips }, measure) {
@@ -492,6 +520,7 @@ function squareFlyer(pack, { measure, photoCount, hasLogo, hasMark, hasMarkLight
   const barY = H - M - BAR_H;
 
   const ops = [{ type: 'rect', x: 0, y: 0, w: W, h: H, fill: COLORS.royal }];
+  ops.push(...roofWatermark({ x: 300, y: 560, w: 760 }, hasMark));
   ops.push(...photoTiles(PHOTO, photoCount, {
     mode: 'side', gap: 10, radius: 26, mainSize: 676, wordmarkSize: 96, more: moreCount(pack, photoCount), moreSize: 64,
   }));
@@ -533,13 +562,15 @@ function storyFlyer(pack, { measure, photoCount, hasLogo, hasMark, hasMarkLight 
   const barY = H - SAFE_BOTTOM - BAR_H;
 
   const ops = [{ type: 'rect', x: 0, y: 0, w: W, h: H, fill: COLORS.royal }];
+  ops.push(...roofWatermark({ x: 120, y: 1060, w: 940 }, hasMark));
   ops.push(...photoTiles(PHOTO, photoCount, {
-    mode: 'below', gap: 12, radius: 32, mainSize: 750, wordmarkSize: 120, more: moreCount(pack, photoCount), moreSize: 80,
+    mode: 'below', gap: 12, radius: 32, mainSize: 750, wordmarkSize: 120, more: moreCount(pack, photoCount), moreSize: 80, gradientH: 320,
   }));
   ops.push(...photoPills(pack, { x: M + 32, y: 180, size: 30, padX: 26, padY: 12, gap: 12, letterSpacing: 2, maxWidth: W - M * 2 - 64 }, measure));
 
   const spec = {
-    price: { size: 116, periodSize: 42, gap: 18 },
+    // The 9:16 has room to spare: the price is the biggest thing on it.
+    price: { size: 144, periodSize: 48, gap: 20 },
     place: { size: 42, iconSize: 42, gap: 12, gapAbove: 22 },
     chips: { size: 30, iconSize: 32, padX: 22, h: 64, gap: 12, iconGap: 11, gapAbove: 28 },
   };
@@ -571,8 +602,9 @@ function landscapeFlyer(pack, { measure, photoCount, hasLogo, hasMark, hasMarkLi
   const barY = H - M - BAR_H;
 
   const ops = [{ type: 'rect', x: 0, y: 0, w: W, h: H, fill: COLORS.royal }];
+  ops.push(...roofWatermark({ x: 700, y: 300, w: 480 }, hasMark));
   ops.push(...photoTiles(PHOTO, photoCount, {
-    mode: 'below', gap: 8, radius: 20, mainSize: 410, wordmarkSize: 64, more: moreCount(pack, photoCount), moreSize: 44,
+    mode: 'below', gap: 8, radius: 20, mainSize: 410, gradientH: 120, wordmarkSize: 64, more: moreCount(pack, photoCount), moreSize: 44,
   }));
   ops.push(...photoPills(pack, { x: M + 16, y: M + 16, size: 17, padX: 14, padY: 7, gap: 8, letterSpacing: 1.5, maxWidth: PHOTO.w - 32 }, measure));
 

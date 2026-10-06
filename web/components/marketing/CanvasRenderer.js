@@ -188,19 +188,43 @@ function drawText(ctx, op, family) {
   }
 }
 
+function drawRect(ctx, op) {
+  ctx.save();
+  if (op.shadow) {
+    ctx.shadowColor = op.shadow.color;
+    ctx.shadowBlur = op.shadow.blur;
+    ctx.shadowOffsetY = op.shadow.y || 0;
+  }
+  if (op.gradient) {
+    // Vertical, top colour to bottom colour.
+    const gradient = ctx.createLinearGradient(0, op.y, 0, op.y + op.h);
+    gradient.addColorStop(0, op.gradient[0]);
+    gradient.addColorStop(1, op.gradient[1]);
+    ctx.fillStyle = gradient;
+  } else {
+    ctx.fillStyle = op.fill;
+  }
+  if (op.radius) {
+    roundedRectPath(ctx, op.x, op.y, op.w, op.h, op.radius);
+    ctx.fill();
+  } else {
+    ctx.fillRect(op.x, op.y, op.w, op.h);
+  }
+  ctx.restore();
+}
+
 export function paint(ctx, ops, images, family) {
   for (const op of ops) {
     if (op.type === 'rect') {
-      ctx.fillStyle = op.fill;
-      if (op.radius) {
-        roundedRectPath(ctx, op.x, op.y, op.w, op.h, op.radius);
-        ctx.fill();
-      } else {
-        ctx.fillRect(op.x, op.y, op.w, op.h);
-      }
+      drawRect(ctx, op);
     } else if (op.type === 'image') {
       const image = images[op.key];
-      if (image) drawImage(ctx, image, op);
+      if (image) {
+        ctx.save();
+        if (op.alpha != null) ctx.globalAlpha = op.alpha;
+        drawImage(ctx, image, op);
+        ctx.restore();
+      }
     } else if (op.type === 'text') {
       drawText(ctx, op, family);
     } else if (op.type === 'icon') {

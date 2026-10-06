@@ -57,7 +57,7 @@ export default async function AgentDashboardLayout({ children }) {
   const context = await getAgentDashboardContext(agentId);
   if (!context) redirect('/compte/agent/connexion');
 
-  const { agent, listings, newLeadsCount, pendingVisitsCount, completion, displayName } = context;
+  const { agent, listings, waitingCount, completion, displayName } = context;
 
   // The rail's "Profil complété" is the same checklist Réglages shows and the
   // overview's "Profil incomplet" banner reads (profileChecklist), so the
@@ -91,8 +91,7 @@ export default async function AgentDashboardLayout({ children }) {
           agentName={name}
           agentInitials={initials}
           listingsCount={listings.length}
-          newLeadsCount={newLeadsCount}
-          pendingVisitsCount={pendingVisitsCount}
+          waitingCount={waitingCount}
           completion={railCompletion}
           logoutAction={agentLogoutAction}
         />

@@ -283,17 +283,19 @@ test('print extras are scoped to the owning agent and read feature amenities onl
   assert.deepEqual(values, [20, 305, 9]);
 });
 
-test('print pages: A4 page size, a print button, and the poster/sheet reachable from the kit and the menu', () => {
+test('print pages: A4 page size, a print button, and the sheet reachable from the kit (the poster is no longer offered)', () => {
   const styles = readFileSync(path.join(ROOT, 'components/print/PrintStyles.js'), 'utf8');
   assert.match(styles, /@page \{ size: A4; margin: 0; \}/);
   assert.match(styles, /aspect-ratio: 210 \/ 297/);
   const toolbar = readFileSync(path.join(ROOT, 'components/print/PrintToolbar.js'), 'utf8');
   assert.match(toolbar, /window\.print\(\)/);
-  // Both print pages live in "Marketing & Documents" (the share kit); the row
-  // menu opens that dialog instead of listing them (2026-09-28).
+  // The sheet lives in "Documents et rapports" (the share kit); the row menu
+  // opens that dialog instead of listing it. The window poster was removed
+  // from every agent surface on product direction (2026-10-06).
   const kitSrc = readFileSync(path.join(ROOT, 'components/AgentListingShareKit.js'), 'utf8');
-  assert.match(kitSrc, /\/compte\/agent\/biens\/\$\{[a-zA-Z.]+\}\/affiche/, 'the kit links the poster');
+  assert.doesNotMatch(kitSrc, /\/affiche/, 'the kit no longer links the poster');
   assert.match(kitSrc, /\/compte\/agent\/biens\/\$\{[a-zA-Z.]+\}\/fiche/, 'the kit links the sheet');
+  assert.doesNotMatch(readFileSync(path.join(ROOT, 'app/compte/agent/biens/[id]/page.js'), 'utf8'), /\/affiche/);
   const menu = readFileSync(path.join(ROOT, 'components/AgentListingActionsMenu.js'), 'utf8');
   assert.match(menu, /setShareKitOpen\(true\)/);
   assert.doesNotMatch(menu, /\/affiche|\/fiche|wa\.me|buildWhatsAppShareLink/, 'print pages and WhatsApp are no longer menu items');

@@ -2639,3 +2639,14 @@ trips and bytes, not server time.
   current one; `staleTimes.static: 60` bounds how old a prefetched tab may be
   (the default is 5 min, too long for an inbox). Actions still invalidate it.
 - Tests: `tests/unit/agent-inbox.test.js`, `marketing-toolkit.test.js`.
+- **Bell and Demandes badge = new since last look** (same evening):
+  `waitingCount` is now the "À traiter" items (counted by `inboxBadgeCounts`,
+  so a web visit request's lead + visit count once — it read 3 where the
+  inbox said 2) that arrived after the agent last opened Demandes. The page
+  stamps `lp_inbox_seen` (server clock, per device — there is no read-state
+  column) through `components/InboxSeenMarker.js`, which refreshes once so
+  the layout's tab badge clears too. `actionableCount` keeps the full
+  "À traiter" number; looking clears the badge, answering clears the row.
+- **Window poster removed** from Documents et rapports and the listing's
+  Statistiques page (product direction). `/compte/agent/biens/[id]/affiche`
+  itself still exists.

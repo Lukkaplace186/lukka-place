@@ -55,14 +55,14 @@ export default function AgentSidebar({
   agentName,
   agentInitials,
   listingsCount,
-  newLeadsCount,
-  pendingVisitsCount,
+  waitingCount = 0,
   completion,
   logoutAction,
 }) {
   const t = useT();
   const pathname = usePathname();
-  const counts = { listings: listingsCount, leads: newLeadsCount + pendingVisitsCount };
+  // The same number as every header bell (lib/agentDashboard.js waitingCount).
+  const counts = { listings: listingsCount, leads: waitingCount };
 
   return (
     <>

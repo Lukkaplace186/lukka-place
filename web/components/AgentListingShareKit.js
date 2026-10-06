@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, BarChart3, ChevronRight, Download, FileText, MessageCircle, Printer, Share2 } from 'lucide-react';
+import { ArrowLeft, BarChart3, ChevronRight, Download, FileText, MessageCircle, Share2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { buildWhatsAppShareLink } from '@/lib/whatsapp';
@@ -31,8 +31,9 @@ function releaseAssets(assets) {
  * ListingQuickShare, which now sends the listing card and its caption). What
  * is left is what the share does not do:
  *
- *   Documents A4          the window poster and the technical sheet — links
- *                         to their print pages (…/affiche, …/fiche).
+ *   Documents A4          the technical sheet (…/fiche). The window poster
+ *                         was removed from here on product direction
+ *                         (2026-10-06); its page still exists.
  *   Rapport propriétaire  the owner's report since the listing went online
  *                         (all-time, no longer "the last 7 days"): live counts
  *                         from the server, card drawn in the browser, caption
@@ -167,13 +168,6 @@ export default function AgentListingShareKit({ listingId, blocker = null, open, 
                   {t(BLOCKER_KEYS[blocker] || 'agent.share.blocked.pending')}
                 </p>
               )}
-              <KitRow
-                icon={Printer}
-                title={t('agent.print.posterMenuItem')}
-                hint={t('agent.share.rows.posterHint')}
-                href={`/compte/agent/biens/${listingId}/affiche`}
-                disabled={!printable}
-              />
               <KitRow
                 icon={FileText}
                 title={t('agent.print.sheetMenuItem')}

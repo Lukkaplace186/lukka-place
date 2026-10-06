@@ -4,13 +4,14 @@ import { getAgentDashboardContext } from '@/lib/agentDashboard';
 import { listLeads, listViewingRequests } from '@/lib/adminApi';
 import { LEAD_STATUSES, LEAD_STATUS_LABEL_KEYS, VIEWING_REQUEST_STATUS_LABEL_KEYS } from '@/lib/adminLabels';
 import { formatRelative } from '@/lib/format';
-import { buildAgentInbox, inboxFilterFromParams } from '@/lib/agentInbox';
+import { buildAgentInbox, inboxFilterFromParams, inboxSeenStamp } from '@/lib/agentInbox';
 import AgentPageHeader from '@/components/AgentPageHeader';
 import AgentLeadCard from '@/components/AgentLeadCard';
 import AgentVisitRequestCard from '@/components/AgentVisitRequestCard';
 import { updateAgentLeadStatusAction, replyToLeadAction } from '../actions';
 import { getLocale, getT } from '@/lib/i18n/server';
 import { QuickRepliesProvider } from '@/components/AgentQuickReplies';
+import InboxSeenMarker from '@/components/InboxSeenMarker';
 import { listQuickReplies, getQuickReplyListings } from '@/lib/quickReplies';
 
 // `labelKey`, resolved at render — a module constant cannot hold translated
@@ -71,6 +72,9 @@ export default async function AgentInquiriesPage({ searchParams }) {
   const replyError = typeof params.reply_error === 'string' ? params.reply_error : null;
 
   const agentId = await getCurrentAgentId();
+  // Server clock, read before the engine: a request arriving while this page
+  // renders is still "new" next time.
+  const renderedAt = inboxSeenStamp();
   const { listingById, leadScope, hasLeadScope, waitingCount, listings } = await getAgentDashboardContext(agentId);
 
   let leadsUnavailable = false;
@@ -126,6 +130,9 @@ export default async function AgentInquiriesPage({ searchParams }) {
         hiddenSearchFields={{ filtre: filter }}
       />
 
+      {/* Opening the inbox is "seen": stamps the device's last look, and
+          refreshes the layout so the tab badge and bell clear at once. */}
+      <InboxSeenMarker seenAt={renderedAt} badge={waitingCount} />
       <QuickRepliesProvider templates={quickReplies.templates} listings={quickReplyListings}>
         <div className="flex flex-col gap-3 px-3 py-4 sm:px-8 sm:py-7 lg:max-w-3xl">
           {/* Held under the page header while the list scrolls on a phone. */}

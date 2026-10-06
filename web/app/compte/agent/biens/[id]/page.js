@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ExternalLink, FileText, Pencil, Printer } from 'lucide-react';
+import { ExternalLink, FileText, Pencil } from 'lucide-react';
 import { getCurrentAgentId } from '@/lib/agentSession';
 import { getAgentDashboardContext } from '@/lib/agentDashboard';
 import { getAgentListingViewsSeries, VIEW_RANGES } from '@/lib/analytics';
@@ -140,15 +140,12 @@ export default async function ListingPerformancePage({ params, searchParams }) {
           <Link href={`/compte/agent/biens/${listing.id}/edit`} className="u-btn-secondary u-press inline-flex h-10 items-center gap-1.5 rounded-lg px-3.5 text-[0.8125rem] font-semibold text-ink">
             <Pencil strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />{t('agent.listings.edit')}
           </Link>
+          {/* The window poster was removed from the agent's tools (2026-10-06,
+              product direction); the technical sheet stays. */}
           {live ? (
-            <>
-              <Link href={`/compte/agent/biens/${listing.id}/affiche`} className="u-btn-secondary u-press inline-flex h-10 items-center gap-1.5 rounded-lg px-3.5 text-[0.8125rem] font-semibold text-ink">
-                <Printer strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />{t('agent.print.posterLink')}
-              </Link>
-              <Link href={`/compte/agent/biens/${listing.id}/fiche`} className="u-btn-secondary u-press inline-flex h-10 items-center gap-1.5 rounded-lg px-3.5 text-[0.8125rem] font-semibold text-ink">
-                <FileText strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />{t('agent.print.sheetLink')}
-              </Link>
-            </>
+            <Link href={`/compte/agent/biens/${listing.id}/fiche`} className="u-btn-secondary u-press inline-flex h-10 items-center gap-1.5 rounded-lg px-3.5 text-[0.8125rem] font-semibold text-ink">
+              <FileText strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />{t('agent.print.sheetLink')}
+            </Link>
           ) : null}
         </div>
       </div>

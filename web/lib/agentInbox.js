@@ -99,6 +99,29 @@ export function buildAgentInbox({ visits = [], leads = [], filter = '', q = '', 
   return { items, counts, focusFound: focus == null || all.some((item) => item.focused) };
 }
 
+/**
+ * When the agent last opened Demandes (ms since epoch, server clock), as a
+ * cookie on this device: there is no read-state column, and the badge is
+ * about "anything new since I last looked", not about answering.
+ */
+export const INBOX_SEEN_COOKIE = 'lp_inbox_seen';
+
+/** The stamp the Demandes page hands InboxSeenMarker: the server's clock, now. */
+export function inboxSeenStamp() {
+  return Date.now();
+}
+
+/**
+ * `waiting`: the "À traiter" count. `unseen`: those created after `seenAt`
+ * (the badge). A missing or broken `seenAt` means never looked: all unseen.
+ */
+export function inboxBadgeCounts({ visits = [], leads = [], seenAt = null } = {}) {
+  const { items } = buildAgentInbox({ visits, leads, filter: 'a-traiter' });
+  const seen = Number(seenAt);
+  const since = Number.isFinite(seen) && seen > 0 ? seen : 0;
+  return { waiting: items.length, unseen: items.filter((item) => engineTime(item.row.created_at) > since).length };
+}
+
 /** Old links (`?tab=visites`, `?status=PENDING`) land on the matching filter. */
 export function inboxFilterFromParams(params = {}) {
   if (INBOX_FILTERS.includes(params.filtre)) return params.filtre;

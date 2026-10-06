@@ -1,7 +1,9 @@
 import 'server-only';
 import { cache } from 'react';
 import { getAgentProfile, getOwnListingsForDashboard, agentDisplayName, agentProfileCompletion } from './agencies';
+import { cookies } from 'next/headers';
 import { listLeads, listViewingRequests } from './adminApi';
+import { INBOX_SEEN_COOKIE, inboxBadgeCounts } from './agentInbox';
 
 /**
  * The context every /compte/agent/** surface needs before it can render its
@@ -50,17 +52,25 @@ export const getAgentDashboardContext = cache(async function getAgentDashboardCo
   // — so a failure here zeroes the badges and says so (`leadsUnavailable`)
   // instead of taking every /compte/agent page down with it, which is what
   // an uncaught rejection in this layout-level read used to do.
-  const [leadsResult, visitsResult] = await Promise.allSettled([
-    hasLeadScope ? listLeads({ ...leadScope, status: 'NEW', limit: 1 }) : Promise.resolve({ total: 0 }),
-    hasLeadScope ? listViewingRequests({ ...leadScope, status: 'PENDING', limit: 1 }) : Promise.resolve({ total: 0 }),
+  // The rows, not just totals: the badge is counted the way the inbox counts
+  // "À traiter" (lib/agentInbox.js), and a web visit request writes a lead
+  // AND a visit — adding the two totals counted it twice (bell 3, inbox 2).
+  const [leadsResult, visitsResult, cookieStore] = await Promise.allSettled([
+    hasLeadScope ? listLeads({ ...leadScope, status: 'NEW', limit: 100 }) : Promise.resolve({ total: 0, data: [] }),
+    hasLeadScope ? listViewingRequests({ ...leadScope, limit: 100 }) : Promise.resolve({ total: 0, data: [] }),
+    cookies(),
   ]);
   const leadsUnavailable = leadsResult.status === 'rejected' || visitsResult.status === 'rejected';
   if (leadsUnavailable) {
     const reason = (leadsResult.reason || visitsResult.reason)?.message;
     console.error(`[agent-dashboard] engine unavailable for agent #${agentId}: ${reason}`);
   }
+  const newLeads = leadsResult.status === 'fulfilled' ? leadsResult.value.data || [] : [];
+  const visits = visitsResult.status === 'fulfilled' ? visitsResult.value.data || [] : [];
   const newLeadsCount = leadsResult.status === 'fulfilled' ? leadsResult.value.total || 0 : 0;
-  const pendingVisitsCount = visitsResult.status === 'fulfilled' ? visitsResult.value.total || 0 : 0;
+  const pendingVisitsCount = visits.filter((v) => v.status === 'PENDING').length;
+  const seenAt = cookieStore.status === 'fulfilled' ? cookieStore.value.get(INBOX_SEEN_COOKIE)?.value : null;
+  const { waiting, unseen } = inboxBadgeCounts({ visits, leads: newLeads, seenAt });
 
   return {
     agent,
@@ -79,10 +89,14 @@ export const getAgentDashboardContext = cache(async function getAgentDashboardCo
     hasLeadScope,
     newLeadsCount,
     pendingVisitsCount,
-    // What waits on the agent: new requests plus visits still to answer. The
-    // bell in every page header and the Demandes tab badge both show this, so
-    // they can no longer disagree (they did: 3 on the tab, 2 on the bell).
-    waitingCount: newLeadsCount + pendingVisitsCount,
+    // What still waits on the agent — the inbox's "À traiter" count.
+    actionableCount: waiting,
+    // The bell and the Demandes tab badge (2026-10-06, product direction: the
+    // badge must clear once the agent has looked). Requests still waiting
+    // that ARRIVED after the agent last opened Demandes — the page stamps
+    // INBOX_SEEN_COOKIE when it renders (InboxSeenMarker). Answering a request
+    // is still what removes it from "À traiter"; looking only clears the badge.
+    waitingCount: unseen,
     leadsUnavailable,
     completion: agentProfileCompletion(agent, { listingCount: listings.length }),
   };

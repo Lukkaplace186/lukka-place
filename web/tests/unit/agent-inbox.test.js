@@ -102,3 +102,23 @@ test('one inbox, no sub-tabs, one primary action per card', () => {
   const leadCard = read('components/AgentLeadCard.js');
   assert.doesNotMatch(leadCard, /Marquer comme convertie|Votre réponse à|Envoyé sur WhatsApp au|% correspondance|>\s*Statut\s*</);
 });
+
+test('the badge counts what waits once, and only what arrived since the agent last looked', async () => {
+  const { inboxBadgeCounts, INBOX_SEEN_COOKIE } = await import('@/lib/agentInbox');
+  const visits = [
+    visit(1, 'PENDING', { lead_id: 40, created_at: '2026-10-01 10:00:00' }),
+    visit(2, 'RESCHEDULED', { created_at: '2026-10-02 10:00:00' }),
+    visit(3, 'CONFIRMED', { created_at: '2026-10-06 18:00:00' }),
+  ];
+  // Lead 40 is visit 1's own lead (a web visit request): counted once, not twice.
+  const leads = [lead(40, 'NEW', { created_at: '2026-10-01 10:00:00' }), lead(41, 'NEW', { created_at: '2026-10-06 19:00:00' })];
+  assert.deepEqual(inboxBadgeCounts({ visits, leads }), { waiting: 3, unseen: 3 }, 'never looked: all unseen');
+  const seenAt = Date.parse('2026-10-05T00:00:00Z');
+  assert.deepEqual(inboxBadgeCounts({ visits, leads, seenAt: String(seenAt) }), { waiting: 3, unseen: 1 });
+  assert.deepEqual(inboxBadgeCounts({ visits, leads, seenAt: 'garbage' }), { waiting: 3, unseen: 3 });
+  assert.equal(INBOX_SEEN_COOKIE, 'lp_inbox_seen');
+  // Opening Demandes stamps it, from the server's clock.
+  const page = read('app/compte/agent/demandes/page.js');
+  assert.match(page, /<InboxSeenMarker seenAt=\{renderedAt\} badge=\{waitingCount\} \/>/);
+  assert.match(read('components/InboxSeenMarker.js'), /if \(badge > 0\) router\.refresh\(\);/);
+});

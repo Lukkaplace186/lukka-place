@@ -102,7 +102,10 @@ test('no lead quota anywhere in the agent UI', () => {
 });
 
 test('the bell and the Demandes badge count the same thing', () => {
-  assert.match(read('lib/agentDashboard.js'), /waitingCount: newLeadsCount \+ pendingVisitsCount/);
+  // Since 2026-10-06: what still waits AND arrived since the agent last opened
+  // Demandes (lib/agentInbox.js inboxBadgeCounts), the sidebar tab included.
+  assert.match(read('lib/agentDashboard.js'), /waitingCount: unseen,/);
+  assert.match(read('components/AgentSidebar.js'), /leads: waitingCount/);
   for (const page of ['app/compte/agent/page.js', 'app/compte/agent/biens/page.js', 'app/compte/agent/demandes/page.js', 'app/compte/agent/abonnement/page.js', 'app/compte/agent/parametres/page.js']) {
     assert.match(read(page), /newLeadsCount=\{waitingCount\}/, `${page} passes the waiting count to its header`);
   }

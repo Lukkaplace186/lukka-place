@@ -348,10 +348,10 @@ test('an offline copy is stamped with the server time and goes stale after 24 h'
   assert.equal(packTimestamp({ pack: {} }), null);
 });
 
-test('Documents et rapports: the two A4 documents and the owner report, no graphic, no caption, no share pack', () => {
+test('Documents et rapports: the A4 sheet and the owner report, no poster, no graphic, no caption, no share pack', () => {
   const kit = readFileSync(path.join(process.cwd(), 'components/AgentListingShareKit.js'), 'utf8');
   assert.doesNotMatch(kit, /getSharePackAction|renderFlyer|WatermarkedPhotos|captionFor/);
-  assert.match(kit, /\/affiche`/);
+  assert.doesNotMatch(kit, /\/affiche/);
   assert.match(kit, /\/fiche`/);
   assert.match(kit, /getMandateReportAction\(listingId\)/);
   assert.ok(!existsSync(path.join(process.cwd(), 'app/compte/agent/biens/[id]/visuel/route.js')));

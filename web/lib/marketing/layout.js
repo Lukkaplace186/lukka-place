@@ -110,9 +110,9 @@ export function wrapText(text, maxWidth, style, maxLines, measure) {
 const VEIL = 'rgba(11,17,32,0.55)';
 
 /**
- * Up to three photos as rounded tiles on the blue ground (2026-10-06
- * redesign: "bento" tiles, each with its own corners, instead of one block
- * cut by white seams). `mode: 'side'` puts the cover photo left with two
+ * Up to three photos as rounded tiles (2026-10-06 redesign: "bento" tiles,
+ * each with its own corners) on a white backing, so the gaps between them
+ * are white. `mode: 'side'` puts the cover photo left with two
  * stacked on its right; `'below'` puts it on top with two side by side
  * underneath. With no photo at all, a deep-blue tile carries the wordmark —
  * never a stand-in photo.
@@ -161,6 +161,9 @@ function photoTiles(box, count, { mode, gap, radius, mainSize, wordmarkSize, mor
       [2, box.x + half + gap, box.y + mainSize + gap, half, below],
     );
   }
+  // White behind the tiles, so the gaps between photos read white rather
+  // than blue (2026-10-06, product direction); same corners as the tiles.
+  ops.push({ type: 'rect', x: box.x, y: box.y, w: box.w, h: box.h, fill: COLORS.white, radius });
   tiles.forEach((args) => ops.push(tile(...args)));
 
   // The veil goes on the last tile, and only when it is not also the cover.

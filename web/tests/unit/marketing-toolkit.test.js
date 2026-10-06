@@ -86,6 +86,9 @@ test('square: rounded photo tiles on the royal ground — 676px cover, 10px gaps
     ],
   );
   assert.ok(photos.every((op) => op.fit === 'cover' && op.radius === 26));
+  // The gaps between the photos are white, not the blue ground.
+  const backing = ops.findIndex((op) => op.type === 'rect' && op.fill === COLORS.white && op.x === 28 && op.y === 28 && op.w === 1024 && op.h === 616);
+  assert.ok(backing > 0 && backing < ops.indexOf(photos[0]), 'white backing under the tiles');
   // PACK.photoTotal 10, three drawn: the veil says how many more there are.
   assert.ok(textOp(ops, '+7'));
   assert.ok(textOp(ops, 'photos'));

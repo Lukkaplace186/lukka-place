@@ -1,3 +1,4 @@
+import { placeLabel } from '@/lib/placeLabel';
 import { SITE_URL } from './constants';
 import { formatPrice, usablePrice } from './format';
 import { hasArea, listingImages, typeLabel } from './listingView';
@@ -52,7 +53,7 @@ export function listingMetaDescription(listing, t) {
   if (Number(listing.bath) > 0) facts.push(t('seo.factBath', { count: Number(listing.bath) }));
   if (hasArea(listing.area)) facts.push(t('seo.factArea', { n: Number(listing.area) }));
   if (listing.purpose === 'rent' && Number(listing.deposit_months) > 0) facts.push(t('seo.factDeposit', { n: Number(listing.deposit_months) }));
-  const place = [listing.quartier, listing.commune].filter(Boolean).join(', ') || placeOf(listing, t);
+  const place = placeLabel(listing) || placeOf(listing, t);
   const head = t('seo.listingDescription', {
     kind: typeLabel(listing, t) || t('seo.allTypes'),
     purpose: purposeWord(listing, t),

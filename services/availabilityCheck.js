@@ -58,6 +58,7 @@ const chakra = require('./chakra');
 const pg = require('./postgres');
 const dbService = require('./db');
 const priceExtraction = require('./priceExtraction');
+const { placeLabel } = require('./locations');
 
 const CONTENT_LANGUAGE_ID = 20;
 const JOB_NAME = 'listing-availability-check';
@@ -338,7 +339,7 @@ const COMMUNE_SUBQUERY = `(
 ) AS commune`;
 
 const LISTING_COLUMNS = `
-  p.id, p.agent_id, p.price, p.purpose, p.price_period, p.reference,
+  p.id, p.agent_id, p.price, p.purpose, p.price_period, p.reference, p.quartier,
   p.status, p.approve_status, p.listing_status, p.archived_at,
   pc.title, ${COMMUNE_SUBQUERY},
   a.phone AS agent_phone, a.phone_verified_at,
@@ -524,7 +525,8 @@ function notifyOps(text, label) {
 }
 
 function opsLine(listing) {
-  return `${listingLine(listing)} (#${listing.id}${listing.commune ? `, ${listing.commune}` : ''})`;
+  const place = placeLabel(listing || {});
+  return `${listingLine(listing)} (#${listing.id}${place ? `, ${place}` : ''})`;
 }
 
 // ---------------------------------------------------------------------------

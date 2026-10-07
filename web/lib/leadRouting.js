@@ -30,6 +30,7 @@ export function listingWhatsAppMessage(listing) {
     reference: listing?.reference,
     id: listing?.id,
     propertyType: listing?.category_name,
+    quartier: listing?.quartier,
     commune: listing?.commune,
     price: listing?.price,
     purpose: listing?.purpose,

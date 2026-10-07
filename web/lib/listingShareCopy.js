@@ -1,3 +1,4 @@
+import { placeLabel } from '@/lib/placeLabel';
 import { formatPriceParts } from './format';
 import { formatPhoneDisplay } from './phone';
 import { entryTerms, hasArea } from './listingView';
@@ -51,7 +52,7 @@ export function buildListingSocialCopy(listing, { typeText = null, url = null, c
   const { amount, period } = formatPriceParts(listing.price, listing.purpose, listing.price_period);
   lines.push(period ? `${bold(amount)} ${period}` : bold(amount));
 
-  const place = [listing.quartier, listing.commune].filter(Boolean).join(', ');
+  const place = placeLabel(listing);
   if (place) lines.push(`📍 ${place}`);
 
   const details = [];

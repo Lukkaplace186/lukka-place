@@ -247,6 +247,7 @@ function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, o
           reference: listing.reference,
           id: listing.id,
           propertyType: typeLabel(listing, t) || t('listings.results.subjectFallback'),
+          quartier: listing.quartier,
           commune: listing.commune,
           price: listing.price,
           purpose: listing.purpose,

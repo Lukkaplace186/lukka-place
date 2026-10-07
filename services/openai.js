@@ -207,8 +207,8 @@ Bonjour! Merci pour votre message. Voici les informations extraites de la magnif
 *Type de transaction* : {transaction_type}
 *Catégorie de propriété* : {property_type}
 *Sous-type* : {parcelle_subtype}
-*Commune* : {commune}
 *Quartier* : {quartier}
+*Commune* : {commune}
 *Loyer* ou *Prix* : {price}$ {price_period}
 *Garantie* : {deposit_months} mois ➔ _Retenu par le Bailleur, remboursable en fin de bail_
 *Loyer d'avance* : {advance_months} mois ➔ _Payable au Bailleur, couvre vos premiers mois_

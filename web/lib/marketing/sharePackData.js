@@ -1,3 +1,4 @@
+import { placeLabel } from '@/lib/placeLabel';
 import { formatPriceParts } from '../format';
 import { roomSpecItems, roomSpecs } from '../listingShareCopy';
 import { listingImages } from '../listingView';
@@ -64,7 +65,7 @@ export function purposeLabel(purpose) {
  */
 export function buildFlyerPack(listing, { typeText, brand, supabaseHost = null, markPath, markLightPath = null, fetchedAt }) {
   const { amount, period } = formatPriceParts(listing.price, listing.purpose, listing.price_period);
-  const place = [listing.quartier, listing.commune].filter(Boolean).join(', ');
+  const place = placeLabel(listing);
   // Exactly the three the card shows (2026-10-06 speed pass — it used to send
   // two spares, five downloads where three are drawn). The cover at full
   // width, the two side tiles at SIDE_PHOTO_WIDTH. A photo that fails is

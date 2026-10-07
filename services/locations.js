@@ -399,6 +399,20 @@ function communeNamedIn(reply) {
 }
 
 /**
+ * "Quartier, Commune" — the one way a listing's place is written in every
+ * WhatsApp message the engine sends (product rule, 2026-10-07: quartier first,
+ * then commune when known). Either half alone when the other is missing; the
+ * commune alone when the quartier is just its name again. web/lib/placeLabel.js
+ * is the storefront's copy — change one, change the other.
+ */
+function placeLabel({ quartier = null, commune = null } = {}) {
+  const q = String(quartier || '').replace(/\s+/g, ' ').trim();
+  const c = String(commune || '').replace(/\s+/g, ' ').trim();
+  if (q && c && placeKey(q) === placeKey(c)) return c;
+  return [q, c].filter(Boolean).join(', ');
+}
+
+/**
  * What intake does with an extraction's location, before it is stored.
  *
  * - A stated commune is canonicalised; the quartier is matched within it.
@@ -444,6 +458,7 @@ module.exports = {
   inferCommune,
   inferListingLocation,
   communeNamedIn,
+  placeLabel,
   placeKey,
   quartiersForCommune,
   isValidQuartier,

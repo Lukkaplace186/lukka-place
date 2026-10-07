@@ -57,6 +57,7 @@
 const chakra = require('./chakra');
 const db = require('./db');
 const propertyRepository = require('./propertyRepository');
+const { placeLabel } = require('./locations');
 
 /**
  * Lukka Place's own desk. Same variable, same no-default reasoning as
@@ -191,7 +192,7 @@ function agentMessage({ listing, propertyId, from, quotedReference }) {
     `👤 Client: ${displayPhone(from)}`,
     '❓ Demande: disponibilité du bien',
   ];
-  if (listing?.commune) lines.push(`🗺️ Commune: ${listing.commune}`);
+  if (placeLabel(listing || {})) lines.push(`🗺️ Lieu : ${placeLabel(listing)}`);
   lines.push(
     '',
     'Le client a été informé que vous le recontactez rapidement.',
@@ -208,7 +209,7 @@ function opsMessage({ listing, propertyId, from, quotedReference, agentNotified,
     `• Bien : ${listingLabel(listing, propertyId, quotedReference)} (#${propertyId})`,
   ];
   if (listing?.title) lines.push(`• Titre : ${listing.title}`);
-  if (listing?.commune) lines.push(`• Commune : ${listing.commune}`);
+  if (placeLabel(listing || {})) lines.push(`• Lieu : ${placeLabel(listing)}`);
   lines.push(
     `• Client : ${displayPhone(from)}`,
     '',

@@ -1,3 +1,4 @@
+import { placeLabel } from '@/lib/placeLabel';
 import { formatPrice } from './format';
 import { listingPublicUrl, shareBlocker } from './listingShareCopy';
 import { normalizeStoredPhone } from './phone';
@@ -182,7 +183,7 @@ export function clientListingUrl(listingId) {
 export function buildClientListingMessage(client, listing) {
   const first = clientFirstName(client?.name);
   const lines = [first ? `Bonjour ${first},` : 'Bonjour,', "j'ai un bien qui correspond à votre recherche :"];
-  const place = [listing.quartier, listing.commune].filter(Boolean).join(', ');
+  const place = placeLabel(listing);
   const facts = [listing.title, place, formatPrice(listing.price, listing.purpose, listing.price_period)].filter(Boolean);
   lines.push('', facts.join(' — '), '', clientListingUrl(listing.id));
   return lines.join('\n');
@@ -230,7 +231,7 @@ export function matchEntriesForClient(book, client) {
       clientId: String(client.id),
       listingId: String(listing.id),
       title: listing.title,
-      place: [listing.quartier, listing.commune].filter(Boolean).join(', '),
+      place: placeLabel(listing),
       price: formatPrice(listing.price, listing.purpose, listing.price_period),
       href: clientWhatsAppLink(client, listing),
       contactedAt: book?.contacts?.[contactKey(client.id, listing.id)] || null,

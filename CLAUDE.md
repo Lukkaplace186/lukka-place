@@ -114,13 +114,19 @@ Agent Performance" below.
   `buildWhatsAppMessage`):
   ```
   Bonjour, je vous contacte via Lukka Place au sujet de ce bien :
-  {property_type} à {commune} — {price}
+  {property_type} à {quartier}, {commune} — {price}
   Réf. {reference}
 
   Est-il toujours disponible ? Si oui, quand serait-il possible de le visiter ?
 
   https://lukkaplace.com/listings/{id}
   ```
+  - **Place is always "quartier, commune"** (product rule, 2026-10-07): this
+    message, the site cards (`feedLocationLine`), the share card and caption,
+    the agent intake card (Quartier line above Commune) and every engine alert
+    ("🗺️ Lieu : Industriel, Limete"). One helper per side — web
+    `lib/placeLabel.js`, engine `services/locations.js` `placeLabel` — which
+    also prints a quartier that only repeats its commune once.
   - The `Réf.` line appears **only when `properties.reference` is set**. No
     fallback: the old slug fallback put
     "Ref: 2-chambres-appartement-a-louer-a-limete-286" in front of agents, and

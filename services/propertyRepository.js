@@ -275,7 +275,7 @@ async function getListingContactById(id) {
   try {
     const client = getPool();
     const { rows } = await client.query(
-      `SELECT p.id, p.reference, p.price, pc.title, pc.slug, ${COMMUNE_SUBQUERY},
+      `SELECT p.id, p.reference, p.price, p.quartier, pc.title, pc.slug, ${COMMUNE_SUBQUERY},
               a.id AS agent_id, a.phone AS agent_phone,
               a.phone_verified_at, a.direct_routing_enabled,
               ${AGENT_NAME_EXPR}

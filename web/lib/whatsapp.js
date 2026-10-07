@@ -1,5 +1,6 @@
 import { formatPrice } from './format';
 import { SITE_URL } from './constants';
+import { placeLabel } from './placeLabel';
 
 /**
  * The message a customer sends when they tap a listing's WhatsApp button
@@ -36,8 +37,9 @@ import { SITE_URL } from './constants';
  * Always quotes the listing's real stored USD price, deliberately never a
  * currency-toggled CDF estimate — see components/Price.js's doc comment.
  */
-export function buildWhatsAppMessage({ reference, id, propertyType, commune, price, purpose, pricePeriod }) {
-  const what = [propertyType, commune].filter(Boolean).join(' à ');
+export function buildWhatsAppMessage({ reference, id, propertyType, quartier = null, commune, price, purpose, pricePeriod }) {
+  // Quartier first, then commune (lib/placeLabel.js): "Appartement à Industriel, Limete".
+  const what = [propertyType, placeLabel({ quartier, commune })].filter(Boolean).join(' à ');
   const priceText = price != null ? formatPrice(price, purpose, pricePeriod) : '';
   const facts = [what, priceText].filter(Boolean).join(' — ');
   const ref = typeof reference === 'string' ? reference.trim() : '';

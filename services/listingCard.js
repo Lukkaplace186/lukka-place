@@ -147,6 +147,8 @@ function renderListingCard(row, { photoCount } = {}) {
   if (row.property_type === 'parcelle' && present(row.parcelle_subtype)) {
     lines.push(`*Sous-type* : ${SUBTYPE_LABELS[row.parcelle_subtype] || row.parcelle_subtype}`);
   }
+  // Quartier first, then commune — the order every place is written in.
+  if (present(row.quartier)) lines.push(`*Quartier* : ${row.quartier}`);
   if (present(row.commune)) {
     // Deduced from the quartier at intake (services/locations.js): said so,
     // because the agent's "OK" is what confirms it.
@@ -155,7 +157,6 @@ function renderListingCard(row, { photoCount } = {}) {
       ? `*Commune* : ${row.commune} _(déduite de « ${from} » — corrigez si ce n'est pas la bonne)_`
       : `*Commune* : ${row.commune}`);
   }
-  if (present(row.quartier)) lines.push(`*Quartier* : ${row.quartier}`);
   if (Number(row.price) > 0) {
     lines.push(`*${row.transaction_type === 'vente' ? 'Prix' : 'Loyer'}* : ${money(row.price, currency)}${periodSuffix(row)}`);
   }

@@ -1,6 +1,7 @@
 import { usablePrice } from '@/lib/format';
 import { PARCELLE_SUBTYPES, AMENITY_KEYWORDS } from './constants';
 import { abbreviationVariants } from './textVariants';
+import { placeLabel } from './placeLabel';
 
 /**
  * Derived view values shared by the three listing card designs.
@@ -244,8 +245,7 @@ export function specItems(listing, t) {
 
 /** "Quartier, Commune", falling back to the free-text address. */
 export function locationLine(listing) {
-  const parts = [listing.quartier, listing.commune].filter(Boolean);
-  return parts.length ? parts.join(', ') : listing.address || null;
+  return placeLabel(listing) || listing.address || null;
 }
 
 /**
@@ -285,10 +285,10 @@ export function locationLine(listing) {
  * not get a second one appended.
  */
 export function feedLocationLine(listing) {
-  const parts = [listing.quartier, listing.commune].filter(Boolean);
-  if (parts.length) {
-    if (listing.commune && /^kinshasa$/i.test(listing.commune.trim())) return parts.join(', ');
-    return [...parts, 'Kinshasa'].join(', ');
+  const place = placeLabel(listing);
+  if (place) {
+    if (listing.commune && /^kinshasa$/i.test(listing.commune.trim())) return place;
+    return `${place}, Kinshasa`;
   }
   if (!listing.address) return null;
   const deduped = listing.address.replace(/,\s*Kinshasa\s*,\s*Kinshasa$/i, ', Kinshasa');

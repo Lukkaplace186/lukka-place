@@ -1,3 +1,4 @@
+import { placeLabel } from '@/lib/placeLabel';
 import { formatPrice } from '../format';
 import { listingPublicUrl, shareBlocker } from '../listingShareCopy';
 import { SHARE_COUNT_DEFINITION, shareCountText } from '../listingShareRules';
@@ -104,7 +105,7 @@ export const REPORT_FOOTNOTE = 'Mesuré sur lukkaplace.com · appels et messages
  *   unknown count (null) is not zero.
  */
 export function buildMandateReport(listing, counts, { typeText, brand, window, shares = null }) {
-  const place = [listing.quartier, listing.commune].filter(Boolean).join(', ');
+  const place = placeLabel(listing);
   const tiles = METRICS.map(({ key, label }) => {
     const value = counts.current?.[key];
     const previous = counts.previous?.[key];

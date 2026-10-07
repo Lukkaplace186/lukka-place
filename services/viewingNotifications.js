@@ -37,6 +37,7 @@
 
 const chakra = require('./chakra');
 const propertyRepository = require('./propertyRepository');
+const { placeLabel } = require('./locations');
 const propertyMatchingService = require('./propertyMatching');
 const { parseFrenchSlot, formatSlotFr, resolveScheduledAtInput } = require('./visitSchedule');
 const priceExtraction = require('./priceExtraction');
@@ -157,7 +158,7 @@ function agentMessage({ listing, lead, viewingRequest, propertyId }) {
     `👤 Client: ${lead?.name || 'Non précisé'} (${displayPhone(lead?.wa_id)})`,
     `📅 Date souhaitée: ${viewingRequest?.requested_time || 'Non précisée'}`,
   ];
-  if (listing?.commune) lines.push(`🗺️ Commune: ${listing.commune}`);
+  if (placeLabel(listing || {})) lines.push(`🗺️ Lieu : ${placeLabel(listing)}`);
   lines.push('', listingLink(listing, propertyId));
   return lines.join('\n');
 }
@@ -238,7 +239,7 @@ function opsMessage({ listing, lead, viewingRequest, propertyId, agentNotified, 
     '',
     `• Bien : ${listingLabel(listing, propertyId)} (#${propertyId})`,
   ];
-  if (listing?.commune) lines.push(`• Commune : ${listing.commune}`);
+  if (placeLabel(listing || {})) lines.push(`• Lieu : ${placeLabel(listing)}`);
   lines.push(`• Client : ${lead?.name || 'Non précisé'} (${displayPhone(lead?.wa_id)})`);
   if (viewingRequest?.requested_time) lines.push(`• Créneau souhaité : ${viewingRequest.requested_time}`);
   lines.push(

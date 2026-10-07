@@ -100,3 +100,20 @@ test('a placeholder address ("N/A") is not printed as the place', async () => {
   const src = read('lib/listings.js');
   assert.equal(src.match(/\$\{PUBLIC_ADDRESS_EXPR\} AS address/g)?.length, 2, 'both public SELECTs use it');
 });
+
+test('a place is always "quartier, commune" — cards, captions and the pre-typed WhatsApp message', async () => {
+  const { placeLabel } = await import('../../lib/placeLabel.js');
+  const { buildWhatsAppMessage } = await import('../../lib/whatsapp.js');
+  const { listingWhatsAppMessage } = await import('../../lib/leadRouting.js');
+  const { feedLocationLine } = await import('../../lib/listingView.js');
+  assert.equal(placeLabel({ quartier: 'Industriel', commune: 'Limete' }), 'Industriel, Limete');
+  assert.equal(placeLabel({ quartier: null, commune: 'Limete' }), 'Limete');
+  assert.equal(placeLabel({ quartier: 'GB', commune: null }), 'GB');
+  assert.equal(placeLabel({ quartier: 'kintambo', commune: 'Kintambo' }), 'Kintambo', 'never "Kintambo, Kintambo"');
+  assert.match(
+    buildWhatsAppMessage({ id: 1, propertyType: 'Appartement', quartier: 'Industriel', commune: 'Limete', price: 1100, purpose: 'rent' }),
+    /^Appartement à Industriel, Limete — 1\s100\s\$ \/ mois$/m,
+  );
+  assert.match(listingWhatsAppMessage({ id: 1, category_name: 'Maison', quartier: 'GB', commune: 'Ngaliema' }), /^Maison à GB, Ngaliema$/m);
+  assert.equal(feedLocationLine({ quartier: 'Mimosas', commune: 'Ngaliema' }), 'Mimosas, Ngaliema, Kinshasa');
+});

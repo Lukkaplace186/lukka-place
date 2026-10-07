@@ -1,3 +1,4 @@
+import { placeLabel } from '@/lib/placeLabel';
 import { matchPercent } from './agentMatching';
 import { formatPrice } from './format';
 import { listingPublicUrl, shareBlocker } from './listingShareCopy';
@@ -136,7 +137,7 @@ export function buildAlternativesMessage(listings, { name = null } = {}) {
       : `Voici ${list.length} autres biens qui pourraient vous intéresser :`,
   );
   list.forEach((listing, index) => {
-    const place = [listing.quartier, listing.commune].filter(Boolean).join(', ');
+    const place = placeLabel(listing);
     const facts = [listing.title, place, formatPrice(listing.price, listing.purpose, listing.price_period)].filter(Boolean);
     lines.push('', `${index + 1}. ${facts.join(' — ')}`, alternativeUrl(listing.id));
   });

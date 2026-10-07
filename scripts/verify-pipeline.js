@@ -10460,6 +10460,21 @@ console.log('\n2. services/openai.js');
     assert.match(unknown, /Il manque : commune/);
   });
 
+  check('quartier first, then commune: on the intake card and in every desk / agent alert', () => {
+    assert.strictEqual(loc47.placeLabel({ quartier: 'Industriel', commune: 'Limete' }), 'Industriel, Limete');
+    assert.strictEqual(loc47.placeLabel({ quartier: 'Kintambo', commune: 'Kintambo' }), 'Kintambo');
+    assert.strictEqual(loc47.placeLabel({ commune: 'Limete' }), 'Limete');
+    const card = card47.renderListingCard({ transaction_type: 'location', quartier: 'Industriel', commune: 'Limete', photos: ['a'] });
+    assert.ok(card.indexOf('*Quartier*') < card.indexOf('*Commune*'), 'quartier line above commune line');
+    for (const file of ['viewingNotifications.js', 'listingEnquiry.js']) {
+      const source = fs.readFileSync(path.join(__dirname, '..', 'services', file), 'utf8');
+      assert.ok(!/Commune ?: \$\{listing\.commune\}/.test(source), `${file} still prints the commune alone`);
+      assert.match(source, /Lieu : \$\{placeLabel\(listing\)\}/);
+    }
+    const repo = fs.readFileSync(path.join(__dirname, '..', 'services', 'propertyRepository.js'), 'utf8');
+    assert.match(repo, /SELECT p\.id, p\.reference, p\.price, p\.quartier, pc\.title/, 'the alert query carries the quartier');
+  });
+
   check('the extraction prompt no longer lets the model deduce the commune itself', () => {
     const source = fs.readFileSync(path.join(__dirname, '..', 'services', 'openai.js'), 'utf8');
     assert.match(source, /Ne déduis JAMAIS la commune à partir du quartier/);

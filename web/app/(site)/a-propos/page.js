@@ -95,14 +95,14 @@ export default async function AboutPage() {
             {t('about.photoCredit', { name: HERO_PHOTO_CREDIT.name })}
           </a>
         </div>
-        <div className="mx-auto flex max-w-[1600px] flex-col px-4 pb-14 pt-8 sm:px-6 lg:min-h-[38rem] lg:justify-center lg:px-8 lg:py-16">
+        <div className="mx-auto flex max-w-[1600px] flex-col px-4 pb-8 pt-5 sm:px-6 sm:pb-14 sm:pt-8 lg:min-h-[38rem] lg:justify-center lg:px-8 lg:py-16">
           <Breadcrumb items={[{ label: t('breadcrumb.home'), href: '/' }, { label: t('about.eyebrow') }]} />
-          <p className="u-eyebrow mt-8 lg:mt-14">{t('about.heroKicker')}</p>
-          <h1 className="mt-4 max-w-2xl font-display text-[2.5rem] font-normal leading-[1.04] tracking-[-0.02em] text-ink sm:text-[3.5rem] lg:max-w-[38%] lg:text-[3.5rem] xl:text-[4rem]">
+          <p className="u-eyebrow mt-5 sm:mt-8 lg:mt-14">{t('about.heroKicker')}</p>
+          <h1 className="mt-2 max-w-2xl sm:mt-4 font-display text-[2.5rem] font-normal leading-[1.04] tracking-[-0.02em] text-ink sm:text-[3.5rem] lg:max-w-[38%] lg:text-[3.5rem] xl:text-[4rem]">
             <Accented text={t('about.heroTitle')} accent={t('about.heroAccent')} className="text-blue" />
           </h1>
-          <p className="mt-6 max-w-xl text-[1.0625rem] leading-relaxed text-ink-70 sm:text-lg lg:max-w-[36%]">{t('about.heroLead')}</p>
-          <div className="mt-8 flex flex-wrap gap-3">
+          <p className="mt-3 max-w-xl text-[1.0625rem] sm:mt-6 leading-relaxed text-ink-70 sm:text-lg lg:max-w-[36%]">{t('about.heroLead')}</p>
+          <div className="mt-5 flex flex-wrap gap-3 sm:mt-8">
             <Link
               href="/listings"
               className="u-btn-primary inline-flex min-h-11 items-center rounded-full bg-blue px-6 text-sm font-semibold text-white transition-colors hover:bg-blue-deep"
@@ -120,13 +120,13 @@ export default async function AboutPage() {
       </section>
 
       {/* Vision — the statement beside the country it is for. */}
-      <section className="mx-auto grid max-w-[1600px] items-center gap-10 px-4 py-20 sm:px-6 sm:py-28 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-16 lg:px-8">
+      <section className="mx-auto grid max-w-[1600px] items-center gap-6 px-4 py-10 sm:gap-10 sm:px-6 sm:py-28 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-16 lg:px-8">
         <div>
-          <p className="u-eyebrow mb-4">{t('about.visionEyebrow')}</p>
+          <p className="u-eyebrow mb-2 sm:mb-4">{t('about.visionEyebrow')}</p>
           <h2 className="font-display text-[2rem] font-normal leading-[1.1] tracking-[-0.02em] text-ink sm:text-[2.75rem]">
             <Accented text={t('about.visionTitle')} accent={t('about.visionAccent')} className="text-blue" />
           </h2>
-          <p className="u-body mt-6 max-w-xl text-ink-70">{t('about.visionBody')}</p>
+          <p className="u-body mt-3 max-w-xl text-ink-70 sm:mt-6">{t('about.visionBody')}</p>
         </div>
 
         <figure>
@@ -147,19 +147,19 @@ export default async function AboutPage() {
       </section>
 
       {/* What changes — three pains, three answers. */}
-      <section className="bg-canvas-alt py-20 sm:py-28">
+      <section className="bg-canvas-alt py-10 sm:py-28">
         <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8">
-          <p className="u-eyebrow mb-3">{t('about.changeEyebrow')}</p>
+          <p className="u-eyebrow mb-2 sm:mb-3">{t('about.changeEyebrow')}</p>
           <h2 className="font-display text-[1.75rem] font-normal leading-[1.15] tracking-[-0.01em] text-ink sm:text-[2.25rem]">
             {t('about.changeTitle')}
           </h2>
-          <div className="mt-10 grid gap-4 md:grid-cols-3">
+          <div className="mt-5 grid gap-3 sm:mt-10 sm:gap-4 md:grid-cols-3">
             {changes.map(({ icon: Icon, title, body }) => (
-              <article key={title} className="rounded-2xl border border-line bg-surface p-6 sm:p-8">
+              <article key={title} className="rounded-2xl border border-line bg-surface p-5 sm:p-8">
                 <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-blue/10 text-blue">
                   <Icon size={22} strokeWidth={1.75} aria-hidden="true" />
                 </span>
-                <h3 className="u-title-card mt-5 text-ink">{title}</h3>
+                <h3 className="u-title-card mt-3 text-ink sm:mt-5">{title}</h3>
                 <p className="u-body mt-2 text-ink-70">{body}</p>
               </article>
             ))}
@@ -169,9 +169,9 @@ export default async function AboutPage() {
 
       {/* Live figures — real counts only. */}
       <section className="bg-blue text-white">
-        <div className="mx-auto max-w-[1600px] px-4 py-14 sm:px-6 sm:py-16 lg:px-8">
+        <div className="mx-auto max-w-[1600px] px-4 py-10 sm:px-6 sm:py-16 lg:px-8">
           <p className="u-eyebrow !text-white/75">{t('about.figuresEyebrow')}</p>
-          <dl className="mt-6 grid gap-8 sm:grid-cols-3">
+          <dl className="mt-4 grid gap-5 sm:mt-6 sm:grid-cols-3 sm:gap-8">
             {figures.map(({ value, label }) => (
               <div key={label} className="border-l-2 border-white/30 pl-5">
                 <dt className="sr-only">{label}</dt>
@@ -184,10 +184,10 @@ export default async function AboutPage() {
       </section>
 
       {/* For agents — the WhatsApp intake, in three steps. */}
-      <section className="mx-auto max-w-[1600px] px-4 py-20 sm:px-6 sm:py-28 lg:px-8">
-        <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+      <section className="mx-auto max-w-[1600px] px-4 py-10 sm:px-6 sm:py-28 lg:px-8">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="max-w-2xl">
-            <p className="u-eyebrow mb-3">{t('about.agentsEyebrow')}</p>
+            <p className="u-eyebrow mb-2 sm:mb-3">{t('about.agentsEyebrow')}</p>
             <h2 className="font-display text-[1.75rem] font-normal leading-[1.15] tracking-[-0.01em] text-ink sm:text-[2.25rem]">
               {t('about.agentsTitle')}
             </h2>
@@ -200,12 +200,12 @@ export default async function AboutPage() {
             {t('about.agentsCta')}
           </Link>
         </div>
-        <ol className="mt-10 grid gap-4 md:grid-cols-3">
+        <ol className="mt-5 grid gap-3 sm:mt-10 sm:gap-4 md:grid-cols-3">
           {steps.map(({ icon: Icon, title, body }, i) => (
-            <li key={title} className="relative rounded-2xl border border-line bg-surface p-6 sm:p-8">
+            <li key={title} className="relative rounded-2xl border border-line bg-surface p-5 sm:p-8">
               <span className="u-tabular font-display text-[2.5rem] leading-none text-blue/25">{String(i + 1).padStart(2, '0')}</span>
               <Icon size={22} strokeWidth={1.75} aria-hidden="true" className="absolute right-6 top-7 text-blue sm:right-8 sm:top-9" />
-              <h3 className="u-title-card mt-4 text-ink">{title}</h3>
+              <h3 className="u-title-card mt-2 text-ink sm:mt-4">{title}</h3>
               <p className="u-body mt-2 text-ink-70">{body}</p>
             </li>
           ))}
@@ -214,7 +214,7 @@ export default async function AboutPage() {
 
       {/* The fine print the old page was made of. */}
       <section className="border-t border-line">
-        <div className="mx-auto max-w-[1600px] px-4 py-14 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-[1600px] px-4 py-8 sm:px-6 sm:py-14 lg:px-8">
           <h2 className="u-title-sub text-ink">{t('about.notesTitle')}</h2>
           <div className="mt-3 flex max-w-3xl flex-col gap-3 text-[0.875rem] leading-relaxed text-ink-45">
             <p>{t('about.body3')}</p>

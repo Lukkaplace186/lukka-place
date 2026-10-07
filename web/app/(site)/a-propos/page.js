@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { MessageCircle, PhoneCall, ShieldCheck, MapPinned, Send, Sparkles, Users } from 'lucide-react';
+import { BadgeCheck, CalendarCheck, Layers, MapPin, MessageCircle, PhoneCall } from 'lucide-react';
 import Breadcrumb from '@/components/Breadcrumb';
 import { getT } from '@/lib/i18n/server';
 import { cachedListingsTotal, cachedPopularCommunes } from '@/lib/listingsCached';
@@ -49,13 +49,13 @@ export default async function AboutPage() {
 
   const changes = [
     { icon: PhoneCall, title: t('about.change1Title'), body: t('about.change1Body') },
-    { icon: ShieldCheck, title: t('about.change2Title'), body: t('about.change2Body') },
-    { icon: MapPinned, title: t('about.change3Title'), body: t('about.change3Body') },
+    { icon: BadgeCheck, title: t('about.change2Title'), body: t('about.change2Body') },
+    { icon: MapPin, title: t('about.change3Title'), body: t('about.change3Body') },
   ];
   const steps = [
-    { icon: Send, title: t('about.agentsStep1Title'), body: t('about.agentsStep1Body') },
-    { icon: Sparkles, title: t('about.agentsStep2Title'), body: t('about.agentsStep2Body') },
-    { icon: Users, title: t('about.agentsStep3Title'), body: t('about.agentsStep3Body') },
+    { icon: MessageCircle, title: t('about.agentsStep1Title'), body: t('about.agentsStep1Body') },
+    { icon: Layers, title: t('about.agentsStep2Title'), body: t('about.agentsStep2Body') },
+    { icon: CalendarCheck, title: t('about.agentsStep3Title'), body: t('about.agentsStep3Body') },
   ];
   const figures = [
     total > 0 ? { value: total, label: t('about.figuresListings', { count: total }) } : null,
@@ -156,9 +156,7 @@ export default async function AboutPage() {
           <div className="mt-5 grid gap-3 sm:mt-10 sm:gap-4 md:grid-cols-3">
             {changes.map(({ icon: Icon, title, body }) => (
               <article key={title} className="rounded-2xl border border-line bg-surface p-5 sm:p-8">
-                <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-blue/10 text-blue">
-                  <Icon size={22} strokeWidth={1.75} aria-hidden="true" />
-                </span>
+                <Icon size={24} strokeWidth={1.5} aria-hidden="true" className="text-blue" />
                 <h3 className="u-title-card mt-3 text-ink sm:mt-5">{title}</h3>
                 <p className="u-body mt-2 text-ink-70">{body}</p>
               </article>
@@ -204,7 +202,7 @@ export default async function AboutPage() {
           {steps.map(({ icon: Icon, title, body }, i) => (
             <li key={title} className="relative rounded-2xl border border-line bg-surface p-5 sm:p-8">
               <span className="u-tabular font-display text-[2.5rem] leading-none text-blue/25">{String(i + 1).padStart(2, '0')}</span>
-              <Icon size={22} strokeWidth={1.75} aria-hidden="true" className="absolute right-6 top-7 text-blue sm:right-8 sm:top-9" />
+              <Icon size={22} strokeWidth={1.5} aria-hidden="true" className="absolute right-5 top-6 text-blue sm:right-8 sm:top-9" />
               <h3 className="u-title-card mt-2 text-ink sm:mt-4">{title}</h3>
               <p className="u-body mt-2 text-ink-70">{body}</p>
             </li>

@@ -68,13 +68,12 @@ const PRIMARY_LINKS = [
   { href: '/listings?transaction_type=vente', labelKey: 'nav.buy' },
   // New developments and land in lots — their own hub and map (/projets).
   { href: '/projets', labelKey: 'nav.projects' },
-  { href: '/agents', labelKey: 'nav.agencies' },
+  // À propos took Agences' place on 2026-10-07 (product direction), in the
+  // bar and the drawer alike; the agency directory stays in the footer.
   { href: '/a-propos', labelKey: 'nav.about' },
 ];
 
-// The drawer's site links: PRIMARY_LINKS without À propos, which the footer
-// already lists. Desktop's nav row keeps it — the bar has the room there.
-const DRAWER_PRIMARY_LINKS = PRIMARY_LINKS.filter((link) => link.href !== '/a-propos');
+const DRAWER_PRIMARY_LINKS = PRIMARY_LINKS;
 
 /**
  * Sticky site header.

@@ -66,6 +66,8 @@ const NAV_COLUMNS = [
       { labelKey: 'footer.links.forRent', href: '/location' },
       { labelKey: 'footer.links.projects', href: '/projets' },
       { labelKey: 'footer.links.developers', href: '/promoteurs' },
+      // Out of the header since 2026-10-07 (À propos took its place).
+      { labelKey: 'nav.agencies', href: '/agents' },
     ],
   },
   {

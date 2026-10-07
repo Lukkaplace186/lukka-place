@@ -80,6 +80,18 @@ test('no usable geocode: the verified commune centroid; nothing at all: null (ex
   assert.equal(targetView(null, { commune: LIMETE }), null);
 });
 
-test('the default view is the Kinshasa core at 13', () => {
-  assert.deepEqual(KINSHASA_DEFAULT_VIEW, { center: { lat: -4.325, lng: 15.312 }, zoom: 13 });
+test('the default view is mostly Kinshasa, with the river as a strip at the top', () => {
+  const { center, zoom } = KINSHASA_DEFAULT_VIEW;
+  assert.equal(zoom, 13);
+  // The desktop map pane (half of a 1366×900 screen, under the header):
+  // ~683×836 px; Web Mercator degrees per pixel at this zoom, near the equator.
+  const degPerPx = 360 / (256 * 2 ** zoom);
+  const halfLat = (836 / 2) * degPerPx;
+  const halfLng = (683 / 2) * degPerPx;
+  const inView = ({ lat, lng }) => Math.abs(lat - center.lat) <= halfLat && Math.abs(lng - center.lng) <= halfLng;
+  for (const commune of ['Gombe', 'Lingwala', 'Kintambo', 'Bandalungwa', 'Kasa-Vubu', 'Kalamu', 'Ngiri-Ngiri', 'Limete', 'Lemba', 'Ngaliema']) {
+    assert.ok(inView(KINSHASA_COMMUNE_CENTROIDS[commune]), `${commune} is on the opening map`);
+  }
+  // Brazzaville's centre, across the river: it filled the top half before.
+  assert.ok(!inView({ lat: -4.2634, lng: 15.2429 }), 'Brazzaville is off the opening map');
 });

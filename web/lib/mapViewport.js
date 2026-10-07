@@ -38,8 +38,11 @@ const NON_FILTER_PARAMS = new Set(['page', 'sort', 'view', 'extent', ...MAP_BOUN
  * listing was used first, and on a portrait phone that box — wider than it is
  * tall — zoomed out until the river and Brazzaville filled the screen.
  * Zoom 13, not 12.5: the styled raster map rounds fractional zooms anyway.
+ * Centred between Gombe and Lemba (2026-10-07): at -4.325 a desktop map was
+ * half river with Brazzaville labelled across the top. Now the river is a strip
+ * along the top edge and the city fills the rest.
  */
-export const KINSHASA_DEFAULT_VIEW = { center: { lat: -4.325, lng: 15.312 }, zoom: 13 };
+export const KINSHASA_DEFAULT_VIEW = { center: { lat: -4.355, lng: 15.3 }, zoom: 13 };
 
 /** A searched commune opens this close — the whole commune, not the city. */
 export const COMMUNE_VIEW_ZOOM = 14;

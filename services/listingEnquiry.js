@@ -64,7 +64,9 @@ const propertyRepository = require('./propertyRepository');
  * (NEXT_PUBLIC_WHATSAPP_NUMBER) is this engine's own WABA sender, and a
  * WABA number cannot message itself.
  */
-const OPS_NUMBER = (process.env.OPS_WHATSAPP_NUMBER || '').replace(/\D/g, '') || null;
+// Read at call time and normalised in one place (services/opsDesk.js), like
+// every other desk reader; this one was frozen at module load.
+const opsNumber = () => require('./opsDesk').opsNumber();
 
 const SITE_URL = (process.env.PUBLIC_SITE_URL || 'https://lukkaplace.com').replace(/\/+$/, '');
 
@@ -260,6 +262,7 @@ async function notifyEnquiry({ listing, propertyId, from, quotedReference }) {
   }
 
   let opsNotified = false;
+  const OPS_NUMBER = opsNumber();
   if (OPS_NUMBER) {
     try {
       await chakra.sendWhatsAppMessage(

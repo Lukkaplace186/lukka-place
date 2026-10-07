@@ -6854,7 +6854,7 @@ console.log('\n2. services/openai.js');
     const names = sched.JOBS.map((j) => j.name);
     assert.deepStrictEqual(names, [
       'search-alerts', 'viewing-sla', 'viewing-checkin', 'viewing-agent-done', 'ops-health-alerts', 'listing-stats-rollup', 'trusted-auto-approve', 'agent-daily-digest',
-      'listing-availability-check', 'market-snapshot', 'sales-commissions',
+      'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions',
     ]);
   });
 
@@ -8800,7 +8800,8 @@ console.log('\n2. services/openai.js');
     const start = source.indexOf("router.post('/ops-notify'");
     assert.ok(start > 0, 'route registered');
     const body = source.slice(start, source.indexOf('// Demand report', start));
-    assert.ok(body.includes("process.env.OPS_WHATSAPP_NUMBER"), 'read at call time');
+    // Read at call time, normalised by services/opsDesk.js (§46).
+    assert.ok(body.includes('opsDesk.opsNumber()'), 'read at call time');
     assert.ok(body.includes('sent: false'));
   });
 
@@ -10271,6 +10272,109 @@ console.log('\n2. services/openai.js');
     const source = fs.readFileSync(path.join(__dirname, 'backfill-listing-utilities.js'), 'utf8');
     assert.match(source, /WHERE id = \$2 AND \(utilities IS NULL OR cardinality\(utilities\) = 0\)/);
   });
+
+  // -------------------------------------------------------------------------
+  // 46. The ops desk (services/opsDesk.js)
+  // -------------------------------------------------------------------------
+  console.log('\n46. The ops desk');
+  const opsDesk46 = require('../services/opsDesk');
+  const opsBefore46 = process.env.OPS_WHATSAPP_NUMBER;
+
+  check('the desk number is normalised once: local, spaced and 00-prefixed forms all become 243…', () => {
+    const n = opsDesk46.normaliseOpsNumber;
+    assert.strictEqual(n('0812345678'), '243812345678');
+    assert.strictEqual(n('812345678'), '243812345678');
+    assert.strictEqual(n('+243 81 234 5678'), '243812345678');
+    assert.strictEqual(n('00243812345678'), '243812345678');
+    assert.strictEqual(n('447932673460'), '447932673460');
+    assert.strictEqual(n('12'), null);
+    assert.strictEqual(n(''), null);
+  });
+
+  check('every desk reader goes through it (a local 08… used to be sent as-is)', () => {
+    process.env.OPS_WHATSAPP_NUMBER = '0812345678';
+    assert.strictEqual(viewingNotif.opsNumber(), '243812345678');
+    for (const file of ['viewingNotifications.js', 'opsAlerts.js', 'projectEnquiry.js', 'listingEnquiry.js']) {
+      const source = fs.readFileSync(path.join(__dirname, '..', 'services', file), 'utf8');
+      assert.ok(!/process\.env\.OPS_WHATSAPP_NUMBER \|\| ''\)\.replace/.test(source), `${file} reads the raw env`);
+    }
+    const admin = fs.readFileSync(path.join(__dirname, '..', 'routes', 'admin.js'), 'utf8');
+    assert.ok(!/Boolean\(process\.env\.OPS_WHATSAPP_NUMBER\)/.test(admin));
+  });
+
+  const DESK46 = '243812345678';
+  process.env.OPS_WHATSAPP_NUMBER = '0812345678';
+  dbService.db.prepare('DELETE FROM ops_desk_state').run();
+  const listingsBefore46 = dbService.db.prepare('SELECT COUNT(*) AS n FROM listings').get().n;
+  const aiBefore46 = openaiCalls.length;
+  httpCalls.length = 0;
+  const deskPost46 = (id, message) => post('/webhook', {
+    object: 'whatsapp_business_account',
+    entry: [{ id: '1', changes: [{ field: 'messages', value: {
+      metadata: { phone_number_id: '987654321' },
+      contacts: [{ wa_id: DESK46, profile: { name: 'Bureau' } }],
+      messages: [{ from: DESK46, id, timestamp: '1', ...message }],
+    } }] }],
+  });
+  await deskPost46('wamid.DESK46.1', { type: 'text', text: { body: 'OK' } });
+  await settle(400);
+
+  check('"OK" from the desk opens the window and is answered, with no model call and no listing', () => {
+    assert.strictEqual(openaiCalls.length, aiBefore46, 'the desk never reaches extraction');
+    assert.strictEqual(dbService.db.prepare('SELECT COUNT(*) AS n FROM listings').get().n, listingsBefore46);
+    const status = opsDesk46.deskStatus();
+    assert.ok(status.windowOpen, 'the 24h window is open');
+    const replies = httpCalls.filter((c) => c.data?.to === DESK46);
+    assert.strictEqual(replies.length, 1);
+    assert.match(replies[0].data.text.body, /alertes actives jusqu'au/);
+  });
+
+  await deskPost46('wamid.DESK46.1', { type: 'text', text: { body: 'OK' } });
+  await settle(400);
+  check('a redelivered desk message is not answered twice', () => {
+    assert.strictEqual(httpCalls.filter((c) => c.data?.to === DESK46).length, 1);
+  });
+
+  const listingText46 = 'Appartement 3 chambres à louer à Gombe, 1500$ par mois, garantie 3+1+1, '
+    + 'avenue de la Justice, parking, groupe électrogène, gardien 24h/24, eau et électricité permanentes, '
+    + 'cuisine équipée, deux salles de bain, balcon avec vue.';
+  await deskPost46('wamid.DESK46.2', { type: 'text', text: { body: listingText46 } });
+  await settle(400);
+  check('a listing forwarded from the desk phone is never stored, and the desk is told why', () => {
+    assert.strictEqual(openaiCalls.length, aiBefore46);
+    assert.strictEqual(dbService.db.prepare('SELECT COUNT(*) AS n FROM listings').get().n, listingsBefore46);
+    const last = httpCalls.filter((c) => c.data?.to === DESK46).pop();
+    assert.ok(last.data.text.body.startsWith(opsDesk46.MEDIA_OR_LISTING_REPLY));
+  });
+
+  check('the keep-alive asks once, between 20h and the end of the window — never after it', () => {
+    const last = new Date(opsDesk46.deskStatus().lastMessageAt).getTime();
+    assert.strictEqual(opsDesk46.keepaliveDue(new Date(last + 19 * 3600e3)), false);
+    assert.strictEqual(opsDesk46.keepaliveDue(new Date(last + 21 * 3600e3)), true);
+    assert.strictEqual(opsDesk46.keepaliveDue(new Date(last + 24 * 3600e3 + 60e3)), false, 'too late to land');
+  });
+
+  httpCalls.length = 0;
+  {
+    const last = new Date(opsDesk46.deskStatus().lastMessageAt).getTime();
+    await opsDesk46.runKeepalive(new Date(last + 21 * 3600e3));
+    check('the keep-alive question goes to the desk and is not repeated for the same desk message', () => {
+      const sent = httpCalls.filter((c) => c.data?.to === DESK46);
+      assert.strictEqual(sent.length, 1);
+      assert.match(sent[0].data.text.body, /répondez OK/);
+      assert.strictEqual(opsDesk46.keepaliveDue(new Date(last + 22 * 3600e3)), false);
+    });
+  }
+
+  check('the keep-alive job is registered and nothing is due with no desk number', () => {
+    assert.ok(require('../services/scheduler').JOBS.some((j) => j.name === 'ops-desk-keepalive'));
+    delete process.env.OPS_WHATSAPP_NUMBER;
+    assert.strictEqual(opsDesk46.keepaliveDue(new Date(Date.now() + 21 * 3600e3)), false);
+    assert.strictEqual(opsDesk46.isOpsSender(DESK46), false, 'with no desk, that number is an ordinary sender');
+  });
+
+  if (opsBefore46 === undefined) delete process.env.OPS_WHATSAPP_NUMBER;
+  else process.env.OPS_WHATSAPP_NUMBER = opsBefore46;
 
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);

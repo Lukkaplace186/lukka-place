@@ -17,6 +17,7 @@
 const express = require('express');
 const db = require('../services/db');
 const chakra = require('../services/chakra');
+const opsDesk = require('../services/opsDesk');
 const { STATES } = require('../services/conversationState');
 const { dispatchLead, dispatchLeadInBackground } = require('../services/leadDispatch');
 const { handleProjectEnquiry } = require('../services/projectEnquiry');
@@ -265,7 +266,7 @@ router.post('/ops-notify', async (req, res) => {
   if (!message || message.length > 1000) {
     return res.status(400).json({ success: false, error: 'message is required (max 1000 chars).' });
   }
-  const ops = (process.env.OPS_WHATSAPP_NUMBER || '').replace(/\D/g, '');
+  const ops = opsDesk.opsNumber();
   if (!ops) return res.json({ success: true, sent: false, reason: 'OPS_WHATSAPP_NUMBER is not set' });
   try {
     await chakra.sendWhatsAppMessage(ops, message);
@@ -452,7 +453,7 @@ router.get('/lead-analytics', (req, res) => {
       days: window,
       ...db.getLeadAnalytics({ since }),
       config: {
-        opsNumberConfigured: Boolean(process.env.OPS_WHATSAPP_NUMBER),
+        opsNumberConfigured: Boolean(opsDesk.opsNumber()),
         templates: {
           leadMatch: chakra.templateConfigured(process.env.AGENT_LEAD_MATCH_TEMPLATE || null),
           viewingRequest: chakra.templateConfigured(process.env.VIEWING_REQUEST_TEMPLATE || null),
@@ -492,7 +493,10 @@ router.get('/health', (req, res) => {
         memoryMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
       },
       config: {
-        opsNumberConfigured: Boolean(process.env.OPS_WHATSAPP_NUMBER),
+        opsNumberConfigured: Boolean(opsDesk.opsNumber()),
+        // Whether the desk can actually hear us right now (24h window), not
+        // just whether a number is set. services/opsDesk.js.
+        opsDesk: opsDesk.deskStatus(),
         templates: {
           leadMatch: chakra.templateConfigured(process.env.AGENT_LEAD_MATCH_TEMPLATE || null),
           viewingRequest: chakra.templateConfigured(process.env.VIEWING_REQUEST_TEMPLATE || null),

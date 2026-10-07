@@ -292,6 +292,17 @@ registerJob({
 }
 
 /**
+ * Keeps the desk phone's 24h window open (services/opsDesk.js): 20h after the
+ * desk's last message, ask it to answer OK. Without a reply nothing more is
+ * sent — a session message after 24h would not arrive anyway.
+ */
+{
+  // eslint-disable-next-line global-require
+  const { opsDeskKeepaliveJob } = require('./opsDesk');
+  registerJob(opsDeskKeepaliveJob);
+}
+
+/**
  * The daily sales commission run (launch policy + subscription plan). Like the
  * alert sweep it calls web's own endpoint rather than reimplementing the rules:
  * the tiers, the confirmed-listing definition and the ledger all live in

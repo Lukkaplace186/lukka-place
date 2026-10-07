@@ -47,7 +47,8 @@ const POSTGRES_TIMEOUT_MS = 10 * 1000;
 const HOUR_MS = 60 * 60 * 1000;
 
 function opsNumber() {
-  return (process.env.OPS_WHATSAPP_NUMBER || '').replace(/\D/g, '') || null;
+  // Normalised in one place (services/opsDesk.js): a local "08…" becomes 243….
+  return require('./opsDesk').opsNumber();
 }
 
 function positiveEnv(name, fallback) {

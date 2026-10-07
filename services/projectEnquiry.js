@@ -35,7 +35,8 @@ const SITE_URL = (process.env.PUBLIC_SITE_URL || 'https://lukkaplace.com').repla
 
 /** Read at call time, like viewingNotifications.opsNumber(): ops can be repointed without a restart. */
 function opsNumber() {
-  return (process.env.OPS_WHATSAPP_NUMBER || '').replace(/\D/g, '') || null;
+  // Normalised in one place (services/opsDesk.js): a local "08…" becomes 243….
+  return require('./opsDesk').opsNumber();
 }
 
 function displayPhone(waId) {

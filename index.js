@@ -549,6 +549,8 @@ const server = app.listen(PORT, () => {
   // request ALSO failed to reach an agent — so a deployment could be dropping
   // every desk copy, decline survey and captured closing price in silence.
   require('./services/viewingNotifications').warnIfOpsUnconfigured();
+  // And when one is set: is it a real number, and can the desk hear us now?
+  require('./services/opsDesk').warnIfOpsInvalid();
 
   // The weekly customer alert sweep. This process is the only always-on,
   // single-instance component in the system (ecosystem.config.js pins it to

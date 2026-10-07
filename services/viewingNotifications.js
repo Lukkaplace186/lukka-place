@@ -77,7 +77,8 @@ const TEMPLATE_LANG = process.env.VIEWING_REQUEST_TEMPLATE_LANG || 'fr';
  * reasoning, and the same shape, as web/lib/otpBypass.js's otpBypassEnabled().
  */
 function opsNumber() {
-  return (process.env.OPS_WHATSAPP_NUMBER || '').replace(/\D/g, '') || null;
+  // Normalised in one place (services/opsDesk.js): a local "08…" becomes 243….
+  return require('./opsDesk').opsNumber();
 }
 
 /**

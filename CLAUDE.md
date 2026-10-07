@@ -1125,9 +1125,36 @@ alert job itself), no inbound WhatsApp traffic for `OPS_ALERT_SILENCE_HOURS`
   the normal "en ligne" message. Both write paths still create
   `approve_status = 0`. With no verified-tier agent today, it approves nothing.
 - Scheduler order is now: search-alerts, viewing-sla, viewing-checkin,
-  ops-health-alerts, listing-stats-rollup, trusted-auto-approve,
-  agent-daily-digest, listing-availability-check, sales-commissions.
-
+  viewing-agent-done, ops-health-alerts, listing-stats-rollup,
+  trusted-auto-approve, agent-daily-digest, listing-availability-check,
+  market-snapshot, ops-desk-keepalive, sales-commissions (pinned in §24).
+
+## The ops desk phone — OPS_WHATSAPP_NUMBER (2026-10-07)
+
+`services/opsDesk.js`, set up with `scripts/ops-desk.js`. A dedicated SIM
+receives every desk copy (viewing requests, listing enquiries, project
+enquiries, declines, closing prices, ops alerts).
+
+- **One reader.** `opsDesk.opsNumber()` normalises at call time: a local
+  "0812…" / "812…" / "00243…" becomes 243…; anything not 7–15 digits is unset
+  (and said so at boot). Every module that used to strip non-digits and send
+  "0812345678" as-is now delegates to it. `/admin/health`'s config carries
+  `opsDesk` (configured, last desk message, estimated window).
+- **The 24h window is the whole game.** No template is approved, so every
+  desk copy is a session message. A desk phone silent for 24h stops receiving
+  everything while every send is still "accepted". Any message from the desk
+  reopens it and is answered with when it closes; the `ops-desk-keepalive`
+  job asks "répondez OK" once, 20h after the desk's last message (never after
+  23h45 — it would not land). No reply → nothing more is sent.
+- **The desk phone is not an agent.** `routes/webhook.js` hands a message
+  from it to `handleDeskMessage` right after the button taps: no model call,
+  never a listing, a forwarded listing is refused with an explanation. A
+  number used as the desk loses agent commands and intake on purpose.
+- **Setup** (VPS, engine dir): `node scripts/ops-desk.js set <n> --write` →
+  `pm2 restart lukka-place-engine --update-env` → from the desk phone,
+  WhatsApp "OK" to the business number → `node scripts/ops-desk.js test`.
+  The script refuses the business number itself. §46 of verify-pipeline.
+
 ## Visit booking — picked slot, bon de visite, multi-visit (2026-09-29)
 
 web/CLAUDE.md, "Visit booking, both agendas…", has the pages. Engine half:

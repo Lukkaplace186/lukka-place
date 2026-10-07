@@ -55,6 +55,7 @@ const { handleVisitDoneButtonReply } = require('../services/visitReceipt');
 const { handleAgentCommand, parseAgentCommand } = require('../services/agentCommands');
 const { handleListingEnquiry } = require('../services/listingEnquiry');
 const salesReferral = require('../services/salesReferral');
+const opsDesk = require('../services/opsDesk');
 const listingQuota = require('../services/listingQuota');
 
 const router = express.Router();
@@ -736,6 +737,25 @@ async function processGroup(messages) {
       if (visitDone.handled) return;
     } catch (err) {
       console.error(`[visit-receipt] button '${buttonReplyId}' from ${from} failed: ${err.message}`);
+      return;
+    }
+  }
+
+  // OPS DESK — anything from OPS_WHATSAPP_NUMBER (services/opsDesk.js). It
+  // reopens the 24h window the desk copies depend on, is answered with when
+  // that window closes, and never reaches listing intake: "OK" is not a
+  // listing, and a listing forwarded from the desk phone must not be stored.
+  if (opsDesk.isOpsSender(from)) {
+    try {
+      const outcome = await opsDesk.handleDeskMessage({
+        from,
+        text,
+        hasMedia: messages.some((m) => m.media && m.media.length),
+        wamid: primaryWamid,
+      });
+      if (outcome.handled) return;
+    } catch (err) {
+      console.error(`[ops-desk] message from the desk failed: ${err.message}`);
       return;
     }
   }

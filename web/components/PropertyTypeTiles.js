@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { Building2, Fence, House, Store, Warehouse } from 'lucide-react';
+import { House, Store, Warehouse } from 'lucide-react';
+import { ApartmentIcon, LandIcon } from './icons/PropertyTypeIcons';
 import { getT } from '@/lib/i18n/server';
 
 /**
@@ -12,8 +13,8 @@ import { getT } from '@/lib/i18n/server';
  * a single tile is not a choice.
  */
 const ICONS = [
-  [/appart|studio|duplex|penthouse/, Building2],
-  [/terrain|parcelle/, Fence],
+  [/appart|studio|duplex|penthouse/, ApartmentIcon],
+  [/terrain|parcelle/, LandIcon],
   [/boutique|commerce|bureau/, Store],
   [/entrep|d[eé]p[oô]t|b[aâ]timent/, Warehouse],
 ];

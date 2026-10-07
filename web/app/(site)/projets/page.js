@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { Building2, Fence, HardHat, List, Map as MapIcon, ShieldCheck } from 'lucide-react';
+import { Building2, HardHat, List, Map as MapIcon, ShieldCheck } from 'lucide-react';
+import { LandIcon } from '@/components/icons/PropertyTypeIcons';
 import Breadcrumb from '@/components/Breadcrumb';
 import ProjectCard from '@/components/projects/ProjectCard';
 import ProjectsMapPane from '@/components/projects/ProjectsMapPane';
@@ -114,7 +115,7 @@ export default async function ProjectsHubPage({ searchParams }) {
               {t('projects.hub.promiseVerified')}
             </li>
             <li className="flex items-start gap-2">
-              <Fence strokeWidth={ICON_STROKE_WIDTH} className="mt-0.5 h-4 w-4 shrink-0 text-blue-deep" />
+              <LandIcon strokeWidth={ICON_STROKE_WIDTH} className="mt-0.5 h-4 w-4 shrink-0 text-blue-deep" />
               {t('projects.hub.promiseLots')}
             </li>
           </ul>

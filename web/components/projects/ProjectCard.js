@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { BadgeCheck, Building2, Fence, MapPin } from 'lucide-react';
+import { BadgeCheck, Building2, MapPin } from 'lucide-react';
+import { LandIcon } from '@/components/icons/PropertyTypeIcons';
 import SafeImage from '@/components/SafeImage';
 import Price from '@/components/Price';
 import { getT } from '@/lib/i18n/server';
@@ -23,7 +24,7 @@ export default async function ProjectCard({ project }) {
   const availability = availabilityLine(project, t);
   const beds = project.kind === 'building' ? bedroomsRange(project.unit_summary, t) : null;
   const where = projectLocationLine(project);
-  const Icon = project.kind === 'land' ? Fence : Building2;
+  const Icon = project.kind === 'land' ? LandIcon : Building2;
   const stage = project.kind === 'building' ? stageLabel(project, t) : null;
 
   return (

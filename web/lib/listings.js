@@ -155,6 +155,14 @@ export const AGENT_INFOS_JOIN = `
 // A listing with a NULL parent_building_id — every listing published before
 // multi-unit intake existed, and every ordinary single-unit listing — groups
 // as itself, exactly as before.
+/**
+ * The public address, with filler an extraction or a form left behind read as
+ * no address. Listing #239's address was the literal "N/A", and the detail
+ * page printed it as the place under the price. The admin moderation read
+ * keeps the raw value so a moderator still sees what was stored.
+ */
+export const PUBLIC_ADDRESS_EXPR = `(CASE WHEN btrim(pc.address) ~* '^(n/?a|na|null|undefined|none|aucune?|-+|[.]+|non (precise|précisée?|renseignée?))?$' THEN NULL ELSE pc.address END)`;
+
 const SELECT_FIELDS = `
   p.id, p.price, p.purpose, p.beds, p.bath, p.area, p.quartier,
   p.currency, p.price_original,
@@ -175,7 +183,7 @@ const SELECT_FIELDS = `
   -- NULL and an empty array as "no column value" and falls back to the
   -- keyword pass, so neither case needs special-casing here.
   p.features,
-  pc.title, pc.slug, pc.address,
+  pc.title, pc.slug, ${PUBLIC_ADDRESS_EXPR} AS address,
   catc.name AS category_name, p.category_id,
   -- Kinshasa utility codes the agent stated (lib/utilityTags.js); a jsonb
   -- array, [] before the migration or when none were stated.
@@ -1108,7 +1116,7 @@ const MARKER_FIELDS = `
   (SELECT json_build_object('slug', d.slug, 'name', d.name, 'photo', d.photos[1])
      FROM developments d
     WHERE d.id = p.development_id AND d.status = 1 AND d.approve_status = 1) AS project,
-  pc.title, pc.slug, pc.address,
+  pc.title, pc.slug, ${PUBLIC_ADDRESS_EXPR} AS address,
   ${LAT_EXPR} AS lat, ${LNG_EXPR} AS lng,
   ${COMMUNE_SUBQUERY}
 `;

@@ -228,14 +228,15 @@ export function specItems(listing, t) {
   // French via the label fallback below rather than an exception.
   const label = (key, fallback) => (t ? t(`listings.specs.${key}`) : fallback);
   const items = [];
-  if (listing.beds != null) items.push({ key: 'beds', value: listing.beds, label: label('beds', 'ch') });
+  // > 0, like bath: a 0 printed '0 ch' on a listing that never stated rooms.
+  if (Number(listing.beds) > 0) items.push({ key: 'beds', value: listing.beds, label: label('beds', 'ch') });
   // Same gotcha hasArea() exists for: bath can carry '' rather than a real
   // NULL, and '' != null is true, so a naive check rendered a bare "sdb"
   // with no number on any listing whose bathroom count was never recorded
   // — confirmed live on the homepage's "Derniers biens publiés" cards.
   if (Number(listing.bath) > 0) items.push({ key: 'bath', value: listing.bath, label: label('bath', 'sdb') });
   if (hasArea(listing.area)) items.push({ key: 'area', value: listing.area, label: label('area', 'm²') });
-  if (listing.units_count != null) {
+  if (Number(listing.units_count) > 0) {
     items.push({ key: 'units', value: listing.units_count, label: label('units', 'portes') });
   }
   return items;

@@ -86,7 +86,7 @@ export default function BuildingUnitsDrawer({ group, onClose }) {
                   {[
                     unit.unit_label || null,
                     unit.unit_floor != null ? (Number(unit.unit_floor) === 0 ? 'RDC' : Number(unit.unit_floor) === 1 ? '1er ét.' : `${unit.unit_floor}e ét.`) : null,
-                    unit.beds != null ? `${unit.beds} ch.` : null,
+                    Number(unit.beds) > 0 ? `${unit.beds} ch.` : null,
                     unit.bath != null ? `${unit.bath} sdb` : null,
                     unit.floor || null,
                   ]

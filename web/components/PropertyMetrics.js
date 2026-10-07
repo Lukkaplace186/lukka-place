@@ -36,9 +36,9 @@ export default async function PropertyMetrics({ listing }) {
     categoryName ? { label: t('account.favorites.columns.type'), value: <span className="capitalize">{categoryName}</span> } : null,
     hasArea ? { label: 'Superficie', value: `${area} m²` } : null,
     pricePerSqm ? { label: t('listings.metrics.pricePerSqm'), value: <Price amount={Math.round(pricePerSqm)} /> } : null,
-    beds != null ? { label: 'Chambres', value: beds } : null,
-    bath != null ? { label: t('listings.metrics.bathrooms'), value: bath } : null,
-    unitsCount != null ? { label: 'Portes', value: unitsCount } : null,
+    Number(beds) > 0 ? { label: 'Chambres', value: beds } : null,
+    Number(bath) > 0 ? { label: t('listings.metrics.bathrooms'), value: bath } : null,
+    Number(unitsCount) > 0 ? { label: 'Portes', value: unitsCount } : null,
     commune ? { label: 'Commune', value: commune } : null,
     quartier ? { label: t('listings.filters.quartier'), value: quartier } : null,
     // Real captured intake data, never a fabricated default term — absent on

@@ -82,3 +82,21 @@ test('signup does not promise "no verification" while the verify page asks for a
   assert.ok(!/no verification/i.test(en.auth.signup.noCodeNeeded));
   assert.match(en.auth.signup.noCodeNeeded, /WhatsApp/);
 });
+
+test('a listing with 0 rooms or 0 doors prints no "0 ch" / "0 portes"', async () => {
+  const { specItems } = await import('../../lib/listingView.js');
+  const keys = (listing) => specItems(listing).map((i) => i.key);
+  assert.deepEqual(keys({ beds: 0, bath: 0, area: '0', units_count: 0 }), []);
+  assert.deepEqual(keys({ beds: 2, bath: 1, units_count: 7 }), ['beds', 'bath', 'units']);
+  for (const file of ['components/KeyFacts.js', 'components/PropertyMetrics.js']) {
+    assert.ok(!/beds != null \?/.test(read(file)), `${file} shows a 0 bedroom count`);
+  }
+});
+
+test('a placeholder address ("N/A") is not printed as the place', async () => {
+  const { PUBLIC_ADDRESS_EXPR } = await import('../../lib/listings.js');
+  assert.match(PUBLIC_ADDRESS_EXPR, /n\/\?a/);
+  assert.ok(!PUBLIC_ADDRESS_EXPR.includes(String.fromCharCode(92)), 'no backslash: a template literal would eat it');
+  const src = read('lib/listings.js');
+  assert.equal(src.match(/\$\{PUBLIC_ADDRESS_EXPR\} AS address/g)?.length, 2, 'both public SELECTs use it');
+});

@@ -73,7 +73,7 @@ export default function KeyFacts({ listing }) {
     // `categoryName` stays untranslated: it is a real value out of
     // property_category_contents, not UI copy. Only the labels are keys.
     categoryName ? { key: 'type', icon: Landmark, label: t('listings.facts.type'), value: categoryName } : null,
-    beds != null ? { key: 'beds', icon: BedDouble, label: t('listings.facts.bedrooms'), value: beds } : null,
+    Number(beds) > 0 ? { key: 'beds', icon: BedDouble, label: t('listings.facts.bedrooms'), value: beds } : null,
     // Number(bath) > 0, not `bath != null` — `bath` carries '' rather than a
     // real NULL when unrecorded, and '' != null is true. Same trap
     // lib/listingView.js's specItems() documents.
@@ -81,7 +81,7 @@ export default function KeyFacts({ listing }) {
     hasArea(area)
       ? { key: 'area', icon: Ruler, label: t('listings.facts.area'), value: t('listings.facts.squareMetres', { value: area }) }
       : null,
-    unitsCount != null ? { key: 'units', icon: DoorOpen, label: t('listings.facts.doors'), value: unitsCount } : null,
+    Number(unitsCount) > 0 ? { key: 'units', icon: DoorOpen, label: t('listings.facts.doors'), value: unitsCount } : null,
     // The REFUNDABLE deposit on its own — `terms.parts[0]`, never the total.
     // A "3 + 1 + 1" shown here as "Garantie : 5 mois" is the exact
     // overstatement that splitting the field into three undid: two of those

@@ -253,6 +253,8 @@
     "heroKicker": "About Lukka Place",
     "heroTitle": "Simplifying the Search for Your Next Home.",
     "heroAccent": "Simplifying the Search",
+    "heroPhotoAlt": "A young couple moving in, holding a box",
+    "photoCredit": "Photo: {name} / Pexels",
     "heroLead": "House hunting shouldn't mean endless calls, unverified listings or wasted trips across Kinshasa. We connect you directly with verified agents and clear property details in one simple, mobile-first search.",
     "ctaBrowse": "Browse listings",
     "ctaAgent": "I'm an agent",

@@ -6,7 +6,12 @@ import SafeImage from '@/components/SafeImage';
 import { getT } from '@/lib/i18n/server';
 import { cachedFeaturedListings, cachedListingsTotal, cachedPopularCommunes } from '@/lib/listingsCached';
 import { NO_PHOTO_URL } from '@/lib/constants';
-import heroPhoto from '../../../Hero/hero-sunlit.jpg';
+import heroPhoto from '../../../Hero/about-moving-in.jpg';
+
+const HERO_PHOTO_CREDIT = {
+  name: 'Gustavo Fring',
+  href: 'https://www.pexels.com/photo/a-happy-young-couple-holding-cardboard-boxes-4971211/',
+};
 
 /*
  * `generateMetadata`, not a static `metadata` object: a static export is
@@ -31,7 +36,7 @@ export async function generateMetadata() {
  * Nothing here is invented. The photos beside the vision are the covers of
  * the most complete live listings (the homepage's featured read), and the
  * figures are live counts — a figure that reads 0 is not shown. The hero is
- * the homepage's own Kinshasa photo.
+ * a Pexels photo (Gustavo Fring), chosen by the owner, credited below it.
  */
 export default async function AboutPage() {
   const t = await getT();
@@ -60,32 +65,43 @@ export default async function AboutPage() {
 
   return (
     <div className="bg-canvas">
-      {/* Hero — the promise over Kinshasa. */}
-      <section className="relative isolate overflow-hidden bg-ink">
-        <Image
-          src={heroPhoto}
-          alt=""
-          fill
-          placeholder="blur"
-          sizes="100vw"
-          fetchPriority="high"
-          loading="eager"
-          className="-z-10 object-cover"
-        />
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 -z-10 bg-gradient-to-r from-[#0B1120]/90 via-[#0B1120]/65 to-[#0B1120]/15"
-        />
-        <div className="mx-auto flex min-h-[30rem] max-w-[1600px] flex-col justify-end px-4 pb-14 pt-10 sm:min-h-[36rem] sm:px-6 sm:pb-20 lg:px-8">
-          <Breadcrumb
-            className="mb-auto [&_a]:text-white/70 [&_a:hover]:text-white [&_span]:text-white/90 [&_svg]:text-white/50"
-            items={[{ label: t('breadcrumb.home'), href: '/' }, { label: t('about.eyebrow') }]}
+      {/* Hero — the move. A bright photo, so the copy is ink on its white
+          wall (desktop) or under it (phone), where the couple would
+          otherwise sit behind the headline. */}
+      <section className="relative isolate overflow-hidden bg-canvas">
+        <div className="relative aspect-[4/3] w-full sm:aspect-[16/9] lg:absolute lg:inset-y-0 lg:right-0 lg:-z-10 lg:aspect-auto lg:w-[60%]">
+          <Image
+            src={heroPhoto}
+            alt={t('about.heroPhotoAlt')}
+            fill
+            placeholder="blur"
+            sizes="100vw"
+            fetchPriority="high"
+            loading="eager"
+            className="object-cover object-[72%_30%] lg:object-[62%_30%]"
           />
-          <p className="u-eyebrow mt-16 !text-white/80">{t('about.heroKicker')}</p>
-          <h1 className="mt-4 max-w-3xl font-display text-[2.5rem] font-normal leading-[1.04] tracking-[-0.02em] text-white sm:text-[3.5rem] lg:text-[4.25rem]">
-            <Accented text={t('about.heroTitle')} accent={t('about.heroAccent')} className="text-[#9fbcff]" />
+          <div
+            aria-hidden="true"
+            className="absolute inset-y-0 left-0 hidden w-1/3 bg-gradient-to-r from-canvas to-transparent lg:block"
+          />
+          {/* Pexels licence: no credit required; given anyway, as for every
+              photo on this site. */}
+          <a
+            href={HERO_PHOTO_CREDIT.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="absolute bottom-2 right-2 rounded-full bg-white/80 px-2 py-0.5 text-[0.6875rem] text-ink-70 hover:text-ink"
+          >
+            {t('about.photoCredit', { name: HERO_PHOTO_CREDIT.name })}
+          </a>
+        </div>
+        <div className="mx-auto flex max-w-[1600px] flex-col px-4 pb-14 pt-8 sm:px-6 lg:min-h-[38rem] lg:justify-center lg:px-8 lg:py-16">
+          <Breadcrumb items={[{ label: t('breadcrumb.home'), href: '/' }, { label: t('about.eyebrow') }]} />
+          <p className="u-eyebrow mt-8 lg:mt-14">{t('about.heroKicker')}</p>
+          <h1 className="mt-4 max-w-2xl font-display text-[2.5rem] font-normal leading-[1.04] tracking-[-0.02em] text-ink sm:text-[3.5rem] lg:max-w-[38%] lg:text-[3.5rem] xl:text-[4rem]">
+            <Accented text={t('about.heroTitle')} accent={t('about.heroAccent')} className="text-blue" />
           </h1>
-          <p className="mt-6 max-w-2xl text-[1.0625rem] leading-relaxed text-white/85 sm:text-lg">{t('about.heroLead')}</p>
+          <p className="mt-6 max-w-xl text-[1.0625rem] leading-relaxed text-ink-70 sm:text-lg lg:max-w-[36%]">{t('about.heroLead')}</p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
               href="/listings"
@@ -95,7 +111,7 @@ export default async function AboutPage() {
             </Link>
             <Link
               href="/compte/agent/inscription"
-              className="inline-flex min-h-11 items-center rounded-full border border-white/40 px-6 text-sm font-semibold text-white transition-colors hover:bg-white/10"
+              className="inline-flex min-h-11 items-center rounded-full border border-line bg-surface px-6 text-sm font-semibold text-ink transition-colors hover:border-ink-45"
             >
               {t('about.ctaAgent')}
             </Link>

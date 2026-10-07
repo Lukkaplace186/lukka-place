@@ -253,6 +253,8 @@
     "heroKicker": "À propos de Lukka Place",
     "heroTitle": "Simplifier la recherche de votre prochain chez-vous.",
     "heroAccent": "Simplifier la recherche",
+    "heroPhotoAlt": "Un jeune couple emménage, un carton dans les bras",
+    "photoCredit": "Photo : {name} / Pexels",
     "heroLead": "Chercher un logement ne devrait pas signifier des appels sans fin, des annonces douteuses ou des trajets inutiles à travers Kinshasa. Nous vous mettons directement en relation avec des agents vérifiés et des informations claires sur chaque bien, dans une recherche simple, pensée pour le mobile.",
     "ctaBrowse": "Voir les annonces",
     "ctaAgent": "Je suis agent",

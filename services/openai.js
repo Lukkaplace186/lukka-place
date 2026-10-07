@@ -95,6 +95,8 @@ ${LOCATIONS_BLOCK}
 - Normalise la commune vers l'une de ces orthographes exactes ("gombé" => "Gombe", "Bandal" => "Bandalungwa", "Djili" => "Ndjili").
 - Normalise le quartier vers l'orthographe exacte listée pour SA commune ci-dessus ("Ma Campagne" => "Macampagne", "la gombe" => reste dans commune, pas quartier). Si le quartier mentionné n'apparaît dans aucune liste (nouveau lotissement, référence informelle type "Righini", "Pompage"), rapporte-le tel quel plutôt que d'inventer une correspondance.
 - La référence précise va dans "quartier", jamais dans "commune".
+- Ne déduis JAMAIS la commune à partir du quartier : si l'agent n'écrit pas la commune, mets commune à null. Le système la déduit lui-même, et demande à l'agent quand le même nom existe dans plusieurs communes (« Salongo », « Funa », « Saïo »).
+- Un lieu-dit ou une abréviation de lieu (« à GB », « vers Mimosas », « Matonge », « Righini ») va dans quartier, tel qu'écrit, même s'il n'est pas dans les listes.
 
 IMAGES
 - Des photos peuvent accompagner le message (photos du bien, flyer, pancarte, capture d'écran).

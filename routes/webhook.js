@@ -30,7 +30,7 @@ const {
 } = require('../services/db');
 const chakra = require('../services/chakra');
 const { persistImages } = require('../services/mediaStorage');
-const { resolveCommune, resolveQuartier } = require('../services/locations');
+const { inferListingLocation, communeNamedIn, placeKey } = require('../services/locations');
 const { handleBuyerMessage } = require('../services/buyerConversation');
 const { matchQuickReply } = require('../services/quickReplies');
 const { extractPdfText } = require('../services/documentText');
@@ -1150,13 +1150,42 @@ async function processGroup(messages) {
     // an accent GPT-4o left alone) doesn't reach storage un-normalised. A
     // name with no confident match — a genuinely new/informal one — is left
     // as the model wrote it rather than dropped.
-    if (extracted.commune) {
-      const resolvedCommune = resolveCommune(extracted.commune);
-      if (resolvedCommune) extracted.commune = resolvedCommune;
-    }
-    if (extracted.quartier) {
-      const resolvedQuartier = resolveQuartier(extracted.quartier, extracted.commune);
-      if (resolvedQuartier) extracted.quartier = resolvedQuartier;
+    //
+    // No commune but a quartier (or a reference) that belongs to ONE commune:
+    // the commune is deduced and recorded as such (`commune_inferred_from`, in
+    // parsed_json), and the card says so for the agent to confirm. A name that
+    // exists in several communes is never guessed — the card asks which
+    // (services/listingCard.js). services/locations.js inferListingLocation.
+    {
+      // The answer to the card's "dans quelle commune ?": a short reply that is
+      // exactly a commune name fills the draft's commune, whatever the model
+      // made of one bare word.
+      if (pending && !pending.commune && !extracted.is_listing && hasText) {
+        const named = communeNamedIn(text);
+        if (named) {
+          extracted.commune = named;
+          extracted.is_correction = true;
+        }
+      }
+      const statedCommune = extracted.commune;
+      const located = inferListingLocation({
+        commune: extracted.commune,
+        quartier: extracted.quartier,
+        reference: extracted.reference,
+      });
+      if (located.commune) extracted.commune = located.commune;
+      if (located.quartier) extracted.quartier = located.quartier;
+      if (located.communeInferredFrom) {
+        extracted.commune_inferred_from = located.communeInferredFrom;
+        console.log(`[location] ${label} — commune ${located.commune} deduced from "${located.communeInferredFrom}"`);
+      } else if (statedCommune && !(pending && pending.commune && placeKey(pending.commune) === placeKey(located.commune))) {
+        // The agent named the commune (or changed it): nothing is deduced any more.
+        // A correction that merely echoes the draft's deduced commune leaves the note.
+        extracted.commune_inferred_from = null;
+      }
+      if (located.ambiguous) {
+        console.log(`[location] ${label} — "${located.ambiguous.name}" is in ${located.ambiguous.communes.join(' / ')}; asking`);
+      }
     }
 
     // AGENT ONBOARDING — the reply to "what is your name and your agency?".

@@ -20,6 +20,8 @@
  * dollar amounts when the rent is monthly.
  */
 
+const { inferCommune } = require('./locations');
+
 const PROPERTY_TYPE_LABELS = {
   appartement: 'Appartement',
   studio: 'Studio',
@@ -103,6 +105,27 @@ function missingFields(row) {
   });
 }
 
+/** "Funa", "Barumbu et Limete" — the communes a name could be in, for the question. */
+function joinFr(items) {
+  return items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} et ${items[items.length - 1]}`;
+}
+
+/**
+ * The question the card asks when the commune is missing because the place
+ * the agent named exists in several communes, or null when that is not why.
+ */
+function communeQuestion(row) {
+  for (const text of [row.quartier, row.reference]) {
+    if (!present(text)) continue;
+    const found = inferCommune(text);
+    if (found.status === 'ambiguous') {
+      return `📍 « ${String(text).trim()} » existe ${joinFr(found.communes.map((c) => `à ${c}`))}. Dans quelle commune se trouve le bien ? Répondez simplement avec le nom de la commune.`;
+    }
+    if (found.status === 'unique') return null;
+  }
+  return null;
+}
+
 function entryCostLine(label, months, rent, note, currency) {
   const amount = rent ? ` (${money(months * rent, currency)})` : '';
   return `*${label}* : ${months} mois${amount} ➔ _${note}_`;
@@ -124,7 +147,14 @@ function renderListingCard(row, { photoCount } = {}) {
   if (row.property_type === 'parcelle' && present(row.parcelle_subtype)) {
     lines.push(`*Sous-type* : ${SUBTYPE_LABELS[row.parcelle_subtype] || row.parcelle_subtype}`);
   }
-  if (present(row.commune)) lines.push(`*Commune* : ${row.commune}`);
+  if (present(row.commune)) {
+    // Deduced from the quartier at intake (services/locations.js): said so,
+    // because the agent's "OK" is what confirms it.
+    const from = row.parsed_json?.commune_inferred_from;
+    lines.push(from
+      ? `*Commune* : ${row.commune} _(déduite de « ${from} » — corrigez si ce n'est pas la bonne)_`
+      : `*Commune* : ${row.commune}`);
+  }
   if (present(row.quartier)) lines.push(`*Quartier* : ${row.quartier}`);
   if (Number(row.price) > 0) {
     lines.push(`*${row.transaction_type === 'vente' ? 'Prix' : 'Loyer'}* : ${money(row.price, currency)}${periodSuffix(row)}`);
@@ -195,7 +225,14 @@ function composeIntakeReply(modelReply, row, { mode = 'draft', photoCount } = {}
   );
   const parts = [intro, renderListingCard(row, { photoCount })];
 
-  const missing = missingFields(row);
+  let missing = missingFields(row);
+  // A quartier that exists in several communes: ask the exact question rather
+  // than a generic "il manque : commune" the agent may think they answered.
+  const question = missing.includes('commune') ? communeQuestion(row) : null;
+  if (question) {
+    parts.push(question);
+    missing = missing.filter((key) => key !== 'commune');
+  }
   if (missing.length) {
     parts.push(`Il manque : ${missing.map((key) => MISSING_LABELS[key]).join(', ')}. Envoyez-les quand vous pouvez.`);
   }

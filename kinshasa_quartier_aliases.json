@@ -1,0 +1,58 @@
+{
+  "_about": "Names agents write that are not (or not only) an official quartier of kinshasa_locations.json. Read by services/locations.js. A name listed under ONE commune lets intake deduce the commune (the agent confirms it on the card); a name under SEVERAL communes, or one that is also an official quartier elsewhere, makes intake ASK. Add a single-commune entry only with a source; adding a commune to an existing name is always safe (it can only cause a question, never a wrong guess).",
+  "_sources": {
+    "owner": "Lukka Place owner, 2026-10-07",
+    "wp-ngaliema": "fr.wikipedia.org/wiki/Ngaliema (quartiers + lieux-dits)",
+    "wp-lemba": "fr.wikipedia.org/wiki/Lemba_(Kinshasa) (localités dans les quartiers)",
+    "wp-bandalungwa": "fr.wikipedia.org/wiki/Bandalungwa",
+    "wp-kalamu": "fr.wikipedia.org/wiki/Kalamu_(Kinshasa)",
+    "wp-kinshasa": "en.wikipedia.org/wiki/Kinshasa_(commune)",
+    "agents": "the same name tagged in different communes by agents on live listings, 2026-10-07 — recorded as ambiguity only, never as a deduction"
+  },
+  "aliases": [
+    { "name": "GB", "communes": ["Ngaliema"], "source": "owner" },
+    { "name": "Binza", "communes": ["Ngaliema"], "source": "wp-ngaliema" },
+    { "name": "Binza Ma Campagne", "communes": ["Ngaliema"], "quartier": "Macampagne", "source": "wp-ngaliema" },
+    { "name": "Ma Campagne", "communes": ["Ngaliema"], "quartier": "Macampagne", "source": "wp-ngaliema" },
+    { "name": "Binza UPN", "communes": ["Ngaliema"], "quartier": "UPN", "source": "wp-ngaliema" },
+    { "name": "Binza IPN", "communes": ["Ngaliema"], "quartier": "IPN", "source": "wp-ngaliema" },
+    { "name": "Binza Météo", "communes": ["Ngaliema"], "quartier": "Météo", "source": "wp-ngaliema" },
+    { "name": "Delvaux", "communes": ["Ngaliema"], "quartier": "Binza Delvaux", "source": "wp-ngaliema" },
+    { "name": "Ozone", "communes": ["Ngaliema"], "quartier": "Binza Ozone", "source": "wp-ngaliema" },
+    { "name": "Pigeon", "communes": ["Ngaliema"], "quartier": "Binza Pigeon", "source": "wp-ngaliema" },
+    { "name": "Mimosas", "communes": ["Ngaliema"], "source": "wp-ngaliema" },
+    { "name": "Mimosa", "communes": ["Ngaliema"], "source": "wp-ngaliema" },
+    { "name": "Mimoza", "communes": ["Ngaliema"], "source": "wp-ngaliema" },
+    { "name": "Kinsuka", "communes": ["Ngaliema", "Mont-Ngafula"], "source": "wp-ngaliema" },
+
+    { "name": "Righini", "communes": ["Lemba"], "source": "wp-lemba" },
+    { "name": "Terre Jaune", "communes": ["Lemba"], "source": "wp-lemba" },
+    { "name": "Madrandele", "communes": ["Lemba"], "quartier": "Mandrandele", "source": "wp-lemba" },
+    { "name": "Tadi", "communes": ["Lemba"], "source": "wp-lemba" },
+    { "name": "Djaga", "communes": ["Lemba"], "source": "wp-lemba" },
+    { "name": "Malolo", "communes": ["Lemba"], "source": "wp-lemba" },
+    { "name": "Kimpwanza", "communes": ["Lemba", "Kasa-Vubu"], "source": "agents" },
+    { "name": "Kimpwaza", "communes": ["Lemba", "Kasa-Vubu"], "source": "agents" },
+
+    { "name": "Synkin", "communes": ["Bandalungwa"], "quartier": "Makelele", "source": "wp-bandalungwa" },
+    { "name": "Max-Horn", "communes": ["Bandalungwa"], "quartier": "Bisengo", "source": "wp-bandalungwa" },
+    { "name": "Moelart", "communes": ["Bandalungwa"], "quartier": "Molaert", "source": "wp-bandalungwa" },
+    { "name": "Moulaert", "communes": ["Bandalungwa"], "quartier": "Molaert", "source": "wp-bandalungwa" },
+
+    { "name": "Matonge", "communes": ["Kalamu"], "source": "wp-kalamu" },
+    { "name": "Yolo", "communes": ["Kalamu"], "source": "wp-kalamu" },
+    { "name": "Camp Pinzi", "communes": ["Kalamu"], "quartier": "Pinzi", "source": "wp-kalamu" },
+    { "name": "Immo-Congo", "communes": ["Kalamu"], "quartier": "Immocongo", "source": "wp-kalamu" },
+    { "name": "20 Mai", "communes": ["Kalamu"], "quartier": "Immocongo", "source": "wp-kalamu" },
+    { "name": "Victoire", "communes": ["Kalamu", "Kasa-Vubu"], "source": "wp-kalamu" },
+
+    { "name": "Zando", "communes": ["Kinshasa"], "source": "wp-kinshasa" },
+
+    { "name": "Funa", "communes": ["Barumbu", "Limete"], "source": "agents" },
+    { "name": "Saio", "communes": ["Ngiri-Ngiri", "Kasa-Vubu"], "source": "agents" },
+    { "name": "Huilerie", "communes": ["Gombe", "Kinshasa"], "source": "agents" },
+    { "name": "Huileries", "communes": ["Gombe", "Kinshasa"], "source": "agents" },
+    { "name": "24 Novembre", "communes": ["Ngiri-Ngiri", "Lingwala"], "source": "agents" },
+    { "name": "Plateau", "communes": ["Mont-Ngafula", "Kinshasa"], "source": "agents" }
+  ]
+}

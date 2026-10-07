@@ -48,7 +48,9 @@ const CASES = [
   ['petit appart pas cher', { property_type: 'appartement', keywords: '' }],
   ['maison a louer lemba pas cher', { transaction_type: 'location', property_type: 'maison', commune: 'Lemba', keywords: '' }],
   // Places
-  ['a louer cite verte', { transaction_type: 'location', commune: 'Mont-Ngafula', quartier: 'Cité-Verte', keywords: '' }],
+  // Cité-Verte is in Selembao (official list, en.wikipedia.org/wiki/Selembao); the
+  // gazetteer had it in Mont-Ngafula until 2026-10-07.
+  ['a louer cite verte', { transaction_type: 'location', commune: 'Selembao', quartier: 'Cité-Verte', keywords: '' }],
   ['mont fleury', { commune: 'Ngaliema', quartier: 'Mont-Fleury', keywords: '' }],
   ['binza', { commune: 'Ngaliema', keywords: '' }],
   ['kin centre', { commune: 'Gombe', keywords: '' }],
@@ -57,8 +59,9 @@ const CASES = [
   // Several places, all searched, in the order typed
   ['appartement gombe ou ngaliema', { property_type: 'appartement', commune: 'Gombe', communes: ['Gombe', 'Ngaliema'], keywords: '' }],
   ['Gombe, Ngaliema, Limete', { commune: 'Gombe', communes: ['Gombe', 'Ngaliema', 'Limete'], keywords: '' }],
-  // A quartier name shared by three communes searches all three
-  ['salongo', { commune: 'Kasa-Vubu', quartier: 'Salongo', communes: ['Kasa-Vubu', 'Limete', 'Lemba'], keywords: '' }],
+  // A quartier name shared by several communes searches them all (official
+  // list: six; the search takes five places at most).
+  ['salongo', { commune: 'Kintambo', quartier: 'Salongo', communes: ['Kintambo', 'Kasa-Vubu', 'Limete', 'Lemba', 'Makala'], keywords: '' }],
   // Real requests stay as words
   ['studio meublé kintambo', { property_type: 'appartement', commune: 'Kintambo', keywords: 'meublé' }],
   ['villa avec piscine ma campagne', { property_type: 'parcelle', parcelle_subtype: 'villa', commune: 'Ngaliema', quartier: 'Ma Campagne', keywords: 'piscine' }],

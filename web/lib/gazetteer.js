@@ -292,6 +292,9 @@ export function searchGazetteer(query, limit = 8) {
   return out;
 }
 
+/** Two-letter names findLocationMention may match (see its length floor). */
+const SHORT_PLACE_NAMES = new Set(['gb']);
+
 /**
  * Finds the best real commune/quartier/landmark mentioned anywhere inside a
  * longer piece of text — the reverse of searchGazetteer() (which checks
@@ -315,6 +318,7 @@ export function searchGazetteer(query, limit = 8) {
  * @param {string} text
  * @returns {{type: 'commune'|'quartier'|'landmark', label: string, commune: string, matchedText: string, alsoIn: string[]}|null}
  */
+
 export function findLocationMention(text) {
   const source = String(text || '');
   const norm = spaced(source);
@@ -327,7 +331,9 @@ export function findLocationMention(text) {
     // Floor of 3, not 4: real short labels exist in this gazetteer (CPA, a
     // real Ngaliema quartier; Yuo). Safe because the match must also END at
     // a word boundary, so "Golf" can never fire on the start of a longer word.
-    if (row.spaced.length < 3) continue;
+    // Two letters only for a curated name agents really use ("à GB" =
+    // Ngaliema, kinshasa_quartier_aliases.json in the engine repo).
+    if (row.spaced.length < 3 && !SHORT_PLACE_NAMES.has(row.spaced)) continue;
     let from = 0;
     while (from <= norm.length) {
       const matchIndex = norm.indexOf(row.spaced, from);

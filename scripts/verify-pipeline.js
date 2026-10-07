@@ -10376,6 +10376,157 @@ console.log('\n2. services/openai.js');
   if (opsBefore46 === undefined) delete process.env.OPS_WHATSAPP_NUMBER;
   else process.env.OPS_WHATSAPP_NUMBER = opsBefore46;
 
+  // -------------------------------------------------------------------------
+  // 47. Commune from the quartier: deduce when one commune, ask when several
+  // -------------------------------------------------------------------------
+  console.log('\n47. Commune from the quartier');
+  const loc47 = require('../services/locations');
+  const card47 = require('../services/listingCard');
+
+  check('a name in ONE commune deduces it — official, lieu-dit, numbered or inside a longer text', () => {
+    const one = (text) => {
+      const r = loc47.inferCommune(text);
+      return r.status === 'unique' ? r.commune : r.status;
+    };
+    assert.strictEqual(one('GB'), 'Ngaliema', 'owner-confirmed lieu-dit');
+    assert.strictEqual(one('à GB'), 'Ngaliema');
+    assert.strictEqual(one('Mimosas, Camp Docteur'), 'Ngaliema');
+    assert.strictEqual(one('righini'), 'Lemba');
+    assert.strictEqual(one('Synkin'), 'Bandalungwa');
+    assert.strictEqual(one('Matonge/Kauka'), 'Kalamu');
+    assert.strictEqual(one('Yolo Sud 2'), 'Kalamu');
+    assert.strictEqual(one('Kingabwa'), 'Limete');
+    assert.strictEqual(one('Kintambo Magasin'), 'Kintambo');
+    assert.strictEqual(one('Lemba Village'), 'Makala', 'the longer name wins over the commune inside it');
+    assert.strictEqual(one('Commune de Ngiri Ngiri Avenue Monkoto Saio'), 'Ngiri-Ngiri', 'a stated commune wins');
+    assert.strictEqual(loc47.inferCommune('Yolo Sud 2').quartier, 'Yolo Sud II');
+  });
+
+  check('a name in SEVERAL communes is never guessed', () => {
+    const many = (text) => loc47.inferCommune(text).communes;
+    assert.deepStrictEqual(many('Funa'), ['Barumbu', 'Limete']);
+    assert.deepStrictEqual(many('Saïo-UPAC'), ['Kasa-Vubu', 'Ngiri-Ngiri']);
+    assert.deepStrictEqual(many('17 Mai'), ['Kimbanseke', 'Kisenso']);
+    assert.ok(many('Salongo').length >= 6);
+  });
+
+  check('no wild guesses: the citywide typo match that stored wrong quartiers is gone', () => {
+    assert.strictEqual(loc47.inferCommune('Wangata').status, 'unknown', 'was read as Mangana, Kimbanseke');
+    assert.strictEqual(loc47.inferCommune('tonde').status, 'unknown', 'was read as Konde, Selembao');
+    assert.strictEqual(loc47.resolveQuartier('tonde'), null);
+    assert.strictEqual(loc47.resolveQuartier('Wangata'), null);
+    assert.strictEqual(loc47.inferCommune('École petits lutins').status, 'unknown', 'an ordinary word inside a landmark');
+    assert.strictEqual(loc47.inferCommune('Avenue Kalamu').status, 'unknown', 'a street named after a commune');
+    assert.strictEqual(loc47.inferCommune('Kingabwaa').commune, 'Limete', 'a one-letter typo of a long name still reads');
+  });
+
+  check('every alias names real communes, and a one-commune alias carries a source', () => {
+    const data = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'kinshasa_quartier_aliases.json'), 'utf8'));
+    for (const alias of data.aliases) {
+      assert.ok(alias.communes.length >= 1);
+      assert.ok(data._sources[alias.source], `${alias.name}: source "${alias.source}" is declared`);
+      for (const c of alias.communes) assert.ok(loc47.LOCATIONS[c] || loc47.COMMUNE_KEY_ALIASES[c], `${alias.name}: ${c}`);
+    }
+  });
+
+  check('inferListingLocation fills the commune, keeps the agent’s own text unless it is an official quartier', () => {
+    assert.deepStrictEqual(loc47.inferListingLocation({ quartier: 'GB' }), {
+      commune: 'Ngaliema', quartier: 'GB', communeInferredFrom: 'GB', ambiguous: null,
+    });
+    assert.strictEqual(loc47.inferListingLocation({ quartier: 'yolo sud 2' }).quartier, 'Yolo Sud II');
+    assert.deepStrictEqual(loc47.inferListingLocation({ quartier: 'Funa' }).ambiguous, { name: 'Funa', communes: ['Barumbu', 'Limete'] });
+    const fromRef = loc47.inferListingLocation({ quartier: null, reference: 'Mimosas, Camp Docteur' });
+    assert.strictEqual(fromRef.commune, 'Ngaliema');
+    assert.strictEqual(loc47.inferListingLocation({ commune: 'Limete', quartier: 'Funa' }).communeInferredFrom, null);
+  });
+
+  check('a short reply that is a commune name is read as the answer; anything else is not', () => {
+    assert.strictEqual(loc47.communeNamedIn('Limete'), 'Limete');
+    assert.strictEqual(loc47.communeNamedIn("C'est à Barumbu"), 'Barumbu');
+    assert.strictEqual(loc47.communeNamedIn('commune de Kinshasa'), 'Kinshasa');
+    assert.strictEqual(loc47.communeNamedIn('OK'), null);
+    assert.strictEqual(loc47.communeNamedIn('Limette'), null, 'never fuzzy');
+    assert.strictEqual(loc47.communeNamedIn('non le prix est 570$'), null);
+  });
+
+  check('the card says a deduced commune is deduced, and asks the exact question for an ambiguous name', () => {
+    const base = { transaction_type: 'location', property_type: 'appartement', price: 700, bedrooms: 2, photos: ['a'] };
+    const deduced = card47.composeIntakeReply('Merci', { ...base, commune: 'Ngaliema', quartier: 'GB', parsed_json: { commune_inferred_from: 'GB' } });
+    assert.match(deduced, /\*Commune\* : Ngaliema _\(déduite de « GB »/);
+    const asked = card47.composeIntakeReply('Merci', { ...base, commune: null, quartier: 'Funa' });
+    assert.match(asked, /« Funa » existe à Barumbu et à Limete\. Dans quelle commune/);
+    assert.ok(!/Il manque : commune/.test(asked), 'the generic line is replaced, not repeated');
+    const unknown = card47.composeIntakeReply('Merci', { ...base, commune: null, quartier: 'Komoriko' });
+    assert.match(unknown, /Il manque : commune/);
+  });
+
+  check('the extraction prompt no longer lets the model deduce the commune itself', () => {
+    const source = fs.readFileSync(path.join(__dirname, '..', 'services', 'openai.js'), 'utf8');
+    assert.match(source, /Ne déduis JAMAIS la commune à partir du quartier/);
+  });
+
+  {
+    const AGENT47 = '243970004747';
+    const canned47 = (extracted, reply) => ({
+      model: 'gpt-4o-2024-08-06',
+      usage: { total_tokens: 10 },
+      choices: [{ finish_reason: 'stop', message: { refusal: null, content: JSON.stringify({ extracted_data: extracted, whatsapp_reply: reply }) } }],
+    });
+    const listing47 = {
+      ...JSON.parse(cannedCompletion().choices[0].message.content).extracted_data,
+      property_type: 'appartement', commune: null, quartier: 'Funa', price: 600, bedrooms: 2, furnished: false, amenities: [],
+    };
+    const post47 = (id, body) => post('/webhook', {
+      object: 'whatsapp_business_account',
+      entry: [{ id: '1', changes: [{ field: 'messages', value: {
+        metadata: { phone_number_id: '987654321' },
+        contacts: [{ wa_id: AGENT47, profile: { name: 'Agent 47' } }],
+        messages: [{ from: AGENT47, id, timestamp: '1', type: 'text', text: { body } }],
+      } }] }],
+    });
+
+    httpCalls.length = 0;
+    nextCompletion = canned47(listing47, 'Merci pour votre annonce !');
+    await post47('wamid.LOC47.1', 'Appartement 2 chambres à louer, Funa, 600$');
+    await settle(500);
+    const draft47 = dbService.findLatestPendingListing(AGENT47);
+    check('through the webhook: "Funa" with no commune is stored without one, and the card asks which', () => {
+      assert.ok(draft47, 'a draft was stored');
+      assert.strictEqual(draft47.commune, null);
+      assert.strictEqual(draft47.quartier, 'Funa');
+      const replies = httpCalls.filter((c) => c.data?.to === AGENT47);
+      assert.ok(replies.some((c) => /existe à Barumbu et à Limete/.test(c.data.text?.body || '')), 'the question was sent');
+    });
+
+    httpCalls.length = 0;
+    nextCompletion = canned47(
+      { ...listing47, is_listing: false, intent: 'other', is_correction: false, commune: null, quartier: null, price: null, bedrooms: null },
+      "D'accord.",
+    );
+    await post47('wamid.LOC47.2', 'Limete');
+    await settle(500);
+    check('the agent answering "Limete" sets the draft commune, and the card no longer asks', () => {
+      const after = dbService.getListing(draft47.id);
+      assert.strictEqual(after.commune, 'Limete');
+      assert.strictEqual(after.quartier, 'Funa', 'the quartier the agent wrote is kept');
+      const replies = httpCalls.filter((c) => c.data?.to === AGENT47).map((c) => c.data.text?.body || '');
+      assert.ok(replies.some((t) => /\*Commune\* : Limete/.test(t)));
+      assert.ok(!replies.some((t) => /existe à/.test(t)));
+    });
+
+    httpCalls.length = 0;
+    nextCompletion = canned47({ ...listing47, quartier: 'GB' }, 'Merci !');
+    await post47('wamid.LOC47.3', 'Appartement 2 chambres à GB, 600$');
+    await settle(500);
+    check('through the webhook: "GB" is stored as Ngaliema, marked deduced on the card', () => {
+      const row = dbService.findLatestPendingListing(AGENT47);
+      assert.strictEqual(row.commune, 'Ngaliema');
+      assert.strictEqual(row.parsed_json.commune_inferred_from, 'GB');
+      const replies = httpCalls.filter((c) => c.data?.to === AGENT47).map((c) => c.data.text?.body || '');
+      assert.ok(replies.some((t) => /déduite de « GB »/.test(t)));
+    });
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

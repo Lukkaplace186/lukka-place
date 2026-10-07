@@ -13,7 +13,7 @@ import ProjectCard from '@/components/projects/ProjectCard';
 import { getPublicProjects } from '@/lib/developments';
 import { getAgentProfile, getAgentListings, agentContactName, agentPublicName } from '@/lib/agencies';
 import { buildWhatsAppLink, getCentralWhatsAppHref } from '@/lib/whatsapp';
-import { formatPhoneDisplay } from '@/lib/phone';
+import { formatPhoneDisplay, telHref } from '@/lib/phone';
 import { SITE_URL, ICON_STROKE_WIDTH } from '@/lib/constants';
 import { getT } from '@/lib/i18n/server';
 import JsonLd from '@/components/seo/JsonLd';
@@ -423,7 +423,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
 
               {agent.phone && (
                 <a
-                  href={`tel:${agent.phone}`}
+                  href={telHref(agent.phone)}
                   className="u-btn-secondary u-press inline-flex h-12 items-center justify-center gap-2 rounded-lg text-sm font-bold text-ink"
                 >
                   Appeler l&apos;agent

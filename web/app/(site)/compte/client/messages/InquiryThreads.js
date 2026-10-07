@@ -18,6 +18,7 @@ import {
 import SafeImage from '@/components/SafeImage';
 import { PortalPanel, PortalBadge } from '@/components/ClientPortalUI';
 import { buildWhatsAppLink } from '@/lib/whatsapp';
+import { telHref } from '@/lib/phone';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import EditPropertyRequestDialog from './EditPropertyRequestDialog';
@@ -308,7 +309,7 @@ function proposalWhatsAppHref(property, leadId) {
 }
 
 function proposalCallHref(property) {
-  return property.agentPhone ? `tel:${property.agentPhone}` : null;
+  return telHref(property.agentPhone);
 }
 
 function Thumbnail({ src, alt, className }) {

@@ -5087,7 +5087,7 @@
     "signup": {
       "codeWillBeSent": "Un code de vérification sera envoyé sur WhatsApp à ce numéro.",
       "receiveCode": "Recevoir mon code",
-      "noCodeNeeded": "Votre compte est créé immédiatement — aucun code de vérification n’est nécessaire pour le moment.",
+      "noCodeNeeded": "Juste après, vous confirmerez ce numéro en nous envoyant un code depuis son WhatsApp.",
       "agencyName": "Nom de l’agence / nom commercial",
       "contactName": "Nom de l’agent / contact principal"
     },

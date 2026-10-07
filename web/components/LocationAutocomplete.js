@@ -1,13 +1,13 @@
 'use client';
 
-import { forwardRef, useCallback, useEffect, useId, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { MapPin, Landmark, Search, Sparkles, X, Clock, BedDouble, Bath, Home, DollarSign, Hash } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { parseSearchQuery, escapeRegExp } from '@/lib/searchParser';
-import { searchGazetteer } from '@/lib/gazetteer';
+import { searchGazetteer, findLocationMention } from '@/lib/gazetteer';
 import { useT } from '@/lib/i18n/client';
 
 const PROPERTY_TYPE_LABEL_KEYS = {
@@ -282,7 +282,15 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
   const reactId = useId();
 
   const [value, setValue] = useState(initialValue);
-  const [results, setResults] = useState([]);
+  // `remote` is the API's answer and the query it answered. Suggestions for
+  // typed text are computed right here from the same gazetteer the API
+  // searches (it is already in this bundle, for submitFreeText), so they
+  // appear on the keystroke; the API only adds the commune listing counts.
+  // Rendering `remote` alone showed "Aucun lieu ne correspond" while the
+  // first request was in flight, and the previous query's places under new
+  // text until the next one landed — a second or more on a phone in Kinshasa.
+  const [remote, setRemote] = useState({ query: null, results: [] });
+  const [communeCounts, setCommuneCounts] = useState(() => new Map());
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [position, setPosition] = useState(null);
@@ -340,13 +348,41 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
     fetch(`/api/locations/autocomplete?q=${encodeURIComponent(query)}`, { signal: controller.signal })
       .then((res) => res.json())
       .then((json) => {
-        setResults(json.results || []);
-        setActiveIndex(-1);
+        const fetched = json.results || [];
+        const counted = fetched.filter((r) => r.type === 'commune' && r.count != null);
+        if (counted.length > 0) {
+          setCommuneCounts((prev) => {
+            const next = new Map(prev);
+            for (const r of counted) next.set(r.commune, r.count);
+            return next;
+          });
+        }
+        setRemote({ query: query.trim(), results: fetched });
       })
-      .catch((err) => {
-        if (err.name !== 'AbortError') setResults([]);
+      .catch(() => {
+        // Aborted or offline: the local suggestions stand, just without counts.
       });
   }, []);
+
+  const trimmedValue = value.trim();
+  const results = useMemo(() => {
+    if (remote.query === trimmedValue) return remote.results;
+    // The empty box lists communes ranked by listing count, which only the
+    // API knows — nothing until it answers.
+    if (!trimmedValue) return [];
+    let matches = searchGazetteer(trimmedValue, 8);
+    // Same sentence fallback the API applies ("villa ma campagne 2000$").
+    if (matches.length === 0 && /\s/.test(trimmedValue)) {
+      const mention = findLocationMention(trimmedValue);
+      if (mention) matches = [mention];
+    }
+    return matches.map((m) => ({
+      type: m.type,
+      label: m.label,
+      commune: m.commune,
+      count: m.type === 'commune' ? (communeCounts.get(m.commune) ?? null) : null,
+    }));
+  }, [remote, trimmedValue, communeCounts]);
 
   useEffect(() => {
     if (!open || hideDropdown) return undefined;
@@ -481,7 +517,6 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
    */
   function clearSearch() {
     setValue('');
-    setResults([]);
     setOpen(false);
     onValueChange?.('');
     if (!preserveParams) return;
@@ -565,6 +600,7 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
     submit: () => submitFreeText(),
     setQuery: (text) => {
       setValue(text);
+      setActiveIndex(-1);
       onValueChange?.(text);
     },
   }));
@@ -624,6 +660,8 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
           placeholder={placeholderText}
           onChange={(e) => {
             setValue(e.target.value);
+            // A new query is a new list: the highlighted row must not carry over.
+            setActiveIndex(-1);
             onValueChange?.(e.target.value);
             // Deleting everything closes the panel rather than swapping the
             // suggestions for a list of communes over the map.

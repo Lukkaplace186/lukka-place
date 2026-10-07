@@ -4,6 +4,7 @@ import { SlidersHorizontal } from 'lucide-react';
 import LocationAutocomplete from './LocationAutocomplete';
 import MapQuickFilters from './MapQuickFilters';
 import { openFiltersDrawer } from '@/lib/mapFilterDrawer';
+import { searchedPlaceLabel } from '@/lib/searchParser';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
 
@@ -38,7 +39,7 @@ export default function MobileMapChrome({ params, propertyTypes = [] }) {
     <div className="flex items-center gap-2">
       <LocationAutocomplete
         preserveParams
-        initialValue={params.q || params.near || ''}
+        initialValue={params.q || params.near || searchedPlaceLabel(params)}
         placeholder="Commune, quartier…"
         ariaLabel="Rechercher sur la carte"
         showIcon

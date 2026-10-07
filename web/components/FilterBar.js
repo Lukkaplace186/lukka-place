@@ -11,6 +11,7 @@ import SaveSearchButton from './SaveSearchButton';
 import { Slider } from './ui/slider';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { buildSearchLabel } from '@/lib/searchLabel';
+import { searchedPlaceLabel } from '@/lib/searchParser';
 import { useT } from '@/lib/i18n/client';
 import {
   pushRecentSearch,
@@ -425,7 +426,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
               focus colour used everywhere else a field gets one. */}
           <LocationAutocomplete
             preserveParams
-            initialValue={defaults.search || defaults.near || ''}
+            initialValue={defaults.search || defaults.near || searchedPlaceLabel(defaults)}
             placeholder={t('listings.filters.searchPlaceholder')}
             ariaLabel="Rechercher"
             showIcon

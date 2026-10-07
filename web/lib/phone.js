@@ -180,3 +180,19 @@ export function formatPhoneDisplay(normalized) {
   const { country, national } = splitPhone(digits);
   return country && national ? `+${findCountry(country).dial} ${national}` : `+${digits}`;
 }
+
+/**
+ * `tel:` link for a stored number, or null when it is unusable.
+ *
+ * Every stored number here (agents.phone, a wa_id, NEXT_PUBLIC_WHATSAPP_NUMBER)
+ * is E.164 WITHOUT its "+". A `tel:243…` link is dialled as a local number —
+ * from a Kinshasa phone that is not the agent, and the "Appeler" buttons on
+ * cards, the listing page and the agent profile all built exactly that. The
+ * "+" is what makes the dialler treat it as international. Accepts a value
+ * that already carries "+" or spaces ("+243 99 712 3456").
+ */
+export function telHref(phone) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (digits.length < 7 || digits.length > 15) return null;
+  return `tel:+${digits}`;
+}

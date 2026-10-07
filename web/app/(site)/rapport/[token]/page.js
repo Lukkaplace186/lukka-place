@@ -21,6 +21,7 @@ import {
 import { agentBrandFields, getFlyerListing } from '@/lib/listingFlyer';
 import { listingPublicUrl, shareBlocker } from '@/lib/listingShareCopy';
 import { formatPrice } from '@/lib/format';
+import { telHref } from '@/lib/phone';
 import { getCurrentAgentId } from '@/lib/agentSession';
 
 /**
@@ -90,7 +91,7 @@ export default async function LiveReportPage({ params }) {
           <div className="min-w-0">
             <p className="u-eyebrow text-ink-45">Rapport de performance</p>
             <p className="truncate text-[0.9375rem] font-bold text-ink">{brand.name || 'Lukka Place'}</p>
-            {brand.phone ? <a href={`tel:${brand.phone.replace(/\s+/g, '')}`} className="text-[0.8125rem] text-blue">{brand.phone}</a> : null}
+            {telHref(brand.phone) ? <a href={telHref(brand.phone)} className="text-[0.8125rem] text-blue">{brand.phone}</a> : null}
           </div>
         </div>
 

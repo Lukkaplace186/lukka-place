@@ -1,4 +1,5 @@
 import { buildWhatsAppLink } from './whatsapp';
+import { telHref } from './phone';
 import { listingPublicUrl, shareBlocker } from './listingShareCopy';
 import { clientFirstName } from './clientMatching';
 
@@ -34,7 +35,5 @@ export function leadWhatsAppLink(lead, myListings = []) {
  * WhatsApp link above.
  */
 export function leadTelHref(waId) {
-  const digits = String(waId || '').replace(/\D/g, '');
-  if (digits.length < 7 || digits.length > 15) return null;
-  return `tel:+${digits}`;
+  return telHref(waId);
 }

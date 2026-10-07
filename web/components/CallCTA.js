@@ -4,6 +4,7 @@ import { Phone } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
 import { trackCallClick } from '@/lib/analyticsClient';
+import { telHref } from '@/lib/phone';
 
 /**
  * "Appeler" — a real `tel:` call to the listing's own per-listing agent
@@ -48,8 +49,8 @@ import { trackCallClick } from '@/lib/analyticsClient';
  */
 export default function CallCTA({ listing, variant = 'pill' }) {
   const t = useT();
-  const phoneNumber = listing.agent_phone || process.env.NEXT_PUBLIC_WHATSAPP_NUMBER;
-  if (!phoneNumber) return null;
+  const callHref = telHref(listing.agent_phone || process.env.NEXT_PUBLIC_WHATSAPP_NUMBER);
+  if (!callHref) return null;
 
   function handleClick(e) {
     e.preventDefault();
@@ -57,7 +58,7 @@ export default function CallCTA({ listing, variant = 'pill' }) {
     // Before the navigation: `keepalive` carries the beacon out even though
     // the dialer takes over the page.
     trackCallClick(listing);
-    window.location.href = `tel:${phoneNumber}`;
+    window.location.href = callHref;
   }
 
   // `link` is PropertyCard's bottom action bar: a bare text+icon action on

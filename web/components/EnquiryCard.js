@@ -20,6 +20,7 @@ import { feedLocationLine, listingImages } from '@/lib/listingView';
 import { formatPrice } from '@/lib/format';
 import PhoneField from './PhoneField';
 import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
+import { telHref } from '@/lib/phone';
 import { useLocale, useT } from '@/lib/i18n/client';
 
 const FIELD_CLASS =
@@ -337,7 +338,7 @@ export default function EnquiryCard({ listing, visitSent, visitError, saveShare 
             a tel: link to a number we don't have. */}
         {agentPhone ? (
           <a
-            href={`tel:${agentPhone}`}
+            href={telHref(agentPhone)}
             onClick={() => trackCallClick(listing)}
             className="u-press u-btn-secondary inline-flex w-full items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold text-ink"
           >

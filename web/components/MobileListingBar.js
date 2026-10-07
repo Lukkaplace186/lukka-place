@@ -4,6 +4,7 @@ import { MessageCircle, CalendarClock, Phone } from 'lucide-react';
 import Price from './Price';
 import { OPEN_VISIT_EVENT } from './EnquiryCard';
 import { resolveWhatsAppRouting } from '@/lib/leadRouting';
+import { telHref } from '@/lib/phone';
 import { trackCallClick, trackLeadClick } from '@/lib/analyticsClient';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
@@ -78,7 +79,7 @@ export default function MobileListingBar({ listing }) {
 
         {listing.agent_phone ? (
           <a
-            href={`tel:${listing.agent_phone}`}
+            href={telHref(listing.agent_phone)}
             onClick={() => trackCallClick(listing)}
             aria-label={t('enquiry.callAgent')}
             className="u-press u-focus-ring inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-line bg-surface text-ink transition-colors hover:border-blue"

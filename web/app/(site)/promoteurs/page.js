@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import {
-  BadgeCheck, BarChart3, Building2, CalendarClock, Globe2, LandPlot, MessageCircle, Wallet,
+  BadgeCheck, BarChart3, Building2, CalendarClock, Fence, Globe2, MessageCircle, Wallet,
 } from 'lucide-react';
 import PhoneField from '@/components/PhoneField';
 import { submitDeveloperApplicationAction } from './actions';
@@ -40,7 +40,7 @@ async function publicDemand() {
 const FEATURES = [
   { icon: Building2, titleKey: 'projects.developers.f1Title', bodyKey: 'projects.developers.f1Body' },
   { icon: CalendarClock, titleKey: 'projects.developers.f2Title', bodyKey: 'projects.developers.f2Body' },
-  { icon: LandPlot, titleKey: 'projects.developers.f3Title', bodyKey: 'projects.developers.f3Body' },
+  { icon: Fence, titleKey: 'projects.developers.f3Title', bodyKey: 'projects.developers.f3Body' },
   { icon: Wallet, titleKey: 'projects.developers.f4Title', bodyKey: 'projects.developers.f4Body' },
   { icon: MessageCircle, titleKey: 'projects.developers.f5Title', bodyKey: 'projects.developers.f5Body' },
   { icon: Globe2, titleKey: 'projects.developers.f6Title', bodyKey: 'projects.developers.f6Body' },

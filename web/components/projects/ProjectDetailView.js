@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { BadgeCheck, CalendarClock, Check, Info, LandPlot, MapPin, Ruler, ScrollText } from 'lucide-react';
+import { BadgeCheck, CalendarClock, Check, Fence, Info, MapPin, Ruler, ScrollText } from 'lucide-react';
 import Breadcrumb from '@/components/Breadcrumb';
 import ShareButton from '@/components/ShareButton';
 import Price from '@/components/Price';
@@ -141,7 +141,7 @@ export default async function ProjectDetailView({ project, interest = '', sent =
             <section className="grid grid-cols-2 gap-4 rounded-card border border-line bg-surface p-5 sm:grid-cols-3">
               <Fact icon={CalendarClock} label={t('projects.facts.delivery')} value={project.kind === 'building' && project.stage !== 'delivered' ? deliveryLabel(project.delivery_expected, t.locale) : null} />
               <Fact icon={Check} label={t('projects.facts.availability')} value={availability} />
-              <Fact icon={LandPlot} label={t('projects.facts.landArea')} value={project.land_area_m2 ? `${Number(project.land_area_m2).toLocaleString('fr-FR')} m²` : null} />
+              <Fact icon={Fence} label={t('projects.facts.landArea')} value={project.land_area_m2 ? `${Number(project.land_area_m2).toLocaleString('fr-FR')} m²` : null} />
               <Fact icon={ScrollText} label={t('projects.facts.title')} value={project.land_title_status ? t(TITLE_STATUS_LABEL_KEYS[project.land_title_status]) : null} />
               <Fact icon={Ruler} label={t('projects.facts.types')} value={project.kind === 'building' && project.unit_types?.length ? t('projects.facts.typesCount', { count: project.unit_types.length }) : null} />
               <Fact icon={Info} label={t('projects.facts.developer')} value={project.agency_name || project.developer_name} />

@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Bell, ChevronRight, Heart, Map as MapIcon, Search, ShieldCheck, Sparkles } from 'lucide-react';
+import { Bell, ChevronRight, Heart, Map as MapIcon, Search, ShieldCheck, Target } from 'lucide-react';
 import ClientMiniListingCard from '@/components/ClientMiniListingCard';
 import { getPortalCustomer, getPortalCounts } from '@/lib/customerPortal';
 import { getCustomerInquiries } from '@/lib/customerInquiries';
@@ -220,7 +220,7 @@ export default async function EspaceClientHome({ searchParams }) {
 
   const quick = [
     { href: '/listings', icon: Search, label: t('account.home.quick.search') },
-    { href: '/compte/client/demandes', icon: Sparkles, label: t('account.home.quick.findForMe') },
+    { href: '/compte/client/demandes', icon: Target, label: t('account.home.quick.findForMe') },
     { href: '/listings?view=map', icon: MapIcon, label: t('account.home.quick.map') },
   ];
 

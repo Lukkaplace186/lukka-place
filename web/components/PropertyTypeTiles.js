@@ -1,6 +1,5 @@
 import Link from 'next/link';
-import { Building2, House, LandPlot, Store, Warehouse } from 'lucide-react';
-import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { Building2, Fence, House, Store, Warehouse } from 'lucide-react';
 import { getT } from '@/lib/i18n/server';
 
 /**
@@ -14,7 +13,7 @@ import { getT } from '@/lib/i18n/server';
  */
 const ICONS = [
   [/appart|studio|duplex|penthouse/, Building2],
-  [/terrain|parcelle/, LandPlot],
+  [/terrain|parcelle/, Fence],
   [/boutique|commerce|bureau/, Store],
   [/entrep|d[eé]p[oô]t|b[aâ]timent/, Warehouse],
 ];
@@ -40,9 +39,8 @@ export default async function PropertyTypeTiles({ propertyTypes = [] }) {
                   href={`/listings?property_type=${encodeURIComponent(value)}`}
                   className="u-press flex h-full flex-col items-start gap-2.5 rounded-card bg-surface p-2.5 sm:flex-row sm:items-center sm:gap-3 shadow-[var(--hairline),var(--shadow-card)] transition-shadow hover:shadow-[var(--hairline),var(--shadow-card-hover)] sm:p-5"
                 >
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-blue-tint text-blue sm:h-12 sm:w-12">
-                    <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden="true" />
-                  </span>
+                  {/* A plain line icon, no tinted tile (2026-10-07, same as /a-propos). */}
+                  <Icon strokeWidth={1.5} className="h-6 w-6 shrink-0 text-blue sm:h-7 sm:w-7" aria-hidden="true" />
                   <span className="w-full min-w-0">
                     <span className="block truncate text-[0.75rem] font-bold text-ink min-[380px]:text-[0.8125rem] sm:text-[0.9375rem]">{label}</span>
                     <span className="u-tabular block text-[0.75rem] text-ink-45 sm:text-[0.8125rem]">{t('home.types.count', { count })}</span>

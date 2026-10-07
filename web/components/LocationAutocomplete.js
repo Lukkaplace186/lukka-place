@@ -3,7 +3,7 @@
 import { forwardRef, useCallback, useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { MapPin, Landmark, Search, Sparkles, X, Clock, BedDouble, Bath, Home, DollarSign, Hash } from 'lucide-react';
+import { MapPin, Landmark, Search, SlidersHorizontal, X, Clock, BedDouble, Bath, Home, DollarSign, Hash } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { parseSearchQuery, escapeRegExp } from '@/lib/searchParser';
@@ -789,7 +789,7 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
                       onClick={() => submitFreeText(suggestion)}
                       className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-[0.875rem] text-ink-70 transition-colors hover:bg-canvas-alt"
                     >
-                      <Sparkles strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0 text-ink-45" />
+                      <SlidersHorizontal strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0 text-ink-45" />
                       <span className="min-w-0 flex-1 truncate">{suggestion}</span>
                     </button>
                   ))}

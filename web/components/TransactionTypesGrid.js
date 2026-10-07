@@ -62,9 +62,7 @@ export default async function TransactionTypesGrid() {
 
           const inner = (
             <>
-              <span className="mb-5 flex h-11 w-11 items-center justify-center rounded-full bg-blue-tint text-blue-deep">
-                <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
-              </span>
+              <Icon strokeWidth={1.5} className="mb-5 h-7 w-7 text-blue" aria-hidden="true" />
               <h3 className="font-display text-xl leading-tight tracking-[-0.01em] text-ink">{t(titleKey)}</h3>
               <p className="mb-6 mt-2 text-[0.875rem] leading-relaxed text-ink-45">{t(bodyKey)}</p>
               <span className="mt-auto">{label}</span>

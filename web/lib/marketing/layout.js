@@ -201,21 +201,11 @@ function pillRow(items, { x, y, size, padX, padY, gap, maxWidth }, measure) {
   const ops = [];
   const h = lineBox(size) + padY * 2;
   let cursor = x;
-  for (let item of items) {
+  for (const item of items) {
     if (!item.text) continue;
     const style = { size, weight: 800, letterSpacing: item.letterSpacing || 0 };
-    let text = item.text;
-    let w = measure(text, style) + padX * 2;
-    // A `shrink` pill (the reference: agents write landmarks, some long) is
-    // cut with "…" to the room left rather than dropped; at least 8 characters.
-    if (item.shrink) {
-      while (cursor + w > x + maxWidth && text.length > 8) {
-        text = `${text.slice(0, -2).trimEnd()}…`;
-        w = measure(text, style) + padX * 2;
-      }
-    }
+    const w = measure(item.text, style) + padX * 2;
     if (cursor + w > x + maxWidth) break;
-    item = { ...item, text };
     ops.push(
       { type: 'rect', x: cursor, y, w, h, fill: item.fill, radius: h / 2, ...(item.shadow ? { shadow: item.shadow } : {}) },
       {
@@ -233,9 +223,6 @@ function photoPills(pack, spec, measure) {
     [
       { text: pack.purposeLabel, fill: COLORS.white, color: COLORS.royal, letterSpacing: spec.letterSpacing, shadow: { ...SHADOW, blur: 16, y: 4 } },
       { text: pack.typeText, fill: VEIL, color: COLORS.white },
-      // "Réf. École petits lutins" / "Annonce n° 304" (sharePackData.js). Packs
-      // stored offline before this have no refLabel and draw no third pill.
-      { text: pack.refLabel, fill: VEIL, color: COLORS.white, shrink: true },
     ],
     spec,
     measure,
@@ -307,23 +294,60 @@ export function specItems(pack) {
   return String(pack.rooms || '').split(' • ').filter(Boolean).map((text) => ({ icon: null, text }));
 }
 
-function specChips(pack, { x, top, width, size, iconSize, padX, h, gap, iconGap }, measure) {
+/**
+ * The counts, then the reference as the last chip — on the blue, where it
+ * reads clearly (it sat over the cover photo first, on product direction
+ * moved here 2026-10-07). "Réf. École petits lutins" / "Annonce n° 304"
+ * (sharePackData.js); a pack stored before this has no refLabel.
+ */
+function chipItems(pack) {
+  const items = specItems(pack);
+  if (!pack.refLabel) return items;
+  // Right after the bedrooms and bathrooms, ahead of area and doors: on a
+  // full row those give way to the reference, not the other way round.
+  const after = items.filter((item) => item.icon === 'bed' || item.icon === 'bath').length;
+  items.splice(after, 0, { icon: 'tag', text: pack.refLabel, shrink: true });
+  return items;
+}
+
+/**
+ * `rows` (default 1): the 9:16 has the height for a second row, so a chip
+ * that does not fit moves down rather than being shortened or left out.
+ */
+function specChips(pack, { x, top, width, size, iconSize, padX, h, gap, iconGap, rows = 1 }, measure) {
   const ops = [];
   let cursor = x;
-  for (const item of specItems(pack)) {
-    const textW = measure(item.text, { size, weight: 700 });
-    const w = padX * 2 + textW + (item.icon ? iconSize + iconGap : 0);
-    if (cursor + w > x + width) break;
-    ops.push({ type: 'rect', x: cursor, y: top, w, h, fill: 'rgba(255,255,255,0.14)', radius: h / 2 });
+  let rowTop = top;
+  let row = 1;
+  for (let item of chipItems(pack)) {
+    const chipW = (text) => padX * 2 + measure(text, { size, weight: 700 }) + (item.icon ? iconSize + iconGap : 0);
+    let w = chipW(item.text);
+    if (cursor + w > x + width && row < rows && cursor > x) {
+      row += 1;
+      cursor = x;
+      rowTop += h + gap;
+    }
+    // The reference is shortened with "…" to the room left rather than dropped
+    // (agents write landmarks, some long); never below 8 characters.
+    if (item.shrink && cursor + w > x + width) {
+      let text = item.text;
+      while (cursor + w > x + width && text.length > 8) {
+        text = `${text.slice(0, -2).trimEnd()}…`;
+        w = chipW(text);
+      }
+      item = { ...item, text };
+    }
+    if (cursor + w > x + width) continue;
+    ops.push({ type: 'rect', x: cursor, y: rowTop, w, h, fill: 'rgba(255,255,255,0.14)', radius: h / 2 });
     let textX = cursor + padX;
     if (item.icon) {
-      ops.push({ type: 'icon', name: item.icon, x: textX, y: top + (h - iconSize) / 2, size: iconSize, color: COLORS.white });
+      ops.push({ type: 'icon', name: item.icon, x: textX, y: rowTop + (h - iconSize) / 2, size: iconSize, color: COLORS.white });
       textX += iconSize + iconGap;
     }
-    ops.push({ type: 'text', text: item.text, x: textX, y: top + (h - lineBox(size)) / 2 + baselineOffset(size), size, weight: 700, color: COLORS.white, align: 'left' });
+    ops.push({ type: 'text', text: item.text, x: textX, y: rowTop + (h - lineBox(size)) / 2 + baselineOffset(size), size, weight: 700, color: COLORS.white, align: 'left' });
     cursor += w + gap;
   }
-  return { ops, bottom: ops.length ? top + h : top, drawn: ops.length > 0 };
+  return { ops, bottom: ops.length ? rowTop + h : top, drawn: ops.length > 0 };
 }
 
 /**
@@ -488,10 +512,12 @@ function listingBlock(pack, { x, top, width, price, place, chips }, measure) {
 }
 
 /** Height listingBlock will take, for centring it in the space it has. */
-function listingBlockHeight(pack, { price, place, chips }) {
+function listingBlockHeight(pack, { price, place, chips }, measure, width) {
   let h = lineBox(price.size, 1);
   if (pack.place) h += place.gapAbove + Math.max(place.iconSize, lineBox(place.size));
-  if (specItems(pack).length) h += chips.gapAbove + chips.h;
+  // Laid out for real, so a second chip row (9:16) is counted.
+  const laid = specChips(pack, { x: 0, top: 0, width, ...chips }, measure);
+  if (laid.drawn) h += chips.gapAbove + laid.bottom;
   return h;
 }
 
@@ -523,12 +549,13 @@ function squareFlyer(pack, { measure, photoCount, hasLogo, hasMark, hasMarkLight
     chips: { size: 24, iconSize: 26, padX: 18, h: 52, gap: 10, iconGap: 9, gapAbove: 20 },
   };
   const room = barY - (PHOTO.y + PHOTO.h);
-  const top = PHOTO.y + PHOTO.h + Math.max(28, (room - listingBlockHeight(pack, spec)) / 2);
   const CARD = 200;
   const brand = hasAgentBrand(pack, hasLogo);
   const cardX = W - M - CARD;
+  const blockW = (brand ? cardX - 24 : W - M) - (M + 8);
+  const top = PHOTO.y + PHOTO.h + Math.max(28, (room - listingBlockHeight(pack, spec, measure, blockW)) / 2);
   if (brand) ops.push(...agentLogoCard(pack, { x: cardX, y: PHOTO.y + PHOTO.h + (room - CARD) / 2, size: CARD, radius: 28 }, hasLogo));
-  ops.push(...listingBlock(pack, { x: M + 8, top, width: (brand ? cardX - 24 : W - M) - (M + 8), ...spec }, measure).ops);
+  ops.push(...listingBlock(pack, { x: M + 8, top, width: blockW, ...spec }, measure).ops);
 
   ops.push(...contactBar(pack, {
     x: M, y: barY, w: W - M * 2, h: BAR_H, radius: 30, pad: 24,
@@ -562,15 +589,16 @@ function storyFlyer(pack, { measure, photoCount, hasLogo, hasMark, hasMarkLight 
     // The 9:16 has room to spare: the price is the biggest thing on it.
     price: { size: 144, periodSize: 48, gap: 20 },
     place: { size: 42, iconSize: 42, gap: 12, gapAbove: 22 },
-    chips: { size: 30, iconSize: 32, padX: 22, h: 64, gap: 12, iconGap: 11, gapAbove: 28 },
+    chips: { size: 30, iconSize: 32, padX: 22, h: 64, gap: 12, iconGap: 11, gapAbove: 28, rows: 2 },
   };
   const room = barY - (PHOTO.y + PHOTO.h);
-  const top = PHOTO.y + PHOTO.h + Math.max(36, (room - listingBlockHeight(pack, spec)) / 2);
   const CARD = 248;
   const brand = hasAgentBrand(pack, hasLogo);
   const cardX = W - M - CARD;
+  const blockW = (brand ? cardX - 28 : W - M) - (M + 12);
+  const top = PHOTO.y + PHOTO.h + Math.max(36, (room - listingBlockHeight(pack, spec, measure, blockW)) / 2);
   if (brand) ops.push(...agentLogoCard(pack, { x: cardX, y: PHOTO.y + PHOTO.h + (room - CARD) / 2, size: CARD, radius: 34 }, hasLogo));
-  ops.push(...listingBlock(pack, { x: M + 12, top, width: (brand ? cardX - 28 : W - M) - (M + 12), ...spec }, measure).ops);
+  ops.push(...listingBlock(pack, { x: M + 12, top, width: blockW, ...spec }, measure).ops);
 
   ops.push(...contactBar(pack, {
     x: M, y: barY, w: W - M * 2, h: BAR_H, radius: 36, pad: 30,
@@ -602,7 +630,7 @@ function landscapeFlyer(pack, { measure, photoCount, hasLogo, hasMark, hasMarkLi
     place: { size: 24, iconSize: 24, gap: 8, gapAbove: 14 },
     chips: { size: 17, iconSize: 18, padX: 12, h: 38, gap: 8, iconGap: 6, gapAbove: 16 },
   };
-  const top = M + Math.max(16, (barY - M - listingBlockHeight(pack, spec)) / 2);
+  const top = M + Math.max(16, (barY - M - listingBlockHeight(pack, spec, measure, width)) / 2);
   ops.push(...listingBlock(pack, { x, top, width, ...spec }, measure).ops);
 
   ops.push(...contactBar(pack, {

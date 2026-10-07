@@ -514,24 +514,29 @@ test('engine timestamps are read as UTC', () => {
   assert.equal(parseEngineTimestamp('nonsense'), null);
 });
 
-test('the cover carries the reference beside "À LOUER", cut with … when long, never an invented code', async () => {
+test('the reference is a chip on the blue, after the counts — not on the photo, never an invented code', async () => {
   const { buildFlyerOps } = await import('@/lib/marketing/layout');
   const { referencePillText } = await import('@/lib/marketing/sharePackData');
   assert.equal(referencePillText({ id: 304, reference: '  École petits lutins ' }), 'Réf. École petits lutins');
   assert.equal(referencePillText({ id: 304, reference: null }), 'Annonce n° 304');
   assert.ok(!/LUK-/.test(referencePillText({ id: 304 })));
 
-  const short = buildFlyerOps({ ...PACK, refLabel: 'Réf. Demiap' }, 'square', env()).ops;
-  const ref = textOp(short, 'Réf. Demiap');
-  assert.ok(ref, 'drawn whole when it fits');
-  assert.equal(ref.y, textOp(short, 'À LOUER').y, 'on the same row as the purpose pill');
+  const ops = buildFlyerOps({ ...PACK, refLabel: 'Réf. Demiap' }, 'square', env()).ops;
+  const ref = textOp(ops, 'Réf. Demiap');
+  const beds = textOp(ops, '2 chambres');
+  assert.ok(ref, 'drawn');
+  assert.equal(ref.y, beds.y, 'on the chip row, beside the counts');
+  assert.ok(ref.x > beds.x, 'after them');
+  assert.ok(ref.y > textOp(ops, 'À LOUER').y + 300, 'in the blue section, not over the photo');
+  assert.ok(ops.some((op) => op.type === 'icon' && op.name === 'tag'), 'with the tag icon');
 
   const long = buildFlyerOps({ ...PACK, refLabel: 'Réf. Petit Boulevard, 2ᵉ Rue Industrielle, près du marché' }, 'square', env()).ops;
   const cut = texts(long).find((op) => op.text.startsWith('Réf.'));
   assert.ok(cut && cut.text.endsWith('…'), 'a long reference is shortened, not dropped');
-  assert.ok(cut.x + measure(cut.text, { size: 24, weight: 800 }) < 28 + 22 + 676 - 44 + 1, 'inside the cover tile');
 
-  assert.ok(!texts(buildFlyerOps(PACK, 'square', env()).ops).some((op) => /^Réf\.|^Annonce n°/.test(op.text)), 'an old stored pack draws no third pill');
+  const noCounts = buildFlyerOps({ ...PACK, specs: [], rooms: '', refLabel: 'Annonce n° 304' }, 'square', env()).ops;
+  assert.ok(textOp(noCounts, 'Annonce n° 304'), 'drawn even with no room counts');
+  assert.ok(!texts(buildFlyerOps(PACK, 'square', env()).ops).some((op) => /^Réf.|^Annonce n°/.test(op.text)), 'an old stored pack draws no reference');
 });
 
 test('the browser predicts the pack photo URLs, so downloads start beside the pack request', async () => {
@@ -541,4 +546,21 @@ test('the browser predicts the pack photo URLs, so downloads start beside the pa
   const pack = buildFlyerPack(listing, { typeText: 'Appartement', brand: {}, supabaseHost: 'abc.supabase.co', markPath: '/m.png', fetchedAt: 'x' });
   assert.deepEqual(expectedPackPhotoUrls(listing), pack.photos);
   assert.equal(pack.photos.length, 3);
+});
+
+test('a full chip row gives way to the reference, and the 9:16 wraps it to a second row', async () => {
+  const { buildFlyerOps } = await import('@/lib/marketing/layout');
+  const specs = [{ icon: 'bed', text: '2 chambres' }, { icon: 'bath', text: '2 salles de bain' }, { icon: 'door', text: '7 portes' }];
+  const pack = { ...PACK, specs, refLabel: 'Réf. Petit Boulevard, 2ᵉ Rue Industrielle' };
+  const square = buildFlyerOps(pack, 'square', env()).ops;
+  const ref = texts(square).find((op) => op.text.startsWith('Réf.'));
+  assert.ok(ref, 'the reference is drawn on the square');
+  const door = textOp(square, '7 portes');
+  assert.ok(!door || door.x > ref.x, 'doors come after the reference, or give way to it');
+
+  const story = buildFlyerOps(pack, 'story', env()).ops;
+  const storyRef = texts(story).find((op) => op.text.startsWith('Réf.'));
+  assert.ok(storyRef, 'drawn on the 9:16');
+  assert.ok(storyRef.y > textOp(story, '2 chambres').y, 'on a second row there');
+  assert.ok(storyRef.text.length > ref.text.length, 'a second row gives it more room than the square');
 });

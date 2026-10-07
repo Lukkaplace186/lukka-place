@@ -35,6 +35,11 @@ export const LINE_ICONS = Object.freeze({
   ],
   area: ['M8 3H5a2 2 0 0 0-2 2v3', 'M21 8V5a2 2 0 0 0-2-2h-3', 'M3 16v3a2 2 0 0 0 2 2h3', 'M16 21h3a2 2 0 0 0 2-2v-3'],
   door: ['M10 12h.01', 'M18 20V6a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v14', 'M2 20h20'],
+  // lucide "tag" — the listing reference chip.
+  tag: [
+    'M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z',
+    'M7.5 7.5h.01',
+  ],
 });
 
 export const LINE_ICON_STROKE_WIDTH = 2.25;

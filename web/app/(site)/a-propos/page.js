@@ -2,11 +2,12 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { MessageCircle, PhoneCall, ShieldCheck, MapPinned, Send, Sparkles, Users } from 'lucide-react';
 import Breadcrumb from '@/components/Breadcrumb';
-import SafeImage from '@/components/SafeImage';
 import { getT } from '@/lib/i18n/server';
-import { cachedFeaturedListings, cachedListingsTotal, cachedPopularCommunes } from '@/lib/listingsCached';
-import { NO_PHOTO_URL } from '@/lib/constants';
+import { cachedListingsTotal, cachedPopularCommunes } from '@/lib/listingsCached';
 import heroPhoto from '../../../Hero/about-moving-in.jpg';
+import bukavuPhoto from '../../../Hero/about-bukavu.jpg';
+import buildingPhoto from '../../../Hero/about-building.jpg';
+import flagPhoto from '../../../Hero/about-flag.jpg';
 
 const HERO_PHOTO_CREDIT = {
   name: 'Gustavo Fring',
@@ -33,19 +34,18 @@ export async function generateMetadata() {
  * with the promise, the vision beside photos, what changes, live figures, the
  * agent side, then the fine print the old page was made of.
  *
- * Nothing here is invented. The photos beside the vision are the covers of
- * the most complete live listings (the homepage's featured read), and the
- * figures are live counts — a figure that reads 0 is not shown. The hero is
+ * Nothing here is invented. The vision photos are Pexels photos the owner
+ * chose (the aerial view is Bukavu and is labelled so — never passed off as
+ * Kinshasa), and the figures are live counts — a figure that reads 0 is not
+ * shown. The hero is
  * a Pexels photo (Gustavo Fring), chosen by the owner, credited below it.
  */
 export default async function AboutPage() {
   const t = await getT();
-  const [total, communes, featured] = await Promise.all([
+  const [total, communes] = await Promise.all([
     cachedListingsTotal().then((r) => r.total).catch(() => 0),
     cachedPopularCommunes(24).catch(() => []),
-    cachedFeaturedListings().then((r) => r.data || []).catch(() => []),
   ]);
-  const photos = pickPhotos(featured);
 
   const changes = [
     { icon: PhoneCall, title: t('about.change1Title'), body: t('about.change1Body') },
@@ -119,7 +119,7 @@ export default async function AboutPage() {
         </div>
       </section>
 
-      {/* Vision — the statement beside real listing photos. */}
+      {/* Vision — the statement beside the country it is for. */}
       <section className="mx-auto grid max-w-[1600px] items-center gap-10 px-4 py-20 sm:px-6 sm:py-28 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-16 lg:px-8">
         <div>
           <p className="u-eyebrow mb-4">{t('about.visionEyebrow')}</p>
@@ -129,31 +129,21 @@ export default async function AboutPage() {
           <p className="u-body mt-6 max-w-xl text-ink-70">{t('about.visionBody')}</p>
         </div>
 
-        {photos.length > 0 ? (
-          <figure>
-            {/* The grid owns the height (aspect on the container, two rows), so
-                the side tiles — `fill` images with no height of their own —
-                split it; two photos make two full-height columns. */}
-            <div
-              className={`grid aspect-[4/3] gap-3 ${photos.length > 1 ? 'grid-cols-[1.4fr_1fr] grid-rows-2' : ''}`}
-            >
-              <div className="relative row-span-2 overflow-hidden rounded-2xl bg-ink">
-                <SafeImage src={photos[0].image} alt="" fill sizes="(min-width: 1024px) 28vw, 58vw" className="object-cover" />
-                <PhotoTag>{photos[0].place}</PhotoTag>
-              </div>
-              {photos.slice(1).map((p) => (
-                <div
-                  key={p.id}
-                  className={`relative overflow-hidden rounded-2xl bg-ink ${photos.length === 2 ? 'row-span-2' : ''}`}
-                >
-                  <SafeImage src={p.image} alt="" fill sizes="(min-width: 1024px) 20vw, 40vw" className="object-cover" />
-                  <PhotoTag>{p.place}</PhotoTag>
-                </div>
-              ))}
+        <figure>
+          <div className="grid aspect-[4/3] grid-cols-[1.4fr_1fr] grid-rows-2 gap-3">
+            <div className="relative row-span-2 overflow-hidden rounded-2xl bg-ink">
+              <Image src={bukavuPhoto} alt={t('about.visionPhotoBukavuAlt')} fill placeholder="blur" sizes="(min-width: 1024px) 28vw, 58vw" className="object-cover" />
+              <PhotoTag>Bukavu</PhotoTag>
             </div>
-            <figcaption className="u-meta mt-3 text-ink-45">{t('about.visionPhotoCaption')}</figcaption>
-          </figure>
-        ) : null}
+            <div className="relative overflow-hidden rounded-2xl bg-ink">
+              <Image src={buildingPhoto} alt={t('about.visionPhotoBuildingAlt')} fill placeholder="blur" sizes="(min-width: 1024px) 20vw, 40vw" className="object-cover object-[50%_30%]" />
+            </div>
+            <div className="relative overflow-hidden rounded-2xl bg-ink">
+              <Image src={flagPhoto} alt={t('about.visionPhotoFlagAlt')} fill placeholder="blur" sizes="(min-width: 1024px) 20vw, 40vw" className="object-cover object-[50%_55%]" />
+            </div>
+          </div>
+          <figcaption className="u-meta mt-3 text-ink-45">{t('about.visionPhotoCredit')}</figcaption>
+        </figure>
       </section>
 
       {/* What changes — three pains, three answers. */}
@@ -234,24 +224,6 @@ export default async function AboutPage() {
       </section>
     </div>
   );
-}
-
-/**
- * Three covers from the homepage's featured read — the default "complete"
- * sort, so real photos and full listings come first — one per commune so the
- * collage shows three places, not one building three times.
- */
-function pickPhotos(listings) {
-  const seen = new Set();
-  const out = [];
-  for (const l of listings) {
-    const image = l.featured_image;
-    if (!image || image === NO_PHOTO_URL || !l.commune || seen.has(l.commune)) continue;
-    seen.add(l.commune);
-    out.push({ id: l.id, image, place: l.commune });
-    if (out.length === 3) break;
-  }
-  return out;
 }
 
 /**

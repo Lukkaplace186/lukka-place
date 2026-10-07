@@ -201,11 +201,21 @@ function pillRow(items, { x, y, size, padX, padY, gap, maxWidth }, measure) {
   const ops = [];
   const h = lineBox(size) + padY * 2;
   let cursor = x;
-  for (const item of items) {
+  for (let item of items) {
     if (!item.text) continue;
     const style = { size, weight: 800, letterSpacing: item.letterSpacing || 0 };
-    const w = measure(item.text, style) + padX * 2;
+    let text = item.text;
+    let w = measure(text, style) + padX * 2;
+    // A `shrink` pill (the reference: agents write landmarks, some long) is
+    // cut with "…" to the room left rather than dropped; at least 8 characters.
+    if (item.shrink) {
+      while (cursor + w > x + maxWidth && text.length > 8) {
+        text = `${text.slice(0, -2).trimEnd()}…`;
+        w = measure(text, style) + padX * 2;
+      }
+    }
     if (cursor + w > x + maxWidth) break;
+    item = { ...item, text };
     ops.push(
       { type: 'rect', x: cursor, y, w, h, fill: item.fill, radius: h / 2, ...(item.shadow ? { shadow: item.shadow } : {}) },
       {
@@ -223,6 +233,9 @@ function photoPills(pack, spec, measure) {
     [
       { text: pack.purposeLabel, fill: COLORS.white, color: COLORS.royal, letterSpacing: spec.letterSpacing, shadow: { ...SHADOW, blur: 16, y: 4 } },
       { text: pack.typeText, fill: VEIL, color: COLORS.white },
+      // "Réf. École petits lutins" / "Annonce n° 304" (sharePackData.js). Packs
+      // stored offline before this have no refLabel and draw no third pill.
+      { text: pack.refLabel, fill: VEIL, color: COLORS.white, shrink: true },
     ],
     spec,
     measure,

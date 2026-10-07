@@ -51,6 +51,34 @@ export function optimisedImageUrl(src, width) {
   return `/_next/image?url=${encodeURIComponent(src.trim())}&w=${width}&q=${IMAGE_QUALITY}`;
 }
 
+/**
+ * The photo URLs buildFlyerPack will put in the pack, computed in the browser
+ * from the listing row the page already holds, so the downloads can start
+ * before the pack arrives (lib/listingCardCache.js). The browser does not know
+ * the Supabase host, so any public storage path is accepted here; a guess the
+ * server then filters out is one wasted download, never a wrong photo.
+ */
+export function expectedPackPhotoUrls(listing) {
+  const usable = listingImages(listing || {}).filter((src) => {
+    try {
+      const url = new URL(src);
+      return url.protocol === 'https:'
+        && (url.pathname.startsWith('/storage/v1/object/public/')
+          || (url.host === 'lukkaplace.com' && url.pathname.startsWith('/assets/img/')));
+    } catch {
+      return false;
+    }
+  });
+  return usable.slice(0, MAX_PHOTOS).map((src, i) => optimisedImageUrl(src, i === 0 ? PHOTO_WIDTH : SIDE_PHOTO_WIDTH));
+}
+
+export function referencePillText(listing) {
+  const reference = String(listing?.reference || '').replace(/\s+/g, ' ').trim();
+  if (reference) return `Réf. ${reference}`;
+  const id = Number(listing?.id);
+  return Number.isFinite(id) && id > 0 ? `Annonce n° ${id}` : null;
+}
+
 export function purposeLabel(purpose) {
   if (purpose === 'sale') return 'À VENDRE';
   if (purpose === 'rent') return 'À LOUER';
@@ -86,6 +114,10 @@ export function buildFlyerPack(listing, { typeText, brand, supabaseHost = null, 
     period,
     typeText: typeText || null,
     place: place || null,
+    // The pill beside "À LOUER" on the cover: the listing's own reference, or
+    // its real number on the site. Never an invented "LUK-…" code — root
+    // CLAUDE.md, "reference": that would be the id dressed up as a reference.
+    refLabel: referencePillText(listing),
     facts: [typeText, place].filter(Boolean).join(' • '),
     rooms: roomSpecs(listing).join(' • '),
     // The card's chips (icon + text) and its "+N photos": the listing's real

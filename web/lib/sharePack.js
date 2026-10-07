@@ -91,7 +91,35 @@ export async function loadSharePack(listingId) {
 // that runs the share card decodes WebP.
 const IMAGE_ACCEPT = 'image/avif,image/webp,image/*;q=0.8';
 
-async function fetchBlob(url, signal) {
+/**
+ * One download per photo URL for the life of the page. prefetchPackPhotos()
+ * starts the card's photos while the share pack is still being asked for, and
+ * fetchPackImages() then picks up the same downloads: from Kinshasa every
+ * round trip to the server is ~300 ms, and the photos used to wait for the
+ * pack before starting. A failed download is forgotten so it can be retried.
+ */
+const blobDownloads = new Map();
+
+function fetchBlob(url, signal) {
+  if (!url) return null;
+  if (signal) return downloadBlob(url, signal);
+  if (!blobDownloads.has(url)) {
+    blobDownloads.set(url, downloadBlob(url).then((blob) => {
+      if (!blob) blobDownloads.delete(url);
+      return blob;
+    }));
+  }
+  return blobDownloads.get(url);
+}
+
+/** Starts downloading photos the pack is expected to ask for. Never throws. */
+export function prefetchPackPhotos(urls = []) {
+  for (const url of urls) {
+    if (url) Promise.resolve(fetchBlob(url)).catch(() => {});
+  }
+}
+
+async function downloadBlob(url, signal) {
   if (!url) return null;
   try {
     const res = await fetch(url, { signal, headers: { Accept: IMAGE_ACCEPT } });

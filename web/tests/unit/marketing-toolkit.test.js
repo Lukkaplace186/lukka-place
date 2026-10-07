@@ -513,3 +513,32 @@ test('engine timestamps are read as UTC', () => {
   assert.equal(parseEngineTimestamp(''), null);
   assert.equal(parseEngineTimestamp('nonsense'), null);
 });
+
+test('the cover carries the reference beside "À LOUER", cut with … when long, never an invented code', async () => {
+  const { buildFlyerOps } = await import('@/lib/marketing/layout');
+  const { referencePillText } = await import('@/lib/marketing/sharePackData');
+  assert.equal(referencePillText({ id: 304, reference: '  École petits lutins ' }), 'Réf. École petits lutins');
+  assert.equal(referencePillText({ id: 304, reference: null }), 'Annonce n° 304');
+  assert.ok(!/LUK-/.test(referencePillText({ id: 304 })));
+
+  const short = buildFlyerOps({ ...PACK, refLabel: 'Réf. Demiap' }, 'square', env()).ops;
+  const ref = textOp(short, 'Réf. Demiap');
+  assert.ok(ref, 'drawn whole when it fits');
+  assert.equal(ref.y, textOp(short, 'À LOUER').y, 'on the same row as the purpose pill');
+
+  const long = buildFlyerOps({ ...PACK, refLabel: 'Réf. Petit Boulevard, 2ᵉ Rue Industrielle, près du marché' }, 'square', env()).ops;
+  const cut = texts(long).find((op) => op.text.startsWith('Réf.'));
+  assert.ok(cut && cut.text.endsWith('…'), 'a long reference is shortened, not dropped');
+  assert.ok(cut.x + measure(cut.text, { size: 24, weight: 800 }) < 28 + 22 + 676 - 44 + 1, 'inside the cover tile');
+
+  assert.ok(!texts(buildFlyerOps(PACK, 'square', env()).ops).some((op) => /^Réf\.|^Annonce n°/.test(op.text)), 'an old stored pack draws no third pill');
+});
+
+test('the browser predicts the pack photo URLs, so downloads start beside the pack request', async () => {
+  const { expectedPackPhotoUrls, buildFlyerPack } = await import('@/lib/marketing/sharePackData');
+  const base = 'https://abc.supabase.co/storage/v1/object/public/Property_images/properties/304/';
+  const listing = { id: 304, price: 600, purpose: 'rent', featured_image: `${base}a.jpg`, gallery: [`${base}a.jpg`, `${base}b.jpg`, `${base}c.jpg`, `${base}d.jpg`] };
+  const pack = buildFlyerPack(listing, { typeText: 'Appartement', brand: {}, supabaseHost: 'abc.supabase.co', markPath: '/m.png', fetchedAt: 'x' });
+  assert.deepEqual(expectedPackPhotoUrls(listing), pack.photos);
+  assert.equal(pack.photos.length, 3);
+});

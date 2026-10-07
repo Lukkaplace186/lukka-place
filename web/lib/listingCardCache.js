@@ -1,7 +1,8 @@
 'use client';
 
 import { getSharePackAction } from '@/app/compte/agent/shareActions';
-import { fetchPackImages, loadSharePack, saveSharePack } from '@/lib/sharePack';
+import { fetchPackImages, loadSharePack, prefetchPackPhotos, saveSharePack } from '@/lib/sharePack';
+import { expectedPackPhotoUrls } from '@/lib/marketing/sharePackData';
 import { decodeAssets, loadRenderFont, renderFlyer } from '@/components/marketing/CanvasRenderer';
 
 /**
@@ -38,7 +39,10 @@ export function listingCardKey(listing) {
   return [listing.id, listing.price, listing.title, listing.featured_image, listing.updated_at].map((v) => v ?? '').join('|');
 }
 
-async function loadKit(listingId) {
+async function loadKit(listing) {
+  const listingId = listing.id;
+  // The photos start now, beside the pack request rather than after it.
+  prefetchPackPhotos(expectedPackPhotoUrls(listing));
   let result = null;
   try {
     result = await getSharePackAction(listingId);
@@ -60,8 +64,8 @@ async function loadKit(listingId) {
   };
 }
 
-async function draw(listingId) {
-  const { kit, blobs, refused } = await loadKit(listingId);
+async function draw(listing) {
+  const { kit, blobs, refused } = await loadKit(listing);
   if (refused || !kit) return { status: 'failed', kit: null };
   if (!kit.shareable) return { status: 'blocked', kit };
   let assets = null;
@@ -81,7 +85,7 @@ export function prepareListingCard(listing) {
   const key = listingCardKey(listing);
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < CARD_TTL_MS) return hit.promise;
-  const promise = draw(listing.id).then((result) => {
+  const promise = draw(listing).then((result) => {
     if (result.status !== 'ready') cache.delete(key);
     return result;
   });

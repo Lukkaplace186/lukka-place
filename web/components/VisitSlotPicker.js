@@ -9,8 +9,8 @@ import { calendarWeeks, dayClosed, dayHasFreeSlot, slotsForDay, visitDays } from
 /**
  * The visit calendar: a month-style grid of the next fourteen Kinshasa days
  * (Monday first), then a time — a dropdown of every quarter of an hour from
- * 08:00 to 18:00 (a native <select>: on a phone it is the system's own wheel,
- * and 41 times do not fit as buttons). It was four fixed slots.
+ * 08:00 to 20:00 (a native <select>: on a phone it is the system's own wheel,
+ * and 49 times do not fit as buttons). It was four fixed slots.
  * Rules in lib/visitSlots.js: a slot less than two hours away, within an hour
  * of the agent's confirmed visits, or on a day the agent takes no visits is
  * greyed out, nothing else. Busy instants and days off come from
@@ -170,7 +170,7 @@ export default function VisitSlotPicker({ propertyId, value, onChange, name, idP
           style={SELECT_CHEVRON}
         >
           <option value="">{t('enquiry.picker.chooseTime')}</option>
-          {[['morning', (time) => time < '12:00'], ['afternoon', (time) => time >= '12:00']].map(([part, inPart]) => (
+          {[['morning', (time) => time < '12:00'], ['afternoon', (time) => time >= '12:00' && time < '18:00'], ['evening', (time) => time >= '18:00']].map(([part, inPart]) => (
             <optgroup key={part} label={t(`enquiry.picker.${part}`)}>
               {slots.filter((slot) => inPart(slot.time)).map((slot) => (
                 <option key={slot.iso} value={slot.iso} disabled={slot.disabled}>

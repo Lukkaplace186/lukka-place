@@ -58,8 +58,24 @@ const PRICE_SOURCE_WHATSAPP = 'WHATSAPP_AGENT_REPLY';
  * template and sets this variable, going straight to the session message is
  * both faster and a truer description of what we can do.
  */
-const TEMPLATE_NAME = process.env.VIEWING_REQUEST_TEMPLATE || null;
-const TEMPLATE_LANG = process.env.VIEWING_REQUEST_TEMPLATE_LANG || 'fr';
+// Read at call time (like OPS_WHATSAPP_NUMBER), so the template can be switched
+// on the day Meta approves it with `pm2 restart --update-env` and nothing else.
+//
+// The template this expects (WhatsApp Manager, category UTILITY, language fr):
+//   Header  IMAGE (optional — set VIEWING_REQUEST_TEMPLATE_IMAGE to its https
+//           URL when the approved template has one, leave it unset when not)
+//   Body    "Bonjour {{1}}, vous avez une nouvelle demande de visite.
+//            Client : {{2}}
+//            Bien : {{3}}
+//            Date et heure : {{4}}
+//            Confirmez ou proposez une autre heure depuis votre espace."
+//   Button  URL, static: "Confirmer la visite" -> /compte/agent/visites
+// A static URL button needs no parameter at send time, which is why none is
+// sent. The body used to carry the link as a fifth variable; the button
+// replaced it (2026-10-10), before any template had been submitted.
+const templateName = () => process.env.VIEWING_REQUEST_TEMPLATE || null;
+const templateLang = () => process.env.VIEWING_REQUEST_TEMPLATE_LANG || 'fr';
+const templateImage = () => process.env.VIEWING_REQUEST_TEMPLATE_IMAGE || null;
 
 /**
  * Lukka Place's own desk, copied on every viewing request so a request
@@ -265,11 +281,14 @@ function opsMessage({ listing, lead, viewingRequest, propertyId, agentNotified, 
  * @returns {Promise<'template'|'session'>} the channel that was accepted.
  */
 async function send(phone, text, templateParams, buttons = null) {
+  const TEMPLATE_NAME = templateName();
   if (TEMPLATE_NAME && templateParams) {
     try {
+      const image = templateImage();
       await chakra.sendTemplate(phone, TEMPLATE_NAME, {
-        languageCode: TEMPLATE_LANG,
+        languageCode: templateLang(),
         bodyParams: templateParams,
+        ...(image ? { headerImage: image } : {}),
       });
       return 'template';
     } catch (templateErr) {
@@ -358,10 +377,9 @@ async function notifyViewingRequest({
         agentMessage({ listing, lead, viewingRequest, propertyId: id }),
         [
           listing.agent_name || 'Agent',
-          listingLabel(listing, id),
           lead?.name || 'Non précisé',
+          listingLabel(listing, id),
           viewingRequest?.requested_time || 'Non précisé',
-          schedulerLink(),
         ],
         viewingRequest?.id ? viewingButtons(viewingRequest.id) : null,
       );

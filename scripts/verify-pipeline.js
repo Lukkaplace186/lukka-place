@@ -9674,6 +9674,23 @@ console.log('\n2. services/openai.js');
     }
   });
 
+  await checkAsync('a template with an image header is sent with its picture first; a bad link is refused', async () => {
+    httpCalls.length = 0;
+    await chakra.sendTemplate('243900000001', 'demande_visite_agent', {
+      bodyParams: ['Makam', 'Henoc', 'Appartement à Limete', 'mardi 13 octobre à 11h15'],
+      headerImage: 'https://lukkaplace.com/og-image.png',
+    });
+    const sent = httpCalls.filter((c) => c.method === 'post').map((c) => c.data).find((d) => d.type === 'template');
+    assert.deepStrictEqual(sent.template.components.map((c) => c.type), ['header', 'body']);
+    assert.deepStrictEqual(sent.template.components[0].parameters, [{ type: 'image', image: { link: 'https://lukkaplace.com/og-image.png' } }]);
+    assert.strictEqual(sent.template.components[1].parameters.length, 4);
+    await assert.rejects(() => chakra.sendTemplate('243900000001', 'x', { headerImage: 'http://insecure.example/a.png' }), /https/);
+    httpCalls.length = 0;
+    await chakra.sendTemplate('243900000001', 'plain', { bodyParams: ['a'] });
+    const plain = httpCalls.filter((c) => c.method === 'post').map((c) => c.data).find((d) => d.type === 'template');
+    assert.deepStrictEqual(plain.template.components.map((c) => c.type), ['body'], 'no header unless asked for');
+  });
+
   await checkAsync('with an approved template, the ask goes as a template carrying the three payloads in order', async () => {
     const fake = availabilityFakePg({ listings: [availListing({ id: 5301 })] });
     process.env.LISTING_AVAILABILITY_TEMPLATE = 'listing_availability_check';

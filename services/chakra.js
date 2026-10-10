@@ -156,6 +156,8 @@ function templateConfigured(name) {
  * @param {string}   [options.languageCode='fr']
  * @param {string[]} [options.bodyParams=[]]  Ordered {{1}}, {{2}} values.
  * @param {string}   [options.otpCode]  AUTHENTICATION templates only — see below.
+ * @param {string}   [options.headerImage]  https URL of the picture for a
+ *        template whose HEADER is an image (see below).
  * @param {Array<{id: string}>} [options.buttons]  Quick-reply payloads, in the
  *        order the template declares its buttons. See the note below on why
  *        only the id travels.
@@ -163,7 +165,7 @@ function templateConfigured(name) {
 async function sendTemplate(
   toPhone,
   templateName,
-  { languageCode = 'fr', bodyParams = [], otpCode, buttons } = {},
+  { languageCode = 'fr', bodyParams = [], otpCode, buttons, headerImage } = {},
 ) {
   const to = String(toPhone).replace(/^\+/, '');
 
@@ -175,6 +177,24 @@ async function sendTemplate(
         parameters: bodyParams.map((text) => ({ type: 'text', text: String(text) })),
       },
     ];
+  }
+
+  // IMAGE HEADER — the branded picture on top of the bubble (what a Yango or
+  // bank notification shows). A template approved with an image header must
+  // be SENT with one: the link is a per-send parameter, not part of the
+  // approved text, and Meta rejects the send without it. Equally, sending a
+  // header to a template that declares none is an error — so this is only
+  // added when the caller says the template has one. https only: Meta fetches
+  // the file itself.
+  if (headerImage !== undefined && headerImage !== null) {
+    if (!/^https:\/\/\S+$/i.test(String(headerImage))) {
+      throw new Error('sendTemplate headerImage must be an https URL');
+    }
+    template.components = template.components || [];
+    template.components.unshift({
+      type: 'header',
+      parameters: [{ type: 'image', image: { link: String(headerImage) } }],
+    });
   }
 
   // Meta's AUTHENTICATION-category templates (the only category allowed to

@@ -771,7 +771,8 @@
       "closedNote": "Les jours barrés : l’agent ne fait pas de visites, ou il n’y reste plus d’heure libre.",
       "chooseTime": "Choisir l’heure",
       "morning": "Matin",
-      "afternoon": "Après-midi"
+      "afternoon": "Après-midi",
+      "evening": "Soir"
     },
     "cart": {
       "add": "Ajouter à mes visites",

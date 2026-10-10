@@ -17,10 +17,10 @@ const read = (rel) => readFileSync(new URL(`../../${rel}`, import.meta.url), 'ut
 // Wednesday 1 October 2031, 08:30 in Kinshasa (07:30 UTC).
 const NOW = new Date('2031-10-01T07:30:00Z');
 
-test('fourteen Kinshasa days from today, a time every quarter of an hour from 08:00 to 18:00', () => {
-  assert.equal(VISIT_SLOT_TIMES.length, 41);
+test('fourteen Kinshasa days from today, a time every quarter of an hour from 08:00 to 20:00', () => {
+  assert.equal(VISIT_SLOT_TIMES.length, 49);
   assert.deepEqual(VISIT_SLOT_TIMES.slice(0, 5), ['08:00', '08:15', '08:30', '08:45', '09:00']);
-  assert.equal(VISIT_SLOT_TIMES.at(-1), '18:00');
+  assert.equal(VISIT_SLOT_TIMES.at(-1), '20:00');
   assert.equal(VISIT_DAYS, 14);
   const days = visitDays(NOW);
   assert.equal(days.length, 14);
@@ -44,7 +44,7 @@ test('less than two hours ahead is greyed out; the rest of the day is free', () 
   assert.equal(reasonAt('08:00'), 'past');
   assert.equal(reasonAt('10:15'), 'past');
   assert.equal(reasonAt('10:30'), null);
-  assert.equal(reasonAt('18:00'), null);
+  assert.equal(reasonAt('20:00'), null);
   assert.ok(today.filter((s) => s.reason === 'past').every((s) => s.time < '10:30'));
 });
 
@@ -70,7 +70,7 @@ test('the server accepts only a slot the picker could have offered', () => {
   });
   assert.equal(validatePickedSlot('2031-10-02T11:45:00+01:00', NOW).phrase, 'jeudi 2 octobre à 11h45');
   assert.equal(validatePickedSlot('2031-10-02T11:50:00+01:00', NOW).error, 'invalid', 'not on a quarter of an hour');
-  assert.equal(validatePickedSlot('2031-10-02T19:00:00+01:00', NOW).error, 'invalid', 'after the last time offered');
+  assert.equal(validatePickedSlot('2031-10-02T20:15:00+01:00', NOW).error, 'invalid', 'after the last time offered');
   assert.equal(validatePickedSlot('2031-10-02T07:45:00+01:00', NOW).error, 'invalid', 'before the first');
   assert.equal(validatePickedSlot('2031-10-02T14:00:00Z', NOW).error, 'invalid', 'must carry the Kinshasa offset');
   assert.equal(validatePickedSlot('2031-10-20T14:00:00+01:00', NOW).error, 'out_of_range');

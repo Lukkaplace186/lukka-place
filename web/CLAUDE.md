@@ -2695,8 +2695,9 @@ From an owner walkthrough on a phone. Engine migration
 - **Photos**: correction e4 and a lighter card scrim — root CLAUDE.md,
   "Listing photo auto-correction".
 - **Later the same day** (owner feedback on the live build):
-  - **Times are a dropdown of quarter-hours, 08:00–18:00** (`VISIT_SLOT_TIMES`,
-    41 of them; a native `<select>`, grouped Matin / Après-midi, a taken or
+  - **Times are a dropdown of quarter-hours, 08:00–20:00** (`VISIT_SLOT_TIMES`,
+    49 of them — 18:00 was the first cut, widened the same day; a native
+    `<select>`, grouped Matin / Après-midi / Soir, a taken or
     too-soon time shown disabled with its reason). `validatePickedSlot` accepts
     exactly those. The four fixed slots are gone.
   - **The confirmation says who has the request**: `visit_sent=1` when the

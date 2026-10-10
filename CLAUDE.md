@@ -1210,6 +1210,15 @@ web/CLAUDE.md, "Visit booking, both agendas…", has the pages. Engine half:
   carried that link as {{5}}. **Measured the same day: 12 of 49 public
   listings have no agent, and `OPS_WHATSAPP_NUMBER` is still unset — a visit
   request on any of them reaches nobody** (request #8, property #256).
+- **The agent alert's template is a branded card with a button** (2026-10-10,
+  "like Yango's"): `VIEWING_REQUEST_TEMPLATE` (read at call time now) expects
+  an optional IMAGE header (`VIEWING_REQUEST_TEMPLATE_IMAGE`, an https URL,
+  sent only when set — `chakra.sendTemplate`'s new `headerImage`), FOUR body
+  variables (agent, customer, listing, date and time) and a STATIC URL button
+  to `/compte/agent/visites`, which needs no send-time parameter. The fifth
+  body variable (the link) is gone; no template had been submitted. The exact
+  wording is in the comment above `templateName` in viewingNotifications.js.
+  Not approved yet — until it is, the alert is still a session message.
 - **Days an agent takes no visits** are web-side only:
   `migrations/20261010_agent_visit_availability.sql` (Postgres, one row per
   agent), read and written by web's `lib/agentAvailability.js`. The engine

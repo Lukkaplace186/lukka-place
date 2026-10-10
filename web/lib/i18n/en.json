@@ -771,7 +771,8 @@
       "closedNote": "Crossed-out days: the agent takes no viewings, or no time is left.",
       "chooseTime": "Choose a time",
       "morning": "Morning",
-      "afternoon": "Afternoon"
+      "afternoon": "Afternoon",
+      "evening": "Evening"
     },
     "cart": {
       "add": "Add to my visits",

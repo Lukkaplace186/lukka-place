@@ -2,7 +2,7 @@ import { kinshasaDayKey, kinshasaDayStart, slotPhraseFr, toTime } from './visitA
 
 /**
  * The visit calendar (components/VisitSlotPicker.js), as pure rules: the next
- * fourteen Kinshasa days, a time every quarter of an hour from 08:00 to 18:00,
+ * fourteen Kinshasa days, a time every quarter of an hour from 08:00 to 20:00,
  * which of them can still be picked. (Four fixed slots a day until
  * 2026-10-10 — "only a few hours available, why?".) Kinshasa calendar whatever the phone's timezone — a
  * diaspora customer in Brussels books 14h00 in Kinshasa, which is when the
@@ -21,9 +21,9 @@ import { kinshasaDayKey, kinshasaDayStart, slotPhraseFr, toTime } from './visitA
  */
 
 export const VISIT_FIRST_HOUR = 8;
-export const VISIT_LAST_HOUR = 18;
+export const VISIT_LAST_HOUR = 20;
 export const VISIT_STEP_MINUTES = 15;
-/** '08:00', '08:15', … '18:00' — daylight hours; the last visit STARTS at 18:00. */
+/** '08:00', '08:15', … '20:00' (product decision, 2026-10-10); the last visit STARTS at 20:00. */
 export const VISIT_SLOT_TIMES = (() => {
   const times = [];
   for (let m = VISIT_FIRST_HOUR * 60; m <= VISIT_LAST_HOUR * 60; m += VISIT_STEP_MINUTES) {

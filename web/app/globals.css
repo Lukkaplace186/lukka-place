@@ -132,7 +132,12 @@
      Only ever used over an image, never over flat colour. */
   --glass-royal: rgba(12, 29, 80, 0.42);
   --glass-white: rgba(255, 255, 255, 0.82);
-  --scrim-image: linear-gradient(180deg, rgba(11, 17, 32, 0) 34%, rgba(11, 17, 32, 0.62) 100%);
+  /* A short, faint fade on the bottom edge only — enough for the white
+     carousel dots on a white wall. It was 0 -> 62% ink from 34% down, which
+     put two thirds of every card photo under a dark veil (reported as "the
+     pictures are too dark", 2026-10-10). Badges and counters on that edge
+     carry their own background and never needed it. */
+  --scrim-image: linear-gradient(180deg, rgba(11, 17, 32, 0) 78%, rgba(11, 17, 32, 0.26) 100%);
   --scrim-hero: linear-gradient(94deg, rgba(12, 29, 80, 0.72) 0%, rgba(12, 29, 80, 0.28) 52%, rgba(12, 29, 80, 0) 78%);
 
   /* The one elevation reserved for a panel that genuinely floats over

@@ -258,12 +258,12 @@ export default function CardImageCarousel({
                 onClick={(e) => scrollToIndex(photoIndex, e)}
                 aria-label={`Photo ${photoIndex + 1}`}
                 aria-current={photoIndex === index}
-                className={`rounded-full shadow-sm transition-all ${
+                className={`rounded-full shadow-[0_0_0_1px_rgb(11_17_32_/_0.18),0_1px_2px_rgb(11_17_32_/_0.35)] transition-all ${
                   photoIndex === index
                     ? 'h-1.5 w-4 bg-white'
                     : edge
-                      ? 'h-1 w-1 bg-white/40'
-                      : 'h-1.5 w-1.5 bg-white/60'
+                      ? 'h-1 w-1 bg-white/60'
+                      : 'h-1.5 w-1.5 bg-white/80'
                 }`}
               />
             ))}

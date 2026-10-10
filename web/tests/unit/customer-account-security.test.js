@@ -62,7 +62,7 @@ test('the request form sends every chosen commune, not only the first', () => {
 });
 
 test('the visit form prefills the signed-in account, so the request lands in that account', () => {
-  const source = readFileSync(path.join(process.cwd(), 'components/EnquiryCard.js'), 'utf8');
+  const source = readFileSync(path.join(process.cwd(), 'components/VisitRequestDialog.js'), 'utf8');
   assert.match(source, /\/api\/account\/me/);
   assert.match(source, /defaultValue: profile\.phoneNational/);
 });

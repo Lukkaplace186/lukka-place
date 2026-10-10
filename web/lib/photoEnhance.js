@@ -57,8 +57,11 @@ export const WB_MIN_CORRECTION = 0.015;
 export const WHITE_POINT_MIN = 235;
 export const STRETCH_MAX_GAIN = 1.25;
 
-export const LIGHTNESS_TARGET = 0.6;
-export const LIGHTNESS_GAMMA_MIN = 0.72;
+// e4 (2026-10-10): 0.60 / 0.72 still read as dim next to the portals this site is
+// compared with. 0.66 / 0.62 was picked from side-by-side sheets of live photos;
+// 0.72 / 0.55 was tried and flattened white rooms. Still lighten-only.
+export const LIGHTNESS_TARGET = 0.66;
+export const LIGHTNESS_GAMMA_MIN = 0.62;
 
 export const VIBRANCE_MAX = 0.18;
 export const VIVID_SATURATION = 0.4;

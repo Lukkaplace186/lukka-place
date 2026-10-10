@@ -1202,7 +1202,13 @@ web/CLAUDE.md, "Visit booking, both agendas…", has the pages. Engine half:
   request per listing sharing `batch_id`; each listing's own agent is alerted
   about their listing only (`notifyOpsCopy: false`), and ops gets one summary.
 - **`GET /admin/viewing-requests/busy-slots`** (`agent_id`, `property_ids`):
-  CONFIRMED instants in the next 8 days, instants only.
+  CONFIRMED instants in the next 15 days (the web calendar shows 14 since
+  2026-10-10), instants only.
+- **Days an agent takes no visits** are web-side only:
+  `migrations/20261010_agent_visit_availability.sql` (Postgres, one row per
+  agent), read and written by web's `lib/agentAvailability.js`. The engine
+  does not read it — a request for a blocked day is refused by web's actions
+  before it reaches `POST /admin/viewing-requests`.
 - §43 of verify-pipeline.
 
 ## WhatsApp commands for agents (2026-09-29)
@@ -1368,6 +1374,14 @@ disagree on a single pixel. It corrects the camera, never the property:
   `featured_image` + `property_slider_images` per listing in one transaction,
   writes a rollback map) → `--rollback <file>` undoes it. Own bucket only;
   originals are never deleted. `services/photoBackfill.js`, §38.
+- **e4 (2026-10-10):** photos still read as dim ("too dark", owner report).
+  `LIGHTNESS_TARGET` 0.60 → 0.66 and `LIGHTNESS_GAMMA_MIN` 0.72 → 0.62, picked
+  from side-by-side sheets of seven live photos (0.72 / 0.55 was tried and
+  flattened white rooms). Still lighten-only; objects are `…_e4.jpg`. Existing
+  photos need `backfill-photo-enhance.js --write` again (it rebuilds from the
+  originals, so an `_e3` URL is never corrected twice). The same day the card
+  photo scrim (`--scrim-image`, web/app/globals.css) went from a 0→62 % ink
+  fade over the lower two thirds to a faint fade on the bottom edge.
 - **e3 (2026-10-02):** e2 made 107 of 215 live photos darker (black point
   pulled down, no white lift on photos with a window or white wall), against a
   light brand. e3 is never darker: measured on all 215, average +22 mean

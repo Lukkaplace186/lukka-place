@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { BadgeCheck, CalendarCheck, Layers, MapPin, MessageCircle, PhoneCall } from 'lucide-react';
 import Breadcrumb from '@/components/Breadcrumb';
 import { getT } from '@/lib/i18n/server';
-import { cachedListingsTotal, cachedPopularCommunes } from '@/lib/listingsCached';
 import heroPhoto from '../../../Hero/about-moving-in.jpg';
 import bukavuPhoto from '../../../Hero/about-bukavu.jpg';
 import buildingPhoto from '../../../Hero/about-building.jpg';
@@ -30,38 +29,29 @@ export async function generateMetadata() {
 }
 
 /*
- * Who we are, Rightmove-annual-report style (2026-10-07): a full-bleed photo
- * with the promise, the vision beside photos, what changes, live figures, the
- * agent side, then the fine print the old page was made of.
+ * Who we are (2026-10-07, copy rewritten 2026-10-10): a full-bleed photo with
+ * the promise, the ambition beside photos (Kinshasa first, then the whole
+ * DRC), four reasons to search here, a call to action, the agent side, then
+ * the fine print.
  *
- * Nothing here is invented. The vision photos are Pexels photos the owner
- * chose (the aerial view is Bukavu and is labelled so — never passed off as
- * Kinshasa), and the figures are live counts — a figure that reads 0 is not
- * shown. The hero is
- * a Pexels photo (Gustavo Fring), chosen by the owner, credited below it.
+ * The live-figures band is gone (product direction, 2026-10-10), and so is
+ * the "Bukavu" tag on the aerial photo: the section is about the whole
+ * country, and the photo's alt text still says where it was taken. The photos
+ * are Pexels photos the owner chose, credited under them.
  */
 export default async function AboutPage() {
   const t = await getT();
-  const [total, communes] = await Promise.all([
-    cachedListingsTotal().then((r) => r.total).catch(() => 0),
-    cachedPopularCommunes(24).catch(() => []),
-  ]);
-
   const changes = [
     { icon: PhoneCall, title: t('about.change1Title'), body: t('about.change1Body') },
     { icon: BadgeCheck, title: t('about.change2Title'), body: t('about.change2Body') },
-    { icon: MapPin, title: t('about.change3Title'), body: t('about.change3Body') },
+    { icon: MapPin, title: t('about.change3aTitle'), body: t('about.change3aBody') },
+    { icon: CalendarCheck, title: t('about.change4Title'), body: t('about.change4Body') },
   ];
   const steps = [
     { icon: MessageCircle, title: t('about.agentsStep1Title'), body: t('about.agentsStep1Body') },
     { icon: Layers, title: t('about.agentsStep2Title'), body: t('about.agentsStep2Body') },
     { icon: CalendarCheck, title: t('about.agentsStep3Title'), body: t('about.agentsStep3Body') },
   ];
-  const figures = [
-    total > 0 ? { value: total, label: t('about.figuresListings', { count: total }) } : null,
-    communes.length > 0 ? { value: communes.length, label: t('about.figuresCommunes', { count: communes.length }) } : null,
-    { value: 1, label: t('about.figuresWhatsapp') },
-  ].filter(Boolean);
 
   return (
     <div className="bg-canvas">
@@ -126,14 +116,17 @@ export default async function AboutPage() {
           <h2 className="font-display text-[2rem] font-normal leading-[1.1] tracking-[-0.02em] text-ink sm:text-[2.75rem]">
             <Accented text={t('about.visionTitle')} accent={t('about.visionAccent')} className="text-blue" />
           </h2>
-          <p className="u-body mt-3 max-w-xl text-ink-70 sm:mt-6">{t('about.visionBody')}</p>
+          <div className="u-body mt-3 flex max-w-xl flex-col gap-3 text-ink-70 sm:mt-6">
+            <p>{t('about.visionBody')}</p>
+            <p>{t('about.visionBody2')}</p>
+            <p>{t('about.visionBody3')}</p>
+          </div>
         </div>
 
         <figure>
           <div className="grid aspect-[4/3] grid-cols-[1.4fr_1fr] grid-rows-2 gap-3">
             <div className="relative row-span-2 overflow-hidden rounded-2xl bg-ink">
               <Image src={bukavuPhoto} alt={t('about.visionPhotoBukavuAlt')} fill placeholder="blur" sizes="(min-width: 1024px) 28vw, 58vw" className="object-cover" />
-              <PhotoTag>Bukavu</PhotoTag>
             </div>
             <div className="relative overflow-hidden rounded-2xl bg-ink">
               <Image src={buildingPhoto} alt={t('about.visionPhotoBuildingAlt')} fill placeholder="blur" sizes="(min-width: 1024px) 20vw, 40vw" className="object-cover object-[50%_30%]" />
@@ -146,14 +139,14 @@ export default async function AboutPage() {
         </figure>
       </section>
 
-      {/* What changes — three pains, three answers. */}
+      {/* Why here — four reasons, one line each. */}
       <section className="bg-canvas-alt py-10 sm:py-28">
         <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8">
           <p className="u-eyebrow mb-2 sm:mb-3">{t('about.changeEyebrow')}</p>
           <h2 className="font-display text-[1.75rem] font-normal leading-[1.15] tracking-[-0.01em] text-ink sm:text-[2.25rem]">
             {t('about.changeTitle')}
           </h2>
-          <div className="mt-5 grid gap-3 sm:mt-10 sm:gap-4 md:grid-cols-3">
+          <div className="mt-5 grid gap-3 sm:mt-10 sm:gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {changes.map(({ icon: Icon, title, body }) => (
               <article key={title} className="rounded-2xl border border-line bg-surface p-5 sm:p-8">
                 <Icon size={24} strokeWidth={1.5} aria-hidden="true" className="text-blue" />
@@ -165,19 +158,30 @@ export default async function AboutPage() {
         </div>
       </section>
 
-      {/* Live figures — real counts only. */}
+      {/* The ask — browse, or tell us what you are looking for. */}
       <section className="bg-blue text-white">
-        <div className="mx-auto max-w-[1600px] px-4 py-10 sm:px-6 sm:py-16 lg:px-8">
-          <p className="u-eyebrow !text-white/75">{t('about.figuresEyebrow')}</p>
-          <dl className="mt-4 grid gap-5 sm:mt-6 sm:grid-cols-3 sm:gap-8">
-            {figures.map(({ value, label }) => (
-              <div key={label} className="border-l-2 border-white/30 pl-5">
-                <dt className="sr-only">{label}</dt>
-                <dd className="u-tabular font-display text-[3rem] leading-none sm:text-[3.5rem]">{value}</dd>
-                <dd className="mt-2 text-[0.9375rem] text-white/85">{label}</dd>
-              </div>
-            ))}
-          </dl>
+        <div className="mx-auto flex max-w-[1600px] flex-col gap-5 px-4 py-10 sm:px-6 sm:py-16 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+          <div className="max-w-2xl">
+            <p className="u-eyebrow !text-white/75">{t('about.startEyebrow')}</p>
+            <h2 className="mt-2 font-display text-[1.75rem] font-normal leading-[1.15] tracking-[-0.01em] sm:text-[2.25rem]">
+              {t('about.startTitle')}
+            </h2>
+            <p className="mt-3 text-[0.9375rem] leading-relaxed text-white/85 sm:text-base">{t('about.startBody')}</p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href="/listings"
+              className="inline-flex min-h-11 items-center rounded-full bg-white px-6 text-sm font-semibold text-blue-deep transition-colors hover:bg-white/90"
+            >
+              {t('about.ctaBrowse')}
+            </Link>
+            <Link
+              href="/compte/client/demandes"
+              className="inline-flex min-h-11 items-center rounded-full border border-white/50 px-6 text-sm font-semibold text-white transition-colors hover:border-white"
+            >
+              {t('about.startFindForMe')}
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -239,13 +243,5 @@ function Accented({ text, accent, className }) {
       <span className={className}>{text.slice(at, at + accent.length)}</span>
       {text.slice(at + accent.length)}
     </>
-  );
-}
-
-function PhotoTag({ children }) {
-  return (
-    <span className="absolute bottom-3 left-3 rounded-full bg-white/90 px-3 py-1 text-[0.75rem] font-semibold text-ink">
-      {children}
-    </span>
   );
 }

@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { CalendarDays, Heart, House, MessageCircle, UserRound } from 'lucide-react';
+import { ClipboardList, Heart, House, UserRound } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n/client';
@@ -14,12 +14,18 @@ import { useT } from '@/lib/i18n/client';
  *
  *   Accueil      /compte/client           what waits on the customer
  *   Enregistrés  /compte/client/favoris   favourites + alerts (?tab=alertes)
- *   Visites      /compte/client/visites   the visit agenda (was a link inside Messages)
- *   Demandes     /compte/client/messages  requests and the answers to them;
- *                                         the form (/demandes) is part of the tab
+ *   Activité     /compte/client/visites   everything the customer asked for:
+ *                                         Visites | Recherches (/messages; the
+ *                                         form, /demandes, is part of the tab)
  *   Profil       /compte/client/parametres
  *
- * Phone: a fixed bottom bar, five equal 58px targets, the active tab marked by
+ * Visites and Demandes were two tabs until 2026-10-10. A visit request is
+ * also a lead, so the same booking showed under both ("the two tabs are doing
+ * the same thing"). They are one tab now, with a switch inside it
+ * (ActivitySubTabs.js): a visit lives under Visites and nowhere else, and
+ * Recherches holds what is not a visit.
+ *
+ * Phone: a fixed bottom bar, four equal 58px targets, the active tab marked by
  * a bar on its top edge — the same bar as the agent portal. The public
  * storefront deliberately has no bottom bar (web/CLAUDE.md, "Layout &
  * shell"); this one exists only inside the signed-in portal, where the
@@ -42,17 +48,11 @@ export const PORTAL_TABS = [
   },
   {
     href: '/compte/client/visites',
-    labelKey: 'account.portal.nav.visits',
-    icon: CalendarDays,
-    countKey: 'viewings',
-    match: (p) => p.startsWith('/compte/client/visites'),
-  },
-  {
-    href: '/compte/client/messages',
-    labelKey: 'account.portal.nav.requests',
-    icon: MessageCircle,
+    labelKey: 'account.portal.nav.activity',
+    icon: ClipboardList,
     countKey: 'inquiries',
-    match: (p) => p.startsWith('/compte/client/messages') || p.startsWith('/compte/client/demandes'),
+    match: (p) =>
+      p.startsWith('/compte/client/visites') || p.startsWith('/compte/client/messages') || p.startsWith('/compte/client/demandes'),
   },
   { href: '/compte/client/parametres', labelKey: 'account.portal.nav.profile', icon: UserRound, match: (p) => p.startsWith('/compte/client/parametres') },
 ];
@@ -96,7 +96,7 @@ export default function ClientPortalTabs({ counts = {} }) {
       {/* Phone and tablet: the bottom bar. */}
       <nav
         aria-label={t('account.portal.title')}
-        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden"
       >
         {PORTAL_TABS.map(({ href, labelKey, icon: Icon, countKey, match }) => {
           const active = match(pathname);

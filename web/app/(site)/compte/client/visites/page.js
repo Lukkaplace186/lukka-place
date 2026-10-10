@@ -1,13 +1,14 @@
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { CalendarClock } from 'lucide-react';
+import { CalendarClock, Check } from 'lucide-react';
 import { PortalEmpty } from '@/components/ClientPortalUI';
 import { getPortalCustomer } from '@/lib/customerPortal';
 import { getCustomerInquiries } from '@/lib/customerInquiries';
 import { groupCustomerVisits } from '@/lib/customerAgenda';
 import { isAwaitingCustomer } from '@/lib/clientPortalView';
 import { getLocale, getT } from '@/lib/i18n/server';
+import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import VisitCard from './VisitCard';
+import ActivitySubTabs, { activityCounts } from '../ActivitySubTabs';
 
 export async function generateMetadata() {
   const t = await getT();
@@ -16,8 +17,15 @@ export async function generateMetadata() {
 
 export const dynamic = 'force-dynamic';
 
+// The booking dialog's own error codes (app/(site)/listings/[id]/actions.js).
+const VISIT_ERROR_KEYS = {
+  phone: 'enquiry.errors.phone',
+  time: 'enquiry.errors.time',
+  closed: 'enquiry.errors.closed',
+};
+
 /**
- * The customer's visits (2026-10-05 redesign): "À répondre" first — a slot
+ * Activité › Visites — the customer's visits (2026-10-05 redesign): "À répondre" first — a slot
  * the agent proposed, which only the customer can accept — then Aujourd'hui /
  * Demain / À venir / Heure à préciser / Passées (lib/customerAgenda.js).
  *
@@ -25,12 +33,18 @@ export const dynamic = 'force-dynamic';
  * confirmed, blue waiting, grey past. Accept / cancel / check-in are the
  * Messages tab's engine calls. No directions: the exact position stays with
  * the agent until they share it.
+ *
+ * `?visit_sent=1` / `?visit_error=` come from a booking made on the saved
+ * listings board, which answers here because this is where the request now is.
  */
-export default async function VisitesPage() {
+export default async function VisitesPage({ searchParams }) {
   const portal = await getPortalCustomer();
   if (!portal) redirect('/compte/connexion?next=/compte/client/visites');
   const t = await getT();
   const locale = await getLocale();
+  const params = await searchParams;
+  const visitSent = params?.visit_sent === '1';
+  const visitError = typeof params?.visit_error === 'string' ? params.visit_error : null;
 
   let inquiries = [];
   let unavailable = false;
@@ -55,15 +69,23 @@ export default async function VisitesPage() {
 
   return (
     <div className="mx-auto flex max-w-[45rem] flex-col gap-6">
-      <div className="flex items-end justify-between gap-4">
-        <div>
-          <h1 className="u-title-page text-ink">{t('account.agenda.title')}</h1>
-          <p className="mt-1 text-[0.8125rem] text-ink-45">{t('account.agenda.lead')}</p>
-        </div>
-        <Link href="/compte/client/messages" className="u-micro-strong inline-flex min-h-11 shrink-0 items-center text-blue hover:underline">
-          {t('account.agenda.toMessages')}
-        </Link>
+      <div>
+        <h1 className="u-title-page mb-4 text-ink sm:mb-6">{t('account.activity.title')}</h1>
+        <ActivitySubTabs view="visites" counts={unavailable ? null : activityCounts(inquiries)} />
+        <p className="-mt-1 text-[0.8125rem] text-ink-45 sm:-mt-3">{t('account.agenda.lead')}</p>
       </div>
+
+      {visitSent ? (
+        <p role="status" className="flex items-start gap-2.5 rounded-md bg-success-tint px-4 py-3 text-[0.875rem] font-medium text-success">
+          <Check strokeWidth={ICON_STROKE_WIDTH} className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          {t('account.agenda.sent')}
+        </p>
+      ) : null}
+      {visitError ? (
+        <p role="alert" className="rounded-md bg-danger-tint px-4 py-3 text-[0.875rem] font-semibold text-danger">
+          {t(VISIT_ERROR_KEYS[visitError] || 'enquiry.errors.failed')}
+        </p>
+      ) : null}
 
       {unavailable ? (
         <p className="rounded-xl bg-warning-tint px-4 py-3 text-sm text-warning-ink" role="alert">{t('account.agenda.unavailable')}</p>

@@ -2280,7 +2280,8 @@ Engine half: root CLAUDE.md, "Visit booking — picked slot, bon de visite,
 multi-visit".
 
 - **The visit form is a picker, not free text** (`components/VisitSlotPicker.js`,
-  rules in `lib/visitSlots.js`): the next 7 Kinshasa days, 09:00 / 11:00 / 14:00
+  rules in `lib/visitSlots.js`): the next 7 Kinshasa days (14, as a calendar
+  grid, since 2026-10-10), 09:00 / 11:00 / 14:00
   / 16:00. A slot is greyed out only when it starts < 2 h from now or within
   an hour of the agent's CONFIRMED visits (`GET /api/listings/:id/visit-slots`
   → engine busy-slots — instants only, fails open to "everything free"). There
@@ -2448,7 +2449,9 @@ Approved from `web/Design/client-portal-prototype.html` (gitignored), same
 language as the agent portal redesign. Mobile-first; desktop keeps the sticky
 strip under the header.
 
-- **Five tabs** (`ClientPortalTabs.js`, `PORTAL_TABS`): Accueil
+- **Four tabs since 2026-10-10** (Visites and Demandes merged into Activité —
+  see "One booking flow…" at the end of this file). As built on 2026-10-05:
+  five tabs (`ClientPortalTabs.js`, `PORTAL_TABS`): Accueil
   `/compte/client`, Enregistrés `/compte/client/favoris` (Favoris | Alertes,
   `?tab=alertes`), Visites, Demandes `/compte/client/messages` (also lit on
   `/demandes`, the form), Profil. On a phone they are a fixed bottom bar —
@@ -2650,3 +2653,45 @@ trips and bytes, not server time.
 - **Window poster removed** from Documents et rapports and the listing's
   Statistiques page (product direction). `/compte/agent/biens/[id]/affiche`
   itself still exists.
+
+## One booking flow, the visit calendar, Activité, About (2026-10-10)
+
+From an owner walkthrough on a phone. Engine migration
+`migrations/20261010_agent_visit_availability.sql` (additive; web degrades to
+"nothing blocked" before it runs). Tests: `tests/unit/visit-booking.test.js`,
+`portal-funnel.test.js`, `client-portal-redesign.test.js`.
+
+- **Every "visit" button opens the same dialog** (`components/VisitRequestDialog.js`,
+  controlled by `open` / `onOpenChange`). The saved-listings card's "Planifier
+  une visite" was a hand-built `wa.me` link to Lukka Place's own number asking
+  "quelles sont vos disponibilités ?" — untracked, and it reached neither the
+  agent nor the customer's agenda. It now opens the calendar with
+  `returnTo="visites"`, so `submitVisitRequestAction` answers on
+  `/compte/client/visites?visit_sent=1` (two fixed destinations; the path is
+  never read from the form). The card's WhatsApp button uses
+  `resolveWhatsAppRouting` like every other CTA (it always went central) and is
+  labelled by where it goes: "Écrire à l'agent" / "Écrire à Lukka Place".
+- **The picker is a calendar grid**: 14 Kinshasa days in Monday-first weeks
+  (`calendarWeeks`), then the day's four slots. `VISIT_DAYS` is 14; the engine's
+  busy-slot window is 15 days.
+- **Agents can block days** (`lib/agentAvailability.js`,
+  `components/AgentVisitAvailability.js` on `/compte/agent/visites`,
+  `saveVisitAvailabilityAction`): weekdays off and single dates. The calendar
+  greys them out (`dayClosed`, reason `closed`), and both visit actions refuse
+  one server-side (`visit_error=closed`). It removes days only — no opening
+  hours, the four slots are the same for everyone, and the agent still
+  confirms each request. The agent id is the session's; reads never throw.
+- **Visites + Demandes = one "Activité" tab** (four tabs, `grid-cols-4`), with
+  a Visites | Recherches switch (`ActivitySubTabs.js`, reusing `SavedSubTabs`).
+  The rule is `isVisitInquiry` (`lib/clientPortalView.js`): a lead with a
+  viewing request behind it is a visit and is listed under Visites only — the
+  Demandes list used to show those leads too, so one booking appeared in two
+  tabs. Both URLs are unchanged, so every link already sent still lands.
+- **About page**: the live-figures band and the "Bukavu" tag are gone (the alt
+  text still says where the photo was taken); copy is "Kinshasa d'abord, toute
+  la RDC ensuite", four reasons and a call-to-action band. The same line is in
+  the hero subtitle, the footer tagline and copyright, and the site meta
+  description. No city is named as a next step — none is decided.
+- **Photos**: correction e4 and a lighter card scrim — root CLAUDE.md,
+  "Listing photo auto-correction".
+

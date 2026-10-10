@@ -1,24 +1,26 @@
 import { kinshasaDayKey, kinshasaDayStart, slotPhraseFr, toTime } from './visitAgenda';
 
 /**
- * The listing page's visit picker (components/VisitSlotPicker.js), as pure
- * rules: the next seven Kinshasa days, four slots a day, which of them can
- * still be picked. Kinshasa calendar whatever the phone's timezone — a
+ * The visit calendar (components/VisitSlotPicker.js), as pure rules: the next
+ * fourteen Kinshasa days, four slots a day, which of them can still be
+ * picked. Kinshasa calendar whatever the phone's timezone — a
  * diaspora customer in Brussels books 14h00 in Kinshasa, which is when the
  * agent opens the door.
  *
  * What greys a slot out, and nothing else:
  *  - it starts less than MIN_LEAD_HOURS from now (no one can get there);
  *  - the listing's agent already has a CONFIRMED visit within CLASH_MINUTES of
- *    it (engine busy-slots — instants only).
- * There is no agent working-hours data, so nothing else is blocked and the
- * picker claims no more than that.
+ *    it (engine busy-slots — instants only);
+ *  - the agent marked that weekday or that date as a day without visits
+ *    (lib/agentAvailability.js, set on their agenda page).
+ * An agent who set nothing blocks nothing, and the picker claims no more than
+ * that: a free slot is a slot nobody said no to, confirmed only by the agent.
  *
  * The engine re-validates the instant (future, ≤ 30 days, with an offset).
  */
 
 export const VISIT_SLOT_HOURS = [9, 11, 14, 16];
-export const VISIT_DAYS = 7;
+export const VISIT_DAYS = 14;
 export const MIN_LEAD_HOURS = 2;
 export const CLASH_MINUTES = 60;
 /** How many listings "Mes visites" can hold — the engine's VISIT_BATCH_MAX. */
@@ -38,19 +40,47 @@ export function visitDays(now = new Date()) {
   return Array.from({ length: VISIT_DAYS }, (_, i) => kinshasaDayKey(start + i * 24 * HOUR_MS + 12 * HOUR_MS));
 }
 
+/** 0 (Sunday) … 6 (Saturday) for a Kinshasa `YYYY-MM-DD`. */
+export function weekdayOf(dayKey) {
+  return new Date(`${dayKey}T12:00:00+01:00`).getUTCDay();
+}
+
+/**
+ * An agent's "no visits" settings, cleaned: weekdays 0..6 once each, dates as
+ * `YYYY-MM-DD`. Anything else is dropped, so a malformed row blocks nothing.
+ * @returns {{closedWeekdays: number[], blockedDates: string[]}}
+ */
+export function normaliseAvailability(raw) {
+  const weekdays = Array.isArray(raw?.closedWeekdays) ? raw.closedWeekdays : [];
+  const dates = Array.isArray(raw?.blockedDates) ? raw.blockedDates : [];
+  return {
+    closedWeekdays: [...new Set(weekdays.map(Number).filter((d) => Number.isInteger(d) && d >= 0 && d <= 6))].sort(),
+    blockedDates: [...new Set(dates.map((d) => String(d).slice(0, 10)).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)))].sort(),
+  };
+}
+
+/** The agent takes no visits that day (their weekday off, or a date they blocked). */
+export function dayClosed(dayKey, availability) {
+  const { closedWeekdays, blockedDates } = normaliseAvailability(availability);
+  return blockedDates.includes(dayKey) || closedWeekdays.includes(weekdayOf(dayKey));
+}
+
 /**
  * The four slots of one day.
  * @param {string[]} busy ISO instants of the agent's confirmed visits.
- * @returns {{hour: number, iso: string, disabled: boolean, reason: 'past'|'busy'|null}[]}
+ * @param {{closedWeekdays?: number[], blockedDates?: string[]}} availability
+ * @returns {{hour: number, iso: string, disabled: boolean, reason: 'past'|'busy'|'closed'|null}[]}
  */
-export function slotsForDay(dayKey, { now = new Date(), busy = [] } = {}) {
+export function slotsForDay(dayKey, { now = new Date(), busy = [], availability = null } = {}) {
   const busyTimes = busy.map(toTime).filter((t) => t != null);
   const earliest = now.getTime() + MIN_LEAD_HOURS * HOUR_MS;
+  const closed = availability ? dayClosed(dayKey, availability) : false;
   return VISIT_SLOT_HOURS.map((hour) => {
     const iso = slotIso(dayKey, hour);
     const at = Date.parse(iso);
     let reason = null;
     if (at < earliest) reason = 'past';
+    else if (closed) reason = 'closed';
     else if (busyTimes.some((t) => Math.abs(t - at) < CLASH_MINUTES * 60 * 1000)) reason = 'busy';
     return { hour, iso, disabled: reason !== null, reason };
   });
@@ -62,8 +92,24 @@ export function dayHasFreeSlot(dayKey, options) {
 }
 
 /**
+ * The bookable days laid out as calendar weeks, Monday first: each row is
+ * seven cells, a `YYYY-MM-DD` inside the window or null outside it (the days
+ * of the first week already gone, the tail of the last week).
+ * @returns {(string|null)[][]}
+ */
+export function calendarWeeks(now = new Date()) {
+  const days = visitDays(now);
+  const lead = (weekdayOf(days[0]) + 6) % 7; // Monday = 0
+  const cells = [...Array(lead).fill(null), ...days];
+  while (cells.length % 7) cells.push(null);
+  const weeks = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+  return weeks;
+}
+
+/**
  * The form's submitted slot, checked the way the picker built it: a Kinshasa
- * wall time on one of the four hours, within the next seven days, far enough
+ * wall time on one of the four hours, within the bookable window, far enough
  * ahead. Returns the ISO string and the French phrase every existing reader
  * (agent alert, dashboard) already shows, or an error code.
  */

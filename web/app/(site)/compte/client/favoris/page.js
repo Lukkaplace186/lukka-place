@@ -61,7 +61,6 @@ async function FavoritesSection({ customerId, favoriteIds }) {
   return (
     <FavoritesBoard
       listings={listings}
-      whatsappNumber={process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || null}
       removeAction={removeFavoriteAction}
       restoreAction={restoreFavoriteAction}
       notes={notes}

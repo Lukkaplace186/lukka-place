@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { Mail, Check, CalendarClock, Plus } from 'lucide-react';
-import { PortalSectionHeading, PortalEmpty } from '@/components/ClientPortalUI';
+import { Mail, Check, Plus } from 'lucide-react';
+import { PortalEmpty } from '@/components/ClientPortalUI';
 import { getPortalCustomer, isViewingLead } from '@/lib/customerPortal';
 import { getCustomerInquiries } from '@/lib/customerInquiries';
 import { getLocationHierarchyWithFallback } from '@/lib/locations';
@@ -20,6 +20,7 @@ import {
   viewingFalloffReasonAction,
 } from '../actions';
 import InquiryThreads from './InquiryThreads';
+import ActivitySubTabs, { activityCounts, isVisitInquiry } from '../ActivitySubTabs';
 import { getT, getLocale } from '@/lib/i18n/server';
 
 // generateMetadata, not a static object: the tab title follows the language.
@@ -110,12 +111,14 @@ async function resolveCommunes() {
  * than the client-side currency toggle: this is transactional history, and
  * lib/whatsapp.js already takes the same position for the same reason.
  *
- * "Visites planifiées" used to be a separate tab/page over a *filtered*
- * subset of this exact same `getCustomerInquiries()` call (any lead whose
- * status is VIEWING_REQUESTED/VIEWING_COMPLETED). Rather than keep two pages
- * re-fetching the same rows, each thread now just carries `isViewing` so the
- * one chronological list can surface viewing-specific status and actions
- * inline (see InquiryThreads.js) instead of duplicating the list elsewhere.
+ * Activité › Recherches (2026-10-10). This list used to hold every lead,
+ * visit requests included, while the Visites tab showed those same bookings
+ * as visits — one booking, two tabs. A lead with a real viewing request
+ * behind it is a visit and is listed under Visites only (`isVisitInquiry`);
+ * what stays here is what is not a visit: "Trouver pour moi" searches and the
+ * agents' proposals, enquiries about a listing or a project. `isViewing` and
+ * the ViewingPanel remain for the older assistant leads that carry a viewing
+ * status with no request row, which Visites cannot show.
  */
 export default async function MessagesPage({ searchParams }) {
   const t = await getT();
@@ -129,21 +132,19 @@ export default async function MessagesPage({ searchParams }) {
   const submittedId = Number.parseInt(String(params?.submitted ?? ''), 10);
   const justSubmitted = Number.isFinite(submittedId) ? submittedId : null;
 
-  const [inquiries, communes, locale] = await Promise.all([
+  const [allInquiries, communes, locale] = await Promise.all([
     getCustomerInquiries(session.customerId),
     resolveCommunes(),
     getLocale(),
   ]);
+  const counts = activityCounts(allInquiries);
+  const inquiries = allInquiries.filter((inquiry) => !isVisitInquiry(inquiry));
 
   if (inquiries.length === 0) {
     return (
       <div>
-        <PortalSectionHeading
-          title={t('account.portal.tabs.messages')}
-          lead={t('account.requests.emptyLead')}
-          sublead={t('account.requests.trackHelp')}
-          className="mb-7"
-        />
+        <h1 className="u-title-page mb-4 text-ink sm:mb-6">{t('account.activity.title')}</h1>
+        <ActivitySubTabs view="recherches" counts={counts} />
         <PortalEmpty
           icon={Mail}
           title={t('account.requests.emptyTitle')}
@@ -219,38 +220,13 @@ export default async function MessagesPage({ searchParams }) {
   // submission that never happened to anyone who edited the query string.
   const confirmed = justSubmitted != null && threads.some((thread) => thread.id === justSubmitted);
 
-  // The next agreed visit, pinned above the list. Only a CONFIRMED visit with
-  // a real `scheduled_at` still ahead qualifies — a requested phrase
-  // ("mardi 10h") is not an appointment until the agent has agreed it.
-  let nextVisit = null;
-  for (const { lead, listing, viewings } of inquiries) {
-    const viewing = viewings?.[0];
-    if (viewing?.status !== 'CONFIRMED' || !viewing.scheduled_at) continue;
-    const at = new Date(viewing.scheduled_at);
-    if (Number.isNaN(at.getTime()) || at <= now) continue;
-    if (!nextVisit || at < nextVisit.at) {
-      nextVisit = {
-        at,
-        threadId: lead.id,
-        slotLabel: formatSlot(viewing.scheduled_at, locale),
-        title: listing?.title || null,
-        image: listing ? listingImages(listing)[0] || null : null,
-      };
-    }
-  }
-
   return (
     <div>
-      <PortalSectionHeading
-        title={t('account.portal.tabs.messages')}
-        lead={t('account.requests.exchangeCount', { count: threads.length })}
-        sublead={t('account.requests.trackHelp')}
-        className="mb-7 hidden sm:flex"
-      />
-      <h1 className="u-title-page mb-1 text-ink sm:hidden">{t('account.portal.nav.requests')}</h1>
+      <h1 className="u-title-page mb-4 text-ink sm:mb-6">{t('account.activity.title')}</h1>
+      <ActivitySubTabs view="recherches" counts={counts} />
       {/* "Nouvelle demande" opens the Trouver pour moi form (/demandes,
-          prefilled from the latest alert); the visits have their own tab. */}
-      <div className="mb-5 flex flex-wrap gap-2">
+          prefilled from the latest alert). */}
+      <div className="mb-5 flex flex-wrap items-center gap-3">
         <Link
           href="/compte/client/demandes"
           className="u-press inline-flex min-h-11 items-center gap-1.5 rounded-[0.625rem] bg-blue px-4 text-sm font-bold text-white"
@@ -258,13 +234,7 @@ export default async function MessagesPage({ searchParams }) {
           <Plus strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" aria-hidden="true" />
           {t('account.home.newRequest')}
         </Link>
-        <Link
-          href="/compte/client/visites"
-          className="u-micro-strong inline-flex min-h-11 items-center gap-1.5 rounded-[0.625rem] bg-surface px-3 text-ink shadow-[inset_0_0_0_1.5px_var(--ink-25)]"
-        >
-          <CalendarClock strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-blue-deep" aria-hidden="true" />
-          {t('account.agenda.openAgenda')}
-        </Link>
+        <p className="text-[0.8125rem] text-ink-45">{t('account.requests.trackHelp')}</p>
       </div>
       {confirmed ? (
         <p
@@ -287,7 +257,6 @@ export default async function MessagesPage({ searchParams }) {
           falloff: viewingFalloffReasonAction,
         }}
         initialThreadId={confirmed ? justSubmitted : null}
-        nextVisit={nextVisit ? { threadId: nextVisit.threadId, slotLabel: nextVisit.slotLabel, title: nextVisit.title, image: nextVisit.image } : null}
       />
     </div>
   );

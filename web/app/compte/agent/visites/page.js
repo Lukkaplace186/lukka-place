@@ -10,6 +10,7 @@ import {
   formatVisitTime,
   groupAgenda,
   placeLine,
+  kinshasaDayKey,
   slotPhraseFr,
 } from '@/lib/visitAgenda';
 import { buildWhatsAppLink } from '@/lib/whatsapp';
@@ -17,6 +18,8 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import AgentPageHeader from '@/components/AgentPageHeader';
 import AgentVisitRequestCard from '@/components/AgentVisitRequestCard';
 import AgentVisitDoneButtons from '@/components/AgentVisitDoneButtons';
+import AgentVisitAvailability from '@/components/AgentVisitAvailability';
+import { getAgentAvailability } from '@/lib/agentAvailability';
 import { VIEWING_REQUEST_STATUS_LABEL_KEYS } from '@/lib/adminLabels';
 import { formatRelativeFr } from '@/lib/format';
 import { canDeclareVisitOutcome } from '@/lib/visitOutcome';
@@ -46,6 +49,9 @@ export default async function AgentVisitAgendaPage() {
   const agentId = await getCurrentAgentId();
   const { listingById, leadScope, hasLeadScope, waitingCount, pendingVisitsCount } =
     await getAgentDashboardContext(agentId);
+
+  // The days this agent takes no visits — what the public calendar greys out.
+  const availability = await getAgentAvailability(agentId);
 
   let visits = [];
   // "À confirmer": what still needs the agent's answer, on the same page as
@@ -223,6 +229,13 @@ export default async function AgentVisitAgendaPage() {
             );
           })}
         </nav>
+
+        {availability.available ? (
+          <AgentVisitAvailability
+            initial={{ closedWeekdays: availability.closedWeekdays, blockedDates: availability.blockedDates }}
+            today={kinshasaDayKey(now)}
+          />
+        ) : null}
 
         {failed && (
           <p className="u-micro rounded-lg bg-warning-tint px-4 py-3 font-semibold text-warning" role="status">

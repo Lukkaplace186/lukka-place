@@ -4,7 +4,9 @@ import { redirect } from 'next/navigation';
 import { phoneFromForm } from '@/lib/phone';
 import { createLead, createViewingRequest } from '@/lib/adminApi';
 import { getListingById } from '@/lib/listings';
-import { validatePickedSlot } from '@/lib/visitSlots';
+import { dayClosed, validatePickedSlot } from '@/lib/visitSlots';
+import { getListingAvailability } from '@/lib/agentAvailability';
+import { kinshasaDayKey } from '@/lib/visitAgenda';
 
 /**
  * Public "Demander une visite" form (EnquiryCard.js) — creates a real lead
@@ -20,6 +22,11 @@ import { validatePickedSlot } from '@/lib/visitSlots';
  * `getListingById` re-applies the public approved-listing filter, so this
  * can never create a viewing request against a pending/unpublished listing
  * id, even a crafted one.
+ *
+ * `return_to=visites` (the saved-listings board) answers on the customer's own
+ * agenda instead of the listing page: that is where the request now is. Any
+ * other value is ignored — the destination is one of two fixed paths, never
+ * something read out of the form.
  */
 export async function submitVisitRequestAction(propertyId, formData) {
   const name = String(formData.get('name') || '').trim().slice(0, 120);
@@ -31,11 +38,19 @@ export async function submitVisitRequestAction(propertyId, formData) {
   const picked = pickedRaw ? validatePickedSlot(pickedRaw) : null;
   const requestedTime = picked?.phrase || (pickedRaw ? '' : String(formData.get('requested_time') || '').trim().slice(0, 200));
 
-  if (!phone) redirect(`/listings/${propertyId}?visit_error=phone`);
-  if (!requestedTime) redirect(`/listings/${propertyId}?visit_error=time`);
+  const base = formData.get('return_to') === 'visites' ? '/compte/client/visites' : `/listings/${propertyId}`;
+
+  if (!phone) redirect(`${base}?visit_error=phone`);
+  if (!requestedTime) redirect(`${base}?visit_error=time`);
 
   const listing = await getListingById(propertyId);
-  if (!listing) redirect(`/listings/${propertyId}?visit_error=1`);
+  if (!listing) redirect(`${base}?visit_error=1`);
+
+  // A day the agent marked as taking no visits: the calendar greys it out, and
+  // a form posted around the calendar is refused the same way.
+  if (picked?.iso && dayClosed(kinshasaDayKey(picked.iso), await getListingAvailability(listing.id))) {
+    redirect(`${base}?visit_error=closed`);
+  }
 
   try {
     const { lead } = await createLead({
@@ -49,8 +64,8 @@ export async function submitVisitRequestAction(propertyId, formData) {
     await createViewingRequest({ leadId: lead.id, propertyId: listing.id, requestedTime, preferredSlotAt: picked?.iso || null });
   } catch (err) {
     console.error(`[listings/${propertyId}] visit request failed: ${err.message}`);
-    redirect(`/listings/${propertyId}?visit_error=1`);
+    redirect(`${base}?visit_error=1`);
   }
 
-  redirect(`/listings/${propertyId}?visit_sent=1`);
+  redirect(`${base}?visit_sent=1`);
 }

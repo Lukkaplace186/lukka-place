@@ -14,7 +14,9 @@ import { MAX_FAVORITES, MAX_FAVORITE_NOTE_LENGTH } from '@/lib/accountLimits';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { listingImages, specItems, typeLabel, feedLocationLine, formatAddedOn } from '@/lib/listingView';
 import { entryCostParts } from '@/lib/clientPortalView';
-import { buildWhatsAppMessage, buildWhatsAppLink } from '@/lib/whatsapp';
+import { resolveWhatsAppRouting, ROUTING_TYPES } from '@/lib/leadRouting';
+import { trackLeadClick } from '@/lib/analyticsClient';
+import VisitRequestDialog from '@/components/VisitRequestDialog';
 import { ICON_STROKE_WIDTH, SITE_URL } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n/client';
@@ -231,7 +233,7 @@ function FavoriteNote({ listingId, initialNote, saveNoteAction }) {
   );
 }
 
-function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, onRemove, note, saveNoteAction, showCompare }) {
+function FavoriteCard({ listing, selected, disabled, onToggle, onRemove, onRequestVisit, note, saveNoteAction, showCompare }) {
   const t = useT();
   const images = listingImages(listing);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -240,32 +242,11 @@ function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, o
   const specs = specItems(listing, t);
   const type = typeLabel(listing, t);
 
-  const contactHref = whatsappNumber
-    ? buildWhatsAppLink(
-        whatsappNumber,
-        buildWhatsAppMessage({
-          reference: listing.reference,
-          id: listing.id,
-          propertyType: typeLabel(listing, t) || t('listings.results.subjectFallback'),
-          quartier: listing.quartier,
-          commune: listing.commune,
-          price: listing.price,
-          purpose: listing.purpose,
-          pricePeriod: listing.price_period,
-        }),
-      )
-    : null;
-
-  // No slug fallback for the reference — see lib/whatsapp.js. The link names
-  // the listing; a "Réf." only appears when the listing really has one.
-  const visitHref = whatsappNumber
-    ? buildWhatsAppLink(
-        whatsappNumber,
-        `Bonjour, je souhaite planifier une visite pour ce bien${
-          listing.reference ? ` (Réf. ${listing.reference})` : ''
-        }. Quelles sont vos disponibilités ?\n\n${SITE_URL}/listings/${listing.id}`,
-      )
-    : null;
+  // The listing page's own rule (lib/leadRouting.js): the listing's agent
+  // when their number is verified, Lukka Place's otherwise. This card used to
+  // send every contact to Lukka Place's number, whoever the agent was.
+  const { href: contactHref, routingType } = resolveWhatsAppRouting(listing);
+  const direct = routingType === ROUTING_TYPES.direct;
 
   return (
     <PortalPanel as="article" className="flex flex-col overflow-hidden">
@@ -412,10 +393,11 @@ function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, o
               href={contactHref}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={() => trackLeadClick(listing, routingType)}
               className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-green-ink px-4 py-2.5 text-[0.8125rem] font-semibold text-white transition-colors hover:bg-green-deep"
             >
               <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
-              {t('account.favorites.contactWhatsApp')}
+              {direct ? t('account.favorites.contactAgentWhatsApp') : t('account.favorites.contactLukkaWhatsApp')}
             </a>
           ) : (
             <p className="rounded-md bg-canvas-deep px-3 py-2 text-center text-[0.75rem] text-ink-45">
@@ -423,17 +405,17 @@ function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, o
             </p>
           )}
 
-          {visitHref ? (
-            <a
-              href={visitHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="u-btn-secondary inline-flex w-full items-center justify-center gap-2 rounded-full px-4 py-2.5 text-[0.8125rem] font-semibold text-ink"
-            >
-              <CalendarDays strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
-              {t('account.favorites.scheduleViewing')}
-            </a>
-          ) : null}
+          {/* The booking calendar (components/VisitRequestDialog.js), not a
+              chat: the request reaches the listing's agent and shows on the
+              customer's own agenda. */}
+          <button
+            type="button"
+            onClick={onRequestVisit}
+            className="u-btn-secondary u-press inline-flex w-full items-center justify-center gap-2 rounded-full px-4 py-2.5 text-[0.8125rem] font-semibold text-ink"
+          >
+            <CalendarDays strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
+            {t('account.favorites.scheduleViewing')}
+          </button>
         </div>
       </div>
     </PortalPanel>
@@ -453,7 +435,6 @@ function FavoriteCard({ listing, selected, disabled, onToggle, whatsappNumber, o
  */
 export default function FavoritesBoard({
   listings,
-  whatsappNumber,
   removeAction,
   restoreAction,
   notes = {},
@@ -464,6 +445,8 @@ export default function FavoritesBoard({
   const { showToast } = useToast();
   const [selected, setSelected] = useState([]);
   const [compareOpen, setCompareOpen] = useState(false);
+  // One booking dialog for the whole board, opened for the listing tapped.
+  const [visitFor, setVisitFor] = useState(null);
   const [hidden, setHidden] = useState(() => new Set());
   // id -> { listing, index }: an undone remove, shown at its old position
   // until the refreshed `listings` includes it again.
@@ -640,8 +623,8 @@ export default function FavoritesBoard({
             selected={selected.includes(listing.id)}
             disabled={!selected.includes(listing.id) && selected.length >= MAX_COMPARE}
             onToggle={() => toggle(listing.id)}
-            whatsappNumber={whatsappNumber}
             onRemove={() => remove(listing)}
+            onRequestVisit={() => setVisitFor(listing)}
             showCompare={canOfferCompare}
             note={notes[String(listing.id)] || ''}
             saveNoteAction={saveNoteAction}
@@ -653,6 +636,19 @@ export default function FavoritesBoard({
         <p className="mt-5 text-[0.8125rem] text-ink-45">
           {t('account.favorites.compareMax', { max: MAX_COMPARE })}
         </p>
+      ) : null}
+
+      {visitFor ? (
+        <VisitRequestDialog
+          key={visitFor.id}
+          propertyId={visitFor.id}
+          open
+          onOpenChange={(next) => {
+            if (!next) setVisitFor(null);
+          }}
+          returnTo="visites"
+          subject={feedLocationLine(visitFor) || visitFor.title}
+        />
       ) : null}
 
       <Dialog open={compareOpen} onOpenChange={setCompareOpen}>

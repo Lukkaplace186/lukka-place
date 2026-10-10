@@ -24,8 +24,11 @@ const WB_MIN_CORRECTION = 0.015;
 const WHITE_POINT_MIN = 235;
 const STRETCH_MAX_GAIN = 1.25;
 
-const LIGHTNESS_TARGET = 0.6;
-const LIGHTNESS_GAMMA_MIN = 0.72;
+// e4 (2026-10-10): 0.60 / 0.72 still read as dim next to the portals this site is
+// compared with. 0.66 / 0.62 was picked from side-by-side sheets of live photos;
+// 0.72 / 0.55 was tried and flattened white rooms. Still lighten-only.
+const LIGHTNESS_TARGET = 0.66;
+const LIGHTNESS_GAMMA_MIN = 0.62;
 
 const VIBRANCE_MAX = 0.18;
 const VIVID_SATURATION = 0.4;
@@ -207,7 +210,7 @@ function enhancePixels(data, channels = 4, options = {}) {
  * Bumped whenever the correction above changes, so a re-run writes new object
  * names instead of overwriting URLs next/image has cached for 30 days.
  */
-const ENHANCE_VERSION = 'e3';
+const ENHANCE_VERSION = 'e4';
 const ENHANCEABLE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
 /**
  * Re-encoding a WhatsApp photo is a SECOND JPEG generation, and at q85 with
@@ -220,7 +223,7 @@ const ENHANCEABLE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'webp'];
 const OUTPUT_JPEG = { quality: 92, chromaSubsampling: '4:4:4' };
 const OUTPUT_SHARPEN = { sigma: 0.5, m1: 0.3, m2: 0.6 };
 
-/** 'properties/9/whatsapp_ab12.png' -> 'properties/9/whatsapp_ab12_e3.jpg' (output is always JPEG). */
+/** 'properties/9/whatsapp_ab12.png' -> 'properties/9/whatsapp_ab12_e4.jpg' (output is always JPEG). */
 function enhancedObjectName(name) {
   const base = String(name).replace(/\.[^./]+$/, '');
   return `${base}_${ENHANCE_VERSION}.jpg`;

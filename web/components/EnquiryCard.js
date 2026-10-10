@@ -2,9 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { useIsLoggedIn } from '@/lib/customerClient';
 import { MessageCircle, Phone, CalendarClock } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import FavoriteButton from './FavoriteButton';
 import { trackCallClick, trackLeadClick } from '@/lib/analyticsClient';
 import { resolveWhatsAppRouting } from '@/lib/leadRouting';
@@ -13,60 +11,35 @@ import AgentMonogram from './AgentMonogram';
 import AgentVerificationBadge from './AgentVerificationBadge';
 import { displayableAgencyName } from '@/lib/agentIdentity';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
-import { submitVisitRequestAction } from '@/app/(site)/listings/[id]/actions';
-import VisitSlotPicker from './VisitSlotPicker';
+import VisitRequestDialog from './VisitRequestDialog';
 import AddToVisitCartButton from './AddToVisitCartButton';
 import { feedLocationLine, listingImages } from '@/lib/listingView';
 import { formatPrice } from '@/lib/format';
-import PhoneField from './PhoneField';
-import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
 import { telHref } from '@/lib/phone';
-import { useLocale, useT } from '@/lib/i18n/client';
+import { useT } from '@/lib/i18n/client';
 
-const FIELD_CLASS =
-  'u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35';
-
-// Keys, not text — see components/navItems.js.
 /** MobileListingBar's "Visiter" opens the dialog through this event. */
 export const OPEN_VISIT_EVENT = 'lukka:open-visit';
 
 const VISIT_ERROR_KEYS = {
   phone: 'enquiry.errors.phone',
   time: 'enquiry.errors.time',
+  closed: 'enquiry.errors.closed',
   1: 'enquiry.errors.failed',
 };
 
 /**
- * "Demander une visite" — a real Dialog + form-action, same composition
- * DeleteAccountButton.js already established for a public (site) page: a
- * plain trigger button, local `open` state, and a server-action `<form>`
- * inside DialogFooter. The redirect this action ends with closes the dialog
- * on its own (a full page navigation unmounts it); visitSent/visitError
- * feedback is rendered as an always-visible banner on the parent card
- * instead of inside the dialog itself — EnquiryCard renders twice on this
- * page (mobile inline + desktop rail), and a Radix Dialog portals to
- * `document.body`, bypassing whichever instance's parent is CSS-hidden for
- * the current viewport; auto-reopening both on error would show two
- * stacked dialogs at once.
+ * The card's "Demander une visite" button and its dialog
+ * (components/VisitRequestDialog.js). visitSent/visitError feedback is an
+ * always-visible banner on the parent card rather than inside the dialog:
+ * EnquiryCard renders twice on this page (mobile inline + desktop rail), and a
+ * Radix Dialog portals to `document.body`, bypassing whichever instance's
+ * parent is CSS-hidden for the current viewport; auto-reopening both on error
+ * would show two stacked dialogs at once.
  */
-// One request per page load: EnquiryCard renders twice on a listing page
-// (mobile inline + desktop rail), and both dialogs want the same profile.
-let accountProfilePromise = null;
-function loadAccountProfile() {
-  if (!accountProfilePromise) {
-    accountProfilePromise = fetch('/api/account/me', { credentials: 'same-origin' })
-      .then((res) => (res.ok ? res.json() : null))
-      .catch(() => null);
-  }
-  return accountProfilePromise;
-}
-
-function VisitRequestDialog({ propertyId }) {
+function VisitRequestButton({ propertyId }) {
   const t = useT();
-  const locale = useLocale();
   const [open, setOpen] = useState(false);
-  const [slot, setSlot] = useState(null);
-  const bound = submitVisitRequestAction.bind(null, propertyId);
   const triggerRef = useRef(null);
 
   // The page mounts two EnquiryCards (phone column + desktop rail, one of
@@ -82,29 +55,8 @@ function VisitRequestDialog({ propertyId }) {
     return () => window.removeEventListener(OPEN_VISIT_EVENT, onOpen);
   }, [propertyId]);
 
-  // A signed-in customer's visit request is found in their account by
-  // phone number, so the form opens with the account's own number (and
-  // name) already in it — see app/api/account/me/route.js. Still editable:
-  // someone booking for a relative may genuinely want another number.
-  const loggedIn = useIsLoggedIn();
-  const [profile, setProfile] = useState(null);
-  useEffect(() => {
-    if (!loggedIn) return undefined;
-    let live = true;
-    loadAccountProfile().then((value) => {
-      if (live && value) setProfile(value);
-    });
-    return () => {
-      live = false;
-    };
-  }, [loggedIn]);
-  // Uncontrolled fields read defaultValue once, so they remount when the
-  // profile arrives. It is fetched on page load, well before a visitor
-  // reaches the button, so nothing typed is lost to the remount.
-  const prefillKey = profile ? 'account' : 'anonymous';
-
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <>
       <button
         ref={triggerRef}
         type="button"
@@ -114,67 +66,8 @@ function VisitRequestDialog({ propertyId }) {
         <CalendarClock strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
         {t('enquiry.requestViewing')}
       </button>
-
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t('enquiry.requestViewing')}</DialogTitle>
-          <DialogDescription>
-            {t('enquiry.intro')}
-          </DialogDescription>
-        </DialogHeader>
-
-        <form action={bound} className="flex flex-col gap-4">
-          <div>
-            <label htmlFor="visit-name" className="mb-1.5 block text-[0.8125rem] font-semibold text-ink-70">
-              {t('enquiry.nameOptional')}
-            </label>
-            <input
-              key={prefillKey}
-              id="visit-name"
-              name="name"
-              autoComplete="name"
-              enterKeyHint="next"
-              defaultValue={profile?.fullName || ''}
-              placeholder={t('enquiry.namePlaceholder')}
-              className={FIELD_CLASS}
-            />
-          </div>
-
-          <PhoneField
-            key={prefillKey}
-            name="phone"
-            id="visit-phone"
-            locale={locale}
-            {...(profile?.phoneCountry
-              ? { defaultCountry: profile.phoneCountry, defaultValue: profile.phoneNational, detectCountry: false }
-              : {})}
-            labels={{ ...phoneFieldLabels(t), label: t('enquiry.whatsappNumber') }}
-            labelClassName="mb-1.5 text-[0.8125rem] font-semibold normal-case tracking-normal text-ink-70"
-            fieldClassName="h-11 rounded-lg bg-surface"
-            required
-          />
-
-          {/* A real day and hour (lib/visitSlots.js), not free text: the
-              agent's Accepter pins it straight onto both agendas. */}
-          <VisitSlotPicker propertyId={propertyId} name="preferred_slot_at" value={slot} onChange={setSlot} />
-
-          <DialogFooter>
-            <DialogClose asChild>
-              <button type="button" className="rounded-full border border-line px-4 py-2 text-sm font-medium text-ink-70 hover:bg-canvas-alt">
-                {t('common.actions.cancel')}
-              </button>
-            </DialogClose>
-            <button
-              type="submit"
-              disabled={!slot}
-              className="u-btn-primary u-press rounded-lg bg-blue px-5 py-2 text-sm font-bold text-white disabled:opacity-50"
-            >
-              {t('enquiry.submit')}
-            </button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+      <VisitRequestDialog propertyId={propertyId} open={open} onOpenChange={setOpen} />
+    </>
   );
 }
 
@@ -322,7 +215,7 @@ export default function EnquiryCard({ listing, visitSent, visitError, saveShare 
           </span>
         )}
 
-        <VisitRequestDialog propertyId={id} />
+        <VisitRequestButton propertyId={id} />
         {/* "Mes visites": several listings, one request (lib/visitCart.js). */}
         <AddToVisitCartButton
           listing={{

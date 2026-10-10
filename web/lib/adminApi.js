@@ -270,7 +270,7 @@ export async function createViewingBatch({ waId, name = null, items }) {
   });
 }
 
-/** The confirmed visit instants of one agent in the next 8 days — instants only. */
+/** The confirmed visit instants of one agent in the next 15 days — instants only. */
 export async function getBusySlots({ agentId = null, propertyIds = [] }) {
   const params = new URLSearchParams();
   if (agentId) params.set('agent_id', String(agentId));

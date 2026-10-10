@@ -45,17 +45,33 @@ test('the portal tabs follow the customer journey, not an arbitrary order', () =
   assert.deepEqual(declaredTabOrder(), [
     '/compte/client', // Accueil — what waits on the customer
     '/compte/client/favoris', // Enregistrés — what they saved while browsing
-    '/compte/client/visites', // Visites — the visits they asked for
-    '/compte/client/messages', // Demandes — requests and the answers to them
+    '/compte/client/visites', // Activité — visits and requests, one tab (2026-10-10)
     '/compte/client/parametres', // not part of the funnel; stays last
   ]);
 });
 
 test('"Trouver pour moi" is reachable from the tab that tracks its answers, and from Accueil', () => {
   const tabs = read(TABS_FILE);
-  assert.match(tabs, /p\.startsWith\('\/compte\/client\/demandes'\)/, 'the form lights the Demandes tab');
+  assert.match(tabs, /p\.startsWith\('\/compte\/client\/demandes'\)/, 'the form lights the Activité tab');
+  assert.match(tabs, /p\.startsWith\('\/compte\/client\/messages'\)/, 'so does the requests list');
   assert.match(read(MESSAGES_FILE), /href="\/compte\/client\/demandes"/, 'Demandes offers "Nouvelle demande"');
   assert.match(read('app/(site)/compte/client/page.js'), /href: '\/compte\/client\/demandes'/, 'Accueil offers it as a quick action');
+});
+
+test('a visit request is a visit: it is listed under Visites and nowhere else', async () => {
+  const { activityCounts, isVisitInquiry } = await import('@/lib/clientPortalView.js');
+  const inquiries = [
+    { lead: { id: 1 }, viewings: [{ id: 10 }, { id: 11 }] },
+    { lead: { id: 2 }, viewings: [] },
+    { lead: { id: 3 } },
+  ];
+  assert.deepEqual(inquiries.map(isVisitInquiry), [true, false, false]);
+  assert.deepEqual(activityCounts(inquiries), { visits: 2, requests: 2 });
+  const messages = read(MESSAGES_FILE);
+  assert.match(messages, /allInquiries\.filter\(\(inquiry\) => !isVisitInquiry\(inquiry\)\)/, 'the requests list leaves visits out');
+  for (const file of [MESSAGES_FILE, 'app/(site)/compte/client/visites/page.js']) {
+    assert.match(read(file), /<ActivitySubTabs view="/, `${file} carries the Visites | Recherches switch`);
+  }
 });
 
 test('submitting a request hands the customer to the tracking tab, not back to the form', () => {

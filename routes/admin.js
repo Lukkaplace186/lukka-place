@@ -920,7 +920,8 @@ router.post('/viewing-requests/batch', (req, res) => {
 
 /**
  * GET /admin/viewing-requests/busy-slots?property_ids=1,2&agent_id=7 — the
- * confirmed visit instants of one agent in the next 8 days, for the public
+ * confirmed visit instants of one agent in the next 15 days (the calendar
+ * shows 14 — web/lib/visitSlots.js VISIT_DAYS), for the public
  * slot picker to grey out a clash. Instants only: no customer, no listing.
  */
 router.get('/viewing-requests/busy-slots', (req, res) => {
@@ -935,7 +936,7 @@ router.get('/viewing-requests/busy-slots', (req, res) => {
       propertyIds,
       agentId: Number.isSafeInteger(agentId) ? agentId : null,
       fromIso: new Date(now - 2 * 3600 * 1000).toISOString(),
-      toIso: new Date(now + 8 * 86400 * 1000).toISOString(),
+      toIso: new Date(now + 15 * 86400 * 1000).toISOString(),
     });
     return res.json({ success: true, data });
   } catch (err) {

@@ -112,9 +112,9 @@ test('old ?tab= links still land on Enregistrés', () => {
   assert.match(read('lib/searchAlertSweep.js'), /\/compte\/client\/favoris\?tab=alertes/, 'the link in every WhatsApp alert');
 });
 
-test('five tabs, a phone bottom bar, counts as grey totals', () => {
+test('four tabs, a phone bottom bar, counts as grey totals', () => {
   const tabs = read('app/(site)/compte/client/ClientPortalTabs.js');
-  assert.match(tabs, /grid-cols-5/);
+  assert.match(tabs, /grid-cols-4/);
   assert.match(tabs, /lg:hidden/);
   assert.doesNotMatch(tabs, /bg-blue[^-\w].*\{count\}/, 'a total is not an alert');
   assert.match(read('components/Footer.js'), /pb-\[calc\(5rem\+env\(safe-area-inset-bottom\)\)\]/, 'the portal footer clears the fixed bar');
@@ -130,7 +130,8 @@ test('every new label exists in both languages', async () => {
   const { default: fr } = await import('@/lib/i18n/fr.json', { with: { type: 'json' } });
   const { default: en } = await import('@/lib/i18n/en.json', { with: { type: 'json' } });
   const keys = [
-    'account.portal.nav.home', 'account.portal.nav.saved', 'account.portal.nav.visits', 'account.portal.nav.requests', 'account.portal.nav.profile',
+    'account.portal.nav.home', 'account.portal.nav.saved', 'account.portal.nav.activity', 'account.portal.nav.profile',
+    'account.activity.title', 'account.activity.tabs.visits', 'account.activity.tabs.requests',
     'account.home.answerTitle', 'account.home.nextVisit', 'account.home.newForAlerts', 'account.home.quick.findForMe',
     'account.agenda.band.proposed', 'account.agenda.groups.answer', 'account.agenda.checkin.AGENT_ABSENT',
     'account.entry.deposit', 'account.entry.advance', 'account.entry.commission',

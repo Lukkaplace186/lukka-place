@@ -149,6 +149,30 @@ export function freshAlertListings(matches = [], limit = 10) {
   return { listings: out.slice(0, limit), total: out.length };
 }
 
+/**
+ * The Activité tab's one rule (2026-10-10): Visites holds visits, Recherches
+ * holds everything else, and no booking appears under both.
+ */
+/** A lead that is a visit: it has at least one real viewing_requests row. */
+export function isVisitInquiry(inquiry) {
+  return (inquiry?.viewings?.length ?? 0) > 0;
+}
+
+/**
+ * @param {{viewings?: Object[]}[]} inquiries getCustomerInquiries' rows.
+ * @returns {{visits: number, requests: number}} visits are counted per viewing
+ *   request (one lead can hold several), requests per lead.
+ */
+export function activityCounts(inquiries = []) {
+  let visits = 0;
+  let requests = 0;
+  for (const inquiry of inquiries) {
+    if (isVisitInquiry(inquiry)) visits += inquiry.viewings.length;
+    else requests += 1;
+  }
+  return { visits, requests };
+}
+
 /** "Grace" from "Grace Ilunga"; null when the account has no name. */
 export function firstName(fullName) {
   const first = String(fullName || '').trim().split(/\s+/)[0];

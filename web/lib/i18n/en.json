@@ -151,15 +151,15 @@
       "subtitle": "List your properties and receive customer enquiries on WhatsApp.",
       "cta": "Become a Partner Agency"
     },
-    "tagline": "Kinshasa's property marketplace — apartments, villas and plots, to rent or to buy.",
+    "tagline": "Apartments, villas and plots, to rent or to buy. We are starting in Kinshasa, on the way to covering the whole DRC.",
     "disclaimer": "Lukka Place is a property listings platform in Kinshasa. The information provided in listings is published under the responsibility of the advertisers. Lukka Place does not provide direct financial brokerage services and facilitates introductions via listing reference.",
-    "copyright": "© {year} Lukka Place — Kinshasa, DRC.",
+    "copyright": "© {year} Lukka Place — Kinshasa first, then the whole DRC.",
     "whatsappGreeting": "Hello, I'm contacting you from lukkaplace.com."
   },
   "home": {
     "hero": {
       "title": "Apartments. Villas. Plots. Agencies.",
-      "subtitle": "Listings reviewed by our team, prices shown upfront & direct contact on WhatsApp.",
+      "subtitle": "Kinshasa first, the whole DRC next. Reviewed listings, stated prices and direct contact on WhatsApp.",
       "photoCredit": "Photo by kaysha on Unsplash"
     },
     "search": {
@@ -248,42 +248,30 @@
   },
   "about": {
     "metaTitle": "About — Lukka Place",
-    "metaDescription": "Lukka Place makes house hunting in Kinshasa simpler: reviewed listings, agents you can reach directly and clear property details, in one simple, mobile-first search.",
+    "metaDescription": "Lukka Place makes house hunting simpler: reviewed listings, clear prices, viewings booked online and agents you can reach directly. We are starting in Kinshasa, on the way to covering the whole DRC.",
     "eyebrow": "About",
     "heroKicker": "About Lukka Place",
-    "heroTitle": "Simplifying the Search for Your Next Home.",
-    "heroAccent": "Simplifying the Search",
+    "heroTitle": "Find Your Next Home, Without the Runaround.",
+    "heroAccent": "Without the Runaround",
     "heroPhotoAlt": "A young couple moving in, holding a box",
     "photoCredit": "Photo: {name} / Pexels",
-    "heroLead": "House hunting shouldn't mean endless calls, unverified listings or wasted trips across Kinshasa. We connect you directly with verified agents and clear property details in one simple, mobile-first search.",
+    "heroLead": "Reviewed listings, clear prices and the agent one tap away. We are starting in Kinshasa, then moving city by city until we cover the whole DRC.",
     "ctaBrowse": "Browse listings",
     "ctaAgent": "I'm an agent",
-    "visionEyebrow": "Our Vision",
-    "visionTitle": "For Everyone, in Kinshasa or Abroad, to Find Their Next Home with Confidence.",
-    "visionAccent": "Home",
-    "visionBody": "Lukka Place started from a simple observation: in Kinshasa, finding a home takes too long and relies too often on word of mouth. We are building the one place where every listing is a property that is genuinely available, described honestly, with the right person at the other end of the line.",
-    "visionPhotoBukavuAlt": "Aerial view of Bukavu, Democratic Republic of the Congo",
+    "visionEyebrow": "Our Ambition",
+    "visionTitle": "Kinshasa First. Then the Whole DRC.",
+    "visionAccent": "the Whole DRC",
+    "visionBody": "Finding a home takes too long: calls nobody answers, vague listings, trips for nothing.",
+    "visionPhotoBukavuAlt": "Aerial view of a city in the Democratic Republic of the Congo (Bukavu)",
     "visionPhotoBuildingAlt": "A residential building in Central Africa",
     "visionPhotoFlagAlt": "The flag of the Democratic Republic of the Congo",
     "visionPhotoCredit": "Photos: Edouard Mihigo, aboodi vesakaran and others / Pexels",
-    "changeEyebrow": "What Changes",
-    "changeTitle": "The Search, Without the Detours",
-    "change1Title": "No More Endless Calls",
-    "change1Body": "Every listing gives you a direct contact: WhatsApp or a call, in one tap, with no account and no form.",
-    "change2Title": "Reviewed Listings, Verified Agents",
-    "change2Body": "Every listing is structured and reviewed by our team before it goes live. An agent's number is only shown once it has been verified.",
-    "change3Title": "Fewer Wasted Trips",
-    "change3Body": "Photos, neighbourhood and commune, deposit, advance and commission stated before you set off — and agents regularly confirm the property is still available.",
-    "figuresEyebrow": "Lukka Place Today",
-    "figuresListings": {
-      "one": "listing online",
-      "other": "listings online"
-    },
-    "figuresCommunes": {
-      "one": "commune with properties",
-      "other": "communes with properties"
-    },
-    "figuresWhatsapp": "WhatsApp message is all it takes to list",
+    "changeEyebrow": "Why Lukka Place",
+    "changeTitle": "Four Reasons to Search Here",
+    "change1Title": "A Real Contact, Right Away",
+    "change1Body": "WhatsApp or a call, in one tap. No account to create, no form to fill in.",
+    "change2Title": "Reviewed Listings",
+    "change2Body": "Our team reviews every listing before it goes live. An agent's number only appears once it has been verified.",
     "agentsEyebrow": "For Agents",
     "agentsTitle": "List from WhatsApp, We Do the Rest",
     "agentsStep1Title": "Send Your Property",
@@ -291,12 +279,22 @@
     "agentsStep2Title": "We Structure It",
     "agentsStep2Body": "Price, rooms, neighbourhood, entry costs: the listing is formatted, then reviewed by our team.",
     "agentsStep3Title": "You Receive the Customers",
-    "agentsStep3Body": "Viewing requests and contacts come straight to your WhatsApp, with a graphic ready to share.",
+    "agentsStep3Body": "Viewing requests and contacts arrive on your WhatsApp and in your agenda, with a graphic ready to share.",
     "agentsCta": "Become a Partner Agent",
     "notesTitle": "Good to Know",
     "title": "A Platform Built for Kinshasa",
     "body3": "Prices are set in US dollars. The Congolese franc display is an indicative estimate, converted at a dated reference rate, and is never presented as the contractual price.",
-    "body4": "Lukka Place does not provide direct financial brokerage services; the platform facilitates introductions between advertisers and interested parties via listing reference."
+    "body4": "Lukka Place does not provide direct financial brokerage services; the platform facilitates introductions between advertisers and interested parties via listing reference.",
+    "visionBody2": "We are changing that, starting with Kinshasa, commune by commune and neighbourhood by neighbourhood. Then we go further, city by city, until the whole country is covered.",
+    "visionBody3": "Whether you are on the ground or abroad, you search the same way: simply, and with confidence.",
+    "change3aTitle": "Everything Stated Before You Set Off",
+    "change3aBody": "Photos, neighbourhood, price, deposit, advance and commission: you know what to expect before you move.",
+    "change4Title": "A Viewing Booked in Two Taps",
+    "change4Body": "Pick the day and the time. The agent confirms, and you follow everything from your account.",
+    "startEyebrow": "Your Move",
+    "startTitle": "Your Next Home May Already Be Online.",
+    "startBody": "Browse the listings, or tell us what you are looking for: our partner agencies get back to you.",
+    "startFindForMe": "Find for me"
   },
   "contact": {
     "metaTitle": "Contact — Lukka Place",
@@ -737,7 +735,7 @@
   },
   "enquiry": {
     "requestViewing": "Request a Viewing",
-    "intro": "Leave your details and a time that suits you — the agent will confirm the viewing on WhatsApp.",
+    "intro": "Pick the day and time. The listing’s agent receives the request and confirms it; you follow their answer in your account.",
     "nameOptional": "Name (optional)",
     "namePlaceholder": "Your name",
     "whatsappNumber": "WhatsApp number",
@@ -745,7 +743,7 @@
     "preferredSlot": "Preferred time",
     "slotPlaceholder": "e.g. Saturday morning, 10am",
     "submit": "Send request",
-    "sent": "Your viewing request has been sent to the agent.",
+    "sent": "Your viewing request has been sent to the listing’s agent.",
     "contactWhatsApp": "Contact on WhatsApp",
     "contactUnavailable": "Contact unavailable",
     "callAgent": "Call the agent",
@@ -753,7 +751,8 @@
     "errors": {
       "phone": "Invalid number — check it and try again.",
       "time": "Tell us the time that suits you.",
-      "failed": "Sending failed, please try again."
+      "failed": "Sending failed, please try again.",
+      "closed": "The agent takes no viewings that day. Pick another day."
     },
     "trackVisit": "Follow their answer in My viewings →",
     "visitShort": "Visit",
@@ -766,7 +765,10 @@
       "busy": "The agent already has a visit at this time",
       "tooSoon": "Too soon to get there",
       "busyNote": "Struck-through times are already taken by the agent.",
-      "chosen": "Requested visit: {slot}"
+      "chosen": "Requested visit: {slot}",
+      "closed": "The agent takes no viewings that day",
+      "dayFull": "No slot left that day",
+      "closedNote": "Crossed-out days: the agent takes no viewings, or no slot is left."
     },
     "cart": {
       "add": "Add to my visits",
@@ -1555,6 +1557,23 @@
         "notYet": "This visit can’t be recorded yet.",
         "auth": "Your session has expired. Log in again.",
         "failed": "Couldn’t save right now. Try again."
+      },
+      "availability": {
+        "title": "Days Without Viewings",
+        "none": "No day blocked: customers can ask for any day",
+        "datesCount": {
+          "one": "{count} date blocked",
+          "other": "{count} dates blocked"
+        },
+        "lead": "Ticked days are greyed out in the calendar on your listings: no customer can ask for a viewing then. You still confirm every request.",
+        "weekdays": "Every week",
+        "dates": "Specific dates (next 14 days)",
+        "save": "Save",
+        "saving": "Saving…",
+        "saved": "Days without viewings saved.",
+        "failed": "Could not save. Try again.",
+        "unavailable": "This setting is not available yet.",
+        "note": "Applies at once to all your listings."
       }
     },
     "availability": {
@@ -2388,7 +2407,8 @@
         "saved": "Saved",
         "visits": "Viewings",
         "requests": "Requests",
-        "profile": "Profile"
+        "profile": "Profile",
+        "activity": "Activity"
       }
     },
     "limits": {
@@ -2535,7 +2555,9 @@
       "savedCountShort": {
         "one": "{count} saved property",
         "other": "{count} saved properties"
-      }
+      },
+      "contactAgentWhatsApp": "Message the agent on WhatsApp",
+      "contactLukkaWhatsApp": "Message Lukka Place on WhatsApp"
     },
     "alerts": {
       "title": "My Alerts",
@@ -2677,7 +2699,7 @@
       "proposedByAgency": "Offered by {agency}",
       "requestNumber": "Request no. {id}",
       "submittedOn": "Submitted on {date}",
-      "messagesMetaTitle": "Messages & Viewings — Lukka Place",
+      "messagesMetaTitle": "My Searches — Lukka Place",
       "nextVisit": "Next visit"
     },
     "requestForm": {
@@ -2764,12 +2786,12 @@
     "agenda": {
       "metaTitle": "My Visits — Lukka Place",
       "title": "My Visits",
-      "lead": "Your visits day by day, in Kinshasa time.",
+      "lead": "Your viewings day by day, in Kinshasa time. Each request goes to the listing’s agent.",
       "toMessages": "See conversations",
       "openAgenda": "My visits, day by day",
       "unavailable": "Your visits can’t be loaded right now. Try again in a few minutes.",
       "emptyTitle": "No Visits Planned",
-      "emptyBody": "Pick a property and tap “Request a viewing”: the day and time will appear here.",
+      "emptyBody": "On a listing or in your saved homes, tap “Schedule a viewing”, then pick the day and time: the viewing will appear here.",
       "emptyAction": "Browse listings",
       "groups": {
         "today": "Today",
@@ -2818,7 +2840,8 @@
         "BAD": "Not for me",
         "AGENT_ABSENT": "Agent absent"
       },
-      "acceptShort": "Accept"
+      "acceptShort": "Accept",
+      "sent": "Viewing request sent to the listing’s agent. Their answer will appear here."
     },
     "home": {
       "metaTitle": "Home — Lukka Place Customer Area",
@@ -2879,6 +2902,13 @@
       "months": {
         "one": "{count} month",
         "other": "{count} months"
+      }
+    },
+    "activity": {
+      "title": "My Activity",
+      "tabs": {
+        "visits": "Viewings",
+        "requests": "Searches"
       }
     }
   },
@@ -5180,7 +5210,7 @@
   },
   "site": {
     "metaTitle": "Lukka Place — Property in Kinshasa",
-    "metaDescription": "Find your next property to rent or buy in Kinshasa."
+    "metaDescription": "Find your next property to rent or buy in Kinshasa. Lukka Place is starting in Kinshasa and expanding across the DRC."
   },
   "seo": {
     "forRent": "for rent",

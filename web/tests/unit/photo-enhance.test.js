@@ -12,6 +12,7 @@ import {
   enhancePixels,
   whiteBalanceGains,
   STRETCH_MAX_GAIN,
+  LIGHTNESS_TARGET,
 } from '@/lib/photoEnhance';
 
 const WEB = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -127,7 +128,8 @@ test('a room that really is yellow stays yellow', () => {
 
 test('a light, neutral, colourful photo is not touched at all', () => {
   // Already light (median above LIGHTNESS_TARGET), neutral greys, strong colours.
-  const colours = [[255, 120, 40], [80, 240, 60], [70, 180, 255]];
+  // Light AND saturated: the median has to clear the e4 target (0.66).
+  const colours = [[255, 190, 40], [120, 255, 60], [90, 200, 255]];
   const data = image(64, 48, (x, y, rand) => {
     if (y < 18) {
       const v = Math.min(255, (100 + x * 2.4 + rand() * 4) | 0);
@@ -149,7 +151,9 @@ test('a dark room is lifted, capped, and its highlights do not clip', () => {
   enhancePixels(data);
   const after = lumaOf(data);
   assert.ok(after > before + 10, `lifted ${before.toFixed(0)} -> ${after.toFixed(0)}`);
-  assert.ok(after < before * STRETCH_MAX_GAIN + 40, 'not turned into a bright room');
+  // The gamma floor is the cap: a room this dark ends well short of the target
+  // lightness, it is not flattened up to it.
+  assert.ok(after < 255 * LIGHTNESS_TARGET - 20, `not turned into a bright room (${after.toFixed(0)})`);
   const brightestAfter = Math.max(...data.filter((_, i) => i % 4 === 0));
   assert.ok(brightestAfter < 255, `brightest ${brightestBefore} -> ${brightestAfter}`);
 });

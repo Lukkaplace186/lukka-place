@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import {
   CLASH_MINUTES, MIN_LEAD_HOURS, VISIT_CART_MAX, VISIT_DAYS, VISIT_SLOT_HOURS,
   dayHasFreeSlot, slotIso, slotsForDay, tightPairs, validatePickedSlot, visitDays,
+  calendarWeeks, dayClosed, normaliseAvailability, weekdayOf,
 } from '@/lib/visitSlots';
 import { addToCart, normaliseCart, removeFromCart } from '@/lib/visitCart';
 import { customerToAgentMessage, groupCustomerVisits, visitTone, visitWhen } from '@/lib/customerAgenda';
@@ -16,13 +17,13 @@ const read = (rel) => readFileSync(new URL(`../../${rel}`, import.meta.url), 'ut
 // Wednesday 1 October 2031, 08:30 in Kinshasa (07:30 UTC).
 const NOW = new Date('2031-10-01T07:30:00Z');
 
-test('seven Kinshasa days from today, four slots each', () => {
+test('fourteen Kinshasa days from today, four slots each', () => {
   assert.deepEqual(VISIT_SLOT_HOURS, [9, 11, 14, 16]);
-  assert.equal(VISIT_DAYS, 7);
+  assert.equal(VISIT_DAYS, 14);
   const days = visitDays(NOW);
-  assert.equal(days.length, 7);
+  assert.equal(days.length, 14);
   assert.equal(days[0], '2031-10-01');
-  assert.equal(days[6], '2031-10-07');
+  assert.equal(days[13], '2031-10-14');
   // 23:30 UTC is already the next day in Kinshasa.
   assert.equal(visitDays(new Date('2031-10-01T23:30:00Z'))[0], '2031-10-02');
 });
@@ -67,12 +68,74 @@ test('two picks under an hour apart are flagged, not refused', () => {
 });
 
 test('the visit form posts the picked instant; the action derives the phrase and passes the slot', () => {
-  const card = read('components/EnquiryCard.js');
+  const card = read('components/VisitRequestDialog.js');
   assert.match(card, /<VisitSlotPicker propertyId=\{propertyId\} name="preferred_slot_at"/);
   assert.ok(!/name="requested_time"/.test(card), 'no free-text time field left');
   const action = read('app/(site)/listings/[id]/actions.js');
   assert.match(action, /validatePickedSlot\(pickedRaw\)/);
   assert.match(action, /preferredSlotAt: picked\?\.iso/);
+});
+
+// --- The calendar, agent days off, one booking dialog (2026-10-10) ---------------
+
+test('the calendar lays the fourteen days out in Monday-first weeks', () => {
+  // 1 October 2031 is a Wednesday: two blanks, then the days, then the tail.
+  const weeks = calendarWeeks(NOW);
+  assert.equal(weeks.length, 3);
+  assert.ok(weeks.every((week) => week.length === 7));
+  assert.deepEqual(weeks[0], [null, null, '2031-10-01', '2031-10-02', '2031-10-03', '2031-10-04', '2031-10-05']);
+  assert.deepEqual(weeks[2].filter(Boolean), ['2031-10-13', '2031-10-14']);
+  assert.deepEqual(weeks.flat().filter(Boolean), visitDays(NOW));
+  assert.equal(weekdayOf('2031-10-05'), 0, 'a Sunday in Kinshasa, whatever the runtime timezone');
+});
+
+test('a day the agent takes no visits is closed whole; an agent who set nothing blocks nothing', () => {
+  const availability = { closedWeekdays: [0], blockedDates: ['2031-10-03'] };
+  assert.equal(dayClosed('2031-10-05', availability), true, 'Sunday');
+  assert.equal(dayClosed('2031-10-03', availability), true, 'a blocked date');
+  assert.equal(dayClosed('2031-10-02', availability), false);
+  assert.ok(slotsForDay('2031-10-03', { now: NOW, availability }).every((slot) => slot.reason === 'closed'));
+  assert.equal(dayHasFreeSlot('2031-10-05', { now: NOW, availability }), false);
+  assert.equal(dayHasFreeSlot('2031-10-02', { now: NOW, availability }), true);
+  // "Too soon" still wins on today: the reason shown is the one that is true first.
+  assert.equal(slotsForDay('2031-10-01', { now: NOW, availability: { closedWeekdays: [3] } })[0].reason, 'past');
+  for (const none of [null, undefined, {}, { closedWeekdays: 'x', blockedDates: null }]) {
+    assert.equal(dayClosed('2031-10-05', none), false);
+  }
+});
+
+test('availability is cleaned before it is trusted', () => {
+  assert.deepEqual(
+    normaliseAvailability({ closedWeekdays: [6, '0', 0, 7, -1, 2.5, 'x'], blockedDates: ['2031-10-03T00:00:00Z', 'nope', '2031-10-03', 20311004] }),
+    { closedWeekdays: [0, 6], blockedDates: ['2031-10-03'] },
+  );
+});
+
+test('every surface books through the one dialog, and a blocked day is refused server-side', () => {
+  const board = read('app/(site)/compte/client/favoris/FavoritesBoard.js');
+  assert.match(board, /<VisitRequestDialog[\s\S]*returnTo="visites"/, 'the saved-listings board opens the calendar');
+  assert.ok(!/planifier une visite pour ce bien/i.test(board), 'no hand-built wa.me visit message');
+  assert.ok(!/whatsappNumber/.test(board), 'no central-number prop: routing is resolveWhatsAppRouting');
+  assert.match(board, /resolveWhatsAppRouting\(listing\)/);
+  assert.match(read('components/EnquiryCard.js'), /<VisitRequestDialog propertyId=\{propertyId\} open=\{open\}/);
+
+  const action = read('app/(site)/listings/[id]/actions.js');
+  assert.match(action, /formData\.get\('return_to'\) === 'visites' \? '\/compte\/client\/visites' : `\/listings\/\$\{propertyId\}`/, 'two fixed destinations, never a path from the form');
+  assert.match(action, /dayClosed\(kinshasaDayKey\(picked\.iso\), await getListingAvailability\(listing\.id\)\)/);
+  assert.match(read('app/(site)/listings/visitBatchActions.js'), /dayClosed\(kinshasaDayKey\(slot\.iso\), await getListingAvailability\(listing\.id\)\)/);
+});
+
+test('availability reads keep the public gate and never throw into the calendar', async () => {
+  const lib = read('lib/agentAvailability.js');
+  assert.match(lib, /WHERE p\.id = \$1 AND p\.status = 1 AND p\.approve_status = 1/);
+  assert.match(lib, /agent_id = \$1/, 'the agent page reads its own row only');
+  assert.match(lib, /ON CONFLICT \(agent_id\) DO UPDATE/);
+  const action = read('app/compte/agent/visitAvailabilityActions.js');
+  assert.match(action, /const agentId = await getCurrentAgentId\(\);/, 'the session decides whose settings are written');
+  assert.ok(!/input\?\.agentId|input\.agent_id/.test(action));
+  const migration = readFileSync(new URL('../../../migrations/20261010_agent_visit_availability.sql', import.meta.url), 'utf8');
+  assert.match(migration, /CREATE TABLE IF NOT EXISTS agent_visit_availability/);
+  assert.match(migration, /REVOKE ALL ON agent_visit_availability/);
 });
 
 // --- "Mes visites" ----------------------------------------------------------------

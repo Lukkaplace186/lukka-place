@@ -199,8 +199,8 @@ export default function PropertyCard({
           />
         ) : null}
 
-        {/* --scrim-image: an ink fade from 34% down, so anything white
-            sitting on the photo's lower edge survives. */}
+        {/* --scrim-image: a faint fade on the bottom edge only, for the
+            carousel dots. The photo itself is left bright. */}
         <div
           aria-hidden="true"
           className="pointer-events-none absolute inset-0"

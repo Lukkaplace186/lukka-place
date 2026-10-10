@@ -1,9 +1,11 @@
 'use server';
 
+import { getListingAvailability } from '@/lib/agentAvailability';
+import { kinshasaDayKey } from '@/lib/visitAgenda';
 import { phoneFromForm } from '@/lib/phone';
 import { createViewingBatch } from '@/lib/adminApi';
 import { getListingById } from '@/lib/listings';
-import { VISIT_CART_MAX, validatePickedSlot } from '@/lib/visitSlots';
+import { VISIT_CART_MAX, validatePickedSlot, dayClosed } from '@/lib/visitSlots';
 import { getT } from '@/lib/i18n/server';
 
 /**
@@ -46,6 +48,10 @@ export async function submitVisitBatchAction(formData) {
     if (slot.error) return { ok: false, error: t('enquiry.cart.errors.slot') };
     const listing = await getListingById(id);
     if (!listing) return { ok: false, error: t('enquiry.cart.errors.gone'), goneId: id };
+    // A day that listing's agent takes no visits (lib/agentAvailability.js).
+    if (dayClosed(kinshasaDayKey(slot.iso), await getListingAvailability(listing.id))) {
+      return { ok: false, error: t('enquiry.cart.errors.slot') };
+    }
     checked.push({ listing, slot });
   }
 

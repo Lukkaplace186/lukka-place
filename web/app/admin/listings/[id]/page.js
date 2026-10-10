@@ -80,7 +80,7 @@ export default async function AdminListingEditPage({ params }) {
         </Link>
 
         <div className="mt-2 flex flex-wrap items-center gap-3">
-          <h1 className="u-title-page text-ink">{listing.title || `Annonce #${listing.id}`}</h1>
+          <h1 className="normal-case u-title-page text-ink">{listing.title || `Annonce #${listing.id}`}</h1>
           {approve && (
             <span
               className={`rounded-full px-2.5 py-1 text-[0.6875rem] font-extrabold uppercase tracking-[0.1em] ${approve.className}`}

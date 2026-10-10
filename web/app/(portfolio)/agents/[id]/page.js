@@ -236,7 +236,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
                   </span>
                 ) : null}
 
-                <h1 className="font-display text-[2rem] font-normal leading-[1.06] tracking-tight text-white sm:text-[2.75rem]">
+                <h1 className="normal-case font-display text-[2rem] font-normal leading-[1.06] tracking-tight text-white sm:text-[2.75rem]">
                   {headingName}
                 </h1>
                 {contactName ? (

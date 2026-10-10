@@ -123,7 +123,7 @@ export default async function ListingDetailPage({ params, searchParams }) {
   const t = await getT();
   const { id } = await params;
   const sp = await searchParams;
-  const visitSent = sp.visit_sent === '1';
+  const visitSent = sp.visit_sent === '1' ? 'agent' : sp.visit_sent === 'team' ? 'team' : null;
   const visitError = typeof sp.visit_error === 'string' ? sp.visit_error : null;
   const listing = await getListingById(id);
 

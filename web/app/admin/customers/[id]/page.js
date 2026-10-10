@@ -84,7 +84,7 @@ export default async function AdminCustomerDetailPage({ params }) {
           {t('admin.customerProfile.back')}
         </Link>
         <div className="mt-2 flex flex-wrap items-center gap-3">
-          <h1 className="u-title-page text-ink">{customer.full_name || `+${phone}`}</h1>
+          <h1 className="normal-case u-title-page text-ink">{customer.full_name || `+${phone}`}</h1>
           {customer.is_locked ? <Chip tone="danger">{t('admin.customers.statusLocked')}</Chip> : <Chip tone="success">{t('admin.customers.statusActive')}</Chip>}
           {!customer.phone_verified_at ? <Chip tone="warning">{t('admin.customers.statusUnverified')}</Chip> : null}
         </div>

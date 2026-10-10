@@ -173,7 +173,7 @@ export default function EnquiryCard({ listing, visitSent, visitError, saveShare 
           // the business number in the last 24h (root CLAUDE.md, "Outbound
           // WhatsApp"), and a web visitor usually has not.
           <div className="rounded-lg bg-success-tint px-3.5 py-2.5 text-[0.8125rem] text-success" role="status">
-            <p className="font-semibold">{t('enquiry.sent')}</p>
+            <p className="font-semibold">{t(visitSent === 'team' ? 'enquiry.sentTeam' : 'enquiry.sent')}</p>
             <Link href="/compte/client/visites" className="mt-1 inline-block font-semibold underline underline-offset-2">
               {t('enquiry.trackVisit')}
             </Link>

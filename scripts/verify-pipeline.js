@@ -5600,6 +5600,7 @@ console.log('\n2. services/openai.js');
     });
     assert.strictEqual(viewingNotifications.HEADER, '\u{1F3E0} [Lukka Place] Demande de visite');
     assert.ok(agentBody.startsWith(viewingNotifications.HEADER), 'agent message does not open with the header');
+    assert.ok(agentBody.includes('https://lukkaplace.com/compte/agent/visites'), 'the agent is told where to confirm');
     assert.ok(deskBody.startsWith(viewingNotifications.HEADER), 'ops message does not open with the header');
   });
 
@@ -8881,8 +8882,8 @@ console.log('\n2. services/openai.js');
   });
 
   check('corrected objects get a versioned JPEG name, never the original one', () => {
-    assert.strictEqual(photoEnhance.ENHANCE_VERSION, 'e4');
-    assert.strictEqual(photoEnhance.enhancedObjectName('properties/9/whatsapp_ab12.png'), 'properties/9/whatsapp_ab12_e4.jpg');
+    assert.strictEqual(photoEnhance.ENHANCE_VERSION, 'e5');
+    assert.strictEqual(photoEnhance.enhancedObjectName('properties/9/whatsapp_ab12.png'), 'properties/9/whatsapp_ab12_e5.jpg');
     assert.strictEqual(photoEnhance.isEnhancedObjectName('properties/9/whatsapp_ab12_e1.jpg'), true);
     assert.strictEqual(photoEnhance.isEnhancedObjectName('properties/9/whatsapp_ab12.jpg'), false);
     assert.strictEqual(photoEnhance.isEnhanceableExtension('gif'), false);
@@ -8938,14 +8939,14 @@ console.log('\n2. services/openai.js');
       properties: new Map([
         [1, pub('properties/1/whatsapp_aaa_e2.jpg')],
         [2, 'https://lukkaplace.com/assets/img/noimage.jpg'],
-        [3, pub('properties/3/agent_bbb_e4.jpg')],
+        [3, pub('properties/3/agent_bbb_e5.jpg')],
         [4, pub('properties/4/whatsapp_ddd_e2.jpg')],
       ]),
       slider: [
         { property_id: 1, image: pub('properties/1/whatsapp_aaa_e2.jpg') },
         { property_id: 1, image: pub('properties/1/whatsapp_ccc.png') },
         { property_id: 2, image: 'https://old-laravel.example/img/x.jpg' },
-        { property_id: 3, image: pub('properties/3/agent_bbb_e4.jpg') },
+        { property_id: 3, image: pub('properties/3/agent_bbb_e5.jpg') },
         { property_id: 4, image: pub('properties/4/whatsapp_ddd_e2.jpg') },
       ],
     };
@@ -9020,13 +9021,13 @@ console.log('\n2. services/openai.js');
     );
 
     const { changes } = await photoBackfill.backfillPhotoEnhancement({ ...common, write: true, warm });
-    assert.deepStrictEqual(uploads.sort(), ['properties/1/whatsapp_aaa_e4.jpg', 'properties/1/whatsapp_ccc_e4.jpg']);
-    assert.strictEqual(rows.properties.get(1), pub('properties/1/whatsapp_aaa_e4.jpg'));
-    assert.strictEqual(rows.slider[0].image, pub('properties/1/whatsapp_aaa_e4.jpg'));
-    assert.strictEqual(rows.slider[1].image, pub('properties/1/whatsapp_ccc_e4.jpg'));
+    assert.deepStrictEqual(uploads.sort(), ['properties/1/whatsapp_aaa_e5.jpg', 'properties/1/whatsapp_ccc_e5.jpg']);
+    assert.strictEqual(rows.properties.get(1), pub('properties/1/whatsapp_aaa_e5.jpg'));
+    assert.strictEqual(rows.slider[0].image, pub('properties/1/whatsapp_aaa_e5.jpg'));
+    assert.strictEqual(rows.slider[1].image, pub('properties/1/whatsapp_ccc_e5.jpg'));
     assert.strictEqual(rows.properties.get(4), pub('properties/4/whatsapp_ddd_e2.jpg'), 'no original: URL kept');
     assert.strictEqual(rows.properties.get(2), 'https://lukkaplace.com/assets/img/noimage.jpg');
-    assert.deepStrictEqual(warmed.sort(), [pub('properties/1/whatsapp_aaa_e4.jpg'), pub('properties/1/whatsapp_ccc_e4.jpg')]);
+    assert.deepStrictEqual(warmed.sort(), [pub('properties/1/whatsapp_aaa_e5.jpg'), pub('properties/1/whatsapp_ccc_e5.jpg')]);
     assert.ok(log.indexOf('WARM') >= 0 && log.indexOf('WARM') < log.indexOf('BEGIN'), 'resized BEFORE the listing is switched');
     assert.strictEqual(log.filter((l) => l === 'BEGIN').length, 1, 'one transaction, for listing 1 only');
     assert.ok(log.includes('SET LOCAL'), 'never a bare SET on the pooler');

@@ -224,3 +224,22 @@ test('shrinkPhoto corrects the canvas inside its own try/catch, before encoding'
   const smoothing = source.indexOf("context.imageSmoothingQuality = 'high'");
   assert.ok(smoothing > 0 && smoothing < draw, 'high-quality smoothing is set before drawing');
 });
+
+test('e5: the lift keeps colour, keeps blacks black, and never goes below the original', async () => {
+  const { toneCurve, CONTRAST_MAX, SHADOW_TOE, LIGHTNESS_GAMMA_MIN } = await import('@/lib/photoEnhance');
+  const tone = toneCurve(LIGHTNESS_GAMMA_MIN, CONTRAST_MAX, SHADOW_TOE);
+  assert.ok(tone.every((out, v) => out >= v), 'lighten-only at every level');
+  assert.ok(tone.every((out, v) => v === 0 || out >= tone[v - 1]), 'monotonic: no tone reversal');
+  assert.ok(tone[10] - 10 < 2, `deep shadows are anchored (10 -> ${tone[10].toFixed(1)})`);
+  assert.ok(tone[110] > 140, `midtones are lifted (110 -> ${tone[110].toFixed(1)})`);
+  assert.equal(tone[0], 0);
+  assert.equal(Math.round(tone[255]), 255);
+
+  // A saturated mid-tone pixel: its channel ratios survive the lift.
+  const identity = [0, 1, 2].map(() => Array.from({ length: 256 }, (_, v) => v));
+  const pixel = new Uint8ClampedArray([120, 80, 40, 255]);
+  applyEnhancement(pixel, { luts: identity, tone, vibrance: 0 });
+  assert.ok(pixel[0] > 120, 'lifted');
+  assert.ok(Math.abs(pixel[1] / pixel[0] - 80 / 120) < 0.02, `green/red kept (${pixel[1]}/${pixel[0]})`);
+  assert.ok(Math.abs(pixel[2] / pixel[0] - 40 / 120) < 0.02, `blue/red kept (${pixel[2]}/${pixel[0]})`);
+});

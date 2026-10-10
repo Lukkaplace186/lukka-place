@@ -762,13 +762,16 @@
       "today": "Today",
       "tomorrow": "Tomorrow",
       "kinshasaTime": "Kinshasa time",
-      "busy": "The agent already has a visit at this time",
-      "tooSoon": "Too soon to get there",
-      "busyNote": "Struck-through times are already taken by the agent.",
+      "busy": "taken",
+      "tooSoon": "too soon",
+      "busyNote": "Times marked “taken”: the agent has another viewing.",
       "chosen": "Requested visit: {slot}",
-      "closed": "The agent takes no viewings that day",
-      "dayFull": "No slot left that day",
-      "closedNote": "Crossed-out days: the agent takes no viewings, or no slot is left."
+      "closed": "no viewings that day",
+      "dayFull": "no time left that day",
+      "closedNote": "Crossed-out days: the agent takes no viewings, or no time is left.",
+      "chooseTime": "Choose a time",
+      "morning": "Morning",
+      "afternoon": "Afternoon"
     },
     "cart": {
       "add": "Add to my visits",
@@ -802,7 +805,8 @@
         "hour": "You already sent a multi-visit request less than an hour ago.",
         "failed": "Sending failed. Try again in a moment."
       }
-    }
+    },
+    "sentTeam": "Your viewing request has been received. The Lukka Place team is passing it to the agent and will get back to you."
   },
   "search": {
     "label": {
@@ -2841,7 +2845,8 @@
         "AGENT_ABSENT": "Agent absent"
       },
       "acceptShort": "Accept",
-      "sent": "Viewing request sent to the listing’s agent. Their answer will appear here."
+      "sent": "Viewing request sent to the listing’s agent on WhatsApp. Their answer will appear here.",
+      "sentTeam": "Viewing request received. The Lukka Place team is passing it to the agent; the answer will appear here."
     },
     "home": {
       "metaTitle": "Home — Lukka Place Customer Area",

@@ -693,6 +693,24 @@
    * A one-off size is how the four dialects happened in the first place.
    */
 
+  /* Section and page titles are set in CAPITALS (product direction,
+     2026-10-10: "make all the headers capital"). One rule for every serif
+     heading — the three title utilities and any h1-h3 set in the display
+     face — so no page can drift. `text-transform` rather than retyping the
+     dictionary: the strings stay correctly cased for screen readers, search
+     engines and the browser tab, and French accents are capitalised properly
+     (É, À). Slight positive tracking, because capitals set at the tight
+     tracking lower case wants run into each other.
+     `.normal-case` opts out a heading that is DATA rather than a title — a
+     person's name, a listing's own title, a phone number. */
+  .u-title-hero:not(.normal-case),
+  .u-title-page:not(.normal-case),
+  .u-title-section:not(.normal-case),
+  :is(h1, h2, h3).font-display:not(.normal-case) {
+    text-transform: uppercase;
+    letter-spacing: 0.035em !important; /* over the tight tracking utilities these headings carry for lower case */
+  }
+
   /* Hero title — the h1 at the top of a full-width page that is meant to
      feel editorial rather than operational (the Espace Client portal, the
      saved-search and request pages). One tier above .u-title-page, which is

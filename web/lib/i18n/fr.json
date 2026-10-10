@@ -762,13 +762,16 @@
       "today": "Aujourd’hui",
       "tomorrow": "Demain",
       "kinshasaTime": "heure de Kinshasa",
-      "busy": "L’agent a déjà une visite à cette heure",
-      "tooSoon": "Trop proche pour s’y rendre",
-      "busyNote": "Les heures barrées sont déjà prises par l’agent.",
+      "busy": "déjà pris",
+      "tooSoon": "trop proche",
+      "busyNote": "Les heures grisées « déjà pris » : l’agent a une autre visite.",
       "chosen": "Visite souhaitée : {slot}",
-      "closed": "L’agent ne fait pas de visites ce jour-là",
-      "dayFull": "Plus de créneau ce jour-là",
-      "closedNote": "Les jours barrés : l’agent ne fait pas de visites, ou il n’y reste plus de créneau."
+      "closed": "pas de visites ce jour",
+      "dayFull": "plus d’heure libre ce jour",
+      "closedNote": "Les jours barrés : l’agent ne fait pas de visites, ou il n’y reste plus d’heure libre.",
+      "chooseTime": "Choisir l’heure",
+      "morning": "Matin",
+      "afternoon": "Après-midi"
     },
     "cart": {
       "add": "Ajouter à mes visites",
@@ -802,7 +805,8 @@
         "hour": "Vous avez déjà envoyé une demande groupée il y a moins d’une heure.",
         "failed": "L’envoi a échoué. Réessayez dans un instant."
       }
-    }
+    },
+    "sentTeam": "Votre demande de visite est bien reçue. L’équipe Lukka Place la transmet à l’agent et vous répond."
   },
   "search": {
     "label": {
@@ -2841,7 +2845,8 @@
         "AGENT_ABSENT": "Agent absent"
       },
       "acceptShort": "Accepter",
-      "sent": "Demande de visite envoyée à l’agent du bien. Sa réponse apparaîtra ici."
+      "sent": "Demande de visite envoyée à l’agent du bien sur WhatsApp. Sa réponse apparaîtra ici.",
+      "sentTeam": "Demande de visite bien reçue. L’équipe Lukka Place la transmet à l’agent ; la réponse apparaîtra ici."
     },
     "home": {
       "metaTitle": "Accueil — Espace client Lukka Place",

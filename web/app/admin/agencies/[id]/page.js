@@ -59,7 +59,7 @@ export default async function AdminAgencyDetailPage({ params, searchParams }) {
           <ArrowLeft strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
           {t('admin.agencies.back')}
         </Link>
-        <h1 className="u-title-page mt-2 text-ink">{agency.name}</h1>
+        <h1 className="normal-case u-title-page mt-2 text-ink">{agency.name}</h1>
         <p className="u-micro mt-1 text-ink-45">
           {[agency.email, agency.phone ? `+${String(agency.phone).replace(/\D/g, '')}` : null, `#${agency.id}`].filter(Boolean).join(' · ')}
         </p>

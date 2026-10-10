@@ -50,7 +50,7 @@ export default async function AdminConversationDetailPage({ params }) {
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="u-title-page text-ink">{conversation.wa_id}</h1>
+          <h1 className="normal-case u-title-page text-ink">{conversation.wa_id}</h1>
           <div className="mt-1 flex items-center gap-2">
             <span className="rounded-full bg-blue-tint px-2 py-0.5 text-xs font-medium text-blue-deep">
               {CONVERSATION_STATE_LABEL_KEYS[conversation.state] ? t(CONVERSATION_STATE_LABEL_KEYS[conversation.state]) : conversation.state}

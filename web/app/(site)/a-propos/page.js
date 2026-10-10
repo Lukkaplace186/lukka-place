@@ -88,7 +88,7 @@ export default async function AboutPage() {
         <div className="mx-auto flex max-w-[1600px] flex-col px-4 pb-8 pt-5 sm:px-6 sm:pb-14 sm:pt-8 lg:min-h-[38rem] lg:justify-center lg:px-8 lg:py-16">
           <Breadcrumb items={[{ label: t('breadcrumb.home'), href: '/' }, { label: t('about.eyebrow') }]} />
           <p className="u-eyebrow mt-5 sm:mt-8 lg:mt-14">{t('about.heroKicker')}</p>
-          <h1 className="mt-2 max-w-2xl sm:mt-4 font-display text-[2.5rem] font-normal leading-[1.04] tracking-[-0.02em] text-ink sm:text-[3.5rem] lg:max-w-[38%] lg:text-[3.5rem] xl:text-[4rem]">
+          <h1 className="mt-2 max-w-2xl sm:mt-4 font-display text-[1.875rem] font-normal leading-[1.1] text-ink sm:text-[2.75rem] lg:max-w-[40%] lg:text-[2.75rem] xl:text-[3.25rem]">
             <Accented text={t('about.heroTitle')} accent={t('about.heroAccent')} className="text-blue" />
           </h1>
           <p className="mt-3 max-w-xl text-[1.0625rem] sm:mt-6 leading-relaxed text-ink-70 sm:text-lg lg:max-w-[36%]">{t('about.heroLead')}</p>
@@ -113,7 +113,7 @@ export default async function AboutPage() {
       <section className="mx-auto grid max-w-[1600px] items-center gap-6 px-4 py-10 sm:gap-10 sm:px-6 sm:py-28 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-16 lg:px-8">
         <div>
           <p className="u-eyebrow mb-2 sm:mb-4">{t('about.visionEyebrow')}</p>
-          <h2 className="font-display text-[2rem] font-normal leading-[1.1] tracking-[-0.02em] text-ink sm:text-[2.75rem]">
+          <h2 className="font-display text-[1.625rem] font-normal leading-[1.15] text-ink sm:text-[2.25rem]">
             <Accented text={t('about.visionTitle')} accent={t('about.visionAccent')} className="text-blue" />
           </h2>
           <div className="u-body mt-3 flex max-w-xl flex-col gap-3 text-ink-70 sm:mt-6">

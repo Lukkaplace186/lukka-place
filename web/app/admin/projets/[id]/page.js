@@ -238,7 +238,7 @@ export default async function AdminProjectPage({ params, searchParams }) {
 
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="u-title-page text-ink">{project.name}</h1>
+          <h1 className="normal-case u-title-page text-ink">{project.name}</h1>
           <p className="u-micro mt-1 text-ink-70">
             {published ? t('admin.projects.status.published') : t('admin.projects.status.draft')}
             {project.verified_at ? ` · ${t('projects.badge.verified')}` : ''}

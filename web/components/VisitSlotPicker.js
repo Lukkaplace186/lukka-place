@@ -8,7 +8,9 @@ import { calendarWeeks, dayClosed, dayHasFreeSlot, slotsForDay, visitDays } from
 
 /**
  * The visit calendar: a month-style grid of the next fourteen Kinshasa days
- * (Monday first), then that day's four slots — 09:00, 11:00, 14:00, 16:00.
+ * (Monday first), then a time — a dropdown of every quarter of an hour from
+ * 08:00 to 18:00 (a native <select>: on a phone it is the system's own wheel,
+ * and 41 times do not fit as buttons). It was four fixed slots.
  * Rules in lib/visitSlots.js: a slot less than two hours away, within an hour
  * of the agent's confirmed visits, or on a day the agent takes no visits is
  * greyed out, nothing else. Busy instants and days off come from
@@ -23,6 +25,15 @@ import { calendarWeeks, dayClosed, dayHasFreeSlot, slotsForDay, visitDays } from
  * `name` it also posts `<name>` (the ISO instant, +01:00) and
  * `requested_time` (the French phrase every agent message already shows).
  */
+// A native select with our own chevron (appearance-none removes the system one).
+const SELECT_CHEVRON = {
+  backgroundImage:
+    "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E\")",
+  backgroundRepeat: 'no-repeat',
+  backgroundPosition: 'right 0.75rem center',
+  paddingRight: '2.25rem',
+};
+
 export default function VisitSlotPicker({ propertyId, value, onChange, name, idPrefix = 'visit-slot' }) {
   const t = useT();
   const locale = useLocale();
@@ -56,13 +67,15 @@ export default function VisitSlotPicker({ propertyId, value, onChange, name, idP
   const rules = { now, busy, availability };
   const activeDay = (day && dayHasFreeSlot(day, rules) ? day : null) || days.find((d) => dayHasFreeSlot(d, rules)) || days[0];
   const slots = activeDay ? slotsForDay(activeDay, rules) : [];
+  // The select shows the pick only on the day it belongs to; on another day it
+  // goes back to "choose a time" while the pick itself stays until replaced.
+  const selectedOnDay = selected && slots.some((slot) => slot.iso === selected) ? selected : '';
 
   function choose(iso) {
     if (value === undefined) setInternal(iso);
     onChange?.(iso);
   }
 
-  const label = (hour) => `${String(hour).padStart(2, '0')}:00`;
   const REASONS = { busy: 'enquiry.picker.busy', past: 'enquiry.picker.tooSoon', closed: 'enquiry.picker.closed' };
   const reasonText = (reason) => (REASONS[reason] ? t(REASONS[reason]) : undefined);
 
@@ -145,30 +158,28 @@ export default function VisitSlotPicker({ propertyId, value, onChange, name, idP
         <p id={`${idPrefix}-time`} className="mb-1.5 text-[0.8125rem] font-semibold text-ink-70">
           {t('enquiry.picker.time')} <span className="font-normal text-ink-45">· {t('enquiry.picker.kinshasaTime')}</span>
         </p>
-        <div role="radiogroup" aria-labelledby={`${idPrefix}-time`} className="grid grid-cols-4 gap-1.5">
-          {slots.map((slot) => {
-            const active = selected === slot.iso;
-            return (
-              <button
-                key={slot.iso}
-                type="button"
-                role="radio"
-                aria-checked={active}
-                disabled={slot.disabled}
-                title={reasonText(slot.reason)}
-                aria-label={slot.disabled ? `${label(slot.hour)} — ${reasonText(slot.reason)}` : label(slot.hour)}
-                onClick={() => choose(slot.iso)}
-                className={cn(
-                  'u-press u-tabular min-h-11 rounded-lg text-sm font-semibold',
-                  active ? 'bg-blue text-white' : 'bg-surface text-ink shadow-[inset_0_0_0_1px_var(--color-line)]',
-                  slot.disabled && 'cursor-not-allowed text-ink-35 line-through opacity-60',
-                )}
-              >
-                {label(slot.hour)}
-              </button>
-            );
-          })}
-        </div>
+        <select
+          id={`${idPrefix}-time-select`}
+          aria-labelledby={`${idPrefix}-time`}
+          value={selectedOnDay}
+          onChange={(event) => choose(event.target.value || null)}
+          className={cn(
+            'u-focus-ring u-tabular h-12 w-full appearance-none rounded-lg border bg-surface px-3 text-base font-semibold',
+            selectedOnDay ? 'border-blue text-ink' : 'border-line text-ink-45',
+          )}
+          style={SELECT_CHEVRON}
+        >
+          <option value="">{t('enquiry.picker.chooseTime')}</option>
+          {[['morning', (time) => time < '12:00'], ['afternoon', (time) => time >= '12:00']].map(([part, inPart]) => (
+            <optgroup key={part} label={t(`enquiry.picker.${part}`)}>
+              {slots.filter((slot) => inPart(slot.time)).map((slot) => (
+                <option key={slot.iso} value={slot.iso} disabled={slot.disabled}>
+                  {slot.disabled ? `${slot.time} — ${reasonText(slot.reason)}` : slot.time}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
         {slots.some((s) => s.reason === 'busy') ? (
           <p className="mt-1.5 text-xs text-ink-45">{t('enquiry.picker.busyNote')}</p>
         ) : null}

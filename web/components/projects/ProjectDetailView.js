@@ -112,7 +112,7 @@ export default async function ProjectDetailView({ project, interest = '', sent =
                   </span>
                 ) : null}
               </div>
-              <h1 className="u-title-hero text-ink">{project.name}</h1>
+              <h1 className="normal-case u-title-hero text-ink">{project.name}</h1>
               {where ? (
                 <p className="inline-flex items-center gap-1.5 text-[0.9375rem] text-ink-70">
                   <MapPin strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0" />

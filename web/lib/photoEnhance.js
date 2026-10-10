@@ -63,6 +63,15 @@ export const STRETCH_MAX_GAIN = 1.25;
 export const LIGHTNESS_TARGET = 0.66;
 export const LIGHTNESS_GAMMA_MIN = 0.62;
 
+// e5 (2026-10-10): e4 was bright but "washed out". Three causes, three fixes:
+// the lift is applied to luminance (colour is no longer drained), it fades in
+// over the shadows below SHADOW_TOE (blacks stay black), and an S-curve of up
+// to CONTRAST_MAX gives the midtones their contrast back. Picked from sheets of
+// live photos: mean brightness equal to e4 or higher on all seven.
+export const CONTRAST_MAX = 0.8;
+
+export const SHADOW_TOE = 0.4;
+
 export const VIBRANCE_MAX = 0.18;
 export const VIVID_SATURATION = 0.4;
 export const SKIN_PROTECT = 0.3;
@@ -164,13 +173,34 @@ export function lightnessGamma(median, target = LIGHTNESS_TARGET, gammaMin = LIG
 }
 
 /**
- * The correction for one photo: three 256-entry lookup tables (white balance,
- * white stretch and lightness curve folded together) and a vibrance amount —
- * or null when the photo already needs nothing.
+ * The lightness curve, on LUMINANCE: the gamma lift, then an S-curve around
+ * mid-grey that gives back the contrast a lift flattens. Its strength follows
+ * the lift (none on a photo that was not lifted), and no entry is ever below
+ * its own index, so the curve can only lighten.
+ */
+export function toneCurve(gamma, contrast, toe = SHADOW_TOE) {
+  const tone = new Array(256);
+  for (let v = 0; v < 256; v += 1) {
+    const x = v / 255;
+    // The toe: below it the lift fades in (smoothstep), so blacks stay black.
+    const u = toe > 0 ? clamp(x / toe, 0, 1) : 1;
+    const y = x + (Math.pow(x, gamma) - x) * (u * u * (3 - 2 * u));
+    const c = y + contrast * y * (1 - y) * (y - 0.5);
+    tone[v] = Math.max(v, clamp(c, 0, 1) * 255);
+  }
+  return tone;
+}
+
+/**
+ * The correction for one photo: three 256-entry lookup tables (white balance
+ * and white stretch, per channel), the lightness curve (`tone`, applied to
+ * luminance so colours keep their saturation) and a vibrance amount — or null
+ * when the photo already needs nothing.
  */
 export function buildEnhancement(stats, options = {}) {
   const target = options.lightnessTarget ?? LIGHTNESS_TARGET;
   const gammaMin = options.lightnessGammaMin ?? LIGHTNESS_GAMMA_MIN;
+  const contrastMax = options.contrast ?? CONTRAST_MAX;
   if (!stats || !stats.samples) return null;
   const gains = whiteBalanceGains(stats);
 
@@ -187,24 +217,55 @@ export function buildEnhancement(stats, options = {}) {
     const lut = new Array(256);
     for (let v = 0; v < 256; v += 1) {
       const x = clamp((whiteRolloff(v, channelGain) * gain) / 255, 0, 1);
-      lut[v] = toByte(Math.pow(x, gamma) * 255);
+      lut[v] = toByte(x * 255);
     }
     return lut;
   });
 
-  const identity = luts.every((lut) => lut.every((out, v) => Math.abs(out - v) <= 1));
+  const lift = gammaMin < 1 ? (1 - gamma) / (1 - gammaMin) : 0;
+  const tone = toneCurve(gamma, contrastMax * lift, options.shadowToe ?? SHADOW_TOE);
+
+  const identity =
+    luts.every((lut) => lut.every((out, v) => Math.abs(out - v) <= 1)) && tone.every((out, v) => Math.abs(out - v) <= 1);
   if (identity && vibrance < 0.01) return null;
-  return { luts, vibrance };
+  return { luts, tone, vibrance };
 }
 
 /** Applies a correction in place. */
 export function applyEnhancement(data, enhancement, channels = 4) {
   const [lr, lg, lb] = enhancement.luts;
+  const tone = enhancement.tone || null;
   const vibrance = enhancement.vibrance;
   for (let i = 0; i + 2 < data.length; i += channels) {
     let r = lr[data[i]];
     let g = lg[data[i + 1]];
     let b = lb[data[i + 2]];
+    if (tone) {
+      // The curve moves the pixel's luminance; the three channels are scaled
+      // together, so hue and saturation stay as they were. A per-channel
+      // gamma (e4 and before) pulled the channels toward each other and
+      // drained the colour — reported as "washed out", 2026-10-10.
+      const y = luma(r, g, b);
+      if (y > 0) {
+        const lo = Math.floor(y);
+        const hi = lo < 255 ? lo + 1 : 255;
+        const y2 = tone[lo] + (tone[hi] - tone[lo]) * (y - lo);
+        if (y2 > y) {
+          const scale = y2 / y;
+          r *= scale;
+          g *= scale;
+          b *= scale;
+          const mx = Math.max(r, g, b);
+          if (mx > 255) {
+            // Would clip: ease toward its own grey just enough to fit.
+            const t = mx > y2 ? (255 - y2) / (mx - y2) : 0;
+            r = y2 + (r - y2) * t;
+            g = y2 + (g - y2) * t;
+            b = y2 + (b - y2) * t;
+          }
+        }
+      }
+    }
     if (vibrance > 0) {
       const mx = Math.max(r, g, b);
       const mn = Math.min(r, g, b);

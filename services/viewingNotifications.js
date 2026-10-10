@@ -159,6 +159,10 @@ function agentMessage({ listing, lead, viewingRequest, propertyId }) {
     `📅 Date souhaitée: ${viewingRequest?.requested_time || 'Non précisée'}`,
   ];
   if (placeLabel(listing || {})) lines.push(`🗺️ Lieu : ${placeLabel(listing)}`);
+  // The portal link, spelled out: the buttons under this message answer it in
+  // one tap, but an agent who wants the customer's details, or whose client
+  // shows no buttons, needs to know where the request is waiting.
+  lines.push('', `👉 Confirmer ou proposer une autre heure dans votre espace : ${schedulerLink()}`);
   lines.push('', listingLink(listing, propertyId));
   return lines.join('\n');
 }

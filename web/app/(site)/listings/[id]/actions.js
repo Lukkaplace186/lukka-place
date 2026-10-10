@@ -67,5 +67,10 @@ export async function submitVisitRequestAction(propertyId, formData) {
     redirect(`${base}?visit_error=1`);
   }
 
-  redirect(`${base}?visit_sent=1`);
+  // `agent_phone` only reaches this row for a verified, routing-enabled agent
+  // (lib/listings.js) — the same condition under which the engine alerts the
+  // agent. Without one the request goes to Lukka Place's desk, and the page
+  // must not tell the customer an agent has it (request #8, 2026-10-10: the
+  // listing had no agent and the confirmation still said "sent to the agent").
+  redirect(`${base}?visit_sent=${listing.agent_phone ? '1' : 'team'}`);
 }

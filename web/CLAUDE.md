@@ -2694,4 +2694,21 @@ From an owner walkthrough on a phone. Engine migration
   description. No city is named as a next step — none is decided.
 - **Photos**: correction e4 and a lighter card scrim — root CLAUDE.md,
   "Listing photo auto-correction".
+- **Later the same day** (owner feedback on the live build):
+  - **Times are a dropdown of quarter-hours, 08:00–18:00** (`VISIT_SLOT_TIMES`,
+    41 of them; a native `<select>`, grouped Matin / Après-midi, a taken or
+    too-soon time shown disabled with its reason). `validatePickedSlot` accepts
+    exactly those. The four fixed slots are gone.
+  - **The confirmation says who has the request**: `visit_sent=1` when the
+    listing has a reachable agent (`agent_phone` non-null, the engine's own
+    condition for alerting them), `visit_sent=team` otherwise
+    (`enquiry.sentTeam`, `account.agenda.sentTeam`). It used to say "sent to
+    the agent" for a listing with no agent at all.
+  - **Serif headings are CAPITALS**, by one rule in `app/globals.css`
+    (`.u-title-hero/-page/-section` and any `h1–h3.font-display`):
+    `text-transform: uppercase` + 0.035em tracking. The dictionary strings are
+    unchanged (the heading-capitalization rules still apply to them). A heading
+    that is DATA — a person's or project's name, a listing title, a number —
+    carries `normal-case`; add it to any new one. The sans hero headline on the
+    homepage and `.u-title-card` are not affected.
 

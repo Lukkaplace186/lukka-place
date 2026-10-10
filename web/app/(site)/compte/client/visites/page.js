@@ -43,7 +43,7 @@ export default async function VisitesPage({ searchParams }) {
   const t = await getT();
   const locale = await getLocale();
   const params = await searchParams;
-  const visitSent = params?.visit_sent === '1';
+  const visitSent = params?.visit_sent === '1' ? 'agent' : params?.visit_sent === 'team' ? 'team' : null;
   const visitError = typeof params?.visit_error === 'string' ? params.visit_error : null;
 
   let inquiries = [];
@@ -78,7 +78,7 @@ export default async function VisitesPage({ searchParams }) {
       {visitSent ? (
         <p role="status" className="flex items-start gap-2.5 rounded-md bg-success-tint px-4 py-3 text-[0.875rem] font-medium text-success">
           <Check strokeWidth={ICON_STROKE_WIDTH} className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-          {t('account.agenda.sent')}
+          {t(visitSent === 'team' ? 'account.agenda.sentTeam' : 'account.agenda.sent')}
         </p>
       ) : null}
       {visitError ? (

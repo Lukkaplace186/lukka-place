@@ -1204,6 +1204,12 @@ web/CLAUDE.md, "Visit booking, both agendas…", has the pages. Engine half:
 - **`GET /admin/viewing-requests/busy-slots`** (`agent_id`, `property_ids`):
   CONFIRMED instants in the next 15 days (the web calendar shows 14 since
   2026-10-10), instants only.
+- **The agent's alert names the portal** (2026-10-10): `agentMessage` ends
+  with "Confirmer ou proposer une autre heure dans votre espace :
+  /compte/agent/visites" above the listing link. The template variant already
+  carried that link as {{5}}. **Measured the same day: 12 of 49 public
+  listings have no agent, and `OPS_WHATSAPP_NUMBER` is still unset — a visit
+  request on any of them reaches nobody** (request #8, property #256).
 - **Days an agent takes no visits** are web-side only:
   `migrations/20261010_agent_visit_availability.sql` (Postgres, one row per
   agent), read and written by web's `lib/agentAvailability.js`. The engine
@@ -1374,6 +1380,16 @@ disagree on a single pixel. It corrects the camera, never the property:
   `featured_image` + `property_slider_images` per listing in one transaction,
   writes a rollback map) → `--rollback <file>` undoes it. Own bucket only;
   originals are never deleted. `services/photoBackfill.js`, §38.
+- **e5 (2026-10-10, same day as e4):** e4 was liked for brightness but read
+  "washed out". Three causes, three fixes, all in the shared pure module: the
+  lift is applied to LUMINANCE and the channels are scaled together (a
+  per-channel gamma pulled them toward each other and drained colour); it
+  fades in below `SHADOW_TOE` 0.4 (blacks stay black — door and window frames
+  had gone grey); and an S-curve of up to `CONTRAST_MAX` 0.8, scaled by how
+  much the photo was lifted, restores midtone contrast. `toneCurve` never
+  returns less than its input, so "never darker" still holds per level. Mean
+  brightness equal to e4 or higher on the seven comparison photos. Objects are
+  `…_e5.jpg`.
 - **e4 (2026-10-10):** photos still read as dim ("too dark", owner report).
   `LIGHTNESS_TARGET` 0.60 → 0.66 and `LIGHTNESS_GAMMA_MIN` 0.72 → 0.62, picked
   from side-by-side sheets of seven live photos (0.72 / 0.55 was tried and

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import {
-  CLASH_MINUTES, MIN_LEAD_HOURS, VISIT_CART_MAX, VISIT_DAYS, VISIT_SLOT_HOURS,
+  CLASH_MINUTES, MIN_LEAD_HOURS, VISIT_CART_MAX, VISIT_DAYS, VISIT_SLOT_TIMES,
   dayHasFreeSlot, slotIso, slotsForDay, tightPairs, validatePickedSlot, visitDays,
   calendarWeeks, dayClosed, normaliseAvailability, weekdayOf,
 } from '@/lib/visitSlots';
@@ -17,8 +17,10 @@ const read = (rel) => readFileSync(new URL(`../../${rel}`, import.meta.url), 'ut
 // Wednesday 1 October 2031, 08:30 in Kinshasa (07:30 UTC).
 const NOW = new Date('2031-10-01T07:30:00Z');
 
-test('fourteen Kinshasa days from today, four slots each', () => {
-  assert.deepEqual(VISIT_SLOT_HOURS, [9, 11, 14, 16]);
+test('fourteen Kinshasa days from today, a time every quarter of an hour from 08:00 to 18:00', () => {
+  assert.equal(VISIT_SLOT_TIMES.length, 41);
+  assert.deepEqual(VISIT_SLOT_TIMES.slice(0, 5), ['08:00', '08:15', '08:30', '08:45', '09:00']);
+  assert.equal(VISIT_SLOT_TIMES.at(-1), '18:00');
   assert.equal(VISIT_DAYS, 14);
   const days = visitDays(NOW);
   assert.equal(days.length, 14);
@@ -31,22 +33,33 @@ test('fourteen Kinshasa days from today, four slots each', () => {
 test('a slot is Kinshasa wall time with its offset', () => {
   assert.equal(slotIso('2031-10-01', 9), '2031-10-01T09:00:00+01:00');
   assert.equal(Date.parse(slotIso('2031-10-01', 14)), Date.parse('2031-10-01T13:00:00Z'));
+  assert.equal(slotIso('2031-10-01', '11:45'), '2031-10-01T11:45:00+01:00');
 });
 
 test('less than two hours ahead is greyed out; the rest of the day is free', () => {
   assert.equal(MIN_LEAD_HOURS, 2);
   const today = slotsForDay('2031-10-01', { now: NOW });
-  // 08:30 now: 09:00 and 11:00 (10:30 cut-off) → 09:00 gone, 11:00 fine.
-  assert.deepEqual(today.map((s) => [s.hour, s.reason]), [[9, 'past'], [11, null], [14, null], [16, null]]);
+  // 08:30 now, so the cut-off is 10:30: everything before it is gone.
+  const reasonAt = (time) => today.find((s) => s.time === time).reason;
+  assert.equal(reasonAt('08:00'), 'past');
+  assert.equal(reasonAt('10:15'), 'past');
+  assert.equal(reasonAt('10:30'), null);
+  assert.equal(reasonAt('18:00'), null);
+  assert.ok(today.filter((s) => s.reason === 'past').every((s) => s.time < '10:30'));
 });
 
 test("a slot within an hour of the agent's confirmed visit is greyed out — nothing else is", () => {
   assert.equal(CLASH_MINUTES, 60);
   const busy = ['2031-10-02T13:30:00.000Z']; // 14:30 Kinshasa
   const slots = slotsForDay('2031-10-02', { now: NOW, busy });
-  assert.deepEqual(slots.map((s) => s.reason), [null, null, 'busy', null], '14:00 clashes; 16:00 is 90 min away');
+  assert.deepEqual(
+    slots.filter((s) => s.reason === 'busy').map((s) => s.time),
+    ['13:45', '14:00', '14:15', '14:30', '14:45', '15:00', '15:15'],
+    'under an hour either side of 14:30; 13:30 and 15:30 are a full hour away',
+  );
+  assert.ok(slots.every((s) => s.reason === null || s.reason === 'busy'));
   assert.equal(dayHasFreeSlot('2031-10-02', { now: NOW, busy }), true);
-  const allBusy = VISIT_SLOT_HOURS.map((h) => new Date(Date.parse(slotIso('2031-10-03', h))).toISOString());
+  const allBusy = VISIT_SLOT_TIMES.map((time) => new Date(Date.parse(slotIso('2031-10-03', time))).toISOString());
   assert.equal(dayHasFreeSlot('2031-10-03', { now: NOW, busy: allBusy }), false);
 });
 
@@ -55,7 +68,10 @@ test('the server accepts only a slot the picker could have offered', () => {
     iso: '2031-10-02T14:00:00+01:00',
     phrase: 'jeudi 2 octobre à 14h00',
   });
-  assert.equal(validatePickedSlot('2031-10-02T15:00:00+01:00', NOW).error, 'invalid', 'not one of the four hours');
+  assert.equal(validatePickedSlot('2031-10-02T11:45:00+01:00', NOW).phrase, 'jeudi 2 octobre à 11h45');
+  assert.equal(validatePickedSlot('2031-10-02T11:50:00+01:00', NOW).error, 'invalid', 'not on a quarter of an hour');
+  assert.equal(validatePickedSlot('2031-10-02T19:00:00+01:00', NOW).error, 'invalid', 'after the last time offered');
+  assert.equal(validatePickedSlot('2031-10-02T07:45:00+01:00', NOW).error, 'invalid', 'before the first');
   assert.equal(validatePickedSlot('2031-10-02T14:00:00Z', NOW).error, 'invalid', 'must carry the Kinshasa offset');
   assert.equal(validatePickedSlot('2031-10-20T14:00:00+01:00', NOW).error, 'out_of_range');
   assert.equal(validatePickedSlot('2031-10-01T09:00:00+01:00', NOW).error, 'too_soon');

@@ -89,7 +89,7 @@ export default async function AdminLeadDetailPage({ params }) {
 
       <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="u-title-page text-ink">{lead.name || lead.wa_id}</h1>
+          <h1 className="normal-case u-title-page text-ink">{lead.name || lead.wa_id}</h1>
           <p className="mt-1 text-sm text-ink-45">
             {lead.wa_id} · Demande #{lead.id} · Créée le {formatDateTime(lead.created_at)}
           </p>

@@ -276,7 +276,7 @@ export default async function AdminSalesRepPage({ params, searchParams }) {
             </Link>
           )}
           <div className="mt-2 flex flex-wrap items-center gap-3">
-            <h1 className="u-title-page text-ink">{rep.full_name}</h1>
+            <h1 className="normal-case u-title-page text-ink">{rep.full_name}</h1>
             {rep.status === 'active' ? <Chip tone="success">{t('admin.sales.reps.statusActive')}</Chip> : <Chip>{t('admin.sales.reps.statusInactive')}</Chip>}
           </div>
           <p className="u-micro mt-1 text-ink-45">

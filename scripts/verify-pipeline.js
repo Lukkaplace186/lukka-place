@@ -9674,6 +9674,29 @@ console.log('\n2. services/openai.js');
     }
   });
 
+  await checkAsync('a template can go out from the notifications number: Meta directly with its own token, or Chakra with its phone id', async () => {
+    const posts = () => httpCalls.filter((c) => c.method === 'post');
+    httpCalls.length = 0;
+    await chakra.sendTemplate('243900000001', 'demande_visite_agent', {
+      bodyParams: ['a', 'b', 'c', 'd'],
+      sender: { phoneNumberId: '111222333444', accessToken: 'tok-notifications' },
+    });
+    const direct = posts().at(-1);
+    assert.strictEqual(direct.url, `https://graph.facebook.com/${process.env.CHAKRA_WHATSAPP_API_VERSION || 'v21.0'}/111222333444/messages`);
+    assert.strictEqual((direct.config?.headers || direct.headers).Authorization, 'Bearer tok-notifications');
+
+    httpCalls.length = 0;
+    await chakra.sendTemplate('243900000001', 'demande_visite_agent', { bodyParams: ['a'], sender: { phoneNumberId: '111222333444' } });
+    const viaChakra = posts().at(-1);
+    assert.ok(/\/api\/[^/]+\/111222333444\/messages$/.test(viaChakra.url), viaChakra.url);
+    assert.ok(!viaChakra.url.includes('graph.facebook.com'));
+
+    httpCalls.length = 0;
+    await chakra.sendTemplate('243900000001', 'plain', { bodyParams: ['a'] });
+    assert.ok(posts().at(-1).url.includes(process.env.CHAKRA_PHONE_NUMBER_ID), 'no sender: the engine\'s own number');
+    await assert.rejects(() => chakra.sendTemplate('243900000001', 'x', { sender: { phoneNumberId: 'abc' } }), /phone number ID/);
+  });
+
   await checkAsync('a template with an image header is sent with its picture first; a bad link is refused', async () => {
     httpCalls.length = 0;
     await chakra.sendTemplate('243900000001', 'demande_visite_agent', {

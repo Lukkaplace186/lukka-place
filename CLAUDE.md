@@ -1219,6 +1219,18 @@ web/CLAUDE.md, "Visit booking, both agendas…", has the pages. Engine half:
   body variable (the link) is gone; no template had been submitted. The exact
   wording is in the comment above `templateName` in viewingNotifications.js.
   Not approved yet — until it is, the alert is still a session message.
+- **Two business numbers (2026-10-12).** +243 976 321 848 is the intake number
+  (CHAKRA_PHONE_NUMBER_ID: listings in, every session message out).
+  +243 846 962 654 is the notifications number; its WhatsApp account ("Lukka
+  Place Admin") owns the approved `demande_visite_agent` template, and a
+  template can only be sent by a number of the account that owns it — from the
+  intake number Meta answers #132001. `chakra.sendTemplate`'s `sender` option
+  (`senderTarget`) sends from it: `VIEWING_SENDER_PHONE_NUMBER_ID`, plus
+  `VIEWING_SENDER_ACCESS_TOKEN` for Meta's Cloud API directly, or without a
+  token through Chakra (`VIEWING_SENDER_PLUGIN_ID` optional). Unset → the
+  intake number. Replies to that message land on the notifications number,
+  not on this engine's webhook; the template's only action is a link button.
+  The same number was set as OPS_WHATSAPP_NUMBER (the desk) on 2026-10-12.
 - **Days an agent takes no visits** are web-side only:
   `migrations/20261010_agent_visit_availability.sql` (Postgres, one row per
   agent), read and written by web's `lib/agentAvailability.js`. The engine

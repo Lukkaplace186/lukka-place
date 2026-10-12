@@ -76,6 +76,19 @@ const PRICE_SOURCE_WHATSAPP = 'WHATSAPP_AGENT_REPLY';
 const templateName = () => process.env.VIEWING_REQUEST_TEMPLATE || null;
 const templateLang = () => process.env.VIEWING_REQUEST_TEMPLATE_LANG || 'fr';
 const templateImage = () => process.env.VIEWING_REQUEST_TEMPLATE_IMAGE || null;
+// The number the alert is SENT FROM, when the template lives in another
+// WhatsApp account than the intake number's (chakra.js senderTarget). Unset:
+// the engine's own number, as before. VIEWING_SENDER_ACCESS_TOKEN makes it a
+// direct Meta Cloud API call; without it the number is reached through Chakra.
+const templateSender = () => {
+  const phoneNumberId = (process.env.VIEWING_SENDER_PHONE_NUMBER_ID || '').trim();
+  if (!phoneNumberId) return null;
+  return {
+    phoneNumberId,
+    accessToken: process.env.VIEWING_SENDER_ACCESS_TOKEN || null,
+    pluginId: process.env.VIEWING_SENDER_PLUGIN_ID || null,
+  };
+};
 
 /**
  * Lukka Place's own desk, copied on every viewing request so a request
@@ -289,6 +302,7 @@ async function send(phone, text, templateParams, buttons = null) {
         languageCode: templateLang(),
         bodyParams: templateParams,
         ...(image ? { headerImage: image } : {}),
+        ...(templateSender() ? { sender: templateSender() } : {}),
       });
       return 'template';
     } catch (templateErr) {

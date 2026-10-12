@@ -42,6 +42,39 @@ function authHeaders() {
 }
 
 /**
+ * Where a TEMPLATE goes out from when it is not this engine's own number.
+ *
+ * Lukka Place has two WhatsApp business numbers (2026-10-12): the intake
+ * number agents send listings to (CHAKRA_PHONE_NUMBER_ID — everything else in
+ * this file), and a notifications number whose account holds the approved
+ * viewing-request template. A template can only be sent by a number of the
+ * account that owns it, so that one message needs its own sender.
+ *
+ *   { phoneNumberId, accessToken }  Meta's Cloud API directly
+ *   { phoneNumberId, pluginId? }    the same number connected through Chakra
+ *                                   (our token; our plugin unless one is given)
+ *
+ * Only sendTemplate takes it. Replies to a message sent this way arrive on
+ * THAT number, not on this engine's webhook — which is why it is used for a
+ * template whose only action is a link button.
+ */
+function senderTarget(sender) {
+  const phoneNumberId = String(sender?.phoneNumberId || '').trim();
+  if (!/^\d{6,24}$/.test(phoneNumberId)) throw new Error('sender.phoneNumberId must be the numeric phone number ID');
+  if (sender.accessToken) {
+    return {
+      url: `https://graph.facebook.com/${API_VERSION}/${phoneNumberId}/messages`,
+      headers: { Authorization: `Bearer ${sender.accessToken}`, 'Content-Type': 'application/json' },
+    };
+  }
+  const pluginId = sender.pluginId || requireEnv('CHAKRA_PLUGIN_ID');
+  return {
+    url: `${API_BASE}/v1/ext/plugin/whatsapp/${pluginId}/api/${API_VERSION}/${phoneNumberId}/messages`,
+    headers: authHeaders(),
+  };
+}
+
+/**
  * A request made with `responseType: 'arraybuffer'` (the media downloads)
  * gets its error body back as raw bytes too, not parsed JSON — decode it back
  * to text/JSON so the error message is readable instead of a dumped byte array.
@@ -158,6 +191,8 @@ function templateConfigured(name) {
  * @param {string}   [options.otpCode]  AUTHENTICATION templates only — see below.
  * @param {string}   [options.headerImage]  https URL of the picture for a
  *        template whose HEADER is an image (see below).
+ * @param {{phoneNumberId: string, accessToken?: string, pluginId?: string}} [options.sender]
+ *        Send from another business number — see senderTarget.
  * @param {Array<{id: string}>} [options.buttons]  Quick-reply payloads, in the
  *        order the template declares its buttons. See the note below on why
  *        only the id travels.
@@ -165,7 +200,7 @@ function templateConfigured(name) {
 async function sendTemplate(
   toPhone,
   templateName,
-  { languageCode = 'fr', bodyParams = [], otpCode, buttons, headerImage } = {},
+  { languageCode = 'fr', bodyParams = [], otpCode, buttons, headerImage, sender } = {},
 ) {
   const to = String(toPhone).replace(/^\+/, '');
 
@@ -260,11 +295,12 @@ async function sendTemplate(
     });
   }
 
+  const target = sender ? senderTarget(sender) : { url: messagesUrl(), headers: authHeaders() };
   try {
     const { data } = await axios.post(
-      messagesUrl(),
+      target.url,
       { messaging_product: 'whatsapp', recipient_type: 'individual', to, type: 'template', template },
-      { headers: authHeaders(), timeout: 15000 },
+      { headers: target.headers, timeout: 15000 },
     );
     return data;
   } catch (err) {

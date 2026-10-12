@@ -65,6 +65,19 @@ process.env.DB_USER = '';
 process.env.DB_PASSWORD = '';
 process.env.DB_NAME = '';
 process.env.DB_DRIVER = '';
+// And for the delivery settings a production .env carries. They are read at
+// call time, so a real desk number or an approved template name would change
+// what every alert test sends (seen on the VPS, 2026-10-12: nine viewing tests
+// failed the day OPS_WHATSAPP_NUMBER and VIEWING_REQUEST_TEMPLATE were set).
+// Tests that need one set it themselves and restore it.
+for (const key of [
+  'OPS_WHATSAPP_NUMBER',
+  'VIEWING_REQUEST_TEMPLATE', 'VIEWING_REQUEST_TEMPLATE_IMAGE', 'VIEWING_REQUEST_TEMPLATE_LANG',
+  'VIEWING_SENDER_PHONE_NUMBER_ID', 'VIEWING_SENDER_ACCESS_TOKEN', 'VIEWING_SENDER_PLUGIN_ID',
+  'AGENT_LEAD_MATCH_TEMPLATE', 'LISTING_AVAILABILITY_TEMPLATE', 'VISIT_RECEIPT_TEMPLATE',
+]) {
+  process.env[key] = '';
+}
 // Same reasoning for Supabase Storage — even though services/postgres.js's
 // isConfigured() gate already prevents this suite from reaching the upload
 // step, blanking these too means that stays true even if that gate ever moves.

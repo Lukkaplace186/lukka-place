@@ -75,6 +75,8 @@ for (const key of [
   'VIEWING_REQUEST_TEMPLATE', 'VIEWING_REQUEST_TEMPLATE_IMAGE', 'VIEWING_REQUEST_TEMPLATE_LANG',
   'VIEWING_SENDER_PHONE_NUMBER_ID', 'VIEWING_SENDER_ACCESS_TOKEN', 'VIEWING_SENDER_PLUGIN_ID',
   'AGENT_LEAD_MATCH_TEMPLATE', 'LISTING_AVAILABILITY_TEMPLATE', 'VISIT_RECEIPT_TEMPLATE',
+  'VIEWING_DESK_TEMPLATE', 'VIEWING_CONFIRMED_TEMPLATE', 'VIEWING_PROPOSAL_TEMPLATE', 'VIEWING_UNAVAILABLE_TEMPLATE',
+  'VIEWING_TEMPLATES_WITH_LINK', 'VIEWING_TEMPLATES_FROM_SENDER',
 ]) {
   process.env[key] = '';
 }
@@ -10017,6 +10019,65 @@ console.log('\n2. services/openai.js');
   check('no "is this the right time?" buttons for a slot the customer picked', () => {
     assert.ok(!httpCalls.some((c) => body43(c).includes('viewing_slot_ok')));
     assert.strictEqual(acceptPicked.awaiting, null);
+  });
+
+  // --- the lifecycle as templates (2026-10-13) --------------------------------
+  {
+    const keys = ['VIEWING_CONFIRMED_TEMPLATE', 'VIEWING_PROPOSAL_TEMPLATE', 'VIEWING_UNAVAILABLE_TEMPLATE', 'VIEWING_TEMPLATES_WITH_LINK'];
+    const before = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+    process.env.VIEWING_CONFIRMED_TEMPLATE = 'visite_confirmee_client';
+    process.env.VIEWING_PROPOSAL_TEMPLATE = 'visite_proposition_client';
+    process.env.VIEWING_UNAVAILABLE_TEMPLATE = 'visite_indisponible_client';
+    process.env.VIEWING_TEMPLATES_WITH_LINK = 'visite_confirmee_client';
+    const agentId43 = Number(ATTRIBUTED_LISTING.agent_id);
+    const templatesTo = (wa) => sendsTo43(wa).map((c) => c.data).filter((d) => d.type === 'template');
+    const texts = (parts) => parts.parameters.map((x) => x.text);
+
+    const tplConfirm = pickedRequest(inDays(5, 10));
+    httpCalls.length = 0;
+    await viewingNotifications.respondFromDashboard({ viewingRequestId: tplConfirm.id, agentId: agentId43, status: 'CONFIRMED' });
+    await checkAsync('with its template set, a confirmation reaches the customer as a template with the request id on the link button', async () => {
+      const all = sendsTo43(CUSTOMER_43);
+      assert.strictEqual(all.length, 1, 'the template only — no second text');
+      const [sent] = templatesTo(CUSTOMER_43);
+      assert.strictEqual(sent.template.name, 'visite_confirmee_client');
+      const body = sent.template.components.find((c) => c.type === 'body');
+      assert.strictEqual(body.parameters.length, 3);
+      assert.match(texts(body)[1], /10h00/);
+      const button = sent.template.components.find((c) => c.type === 'button');
+      assert.deepStrictEqual(button, { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: String(tplConfirm.id) }] });
+      assert.ok(dbService.getViewingRequest(tplConfirm.id).customer_notified_at);
+    });
+
+    httpCalls.length = 0;
+    await viewingNotifications.respondFromDashboard({ viewingRequestId: tplConfirm.id, agentId: agentId43, status: 'CANCELLED' });
+    await checkAsync('a cancellation goes as the "unavailable" template, with no button component when the template is not listed as having a link', async () => {
+      const [sent] = templatesTo(CUSTOMER_43);
+      assert.strictEqual(sent.template.name, 'visite_indisponible_client');
+      assert.deepStrictEqual(sent.template.components.map((c) => c.type), ['body']);
+      assert.strictEqual(sent.template.components[0].parameters.length, 3);
+      assert.ok(texts(sent.template.components[0]).every((t) => t && !/\n/.test(t)), 'no empty or multi-line variable');
+    });
+
+    const tplMove = pickedRequest(inDays(6, 9));
+    httpCalls.length = 0;
+    await viewingNotifications.respondFromDashboard({ viewingRequestId: tplMove.id, agentId: agentId43, status: 'RESCHEDULED', requestedTime: 'samedi 16h' });
+    await checkAsync('another time proposed goes as its template with the new time', async () => {
+      const [sent] = templatesTo(CUSTOMER_43);
+      assert.strictEqual(sent.template.name, 'visite_proposition_client');
+      assert.strictEqual(texts(sent.template.components[0])[1], 'samedi 16h');
+    });
+
+    for (const k of keys) process.env[k] = before[k];
+  }
+
+  await checkAsync('a dynamic link button is one url component at index 0; it cannot be mixed with quick replies or be blank', async () => {
+    httpCalls.length = 0;
+    await chakra.sendTemplate('243900000001', 'x', { bodyParams: ['a'], urlButton: 47 });
+    const sent = httpCalls.filter((c) => c.method === 'post').map((c) => c.data).find((d) => d.type === 'template');
+    assert.deepStrictEqual(sent.template.components.at(-1), { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: '47' }] });
+    await assert.rejects(() => chakra.sendTemplate('243900000001', 'x', { urlButton: ' ' }), /urlButton/);
+    await assert.rejects(() => chakra.sendTemplate('243900000001', 'x', { urlButton: '1', buttons: [{ id: 'a' }] }), /urlButton/);
   });
 
   const dashPicked43 = pickedRequest(inDays(4, 11));

@@ -191,6 +191,8 @@ function templateConfigured(name) {
  * @param {string}   [options.otpCode]  AUTHENTICATION templates only — see below.
  * @param {string}   [options.headerImage]  https URL of the picture for a
  *        template whose HEADER is an image (see below).
+ * @param {string|number} [options.urlButton]  The variable part of a DYNAMIC
+ *        URL button (first button of the template) — see below.
  * @param {{phoneNumberId: string, accessToken?: string, pluginId?: string}} [options.sender]
  *        Send from another business number — see senderTarget.
  * @param {Array<{id: string}>} [options.buttons]  Quick-reply payloads, in the
@@ -200,7 +202,7 @@ function templateConfigured(name) {
 async function sendTemplate(
   toPhone,
   templateName,
-  { languageCode = 'fr', bodyParams = [], otpCode, buttons, headerImage, sender } = {},
+  { languageCode = 'fr', bodyParams = [], otpCode, buttons, headerImage, sender, urlButton } = {},
 ) {
   const to = String(toPhone).replace(/^\+/, '');
 
@@ -292,6 +294,25 @@ async function sendTemplate(
         index: String(index),
         parameters: [{ type: 'payload', payload: String(payload) }],
       });
+    });
+  }
+
+  // DYNAMIC URL BUTTON — a template whose link button was approved as
+  // "https://…/visites/{{1}}" must be sent with that one value; a template
+  // whose button is a fixed link (or that has none) must be sent WITHOUT this
+  // component, or Meta refuses the send. So it is only added when the caller
+  // says the template has one. Always the template's first button.
+  if (urlButton !== undefined && urlButton !== null) {
+    const value = String(urlButton).trim();
+    if (otpCode) throw new Error('sendTemplate cannot combine otpCode with urlButton');
+    if (buttons !== undefined) throw new Error('sendTemplate cannot combine quick-reply buttons with urlButton');
+    if (!value || /\s/.test(value)) throw new Error('sendTemplate urlButton must be a non-empty value without spaces');
+    template.components = template.components || [];
+    template.components.push({
+      type: 'button',
+      sub_type: 'url',
+      index: '0',
+      parameters: [{ type: 'text', text: value }],
     });
   }
 

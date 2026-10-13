@@ -90,6 +90,80 @@ const templateSender = () => {
   };
 };
 
+// ---------------------------------------------------------------------------
+// The rest of the visit lifecycle as templates (2026-10-13)
+//
+// A template is the only message Meta delivers outside the 24h window, so the
+// desk's copy of a new request and the three things a customer is told — visit
+// confirmed, another time proposed, visit not possible — each have one. Every
+// name is read at call time and unset by default: with no name the message is
+// the session text it always was, and a template that fails falls back to
+// that text too, so switching one on can never lose a message that used to
+// arrive.
+//
+//   VIEWING_DESK_TEMPLATE         copie_bureau_visite
+//       body {{1}} agent  {{2}} customer  {{3}} listing  {{4}} date and time
+//   VIEWING_CONFIRMED_TEMPLATE    visite_confirmee_client
+//       body {{1}} listing  {{2}} date and time  {{3}} agent
+//   VIEWING_PROPOSAL_TEMPLATE     visite_proposition_client
+//       body {{1}} listing  {{2}} new date and time
+//   VIEWING_UNAVAILABLE_TEMPLATE  visite_indisponible_client
+//       body {{1}} listing  {{2}} date and time asked for  {{3}} reason
+//
+// Two lists of template names say how each one was approved, because sending
+// a component a template does not declare is refused by Meta:
+//   VIEWING_TEMPLATES_WITH_LINK    templates whose button is a DYNAMIC link
+//       ("…/visites?demande={{1}}"); they are sent the request id. A fixed
+//       link button needs nothing and must not be listed.
+//   VIEWING_TEMPLATES_FROM_SENDER  templates that live in the notifications
+//       number's account and go out from it (VIEWING_SENDER_PHONE_NUMBER_ID).
+//       The agent alert always does. The desk copy must NOT: its recipient is
+//       that very number, and a number cannot message itself (#100).
+// ---------------------------------------------------------------------------
+const LIFECYCLE_TEMPLATE_ENV = {
+  desk: 'VIEWING_DESK_TEMPLATE',
+  confirmed: 'VIEWING_CONFIRMED_TEMPLATE',
+  proposal: 'VIEWING_PROPOSAL_TEMPLATE',
+  unavailable: 'VIEWING_UNAVAILABLE_TEMPLATE',
+};
+const nameList = (key) =>
+  String(process.env[key] || '').split(',').map((name) => name.trim()).filter(Boolean);
+const templateHasLink = (name) => nameList('VIEWING_TEMPLATES_WITH_LINK').includes(name);
+const templateFromSender = (name) => nameList('VIEWING_TEMPLATES_FROM_SENDER').includes(name);
+
+/** A body variable Meta accepts: one line, never empty, at most 200 characters. */
+function templateValue(value, fallback = 'Non précisé') {
+  const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+  return (text || fallback).slice(0, 200);
+}
+
+/**
+ * Send one lifecycle template. True when it was accepted; false when none is
+ * configured for this kind or the send failed (the caller then sends its text).
+ */
+async function sendLifecycleTemplate(phone, { kind, bodyParams = [], linkParam } = {}, label = kind) {
+  const name = (process.env[LIFECYCLE_TEMPLATE_ENV[kind]] || '').trim();
+  if (!name || !phone) return false;
+  const sender = templateFromSender(name) ? templateSender() : null;
+  try {
+    await chakra.sendTemplate(String(phone).replace(/\D/g, ''), name, {
+      languageCode: templateLang(),
+      bodyParams: bodyParams.map((value) => templateValue(value)),
+      ...(templateHasLink(name) && linkParam != null ? { urlButton: linkParam } : {}),
+      ...(sender ? { sender } : {}),
+    });
+    return true;
+  } catch (err) {
+    console.warn(`[viewing] ${label}: template '${name}' failed for ${phone}, falling back to a session message: ${err.message}`);
+    return false;
+  }
+}
+
+/** What the customer is told the visit time is: the agreed instant, else their own words. */
+function slotForTemplate(viewingRequest, agreedAt = null) {
+  return (agreedAt && formatSlotFr(agreedAt)) || viewingRequest?.requested_time || 'À convenir';
+}
+
 /**
  * Lukka Place's own desk, copied on every viewing request so a request
  * against a listing with no attributed agent still reaches a human.
@@ -293,7 +367,7 @@ function opsMessage({ listing, lead, viewingRequest, propertyId, agentNotified, 
  *
  * @returns {Promise<'template'|'session'>} the channel that was accepted.
  */
-async function send(phone, text, templateParams, buttons = null) {
+async function send(phone, text, templateParams, buttons = null, linkParam = null) {
   const TEMPLATE_NAME = templateName();
   if (TEMPLATE_NAME && templateParams) {
     try {
@@ -302,6 +376,7 @@ async function send(phone, text, templateParams, buttons = null) {
         languageCode: templateLang(),
         bodyParams: templateParams,
         ...(image ? { headerImage: image } : {}),
+        ...(templateHasLink(TEMPLATE_NAME) && linkParam != null ? { urlButton: linkParam } : {}),
         ...(templateSender() ? { sender: templateSender() } : {}),
       });
       return 'template';
@@ -451,11 +526,25 @@ async function notifyViewingRequest({
   const ops = notifyOpsCopy ? opsNumber() : null;
   if (ops) {
     try {
-      await chakra.sendWhatsAppMessage(
-        ops,
-        opsMessage({ listing, lead, viewingRequest, propertyId: id, agentNotified, agentSkipReason }),
-        { previewUrl: true },
-      );
+      // {{1}} says whether an agent was actually reached, which is the first
+      // thing the desk needs to know about a request.
+      const asTemplate = await sendLifecycleTemplate(ops, {
+        kind: 'desk',
+        bodyParams: [
+          agentNotified ? listing?.agent_name || 'Agent prévenu' : 'Aucun agent prévenu',
+          lead?.name,
+          listingLabel(listing, id),
+          viewingRequest?.requested_time,
+        ],
+        linkParam: viewingRequest?.id,
+      }, 'ops copy');
+      if (!asTemplate) {
+        await chakra.sendWhatsAppMessage(
+          ops,
+          opsMessage({ listing, lead, viewingRequest, propertyId: id, agentNotified, agentSkipReason }),
+          { previewUrl: true },
+        );
+      }
       opsNotified = true;
     } catch (err) {
       console.error(`[viewing] ops copy for request #${viewingRequest?.id} failed: ${err.message}`);
@@ -834,6 +923,31 @@ function tenantRescheduleText(listing, proposedTime, propertyId) {
   ].join('\n');
 }
 
+/** The three customer messages as template descriptors (sendLifecycleTemplate). */
+function confirmedTemplate(listing, viewingRequest, propertyId, agreedAt = null) {
+  return {
+    kind: 'confirmed',
+    bodyParams: [listingLabel(listing, propertyId), slotForTemplate(viewingRequest, agreedAt), listing?.agent_name || 'votre agent'],
+    linkParam: viewingRequest?.id,
+  };
+}
+
+function proposalTemplate(listing, viewingRequest, propertyId, proposedTime) {
+  return {
+    kind: 'proposal',
+    bodyParams: [listingLabel(listing, propertyId), proposedTime],
+    linkParam: viewingRequest?.id,
+  };
+}
+
+function unavailableTemplate(listing, viewingRequest, propertyId, reason) {
+  return {
+    kind: 'unavailable',
+    bodyParams: [listingLabel(listing, propertyId), slotForTemplate(viewingRequest), reason],
+    linkParam: viewingRequest?.id,
+  };
+}
+
 /**
  * The customer's recovery path. Real alternatives or an honest apology —
  * never an empty "here are 3 listings:" followed by nothing.
@@ -928,8 +1042,9 @@ function opsDeclineText({ listing, viewingRequest, propertyId, reasonCode, close
 // ---------------------------------------------------------------------------
 
 /** Best-effort send that never throws — every handler is fire-and-forget. */
-async function trySend(phone, text, label) {
+async function trySend(phone, text, label, template = null) {
   if (!phone) return false;
+  if (template && (await sendLifecycleTemplate(phone, template, label))) return true;
   try {
     await chakra.sendWhatsAppMessage(String(phone).replace(/\D/g, ''), text, { previewUrl: true });
     return true;
@@ -1093,6 +1208,7 @@ async function handleAccept({ request, listing, propertyId, from }) {
       request.lead_wa_id,
       tenantAcceptedText(listing, request, propertyId, picked),
       'accept confirmation',
+      confirmedTemplate(listing, request, propertyId, picked),
     );
     if (toldPicked) markCustomerNotified(request.id);
     await trySend(from, slotAgreedText(picked), 'slot agreed');
@@ -1105,6 +1221,7 @@ async function handleAccept({ request, listing, propertyId, from }) {
     request.lead_wa_id,
     tenantAcceptedText(listing, request, propertyId),
     'accept confirmation',
+    confirmedTemplate(listing, request, propertyId),
   );
   if (told) markCustomerNotified(request.id);
 
@@ -1220,11 +1337,19 @@ async function sendAlternativesToTenant({ request, listing, propertyId }) {
     console.error(`[viewing] alternatives lookup for request #${request.id} failed: ${err.message}`);
   }
 
-  const sent = await trySend(
+  // The template tells the customer the visit is off wherever they are in the
+  // 24h window. It cannot carry a list, so the alternatives still follow as a
+  // text — which only lands inside the window, and is the whole message when
+  // no template is configured.
+  const viaTemplate = await sendLifecycleTemplate(
     request.lead_wa_id,
-    tenantAlternativesText(alternatives),
-    'decline alternatives',
+    unavailableTemplate(listing, request, propertyId, "L'agent n'est pas disponible pour ce bien"),
+    'decline notice',
   );
+  const listed = !viaTemplate || alternatives.length
+    ? await trySend(request.lead_wa_id, tenantAlternativesText(alternatives), 'decline alternatives')
+    : false;
+  const sent = viaTemplate || listed;
   if (sent) markCustomerNotified(request.id);
   return { count: alternatives.length, sent };
 }
@@ -1361,6 +1486,7 @@ async function respondFromDashboard({ viewingRequestId, agentId, status, request
       request.lead_wa_id,
       tenantAcceptedText(listing, request, propertyId, agreedAt || picked),
       'dashboard accept confirmation',
+      confirmedTemplate(listing, request, propertyId, agreedAt || picked),
     );
   } else if (status === 'RESCHEDULED') {
     dbService.updateViewingRequest(request.id, { status: 'RESCHEDULED', requestedTime: proposed });
@@ -1372,6 +1498,7 @@ async function respondFromDashboard({ viewingRequestId, agentId, status, request
       request.lead_wa_id,
       tenantRescheduleText(listing, proposed, propertyId),
       'dashboard reschedule proposal',
+      proposalTemplate(listing, request, propertyId, proposed),
     );
   } else if (status === 'DECLINED') {
     dbService.updateViewingRequest(request.id, { status: 'DECLINED' });
@@ -1396,6 +1523,7 @@ async function respondFromDashboard({ viewingRequestId, agentId, status, request
       request.lead_wa_id,
       tenantCancelledText(listing, request, propertyId),
       'dashboard cancellation',
+      unavailableTemplate(listing, request, propertyId, "L'agent a dû annuler cette visite"),
     );
     await notifyOps(
       opsDashboardAnswerText({ listing, viewingRequest: request, propertyId, status, tenantNotified }),
@@ -1642,6 +1770,7 @@ async function handleAgentTextReply({ from, text }) {
       ctx.request.lead_wa_id,
       tenantRescheduleText(ctx.listing, proposed, ctx.propertyId),
       'reschedule proposal',
+      proposalTemplate(ctx.listing, ctx.request, ctx.propertyId, proposed),
     );
     if (told) markCustomerNotified(ctx.request.id);
     await trySend(

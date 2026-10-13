@@ -1231,6 +1231,22 @@ web/CLAUDE.md, "Visit booking, both agendas…", has the pages. Engine half:
   intake number. Replies to that message land on the notifications number,
   not on this engine's webhook; the template's only action is a link button.
   The same number was set as OPS_WHATSAPP_NUMBER (the desk) on 2026-10-12.
+- **The rest of the lifecycle as templates (2026-10-13).** Each is unset by
+  default and falls back to its session text, so nothing that arrived before
+  can be lost: `VIEWING_DESK_TEMPLATE` (copie_bureau_visite: agent or "Aucun
+  agent prévenu", customer, listing, time), `VIEWING_CONFIRMED_TEMPLATE`
+  (visite_confirmee_client: listing, time, agent), `VIEWING_PROPOSAL_TEMPLATE`
+  (visite_proposition_client: listing, new time), `VIEWING_UNAVAILABLE_TEMPLATE`
+  (visite_indisponible_client: listing, time asked, reason — used for a
+  decline and for an agent's cancellation; a decline's alternatives still
+  follow as text). `VIEWING_TEMPLATES_WITH_LINK` lists the templates approved
+  with a DYNAMIC link button (sent the request id via `sendTemplate`'s
+  `urlButton`); `VIEWING_TEMPLATES_FROM_SENDER` lists those that go out from
+  the notifications number. The desk copy can never be one of those: its
+  recipient is that number. `demande_visite_agent` is approved with an image
+  header and a FIXED link button, so it is in neither list. Only viewing
+  messages are covered: enquiries, ops alerts, digests and the availability
+  check are still session messages, which is why the desk keepalive stays.
 - **Days an agent takes no visits** are web-side only:
   `migrations/20261010_agent_visit_availability.sql` (Postgres, one row per
   agent), read and written by web's `lib/agentAvailability.js`. The engine

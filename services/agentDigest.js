@@ -327,12 +327,11 @@ function dayTemplateParams(agent, counts = {}) {
 }
 
 async function sendDayTemplate(phone, name, bodyParams) {
-  const { senderForTemplate } = require('./viewingNotifications');
-  const sender = senderForTemplate(name);
+  const { templateOptions } = require('./viewingNotifications');
   return chakra.sendTemplate(phone, name, {
     languageCode: process.env.VIEWING_REQUEST_TEMPLATE_LANG || 'fr',
     bodyParams,
-    ...(sender ? { sender } : {}),
+    ...templateOptions(name),
   });
 }
 

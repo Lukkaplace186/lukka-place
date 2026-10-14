@@ -1251,7 +1251,14 @@ web/CLAUDE.md, "Visit booking, both agendas…", has the pages. Engine half:
   (visites_programme_agent: first name, number of visits today, first visit
   time) is sent by `agentDigest.deliverDigest` when the agent has a CONFIRMED
   visit today; the rest of the digest follows as text only when it says
-  anything beyond those visits. Same `VIEWING_TEMPLATES_FROM_SENDER` rule.
+  anything beyond those visits.
+- **Where they live (measured 2026-10-14):** the four new templates are on
+  the INTAKE number's account (from the notifications number Meta answers
+  #132001) and all four have a PICTURE header (without one, #132012). So
+  production has `VIEWING_TEMPLATES_WITH_IMAGE` listing all four and
+  `VIEWING_TEMPLATES_FROM_SENDER` empty; only `demande_visite_agent` goes out
+  from the notifications number. `copie_bureau_visite` was not created; the
+  desk copy is still a session message.
 - **Days an agent takes no visits** are web-side only:
   `migrations/20261010_agent_visit_availability.sql` (Postgres, one row per
   agent), read and written by web's `lib/agentAvailability.js`. The engine

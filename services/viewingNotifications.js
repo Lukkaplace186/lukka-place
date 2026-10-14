@@ -119,6 +119,9 @@ const templateSender = () => {
 //       number's account and go out from it (VIEWING_SENDER_PHONE_NUMBER_ID).
 //       The agent alert always does. The desk copy must NOT: its recipient is
 //       that very number, and a number cannot message itself (#100).
+//   VIEWING_TEMPLATES_WITH_IMAGE   templates approved with a PICTURE header;
+//       they are sent VIEWING_REQUEST_TEMPLATE_IMAGE. Without it Meta answers
+//       #132012 (seen 2026-10-14 on all four customer/agent templates).
 // ---------------------------------------------------------------------------
 const LIFECYCLE_TEMPLATE_ENV = {
   desk: 'VIEWING_DESK_TEMPLATE',
@@ -130,10 +133,18 @@ const nameList = (key) =>
   String(process.env[key] || '').split(',').map((name) => name.trim()).filter(Boolean);
 const templateHasLink = (name) => nameList('VIEWING_TEMPLATES_WITH_LINK').includes(name);
 const templateFromSender = (name) => nameList('VIEWING_TEMPLATES_FROM_SENDER').includes(name);
+const templateHasImage = (name) => nameList('VIEWING_TEMPLATES_WITH_IMAGE').includes(name);
 
 /** The sender option for a template, by the rule above (the agent digest uses it too). */
 function senderForTemplate(name) {
   return templateFromSender(name) ? templateSender() : null;
+}
+
+/** sendTemplate options for a configured template: sender and picture, by the lists above. */
+function templateOptions(name) {
+  const sender = senderForTemplate(name);
+  const image = templateHasImage(name) ? templateImage() : null;
+  return { ...(sender ? { sender } : {}), ...(image ? { headerImage: image } : {}) };
 }
 
 /** A body variable Meta accepts: one line, never empty, at most 200 characters. */
@@ -149,13 +160,12 @@ function templateValue(value, fallback = 'Non précisé') {
 async function sendLifecycleTemplate(phone, { kind, bodyParams = [], linkParam } = {}, label = kind) {
   const name = (process.env[LIFECYCLE_TEMPLATE_ENV[kind]] || '').trim();
   if (!name || !phone) return false;
-  const sender = senderForTemplate(name);
   try {
     await chakra.sendTemplate(String(phone).replace(/\D/g, ''), name, {
       languageCode: templateLang(),
       bodyParams: bodyParams.map((value) => templateValue(value)),
       ...(templateHasLink(name) && linkParam != null ? { urlButton: linkParam } : {}),
-      ...(sender ? { sender } : {}),
+      ...templateOptions(name),
     });
     return true;
   } catch (err) {
@@ -1955,6 +1965,7 @@ async function retireListing(ctx, from) {
 
 module.exports = {
   senderForTemplate,
+  templateOptions,
   templateValue,
   notifyViewingRequest,
   notifyViewingRequestInBackground,

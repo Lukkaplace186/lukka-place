@@ -76,7 +76,7 @@ for (const key of [
   'VIEWING_SENDER_PHONE_NUMBER_ID', 'VIEWING_SENDER_ACCESS_TOKEN', 'VIEWING_SENDER_PLUGIN_ID',
   'AGENT_LEAD_MATCH_TEMPLATE', 'LISTING_AVAILABILITY_TEMPLATE', 'VISIT_RECEIPT_TEMPLATE',
   'VIEWING_DESK_TEMPLATE', 'VIEWING_CONFIRMED_TEMPLATE', 'VIEWING_PROPOSAL_TEMPLATE', 'VIEWING_UNAVAILABLE_TEMPLATE',
-  'VIEWING_TEMPLATES_WITH_LINK', 'VIEWING_TEMPLATES_FROM_SENDER', 'AGENT_DAY_TEMPLATE',
+  'VIEWING_TEMPLATES_WITH_LINK', 'VIEWING_TEMPLATES_FROM_SENDER', 'VIEWING_TEMPLATES_WITH_IMAGE', 'AGENT_DAY_TEMPLATE',
 ]) {
   process.env[key] = '';
 }
@@ -10099,6 +10099,22 @@ console.log('\n2. services/openai.js');
 
     for (const k of keys) process.env[k] = before[k];
   }
+
+  check('templateOptions: a picture only for templates listed WITH_IMAGE, a sender only for those listed FROM_SENDER', () => {
+    const keys = ['VIEWING_TEMPLATES_WITH_IMAGE', 'VIEWING_TEMPLATES_FROM_SENDER', 'VIEWING_REQUEST_TEMPLATE_IMAGE', 'VIEWING_SENDER_PHONE_NUMBER_ID'];
+    const before = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+    try {
+      process.env.VIEWING_REQUEST_TEMPLATE_IMAGE = 'https://lukkaplace.com/og-image.png';
+      process.env.VIEWING_SENDER_PHONE_NUMBER_ID = '111222333444';
+      process.env.VIEWING_TEMPLATES_WITH_IMAGE = 'visite_confirmee_client, visites_programme_agent';
+      process.env.VIEWING_TEMPLATES_FROM_SENDER = 'autre';
+      assert.deepStrictEqual(viewingNotifications.templateOptions('visite_confirmee_client'), { headerImage: 'https://lukkaplace.com/og-image.png' });
+      assert.deepStrictEqual(viewingNotifications.templateOptions('copie_bureau_visite'), {});
+      assert.strictEqual(viewingNotifications.templateOptions('autre').sender.phoneNumberId, '111222333444');
+    } finally {
+      for (const k of keys) process.env[k] = before[k];
+    }
+  });
 
   await checkAsync('a dynamic link button is one url component at index 0; it cannot be mixed with quick replies or be blank', async () => {
     httpCalls.length = 0;

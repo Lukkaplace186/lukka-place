@@ -55,7 +55,8 @@ function budgetText(lead, t) {
  * Old links keep working: `?tab=visites` shows the whole inbox, `?status=`
  * maps onto the matching pill (inboxFilterFromParams), and `?lead=` (the
  * WhatsApp alert's deep link) pins that request — or the visit it was folded
- * into — to the top.
+ * into — to the top; `?visite=` (the templates' link button) pins a visit by
+ * its own id.
  *
  * Both lists come from the WhatsApp engine. When it is unreachable the page
  * still opens and says the requests are temporarily unavailable, instead of
@@ -67,6 +68,7 @@ export default async function AgentInquiriesPage({ searchParams }) {
   const params = await searchParams;
   const filter = inboxFilterFromParams(params);
   const focusLeadId = Number.parseInt(params.lead, 10);
+  const focusVisitId = Number.parseInt(params.visite, 10);
   const q = typeof params.q === 'string' ? params.q.trim() : '';
   const replySent = params.reply_sent === '1';
   const replyError = typeof params.reply_error === 'string' ? params.reply_error : null;
@@ -107,6 +109,7 @@ export default async function AgentInquiriesPage({ searchParams }) {
     filter,
     q,
     focusLeadId: Number.isFinite(focusLeadId) ? focusLeadId : null,
+    focusVisitId: Number.isFinite(focusVisitId) ? focusVisitId : null,
     titleFor,
   });
   const myActiveListings = listings.filter((l) => l.approve_status === 1 && l.listing_status === 'active');
@@ -175,7 +178,7 @@ export default async function AgentInquiriesPage({ searchParams }) {
           )}
           {!focusFound && (
             <p className="u-micro rounded-lg bg-warning-tint px-4 py-3 font-semibold text-warning-ink" role="status">
-              {t('agent.inbox.focusMissing', { id: focusLeadId })}
+              {t('agent.inbox.focusMissing', { id: Number.isFinite(focusVisitId) ? focusVisitId : focusLeadId })}
             </p>
           )}
           {replySent && (

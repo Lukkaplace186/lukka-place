@@ -61,7 +61,7 @@ function searchText(item, titleFor) {
  *            counts: {all: number, 'a-traiter': number, confirmees: number, traitees: number},
  *            focusFound: boolean}}
  */
-export function buildAgentInbox({ visits = [], leads = [], filter = '', q = '', focusLeadId = null, titleFor = () => null } = {}) {
+export function buildAgentInbox({ visits = [], leads = [], filter = '', q = '', focusLeadId = null, focusVisitId = null, titleFor = () => null } = {}) {
   const visitRows = (visits || []).filter((v) => v && v.id != null);
   const visitLeadIds = new Set(visitRows.map((v) => String(v.lead_id ?? '')).filter(Boolean));
   const visitAsks = new Set(visitRows.map((v) => `${digits(v.lead_wa_id)}|${v.property_id || v.lead_property_id || ''}`));
@@ -73,8 +73,13 @@ export function buildAgentInbox({ visits = [], leads = [], filter = '', q = '', 
   });
 
   const focus = Number.isFinite(focusLeadId) ? String(focusLeadId) : null;
+  // ?visite=<viewing request id> — the WhatsApp templates' link button names
+  // the request itself (2026-10-14); ?lead= is the older alert link.
+  const focusVisit = Number.isFinite(focusVisitId) ? String(focusVisitId) : null;
+  const visitFocused = (row) =>
+    (focus != null && String(row.lead_id ?? '') === focus) || (focusVisit != null && String(row.id) === focusVisit);
   let all = [
-    ...visitRows.map((row) => ({ kind: 'visit', key: `v-${row.id}`, row, focused: focus != null && String(row.lead_id ?? '') === focus })),
+    ...visitRows.map((row) => ({ kind: 'visit', key: `v-${row.id}`, row, focused: visitFocused(row) })),
     ...leadRows.map((row) => ({ kind: 'lead', key: `l-${row.id}`, row, focused: focus != null && String(row.id) === focus })),
   ].map((item) => ({ ...item, group: inboxGroup(item) }));
 
@@ -96,7 +101,7 @@ export function buildAgentInbox({ visits = [], leads = [], filter = '', q = '', 
     return engineTime(b.row.created_at) - engineTime(a.row.created_at);
   });
 
-  return { items, counts, focusFound: focus == null || all.some((item) => item.focused) };
+  return { items, counts, focusFound: (focus == null && focusVisit == null) || all.some((item) => item.focused) };
 }
 
 /**

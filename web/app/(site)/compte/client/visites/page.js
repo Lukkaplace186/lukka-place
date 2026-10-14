@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import ScrollToElement from '@/components/ScrollToElement';
 import { CalendarClock, Check } from 'lucide-react';
 import { PortalEmpty } from '@/components/ClientPortalUI';
 import { getPortalCustomer } from '@/lib/customerPortal';
@@ -38,11 +39,17 @@ const VISIT_ERROR_KEYS = {
  * listings board, which answers here because this is where the request now is.
  */
 export default async function VisitesPage({ searchParams }) {
+  const params = await searchParams;
+  // ?visite=<id> — the WhatsApp templates' link button names the visit
+  // (2026-10-14). Kept through sign-in, so the card is still marked after.
+  const focusVisit = /^\d{1,12}$/.test(String(params?.visite || '')) ? String(params.visite) : null;
   const portal = await getPortalCustomer();
-  if (!portal) redirect('/compte/connexion?next=/compte/client/visites');
+  if (!portal) {
+    const back = focusVisit ? `/compte/client/visites?visite=${focusVisit}` : '/compte/client/visites';
+    redirect(`/compte/connexion?next=${encodeURIComponent(back)}`);
+  }
   const t = await getT();
   const locale = await getLocale();
-  const params = await searchParams;
   const visitSent = params?.visit_sent === '1' ? 'agent' : params?.visit_sent === 'team' ? 'team' : null;
   const visitError = typeof params?.visit_error === 'string' ? params.visit_error : null;
 
@@ -97,12 +104,17 @@ export default async function VisitesPage({ searchParams }) {
         </PortalEmpty>
       ) : null}
 
+      {focusVisit && <ScrollToElement id={`visite-${focusVisit}`} />}
       {sections.map(([key, items]) => (
         <section key={key} aria-labelledby={`visits-${key}`}>
           <h2 id={`visits-${key}`} className="u-eyebrow mb-2 ml-0.5 text-ink-45">{t(`account.agenda.groups.${key}`)}</h2>
           <ul className="u-stagger flex flex-col gap-3">
             {items.map((visit) => (
-              <li key={visit.id}>
+              <li
+                key={visit.id}
+                id={`visite-${visit.id}`}
+                className={focusVisit === String(visit.id) ? 'scroll-mt-28 rounded-card ring-2 ring-blue ring-offset-2' : undefined}
+              >
                 <VisitCard visit={visit} t={t} locale={locale} past={key === 'past'} now={now} />
               </li>
             ))}

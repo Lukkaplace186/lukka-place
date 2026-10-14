@@ -122,3 +122,15 @@ test('the badge counts what waits once, and only what arrived since the agent la
   assert.match(page, /<InboxSeenMarker seenAt=\{renderedAt\} badge=\{waitingCount\} \/>/);
   assert.match(read('components/InboxSeenMarker.js'), /if \(badge > 0\) router\.refresh\(\);/);
 });
+
+test('?visite= pins a visit by its own id, ahead of everything else', () => {
+  const visits = [
+    { id: 11, lead_id: 1, status: 'PENDING', created_at: '2026-10-14 08:00:00' },
+    { id: 12, lead_id: 2, status: 'PENDING', created_at: '2026-10-13 08:00:00' },
+  ];
+  const { items, focusFound } = buildAgentInbox({ visits, focusVisitId: 12 });
+  assert.equal(items[0].row.id, 12);
+  assert.equal(items[0].focused, true);
+  assert.equal(focusFound, true);
+  assert.equal(buildAgentInbox({ visits, focusVisitId: 99 }).focusFound, false);
+});

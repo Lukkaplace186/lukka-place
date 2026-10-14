@@ -486,6 +486,7 @@ async function notifyViewingRequest({
           viewingRequest?.requested_time || 'Non précisé',
         ],
         viewingRequest?.id ? viewingButtons(viewingRequest.id) : null,
+        viewingRequest?.id ?? null,
       );
       agentNotified = true;
       // A tapped button carries the request id; a typed "1" does not. When

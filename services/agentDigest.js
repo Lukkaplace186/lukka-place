@@ -305,7 +305,68 @@ function composeDigest(agent, counts = {}, weekly = null, stale = []) {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function runAgentDigest({ now = new Date(), send = chakra.sendWhatsAppMessage } = {}) {
+// The day's visits as a TEMPLATE (2026-10-14), so an agent with visits today
+// hears about them even when they have not written to us in 24h. Approved as
+// `visites_programme_agent` (UTILITY, fr): "Bonjour {{1}}, voici votre
+// récapitulatif de visites pour aujourd'hui. Total prévus : {{2}} Première
+// visite : {{3}} …". Unset by default; read at call time. It carries the
+// visits only, so the rest of the digest still follows as the session text —
+// and is skipped when the visits were all it had to say.
+const dayTemplateName = () => (process.env.AGENT_DAY_TEMPLATE || '').trim() || null;
+
+/** Body values for the day template, or null when the agent has no visit today. */
+function dayTemplateParams(agent, counts = {}) {
+  const today = counts.visitsToday || [];
+  if (!today.length) return null;
+  const { templateValue } = require('./viewingNotifications');
+  return [
+    templateValue(agent.first_name, 'partenaire'),
+    String(today.length),
+    templateValue(kinshasaTime(today[0]), 'à confirmer'),
+  ];
+}
+
+async function sendDayTemplate(phone, name, bodyParams) {
+  const { senderForTemplate } = require('./viewingNotifications');
+  const sender = senderForTemplate(name);
+  return chakra.sendTemplate(phone, name, {
+    languageCode: process.env.VIEWING_REQUEST_TEMPLATE_LANG || 'fr',
+    bodyParams,
+    ...(sender ? { sender } : {}),
+  });
+}
+
+/**
+ * Send one agent their morning: the day template when there are visits today
+ * and one is configured, then the text when it says anything more. Throws when
+ * nothing at all was accepted.
+ */
+async function deliverDigest(phone, agent, counts = {}, weekly = null, stale = [], {
+  send = chakra.sendWhatsAppMessage,
+  sendTemplate = sendDayTemplate,
+} = {}) {
+  const message = composeDigest(agent, counts, weekly, stale);
+  const name = dayTemplateName();
+  const params = name ? dayTemplateParams(agent, counts) : null;
+  if (params) {
+    let templated = false;
+    try {
+      await sendTemplate(phone, name, params);
+      templated = true;
+    } catch (err) {
+      console.warn(`[digest] template '${name}' failed for ${phone}, sending the text: ${err.message}`);
+    }
+    if (templated) {
+      const rest = composeDigest(agent, { ...counts, visitsToday: [] }, weekly, stale);
+      if (rest) await send(phone, rest).catch((err) => console.warn(`[digest] text after the template failed for ${phone}: ${err.message}`));
+      return 'template';
+    }
+  }
+  await send(phone, message);
+  return 'session';
+}
+
+async function runAgentDigest({ now = new Date(), send = chakra.sendWhatsAppMessage, sendTemplate = sendDayTemplate } = {}) {
   if (!pg.isConfigured()) return { skipped: 'postgres not configured' };
   const day = kinshasaDay(now);
   const weeklyDay = isKinshasaMonday(now);
@@ -332,7 +393,7 @@ async function runAgentDigest({ now = new Date(), send = chakra.sendWhatsAppMess
     }
     if (claim.run(id, day, weeklyDay ? 1 : 0).changes === 0) continue;
     try {
-      await send(phone, message);
+      await deliverDigest(phone, agent, counts.get(id) || {}, weekly.get(id) || null, stale.get(id) || [], { send, sendTemplate });
       settle.run('SENT', null, id, day);
       sent += 1;
     } catch (err) {
@@ -363,6 +424,8 @@ const OPT_OUT_REPLY =
 const agentDigestJob = { name: JOB_NAME, shouldRun: digestDue, run: () => runAgentDigest() };
 
 module.exports = {
+  deliverDigest,
+  dayTemplateParams,
   agentDigestJob,
   loadAgents,
   weeklyStats,

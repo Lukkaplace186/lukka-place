@@ -76,7 +76,7 @@ for (const key of [
   'VIEWING_SENDER_PHONE_NUMBER_ID', 'VIEWING_SENDER_ACCESS_TOKEN', 'VIEWING_SENDER_PLUGIN_ID',
   'AGENT_LEAD_MATCH_TEMPLATE', 'LISTING_AVAILABILITY_TEMPLATE', 'VISIT_RECEIPT_TEMPLATE',
   'VIEWING_DESK_TEMPLATE', 'VIEWING_CONFIRMED_TEMPLATE', 'VIEWING_PROPOSAL_TEMPLATE', 'VIEWING_UNAVAILABLE_TEMPLATE',
-  'VIEWING_TEMPLATES_WITH_LINK', 'VIEWING_TEMPLATES_FROM_SENDER',
+  'VIEWING_TEMPLATES_WITH_LINK', 'VIEWING_TEMPLATES_FROM_SENDER', 'AGENT_DAY_TEMPLATE',
 ]) {
   process.env[key] = '';
 }
@@ -841,6 +841,35 @@ console.log('\n2. services/openai.js');
       assert.ok(!digest.isDigestOptOut('stop'), 'a bare "stop" is not claimed by the digest');
     } finally {
       Object.assign(pgModule, saved);
+    }
+  });
+
+  await checkAsync('with AGENT_DAY_TEMPLATE set, visits today go as the template; the rest of the digest follows as text, or nothing when visits were all', async () => {
+    const digest = require('../services/agentDigest');
+    const before = process.env.AGENT_DAY_TEMPLATE;
+    process.env.AGENT_DAY_TEMPLATE = 'visites_programme_agent';
+    try {
+      const texts = [];
+      const templates = [];
+      const opts = { send: async (to, text) => texts.push(text), sendTemplate: async (to, name, params) => templates.push({ name, params }) };
+      const agent = { first_name: 'Marie', to_confirm: 0, in_review: 0 };
+      const visits = { visitsToday: ['2026-10-14T08:15:00Z', '2026-10-14T13:00:00Z'] };
+      assert.strictEqual(await digest.deliverDigest('243811000001', agent, visits, null, [], opts), 'template');
+      assert.deepStrictEqual(templates[0], { name: 'visites_programme_agent', params: ['Marie', '2', '09h15'] });
+      assert.strictEqual(texts.length, 0, 'visits were the whole digest: no second message');
+
+      await digest.deliverDigest('243811000001', { ...agent, to_confirm: 2 }, visits, null, [], opts);
+      assert.strictEqual(texts.length, 1);
+      assert.match(texts[0], /2 biens à confirmer/);
+      assert.ok(!/visites aujourd'hui/.test(texts[0]), 'the visits are not repeated in the text');
+
+      assert.strictEqual(await digest.deliverDigest('243811000001', { ...agent, to_confirm: 1 }, {}, null, [], opts), 'session', 'no visit today: text only');
+      const failing = { ...opts, sendTemplate: async () => { throw new Error('132001'); } };
+      texts.length = 0;
+      assert.strictEqual(await digest.deliverDigest('243811000001', agent, visits, null, [], failing), 'session');
+      assert.match(texts[0], /2 visites aujourd'hui/, 'a refused template falls back to the full text');
+    } finally {
+      process.env.AGENT_DAY_TEMPLATE = before;
     }
   });
   const result = await openaiService.parseMessage('Villa a louer Ngaliema 4 chambres 2500$/mois', {

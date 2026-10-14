@@ -131,6 +131,11 @@ const nameList = (key) =>
 const templateHasLink = (name) => nameList('VIEWING_TEMPLATES_WITH_LINK').includes(name);
 const templateFromSender = (name) => nameList('VIEWING_TEMPLATES_FROM_SENDER').includes(name);
 
+/** The sender option for a template, by the rule above (the agent digest uses it too). */
+function senderForTemplate(name) {
+  return templateFromSender(name) ? templateSender() : null;
+}
+
 /** A body variable Meta accepts: one line, never empty, at most 200 characters. */
 function templateValue(value, fallback = 'Non précisé') {
   const text = String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -144,7 +149,7 @@ function templateValue(value, fallback = 'Non précisé') {
 async function sendLifecycleTemplate(phone, { kind, bodyParams = [], linkParam } = {}, label = kind) {
   const name = (process.env[LIFECYCLE_TEMPLATE_ENV[kind]] || '').trim();
   if (!name || !phone) return false;
-  const sender = templateFromSender(name) ? templateSender() : null;
+  const sender = senderForTemplate(name);
   try {
     await chakra.sendTemplate(String(phone).replace(/\D/g, ''), name, {
       languageCode: templateLang(),
@@ -1949,6 +1954,8 @@ async function retireListing(ctx, from) {
 }
 
 module.exports = {
+  senderForTemplate,
+  templateValue,
   notifyViewingRequest,
   notifyViewingRequestInBackground,
   reassignViewing,

@@ -1247,6 +1247,11 @@ web/CLAUDE.md, "Visit booking, both agendas…", has the pages. Engine half:
   header and a FIXED link button, so it is in neither list. Only viewing
   messages are covered: enquiries, ops alerts, digests and the availability
   check are still session messages, which is why the desk keepalive stays.
+- **The agent's day as a template (2026-10-14).** `AGENT_DAY_TEMPLATE`
+  (visites_programme_agent: first name, number of visits today, first visit
+  time) is sent by `agentDigest.deliverDigest` when the agent has a CONFIRMED
+  visit today; the rest of the digest follows as text only when it says
+  anything beyond those visits. Same `VIEWING_TEMPLATES_FROM_SENDER` rule.
 - **Days an agent takes no visits** are web-side only:
   `migrations/20261010_agent_visit_availability.sql` (Postgres, one row per
   agent), read and written by web's `lib/agentAvailability.js`. The engine

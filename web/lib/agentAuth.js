@@ -81,6 +81,14 @@ export function isValidAgentSessionToken(token) {
 }
 
 export const AGENT_SESSION_COOKIE = SESSION_COOKIE;
+/**
+ * Non-httpOnly "an agent is signed in on this browser" flag, so the public
+ * header can offer "Mon espace agent" instead of the sign-in link. Same
+ * posture as the customer's `lukka_logged_in`: it picks a link, never grants
+ * anything — every agent page re-verifies the real httpOnly session.
+ * lib/agentClient.js reads it by this exact name.
+ */
+export const AGENT_LOGGED_IN_FLAG_COOKIE = 'lukka_agent_logged_in';
 export const AGENT_SESSION_TTL_SECONDS = Math.floor(SESSION_TTL_MS / 1000);
 export const MAX_FAILED_LOGIN_ATTEMPTS = 5;
 export const LOCKOUT_MS = 15 * 60 * 1000;

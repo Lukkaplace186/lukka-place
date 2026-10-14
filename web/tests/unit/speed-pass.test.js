@@ -26,3 +26,16 @@ test('www.lukkaplace.com redirects to lukkaplace.com, so there is one sign-in', 
   assert.equal(www.destination, 'https://lukkaplace.com/:path*');
   assert.equal(www.permanent, true);
 });
+
+test('the header knows an agent is signed in: one flag name on both sides, set with the session, cleared on logout', () => {
+  const auth = read('lib/agentAuth.js');
+  assert.match(auth, /AGENT_LOGGED_IN_FLAG_COOKIE = 'lukka_agent_logged_in'/);
+  assert.match(read('lib/customerClient.js'), /c === 'lukka_agent_logged_in=1'/);
+  const session = read('lib/agentSession.js');
+  assert.match(session, /cookieStore\.set\(AGENT_LOGGED_IN_FLAG_COOKIE, '1'/);
+  assert.match(session, /cookieStore\.delete\(\{ name: AGENT_LOGGED_IN_FLAG_COOKIE, path: '\/' \}\)/);
+  const header = read('components/Header.js');
+  assert.match(header, /agentSignedIn \? '\/compte\/agent' : '\/compte\/agent\/inscription'/);
+  assert.match(header, /agentSignedIn \? '\/compte\/agent\/demandes' : '\/compte\/agent\/connexion'/);
+  assert.match(read('app/(site)/compte/agent/connexion/page.js'), /getCurrentAgentId\(\)[\s\S]*redirect\(/);
+});

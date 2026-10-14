@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { isValidSessionToken, ADMIN_SESSION_COOKIE } from '@/lib/adminAuth';
 import { isValidCustomerSessionToken, CUSTOMER_SESSION_COOKIE } from '@/lib/customerAuth';
-import { isValidAgentSessionToken, AGENT_SESSION_COOKIE } from '@/lib/agentAuth';
+import { isValidAgentSessionToken, AGENT_SESSION_COOKIE, AGENT_LOGGED_IN_FLAG_COOKIE, AGENT_SESSION_TTL_SECONDS } from '@/lib/agentAuth';
 import { IMPERSONATION_COOKIE, impersonationDecision } from '@/lib/impersonationToken';
 
 /**
@@ -135,7 +135,19 @@ export function middleware(request) {
 
     const token = request.cookies.get(AGENT_SESSION_COOKIE)?.value;
     if (isValidAgentSessionToken(token)) {
-      return NextResponse.next();
+      const response = NextResponse.next();
+      // Sessions opened before the header flag existed get it here, so the
+      // menu shows "Mon espace agent" after one visit to the dashboard.
+      if (request.cookies.get(AGENT_LOGGED_IN_FLAG_COOKIE)?.value !== '1') {
+        response.cookies.set(AGENT_LOGGED_IN_FLAG_COOKIE, '1', {
+          httpOnly: false,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          path: '/',
+          maxAge: AGENT_SESSION_TTL_SECONDS,
+        });
+      }
+      return response;
     }
 
     const loginUrl = new URL('/compte/agent/connexion', request.url);

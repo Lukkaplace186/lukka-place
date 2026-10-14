@@ -1,5 +1,5 @@
 import 'server-only';
-import { AGENT_SESSION_COOKIE, createAgentSessionToken } from './agentAuth';
+import { AGENT_SESSION_COOKIE, AGENT_LOGGED_IN_FLAG_COOKIE, createAgentSessionToken } from './agentAuth';
 import { CUSTOMER_SESSION_COOKIE, createCustomerSessionToken } from './customerAuth';
 import { CUSTOMER_LOGGED_IN_FLAG_COOKIE } from './customerSession';
 import { endImpersonation } from './impersonation';
@@ -22,6 +22,7 @@ function options(maxAgeSeconds, httpOnly = true) {
 function clearTargetCookies(cookieStore, targetType) {
   if (targetType === 'agent') {
     cookieStore.delete({ name: AGENT_SESSION_COOKIE, path: '/' });
+    cookieStore.delete({ name: AGENT_LOGGED_IN_FLAG_COOKIE, path: '/' });
   } else {
     cookieStore.delete({ name: CUSTOMER_SESSION_COOKIE, path: '/' });
     cookieStore.delete({ name: CUSTOMER_LOGGED_IN_FLAG_COOKIE, path: '/' });

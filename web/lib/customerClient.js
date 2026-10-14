@@ -38,3 +38,18 @@ function subscribeNoop() {
 export function useIsLoggedIn() {
   return useSyncExternalStore(subscribeNoop, isLoggedInClient, () => false);
 }
+
+/**
+ * Same idea for an agent: the `lukka_agent_logged_in` flag set beside the
+ * agent session (lib/agentSession.js, and middleware.js for older sessions).
+ * Picks which header link to show; never authorises anything.
+ */
+export function isAgentSignedInClient() {
+  if (typeof document === 'undefined') return false;
+  return document.cookie.split('; ').some((c) => c === 'lukka_agent_logged_in=1');
+}
+
+export function useIsAgentSignedIn() {
+  return useSyncExternalStore(subscribeNoop, isAgentSignedInClient, () => false);
+}
+

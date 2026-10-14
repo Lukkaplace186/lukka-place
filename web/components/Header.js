@@ -11,7 +11,7 @@ import { Wordmark } from './Brand';
 import CurrencyToggle from './CurrencyToggle';
 import LanguageToggle from './LanguageToggle';
 import { useT } from '@/lib/i18n/client';
-import { useIsLoggedIn } from '@/lib/customerClient';
+import { useIsLoggedIn, useIsAgentSignedIn } from '@/lib/customerClient';
 import { logoutAction } from '@/app/(site)/compte/actions';
 
 // Keys, not text — see navItems.js on why a module-level constant cannot
@@ -139,6 +139,7 @@ export default function Header() {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const loggedIn = useIsLoggedIn();
+  const agentSignedIn = useIsAgentSignedIn();
   const t = useT();
 
   // Warm the three site destinations the moment the drawer opens, so the page
@@ -270,22 +271,24 @@ export default function Header() {
                     mt-auto alone would collapse to zero. */}
                 <div aria-hidden="true" className="min-h-5 flex-1" />
                 <div className="border-t border-line px-1 pt-4 pb-1">
-                  <p className="px-2 pb-2 text-[0.8125rem] font-medium text-ink-70">{t('nav.agentPrompt')}</p>
+                  <p className="px-2 pb-2 text-[0.8125rem] font-medium text-ink-70">
+                    {t(agentSignedIn ? 'nav.agentSignedIn' : 'nav.agentPrompt')}
+                  </p>
                   <SheetClose asChild>
                     <Link
-                      href="/compte/agent/inscription"
+                      href={agentSignedIn ? '/compte/agent' : '/compte/agent/inscription'}
                       className="u-press u-btn-primary flex w-full items-center justify-center gap-2 rounded-lg bg-blue py-3 text-[0.9375rem] font-bold text-white"
                     >
-                      {t('nav.publishListing')}
+                      {t(agentSignedIn ? 'nav.agentSpace' : 'nav.publishListing')}
                       <ArrowRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
                     </Link>
                   </SheetClose>
                   <SheetClose asChild>
                     <Link
-                      href="/compte/agent/connexion"
+                      href={agentSignedIn ? '/compte/agent/demandes' : '/compte/agent/connexion'}
                       className={`${DRAWER_ROW} mt-1 flex min-h-11 items-center justify-center px-2 py-2.5 text-center text-[0.8125rem] font-semibold text-blue-deep`}
                     >
-                      {t('nav.agentLogin')}
+                      {t(agentSignedIn ? 'nav.agentEnquiries' : 'nav.agentLogin')}
                     </Link>
                   </SheetClose>
                 </div>
@@ -424,10 +427,10 @@ export default function Header() {
           </div>
 
           <Link
-            href="/compte/agent/inscription"
+            href={agentSignedIn ? '/compte/agent' : '/compte/agent/inscription'}
             className="u-press u-btn-secondary hidden h-9 items-center gap-1.5 rounded-lg px-4 text-[0.8125rem] font-bold text-ink lg:inline-flex"
           >
-            {t('nav.publishListing')}
+            {t(agentSignedIn ? 'nav.agentSpace' : 'nav.publishListing')}
             <ArrowRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
           </Link>
         </div>

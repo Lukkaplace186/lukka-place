@@ -1,6 +1,6 @@
 import 'server-only';
 import { cookies } from 'next/headers';
-import { createAgentSessionToken, AGENT_SESSION_COOKIE, AGENT_SESSION_TTL_SECONDS, verifyAgentSessionToken } from './agentAuth';
+import { createAgentSessionToken, AGENT_SESSION_COOKIE, AGENT_LOGGED_IN_FLAG_COOKIE, AGENT_SESSION_TTL_SECONDS, verifyAgentSessionToken } from './agentAuth';
 
 /**
  * Mirrors web/lib/customerSession.js. `path: '/'` (not scoped to
@@ -21,11 +21,19 @@ export async function establishAgentSession({ id, tokenVersion }) {
     path: '/',
     maxAge: AGENT_SESSION_TTL_SECONDS,
   });
+  cookieStore.set(AGENT_LOGGED_IN_FLAG_COOKIE, '1', {
+    httpOnly: false,
+    secure: isProd,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: AGENT_SESSION_TTL_SECONDS,
+  });
 }
 
 export async function clearAgentSession() {
   const cookieStore = await cookies();
   cookieStore.delete({ name: AGENT_SESSION_COOKIE, path: '/' });
+  cookieStore.delete({ name: AGENT_LOGGED_IN_FLAG_COOKIE, path: '/' });
 }
 
 /** @returns {Promise<number|null>} */

@@ -1,4 +1,7 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { getCurrentAgentId } from '@/lib/agentSession';
+import { getAgentById } from '@/lib/agents';
 import { agentLoginAction } from './actions';
 import PhoneField from '@/components/PhoneField';
 import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
@@ -32,6 +35,15 @@ export default async function AgentLoginPage({ searchParams }) {
   const error = typeof params.error === 'string' ? params.error : null;
   const reset = params.reset === '1';
   const next = typeof params.next === 'string' ? params.next : '/compte/agent';
+
+  // Already signed in (a menu link, a bookmark, a WhatsApp link that went
+  // through here): straight to the page asked for, not the form again. The
+  // account must still exist — the dashboard sends a deleted one back here,
+  // and redirecting it onwards would loop.
+  const signedInAgentId = await getCurrentAgentId();
+  if (signedInAgentId && !error && (await getAgentById(signedInAgentId).catch(() => null))) {
+    redirect(next.startsWith('/') && !next.startsWith('//') ? next : '/compte/agent');
+  }
 
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-4">

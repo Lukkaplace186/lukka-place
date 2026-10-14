@@ -17,3 +17,12 @@ test('project copy ships from /projets only, not with every public page', () => 
   assert.ok(!/'projects'/.test(list));
   assert.match(read('app/(site)/projets/layout.js'), /PROJECT_NAMESPACES = \['projects'\]/);
 });
+
+test('www.lukkaplace.com redirects to lukkaplace.com, so there is one sign-in', async () => {
+  const { default: config } = await import('../../next.config.mjs');
+  const rules = await config.redirects();
+  const www = rules.find((r) => r.has?.some((h) => h.type === 'host' && h.value === 'www.lukkaplace.com'));
+  assert.ok(www, 'a host redirect for www exists');
+  assert.equal(www.destination, 'https://lukkaplace.com/:path*');
+  assert.equal(www.permanent, true);
+});

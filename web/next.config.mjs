@@ -62,6 +62,16 @@ const nextConfig = {
   // ?tab=alertes survives.
   async redirects() {
     return [
+      // One address, one sign-in (2026-10-15). www.lukkaplace.com served the
+      // site too, and a browser keeps cookies per host: an agent signed in on
+      // www was signed out on every lukkaplace.com link (WhatsApp, the
+      // home-screen icon, emails) and the other way round. 308 keeps a POST.
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'www.lukkaplace.com' }],
+        destination: 'https://lukkaplace.com/:path*',
+        permanent: true,
+      },
       {
         source: '/compte/client',
         has: [{ type: 'query', key: 'tab', value: '(?<tab>alertes|favoris)' }],

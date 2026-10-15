@@ -343,6 +343,18 @@ async function runSalesCommissions({ fetchImpl = fetch } = {}) {
 registerJob({ name: SALES_JOB_NAME, shouldRun: salesCommissionsDue, run: () => runSalesCommissions() });
 
 /**
+ * Nightly SQLite snapshot (services/sqliteBackup.js): the backup API, an
+ * integrity check, a copy in a private Supabase Storage bucket, 14 days kept.
+ * A job rather than a crontab entry for the reason at the top of this file —
+ * a crontab disappears the day the box is rebuilt, which is exactly the day a
+ * backup is needed. Last, so it never delays anything customer-facing.
+ */
+{
+  // eslint-disable-next-line global-require
+  registerJob(require('./sqliteBackup').sqliteBackupJob);
+}
+
+/**
  * Runs one job if it is due, recording the outcome.
  *
  * Isolated per job on purpose: a throw in the SLA sweep must not stop the

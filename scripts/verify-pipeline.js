@@ -6899,7 +6899,7 @@ console.log('\n2. services/openai.js');
     const names = sched.JOBS.map((j) => j.name);
     assert.deepStrictEqual(names, [
       'search-alerts', 'viewing-sla', 'viewing-checkin', 'viewing-agent-done', 'ops-health-alerts', 'listing-stats-rollup', 'trusted-auto-approve', 'agent-daily-digest',
-      'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions',
+      'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions', 'sqlite-backup',
     ]);
   });
 
@@ -10700,6 +10700,101 @@ console.log('\n2. services/openai.js');
       const replies = httpCalls.filter((c) => c.data?.to === AGENT47).map((c) => c.data.text?.body || '');
       assert.ok(replies.some((t) => /déduite de « GB »/.test(t)));
     });
+  }
+
+  // -------------------------------------------------------------------------
+  // 49. SQLite backups: backup API, integrity check, private bucket, 14 days
+  // -------------------------------------------------------------------------
+  console.log('\n49. SQLite backups');
+  {
+    const bk49 = require('../services/sqliteBackup');
+    const os49 = require('os');
+    const Database49 = require('better-sqlite3');
+    const tmp49 = fs.mkdtempSync(path.join(os49.tmpdir(), 'verify49-'));
+    const live49 = new Database49(path.join(tmp49, 'live.db'));
+    live49.pragma('journal_mode = WAL');
+    live49.pragma('wal_autocheckpoint = 0');
+    live49.exec("CREATE TABLE leads (id INTEGER PRIMARY KEY, wa_id TEXT); INSERT INTO leads (wa_id) VALUES ('243810000001'), ('243810000002');");
+    const now49 = new Date('2026-10-16T02:00:05Z');
+
+    const uploads49 = [];
+    const removed49 = [];
+    let bucketChecks49 = 0;
+    const fakeRemote49 = (existing, { failUpload = false } = {}) => ({
+      bucket: 'engine-backups',
+      async ensurePrivateBucket() { bucketChecks49 += 1; },
+      async upload(name, buf) {
+        if (failUpload) throw new Error(`upload of ${name} failed: boom`);
+        uploads49.push({ name, bytes: buf.length });
+      },
+      async list() { return [...existing, ...uploads49.map((u) => u.name)]; },
+      async remove(names) { removed49.push(...names); },
+    });
+
+    const result49 = await bk49.runBackup({
+      source: live49,
+      dbPath: path.join(tmp49, 'live.db'),
+      dir: path.join(tmp49, 'backups'),
+      now: now49,
+      remote: fakeRemote49(['lukka_place-20260930T020000Z.db.gz', 'lukka_place-20261010T020000Z.db.gz', 'README.txt']),
+    });
+    await checkAsync('a snapshot taken with the backup API holds rows still sitting in the WAL, and restores clean', async () => {
+      assert.ok(fs.statSync(path.join(tmp49, 'live.db-wal')).size > 0, 'the rows really are only in the WAL');
+      const file = path.join(tmp49, 'backups', result49.name);
+      const restored = await bk49.restoreToFile(fs.readFileSync(file), path.join(tmp49, 'restored.db'));
+      assert.strictEqual(restored.integrity, 'ok');
+      assert.strictEqual(restored.counts.leads, 2);
+      assert.strictEqual(result49.leads, 2);
+    });
+    check('the run uploads to a checked-private bucket and prunes only expired, recognised names', () => {
+      assert.strictEqual(result49.name, 'lukka_place-20261016T020005Z.db.gz');
+      assert.strictEqual(bucketChecks49, 1);
+      assert.deepStrictEqual(uploads49.map((u) => u.name), [result49.name]);
+      assert.deepStrictEqual(removed49, ['lukka_place-20260930T020000Z.db.gz'], 'older than 14 days only; README.txt untouched');
+      assert.deepStrictEqual(fs.readdirSync(path.join(tmp49, 'backups')), [result49.name], 'no .partial left behind');
+    });
+    await checkAsync('a failed upload fails the run, keeps the local snapshot and prunes nothing off-site', async () => {
+      removed49.length = 0;
+      await assert.rejects(
+        bk49.runBackup({
+          source: live49,
+          dbPath: path.join(tmp49, 'live.db'),
+          dir: path.join(tmp49, 'backups'),
+          now: new Date('2026-10-17T02:00:05Z'),
+          remote: fakeRemote49(['lukka_place-20260901T020000Z.db.gz'], { failUpload: true }),
+        }),
+        /boom/,
+      );
+      assert.ok(fs.existsSync(path.join(tmp49, 'backups', 'lukka_place-20261017T020005Z.db.gz')));
+      assert.deepStrictEqual(removed49, []);
+    });
+    await checkAsync('a public bucket is refused before anything is uploaded', async () => {
+      const remote = bk49.supabaseRemote({
+        bucket: 'pub',
+        client: { storage: { getBucket: async () => ({ data: { public: true } }) } },
+      });
+      await assert.rejects(remote.ensurePrivateBucket(), /PUBLIC/);
+    });
+    check('the job is due nightly at 3h Kinshasa, catches up a missed night, and backs off 15 min after a failure', () => {
+      const at = (iso) => new Date(iso);
+      assert.strictEqual(bk49.backupDue(at('2026-10-16T02:10:00Z'), null), true, 'never ran');
+      const okYesterday = { last_run_at: '2026-10-15 02:00:00', succeeded_at: '2026-10-15 02:00:00', last_error: null };
+      assert.strictEqual(bk49.backupDue(at('2026-10-16T02:10:00Z'), okYesterday), true, '3h Kinshasa = 2h UTC');
+      assert.strictEqual(bk49.backupDue(at('2026-10-16T01:10:00Z'), okYesterday), false, 'before the hour');
+      assert.strictEqual(bk49.backupDue(at('2026-10-15T02:30:00Z'), okYesterday), false, 'already ran tonight');
+      assert.strictEqual(bk49.backupDue(at('2026-10-16T04:01:00Z'), okYesterday), true, 'missed the hour: catch up after 26h');
+      const failed = { last_run_at: '2026-10-16 02:05:00', succeeded_at: '2026-10-15 02:00:00', last_error: 'upload failed' };
+      assert.strictEqual(bk49.backupDue(at('2026-10-16T02:10:00Z'), failed), false, 'retry backoff');
+      assert.strictEqual(bk49.backupDue(at('2026-10-16T02:21:00Z'), failed), true, 'retried after 15 min');
+    });
+    check('only lukka_place-<UTC stamp>.db.gz names are ever pruned', () => {
+      assert.deepStrictEqual(
+        bk49.expiredNames(['lukka_place-20200101T000000Z.db.gz', 'lukka_place.db', 'other-20200101T000000Z.db.gz'], now49, 14),
+        ['lukka_place-20200101T000000Z.db.gz'],
+      );
+    });
+    live49.close();
+    fs.rmSync(tmp49, { recursive: true, force: true });
   }
 
   console.log(`\n${'-'.repeat(60)}`);

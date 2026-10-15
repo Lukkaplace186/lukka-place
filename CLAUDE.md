@@ -18,7 +18,9 @@ WHERE status = 1 AND approve_status = 1
 ### Security — Supabase access from Next.js
 The storefront queries Supabase directly (chosen over a proxying Express endpoint). This means:
 - The Supabase **service_role key** (bypasses Row Level Security, full read/write) must only ever be used **server-side** — Server Components, Route Handlers, or Server Actions. It must never reach the browser: never in a `NEXT_PUBLIC_*` env var, never imported into a `'use client'` component, never returned in an API response body.
-- Every public listings query must include the filter above. There is currently no Row Level Security policy on `properties` enforcing this at the database level — the query-time filter is the only thing preventing pending/unapproved listings from being publicly visible. Do not rely on RLS being there.
+- Every public listings query must include the filter above. The query-time filter is the only thing keeping pending/unapproved listings off the storefront: the engine and web both connect as `postgres`, which owns the tables and has BYPASSRLS, so no RLS policy can ever filter their reads.
+- **What RLS does do here: it shuts PostgREST.** `properties` and `agents` have RLS ON with no policy, and since `migrations/20261015_rls_lockdown.sql` so do the fourteen tables that were open to the public anon key with full grants (`customers` with its password hashes, `customer_favorites`, `customer_saved_searches`, `page_views`, `whatsapp_clicks`, `listing_events`, `agent_performance_logs`, `bot_locks`, `bot_sessions`, `exchange_rates`, both `footer_*_links`, `plan_change_requests`, `saved_search_notifications`); anon/authenticated privileges on them and their sequences are revoked. Nothing in this system uses the anon key (supabase-js is Storage-only, with the service_role key), so no policy is needed.
+- **New tables start closed.** The same migration removed anon/authenticated from `postgres`'s default privileges in `public` (tables and sequences). A new migration no longer needs its own `REVOKE ALL … FROM anon, authenticated`, but keeping one is harmless and still protects a table created by `supabase_admin` (the dashboard), whose defaults `postgres` cannot change. If the app is ever moved to a login role without BYPASSRLS that does not own these tables, every one of them returns zero rows until policies exist.
 
 ## Data Schema & Location Hierarchy
 - **Location Normalization**: NEVER hardcode or invent locations. ALWAYS resolve Communes and Quartiers against `kinshasa_locations.json` using `services/locations.js` (`resolveCommune`, `resolveQuartier`, `quartiersForCommune`, `cascadeCommuneChange`).
@@ -698,7 +700,7 @@ JEAN01".
   for an account created there**, in a SAVEPOINT so a missing table or a bad
   code never costs the agent their account. Unknown / inactive / self-referral
   / existing agent → `sales_referral_refusals`, never credited.
-- **Scheduler job `sales-commissions`** (registered last): daily in the Kinshasa
+- **Scheduler job `sales-commissions`** (registered before sqlite-backup): daily in the Kinshasa
   hour `SALES_COMMISSION_HOUR` (default 6, read against UTC), calls web's
   `POST /api/cron/sales-commissions` with `CRON_SECRET`; idempotent there.
   §34 of verify-pipeline.
@@ -1137,7 +1139,27 @@ alert job itself), no inbound WhatsApp traffic for `OPS_ALERT_SILENCE_HOURS`
 - Scheduler order is now: search-alerts, viewing-sla, viewing-checkin,
   viewing-agent-done, ops-health-alerts, listing-stats-rollup,
   trusted-auto-approve, agent-daily-digest, listing-availability-check,
-  market-snapshot, ops-desk-keepalive, sales-commissions (pinned in §24).
+  market-snapshot, ops-desk-keepalive, sales-commissions, sqlite-backup
+  (pinned in §24).
+
+## SQLite backups (2026-10-15)
+
+`services/sqliteBackup.js`, scheduler job `sqlite-backup` (last), nightly in
+the Kinshasa hour `SQLITE_BACKUP_HOUR` (default 3); a night the engine was down
+is caught up once 26h pass without a success, and a failure waits 15 min before
+retrying. Before this, `/var/data/lukka_place.db` (leads, viewing requests,
+conversations, pending questions) had no backup at all.
+
+- **The backup API, never `cp`.** The database is in WAL mode; recent commits
+  live in `-wal` until a checkpoint, so copying the `.db` drops them. Each
+  snapshot passes `PRAGMA integrity_check` before it is gzipped and named.
+- **Kept 14 days** (`SQLITE_BACKUP_KEEP_DAYS`) in `SQLITE_BACKUP_DIR` (default
+  `/var/data/backups`) and in the private Supabase Storage bucket
+  `SQLITE_BACKUP_BUCKET` (default `engine-backups`, created private, a public
+  bucket is refused). Off-site pruning runs only after that night's upload
+  succeeded. A failed upload fails the job, which `ops-health-alerts` reports.
+- `node scripts/backup-sqlite.js [--local-only | --list | --restore-test [name|path]]`
+  from the engine dir; the restore steps are in that file's header. §49.
 
 ## The ops desk phone — OPS_WHATSAPP_NUMBER (2026-10-07)
 

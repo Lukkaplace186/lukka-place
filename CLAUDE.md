@@ -1160,6 +1160,9 @@ conversations, pending questions) had no backup at all.
   succeeded. A failed upload fails the job, which `ops-health-alerts` reports.
 - `node scripts/backup-sqlite.js [--local-only | --list | --restore-test [name|path]]`
   from the engine dir; the restore steps are in that file's header. §49.
+- **Deployed 2026-10-15** together with the RLS lockdown migration (applied to
+  production the same day; nothing is open to anon any more). First manual run:
+  56 KB snapshot uploaded, `--restore-test` matched every table row for row.
 
 ## The ops desk phone — OPS_WHATSAPP_NUMBER (2026-10-07)
 
@@ -1282,6 +1285,22 @@ web/CLAUDE.md, "Visit booking, both agendas…", has the pages. Engine half:
   from the notifications number. `copie_bureau_visite` (Marketing, picture
   header, intake account) was switched on 2026-10-15: the desk copy of a new
   request no longer needs the desk's 24h window. Other desk messages still do.
+- **v2 Utility templates (switched 2026-10-15).** `demande_visite_agent_v2`,
+  `copie_bureau_visite_v2` and `visite_indisponible_client_v2` are approved as
+  UTILITY on the INTAKE number (+243 976 321 848). Production `.env`:
+  `VIEWING_REQUEST_TEMPLATE` / `VIEWING_DESK_TEMPLATE` /
+  `VIEWING_UNAVAILABLE_TEMPLATE` name them, the last two replace their v1
+  names in `VIEWING_TEMPLATES_WITH_IMAGE`, and `VIEWING_SENDER_PHONE_NUMBER_ID`
+  is commented out — the agent-request send always goes through that sender
+  when it is set, and from the notifications number Meta answers #132001.
+  **`demande_visite_agent_v2` has a DYNAMIC link button**:
+  `VIEWING_TEMPLATES_WITH_LINK=demande_visite_agent_v2`, without which Meta
+  answers `#131008 Required parameter is missing` and the alert falls back to
+  a session message. Live-tested on request #13 (listing #293, agent 37):
+  sent "via template", the button opened that visit in the agent portal; the
+  desk copy was accepted. `visite_indisponible_client_v2` is not exercised yet.
+  `AGENT_LEAD_MATCH_TEMPLATE` is unset in production (`agent_lead_match` does
+  not exist at Meta); set it again once a lead-match template is approved.
 - **Days an agent takes no visits** are web-side only:
   `migrations/20261010_agent_visit_availability.sql` (Postgres, one row per
   agent), read and written by web's `lib/agentAvailability.js`. The engine

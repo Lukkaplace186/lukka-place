@@ -76,7 +76,7 @@ export default async function AdminLayout({ children }) {
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="flex h-[76px] shrink-0 items-center gap-4 border-b border-line bg-surface px-6 print:hidden">
+          <header className="flex h-[76px] shrink-0 items-center gap-4 border-b border-line bg-surface px-4 sm:px-6 print:hidden">
             <Link href="/admin/dashboard" className="hidden text-[1.3125rem] font-bold tracking-[-0.008em] text-ink sm:inline">
               Lukka <span className="text-blue-deep">{t('admin.chrome.brandSuffix')}</span>
             </Link>
@@ -109,7 +109,7 @@ export default async function AdminLayout({ children }) {
             <AdminSidebar mobile role={session.role} />
           </div>
 
-          <main className="min-w-0 flex-1 px-6 py-7 print:p-0">
+          <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-7 print:p-0">
             {forbidden ? (
               <div className="mx-auto flex max-w-lg flex-col items-center gap-3 py-16 text-center">
                 <ShieldAlert strokeWidth={ICON_STROKE_WIDTH} className="h-10 w-10 text-warning" />

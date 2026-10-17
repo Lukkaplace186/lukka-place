@@ -1308,6 +1308,19 @@ web/CLAUDE.md, "Visit booking, both agendas…", has the pages. Engine half:
   before it reaches `POST /admin/viewing-requests`.
 - §43 of verify-pipeline.
 
+## "Annonce à valider" — owners approve from their phone (2026-10-17)
+
+`services/moderationAlerts.js`. Each listing entering the approval queue is
+WhatsApped to `ADMIN_ALERT_NUMBERS` (the owners' phones; unset → the desk)
+with a link to `/admin/listings/<id>`, where on a phone the decision panel and
+photos now come before the editor. Two callers: `db.publishListing` on a
+listing's FIRST Postgres sync (never a correction's re-sync) and
+`POST /admin/moderation-alert` from web's `createListingAction`. Once per
+listing (`moderation_alerts_sent`, written only after a send was accepted).
+`MODERATION_ALERT_TEMPLATE` (body: number, what + where, agent; dynamic URL
+button = listing id) when set, else a session message — which reaches an
+owner's phone only within 24h of it messaging the intake number. §50.
+
 ## WhatsApp commands for agents (2026-09-29)
 
 `services/agentCommands.js`, routed in `routes/webhook.js` right after the

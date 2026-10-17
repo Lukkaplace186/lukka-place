@@ -10797,6 +10797,101 @@ console.log('\n2. services/openai.js');
     fs.rmSync(tmp49, { recursive: true, force: true });
   }
 
+  // -------------------------------------------------------------------------
+  // 50. "Annonce à valider" — owners told on WhatsApp, with the approval link
+  // -------------------------------------------------------------------------
+  console.log('\n50. Moderation alerts to the owners');
+  {
+    const ma50 = require('../services/moderationAlerts');
+    const saved50 = {
+      text: chakra.sendWhatsAppMessage,
+      template: chakra.sendTemplate,
+      owners: process.env.ADMIN_ALERT_NUMBERS,
+      ops: process.env.OPS_WHATSAPP_NUMBER,
+      tpl: process.env.MODERATION_ALERT_TEMPLATE,
+    };
+    const sent50 = [];
+    chakra.sendWhatsAppMessage = async (to, text) => { sent50.push({ to, text, kind: 'text' }); return {}; };
+    chakra.sendTemplate = async (to, name, opts) => { sent50.push({ to, name, opts, kind: 'template' }); return {}; };
+    dbService.db.prepare('DELETE FROM moderation_alerts_sent').run();
+    delete process.env.MODERATION_ALERT_TEMPLATE;
+    const listing50 = {
+      propertyId: 9050, type: 'Appartement', purpose: 'location', place: 'Industriel, Limete',
+      price: 1100, currency: 'USD', photoCount: 5, agentName: 'Marie', source: 'WhatsApp',
+    };
+
+    check('owners come from ADMIN_ALERT_NUMBERS (normalised, deduplicated), else the desk', () => {
+      process.env.ADMIN_ALERT_NUMBERS = '0812345678, +243 81 234 5678; 447932673460';
+      assert.deepStrictEqual(ma50.alertRecipients(), ['243812345678', '447932673460']);
+      delete process.env.ADMIN_ALERT_NUMBERS;
+      process.env.OPS_WHATSAPP_NUMBER = '0899999999';
+      assert.deepStrictEqual(ma50.alertRecipients(), ['243899999999']);
+      delete process.env.OPS_WHATSAPP_NUMBER;
+      assert.deepStrictEqual(ma50.alertRecipients(), []);
+    });
+
+    check('the text names the listing, its price and agent, and links to /admin/listings/<id>', () => {
+      const text = ma50.alertText(listing50);
+      assert.ok(text.includes('n° 9050'));
+      assert.ok(text.includes('Appartement à louer — Industriel, Limete'));
+      assert.ok(text.includes('1 100 $ / mois · 5 photos'));
+      assert.ok(text.includes('Agent : Marie (WhatsApp)'));
+      assert.ok(text.includes('https://lukkaplace.com/admin/listings/9050'));
+      assert.strictEqual(ma50.priceLine({ price: 85000, purpose: 'vente' }), '85 000 $');
+      assert.strictEqual(ma50.priceLine({ price: 0 }), 'Prix non indiqué');
+    });
+
+    await checkAsync('each owner is told once per listing, ever', async () => {
+      process.env.ADMIN_ALERT_NUMBERS = '243811111111,243822222222';
+      sent50.length = 0;
+      assert.deepStrictEqual(await ma50.alertPendingListing(listing50), { sent: 2 });
+      assert.deepStrictEqual(sent50.map((s) => s.to), ['243811111111', '243822222222']);
+      assert.strictEqual((await ma50.alertPendingListing(listing50)).skipped, 'already-alerted');
+      assert.strictEqual(sent50.length, 2);
+    });
+
+    await checkAsync('with a template configured it goes as a template, link button = listing id', async () => {
+      process.env.ADMIN_ALERT_NUMBERS = '243811111111';
+      process.env.MODERATION_ALERT_TEMPLATE = 'annonce_a_valider';
+      sent50.length = 0;
+      await ma50.alertPendingListing({ ...listing50, propertyId: 9051 });
+      assert.strictEqual(sent50[0].kind, 'template');
+      assert.strictEqual(sent50[0].name, 'annonce_a_valider');
+      assert.deepStrictEqual(sent50[0].opts.bodyParams, ['9051', 'Appartement à louer — Industriel, Limete', 'Marie']);
+      assert.strictEqual(sent50[0].opts.urlButton, '9051');
+      delete process.env.MODERATION_ALERT_TEMPLATE;
+    });
+
+    await checkAsync('a failed send is not recorded, so the next call retries; nobody configured never throws', async () => {
+      chakra.sendWhatsAppMessage = async () => { throw new Error('down'); };
+      process.env.ADMIN_ALERT_NUMBERS = '243811111111';
+      assert.deepStrictEqual(await ma50.alertPendingListing({ ...listing50, propertyId: 9052 }), { sent: 0 });
+      assert.ok(!dbService.db.prepare('SELECT 1 FROM moderation_alerts_sent WHERE property_id = 9052').get());
+      delete process.env.ADMIN_ALERT_NUMBERS;
+      assert.strictEqual((await ma50.alertPendingListing({ ...listing50, propertyId: 9053 })).skipped, 'no-recipient');
+      assert.strictEqual((await ma50.alertPendingListing({ propertyId: 'x' })).skipped, 'no-property-id');
+    });
+
+    check('publishListing alerts only on the first sync, never on a re-sync; web posts every new listing', () => {
+      const dbSource = fs.readFileSync(path.join(__dirname, '..', 'services', 'db.js'), 'utf8');
+      const publish = dbSource.slice(dbSource.indexOf('function publishListing'), dbSource.indexOf('const CORRECTABLE_FIELDS'));
+      assert.ok(publish.includes('const firstSync = !row?.remote_property_id'));
+      assert.ok(publish.includes('if (firstSync) require(\'./moderationAlerts\').alertForEngineRow(row, remotePropertyId)'));
+      const resync = dbSource.slice(dbSource.indexOf('function resyncListing'), dbSource.indexOf('const SALE_PRICE_ASK_TTL_MS'));
+      assert.ok(!resync.includes('moderationAlerts'));
+      const admin = fs.readFileSync(path.join(__dirname, '..', 'routes', 'admin.js'), 'utf8');
+      assert.ok(admin.includes("router.post('/moderation-alert'"));
+      const webAction = fs.readFileSync(path.join(__dirname, '..', 'web', 'app', 'compte', 'agent', 'actions.js'), 'utf8');
+      assert.ok(webAction.includes('void alertPendingListing({'));
+    });
+
+    chakra.sendWhatsAppMessage = saved50.text;
+    chakra.sendTemplate = saved50.template;
+    for (const [key, value] of [['ADMIN_ALERT_NUMBERS', saved50.owners], ['OPS_WHATSAPP_NUMBER', saved50.ops], ['MODERATION_ALERT_TEMPLATE', saved50.tpl]]) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

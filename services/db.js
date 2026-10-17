@@ -593,11 +593,15 @@ function publishListing(id) {
 
   if (published) {
     const row = getListing(id);
+    const firstSync = !row?.remote_property_id;
     require('./postgres')
       .syncListingToPostgres(row)
       .then((remotePropertyId) => {
         if (remotePropertyId) {
           db.prepare('UPDATE listings SET remote_property_id = ? WHERE id = ?').run(remotePropertyId, id);
+          // A new row in the approval queue: tell the owners, with the link
+          // (services/moderationAlerts.js). Never on a re-sync.
+          if (firstSync) require('./moderationAlerts').alertForEngineRow(row, remotePropertyId);
         }
       })
       .catch((err) => {

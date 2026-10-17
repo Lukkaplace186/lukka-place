@@ -45,6 +45,7 @@ import {
   createLeadProposal,
   getAgentPitchUsage,
   parseAgentListingText,
+  alertPendingListing,
 } from '@/lib/adminApi';
 import { LEAD_STATUSES } from '@/lib/adminLabels';
 import { currentQuotaPeriodStart, resolveLeadQuota } from '@/lib/leadQuota';
@@ -410,6 +411,20 @@ export async function createListingAction(validCommunes, validCategories, formDa
   }
 
   revalidateListingSurfaces(agentId, propertyId);
+
+  // The owners hear about it on WhatsApp with a link to approve it from a
+  // phone (engine services/moderationAlerts.js). Not awaited: the agent's
+  // confirmation must not wait on the sends, and it never throws.
+  void alertPendingListing({
+    property_id: propertyId,
+    type: category.name,
+    purpose,
+    place: [quartier, commune].filter(Boolean).join(', '),
+    price,
+    currency: 'USD',
+    photo_count: uploadedCount,
+    agent_name: agentDisplayName(agent),
+  });
 
   return { ok: true, propertyId, photoWarning: uploadedCount < photos.length };
 }

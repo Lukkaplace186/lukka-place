@@ -277,6 +277,30 @@ router.post('/ops-notify', async (req, res) => {
   }
 });
 
+// A listing typed in the agent dashboard just entered the approval queue:
+// WhatsApp the owners a link to it (services/moderationAlerts.js — once per
+// listing). Always 200 unless the body is invalid: the queue is the record.
+router.post('/moderation-alert', async (req, res) => {
+  const body = req.body || {};
+  const propertyId = Number.parseInt(body.property_id, 10);
+  if (!Number.isInteger(propertyId) || propertyId <= 0) {
+    return res.status(400).json({ success: false, error: 'property_id is required.' });
+  }
+  const result = await require('../services/moderationAlerts').alertPendingListing({
+    propertyId,
+    type: body.type,
+    purpose: body.purpose,
+    place: body.place,
+    price: body.price,
+    currency: body.currency,
+    pricePeriod: body.price_period,
+    photoCount: body.photo_count,
+    agentName: body.agent_name,
+    source: 'site',
+  });
+  return res.json({ success: true, ...result });
+});
+
 // Demand report — what customers asked for, by commune × transaction ×
 // bedrooms × budget band (db.getDemandReport). `days` 7..365, default 90.
 router.get('/demand-report', (req, res) => {

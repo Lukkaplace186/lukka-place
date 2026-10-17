@@ -124,7 +124,10 @@ export default async function AdminListingEditPage({ params }) {
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <AdminListingEditor listing={listing} communes={communes} categories={categories} />
-        <div className="flex flex-col gap-4">
+        {/* On a phone the decision and the photos come first: an owner opening
+            the WhatsApp alert's link approves without scrolling past the whole
+            editor. Side column from xl, as before. */}
+        <div className="order-first flex flex-col gap-4 xl:order-none">
           {moderation ? (
             <ListingModerationPanel
               listingId={listing.id}

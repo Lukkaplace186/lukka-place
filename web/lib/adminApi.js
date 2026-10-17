@@ -642,6 +642,22 @@ export async function notifyOps(message) {
 }
 
 /**
+ * WhatsApp the owners that a listing is waiting for approval, with a link to
+ * /admin/listings/<id> (engine POST /admin/moderation-alert, once per
+ * listing). Never throws: the approval queue is the record.
+ * @returns {Promise<number>} how many owners were told
+ */
+export async function alertPendingListing(listing) {
+  try {
+    const result = await engineFetch('/admin/moderation-alert', { method: 'POST', body: JSON.stringify(listing) });
+    return Number(result?.sent) || 0;
+  } catch (err) {
+    console.error(`[adminApi] moderation-alert failed: ${err.message}`);
+    return 0;
+  }
+}
+
+/**
  * Change a listing's asking price through the engine, which writes Postgres
  * AND its own SQLite row in one step (engine services/postgres.js
  * setListingPrice), so a later WhatsApp correction cannot re-sync the old

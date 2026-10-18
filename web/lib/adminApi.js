@@ -323,6 +323,36 @@ export async function customerViewingFalloffReason(id, { waId, code }) {
 }
 
 /**
+ * "Notez l'agent" from the Espace Client (engine services/agentReviews.js):
+ * 1–5 stars about the AGENT after a visit the check-in said happened.
+ * @param {{waId: string, stars: number, comment?: string|null}} answer
+ */
+export async function customerRateAgent(id, { waId, stars, comment }) {
+  return engineFetch(`/admin/viewing-requests/${id}/agent-rating`, {
+    method: 'POST',
+    body: JSON.stringify({ wa_id: waId, stars, comment: comment || null }),
+  });
+}
+
+/** Ratings for moderation. `commentStatus`: PENDING | APPROVED | REJECTED | NONE. */
+export async function listAgentReviews({ commentStatus, agentId, limit, offset } = {}) {
+  const qs = new URLSearchParams();
+  if (commentStatus) qs.set('comment_status', commentStatus);
+  if (agentId) qs.set('agent_id', String(agentId));
+  if (limit) qs.set('limit', String(limit));
+  if (offset) qs.set('offset', String(offset));
+  return engineFetch(`/admin/agent-reviews${qs.size ? `?${qs}` : ''}`);
+}
+
+/** @param {'APPROVED'|'REJECTED'} commentStatus */
+export async function moderateAgentReview(id, commentStatus) {
+  return engineFetch(`/admin/agent-reviews/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ comment_status: commentStatus }),
+  });
+}
+
+/**
  * Agent storefront's "Demandez ce bien à cet agent" inquiry form.
  * @returns {Promise<{lead: Object}>}
  */

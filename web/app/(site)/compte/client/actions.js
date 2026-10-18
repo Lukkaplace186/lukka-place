@@ -20,6 +20,7 @@ import {
   updateLeadRequirements,
   customerRespondToViewing,
   customerViewingCheckin,
+  customerRateAgent,
   customerViewingFalloffReason,
 } from '@/lib/adminApi';
 import { VIEWING_CHECKIN_RESPONSES, VIEWING_FALLOFF_REASON_CODES } from '@/lib/viewingTimeline';
@@ -515,5 +516,22 @@ export async function viewingFalloffReasonAction(viewingId, code) {
     if (id == null || !VIEWING_FALLOFF_REASON_CODES.includes(code)) throw new Error('not found');
     await customerViewingFalloffReason(id, { waId, code });
     return translate('account.visits.done.reason');
+  });
+}
+
+/**
+ * "Notez l'agent" (VisitAgentRating): 1–5 stars about the agent, after the
+ * check-in said the visit happened. The engine checks the lead's number, the
+ * check-in and one rating per visit; the comment waits for moderation.
+ */
+export async function rateAgentAction(viewingId, stars, comment) {
+  const waId = await requireCustomerPhone();
+  const id = viewingIdFrom(viewingId);
+  const value = Number(stars);
+  const text = typeof comment === 'string' ? comment.trim().slice(0, 500) : '';
+  return runVisitAnswer('rateAgentAction', async (translate) => {
+    if (id == null || !Number.isInteger(value) || value < 1 || value > 5) throw new Error('not found');
+    await customerRateAgent(id, { waId, stars: value, comment: text || null });
+    return translate('account.agenda.rating.done');
   });
 }

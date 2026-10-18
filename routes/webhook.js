@@ -965,7 +965,7 @@ async function processGroup(messages) {
         // fall-through posture: anything that is not a plausible answer
         // reaches ordinary intake, so a customer who sends a property advert
         // while a check-in is open is not swallowed by it.
-        const feedback = await handleCustomerTextReply({ from, text });
+        const feedback = await handleCustomerTextReply({ from, text, hasMedia: mediaRefs.length > 0 });
         if (feedback.handled) return;
       } catch (err) {
         console.error(`[checkin] typed reply from ${from} failed: ${err.message}`);

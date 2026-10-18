@@ -1253,7 +1253,15 @@
         "other": "{count} biens, une seule page à partager"
       },
       "copyLink": "Copier le lien",
-      "shareWhatsApp": "WhatsApp"
+      "shareWhatsApp": "WhatsApp",
+      "reviewsCount": {
+        "one": "{count} avis vérifié",
+        "other": "{count} avis vérifiés"
+      },
+      "reviewsEyebrow": "Avis clients",
+      "reviewsTitle": "Ce qu’en disent les clients",
+      "reviewsNote": "Notes laissées par des clients après une visite organisée via Lukka Place. Elles portent sur l’agent, pas sur les biens.",
+      "outOfFive": "sur 5"
     },
     "completion": {
       "nameLabel": "Nom renseigné",
@@ -2850,7 +2858,23 @@
       },
       "acceptShort": "Accepter",
       "sent": "Demande de visite envoyée à l’agent du bien sur WhatsApp. Sa réponse apparaîtra ici.",
-      "sentTeam": "Demande de visite bien reçue. L’équipe Lukka Place la transmet à l’agent ; la réponse apparaîtra ici."
+      "sentTeam": "Demande de visite bien reçue. L’équipe Lukka Place la transmet à l’agent ; la réponse apparaîtra ici.",
+      "rating": {
+        "question": "Notez l’agent",
+        "questionNamed": "Notez l’agent {name}",
+        "hint": "Accueil, ponctualité, honnêteté : vous notez l’agent, pas le bien.",
+        "star": {
+          "one": "{count} étoile sur 5",
+          "other": "{count} étoiles sur 5"
+        },
+        "commentLabel": "Un mot sur l’agent (facultatif)",
+        "commentPlaceholder": "Ponctuel, a bien expliqué les conditions…",
+        "commentNote": "Votre commentaire peut être publié sur la page de l’agent après relecture. Votre nom et votre numéro ne le sont jamais.",
+        "submit": "Envoyer ma note",
+        "done": "Merci, votre note est enregistrée.",
+        "yours": "Votre note pour l’agent : {stars}/5",
+        "failed": "La note n’a pas pu être enregistrée. Réessayez dans quelques minutes."
+      }
     },
     "home": {
       "metaTitle": "Accueil — Espace client Lukka Place",
@@ -2966,7 +2990,8 @@
         "system": "Système"
       },
       "projects": "Projets neufs",
-      "demand": "Demande"
+      "demand": "Demande",
+      "agentReviews": "Avis agents"
     },
     "login": {
       "intro": "Accès réservé à l'équipe Lukka Place.",
@@ -5038,6 +5063,27 @@
       "reportPick": "Choisissez une commune pour imprimer son rapport",
       "print": "Imprimer / PDF",
       "back": "Données marché"
+    },
+    "reviews": {
+      "title": "Avis sur les agents",
+      "lead": "Notes de 1 à 5 laissées par les clients après une visite. Les étoiles comptent tout de suite ; un commentaire n’est publié qu’une fois approuvé.",
+      "unavailable": "La table agent_reviews n’existe pas encore (migration 20261018_agent_reviews.sql).",
+      "empty": "Aucun avis pour ce filtre.",
+      "filterPending": "À relire",
+      "filterApproved": "Publiés",
+      "filterRejected": "Refusés",
+      "filterAll": "Tous",
+      "agent": "Agent",
+      "stars": "Note",
+      "comment": "Commentaire",
+      "noComment": "Sans commentaire",
+      "date": "Date",
+      "visit": "Visite #{id}",
+      "approve": "Publier",
+      "reject": "Refuser",
+      "approved": "Commentaire publié.",
+      "rejected": "Commentaire refusé.",
+      "failed": "Action impossible. Réessayez."
     }
   },
   "errors": {

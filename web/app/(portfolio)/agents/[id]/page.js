@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { BadgeCheck, Phone, Mail, MapPin, Building2 } from 'lucide-react';
+import { BadgeCheck, Phone, Mail, MapPin, Building2, Star } from 'lucide-react';
 import AgentAvatar from '@/components/AgentAvatar';
 import AgentVerificationBadge from '@/components/AgentVerificationBadge';
 import PropertyCard from '@/components/PropertyCard';
@@ -11,6 +11,8 @@ import CurrencyToggle from '@/components/CurrencyToggle';
 import InquiryForm from './InquiryForm';
 import ProjectCard from '@/components/projects/ProjectCard';
 import { getPublicProjects } from '@/lib/developments';
+import { getAgentPublicRating, formatAverage } from '@/lib/agentReviews';
+import { getLocale } from '@/lib/i18n/server';
 import { getAgentProfile, getAgentListings, agentContactName, agentPublicName } from '@/lib/agencies';
 import { buildWhatsAppLink, getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { formatPhoneDisplay, telHref } from '@/lib/phone';
@@ -99,6 +101,10 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
     console.error(`[agents/${agent.id}] projects unavailable: ${err.message}`);
     return [];
   });
+
+  // Verified customer ratings of the agent (lib/agentReviews.js): null until
+  // MIN_PUBLIC_REVIEWS exist, so nothing is printed rather than a thin average.
+  const [rating, locale] = await Promise.all([getAgentPublicRating(agent.id), getLocale()]);
 
   // The agency / trade name when the agent gave one, else their own name.
   const name = agentPublicName(agent) || '—';
@@ -306,6 +312,17 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
                     bien{agent.live_listing_count === 1 ? '' : 's'} actif{agent.live_listing_count === 1 ? '' : 's'}
                   </div>
                 </div>
+                {rating ? (
+                  <a href="#avis" className="u-press">
+                    <div className="u-tabular flex items-center gap-1.5 text-[1.625rem] font-extrabold leading-none tracking-[-0.02em] text-white">
+                      {formatAverage(rating.average, locale)}
+                      <Star strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5 fill-warning text-warning" aria-hidden="true" />
+                    </div>
+                    <div className="mt-1.5 text-[0.8125rem] font-medium text-white/80">
+                      {t('agent.portfolio.reviewsCount', { count: rating.count })}
+                    </div>
+                  </a>
+                ) : null}
                 {communes.length > 0 && (
                   <div>
                     <div className="u-tabular text-[1.625rem] font-extrabold leading-none tracking-[-0.02em] text-white">
@@ -393,6 +410,41 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
                 ))}
               </div>
             )}
+
+            {rating ? (
+              <section id="avis" className="mt-12 flex scroll-mt-24 flex-col gap-4">
+                <div>
+                  <span className="u-eyebrow">{t('agent.portfolio.reviewsEyebrow')}</span>
+                  <h2 className="font-display mt-1.5 text-[2rem] font-normal tracking-[-0.01em] text-ink sm:text-[2.375rem]">
+                    {t('agent.portfolio.reviewsTitle')}
+                  </h2>
+                  <p className="u-tabular mt-2 flex items-center gap-1.5 text-base font-bold text-ink">
+                    <Star strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5 fill-warning text-warning" aria-hidden="true" />
+                    {formatAverage(rating.average, locale)} {t('agent.portfolio.outOfFive')} · {t('agent.portfolio.reviewsCount', { count: rating.count })}
+                  </p>
+                  <p className="mt-1 max-w-[60ch] text-[0.8125rem] text-ink-45">{t('agent.portfolio.reviewsNote')}</p>
+                </div>
+                {rating.comments.length ? (
+                  <ul className="grid gap-3 sm:grid-cols-2">
+                    {rating.comments.map((review) => (
+                      <li key={review.id} className="rounded-card border border-line/60 bg-surface p-4">
+                        <p className="flex gap-0.5" aria-label={`${review.stars}/5`}>
+                          {[1, 2, 3, 4, 5].map((value) => (
+                            <Star
+                              key={value}
+                              strokeWidth={ICON_STROKE_WIDTH}
+                              className={value <= review.stars ? 'h-4 w-4 fill-warning text-warning' : 'h-4 w-4 text-ink-25'}
+                              aria-hidden="true"
+                            />
+                          ))}
+                        </p>
+                        <p className="mt-2 text-sm leading-relaxed text-ink">{review.comment}</p>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+              </section>
+            ) : null}
           </section>
 
           {/* Pinned contact rail. `top` clears the 76px sticky header plus a

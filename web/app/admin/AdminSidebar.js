@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   BarChart3, Building2, CalendarClock, HandCoins, ChartNoAxesCombined, CreditCard, FileText, Gauge, HeartPulse, Mail, User, Users,
-  Building, Landmark, MessageCircle, Radar, ScrollText, Settings, ShieldCheck, Target, TrendingDown, UsersRound,
+  Building, Landmark, MessageCircle, Radar, ScrollText, Settings, ShieldCheck, Star, Target, TrendingDown, UsersRound,
 } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { can, sectionPermission } from '@/lib/adminRoles';
@@ -52,6 +52,7 @@ const NAV_GROUPS = [
       { href: '/admin/agents', labelKey: 'admin.nav.agents', icon: User },
       { href: '/admin/agencies', labelKey: 'admin.nav.agencies', icon: Building2 },
       { href: '/admin/verifications', labelKey: 'admin.nav.verifications', icon: ShieldCheck },
+      { href: '/admin/agent-reviews', labelKey: 'admin.nav.agentReviews', icon: Star },
       { href: '/admin/sales', labelKey: 'admin.nav.sales', icon: HandCoins },
       { href: '/admin/customers', labelKey: 'admin.nav.customers', icon: Users },
     ],

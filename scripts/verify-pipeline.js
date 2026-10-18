@@ -7659,7 +7659,11 @@ console.log('\n2. services/openai.js');
     const row = dbService.getViewingRequest(v.request.id);
     assert.strictEqual(row.decline_reason_code, 'PRICE_TOO_HIGH');
     assert.strictEqual(row.decline_reason_by, 'CUSTOMER');
-    assert.strictEqual(dbService.getPendingCustomerAction(CUSTOMER_WA), undefined);
+    // The property question is closed; what stays open is "notez l'agent" (§51)
+    // when the listing has an agent, and nothing otherwise.
+    const after = dbService.getPendingCustomerAction(CUSTOMER_WA);
+    assert.ok(after === undefined || after.kind === 'AGENT_RATING');
+    dbService.clearPendingCustomerAction(CUSTOMER_WA);
   });
 
   check("a customer's reason is read from words too, and a long message is never swallowed", () => {
@@ -10893,6 +10897,203 @@ console.log('\n2. services/openai.js');
     for (const [key, value] of [['ADMIN_ALERT_NUMBERS', saved50.owners], ['OPS_WHATSAPP_NUMBER', saved50.ops], ['MODERATION_ALERT_TEMPLATE', saved50.tpl]]) {
       if (value === undefined) delete process.env[key]; else process.env[key] = value;
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // 51. "Notez l'agent" — verified 1-5 star ratings after a visit
+  // -------------------------------------------------------------------------
+  console.log('\n51. Agent ratings after a visit');
+  {
+    const reviews51 = require('../services/agentReviews');
+    const sweeps51 = require('../services/viewingSweeps');
+    const repo51 = require('../services/propertyRepository');
+    const chakra51 = require('../services/chakra');
+    const postgres51 = require('../services/postgres');
+    const saved51 = {
+      contact: repo51.getListingContactById,
+      agent: repo51.getAgentContactById,
+      text: chakra51.sendWhatsAppMessage,
+      buttons: chakra51.sendInteractiveButtons,
+      configured: postgres51.isConfigured,
+      pool: postgres51.getPool,
+    };
+    const CUSTOMER51 = '243810051051';
+    const sent51 = [];
+    chakra51.sendWhatsAppMessage = async (to, body) => { sent51.push({ to, body }); return {}; };
+    chakra51.sendInteractiveButtons = async (to, body) => { sent51.push({ to, body }); return {}; };
+    repo51.getListingContactById = async () => ({
+      agent_id: 37, agent_name: 'Immo Plus', agent_phone: '243821100037', phone_verified_at: '2026-01-01',
+    });
+    repo51.getAgentContactById = async (id) => ({ agent_id: Number(id), agent_name: 'Agence Reprise' });
+
+    const inserts51 = [];
+    const pool51 = {
+      async query(sql, params) {
+        if (/INSERT INTO agent_reviews/.test(sql)) {
+          if (inserts51.some((r) => r.viewing_request_id === params[1])) return { rows: [] };
+          inserts51.push({
+            agent_id: params[0], viewing_request_id: params[1], customer_hash: params[3], stars: params[4],
+            comment: params[5], comment_status: params[6], channel: params[7],
+          });
+          return { rows: [{ id: inserts51.length }] };
+        }
+        if (/UPDATE agent_reviews/.test(sql)) {
+          const row = inserts51.find((r) => r.viewing_request_id === params[1] && r.customer_hash === params[2] && r.comment == null);
+          if (!row) return { rowCount: 0 };
+          row.comment = params[0];
+          row.comment_status = 'PENDING';
+          return { rowCount: 1 };
+        }
+        // agent_performance_logs and the like: not what this section tests.
+        return { rows: [], rowCount: 0 };
+      },
+    };
+    postgres51.isConfigured = () => true;
+    postgres51.getPool = () => pool51;
+
+    function visit51(response) {
+      const lead = dbService.createLead({ wa_id: CUSTOMER51, name: 'Client 51', source: 'listing-visit-request', property_id: 351 });
+      const req = dbService.createViewingRequest({ leadId: lead.id, propertyId: 351, requestedTime: 'samedi 14h' });
+      dbService.updateViewingRequest(req.id, { status: 'CONFIRMED' });
+      dbService.setViewingScheduledAt(req.id, '2026-10-01T12:00:00.000Z');
+      if (response) dbService.setCheckinResponse(req.id, response);
+      return dbService.getViewingRequest(req.id);
+    }
+
+    check('stars are read from short replies only', () => {
+      for (const [text, want] of [['4', 4], ['4️⃣', 4], ['5 étoiles', 5], ['3/5', 3], ['⭐⭐', 2], ['★★★★★', 5], ['1.', 1]]) {
+        assert.strictEqual(reviews51.parseStars(text), want, text);
+      }
+      for (const text of ['0', '6', '45', 'Villa 4 chambres', '4 chambres', '']) {
+        assert.strictEqual(reviews51.parseStars(text), null, text);
+      }
+      assert.ok(reviews51.isSkip('Passer') && reviews51.isSkip('non merci') && !reviews51.isSkip('très bien'));
+      assert.strictEqual(reviews51.cleanComment('voir https://x.com'), null, 'a link is never a comment');
+    });
+
+    await checkAsync('👍 asks to rate the AGENT in the same message, naming them, not the property', async () => {
+      const v = visit51(null);
+      dbService.setPendingCustomerAction({ waId: CUSTOMER51, kind: 'VISIT_FEEDBACK', viewingRequestId: v.id });
+      sent51.length = 0;
+      await sweeps51.handleCustomerTextReply({ from: CUSTOMER51, text: '1' });
+      const toCustomer = sent51.filter((m) => m.to === CUSTOMER51);
+      assert.strictEqual(toCustomer.length, 1, 'one message, not thanks + question');
+      assert.match(toCustomer[0].body, /Merci/);
+      assert.match(toCustomer[0].body, /notez-vous l'agent \(Immo Plus\)/);
+      assert.match(toCustomer[0].body, /pas le bien lui-même/);
+      assert.strictEqual(dbService.getPendingCustomerAction(CUSTOMER51).kind, reviews51.PENDING_RATING_KIND);
+
+      sent51.length = 0;
+      const rated = await sweeps51.handleCustomerTextReply({ from: CUSTOMER51, text: '4' });
+      assert.strictEqual(rated.stars, 4);
+      assert.strictEqual(dbService.getViewingRequest(v.id).agent_rating, 4);
+      const row = inserts51.find((r) => r.viewing_request_id === v.id);
+      assert.strictEqual(row.agent_id, 37);
+      assert.strictEqual(row.channel, 'WHATSAPP');
+      assert.notStrictEqual(row.customer_hash, CUSTOMER51, 'the number itself is never stored');
+      assert.strictEqual(dbService.getPendingCustomerAction(CUSTOMER51).kind, reviews51.PENDING_COMMENT_KIND);
+
+      const commented = await sweeps51.handleCustomerTextReply({ from: CUSTOMER51, text: 'Très ponctuel et clair' });
+      assert.strictEqual(commented.ok, true);
+      assert.strictEqual(row.comment, 'Très ponctuel et clair');
+      assert.strictEqual(row.comment_status, 'PENDING', 'a comment waits for moderation');
+      assert.ok(!dbService.getPendingCustomerAction(CUSTOMER51));
+    });
+
+    await checkAsync('👎 asks the property reason first, then the agent rating', async () => {
+      const v = visit51(null);
+      dbService.setPendingCustomerAction({ waId: CUSTOMER51, kind: 'VISIT_FEEDBACK', viewingRequestId: v.id });
+      sent51.length = 0;
+      await sweeps51.handleCustomerTextReply({ from: CUSTOMER51, text: '2' });
+      assert.ok(!sent51.some((m) => /notez-vous/.test(m.body)), 'no star question before the reason');
+      await sweeps51.handleCustomerTextReply({ from: CUSTOMER51, text: '1' });
+      assert.ok(sent51.some((m) => /notez-vous/.test(m.body)));
+      assert.strictEqual(dbService.getPendingCustomerAction(CUSTOMER51).kind, reviews51.PENDING_RATING_KIND);
+      dbService.clearPendingCustomerAction(CUSTOMER51);
+    });
+
+    await checkAsync('"agent absent" is a no-show, never a star question', async () => {
+      const v = visit51(null);
+      dbService.setPendingCustomerAction({ waId: CUSTOMER51, kind: 'VISIT_FEEDBACK', viewingRequestId: v.id });
+      sent51.length = 0;
+      await sweeps51.handleCustomerTextReply({ from: CUSTOMER51, text: '3' });
+      assert.ok(!sent51.some((m) => /notez-vous/.test(m.body)));
+      const refused = await reviews51.rateAgent({ from: CUSTOMER51, viewingRequestId: v.id, stars: 5 });
+      assert.strictEqual(refused.reason, 'not-ratable');
+    });
+
+    await checkAsync("only the lead's own number can rate, once per visit, never before the check-in", async () => {
+      const v = visit51('GOOD');
+      const stranger = await reviews51.rateAgent({ from: '243999000111', viewingRequestId: v.id, stars: 5 });
+      assert.strictEqual(stranger.reason, 'not-this-requests-customer');
+      const fresh = visit51(null);
+      const early = await reviews51.rateAgent({ from: CUSTOMER51, viewingRequestId: fresh.id, stars: 5 });
+      assert.strictEqual(early.reason, 'not-ratable');
+      const first = await reviews51.rateAgent({ from: CUSTOMER51, viewingRequestId: v.id, stars: 2, channel: 'WEB' });
+      assert.strictEqual(first.ok, true);
+      const again = await reviews51.rateAgent({ from: CUSTOMER51, viewingRequestId: v.id, stars: 5, channel: 'WEB' });
+      assert.strictEqual(again.unchanged, true);
+      assert.strictEqual(dbService.getViewingRequest(v.id).agent_rating, 2, 'the first rating stands');
+    });
+
+    await checkAsync('a reassigned visit is rated against the agent who took it over', async () => {
+      const v = visit51('GOOD');
+      dbService.db.prepare('UPDATE viewing_requests SET agent_id = 88, reassigned_at = ? WHERE id = ?')
+        .run(new Date().toISOString(), v.id);
+      await reviews51.rateAgent({ from: CUSTOMER51, viewingRequestId: v.id, stars: 5 });
+      assert.strictEqual(inserts51.find((r) => r.viewing_request_id === v.id).agent_id, 88);
+    });
+
+    await checkAsync('Postgres down: nothing half-written, the customer is told to retry', async () => {
+      const v = visit51('GOOD');
+      postgres51.getPool = () => ({ query: async () => { throw new Error('down'); } });
+      dbService.setPendingCustomerAction({ waId: CUSTOMER51, kind: reviews51.PENDING_RATING_KIND, viewingRequestId: v.id });
+      sent51.length = 0;
+      const out = await sweeps51.handleCustomerTextReply({ from: CUSTOMER51, text: '5' });
+      assert.strictEqual(out.ignored, 'unavailable');
+      assert.strictEqual(dbService.getViewingRequest(v.id).agent_rating, null);
+      assert.ok(sent51.some((m) => /Réessayez/.test(m.body)));
+      assert.strictEqual(dbService.getPendingCustomerAction(CUSTOMER51).kind, reviews51.PENDING_RATING_KIND, 'the question stays open');
+      postgres51.getPool = () => pool51;
+      dbService.clearPendingCustomerAction(CUSTOMER51);
+    });
+
+    await checkAsync('an ordinary message, photos or a stale comment window fall through', async () => {
+      const v = visit51('GOOD');
+      dbService.setPendingCustomerAction({ waId: CUSTOMER51, kind: reviews51.PENDING_RATING_KIND, viewingRequestId: v.id });
+      const search = await sweeps51.handleCustomerTextReply({ from: CUSTOMER51, text: 'Je cherche un appartement à Gombe' });
+      assert.strictEqual(search.handled, false);
+      const photo = await sweeps51.handleCustomerTextReply({ from: CUSTOMER51, text: '4', hasMedia: true });
+      assert.strictEqual(photo.handled, false);
+      const stale = {
+        kind: reviews51.PENDING_COMMENT_KIND,
+        viewing_request_id: v.id,
+        created_at: new Date(Date.now() - reviews51.COMMENT_WINDOW_MS - 1000).toISOString(),
+      };
+      const late = await reviews51.handlePendingText({ from: CUSTOMER51, text: 'Appartement 2 chambres Limete', pending: stale });
+      assert.strictEqual(late.handled, false);
+      dbService.clearPendingCustomerAction(CUSTOMER51);
+    });
+
+    check('the migration is idempotent, closed to anon, and the public threshold matches web', () => {
+      const sql = fs.readFileSync(path.join(__dirname, '..', 'migrations', '20261018_agent_reviews.sql'), 'utf8');
+      assert.ok(sql.includes('CREATE TABLE IF NOT EXISTS agent_reviews'));
+      assert.ok(/viewing_request_id\s+bigint\s+NOT NULL UNIQUE/.test(sql));
+      assert.ok(/REVOKE ALL ON agent_reviews FROM/.test(sql));
+      assert.strictEqual(reviews51.MIN_PUBLIC_REVIEWS, 5);
+      // web/ sits beside the engine in the repo, not on the VPS.
+      const webLib = path.join(__dirname, '..', 'web', 'lib', 'agentReviews.js');
+      if (fs.existsSync(webLib)) {
+        assert.ok(fs.readFileSync(webLib, 'utf8').includes('export const MIN_PUBLIC_REVIEWS = 5;'));
+      }
+    });
+
+    postgres51.isConfigured = saved51.configured;
+    postgres51.getPool = saved51.pool;
+    repo51.getListingContactById = saved51.contact;
+    repo51.getAgentContactById = saved51.agent;
+    chakra51.sendWhatsAppMessage = saved51.text;
+    chakra51.sendInteractiveButtons = saved51.buttons;
   }
 
   console.log(`\n${'-'.repeat(60)}`);

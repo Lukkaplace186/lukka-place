@@ -1263,6 +1263,77 @@ router.post('/viewing-requests/:id/falloff-reason', async (req, res) => {
   }
 });
 
+/**
+ * "Notez l'agent" answered in the Espace Client (services/agentReviews.js).
+ * Same rule as WhatsApp: the lead's own number, a visit the check-in said
+ * happened, one rating per visit. The comment is optional and waits for
+ * moderation before it is shown.
+ */
+router.post('/viewing-requests/:id/agent-rating', async (req, res) => {
+  const id = Number.parseInt(req.params.id, 10);
+  const waId = String(req.body?.wa_id || '');
+  if (!CUSTOMER_WA_ID.test(waId)) {
+    return res.status(400).json({ success: false, error: 'wa_id must be a real digits-only WhatsApp number.' });
+  }
+  const stars = Number(req.body?.stars);
+  if (!Number.isInteger(stars) || stars < 1 || stars > 5) {
+    return res.status(400).json({ success: false, error: 'stars must be an integer from 1 to 5.' });
+  }
+  const comment = req.body?.comment == null ? null : String(req.body.comment);
+  if (!customersOwnViewing(id, waId)) return res.status(404).json({ success: false, error: 'Viewing request not found.' });
+
+  try {
+    const agentReviews = require('../services/agentReviews');
+    const result = await agentReviews.rateAgent({ from: waId, viewingRequestId: id, stars, comment, channel: 'WEB' });
+    if (!result.ok) {
+      if (result.reason === 'unavailable') {
+        return res.status(503).json({ success: false, error: 'Ratings are not available right now.', reason: result.reason });
+      }
+      return res.status(400).json({ success: false, error: 'This visit cannot be rated.', reason: result.reason });
+    }
+    db.clearPendingCustomerActionsForViewing(id);
+    return res.json({ success: true, stars: result.stars, unchanged: Boolean(result.unchanged) });
+  } catch (err) {
+    console.error(`[admin] POST /viewing-requests/${id}/agent-rating failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not record the rating.' });
+  }
+});
+
+/** Ratings, newest first, for moderation (/admin/agent-reviews). */
+router.get('/agent-reviews', async (req, res) => {
+  try {
+    const agentReviews = require('../services/agentReviews');
+    const result = await agentReviews.listReviews({
+      commentStatus: req.query.comment_status || undefined,
+      agentId: req.query.agent_id || undefined,
+      limit: req.query.limit,
+      offset: req.query.offset,
+    });
+    return res.json({ success: true, ...result });
+  } catch (err) {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+/** Approve or reject a comment. The stars count either way. */
+router.patch('/agent-reviews/:id', async (req, res) => {
+  const id = Number.parseInt(req.params.id, 10);
+  const status = req.body?.comment_status;
+  if (!Number.isFinite(id) || !['APPROVED', 'REJECTED'].includes(status)) {
+    return res.status(400).json({ success: false, error: 'comment_status must be APPROVED or REJECTED.' });
+  }
+  try {
+    const result = await require('../services/agentReviews').moderateComment(id, status);
+    if (!result.ok) {
+      return res.status(result.reason === 'unavailable' ? 503 : 404).json({ success: false, error: 'Review not found.', reason: result.reason });
+    }
+    return res.json({ success: true, id: result.id, comment_status: result.comment_status });
+  } catch (err) {
+    console.error(`[admin] PATCH /agent-reviews/${id} failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not moderate the review.' });
+  }
+});
+
 /** Admin override: hand the request to another verified agent and alert them. */
 router.post('/viewing-requests/:id/reassign', async (req, res) => {
   const id = Number.parseInt(req.params.id, 10);

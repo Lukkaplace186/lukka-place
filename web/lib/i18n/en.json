@@ -1253,7 +1253,15 @@
         "other": "{count} listings, one page to share"
       },
       "copyLink": "Copy link",
-      "shareWhatsApp": "WhatsApp"
+      "shareWhatsApp": "WhatsApp",
+      "reviewsCount": {
+        "one": "{count} verified review",
+        "other": "{count} verified reviews"
+      },
+      "reviewsEyebrow": "Customer Reviews",
+      "reviewsTitle": "What Customers Say",
+      "reviewsNote": "Ratings left by customers after a viewing arranged through Lukka Place. They are about the agent, not the properties.",
+      "outOfFive": "out of 5"
     },
     "completion": {
       "nameLabel": "Name provided",
@@ -2850,7 +2858,23 @@
       },
       "acceptShort": "Accept",
       "sent": "Viewing request sent to the listing’s agent on WhatsApp. Their answer will appear here.",
-      "sentTeam": "Viewing request received. The Lukka Place team is passing it to the agent; the answer will appear here."
+      "sentTeam": "Viewing request received. The Lukka Place team is passing it to the agent; the answer will appear here.",
+      "rating": {
+        "question": "Rate the agent",
+        "questionNamed": "Rate the agent {name}",
+        "hint": "Welcome, punctuality, honesty: you are rating the agent, not the property.",
+        "star": {
+          "one": "{count} star out of 5",
+          "other": "{count} stars out of 5"
+        },
+        "commentLabel": "A word about the agent (optional)",
+        "commentPlaceholder": "On time, explained the terms clearly…",
+        "commentNote": "Your comment may be published on the agent’s page after review. Your name and number never are.",
+        "submit": "Send my rating",
+        "done": "Thank you, your rating is saved.",
+        "yours": "Your rating for the agent: {stars}/5",
+        "failed": "Your rating could not be saved. Please try again in a few minutes."
+      }
     },
     "home": {
       "metaTitle": "Home — Lukka Place Customer Area",
@@ -2966,7 +2990,8 @@
         "system": "System"
       },
       "projects": "New developments",
-      "demand": "Demand"
+      "demand": "Demand",
+      "agentReviews": "Agent Reviews"
     },
     "login": {
       "intro": "Restricted to the Lukka Place team.",
@@ -5038,6 +5063,27 @@
       "reportPick": "Pick a commune to print its report",
       "print": "Print / PDF",
       "back": "Market data"
+    },
+    "reviews": {
+      "title": "Agent Reviews",
+      "lead": "1–5 star ratings left by customers after a viewing. Stars count at once; a comment is published only once approved.",
+      "unavailable": "The agent_reviews table does not exist yet (migration 20261018_agent_reviews.sql).",
+      "empty": "No reviews for this filter.",
+      "filterPending": "To review",
+      "filterApproved": "Published",
+      "filterRejected": "Rejected",
+      "filterAll": "All",
+      "agent": "Agent",
+      "stars": "Rating",
+      "comment": "Comment",
+      "noComment": "No comment",
+      "date": "Date",
+      "visit": "Viewing #{id}",
+      "approve": "Publish",
+      "reject": "Reject",
+      "approved": "Comment published.",
+      "rejected": "Comment rejected.",
+      "failed": "Could not do that. Try again."
     }
   },
   "errors": {

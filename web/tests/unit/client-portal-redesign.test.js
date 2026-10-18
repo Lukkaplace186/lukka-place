@@ -47,13 +47,13 @@ test('Accueil shows what waits on the customer: a proposed slot, a visit to rate
       viewing({ id: 6, status: 'RESCHEDULED', requested_time: 'mercredi 30 septembre à 09h30', scheduled_at: '2026-09-23T08:30:00Z' }),
       viewing({ id: 2, status: 'CONFIRMED', scheduled_at: '2026-10-08T09:00:00Z' }),
       viewing({ id: 3, status: 'CONFIRMED', scheduled_at: '2026-10-02T13:00:00Z' }),
-      viewing({ id: 4, status: 'CONFIRMED', scheduled_at: '2026-10-01T13:00:00Z', checkin_response: 'GOOD' }),
+      viewing({ id: 4, status: 'CONFIRMED', scheduled_at: '2026-10-01T13:00:00Z', checkin_response: 'GOOD', agent_rating: 4 }),
       viewing({ id: 5, status: 'PENDING', requested_time: 'jeudi matin' }),
     ],
   }];
   const { answer, checkin, next } = homeVisitInbox(groupCustomerVisits(inquiries, NOW), NOW);
   assert.deepEqual(answer.map((v) => v.id), [1]);
-  assert.deepEqual(checkin.map((v) => v.id), [3], 'a rated visit is not asked again');
+  assert.deepEqual(checkin.map((v) => v.id), [3], 'a visit checked in and its agent rated is not asked again');
   assert.equal(next?.id, 2);
 });
 

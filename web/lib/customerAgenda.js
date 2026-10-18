@@ -56,6 +56,7 @@ export function groupCustomerVisits(inquiries = [], now = new Date()) {
         listing,
         receiptSentAt: viewing.visit_receipt_sent_at || null,
         checkinResponse: viewing.checkin_response || null,
+        agentRating: viewing.agent_rating ?? null,
       };
       const at = toTime(when.at);
       const closed = CLOSED_STATUSES.includes(viewing.status) || viewing.status === 'COMPLETED';

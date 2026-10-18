@@ -2713,3 +2713,20 @@ From an owner walkthrough on a phone. Engine migration
     carries `normal-case`; add it to any new one. The sans hero headline on the
     homepage and `.u-title-card` are not affected.
 
+## Agent ratings — "Notez l'agent" (2026-10-18)
+
+Engine half and rules: root CLAUDE.md, "Notez l'agent". The engine
+migration `20261018_agent_reviews.sql` was applied to production 2026-10-18;
+without it nothing renders and the rating card answers "réessayez".
+
+- **Espace Client**: `visites/VisitAgentRating.js` on the visit card (and on
+  Accueil's "to rate" list) once the check-in said 👍/👎 and the agent is not
+  rated (`needsAgentRating`, lib/clientPortalView.js). Five stars, optional
+  comment, `rateAgentAction` → engine. Once rated it shows "Votre note : N/5".
+- **Public**: `/agents/[id]` shows "4,7 ★ · N avis vérifiés" in the hero and
+  an "Avis clients" band with APPROVED comments only, from
+  `MIN_PUBLIC_REVIEWS` (5) ratings (`lib/agentReviews.js`, never throws). Not
+  on listings, and no aggregateRating in JSON-LD (self-served reviews).
+- **Admin**: `/admin/agent-reviews` (agents.view; publish/refuse is
+  listings.moderate, audited without the comment text).
+- Tests: `tests/unit/agent-reviews.test.js`.

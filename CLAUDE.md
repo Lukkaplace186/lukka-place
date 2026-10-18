@@ -1321,6 +1321,35 @@ listing (`moderation_alerts_sent`, written only after a send was accepted).
 button = listing id) when set, else a session message — which reaches an
 owner's phone only within 24h of it messaging the intake number. §50.
 
+## "Notez l'agent" — verified agent ratings (2026-10-18)
+
+`services/agentReviews.js`, Postgres `agent_reviews`
+(`migrations/20261018_agent_reviews.sql`, applied to production 2026-10-18), SQLite copy
+`viewing_requests.agent_rating` / `agent_rated_at`. web/CLAUDE.md has the pages.
+
+- **Rates the AGENT, never the property** (product decision). The house is
+  still the check-in's 👍/👎 and the customer's fall-through reason; the star
+  question says "pas le bien lui-même".
+- **Asked after every visit that happened**: 👍 → thank-you + "notez l'agent"
+  in one message; 👎 → the property reason first, then the stars;
+  "agent absent" → no stars (it is a no-show). Typed 1–5 (or ⭐⭐⭐, "4/5"),
+  then an optional comment (PASSER skips; the comment question closes after
+  2 h; a link or photos are never a comment). Pending kinds `AGENT_RATING` /
+  `AGENT_REVIEW_COMMENT` in `pending_customer_actions`; anything else falls
+  through. ≤2 stars tells ops.
+- **Who may rate**: the lead's own wa_id only, once the check-in said
+  GOOD/BAD, one rating per viewing request (UNIQUE), never edited. Rated
+  against the reassigned agent, else the listing's agent, else the alerted one.
+  `customer_hash` is SHA-256 of the number, never the number.
+- **Postgres is the record**: SQLite is stamped only after the INSERT
+  succeeded; Postgres down → "réessayez", question stays open.
+- **Web**: `POST /admin/viewing-requests/:id/agent-rating` (Espace Client),
+  `GET /admin/agent-reviews`, `PATCH /admin/agent-reviews/:id` (comment
+  APPROVED/REJECTED; stars count either way). Public average from
+  `MIN_PUBLIC_REVIEWS` (5), shared with web/lib/agentReviews.js.
+- Monthly contest score (rating + response speed + visits done) is the
+  planned follow-up, not built. §51 of verify-pipeline.
+
 ## WhatsApp commands for agents (2026-09-29)
 
 `services/agentCommands.js`, routed in `routes/webhook.js` right after the

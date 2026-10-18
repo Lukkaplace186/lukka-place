@@ -88,15 +88,25 @@ export function needsCheckin(visit, now = new Date()) {
 }
 
 /**
+ * A visit the customer said happened (👍 or 👎) whose agent is not rated yet —
+ * "Notez l'agent". "Agent absent" is a no-show, never a star.
+ */
+export function needsAgentRating(visit) {
+  return (visit?.checkinResponse === 'GOOD' || visit?.checkinResponse === 'BAD') && visit.agentRating == null;
+}
+
+/**
  * Accueil's inbox from groupCustomerVisits' groups:
  *   answer   agent-proposed slots, oldest request first as the agenda lists them
- *   checkin  visits to rate (at most the two most recent)
+ *   checkin  visits to rate — the check-in, or the agent's stars after it (at most two)
  *   next     the next confirmed visit still ahead, or null
  */
 export function homeVisitInbox(groups, now = new Date()) {
   const all = [...groups.today, ...groups.tomorrow, ...groups.upcoming, ...groups.unscheduled, ...groups.past];
   const answer = all.filter((v) => isAwaitingCustomer(v, now));
-  const checkin = [...groups.today, ...groups.past].filter((v) => needsCheckin(v, now)).slice(0, 2);
+  const checkin = [...groups.today, ...groups.past]
+    .filter((v) => needsCheckin(v, now) || needsAgentRating(v))
+    .slice(0, 2);
   const next = [...groups.today, ...groups.tomorrow, ...groups.upcoming]
     .find((v) => v.status === 'CONFIRMED' && v.agreed && (toTime(v.at) ?? 0) > now.getTime()) || null;
   return { answer, checkin, next };

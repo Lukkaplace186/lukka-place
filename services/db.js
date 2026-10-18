@@ -2852,6 +2852,12 @@ const VIEWING_REQUESTS_EXTENDED_COLUMNS = [
   ['agent_visit_outcome', 'TEXT'],
   ['visit_receipt_text', 'TEXT'],
   ['visit_receipt_sent_at', 'TEXT'],
+  // The customer's 1-5 star rating of the AGENT (services/agentReviews.js),
+  // copied here once Postgres agent_reviews accepted it. Postgres is the
+  // record the storefront reads; this copy is what lets the Espace Client
+  // and the WhatsApp flow know the visit is already rated without a round trip.
+  ['agent_rating', 'INTEGER'],
+  ['agent_rated_at', 'TEXT'],
 ];
 
 /** viewing_requests.agent_visit_outcome. */
@@ -2976,7 +2982,7 @@ function listViewingRequestsForCustomer(waId, { limit } = {}) {
       `SELECT vr.id, vr.lead_id, vr.property_id, vr.requested_time, vr.status, vr.scheduled_at,
               vr.created_at, vr.first_response_at, vr.sla_alerted_at, vr.checkin_response,
               vr.cancelled_by, vr.preferred_slot_at, vr.batch_id, vr.agent_visit_outcome,
-              vr.agent_completed_at, vr.visit_receipt_sent_at,
+              vr.agent_completed_at, vr.visit_receipt_sent_at, vr.agent_rating,
               CASE WHEN vr.decline_reason_by = 'CUSTOMER' THEN vr.decline_reason_code END AS customer_reason_code
          FROM viewing_requests vr
          JOIN leads l ON l.id = vr.lead_id
@@ -3442,6 +3448,18 @@ function setCheckinResponse(id, response) {
     );
   }
   db.prepare('UPDATE viewing_requests SET checkin_response = ? WHERE id = ?').run(response, id);
+  return getViewingRequest(id);
+}
+
+/** Stamp the agent rating once; a second call never overwrites the first. */
+function setAgentRating(id, stars, at = new Date().toISOString()) {
+  const value = Number(stars);
+  if (!Number.isInteger(value) || value < 1 || value > 5) {
+    throw new Error(`setAgentRating: stars must be an integer 1-5, got '${stars}'`);
+  }
+  db.prepare(
+    'UPDATE viewing_requests SET agent_rating = ?, agent_rated_at = ? WHERE id = ? AND agent_rating IS NULL',
+  ).run(value, at, id);
   return getViewingRequest(id);
 }
 
@@ -4032,6 +4050,7 @@ module.exports = {
   hasOpenAgentQuestion,
   PENDING_ACTION_TTL_MS,
   setPendingCustomerAction,
+  setAgentRating,
   getPendingCustomerAction,
   clearPendingCustomerAction,
   updateViewingRequest,

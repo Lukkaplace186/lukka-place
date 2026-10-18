@@ -31,6 +31,7 @@ const propertyRepository = require('./propertyRepository');
 const propertyMatchingService = require('./propertyMatching');
 const viewingNotifications = require('./viewingNotifications');
 const agentPerformance = require('./agentPerformance');
+const agentReviews = require('./agentReviews');
 
 /**
  * How long an agent has before a request escalates.
@@ -109,6 +110,9 @@ function parseCheckinButtonId(replyId) {
   if (!match) return null;
   return { action: match[1], viewingRequestId: Number.parseInt(match[2], 10) };
 }
+
+/** Plain-text send in the shape agentReviews expects: (to, text) -> boolean. */
+const sendCustomerText = (to, text) => trySendCustomer(to, text, null, 'agent rating');
 
 /** Best-effort outbound; never throws into a sweep. */
 async function trySendCustomer(phone, text, buttons, label) {
@@ -419,7 +423,15 @@ async function recordCheckinResponse({ from, viewingRequestId, response, notifyC
   }
 
   if (notifyCustomer) {
-    await trySendCustomer(request.lead_wa_id, FEEDBACK_THANKS[response], null, 'checkin thanks');
+    // 👍: the thank-you and "notez l'agent" go as one message. 👎: the
+    // property question comes first, and the agent rating follows its answer
+    // (recordFalloffReason) — the house disappointing is not the agent's fault.
+    const asked = response === 'GOOD'
+      && await agentReviews.askForRating(
+        dbService.getViewingRequestWithLead(request.id),
+        { prefix: FEEDBACK_THANKS.GOOD, send: sendCustomerText },
+      );
+    if (!asked) await trySendCustomer(request.lead_wa_id, FEEDBACK_THANKS[response], null, 'checkin thanks');
   }
 
   if (response === 'AGENT_ABSENT') {
@@ -454,7 +466,13 @@ async function recordFalloffReason({ from, viewingRequestId, code, notifyCustome
 
   dbService.setViewingDeclineCode(request.id, code, 'CUSTOMER');
   dbService.clearPendingCustomerAction(from);
-  if (notifyCustomer) await trySendCustomer(request.lead_wa_id, FALLOFF_THANKS, null, 'falloff thanks');
+  if (notifyCustomer) {
+    const asked = await agentReviews.askForRating(
+      dbService.getViewingRequestWithLead(request.id),
+      { prefix: `${HEADER_BRAND} Merci, c'est noté.`, send: sendCustomerText },
+    );
+    if (!asked) await trySendCustomer(request.lead_wa_id, FALLOFF_THANKS, null, 'falloff thanks');
+  }
   console.log(`[sweep] viewing #${request.id} fall-through reason (customer): ${code}`);
   return { handled: true, action: 'falloff-reason', code, viewingRequestId: request.id };
 }
@@ -476,9 +494,21 @@ async function handleCheckinButtonReply({ from, replyId }) {
  * Returns `{ handled: false }` for anything that is not a plausible answer, so
  * an ordinary message still reaches the normal pipeline.
  */
-async function handleCustomerTextReply({ from, text }) {
+async function handleCustomerTextReply({ from, text, hasMedia = false }) {
   const pending = dbService.getPendingCustomerAction(from);
   if (!pending) return { handled: false };
+
+  if (pending.kind === agentReviews.PENDING_RATING_KIND || pending.kind === agentReviews.PENDING_COMMENT_KIND) {
+    // Photos are a listing in this pipeline, never a star or a comment.
+    if (hasMedia) return { handled: false };
+    return agentReviews.handlePendingText({
+      from,
+      text,
+      pending,
+      send: sendCustomerText,
+      notifyOps: viewingNotifications.notifyOps,
+    });
+  }
 
   if (pending.kind === PENDING_FALLOFF_KIND) {
     const code = parseFalloffReason(text);

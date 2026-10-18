@@ -110,6 +110,9 @@ export const SECTION_PERMISSIONS = {
   // Opening the queue is agents.view; approving, rejecting, opening a document
   // and setting a level are agents.manage (enforced in each action/route).
   '/admin/verifications': 'agents.view',
+  // Reading ratings is agents.view; publishing or refusing a comment is
+  // listings.moderate (app/admin/agent-reviews/actions.js).
+  '/admin/agent-reviews': 'agents.view',
 };
 
 export function sectionPermission(pathname) {

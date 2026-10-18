@@ -3,7 +3,7 @@ import { CalendarCheck, CalendarClock, CalendarPlus, CalendarX, History, Hourgla
 import SafeImage from '@/components/SafeImage';
 import { WhatsAppIcon } from '@/components/WhatsAppCTA';
 import { customerToAgentMessage } from '@/lib/customerAgenda';
-import { needsCheckin, proposalExpired, proposedSlotAt } from '@/lib/clientPortalView';
+import { needsAgentRating, needsCheckin, proposalExpired, proposedSlotAt } from '@/lib/clientPortalView';
 import { formatVisitDay, formatVisitTime } from '@/lib/visitAgenda';
 import { buildWhatsAppLink, getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { displayableAgencyName } from '@/lib/agentIdentity';
@@ -12,6 +12,7 @@ import { formatPrice } from '@/lib/format';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import CustomerVisitActions from './CustomerVisitActions';
+import VisitAgentRating from './VisitAgentRating';
 import VisitCheckin from './VisitCheckin';
 
 const upperFirst = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
@@ -92,6 +93,7 @@ export default function VisitCard({ visit, t, locale, past = false, compact = fa
     ? [formatPrice(listing.price, listing.purpose, listing.price_period), agentName || feedLocationLine(listing)].filter(Boolean).join(' · ')
     : null;
   const checkin = needsCheckin(visit, now);
+  const rating = needsAgentRating(visit);
 
   return (
     <article className="overflow-hidden rounded-card bg-surface shadow-[var(--hairline),var(--shadow-card)]">
@@ -171,6 +173,8 @@ export default function VisitCard({ visit, t, locale, past = false, compact = fa
         ) : null}
 
         {checkin ? <VisitCheckin viewingId={visit.id} /> : null}
+        {rating ? <VisitAgentRating viewingId={visit.id} agentName={agentName} /> : null}
+        {visit.agentRating != null ? <VisitAgentRating viewingId={visit.id} rated={visit.agentRating} /> : null}
         {visit.receiptSentAt ? <p className="text-xs text-ink-45">{t('account.agenda.receipt')}</p> : null}
         {!agentPhone && open && listing ? <p className="text-xs text-ink-45">{t('account.agenda.centralNote')}</p> : null}
       </div>

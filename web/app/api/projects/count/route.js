@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { countProjectsInBounds } from '@/lib/developments';
 import { parseBounds } from '@/lib/mapViewport';
+import { getFeatureFlags } from '@/lib/siteSettings';
 
 /**
  * How many public projects sit inside a map box — the /listings map's
@@ -13,6 +14,8 @@ export async function GET(request) {
   const { bounds, error } = parseBounds(searchParams);
   if (error || !bounds) return NextResponse.json({ error: error || 'bounds required' }, { status: 400 });
   try {
+    // Projets neufs switched off (/admin/settings): the map shows no projects chip.
+    if (!(await getFeatureFlags()).publicProjects) return NextResponse.json({ count: 0 });
     return NextResponse.json({ count: await countProjectsInBounds(bounds) });
   } catch (err) {
     console.error(`[api/projects/count] ${err.message}`);

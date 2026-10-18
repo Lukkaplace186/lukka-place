@@ -156,7 +156,7 @@
     },
     "tagline": "Appartements, villas et parcelles, à louer ou à vendre. Nous commençons à Kinshasa, avant de couvrir toute la RDC.",
     "disclaimer": "Lukka Place est une plateforme d'annonces immobilières à Kinshasa. Les informations fournies sur les annonces sont établies sous la responsabilité des annonceurs. Lukka Place ne fournit pas de services de courtage financier direct et facilite la mise en relation via référence d'annonce.",
-    "copyright": "© {year} Lukka Place — Kinshasa d'abord, toute la RDC ensuite.",
+    "copyright": "© {year} Lukka Place.",
     "whatsappGreeting": "Bonjour, je vous contacte depuis lukkaplace.com."
   },
   "home": {
@@ -1427,7 +1427,8 @@
       "currentPlan": "forfait actuel",
       "usage": "{used} annonce(s) sur {limit} utilisées avec votre forfait.",
       "freeSlot": "Archiver une annonce, ou la marquer louée ou vendue, libère aussi une place.",
-      "upgrade": "Mettre à niveau mon forfait"
+      "upgrade": "Mettre à niveau mon forfait",
+      "contactTeam": "Contacter l’équipe"
     },
     "today": {
       "title": "À faire aujourd'hui",
@@ -2991,6 +2992,7 @@
       },
       "projects": "Projets neufs",
       "demand": "Demande",
+      "settings": "Paramètres du site",
       "agentReviews": "Avis agents"
     },
     "login": {
@@ -4416,7 +4418,10 @@
         "creditFuture": "La date de crédit ne peut pas être dans le futur.",
         "creditInvalid": "Cette date de crédit n’est pas valide.",
         "planUntil": "{plan} jusqu’au {date}",
-        "empty": "Aucun agent attribué pour l’instant."
+        "empty": "Aucun agent attribué pour l’instant.",
+        "unassignTitle": "Retirer « {name} » du commercial ?",
+        "unassignBody": "Le commercial ne gagnera plus rien sur cet agent à partir de maintenant. Les commissions déjà gagnées et l’historique sont conservés. Une inscription par code de parrainage reste attribuée : utilisez « Changer de commercial » dans Agents apportés pour la modifier.",
+        "agencyUnassigned": "Agence retirée : {count} agent(s) ne sont plus suivis par ce commercial."
       },
       "agentRep": {
         "current": "Commercial :",
@@ -4702,7 +4707,17 @@
         "copyCode": "Copier le code {code}",
         "copyLink": "Copier le lien d’inscription",
         "downloadQr": "Télécharger le QR code",
-        "pay": "Payer la quinzaine"
+        "pay": "Payer la quinzaine",
+        "agencies": "Agences suivies",
+        "listings": "Annonces en ligne",
+        "commissionStatus": "Commissions",
+        "noAgency": "Aucune agence",
+        "moreAgencies": "+{count}",
+        "agentsCount": "{count} agent(s)",
+        "statusToApprove": "À valider · {amount}",
+        "statusToPay": "À payer · {amount}",
+        "statusPaid": "Payé · {amount}",
+        "statusNone": "Rien en attente"
       },
       "field": {
         "title": "Aujourd’hui sur le terrain",
@@ -4713,6 +4728,13 @@
         "lastListing": "Dernière annonce le {date} · {count} en ligne",
         "noListingYet": "Aucune annonce depuis l’inscription",
         "nudge": "Relancer"
+      },
+      "agencies": {
+        "title": "Agences",
+        "hint": "Les agences des agents suivis par ce commercial. « Retirer » met fin au suivi de tous leurs agents par ce commercial.",
+        "colAgents": "Agents suivis",
+        "empty": "Aucune agence pour l’instant.",
+        "unassignBody": "Les {count} agent(s) de cette agence suivis par ce commercial lui sont retirés à partir de maintenant. Les commissions déjà gagnées et l’historique sont conservés ; les agents suivis par un autre commercial ne changent pas."
       }
     },
     "projects": {
@@ -5063,6 +5085,72 @@
       "reportPick": "Choisissez une commune pour imprimer son rapport",
       "print": "Imprimer / PDF",
       "back": "Données marché"
+    },
+    "settings": {
+      "subtitle": "Liens des réseaux sociaux du pied de page et sections masquées tant qu'elles ne sont pas prêtes. Un enregistrement est visible sur le site au chargement suivant.",
+      "loadError": "Impossible de lire les paramètres (base de données injoignable). Réessayez dans un instant.",
+      "saved": "Enregistré.",
+      "updated": "Modifié le {time} par {actor}",
+      "social": {
+        "title": "Réseaux sociaux",
+        "subtitle": "Les icônes du pied de page deviennent des liens dès qu'une adresse est enregistrée ; une case vide laisse l'icône grisée et non cliquable.",
+        "fromEnv": "Actuellement : {url} (variable d'environnement). Une adresse saisie ici la remplace.",
+        "whatsappHint": "Vide : l'icône WhatsApp ouvre le numéro central habituel.",
+        "placeholders": {
+          "facebook": "https://www.facebook.com/lukkaplace",
+          "instagram": "https://www.instagram.com/lukkaplace",
+          "tiktok": "https://www.tiktok.com/@lukkaplace",
+          "whatsapp": "https://wa.me/message/…"
+        },
+        "errors": {
+          "unknown": "Réseau inconnu.",
+          "too_long": "{network} : adresse trop longue.",
+          "invalid": "{network} : adresse invalide.",
+          "https": "{network} : l'adresse doit commencer par https://.",
+          "host": "{network} : ce lien ne pointe pas vers {network}.",
+          "path": "{network} : indiquez l'adresse de la page, pas seulement le site."
+        }
+      },
+      "features": {
+        "title": "Onglets et sections",
+        "subtitle": "Masquez ce qui est encore en construction. Rien n’est supprimé : décocher retire l’onglet, cocher le remet.",
+        "siteGroup": "Site public et espace agent",
+        "adminGroup": "Console d’administration",
+        "adminGroupHint": "Les onglets décochés disparaissent du menu de la console pour toute l’équipe. La page reste accessible par son adresse, pour continuer à y travailler.",
+        "alwaysVisible": "toujours visible",
+        "surface": {
+          "agent": "Espace agent",
+          "public": "Site public"
+        },
+        "agentSubscriptions": "Abonnements",
+        "agentSubscriptionsHint": "Onglet Abonnements de l’espace agent. À activer quand le paiement FlexPaie est en service. Masqué : son adresse renvoie au tableau de bord et les messages de limite d’annonces proposent de contacter l’équipe.",
+        "agentProjects": "Projets neufs",
+        "agentProjectsHint": "La carte « Mes projets » du tableau de bord et les pages de création de projet des promoteurs. Masqué : leurs adresses renvoient au tableau de bord.",
+        "publicProjects": "Projets neufs (Neuf)",
+        "publicProjectsHint": "« Neuf » dans le menu, les liens du pied de page, la bande « Nouveaux projets » de l’accueil, la bulle des projets sur la carte, le plan du site, /projets et /promoteurs. Masqué : ces adresses renvoient aux annonces."
+      }
+    },
+    "softDelete": {
+      "deleteSelected": "Supprimer la sélection",
+      "confirmTitle": "Supprimer la sélection",
+      "confirmBody": "Êtes-vous sûr de vouloir supprimer ces {count} éléments ?",
+      "confirmButton": "Supprimer ({count})",
+      "cascadeNote": {
+        "agent": "Leurs annonces sont retirées du site avec eux. Vous pourrez annuler pendant 10 secondes.",
+        "agency": "Leurs agents et toutes leurs annonces sont retirés avec elles. Vous pourrez annuler pendant 10 secondes.",
+        "listing": "Les annonces quittent le site immédiatement. Vous pourrez annuler pendant 10 secondes."
+      },
+      "deleted": "{count} élément(s) supprimé(s).",
+      "cascadeAgents": "{count} agent(s)",
+      "cascadeListings": "{count} annonce(s)",
+      "undo": "Annuler",
+      "restored": "Suppression annulée.",
+      "undo_not_found": "Rien à restaurer.",
+      "undo_expired": "Trop tard pour annuler cette suppression.",
+      "undo_already_restored": "Déjà restauré.",
+      "invalidSelection": "Sélection invalide (1 à 100 éléments).",
+      "selectPage": "Sélectionner toute la page",
+      "selectRow": "Sélectionner {name}"
     },
     "reviews": {
       "title": "Avis sur les agents",

@@ -4,12 +4,13 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   BarChart3, Building2, CalendarClock, HandCoins, ChartNoAxesCombined, CreditCard, FileText, Gauge, HeartPulse, Mail, User, Users,
-  Building, Landmark, MessageCircle, Radar, ScrollText, Settings, ShieldCheck, Star, Target, TrendingDown, UsersRound,
+  Building, Landmark, MessageCircle, Radar, ScrollText, Settings, ShieldCheck, SlidersHorizontal, Star, Target, TrendingDown, UsersRound,
 } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { can, sectionPermission } from '@/lib/adminRoles';
 import { useT } from '@/lib/i18n/client';
 import { QueueBadge, useQueueCounts } from './LiveQueueCounts';
+import { ADMIN_NAV_GROUPS } from '@/lib/adminNav';
 
 /**
  * The royal admin rail from web/Design's "Console d'administration" screen.
@@ -33,58 +34,12 @@ import { QueueBadge, useQueueCounts } from './LiveQueueCounts';
 // Grouped by the job each area serves, so a console built for 30k agents
 // reads as five areas rather than one twenty-item column. A role only sees
 // the groups it has at least one section in.
-const NAV_GROUPS = [
-  {
-    labelKey: 'admin.nav.groups.operations',
-    items: [
-      { href: '/admin/dashboard', labelKey: 'admin.nav.dashboard', icon: BarChart3 },
-      { href: '/admin/listings', labelKey: 'admin.nav.listings', icon: FileText },
-      { href: '/admin/projets', labelKey: 'admin.nav.projects', icon: Building },
-      { href: '/admin/viewings', labelKey: 'admin.nav.viewings', icon: CalendarClock },
-      { href: '/admin/leads', labelKey: 'admin.nav.leads', icon: Mail },
-      { href: '/admin/conversations', labelKey: 'admin.nav.conversations', icon: MessageCircle },
-      { href: '/admin/matching', labelKey: 'admin.nav.matching', icon: Radar },
-    ],
-  },
-  {
-    labelKey: 'admin.nav.groups.network',
-    items: [
-      { href: '/admin/agents', labelKey: 'admin.nav.agents', icon: User },
-      { href: '/admin/agencies', labelKey: 'admin.nav.agencies', icon: Building2 },
-      { href: '/admin/verifications', labelKey: 'admin.nav.verifications', icon: ShieldCheck },
-      { href: '/admin/agent-reviews', labelKey: 'admin.nav.agentReviews', icon: Star },
-      { href: '/admin/sales', labelKey: 'admin.nav.sales', icon: HandCoins },
-      { href: '/admin/customers', labelKey: 'admin.nav.customers', icon: Users },
-    ],
-  },
-  {
-    labelKey: 'admin.nav.groups.revenue',
-    items: [
-      { href: '/admin/subscriptions', labelKey: 'admin.nav.subscriptions', icon: Landmark },
-      { href: '/admin/billing', labelKey: 'admin.nav.billing', icon: CreditCard },
-    ],
-  },
-  {
-    labelKey: 'admin.nav.groups.insights',
-    items: [
-      // Labelled "Lead Analytics"; the URL stays /admin/telemetry so existing
-      // bookmarks and revalidatePath calls keep working.
-      { href: '/admin/telemetry', labelKey: 'admin.nav.telemetry', icon: ChartNoAxesCombined },
-      { href: '/admin/benchmarks', labelKey: 'admin.nav.agentPerformance', icon: Gauge },
-      { href: '/admin/market-data', labelKey: 'admin.nav.marketData', icon: TrendingDown },
-      { href: '/admin/demande', labelKey: 'admin.nav.demand', icon: Target },
-    ],
-  },
-  {
-    labelKey: 'admin.nav.groups.system',
-    items: [
-      { href: '/admin/health', labelKey: 'admin.nav.health', icon: HeartPulse },
-      { href: '/admin/team', labelKey: 'admin.nav.team', icon: UsersRound },
-      { href: '/admin/audit', labelKey: 'admin.nav.audit', icon: ScrollText },
-      { href: '/admin/cms', labelKey: 'admin.nav.cms', icon: Settings },
-    ],
-  },
-];
+// The list itself lives in lib/adminNav.js (shared with /admin/settings).
+const ICONS = { BarChart3, Building, Building2, CalendarClock, ChartNoAxesCombined, CreditCard, FileText, Gauge, HandCoins, HeartPulse, Landmark, Mail, MessageCircle, Radar, ScrollText, Settings, ShieldCheck, SlidersHorizontal, Star, Target, TrendingDown, User, Users, UsersRound };
+const NAV_GROUPS = ADMIN_NAV_GROUPS.map((group) => ({
+  ...group,
+  items: group.items.map((item) => ({ ...item, icon: ICONS[item.icon] })),
+}));
 
 const NAV = NAV_GROUPS.flatMap((group) => group.items);
 
@@ -100,13 +55,15 @@ const BADGE_FOR = {
   '/admin/health': 'openAlerts',
 };
 
-export default function AdminSidebar({ mobile = false, role }) {
+export default function AdminSidebar({ mobile = false, role, hiddenTabs = [] }) {
   const t = useT();
   const pathname = usePathname();
   const counts = useQueueCounts();
   // A role only sees the sections it may open. The layout and every action
   // enforce the same table server-side; hiding a link is not the security.
-  const allowed = ({ href }) => can(role, sectionPermission(href));
+  // Tabs hidden on /admin/settings (work in progress) leave the sidebar for
+  // everyone; the page itself still opens from its URL so the team can work on it.
+  const allowed = ({ href }) => can(role, sectionPermission(href)) && !hiddenTabs.includes(href);
   const items = NAV.filter(allowed);
   const groups = NAV_GROUPS.map((group) => ({ ...group, items: group.items.filter(allowed) })).filter((g) => g.items.length);
 

@@ -12,6 +12,7 @@ import { can, ROLE_LABEL_KEYS, sectionPermission } from '@/lib/adminRoles';
 import { getAdminPathname, getAdminSession } from '@/lib/adminSession';
 import { getI18n, getT } from '@/lib/i18n/server';
 import { I18nProvider } from '@/lib/i18n/client';
+import { getFeatureFlags } from '@/lib/siteSettings';
 
 // generateMetadata rather than a static object — see app/(site)/a-propos.
 export async function generateMetadata() {
@@ -64,6 +65,7 @@ export default async function AdminLayout({ children }) {
   const session = await getAdminSession();
   if (!session) redirect(`/admin/login?error=revoked&next=${encodeURIComponent(pathname || '/admin/dashboard')}`);
 
+  const { hiddenAdminTabs } = await getFeatureFlags();
   const required = sectionPermission(pathname);
   const forbidden = required && !can(session.role, required);
 
@@ -72,7 +74,7 @@ export default async function AdminLayout({ children }) {
       <ToastProvider>
       <div className="flex min-h-screen bg-canvas-alt print:bg-white">
         <div className="hidden lg:flex print:hidden">
-          <AdminSidebar role={session.role} />
+          <AdminSidebar role={session.role} hiddenTabs={hiddenAdminTabs} />
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col">
@@ -106,7 +108,7 @@ export default async function AdminLayout({ children }) {
           {/* Below lg the royal rail is hidden, so the same destinations ride
               here instead. */}
           <div className="lg:hidden print:hidden">
-            <AdminSidebar mobile role={session.role} />
+            <AdminSidebar mobile role={session.role} hiddenTabs={hiddenAdminTabs} />
           </div>
 
           <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-7 print:p-0">

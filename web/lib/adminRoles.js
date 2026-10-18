@@ -36,6 +36,8 @@ export const PERMISSIONS = {
   'agents.security': ['owner', 'support'],
   // Irreversible: removes the account and its per-agent records (lib/adminAgentDeletion.js).
   'agents.delete': ['owner'],
+  // Bulk "Supprimer la sélection" on the approval queue: a soft delete with undo (lib/adminSoftDelete.js).
+  'listings.delete': ['owner'],
   'customers.manage': ['owner', 'support'],
   'leads.manage': ['owner', 'moderator', 'support'],
   'conversations.reply': ['owner', 'support'],
@@ -103,6 +105,7 @@ export const SECTION_PERMISSIONS = {
   '/admin/sales/attribution': 'sales.manage',
   '/admin/impersonation': 'audit.view',
   '/admin/cms': 'cms.manage',
+  '/admin/settings': 'cms.manage',
   '/admin/team': 'team.manage',
   '/admin/audit': 'audit.view',
   '/admin/health': 'health.view',

@@ -249,16 +249,18 @@ function computeExpireDate(term, { isTrial, trialDays }) {
  * @param {string|null} [input.paymentMethod]
  * @param {string|null} [input.transactionId]
  * @param {string|null} [input.receipt]
+ * @param {import('pg').PoolClient} [input.client] An open transaction to write
+ *   inside (lib/payments.js marks an invoice paid in the same one); without
+ *   it this function runs its own.
  * @returns {Promise<{membershipId: number, vendorId: number}>}
  */
 export async function assignPackageToAgent({
   agentId, packageId, isTrial = false, price = null, currency = null, currencySymbol = null,
-  paymentMethod = null, transactionId = null, receipt = null,
+  paymentMethod = null, transactionId = null, receipt = null, client: outerClient = null,
 }) {
-  const pool = getPool();
-  const client = await pool.connect();
+  const client = outerClient || (await getPool().connect());
   try {
-    await client.query('BEGIN');
+    if (!outerClient) await client.query('BEGIN');
 
     const { rows: agentRows } = await client.query(
       'SELECT id, vendor_id, username FROM agents WHERE id = $1',
@@ -297,13 +299,13 @@ export async function assignPackageToAgent({
       ],
     );
 
-    await client.query('COMMIT');
+    if (!outerClient) await client.query('COMMIT');
     return { membershipId, vendorId };
   } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
+    if (!outerClient) await client.query('ROLLBACK').catch(() => {});
     throw err;
   } finally {
-    client.release();
+    if (!outerClient) client.release();
   }
 }
 

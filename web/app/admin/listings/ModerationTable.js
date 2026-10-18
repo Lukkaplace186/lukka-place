@@ -16,6 +16,7 @@ import { useT } from '@/lib/i18n/client';
 import { Chip } from '../LeadRoutingUI';
 import { EmptyRow, TD_DENSE, TD_DENSE_RIGHT, TH_STICKY, TH_STICKY_RIGHT, TR_DENSE, TableFrame } from '../table/TableFrame';
 import { moderateListingsAction } from './actions';
+import { BulkDeleteButton, useBulkDelete } from '../BulkDelete';
 
 const BUTTON =
   'u-press u-micro-strong inline-flex h-8 items-center gap-1.5 rounded-md border border-line bg-surface px-2.5 text-ink transition-colors hover:border-blue disabled:opacity-50';
@@ -38,7 +39,7 @@ function waiting(iso, t, now) {
  * ones it skipped; rejecting many asks for one reason that every selected
  * agent is told.
  */
-export default function ModerationTable({ rows, status, canModerate, footer, renderedAt }) {
+export default function ModerationTable({ rows, status, canModerate, canDelete = false, footer, renderedAt }) {
   const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
@@ -51,6 +52,10 @@ export default function ModerationTable({ rows, status, canModerate, footer, ren
   const pageIds = useMemo(() => rows.map((row) => row.id), [rows]);
   const allSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
   const decidable = status === 'pending' || status === 'rejected';
+  const canDecide = canModerate && decidable;
+  // Delete works on every tab; approve / reject only where a decision is open.
+  const selectable = canDecide || canDelete;
+  const bulkDelete = useBulkDelete('listing', { onDeleted: () => setSelected(new Set()) });
 
   function decide(ids, decision, reason = {}) {
     startTransition(async () => {
@@ -82,21 +87,23 @@ export default function ModerationTable({ rows, status, canModerate, footer, ren
 
   return (
     <div className="flex flex-col gap-2">
-      {canModerate && decidable && selected.size > 0 ? (
+      {bulkDelete.dialog}
+      {selectable && selected.size > 0 ? (
         <div className="u-card sticky top-2 z-20 flex flex-wrap items-center gap-2 rounded-card bg-ink px-4 py-2 text-white">
           <span className="u-micro-strong">{t('admin.agents.selectedCount', { count: selected.size })}</span>
-          {status === 'pending' || status === 'rejected' ? (
+          {canDecide ? (
             <button type="button" disabled={pending} onClick={() => decide([...selected], 'approve')} className="u-press u-micro-strong inline-flex h-8 items-center gap-1.5 rounded-md bg-white/15 px-2.5 hover:bg-white/25">
               <CheckCircle2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
               {t('admin.moderation.approveSelected')}
             </button>
           ) : null}
-          {status === 'pending' ? (
+          {canDecide && status === 'pending' ? (
             <button type="button" disabled={pending} onClick={() => setRejecting([...selected])} className="u-press u-micro-strong inline-flex h-8 items-center gap-1.5 rounded-md bg-white/15 px-2.5 hover:bg-white/25">
               <XCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
               {t('admin.moderation.rejectSelected')}
             </button>
           ) : null}
+          {canDelete ? <BulkDeleteButton disabled={pending || bulkDelete.pending} onClick={() => bulkDelete.request(selected)} /> : null}
           <button type="button" onClick={() => setSelected(new Set())} className="u-micro ml-auto text-white/75 hover:text-white">
             {t('admin.agents.clearSelection')}
           </button>
@@ -106,7 +113,7 @@ export default function ModerationTable({ rows, status, canModerate, footer, ren
       <TableFrame minWidth="78rem" footer={footer} busy={pending}>
         <thead>
           <tr>
-            {canModerate && decidable ? (
+            {selectable ? (
               <th className={`${TH_STICKY} w-8`}>
                 <input
                   type="checkbox"
@@ -132,7 +139,7 @@ export default function ModerationTable({ rows, status, canModerate, footer, ren
           ) : (
             rows.map((row) => (
               <tr key={row.id} className={`${TR_DENSE} ${selected.has(row.id) ? 'bg-blue-tint/40' : ''}`}>
-                {canModerate && decidable ? (
+                {selectable ? (
                   <td className={TD_DENSE}>
                     <input
                       type="checkbox"
@@ -221,7 +228,7 @@ export default function ModerationTable({ rows, status, canModerate, footer, ren
                 </td>
                 <td className={TD_DENSE}>
                   <div className="flex items-center gap-1.5">
-                    {canModerate && decidable ? (
+                    {canDecide ? (
                       <button type="button" className={BUTTON} disabled={pending} onClick={() => decide([row.id], 'approve')} title={t('admin.actions.approve')}>
                         <CheckCircle2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-success" />
                       </button>

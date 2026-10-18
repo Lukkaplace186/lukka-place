@@ -101,7 +101,8 @@ export const COMMUNE_OF_P = `(
 )`;
 
 function buildBase({ status, q, commune, purpose, agentId, availabilityChecks = false }, params) {
-  const where = [STATUS_WHERE[status] || STATUS_WHERE.pending];
+  // Soft-deleted listings (lib/adminSoftDelete.js) leave every tab.
+  const where = [STATUS_WHERE[status] || STATUS_WHERE.pending, 'p.deleted_at IS NULL'];
   const term = String(q || '').trim();
   if (term) {
     params.push(/^#?\d+$/.test(term) ? Number.parseInt(term.replace('#', ''), 10) : -1);
@@ -314,6 +315,7 @@ export async function getModerationCounts() {
            COUNT(*) FILTER (WHERE approve_status = 1 AND status = 0)::int  AS suspended,
            MIN(created_at) FILTER (WHERE approve_status = 0 AND development_id IS NULL) AS oldest_pending_at
     FROM properties
+    WHERE deleted_at IS NULL
   `);
   return rows[0];
 }

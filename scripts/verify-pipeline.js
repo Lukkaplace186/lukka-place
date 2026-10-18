@@ -8711,6 +8711,13 @@ console.log('\n2. services/openai.js');
     assert.ok(text.includes('*OK*'));
   });
 
+  check('while the Abonnements tab is hidden the refusal points at the team, not the redirecting page', () => {
+    const text = listingQuota.limitReachedReply({ limit: 5, used: 5, remaining: 0, adding: 1, planTitle: 'Bronze', subscriptionsEnabled: false });
+    assert.ok(text.includes(listingQuota.CONTACT_URL));
+    assert.ok(!text.includes('/compte/agent/abonnement'));
+    assert.ok(text.includes('gardé en attente'));
+  });
+
   await checkAsync('without Postgres the limit is not enforced (fails open)', async () => {
     assert.strictEqual(await listingQuota.checkQuotaForSender('243810000000', 1), null);
   });

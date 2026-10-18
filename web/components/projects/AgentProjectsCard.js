@@ -5,6 +5,7 @@ import { availabilityLine } from '@/lib/projectView';
 import { projectReviewState } from '@/lib/developmentRules';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { getT } from '@/lib/i18n/server';
+import { getFeatureFlags } from '@/lib/siteSettings';
 
 /**
  * Overview card for a developer: their projects and what is left in each.
@@ -12,6 +13,8 @@ import { getT } from '@/lib/i18n/server';
  * the agent portal's four-section navigation stays as it is.
  */
 export default async function AgentProjectsCard({ agentId }) {
+  // Hidden while the agent portal's projects are switched off on /admin/settings.
+  if (!(await getFeatureFlags()).agentProjects) return null;
   const projects = await getAgentProjects(agentId).catch(() => []);
   if (!projects.length) return null;
   const t = await getT();

@@ -10,7 +10,8 @@ import AgentPageHeader from '@/components/AgentPageHeader';
 import CreateListingDialog from '@/components/CreateListingDialog';
 import AgentListingsTable from '@/components/AgentListingsTable';
 import { getListingQuota } from '@/lib/listingQuota';
-import { UPGRADE_PATH } from '@/lib/listingQuotaRules';
+import { CONTACT_PATH, UPGRADE_PATH } from '@/lib/listingQuotaRules';
+import { getFeatureFlags } from '@/lib/siteSettings';
 import { getAgentListingGaps } from '@/lib/completeness';
 import AgentStatusOfTheDayLauncher from '@/components/AgentStatusOfTheDayLauncher';
 import { getStatusSuggestions, serialiseSuggestion } from '@/lib/listingShares';
@@ -48,6 +49,8 @@ function pageHref(status, q, page) {
 
 export default async function AgentListingsPage({ searchParams }) {
   const t = await getT();
+  // While the Abonnements tab is hidden, the limit banner points at the team.
+  const { agentSubscriptions } = await getFeatureFlags();
   const params = await searchParams;
   const statusFilter = typeof params.status === 'string' && LISTING_FILTER_VALUES.has(params.status) ? params.status : '';
   const q = typeof params.q === 'string' ? params.q.trim() : '';
@@ -177,10 +180,10 @@ export default async function AgentListingsPage({ searchParams }) {
               {t('agent.quota.reached', { limit: quota.limit, plan: quota.planTitle || t('agent.quota.currentPlan') })}
             </p>
             <Link
-              href={UPGRADE_PATH}
+              href={agentSubscriptions ? UPGRADE_PATH : CONTACT_PATH}
               className="u-btn-primary u-press inline-flex h-10 shrink-0 items-center justify-center rounded-lg bg-blue px-4 text-sm font-bold text-white hover:bg-blue-deep"
             >
-              {t('agent.quota.upgrade')}
+              {agentSubscriptions ? t('agent.quota.upgrade') : t('agent.quota.contactTeam')}
             </Link>
           </div>
         ) : quota?.capped ? (

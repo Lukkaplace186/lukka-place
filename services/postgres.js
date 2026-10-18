@@ -246,6 +246,7 @@ async function resolveAgentId(client, waId) {
     `SELECT id FROM agents
      WHERE regexp_replace(phone, '\\D', '', 'g') = $1
        AND phone_verified_at IS NOT NULL
+       AND deleted_at IS NULL
      LIMIT 1`,
     [digitsOnly],
   );
@@ -408,7 +409,7 @@ function buildPropertyValues(row, { category, location, agentId = null }) {
  * @param {Object} values A buildPropertyValues() result.
  * @returns {Object} A new object; the input is not mutated.
  */
-function updatablePropertyValues(values, currentListingStatus = null) {
+function updatablePropertyValues(values, currentListingStatus = null, { deleted = false } = {}) {
   const { approve_status: _approveStatus, ...updatable } = values;
   if (updatable.agent_id == null) delete updatable.agent_id;
 
@@ -425,7 +426,9 @@ function updatablePropertyValues(values, currentListingStatus = null) {
   // 'under_offer' is included for the same reason: an agent correcting the
   // price of a property they have just told us is under offer has not
   // thereby put it back on the market.
-  if (currentListingStatus === 'closed' || currentListingStatus === 'under_offer') {
+  // A listing deleted from the console (web/lib/adminSoftDelete.js:
+  // `deleted_at` + `status = 0`) is not brought back by a correction either.
+  if (currentListingStatus === 'closed' || currentListingStatus === 'under_offer' || deleted) {
     delete updatable.status;
   }
   return updatable;
@@ -847,7 +850,7 @@ async function syncListingToPostgres(row) {
       // commune tag, landmark reference), so a correction that moves it can
       // drop the old pin below.
       const { rows: statusRows } = await client.query(
-        `SELECT p.listing_status, p.quartier, p.reference,
+        `SELECT p.listing_status, p.quartier, p.reference, p.deleted_at,
            (SELECT ac.name FROM property_amenities pa
               JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = ${CONTENT_LANGUAGE_ID}
              WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44
@@ -859,7 +862,7 @@ async function syncListingToPostgres(row) {
 
       // Never re-assert moderation-owned fields on an existing row — see
       // updatablePropertyValues() for exactly which are dropped and why.
-      const updateValues = updatablePropertyValues(propertyValues, currentListingStatus);
+      const updateValues = updatablePropertyValues(propertyValues, currentListingStatus, { deleted: Boolean(statusRows[0]?.deleted_at) });
       const updateKeys = Object.keys(updateValues);
       const setClause = updateKeys.map((key, i) => `${key} = $${i + 1}`).join(', ');
       await client.query(

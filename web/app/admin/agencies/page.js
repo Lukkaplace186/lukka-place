@@ -8,6 +8,9 @@ import TableToolbar from '../table/TableToolbar';
 import ServerViewTools from '../table/ServerViewTools';
 import { EmptyRow, TD_DENSE, TD_DENSE_RIGHT, TH_STICKY, TH_STICKY_RIGHT, TR_DENSE, TableFrame } from '../table/TableFrame';
 import { WhatsAppLink } from '../ContactCell';
+import { can } from '@/lib/adminRoles';
+import { getAdminSession } from '@/lib/adminSession';
+import { AgencyBulkBar, AgencySelectAll, AgencySelectBox, AgencySelectionProvider } from './AgencySelection';
 
 /** Stored with or without a leading "+"; shown with exactly one. */
 function phoneLabel(value) {
@@ -40,6 +43,8 @@ export default async function AdminAgenciesPage({ searchParams }) {
   const { page, pageSize, limit, offset } = parsePage(raw);
   const params = { ...filters, page: page > 1 ? String(page) : undefined, size: pageSize === 25 ? undefined : String(pageSize) };
 
+  const session = await getAdminSession();
+  const canDelete = can(session?.role, 'agents.delete');
   let list = null;
   let loadError = null;
   try {
@@ -82,12 +87,15 @@ export default async function AdminAgenciesPage({ searchParams }) {
 
       {loadError ? <ErrorNote>{t('admin.agencies.loadError', { error: loadError })}</ErrorNote> : null}
 
+      <AgencySelectionProvider pageIds={(list?.rows || []).map((agency) => agency.id)}>
+      {canDelete ? <AgencyBulkBar /> : null}
       <TableFrame
         minWidth="60rem"
         footer={list ? <Pagination pathname="/admin/agencies" params={params} total={list.total} page={page} pageSize={pageSize} /> : null}
       >
         <thead>
           <tr>
+            {canDelete ? <th className={`${TH_STICKY} w-8`}><AgencySelectAll /></th> : null}
             <th className={TH_STICKY}>{t('admin.agencies.colAgency')}</th>
             <th className={TH_STICKY}>{t('admin.agencies.colContact')}</th>
             <th className={TH_STICKY_RIGHT}>{t('admin.agencies.colAgents')}</th>
@@ -98,10 +106,11 @@ export default async function AdminAgenciesPage({ searchParams }) {
         </thead>
         <tbody>
           {(list?.rows || []).length === 0 ? (
-            <EmptyRow colSpan={6}>{t('admin.agencies.empty')}</EmptyRow>
+            <EmptyRow colSpan={canDelete ? 7 : 6}>{t('admin.agencies.empty')}</EmptyRow>
           ) : (
             list.rows.map((agency) => (
               <tr key={agency.id} className={TR_DENSE}>
+                {canDelete ? <td className={TD_DENSE}><AgencySelectBox id={agency.id} name={agency.name} /></td> : null}
                 <td className={TD_DENSE}>
                   <Link href={`/admin/agencies/${agency.id}`} className="font-semibold text-ink hover:text-blue-deep hover:underline">{agency.name}</Link>
                   {agency.name === `Agence #${agency.id}` ? (
@@ -144,6 +153,7 @@ export default async function AdminAgenciesPage({ searchParams }) {
           )}
         </tbody>
       </TableFrame>
+      </AgencySelectionProvider>
     </div>
   );
 }

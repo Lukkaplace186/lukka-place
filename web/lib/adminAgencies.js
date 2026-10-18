@@ -21,12 +21,12 @@ export const AGENCY_SORTS = Object.keys(SORTS);
 
 const AGENCY_FIELDS = `
   v.id, v.username, ${vendorNameSql('v')} AS name, v.email, v.phone, v.status, v.created_at,
-  (SELECT COUNT(*)::int FROM agents a WHERE a.vendor_id = v.id) AS agents,
-  (SELECT COUNT(*)::int FROM agents a WHERE a.vendor_id = v.id AND a.phone_verified_at IS NOT NULL) AS verified_agents,
+  (SELECT COUNT(*)::int FROM agents a WHERE a.vendor_id = v.id AND a.deleted_at IS NULL) AS agents,
+  (SELECT COUNT(*)::int FROM agents a WHERE a.vendor_id = v.id AND a.deleted_at IS NULL AND a.phone_verified_at IS NOT NULL) AS verified_agents,
   (SELECT COUNT(*)::int FROM properties p JOIN agents a ON a.id = p.agent_id
     WHERE a.vendor_id = v.id AND p.status = 1 AND p.approve_status = 1) AS live_listings,
   (SELECT COUNT(*)::int FROM properties p JOIN agents a ON a.id = p.agent_id
-    WHERE a.vendor_id = v.id AND p.approve_status = 0) AS pending_listings,
+    WHERE a.vendor_id = v.id AND p.approve_status = 0 AND p.deleted_at IS NULL) AS pending_listings,
   m.expire_date, m.is_trial, pk.title AS package_title,
   pc.id AS contact_id, pc.name AS contact_name, pc.phone AS contact_phone, pc.email AS contact_email,
   pc.verified AS contact_verified
@@ -59,7 +59,8 @@ const AGENCY_JOINS = `
 
 export async function listAgenciesForAdmin({ q, plan, sort = 'name', limit = 25, offset = 0 } = {}) {
   const params = [];
-  const where = [];
+  // Soft-deleted agencies (lib/adminSoftDelete.js) leave the list.
+  const where = ['v.deleted_at IS NULL'];
   const term = String(q || '').trim();
   if (term) {
     params.push(`%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);

@@ -156,7 +156,7 @@
     },
     "tagline": "Apartments, villas and plots, to rent or to buy. We are starting in Kinshasa, on the way to covering the whole DRC.",
     "disclaimer": "Lukka Place is a property listings platform in Kinshasa. The information provided in listings is published under the responsibility of the advertisers. Lukka Place does not provide direct financial brokerage services and facilitates introductions via listing reference.",
-    "copyright": "© {year} Lukka Place — Kinshasa first, then the whole DRC.",
+    "copyright": "© {year} Lukka Place.",
     "whatsappGreeting": "Hello, I'm contacting you from lukkaplace.com."
   },
   "home": {
@@ -1427,7 +1427,8 @@
       "currentPlan": "current plan",
       "usage": "{used} of {limit} listings used on your plan.",
       "freeSlot": "Archiving a listing, or marking one as let or sold, also frees a slot.",
-      "upgrade": "Upgrade my plan"
+      "upgrade": "Upgrade my plan",
+      "contactTeam": "Contact the team"
     },
     "today": {
       "title": "To Do Today",
@@ -2991,6 +2992,7 @@
       },
       "projects": "New developments",
       "demand": "Demand",
+      "settings": "Site Settings",
       "agentReviews": "Agent Reviews"
     },
     "login": {
@@ -4416,7 +4418,10 @@
         "creditFuture": "The credit date cannot be in the future.",
         "creditInvalid": "This credit date is not valid.",
         "planUntil": "{plan} until {date}",
-        "empty": "No agent assigned yet."
+        "empty": "No agent assigned yet.",
+        "unassignTitle": "Remove {name} from This Rep?",
+        "unassignBody": "The rep earns nothing more on this agent from now on. Commissions already earned and the history are kept. A signup through a referral code stays attributed: use “Change Rep” under Agents brought in to change it.",
+        "agencyUnassigned": "Agency removed: {count} agent(s) are no longer looked after by this rep."
       },
       "agentRep": {
         "current": "Sales rep:",
@@ -4702,7 +4707,17 @@
         "copyCode": "Copy the code {code}",
         "copyLink": "Copy the signup link",
         "downloadQr": "Download the QR code",
-        "pay": "Pay this fortnight"
+        "pay": "Pay this fortnight",
+        "agencies": "Assigned agencies",
+        "listings": "Live listings",
+        "commissionStatus": "Commissions",
+        "noAgency": "No agency",
+        "moreAgencies": "+{count}",
+        "agentsCount": "{count} agent(s)",
+        "statusToApprove": "To approve · {amount}",
+        "statusToPay": "To pay · {amount}",
+        "statusPaid": "Paid · {amount}",
+        "statusNone": "Nothing outstanding"
       },
       "field": {
         "title": "Today in the Field",
@@ -4713,6 +4728,13 @@
         "lastListing": "Last listing {date} · {count} live",
         "noListingYet": "No listing since signing up",
         "nudge": "Nudge"
+      },
+      "agencies": {
+        "title": "Agencies",
+        "hint": "The agencies of the agents this rep looks after. “Remove” ends this rep's assignment on all of their agents.",
+        "colAgents": "Assigned agents",
+        "empty": "No agency yet.",
+        "unassignBody": "The {count} agent(s) of this agency looked after by this rep are removed from them from now on. Commissions already earned and the history are kept; agents looked after by another rep do not change."
       }
     },
     "projects": {
@@ -5063,6 +5085,72 @@
       "reportPick": "Pick a commune to print its report",
       "print": "Print / PDF",
       "back": "Market data"
+    },
+    "settings": {
+      "subtitle": "Footer social links and sections hidden until they are ready. A save shows on the site at the next page load.",
+      "loadError": "Could not read the settings (database unreachable). Try again in a moment.",
+      "saved": "Saved.",
+      "updated": "Changed {time} by {actor}",
+      "social": {
+        "title": "Social Media",
+        "subtitle": "Footer icons become links as soon as an address is saved; an empty field leaves the icon greyed out and not clickable.",
+        "fromEnv": "Currently: {url} (environment variable). An address entered here replaces it.",
+        "whatsappHint": "Empty: the WhatsApp icon opens the usual central number.",
+        "placeholders": {
+          "facebook": "https://www.facebook.com/lukkaplace",
+          "instagram": "https://www.instagram.com/lukkaplace",
+          "tiktok": "https://www.tiktok.com/@lukkaplace",
+          "whatsapp": "https://wa.me/message/…"
+        },
+        "errors": {
+          "unknown": "Unknown network.",
+          "too_long": "{network}: address too long.",
+          "invalid": "{network}: invalid address.",
+          "https": "{network}: the address must start with https://.",
+          "host": "{network}: this link does not point to {network}.",
+          "path": "{network}: enter the page's address, not just the site."
+        }
+      },
+      "features": {
+        "title": "Tabs and Sections",
+        "subtitle": "Hide what is still being built. Nothing is deleted: untick to remove the tab, tick to bring it back.",
+        "siteGroup": "Public Site and Agent Portal",
+        "adminGroup": "Admin Console",
+        "adminGroupHint": "Unticked tabs disappear from the console menu for the whole team. The page still opens from its address, so work on it can continue.",
+        "alwaysVisible": "always visible",
+        "surface": {
+          "agent": "Agent portal",
+          "public": "Public site"
+        },
+        "agentSubscriptions": "Subscriptions",
+        "agentSubscriptionsHint": "The agent portal’s Subscriptions tab. Turn on once FlexPaie payments are live. Hidden: its address sends back to the dashboard and listing-limit messages offer to contact the team.",
+        "agentProjects": "New Developments",
+        "agentProjectsHint": "The dashboard’s “My projects” card and the developers’ project pages. Hidden: their addresses send back to the dashboard.",
+        "publicProjects": "New Developments (New)",
+        "publicProjectsHint": "“New” in the menu, the footer links, the home page’s “New projects” strip, the projects bubble on the map, the sitemap, /projets and /promoteurs. Hidden: these addresses send to the listings."
+      }
+    },
+    "softDelete": {
+      "deleteSelected": "Delete selected",
+      "confirmTitle": "Delete Selection",
+      "confirmBody": "Are you sure you want to delete these {count} items?",
+      "confirmButton": "Delete ({count})",
+      "cascadeNote": {
+        "agent": "Their listings come off the site with them. You can undo for 10 seconds.",
+        "agency": "Their agents and all their listings are removed with them. You can undo for 10 seconds.",
+        "listing": "The listings leave the site immediately. You can undo for 10 seconds."
+      },
+      "deleted": "{count} item(s) deleted.",
+      "cascadeAgents": "{count} agent(s)",
+      "cascadeListings": "{count} listing(s)",
+      "undo": "Undo",
+      "restored": "Deletion undone.",
+      "undo_not_found": "Nothing to restore.",
+      "undo_expired": "Too late to undo this deletion.",
+      "undo_already_restored": "Already restored.",
+      "invalidSelection": "Invalid selection (1 to 100 items).",
+      "selectPage": "Select the whole page",
+      "selectRow": "Select {name}"
     },
     "reviews": {
       "title": "Agent Reviews",

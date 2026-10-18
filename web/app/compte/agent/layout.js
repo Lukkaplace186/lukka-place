@@ -7,6 +7,7 @@ import AgentSidebar from '@/components/AgentSidebar';
 import AgentKeyboardShortcuts from '@/components/AgentKeyboardShortcuts';
 import { ToastProvider } from '@/components/Toast';
 import ListingLimitDialog from '@/components/ListingLimitDialog';
+import { getFeatureFlags } from '@/lib/siteSettings';
 import ImpersonationBanner from '@/components/ImpersonationBanner';
 import { agentLogoutAction } from './actions';
 import { getI18n, getT } from '@/lib/i18n/server';
@@ -62,7 +63,7 @@ export default async function AgentDashboardLayout({ children }) {
   // The rail's "Profil complété" is the same checklist Réglages shows and the
   // overview's "Profil incomplet" banner reads (profileChecklist), so the
   // three can no longer say 100 % here and "1 élément à compléter" there.
-  const profileGaps = await getAgentProfileGaps(agent).catch(() => []);
+  const [profileGaps, features] = await Promise.all([getAgentProfileGaps(agent).catch(() => []), getFeatureFlags()]);
   const checklist = profileChecklist(completion, profileGaps);
   const railCompletion = completion && {
     ...completion,
@@ -94,11 +95,12 @@ export default async function AgentDashboardLayout({ children }) {
           waitingCount={waitingCount}
           completion={railCompletion}
           logoutAction={agentLogoutAction}
+          features={features}
         />
         <ToastProvider>
           <div className="flex min-w-0 flex-1 flex-col pb-16 lg:pb-0">{children}</div>
         </ToastProvider>
-        <ListingLimitDialog />
+        <ListingLimitDialog subscriptionsEnabled={features.agentSubscriptions} />
         <ImpersonationBanner />
       </div>
     </I18nProvider>

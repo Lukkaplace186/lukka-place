@@ -1,4 +1,5 @@
 import Header from '@/components/Header';
+import { getFeatureFlags } from '@/lib/siteSettings';
 import SiteShell from '@/components/SiteShell';
 import Footer from '@/components/Footer';
 import FavoriteResumeHandler from '@/components/FavoriteResumeHandler';
@@ -59,6 +60,7 @@ const SITE_NAMESPACES = [
 export default async function SiteLayout({ children }) {
   const rate = await getCdfRate();
   const { locale, messages } = await getI18n(SITE_NAMESPACES);
+  const features = await getFeatureFlags();
 
   return (
     <I18nProvider locale={locale} messages={messages}>
@@ -66,7 +68,7 @@ export default async function SiteLayout({ children }) {
         <FavoriteResumeHandler />
         <AccountLimitNotice />
         <VisitCartMount />
-        <Header />
+        <Header hiddenHrefs={features.publicProjects ? [] : ['/projets']} />
         <SiteShell>
           {/* min-h-0 alongside flex-1: a flex item's default min-height is
               `auto` (its content size), not 0 — the standard real fix for the

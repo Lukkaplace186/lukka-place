@@ -130,6 +130,7 @@ export default async function AdminListingsPage({ searchParams }) {
         rows={queue?.rows || []}
         status={status}
         canModerate={can(session?.role, 'listings.moderate')}
+        canDelete={can(session?.role, 'listings.delete')}
         renderedAt={renderTime()}
         footer={queue ? <Pagination pathname="/admin/listings" params={params} total={queue.total} page={page} pageSize={pageSize} cursors={queue.cursors} /> : null}
       />

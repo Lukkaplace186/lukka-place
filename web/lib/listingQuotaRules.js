@@ -24,6 +24,9 @@
 
 export const UPGRADE_PATH = '/compte/agent/abonnement';
 
+/** Where an agent at the limit goes while the Abonnements tab is hidden (/admin/settings). */
+export const CONTACT_PATH = '/contact';
+
 export const QUOTA_COUNTED_SQL = "p.status = 1 AND p.approve_status IN (0, 1) AND COALESCE(p.listing_status, 'active') <> 'closed' AND p.development_id IS NULL";
 
 /**

@@ -56,7 +56,7 @@ export async function getOwnListingsForDashboard(agentId) {
             p.currency, p.price_original, pc.title
      FROM properties p
      JOIN property_contents pc ON pc.property_id = p.id AND pc.language_id = 20
-     WHERE p.agent_id = $1
+     WHERE p.agent_id = $1 AND p.deleted_at IS NULL
      ORDER BY p.created_at DESC`,
     [agentId],
   );

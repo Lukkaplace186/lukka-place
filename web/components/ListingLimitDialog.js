@@ -6,7 +6,7 @@ import { Sparkles } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
-import { LISTING_QUOTA_EVENT, UPGRADE_PATH } from '@/lib/listingQuotaRules';
+import { CONTACT_PATH, LISTING_QUOTA_EVENT, UPGRADE_PATH } from '@/lib/listingQuotaRules';
 
 /**
  * Why an agent cannot publish another listing, and the way forward. Mounted
@@ -14,8 +14,11 @@ import { LISTING_QUOTA_EVENT, UPGRADE_PATH } from '@/lib/listingQuotaRules';
  * any action the server refused for the plan's listing limit (create,
  * duplicate, put back online), or before the form opens when the page already
  * knows the limit is reached.
+ *
+ * While the Abonnements tab is hidden (/admin/settings) the way forward is
+ * the team, not a page that would only redirect.
  */
-export default function ListingLimitDialog() {
+export default function ListingLimitDialog({ subscriptionsEnabled = true }) {
   const t = useT();
   const [quota, setQuota] = useState(null);
 
@@ -52,12 +55,12 @@ export default function ListingLimitDialog() {
             {t('common.actions.close')}
           </button>
           <Link
-            href={quota?.upgradeHref || UPGRADE_PATH}
+            href={subscriptionsEnabled ? quota?.upgradeHref || UPGRADE_PATH : CONTACT_PATH}
             onClick={() => setQuota(null)}
             className="u-btn-primary u-press inline-flex h-10 items-center justify-center gap-1.5 rounded-lg bg-blue px-4 text-sm font-bold text-white hover:bg-blue-deep"
           >
             <Sparkles strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-            {t('agent.quota.upgrade')}
+            {subscriptionsEnabled ? t('agent.quota.upgrade') : t('agent.quota.contactTeam')}
           </Link>
         </DialogFooter>
       </DialogContent>

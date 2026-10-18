@@ -28,7 +28,7 @@ data, source a properly-licensed real asset, or render an honest absence —
 don't guess. Examples already in this codebase:
 
 - A per-listing agent phone is shown only for a **verified, routing-enabled** agent (`lib/listings.js` nulls `agent_phone` in SQL otherwise); every other "Contact" CTA routes through the one real WhatsApp number (`NEXT_PUBLIC_WHATSAPP_NUMBER`) and renders an honest disabled state (not a dead `wa.me` link) when that env var is empty. One rule for all three CTAs: `lib/leadRouting.js` (`WhatsAppCTA.js`, `EnquiryCard.js`, `MobileListingBar.js`), and each tap is logged with its routing through `trackLeadClick`. The reference portals put an agent card in exactly the slot `EnquiryCard` occupies; never fill it with an agent we cannot vouch for.
-- No real Lukka Place social accounts exist yet → Facebook/Instagram icons in `Footer.js` are inert `<span>`s, not `<a href="#">`.
+- Footer social icons (Facebook / Instagram / TikTok) stay inert `<span>`s, never `<a href="#">`, until a real URL is saved on `/admin/settings` (or set as `NEXT_PUBLIC_*_URL`); a saved WhatsApp Business link replaces the central number on the WhatsApp icon. See "Site settings…" below.
 - `ExploreCommunes.js` shows **a real photo of a real approved listing in that commune**, plus that commune's real listing count (`getCommuneShowcase()`). It used flat gradients before, because a stock photo captioned "Gombe" would have been a fabrication. A commune whose latest listing has no usable photo falls back to the typographic treatment rather than borrowing another commune's image.
 - Card chip badges are limited to what the data can prove: photo count (`gallery.length`), "Location" (`purpose`), door count (`units_count`). No "Price cut" (no price history exists), no days-on-market shaming, no invented amenity hooks. See `ListingBadges.js`. ("Nouveau", 14-day `created_at`, used to be one of these — removed entirely from every listing on an explicit instruction; not a data-honesty issue, the badge was real, it's just gone now.)
 - The hero background (`public/hero-kinshasa.jpg`) is a real, properly-licensed photo (CC BY-SA 2.0, Wikimedia Commons — MONUSCO/Abel Kavanagh) with the required credit rendered in `Hero.js`. It has been re-encoded to ~330 KB (it shipped at 5.6 MB). Anything that replaces it keeps both properties: real licence, visible credit where the licence asks for one.
@@ -169,8 +169,9 @@ Conflating any two of these is the bug that keeps recurring:
 - **Quotas are per-PACKAGE, not per-agent.** This schema has no per-agent quota
   column; a UI implying one would promise an override nothing enforces.
 - **`plan_change_requests`** is the queue behind the agent-facing "Demander ce
-  forfait". There is no payment gateway by product decision — approving a
-  request assigns the package and writes the ledger row in one action.
+  forfait". Approving a request assigns the package and writes the ledger row
+  in one action. FlexPaie online payment is being added beside it (2026-10-18,
+  "FlexPaie" below); the request queue stays.
 
 ### Built for 30k agents — every list is one server page
 
@@ -499,9 +500,9 @@ subscription steps skip launch reps and vice versa.
   users from `/compte/agent`) needs an agency-level login, which does not
   exist: agents log in individually and `vendors` has no account of its own.
   Branches are admin-managed until then.
-- **Card payments, invoices issued before payment, and failed-payment
-  tracking** need a payment gateway, which is out by product decision.
-  Receipts cover what the ledger can honestly prove.
+- **Card payments** are not offered. Mobile-money payment through FlexPaie
+  (invoices, failed-payment tracking) is scaffolded as of 2026-10-18 but not
+  live — see "FlexPaie" below. Receipts cover what the ledger can prove.
 
 ## Layout & shell
 
@@ -2713,6 +2714,80 @@ From an owner walkthrough on a phone. Engine migration
     carries `normal-case`; add it to any new one. The sans hero headline on the
     homepage and `.u-title-card` are not affected.
 
+## Site settings, bulk delete, sales cleanup, FlexPaie (2026-10-18)
+
+- **Footer copyright** is `© {year} Lukka Place.` in both languages, no tagline
+  (pinned in `tests/unit/admin-settings-delete-payments.test.js`).
+- **`/admin/settings`** (`cms.manage`, owner): two `cms_settings` rows,
+  `site.social_links` and `site.features` (`lib/siteSettings.js`, pure rules in
+  `lib/siteSettingsRules.js`). Each social URL must be https on that network's
+  own host, with a path; a stored value is re-validated on read. Memoised 30 s,
+  dropped on save. Never throws — the footer falls back to the env links.
+- **"Onglets et sections"** on `/admin/settings` hides work in progress
+  (`site.features`, `featuresFromStored`). Three switches plus a list:
+  - `agentSubscriptions` (default OFF): the agent portal's Abonnements tab;
+    `/compte/agent/abonnement` redirects to `/compte/agent`; the limit dialog
+    and Mes biens banner say "Contacter l’équipe" (`/contact`). The engine's
+    WhatsApp limit refusal reads the same key (`services/listingQuota.js`).
+  - `publicProjects` (default on): "Neuf" in the header and drawer, the
+    footer's /projets + /promoteurs links, the home strip, the map's projects
+    pill (`/api/projects/count` → 0), the sitemap, and /projets/* +
+    /promoteurs (layout redirect to /listings plus `noindex` — the redirect
+    runs inside (site)'s loading.js Suspense, so it is a client hop on a 200).
+  - `agentProjects` (default on): the overview's projects card and
+    /compte/agent/projets/* (redirect to /compte/agent).
+  - `hiddenAdminTabs`: console sidebar entries to hide, for the whole team.
+    The tab list lives in `lib/adminNav.js` (plain data, icon names) so the
+    sidebar and the settings form share it; a stored href not in it is
+    dropped, and `/admin/settings` can never be hidden. A hidden tab's page
+    still opens from its URL (the team keeps working on it); its permission
+    is unchanged.
+  - Set on production 2026-10-18 (shared DB, takes effect on deploy):
+    Abonnements and Projets neufs hidden on every surface, `/admin/projets`
+    and `/admin/subscriptions` hidden from the sidebar.
+- **Bulk "Supprimer la sélection"** on `/admin/agents`, `/admin/agencies` (new
+  row selection, `AgencySelection.js`) and `/admin/listings` (every tab):
+  `app/admin/BulkDelete.js` (confirm dialog → toast with "Annuler" for 10 s),
+  `lib/adminSoftDelete.js`, `migrations/20261018_admin_soft_delete.sql`.
+  - A soft delete: `deleted_at` + `status = 0`, previous status kept in
+    `console_soft_deletions`; an agency cascades to its agents, an agent to
+    their listings. Undo restores the previous status; the server accepts it
+    for 60 s (`UNDO_GRACE_MS`), matched in SQL (a JS Date drops microseconds).
+  - Owner only (`agents.delete`, new `listings.delete`). The permanent
+    impact-dialog deletion (`lib/adminAgentDeletion.js`) is unchanged.
+  - Readers that skip deleted rows: admin agents / agencies / moderation
+    lists, counts, global search, `getAgentById` (profile 404, dashboard →
+    login), `getAgents`, agent login, the agent's own listings. Engine:
+    `resolveAgentId`, `identifySender`, and a resync never sets `status = 1`
+    on a deleted listing.
+  - **Run the migration BEFORE deploying** — those queries name `deleted_at`.
+  - No "Corbeille" view yet: after the grace window a delete stands (rows are
+    still in the database; restoring one is a manual SQL job).
+- **Sales (`/admin/sales`)**: the team table is four columns — rep, assigned
+  agencies (from active assignments), live listings, commission status chips
+  (to approve / to pay / paid). The rep page gains "Agences" with "Retirer"
+  per agency (`endRepAssignmentsForVendor`), and agent unassign now asks for
+  confirmation and works on every rep, inactive and launch ones included
+  (adding agents is still active subscription reps only). Unassigning ends
+  assignments only — a launch attribution (`sales_agent_attributions`) is
+  still changed through "Changer de commercial".
+- **FlexPaie** (`lib/flexpaie.js`, `lib/flexpaieRules.js`, `lib/payments.js`,
+  `/api/payments/flexpaie/{initiate,webhook,status}`,
+  `migrations/20261018_flexpaie_payments.sql`: `subscriptions`, `invoices`,
+  `payment_logs`). Env: `FLEXPAIE_BASE_URL` (https), `FLEXPAIE_MERCHANT_ID`,
+  `FLEXPAIE_API_KEY` — server-only; unset = 503 "not_configured".
+  - The callback URL carries a per-invoice token (SHA-256 stored); a callback
+    is logged and then ignored as evidence — only FlexPaie's status check
+    (`GET /check/{orderNumber}`: status "0", amount and currency covering the
+    invoice) marks it paid. A mismatch is never credited nor failed.
+  - Paid = one transaction: ordinary `memberships` row (payment_method
+    'FlexPaie', via `assignPackageToAgent({ client })`), invoice paid,
+    subscription active. A second callback is a no-op.
+  - **The API shape comes from the community SDK's docs, not FlexPaie's own**
+    (none was available): confirm field names and codes with a sandbox
+    payment before setting the key in production. There is no payment UI yet;
+    the Abonnements tab stays hidden until there is.
+
 ## Agent ratings — "Notez l'agent" (2026-10-18)
 
 Engine half and rules: root CLAUDE.md, "Notez l'agent". The engine
@@ -2730,3 +2805,4 @@ without it nothing renders and the rating card answers "réessayez".
 - **Admin**: `/admin/agent-reviews` (agents.view; publish/refuse is
   listings.moderate, audited without the comment text).
 - Tests: `tests/unit/agent-reviews.test.js`.
+

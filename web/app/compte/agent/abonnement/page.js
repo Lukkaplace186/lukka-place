@@ -12,6 +12,8 @@ import AgentPageHeader from '@/components/AgentPageHeader';
 import AgentSubscriptionCard from '@/components/AgentSubscriptionCard';
 import AgentPlanPicker from '@/components/AgentPlanPicker';
 import { getT } from '@/lib/i18n/server';
+import { redirect } from 'next/navigation';
+import { getFeatureFlags } from '@/lib/siteSettings';
 
 // generateMetadata, not a static object: a static export is evaluated at
 // module load, where there is no request and so no translator.
@@ -61,6 +63,9 @@ function money(value, symbol) {
  * and that renders as an honest empty state rather than a fabricated entry.
  */
 export default async function AgentSubscriptionPage() {
+  // Hidden until FlexPaie payments are live (/admin/settings): the address
+  // sends back to the dashboard rather than showing plans nobody can pay for.
+  if (!(await getFeatureFlags()).agentSubscriptions) redirect('/compte/agent');
   const t = await getT();
   const agentId = await getCurrentAgentId();
   const { agent, listings, waitingCount } = await getAgentDashboardContext(agentId);

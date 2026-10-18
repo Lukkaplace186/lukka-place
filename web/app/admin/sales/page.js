@@ -115,28 +115,31 @@ export default async function AdminSalesPage({ searchParams }) {
         <Stat label={t('admin.sales.statUnpaid')} value={formatMoneyList(unpaid)} hint={t('admin.sales.statReps', { count: reps.filter((rep) => rep.status === 'active').length })} />
       </div>
 
-      <TableFrame minWidth="72rem">
+      {/* Four columns, as asked for (2026-10-18): who, which agencies, how many
+          listings those agencies' agents have live, and where the money
+          stands. Agents, qualified counts and sales moved into the hints
+          under them; every number still opens the list behind it. */}
+      <TableFrame minWidth="56rem">
         <thead>
           <tr>
             <th className={TH_STICKY}>{t('admin.sales.colRep')}</th>
-            <th className={TH_STICKY_RIGHT}>{t('admin.sales.team.agentsBrought')}</th>
-            <th className={TH_STICKY_RIGHT}>{t('admin.sales.team.theirListings')}</th>
-            <th className={TH_STICKY_RIGHT}>{t('admin.sales.team.qualified')}</th>
-            <th className={TH_STICKY_RIGHT}>{t('admin.sales.colSold')}</th>
-            <th className={TH_STICKY}>{t('admin.sales.colEarned')}</th>
-            <th className={TH_STICKY}>{t('admin.sales.colToPay')}</th>
+            <th className={TH_STICKY}>{t('admin.sales.team.agencies')}</th>
+            <th className={TH_STICKY_RIGHT}>{t('admin.sales.team.listings')}</th>
+            <th className={TH_STICKY}>{t('admin.sales.team.commissionStatus')}</th>
             <th className={TH_STICKY}>{t('admin.sales.team.actions')}</th>
           </tr>
         </thead>
         <tbody>
           {reps.length === 0 ? (
-            <EmptyRow colSpan={8}>{t('admin.sales.empty')}</EmptyRow>
+            <EmptyRow colSpan={5}>{t('admin.sales.empty')}</EmptyRow>
           ) : reps.map((rep) => {
             const launch = launchByRep.get(rep.id);
-            const earnedByCurrency = (rep.commissions || []).map((c) => ({ currency: c.currency, amount: c.earned }));
-            const toPay = (rep.commissions || []).map((c) => ({ currency: c.currency, amount: Number(c.pending) + Number(c.approved) }));
+            const pendingAmounts = (rep.commissions || []).map((c) => ({ currency: c.currency, amount: Number(c.pending) }));
+            const approvedAmounts = (rep.commissions || []).map((c) => ({ currency: c.currency, amount: Number(c.approved) }));
+            const paidAmounts = (rep.commissions || []).map((c) => ({ currency: c.currency, amount: Number(c.paid) }));
+            const has = (list) => list.some((item) => item.amount > 0);
+            const agencies = rep.agencies || [];
             const base = `/admin/sales/${rep.id}`;
-            const perAgent = Number(rep.accounts) > 0 ? (Number(rep.live_listings) / Number(rep.accounts)).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) : null;
             return (
               <tr key={rep.id} className={TR_DENSE}>
                 <td className={TD_DENSE}>
@@ -147,36 +150,46 @@ export default async function AdminSalesPage({ searchParams }) {
                     {rep.referral_code ? <span className="u-ref">· {rep.referral_code}</span> : null}
                   </div>
                 </td>
-                <td className={TD_DENSE_RIGHT}>
-                  <Link href={`${base}#referred`} className={`${METRIC_LINK} font-semibold text-ink`}>{rep.accounts}</Link>
-                  {launch ? <div className="text-ink-45">{t('admin.sales.team.viaCode', { count: launch.registered })}</div> : null}
+                <td className={TD_DENSE}>
+                  {agencies.length === 0 ? (
+                    <span className="text-ink-35">{t('admin.sales.team.noAgency')}</span>
+                  ) : (
+                    <div className="flex max-w-[22rem] flex-wrap gap-1">
+                      {agencies.slice(0, 3).map((agency) => (
+                        <Link key={agency.id} href={`/admin/agencies/${agency.id}`} className="max-w-[12rem] truncate rounded-full bg-canvas-alt px-2 py-0.5 text-ink-70 hover:text-blue-deep">
+                          {agency.name}
+                        </Link>
+                      ))}
+                      {agencies.length > 3 ? (
+                        <Link href={`${base}#agencies`} className="rounded-full px-1.5 py-0.5 text-ink-45 hover:text-blue-deep">
+                          {t('admin.sales.team.moreAgencies', { count: agencies.length - 3 })}
+                        </Link>
+                      ) : null}
+                    </div>
+                  )}
+                  <Link href={`${base}#referred`} className={`${METRIC_LINK} mt-1 inline-block text-ink-45`}>
+                    {t('admin.sales.team.agentsCount', { count: Number(rep.accounts) })}
+                  </Link>
                 </td>
                 <td className={TD_DENSE_RIGHT}>
                   <Link href={`${base}?gfilter=with_listing#referred`} className={`${METRIC_LINK} font-semibold text-ink`}>{rep.live_listings}</Link>
-                  <div className="text-ink-45">
-                    {perAgent ? t('admin.sales.team.perAgent', { value: perAgent }) : null}
-                    {launch?.credited_listings ? ` · ${t('admin.sales.team.credited', { count: launch.credited_listings })}` : ''}
+                  {launch?.credited_listings ? <div className="text-ink-45">{t('admin.sales.team.credited', { count: launch.credited_listings })}</div> : null}
+                </td>
+                <td className={TD_DENSE}>
+                  <div className="flex flex-wrap gap-1">
+                    {has(pendingAmounts) ? (
+                      <Link href={`${base}?status=pending#ledger`}><Chip tone="warning">{t('admin.sales.team.statusToApprove', { amount: formatMoneyList(pendingAmounts.filter((x) => x.amount > 0)) })}</Chip></Link>
+                    ) : null}
+                    {has(approvedAmounts) ? (
+                      <Link href={`${base}?status=approved#ledger`}><Chip tone="blue">{t('admin.sales.team.statusToPay', { amount: formatMoneyList(approvedAmounts.filter((x) => x.amount > 0)) })}</Chip></Link>
+                    ) : null}
+                    {has(paidAmounts) ? (
+                      <Chip tone="success">{t('admin.sales.team.statusPaid', { amount: formatMoneyList(paidAmounts.filter((x) => x.amount > 0)) })}</Chip>
+                    ) : null}
+                    {!has(pendingAmounts) && !has(approvedAmounts) && !has(paidAmounts) ? (
+                      <span className="text-ink-35">{t('admin.sales.team.statusNone')}</span>
+                    ) : null}
                   </div>
-                </td>
-                <td className={TD_DENSE_RIGHT}>
-                  {launch ? (
-                    <>
-                      <Link href={`${base}?gfilter=qualified#referred`} className={`${METRIC_LINK} font-semibold text-ink`}>{launch.qualified_agents}</Link>
-                      <div className="text-ink-45">
-                        <Link href={`${base}?gfilter=awaiting#referred`} className={METRIC_LINK}>
-                          {t('admin.sales.team.awaiting', { count: launch.awaiting_validation })}
-                        </Link>
-                      </div>
-                    </>
-                  ) : '—'}
-                </td>
-                <td className={TD_DENSE_RIGHT}>
-                  {rep.soldCount}
-                  {rep.soldCount ? <div className="u-tabular text-ink-45">{formatMoneyList(rep.sold)}</div> : null}
-                </td>
-                <td className={`${TD_DENSE} u-tabular`}>{formatMoneyList(earnedByCurrency)}</td>
-                <td className={`${TD_DENSE} u-tabular`}>
-                  <Link href={`${base}?status=approved#ledger`} className={METRIC_LINK}>{formatMoneyList(toPay)}</Link>
                 </td>
                 <td className={TD_DENSE}>
                   <RepRowActions

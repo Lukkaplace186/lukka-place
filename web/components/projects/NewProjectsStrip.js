@@ -3,6 +3,7 @@ import ProjectCard from '@/components/projects/ProjectCard';
 import { getRecentProjects } from '@/lib/developments';
 import { memo } from '@/lib/memo';
 import { getT } from '@/lib/i18n/server';
+import { getFeatureFlags } from '@/lib/siteSettings';
 
 /**
  * "Nouveaux projets" on the homepage: the most recently approved public
@@ -11,6 +12,8 @@ import { getT } from '@/lib/i18n/server';
  * a failure hides the strip rather than the homepage.
  */
 export default async function NewProjectsStrip() {
+  // Hidden while Projets neufs is switched off on /admin/settings.
+  if (!(await getFeatureFlags()).publicProjects) return null;
   const projects = await memo('projects:recent', 60_000, () => getRecentProjects(6)).catch(() => []);
   if (!projects.length) return null;
   const t = await getT();

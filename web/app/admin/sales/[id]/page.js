@@ -12,7 +12,7 @@ import {
   recentFortnights,
 } from '@/lib/launchCommission';
 import {
-  getRepMonthlyTrend, getSalesRep, listActiveRepOptions, listApprovedLineRefs, listRepAccounts, listRepCommissions,
+  getRepMonthlyTrend, getSalesRep, listActiveRepOptions, listApprovedLineRefs, listRepAccounts, listRepAgencies, listRepCommissions,
   listRepPayouts, listRepRenewalsDue, listSalesConsoleAccounts, listSalesPlans,
 } from '@/lib/sales';
 import { AUTO_VOID_REASON, REFERRED_AGENT_FILTERS, getLaunchCounts, getRepFieldView, listListingCredits, listReferredAgents } from '@/lib/salesLaunch';
@@ -29,6 +29,7 @@ import ReferralToolkit from './ReferralToolkit';
 import ReferredAgents from './ReferredAgents';
 import FieldView from './FieldView';
 import RepAccounts from './RepAccounts';
+import RepAgencies from './RepAgencies';
 
 export const dynamic = 'force-dynamic';
 
@@ -114,7 +115,7 @@ export default async function AdminSalesRepPage({ params, searchParams }) {
 
   const [
     accountsResult, ledgerResult, payoutsResult, renewalsResult, trendResult, plansResult, consoleAccountsResult,
-    countsResult, agentsResult, creditsResult, repOptionsResult, scopeResult, qrResult, fieldResult,
+    countsResult, agentsResult, creditsResult, repOptionsResult, scopeResult, qrResult, fieldResult, agenciesResult,
   ] = await Promise.allSettled([
     listRepAccounts(rep.id, accountsPage),
     listRepCommissions(rep.id, { status, from: ledgerWindow?.from, to: ledgerWindow?.to, limit: ledgerPage.limit, offset: ledgerPage.offset }),
@@ -130,6 +131,7 @@ export default async function AdminSalesRepPage({ params, searchParams }) {
     canManage && ledgerWindow ? listApprovedLineRefs(rep.id, ledgerWindow) : Promise.resolve(null),
     rep.referral_code ? qrSvgFor(referralLink(rep.referral_code, { qr: true })) : Promise.resolve(null),
     getRepFieldView(rep.id),
+    listRepAgencies(rep.id),
   ]);
   const settled = (result, fallback) => (result.status === 'fulfilled' ? result.value : fallback);
   const accounts = settled(accountsResult, { total: 0, rows: [] });
@@ -500,11 +502,18 @@ export default async function AdminSalesRepPage({ params, searchParams }) {
         />
       </section>
 
+      <section id="agencies" className="flex scroll-mt-20 flex-col gap-2">
+        <h2 className="u-title-card text-ink">{t('admin.sales.agencies.title')}</h2>
+        <p className="u-micro text-ink-45">{t('admin.sales.agencies.hint')}</p>
+        <RepAgencies repId={rep.id} rows={settled(agenciesResult, [])} canUnassign={canManage} />
+      </section>
+
       <section className="flex flex-col gap-2">
         <h2 className="u-title-card text-ink">{t('admin.sales.accounts.title')}</h2>
         <RepAccounts
           repId={rep.id}
           canManage={canManage && rep.status === 'active' && !isLaunch}
+          canUnassign={canManage}
           today={todayInKinshasa()}
           rows={accounts.rows.map((row) => ({
             agentId: row.agent_id,

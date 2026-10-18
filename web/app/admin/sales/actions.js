@@ -6,7 +6,7 @@ import { recordAudit } from '@/lib/adminAudit';
 import { kinshasaDayStart } from '@/lib/adminPagination';
 import { normaliseCurrency, parseAmount, validatePlanInput, validateRepInput } from '@/lib/salesRules';
 import {
-  addCommissionAdjustment, approveCommissions, assignAgentsToRep, endRepAssignment, recordSalesPayout,
+  addCommissionAdjustment, approveCommissions, assignAgentsToRep, endRepAssignment, endRepAssignmentsForVendor, recordSalesPayout,
   saveSalesPlan, saveSalesRep, syncSalesCommissions, voidCommission,
 } from '@/lib/sales';
 import { suggestReferralCode } from '@/lib/launchCommission';
@@ -156,6 +156,22 @@ export async function endAssignmentAction(repId, agentId) {
     revalidatePath(`/admin/agents/${agent}`);
     refresh(rep);
     return { ok: true, message: t('admin.sales.accounts.unassigned') };
+  });
+}
+
+/** "Retirer l'agence": ends this rep's assignments on every agent of one agency. */
+export async function endAgencyAssignmentsAction(repId, vendorId) {
+  const t = await getT();
+  return guarded(t, async (session) => {
+    const rep = positiveInt(repId);
+    const vendor = positiveInt(vendorId);
+    if (!rep || !vendor) return { ok: false, error: t('admin.sales.accounts.notAssigned') };
+    const agentIds = await endRepAssignmentsForVendor({ repId: rep, vendorId: vendor, adminId: adminIdOf(session) });
+    if (agentIds.length === 0) return { ok: false, error: t('admin.sales.accounts.notAssigned') };
+    await recordAudit(session, { action: 'sales.unassign_agency', entityType: 'sales_rep', entityId: rep, details: { vendorId: vendor, agentIds } });
+    for (const agentId of agentIds) revalidatePath(`/admin/agents/${agentId}`);
+    refresh(rep);
+    return { ok: true, message: t('admin.sales.accounts.agencyUnassigned', { count: agentIds.length }) };
   });
 }
 

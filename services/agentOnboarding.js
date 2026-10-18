@@ -120,7 +120,7 @@ async function findAgentByPhone(waId) {
     `SELECT id, username, phone, status, password_hash, phone_verified_at, agency_name,
             (SELECT ai.first_name FROM agent_infos ai
               WHERE ai.agent_id = agents.id AND ai.language_id = $2 AND ai.first_name IS NOT NULL
-              LIMIT 1) AS first_name
+              LIMIT 1) AS first_name, deleted_at
      FROM agents
      WHERE regexp_replace(phone, '\\D', '', 'g') = $1
      LIMIT 1`,
@@ -187,6 +187,8 @@ async function identifySender(waId) {
 function senderIdentityFrom(agent) {
   if (!agent) return { registered: false, agentId: null, firstName: null, agent: null };
   if (!agent.phone_verified_at) return { registered: false, agentId: null, firstName: null, agent };
+  // Deleted from the console (web/lib/adminSoftDelete.js): nothing is attributed to it.
+  if (agent.deleted_at) return { registered: false, agentId: null, firstName: null, agent };
 
   return {
     registered: true,

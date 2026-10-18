@@ -79,7 +79,7 @@ export async function getAgents({ q } = {}) {
 
   const { rows } = await pool.query(
     `SELECT ${AGENT_FIELDS} ${AGENT_JOINS}
-     WHERE $1::text IS NULL OR a.username ILIKE $1 OR a.email ILIKE $1 OR a.phone ILIKE $1
+     WHERE a.deleted_at IS NULL AND ($1::text IS NULL OR a.username ILIKE $1 OR a.email ILIKE $1 OR a.phone ILIKE $1)
      ORDER BY a.created_at DESC NULLS LAST`,
     [term ? `%${term}%` : null],
   );
@@ -171,7 +171,8 @@ export async function listAgentsForAdmin({
 } = {}) {
   const pool = getPool();
   const params = [];
-  const where = [];
+  // Soft-deleted agents (lib/adminSoftDelete.js) leave every console list.
+  const where = ['a.deleted_at IS NULL'];
   const search = agentSearchWhere(q, params);
   if (search) where.push(search);
   if (verified === 'yes') where.push('a.phone_verified_at IS NOT NULL');
@@ -220,7 +221,7 @@ export async function listAgentsForAdmin({
       `SELECT COUNT(*)::int AS total,
               COUNT(*) FILTER (WHERE phone_verified_at IS NOT NULL)::int AS verified,
               COUNT(*) FILTER (WHERE status = 1)::int AS active
-       FROM agents`,
+       FROM agents WHERE deleted_at IS NULL`,
     ),
   ]);
   const rows = keyset.reverse ? [...pageResult.rows].reverse() : pageResult.rows;
@@ -244,7 +245,7 @@ export async function listAgentsForAdmin({
 export async function searchAgentsForAdmin({ q, commune, routableOnly = false, activeOnly = false, excludeId, limit = 20 } = {}) {
   const pool = getPool();
   const params = [];
-  const where = [];
+  const where = ['a.deleted_at IS NULL'];
   const search = agentSearchWhere(q, params);
   if (search) where.push(search);
   if (routableOnly) where.push('a.phone_verified_at IS NOT NULL AND a.direct_routing_enabled IS DISTINCT FROM false');
@@ -381,7 +382,8 @@ export async function getAgentById(id) {
   if (!Number.isFinite(numericId)) return null;
 
   const pool = getPool();
-  const { rows } = await pool.query(`SELECT ${AGENT_FIELDS} ${AGENT_JOINS} WHERE a.id = $1`, [numericId]);
+  // A soft-deleted agent is gone everywhere: profile 404, dashboard → login.
+  const { rows } = await pool.query(`SELECT ${AGENT_FIELDS} ${AGENT_JOINS} WHERE a.id = $1 AND a.deleted_at IS NULL`, [numericId]);
   return rows[0] || null;
 }
 
@@ -405,7 +407,7 @@ export async function getAgentByPhone(phone) {
   const { rows } = await pool.query(
     `SELECT id, phone, email, username, password_hash, token_version, failed_login_count,
             locked_until, phone_verified_at, otp_code_hash, otp_expires_at,
-            reset_otp_code_hash, reset_otp_expires_at
+            reset_otp_code_hash, reset_otp_expires_at, deleted_at
      FROM agents WHERE phone = $1`,
     [phone],
   );

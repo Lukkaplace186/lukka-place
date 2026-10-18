@@ -43,7 +43,8 @@ const NAV = [
   { href: '/compte/agent', labelKey: 'agent.nav.overview', shortKey: 'agent.nav.overviewShort', icon: BarChart3, exact: true },
   { href: '/compte/agent/biens', labelKey: 'agent.nav.listings', shortKey: 'agent.nav.listingsShort', icon: Landmark, countKey: 'listings' },
   { href: '/compte/agent/demandes', labelKey: 'agent.nav.leads', shortKey: 'agent.nav.leadsShort', icon: Mail, countKey: 'leads' },
-  { href: '/compte/agent/abonnement', labelKey: 'agent.nav.subscription', shortKey: 'agent.nav.subscriptionShort', icon: BadgeCheck },
+  // Hidden until FlexPaie payments are live (/admin/settings, lib/siteSettings.js).
+  { href: '/compte/agent/abonnement', labelKey: 'agent.nav.subscription', shortKey: 'agent.nav.subscriptionShort', icon: BadgeCheck, featureKey: 'agentSubscriptions' },
   { href: '/compte/agent/parametres', labelKey: 'agent.nav.settings', shortKey: 'agent.nav.settingsShort', icon: SlidersHorizontal },
 ];
 
@@ -58,9 +59,11 @@ export default function AgentSidebar({
   waitingCount = 0,
   completion,
   logoutAction,
+  features = {},
 }) {
   const t = useT();
   const pathname = usePathname();
+  const nav = NAV.filter((item) => !item.featureKey || features[item.featureKey]);
   // The same number as every header bell (lib/agentDashboard.js waitingCount).
   const counts = { listings: listingsCount, leads: waitingCount };
 
@@ -73,7 +76,7 @@ export default function AgentSidebar({
         </div>
 
         <nav className="flex flex-col gap-1">
-          {NAV.map((item) => {
+          {nav.map((item) => {
             const active = isActive(pathname, item);
             const count = item.countKey ? counts[item.countKey] : null;
             return (
@@ -164,8 +167,8 @@ export default function AgentSidebar({
       >
         {/* Columns follow NAV's length (inline, since Tailwind cannot see a
             composed grid-cols-N) so adding an entry never needs this line. */}
-        <div className="grid" style={{ gridTemplateColumns: `repeat(${NAV.length}, minmax(0, 1fr))` }}>
-          {NAV.map((item) => {
+        <div className="grid" style={{ gridTemplateColumns: `repeat(${nav.length}, minmax(0, 1fr))` }}>
+          {nav.map((item) => {
             const active = isActive(pathname, item);
             const count = item.countKey ? counts[item.countKey] : null;
             return (

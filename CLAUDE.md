@@ -681,6 +681,19 @@ exceeded by the draft — a multi-unit/multi-property draft counts every listing
 it publishes — gets the limit message with the upgrade link, and the draft stays
 pending. Same counting rule as web/lib/listingQuotaRules.js. Fails open when
 Postgres is unreachable or the sender is not a verified agent. §35.
+While web's Abonnements tab is hidden (`cms_settings` 'site.features'
+.agentSubscriptions, default off — web/CLAUDE.md, 2026-10-18) the refusal
+points at /contact instead of the redirecting /compte/agent/abonnement.
+
+### Console soft delete (2026-10-18)
+
+web's bulk "Supprimer la sélection" sets `deleted_at` + `status = 0` on
+agents / vendors / properties (`migrations/20261018_admin_soft_delete.sql`,
+web/CLAUDE.md). Engine side: `resolveAgentId` and `identifySender` ignore a
+deleted agent (nothing is attributed to it), and `syncListingToPostgres`
+never rewrites `status = 1` on a deleted listing, same guard as closed /
+under_offer. Run the migration before deploying — these queries name the
+column.
 
 ### Sales-rep referral codes on WhatsApp
 

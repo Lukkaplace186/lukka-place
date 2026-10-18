@@ -148,6 +148,12 @@ export async function listSalesReps({ from = null, to = new Date().toISOString()
          AND ($1::timestamptz IS NULL OR mem.created_at >= $1) AND mem.created_at < $2
        GROUP BY 1, 2
      ),
+     rep_vendors AS (
+       SELECT sa.rep_id, a.vendor_id, COUNT(*)::int AS n
+       FROM sales_account_assignments sa JOIN agents a ON a.id = sa.agent_id
+       WHERE sa.ended_at IS NULL AND a.vendor_id IS NOT NULL AND a.vendor_id <> 0
+       GROUP BY 1, 2
+     ),
      live AS (
        SELECT sa.rep_id, COUNT(p.id)::int AS n
        FROM sales_account_assignments sa
@@ -172,7 +178,10 @@ export async function listSalesReps({ from = null, to = new Date().toISOString()
                       FROM sold s WHERE s.rep_id = r.id), '[]'::json) AS sold,
             COALESCE((SELECT json_agg(json_build_object('currency', c.currency, 'earned', c.earned, 'pending', c.pending,
                                                         'approved', c.approved, 'paid', c.paid) ORDER BY c.currency)
-                      FROM comm c WHERE c.rep_id = r.id), '[]'::json) AS commissions
+                      FROM comm c WHERE c.rep_id = r.id), '[]'::json) AS commissions,
+            COALESCE((SELECT json_agg(json_build_object('id', rv.vendor_id, 'name', ${vendorNameSql('v')}, 'agents', rv.n)
+                                      ORDER BY rv.n DESC, rv.vendor_id)
+                      FROM rep_vendors rv JOIN vendors v ON v.id = rv.vendor_id WHERE rv.rep_id = r.id), '[]'::json) AS agencies
      FROM sales_reps r
      LEFT JOIN sales_commission_plans p ON p.id = r.plan_id
      LEFT JOIN console_admin_users u ON u.id = r.admin_user_id
@@ -339,6 +348,43 @@ export async function assignAgentsToRep({ repId, agentIds, creditFrom, adminId =
       movedIds: moved.rows.map((row) => Number(row.agent_id)),
     };
   });
+}
+
+/**
+ * The agencies a rep looks after, through the agents assigned to them: each
+ * agency once, with how many of its agents are this rep's and their live
+ * listings. What "Retirer l'agence" acts on.
+ */
+export async function listRepAgencies(repId) {
+  const { rows } = await getPool().query(
+    `SELECT v.id, ${vendorNameSql('v')} AS name, COUNT(*)::int AS agents,
+            COALESCE(SUM((SELECT COUNT(*) FROM properties p WHERE p.agent_id = a.id AND p.status = 1 AND p.approve_status = 1)), 0)::int AS live_listings
+     FROM sales_account_assignments sa
+     JOIN agents a ON a.id = sa.agent_id
+     JOIN vendors v ON v.id = a.vendor_id
+     WHERE sa.rep_id = $1 AND sa.ended_at IS NULL
+     GROUP BY v.id
+     ORDER BY COUNT(*) DESC, v.id`,
+    [repId],
+  );
+  return rows.map((row) => ({ ...row, id: Number(row.id) }));
+}
+
+/**
+ * Take a whole agency away from a rep: every active assignment of this rep on
+ * one of that agency's agents is ended (kept as history, like a single
+ * unassign). Other reps' assignments in the same agency are untouched.
+ * @returns {Promise<number[]>} the agents unassigned
+ */
+export async function endRepAssignmentsForVendor({ repId, vendorId, adminId = null }) {
+  const { rows } = await getPool().query(
+    `UPDATE sales_account_assignments sa SET ended_at = NOW(), ended_by = $3
+     FROM agents a
+     WHERE a.id = sa.agent_id AND a.vendor_id = $2 AND sa.rep_id = $1 AND sa.ended_at IS NULL
+     RETURNING sa.agent_id`,
+    [repId, vendorId, adminId],
+  );
+  return rows.map((row) => Number(row.agent_id));
 }
 
 export async function endRepAssignment({ repId, agentId, adminId = null }) {

@@ -21,6 +21,11 @@ const { getPool, isConfigured } = require('./postgres');
 
 const SITE_URL = (process.env.PUBLIC_SITE_URL || 'https://lukkaplace.com').replace(/\/+$/, '');
 const UPGRADE_URL = `${SITE_URL}/compte/agent/abonnement`;
+// While web's Abonnements tab is hidden (/admin/settings, cms_settings
+// 'site.features'.agentSubscriptions), that page only redirects; the refusal
+// points at the team instead.
+const CONTACT_URL = `${SITE_URL}/contact`;
+const FEATURES_SQL = "SELECT value FROM cms_settings WHERE key = 'site.features'";
 
 const QUOTA_COUNTED_SQL = "p.status = 1 AND p.approve_status IN (0, 1) AND COALESCE(p.listing_status, 'active') <> 'closed' AND p.development_id IS NULL";
 
@@ -70,10 +75,25 @@ async function checkQuotaForSender(waId, adding = 1) {
   try {
     const { rows } = await getPool().query(SENDER_QUOTA_SQL, [digits]);
     if (!rows[0]) return null;
-    return quotaVerdict({ limit: rows[0].listing_limit, used: rows[0].used, planTitle: rows[0].plan_title }, adding);
+    const verdict = quotaVerdict({ limit: rows[0].listing_limit, used: rows[0].used, planTitle: rows[0].plan_title }, adding);
+    if (verdict.blocked) verdict.subscriptionsEnabled = await subscriptionsEnabled();
+    return verdict;
   } catch (err) {
     console.warn(`[quota] lookup failed for ${waId}, not blocking: ${err.message}`);
     return null;
+  }
+}
+
+/**
+ * Same default as web's lib/siteSettingsRules.js (hidden). Its own query, so
+ * a missing cms_settings table can never turn into the fail-open null above.
+ */
+async function subscriptionsEnabled() {
+  try {
+    const { rows } = await getPool().query(FEATURES_SQL);
+    return rows[0]?.value?.agentSubscriptions === true;
+  } catch {
+    return false;
   }
 }
 
@@ -86,7 +106,9 @@ function limitReachedReply(verdict) {
       ? `Ce message contient ${verdict.adding} biens, et il vous reste ${verdict.remaining} place(s) : il n’est pas publié pour le moment.`
       : 'Ce bien est gardé en attente : il n’est pas publié pour le moment.',
     '',
-    `Pour publier plus d’annonces et booster votre visibilité, mettez à jour votre abonnement : ${UPGRADE_URL}`,
+    verdict.subscriptionsEnabled === false
+      ? `Pour publier plus d’annonces, contactez l’équipe Lukka Place : ${CONTACT_URL}`
+      : `Pour publier plus d’annonces et booster votre visibilité, mettez à jour votre abonnement : ${UPGRADE_URL}`,
     '',
     'Vous pouvez aussi archiver une annonce depuis votre tableau de bord, puis répondre *OK* ici.',
   ].join('\n');
@@ -98,5 +120,6 @@ module.exports = {
   listingsToPublish,
   limitReachedReply,
   UPGRADE_URL,
+  CONTACT_URL,
   SENDER_QUOTA_SQL,
 };

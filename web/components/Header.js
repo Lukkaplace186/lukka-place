@@ -134,7 +134,10 @@ const DRAWER_PRIMARY_LINKS = PRIMARY_LINKS;
  * gone entirely (see app/(site)/layout.js), so every page under this layout
  * gets its full container width back instead of losing 76px to a gutter.
  */
-export default function Header() {
+export default function Header({ hiddenHrefs = [] }) {
+  // Sections switched off on /admin/settings (Projets neufs) leave the bar and the drawer.
+  const primaryLinks = PRIMARY_LINKS.filter(({ href }) => !hiddenHrefs.includes(href));
+  const drawerLinks = DRAWER_PRIMARY_LINKS.filter(({ href }) => !hiddenHrefs.includes(href));
   const pathname = usePathname();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -148,7 +151,7 @@ export default function Header() {
   // portal mounts; this starts during the slide. No-op in dev.
   const handleMenuOpenChange = (open) => {
     setMenuOpen(open);
-    if (open) DRAWER_PRIMARY_LINKS.forEach(({ href }) => router.prefetch(href));
+    if (open) drawerLinks.forEach(({ href }) => router.prefetch(href));
   };
 
   return (
@@ -180,7 +183,7 @@ export default function Header() {
                   for what was removed as duplication. */}
               <nav className="flex flex-1 flex-col overflow-y-auto px-3 py-3">
                 <div className="flex flex-col gap-0.5">
-                  {DRAWER_PRIMARY_LINKS.map(({ href, labelKey }) => (
+                  {drawerLinks.map(({ href, labelKey }) => (
                     <SheetClose asChild key={href}>
                       <Link href={href} className={`${DRAWER_ROW} flex items-center justify-between px-3 py-3 text-base font-semibold text-ink`}>
                         {t(labelKey)}
@@ -300,7 +303,7 @@ export default function Header() {
         <Wordmark className="shrink-0" size="lg" />
 
         <nav className="ml-6 hidden items-center gap-7 lg:flex">
-          {PRIMARY_LINKS.map(({ href, labelKey }) => (
+          {primaryLinks.map(({ href, labelKey }) => (
             <Link
               key={href}
               href={href}

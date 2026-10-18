@@ -3,6 +3,9 @@ import { getSitemapListings, getSeoFacets } from '@/lib/listings';
 import { GUIDES } from '@/lib/guides';
 import { landingPathsFromFacets } from '@/lib/seoPages';
 import { getSitemapProjects } from '@/lib/developments';
+import { getFeatureFlags } from '@/lib/siteSettings';
+
+const PROJECT_PAGES = ['/projets', '/promoteurs'];
 
 /**
  * /sitemap.xml — every public listing, the search landing pages that have
@@ -15,7 +18,11 @@ export const revalidate = 3600;
 export default async function sitemap() {
   const base = SITE_URL.replace(/\/+$/, '');
   const now = new Date();
-  const pages = ['', '/listings', '/projets', '/promoteurs', '/agents', '/guides', '/a-propos', '/contact'].map((path) => ({
+  // Projets neufs switched off on /admin/settings: none of its pages are listed.
+  const { publicProjects } = await getFeatureFlags();
+  const pages = ['', '/listings', '/projets', '/promoteurs', '/agents', '/guides', '/a-propos', '/contact']
+    .filter((path) => publicProjects || !PROJECT_PAGES.includes(path))
+    .map((path) => ({
     url: `${base}${path}`,
     lastModified: now,
     changeFrequency: path === '' || path === '/listings' ? 'daily' : 'monthly',
@@ -32,7 +39,7 @@ export default async function sitemap() {
       console.error('[sitemap] landing facets unavailable', err);
       return [];
     }),
-    getSitemapProjects().catch((err) => {
+    (publicProjects ? getSitemapProjects() : Promise.resolve([])).catch((err) => {
       console.error('[sitemap] projects unavailable', err);
       return [];
     }),

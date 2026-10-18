@@ -21,8 +21,8 @@ let cached = { at: 0, value: null };
 
 const POSTGRES_QUEUES_SQL = `
   SELECT
-    (SELECT COUNT(*) FROM properties WHERE approve_status = 0 AND development_id IS NULL)::int AS pending_listings,
-    (SELECT MIN(created_at) FROM properties WHERE approve_status = 0 AND development_id IS NULL) AS oldest_pending_at,
+    (SELECT COUNT(*) FROM properties WHERE approve_status = 0 AND development_id IS NULL AND deleted_at IS NULL)::int AS pending_listings,
+    (SELECT MIN(created_at) FROM properties WHERE approve_status = 0 AND development_id IS NULL AND deleted_at IS NULL) AS oldest_pending_at,
     (SELECT COUNT(*) FROM developments d
       WHERE (d.approve_status = 0 AND d.submitted_at IS NOT NULL
              AND (d.reviewed_at IS NULL OR d.reviewed_at < d.submitted_at))

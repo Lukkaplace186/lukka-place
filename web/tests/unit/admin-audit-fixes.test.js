@@ -81,7 +81,7 @@ test('every way an agent can add a listing checks the limit, after the offline r
   }
   const dialog = read('../../components/CreateListingDialog.js');
   assert.ok(dialog.includes('announceListingQuota(result.quota)'), 'the create dialog shows the upgrade prompt on refusal');
-  assert.ok(read('../../app/compte/agent/layout.js').includes('<ListingLimitDialog />'));
+  assert.ok(read('../../app/compte/agent/layout.js').includes('<ListingLimitDialog '));
 });
 
 // ---------------------------------------------------------------------------

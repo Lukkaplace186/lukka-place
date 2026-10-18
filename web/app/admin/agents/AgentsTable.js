@@ -20,6 +20,7 @@ import { bulkUpdateAgentStatusAction } from './bulkActions';
 import { assignBranchAction } from '../agencies/[id]/branchActions';
 import { ImpersonateDialog } from '../ImpersonateButton';
 import DeleteAgentDialog from './DeleteAgentDialog';
+import { BulkDeleteButton, useBulkDelete } from '../BulkDelete';
 
 const BUTTON =
   'u-press u-micro-strong inline-flex h-8 items-center gap-1.5 rounded-md border border-line bg-surface px-2.5 text-ink transition-colors hover:border-blue disabled:opacity-50';
@@ -47,6 +48,7 @@ export default function AgentsTable({ rows, vendors, footer, branchContext = nul
   const [vendorId, setVendorId] = useState('');
   const [impersonating, setImpersonating] = useState(null);
   const [deleting, setDeleting] = useState(null);
+  const bulkDelete = useBulkDelete('agent', { onDeleted: () => setSelected(new Set()) });
 
   const pageIds = useMemo(() => rows.map((row) => row.id), [rows]);
   const allSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
@@ -98,6 +100,7 @@ export default function AgentsTable({ rows, vendors, footer, branchContext = nul
 
   return (
     <div className="flex flex-col gap-2">
+      {bulkDelete.dialog}
       {selected.size > 0 ? (
         <div className="u-card sticky top-2 z-20 flex flex-wrap items-center gap-2 rounded-card bg-ink px-4 py-2 text-white">
           <span className="u-micro-strong">{t('admin.agents.selectedCount', { count: selected.size })}</span>
@@ -109,6 +112,7 @@ export default function AgentsTable({ rows, vendors, footer, branchContext = nul
             <PauseCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
             {t('admin.agents.bulkSuspend')}
           </button>
+          {canDelete ? <BulkDeleteButton disabled={pending || bulkDelete.pending} onClick={() => bulkDelete.request(selected)} /> : null}
           {branchContext ? (
             <select
               aria-label={t('admin.branches.moveTo')}

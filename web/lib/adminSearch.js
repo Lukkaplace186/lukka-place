@@ -23,7 +23,7 @@ async function searchListings(term) {
     `SELECT p.id, p.reference, p.approve_status, p.status, pc.title
      FROM properties p
      LEFT JOIN property_contents pc ON pc.property_id = p.id AND pc.language_id = 20
-     WHERE p.id = $1 OR p.reference ILIKE $2 OR pc.title ILIKE $2
+     WHERE p.deleted_at IS NULL AND (p.id = $1 OR p.reference ILIKE $2 OR pc.title ILIKE $2)
      ORDER BY (p.id = $1) DESC, p.created_at DESC
      LIMIT 6`,
     [id, like(term)],
@@ -54,8 +54,8 @@ async function searchAgencies(term) {
   const { rows } = await getPool().query(
     `SELECT v.id, ${vendorNameSql('v')} AS name, v.email, (SELECT COUNT(*)::int FROM agents a WHERE a.vendor_id = v.id) AS agents
      FROM vendors v
-     WHERE v.username ILIKE $1 OR COALESCE(v.email, '') ILIKE $1
-        OR EXISTS (SELECT 1 FROM agents an WHERE an.vendor_id = v.id AND an.agency_name ILIKE $1)
+     WHERE v.deleted_at IS NULL AND (v.username ILIKE $1 OR COALESCE(v.email, '') ILIKE $1
+        OR EXISTS (SELECT 1 FROM agents an WHERE an.vendor_id = v.id AND an.agency_name ILIKE $1))
      ORDER BY 2 LIMIT 4`,
     [like(term)],
   );

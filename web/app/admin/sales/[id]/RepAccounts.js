@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { BadgeCheck, Plus, X } from 'lucide-react';
+import { BadgeCheck, Plus } from 'lucide-react';
 import { useToast } from '@/components/Toast';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
@@ -12,13 +12,18 @@ import { Chip } from '../../LeadRoutingUI';
 import { EmptyRow, TD_DENSE, TD_DENSE_RIGHT, TH_STICKY, TH_STICKY_RIGHT, TR_DENSE, TableFrame } from '../../table/TableFrame';
 import { assignAgentsAction, endAssignmentAction } from '../actions';
 import { BUTTON, INPUT } from '../styles';
+import UnassignButton from './UnassignButton';
 
 /**
  * The agents a rep looks after. Adding one asks from when to credit the rep:
  * an agent they signed up last month is only credited if the date says so —
  * nothing before it earns a commission.
+ *
+ * Unassigning (`canUnassign`) is allowed on every rep, inactive and launch
+ * ones included — a rep who left must be removable from their accounts —
+ * while adding (`canManage`) stays limited to active subscription reps.
  */
-export default function RepAccounts({ repId, rows, canManage, today, footer }) {
+export default function RepAccounts({ repId, rows, canManage, canUnassign = canManage, today, footer }) {
   const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
@@ -79,12 +84,12 @@ export default function RepAccounts({ repId, rows, canManage, today, footer }) {
             <th className={TH_STICKY}>{t('admin.agents.package')}</th>
             <th className={TH_STICKY_RIGHT}>{t('admin.sales.colLive')}</th>
             <th className={TH_STICKY}>{t('admin.sales.accounts.creditFrom')}</th>
-            {canManage ? <th className={TH_STICKY} aria-label={t('admin.table.moreActions')} /> : null}
+            {canUnassign ? <th className={TH_STICKY} aria-label={t('admin.table.moreActions')} /> : null}
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 ? (
-            <EmptyRow colSpan={canManage ? 6 : 5}>{t('admin.sales.accounts.empty')}</EmptyRow>
+            <EmptyRow colSpan={canUnassign ? 6 : 5}>{t('admin.sales.accounts.empty')}</EmptyRow>
           ) : rows.map((row) => (
             <tr key={row.agentId} className={TR_DENSE}>
               <td className={TD_DENSE}>
@@ -103,18 +108,14 @@ export default function RepAccounts({ repId, rows, canManage, today, footer }) {
               <td className={TD_DENSE}>{row.plan || <span className="text-ink-35">{t('admin.agents.noActiveSubscription')}</span>}</td>
               <td className={TD_DENSE_RIGHT}>{row.liveListings}</td>
               <td className={`${TD_DENSE} whitespace-nowrap`}>{row.creditFrom}</td>
-              {canManage ? (
+              {canUnassign ? (
                 <td className={TD_DENSE}>
-                  <button
-                    type="button"
-                    className="u-press inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-45 hover:bg-canvas-alt hover:text-danger disabled:opacity-50"
-                    disabled={pending}
-                    aria-label={t('admin.sales.accounts.unassign')}
-                    title={t('admin.sales.accounts.unassign')}
-                    onClick={() => run(() => endAssignmentAction(repId, row.agentId))}
-                  >
-                    <X strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-                  </button>
+                  <UnassignButton
+                    compact
+                    title={row.name}
+                    body={t('admin.sales.accounts.unassignBody')}
+                    action={() => endAssignmentAction(repId, row.agentId)}
+                  />
                 </td>
               ) : null}
             </tr>

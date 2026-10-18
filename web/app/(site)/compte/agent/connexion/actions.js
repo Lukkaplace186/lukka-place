@@ -29,7 +29,9 @@ export async function agentLoginAction(formData) {
     redirect(`/compte/agent/connexion?error=phone&next=${encodeURIComponent(next)}`);
   }
 
-  const agent = await getAgentByPhone(phone);
+  const found = await getAgentByPhone(phone);
+  // A soft-deleted account (lib/adminSoftDelete.js) answers like a wrong password.
+  const agent = found && !found.deleted_at ? found : null;
 
   if (!agent) {
     burnConstantTime(password);

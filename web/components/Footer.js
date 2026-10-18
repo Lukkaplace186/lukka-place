@@ -9,10 +9,14 @@ import CurrencyToggle from './CurrencyToggle';
 import LanguageToggle from './LanguageToggle';
 import FooterByPath from './FooterByPath';
 import { getT } from '@/lib/i18n/server';
+import { getFeatureFlags, getSocialLinks } from '@/lib/siteSettings';
+import { mergeSocialLinks } from '@/lib/siteSettingsRules';
 
 /**
- * Social icons: WhatsApp always; Facebook / Instagram become real links once
- * their URL is set in the environment (lib/seoSchema.js). Previously: only WhatsApp is a real, working link (same central number
+ * Social icons: WhatsApp always; Facebook / Instagram / TikTok become real
+ * links once their URL is set on /admin/settings (lib/siteSettings.js) or, as
+ * a fallback, in the environment (lib/seoSchema.js). A WhatsApp Business link
+ * set there replaces the central number's wa.me link on the icon. Previously: only WhatsApp is a real, working link (same central number
  * used everywhere else — see CLAUDE.md's Lead Routing Rules). Facebook/
  * Instagram/LinkedIn have no real Lukka Place accounts to link to yet, so
  * they render as inert placeholders (not <a> tags — a fake href pointing
@@ -36,6 +40,13 @@ function FacebookIcon(props) {
   return (
     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...props}>
       <path d="M13.5 21v-7.5H16l.5-3H13.5V8.5c0-.9.3-1.5 1.6-1.5H16.5V4.3C16.2 4.3 15.2 4.2 14 4.2c-2.4 0-4 1.5-4 4.1V10.5H7.5v3H10V21h3.5Z" />
+    </svg>
+  );
+}
+function TikTokIcon(props) {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" {...props}>
+      <path d="M16.6 3h-3.1v12.3a2.7 2.7 0 1 1-2.7-2.7c.3 0 .5 0 .8.1V9.5a5.8 5.8 0 1 0 5 5.8V9.1a7.3 7.3 0 0 0 4.3 1.4V7.4a4.3 4.3 0 0 1-4.3-4.4Z" />
     </svg>
   );
 }
@@ -129,7 +140,10 @@ export default async function Footer() {
   const popularCommunes = [...byCommune.values()]
     .sort((a, b) => b.rent + b.sale - (a.rent + a.sale) || a.commune.localeCompare(b.commune))
     .slice(0, 6);
-  const social = socialProfiles();
+  const social = mergeSocialLinks(await getSocialLinks(), socialProfiles());
+  // Projets neufs switched off on /admin/settings: its two links leave the footer.
+  const { publicProjects } = await getFeatureFlags();
+  const hiddenHrefs = publicProjects ? [] : ['/projets', '/promoteurs'];
   const columns = popularCommunes.length
     ? [
         NAV_COLUMNS[0],
@@ -149,7 +163,7 @@ export default async function Footer() {
   // The opening line of the WhatsApp message follows the visitor's language
   // too — a French greeting from someone browsing in English reads as a
   // template they were never meant to see.
-  const whatsappHref = getCentralWhatsAppHref(t('footer.whatsappGreeting'));
+  const whatsappHref = social.whatsapp || getCentralWhatsAppHref(t('footer.whatsappGreeting'));
 
   return (
     <footer className="mt-auto border-t border-line bg-canvas-alt">
@@ -274,11 +288,12 @@ export default async function Footer() {
                     <WhatsAppIcon className="h-4.5 w-4.5" />
                   </span>
                 )}
-                {/* Live links once NEXT_PUBLIC_FACEBOOK_URL / _INSTAGRAM_URL are
-                    set (lib/seoSchema.js socialProfiles); inert until then. */}
+                {/* Live links once set on /admin/settings (or NEXT_PUBLIC_*_URL);
+                    inert until then. */}
                 {[
                   ['facebook', 'Facebook', <FacebookIcon key="i" className="h-4 w-4" />],
                   ['instagram', 'Instagram', <InstagramIcon key="i" className="h-4 w-4" />],
+                  ['tiktok', 'TikTok', <TikTokIcon key="i" className="h-4 w-4" />],
                 ].map(([key, name, icon]) =>
                   social[key] ? (
                     <a
@@ -303,7 +318,7 @@ export default async function Footer() {
             {columns.map(({ titleKey, links }) => {
               const list = (
                 <ul className="grid grid-cols-2 gap-x-4 gap-y-1.5 md:grid-cols-1 md:gap-y-2">
-                  {links.map(({ label, labelKey, href }) => (
+                  {links.filter(({ href }) => !hiddenHrefs.includes(href)).map(({ label, labelKey, href }) => (
                     <li key={href} className="min-w-0">
                       <Link href={href} className="block truncate py-1 text-sm text-ink-70 transition-colors hover:text-blue-deep md:py-0">
                         {labelKey ? t(labelKey) : label}

@@ -453,6 +453,8 @@
       "snelLine": "SNEL connection",
       "underOffer": "Under offer",
       "closed": "Let / Sold",
+      "fresh": "New",
+      "priceDrop": "Price cut −{percent}%",
       "cistern": "Water tank",
       "depositMonths": "{count} months deposit",
       "verified": "Verified",

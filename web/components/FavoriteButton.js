@@ -61,12 +61,40 @@ const AuthPromptModal = dynamic(() => import('./AuthPromptModal'), { ssr: false 
 // their start on every tap instead of running once ever. The first render
 // (pulseKey 0) never animates, and the CSS itself is gated on
 // prefers-reduced-motion.
-function AnimatedHeart({ pulseKey, ...heartProps }) {
+//
+// `burst` (a save, never an unsave) adds six dots flying out of the heart
+// (`.u-heart-burst`, app/globals.css — hidden under reduced motion). Removing
+// a favourite only pops: celebrating a removal would be odd.
+const BURST_ANGLES = [0, 60, 120, 180, 240, 300];
+
+function AnimatedHeart({ pulseKey, burst = false, ...heartProps }) {
   return (
-    <span key={pulseKey} className={pulseKey > 0 ? 'u-pop inline-flex' : 'inline-flex'}>
+    <span key={pulseKey} className={pulseKey > 0 ? 'u-pop relative inline-flex' : 'relative inline-flex'}>
       <Heart {...heartProps} />
+      {pulseKey > 0 && burst ? (
+        <span aria-hidden="true" className="u-heart-burst">
+          {BURST_ANGLES.map((angle) => (
+            <i key={angle} style={{ '--burst-angle': `${angle}deg` }} />
+          ))}
+        </span>
+      ) : null}
     </span>
   );
+}
+
+/**
+ * A 12 ms tick on a save, on phones that support it (Android Chrome — most of
+ * our visitors; iOS Safari has no Vibration API and simply does nothing).
+ * Skipped under reduced motion, and never allowed to throw into the toggle.
+ */
+function hapticTick() {
+  try {
+    if (typeof navigator === 'undefined' || typeof navigator.vibrate !== 'function') return;
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    navigator.vibrate(12);
+  } catch {
+    // A vibration is decoration; nothing to report.
+  }
 }
 
 /**
@@ -133,7 +161,10 @@ export default function FavoriteButton({
     try {
       const nowFavorited = toggleFavorite(listingId);
       setPulseKey((k) => k + 1);
-      if (nowFavorited) flyHeartToAccount(e.currentTarget);
+      if (nowFavorited) {
+        hapticTick();
+        flyHeartToAccount(e.currentTarget);
+      }
       trackEvent(nowFavorited ? 'listing_saved' : 'listing_unsaved', {
         listingId,
         price,
@@ -180,6 +211,7 @@ export default function FavoriteButton({
         >
           <AnimatedHeart
             pulseKey={pulseKey}
+            burst={favorited}
             fill={favorited ? 'currentColor' : 'none'}
             strokeWidth={ICON_STROKE_WIDTH}
             className="h-3.5 w-3.5"
@@ -207,6 +239,7 @@ export default function FavoriteButton({
         >
           <AnimatedHeart
             pulseKey={pulseKey}
+            burst={favorited}
             fill={favorited ? 'currentColor' : 'none'}
             strokeWidth={ICON_STROKE_WIDTH}
             className="h-4 w-4"
@@ -241,6 +274,7 @@ export default function FavoriteButton({
       >
         <AnimatedHeart
           pulseKey={pulseKey}
+          burst={favorited}
           fill={favorited ? 'currentColor' : 'none'}
           strokeWidth={ICON_STROKE_WIDTH}
           className="h-4.5 w-4.5"

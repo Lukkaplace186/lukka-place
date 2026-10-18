@@ -163,8 +163,65 @@ export const AGENT_INFOS_JOIN = `
  */
 export const PUBLIC_ADDRESS_EXPR = `(CASE WHEN btrim(pc.address) ~* '^(n/?a|na|null|undefined|none|aucune?|-+|[.]+|non (precise|précisée?|renseignée?))?$' THEN NULL ELSE pc.address END)`;
 
+/**
+ * When a listing became public: the later of creation and the moderation
+ * decision (same rule as getRecentListingIds below — a listing approved two
+ * days after it was written is new to every visitor on the day it went up).
+ */
+const PUBLISHED_AT_EXPR = `GREATEST(p.created_at, COALESCE(NULLIF(to_jsonb(p) ->> 'moderated_at', '')::timestamptz, p.created_at))`;
+
+/** Days a listing carries the "Nouveau" badge after it went public. */
+export const FRESH_LISTING_DAYS = 7;
+/** Days a real price reduction stays flagged on the card. */
+export const PRICE_DROP_DAYS = 14;
+
+/**
+ * The asking price before the listing's most recent price change — only when
+ * that change was a REDUCTION, made in the last PRICE_DROP_DAYS, after the
+ * listing went public, with the same currency, purpose and period, and the
+ * row still carries the reduced price. NULL otherwise.
+ *
+ * Read from property_price_history (migrations/20260929_market_history.sql),
+ * which a trigger writes on every price change from every writer, so this is
+ * a recorded fact, never an inference. A change made before publication is a
+ * draft being corrected, not a reduction any visitor saw, hence the
+ * published_at bound. Computed in SQL with the database clock so the server
+ * HTML and the hydrated page always agree (see LISTING_TIME_ZONE).
+ */
+const PRICE_DROP_FROM_EXPR = `(
+  SELECT CASE WHEN x.prev_price > x.price AND x.price = p.price
+               AND x.prev_currency IS NOT DISTINCT FROM x.currency
+               AND x.prev_purpose IS NOT DISTINCT FROM x.purpose
+               AND x.prev_period IS NOT DISTINCT FROM x.price_period
+              THEN x.prev_price END
+    FROM (
+      SELECT h.price, h.currency, h.purpose, h.price_period,
+             prev.price AS prev_price, prev.currency AS prev_currency,
+             prev.purpose AS prev_purpose, prev.price_period AS prev_period
+        FROM property_price_history h
+        CROSS JOIN LATERAL (
+          SELECT h2.price, h2.currency, h2.purpose, h2.price_period
+            FROM property_price_history h2
+           WHERE h2.property_id = h.property_id
+             AND (h2.changed_at, h2.id) < (h.changed_at, h.id)
+           ORDER BY h2.changed_at DESC, h2.id DESC
+           LIMIT 1
+        ) prev
+       WHERE h.property_id = p.id
+         AND h.changed_at >= NOW() - interval '${PRICE_DROP_DAYS} days'
+         AND h.changed_at > ${PUBLISHED_AT_EXPR}
+       ORDER BY h.changed_at DESC, h.id DESC
+       LIMIT 1
+    ) x
+)`;
+
 const SELECT_FIELDS = `
   p.id, p.price, p.purpose, p.beds, p.bath, p.area, p.quartier,
+  -- Card badges "Nouveau" and "Prix en baisse" (components/ListingBadges.js).
+  -- Both decided here, on the database clock, never with Date.now() in a
+  -- component, so a listing crossing the boundary cannot hydrate differently.
+  (${PUBLISHED_AT_EXPR} >= NOW() - interval '${FRESH_LISTING_DAYS} days') AS is_fresh,
+  ${PRICE_DROP_FROM_EXPR} AS price_drop_from,
   p.currency, p.price_original,
   p.parcelle_subtype, p.units_count, p.reference, p.featured_image,
   p.created_at, p.price_period, p.deposit_months, p.advance_months, p.commission_months, p.listing_status,

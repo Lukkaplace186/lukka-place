@@ -453,6 +453,8 @@
       "snelLine": "Ligne SNEL",
       "underOffer": "Sous offre",
       "closed": "Loué / Vendu",
+      "fresh": "Nouveau",
+      "priceDrop": "Prix en baisse −{percent} %",
       "cistern": "Citerne",
       "depositMonths": "Garantie {count} mois",
       "verified": "Vérifié",

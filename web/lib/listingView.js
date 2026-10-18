@@ -9,12 +9,11 @@ import { placeLabel } from './placeLabel';
  * The cards stay separate components on purpose (see web/CLAUDE.md — they're
  * tuned for different contexts), but they were each re-deriving the same
  * things from the same raw DB row: which images to show, how to phrase the
- * spec line. Used to also include whether a listing is new — that
- * duplication is how the "Just Added" / "Nouveau" split happened, the same
- * condition rendered in two languages in two files — but the "Nouveau"
- * badge itself has since been removed entirely (on an explicit
- * instruction, from every listing) along with the `isNewListing` helper
- * that used to live here; nothing in this module derives recency any more.
+ * spec line. Recency is one of them again (2026-10-18, "Nouveau" and
+ * "Prix en baisse" on cards, on product direction): the SQL decides both
+ * (`is_fresh`, `price_drop_from` in lib/listings.js, on the database clock)
+ * and `cardPromoBadge` below only reads them — the old `isNewListing`
+ * computed it with the browser's clock in three files.
  *
  * Everything here reads real columns only. Nothing is inferred or invented.
  */
@@ -44,6 +43,37 @@ const PARCELLE_SUBTYPE_LABEL_KEYS = Object.fromEntries(
  * also the right answer: the listing was published on a Kinshasa day.
  */
 export const LISTING_TIME_ZONE = 'Africa/Kinshasa';
+
+/**
+ * A reduction this large is far more often a corrected typo ("15000" fixed to
+ * "1500") than a landlord cutting the rent by half; flagging it would tell
+ * visitors about a bargain that never existed. Below 1 % is noise.
+ */
+const PRICE_DROP_MIN_PERCENT = 1;
+const PRICE_DROP_MAX_PERCENT = 50;
+
+/**
+ * The one promotional badge a card shows, or null: a real recent price
+ * reduction wins over "Nouveau" (it is the rarer, more useful fact), and a
+ * listing under offer or let/sold shows neither — its status stamp says more.
+ *
+ * @returns {{kind: 'priceDrop', percent: number} | {kind: 'fresh'} | null}
+ */
+export function cardPromoBadge(listing) {
+  if (!listing) return null;
+  const status = listing.listing_status;
+  if (status === 'under_offer' || status === 'closed') return null;
+
+  const from = Number(listing.price_drop_from);
+  const now = Number(listing.price);
+  if (Number.isFinite(from) && Number.isFinite(now) && from > 0 && now > 0 && now < from) {
+    const percent = Math.round(((from - now) / from) * 100);
+    if (percent >= PRICE_DROP_MIN_PERCENT && percent <= PRICE_DROP_MAX_PERCENT) {
+      return { kind: 'priceDrop', percent };
+    }
+  }
+  return listing.is_fresh === true ? { kind: 'fresh' } : null;
+}
 
 const DATE_FORMATTERS = {
   fr: new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: LISTING_TIME_ZONE }),

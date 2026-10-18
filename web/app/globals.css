@@ -377,7 +377,35 @@
     from { opacity: 0; translate: 0 var(--u-rise-from, 24px); }
     to { opacity: 1; translate: none; }
   }
+  /* The dots that fly out of a heart on save (FavoriteButton's
+     AnimatedHeart). `transform`, not the individual properties, on purpose:
+     rotate-then-translate is what sends each dot along its own angle, and
+     these dots carry no hover or press transform the held frame could kill. */
+  @keyframes u-heart-burst {
+    0% { opacity: 1; transform: rotate(var(--burst-angle)) translateY(0) scale(1); }
+    100% { opacity: 0; transform: rotate(var(--burst-angle)) translateY(-15px) scale(0.3); }
+  }
+  .u-heart-burst {
+    display: none;
+  }
   @media (prefers-reduced-motion: no-preference) {
+    .u-heart-burst {
+      display: block;
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+    .u-heart-burst > i {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 4px;
+      height: 4px;
+      margin: -2px 0 0 -2px;
+      border-radius: 9999px;
+      background: currentColor;
+      animation: u-heart-burst 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
     /* A toggled icon (FavoriteButton, SaveSearchButton). */
     .u-pop {
       animation: u-pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);

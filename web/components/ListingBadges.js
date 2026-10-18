@@ -1,9 +1,9 @@
 'use client';
 
-import { LISTING_TIME_ZONE } from '@/lib/listingView';
+import { LISTING_TIME_ZONE, cardPromoBadge } from '@/lib/listingView';
 
 import {
-  Camera, Zap, Sun, Droplet, Route, ShieldCheck, Car, Snowflake, Sofa,
+  Camera, Zap, Sun, Droplet, Route, ShieldCheck, Car, Snowflake, Sofa, TrendingDown, Sparkles,
 } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
@@ -13,8 +13,8 @@ import { useT } from '@/lib/i18n/client';
  *
  * Every badge here is backed by real data. The reference portals lean
  * heavily on engagement hooks ("Price cut", "769 days on Zillow", "Complex
- * has a pool") — none of those are reproducible here: there is no price
- * history, and no structured amenity column, only the commune tag. Inventing
+ * has a pool"). "Price cut" is real now — property_price_history records
+ * every change (see `CardBadges`) — the others still are not. Inventing
  * a flag would break CLAUDE.md's no-fabricated-data rule, so `AmenityPill`
  * below renders only keys `lib/listingView.js`'s `matchedAmenityKeys` found
  * as a real word-boundary match in the listing's own title/description —
@@ -72,15 +72,35 @@ export function Badge({ tone = 'royal', children, className = '' }) {
  * stacks them. The status stamps are backed by the agent-set
  * `listing_status` column. The design's own card also shows a brass
  * "Premium" flag; nothing in the schema backs that, so it is deliberately
- * not rendered. The "Nouveau" badge that used to sit here (from
- * `created_at`, see lib/listingView.js's now-removed `isNewListing`) is
- * gone entirely on an explicit instruction — removed from every listing,
- * not just made conditional on something new.
+ * not rendered.
+ *
+ * Beside it, at most ONE promotional stamp (`cardPromoBadge`, 2026-10-18, on
+ * product direction): "Prix en baisse −N %" for a recorded reduction in the
+ * last 14 days, else "Nouveau" for a listing public for under 7 days. Both
+ * are decided in SQL (lib/listings.js) — one stamp per card so it still
+ * reads as news, not decoration.
  */
 export function CardBadges({ listing }) {
   const t = useT();
   const labelKey = LISTING_STATUS_LABEL_KEYS[listing.listing_status];
-  return labelKey ? <Badge tone="ink">{t(labelKey)}</Badge> : null;
+  const promo = cardPromoBadge(listing);
+  return (
+    <>
+      {labelKey ? <Badge tone="ink">{t(labelKey)}</Badge> : null}
+      {promo?.kind === 'priceDrop' ? (
+        <Badge tone="success" className="gap-1">
+          <TrendingDown strokeWidth={2.25} className="h-3 w-3" aria-hidden="true" />
+          {t('listings.badges.priceDrop', { percent: promo.percent })}
+        </Badge>
+      ) : null}
+      {promo?.kind === 'fresh' ? (
+        <Badge tone="royal" className="gap-1">
+          <Sparkles strokeWidth={2.25} className="h-3 w-3" aria-hidden="true" />
+          {t('listings.badges.fresh')}
+        </Badge>
+      ) : null}
+    </>
+  );
 }
 
 export function TypeBadge({ children }) {

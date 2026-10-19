@@ -10,6 +10,7 @@
  */
 
 const { normaliseUtilities } = require('./utilities');
+const { normaliseCommercialSpecs, isCommercialType, COMMERCIAL_SPEC_FIELDS } = require('./commercial');
 const crypto = require('crypto');
 const path = require('path');
 const Database = require('better-sqlite3');
@@ -104,6 +105,13 @@ const EXTENDED_COLUMNS = [
   // Kinshasa utility codes (services/utilities.js), JSON text — what the
   // agent's own message states about SNEL, water, security and access.
   ['utilities', 'TEXT'],
+  // Commercial-space specs (services/commercial.js) — NULL unless the
+  // listing is an office / shop / warehouse / building AND the agent said
+  // so. Booleans as 0 / 1 / NULL, like `furnished`.
+  ['office_count', 'INTEGER'],
+  ['floor_level', 'INTEGER'],
+  ['road_frontage', 'INTEGER'],
+  ['truck_access', 'INTEGER'],
   ['summary_fr', 'TEXT'],
   ['missing_fields', 'TEXT'],
   // Complete aiParser output, so no future field is ever lost to the schema.
@@ -325,6 +333,21 @@ function toJsonText(value) {
   }
 }
 
+/**
+ * The four commercial-space columns for an insert, already gated on the
+ * listing's property_type (services/commercial.js): a residential listing
+ * stores NULL in all four whatever the extraction returned.
+ */
+function commercialColumns(listingData) {
+  const specs = normaliseCommercialSpecs(listingData, listingData.property_type ?? null);
+  return {
+    office_count: specs.office_count,
+    floor_level: specs.floor_level,
+    road_frontage: toSqliteBool(specs.road_frontage),
+    truck_access: toSqliteBool(specs.truck_access),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Writes
 // ---------------------------------------------------------------------------
@@ -410,6 +433,7 @@ function saveListing(listingData, senderInfo = {}) {
       amenities: toJsonText(listingData.amenities),
       features: toJsonText(listingData.features),
       utilities: toJsonText(normaliseUtilities(listingData.utilities)),
+      ...commercialColumns(listingData),
       summary_fr: toNullable(listingData.summary_fr),
       missing_fields: toJsonText(listingData.missing_fields),
       parsed_json: toJsonText(listingData),
@@ -622,6 +646,7 @@ const CORRECTABLE_FIELDS = [
   'price', 'currency', 'price_period', 'deposit_months', 'advance_months',
   'commission_months', 'bedrooms', 'bathrooms',
   'surface_area_sqm', 'units_count', 'furnished', 'amenities', 'features', 'utilities', 'reference',
+  'office_count', 'floor_level', 'road_frontage', 'truck_access',
   'summary_fr', 'missing_fields',
 ];
 
@@ -638,6 +663,10 @@ const CORRECTABLE_COERCERS = {
   amenities: toJsonText,
   features: toJsonText,
   utilities: (value) => toJsonText(normaliseUtilities(value)),
+  office_count: (value) => normaliseCommercialSpecs({ office_count: value }).office_count,
+  floor_level: (value) => normaliseCommercialSpecs({ floor_level: value }).floor_level,
+  road_frontage: (value) => toSqliteBool(normaliseCommercialSpecs({ road_frontage: value }).road_frontage),
+  truck_access: (value) => toSqliteBool(normaliseCommercialSpecs({ truck_access: value }).truck_access),
   missing_fields: toJsonText,
 };
 
@@ -670,8 +699,23 @@ function applyListingCorrection(id, extractedData, rawText, extraWamids = [], ne
     const value = extractedData?.[field];
     if (value === undefined || value === null || value === '') continue;
     const coerce = CORRECTABLE_COERCERS[field] || toNullable;
+    const coerced = coerce(value);
+    // An out-of-range commercial spec ("étage 400") is dropped, not written
+    // over the value on file as NULL.
+    if (coerced === null && COMMERCIAL_SPEC_FIELDS.includes(field)) continue;
     sets.push(`${field} = @${field}`);
-    params[field] = coerce(value);
+    params[field] = coerced;
+  }
+
+  // A correction that turns a shop into an apartment leaves no shop specs
+  // behind: the four columns only ever describe a commercial listing.
+  const effectiveType = params.property_type !== undefined ? params.property_type : existing.property_type;
+  if (!isCommercialType(effectiveType)) {
+    for (const field of COMMERCIAL_SPEC_FIELDS) {
+      if (existing[field] === null && params[field] === undefined) continue;
+      if (!sets.includes(`${field} = @${field}`)) sets.push(`${field} = @${field}`);
+      params[field] = null;
+    }
   }
 
   if (rawText) {
@@ -805,6 +849,9 @@ function setAwaitingSalePrice(id, waiting) {
 const BUILDING_SHARED_FIELDS = [
   'transaction_type', 'property_type', 'parcelle_subtype', 'commune', 'quartier',
   'currency', 'deposit_months', 'advance_months', 'commission_months', 'reference',
+  // A building's road and truck access are true of every unit in it; a
+  // unit's floor and office count are its own and are not copied.
+  'road_frontage', 'truck_access',
 ];
 
 /** Per-unit fields, read off one entry of `units`. */
@@ -963,6 +1010,8 @@ function parseRow(row) {
     amenities: fromJsonText(row.amenities, []),
     features: fromJsonText(row.features, []),
     utilities: fromJsonText(row.utilities, []),
+    road_frontage: row.road_frontage === null || row.road_frontage === undefined ? null : Boolean(row.road_frontage),
+    truck_access: row.truck_access === null || row.truck_access === undefined ? null : Boolean(row.truck_access),
     missing_fields: fromJsonText(row.missing_fields, []),
     photos: fromJsonText(row.photos, []),
     group_wamids: fromJsonText(row.group_wamids, []),

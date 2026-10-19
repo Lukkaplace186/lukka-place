@@ -546,7 +546,9 @@
       "terrain": "Terrains",
       "batiment": "Bâtiments",
       "boutique": "Boutiques",
-      "entrepot": "Entrepôts"
+      "entrepot": "Entrepôts",
+      "bureau": "Bureaux",
+      "commercial": "Locaux commerciaux"
     },
     "chips": {
       "near": "Près de {place}",
@@ -562,7 +564,8 @@
       "beds": "ch",
       "bath": "sdb",
       "area": "m²",
-      "units": "portes"
+      "units": "portes",
+      "offices": "bureaux"
     },
     "freshness": {
       "today": "Publiée aujourd'hui",
@@ -736,6 +739,35 @@
       "cloture": "Parcelle clôturée",
       "route_asphaltee": "Route asphaltée",
       "acces_facile": "Accès facile en voiture"
+    },
+    "commercial": {
+      "yes": "Oui",
+      "group": {
+        "residential": "Logements",
+        "commercial": "Bureaux & commerces"
+      },
+      "facts": {
+        "offices": "Bureaux",
+        "floor": "Étage",
+        "frontage": "Façade sur route",
+        "truck": "Accès camion",
+        "toilets": "Toilettes"
+      },
+      "floor": {
+        "ground": "Rez-de-chaussée",
+        "basement": "Sous-sol",
+        "first": "1er étage",
+        "nth": "{n}e étage"
+      },
+      "form": {
+        "legend": "Local commercial",
+        "offices": "Nombre de bureaux",
+        "floor": "Étage",
+        "floorUnknown": "Non précisé",
+        "frontage": "Donne sur la route (vitrine)",
+        "truck": "Accès camion / déchargement",
+        "hint": "Ne cochez que ce qui est vrai : une case vide signifie « non précisé »."
+      }
     }
   },
   "enquiry": {

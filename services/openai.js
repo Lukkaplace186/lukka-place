@@ -10,6 +10,7 @@
  */
 
 const { UTILITY_CODES } = require('./utilities');
+const { isCommercialType, normaliseCommercialSpecs } = require('./commercial');
 const OpenAI = require('openai');
 
 const { LOCATIONS, COMMUNES: KINSHASA_COMMUNES } = require('./locations');
@@ -116,6 +117,18 @@ CLASSIFICATION DU TYPE DE BIEN — RÈGLES SPÉCIFIQUES À KINSHASA
 2. APPARTEMENT
    - Classe property_type comme "appartement" UNIQUEMENT si le message décrit explicitement un logement individuel dans un immeuble à étages ou une résidence collective (ex. "Appartement au 2ème étage", "Immeuble").
 
+2bis. LOCAUX COMMERCIAUX (bureau, boutique, entrepot, immeuble)
+   - "bureau" : un local loué ou vendu POUR Y TRAVAILLER — "bureaux à louer", "espace de bureaux", "plateau de bureaux", "local à usage de bureau", "open space".
+   - "boutique" : un local pour vendre ou recevoir des clients — "boutique", "magasin", "local commercial", "showroom", "salle d'exposition", "kiosque", "dépôt-vente", "pharmacie", "restaurant", "salon de coiffure" (le local, pas le commerce).
+   - "entrepot" : un local pour stocker — "entrepôt", "dépôt" (le local, PAS « dépôt de garantie »), "hangar", "magasin de stockage", "chambre froide".
+   - "immeuble" : un immeuble ENTIER loué ou vendu d'un seul tenant (commercial ou mixte), pas un appartement dedans.
+   - Un "bureau" cité comme UNE PIÈCE d'une maison ou d'un appartement ("4 chambres, salon, bureau") n'est PAS un local commercial : le bien reste résidentiel.
+   - Pour un local commercial, bedrooms reste null (il n'y a pas de chambres) et n'est jamais demandé dans missing_fields. Le nombre de pièces de travail ("5 bureaux", "3 pièces bureaux") va dans office_count, jamais dans bedrooms. bathrooms peut recevoir le nombre de toilettes s'il est écrit.
+   - floor_level : 0 pour "rez-de-chaussée" / "RDC" / "au niveau de la route", 1 pour "1er étage", 2 pour "2e étage", -1 pour "sous-sol". null si l'étage n'est pas écrit.
+   - road_frontage : true seulement si le message dit que le local donne sur la route — "au bord de la route", "façade sur boulevard", "sur grande artère", "vitrine sur rue", "en bordure de l'avenue". null sinon (jamais false par défaut).
+   - truck_access : true seulement si le message dit qu'un camion peut accéder ou décharger — "accès camion", "accès gros porteurs", "poids lourds", "quai de chargement". null sinon.
+   - Ces quatre champs (office_count, floor_level, road_frontage, truck_access) restent null pour TOUT bien résidentiel.
+
 3. DIMENSIONS ET UNITÉS
    - "X Portes" / "Type Locataire" : mets X dans units_count. Cela signale une parcelle locative à revenus (plusieurs logements loués séparément), pas un appartement unique.
    - Une référence explicite dans le texte brut ("Réf:", "Référence:" suivi d'un code ou numéro) va dans le champ "reference" — un identifiant de l'annonce elle-même, à ne JAMAIS confondre avec le quartier ou toute autre référence de localisation (qui vont dans "quartier", voir LOCALISATION ci-dessus).
@@ -217,9 +230,15 @@ Bonjour! Merci pour votre message. Voici les informations extraites de la magnif
 *Chambres* : {bedrooms}
 *Salles de bain* : {bathrooms}
 *Nombre de portes* : {units_count}
+*Superficie* : {surface_area_sqm} m²
+*Bureaux* : {office_count}
+*Étage* : {floor_level en toutes lettres — "Rez-de-chaussée", "1er étage", "Sous-sol"}
+*Façade sur route* : Oui
+*Accès camion* : Oui
 *Équipements* : {amenities}
 *Référence* : {reference}
 
+- Pour un local commercial (bureau, boutique, entrepot, immeuble), remplace « de la magnifique résidence » par « du local commercial » et n'écris jamais de ligne *Chambres*. Les lignes *Façade sur route* et *Accès camion* n'apparaissent que lorsque road_frontage / truck_access valent true.
 - Conditions d'entrée : chaque ligne doit indiquer À QUI le montant est versé, exactement comme dans le gabarit ci-dessus — "Payable au Bailleur" pour l'avance, "Retenu par le Bailleur" pour la garantie, "Payable à l'Agent / Agence" pour la commission. Un locataire doit pouvoir lire la fiche et savoir qui encaisse quoi, et ce qui lui sera rendu.
 - N'écris que les lignes dont la valeur est non-null, et n'ajoute la ligne *Total à prévoir à l'entrée* que si au moins deux des trois postes sont connus. Si price est connu et price_period vaut "mois", ajoute le montant entre parenthèses après CHACUNE de ces quatre lignes, ligne de total comprise, calculé comme (nombre de mois × loyer mensuel) — ex. avec un loyer de 750 $ et "3 + 1 + 1" : "*Garantie* : 3 mois (2250 $)" ... "*Total à prévoir à l'entrée* : 5 mois (3750 $)". Sans loyer mensuel connu, écris seulement les mois.
 
@@ -258,6 +277,7 @@ const RESPONSE_FORMAT = {
             'commune', 'quartier', 'price', 'currency', 'price_period', 'deposit_months',
             'advance_months', 'commission_months',
             'bedrooms', 'bathrooms', 'surface_area_sqm', 'units_count', 'furnished',
+            'office_count', 'floor_level', 'road_frontage', 'truck_access',
             'amenities', 'features', 'utilities', 'reference', 'agent_name', 'agency_name', 'summary_fr',
             'missing_fields', 'confidence',
             'is_multi_unit', 'is_multi_property', 'building_name', 'units',
@@ -313,6 +333,24 @@ const RESPONSE_FORMAT = {
             },
             bathrooms: { type: ['integer', 'null'] },
             surface_area_sqm: { type: ['number', 'null'], description: 'Superficie en m².' },
+            // Commercial-space specs (services/commercial.js). Null for every
+            // residential listing — re-gated on property_type after the call.
+            office_count: {
+              type: ['integer', 'null'],
+              description: 'Local commercial uniquement : nombre de pièces de bureau ("5 bureaux"). Jamais des chambres.',
+            },
+            floor_level: {
+              type: ['integer', 'null'],
+              description: 'Local commercial uniquement : 0 = rez-de-chaussée, 1 = 1er étage, -1 = sous-sol.',
+            },
+            road_frontage: {
+              type: ['boolean', 'null'],
+              description: "Local commercial uniquement : true si le message dit qu'il donne sur la route. null sinon.",
+            },
+            truck_access: {
+              type: ['boolean', 'null'],
+              description: "Local commercial uniquement : true si le message dit qu'un camion peut y accéder. null sinon.",
+            },
             units_count: {
               type: ['integer', 'null'],
               description: 'Nombre de portes/logements ("X Portes", "Type Locataire") — parcelle locative à revenus.',
@@ -527,6 +565,26 @@ function toImagePart(image, detail) {
   };
 }
 
+/**
+ * Commercial-space specs only survive on a commercial listing, and a
+ * commercial listing is never asked for its bedrooms (services/commercial.js).
+ * In correction mode a message that names no property_type keeps whatever
+ * specs it stated: the draft's type decides at write time (services/db.js).
+ */
+function normaliseCommercialExtraction(extracted) {
+  if (!extracted || typeof extracted !== 'object') return;
+  const type = extracted.property_type ?? null;
+  const specs = normaliseCommercialSpecs(extracted, type === null ? undefined : type);
+  Object.assign(extracted, specs);
+  if (isCommercialType(type)) {
+    // An office count read as bedrooms is the mistake this guards against.
+    extracted.bedrooms = null;
+    if (Array.isArray(extracted.missing_fields)) {
+      extracted.missing_fields = extracted.missing_fields.filter((field) => field !== 'bedrooms');
+    }
+  }
+}
+
 /** How many earlier turns of an in-progress submission are replayed to the model. */
 const INTAKE_HISTORY_LIMIT = 5;
 
@@ -536,7 +594,8 @@ const DRAFT_CONTEXT_FIELDS = [
   'transaction_type', 'property_type', 'parcelle_subtype', 'commune', 'quartier',
   'price', 'currency', 'price_period', 'deposit_months', 'advance_months',
   'commission_months', 'bedrooms', 'bathrooms', 'surface_area_sqm', 'units_count',
-  'furnished', 'amenities', 'features', 'utilities', 'reference', 'agent_name', 'summary_fr',
+  'furnished', 'office_count', 'floor_level', 'road_frontage', 'truck_access',
+  'amenities', 'features', 'utilities', 'reference', 'agent_name', 'summary_fr',
 ];
 
 /**
@@ -785,6 +844,7 @@ async function parseMessage(text, { senderPhone, images = [], imageDetail, draft
 
   // The raw text wins on entry costs — see normaliseEntryCosts.
   normaliseEntryCosts(parsed.extracted_data, text);
+  normaliseCommercialExtraction(parsed.extracted_data);
 
   return {
     extracted_data: parsed.extracted_data,
@@ -849,7 +909,11 @@ const BUYER_TOOLS = [
         type: 'object',
         properties: {
           transaction_type: { type: 'string', enum: ['location', 'vente'] },
-          property_type: { type: 'string', enum: ['appartement', 'parcelle'] },
+          property_type: {
+            type: 'string',
+            enum: ['appartement', 'parcelle', 'commercial', 'bureau', 'boutique', 'entrepot'],
+            description: "'commercial' = tout local professionnel (bureaux, boutiques, entrepôts) ; bureau / boutique / entrepot pour un seul type.",
+          },
           commune: { type: 'string', description: 'Une des 24 communes de Kinshasa.' },
           quartier: { type: 'string' },
           price_min: { type: 'number' },
@@ -1259,6 +1323,7 @@ CLASSIFICATION DU TYPE DE BIEN — mêmes règles que l'intake WhatsApp :
 1. PARCELLE : dimensions de terrain, propriété clôturée, "Maison Type Locataire" ou "Portes" => property_type "parcelle". Sous-type (parcelle_subtype, uniquement si property_type = "parcelle") : "maison_type_locataire", "villa", "terrain_nu". NE classe JAMAIS "appartement" uniquement à cause d'une superficie ou de plusieurs pièces/portes.
 2. APPARTEMENT : uniquement si le message décrit explicitement un logement dans un immeuble à étages ou une résidence collective.
 3. "X Portes" / "Type Locataire" => units_count = X.
+4. LOCAL COMMERCIAL : "bureau(x) à louer", "espace de bureaux", "plateau" => "bureau" ; "boutique", "magasin", "local commercial", "showroom" => "boutique" ; "entrepôt", "dépôt" (le local), "hangar" => "entrepot" ; un immeuble entier => "immeuble". Un "bureau" cité comme pièce d'une maison ne change pas le type. Pour un local commercial : bedrooms = null ; office_count = nombre de pièces de bureau ; floor_level = 0 pour rez-de-chaussée, 1 pour 1er étage, -1 pour sous-sol ; road_frontage = true seulement si le texte dit qu'il donne sur la route ; truck_access = true seulement si un camion peut y accéder. Sinon null — et toujours null pour un bien résidentiel.
 
 RÈGLES D'EXTRACTION
 1. N'invente rien. Tout champ absent du message doit être null. Une annonce partielle est normale.
@@ -1287,7 +1352,9 @@ const LISTING_FORM_RESPONSE_FORMAT = {
         'title_suggestion', 'transaction_type', 'property_type', 'parcelle_subtype',
         'commune', 'quartier', 'reference', 'price', 'currency', 'price_period',
         'deposit_months', 'advance_months', 'commission_months', 'bedrooms', 'bathrooms',
-        'surface_area_sqm', 'units_count', 'furnished', 'description_fr', 'confidence',
+        'surface_area_sqm', 'units_count', 'furnished',
+        'office_count', 'floor_level', 'road_frontage', 'truck_access',
+        'description_fr', 'confidence',
       ],
       properties: {
         title_suggestion: { type: ['string', 'null'], description: 'Titre court suggéré, casse normale, sans emoji.' },
@@ -1308,6 +1375,10 @@ const LISTING_FORM_RESPONSE_FORMAT = {
         surface_area_sqm: { type: ['number', 'null'] },
         units_count: { type: ['integer', 'null'] },
         furnished: { type: ['boolean', 'null'] },
+        office_count: { type: ['integer', 'null'] },
+        floor_level: { type: ['integer', 'null'] },
+        road_frontage: { type: ['boolean', 'null'] },
+        truck_access: { type: ['boolean', 'null'] },
         description_fr: {
           type: 'string',
           description: 'Prose fluide de 2-4 phrases (pas de liste à puces, pas de titre séparé), casse normale, sans emoji ni astérisque. Chaque fait mentionné doit être explicitement présent dans le texte source — jamais une supposition.',
@@ -1361,6 +1432,7 @@ async function parseListingTextForForm(rawText) {
   } catch {
     throw new Error(`Model returned non-JSON output: ${String(raw).slice(0, 200)}`);
   }
+  normaliseCommercialExtraction(extracted_data);
 
   return {
     extracted_data,
@@ -1376,6 +1448,7 @@ module.exports = {
   parseMessage,
   draftContextFromListing,
   normaliseEntryCosts,
+  normaliseCommercialExtraction,
   INTAKE_HISTORY_LIMIT,
   toImagePart,
   // Exposed so services/embeddings.js can reuse the same lazy client/auth

@@ -21,6 +21,7 @@
  */
 
 const { inferCommune } = require('./locations');
+const { isCommercialType, floorLabelFr } = require('./commercial');
 
 const PROPERTY_TYPE_LABELS = {
   appartement: 'Appartement',
@@ -95,7 +96,7 @@ function isGroupedListing(row) {
  * or commercial premises, where "chambres" means nothing.
  */
 function missingFields(row) {
-  const noRooms = ['terrain', 'parcelle', 'bureau', 'boutique', 'entrepot'].includes(row.property_type)
+  const noRooms = (['terrain', 'parcelle'].includes(row.property_type) || isCommercialType(row.property_type))
     && row.parcelle_subtype !== 'maison_type_locataire'
     && row.parcelle_subtype !== 'villa';
   return Object.keys(MISSING_LABELS).filter((key) => {
@@ -178,6 +179,14 @@ function renderListingCard(row, { photoCount } = {}) {
   if (present(row.bathrooms)) lines.push(`*Salles de bain* : ${row.bathrooms}`);
   if (present(row.units_count)) lines.push(`*Nombre de portes* : ${row.units_count}`);
   if (Number(row.surface_area_sqm) > 0) lines.push(`*Superficie* : ${Number(row.surface_area_sqm).toLocaleString('fr-FR')} m²`);
+  if (isCommercialType(row.property_type)) {
+    if (present(row.office_count)) lines.push(`*Bureaux* : ${row.office_count}`);
+    const floor = floorLabelFr(row.floor_level);
+    if (floor) lines.push(`*Étage* : ${floor}`);
+    // Only a stated "yes" is printed: NULL is "not said", never "no".
+    if (row.road_frontage === true || row.road_frontage === 1) lines.push('*Façade sur route* : Oui');
+    if (row.truck_access === true || row.truck_access === 1) lines.push('*Accès camion* : Oui');
+  }
   const amenities = asList(row.amenities).filter(Boolean);
   if (amenities.length) lines.push(`*Équipements* : ${amenities.join(', ')}`);
   if (present(row.reference)) lines.push(`*Référence* : ${row.reference}`);

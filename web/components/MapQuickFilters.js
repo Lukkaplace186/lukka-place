@@ -8,6 +8,7 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n/client';
 import { MAP_BED_STEPS, MAP_PRICE_STEPS, mapFilterHref } from '@/lib/mapQuickFilters';
+import { facetLabel } from '@/lib/commercialSpaces';
 
 function Chip({ active, icon: Icon, children, onClick }) {
   return (
@@ -60,7 +61,8 @@ export default function MapQuickFilters({ params = {}, propertyTypes = [] }) {
   const router = useRouter();
   const [open, setOpen] = useState(null);
   const money = (n) => Number(n).toLocaleString(t.locale === 'en' ? 'en-GB' : 'fr-FR');
-  const typeLabel = propertyTypes.find((o) => o.value === params.property_type)?.label;
+  const typeFacet = propertyTypes.find((o) => o.value === params.property_type);
+  const typeLabel = typeFacet ? facetLabel(typeFacet, t) : undefined;
 
   function apply(key, value) {
     setOpen(null);
@@ -82,7 +84,7 @@ export default function MapQuickFilters({ params = {}, propertyTypes = [] }) {
     },
     type: {
       title: t('listings.map.quick.typeTitle'),
-      options: [{ value: '', label: t('listings.map.quick.any') }, ...propertyTypes.map((o) => ({ value: o.value, label: o.label }))],
+      options: [{ value: '', label: t('listings.map.quick.any') }, ...propertyTypes.map((o) => ({ value: o.value, label: facetLabel(o, t) }))],
       current: params.property_type || '',
       key: 'property_type',
     },

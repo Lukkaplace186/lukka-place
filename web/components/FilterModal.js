@@ -4,6 +4,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from './ui/sheet';
 import { PillOption } from './FilterPill';
 import AdvancedFilterFields from './AdvancedFilterFields';
 import { useT } from '@/lib/i18n/client';
+import { facetLabel, groupTypeFacets } from '@/lib/commercialSpaces';
 
 const numberInputClass =
   'u-focus-ring w-full rounded-md border border-line bg-canvas px-3 py-2.5 text-sm text-ink placeholder:text-ink-25';
@@ -163,14 +164,27 @@ export default function FilterModal({
               {/* DB-derived, with real counts — same source FilterBar's
                   desktop pill uses, so a type that would return zero
                   results is never offered here either. */}
-              {propertyTypes.map(({ value, label, count }) => (
-                <PillOption key={value} size="lg" selected={propertyType === value} onClick={() => setPropertyType?.(value)}>
-                  {label}
-                  <span className="u-tabular ml-1.5 opacity-60">{count}</span>
+              {groupTypeFacets(propertyTypes).residential.map((facet) => (
+                <PillOption key={facet.value} size="lg" selected={propertyType === facet.value} onClick={() => setPropertyType?.(facet.value)}>
+                  {facetLabel(facet, t)}
+                  <span className="u-tabular ml-1.5 opacity-60">{facet.count}</span>
                 </PillOption>
               ))}
             </div>
           </Section>
+
+          {groupTypeFacets(propertyTypes).commercial.length ? (
+            <Section label={t('listings.commercial.group.commercial')}>
+              <div className="flex flex-wrap gap-2">
+                {groupTypeFacets(propertyTypes).commercial.map((facet) => (
+                  <PillOption key={facet.value} size="lg" selected={propertyType === facet.value} onClick={() => setPropertyType?.(facet.value)}>
+                    {facetLabel(facet, t)}
+                    <span className="u-tabular ml-1.5 opacity-60">{facet.count}</span>
+                  </PillOption>
+                ))}
+              </div>
+            </Section>
+          ) : null}
 
           <AdvancedFilterFields
             locations={locations}

@@ -7,6 +7,7 @@ import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB, ICON_STROKE_WIDTH } from '@/
 import { parseSearchQuery } from '@/lib/searchParser';
 import { understoodChips } from '@/lib/searchUnderstood';
 import { useT } from '@/lib/i18n/client';
+import { facetLabel, groupTypeFacets } from '@/lib/commercialSpaces';
 
 /**
  * The hero search panel — a white card floating over the hero photograph,
@@ -360,11 +361,24 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
               className={CELL_SELECT}
             >
               <option value="">{t('home.search.allTypes')}</option>
-              {propertyTypes.map(({ value, label, count: typeCount }) => (
-                <option key={value} value={value}>
-                  {label} ({typeCount})
-                </option>
-              ))}
+              {(() => {
+                // Homes, then offices / shops / warehouses under their own
+                // heading, so commercial space reads as a section of the
+                // catalogue rather than three odd entries in a list of homes.
+                const { residential, commercial } = groupTypeFacets(propertyTypes);
+                const option = (facet) => (
+                  <option key={facet.value} value={facet.value}>
+                    {facetLabel(facet, t)} ({facet.count})
+                  </option>
+                );
+                if (!commercial.length) return residential.map(option);
+                return (
+                  <>
+                    {residential.length ? <optgroup label={t('listings.commercial.group.residential')}>{residential.map(option)}</optgroup> : null}
+                    <optgroup label={t('listings.commercial.group.commercial')}>{commercial.map(option)}</optgroup>
+                  </>
+                );
+              })()}
             </select>
             <ChevronDown
               strokeWidth={ICON_STROKE_WIDTH}

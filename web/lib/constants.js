@@ -68,6 +68,13 @@ export const PROPERTY_TYPE_PLURAL_KEYS = {
   batiment: 'listings.typePlurals.batiment',
   boutique: 'listings.typePlurals.boutique',
   entrepot: 'listings.typePlurals.entrepot',
+  // The facet value is the category name lowercased, accent kept
+  // ("entrepôt", "bâtiment") — the unaccented keys above never matched it.
+  'entrepôt': 'listings.typePlurals.entrepot',
+  'bâtiment': 'listings.typePlurals.batiment',
+  bureau: 'listings.typePlurals.bureau',
+  // lib/commercialSpaces.js's COMMERCIAL_FILTER_VALUE: every commercial category.
+  commercial: 'listings.typePlurals.commercial',
 };
 
 export const TRANSACTION_OPTIONS = [

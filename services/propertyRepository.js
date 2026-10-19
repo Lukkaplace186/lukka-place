@@ -155,6 +155,13 @@ function buildFilters({
       params.push(parcelleSubtype);
       where.push(`p.parcelle_subtype = $${params.length}`);
     }
+  } else if (propertyType === 'commercial') {
+    // Offices, shops, warehouses, whole buildings: the category's own type
+    // (migrations/20261019_commercial_spaces.sql, services/commercial.js).
+    where.push(`LOWER(cat.type) = 'commercial'`);
+  } else if (['bureau', 'boutique', 'entrepot'].includes(propertyType)) {
+    params.push({ bureau: 'bureau', boutique: 'boutique', entrepot: 'entrepôt' }[propertyType]);
+    where.push(`LOWER(catc.name) = $${params.length}`);
   }
 
   if (commune) {

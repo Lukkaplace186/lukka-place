@@ -1,9 +1,10 @@
 'use client';
 
-import { BedDouble, Bath, Ruler, DoorOpen, FileText, Landmark } from 'lucide-react';
+import { BedDouble, Bath, Ruler, DoorOpen, FileText, Landmark, Briefcase, Layers, Store, Truck } from 'lucide-react';
 import { hasArea, entryTerms } from '@/lib/listingView';
 import { lastCellPresentation, STACKED_CELL_CLASS } from '@/lib/keyFactsGrid';
 import { useT } from '@/lib/i18n/client';
+import { commercialFacts, isCommercial } from '@/lib/commercialSpaces';
 import { cn } from '@/lib/utils';
 
 // The facts card's own treatments (Claude Design screen): micro-caps label,
@@ -45,6 +46,8 @@ const VALUE_CLASS =
  * null-guards `PropertyMetrics` used, including the `area` TEXT-column '0'
  * trap (see hasArea).
  */
+const COMMERCIAL_FACT_ICONS = { offices: Briefcase, floor: Layers, frontage: Store, truck: Truck };
+
 export default function KeyFacts({ listing }) {
   const t = useT();
   const {
@@ -55,6 +58,9 @@ export default function KeyFacts({ listing }) {
   // The three entry costs as separate figures, never pre-summed — see
   // entryTerms() for why the sum is the wrong headline.
   const terms = entryTerms(listing);
+  // An office, shop or warehouse: its bathrooms are toilets, and its own
+  // facts (offices, floor, road frontage, truck access) follow the area.
+  const commercial = isCommercial(listing);
 
   // Order matters, and it changed: property type now leads, matching
   // Rightmove's own grid (PROPERTY TYPE / BEDROOMS / BATHROOMS / SIZE) and
@@ -77,11 +83,14 @@ export default function KeyFacts({ listing }) {
     // Number(bath) > 0, not `bath != null` — `bath` carries '' rather than a
     // real NULL when unrecorded, and '' != null is true. Same trap
     // lib/listingView.js's specItems() documents.
-    Number(bath) > 0 ? { key: 'bath', icon: Bath, label: t('listings.facts.bathrooms'), value: bath } : null,
+    Number(bath) > 0
+      ? { key: 'bath', icon: Bath, label: commercial ? t('listings.commercial.facts.toilets') : t('listings.facts.bathrooms'), value: bath }
+      : null,
     hasArea(area)
       ? { key: 'area', icon: Ruler, label: t('listings.facts.area'), value: t('listings.facts.squareMetres', { value: area }) }
       : null,
     Number(unitsCount) > 0 ? { key: 'units', icon: DoorOpen, label: t('listings.facts.doors'), value: unitsCount } : null,
+    ...(commercial ? commercialFacts(listing, t).map((fact) => ({ ...fact, icon: COMMERCIAL_FACT_ICONS[fact.key] })) : []),
     // The REFUNDABLE deposit on its own — `terms.parts[0]`, never the total.
     // A "3 + 1 + 1" shown here as "Garantie : 5 mois" is the exact
     // overstatement that splitting the field into three undid: two of those

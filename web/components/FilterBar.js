@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Droplets, Route, Shield, SlidersHorizontal, Zap } from 'lucide-react';
 import FilterPill, { PillFieldLabel, PillOption } from './FilterPill';
+import { facetLabel, groupTypeFacets } from '@/lib/commercialSpaces';
 import FiltersDrawer from './FiltersDrawer';
 import FilterModal from './FilterModal';
 import LocationAutocomplete from './LocationAutocomplete';
@@ -343,7 +344,8 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
       : priceMax
         ? `max ${priceMax} $`
         : null;
-  const typeLabel = propertyTypes.find((o) => o.value === propertyType)?.label;
+  const typeFacet = propertyTypes.find((o) => o.value === propertyType);
+  const typeLabel = typeFacet ? facetLabel(typeFacet, t) : undefined;
 
   return (
     // Sticks at top-16, under the fixed Header — it stays on screen and
@@ -554,13 +556,26 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
                 </PillOption>
                 {/* DB-derived, with real counts — an option that would
                     return zero results is never offered. */}
-                {propertyTypes.map(({ value, label, count }) => (
-                  <PillOption key={value} selected={propertyType === value} onClick={() => apply(setPropertyType)(value)}>
-                    {label}
-                    <span className="u-tabular ml-1.5 opacity-60">{count}</span>
+                {groupTypeFacets(propertyTypes).residential.map((facet) => (
+                  <PillOption key={facet.value} selected={propertyType === facet.value} onClick={() => apply(setPropertyType)(facet.value)}>
+                    {facetLabel(facet, t)}
+                    <span className="u-tabular ml-1.5 opacity-60">{facet.count}</span>
                   </PillOption>
                 ))}
               </div>
+              {groupTypeFacets(propertyTypes).commercial.length ? (
+                <>
+                  <PillFieldLabel>{t('listings.commercial.group.commercial')}</PillFieldLabel>
+                  <div className="flex flex-wrap gap-2">
+                    {groupTypeFacets(propertyTypes).commercial.map((facet) => (
+                      <PillOption key={facet.value} selected={propertyType === facet.value} onClick={() => apply(setPropertyType)(facet.value)}>
+                        {facetLabel(facet, t)}
+                        <span className="u-tabular ml-1.5 opacity-60">{facet.count}</span>
+                      </PillOption>
+                    ))}
+                  </div>
+                </>
+              ) : null}
             </FilterPill>
 
             <button

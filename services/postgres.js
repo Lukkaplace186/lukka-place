@@ -39,6 +39,7 @@
  */
 
 const { normaliseUtilities } = require('./utilities');
+const { normaliseCommercialSpecs } = require('./commercial');
 const { Pool } = require('pg');
 const { uploadListingPhotos } = require('./supabaseStorage');
 const { resolveCommune, resolveQuartier } = require('./locations');
@@ -139,6 +140,11 @@ async function loadTaxonomy(client) {
  * Our property_type -> nearest-fit French category name. Unlike the earlier
  * MySQL attempt, this schema has a dedicated Entrepôt/Warehouse category, so
  * 'entrepot' gets an exact match instead of falling back to Bâtiment.
+ *
+ * A list is tried in order: 'bureau' has its own category since
+ * migrations/20261019_commercial_spaces.sql, and falls back to Bâtiment
+ * (commercial too) on a database where that migration has not run. The
+ * taxonomy is cached per process, so the engine needs a restart after it.
  */
 const CATEGORY_FALLBACK_FR = {
   appartement: 'appartement',
@@ -149,7 +155,7 @@ const CATEGORY_FALLBACK_FR = {
   chambre_salon: 'appartement',
   parcelle: 'terrain',
   terrain: 'terrain',
-  bureau: 'batiment',
+  bureau: ['bureau', 'batiment'],
   boutique: 'boutique',
   entrepot: 'entrepot',
   immeuble: 'batiment',
@@ -157,9 +163,11 @@ const CATEGORY_FALLBACK_FR = {
 };
 
 function resolveCategory(propertyType, categories) {
-  const wanted = CATEGORY_FALLBACK_FR[propertyType] || CATEGORY_FALLBACK_FR.autre;
-  const match = categories.get(normaliseText(wanted));
-  if (match) return match;
+  const wanted = [].concat(CATEGORY_FALLBACK_FR[propertyType] || CATEGORY_FALLBACK_FR.autre);
+  for (const name of wanted) {
+    const match = categories.get(normaliseText(name));
+    if (match) return match;
+  }
 
   const fallback = categories.values().next().value;
   console.warn(
@@ -903,6 +911,28 @@ async function syncListingToPostgres(row) {
           await client.query('ROLLBACK TO SAVEPOINT lukka_utilities');
           if (err?.code !== '42703') throw err;
           console.warn(`[postgres] properties.utilities missing — tags for #${propertyId} not synced (run migrations/20260929_listing_utilities.sql)`);
+        }
+      }
+
+      // Commercial-space specs (services/commercial.js), same posture as the
+      // utility tags: INSERT only (the agent's editor owns them once the
+      // listing is published), and in a SAVEPOINT so a database without the
+      // columns still publishes. Nothing is written for a residential
+      // listing, so those never touch the columns at all.
+      const specs = normaliseCommercialSpecs(row, row.property_type ?? null);
+      const stated = Object.entries(specs).filter(([, value]) => value !== null);
+      if (stated.length) {
+        await client.query('SAVEPOINT lukka_commercial');
+        try {
+          await client.query(
+            `UPDATE properties SET ${stated.map(([field], i) => `${field} = $${i + 1}`).join(', ')} WHERE id = $${stated.length + 1}`,
+            [...stated.map(([, value]) => value), propertyId],
+          );
+          await client.query('RELEASE SAVEPOINT lukka_commercial');
+        } catch (err) {
+          await client.query('ROLLBACK TO SAVEPOINT lukka_commercial');
+          if (err?.code !== '42703') throw err;
+          console.warn(`[postgres] commercial columns missing — specs for #${propertyId} not synced (run migrations/20261019_commercial_spaces.sql)`);
         }
       }
     }

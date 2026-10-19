@@ -29,6 +29,9 @@ The storefront queries Supabase directly (chosen over a proxying Express endpoin
   - **Adding an alias**: one commune needs a source (it produces a guess); adding a commune to an existing name is always safe (it only produces a question). Measured on every place agents had typed (2026-10-07): 10 deduced, 9/9 agreeing with the commune the agent tagged, 0 wrong; 12 asked. §47.
   - **web/lib/data/kinshasa-gazetteer.json must contain every official quartier and alias** (`web/tests/unit/places-sync.test.js`), except commune-level names (Binza, Bandal) which stay communes in search. Cité-Verte is Selembao, not Mont-Ngafula.
 - **Property Classifications**: Support "Parcelle" (with sub-types: "Maison Type Locataire", "Villa", "Terrain Nu" — see `services/openai.js`'s `PARCELLE_SUBTYPES`) and "Appartement". A listing is only "Appartement" if it explicitly describes a unit within a multi-story building — plot dimensions, a gated compound, or "Type Locataire"/"Portes" language means "Parcelle", never "Appartement".
+  Commercial space (bureau, boutique, entrepot, immeuble) is classified by its
+  own rules — see "Commercial spaces" below; a "bureau" named as a room of a
+  house never makes it commercial.
 - **Schema Attributes**: Always handle:
   - `parcelle_subtype` — sub-classification, only meaningful when `property_type = 'parcelle'`.
   - `units_count` (integer) — "X Portes" / "Type Locataire" door count.
@@ -1587,3 +1590,41 @@ and the CHECK of `migrations/20260929_listing_utilities.sql` (web's
   `parseMessage` over `raw_text` (costs one OpenAI call per listing), fills
   blanks only, writes SQLite and Postgres. Not run yet.
 - §45 of verify-pipeline.
+
+## Commercial spaces — offices, shops, warehouses (2026-10-19)
+
+`services/commercial.js` (engine), `web/lib/commercialSpaces.js` (duplicated,
+compared by both test suites), `migrations/20261019_commercial_spaces.sql`.
+
+- **"Commercial" is `property_categories.type = 'commercial'`**, the
+  back-office's own flag (Bureau, Boutique, Entrepôt, Bâtiment), never a list
+  of names. The migration adds the missing **Bureau / Office** category
+  (no id sequence on that table: MAX + 1 under a lock, skipped when a French
+  "Bureau" exists). Before it runs, a WhatsApp "bureau" still lands on
+  Bâtiment (`CATEGORY_FALLBACK_FR.bureau = ['bureau', 'batiment']`). The
+  engine caches categories per process: restart it after the migration.
+- **Four specs** on `properties` and SQLite `listings`: `office_count`,
+  `floor_level` (0 = rez-de-chaussée, -1 = sous-sol), `road_frontage`,
+  `truck_access`. NULL = not stated, never "no"; only a stated yes is shown.
+  Gated on type everywhere: a residential listing stores none, and a
+  correction that turns a shop into an apartment clears them.
+- **Extraction** (both schemas, prompt "LOCAUX COMMERCIAUX"): an office's room
+  count goes to `office_count`, never `bedrooms`; `normaliseCommercialExtraction`
+  nulls bedrooms and drops "bedrooms" from `missing_fields` for a commercial
+  type. "dépôt" is a warehouse, "dépôt de garantie" is not.
+- **Sync**: written on INSERT only, in a SAVEPOINT tolerant of 42703 (same
+  posture as `utilities`) — the agent's editor owns them after publication.
+- **Buyer assistant**: `search_properties` accepts `commercial` (category
+  type) and `bureau` / `boutique` / `entrepot`.
+- **Web**: reads go through `to_jsonb(p)` (`commercial_specs`), so nothing
+  42703s before the migration; writes (`setListingCommercialSpecs`) re-check
+  the category in SQL and report `'unavailable'` before it. Search:
+  `?property_type=commercial`, a "Locaux commerciaux" facet only when ≥2
+  commercial types have listings, a "Bureaux & commerces" group in every type
+  picker and one homepage tile; landing pages `/location|vente/bureaux` and
+  `/locaux-commerciaux` (an overlay facet like parcelle, never in an
+  all-types total). Agent forms swap "Chambres" for the specs and read
+  bathrooms as "Toilettes".
+- **Not done**: the admin listing editor does not edit the specs yet; the
+  storefront has no commercial-only filters (surface range, frontage).
+- §53 of verify-pipeline; `web/tests/unit/commercial-spaces.test.js`.

@@ -546,7 +546,9 @@
       "terrain": "Land",
       "batiment": "Buildings",
       "boutique": "Shops",
-      "entrepot": "Warehouses"
+      "entrepot": "Warehouses",
+      "bureau": "Offices",
+      "commercial": "Commercial Spaces"
     },
     "chips": {
       "near": "Near {place}",
@@ -562,7 +564,8 @@
       "beds": "bed",
       "bath": "bath",
       "area": "m²",
-      "units": "doors"
+      "units": "doors",
+      "offices": "offices"
     },
     "freshness": {
       "today": "Listed today",
@@ -736,6 +739,35 @@
       "cloture": "Walled plot",
       "route_asphaltee": "Paved road",
       "acces_facile": "Easy car access"
+    },
+    "commercial": {
+      "yes": "Yes",
+      "group": {
+        "residential": "Homes",
+        "commercial": "Offices & Shops"
+      },
+      "facts": {
+        "offices": "Offices",
+        "floor": "Floor",
+        "frontage": "Road frontage",
+        "truck": "Truck access",
+        "toilets": "Toilets"
+      },
+      "floor": {
+        "ground": "Ground floor",
+        "basement": "Basement",
+        "first": "1st floor",
+        "nth": "Floor {n}"
+      },
+      "form": {
+        "legend": "Commercial space",
+        "offices": "Number of offices",
+        "floor": "Floor",
+        "floorUnknown": "Not specified",
+        "frontage": "Faces the road (shopfront)",
+        "truck": "Truck access / unloading",
+        "hint": "Only tick what is true: an empty box means “not specified”."
+      }
     }
   },
   "enquiry": {

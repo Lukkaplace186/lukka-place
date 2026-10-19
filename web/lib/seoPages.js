@@ -35,7 +35,19 @@ export const SEO_PROPERTY_TYPES = {
   boutiques: { propertyType: 'boutique', pluralKey: 'listings.typePlurals.boutique' },
   batiments: { propertyType: 'bâtiment', pluralKey: 'listings.typePlurals.batiment' },
   entrepots: { propertyType: 'entrepôt', pluralKey: 'listings.typePlurals.entrepot' },
+  bureaux: { propertyType: 'bureau', pluralKey: 'listings.typePlurals.bureau' },
+  // Every commercial category at once (lib/commercialSpaces.js) — the page
+  // for "local commercial à louer à Gombe", whichever kind it turns out to be.
+  'locaux-commerciaux': { propertyType: 'commercial', pluralKey: 'listings.typePlurals.commercial' },
 };
+
+/**
+ * Facet rows that re-count listings already counted under a category:
+ * parcelle (a Maison or Terrain too) and commercial (the sum of the
+ * commercial categories). getSeoFacets returns them; an all-types total
+ * leaves them out.
+ */
+export const OVERLAY_PROPERTY_TYPES = new Set(['parcelle', 'commercial']);
 
 const TYPE_SLUG_BY_VALUE = Object.fromEntries(
   Object.entries(SEO_PROPERTY_TYPES).map(([slug, { propertyType }]) => [propertyType, slug]),

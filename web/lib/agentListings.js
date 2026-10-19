@@ -275,6 +275,14 @@ export async function getOwnListingForEdit(agentId, propertyId) {
             p.category_id, p.approve_status, p.listing_status, p.featured_image, p.sold_price,
             p.currency, p.price_original,
             COALESCE(to_jsonb(p) -> 'utilities', '[]'::jsonb) AS utilities,
+            -- Commercial specs through to_jsonb (nulls before the migration),
+            -- and the category's own type, which decides whether the editor
+            -- shows them instead of bedrooms.
+            (SELECT jsonb_build_object(
+               'office_count', j -> 'office_count', 'floor_level', j -> 'floor_level',
+               'road_frontage', j -> 'road_frontage', 'truck_access', j -> 'truck_access')
+             FROM (SELECT to_jsonb(p) AS j) spec) AS commercial_specs,
+            cat.type AS category_type,
             pc.title, pc.description, pc.address,
             (
               SELECT COALESCE(array_agg(pa.amenity_id ORDER BY pa.amenity_id), ARRAY[]::bigint[])
@@ -293,6 +301,7 @@ export async function getOwnListingForEdit(agentId, propertyId) {
             ) AS gallery
      FROM properties p
      JOIN property_contents pc ON pc.property_id = p.id AND pc.language_id = $1
+     LEFT JOIN property_categories cat ON cat.id = p.category_id
      WHERE p.id = $2 AND p.agent_id = $3`,
     [CONTENT_LANGUAGE_ID, id, agentId],
   );
@@ -575,6 +584,24 @@ export async function duplicateListing(agentId, propertyId) {
       [newId, propertyId],
     );
 
+    // A copied office keeps its office count, floor, frontage and truck
+    // access. In a SAVEPOINT: before the commercial migration the columns do
+    // not exist, and the copy must still succeed without them.
+    await client.query('SAVEPOINT lukka_commercial_copy');
+    try {
+      await client.query(
+        `UPDATE properties dst
+         SET office_count = src.office_count, floor_level = src.floor_level,
+             road_frontage = src.road_frontage, truck_access = src.truck_access
+         FROM properties src WHERE dst.id = $1 AND src.id = $2`,
+        [newId, propertyId],
+      );
+      await client.query('RELEASE SAVEPOINT lukka_commercial_copy');
+    } catch (err) {
+      await client.query('ROLLBACK TO SAVEPOINT lukka_commercial_copy');
+      if (err?.code !== '42703') throw err;
+    }
+
     await client.query('COMMIT');
     return Number(newId);
   } catch (err) {
@@ -695,6 +722,32 @@ export async function updateListingPrice(agentId, propertyId, { price, priceOrig
  *
  * @returns {Promise<'saved'|'not_found'|'unavailable'>}
  */
+/**
+ * The four commercial-space specs of an agent's own listing
+ * (lib/commercialSpaces.js), all written at once so a cleared field is
+ * stored as NULL. Ownership is in the WHERE. Its own statement, like the
+ * utility tags: 'unavailable' before migrations/20261019_commercial_spaces.sql
+ * (engine repo) runs, and the rest of the listing still saves. A listing
+ * whose category is not commercial is never written ('not_found').
+ *
+ * @returns {Promise<'saved'|'not_found'|'unavailable'>}
+ */
+export async function setListingCommercialSpecs(agentId, propertyId, specs) {
+  try {
+    const { rowCount } = await getPool().query(
+      `UPDATE properties
+       SET office_count = $1, floor_level = $2, road_frontage = $3, truck_access = $4, updated_at = NOW()
+       WHERE id = $5 AND agent_id = $6
+         AND EXISTS (SELECT 1 FROM property_categories c WHERE c.id = properties.category_id AND LOWER(c.type) = 'commercial')`,
+      [specs.office_count, specs.floor_level, specs.road_frontage, specs.truck_access, Number(propertyId), Number(agentId)],
+    );
+    return rowCount > 0 ? 'saved' : 'not_found';
+  } catch (err) {
+    if (err?.code === '42703') return 'unavailable';
+    throw err;
+  }
+}
+
 export async function setListingUtilities(agentId, propertyId, codes) {
   try {
     const { rowCount } = await getPool().query(

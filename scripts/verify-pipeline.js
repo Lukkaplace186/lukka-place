@@ -11170,6 +11170,136 @@ console.log('\n2. services/openai.js');
     }
   }
 
+  // -------------------------------------------------------------------------
+  // 53. Commercial spaces — offices, shops, warehouses (services/commercial.js)
+  // -------------------------------------------------------------------------
+  console.log('\n53. Commercial spaces');
+  const commercial53 = require('../services/commercial');
+  const card53 = require('../services/listingCard');
+
+  check('specs survive only on a commercial type, each within its bounds', () => {
+    const shop = commercial53.normaliseCommercialSpecs({ office_count: '3', floor_level: 0, road_frontage: true, truck_access: 'x' }, 'boutique');
+    assert.deepStrictEqual(shop, { office_count: 3, floor_level: 0, road_frontage: true, truck_access: null });
+    const villa = commercial53.normaliseCommercialSpecs({ office_count: 2, road_frontage: true }, 'villa');
+    assert.deepStrictEqual(villa, { office_count: null, floor_level: null, road_frontage: null, truck_access: null });
+    assert.strictEqual(commercial53.normaliseCommercialSpecs({ floor_level: 400 }, 'bureau').floor_level, null);
+    assert.strictEqual(commercial53.normaliseCommercialSpecs({ office_count: -1 }, 'bureau').office_count, null);
+    assert.strictEqual(commercial53.floorLabelFr(0), 'Rez-de-chaussée');
+    assert.strictEqual(commercial53.floorLabelFr(1), '1er étage');
+    assert.strictEqual(commercial53.floorLabelFr(-1), 'Sous-sol');
+  });
+
+  check('the bounds are the migration CHECKs, and the migration adds the Bureau category idempotently', () => {
+    const sql = fs.readFileSync(path.join(__dirname, '..', 'migrations', '20261019_commercial_spaces.sql'), 'utf8');
+    assert.ok(sql.includes(`office_count BETWEEN 0 AND ${commercial53.OFFICE_COUNT_MAX}`));
+    assert.ok(sql.includes(`floor_level BETWEEN ${commercial53.FLOOR_MIN} AND ${commercial53.FLOOR_MAX}`));
+    assert.match(sql, /IF NOT EXISTS \(\s*SELECT 1 FROM property_category_contents\s*WHERE language_id = 26 AND lower\(name\) = 'bureau'/);
+    assert.match(sql, /VALUES \(new_category_id, 'commercial'/);
+    for (const column of commercial53.COMMERCIAL_SPEC_FIELDS) {
+      assert.ok(sql.includes(`ADD COLUMN IF NOT EXISTS ${column} `), column);
+    }
+  });
+
+  check('an office is never read as bedrooms, and is never asked for them', () => {
+    const extracted = { property_type: 'bureau', bedrooms: 5, office_count: 5, missing_fields: ['bedrooms', 'price'] };
+    openaiService.normaliseCommercialExtraction(extracted);
+    assert.strictEqual(extracted.bedrooms, null);
+    assert.strictEqual(extracted.office_count, 5);
+    assert.deepStrictEqual(extracted.missing_fields, ['price']);
+    const home = { property_type: 'villa', bedrooms: 4, office_count: 1, road_frontage: true };
+    openaiService.normaliseCommercialExtraction(home);
+    assert.strictEqual(home.bedrooms, 4, 'a house with a "bureau" room stays a house');
+    assert.strictEqual(home.office_count, null);
+    assert.strictEqual(home.road_frontage, null);
+  });
+
+  check('both extraction schemas require the four specs (strict mode needs every field listed)', () => {
+    const source = fs.readFileSync(path.join(__dirname, '..', 'services', 'openai.js'), 'utf8');
+    const listed = source.match(/'office_count', 'floor_level', 'road_frontage', 'truck_access'/g) || [];
+    assert.ok(listed.length >= 3, `required lists + draft context name the specs (${listed.length})`);
+    assert.match(source, /LOCAUX COMMERCIAUX/);
+    assert.match(source, /PAS « dépôt de garantie »/);
+  });
+
+  check('a "bureau" lands on the Bureau category, or on Bâtiment before the migration', () => {
+    const withOffice = new Map([['bureau', { id: 44, type: 'commercial' }], ['batiment', { id: 38, type: 'commercial' }]]);
+    const without = new Map([['batiment', { id: 38, type: 'commercial' }], ['appartement', { id: 34, type: 'residential' }]]);
+    assert.strictEqual(postgresService.resolveCategory('bureau', withOffice).id, 44);
+    assert.strictEqual(postgresService.resolveCategory('bureau', without).id, 38);
+  });
+
+  const office53 = dbService.insertListing(
+    { is_listing: true, property_type: 'bureau', commune: 'Gombe', price: 2500, office_count: 6, floor_level: 2, road_frontage: true, truck_access: null },
+    '243970005353',
+    { rawText: 'Bureaux à louer Gombe, 6 bureaux au 2e étage, façade boulevard, 2500$' },
+  );
+  const office53Id = office53.id ?? office53;
+  check('SQLite stores the specs of an office, booleans read back as booleans', () => {
+    const row = dbService.getListing(office53Id);
+    assert.strictEqual(row.office_count, 6);
+    assert.strictEqual(row.floor_level, 2);
+    assert.strictEqual(row.road_frontage, true);
+    assert.strictEqual(row.truck_access, null, 'not stated stays NULL, never false');
+  });
+
+  check('the intake card shows the office facts and never asks for bedrooms', () => {
+    const row = dbService.getListing(office53Id);
+    const card = card53.renderListingCard({ ...row, transaction_type: 'location', photos: ['a'] });
+    assert.match(card, /\*Bureaux\* : 6/);
+    assert.match(card, /\*Étage\* : 2e étage/);
+    assert.match(card, /\*Façade sur route\* : Oui/);
+    assert.ok(!/Accès camion/.test(card), 'an unstated truck access prints nothing');
+    assert.ok(!card53.missingFields({ ...row, transaction_type: 'location' }).includes('bedrooms'));
+  });
+
+  check('a correction keeps a bad value off the row, and a type change to a home clears the specs', () => {
+    let row = dbService.applyListingCorrection(office53Id, { floor_level: 400 }, 'étage 400');
+    assert.strictEqual(row.floor_level, 2, 'an out-of-range floor is ignored, not written as NULL');
+    row = dbService.applyListingCorrection(office53Id, { property_type: 'appartement' }, "c'est un appartement");
+    assert.deepStrictEqual(
+      [row.office_count, row.floor_level, row.road_frontage, row.truck_access],
+      [null, null, null, null],
+    );
+  });
+
+  check('a home never stores commercial specs, whatever the extraction returned', () => {
+    const home = dbService.insertListing(
+      { is_listing: true, property_type: 'villa', commune: 'Ngaliema', office_count: 1, road_frontage: true },
+      '243970005354',
+      { rawText: 'Villa 4 chambres, salon, bureau' },
+    );
+    const row = dbService.getListing(home.id ?? home);
+    assert.strictEqual(row.office_count, null);
+    assert.strictEqual(row.road_frontage, null);
+  });
+
+  check('the Postgres sync writes the specs on INSERT only, in a SAVEPOINT that tolerates missing columns', () => {
+    const source = fs.readFileSync(path.join(__dirname, '..', 'services', 'postgres.js'), 'utf8');
+    const insertAt = source.indexOf('INSERT INTO properties (${keys.join');
+    const savepointAt = source.indexOf('SAVEPOINT lukka_commercial');
+    const updatePathAt = source.indexOf('UPDATE properties SET ${setClause}');
+    assert.ok(insertAt > 0 && savepointAt > insertAt, 'written after the INSERT');
+    assert.ok(!/office_count|road_frontage/.test(source.slice(updatePathAt, insertAt)), 'a re-sync never touches them');
+    assert.ok(source.slice(savepointAt, savepointAt + 1200).includes("err?.code !== '42703'"));
+  });
+
+  check('the buyer assistant can search commercial space, through the category type', () => {
+    const source = fs.readFileSync(path.join(__dirname, '..', 'services', 'propertyRepository.js'), 'utf8');
+    assert.match(source, /propertyType === 'commercial'[\s\S]{0,200}LOWER\(cat\.type\) = 'commercial'/);
+    const tool = fs.readFileSync(path.join(__dirname, '..', 'services', 'openai.js'), 'utf8');
+    assert.ok(tool.includes("enum: ['appartement', 'parcelle', 'commercial', 'bureau', 'boutique', 'entrepot']"));
+  });
+
+  check('web keeps the same specs and bounds', () => {
+    const webFile = path.join(__dirname, '..', 'web', 'lib', 'commercialSpaces.js');
+    if (!fs.existsSync(webFile)) return; // the VPS engine checkout has no web/
+    const web = fs.readFileSync(webFile, 'utf8');
+    assert.ok(web.includes("COMMERCIAL_SPEC_FIELDS = Object.freeze(['office_count', 'floor_level', 'road_frontage', 'truck_access'])"));
+    assert.ok(web.includes(`OFFICE_COUNT_MAX = ${commercial53.OFFICE_COUNT_MAX};`));
+    assert.ok(web.includes(`FLOOR_MIN = ${commercial53.FLOOR_MIN};`));
+    assert.ok(web.includes(`FLOOR_MAX = ${commercial53.FLOOR_MAX};`));
+  });
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

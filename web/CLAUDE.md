@@ -2808,3 +2808,14 @@ without it nothing renders and the rating card answers "réessayez".
   listings.moderate, audited without the comment text).
 - Tests: `tests/unit/agent-reviews.test.js`.
 
+
+## Commercial spaces (2026-10-19)
+
+Root CLAUDE.md, "Commercial spaces", has the model. Web half: `lib/commercialSpaces.js`
+(pure, duplicated in the engine), `components/CommercialSpecFields.js` (create dialog
+and editor), `?property_type=commercial`, the "Bureaux & commerces" group in
+SearchBar / FilterBar / FilterModal / the homepage tiles, and the `bureaux` /
+`locaux-commerciaux` landing slugs. A commercial listing shows its specs on
+KeyFacts and "N bureaux" on cards. Run the engine migration
+`20261019_commercial_spaces.sql` before agents can pick "Bureau"; until then reads
+yield nulls and the specs setter answers `unavailable`.

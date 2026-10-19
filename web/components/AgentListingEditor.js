@@ -16,6 +16,8 @@ import { validatePhotoSelection } from '@/lib/uploadLimits.mjs';
 import { shrinkPhotos } from '@/lib/photoShrink';
 import AgentPhotoSorter from './AgentPhotoSorter';
 import { UTILITY_FILTERS, UTILITY_FILTER_KEYS, normaliseUtilities, utilityLabelKey } from '@/lib/utilityTags';
+import CommercialSpecFields from './CommercialSpecFields';
+import { commercialSpecsOf, isCommercial } from '@/lib/commercialSpaces';
 
 const FIELD_CLASS =
   'u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35';
@@ -78,6 +80,7 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
   const [amenitiesTouched, setAmenitiesTouched] = useState(false);
   // Kinshasa utility codes (lib/utilityTags.js) — sent only once touched, like
   // the amenities, so an untouched form never clears codes from WhatsApp.
+  const commercial = isCommercial(listing);
   const [utilities, setUtilities] = useState(() => new Set(normaliseUtilities(listing.utilities)));
   const [utilitiesTouched, setUtilitiesTouched] = useState(false);
 
@@ -169,6 +172,10 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
     formData.delete('amenities');
     formData.set('amenities_touched', amenitiesTouched ? '1' : '0');
     if (amenitiesTouched) for (const id of amenityIds) formData.append('amenities', String(id));
+    // The four commercial specs are always sent for a commercial listing:
+    // the form holds their whole current state (an unticked box is "not
+    // stated"), and the server only writes them when the category is one.
+    if (commercial) formData.set('commercial_touched', '1');
     formData.delete('utilities');
     formData.set('utilities_touched', utilitiesTouched ? '1' : '0');
     if (utilitiesTouched) for (const code of utilities) formData.append('utilities', code);
@@ -249,6 +256,12 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
     if (mapped.bath) form.elements.bath.value = mapped.bath;
     if (mapped.unitsCount) form.elements.units_count.value = mapped.unitsCount;
     if (mapped.depositMonths) form.elements.deposit_months.value = mapped.depositMonths;
+    if (commercial) {
+      if (mapped.officeCount != null) form.elements.office_count.value = mapped.officeCount;
+      if (mapped.floorLevel != null) form.elements.floor_level.value = String(mapped.floorLevel);
+      if (mapped.roadFrontage) form.elements.road_frontage.checked = true;
+      if (mapped.truckAccess) form.elements.truck_access.checked = true;
+    }
 
     if (mapped.price) setPrice(mapped.price);
     if (mapped.currency) setCurrency(mapped.currency);
@@ -382,12 +395,18 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {/* An office, shop or warehouse has no bedrooms (the field is not
+              sent, so a save stores none) and its bathrooms are toilets. */}
+          {commercial ? null : (
+            <div>
+              <label htmlFor="beds" className={LABEL_CLASS}>Chambres</label>
+              <input id="beds" name="beds" type="number" min="0" step="1" defaultValue={listing.beds ?? ''} className={FIELD_CLASS} />
+            </div>
+          )}
           <div>
-            <label htmlFor="beds" className={LABEL_CLASS}>Chambres</label>
-            <input id="beds" name="beds" type="number" min="0" step="1" defaultValue={listing.beds ?? ''} className={FIELD_CLASS} />
-          </div>
-          <div>
-            <label htmlFor="bath" className={LABEL_CLASS}>{t('agent.editor.bathrooms')}</label>
+            <label htmlFor="bath" className={LABEL_CLASS}>
+              {commercial ? t('listings.commercial.facts.toilets') : t('agent.editor.bathrooms')}
+            </label>
             <input id="bath" name="bath" type="number" min="0" step="1" defaultValue={listing.bath ?? ''} className={FIELD_CLASS} />
           </div>
           <div>
@@ -416,6 +435,16 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
             />
           </div>
         </div>
+
+        {commercial ? (
+          <div id="commercial">
+            <CommercialSpecFields
+              defaults={commercialSpecsOf(listing)}
+              fieldClass={FIELD_CLASS}
+              labelClass={LABEL_CLASS}
+            />
+          </div>
+        ) : null}
       </div>
 
       <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-4 sm:p-6">

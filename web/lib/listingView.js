@@ -2,6 +2,7 @@ import { usablePrice } from '@/lib/format';
 import { PARCELLE_SUBTYPES, AMENITY_KEYWORDS } from './constants';
 import { abbreviationVariants } from './textVariants';
 import { placeLabel } from './placeLabel';
+import { commercialSpecsOf, isCommercial } from './commercialSpaces';
 
 /**
  * Derived view values shared by the three listing card designs.
@@ -269,6 +270,11 @@ export function specItems(listing, t) {
   if (hasArea(listing.area)) items.push({ key: 'area', value: listing.area, label: label('area', 'm²') });
   if (Number(listing.units_count) > 0) {
     items.push({ key: 'units', value: listing.units_count, label: label('units', 'portes') });
+  }
+  // An office's room count is what its card leads with after the surface.
+  const officeCount = commercialSpecsOf(listing).office_count;
+  if (isCommercial(listing) && officeCount > 0) {
+    items.push({ key: 'offices', value: officeCount, label: label('offices', 'bureaux') });
   }
   return items;
 }

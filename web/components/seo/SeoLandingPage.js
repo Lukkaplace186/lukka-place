@@ -15,6 +15,7 @@ import { distanceKm } from '@/lib/mapViewport';
 import { GUIDES } from '@/lib/guides';
 import {
   SEO_PROPERTY_TYPES,
+  OVERLAY_PROPERTY_TYPES,
   SEO_TRANSACTIONS,
   listingsHrefFor,
   parseSeoSegments,
@@ -136,9 +137,11 @@ export default async function SeoLandingPage({ transaction, params }) {
   const price = (v) => formatPrice(v, purpose, null);
 
   // ---- link graph, from real counts only (never a link to an empty page) ----
-  // Parcelle rows are a second axis over the same listings (a parcelle is also
-  // a Maison or a Terrain), so they are left out of any all-types total.
-  const matchesType = (f, propertyType) => (propertyType ? f.propertyType === propertyType : f.propertyType !== 'parcelle');
+  // Parcelle and "locaux commerciaux" rows are second axes over the same
+  // listings (a parcelle is also a Maison or a Terrain, a commercial row sums
+  // the Bureau / Boutique / Entrepôt rows), so they are left out of any
+  // all-types total.
+  const matchesType = (f, propertyType) => (propertyType ? f.propertyType === propertyType : !OVERLAY_PROPERTY_TYPES.has(f.propertyType));
   const samePurpose = facets.filter((f) => f.purpose === purpose);
   const sameType = samePurpose.filter((f) => matchesType(f, page.propertyType));
 

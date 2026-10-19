@@ -71,7 +71,9 @@ const CATEGORY_HINTS_BY_TYPE = {
   bureau: 'bureau',
   boutique: 'boutique',
   entrepot: 'entrepot',
-  immeuble: 'immeuble',
+  // The database's whole-building category is "Bâtiment" (normalised
+  // "batiment"); "immeuble" matched nothing.
+  immeuble: 'batiment',
 };
 
 /**
@@ -179,6 +181,12 @@ export function buildFormValuesFromParsed(extracted, { communes, categories = []
     area: extracted.surface_area_sqm != null ? String(Math.round(extracted.surface_area_sqm)) : '',
     unitsCount: extracted.units_count != null ? String(extracted.units_count) : '',
     depositMonths: extracted.deposit_months != null ? String(extracted.deposit_months) : '',
+    // Commercial-space specs (lib/commercialSpaces.js) — the engine already
+    // nulls them for a home; only a stated "yes" ticks a box.
+    officeCount: Number.isInteger(extracted.office_count) ? String(extracted.office_count) : null,
+    floorLevel: Number.isInteger(extracted.floor_level) ? extracted.floor_level : null,
+    roadFrontage: extracted.road_frontage === true,
+    truckAccess: extracted.truck_access === true,
     amenityIds,
     description: cleanDescription(extracted.description_fr),
   };

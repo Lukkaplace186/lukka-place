@@ -1,7 +1,8 @@
 import Link from 'next/link';
-import { House, Store, Warehouse } from 'lucide-react';
+import { Briefcase, Building2, House, Store, Warehouse } from 'lucide-react';
 import { ApartmentIcon, LandIcon } from './icons/PropertyTypeIcons';
 import { getT } from '@/lib/i18n/server';
+import { COMMERCIAL_FILTER_VALUE, groupTypeFacets } from '@/lib/commercialSpaces';
 
 /**
  * "Par type de bien" on the homepage (2026-10-06 storefront upgrade): one
@@ -11,11 +12,18 @@ import { getT } from '@/lib/i18n/server';
  * tile never leads to an empty page. Names are the database's own category
  * names (not dictionary copy). Renders nothing with fewer than two types —
  * a single tile is not a choice.
+ *
+ * Offices, shops and warehouses share ONE tile, "Bureaux & commerces" (all
+ * commercial categories, /listings?property_type=commercial), so commercial
+ * space reads as its own section rather than taking three of six tiles from
+ * homes. A lone commercial type keeps its own name.
  */
 const ICONS = [
   [/appart|studio|duplex|penthouse/, ApartmentIcon],
   [/terrain|parcelle/, LandIcon],
-  [/boutique|commerce|bureau/, Store],
+  [/^commercial$/, Building2],
+  [/bureau/, Briefcase],
+  [/boutique|commerce/, Store],
   [/entrep|d[eé]p[oô]t|b[aâ]timent/, Warehouse],
 ];
 
@@ -24,9 +32,18 @@ function iconFor(value) {
 }
 
 export default async function PropertyTypeTiles({ propertyTypes = [] }) {
-  const types = propertyTypes.filter((type) => type.count > 0).slice(0, 6);
-  if (types.length < 2) return null;
   const t = await getT();
+  const { residential, commercial } = groupTypeFacets(propertyTypes.filter((type) => type.count > 0));
+  const singles = commercial.filter((type) => !type.umbrella);
+  const commercialTile = singles.length > 1
+    ? {
+        value: COMMERCIAL_FILTER_VALUE,
+        label: t('listings.commercial.group.commercial'),
+        count: singles.reduce((sum, type) => sum + type.count, 0),
+      }
+    : singles[0] || null;
+  const types = [...residential.slice(0, commercialTile ? 5 : 6), commercialTile].filter(Boolean);
+  if (types.length < 2) return null;
   return (
     <section className="bg-canvas pb-8 pt-2 sm:pb-12">
       <div className="mx-auto max-w-[1240px] px-4 sm:px-6 lg:px-8">

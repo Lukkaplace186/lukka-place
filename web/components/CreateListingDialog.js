@@ -10,6 +10,8 @@ import { useToast } from './Toast';
 import { OPEN_CREATE_LISTING_EVENT, OPEN_CREATE_LISTING_STORAGE_KEY } from '@/lib/agentShortcutEvents';
 import { useT } from '@/lib/i18n/client';
 import SmartPasteSection from './SmartPasteSection';
+import CommercialSpecFields from './CommercialSpecFields';
+import { isCommercial } from '@/lib/commercialSpaces';
 import { buildFormValuesFromParsed } from '@/lib/smartPaste';
 import { validatePhotoSelection } from '@/lib/uploadLimits.mjs';
 import { deleteDraft, fieldsFromForm, isEmptyDraft, loadDraft, looksOffline, saveDraft } from '@/lib/offlineDrafts';
@@ -23,7 +25,10 @@ const LABEL_CLASS = 'mb-1.5 block text-[0.8125rem] font-semibold text-ink-70';
 const AUTOSAVE_DELAY_MS = 700;
 
 // The uncontrolled form fields a draft restores, by name.
-const DRAFT_FIELDS = ['title', 'reference', 'purpose', 'category_id', 'commune', 'price', 'beds', 'bath', 'area', 'quartier', 'description'];
+const DRAFT_FIELDS = [
+  'title', 'reference', 'purpose', 'category_id', 'commune', 'price', 'beds', 'bath', 'area', 'quartier', 'description',
+  'office_count', 'floor_level', 'road_frontage', 'truck_access',
+];
 
 /**
  * The agent-side "manually create a listing" form — real DB-backed
@@ -90,6 +95,14 @@ export default function CreateListingDialog({ communes, categories, draftKey = n
   const [offline, setOffline] = useState(false);
   const [queued, setQueued] = useState(false);
   const formRef = useRef(null);
+  // Whether the picked category is commercial (office, shop, warehouse…).
+  // The select is uncontrolled and also filled by drafts and smart paste,
+  // which fire no change event, so every one of those paths calls this.
+  const [categoryId, setCategoryId] = useState('');
+  const commercialCategory = isCommercial(categories.find((c) => c.id === Number(categoryId)));
+  function syncCategory() {
+    setCategoryId(formRef.current?.elements?.category_id?.value ?? '');
+  }
   // True once the stored draft (if any) has been applied to the open form, so
   // an autosave can never overwrite a real draft with the still-empty form.
   const hydratedRef = useRef(false);
@@ -166,8 +179,13 @@ export default function CreateListingDialog({ communes, categories, draftKey = n
       if (draft && !isEmptyDraft(draft)) {
         const form = formRef.current;
         for (const name of DRAFT_FIELDS) {
-          if (form?.elements[name] && draft.fields?.[name] != null) form.elements[name].value = draft.fields[name];
+          const field = form?.elements[name];
+          if (!field || draft.fields?.[name] == null) continue;
+          // A ticked checkbox is saved as its value; restoring it means checking it.
+          if (field.type === 'checkbox') field.checked = true;
+          else field.value = draft.fields[name];
         }
+        setCategoryId(draft.fields?.category_id ?? '');
         const restoredPhotos = (draft.photos || [])
           .filter((p) => p?.blob)
           .map((p) => {
@@ -329,6 +347,7 @@ export default function CreateListingDialog({ communes, categories, draftKey = n
 
   function resetForm() {
     formRef.current?.reset();
+    setCategoryId('');
     setPhotos((prev) => {
       prev.forEach((p) => URL.revokeObjectURL(p.url));
       return [];
@@ -366,6 +385,11 @@ export default function CreateListingDialog({ communes, categories, draftKey = n
     if (mapped.quartier) form.elements.quartier.value = mapped.quartier;
     if (mapped.reference) form.elements.reference.value = mapped.reference;
     if (mapped.description) form.elements.description.value = mapped.description;
+    if (mapped.officeCount != null) form.elements.office_count.value = mapped.officeCount;
+    if (mapped.floorLevel != null) form.elements.floor_level.value = String(mapped.floorLevel);
+    if (mapped.roadFrontage) form.elements.road_frontage.checked = true;
+    if (mapped.truckAccess) form.elements.truck_access.checked = true;
+    syncCategory();
     scheduleAutosave();
   }
 
@@ -532,11 +556,22 @@ export default function CreateListingDialog({ communes, categories, draftKey = n
             </div>
             <div>
               <label htmlFor="category_id" className={LABEL_CLASS}>{t('agent.editor.propertyType')}</label>
-              <select id="category_id" name="category_id" required defaultValue="" className={FIELD_CLASS}>
+              <select id="category_id" name="category_id" required defaultValue="" onChange={syncCategory} className={FIELD_CLASS}>
                 <option value="" disabled>Choisir…</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
+                {/* Homes, then offices / shops / warehouses as their own
+                    group — the category's type decides, not its name. */}
+                <optgroup label={t('listings.commercial.group.residential')}>
+                  {categories.filter((c) => !isCommercial(c)).map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </optgroup>
+                {categories.some(isCommercial) ? (
+                  <optgroup label={t('listings.commercial.group.commercial')}>
+                    {categories.filter(isCommercial).map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </optgroup>
+                ) : null}
               </select>
             </div>
           </div>
@@ -557,16 +592,22 @@ export default function CreateListingDialog({ communes, categories, draftKey = n
             </div>
           </div>
 
+          {/* An office, shop or warehouse has no bedrooms: the bedroom field
+              gives way to the commercial specs, and bathrooms read as toilets. */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
+            <div hidden={commercialCategory} className={commercialCategory ? 'hidden' : undefined}>
               <label htmlFor="beds" className={LABEL_CLASS}>Chambres</label>
               <input id="beds" name="beds" type="number" min="0" step="1" className={FIELD_CLASS} />
             </div>
             <div>
-              <label htmlFor="bath" className={LABEL_CLASS}>{t('agent.editor.bathrooms')}</label>
+              <label htmlFor="bath" className={LABEL_CLASS}>
+                {commercialCategory ? t('listings.commercial.facts.toilets') : t('agent.editor.bathrooms')}
+              </label>
               <input id="bath" name="bath" type="number" min="0" step="1" className={FIELD_CLASS} />
             </div>
           </div>
+
+          <CommercialSpecFields hidden={!commercialCategory} fieldClass={FIELD_CLASS} labelClass={LABEL_CLASS} />
 
           {/* Surface and quartier were the two fields the WhatsApp intake
               captured and this form did not, so a listing typed here was

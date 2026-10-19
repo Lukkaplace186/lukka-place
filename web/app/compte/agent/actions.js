@@ -34,7 +34,9 @@ import {
   getFeatureAmenities,
   findRecentOwnDuplicate,
   setListingUtilities,
+  setListingCommercialSpecs,
 } from '@/lib/agentListings';
+import { commercialSpecsFromForm, isCommercial } from '@/lib/commercialSpaces';
 import { getCdfRate } from '@/lib/currencyRate';
 import { convertCdfToUsd } from '@/lib/format';
 import {
@@ -355,6 +357,10 @@ export async function createListingAction(validCommunes, validCategories, formDa
   if (!new Set(validCommunes).has(commune)) return { ok: false, error: t('errors.invalidCommune') };
   const category = validCategories.find((c) => c.id === categoryId);
   if (!category) return { ok: false, error: t('errors.invalidPropertyType') };
+  // An office, shop or warehouse has no bedrooms; its own specs replace them
+  // (lib/commercialSpaces.js). The category's type decides, not the form.
+  const commercial = isCommercial(category);
+  const commercialSpecs = commercial ? commercialSpecsFromForm(formData) : null;
   if (!Number.isFinite(price) || price <= 0) return { ok: false, error: t('errors.invalidPrice') };
   if (area !== null && (!Number.isFinite(area) || area <= 0)) return { ok: false, error: t('errors.invalidArea') };
   if (beds !== null && (!Number.isFinite(beds) || beds < 0)) return { ok: false, error: t('errors.invalidBedrooms') };
@@ -390,12 +396,21 @@ export async function createListingAction(validCommunes, validCategories, formDa
     commune,
     price,
     purpose,
-    beds,
+    beds: commercial ? null : beds,
     bath,
     area,
     quartier,
     reference,
   });
+
+  if (commercialSpecs && Object.values(commercialSpecs).some((value) => value !== null)) {
+    try {
+      const saved = await setListingCommercialSpecs(agentId, propertyId, commercialSpecs);
+      if (saved === 'unavailable') console.warn(`[compte/agent] commercial specs for #${propertyId} not saved — columns missing`);
+    } catch (err) {
+      console.error(`[compte/agent] commercial specs for #${propertyId}: ${err.message}`);
+    }
+  }
 
   let uploadedCount = 0;
   try {
@@ -965,6 +980,17 @@ export async function updateListingAction(propertyId, validCommunes, formData) {
 
   // Kinshasa utility codes — only when the agent touched them; unknown codes
   // are dropped (lib/utilityTags.js), and a missing column never fails the edit.
+  // Sent only by the editor of a commercial listing; the setter re-checks the
+  // category in SQL, so a forged flag on a home writes nothing.
+  if (formData.get('commercial_touched') === '1') {
+    try {
+      const saved = await setListingCommercialSpecs(agentId, propertyId, commercialSpecsFromForm(formData));
+      if (saved === 'unavailable') console.warn(`[compte/agent] commercial specs for #${propertyId} not saved — columns missing`);
+    } catch (err) {
+      console.error(`[compte/agent] commercial specs for #${propertyId}: ${err.message}`);
+    }
+  }
+
   if (formData.get('utilities_touched') === '1') {
     try {
       const saved = await setListingUtilities(agentId, propertyId, normaliseUtilities(formData.getAll('utilities')));

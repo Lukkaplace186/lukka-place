@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { cachedSeoFacets } from '@/lib/listingsCached';
-import { seoPath } from '@/lib/seoPages';
+import { OVERLAY_PROPERTY_TYPES, seoPath } from '@/lib/seoPages';
 import { socialProfiles } from '@/lib/seoSchema';
 import { ChevronDown } from 'lucide-react';
 import { Wordmark } from './Brand';
@@ -131,7 +131,7 @@ export default async function Footer() {
   const facets = await cachedSeoFacets().catch(() => []);
   const byCommune = new Map();
   for (const f of facets) {
-    if (!f.commune || f.propertyType === 'parcelle') continue;
+    if (!f.commune || OVERLAY_PROPERTY_TYPES.has(f.propertyType)) continue;
     const row = byCommune.get(f.commune) || { commune: f.commune, rent: 0, sale: 0 };
     if (f.purpose === 'rent') row.rent += f.count;
     if (f.purpose === 'sale') row.sale += f.count;

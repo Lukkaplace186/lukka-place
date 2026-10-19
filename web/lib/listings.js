@@ -6,6 +6,7 @@ import { KINSHASA_PROVINCE_ENVELOPE, boundsContain, distanceKm, resolveMarkerPos
 import { AMENITY_GROUPS, AMENITY_KEYWORDS, DEPOSIT_RANGE_OPTIONS } from './constants';
 import { keywordTokens } from './searchKeywords';
 import { UTILITY_FILTERS } from './utilityTags';
+import { COMMERCIAL_FILTER_VALUE } from './commercialSpaces';
 
 /**
  * Every read against `properties` filters on this — no exceptions. There is
@@ -242,6 +243,14 @@ const SELECT_FIELDS = `
   p.features,
   pc.title, pc.slug, ${PUBLIC_ADDRESS_EXPR} AS address,
   catc.name AS category_name, p.category_id,
+  -- Commercial-space specs (lib/commercialSpaces.js) as one jsonb, read
+  -- through to_jsonb so a database without the columns yields nulls rather
+  -- than a 42703; cat.type says whether the category is commercial at all.
+  (SELECT jsonb_build_object(
+     'office_count', j -> 'office_count', 'floor_level', j -> 'floor_level',
+     'road_frontage', j -> 'road_frontage', 'truck_access', j -> 'truck_access')
+   FROM (SELECT to_jsonb(p) AS j) spec) AS commercial_specs,
+  cat.type AS category_type,
   -- Kinshasa utility codes the agent stated (lib/utilityTags.js); a jsonb
   -- array, [] before the migration or when none were stated.
   COALESCE(to_jsonb(p) -> 'utilities', '[]'::jsonb) AS utilities,
@@ -542,6 +551,10 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
       params.push(parcelleSubtype);
       where.push(`p.parcelle_subtype = $${params.length}`);
     }
+  } else if (propertyType === COMMERCIAL_FILTER_VALUE) {
+    // Offices, shops, warehouses, buildings — every category the back-office
+    // types 'commercial' (lib/commercialSpaces.js), not a list of names.
+    where.push(`LOWER(cat.type) = 'commercial'`);
   } else if (propertyType) {
     // Case-insensitive on purpose: the live rows are 'Appartement' and
     // 'Maison' (capitalised), while this comparison used to be hardcoded to
@@ -1446,6 +1459,14 @@ const MODERATION_SELECT_FIELDS = `
   COALESCE(pc.title, '[Contenu manquant]') AS title,
   pc.slug, pc.address, pc.description,
   catc.name AS category_name,
+  -- Commercial-space specs (lib/commercialSpaces.js) as one jsonb, read
+  -- through to_jsonb so a database without the columns yields nulls rather
+  -- than a 42703; cat.type says whether the category is commercial at all.
+  (SELECT jsonb_build_object(
+     'office_count', j -> 'office_count', 'floor_level', j -> 'floor_level',
+     'road_frontage', j -> 'road_frontage', 'truck_access', j -> 'truck_access')
+   FROM (SELECT to_jsonb(p) AS j) spec) AS commercial_specs,
+  cat.type AS category_type,
   (pc.id IS NULL) AS missing_content,
   (catc.id IS NULL) AS missing_category,
   a.id AS agent_id, a.image AS agency_logo_url, ${AGENCY_NAME_EXPR}, a.phone AS agent_phone,
@@ -1612,7 +1633,7 @@ export async function getPropertyTypeFacets() {
 
   const [categories, parcelle] = await Promise.all([
     pool.query(
-      `SELECT catc.name AS label, COUNT(*) AS n
+      `SELECT catc.name AS label, LOWER(MIN(cat.type)) AS category_type, COUNT(*) AS n
        ${FROM_JOINS}
        WHERE ${APPROVED_FILTER}
        GROUP BY catc.name
@@ -1629,7 +1650,25 @@ export async function getPropertyTypeFacets() {
     value: r.label.toLowerCase(),
     label: r.label,
     count: Number.parseInt(r.n, 10),
+    group: r.category_type === 'commercial' ? 'commercial' : 'residential',
   }));
+
+  // "Locaux commerciaux": every commercial category at once (offices, shops,
+  // warehouses), the entry point for someone who wants a place to work rather
+  // than a particular kind. Offered only when it says something the single
+  // types do not — two or more commercial categories with listings — so the
+  // list never shows "Boutique (3)" next to "Locaux commerciaux (3)".
+  const commercial = facets.filter((f) => f.group === 'commercial');
+  if (commercial.length >= 2) {
+    facets.push({
+      value: COMMERCIAL_FILTER_VALUE,
+      label: 'Locaux commerciaux',
+      labelKey: 'listings.typePlurals.commercial',
+      count: commercial.reduce((sum, f) => sum + f.count, 0),
+      group: 'commercial',
+      umbrella: true,
+    });
+  }
 
   const parcelleCount = Number.parseInt(parcelle.rows[0].n, 10);
   if (parcelleCount > 0) {
@@ -1709,7 +1748,7 @@ export async function getSeoFacets() {
     WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44
     LIMIT 1
   )`;
-  const [{ rows }, { rows: parcelleRows }] = await Promise.all([
+  const [{ rows }, { rows: parcelleRows }, { rows: commercialRows }] = await Promise.all([
     pool.query(
       `SELECT ${communeExpr} AS commune, p.purpose, LOWER(catc.name) AS property_type, COUNT(*) AS n
        ${FROM_JOINS} WHERE ${APPROVED_FILTER}
@@ -1720,9 +1759,17 @@ export async function getSeoFacets() {
        ${FROM_JOINS} WHERE ${APPROVED_FILTER} AND p.parcelle_subtype IS NOT NULL
        GROUP BY 1, 2`,
     ),
+    // "Locaux commerciaux" (/location/locaux-commerciaux): every commercial
+    // category together, a second axis like parcelle.
+    pool.query(
+      `SELECT ${communeExpr} AS commune, p.purpose, COUNT(*) AS n
+       ${FROM_JOINS} WHERE ${APPROVED_FILTER} AND LOWER(cat.type) = 'commercial'
+       GROUP BY 1, 2`,
+    ),
   ]);
   return [
     ...rows.map((r) => ({ commune: r.commune || null, purpose: r.purpose, propertyType: r.property_type, count: Number(r.n) })),
     ...parcelleRows.map((r) => ({ commune: r.commune || null, purpose: r.purpose, propertyType: 'parcelle', count: Number(r.n) })),
+    ...commercialRows.map((r) => ({ commune: r.commune || null, purpose: r.purpose, propertyType: COMMERCIAL_FILTER_VALUE, count: Number(r.n) })),
   ];
 }

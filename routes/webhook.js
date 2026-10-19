@@ -434,6 +434,11 @@ const PHOTO_REQUIRED_REPLY =
  */
 const ACK_REPLY = 'Message reçu, un instant pendant que nous traitons votre annonce... ⏳';
 
+/** Sent when the extraction call fails, so the agent is never left on the ack above. */
+const EXTRACTION_FAILED_REPLY =
+  'Désolé, nous n’avons pas pu traiter votre message pour le moment. 🙏 ' +
+  'Merci de le renvoyer dans quelques minutes (avec les photos si c’est une annonce).';
+
 const STATUS_ASK_PRICE_REPLY =
   "C'est noté, le bien est retiré des recherches. ✅\n\n"
   + "À quel prix la transaction s'est-elle conclue ? Répondez avec le montant "
@@ -1130,11 +1135,29 @@ async function processGroup(messages) {
     // as context, so a two-word follow-up ("non 1100$") is understood as an edit
     // of that draft rather than as an unreadable new submission. Nothing is
     // added when there is no pending listing — see draftContextFromListing.
-    const { extracted_data: extracted, whatsapp_reply: modelReply, _meta } = await parseMessage(text, {
-      senderPhone: from,
-      images,
-      ...(contextListing ? draftContextFromListing(contextListing) : {}),
-    });
+    // A failed model call (rate limit, exhausted credit, timeout) used to
+    // surface only as "[group] … failed" in the log: the agent, who may
+    // already have been told "Message reçu, un instant…", heard nothing more
+    // and the listing was never stored. Tell them to resend instead — except
+    // in a conversation a human has taken over, which stays silent.
+    let parsed;
+    try {
+      parsed = await parseMessage(text, {
+        senderPhone: from,
+        images,
+        ...(contextListing ? draftContextFromListing(contextListing) : {}),
+      });
+    } catch (err) {
+      console.error(`[openai] ${label} — extraction failed, ${from} told to resend: ${err.message}`);
+      const conversation = getActiveConversation(from);
+      if (!conversation || conversation.ai_active) {
+        await chakra.sendWhatsAppMessage(from, EXTRACTION_FAILED_REPLY, {
+          replyToMessageId: primaryWamid || undefined,
+        });
+      }
+      return;
+    }
+    const { extracted_data: extracted, whatsapp_reply: modelReply, _meta } = parsed;
 
     // What the agent is sent. The model's prose by default; for a listing or a
     // correction, its greeting plus a card rendered from the STORED row

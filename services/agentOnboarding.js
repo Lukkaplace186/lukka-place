@@ -472,7 +472,7 @@ function parseNameReply(text) {
 async function shouldOnboard(waId, { agent: knownAgent } = {}) {
   if (!isConfigured()) return false;
   const session = getSession(waId);
-  if (session && (session.state === 'COMPLETED' || session.asked_count >= MAX_ASKS)) return false;
+  if (session && session.state !== 'COMPLETED' && session.asked_count >= MAX_ASKS) return false;
 
   try {
     // identifySender() has usually already resolved this sender; reuse that
@@ -482,8 +482,19 @@ async function shouldOnboard(waId, { agent: knownAgent } = {}) {
     // An account that already has a password is a finished registration —
     // nothing to onboard. An account with a verified phone but no password is
     // one of these WhatsApp onboardings still waiting for its magic link to
-    // be clicked, which is fine and needs no re-prompt either.
-    return !agent;
+    // be clicked, which is fine and needs no re-prompt either. A soft-deleted
+    // account still counts: an admin removed it, and it is not re-created
+    // behind their back.
+    if (agent) return false;
+    // COMPLETED with no agents row: the account this session created was
+    // deleted from the console since. The old session used to block the
+    // question forever, so the sender's listings were stored and published
+    // with nobody attached. Start them over as a new sender.
+    if (session?.state === 'COMPLETED') {
+      db.db.prepare('DELETE FROM agent_onboarding WHERE wa_id = ?').run(String(waId));
+      console.log(`[onboarding] ${waId}: completed session but no account any more — asking again`);
+    }
+    return true;
   } catch (err) {
     console.warn(`[onboarding] agent lookup failed for ${waId}: ${err.message}`);
     return false;

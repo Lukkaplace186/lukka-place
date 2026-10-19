@@ -671,6 +671,15 @@ and `token_version` is bumped alongside.
 
 The ask is capped at `MAX_ASKS` (3) per sender via `agent_onboarding` in
 SQLite, so someone who never answers is not nagged on every listing.
+A COMPLETED session whose `agents` row no longer exists (deleted from the
+console) is cleared and the sender is asked again (2026-10-19); a
+soft-deleted row still counts as an account and is never re-created. §52.
+
+**A failed extraction is answered** (2026-10-19): when `parseMessage` throws
+(rate limit, exhausted credit, timeout) `processGroup` sends
+`EXTRACTION_FAILED_REPLY` ("merci de le renvoyer dans quelques minutes")
+instead of leaving the agent on the "Message reçu, un instant…" ack. Nothing
+is stored; a conversation under human handoff stays silent. §52.
 
 ### Plan listing limit on WhatsApp
 

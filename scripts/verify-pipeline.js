@@ -11109,6 +11109,67 @@ console.log('\n2. services/openai.js');
     chakra51.sendInteractiveButtons = saved51.buttons;
   }
 
+  // ===========================================================================
+  // 52. Launch hardening (2026-10-19): a failed extraction is answered, and a
+  //     deleted account's sender is asked to register again
+  // ===========================================================================
+
+  console.log('\n52. Failed extraction reply; onboarding after an account deletion');
+
+  {
+    const AGENT52 = '243850005201';
+    const rowsBefore52 = dbService.countListings();
+    httpCalls.length = 0;
+    // Non-JSON output makes parseMessage throw, like a 429 or exhausted credit.
+    nextCompletion = cannedCompletion({
+      choices: [{ finish_reason: 'stop', message: { content: 'not json', refusal: null } }],
+    });
+    await post('/webhook', {
+      object: 'whatsapp_business_account',
+      entry: [{ id: '1', changes: [{ field: 'messages', value: {
+        metadata: { phone_number_id: '987654321' },
+        contacts: [{ wa_id: AGENT52, profile: { name: 'Agence 52' } }],
+        messages: [{ from: AGENT52, id: 'wamid.FAIL52', timestamp: '1', type: 'text',
+          text: { body: 'Appartement à louer Limete 2 chambres 600$ garantie 3 mois' } }],
+      } }] }],
+    });
+    await settle(400);
+
+    check('a failed extraction tells the sender to resend instead of leaving them in silence', () => {
+      const replies = httpCalls.filter((c) => c.data?.to === AGENT52).map((c) => c.data.text?.body || '');
+      assert.strictEqual(replies.length, 1, `expected one reply, got ${replies.length}`);
+      assert.match(replies[0], /renvoyer/);
+      assert.strictEqual(dbService.countListings(), rowsBefore52, 'nothing is stored from a failed extraction');
+    });
+
+    const WA52 = '243850005202';
+    const savedEnv52 = ['DB_HOST', 'DB_USER', 'DB_PASSWORD', 'DB_NAME'].map((k) => [k, process.env[k]]);
+    for (const [k] of savedEnv52) process.env[k] = process.env[k] || 'verify';
+    try {
+      dbService.openOnboardingSession(WA52);
+      dbService.completeOnboardingSession(WA52, { fullName: 'Ancien Agent', agentId: 999 });
+
+      await checkAsync('a COMPLETED session whose account still exists is never asked again', async () => {
+        assert.strictEqual(await onboarding.shouldOnboard(WA52, { agent: { id: '999' } }), false);
+        assert.strictEqual(onboarding.getSession(WA52).state, 'COMPLETED');
+      });
+      await checkAsync('a COMPLETED session whose account was deleted is asked to register again', async () => {
+        assert.strictEqual(await onboarding.shouldOnboard(WA52, { agent: null }), true);
+        assert.strictEqual(onboarding.getSession(WA52), null, 'the stale session is cleared');
+        assert.ok(onboarding.startOnboarding(WA52, {}, 0), 'the question is asked');
+        assert.strictEqual(onboarding.getSession(WA52).state, 'AWAITING_NAME');
+      });
+      await checkAsync('a soft-deleted account is not re-registered from WhatsApp', async () => {
+        assert.strictEqual(await onboarding.shouldOnboard(WA52, { agent: { id: '999', deleted_at: '2026-10-19' } }), false);
+      });
+    } finally {
+      for (const [k, v] of savedEnv52) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

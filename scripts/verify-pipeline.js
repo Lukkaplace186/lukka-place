@@ -3708,6 +3708,12 @@ console.log('\n2. services/openai.js');
   });
   check('a single-unit confirmation still gets the original singular wording', () =>
     assert.strictEqual(webhookRouter.publishedReply(1), webhookRouter.PUBLISHED_REPLY));
+  check('the confirmation never claims the listing is already visible (it waits for moderation)', () => {
+    for (const body of [webhookRouter.publishedReply(1), webhookRouter.publishedReply(4)]) {
+      assert.ok(!/visible|publiée|publiées/i.test(body), body);
+      assert.ok(body.includes('après validation'), body);
+    }
+  });
 
   // -------------------------------------------------------------------------
   // 7. Read API still serves what the pipeline wrote

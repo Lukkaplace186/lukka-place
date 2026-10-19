@@ -399,7 +399,11 @@ async function downloadImages(refs, label) {
 // services/db.js applyListingCorrection.
 // ---------------------------------------------------------------------------
 
-const PUBLISHED_REPLY = 'Merci ! Votre annonce est maintenant publiée et visible sur Lukka Place. 🎉';
+// "OK" sends the listing to moderation (approve_status = 0), not onto the
+// site, so the reply must not say it is visible: agents went looking for it
+// and found nothing. Approval sends its own "maintenant en ligne" message.
+const PUBLISHED_REPLY =
+  'Merci ! Votre annonce est bien reçue ✅ Notre équipe la vérifie : elle sera en ligne après validation, et nous vous prévenons ici dès sa mise en ligne.';
 
 /**
  * Confirmation wording. A multi-unit building publishes several linked
@@ -408,7 +412,7 @@ const PUBLISHED_REPLY = 'Merci ! Votre annonce est maintenant publiée et visibl
  */
 function publishedReply(unitCount) {
   if (unitCount > 1) {
-    return `Merci ! Vos ${unitCount} annonces liées sont maintenant publiées et visibles sur Lukka Place. 🎉`;
+    return `Merci ! Vos ${unitCount} annonces liées sont bien reçues ✅ Notre équipe les vérifie : elles seront en ligne après validation, et nous vous prévenons ici dès leur mise en ligne.`;
   }
   return PUBLISHED_REPLY;
 }

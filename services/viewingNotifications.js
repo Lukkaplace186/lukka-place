@@ -36,6 +36,7 @@
  */
 
 const chakra = require('./chakra');
+const deskAlert = require('./deskAlert');
 const propertyRepository = require('./propertyRepository');
 const { placeLabel } = require('./locations');
 const propertyMatchingService = require('./propertyMatching');
@@ -1061,8 +1062,12 @@ function opsDeclineText({ listing, viewingRequest, propertyId, reasonCode, close
 async function trySend(phone, text, label, template = null) {
   if (!phone) return false;
   if (template && (await sendLifecycleTemplate(phone, template, label))) return true;
+  const to = String(phone).replace(/\D/g, '');
   try {
-    await chakra.sendWhatsAppMessage(String(phone).replace(/\D/g, ''), text, { previewUrl: true });
+    // The desk gets the generic desk-alert template (services/deskAlert.js)
+    // when no lifecycle template covered it, so it needs no 24h window.
+    if (to === opsNumber()) await deskAlert.sendDeskAlert(to, text, { label });
+    else await chakra.sendWhatsAppMessage(to, text, { previewUrl: true });
     return true;
   } catch (err) {
     console.error(`[viewing] ${label} to ${phone} failed: ${err.message}`);

@@ -24,6 +24,7 @@
  */
 
 const chakra = require('./chakra');
+const deskAlert = require('./deskAlert');
 const { db } = require('./db');
 const { normaliseOpsNumber, opsNumber } = require('./opsDesk');
 
@@ -106,8 +107,9 @@ async function sendOne(to, listing, text) {
     }
   }
   try {
-    await chakra.sendWhatsAppMessage(to, text, { previewUrl: false });
-    return 'session';
+    // No moderation template (or it failed): the generic desk-alert template
+    // when that one is configured, else the session message.
+    return await deskAlert.sendDeskAlert(to, text, { previewUrl: false, label: 'moderation alert' });
   } catch (err) {
     console.error(`[moderation-alert] send to …${to.slice(-4)} failed: ${err.message}`);
     return null;

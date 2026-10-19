@@ -17,6 +17,7 @@
 const express = require('express');
 const db = require('../services/db');
 const chakra = require('../services/chakra');
+const deskAlert = require('../services/deskAlert');
 const opsDesk = require('../services/opsDesk');
 const { STATES } = require('../services/conversationState');
 const { dispatchLead, dispatchLeadInBackground } = require('../services/leadDispatch');
@@ -269,7 +270,7 @@ router.post('/ops-notify', async (req, res) => {
   const ops = opsDesk.opsNumber();
   if (!ops) return res.json({ success: true, sent: false, reason: 'OPS_WHATSAPP_NUMBER is not set' });
   try {
-    await chakra.sendWhatsAppMessage(ops, message);
+    await deskAlert.sendDeskAlert(ops, message, { label: 'ops-notify' });
     return res.json({ success: true, sent: true });
   } catch (err) {
     console.error(`[admin] ops-notify failed: ${err.message}`);
@@ -1408,6 +1409,61 @@ const MODERATION_REJECTION_REASONS = {
 };
 
 /**
+ * Templates for the two moderation messages, so the agent hears the verdict
+ * even when it lands more than 24h after their last WhatsApp message. Unset
+ * by default and read at call time; unset or failing → the session text
+ * above. Exact wording to submit: CLAUDE.md, "Listing approved / rejected".
+ *   LISTING_APPROVED_TEMPLATE  body {{1}} listing number, {{2}} what + where;
+ *                              DYNAMIC URL button …/listings/{{1}}
+ *   LISTING_REJECTED_TEMPLATE  body {{1}} listing number, {{2}} what + where,
+ *                              {{3}} reason; no button (the agent replies)
+ */
+const MODERATION_TEMPLATE_ENV = { approved: 'LISTING_APPROVED_TEMPLATE', rejected: 'LISTING_REJECTED_TEMPLATE' };
+
+const TRANSACTION_WORDS = { location: 'à louer', vente: 'à vendre' };
+
+function templateText(value, max) {
+  const text = String(value ?? '').replace(/\s+/g, ' ').trim();
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+/** "Appartement à louer — Limete" from the engine's own row; "votre bien" when it says nothing. */
+function moderationListingSummary(listing) {
+  const type = String(listing?.property_type || '').replace(/_/g, ' ').trim();
+  const what = [type ? type.charAt(0).toUpperCase() + type.slice(1) : '', TRANSACTION_WORDS[listing?.transaction_type] || '']
+    .filter(Boolean).join(' ');
+  const where = listing?.commune || listing?.quartier || '';
+  return templateText([what, where].filter(Boolean).join(' — ') || 'votre bien', 120);
+}
+
+/** The {{3}} of the rejection template: the coded reason and the team's note, or the generic follow-up. */
+function moderationRejectionReason(reason) {
+  const why = MODERATION_REJECTION_REASONS[reason?.code];
+  const note = typeof reason?.note === 'string' ? reason.note.trim() : '';
+  const parts = [why ? why.replace(/\.$/, '') : '', note].filter(Boolean);
+  return templateText(parts.join(' — ') || 'à préciser par notre équipe, qui vous contactera', 400);
+}
+
+/** @returns {Promise<boolean>} true when the template was accepted. */
+async function sendModerationTemplate(status, to, propertyId, listing, reason) {
+  const name = String(process.env[MODERATION_TEMPLATE_ENV[status]] || '').trim();
+  if (!chakra.templateConfigured(name)) return false;
+  const bodyParams = [String(propertyId), moderationListingSummary(listing)];
+  if (status === 'rejected') bodyParams.push(moderationRejectionReason(reason));
+  try {
+    await chakra.sendTemplate(to, name, {
+      languageCode: String(process.env.LISTING_MODERATION_TEMPLATE_LANG || 'fr').trim() || 'fr',
+      bodyParams,
+      ...(status === 'approved' ? { urlButton: String(propertyId) } : {}),
+    });
+    return true;
+  } catch (err) {
+    console.warn(`[admin] moderation ${status} template '${name}' for property #${propertyId} failed, sending text: ${err.message}`);
+    return false;
+  }
+}
+
+/**
  * Notifies the original WhatsApp submitter that their listing was
  * approved/rejected — called by web/'s admin moderation dashboard right
  * after it flips `properties.approve_status` in Postgres. That table has no
@@ -1444,11 +1500,10 @@ router.post('/properties/:remotePropertyId/notify', async (req, res) => {
   }
 
   setImmediate(async () => {
+    const reason = { code: req.body?.reason_code, note: req.body?.note };
     try {
-      await chakra.sendWhatsAppMessage(
-        listing.wa_id,
-        buildMessage(remotePropertyId, { code: req.body?.reason_code, note: req.body?.note }),
-      );
+      if (await sendModerationTemplate(status, listing.wa_id, remotePropertyId, listing, reason)) return;
+      await chakra.sendWhatsAppMessage(listing.wa_id, buildMessage(remotePropertyId, reason));
     } catch (err) {
       console.error(`[admin] moderation notify for property #${remotePropertyId} failed to send: ${err.message}`);
     }
@@ -1696,3 +1751,6 @@ router.post('/send-whatsapp-template', async (req, res) => {
 module.exports = router;
 // Exposed for scripts/verify-pipeline.js — the agent-facing wording is a contract worth pinning.
 module.exports.MODERATION_MESSAGES = MODERATION_MESSAGES;
+module.exports.sendModerationTemplate = sendModerationTemplate;
+module.exports.moderationListingSummary = moderationListingSummary;
+module.exports.moderationRejectionReason = moderationRejectionReason;

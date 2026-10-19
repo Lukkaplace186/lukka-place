@@ -19,6 +19,9 @@
  *    and is answered with when it closes, and the `ops-desk-keepalive` job
  *    asks for a reply about four hours before it does — a message that can
  *    still land, since the window is open — so one "OK" a day keeps it alive.
+ *    Once DESK_ALERT_TEMPLATE is set (services/deskAlert.js) every desk copy
+ *    goes as that template, the window no longer matters, and the keep-alive
+ *    stops asking.
  *
  * 3. **The desk phone is not an agent.** Without a branch of its own, a
  *    message from it went through listing intake like anyone's: "OK" cost a
@@ -28,6 +31,7 @@
  */
 
 const chakra = require('./chakra');
+const deskAlert = require('./deskAlert');
 const { db } = require('./db');
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -111,6 +115,8 @@ function deskStatus(now = new Date()) {
     windowOpenUntil: openUntil ? openUntil.toISOString() : null,
     windowOpen: Boolean(openUntil && openUntil > now),
     reminderSentAt: getState('reminder_sent_at'),
+    // True when desk copies go as DESK_ALERT_TEMPLATE: the window is then moot.
+    templateAlerts: deskAlert.enabled(),
   };
 }
 
@@ -131,8 +137,10 @@ async function handleDeskMessage({ from, text = '', hasMedia = false, wamid = nu
   if (wamid) setState('last_wamid', wamid);
 
   const until = kinshasaTime(new Date(now.getTime() + WINDOW_MS));
-  const status = `✅ Bureau Lukka Place : alertes actives jusqu'au ${until}. `
-    + 'Je vous demanderai de répondre avant cette heure pour les garder actives.';
+  const status = deskAlert.enabled()
+    ? '✅ Bureau Lukka Place : les alertes arrivent sur ce numéro sans réponse de votre part.'
+    : `✅ Bureau Lukka Place : alertes actives jusqu'au ${until}. `
+      + 'Je vous demanderai de répondre avant cette heure pour les garder actives.';
   const looksLikeListing = hasMedia || String(text).trim().length > 200;
   const reply = looksLikeListing ? `${MEDIA_OR_LISTING_REPLY}\n\n${status}` : status;
 
@@ -148,6 +156,8 @@ async function handleDeskMessage({ from, text = '', hasMedia = false, wamid = nu
 /** Due once per desk message, between 20h and 23h45 after it. Cheap: two key reads. */
 function keepaliveDue(now = new Date()) {
   if (!opsNumber()) return false;
+  // Desk copies go as a template: there is no window to keep open.
+  if (deskAlert.enabled()) return false;
   const last = getState('last_message_at');
   if (!last) return false;
   const elapsed = now.getTime() - new Date(last).getTime();
@@ -182,7 +192,9 @@ function warnIfOpsInvalid() {
   const status = deskStatus();
   console.log(
     `[ops-desk] desk number …${number.slice(-4)}; `
-      + (status.windowOpen
+      + (deskAlert.enabled()
+        ? `desk alerts go as template '${deskAlert.templateName()}' (no 24h window)`
+        : status.windowOpen
         ? `window open until ${status.windowOpenUntil}`
         : 'window CLOSED — desk copies will not arrive until the desk phone messages the business number'),
   );

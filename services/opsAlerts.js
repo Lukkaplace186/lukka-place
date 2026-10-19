@@ -151,7 +151,7 @@ async function checkPostgres() {
 
 async function sendToOps(to, text) {
   // eslint-disable-next-line global-require
-  return require('./chakra').sendWhatsAppMessage(to, text);
+  return require('./deskAlert').sendDeskAlert(to, text, { previewUrl: false, label: 'ops alert' });
 }
 
 /**

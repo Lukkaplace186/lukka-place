@@ -1345,6 +1345,45 @@ listing (`moderation_alerts_sent`, written only after a send was accepted).
 `MODERATION_ALERT_TEMPLATE` (body: number, what + where, agent; dynamic URL
 button = listing id) when set, else a session message — which reaches an
 owner's phone only within 24h of it messaging the intake number. §50.
+Without its own template it now falls back to the desk-alert template below.
+
+## Desk alerts and moderation verdicts as templates (2026-10-19)
+
+Built so the desk and owners' phones need no daily "OK", and an agent hears
+the moderation verdict however long it took. Every name is unset by default
+and read at call time (set in `.env`, then `pm2 restart lukka-place-engine
+--update-env`); unset or failing → the session text, so nothing that used to
+arrive can be lost. All four live on the INTAKE number's account ("Lukka
+Place", +243 976 321 848), UTILITY, French. §54.
+
+- **`DESK_ALERT_TEMPLATE`** (`services/deskAlert.js`) — every message to
+  `OPS_WHATSAPP_NUMBER` (visit copies, declines, SLA, closing prices, listing
+  and project enquiries, ops alerts, `/admin/ops-notify`) and the owners'
+  moderation-alert fallback. {{1}} = the message's first line, {{2}} = the
+  rest on one line (Meta refuses newlines in a variable). While it is set the
+  `ops-desk-keepalive` job asks nothing. Submitted as `alerte_bureau`:
+  > Alerte Lukka Place : {{1}}
+  >
+  > {{2}}
+  >
+  > Vous recevez ce message car ce numéro reçoit les notifications de l'équipe Lukka Place.
+
+  Button: Visit website, STATIC, "Ouvrir la console" → `https://lukkaplace.com/admin`.
+- **`MODERATION_ALERT_TEMPLATE`** (`annonce_a_valider`): "Nouvelle annonce à
+  valider sur Lukka Place : n° {{1}} — {{2}}. Agent : {{3}}." Button DYNAMIC
+  "Valider l'annonce" → `https://lukkaplace.com/admin/listings/{{1}}`.
+- **`LISTING_APPROVED_TEMPLATE`** (`annonce_en_ligne`, `routes/admin.js`
+  `POST /properties/:id/notify`): "Bonne nouvelle ! Votre annonce n° {{1}}
+  ({{2}}) a été validée et est maintenant en ligne sur Lukka Place." Button
+  DYNAMIC "Voir l'annonce" → `https://lukkaplace.com/listings/{{1}}`.
+- **`LISTING_REJECTED_TEMPLATE`** (`annonce_a_corriger`): "Votre annonce n°
+  {{1}} ({{2}}) n'a pas pu être publiée pour le moment. Motif : {{3}}.
+  Répondez à ce message avec les corrections et nous la vérifierons à
+  nouveau." No button. {{3}} is the coded reason + the team's note, else
+  "à préciser par notre équipe, qui vous contactera".
+- {{2}} on both verdicts is "Appartement à louer — Limete" from the engine's
+  row, "votre bien" when it holds nothing. Only WhatsApp-submitted listings
+  are notified (the endpoint finds the submitter through SQLite), as before.
 
 ## "Notez l'agent" — verified agent ratings (2026-10-18)
 

@@ -27,6 +27,7 @@
  */
 
 const chakra = require('./chakra');
+const deskAlert = require('./deskAlert');
 const db = require('./db');
 const propertyRepository = require('./propertyRepository');
 const { getPool, isConfigured } = require('./postgres');
@@ -179,10 +180,10 @@ async function handleProjectEnquiry({ developmentId, waId, name, interest, messa
   const ops = opsNumber();
   if (ops) {
     try {
-      await chakra.sendWhatsAppMessage(
+      await deskAlert.sendDeskAlert(
         ops,
         opsMessage({ project, picked, from, name: cleanName, message: cleanMessage, developerNotified, skipReason }),
-        { previewUrl: true },
+        { label: 'project enquiry' },
       );
       opsNotified = true;
     } catch (err) {

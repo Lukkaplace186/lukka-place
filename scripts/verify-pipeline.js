@@ -11300,6 +11300,130 @@ console.log('\n2. services/openai.js');
     assert.ok(web.includes(`FLOOR_MAX = ${commercial53.FLOOR_MAX};`));
   });
 
+  // ===========================================================================
+  // 54. Desk alerts and moderation verdicts as templates (2026-10-19)
+  // ===========================================================================
+
+  console.log('\n54. Desk alert template; listing approved / rejected templates');
+
+  {
+    const deskAlert54 = require('../services/deskAlert');
+    const opsDesk54 = require('../services/opsDesk');
+    const admin54 = require('../routes/admin');
+    const viewing54 = require('../services/viewingNotifications');
+    const saved54 = {
+      text: chakra.sendWhatsAppMessage,
+      template: chakra.sendTemplate,
+      env: ['DESK_ALERT_TEMPLATE', 'LISTING_APPROVED_TEMPLATE', 'LISTING_REJECTED_TEMPLATE', 'OPS_WHATSAPP_NUMBER']
+        .map((k) => [k, process.env[k]]),
+    };
+    const sent54 = [];
+    let templateFails54 = false;
+    chakra.sendWhatsAppMessage = async (to, text) => { sent54.push({ kind: 'text', to, text }); };
+    chakra.sendTemplate = async (to, name, opts) => {
+      if (templateFails54) throw new Error('(#132001) Template name does not exist');
+      sent54.push({ kind: 'template', to, name, opts });
+    };
+    const DESK54 = '243846000054';
+    const MSG54 = '🔔 Demande de visite — aucun agent prévenu\nClient : 243810000001\n\nAppartement à Limete\nhttps://lukkaplace.com/listings/310';
+
+    try {
+      check('a desk message splits into a one-line subject and one-line details', () => {
+        const [subject, details] = deskAlert54.deskAlertParams(MSG54);
+        assert.strictEqual(subject, 'Demande de visite — aucun agent prévenu');
+        assert.strictEqual(details, 'Client : 243810000001 · Appartement à Limete · https://lukkaplace.com/listings/310');
+        assert.ok(!/[\n\t]/.test(subject + details));
+        assert.deepStrictEqual(deskAlert54.deskAlertParams(''), ['Notification', 'Voir la console Lukka Place.']);
+        assert.ok(deskAlert54.deskAlertParams(`x\n${'a'.repeat(2000)}`)[1].length <= deskAlert54.DETAILS_MAX);
+      });
+
+      delete process.env.DESK_ALERT_TEMPLATE;
+      await checkAsync('no desk template → the session message, unchanged', async () => {
+        sent54.length = 0;
+        assert.strictEqual(await deskAlert54.sendDeskAlert(DESK54, MSG54), 'session');
+        assert.deepStrictEqual(sent54.map((m) => m.kind), ['text']);
+        assert.strictEqual(sent54[0].text, MSG54);
+      });
+
+      process.env.DESK_ALERT_TEMPLATE = 'alerte_bureau';
+      await checkAsync('with DESK_ALERT_TEMPLATE the desk gets the template, two body variables', async () => {
+        sent54.length = 0;
+        assert.strictEqual(await deskAlert54.sendDeskAlert(`+${DESK54}`, MSG54), 'template');
+        assert.strictEqual(sent54.length, 1);
+        assert.strictEqual(sent54[0].name, 'alerte_bureau');
+        assert.strictEqual(sent54[0].to, DESK54);
+        assert.deepStrictEqual(sent54[0].opts.bodyParams, deskAlert54.deskAlertParams(MSG54));
+        assert.strictEqual(sent54[0].opts.languageCode, 'fr');
+      });
+      await checkAsync('a failing desk template falls back to the session message', async () => {
+        sent54.length = 0;
+        templateFails54 = true;
+        assert.strictEqual(await deskAlert54.sendDeskAlert(DESK54, MSG54), 'session');
+        templateFails54 = false;
+        assert.deepStrictEqual(sent54.map((m) => m.kind), ['text']);
+      });
+
+      process.env.OPS_WHATSAPP_NUMBER = DESK54;
+      await checkAsync('every ops copy from the visit flow goes through the desk template', async () => {
+        sent54.length = 0;
+        assert.strictEqual(await viewing54.notifyOps(MSG54, 'test'), true);
+        assert.strictEqual(sent54[0].kind, 'template');
+        assert.strictEqual(sent54[0].to, DESK54);
+      });
+      check('the "répondez OK" keep-alive stops once desk alerts are templates', () => {
+        assert.strictEqual(opsDesk54.keepaliveDue(new Date()), false);
+        assert.strictEqual(opsDesk54.deskStatus().templateAlerts, true);
+      });
+
+      const LISTING54 = { wa_id: '243810000054', property_type: 'appartement', transaction_type: 'location', commune: 'Limete' };
+      check('the moderation summary and reason are one line, never invented', () => {
+        assert.strictEqual(admin54.moderationListingSummary(LISTING54), 'Appartement à louer — Limete');
+        assert.strictEqual(admin54.moderationListingSummary({}), 'votre bien');
+        assert.strictEqual(
+          admin54.moderationRejectionReason({ code: 'BAD_PHOTOS', note: 'Ajoutez\nla façade' }),
+          'les photos sont absentes, floues ou ne montrent pas le bien — Ajoutez la façade',
+        );
+        assert.strictEqual(admin54.moderationRejectionReason({ code: 'OTHER' }), 'à préciser par notre équipe, qui vous contactera');
+      });
+
+      delete process.env.LISTING_APPROVED_TEMPLATE;
+      await checkAsync('no approval template → false, so the session text is sent', async () => {
+        assert.strictEqual(await admin54.sendModerationTemplate('approved', LISTING54.wa_id, 310, LISTING54, {}), false);
+      });
+      process.env.LISTING_APPROVED_TEMPLATE = 'annonce_en_ligne';
+      process.env.LISTING_REJECTED_TEMPLATE = 'annonce_a_corriger';
+      await checkAsync('approved: template with the listing number and a link button to it', async () => {
+        sent54.length = 0;
+        assert.strictEqual(await admin54.sendModerationTemplate('approved', LISTING54.wa_id, 310, LISTING54, {}), true);
+        assert.strictEqual(sent54[0].name, 'annonce_en_ligne');
+        assert.deepStrictEqual(sent54[0].opts.bodyParams, ['310', 'Appartement à louer — Limete']);
+        assert.strictEqual(sent54[0].opts.urlButton, '310');
+      });
+      await checkAsync('rejected: template with the reason as {{3}} and no button', async () => {
+        sent54.length = 0;
+        assert.strictEqual(
+          await admin54.sendModerationTemplate('rejected', LISTING54.wa_id, 310, LISTING54, { code: 'WRONG_PRICE' }),
+          true,
+        );
+        assert.strictEqual(sent54[0].name, 'annonce_a_corriger');
+        assert.strictEqual(sent54[0].opts.bodyParams[2], 'le prix indiqué semble incorrect ou incohérent');
+        assert.strictEqual(sent54[0].opts.urlButton, undefined);
+      });
+      await checkAsync('a failing moderation template reports false, so the text still goes', async () => {
+        templateFails54 = true;
+        assert.strictEqual(await admin54.sendModerationTemplate('approved', LISTING54.wa_id, 310, LISTING54, {}), false);
+        templateFails54 = false;
+      });
+    } finally {
+      chakra.sendWhatsAppMessage = saved54.text;
+      chakra.sendTemplate = saved54.template;
+      for (const [k, v] of saved54.env) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

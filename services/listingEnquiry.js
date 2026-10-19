@@ -55,6 +55,7 @@
  */
 
 const chakra = require('./chakra');
+const deskAlert = require('./deskAlert');
 const db = require('./db');
 const propertyRepository = require('./propertyRepository');
 const { placeLabel } = require('./locations');
@@ -266,10 +267,10 @@ async function notifyEnquiry({ listing, propertyId, from, quotedReference }) {
   const OPS_NUMBER = opsNumber();
   if (OPS_NUMBER) {
     try {
-      await chakra.sendWhatsAppMessage(
+      await deskAlert.sendDeskAlert(
         OPS_NUMBER,
         opsMessage({ listing, propertyId, from, quotedReference, agentNotified, agentSkipReason }),
-        { previewUrl: true },
+        { label: 'listing enquiry' },
       );
       opsNotified = true;
     } catch (err) {

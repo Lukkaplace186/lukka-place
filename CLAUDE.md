@@ -1394,8 +1394,12 @@ Place", +243 976 321 848), UTILITY, French. §54.
   nouveau." No button. {{3}} is the coded reason + the team's note, else
   "à préciser par notre équipe, qui vous contactera".
 - {{2}} on both verdicts is "Appartement à louer — Limete" from the engine's
-  row, "votre bien" when it holds nothing. Only WhatsApp-submitted listings
-  are notified (the endpoint finds the submitter through SQLite), as before.
+  row, "votre bien" when it holds nothing. The recipient is the WhatsApp
+  submitter (SQLite); for a listing typed on the website (no SQLite row) it
+  is the listing's own agent from Postgres, phone-verified and not deleted
+  (`propertyRepository.getModerationRecipient`, no public filter — the
+  listing is pending or rejected). Neither → 404, nothing sent (2026-10-20,
+  #314–#317 had reached nobody). §57.
 
 ## "Notez l'agent" — verified agent ratings (2026-10-18)
 

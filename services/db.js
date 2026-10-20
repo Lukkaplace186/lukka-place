@@ -915,18 +915,24 @@ function expandAndPublishListing(id) {
 
   const parentBuildingId = parsed.is_multi_unit ? crypto.randomUUID() : null;
   const ids = [];
+  // Unrelated properties get their own photos when the burst lined up (see
+  // photosByProperty); otherwise, as for a building, every photo goes to every unit.
+  const photoGroups = photosByProperty(parsed, draft.photos || [], units.length);
 
   // Everything below is one transaction: a building that half-published would
   // leave orphan units on the storefront with no sibling to group them with.
   db.transaction(() => {
     // The draft becomes unit #1.
     applyListingCorrection(id, unitPatch(units[0], parsed), null, [], []);
+    if (photoGroups) {
+      db.prepare('UPDATE listings SET photos = ? WHERE id = ?').run(JSON.stringify(photoGroups[0]), id);
+    }
     if (parentBuildingId) {
       db.prepare('UPDATE listings SET parent_building_id = ? WHERE id = ?').run(parentBuildingId, id);
     }
     ids.push(id);
 
-    for (const unit of units.slice(1)) {
+    for (const [offset, unit] of units.slice(1).entries()) {
       const listingData = {
         ...unitPatch(unit, parsed),
         intent: draft.intent || 'listing',
@@ -959,8 +965,9 @@ function expandAndPublishListing(id) {
         // unique index would reject a second row claiming it.
         agentName: draft.agent_name,
         rawText: draft.raw_text,
-        // Photos of the building are photos of every unit in it.
-        photos: draft.photos || [],
+        // Photos of the building are photos of every unit in it; separate
+        // properties take their own block when one was found.
+        photos: photoGroups ? photoGroups[offset + 1] : draft.photos || [],
         agentId: draft.agent_id,
         parentBuildingId,
       });
@@ -978,6 +985,28 @@ function expandAndPublishListing(id) {
       + (parentBuildingId ? `units (building ${parentBuildingId})` : 'separate listings'),
   );
   return { ids, parentBuildingId, unitCount: ids.length };
+}
+
+/**
+ * Each property's own photos, for a paste of several UNRELATED properties
+ * (is_multi_property). routes/webhook.js records, per photo, which text
+ * message it came with (`photo_blocks`: a message with text opens a block).
+ * Used only when it lines up exactly: as many blocks as properties, every
+ * property with at least one photo, and the draft still holding exactly the
+ * photos that were recorded (a photo added by a correction has no block).
+ * Anything else → null, and every property keeps every photo, as before.
+ */
+function photosByProperty(parsed, photos, unitCount) {
+  const blocks = parsed?.photo_blocks;
+  if (!parsed?.is_multi_property || !Array.isArray(blocks) || !Array.isArray(photos)) return null;
+  if (blocks.length !== photos.length || unitCount < 2) return null;
+  const groups = Array.from({ length: unitCount }, () => []);
+  for (let i = 0; i < photos.length; i += 1) {
+    const block = blocks[i];
+    if (!Number.isInteger(block) || block < 0 || block >= unitCount) return null;
+    groups[block].push(photos[i]);
+  }
+  return groups.every((group) => group.length > 0) ? groups : null;
 }
 
 /** One unit's own values, falling back to the building-level extraction. */
@@ -4008,6 +4037,7 @@ module.exports = {
   findLatestPendingListing,
   publishListing,
   expandAndPublishListing,
+  photosByProperty,
   findRecentPublishedListing,
   resyncListing,
   findListingAwaitingSalePrice,

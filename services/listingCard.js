@@ -86,6 +86,18 @@ function periodSuffix(row) {
   return ' / mois';
 }
 
+/**
+ * One line per listing for the publish receipt: "Appartement à Kintambo — 500 $ / mois".
+ * Only what the row holds: no place or no price drops that part, never a guess.
+ */
+function listingSummaryLine(row) {
+  if (!row) return 'Annonce';
+  const type = PROPERTY_TYPE_LABELS[row.property_type] || (present(row.property_type) ? String(row.property_type) : 'Bien');
+  const place = present(row.commune) ? row.commune : present(row.quartier) ? row.quartier : null;
+  const price = Number(row.price) > 0 ? `${money(row.price, row.currency || 'USD')}${periodSuffix(row)}` : null;
+  return [place ? `${type} à ${place}` : type, price].filter(Boolean).join(' — ');
+}
+
 /** A row whose parsed extraction describes several units or properties keeps the model's itemised recap. */
 function isGroupedListing(row) {
   const parsed = row?.parsed_json || {};
@@ -271,4 +283,5 @@ module.exports = {
   introFrom,
   missingFields,
   isGroupedListing,
+  listingSummaryLine,
 };

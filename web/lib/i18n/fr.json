@@ -3477,6 +3477,9 @@
       "rankingExplained": "Chaque agence est notée sur sa couverture de la commune (spécialité 50 pts, couverture simple 20 pts), son stock réel de biens publiés dans cette commune (jusqu'à 25 pts), les biens correspondant au budget et au nombre de chambres demandés (jusqu'à 15 pts) et la vérification de son numéro WhatsApp (10 pts). Le total est multiplié par la priorité de son forfait, puis pondéré par sa réactivité et son volume récent — ce chiffre final est le score du tableau."
     },
     "agentPanel": {
+      "firstName": "Prénom",
+      "lastName": "Nom",
+      "editProfile": "Modifier le profil",
       "identityAndTerritory": "Identité et territoire",
       "agencyName": "Nom de l’agence",
       "accountStatus": "Statut du compte",

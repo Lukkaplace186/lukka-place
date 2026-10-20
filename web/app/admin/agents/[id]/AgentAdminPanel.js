@@ -105,10 +105,18 @@ export default function AgentAdminPanel({ agent, communes, listingCount }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <form onSubmit={handleSave} className="u-card flex flex-col gap-5 rounded-card bg-surface p-6">
+      <form id="profil" onSubmit={handleSave} className="u-card flex scroll-mt-24 flex-col gap-5 rounded-card bg-surface p-6">
         <h2 className="u-title-card text-ink">{t('admin.agentPanel.identityAndTerritory')}</h2>
 
         <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <span className={LABEL}>{t('admin.agentPanel.firstName')}</span>
+            <input name="first_name" defaultValue={agent.first_name || ''} maxLength={80} className={FIELD} />
+          </div>
+          <div>
+            <span className={LABEL}>{t('admin.agentPanel.lastName')}</span>
+            <input name="last_name" defaultValue={agent.last_name || ''} maxLength={80} className={FIELD} />
+          </div>
           <div>
             <span className={LABEL}>{t('admin.agentPanel.agencyName')}</span>
             <input name="agency_name" defaultValue={agent.agency_name || ''} className={FIELD} />

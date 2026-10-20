@@ -381,6 +381,7 @@ async function downloadImages(refs, label) {
       }
 
       if (image) {
+        image.block = ref.block ?? 0;
         console.log(
           `[chakra] media ${ref.id || 'url'} downloaded (${image.mimeType}, ` +
             `${Math.max(1, Math.round(image.sizeBytes / 1024))} KB)`,
@@ -414,11 +415,23 @@ const PUBLISHED_REPLY =
  * listings from one message, and saying "votre annonce" for four of them
  * would leave the agent unsure whether the other three landed.
  */
-function publishedReply(unitCount) {
-  if (unitCount > 1) {
-    return `Merci ! Vos ${unitCount} annonces liées sont bien reçues ✅ Notre équipe les vérifie : elles seront en ligne après validation, et nous vous prévenons ici dès leur mise en ligne.`;
-  }
-  return PUBLISHED_REPLY;
+function publishedReply(ids = []) {
+  const rows = (Array.isArray(ids) ? ids : []).map((id) => getListing(id)).filter(Boolean);
+  if (rows.length === 0) return PUBLISHED_REPLY;
+  // One receipt naming every listing the OK created, so an agent who pasted
+  // three properties can see all three landed as three (launch, 2026-10-20).
+  const many = rows.length > 1;
+  return [
+    many
+      ? `✅ *${rows.length} annonces bien reçues et en cours de modération !*`
+      : '✅ *Annonce bien reçue et en cours de modération !*',
+    ...rows.map((row, i) => `${many ? `${i + 1}.` : '•'} ${listingCard.listingSummaryLine(row)}`),
+    '',
+    many
+      ? 'Notre équipe les vérifie, et nous vous prévenons ici dès leur mise en ligne.'
+      : 'Notre équipe la vérifie, et nous vous prévenons ici dès sa mise en ligne.',
+  ].join('
+');
 }
 
 /**
@@ -806,6 +819,16 @@ async function processGroup(messages) {
     }
   }
 
+  // Which property each photo belongs to when one burst carries several
+  // (is_multi_property): every message with text opens a new block, and a
+  // photo belongs to the block it arrived in. db.expandAndPublishListing uses
+  // this only when it lines up exactly with the properties the model found.
+  let photoBlock = -1;
+  for (const m of messages) {
+    if (m.text && String(m.text).trim()) photoBlock += 1;
+    for (const ref of m.media || []) ref.block = Math.max(photoBlock, 0);
+  }
+
   const allMediaRefs = messages.flatMap((m) => m.media || []);
 
   // PDF flyers take a different route from photos: they carry a text layer the
@@ -948,8 +971,8 @@ async function processGroup(messages) {
 
       // Expands a multi-unit building into one published row per layout, and
       // is an ordinary publish for everything else.
-      const { unitCount } = expandAndPublishListing(pending.id);
-      await chakra.sendWhatsAppMessage(from, publishedReply(unitCount), {
+      const { ids: publishedIds } = expandAndPublishListing(pending.id);
+      await chakra.sendWhatsAppMessage(from, publishedReply(publishedIds), {
         replyToMessageId: primaryWamid || undefined,
       });
       console.log(`[db] listing #${pending.id} published (confirmed by ${from})`);
@@ -1346,8 +1369,8 @@ async function processGroup(messages) {
       if (photoPaths.length) {
         applyListingCorrection(pending.id, null, null, wamids, photoPaths);
       }
-      const { unitCount: confirmedUnits } = expandAndPublishListing(pending.id);
-      await chakra.sendWhatsAppMessage(from, publishedReply(confirmedUnits), {
+      const { ids: confirmedIds } = expandAndPublishListing(pending.id);
+      await chakra.sendWhatsAppMessage(from, publishedReply(confirmedIds), {
         replyToMessageId: primaryWamid || undefined,
       });
       console.log(`[db] listing #${pending.id} published (conversational confirmation from ${from})`);
@@ -1371,6 +1394,10 @@ async function processGroup(messages) {
       // Stands on its own as a complete listing — always its own row, even if
       // this sender still has an earlier one awaiting confirmation (e.g. a
       // second, unrelated property posted before replying 'OK' to the first).
+      if (extracted.is_multi_property && photoPaths.length) {
+        // persistImages keeps the order of `images`, so index i of both is the same photo.
+        extracted.photo_blocks = images.map((image) => image.block ?? 0);
+      }
       const { id, duplicate } = insertListing(extracted, from, {
         wamid: primaryWamid,
         groupWamids: wamids,

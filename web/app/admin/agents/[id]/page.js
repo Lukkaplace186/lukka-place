@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, ExternalLink } from 'lucide-react';
+import { ArrowLeft, ExternalLink, Pencil } from 'lucide-react';
 import { getAgentForAdmin } from '@/lib/agents';
 import { getLocationHierarchyWithFallback } from '@/lib/locations';
 import { getAgentBillingHistory } from '@/lib/subscriptions';
@@ -310,6 +310,15 @@ export default async function AdminAgentDetailPage({ params, searchParams }) {
         </div>
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
+          {can(session?.role, 'agents.manage') ? (
+            <Link
+              href={`${base}#profil`}
+              className="u-micro-strong inline-flex h-9 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-ink hover:border-blue"
+            >
+              <Pencil strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
+              {t('admin.agentPanel.editProfile')}
+            </Link>
+          ) : null}
           {can(session?.role, 'accounts.impersonate') ? (
             <ImpersonateButton targetType="agent" targetId={agent.id} targetLabel={displayName} sharedSession={Boolean(session?.shared)} />
           ) : null}

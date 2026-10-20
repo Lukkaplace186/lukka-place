@@ -3477,6 +3477,9 @@
       "rankingExplained": "Each agency is scored on its coverage of the commune (specialty 50 pts, coverage 20 pts), its real published listings in that commune (up to 25 pts), listings matching the requested budget and bedrooms (up to 15 pts) and a verified WhatsApp number (10 pts). The total is multiplied by its plan priority, then weighted by responsiveness and recent volume — that final figure is the score in the table."
     },
     "agentPanel": {
+      "firstName": "First Name",
+      "lastName": "Last Name",
+      "editProfile": "Edit Profile",
       "identityAndTerritory": "Identity and Territory",
       "agencyName": "Agency name",
       "accountStatus": "Account status",

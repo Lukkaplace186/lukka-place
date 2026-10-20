@@ -12,6 +12,7 @@ import {
   setAgentTestFlag,
 } from '@/lib/agents';
 import { adminSetAccountPassword } from '@/lib/adminPasswordReset';
+import { updateAgentIdentity } from '@/lib/agencies';
 import { getT } from '@/lib/i18n/server';
 
 function revalidateAgent(agentId) {
@@ -49,11 +50,27 @@ export async function adminSaveAgentAction(agentId, validCommunes, formData) {
     });
 
     if (!ok) return { ok: false, error: t('errors.agentNotFound') };
+
+    // The person's name lives on agent_infos and every listing, card and admin
+    // table joins it live, so a correction here shows everywhere at once.
+    // Only written when the form carries the fields (a page rendered before
+    // they existed must not blank a name).
+    let nameChanged = false;
+    if (formData.has('first_name') || formData.has('last_name')) {
+      const firstName = String(formData.get('first_name') || '').trim().slice(0, 80) || null;
+      const lastName = String(formData.get('last_name') || '').trim().slice(0, 80) || null;
+      const before = await getAgentById(agentId);
+      if ((before?.first_name || null) !== firstName || (before?.last_name || null) !== lastName) {
+        await updateAgentIdentity(agentId, { firstName, lastName });
+        nameChanged = true;
+      }
+    }
+
     await recordAudit(session, {
       action: 'agent.update',
       entityType: 'agent',
       entityId: agentId,
-      details: { status: [0, 1].includes(status) ? status : null, phoneVerified, primary, serviced },
+      details: { status: [0, 1].includes(status) ? status : null, phoneVerified, primary, serviced, nameChanged },
     });
     revalidateAgent(agentId);
     return { ok: true };

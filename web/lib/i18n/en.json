@@ -194,7 +194,9 @@
       "seeSuggestions": {
         "one": "See {count} suggestion",
         "other": "See {count} suggestions"
-      }
+      },
+      "city": "City",
+      "allCities": "All cities"
     },
     "value": {
       "verifiedTitle": "Reviewed Listings",
@@ -3077,7 +3079,14 @@
       "publishNow": "Publish now (same checks as “Approve”)",
       "deleteOne": "Delete listing",
       "addPhotos": "Add photos",
-      "photosAdded": "{count} photo(s) added."
+      "photosAdded": "{count} photo(s) added.",
+      "agentTitle": "Agent",
+      "noAgent": "No agent: Lukka Place’s central number is shown.",
+      "assignAgent": "Assign to this agent",
+      "removeAgent": "Remove the agent",
+      "agentAssigned": "Listing assigned to the agent.",
+      "agentRemoved": "Agent removed from the listing.",
+      "agentUnchanged": "No change."
     },
     "leads": {
       "title": "Leads",
@@ -3265,7 +3274,12 @@
       "duplicatesTitle": "{count} Potential Duplicates",
       "sortBy": "Sort by",
       "loadError": "Agents could not be loaded: {error}",
-      "delete": "Delete"
+      "delete": "Delete",
+      "remindVerify": "Remind to verify",
+      "reminderHint": "Sends the agent a WhatsApp reminder. It only arrives if the agent wrote to Lukka Place in the last 24 hours.",
+      "reminderSent": "Verification reminder sent on WhatsApp (received if the agent wrote to us in the last 24 hours).",
+      "reminderNoPhone": "This agent has no valid number.",
+      "reminderFailed": "The reminder could not be sent."
     },
     "actions": {
       "approve": "Approve",
@@ -3912,7 +3926,12 @@
       "noAgencyName": "no agency name",
       "contactUnverified": "number not verified",
       "moreAgents": "+{count} other agent(s)",
-      "noAgentYet": "No agent yet"
+      "noAgentYet": "No agent yet",
+      "rename": "Rename agency",
+      "renameSave": "Save",
+      "renameInvalid": "Enter a real agency name (at least 2 characters, not a number).",
+      "renamed": "Name saved for {count} agent(s) of the agency.",
+      "renamedButLogin": "Name saved for {count} agent(s). The console still shows the old back-office login “{login}”."
     },
     "agentProfile": {
       "tabs": "Agent sections",
@@ -5220,6 +5239,17 @@
       "approved": "Comment published.",
       "rejected": "Comment rejected.",
       "failed": "Could not do that. Try again."
+    },
+    "records": {
+      "deleteLead": "Delete",
+      "deleteLeadTitle": "Delete This Prospect?",
+      "deleteLeadBody": "The request, its visits and the agencies it was sent to are deleted for good. Nobody is told.",
+      "leadDeleted": "Prospect deleted ({count} visit(s) with it).",
+      "deleteViewing": "Delete",
+      "deleteViewingTitle": "Delete This Visit?",
+      "deleteViewingBody": "The visit request is deleted for good; the prospect stays. Nobody is told.",
+      "viewingDeleted": "Visit deleted.",
+      "notFound": "Not found: already deleted?"
     }
   },
   "errors": {

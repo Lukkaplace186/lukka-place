@@ -162,3 +162,46 @@ export function cityOfListing(listing) {
 export function provinceOfCity(name) {
   return findCity(name)?.province || null;
 }
+
+/**
+ * A city named in search text (2026-10-21) — its whole name ("Lubumbashi",
+ * "Mbuji-Mayi"), or a word of 4+ letters it starts with, as typed in the live
+ * search box ("lubum"). Kinshasa is not looked for: it is the default, and
+ * "Kinshasa" in Kinshasa search text is the city every address ends with.
+ * Returns { city, matchedText } or null. Exists because Kinshasa has
+ * quartiers named after cities (Lubumbashi in Kasa-Vubu, Goma in Ndjili), and
+ * without it "lubum" searched Kasa-Vubu.
+ */
+export function findCityMention(text) {
+  const folded = ` ${fold(text)} `;
+  for (const city of CITIES) {
+    if (city.name === DEFAULT_CITY) continue;
+    const name = fold(city.name);
+    if (folded.includes(` ${name} `)) return { city, matchedText: city.name };
+  }
+  const words = folded.trim().split(' ').filter((w) => w.length >= 4);
+  for (const word of words) {
+    const hits = CITIES.filter((city) => city.name !== DEFAULT_CITY && fold(city.name).replace(/ /g, '').startsWith(word));
+    if (hits.length === 1) return { city: hits[0], matchedText: word };
+  }
+  return null;
+}
+
+/**
+ * A commune of `cityName` named in the text (whole words, accents and case
+ * ignored), or of any city other than Kinshasa when no city is given.
+ * Returns { key, city, matchedText } or null.
+ */
+export function findCommuneInCity(text, cityName = null) {
+  const folded = ` ${fold(text)} `;
+  const pool = CITIES.filter((city) => (cityName ? city.name === cityName : city.name !== DEFAULT_CITY));
+  for (const city of pool) {
+    for (const commune of city.communes) {
+      const label = fold(communeLabel(commune.key));
+      if (label && label !== fold(city.name) && folded.includes(` ${label} `)) {
+        return { key: commune.key, city: city.name, matchedText: communeLabel(commune.key) };
+      }
+    }
+  }
+  return null;
+}

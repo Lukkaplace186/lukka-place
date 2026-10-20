@@ -38,6 +38,9 @@ export const PERMISSIONS = {
   'agents.delete': ['owner'],
   // Bulk "Supprimer la sélection" on the approval queue: a soft delete with undo (lib/adminSoftDelete.js).
   'listings.delete': ['owner'],
+  // Permanent: engine SQLite rows, no undo (app/admin/recordDeleteActions.js).
+  'leads.delete': ['owner'],
+  'viewings.delete': ['owner'],
   'customers.manage': ['owner', 'support'],
   'leads.manage': ['owner', 'moderator', 'support'],
   'conversations.reply': ['owner', 'support'],

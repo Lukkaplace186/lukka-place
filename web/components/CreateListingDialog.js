@@ -617,7 +617,7 @@ export default function CreateListingDialog({ communes, categories, draftKey = n
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="area" className={LABEL_CLASS}>Superficie (m²)</label>
-              <input id="area" name="area" type="number" min="1" step="1" className={FIELD_CLASS} />
+              <input id="area" name="area" type="number" min="0.01" step="0.01" inputMode="decimal" className={FIELD_CLASS} />
             </div>
             <div>
               <label htmlFor="quartier" className={LABEL_CLASS}>{t('listings.filters.quartier')}</label>

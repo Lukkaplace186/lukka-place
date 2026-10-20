@@ -1584,7 +1584,7 @@ console.log('\n2. services/openai.js');
       { category: fakeCategory, location: fakeLocation },
     );
     assert.strictEqual(values.purpose, 'sale');
-    assert.strictEqual(values.area, '95');
+    assert.strictEqual(values.area, '95.4'); // decimals kept since 2026-10-21
     assert.strictEqual(values.quartier, 'Kimwenza');
     assert.strictEqual(values.category_id, 34);
     assert.strictEqual(values.city_id, 2);
@@ -11778,6 +11778,53 @@ console.log('\n2. services/openai.js');
     // A building (multi-unit) always shares its photos.
     assert.strictEqual(dbService.photosByProperty({ is_multi_unit: true, photo_blocks: [0, 0, 1] }, photos, 2), null);
   });
+
+  // ===========================================================================
+  // 60. Console deletes of prospects and visits; surface decimals (2026-10-21)
+  // ===========================================================================
+
+  console.log('\n60. Deleting a prospect or a visit; surface keeps its decimals');
+
+  {
+    const CUSTOMER60 = '243810006060';
+    const lead60 = dbService.createLead({ wa_id: CUSTOMER60, name: 'Client 60', source: 'listing-visit-request', property_id: 6060 });
+    const visitA60 = dbService.createViewingRequest({ leadId: lead60.id, propertyId: 6060, requestedTime: 'samedi 10h' });
+    const visitB60 = dbService.createViewingRequest({ leadId: lead60.id, propertyId: 6061, requestedTime: 'dimanche 11h' });
+    dbService.setPendingAgentAction({ waId: '243810006061', kind: 'VIEWING_RESPONSE', viewingRequestId: visitA60.id });
+    dbService.recordLeadMatch({ leadId: lead60.id, agentId: 6060 });
+
+    const unknown60 = await adminRequest('DELETE', '/admin/viewing-requests/9999060');
+    check('deleting an unknown visit is a 404, not a 500', () => assert.strictEqual(unknown60.status, 404));
+
+    const visitDel60 = await adminRequest('DELETE', `/admin/viewing-requests/${visitA60.id}`);
+    check('a visit with an open WhatsApp question is deleted, the prospect stays', () => {
+      assert.strictEqual(visitDel60.status, 200);
+      assert.strictEqual(visitDel60.body.leadId, lead60.id);
+      assert.strictEqual(dbService.db.prepare('SELECT COUNT(*) n FROM viewing_requests WHERE id = ?').get(visitA60.id).n, 0);
+      assert.strictEqual(dbService.db.prepare('SELECT COUNT(*) n FROM pending_agent_actions WHERE viewing_request_id = ?').get(visitA60.id).n, 0);
+      assert.ok(dbService.db.prepare('SELECT id FROM leads WHERE id = ?').get(lead60.id));
+    });
+
+    const leadDel60 = await adminRequest('DELETE', `/admin/leads/${lead60.id}`);
+    check('a prospect is deleted with its remaining visits and agency matches', () => {
+      assert.strictEqual(leadDel60.status, 200);
+      assert.strictEqual(leadDel60.body.visits, 1);
+      for (const [table, column, id] of [['leads', 'id', lead60.id], ['viewing_requests', 'id', visitB60.id], ['lead_matches', 'lead_id', lead60.id]]) {
+        assert.strictEqual(dbService.db.prepare(`SELECT COUNT(*) n FROM ${table} WHERE ${column} = ?`).get(id).n, 0, table);
+      }
+    });
+
+    const again60 = await adminRequest('DELETE', `/admin/leads/${lead60.id}`);
+    check('deleting the same prospect twice is a 404', () => assert.strictEqual(again60.status, 404));
+
+    check('a surface read by the model keeps up to two decimals when published', () => {
+      const values = postgresService.buildPropertyValues(
+        { property_type: 'appartement', transaction_type: 'location', surface_area_sqm: 250.756 },
+        { category: { id: 34, type: 'residential' }, location: { countryId: 1, cityId: 2 } },
+      );
+      assert.strictEqual(values.area, '250.76');
+    });
+  }
 
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);

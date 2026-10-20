@@ -176,6 +176,7 @@ export default function AdminListingEditor({ listing, communes, categories }) {
               name="area"
               type="number"
               min="0"
+              step="0.01"
               // '0' is this column's stored "unknown" — shown as blank so a
               // moderator never reads it as a real measurement, and cleared
               // back to NULL on save.

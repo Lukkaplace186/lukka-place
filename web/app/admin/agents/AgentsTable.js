@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { BadgeCheck, Building2, MoreHorizontal, PauseCircle, PlayCircle, ScanEye, Settings2, Trash2 } from 'lucide-react';
+import { BadgeCheck, BellRing, Building2, MoreHorizontal, PauseCircle, PlayCircle, ScanEye, Settings2, Trash2 } from 'lucide-react';
 import { useToast } from '@/components/Toast';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -20,6 +20,7 @@ import { bulkUpdateAgentStatusAction } from './bulkActions';
 import { assignBranchAction } from '../agencies/[id]/branchActions';
 import { ImpersonateDialog } from '../ImpersonateButton';
 import DeleteAgentDialog from './DeleteAgentDialog';
+import { sendVerificationReminderAction } from './verificationReminderActions';
 import { BulkDeleteButton, useBulkDelete } from '../BulkDelete';
 
 const BUTTON =
@@ -237,6 +238,10 @@ export default function AgentsTable({ rows, vendors, footer, branchContext = nul
                       <DropdownMenuItem onSelect={() => { setVendorId(agent.vendorId ? String(agent.vendorId) : ''); setVendorDialog(agent); }}>
                         <Building2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
                         {t('admin.agents.changeAgency')}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => run(() => sendVerificationReminderAction(agent.id))}>
+                        <BellRing strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                        {t('admin.agents.remindVerify')}
                       </DropdownMenuItem>
                       {canImpersonate ? (
                         <DropdownMenuItem onSelect={() => setImpersonating(agent)}>

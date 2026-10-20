@@ -7,6 +7,7 @@ import { recordAudit } from '@/lib/adminAudit';
 import { adminUpdateListing, adminSetListingVisible, getListingForAdmin } from '@/lib/adminListings';
 import { setListingGallery } from '@/lib/agentListings';
 import { getT } from '@/lib/i18n/server';
+import { normaliseArea } from '@/lib/listingView';
 
 const LISTING_STATUSES = ['active', 'under_offer', 'closed'];
 const PURPOSES = ['rent', 'sale'];
@@ -101,8 +102,9 @@ export async function adminUpdateListingAction(propertyId, validCommunes, validC
       bath: int(formData, 'bath'),
       // `area` is TEXT storing '0' for unknown — a cleared field becomes NULL, not '0'.
       area: (() => {
-        const value = int(formData, 'area');
-        return value === undefined ? undefined : value == null ? null : String(value);
+        if (formData.get('area') === null) return undefined;
+        const value = normaliseArea(formData.get('area'));
+        return value == null || Number.isNaN(value) ? null : String(value);
       })(),
       unitsCount: int(formData, 'units_count'),
       depositMonths: int(formData, 'deposit_months'),

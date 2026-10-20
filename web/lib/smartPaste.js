@@ -178,7 +178,7 @@ export function buildFormValuesFromParsed(extracted, { communes, categories = []
     currency: extracted.price != null ? (extracted.currency === 'CDF' ? 'CDF' : 'USD') : null,
     beds: extracted.bedrooms != null ? String(extracted.bedrooms) : '',
     bath: extracted.bathrooms != null ? String(extracted.bathrooms) : '',
-    area: extracted.surface_area_sqm != null ? String(Math.round(extracted.surface_area_sqm)) : '',
+    area: extracted.surface_area_sqm != null ? String(Math.round(extracted.surface_area_sqm * 100) / 100) : '',
     unitsCount: extracted.units_count != null ? String(extracted.units_count) : '',
     depositMonths: extracted.deposit_months != null ? String(extracted.deposit_months) : '',
     // Commercial-space specs (lib/commercialSpaces.js) — the engine already

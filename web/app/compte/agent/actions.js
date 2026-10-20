@@ -53,6 +53,7 @@ import { LEAD_STATUSES } from '@/lib/adminLabels';
 import { currentQuotaPeriodStart, resolveLeadQuota } from '@/lib/leadQuota';
 import { createPlanChangeRequest, getPurchasablePackages } from '@/lib/subscriptions';
 import { getT } from '@/lib/i18n/server';
+import { normaliseArea } from '@/lib/listingView';
 import { getListingQuota } from '@/lib/listingQuota';
 import { quotaRefusal } from '@/lib/listingQuotaRules';
 import { AGENT_SETTABLE_VIEWING_STATUSES, canAgentSetStatus } from '@/lib/viewingActions';
@@ -346,7 +347,7 @@ export async function createListingAction(validCommunes, validCategories, formDa
   // (see hasArea() in lib/listingView.js), so an unknown surface must stay
   // empty, not become a zero.
   const areaRaw = formData.get('area');
-  const area = areaRaw ? Number.parseInt(areaRaw, 10) : null;
+  const area = normaliseArea(areaRaw);
   const quartier = String(formData.get('quartier') || '').trim() || null;
   const reference = String(formData.get('reference') || '').trim().slice(0, 120) || null;
   const photos = formData.getAll('photos').filter((f) => f && typeof f !== 'string' && f.size > 0);
@@ -887,7 +888,7 @@ export async function updateListingAction(propertyId, validCommunes, formData) {
   const unitsCount = optionalInt('units_count');
   const depositMonths = optionalInt('deposit_months');
   const areaRaw = formData.get('area');
-  const areaNumber = String(areaRaw ?? '').trim() === '' ? null : Number.parseFloat(areaRaw);
+  const areaNumber = normaliseArea(areaRaw);
 
   if (!title) return { ok: false, error: t('errors.titleRequired') };
   if (description.length < 15) return { ok: false, error: t('errors.descriptionTooShort') };

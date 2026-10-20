@@ -365,7 +365,7 @@ async function linkListingsToAgent(remotePropertyIds, waId) {
  */
 function buildPropertyValues(row, { category, location, agentId = null }) {
   const purpose = row.transaction_type === 'vente' ? 'sale' : 'rent';
-  const area = Number.isFinite(row.surface_area_sqm) ? String(Math.round(row.surface_area_sqm)) : '0';
+  const area = Number.isFinite(row.surface_area_sqm) ? String(Math.round(row.surface_area_sqm * 100) / 100) : '0';
 
   return {
     vendor_id: 0,

@@ -8,6 +8,8 @@
  * Pure, so tests/unit/storefront-upgrade.test.js can pin it. `t` is the
  * caller's translator.
  */
+import { communeLabel } from './cities';
+
 export function understoodChips(parsed, t) {
   if (!parsed) return [];
   const chips = [];
@@ -20,7 +22,9 @@ export function understoodChips(parsed, t) {
   if (parsed.near) chips.push({ key: 'near', label: t('home.search.near', { place: parsed.near }) });
   else if (parsed.commune) {
     const places = parsed.communes?.length > 1 ? parsed.communes : [parsed.commune];
-    chips.push({ key: 'place', label: [parsed.quartier, ...places].filter(Boolean).join(', ') });
+    chips.push({ key: 'place', label: [parsed.quartier, ...places.map(communeLabel), parsed.ville].filter(Boolean).join(', ') });
+  } else if (parsed.ville) {
+    chips.push({ key: 'place', label: parsed.ville });
   }
   if (parsed.beds_min != null) chips.push({ key: 'beds', label: t('home.search.bedsMin', { count: parsed.beds_min }) });
   const money = (n) => Number(n).toLocaleString(t.locale === 'en' ? 'en-GB' : 'fr-FR');

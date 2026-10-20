@@ -1,7 +1,7 @@
 import { placeLabel } from '@/lib/placeLabel';
 import { formatPriceParts } from './format';
 import { formatPhoneDisplay } from './phone';
-import { entryTerms, hasArea } from './listingView';
+import { entryTerms, formatArea, hasArea } from './listingView';
 import { SITE_URL } from './constants';
 
 /**
@@ -117,7 +117,7 @@ export function roomSpecItems(listing) {
   if (beds > 0) items.push({ icon: 'bed', text: plural(beds, 'chambre', 'chambres') });
   const bath = Number(listing.bath);
   if (bath > 0) items.push({ icon: 'bath', text: plural(bath, 'salle de bain', 'salles de bain') });
-  if (hasArea(listing.area)) items.push({ icon: 'area', text: `${listing.area} m²` });
+  if (hasArea(listing.area)) items.push({ icon: 'area', text: `${formatArea(listing.area)} m²` });
   const units = Number(listing.units_count);
   if (listing.units_count != null && units > 0) items.push({ icon: 'door', text: plural(units, 'porte', 'portes') });
 

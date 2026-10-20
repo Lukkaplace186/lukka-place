@@ -4027,8 +4027,61 @@ function close() {
   db.close();
 }
 
+// ---------------------------------------------------------------------------
+// Console deletion of visits and prospects (2026-10-21)
+// ---------------------------------------------------------------------------
+
+/**
+ * Remove one visit request and what hangs off it here: the open WhatsApp
+ * questions about it (pending_agent_actions / pending_customer_actions, whose
+ * foreign keys would refuse the delete). The lead it came from stays — a
+ * prospect is more than one visit. Postgres rows keyed by its id
+ * (agent_performance_logs, agent_reviews) are left as history; nothing joins
+ * them back to a missing visit. Returns the row as it was, or null.
+ */
+function deleteViewingRequest(id) {
+  const numericId = Number.parseInt(id, 10);
+  if (!Number.isInteger(numericId)) return null;
+  return db.transaction(() => {
+    const row = db.prepare('SELECT * FROM viewing_requests WHERE id = ?').get(numericId);
+    if (!row) return null;
+    db.prepare('DELETE FROM pending_agent_actions WHERE viewing_request_id = ?').run(numericId);
+    db.prepare('DELETE FROM pending_customer_actions WHERE viewing_request_id = ?').run(numericId);
+    db.prepare('DELETE FROM viewing_requests WHERE id = ?').run(numericId);
+    return row;
+  })();
+}
+
+/**
+ * Remove a prospect (lead) and everything that exists only because of it: its
+ * visit requests (and their open questions), the agencies it was pushed to
+ * (lead_matches) and their proposals (lead_proposals). One transaction, so a
+ * failure leaves the lead whole. The conversation it came from stays: it is
+ * the customer's transcript, not this request's. Returns { lead, visits }.
+ */
+function deleteLead(id) {
+  const numericId = Number.parseInt(id, 10);
+  if (!Number.isInteger(numericId)) return null;
+  return db.transaction(() => {
+    const lead = db.prepare('SELECT * FROM leads WHERE id = ?').get(numericId);
+    if (!lead) return null;
+    const visitIds = db.prepare('SELECT id FROM viewing_requests WHERE lead_id = ?').all(numericId).map((r) => r.id);
+    for (const visitId of visitIds) {
+      db.prepare('DELETE FROM pending_agent_actions WHERE viewing_request_id = ?').run(visitId);
+      db.prepare('DELETE FROM pending_customer_actions WHERE viewing_request_id = ?').run(visitId);
+    }
+    db.prepare('DELETE FROM viewing_requests WHERE lead_id = ?').run(numericId);
+    db.prepare('DELETE FROM lead_proposals WHERE lead_id = ?').run(numericId);
+    db.prepare('DELETE FROM lead_matches WHERE lead_id = ?').run(numericId);
+    db.prepare('DELETE FROM leads WHERE id = ?').run(numericId);
+    return { lead, visits: visitIds.length };
+  })();
+}
+
 module.exports = {
   db,
+  deleteViewingRequest,
+  deleteLead,
   countViewingRequestsByPropertyDay,
   saveListing,
   insertListing,

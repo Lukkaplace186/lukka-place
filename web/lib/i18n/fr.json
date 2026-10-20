@@ -194,7 +194,9 @@
       "seeSuggestions": {
         "one": "Voir {count} suggestion",
         "other": "Voir {count} suggestions"
-      }
+      },
+      "city": "Ville",
+      "allCities": "Toutes les villes"
     },
     "value": {
       "verifiedTitle": "Annonces relues",
@@ -3077,7 +3079,14 @@
       "publishNow": "Publier directement (mêmes vérifications que « Approuver »)",
       "deleteOne": "Supprimer l’annonce",
       "addPhotos": "Ajouter des photos",
-      "photosAdded": "{count} photo(s) ajoutée(s)."
+      "photosAdded": "{count} photo(s) ajoutée(s).",
+      "agentTitle": "Agent / commissionnaire",
+      "noAgent": "Aucun agent : le numéro central de Lukka Place est affiché.",
+      "assignAgent": "Attribuer à cet agent",
+      "removeAgent": "Retirer l’agent",
+      "agentAssigned": "Annonce attribuée à l’agent.",
+      "agentRemoved": "Agent retiré de l’annonce.",
+      "agentUnchanged": "Aucun changement."
     },
     "leads": {
       "title": "Prospects",
@@ -3265,7 +3274,12 @@
       "duplicatesTitle": "{count} doublon(s) potentiel(s)",
       "sortBy": "Trier par",
       "loadError": "Impossible de charger les agents : {error}",
-      "delete": "Supprimer"
+      "delete": "Supprimer",
+      "remindVerify": "Rappeler de vérifier",
+      "reminderHint": "Envoie un rappel WhatsApp à l’agent. Il n’arrive que si l’agent a écrit à Lukka Place dans les dernières 24 h.",
+      "reminderSent": "Rappel de vérification envoyé sur WhatsApp (reçu si l’agent nous a écrit dans les dernières 24 h).",
+      "reminderNoPhone": "Cet agent n’a pas de numéro valide.",
+      "reminderFailed": "Le rappel n’a pas pu être envoyé."
     },
     "actions": {
       "approve": "Approuver",
@@ -3912,7 +3926,12 @@
       "noAgencyName": "sans nom d’agence",
       "contactUnverified": "numéro non vérifié",
       "moreAgents": "+{count} autre(s) agent(s)",
-      "noAgentYet": "Aucun agent pour l’instant"
+      "noAgentYet": "Aucun agent pour l’instant",
+      "rename": "Renommer l’agence",
+      "renameSave": "Enregistrer",
+      "renameInvalid": "Saisissez un vrai nom d’agence (2 caractères au moins, pas un numéro).",
+      "renamed": "Nom enregistré pour {count} agent(s) de l’agence.",
+      "renamedButLogin": "Nom enregistré pour {count} agent(s). La console affiche encore l’identifiant « {login} » de l’ancien back-office."
     },
     "agentProfile": {
       "tabs": "Sections de l’agent",
@@ -5220,6 +5239,17 @@
       "approved": "Commentaire publié.",
       "rejected": "Commentaire refusé.",
       "failed": "Action impossible. Réessayez."
+    },
+    "records": {
+      "deleteLead": "Supprimer",
+      "deleteLeadTitle": "Supprimer ce prospect ?",
+      "deleteLeadBody": "La demande, ses visites et les agences qui l’ont reçue sont supprimées définitivement. Personne n’est prévenu.",
+      "leadDeleted": "Prospect supprimé ({count} visite(s) avec lui).",
+      "deleteViewing": "Supprimer",
+      "deleteViewingTitle": "Supprimer cette visite ?",
+      "deleteViewingBody": "La demande de visite est supprimée définitivement ; le prospect reste. Personne n’est prévenu.",
+      "viewingDeleted": "Visite supprimée.",
+      "notFound": "Introuvable : déjà supprimé ?"
     }
   },
   "errors": {

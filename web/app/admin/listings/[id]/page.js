@@ -8,6 +8,8 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import AdminListingEditor from './AdminListingEditor';
 import ListingModerationPanel from './ListingModerationPanel';
 import DeleteListingButton from '../DeleteListingButton';
+import ListingAgentCard from './ListingAgentCard';
+import { getAgentNamesByIds } from '@/lib/agents';
 import { getListingModerationInfo } from '@/lib/moderationQueue';
 import { listEntityAudit } from '@/lib/adminAudit';
 import { can } from '@/lib/adminRoles';
@@ -68,6 +70,10 @@ export default async function AdminListingEditPage({ params }) {
   ]);
 
   const approve = APPROVE_LABEL[listing.approve_status];
+  const agentNames = listing.agent_id ? await getAgentNamesByIds([listing.agent_id]).catch(() => new Map()) : new Map();
+  const currentAgent = listing.agent_id
+    ? { id: listing.agent_id, name: agentNames.get(listing.agent_id)?.name || `Agent #${listing.agent_id}` }
+    : null;
 
   return (
     <div className="flex flex-col gap-5">
@@ -134,6 +140,7 @@ export default async function AdminListingEditPage({ params }) {
             the WhatsApp alert's link approves without scrolling past the whole
             editor. Side column from xl, as before. */}
         <div className="order-first flex flex-col gap-4 xl:order-none">
+          {can(session?.role, 'listings.edit') ? <ListingAgentCard listingId={listing.id} current={currentAgent} /> : null}
           {moderation ? (
             <ListingModerationPanel
               listingId={listing.id}

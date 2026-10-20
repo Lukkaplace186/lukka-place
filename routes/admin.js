@@ -659,6 +659,20 @@ router.get('/leads/:id', (req, res) => {
   return res.json({ success: true, lead });
 });
 
+// Console "Supprimer" on a prospect: the lead, its visit requests, matches and
+// proposals (db.deleteLead, one transaction). 404 for an unknown id.
+router.delete('/leads/:id', (req, res) => {
+  try {
+    const removed = db.deleteLead(req.params.id);
+    if (!removed) return res.status(404).json({ success: false, error: 'Lead not found.' });
+    console.log(`[admin] lead #${req.params.id} deleted (${removed.visits} visit request(s) with it)`);
+    return res.json({ success: true, visits: removed.visits });
+  } catch (err) {
+    console.error(`[admin] DELETE /leads/${req.params.id} failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Lead could not be deleted.' });
+  }
+});
+
 router.patch('/leads/:id', (req, res) => {
   const id = Number.parseInt(req.params.id, 10);
   const existingLead = Number.isFinite(id) ? db.getLead(id) : null;
@@ -1075,6 +1089,20 @@ function resolveScheduledAt(raw, request = null) {
   // "samedi 14h" is read on the visit's own clock (Lubumbashi, Goma… are UTC+2).
   return resolveScheduledAtInput(raw, new Date(), { utcOffset: utcOffsetForCommune(request?.commune || null) });
 }
+
+// Console "Supprimer" on a visit request (db.deleteViewingRequest): the row and
+// its open WhatsApp questions; the prospect stays. Nobody is messaged.
+router.delete('/viewing-requests/:id', (req, res) => {
+  try {
+    const removed = db.deleteViewingRequest(req.params.id);
+    if (!removed) return res.status(404).json({ success: false, error: 'Viewing request not found.' });
+    console.log(`[admin] viewing request #${req.params.id} deleted`);
+    return res.json({ success: true, leadId: removed.lead_id ?? null });
+  } catch (err) {
+    console.error(`[admin] DELETE /viewing-requests/${req.params.id} failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Viewing request could not be deleted.' });
+  }
+});
 
 router.patch('/viewing-requests/:id', (req, res) => {
   const id = Number.parseInt(req.params.id, 10);

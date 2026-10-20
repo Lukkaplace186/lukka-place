@@ -1,5 +1,5 @@
 import { formatPrice, formatPriceParts, usablePrice } from '../format';
-import { hasArea, listingImages } from '../listingView';
+import { formatArea, hasArea, listingImages } from '../listingView';
 import { roomSpecs } from '../listingShareCopy';
 import { coordinateText, mapPinUrl, printListingUrl } from '../listingShareRules';
 import { optimisableImageSrc, optimisedImageUrl, purposeLabel } from './sharePackData';
@@ -70,7 +70,7 @@ export function keyFactRows(listing, typeText) {
   if (beds > 0) rows.push({ label: 'Chambres', value: String(beds) });
   const bath = Number(listing.bath);
   if (bath > 0) rows.push({ label: 'Salles de bain', value: String(bath) });
-  if (hasArea(listing.area)) rows.push({ label: 'Surface', value: `${listing.area} m²` });
+  if (hasArea(listing.area)) rows.push({ label: 'Surface', value: `${formatArea(listing.area)} m²` });
   const units = Number(listing.units_count);
   if (listing.units_count != null && units > 0) rows.push({ label: 'Portes', value: String(units) });
   return rows;
@@ -88,7 +88,7 @@ export function specStrip(listing, typeText) {
   if (beds > 0) specs.push({ label: beds > 1 ? 'Chambres' : 'Chambre', value: String(beds) });
   const bath = Number(listing.bath);
   if (bath > 0) specs.push({ label: bath > 1 ? 'Salles de bain' : 'Salle de bain', value: String(bath) });
-  if (hasArea(listing.area)) specs.push({ label: 'Surface', value: `${listing.area} m²` });
+  if (hasArea(listing.area)) specs.push({ label: 'Surface', value: `${formatArea(listing.area)} m²` });
   const units = Number(listing.units_count);
   if (listing.units_count != null && units > 0) specs.push({ label: units > 1 ? 'Portes' : 'Porte', value: String(units) });
   return specs;

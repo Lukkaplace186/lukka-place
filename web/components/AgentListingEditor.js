@@ -387,7 +387,8 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
               name="area"
               type="number"
               min="0"
-              step="1"
+              step="0.01"
+              inputMode="decimal"
               defaultValue={Number(listing.area) > 0 ? listing.area : ''}
               placeholder={t('agent.editor.notSpecified')}
               className={FIELD_CLASS}

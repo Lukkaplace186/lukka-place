@@ -710,3 +710,13 @@ export async function setEnginePrice(propertyId, { price, priceOriginal, currenc
   const body = await res.json().catch(() => null);
   return { status: res.status, body };
 }
+
+/** Console "Supprimer" on a prospect: the lead, its visits, matches and proposals (engine db.deleteLead). */
+export async function deleteLeadRecord(id) {
+  return engineFetch(`/admin/leads/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+/** Console "Supprimer" on a visit request; the prospect stays (engine db.deleteViewingRequest). */
+export async function deleteViewingRequestRecord(id) {
+  return engineFetch(`/admin/viewing-requests/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}

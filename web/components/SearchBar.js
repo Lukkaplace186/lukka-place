@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, MapPin, ChevronDown, Building2, Wallet } from 'lucide-react';
+import { Search, MapPin, ChevronDown, Building2, Wallet, Landmark } from 'lucide-react';
 import LocationAutocomplete from './LocationAutocomplete';
 import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB, ICON_STROKE_WIDTH } from '@/lib/constants';
 import { parseSearchQuery } from '@/lib/searchParser';
 import { understoodChips } from '@/lib/searchUnderstood';
 import { useT } from '@/lib/i18n/client';
 import { facetLabel, groupTypeFacets } from '@/lib/commercialSpaces';
+import { CITIES, DEFAULT_CITY } from '@/lib/cities';
 
 /**
  * The hero search panel — a white card floating over the hero photograph,
@@ -158,6 +159,9 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
   const [homeTab, setHomeTab] = useState(HERO_DEFAULT_TAB);
   const [propertyType, setPropertyType] = useState('');
   const [budgetMax, setBudgetMax] = useState('');
+  // The city searched (?ville=). A city or another city's commune typed in the
+  // box wins over it (lib/searchParser.js), as typed text wins over every select.
+  const [ville, setVille] = useState('');
   // Mirrors the location field's text. LocationAutocomplete still owns the
   // input itself; this is the copy the quick-pill tint and the live count
   // read, kept in step through its `onValueChange`/`setQuery` pair.
@@ -170,6 +174,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
     transaction_type: transactionType,
     property_type: propertyType,
     price_max: budgetMax,
+    ville,
   };
 
   // A pill is lit only while the field literally still holds that commune's
@@ -201,6 +206,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
       if (transactionType) qs.set('transaction_type', transactionType);
       if (propertyType) qs.set('property_type', propertyType);
       if (budgetMax) qs.set('price_max', budgetMax);
+      if (ville) qs.set('ville', ville);
 
       // Parsed exactly the way submitting parses it (LocationAutocomplete's
       // submitFreeText -> applyParsedFilters), and in the same precedence:
@@ -218,6 +224,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
         qs.set('property_type', parsed.property_type);
         if (parsed.parcelle_subtype) qs.set('parcelle_subtype', parsed.parcelle_subtype);
       }
+      if (parsed.ville) qs.set('ville', parsed.ville);
       if (parsed.commune) {
         qs.set('commune', parsed.commune);
         if (parsed.communes?.length > 1) qs.set('communes', parsed.communes.join(','));
@@ -242,7 +249,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
       clearTimeout(timer);
       controller.abort();
     };
-  }, [transactionType, propertyType, budgetMax, location]);
+  }, [transactionType, propertyType, budgetMax, ville, location]);
 
   // What the parser takes from the typed text, read back as chips — so a
   // visitor sees that "Gombe" and "2 chambres" were understood before they
@@ -348,6 +355,25 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
             selected label ("Appartement (27)") clipping inside its cell
             instead of forcing the grid — and the page — wider than a
             320px viewport. */}
+        <div className={`${CELL_BASE} border-b border-line`}>
+          <Landmark strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className={CELL_ICON} />
+          <select
+            id="hero-city"
+            aria-label={t('home.search.city')}
+            value={ville}
+            onChange={(e) => setVille(e.target.value)}
+            className={CELL_SELECT}
+          >
+            <option value="">{t('home.search.allCities')}</option>
+            {[...CITIES]
+              .sort((a, b) => (a.name === DEFAULT_CITY ? -1 : b.name === DEFAULT_CITY ? 1 : a.name.localeCompare(b.name, 'fr')))
+              .map((city) => (
+                <option key={city.name} value={city.name}>{city.name}</option>
+              ))}
+          </select>
+          <ChevronDown strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className="pointer-events-none h-4 w-4 shrink-0 text-ink-45" />
+        </div>
+
         <div className="grid grid-cols-2 divide-x divide-line">
           <div className={CELL_BASE}>
             <Building2 strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className={CELL_ICON} />

@@ -111,7 +111,7 @@ export default function AdminCreateListingForm({ communes, categories, canPublis
             <input name="bath" type="number" min="0" className={FIELD} />
           </Field>
           <Field label="Surface (m²)">
-            <input name="area" type="number" min="1" className={FIELD} />
+            <input name="area" type="number" min="0.01" step="0.01" inputMode="decimal" className={FIELD} />
           </Field>
         </div>
       </section>

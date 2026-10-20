@@ -27,6 +27,7 @@
  * lib/searchKeywords.js, the same list the server applies.
  */
 import { findLocationMention } from './gazetteer';
+import { findCityMention, findCommuneInCity, DEFAULT_CITY } from './cities';
 import { cleanKeywords } from './searchKeywords';
 
 /** Most places one search may name — same ceiling as a customer request
@@ -364,6 +365,32 @@ export function parseSearchQuery(text) {
   // too since 2026-09-24: it becomes `near` (a km radius around its real
   // point, lib/landmarks.js), not keywords. As keywords it was a text filter
   // almost no listing matched, which emptied the map and the list.
+  // --- City (2026-10-21) ------------------------------------------------------
+  // Before Kinshasa's places: Kinshasa has quartiers named after other cities
+  // (Lubumbashi in Kasa-Vubu, Goma in Ndjili), so "lubum" read as Kasa-Vubu.
+  // A named city — or a commune only another city has ("Kampemba") — sets
+  // `ville`, and then only that city's communes are matched: the gazetteer
+  // below is Kinshasa's and is not consulted at all.
+  const cityMention = findCityMention(remaining);
+  const otherCommune = findCommuneInCity(remaining, cityMention ? cityMention.city.name : null);
+  if (cityMention || otherCommune) {
+    result.ville = cityMention ? cityMention.city.name : otherCommune.city;
+    if (cityMention) {
+      const name = escapeRegExp(cityMention.matchedText).replace(/[\s-]+/g, '[\\s-]+');
+      const m = remaining.match(new RegExp(`(?:(?:^|\\s)${PREPOSITIONS}\\s+)?(?<![a-zà-ÿ])${name}[a-zà-ÿ-]*`, 'i'));
+      if (m) take(m, 'ville');
+    }
+    if (otherCommune) {
+      result.commune = otherCommune.key;
+      const m = remaining.match(new RegExp(escapeRegExp(otherCommune.matchedText).replace(/[\s-]+/g, '[\\s-]+'), 'i'));
+      if (m) take(m, 'commune');
+    }
+    if (result.ville === DEFAULT_CITY) delete result.ville;
+    result.keywords = cleanKeywords(remaining);
+    result.spans = spans;
+    return result;
+  }
+
   let lookIn = remaining;
   const places = [];
   const placeSpans = [];

@@ -19,6 +19,7 @@ import Pagination from '../../table/Pagination';
 import AgentsTable from '../../agents/AgentsTable';
 import { toAgentTableRows } from '../../agents/agentRows';
 import AgencyBulkActions from './AgencyBulkActions';
+import RenameAgencyForm from './RenameAgencyForm';
 import BranchesPanel from './BranchesPanel';
 
 export const dynamic = 'force-dynamic';
@@ -60,6 +61,7 @@ export default async function AdminAgencyDetailPage({ params, searchParams }) {
           {t('admin.agencies.back')}
         </Link>
         <h1 className="normal-case u-title-page mt-2 text-ink">{agency.name}</h1>
+        {can(session?.role, 'agents.manage') ? <RenameAgencyForm vendorId={agency.id} name={agency.name} /> : null}
         <p className="u-micro mt-1 text-ink-45">
           {[agency.email, agency.phone ? `+${String(agency.phone).replace(/\D/g, '')}` : null, `#${agency.id}`].filter(Boolean).join(' · ')}
         </p>

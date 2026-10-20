@@ -85,6 +85,14 @@ function applyParsedFilters(params, parsed) {
     if (parsed.parcelle_subtype) params.set('parcelle_subtype', parsed.parcelle_subtype);
     else params.delete('parcelle_subtype');
   }
+  // A city named in the text ("lubum", "Goma", "Kampemba") searches that city;
+  // a Kinshasa place typed afterwards brings the search back to Kinshasa.
+  if (parsed.ville) {
+    params.set('ville', parsed.ville);
+    if (!parsed.commune) ['commune', 'communes', 'quartier', 'near'].forEach((key) => params.delete(key));
+  } else if (parsed.commune) {
+    params.delete('ville');
+  }
 }
 
 const DEBOUNCE_MS = 150;
@@ -558,7 +566,7 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
     // Enter before picking a suggestion: words the parser could not place
     // ("St lu" — half a word) are tried against the same gazetteer the
     // dropdown uses, so they land exactly where picking the suggestion would.
-    if (!hideDropdown && !parsed.commune && parsed.keywords) {
+    if (!hideDropdown && !parsed.commune && !parsed.ville && parsed.keywords) {
       const [placeHit] = searchGazetteer(parsed.keywords, 1);
       if (placeHit) {
         navigateTo(placeHit, { dropKeywords: true });

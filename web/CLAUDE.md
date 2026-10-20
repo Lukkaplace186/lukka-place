@@ -2817,6 +2817,40 @@ Tests: `tests/unit/admin-crud.test.js`.
   state in this schema), agency name, communes and (since today) first /
   last name on the agent page; the phone stays locked.
 
+## Launch fixes: cities in search, agent assignment, deletes, reminders (2026-10-21)
+
+Tests: `tests/unit/launch-fixes-2026-10-21.test.js`; engine §60.
+
+- **Search knows cities.** `lib/cities.js` `findCityMention` (a whole city
+  name, or a 4+ letter start of one: "lubum") and `findCommuneInCity` run in
+  `parseSearchQuery` BEFORE Kinshasa's gazetteer, because Kinshasa has
+  quartiers named after cities (Lubumbashi in Kasa-Vubu, Goma in Ndjili) and
+  "lubum" searched Kasa-Vubu. A city sets `ville`; inside another city only
+  its communes are matched ("Kampemba" → commune + Lubumbashi), the gazetteer
+  is not consulted. The hero card has a "Ville" select (`?ville=`); text
+  wins over it, and a Kinshasa place typed after clears `ville`.
+- **Surface takes decimals** (`normaliseArea` / `formatArea`, lib/listingView.js):
+  2 decimals, French display ("12,5 m²"). `properties.area` was already TEXT —
+  no migration; only the forms (step 0.01), the actions and the engine's
+  publish rounding changed.
+- **Listing → agent** (`ListingAgentCard`, `adminAssignListingAgentAction`):
+  any agent (not deleted) or none; `vendor_id` follows the agent.
+- **Renommer l'agence** (`/admin/agencies/[id]`, `renameAgencyAction`): writes
+  `agents.agency_name` on every live agent of the vendor (what every card and
+  profile shows). `vendors.username` is never touched (old back-office login);
+  when it is a real word the console keeps showing it, and the toast says so.
+- **Supprimer** on prospects (`/admin/leads`, row + detail) and visits
+  (`/admin/viewings` row): permanent, owner-only (`leads.delete`,
+  `viewings.delete`), engine `DELETE /admin/leads/:id` (lead + visits +
+  matches + proposals + open questions, one SQLite transaction) and
+  `DELETE /admin/viewing-requests/:id` (the visit + its open questions; the
+  lead stays). Audited; nobody is messaged.
+- **Rappeler de vérifier** (agent page + agents table menu, `agents.manage`):
+  `lib/verificationReminder.js`'s text (owner's wording, "5 annonces … bonus")
+  through the engine's `/admin/send-whatsapp`. A session message: it only
+  reaches an agent who wrote to the business number in the last 24 h, and the
+  toast says "envoyé", never "reçu".
+
 ## Agent ratings — "Notez l'agent" (2026-10-18)
 
 Engine half and rules: root CLAUDE.md, "Notez l'agent". The engine

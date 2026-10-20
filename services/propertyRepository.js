@@ -300,6 +300,36 @@ async function getListingContactById(id) {
 }
 
 /**
+ * Who to tell that a listing was approved or rejected, when the engine has no
+ * WhatsApp submitter for it — a listing the agent typed on the website
+ * (2026-10-20: #314–#317 were approved and nobody was told). NOT behind the
+ * public filter: the verdict concerns a pending or rejected listing. The
+ * number is returned only for a phone-verified, not-deleted agent, the same
+ * gate as every other send to an agent.
+ */
+async function getModerationRecipient(id) {
+  const numericId = Number.parseInt(id, 10);
+  if (!Number.isFinite(numericId) || !isConfigured()) return null;
+  try {
+    const { rows } = await getPool().query(
+      `SELECT p.id, p.purpose, p.quartier, catc.name AS category_name, ${COMMUNE_SUBQUERY},
+              regexp_replace(a.phone, '\\D', '', 'g') AS agent_phone
+         FROM properties p
+         JOIN agents a ON a.id = p.agent_id
+         LEFT JOIN property_category_contents catc
+           ON catc.category_id = p.category_id AND catc.language_id = ${CATEGORY_LANGUAGE_ID}
+        WHERE p.id = $1 AND a.phone_verified_at IS NOT NULL AND a.deleted_at IS NULL`,
+      [numericId],
+    );
+    const row = rows[0];
+    return row && row.agent_phone ? row : null;
+  } catch (err) {
+    console.error(`[propertyRepository] getModerationRecipient(${id}) failed: ${err.message}`);
+    return null;
+  }
+}
+
+/**
  * One agent's contact, by agents.id — for the admin "reassign this viewing
  * request" override, where the agent is chosen by a person rather than
  * derived from the listing. Same narrow shape as getListingContactById and the
@@ -352,6 +382,7 @@ module.exports = {
   getPropertyById,
   getListingContactById,
   getAgentContactById,
+  getModerationRecipient,
   directRoutingBlocker,
   // SQL fragments reused by services/agentPerformance.js's read side.
   AGENT_NAME_EXPR,

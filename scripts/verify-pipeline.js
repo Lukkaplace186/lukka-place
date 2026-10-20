@@ -11523,6 +11523,53 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(chakra.safeText(null), '');
   });
 
+  // ===========================================================================
+  // 57. The moderation verdict reaches agents who listed on the website
+  // ===========================================================================
+
+  console.log('\n57. Approved / rejected message for a listing created on the website');
+
+  {
+    const repo57 = require('../services/propertyRepository');
+    const admin57 = require('../routes/admin');
+    const saved57 = { recipient: repo57.getModerationRecipient, text: chakra.sendWhatsAppMessage, tpl: process.env.LISTING_APPROVED_TEMPLATE };
+    const sent57 = [];
+    delete process.env.LISTING_APPROVED_TEMPLATE;
+    repo57.getModerationRecipient = async (id) => (Number(id) === 9314
+      ? { id: 9314, purpose: 'rent', quartier: 'Industriel', category_name: 'Appartement', commune: 'Limete', agent_phone: '243810009314' }
+      : null);
+    chakra.sendWhatsAppMessage = async (to, text) => { sent57.push({ to, text }); };
+    try {
+      check('a repository row becomes the same shape as a WhatsApp submission', () => {
+        assert.deepStrictEqual(
+          admin57.moderationListingFromRepository({ purpose: 'rent', quartier: 'Industriel', category_name: 'Appartement', commune: 'Limete', agent_phone: '243810009314' }),
+          { wa_id: '243810009314', property_type: 'appartement', transaction_type: 'location', commune: 'Limete', quartier: 'Industriel' },
+        );
+        assert.strictEqual(admin57.moderationListingFromRepository(null), null);
+      });
+
+      const approved57 = await adminRequest('POST', '/admin/properties/9314/notify', { status: 'approved' });
+      await settle(200);
+      check("a website listing's verified agent is told it is online", () => {
+        assert.strictEqual(approved57.status, 202);
+        assert.strictEqual(sent57.length, 1);
+        assert.strictEqual(sent57[0].to, '243810009314');
+        assert.match(sent57[0].text, /listings\/9314/);
+      });
+
+      const none57 = await adminRequest('POST', '/admin/properties/9315/notify', { status: 'approved' });
+      check('no WhatsApp submitter and no verified agent is still a 404, and nothing is sent', () => {
+        assert.strictEqual(none57.status, 404);
+        assert.strictEqual(sent57.length, 1);
+      });
+    } finally {
+      repo57.getModerationRecipient = saved57.recipient;
+      chakra.sendWhatsAppMessage = saved57.text;
+      if (saved57.tpl === undefined) delete process.env.LISTING_APPROVED_TEMPLATE;
+      else process.env.LISTING_APPROVED_TEMPLATE = saved57.tpl;
+    }
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

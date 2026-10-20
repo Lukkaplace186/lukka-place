@@ -18,6 +18,7 @@ const express = require('express');
 const db = require('../services/db');
 const chakra = require('../services/chakra');
 const deskAlert = require('../services/deskAlert');
+const propertyRepository = require('../services/propertyRepository');
 const opsDesk = require('../services/opsDesk');
 const { STATES } = require('../services/conversationState');
 const { dispatchLead, dispatchLeadInBackground } = require('../services/leadDispatch');
@@ -1444,6 +1445,22 @@ function moderationRejectionReason(reason) {
   return templateText(parts.join(' — ') || 'à préciser par notre équipe, qui vous contactera', 400);
 }
 
+/**
+ * propertyRepository.getModerationRecipient's row in the shape the engine's
+ * own listing row has (wa_id, property_type, transaction_type, commune,
+ * quartier), so both sources share the summary and the send. null stays null.
+ */
+function moderationListingFromRepository(row) {
+  if (!row?.agent_phone) return null;
+  return {
+    wa_id: row.agent_phone,
+    property_type: row.category_name ? String(row.category_name).toLowerCase() : null,
+    transaction_type: row.purpose === 'rent' ? 'location' : row.purpose === 'sale' ? 'vente' : null,
+    commune: row.commune || null,
+    quartier: row.quartier || null,
+  };
+}
+
 /** @returns {Promise<boolean>} true when the template was accepted. */
 async function sendModerationTemplate(status, to, propertyId, listing, reason) {
   const name = String(process.env[MODERATION_TEMPLATE_ENV[status]] || '').trim();
@@ -1494,9 +1511,12 @@ router.post('/properties/:remotePropertyId/notify', async (req, res) => {
     return res.status(400).json({ success: false, error: `status must be one of: ${Object.keys(MODERATION_MESSAGES).join(', ')}` });
   }
 
-  const listing = db.getListingByRemotePropertyId(remotePropertyId);
+  // A WhatsApp submission is found through SQLite; a listing typed on the
+  // website has no row here, so its own (phone-verified) agent is told instead.
+  const listing = db.getListingByRemotePropertyId(remotePropertyId)
+    || moderationListingFromRepository(await propertyRepository.getModerationRecipient(remotePropertyId));
   if (!listing) {
-    return res.status(404).json({ success: false, error: 'No submitting listing found for this property.' });
+    return res.status(404).json({ success: false, error: 'No submitter or verified agent found for this property.' });
   }
 
   setImmediate(async () => {
@@ -1754,3 +1774,4 @@ module.exports.MODERATION_MESSAGES = MODERATION_MESSAGES;
 module.exports.sendModerationTemplate = sendModerationTemplate;
 module.exports.moderationListingSummary = moderationListingSummary;
 module.exports.moderationRejectionReason = moderationRejectionReason;
+module.exports.moderationListingFromRepository = moderationListingFromRepository;

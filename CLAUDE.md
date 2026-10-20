@@ -696,6 +696,17 @@ model judges not a listing, with nothing pending, gets the fixed
 `FALLBACK_REPLY` instead of the model's prose, at most once per sender per
 30 min (in memory). Listing, draft, correction and "OK" flows are unchanged. §55.
 
+**Publish receipt and photos per property** (2026-10-20). The reply to "OK"
+names every listing it created ("✅ *3 annonces bien reçues et en cours de
+modération !*", then "1. Appartement à Kintambo — 500 $ / mois",
+`listingCard.listingSummaryLine`). In a paste of several UNRELATED properties
+(is_multi_property) each listing gets the photos sent with its own text:
+`processGroup` tags every photo with its block (a message with text opens one),
+stored as `parsed_json.photo_blocks`, and `db.photosByProperty` splits only
+when blocks and properties line up exactly; otherwise every listing keeps every
+photo, as a building's units always do. §59. The web admin's agent page edits
+the person's first/last name (`updateAgentIdentity`); the phone stays locked.
+
 ### Plan listing limit on WhatsApp
 
 `services/listingQuota.js`, called in `routes/webhook.js`'s draft-confirmation

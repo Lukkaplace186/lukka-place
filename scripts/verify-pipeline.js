@@ -2861,7 +2861,7 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(openaiCalls.length - aiBeforeConfirm, 0));
   check("'OK' gets the exact published-confirmation reply", () => {
     assert.strictEqual(httpCalls.length, 1);
-    assert.strictEqual(httpCalls[0].data.text.body, webhookRouter.PUBLISHED_REPLY);
+    assert.match(httpCalls[0].data.text.body, /^✅ \*Annonce bien reçue et en cours de modération !\*\n• /);
   });
   check('the listing is now published', () => {
     const found = dbService.findByWamid('wamid.E2E');
@@ -3529,7 +3529,7 @@ console.log('\n2. services/openai.js');
   });
   check('the agent gets the updated card back, not a publication notice', () => {
     assert.strictEqual(httpCalls.length, 1);
-    assert.notStrictEqual(httpCalls[0].data.text.body, webhookRouter.PUBLISHED_REPLY);
+    assert.doesNotMatch(httpCalls[0].data.text.body, /^✅ \*Annonce bien reçue et en cours de modération !\*\n• /);
   });
 
   // Turn 4 — conversational approval. The model fallback publishes.
@@ -3546,7 +3546,7 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(dbService.getListing(e2eDraft.id).status, 'published'));
   check('a conversational confirmation gets the same published reply as "OK"', () => {
     assert.strictEqual(httpCalls.length, 1);
-    assert.strictEqual(httpCalls[0].data.text.body, webhookRouter.PUBLISHED_REPLY);
+    assert.match(httpCalls[0].data.text.body, /^✅ \*Annonce bien reçue et en cours de modération !\*\n• /);
   });
   check('the published listing kept every correction from the loop', () => {
     const row = dbService.getListing(e2eDraft.id);
@@ -3573,7 +3573,7 @@ console.log('\n2. services/openai.js');
   check('a plain "OK" still publishes with zero model calls — the fast path is intact', () => {
     assert.strictEqual(openaiCalls.length - aiBeforeRegex, 0);
     assert.strictEqual(dbService.getListing(regexDraft.id).status, 'published');
-    assert.strictEqual(httpCalls[0].data.text.body, webhookRouter.PUBLISHED_REPLY);
+    assert.match(httpCalls[0].data.text.body, /^✅ \*Annonce bien reçue et en cours de modération !\*\n• /);
   });
 
   // -------------------------------------------------------------------------
@@ -3653,7 +3653,7 @@ console.log('\n2. services/openai.js');
     const row = dbService.getListing(noPhotoDraft.id);
     assert.ok(row.photos.length > 0, 'the photo sent with the OK must be stored on the draft');
     assert.strictEqual(row.status, 'published');
-    assert.strictEqual(httpCalls[httpCalls.length - 1].data.text.body, webhookRouter.PUBLISHED_REPLY);
+    assert.match(httpCalls[httpCalls.length - 1].data.text.body, /^✅ \*Annonce bien reçue et en cours de modération !\*\n• /);
   });
 
   // -------------------------------------------------------------------------
@@ -3723,17 +3723,18 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(dbService.getListing(bldDraft.id).status, 'published');
     assert.ok(dbService.getListing(bldDraft.id).parent_building_id, 'the draft is now unit #1 of a building');
   });
-  check('the confirmation says four annonces, not "votre annonce"', () => {
-    const body = httpCalls[httpCalls.length - 1].data.text.body;
-    assert.strictEqual(body, webhookRouter.publishedReply(4));
-    assert.ok(body.includes('4 annonces liées'));
+  const bldReceipt = httpCalls[httpCalls.length - 1].data.text.body;
+  check('the confirmation says four annonces and lists each one', () => {
+    assert.match(bldReceipt, /^✅ \*4 annonces bien reçues et en cours de modération !\*/);
+    for (const n of [1, 2, 3, 4]) assert.match(bldReceipt, new RegExp(`\\n${n}\\. Appartement à `));
+    assert.doesNotMatch(bldReceipt, /\n5\. /);
   });
-  check('a single-unit confirmation still gets the original singular wording', () =>
-    assert.strictEqual(webhookRouter.publishedReply(1), webhookRouter.PUBLISHED_REPLY));
+  check('with no listing to name, the receipt falls back to the original wording', () =>
+    assert.strictEqual(webhookRouter.publishedReply([]), webhookRouter.PUBLISHED_REPLY));
   check('the confirmation never claims the listing is already visible (it waits for moderation)', () => {
-    for (const body of [webhookRouter.publishedReply(1), webhookRouter.publishedReply(4)]) {
+    for (const body of [bldReceipt, webhookRouter.PUBLISHED_REPLY]) {
       assert.ok(!/visible|publiée|publiées/i.test(body), body);
-      assert.ok(body.includes('après validation'), body);
+      assert.ok(/modération|après validation/.test(body), body);
     }
   });
 
@@ -11758,6 +11759,25 @@ console.log('\n2. services/openai.js');
       assert.ok(cities55.citySummaries().find((c) => c.name === 'Boma').communes.some((c) => c.key === 'Kalamu (Boma)' && c.label === 'Kalamu'));
     });
   }
+
+  // ===========================================================================
+  // 59. Several unrelated properties in one burst: each keeps its own photos
+  // ===========================================================================
+
+  console.log('\n59. Photos follow their own property in a multi-property paste');
+
+  check('photos are split by text block only when it lines up exactly', () => {
+    const photos = ['/a0.jpg', '/a1.jpg', '/b0.jpg'];
+    const multi = { is_multi_property: true, photo_blocks: [0, 0, 1] };
+    assert.deepStrictEqual(dbService.photosByProperty(multi, photos, 2), [['/a0.jpg', '/a1.jpg'], ['/b0.jpg']]);
+    // A property with no photo of its own, or more blocks than properties → everyone keeps everything.
+    assert.strictEqual(dbService.photosByProperty({ ...multi, photo_blocks: [0, 0, 0] }, photos, 2), null);
+    assert.strictEqual(dbService.photosByProperty({ ...multi, photo_blocks: [0, 1, 2] }, photos, 2), null);
+    // A photo added later by a correction has no block → no split.
+    assert.strictEqual(dbService.photosByProperty(multi, [...photos, '/late.jpg'], 2), null);
+    // A building (multi-unit) always shares its photos.
+    assert.strictEqual(dbService.photosByProperty({ is_multi_unit: true, photo_blocks: [0, 0, 1] }, photos, 2), null);
+  });
 
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);

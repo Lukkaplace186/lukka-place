@@ -430,8 +430,7 @@ function publishedReply(ids = []) {
     many
       ? 'Notre équipe les vérifie, et nous vous prévenons ici dès leur mise en ligne.'
       : 'Notre équipe la vérifie, et nous vous prévenons ici dès sa mise en ligne.',
-  ].join('
-');
+  ].join('\n');
 }
 
 /**

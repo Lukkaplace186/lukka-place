@@ -100,7 +100,7 @@
       },
       "listing": {
         "title": "This Listing Is No Longer Online",
-        "body": "The property may have been let, sold or withdrawn by the agent. Here are other properties available in Kinshasa."
+        "body": "The property may have been let, sold or withdrawn by the agent. Here are other properties available."
       },
       "browse": "See available properties"
     }
@@ -154,15 +154,15 @@
       "subtitle": "List your properties and receive customer enquiries on WhatsApp.",
       "cta": "Become a Partner Agency"
     },
-    "tagline": "Apartments, villas and plots, to rent or to buy. We are starting in Kinshasa, on the way to covering the whole DRC.",
-    "disclaimer": "Lukka Place is a property listings platform in Kinshasa. The information provided in listings is published under the responsibility of the advertisers. Lukka Place does not provide direct financial brokerage services and facilitates introductions via listing reference.",
+    "tagline": "Apartments, villas and plots, to rent or to buy, across the DRC.",
+    "disclaimer": "Lukka Place is a property listings platform in the DRC. The information provided in listings is published under the responsibility of the advertisers. Lukka Place does not provide direct financial brokerage services and facilitates introductions via listing reference.",
     "copyright": "© {year} Lukka Place.",
     "whatsappGreeting": "Hello, I'm contacting you from lukkaplace.com."
   },
   "home": {
     "hero": {
       "title": "Apartments. Villas. Plots. Agencies.",
-      "subtitle": "Kinshasa first, the whole DRC next. Reviewed listings, stated prices and direct contact on WhatsApp.",
+      "subtitle": "Across the DRC: Kinshasa, Lubumbashi, Goma, Bukavu, Kisangani and more. Reviewed listings, stated prices and direct contact on WhatsApp.",
       "photoCredit": "Photo by kaysha on Unsplash"
     },
     "search": {
@@ -231,7 +231,7 @@
       "rentTitle": "Rent",
       "rentBody": "Apartments and houses to rent, reviewed by our team before publication.",
       "buyTitle": "Buy",
-      "buyBody": "Apartments, villas and plots for sale in Kinshasa.",
+      "buyBody": "Apartments, villas and plots for sale across the DRC.",
       "buyCta": "Properties for sale",
       "sellTitle": "Sell",
       "sellBody": "Got a property to list? Our team handles it from WhatsApp.",
@@ -251,18 +251,18 @@
   },
   "about": {
     "metaTitle": "About — Lukka Place",
-    "metaDescription": "Lukka Place makes house hunting simpler: reviewed listings, clear prices, viewings booked online and agents you can reach directly. We are starting in Kinshasa, on the way to covering the whole DRC.",
+    "metaDescription": "Lukka Place makes house hunting in the DRC simpler: reviewed listings, clear prices, viewings booked online and agents you can reach directly, in Kinshasa, Lubumbashi, Goma and beyond.",
     "eyebrow": "About",
     "heroKicker": "About Lukka Place",
     "heroTitle": "Find Your Next Home, Without the Runaround.",
     "heroAccent": "Without the Runaround",
     "heroPhotoAlt": "A young couple moving in, holding a box",
     "photoCredit": "Photo: {name} / Pexels",
-    "heroLead": "Reviewed listings, clear prices and the agent one tap away. We are starting in Kinshasa, then moving city by city until we cover the whole DRC.",
+    "heroLead": "Reviewed listings, clear prices and the agent one tap away — in Kinshasa, Lubumbashi, Goma, Bukavu, Kisangani and the DRC's major cities.",
     "ctaBrowse": "Browse listings",
     "ctaAgent": "I'm an agent",
     "visionEyebrow": "Our Ambition",
-    "visionTitle": "Kinshasa First. Then the Whole DRC.",
+    "visionTitle": "Kinshasa, Lubumbashi, Goma… the Whole DRC.",
     "visionAccent": "the Whole DRC",
     "visionBody": "Finding a home takes too long: calls nobody answers, vague listings, trips for nothing.",
     "visionPhotoBukavuAlt": "Aerial view of a city in the Democratic Republic of the Congo (Bukavu)",
@@ -285,10 +285,10 @@
     "agentsStep3Body": "Viewing requests and contacts arrive on your WhatsApp and in your agenda, with a graphic ready to share.",
     "agentsCta": "Become a Partner Agent",
     "notesTitle": "Good to Know",
-    "title": "A Platform Built for Kinshasa",
+    "title": "A Platform Built for the DRC",
     "body3": "Prices are set in US dollars. The Congolese franc display is an indicative estimate, converted at a dated reference rate, and is never presented as the contractual price.",
     "body4": "Lukka Place does not provide direct financial brokerage services; the platform facilitates introductions between advertisers and interested parties via listing reference.",
-    "visionBody2": "We are changing that, starting with Kinshasa, commune by commune and neighbourhood by neighbourhood. Then we go further, city by city, until the whole country is covered.",
+    "visionBody2": "We are changing that, city by city: Kinshasa, Lubumbashi, Goma, Bukavu, Kisangani, Mbuji-Mayi, Kananga and more, commune by commune and neighbourhood by neighbourhood.",
     "visionBody3": "Whether you are on the ground or abroad, you search the same way: simply, and with confidence.",
     "change3aTitle": "Everything Stated Before You Set Off",
     "change3aBody": "Photos, neighbourhood, price, deposit, advance and commission: you know what to expect before you move.",
@@ -406,8 +406,8 @@
         "one": "{count} result",
         "other": "{count} results"
       },
-      "locationRelaxed": "No exact match in {commune} — search widened to all of Kinshasa for these keywords.",
-      "citywideFrom": "Radius widened to all of Kinshasa from {place}.",
+      "locationRelaxed": "No exact match in {commune} — search widened to the whole city for these keywords.",
+      "citywideFrom": "Radius widened to the whole city from {place}.",
       "communeWideFrom": "Radius widened to all of {commune} from {quartier}.",
       "areaHeading": "{subject} {transaction} in the Map Area",
       "mapAreaNote": "The properties visible on the map",
@@ -419,7 +419,7 @@
     "empty": {
       "title": "No Properties Match",
       "titleAt": "No property exactly matches your search in {location}",
-      "widen": "Widen to all of Kinshasa",
+      "widen": "Widen to the whole city",
       "communesWithListings": "Communes with available properties",
       "nearestCommunes": "Nearest communes with properties",
       "seeAll": "See all listings",
@@ -632,7 +632,7 @@
       "locate": "Near me",
       "locateDenied": "Allow location access in your browser to see listings near you.",
       "locateFailed": "Couldn't find your position right now. Try again in a moment.",
-      "locateOutside": "You seem to be outside Kinshasa, so the map stays on the city.",
+      "locateOutside": "You seem to be outside the cities we cover, so the map stays where it is.",
       "relaxedText": "No listing matches “{text}” — here are the listings nearby.",
       "dismiss": "Close",
       "locateUnavailable": "Your browser doesn't support location.",
@@ -684,7 +684,7 @@
     },
     "related": {
       "similar": "Similar Properties",
-      "otherInKinshasa": "Other properties in Kinshasa",
+      "otherInKinshasa": "Other Properties in This City",
       "otherIn": "Other properties in {commune}",
       "recommended": "Recommended",
       "nearby": "Nearby",
@@ -801,7 +801,7 @@
       "time": "Time",
       "today": "Today",
       "tomorrow": "Tomorrow",
-      "kinshasaTime": "Kinshasa time",
+      "kinshasaTime": "local time",
       "busy": "taken",
       "tooSoon": "too soon",
       "busyNote": "Times marked “taken”: the agent has another viewing.",
@@ -1113,7 +1113,7 @@
       "firstName": "First name",
       "lastName": "Last name",
       "bio": "About",
-      "bioPlaceholder": "Letting and sale of houses, apartments and plots in Kinshasa.",
+      "bioPlaceholder": "Letting and sale of houses, apartments and plots in Lubumbashi.",
       "whatsappNumber": "WhatsApp number",
       "verified": "Verified",
       "saved": "Changes saved.",
@@ -1272,11 +1272,11 @@
       "verifiedFem": "Verified",
       "contactUnavailable": "Contact details unavailable",
       "noListingsYet": "This agent has no properties online yet. Send them your search using the form.",
-      "directoryTitle": "Agents in Kinshasa",
+      "directoryTitle": "Estate Agents in the DRC",
       "directoryLead": "verified listings.",
       "directoryEmpty": "No active agents at the moment.",
       "directoryMetaTitle": "Agents — Lukka Place",
-      "directoryMetaDescription": "Estate agents active in Kinshasa, with real listings published on Lukka Place.",
+      "directoryMetaDescription": "Estate agents active across the DRC — Kinshasa, Lubumbashi, Goma and more — with real listings published on Lukka Place.",
       "hostedBy": "Portfolio hosted by Lukka Place",
       "reportListing": "Report a listing",
       "whatsappPublish": "Hello, I'd like to list a property on Lukka Place.",
@@ -2435,7 +2435,7 @@
     "portal": {
       "title": "Customer Area",
       "metaTitle": "Customer Area — Lukka Place",
-      "lead": "Your saved properties, your alerts and your conversations with Kinshasa agencies, all in one place.",
+      "lead": "Your saved properties, your alerts and your conversations with agencies, all in one place.",
       "tabs": {
         "favorites": "Saved & Alerts",
         "messages": "Messages & Viewings",
@@ -5390,9 +5390,9 @@
     "planTitle": "Preparing Your Purchase or Rental",
     "messagesTitle": "Your Conversations Happen on WhatsApp",
     "metaTitle": "Updates — Lukka Place",
-    "metaDescription": "Alerts for new property listings in Kinshasa.",
+    "metaDescription": "Alerts for new property listings across the DRC.",
     "planMetaTitle": "Planning — Lukka Place",
-    "planMetaDescription": "Planning tools for your property search in Kinshasa.",
+    "planMetaDescription": "Planning tools for your property search in the DRC.",
     "planBody1": "A budget simulator would need real financing rates, which Lukka Place does not have. Instead",
     "planBody2": "What you can already do: every listing shows its exact price, its floor area and its price per square metre, in dollars and in francs, with no fees added by the platform.",
     "alertsSignedInOnly": "Alerts are for signed-in visitors — create an account to see new listings matching your saved searches.",
@@ -5400,8 +5400,10 @@
     "messagesLead": "Lukka Place has no internal inbox. Every conversation about a listing happens directly on WhatsApp, with no account and no form."
   },
   "site": {
-    "metaTitle": "Lukka Place — Property in Kinshasa",
-    "metaDescription": "Find your next property to rent or buy in Kinshasa. Lukka Place is starting in Kinshasa and expanding across the DRC."
+    "metaTitle": "Lukka Place — Property Across the DRC",
+    "metaDescription": "Find an apartment, house or plot to rent or buy in Kinshasa, Lubumbashi, Goma, Bukavu, Kisangani and across the DRC.",
+    "cityMetaTitle": "Property in {city} | Lukka Place",
+    "cityMetaDescription": "Apartments, houses and plots to rent or buy in {city} on Lukka Place: reviewed listings, stated prices and direct contact on WhatsApp."
   },
   "seo": {
     "forRent": "for rent",
@@ -5417,7 +5419,7 @@
       "one": "{count} listing online — {heading}. Photos, stated prices, map and direct contact with the agent on WhatsApp.",
       "other": "{count} listings online — {heading}. Photos, stated prices, map and direct contact with the agent on WhatsApp."
     },
-    "metaDescriptionNone": "{heading}: get notified as soon as a listing is published on Lukka Place, Kinshasa's property platform.",
+    "metaDescriptionNone": "{heading}: get notified as soon as a listing is published on Lukka Place, the DRC's property platform.",
     "lead": {
       "one": "{count} listing online, reviewed by our team before publication.",
       "other": "{count} listings online, reviewed by our team before publication."

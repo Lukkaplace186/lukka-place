@@ -152,3 +152,17 @@ test('the picker\'s label is in both dictionaries', async () => {
   assert.equal(fr.listings.city.label, 'Ville');
   assert.equal(en.listings.city.label, 'City');
 });
+
+test('the site speaks for the whole DRC, and a city search is titled for its city', () => {
+  const fr = JSON.parse(read('lib/i18n/fr.json'));
+  const en = JSON.parse(read('lib/i18n/en.json'));
+  for (const dict of [fr, en]) {
+    for (const key of ['metaTitle', 'metaDescription']) assert.match(dict.site[key], /RDC|DRC/, key);
+    assert.doesNotMatch(dict.site.metaTitle, /Kinshasa/);
+    assert.doesNotMatch(dict.home.hero.subtitle, /d'abord|first/i);
+    assert.match(dict.site.cityMetaTitle, /\{city\}/);
+  }
+  assert.match(read('app/manifest.js'), /partout en RDC/);
+  const page = read('app/(site)/listings/page.js');
+  assert.match(page, /t\('site\.cityMetaTitle', \{ city \}\)/);
+});

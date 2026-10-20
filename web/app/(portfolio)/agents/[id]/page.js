@@ -19,6 +19,7 @@ import { formatPhoneDisplay, telHref } from '@/lib/phone';
 import { SITE_URL, ICON_STROKE_WIDTH } from '@/lib/constants';
 import { getT } from '@/lib/i18n/server';
 import JsonLd from '@/components/seo/JsonLd';
+import { DEFAULT_CITY, cityOfCommune, communeLabel, communeOptionText } from '@/lib/cities';
 
 const PROFILE_MESSAGE =
   "Bonjour, j'ai vu votre profil sur Lukka Place et j'aimerais en savoir plus sur vos biens.";
@@ -138,8 +139,10 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
   // on phone_verified_at). Both now mean something specific — a reviewed
   // RCCM, reviewed identity documents — and are carried by the badge above
   // the line, only when a team member actually approved them.
+  const agentCities = [...new Set(communes.map((c) => cityOfCommune(c) || DEFAULT_CITY))];
   const metaLine = [
-    agent.city || (communes.length === 1 ? communes[0] : communes.length > 1 ? 'Kinshasa' : null),
+    // One commune → "Kampemba · Lubumbashi"; several → their city (or cities).
+    agent.city || (communes.length === 1 ? communeOptionText(communes[0]) : communes.length > 1 ? agentCities.join(', ') : null),
   ]
     .filter(Boolean)
     .join(' · ');
@@ -165,9 +168,9 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
         ...(typeof agent.image === 'string' && /^https:\/\//.test(agent.image) ? { image: agent.image } : {}),
         ...(agent.bio ? { description: String(agent.bio).slice(0, 300) } : {}),
         areaServed: communes.length
-          ? communes.map((c) => ({ '@type': 'Place', name: `${c}, Kinshasa` }))
-          : { '@type': 'City', name: 'Kinshasa' },
-        address: { '@type': 'PostalAddress', addressLocality: agent.city || 'Kinshasa', addressCountry: 'CD' },
+          ? communes.map((c) => ({ '@type': 'Place', name: `${communeLabel(c)}, ${cityOfCommune(c) || DEFAULT_CITY}` }))
+          : { '@type': 'Country', name: 'République démocratique du Congo' },
+        address: { '@type': 'PostalAddress', addressLocality: agent.city || agentCities[0] || DEFAULT_CITY, addressCountry: 'CD' },
         parentOrganization: { '@id': `${SITE_URL.replace(/\/+$/, '')}/#organization`, '@type': 'Organization', name: 'Lukka Place' },
       }
     : null;

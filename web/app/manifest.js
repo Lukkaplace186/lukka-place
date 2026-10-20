@@ -13,9 +13,9 @@
 export default function manifest() {
   return {
     id: '/',
-    name: 'Lukka Place — Immobilier à Kinshasa',
+    name: "Lukka Place — L'immobilier partout en RDC",
     short_name: 'Lukka Place',
-    description: 'Location et vente de maisons, appartements et parcelles à Kinshasa.',
+    description: 'Location et vente de maisons, appartements et parcelles partout en RDC : Kinshasa, Lubumbashi, Goma, Bukavu, Kisangani et plus.',
     lang: 'fr',
     start_url: '/',
     scope: '/',

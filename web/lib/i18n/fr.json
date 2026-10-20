@@ -100,7 +100,7 @@
       },
       "listing": {
         "title": "Cette annonce n'est plus en ligne",
-        "body": "Le bien a peut-être été loué, vendu ou retiré par l'agent. Voici d'autres biens disponibles à Kinshasa."
+        "body": "Le bien a peut-être été loué, vendu ou retiré par l'agent. Voici d'autres biens disponibles."
       },
       "browse": "Voir les biens disponibles"
     }
@@ -154,15 +154,15 @@
       "subtitle": "Publiez vos biens et recevez vos demandes clients sur WhatsApp.",
       "cta": "Devenir Agence Partenaire"
     },
-    "tagline": "Appartements, villas et parcelles, à louer ou à vendre. Nous commençons à Kinshasa, avant de couvrir toute la RDC.",
-    "disclaimer": "Lukka Place est une plateforme d'annonces immobilières à Kinshasa. Les informations fournies sur les annonces sont établies sous la responsabilité des annonceurs. Lukka Place ne fournit pas de services de courtage financier direct et facilite la mise en relation via référence d'annonce.",
+    "tagline": "Appartements, villas et parcelles, à louer ou à vendre, partout en RDC.",
+    "disclaimer": "Lukka Place est une plateforme d'annonces immobilières en RDC. Les informations fournies sur les annonces sont établies sous la responsabilité des annonceurs. Lukka Place ne fournit pas de services de courtage financier direct et facilite la mise en relation via référence d'annonce.",
     "copyright": "© {year} Lukka Place.",
     "whatsappGreeting": "Bonjour, je vous contacte depuis lukkaplace.com."
   },
   "home": {
     "hero": {
       "title": "Appartements. Villas. Terrains. Agences.",
-      "subtitle": "À Kinshasa d'abord, bientôt dans toute la RDC. Annonces relues, prix affichés et contact direct sur WhatsApp.",
+      "subtitle": "Partout en RDC : Kinshasa, Lubumbashi, Goma, Bukavu, Kisangani et plus. Annonces relues, prix affichés et contact direct sur WhatsApp.",
       "photoCredit": "Photo par kaysha sur Unsplash"
     },
     "search": {
@@ -231,7 +231,7 @@
       "rentTitle": "Louer",
       "rentBody": "Appartements et maisons à louer, relus par notre équipe avant publication.",
       "buyTitle": "Acheter",
-      "buyBody": "Appartements, villas et parcelles à vendre à Kinshasa.",
+      "buyBody": "Appartements, villas et parcelles à vendre partout en RDC.",
       "buyCta": "Biens à vendre",
       "sellTitle": "Vendre",
       "sellBody": "Un bien à publier ? Notre équipe s’en occupe depuis WhatsApp.",
@@ -251,18 +251,18 @@
   },
   "about": {
     "metaTitle": "À propos — Lukka Place",
-    "metaDescription": "Lukka Place simplifie la recherche de logement : annonces relues, prix clairs, visites réservées en ligne et agents joignables directement. Nous commençons à Kinshasa, avant de couvrir toute la RDC.",
+    "metaDescription": "Lukka Place simplifie la recherche de logement en RDC : annonces relues, prix clairs, visites réservées en ligne et agents joignables directement, à Kinshasa, Lubumbashi, Goma et au-delà.",
     "eyebrow": "À propos",
     "heroKicker": "À propos de Lukka Place",
     "heroTitle": "Trouvez votre prochain chez-vous, sans les détours.",
     "heroAccent": "sans les détours",
     "heroPhotoAlt": "Un jeune couple emménage, un carton dans les bras",
     "photoCredit": "Photo : {name} / Pexels",
-    "heroLead": "Des annonces relues, des prix clairs et l'agent au bout du fil. Nous commençons à Kinshasa, puis nous avançons ville après ville, jusqu'à couvrir toute la RDC.",
+    "heroLead": "Des annonces relues, des prix clairs et l'agent au bout du fil — à Kinshasa, Lubumbashi, Goma, Bukavu, Kisangani et dans les grandes villes de la RDC.",
     "ctaBrowse": "Voir les annonces",
     "ctaAgent": "Je suis agent",
     "visionEyebrow": "Notre ambition",
-    "visionTitle": "Kinshasa d'abord. Toute la RDC ensuite.",
+    "visionTitle": "Kinshasa, Lubumbashi, Goma… toute la RDC.",
     "visionAccent": "Toute la RDC",
     "visionBody": "Trouver un logement prend trop de temps : des appels sans réponse, des annonces floues, des trajets pour rien.",
     "visionPhotoBukavuAlt": "Vue aérienne d'une ville de la République démocratique du Congo (Bukavu)",
@@ -285,10 +285,10 @@
     "agentsStep3Body": "Demandes de visite et contacts arrivent sur votre WhatsApp et dans votre agenda, avec un visuel prêt à partager.",
     "agentsCta": "Devenir agent partenaire",
     "notesTitle": "Bon à savoir",
-    "title": "Une plateforme faite pour Kinshasa",
+    "title": "Une plateforme faite pour la RDC",
     "body3": "Les prix sont établis en dollars américains. L'affichage en francs congolais est une estimation indicative, convertie à un taux de référence daté, jamais présentée comme le prix contractuel.",
     "body4": "Lukka Place ne fournit pas de services de courtage financier direct ; la plateforme facilite la mise en relation entre les annonceurs et les personnes intéressées via référence d'annonce.",
-    "visionBody2": "Nous changeons cela, en commençant par Kinshasa, commune par commune et quartier par quartier. Puis nous irons plus loin, ville après ville, jusqu'à couvrir tout le pays.",
+    "visionBody2": "Nous changeons cela, ville par ville : Kinshasa, Lubumbashi, Goma, Bukavu, Kisangani, Mbuji-Mayi, Kananga et d'autres, commune par commune et quartier par quartier.",
     "visionBody3": "Que vous soyez sur place ou dans la diaspora, vous cherchez de la même façon : simplement, et en confiance.",
     "change3aTitle": "Tout est dit avant le déplacement",
     "change3aBody": "Photos, quartier, prix, garantie, avance et commission : vous savez à quoi vous attendre avant de bouger.",
@@ -406,8 +406,8 @@
         "one": "{count} résultat",
         "other": "{count} résultats"
       },
-      "locationRelaxed": "Aucun résultat exact à {commune} — recherche élargie à Kinshasa pour ces mots-clés.",
-      "citywideFrom": "Rayon élargi à Kinshasa entière depuis {place}.",
+      "locationRelaxed": "Aucun résultat exact à {commune} — recherche élargie à toute la ville pour ces mots-clés.",
+      "citywideFrom": "Rayon élargi à toute la ville depuis {place}.",
       "communeWideFrom": "Rayon élargi à {commune} entière depuis {quartier}.",
       "areaHeading": "{subject} {transaction} dans la zone de la carte",
       "mapAreaNote": "Les biens visibles sur la carte",
@@ -419,7 +419,7 @@
     "empty": {
       "title": "Aucun bien ne correspond",
       "titleAt": "Aucun bien ne correspond exactement à votre recherche à {location}",
-      "widen": "Élargir à Kinshasa entière",
+      "widen": "Élargir à toute la ville",
       "communesWithListings": "Communes avec des biens disponibles",
       "nearestCommunes": "Communes les plus proches avec des biens",
       "seeAll": "Voir toutes les annonces",
@@ -632,7 +632,7 @@
       "locate": "Autour de moi",
       "locateDenied": "Autorisez la localisation dans votre navigateur pour voir les biens autour de vous.",
       "locateFailed": "Position introuvable pour le moment. Réessayez dans un instant.",
-      "locateOutside": "Vous semblez être hors de Kinshasa : la carte reste sur la ville.",
+      "locateOutside": "Vous semblez être hors des villes couvertes : la carte reste en place.",
       "relaxedText": "Aucun bien ne correspond à « {text} » — voici les biens à proximité.",
       "dismiss": "Fermer",
       "locateUnavailable": "Votre navigateur ne permet pas la localisation.",
@@ -684,7 +684,7 @@
     },
     "related": {
       "similar": "Biens Similaires",
-      "otherInKinshasa": "Autres biens à Kinshasa",
+      "otherInKinshasa": "Autres biens dans cette ville",
       "otherIn": "Autres biens à {commune}",
       "recommended": "Recommandé",
       "nearby": "À proximité",
@@ -801,7 +801,7 @@
       "time": "Heure",
       "today": "Aujourd’hui",
       "tomorrow": "Demain",
-      "kinshasaTime": "heure de Kinshasa",
+      "kinshasaTime": "heure locale",
       "busy": "déjà pris",
       "tooSoon": "trop proche",
       "busyNote": "Les heures grisées « déjà pris » : l’agent a une autre visite.",
@@ -1113,7 +1113,7 @@
       "firstName": "Prénom",
       "lastName": "Nom",
       "bio": "Présentation",
-      "bioPlaceholder": "Location et vente de maisons, appartements et parcelles à Kinshasa.",
+      "bioPlaceholder": "Location et vente de maisons, appartements et parcelles à Lubumbashi.",
       "whatsappNumber": "Numéro WhatsApp",
       "verified": "Vérifié",
       "saved": "Modifications enregistrées.",
@@ -1272,11 +1272,11 @@
       "verifiedFem": "Vérifiée",
       "contactUnavailable": "Coordonnées non disponibles",
       "noListingsYet": "Cet agent n'a pas encore de bien en ligne. Envoyez-lui votre recherche ci-contre.",
-      "directoryTitle": "Agents à Kinshasa",
+      "directoryTitle": "Agents immobiliers en RDC",
       "directoryLead": "annonces vérifiées.",
       "directoryEmpty": "Aucun agent actif pour le moment.",
       "directoryMetaTitle": "Agents — Lukka Place",
-      "directoryMetaDescription": "Agents immobiliers actifs à Kinshasa, avec des annonces réelles publiées sur Lukka Place.",
+      "directoryMetaDescription": "Agents immobiliers actifs en RDC — Kinshasa, Lubumbashi, Goma et plus — avec des annonces réelles publiées sur Lukka Place.",
       "hostedBy": "Portfolio hébergé par Lukka Place",
       "reportListing": "Signaler une annonce",
       "whatsappPublish": "Bonjour, je souhaite publier un bien sur Lukka Place.",
@@ -2435,7 +2435,7 @@
     "portal": {
       "title": "Espace client",
       "metaTitle": "Espace client — Lukka Place",
-      "lead": "Vos biens sauvegardés, vos alertes et vos échanges avec les agences de Kinshasa, au même endroit.",
+      "lead": "Vos biens sauvegardés, vos alertes et vos échanges avec les agences, au même endroit.",
       "tabs": {
         "favorites": "Favoris & Alertes",
         "messages": "Messages & Visites",
@@ -5390,9 +5390,9 @@
     "planTitle": "Préparer votre achat ou votre location",
     "messagesTitle": "Vos échanges se passent sur WhatsApp",
     "metaTitle": "Actualités — Lukka Place",
-    "metaDescription": "Alertes sur les nouvelles annonces à Kinshasa.",
+    "metaDescription": "Alertes sur les nouvelles annonces immobilières en RDC.",
     "planMetaTitle": "Plan — Lukka Place",
-    "planMetaDescription": "Outils de planification pour votre recherche immobilière à Kinshasa.",
+    "planMetaDescription": "Outils de planification pour votre recherche immobilière en RDC.",
     "planBody1": "Un simulateur de budget demanderait des taux de financement réels, dont Lukka Place ne dispose pas. Plutôt",
     "planBody2": "Ce que vous pouvez déjà faire : chaque annonce affiche son prix exact, sa superficie et son prix au mètre carré, en dollars comme en francs, sans frais ajoutés par la plateforme.",
     "alertsSignedInOnly": "Les alertes sont réservées aux visiteurs connectés — créez un compte pour voir les nouvelles annonces correspondant à vos recherches sauvegardées.",
@@ -5400,8 +5400,10 @@
     "messagesLead": "Lukka Place n'a pas de messagerie interne. Toutes les conversations sur une annonce se font directement par WhatsApp, sans compte ni formulaire."
   },
   "site": {
-    "metaTitle": "Lukka Place — Immobilier à Kinshasa",
-    "metaDescription": "Trouvez votre prochain bien à louer ou à vendre à Kinshasa. Lukka Place commence à Kinshasa et s'étend à toute la RDC."
+    "metaTitle": "Lukka Place — L'immobilier partout en RDC",
+    "metaDescription": "Trouvez votre appartement, maison ou terrain à louer ou à vendre à Kinshasa, Lubumbashi, Goma, Bukavu, Kisangani et partout en RDC.",
+    "cityMetaTitle": "Immobilier à {city} | Lukka Place",
+    "cityMetaDescription": "Appartements, maisons et terrains à louer ou à vendre à {city}, sur Lukka Place : annonces relues, prix affichés et contact direct sur WhatsApp."
   },
   "seo": {
     "forRent": "à louer",
@@ -5417,7 +5419,7 @@
       "one": "{count} annonce en ligne — {heading}. Photos, prix affichés, carte et contact direct de l'agent sur WhatsApp.",
       "other": "{count} annonces en ligne — {heading}. Photos, prix affichés, carte et contact direct de l'agent sur WhatsApp."
     },
-    "metaDescriptionNone": "{heading} : soyez prévenu dès qu'une annonce est publiée sur Lukka Place, la plateforme immobilière de Kinshasa.",
+    "metaDescriptionNone": "{heading} : soyez prévenu dès qu'une annonce est publiée sur Lukka Place, la plateforme immobilière de la RDC.",
     "lead": {
       "one": "{count} annonce en ligne, relue par notre équipe avant publication.",
       "other": "{count} annonces en ligne, relues par notre équipe avant publication."

@@ -59,12 +59,32 @@ export async function generateMetadata({ searchParams }) {
   const t = await getT();
   const landing = seoPathForParams(params);
   const hasFilters = Object.entries(params).some(([k, v]) => v && !['sort', 'view'].includes(k) && !k.startsWith('utm_'));
+  // A city search (CityPicker, ?ville=) is titled for that city, so a shared
+  // Goma link previews as "Immobilier à Goma" on WhatsApp. Next replaces a
+  // nested openGraph object rather than merging it, so the card carries its
+  // own image (the same one app/layout.js uses).
+  const city = await publicVille(Array.isArray(params.ville) ? params.ville[0] : params.ville);
+  if (city) {
+    const title = t('site.cityMetaTitle', { city });
+    const description = t('site.cityMetaDescription', { city });
+    return {
+      title,
+      description,
+      openGraph: { title, description, type: 'website', images: [{ url: CITY_SHARE_IMAGE, width: 1200, height: 630, alt: title }] },
+      twitter: { card: 'summary_large_image', title, description, images: [CITY_SHARE_IMAGE] },
+      alternates: { canonical: `/listings?ville=${encodeURIComponent(city)}` },
+      robots: { index: false, follow: true },
+    };
+  }
   return {
     title: `${t('breadcrumb.listings')} — ${t('site.metaTitle')}`,
     alternates: { canonical: landing || '/listings' },
     robots: !hasFilters || landing ? undefined : { index: false, follow: true },
   };
 }
+
+/** app/layout.js's OG_IMAGE — the share card a city search previews with. */
+const CITY_SHARE_IMAGE = '/og-image.png?v=2';
 
 export default async function ListingsPage({ searchParams }) {
   const params = await searchParams;

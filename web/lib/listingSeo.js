@@ -3,6 +3,7 @@ import { SITE_URL } from './constants';
 import { formatPrice, usablePrice } from './format';
 import { hasArea, listingImages, typeLabel } from './listingView';
 import { seoPath } from './seoPages';
+import { DEFAULT_CITY, cityOfListing, communeLabel, provinceOfCity } from './cities';
 
 /**
  * What a search result says about one listing — its <title>, meta
@@ -24,7 +25,10 @@ function purposeWord(listing, t) {
 }
 
 function placeOf(listing, t) {
-  return listing.commune || listing.quartier || t('seo.city');
+  // "Kampemba, Lubumbashi" outside Kinshasa, the commune alone inside it
+  // (lib/placeLabel.js); a listing with no commune names its own city.
+  if (listing.commune) return placeLabel({ commune: listing.commune });
+  return listing.quartier || (listing.city_name && cityOfListing(listing) !== DEFAULT_CITY ? cityOfListing(listing) : t('seo.city'));
 }
 
 function clip(text, max) {
@@ -95,8 +99,10 @@ export function listingJsonLd(listing, t) {
   const address = {
     '@type': 'PostalAddress',
     ...(listing.quartier ? { streetAddress: listing.quartier } : {}),
-    addressLocality: listing.commune || 'Kinshasa',
-    addressRegion: 'Kinshasa',
+    // The listing's own city and province (lib/cities.js), the commune by its
+    // plain name — never "Kinshasa" for a Lubumbashi house.
+    addressLocality: listing.commune ? communeLabel(listing.commune) : cityOfListing(listing),
+    addressRegion: provinceOfCity(cityOfListing(listing)) || cityOfListing(listing),
     addressCountry: 'CD',
   };
   const about = {
@@ -123,7 +129,7 @@ export function listingJsonLd(listing, t) {
 
   const crumbs = [{ name: t('breadcrumb.home'), item: base() }, { name: t('breadcrumb.listings'), item: `${base()}/listings` }];
   const communeLink = communeHref(listing);
-  if (communeLink) crumbs.push({ name: listing.commune, item: `${base()}${communeLink}` });
+  if (communeLink) crumbs.push({ name: communeLabel(listing.commune), item: `${base()}${communeLink}` });
   crumbs.push({ name: listing.title, item: url });
 
   return {

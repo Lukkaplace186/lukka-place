@@ -152,3 +152,13 @@ export function utcOffsetForCity(name) {
 export function utcOffsetForListing(listing) {
   return utcOffsetForCity(cityOfCommune(listing?.commune) || listing?.city_name || DEFAULT_CITY);
 }
+
+/** The city a listing row is in: its commune's, else its `city_name`, else Kinshasa. */
+export function cityOfListing(listing) {
+  return cityOfCommune(listing?.commune) || findCity(listing?.city_name)?.name || DEFAULT_CITY;
+}
+
+/** The province a city is in ("Haut-Katanga"), or null. */
+export function provinceOfCity(name) {
+  return findCity(name)?.province || null;
+}

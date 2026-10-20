@@ -1,4 +1,5 @@
 import { SITE_URL } from './constants';
+import { CITIES } from './cities';
 
 /**
  * schema.org building blocks shared across pages. Every value is either a
@@ -37,7 +38,11 @@ export function organizationSchema() {
     url,
     logo: `${url}${ORG_LOGO_PATH}`,
     image: `${url}/og-image.png?v=2`,
-    areaServed: { '@type': 'City', name: 'Kinshasa', address: { '@type': 'PostalAddress', addressLocality: 'Kinshasa', addressCountry: 'CD' } },
+    // Every city covered (lib/cities.js), in the DRC; the office stays Kinshasa.
+    areaServed: [
+      { '@type': 'Country', name: 'République démocratique du Congo' },
+      ...CITIES.map((city) => ({ '@type': 'City', name: city.name, address: { '@type': 'PostalAddress', addressLocality: city.name, addressCountry: 'CD' } })),
+    ],
     address: { '@type': 'PostalAddress', addressLocality: 'Kinshasa', addressCountry: 'CD' },
     ...(phone ? { telephone: `+${String(phone).replace(/\D/g, '')}` } : {}),
     ...(sameAs.length ? { sameAs } : {}),

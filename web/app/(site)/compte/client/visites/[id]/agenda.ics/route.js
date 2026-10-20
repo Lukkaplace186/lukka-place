@@ -3,6 +3,7 @@ import { getCustomerInquiries } from '@/lib/customerInquiries';
 import { buildVisitIcs } from '@/lib/visitAgenda';
 import { displayableAgencyName } from '@/lib/agentIdentity';
 import { SITE_URL } from '@/lib/constants';
+import { placeLabel } from '@/lib/placeLabel';
 
 /**
  * GET /compte/client/visites/:id/agenda.ics — the customer's "Ajouter à mon
@@ -46,7 +47,7 @@ export async function GET(_request, { params }) {
     contactLabel: 'Agent',
     customerPhone: listing?.agent_phone || null,
     requestedTime: null,
-    place: listing?.commune ? `${listing.commune}, Kinshasa` : null,
+    place: listing?.commune ? placeLabel({ commune: listing.commune }) || null : null,
     directions: null,
     listingUrl: listing ? `${SITE_URL}/listings/${listing.id}` : null,
     dashboardUrl: `${SITE_URL}/compte/client/visites`,

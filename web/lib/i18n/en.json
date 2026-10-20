@@ -3070,7 +3070,14 @@
     },
     "listings": {
       "title": "Property Approvals",
-      "empty": "No listings."
+      "empty": "No listings.",
+      "create": "Create a Listing",
+      "createSubtitle": "Entered by the team, for an agent or with no agent. Published at once, or sent to moderation.",
+      "createAgentAndPhotos": "Agent and Photos",
+      "publishNow": "Publish now (same checks as “Approve”)",
+      "deleteOne": "Delete listing",
+      "addPhotos": "Add photos",
+      "photosAdded": "{count} photo(s) added."
     },
     "leads": {
       "title": "Leads",
@@ -3483,6 +3490,7 @@
       "firstName": "First Name",
       "lastName": "Last Name",
       "editProfile": "Edit Profile",
+      "deleteAgent": "Delete agent",
       "identityAndTerritory": "Identity and Territory",
       "agencyName": "Agency name",
       "accountStatus": "Account status",

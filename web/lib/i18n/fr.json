@@ -3070,7 +3070,14 @@
     },
     "listings": {
       "title": "Annonces",
-      "empty": "Aucune annonce."
+      "empty": "Aucune annonce.",
+      "create": "Créer une annonce",
+      "createSubtitle": "Saisie par l’équipe, au nom d’un agent ou sans agent. Publiée directement, ou envoyée en modération.",
+      "createAgentAndPhotos": "Agent et photos",
+      "publishNow": "Publier directement (mêmes vérifications que « Approuver »)",
+      "deleteOne": "Supprimer l’annonce",
+      "addPhotos": "Ajouter des photos",
+      "photosAdded": "{count} photo(s) ajoutée(s)."
     },
     "leads": {
       "title": "Prospects",
@@ -3483,6 +3490,7 @@
       "firstName": "Prénom",
       "lastName": "Nom",
       "editProfile": "Modifier le profil",
+      "deleteAgent": "Supprimer l’agent",
       "identityAndTerritory": "Identité et territoire",
       "agencyName": "Nom de l’agence",
       "accountStatus": "Statut du compte",

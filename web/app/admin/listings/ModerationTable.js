@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { AlertTriangle, BadgeCheck, CheckCircle2, ImageOff, Pencil, XCircle } from 'lucide-react';
+import { AlertTriangle, BadgeCheck, CheckCircle2, ImageOff, Pencil, Trash2, XCircle } from 'lucide-react';
 import SafeImage from '@/components/SafeImage';
 import { useToast } from '@/components/Toast';
 import {
@@ -241,6 +241,18 @@ export default function ModerationTable({ rows, status, canModerate, canDelete =
                     <Link href={`/admin/listings/${row.id}`} className={BUTTON} title={t('admin.moderation.open')}>
                       <Pencil strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
                     </Link>
+                    {canDelete ? (
+                      <button
+                        type="button"
+                        className={BUTTON}
+                        disabled={pending || bulkDelete.pending}
+                        onClick={() => bulkDelete.request([row.id])}
+                        title={t('admin.listings.deleteOne')}
+                        aria-label={t('admin.listings.deleteOne')}
+                      >
+                        <Trash2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 text-danger" />
+                      </button>
+                    ) : null}
                   </div>
                 </td>
               </tr>

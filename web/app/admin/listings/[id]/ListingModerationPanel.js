@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ArrowRight, CheckCircle2, Save, Star, Trash2, XCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle2, ImagePlus, Save, Star, Trash2, XCircle } from 'lucide-react';
 import SafeImage from '@/components/SafeImage';
 import { useToast } from '@/components/Toast';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -10,6 +10,7 @@ import { REJECTION_REASON_CODES, REJECTION_REASON_LABEL_KEYS } from '@/lib/moder
 import { useT } from '@/lib/i18n/client';
 import { moderateListingsAction } from '../actions';
 import { adminSetListingGalleryAction } from './actions';
+import { adminAddListingPhotosAction } from '../createActions';
 
 const BUTTON =
   'u-press u-micro-strong inline-flex h-9 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-ink transition-colors hover:border-blue disabled:opacity-50';
@@ -47,7 +48,7 @@ export default function ListingModerationPanel({ listingId, info, canModerate, c
         return;
       }
       showToast({ type: 'success', message: result.message || t('admin.moderation.decisionSaved') });
-      onDone?.();
+      onDone?.(result);
       router.refresh();
     });
   }
@@ -174,6 +175,28 @@ export default function ListingModerationPanel({ listingId, info, canModerate, c
               {t('common.actions.cancel')}
             </button>
           </div>
+        ) : null}
+        {canEdit && !dirty ? (
+          <label className={`${BUTTON} cursor-pointer self-start${pending ? ' pointer-events-none opacity-50' : ''}`}>
+            <ImagePlus strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+            {t('admin.listings.addPhotos')}
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              multiple
+              className="sr-only"
+              onChange={(event) => {
+                const files = [...(event.target.files || [])];
+                event.target.value = '';
+                if (!files.length) return;
+                const formData = new FormData();
+                files.forEach((file) => formData.append('photos', file));
+                run(() => adminAddListingPhotosAction(listingId, formData), (result) => {
+                  if (result?.gallery) setPhotos(result.gallery);
+                });
+              }}
+            />
+          </label>
         ) : null}
         <p className="u-micro text-ink-45">{t('admin.photos.hint')}</p>
       </section>

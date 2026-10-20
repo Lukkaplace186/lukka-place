@@ -2790,6 +2790,33 @@ From an owner walkthrough on a phone. Engine migration
     payment before setting the key in production. There is no payment UI yet;
     the Abonnements tab stays hidden until there is.
 
+## Console create / delete for listings and agents (2026-10-20)
+
+`app/admin/listings/createActions.js`, `app/admin/listings/nouveau/`,
+`DeleteListingButton.js`, `app/admin/agents/[id]/AgentDeleteButton.js`.
+Tests: `tests/unit/admin-crud.test.js`.
+
+- **"Créer une annonce"** (`/admin/listings/nouveau`, `listings.edit`): the
+  agent form's write path (`createListing`: city from the commune, commune
+  amenity from `location_communes`, `approve_status` 0) for an agent picked
+  with `AgentPicker` or none (central number). Communes and categories are
+  re-read in the action. Currency / period go through `adminUpdateListing`
+  after the insert. "Publier directement" runs `approveListingAction` (its
+  publish checks, and the agent's "en ligne" message) only for a
+  `listings.moderate` role. No plan quota: the team is not an agent.
+- **"Ajouter des photos"** in the photo panel appends uploads after the
+  gallery already there (cover unchanged); hidden while a reorder is unsaved.
+- **"Supprimer l'annonce"** on each queue row and on the listing page is the
+  bulk bar's soft delete for one id (owner, `listings.delete`, 10 s undo;
+  photos stay in storage so the undo is whole).
+- **"Supprimer l'agent"** on the agent page opens the table's
+  `DeleteAgentDialog` (impact, archive or delete listings, typed id) and goes
+  back to `/admin/agents` (`onDeleted`).
+- Already there and unchanged: every field of a listing in the editor
+  (moderation via Approuver / Rejeter / Suspendre — there is no "draft"
+  state in this schema), agency name, communes and (since today) first /
+  last name on the agent page; the phone stays locked.
+
 ## Agent ratings — "Notez l'agent" (2026-10-18)
 
 Engine half and rules: root CLAUDE.md, "Notez l'agent". The engine

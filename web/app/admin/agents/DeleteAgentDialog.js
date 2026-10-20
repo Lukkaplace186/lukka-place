@@ -15,18 +15,18 @@ const BUTTON = 'u-press inline-flex h-8 items-center rounded-md border border-li
  * typed — a permanent delete should not be one misplaced tap away from
  * "Suspendre" in the same menu.
  */
-export default function DeleteAgentDialog({ agent, onClose }) {
+export default function DeleteAgentDialog({ agent, onClose, onDeleted }) {
   return (
     <Dialog open={Boolean(agent)} onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent className="sm:max-w-md">
         {/* Keyed by agent: every opening starts from a clean form. */}
-        {agent ? <DeleteAgentBody key={agent.id} agent={agent} onClose={onClose} /> : null}
+        {agent ? <DeleteAgentBody key={agent.id} agent={agent} onClose={onClose} onDeleted={onDeleted} /> : null}
       </DialogContent>
     </Dialog>
   );
 }
 
-function DeleteAgentBody({ agent, onClose }) {
+function DeleteAgentBody({ agent, onClose, onDeleted }) {
   const router = useRouter();
   const { showToast } = useToast();
   const [impact, setImpact] = useState(null);
@@ -66,7 +66,9 @@ function DeleteAgentBody({ agent, onClose }) {
       showToast({ type: result.ok ? 'success' : 'error', message: result.ok ? result.message : result.error });
       if (result.ok) {
         onClose();
-        router.refresh();
+        // From the agent's own page there is nothing left to refresh into.
+        if (onDeleted) onDeleted();
+        else router.refresh();
       }
     });
   }

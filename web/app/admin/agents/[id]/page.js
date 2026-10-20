@@ -19,6 +19,7 @@ import { getAdminSession } from '@/lib/adminSession';
 import { getT } from '@/lib/i18n/server';
 import AgentAdminPanel from './AgentAdminPanel';
 import AgentRepControl from './AgentRepControl';
+import AgentDeleteButton from './AgentDeleteButton';
 import ImpersonateButton from '../../ImpersonateButton';
 import { getAgentSalesAssignment, listActiveRepOptions } from '@/lib/sales';
 import { getAgentAttribution } from '@/lib/salesLaunch';
@@ -319,6 +320,7 @@ export default async function AdminAgentDetailPage({ params, searchParams }) {
               {t('admin.agentPanel.editProfile')}
             </Link>
           ) : null}
+          {can(session?.role, 'agents.delete') ? <AgentDeleteButton agentId={agent.id} agentName={displayName} /> : null}
           {can(session?.role, 'accounts.impersonate') ? (
             <ImpersonateButton targetType="agent" targetId={agent.id} targetLabel={displayName} sharedSession={Boolean(session?.shared)} />
           ) : null}

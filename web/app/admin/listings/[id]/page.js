@@ -7,6 +7,7 @@ import { getLocationHierarchyWithFallback } from '@/lib/locations';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import AdminListingEditor from './AdminListingEditor';
 import ListingModerationPanel from './ListingModerationPanel';
+import DeleteListingButton from '../DeleteListingButton';
 import { getListingModerationInfo } from '@/lib/moderationQueue';
 import { listEntityAudit } from '@/lib/adminAudit';
 import { can } from '@/lib/adminRoles';
@@ -88,6 +89,11 @@ export default async function AdminListingEditPage({ params }) {
               {t(approve.labelKey)}
             </span>
           )}
+          {can(session?.role, 'listings.delete') ? (
+            <div className="ml-auto">
+              <DeleteListingButton id={listing.id} />
+            </div>
+          ) : null}
           {Number(listing.status) === 0 && (
             <span className="rounded-full bg-canvas-deep px-2.5 py-1 text-[0.6875rem] font-extrabold uppercase tracking-[0.1em] text-ink-45">
               {t('admin.moderation.hidden')}

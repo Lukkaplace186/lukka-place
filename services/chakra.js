@@ -99,6 +99,19 @@ function decodeErrorData(data) {
  * Chakra forwards Meta's error envelope, and axios's default message ("Request
  * failed with status code 400") hides it — surface the real reason instead.
  */
+/**
+ * Text Chakra can store. Chakra writes every message to its own Postgres,
+ * which refuses a NUL character ("Unexpected error from database adapter:
+ * unsupported Unicode escape sequence") — seen 2026-10-20 on a model-written
+ * reply: the 400 left an agent with no answer at all. Control characters other
+ * than tab/newline and unpaired surrogate halves go too; nothing visible does.
+ */
+function safeText(value) {
+  return String(value ?? '')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '');
+}
+
 function rethrowChakraError(err, action) {
   const data = decodeErrorData(err.response?.data);
   const graphError = data?.error;
@@ -141,7 +154,7 @@ async function sendWhatsAppMessage(toPhone, messageText, { previewUrl = false, r
     recipient_type: 'individual',
     to,
     type: 'text',
-    text: { preview_url: previewUrl, body: String(messageText) },
+    text: { preview_url: previewUrl, body: safeText(messageText) },
   };
 
   if (replyToMessageId) {
@@ -211,7 +224,7 @@ async function sendTemplate(
     template.components = [
       {
         type: 'body',
-        parameters: bodyParams.map((text) => ({ type: 'text', text: String(text) })),
+        parameters: bodyParams.map((text) => ({ type: 'text', text: safeText(text) })),
       },
     ];
   }
@@ -385,7 +398,7 @@ async function sendInteractiveButtons(toPhone, bodyText, buttons = []) {
     type: 'interactive',
     interactive: {
       type: 'button',
-      body: { text: String(bodyText) },
+      body: { text: safeText(bodyText) },
       action: {
         buttons: buttons.map((button) => ({
           type: 'reply',
@@ -655,6 +668,7 @@ async function downloadMediaRaw(mediaId) {
 
 module.exports = {
   sendWhatsAppMessage,
+  safeText,
   sendTemplate,
   sendInteractiveButtons,
   templateConfigured,

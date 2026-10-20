@@ -11509,6 +11509,20 @@ console.log('\n2. services/openai.js');
     });
   }
 
+  // ===========================================================================
+  // 56. Outgoing text Chakra can store (2026-10-20)
+  // ===========================================================================
+
+  console.log('\n56. Outgoing text is cleaned of characters Chakra refuses');
+
+  check('a NUL, control characters and lone surrogates are removed; emoji and newlines stay', () => {
+    assert.strictEqual(chakra.safeText('Bonjour\u0000 ! 👍🏾\nLigne 2\tok'), 'Bonjour ! 👍🏾\nLigne 2\tok');
+    assert.strictEqual(chakra.safeText('a\uD83Db'), 'ab');
+    assert.strictEqual(chakra.safeText('a\uDC4Db'), 'ab');
+    assert.strictEqual(chakra.safeText('🏠 Villa'), '🏠 Villa');
+    assert.strictEqual(chakra.safeText(null), '');
+  });
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

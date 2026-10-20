@@ -21,6 +21,7 @@
  */
 
 const { inferCommune } = require('./locations');
+const { cityOfCommune, communeLabel, DEFAULT_CITY } = require('./cities');
 const { isCommercialType, floorLabelFr } = require('./commercial');
 
 const PROPERTY_TYPE_LABELS = {
@@ -118,7 +119,7 @@ function joinFr(items) {
 function communeQuestion(row) {
   for (const text of [row.quartier, row.reference]) {
     if (!present(text)) continue;
-    const found = inferCommune(text);
+    const found = inferCommune(text, { city: row.city || null });
     if (found.status === 'ambiguous') {
       return `📍 « ${String(text).trim()} » existe ${joinFr(found.communes.map((c) => `à ${c}`))}. Dans quelle commune se trouve le bien ? Répondez simplement avec le nom de la commune.`;
     }
@@ -154,10 +155,15 @@ function renderListingCard(row, { photoCount } = {}) {
     // Deduced from the quartier at intake (services/locations.js): said so,
     // because the agent's "OK" is what confirms it.
     const from = row.parsed_json?.commune_inferred_from;
+    const commune = communeLabel(row.commune);
     lines.push(from
-      ? `*Commune* : ${row.commune} _(déduite de « ${from} » — corrigez si ce n'est pas la bonne)_`
-      : `*Commune* : ${row.commune}`);
+      ? `*Commune* : ${commune} _(déduite de « ${from} » — corrigez si ce n'est pas la bonne)_`
+      : `*Commune* : ${commune}`);
   }
+  // The city, outside Kinshasa only: a Kinshasa card reads exactly as before,
+  // and a Lubumbashi agent sees that the listing will be published there.
+  const city = cityOfCommune(row.commune) || row.city;
+  if (city && city !== DEFAULT_CITY) lines.push(`*Ville* : ${city}`);
   if (Number(row.price) > 0) {
     lines.push(`*${row.transaction_type === 'vente' ? 'Prix' : 'Loyer'}* : ${money(row.price, currency)}${periodSuffix(row)}`);
   }

@@ -29,6 +29,7 @@
  */
 
 import { COLOCATION_EPSILON_DEG } from './mapPinSpread';
+import { CITIES, DEFAULT_CITY, cityOfCommune, communeLabel } from './cities';
 
 /**
  * Real, Google-verified centroids for all 24 Kinshasa communes — fetched
@@ -83,6 +84,23 @@ export const KINSHASA_COMMUNE_CENTROIDS = {
 
 /** Center of Kinshasa (Gombe) — used as the map's default viewport before any pins resolve. */
 export const KINSHASA_CENTER = KINSHASA_COMMUNE_CENTROIDS.Gombe;
+
+/**
+ * Every commune's point, every city (2026-10-20): Kinshasa's verified
+ * centroids above, then each other city's commune point geocoded by the
+ * engine's scripts/geocode-communes.js (lib/data/cities.json) — or, where
+ * Google gave no commune-level answer inside that city, the city's own
+ * centre. A pin placed on one is a commune-level pin and is flagged
+ * approximate exactly like a Kinshasa centroid pin; nothing is typed in.
+ */
+export const COMMUNE_CENTROIDS = { ...KINSHASA_COMMUNE_CENTROIDS };
+for (const city of CITIES) {
+  if (city.name === DEFAULT_CITY) continue;
+  for (const commune of city.communes) {
+    const point = commune.point || city.center;
+    if (point) COMMUNE_CENTROIDS[commune.key] = { lat: point.lat, lng: point.lng };
+  }
+}
 
 /**
  * Google `location_type`/`types` that count as genuine street-level
@@ -160,7 +178,12 @@ export function isLandmarkReference(reference) {
 export function buildGeocodeQueries(listing) {
   const commune = inferListingCommune(listing);
   const landmark = isLandmarkReference(listing?.reference) ? String(listing.reference).trim() : null;
-  const tail = [listing?.quartier, commune, 'Kinshasa', 'RD Congo'];
+  // The listing's own city closes every query (Kinshasa for every commune of
+  // its own and for a listing nothing places); a suffixed key is sent as its
+  // plain name ("Kalamu, Boma"), and a commune named like its city once.
+  const city = cityOfCommune(commune) || DEFAULT_CITY;
+  const communeName = commune ? communeLabel(commune) : null;
+  const tail = [listing?.quartier, communeName === city ? null : communeName, city, 'RD Congo'];
 
   const candidates = [
     [listing?.address, landmark, ...tail],
@@ -319,7 +342,7 @@ export async function resolveListingBase({ listing, geocoder }) {
   // commune-level pin on one identical point is deliberate: it is exactly what
   // lets placeResolvedListings see them as a group and fan them apart, instead
   // of scattering them onto slightly different "approximate" guesses.
-  const centroid = KINSHASA_COMMUNE_CENTROIDS[inferListingCommune(listing)];
+  const centroid = COMMUNE_CENTROIDS[inferListingCommune(listing)];
   if (centroid) {
     return { lat: centroid.lat, lng: centroid.lng, source: 'commune_fallback', precise: false, query: null };
   }

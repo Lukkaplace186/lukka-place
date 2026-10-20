@@ -40,6 +40,7 @@ const {
   notifyOps,
 } = require('../services/viewingNotifications');
 const { resolveScheduledAtInput, requestedSlotAt, resolvePreferredSlotInput, formatSlotFr } = require('../services/visitSchedule');
+const { utcOffsetForCommune } = require('../services/cities');
 const visitReceipt = require('../services/visitReceipt');
 
 const router = express.Router();
@@ -837,7 +838,8 @@ router.get('/viewing-requests', (req, res) => {
     const data = page.data.map((row) => ({
       ...row,
       // A structured pick wins while the request is still the customer's own.
-      requested_slot_at: (row.status === 'PENDING' && row.preferred_slot_at) || requestedSlotAt(row.requested_time, row.created_at),
+      requested_slot_at: (row.status === 'PENDING' && row.preferred_slot_at)
+        || requestedSlotAt(row.requested_time, row.created_at, { utcOffset: utcOffsetForCommune(row.commune || null) }),
     }));
     return res.json({ success: true, ...page, data });
   } catch (err) {
@@ -1068,9 +1070,10 @@ router.get('/viewing-requests/feed', (req, res) => {
  * goes through. A day with no hour is refused there, and so it is here —
  * an admin override must not invent the 9am the agent loop refuses to.
  */
-function resolveScheduledAt(raw) {
+function resolveScheduledAt(raw, request = null) {
   if (raw === null || raw === '') return { value: null };
-  return resolveScheduledAtInput(raw);
+  // "samedi 14h" is read on the visit's own clock (Lubumbashi, Goma… are UTC+2).
+  return resolveScheduledAtInput(raw, new Date(), { utcOffset: utcOffsetForCommune(request?.commune || null) });
 }
 
 router.patch('/viewing-requests/:id', (req, res) => {
@@ -1086,7 +1089,7 @@ router.patch('/viewing-requests/:id', (req, res) => {
 
   let scheduledAt;
   if (scheduledAtRaw !== undefined) {
-    const resolved = resolveScheduledAt(scheduledAtRaw);
+    const resolved = resolveScheduledAt(scheduledAtRaw, db.getViewingRequest(id));
     if (resolved.error) return res.status(400).json({ success: false, error: resolved.error });
     scheduledAt = resolved.value;
   }

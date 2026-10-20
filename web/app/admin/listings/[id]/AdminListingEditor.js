@@ -7,6 +7,7 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useToast } from '@/components/Toast';
 import { adminUpdateListingAction, adminSetListingVisibleAction } from './actions';
 import { useT } from '@/lib/i18n/client';
+import CommuneOptions from '@/components/CommuneOptions';
 
 const FIELD =
   'u-focus-ring h-10 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink';
@@ -108,11 +109,7 @@ export default function AdminListingEditor({ listing, communes, categories }) {
           <Field label="Commune">
             <select name="commune" defaultValue={listing.commune || ''} className={FIELD}>
               <option value="">{t('admin.actions.none')}</option>
-              {communes.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
+              <CommuneOptions communes={communes} />
             </select>
           </Field>
           <Field label={t('listings.filters.quartier')}>

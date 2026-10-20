@@ -279,7 +279,7 @@ test('print extras are scoped to the owning agent and read feature amenities onl
   await getPrintExtras(9, 305);
   const { sql, values } = calls[0];
   assert.match(sql, /WHERE p\.id = \$2 AND p\.agent_id = \$3/);
-  assert.match(sql, /pa\.amenity_id NOT BETWEEN 21 AND 44/);
+  assert.match(sql, /pa\.amenity_id NOT IN \(SELECT amenity_id FROM location_communes\)/);
   assert.deepEqual(values, [20, 305, 9]);
 });
 

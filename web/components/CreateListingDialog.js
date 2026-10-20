@@ -17,6 +17,7 @@ import { validatePhotoSelection } from '@/lib/uploadLimits.mjs';
 import { deleteDraft, fieldsFromForm, isEmptyDraft, loadDraft, looksOffline, saveDraft } from '@/lib/offlineDrafts';
 import { shrinkPhotos } from '@/lib/photoShrink';
 import { UPGRADE_PATH, announceListingQuota } from '@/lib/listingQuotaRules';
+import CommuneOptions from './CommuneOptions';
 
 const FIELD_CLASS =
   'u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35';
@@ -581,9 +582,7 @@ export default function CreateListingDialog({ communes, categories, draftKey = n
               <label htmlFor="commune" className={LABEL_CLASS}>Commune</label>
               <select id="commune" name="commune" required defaultValue="" className={FIELD_CLASS}>
                 <option value="" disabled>Choisir…</option>
-                {communes.map((commune) => (
-                  <option key={commune} value={commune}>{commune}</option>
-                ))}
+                <CommuneOptions communes={communes} />
               </select>
             </div>
             <div>

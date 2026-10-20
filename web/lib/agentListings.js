@@ -1,6 +1,7 @@
 import 'server-only';
 import { applyPriceChange } from './enginePrice';
 import { getPool } from './db';
+import { DEFAULT_CITY, cityOfCommune, communeLabel } from './cities';
 
 /**
  * Manual listing creation from the agent self-service dashboard
@@ -69,22 +70,46 @@ export async function getPropertyCategories() {
 }
 
 /**
- * The site's DRC / Kinshasa location row ids — same ILIKE lookup as the
- * engine's loadLocation(), since this app is Kinshasa-only and has no UI for
- * picking a different country/city.
- * @returns {Promise<{countryId: number, cityId: number}>}
+ * Where a listing with this commune is published (2026-10-20): the country,
+ * the commune's city (`location_communes.city_id` — engine
+ * scripts/migrate-multi-city.js) and its amenity tag; Kinshasa for a listing
+ * with no commune or one the table does not know, exactly as before other
+ * cities existed. Same rule as the engine's resolveRowLocation, so a listing
+ * typed here and one sent by WhatsApp land in the same city.
+ *
+ * @returns {Promise<{countryId: number, cityId: number, cityName: string, communeAmenityId: number|null}>}
  */
-async function resolveKinshasaLocation(client) {
+export async function resolveListingLocation(client, commune) {
   const { rows: countryRows } = await client.query(
     `SELECT country_id FROM property_country_contents WHERE name ILIKE '%Congo%' LIMIT 1`,
   );
+  if (!countryRows.length) throw new Error('Could not resolve DRC in property_country_contents.');
+  if (commune) {
+    const { rows } = await client.query(
+      `SELECT lc.amenity_id, lc.city_id FROM location_communes lc WHERE lc.name = $1 LIMIT 1`,
+      [commune],
+    );
+    if (rows.length) {
+      return {
+        countryId: countryRows[0].country_id,
+        cityId: Number(rows[0].city_id),
+        cityName: cityOfCommune(commune) || DEFAULT_CITY,
+        communeAmenityId: Number(rows[0].amenity_id),
+      };
+    }
+  }
   const { rows: cityRows } = await client.query(
     `SELECT city_id FROM property_city_contents WHERE name ILIKE '%Kinshasa%' LIMIT 1`,
   );
-  if (!countryRows.length || !cityRows.length) {
-    throw new Error('Could not resolve DRC / Kinshasa in the property_*_contents tables.');
-  }
-  return { countryId: countryRows[0].country_id, cityId: cityRows[0].city_id };
+  if (!cityRows.length) throw new Error('Could not resolve Kinshasa in property_city_contents.');
+  return { countryId: countryRows[0].country_id, cityId: Number(cityRows[0].city_id), cityName: DEFAULT_CITY, communeAmenityId: null };
+}
+
+/** "Mense, Kalamu, Boma" / "Yolo Sud II, Kalamu, Kinshasa" — the engine's buildAddress. */
+export function listingAddress(quartier, commune) {
+  const city = cityOfCommune(commune) || DEFAULT_CITY;
+  const name = commune ? communeLabel(commune) : null;
+  return [quartier, name === city ? null : name, city].filter(Boolean).join(', ');
 }
 
 function capitalise(text) {
@@ -131,7 +156,7 @@ export async function createListing({ agentId, vendorId, category, title, descri
   const ownTransaction = !existingClient;
 
   try {
-    const location = await resolveKinshasaLocation(client);
+    const location = await resolveListingLocation(client, commune);
 
     if (ownTransaction) await client.query('BEGIN');
 
@@ -179,7 +204,7 @@ export async function createListing({ agentId, vendorId, category, title, descri
     );
     const propertyId = rows[0].id;
 
-    const address = [quartier, commune, 'Kinshasa'].filter(Boolean).join(', ');
+    const address = listingAddress(quartier, commune);
     const slug = `${slugify(title)}-${propertyId}`;
     await client.query(
       `INSERT INTO property_contents (property_id, language_id, title, slug, address, description, created_at, updated_at)
@@ -187,11 +212,10 @@ export async function createListing({ agentId, vendorId, category, title, descri
       [propertyId, CONTENT_LANGUAGE_ID, title, slug, address, description],
     );
 
-    const communeAmenityId = commune ? COMMUNE_AMENITY_IDS[commune] : null;
-    if (communeAmenityId) {
+    if (location.communeAmenityId) {
       await client.query(
         'INSERT INTO property_amenities (property_id, amenity_id, created_at, updated_at) VALUES ($1, $2, NOW(), NOW())',
-        [propertyId, communeAmenityId],
+        [propertyId, location.communeAmenityId],
       );
     }
 
@@ -287,12 +311,12 @@ export async function getOwnListingForEdit(agentId, propertyId) {
             (
               SELECT COALESCE(array_agg(pa.amenity_id ORDER BY pa.amenity_id), ARRAY[]::bigint[])
               FROM property_amenities pa
-              WHERE pa.property_id = p.id AND pa.amenity_id NOT BETWEEN 21 AND 44
+              WHERE pa.property_id = p.id AND pa.amenity_id NOT IN (SELECT amenity_id FROM location_communes)
             ) AS amenity_ids,
             (
               SELECT ac.name FROM property_amenities pa
               JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = $1
-              WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44
+              WHERE pa.property_id = p.id AND pa.amenity_id IN (SELECT amenity_id FROM location_communes)
               LIMIT 1
             ) AS commune,
             (
@@ -376,7 +400,7 @@ export async function updateListing(agentId, propertyId, {
       return false;
     }
 
-    const address = [quartier, commune, 'Kinshasa'].filter(Boolean).join(', ');
+    const address = listingAddress(quartier, commune);
     await client.query(
       `UPDATE property_contents SET title = $1, description = $2, address = $3, updated_at = NOW()
        WHERE property_id = $4 AND language_id = $5`,
@@ -389,14 +413,17 @@ export async function updateListing(agentId, propertyId, {
     // save nothing on a listing that never had a commune tag to begin with
     // (every listing synced before 2026-08-15, see web/CLAUDE.md).
     await client.query(
-      'DELETE FROM property_amenities WHERE property_id = $1 AND amenity_id BETWEEN 21 AND 44',
+      'DELETE FROM property_amenities WHERE property_id = $1 AND amenity_id IN (SELECT amenity_id FROM location_communes)',
       [propertyId],
     );
-    const communeAmenityId = commune ? COMMUNE_AMENITY_IDS[commune] : null;
-    if (communeAmenityId) {
+    // The commune decides the city too: moving a listing to a Lubumbashi
+    // commune moves it to Lubumbashi.
+    const location = await resolveListingLocation(client, commune);
+    await client.query('UPDATE properties SET city_id = $1 WHERE id = $2', [location.cityId, propertyId]);
+    if (location.communeAmenityId) {
       await client.query(
         'INSERT INTO property_amenities (property_id, amenity_id, created_at, updated_at) VALUES ($1, $2, NOW(), NOW())',
-        [propertyId, communeAmenityId],
+        [propertyId, location.communeAmenityId],
       );
     }
 
@@ -635,7 +662,7 @@ export async function getFeatureAmenities() {
     `SELECT a.id, a.icon, ac.name
      FROM amenities a
      JOIN amenity_contents ac ON ac.amenity_id = a.id AND ac.language_id = $1
-     WHERE a.id NOT BETWEEN 21 AND 44 AND a.status = 1
+     WHERE a.id NOT IN (SELECT amenity_id FROM location_communes) AND a.status = 1
      ORDER BY a.serial_number, ac.name`,
     [CONTENT_LANGUAGE_ID],
   );
@@ -645,7 +672,7 @@ export async function getFeatureAmenities() {
 /**
  * Replaces a listing's feature amenities with `amenityIds`.
  *
- * The `NOT BETWEEN 21 AND 44` on the DELETE is load-bearing, not defensive
+ * The `NOT IN location_communes` on the DELETE is load-bearing, not defensive
  * tidiness: without it this would wipe the listing's commune tag, which is
  * the only place its commune is stored. Ids are also intersected against the
  * real feature set before insert, so a crafted request cannot tag a listing
@@ -663,13 +690,13 @@ export async function setListingAmenities(propertyId, amenityIds, existingClient
     if (ownsClient) await client.query('BEGIN');
 
     const { rows: valid } = await client.query(
-      `SELECT id FROM amenities WHERE id = ANY($1::bigint[]) AND id NOT BETWEEN 21 AND 44 AND status = 1`,
+      `SELECT id FROM amenities WHERE id = ANY($1::bigint[]) AND id NOT IN (SELECT amenity_id FROM location_communes) AND status = 1`,
       [amenityIds.length ? amenityIds : [0]],
     );
     const allowed = valid.map((r) => Number(r.id));
 
     await client.query(
-      'DELETE FROM property_amenities WHERE property_id = $1 AND amenity_id NOT BETWEEN 21 AND 44',
+      'DELETE FROM property_amenities WHERE property_id = $1 AND amenity_id NOT IN (SELECT amenity_id FROM location_communes)',
       [propertyId],
     );
     for (const amenityId of allowed) {

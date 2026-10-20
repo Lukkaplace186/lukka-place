@@ -640,8 +640,10 @@ check('is_confirmed / agent_name / agency_name are in the strict schema and requ
 
 console.log('\n1b. services/locations.js');
 
-check('loads all 24 communes from kinshasa_locations.json', () => {
-  assert.strictEqual(locationsService.COMMUNES.length, 24);
+check('loads all 24 communes from kinshasa_locations.json (and every other city after them)', () => {
+  assert.strictEqual(locationsService.KINSHASA_COMMUNES.length, 24);
+  assert.deepStrictEqual(locationsService.COMMUNES.slice(0, 24), locationsService.KINSHASA_COMMUNES);
+  assert.ok(locationsService.COMMUNES.length > 24);
 });
 check('apostrophe communes are canonicalised (N\'Djili -> Ndjili, N\'Sele -> Nsele)', () => {
   assert.ok(locationsService.COMMUNES.includes('Ndjili'));
@@ -798,7 +800,7 @@ console.log('\n2. services/openai.js');
       assert.match(updates[0].sql, /WHERE id = \$1 AND approve_status = 0/);
       const rule = auto.CANDIDATES_SQL;
       for (const needle of ['p.approve_status = 0', "verification_level' = ANY", 'phone_verified_at IS NOT NULL',
-        'p.price > 0', 'featured_image NOT ILIKE', 'amenity_id BETWEEN 21 AND 44', 'r.approve_status = 2', ") >= $2"]) {
+        'p.price > 0', 'featured_image NOT ILIKE', 'amenity_id IN (SELECT amenity_id FROM location_communes)', 'r.approve_status = 2', ") >= $2"]) {
         assert.ok(rule.includes(needle), `rule is missing: ${needle}`);
       }
       assert.ok(rule.includes(`<> '${auto.AUTO_NOTE}'`), 'trust is earned from HUMAN approvals, never from its own');
@@ -1830,7 +1832,7 @@ console.log('\n2. services/openai.js');
   check('communes/quartiers relational tables are seeded from kinshasa_locations.json', () => {
     const { count: communeCount } = dbService.db.prepare('SELECT COUNT(*) AS count FROM communes').get();
     const { count: quartierCount } = dbService.db.prepare('SELECT COUNT(*) AS count FROM quartiers').get();
-    assert.strictEqual(communeCount, 24);
+    assert.strictEqual(communeCount, locationsService.COMMUNES.length);
     assert.strictEqual(quartierCount, locationsService.ALL_QUARTIERS.length);
   });
   check('quartiers are correctly linked to their commune via commune_id', () => {
@@ -10628,7 +10630,7 @@ console.log('\n2. services/openai.js');
 
   check('inferListingLocation fills the commune, keeps the agent’s own text unless it is an official quartier', () => {
     assert.deepStrictEqual(loc47.inferListingLocation({ quartier: 'GB' }), {
-      commune: 'Ngaliema', quartier: 'GB', communeInferredFrom: 'GB', ambiguous: null,
+      commune: 'Ngaliema', quartier: 'GB', communeInferredFrom: 'GB', ambiguous: null, city: 'Kinshasa',
     });
     assert.strictEqual(loc47.inferListingLocation({ quartier: 'yolo sud 2' }).quartier, 'Yolo Sud II');
     assert.deepStrictEqual(loc47.inferListingLocation({ quartier: 'Funa' }).ambiguous, { name: 'Funa', communes: ['Barumbu', 'Limete'] });
@@ -11568,6 +11570,193 @@ console.log('\n2. services/openai.js');
       if (saved57.tpl === undefined) delete process.env.LISTING_APPROVED_TEMPLATE;
       else process.env.LISTING_APPROVED_TEMPLATE = saved57.tpl;
     }
+  }
+
+  // -------------------------------------------------------------------------
+  // 58. Cities beyond Kinshasa (2026-10-20) — services/cities.js,
+  // drc_locations.json, the city-aware resolver, city_id at publish, per-city
+  // visit clocks, scripts/migrate-multi-city.js.
+  // -------------------------------------------------------------------------
+  console.log('\n58. Cities beyond Kinshasa');
+  {
+    const cities55 = require('../services/cities');
+    const loc55 = require('../services/locations');
+    const pg55 = require('../services/postgres');
+    const geo55 = require('../services/geocoding');
+    const visit55 = require('../services/visitSchedule');
+    const card55 = require('../services/listingCard');
+    const repo55 = require('../services/propertyRepository');
+    const matching55 = require('../services/propertyMatching');
+    const fs55 = require('fs');
+    const path55 = require('path');
+
+    check('every commune key is unique nationwide; colliding names carry their city', () => {
+      const keys = Object.values(cities55.CITIES).flatMap((c) => Object.keys(c.communes));
+      assert.strictEqual(new Set(keys).size, keys.length);
+      assert.strictEqual(cities55.cityOfCommune('Kalamu'), 'Kinshasa');
+      assert.strictEqual(cities55.cityOfCommune('Kalamu (Boma)'), 'Boma');
+      assert.strictEqual(cities55.cityOfCommune('Kabondo (Kisangani)'), 'Kisangani');
+      assert.strictEqual(cities55.communeLabel('Kabondo (Boma)'), 'Kabondo');
+      assert.ok(!keys.includes('Kabondo'), 'a bare shared name would route one city\'s requests to the other');
+    });
+
+    check('UTC offsets: Kinshasa and Kongo Central +1, Katanga / Kasaï / Kivu / Tshopo +2, unknown = Kinshasa', () => {
+      for (const c of ['Kinshasa', 'Matadi', 'Boma', 'Muanda']) assert.strictEqual(cities55.utcOffsetForCity(c), 1, c);
+      for (const c of ['Lubumbashi', 'Likasi', 'Kolwezi', 'Goma', 'Bukavu', 'Kisangani', 'Mbuji-Mayi', 'Kananga']) {
+        assert.strictEqual(cities55.utcOffsetForCity(c), 2, c);
+      }
+      assert.strictEqual(cities55.utcOffsetForCommune('Kampemba'), 2);
+      assert.strictEqual(cities55.utcOffsetForCommune(null), 1);
+    });
+
+    check('city names: exact or a known short form, never a guess', () => {
+      assert.strictEqual(cities55.resolveCity('lshi'), 'Lubumbashi');
+      assert.strictEqual(cities55.resolveCity('Mbuji Mayi'), 'Mbuji-Mayi');
+      assert.strictEqual(cities55.resolveCity('Moanda'), 'Muanda');
+      assert.strictEqual(cities55.resolveCity('Lubumbsahi'), null);
+    });
+
+    check('with no city, a name Kinshasa also has keeps its Kinshasa reading', () => {
+      assert.strictEqual(loc55.inferCommune('Industriel').commune, 'Limete');
+      assert.strictEqual(loc55.resolveCommune('Kalamu'), 'Kalamu');
+      assert.strictEqual(loc55.inferCommune('GB').commune, 'Ngaliema');
+      assert.deepStrictEqual(loc55.inferCommune('Funa').communes, ['Barumbu', 'Limete']);
+    });
+
+    check('a city restricts every lookup to its own communes', () => {
+      assert.strictEqual(loc55.inferCommune('Industriel', { city: 'Lubumbashi' }).commune, 'Kampemba');
+      assert.strictEqual(loc55.resolveCommune('Kalamu', { city: 'Boma' }), 'Kalamu (Boma)');
+      assert.strictEqual(loc55.inferCommune('Gombe', { city: 'Lubumbashi' }).status, 'unknown');
+      assert.strictEqual(loc55.communeNamedIn('Kalamu', { city: 'Boma' }), 'Kalamu (Boma)');
+      const located = loc55.inferListingLocation({ quartier: 'Bel air 1', city: 'lshi' });
+      assert.deepStrictEqual([located.commune, located.quartier, located.city], ['Kampemba', 'Bel-Air I', 'Lubumbashi']);
+    });
+
+    check('a name only one city has is deduced there; one two non-Kinshasa cities share is asked', () => {
+      const kafubu = loc55.inferListingLocation({ quartier: 'Kafubu' });
+      assert.deepStrictEqual([kafubu.commune, kafubu.city], ['Kampemba', 'Lubumbashi']);
+      assert.strictEqual(loc55.resolveCommune('Kabondo'), null);
+      assert.strictEqual(loc55.communeNamedIn('Kabondo'), null);
+      assert.strictEqual(loc55.resolveCommune('Kampembe'), 'Kampemba', 'a typo of a commune only one city has');
+    });
+
+    check('a commune named like its own city names the city, not the commune', () => {
+      // Every Lubumbashi address ends with "Lubumbashi"; it must not pin the
+      // commune of that name. Its quartiers still do.
+      assert.strictEqual(loc55.inferCommune('Lubumbashi', { city: 'Lubumbashi' }).status, 'unknown');
+      assert.strictEqual(loc55.inferCommune('Gambela, Lubumbashi', { city: 'Lubumbashi' }).commune, 'Lubumbashi');
+    });
+
+    check('pending aliases are recorded but read by nothing; every alias names a commune of its own city', () => {
+      const data = JSON.parse(fs55.readFileSync(path55.join(__dirname, '..', 'drc_quartier_aliases.json'), 'utf8'));
+      for (const alias of data.aliases) {
+        assert.ok(['pending', 'confirmed'].includes(alias.status), alias.name);
+        assert.ok(data._sources[alias.source], `${alias.name}: unknown source`);
+        for (const c of alias.communes) assert.strictEqual(cities55.cityOfCommune(c), alias.city, `${alias.name} → ${c}`);
+      }
+      assert.strictEqual(loc55.inferCommune('Tshamilemba', { city: 'Lubumbashi' }).status, 'unknown');
+    });
+
+    check('the "Quartier, Commune" label closes with the city outside Kinshasa, and only there', () => {
+      assert.strictEqual(loc55.placeLabel({ quartier: 'Industriel', commune: 'Limete' }), 'Industriel, Limete');
+      assert.strictEqual(loc55.placeLabel({ quartier: 'Bel-Air I', commune: 'Kampemba' }), 'Bel-Air I, Kampemba, Lubumbashi');
+      assert.strictEqual(loc55.placeLabel({ quartier: 'Gambela', commune: 'Lubumbashi' }), 'Gambela, Lubumbashi');
+      assert.strictEqual(loc55.placeLabel({ quartier: 'Mense', commune: 'Kalamu (Boma)' }), 'Mense, Kalamu, Boma');
+      assert.strictEqual(loc55.placeLabel({ quartier: 'Plage', city: 'Muanda' }), 'Plage, Muanda');
+    });
+
+    check('the published address and the geocode queries name the listing\'s own city', () => {
+      assert.strictEqual(pg55.buildAddress({ quartier: 'Yolo Sud II', commune: 'Kalamu' }), 'Yolo Sud II, Kalamu, Kinshasa');
+      assert.strictEqual(pg55.buildAddress({ quartier: 'Mense', commune: 'Kalamu (Boma)' }), 'Mense, Kalamu, Boma');
+      assert.strictEqual(pg55.buildAddress({ quartier: 'Gambela', commune: 'Lubumbashi' }), 'Gambela, Lubumbashi');
+      assert.deepStrictEqual(geo55.buildGeocodeQueries({ quartier: 'Gambela', commune: 'Lubumbashi' }), ['Gambela, Lubumbashi, RD Congo']);
+      assert.deepStrictEqual(geo55.buildGeocodeQueries({ quartier: 'Himbi', commune: 'Goma' }), ['Himbi, Goma, RD Congo']);
+      assert.deepStrictEqual(geo55.buildGeocodeQueries({ quartier: 'Yolo Sud II', commune: 'Kalamu' }), ['Yolo Sud II, Kalamu, Kinshasa, RD Congo']);
+    });
+
+    check('a visit time is read and printed on the visit\'s own clock; no offset = Kinshasa', () => {
+      const now = new Date('2026-10-20T08:00:00Z');
+      assert.strictEqual(visit55.parseFrenchSlot('demain 14h', now).iso, '2026-10-21T13:00:00.000Z');
+      assert.strictEqual(visit55.parseFrenchSlot('demain 14h', now, { utcOffset: 2 }).iso, '2026-10-21T12:00:00.000Z');
+      assert.strictEqual(visit55.formatSlotFr('2026-10-21T12:00:00.000Z', { utcOffset: 2 }), 'mercredi 21 octobre à 14h00');
+      assert.strictEqual(visit55.formatSlotFr('2026-10-21T12:00:00.000Z'), 'mercredi 21 octobre à 13h00');
+      assert.strictEqual(visit55.resolveScheduledAtInput('samedi 10h', now, { utcOffset: 2 }).value, '2026-10-24T08:00:00.000Z');
+    });
+
+    check('the intake card names the city outside Kinshasa, never inside it', () => {
+      const base = { transaction_type: 'location', property_type: 'appartement', price: 500, bedrooms: 2, photos: ['a'] };
+      assert.match(card55.renderListingCard({ ...base, commune: 'Kampemba', quartier: 'Bel-Air I' }), /\*Ville\* : Lubumbashi/);
+      assert.match(card55.renderListingCard({ ...base, commune: 'Kalamu (Boma)' }), /\*Commune\* : Kalamu\n[\s\S]*\*Ville\* : Boma/);
+      assert.doesNotMatch(card55.renderListingCard({ ...base, commune: 'Limete', quartier: 'Industriel' }), /Ville/);
+      assert.match(card55.renderListingCard({ ...base, city: 'Muanda' }), /\*Ville\* : Muanda/);
+    });
+
+    check('the extraction schema carries the city, and the prompt lists every city\'s communes and quartiers', () => {
+      const openai55 = require('../services/openai');
+      const props = openai55.RESPONSE_FORMAT.json_schema.schema.properties.extracted_data;
+      assert.ok(props.required.includes('city'));
+      assert.deepStrictEqual(props.properties.city.enum, [...cities55.CITY_NAMES, null]);
+      for (const [name, city] of Object.entries(cities55.CITIES)) {
+        assert.ok(openai55.SYSTEM_PROMPT.includes(name), name);
+        for (const [key, quartiers] of Object.entries(city.communes)) {
+          assert.ok(openai55.SYSTEM_PROMPT.includes(key), key);
+          for (const q of quartiers) assert.ok(openai55.SYSTEM_PROMPT.includes(q), `${key}: ${q}`);
+        }
+      }
+    });
+
+    check('a city filter is SQL on properties.city_id', () => {
+      const { whereClause, params } = repo55.buildFilters({ city: 'Lubumbashi' });
+      assert.match(whereClause, /p\.city_id IN \(SELECT city_id FROM property_city_contents WHERE LOWER\(name\) = LOWER\(\$1\)\)/);
+      assert.deepStrictEqual(params, ['Lubumbashi']);
+    });
+
+    await checkAsync('widening a commune search with no results keeps the city', async () => {
+      const saved = repo55.searchProperties;
+      const calls = [];
+      repo55.searchProperties = async (criteria) => {
+        calls.push(criteria);
+        return criteria.commune ? { total: 0, data: [], error: false } : { total: 1, data: [{ id: 1, price: 400 }], error: false };
+      };
+      try {
+        const result = await matching55.matchProperties({ commune: 'Kampemba', priceMax: 500 });
+        assert.strictEqual(result.widened, true);
+        assert.strictEqual(calls[1].city, 'Lubumbashi');
+        assert.strictEqual(calls[1].commune, undefined);
+        await matching55.matchProperties({ commune: 'Limete' });
+        assert.strictEqual(calls[3].city, 'Kinshasa');
+      } finally {
+        repo55.searchProperties = saved;
+      }
+    });
+
+    check('the SQLite listing row stores the city, and a correction can change it', () => {
+      const { id } = dbService.saveListing(
+        { is_listing: true, transaction_type: 'location', property_type: 'appartement', commune: 'Kampemba', city: 'Lubumbashi', price: 450 },
+        { waId: '243855000551', wamid: 'wamid.CITY55' },
+      );
+      assert.strictEqual(dbService.getListing(id).city, 'Lubumbashi');
+    });
+
+    check('nothing in the engine identifies a commune by the old amenity id range', () => {
+      const offenders = [];
+      const walk = (dir) => {
+        for (const entry of fs55.readdirSync(dir, { withFileTypes: true })) {
+          const full = path55.join(dir, entry.name);
+          if (entry.isDirectory()) walk(full);
+          else if (entry.name.endsWith('.js') && fs55.readFileSync(full, 'utf8').includes('BETWEEN 21 AND 44')) offenders.push(full);
+        }
+      };
+      for (const dir of ['services', 'routes']) walk(path55.join(__dirname, '..', dir));
+      assert.deepStrictEqual(offenders, []);
+    });
+
+    check('GET /locations stays Kinshasa by default and is scoped by ?city=', () => {
+      const index55 = fs55.readFileSync(path55.join(__dirname, '..', 'index.js'), 'utf8');
+      assert.match(index55, /resolveCity\(req\.query\.city\) \|\| citiesService\.DEFAULT_CITY/);
+      assert.deepStrictEqual(cities55.communesOfCity('Kinshasa'), loc55.KINSHASA_COMMUNES);
+      assert.ok(cities55.citySummaries().find((c) => c.name === 'Boma').communes.some((c) => c.key === 'Kalamu (Boma)' && c.label === 'Kalamu'));
+    });
   }
 
   console.log(`\n${'-'.repeat(60)}`);

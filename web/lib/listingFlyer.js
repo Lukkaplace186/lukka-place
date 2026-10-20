@@ -40,7 +40,7 @@ const FLYER_SELECT = `SELECT p.id, p.price, p.purpose, p.price_period, p.beds, p
             (
               SELECT ac.name FROM property_amenities pa
               JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = $1
-              WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44
+              WHERE pa.property_id = p.id AND pa.amenity_id IN (SELECT amenity_id FROM location_communes)
               LIMIT 1
             ) AS commune,
             (

@@ -129,10 +129,11 @@ const MONTH_NAMES_FR = [
   'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
   'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre',
 ];
-export function slotPhraseFr(value) {
+export function slotPhraseFr(value, { utcOffset = KINSHASA_UTC_OFFSET_HOURS } = {}) {
   const date = toDate(value);
   if (!date) return null;
-  const s = new Date(date.getTime() + OFFSET_MS);
+  // The visit's own clock: Kinshasa's +1, or +2 for Lubumbashi, Goma… (lib/cities.js).
+  const s = new Date(date.getTime() + utcOffset * 3600 * 1000);
   const hh = String(s.getUTCHours()).padStart(2, '0');
   const mm = String(s.getUTCMinutes()).padStart(2, '0');
   return `${DAY_NAMES_FR[s.getUTCDay()]} ${s.getUTCDate()} ${MONTH_NAMES_FR[s.getUTCMonth()]} à ${hh}h${mm}`;

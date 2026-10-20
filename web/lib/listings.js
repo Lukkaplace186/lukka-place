@@ -1,8 +1,9 @@
 import 'server-only';
 import { getPool } from './db';
-import { KINSHASA_COMMUNE_CENTROIDS } from './geocoding';
+import { COMMUNE_CENTROIDS } from './geocoding';
 import { landmarkPoint, NEAR_DEFAULT_RADIUS } from './landmarks';
 import { KINSHASA_PROVINCE_ENVELOPE, boundsContain, distanceKm, resolveMarkerPosition } from './mapViewport';
+import { DEFAULT_CITY, cityEnvelope, searchCityOf } from './cities';
 import { AMENITY_GROUPS, AMENITY_KEYWORDS, DEPOSIT_RANGE_OPTIONS } from './constants';
 import { keywordTokens } from './searchKeywords';
 import { UTILITY_FILTERS } from './utilityTags';
@@ -32,7 +33,7 @@ const CATEGORY_LANGUAGE_ID = 26;
 export const COMMUNE_SUBQUERY = `(
   SELECT ac.name FROM property_amenities pa
   JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = ${CONTENT_LANGUAGE_ID}
-  WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44
+  WHERE pa.property_id = p.id AND pa.amenity_id IN (SELECT amenity_id FROM location_communes)
   LIMIT 1
 ) AS commune`;
 
@@ -228,6 +229,9 @@ const SELECT_FIELDS = `
   p.created_at, p.price_period, p.deposit_months, p.advance_months, p.commission_months, p.listing_status,
   p.parent_building_id, p.building_name,
   p.latitude, p.longitude,
+  -- The listing's city (lib/cities.js): its commune normally says; this
+  -- covers one with no commune (a city with no communes on file).
+  (SELECT pcc.name FROM property_city_contents pcc WHERE pcc.city_id = p.city_id ORDER BY pcc.language_id DESC LIMIT 1) AS city_name,
   -- Listing-level verification: "Verified by Lukka", stamped per listing by a
   -- human from /admin/listings/[id]. A timestamp rather than a boolean so the
   -- badge can answer *when*, and NULL on almost every row — the designed
@@ -411,9 +415,10 @@ function communeListOf({ commune, communes } = {}) {
  *     path has parcelle_subtype set. Filtering on parcelle_subtype is the
  *     precise match for "this is a parcelle listing".
  */
-function buildFilters({ transactionType, propertyType, parcelleSubtype, commune, communes, quartier, radius, near, reference, priceMin, priceMax, bedsMin, bathMin, depositMax, depositRange, amenities, search, excludeId, agentId, ids }) {
+function buildFilters({ transactionType, propertyType, parcelleSubtype, commune, communes, quartier, radius, near, reference, priceMin, priceMax, bedsMin, bathMin, depositMax, depositRange, amenities, search, excludeId, agentId, ids, ville }) {
   const where = [APPROVED_FILTER];
   const params = [];
+
 
   const purpose = TRANSACTION_TYPE_TO_PURPOSE[transactionType];
   if (purpose) {
@@ -575,7 +580,7 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
   // "Près de UPN": centred on the landmark's own verified point
   // (lib/landmarks.js) rather than the commune's, when it has one.
   const nearPoint = landmarkPoint(commune, near);
-  const isKmRadius = Boolean(kmValue) && Boolean(commune) && Boolean(nearPoint || KINSHASA_COMMUNE_CENTROIDS[commune]);
+  const isKmRadius = Boolean(kmValue) && Boolean(commune) && Boolean(nearPoint || COMMUNE_CENTROIDS[commune]);
 
   if (isKmRadius) {
     // A real Haversine distance, centered on the commune's real,
@@ -597,7 +602,7 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
     // domain is NaN in Postgres — a real failure mode of this exact formula,
     // not a hypothetical one, so it's guarded here rather than shipped as
     // written in the original spec.
-    const centroid = nearPoint || KINSHASA_COMMUNE_CENTROIDS[commune];
+    const centroid = nearPoint || COMMUNE_CENTROIDS[commune];
     params.push(centroid.lat, centroid.lng, kmValue, commune);
     const latIdx = params.length - 3;
     const lngIdx = params.length - 2;
@@ -619,7 +624,7 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
         (p.latitude IS NULL OR p.longitude IS NULL OR p.latitude = '' OR p.longitude = '') AND EXISTS (
           SELECT 1 FROM property_amenities pa
           JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = ${CONTENT_LANGUAGE_ID}
-          WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44 AND ac.name = $${communeIdx}
+          WHERE pa.property_id = p.id AND pa.amenity_id IN (SELECT amenity_id FROM location_communes) AND ac.name = $${communeIdx}
         )
       )
     )`);
@@ -628,7 +633,7 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
     where.push(`EXISTS (
       SELECT 1 FROM property_amenities pa
       JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = ${CONTENT_LANGUAGE_ID}
-      WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44 AND ac.name = $${params.length}
+      WHERE pa.property_id = p.id AND pa.amenity_id IN (SELECT amenity_id FROM location_communes) AND ac.name = $${params.length}
     )`);
   } else if (communeList.length > 1 && !isCitywide) {
     // "Gombe ou Ngaliema" (?communes=Gombe,Ngaliema): any of them.
@@ -636,7 +641,7 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
     where.push(`EXISTS (
       SELECT 1 FROM property_amenities pa
       JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = ${CONTENT_LANGUAGE_ID}
-      WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44 AND ac.name = ANY($${params.length}::text[])
+      WHERE pa.property_id = p.id AND pa.amenity_id IN (SELECT amenity_id FROM location_communes) AND ac.name = ANY($${params.length}::text[])
     )`);
   }
 
@@ -681,9 +686,23 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
       EXISTS (
         SELECT 1 FROM property_amenities pa
         JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = ${CONTENT_LANGUAGE_ID}
-        WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44 AND ${fold('ac.name')} ~* $${idx}
+        WHERE pa.property_id = p.id AND pa.amenity_id IN (SELECT amenity_id FROM location_communes) AND ${fold('ac.name')} ~* $${idx}
       )
     )`);
+  }
+
+  // The city (2026-10-20, lib/cities.js) — pushed last, so every other
+  // filter keeps its placeholder number: the one asked for (`ville`), else
+  // the searched commune's own, else Kinshasa. A feed with no city is
+  // Kinshasa's, so a listing from a city that is not public yet never appears
+  // in it. An explicit id list or an agent's portfolio is not a feed and is
+  // never narrowed. Matched by name through the Laravel taxonomy, and a
+  // Kinshasa row that predates city_id (NULL) still counts as Kinshasa.
+  if (!(Array.isArray(ids) && ids.length) && !Number.isFinite(Number.parseInt(agentId, 10))) {
+    const city = searchCityOf({ ville, commune, communes });
+    params.push(city);
+    const nullClause = city === DEFAULT_CITY ? ' OR p.city_id IS NULL' : '';
+    where.push(`(p.city_id IN (SELECT city_id FROM property_city_contents WHERE LOWER(name) = LOWER($${params.length}))${nullClause})`);
   }
 
   return { whereClause: where.join(' AND '), params };
@@ -701,7 +720,7 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
 const COMPLETENESS_SCORE = `(
   (CASE WHEN COALESCE(p.featured_image, '') <> '' AND p.featured_image NOT ILIKE '%noimage%' THEN 6 ELSE 0 END)
   + LEAST((SELECT COUNT(*) FROM property_slider_images psi WHERE psi.property_id = p.id), 3)
-  + (CASE WHEN EXISTS (SELECT 1 FROM property_amenities pa WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44) THEN 1 ELSE 0 END)
+  + (CASE WHEN EXISTS (SELECT 1 FROM property_amenities pa WHERE pa.property_id = p.id AND pa.amenity_id IN (SELECT amenity_id FROM location_communes)) THEN 1 ELSE 0 END)
   + (CASE WHEN p.price > 0 THEN 1 ELSE 0 END)
   + (CASE WHEN p.deposit_months IS NOT NULL THEN 1 ELSE 0 END)
 )`;
@@ -935,7 +954,7 @@ const BUDGET_STRETCH = 0.15;
  */
 async function findNearby(options) {
   const origins = communeListOf(options)
-    .map((commune) => ({ commune, ...KINSHASA_COMMUNE_CENTROIDS[commune] }))
+    .map((commune) => ({ commune, ...COMMUNE_CENTROIDS[commune] }))
     .filter((o) => Number.isFinite(o.lat) && Number.isFinite(o.lng));
   if (origins.length === 0) return null;
 
@@ -1315,8 +1334,10 @@ export async function getMapExtent(options = {}) {
   const pool = getPool();
 
   // COUNT(*) FILTER keeps `total` honest (every match), while MIN/MAX only
-  // see coordinates inside Kinshasa province — see KINSHASA_PROVINCE_ENVELOPE.
-  const env = KINSHASA_PROVINCE_ENVELOPE;
+  // see coordinates inside the searched city — KINSHASA_PROVINCE_ENVELOPE,
+  // or another city's own box (lib/cities.js cityEnvelope).
+  const searchedCity = searchCityOf(options);
+  const env = (searchedCity !== DEFAULT_CITY && cityEnvelope(searchedCity)) || KINSHASA_PROVINCE_ENVELOPE;
   const boxParams = [...params, env.south, env.north, env.west, env.east];
   const [s, n, w, e] = [boxParams.length - 3, boxParams.length - 2, boxParams.length - 1, boxParams.length];
   const inProvince = `${LAT_EXPR} BETWEEN $${s} AND $${n} AND ${LNG_EXPR} BETWEEN $${w} AND $${e}`;
@@ -1343,7 +1364,7 @@ export async function getMapExtent(options = {}) {
     points.push({ lat: Number(box.south), lng: Number(box.west) }, { lat: Number(box.north), lng: Number(box.east) });
   }
   for (const { commune } of communeRows) {
-    const centroid = KINSHASA_COMMUNE_CENTROIDS[commune];
+    const centroid = COMMUNE_CENTROIDS[commune];
     if (centroid) points.push(centroid);
   }
 
@@ -1383,7 +1404,7 @@ export async function getPopularCommunes(limit = 6) {
   const { rows } = await pool.query(
     `SELECT ac.name AS commune, COUNT(*) AS count
      FROM properties p
-     JOIN property_amenities pa ON pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44
+     JOIN property_amenities pa ON pa.property_id = p.id AND pa.amenity_id IN (SELECT amenity_id FROM location_communes)
      JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = ${CONTENT_LANGUAGE_ID}
      WHERE ${APPROVED_FILTER}
      GROUP BY ac.name
@@ -1529,7 +1550,7 @@ export async function getCommuneShowcase(limit = 6) {
     `WITH tagged AS (
        SELECT ac.name AS commune, p.id, p.featured_image, p.created_at
        FROM properties p
-       JOIN property_amenities pa ON pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44
+       JOIN property_amenities pa ON pa.property_id = p.id AND pa.amenity_id IN (SELECT amenity_id FROM location_communes)
        JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = ${CONTENT_LANGUAGE_ID}
        WHERE ${APPROVED_FILTER}
      ),
@@ -1745,7 +1766,7 @@ export async function getSeoFacets() {
   const communeExpr = `(
     SELECT ac.name FROM property_amenities pa
     JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = ${CONTENT_LANGUAGE_ID}
-    WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44
+    WHERE pa.property_id = p.id AND pa.amenity_id IN (SELECT amenity_id FROM location_communes)
     LIMIT 1
   )`;
   const [{ rows }, { rows: parcelleRows }, { rows: commercialRows }] = await Promise.all([

@@ -27,6 +27,7 @@
 const pg = require('./postgres');
 const chakra = require('./chakra');
 const { db } = require('./db');
+const { utcOffsetForCommune } = require('./cities');
 
 const CONTENT_LANGUAGE_ID = 20;
 const SITE_URL = (process.env.PUBLIC_SITE_URL || process.env.SITE_URL || 'https://lukkaplace.com').replace(/\/+$/, '');
@@ -91,8 +92,11 @@ function engineCounts(now = new Date()) {
   const bump = (agentId, key, value) => {
     const id = Number(agentId);
     if (!Number.isFinite(id)) return;
-    const entry = byAgent.get(id) || { pendingVisits: 0, visitsToday: [], newRequests: 0 };
-    if (key === 'visitsToday') entry.visitsToday.push(value);
+    const entry = byAgent.get(id) || { pendingVisits: 0, visitsToday: [], visitOffsets: [], newRequests: 0 };
+    if (key === 'visitsToday') {
+      entry.visitsToday.push(value.at);
+      entry.visitOffsets.push(utcOffsetForCommune(value.commune));
+    }
     else entry[key] += value;
     byAgent.set(id, entry);
   };
@@ -104,11 +108,11 @@ function engineCounts(now = new Date()) {
   ).all()) bump(row.agent_id, 'pendingVisits', row.n);
 
   for (const row of db.prepare(
-    `SELECT agent_id, scheduled_at FROM viewing_requests
+    `SELECT agent_id, scheduled_at, commune FROM viewing_requests
       WHERE agent_id IS NOT NULL AND status = 'CONFIRMED'
         AND scheduled_at >= ? AND scheduled_at < ?
       ORDER BY scheduled_at`,
-  ).all(dayStart, dayEnd)) bump(row.agent_id, 'visitsToday', row.scheduled_at);
+  ).all(dayStart, dayEnd)) bump(row.agent_id, 'visitsToday', { at: row.scheduled_at, commune: row.commune });
 
   for (const row of db.prepare(
     `SELECT agent_id, COUNT(*) AS n FROM lead_matches
@@ -246,10 +250,11 @@ function plural(n, one, many) {
   return `${n} ${n === 1 ? one : many}`;
 }
 
-function kinshasaTime(iso) {
+/** "14h30" on the visit's own clock — Kinshasa's +1 unless the visit is in a +2 city. */
+function kinshasaTime(iso, utcOffset = 1) {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return null;
-  const local = new Date(date.getTime() + 60 * 60 * 1000);
+  const local = new Date(date.getTime() + utcOffset * 60 * 60 * 1000);
   return `${String(local.getUTCHours()).padStart(2, '0')}h${String(local.getUTCMinutes()).padStart(2, '0')}`;
 }
 
@@ -270,7 +275,7 @@ function composeDigest(agent, counts = {}, weekly = null, stale = []) {
 
   if (pending) lines.push(`• ${plural(pending, 'demande de visite attend', 'demandes de visite attendent')} votre réponse`);
   if (today.length) {
-    const times = today.map(kinshasaTime).filter(Boolean);
+    const times = today.map((iso, i) => kinshasaTime(iso, counts.visitOffsets?.[i])).filter(Boolean);
     lines.push(`• ${plural(today.length, 'visite', 'visites')} aujourd'hui${times.length ? ` (${times.join(', ')})` : ''}`);
   }
   if (requests) lines.push(`• ${plural(requests, 'nouvelle demande client', 'nouvelles demandes clients')} dans vos communes`);
@@ -322,7 +327,7 @@ function dayTemplateParams(agent, counts = {}) {
   return [
     templateValue(agent.first_name, 'partenaire'),
     String(today.length),
-    templateValue(kinshasaTime(today[0]), 'à confirmer'),
+    templateValue(kinshasaTime(today[0], counts.visitOffsets?.[0]), 'à confirmer'),
   ];
 }
 

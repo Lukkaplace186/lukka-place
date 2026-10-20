@@ -155,7 +155,7 @@ export const PERFORMANCE_LISTING_SQL = `
          pc.title,
          (SELECT ac.name FROM property_amenities pa
             JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = ${CONTENT_LANGUAGE_ID}
-           WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44 LIMIT 1) AS commune
+           WHERE pa.property_id = p.id AND pa.amenity_id IN (SELECT amenity_id FROM location_communes) LIMIT 1) AS commune
     FROM properties p
     LEFT JOIN property_contents pc ON pc.property_id = p.id AND pc.language_id = ${CONTENT_LANGUAGE_ID}
    WHERE p.id = $1
@@ -204,7 +204,7 @@ export const MARKET_POSITION_SQL = `
        AND ${NOT_TEST_LISTING_SQL}
        AND EXISTS (SELECT 1 FROM property_amenities pa
                      JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = ${CONTENT_LANGUAGE_ID}
-                    WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44 AND ac.name = $3)
+                    WHERE pa.property_id = p.id AND pa.amenity_id IN (SELECT amenity_id FROM location_communes) AND ac.name = $3)
   )
   SELECT
     count(*)::int AS commune_n,

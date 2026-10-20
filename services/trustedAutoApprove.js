@@ -80,7 +80,7 @@ const CANDIDATES_SQL = `
      AND COALESCE(pc.title, '') <> '' AND COALESCE(pc.description, '') <> ''
      AND NOT (LOWER(pc.description) LIKE ANY($5::text[]))
      AND COALESCE(p.featured_image, '') <> '' AND p.featured_image NOT ILIKE '%noimage%'
-     AND EXISTS (SELECT 1 FROM property_amenities pa WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44)
+     AND EXISTS (SELECT 1 FROM property_amenities pa WHERE pa.property_id = p.id AND pa.amenity_id IN (SELECT amenity_id FROM location_communes))
    ORDER BY p.created_at
    LIMIT $6`;
 

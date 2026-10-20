@@ -1,15 +1,23 @@
 /**
  * services/locations.js
  *
- * Master data for Kinshasa's commune -> quartier hierarchy (kinshasa_locations.json),
- * plus dependency-free fuzzy normalisation so extraction variants ("Ma Campagne",
- * "gombé", "Djili") collapse onto the canonical spelling the rest of the system
- * (the prompt, the DB, the live Supabase site) already expects.
+ * Master data for the commune -> quartier hierarchy of every city Lukka Place
+ * covers (Kinshasa: kinshasa_locations.json; the others: drc_locations.json,
+ * through services/cities.js), plus dependency-free fuzzy normalisation so
+ * extraction variants ("Ma Campagne", "gombé", "Djili") collapse onto the
+ * canonical spelling the rest of the system (the prompt, the DB, the live
+ * Supabase site) already expects.
+ *
+ * Multi-city rule (2026-10-20): a name found in Kinshasa AND elsewhere, read
+ * with no city to go on, keeps its Kinshasa reading — exactly what it meant
+ * before other cities existed, and still what nearly every message means. A
+ * city (stated by the agent, read by the model, or implied by a commune only
+ * one city has) restricts every lookup to that city's communes.
  */
 
 const path = require('path');
 
-const RAW_LOCATIONS = require(path.join(__dirname, '..', 'kinshasa_locations.json'));
+const cities = require('./cities');
 
 /**
  * Two communes in the master JSON carry an apostrophe ("N'Djili", "N'Sele") that
@@ -24,18 +32,31 @@ const COMMUNE_KEY_ALIASES = {
   "N'Sele": 'Nsele',
 };
 
-/** commune (canonical spelling) -> quartier[] */
+/** commune key -> quartier[], every city (keys are unique nationwide — services/cities.js,
+ *  which applies COMMUNE_KEY_ALIASES to Kinshasa's file the same way). */
 const LOCATIONS = Object.fromEntries(
-  Object.entries(RAW_LOCATIONS).map(([commune, quartiers]) => [
-    COMMUNE_KEY_ALIASES[commune] || commune,
-    quartiers,
-  ]),
+  Object.values(cities.CITIES).flatMap((city) => Object.entries(city.communes)),
 );
 
 const COMMUNES = Object.keys(LOCATIONS);
 
-/** Every quartier in the city, flattened — used when the commune isn't known yet. */
+/** Kinshasa's 24, in file order — what Kinshasa-only readers (prompts, tests) mean. */
+const KINSHASA_COMMUNES = cities.communesOfCity(cities.DEFAULT_CITY);
+
+/** Every quartier in every city, flattened — used when the commune isn't known yet. */
 const ALL_QUARTIERS = Object.values(LOCATIONS).flat();
+
+const isKinshasa = (commune) => cities.cityOfCommune(commune) === cities.DEFAULT_CITY;
+
+/**
+ * Narrow candidate communes by city: to that city's when one is known, else to
+ * Kinshasa's when Kinshasa is among them (see the header), else as they are.
+ */
+function preferCity(communes, city) {
+  if (city) return communes.filter((c) => cities.cityOfCommune(c) === city);
+  const kinshasa = communes.filter(isKinshasa);
+  return kinshasa.length ? kinshasa : communes;
+}
 
 // Hand-picked aliases for spellings common enough that edit-distance alone would
 // either miss them (multi-word contractions like "Ma Campagne") or risk a false
@@ -94,17 +115,18 @@ function levenshtein(a, b) {
  * "Gombe" can't absorb as many typos as "Kimbanseke" before it risks matching
  * the wrong place entirely.
  */
-function bestMatch(input, candidates) {
+function bestMatch(input, candidates, label = (candidate) => candidate) {
   const needle = normaliseText(input);
   if (!needle) return null;
 
   let best = null;
   let bestDistance = Infinity;
   for (const candidate of candidates) {
+    const name = normaliseText(label(candidate));
     // A typo almost never hits the first letter; requiring it is what stops
     // "tonde" reading as "Konde".
-    if (normaliseText(candidate)[0] !== needle[0]) continue;
-    const distance = levenshtein(needle, normaliseText(candidate));
+    if (name[0] !== needle[0]) continue;
+    const distance = levenshtein(needle, name);
     if (distance < bestDistance) {
       bestDistance = distance;
       best = candidate;
@@ -116,14 +138,30 @@ function bestMatch(input, candidates) {
 }
 
 /**
- * Canonical commune name for a free-text guess ("gombé", "Bandal", "Djili"), or
- * null if nothing in the master list is a confident match.
+ * Canonical commune key for a free-text guess ("gombé", "Bandal", "Djili";
+ * "Kalamu" with city Boma → "Kalamu (Boma)"), or null if nothing in the master
+ * list is a confident match. A key is accepted as itself.
+ *
+ * With no city, a typo is matched against Kinshasa's communes first and only
+ * then the others, so a Kinshasa misspelling never lands in another city.
+ *
+ * @param {string} input
+ * @param {{city?: string|null}} [options]
  */
-function resolveCommune(input) {
+function resolveCommune(input, { city = null } = {}) {
   if (!input) return null;
+  if (LOCATIONS[input] && (!city || cities.cityOfCommune(input) === city)) return input;
   const key = normaliseText(input);
-  if (COMMUNE_ALIASES[key]) return COMMUNE_ALIASES[key];
-  return bestMatch(input, COMMUNES);
+  if (COMMUNE_ALIASES[key] && (!city || city === cities.DEFAULT_CITY)) return COMMUNE_ALIASES[key];
+
+  const exact = preferCity(COMMUNES.filter((c) => placeKey(cities.communeLabel(c)) === placeKey(input)), city);
+  if (exact.length === 1) return exact[0];
+  if (exact.length > 1) return null;
+
+  const label = (c) => cities.communeLabel(c);
+  if (city) return bestMatch(input, cities.communesOfCity(city), label);
+  return bestMatch(input, KINSHASA_COMMUNES, label)
+    || bestMatch(input, COMMUNES.filter((c) => !isKinshasa(c)), label);
 }
 
 /**
@@ -132,21 +170,30 @@ function resolveCommune(input) {
  * that happens to also exist under a different commune matching the wrong one.
  * Falls back to every quartier in the city when the commune isn't known.
  */
-function resolveQuartier(input, commune) {
+function resolveQuartier(input, commune, { city = null } = {}) {
   if (!input) return null;
   const key = normaliseText(input);
-  if (QUARTIER_ALIASES[key]) return QUARTIER_ALIASES[key];
+  if (QUARTIER_ALIASES[key] && (!city || city === cities.DEFAULT_CITY)) return QUARTIER_ALIASES[key];
 
-  const canonicalCommune = commune ? resolveCommune(commune) : null;
-  if (canonicalCommune) return bestMatch(input, LOCATIONS[canonicalCommune]);
+  const canonicalCommune = commune ? resolveCommune(commune, { city }) : null;
+  if (canonicalCommune) {
+    // Exact first, numerals folded: as raw text "Yolo Sud 2" is one edit from
+    // "Yolo Sud I" and two from "Yolo Sud II", and the typo match stored the I.
+    const exact = LOCATIONS[canonicalCommune].find((q) => placeKey(q) === placeKey(input));
+    return exact || bestMatch(input, LOCATIONS[canonicalCommune]);
+  }
 
   // No commune: never a citywide edit-distance guess. That turned "Wangata"
   // into Mangana (Kimbanseke) and "tonde" into Konde (Selembao), and the wrong
   // name was then stored. Only a name that reads as exactly one official
   // spelling is canonicalised ("salongo" → "Salongo" in every commune it is in).
-  const found = inferCommune(input);
+  const found = inferCommune(input, { city });
   if (found.status === 'unknown' || found.how === 'contained' || found.how === 'stated') return null;
-  const official = new Set([...PLACE_INDEX.get(found.matched).values()].filter(Boolean));
+  // Only the communes left after the city preference count: Kampemba's
+  // "Industriel" must not stop Limete's being canonicalised.
+  const candidates = found.status === 'unique' ? [found.commune] : found.communes;
+  const byCommune = PLACE_INDEX.get(found.matched);
+  const official = new Set(candidates.map((c) => byCommune.get(c)).filter(Boolean));
   return official.size === 1 ? [...official][0] : null;
 }
 
@@ -157,9 +204,9 @@ function resolveQuartier(input, commune) {
  * commune rather than throwing, so a not-yet-selected commune is a normal,
  * quiet state for a form to be in.
  */
-function quartiersForCommune(commune) {
+function quartiersForCommune(commune, { city = null } = {}) {
   if (!commune) return [];
-  const canonical = resolveCommune(commune) || commune;
+  const canonical = resolveCommune(commune, { city }) || commune;
   return LOCATIONS[canonical] || [];
 }
 
@@ -214,6 +261,10 @@ function cascadeCommuneChange({ newCommune, currentQuartier = null }) {
 // own quartier text unless it is a real official quartier.
 
 const ALIAS_DATA = require(path.join(__dirname, '..', 'kinshasa_quartier_aliases.json'));
+// Other cities' aliases count only once a local agent has confirmed them
+// (drc_quartier_aliases.json, status "confirmed"); "pending" ones are kept for
+// that check and read by nothing.
+const DRC_ALIAS_DATA = require(path.join(__dirname, '..', 'drc_quartier_aliases.json'));
 
 /** Accent/case-folded, punctuation as spaces: "Saïo-UPAC" → "saio upac". */
 const ROMAN = { 1: 'i', 2: 'ii', 3: 'iii', 4: 'iv' };
@@ -274,28 +325,44 @@ for (const [commune, quartiers] of Object.entries(LOCATIONS)) {
     if (base) indexPlace(base, commune, null);
   }
 }
-for (const alias of ALIAS_DATA.aliases || []) {
+for (const alias of DRC_ALIAS_DATA.aliases || []) {
+  for (const commune of alias.communes || []) {
+    if (cities.cityOfCommune(commune) !== alias.city) {
+      throw new Error(`drc_quartier_aliases.json: "${alias.name}" — commune "${commune}" is not in ${alias.city}`);
+    }
+  }
+}
+const CONFIRMED_ALIASES = [
+  ...(ALIAS_DATA.aliases || []),
+  ...(DRC_ALIAS_DATA.aliases || []).filter((alias) => alias.status === 'confirmed'),
+];
+for (const alias of CONFIRMED_ALIASES) {
   const key = placeKey(alias.name);
   ALIAS_KEYS.add(key);
   for (const raw of alias.communes || []) {
     const commune = COMMUNE_KEY_ALIASES[raw] || raw;
-    if (!LOCATIONS[commune]) throw new Error(`kinshasa_quartier_aliases.json: unknown commune "${raw}" for "${alias.name}"`);
+    if (!LOCATIONS[commune]) throw new Error(`quartier aliases: unknown commune "${raw}" for "${alias.name}"`);
     // An alias only carries a quartier when it is that commune's official one.
     const quartier = alias.quartier && LOCATIONS[commune].includes(alias.quartier) ? alias.quartier : null;
     indexPlace(key, commune, quartier);
   }
 }
-// The communes themselves, by name. "Kinshasa" is left out: every address in
-// this city ends with it, so it names the city far more often than the commune.
+// The communes themselves, by name (a suffixed key by its label, so "kalamu"
+// names both Kalamus). A commune named like its own city — Kinshasa,
+// Lubumbashi, Likasi, Goma, Kisangani, Kananga, Matadi — is left out: every
+// address there ends with that name, so it names the city far more often than
+// the commune.
 for (const commune of COMMUNES) {
-  if (commune !== 'Kinshasa') indexPlace(placeKey(commune), commune, null);
+  const label = cities.communeLabel(commune);
+  if (label !== cities.cityOfCommune(commune)) indexPlace(placeKey(label), commune, null);
 }
 for (const [alias, commune] of Object.entries(COMMUNE_ALIASES)) {
   if (commune !== 'Kinshasa') indexPlace(placeKey(alias), commune, null);
 }
 
-function placeResult(byCommune, how, matched) {
-  const communes = [...byCommune.keys()].sort();
+function placeResult(byCommune, how, matched, city = null) {
+  const communes = preferCity([...byCommune.keys()], city).sort();
+  if (!communes.length) return { status: 'unknown' };
   if (communes.length === 1) {
     return { status: 'unique', commune: communes[0], quartier: byCommune.get(communes[0]) || null, how, matched };
   }
@@ -307,13 +374,14 @@ function placeResult(byCommune, how, matched) {
  *
  * @param {string} text  What the agent wrote: a quartier, a lieu-dit, "Saïo-UPAC",
  *   "Matonge/Kauka", "Commune de Ngiri Ngiri Avenue Monkoto".
- * @param {{allowFuzzy?: boolean}} [options]
+ * @param {{allowFuzzy?: boolean, city?: string|null}} [options]  `city` restricts
+ *   the answer to that city's communes (a name found only elsewhere is unknown).
  * @returns {{status: 'unique', commune: string, quartier: string|null, how: string, matched: string}
  *          | {status: 'ambiguous', communes: string[], how: string, matched: string}
  *          | {status: 'unknown'}}
  *   `quartier` is set only when the text named exactly one OFFICIAL quartier.
  */
-function inferCommune(text, { allowFuzzy = true } = {}) {
+function inferCommune(text, { allowFuzzy = true, city = null } = {}) {
   const key = placeKey(text);
   if (!key) return { status: 'unknown' };
 
@@ -323,15 +391,19 @@ function inferCommune(text, { allowFuzzy = true } = {}) {
     const words = stated[1].split(' ');
     for (let n = Math.min(3, words.length); n >= 1; n -= 1) {
       const candidate = words.slice(0, n).join(' ');
-      const commune = COMMUNE_ALIASES[candidate]
-        || COMMUNES.find((c) => placeKey(c) === candidate)
-        || (candidate === 'kinshasa' ? 'Kinshasa' : null);
-      if (commune) return { status: 'unique', commune, quartier: null, how: 'stated', matched: candidate };
+      const named = COMMUNE_ALIASES[candidate] && (!city || city === cities.DEFAULT_CITY)
+        ? [COMMUNE_ALIASES[candidate]]
+        : preferCity(COMMUNES.filter((c) => placeKey(cities.communeLabel(c)) === candidate), city);
+      if (named.length === 1) return { status: 'unique', commune: named[0], quartier: null, how: 'stated', matched: candidate };
+      if (named.length > 1) return { status: 'ambiguous', communes: named.sort(), how: 'stated', matched: candidate };
     }
   }
 
   // 2. The whole text is a known name.
-  if (PLACE_INDEX.has(key)) return placeResult(PLACE_INDEX.get(key), 'exact', key);
+  if (PLACE_INDEX.has(key)) {
+    const result = placeResult(PLACE_INDEX.get(key), 'exact', key, city);
+    if (result.status !== 'unknown') return result;
+  }
 
   // 3. Known names inside a longer text, longest first.
   const tokens = key.split(' ');
@@ -356,7 +428,8 @@ function inferCommune(text, { allowFuzzy = true } = {}) {
         if (!merged.has(commune)) merged.set(commune, hits.length === 1 ? quartier : null);
       }
     }
-    return placeResult(merged, 'contained', hits.join(', '));
+    const result = placeResult(merged, 'contained', hits.join(', '), city);
+    if (result.status !== 'unknown') return result;
   }
 
   // 4. A typo of a known name — strict: same first letter, one edit for a short
@@ -368,6 +441,7 @@ function inferCommune(text, { allowFuzzy = true } = {}) {
     for (const candidate of PLACE_INDEX.keys()) {
       if (candidate[0] !== key[0] || Math.abs(candidate.length - key.length) > tolerance) continue;
       if (GENERIC_KEYS.has(candidate)) continue;
+      if (!preferCity([...PLACE_INDEX.get(candidate).keys()], city).length) continue;
       const distance = levenshtein(key, candidate);
       if (distance < bestDistance) {
         bestDistance = distance;
@@ -376,7 +450,7 @@ function inferCommune(text, { allowFuzzy = true } = {}) {
         best.push(candidate);
       }
     }
-    if (bestDistance <= tolerance && best.length === 1) return placeResult(PLACE_INDEX.get(best[0]), 'fuzzy', best[0]);
+    if (bestDistance <= tolerance && best.length === 1) return placeResult(PLACE_INDEX.get(best[0]), 'fuzzy', best[0], city);
   }
 
   return { status: 'unknown' };
@@ -388,14 +462,18 @@ function inferCommune(text, { allowFuzzy = true } = {}) {
  * forms only, never a fuzzy guess: this is how an agent answers the card's
  * "dans quelle commune ?", and a misread answer would publish the wrong one.
  */
-function communeNamedIn(reply) {
+function communeNamedIn(reply, { city = null } = {}) {
   const key = placeKey(reply)
     .replace(/^(?:c est|cest|c|a|au|dans|la commune|commune)(?: de| d| a)?\s+/, '')
     .replace(/^(?:la commune|commune)(?: de| d)?\s+/, '')
     .trim();
-  if (!key || key.split(' ').length > 3) return null;
-  if (key === 'kinshasa') return 'Kinshasa';
-  return COMMUNE_ALIASES[key] || COMMUNES.find((c) => placeKey(c) === key) || null;
+  if (!key || key.split(' ').length > 4) return null;
+  if (COMMUNE_ALIASES[key] && (!city || city === cities.DEFAULT_CITY)) return COMMUNE_ALIASES[key];
+  // "Kalamu (Boma)", typed back the way the card printed it.
+  const asKey = COMMUNES.find((c) => placeKey(c) === key);
+  if (asKey && (!city || cities.cityOfCommune(asKey) === city)) return asKey;
+  const named = preferCity(COMMUNES.filter((c) => placeKey(cities.communeLabel(c)) === key), city);
+  return named.length === 1 ? named[0] : null;
 }
 
 /**
@@ -405,11 +483,20 @@ function communeNamedIn(reply) {
  * commune alone when the quartier is just its name again. web/lib/placeLabel.js
  * is the storefront's copy — change one, change the other.
  */
-function placeLabel({ quartier = null, commune = null } = {}) {
+function placeLabel({ quartier = null, commune = null, city = null } = {}) {
+  const rawCommune = String(commune || '').replace(/\s+/g, ' ').trim();
   const q = String(quartier || '').replace(/\s+/g, ' ').trim();
-  const c = String(commune || '').replace(/\s+/g, ' ').trim();
-  if (q && c && placeKey(q) === placeKey(c)) return c;
-  return [q, c].filter(Boolean).join(', ');
+  const c = cities.communeLabel(rawCommune);
+  // Outside Kinshasa the city closes the label ("Bel-Air I, Kampemba,
+  // Lubumbashi"), once — never after a commune that already carries its name.
+  // Kinshasa's labels are unchanged.
+  const town = cities.cityOfCommune(rawCommune) || cities.resolveCity(city);
+  const tail = town && town !== cities.DEFAULT_CITY ? town : '';
+  const parts = [];
+  for (const part of [q, c, tail]) {
+    if (part && !parts.some((p) => placeKey(p) === placeKey(part))) parts.push(part);
+  }
+  return parts.join(', ');
 }
 
 /**
@@ -421,37 +508,49 @@ function placeLabel({ quartier = null, commune = null } = {}) {
  *   several → `ambiguous` lists them and the commune stays empty for the card
  *   to ask about. The quartier is only rewritten when it IS an official one.
  *
- * @param {{commune?: string|null, quartier?: string|null, reference?: string|null}} location
- * @returns {{commune: string|null, quartier: string|null, communeInferredFrom: string|null,
+ * - `city` (the model's reading of the message, or the agent's own city)
+ *   restricts all of it to that city's communes; with none, see the header.
+ *   The returned `city` is the commune's city when one was found, else the
+ *   stated city, else null (= Kinshasa, as every older row is).
+ *
+ * @param {{commune?: string|null, quartier?: string|null, reference?: string|null, city?: string|null}} location
+ * @returns {{commune: string|null, quartier: string|null, city: string|null, communeInferredFrom: string|null,
  *            ambiguous: {name: string, communes: string[]}|null}}
  */
-function inferListingLocation({ commune = null, quartier = null, reference = null } = {}) {
+function inferListingLocation({ commune = null, quartier = null, reference = null, city = null } = {}) {
+  const statedCity = cities.resolveCity(city);
+  const done = (result) => ({ ...result, city: cities.cityOfCommune(result.commune) || statedCity || null });
   if (commune) {
-    const resolved = resolveCommune(commune) || commune;
+    const resolved = resolveCommune(commune, { city: statedCity })
+      // A commune the stated city does not have: the commune is the more
+      // specific of the two, so it wins ("Gombe" when the model read "Goma").
+      || resolveCommune(commune)
+      || commune;
     const q = quartier ? resolveQuartier(quartier, resolved) || quartier : quartier;
-    return { commune: resolved, quartier: q, communeInferredFrom: null, ambiguous: null };
+    return done({ commune: resolved, quartier: q, communeInferredFrom: null, ambiguous: null });
   }
   for (const [field, text, allowFuzzy] of [['quartier', quartier, true], ['reference', reference, false]]) {
     if (!text) continue;
-    const found = inferCommune(text, { allowFuzzy });
+    const found = inferCommune(text, { allowFuzzy, city: statedCity });
     if (found.status === 'unique') {
-      return {
+      return done({
         commune: found.commune,
         quartier: field === 'quartier' && found.quartier ? found.quartier : quartier,
         communeInferredFrom: String(text).trim(),
         ambiguous: null,
-      };
+      });
     }
     if (found.status === 'ambiguous') {
-      return { commune: null, quartier, communeInferredFrom: null, ambiguous: { name: String(text).trim(), communes: found.communes } };
+      return done({ commune: null, quartier, communeInferredFrom: null, ambiguous: { name: String(text).trim(), communes: found.communes } });
     }
   }
-  return { commune: null, quartier, communeInferredFrom: null, ambiguous: null };
+  return done({ commune: null, quartier, communeInferredFrom: null, ambiguous: null });
 }
 
 module.exports = {
   LOCATIONS,
   COMMUNES,
+  KINSHASA_COMMUNES,
   ALL_QUARTIERS,
   resolveCommune,
   resolveQuartier,

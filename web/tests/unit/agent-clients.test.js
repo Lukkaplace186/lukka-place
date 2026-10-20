@@ -316,7 +316,7 @@ test('matchable listings: the agent own, public-gated, active only', async () =>
   const { sql, values } = calls[0];
   assert.match(sql, /p\.agent_id = \$1 AND p\.status = 1 AND p\.approve_status = 1/);
   assert.match(sql, /COALESCE\(p\.listing_status, 'active'\) = 'active'/);
-  assert.match(sql, /amenity_id BETWEEN 21 AND 44/, 'commune resolved from the amenity tag');
+  assert.match(sql, /amenity_id IN \(SELECT amenity_id FROM location_communes\)/, 'commune resolved from the amenity tag');
   assert.deepEqual(values, [42]);
   assert.deepEqual(rows, [{ id: '5', listing_status: 'active', commune: 'Gombe' }]);
 });

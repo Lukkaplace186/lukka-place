@@ -19,6 +19,7 @@ const adminRoutes = require('./routes/admin');
 const { UPLOADS_ROOT } = require('./services/mediaStorage');
 const scheduler = require('./services/scheduler');
 const locationsService = require('./services/locations');
+const citiesService = require('./services/cities');
 const { getAgentPerformanceBenchmarks } = require('./services/agentPerformance');
 const postgresService = require('./services/postgres');
 
@@ -161,7 +162,11 @@ app.get('/api/admin/benchmarks/agent-performance', requireApiKey, async (req, re
 });
 
 // ---------------------------------------------------------------------------
-// GET /locations — Kinshasa commune/quartier hierarchy (kinshasa_locations.json)
+// GET /locations — commune/quartier hierarchy of one city (services/cities.js)
+//
+// `?city=` picks the city (default Kinshasa, so a caller that predates other
+// cities sees exactly the 24 communes it always did; `all` = every city).
+// `cities` lists every city covered, with its commune keys and labels.
 //
 // No form/admin UI exists in this repo yet — this exists so one (here or in a
 // separate frontend) can drive a cascading commune -> quartier select without
@@ -170,7 +175,18 @@ app.get('/api/admin/benchmarks/agent-performance', requireApiKey, async (req, re
 // ---------------------------------------------------------------------------
 
 app.get('/locations', (req, res) => {
-  res.json({ success: true, communes: locationsService.COMMUNES, locations: locationsService.LOCATIONS });
+  // `?city=all`: every commune of every city, Kinshasa's first — what agent and
+  // admin forms list (web groups them by city). Keys are unique nationwide.
+  const all = String(req.query.city || '').toLowerCase() === 'all';
+  const city = all ? 'all' : citiesService.resolveCity(req.query.city) || citiesService.DEFAULT_CITY;
+  const communes = all ? locationsService.COMMUNES : citiesService.communesOfCity(city);
+  res.json({
+    success: true,
+    city,
+    communes,
+    locations: Object.fromEntries(communes.map((c) => [c, locationsService.LOCATIONS[c]])),
+    cities: citiesService.citySummaries(),
+  });
 });
 
 /** Quartiers for one commune — what a "commune" select's change handler fetches

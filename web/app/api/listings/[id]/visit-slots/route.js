@@ -2,6 +2,8 @@ import { getPool } from '@/lib/db';
 import { getBusySlots } from '@/lib/adminApi';
 import { APPROVED_AGENT_LISTINGS_SQL } from '@/lib/visitSlotsServer';
 import { EMPTY_AVAILABILITY, getListingAvailability } from '@/lib/agentAvailability';
+import { getListingById } from '@/lib/listings';
+import { utcOffsetForListing } from '@/lib/cities';
 
 /**
  * GET /api/listings/:id/visit-slots — the instants the listing's agent already
@@ -23,6 +25,15 @@ export async function GET(_request, { params }) {
   // Read apart from the busy slots: it is Postgres only, so the days off still
   // reach the calendar when the engine cannot answer.
   const availability = await getListingAvailability(id);
+  // The listing's clock (+1 Kinshasa, +2 Lubumbashi, Goma… — lib/cities.js):
+  // the picker builds its slots on it. Unknown → Kinshasa's.
+  let utcOffset = 1;
+  try {
+    utcOffset = utcOffsetForListing(await getListingById(id));
+  } catch (err) {
+    console.error(`[visit-slots] listing #${id} offset: ${err.message}`);
+  }
+  Object.assign(availability, { utcOffset });
   try {
     const { rows } = await getPool().query(APPROVED_AGENT_LISTINGS_SQL, [id]);
     const agentId = rows[0]?.agent_id ?? null;

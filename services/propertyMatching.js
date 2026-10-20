@@ -23,6 +23,7 @@
  */
 
 const propertyRepository = require('./propertyRepository');
+const { cityOfCommune, DEFAULT_CITY } = require('./cities');
 
 const WEIGHTS = { budget: 0.4, bedrooms: 0.3, freshness: 0.3 };
 
@@ -82,7 +83,10 @@ async function matchProperties(requirements = {}) {
   let widened = false;
 
   if (result.total === 0 && requirements.commune) {
-    const { commune, quartier, ...cityWide } = requirements;
+    // Widened to the commune's own CITY, never the country: a customer asking
+    // about a quiet Lubumbashi commune is shown Lubumbashi, not Kinshasa.
+    const { commune, quartier, ...rest } = requirements;
+    const cityWide = { ...rest, city: requirements.city || cityOfCommune(commune) || DEFAULT_CITY };
     const wider = await propertyRepository.searchProperties(cityWide);
     if (!wider.error && wider.total > 0) {
       result = wider;

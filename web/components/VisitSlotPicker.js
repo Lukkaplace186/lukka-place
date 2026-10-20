@@ -42,6 +42,8 @@ export default function VisitSlotPicker({ propertyId, value, onChange, name, idP
   const [now] = useState(() => new Date());
   const [busy, setBusy] = useState([]);
   const [availability, setAvailability] = useState(null);
+  // The listing's clock (+1 Kinshasa, +2 Lubumbashi, Goma…), from the slots API.
+  const [utcOffset, setUtcOffset] = useState(1);
   const [internal, setInternal] = useState(null);
   const selected = value !== undefined ? value : internal;
   const [day, setDay] = useState(() => (selected ? kinshasaDayKey(selected) : null));
@@ -55,6 +57,7 @@ export default function VisitSlotPicker({ propertyId, value, onChange, name, idP
         if (!live) return;
         if (Array.isArray(data?.busy)) setBusy(data.busy);
         setAvailability({ closedWeekdays: data?.closedWeekdays || [], blockedDates: data?.blockedDates || [] });
+        if (data?.utcOffset === 2) setUtcOffset(2);
       })
       .catch(() => {});
     return () => {
@@ -64,7 +67,7 @@ export default function VisitSlotPicker({ propertyId, value, onChange, name, idP
 
   const days = useMemo(() => visitDays(now), [now]);
   const weeks = useMemo(() => calendarWeeks(now), [now]);
-  const rules = { now, busy, availability };
+  const rules = { now, busy, availability, utcOffset };
   const activeDay = (day && dayHasFreeSlot(day, rules) ? day : null) || days.find((d) => dayHasFreeSlot(d, rules)) || days[0];
   const slots = activeDay ? slotsForDay(activeDay, rules) : [];
   // The select shows the pick only on the day it belongs to; on another day it

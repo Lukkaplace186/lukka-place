@@ -13,7 +13,8 @@ const { UTILITY_CODES } = require('./utilities');
 const { isCommercialType, normaliseCommercialSpecs } = require('./commercial');
 const OpenAI = require('openai');
 
-const { LOCATIONS, COMMUNES: KINSHASA_COMMUNES } = require('./locations');
+const { LOCATIONS, KINSHASA_COMMUNES } = require('./locations');
+const { CITIES, CITY_NAMES, DEFAULT_CITY } = require('./cities');
 
 const MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
 
@@ -35,13 +36,25 @@ function getClient() {
 }
 
 /**
- * Commune -> quartier hierarchy (kinshasa_locations.json, via
- * services/locations.js), rendered compactly so the model can normalise both
- * the commune AND the finer quartier spellings agents actually type
- * ("gombé", "Bandal", "Djili", "Ma Campagne").
+ * Commune -> quartier hierarchy per city (services/cities.js), rendered
+ * compactly so the model can normalise both the commune AND the finer quartier
+ * spellings agents actually type ("gombé", "Bandal", "Djili", "Ma Campagne").
+ * Kinshasa's block is unchanged; each other city follows under its own title.
+ * A commune with no published quartier list shows "(quartiers non listés)".
  */
 const LOCATIONS_BLOCK = Object.entries(LOCATIONS)
+  .filter(([commune]) => KINSHASA_COMMUNES.includes(commune))
   .map(([commune, quartiers]) => `- ${commune} : ${quartiers.join(', ')}`)
+  .join('\n');
+
+const OTHER_CITIES_BLOCK = CITY_NAMES.filter((name) => name !== DEFAULT_CITY)
+  .map((name) => {
+    const communes = Object.entries(CITIES[name].communes);
+    const lines = communes.length
+      ? communes.map(([key, quartiers]) => `  - ${key} : ${quartiers.length ? quartiers.join(', ') : '(quartiers non listés)'}`)
+      : ['  - (communes non listées : laisse commune à null)'];
+    return [`- ${name} (${CITIES[name].province}) :`, ...lines].join('\n');
+  })
   .join('\n');
 
 const PROPERTY_TYPES = [
@@ -91,8 +104,11 @@ CONDITIONS D'ENTRÉE — NOTATION "3 + 1 + 1" (convention immobilière de Kinsha
 - À QUI VA CHAQUE POSTE (à rappeler dans la réponse) : l'avance et la garantie vont au BAILLEUR (l'avance couvre les premiers mois de loyer, la garantie est restituable en fin de bail) ; la commission va à l'AGENT / AGENCE (frais de courtage, non restituables).
 
 LOCALISATION
+- VILLE : Lukka Place couvre Kinshasa et d'autres villes de la RDC (liste ci-dessous). Mets dans "city" la ville où se trouve le bien quand le message la nomme ou l'indique sans ambiguïté (« à Lubumbashi », « Lshi », « Goma », une commune qui n'existe que dans cette ville) ; sinon null. N'en devine jamais une : un message sans ville ni commune reconnaissable => city null.
 - Les 24 communes de Kinshasa, chacune avec ses quartiers officiels :
 ${LOCATIONS_BLOCK}
+- Les autres villes, avec leurs communes et quartiers officiels. Plusieurs noms existent dans deux villes (Kalamu à Kinshasa et à Boma, Kabondo à Kisangani et à Boma, « Industriel », « Lumumba », « Kasaï »…) : une commune d'une autre ville s'écrit exactement comme listé ici, avec sa ville entre parenthèses quand elle l'a ("Kalamu (Boma)"), et seulement quand le message situe le bien dans cette ville.
+${OTHER_CITIES_BLOCK}
 - Normalise la commune vers l'une de ces orthographes exactes ("gombé" => "Gombe", "Bandal" => "Bandalungwa", "Djili" => "Ndjili").
 - Normalise le quartier vers l'orthographe exacte listée pour SA commune ci-dessus ("Ma Campagne" => "Macampagne", "la gombe" => reste dans commune, pas quartier). Si le quartier mentionné n'apparaît dans aucune liste (nouveau lotissement, référence informelle type "Righini", "Pompage"), rapporte-le tel quel plutôt que d'inventer une correspondance.
 - La référence précise va dans "quartier", jamais dans "commune".
@@ -274,7 +290,7 @@ const RESPONSE_FORMAT = {
           required: [
             'is_listing', 'is_confirmed', 'intent', 'transaction_type', 'property_type',
             'parcelle_subtype',
-            'commune', 'quartier', 'price', 'currency', 'price_period', 'deposit_months',
+            'city', 'commune', 'quartier', 'price', 'currency', 'price_period', 'deposit_months',
             'advance_months', 'commission_months',
             'bedrooms', 'bathrooms', 'surface_area_sqm', 'units_count', 'furnished',
             'office_count', 'floor_level', 'road_frontage', 'truck_access',
@@ -304,9 +320,14 @@ const RESPONSE_FORMAT = {
               enum: [...PARCELLE_SUBTYPES, null],
               description: "Sous-type de la parcelle — rempli uniquement quand property_type = 'parcelle'.",
             },
+            city: {
+              type: ['string', 'null'],
+              enum: [...CITY_NAMES, null],
+              description: "Ville du bien, seulement quand le message la nomme ou l'indique sans ambiguïté. null sinon.",
+            },
             commune: {
               type: ['string', 'null'],
-              description: 'Commune de Kinshasa, orthographe normalisée.',
+              description: 'Commune, orthographe normalisée exactement comme listée (avec sa ville entre parenthèses si elle en a une).',
             },
             quartier: { type: ['string', 'null'], description: 'Quartier ou référence précise, dans la liste de la commune si possible.' },
             price: {
@@ -591,7 +612,7 @@ const INTAKE_HISTORY_LIMIT = 5;
 /** Draft fields worth showing the model. Deliberately excludes ids, wamids,
  *  status and photo paths — none of them help it merge a correction. */
 const DRAFT_CONTEXT_FIELDS = [
-  'transaction_type', 'property_type', 'parcelle_subtype', 'commune', 'quartier',
+  'transaction_type', 'property_type', 'parcelle_subtype', 'city', 'commune', 'quartier',
   'price', 'currency', 'price_period', 'deposit_months', 'advance_months',
   'commission_months', 'bedrooms', 'bathrooms', 'surface_area_sqm', 'units_count',
   'furnished', 'office_count', 'floor_level', 'road_frontage', 'truck_access',
@@ -881,11 +902,12 @@ const { notifyViewingRequestInBackground } = require('./viewingNotifications');
 // Second require of an already-cached module (services/openai.js's top-level
 // require above only pulls LOCATIONS/COMMUNES) — cheap and deliberately kept
 // separate so the original import line is never touched.
-const { quartiersForCommune } = require('./locations');
+const { quartiersForCommune, resolveCommune } = require('./locations');
+const { communesOfCity } = require('./cities');
 
 const BUYER_SYSTEM_PROMPT = `Tu es l'assistant de recherche immobilière de Lukka Place, une plateforme proptech à Kinshasa (République Démocratique du Congo), sur WhatsApp.
 
-Ton rôle : aider un client à trouver un bien à louer ou à acheter à Kinshasa, en conversant naturellement en français (le kinois mélange souvent français/anglais/lingala — comprends ces messages sans les corriger).
+Ton rôle : aider un client à trouver un bien à louer ou à acheter à Kinshasa — ou dans une autre ville couverte (Lubumbashi, Goma, Bukavu, Kisangani…, voir get_location) quand le client la nomme —, en conversant naturellement en français (le kinois mélange souvent français/anglais/lingala — comprends ces messages sans les corriger).
 
 RÈGLES ESSENTIELLES
 1. Ne réponds JAMAIS avec un prix, une adresse, une disponibilité ou une caractéristique que tu n'as pas obtenue via un outil. Si tu ne sais pas, dis-le ou propose de vérifier.
@@ -914,7 +936,12 @@ const BUYER_TOOLS = [
             enum: ['appartement', 'parcelle', 'commercial', 'bureau', 'boutique', 'entrepot'],
             description: "'commercial' = tout local professionnel (bureaux, boutiques, entrepôts) ; bureau / boutique / entrepot pour un seul type.",
           },
-          commune: { type: 'string', description: 'Une des 24 communes de Kinshasa.' },
+          city: {
+            type: 'string',
+            enum: CITY_NAMES,
+            description: "Ville de la recherche. Kinshasa par défaut ; une autre ville seulement si le client la nomme.",
+          },
+          commune: { type: 'string', description: "Une commune de cette ville, orthographiée comme get_location la donne." },
           quartier: { type: 'string' },
           price_min: { type: 'number' },
           price_max: { type: 'number' },
@@ -941,10 +968,13 @@ const BUYER_TOOLS = [
     type: 'function',
     function: {
       name: 'get_location',
-      description: "Liste les 24 communes de Kinshasa, ou les quartiers réels d'une commune donnée.",
+      description: "Liste les villes couvertes, les communes d'une ville (Kinshasa par défaut), ou les quartiers réels d'une commune donnée.",
       parameters: {
         type: 'object',
-        properties: { commune: { type: 'string', description: 'Optionnel — pour lister les quartiers de cette commune.' } },
+        properties: {
+          city: { type: 'string', enum: CITY_NAMES, description: 'Optionnel — la ville dont lister les communes.' },
+          commune: { type: 'string', description: 'Optionnel — pour lister les quartiers de cette commune.' },
+        },
         additionalProperties: false,
       },
     },
@@ -1000,7 +1030,8 @@ async function executeSearchProperties(args = {}) {
   const result = await propertyMatchingService.matchProperties({
     transactionType: args.transaction_type,
     propertyType: args.property_type,
-    commune: args.commune,
+    city: args.city || null,
+    commune: args.commune ? resolveCommune(args.commune, { city: args.city || null }) || args.commune : args.commune,
     quartier: args.quartier,
     priceMin: args.price_min,
     priceMax: args.price_max,
@@ -1057,12 +1088,15 @@ async function executeGetProperty(args = {}) {
   };
 }
 
-/** Real commune/quartier data (kinshasa_locations.json via services/locations.js) — never an invented list. */
+/** Real commune/quartier data (services/cities.js, services/locations.js) — never an invented list. */
 function executeGetLocation(args = {}) {
+  const city = CITY_NAMES.includes(args.city) ? args.city : null;
   if (args.commune) {
-    return { commune: args.commune, quartiers: quartiersForCommune(args.commune) };
+    const commune = resolveCommune(args.commune, { city }) || args.commune;
+    return { commune, quartiers: quartiersForCommune(commune) };
   }
-  return { communes: KINSHASA_COMMUNES };
+  if (city) return { city, communes: communesOfCity(city) };
+  return { cities: CITY_NAMES, communes: KINSHASA_COMMUNES, note: 'Communes de Kinshasa ; passer city pour une autre ville.' };
 }
 
 /**

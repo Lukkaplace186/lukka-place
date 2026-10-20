@@ -85,7 +85,7 @@ export default async function AgentListingsPage({ searchParams }) {
       console.error('[agent/biens] per-listing stats unavailable:', error.message);
       return { views: {}, clicks: {} };
     }),
-    getLocationHierarchyWithFallback().catch((error) => {
+    getLocationHierarchyWithFallback({ city: 'all' }).catch((error) => {
       console.error('[agent/biens] location hierarchy unavailable:', error.message);
       return { communes: [] };
     }),

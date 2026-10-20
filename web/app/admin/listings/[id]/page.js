@@ -59,7 +59,7 @@ export default async function AdminListingEditPage({ params }) {
   if (!listing) notFound();
 
   const [{ communes }, categories, moderation, session, history] = await Promise.all([
-    getLocationHierarchyWithFallback(),
+    getLocationHierarchyWithFallback({ city: 'all' }),
     getCategoriesForAdmin(),
     getListingModerationInfo(listing.id),
     getAdminSession(),

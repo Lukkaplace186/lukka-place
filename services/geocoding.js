@@ -31,6 +31,7 @@
  *     column the map reads as the property's own position.
  *   - Nothing is fabricated. A listing that does not resolve stays NULL.
  */
+const { cityOfCommune, communeLabel, resolveCity, DEFAULT_CITY } = require('./cities');
 const https = require('https');
 
 const GEOCODE_URL = 'https://maps.googleapis.com/maps/api/geocode/json';
@@ -63,14 +64,21 @@ function isLandmarkReference(reference) {
  * produces no query at all — "Kinshasa, RD Congo" is the city centre, not
  * this property.
  *
- * @param {{quartier?: string, commune?: string, reference?: string}} row
+ * The city closing every query is the listing's own (services/cities.js):
+ * the commune's city, else the city the agent named, else Kinshasa. A suffixed
+ * commune key is sent as its plain name ("Kalamu, Boma", not "Kalamu (Boma)").
+ *
+ * @param {{quartier?: string, commune?: string, reference?: string, city?: string}} row
  * @returns {string[]}
  */
 function buildGeocodeQueries(row) {
   const landmark = isLandmarkReference(row?.reference) ? String(row.reference).trim() : null;
   const quartier = row?.quartier ? String(row.quartier).trim() : null;
-  const commune = row?.commune ? String(row.commune).trim() : null;
-  const city = ['Kinshasa', 'RD Congo'];
+  const town = cityOfCommune(row?.commune) || resolveCity(row?.city) || DEFAULT_CITY;
+  const communeName = row?.commune ? communeLabel(String(row.commune).trim()) : null;
+  // "Gambela, Lubumbashi, Lubumbashi" says nothing the city does not.
+  const commune = communeName && communeName !== town ? communeName : null;
+  const city = [town, 'RD Congo'];
 
   const candidates = [
     [landmark, quartier, commune],
@@ -82,7 +90,7 @@ function buildGeocodeQueries(row) {
   // bien metriser" (promotional text that happens to read as words) came back
   // as a ROOFTOP somewhere in the city — a confident point with nothing real
   // behind it. The quartier/commune is what anchors a landmark to an area.
-  if (!quartier && !commune) return [];
+  if (!quartier && !communeName) return [];
 
   const queries = [];
   for (const parts of candidates) {
@@ -167,7 +175,7 @@ function normaliseLocationText(value) {
  */
 function locationInputsChanged(previous, row) {
   if (!previous) return false;
-  return ['quartier', 'commune', 'reference'].some(
+  return ['quartier', 'commune', 'reference', 'city'].some(
     (key) => normaliseLocationText(previous[key]) !== normaliseLocationText(row?.[key]),
   );
 }

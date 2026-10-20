@@ -15,15 +15,20 @@ import 'server-only';
  * fast, so an uncached fetch per request is simplest and correct. Revisit
  * with the `'use cache'` directive if this becomes a hot path.
  *
+ * `city` (2026-10-20): omitted = Kinshasa, exactly as before; a city name for
+ * that city; 'all' for every city's communes, Kinshasa first — what agent and
+ * admin forms list, grouped by city (components/CommuneOptions.js).
+ *
+ * @param {{city?: string}} [options]
  * @returns {Promise<{communes: string[], locations: Record<string, string[]>}>}
  */
-export async function getLocationHierarchy() {
+export async function getLocationHierarchy({ city = null } = {}) {
   const base = process.env.ENGINE_API_BASE;
   if (!base) {
     throw new Error('ENGINE_API_BASE is not set — see .env.local');
   }
 
-  const res = await fetch(`${base}/locations`);
+  const res = await fetch(`${base}/locations${city ? `?city=${encodeURIComponent(city)}` : ''}`);
   if (!res.ok) {
     throw new Error(`GET ${base}/locations failed: ${res.status}`);
   }
@@ -49,9 +54,9 @@ export async function getLocationHierarchy() {
  *
  * @returns {Promise<{communes: string[], locations: Record<string, string[]>, degraded: boolean}>}
  */
-export async function getLocationHierarchySafe() {
+export async function getLocationHierarchySafe(options = {}) {
   try {
-    const result = await getLocationHierarchy();
+    const result = await getLocationHierarchy(options);
     return { ...result, degraded: false };
   } catch (error) {
     console.warn('[locations] falling back to database-derived communes:', error.message);
@@ -81,9 +86,17 @@ export async function getLocationHierarchySafe() {
  *
  * @returns {Promise<{communes: string[], locations: Record<string, string[]>, degraded: boolean}>}
  */
-export async function getLocationHierarchyWithFallback() {
-  const hierarchy = await getLocationHierarchySafe();
+export async function getLocationHierarchyWithFallback(options = {}) {
+  const hierarchy = await getLocationHierarchySafe(options);
   if (hierarchy.communes.length > 0) return hierarchy;
+
+  // Every city's communes: the list is static data shipped with the app
+  // (lib/cities.js), so an engine outage loses the quartiers, not the
+  // communes — and never a whole city.
+  if (options.city === 'all') {
+    const { CITIES } = await import('./cities');
+    return { ...hierarchy, communes: CITIES.flatMap((c) => c.communes.map((x) => x.key)) };
+  }
 
   // Imported lazily so the happy path never pulls in the database module.
   const { getCommuneShowcase } = await import('./listings');

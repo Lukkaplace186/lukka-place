@@ -14,6 +14,7 @@ import {
 } from '@/lib/listingsCached';
 import { getLocationHierarchySafe } from '@/lib/locations';
 import { parseListingsSearchParams } from '@/lib/searchQuery';
+import { getPublicCities, publicVille } from '@/lib/publicCities';
 import { PROPERTY_TYPE_PLURAL_KEYS } from '@/lib/constants';
 import { getT } from '@/lib/i18n/server';
 import { MAP_BOUNDS_PARAMS } from '@/lib/mapViewport';
@@ -73,6 +74,10 @@ export default async function ListingsPage({ searchParams }) {
   const offset = (page - 1) * limit;
 
   const filters = { ...parseListingsSearchParams(params), sort: params.sort };
+  // A city that is not public yet (lib/publicCities.js) is no city: the page
+  // shows Kinshasa, as it does for every link without one.
+  filters.ville = await publicVille(filters.ville);
+  const publicCities = await getPublicCities();
 
   // The hierarchy comes from the engine and only feeds the filter bar, so a
   // failure there degrades the filters rather than 500-ing a page whose
@@ -192,7 +197,9 @@ export default async function ListingsPage({ searchParams }) {
           propertyTypes={propertyTypes}
           initialTotal={total}
           priceCeiling={maxPrice}
+          cities={publicCities}
           defaults={{
+            ville: filters.ville,
             transactionType: params.transaction_type,
             commune: params.commune,
             communes: params.communes,

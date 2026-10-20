@@ -41,6 +41,17 @@ const propertyRepository = require('./propertyRepository');
 const { placeLabel } = require('./locations');
 const propertyMatchingService = require('./propertyMatching');
 const { parseFrenchSlot, formatSlotFr, resolveScheduledAtInput } = require('./visitSchedule');
+const { utcOffsetForCommune } = require('./cities');
+
+/**
+ * The clock a visit is read and written in: where the listing is
+ * (services/cities.js — Lubumbashi, Goma… are UTC+2). The request's own
+ * `commune` (stamped at notify time) first, else the listing's; neither →
+ * Kinshasa, exactly as before other cities existed.
+ */
+function visitClock(request, listing = null) {
+  return { utcOffset: utcOffsetForCommune(request?.commune || listing?.commune || null) };
+}
 const priceExtraction = require('./priceExtraction');
 const agentPerformance = require('./agentPerformance');
 
@@ -177,7 +188,7 @@ async function sendLifecycleTemplate(phone, { kind, bodyParams = [], linkParam }
 
 /** What the customer is told the visit time is: the agreed instant, else their own words. */
 function slotForTemplate(viewingRequest, agreedAt = null) {
-  return (agreedAt && formatSlotFr(agreedAt)) || viewingRequest?.requested_time || 'À convenir';
+  return (agreedAt && formatSlotFr(agreedAt, visitClock(viewingRequest))) || viewingRequest?.requested_time || 'À convenir';
 }
 
 /**
@@ -874,22 +885,22 @@ const SCHEDULE_ASK =
   'Répondez par exemple _demain 14h_ ou _samedi matin_.';
 
 /** The parsed slot, read back for a one-tap confirmation. */
-function slotConfirmText(iso) {
+function slotConfirmText(iso, clock = {}) {
   return [
     `${HEADER_BRAND} Confirmons l'heure`,
     '',
     // Always the full date, never "demain" — this message can be read a day
     // after it was sent, and "demain" would then confirm the wrong day.
-    `📅 ${formatSlotFr(iso) || iso}`,
+    `📅 ${formatSlotFr(iso, clock) || iso}`,
     '',
     "C'est bien cela ?",
   ].join('\n');
 }
 
-function slotAgreedText(iso) {
+function slotAgreedText(iso, clock = {}) {
   return [
     `${HEADER_BRAND} Créneau enregistré ✅`,
-    `📅 ${formatSlotFr(iso) || iso}`,
+    `📅 ${formatSlotFr(iso, clock) || iso}`,
     '',
     'Nous demanderons au client comment la visite s\'est passée juste après.',
   ].join('\n');
@@ -919,7 +930,7 @@ function tenantAcceptedText(listing, viewingRequest, propertyId, agreedAt = null
     '',
     `L'agent a confirmé votre visite pour ${label}.`,
   ];
-  const agreed = agreedAt ? formatSlotFr(agreedAt) : null;
+  const agreed = agreedAt ? formatSlotFr(agreedAt, visitClock(viewingRequest, listing)) : null;
   if (agreed) lines.push(`📅 Créneau : ${agreed}`);
   else if (viewingRequest?.requested_time) lines.push(`📅 Créneau : ${viewingRequest.requested_time}`);
   if (listing?.agent_name) lines.push(`👤 Agent : ${listing.agent_name}`);
@@ -1232,7 +1243,7 @@ async function handleAccept({ request, listing, propertyId, from }) {
       confirmedTemplate(listing, request, propertyId, picked),
     );
     if (toldPicked) markCustomerNotified(request.id);
-    await trySend(from, slotAgreedText(picked), 'slot agreed');
+    await trySend(from, slotAgreedText(picked, visitClock(request, listing)), 'slot agreed');
     console.log(`[viewing] request #${request.id} ACCEPTED by agent ${from} — picked slot ${picked}, client told: ${toldPicked}`);
     return { action: 'accept', status: 'CONFIRMED', tenantNotified: toldPicked, scheduledAt: picked, awaiting: null };
   }
@@ -1246,14 +1257,14 @@ async function handleAccept({ request, listing, propertyId, from }) {
   );
   if (told) markCustomerNotified(request.id);
 
-  const proposal = parseFrenchSlot(request.requested_time);
+  const proposal = parseFrenchSlot(request.requested_time, undefined, visitClock(request, listing));
   if (proposal) {
     // Stored now so a check-in still fires if the agent never answers the
     // confirmation — it is the customer's own stated time, not an invention.
     dbService.setViewingScheduledAt(request.id, proposal.iso);
     await sendWithButtons(
       from,
-      slotConfirmText(proposal.iso),
+      slotConfirmText(proposal.iso, visitClock(request, listing)),
       slotConfirmButtons(request.id),
       'slot confirm',
     );
@@ -1287,7 +1298,7 @@ async function handleAccept({ request, listing, propertyId, from }) {
 async function handleSlotOk({ request, from }) {
   dbService.clearPendingAgentAction(from);
   const when = request.scheduled_at;
-  await trySend(from, slotAgreedText(when), 'slot agreed');
+  await trySend(from, slotAgreedText(when, visitClock(request)), 'slot agreed');
   console.log(`[viewing] request #${request.id} slot confirmed by ${from}: ${when}`);
   return { action: 'slot-ok', scheduledAt: when };
 }
@@ -1439,7 +1450,7 @@ async function respondFromDashboard({ viewingRequestId, agentId, status, request
   // that has already gone by is not an appointment.
   let agreedAt = null;
   if (status === 'CONFIRMED' && scheduledAt !== undefined && scheduledAt !== null && scheduledAt !== '') {
-    const resolved = resolveScheduledAtInput(scheduledAt, now);
+    const resolved = resolveScheduledAtInput(scheduledAt, now, visitClock(request));
     if (resolved.error) return { ok: false, reason: 'scheduled-at-invalid' };
     if (new Date(resolved.value).getTime() <= now.getTime()) return { ok: false, reason: 'scheduled-at-past' };
     agreedAt = resolved.value;
@@ -1498,7 +1509,7 @@ async function respondFromDashboard({ viewingRequestId, agentId, status, request
     // WhatsApp accept does.
     // Then the customer's structured pick (PENDING only), then their phrase.
     const picked = agreedAt ? null : pickedSlot(request);
-    const proposal = agreedAt ? { iso: agreedAt } : picked ? { iso: picked } : parseFrenchSlot(request.requested_time);
+    const proposal = agreedAt ? { iso: agreedAt } : picked ? { iso: picked } : parseFrenchSlot(request.requested_time, undefined, visitClock(request, listing));
     if (proposal) {
       dbService.setViewingScheduledAt(request.id, proposal.iso);
       scheduledAtOut = proposal.iso;
@@ -1512,7 +1523,7 @@ async function respondFromDashboard({ viewingRequestId, agentId, status, request
   } else if (status === 'RESCHEDULED') {
     dbService.updateViewingRequest(request.id, { status: 'RESCHEDULED', requestedTime: proposed });
     await recordAgentResponse(request, 'RESCHEDULED', 'DASHBOARD');
-    const slot = parseFrenchSlot(proposed);
+    const slot = parseFrenchSlot(proposed, undefined, visitClock(request, listing));
     scheduledAtOut = slot ? slot.iso : null;
     dbService.setViewingScheduledAt(request.id, scheduledAtOut);
     tenantNotified = await trySend(
@@ -1676,7 +1687,7 @@ async function respondFromCustomer({ viewingRequestId, waId, action } = {}) {
     dbService.updateViewingRequest(request.id, { status: 'CONFIRMED' });
     // The instant the check-in will be asked against — same parser, same
     // refusal of a day with no hour, as the agent's own confirmation.
-    const slot = parseFrenchSlot(request.requested_time);
+    const slot = parseFrenchSlot(request.requested_time, undefined, visitClock(request, listing));
     if (slot) dbService.setViewingScheduledAt(request.id, slot.iso);
     agentText = agentCustomerAcceptedSlotText(listing, request, propertyId);
   }
@@ -1766,12 +1777,13 @@ async function handleAgentTextReply({ from, text }) {
     // through to ordinary intake rather than being eaten — the same posture
     // every other branch here takes, and what stops a real property advert
     // being swallowed because a question happened to be open.
-    const slot = parseFrenchSlot(text);
+    const clock = visitClock(ctx.request, ctx.listing);
+    const slot = parseFrenchSlot(text, undefined, clock);
     if (!slot) return { handled: false };
 
     dbService.setViewingScheduledAt(ctx.request.id, slot.iso);
     dbService.clearPendingAgentAction(from);
-    await trySend(from, slotAgreedText(slot.iso), 'slot agreed');
+    await trySend(from, slotAgreedText(slot.iso, clock), 'slot agreed');
     console.log(`[viewing] request #${ctx.request.id} scheduled for ${slot.iso} by ${from}`);
     return { handled: true, action: 'slot-set', scheduledAt: slot.iso };
   }
@@ -1783,7 +1795,7 @@ async function handleAgentTextReply({ from, text }) {
     // A reschedule that names a real instant also pins the check-in to it.
     // The customer still has to agree, so the status stays RESCHEDULED — but
     // when they do, there is already a slot to count from.
-    const rescheduled = parseFrenchSlot(proposed);
+    const rescheduled = parseFrenchSlot(proposed, undefined, visitClock(ctx.request, ctx.listing));
     if (rescheduled) dbService.setViewingScheduledAt(ctx.request.id, rescheduled.iso);
     dbService.clearPendingAgentAction(from);
 

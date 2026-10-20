@@ -80,7 +80,7 @@ const COMMUNE_MATCH = `
     SELECT 1 FROM property_amenities pa
     JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = 20
     WHERE pa.property_id = p.id
-      AND pa.amenity_id BETWEEN 21 AND 44
+      AND pa.amenity_id IN (SELECT amenity_id FROM location_communes)
       AND LOWER(ac.name) = LOWER($1)
   )
 `;

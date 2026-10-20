@@ -38,7 +38,7 @@ const APPROVE_STATUS = {
  * commune list is ever hardcoded (web/CLAUDE.md).
  */
 async function resolveCommunes() {
-  const { communes } = await getLocationHierarchyWithFallback();
+  const { communes } = await getLocationHierarchyWithFallback({ city: 'all' });
   if (communes.length > 0) return communes;
   const popular = await getPopularCommunes(24);
   return popular.map((c) => c.commune);

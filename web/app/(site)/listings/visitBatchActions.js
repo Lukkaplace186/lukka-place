@@ -6,6 +6,7 @@ import { phoneFromForm } from '@/lib/phone';
 import { createViewingBatch } from '@/lib/adminApi';
 import { getListingById } from '@/lib/listings';
 import { VISIT_CART_MAX, validatePickedSlot, dayClosed } from '@/lib/visitSlots';
+import { utcOffsetForListing } from '@/lib/cities';
 import { getT } from '@/lib/i18n/server';
 
 /**
@@ -44,10 +45,11 @@ export async function submitVisitBatchAction(formData) {
     const id = Number.parseInt(item?.id, 10);
     if (!Number.isSafeInteger(id) || id <= 0 || seen.has(id)) return { ok: false, error: t('enquiry.cart.errors.items', { max: VISIT_CART_MAX }) };
     seen.add(id);
-    const slot = validatePickedSlot(item?.slot, now);
-    if (slot.error) return { ok: false, error: t('enquiry.cart.errors.slot') };
     const listing = await getListingById(id);
     if (!listing) return { ok: false, error: t('enquiry.cart.errors.gone'), goneId: id };
+    // On that listing's own clock (lib/cities.js utcOffsetForListing).
+    const slot = validatePickedSlot(item?.slot, now, { utcOffset: utcOffsetForListing(listing) });
+    if (slot.error) return { ok: false, error: t('enquiry.cart.errors.slot') };
     // A day that listing's agent takes no visits (lib/agentAvailability.js).
     if (dayClosed(kinshasaDayKey(slot.iso), await getListingAvailability(listing.id))) {
       return { ok: false, error: t('enquiry.cart.errors.slot') };

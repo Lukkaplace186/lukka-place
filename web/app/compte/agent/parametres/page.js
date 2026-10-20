@@ -27,6 +27,7 @@ import SettingsSaveButton from '@/components/SettingsSaveButton';
 import AgentCompletenessCard from '@/components/AgentCompletenessCard';
 import { getAgentProfileGaps } from '@/lib/completeness';
 import { profileChecklist } from '@/lib/completenessRules';
+import { communeOptionText } from '@/lib/cities';
 
 // Keys, not text: this is a module-level constant, evaluated once at import
 // time, so `t` does not exist here and a string baked in would be frozen in
@@ -116,7 +117,7 @@ export default async function AgentSettingsPage({ searchParams }) {
 
   const [{ agent, completion, waitingCount, displayName }, { communes, degraded }, verification, quickReplies] = await Promise.all([
     getAgentDashboardContext(agentId),
-    getLocationHierarchySafe(),
+    getLocationHierarchySafe({ city: 'all' }),
     // Degrade, don't die: before the verification migration runs (or with
     // Postgres briefly unreachable) the card says so; the page still renders.
     getAgentVerification(agentId).catch((err) => {
@@ -342,7 +343,7 @@ export default async function AgentSettingsPage({ searchParams }) {
                 {communes.map((commune) => (
                   <label key={commune} className="flex items-center gap-2 text-[0.8125rem] text-ink-70">
                     <input type="checkbox" name="communes" value={commune} defaultChecked={selectedCommunes.has(commune)} />
-                    {commune}
+                    {communeOptionText(commune)}
                   </label>
                 ))}
               </div>

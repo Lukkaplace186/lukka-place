@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getListings } from '@/lib/listings';
 import { parseListingsSearchParams } from '@/lib/searchQuery';
+import { publicVille } from '@/lib/publicCities';
 
 /**
  * GET /api/listings/count?transaction_type=...&price_min=... — backs the
@@ -17,6 +18,8 @@ import { parseListingsSearchParams } from '@/lib/searchQuery';
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const filters = parseListingsSearchParams(searchParams);
+  // Same rule as the page: a city that is not public yet is no city.
+  filters.ville = await publicVille(filters.ville);
   // allowRelax, like the page itself: `total` stays the EXACT count, and
   // `suggested` says how many alternatives the page would show instead when
   // that is zero (lib/listings.js relaxSearch). The hero button can then say

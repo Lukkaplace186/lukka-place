@@ -19,7 +19,8 @@
  * of Bandal load nothing, which is the behaviour this replaced.
  */
 
-import { KINSHASA_COMMUNE_CENTROIDS, inferListingCommune } from './geocoding';
+import { COMMUNE_CENTROIDS, inferListingCommune } from './geocoding';
+import { CITIES, CITY_DEFAULT_ZOOM, DEFAULT_CITY, cityCenter, cityEnvelope, cityOfCommune, communeLabel, findCity } from './cities';
 
 export const MAP_BOUNDS_PARAMS = ['sw_lat', 'sw_lng', 'ne_lat', 'ne_lng'];
 
@@ -62,6 +63,30 @@ const QUARTIER_MAX_DISTANCE_KM = 5;
  * not the Kinshasa place that was searched.
  */
 export const KINSHASA_PROVINCE_ENVELOPE = { south: -5.1, north: -3.9, west: 15.0, east: 16.6 };
+
+/**
+ * Where the map opens for a city with no place named in it: Kinshasa's core
+ * view, or another city's geocoded centre at CITY_DEFAULT_ZOOM (lib/cities.js).
+ */
+export function defaultViewForCity(villeOrParams) {
+  // A city name, or the page's params (URLSearchParams or a plain object).
+  const ville = villeOrParams && typeof villeOrParams === 'object' ? readParam(villeOrParams, 'ville') : villeOrParams;
+  const city = findCity(ville);
+  if (!city || city.name === DEFAULT_CITY) return KINSHASA_DEFAULT_VIEW;
+  const center = cityCenter(city.name);
+  return center ? { center, zoom: CITY_DEFAULT_ZOOM } : KINSHASA_DEFAULT_VIEW;
+}
+
+/** The sanity box for a city's points: Kinshasa province, or the city's own. */
+export function envelopeForCity(name) {
+  return (name && name !== DEFAULT_CITY && cityEnvelope(name)) || KINSHASA_PROVINCE_ENVELOPE;
+}
+
+/** Is a point inside any city Lukka Place covers ("Autour de moi")? */
+export function inCoveredArea(point) {
+  if (!point || !Number.isFinite(point.lat) || !Number.isFinite(point.lng)) return false;
+  return CITIES.some((city) => boundsContain(envelopeForCity(city.name), point));
+}
 
 /** How long the map must sit still before it asks for markers. */
 export const FETCH_DEBOUNCE_MS = 350;
@@ -192,10 +217,14 @@ export function locationTarget(params) {
  */
 export function locationGeocodeQueries(target) {
   if (!target?.commune) return { commune: null, quartier: null, near: null };
+  // The commune's own city (Kinshasa for its 24 and for an unknown name), and
+  // a suffixed key by its plain name: "Commune de Kalamu, Boma".
+  const city = cityOfCommune(target.commune) || DEFAULT_CITY;
+  const name = communeLabel(target.commune);
   return {
-    commune: `Commune de ${target.commune}, Kinshasa, RD Congo`,
-    quartier: target.quartier ? `${target.quartier}, ${target.commune}, Kinshasa, RD Congo` : null,
-    near: target.near ? `${target.near}, ${target.commune}, Kinshasa, RD Congo` : null,
+    commune: `Commune de ${name}, ${city}, RD Congo`,
+    quartier: target.quartier ? `${target.quartier}, ${name}, ${city}, RD Congo` : null,
+    near: target.near ? `${target.near}, ${name}, ${city}, RD Congo` : null,
   };
 }
 
@@ -224,10 +253,11 @@ export function distanceKm(a, b) {
  */
 export function targetView(target, { commune = null, quartier = null, near = null } = {}) {
   if (!target?.commune) return null;
+  const envelope = envelopeForCity(cityOfCommune(target.commune));
   const inProvince = (point) =>
-    Boolean(point && Number.isFinite(point.lat) && Number.isFinite(point.lng) && boundsContain(KINSHASA_PROVINCE_ENVELOPE, point));
+    Boolean(point && Number.isFinite(point.lat) && Number.isFinite(point.lng) && boundsContain(envelope, point));
 
-  const communePoint = inProvince(commune) ? commune : KINSHASA_COMMUNE_CENTROIDS[target.commune] || null;
+  const communePoint = inProvince(commune) ? commune : COMMUNE_CENTROIDS[target.commune] || null;
 
   // A landmark is the most precise thing the visitor named — same sanity
   // rule as a quartier: it has to lie near the commune it was listed under.
@@ -263,7 +293,7 @@ export function resolveMarkerPosition(row) {
     return { lat, lng, approximate: false };
   }
 
-  const centroid = KINSHASA_COMMUNE_CENTROIDS[inferListingCommune(row)];
+  const centroid = COMMUNE_CENTROIDS[inferListingCommune(row)];
   if (centroid) return { lat: centroid.lat, lng: centroid.lng, approximate: true };
 
   return null;

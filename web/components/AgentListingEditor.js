@@ -18,6 +18,7 @@ import AgentPhotoSorter from './AgentPhotoSorter';
 import { UTILITY_FILTERS, UTILITY_FILTER_KEYS, normaliseUtilities, utilityLabelKey } from '@/lib/utilityTags';
 import CommercialSpecFields from './CommercialSpecFields';
 import { commercialSpecsOf, isCommercial } from '@/lib/commercialSpaces';
+import CommuneOptions from './CommuneOptions';
 
 const FIELD_CLASS =
   'u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35';
@@ -461,9 +462,7 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
               className={FIELD_CLASS}
             >
               <option value="" disabled>Choisir…</option>
-              {communes.map((commune) => (
-                <option key={commune} value={commune}>{commune}</option>
-              ))}
+              <CommuneOptions communes={communes} />
             </select>
           </div>
           <div>

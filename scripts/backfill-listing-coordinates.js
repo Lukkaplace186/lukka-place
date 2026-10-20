@@ -48,7 +48,7 @@ async function main() {
       `SELECT p.id, p.quartier, p.reference, p.approve_status,
          (SELECT ac.name FROM property_amenities pa
             JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = $1
-           WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44
+           WHERE pa.property_id = p.id AND pa.amenity_id IN (SELECT amenity_id FROM location_communes)
            LIMIT 1) AS commune
        FROM properties p
        WHERE p.status = 1 AND p.approve_status IN (0, 1)

@@ -191,7 +191,7 @@ export async function getVerificationPreconditions(listingId) {
               WHERE si.property_id = p.id)               AS photo_count,
             EXISTS (SELECT 1 FROM property_amenities pa
                      WHERE pa.property_id = p.id
-                       AND pa.amenity_id BETWEEN 21 AND 44) AS commune_tagged
+                       AND pa.amenity_id IN (SELECT amenity_id FROM location_communes)) AS commune_tagged
        FROM properties p
        LEFT JOIN agents a ON a.id = p.agent_id
       WHERE p.id = $1`,

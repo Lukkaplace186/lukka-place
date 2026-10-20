@@ -6,8 +6,13 @@
  * placeLabel is the same rule for the messages it sends — change one, change
  * the other.
  *
- * Pure and dependency-free: used by client components and server code alike.
+ * Pure: used by client components and server code alike. Outside Kinshasa
+ * the city closes the label ("Bel-Air I, Kampemba, Lubumbashi"), once, and a
+ * suffixed commune key shows as its plain name (lib/cities.js, 2026-10-20) —
+ * the engine's placeLabel does the same.
  */
+import { DEFAULT_CITY, cityOfCommune, communeLabel } from './cities';
+
 function foldKey(value) {
   return String(value || '')
     .toLowerCase()
@@ -19,8 +24,16 @@ function foldKey(value) {
 }
 
 export function placeLabel({ quartier = null, commune = null } = {}) {
+  const rawCommune = String(commune || '').replace(/\s+/g, ' ').trim();
   const q = String(quartier || '').replace(/\s+/g, ' ').trim();
-  const c = String(commune || '').replace(/\s+/g, ' ').trim();
-  if (q && c && foldKey(q) === foldKey(c)) return c;
-  return [q, c].filter(Boolean).join(', ');
+  const c = communeLabel(rawCommune);
+  const city = cityOfCommune(rawCommune);
+  const tail = city && city !== DEFAULT_CITY ? city : '';
+  const parts = [];
+  // A quartier that only repeats its commune is dropped, and the commune's
+  // own spelling kept ("kintambo" + "Kintambo" → "Kintambo").
+  for (const part of [q && c && foldKey(q) === foldKey(c) ? '' : q, c, tail]) {
+    if (part && !parts.some((p) => foldKey(p) === foldKey(part))) parts.push(part);
+  }
+  return parts.join(', ');
 }

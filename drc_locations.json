@@ -1,0 +1,86 @@
+{
+  "_about": "Cities other than Kinshasa (kinshasa_locations.json keeps Kinshasa, unchanged). Read by services/cities.js and services/locations.js. city -> { province, utc_offset, communes: { commune key -> official quartiers } }. A commune key is the commune's name, except where that name is already a commune elsewhere in the country: then it carries its city in brackets ('Kalamu (Boma)'), because commune names are stored as text in a dozen tables and must stay unique nationwide. Kinshasa's keys are never suffixed. Quartier lists come only from the sources in _sources; an empty list means no published source was found, never that the commune has no quartiers. Names agents use that are not here go in drc_quartier_aliases.json, with a source.",
+  "_sources": {
+    "wp": "fr.wikipedia.org — each city's article and each commune's article, section « Quartiers » unless noted (collected 2026-10-20)",
+    "owner": "Lukka Place owner, 2026-10-20 — Bukavu has five communes (Kasha and Panzi split off); Muanda is in this wave"
+  },
+  "cities": {
+    "Lubumbashi": {
+      "province": "Haut-Katanga", "utc_offset": 2, "source": "wp",
+      "communes": {
+        "Annexe": ["Kalebuka", "Kasapa", "Kasungami", "Kimbembe", "Kisanga", "Luwowoshi", "Munua", "Naviundu", "Kamasaka", "Kamisepe", "Kamatete", "Kasangiri"],
+        "Kamalondo": ["Kitumaini", "Njanja"],
+        "Kampemba": ["Bel-Air I", "Bel-Air II", "Bongonga", "Industriel", "Kafubu", "Kinka-Ville", "Kampemba", "Kigoma", "Hewa-Bora"],
+        "Katuba": ["Bukama", "Kaponda", "Kinyama", "Kimilolo", "Kisale", "Lufira", "Musumba", "Mwana Shaba", "Nsele", "Upemba"],
+        "Kenya": ["Lualaba", "Luapula", "Luvua", "Brondo"],
+        "Lubumbashi": ["Gambela", "Gambela II", "Kalubwe", "Kiwele", "Lido Golf", "Lumumba", "Malela", "Météo", "Kabulameshi", "Makutano", "Mampala Gécamines", "Baudouin", "Makomeno", "La Légende"],
+        "Rwashi": ["Bendera I", "Bendera II", "Congo I", "Congo II", "Luano I", "Luano II", "Kawama I", "Kawama II", "Kawama III", "Kalukuluku I", "Kalukuluku II", "Matoleo I", "Matoleo II", "Shindaika", "Kanamba"]
+      }
+    },
+    "Likasi": {
+      "province": "Haut-Katanga", "utc_offset": 2, "source": "wp",
+      "communes": {
+        "Kikula": ["Kalipopo", "Kanona", "Kapemba", "Kaponona", "Kisunka", "Kyubo", "Mbadi", "Musumba", "Nkolomoni", "Okito"],
+        "Likasi": ["Centre-Ville", "Panda-Makomeno", "Mission", "Industriel", "Kampumpi", "Kitabataba", "SNCC", "Simba"],
+        "Panda": ["Kamilopa", "Kakontwe", "Kiwele", "Mpandamayi", "Muchanga"],
+        "Shituru": ["Buluo", "Kilima", "Kipulande", "Nguya"]
+      }
+    },
+    "Kolwezi": {
+      "province": "Lualaba", "utc_offset": 2, "source": "wp",
+      "communes": { "Dilala": [], "Manika": [] }
+    },
+    "Goma": {
+      "province": "Nord-Kivu", "utc_offset": 2, "source": "wp",
+      "communes": {
+        "Goma": ["Les Volcans", "Mikeno", "Mapendo", "Katindo", "Himbi", "Keshero", "Lac Vert"],
+        "Karisimbi": ["Kahembe", "Katoyi", "Majengo", "Mabanga-Nord", "Mabanga-Sud", "Kasika", "Murara", "Virunga", "Ndosho", "Mugunga", "Bujovu"]
+      }
+    },
+    "Bukavu": {
+      "province": "Sud-Kivu", "utc_offset": 2, "source": "owner",
+      "communes": { "Bagira": [], "Ibanda": [], "Kadutu": [], "Kasha": [], "Panzi": [] }
+    },
+    "Kisangani": {
+      "province": "Tshopo", "utc_offset": 2, "source": "wp",
+      "communes": {
+        "Kabondo (Kisangani)": ["Sotraco I", "Damba II"],
+        "Kisangani": [],
+        "Lubunga": [],
+        "Makiso": ["Plateau Boyoma", "Kilomoto", "Des Musiciens", "Plateau Médical", "Motumbe"],
+        "Mangobo": ["Alur", "Babali", "Baboa", "Bamanga", "Bambole", "Bangwandi", "Basoko", "Baema", "Mabudu", "Mingazi", "Sotraco", "Balese", "Mambiza", "Turumbu", "Medje", "Mituku", "Matete", "Cité Boyoma", "Lokele", "Limanga", "Walengola", "Wagenia"],
+        "Tshopo": ["Du Stade", "Du Marché", "Pumuzika", "Poste"]
+      }
+    },
+    "Mbuji-Mayi": {
+      "province": "Kasaï-Oriental", "utc_offset": 2, "source": "wp",
+      "communes": {
+        "Bipemba": ["Lubwebwe", "Makala", "Mpokolo", "Mulekelayi", "Mulenda", "Muya", "Nzaba I", "Nzaba II", "Odia David", "Regideso", "RVA", "Tshielela", "Tshintunta", "Tshiombela", "De la Mission", "De la Plaine", "Diowo", "Ditunga Dietu", "Diwola", "Kabuatshia", "Kakelenge", "Kalundu", "Kanjiya", "Kanshi", "Katu", "Lubanda"],
+        "Dibindi": ["Bonzola I", "Bonzola II", "Minkoka", "Misesa I", "Misesa II", "Dipumba I", "Dipumba II", "Monzo I", "Monzo II", "Kabongo I", "Kabongo II", "Université I", "Université II", "Kasavubu I", "Kasavubu II", "Snel I", "Snel II", "Lukelenge I", "Lukelenge II", "Tshiya", "Mikela"],
+        "Diulu": ["Bubanji", "Dipa", "Lusenga", "Masanka", "Nkulusa"],
+        "Kanshi": ["Bimpe", "Buzala", "Kananga", "Kasaï", "Kashala", "Lubilanji I", "Lubilanji II", "Luzumu", "Makasi I", "Makasi II", "Mudiba", "Nyongolo", "Tshiatshiatshia", "Tshikisha", "Tubondo I", "Tubondo II"],
+        "Muya": ["Badibanga Lukuni", "Kajiba", "Biayi Mikenji", "Nkonga", "Bukasa Nkumbi", "Ngomba Ngole", "Dieu M'a Donné", "Ntita Kalavanda", "De la Poste", "Nzangula Menji", "Kalala Mutombo", "OUA", "Kansele", "Siona", "Lunga", "Tender", "Lupemba", "Tshibangu Mpoyi", "Lusamba", "Beena Tshibwabwa", "Mbaya Musangana", "Tshikama", "Muluma Musulu", "Tshidibi Tshikunga", "Ngalula Mpandajila", "Tshiminyi", "M'Tshia"]
+      }
+    },
+    "Kananga": {
+      "province": "Kasaï-Central", "utc_offset": 2, "source": "wp",
+      "communes": { "Kananga": [], "Katoka": [], "Lukonga": [], "Ndesha": [], "Nganza": [] }
+    },
+    "Matadi": {
+      "province": "Kongo Central", "utc_offset": 1, "source": "wp",
+      "communes": {
+        "Matadi": ["Soyo", "Tshimpi", "Salongo", "Ville Haute", "Ville Basse"],
+        "Mvuzi": [],
+        "Nzanza": []
+      }
+    },
+    "Boma": {
+      "province": "Kongo Central", "utc_offset": 1, "source": "wp",
+      "communes": { "Kabondo (Boma)": [], "Kalamu (Boma)": [], "Nzadi": [] }
+    },
+    "Muanda": {
+      "province": "Kongo Central", "utc_offset": 1, "source": "owner",
+      "communes": {}
+    }
+  }
+}

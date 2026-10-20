@@ -29,6 +29,13 @@
  * wrong). The offset is applied once, here, and the result is serialised as
  * UTC with a `Z` — see the `scheduled_at` note in services/db.js for why the
  * column must not hold mixed offsets.
+ *
+ * Lubumbashi, Goma, Bukavu, Kisangani, Mbuji-Mayi, Kananga, Kolwezi and Likasi
+ * are UTC+2 (services/cities.js). Every function here takes an optional
+ * `utcOffset` — the hours ahead of UTC where the VISIT is, from the listing's
+ * commune (cities.utcOffsetForCommune) — and defaults to Kinshasa's, so a
+ * caller that passes nothing behaves exactly as before. "14h" typed about a
+ * Lubumbashi house is 12:00Z, not 13:00Z.
  */
 
 /** Kinshasa, UTC+1, no daylight saving. */
@@ -85,9 +92,9 @@ function normalise(text) {
     .trim();
 }
 
-/** The Kinshasa wall-clock date parts of an instant. */
-function kinshasaParts(date) {
-  const shifted = new Date(date.getTime() + KINSHASA_UTC_OFFSET_HOURS * 3600 * 1000);
+/** The local wall-clock date parts of an instant (Kinshasa unless told otherwise). */
+function kinshasaParts(date, utcOffset = KINSHASA_UTC_OFFSET_HOURS) {
+  const shifted = new Date(date.getTime() + utcOffset * 3600 * 1000);
   return {
     year: shifted.getUTCFullYear(),
     month: shifted.getUTCMonth(),
@@ -96,9 +103,9 @@ function kinshasaParts(date) {
   };
 }
 
-/** A Kinshasa wall clock back to a real UTC instant. */
-function fromKinshasa({ year, month, day, hour, minute }) {
-  return new Date(Date.UTC(year, month, day, hour - KINSHASA_UTC_OFFSET_HOURS, minute, 0, 0));
+/** A local wall clock (Kinshasa unless told otherwise) back to a real UTC instant. */
+function fromKinshasa({ year, month, day, hour, minute }, utcOffset = KINSHASA_UTC_OFFSET_HOURS) {
+  return new Date(Date.UTC(year, month, day, hour - utcOffset, minute, 0, 0));
 }
 
 /**
@@ -132,8 +139,8 @@ function findTime(text) {
  * Saturday means the next one, not today, because an agent confirming a slot
  * is proposing a future appointment.
  */
-function findDay(text, now) {
-  const today = kinshasaParts(now);
+function findDay(text, now, utcOffset = KINSHASA_UTC_OFFSET_HOURS) {
+  const today = kinshasaParts(now, utcOffset);
   const base = { year: today.year, month: today.month, day: today.day };
 
   const shiftDays = (n) => {
@@ -202,21 +209,22 @@ function findDay(text, now) {
  * @param {string} requestedTime What the customer or agent wrote.
  * @param {Date}   [now] The instant to resolve relative words against.
  *                 Injectable so tests never depend on the wall clock.
+ * @param {{utcOffset?: number}} [options] Where the visit is (see TIMEZONE).
  * @returns {{iso: string, hour: number, minute: number, confidence: 'clock'|'daypart'}|null}
  *          `iso` is UTC (…Z). null when no day AND time could be found — the
  *          caller must then ASK rather than assume.
  */
-function parseFrenchSlot(requestedTime, now = new Date()) {
+function parseFrenchSlot(requestedTime, now = new Date(), { utcOffset = KINSHASA_UTC_OFFSET_HOURS } = {}) {
   const text = normalise(requestedTime);
   if (!text) return null;
 
-  const day = findDay(text, now);
+  const day = findDay(text, now, utcOffset);
   if (!day) return null;
 
   const time = findTime(text);
   if (!time) return null;
 
-  const when = fromKinshasa({ ...day, hour: time.hour, minute: time.minute });
+  const when = fromKinshasa({ ...day, hour: time.hour, minute: time.minute }, utcOffset);
   if (Number.isNaN(when.getTime())) return null;
 
   // A slot in the past is a misparse, not an appointment. "lundi 9h" typed on
@@ -237,14 +245,14 @@ function parseFrenchSlot(requestedTime, now = new Date()) {
  *
  * Always the full day and date, never "demain": the agent is being asked to
  * confirm, and "demain" read a day later than it was sent confirms the wrong
- * day. Rendered in Kinshasa local time, which is the only clock either party
- * is thinking in.
+ * day. Rendered in the visit's local time (Kinshasa unless `utcOffset` says
+ * otherwise), which is the only clock either party is thinking in.
  */
-function formatSlotFr(iso) {
+function formatSlotFr(iso, { utcOffset = KINSHASA_UTC_OFFSET_HOURS } = {}) {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return null;
-  const parts = kinshasaParts(date);
-  const shifted = new Date(date.getTime() + KINSHASA_UTC_OFFSET_HOURS * 3600 * 1000);
+  const parts = kinshasaParts(date, utcOffset);
+  const shifted = new Date(date.getTime() + utcOffset * 3600 * 1000);
   const dayNames = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
   const monthNames = [
     'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
@@ -268,13 +276,13 @@ const ISO_INSTANT_WITH_OFFSET = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?
  *
  * @returns {{value: string}|{error: string}} `value` is UTC with a `Z`.
  */
-function resolveScheduledAtInput(raw, now = new Date()) {
+function resolveScheduledAtInput(raw, now = new Date(), { utcOffset = KINSHASA_UTC_OFFSET_HOURS } = {}) {
   const text = String(raw ?? '').trim();
   if (ISO_INSTANT_WITH_OFFSET.test(text)) {
     const date = new Date(text);
     if (!Number.isNaN(date.getTime())) return { value: date.toISOString() };
   }
-  const slot = parseFrenchSlot(text, now);
+  const slot = parseFrenchSlot(text, now, { utcOffset });
   if (slot) return { value: slot.iso };
   return { error: "scheduled_at must be an ISO instant with an offset, or a phrase with a day and an hour ('samedi 14h')." };
 }
@@ -295,12 +303,12 @@ function resolveScheduledAtInput(raw, now = new Date()) {
  * @param {string} createdAt     viewing_requests.created_at (SQLite `YYYY-MM-DD HH:MM:SS`, UTC)
  * @returns {string|null} UTC ISO (…Z)
  */
-function requestedSlotAt(requestedTime, createdAt) {
+function requestedSlotAt(requestedTime, createdAt, { utcOffset = KINSHASA_UTC_OFFSET_HOURS } = {}) {
   if (!requestedTime || !createdAt) return null;
   const raw = String(createdAt).trim();
   const asked = new Date(/[zZ]|[+-]\d{2}:?\d{2}$/.test(raw) ? raw.replace(' ', 'T') : `${raw.replace(' ', 'T')}Z`);
   if (Number.isNaN(asked.getTime())) return null;
-  const slot = parseFrenchSlot(requestedTime, asked);
+  const slot = parseFrenchSlot(requestedTime, asked, { utcOffset });
   return slot ? slot.iso : null;
 }
 

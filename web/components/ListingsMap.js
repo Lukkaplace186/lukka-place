@@ -18,8 +18,9 @@ import { landmarkPoint } from '@/lib/landmarks';
 import {
   FETCH_DEBOUNCE_MS,
   KINSHASA_DEFAULT_VIEW,
-  KINSHASA_PROVINCE_ENVELOPE,
   boundsContain,
+  defaultViewForCity,
+  inCoveredArea,
   boundsToQuery,
   boundsWithin,
   locationGeocodeQueries,
@@ -213,9 +214,9 @@ function showView(map, { center, zoom }) {
   map.setZoom(zoom);
 }
 
-function fitTo(map, bounds, { exact = false } = {}) {
+function fitTo(map, bounds, { exact = false, home = KINSHASA_DEFAULT_VIEW } = {}) {
   if (!bounds) {
-    showView(map, KINSHASA_DEFAULT_VIEW);
+    showView(map, home);
     return;
   }
   // A saved map area: back to that box as closely as the zoom steps allow.
@@ -274,6 +275,15 @@ export default function ListingsMap({
   const [view, setView] = useState({ loaded: false, inView: 0, truncated: false, fetching: false, failed: false });
 
   const filterQuery = useMemo(() => mapFilterQuery(params), [params]);
+  // Where the map opens with no place named: Kinshasa's core, or the picked
+  // city's centre (CityPicker, lib/cities.js). Read from a ref by the Google
+  // listeners, which are registered once.
+  const homeView = useMemo(() => defaultViewForCity(params), [params]);
+  const homeViewRef = useRef(homeView);
+  // Declared before the effects that read it, so it is current when they run.
+  useEffect(() => {
+    homeViewRef.current = homeView;
+  }, [homeView]);
   // The desktop pill's count rolls to its new value as the map moves.
   const shownInView = useCountUp(view.loaded && !view.failed ? view.inView : null);
   // Whether the URL currently carries a map area. Only its removal matters
@@ -554,7 +564,7 @@ export default function ListingsMap({
 
         // Built on the default Kinshasa view; a searched place moves it there
         // before any marker is fetched (see `positioning` below).
-        const map = new google.maps.Map(elementRef.current, { ...baseMapOptions(), ...KINSHASA_DEFAULT_VIEW });
+        const map = new google.maps.Map(elementRef.current, { ...baseMapOptions(), ...homeViewRef.current });
         mapRef.current = map;
         geocoderRef.current = new google.maps.Geocoder();
         layerRef.current = createPinLayer(map, {
@@ -649,14 +659,14 @@ export default function ListingsMap({
     // visitor sees where they came from (lib/mapFly.js).
     if (!target) {
       if (firstRun) {
-        fitTo(mapRef.current, null);
+        fitTo(mapRef.current, null, { home: homeViewRef.current });
         areaRef.current = { baseline: viewKey(mapRef.current), reported: null };
         scheduleFetch();
         return undefined;
       }
       let cancelledHome = false;
       req.positioning = true;
-      flyTo(mapRef.current, KINSHASA_DEFAULT_VIEW).then(() => {
+      flyTo(mapRef.current, homeViewRef.current).then(() => {
         if (cancelledHome) return;
         req.positioning = false;
         areaRef.current = { baseline: viewKey(mapRef.current), reported: null };
@@ -756,8 +766,8 @@ export default function ListingsMap({
       (position) => {
         setLocating(false);
         const point = { lat: position.coords.latitude, lng: position.coords.longitude };
-        const env = KINSHASA_PROVINCE_ENVELOPE;
-        if (point.lat < env.south || point.lat > env.north || point.lng < env.west || point.lng > env.east) {
+        // Inside any city Lukka Place covers (lib/mapViewport.js inCoveredArea).
+        if (!inCoveredArea(point)) {
           flash('listings.map.locateOutside');
           return;
         }

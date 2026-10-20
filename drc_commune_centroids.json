@@ -1,0 +1,258 @@
+{
+  "Lubumbashi": {
+    "center": {
+      "lat": -11.687603,
+      "lng": 27.502617
+    },
+    "address": "Lubumbashi, Democratic Republic of the Congo",
+    "communes": {
+      "Annexe": {
+        "lat": -11.714997,
+        "lng": 27.407011,
+        "address": "Annexe, Lubumbashi, Democratic Republic of the Congo"
+      },
+      "Kamalondo": {
+        "lat": -11.682806,
+        "lng": 27.48647,
+        "address": "Kamalondo, Lubumbashi, Democratic Republic of the Congo"
+      },
+      "Kampemba": null,
+      "Katuba": {
+        "lat": -11.708576,
+        "lng": 27.449766,
+        "address": "Katuba, Lubumbashi, Democratic Republic of the Congo"
+      },
+      "Kenya": {
+        "lat": -11.697482,
+        "lng": 27.482066,
+        "address": "Kenya, Lubumbashi, Democratic Republic of the Congo"
+      },
+      "Lubumbashi": {
+        "lat": -11.687603,
+        "lng": 27.502617,
+        "address": "Lubumbashi, Democratic Republic of the Congo"
+      },
+      "Rwashi": {
+        "lat": -11.641478,
+        "lng": 27.536376,
+        "address": "Rwashi, Lubumbashi, Democratic Republic of the Congo"
+      }
+    }
+  },
+  "Likasi": {
+    "center": {
+      "lat": -10.988415,
+      "lng": 26.737859
+    },
+    "address": "Likasi, Democratic Republic of the Congo",
+    "communes": {
+      "Kikula": {
+        "lat": -10.974606,
+        "lng": 26.720177,
+        "address": "Kikula, Likasi, Democratic Republic of the Congo"
+      },
+      "Likasi": {
+        "lat": -10.988415,
+        "lng": 26.737859,
+        "address": "Likasi, Democratic Republic of the Congo"
+      },
+      "Panda": {
+        "lat": -11.011908,
+        "lng": 26.734912,
+        "address": "Panda, Likasi, Democratic Republic of the Congo"
+      },
+      "Shituru": {
+        "lat": -11.002221,
+        "lng": 26.755538,
+        "address": "Shituru, Likasi, Democratic Republic of the Congo"
+      }
+    }
+  },
+  "Kolwezi": {
+    "center": {
+      "lat": -10.727527,
+      "lng": 25.508891
+    },
+    "address": "Kolwezi, Democratic Republic of the Congo",
+    "communes": {
+      "Dilala": {
+        "lat": -10.717708,
+        "lng": 25.46535,
+        "address": "Dilala, Kolwezi, Democratic Republic of the Congo"
+      },
+      "Manika": null
+    }
+  },
+  "Goma": {
+    "center": {
+      "lat": -1.658501,
+      "lng": 29.220455
+    },
+    "address": "Goma, Democratic Republic of the Congo",
+    "communes": {
+      "Goma": {
+        "lat": -1.658501,
+        "lng": 29.220455,
+        "address": "Goma, Democratic Republic of the Congo"
+      },
+      "Karisimbi": {
+        "lat": -1.662992,
+        "lng": 29.221667,
+        "address": "Commune karisimbi Quartier, Majengo, Avenue, kibinda, Goma, Democratic Republic of the Congo"
+      }
+    }
+  },
+  "Bukavu": {
+    "center": {
+      "lat": -2.512302,
+      "lng": 28.848028
+    },
+    "address": "Bukavu, Democratic Republic of the Congo",
+    "communes": {
+      "Bagira": {
+        "lat": -2.471274,
+        "lng": 28.827635,
+        "address": "Bagira, Bukavu, Democratic Republic of the Congo"
+      },
+      "Ibanda": null,
+      "Kadutu": {
+        "lat": -2.515475,
+        "lng": 28.852398,
+        "address": "Commune Kadutu, Bukavu, Democratic Republic of the Congo"
+      },
+      "Kasha": null,
+      "Panzi": {
+        "lat": -2.53018,
+        "lng": 28.854583,
+        "address": "Panzi, Bukavu, Democratic Republic of the Congo"
+      }
+    }
+  },
+  "Kisangani": {
+    "center": {
+      "lat": 0.51853,
+      "lng": 25.200773
+    },
+    "address": "Kisangani, Democratic Republic of the Congo",
+    "communes": {
+      "Kabondo (Kisangani)": {
+        "lat": 0.514174,
+        "lng": 25.218557,
+        "address": "Kabondo, Kisangani, Democratic Republic of the Congo"
+      },
+      "Kisangani": {
+        "lat": 0.51853,
+        "lng": 25.200773,
+        "address": "Kisangani, Democratic Republic of the Congo"
+      },
+      "Lubunga": {
+        "lat": 0.497202,
+        "lng": 25.182987,
+        "address": "Lubunga, Kisangani, Democratic Republic of the Congo"
+      },
+      "Makiso": null,
+      "Mangobo": {
+        "lat": 0.523041,
+        "lng": 25.147413,
+        "address": "Mangobo, Kisangani, Democratic Republic of the Congo"
+      },
+      "Tshopo": null
+    }
+  },
+  "Mbuji-Mayi": {
+    "center": {
+      "lat": -6.130671,
+      "lng": 23.596658
+    },
+    "address": "Mbuji-Mayi, Democratic Republic of the Congo",
+    "communes": {
+      "Bipemba": {
+        "lat": -6.10286,
+        "lng": 23.560946,
+        "address": "Bipemba, Democratic Republic of the Congo"
+      },
+      "Dibindi": {
+        "lat": -6.113459,
+        "lng": 23.650221,
+        "address": "Dibindi, Democratic Republic of the Congo"
+      },
+      "Diulu": {
+        "lat": -6.106494,
+        "lng": 23.596167,
+        "address": "Diulu, Mbuji-Mayi, Democratic Republic of the Congo"
+      },
+      "Kanshi": {
+        "lat": -6.15959,
+        "lng": 23.608561,
+        "address": "KANSHI, Democratic Republic of the Congo"
+      },
+      "Muya": {
+        "lat": -6.108454,
+        "lng": 23.619443,
+        "address": "Muya, Mbuji-Mayi, Democratic Republic of the Congo"
+      }
+    }
+  },
+  "Kananga": {
+    "center": {
+      "lat": -5.897522,
+      "lng": 22.417226
+    },
+    "address": "Kananga, Democratic Republic of the Congo",
+    "communes": {
+      "Kananga": {
+        "lat": -5.897522,
+        "lng": 22.417226,
+        "address": "Kananga, Democratic Republic of the Congo"
+      },
+      "Katoka": null,
+      "Lukonga": null,
+      "Ndesha": null,
+      "Nganza": {
+        "lat": -5.92999,
+        "lng": 22.411377,
+        "address": "3CC6+2H2, Kananga, Democratic Republic of the Congo"
+      }
+    }
+  },
+  "Matadi": {
+    "center": {
+      "lat": -5.850872,
+      "lng": 13.462737
+    },
+    "address": "Matadi, Democratic Republic of the Congo",
+    "communes": {
+      "Matadi": {
+        "lat": -5.850872,
+        "lng": 13.462737,
+        "address": "Matadi, Democratic Republic of the Congo"
+      },
+      "Mvuzi": null,
+      "Nzanza": {
+        "lat": -5.81853,
+        "lng": 13.469964,
+        "address": "Zanza, Matadi, Democratic Republic of the Congo"
+      }
+    }
+  },
+  "Boma": {
+    "center": {
+      "lat": -5.839642,
+      "lng": 13.070265
+    },
+    "address": "Boma, Democratic Republic of the Congo",
+    "communes": {
+      "Kabondo (Boma)": null,
+      "Kalamu (Boma)": null,
+      "Nzadi": null
+    }
+  },
+  "Muanda": {
+    "center": {
+      "lat": -5.923035,
+      "lng": 12.36357
+    },
+    "address": "Muanda, Democratic Republic of the Congo",
+    "communes": {}
+  }
+}

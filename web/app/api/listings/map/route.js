@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getMapExtent, getMapMarkers } from '@/lib/listings';
 import { parseListingsSearchParams } from '@/lib/searchQuery';
+import { publicVille } from '@/lib/publicCities';
 import { parseBounds } from '@/lib/mapViewport';
 
 /**
@@ -26,6 +27,8 @@ import { parseBounds } from '@/lib/mapViewport';
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const filters = parseListingsSearchParams(searchParams);
+  // Same rule as the page: a city that is not public yet is no city.
+  filters.ville = await publicVille(filters.ville);
 
   if (searchParams.get('extent') === '1') {
     return NextResponse.json(await getMapExtent(filters));

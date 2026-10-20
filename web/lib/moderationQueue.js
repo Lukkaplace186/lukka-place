@@ -96,7 +96,7 @@ export const FILTERABLE_FLAGS = Object.keys(FLAG_SQL);
 export const COMMUNE_OF_P = `(
   SELECT ac.name FROM property_amenities pa
   JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = 20
-  WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44
+  WHERE pa.property_id = p.id AND pa.amenity_id IN (SELECT amenity_id FROM location_communes)
   LIMIT 1
 )`;
 
@@ -117,12 +117,12 @@ function buildBase({ status, q, commune, purpose, agentId, availabilityChecks = 
                 OR ($${digitsParam} <> '' AND a.phone LIKE $${digitsParam}))`);
   }
   if (commune === '__none__') {
-    where.push('NOT EXISTS (SELECT 1 FROM property_amenities pa WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44)');
+    where.push('NOT EXISTS (SELECT 1 FROM property_amenities pa WHERE pa.property_id = p.id AND pa.amenity_id IN (SELECT amenity_id FROM location_communes))');
   } else if (commune) {
     params.push(commune);
     where.push(`EXISTS (SELECT 1 FROM property_amenities pa
                         JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = 20
-                        WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44 AND ac.name = $${params.length})`);
+                        WHERE pa.property_id = p.id AND pa.amenity_id IN (SELECT amenity_id FROM location_communes) AND ac.name = $${params.length})`);
   }
   if (purpose === 'rent' || purpose === 'sale') {
     params.push(purpose);

@@ -8,6 +8,7 @@ import { facetLabel, groupTypeFacets } from '@/lib/commercialSpaces';
 import FiltersDrawer from './FiltersDrawer';
 import FilterModal from './FilterModal';
 import LocationAutocomplete from './LocationAutocomplete';
+import CityPicker from './CityPicker';
 import SaveSearchButton from './SaveSearchButton';
 import { Slider } from './ui/slider';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -77,7 +78,7 @@ const numberInputClass =
  *
  * Sticks at top-16 to sit directly under the fixed h-16 Header.
  */
-export default function FilterBar({ locations, propertyTypes = [], initialTotal, priceCeiling, defaults = {} }) {
+export default function FilterBar({ locations, propertyTypes = [], initialTotal, priceCeiling, defaults = {}, cities = [] }) {
   const t = useT();
   const formRef = useRef(null);
 
@@ -311,6 +312,8 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
     // `?q=appartement&price_max=2000` -> click "Chambres" -> 1+ ->
     // `?beds_min=1&price_max=2000`, `q` gone.
     ['q', defaults.search || ''],
+    // The city picker's choice (CityPicker) survives every pill action.
+    ['ville', defaults.ville || ''],
     ['transaction_type', transaction],
     ['commune', commune],
     // "Gombe ou Ngaliema" — the extra communes the search box resolved.
@@ -426,6 +429,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
               app's own `--blue` focus token rather than a literal dark
               slate-900 border, matching `.u-focus-ring`'s established
               focus colour used everywhere else a field gets one. */}
+          <CityPicker cities={cities} current={defaults.ville} />
           <LocationAutocomplete
             preserveParams
             initialValue={defaults.search || defaults.near || searchedPlaceLabel(defaults)}

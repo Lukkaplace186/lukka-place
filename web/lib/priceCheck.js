@@ -25,7 +25,7 @@ import { AREA_M2_SQL, NOT_TEST_LISTING_SQL } from './marketExclusions';
 const COMMUNE_OF_P = `(
   SELECT ac.name FROM property_amenities pa
   JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = 20
-  WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44
+  WHERE pa.property_id = p.id AND pa.amenity_id IN (SELECT amenity_id FROM location_communes)
   LIMIT 1
 )`;
 

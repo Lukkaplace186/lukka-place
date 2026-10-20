@@ -19,7 +19,7 @@ export async function getPrintExtras(agentId, propertyId) {
                 FROM property_amenities pa
                 JOIN amenities a ON a.id = pa.amenity_id
                 JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = $1
-               WHERE pa.property_id = p.id AND pa.amenity_id NOT BETWEEN 21 AND 44
+               WHERE pa.property_id = p.id AND pa.amenity_id NOT IN (SELECT amenity_id FROM location_communes)
             ) AS amenities
        FROM properties p
        LEFT JOIN property_contents pc ON pc.property_id = p.id AND pc.language_id = $1

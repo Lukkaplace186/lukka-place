@@ -39,10 +39,15 @@ export const VISIT_CART_MAX = 4;
 
 const HOUR_MS = 3600 * 1000;
 
-/** `2026-10-03T14:15:00+01:00` — Kinshasa wall time with its offset. `time` is 'HH:MM' (a bare hour still works). */
-export function slotIso(dayKey, time) {
+/**
+ * `2026-10-03T14:15:00+01:00` — local wall time with its offset. `time` is
+ * 'HH:MM' (a bare hour still works). `utcOffset` is where the listing is:
+ * +1 Kinshasa (the default), +2 Lubumbashi, Goma… (lib/cities.js
+ * utcOffsetForListing).
+ */
+export function slotIso(dayKey, time, utcOffset = 1) {
   const text = typeof time === 'number' ? `${String(time).padStart(2, '0')}:00` : String(time);
-  return `${dayKey}T${text}:00+01:00`;
+  return `${dayKey}T${text}:00+0${utcOffset === 2 ? 2 : 1}:00`;
 }
 
 /** The next VISIT_DAYS Kinshasa calendar days, today first, as `YYYY-MM-DD`. */
@@ -83,12 +88,12 @@ export function dayClosed(dayKey, availability) {
  * @param {{closedWeekdays?: number[], blockedDates?: string[]}} availability
  * @returns {{time: string, iso: string, disabled: boolean, reason: 'past'|'busy'|'closed'|null}[]}
  */
-export function slotsForDay(dayKey, { now = new Date(), busy = [], availability = null } = {}) {
+export function slotsForDay(dayKey, { now = new Date(), busy = [], availability = null, utcOffset = 1 } = {}) {
   const busyTimes = busy.map(toTime).filter((t) => t != null);
   const earliest = now.getTime() + MIN_LEAD_HOURS * HOUR_MS;
   const closed = availability ? dayClosed(dayKey, availability) : false;
   return VISIT_SLOT_TIMES.map((time) => {
-    const iso = slotIso(dayKey, time);
+    const iso = slotIso(dayKey, time, utcOffset);
     const at = Date.parse(iso);
     let reason = null;
     if (at < earliest) reason = 'past';
@@ -125,14 +130,17 @@ export function calendarWeeks(now = new Date()) {
  * far enough ahead. Returns the ISO string and the French phrase every existing reader
  * (agent alert, dashboard) already shows, or an error code.
  */
-export function validatePickedSlot(raw, now = new Date()) {
+export function validatePickedSlot(raw, now = new Date(), { utcOffset = 1 } = {}) {
   const text = String(raw || '').trim();
-  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}):00\+01:00$/.exec(text);
+  const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}):00\+0([12]):00$/.exec(text);
   if (!match) return { error: 'invalid' };
+  // Built on the listing's own clock, or not at all: a +01:00 slot for a
+  // Lubumbashi house would be an hour off.
+  if (Number(match[3]) !== (utcOffset === 2 ? 2 : 1)) return { error: 'invalid' };
   if (!VISIT_SLOT_TIMES.includes(match[2])) return { error: 'invalid' };
   if (!visitDays(now).includes(match[1])) return { error: 'out_of_range' };
   if (Date.parse(text) < now.getTime() + MIN_LEAD_HOURS * HOUR_MS) return { error: 'too_soon' };
-  return { iso: text, phrase: slotPhraseFr(text) };
+  return { iso: text, phrase: slotPhraseFr(text, { utcOffset }) };
 }
 
 /** Two picks less than CLASH_MINUTES apart — "Mes visites" warns, it does not refuse. */

@@ -4,6 +4,7 @@ import { useTransition } from 'react';
 import { useToast } from '@/components/Toast';
 import { updateAgentCommunesAction } from './actions';
 import { useT } from '@/lib/i18n/client';
+import { communeOptionText } from '@/lib/cities';
 
 /**
  * Communes desservies "Enregistrer" form — a client component (rather than
@@ -37,7 +38,7 @@ export default function AgentCommunesForm({ agentId, communes, selectedCommunes 
         {communes.map((commune) => (
           <label key={commune} className="flex items-center gap-1">
             <input type="checkbox" name="communes" value={commune} defaultChecked={selected.has(commune)} />
-            {commune}
+            {communeOptionText(commune)}
           </label>
         ))}
       </div>

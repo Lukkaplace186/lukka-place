@@ -1196,8 +1196,11 @@ async function processGroup(messages) {
       // The answer to the card's "dans quelle commune ?": a short reply that is
       // exactly a commune name fills the draft's commune, whatever the model
       // made of one bare word.
+      // The city the listing is in (services/cities.js): the model's reading
+      // of this message, else the draft's. null = Kinshasa, as before.
+      const statedCity = extracted.city || pending?.city || null;
       if (pending && !pending.commune && !extracted.is_listing && hasText) {
-        const named = communeNamedIn(text);
+        const named = communeNamedIn(text, { city: pending.city || null });
         if (named) {
           extracted.commune = named;
           extracted.is_correction = true;
@@ -1208,7 +1211,9 @@ async function processGroup(messages) {
         commune: extracted.commune,
         quartier: extracted.quartier,
         reference: extracted.reference,
+        city: statedCity,
       });
+      extracted.city = located.city;
       if (located.commune) extracted.commune = located.commune;
       if (located.quartier) extracted.quartier = located.quartier;
       if (located.communeInferredFrom) {

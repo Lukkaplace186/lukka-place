@@ -1683,3 +1683,65 @@ compared by both test suites), `migrations/20261019_commercial_spaces.sql`.
 - **Not done**: the admin listing editor does not edit the specs yet; the
   storefront has no commercial-only filters (surface range, frontage).
 - §53 of verify-pipeline; `web/tests/unit/commercial-spaces.test.js`.
+
+## Cities beyond Kinshasa (2026-10-20) — engine half
+
+Lubumbashi, Likasi, Kolwezi, Goma, Bukavu, Kisangani, Mbuji-Mayi, Kananga,
+Matadi, Boma and Muanda, same shape as Kinshasa. `services/cities.js` is the
+registry; `drc_locations.json` the data (Kinshasa stays in
+kinshasa_locations.json, untouched). §58 of verify-pipeline.
+
+- **Commune keys are unique nationwide.** Communes are stored as text in a
+  dozen tables (leads, agents.primary_communes, developments,
+  viewing_requests…), and Boma has a Kalamu (like Kinshasa) and a Kabondo
+  (like Kisangani). A colliding name carries its city: "Kalamu (Boma)",
+  "Kabondo (Kisangani)", "Kabondo (Boma)". Kinshasa's keys are never
+  suffixed. `communeLabel` is how a key is shown; the key is also the
+  commune amenity's name in both languages, so every `ac.name = commune`
+  join keeps working.
+- **Quartier data has sources or nothing.** Wikipedia (fr) gives full lists for
+  Lubumbashi, Likasi and Goma, partial for Mbuji-Mayi and Kisangani, none for
+  Kolwezi, Kananga, Boma, Bukavu (5 communes, owner-confirmed) and most of
+  Matadi; an empty list means no source, never no quartiers. Muanda has no
+  published communes: its listings carry the city and no commune.
+  `drc_quartier_aliases.json` holds the owner's 2026-10-20 list as
+  `status: "pending"` — several entries contradicted the published lists or
+  named communes as quartiers, so none is read until a local agent confirms it
+  (`"confirmed"` + who). Same rule as Kinshasa's aliases.
+- **Resolution** (`services/locations.js`): with no city, a name Kinshasa also
+  has keeps its Kinshasa reading — exactly what it meant before ("Industriel"
+  → Limete). A city (the model's `city` field, the draft's, or a commune only
+  one city has) restricts every lookup to that city ("Industriel" in
+  Lubumbashi → Kampemba). A name two other cities share is asked, never
+  guessed. A commune named like its own city (Lubumbashi, Goma, Matadi…) is not
+  indexed as a place: every address there ends with it.
+- **Intake**: `parseMessage` returns `city` (strict enum, null unless the
+  message places the listing); SQLite `listings.city` (idempotent ALTER,
+  correctable, inherited by units). The card adds "*Ville* : …" outside
+  Kinshasa only; "Quartier, Commune" labels close with the city outside
+  Kinshasa ("Bel-Air I, Kampemba, Lubumbashi").
+- **Publish**: `syncListingToPostgres` sets `city_id` from the commune's city,
+  else `listings.city`, else Kinshasa; a city the taxonomy lacks THROWS (never
+  published as Kinshasa). The commune amenity comes from `location_communes`;
+  before that table exists, Kinshasa's 24 hardcoded ids. Address and
+  publish-time geocoding name the listing's city.
+- **`location_communes`** (Postgres, `scripts/migrate-multi-city.js`, dry run
+  by default) replaces `amenity_id BETWEEN 21 AND 44` everywhere in the engine:
+  a 25th commune would have fallen outside that range (45–54 are equipment).
+  RLS on, nothing granted. The script also adds the missing `property_cities`
+  rows under their existing provinces. **Run it before deploying this engine**
+  — the queries name the table. web/ still has ~25 files with the old range.
+- **Buyer assistant**: `search_properties` / `get_location` take `city`; a
+  commune search with no results widens to its CITY (`buildFilters` →
+  `p.city_id`), not the country.
+- **Visit clocks**: Katanga, the Kasaïs, Tshopo and the Kivus are UTC+2.
+  `visitSchedule`'s functions take `{ utcOffset }` (default +1); viewing
+  notifications, the bon de visite, the admin PATCH, the owner list's
+  `requested_slot_at` and the digest's visit times pass the visit's commune
+  offset (`viewing_requests.commune`). Scheduler hours stay Kinshasa hours.
+- `GET /locations?city=` (default Kinshasa — the current web sees no change)
+  also returns `cities` (keys + labels).
+- **Not done yet**: the web half (city picker, gazetteer, centroids, map views,
+  the ~25 `BETWEEN 21 AND 44` queries, web listing creation's hardcoded
+  Kinshasa city_id), commune centroids (geocode on the VPS), new cities hidden
+  on the storefront until they have 3–5 approved listings (owner decision).

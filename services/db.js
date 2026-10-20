@@ -105,6 +105,10 @@ const EXTENDED_COLUMNS = [
   // Kinshasa utility codes (services/utilities.js), JSON text — what the
   // agent's own message states about SNEL, water, security and access.
   ['utilities', 'TEXT'],
+  // The city the listing is in (services/cities.js) — the commune's city, else
+  // the city the agent named. NULL on every row predating other cities, and
+  // still NULL for a listing nothing places: both read as Kinshasa.
+  ['city', 'TEXT'],
   // Commercial-space specs (services/commercial.js) — NULL unless the
   // listing is an office / shop / warehouse / building AND the agent said
   // so. Booleans as 0 / 1 / NULL, like `furnished`.
@@ -263,8 +267,10 @@ db.exec(`
  * restart never re-seeds or duplicates rows.
  */
 function seedLocations() {
-  const { count } = db.prepare('SELECT COUNT(*) AS count FROM communes').get();
-  if (count > 0) return;
+  // Additive (2026-10-20): a database seeded with Kinshasa alone gets the other
+  // cities' communes (drc_locations.json) on its next start; a commune already
+  // on file is never re-inserted or touched.
+  const existing = new Set(db.prepare('SELECT name FROM communes').all().map((r) => r.name));
 
   const { LOCATIONS } = require('./locations');
   const insertCommune = db.prepare('INSERT INTO communes (name) VALUES (?)');
@@ -273,6 +279,7 @@ function seedLocations() {
   const communeCount = db.transaction(() => {
     let communes = 0;
     for (const [commune, quartiers] of Object.entries(LOCATIONS)) {
+      if (existing.has(commune)) continue;
       const { lastInsertRowid: communeId } = insertCommune.run(commune);
       communes += 1;
       for (const quartier of quartiers) {
@@ -282,7 +289,7 @@ function seedLocations() {
     return communes;
   })();
 
-  console.log(`[db] seeded ${communeCount} communes / quartiers from kinshasa_locations.json`);
+  if (communeCount) console.log(`[db] seeded ${communeCount} communes / quartiers (kinshasa_locations.json, drc_locations.json)`);
 }
 
 seedLocations();
@@ -415,6 +422,7 @@ function saveListing(listingData, senderInfo = {}) {
       property_type: toNullable(listingData.property_type),
       commune: toNullable(listingData.commune),
       quartier: toNullable(listingData.quartier),
+      city: toNullable(listingData.city),
       price: toNumber(listingData.price),
       currency: toNullable(listingData.currency),
       raw_text: toNullable(rawText),
@@ -642,7 +650,7 @@ const CORRECTABLE_FIELDS = [
   // on the draft. Only ever fills or replaces — the null/empty skip below means
   // a correction that says nothing about identity can never blank it.
   'agent_name',
-  'intent', 'transaction_type', 'property_type', 'parcelle_subtype', 'commune', 'quartier',
+  'intent', 'transaction_type', 'property_type', 'parcelle_subtype', 'city', 'commune', 'quartier',
   'price', 'currency', 'price_period', 'deposit_months', 'advance_months',
   'commission_months', 'bedrooms', 'bathrooms',
   'surface_area_sqm', 'units_count', 'furnished', 'amenities', 'features', 'utilities', 'reference',
@@ -847,7 +855,7 @@ function setAwaitingSalePrice(id, waiting) {
  * repeating them per unit in the extraction would just invite them to drift.
  */
 const BUILDING_SHARED_FIELDS = [
-  'transaction_type', 'property_type', 'parcelle_subtype', 'commune', 'quartier',
+  'transaction_type', 'property_type', 'parcelle_subtype', 'city', 'commune', 'quartier',
   'currency', 'deposit_months', 'advance_months', 'commission_months', 'reference',
   // A building's road and truck access are true of every unit in it; a
   // unit's floor and office count are its own and are not copied.
@@ -3974,7 +3982,7 @@ function listViewingRequestsForOwner({ propertyIds, assignedAgent, status, limit
     .prepare(
       `SELECT vr.id, vr.lead_id, vr.property_id, vr.requested_time, vr.status, vr.created_at,
               vr.scheduled_at, vr.first_response_at, vr.customer_notified_at, vr.agent_response_via,
-              vr.checkin_response,
+              vr.checkin_response, vr.commune,
               l.wa_id AS lead_wa_id, l.name AS lead_name, l.assigned_agent,
               l.property_id AS lead_property_id, l.commune AS lead_commune, l.quartier AS lead_quartier
        ${fromJoin} ${whereClause}

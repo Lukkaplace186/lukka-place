@@ -17,6 +17,8 @@ export function parseListingsSearchParams(searchParamsLike) {
     propertyType: get('property_type'),
     parcelleSubtype: get('parcelle_subtype'),
     commune: get('commune'),
+    // The city (lib/cities.js), from the city picker. Absent = Kinshasa.
+    ville: get('ville'),
     // "Gombe ou Ngaliema" — extra communes searched alongside `commune`
     // (comma-separated; lib/searchParser.js writes it). `commune` stays the
     // first one, so every single-commune reader (heading, map, breadcrumb)

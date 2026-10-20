@@ -59,7 +59,7 @@ function getPool() {
 const COMMUNE_SUBQUERY = `(
   SELECT ac.name FROM property_amenities pa
   JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = ${CONTENT_LANGUAGE_ID}
-  WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44
+  WHERE pa.property_id = p.id AND pa.amenity_id IN (SELECT amenity_id FROM location_communes)
   LIMIT 1
 ) AS commune`;
 
@@ -117,11 +117,19 @@ const SEARCH_LIMIT_MAX = 20;
  * extractRequirements).
  */
 function buildFilters({
-  transactionType, propertyType, parcelleSubtype, commune, quartier,
+  transactionType, propertyType, parcelleSubtype, commune, quartier, city,
   priceMin, priceMax, bedsMin,
 } = {}) {
   const where = [APPROVED_FILTER];
   const params = [];
+
+  // The city a listing is in is `properties.city_id` (the Laravel taxonomy's
+  // own row, services/postgres.js resolveCityId). Matched by name in either
+  // language, so "Lubumbashi" finds it whatever the admin typed first.
+  if (city) {
+    params.push(city);
+    where.push(`p.city_id IN (SELECT city_id FROM property_city_contents WHERE LOWER(name) = LOWER($${params.length}))`);
+  }
 
   const purpose = TRANSACTION_TYPE_TO_PURPOSE[transactionType];
   if (purpose) {
@@ -169,7 +177,7 @@ function buildFilters({
     where.push(`EXISTS (
       SELECT 1 FROM property_amenities pa
       JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = ${CONTENT_LANGUAGE_ID}
-      WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44 AND ac.name = $${params.length}
+      WHERE pa.property_id = p.id AND pa.amenity_id IN (SELECT amenity_id FROM location_communes) AND ac.name = $${params.length}
     )`);
   }
 

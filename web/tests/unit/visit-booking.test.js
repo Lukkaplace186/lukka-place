@@ -88,7 +88,7 @@ test('the visit form posts the picked instant; the action derives the phrase and
   assert.match(card, /<VisitSlotPicker propertyId=\{propertyId\} name="preferred_slot_at"/);
   assert.ok(!/name="requested_time"/.test(card), 'no free-text time field left');
   const action = read('app/(site)/listings/[id]/actions.js');
-  assert.match(action, /validatePickedSlot\(pickedRaw\)/);
+  assert.match(action, /validatePickedSlot\(pickedRaw, new Date\(\), \{ utcOffset: utcOffsetForListing\(listing\) \}\)/);
   assert.match(action, /preferredSlotAt: picked\?\.iso/);
 });
 
@@ -171,7 +171,7 @@ test('the cart holds at most four distinct listings and only display facts', () 
 test('the batch action re-reads every listing under the public gate and re-checks every slot', () => {
   const action = read('app/(site)/listings/visitBatchActions.js');
   assert.match(action, /await getListingById\(id\)/);
-  assert.match(action, /validatePickedSlot\(item\?\.slot, now\)/);
+  assert.match(action, /validatePickedSlot\(item\?\.slot, now, \{ utcOffset: utcOffsetForListing\(listing\) \}\)/);
   assert.match(action, /err\?\.status === 429/);
 });
 

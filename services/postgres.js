@@ -43,6 +43,7 @@ const { normaliseCommercialSpecs } = require('./commercial');
 const { Pool } = require('pg');
 const { uploadListingPhotos } = require('./supabaseStorage');
 const { resolveCommune, resolveQuartier } = require('./locations');
+const { cityOfCommune, communeLabel, resolveCity, DEFAULT_CITY } = require('./cities');
 const { storeListingCoordinates, locationInputsChanged } = require('./geocoding');
 
 // The site's own "no photo" asset — used verbatim so a WhatsApp listing with
@@ -107,21 +108,61 @@ async function loadCategories(client) {
   return map;
 }
 
-/** The site's DRC / Kinshasa location row IDs — state_id is null here to
- *  match the proven pattern from real WhatsApp-sourced listings. */
+/**
+ * The site's DRC location rows: the country id, every city's id by name
+ * (property_city_contents, either language), and every commune's amenity id
+ * (location_communes, migrations/20261020_multi_city.sql). state_id stays null
+ * to match the proven pattern from real WhatsApp-sourced listings.
+ *
+ * Before that migration has run, `location_communes` does not exist: the
+ * commune map falls back to Kinshasa's 24 (COMMUNE_AMENITY_IDS), so Kinshasa
+ * publishing never depends on it.
+ */
 async function loadLocation(client) {
   const { rows: countryRows } = await client.query(
     `SELECT country_id FROM property_country_contents WHERE name ILIKE '%Congo%' LIMIT 1`,
   );
-  const { rows: cityRows } = await client.query(
-    `SELECT city_id FROM property_city_contents WHERE name ILIKE '%Kinshasa%' LIMIT 1`,
-  );
-  if (!countryRows.length || !cityRows.length) {
+  const { rows: cityRows } = await client.query('SELECT city_id, name FROM property_city_contents');
+  const cityIds = new Map(cityRows.map((r) => [normaliseText(r.name), Number(r.city_id)]));
+  if (!countryRows.length || !cityIds.has(normaliseText(DEFAULT_CITY))) {
     throw new Error(
       'services/postgres.js: could not resolve DRC / Kinshasa in the property_*_contents tables — has the site\'s location taxonomy changed?',
     );
   }
-  return { countryId: countryRows[0].country_id, cityId: cityRows[0].city_id };
+
+  // Runs before syncListingToPostgres opens its transaction (loadTaxonomy's
+  // only caller), so a missing table is a plain failed query, not an aborted
+  // transaction.
+  let communeAmenityIds = new Map(Object.entries(COMMUNE_AMENITY_IDS));
+  try {
+    const { rows } = await client.query('SELECT name, amenity_id FROM location_communes');
+    if (rows.length) communeAmenityIds = new Map(rows.map((r) => [r.name, Number(r.amenity_id)]));
+  } catch (err) {
+    if (err.code !== '42P01') throw err;
+    console.warn('[postgres] location_communes missing — Kinshasa communes only (run scripts/migrate-multi-city.js)');
+  }
+
+  return {
+    countryId: countryRows[0].country_id,
+    cityId: cityIds.get(normaliseText(DEFAULT_CITY)),
+    cityIds,
+    communeAmenityIds,
+  };
+}
+
+/**
+ * The `{ countryId, cityId }` one listing is published under: its commune's
+ * city, else the city the agent named, else Kinshasa (every older row). A
+ * city the site's taxonomy does not have is an error, not Kinshasa: a
+ * Lubumbashi listing must never go live labelled as being in Kinshasa.
+ */
+function resolveRowLocation(row, location) {
+  const city = cityOfCommune(row.commune) || resolveCity(row.city) || DEFAULT_CITY;
+  const cityId = location.cityIds ? location.cityIds.get(normaliseText(city)) : location.cityId;
+  if (!cityId) {
+    throw new Error(`services/postgres.js: no property_cities row for "${city}" — run scripts/migrate-multi-city.js`);
+  }
+  return { countryId: location.countryId, cityId, city };
 }
 
 async function loadTaxonomy(client) {
@@ -207,7 +248,9 @@ function buildTitle(row) {
 }
 
 function buildAddress(row) {
-  const parts = [row.quartier, row.commune, 'Kinshasa'].filter(Boolean);
+  const city = cityOfCommune(row.commune) || resolveCity(row.city) || DEFAULT_CITY;
+  const commune = row.commune ? communeLabel(row.commune) : null;
+  const parts = [row.quartier, commune === city ? null : commune, city].filter(Boolean);
   return parts.join(', ');
 }
 
@@ -496,7 +539,10 @@ function slugify(text) {
 function normaliseRowLocation(row) {
   if (!row || (!row.commune && !row.quartier)) return row;
 
-  const resolvedCommune = row.commune ? resolveCommune(row.commune) || row.commune : row.commune;
+  const city = resolveCity(row.city);
+  const resolvedCommune = row.commune
+    ? resolveCommune(row.commune, { city }) || resolveCommune(row.commune) || row.commune
+    : row.commune;
   const resolvedQuartier = row.quartier
     ? resolveQuartier(row.quartier, resolvedCommune) || row.quartier
     : row.quartier;
@@ -834,7 +880,7 @@ async function syncListingToPostgres(row) {
     let propertyId = row.remote_property_id;
     const wasInsert = !propertyId;
 
-    const propertyValues = buildPropertyValues(row, { category, location, agentId });
+    const propertyValues = buildPropertyValues(row, { category, location: resolveRowLocation(row, location), agentId });
 
     // Multi-unit grouping, added only when the column actually exists.
     //
@@ -861,7 +907,7 @@ async function syncListingToPostgres(row) {
         `SELECT p.listing_status, p.quartier, p.reference, p.deleted_at,
            (SELECT ac.name FROM property_amenities pa
               JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = ${CONTENT_LANGUAGE_ID}
-             WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44
+             WHERE pa.property_id = p.id AND pa.amenity_id IN (SELECT amenity_id FROM location_communes)
              LIMIT 1) AS commune
          FROM properties p WHERE p.id = $1`,
         [propertyId],
@@ -962,14 +1008,15 @@ async function syncListingToPostgres(row) {
     }
 
     // Tag the commune via the site's repurposed-amenity convention (see
-    // COMMUNE_AMENITY_IDS above). Clear any prior commune tag first so
-    // correcting a listing's commune doesn't leave the old one also checked —
-    // scoped to just the 24 commune ids, never touching a real amenity
-    // (piscine, forage, ...) the agent's listing separately carries.
-    const communeAmenityId = COMMUNE_AMENITY_IDS[row.commune];
+    // COMMUNE_AMENITY_IDS above; every city's ids in location_communes).
+    // Clear any prior commune tag first so correcting a listing's commune
+    // doesn't leave the old one also checked — scoped to the commune ids,
+    // never touching a real amenity (piscine, forage, ...) the agent's
+    // listing separately carries.
+    const communeAmenityId = location.communeAmenityIds.get(row.commune);
     await client.query(
       'DELETE FROM property_amenities WHERE property_id = $1 AND amenity_id = ANY($2::bigint[])',
-      [propertyId, Object.values(COMMUNE_AMENITY_IDS)],
+      [propertyId, [...location.communeAmenityIds.values()]],
     );
     if (communeAmenityId) {
       await client.query(

@@ -93,7 +93,7 @@ export default async function AdminAgentDetailPage({ params, searchParams }) {
 
   if (tab === 'overview') {
     const [{ communes }, billing] = await Promise.all([
-      getLocationHierarchyWithFallback(),
+      getLocationHierarchyWithFallback({ city: 'all' }),
       getAgentBillingHistory(agent.vendor_id),
     ]);
     content = (

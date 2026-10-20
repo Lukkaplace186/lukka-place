@@ -37,6 +37,7 @@ const dbService = require('./db');
 const chakra = require('./chakra');
 const propertyRepository = require('./propertyRepository');
 const { formatSlotFr } = require('./visitSchedule');
+const { utcOffsetForCommune } = require('./cities');
 const viewing = require('./viewingNotifications');
 
 const DONE_PREFIX = 'visit_done';
@@ -82,7 +83,7 @@ function listingName(listing, propertyId) {
 }
 
 function askText(listing, request) {
-  const when = formatSlotFr(request.scheduled_at) || request.scheduled_at;
+  const when = formatSlotFr(request.scheduled_at, { utcOffset: utcOffsetForCommune(request.commune || listing?.commune || null) }) || request.scheduled_at;
   return [
     `${HEADER_BRAND} Bon de visite`,
     '',
@@ -95,7 +96,7 @@ function askText(listing, request) {
 
 /** The receipt the customer receives — kept verbatim on the row. French always. */
 function receiptText({ listing, request, propertyId }) {
-  const when = formatSlotFr(request.scheduled_at);
+  const when = formatSlotFr(request.scheduled_at, { utcOffset: utcOffsetForCommune(request.commune || listing?.commune || null) });
   const agent = listing?.agent_name ? ` avec ${listing.agent_name}` : '';
   return [
     `${HEADER_BRAND} Bon de visite`,
@@ -117,7 +118,7 @@ function agentAckText(customerWaId, text) {
 }
 
 function opsNotDoneText({ listing, request, propertyId }) {
-  const when = formatSlotFr(request.scheduled_at) || request.scheduled_at;
+  const when = formatSlotFr(request.scheduled_at, { utcOffset: utcOffsetForCommune(request.commune || listing?.commune || null) }) || request.scheduled_at;
   return [
     `${HEADER_BRAND} Visite non effectuée`,
     '',
@@ -151,7 +152,7 @@ async function recordAgentOutcome({ request, listing, propertyId, outcome, now =
 
   const sent = await sendReceipt(request.lead_wa_id, text, [
     listingName(listing, propertyId),
-    formatSlotFr(request.scheduled_at) || '',
+    formatSlotFr(request.scheduled_at, { utcOffset: utcOffsetForCommune(request.commune || listing?.commune || null) }) || '',
     listing?.agent_name || 'votre agent',
   ]);
   if (sent) dbService.markVisitReceiptSent(request.id, new Date().toISOString());

@@ -5,6 +5,7 @@ import { phoneFromForm } from '@/lib/phone';
 import { createLead, createViewingRequest } from '@/lib/adminApi';
 import { getListingById } from '@/lib/listings';
 import { dayClosed, validatePickedSlot } from '@/lib/visitSlots';
+import { utcOffsetForListing } from '@/lib/cities';
 import { getListingAvailability } from '@/lib/agentAvailability';
 import { kinshasaDayKey } from '@/lib/visitAgenda';
 
@@ -35,16 +36,18 @@ export async function submitVisitRequestAction(propertyId, formData) {
   // French phrase is derived from it here, never trusted from the form. A page
   // cached before the picker shipped still posts free text, which is kept.
   const pickedRaw = String(formData.get('preferred_slot_at') || '').trim();
-  const picked = pickedRaw ? validatePickedSlot(pickedRaw) : null;
-  const requestedTime = picked?.phrase || (pickedRaw ? '' : String(formData.get('requested_time') || '').trim().slice(0, 200));
-
   const base = formData.get('return_to') === 'visites' ? '/compte/client/visites' : `/listings/${propertyId}`;
 
   if (!phone) redirect(`${base}?visit_error=phone`);
-  if (!requestedTime) redirect(`${base}?visit_error=time`);
 
   const listing = await getListingById(propertyId);
   if (!listing) redirect(`${base}?visit_error=1`);
+
+  // Checked on the listing's own clock (lib/cities.js): a "14h" for a
+  // Lubumbashi house is 14h in Lubumbashi (UTC+2).
+  const picked = pickedRaw ? validatePickedSlot(pickedRaw, new Date(), { utcOffset: utcOffsetForListing(listing) }) : null;
+  const requestedTime = picked?.phrase || (pickedRaw ? '' : String(formData.get('requested_time') || '').trim().slice(0, 200));
+  if (!requestedTime) redirect(`${base}?visit_error=time`);
 
   // A day the agent marked as taking no visits: the calendar greys it out, and
   // a form posted around the calendar is refused the same way.

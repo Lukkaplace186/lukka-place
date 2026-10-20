@@ -1,7 +1,7 @@
 import 'server-only';
 import { applyPriceChange } from './enginePrice';
 import { getPool } from './db';
-import { COMMUNE_AMENITY_IDS } from './agentListings';
+import { listingAddress, resolveListingLocation } from './agentListings';
 
 /**
  * Admin-side listing reads and overrides.
@@ -45,7 +45,7 @@ export async function getListingForAdmin(propertyId) {
             (
               SELECT ac.name FROM property_amenities pa
               JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = $1
-              WHERE pa.property_id = p.id AND pa.amenity_id BETWEEN 21 AND 44
+              WHERE pa.property_id = p.id AND pa.amenity_id IN (SELECT amenity_id FROM location_communes)
               LIMIT 1
             ) AS commune,
             (
@@ -169,7 +169,7 @@ export async function adminUpdateListing(propertyId, patch) {
       // moderation queue LEFT JOINs it for exactly this reason), so this is
       // an UPDATE-then-INSERT rather than a bare UPDATE that would silently
       // save nothing.
-      const address = [patch.quartier ?? null, patch.commune ?? null, 'Kinshasa'].filter(Boolean).join(', ');
+      const address = listingAddress(patch.quartier ?? null, patch.commune ?? null);
       const { rowCount } = await client.query(
         `UPDATE property_contents
          SET title = COALESCE($1, title),
@@ -201,14 +201,16 @@ export async function adminUpdateListing(propertyId, patch) {
     // the exact gap that left 6 approved listings untagged.
     if (patch.commune !== undefined) {
       await client.query(
-        'DELETE FROM property_amenities WHERE property_id = $1 AND amenity_id BETWEEN 21 AND 44',
+        'DELETE FROM property_amenities WHERE property_id = $1 AND amenity_id IN (SELECT amenity_id FROM location_communes)',
         [id],
       );
-      const amenityId = patch.commune ? COMMUNE_AMENITY_IDS[patch.commune] : null;
-      if (amenityId) {
+      // The commune decides the city (lib/agentListings.js resolveListingLocation).
+      const location = await resolveListingLocation(client, patch.commune || null);
+      await client.query('UPDATE properties SET city_id = $1 WHERE id = $2', [location.cityId, id]);
+      if (location.communeAmenityId) {
         await client.query(
           'INSERT INTO property_amenities (property_id, amenity_id, created_at, updated_at) VALUES ($1, $2, NOW(), NOW())',
-          [id, amenityId],
+          [id, location.communeAmenityId],
         );
       }
     }

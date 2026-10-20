@@ -117,7 +117,7 @@ async function OverviewCreateAction({ agentId }) {
   // options, never the overview.
   const [listingQuota, createHierarchy, createCategories] = await Promise.all([
     quotaFor(agentId),
-    getLocationHierarchyWithFallback().catch(() => ({ communes: [] })),
+    getLocationHierarchyWithFallback({ city: 'all' }).catch(() => ({ communes: [] })),
     getPropertyCategories().catch(() => []),
   ]);
   return (

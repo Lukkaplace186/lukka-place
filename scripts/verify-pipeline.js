@@ -2382,7 +2382,27 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(quickReplies.matchQuickReply('/aide').kind, 'help');
     assert.strictEqual(quickReplies.matchQuickReply('aide').kind, 'help');
     assert.strictEqual(quickReplies.matchQuickReply('menu').kind, 'help');
-    assert.strictEqual(quickReplies.matchQuickReply('merci').kind, 'thanks');
+    assert.strictEqual(quickReplies.matchQuickReply('merci').kind, 'ack');
+  });
+  check('passive acknowledgments are recognised and get no reply', () => {
+    for (const text of ["D'accord", 'daccord', 'ok', 'Ok merci', 'merci beaucoup !', 'super 👍', '👍', "c'est bon", 'Bien reçu', 'oui']) {
+      const match = quickReplies.matchQuickReply(text);
+      assert.ok(match && match.kind === 'ack', `"${text}" should be an acknowledgment, got ${match?.kind}`);
+      assert.strictEqual(match.reply, null);
+    }
+  });
+  check('signup questions get the real steps and the signup link', () => {
+    for (const text of ["Comment se passe l’inscription", "c'est gratuit ?", 'Comment ça marche ?', "comment s'inscrire", 'je veux créer un compte']) {
+      const match = quickReplies.matchQuickReply(text);
+      assert.ok(match && match.kind === 'signup', `"${text}" should be a signup question, got ${match?.kind}`);
+      assert.ok(match.reply.includes(quickReplies.SIGNUP_URL));
+    }
+  });
+  check('a listing, a search or a correction is never an acknowledgment or a signup question', () => {
+    for (const text of ['OK publiez', 'ok 1200', 'non', 'villa à louer gombe', 'appartement a louer comment faire', 'merci, je cherche une maison', 'Comment modifier mon annonce ?']) {
+      const match = quickReplies.matchQuickReply(text);
+      assert.ok(!match || !['ack', 'signup'].includes(match.kind), `"${text}" matched as ${match?.kind}`);
+    }
   });
   check('a greeting carrying a real listing is NEVER swallowed', () => {
     // The whole risk of this fast path: answering "hello" is worth nothing if
@@ -11422,6 +11442,71 @@ console.log('\n2. services/openai.js');
         else process.env[k] = v;
       }
     }
+  }
+
+  // ===========================================================================
+  // 55. Launch replies (2026-10-20): acknowledgments get nothing, a message
+  //     that is not a listing gets the fixed how-to once per half hour
+  // ===========================================================================
+
+  console.log('\n55. Acknowledgments, signup questions and the non-listing reply');
+
+  {
+    const quick55 = require('../services/quickReplies');
+    const AGENT55 = '243970005555';
+    const post55 = (id, body) => post('/webhook', {
+      object: 'whatsapp_business_account',
+      entry: [{ id: '1', changes: [{ field: 'messages', value: {
+        metadata: { phone_number_id: '987654321' },
+        contacts: [{ wa_id: AGENT55, profile: { name: 'Agent 55' } }],
+        messages: [{ from: AGENT55, id, timestamp: '1', type: 'text', text: { body } }],
+      } }] }],
+    });
+    const replies55 = () => httpCalls.filter((c) => c.data?.to === AGENT55).map((c) => c.data.text?.body || '');
+    const notListing55 = () => {
+      const extracted = {
+        ...JSON.parse(cannedCompletion().choices[0].message.content).extracted_data,
+        is_listing: false, intent: 'question', is_correction: false, is_confirmed: false,
+      };
+      return {
+        model: 'gpt-4o-2024-08-06',
+        usage: { total_tokens: 10 },
+        choices: [{ finish_reason: 'stop', message: { refusal: null, content: JSON.stringify({ extracted_data: extracted, whatsapp_reply: 'Veuillez visiter notre site.' }) } }],
+      };
+    };
+
+    httpCalls.length = 0;
+    const aiBefore55 = openaiCalls.length;
+    await post55('wamid.ACK55', "D'accord");
+    await settle(400);
+    check('"D\'accord" with nothing pending gets no reply and costs no model call', () => {
+      assert.strictEqual(replies55().length, 0);
+      assert.strictEqual(openaiCalls.length, aiBefore55);
+    });
+
+    httpCalls.length = 0;
+    await post55('wamid.SIGNUP55', "Comment se passe l'inscription");
+    await settle(400);
+    check('a signup question is answered with the signup link, without the model', () => {
+      assert.deepStrictEqual(replies55(), [quick55.SIGNUP_REPLY]);
+      assert.strictEqual(openaiCalls.length, aiBefore55);
+    });
+
+    httpCalls.length = 0;
+    nextCompletion = notListing55();
+    await post55('wamid.Q55.1', 'Vous êtes où exactement ?');
+    await settle(400);
+    check("a message that is not a listing gets the fixed how-to, never the model's prose", () => {
+      assert.deepStrictEqual(replies55(), [quick55.FALLBACK_REPLY]);
+    });
+
+    httpCalls.length = 0;
+    nextCompletion = notListing55();
+    await post55('wamid.Q55.2', 'Et vous avez un bureau ?');
+    await settle(400);
+    check('the how-to is not sent twice within half an hour', () => {
+      assert.strictEqual(replies55().length, 0);
+    });
   }
 
   console.log(`\n${'-'.repeat(60)}`);

@@ -684,6 +684,18 @@ soft-deleted row still counts as an account and is never re-created. §52.
 instead of leaving the agent on the "Message reçu, un instant…" ack. Nothing
 is stored; a conversation under human handoff stays silent. §52.
 
+**Launch replies** (2026-10-20, `services/quickReplies.js`, same guards as the
+greeting: no draft pending, no media, not mid-onboarding, no buyer thread;
+every open question — visit answers, price confirmation, availability — is
+handled before it). A passive acknowledgment ("d'accord", "ok merci", 👍)
+gets **no reply** and no model call. A signup question ("comment se passe
+l'inscription", "c'est gratuit ?") gets `SIGNUP_REPLY` (two ways to join, the
+signup link, "2 mois gratuits" as the owner stated, support +243 846 962 654)
+— never when it names a property, a price or "je cherche". A message the
+model judges not a listing, with nothing pending, gets the fixed
+`FALLBACK_REPLY` instead of the model's prose, at most once per sender per
+30 min (in memory). Listing, draft, correction and "OK" flows are unchanged. §55.
+
 ### Plan listing limit on WhatsApp
 
 `services/listingQuota.js`, called in `routes/webhook.js`'s draft-confirmation

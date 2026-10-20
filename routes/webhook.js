@@ -32,7 +32,11 @@ const chakra = require('../services/chakra');
 const { persistImages } = require('../services/mediaStorage');
 const { inferListingLocation, communeNamedIn, placeKey } = require('../services/locations');
 const { handleBuyerMessage } = require('../services/buyerConversation');
-const { matchQuickReply } = require('../services/quickReplies');
+const { matchQuickReply, FALLBACK_REPLY } = require('../services/quickReplies');
+
+/** Senders who got FALLBACK_REPLY, and when — one process, so memory is enough. */
+const fallbackSentAt = new Map();
+const FALLBACK_QUIET_MS = 30 * 60 * 1000;
 const { extractPdfText } = require('../services/documentText');
 const onboarding = require('../services/agentOnboarding');
 const listingCard = require('../services/listingCard');
@@ -1100,6 +1104,11 @@ async function processGroup(messages) {
       const quick = matchQuickReply(text);
       const midOnboarding = onboarding.getSession(from)?.state === 'AWAITING_NAME';
       if (quick && !midOnboarding && !getActiveConversation(from)) {
+        // "D'accord", "ok merci", 👍 — nothing was asked, so nothing is said.
+        if (!quick.reply) {
+          console.log(`[quick] ${label} — acknowledgment from ${from}, no reply`);
+          return;
+        }
         await chakra.sendWhatsAppMessage(from, quick.reply, {
           replyToMessageId: primaryWamid || undefined,
         });
@@ -1440,6 +1449,19 @@ async function processGroup(messages) {
       if (extracted.is_correction && !listingCard.isGroupedListing(updated)) {
         reply = listingCard.composeIntakeReply(modelReply, updated);
       }
+    } else if (onboarding.getSession(from)?.state !== 'AWAITING_NAME') {
+      // Not a listing and nothing pending: the model's own prose used to go
+      // out here ("veuillez visiter notre site" with no link, launch
+      // 2026-10-20). Send the fixed how-to instead, and only once per
+      // FALLBACK_QUIET_MS — a sender who keeps chatting is not answered with
+      // the same paragraph every time.
+      const last = fallbackSentAt.get(from);
+      if (last && Date.now() - last < FALLBACK_QUIET_MS) {
+        console.log(`[intake] ${label} — not a listing, how-to already sent to ${from} recently; no reply`);
+        return;
+      }
+      fallbackSentAt.set(from, Date.now());
+      reply = FALLBACK_REPLY;
     }
 
     await chakra.sendWhatsAppMessage(from, intakeSuffix ? `${reply}

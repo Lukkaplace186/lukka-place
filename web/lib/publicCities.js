@@ -4,10 +4,9 @@ import { memo } from './memo';
 import { CITIES, DEFAULT_CITY, MIN_PUBLIC_CITY_LISTINGS, findCity } from './cities';
 
 /**
- * Which cities the storefront shows (owner decision, 2026-10-20): Kinshasa
- * always, and any other city once it has MIN_PUBLIC_CITY_LISTINGS live
- * listings — so the city picker never offers an empty city. Agents there can
- * register and publish before that; their listings' own pages open by link.
+ * Which cities the storefront shows: Kinshasa always, and any other city with
+ * at least MIN_PUBLIC_CITY_LISTINGS live listings — 0 today (owner decision,
+ * 2026-10-20), so every city is offered, empty ones included.
  * Counted under the public gate, cached 60 s (lib/memo.js); a failed count
  * shows Kinshasa alone rather than failing the page.
  *

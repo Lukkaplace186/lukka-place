@@ -14,8 +14,13 @@ import data from './data/cities.json';
 
 export const DEFAULT_CITY = 'Kinshasa';
 
-/** A city becomes public (city picker, ?ville=) from this many live listings. */
-export const MIN_PUBLIC_CITY_LISTINGS = 3;
+/**
+ * A city becomes public (city picker, ?ville=) from this many live listings.
+ * 0 since 2026-10-20 (owner decision, the same day as launch): every city is
+ * offered at once, empty ones included, so visitors and agents see the whole
+ * coverage. Raise it to hide cities that have nothing to show.
+ */
+export const MIN_PUBLIC_CITY_LISTINGS = 0;
 
 /** Zoom a city opens at when no place inside it is named. */
 export const CITY_DEFAULT_ZOOM = 13;

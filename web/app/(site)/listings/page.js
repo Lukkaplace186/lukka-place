@@ -263,7 +263,12 @@ export default async function ListingsPage({ searchParams }) {
         {/* An empty map area keeps the split view: the map is how the visitor
             gets out of it, and the full empty state would take it away. */}
         {count === 0 && !mapArea ? (
-          <ListingsEmptyState popularCommunes={nearbyCommunes} params={params} propertyTypeLabel={propertyTypeLabel} />
+          <ListingsEmptyState
+            // Inside another city (?ville=), Kinshasa's communes are no suggestion.
+            popularCommunes={filters.ville ? [] : nearbyCommunes}
+            params={params}
+            propertyTypeLabel={propertyTypeLabel}
+          />
         ) : (
           <ListingsSplitView
             listings={withNearDistance(data)}

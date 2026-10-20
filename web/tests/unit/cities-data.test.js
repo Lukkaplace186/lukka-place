@@ -134,3 +134,21 @@ test('a visit slot is built and checked on the listing\'s own clock', async () =
   assert.equal(validatePickedSlot('2026-10-22T14:00:00+02:00', now).error, 'invalid');
   assert.ok(slotsForDay('2026-10-22', { now, utcOffset: 2 }).every((s) => s.iso.endsWith('+02:00')));
 });
+
+test('every city is offered by the picker, empty ones included (MIN_PUBLIC_CITY_LISTINGS = 0)', async () => {
+  const { getPublicCities, publicVille } = await import('@/lib/publicCities');
+  const { MIN_PUBLIC_CITY_LISTINGS } = await import('@/lib/cities');
+  assert.equal(MIN_PUBLIC_CITY_LISTINGS, 0);
+  const cities = await getPublicCities();
+  assert.deepEqual(cities.map((c) => c.name), CITIES.map((c) => c.name));
+  assert.equal(await publicVille('goma'), 'Goma');
+  assert.equal(await publicVille('Kinshasa'), null, 'Kinshasa is the default, carried by no param');
+  assert.equal(await publicVille('Atlantis'), null);
+});
+
+test('the picker\'s label is in both dictionaries', async () => {
+  const fr = JSON.parse(read('lib/i18n/fr.json'));
+  const en = JSON.parse(read('lib/i18n/en.json'));
+  assert.equal(fr.listings.city.label, 'Ville');
+  assert.equal(en.listings.city.label, 'City');
+});

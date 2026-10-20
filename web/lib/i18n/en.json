@@ -768,6 +768,9 @@
         "truck": "Truck access / unloading",
         "hint": "Only tick what is true: an empty box means “not specified”."
       }
+    },
+    "city": {
+      "label": "City"
     }
   },
   "enquiry": {

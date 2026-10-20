@@ -7,9 +7,9 @@ import { DEFAULT_CITY } from '@/lib/cities';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 
 /**
- * The city the search runs in (2026-10-20). Renders nothing until a second
- * city is public (lib/publicCities.js: MIN_PUBLIC_CITY_LISTINGS live
- * listings), so nobody is ever offered an empty city. Kinshasa is the
+ * The city the search runs in (2026-10-20). Lists the public cities
+ * (lib/publicCities.js — every city today, MIN_PUBLIC_CITY_LISTINGS = 0) and
+ * renders nothing when there is only one. Kinshasa is the
  * default and carries no `ville` param, so every existing link is unchanged.
  * Changing city drops every location filter and the map area — a commune of
  * one city means nothing in another — and keeps the rest.

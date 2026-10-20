@@ -768,6 +768,9 @@
         "truck": "Accès camion / déchargement",
         "hint": "Ne cochez que ce qui est vrai : une case vide signifie « non précisé »."
       }
+    },
+    "city": {
+      "label": "Ville"
     }
   },
   "enquiry": {

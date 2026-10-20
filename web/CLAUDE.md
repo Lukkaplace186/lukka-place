@@ -2839,10 +2839,12 @@ nationwide, "Kalamu (Boma)"). Tests: `tests/unit/cities-data.test.js`.
 - **A feed is one city** (`buildFilters`, pushed last): `ville`, else the
   searched commune's city, else Kinshasa (+ `city_id IS NULL`). Id lists and
   agent portfolios are never narrowed. `lib/publicCities.js`: a city is public
-  from `MIN_PUBLIC_CITY_LISTINGS` (3) live listings (owner decision); a hidden
-  `?ville=` is dropped on /listings and both listing APIs. `CityPicker` (in
-  FilterBar) renders only when a second city is public — invisible at launch.
-  A hidden city's listing page still opens by its link.
+  from `MIN_PUBLIC_CITY_LISTINGS` live listings — **0 since 2026-10-20** (owner
+  decision, reversing the 3 set that morning): every city is in the picker,
+  empty ones included. A non-public `?ville=` is dropped on /listings and both
+  listing APIs. `CityPicker` (in FilterBar) renders when two or more cities are
+  public. An empty city shows the plain empty state, without Kinshasa's
+  communes as suggestions.
 - **The map** opens on the city (`defaultViewForCity`), geocodes inside it
   ("Commune de Kalamu, Boma"), refuses a point outside the city's box, and
   "Autour de moi" accepts any covered city (`inCoveredArea`).

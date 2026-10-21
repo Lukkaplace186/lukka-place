@@ -22,6 +22,7 @@ const locationsService = require('./services/locations');
 const citiesService = require('./services/cities');
 const { getAgentPerformanceBenchmarks } = require('./services/agentPerformance');
 const postgresService = require('./services/postgres');
+const groupRelay = require('./services/groupRelay');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -140,6 +141,41 @@ app.get('/listings', requireApiKey, (req, res) => {
 // ---------------------------------------------------------------------------
 
 app.use('/admin', requireApiKey, adminRoutes);
+
+// ---------------------------------------------------------------------------
+// POST /internal/group-posts — one post read in a WhatsApp group by the
+// group reader (group-reader/, a linked device of the relay SIM). Same
+// requireApiKey gate. Stored and sent to moderation exactly like a relayed
+// post (services/groupRelay.js); nothing is ever sent from here.
+// Body: { groupJid, groupName, posterPhone, posterName, text, photos: ['/uploads/listings/…'], wamids: [] }
+// ---------------------------------------------------------------------------
+
+app.post('/internal/group-posts', requireApiKey, async (req, res) => {
+  const body = req.body || {};
+  const text = typeof body.text === 'string' ? body.text.slice(0, 8000) : '';
+  const photos = Array.isArray(body.photos)
+    ? body.photos.filter((p) => typeof p === 'string' && /^\/uploads\/listings\/[\w.-]+$/.test(p)).slice(0, 30)
+    : [];
+  const wamids = Array.isArray(body.wamids) ? body.wamids.map(String).filter(Boolean).slice(0, 50) : [];
+  if (!text.trim() && photos.length === 0) {
+    return res.status(400).json({ success: false, error: 'text or photos required' });
+  }
+  try {
+    const result = await groupRelay.handleReaderPost({
+      groupJid: body.groupJid ? String(body.groupJid) : null,
+      groupName: body.groupName ? String(body.groupName).slice(0, 200) : null,
+      posterPhone: body.posterPhone ? String(body.posterPhone) : null,
+      posterName: body.posterName ? String(body.posterName).slice(0, 120) : null,
+      text,
+      photos,
+      wamids,
+    });
+    return res.status(result.outcome === 'failed' ? 503 : 200).json({ success: result.outcome !== 'failed', ...result });
+  } catch (err) {
+    console.error(`[group-capture] reader post failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'ingest failed' });
+  }
+});
 
 // ---------------------------------------------------------------------------
 // GET /api/admin/benchmarks/agent-performance — the agent leaderboard's data

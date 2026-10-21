@@ -596,8 +596,12 @@ function findLatestPendingListing(waId) {
   return parseRow(
     db
       .prepare(
+        // A post captured in a WhatsApp group is filed under its poster's
+        // number, but they never sent it to us: it is never "their draft",
+        // or their next message would be read as a correction of it.
         `SELECT * FROM listings
          WHERE wa_id = ? AND status = 'pending_confirmation'
+           AND COALESCE(CASE WHEN json_valid(parsed_json) THEN json_extract(parsed_json, '$.source') END, '') <> 'whatsapp-group'
          ORDER BY id DESC
          LIMIT 1`,
       )
@@ -634,6 +638,11 @@ function publishListing(id) {
           // A new row in the approval queue: tell the owners, with the link
           // (services/moderationAlerts.js). Never on a re-sync.
           if (firstSync) require('./moderationAlerts').alertForEngineRow(row, remotePropertyId);
+          // A post captured in a WhatsApp group: where it came from and who
+          // posted it, as a console note for the moderator (services/groupRelay.js).
+          if (firstSync && row.parsed_json?.source === 'whatsapp-group') {
+            require('./groupRelay').addSourceNote(row, remotePropertyId);
+          }
         }
       })
       .catch((err) => {
@@ -790,6 +799,7 @@ function findRecentPublishedListing(waId, windowMs = CORRECTION_WINDOW_MS) {
       .prepare(
         `SELECT * FROM listings
          WHERE wa_id = ? AND status = 'published' AND created_at >= ?
+           AND COALESCE(CASE WHEN json_valid(parsed_json) THEN json_extract(parsed_json, '$.source') END, '') <> 'whatsapp-group'
          ORDER BY id DESC
          LIMIT 1`,
       )
@@ -3883,6 +3893,13 @@ function getEngineHealth() {
       lastViewingRequestAt: latest('SELECT MAX(created_at) AS at FROM viewing_requests'),
       listings24h: count("SELECT COUNT(*) AS n FROM listings WHERE created_at >= datetime('now', '-1 day')"),
       leads24h: count("SELECT COUNT(*) AS n FROM leads WHERE created_at >= datetime('now', '-1 day')"),
+    },
+    // The WhatsApp group reader (group-reader/, services/groupRelay.js): on
+    // only when GROUP_READER_ENABLED is set, so an engine without it never
+    // alerts on a silence it should not expect.
+    groupReader: {
+      enabled: /^(1|on|true|yes)$/i.test(String(process.env.GROUP_READER_ENABLED || '')),
+      lastIngestAt: getEngineMarker('group_reader_ingest'),
     },
     failures: {
       failedPushes24h: count("SELECT COUNT(*) AS n FROM lead_matches WHERE status = 'FAILED' AND created_at >= datetime('now', '-1 day')"),

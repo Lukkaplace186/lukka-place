@@ -738,6 +738,54 @@ published (into the approval queue, `approve_status = 0`) after
 as "OK"; a full plan leaves it pending and re-asks a day later. A draft with
 no photo stays pending (the photo rule holds on every publish path). §61.
 
+### Listings from WhatsApp groups — relay and reader (2026-10-21)
+
+**The Cloud API never delivers group messages**, not even for the business
+number while it sits in brokers' groups through the WhatsApp Business app
+(measured: 607 inbound messages in the log, none from a group). Most Kinshasa
+listings are posted in admin-only groups, so a second number — a dedicated
+SIM, a plain WhatsApp member of those groups, NEVER the business number —
+brings them in. `services/groupRelay.js` is the one path for both ways in:
+
+- **Relay** (`RELAY_NUMBERS`, read at call time): staff forward group posts
+  from that SIM to the intake number. `routes/webhook.js` hands the burst to
+  `handleRelayBurst` after the dedupe and BEFORE the pending-draft branch.
+  `splitBurst`: each text message opens a post, a photo joins the post it
+  follows, photos before any text join the first post, a lone "Agent :
+  0812…" line names the poster of the posts after it.
+- **Reader** (`group-reader/`, a Baileys linked device of the same SIM,
+  unofficial: the SIM can be banned): `POST /internal/group-posts`
+  (requireApiKey; `{groupJid, groupName, posterPhone, posterName, text,
+  photos: ['/uploads/listings/…'], wamids}`), 503 when extraction fails so it
+  retries. Sends nothing. `GROUP_READER_ENABLED` turns on the
+  `group-reader:silent` ops alert (`GROUP_READER_SILENCE_HOURS`, 12).
+- **Each post** is read alone (`parseMessage`, never with a draft), stored as
+  its own listing with `parsed_json.source = 'whatsapp-group'`
+  (+ `source_via`, `group_name`, `poster_phone`, `poster_name`, `relay_from`)
+  and published to the approval queue at once: no "OK", no onboarding, no
+  quota. No photo → kept as a draft (photo rule), named in the receipt.
+  Chatter is dropped only when the model says no listing AND the text names
+  no property + price AND there are no photos.
+- **Duplicates**: `listing_fingerprints` (SQLite, 30 days). A post with real
+  text (≥ 40 folded characters) is judged by its text alone — the same photos
+  with a new price are a new post; only a post with no such text falls back to
+  "every photo already seen". Same wamid → duplicate as usual.
+- **Who it is filed under**: `wa_id` = the poster's number (the reader's
+  participant, else a DRC number written in the post, never one of ours),
+  else the relay. Never attributed unless that number is a verified agent
+  (the usual sync gate), so a broker who verifies later claims them. Group
+  captures are excluded from `findLatestPendingListing` /
+  `findRecentPublishedListing`, so the poster's own next message is never a
+  correction of a group post.
+- **Nothing reaches the poster**: the moderation verdict
+  (`POST /admin/properties/:id/notify`) goes to the agent a moderator
+  attached (phone-verified), else nobody (`skipped: 'group-capture'`). The
+  relay phone gets one receipt per burst (sent / sans photo / déjà reçue).
+- **The moderator's context**: at the first sync `db.publishListing` writes a
+  `console_admin_notes` row (listing, `admin_user_id` NULL, "Capture groupe
+  WhatsApp") naming the group, the poster and the relay. The owners'
+  "annonce à valider" alert fires as for any listing. §62.
+
 ### Plan listing limit on WhatsApp
 
 `services/listingQuota.js`, called in `routes/webhook.js`'s draft-confirmation

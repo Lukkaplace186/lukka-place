@@ -53,7 +53,7 @@ const DUE_SQL = `
   WHERE status = 'pending_confirmation'
     AND datetime(created_at) <= datetime(@cutoff)
     AND photos IS NOT NULL AND TRIM(photos) NOT IN ('', '[]', 'null')
-    AND (json_extract(parsed_json, '$.auto_submit_blocked_at') IS NULL
+    AND (NOT json_valid(parsed_json) OR json_extract(parsed_json, '$.auto_submit_blocked_at') IS NULL
          OR datetime(json_extract(parsed_json, '$.auto_submit_blocked_at')) <= datetime(@retry))
   ORDER BY id
   LIMIT @limit`;

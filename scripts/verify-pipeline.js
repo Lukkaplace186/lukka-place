@@ -12004,6 +12004,214 @@ console.log('\n2. services/openai.js');
     }
   }
 
+  // ===========================================================================
+  // 62. Listings captured from WhatsApp groups — relay and reader (2026-10-21)
+  // ===========================================================================
+
+  console.log('\n62. WhatsApp group capture: relay number and group reader');
+
+  {
+    const relay62 = require('../services/groupRelay');
+    const opsAlerts62 = require('../services/opsAlerts');
+    const repo62 = require('../services/propertyRepository');
+    const RELAY62 = '243850006201';
+    const POSTER62 = '243999384203';
+    const savedRelay62 = process.env.RELAY_NUMBERS;
+    process.env.RELAY_NUMBERS = '0850006201';
+    const sendsTo = (to) => httpCalls.filter((c) => c.method === 'post' && c.data?.to === to);
+    const textOf = (call) => call.data?.text?.body || '';
+
+    try {
+      check('relay numbers are read in any written form', () => {
+        assert.ok(relay62.isRelaySender(RELAY62));
+        assert.ok(!relay62.isRelaySender('243850006299'));
+      });
+      check('a burst is cut into posts: leading photos join the first, "Agent : …" names the poster', () => {
+        const { posts } = relay62.splitBurst([
+          { text: '', media: [{ id: 'p0' }], wamid: 'w0' },
+          { text: 'Agent : 0812 345 678', wamid: 'w1' },
+          { text: 'Maison à louer Limete 270$', media: [{ id: 'p1' }], wamid: 'w2' },
+          { text: '', media: [{ id: 'p2' }], wamid: 'w3' },
+          { text: 'Appartement Gombe 900$', wamid: 'w4' },
+        ]);
+        assert.strictEqual(posts.length, 2);
+        assert.deepStrictEqual(posts[0].refs.map((r) => r.id), ['p0', 'p1', 'p2']);
+        assert.strictEqual(posts[0].posterPhone, '243812345678');
+        assert.deepStrictEqual(posts[1].refs, []);
+        assert.strictEqual(posts[1].posterPhone, '243812345678', 'the agent line covers the posts after it');
+      });
+      check('phone numbers written in a post are read; our own numbers never are', () => {
+        assert.deepStrictEqual(relay62.phonesIn('Contact : +243 999 384 203 ou 0976321848'), [POSTER62]);
+      });
+
+      const TEXT_A = 'Prince immo tout kin vous suggère une maison basse 3 familles dans la parcelle à Limete 4ème rue, '
+        + 'référence école Aurore. 2 chambres, 1 salon. Loyer : 270$, Garantie : 5+1. Contact : +243 999 384 203';
+      const TEXT_B = 'Appartement à louer à Gombe, 3 chambres, 2 salles de bain, climatisé, loyer 1200$ par mois, garantie 3 mois.';
+      const TEXT_C = 'Villa à vendre à Ngaliema, Macampagne, 4 chambres, piscine, terrain de 20x30, prix 350.000$ à discuter.';
+
+      const rows62 = dbService.countListings();
+      const calls62 = openaiCalls.length;
+      httpCalls.length = 0;
+      completionQueue.push(
+        intakeCompletion({ is_listing: true, property_type: 'parcelle', commune: 'Limete', quartier: null, price: 270, bedrooms: 2 }, '…'),
+        intakeCompletion({ is_listing: true, property_type: 'appartement', commune: 'Gombe', quartier: null, price: 1200, bedrooms: 3 }, '…'),
+        intakeCompletion({ is_listing: true, transaction_type: 'vente', property_type: 'villa', commune: 'Ngaliema', price: 350000, bedrooms: 4 }, '…'),
+      );
+      await post('/webhook', inbound('wamid.R62A', TEXT_A, RELAY62));
+      await post('/webhook', inboundImage('wamid.R62A1', 'media_62a', null, RELAY62));
+      await post('/webhook', inbound('wamid.R62B', TEXT_B, RELAY62));
+      await post('/webhook', inboundImage('wamid.R62B1', 'media_62b', null, RELAY62));
+      await post('/webhook', inbound('wamid.R62C', TEXT_C, RELAY62));
+      await post('/webhook', inboundImage('wamid.R62C1', 'media_62c', null, RELAY62));
+      await settle(1200);
+
+      const fresh62 = dbService.db.prepare('SELECT id FROM listings WHERE id > (SELECT MAX(id) - 3 FROM listings) ORDER BY id').all()
+        .map(({ id }) => dbService.getListing(id));
+      check('three forwarded posts become three listings in the approval queue, no "OK" asked', () => {
+        assert.strictEqual(dbService.countListings(), rows62 + 3);
+        assert.deepStrictEqual(fresh62.map((r) => r.status), ['published', 'published', 'published']);
+        assert.deepStrictEqual(fresh62.map((r) => r.commune), ['Limete', 'Gombe', 'Ngaliema']);
+        assert.deepStrictEqual(fresh62.map((r) => r.photos.length), [1, 1, 1], 'each post keeps its own photo');
+        assert.ok(fresh62.every((r) => r.parsed_json.source === 'whatsapp-group' && r.parsed_json.source_via === 'relay'));
+      });
+      check('the poster\'s number in the text is recorded and files the listing; no number → the relay', () => {
+        assert.strictEqual(fresh62[0].parsed_json.poster_phone, POSTER62);
+        assert.strictEqual(fresh62[0].wa_id, POSTER62);
+        assert.strictEqual(fresh62[1].parsed_json.poster_phone, null);
+        assert.strictEqual(fresh62[1].wa_id, RELAY62);
+      });
+      check('each post is read alone, never with a draft in context', () => {
+        assert.strictEqual(openaiCalls.length - calls62, 3);
+        for (const call of openaiCalls.slice(calls62)) {
+          assert.ok(!call.messages.some((m) => m.role === 'system' && m.content.includes('annonce déjà enregistrée')));
+        }
+      });
+      check('exactly one message is sent — the receipt, to the relay; never to the poster', () => {
+        assert.strictEqual(sendsTo(POSTER62).length, 0);
+        const toRelay = sendsTo(RELAY62).filter((c) => c.data?.type === 'text');
+        assert.strictEqual(toRelay.length, 1);
+        assert.match(textOf(toRelay[0]), /3 annonces envoyées en modération/);
+        assert.match(textOf(toRelay[0]), new RegExp(`n° ${fresh62[2].id}`));
+      });
+      check('a group capture is never the poster\'s draft or recent listing', () => {
+        assert.strictEqual(dbService.findRecentPublishedListing(POSTER62), undefined);
+      });
+
+      // The same post forwarded again, from another group.
+      const rowsDup62 = dbService.countListings();
+      const callsDup62 = openaiCalls.length;
+      httpCalls.length = 0;
+      await post('/webhook', inbound('wamid.R62A-again', TEXT_A, RELAY62));
+      await settle(600);
+      check('the same post forwarded again is not stored twice, and costs no model call', () => {
+        assert.strictEqual(dbService.countListings(), rowsDup62);
+        assert.strictEqual(openaiCalls.length, callsDup62);
+        assert.match(textOf(sendsTo(RELAY62)[0] || {}), new RegExp(`Déjà reçue : n° ${fresh62[0].id}`));
+      });
+
+      // A text-only post, its agent named on the line before.
+      httpCalls.length = 0;
+      completionQueue.push(intakeCompletion({ is_listing: true, transaction_type: 'vente', property_type: 'parcelle', commune: 'Kimbanseke', price: 12000 }, '…'));
+      await post('/webhook', inbound('wamid.R62D0', 'Agent : 0812 345 678', RELAY62));
+      await post('/webhook', inbound('wamid.R62D', 'Terrain à vendre à Kimbanseke, 15/20m, prix 12.000$, documents en ordre, accès facile par la route.', RELAY62));
+      await settle(700);
+      const draft62 = dbService.db.prepare("SELECT id FROM listings WHERE wa_id = '243812345678' ORDER BY id DESC LIMIT 1").get();
+      check('a post with no photo stays a draft, named in the receipt; it is nobody\'s pending draft', () => {
+        assert.ok(draft62);
+        assert.strictEqual(dbService.getListing(draft62.id).status, 'pending_confirmation');
+        assert.match(textOf(sendsTo(RELAY62)[0] || {}), /Sans photo/);
+        assert.strictEqual(dbService.findLatestPendingListing('243812345678'), undefined);
+      });
+
+      // The group reader's endpoint.
+      fs.mkdirSync(path.join(UPLOADS, 'listings'), { recursive: true });
+      fs.writeFileSync(path.join(UPLOADS, 'listings', 'grp_test62-0.jpg'), REAL_JPEG_BYTES);
+      const readerBody = {
+        groupJid: '120363000000000062@g.us',
+        groupName: 'Groupe Prince immo tout kin',
+        posterPhone: '243999384204',
+        posterName: '~Prince Immo Tout Kin',
+        text: 'Studio à louer à Bandalungwa, 1 chambre, douche intérieure, loyer 150$ par mois, garantie 3 mois.',
+        photos: ['/uploads/listings/grp_test62-0.jpg', '/uploads/../../etc/passwd'],
+        wamids: ['grpmsg-62-1'],
+      };
+      const noKey62 = await new Promise((resolve) => {
+        const payload = JSON.stringify(readerBody);
+        const req = http.request({ host: 'localhost', port: 3200, path: '/internal/group-posts', method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) } },
+        (res) => { res.resume(); res.on('end', () => resolve(res.statusCode)); });
+        req.end(payload);
+      });
+      check('the reader endpoint refuses a call without the API key', () => assert.strictEqual(noKey62, 401));
+
+      httpCalls.length = 0;
+      completionQueue.push(intakeCompletion({ is_listing: true, property_type: 'appartement', commune: 'Bandalungwa', quartier: null, price: 150, bedrooms: 1 }, '…'));
+      const reader62 = await adminRequest('POST', '/internal/group-posts', readerBody);
+      check('a reader post is stored and sent to moderation, filed under its author, with nothing sent', () => {
+        assert.strictEqual(reader62.status, 200);
+        assert.strictEqual(reader62.body.outcome, 'stored');
+        const row = dbService.getListing(reader62.body.listingId);
+        assert.strictEqual(row.status, 'published');
+        assert.strictEqual(row.wa_id, '243999384204');
+        assert.strictEqual(row.parsed_json.source_via, 'reader');
+        assert.strictEqual(row.parsed_json.group_name, 'Groupe Prince immo tout kin');
+        assert.deepStrictEqual(row.photos, ['/uploads/listings/grp_test62-0.jpg'], 'a path outside the uploads is ignored');
+        assert.strictEqual(httpCalls.filter((c) => c.method === 'post' && c.data?.type === 'text').length, 0);
+        assert.ok(dbService.getEngineHealth().groupReader.lastIngestAt);
+      });
+      check('the reader\'s photo reaches the vision model', () => {
+        const parts = openaiCalls[openaiCalls.length - 1].messages.at(-1).content;
+        assert.ok(parts.some((p) => p.type === 'image_url'));
+      });
+      const again62 = await adminRequest('POST', '/internal/group-posts', { ...readerBody, wamids: ['grpmsg-62-2'] });
+      check('the same reader post twice is a duplicate', () => {
+        assert.strictEqual(again62.body.outcome, 'duplicate');
+        assert.strictEqual(again62.body.listingId, reader62.body.listingId);
+      });
+
+      // Moderation verdict: never to a group poster.
+      dbService.db.prepare('UPDATE listings SET remote_property_id = 990620 WHERE id = ?').run(fresh62[0].id);
+      const savedRecipient62 = repo62.getModerationRecipient;
+      repo62.getModerationRecipient = async () => null;
+      try {
+        httpCalls.length = 0;
+        const verdict62 = await adminRequest('POST', '/admin/properties/990620/notify', { status: 'approved' });
+        await settle(200);
+        check('the "annonce validée" message is not sent to a group poster with no attached agent', () => {
+          assert.strictEqual(verdict62.status, 200);
+          assert.strictEqual(verdict62.body.skipped, 'group-capture');
+          assert.strictEqual(sendsTo(POSTER62).length, 0);
+        });
+      } finally {
+        repo62.getModerationRecipient = savedRecipient62;
+      }
+
+      await checkAsync('the moderator\'s note names the group, the poster and the relay', async () => {
+        const queries = [];
+        const ok = await relay62.addSourceNote(fresh62[0], 990620, { pool: { query: async (sql, params) => queries.push({ sql, params }) } });
+        assert.strictEqual(ok, true);
+        assert.match(queries[0].sql, /INSERT INTO console_admin_notes/);
+        assert.strictEqual(queries[0].params[0], '990620');
+        assert.match(queries[0].params[1], /\+243 999 384 203/);
+        assert.match(queries[0].params[1], /relais \+243 850 006 201/);
+        assert.strictEqual(await relay62.addSourceNote({ parsed_json: { source: null } }, 1, { pool: { query: async () => {} } }), false, 'only group captures get one');
+      });
+
+      check('the reader alerts after 12 h of silence, only while enabled', () => {
+        const base = { jobs: [], traffic: {}, failures: { failedPushes24h: 0 } };
+        const now = Date.parse('2026-10-21T20:00:00Z');
+        const keys = (groupReader) => opsAlerts62.evaluateHealth({ ...base, groupReader }, { now }).map((a) => a.key);
+        assert.deepStrictEqual(keys({ enabled: true, lastIngestAt: '2026-10-21T07:00:00Z' }), ['group-reader:silent']);
+        assert.deepStrictEqual(keys({ enabled: true, lastIngestAt: '2026-10-21T18:00:00Z' }), []);
+        assert.deepStrictEqual(keys({ enabled: false, lastIngestAt: '2026-10-20T07:00:00Z' }), []);
+        assert.deepStrictEqual(keys({ enabled: true, lastIngestAt: null }), [], 'nothing expected before the first post');
+      });
+    } finally {
+      if (savedRelay62 === undefined) delete process.env.RELAY_NUMBERS;
+      else process.env.RELAY_NUMBERS = savedRelay62;
+    }
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

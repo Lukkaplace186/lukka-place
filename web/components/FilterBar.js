@@ -429,7 +429,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
               app's own `--blue` focus token rather than a literal dark
               slate-900 border, matching `.u-focus-ring`'s established
               focus colour used everywhere else a field gets one. */}
-          <CityPicker cities={cities} current={defaults.ville} />
+          <CityPicker cities={cities} current={defaults.searchCity || defaults.ville} />
           <LocationAutocomplete
             preserveParams
             initialValue={defaults.search || defaults.near || searchedPlaceLabel(defaults)}

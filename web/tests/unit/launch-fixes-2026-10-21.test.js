@@ -81,3 +81,41 @@ test('deleting visits and prospects is owner-only; reminders and agency renames 
   assert.match(read('app/admin/agencies/[id]/renameActions.js'), /requireAdmin\('agents\.manage'\)/);
   assert.match(read('app/admin/listings/createActions.js'), /adminAssignListingAgentAction[\s\S]*?requireAdmin\('listings\.edit'\)/);
 });
+
+// --- City shown where the search runs (2026-10-21, owner screenshots) --------
+
+test('a card line names the listing’s own city, never Kinshasa after Lubumbashi', async () => {
+  const { feedLocationLine } = await import('../../lib/listingView.js');
+  assert.equal(feedLocationLine({ quartier: 'Golf Malela', commune: 'Lubumbashi' }), 'Golf Malela, Lubumbashi');
+  assert.equal(feedLocationLine({ quartier: 'Bel-Air I', commune: 'Kampemba' }), 'Bel-Air I, Kampemba, Lubumbashi');
+  assert.equal(feedLocationLine({ quartier: 'Industriel', commune: 'Limete' }), 'Industriel, Limete, Kinshasa');
+  assert.equal(feedLocationLine({ quartier: 'Gare', commune: 'Kinshasa' }), 'Gare, Kinshasa');
+  // A city with no communes known (Muanda): the row's own city closes it.
+  assert.equal(feedLocationLine({ quartier: 'Plage', commune: null, city_name: 'Muanda' }), 'Plage, Muanda');
+});
+
+test('the results page passes the commune’s city to the picker, heading and suggestions', () => {
+  const page = fs.readFileSync(new URL('../../app/(site)/listings/page.js', import.meta.url), 'utf8');
+  assert.match(page, /const searchCity = searchCityOf\(filters\)/);
+  assert.match(page, /searchCity,\r?\n/);
+  assert.match(page, /city=\{searchCity\}/);
+  assert.match(page, /searchCity !== DEFAULT_CITY \? \[\] : nearbyCommunes/);
+  const bar = fs.readFileSync(new URL('../../components/FilterBar.js', import.meta.url), 'utf8');
+  assert.match(bar, /current=\{defaults\.searchCity \|\| defaults\.ville\}/);
+  const header = fs.readFileSync(new URL('../../components/ResultsHeader.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(header, /'Kinshasa'/);
+});
+
+test('the hero Ville select follows the place typed or tapped', () => {
+  const src = fs.readFileSync(new URL('../../components/SearchBar.js', import.meta.url), 'utf8');
+  assert.match(src, /onValueChange=\{onLocationChange\}/);
+  assert.match(src, /onChange=\{\(e\) => onCityChange\(e\.target\.value\)\}/);
+});
+
+test('searchCityOf reads a commune-only link as that commune’s city', async () => {
+  const { searchCityOf } = await import('../../lib/cities.js');
+  assert.equal(searchCityOf({ commune: 'Lubumbashi' }), 'Lubumbashi');
+  assert.equal(searchCityOf({ commune: 'Kalamu (Boma)' }), 'Boma');
+  assert.equal(searchCityOf({ commune: 'Gombe' }), 'Kinshasa');
+  assert.equal(searchCityOf({}), 'Kinshasa');
+});

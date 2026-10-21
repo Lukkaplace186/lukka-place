@@ -15,6 +15,7 @@ import {
 import { getLocationHierarchySafe } from '@/lib/locations';
 import { parseListingsSearchParams } from '@/lib/searchQuery';
 import { getPublicCities, publicVille } from '@/lib/publicCities';
+import { DEFAULT_CITY, searchCityOf } from '@/lib/cities';
 import { PROPERTY_TYPE_PLURAL_KEYS } from '@/lib/constants';
 import { getT } from '@/lib/i18n/server';
 import { MAP_BOUNDS_PARAMS } from '@/lib/mapViewport';
@@ -98,6 +99,11 @@ export default async function ListingsPage({ searchParams }) {
   // shows Kinshasa, as it does for every link without one.
   filters.ville = await publicVille(filters.ville);
   const publicCities = await getPublicCities();
+  // The city the results are in: `ville`, else the searched commune's city
+  // (lib/listings.js buildFilters reads it the same way). A commune link such
+  // as the homepage's "Lubumbashi" chip carries no `ville`, and the picker,
+  // heading and suggestions must still say Lubumbashi, not Kinshasa.
+  const searchCity = searchCityOf(filters);
 
   // The hierarchy comes from the engine and only feeds the filter bar, so a
   // failure there degrades the filters rather than 500-ing a page whose
@@ -220,6 +226,7 @@ export default async function ListingsPage({ searchParams }) {
           cities={publicCities}
           defaults={{
             ville: filters.ville,
+            searchCity,
             transactionType: params.transaction_type,
             commune: params.commune,
             communes: params.communes,
@@ -264,6 +271,7 @@ export default async function ListingsPage({ searchParams }) {
             total={total}
             commune={params.commune}
             communes={filters.communes}
+            city={searchCity}
             quartier={params.quartier}
             transactionType={params.transaction_type}
             propertyTypeLabel={propertyTypeLabel}
@@ -285,7 +293,7 @@ export default async function ListingsPage({ searchParams }) {
         {count === 0 && !mapArea ? (
           <ListingsEmptyState
             // Inside another city (?ville=), Kinshasa's communes are no suggestion.
-            popularCommunes={filters.ville ? [] : nearbyCommunes}
+            popularCommunes={searchCity !== DEFAULT_CITY ? [] : nearbyCommunes}
             params={params}
             propertyTypeLabel={propertyTypeLabel}
           />

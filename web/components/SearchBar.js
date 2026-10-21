@@ -8,7 +8,7 @@ import { parseSearchQuery } from '@/lib/searchParser';
 import { understoodChips } from '@/lib/searchUnderstood';
 import { useT } from '@/lib/i18n/client';
 import { facetLabel, groupTypeFacets } from '@/lib/commercialSpaces';
-import { CITIES, DEFAULT_CITY } from '@/lib/cities';
+import { CITIES, DEFAULT_CITY, cityOfCommune } from '@/lib/cities';
 
 /**
  * The hero search panel — a white card floating over the hero photograph,
@@ -182,6 +182,31 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
   // trimmed + case-insensitive so "gombe " still counts as Gombe.
   const normalizedLocation = location.trim().toLowerCase();
 
+  // The Ville select follows the place in the box (2026-10-21): tapping the
+  // "Lubumbashi" chip or typing "Kampemba" shows Lubumbashi, a Kinshasa place
+  // shows Kinshasa — the same city the search will run in, since typed text
+  // wins over the select (lib/searchParser.js, LocationAutocomplete).
+  function cityOfText(text) {
+    if (String(text || '').trim().length < 3) return null;
+    const parsed = parseSearchQuery(text);
+    if (parsed.ville) return parsed.ville;
+    return parsed.commune ? cityOfCommune(parsed.commune) || DEFAULT_CITY : null;
+  }
+
+  function onLocationChange(text) {
+    setLocation(text);
+    const city = cityOfText(text);
+    if (city) setVille(city);
+  }
+
+  // Picking another city clears a place of a different city from the box,
+  // so the select and the text never point at two cities.
+  function onCityChange(next) {
+    setVille(next);
+    const typed = cityOfText(location);
+    if (next && typed && typed !== next) locationRef.current?.setQuery('');
+  }
+
   // ---- Live result count -------------------------------------------------
   // Real `/api/listings/count` (the same endpoint FilterBar's Prix popover
   // uses — same parseListingsSearchParams, same getListings, same approved
@@ -331,7 +356,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
           ariaLabel="Commune, quartier ou référence"
           placeholder={t('home.search.locationPlaceholder')}
           extraParams={extraParams}
-          onValueChange={setLocation}
+          onValueChange={onLocationChange}
           // The CTA is a full-width button on its own tier below, so this
           // renders no button of its own and is submitted through the ref.
           showButton={false}
@@ -361,7 +386,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
             id="hero-city"
             aria-label={t('home.search.city')}
             value={ville}
-            onChange={(e) => setVille(e.target.value)}
+            onChange={(e) => onCityChange(e.target.value)}
             className={CELL_SELECT}
           >
             <option value="">{t('home.search.allCities')}</option>

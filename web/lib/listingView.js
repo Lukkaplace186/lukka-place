@@ -2,6 +2,7 @@ import { usablePrice } from '@/lib/format';
 import { PARCELLE_SUBTYPES, AMENITY_KEYWORDS } from './constants';
 import { abbreviationVariants } from './textVariants';
 import { placeLabel } from './placeLabel';
+import { cityOfListing } from './cities';
 import { commercialSpecsOf, isCommercial } from './commercialSpaces';
 
 /**
@@ -333,19 +334,22 @@ export function locationLine(listing) {
  * in — the structured branch above matches that ordering on purpose rather
  * than disagreeing with its own fallback.
  *
- * The structured branch also ends in ", Kinshasa" now, matching the
- * fallback's own trailing city — every listing on this platform genuinely
- * is in Kinshasa (there is no other city here), so this is a true constant,
- * not an invented one, and it's what lets the two branches read as one
- * consistent hierarchy instead of the fallback alone naming the city. Same
- * dedup guard as the fallback: a commune literally named "Kinshasa" does
- * not get a second one appended.
+ * The structured branch also ends in the listing's city, matching the
+ * fallback's own trailing city — Kinshasa, or since 2026-10-20 the city the
+ * listing is in (cityOfListing), never Kinshasa appended to a Lubumbashi
+ * house. Same dedup guard as the fallback: a commune named like its city
+ * ("Kinshasa", "Lubumbashi") does not get a second one appended.
  */
 export function feedLocationLine(listing) {
   const place = placeLabel(listing);
   if (place) {
-    if (listing.commune && /^kinshasa$/i.test(listing.commune.trim())) return place;
-    return `${place}, Kinshasa`;
+    // The listing's own city closes the line (2026-10-21): "Golf Malela,
+    // Lubumbashi" was printed "Golf Malela, Lubumbashi, Kinshasa". placeLabel
+    // already ends with the city outside Kinshasa; it is added only when the
+    // line does not end with it yet (Kinshasa, or a city with no commune).
+    const city = cityOfListing(listing);
+    const last = place.split(',').pop().trim().toLowerCase();
+    return last === city.toLowerCase() ? place : `${place}, ${city}`;
   }
   if (!listing.address) return null;
   const deduped = listing.address.replace(/,\s*Kinshasa\s*,\s*Kinshasa$/i, ', Kinshasa');

@@ -119,3 +119,9 @@ test('searchCityOf reads a commune-only link as that commune’s city', async ()
   assert.equal(searchCityOf({ commune: 'Gombe' }), 'Kinshasa');
   assert.equal(searchCityOf({}), 'Kinshasa');
 });
+
+test('the admin editor saves a blank surface as "not stated" (\'0\'), never NULL — the column is NOT NULL', () => {
+  const actions = read('app/admin/listings/[id]/actions.js');
+  assert.match(actions, /area: areaValue === undefined \? undefined : areaValue == null \? '0' : String\(areaValue\)/);
+  assert.match(actions, /if \(Number\.isNaN\(areaValue\)\) return \{ ok: false, error: t\('errors\.invalidArea'\) \}/);
+});

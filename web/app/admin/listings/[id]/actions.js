@@ -84,6 +84,13 @@ export async function adminUpdateListingAction(propertyId, validCommunes, validC
       return { ok: false, error: t('errors.invalidTransactionDate') };
     }
 
+    // properties.area is TEXT NOT NULL and '0' is its "not stated" (hasArea()).
+    // A blank field used to be written as NULL, which Postgres refused, so a
+    // listing with no surface could not be saved at all (#326, 2026-10-20).
+    const areaRaw = formData.get('area');
+    const areaValue = areaRaw === null ? undefined : normaliseArea(areaRaw);
+    if (Number.isNaN(areaValue)) return { ok: false, error: t('errors.invalidArea') };
+
     const before = await getListingForAdmin(propertyId);
     const patch = {
       title: text(formData, 'title', 150),
@@ -100,12 +107,7 @@ export async function adminUpdateListingAction(propertyId, validCommunes, validC
       priceOriginal: decimal(formData, 'price_original'),
       beds: int(formData, 'beds'),
       bath: int(formData, 'bath'),
-      // `area` is TEXT storing '0' for unknown — a cleared field becomes NULL, not '0'.
-      area: (() => {
-        if (formData.get('area') === null) return undefined;
-        const value = normaliseArea(formData.get('area'));
-        return value == null || Number.isNaN(value) ? null : String(value);
-      })(),
+      area: areaValue === undefined ? undefined : areaValue == null ? '0' : String(areaValue),
       unitsCount: int(formData, 'units_count'),
       depositMonths: int(formData, 'deposit_months'),
       listingStatus: listingStatus || undefined,

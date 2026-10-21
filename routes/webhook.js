@@ -39,6 +39,7 @@ const fallbackSentAt = new Map();
 const FALLBACK_QUIET_MS = 30 * 60 * 1000;
 const { extractPdfText } = require('../services/documentText');
 const onboarding = require('../services/agentOnboarding');
+const listingBoundary = require('../services/listingBoundary');
 const listingCard = require('../services/listingCard');
 const voiceNotes = require('../services/voiceNotes');
 const phoneChallenges = require('../services/phoneChallenges');
@@ -1187,6 +1188,50 @@ async function processGroup(messages) {
         });
       }
       return;
+    }
+
+    // NEW LISTING BOUNDARY (services/listingBoundary.js). With a listing in
+    // context the model leans towards "correction", and for an agent posting
+    // listing after listing that lean folded whole properties — photos and all
+    // — into the previous one, or into their name at onboarding (2026-10-20).
+    // A burst that stands alone as a listing is re-read WITHOUT the context,
+    // because a correction-mode extraction is the merged draft, and stored as
+    // its own row. Short edits never qualify, so the correction loop is intact.
+    {
+      const awaitingName = onboarding.getSession(from)?.state === 'AWAITING_NAME';
+      const first = parsed.extracted_data;
+      const boundary = hasText && !first.is_listing && (contextListing || awaitingName)
+        ? listingBoundary.newListingReason({
+          text,
+          photoCount: photoPaths.length,
+          intent: first.intent,
+          context: contextListing || null,
+        })
+        : null;
+      if (boundary) {
+        console.log(
+          `[boundary] ${label} — a NEW listing, not ${contextListing ? `a correction of #${contextListing.id}` : 'a name reply'} ` +
+            `(${boundary.reason}${boundary.differences.length ? `: ${boundary.differences.join(', ')} differ` : ''})`,
+        );
+        if (contextListing) {
+          try {
+            parsed = await parseMessage(text, { senderPhone: from, images });
+          } catch (err) {
+            console.error(`[openai] ${label} — re-extraction failed, ${from} told to resend: ${err.message}`);
+            await chakra.sendWhatsAppMessage(from, EXTRACTION_FAILED_REPLY, {
+              replyToMessageId: primaryWamid || undefined,
+            });
+            return;
+          }
+        }
+        Object.assign(parsed.extracted_data, {
+          is_listing: true,
+          intent: 'listing',
+          is_correction: false,
+          is_confirmed: false,
+          listing_status_update: null,
+        });
+      }
     }
     const { extracted_data: extracted, whatsapp_reply: modelReply, _meta } = parsed;
 

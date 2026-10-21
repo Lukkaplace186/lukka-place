@@ -6927,7 +6927,7 @@ console.log('\n2. services/openai.js');
   check('the alert sweep, both speed-to-lead sweeps, the ops alert sweep, the analytics rollup and the commission run are registered', () => {
     const names = sched.JOBS.map((j) => j.name);
     assert.deepStrictEqual(names, [
-      'search-alerts', 'viewing-sla', 'viewing-checkin', 'viewing-agent-done', 'ops-health-alerts', 'listing-stats-rollup', 'trusted-auto-approve', 'agent-daily-digest',
+      'search-alerts', 'viewing-sla', 'viewing-checkin', 'viewing-agent-done', 'ops-health-alerts', 'listing-stats-rollup', 'draft-auto-submit', 'trusted-auto-approve', 'agent-daily-digest',
       'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions', 'sqlite-backup',
     ]);
   });
@@ -11824,6 +11824,184 @@ console.log('\n2. services/openai.js');
       );
       assert.strictEqual(values.area, '250.76');
     });
+  }
+
+  // ===========================================================================
+  // 61. A new listing is never a correction; unconfirmed drafts reach
+  //     moderation (2026-10-21)
+  // ===========================================================================
+
+  console.log('\n61. New-listing boundary, onboarding guard, draft auto-submit');
+
+  {
+    const boundary61 = require('../services/listingBoundary');
+    const OFFER61 = 'OFFRE DE LOCATION IMMOBILIERE Nous mettons en location un complexe de plusieurs appartements, '
+      + 'composé de 3 chambres à coucher avec installations sanitaires, à Limete. Loyer : 1.500 $ par mois';
+
+    check('a property offer with a price stands alone; edits, names and greetings do not', () => {
+      assert.ok(boundary61.standsAloneAsListing(OFFER61));
+      assert.ok(boundary61.standsAloneAsListing('Appartement à louer Kintambo 2 chambres 500$'));
+      for (const text of ['non 1100$', '4 chambres', "c'est à Limete", 'Jean Kabeya, Agence Horizon', 'Bonjour, merci beaucoup']) {
+        assert.ok(!boundary61.standsAloneAsListing(text), text);
+      }
+    });
+    check('correction wording is recognised', () => {
+      for (const text of ['pas 3+1+1 mais 2+1+1', "non c'est une villa à 1500$", '1100$ au lieu de 1200$', 'plutôt 900$']) {
+        assert.ok(boundary61.readsAsCorrection(text), text);
+      }
+      assert.ok(!boundary61.readsAsCorrection(OFFER61));
+      assert.ok(!boundary61.readsAsCorrection('Villa à louer, pas de commission, 1200$'));
+    });
+    check('prices are read with thousands separators', () => {
+      assert.deepStrictEqual(boundary61.pricesIn('Loyer : 1.500 $ par mois'), [1500]);
+      assert.deepStrictEqual(boundary61.pricesIn('Prix 85 000 USD'), [85000]);
+      assert.deepStrictEqual(boundary61.pricesIn('$1100/mois'), [1100]);
+    });
+
+    const draft61 = { property_type: 'villa', commune: 'Ngaliema', price: 1200 };
+    check('photos + a listing of its own → new listing; the same property re-sent → not', () => {
+      assert.strictEqual(boundary61.newListingReason({ text: OFFER61, photoCount: 8, context: draft61 }).reason, 'photos-and-own-listing');
+      assert.strictEqual(boundary61.newListingReason({ text: 'Villa Ngaliema 1200$ voici les photos', photoCount: 3, context: draft61 }), null);
+      assert.strictEqual(boundary61.newListingReason({ text: 'voici les photos, le prix est 1200$', photoCount: 3, context: draft61 }), null, 'names no property');
+    });
+    check('text only: a differing price, type or commune makes a new listing only when long and called a listing', () => {
+      const r = boundary61.newListingReason({ text: OFFER61, photoCount: 0, intent: 'listing', context: draft61 });
+      assert.strictEqual(r.reason, 'core-fields-differ');
+      assert.deepStrictEqual(r.differences.sort(), ['commune', 'price'], 'appartements + complexe name two kinds: type is not compared');
+      assert.deepStrictEqual(boundary61.coreDifferences('Appartement à louer à Ngaliema, 1200 USD', draft61), ['property_type']);
+      assert.strictEqual(boundary61.newListingReason({ text: OFFER61, photoCount: 0, intent: 'question', context: draft61 }), null);
+      assert.strictEqual(boundary61.newListingReason({ text: OFFER61, intent: 'listing', context: null }).reason, 'own-listing');
+      assert.strictEqual(boundary61.newListingReason({ text: 'je cherche un appartement à 500 USD', intent: 'buyer_request', context: null }), null);
+      assert.strictEqual(boundary61.newListingReason({ text: 'Appartement Limete 800 USD', photoCount: 0, intent: 'listing', context: draft61 }), null, 'too short to be a description');
+      assert.strictEqual(boundary61.newListingReason({ text: "non c'est un appartement à Limete, le loyer est 800 USD par mois, garantie 3 mois et 1 mois d'avance", intent: 'listing', context: draft61 }), null, 'correction wording');
+    });
+
+    await checkAsync('a listing sent as the answer to "your name?" is never stored as the name', async () => {
+      const result = await onboarding.completeOnboarding('243850006101', OFFER61);
+      assert.deepStrictEqual(result, { handled: false, reason: 'looks-like-listing' });
+    });
+
+    // --- End to end: a second property with photos while a draft is pending.
+    const S61 = '243850006102';
+    const seed61 = dbService.insertListing(
+      { is_listing: true, transaction_type: 'location', property_type: 'villa', commune: 'Ngaliema', quartier: 'Macampagne', price: 1200, currency: 'USD' },
+      S61,
+      { wamid: 'wamid.S61SEED', rawText: 'Villa Macampagne 3ch 1200 USD/mois', photos: ['/uploads/listings/s61seed.jpg'] },
+    );
+    const rows61 = dbService.countListings();
+    const calls61 = openaiCalls.length;
+    completionQueue.push(
+      // Correction mode: the model folds the new property into the draft…
+      intakeCompletion({ is_listing: false, is_correction: true, commune: 'Limete', price: 1500 }, 'Mise à jour ✅'),
+      // …and the re-read without the draft sees it for what it is.
+      intakeCompletion({ is_listing: true, property_type: 'appartement', commune: 'Limete', quartier: null, price: 1500, bedrooms: 3 }, 'Voici votre annonce.'),
+    );
+    await post('/webhook', inboundImage('wamid.S61A', 'media_61a', OFFER61, S61));
+    await settle(700);
+
+    check('the second property becomes its own row, with its own photo', () => {
+      assert.strictEqual(dbService.countListings(), rows61 + 1);
+      const fresh = dbService.findLatestPendingListing(S61);
+      assert.notStrictEqual(fresh.id, seed61.id);
+      assert.strictEqual(fresh.property_type, 'appartement');
+      assert.strictEqual(fresh.price, 1500);
+      assert.strictEqual(fresh.photos.length, 1);
+    });
+    check('the earlier draft is untouched — price, place and photos', () => {
+      const old = dbService.getListing(seed61.id);
+      assert.strictEqual(old.price, 1200);
+      assert.strictEqual(old.commune, 'Ngaliema');
+      assert.deepStrictEqual(old.photos, ['/uploads/listings/s61seed.jpg']);
+      assert.ok(!old.raw_text.includes('OFFRE DE LOCATION'));
+    });
+    check('the re-read is made WITHOUT the draft in context', () => {
+      assert.strictEqual(openaiCalls.length - calls61, 2);
+      const reread = openaiCalls[openaiCalls.length - 1];
+      assert.ok(!reread.messages.some((m) => m.role === 'system' && m.content.includes('annonce déjà enregistrée')));
+    });
+
+    // --- A plain correction with a photo still corrects.
+    const fresh61 = dbService.findLatestPendingListing(S61);
+    const rowsBeforeEdit61 = dbService.countListings();
+    const callsBeforeEdit61 = openaiCalls.length;
+    completionQueue.push(intakeCompletion({ is_listing: false, is_correction: true, property_type: 'appartement', commune: 'Limete', price: 1400 }, "C'est noté ✅"));
+    await post('/webhook', inboundImage('wamid.S61B', 'media_61b', 'le loyer est 1400 USD, voici une autre photo', S61));
+    await settle(700);
+    check('"le loyer est 1400 USD" + a photo is still a correction of the draft, with one model call', () => {
+      assert.strictEqual(dbService.countListings(), rowsBeforeEdit61);
+      assert.strictEqual(openaiCalls.length - callsBeforeEdit61, 1);
+      const row = dbService.getListing(fresh61.id);
+      assert.strictEqual(row.price, 1400);
+      assert.strictEqual(row.photos.length, 2);
+    });
+
+    // --- Mid-onboarding, no draft: the listing is stored, not taken as a name.
+    const S61N = '243850006103';
+    onboarding.startOnboarding(S61N, {}, 0);
+    const rowsN61 = dbService.countListings();
+    completionQueue.push(intakeCompletion({ is_listing: false, intent: 'listing', commune: 'Limete', price: 1500 }, '…'));
+    await post('/webhook', inbound('wamid.S61N', OFFER61, S61N));
+    await settle(500);
+    check('with the name question open, a property offer is stored as a listing', () => {
+      assert.strictEqual(dbService.countListings(), rowsN61 + 1);
+      assert.ok(dbService.findLatestPendingListing(S61N));
+      assert.strictEqual(onboarding.getSession(S61N).state, 'AWAITING_NAME', 'the question stays open');
+    });
+
+    // --- Point 3: drafts nobody confirmed go to moderation.
+    const auto61 = require('../services/draftAutoSubmit');
+    const savedHours61 = process.env.DRAFT_AUTO_SUBMIT_HOURS;
+    process.env.DRAFT_AUTO_SUBMIT_HOURS = '3';
+    try {
+      const mk = (wamid, photos, hoursAgo) => {
+        const { id } = dbService.insertListing(
+          { is_listing: true, property_type: 'appartement', commune: 'Lemba', price: 300, currency: 'USD' },
+          '243850006104',
+          { wamid, rawText: 'Appartement Lemba 300 USD', photos },
+        );
+        dbService.db.prepare(`UPDATE listings SET created_at = datetime('now', ?) WHERE id = ?`).run(`-${hoursAgo} hours`, id);
+        return id;
+      };
+      // Older drafts from earlier sections must not decide this test.
+      dbService.db.prepare(`UPDATE listings SET created_at = datetime('now') WHERE status = 'pending_confirmation'`).run();
+      const old61 = mk('wamid.S61OLD', ['/uploads/listings/s61old.jpg'], 4);
+      const noPhoto61 = mk('wamid.S61NOPHOTO', [], 5);
+      const young61 = mk('wamid.S61YOUNG', ['/uploads/listings/s61young.jpg'], 1);
+
+      check('the job is registered and due when an old draft with a photo waits', () => {
+        assert.ok(require('../services/scheduler').JOBS.some((j) => j.name === 'draft-auto-submit'));
+        assert.strictEqual(auto61.autoSubmitDue(), true);
+      });
+
+      const full = await auto61.runDraftAutoSubmit({ checkQuota: async () => ({ blocked: true, used: 5, limit: 5 }) });
+      check('a full plan leaves the draft pending, and it is not re-asked every minute', () => {
+        assert.deepStrictEqual(full.overQuota, [old61]);
+        assert.strictEqual(dbService.getListing(old61).status, 'pending_confirmation');
+        assert.strictEqual(auto61.autoSubmitDue(), false);
+      });
+
+      dbService.db.prepare(`UPDATE listings SET parsed_json = json_remove(parsed_json, '$.auto_submit_blocked_at') WHERE id = ?`).run(old61);
+      const done = await auto61.runDraftAutoSubmit({ checkQuota: async () => null });
+      check('after the timeout, a draft with a photo is published to the moderation queue and stamped', () => {
+        assert.deepStrictEqual(done.submitted, [old61]);
+        const row = dbService.getListing(old61);
+        assert.strictEqual(row.status, 'published');
+        assert.ok(row.parsed_json.auto_submitted_at);
+      });
+      check('a draft with no photo, or younger than the timeout, stays pending', () => {
+        assert.strictEqual(dbService.getListing(noPhoto61).status, 'pending_confirmation');
+        assert.strictEqual(dbService.getListing(young61).status, 'pending_confirmation');
+        assert.strictEqual(auto61.autoSubmitDue(), false);
+      });
+      check('DRAFT_AUTO_SUBMIT_HOURS=off disables it', () => {
+        process.env.DRAFT_AUTO_SUBMIT_HOURS = 'off';
+        assert.strictEqual(auto61.autoSubmitHours(), 0);
+        assert.strictEqual(auto61.autoSubmitDue(), false);
+      });
+    } finally {
+      if (savedHours61 === undefined) delete process.env.DRAFT_AUTO_SUBMIT_HOURS;
+      else process.env.DRAFT_AUTO_SUBMIT_HOURS = savedHours61;
+    }
   }
 
   console.log(`\n${'-'.repeat(60)}`);

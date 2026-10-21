@@ -522,6 +522,13 @@ function startOnboarding(waId, listing, photoCount) {
  * @returns {Promise<{handled: boolean, reason?: string}>}
  */
 async function completeOnboarding(waId, text, { pendingListingId = null } = {}) {
+  // A property offer is never a name. "OFFRE DE LOCATION IMMOBILIERE … 1500$"
+  // was stored as an agent's full name on 2026-10-20 because the model had
+  // called the listing a non-listing; whatever the model says, a reply that
+  // names a property and a price goes back to intake (services/listingBoundary.js).
+  if (require('./listingBoundary').standsAloneAsListing(text)) {
+    return { handled: false, reason: 'looks-like-listing' };
+  }
   // "Jean Kabeya, Agence Horizon, code parrainage JEAN01": the code was already
   // captured by the webhook; it is not part of the agency's name.
   const parsed = parseNameReply(salesReferral.stripReferralPhrase(text));

@@ -246,6 +246,17 @@ registerJob({
 }
 
 /**
+ * WhatsApp drafts nobody answered "OK" to go to the moderation queue after
+ * DRAFT_AUTO_SUBMIT_HOURS (services/draftAutoSubmit.js). Before trusted
+ * auto-approval, so the queue it reads already holds them.
+ */
+{
+  // eslint-disable-next-line global-require
+  const { draftAutoSubmitJob } = require('./draftAutoSubmit');
+  registerJob(draftAutoSubmitJob);
+}
+
+/**
  * Auto-approval of pending listings from TRUSTED agents, every 5 minutes
  * (services/trustedAutoApprove.js). Everything else stays in the human queue.
  * AUTO_APPROVE_TRUSTED=off disables it without a deploy.

@@ -707,6 +707,37 @@ when blocks and properties line up exactly; otherwise every listing keeps every
 photo, as a building's units always do. §59. The web admin's agent page edits
 the person's first/last name (`updateAgentIdentity`); the phone stays locked.
 
+### A new listing is never a correction (2026-10-21)
+
+Measured on 2026-10-20: an agent posting listing after listing had complete
+properties (8 photos, a price) returned `is_listing: false` by the model in
+correction mode and merged into the previous draft, one into their NAME at
+onboarding. `services/listingBoundary.js` decides from THIS burst's own text
+(never the extraction, which in correction mode is the merged draft):
+
+- names a kind of property (or offer wording) AND states a price, and is
+  not worded as an edit ("pas X mais Y", "au lieu de", a leading "non"…);
+- with photos → a new listing, unless every core fact it states matches the
+  listing in context (the same property re-sent);
+- without photos → a new listing when the model said intent `listing`, the
+  text is ≥ 80 characters and price, kind of property or commune differs.
+  With nothing in context (only the name question open), `listing` suffices.
+
+A promoted burst is re-read WITHOUT the draft (one extra model call, only
+then) and stored as its own row. Short edits name no property or no price,
+so "non 1100$" still corrects. `completeOnboarding` also refuses a reply that
+stands alone as a listing (`looks-like-listing`). This applies to everyone:
+it replaces the literal "a changed price/commune/type is a new listing" ask,
+which would have turned "non c'est 1100$" into a second listing. §61.
+
+**Drafts nobody confirms reach moderation** (`services/draftAutoSubmit.js`,
+job `draft-auto-submit`): a `pending_confirmation` draft with ≥1 photo is
+published (into the approval queue, `approve_status = 0`) after
+`DRAFT_AUTO_SUBMIT_HOURS` (default 3, `off` disables), stamped
+`parsed_json.auto_submitted_at`, nothing sent to the agent. Same quota check
+as "OK"; a full plan leaves it pending and re-asks a day later. A draft with
+no photo stays pending (the photo rule holds on every publish path). §61.
+
 ### Plan listing limit on WhatsApp
 
 `services/listingQuota.js`, called in `routes/webhook.js`'s draft-confirmation
@@ -1186,7 +1217,7 @@ alert job itself), no inbound WhatsApp traffic for `OPS_ALERT_SILENCE_HOURS`
   `approve_status = 0`. With no verified-tier agent today, it approves nothing.
 - Scheduler order is now: search-alerts, viewing-sla, viewing-checkin,
   viewing-agent-done, ops-health-alerts, listing-stats-rollup,
-  trusted-auto-approve, agent-daily-digest, listing-availability-check,
+  draft-auto-submit, trusted-auto-approve, agent-daily-digest, listing-availability-check,
   market-snapshot, ops-desk-keepalive, sales-commissions, sqlite-backup
   (pinned in §24).
 

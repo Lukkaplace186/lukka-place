@@ -1,0 +1,22 @@
+{
+  "name": "lukka-group-reader",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Reads Lukka Place's brokers' WhatsApp groups as a linked device of the annonces SIM and posts each listing to the engine.",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js",
+    "list-groups": "node index.js --list-groups",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=20.12"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "@whiskeysockets/baileys": "7.0.0-rc14",
+    "pino": "10.4.0",
+    "qrcode": "1.5.4"
+  }
+}

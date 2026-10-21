@@ -31,8 +31,12 @@
  * MODULE_TYPELESS_PACKAGE_JSON reparse warning on every single start.
  */
 
-/** Photos per listing. */
-export const MAX_LISTING_PHOTOS = 10;
+/**
+ * Photos per listing. 20 since 2026-10-21 (agents send full albums after
+ * launch); the engine keeps the same 20 on WhatsApp (services/listingMedia.js
+ * — change one, change the other; the engine's verify-pipeline §63 compares).
+ */
+export const MAX_LISTING_PHOTOS = 20;
 
 /**
  * One photo. `errors.photoTooLarge` interpolates this figure rather than
@@ -50,9 +54,10 @@ export const MAX_LISTING_PHOTO_BYTES = 10 * 1024 * 1024;
  * MAX_LISTING_PHOTOS × MAX_LISTING_PHOTO_BYTES (100 MB).
  *
  * A per-file cap alone cannot bound the request, and the request is what
- * has a ceiling. 40 MB carries a genuine full set — ten photos averaging
- * 4 MB, which is what a 12 MP set actually weighs — or four at the full
- * 10 MB each. Allowing the arithmetic maximum instead would mean buffering
+ * has a ceiling. 40 MB carries a genuine full set — the browser shrinks each
+ * photo to ~200-400 KB first (lib/photoShrink.js), so twenty fit many times
+ * over, and a set the phone could not shrink still gets ten at 4 MB or four
+ * at the full 10 MB each. Allowing the arithmetic maximum instead would mean buffering
  * 100 MB of multipart in the Node process (Next.js holds the whole body in
  * memory, then copies each file again for the Storage upload) and asking a
  * Kinshasa mobile connection to keep one request alive for all of it. Over

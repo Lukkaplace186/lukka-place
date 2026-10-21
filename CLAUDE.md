@@ -1532,6 +1532,56 @@ Bearer `CRON_SECRET`, `WEB_BASE_URL`), so the caption is the share kit's own
 and ownership / public rules are checked there; web unreachable → "réessayez",
 never an engine-made caption. No model call, nothing stored in SQLite. §44.
 
+## Listing videos and 20 photos (2026-10-21)
+
+After launch, agents were seen sending videos with their photos; videos were
+answered "format pas encore pris en charge" and lost. `services/listingMedia.js`
+holds the rules. §63 of verify-pipeline.
+
+- **The publish rule is now one photo OR one video** (`hasVisualMedia`), on
+  every path that used to require a photo: "OK" and the conversational
+  confirmation (`PHOTO_REQUIRED_REPLY` now says "Photo ou vidéo obligatoire"),
+  onboarding's publish, `draftAutoSubmit` (its SQL counts `videos` too), group
+  relay captures, and the model's own refusal (`photos_count` in the draft
+  context counts photos + videos). Read "photo" as "photo or video" in the
+  older sections above.
+- **Caps**: 20 photos (`MAX_LISTING_PHOTOS`, same as web/lib/uploadLimits.mjs —
+  change one, change the other; §63 and web's listing-videos test compare),
+  3 videos (`MAX_LISTING_VIDEOS`). Applied in `db.js` on insert and on every
+  correction (`mergeCapped`, first ones kept), and on the refs BEFORE any
+  download. The vision model still reads the first `OPENAI_MAX_IMAGES` (10)
+  photos — cost; every photo is stored. The intake card says "(maximum 20)".
+- **Intake** (`routes/webhook.js`): `message.video` (caption included) is a
+  media ref with a video mime; `mediaRefs` is photos + videos (so every "burst
+  carries media" guard counts a video), `photoRefs` go to the model,
+  `videoRefs` are downloaded one at a time (`chakra.downloadVideo`: attachment
+  proxy then media id, 120 s, bytes must sniff as MP4/MOV/3GP/WebM,
+  `MAX_VIDEO_BYTES` 64 MB) and stored by `mediaStorage.persistVideos`
+  (`<key>-v<i>.mp4`). SQLite `listings.videos` (JSON, idempotent ALTER);
+  `applyListingCorrection`'s 6th argument appends videos; multi-property pastes
+  split videos by `video_blocks` like photos (a property with no video of its
+  own is fine). A video with no caption joins the pending draft (card with
+  "*Vidéos* : N", no model call); with no draft it gets `VIDEO_NEEDS_TEXT_REPLY`
+  (the model does not watch videos, so there is nothing to read); one that
+  cannot be fetched gets `VIDEO_DOWNLOAD_FAILED_REPLY`, never silence. The
+  relay passes `downloadVideos`; the group reader (Baileys) still sends photos
+  only.
+- **Publish** (`syncListingToPostgres`): after COMMIT, `uploadListingVideos`
+  puts each video in the listing bucket (`whatsapp_<hash>.<ext>`, no
+  enhancement) and, when ffmpeg can cut one, a cover frame
+  (`whatsapp_<hash>_poster.jpg`, ~1 s in). `properties.videos` jsonb
+  `[{url, poster}]` (`migrations/20261021_listing_videos.sql`; before it, a
+  logged 42703 and the sync stands). With no photo, the first cover is
+  `featured_image`, so a video-only listing is not a "no image" card and
+  `trustedAutoApprove`'s real-photo check is met. Laravel's single
+  `video_url` / `video_image` are left alone.
+- **ffmpeg**: `FFMPEG_PATH`, else the `ffmpeg-static` binary (new
+  dependency — its install script downloads the binary; on the VPS check
+  `node -e "console.log(require('ffmpeg-static'))"` points at a real file
+  after `npm install`, `npm approve-scripts ffmpeg-static` if npm blocked it),
+  else `ffmpeg` on PATH. None → no cover, the video still publishes.
+- Web half: web/CLAUDE.md, "Listing videos".
+
 ## Verification & Commands
 - **Verification Command**: Always run `npm run verify` before declaring a backend task complete.
 - **Test Coverage**: Do not touch schema fields without updating `scripts/verify-pipeline.js`.

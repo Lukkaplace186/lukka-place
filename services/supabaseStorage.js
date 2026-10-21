@@ -128,8 +128,65 @@ async function uploadListingPhotos(localWebPaths, propertyId) {
   return urls.filter(Boolean);
 }
 
+/**
+ * Upload a listing's videos (services/listingMedia.js) and, where ffmpeg can
+ * cut one, a JPEG cover frame for each. Same naming rule as photos — the
+ * object name hashes the file's bytes, so a re-sync reuses the same object.
+ * No enhancement: a video is published as the agent filmed it.
+ *
+ * @param {string[]} localWebPaths  Entries from listings.videos (SQLite).
+ * @param {number} propertyId
+ * @returns {Promise<Array<{url: string, poster: string|null}>>} In input order;
+ *          a failed upload is omitted.
+ */
+async function uploadListingVideos(localWebPaths, propertyId) {
+  if (!isConfigured() || !Array.isArray(localWebPaths) || localWebPaths.length === 0 || !propertyId) {
+    return [];
+  }
+  const { posterForVideo, VIDEO_CONTENT_TYPE_BY_EXT } = require('./listingMedia');
+  const storage = getClient().storage.from(BUCKET);
+  const out = [];
+  // One at a time: each video is up to 16 MB in memory.
+  for (const webPath of localWebPaths) {
+    const localPath = resolveLocalPath(webPath);
+    let buffer;
+    try {
+      buffer = fs.readFileSync(localPath);
+    } catch (err) {
+      console.warn(`[supabaseStorage] could not read ${localPath}: ${err.message}`);
+      continue;
+    }
+    const ext = path.extname(localPath).slice(1).toLowerCase() || 'mp4';
+    const base = `properties/${propertyId}/whatsapp_${contentHash(buffer)}`;
+    const { error } = await storage.upload(`${base}.${ext}`, buffer, {
+      contentType: VIDEO_CONTENT_TYPE_BY_EXT[ext] || 'video/mp4',
+      upsert: true,
+    });
+    if (error) {
+      console.warn(`[supabaseStorage] video upload failed for ${base}.${ext}: ${error.message}`);
+      continue;
+    }
+    const url = storage.getPublicUrl(`${base}.${ext}`).data?.publicUrl || null;
+    if (!url) continue;
+
+    let poster = null;
+    const posterPath = await posterForVideo(localPath);
+    if (posterPath) {
+      const { error: posterError } = await storage.upload(`${base}_poster.jpg`, fs.readFileSync(posterPath), {
+        contentType: 'image/jpeg',
+        upsert: true,
+      });
+      if (posterError) console.warn(`[supabaseStorage] cover upload failed for ${base}: ${posterError.message}`);
+      else poster = storage.getPublicUrl(`${base}_poster.jpg`).data?.publicUrl || null;
+    }
+    out.push({ url, poster });
+  }
+  return out;
+}
+
 module.exports = {
   uploadListingPhotos,
+  uploadListingVideos,
   isConfigured,
   getClient,
   resolveLocalPath,

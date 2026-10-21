@@ -11,6 +11,7 @@
 
 const { normaliseUtilities } = require('./utilities');
 const { normaliseCommercialSpecs, isCommercialType, COMMERCIAL_SPEC_FIELDS } = require('./commercial');
+const { MAX_LISTING_PHOTOS, MAX_LISTING_VIDEOS, mergeCapped } = require('./listingMedia');
 const crypto = require('crypto');
 const path = require('path');
 const Database = require('better-sqlite3');
@@ -124,6 +125,9 @@ const EXTENDED_COLUMNS = [
   // same pattern as amenities/missing_fields. Populated once the images survive
   // the Chakra download; a caption-only listing simply has an empty array.
   ['photos', 'TEXT'],
+  // Web paths of downloaded videos (services/listingMedia.js), JSON array like
+  // `photos`. A listing needs one photo OR one video before it can publish.
+  ['videos', 'TEXT'],
   // Multi-turn confirmation state: a freshly extracted listing starts here and
   // waits for the agent to reply 'OK'/'Oui' before it counts as published. See
   // findLatestPendingListing / publishListing / applyListingCorrection below.
@@ -388,6 +392,7 @@ const insertListingStmt = db.prepare(`
  * @param {string} [senderInfo.status]    Defaults to 'pending_confirmation' — every
  *        new listing waits for the agent's 'OK' before it counts as published.
  * @param {string[]} [senderInfo.photos]  Web paths of downloaded photos (services/mediaStorage.js).
+ * @param {string[]} [senderInfo.videos]  Web paths of downloaded videos (mediaStorage.persistVideos).
  * @param {number} [senderInfo.agentId]   Supabase `agents.id` when the sender is a
  *        recognised, phone-verified agent. Usually set after the fact by
  *        attributeListingToAgent() instead — the recognition lookup is a
@@ -398,8 +403,10 @@ const insertListingStmt = db.prepare(`
  */
 function saveListing(listingData, senderInfo = {}) {
   const {
-    waId, wamid, groupWamids, agentName, rawText, status, photos, agentId, parentBuildingId,
+    waId, wamid, groupWamids, agentName, rawText, status, photos, videos, agentId, parentBuildingId,
   } = senderInfo;
+  const keptPhotos = mergeCapped([], Array.isArray(photos) ? photos : [], MAX_LISTING_PHOTOS);
+  const keptVideos = mergeCapped([], Array.isArray(videos) ? videos : [], MAX_LISTING_VIDEOS);
 
   if (!waId) {
     throw new Error('saveListing requires senderInfo.waId');
@@ -446,7 +453,8 @@ function saveListing(listingData, senderInfo = {}) {
       missing_fields: toJsonText(listingData.missing_fields),
       parsed_json: toJsonText(listingData),
       status: toNullable(status) || 'pending_confirmation',
-      photos: toJsonText(Array.isArray(photos) && photos.length ? photos : undefined),
+      photos: toJsonText(keptPhotos.length ? keptPhotos : undefined),
+      videos: toJsonText(keptVideos.length ? keptVideos : undefined),
       mysql_property_id: null,
       // Set only once services/postgres.js confirms the sync — see publishListing.
       remote_property_id: null,
@@ -515,6 +523,7 @@ function insertListing(extractedData, senderPhone, extra = {}) {
     rawText: extra.rawText,
     status: extra.status,
     photos: extra.photos,
+    videos: extra.videos,
     agentId: extra.agentId,
   });
 }
@@ -701,9 +710,10 @@ const CORRECTABLE_COERCERS = {
  *                                    group_wamids so a redelivery is recognised.
  * @param {string[]} [newPhotos]     Web paths of any newly downloaded photos —
  *                                    appended to the existing set, never replacing it.
+ * @param {string[]} [newVideos]     Same for videos.
  * @returns {Object} The updated, parsed row.
  */
-function applyListingCorrection(id, extractedData, rawText, extraWamids = [], newPhotos = []) {
+function applyListingCorrection(id, extractedData, rawText, extraWamids = [], newPhotos = [], newVideos = []) {
   const existing = getListing(id);
   if (!existing) {
     throw new Error(`applyListingCorrection: listing #${id} not found`);
@@ -748,10 +758,16 @@ function applyListingCorrection(id, extractedData, rawText, extraWamids = [], ne
     params.group_wamids = toJsonText(mergedGroupWamids);
   }
 
-  const mergedPhotos = [...(existing.photos || []), ...newPhotos.filter(Boolean)];
+  // Capped (services/listingMedia.js): photos past the 20th are not kept.
+  const mergedPhotos = mergeCapped(existing.photos, newPhotos, MAX_LISTING_PHOTOS);
   if (mergedPhotos.length) {
     sets.push('photos = @photos');
     params.photos = toJsonText(mergedPhotos);
+  }
+  const mergedVideos = mergeCapped(existing.videos, newVideos, MAX_LISTING_VIDEOS);
+  if (mergedVideos.length > (existing.videos || []).length) {
+    sets.push('videos = @videos');
+    params.videos = toJsonText(mergedVideos);
   }
 
   if (extractedData) {
@@ -928,6 +944,8 @@ function expandAndPublishListing(id) {
   // Unrelated properties get their own photos when the burst lined up (see
   // photosByProperty); otherwise, as for a building, every photo goes to every unit.
   const photoGroups = photosByProperty(parsed, draft.photos || [], units.length);
+  // Videos follow the same rule with their own blocks (`video_blocks`).
+  const videoGroups = photosByProperty(parsed, draft.videos || [], units.length, 'video_blocks', { requireEach: false });
 
   // Everything below is one transaction: a building that half-published would
   // leave orphan units on the storefront with no sibling to group them with.
@@ -936,6 +954,9 @@ function expandAndPublishListing(id) {
     applyListingCorrection(id, unitPatch(units[0], parsed), null, [], []);
     if (photoGroups) {
       db.prepare('UPDATE listings SET photos = ? WHERE id = ?').run(JSON.stringify(photoGroups[0]), id);
+    }
+    if (videoGroups) {
+      db.prepare('UPDATE listings SET videos = ? WHERE id = ?').run(JSON.stringify(videoGroups[0]), id);
     }
     if (parentBuildingId) {
       db.prepare('UPDATE listings SET parent_building_id = ? WHERE id = ?').run(parentBuildingId, id);
@@ -978,6 +999,7 @@ function expandAndPublishListing(id) {
         // Photos of the building are photos of every unit in it; separate
         // properties take their own block when one was found.
         photos: photoGroups ? photoGroups[offset + 1] : draft.photos || [],
+        videos: videoGroups ? videoGroups[offset + 1] : draft.videos || [],
         agentId: draft.agent_id,
         parentBuildingId,
       });
@@ -1005,9 +1027,10 @@ function expandAndPublishListing(id) {
  * property with at least one photo, and the draft still holding exactly the
  * photos that were recorded (a photo added by a correction has no block).
  * Anything else → null, and every property keeps every photo, as before.
+ * Videos use the same rule, read from `video_blocks`.
  */
-function photosByProperty(parsed, photos, unitCount) {
-  const blocks = parsed?.photo_blocks;
+function photosByProperty(parsed, photos, unitCount, blocksKey = 'photo_blocks', { requireEach = true } = {}) {
+  const blocks = parsed?.[blocksKey];
   if (!parsed?.is_multi_property || !Array.isArray(blocks) || !Array.isArray(photos)) return null;
   if (blocks.length !== photos.length || unitCount < 2) return null;
   const groups = Array.from({ length: unitCount }, () => []);
@@ -1016,7 +1039,9 @@ function photosByProperty(parsed, photos, unitCount) {
     if (!Number.isInteger(block) || block < 0 || block >= unitCount) return null;
     groups[block].push(photos[i]);
   }
-  return groups.every((group) => group.length > 0) ? groups : null;
+  // A property with no video of its own is normal; one with no photo means
+  // the blocks did not line up.
+  return !requireEach || groups.every((group) => group.length > 0) ? groups : null;
 }
 
 /** One unit's own values, falling back to the building-level extraction. */
@@ -1061,6 +1086,7 @@ function parseRow(row) {
     truck_access: row.truck_access === null || row.truck_access === undefined ? null : Boolean(row.truck_access),
     missing_fields: fromJsonText(row.missing_fields, []),
     photos: fromJsonText(row.photos, []),
+    videos: fromJsonText(row.videos, []),
     group_wamids: fromJsonText(row.group_wamids, []),
     parsed_json: fromJsonText(row.parsed_json, null),
   };

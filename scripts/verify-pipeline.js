@@ -1787,14 +1787,16 @@ console.log('\n2. services/openai.js');
     assert.deepStrictEqual(extractInboundMessages({ foo: 'bar' }), []);
   });
 
-  check('a video message is captured (not silently dropped) and flagged unsupported', () => {
+  check('a video message is captured as media (listing videos, 2026-10-21), with its caption', () => {
     const out = extractInboundMessages({
       entry: [{ changes: [{ value: { messages: [
-        { from: '243810000000', id: 'wamid.VID', type: 'video', video: { id: 'v1', mime_type: 'video/mp4' } },
+        { from: '243810000000', id: 'wamid.VID', type: 'video', video: { id: 'v1', mime_type: 'video/mp4', caption: 'Villa Gombe 3000$' } },
       ] } }] }],
     });
-    assert.strictEqual(out.length, 1, 'video message should still be collected for a fallback reply');
-    assert.strictEqual(webhookRouter.isUnsupportedType(out[0]), true);
+    assert.strictEqual(out.length, 1);
+    assert.strictEqual(webhookRouter.isUnsupportedType(out[0]), false);
+    assert.deepStrictEqual(out[0].media, [{ id: 'v1', url: null, mimeType: 'video/mp4' }]);
+    assert.strictEqual(out[0].text, 'Villa Gombe 3000$');
   });
   check('a text message is never flagged unsupported', () => {
     const out = extractInboundMessages({
@@ -2745,7 +2747,8 @@ console.log('\n2. services/openai.js');
   });
 
   // -------------------------------------------------------------------------
-  // 6a2. Unsupported media types get a friendly reply, not a silent drop
+  // 6a2. A video with no caption that cannot be fetched: "renvoyez", never
+  // silence (videos are kept since 2026-10-21 — §63 covers the stored path)
   // -------------------------------------------------------------------------
 
   console.log('\n6a2. POST /webhook unsupported media reply');
@@ -2765,14 +2768,16 @@ console.log('\n2. services/openai.js');
   await settle(200);
 
   check('acknowledges the video message with 200', () => assert.strictEqual(vidStatus, 200));
-  check('a video message never reaches gpt-4o or the DB', () => {
+  check('a captionless video never reaches gpt-4o or the DB', () => {
     assert.strictEqual(openaiCalls.length, vidAiBefore);
     assert.strictEqual(dbService.countListings(), vidRowsBefore);
   });
-  check('the agent gets the unsupported-format reply, not silence', () => {
-    assert.strictEqual(httpCalls.length, 1);
-    assert.strictEqual(httpCalls[0].data.to, '243870000000');
-    assert.strictEqual(httpCalls[0].data.text.body, webhookRouter.UNSUPPORTED_MEDIA_REPLY);
+  check('a video that cannot be fetched (not a video) is answered with "renvoyez", not silence', () => {
+    // (any earlier reply is the "un instant" ack every media burst gets)
+    const replies = httpCalls.filter((c) => c.method === 'post' && c.data?.text?.body);
+    const last = replies[replies.length - 1];
+    assert.strictEqual(last.data.to, '243870000000');
+    assert.strictEqual(last.data.text.body, webhookRouter.VIDEO_DOWNLOAD_FAILED_REPLY);
   });
 
   const rowsBefore = dbService.countListings();
@@ -3612,7 +3617,7 @@ console.log('\n2. services/openai.js');
   check('the agent is told a photo is required, in the exact agreed wording', () => {
     assert.strictEqual(httpCalls.length, 1);
     assert.strictEqual(httpCalls[0].data.text.body, webhookRouter.PHOTO_REQUIRED_REPLY);
-    assert.ok(httpCalls[0].data.text.body.includes('Photo obligatoire'));
+    assert.ok(httpCalls[0].data.text.body.includes('Photo ou vidéo obligatoire'));
   });
   check('refusing costs no model call — the regex path is still free', () =>
     assert.strictEqual(openaiCalls.length - aiBeforeNoPhotoOk, 0));
@@ -3633,7 +3638,7 @@ console.log('\n2. services/openai.js');
   check('the draft context reports photos_count so the model can refuse too', () =>
     assert.ok(photoCtxCall.messages[1].content.includes('"photos_count":0')));
   check('the prompt carries the mandatory-photo rule', () =>
-    assert.ok(openaiService.SYSTEM_PROMPT.includes('PHOTO OBLIGATOIRE')));
+    assert.ok(openaiService.SYSTEM_PROMPT.includes('PHOTO OU VIDÉO OBLIGATOIRE')));
 
   // Sending the photo unblocks it — the draft was never lost.
   httpCalls.length = 0;
@@ -12210,6 +12215,163 @@ console.log('\n2. services/openai.js');
       if (savedRelay62 === undefined) delete process.env.RELAY_NUMBERS;
       else process.env.RELAY_NUMBERS = savedRelay62;
     }
+  }
+
+  // ===========================================================================
+  // 63. Listing videos and the 20-photo cap (2026-10-21)
+  // ===========================================================================
+
+  console.log('\n63. Listing videos and the 20-photo cap');
+
+  {
+    const media63 = require('../services/listingMedia');
+    const FAKE_MP4 = Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from('ftypmp42'), Buffer.alloc(32)]);
+    const sendsTo = (to) => httpCalls.filter((c) => c.method === 'post' && c.data?.to === to);
+    const textOf = (call) => call?.data?.text?.body || '';
+    function inboundVideo(wamid, mediaId, caption, from) {
+      const video = caption ? { id: mediaId, mime_type: 'video/mp4', caption } : { id: mediaId, mime_type: 'video/mp4' };
+      return {
+        object: 'whatsapp_business_account',
+        entry: [{ id: '1', changes: [{ field: 'messages', value: {
+          metadata: { phone_number_id: '987654321' },
+          contacts: [{ wa_id: from, profile: { name: 'Agent Vidéo' } }],
+          messages: [{ from, id: wamid, timestamp: '1', type: 'video', video }],
+        } }] }],
+      };
+    }
+
+    check('caps: 20 photos, 3 videos; a video is told from a photo by mime and by its bytes', () => {
+      assert.strictEqual(media63.MAX_LISTING_PHOTOS, 20);
+      assert.strictEqual(media63.MAX_LISTING_VIDEOS, 3);
+      assert.ok(media63.isVideoMime('video/mp4') && !media63.isVideoMime('image/jpeg'));
+      assert.strictEqual(media63.sniffVideoMime(FAKE_MP4), 'video/mp4');
+      assert.strictEqual(media63.sniffVideoMime(Buffer.from('<html>error</html>')), null);
+      assert.strictEqual(media63.sniffVideoMime(REAL_JPEG_BYTES), null);
+    });
+    const webLimits63 = path.join(__dirname, '..', 'web', 'lib', 'uploadLimits.mjs');
+    // The VPS engine dir has no web/ beside it; the check runs where it does.
+    if (fs.existsSync(webLimits63)) {
+      check('the web and the engine agree on 20 photos', () => {
+        assert.match(fs.readFileSync(webLimits63, 'utf8'), new RegExp(`export const MAX_LISTING_PHOTOS = ${media63.MAX_LISTING_PHOTOS};`));
+      });
+    }
+    check('one photo OR one video makes a listing publishable; neither does not', () => {
+      assert.ok(media63.hasVisualMedia({ photos: ['/a.jpg'], videos: [] }));
+      assert.ok(media63.hasVisualMedia({ photos: [], videos: ['/a.mp4'] }));
+      assert.ok(!media63.hasVisualMedia({ photos: [], videos: [] }));
+      assert.ok(!media63.hasVisualMedia({}));
+    });
+    check('db keeps at most 20 photos and 3 videos, on insert and on every correction', () => {
+      const photos = Array.from({ length: 25 }, (_, i) => `/uploads/listings/cap63-${i}.jpg`);
+      const { id } = dbService.insertListing({ is_listing: true, property_type: 'villa', commune: 'Gombe', price: 900 }, '243863000099', {
+        photos,
+        videos: ['/uploads/listings/cap63-v0.mp4', '/uploads/listings/cap63-v1.mp4'],
+      });
+      let row = dbService.getListing(id);
+      assert.strictEqual(row.photos.length, 20);
+      assert.deepStrictEqual(row.photos.slice(0, 2), photos.slice(0, 2), 'the first photos are the ones kept');
+      assert.strictEqual(row.videos.length, 2);
+      row = dbService.applyListingCorrection(id, null, null, [], ['/uploads/listings/cap63-extra.jpg'], [
+        '/uploads/listings/cap63-v1.mp4', '/uploads/listings/cap63-v2.mp4', '/uploads/listings/cap63-v3.mp4',
+      ]);
+      assert.strictEqual(row.photos.length, 20);
+      assert.deepStrictEqual(row.videos, ['/uploads/listings/cap63-v0.mp4', '/uploads/listings/cap63-v1.mp4', '/uploads/listings/cap63-v2.mp4']);
+    });
+    check('the intake card counts videos, and only says "aucune" with neither', () => {
+      const listingCard63 = require('../services/listingCard');
+      const card = listingCard63.renderListingCard({ property_type: 'villa', commune: 'Gombe', price: 900, photos: [], videos: ['/v.mp4'] });
+      assert.match(card, /\*Vidéos\* : 1/);
+      assert.ok(!card.includes('aucune'));
+      const full = listingCard63.renderListingCard({ property_type: 'villa', commune: 'Gombe', price: 900, photos: Array(20).fill('/p.jpg') });
+      assert.match(full, /\*Photos\* : 20 \(maximum 20\)/);
+    });
+    await checkAsync('a cover frame that cannot be cut is null, never a throw', async () => {
+      const junk = path.join(UPLOADS, 'listings', 'junk63.mp4');
+      fs.mkdirSync(path.dirname(junk), { recursive: true });
+      fs.writeFileSync(junk, Buffer.from('not a video'));
+      assert.strictEqual(await media63.posterForVideo(junk, { timeoutMs: 15000 }), null);
+    });
+
+    // End to end: a captioned video becomes a listing with no photo, and OK publishes it.
+    const FROM63 = '243863000001';
+    const savedBinary = mediaBinaryResponse;
+    const savedType = mediaContentType;
+    mediaBinaryResponse = FAKE_MP4;
+    mediaContentType = 'video/mp4';
+    try {
+      const rows63 = dbService.countListings();
+      const calls63 = openaiCalls.length;
+      httpCalls.length = 0;
+      completionQueue.push(intakeCompletion({ is_listing: true, property_type: 'villa', commune: 'Gombe', quartier: null, price: 2500 }, 'Annonce reçue !'));
+      await post('/webhook', inboundVideo('wamid.V63A', 'vid_63a', 'Villa à louer Gombe 4 chambres 2500$', FROM63));
+      await settle(1200);
+      const stored = dbService.findByWamid('wamid.V63A');
+      const row = stored && dbService.getListing(stored.id);
+      check('a video with its caption is stored as a listing: the video kept, no photo, the model read the text', () => {
+        assert.strictEqual(dbService.countListings(), rows63 + 1);
+        assert.strictEqual(row.photos.length, 0);
+        assert.strictEqual(row.videos.length, 1);
+        assert.match(row.videos[0], /^\/uploads\/listings\/.+-v0\.mp4$/);
+        assert.ok(fs.existsSync(path.join(UPLOADS, row.videos[0].replace(/^\/uploads\//, ''))));
+        assert.strictEqual(openaiCalls.length - calls63, 1);
+        const userContent = openaiCalls[openaiCalls.length - 1].messages[1].content;
+        assert.ok(!JSON.stringify(userContent).includes('video'), 'the video is never sent to the model');
+      });
+      check('the card the agent reads counts the video and asks for no photo', () => {
+        const reply = textOf(sendsTo(FROM63).filter((c) => /Vidéos/.test(textOf(c)))[0]);
+        assert.match(reply, /\*Vidéos\* : 1/);
+        assert.ok(!reply.includes('aucune'));
+      });
+
+      httpCalls.length = 0;
+      await post('/webhook', inboundVideo('wamid.V63B', 'vid_63b', null, FROM63));
+      await settle(1200);
+      check('a captionless video joins the draft awaiting OK, with no model call', () => {
+        assert.strictEqual(dbService.getListing(row.id).videos.length, 2);
+        assert.strictEqual(openaiCalls.length - calls63, 1);
+        assert.ok(sendsTo(FROM63).some((c) => /Vidéo ajoutée/.test(textOf(c))));
+      });
+
+      httpCalls.length = 0;
+      await post('/webhook', inbound('wamid.V63OK', 'OK', FROM63));
+      await settle(600);
+      check('"OK" publishes a video-only listing — a video satisfies the media rule', () => {
+        assert.strictEqual(dbService.getListing(row.id).status, 'published');
+        assert.ok(!sendsTo(FROM63).some((c) => textOf(c) === webhookRouter.PHOTO_REQUIRED_REPLY));
+      });
+
+      const FROM63B = '243863000002';
+      httpCalls.length = 0;
+      await post('/webhook', inboundVideo('wamid.V63C', 'vid_63c', null, FROM63B));
+      await settle(1200);
+      check('a captionless video with no draft asks for the description and stores nothing', () => {
+        assert.strictEqual(dbService.findByWamid('wamid.V63C'), undefined);
+        assert.strictEqual(textOf(sendsTo(FROM63B).slice(-1)[0]), webhookRouter.VIDEO_NEEDS_TEXT_REPLY);
+      });
+    } finally {
+      mediaBinaryResponse = savedBinary;
+      mediaContentType = savedType;
+    }
+
+    // 22 photos in one burst: 20 downloaded and kept, the model reads 10.
+    const FROM63C = '243863000003';
+    httpCalls.length = 0;
+    const calls63c = openaiCalls.length;
+    completionQueue.push(intakeCompletion({ is_listing: true, property_type: 'villa', commune: 'Gombe', quartier: null, price: 2600 }, 'Annonce reçue !'));
+    await post('/webhook', inbound('wamid.P63T', 'Villa à louer Gombe 5 chambres 2600$', FROM63C));
+    for (let i = 0; i < 22; i += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await post('/webhook', inboundImage(`wamid.P63-${i}`, `media_63_${i}`, null, FROM63C));
+    }
+    await settle(1500);
+    check('22 photos: 20 downloaded and kept, the model reads the first 10', () => {
+      const listing = dbService.getListing(dbService.findByWamid('wamid.P63T').id);
+      assert.strictEqual(listing.photos.length, 20);
+      assert.strictEqual(httpCalls.filter((c) => c.method === 'get' && /\/media\//.test(c.url)).length, 20);
+      assert.strictEqual(openaiCalls.length - calls63c, 1);
+      const parts = openaiCalls[openaiCalls.length - 1].messages[1].content;
+      assert.strictEqual(parts.filter((part) => part.type === 'image_url').length, 10);
+    });
   }
 
   console.log(`\n${'-'.repeat(60)}`);

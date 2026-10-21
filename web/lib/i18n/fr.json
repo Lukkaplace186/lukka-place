@@ -582,10 +582,13 @@
       "featuresFromText": "Les équipements proviennent du texte de l'annonce, revu à la publication. Ils ne sont pas issus d'un champ structuré de la base — un bien peut en disposer sans l'avoir précisé.",
       "featuresFromDescription": "Reprise de la description de l'annonce, mise en liste. Aucune information n'a été ajoutée.",
       "location": "Emplacement",
+      "videos": "Vidéos",
+      "videoItem": "Vidéo {n} sur {total}",
       "sections": {
         "label": "Sections de l’annonce",
         "overview": "Aperçu",
         "costs": "Coûts",
+        "videos": "Vidéos",
         "features": "Caractéristiques",
         "location": "Emplacement"
       }
@@ -1229,7 +1232,7 @@
       "movePhotoLeft": "Déplacer la photo vers la gauche",
       "movePhotoRight": "Déplacer la photo vers la droite",
       "removePhoto": "Retirer cette photo",
-      "photoHint": "JPEG, PNG ou WebP — 5 Mo max par photo, 10 photos max.",
+      "photoHint": "JPEG, PNG ou WebP — 10 Mo max par photo, 20 photos max.",
       "savedWithPhotoWarning": "Modifications enregistrées, mais certaines photos n’ont pas pu être envoyées.",
       "savedAndPublished": "Modifications enregistrées et publiées.",
       "searchFiltersHint": "que les filtres de recherche analysent.",
@@ -4091,6 +4094,11 @@
       "saved": "Photos mises à jour.",
       "hint": "Réordonnez, choisissez la couverture ou retirez des photos. Les nouvelles photos sont ajoutées par l’agent.",
       "foreignUrl": "Seules les photos déjà présentes sur l’annonce peuvent être conservées."
+    },
+    "videos": {
+      "title": "Vidéos",
+      "count": "{count} vidéo(s)",
+      "hint": "Envoyées par l’agent sur WhatsApp. Une photo ou une vidéo suffit pour publier."
     },
     "queues": {
       "title": "À traiter",

@@ -475,9 +475,14 @@ export async function setListingGallery(propertyId, urls) {
         [propertyId, url],
       );
     }
+    // No photo left: the first video's cover frame (lib/listingVideos.js)
+    // stays the card image before the "no photo" placeholder does.
     await client.query(
-      'UPDATE properties SET featured_image = $1, updated_at = NOW() WHERE id = $2',
-      [urls[0] || NO_PHOTO_URL, propertyId],
+      `UPDATE properties
+       SET featured_image = COALESCE($1, NULLIF(to_jsonb(properties) -> 'videos' -> 0 ->> 'poster', ''), $3),
+           updated_at = NOW()
+       WHERE id = $2`,
+      [urls[0] || null, propertyId, NO_PHOTO_URL],
     );
     await client.query('COMMIT');
   } catch (err) {

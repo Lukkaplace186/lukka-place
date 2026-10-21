@@ -582,10 +582,13 @@
       "featuresFromText": "Features are drawn from the listing's own text, reviewed at publication. They do not come from a structured database field — a property may have one without having mentioned it.",
       "featuresFromDescription": "The listing's own description, set out as a list. Nothing has been added to it.",
       "location": "Location",
+      "videos": "Videos",
+      "videoItem": "Video {n} of {total}",
       "sections": {
         "label": "Listing sections",
         "overview": "Overview",
         "costs": "Costs",
+        "videos": "Videos",
         "features": "Features",
         "location": "Location"
       }
@@ -1229,7 +1232,7 @@
       "movePhotoLeft": "Move photo left",
       "movePhotoRight": "Move photo right",
       "removePhoto": "Remove this photo",
-      "photoHint": "JPEG, PNG or WebP — 5 MB max per photo, 10 photos max.",
+      "photoHint": "JPEG, PNG or WebP — 10 MB max per photo, 20 photos max.",
       "savedWithPhotoWarning": "Changes saved, but some photos could not be uploaded.",
       "savedAndPublished": "Changes saved and published.",
       "searchFiltersHint": "that the search filters analyse.",
@@ -4091,6 +4094,11 @@
       "saved": "Photos updated.",
       "hint": "Reorder, choose the cover or remove photos. New photos are added by the agent.",
       "foreignUrl": "Only photos already on this listing can be kept."
+    },
+    "videos": {
+      "title": "Videos",
+      "count": "{count} videos",
+      "hint": "Sent by the agent on WhatsApp. One photo or one video is enough to publish."
     },
     "queues": {
       "title": "Work Queues",

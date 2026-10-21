@@ -8,6 +8,7 @@ import { AMENITY_GROUPS, AMENITY_KEYWORDS, DEPOSIT_RANGE_OPTIONS } from './const
 import { keywordTokens } from './searchKeywords';
 import { UTILITY_FILTERS } from './utilityTags';
 import { COMMERCIAL_FILTER_VALUE } from './commercialSpaces';
+import { VIDEOS_SQL } from './listingVideos';
 
 /**
  * Every read against `properties` filters on this — no exceptions. There is
@@ -1430,7 +1431,8 @@ export async function getListingById(id) {
     `SELECT ${SELECT_FIELDS},
        (to_jsonb(p) ->> 'availability_confirmed_at') AS availability_confirmed_at,
        (to_jsonb(p) ->> 'development_id') AS development_id,
-       (to_jsonb(p) ->> 'unit_label') AS unit_label
+       (to_jsonb(p) ->> 'unit_label') AS unit_label,
+       ${VIDEOS_SQL} AS videos
      ${FROM_JOINS}
      WHERE p.id = $1 AND ${APPROVED_FILTER}`,
     [numericId],

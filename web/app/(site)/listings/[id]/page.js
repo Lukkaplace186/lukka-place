@@ -25,6 +25,8 @@ import PropertyDescription from '@/components/listings/PropertyDescription';
 import AvailabilityConfirmedBadge from '@/components/listings/AvailabilityConfirmedBadge';
 import MarketMedianLine from '@/components/listings/MarketMedianLine';
 import UtilityBadges from '@/components/listings/UtilityBadges';
+import ListingVideos from '@/components/listings/ListingVideos';
+import { listingVideos } from '@/lib/listingVideos';
 import ListingSectionNav from '@/components/listings/ListingSectionNav';
 import ProjectUnitStrip from '@/components/projects/ProjectUnitStrip';
 import JsonLd from '@/components/seo/JsonLd';
@@ -186,6 +188,7 @@ export default async function ListingDetailPage({ params, searchParams }) {
   const sectionNav = [
     { id: 'apercu', label: t('listings.detail.sections.overview') },
     entryCostBreakdown(listing) ? { id: 'couts', label: t('listings.detail.sections.costs') } : null,
+    listingVideos(listing).length ? { id: 'videos', label: t('listings.detail.sections.videos') } : null,
     listing.description ? { id: 'caracteristiques', label: t('listings.detail.sections.features') } : null,
     { id: 'emplacement', label: t('listings.detail.sections.location') },
   ].filter(Boolean);
@@ -359,6 +362,13 @@ export default async function ListingDetailPage({ params, searchParams }) {
             <Suspense fallback={null}>
               <MarketMedianLine listing={listing} />
             </Suspense>
+
+            {/* The agent's videos (WhatsApp intake, lib/listingVideos.js). */}
+            <ListingVideos
+              listing={listing}
+              heading={t('listings.detail.videos')}
+              itemLabel={(n, total) => t('listings.detail.videoItem', { n, total })}
+            />
 
             {/* Mobile only: the sticky right rail is off-screen below lg. */}
             <div className="flex flex-col gap-4 lg:hidden">

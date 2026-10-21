@@ -41,7 +41,7 @@
 const { normaliseUtilities } = require('./utilities');
 const { normaliseCommercialSpecs } = require('./commercial');
 const { Pool } = require('pg');
-const { uploadListingPhotos } = require('./supabaseStorage');
+const { uploadListingPhotos, uploadListingVideos } = require('./supabaseStorage');
 const { resolveCommune, resolveQuartier } = require('./locations');
 const { cityOfCommune, communeLabel, resolveCity, DEFAULT_CITY } = require('./cities');
 const { storeListingCoordinates, locationInputsChanged } = require('./geocoding');
@@ -1092,11 +1092,40 @@ async function syncListingToPostgres(row) {
       }
     }
 
+    // Videos (services/listingMedia.js): `properties.videos` jsonb,
+    // [{url, poster}], written only when this listing has videos — never
+    // cleared from here. With no photo, the first cover frame is the card
+    // image, so a video-only listing is not shown as "no image". Before
+    // migrations/20261021_listing_videos.sql the UPDATE fails with 42703;
+    // logged, and the rest of the sync stands.
+    let uploadedVideos = [];
+    if (Array.isArray(row.videos) && row.videos.length) {
+      uploadedVideos = await uploadListingVideos(row.videos, propertyId).catch((err) => {
+        console.warn(`[postgres] video upload failed for listing #${row.id}: ${err.message}`);
+        return [];
+      });
+      if (uploadedVideos.length) {
+        try {
+          await client.query('UPDATE properties SET videos = $1::jsonb, updated_at = NOW() WHERE id = $2', [
+            JSON.stringify(uploadedVideos),
+            propertyId,
+          ]);
+        } catch (err) {
+          console.warn(`[postgres] properties.videos not written for #${propertyId} (${err.code || err.message}) — run migrations/20261021_listing_videos.sql`);
+        }
+        const cover = uploadedVideos.find((video) => video.poster)?.poster;
+        if (!uploadedUrls.length && cover) {
+          await client.query('UPDATE properties SET featured_image = $1, updated_at = NOW() WHERE id = $2', [cover, propertyId]);
+        }
+      }
+    }
+
     console.log(
       `[postgres] listing #${row.id} -> properties#${propertyId} (${wasInsert ? 'inserted' : 'updated'}), ` +
         `vendor_id=0, approve_status=pending, category=${category.id}, ` +
         `commune=${communeAmenityId ? `amenity#${communeAmenityId}` : 'unmatched'}, ` +
-        `photos=${uploadedUrls.length}${hasPhotos && !uploadedUrls.length ? ' (upload failed or unconfigured — using noimage.jpg placeholder)' : ''}`,
+        `photos=${uploadedUrls.length}${hasPhotos && !uploadedUrls.length ? ' (upload failed or unconfigured — using noimage.jpg placeholder)' : ''}` +
+        (uploadedVideos.length ? `, videos=${uploadedVideos.length}` : ''),
     );
 
     return propertyId;

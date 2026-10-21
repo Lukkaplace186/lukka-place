@@ -23,6 +23,7 @@
 const { inferCommune } = require('./locations');
 const { cityOfCommune, communeLabel, DEFAULT_CITY } = require('./cities');
 const { isCommercialType, floorLabelFr } = require('./commercial');
+const { MAX_LISTING_PHOTOS, MAX_LISTING_VIDEOS } = require('./listingMedia');
 
 const PROPERTY_TYPE_LABELS = {
   appartement: 'Appartement',
@@ -209,8 +210,13 @@ function renderListingCard(row, { photoCount } = {}) {
   if (amenities.length) lines.push(`*Équipements* : ${amenities.join(', ')}`);
   if (present(row.reference)) lines.push(`*Référence* : ${row.reference}`);
 
+  // A listing needs one photo OR one video (services/listingMedia.js). At the
+  // cap the line says so, since photos past it are not kept.
   const photos = photoCount ?? asList(row.photos).length;
-  lines.push(photos > 0 ? `*Photos* : ${photos}` : '*Photos* : aucune — envoyez au moins une photo du bien');
+  const videos = asList(row.videos).length;
+  if (photos > 0) lines.push(`*Photos* : ${photos}${photos >= MAX_LISTING_PHOTOS ? ` (maximum ${MAX_LISTING_PHOTOS})` : ''}`);
+  if (videos > 0) lines.push(`*Vidéos* : ${videos}${videos >= MAX_LISTING_VIDEOS ? ` (maximum ${MAX_LISTING_VIDEOS})` : ''}`);
+  if (photos === 0 && videos === 0) lines.push('*Photos* : aucune — envoyez au moins une photo ou une vidéo du bien');
   return lines.join('\n');
 }
 

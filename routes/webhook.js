@@ -29,7 +29,8 @@ const {
   touchEngineMarker,
 } = require('../services/db');
 const chakra = require('../services/chakra');
-const { persistImages } = require('../services/mediaStorage');
+const { persistImages, persistVideos } = require('../services/mediaStorage');
+const listingMedia = require('../services/listingMedia');
 const { inferListingLocation, communeNamedIn, placeKey } = require('../services/locations');
 const { handleBuyerMessage } = require('../services/buyerConversation');
 const { matchQuickReply, FALLBACK_REPLY } = require('../services/quickReplies');
@@ -181,6 +182,7 @@ function normaliseMessage(message, contacts = [], fallbackWamid = null) {
     message.text?.body ??
     (typeof message.text === 'string' ? message.text : undefined) ??
     message.image?.caption ??
+    message.video?.caption ??
     message.caption ??
     message.body ??
     (buttonReply?.title ? String(buttonReply.title) : undefined) ??
@@ -192,6 +194,9 @@ function normaliseMessage(message, contacts = [], fallbackWamid = null) {
   const media = [];
   const candidates = [
     message.image,
+    // Videos are kept and published with the listing (services/listingMedia.js),
+    // tagged with a video mime type so the burst splits them from photos.
+    message.video ? { ...message.video, mime_type: message.video.mime_type || 'video/mp4' } : null,
     // A PDF flyer is a real listing, not an unsupported attachment (see
     // services/documentText.js). Other document types are deliberately left
     // out so they still get the "send text or a photo" reply.
@@ -397,6 +402,31 @@ async function downloadImages(refs, label) {
   return results.filter(Boolean);
 }
 
+/**
+ * Download and store a burst's videos (services/listingMedia.js), one at a
+ * time — a 16 MB clip is held in memory whole, and three at once on a busy
+ * engine is what a memory cap is for. A failed video is logged and skipped,
+ * like a failed photo. The returned array carries `.blocks`: which text
+ * block each stored video arrived with, for a paste of several properties.
+ */
+async function downloadAndStoreVideos(refs, label) {
+  const stored = [];
+  const blocks = [];
+  for (const ref of refs || []) {
+    try {
+      const video = await chakra.downloadVideo(ref);
+      const [webPath] = persistVideos([video], `${label}-${stored.length}`);
+      stored.push(webPath);
+      blocks.push(ref.block ?? 0);
+      console.log(`[chakra] ${label}: video stored (${video.mimeType}, ${Math.round(video.sizeBytes / 1024)} KB)`);
+    } catch (err) {
+      console.warn(`[chakra] ${label}: video could not be downloaded: ${err.message}`);
+    }
+  }
+  stored.blocks = blocks;
+  return stored;
+}
+
 // ---------------------------------------------------------------------------
 // Multi-turn confirmation
 //
@@ -441,8 +471,22 @@ function publishedReply(ids = []) {
  * path, so the draft stays pending and the agent can still send the photo.
  */
 const PHOTO_REQUIRED_REPLY =
-  '⚠️ *Photo obligatoire* : Vous ne pouvez pas publier une annonce sans photo. ' +
-  'Veuillez envoyer au moins une photo du bien pour finaliser la publication sur Lukka Place. 📸';
+  '⚠️ *Photo ou vidéo obligatoire* : Vous ne pouvez pas publier une annonce sans photo ni vidéo. ' +
+  'Veuillez envoyer au moins une photo ou une vidéo du bien pour finaliser la publication sur Lukka Place. 📸';
+
+/**
+ * A video with no caption and no draft to attach it to: there is nothing to
+ * read a listing from (the model does not watch videos), so ask for the text
+ * rather than storing a listing with no facts.
+ */
+const VIDEO_NEEDS_TEXT_REPLY =
+  'Merci pour la vidéo 🎬 Pour publier l’annonce, renvoyez-la avec sa *description* ' +
+  '(type de bien, prix, commune et quartier) — en légende ou dans un message juste après.';
+
+/** The video arrived but could not be fetched — said, never a silent drop. */
+const VIDEO_DOWNLOAD_FAILED_REPLY =
+  "Nous n'avons pas pu récupérer votre vidéo 🎬 Merci de la renvoyer dans quelques minutes, " +
+  'avec la description du bien en légende.';
 
 /**
  * Sent once per new submission (see enqueueMessage), not once per message —
@@ -480,7 +524,7 @@ const PDF_UNREADABLE_REPLY =
 
 const UNSUPPORTED_MEDIA_REPLY =
   'Bonjour 👋 Pour publier une annonce, envoyez-la en *texte* ou en *photo* (avec légende). ' +
-  'Les messages vocaux sont aussi acceptés. Les autres formats (vidéo, document, position, contact) ne sont pas encore pris en charge.';
+  'Les vidéos et les messages vocaux sont aussi acceptés. Les autres formats (document, position, contact) ne sont pas encore pris en charge.';
 
 const VOICE_UNREADABLE_REPLY =
   "Désolé, nous n'avons pas pu écouter votre message vocal. 🎙️ Pouvez-vous le renvoyer, " +
@@ -837,7 +881,13 @@ async function processGroup(messages) {
   const isPdfRef = (ref) => /pdf/i.test(ref.mimeType || '');
   const pdfRefs = allMediaRefs.filter(isPdfRef);
   const audioRefs = allMediaRefs.filter((ref) => voiceNotes.isAudioMime(ref.mimeType));
+  // Photos and videos: `mediaRefs` is both (every "does this burst carry
+  // media?" guard below counts a video too); photos go to the vision model,
+  // videos are only stored. Each is capped before any download — a 40-photo
+  // album costs nothing past the 20 that can be kept (services/listingMedia.js).
   const mediaRefs = allMediaRefs.filter((ref) => !isPdfRef(ref) && !voiceNotes.isAudioMime(ref.mimeType));
+  const photoRefs = mediaRefs.filter((ref) => !listingMedia.isVideoMime(ref.mimeType)).slice(0, listingMedia.MAX_LISTING_PHOTOS);
+  const videoRefs = mediaRefs.filter((ref) => listingMedia.isVideoMime(ref.mimeType)).slice(0, listingMedia.MAX_LISTING_VIDEOS);
   const profileName = messages.find((m) => m.profileName)?.profileName;
 
   if (!hasText && mediaRefs.length === 0 && pdfRefs.length === 0 && audioRefs.length === 0) {
@@ -923,6 +973,7 @@ async function processGroup(messages) {
         from,
         messages,
         download: (refs) => downloadImages(refs, label),
+        downloadVideos: (refs) => downloadAndStoreVideos(refs.slice(0, listingMedia.MAX_LISTING_VIDEOS), label),
         replyToMessageId: primaryWamid || undefined,
       });
       return;
@@ -949,25 +1000,29 @@ async function processGroup(messages) {
       // "does this listing have a photo?" a fair question to ask. Without that,
       // confirming with the photo attached would be refused for a missing
       // photo the agent had just sent.
-      let photos = pending.photos || [];
+      // A video counts as much as a photo (services/listingMedia.js).
+      let hasMedia = listingMedia.hasVisualMedia(pending);
 
-      if (!photos.length && mediaRefs.length) {
-        const confirmImages = await downloadImages(mediaRefs, label);
+      if (!hasMedia && mediaRefs.length) {
+        const confirmImages = photoRefs.length ? await downloadImages(photoRefs, label) : [];
         const confirmPaths = confirmImages.length ? persistImages(confirmImages, label) : [];
-        if (confirmPaths.length) {
-          applyListingCorrection(pending.id, null, null, wamids, confirmPaths);
-          photos = confirmPaths;
-          console.log(`[db] listing #${pending.id} gained ${confirmPaths.length} photo(s) with the confirmation`);
+        const confirmVideos = await downloadAndStoreVideos(videoRefs, label);
+        if (confirmPaths.length || confirmVideos.length) {
+          applyListingCorrection(pending.id, null, null, wamids, confirmPaths, confirmVideos);
+          hasMedia = true;
+          console.log(
+            `[db] listing #${pending.id} gained ${confirmPaths.length} photo(s) and ${confirmVideos.length} video(s) with the confirmation`,
+          );
         }
       }
 
-      if (!photos.length) {
+      if (!hasMedia) {
         // Deliberately NOT published, and deliberately still pending: the agent
         // can send a photo and confirm again without re-sending the listing.
         await chakra.sendWhatsAppMessage(from, PHOTO_REQUIRED_REPLY, {
           replyToMessageId: primaryWamid || undefined,
         });
-        console.log(`[db] listing #${pending.id} NOT published — no photo (confirmed by ${from})`);
+        console.log(`[db] listing #${pending.id} NOT published — no photo or video (confirmed by ${from})`);
         return;
       }
 
@@ -1156,9 +1211,41 @@ async function processGroup(messages) {
       }
     }
 
-    const images = mediaRefs.length ? await downloadImages(mediaRefs, label) : [];
+    const images = photoRefs.length ? await downloadImages(photoRefs, label) : [];
+    const videoPaths = await downloadAndStoreVideos(videoRefs, label);
+
+    // Videos only, no caption: the model has nothing to read. They belong to
+    // the draft awaiting this sender's OK when there is one; otherwise the
+    // agent is asked for the description.
+    if (!hasText && images.length === 0 && videoPaths.length) {
+      if (pending) {
+        applyListingCorrection(pending.id, null, null, wamids, [], videoPaths);
+        const updated = getListing(pending.id);
+        console.log(`[db] listing #${pending.id} gained ${videoPaths.length} video(s)`);
+        await chakra.sendWhatsAppMessage(
+          from,
+          listingCard.isGroupedListing(updated)
+            ? '🎬 Vidéo ajoutée à votre annonce. Répondez *OK* pour la publier.'
+            : listingCard.composeIntakeReply('🎬 Vidéo ajoutée à votre annonce.', updated),
+          { replyToMessageId: primaryWamid || undefined },
+        );
+      } else {
+        await chakra.sendWhatsAppMessage(from, VIDEO_NEEDS_TEXT_REPLY, {
+          replyToMessageId: primaryWamid || undefined,
+        });
+        console.log(`[chakra] ${label}: video with no text and no draft — asked for the description`);
+      }
+      return;
+    }
 
     // Every download failed and there was no caption — nothing left to read.
+    if (!hasText && images.length === 0 && videoRefs.length) {
+      await chakra.sendWhatsAppMessage(from, VIDEO_DOWNLOAD_FAILED_REPLY, {
+        replyToMessageId: primaryWamid || undefined,
+      });
+      console.warn(`[chakra] ${label}: video could not be downloaded and no caption — asked to resend`);
+      return;
+    }
     if (!hasText && images.length === 0) {
       console.warn(`[chakra] ${label}: no caption and no usable image — skipped`);
       return;
@@ -1219,7 +1306,7 @@ async function processGroup(messages) {
       const boundary = hasText && !first.is_listing && (contextListing || awaitingName)
         ? listingBoundary.newListingReason({
           text,
-          photoCount: photoPaths.length,
+          photoCount: photoPaths.length + videoPaths.length,
           intent: first.intent,
           context: contextListing || null,
         })
@@ -1385,7 +1472,7 @@ async function processGroup(messages) {
     // shows it — a correction that stopped at SQLite would leave the agent
     // believing they had fixed a price the public still sees wrong.
     if (!extracted.is_listing && !pending && recentlyPublished && extracted.is_correction) {
-      applyListingCorrection(recentlyPublished.id, extracted, text, wamids, photoPaths);
+      applyListingCorrection(recentlyPublished.id, extracted, text, wamids, photoPaths, videoPaths);
       resyncListing(recentlyPublished.id);
       const corrected = getListing(recentlyPublished.id);
       if (!listingCard.isGroupedListing(corrected)) {
@@ -1419,15 +1506,15 @@ async function processGroup(messages) {
       // Same mandatory-photo gate as the regex path above. Photos from this
       // burst are already downloaded and persisted by now (photoPaths), so
       // both sources are simply counted together.
-      if (!(pending.photos || []).length && !photoPaths.length) {
+      if (!listingMedia.hasVisualMedia(pending) && !photoPaths.length && !videoPaths.length) {
         await chakra.sendWhatsAppMessage(from, PHOTO_REQUIRED_REPLY, {
           replyToMessageId: primaryWamid || undefined,
         });
-        console.log(`[db] listing #${pending.id} NOT published — no photo (conversational confirmation from ${from})`);
+        console.log(`[db] listing #${pending.id} NOT published — no photo or video (conversational confirmation from ${from})`);
         return;
       }
-      if (photoPaths.length) {
-        applyListingCorrection(pending.id, null, null, wamids, photoPaths);
+      if (photoPaths.length || videoPaths.length) {
+        applyListingCorrection(pending.id, null, null, wamids, photoPaths, videoPaths);
       }
       const { ids: confirmedIds } = expandAndPublishListing(pending.id);
       await chakra.sendWhatsAppMessage(from, publishedReply(confirmedIds), {
@@ -1458,12 +1545,16 @@ async function processGroup(messages) {
         // persistImages keeps the order of `images`, so index i of both is the same photo.
         extracted.photo_blocks = images.map((image) => image.block ?? 0);
       }
+      if (extracted.is_multi_property && videoPaths.length) {
+        extracted.video_blocks = videoPaths.blocks;
+      }
       const { id, duplicate } = insertListing(extracted, from, {
         wamid: primaryWamid,
         groupWamids: wamids,
         agentName: profileName,
         rawText: text,
         photos: photoPaths,
+        videos: videoPaths,
       });
 
       if (duplicate) {
@@ -1533,7 +1624,7 @@ async function processGroup(messages) {
     } else if (pending) {
       // Doesn't stand alone as a listing, but a prior one is still pending —
       // treat it as a correction/refinement of that listing rather than noise.
-      applyListingCorrection(pending.id, extracted, text, wamids, photoPaths);
+      applyListingCorrection(pending.id, extracted, text, wamids, photoPaths, videoPaths);
       console.log(`[db] listing #${pending.id} updated (correction from ${from})`);
       // A bare "non" changes nothing and the model asks which line is wrong —
       // that reply stands. A real correction gets the card from the row.
@@ -1663,6 +1754,9 @@ module.exports.PDF_UNREADABLE_REPLY = PDF_UNREADABLE_REPLY;
 module.exports.PUBLISHED_REPLY = PUBLISHED_REPLY;
 module.exports.VOICE_UNREADABLE_REPLY = VOICE_UNREADABLE_REPLY;
 module.exports.PHOTO_REQUIRED_REPLY = PHOTO_REQUIRED_REPLY;
+module.exports.VIDEO_NEEDS_TEXT_REPLY = VIDEO_NEEDS_TEXT_REPLY;
+module.exports.VIDEO_DOWNLOAD_FAILED_REPLY = VIDEO_DOWNLOAD_FAILED_REPLY;
+module.exports.downloadAndStoreVideos = downloadAndStoreVideos;
 module.exports.publishedReply = publishedReply;
 module.exports.isUnsupportedType = isUnsupportedType;
 module.exports.UNSUPPORTED_MEDIA_REPLY = UNSUPPORTED_MEDIA_REPLY;

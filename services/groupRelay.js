@@ -209,7 +209,10 @@ async function ingestPost(post, { via, relayFrom, groupName, groupJid, label }) 
 
   const text = String(post.text || '').trim();
   const images = post.images || [];
-  if (!text && !images.length) return { outcome: 'not-a-listing', reason: 'empty' };
+  const videos = post.videos || [];
+  if (!text && !images.length && !videos.length) return { outcome: 'not-a-listing', reason: 'empty' };
+  // Nothing for the model to read (it does not watch videos): not a listing.
+  if (!text && !images.length) return { outcome: 'not-a-listing', reason: 'video-only' };
 
   const fingerprints = { textHash: textFingerprint(text), photoHashes: images.map(photoFingerprint) };
   const duplicate = duplicateOf(fingerprints);
@@ -236,7 +239,7 @@ async function ingestPost(post, { via, relayFrom, groupName, groupJid, label }) 
 
   // A group post is an offer by construction when it reads like one or comes
   // with its photos; only chatter ("Bonjour à tous") is let go.
-  if (!extracted.is_listing && !standsAloneAsListing(text) && !(images.length && text)) {
+  if (!extracted.is_listing && !standsAloneAsListing(text) && !((images.length || videos.length) && text)) {
     console.log(`[group-capture] ${label}: not a listing (intent ${extracted.intent}) — skipped`);
     return { outcome: 'not-a-listing', reason: extracted.intent || 'other' };
   }
@@ -273,13 +276,14 @@ async function ingestPost(post, { via, relayFrom, groupName, groupJid, label }) 
     agentName: post.posterName || groupName || null,
     rawText: text,
     photos,
+    videos,
   });
   if (raced) return { outcome: 'duplicate', listingId: id };
   recordFingerprints(id, fingerprints);
 
-  if (!photos.length) {
-    // The photo rule holds on every publish path: kept as a draft.
-    console.log(`[group-capture] ${label}: listing #${id} stored without a photo — not sent to moderation`);
+  if (!photos.length && !videos.length) {
+    // The photo-or-video rule holds on every publish path: kept as a draft.
+    console.log(`[group-capture] ${label}: listing #${id} stored without a photo or video — not sent to moderation`);
     return { outcome: 'stored', listingId: id, ids: [id], published: false };
   }
   const { ids } = db.expandAndPublishListing(id);
@@ -294,18 +298,25 @@ async function ingestPost(post, { via, relayFrom, groupName, groupJid, label }) 
  * @param {string} input.from            The relay number.
  * @param {Array}  input.messages        The burst's normalised messages.
  * @param {Function} input.download      (refs) => Promise<images> — the webhook's downloader.
+ * @param {Function} [input.downloadVideos] (refs) => Promise<string[]> — stores videos, returns web paths.
  * @param {string} [input.replyToMessageId]
  * @param {Function} [input.send]        (to, text, opts) — defaults to chakra.
  */
-async function handleRelayBurst({ from, messages, download, replyToMessageId, send }) {
+async function handleRelayBurst({ from, messages, download, downloadVideos, replyToMessageId, send }) {
+  // eslint-disable-next-line global-require
+  const { isVideoMime } = require('./listingMedia');
   const { posts } = splitBurst(messages);
   const label = `relay ${from}`;
   const results = [];
   for (const post of posts) {
-    const imageRefs = post.refs.filter((ref) => !/pdf|audio|ogg|opus/i.test(ref.mimeType || ''));
+    const imageRefs = post.refs.filter((ref) => !/pdf|audio|ogg|opus/i.test(ref.mimeType || '') && !isVideoMime(ref.mimeType));
+    const videoRefs = post.refs.filter((ref) => isVideoMime(ref.mimeType));
+    // eslint-disable-next-line no-await-in-loop
     const images = imageRefs.length ? await download(imageRefs) : [];
     // eslint-disable-next-line no-await-in-loop
-    results.push(await ingestPost({ ...post, images }, { via: 'relay', relayFrom: from, label }));
+    const videos = videoRefs.length && downloadVideos ? await downloadVideos(videoRefs) : [];
+    // eslint-disable-next-line no-await-in-loop
+    results.push(await ingestPost({ ...post, images, videos }, { via: 'relay', relayFrom: from, label }));
   }
 
   const reply = relayReceipt(results);
@@ -356,7 +367,7 @@ function relayReceipt(results) {
     sent.forEach((row, i) => lines.push(`${i + 1}. ${listingCard.listingSummaryLine(row)} (n° ${row.id})`));
   }
   if (drafts.length) {
-    lines.push(`📷 Sans photo, gardée${drafts.length > 1 ? 's' : ''} en brouillon : ${drafts.map((row) => `n° ${row.id}`).join(', ')} — transférez ses photos avec le texte.`);
+    lines.push(`📷 Sans photo ni vidéo, gardée${drafts.length > 1 ? 's' : ''} en brouillon : ${drafts.map((row) => `n° ${row.id}`).join(', ')} — transférez ses photos ou sa vidéo avec le texte.`);
   }
   if (duplicates.length) {
     lines.push(`↩️ Déjà reçue${duplicates.length > 1 ? 's' : ''} : ${[...new Set(duplicates)].map((id) => `n° ${id}`).join(', ')}`);

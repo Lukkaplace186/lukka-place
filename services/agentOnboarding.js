@@ -51,6 +51,7 @@ const db = require('./db');
 const chakra = require('./chakra');
 const { getPool, isConfigured } = require('./postgres');
 const salesReferral = require('./salesReferral');
+const { hasVisualMedia } = require('./listingMedia');
 
 const SITE_URL = (process.env.PUBLIC_SITE_URL || 'https://lukkaplace.com').replace(/\/+$/, '');
 
@@ -412,8 +413,8 @@ function activationMessage({ fullName, link, listingQueued, photoNeeded }) {
     // Without this the registration reply is silent about the listing, and the
     // agent is left assuming it went live.
     lines.push(
-      '⚠️ *Photo obligatoire* : votre bien est bien enregistré, mais il ne peut pas être publié sans photo. ' +
-        'Envoyez au moins une photo du bien pour finaliser sa publication. 📸',
+      '⚠️ *Photo ou vidéo obligatoire* : votre bien est bien enregistré, mais il ne peut pas être publié sans photo ni vidéo. ' +
+        'Envoyez au moins une photo ou une vidéo du bien pour finaliser sa publication. 📸',
     );
     lines.push('');
   }
@@ -564,9 +565,9 @@ async function completeOnboarding(waId, text, { pendingListingId = null } = {}) 
       const listing = db.getListing(pendingListingId);
       if (!listing) {
         console.warn(`[onboarding] listing #${pendingListingId} vanished before publication`);
-      } else if (!(listing.photos || []).length) {
+      } else if (!hasVisualMedia(listing)) {
         photoNeeded = true;
-        console.log(`[onboarding] listing #${pendingListingId} left pending — no photo`);
+        console.log(`[onboarding] listing #${pendingListingId} left pending — no photo or video`);
       } else {
         db.publishListing(pendingListingId);
         listingQueued = true;

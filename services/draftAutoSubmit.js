@@ -10,7 +10,7 @@
  *
  * Scheduler job `draft-auto-submit`. A draft is submitted DRAFT_AUTO_SUBMIT_HOURS
  * (default 3; 0 or "off" disables) after it was created, and only when:
- *  - it has at least one photo — the mandatory-photo rule holds on every
+ *  - it has at least one photo or video — the media rule holds on every
  *    publish path (CLAUDE.md), so a text-only draft stays pending;
  *  - the sender's plan has room for it (services/listingQuota.js, the same
  *    check the "OK" path makes; unknown sender or Postgres down → allowed).
@@ -23,6 +23,7 @@
 
 const db = require('./db');
 const listingQuota = require('./listingQuota');
+const { hasVisualMedia } = require('./listingMedia');
 
 const JOB_NAME = 'draft-auto-submit';
 const BATCH = 50;
@@ -46,13 +47,14 @@ function cutoff(now) {
 /** An over-quota draft is asked about again a day later, not every minute. */
 const BLOCKED_RETRY_HOURS = 24;
 
-// Photo-less drafts are filtered here, not after: left in the batch they
+// Drafts with no photo and no video are filtered here, not after: left in the batch they
 // would occupy its first slots forever and nothing behind them would move.
 const DUE_SQL = `
   SELECT id FROM listings
   WHERE status = 'pending_confirmation'
     AND datetime(created_at) <= datetime(@cutoff)
-    AND photos IS NOT NULL AND TRIM(photos) NOT IN ('', '[]', 'null')
+    AND ((photos IS NOT NULL AND TRIM(photos) NOT IN ('', '[]', 'null'))
+      OR (videos IS NOT NULL AND TRIM(videos) NOT IN ('', '[]', 'null')))
     AND (NOT json_valid(parsed_json) OR json_extract(parsed_json, '$.auto_submit_blocked_at') IS NULL
          OR datetime(json_extract(parsed_json, '$.auto_submit_blocked_at')) <= datetime(@retry))
   ORDER BY id
@@ -64,7 +66,7 @@ function dueDrafts(now = new Date(), limit = BATCH) {
     .prepare(DUE_SQL)
     .all({ cutoff: cutoff(now), retry, limit })
     .map(({ id }) => db.getListing(id))
-    .filter((row) => row && Array.isArray(row.photos) && row.photos.length > 0);
+    .filter((row) => row && hasVisualMedia(row));
 }
 
 /** Cheap: runs every minute. Only says yes when a submittable draft is waiting. */

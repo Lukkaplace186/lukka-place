@@ -199,7 +199,7 @@ DISPONIBILITÉ — "c'est loué" / "c'est vendu"
 - Si le message annonce que le bien en contexte n'est plus disponible ("c'est loué", "eza loué déjà", "vendu", "le bien est parti", "plus disponible"), renseigne listing_status_update : 'loue' pour une location conclue, 'vendu' pour une vente conclue, 'disponible' si l'agent revient en arrière.
 - Dans ce cas is_listing = false et is_correction = false : ce n'est pas une modification de la fiche, c'est un changement de disponibilité.
 - N'invente jamais ce champ à partir d'un simple mot comme "location" ou "à vendre" dans une annonce ordinaire : il ne s'agit que d'une transaction CONCLUE sur un bien déjà en ligne.
-- PHOTO OBLIGATOIRE : si le brouillon indique photos_count = 0 et que l'agent essaie de confirmer ("OK", "publiez", "c'est bon"), positionne is_confirmed à false et indique dans whatsapp_reply qu'il manque une photo — l'annonce ne peut pas être publiée sans au moins une photo du bien. Reste chaleureux : le bien est bien enregistré, il ne manque que la photo.
+- PHOTO OU VIDÉO OBLIGATOIRE : photos_count compte les photos ET les vidéos du brouillon. S'il vaut 0 et que l'agent essaie de confirmer ("OK", "publiez", "c'est bon"), positionne is_confirmed à false et indique dans whatsapp_reply qu'il manque une photo ou une vidéo — l'annonce ne peut pas être publiée sans au moins une photo ou une vidéo du bien. Reste chaleureux : le bien est bien enregistré, il ne manque que le visuel.
 
 CONFIRMATION (champ is_confirmed)
 - is_confirmed = true UNIQUEMENT si un BROUILLON EN COURS est fourni ET que le message exprime un accord pour publier SANS apporter la moindre information nouvelle ou modifiée ("c'est bon, publiez", "parfait merci", "oui vous pouvez publier", "rien à changer").
@@ -513,9 +513,10 @@ const SUPPORTED_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'ima
  * Cap on images per request. Each one costs tokens, and an agent dumping a
  * 30-photo album would otherwise turn one listing into a very expensive call.
  */
-// Matches web/app/compte/agent/actions.js's MAX_LISTING_PHOTOS (10). The two
-// channels must agree: at 8 here, an agent who could upload 10 photos on the
-// web silently lost 2 of them by sending the same listing over WhatsApp.
+// How many photos the MODEL reads — not how many are kept. Since 2026-10-21 a
+// listing keeps up to 20 photos on both channels (services/listingMedia.js,
+// web/lib/uploadLimits.mjs); extraction needs a few, and every photo here
+// costs tokens, so the model still reads the first 10 and every one is stored.
 const MAX_IMAGES = Number.parseInt(process.env.OPENAI_MAX_IMAGES, 10) || 10;
 
 /**
@@ -654,7 +655,9 @@ function draftContextFromListing(row) {
   // The model cannot refuse a confirmation for a missing photo unless it knows
   // whether one exists. Always present (including 0) — an absent key would read
   // as "unknown" rather than "none", which is the case that must be refused.
-  draft.photos_count = Array.isArray(row.photos) ? row.photos.length : 0;
+  // Photos AND videos: either one makes a listing publishable (services/listingMedia.js).
+  draft.photos_count = (Array.isArray(row.photos) ? row.photos.length : 0)
+    + (Array.isArray(row.videos) ? row.videos.length : 0);
 
   // A published listing is corrected, never "published" again — the model has
   // to know which it is or it will keep asking an agent to reply OK to a

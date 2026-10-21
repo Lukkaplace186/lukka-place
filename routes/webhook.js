@@ -40,6 +40,7 @@ const FALLBACK_QUIET_MS = 30 * 60 * 1000;
 const { extractPdfText } = require('../services/documentText');
 const onboarding = require('../services/agentOnboarding');
 const listingBoundary = require('../services/listingBoundary');
+const groupRelay = require('../services/groupRelay');
 const listingCard = require('../services/listingCard');
 const voiceNotes = require('../services/voiceNotes');
 const phoneChallenges = require('../services/phoneChallenges');
@@ -910,6 +911,21 @@ async function processGroup(messages) {
         });
         return;
       }
+    }
+
+    // GROUP RELAY (services/groupRelay.js). The Cloud API never delivers group
+    // messages, so staff forward brokers' group posts from a relay number
+    // (RELAY_NUMBERS). Each post becomes its own listing straight in the
+    // approval queue: no draft, no "OK", no onboarding, and nothing claims the
+    // burst before this — a relayed post is never a correction of anything.
+    if (groupRelay.isRelaySender(from)) {
+      await groupRelay.handleRelayBurst({
+        from,
+        messages,
+        download: (refs) => downloadImages(refs, label),
+        replyToMessageId: primaryWamid || undefined,
+      });
+      return;
     }
 
     // A listing already awaits this sender's 'OK' — settle that conversation

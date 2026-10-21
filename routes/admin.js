@@ -1544,8 +1544,18 @@ router.post('/properties/:remotePropertyId/notify', async (req, res) => {
 
   // A WhatsApp submission is found through SQLite; a listing typed on the
   // website has no row here, so its own (phone-verified) agent is told instead.
-  const listing = db.getListingByRemotePropertyId(remotePropertyId)
-    || moderationListingFromRepository(await propertyRepository.getModerationRecipient(remotePropertyId));
+  let listing = db.getListingByRemotePropertyId(remotePropertyId);
+  // A post captured in a WhatsApp group (services/groupRelay.js): its poster
+  // never sent it to us, so "votre annonce a été validée" to the number the
+  // engine filed it under would come from a stranger. The verdict goes to the
+  // agent a moderator attached (phone-verified), or to nobody.
+  const groupCapture = listing?.parsed_json?.source === 'whatsapp-group';
+  if (!listing || groupCapture) {
+    listing = moderationListingFromRepository(await propertyRepository.getModerationRecipient(remotePropertyId));
+  }
+  if (!listing && groupCapture) {
+    return res.status(200).json({ success: true, queued: false, skipped: 'group-capture' });
+  }
   if (!listing) {
     return res.status(404).json({ success: false, error: 'No submitter or verified agent found for this property.' });
   }

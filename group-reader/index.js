@@ -162,8 +162,10 @@ async function main() {
       logger,
       browser: Browsers.ubuntu('Chrome'),
       markOnlineOnConnect: false, // also makes delivery receipts "inactive": no blue ticks
+      // The normal (not full) history sync stays on: it carries the LID →
+      // phone mappings phoneOf() needs, and Baileys warns that sessions are
+      // unstable without it. Its messages arrive as 'append' and are ignored.
       syncFullHistory: false,
-      shouldSyncHistoryMessage: () => false,
       emitOwnEvents: false,
       generateHighQualityLinkPreview: false,
       getMessage: async () => undefined,

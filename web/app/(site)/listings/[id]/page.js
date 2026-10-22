@@ -25,6 +25,7 @@ import PropertyDescription from '@/components/listings/PropertyDescription';
 import AvailabilityConfirmedBadge from '@/components/listings/AvailabilityConfirmedBadge';
 import MarketMedianLine from '@/components/listings/MarketMedianLine';
 import UtilityBadges from '@/components/listings/UtilityBadges';
+import PracticalDetails from '@/components/listings/PracticalDetails';
 import ListingVideos from '@/components/listings/ListingVideos';
 import { listingVideos } from '@/lib/listingVideos';
 import ListingSectionNav from '@/components/listings/ListingSectionNav';
@@ -356,6 +357,10 @@ export default async function ListingDetailPage({ params, searchParams }) {
 
             {/* Power, water, security, access — as the agent declared them. */}
             <UtilityBadges utilities={listing.utilities} />
+
+            {/* Meublé, the parcelle's households, toilet / shower, meter, plot
+                size and price per m², paiement échelonné — as declared. */}
+            <PracticalDetails listing={listing} />
 
             {/* Streams in: a like-for-like median of live listings in the
                 commune, only from 5 comparables up (MarketMedianLine). */}

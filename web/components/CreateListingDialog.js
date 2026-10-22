@@ -11,6 +11,8 @@ import { OPEN_CREATE_LISTING_EVENT, OPEN_CREATE_LISTING_STORAGE_KEY } from '@/li
 import { useT } from '@/lib/i18n/client';
 import SmartPasteSection from './SmartPasteSection';
 import CommercialSpecFields from './CommercialSpecFields';
+import ListingDetailFields, { applyDetailsToForm } from './ListingDetailFields';
+import { detailSections } from '@/lib/listingDetails';
 import { isCommercial } from '@/lib/commercialSpaces';
 import { buildFormValuesFromParsed } from '@/lib/smartPaste';
 import { validatePhotoSelection } from '@/lib/uploadLimits.mjs';
@@ -30,6 +32,7 @@ const AUTOSAVE_DELAY_MS = 700;
 const DRAFT_FIELDS = [
   'title', 'reference', 'purpose', 'category_id', 'commune', 'price', 'beds', 'bath', 'area', 'quartier', 'description',
   'office_count', 'floor_level', 'road_frontage', 'truck_access',
+  'furnished', 'households_count', 'landlord_on_site', 'toilet_location', 'shower_location', 'electricity_meter',
 ];
 
 /**
@@ -101,9 +104,12 @@ export default function CreateListingDialog({ communes, categories, draftKey = n
   // The select is uncontrolled and also filled by drafts and smart paste,
   // which fire no change event, so every one of those paths calls this.
   const [categoryId, setCategoryId] = useState('');
-  const commercialCategory = isCommercial(categories.find((c) => c.id === Number(categoryId)));
+  const [purposeValue, setPurposeValue] = useState('');
+  const pickedCategory = categories.find((c) => c.id === Number(categoryId));
+  const commercialCategory = isCommercial(pickedCategory);
   function syncCategory() {
     setCategoryId(formRef.current?.elements?.category_id?.value ?? '');
+    setPurposeValue(formRef.current?.elements?.purpose?.value ?? '');
   }
   // True once the stored draft (if any) has been applied to the open form, so
   // an autosave can never overwrite a real draft with the still-empty form.
@@ -391,6 +397,7 @@ export default function CreateListingDialog({ communes, categories, draftKey = n
     if (mapped.floorLevel != null) form.elements.floor_level.value = String(mapped.floorLevel);
     if (mapped.roadFrontage) form.elements.road_frontage.checked = true;
     if (mapped.truckAccess) form.elements.truck_access.checked = true;
+    applyDetailsToForm(form, mapped.details);
     syncCategory();
     scheduleAutosave();
   }
@@ -550,7 +557,7 @@ export default function CreateListingDialog({ communes, categories, draftKey = n
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="purpose" className={LABEL_CLASS}>{t('common.shared.transaction')}</label>
-              <select id="purpose" name="purpose" required defaultValue="" className={FIELD_CLASS}>
+              <select id="purpose" name="purpose" required defaultValue="" onChange={syncCategory} className={FIELD_CLASS}>
                 <option value="" disabled>{t('common.shared.choose')}</option>
                 <option value="rent">{t('common.shared.rentVerb')}</option>
                 <option value="sale">{t('common.shared.sellVerb')}</option>
@@ -620,6 +627,12 @@ export default function CreateListingDialog({ communes, categories, draftKey = n
           </div>
 
           <CommercialSpecFields hidden={!commercialCategory} fieldClass={FIELD_CLASS} labelClass={LABEL_CLASS} />
+
+          <ListingDetailFields
+            sections={detailSections({ categoryName: pickedCategory?.name, categoryType: pickedCategory?.type, purpose: purposeValue })}
+            fieldClass={FIELD_CLASS}
+            labelClass={LABEL_CLASS}
+          />
 
           {/* Surface and quartier were the two fields the WhatsApp intake
               captured and this form did not, so a listing typed here was

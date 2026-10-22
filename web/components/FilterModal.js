@@ -67,10 +67,12 @@ export default function FilterModal({
   const {
     propertyType = '', priceMin = '', priceMax = '', bedsMin = '', bathMin = '',
     quartier = '', parcelleSubtype = '', depositRange = '', leaseTerm = '', amenities = [],
+    plotMin = '', plotMax = '',
   } = values;
   const {
     setPropertyType, setPriceMin, setPriceMax, setBedsMin, setBathMin,
     setCommune, setQuartier, setParcelleSubtype, setDepositRange, setLeaseTerm, setAmenities,
+    setPlotMin, setPlotMax,
   } = setters;
 
   function reset() {
@@ -85,6 +87,8 @@ export default function FilterModal({
     setDepositRange?.('');
     setLeaseTerm?.('');
     setAmenities?.([]);
+    setPlotMin?.('');
+    setPlotMax?.('');
   }
 
   return (
@@ -206,8 +210,8 @@ export default function FilterModal({
             locations={locations}
             commune={commune}
             propertyType={propertyType}
-            values={{ quartier, parcelleSubtype, depositRange, amenities }}
-            setters={{ setCommune, setQuartier, setParcelleSubtype, setDepositRange, setAmenities }}
+            values={{ quartier, parcelleSubtype, depositRange, amenities, plotMin, plotMax }}
+            setters={{ setCommune, setQuartier, setParcelleSubtype, setDepositRange, setAmenities, setPlotMin, setPlotMax }}
             includeBedsBaths={false}
           />
         </div>

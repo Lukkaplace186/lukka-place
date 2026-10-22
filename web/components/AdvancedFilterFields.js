@@ -5,6 +5,8 @@ import { useMemo } from 'react';
 import { PARCELLE_SUBTYPES, AMENITY_GROUPS, DEPOSIT_RANGE_OPTIONS } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
 
+const PLOTLESS_TYPES = ['appartement', 'studio', 'chambre', 'chambre / annexe', 'penthouse', 'bureau', 'boutique'];
+
 const selectClass =
   'u-focus-ring w-full rounded-md border border-line bg-canvas px-3 py-2.5 text-sm text-ink ' +
   'disabled:cursor-not-allowed disabled:opacity-50';
@@ -58,8 +60,10 @@ export default function AdvancedFilterFields({
   setters = {},
   includeBedsBaths = true,
 }) {
-  const { quartier = '', parcelleSubtype = '', bedsMin = '', bathMin = '', depositRange = '', amenities = [] } = values;
-  const { setCommune, setQuartier, setParcelleSubtype, setBedsMin, setBathMin, setDepositRange, setAmenities } = setters;
+  const { quartier = '', parcelleSubtype = '', bedsMin = '', bathMin = '', depositRange = '', amenities = [], plotMin = '', plotMax = '' } = values;
+  const { setCommune, setQuartier, setParcelleSubtype, setBedsMin, setBathMin, setDepositRange, setAmenities, setPlotMin, setPlotMax } = setters;
+  // A flat, a room or a shop has no land of its own to size.
+  const showPlot = !PLOTLESS_TYPES.includes(String(propertyType || '').toLowerCase());
 
   const t = useT();
 
@@ -210,6 +214,34 @@ export default function AdvancedFilterFields({
           </div>
         </div>
       </Field>
+
+      {showPlot && setPlotMin ? (
+        <Field label={t('listings.details.filter.plotLabel')} hint={t('listings.details.filter.plotHint')}>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min="0"
+              inputMode="numeric"
+              value={plotMin}
+              onChange={(e) => setPlotMin(e.target.value)}
+              placeholder={t('listings.details.filter.plotMin')}
+              aria-label={t('listings.details.filter.plotMin')}
+              className={selectClass}
+            />
+            <span className="text-ink-45" aria-hidden="true">–</span>
+            <input
+              type="number"
+              min="0"
+              inputMode="numeric"
+              value={plotMax}
+              onChange={(e) => setPlotMax(e.target.value)}
+              placeholder={t('listings.details.filter.plotMax')}
+              aria-label={t('listings.details.filter.plotMax')}
+              className={selectClass}
+            />
+          </div>
+        </Field>
+      ) : null}
 
       <p className="text-xs text-ink-45">{t('listings.filters.textMatchNote')}</p>
     </>

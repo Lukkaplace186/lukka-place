@@ -17,6 +17,8 @@ import { shrinkPhotos } from '@/lib/photoShrink';
 import AgentPhotoSorter from './AgentPhotoSorter';
 import { UTILITY_FILTERS, UTILITY_FILTER_KEYS, normaliseUtilities, utilityLabelKey } from '@/lib/utilityTags';
 import CommercialSpecFields from './CommercialSpecFields';
+import ListingDetailFields, { applyDetailsToForm } from './ListingDetailFields';
+import { detailSections, detailsOf } from '@/lib/listingDetails';
 import { commercialSpecsOf, isCommercial } from '@/lib/commercialSpaces';
 import { RENT_PERIOD_OPTIONS, normaliseRentPeriod, rentPeriodLabel } from '@/lib/leaseTerm';
 import CommuneOptions from './CommuneOptions';
@@ -178,6 +180,8 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
     // the form holds their whole current state (an unticked box is "not
     // stated"), and the server only writes them when the category is one.
     if (commercial) formData.set('commercial_touched', '1');
+    // The details fieldset always holds the whole current state.
+    formData.set('details_touched', '1');
     formData.delete('utilities');
     formData.set('utilities_touched', utilitiesTouched ? '1' : '0');
     if (utilitiesTouched) for (const code of utilities) formData.append('utilities', code);
@@ -260,6 +264,7 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
     if (mapped.bath) form.elements.bath.value = mapped.bath;
     if (mapped.unitsCount) form.elements.units_count.value = mapped.unitsCount;
     if (mapped.depositMonths) form.elements.deposit_months.value = mapped.depositMonths;
+    applyDetailsToForm(form, mapped.details);
     if (commercial) {
       if (mapped.officeCount != null) form.elements.office_count.value = mapped.officeCount;
       if (mapped.floorLevel != null) form.elements.floor_level.value = String(mapped.floorLevel);
@@ -468,6 +473,15 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
             />
           </div>
         ) : null}
+
+        <div id="details">
+          <ListingDetailFields
+            defaults={detailsOf(listing)}
+            sections={detailSections({ categoryName: listing.category_name_fr, categoryType: listing.category_type, purpose: listing.purpose })}
+            fieldClass={FIELD_CLASS}
+            labelClass={LABEL_CLASS}
+          />
+        </div>
       </div>
 
       <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-4 sm:p-6">

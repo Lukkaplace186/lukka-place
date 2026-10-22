@@ -3023,3 +3023,37 @@ reads the categories table, so the dropdowns change with the migration.
   use Building / Fence icons; the detail map pin draws an Immeuble as a building.
 - Smart paste tries "immeuble" then "batiment" (`matchCategoryId` takes a list).
 
+## Practical listing details and four more types (2026-10-22)
+
+Model and engine half: root CLAUDE.md, same heading. `lib/listingDetails.js`
+(pure: rules, plot parser, SQL), `components/ListingDetailFields.js` (form
+fieldset), `components/listings/PracticalDetails.js` (listing page).
+Tests: `tests/unit/listing-details.test.js`.
+
+- **Reads** go through `DETAILS_SQL` (one `listing_details` jsonb via
+  to_jsonb) in the public and moderation selects and the agent editor's.
+- **Listing page**: "Détails pratiques", captioned "Déclaré par l'agent" —
+  meublé, households, landlord, toilet / shower, meter, plot size (m² · ares /
+  ha, plus the agent's own words) with "≈ N $ le m²" on a sale, paiement
+  échelonné + terms. Renders nothing when nothing is stated.
+- **Filters**: a **Meublé** chip in the row under the search bar
+  (`amenities=furnished`, now the `furnished` column OR the words, and a
+  listing the agent marked unfurnished is left out); **Taille du terrain**
+  (`plot_min` / `plot_max`, m²) in both filter sheets, hidden for
+  plotless types — it reads `plot_area_m2`, else the `area` of a listing
+  whose category IS land (`PLOT_M2_SQL`). Chips, saved-search labels, map and
+  count endpoint carry both.
+- **Search box**: "5 ares", "20x30", "1 ha", "600 m²" → `plot_min` (read
+  before prices, so "600 m²" is never $600); "meublé" → Meublé ("non" /
+  "semi-meublé" do not count); "studio", "annexe", "chambre à louer", "salle
+  de fête", "ferme", "terrain agricole" → their types. "2 chambres" stays a
+  bedroom count. `?property_type=studio` also matches Appartement listings
+  whose title says studio (filed before the category existed).
+- **Forms** (agent create, agent editor, admin editor, admin create): the
+  fieldset with "Non précisé" defaults; the plot field shows the computed
+  size live. Sections hide by category + purpose (`detailSections`), and
+  `setListingDetails` / `adminSetListingDetails` re-gate on the row's REAL
+  category and purpose. Smart paste fills it.
+- New types: plurals, landing pages `/studios`, `/chambres`,
+  `/salles-de-fete`, `/fermes`, tile icons, pin kind (a farm is land).
+

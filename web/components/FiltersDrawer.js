@@ -40,6 +40,8 @@ export default function FiltersDrawer({
     setBathMin?.('');
     setDepositRange?.('');
     setAmenities?.([]);
+    setters.setPlotMin?.('');
+    setters.setPlotMax?.('');
   }
 
   return (

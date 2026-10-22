@@ -11268,7 +11268,7 @@ console.log('\n2. services/openai.js');
     const repoSource = fs.readFileSync(path.join(__dirname, '..', 'services', 'propertyRepository.js'), 'utf8');
     assert.ok(repoSource.includes("immeuble: ['immeuble', 'bâtiment']"), 'buyer search still finds Immeuble under its old name');
     const prompt = fs.readFileSync(path.join(__dirname, '..', 'services', 'openai.js'), 'utf8');
-    assert.match(prompt, /'terrain', 'concession', 'bureau'/, 'concession is an extraction type');
+    assert.match(prompt, /'terrain', 'concession', /, 'concession is an extraction type');
     assert.match(prompt, /CONCESSION/);
   });
 
@@ -11338,7 +11338,7 @@ console.log('\n2. services/openai.js');
     const source = fs.readFileSync(path.join(__dirname, '..', 'services', 'propertyRepository.js'), 'utf8');
     assert.match(source, /propertyType === 'commercial'[\s\S]{0,200}LOWER\(cat\.type\) = 'commercial'/);
     const tool = fs.readFileSync(path.join(__dirname, '..', 'services', 'openai.js'), 'utf8');
-    assert.ok(tool.includes("enum: ['appartement', 'parcelle', 'villa', 'concession', 'commercial', 'bureau', 'boutique', 'entrepot', 'immeuble']"));
+    assert.ok(tool.includes("enum: ['appartement', 'studio', 'chambre', 'parcelle', 'villa', 'concession', 'ferme', 'commercial', 'bureau', 'boutique', 'entrepot', 'immeuble', 'salle_de_fete']"));
   });
 
   check('web keeps the same specs and bounds', () => {
@@ -12433,6 +12433,95 @@ console.log('\n2. services/openai.js');
       const long = repo64.buildFilters({ leaseTerm: 'long' });
       assert.ok(long.whereClause.includes("COALESCE(p.price_period, 'mois') NOT IN ('jour', 'semaine')"));
       assert.ok(!repo64.buildFilters({ leaseTerm: 'x' }).whereClause.includes('jour'), 'an unknown value filters nothing');
+    });
+  }
+
+  // ===========================================================================
+  // 65. Practical details and four more types (2026-10-22) — services/listingDetails.js
+  // ===========================================================================
+
+  console.log('\n65. Practical details and four more types');
+
+  {
+    const details65 = require('../services/listingDetails');
+    const openai65 = require('../services/openai');
+    const card65 = require('../services/listingCard');
+    const repo65 = require('../services/propertyRepository');
+
+    check('plot sizes are read the way agents write them, never from the model', () => {
+      for (const [text, m2] of details65.PLOT_AREA_FIXTURES) assert.strictEqual(details65.parsePlotArea(text), m2, text);
+      const extracted = { property_type: 'terrain', transaction_type: 'vente', plot_dimensions: '20x30', plot_area_m2: 9999 };
+      openai65.normaliseCommercialExtraction(extracted);
+      assert.strictEqual(extracted.plot_area_m2, 600, 'the model\'s own arithmetic is replaced');
+    });
+
+    check('every extraction schema asks for the details, and the prompt says how', () => {
+      const required = openai65.RESPONSE_FORMAT.json_schema.schema.properties.extracted_data.required;
+      for (const field of ['households_count', 'landlord_on_site', 'toilet_location', 'shower_location', 'electricity_meter', 'plot_dimensions', 'installments_available', 'installment_terms']) {
+        assert.ok(required.includes(field), `listing schema: ${field}`);
+        assert.ok(openai65.LISTING_FORM_RESPONSE_FORMAT.json_schema.schema.required.includes(field), `form schema: ${field}`);
+      }
+      assert.match(openai65.SYSTEM_PROMPT, /VIE DANS LA PARCELLE/);
+      assert.match(openai65.SYSTEM_PROMPT, /Cash Power/);
+      for (const type of ['studio', 'chambre', 'salle_de_fete', 'ferme']) assert.ok(openai65.PROPERTY_TYPES.includes(type), type);
+    });
+
+    check('a field the property cannot have is dropped, on insert and on correction', () => {
+      const id = (dbService.insertListing(
+        { is_listing: true, property_type: 'ferme', transaction_type: 'vente', commune: 'Maluku', price: 40000, plot_dimensions: '2 ha', households_count: 3, toilet_location: 'interieur', installments_available: true, installment_terms: '30 % puis 12 mois' },
+        '243970006501', { rawText: 'Ferme 2 ha Maluku 40000$ payable en tranches' },
+      )).id;
+      let row = dbService.getListing(id);
+      assert.strictEqual(row.plot_area_m2, 20000);
+      assert.strictEqual(row.households_count, null, 'a farm has no households');
+      assert.strictEqual(row.toilet_location, null);
+      assert.strictEqual(row.installments_available, true);
+      dbService.applyListingCorrection(id, { plot_dimensions: '5 ares' }, 'non 5 ares');
+      row = dbService.getListing(id);
+      assert.strictEqual(row.plot_area_m2, 500, 'the area follows the corrected dimensions');
+      const rent = (dbService.insertListing(
+        { is_listing: true, property_type: 'appartement', transaction_type: 'location', commune: 'Gombe', price: 800, plot_dimensions: '15/20', installments_available: true, furnished: true },
+        '243970006502', { rawText: 'Appartement meublé Gombe 800$' },
+      )).id;
+      const flat = dbService.getListing(rent);
+      assert.strictEqual(flat.plot_dimensions, null, 'a flat has no plot');
+      assert.strictEqual(flat.installments_available, null, 'a rent is not paid in instalments');
+      assert.strictEqual(flat.furnished, true);
+    });
+
+    check('the intake card shows what the agent stated about the parcelle', () => {
+      const text = card65.renderListingCard({
+        transaction_type: 'location', property_type: 'parcelle', parcelle_subtype: 'maison_type_locataire', commune: 'Lemba', price: 150,
+        furnished: false, households_count: 4, landlord_on_site: true, toilet_location: 'exterieur', shower_location: 'interieur',
+        electricity_meter: 'prepaye', plot_dimensions: '15/20', plot_area_m2: 300,
+      });
+      for (const line of ['*Meublé* : Non', '*Ménages dans la parcelle* : 4', '*Bailleur sur place* : Oui', '*Toilettes* : extérieures', '*Douche* : intérieure', 'Cash Power', '*Terrain* : 15/20 (300 m² · 3 ares)']) {
+        assert.ok(text.includes(line), line);
+      }
+      assert.ok(!card65.renderListingCard({ property_type: 'appartement', price: 500 }).includes('Ménages'), 'nothing stated, nothing shown');
+    });
+
+    check('the sync writes the details on INSERT only, in a SAVEPOINT tolerant of missing columns', () => {
+      const source = fs.readFileSync(path.join(__dirname, '..', 'services', 'postgres.js'), 'utf8');
+      assert.match(source, /SAVEPOINT lukka_details[\s\S]{0,900}42703/);
+      assert.match(source, /ferme: \['ferme \/ terrain agricole', 'terrain'\]/);
+      assert.match(source, /studio: \['studio', 'appartement'\]/);
+      const cats = new Map([['studio', { id: 47 }], ['chambre / annexe', { id: 48 }], ['salle de fete', { id: 49 }], ['ferme / terrain agricole', { id: 50 }], ['appartement', { id: 34 }], ['terrain', { id: 42 }], ['boutique', { id: 40 }]]);
+      assert.strictEqual(postgresService.resolveCategory('studio', cats).id, 47);
+      assert.strictEqual(postgresService.resolveCategory('chambre', cats).id, 48);
+      assert.strictEqual(postgresService.resolveCategory('salle_de_fete', cats).id, 49);
+      assert.strictEqual(postgresService.resolveCategory('ferme', cats).id, 50);
+      const before = new Map([['appartement', { id: 34 }], ['terrain', { id: 42 }], ['boutique', { id: 40 }]]);
+      assert.strictEqual(postgresService.resolveCategory('ferme', before).id, 42, 'a farm is Terrain before the migration');
+      assert.strictEqual(postgresService.resolveCategory('chambre', before).id, 34);
+    });
+
+    check('the buyer assistant searches the new types; an event hall is commercial', () => {
+      const ferme = repo65.buildFilters({ propertyType: 'ferme' });
+      assert.ok(ferme.params.some((p) => Array.isArray(p) && p.includes('ferme / terrain agricole')));
+      assert.ok(require('../services/commercial').isCommercialType('salle_de_fete'));
+      const web = path.join(__dirname, '..', 'web', 'lib', 'listingDetails.js');
+      if (fs.existsSync(web)) assert.ok(fs.readFileSync(web, 'utf8').includes("['5,30m sur 18m', 95.4]"), 'web keeps the same fixtures');
     });
   }
 

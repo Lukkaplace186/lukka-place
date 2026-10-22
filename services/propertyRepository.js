@@ -119,6 +119,10 @@ const CATEGORY_NAME_BY_SEARCH_TYPE = {
   immeuble: ['immeuble', 'bâtiment'],
   villa: ['villa'],
   concession: ['concession'],
+  studio: ['studio'],
+  chambre: ['chambre / annexe'],
+  ferme: ['ferme / terrain agricole'],
+  salle_de_fete: ['salle de fête'],
 };
 
 const SEARCH_LIMIT_DEFAULT = 8;

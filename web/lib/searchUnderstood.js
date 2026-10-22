@@ -10,6 +10,9 @@
  */
 import { communeLabel } from './cities';
 
+// Types whose code is not a readable word.
+const TYPE_LABELS = { salle_de_fete: 'Salle de fête', chambre: 'Chambre / annexe', ferme: 'Ferme / terrain agricole', terrain_nu: 'Terrain' };
+
 export function understoodChips(parsed, t) {
   if (!parsed) return [];
   const chips = [];
@@ -17,7 +20,12 @@ export function understoodChips(parsed, t) {
   if (parsed.transaction_type === 'vente') chips.push({ key: 'tx', label: t('home.search.buy') });
   if (parsed.property_type) {
     const type = parsed.parcelle_subtype || parsed.property_type;
-    chips.push({ key: 'type', label: type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, ' ') });
+    const label = TYPE_LABELS[type] || type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, ' ');
+    chips.push({ key: 'type', label });
+  }
+  if (parsed.amenities?.includes('furnished')) chips.push({ key: 'furnished', label: t('listings.amenities.furnished') });
+  if (parsed.plot_min != null) {
+    chips.push({ key: 'plot', label: t('listings.details.filter.chipMin', { min: Number(parsed.plot_min).toLocaleString(t.locale === 'en' ? 'en-GB' : 'fr-FR') }) });
   }
   if (parsed.near) chips.push({ key: 'near', label: t('home.search.near', { place: parsed.near }) });
   else if (parsed.commune) {

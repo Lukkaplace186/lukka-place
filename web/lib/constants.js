@@ -68,6 +68,14 @@ export const PROPERTY_TYPE_PLURAL_KEYS = {
   immeuble: 'listings.typePlurals.immeuble',
   villa: 'listings.typePlurals.villa',
   concession: 'listings.typePlurals.concession',
+  // 2026-10-22 categories: facet value (lowercased name) and search code.
+  studio: 'listings.typePlurals.studio',
+  'chambre / annexe': 'listings.typePlurals.chambre',
+  chambre: 'listings.typePlurals.chambre',
+  'salle de fête': 'listings.typePlurals.salleDeFete',
+  salle_de_fete: 'listings.typePlurals.salleDeFete',
+  'ferme / terrain agricole': 'listings.typePlurals.ferme',
+  ferme: 'listings.typePlurals.ferme',
   boutique: 'listings.typePlurals.boutique',
   entrepot: 'listings.typePlurals.entrepot',
   // The facet value is the category name lowercased, accent kept

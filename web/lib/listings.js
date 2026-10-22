@@ -10,6 +10,7 @@ import { UTILITY_FILTERS } from './utilityTags';
 import { COMMERCIAL_FILTER_VALUE } from './commercialSpaces';
 import { VIDEOS_SQL } from './listingVideos';
 import { longTermSql, normaliseLeaseTerm, shortTermSql } from './leaseTerm';
+import { DETAILS_SQL, PLOT_M2_SQL, plotBounds } from './listingDetails';
 
 /**
  * Every read against `properties` filters on this — no exceptions. There is
@@ -260,6 +261,10 @@ const SELECT_FIELDS = `
   -- Kinshasa utility codes the agent stated (lib/utilityTags.js); a jsonb
   -- array, [] before the migration or when none were stated.
   COALESCE(to_jsonb(p) -> 'utilities', '[]'::jsonb) AS utilities,
+  -- Practical details (lib/listingDetails.js): furnished, households, landlord,
+  -- toilet / shower, meter, plot size, instalments — one jsonb, nulls before
+  -- the engine migration.
+  ${DETAILS_SQL} AS listing_details,
   pc.description,
   a.id AS agent_id, a.image AS agency_logo_url, ${AGENCY_NAME_EXPR},
   -- DIRECT-TO-AGENT ROUTING. The agent's number reaches a public page only
@@ -426,13 +431,21 @@ function communeListOf({ commune, communes } = {}) {
  * category existed, the only kind there was.
  */
 const CATEGORY_ALIASES = {
+  // 2026-10-22: Studio, Chambre / Annexe, Salle de fête and Ferme / Terrain
+  // agricole became categories. A studio filed under Appartement before then
+  // still says so in its title.
+  studio: { names: ['studio'], titleWord: 'studio' },
+  chambre: { names: ['chambre / annexe'] },
+  annexe: { names: ['chambre / annexe'] },
+  ferme: { names: ['ferme / terrain agricole'] },
+  salle_de_fete: { names: ['salle de fête'] },
   immeuble: { names: ['immeuble', 'bâtiment'] },
   'bâtiment': { names: ['immeuble', 'bâtiment'] },
   batiment: { names: ['immeuble', 'bâtiment'] },
   villa: { names: ['villa'], parcelleSubtype: 'villa' },
 };
 
-function buildFilters({ transactionType, propertyType, parcelleSubtype, commune, communes, quartier, radius, near, reference, priceMin, priceMax, bedsMin, bathMin, depositMax, depositRange, leaseTerm, amenities, search, excludeId, agentId, ids, ville }) {
+function buildFilters({ transactionType, propertyType, parcelleSubtype, commune, communes, quartier, radius, near, reference, priceMin, priceMax, bedsMin, bathMin, depositMax, depositRange, leaseTerm, plotMin, plotMax, amenities, search, excludeId, agentId, ids, ville }) {
   const where = [APPROVED_FILTER];
   const params = [];
 
@@ -447,6 +460,19 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
   // standard (lib/leaseTerm.js). Either one implies a rental.
   const term = normaliseLeaseTerm(leaseTerm);
   if (term) where.push(term === 'short' ? shortTermSql('p') : longTermSql('p'));
+
+  // Taille du terrain, in m² (lib/listingDetails.js): the stated plot, else
+  // the area of a listing whose category IS land. A listing with no known
+  // size never matches a size filter.
+  const plot = plotBounds(plotMin, plotMax);
+  if (plot.plotMin) {
+    params.push(plot.plotMin);
+    where.push(`${PLOT_M2_SQL} >= $${params.length}`);
+  }
+  if (plot.plotMax) {
+    params.push(plot.plotMax);
+    where.push(`${PLOT_M2_SQL} <= $${params.length}`);
+  }
 
   const minPrice = Number.parseFloat(priceMin);
   if (Number.isFinite(minPrice)) {
@@ -568,6 +594,13 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
         params.push(`\\y${escapeRegex(keyword)}`);
         return keywordTextMatch(params.length);
       });
+      // Meublé: the agent's stated `furnished` (lib/listingDetails.js) OR the
+      // words, for the many listings that predate the column. A listing the
+      // agent marked unfurnished is left out even if its text says "meublé".
+      if (key === 'furnished') {
+        where.push(`(to_jsonb(p) ->> 'furnished' = 'true' OR (COALESCE(to_jsonb(p) ->> 'furnished', '') <> 'false' AND (${group.join(' OR ')})))`);
+        continue;
+      }
       where.push(`(${group.join(' OR ')})`);
     }
   }
@@ -583,9 +616,13 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
     // types 'commercial' (lib/commercialSpaces.js), not a list of names.
     where.push(`LOWER(cat.type) = 'commercial'`);
   } else if (propertyType && CATEGORY_ALIASES[propertyType.toLowerCase()]) {
-    const { names, parcelleSubtype: aliasSubtype } = CATEGORY_ALIASES[propertyType.toLowerCase()];
+    const { names, parcelleSubtype: aliasSubtype, titleWord } = CATEGORY_ALIASES[propertyType.toLowerCase()];
     params.push(names);
-    const byName = `LOWER(catc.name) = ANY($${params.length})`;
+    let byName = `LOWER(catc.name) = ANY($${params.length})`;
+    if (titleWord) {
+      params.push(`\\y${escapeRegex(titleWord)}`);
+      byName = `(${byName} OR (LOWER(catc.name) = 'appartement' AND pc.title ~* $${params.length}))`;
+    }
     if (aliasSubtype) {
       params.push(aliasSubtype);
       where.push(`(${byName} OR p.parcelle_subtype = $${params.length})`);
@@ -1521,6 +1558,7 @@ const MODERATION_SELECT_FIELDS = `
      'road_frontage', j -> 'road_frontage', 'truck_access', j -> 'truck_access')
    FROM (SELECT to_jsonb(p) AS j) spec) AS commercial_specs,
   cat.type AS category_type,
+  ${DETAILS_SQL} AS listing_details,
   (pc.id IS NULL) AS missing_content,
   (catc.id IS NULL) AS missing_category,
   a.id AS agent_id, a.image AS agency_logo_url, ${AGENCY_NAME_EXPR}, a.phone AS agent_phone,

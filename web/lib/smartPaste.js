@@ -61,7 +61,8 @@ const CATEGORY_HINTS_BY_SUBTYPE = {
 
 const CATEGORY_HINTS_BY_TYPE = {
   appartement: 'appartement',
-  studio: 'appartement',
+  studio: ['studio', 'appartement'],
+  chambre: ['annexe', 'appartement'],
   duplex: 'appartement',
   chambre_salon: 'appartement',
   villa: 'villa',
@@ -69,6 +70,8 @@ const CATEGORY_HINTS_BY_TYPE = {
   parcelle: 'maison',
   terrain: 'terrain',
   concession: 'concession',
+  ferme: ['ferme', 'terrain'],
+  salle_de_fete: ['salle de fete', 'boutique'],
   bureau: 'bureau',
   boutique: 'boutique',
   entrepot: 'entrepot',
@@ -191,6 +194,19 @@ export function buildFormValuesFromParsed(extracted, { communes, categories = []
     floorLevel: Number.isInteger(extracted.floor_level) ? extracted.floor_level : null,
     roadFrontage: extracted.road_frontage === true,
     truckAccess: extracted.truck_access === true,
+    // Practical details (lib/listingDetails.js), raw: ListingDetailFields'
+    // applyDetailsToForm writes only what was stated.
+    details: {
+      furnished: extracted.furnished ?? null,
+      households_count: extracted.households_count ?? null,
+      landlord_on_site: extracted.landlord_on_site ?? null,
+      toilet_location: extracted.toilet_location ?? null,
+      shower_location: extracted.shower_location ?? null,
+      electricity_meter: extracted.electricity_meter ?? null,
+      plot_dimensions: extracted.plot_dimensions ?? null,
+      installments_available: extracted.installments_available ?? null,
+      installment_terms: extracted.installment_terms ?? null,
+    },
     amenityIds,
     description: cleanDescription(extracted.description_fr),
   };

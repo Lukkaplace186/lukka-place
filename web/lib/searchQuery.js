@@ -50,6 +50,9 @@ export function parseListingsSearchParams(searchParamsLike) {
     depositRange: get('deposit_range'),
     // 'short' (by the day / week) | 'long' — lib/leaseTerm.js.
     leaseTerm: get('lease_term'),
+    // Taille du terrain, m² (lib/listingDetails.js).
+    plotMin: get('plot_min'),
+    plotMax: get('plot_max'),
     // Comma-separated checkbox keys (lib/constants.js's AMENITY_GROUPS,
     // FiltersDrawer.js) -> an array, or [] rather than [''] for an absent/
     // empty param — '' would otherwise become a single bogus key that

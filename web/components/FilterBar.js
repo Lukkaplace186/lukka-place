@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { CalendarClock, CalendarRange, Droplets, Route, Shield, SlidersHorizontal, Zap } from 'lucide-react';
+import { CalendarClock, CalendarRange, Droplets, Sofa, Route, Shield, SlidersHorizontal, Zap } from 'lucide-react';
 import FilterPill, { PillFieldLabel, PillOption } from './FilterPill';
 import { facetLabel, groupTypeFacets } from '@/lib/commercialSpaces';
 import FiltersDrawer from './FiltersDrawer';
@@ -31,14 +31,16 @@ const UTILITY_ICONS = { zap: Zap, droplets: Droplets, shield: Shield, route: Rou
 const LEASE_ICONS = { long: CalendarRange, short: CalendarClock };
 
 const FORM_ID = 'listings-filter-form';
-const ADVANCED_KEYS = ['quartier', 'parcelleSubtype', 'bathMin'];
+const ADVANCED_KEYS = ['quartier', 'parcelleSubtype', 'bathMin', 'plotMin', 'plotMax'];
+// Meublé has its own chip in the row under the bar, beside the utilities.
+const FURNISHED_KEY = 'furnished';
 // Recording a "recent search" only makes sense once at least one of these
 // is set — a bare /listings visit with none of them isn't a search worth
 // remembering. sort/view/page deliberately excluded: they don't filter the
 // result set, so changing only those shouldn't spawn a new history entry.
 const FILTER_PARAM_KEYS = [
   'transaction_type', 'commune', 'communes', 'quartier', 'radius', 'property_type', 'parcelle_subtype',
-  'price_min', 'price_max', 'beds_min', 'bath_min', 'deposit_max', 'deposit_range', 'lease_term', 'amenities', 'q', 'reference',
+  'price_min', 'price_max', 'beds_min', 'bath_min', 'deposit_max', 'deposit_range', 'lease_term', 'plot_min', 'plot_max', 'amenities', 'q', 'reference',
 ];
 // Fallback only for the genuinely-empty-catalog case (lib/listings.js's
 // getPriceRange() returns null) — otherwise the real ceiling comes from
@@ -146,6 +148,9 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
   // Avance exigée band, which replaces it.
   const legacyDepositMax = depositRange ? '' : defaults.depositMax || '';
   const [amenities, setAmenities] = useState(defaults.amenities || []);
+  // Taille du terrain, m² (lib/listingDetails.js).
+  const [plotMin, setPlotMin] = useState(defaults.plotMin || '');
+  const [plotMax, setPlotMax] = useState(defaults.plotMax || '');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   const router = useRouter();
@@ -223,6 +228,8 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
       if (legacyDepositMax) qs.set('deposit_max', legacyDepositMax);
       if (depositRange) qs.set('deposit_range', depositRange);
       if (leaseTerm) qs.set('lease_term', leaseTerm);
+      if (plotMin) qs.set('plot_min', plotMin);
+      if (plotMax) qs.set('plot_max', plotMax);
       if (amenities.length) qs.set('amenities', amenities.join(','));
       for (const [key, value] of new URLSearchParams(areaQuery)) qs.set(key, value);
 
@@ -256,6 +263,8 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
     priceMax,
     depositRange,
     leaseTerm,
+    plotMin,
+    plotMax,
     legacyDepositMax,
     amenities,
     areaQuery,
@@ -289,7 +298,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
   // state, so they are not counted again on "Plus de filtres".
   const advancedCount =
     ADVANCED_KEYS.filter((key) => defaults[key]).length
-    + (defaults.amenities || []).filter((key) => !UTILITY_FILTER_KEYS.includes(key)).length
+    + (defaults.amenities || []).filter((key) => !UTILITY_FILTER_KEYS.includes(key) && key !== FURNISHED_KEY).length
     + (defaults.depositMax || defaults.depositRange ? 1 : 0);
   // Mobile's single "Filtres" button badge — the primary pills' own active
   // count (Chambres/Prix-as-one/Type de bien) plus everything advancedCount
@@ -347,6 +356,8 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
     ['deposit_max', legacyDepositMax],
     ['deposit_range', depositRange],
     ['lease_term', leaseTerm],
+    ['plot_min', plotMin],
+    ['plot_max', plotMax],
     ['amenities', amenities.join(',')],
     ['sort', defaults.sort || ''],
     ['view', defaults.view || ''],
@@ -676,6 +687,20 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
                 </button>
               );
             })}
+            {/* Meublé — the agent's stated `furnished`, or the listing's own
+                words for older listings (lib/listings.js). */}
+            <button
+              type="button"
+              aria-pressed={amenities.includes(FURNISHED_KEY)}
+              onClick={() => apply(setAmenities)(amenities.includes(FURNISHED_KEY) ? amenities.filter((k) => k !== FURNISHED_KEY) : [...amenities, FURNISHED_KEY])}
+              className={cn(
+                'u-press inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[0.8125rem] font-semibold transition-colors',
+                amenities.includes(FURNISHED_KEY) ? 'border-blue bg-blue-tint text-blue-deep' : 'border-line bg-surface text-ink-70 hover:border-ink-25',
+              )}
+            >
+              <Sofa strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
+              {t('listings.amenities.furnished')}
+            </button>
             </div>
           </div>
         ) : null}
@@ -687,8 +712,8 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
           locations={locations}
           commune={commune}
           propertyType={propertyType}
-          values={{ quartier, parcelleSubtype, bedsMin, bathMin, depositRange, amenities }}
-          setters={{ setCommune, setQuartier, setParcelleSubtype, setBedsMin, setBathMin, setDepositRange, setAmenities }}
+          values={{ quartier, parcelleSubtype, bedsMin, bathMin, depositRange, amenities, plotMin, plotMax }}
+          setters={{ setCommune, setQuartier, setParcelleSubtype, setBedsMin, setBathMin, setDepositRange, setAmenities, setPlotMin, setPlotMax }}
           resultCountLabel={resultCountLabel}
           resultPending={resultPending}
         />
@@ -701,10 +726,10 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
           locations={locations}
           commune={commune}
           priceSliderMax={PRICE_SLIDER_MAX}
-          values={{ propertyType, priceMin, priceMax, bedsMin, bathMin, quartier, parcelleSubtype, depositRange, leaseTerm, amenities }}
+          values={{ propertyType, priceMin, priceMax, bedsMin, bathMin, quartier, parcelleSubtype, depositRange, leaseTerm, amenities, plotMin, plotMax }}
           setters={{
             setPropertyType, setPriceMin, setPriceMax, setBedsMin, setBathMin,
-            setCommune, setQuartier, setParcelleSubtype, setDepositRange, setLeaseTerm, setAmenities,
+            setCommune, setQuartier, setParcelleSubtype, setDepositRange, setLeaseTerm, setAmenities, setPlotMin, setPlotMax,
           }}
           showLeaseTerm={showLeaseTerm}
           resultCountLabel={resultCountLabel}

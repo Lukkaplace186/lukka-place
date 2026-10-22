@@ -23,6 +23,7 @@
 const { inferCommune } = require('./locations');
 const { cityOfCommune, communeLabel, DEFAULT_CITY } = require('./cities');
 const { isCommercialType, floorLabelFr } = require('./commercial');
+const { detailCardLines } = require('./listingDetails');
 const { MAX_LISTING_PHOTOS, MAX_LISTING_VIDEOS } = require('./listingMedia');
 const leaseTerm = require('./leaseTerm');
 
@@ -36,6 +37,9 @@ const PROPERTY_TYPE_LABELS = {
   parcelle: 'Parcelle',
   terrain: 'Terrain',
   concession: 'Concession',
+  ferme: 'Ferme / terrain agricole',
+  chambre: 'Chambre / annexe',
+  salle_de_fete: 'Salle de fête',
   bureau: 'Bureau',
   boutique: 'Boutique',
   entrepot: 'Entrepôt',
@@ -110,7 +114,7 @@ function isGroupedListing(row) {
  * or commercial premises, where "chambres" means nothing.
  */
 function missingFields(row) {
-  const noRooms = (['terrain', 'parcelle', 'concession'].includes(row.property_type) || isCommercialType(row.property_type))
+  const noRooms = (['terrain', 'parcelle', 'concession', 'ferme'].includes(row.property_type) || isCommercialType(row.property_type))
     && row.parcelle_subtype !== 'maison_type_locataire'
     && row.parcelle_subtype !== 'villa';
   return Object.keys(MISSING_LABELS).filter((key) => {
@@ -206,6 +210,7 @@ function renderListingCard(row, { photoCount } = {}) {
     if (row.road_frontage === true || row.road_frontage === 1) lines.push('*Façade sur route* : Oui');
     if (row.truck_access === true || row.truck_access === 1) lines.push('*Accès camion* : Oui');
   }
+  lines.push(...detailCardLines(row));
   const amenities = asList(row.amenities).filter(Boolean);
   if (amenities.length) lines.push(`*Équipements* : ${amenities.join(', ')}`);
   if (present(row.reference)) lines.push(`*Référence* : ${row.reference}`);

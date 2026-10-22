@@ -3,6 +3,7 @@ import { applyPriceChange } from './enginePrice';
 import { getPool } from './db';
 import { DEFAULT_CITY, cityOfCommune, communeLabel } from './cities';
 import { normaliseRentPeriod } from './leaseTerm';
+import { DETAILS_SQL, DETAIL_COLUMNS, normaliseListingDetails } from './listingDetails';
 
 /**
  * Manual listing creation from the agent self-service dashboard
@@ -310,6 +311,11 @@ export async function getOwnListingForEdit(agentId, propertyId) {
                'road_frontage', j -> 'road_frontage', 'truck_access', j -> 'truck_access')
              FROM (SELECT to_jsonb(p) AS j) spec) AS commercial_specs,
             cat.type AS category_type,
+            -- Practical details (lib/listingDetails.js) and the French
+            -- category name, which decides which of them the editor shows.
+            ${DETAILS_SQL} AS listing_details,
+            (SELECT LOWER(cc.name) FROM property_category_contents cc
+              WHERE cc.category_id = p.category_id AND cc.language_id = 26 LIMIT 1) AS category_name_fr,
             pc.title, pc.description, pc.address,
             (
               SELECT COALESCE(array_agg(pa.amenity_id ORDER BY pa.amenity_id), ARRAY[]::bigint[])
@@ -778,6 +784,42 @@ export async function setListingCommercialSpecs(agentId, propertyId, specs) {
        WHERE id = $5 AND agent_id = $6
          AND EXISTS (SELECT 1 FROM property_categories c WHERE c.id = properties.category_id AND LOWER(c.type) = 'commercial')`,
       [specs.office_count, specs.floor_level, specs.road_frontage, specs.truck_access, Number(propertyId), Number(agentId)],
+    );
+    return rowCount > 0 ? 'saved' : 'not_found';
+  } catch (err) {
+    if (err?.code === '42703') return 'unavailable';
+    throw err;
+  }
+}
+
+/**
+ * The practical details of an agent's own listing (lib/listingDetails.js),
+ * all ten written at once so a cleared field is stored as NULL. Gated here on
+ * the row's REAL category and purpose, never the form's: a flat never stores
+ * a plot size, a rent never a payment plan. Ownership is in both statements.
+ * 'unavailable' before the engine's migrations/20261022_listing_details.sql.
+ *
+ * @returns {Promise<'saved'|'not_found'|'unavailable'>}
+ */
+export async function setListingDetails(agentId, propertyId, raw) {
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT p.purpose, cat.type AS category_type,
+            (SELECT LOWER(cc.name) FROM property_category_contents cc
+              WHERE cc.category_id = p.category_id AND cc.language_id = 26 LIMIT 1) AS category_name
+     FROM properties p LEFT JOIN property_categories cat ON cat.id = p.category_id
+     WHERE p.id = $1 AND p.agent_id = $2`,
+    [Number(propertyId), Number(agentId)],
+  );
+  if (!rows.length) return 'not_found';
+  const details = normaliseListingDetails(raw, {
+    categoryName: rows[0].category_name, categoryType: rows[0].category_type, purpose: rows[0].purpose,
+  });
+  try {
+    const { rowCount } = await pool.query(
+      `UPDATE properties SET ${DETAIL_COLUMNS.map((c, i) => `${c} = $${i + 1}`).join(', ')}, updated_at = NOW()
+       WHERE id = $${DETAIL_COLUMNS.length + 1} AND agent_id = $${DETAIL_COLUMNS.length + 2}`,
+      [...DETAIL_COLUMNS.map((c) => details[c]), Number(propertyId), Number(agentId)],
     );
     return rowCount > 0 ? 'saved' : 'not_found';
   } catch (err) {

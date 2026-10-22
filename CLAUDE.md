@@ -1929,3 +1929,35 @@ and the default — a rent with no period, or a monthly / yearly one.
   (`CATEGORY_NAME_BY_SEARCH_TYPE`, Immeuble also matched as "bâtiment").
 - Web half: web/CLAUDE.md, same heading. §53 of verify-pipeline.
 
+## Practical listing details and four more types (2026-10-22)
+
+`services/listingDetails.js`, `migrations/20261022_listing_details.sql`
+(web half: web/CLAUDE.md, same heading). §65 of verify-pipeline.
+
+- **Ten nullable `properties` columns**, NULL = not stated: `furnished`
+  (extracted since launch, never synced until now), `households_count`
+  ("4 ménages dans la parcelle"), `landlord_on_site`, `toilet_location` /
+  `shower_location` ('interieur' | 'exterieur'), `electricity_meter`
+  ('prepaye' = Cash Power | 'individuel' | 'partage'), `plot_dimensions` (as
+  written: "15/20", "5 ares", "1 ha"), `plot_area_m2`, `installments_available`
+  / `installment_terms` (paiement échelonné, the agent's own words). Same
+  columns in SQLite `listings` (idempotent ALTER), correctable, inherited by
+  multi-unit expansion where they belong to the address.
+- **`plot_area_m2` is never the model's arithmetic**: the prompt says to copy
+  the size as written, and `parsePlotArea` computes it (ha > ares >
+  dimensions > m²) on extraction, insert and every correction. Duplicated in
+  web/lib/listingDetails.js; both suites run the same fixture table.
+- **Gated on the kind of property** (`normaliseListingDetails`): no
+  household / toilet facts on land or commercial space, no plot on a flat /
+  studio / room / office / shop, no instalments on a rent. Applied after the
+  model, at insert, at correction (the draft's type decides) and at sync.
+- **Sync**: INSERT only, SAVEPOINT tolerant of 42703, same posture as utilities
+  and commercial specs — the agent's editor owns them after publication.
+- **Four categories** (residential unless stated): Studio, Chambre / Annexe,
+  Salle de fête (commercial — bedrooms null, commercial specs apply), Ferme /
+  Terrain agricole. Extraction types `studio` (existed), `chambre`,
+  `salle_de_fete`, `ferme`; each falls back to Appartement / Appartement /
+  Boutique / Terrain before the migration. Existing listings are not
+  re-filed. The buyer assistant searches all four.
+- The intake card prints every stated detail ("*Terrain* : 15/20 (300 m² · 3 ares)").
+

@@ -2,6 +2,7 @@ import 'server-only';
 import { applyPriceChange } from './enginePrice';
 import { getPool } from './db';
 import { listingAddress, resolveListingLocation } from './agentListings';
+import { DETAIL_COLUMNS, normaliseListingDetails } from './listingDetails';
 
 /**
  * Admin-side listing reads and overrides.
@@ -97,6 +98,42 @@ export async function getCategoriesForAdmin() {
  *
  * @returns {Promise<boolean>} false when there is no such listing.
  */
+/**
+ * The practical details of ANY listing (lib/listingDetails.js) — the admin
+ * twin of agentListings' setListingDetails, with no agent scope. Gated on the
+ * row's own category and purpose; all ten columns written at once.
+ *
+ * @returns {Promise<'saved'|'not_found'|'unavailable'>}
+ */
+export async function adminSetListingDetails(propertyId, raw) {
+  const id = Number.parseInt(propertyId, 10);
+  if (!Number.isFinite(id)) return 'not_found';
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT p.purpose, cat.type AS category_type,
+            (SELECT LOWER(cc.name) FROM property_category_contents cc
+              WHERE cc.category_id = p.category_id AND cc.language_id = 26 LIMIT 1) AS category_name
+     FROM properties p LEFT JOIN property_categories cat ON cat.id = p.category_id
+     WHERE p.id = $1`,
+    [id],
+  );
+  if (!rows.length) return 'not_found';
+  const details = normaliseListingDetails(raw, {
+    categoryName: rows[0].category_name, categoryType: rows[0].category_type, purpose: rows[0].purpose,
+  });
+  try {
+    const { rowCount } = await pool.query(
+      `UPDATE properties SET ${DETAIL_COLUMNS.map((c, i) => `${c} = $${i + 1}`).join(', ')}, updated_at = NOW()
+       WHERE id = $${DETAIL_COLUMNS.length + 1}`,
+      [...DETAIL_COLUMNS.map((c) => details[c]), id],
+    );
+    return rowCount > 0 ? 'saved' : 'not_found';
+  } catch (err) {
+    if (err?.code === '42703') return 'unavailable';
+    throw err;
+  }
+}
+
 export async function adminUpdateListing(propertyId, patch) {
   const id = Number.parseInt(propertyId, 10);
   if (!Number.isFinite(id)) return false;

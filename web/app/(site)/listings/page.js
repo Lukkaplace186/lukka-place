@@ -28,7 +28,7 @@ import { landmarkPoint, listingDistanceKm } from '@/lib/landmarks';
 /** Filters worth logging as "a search" (sort/view/page are not). */
 const SEARCH_LOG_KEYS = [
   'transaction_type', 'commune', 'communes', 'quartier', 'radius', 'property_type', 'parcelle_subtype',
-  'price_min', 'price_max', 'beds_min', 'bath_min', 'deposit_max', 'deposit_range', 'lease_term', 'amenities', 'q', 'reference',
+  'price_min', 'price_max', 'beds_min', 'bath_min', 'deposit_max', 'deposit_range', 'lease_term', 'plot_min', 'plot_max', 'amenities', 'q', 'reference',
 ];
 
 /**
@@ -241,6 +241,8 @@ export default async function ListingsPage({ searchParams }) {
             depositMax: params.deposit_max,
             depositRange: params.deposit_range,
             leaseTerm: params.lease_term,
+            plotMin: params.plot_min,
+            plotMax: params.plot_max,
             // Same comma-separated-string -> array parsing as lib/searchQuery.js's
             // parseListingsSearchParams (kept in step with it manually since this
             // object is FilterBar's *initial client state* seed, not the query

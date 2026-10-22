@@ -35,7 +35,9 @@ import {
   findRecentOwnDuplicate,
   setListingUtilities,
   setListingCommercialSpecs,
+  setListingDetails,
 } from '@/lib/agentListings';
+import { listingDetailsFromForm } from '@/lib/listingDetails';
 import { commercialSpecsFromForm, isCommercial } from '@/lib/commercialSpaces';
 import { getCdfRate } from '@/lib/currencyRate';
 import { convertCdfToUsd } from '@/lib/format';
@@ -413,6 +415,18 @@ export async function createListingAction(validCommunes, validCategories, formDa
       if (saved === 'unavailable') console.warn(`[compte/agent] commercial specs for #${propertyId} not saved — columns missing`);
     } catch (err) {
       console.error(`[compte/agent] commercial specs for #${propertyId}: ${err.message}`);
+    }
+  }
+
+  // Practical details (lib/listingDetails.js) — only what the agent stated;
+  // the setter re-gates them on the category and purpose just written.
+  const details = listingDetailsFromForm(formData);
+  if (Object.values(details).some((value) => value !== null)) {
+    try {
+      const saved = await setListingDetails(agentId, propertyId, details);
+      if (saved === 'unavailable') console.warn(`[compte/agent] details for #${propertyId} not saved — columns missing`);
+    } catch (err) {
+      console.error(`[compte/agent] details for #${propertyId}: ${err.message}`);
     }
   }
 
@@ -993,6 +1007,17 @@ export async function updateListingAction(propertyId, validCommunes, formData) {
       if (saved === 'unavailable') console.warn(`[compte/agent] commercial specs for #${propertyId} not saved — columns missing`);
     } catch (err) {
       console.error(`[compte/agent] commercial specs for #${propertyId}: ${err.message}`);
+    }
+  }
+
+  // The editor always sends the whole details fieldset (an empty select is
+  // "not stated"), so a cleared field is cleared.
+  if (formData.get('details_touched') === '1') {
+    try {
+      const saved = await setListingDetails(agentId, propertyId, listingDetailsFromForm(formData));
+      if (saved === 'unavailable') console.warn(`[compte/agent] details for #${propertyId} not saved — columns missing`);
+    } catch (err) {
+      console.error(`[compte/agent] details for #${propertyId}: ${err.message}`);
     }
   }
 

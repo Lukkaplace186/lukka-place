@@ -137,6 +137,13 @@ export function searchCriteriaTags(searchParams, t) {
   const leaseTerm = normaliseLeaseTerm(get('lease_term'));
   if (leaseTerm) tags.push(t(leaseTerm === 'short' ? 'search.tags.leaseShort' : 'search.tags.leaseLong'));
 
+  const plotMin = get('plot_min');
+  const plotMax = get('plot_max');
+  const sqm = (value) => Number(value).toLocaleString(t.locale === 'en' ? 'en-GB' : 'fr-FR');
+  if (plotMin && plotMax) tags.push(t('listings.details.filter.chipRange', { min: sqm(plotMin), max: sqm(plotMax) }));
+  else if (plotMin) tags.push(t('listings.details.filter.chipMin', { min: sqm(plotMin) }));
+  else if (plotMax) tags.push(t('listings.details.filter.chipMax', { max: sqm(plotMax) }));
+
   const amenities = (get('amenities') || '').split(',').filter(Boolean);
   for (const key of amenities) {
     if (AMENITY_LABEL_KEYS[key]) tags.push(t(AMENITY_LABEL_KEYS[key]));

@@ -8,6 +8,8 @@ import { useToast } from '@/components/Toast';
 import { adminUpdateListingAction, adminSetListingVisibleAction } from './actions';
 import { useT } from '@/lib/i18n/client';
 import CommuneOptions from '@/components/CommuneOptions';
+import ListingDetailFields from '@/components/ListingDetailFields';
+import { detailSections, detailsOf } from '@/lib/listingDetails';
 
 const FIELD =
   'u-focus-ring h-10 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink';
@@ -290,6 +292,16 @@ export default function AdminListingEditor({ listing, communes, categories }) {
             </div>
           </div>
         )}
+      </section>
+
+      <section id="details" className="u-card rounded-card bg-surface p-6">
+        <input type="hidden" name="details_touched" value="1" />
+        <ListingDetailFields
+          defaults={detailsOf(listing)}
+          sections={detailSections({ categoryName: listing.category_name, categoryType: listing.category_type, purpose: listing.purpose })}
+          fieldClass={FIELD}
+          labelClass={LABEL}
+        />
       </section>
 
       <div className="sticky bottom-4 flex flex-wrap items-center gap-3 rounded-card bg-ink px-5 py-3.5">

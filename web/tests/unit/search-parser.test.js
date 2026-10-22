@@ -65,7 +65,7 @@ const CASES = [
   // list: six; the search takes five places at most).
   ['salongo', { commune: 'Kintambo', quartier: 'Salongo', communes: ['Kintambo', 'Kasa-Vubu', 'Limete', 'Lemba', 'Makala'], keywords: '' }],
   // Real requests stay as words
-  ['studio meublé kintambo', { property_type: 'appartement', commune: 'Kintambo', keywords: 'meublé' }],
+  ['studio meublé kintambo', { property_type: 'studio', amenities: ['furnished'], commune: 'Kintambo', keywords: '' }],
   ['villa avec piscine ma campagne', { property_type: 'villa', commune: 'Ngaliema', quartier: 'Ma Campagne', keywords: 'piscine' }],
   // A landmark is a place to search around (`near`), never leftover words:
   // as keywords it filtered the map and the list down to nothing.

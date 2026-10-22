@@ -18,9 +18,10 @@
  *   - several places at once ("Gombe ou Ngaliema"), all searched;
  *   - "Kinshasa" meaning the city, not the commune of that name.
  *
- * Deliberately does NOT try to extract "meublé"/"piscine"/"forage" into a
- * structured filter: there is no `furnished` or amenity column on the public
- * `properties` table to filter against. Words like that are left in
+ * "meublé" becomes the Meublé filter (amenities=furnished, which reads the
+ * `furnished` column or the words — lib/listings.js), and a land size ("5
+ * ares", "20x30", "1 ha", "600 m²") becomes plot_min. Other equipment words
+ * ("piscine", "forage") have no column on `properties`, so they are left in
  * `keywords` and reach the description search in lib/listings.js, which
  * matches each word on its own and drops them — saying so — when they would
  * empty the page. Filler ("pas cher", "near", "svp") is removed here, by
@@ -29,6 +30,7 @@
 import { findLocationMention } from './gazetteer';
 import { findCityMention, findCommuneInCity, DEFAULT_CITY } from './cities';
 import { cleanKeywords } from './searchKeywords';
+import { parsePlotArea } from './listingDetails';
 
 /** Most places one search may name — same ceiling as a customer request
  *  (MAX_REQUEST_COMMUNES) and the engine's leadCommunes. */
@@ -176,9 +178,19 @@ const TRANSACTION_TYPE_PATTERNS = [
 // categories since 2026-10-22.
 // `ap+ar?t\w*` covers appartement, appart, apparts, apartment, apartement and
 // the typo "appartemnt"; `ap+t` covers apt/appt.
+// A land size as agents and searchers write it (lib/listingDetails.js parses it).
+const PLOT_SIZE_PATTERN = /\b\d+(?:[.,]\d+)?\s*(?:ha|hectares?|ares?)\b|\b\d{1,4}(?:[.,]\d+)?\s*(?:m\s*)?(?:x|sur|par)\s*\d{1,4}(?:[.,]\d+)?\s*m?\b|\b\d[\d\s.]*\s*(?:m²|m2)(?!\w)/i;
+// No \b after "é": in a JS regex é is not a word character.
+const FURNISHED_PATTERN = /\bmeubl(?:ées?|ees?|és?|es?)(?![a-zà-ÿ])|\bfurnished\b/i;
+
 const PROPERTY_TYPE_PATTERNS = [
-  [/\b(?:ap+ar?t\w*|ap+ts?|flats?|studios?)\b/i, { property_type: 'appartement' }],
+  [/\bstudios?\b/i, { property_type: 'studio' }],
+  [/\b(?:ap+ar?t\w*|ap+ts?|flats?)\b/i, { property_type: 'appartement' }],
   [/\bvillas?\b/i, { property_type: 'villa' }],
+  // Before "terrain": a "terrain agricole" is a farm.
+  [/\b(?:fermes?|terrains?\s+agricoles?|champs?\s+agricoles?)\b/i, { property_type: 'ferme' }],
+  [/\bsalles?\s+(?:de|des)\s+f[eê]tes?\b/i, { property_type: 'salle_de_fete' }],
+  [/\b(?:annexes?|d[ée]pendances?|chambres?\s+(?:simples?|seules?|individuelles?|[àa]\s+louer))\b/i, { property_type: 'chambre' }],
   [/\bconcessions?\b/i, { property_type: 'concession' }],
   [/\b(?:immeubles?|buildings?)\b/i, { property_type: 'immeuble' }],
   [/\b(?:terrains?|plots?|land|lopango)\b/i, { property_type: 'parcelle', parcelle_subtype: 'terrain_nu' }],
@@ -221,6 +233,8 @@ export function escapeRegExp(value) {
  *   beds_min: number|undefined,
  *   bath_min: number|undefined,
  *   lease_term: ('short'|'long')|undefined,
+ *   plot_min: number|undefined,     land size in m² ("5 ares" → 500)
+ *   amenities: ['furnished']|undefined,
  *   commune: string|undefined,
  *   communes: string[]|undefined,
  *   quartier: string|undefined,
@@ -251,6 +265,23 @@ export function parseSearchQuery(text) {
     result.reference = build(m);
     take(m, 'reference');
     break;
+  }
+
+  // --- Land size (before prices, so "600 m²" is never read as $600) ---------
+  const plot = remaining.match(PLOT_SIZE_PATTERN);
+  if (plot) {
+    const m2 = parsePlotArea(plot[0]);
+    if (m2) {
+      result.plot_min = m2;
+      take(plot, 'plot_min');
+    }
+  }
+
+  // --- Meublé ("non meublé" and "semi-meublé" are not a request for furnished)
+  const furnished = remaining.match(FURNISHED_PATTERN);
+  if (furnished && !/(?:non|semi)[\s-]*$/i.test(remaining.slice(0, furnished.index))) {
+    result.amenities = ['furnished'];
+    take(furnished, 'amenities');
   }
 
   // --- Rooms (before prices, so "2 chambres 1 500$" is 2 rooms and $1,500) --

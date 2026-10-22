@@ -40,6 +40,7 @@
 
 const { normaliseUtilities } = require('./utilities');
 const { normaliseCommercialSpecs } = require('./commercial');
+const { normaliseListingDetails } = require('./listingDetails');
 const { Pool } = require('pg');
 const { uploadListingPhotos, uploadListingVideos } = require('./supabaseStorage');
 const { resolveCommune, resolveQuartier } = require('./locations');
@@ -192,7 +193,8 @@ async function loadTaxonomy(client) {
  */
 const CATEGORY_FALLBACK_FR = {
   appartement: 'appartement',
-  studio: 'appartement',
+  studio: ['studio', 'appartement'],
+  chambre: ['chambre / annexe', 'appartement'],
   villa: ['villa', 'maison'],
   maison: 'maison',
   duplex: 'duplex',
@@ -200,6 +202,8 @@ const CATEGORY_FALLBACK_FR = {
   parcelle: 'terrain',
   terrain: 'terrain',
   concession: ['concession', 'terrain'],
+  ferme: ['ferme / terrain agricole', 'terrain'],
+  salle_de_fete: ['salle de fete', 'boutique'],
   bureau: ['bureau', 'immeuble', 'batiment'],
   boutique: 'boutique',
   entrepot: 'entrepot',
@@ -244,6 +248,9 @@ const PROPERTY_TYPE_LABELS_FR = {
   parcelle: 'Parcelle',
   terrain: 'Terrain',
   concession: 'Concession',
+  ferme: 'Ferme',
+  chambre: 'Chambre',
+  salle_de_fete: 'Salle de fête',
   bureau: 'Bureau',
   boutique: 'Boutique',
   entrepot: 'Entrepôt',
@@ -991,6 +998,30 @@ async function syncListingToPostgres(row) {
           await client.query('ROLLBACK TO SAVEPOINT lukka_commercial');
           if (err?.code !== '42703') throw err;
           console.warn(`[postgres] commercial columns missing — specs for #${propertyId} not synced (run migrations/20261019_commercial_spaces.sql)`);
+        }
+      }
+
+      // Practical details (services/listingDetails.js), same posture: INSERT
+      // only, only what was stated, in a SAVEPOINT tolerant of the columns'
+      // absence (before migrations/20261022_listing_details.sql).
+      const details = normaliseListingDetails(row, {
+        propertyType: row.property_type ?? null,
+        parcelleSubtype: row.parcelle_subtype ?? null,
+        transactionType: row.transaction_type ?? null,
+      });
+      const statedDetails = Object.entries(details).filter(([, value]) => value !== null);
+      if (statedDetails.length) {
+        await client.query('SAVEPOINT lukka_details');
+        try {
+          await client.query(
+            `UPDATE properties SET ${statedDetails.map(([field], i) => `${field} = $${i + 1}`).join(', ')} WHERE id = $${statedDetails.length + 1}`,
+            [...statedDetails.map(([, value]) => value), propertyId],
+          );
+          await client.query('RELEASE SAVEPOINT lukka_details');
+        } catch (err) {
+          await client.query('ROLLBACK TO SAVEPOINT lukka_details');
+          if (err?.code !== '42703') throw err;
+          console.warn(`[postgres] detail columns missing — details for #${propertyId} not synced (run migrations/20261022_listing_details.sql)`);
         }
       }
     }

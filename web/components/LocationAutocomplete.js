@@ -43,6 +43,12 @@ function buildPreviewPills(parsed) {
   if (parsed.bath_min != null) {
     pills.push({ field: 'bath_min', icon: Bath, label: `${parsed.bath_min}+ SDB` });
   }
+  if (parsed.plot_min != null) {
+    pills.push({ field: 'plot_min', icon: Home, label: `Terrain ≥ ${parsed.plot_min.toLocaleString('fr-FR')} m²` });
+  }
+  if (parsed.amenities?.includes('furnished')) {
+    pills.push({ field: 'amenities', icon: Home, label: 'Meublé' });
+  }
   if (parsed.lease_term) {
     pills.push({ field: 'lease_term', icon: CalendarClock, label: parsed.lease_term === 'short' ? 'Courte durée' : 'Longue durée' });
   }
@@ -84,6 +90,8 @@ function applyParsedFilters(params, parsed) {
   if (parsed.beds_min != null) params.set('beds_min', String(parsed.beds_min));
   if (parsed.bath_min != null) params.set('bath_min', String(parsed.bath_min));
   if (parsed.lease_term) params.set('lease_term', parsed.lease_term);
+  if (parsed.plot_min != null) params.set('plot_min', String(parsed.plot_min));
+  if (parsed.amenities?.length) params.set('amenities', parsed.amenities.join(','));
   if (parsed.property_type) {
     params.set('property_type', parsed.property_type);
     if (parsed.parcelle_subtype) params.set('parcelle_subtype', parsed.parcelle_subtype);

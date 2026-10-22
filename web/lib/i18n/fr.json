@@ -554,7 +554,11 @@
       "boutique": "Boutiques",
       "entrepot": "Entrepôts",
       "bureau": "Bureaux",
-      "commercial": "Locaux commerciaux"
+      "commercial": "Locaux commerciaux",
+      "studio": "Studios",
+      "chambre": "Chambres et annexes",
+      "salleDeFete": "Salles de fête",
+      "ferme": "Fermes et terrains agricoles"
     },
     "chips": {
       "near": "Près de {place}",
@@ -787,6 +791,64 @@
       "long": "Longue durée",
       "short": "Courte durée",
       "hint": "Longue durée : bail classique au mois. Courte durée : chambre, studio ou appartement loué à la journée ou à la semaine."
+    },
+    "details": {
+      "title": "Détails pratiques",
+      "declared": "Déclaré par l'agent",
+      "furnished": "Meublé",
+      "unfurnished": "Non meublé",
+      "households": "Ménages dans la parcelle : {count}",
+      "landlordOn": "Bailleur sur place",
+      "landlordOff": "Le bailleur n'habite pas la parcelle",
+      "toiletIn": "Toilettes intérieures",
+      "toiletOut": "Toilettes extérieures",
+      "showerIn": "Douche intérieure",
+      "showerOut": "Douche extérieure",
+      "meter": {
+        "prepaye": "Compteur Cash Power (prépayé)",
+        "individuel": "Compteur individuel",
+        "partage": "Compteur partagé"
+      },
+      "plot": "Terrain : {size}",
+      "perM2": "le m²",
+      "installments": "Paiement échelonné possible",
+      "installmentTerms": "Conditions : {terms}",
+      "filter": {
+        "plotLabel": "Taille du terrain (m²)",
+        "plotHint": "1 are = 100 m² · 1 ha = 10 000 m²",
+        "plotMin": "Min m²",
+        "plotMax": "Max m²",
+        "chipMin": "Terrain ≥ {min} m²",
+        "chipMax": "Terrain ≤ {max} m²",
+        "chipRange": "Terrain {min}–{max} m²"
+      },
+      "form": {
+        "legend": "Détails pratiques",
+        "notStated": "Non précisé",
+        "yes": "Oui",
+        "no": "Non",
+        "furnished": "Meublé ?",
+        "furnishedYes": "Meublé",
+        "furnishedNo": "Non meublé",
+        "households": "Ménages dans la parcelle",
+        "landlord": "Le bailleur habite la parcelle ?",
+        "toilet": "Toilettes",
+        "shower": "Douche",
+        "inside": "Intérieures",
+        "outside": "Extérieures",
+        "meter": "Compteur électrique",
+        "meterPrepaye": "Cash Power (prépayé, individuel)",
+        "meterIndividuel": "Individuel",
+        "meterPartage": "Partagé",
+        "plot": "Taille du terrain",
+        "plotPlaceholder": "ex. 15/20, 20x30, 5 ares, 1 ha",
+        "plotComputed": "= {size}",
+        "plotUnreadable": "Taille non reconnue : écrivez par exemple 15/20, 20x30 ou 5 ares.",
+        "installments": "Paiement échelonné possible",
+        "installmentTerms": "Conditions du paiement (vos mots)",
+        "installmentPlaceholder": "ex. 30 % à la signature, le reste en 12 mois",
+        "hint": "Laissez « Non précisé » quand l'annonce ne le dit pas."
+      }
     }
   },
   "enquiry": {

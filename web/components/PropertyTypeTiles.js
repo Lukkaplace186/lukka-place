@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Briefcase, Building, Building2, Fence, House, Store, Warehouse } from 'lucide-react';
+import { BedSingle, Briefcase, Building, Building2, Fence, House, PartyPopper, Store, Tractor, Warehouse } from 'lucide-react';
 import { ApartmentIcon, LandIcon } from './icons/PropertyTypeIcons';
 import { getT } from '@/lib/i18n/server';
 import { COMMERCIAL_FILTER_VALUE, groupTypeFacets } from '@/lib/commercialSpaces';
@@ -19,7 +19,10 @@ import { COMMERCIAL_FILTER_VALUE, groupTypeFacets } from '@/lib/commercialSpaces
  * homes. A lone commercial type keeps its own name.
  */
 const ICONS = [
+  [/ferme|agricole/, Tractor],
   [/appart|studio|duplex|penthouse/, ApartmentIcon],
+  [/chambre|annexe/, BedSingle],
+  [/salle de f/, PartyPopper],
   [/terrain|parcelle/, LandIcon],
   [/^commercial$/, Building2],
   [/bureau/, Briefcase],

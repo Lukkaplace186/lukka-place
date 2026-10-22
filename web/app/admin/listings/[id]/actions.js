@@ -4,7 +4,8 @@ import { PriceSyncError } from '@/lib/enginePrice';
 import { revalidatePath } from 'next/cache';
 import { requireAdmin } from '@/lib/adminSession';
 import { recordAudit } from '@/lib/adminAudit';
-import { adminUpdateListing, adminSetListingVisible, getListingForAdmin } from '@/lib/adminListings';
+import { adminUpdateListing, adminSetListingVisible, adminSetListingDetails, getListingForAdmin } from '@/lib/adminListings';
+import { listingDetailsFromForm } from '@/lib/listingDetails';
 import { setListingGallery } from '@/lib/agentListings';
 import { getT } from '@/lib/i18n/server';
 import { normaliseArea } from '@/lib/listingView';
@@ -124,6 +125,17 @@ export async function adminUpdateListingAction(propertyId, validCommunes, validC
       throw err;
     }
     if (!updated) return { ok: false, error: t('errors.listingNotFound') };
+
+    // Practical details (lib/listingDetails.js): the editor always sends the
+    // whole fieldset, gated again on the category and purpose just saved.
+    if (formData.get('details_touched') === '1') {
+      try {
+        const saved = await adminSetListingDetails(propertyId, listingDetailsFromForm(formData));
+        if (saved === 'unavailable') console.warn(`[admin/listings] details for #${propertyId} not saved — columns missing`);
+      } catch (err) {
+        console.error(`[admin/listings] details for #${propertyId}: ${err.message}`);
+      }
+    }
 
     // Record which fields actually changed, with before/after for the ones an
     // audit is most often asked about (price, commune, status, sold figures).

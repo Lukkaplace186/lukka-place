@@ -8,6 +8,7 @@ import { useToast } from '@/components/Toast';
 import { useT } from '@/lib/i18n/client';
 import CommuneOptions from '@/components/CommuneOptions';
 import AgentPicker from '../../AgentPicker';
+import ListingDetailFields from '@/components/ListingDetailFields';
 import { adminCreateListingAction } from '../createActions';
 
 const FIELD = 'u-focus-ring h-10 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink';
@@ -165,6 +166,10 @@ export default function AdminCreateListingForm({ communes, categories, canPublis
             <span className="u-micro text-ink-70">{t('admin.listings.publishNow')}</span>
           </label>
         ) : null}
+      </section>
+
+      <section className="u-card rounded-card bg-surface p-6">
+        <ListingDetailFields fieldClass={FIELD} labelClass={LABEL} />
       </section>
 
       {error ? (

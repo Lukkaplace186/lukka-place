@@ -39,7 +39,7 @@ export function pinKind(listing) {
   if (listing?.parcelle_subtype) return 'house';
   const category = String(listing?.category_name || '').toLowerCase();
   if (category.includes('appartement') || category.includes('studio') || category.includes('immeuble')) return 'apartment';
-  if (category.includes('terrain')) return 'land';
+  if (category.includes('terrain') || category.includes('ferme')) return 'land';
   return 'house';
 }
 

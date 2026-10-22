@@ -11,6 +11,7 @@
 
 const { normaliseUtilities } = require('./utilities');
 const { normaliseCommercialSpecs, isCommercialType, COMMERCIAL_SPEC_FIELDS } = require('./commercial');
+const { normaliseListingDetails, DETAIL_FIELDS, BOOLEAN_DETAIL_FIELDS } = require('./listingDetails');
 const { MAX_LISTING_PHOTOS, MAX_LISTING_VIDEOS, mergeCapped } = require('./listingMedia');
 const crypto = require('crypto');
 const path = require('path');
@@ -117,6 +118,17 @@ const EXTENDED_COLUMNS = [
   ['floor_level', 'INTEGER'],
   ['road_frontage', 'INTEGER'],
   ['truck_access', 'INTEGER'],
+  // Practical details (services/listingDetails.js) — NULL unless stated.
+  // Booleans as 0 / 1 / NULL. plot_area_m2 is derived from plot_dimensions.
+  ['households_count', 'INTEGER'],
+  ['landlord_on_site', 'INTEGER'],
+  ['toilet_location', 'TEXT'],
+  ['shower_location', 'TEXT'],
+  ['electricity_meter', 'TEXT'],
+  ['plot_dimensions', 'TEXT'],
+  ['plot_area_m2', 'REAL'],
+  ['installments_available', 'INTEGER'],
+  ['installment_terms', 'TEXT'],
   ['summary_fr', 'TEXT'],
   ['missing_fields', 'TEXT'],
   // Complete aiParser output, so no future field is ever lost to the schema.
@@ -349,6 +361,24 @@ function toJsonText(value) {
  * listing's property_type (services/commercial.js): a residential listing
  * stores NULL in all four whatever the extraction returned.
  */
+/**
+ * The practical-detail columns for an insert (services/listingDetails.js),
+ * gated on the listing's kind. `furnished` keeps its own column above.
+ */
+function detailColumns(listingData) {
+  const details = normaliseListingDetails(listingData, {
+    propertyType: listingData.property_type ?? null,
+    parcelleSubtype: listingData.parcelle_subtype ?? null,
+    transactionType: listingData.transaction_type ?? null,
+  });
+  const out = {};
+  for (const field of DETAIL_FIELDS) {
+    if (field === 'furnished') continue;
+    out[field] = BOOLEAN_DETAIL_FIELDS.includes(field) ? toSqliteBool(details[field]) : details[field];
+  }
+  return out;
+}
+
 function commercialColumns(listingData) {
   const specs = normaliseCommercialSpecs(listingData, listingData.property_type ?? null);
   return {
@@ -449,6 +479,7 @@ function saveListing(listingData, senderInfo = {}) {
       features: toJsonText(listingData.features),
       utilities: toJsonText(normaliseUtilities(listingData.utilities)),
       ...commercialColumns(listingData),
+      ...detailColumns(listingData),
       summary_fr: toNullable(listingData.summary_fr),
       missing_fields: toJsonText(listingData.missing_fields),
       parsed_json: toJsonText(listingData),
@@ -673,6 +704,8 @@ const CORRECTABLE_FIELDS = [
   'commission_months', 'bedrooms', 'bathrooms',
   'surface_area_sqm', 'units_count', 'furnished', 'amenities', 'features', 'utilities', 'reference',
   'office_count', 'floor_level', 'road_frontage', 'truck_access',
+  'households_count', 'landlord_on_site', 'toilet_location', 'shower_location', 'electricity_meter',
+  'plot_dimensions', 'installments_available', 'installment_terms',
   'summary_fr', 'missing_fields',
 ];
 
@@ -693,6 +726,14 @@ const CORRECTABLE_COERCERS = {
   floor_level: (value) => normaliseCommercialSpecs({ floor_level: value }).floor_level,
   road_frontage: (value) => toSqliteBool(normaliseCommercialSpecs({ road_frontage: value }).road_frontage),
   truck_access: (value) => toSqliteBool(normaliseCommercialSpecs({ truck_access: value }).truck_access),
+  households_count: (value) => normaliseListingDetails({ households_count: value }).households_count,
+  landlord_on_site: (value) => toSqliteBool(normaliseListingDetails({ landlord_on_site: value }).landlord_on_site),
+  toilet_location: (value) => normaliseListingDetails({ toilet_location: value }).toilet_location,
+  shower_location: (value) => normaliseListingDetails({ shower_location: value }).shower_location,
+  electricity_meter: (value) => normaliseListingDetails({ electricity_meter: value }).electricity_meter,
+  plot_dimensions: (value) => normaliseListingDetails({ plot_dimensions: value }).plot_dimensions,
+  installments_available: (value) => toSqliteBool(normaliseListingDetails({ installments_available: value }).installments_available),
+  installment_terms: (value) => normaliseListingDetails({ installment_terms: value }).installment_terms,
   missing_fields: toJsonText,
 };
 
@@ -729,9 +770,14 @@ function applyListingCorrection(id, extractedData, rawText, extraWamids = [], ne
     const coerced = coerce(value);
     // An out-of-range commercial spec ("étage 400") is dropped, not written
     // over the value on file as NULL.
-    if (coerced === null && COMMERCIAL_SPEC_FIELDS.includes(field)) continue;
+    if (coerced === null && (COMMERCIAL_SPEC_FIELDS.includes(field) || DETAIL_FIELDS.includes(field))) continue;
     sets.push(`${field} = @${field}`);
     params[field] = coerced;
+  }
+  // The plot's area follows its dimensions, never the model.
+  if (params.plot_dimensions !== undefined) {
+    sets.push('plot_area_m2 = @plot_area_m2');
+    params.plot_area_m2 = normaliseListingDetails({ plot_dimensions: params.plot_dimensions }).plot_area_m2;
   }
 
   // A correction that turns a shop into an apartment leaves no shop specs
@@ -886,6 +932,9 @@ const BUILDING_SHARED_FIELDS = [
   // A building's road and truck access are true of every unit in it; a
   // unit's floor and office count are its own and are not copied.
   'road_frontage', 'truck_access',
+  // The compound and the sale terms belong to the address too.
+  'landlord_on_site', 'electricity_meter', 'plot_dimensions', 'plot_area_m2',
+  'installments_available', 'installment_terms',
 ];
 
 /** Per-unit fields, read off one entry of `units`. */
@@ -1084,6 +1133,8 @@ function parseRow(row) {
     utilities: fromJsonText(row.utilities, []),
     road_frontage: row.road_frontage === null || row.road_frontage === undefined ? null : Boolean(row.road_frontage),
     truck_access: row.truck_access === null || row.truck_access === undefined ? null : Boolean(row.truck_access),
+    landlord_on_site: row.landlord_on_site === null || row.landlord_on_site === undefined ? null : Boolean(row.landlord_on_site),
+    installments_available: row.installments_available === null || row.installments_available === undefined ? null : Boolean(row.installments_available),
     missing_fields: fromJsonText(row.missing_fields, []),
     photos: fromJsonText(row.photos, []),
     videos: fromJsonText(row.videos, []),

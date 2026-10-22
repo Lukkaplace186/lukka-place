@@ -32,6 +32,12 @@ export const SEO_PROPERTY_TYPES = {
   parcelles: { propertyType: 'parcelle', pluralKey: 'listings.typePlurals.parcelle' },
   villas: { propertyType: 'villa', pluralKey: 'listings.typePlurals.villa' },
   concessions: { propertyType: 'concession', pluralKey: 'listings.typePlurals.concession' },
+  // propertyType is the facet value (lowercased category name), so facet
+  // counts link to these pages.
+  studios: { propertyType: 'studio', pluralKey: 'listings.typePlurals.studio' },
+  chambres: { propertyType: 'chambre / annexe', pluralKey: 'listings.typePlurals.chambre' },
+  'salles-de-fete': { propertyType: 'salle de fête', pluralKey: 'listings.typePlurals.salleDeFete' },
+  fermes: { propertyType: 'ferme / terrain agricole', pluralKey: 'listings.typePlurals.ferme' },
   duplex: { propertyType: 'duplex', pluralKey: 'listings.typePlurals.duplex' },
   penthouses: { propertyType: 'penthouse', pluralKey: 'seo.penthouses' },
   boutiques: { propertyType: 'boutique', pluralKey: 'listings.typePlurals.boutique' },

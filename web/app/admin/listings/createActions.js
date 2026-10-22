@@ -4,7 +4,8 @@ import { revalidatePath } from 'next/cache';
 import { requireAdmin } from '@/lib/adminSession';
 import { recordAudit } from '@/lib/adminAudit';
 import { can } from '@/lib/adminRoles';
-import { adminUpdateListing, getListingForAdmin, getCategoriesForAdmin } from '@/lib/adminListings';
+import { adminUpdateListing, adminSetListingDetails, getListingForAdmin, getCategoriesForAdmin } from '@/lib/adminListings';
+import { listingDetailsFromForm } from '@/lib/listingDetails';
 import { createListing, setListingGallery, attachListingPhotos } from '@/lib/agentListings';
 import { uploadListingPhoto } from '@/lib/listingStorage';
 import { getAgentById } from '@/lib/agents';
@@ -133,6 +134,15 @@ export async function adminCreateListingAction(formData) {
       await adminUpdateListing(propertyId, extra);
     } catch (err) {
       console.error(`[admin/listings] #${propertyId} currency/period not saved: ${err.message}`);
+    }
+  }
+
+  const details = listingDetailsFromForm(formData);
+  if (Object.values(details).some((value) => value !== null)) {
+    try {
+      await adminSetListingDetails(propertyId, details);
+    } catch (err) {
+      console.error(`[admin/listings] #${propertyId} details not saved: ${err.message}`);
     }
   }
 

@@ -554,7 +554,11 @@
       "boutique": "Shops",
       "entrepot": "Warehouses",
       "bureau": "Offices",
-      "commercial": "Commercial Spaces"
+      "commercial": "Commercial Spaces",
+      "studio": "Studios",
+      "chambre": "Rooms & Annexes",
+      "salleDeFete": "Event Halls",
+      "ferme": "Farms & Farmland"
     },
     "chips": {
       "near": "Near {place}",
@@ -787,6 +791,64 @@
       "long": "Long term",
       "short": "Short term",
       "hint": "Long term: a standard monthly lease. Short term: a room, studio or flat let by the day or the week."
+    },
+    "details": {
+      "title": "Practical Details",
+      "declared": "Stated by the agent",
+      "furnished": "Furnished",
+      "unfurnished": "Unfurnished",
+      "households": "Households sharing the compound: {count}",
+      "landlordOn": "Landlord lives on site",
+      "landlordOff": "Landlord lives elsewhere",
+      "toiletIn": "Indoor toilet",
+      "toiletOut": "Outdoor toilet",
+      "showerIn": "Indoor shower",
+      "showerOut": "Outdoor shower",
+      "meter": {
+        "prepaye": "Prepaid meter (Cash Power)",
+        "individuel": "Individual meter",
+        "partage": "Shared meter"
+      },
+      "plot": "Plot: {size}",
+      "perM2": "per m²",
+      "installments": "Payment in instalments possible",
+      "installmentTerms": "Terms: {terms}",
+      "filter": {
+        "plotLabel": "Plot size (m²)",
+        "plotHint": "1 are = 100 m² · 1 ha = 10,000 m²",
+        "plotMin": "Min m²",
+        "plotMax": "Max m²",
+        "chipMin": "Plot ≥ {min} m²",
+        "chipMax": "Plot ≤ {max} m²",
+        "chipRange": "Plot {min}–{max} m²"
+      },
+      "form": {
+        "legend": "Practical details",
+        "notStated": "Not stated",
+        "yes": "Yes",
+        "no": "No",
+        "furnished": "Furnished?",
+        "furnishedYes": "Furnished",
+        "furnishedNo": "Unfurnished",
+        "households": "Households sharing the compound",
+        "landlord": "Does the landlord live there?",
+        "toilet": "Toilet",
+        "shower": "Shower",
+        "inside": "Indoors",
+        "outside": "Outdoors",
+        "meter": "Electricity meter",
+        "meterPrepaye": "Cash Power (prepaid, individual)",
+        "meterIndividuel": "Individual",
+        "meterPartage": "Shared",
+        "plot": "Plot size",
+        "plotPlaceholder": "e.g. 15/20, 20x30, 5 ares, 1 ha",
+        "plotComputed": "= {size}",
+        "plotUnreadable": "Size not recognised: write e.g. 15/20, 20x30 or 5 ares.",
+        "installments": "Payment in instalments possible",
+        "installmentTerms": "Payment terms (your words)",
+        "installmentPlaceholder": "e.g. 30% on signing, the rest over 12 months",
+        "hint": "Leave “Not stated” when the listing does not say."
+      }
     }
   },
   "enquiry": {

@@ -133,6 +133,16 @@ export default async function ActiveFilterChips({ params = {}, propertyTypeLabel
     chips.push({ key: 'lease_term', label: t(leaseTerm.labelKey), href: hrefWithoutKeys(params, 'lease_term') });
   }
 
+  if (params.plot_min || params.plot_max) {
+    const fmt = (v) => Number(v).toLocaleString(t.locale === 'en' ? 'en-GB' : 'fr-FR');
+    const label = params.plot_min && params.plot_max
+      ? t('listings.details.filter.chipRange', { min: fmt(params.plot_min), max: fmt(params.plot_max) })
+      : params.plot_min
+        ? t('listings.details.filter.chipMin', { min: fmt(params.plot_min) })
+        : t('listings.details.filter.chipMax', { max: fmt(params.plot_max) });
+    chips.push({ key: 'plot', label, href: hrefWithoutKeys(params, ['plot_min', 'plot_max']) });
+  }
+
   const activeAmenities = params.amenities ? params.amenities.split(',').filter(Boolean) : [];
   for (const amenityKey of activeAmenities) {
     const labelKey = AMENITY_LABEL_KEYS[amenityKey];

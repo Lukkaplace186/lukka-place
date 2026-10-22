@@ -170,14 +170,17 @@ const TRANSACTION_TYPE_PATTERNS = [
   [/\bkosomba\b/i, 'vente'],
 ];
 
-// Mapped only to real, currently-queryable values: "appartement" and
-// "maison" are the live categories; "villa"/"terrain" exist as
-// PARCELLE_SUBTYPES (lib/constants.js), never as a top-level property_type.
+// Mapped only to real, currently-queryable values. "villa" is the Villa
+// category OR a parcelle sub-typed villa (lib/listings.js CATEGORY_ALIASES);
+// "terrain" is still the parcelle sub-type; "immeuble" and "concession" are
+// categories since 2026-10-22.
 // `ap+ar?t\w*` covers appartement, appart, apparts, apartment, apartement and
 // the typo "appartemnt"; `ap+t` covers apt/appt.
 const PROPERTY_TYPE_PATTERNS = [
   [/\b(?:ap+ar?t\w*|ap+ts?|flats?|studios?)\b/i, { property_type: 'appartement' }],
-  [/\bvillas?\b/i, { property_type: 'parcelle', parcelle_subtype: 'villa' }],
+  [/\bvillas?\b/i, { property_type: 'villa' }],
+  [/\bconcessions?\b/i, { property_type: 'concession' }],
+  [/\b(?:immeubles?|buildings?)\b/i, { property_type: 'immeuble' }],
   [/\b(?:terrains?|plots?|land|lopango)\b/i, { property_type: 'parcelle', parcelle_subtype: 'terrain_nu' }],
   [/\b(?:maisons?|maisonnettes?|houses?|homes?|ndako|ndaku)\b/i, { property_type: 'maison' }],
 ];

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Briefcase, Building2, House, Store, Warehouse } from 'lucide-react';
+import { Briefcase, Building, Building2, Fence, House, Store, Warehouse } from 'lucide-react';
 import { ApartmentIcon, LandIcon } from './icons/PropertyTypeIcons';
 import { getT } from '@/lib/i18n/server';
 import { COMMERCIAL_FILTER_VALUE, groupTypeFacets } from '@/lib/commercialSpaces';
@@ -24,7 +24,9 @@ const ICONS = [
   [/^commercial$/, Building2],
   [/bureau/, Briefcase],
   [/boutique|commerce/, Store],
-  [/entrep|d[eé]p[oô]t|b[aâ]timent/, Warehouse],
+  [/entrep|d[eé]p[oô]t/, Warehouse],
+  [/immeuble|b[aâ]timent/, Building],
+  [/concession/, Fence],
 ];
 
 function iconFor(value) {

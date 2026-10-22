@@ -11249,6 +11249,29 @@ console.log('\n2. services/openai.js');
     assert.match(source, /PAS « dépôt de garantie »/);
   });
 
+  check('Immeuble, Villa and Concession: their own categories, old ones before the 2026-10-22 migration', () => {
+    const after = new Map([
+      ['immeuble', { id: 38, type: 'commercial' }], ['villa', { id: 45, type: 'residential' }],
+      ['concession', { id: 46, type: 'residential' }], ['maison', { id: 36, type: 'residential' }],
+      ['terrain', { id: 42, type: 'residential' }], ['bureau', { id: 44, type: 'commercial' }],
+    ]);
+    assert.strictEqual(postgresService.resolveCategory('immeuble', after).id, 38);
+    assert.strictEqual(postgresService.resolveCategory('villa', after).id, 45);
+    assert.strictEqual(postgresService.resolveCategory('concession', after).id, 46);
+    assert.strictEqual(postgresService.resolveCategory('parcelle', after, 'villa').id, 45, 'a villa parcelle is a Villa');
+    assert.strictEqual(postgresService.resolveCategory('parcelle', after, 'terrain_nu').id, 42);
+    assert.strictEqual(postgresService.resolveCategory('parcelle', after).id, 42);
+    // Before: "Bâtiment" is the building category, no Villa / Concession.
+    assert.strictEqual(postgresService.resolveCategory('immeuble', fakeCategories).id, 38);
+    assert.strictEqual(postgresService.resolveCategory('concession', fakeCategories).id, 42);
+    assert.strictEqual(postgresService.resolveCategory('parcelle', fakeCategories, 'villa').id, 42);
+    const repoSource = fs.readFileSync(path.join(__dirname, '..', 'services', 'propertyRepository.js'), 'utf8');
+    assert.ok(repoSource.includes("immeuble: ['immeuble', 'bâtiment']"), 'buyer search still finds Immeuble under its old name');
+    const prompt = fs.readFileSync(path.join(__dirname, '..', 'services', 'openai.js'), 'utf8');
+    assert.match(prompt, /'terrain', 'concession', 'bureau'/, 'concession is an extraction type');
+    assert.match(prompt, /CONCESSION/);
+  });
+
   check('a "bureau" lands on the Bureau category, or on Bâtiment before the migration', () => {
     const withOffice = new Map([['bureau', { id: 44, type: 'commercial' }], ['batiment', { id: 38, type: 'commercial' }]]);
     const without = new Map([['batiment', { id: 38, type: 'commercial' }], ['appartement', { id: 34, type: 'residential' }]]);
@@ -11315,7 +11338,7 @@ console.log('\n2. services/openai.js');
     const source = fs.readFileSync(path.join(__dirname, '..', 'services', 'propertyRepository.js'), 'utf8');
     assert.match(source, /propertyType === 'commercial'[\s\S]{0,200}LOWER\(cat\.type\) = 'commercial'/);
     const tool = fs.readFileSync(path.join(__dirname, '..', 'services', 'openai.js'), 'utf8');
-    assert.ok(tool.includes("enum: ['appartement', 'parcelle', 'commercial', 'bureau', 'boutique', 'entrepot']"));
+    assert.ok(tool.includes("enum: ['appartement', 'parcelle', 'villa', 'concession', 'commercial', 'bureau', 'boutique', 'entrepot', 'immeuble']"));
   });
 
   check('web keeps the same specs and bounds', () => {

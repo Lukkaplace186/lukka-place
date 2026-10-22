@@ -80,7 +80,7 @@ function absolute(src) {
   }
 }
 
-const SCHEMA_TYPES = { appartement: 'Apartment', maison: 'House', duplex: 'House', penthouse: 'Apartment', villa: 'House' };
+const SCHEMA_TYPES = { appartement: 'Apartment', maison: 'House', duplex: 'House', penthouse: 'Apartment', villa: 'House', concession: 'House' };
 
 /** Where the listing's commune crumb points: its landing page when there is one. */
 export function communeHref(listing) {

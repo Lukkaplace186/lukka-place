@@ -72,6 +72,13 @@ const nextConfig = {
         destination: 'https://lukkaplace.com/:path*',
         permanent: true,
       },
+      // The "Bâtiment" category became "Immeuble" (2026-10-22): its landing
+      // pages moved from /{tx}/batiments to /{tx}/immeubles.
+      {
+        source: '/:tx(location|vente)/batiments/:rest*',
+        destination: '/:tx/immeubles/:rest*',
+        permanent: true,
+      },
       {
         source: '/compte/client',
         has: [{ type: 'query', key: 'tab', value: '(?<tab>alertes|favoris)' }],

@@ -35,6 +35,7 @@ const PROPERTY_TYPE_LABELS = {
   chambre_salon: 'Chambre salon',
   parcelle: 'Parcelle',
   terrain: 'Terrain',
+  concession: 'Concession',
   bureau: 'Bureau',
   boutique: 'Boutique',
   entrepot: 'Entrepôt',
@@ -109,7 +110,7 @@ function isGroupedListing(row) {
  * or commercial premises, where "chambres" means nothing.
  */
 function missingFields(row) {
-  const noRooms = (['terrain', 'parcelle'].includes(row.property_type) || isCommercialType(row.property_type))
+  const noRooms = (['terrain', 'parcelle', 'concession'].includes(row.property_type) || isCommercialType(row.property_type))
     && row.parcelle_subtype !== 'maison_type_locataire'
     && row.parcelle_subtype !== 'villa';
   return Object.keys(MISSING_LABELS).filter((key) => {

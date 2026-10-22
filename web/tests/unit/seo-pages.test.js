@@ -38,7 +38,10 @@ test('route segments parse into exactly the four accepted shapes', () => {
   const both = parseSeoSegments('location', ['appartements', 'ngiri-ngiri']);
   assert.equal(both.propertyType, 'appartement');
   assert.equal(both.commune, 'Ngiri-Ngiri');
-  assert.equal(parseSeoSegments('vente', ['batiments']).propertyType, 'bâtiment');
+  assert.equal(parseSeoSegments('vente', ['immeubles']).propertyType, 'immeuble');
+  assert.equal(parseSeoSegments('vente', ['batiments']), null, 'old slug is a redirect in next.config.mjs, not a page');
+  assert.equal(parseSeoSegments('location', ['villas', 'ngaliema']).propertyType, 'villa');
+  assert.equal(parseSeoSegments('vente', ['concessions']).propertyType, 'concession');
 
   assert.equal(parseSeoSegments('location', ['nowhere']), null);
   assert.equal(parseSeoSegments('location', ['gombe', 'appartements']), null, 'type comes first');
@@ -50,7 +53,7 @@ test('seoPath is the inverse of parseSeoSegments', () => {
   assert.equal(seoPath({ transaction: 'location' }), '/location');
   assert.equal(seoPath({ transaction: 'location', commune: 'Gombe' }), '/location/gombe');
   assert.equal(seoPath({ transaction: 'vente', propertyType: 'Terrain', commune: 'Lemba' }), '/vente/terrains/lemba');
-  assert.equal(seoPath({ transaction: 'vente', propertyType: 'bâtiment' }), '/vente/batiments');
+  assert.equal(seoPath({ transaction: 'vente', propertyType: 'Immeuble' }), '/vente/immeubles');
   assert.equal(seoPath({ transaction: 'location', propertyType: 'castle' }), null);
   assert.equal(seoPath({ transaction: 'location', commune: 'Atlantis' }), null);
   for (const commune of SEO_COMMUNES) {

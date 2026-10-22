@@ -68,12 +68,13 @@ const CATEGORY_HINTS_BY_TYPE = {
   maison: 'maison',
   parcelle: 'maison',
   terrain: 'terrain',
+  concession: 'concession',
   bureau: 'bureau',
   boutique: 'boutique',
   entrepot: 'entrepot',
-  // The database's whole-building category is "Bâtiment" (normalised
-  // "batiment"); "immeuble" matched nothing.
-  immeuble: 'batiment',
+  // The whole-building category is "Immeuble" since 2026-10-22, "Bâtiment"
+  // before: both are tried, in that order.
+  immeuble: ['immeuble', 'batiment'],
 };
 
 /**
@@ -86,8 +87,11 @@ const CATEGORY_HINTS_BY_TYPE = {
 export function matchCategoryId(categories, propertyType, parcelleSubtype) {
   const hint = CATEGORY_HINTS_BY_SUBTYPE[parcelleSubtype] || CATEGORY_HINTS_BY_TYPE[propertyType];
   if (!hint) return null;
-  const match = categories.find((c) => normalize(c.name).includes(hint));
-  return match ? match.id : null;
+  for (const wanted of [].concat(hint)) {
+    const match = categories.find((c) => normalize(c.name).includes(wanted));
+    if (match) return match.id;
+  }
+  return null;
 }
 
 /**

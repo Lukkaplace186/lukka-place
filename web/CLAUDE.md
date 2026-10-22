@@ -3006,3 +3006,20 @@ Tests: `tests/unit/lease-term.test.js`.
   admin create** now post the stored vocabulary (`mois`, `an`, `jour`,
   `semaine`, `total`); they used to post `month` / `year` / `day`, which no
   reader understood (no production row held one, checked 2026-10-21).
+
+## Property types: Immeuble, Villa, Concession (2026-10-22)
+
+Engine migration and rules: root CLAUDE.md, same heading. Every type picker
+reads the categories table, so the dropdowns change with the migration.
+
+- **Old names keep working** (`CATEGORY_ALIASES`, lib/listings.js):
+  `?property_type=bâtiment` (saved searches, alerts, shared links) matches
+  Immeuble; `villa` matches the Villa category OR a parcelle sub-typed villa.
+  The search box reads "villa" as `property_type=villa` (it was the parcelle
+  sub-type), plus "concession" and "immeuble".
+- **Landing pages**: `/{tx}/immeubles`, `/villas`, `/concessions`;
+  `/{tx}/batiments/*` is a 308 to `/immeubles` (next.config.mjs).
+- Plurals `listings.typePlurals.immeuble/villa/concession`; homepage tiles
+  use Building / Fence icons; the detail map pin draws an Immeuble as a building.
+- Smart paste tries "immeuble" then "batiment" (`matchCategoryId` takes a list).
+

@@ -65,13 +65,17 @@ export const PROPERTY_TYPE_PLURAL_KEYS = {
   maison: 'listings.typePlurals.maison',
   duplex: 'listings.typePlurals.duplex',
   terrain: 'listings.typePlurals.terrain',
-  batiment: 'listings.typePlurals.batiment',
+  immeuble: 'listings.typePlurals.immeuble',
+  villa: 'listings.typePlurals.villa',
+  concession: 'listings.typePlurals.concession',
   boutique: 'listings.typePlurals.boutique',
   entrepot: 'listings.typePlurals.entrepot',
   // The facet value is the category name lowercased, accent kept
-  // ("entrepôt", "bâtiment") — the unaccented keys above never matched it.
+  // ("entrepôt") — the unaccented key above never matched it. "bâtiment"
+  // is Immeuble's name before 2026-10-22 and in links already shared.
   'entrepôt': 'listings.typePlurals.entrepot',
-  'bâtiment': 'listings.typePlurals.batiment',
+  'bâtiment': 'listings.typePlurals.immeuble',
+  batiment: 'listings.typePlurals.immeuble',
   bureau: 'listings.typePlurals.bureau',
   // lib/commercialSpaces.js's COMMERCIAL_FILTER_VALUE: every commercial category.
   commercial: 'listings.typePlurals.commercial',

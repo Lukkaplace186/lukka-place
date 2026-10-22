@@ -180,31 +180,42 @@ async function loadTaxonomy(client) {
 /**
  * Our property_type -> nearest-fit French category name. Unlike the earlier
  * MySQL attempt, this schema has a dedicated Entrepôt/Warehouse category, so
- * 'entrepot' gets an exact match instead of falling back to Bâtiment.
+ * 'entrepot' gets an exact match instead of falling back to Immeuble.
  *
- * A list is tried in order: 'bureau' has its own category since
- * migrations/20261019_commercial_spaces.sql, and falls back to Bâtiment
- * (commercial too) on a database where that migration has not run. The
- * taxonomy is cached per process, so the engine needs a restart after it.
+ * A list is tried in order, newest category first, so a database where its
+ * migration has not run still files the listing somewhere sensible:
+ * 'bureau' (20261019_commercial_spaces.sql) falls back to Immeuble; 'villa'
+ * and 'concession' (20261022_property_types_immeuble_villa_concession.sql)
+ * to Maison and Terrain; and Immeuble is still found under its old name
+ * "Bâtiment". The taxonomy is cached per process, so the engine needs a
+ * restart after either migration.
  */
 const CATEGORY_FALLBACK_FR = {
   appartement: 'appartement',
   studio: 'appartement',
-  villa: 'maison',
+  villa: ['villa', 'maison'],
   maison: 'maison',
   duplex: 'duplex',
   chambre_salon: 'appartement',
   parcelle: 'terrain',
   terrain: 'terrain',
-  bureau: ['bureau', 'batiment'],
+  concession: ['concession', 'terrain'],
+  bureau: ['bureau', 'immeuble', 'batiment'],
   boutique: 'boutique',
   entrepot: 'entrepot',
-  immeuble: 'batiment',
+  immeuble: ['immeuble', 'batiment'],
   autre: 'appartement',
 };
 
-function resolveCategory(propertyType, categories) {
-  const wanted = [].concat(CATEGORY_FALLBACK_FR[propertyType] || CATEGORY_FALLBACK_FR.autre);
+/**
+ * A parcelle whose sub-type is a villa is filed under Villa once that
+ * category exists; before, and for every other sub-type, a parcelle stays
+ * on Terrain as it always has.
+ */
+function resolveCategory(propertyType, categories, parcelleSubtype = null) {
+  const wanted = propertyType === 'parcelle' && parcelleSubtype === 'villa'
+    ? ['villa', 'terrain']
+    : [].concat(CATEGORY_FALLBACK_FR[propertyType] || CATEGORY_FALLBACK_FR.autre);
   for (const name of wanted) {
     const match = categories.get(normaliseText(name));
     if (match) return match;
@@ -232,6 +243,7 @@ const PROPERTY_TYPE_LABELS_FR = {
   chambre_salon: 'Chambre salon',
   parcelle: 'Parcelle',
   terrain: 'Terrain',
+  concession: 'Concession',
   bureau: 'Bureau',
   boutique: 'Boutique',
   entrepot: 'Entrepôt',
@@ -871,7 +883,7 @@ async function syncListingToPostgres(row) {
   const client = await getPool().connect();
   try {
     const { categories, location } = await loadTaxonomy(client);
-    const category = resolveCategory(row.property_type, categories);
+    const category = resolveCategory(row.property_type, categories, row.parcelle_subtype);
     const agentId = await resolveAgentId(client, row.wa_id);
     const hasPhotos = Array.isArray(row.photos) && row.photos.length > 0;
 

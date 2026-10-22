@@ -31,14 +31,14 @@ export function storedPosition(listing) {
 
 /**
  * Which symbol the pin carries: 'apartment' for a unit in a building,
- * 'land' for a bare plot (Terrain Nu), 'house' for everything else — a
- * parcelle (Villa, Maison Type Locataire) or a Maison.
+ * or for a whole Immeuble, 'land' for a bare plot (Terrain Nu), 'house' for
+ * everything else — a parcelle, a Maison, a Villa or a Concession.
  */
 export function pinKind(listing) {
   if (listing?.parcelle_subtype === 'terrain_nu') return 'land';
   if (listing?.parcelle_subtype) return 'house';
   const category = String(listing?.category_name || '').toLowerCase();
-  if (category.includes('appartement') || category.includes('studio')) return 'apartment';
+  if (category.includes('appartement') || category.includes('studio') || category.includes('immeuble')) return 'apartment';
   if (category.includes('terrain')) return 'land';
   return 'house';
 }

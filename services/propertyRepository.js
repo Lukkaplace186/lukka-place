@@ -107,6 +107,20 @@ const AGENT_INFOS_JOIN = `
 
 const TRANSACTION_TYPE_TO_PURPOSE = { location: 'rent', vente: 'sale' };
 
+/**
+ * search_properties' single-category types → the lowercased French category
+ * names they match. Immeuble keeps its pre-2026-10-22 name "bâtiment" so a
+ * database where the rename migration has not run still answers.
+ */
+const CATEGORY_NAME_BY_SEARCH_TYPE = {
+  bureau: ['bureau'],
+  boutique: ['boutique'],
+  entrepot: ['entrepôt'],
+  immeuble: ['immeuble', 'bâtiment'],
+  villa: ['villa'],
+  concession: ['concession'],
+};
+
 const SEARCH_LIMIT_DEFAULT = 8;
 const SEARCH_LIMIT_MAX = 20;
 
@@ -173,9 +187,9 @@ function buildFilters({
     // Offices, shops, warehouses, whole buildings: the category's own type
     // (migrations/20261019_commercial_spaces.sql, services/commercial.js).
     where.push(`LOWER(cat.type) = 'commercial'`);
-  } else if (['bureau', 'boutique', 'entrepot'].includes(propertyType)) {
-    params.push({ bureau: 'bureau', boutique: 'boutique', entrepot: 'entrepôt' }[propertyType]);
-    where.push(`LOWER(catc.name) = $${params.length}`);
+  } else if (CATEGORY_NAME_BY_SEARCH_TYPE[propertyType]) {
+    params.push(CATEGORY_NAME_BY_SEARCH_TYPE[propertyType]);
+    where.push(`LOWER(catc.name) = ANY($${params.length})`);
   }
 
   if (commune) {

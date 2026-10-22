@@ -22,7 +22,7 @@ export const SEO_TRANSACTIONS = {
 
 /**
  * URL slug → the `property_type` value getListings filters on (the category
- * name lowercased — "Bâtiment" keeps its accent there) and the plural label
+ * name lowercased — "Entrepôt" keeps its accent there) and the plural label
  * key. Plural slugs, because that is what people type: "appartements à louer".
  */
 export const SEO_PROPERTY_TYPES = {
@@ -30,10 +30,13 @@ export const SEO_PROPERTY_TYPES = {
   maisons: { propertyType: 'maison', pluralKey: 'listings.typePlurals.maison' },
   terrains: { propertyType: 'terrain', pluralKey: 'listings.typePlurals.terrain' },
   parcelles: { propertyType: 'parcelle', pluralKey: 'listings.typePlurals.parcelle' },
+  villas: { propertyType: 'villa', pluralKey: 'listings.typePlurals.villa' },
+  concessions: { propertyType: 'concession', pluralKey: 'listings.typePlurals.concession' },
   duplex: { propertyType: 'duplex', pluralKey: 'listings.typePlurals.duplex' },
   penthouses: { propertyType: 'penthouse', pluralKey: 'seo.penthouses' },
   boutiques: { propertyType: 'boutique', pluralKey: 'listings.typePlurals.boutique' },
-  batiments: { propertyType: 'bâtiment', pluralKey: 'listings.typePlurals.batiment' },
+  // Was /batiments until 2026-10-22 (category renamed); next.config.mjs redirects it.
+  immeubles: { propertyType: 'immeuble', pluralKey: 'listings.typePlurals.immeuble' },
   entrepots: { propertyType: 'entrepôt', pluralKey: 'listings.typePlurals.entrepot' },
   bureaux: { propertyType: 'bureau', pluralKey: 'listings.typePlurals.bureau' },
   // Every commercial category at once (lib/commercialSpaces.js) — the page

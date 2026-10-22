@@ -25,7 +25,9 @@ const CASES = [
   ['maison 1500usd kinshasa', { price_max: 1500, property_type: 'maison', keywords: '' }],
   ['budget 800', { price_max: 800, keywords: '' }],
   ['1k max', { price_max: 1000, keywords: '' }],
-  ['villa 150k', { price_max: 150000, property_type: 'parcelle', parcelle_subtype: 'villa', keywords: '' }],
+  ['villa 150k', { price_max: 150000, property_type: 'villa', keywords: '' }],
+  ['concession à vendre', { transaction_type: 'vente', property_type: 'concession', keywords: '' }],
+  ['immeuble gombe', { property_type: 'immeuble', commune: 'Gombe', keywords: '' }],
   ['maison lemba 400', { price_max: 400, property_type: 'maison', commune: 'Lemba', keywords: '' }],
   ['2 chambres 1 500$', { beds_min: 2, price_max: 1500, keywords: '' }],
   // "under 1.5k" was read as a $1.50 ceiling plus a stray "k" keyword
@@ -64,7 +66,7 @@ const CASES = [
   ['salongo', { commune: 'Kintambo', quartier: 'Salongo', communes: ['Kintambo', 'Kasa-Vubu', 'Limete', 'Lemba', 'Makala'], keywords: '' }],
   // Real requests stay as words
   ['studio meublé kintambo', { property_type: 'appartement', commune: 'Kintambo', keywords: 'meublé' }],
-  ['villa avec piscine ma campagne', { property_type: 'parcelle', parcelle_subtype: 'villa', commune: 'Ngaliema', quartier: 'Ma Campagne', keywords: 'piscine' }],
+  ['villa avec piscine ma campagne', { property_type: 'villa', commune: 'Ngaliema', quartier: 'Ma Campagne', keywords: 'piscine' }],
   // A landmark is a place to search around (`near`), never leftover words:
   // as keywords it filtered the map and the list down to nothing.
   ['house near UPN', { property_type: 'maison', commune: 'Ngaliema', near: 'UPN', keywords: '' }],

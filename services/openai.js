@@ -59,7 +59,7 @@ const OTHER_CITIES_BLOCK = CITY_NAMES.filter((name) => name !== DEFAULT_CITY)
 
 const PROPERTY_TYPES = [
   'appartement', 'studio', 'villa', 'maison', 'duplex', 'chambre_salon',
-  'parcelle', 'terrain', 'bureau', 'boutique', 'entrepot', 'immeuble', 'autre',
+  'parcelle', 'terrain', 'concession', 'bureau', 'boutique', 'entrepot', 'immeuble', 'autre',
 ];
 
 /**
@@ -130,6 +130,9 @@ CLASSIFICATION DU TYPE DE BIEN — RÈGLES SPÉCIFIQUES À KINSHASA
    - Si l'annonce mentionne des dimensions de terrain ("5,30m sur 18m", "15/20m"), une propriété clôturée ("clôturé", "portail"), ou "Maison Type Locataire" / un nombre de "Portes", classe property_type comme "parcelle".
    - NE classe JAMAIS une annonce comme "appartement" uniquement parce qu'une superficie (m²) ou plusieurs pièces/portes sont mentionnées — ce sont des signaux de parcelle, pas d'appartement.
    - Sous-types autorisés (champ parcelle_subtype, rempli UNIQUEMENT si property_type = "parcelle", sinon null) : "maison_type_locataire" (maison à portes multiples, locative), "villa", "terrain_nu" (terrain non bâti). Laisse null si le message ne permet pas de trancher.
+
+1bis. CONCESSION
+   - Si le message emploie le mot "concession" pour le bien lui-même (une grande propriété clôturée vendue ou louée d'un seul tenant, souvent plusieurs bâtiments, jardin, mesurée en ares ou en hectares), classe property_type comme "concession", jamais "parcelle" ni "terrain". parcelle_subtype reste null. "Concession" au sens d'un droit (concession minière, forestière, funéraire) n'est pas un bien immobilier à louer : n'en déduis rien.
 
 2. APPARTEMENT
    - Classe property_type comme "appartement" UNIQUEMENT si le message décrit explicitement un logement individuel dans un immeuble à étages ou une résidence collective (ex. "Appartement au 2ème étage", "Immeuble").
@@ -937,8 +940,8 @@ const BUYER_TOOLS = [
           transaction_type: { type: 'string', enum: ['location', 'vente'] },
           property_type: {
             type: 'string',
-            enum: ['appartement', 'parcelle', 'commercial', 'bureau', 'boutique', 'entrepot'],
-            description: "'commercial' = tout local professionnel (bureaux, boutiques, entrepôts) ; bureau / boutique / entrepot pour un seul type.",
+            enum: ['appartement', 'parcelle', 'villa', 'concession', 'commercial', 'bureau', 'boutique', 'entrepot', 'immeuble'],
+            description: "'commercial' = tout local professionnel (bureaux, boutiques, entrepôts, immeubles) ; bureau / boutique / entrepot / immeuble pour un seul type. 'villa' et 'concession' sont leurs propres catégories.",
           },
           city: {
             type: 'string',
@@ -1367,7 +1370,7 @@ ${LOCATIONS_BLOCK}
 - Un code/numéro de référence explicite ("Réf:", "Référence:") va dans "reference", distinct du quartier.
 
 CLASSIFICATION DU TYPE DE BIEN — mêmes règles que l'intake WhatsApp :
-1. PARCELLE : dimensions de terrain, propriété clôturée, "Maison Type Locataire" ou "Portes" => property_type "parcelle". Sous-type (parcelle_subtype, uniquement si property_type = "parcelle") : "maison_type_locataire", "villa", "terrain_nu". NE classe JAMAIS "appartement" uniquement à cause d'une superficie ou de plusieurs pièces/portes.
+1. PARCELLE : dimensions de terrain, propriété clôturée, "Maison Type Locataire" ou "Portes" => property_type "parcelle". Sous-type (parcelle_subtype, uniquement si property_type = "parcelle") : "maison_type_locataire", "villa", "terrain_nu". NE classe JAMAIS "appartement" uniquement à cause d'une superficie ou de plusieurs pièces/portes. Le mot "concession" pour le bien lui-même (grande propriété clôturée d'un seul tenant, en ares ou hectares) => "concession", jamais "parcelle".
 2. APPARTEMENT : uniquement si le message décrit explicitement un logement dans un immeuble à étages ou une résidence collective.
 3. "X Portes" / "Type Locataire" => units_count = X.
 4. LOCAL COMMERCIAL : "bureau(x) à louer", "espace de bureaux", "plateau" => "bureau" ; "boutique", "magasin", "local commercial", "showroom" => "boutique" ; "entrepôt", "dépôt" (le local), "hangar" => "entrepot" ; un immeuble entier => "immeuble". Un "bureau" cité comme pièce d'une maison ne change pas le type. Pour un local commercial : bedrooms = null ; office_count = nombre de pièces de bureau ; floor_level = 0 pour rez-de-chaussée, 1 pour 1er étage, -1 pour sous-sol ; road_frontage = true seulement si le texte dit qu'il donne sur la route ; truck_access = true seulement si un camion peut y accéder. Sinon null — et toujours null pour un bien résidentiel.

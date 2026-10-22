@@ -1792,7 +1792,7 @@ and the CHECK of `migrations/20260929_listing_utilities.sql` (web's
 compared by both test suites), `migrations/20261019_commercial_spaces.sql`.
 
 - **"Commercial" is `property_categories.type = 'commercial'`**, the
-  back-office's own flag (Bureau, Boutique, Entrepôt, Bâtiment), never a list
+  back-office's own flag (Bureau, Boutique, Entrepôt, Immeuble), never a list
   of names. The migration adds the missing **Bureau / Office** category
   (no id sequence on that table: MAX + 1 under a lock, skipped when a French
   "Bureau" exists). Before it runs, a WhatsApp "bureau" still lands on
@@ -1907,3 +1907,25 @@ and the default — a rent with no period, or a monthly / yearly one.
   web every `price_period = 'an'` normalisation): its amount is NULL there,
   never multiplied by a guessed occupancy.
 - §64 of verify-pipeline.
+
+## Property types: Immeuble, Villa, Concession (2026-10-22)
+
+`migrations/20261022_property_types_immeuble_villa_concession.sql`. Types are
+`property_categories` rows, not an ENUM, so every dropdown follows the table.
+
+- **Bâtiment (id 38) is renamed Immeuble** (French name + slug; English stays
+  "Building"). Same id, so nothing on `properties` moves. **Villa** and
+  **Concession** ("Compound" in English) are new residential categories,
+  ids MAX + 1 like Bureau's.
+- **Extraction**: `concession` joins PROPERTY_TYPES (both schemas, Gemini
+  parser too), with a prompt rule — the word "concession" for the property
+  itself (large walled plot sold or let whole, in ares / hectares), never a
+  mining / forest / burial concession. A concession is not asked for bedrooms.
+- **Publish** (`resolveCategory`): villa → Villa, else Maison; concession →
+  Concession, else Terrain; immeuble and bureau's fallback find the building
+  category under either name; a parcelle sub-typed villa → Villa, else Terrain
+  as before. Restart the engine after the migration (taxonomy cache).
+- **Buyer assistant**: `search_properties` takes villa, concession, immeuble
+  (`CATEGORY_NAME_BY_SEARCH_TYPE`, Immeuble also matched as "bâtiment").
+- Web half: web/CLAUDE.md, same heading. §53 of verify-pipeline.
+

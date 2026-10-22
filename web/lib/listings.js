@@ -417,6 +417,21 @@ function communeListOf({ commune, communes } = {}) {
  *     path has parcelle_subtype set. Filtering on parcelle_subtype is the
  *     precise match for "this is a parcelle listing".
  */
+/**
+ * Property-type filter values that match more than one stored name.
+ * Immeuble was "Bâtiment" until 2026-10-22 (engine migration
+ * 20261022_property_types_immeuble_villa_concession.sql), and old links,
+ * saved searches and alerts still carry "bâtiment". A villa is either the
+ * Villa category or a parcelle the engine sub-typed villa — before that
+ * category existed, the only kind there was.
+ */
+const CATEGORY_ALIASES = {
+  immeuble: { names: ['immeuble', 'bâtiment'] },
+  'bâtiment': { names: ['immeuble', 'bâtiment'] },
+  batiment: { names: ['immeuble', 'bâtiment'] },
+  villa: { names: ['villa'], parcelleSubtype: 'villa' },
+};
+
 function buildFilters({ transactionType, propertyType, parcelleSubtype, commune, communes, quartier, radius, near, reference, priceMin, priceMax, bedsMin, bathMin, depositMax, depositRange, leaseTerm, amenities, search, excludeId, agentId, ids, ville }) {
   const where = [APPROVED_FILTER];
   const params = [];
@@ -567,6 +582,16 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
     // Offices, shops, warehouses, buildings — every category the back-office
     // types 'commercial' (lib/commercialSpaces.js), not a list of names.
     where.push(`LOWER(cat.type) = 'commercial'`);
+  } else if (propertyType && CATEGORY_ALIASES[propertyType.toLowerCase()]) {
+    const { names, parcelleSubtype: aliasSubtype } = CATEGORY_ALIASES[propertyType.toLowerCase()];
+    params.push(names);
+    const byName = `LOWER(catc.name) = ANY($${params.length})`;
+    if (aliasSubtype) {
+      params.push(aliasSubtype);
+      where.push(`(${byName} OR p.parcelle_subtype = $${params.length})`);
+    } else {
+      where.push(byName);
+    }
   } else if (propertyType) {
     // Case-insensitive on purpose: the live rows are 'Appartement' and
     // 'Maison' (capitalised), while this comparison used to be hardcoded to

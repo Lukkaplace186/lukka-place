@@ -52,7 +52,7 @@ function fold(text) {
 const FAMILY_WORDS = [
   ['appartement', /\b(?:appartements?|apartements?|appart|studios?|flat)\b/],
   ['maison', /\b(?:villas?|maisons?|parcelles?|duplex|pavillon|complexe|type locataire|portes)\b/],
-  ['terrain', /\b(?:terrains?|lopin)\b/],
+  ['terrain', /\b(?:terrains?|lopin|concessions?)\b/],
   ['commercial', /\b(?:bureaux?|boutiques?|entrepots?|magasins?|immeubles?|locaux commerciaux|local commercial|hangar)\b/],
 ];
 

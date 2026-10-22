@@ -35,3 +35,32 @@ test('the map place key includes the city, so switching city re-centres the map'
   assert.match(map, /get\('ville'\)/);
   assert.match(map, /`\$\{ville\}\|`/);
 });
+
+// Lubumbashi's live extent on 2026-10-22: 11 listings, ~10 km across.
+const LUBUMBASHI_EXTENT = { south: -11.714997, north: -11.6293128, west: 27.407011, east: 27.502617 };
+
+test('a city switch frames every matching listing, not a fixed zoom on the centre', async () => {
+  const { cityResultsView, viewForBounds } = await import('../../lib/mapViewport.js');
+  const size = { width: 486, height: 550 };
+  const view = cityResultsView('Lubumbashi', LUBUMBASHI_EXTENT, size);
+  assert.equal(view.zoom, 12);
+  // Every corner of the extent is inside the view at that zoom (256px tiles).
+  const span = (360 / (256 * 2 ** view.zoom)) * (size.width - 96);
+  assert.ok(view.center.lng - span / 2 <= LUBUMBASHI_EXTENT.west);
+  assert.ok(view.center.lng + span / 2 >= LUBUMBASHI_EXTENT.east);
+  // Kinshasa keeps its fixed core view; no extent → the default view.
+  assert.equal(cityResultsView('Kinshasa', LUBUMBASHI_EXTENT, size), null);
+  assert.equal(cityResultsView(null, LUBUMBASHI_EXTENT, size), null);
+  assert.equal(cityResultsView('Lubumbashi', null, size), null);
+  // A coordinate far outside the city cannot drag the view out of it.
+  const stray = { ...LUBUMBASHI_EXTENT, north: -4.3 };
+  assert.ok(cityResultsView('Lubumbashi', stray, size).zoom >= 11);
+  // One point: capped, never a street-level zoom.
+  assert.equal(viewForBounds({ south: 1, north: 1, west: 2, east: 2 }, size, { maxZoom: 14 }).zoom, 14);
+});
+
+test('the map counts pins only once the view has settled', () => {
+  const map = read('components/ListingsMap.js');
+  assert.match(map, /function settled\(map/);
+  assert.match(map, /await settled\(map\);[\s\S]*fetchMarkers\(\{ force: true \}\)/);
+});

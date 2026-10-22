@@ -61,8 +61,17 @@ test('a video-only listing is not flagged "no photos" in the moderation queue', 
   assert.match(source, /!isVideoPoster\(src\)/, 'a cover frame is never offered as a gallery photo');
 });
 
-test('the listing page and the moderation panel show the videos', () => {
-  assert.match(read('app/(site)/listings/[id]/page.js'), /<ListingVideos/);
+test('the videos play in the gallery itself, not in a section further down', () => {
+  // Reported 2026-10-22: the cover frame read as one more photo at the top of
+  // the page, and the player sat ~1,400 px below it.
+  const page = read('app/(site)/listings/[id]/page.js');
+  assert.match(page, /videos=\{listingVideos\(listing\)\}/);
+  assert.doesNotMatch(page, /<ListingVideos/);
+  const gallery = read('components/PhotoGallery.js');
+  assert.match(gallery, /<video/);
+  assert.match(gallery, /<VideoPlayBadge/);
+  assert.match(gallery, /!isVideoPoster\(src\)/, 'a cover frame is never shown as a photo of its own');
+  assert.match(read('components/CardImageCarousel.js'), /isVideoPoster\(src\) \? <VideoPlayBadge/, 'cards say a video-only listing plays');
   assert.match(read('app/admin/listings/[id]/ListingModerationPanel.js'), /info\.videos/);
 });
 

@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Expand, ImageOff, LayoutGrid } from 'lucide-react';
 import SafeImage from './SafeImage';
 import CardImageCarousel from './CardImageCarousel';
+import VideoPlayBadge from './VideoPlayBadge';
+import { isVideoPoster } from '@/lib/listingVideos';
 import { Badge } from './ListingBadges';
 import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -57,9 +59,26 @@ import { initialGalleryState, noteGalleryStep } from '@/lib/galleryEngagement';
  * report say how many people went through the photos, not just opened the
  * page. Without it the gallery records nothing.
  */
-export default function PhotoGallery({ images, alt, mobileActions = null, verifiedAt = null, eventListing = null }) {
+/**
+ * `videos` ([{url, poster}], lib/listingVideos.js) are items of the gallery,
+ * not a section further down: the cover frame alone read as one more photo
+ * and visitors never found the player (reported 2026-10-22). With photos the
+ * first video is the second item, so it shows in the mosaic and as the second
+ * slide; with no photo it leads. Its tile carries a play badge and the
+ * viewer plays it. A cover frame passed in `images` is dropped — the video
+ * item stands for it.
+ */
+export default function PhotoGallery({ images, videos = [], alt, mobileActions = null, verifiedAt = null, eventListing = null }) {
   const t = useT();
-  const shots = images || [];
+  const photoShots = (images || []).filter((src) => !isVideoPoster(src));
+  const videoItems = (videos || []).map((video) => ({ src: video.poster || '', video: video.url }));
+  const items = videoItems.length
+    ? photoShots.length
+      ? [{ src: photoShots[0], video: null }, ...videoItems, ...photoShots.slice(1).map((src) => ({ src, video: null }))]
+      : videoItems
+    : (images || []).map((src) => ({ src, video: null }));
+  const shots = items.map((item) => item.src);
+  const hasVideo = videoItems.length > 0;
   const total = shots.length;
   const [mobileIndex, setMobileIndex] = useState(0);
 
@@ -188,7 +207,7 @@ export default function PhotoGallery({ images, alt, mobileActions = null, verifi
             beneath it is CardImageCarousel's own; this badge is additive,
             same composition PropertyCard.js already uses. */}
         <span className="u-glass-royal u-tabular pointer-events-none absolute bottom-3.5 right-3.5 z-10 inline-flex items-center rounded-sm px-2.5 py-1.5 text-[0.8125rem] font-semibold">
-          {mobileIndex + 1}/{total} photo{total !== 1 ? 's' : ''}
+          {mobileIndex + 1}/{total}{hasVideo ? '' : ` photo${total !== 1 ? 's' : ''}`}
         </span>
 
         {mobileActions ? (
@@ -225,6 +244,7 @@ export default function PhotoGallery({ images, alt, mobileActions = null, verifi
                 className={`relative overflow-hidden rounded-lg bg-canvas-deep ${index === 0 ? 'col-span-2 h-52' : 'h-32'}`}
               >
                 <SafeImage src={src} alt="" fill sizes={index === 0 ? '96vw' : '48vw'} className="object-cover" />
+                {items[index]?.video ? <VideoPlayBadge size="sm" /> : null}
               </button>
             ))}
           </div>
@@ -251,6 +271,7 @@ export default function PhotoGallery({ images, alt, mobileActions = null, verifi
               sizes="(min-width: 1280px) 830px, (min-width: 1024px) 64vw, 100vw"
               className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.03]"
             />
+            {items[0]?.video ? <VideoPlayBadge /> : null}
 
             {/* Only on a real verified_at — see the component's doc comment. */}
             {verifiedAt ? (
@@ -260,7 +281,7 @@ export default function PhotoGallery({ images, alt, mobileActions = null, verifi
             ) : null}
 
             <span className="u-glass-royal u-tabular pointer-events-none absolute bottom-3.5 right-3.5 z-10 inline-flex items-center rounded-sm px-2.5 py-1.5 text-[0.8125rem] font-semibold">
-              1/{total} photo{total !== 1 ? 's' : ''}
+              1/{total}{hasVideo ? '' : ` photo${total !== 1 ? 's' : ''}`}
             </span>
           </button>
 
@@ -287,6 +308,7 @@ export default function PhotoGallery({ images, alt, mobileActions = null, verifi
                       sizes="(min-width: 1280px) 410px, (min-width: 1024px) 32vw, 50vw"
                       className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.05]"
                     />
+                    {items[i + 1]?.video ? <VideoPlayBadge size="sm" /> : null}
                     {/* "Toutes les photos" sits on the last rendered tile,
                         whenever the mosaic isn't showing every photo —
                         `total > mosaic.length`, not a hardcoded `> 3`
@@ -314,7 +336,20 @@ export default function PhotoGallery({ images, alt, mobileActions = null, verifi
           <DialogTitle className="sr-only">{alt}</DialogTitle>
 
           <div className="relative flex h-[80vh] w-full items-center justify-center">
-            {isOpen ? (
+            {isOpen && items[lightboxIndex]?.video ? (
+              // Keyed by index so paging to another item stops this one.
+              // autoPlay: the viewer only opens on the visitor's own tap.
+              <video
+                key={lightboxIndex}
+                src={items[lightboxIndex].video}
+                poster={items[lightboxIndex].src || undefined}
+                controls
+                autoPlay
+                playsInline
+                className="h-full w-full object-contain"
+                aria-label={t('listings.gallery.playVideo')}
+              />
+            ) : isOpen ? (
               <SafeImage
                 src={shots[lightboxIndex]}
                 alt={alt}

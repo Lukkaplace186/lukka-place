@@ -601,13 +601,10 @@
       "featuresFromText": "Les équipements proviennent du texte de l'annonce, revu à la publication. Ils ne sont pas issus d'un champ structuré de la base — un bien peut en disposer sans l'avoir précisé.",
       "featuresFromDescription": "Reprise de la description de l'annonce, mise en liste. Aucune information n'a été ajoutée.",
       "location": "Emplacement",
-      "videos": "Vidéos",
-      "videoItem": "Vidéo {n} sur {total}",
       "sections": {
         "label": "Sections de l’annonce",
         "overview": "Aperçu",
         "costs": "Coûts",
-        "videos": "Vidéos",
         "features": "Caractéristiques",
         "location": "Emplacement"
       }
@@ -623,6 +620,7 @@
       "noPhotos": "Aucune photo pour cette annonce",
       "verified": "Annonce vérifiée",
       "enlargePhoto": "Agrandir la photo {n}",
+      "playVideo": "Lire la vidéo",
       "previousPhoto": "Photo précédente",
       "nextPhoto": "Photo suivante",
       "allPhotos": "Toutes les photos",

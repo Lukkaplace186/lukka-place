@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import SafeImage from './SafeImage';
+import VideoPlayBadge from './VideoPlayBadge';
+import { isVideoPoster } from '@/lib/listingVideos';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useSaveData } from '@/lib/useSaveData';
 import { useT } from '@/lib/i18n/client';
@@ -220,6 +222,8 @@ export default function CardImageCarousel({
                 className="object-cover contrast-[1.03] brightness-[1.02] saturate-[1.04] transition-transform duration-500 ease-out motion-safe:group-hover:scale-[1.04]"
               />
             ) : null}
+            {/* A video's cover frame is not a photo: it says it plays. */}
+            {isVideoPoster(src) ? <VideoPlayBadge size={sizes === '100vw' ? 'md' : 'sm'} /> : null}
           </div>
         ))}
       </div>

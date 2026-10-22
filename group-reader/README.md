@@ -155,8 +155,9 @@ The reader reconnects by itself, with backoff from 5 s up to 5 min.
   be using the same login.
 - **Logged out** (the device was unlinked on the phone, or WhatsApp banned or
   logged out the number): it logs a loud `LOGGED OUT` banner and **exits with
-  code 2**. PM2 restarts it, and it then prints a QR that nobody scans. Group
-  listings stop arriving until someone relinks:
+  code 2**. `stop_exit_codes: [2]` in `ecosystem.config.js` keeps PM2 from
+  restarting it, because restarting only re-tries a dead login. Group listings
+  stop arriving until someone relinks:
 
   ```bash
   pm2 stop lukka-group-reader

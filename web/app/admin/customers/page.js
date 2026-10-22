@@ -8,7 +8,7 @@ import { Chip, ErrorNote, Stat, formatKinshasa } from '../LeadRoutingUI';
 import Pagination from '../table/Pagination';
 import TableToolbar from '../table/TableToolbar';
 import { EmptyRow, TD_DENSE, TD_DENSE_RIGHT, TH_STICKY, TH_STICKY_RIGHT, TR_DENSE, TableFrame } from '../table/TableFrame';
-import { adminSetCustomerPasswordAction, adminUnlockCustomerAction } from './actions';
+import { adminDeleteCustomerAction, adminSetCustomerPasswordAction, adminUnlockCustomerAction } from './actions';
 import CustomerRowActions from './CustomerRowActions';
 import ImpersonateButton from '../ImpersonateButton';
 import { can } from '@/lib/adminRoles';
@@ -53,6 +53,7 @@ export default async function AdminCustomersPage({ searchParams }) {
   const params = { ...filters, page: page > 1 ? String(page) : undefined, size: pageSize === 25 ? undefined : String(pageSize) };
 
   const session = await getAdminSession();
+  const canDeleteCustomers = can(session?.role, 'customers.delete');
   const canImpersonate = can(session?.role, 'accounts.impersonate');
   let result = null;
   let loadError = null;
@@ -176,6 +177,7 @@ export default async function AdminCustomersPage({ searchParams }) {
                       resetAction={adminSetCustomerPasswordAction.bind(null, customer.id)}
                       unlockAction={adminUnlockCustomerAction.bind(null, customer.id)}
                       leadsHref={`/admin/leads?wa=${encodeURIComponent(customer.phone)}`}
+                      deleteAction={canDeleteCustomers ? adminDeleteCustomerAction.bind(null, customer.id) : null}
                     />
                     </div>
                   </td>

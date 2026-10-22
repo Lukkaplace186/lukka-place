@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { requireAdmin } from '@/lib/adminSession';
 import { recordAudit } from '@/lib/adminAudit';
 import { adminSetAccountPassword } from '@/lib/adminPasswordReset';
-import { adminUnlockCustomer } from '@/lib/customers';
+import { adminUnlockCustomer, deleteCustomer, getCustomerById } from '@/lib/customers';
 import { getT } from '@/lib/i18n/server';
 
 /**
@@ -30,6 +30,29 @@ export async function adminSetCustomerPasswordAction(customerId, formData) {
     return result;
   } catch (err) {
     console.error(`[admin/customers] password reset #${customerId} failed: ${err.message}`);
+    return { ok: false, error: err.message || t('errors.actionFailed') };
+  }
+}
+
+/**
+ * Deletes a customer account for good (owner only, `customers.delete`): the
+ * row, its favourites and saved searches (FK cascade). Their sessions die with
+ * the row. Requests and visits in the engine are records of what happened and
+ * stay; they are deleted one by one from /admin/leads and /admin/viewings.
+ * The audit keeps the id only — no number or name.
+ */
+export async function adminDeleteCustomerAction(customerId) {
+  const t = await getT();
+  try {
+    const session = await requireAdmin('customers.delete');
+    const id = Number.parseInt(customerId, 10);
+    if (!Number.isSafeInteger(id) || id <= 0 || !(await getCustomerById(id))) return { ok: false, error: t('admin.customers.notFound') };
+    await deleteCustomer(id);
+    await recordAudit(session, { action: 'customer.delete', entityType: 'customer', entityId: id });
+    revalidatePath('/admin/customers');
+    return { ok: true, message: t('admin.customers.deleted') };
+  } catch (err) {
+    console.error(`[admin/customers] delete #${customerId} failed: ${err.message}`);
     return { ok: false, error: err.message || t('errors.actionFailed') };
   }
 }

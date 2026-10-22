@@ -10,9 +10,11 @@
  *   - Acquisition tiers are CUMULATIVE TOTALS (10 agents = $35, not $15 + $35).
  *   - Additional listings = confirmed listings of qualified agents − 3 × qualified
  *     agents, paid on its own cumulative tiers.
- *   - +$25 once, when at least 80% of the rep's credited listings that are 30
- *     days old were still valid on day 30 (and at least 15 were checked, so
- *     1 of 1 cannot earn it).
+ *   - +$25 once, when at least 80% of the agents the rep brought in more than
+ *     30 days ago are still ACTIVE: account not suspended or deleted, not
+ *     rejected, and at least one listing online (owner decision 2026-10-21;
+ *     it replaced "80% of credited listings valid on day 30"). At least 5
+ *     such agents are needed, so 1 of 1 cannot earn it.
  *
  * HOW "PAY ONLY THE DIFFERENCE" WORKS
  * Each tier crossing becomes ONE ledger line holding that tier's delta
@@ -27,7 +29,7 @@ export const BASELINE_LISTINGS_PER_AGENT = 3;
 export const MIN_PHOTOS = 3;
 export const QUALITY_BONUS = 25;
 export const QUALITY_RATIO = 0.8;
-export const QUALITY_MIN_CHECKED = 15;
+export const QUALITY_MIN_CHECKED = 5;
 export const QUALITY_AGE_DAYS = 30;
 
 /** [threshold, cumulative total in USD] — policy §4. */
@@ -100,7 +102,8 @@ export function linesReached(tiers, count) {
 }
 
 /**
- * The 30-day quality test over a rep's CHECKED credits.
+ * The 30-day quality test: `checked` = agents brought in 30+ days ago,
+ * `valid` = those still active (lib/salesLaunch.js AGENT_QUALITY_SQL).
  * @param {{checked: number, valid: number}} counts
  */
 export function qualityResult({ checked = 0, valid = 0 } = {}) {

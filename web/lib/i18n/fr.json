@@ -3282,7 +3282,8 @@
       "reminderHint": "Envoie un rappel WhatsApp à l’agent. Il n’arrive que si l’agent a écrit à Lukka Place dans les dernières 24 h.",
       "reminderSent": "Rappel de vérification envoyé sur WhatsApp (reçu si l’agent nous a écrit dans les dernières 24 h).",
       "reminderNoPhone": "Cet agent n’a pas de numéro valide.",
-      "reminderFailed": "Le rappel n’a pas pu être envoyé."
+      "reminderFailed": "Le rappel n’a pas pu être envoyé.",
+      "subtitleSales": "Les agents que vous avez fait venir sur Lukka Place — par votre code ou votre attribution."
     },
     "actions": {
       "approve": "Approuver",
@@ -3616,7 +3617,11 @@
       "colLastLogin": "Dernière connexion",
       "colActions": "Actions",
       "viewingsCount": "{count} visite(s)",
-      "noPassword": "Sans mot de passe"
+      "noPassword": "Sans mot de passe",
+      "delete": "Supprimer le compte",
+      "deleteTitle": "Supprimer ce compte client ?",
+      "deleteBody": "Le compte, ses favoris et ses alertes sont supprimés définitivement et la personne est déconnectée. Ses demandes et visites restent dans Prospects et Visites.",
+      "deleted": "Compte client supprimé."
     },
     "benchmarks": {
       "title": "Prix de référence",
@@ -3859,7 +3864,8 @@
         "templateLeadMatch": "Modèle d'alerte agence",
         "templateViewing": "Modèle de demande de visite",
         "templateOtp": "Modèle OTP"
-      }
+      },
+      "subtitleSales": "Clics WhatsApp sur les annonces des agents que vous avez fait venir."
     },
     "table": {
       "all": "Tous",
@@ -4433,7 +4439,13 @@
         "referralCodeEditHint": "Un code qui a déjà amené un agent ne peut plus changer.",
         "codeInvalid": "Un code de parrainage compte 3 à 10 lettres suivies de 2 chiffres, par ex. JEAN01.",
         "codeTaken": "Un autre commercial utilise déjà ce code de parrainage.",
-        "codeLocked": "Ce code a déjà amené un agent et fait partie de son dossier : il ne peut plus changer."
+        "codeLocked": "Ce code a déjà amené un agent et fait partie de son dossier : il ne peut plus changer.",
+        "remove": "Retirer de l’équipe",
+        "removeTitle": "Retirer ce commercial de l’équipe ?",
+        "removeBody": "Ses agents ne lui sont plus attribués, son code de parrainage cesse de fonctionner et son compte console n’y est plus lié. Son historique de commissions et de paiements est conservé.",
+        "removeUnpaid": "Ce commercial a encore des commissions en attente ou approuvées. Payez-les ou annulez-les d’abord.",
+        "deleted": "Commercial supprimé.",
+        "removed": "Commercial retiré de l’équipe. Son historique est conservé."
       },
       "plans": {
         "link": "Barèmes de commission",
@@ -4475,8 +4487,12 @@
         "launchTitle": "Paliers de la politique de lancement",
         "launchAcquisition": "Agents qualifiés (totaux cumulés) : 5 = 15 $, 10 = 35 $, 15 = 60 $, 20 = 90 $, 30 = 150 $, 40 = 220 $, 50 = 300 $.",
         "launchAdditional": "Annonces confirmées au-delà de 3 par agent qualifié : 10 = 5 $, 25 = 15 $, 50 = 35 $, 100 = 80 $.",
-        "launchQuality": "+25 $ une fois, quand au moins 80 % des annonces créditées sont encore valides 30 jours après confirmation (15 vérifiées au minimum).",
-        "launchQualified": "Agent qualifié : numéro vérifié, un nom, au moins 3 annonces confirmées, non rejeté. Seuls les agents validés comptent pour ce qui est payable."
+        "launchQuality": "+25 $ une fois, quand au moins 80 % des agents amenés il y a plus de 30 jours sont encore actifs : compte actif et au moins une annonce en ligne (5 agents au minimum).",
+        "launchQualified": "Agent qualifié : numéro vérifié, un nom, au moins 3 annonces confirmées, non rejeté. Seuls les agents validés comptent pour ce qui est payable.",
+        "delete": "Supprimer le barème",
+        "deleteTitle": "Supprimer ce barème ?",
+        "deleteBody": "{count} commercial(aux) sur ce barème n’en auront plus et ne gagneront rien de nouveau avant d’en recevoir un. Les commissions déjà calculées gardent leur montant.",
+        "deleted": "Barème supprimé. {count} commercial(aux) sans barème."
       },
       "accounts": {
         "title": "Agents",
@@ -4596,9 +4612,9 @@
         "quality": {
           "title": "Prime qualité 30 jours",
           "earned": "Gagnée · {amount}",
-          "passing": "Atteint : au moins {ratio} % valides ({valid}/{checked})",
-          "failing": "Sous {ratio} % : {valid}/{checked} valides au 30e jour",
-          "maturing": "{count} annonce(s) n’ont pas encore 30 jours · test à partir de {min} annonces vérifiées ({days} jours)"
+          "passing": "Atteint : au moins {ratio} % actifs ({valid}/{checked})",
+          "failing": "Sous {ratio} % : {valid}/{checked} agents actifs après 30 jours",
+          "maturing": "{count} agent(s) amené(s) il y a moins de 30 jours · test à partir de {min} agents ({days} jours)"
         },
         "referral": {
           "code": "Code de parrainage",
@@ -4684,7 +4700,7 @@
         "ledger": {
           "milestoneDetail": "Palier atteint : {count} agents qualifiés validés",
           "listingBonusDetail": "Palier atteint : {count} annonces supplémentaires",
-          "qualityDetail": "{ratio} % des annonces créditées valides au 30e jour",
+          "qualityDetail": "{ratio} % des agents amenés encore actifs après 30 jours",
           "voidBelowThreshold": "Palier plus atteint"
         },
         "fortnight": {

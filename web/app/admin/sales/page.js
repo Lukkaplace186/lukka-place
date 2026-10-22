@@ -194,6 +194,8 @@ export default async function AdminSalesPage({ searchParams }) {
                 <td className={TD_DENSE}>
                   <RepRowActions
                     repId={rep.id}
+                    repName={rep.full_name}
+                    canDelete={can(session?.role, 'sales.delete')}
                     code={rep.referral_code}
                     link={rep.referral_code ? referralLink(rep.referral_code) : null}
                     payHref={`${base}?status=approved&fn=${currentFortnight}&payout=1#ledger`}

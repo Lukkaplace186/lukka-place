@@ -172,13 +172,28 @@ export const MILESTONE_LINES_SQL = `
     SET status = 'pending', voided_at = NULL, void_reason = NULL, approved_at = NULL, approved_by = NULL, earned_at = NOW()
     WHERE sales_commissions.status = 'void' AND sales_commissions.void_reason = '${AUTO_VOID_REASON}'`;
 
+/**
+ * Per rep: agents brought in at least QUALITY_AGE_DAYS ago (`checked`), how
+ * many of them are still ACTIVE today (`valid`: account active and not
+ * deleted, attribution not rejected, at least one listing online), and how
+ * many are younger (`maturing`). `repFilter` scopes it to one rep.
+ */
+function agentQualitySql(repFilter = '') {
+  const aged = `att.attributed_at <= NOW() - INTERVAL '${QUALITY_AGE_DAYS} days'`;
+  return `SELECT att.rep_id,
+           COUNT(*) FILTER (WHERE ${aged})::int AS checked,
+           COUNT(*) FILTER (WHERE ${aged} AND att.validation_status <> 'rejected' AND a.status = 1 AND a.deleted_at IS NULL
+             AND EXISTS (SELECT 1 FROM properties lp WHERE lp.agent_id = att.agent_id AND lp.status = 1 AND lp.approve_status = 1)
+           )::int AS valid,
+           COUNT(*) FILTER (WHERE NOT (${aged}))::int AS maturing
+    FROM sales_agent_attributions att JOIN agents a ON a.id = att.agent_id
+    ${repFilter}
+    GROUP BY att.rep_id`;
+}
+
 /** (f) The one-off quality bonus. $1 minimum checked, $2 ratio, $3 amount. */
 export const QUALITY_LINE_SQL = `
-  WITH q AS (
-    SELECT rep_id, COUNT(*)::int AS checked, COUNT(*) FILTER (WHERE day30_valid)::int AS valid
-    FROM sales_listing_credits WHERE day30_checked_at IS NOT NULL
-    GROUP BY rep_id
-  )
+  WITH q AS (${agentQualitySql()})
   INSERT INTO sales_commissions (rep_id, source_type, source_id, basis_amount, amount, currency, earned_at, plan_id)
   SELECT q.rep_id, 'quality', 'quality:' || q.rep_id, ROUND(q.valid * 100.0 / q.checked, 2), $3::numeric, '${LAUNCH_CURRENCY}', NOW(), pl.id
   FROM q
@@ -354,12 +369,7 @@ export async function getLaunchCounts(repId = null) {
        )
        GROUP BY att.rep_id
      ),
-     quality AS (
-       SELECT rep_id, COUNT(*) FILTER (WHERE day30_checked_at IS NOT NULL)::int AS checked,
-              COUNT(*) FILTER (WHERE day30_valid)::int AS valid,
-              COUNT(*) FILTER (WHERE day30_checked_at IS NULL AND excluded_at IS NULL)::int AS maturing
-       FROM sales_listing_credits ${repId ? 'WHERE rep_id = $1' : ''} GROUP BY rep_id
-     ),
+     quality AS (${agentQualitySql(repId ? 'WHERE att.rep_id = $1' : '')}),
      money AS (
        SELECT rep_id,
               COALESCE(SUM(amount) FILTER (WHERE status = 'paid'), 0)::float AS paid,

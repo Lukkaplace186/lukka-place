@@ -16,6 +16,7 @@ import { listNotes } from '@/lib/adminNotes';
 import { can } from '@/lib/adminRoles';
 import { LEVEL_LABEL_KEYS, isVerifiedLevel } from '@/lib/verificationLevels';
 import { getAdminSession } from '@/lib/adminSession';
+import { agentInScope, getSalesScope } from '@/lib/salesScope';
 import { getT } from '@/lib/i18n/server';
 import AgentAdminPanel from './AgentAdminPanel';
 import AgentRepControl from './AgentRepControl';
@@ -80,6 +81,9 @@ export default async function AdminAgentDetailPage({ params, searchParams }) {
   const agent = await getAgentForAdmin(id);
   if (!agent) notFound();
   const session = await getAdminSession();
+  // A sales rep opens only the agents they brought in; any other id is the
+  // same 404 as a missing one.
+  if (!(await agentInScope(await getSalesScope(), agent.id))) notFound();
   const base = `/admin/agents/${agent.id}`;
   const canManageSales = can(session?.role, 'sales.manage');
   const [salesAssignment, repOptions, attribution] = await Promise.all([
@@ -100,7 +104,7 @@ export default async function AdminAgentDetailPage({ params, searchParams }) {
     ]);
     content = (
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:items-start">
-        <AgentAdminPanel agent={agent} communes={communes} listingCount={agent.listing_count} />
+        <AgentAdminPanel agent={agent} communes={communes} listingCount={agent.listing_count} readOnly={!can(session?.role, 'agents.manage')} />
         <div className="u-card flex flex-col gap-3 rounded-card bg-surface p-6">
           <h2 className="u-title-card text-ink">{t('admin.agentPanel.subscriptionHistory')}</h2>
           {billing.length === 0 ? (

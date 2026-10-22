@@ -3,6 +3,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { getPool } from './db';
 import { keysetClause, pageCursors } from './adminPagination';
 import { vendorNameSql } from './vendorName';
+import { repAgentCondition } from './salesScopeSql';
 import { generateOtpCode, hashOtp, otpExpiresAt } from './agentAuth';
 import { sendWhatsAppMessage, claimListingsForPhone } from './adminApi';
 import { sendOtpViaWhatsApp, otpFallbackText } from './otpDelivery';
@@ -168,11 +169,19 @@ function agentSearchWhere(q, params) {
  */
 export async function listAgentsForAdmin({
   q, verified, status, vendorId, branchId, withBranch = false, sort = 'newest', limit = 25, offset = 0, cursor = null,
+  repId = null,
 } = {}) {
   const pool = getPool();
   const params = [];
   // Soft-deleted agents (lib/adminSoftDelete.js) leave every console list.
   const where = ['a.deleted_at IS NULL'];
+  // A sales rep's console (lib/salesScope.js): only the agents they brought in.
+  // Applied first so the summary below can reuse it as $1.
+  const scoped = repId != null;
+  if (scoped) {
+    params.push(Number(repId) || 0);
+    where.push(repAgentCondition('a.id', '$1'));
+  }
   const search = agentSearchWhere(q, params);
   if (search) where.push(search);
   if (verified === 'yes') where.push('a.phone_verified_at IS NOT NULL');
@@ -221,7 +230,8 @@ export async function listAgentsForAdmin({
       `SELECT COUNT(*)::int AS total,
               COUNT(*) FILTER (WHERE phone_verified_at IS NOT NULL)::int AS verified,
               COUNT(*) FILTER (WHERE status = 1)::int AS active
-       FROM agents WHERE deleted_at IS NULL`,
+       FROM agents a WHERE a.deleted_at IS NULL${scoped ? ` AND ${repAgentCondition('a.id', '$1')}` : ''}`,
+      scoped ? [params[0]] : [],
     ),
   ]);
   const rows = keyset.reverse ? [...pageResult.rows].reverse() : pageResult.rows;
@@ -242,10 +252,14 @@ export async function listAgentsForAdmin({
  * (verified number AND routing not switched off); the engine re-checks it on
  * every reassign, so this only keeps unusable names out of the list.
  */
-export async function searchAgentsForAdmin({ q, commune, routableOnly = false, activeOnly = false, excludeId, limit = 20 } = {}) {
+export async function searchAgentsForAdmin({ q, commune, routableOnly = false, activeOnly = false, excludeId, limit = 20, repId = null } = {}) {
   const pool = getPool();
   const params = [];
   const where = ['a.deleted_at IS NULL'];
+  if (repId != null) {
+    params.push(Number(repId) || 0);
+    where.push(repAgentCondition('a.id', `$${params.length}`));
+  }
   const search = agentSearchWhere(q, params);
   if (search) where.push(search);
   if (routableOnly) where.push('a.phone_verified_at IS NOT NULL AND a.direct_routing_enabled IS DISTINCT FROM false');

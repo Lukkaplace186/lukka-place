@@ -402,8 +402,12 @@ subscription steps skip launch reps and vice versa.
   cumulative tier and "pay only the difference" needs no arithmetic. A tier no
   longer met voids unpaid lines (`auto:below_threshold`, revived if met again;
   a person's void stands) and flags paid ones (`clawback_flagged_at`) — never a
-  negative line by query. Quality: once, ≥15 checked credits, ≥80% valid on day
-  30 (let/sold counts as valid).
+  negative line by query. Quality (changed 2026-10-21, owner decision): once,
+  when ≥80% of the agents the rep brought in 30+ days ago (`attributed_at`)
+  are still active — account active and not deleted, not rejected, at least
+  one listing online — with at least 5 such agents. It used to be ≥80% of 15+
+  credited listings valid on day 30; the listing day-30 check still runs and
+  is still shown per credit, it just no longer pays.
 - **The run** is `syncSalesCommissions` (one transaction, `SET LOCAL
   statement_timeout`), from the button, after every validation / exclusion /
   override, and daily at 06:00 Kinshasa via the engine's `sales-commissions`
@@ -416,6 +420,39 @@ subscription steps skip launch reps and vice versa.
   (`sales.manage`) lists refusals, overrides and patterns (3+ signups from one
   hashed connection, listings before the referral, day-30 failures) — facts,
   never automatic penalties. `/admin/sales/me` sends a rep to their page.
+
+#### What a `sales` console account sees (2026-10-21)
+
+`lib/salesScope.js` (`getSalesScope`, null for every other role) and
+`lib/salesScopeSql.js` (`repAgentCondition`: an active assignment OR the
+launch attribution — the set the team page counts as "brought in"; a sales
+account with no rep linked is repId 0, which matches nobody).
+`tests/unit/sales-rep-scope.test.js`.
+
+- **Agents / Agencies** list only the rep's agents and those agents'
+  agencies, in SQL (`listAgentsForAdmin` / `listAgenciesForAdmin` /
+  `searchAgentsForAdmin` `repId`, also the global search and the agent
+  picker). Any other agent or agency id is a 404. No duplicates panel, no
+  selection, suspend/activate, agency change, reminder or delete
+  (`AgentsTable canManage`); the profile panel is read-only.
+- **Verifications and Market data** are gone for the role
+  (`verifications.view`, `market.view`: every role but sales).
+- **Lead Analytics** shows only taps on listings whose agent is the rep's
+  (`repClickCondition`), and none of the platform-wide engine cards
+  (conversion, delivery, nudges, check-ins).
+- **Agent performance** keeps only the rep's agents, totals recomputed
+  (`lib/agentPerformanceScope.js`, same formulas as the engine); the routing
+  switch is `routing.manage` only, shown as a chip otherwise.
+- The dashboard and Property Approvals are still network-wide for the role.
+
+**Owner-only deletes** (same day): a commission plan (`deleteSalesPlan`; reps
+on it are left with none, earned lines keep their amounts), a rep
+(`removeSalesRep`, `sales.delete`: refused while pending/approved lines
+exist; no history → deleted, otherwise kept for the ledger as inactive,
+unlinked, assignments ended and `removed_at` set, which hides them from the
+team list — engine `migrations/20261021_sales_rep_removal.sql`), and a
+customer account (`customers.delete`, row + favourites + alerts by FK
+cascade; engine leads and visits stay).
 
 ### Listing limits, the customer → agent chain, agencies, CMS hero
 

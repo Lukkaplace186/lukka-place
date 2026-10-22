@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { Banknote, Check, Copy, Link2, QrCode } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
+import DeleteRecordButton from '../DeleteRecordButton';
+import { removeRepAction } from './actions';
 
 const ICON_BUTTON =
   'u-press inline-flex h-8 w-8 items-center justify-center rounded-md border border-line bg-surface text-ink-70 hover:border-blue hover:text-ink disabled:opacity-40';
@@ -15,7 +17,7 @@ const ICON_BUTTON =
  * (opens the rep's ledger filtered to the current fortnight's approved lines,
  * with the payout dialog already open).
  */
-export default function RepRowActions({ repId, code, link, payHref, canManage }) {
+export default function RepRowActions({ repId, repName = '', code, link, payHref, canManage, canDelete = false }) {
   const t = useT();
   const [copied, setCopied] = useState(null);
 
@@ -29,8 +31,23 @@ export default function RepRowActions({ repId, code, link, payHref, canManage })
     }
   }
 
+  const remove = canDelete ? (
+    <DeleteRecordButton
+      compact
+      action={removeRepAction.bind(null, repId)}
+      label={t('admin.sales.reps.remove')}
+      title={t('admin.sales.reps.removeTitle', { name: repName })}
+      body={t('admin.sales.reps.removeBody')}
+    />
+  ) : null;
+
   if (!code) {
-    return <span className="u-micro text-ink-45">{t('admin.sales.team.noCode')}</span>;
+    return (
+      <div className="flex items-center gap-1">
+        <span className="u-micro text-ink-45">{t('admin.sales.team.noCode')}</span>
+        {remove}
+      </div>
+    );
   }
 
   return (
@@ -49,6 +66,7 @@ export default function RepRowActions({ repId, code, link, payHref, canManage })
           <Banknote strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
         </Link>
       ) : null}
+      {remove}
     </div>
   );
 }

@@ -11,6 +11,7 @@ import { getLocationHierarchySafe } from '@/lib/locations';
 import { firstParam, parsePage } from '@/lib/adminPagination';
 import { can } from '@/lib/adminRoles';
 import { getAdminSession } from '@/lib/adminSession';
+import { agencyInScope, getSalesScope } from '@/lib/salesScope';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { getT } from '@/lib/i18n/server';
 import { ErrorNote, Stat, formatKinshasa } from '../../LeadRoutingUI';
@@ -32,6 +33,11 @@ export default async function AdminAgencyDetailPage({ params, searchParams }) {
   const agency = await getAgencyForAdmin(id);
   if (!agency) notFound();
   const session = await getAdminSession();
+  // A sales rep opens only agencies of the agents they brought in, and sees
+  // only those agents in the roster.
+  const scope = await getSalesScope();
+  if (!(await agencyInScope(scope, agency.id))) notFound();
+  const canManageAgents = can(session?.role, 'agents.manage');
   const { page, pageSize, limit, offset } = parsePage(raw);
   const base = `/admin/agencies/${agency.id}`;
   const branchParam = firstParam(raw.branch);
@@ -39,7 +45,7 @@ export default async function AdminAgencyDetailPage({ params, searchParams }) {
   const canManageBranches = can(session?.role, 'agents.manage');
 
   const [agentsResult, vendorsResult, billingResult, idsResult, notesResult, historyResult, branchesResult, unassignedResult, locationsResult] = await Promise.allSettled([
-    listAgentsForAdmin({ vendorId: agency.id, branchId: branchFilter, withBranch: true, sort: 'listings', limit, offset }),
+    listAgentsForAdmin({ vendorId: agency.id, branchId: branchFilter, withBranch: true, sort: 'listings', limit, offset, repId: scope ? scope.repId : null }),
     getVendors(),
     getAgentBillingHistory(agency.id),
     getAgencyAgentIds(agency.id),
@@ -108,6 +114,7 @@ export default async function AdminAgencyDetailPage({ params, searchParams }) {
               rows={toAgentTableRows(agents.rows)}
               vendors={(vendorsResult.status === 'fulfilled' ? vendorsResult.value : []).map((vendor) => ({ id: vendor.id, username: vendor.name }))}
               canImpersonate={can(session?.role, 'accounts.impersonate')}
+              canManage={canManageAgents}
               sharedSession={Boolean(session?.shared)}
               branchContext={canManageBranches && branches?.length ? { vendorId: agency.id, branches: branches.map((branch) => ({ id: branch.id, name: branch.name })) } : null}
               footer={<Pagination pathname={base} params={{ branch: branchFilter, page: page > 1 ? String(page) : undefined }} total={agents.total} page={page} pageSize={pageSize} />}

@@ -7,7 +7,7 @@ import { kinshasaDayStart } from '@/lib/adminPagination';
 import { normaliseCurrency, parseAmount, validatePlanInput, validateRepInput } from '@/lib/salesRules';
 import {
   addCommissionAdjustment, approveCommissions, assignAgentsToRep, endRepAssignment, endRepAssignmentsForVendor, recordSalesPayout,
-  saveSalesPlan, saveSalesRep, syncSalesCommissions, voidCommission,
+  deleteSalesPlan, removeSalesRep, saveSalesPlan, saveSalesRep, syncSalesCommissions, voidCommission,
 } from '@/lib/sales';
 import { suggestReferralCode } from '@/lib/launchCommission';
 import {
@@ -113,6 +113,41 @@ export async function savePlanAction(planId, formData) {
     refresh();
     return { ok: true, message: t(existing ? 'admin.sales.plans.updated' : 'admin.sales.plans.created') };
   });
+}
+
+/** Owner only (`sales.delete`). Reps on the plan are left with none; earned lines keep their amounts. */
+export async function deletePlanAction(planId) {
+  const t = await getT();
+  try {
+    const session = await requireAdmin('sales.delete');
+    const id = positiveInt(planId);
+    if (!id) return { ok: false, error: t('admin.sales.plans.notFound') };
+    const result = await deleteSalesPlan(id);
+    if (result.errorKey) return { ok: false, error: t(result.errorKey) };
+    await recordAudit(session, { action: 'sales.plan_delete', entityType: 'sales_plan', entityId: id, details: { reps: result.reps } });
+    revalidatePath('/admin/sales/plans');
+    refresh();
+    return { ok: true, message: t('admin.sales.plans.deleted', { count: result.reps }) };
+  } catch (err) {
+    return { ok: false, error: err.message || t('errors.actionFailed') };
+  }
+}
+
+/** Owner only (`sales.delete`). See lib/sales.js removeSalesRep for what is kept. */
+export async function removeRepAction(repId) {
+  const t = await getT();
+  try {
+    const session = await requireAdmin('sales.delete');
+    const id = positiveInt(repId);
+    if (!id) return { ok: false, error: t('admin.sales.reps.notFound') };
+    const result = await removeSalesRep(id, { adminId: adminIdOf(session) });
+    if (result.errorKey) return { ok: false, error: t(result.errorKey) };
+    await recordAudit(session, { action: 'sales.rep_remove', entityType: 'sales_rep', entityId: id, details: { deleted: result.deleted } });
+    refresh(id);
+    return { ok: true, message: t(result.deleted ? 'admin.sales.reps.deleted' : 'admin.sales.reps.removed') };
+  } catch (err) {
+    return { ok: false, error: err.message || t('errors.actionFailed') };
+  }
 }
 
 /** `creditFromDay` "YYYY-MM-DD", Kinshasa; empty = from now. Never in the future. */

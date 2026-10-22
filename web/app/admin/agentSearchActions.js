@@ -2,6 +2,7 @@
 
 import { getAdminSession } from '@/lib/adminSession';
 import { searchAgentsForAdmin } from '@/lib/agents';
+import { getSalesScope } from '@/lib/salesScope';
 
 /**
  * The agent picker's type-ahead. A Server Action is a public POST endpoint, so
@@ -18,6 +19,8 @@ export async function searchAgentsAction({ q = '', commune = null, routableOnly 
       routableOnly: Boolean(routableOnly),
       activeOnly: Boolean(activeOnly),
       excludeId,
+      // A sales rep only ever finds the agents they brought in.
+      repId: (await getSalesScope())?.repId ?? null,
     });
     return { ok: true, agents };
   } catch (err) {

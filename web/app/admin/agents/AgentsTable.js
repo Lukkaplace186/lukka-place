@@ -39,7 +39,9 @@ const BUTTON =
  * `branchContext` ({vendorId, branches}) is passed on an agency's own page and
  * adds "move to branch" to the bulk bar — branches only exist within an agency.
  */
-export default function AgentsTable({ rows, vendors, footer, branchContext = null, canImpersonate = false, canDelete = false, sharedSession = false }) {
+export default function AgentsTable({
+  rows, vendors, footer, branchContext = null, canImpersonate = false, canDelete = false, canManage = true, sharedSession = false,
+}) {
   const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
@@ -53,6 +55,9 @@ export default function AgentsTable({ rows, vendors, footer, branchContext = nul
 
   const pageIds = useMemo(() => rows.map((row) => row.id), [rows]);
   const allSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+  // Without agents.manage (a sales rep) nothing here acts on an agent: no
+  // selection, no status, agency or reminder actions — only "open".
+  const selectable = canManage || canDelete;
 
   function toggle(id) {
     setSelected((current) => {
@@ -102,19 +107,23 @@ export default function AgentsTable({ rows, vendors, footer, branchContext = nul
   return (
     <div className="flex flex-col gap-2">
       {bulkDelete.dialog}
-      {selected.size > 0 ? (
+      {selectable && selected.size > 0 ? (
         <div className="u-card sticky top-2 z-20 flex flex-wrap items-center gap-2 rounded-card bg-ink px-4 py-2 text-white">
           <span className="u-micro-strong">{t('admin.agents.selectedCount', { count: selected.size })}</span>
-          <button type="button" disabled={pending} onClick={() => bulk(1)} className="u-press u-micro-strong inline-flex h-8 items-center gap-1.5 rounded-md bg-white/15 px-2.5 hover:bg-white/25">
-            <PlayCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-            {t('admin.agents.bulkActivate')}
-          </button>
-          <button type="button" disabled={pending} onClick={() => bulk(0)} className="u-press u-micro-strong inline-flex h-8 items-center gap-1.5 rounded-md bg-white/15 px-2.5 hover:bg-white/25">
-            <PauseCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-            {t('admin.agents.bulkSuspend')}
-          </button>
+          {canManage ? (
+            <>
+              <button type="button" disabled={pending} onClick={() => bulk(1)} className="u-press u-micro-strong inline-flex h-8 items-center gap-1.5 rounded-md bg-white/15 px-2.5 hover:bg-white/25">
+                <PlayCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                {t('admin.agents.bulkActivate')}
+              </button>
+              <button type="button" disabled={pending} onClick={() => bulk(0)} className="u-press u-micro-strong inline-flex h-8 items-center gap-1.5 rounded-md bg-white/15 px-2.5 hover:bg-white/25">
+                <PauseCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                {t('admin.agents.bulkSuspend')}
+              </button>
+            </>
+          ) : null}
           {canDelete ? <BulkDeleteButton disabled={pending || bulkDelete.pending} onClick={() => bulkDelete.request(selected)} /> : null}
-          {branchContext ? (
+          {branchContext && canManage ? (
             <select
               aria-label={t('admin.branches.moveTo')}
               value=""
@@ -139,15 +148,17 @@ export default function AgentsTable({ rows, vendors, footer, branchContext = nul
       <TableFrame minWidth="76rem" footer={footer} busy={pending}>
         <thead>
           <tr>
-            <th className={`${TH_STICKY} w-8`}>
-              <input
-                type="checkbox"
-                aria-label={t('admin.agents.selectPage')}
-                checked={allSelected}
-                onChange={() => setSelected(allSelected ? new Set() : new Set(pageIds))}
-                className="h-4 w-4 accent-blue"
-              />
-            </th>
+            {selectable ? (
+              <th className={`${TH_STICKY} w-8`}>
+                <input
+                  type="checkbox"
+                  aria-label={t('admin.agents.selectPage')}
+                  checked={allSelected}
+                  onChange={() => setSelected(allSelected ? new Set() : new Set(pageIds))}
+                  className="h-4 w-4 accent-blue"
+                />
+              </th>
+            ) : null}
             <th className={TH_STICKY}>{t('admin.agents.name')}</th>
             <th className={TH_STICKY}>{t('admin.agents.phone')}</th>
             <th className={TH_STICKY}>{t('admin.agents.agency')}</th>
@@ -160,19 +171,21 @@ export default function AgentsTable({ rows, vendors, footer, branchContext = nul
         </thead>
         <tbody>
           {rows.length === 0 ? (
-            <EmptyRow colSpan={9}>{t('admin.agents.empty')}</EmptyRow>
+            <EmptyRow colSpan={selectable ? 9 : 8}>{t('admin.agents.empty')}</EmptyRow>
           ) : (
             rows.map((agent) => (
               <tr key={agent.id} className={`${TR_DENSE} ${selected.has(agent.id) ? 'bg-blue-tint/40' : ''}`}>
-                <td className={TD_DENSE}>
-                  <input
-                    type="checkbox"
-                    aria-label={t('admin.agents.selectAgent', { name: agent.name })}
-                    checked={selected.has(agent.id)}
-                    onChange={() => toggle(agent.id)}
-                    className="h-4 w-4 accent-blue"
-                  />
-                </td>
+                {selectable ? (
+                  <td className={TD_DENSE}>
+                    <input
+                      type="checkbox"
+                      aria-label={t('admin.agents.selectAgent', { name: agent.name })}
+                      checked={selected.has(agent.id)}
+                      onChange={() => toggle(agent.id)}
+                      className="h-4 w-4 accent-blue"
+                    />
+                  </td>
+                ) : null}
                 <td className={TD_DENSE}>
                   <Link href={`/admin/agents/${agent.id}`} className="flex items-center gap-1 font-semibold text-ink hover:text-blue-deep hover:underline">
                     <span className="max-w-[14rem] truncate">{agent.name}</span>
@@ -235,22 +248,26 @@ export default function AgentsTable({ rows, vendors, footer, branchContext = nul
                           {t('admin.agents.manage')}
                         </Link>
                       </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => { setVendorId(agent.vendorId ? String(agent.vendorId) : ''); setVendorDialog(agent); }}>
-                        <Building2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-                        {t('admin.agents.changeAgency')}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => run(() => sendVerificationReminderAction(agent.id))}>
-                        <BellRing strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-                        {t('admin.agents.remindVerify')}
-                      </DropdownMenuItem>
+                      {canManage ? (
+                        <>
+                          <DropdownMenuItem onSelect={() => { setVendorId(agent.vendorId ? String(agent.vendorId) : ''); setVendorDialog(agent); }}>
+                            <Building2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                            {t('admin.agents.changeAgency')}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onSelect={() => run(() => sendVerificationReminderAction(agent.id))}>
+                            <BellRing strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                            {t('admin.agents.remindVerify')}
+                          </DropdownMenuItem>
+                        </>
+                      ) : null}
                       {canImpersonate ? (
                         <DropdownMenuItem onSelect={() => setImpersonating(agent)}>
                           <ScanEye strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
                           {t('admin.impersonation.button')}
                         </DropdownMenuItem>
                       ) : null}
-                      <DropdownMenuSeparator />
-                      {agent.status === 1 ? (
+                      {canManage || canDelete ? <DropdownMenuSeparator /> : null}
+                      {!canManage ? null : agent.status === 1 ? (
                         <DropdownMenuItem onSelect={() => setStatus(agent.id, 0)}>
                           <PauseCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
                           {t('admin.agents.suspend')}

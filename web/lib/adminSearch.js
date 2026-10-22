@@ -4,6 +4,7 @@ import { vendorNameSql } from './vendorName';
 import { listConversations } from './adminApi';
 import { searchAgentsForAdmin } from './agents';
 import { can } from './adminRoles';
+import { repAgentCondition } from './salesScopeSql';
 
 /**
  * The console's global search. Each group is a small, bounded, indexed query
@@ -50,14 +51,16 @@ async function searchCustomers(term) {
   }));
 }
 
-async function searchAgencies(term) {
+async function searchAgencies(term, { repId = null } = {}) {
+  const scoped = repId != null;
   const { rows } = await getPool().query(
     `SELECT v.id, ${vendorNameSql('v')} AS name, v.email, (SELECT COUNT(*)::int FROM agents a WHERE a.vendor_id = v.id) AS agents
      FROM vendors v
      WHERE v.deleted_at IS NULL AND (v.username ILIKE $1 OR COALESCE(v.email, '') ILIKE $1
         OR EXISTS (SELECT 1 FROM agents an WHERE an.vendor_id = v.id AND an.agency_name ILIKE $1))
+       ${scoped ? `AND EXISTS (SELECT 1 FROM agents ra WHERE ra.vendor_id = v.id AND ra.deleted_at IS NULL AND ${repAgentCondition('ra.id', '$2')})` : ''}
      ORDER BY 2 LIMIT 4`,
-    [like(term)],
+    scoped ? [like(term), Number(repId) || 0] : [like(term)],
   );
   return rows.map((row) => ({
     href: `/admin/agencies/${row.id}`,
@@ -66,8 +69,8 @@ async function searchAgencies(term) {
   }));
 }
 
-async function searchAgents(term) {
-  const agents = await searchAgentsForAdmin({ q: term, limit: 6 });
+async function searchAgents(term, { repId = null } = {}) {
+  const agents = await searchAgentsForAdmin({ q: term, limit: 6, repId });
   return agents.map((agent) => ({
     href: `/admin/agents/${agent.id}`,
     title: agent.name,
@@ -86,7 +89,8 @@ async function searchConversations(term) {
   }));
 }
 
-export async function adminGlobalSearch(query, role) {
+/** `repId`: a sales rep's scope (lib/salesScope.js) — only their agents and those agents' agencies. */
+export async function adminGlobalSearch(query, role, { repId = null } = {}) {
   const term = String(query || '').trim().slice(0, 80);
   if (term.length < 2) return [];
 
@@ -98,7 +102,7 @@ export async function adminGlobalSearch(query, role) {
     ['conversations', 'leads.view', searchConversations],
   ].filter(([, permission]) => can(role, permission));
 
-  const settled = await Promise.allSettled(plan.map(([, , run]) => run(term)));
+  const settled = await Promise.allSettled(plan.map(([, , run]) => run(term, { repId })));
   return plan
     .map(([key], index) => ({ key, items: settled[index].status === 'fulfilled' ? settled[index].value : [] }))
     .filter((group) => group.items.length > 0);

@@ -3282,7 +3282,8 @@
       "reminderHint": "Sends the agent a WhatsApp reminder. It only arrives if the agent wrote to Lukka Place in the last 24 hours.",
       "reminderSent": "Verification reminder sent on WhatsApp (received if the agent wrote to us in the last 24 hours).",
       "reminderNoPhone": "This agent has no valid number.",
-      "reminderFailed": "The reminder could not be sent."
+      "reminderFailed": "The reminder could not be sent.",
+      "subtitleSales": "The agents you brought to Lukka Place — through your code or your assignment."
     },
     "actions": {
       "approve": "Approve",
@@ -3616,7 +3617,11 @@
       "colLastLogin": "Last login",
       "colActions": "Actions",
       "viewingsCount": "{count} viewings",
-      "noPassword": "No password"
+      "noPassword": "No password",
+      "delete": "Delete account",
+      "deleteTitle": "Delete This Customer Account?",
+      "deleteBody": "The account, its saved listings and alerts are deleted for good and the person is signed out. Their requests and visits stay in Leads and Viewings.",
+      "deleted": "Customer account deleted."
     },
     "benchmarks": {
       "title": "Benchmark Pricing",
@@ -3859,7 +3864,8 @@
         "templateLeadMatch": "Agency alert template",
         "templateViewing": "Viewing request template",
         "templateOtp": "OTP template"
-      }
+      },
+      "subtitleSales": "WhatsApp taps on listings of the agents you brought in."
     },
     "table": {
       "all": "All",
@@ -4433,7 +4439,13 @@
         "referralCodeEditHint": "A code that has already brought in an agent can no longer change.",
         "codeInvalid": "A referral code is 3 to 10 letters followed by 2 digits, e.g. JEAN01.",
         "codeTaken": "Another rep already uses this referral code.",
-        "codeLocked": "This code has already brought in an agent and is part of their record: it can no longer change."
+        "codeLocked": "This code has already brought in an agent and is part of their record: it can no longer change.",
+        "remove": "Remove from team",
+        "removeTitle": "Remove This Rep from the Team?",
+        "removeBody": "Their agents are no longer assigned to them, their referral code stops working and their console account is unlinked. Their commission and payout history is kept.",
+        "removeUnpaid": "This rep still has pending or approved commissions. Pay or void them first.",
+        "deleted": "Rep deleted.",
+        "removed": "Rep removed from the team. Their history is kept."
       },
       "plans": {
         "link": "Commission plans",
@@ -4475,8 +4487,12 @@
         "launchTitle": "Launch Policy Tiers",
         "launchAcquisition": "Qualified agents (cumulative totals): 5 = $15, 10 = $35, 15 = $60, 20 = $90, 30 = $150, 40 = $220, 50 = $300.",
         "launchAdditional": "Confirmed listings above 3 per qualified agent: 10 = $5, 25 = $15, 50 = $35, 100 = $80.",
-        "launchQuality": "+$25 once, when at least 80% of credited listings are still valid 30 days after confirmation (at least 15 checked).",
-        "launchQualified": "A qualified agent: verified number, a name, at least 3 confirmed listings, not rejected. Only validated agents count towards what is payable."
+        "launchQuality": "+$25 once, when at least 80% of the agents brought in more than 30 days ago are still active: account active and at least one listing online (at least 5 agents).",
+        "launchQualified": "A qualified agent: verified number, a name, at least 3 confirmed listings, not rejected. Only validated agents count towards what is payable.",
+        "delete": "Delete plan",
+        "deleteTitle": "Delete This Plan?",
+        "deleteBody": "{count} rep(s) on this plan will have none and earn nothing new until given one. Commissions already calculated keep their amounts.",
+        "deleted": "Plan deleted. {count} rep(s) left without a plan."
       },
       "accounts": {
         "title": "Agents",
@@ -4596,9 +4612,9 @@
         "quality": {
           "title": "30-Day Quality Bonus",
           "earned": "Earned · {amount}",
-          "passing": "Passing: at least {ratio}% valid ({valid}/{checked})",
-          "failing": "Below {ratio}%: {valid}/{checked} valid on day 30",
-          "maturing": "{count} listing(s) not yet 30 days old · tested from {min} checked listings ({days} days)"
+          "passing": "Passing: at least {ratio}% active ({valid}/{checked})",
+          "failing": "Below {ratio}%: {valid}/{checked} agents active after 30 days",
+          "maturing": "{count} agent(s) brought in less than 30 days ago · tested from {min} agents ({days} days)"
         },
         "referral": {
           "code": "Referral code",
@@ -4684,7 +4700,7 @@
         "ledger": {
           "milestoneDetail": "Tier reached: {count} validated qualified agents",
           "listingBonusDetail": "Tier reached: {count} additional listings",
-          "qualityDetail": "{ratio}% of credited listings valid on day 30",
+          "qualityDetail": "{ratio}% of agents brought in still active after 30 days",
           "voidBelowThreshold": "Tier no longer met"
         },
         "fortnight": {

@@ -364,7 +364,16 @@
       "searchButton": "Search",
       "depositRangeChip": "Upfront {value}",
       "depositRangeLabel": "Upfront payment",
-      "depositRangeHint": "Total due before moving in, as the listing states it: deposit + rent in advance + agency commission."
+      "depositRangeHint": "Total due before moving in, as the listing states it: deposit + rent in advance + agency commission.",
+      "otherTypes": "Other property types",
+      "otherTypesPlaceholder": "Studio, duplex, office…",
+      "typeChip": {
+        "parcelle": "Plot",
+        "appartement": "Apartment",
+        "maison": "House",
+        "villa": "Villa",
+        "terrain": "Land"
+      }
     },
     "sort": {
       "complete": "Complete listings first",

@@ -437,15 +437,39 @@ const CATEGORY_ALIASES = {
   // 2026-10-22: Studio, Chambre / Annexe and Ferme / Terrain
   // agricole became categories. A studio filed under Appartement before then
   // still says so in its title.
-  studio: { names: ['studio'], titleWord: 'studio' },
+  studio: { names: ['studio'], titleWord: 'studio', titleCategories: ['appartement'] },
   chambre: { names: ['chambre / annexe'] },
   annexe: { names: ['chambre / annexe'] },
   ferme: { names: ['ferme / terrain agricole'] },
   immeuble: { names: ['immeuble', 'bâtiment'] },
   'bâtiment': { names: ['immeuble', 'bâtiment'] },
   batiment: { names: ['immeuble', 'bâtiment'] },
-  villa: { names: ['villa'], parcelleSubtype: 'villa' },
+  // Before 2026-10-22 the engine filed every WhatsApp villa under Maison
+  // (one sits under Duplex, "Villa duplex"); their titles still say so.
+  villa: { names: ['villa'], parcelleSubtype: 'villa', titleWord: 'villa', titleCategories: ['maison', 'duplex'] },
 };
+
+/**
+ * The WHERE fragment for a CATEGORY_ALIASES key, pushing its params. One
+ * definition for the filter and for the facet count, so "Villa 5" opens
+ * exactly five listings. Needs `catc`, `pc` and `p`.
+ */
+function categoryAliasClause(key, params) {
+  const { names, parcelleSubtype: aliasSubtype, titleWord, titleCategories = [] } = CATEGORY_ALIASES[key];
+  params.push(names);
+  let clause = `LOWER(catc.name) = ANY($${params.length})`;
+  if (titleWord) {
+    params.push(titleCategories);
+    const categoriesIdx = params.length;
+    params.push(`\\y${escapeRegex(titleWord)}`);
+    clause = `${clause} OR (LOWER(catc.name) = ANY($${categoriesIdx}) AND pc.title ~* $${params.length})`;
+  }
+  if (aliasSubtype) {
+    params.push(aliasSubtype);
+    clause = `${clause} OR p.parcelle_subtype = $${params.length}`;
+  }
+  return `(${clause})`;
+}
 
 function buildFilters({ transactionType, propertyType, parcelleSubtype, commune, communes, quartier, radius, near, reference, priceMin, priceMax, bedsMin, bathMin, depositMax, depositRange, leaseTerm, plotMin, plotMax, amenities, search, excludeId, agentId, ids, ville }) {
   const where = [APPROVED_FILTER];
@@ -624,19 +648,7 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
     // types 'commercial' (lib/commercialSpaces.js), not a list of names.
     where.push(`LOWER(cat.type) = 'commercial'`);
   } else if (propertyType && CATEGORY_ALIASES[propertyType.toLowerCase()]) {
-    const { names, parcelleSubtype: aliasSubtype, titleWord } = CATEGORY_ALIASES[propertyType.toLowerCase()];
-    params.push(names);
-    let byName = `LOWER(catc.name) = ANY($${params.length})`;
-    if (titleWord) {
-      params.push(`\\y${escapeRegex(titleWord)}`);
-      byName = `(${byName} OR (LOWER(catc.name) = 'appartement' AND pc.title ~* $${params.length}))`;
-    }
-    if (aliasSubtype) {
-      params.push(aliasSubtype);
-      where.push(`(${byName} OR p.parcelle_subtype = $${params.length})`);
-    } else {
-      where.push(byName);
-    }
+    where.push(categoryAliasClause(propertyType.toLowerCase(), params));
   } else if (propertyType) {
     // Case-insensitive on purpose: the live rows are 'Appartement' and
     // 'Maison' (capitalised), while this comparison used to be hardcoded to
@@ -1731,7 +1743,9 @@ export async function getSimilarListings(id, limit = 6) {
 export async function getPropertyTypeFacets() {
   const pool = getPool();
 
-  const [categories, parcelle] = await Promise.all([
+  const villaParams = [];
+  const villaClause = categoryAliasClause('villa', villaParams);
+  const [categories, parcelle, villa] = await Promise.all([
     pool.query(
       `SELECT catc.name AS label, LOWER(MIN(cat.type)) AS category_type, COUNT(*) AS n
        ${FROM_JOINS}
@@ -1744,6 +1758,7 @@ export async function getPropertyTypeFacets() {
        ${FROM_JOINS}
        WHERE ${APPROVED_FILTER} AND p.parcelle_subtype IS NOT NULL`,
     ),
+    pool.query(`SELECT COUNT(*) AS n ${FROM_JOINS} WHERE ${APPROVED_FILTER} AND ${villaClause}`, villaParams),
   ]);
 
   const facets = categories.rows.map((r) => ({
@@ -1769,6 +1784,14 @@ export async function getPropertyTypeFacets() {
       umbrella: true,
     });
   }
+
+  // Villa: the Villa category plus the villas filed before it existed
+  // (CATEGORY_ALIASES) — an overlay like Parcelle, so it can re-count a
+  // Maison. Replaces the bare category row, which would undercount.
+  const villaCount = Number.parseInt(villa.rows[0]?.n ?? 0, 10);
+  const villaRow = facets.findIndex((f) => f.value === 'villa');
+  if (villaRow !== -1) facets.splice(villaRow, 1);
+  if (villaCount > 0) facets.push({ value: 'villa', label: 'Villa', count: villaCount, group: 'residential', overlay: true });
 
   const parcelleCount = Number.parseInt(parcelle.rows[0].n, 10);
   if (parcelleCount > 0) {

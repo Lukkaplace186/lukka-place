@@ -3060,4 +3060,11 @@ Tests: `tests/unit/listing-details.test.js`.
   category and purpose. Smart paste fills it.
 - New types: plurals, landing pages `/studios`, `/chambres`, `/fermes`,
   tile icons, pin kind (a farm is land).
-
+- **Filter sheet (phone) type chips** (2026-10-22, owner decision): Tous, Parcelle,
+  Appartement, Maison, Villa, Terrain, in that order, each with its real count
+  (greyed at 0); every other type with listings (Duplex, Studio, Bureau…) is one
+  "Autres types de bien" dropdown. **Villa** = the Villa category OR a villa
+  parcelle OR a Maison / Duplex whose title says villa (the engine filed WhatsApp
+  villas under Maison until 2026-10-22) — `categoryAliasClause`, shared by the
+  filter and the facet count, so "Villa 5" opens five listings. Villa is an
+  overlay facet: it can re-count a Maison.

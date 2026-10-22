@@ -364,7 +364,16 @@
       "searchButton": "Rechercher",
       "depositRangeChip": "Avance {value}",
       "depositRangeLabel": "Avance exigée",
-      "depositRangeHint": "Total à verser à l’entrée, tel que l’annonce l’indique : garantie + avance + commission."
+      "depositRangeHint": "Total à verser à l’entrée, tel que l’annonce l’indique : garantie + avance + commission.",
+      "otherTypes": "Autres types de bien",
+      "otherTypesPlaceholder": "Studio, duplex, bureau…",
+      "typeChip": {
+        "parcelle": "Parcelle",
+        "appartement": "Appartement",
+        "maison": "Maison",
+        "villa": "Villa",
+        "terrain": "Terrain"
+      }
     },
     "sort": {
       "complete": "Annonces complètes d’abord",

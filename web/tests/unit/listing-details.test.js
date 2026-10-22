@@ -9,7 +9,7 @@ import { PROPERTY_TYPE_PLURAL_KEYS } from '@/lib/constants';
 import { SEO_PROPERTY_TYPES, parseSeoSegments } from '@/lib/seoPages';
 import { matchCategoryId } from '@/lib/smartPaste';
 import fr from '@/lib/i18n/fr.json' with { type: 'json' };
-import { calls, normalizeSql, reset } from '../support/fakePool.js';
+import { calls, enqueue, normalizeSql, reset } from '../support/fakePool.js';
 
 /**
  * Practical listing details and the 2026-10-22 types (lib/listingDetails.js;
@@ -92,7 +92,8 @@ test('listing reads carry the details through to_jsonb; the plot filter and Meub
 test('the new types filter by category, and old studios still match by title', async () => {
   await listings.getListings({ propertyType: 'studio' });
   const sql = calls.map((c) => normalizeSql(c.text)).join('\n');
-  assert.ok(sql.includes("LOWER(catc.name) = 'appartement' AND pc.title ~*"));
+  assert.ok(sql.includes('pc.title ~*'), 'older studios match by title');
+  assert.ok(calls.flatMap((c) => c.values || []).some((v) => Array.isArray(v) && v.length === 1 && v[0] === 'appartement'), '…only under Appartement');
   for (const [value, name] of [['chambre', 'chambre / annexe'], ['ferme', 'ferme / terrain agricole']]) {
     reset();
     await listings.getListings({ propertyType: value });
@@ -155,4 +156,30 @@ test('the hero search offers long / short term on the Rent tab and sends lease_t
   assert.ok(source.includes("lease_term: transactionType === 'location' ? leaseTerm : ''"), 'the search URL carries it, rentals only');
   assert.ok(source.includes("qs.set('lease_term', leaseTerm)"), 'the live count uses it');
   assert.ok(source.includes("homeTab === 'louer' ?"), 'shown on the Rent tab only');
+});
+
+test('Villa counts and filters the same listings: the category, villa plots, and older villas filed under Maison / Duplex', async () => {
+  await listings.getListings({ propertyType: 'villa' });
+  const filterSql = calls.map((c) => normalizeSql(c.text)).join('\n');
+  const filterValues = calls.flatMap((c) => c.values || []);
+  assert.ok(filterSql.includes('LOWER(catc.name) = ANY('), 'by category');
+  assert.ok(filterSql.includes('pc.title ~*'), 'by title for the older ones');
+  assert.ok(filterValues.some((v) => Array.isArray(v) && v.includes('maison') && v.includes('duplex')));
+  assert.ok(filterValues.includes('villa'), 'and villa plots');
+  reset();
+  enqueue([{ label: 'Maison', category_type: 'residential', n: '10' }, { label: 'Duplex', category_type: 'residential', n: '1' }]);
+  enqueue([{ n: '0' }]);
+  enqueue([{ n: '5' }]);
+  const facets = await listings.getPropertyTypeFacets();
+  const facetSql = calls.map((c) => normalizeSql(c.text)).join('\n');
+  assert.ok(facetSql.includes("pc.title ~*"), 'the Villa count uses the same rule');
+  assert.equal(facets.find((f) => f.value === 'villa')?.count, 5);
+  assert.equal(facets.find((f) => f.value === 'maison')?.count, 10, 'Maison keeps its own count');
+});
+
+test('the filter sheet shows the five chips in order, every other type in one dropdown', async () => {
+  const { readFileSync } = await import('node:fs');
+  const source = readFileSync(new URL('../../components/FilterModal.js', import.meta.url), 'utf8');
+  assert.ok(source.includes("const PRIMARY_TYPE_VALUES = ['parcelle', 'appartement', 'maison', 'villa', 'terrain'];"));
+  assert.ok(source.includes("t('listings.filters.otherTypes')"), 'Duplex, Studio, Bureau… stay reachable');
 });

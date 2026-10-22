@@ -7,6 +7,16 @@ import { useT } from '@/lib/i18n/client';
 import { facetLabel, groupTypeFacets } from '@/lib/commercialSpaces';
 import { LEASE_TERM_OPTIONS } from '@/lib/leaseTerm';
 
+/** The chips, in this order (owner decision 2026-10-22); every other type is in the dropdown. */
+const PRIMARY_TYPE_VALUES = ['parcelle', 'appartement', 'maison', 'villa', 'terrain'];
+const PRIMARY_TYPE_LABEL_KEYS = {
+  parcelle: 'listings.filters.typeChip.parcelle',
+  appartement: 'listings.filters.typeChip.appartement',
+  maison: 'listings.filters.typeChip.maison',
+  villa: 'listings.filters.typeChip.villa',
+  terrain: 'listings.filters.typeChip.terrain',
+};
+
 const numberInputClass =
   'u-focus-ring w-full rounded-md border border-line bg-canvas px-3 py-2.5 text-sm text-ink placeholder:text-ink-25';
 
@@ -74,6 +84,12 @@ export default function FilterModal({
     setCommune, setQuartier, setParcelleSubtype, setDepositRange, setLeaseTerm, setAmenities,
     setPlotMin, setPlotMax,
   } = setters;
+
+  const facetByValue = new Map(propertyTypes.map((facet) => [facet.value, facet]));
+  const primaryTypes = PRIMARY_TYPE_VALUES.map((value) => ({ value, facet: facetByValue.get(value) || null }));
+  const grouped = groupTypeFacets(propertyTypes.filter((facet) => !PRIMARY_TYPE_VALUES.includes(facet.value)));
+  const otherTypes = { residential: grouped.residential, commercial: grouped.commercial };
+  const otherSelected = Boolean(propertyType) && !PRIMARY_TYPE_VALUES.includes(propertyType);
 
   function reset() {
     setPropertyType?.('');
@@ -181,30 +197,55 @@ export default function FilterModal({
               <PillOption size="lg" selected={!propertyType} onClick={() => setPropertyType?.('')}>
                 {t('listings.filters.allTypes')}
               </PillOption>
-              {/* DB-derived, with real counts — same source FilterBar's
-                  desktop pill uses, so a type that would return zero
-                  results is never offered here either. */}
-              {groupTypeFacets(propertyTypes).residential.map((facet) => (
-                <PillOption key={facet.value} size="lg" selected={propertyType === facet.value} onClick={() => setPropertyType?.(facet.value)}>
-                  {facetLabel(facet, t)}
-                  <span className="u-tabular ml-1.5 opacity-60">{facet.count}</span>
+              {/* The five kinds people search for most, always in this
+                  order, each with its real count (getPropertyTypeFacets —
+                  Villa includes the villas filed under Maison). A kind with
+                  no listing right now is shown greyed out rather than
+                  leading to an empty page. */}
+              {primaryTypes.map(({ value, facet }) => (
+                <PillOption
+                  key={value}
+                  size="lg"
+                  selected={propertyType === value}
+                  disabled={!facet}
+                  aria-disabled={!facet}
+                  className={!facet ? 'pointer-events-none opacity-40' : undefined}
+                  onClick={() => setPropertyType?.(value)}
+                >
+                  {facet ? facetLabel(facet, t) : t(PRIMARY_TYPE_LABEL_KEYS[value])}
+                  <span className="u-tabular ml-1.5 opacity-60">{facet ? facet.count : 0}</span>
                 </PillOption>
               ))}
             </div>
+            {/* Every other kind with listings (Duplex, Studio, Bureau…), one
+                dropdown, so none of them becomes unreachable. */}
+            {otherTypes.residential.length || otherTypes.commercial.length ? (
+              <label className="mt-3 block">
+                <span className="mb-1.5 block text-xs font-medium text-ink-70">{t('listings.filters.otherTypes')}</span>
+                <select
+                  value={otherSelected ? propertyType : ''}
+                  onChange={(e) => setPropertyType?.(e.target.value)}
+                  className={`u-focus-ring w-full rounded-lg border bg-surface px-3 py-3 text-[0.9375rem] ${otherSelected ? 'border-blue text-blue-deep' : 'border-line text-ink'}`}
+                >
+                  <option value="">{t('listings.filters.otherTypesPlaceholder')}</option>
+                  {otherTypes.residential.length ? (
+                    <optgroup label={t('listings.commercial.group.residential')}>
+                      {otherTypes.residential.map((facet) => (
+                        <option key={facet.value} value={facet.value}>{facetLabel(facet, t)} ({facet.count})</option>
+                      ))}
+                    </optgroup>
+                  ) : null}
+                  {otherTypes.commercial.length ? (
+                    <optgroup label={t('listings.commercial.group.commercial')}>
+                      {otherTypes.commercial.map((facet) => (
+                        <option key={facet.value} value={facet.value}>{facetLabel(facet, t)} ({facet.count})</option>
+                      ))}
+                    </optgroup>
+                  ) : null}
+                </select>
+              </label>
+            ) : null}
           </Section>
-
-          {groupTypeFacets(propertyTypes).commercial.length ? (
-            <Section label={t('listings.commercial.group.commercial')}>
-              <div className="flex flex-wrap gap-2">
-                {groupTypeFacets(propertyTypes).commercial.map((facet) => (
-                  <PillOption key={facet.value} size="lg" selected={propertyType === facet.value} onClick={() => setPropertyType?.(facet.value)}>
-                    {facetLabel(facet, t)}
-                    <span className="u-tabular ml-1.5 opacity-60">{facet.count}</span>
-                  </PillOption>
-                ))}
-              </div>
-            </Section>
-          ) : null}
 
           <AdvancedFilterFields
             locations={locations}

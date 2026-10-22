@@ -127,7 +127,8 @@ export default async function ListingsPage({ searchParams }) {
     cachedCommuneShowcase(24),
     cachedPriceRange(),
   ]);
-  const propertyTypes = await cachedPropertyTypeFacets();
+  // The searched city's counts: the feed below is that one city.
+  const propertyTypes = await cachedPropertyTypeFacets(searchCity);
 
   // "Près de UPN": each card says how far it is from the landmark, from the
   // listing's own stored point only (lib/landmarks.js).

@@ -175,6 +175,15 @@ test('Villa counts and filters the same listings: the category, villa plots, and
   assert.ok(facetSql.includes("pc.title ~*"), 'the Villa count uses the same rule');
   assert.equal(facets.find((f) => f.value === 'villa')?.count, 5);
   assert.equal(facets.find((f) => f.value === 'maison')?.count, 10, 'Maison keeps its own count');
+  assert.ok(!facetSql.includes('property_city_contents'), 'no city: national counts (homepage)');
+  reset();
+  enqueue([{ label: 'Maison', category_type: 'residential', n: '7' }]);
+  enqueue([{ n: '0' }]);
+  enqueue([{ n: '2' }]);
+  await listings.getPropertyTypeFacets({ city: 'Kinshasa' });
+  const scoped = calls.map((c) => normalizeSql(c.text));
+  assert.equal(scoped.filter((sql) => sql.includes('property_city_contents') && sql.includes('p.city_id IS NULL')).length, 3, 'all three counts are the feed\'s city');
+  assert.ok(calls.every((c) => (c.values || [])[0] === 'Kinshasa'));
 });
 
 test('the filter sheet shows the five chips in order, every other type in one dropdown', async () => {

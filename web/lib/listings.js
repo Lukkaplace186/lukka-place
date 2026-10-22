@@ -454,6 +454,13 @@ const CATEGORY_ALIASES = {
  * definition for the filter and for the facet count, so "Villa 5" opens
  * exactly five listings. Needs `catc`, `pc` and `p`.
  */
+/** One city's listings, by name; a Kinshasa row that predates city_id (NULL) counts as Kinshasa. */
+function cityClause(city, params) {
+  params.push(city);
+  const nullClause = city === DEFAULT_CITY ? ' OR p.city_id IS NULL' : '';
+  return `(p.city_id IN (SELECT city_id FROM property_city_contents WHERE LOWER(name) = LOWER($${params.length}))${nullClause})`;
+}
+
 function categoryAliasClause(key, params) {
   const { names, parcelleSubtype: aliasSubtype, titleWord, titleCategories = [] } = CATEGORY_ALIASES[key];
   params.push(names);
@@ -788,10 +795,7 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
   // never narrowed. Matched by name through the Laravel taxonomy, and a
   // Kinshasa row that predates city_id (NULL) still counts as Kinshasa.
   if (!(Array.isArray(ids) && ids.length) && !Number.isFinite(Number.parseInt(agentId, 10))) {
-    const city = searchCityOf({ ville, commune, communes });
-    params.push(city);
-    const nullClause = city === DEFAULT_CITY ? ' OR p.city_id IS NULL' : '';
-    where.push(`(p.city_id IN (SELECT city_id FROM property_city_contents WHERE LOWER(name) = LOWER($${params.length}))${nullClause})`);
+    where.push(cityClause(searchCityOf({ ville, commune, communes }), params));
   }
 
   return { whereClause: where.join(' AND '), params };
@@ -1740,25 +1744,32 @@ export async function getSimilarListings(id, limit = 6) {
   return rows;
 }
 
-export async function getPropertyTypeFacets() {
+export async function getPropertyTypeFacets({ city = null } = {}) {
   const pool = getPool();
 
-  const villaParams = [];
+  // With a city, the counts are that city's — the same rule the /listings
+  // feed applies (cityClause), so a chip's number is the page it opens. With
+  // none (the homepage, whose search starts on "Toutes les villes"), national.
+  const cityParams = [];
+  const cityWhere = city ? ` AND ${cityClause(city, cityParams)}` : '';
+  const villaParams = [...cityParams];
   const villaClause = categoryAliasClause('villa', villaParams);
   const [categories, parcelle, villa] = await Promise.all([
     pool.query(
       `SELECT catc.name AS label, LOWER(MIN(cat.type)) AS category_type, COUNT(*) AS n
        ${FROM_JOINS}
-       WHERE ${APPROVED_FILTER}
+       WHERE ${APPROVED_FILTER}${cityWhere}
        GROUP BY catc.name
        ORDER BY n DESC, label ASC`,
+      cityParams,
     ),
     pool.query(
       `SELECT COUNT(*) AS n
        ${FROM_JOINS}
-       WHERE ${APPROVED_FILTER} AND p.parcelle_subtype IS NOT NULL`,
+       WHERE ${APPROVED_FILTER}${cityWhere} AND p.parcelle_subtype IS NOT NULL`,
+      cityParams,
     ),
-    pool.query(`SELECT COUNT(*) AS n ${FROM_JOINS} WHERE ${APPROVED_FILTER} AND ${villaClause}`, villaParams),
+    pool.query(`SELECT COUNT(*) AS n ${FROM_JOINS} WHERE ${APPROVED_FILTER}${cityWhere} AND ${villaClause}`, villaParams),
   ]);
 
   const facets = categories.rows.map((r) => ({

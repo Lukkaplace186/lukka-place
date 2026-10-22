@@ -520,7 +520,8 @@
       "energyWater": "Énergie & Eau",
       "accessSecurity": "Accessibilité & Sécurité",
       "rentalTerms": "Conditions de location",
-      "paymentTerms": "Conditions de paiement"
+      "paymentTerms": "Conditions de paiement",
+      "comfort": "Confort"
     },
     "amenities": {
       "generator": "Groupe électrogène",
@@ -532,7 +533,9 @@
       "parking": "Parking intérieur",
       "ac": "Climatisation",
       "furnished": "Meublé",
-      "semi_furnished": "Semi-meublé"
+      "semi_furnished": "Semi-meublé",
+      "pool": "Piscine",
+      "gym": "Salle de sport"
     },
     "depositMax": {
       "1": "1 mois",
@@ -557,7 +560,6 @@
       "commercial": "Locaux commerciaux",
       "studio": "Studios",
       "chambre": "Chambres et annexes",
-      "salleDeFete": "Salles de fête",
       "ferme": "Fermes et terrains agricoles"
     },
     "chips": {
@@ -800,10 +802,6 @@
       "households": "Ménages dans la parcelle : {count}",
       "landlordOn": "Bailleur sur place",
       "landlordOff": "Le bailleur n'habite pas la parcelle",
-      "toiletIn": "Toilettes intérieures",
-      "toiletOut": "Toilettes extérieures",
-      "showerIn": "Douche intérieure",
-      "showerOut": "Douche extérieure",
       "meter": {
         "prepaye": "Compteur Cash Power (prépayé)",
         "individuel": "Compteur individuel",
@@ -832,10 +830,6 @@
         "furnishedNo": "Non meublé",
         "households": "Ménages dans la parcelle",
         "landlord": "Le bailleur habite la parcelle ?",
-        "toilet": "Toilettes",
-        "shower": "Douche",
-        "inside": "Intérieures",
-        "outside": "Extérieures",
         "meter": "Compteur électrique",
         "meterPrepaye": "Cash Power (prépayé, individuel)",
         "meterIndividuel": "Individuel",
@@ -847,7 +841,12 @@
         "installments": "Paiement échelonné possible",
         "installmentTerms": "Conditions du paiement (vos mots)",
         "installmentPlaceholder": "ex. 30 % à la signature, le reste en 12 mois",
-        "hint": "Laissez « Non précisé » quand l'annonce ne le dit pas."
+        "hint": "Laissez « Non précisé » quand l'annonce ne le dit pas.",
+        "equipment": "Équipements",
+        "generator": "Groupe électrogène",
+        "pool": "Piscine",
+        "gym": "Salle de sport",
+        "solar": "Panneaux solaires"
       }
     }
   },

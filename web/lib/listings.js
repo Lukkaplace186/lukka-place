@@ -430,15 +430,17 @@ function communeListOf({ commune, communes } = {}) {
  * Villa category or a parcelle the engine sub-typed villa — before that
  * category existed, the only kind there was.
  */
+/** "Plus de filtres" amenity keys backed by a practical-detail column too. */
+const AMENITY_DETAIL_COLUMNS = { generator: 'has_generator', solar: 'has_solar', pool: 'has_pool', gym: 'has_gym' };
+
 const CATEGORY_ALIASES = {
-  // 2026-10-22: Studio, Chambre / Annexe, Salle de fête and Ferme / Terrain
+  // 2026-10-22: Studio, Chambre / Annexe and Ferme / Terrain
   // agricole became categories. A studio filed under Appartement before then
   // still says so in its title.
   studio: { names: ['studio'], titleWord: 'studio' },
   chambre: { names: ['chambre / annexe'] },
   annexe: { names: ['chambre / annexe'] },
   ferme: { names: ['ferme / terrain agricole'] },
-  salle_de_fete: { names: ['salle de fête'] },
   immeuble: { names: ['immeuble', 'bâtiment'] },
   'bâtiment': { names: ['immeuble', 'bâtiment'] },
   batiment: { names: ['immeuble', 'bâtiment'] },
@@ -599,6 +601,12 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
       // agent marked unfurnished is left out even if its text says "meublé".
       if (key === 'furnished') {
         where.push(`(to_jsonb(p) ->> 'furnished' = 'true' OR (COALESCE(to_jsonb(p) ->> 'furnished', '') <> 'false' AND (${group.join(' OR ')})))`);
+        continue;
+      }
+      // Generator, solar, pool, gym: the agent's ticked box OR the words.
+      const column = AMENITY_DETAIL_COLUMNS[key];
+      if (column) {
+        where.push(`(to_jsonb(p) ->> '${column}' = 'true' OR ${group.join(' OR ')})`);
         continue;
       }
       where.push(`(${group.join(' OR ')})`);

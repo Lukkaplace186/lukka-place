@@ -72,8 +72,6 @@ export const PROPERTY_TYPE_PLURAL_KEYS = {
   studio: 'listings.typePlurals.studio',
   'chambre / annexe': 'listings.typePlurals.chambre',
   chambre: 'listings.typePlurals.chambre',
-  'salle de fête': 'listings.typePlurals.salleDeFete',
-  salle_de_fete: 'listings.typePlurals.salleDeFete',
   'ferme / terrain agricole': 'listings.typePlurals.ferme',
   ferme: 'listings.typePlurals.ferme',
   boutique: 'listings.typePlurals.boutique',
@@ -137,6 +135,13 @@ export const AMENITY_GROUPS = [
     ],
   },
   {
+    titleKey: 'listings.amenityGroups.comfort',
+    options: [
+      { key: 'pool', labelKey: 'listings.amenities.pool' },
+      { key: 'gym', labelKey: 'listings.amenities.gym' },
+    ],
+  },
+  {
     titleKey: 'listings.amenityGroups.rentalTerms',
     options: [
       { key: 'ac', labelKey: 'listings.amenities.ac' },
@@ -166,6 +171,8 @@ export const AMENITY_KEYWORDS = {
   parking: ['parking', 'garage'],
   ac: ['climatisation', 'climatisé', 'climatise', 'climatiseur'],
   furnished: ['meublé', 'meuble', 'meublée', 'meublee'],
+  pool: ['piscine'],
+  gym: ['salle de sport', 'salle de gym', 'gym', 'fitness'],
   // Substring of `furnished`'s own keywords ("meublé" sits inside
   // "semi-meublé"), so a semi-furnished listing legitimately matches both —
   // real overlap, not a bug: the text genuinely contains both claims.

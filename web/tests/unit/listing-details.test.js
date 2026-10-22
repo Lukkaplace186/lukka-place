@@ -31,25 +31,27 @@ test('plot sizes are read the way agents write them, identically on both sides',
 
 test('details are gated on what the property can have', () => {
   const all = {
-    furnished: '1', households_count: '3', landlord_on_site: '0', toilet_location: 'Intérieur',
-    shower_location: 'exterieur', electricity_meter: 'prepaye', plot_dimensions: '15/20',
+    furnished: '1', households_count: '3', landlord_on_site: '0', has_generator: '1',
+    has_pool: true, has_gym: false, electricity_meter: 'prepaye', plot_dimensions: '15/20',
     installments_available: true, installment_terms: '30 % puis 12 mois',
   };
   const flat = details.normaliseListingDetails(all, { categoryName: 'Appartement', categoryType: 'residential', purpose: 'rent' });
   assert.equal(flat.plot_dimensions, null, 'a flat has no plot');
   assert.equal(flat.installments_available, null, 'a rent is not paid in instalments');
   assert.equal(flat.households_count, 3);
-  assert.equal(flat.toilet_location, 'interieur');
+  assert.equal(flat.has_generator, true);
+  assert.equal(flat.has_pool, true);
+  assert.equal(flat.has_gym, null, 'a "no" is never stored');
   const land = details.normaliseListingDetails(all, { categoryName: 'Terrain', categoryType: 'residential', purpose: 'sale' });
   assert.equal(land.households_count, null);
-  assert.equal(land.toilet_location, null);
+  assert.equal(land.has_pool, null, 'bare land has no pool');
   assert.equal(land.electricity_meter, null);
   assert.equal(land.furnished, null);
   assert.equal(land.plot_area_m2, 300);
   assert.equal(land.installment_terms, '30 % puis 12 mois');
-  const hall = details.normaliseListingDetails(all, { categoryName: 'Salle de fête', categoryType: 'commercial', purpose: 'rent' });
-  assert.equal(hall.landlord_on_site, null, 'nobody shares an event hall as a household');
-  assert.equal(details.normaliseListingDetails({ toilet_location: 'cuisine', households_count: 900 }).toilet_location, null);
+  const office = details.normaliseListingDetails(all, { categoryName: 'Bureau', categoryType: 'commercial', purpose: 'rent' });
+  assert.equal(office.landlord_on_site, null, 'nobody shares an office as a household');
+  assert.equal(office.has_generator, true, 'an office can have a generator');
   assert.equal(details.normaliseListingDetails({ households_count: 900 }).households_count, null);
   // The engine applies the same rules to its own type codes.
   const engineFarm = engine.normaliseListingDetails(all, { propertyType: 'ferme', transactionType: 'vente' });
@@ -77,6 +79,12 @@ test('listing reads carry the details through to_jsonb; the plot filter and Meub
   const params = calls.flatMap((c) => c.values || []);
   assert.ok(params.includes(500) && params.includes(2000));
   reset();
+  await listings.getListings(parseListingsSearchParams(new URLSearchParams('amenities=pool,generator,gym,solar')));
+  const equipmentSql = calls.map((c) => normalizeSql(c.text)).join('\n');
+  for (const column of ['has_pool', 'has_generator', 'has_gym', 'has_solar']) {
+    assert.ok(equipmentSql.includes(`to_jsonb(p) ->> '${column}' = 'true'`), column);
+  }
+  reset();
   await listings.getListings({ plotMin: 'abc' });
   assert.ok(!calls.map((c) => normalizeSql(c.text)).join('\n').includes("->> 'plot_area_m2', '')::numeric"), 'a junk size filters nothing');
 });
@@ -85,7 +93,7 @@ test('the new types filter by category, and old studios still match by title', a
   await listings.getListings({ propertyType: 'studio' });
   const sql = calls.map((c) => normalizeSql(c.text)).join('\n');
   assert.ok(sql.includes("LOWER(catc.name) = 'appartement' AND pc.title ~*"));
-  for (const [value, name] of [['chambre', 'chambre / annexe'], ['ferme', 'ferme / terrain agricole'], ['salle_de_fete', 'salle de fête']]) {
+  for (const [value, name] of [['chambre', 'chambre / annexe'], ['ferme', 'ferme / terrain agricole']]) {
     reset();
     await listings.getListings({ propertyType: value });
     assert.ok(calls.flatMap((c) => c.values || []).some((p) => Array.isArray(p) && p.includes(name)), value);
@@ -100,42 +108,51 @@ test('the search box reads plot sizes, Meublé and the new types', () => {
   assert.deepEqual(parseSearchQuery('appartement meublé gombe').amenities, ['furnished']);
   assert.equal(parseSearchQuery('appartement non meublé').amenities, undefined);
   assert.equal(parseSearchQuery('appartement dans un immeuble').amenities, undefined, '"immeuble" is not "meublé"');
-  assert.equal(parseSearchQuery('salle de fête limete').property_type, 'salle_de_fete');
+  assert.equal(parseSearchQuery('salle de fête limete').property_type, undefined, 'Salle de fête was removed');
   assert.equal(parseSearchQuery('terrain agricole mont-ngafula').property_type, 'ferme');
   assert.equal(parseSearchQuery('annexe à louer ngaba').property_type, 'chambre');
   assert.equal(parseSearchQuery('2 chambres kintambo').property_type, undefined, 'bedrooms are not a room to let');
 });
 
 test('every new type has a plural, a landing page and a smart-paste category', () => {
-  for (const value of ['studio', 'chambre / annexe', 'salle de fête', 'ferme / terrain agricole']) {
+  for (const value of ['studio', 'chambre / annexe', 'ferme / terrain agricole']) {
     const key = PROPERTY_TYPE_PLURAL_KEYS[value];
     assert.ok(key, value);
     assert.ok(key.split('.').reduce((o, k) => o?.[k], fr), `${value}: ${key} exists`);
     assert.ok(Object.values(SEO_PROPERTY_TYPES).some((t) => t.propertyType === value), `${value} has a landing page`);
   }
-  assert.equal(parseSeoSegments('location', ['salles-de-fete']).propertyType, 'salle de fête');
+  assert.equal(parseSeoSegments('location', ['salles-de-fete']), null);
   const categories = [
     { id: 34, name: 'Appartement' }, { id: 47, name: 'Studio' }, { id: 48, name: 'Chambre / Annexe' },
-    { id: 49, name: 'Salle de fête' }, { id: 50, name: 'Ferme / Terrain agricole' },
+    { id: 50, name: 'Ferme / Terrain agricole' },
   ];
   assert.equal(matchCategoryId(categories, 'studio'), 47);
   assert.equal(matchCategoryId(categories, 'chambre'), 48);
-  assert.equal(matchCategoryId(categories, 'salle_de_fete'), 49);
   assert.equal(matchCategoryId(categories, 'ferme'), 50);
   assert.equal(matchCategoryId([{ id: 34, name: 'Appartement' }], 'studio'), 34, 'before the migration');
 });
 
 test('forms read the details from the fields, and a select left on "Non précisé" is NULL', () => {
   const form = new Map(Object.entries({
-    furnished: '', households_count: '4', landlord_on_site: '1', toilet_location: '', shower_location: 'interieur',
+    furnished: '', households_count: '4', landlord_on_site: '1', has_pool: '1', has_gym: '',
     electricity_meter: 'partage', plot_dimensions: '5 ares', installments_available: '1', installment_terms: 'en 6 mois',
   }));
   const parsed = details.listingDetailsFromForm({ get: (k) => (form.has(k) ? form.get(k) : null) });
   assert.equal(parsed.furnished, null);
   assert.equal(parsed.households_count, 4);
   assert.equal(parsed.landlord_on_site, true);
-  assert.equal(parsed.toilet_location, null);
+  assert.equal(parsed.has_pool, true);
+  assert.equal(parsed.has_gym, null);
+  assert.equal(parsed.has_generator, null);
   assert.equal(parsed.plot_area_m2, 500);
   assert.equal(parsed.installments_available, true);
   assert.deepEqual(details.DETAIL_COLUMNS, engine.DETAIL_FIELDS, 'the same ten columns on both sides');
+});
+
+test('the hero search offers long / short term on the Rent tab and sends lease_term', async () => {
+  const { readFileSync } = await import('node:fs');
+  const source = readFileSync(new URL('../../components/SearchBar.js', import.meta.url), 'utf8');
+  assert.ok(source.includes("lease_term: transactionType === 'location' ? leaseTerm : ''"), 'the search URL carries it, rentals only');
+  assert.ok(source.includes("qs.set('lease_term', leaseTerm)"), 'the live count uses it');
+  assert.ok(source.includes("homeTab === 'louer' ?"), 'shown on the Rent tab only');
 });

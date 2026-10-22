@@ -103,7 +103,7 @@ const LISTING_SCHEMA = {
       nullable: true,
       enum: [
         'appartement', 'studio', 'villa', 'maison', 'duplex', 'chambre_salon',
-        'parcelle', 'terrain', 'concession', 'ferme', 'chambre', 'bureau', 'boutique', 'entrepot', 'immeuble', 'salle_de_fete', 'autre',
+        'parcelle', 'terrain', 'concession', 'ferme', 'chambre', 'bureau', 'boutique', 'entrepot', 'immeuble', 'autre',
       ],
     },
     commune: { type: Type.STRING, nullable: true, description: 'Commune de Kinshasa, orthographe normalisée.' },

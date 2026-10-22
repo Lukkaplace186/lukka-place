@@ -13,7 +13,8 @@
  * PLOT_AREA_FIXTURES table — change one, change the other.
  */
 
-export const LOCATIONS = ['interieur', 'exterieur'];
+/** Equipment the agent can only say yes to (toilet / shower were dropped 2026-10-22). */
+export const EQUIPMENT_FIELDS = ['has_generator', 'has_pool', 'has_gym', 'has_solar'];
 export const METERS = ['prepaye', 'individuel', 'partage'];
 export const HOUSEHOLDS_MAX = 200;
 export const PLOT_DIMENSIONS_MAX = 60;
@@ -116,9 +117,9 @@ export function normaliseListingDetails(source = {}, { categoryName, categoryTyp
     furnished: tristate(s.furnished),
     households_count: wholeInRange(s.households_count, 1, HOUSEHOLDS_MAX),
     landlord_on_site: tristate(s.landlord_on_site),
-    toilet_location: oneOf(s.toilet_location, LOCATIONS),
-    shower_location: oneOf(s.shower_location, LOCATIONS),
     electricity_meter: oneOf(s.electricity_meter, METERS),
+    // A stated yes only: "no" and silence both stay NULL.
+    ...Object.fromEntries(EQUIPMENT_FIELDS.map((field) => [field, tristate(s[field]) === true ? true : null])),
     plot_dimensions: dimensions,
     plot_area_m2: dimensions ? parsePlotArea(dimensions) : null,
     installments_available: tristate(s.installments_available),
@@ -131,12 +132,11 @@ export function normaliseListingDetails(source = {}, { categoryName, categoryTyp
   if (landOnly) {
     out.furnished = null;
     out.electricity_meter = null;
+    for (const field of EQUIPMENT_FIELDS) out[field] = null;
   }
   if (landOnly || commercial) {
     out.households_count = null;
     out.landlord_on_site = null;
-    out.toilet_location = null;
-    out.shower_location = null;
   }
   if (NO_PLOT_CATEGORIES.includes(name)) {
     out.plot_dimensions = null;
@@ -158,6 +158,7 @@ export function detailSections({ categoryName, categoryType, purpose } = {}) {
     living: !landOnly && !commercial,
     furnished: !landOnly,
     meter: !landOnly,
+    equipment: !landOnly,
     plot: !NO_PLOT_CATEGORIES.includes(name),
     installments: purpose !== 'rent',
   };
@@ -173,9 +174,8 @@ export function listingDetailsFromForm(formData, kind) {
     furnished: get('furnished'),
     households_count: get('households_count'),
     landlord_on_site: get('landlord_on_site'),
-    toilet_location: get('toilet_location'),
-    shower_location: get('shower_location'),
     electricity_meter: get('electricity_meter'),
+    ...Object.fromEntries(EQUIPMENT_FIELDS.map((field) => [field, formData.get(field) === '1' ? true : null])),
     plot_dimensions: get('plot_dimensions'),
     installments_available: formData.get('installments_available') === '1' ? true : null,
     installment_terms: get('installment_terms'),
@@ -183,8 +183,8 @@ export function listingDetailsFromForm(formData, kind) {
 }
 
 export const DETAIL_COLUMNS = [
-  'furnished', 'households_count', 'landlord_on_site', 'toilet_location', 'shower_location',
-  'electricity_meter', 'plot_dimensions', 'plot_area_m2', 'installments_available', 'installment_terms',
+  'furnished', 'households_count', 'landlord_on_site', 'electricity_meter',
+  ...EQUIPMENT_FIELDS, 'plot_dimensions', 'plot_area_m2', 'installments_available', 'installment_terms',
 ];
 
 /** One jsonb of every detail, read through to_jsonb (nulls before the migration). */

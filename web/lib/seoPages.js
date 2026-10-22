@@ -36,7 +36,6 @@ export const SEO_PROPERTY_TYPES = {
   // counts link to these pages.
   studios: { propertyType: 'studio', pluralKey: 'listings.typePlurals.studio' },
   chambres: { propertyType: 'chambre / annexe', pluralKey: 'listings.typePlurals.chambre' },
-  'salles-de-fete': { propertyType: 'salle de fête', pluralKey: 'listings.typePlurals.salleDeFete' },
   fermes: { propertyType: 'ferme / terrain agricole', pluralKey: 'listings.typePlurals.ferme' },
   duplex: { propertyType: 'duplex', pluralKey: 'listings.typePlurals.duplex' },
   penthouses: { propertyType: 'penthouse', pluralKey: 'seo.penthouses' },

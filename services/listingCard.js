@@ -39,7 +39,6 @@ const PROPERTY_TYPE_LABELS = {
   concession: 'Concession',
   ferme: 'Ferme / terrain agricole',
   chambre: 'Chambre / annexe',
-  salle_de_fete: 'Salle de fête',
   bureau: 'Bureau',
   boutique: 'Boutique',
   entrepot: 'Entrepôt',

@@ -189,7 +189,6 @@ const PROPERTY_TYPE_PATTERNS = [
   [/\bvillas?\b/i, { property_type: 'villa' }],
   // Before "terrain": a "terrain agricole" is a farm.
   [/\b(?:fermes?|terrains?\s+agricoles?|champs?\s+agricoles?)\b/i, { property_type: 'ferme' }],
-  [/\bsalles?\s+(?:de|des)\s+f[eê]tes?\b/i, { property_type: 'salle_de_fete' }],
   [/\b(?:annexes?|d[ée]pendances?|chambres?\s+(?:simples?|seules?|individuelles?|[àa]\s+louer))\b/i, { property_type: 'chambre' }],
   [/\bconcessions?\b/i, { property_type: 'concession' }],
   [/\b(?:immeubles?|buildings?)\b/i, { property_type: 'immeuble' }],

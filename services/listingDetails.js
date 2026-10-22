@@ -4,8 +4,10 @@
  *   furnished              meublé / non meublé (already extracted; now synced)
  *   households_count       "3 ménages dans la parcelle" — households sharing it
  *   landlord_on_site       the landlord lives in the parcelle
- *   toilet_location        'interieur' | 'exterieur'
- *   shower_location        'interieur' | 'exterieur'
+ *   has_generator          groupe électrogène   } true when stated,
+ *   has_pool               piscine              } NULL otherwise — never a
+ *   has_gym                salle de sport       } "no" the agent did not say
+ *   has_solar              panneaux solaires    }
  *   electricity_meter      'prepaye' (individual Cash Power) | 'individuel' | 'partage'
  *   plot_dimensions        the land as the agent wrote it: "15/20", "5 ares", "1 ha"
  *   plot_area_m2           derived from plot_dimensions by parsePlotArea — never
@@ -15,7 +17,7 @@
  *
  * Every field is NULL when the message does not state it: NULL is "not
  * stated", never "no". Each is gated on the kind of property it can describe
- * (a bare plot has no toilet; a flat has no plot; a rent is not paid in
+ * (a bare plot has no landlord in it; a flat has no plot; a rent is not paid in
  * instalments), so a field the model filled on the wrong kind is dropped.
  *
  * Postgres: `properties` columns (migrations/20261022_listing_details.sql).
@@ -29,14 +31,22 @@
 
 const { isCommercialType } = require('./commercial');
 
-const LOCATIONS = Object.freeze(['interieur', 'exterieur']);
 const METERS = Object.freeze(['prepaye', 'individuel', 'partage']);
 
+/** Equipment the agent can only say yes to (toilet / shower were dropped 2026-10-22). */
+const EQUIPMENT_FIELDS = Object.freeze(['has_generator', 'has_pool', 'has_gym', 'has_solar']);
+
 const DETAIL_FIELDS = Object.freeze([
-  'furnished', 'households_count', 'landlord_on_site', 'toilet_location', 'shower_location',
-  'electricity_meter', 'plot_dimensions', 'plot_area_m2', 'installments_available', 'installment_terms',
+  'furnished', 'households_count', 'landlord_on_site', 'electricity_meter',
+  ...EQUIPMENT_FIELDS,
+  'plot_dimensions', 'plot_area_m2', 'installments_available', 'installment_terms',
 ]);
-const BOOLEAN_DETAIL_FIELDS = Object.freeze(['furnished', 'landlord_on_site', 'installments_available']);
+const BOOLEAN_DETAIL_FIELDS = Object.freeze(['furnished', 'landlord_on_site', ...EQUIPMENT_FIELDS, 'installments_available']);
+
+/** true only for a stated yes; "no" and silence both stay NULL. */
+function yesOnly(value) {
+  return tristate(value) === true ? true : null;
+}
 
 const HOUSEHOLDS_MAX = 200;
 const PLOT_DIMENSIONS_MAX = 60;
@@ -156,9 +166,11 @@ function normaliseListingDetails(source = {}, kind) {
     furnished: tristate(s.furnished),
     households_count: wholeInRange(s.households_count, 1, HOUSEHOLDS_MAX),
     landlord_on_site: tristate(s.landlord_on_site),
-    toilet_location: oneOf(s.toilet_location, LOCATIONS),
-    shower_location: oneOf(s.shower_location, LOCATIONS),
     electricity_meter: oneOf(s.electricity_meter, METERS),
+    has_generator: yesOnly(s.has_generator),
+    has_pool: yesOnly(s.has_pool),
+    has_gym: yesOnly(s.has_gym),
+    has_solar: yesOnly(s.has_solar),
     plot_dimensions: dimensions,
     plot_area_m2: dimensions ? parsePlotArea(dimensions) : null,
     installments_available: tristate(s.installments_available),
@@ -175,10 +187,11 @@ function normaliseListingDetails(source = {}, kind) {
   if (landOnly || commercial) {
     out.households_count = null;
     out.landlord_on_site = null;
-    out.toilet_location = null;
-    out.shower_location = null;
   }
-  if (landOnly) out.electricity_meter = null;
+  if (landOnly) {
+    out.electricity_meter = null;
+    for (const field of EQUIPMENT_FIELDS) out[field] = null;
+  }
   if (NO_PLOT_TYPES.includes(type)) {
     out.plot_dimensions = null;
     out.plot_area_m2 = null;
@@ -189,6 +202,8 @@ function normaliseListingDetails(source = {}, kind) {
   }
   return out;
 }
+
+const EQUIPMENT_LABELS_FR = { has_generator: 'groupe électrogène', has_pool: 'piscine', has_gym: 'salle de sport', has_solar: 'panneaux solaires' };
 
 const METER_LABELS_FR = { prepaye: 'Cash Power (prépayé, individuel)', individuel: 'Individuel', partage: 'Partagé' };
 
@@ -207,8 +222,8 @@ function detailCardLines(row) {
   if (row.furnished === true || row.furnished === false) lines.push(`*Meublé* : ${yesNo(row.furnished)}`);
   if (row.households_count) lines.push(`*Ménages dans la parcelle* : ${row.households_count}`);
   if (row.landlord_on_site === true || row.landlord_on_site === false) lines.push(`*Bailleur sur place* : ${yesNo(row.landlord_on_site)}`);
-  if (row.toilet_location) lines.push(`*Toilettes* : ${row.toilet_location === 'interieur' ? 'intérieures' : 'extérieures'}`);
-  if (row.shower_location) lines.push(`*Douche* : ${row.shower_location === 'interieur' ? 'intérieure' : 'extérieure'}`);
+  const equipment = EQUIPMENT_FIELDS.filter((field) => row[field] === true || row[field] === 1).map((field) => EQUIPMENT_LABELS_FR[field]);
+  if (equipment.length) lines.push(`*Équipements du bien* : ${equipment.join(', ')}`);
   if (row.electricity_meter) lines.push(`*Compteur électrique* : ${METER_LABELS_FR[row.electricity_meter]}`);
   if (row.plot_dimensions) {
     const area = areaLabelFr(Number(row.plot_area_m2));
@@ -223,7 +238,7 @@ function detailCardLines(row) {
 module.exports = {
   DETAIL_FIELDS,
   BOOLEAN_DETAIL_FIELDS,
-  LOCATIONS,
+  EQUIPMENT_FIELDS,
   METERS,
   HOUSEHOLDS_MAX,
   PLOT_AREA_FIXTURES,

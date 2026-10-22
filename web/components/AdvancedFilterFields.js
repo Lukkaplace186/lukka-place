@@ -5,6 +5,9 @@ import { useMemo } from 'react';
 import { PARCELLE_SUBTYPES, AMENITY_GROUPS, DEPOSIT_RANGE_OPTIONS } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
 
+// Furnished / semi-furnished / AC sit under "Conditions de paiement".
+const RENTAL_TERMS_KEY = 'listings.amenityGroups.rentalTerms';
+
 const PLOTLESS_TYPES = ['appartement', 'studio', 'chambre', 'chambre / annexe', 'penthouse', 'bureau', 'boutique'];
 
 const selectClass =
@@ -180,7 +183,7 @@ export default function AdvancedFilterFields({
           against the listing's own title/description in lib/listings.js.
           Real, working filters — just not database-verified ones, hence
           the caption below rather than silently implying otherwise. */}
-      {AMENITY_GROUPS.slice(0, 2).map((group) => (
+      {AMENITY_GROUPS.filter((group) => group.titleKey !== RENTAL_TERMS_KEY).map((group) => (
         <Field key={group.titleKey} label={t(group.titleKey)}>
           <div className="flex flex-wrap gap-2">
             {group.options.map(({ key, labelKey }) => (
@@ -206,7 +209,7 @@ export default function AdvancedFilterFields({
             <p className="mt-1.5 text-xs text-ink-45">{t('listings.filters.depositRangeHint')}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {AMENITY_GROUPS[2].options.map(({ key, labelKey }) => (
+            {AMENITY_GROUPS.find((group) => group.titleKey === RENTAL_TERMS_KEY).options.map(({ key, labelKey }) => (
               <PillOption key={key} selected={amenities.includes(key)} onClick={() => toggleAmenity(key)}>
                 {t(labelKey)}
               </PillOption>

@@ -11,7 +11,7 @@
 import { communeLabel } from './cities';
 
 // Types whose code is not a readable word.
-const TYPE_LABELS = { salle_de_fete: 'Salle de fête', chambre: 'Chambre / annexe', ferme: 'Ferme / terrain agricole', terrain_nu: 'Terrain' };
+const TYPE_LABELS = { chambre: 'Chambre / annexe', ferme: 'Ferme / terrain agricole', terrain_nu: 'Terrain' };
 
 export function understoodChips(parsed, t) {
   if (!parsed) return [];

@@ -60,7 +60,7 @@ const OTHER_CITIES_BLOCK = CITY_NAMES.filter((name) => name !== DEFAULT_CITY)
 
 const PROPERTY_TYPES = [
   'appartement', 'studio', 'villa', 'maison', 'duplex', 'chambre_salon',
-  'parcelle', 'terrain', 'concession', 'ferme', 'chambre', 'bureau', 'boutique', 'entrepot', 'immeuble', 'salle_de_fete', 'autre',
+  'parcelle', 'terrain', 'concession', 'ferme', 'chambre', 'bureau', 'boutique', 'entrepot', 'immeuble', 'autre',
 ];
 
 /**
@@ -150,16 +150,15 @@ CLASSIFICATION DU TYPE DE BIEN — RÈGLES SPÉCIFIQUES À KINSHASA
    - truck_access : true seulement si le message dit qu'un camion peut accéder ou décharger — "accès camion", "accès gros porteurs", "poids lourds", "quai de chargement". null sinon.
    - Ces quatre champs (office_count, floor_level, road_frontage, truck_access) restent null pour TOUT bien résidentiel.
 
-2ter. STUDIO, CHAMBRE, SALLE DE FÊTE, FERME
+2ter. STUDIO, CHAMBRE, FERME
    - "studio" : un logement d'une seule pièce principale (avec ou sans cuisine / douche) => property_type "studio".
    - "chambre" : UNE chambre, une annexe ou une dépendance louée seule ("chambre à louer", "annexe", "dépendance"). "chambre salon" reste "chambre_salon".
-   - "salle_de_fete" : une salle de fête, salle polyvalente ou salle de réception louée pour des événements. Local commercial : bedrooms = null. Le prix par jour va dans price_period "jour".
    - "ferme" : une ferme, un terrain agricole, un champ, un élevage ("concession agricole"), souvent à Maluku, Mont-Ngafula ou Kasangulu. Jamais "terrain" ni "concession".
 
 2quater. VIE DANS LA PARCELLE ET DÉTAILS PRATIQUES — uniquement ce que le message affirme, sinon null
    - households_count : le nombre de ménages qui partagent la parcelle ("parcelle de 3 ménages", "vous serez 4 ménages") ; "seul dans la parcelle" = 1.
    - landlord_on_site : true pour "bailleur sur place", "le propriétaire habite la parcelle" ; false pour "le bailleur n'habite pas là". null sinon.
-   - toilet_location / shower_location : "interieur" pour "toilette intérieure", "WC dedans", "douche interne", "salle de bain intérieure" (qui vaut pour les deux) ; "exterieur" pour "toilettes dehors", "toilette commune extérieure".
+   - has_generator / has_pool / has_gym / has_solar : true seulement quand le message cite "groupe électrogène" (ou "générateur"), "piscine", "salle de sport" / "gym" / "fitness", "panneaux solaires". Jamais false : un équipement non cité reste null.
    - electricity_meter : "prepaye" pour "Cash Power", "compteur prépayé" ; "individuel" pour "compteur individuel" sans autre précision ; "partage" pour "compteur partagé", "compteur commun".
    - furnished : true pour "meublé", false pour "non meublé" / "vide". "semi-meublé" reste null.
    - plot_dimensions : la taille du TERRAIN recopiée telle qu'écrite ("15/20", "20x30", "5 ares", "1 ha", "600 m²"). Ne fais aucun calcul : la surface est calculée ensuite. Jamais la taille d'une pièce ou d'un appartement.
@@ -314,7 +313,7 @@ const RESPONSE_FORMAT = {
             'advance_months', 'commission_months',
             'bedrooms', 'bathrooms', 'surface_area_sqm', 'units_count', 'furnished',
             'office_count', 'floor_level', 'road_frontage', 'truck_access',
-            'households_count', 'landlord_on_site', 'toilet_location', 'shower_location', 'electricity_meter', 'plot_dimensions', 'installments_available', 'installment_terms',
+            'households_count', 'landlord_on_site', 'electricity_meter', 'has_generator', 'has_pool', 'has_gym', 'has_solar', 'plot_dimensions', 'installments_available', 'installment_terms',
             'amenities', 'features', 'utilities', 'reference', 'agent_name', 'agency_name', 'summary_fr',
             'missing_fields', 'confidence',
             'is_multi_unit', 'is_multi_property', 'building_name', 'units',
@@ -408,8 +407,10 @@ const RESPONSE_FORMAT = {
               type: ['boolean', 'null'],
               description: 'true si le bailleur habite la parcelle, false si le message dit qu\'il n\'y habite pas. null sinon.',
             },
-            toilet_location: { type: ['string', 'null'], enum: ['interieur', 'exterieur', null] },
-            shower_location: { type: ['string', 'null'], enum: ['interieur', 'exterieur', null] },
+            has_generator: { type: ['boolean', 'null'], description: 'true si le message cite un groupe électrogène. null sinon.' },
+            has_pool: { type: ['boolean', 'null'], description: 'true si le message cite une piscine. null sinon.' },
+            has_gym: { type: ['boolean', 'null'], description: 'true si le message cite une salle de sport / gym. null sinon.' },
+            has_solar: { type: ['boolean', 'null'], description: 'true si le message cite des panneaux solaires. null sinon.' },
             electricity_meter: {
               type: ['string', 'null'],
               enum: ['prepaye', 'individuel', 'partage', null],
@@ -674,7 +675,8 @@ const DRAFT_CONTEXT_FIELDS = [
   'price', 'currency', 'price_period', 'deposit_months', 'advance_months',
   'commission_months', 'bedrooms', 'bathrooms', 'surface_area_sqm', 'units_count',
   'furnished', 'office_count', 'floor_level', 'road_frontage', 'truck_access',
-  'households_count', 'landlord_on_site', 'toilet_location', 'shower_location', 'electricity_meter',
+  'households_count', 'landlord_on_site', 'electricity_meter',
+  'has_generator', 'has_pool', 'has_gym', 'has_solar',
   'plot_dimensions', 'installments_available', 'installment_terms',
   'amenities', 'features', 'utilities', 'reference', 'agent_name', 'summary_fr',
 ];
@@ -703,7 +705,7 @@ function draftContextFromListing(row) {
     const value = row[field];
     if (value === undefined || value === null || value === '') continue;
     // SQLite has no boolean — 0/1 would read as a quantity to the model.
-    draft[field] = ['furnished', 'landlord_on_site', 'installments_available'].includes(field) ? Boolean(value) : value;
+    draft[field] = ['furnished', 'landlord_on_site', 'installments_available', 'has_generator', 'has_pool', 'has_gym', 'has_solar'].includes(field) ? Boolean(value) : value;
   }
 
   // agency_name has no column of its own; it only ever lives in the stored
@@ -995,8 +997,8 @@ const BUYER_TOOLS = [
           transaction_type: { type: 'string', enum: ['location', 'vente'] },
           property_type: {
             type: 'string',
-            enum: ['appartement', 'studio', 'chambre', 'parcelle', 'villa', 'concession', 'ferme', 'commercial', 'bureau', 'boutique', 'entrepot', 'immeuble', 'salle_de_fete'],
-            description: "'commercial' = tout local professionnel (bureaux, boutiques, entrepôts, immeubles, salles de fête) ; un type précis sinon. 'chambre' = une chambre / annexe louée seule ; 'ferme' = ferme ou terrain agricole.",
+            enum: ['appartement', 'studio', 'chambre', 'parcelle', 'villa', 'concession', 'ferme', 'commercial', 'bureau', 'boutique', 'entrepot', 'immeuble'],
+            description: "'commercial' = tout local professionnel (bureaux, boutiques, entrepôts, immeubles) ; un type précis sinon. 'chambre' = une chambre / annexe louée seule ; 'ferme' = ferme ou terrain agricole.",
           },
           city: {
             type: 'string',
@@ -1428,8 +1430,8 @@ CLASSIFICATION DU TYPE DE BIEN — mêmes règles que l'intake WhatsApp :
 1. PARCELLE : dimensions de terrain, propriété clôturée, "Maison Type Locataire" ou "Portes" => property_type "parcelle". Sous-type (parcelle_subtype, uniquement si property_type = "parcelle") : "maison_type_locataire", "villa", "terrain_nu". NE classe JAMAIS "appartement" uniquement à cause d'une superficie ou de plusieurs pièces/portes. Le mot "concession" pour le bien lui-même (grande propriété clôturée d'un seul tenant, en ares ou hectares) => "concession", jamais "parcelle".
 2. APPARTEMENT : uniquement si le message décrit explicitement un logement dans un immeuble à étages ou une résidence collective.
 3. "X Portes" / "Type Locataire" => units_count = X.
-3bis. AUTRES TYPES : "studio" (une pièce principale) ; "chambre" (une chambre, annexe ou dépendance louée seule) ; "salle_de_fete" (salle de fête / de réception, local commercial) ; "ferme" (ferme, terrain agricole, champ).
-3ter. DÉTAILS PRATIQUES, uniquement s'ils sont écrits : households_count (ménages dans la parcelle), landlord_on_site, toilet_location / shower_location ("interieur" / "exterieur"), electricity_meter ("prepaye" = Cash Power, "individuel", "partage"), plot_dimensions (taille du terrain recopiée telle qu'écrite, sans calcul), installments_available / installment_terms (paiement échelonné d'une vente, avec les mots de l'agent).
+3bis. AUTRES TYPES : "studio" (une pièce principale) ; "chambre" (une chambre, annexe ou dépendance louée seule) ; "ferme" (ferme, terrain agricole, champ).
+3ter. DÉTAILS PRATIQUES, uniquement s'ils sont écrits : households_count (ménages dans la parcelle), landlord_on_site, has_generator / has_pool / has_gym / has_solar (true seulement si cité), electricity_meter ("prepaye" = Cash Power, "individuel", "partage"), plot_dimensions (taille du terrain recopiée telle qu'écrite, sans calcul), installments_available / installment_terms (paiement échelonné d'une vente, avec les mots de l'agent).
 4. LOCAL COMMERCIAL : "bureau(x) à louer", "espace de bureaux", "plateau" => "bureau" ; "boutique", "magasin", "local commercial", "showroom" => "boutique" ; "entrepôt", "dépôt" (le local), "hangar" => "entrepot" ; un immeuble entier => "immeuble". Un "bureau" cité comme pièce d'une maison ne change pas le type. Pour un local commercial : bedrooms = null ; office_count = nombre de pièces de bureau ; floor_level = 0 pour rez-de-chaussée, 1 pour 1er étage, -1 pour sous-sol ; road_frontage = true seulement si le texte dit qu'il donne sur la route ; truck_access = true seulement si un camion peut y accéder. Sinon null — et toujours null pour un bien résidentiel.
 
 RÈGLES D'EXTRACTION
@@ -1461,7 +1463,7 @@ const LISTING_FORM_RESPONSE_FORMAT = {
         'deposit_months', 'advance_months', 'commission_months', 'bedrooms', 'bathrooms',
         'surface_area_sqm', 'units_count', 'furnished',
         'office_count', 'floor_level', 'road_frontage', 'truck_access',
-        'households_count', 'landlord_on_site', 'toilet_location', 'shower_location', 'electricity_meter', 'plot_dimensions', 'installments_available', 'installment_terms',
+        'households_count', 'landlord_on_site', 'electricity_meter', 'has_generator', 'has_pool', 'has_gym', 'has_solar', 'plot_dimensions', 'installments_available', 'installment_terms',
         'description_fr', 'confidence',
       ],
       properties: {
@@ -1489,8 +1491,10 @@ const LISTING_FORM_RESPONSE_FORMAT = {
         truck_access: { type: ['boolean', 'null'] },
         households_count: { type: ['integer', 'null'] },
         landlord_on_site: { type: ['boolean', 'null'] },
-        toilet_location: { type: ['string', 'null'], enum: ['interieur', 'exterieur', null] },
-        shower_location: { type: ['string', 'null'], enum: ['interieur', 'exterieur', null] },
+        has_generator: { type: ['boolean', 'null'] },
+        has_pool: { type: ['boolean', 'null'] },
+        has_gym: { type: ['boolean', 'null'] },
+        has_solar: { type: ['boolean', 'null'] },
         electricity_meter: { type: ['string', 'null'], enum: ['prepaye', 'individuel', 'partage', null] },
         plot_dimensions: { type: ['string', 'null'], description: 'Taille du terrain telle qu\'écrite ("15/20", "5 ares"), sans calcul.' },
         installments_available: { type: ['boolean', 'null'] },

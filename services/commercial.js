@@ -25,7 +25,7 @@
  * compares the two.
  */
 
-const COMMERCIAL_PROPERTY_TYPES = Object.freeze(['bureau', 'boutique', 'entrepot', 'immeuble', 'salle_de_fete']);
+const COMMERCIAL_PROPERTY_TYPES = Object.freeze(['bureau', 'boutique', 'entrepot', 'immeuble']);
 
 const COMMERCIAL_SPEC_FIELDS = Object.freeze(['office_count', 'floor_level', 'road_frontage', 'truck_access']);
 

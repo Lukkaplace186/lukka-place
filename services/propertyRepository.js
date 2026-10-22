@@ -122,7 +122,6 @@ const CATEGORY_NAME_BY_SEARCH_TYPE = {
   studio: ['studio'],
   chambre: ['chambre / annexe'],
   ferme: ['ferme / terrain agricole'],
-  salle_de_fete: ['salle de fête'],
 };
 
 const SEARCH_LIMIT_DEFAULT = 8;

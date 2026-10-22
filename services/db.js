@@ -122,8 +122,12 @@ const EXTENDED_COLUMNS = [
   // Booleans as 0 / 1 / NULL. plot_area_m2 is derived from plot_dimensions.
   ['households_count', 'INTEGER'],
   ['landlord_on_site', 'INTEGER'],
-  ['toilet_location', 'TEXT'],
-  ['shower_location', 'TEXT'],
+  // toilet_location / shower_location were added and dropped the same day
+  // (2026-10-22); a database that has them keeps two unused columns.
+  ['has_generator', 'INTEGER'],
+  ['has_pool', 'INTEGER'],
+  ['has_gym', 'INTEGER'],
+  ['has_solar', 'INTEGER'],
   ['electricity_meter', 'TEXT'],
   ['plot_dimensions', 'TEXT'],
   ['plot_area_m2', 'REAL'],
@@ -704,7 +708,7 @@ const CORRECTABLE_FIELDS = [
   'commission_months', 'bedrooms', 'bathrooms',
   'surface_area_sqm', 'units_count', 'furnished', 'amenities', 'features', 'utilities', 'reference',
   'office_count', 'floor_level', 'road_frontage', 'truck_access',
-  'households_count', 'landlord_on_site', 'toilet_location', 'shower_location', 'electricity_meter',
+  'households_count', 'landlord_on_site', 'electricity_meter', 'has_generator', 'has_pool', 'has_gym', 'has_solar',
   'plot_dimensions', 'installments_available', 'installment_terms',
   'summary_fr', 'missing_fields',
 ];
@@ -728,8 +732,10 @@ const CORRECTABLE_COERCERS = {
   truck_access: (value) => toSqliteBool(normaliseCommercialSpecs({ truck_access: value }).truck_access),
   households_count: (value) => normaliseListingDetails({ households_count: value }).households_count,
   landlord_on_site: (value) => toSqliteBool(normaliseListingDetails({ landlord_on_site: value }).landlord_on_site),
-  toilet_location: (value) => normaliseListingDetails({ toilet_location: value }).toilet_location,
-  shower_location: (value) => normaliseListingDetails({ shower_location: value }).shower_location,
+  has_generator: (value) => toSqliteBool(normaliseListingDetails({ has_generator: value }).has_generator),
+  has_pool: (value) => toSqliteBool(normaliseListingDetails({ has_pool: value }).has_pool),
+  has_gym: (value) => toSqliteBool(normaliseListingDetails({ has_gym: value }).has_gym),
+  has_solar: (value) => toSqliteBool(normaliseListingDetails({ has_solar: value }).has_solar),
   electricity_meter: (value) => normaliseListingDetails({ electricity_meter: value }).electricity_meter,
   plot_dimensions: (value) => normaliseListingDetails({ plot_dimensions: value }).plot_dimensions,
   installments_available: (value) => toSqliteBool(normaliseListingDetails({ installments_available: value }).installments_available),
@@ -933,7 +939,7 @@ const BUILDING_SHARED_FIELDS = [
   // unit's floor and office count are its own and are not copied.
   'road_frontage', 'truck_access',
   // The compound and the sale terms belong to the address too.
-  'landlord_on_site', 'electricity_meter', 'plot_dimensions', 'plot_area_m2',
+  'landlord_on_site', 'electricity_meter', 'has_generator', 'has_pool', 'has_gym', 'has_solar', 'plot_dimensions', 'plot_area_m2',
   'installments_available', 'installment_terms',
 ];
 
@@ -1135,6 +1141,7 @@ function parseRow(row) {
     truck_access: row.truck_access === null || row.truck_access === undefined ? null : Boolean(row.truck_access),
     landlord_on_site: row.landlord_on_site === null || row.landlord_on_site === undefined ? null : Boolean(row.landlord_on_site),
     installments_available: row.installments_available === null || row.installments_available === undefined ? null : Boolean(row.installments_available),
+    ...Object.fromEntries(['has_generator', 'has_pool', 'has_gym', 'has_solar'].map((f) => [f, row[f] === null || row[f] === undefined ? null : Boolean(row[f])])),
     missing_fields: fromJsonText(row.missing_fields, []),
     photos: fromJsonText(row.photos, []),
     videos: fromJsonText(row.videos, []),

@@ -1,4 +1,4 @@
-import { Banknote, Bath, Bed, Home, Ruler, Users, Zap } from 'lucide-react';
+import { Banknote, Bed, Dumbbell, Fuel, Home, Ruler, Sun, Users, WavesLadder, Zap } from 'lucide-react';
 import Price from '@/components/Price';
 import { getT } from '@/lib/i18n/server';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -6,7 +6,7 @@ import { detailsOf, plotAreaLabel, plotAreaOf, pricePerM2 } from '@/lib/listingD
 
 /**
  * "Détails pratiques" on the listing page (lib/listingDetails.js): meublé,
- * households sharing the parcelle, landlord on site, toilet and shower,
+ * households sharing the parcelle, landlord on site, generator, pool, gym, solar,
  * electricity meter, plot size with its price per m² on a sale, paiement
  * échelonné. Captioned "Déclaré par l'agent" like the utility tags — nobody
  * from Lukka Place has checked them. Only stated facts render; nothing at all
@@ -23,12 +23,10 @@ export default async function PracticalDetails({ listing }) {
   }
   if (d.landlord_on_site === true) items.push({ key: 'landlord', icon: Home, label: t('listings.details.landlordOn') });
   if (d.landlord_on_site === false) items.push({ key: 'landlord', icon: Home, label: t('listings.details.landlordOff') });
-  if (d.toilet_location) {
-    items.push({ key: 'toilet', icon: Bath, label: t(d.toilet_location === 'interieur' ? 'listings.details.toiletIn' : 'listings.details.toiletOut') });
-  }
-  if (d.shower_location) {
-    items.push({ key: 'shower', icon: Bath, label: t(d.shower_location === 'interieur' ? 'listings.details.showerIn' : 'listings.details.showerOut') });
-  }
+  if (d.has_generator === true) items.push({ key: 'generator', icon: Fuel, label: t('listings.details.form.generator') });
+  if (d.has_solar === true) items.push({ key: 'solar', icon: Sun, label: t('listings.details.form.solar') });
+  if (d.has_pool === true) items.push({ key: 'pool', icon: WavesLadder, label: t('listings.details.form.pool') });
+  if (d.has_gym === true) items.push({ key: 'gym', icon: Dumbbell, label: t('listings.details.form.gym') });
   if (['prepaye', 'individuel', 'partage'].includes(d.electricity_meter)) {
     items.push({ key: 'meter', icon: Zap, label: t(`listings.details.meter.${d.electricity_meter}`) });
   }

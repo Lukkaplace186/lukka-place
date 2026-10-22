@@ -32,7 +32,8 @@ const AUTOSAVE_DELAY_MS = 700;
 const DRAFT_FIELDS = [
   'title', 'reference', 'purpose', 'category_id', 'commune', 'price', 'beds', 'bath', 'area', 'quartier', 'description',
   'office_count', 'floor_level', 'road_frontage', 'truck_access',
-  'furnished', 'households_count', 'landlord_on_site', 'toilet_location', 'shower_location', 'electricity_meter',
+  'furnished', 'households_count', 'landlord_on_site', 'electricity_meter',
+  'has_generator', 'has_pool', 'has_gym', 'has_solar',
 ];
 
 /**

@@ -1,17 +1,24 @@
 'use client';
 
 import { useState } from 'react';
-import { Bath, Banknote, Bed, Home, Ruler, Users, Zap } from 'lucide-react';
-import { HOUSEHOLDS_MAX, INSTALLMENT_TERMS_MAX, PLOT_DIMENSIONS_MAX, parsePlotArea, plotAreaLabel } from '@/lib/listingDetails';
+import { Banknote, Bed, Dumbbell, Fuel, Home, Ruler, Sun, Users, WavesLadder, Zap } from 'lucide-react';
+import { EQUIPMENT_FIELDS, HOUSEHOLDS_MAX, INSTALLMENT_TERMS_MAX, PLOT_DIMENSIONS_MAX, parsePlotArea, plotAreaLabel } from '@/lib/listingDetails';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils';
 
 const boolValue = (v) => (v === true ? '1' : v === false ? '0' : '');
 
+const EQUIPMENT = {
+  has_generator: { icon: Fuel, labelKey: 'listings.details.form.generator' },
+  has_pool: { icon: WavesLadder, labelKey: 'listings.details.form.pool' },
+  has_gym: { icon: Dumbbell, labelKey: 'listings.details.form.gym' },
+  has_solar: { icon: Sun, labelKey: 'listings.details.form.solar' },
+};
+
 /**
  * The practical details (lib/listingDetails.js): furnished, households in the
- * parcelle, landlord on site, toilet / shower, electricity meter, plot size,
- * paiement échelonné. Shared by CreateListingDialog, AgentListingEditor and
+ * parcelle, landlord on site, electricity meter, equipment (generator, pool,
+ * gym, solar panels), plot size, paiement échelonné. Shared by CreateListingDialog, AgentListingEditor and
  * the admin editor.
  *
  * Uncontrolled named inputs like the rest of those forms, so drafts and smart
@@ -26,7 +33,9 @@ export default function ListingDetailFields({ defaults = {}, sections = {}, fiel
   const [plotText, setPlotText] = useState(defaults.plot_dimensions || '');
   const [installments, setInstallments] = useState(defaults.installments_available === true);
   const plotM2 = plotText.trim() ? parsePlotArea(plotText) : null;
-  const show = { living: true, furnished: true, meter: true, plot: true, installments: true, ...sections };
+  const show = { living: true, furnished: true, meter: true, equipment: true, plot: true, installments: true, ...sections };
+  const toggleClass =
+    'u-focus-ring flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-line bg-surface px-3 text-sm text-ink has-[:checked]:border-blue has-[:checked]:bg-blue-tint';
   const notStated = <option value="">{t('listings.details.form.notStated')}</option>;
   const icon = (Icon) => <Icon className="mr-1.5 inline h-4 w-4 align-[-3px] text-ink-45" strokeWidth={1.75} aria-hidden="true" />;
 
@@ -77,21 +86,22 @@ export default function ListingDetailFields({ defaults = {}, sections = {}, fiel
             <option value="0">{t('listings.details.form.no')}</option>
           </select>
         </div>
-        <div>
-          <label htmlFor="toilet_location" className={labelClass}>{icon(Bath)}{t('listings.details.form.toilet')}</label>
-          <select id="toilet_location" name="toilet_location" defaultValue={defaults.toilet_location || ''} className={fieldClass}>
-            {notStated}
-            <option value="interieur">{t('listings.details.form.inside')}</option>
-            <option value="exterieur">{t('listings.details.form.outside')}</option>
-          </select>
-        </div>
-        <div>
-          <label htmlFor="shower_location" className={labelClass}>{icon(Bath)}{t('listings.details.form.shower')}</label>
-          <select id="shower_location" name="shower_location" defaultValue={defaults.shower_location || ''} className={fieldClass}>
-            {notStated}
-            <option value="interieur">{t('listings.details.form.inside')}</option>
-            <option value="exterieur">{t('listings.details.form.outside')}</option>
-          </select>
+      </div>
+
+      {/* Equipment: a box can only say "oui"; unticked is "not stated". */}
+      <div hidden={!show.equipment} className={cn(!show.equipment && 'hidden')}>
+        <span className={labelClass}>{t('listings.details.form.equipment')}</span>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {EQUIPMENT_FIELDS.map((field) => {
+            const { icon: Icon, labelKey } = EQUIPMENT[field];
+            return (
+              <label key={field} className={toggleClass}>
+                <input type="checkbox" name={field} value="1" defaultChecked={defaults[field] === true} className="h-4 w-4 accent-[var(--blue)]" />
+                <Icon className="h-4 w-4 shrink-0 text-ink-45" strokeWidth={1.75} aria-hidden="true" />
+                <span>{t(labelKey)}</span>
+              </label>
+            );
+          })}
         </div>
       </div>
 
@@ -164,9 +174,11 @@ export function applyDetailsToForm(form, extracted = {}) {
   if (extracted.furnished === true || extracted.furnished === false) setSelect('furnished', extracted.furnished ? '1' : '0');
   if (extracted.landlord_on_site === true || extracted.landlord_on_site === false) setSelect('landlord_on_site', extracted.landlord_on_site ? '1' : '0');
   setSelect('households_count', extracted.households_count);
-  setSelect('toilet_location', extracted.toilet_location);
-  setSelect('shower_location', extracted.shower_location);
   setSelect('electricity_meter', extracted.electricity_meter);
+  for (const field of EQUIPMENT_FIELDS) {
+    const box = form.elements[field];
+    if (box && extracted[field] === true) box.checked = true;
+  }
   const plot = form.elements.plot_dimensions;
   if (plot && extracted.plot_dimensions) {
     // A React-controlled input: set through the native setter so onChange fires.

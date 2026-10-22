@@ -520,7 +520,8 @@
       "energyWater": "Power & Water",
       "accessSecurity": "Access & Security",
       "rentalTerms": "Rental terms",
-      "paymentTerms": "Payment Terms"
+      "paymentTerms": "Payment Terms",
+      "comfort": "Comfort"
     },
     "amenities": {
       "generator": "Generator",
@@ -532,7 +533,9 @@
       "parking": "Off-street parking",
       "ac": "Air conditioning",
       "furnished": "Furnished",
-      "semi_furnished": "Part furnished"
+      "semi_furnished": "Part furnished",
+      "pool": "Swimming pool",
+      "gym": "Gym"
     },
     "depositMax": {
       "1": "1 month",
@@ -557,7 +560,6 @@
       "commercial": "Commercial Spaces",
       "studio": "Studios",
       "chambre": "Rooms & Annexes",
-      "salleDeFete": "Event Halls",
       "ferme": "Farms & Farmland"
     },
     "chips": {
@@ -800,10 +802,6 @@
       "households": "Households sharing the compound: {count}",
       "landlordOn": "Landlord lives on site",
       "landlordOff": "Landlord lives elsewhere",
-      "toiletIn": "Indoor toilet",
-      "toiletOut": "Outdoor toilet",
-      "showerIn": "Indoor shower",
-      "showerOut": "Outdoor shower",
       "meter": {
         "prepaye": "Prepaid meter (Cash Power)",
         "individuel": "Individual meter",
@@ -832,10 +830,6 @@
         "furnishedNo": "Unfurnished",
         "households": "Households sharing the compound",
         "landlord": "Does the landlord live there?",
-        "toilet": "Toilet",
-        "shower": "Shower",
-        "inside": "Indoors",
-        "outside": "Outdoors",
         "meter": "Electricity meter",
         "meterPrepaye": "Cash Power (prepaid, individual)",
         "meterIndividuel": "Individual",
@@ -847,7 +841,12 @@
         "installments": "Payment in instalments possible",
         "installmentTerms": "Payment terms (your words)",
         "installmentPlaceholder": "e.g. 30% on signing, the rest over 12 months",
-        "hint": "Leave “Not stated” when the listing does not say."
+        "hint": "Leave “Not stated” when the listing does not say.",
+        "equipment": "Equipment",
+        "generator": "Generator",
+        "pool": "Swimming pool",
+        "gym": "Gym",
+        "solar": "Solar panels"
       }
     }
   },

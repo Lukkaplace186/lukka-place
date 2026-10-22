@@ -9,6 +9,7 @@ import { understoodChips } from '@/lib/searchUnderstood';
 import { useT } from '@/lib/i18n/client';
 import { facetLabel, groupTypeFacets } from '@/lib/commercialSpaces';
 import { CITIES, DEFAULT_CITY, cityOfCommune } from '@/lib/cities';
+import { LEASE_TERM_OPTIONS } from '@/lib/leaseTerm';
 
 /**
  * The hero search panel — a white card floating over the hero photograph,
@@ -159,6 +160,8 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
   const [homeTab, setHomeTab] = useState(HERO_DEFAULT_TAB);
   const [propertyType, setPropertyType] = useState('');
   const [budgetMax, setBudgetMax] = useState('');
+  // Longue / courte durée (lib/leaseTerm.js) — Rent tab only.
+  const [leaseTerm, setLeaseTerm] = useState('');
   // The city searched (?ville=). A city or another city's commune typed in the
   // box wins over it (lib/searchParser.js), as typed text wins over every select.
   const [ville, setVille] = useState('');
@@ -174,6 +177,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
     transaction_type: transactionType,
     property_type: propertyType,
     price_max: budgetMax,
+    lease_term: transactionType === 'location' ? leaseTerm : '',
     ville,
   };
 
@@ -231,6 +235,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
       if (transactionType) qs.set('transaction_type', transactionType);
       if (propertyType) qs.set('property_type', propertyType);
       if (budgetMax) qs.set('price_max', budgetMax);
+      if (transactionType === 'location' && leaseTerm) qs.set('lease_term', leaseTerm);
       if (ville) qs.set('ville', ville);
 
       // Parsed exactly the way submitting parses it (LocationAutocomplete's
@@ -277,7 +282,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
       clearTimeout(timer);
       controller.abort();
     };
-  }, [transactionType, propertyType, budgetMax, ville, location]);
+  }, [transactionType, propertyType, budgetMax, leaseTerm, ville, location]);
 
   // What the parser takes from the typed text, read back as chips — so a
   // visitor sees that "Gombe" and "2 chambres" were understood before they
@@ -328,6 +333,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
               onClick={() => {
                 setHomeTab(value);
                 setLocation('');
+                if (value !== 'louer') setLeaseTerm('');
               }}
               // 48px, not the 44px a segmented control usually gets: the
               // brief sets one floor for every interactive control in this
@@ -343,6 +349,30 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
           );
         })}
       </div>
+
+      {/* Durée — Toutes / Longue durée (bail au mois) / Courte durée (à la
+          journée ou à la semaine). Rent only: a sale has no lease. */}
+      {homeTab === 'louer' ? (
+        <div role="group" aria-label={t('listings.leaseTerm.label')} className="-mt-1 mb-4 flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-[0.8125rem] font-semibold text-ink-70">{t('listings.leaseTerm.label')}</span>
+          {LEASE_TERM_OPTIONS.map((option) => {
+            const on = leaseTerm === option.value;
+            return (
+              <button
+                key={option.value || 'any'}
+                type="button"
+                aria-pressed={on}
+                onClick={() => setLeaseTerm(option.value)}
+                className={`u-press inline-flex min-h-9 items-center rounded-full border px-3.5 text-[0.8125rem] font-semibold transition-colors ${
+                  on ? 'border-blue bg-blue-tint text-blue-deep' : 'border-line bg-surface text-ink-70 hover:border-ink-25'
+                }`}
+              >
+                {t(option.labelKey)}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
 
       {/* --- 2. Fused field block ---------------------------------------- */}
       {/* `overflow-hidden` is what clips the dividers into the rounded

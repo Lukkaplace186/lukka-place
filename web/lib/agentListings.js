@@ -300,6 +300,7 @@ export async function getOwnListingForEdit(agentId, propertyId) {
   const { rows } = await pool.query(
     `SELECT p.id, p.price, p.purpose, p.beds, p.bath, p.area, p.quartier, p.units_count,
             p.parcelle_subtype, p.reference, p.price_period, p.deposit_months,
+            p.advance_months, p.commission_months,
             p.category_id, p.approve_status, p.listing_status, p.featured_image, p.sold_price,
             p.currency, p.price_original,
             COALESCE(to_jsonb(p) -> 'utilities', '[]'::jsonb) AS utilities,
@@ -361,7 +362,8 @@ export async function getOwnListingForEdit(agentId, propertyId) {
  * the row first.
  *
  * Three tables move together, so this runs in one transaction:
- *   properties          price, beds, bath, area, quartier, units_count, deposit_months
+ *   properties          price, beds, bath, area, quartier, units_count, deposit_months,
+ *                       advance_months, commission_months (left as they are when undefined)
  *   property_contents   title, description, address (address is derived from
  *                       quartier + commune, matching createListing's own
  *                       `[commune, 'Kinshasa']` convention)
@@ -376,7 +378,7 @@ export async function getOwnListingForEdit(agentId, propertyId) {
  */
 export async function updateListing(agentId, propertyId, {
   title, description, commune, price, priceOriginal, currency, beds, bath, area, quartier,
-  unitsCount, depositMonths, amenityIds, reference = null, rentPeriod = null,
+  unitsCount, depositMonths, advanceMonths, commissionMonths, amenityIds, reference = null, rentPeriod = null,
 }) {
   // A changed price goes through the engine first so its SQLite copy agrees
   // (lib/enginePrice.js); an unchanged one never calls it. Throws
@@ -403,9 +405,13 @@ export async function updateListing(agentId, propertyId, {
            quartier = $7, units_count = $8, deposit_months = $9, reference = $12,
            -- Only a rent has a period, and only a stated one replaces it.
            price_period = CASE WHEN purpose = 'rent' AND $13::text IS NOT NULL THEN $13::text ELSE price_period END,
+           -- The three entry costs are separate facts (CLAUDE.md, "3 + 1 + 1").
+           advance_months = CASE WHEN $14::boolean THEN $15::int ELSE advance_months END,
+           commission_months = CASE WHEN $16::boolean THEN $17::int ELSE commission_months END,
            updated_at = NOW()
        WHERE id = $10 AND agent_id = $11`,
-      [price, priceOriginal, currency, beds, bath, area, quartier, unitsCount, depositMonths, propertyId, agentId, reference, normaliseRentPeriod(rentPeriod)],
+      [price, priceOriginal, currency, beds, bath, area, quartier, unitsCount, depositMonths, propertyId, agentId, reference, normaliseRentPeriod(rentPeriod),
+        advanceMonths !== undefined, advanceMonths ?? null, commissionMonths !== undefined, commissionMonths ?? null],
     );
     if (rowCount === 0) {
       await client.query('ROLLBACK');

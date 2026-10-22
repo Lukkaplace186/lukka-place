@@ -38,7 +38,7 @@ export async function getListingForAdmin(propertyId) {
   const { rows } = await pool.query(
     `SELECT p.id, p.price, p.price_original, p.currency, p.purpose, p.beds, p.bath, p.area,
             p.quartier, p.units_count, p.parcelle_subtype, p.reference, p.price_period,
-            p.deposit_months, p.category_id, p.status, p.approve_status, p.listing_status,
+            p.deposit_months, p.advance_months, p.commission_months, p.category_id, p.status, p.approve_status, p.listing_status,
             p.sold_price, p.sold_at, p.archived_at, p.featured_image, p.latitude, p.longitude,
             p.agent_id, p.vendor_id, p.created_at, p.updated_at,
             pc.title, pc.description, pc.address, pc.slug,
@@ -168,6 +168,8 @@ export async function adminUpdateListing(propertyId, patch) {
     reference: 'reference',
     pricePeriod: 'price_period',
     depositMonths: 'deposit_months',
+    advanceMonths: 'advance_months',
+    commissionMonths: 'commission_months',
     categoryId: 'category_id',
     listingStatus: 'listing_status',
     soldPrice: 'sold_price',

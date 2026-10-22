@@ -5425,6 +5425,8 @@
     "fieldBathrooms": "bathrooms",
     "fieldDoors": "doors",
     "fieldDepositMonths": "deposit months",
+    "fieldAdvanceMonths": "advance months",
+    "fieldCommissionMonths": "commission months",
     "agentNoWhatsApp": "This agent has no WhatsApp number on record.",
     "sendFailedShort": "Sending failed.",
     "actionFailed": "The action failed.",

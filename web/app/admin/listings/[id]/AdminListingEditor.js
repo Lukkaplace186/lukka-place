@@ -204,6 +204,24 @@ export default function AdminListingEditor({ listing, communes, categories }) {
               className={FIELD}
             />
           </Field>
+          <Field label="Loyer d'avance (mois)">
+            <input
+              name="advance_months"
+              type="number"
+              min="0"
+              defaultValue={listing.advance_months ?? ''}
+              className={FIELD}
+            />
+          </Field>
+          <Field label="Commission (mois)">
+            <input
+              name="commission_months"
+              type="number"
+              min="0"
+              defaultValue={listing.commission_months ?? ''}
+              className={FIELD}
+            />
+          </Field>
         </div>
       </section>
 

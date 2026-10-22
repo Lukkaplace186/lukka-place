@@ -5425,6 +5425,8 @@
     "fieldBathrooms": "salles de bain",
     "fieldDoors": "portes",
     "fieldDepositMonths": "mois de garantie",
+    "fieldAdvanceMonths": "mois d'avance",
+    "fieldCommissionMonths": "mois de commission",
     "agentNoWhatsApp": "Cet agent n’a pas de numéro WhatsApp enregistré.",
     "sendFailedShort": "L'envoi a échoué.",
     "actionFailed": "L'action a échoué.",

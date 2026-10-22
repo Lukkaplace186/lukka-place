@@ -264,6 +264,8 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
     if (mapped.bath) form.elements.bath.value = mapped.bath;
     if (mapped.unitsCount) form.elements.units_count.value = mapped.unitsCount;
     if (mapped.depositMonths) form.elements.deposit_months.value = mapped.depositMonths;
+    if (mapped.advanceMonths) form.elements.advance_months.value = mapped.advanceMonths;
+    if (mapped.commissionMonths) form.elements.commission_months.value = mapped.commissionMonths;
     applyDetailsToForm(form, mapped.details);
     if (commercial) {
       if (mapped.officeCount != null) form.elements.office_count.value = mapped.officeCount;
@@ -459,6 +461,30 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
               min="0"
               step="1"
               defaultValue={listing.deposit_months ?? ''}
+              className={FIELD_CLASS}
+            />
+          </div>
+          <div>
+            <label htmlFor="advance_months" className={LABEL_CLASS}>Loyer d&apos;avance (mois)</label>
+            <input
+              id="advance_months"
+              name="advance_months"
+              type="number"
+              min="0"
+              step="1"
+              defaultValue={listing.advance_months ?? ''}
+              className={FIELD_CLASS}
+            />
+          </div>
+          <div>
+            <label htmlFor="commission_months" className={LABEL_CLASS}>Commission (mois)</label>
+            <input
+              id="commission_months"
+              name="commission_months"
+              type="number"
+              min="0"
+              step="1"
+              defaultValue={listing.commission_months ?? ''}
               className={FIELD_CLASS}
             />
           </div>

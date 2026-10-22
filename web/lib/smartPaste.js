@@ -187,6 +187,8 @@ export function buildFormValuesFromParsed(extracted, { communes, categories = []
     area: extracted.surface_area_sqm != null ? String(Math.round(extracted.surface_area_sqm * 100) / 100) : '',
     unitsCount: extracted.units_count != null ? String(extracted.units_count) : '',
     depositMonths: extracted.deposit_months != null ? String(extracted.deposit_months) : '',
+    advanceMonths: extracted.advance_months != null ? String(extracted.advance_months) : '',
+    commissionMonths: extracted.commission_months != null ? String(extracted.commission_months) : '',
     // Commercial-space specs (lib/commercialSpaces.js) — the engine already
     // nulls them for a home; only a stated "yes" ticks a box.
     officeCount: Number.isInteger(extracted.office_count) ? String(extracted.office_count) : null,

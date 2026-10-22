@@ -904,6 +904,9 @@ export async function updateListingAction(propertyId, validCommunes, formData) {
   const bath = optionalInt('bath');
   const unitsCount = optionalInt('units_count');
   const depositMonths = optionalInt('deposit_months');
+  // Absent from the form → undefined, so the column is left as it is.
+  const advanceMonths = formData.get('advance_months') === null ? undefined : optionalInt('advance_months');
+  const commissionMonths = formData.get('commission_months') === null ? undefined : optionalInt('commission_months');
   const areaRaw = formData.get('area');
   const areaNumber = normaliseArea(areaRaw);
 
@@ -917,6 +920,8 @@ export async function updateListingAction(propertyId, validCommunes, formData) {
     [bath, 'errors.fieldBathrooms'],
     [unitsCount, 'errors.fieldDoors'],
     [depositMonths, 'errors.fieldDepositMonths'],
+    [advanceMonths ?? null, 'errors.fieldAdvanceMonths'],
+    [commissionMonths ?? null, 'errors.fieldCommissionMonths'],
   ]) {
     if (value !== null && (!Number.isFinite(value) || value < 0)) {
       return { ok: false, error: t('errors.invalidCount', { field: t(fieldKey) }) };
@@ -988,7 +993,7 @@ export async function updateListingAction(propertyId, validCommunes, formData) {
   try {
     owned = await updateListing(agentId, propertyId, {
       title, description, commune, price, priceOriginal, currency, beds, bath, area, quartier,
-      unitsCount, depositMonths, amenityIds, reference,
+      unitsCount, depositMonths, advanceMonths, commissionMonths, amenityIds, reference,
       rentPeriod: String(formData.get('rent_period') || ''),
     });
   } catch (err) {

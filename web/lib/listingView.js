@@ -223,13 +223,8 @@ export function formatArea(area) {
  * not a notation anyone writes, and a placeholder would state something the
  * listing does not.
  *
- * TODAY THIS ALWAYS RETURNS A DEPOSIT-ONLY RESULT on the storefront:
- * `properties` carries `deposit_months` and nothing else (verified directly
- * against the live schema), so `advance_months`/`commission_months` arrive
- * undefined. The engine already parses and stores all three in SQLite; they
- * need an ALTER TABLE plus a `syncListingToPostgres` change before this can
- * render the full breakdown. Nothing here has to change when that lands —
- * only lib/listings.js's SELECT_FIELDS.
+ * All three are `properties` columns, written by the engine's sync and by
+ * both listing editors (admin and agent), each as its own field.
  */
 export function entryTerms(listing) {
   const deposit = monthsValue(listing?.deposit_months);

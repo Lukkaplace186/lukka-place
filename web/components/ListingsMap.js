@@ -624,7 +624,14 @@ export default function ListingsMap({
     const req = requestRef.current;
     const firstRun = req.filterQuery === null;
     const target = locationTarget(new URLSearchParams(filterQuery));
-    const targetKey = target ? `${target.commune}|${target.quartier || ''}|${target.near || ''}` : '';
+    // The city is part of the place: Kinshasa → Lubumbashi with no commune
+    // named is a new place, and the map flies to the new city's centre. Left
+    // out, the switch read as "same place, other filters" and the map stayed
+    // on the previous city.
+    const ville = new URLSearchParams(filterQuery).get('ville') || '';
+    const targetKey = target
+      ? `${ville}|${target.commune}|${target.quartier || ''}|${target.near || ''}`
+      : `${ville}|`;
     const areaCleared = hadUrlAreaRef.current && !hasUrlArea;
     hadUrlAreaRef.current = hasUrlArea;
     const placeChanged = firstRun || areaCleared || targetKey !== req.targetKey;

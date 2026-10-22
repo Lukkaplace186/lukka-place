@@ -111,6 +111,8 @@ export async function adminUpdateListingAction(propertyId, validCommunes, validC
       area: areaValue === undefined ? undefined : areaValue == null ? '0' : String(areaValue),
       unitsCount: int(formData, 'units_count'),
       depositMonths: int(formData, 'deposit_months'),
+      advanceMonths: int(formData, 'advance_months'),
+      commissionMonths: int(formData, 'commission_months'),
       listingStatus: listingStatus || undefined,
       soldPrice: listingStatus === 'closed' ? soldPrice : null,
       soldAt: listingStatus === 'closed' ? soldAt : null,

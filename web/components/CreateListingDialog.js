@@ -18,6 +18,7 @@ import { deleteDraft, fieldsFromForm, isEmptyDraft, loadDraft, looksOffline, sav
 import { shrinkPhotos } from '@/lib/photoShrink';
 import { UPGRADE_PATH, announceListingQuota } from '@/lib/listingQuotaRules';
 import CommuneOptions from './CommuneOptions';
+import { RENT_PERIOD_OPTIONS } from '@/lib/leaseTerm';
 
 const FIELD_CLASS =
   'u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35';
@@ -589,6 +590,18 @@ export default function CreateListingDialog({ communes, categories, draftKey = n
               <label htmlFor="price" className={LABEL_CLASS}>{t('agent.editor.priceUsd')}</label>
               <input id="price" name="price" type="number" min="1" step="1" required className={FIELD_CLASS} />
             </div>
+          </div>
+
+          {/* A rent per month (the standard) or per day / week — a room or
+              flat let short term (lib/leaseTerm.js). Ignored on a sale. */}
+          <div>
+            <label htmlFor="rent_period" className={LABEL_CLASS}>{t('agent.editor.rentPeriodLabel')}</label>
+            <select id="rent_period" name="rent_period" defaultValue="mois" className={FIELD_CLASS}>
+              {RENT_PERIOD_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{t(option.labelKey)}</option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-ink-35">{t('agent.editor.rentPeriodHint')}</p>
           </div>
 
           {/* An office, shop or warehouse has no bedrooms: the bedroom field

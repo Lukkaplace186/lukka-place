@@ -68,7 +68,12 @@ export function compactPrice(price, purpose, { pricePeriod = null } = {}) {
   }
 
   const money = `$${label}`;
-  return purpose === 'rent' && pricePeriod === 'an' ? `${money}/an` : money;
+  if (purpose !== 'rent') return money;
+  if (pricePeriod === 'an') return `${money}/an`;
+  // A short-term rent says so on the pin, or $40 reads as a $40 monthly rent.
+  if (pricePeriod === 'jour') return `${money}/j`;
+  if (pricePeriod === 'semaine') return `${money}/sem`;
+  return money;
 }
 
 /**

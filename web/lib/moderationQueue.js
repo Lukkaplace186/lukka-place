@@ -3,6 +3,7 @@ import { getPool } from './db';
 import { keysetClause, pageCursors } from './adminPagination';
 import { BLOCKING_FLAGS, EXTRACTION_FAILURE_MARKERS, MODERATION_QUEUE_STATUSES } from './moderation';
 import { VIDEOS_SQL, VIDEO_COUNT_SQL, isVideoPoster, listingVideos } from './listingVideos';
+import { monthlyEquivalent } from './leaseTerm';
 
 /**
  * The listing moderation queue — one server page at a time, with quality flags.
@@ -203,9 +204,10 @@ async function getCommuneMedians() {
   const { rows } = await getPool().query(`
     WITH pub AS (
       SELECT p.purpose, ${COMMUNE_OF_P} AS commune,
-             CASE WHEN p.purpose = 'rent' AND p.price_period = 'an' THEN p.price / 12.0 ELSE p.price END AS amount
+             CASE WHEN p.purpose = 'rent' AND p.price_period IN ('jour', 'semaine') THEN NULL WHEN p.purpose = 'rent' AND p.price_period = 'an' THEN p.price / 12.0 ELSE p.price END AS amount
       FROM properties p
       WHERE p.status = 1 AND p.approve_status = 1 AND p.price > 0
+        AND COALESCE(p.price_period, '') NOT IN ('jour', 'semaine')
     )
     SELECT purpose, commune, COUNT(*)::int AS n,
            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY amount)::float AS median
@@ -222,7 +224,7 @@ export const OUTLIER_RATIO = 3;
 
 function toRow(row, medians) {
   const flags = Object.keys(FLAG_SQL).filter((flag) => row[`f_${flag}`]);
-  const amount = row.price == null ? null : Number(row.price) / (row.purpose === 'rent' && row.price_period === 'an' ? 12 : 1);
+  const amount = row.price == null ? null : monthlyEquivalent(Number(row.price), row.purpose, row.price_period);
   const median = row.commune ? medians.get(`${row.purpose}|${row.commune}`) : null;
   let outlier = null;
   if (amount && median && median.n >= OUTLIER_MIN_SAMPLE && median.median > 0) {

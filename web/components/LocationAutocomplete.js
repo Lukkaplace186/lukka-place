@@ -3,7 +3,7 @@
 import { forwardRef, useCallback, useEffect, useId, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { MapPin, Landmark, Search, SlidersHorizontal, X, Clock, BedDouble, Bath, Home, DollarSign, Hash } from 'lucide-react';
+import { MapPin, Landmark, Search, SlidersHorizontal, X, Clock, BedDouble, Bath, Home, DollarSign, Hash, CalendarClock } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { parseSearchQuery, escapeRegExp } from '@/lib/searchParser';
@@ -43,6 +43,9 @@ function buildPreviewPills(parsed) {
   if (parsed.bath_min != null) {
     pills.push({ field: 'bath_min', icon: Bath, label: `${parsed.bath_min}+ SDB` });
   }
+  if (parsed.lease_term) {
+    pills.push({ field: 'lease_term', icon: CalendarClock, label: parsed.lease_term === 'short' ? 'Courte durée' : 'Longue durée' });
+  }
   if (parsed.property_type) {
     const typeLabel = PROPERTY_TYPE_LABEL_KEYS[parsed.property_type] || parsed.property_type;
     const subtypeLabel = parsed.parcelle_subtype === 'villa' ? ' (Villa)' : parsed.parcelle_subtype === 'terrain_nu' ? ' (Terrain)' : '';
@@ -80,6 +83,7 @@ function applyParsedFilters(params, parsed) {
   if (parsed.price_max != null) params.set('price_max', String(parsed.price_max));
   if (parsed.beds_min != null) params.set('beds_min', String(parsed.beds_min));
   if (parsed.bath_min != null) params.set('bath_min', String(parsed.bath_min));
+  if (parsed.lease_term) params.set('lease_term', parsed.lease_term);
   if (parsed.property_type) {
     params.set('property_type', parsed.property_type);
     if (parsed.parcelle_subtype) params.set('parcelle_subtype', parsed.parcelle_subtype);

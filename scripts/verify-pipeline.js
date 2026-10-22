@@ -12374,6 +12374,45 @@ console.log('\n2. services/openai.js');
     });
   }
 
+  // ===========================================================================
+  // 64. Short-term vs long-term rentals (2026-10-21) — services/leaseTerm.js
+  // ===========================================================================
+
+  console.log('\n64. Short-term vs long-term rentals');
+
+  {
+    const lease64 = require('../services/leaseTerm');
+    const openai64 = require('../services/openai');
+    const card64 = require('../services/listingCard');
+    const repo64 = require('../services/propertyRepository');
+
+    check('every extraction schema accepts a price per day or per week', () => {
+      const periods = JSON.stringify(openai64.RESPONSE_FORMAT).match(/"price_period":\{[^}]*\}/g) || [];
+      assert.ok(periods.length >= 2, 'listing + unit price_period');
+      for (const p of periods) assert.ok(p.includes('"jour"') && p.includes('"semaine"'), p);
+      assert.ok(JSON.stringify(openai64.LISTING_FORM_RESPONSE_FORMAT).includes('"semaine"'));
+      assert.ok(/LOCATION COURTE DURÉE/.test(openai64.SYSTEM_PROMPT), 'the prompt says when to use them');
+    });
+
+    check('the intake card and receipt say "/ jour", never "/ mois", for a short-term rent', () => {
+      const line = card64.listingSummaryLine({ property_type: 'studio', commune: 'Gombe', price: 40, price_period: 'jour', transaction_type: 'location' });
+      assert.ok(line.endsWith('40 $ / jour'), line);
+      assert.ok(card64.listingSummaryLine({ property_type: 'studio', commune: 'Gombe', price: 400, transaction_type: 'location' }).endsWith('/ mois'), 'long term is the default');
+      assert.strictEqual(lease64.periodSuffix('semaine'), ' / semaine');
+      assert.strictEqual(lease64.periodSuffix('jour', { sale: true }), '');
+    });
+
+    check('the buyer assistant can search short or long term only', () => {
+      const tool = openai64.BUYER_TOOLS.find((t) => t.function.name === 'search_properties');
+      assert.deepStrictEqual(tool.function.parameters.properties.lease_term.enum, ['short', 'long']);
+      const short = repo64.buildFilters({ leaseTerm: 'short' });
+      assert.ok(short.whereClause.includes("p.price_period IN ('jour', 'semaine')"), short.whereClause);
+      const long = repo64.buildFilters({ leaseTerm: 'long' });
+      assert.ok(long.whereClause.includes("COALESCE(p.price_period, 'mois') NOT IN ('jour', 'semaine')"));
+      assert.ok(!repo64.buildFilters({ leaseTerm: 'x' }).whereClause.includes('jour'), 'an unknown value filters nothing');
+    });
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

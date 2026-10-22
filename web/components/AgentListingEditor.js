@@ -18,6 +18,7 @@ import AgentPhotoSorter from './AgentPhotoSorter';
 import { UTILITY_FILTERS, UTILITY_FILTER_KEYS, normaliseUtilities, utilityLabelKey } from '@/lib/utilityTags';
 import CommercialSpecFields from './CommercialSpecFields';
 import { commercialSpecsOf, isCommercial } from '@/lib/commercialSpaces';
+import { RENT_PERIOD_OPTIONS, normaliseRentPeriod, rentPeriodLabel } from '@/lib/leaseTerm';
 import CommuneOptions from './CommuneOptions';
 
 const FIELD_CLASS =
@@ -229,6 +230,8 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
   }
 
   const isRent = listing.purpose === 'rent';
+  // Per month, or per day / week for a short-term rental (lib/leaseTerm.js).
+  const [rentPeriod, setRentPeriod] = useState(normaliseRentPeriod(listing.price_period) || 'mois');
 
   /**
    * Same reasoning as CreateListingDialog's own handleParsed: only the
@@ -319,7 +322,7 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label htmlFor="price" className={LABEL_CLASS}>
-              Prix{isRent ? ' / mois' : ''}
+              Prix{isRent ? ` ${rentPeriodLabel(rentPeriod)}` : ''}
             </label>
             <div className="flex items-stretch gap-2">
               <input
@@ -395,6 +398,24 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
             />
           </div>
         </div>
+
+        {isRent ? (
+          <div>
+            <label htmlFor="rent_period" className={LABEL_CLASS}>{t('agent.editor.rentPeriodLabel')}</label>
+            <select
+              id="rent_period"
+              name="rent_period"
+              value={rentPeriod}
+              onChange={(e) => setRentPeriod(e.target.value)}
+              className={FIELD_CLASS}
+            >
+              {RENT_PERIOD_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{t(option.labelKey)}</option>
+              ))}
+            </select>
+            <p className={HINT_CLASS}>{t('agent.editor.rentPeriodHint')}</p>
+          </div>
+        ) : null}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {/* An office, shop or warehouse has no bedrooms (the field is not

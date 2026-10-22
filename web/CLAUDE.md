@@ -2982,3 +2982,27 @@ Tests: `tests/unit/listing-videos.test.js`.
   (needs direct-to-Storage uploads — a 16 MB clip does not belong in a Server
   Action body). The web forms keep requiring photos; videos come in through
   WhatsApp.
+
+## Short-term rentals — the "Durée" filter (2026-10-21)
+
+Model and engine half: root CLAUDE.md, "Short-term vs long-term rentals".
+Tests: `tests/unit/lease-term.test.js`.
+
+- **`?lease_term=short|long`** (`buildFilters`): short = a rent with
+  `price_period` 'jour' / 'semaine'; long = any other rent (no period counts
+  as monthly). Either implies a rental. Carried by saved searches, alerts, the
+  map and the count endpoint through `parseListingsSearchParams`.
+- **Search bar**: "Longue durée" / "Courte durée" chips open the chip row on
+  /listings (hidden on a sale search; tapping the selected one clears it;
+  picking one makes the search a rental), a "Durée de location" section in the
+  phone filter sheet, an active-filter chip, and the search box reads
+  "à la journée", "par nuit", "50$/jour", "courte durée", "longue durée".
+- **Prices** say "/ jour" / "/ semaine" everywhere `formatPrice` / `<Price>`
+  render; map pins say `$40/j`, `$200/sem`; JSON-LD unit is DAY / WEE. Market
+  medians, price checks, outlier flags and demand matching leave short-term
+  rents out (`monthlyEquivalent` → null).
+- **Agent forms** (create + editor): "Durée de location" select (mois / jour /
+  semaine / an), written as `price_period` for a rent only. **Admin editor and
+  admin create** now post the stored vocabulary (`mois`, `an`, `jour`,
+  `semaine`, `total`); they used to post `month` / `year` / `day`, which no
+  reader understood (no production row held one, checked 2026-10-21).

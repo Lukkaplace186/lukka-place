@@ -28,6 +28,7 @@
  */
 
 const { Pool } = require('pg');
+const { shortTermSql, longTermSql, normaliseLeaseTerm } = require('./leaseTerm');
 
 const CONTENT_LANGUAGE_ID = 20;
 const CATEGORY_LANGUAGE_ID = 26;
@@ -64,7 +65,7 @@ const COMMUNE_SUBQUERY = `(
 ) AS commune`;
 
 const SELECT_FIELDS = `
-  p.id, p.price, p.purpose, p.beds, p.bath, p.area, p.quartier,
+  p.id, p.price, p.purpose, p.price_period, p.beds, p.bath, p.area, p.quartier,
   p.parcelle_subtype, p.units_count, p.reference, p.featured_image,
   p.created_at,
   pc.title, pc.slug, pc.address,
@@ -118,7 +119,7 @@ const SEARCH_LIMIT_MAX = 20;
  */
 function buildFilters({
   transactionType, propertyType, parcelleSubtype, commune, quartier, city,
-  priceMin, priceMax, bedsMin,
+  priceMin, priceMax, bedsMin, leaseTerm,
 } = {}) {
   const where = [APPROVED_FILTER];
   const params = [];
@@ -136,6 +137,11 @@ function buildFilters({
     params.push(purpose);
     where.push(`p.purpose = $${params.length}`);
   }
+
+  // Short term (by the day / week) or long term — services/leaseTerm.js.
+  // Either implies a rental.
+  const term = normaliseLeaseTerm(leaseTerm);
+  if (term) where.push(term === 'short' ? shortTermSql('p') : longTermSql('p'));
 
   const minPrice = Number.parseFloat(priceMin);
   if (Number.isFinite(minPrice)) {

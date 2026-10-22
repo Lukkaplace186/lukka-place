@@ -5,6 +5,7 @@ import { PillOption } from './FilterPill';
 import AdvancedFilterFields from './AdvancedFilterFields';
 import { useT } from '@/lib/i18n/client';
 import { facetLabel, groupTypeFacets } from '@/lib/commercialSpaces';
+import { LEASE_TERM_OPTIONS } from '@/lib/leaseTerm';
 
 const numberInputClass =
   'u-focus-ring w-full rounded-md border border-line bg-canvas px-3 py-2.5 text-sm text-ink placeholder:text-ink-25';
@@ -60,15 +61,16 @@ export default function FilterModal({
   setters = {},
   resultCountLabel,
   resultPending,
+  showLeaseTerm = true,
 }) {
   const t = useT();
   const {
     propertyType = '', priceMin = '', priceMax = '', bedsMin = '', bathMin = '',
-    quartier = '', parcelleSubtype = '', depositRange = '', amenities = [],
+    quartier = '', parcelleSubtype = '', depositRange = '', leaseTerm = '', amenities = [],
   } = values;
   const {
     setPropertyType, setPriceMin, setPriceMax, setBedsMin, setBathMin,
-    setCommune, setQuartier, setParcelleSubtype, setDepositRange, setAmenities,
+    setCommune, setQuartier, setParcelleSubtype, setDepositRange, setLeaseTerm, setAmenities,
   } = setters;
 
   function reset() {
@@ -81,6 +83,7 @@ export default function FilterModal({
     setQuartier?.('');
     setParcelleSubtype?.('');
     setDepositRange?.('');
+    setLeaseTerm?.('');
     setAmenities?.([]);
   }
 
@@ -105,6 +108,19 @@ export default function FilterModal({
         </SheetHeader>
 
         <div className="flex flex-1 flex-col gap-6 overflow-y-auto overscroll-contain px-4 pb-10 pt-5">
+          {showLeaseTerm ? (
+            <Section label={t('listings.leaseTerm.label')}>
+              <div className="flex flex-wrap gap-2">
+                {LEASE_TERM_OPTIONS.map((option) => (
+                  <PillOption key={option.value || 'any'} size="lg" selected={leaseTerm === option.value} onClick={() => setLeaseTerm?.(option.value)}>
+                    {t(option.labelKey)}
+                  </PillOption>
+                ))}
+              </div>
+              <p className="text-xs text-ink-45">{t('listings.leaseTerm.hint')}</p>
+            </Section>
+          ) : null}
+
           <Section label={t('listings.filters.priceUsdSection')}>
             <div className="flex items-center gap-2">
               <input

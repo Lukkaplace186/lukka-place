@@ -88,6 +88,7 @@ CONTEXTE MONÉTAIRE
 - À Kinshasa, loyers et prix de vente sont presque toujours cotés en dollars américains. "$", "usd", "dollars" => USD. "FC", "CDF", "francs" => CDF.
 - Si aucune devise n'est indiquée et que le montant est plausible en USD, utilise USD.
 - Sépare le loyer mensuel du prix de vente : "500$/mois" => price 500, price_period "mois". Une vente => price_period "total".
+- LOCATION COURTE DURÉE : une chambre, un studio ou un appartement loué à la journée ou à la nuit ("50$/jour", "40$ la nuitée", "location journalière") => price_period "jour" ; à la semaine => price_period "semaine". Le loyer est alors ce prix par jour / par semaine, jamais converti en mois. Sans cette mention explicite, une location est de longue durée (price_period "mois", ou "an" si le loyer est annuel).
 - Une caution ("garantie", "3 mois de caution") n'est PAS le loyer : mets-la dans deposit_months.
 
 CONDITIONS D'ENTRÉE — NOTATION "3 + 1 + 1" (convention immobilière de Kinshasa)
@@ -335,7 +336,7 @@ const RESPONSE_FORMAT = {
               description: 'Loyer mensuel si location, prix total si vente.',
             },
             currency: { type: ['string', 'null'], enum: ['USD', 'CDF', 'EUR', null] },
-            price_period: { type: ['string', 'null'], enum: ['mois', 'an', 'total', null] },
+            price_period: { type: ['string', 'null'], enum: ['mois', 'an', 'jour', 'semaine', 'total', null] },
             deposit_months: {
               type: ['integer', 'null'],
               description: "Mois de garantie locative SEULE (caution restituable). Dans la notation \"3 + 1 + 1\", c'est le premier nombre — jamais la somme.",
@@ -467,7 +468,7 @@ const RESPONSE_FORMAT = {
                   bedrooms: { type: ['integer', 'null'] },
                   bathrooms: { type: ['integer', 'null'] },
                   price: { type: ['number', 'null'], description: 'Prix de CETTE typologie.' },
-                  price_period: { type: ['string', 'null'], enum: ['mois', 'an', 'total', null] },
+                  price_period: { type: ['string', 'null'], enum: ['mois', 'an', 'jour', 'semaine', 'total', null] },
                   surface_area_sqm: { type: ['number', 'null'] },
                   floor: {
                     type: ['string', 'null'],
@@ -949,6 +950,11 @@ const BUYER_TOOLS = [
           price_min: { type: 'number' },
           price_max: { type: 'number' },
           bedrooms: { type: 'integer', description: 'Nombre minimum de chambres.' },
+          lease_term: {
+            type: 'string',
+            enum: ['short', 'long'],
+            description: "Location seulement. 'short' = courte durée (à la journée / à la semaine), 'long' = bail classique au mois. À omettre si le client ne le précise pas.",
+          },
         },
         additionalProperties: false,
       },
@@ -1039,6 +1045,7 @@ async function executeSearchProperties(args = {}) {
     priceMin: args.price_min,
     priceMax: args.price_max,
     bedsMin: args.bedrooms,
+    leaseTerm: args.lease_term,
     limit: 5,
   });
 
@@ -1054,6 +1061,8 @@ async function executeSearchProperties(args = {}) {
       title: p.title,
       price: p.price,
       currency: 'USD',
+      // 'jour' / 'semaine' = a short-term rental: the price is per day / week.
+      price_period: p.price_period || null,
       transaction: p.purpose === 'rent' ? 'location' : 'vente',
       commune: p.commune || null,
       quartier: p.quartier || null,
@@ -1341,6 +1350,7 @@ CONTEXTE LINGUISTIQUE ET MONÉTAIRE — mêmes règles que pour l'intake WhatsAp
 - Texte en français, lingala, ou mélange des deux. "pièces" = total des pièces, PAS les chambres. "chambre salon" = 1 chambre.
 - Loyers et prix sont presque toujours en dollars ; "$"/"usd"/"dollars" => USD, "FC"/"CDF"/"francs" => CDF. Sans devise indiquée et montant plausible en USD, utilise USD.
 - Sépare le loyer mensuel du prix de vente : "$/mois" => price_period "mois" ; une vente => price_period "total".
+- Location courte durée, à la journée / à la nuit => price_period "jour" ; à la semaine => "semaine" (jamais converti en mois). Sans mention explicite, une location est de longue durée.
 
 CONDITIONS D'ENTRÉE — NOTATION "3 + 1 + 1" (convention de Kinshasa), IDENTIQUE à l'intake WhatsApp :
 - Ces nombres sont des POSTES DISTINCTS. Ne les additionne JAMAIS — "3 + 1 + 1" ne veut PAS dire 5 mois.
@@ -1403,7 +1413,7 @@ const LISTING_FORM_RESPONSE_FORMAT = {
         reference: { type: ['string', 'null'] },
         price: { type: ['number', 'null'] },
         currency: { type: ['string', 'null'], enum: ['USD', 'CDF', 'EUR', null] },
-        price_period: { type: ['string', 'null'], enum: ['mois', 'an', 'total', null] },
+        price_period: { type: ['string', 'null'], enum: ['mois', 'an', 'jour', 'semaine', 'total', null] },
         deposit_months: { type: ['integer', 'null'] },
         advance_months: { type: ['integer', 'null'] },
         commission_months: { type: ['integer', 'null'] },

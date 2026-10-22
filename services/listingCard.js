@@ -24,6 +24,7 @@ const { inferCommune } = require('./locations');
 const { cityOfCommune, communeLabel, DEFAULT_CITY } = require('./cities');
 const { isCommercialType, floorLabelFr } = require('./commercial');
 const { MAX_LISTING_PHOTOS, MAX_LISTING_VIDEOS } = require('./listingMedia');
+const leaseTerm = require('./leaseTerm');
 
 const PROPERTY_TYPE_LABELS = {
   appartement: 'Appartement',
@@ -82,9 +83,7 @@ function isMonthlyRent(row) {
 }
 
 function periodSuffix(row) {
-  if (row.transaction_type === 'vente' || row.price_period === 'total') return '';
-  if (row.price_period === 'an') return ' / an';
-  return ' / mois';
+  return leaseTerm.periodSuffix(row.price_period, { sale: row.transaction_type === 'vente' });
 }
 
 /**

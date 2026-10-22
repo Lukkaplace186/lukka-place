@@ -237,9 +237,14 @@ export default function AdminListingEditor({ listing, communes, categories }) {
           <Field label={t('admin.moderation.periodicity')}>
             <select name="price_period" defaultValue={listing.price_period || ''} className={FIELD}>
               <option value="">{t('admin.actions.none')}</option>
-              <option value="month">Par mois</option>
-              <option value="year">Par an</option>
-              <option value="day">Par jour</option>
+              {/* The stored vocabulary (lib/leaseTerm.js): 'jour' / 'semaine'
+                  make it a short-term rental. It used to post 'month' /
+                  'year' / 'day', which nothing else reads. */}
+              <option value="mois">Par mois</option>
+              <option value="an">Par an</option>
+              <option value="jour">Par jour (courte durée)</option>
+              <option value="semaine">Par semaine (courte durée)</option>
+              <option value="total">Prix total (vente)</option>
             </select>
           </Field>
           <Field label={t('admin.moderation.marketStatus')}>

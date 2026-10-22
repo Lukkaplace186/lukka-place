@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Droplets, Route, Shield, SlidersHorizontal, Zap } from 'lucide-react';
+import { CalendarClock, CalendarRange, Droplets, Route, Shield, SlidersHorizontal, Zap } from 'lucide-react';
 import FilterPill, { PillFieldLabel, PillOption } from './FilterPill';
 import { facetLabel, groupTypeFacets } from '@/lib/commercialSpaces';
 import FiltersDrawer from './FiltersDrawer';
@@ -25,8 +25,10 @@ import { subscribeOpenFiltersDrawer } from '@/lib/mapFilterDrawer';
 import { cn } from '@/lib/utils';
 import { MAP_BOUNDS_PARAMS } from '@/lib/mapViewport';
 import { UTILITY_FILTERS, UTILITY_FILTER_KEYS } from '@/lib/utilityTags';
+import { LEASE_TERM_OPTIONS } from '@/lib/leaseTerm';
 
 const UTILITY_ICONS = { zap: Zap, droplets: Droplets, shield: Shield, route: Route };
+const LEASE_ICONS = { long: CalendarRange, short: CalendarClock };
 
 const FORM_ID = 'listings-filter-form';
 const ADVANCED_KEYS = ['quartier', 'parcelleSubtype', 'bathMin'];
@@ -36,7 +38,7 @@ const ADVANCED_KEYS = ['quartier', 'parcelleSubtype', 'bathMin'];
 // result set, so changing only those shouldn't spawn a new history entry.
 const FILTER_PARAM_KEYS = [
   'transaction_type', 'commune', 'communes', 'quartier', 'radius', 'property_type', 'parcelle_subtype',
-  'price_min', 'price_max', 'beds_min', 'bath_min', 'deposit_max', 'deposit_range', 'amenities', 'q', 'reference',
+  'price_min', 'price_max', 'beds_min', 'bath_min', 'deposit_max', 'deposit_range', 'lease_term', 'amenities', 'q', 'reference',
 ];
 // Fallback only for the genuinely-empty-catalog case (lib/listings.js's
 // getPriceRange() returns null) — otherwise the real ceiling comes from
@@ -115,7 +117,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
     Number(defaults.priceMax) || 0,
   );
 
-  const [transaction] = useState(defaults.transactionType || '');
+  const [transaction, setTransaction] = useState(defaults.transactionType || '');
   // Set from the location input above (a full navigation that remounts this
   // component with a new `defaults.commune`), the URL, or the Commune select
   // in the filter sheets (AdvancedFilterFields). The extra communes and the
@@ -131,6 +133,15 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
   const [priceMin, setPriceMin] = useState(defaults.priceMin || '');
   const [priceMax, setPriceMax] = useState(defaults.priceMax || '');
   const [depositRange, setDepositRange] = useState(defaults.depositRange || '');
+  // Longue durée (the standard) / courte durée, by the day or week — lib/leaseTerm.js.
+  const [leaseTerm, setLeaseTermState] = useState(defaults.leaseTerm || '');
+  // A lease term only exists on a rental, so picking one makes the search a rental.
+  function setLeaseTerm(value) {
+    setLeaseTermState(value);
+    if (value) setTransaction('location');
+  }
+  // Hidden on a sale search: there is no lease to choose.
+  const showLeaseTerm = transaction !== 'vente';
   // A legacy `deposit_max` link keeps filtering until the visitor picks an
   // Avance exigée band, which replaces it.
   const legacyDepositMax = depositRange ? '' : defaults.depositMax || '';
@@ -211,6 +222,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
       if (priceMax) qs.set('price_max', priceMax);
       if (legacyDepositMax) qs.set('deposit_max', legacyDepositMax);
       if (depositRange) qs.set('deposit_range', depositRange);
+      if (leaseTerm) qs.set('lease_term', leaseTerm);
       if (amenities.length) qs.set('amenities', amenities.join(','));
       for (const [key, value] of new URLSearchParams(areaQuery)) qs.set(key, value);
 
@@ -243,6 +255,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
     priceMin,
     priceMax,
     depositRange,
+    leaseTerm,
     legacyDepositMax,
     amenities,
     areaQuery,
@@ -286,6 +299,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
     (defaults.bedsMin ? 1 : 0) +
     (defaults.priceMin || defaults.priceMax ? 1 : 0) +
     (defaults.propertyType ? 1 : 0) +
+    (defaults.leaseTerm ? 1 : 0) +
     advancedCount;
 
   function submit() {
@@ -332,6 +346,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
     ['price_max', priceMax],
     ['deposit_max', legacyDepositMax],
     ['deposit_range', depositRange],
+    ['lease_term', leaseTerm],
     ['amenities', amenities.join(',')],
     ['sort', defaults.sort || ''],
     ['view', defaults.view || ''],
@@ -613,7 +628,35 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
             searches, alerts and the map carry them. Hidden once the bar
             condenses on scroll, like the pills' second line would be. */}
         {!condensed ? (
-          <div className="-mx-1 mt-2 flex gap-1.5 overflow-x-auto px-1 pb-0.5" role="group" aria-label={t('listings.utilityFilters.label')}>
+          <div className="-mx-1 mt-2 flex gap-1.5 overflow-x-auto px-1 pb-0.5">
+            {/* Durée du bail first: longue durée is the standard, courte durée
+                is a room or flat let by the day / week (lib/leaseTerm.js).
+                Tapping the selected one clears it. */}
+            {showLeaseTerm ? (
+              <div className="flex shrink-0 gap-1.5" role="group" aria-label={t('listings.leaseTerm.label')}>
+                {LEASE_TERM_OPTIONS.filter((o) => o.value).map((option) => {
+                  const on = leaseTerm === option.value;
+                  const Icon = LEASE_ICONS[option.value];
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => apply(setLeaseTerm)(on ? '' : option.value)}
+                      className={cn(
+                        'u-press inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[0.8125rem] font-semibold transition-colors',
+                        on ? 'border-blue bg-blue-tint text-blue-deep' : 'border-line bg-surface text-ink-70 hover:border-ink-25',
+                      )}
+                    >
+                      <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
+                      {t(option.labelKey)}
+                    </button>
+                  );
+                })}
+                <span aria-hidden="true" className="mx-0.5 my-1.5 w-px shrink-0 bg-line" />
+              </div>
+            ) : null}
+            <div className="flex shrink-0 gap-1.5" role="group" aria-label={t('listings.utilityFilters.label')}>
             {UTILITY_FILTER_KEYS.map((key) => {
               const on = amenities.includes(key);
               const Icon = UTILITY_ICONS[UTILITY_FILTERS[key].icon];
@@ -633,6 +676,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
                 </button>
               );
             })}
+            </div>
           </div>
         ) : null}
 
@@ -657,11 +701,12 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
           locations={locations}
           commune={commune}
           priceSliderMax={PRICE_SLIDER_MAX}
-          values={{ propertyType, priceMin, priceMax, bedsMin, bathMin, quartier, parcelleSubtype, depositRange, amenities }}
+          values={{ propertyType, priceMin, priceMax, bedsMin, bathMin, quartier, parcelleSubtype, depositRange, leaseTerm, amenities }}
           setters={{
             setPropertyType, setPriceMin, setPriceMax, setBedsMin, setBathMin,
-            setCommune, setQuartier, setParcelleSubtype, setDepositRange, setAmenities,
+            setCommune, setQuartier, setParcelleSubtype, setDepositRange, setLeaseTerm, setAmenities,
           }}
+          showLeaseTerm={showLeaseTerm}
           resultCountLabel={resultCountLabel}
           resultPending={resultPending}
         />

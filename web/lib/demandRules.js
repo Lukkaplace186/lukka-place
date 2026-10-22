@@ -1,3 +1,5 @@
+import { monthlyEquivalent } from './leaseTerm';
+
 /**
  * Pure matching between one live listing and one demand cell
  * (lib/demandReport.js). Kept free of the database so the rule is testable.
@@ -12,7 +14,7 @@ const PURPOSE_FOR = { location: 'rent', vente: 'sale' };
 export function comparablePrice(row) {
   const price = Number(row.price);
   if (!Number.isFinite(price) || price <= 0) return null;
-  return row.purpose === 'rent' && row.price_period === 'an' ? price / 12 : price;
+  return monthlyEquivalent(price, row.purpose, row.price_period);
 }
 
 export function matchesDemandCell(row, cell) {

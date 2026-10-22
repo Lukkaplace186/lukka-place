@@ -135,6 +135,12 @@ const BEDS_PATTERN = re(
   `(?:^|\\s)${COUNT}\\s*(?:chambres?|chambr|chbres?|chbrs?|chb|ch\\.?|bedrooms?|beds?|bd|br|basuku|sukus?|cukus?)\\b`,
 );
 // Lingala puts the number after the noun: "basuku mibale".
+// Short-term rentals (by the day / night / week) vs longue durée — lib/leaseTerm.js.
+// "à la journée", "par nuit", "50$/jour", "courte durée"; "longue durée".
+const LEASE_SHORT_PATTERN = re(
+  `(?:(?:^|\\s)(?:courte?\\s+dur[ée]e|court\\s+terme|(?:[àa]|par)\\s+la\\s+(?:journ[ée]e|nuit[ée]e|nuit|semaine)|par\\s+(?:jour|nuit[ée]e|nuit|semaine)|journali[eè]re?|short[\\s-]?term|per\\s+(?:day|night|week)|daily)|\\/\\s*(?:jour|nuit))(?=\\s|$|[.,!?])`,
+);
+const LEASE_LONG_PATTERN = re(`(?:^|\\s)(?:longue?\\s+dur[ée]e|long\\s+terme|long[\\s-]?term)(?=\\s|$|[.,!?])`);
 const BEDS_LINGALA_PATTERN = re(`\\b(?:basuku|suku)\\s+(moko|mibale|misato|minei|mitano)\\b`);
 // "3 pièces" = 3 rooms counting the living room, i.e. 2 bedrooms.
 const PIECES_PATTERN = re(`(?:^|\\s)${COUNT}\\s*(?:pi[eè]ces?|pcs?)\\b`);
@@ -211,6 +217,7 @@ export function escapeRegExp(value) {
  *   price_max: number|undefined,
  *   beds_min: number|undefined,
  *   bath_min: number|undefined,
+ *   lease_term: ('short'|'long')|undefined,
  *   commune: string|undefined,
  *   communes: string[]|undefined,
  *   quartier: string|undefined,
@@ -275,6 +282,14 @@ export function parseSearchQuery(text) {
     const n = countValue(bath[1]);
     if (n != null && n > 0) result.bath_min = n;
     take(bath, 'bath_min');
+  }
+
+  // --- Lease term (before prices, so "50$/jour" leaves "50$") ----------------
+  const leaseShort = remaining.match(LEASE_SHORT_PATTERN);
+  const leaseLong = leaseShort ? null : remaining.match(LEASE_LONG_PATTERN);
+  if (leaseShort || leaseLong) {
+    result.lease_term = leaseShort ? 'short' : 'long';
+    take(leaseShort || leaseLong, 'lease_term');
   }
 
   // --- Price ----------------------------------------------------------------
@@ -346,6 +361,8 @@ export function parseSearchQuery(text) {
     take(m, 'transaction_type');
     break;
   }
+  // A lease term only exists on a rental.
+  if (result.lease_term && !result.transaction_type) result.transaction_type = 'location';
 
   for (const [pattern, values] of PROPERTY_TYPE_PATTERNS) {
     const m = remaining.match(pattern);

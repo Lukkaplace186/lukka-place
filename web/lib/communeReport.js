@@ -33,7 +33,7 @@ const COMMUNE_OF_P = `(
   LIMIT 1
 )`;
 
-const AMOUNT_SQL = `CASE WHEN p.purpose = 'rent' AND p.price_period = 'an' THEN p.price / 12.0 ELSE p.price END`;
+const AMOUNT_SQL = `CASE WHEN p.purpose = 'rent' AND p.price_period IN ('jour', 'semaine') THEN NULL WHEN p.purpose = 'rent' AND p.price_period = 'an' THEN p.price / 12.0 ELSE p.price END`;
 
 /** $1 purpose, $2 commune. */
 export const SUPPLY_SQL = `
@@ -69,7 +69,7 @@ export const SUPPLY_SQL = `
 export const CLOSES_SQL = `
   SELECT count(*)::int AS closed,
          PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY
-           CASE WHEN p.purpose = 'rent' AND p.price_period = 'an' THEN p.sold_price / 12.0 ELSE p.sold_price END)::float AS median_achieved,
+           CASE WHEN p.purpose = 'rent' AND p.price_period IN ('jour', 'semaine') THEN NULL WHEN p.purpose = 'rent' AND p.price_period = 'an' THEN p.sold_price / 12.0 ELSE p.sold_price END)::float AS median_achieved,
          PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY (p.sold_price - p.price) / p.price * 100)
            FILTER (WHERE p.price > 0)::float AS median_gap_pct,
          PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY (p.sold_at - p.created_at::date))::float AS median_days

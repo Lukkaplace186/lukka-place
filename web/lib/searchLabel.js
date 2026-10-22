@@ -1,5 +1,6 @@
 import { PARCELLE_SUBTYPES, AMENITY_GROUPS, DEPOSIT_RANGE_OPTIONS } from './constants';
 import { UTILITY_FILTERS } from '@/lib/utilityTags';
+import { normaliseLeaseTerm } from '@/lib/leaseTerm';
 
 const PARCELLE_LABEL_KEYS = Object.fromEntries(PARCELLE_SUBTYPES.map(({ value, labelKey }) => [value, labelKey]));
 
@@ -133,6 +134,8 @@ export function searchCriteriaTags(searchParams, t) {
   if (depositMax) tags.push(t('search.tags.depositMax', { count: depositMax }));
   const depositRange = DEPOSIT_RANGE_OPTIONS.find((o) => o.value && o.value === get('deposit_range'));
   if (depositRange) tags.push(t('search.tags.depositRange', { value: t(depositRange.labelKey) }));
+  const leaseTerm = normaliseLeaseTerm(get('lease_term'));
+  if (leaseTerm) tags.push(t(leaseTerm === 'short' ? 'search.tags.leaseShort' : 'search.tags.leaseLong'));
 
   const amenities = (get('amenities') || '').split(',').filter(Boolean);
   for (const key of amenities) {

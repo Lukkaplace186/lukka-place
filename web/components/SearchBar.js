@@ -245,6 +245,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
       if (parsed.price_max != null) qs.set('price_max', String(parsed.price_max));
       if (parsed.beds_min != null) qs.set('beds_min', String(parsed.beds_min));
       if (parsed.bath_min != null) qs.set('bath_min', String(parsed.bath_min));
+      if (parsed.lease_term) qs.set('lease_term', parsed.lease_term);
       if (parsed.property_type) {
         qs.set('property_type', parsed.property_type);
         if (parsed.parcelle_subtype) qs.set('parcelle_subtype', parsed.parcelle_subtype);

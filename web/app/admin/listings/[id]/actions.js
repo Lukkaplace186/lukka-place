@@ -12,7 +12,7 @@ import { normaliseArea } from '@/lib/listingView';
 const LISTING_STATUSES = ['active', 'under_offer', 'closed'];
 const PURPOSES = ['rent', 'sale'];
 const CURRENCIES = ['USD', 'CDF'];
-const PRICE_PERIODS = ['month', 'year', 'day', ''];
+const PRICE_PERIODS = ['mois', 'an', 'jour', 'semaine', 'total', ''];
 
 /** '' -> null, so clearing a field in the form genuinely clears the column. */
 function text(formData, name, max = 300) {

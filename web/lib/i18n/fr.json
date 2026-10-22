@@ -196,7 +196,9 @@
         "other": "Voir {count} suggestions"
       },
       "city": "Ville",
-      "allCities": "Toutes les villes"
+      "allCities": "Toutes les villes",
+      "leaseLong": "Longue durée",
+      "leaseShort": "Courte durée"
     },
     "value": {
       "verifiedTitle": "Annonces relues",
@@ -776,6 +778,13 @@
     },
     "city": {
       "label": "Ville"
+    },
+    "leaseTerm": {
+      "label": "Durée de location",
+      "any": "Toutes",
+      "long": "Longue durée",
+      "short": "Courte durée",
+      "hint": "Longue durée : bail classique au mois. Courte durée : chambre, studio ou appartement loué à la journée ou à la semaine."
     }
   },
   "enquiry": {
@@ -884,7 +893,9 @@
       "depositMax": "Garantie max {count} mois",
       "reference": "Réf. {reference}",
       "query": "« {query} »",
-      "depositRange": "Avance {value}"
+      "depositRange": "Avance {value}",
+      "leaseLong": "Longue durée",
+      "leaseShort": "Courte durée (à la journée)"
     }
   },
   "agent": {
@@ -1262,7 +1273,15 @@
       "photoPosition": "Photo {n} — maintenez pour déplacer, touchez pour les options",
       "photoOrderHint": "{count}/10 · maintenez une photo pour la déplacer",
       "utilities": "Courant, eau, sécurité, accès",
-      "utilitiesHint": "Cochez seulement ce qui est vrai : les clients filtrent là-dessus, et la fiche affiche « Déclaré par l’agent »."
+      "utilitiesHint": "Cochez seulement ce qui est vrai : les clients filtrent là-dessus, et la fiche affiche « Déclaré par l’agent ».",
+      "rentPeriodLabel": "Durée de location",
+      "rentPeriodHint": "Pour une location seulement. Courte durée : chambre, studio ou appartement loué à la journée ou à la semaine.",
+      "rentPeriod": {
+        "mois": "Longue durée — loyer par mois",
+        "jour": "Courte durée — prix par jour",
+        "semaine": "Courte durée — prix par semaine",
+        "an": "Longue durée — loyer par an"
+      }
     },
     "portfolio": {
       "toRent": "À louer",

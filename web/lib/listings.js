@@ -9,6 +9,7 @@ import { keywordTokens } from './searchKeywords';
 import { UTILITY_FILTERS } from './utilityTags';
 import { COMMERCIAL_FILTER_VALUE } from './commercialSpaces';
 import { VIDEOS_SQL } from './listingVideos';
+import { longTermSql, normaliseLeaseTerm, shortTermSql } from './leaseTerm';
 
 /**
  * Every read against `properties` filters on this — no exceptions. There is
@@ -416,7 +417,7 @@ function communeListOf({ commune, communes } = {}) {
  *     path has parcelle_subtype set. Filtering on parcelle_subtype is the
  *     precise match for "this is a parcelle listing".
  */
-function buildFilters({ transactionType, propertyType, parcelleSubtype, commune, communes, quartier, radius, near, reference, priceMin, priceMax, bedsMin, bathMin, depositMax, depositRange, amenities, search, excludeId, agentId, ids, ville }) {
+function buildFilters({ transactionType, propertyType, parcelleSubtype, commune, communes, quartier, radius, near, reference, priceMin, priceMax, bedsMin, bathMin, depositMax, depositRange, leaseTerm, amenities, search, excludeId, agentId, ids, ville }) {
   const where = [APPROVED_FILTER];
   const params = [];
 
@@ -426,6 +427,11 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
     params.push(purpose);
     where.push(`p.purpose = $${params.length}`);
   }
+
+  // "Durée" — courte durée (priced per day / week) or longue durée, the
+  // standard (lib/leaseTerm.js). Either one implies a rental.
+  const term = normaliseLeaseTerm(leaseTerm);
+  if (term) where.push(term === 'short' ? shortTermSql('p') : longTermSql('p'));
 
   const minPrice = Number.parseFloat(priceMin);
   if (Number.isFinite(minPrice)) {
@@ -1716,7 +1722,7 @@ export async function getPropertyTypeFacets() {
  */
 export async function getListingStats(options = {}) {
   const { whereClause, params } = buildFilters(options);
-  const priced = `p.price > 0 AND (p.purpose <> 'rent' OR p.price_period IS DISTINCT FROM 'an')`;
+  const priced = `p.price > 0 AND (p.purpose <> 'rent' OR p.price_period IS DISTINCT FROM 'an') AND COALESCE(p.price_period, '') NOT IN ('jour', 'semaine')`;
   const pool = getPool();
   const [{ rows }, { rows: quartierRows }] = await Promise.all([
     pool.query(

@@ -19,7 +19,7 @@ import { approveListingAction } from './actions';
 const PHOTO_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 const PHOTO_MIME = Object.keys(PHOTO_TYPES);
 const CURRENCIES = ['USD', 'CDF'];
-const PERIODS = ['month', 'year'];
+const PERIODS = ['mois', 'an', 'jour', 'semaine'];
 
 function photosFrom(formData) {
   return formData.getAll('photos').filter((f) => f && typeof f !== 'string' && f.size > 0);

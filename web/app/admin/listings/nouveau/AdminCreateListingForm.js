@@ -131,8 +131,10 @@ export default function AdminCreateListingForm({ communes, categories, canPublis
           <Field label={t('admin.moderation.periodicity')}>
             <select name="price_period" defaultValue="" className={FIELD}>
               <option value="">{t('admin.actions.none')}</option>
-              <option value="month">Par mois</option>
-              <option value="year">Par an</option>
+              <option value="mois">Par mois</option>
+              <option value="an">Par an</option>
+              <option value="jour">Par jour (courte durée)</option>
+              <option value="semaine">Par semaine (courte durée)</option>
             </select>
           </Field>
         </div>

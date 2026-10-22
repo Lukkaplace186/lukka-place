@@ -335,6 +335,8 @@ export async function createListingAction(validCommunes, validCategories, formDa
   const title = String(formData.get('title') || '').trim().slice(0, 150);
   const description = String(formData.get('description') || '').trim().slice(0, 4000);
   const purpose = String(formData.get('purpose') || '');
+  // Per month (the standard), or per day / week for a short-term rental.
+  const rentPeriod = String(formData.get('rent_period') || '');
   const commune = String(formData.get('commune') || '');
   const categoryId = Number.parseInt(formData.get('category_id'), 10);
   const price = Number.parseFloat(formData.get('price'));
@@ -402,6 +404,7 @@ export async function createListingAction(validCommunes, validCategories, formDa
     area,
     quartier,
     reference,
+    rentPeriod,
   });
 
   if (commercialSpecs && Object.values(commercialSpecs).some((value) => value !== null)) {
@@ -972,6 +975,7 @@ export async function updateListingAction(propertyId, validCommunes, formData) {
     owned = await updateListing(agentId, propertyId, {
       title, description, commune, price, priceOriginal, currency, beds, bath, area, quartier,
       unitsCount, depositMonths, amenityIds, reference,
+      rentPeriod: String(formData.get('rent_period') || ''),
     });
   } catch (err) {
     if (err instanceof PriceSyncError) return { ok: false, error: t('errors.priceSyncUnavailable') };

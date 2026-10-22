@@ -2,6 +2,7 @@ import 'server-only';
 import { applyPriceChange } from './enginePrice';
 import { getPool } from './db';
 import { DEFAULT_CITY, cityOfCommune, communeLabel } from './cities';
+import { normaliseRentPeriod } from './leaseTerm';
 
 /**
  * Manual listing creation from the agent self-service dashboard
@@ -148,7 +149,7 @@ const EXTRA_LISTING_COLUMNS = [
   'parent_building_id', 'building_name', 'latitude', 'longitude', 'price_period',
 ];
 
-export async function createListing({ agentId, vendorId, category, title, description, commune, price, purpose, beds, bath, area = null, quartier = null, reference = null, extra = null, client: existingClient = null }) {
+export async function createListing({ agentId, vendorId, category, title, description, commune, price, purpose, beds, bath, area = null, quartier = null, reference = null, rentPeriod = null, extra = null, client: existingClient = null }) {
   const pool = getPool();
   // With an existing client the caller owns the transaction (several units
   // created as one); otherwise this is its own transaction, as before.
@@ -181,7 +182,9 @@ export async function createListing({ agentId, vendorId, category, title, descri
       // The listing's own "référence" — a landmark agents and customers name
       // the place by, or an agency code. Same column the WhatsApp intake fills.
       reference,
-      price_period: purpose === 'rent' ? 'mois' : null,
+      price_period: purpose === 'rent' ? normaliseRentPeriod(rentPeriod) || 'mois' : null,
+      // ↑ A rent is monthly unless the agent chose another period — 'jour' /
+      // 'semaine' is a short-term rental (lib/leaseTerm.js).
       status: 1,
       approve_status: 0,
     };
@@ -367,7 +370,7 @@ export async function getOwnListingForEdit(agentId, propertyId) {
  */
 export async function updateListing(agentId, propertyId, {
   title, description, commune, price, priceOriginal, currency, beds, bath, area, quartier,
-  unitsCount, depositMonths, amenityIds, reference = null,
+  unitsCount, depositMonths, amenityIds, reference = null, rentPeriod = null,
 }) {
   // A changed price goes through the engine first so its SQLite copy agrees
   // (lib/enginePrice.js); an unchanged one never calls it. Throws
@@ -391,9 +394,12 @@ export async function updateListing(agentId, propertyId, {
     const { rowCount } = await client.query(
       `UPDATE properties
        SET price = $1, price_original = $2, currency = $3, beds = $4, bath = $5, area = $6,
-           quartier = $7, units_count = $8, deposit_months = $9, reference = $12, updated_at = NOW()
+           quartier = $7, units_count = $8, deposit_months = $9, reference = $12,
+           -- Only a rent has a period, and only a stated one replaces it.
+           price_period = CASE WHEN purpose = 'rent' AND $13::text IS NOT NULL THEN $13::text ELSE price_period END,
+           updated_at = NOW()
        WHERE id = $10 AND agent_id = $11`,
-      [price, priceOriginal, currency, beds, bath, area, quartier, unitsCount, depositMonths, propertyId, agentId, reference],
+      [price, priceOriginal, currency, beds, bath, area, quartier, unitsCount, depositMonths, propertyId, agentId, reference, normaliseRentPeriod(rentPeriod)],
     );
     if (rowCount === 0) {
       await client.query('ROLLBACK');

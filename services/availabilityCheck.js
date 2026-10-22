@@ -59,6 +59,7 @@ const pg = require('./postgres');
 const dbService = require('./db');
 const priceExtraction = require('./priceExtraction');
 const { placeLabel } = require('./locations');
+const { periodSuffix } = require('./leaseTerm');
 
 const CONTENT_LANGUAGE_ID = 20;
 const JOB_NAME = 'listing-availability-check';
@@ -215,7 +216,7 @@ function priceWithPeriod(listing, amount = listing?.price) {
   if (amount == null || Number(amount) <= 0) return null;
   const base = priceExtraction.formatUsd(Number(amount));
   if (!isRent(listing)) return base;
-  return `${base} / ${listing.price_period === 'an' ? 'an' : 'mois'}`;
+  return `${base}${periodSuffix(listing.price_period)}`;
 }
 
 /** "Appartement 3 chambres à louer à Kintambo — 1 300 $ / mois" — one line, template-safe. */

@@ -196,7 +196,9 @@
         "other": "See {count} suggestions"
       },
       "city": "City",
-      "allCities": "All cities"
+      "allCities": "All cities",
+      "leaseLong": "Long term",
+      "leaseShort": "Short term"
     },
     "value": {
       "verifiedTitle": "Reviewed Listings",
@@ -776,6 +778,13 @@
     },
     "city": {
       "label": "City"
+    },
+    "leaseTerm": {
+      "label": "Rental term",
+      "any": "Any",
+      "long": "Long term",
+      "short": "Short term",
+      "hint": "Long term: a standard monthly lease. Short term: a room, studio or flat let by the day or the week."
     }
   },
   "enquiry": {
@@ -884,7 +893,9 @@
       "depositMax": "Deposit up to {count} months",
       "reference": "Ref. {reference}",
       "query": "“{query}”",
-      "depositRange": "Upfront {value}"
+      "depositRange": "Upfront {value}",
+      "leaseLong": "Long term",
+      "leaseShort": "Short term (by the day)"
     }
   },
   "agent": {
@@ -1262,7 +1273,15 @@
       "photoPosition": "Photo {n} — hold to move, tap for options",
       "photoOrderHint": "{count}/10 · hold a photo to move it",
       "utilities": "Power, Water, Security, Access",
-      "utilitiesHint": "Only tick what is true: customers filter on it, and the listing shows “Declared by the agent”."
+      "utilitiesHint": "Only tick what is true: customers filter on it, and the listing shows “Declared by the agent”.",
+      "rentPeriodLabel": "Rental term",
+      "rentPeriodHint": "Rentals only. Short term: a room, studio or flat let by the day or the week.",
+      "rentPeriod": {
+        "mois": "Long term — rent per month",
+        "jour": "Short term — price per day",
+        "semaine": "Short term — price per week",
+        "an": "Long term — rent per year"
+      }
     },
     "portfolio": {
       "toRent": "To rent",

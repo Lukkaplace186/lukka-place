@@ -3,6 +3,7 @@ import { formatArea, hasArea, listingImages } from '../listingView';
 import { roomSpecs } from '../listingShareCopy';
 import { coordinateText, mapPinUrl, printListingUrl } from '../listingShareRules';
 import { optimisableImageSrc, optimisedImageUrl, purposeLabel } from './sharePackData';
+import { isShortTermPeriod } from '../leaseTerm';
 
 /**
  * The window poster and the technical sheet (each ONE A4 page) —
@@ -44,7 +45,9 @@ function monthsValue(value) {
  * which is not 0). With a real monthly rent, each line also shows its amount.
  */
 export function entryCostLines(listing) {
-  const monthly = listing?.purpose === 'rent' && listing?.price_period !== 'an' ? usablePrice(listing?.price) : null;
+  const monthly = listing?.purpose === 'rent' && listing?.price_period !== 'an' && !isShortTermPeriod(listing?.price_period)
+    ? usablePrice(listing?.price)
+    : null;
   return [
     { key: 'deposit', label: 'Garantie (remboursable)', months: monthsValue(listing?.deposit_months) },
     { key: 'advance', label: 'Loyer d’avance', months: monthsValue(listing?.advance_months) },

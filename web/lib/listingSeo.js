@@ -5,6 +5,9 @@ import { hasArea, listingImages, typeLabel } from './listingView';
 import { seoPath } from './seoPages';
 import { DEFAULT_CITY, cityOfListing, communeLabel, provinceOfCity } from './cities';
 
+// UN/CEFACT codes for the rent's unit; a short-term rent is per day / week.
+const SCHEMA_UNIT_CODES = { an: 'ANN', mois: 'MON', jour: 'DAY', semaine: 'WEE' };
+
 /**
  * What a search result says about one listing — its <title>, meta
  * description and schema.org data — built from the listing's own structured
@@ -121,7 +124,7 @@ export function listingJsonLd(listing, t) {
         availability: 'https://schema.org/InStock',
         businessFunction: listing.purpose === 'rent' ? 'http://purl.org/goodrelations/v1#LeaseOut' : 'http://purl.org/goodrelations/v1#Sell',
         ...(listing.purpose === 'rent'
-          ? { priceSpecification: { '@type': 'UnitPriceSpecification', price, priceCurrency: 'USD', unitCode: listing.price_period === 'an' ? 'ANN' : 'MON' } }
+          ? { priceSpecification: { '@type': 'UnitPriceSpecification', price, priceCurrency: 'USD', unitCode: SCHEMA_UNIT_CODES[listing.price_period] || 'MON' } }
           : {}),
       }
     : undefined;

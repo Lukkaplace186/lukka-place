@@ -1885,3 +1885,25 @@ kinshasa_locations.json, untouched). §58 of verify-pipeline.
   the ~25 `BETWEEN 21 AND 44` queries, web listing creation's hardcoded
   Kinshasa city_id), commune centroids (geocode on the VPS), new cities hidden
   on the storefront until they have 3–5 approved listings (owner decision).
+
+## Short-term vs long-term rentals (2026-10-21)
+
+Some rooms, studios and furnished flats in Kinshasa are let by the day or the
+week. **No new column**: a rent quoted per day IS the short-term listing, so
+the fact lives in `price_period`, which now also takes `'jour'` and
+`'semaine'` beside `'mois'` / `'an'` / `'total'`. Long term is the standard
+and the default — a rent with no period, or a monthly / yearly one.
+`properties.price_period` is plain text with no CHECK, so nothing to migrate.
+
+- `services/leaseTerm.js` (duplicated in `web/lib/leaseTerm.js`, compared by
+  web's `lease-term.test.js`): `shortTermSql` / `longTermSql`, `periodSuffix`.
+- **Extraction** (both prompts and the Gemini parser): "50$/jour", "la nuitée",
+  "location journalière" → `jour`; "à la semaine" → `semaine`; never converted
+  to a monthly figure. Without that wording a rent is long term.
+- The intake card, publish receipt, availability check and moderation alert
+  print "/ jour" / "/ semaine". The buyer assistant's `search_properties` takes
+  `lease_term: 'short' | 'long'` (`propertyRepository.buildFilters`).
+- **A short-term rent never enters a monthly median** (`marketSnapshot`, and on
+  web every `price_period = 'an'` normalisation): its amount is NULL there,
+  never multiplied by a guessed occupancy.
+- §64 of verify-pipeline.

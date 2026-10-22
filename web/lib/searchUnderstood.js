@@ -27,6 +27,7 @@ export function understoodChips(parsed, t) {
     chips.push({ key: 'place', label: parsed.ville });
   }
   if (parsed.beds_min != null) chips.push({ key: 'beds', label: t('home.search.bedsMin', { count: parsed.beds_min }) });
+  if (parsed.lease_term) chips.push({ key: 'lease', label: t(parsed.lease_term === 'short' ? 'home.search.leaseShort' : 'home.search.leaseLong') });
   const money = (n) => Number(n).toLocaleString(t.locale === 'en' ? 'en-GB' : 'fr-FR');
   if (parsed.price_min != null && parsed.price_max != null) {
     chips.push({ key: 'price', label: `${money(parsed.price_min)} – ${money(parsed.price_max)} $` });

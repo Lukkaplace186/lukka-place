@@ -115,8 +115,8 @@ const LISTING_SCHEMA = {
     price_period: {
       type: Type.STRING,
       nullable: true,
-      enum: ['mois', 'an', 'total'],
-      description: '"mois" pour un loyer mensuel, "total" pour un prix de vente.',
+      enum: ['mois', 'an', 'jour', 'semaine', 'total'],
+      description: '"mois" pour un loyer mensuel, "jour" / "semaine" pour une location courte durée, "total" pour un prix de vente.',
     },
     deposit_months: { type: Type.INTEGER, nullable: true, description: 'Mois de garantie locative SEULE — premier nombre de la notation "3 + 1 + 1", jamais leur somme.' },
     advance_months: { type: Type.INTEGER, nullable: true, description: 'Mois de loyer d\'avance — deuxième nombre de la notation "3 + 1 + 1".' },

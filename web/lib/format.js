@@ -1,3 +1,5 @@
+import { rentPeriodLabel } from './leaseTerm';
+
 // Canonical price formatter — was copy-pasted identically across
 // ListingCard.js, ListingCardVertical.js, FeaturedListingCard.js, and
 // PropertyMap.js's InfoWindow. Consolidated here so lib/whatsapp.js can
@@ -8,7 +10,8 @@
 // services/db.js/openai.js in the engine repo, 'mois'|'an'|'total'|null)
 // is optional and only refines a `rent`-purpose listing's suffix: absent,
 // it defaults to the previous "/ mois" assumption (every rent listing
-// synced before this field existed); 'an' renders "/ an" instead; 'total'
+// synced before this field existed); 'an' renders "/ an" instead; a
+// short-term rent renders "/ jour" or "/ semaine" (lib/leaseTerm.js); 'total'
 // or 'mois' both render the existing "/ mois" text (a one-time total rent
 // figure is still effectively described the same way here).
 /**
@@ -61,7 +64,7 @@ export function formatPriceParts(price, purpose, pricePeriod) {
   if (usable === null) return { amount: PRICE_ON_REQUEST, period: null };
   const amount = `${usable.toLocaleString('fr-FR')} $`;
   if (purpose !== 'rent') return { amount, period: null };
-  return { amount, period: pricePeriod === 'an' ? '/ an' : '/ mois' };
+  return { amount, period: rentPeriodLabel(pricePeriod) };
 }
 
 export function formatPrice(price, purpose, pricePeriod) {
@@ -90,7 +93,7 @@ export function formatPriceCdfParts(price, purpose, pricePeriod) {
   if (usable === null) return { amount: PRICE_ON_REQUEST, period: null };
   const amount = `${usable.toLocaleString('fr-FR')} FC`;
   if (purpose !== 'rent') return { amount, period: null };
-  return { amount, period: pricePeriod === 'an' ? '/ an' : '/ mois' };
+  return { amount, period: rentPeriodLabel(pricePeriod) };
 }
 
 export function formatPriceCdf(price, purpose, pricePeriod) {

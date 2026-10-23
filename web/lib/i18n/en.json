@@ -3126,7 +3126,8 @@
       "projects": "New developments",
       "demand": "Demand",
       "settings": "Site Settings",
-      "agentReviews": "Agent Reviews"
+      "agentReviews": "Agent Reviews",
+      "facebookProspects": "Facebook Prospects"
     },
     "login": {
       "intro": "Restricted to the Lukka Place team.",
@@ -5397,6 +5398,49 @@
       "errorTaken": "This number already has an agent account (#{id}), possibly deleted.",
       "errorVerifiedElsewhere": "This number is already verified on another account (#{id}).",
       "errorUnavailable": "Database unavailable, try again."
+    },
+    "facebookProspects": {
+      "title": "Paste a Post",
+      "subtitle": "Paste a post or comments from a Facebook group you belong to: the Congolese numbers found become agent prospects to invite. Nobody is contacted from this page.",
+      "postText": "Post text",
+      "postTextPlaceholder": "Paste the text of the post or comments here…",
+      "detected": {
+        "one": "{count} number detected:",
+        "other": "{count} numbers detected:"
+      },
+      "noneDetected": "No Congolese number found in this text.",
+      "groupName": "Group",
+      "authorName": "Author",
+      "postUrl": "Post link",
+      "submit": "Save the numbers",
+      "saving": "Saving…",
+      "saved": {
+        "one": "{count} new prospect saved.",
+        "other": "{count} new prospects saved."
+      },
+      "skip": {
+        "ours": "a Lukka Place number, ignored",
+        "agent": "already has an agent account",
+        "already_prospect": "already on the list (seen once more)"
+      },
+      "errorEmpty": "Paste the post’s text first.",
+      "errorTooLong": "Text too long ({max} characters at most): paste it in several goes.",
+      "errorUrl": "The link must start with https:// or http://.",
+      "errorUnavailable": "The prospects table does not exist yet: migration 20261023_facebook_prospects.sql must be applied.",
+      "recentTitle": "Latest Prospects",
+      "pendingTotal": {
+        "one": "{count} to invite",
+        "other": "{count} to invite"
+      },
+      "seenCount": "seen {count} times",
+      "openPost": "View post",
+      "empty": "No prospects yet.",
+      "status": {
+        "pending_invite": "To invite",
+        "invited": "Invited",
+        "registered": "Signed up",
+        "declined": "Declined"
+      }
     }
   },
   "errors": {

@@ -30,6 +30,7 @@ export const ADMIN_NAV_GROUPS = [
       { href: '/admin/agent-reviews', labelKey: 'admin.nav.agentReviews', icon: 'Star' },
       { href: '/admin/sales', labelKey: 'admin.nav.sales', icon: 'HandCoins' },
       { href: '/admin/customers', labelKey: 'admin.nav.customers', icon: 'Users' },
+      { href: '/admin/prospects/paste', labelKey: 'admin.nav.facebookProspects', icon: 'ClipboardPaste' },
     ],
   },
   {

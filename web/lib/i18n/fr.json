@@ -3126,7 +3126,8 @@
       "projects": "Projets neufs",
       "demand": "Demande",
       "settings": "Paramètres du site",
-      "agentReviews": "Avis agents"
+      "agentReviews": "Avis agents",
+      "facebookProspects": "Prospects Facebook"
     },
     "login": {
       "intro": "Accès réservé à l'équipe Lukka Place.",
@@ -5397,6 +5398,49 @@
       "errorTaken": "Ce numéro a déjà un compte agent (#{id}), éventuellement supprimé.",
       "errorVerifiedElsewhere": "Ce numéro est déjà vérifié sur un autre compte (#{id}).",
       "errorUnavailable": "Base de données indisponible, réessayez."
+    },
+    "facebookProspects": {
+      "title": "Coller une publication",
+      "subtitle": "Collez une publication ou des commentaires d’un groupe Facebook dont vous êtes membre : les numéros congolais trouvés deviennent des prospects agents à inviter. Personne n’est contacté depuis cette page.",
+      "postText": "Texte de la publication",
+      "postTextPlaceholder": "Collez ici le texte de la publication ou des commentaires…",
+      "detected": {
+        "one": "{count} numéro détecté :",
+        "other": "{count} numéros détectés :"
+      },
+      "noneDetected": "Aucun numéro congolais détecté dans ce texte.",
+      "groupName": "Groupe",
+      "authorName": "Auteur",
+      "postUrl": "Lien de la publication",
+      "submit": "Enregistrer les numéros",
+      "saving": "Enregistrement…",
+      "saved": {
+        "one": "{count} nouveau prospect enregistré.",
+        "other": "{count} nouveaux prospects enregistrés."
+      },
+      "skip": {
+        "ours": "numéro de Lukka Place, ignoré",
+        "agent": "déjà un compte agent",
+        "already_prospect": "déjà dans la liste (vu une fois de plus)"
+      },
+      "errorEmpty": "Collez d’abord le texte de la publication.",
+      "errorTooLong": "Texte trop long ({max} caractères au maximum) : collez-le en plusieurs fois.",
+      "errorUrl": "Le lien doit commencer par https:// ou http://.",
+      "errorUnavailable": "La table des prospects n’existe pas encore : la migration 20261023_facebook_prospects.sql doit être appliquée.",
+      "recentTitle": "Derniers prospects",
+      "pendingTotal": {
+        "one": "{count} à inviter",
+        "other": "{count} à inviter"
+      },
+      "seenCount": "vu {count} fois",
+      "openPost": "Voir la publication",
+      "empty": "Aucun prospect pour l’instant.",
+      "status": {
+        "pending_invite": "À inviter",
+        "invited": "Invité",
+        "registered": "Inscrit",
+        "declined": "Refusé"
+      }
     }
   },
   "errors": {

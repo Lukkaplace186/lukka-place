@@ -245,14 +245,16 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
     locationRef.current?.submit();
   }
 
-  // The button wording follows the mock-ups: the live count on Louer, a
-  // fixed call to action on the other two tabs. A zero-result search still
-  // says what it will really show (suggestions) on every tab.
+  // The live count is the label on every tab ("Voir 12 biens"). Until a
+  // tab's own count has arrived (it is reset on a tab switch, so the rent
+  // total never shows under Acheter), or when nothing matches, the tab's own
+  // call to action stands in; a zero-result search says it will show
+  // suggestions when there are some.
   let ctaLabel;
   if (count === 0 && suggested > 0) ctaLabel = t('home.search.seeSuggestions', { count: suggested });
+  else if (count != null && count > 0) ctaLabel = t('home.search.seeCount', { count });
   else if (homeTab === 'acheter') ctaLabel = t('home.search.seeForSale');
   else if (isShortStay) ctaLabel = t('home.search.seeShortStays');
-  else if (count != null && count > 0) ctaLabel = t('home.search.seeCount', { count });
   else ctaLabel = t('home.search.submit');
 
   return (
@@ -280,8 +282,13 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
               // cleared by hand, or a pill stays lit and the live count keeps
               // filtering on a commune the now-empty field no longer holds.
               onClick={() => {
+                if (value === homeTab) return;
                 setHomeTab(value);
                 setLocation('');
+                // The previous tab's count describes other listings; the
+                // effect fetches this tab's own.
+                setCount(null);
+                setSuggested(0);
               }}
               className={`u-press min-h-12 flex-auto whitespace-nowrap rounded-xl px-3 text-[0.9375rem] font-semibold transition-colors sm:px-6 ${
                 on

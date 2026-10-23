@@ -633,8 +633,8 @@ export async function replyToLeadAction(leadId, formData) {
  * The design's "Identité de l'agence" card, saving for real.
  *
  * Writes only the two fields this app actually reads back and renders on the
- * public storefront — the display name (agent_infos) and the presentation
- * text (vendor_infos.details) — through lib/agencies.js's
+ * public storefront — the display name and the presentation text (both on
+ * the agent's own agent_infos row) — through lib/agencies.js's
  * updateAgentIdentity, which handles the UPDATE-then-INSERT those
  * constraint-less per-language tables require.
  *
@@ -650,7 +650,8 @@ export async function updateAgentIdentityAction(formData) {
 
   const firstName = String(formData.get('first_name') || '').trim().slice(0, 120);
   const lastName = String(formData.get('last_name') || '').trim().slice(0, 120);
-  const bio = String(formData.get('bio') || '').trim().slice(0, 2000);
+  // Absent (a form rendered before the field existed) leaves it untouched.
+  const bio = formData.has('bio') ? String(formData.get('bio') || '').trim().slice(0, 2000) : undefined;
   // Absent (a form rendered before the field existed) leaves it untouched.
   const agencyName = formData.has('agency_name') ? String(formData.get('agency_name') || '').trim().slice(0, 160) : undefined;
 
@@ -659,7 +660,7 @@ export async function updateAgentIdentityAction(formData) {
   const agent = await getAgentProfile(agentId);
   if (!agent) throw new Error('Not authenticated');
 
-  await updateAgentIdentity(agentId, { firstName, lastName, bio, vendorId: agent.vendor_id, agencyName });
+  await updateAgentIdentity(agentId, { firstName, lastName, bio, agencyName });
 
   revalidatePath('/compte/agent/parametres');
   revalidatePath('/compte/agent');

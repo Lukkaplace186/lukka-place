@@ -78,6 +78,16 @@ terminal can't show it, `scp` the PNG at `$GROUP_READER_QR_PNG` to your
 computer and scan that. The QR changes about every 20 seconds, and the PNG is
 rewritten each time.
 
+**No camera on this screen?** Link with an 8-character code instead:
+
+```bash
+node index.js --list-groups --pair=243847724604
+```
+
+On the annonces phone, go to **Appareils connectés** → **Connecter un appareil** →
+**Connecter avec un numéro de téléphone** and type the code that is printed.
+The business numbers are refused.
+
 ### 2. Choose the groups
 
 Once linked, `--list-groups` prints every group the SIM is a member of and

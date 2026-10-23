@@ -13,6 +13,7 @@ import {
 } from '@/lib/agents';
 import { adminSetAccountPassword } from '@/lib/adminPasswordReset';
 import { updateAgentIdentity } from '@/lib/agencies';
+import { claimListingsForPhone } from '@/lib/adminApi';
 import { getT } from '@/lib/i18n/server';
 
 function revalidateAgent(agentId) {
@@ -39,6 +40,7 @@ export async function adminSaveAgentAction(agentId, validCommunes, formData) {
     const serviced = formData.getAll('serviced_communes').map(String).filter((c) => valid.has(c));
     const status = Number.parseInt(formData.get('status'), 10);
     const phoneVerified = formData.get('phone_verified') === 'on';
+    const before = await getAgentById(agentId);
 
     const ok = await adminUpdateAgent(agentId, {
       agencyName: String(formData.get('agency_name') || '').trim().slice(0, 160) || null,
@@ -51,6 +53,17 @@ export async function adminSaveAgentAction(agentId, validCommunes, formData) {
 
     if (!ok) return { ok: false, error: t('errors.agentNotFound') };
 
+    // Ticking "Numéro vérifié" is the same vouch as "Vérifier le numéro"
+    // (../createAgentActions.js): the number's listings are claimed now, not
+    // at their next sync. Best-effort — the save has already committed.
+    if (phoneVerified && before && !before.phone_verified_at && before.phone) {
+      try {
+        await claimListingsForPhone(String(before.phone).replace(/\D/g, ''));
+      } catch (err) {
+        console.warn(`[admin/agents] listing claim after verifying #${agentId} failed: ${err.message}`);
+      }
+    }
+
     // The person's name lives on agent_infos and every listing, card and admin
     // table joins it live, so a correction here shows everywhere at once.
     // Only written when the form carries the fields (a page rendered before
@@ -59,7 +72,6 @@ export async function adminSaveAgentAction(agentId, validCommunes, formData) {
     if (formData.has('first_name') || formData.has('last_name')) {
       const firstName = String(formData.get('first_name') || '').trim().slice(0, 80) || null;
       const lastName = String(formData.get('last_name') || '').trim().slice(0, 80) || null;
-      const before = await getAgentById(agentId);
       if ((before?.first_name || null) !== firstName || (before?.last_name || null) !== lastName) {
         await updateAgentIdentity(agentId, { firstName, lastName });
         nameChanged = true;

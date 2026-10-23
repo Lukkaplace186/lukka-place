@@ -35,6 +35,7 @@ async function engineFetch(path, options = {}) {
   if (!res.ok) {
     const error = new Error(body?.error || `${options.method || 'GET'} ${path} failed: ${res.status}`);
     error.status = res.status;
+    if (body?.code) error.code = body.code;
     throw error;
   }
   return body;
@@ -482,6 +483,34 @@ export async function claimListingsForPhone(phone) {
     method: 'POST',
     body: JSON.stringify({ wa_id: phone }),
   });
+}
+
+/**
+ * "Créer un agent" (console only): a verified account with no code from the
+ * phone, its listings claimed, and a single-use activation link returned —
+ * nothing is sent. A refusal carries `error.code` (lib/adminAgentCreate.js).
+ * @returns {Promise<{agentId: number, phone: string, link: string, claimed: {linkedIds: number[], localStamped: number}}>}
+ */
+export async function adminCreateAgent({ phone, firstName, lastName, agencyName, primaryCommunes }) {
+  return engineFetch('/admin/agents/admin-create', {
+    method: 'POST',
+    body: JSON.stringify({
+      phone,
+      first_name: firstName,
+      last_name: lastName,
+      agency_name: agencyName,
+      primary_communes: primaryCommunes,
+    }),
+  });
+}
+
+/**
+ * "Vérifier le numéro" on an existing account (console only). `link` is set
+ * only when the account has no password yet.
+ * @returns {Promise<{agentId: number, phone: string, alreadyVerified: boolean, link: string|null, claimed: object}>}
+ */
+export async function adminVerifyAgent(agentId) {
+  return engineFetch(`/admin/agents/${encodeURIComponent(agentId)}/admin-verify`, { method: 'POST', body: '{}' });
 }
 
 /**

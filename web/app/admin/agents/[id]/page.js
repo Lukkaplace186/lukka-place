@@ -22,6 +22,7 @@ import AgentAdminPanel from './AgentAdminPanel';
 import AgentRepControl from './AgentRepControl';
 import AgentDeleteButton from './AgentDeleteButton';
 import VerificationReminderButton from './VerificationReminderButton';
+import AdminVerifyAgentButton from './AdminVerifyAgentButton';
 import ImpersonateButton from '../../ImpersonateButton';
 import { getAgentSalesAssignment, listActiveRepOptions } from '@/lib/sales';
 import { getAgentAttribution } from '@/lib/salesLaunch';
@@ -326,6 +327,9 @@ export default async function AdminAgentDetailPage({ params, searchParams }) {
             </Link>
           ) : null}
           {can(session?.role, 'agents.manage') ? <VerificationReminderButton agentId={agent.id} /> : null}
+          {can(session?.role, 'agents.manage') && !agent.phone_verified_at && !agent.deleted_at ? (
+            <AdminVerifyAgentButton agentId={agent.id} phone={agent.phone} />
+          ) : null}
           {can(session?.role, 'agents.delete') ? <AgentDeleteButton agentId={agent.id} agentName={displayName} /> : null}
           {can(session?.role, 'accounts.impersonate') ? (
             <ImpersonateButton targetType="agent" targetId={agent.id} targetLabel={displayName} sharedSession={Boolean(session?.shared)} />

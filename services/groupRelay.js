@@ -420,6 +420,7 @@ module.exports = {
   SOURCE,
   isRelaySender,
   relayNumbers,
+  ownNumbers,
   splitBurst,
   phonesIn,
   textFingerprint,

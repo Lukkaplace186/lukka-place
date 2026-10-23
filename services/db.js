@@ -591,6 +591,23 @@ function attributeListingToAgent(id, agentId) {
 }
 
 /**
+ * The SQLite half of claiming a number's listings for its agent
+ * (services/adminAgentAccounts.js): every row filed under this wa_id that no
+ * agent holds yet. Same fill-a-blank rule as attributeListingToAgent, so a
+ * listing already attributed never moves. Group captures are filed under the
+ * poster's number, so they are claimed here too.
+ *
+ * @returns {number} rows stamped
+ */
+function attributeListingsForWaId(waId, agentId) {
+  const numericAgentId = toInteger(agentId);
+  if (!waId || numericAgentId == null) return 0;
+  return db
+    .prepare('UPDATE listings SET agent_id = ? WHERE wa_id = ? AND agent_id IS NULL')
+    .run(numericAgentId, String(waId)).changes;
+}
+
+/**
  * Has this WhatsApp message already been stored as a listing?
  *
  * Checks the primary `wamid` and the `group_wamids` array, so any message from a
@@ -4203,6 +4220,7 @@ module.exports = {
   getListing,
   getListingByRemotePropertyId,
   getRemotePropertyIdsForWaId,
+  attributeListingsForWaId,
   getReferralCapture,
   recordReferralCapture,
   countListings,

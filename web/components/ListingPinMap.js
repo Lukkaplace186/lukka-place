@@ -77,7 +77,9 @@ export default function ListingPinMap({ listing, position }) {
             badge.setAttribute('aria-label', listing.title || '');
             badge.innerHTML = PIN_ICONS[pinKind(listing)];
             this.el.append(badge);
-            this.getPanes().overlayLayer.appendChild(this.el);
+            // markerLayer, not overlayLayer: the zone polygon draws over
+            // overlayLayer and tinted the white badge blue.
+            this.getPanes().markerLayer.appendChild(this.el);
           }
           draw() {
             const at = this.getProjection()?.fromLatLngToDivPixel(new google.maps.LatLng(point.lat, point.lng));

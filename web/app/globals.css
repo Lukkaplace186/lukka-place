@@ -51,6 +51,12 @@
   --canvas-deep: #eff1f6; /* hover / pressed fills, image wells (mist) */
   --line: #e2e6ef;        /* hairline borders — replaces card shadows (ink-100) */
   --surface: #ffffff;     /* elevated cards sitting ON canvas */
+  /* The page ground under everything (2026-10-23, product direction): a
+     cool off-white so the white header, cards, search bar and sheets read
+     as raised tiles without a border. Only the BODY and the portal/console
+     layout wrappers use it — --canvas stays white because buttons, active
+     tabs and inputs use bg-canvas as their white fill. */
+  --page: #f8f9fa;
 
   /*
    * Royal blue — the single secondary and the only voice of action.
@@ -206,6 +212,7 @@
   --color-canvas-warm: var(--canvas-warm);
   --color-canvas-deep: var(--canvas-deep);
   --color-surface: var(--surface);
+  --color-page: var(--page);
   --color-line: var(--line);
 
   --color-blue: var(--blue);
@@ -272,7 +279,7 @@
     @apply font-sans;
   }
   body {
-    @apply bg-canvas text-ink;
+    @apply bg-page text-ink;
     /* Plus Jakarta Sans is the root family for the whole application —
        public storefront, agent portal and /admin alike — inherited from
        here rather than redeclared per component. --font-sans resolves to

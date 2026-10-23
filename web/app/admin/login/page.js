@@ -37,7 +37,7 @@ export default async function AdminLoginPage({ searchParams }) {
   const shared = sharedPasswordEnabled();
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-canvas-alt px-4">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-page px-4">
       <div className="u-lift w-full max-w-sm rounded-card border border-line bg-surface p-6 sm:p-8">
         <h1 className="u-title-page text-ink">
           {t('footer.columns.brand').split(' ')[0]} <span className="text-blue-deep">{t('admin.chrome.brandSuffix')}</span>

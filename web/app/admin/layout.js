@@ -72,7 +72,7 @@ export default async function AdminLayout({ children }) {
   return (
     <I18nProvider locale={locale} messages={messages}>
       <ToastProvider>
-      <div className="flex min-h-screen bg-canvas-alt print:bg-white">
+      <div className="flex min-h-screen bg-page print:bg-white">
         <div className="hidden lg:flex print:hidden">
           <AdminSidebar role={session.role} hiddenTabs={hiddenAdminTabs} />
         </div>

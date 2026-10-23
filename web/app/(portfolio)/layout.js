@@ -57,7 +57,7 @@ export default async function PortfolioLayout({ children }) {
   return (
     <I18nProvider locale={locale} messages={messages}>
       <CurrencyRateProvider rate={rate}>
-        <div className="flex min-h-screen flex-col bg-canvas">
+        <div className="flex min-h-screen flex-col bg-page">
           <header className="sticky top-0 z-30 border-b border-line bg-surface">
             <div className="mx-auto flex h-[4.75rem] max-w-[77.5rem] items-center justify-between gap-6 px-4 sm:px-6">
               <Wordmark />

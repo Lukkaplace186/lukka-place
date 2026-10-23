@@ -46,7 +46,7 @@ export default async function ClientPortalLayout({ children }) {
     // above the tabs on every page now opens Accueil only (2026-10-05): each
     // tab carries its own title, and on a phone the old block took a fifth of
     // the screen before any of the customer's content.
-    <div className="min-h-screen bg-canvas-warm">
+    <div className="min-h-screen bg-page">
       <ClientPortalTabs counts={tabCounts} />
 
       <ToastProvider>

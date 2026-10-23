@@ -644,6 +644,7 @@
       "viewDetails": "Voir les détails →",
       "closePreview": "Fermer l’aperçu",
       "loadError": "La carte n’a pas pu se charger. Réessayez plus tard.",
+      "zoneApprox": "Zone approximative",
       "updating": "Mise à jour de la carte…",
       "inArea": {
         "one": "{count} bien dans cette zone",

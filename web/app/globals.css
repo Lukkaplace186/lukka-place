@@ -1328,68 +1328,39 @@
 }
 .lkp-projects .lkp-pin:not([data-active='true']) .lkp-pin__check { color: #fff; }
 
-/* Listing detail page (components/ListingPinMap.js), Rightmove-style: one
-   round navy point with a type symbol, a soft pulse, and the commune under
-   it. No price — the page already shows it twice. The pale disc around it is
-   a google.maps.Circle, the approximate privacy zone. */
-.lkp-point {
+/* Listing detail page (components/ListingPinMap.js), Airbnb-style: no pin
+   claiming a spot. The zone is a google.maps.Polygon; this is the white
+   badge in its middle, carrying the property-type symbol. It settles in
+   once when the map appears, then stays still. */
+.lkp-zone {
   position: absolute;
   left: 0;
   top: 0;
   pointer-events: none;
 }
-.lkp-point__dot {
+.lkp-zone__badge {
   position: absolute;
   left: 0;
   top: 0;
   translate: -50% -50%;
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 999px;
-  background: #1e3a8a;
-  color: #fff;
-  border: 3px solid #fff;
-  box-shadow: 0 3px 10px rgb(15 23 42 / 0.35);
-}
-.lkp-point__dot svg { width: 18px; height: 18px; }
-.lkp-point__pulse {
-  position: absolute;
-  left: 0;
-  top: 0;
-  translate: -50% -50%;
-  width: 40px;
-  height: 40px;
-  border-radius: 999px;
-  background: rgb(30 58 138 / 0.28);
-}
-.lkp-point__label {
-  position: absolute;
-  left: 0;
-  top: 28px;
-  translate: -50% 0;
-  max-width: 180px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  padding: 3px 9px;
+  width: 44px;
+  height: 44px;
   border-radius: 999px;
   background: #fff;
-  color: #1e1e1e;
+  color: var(--blue, #1e3aa8);
   border: 1px solid rgb(0 0 0 / 0.08);
-  box-shadow: 0 2px 6px rgb(0 0 0 / 0.12);
-  font-family: var(--font-sans), system-ui, sans-serif;
-  font-size: 12px;
-  font-weight: 700;
-  line-height: 1.2;
+  box-shadow: 0 4px 14px rgb(15 23 42 / 0.18);
 }
+.lkp-zone__badge svg { width: 20px; height: 20px; }
 @media (prefers-reduced-motion: no-preference) {
-  @keyframes lkp-point-pulse {
-    0% { opacity: 0.9; scale: 1; }
-    100% { opacity: 0; scale: 2.8; }
+  @keyframes lkp-zone-settle {
+    0% { opacity: 0; scale: 0.6; }
+    70% { opacity: 1; scale: 1.06; }
+    100% { opacity: 1; scale: 1; }
   }
-  .lkp-point__pulse { animation: lkp-point-pulse 2.2s ease-out infinite; }
+  .lkp-zone__badge { animation: lkp-zone-settle 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) 0.15s both; }
 }
 
 /* Lot plan (components/projects/LotPlan.js). Fills are the lot's status. */

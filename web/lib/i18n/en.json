@@ -644,6 +644,7 @@
       "viewDetails": "View details →",
       "closePreview": "Close preview",
       "loadError": "The map could not load. Please try again later.",
+      "zoneApprox": "Approximate area",
       "updating": "Updating the map…",
       "inArea": {
         "one": "{count} property in this area",

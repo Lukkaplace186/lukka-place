@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "prestart": "node scripts/prune-empty-image-cache.mjs",
     "start": "next start",
     "lint": "eslint",
     "test": "npm run test:unit",

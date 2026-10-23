@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader';
 import { baseMapOptions } from '@/lib/mapBase';
 import { placeResolvedListings } from '@/lib/geocoding';
-import { PIN_ICONS, pinKind, zoneOutline } from '@/lib/listingPin';
+import { PRIVACY_RADIUS_M } from '@/lib/listingPin';
 import { useT } from '@/lib/i18n/client';
 import { Info } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -14,17 +14,17 @@ const MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 export const LISTING_MAP_ZOOM = 14;
 
 /**
- * The detail page's map, Airbnb-style (2026-10-23): no pin claiming a spot,
- * a soft zone (lib/listingPin.js zoneOutline, its shape seeded by the id)
- * with a white badge in its middle carrying the property-type symbol, and a
- * "Zone approximative" chip in the corner. No price on the map: the page
- * shows it above and in the bottom bar. Zoom 14, centred on the zone.
+ * The detail page's map (2026-10-23, owner's choice): only the approximate
+ * zone, a pale circle of PRIVACY_RADIUS_M, and a "Zone approximative" chip
+ * in the corner. No pin, no symbol, no label: nothing that claims a spot.
+ * No price either — the page shows it above and in the bottom bar. Zoom 14,
+ * centred on the circle.
  *
  * The centre is the same privacy-jittered point the listing has on /listings
  * (placeResolvedListings, seeded by the id; 200–400 m from the stored
- * coordinate), and the outline never comes closer than ~430 m to it, so the
- * real spot is always inside the zone. `position` is the stored coordinate;
- * the caller only mounts this component when it has one.
+ * coordinate), and the circle is wider than that jitter, so the real spot is
+ * always inside it. `position` is the stored coordinate; the caller only
+ * mounts this component when it has one.
  */
 export default function ListingPinMap({ listing, position }) {
   const t = useT();
@@ -37,7 +37,6 @@ export default function ListingPinMap({ listing, position }) {
       return undefined;
     }
     let cancelled = false;
-    let overlay = null;
     let zone = null;
     setOptions({ key: MAPS_API_KEY, v: 'weekly' });
 
@@ -54,44 +53,19 @@ export default function ListingPinMap({ listing, position }) {
           center: point,
           zoom: LISTING_MAP_ZOOM,
         });
-        // The approximate zone, under the badge. Colours are --blue
-        // (app/globals.css); the Maps API cannot read CSS variables.
-        zone = new google.maps.Polygon({
+        // The approximate zone. Colours are the earlier navy, kept on product
+        // direction; the Maps API cannot read CSS variables.
+        zone = new google.maps.Circle({
           map,
-          paths: zoneOutline(point, listing.id),
-          strokeColor: '#1e3aa8',
-          strokeOpacity: 0.9,
-          strokeWeight: 2,
-          fillColor: '#1e3aa8',
-          fillOpacity: 0.14,
+          center: point,
+          radius: PRIVACY_RADIUS_M,
+          strokeColor: '#1e3a8a',
+          strokeOpacity: 0.35,
+          strokeWeight: 1,
+          fillColor: '#1e3a8a',
+          fillOpacity: 0.1,
           clickable: false,
         });
-
-        class ZoneBadge extends google.maps.OverlayView {
-          onAdd() {
-            this.el = document.createElement('div');
-            this.el.className = 'lkp-zone';
-            const badge = document.createElement('span');
-            badge.className = 'lkp-zone__badge';
-            badge.setAttribute('role', 'img');
-            badge.setAttribute('aria-label', listing.title || '');
-            badge.innerHTML = PIN_ICONS[pinKind(listing)];
-            this.el.append(badge);
-            // markerLayer, not overlayLayer: the zone polygon draws over
-            // overlayLayer and tinted the white badge blue.
-            this.getPanes().markerLayer.appendChild(this.el);
-          }
-          draw() {
-            const at = this.getProjection()?.fromLatLngToDivPixel(new google.maps.LatLng(point.lat, point.lng));
-            if (at && this.el) this.el.style.transform = `translate3d(${at.x.toFixed(1)}px, ${at.y.toFixed(1)}px, 0)`;
-          }
-          onRemove() {
-            this.el?.remove();
-            this.el = null;
-          }
-        }
-        overlay = new ZoneBadge();
-        overlay.setMap(map);
         setStatus('ready');
       })
       .catch((err) => {
@@ -101,7 +75,6 @@ export default function ListingPinMap({ listing, position }) {
 
     return () => {
       cancelled = true;
-      overlay?.setMap(null);
       zone?.setMap(null);
     };
   }, [listing, position]);

@@ -613,14 +613,12 @@ loading or error boundary anywhere outside the client portal and `/admin`.
     within 400px of the viewport, at every width (2026-09-28, product
     direction: no tap on phones); only Data Saver / 2G still gets the
     "Afficher la carte" button. The frame keeps its height either way.
-    With stored coordinates it is `ListingPinMap` (its own chunk),
-    Airbnb-style since 2026-10-23: no pin claiming a spot, a soft irregular
-    zone at zoom 14 (`lib/listingPin.js` `zoneOutline`: two waves seeded by
-    the id, never closer than `ZONE_MIN_FACTOR` × 500 m ≈ 430 m to its centre,
-    so the ≤400 m jitter keeps the real spot inside), a white badge with the
-    type symbol (apartment building / house / plot) in its middle that
-    settles in once, and a "Zone approximative" chip top-left (bottom-left is
-    Google's logo). The navy point, pulse, commune pill and disc are gone. No
+    With stored coordinates it is `ListingPinMap` (its own chunk): only a
+    pale 500 m circle around the jittered point at zoom 14 (wider than the
+    ≤400 m jitter, so the real spot is inside it) and a "Zone approximative"
+    chip top-left (bottom-left is Google's logo). No pin, type symbol or
+    label — owner's choice 2026-10-23, after an irregular zone with a white
+    type badge was tried the same day. No
     price on the map — the page shows it twice. A price pill was tried first. A comparison with nearby similar listings was tried and reverted
     the same day (2026-09-28) on product direction. Without coordinates it
     keeps the geocoding single-pin `PropertyMap` (max zoom 14).

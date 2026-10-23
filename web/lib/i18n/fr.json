@@ -218,11 +218,11 @@
     },
     "trustHeading": "Qui est derrière",
     "featuredEyebrow": "Nouveautés",
-    "featuredHeading": "Sélection de la Semaine",
+    "featuredHeading": "Sélection de la semaine",
     "saved": {
       "eyebrow": "Bon retour, {name}",
       "eyebrowAnonymous": "Bon retour",
-      "title": "Biens Enregistrés",
+      "title": "Biens enregistrés",
       "lead": {
         "one": "Un bien gardé de côté — reprenez où vous en étiez.",
         "other": "{count} biens gardés de côté — reprenez où vous en étiez."

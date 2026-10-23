@@ -3103,3 +3103,31 @@ Tests: `tests/unit/listing-details.test.js`.
   villas under Maison until 2026-10-22) — `categoryAliasClause`, shared by the
   filter and the facet count, so "Villa 5" opens five listings. Villa is an
   overlay facet: it can re-count a Maison.
+
+## Gallery viewer close, faster map cards (2026-10-23)
+
+From two phone reports (iPhone, 4G). Tests: `tests/unit/gallery-close-map-card.test.js`.
+
+- **The gallery viewer (`PhotoGallery`) had no reachable way out of a video.**
+  The stock dialog × was a dark 32px icon on the dark frame, and the site
+  header (`z-[60]`) paints over every `z-50` dialog's top edge — where that
+  × sits. The viewer is now `z-[70]` (overlay too, via `DialogContent`'s new
+  `overlayClassName`), full screen on a phone, with its own top bar: counter
+  left, a white 44px × right, never over the video's native controls. A tap
+  on the bare stage around the video, a swipe down, Escape or × close it,
+  and the video is paused first (Radix keeps it mounted through the exit
+  animation). Sideways swipe pages photos (not on a video: that is scrubbing).
+  Other dialogs are still `z-50` under the header; raise one the same way if
+  its top edge matters.
+- **Map cards waited on every listing in view.** A pin tap fetched the
+  listing, then `MapCardCarousel` fetched all visible ids 20 at a time and
+  drew nothing until the last batch — 3+ round trips at ~330 ms before the
+  photo was asked for. `lib/mapListingCache.js` is now shared: `ListingsMap`
+  remembers the tapped row (or the list page's copy), so its card draws on
+  the first frame; the rest load tapped-card-and-neighbours first and draw
+  after each batch. The active card's cover is `priority` (eager, high
+  fetch priority) and the photo slot shimmers (`.lkp-shimmer`,
+  `CardImageCarousel loadingShimmer`, map only) until it paints. Photos were
+  already next/image with `sizes` and q75; there is no blur placeholder
+  because no row carries a blurDataURL, and inventing one per photo would
+  cost a server pass for a few hundred bytes of saving.

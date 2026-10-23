@@ -624,6 +624,7 @@
       "previousPhoto": "Previous photo",
       "nextPhoto": "Next photo",
       "allPhotos": "All photos",
+      "close": "Close",
       "seeAllCount": {
         "one": "See the Photo",
         "other": "See All {count} Photos"

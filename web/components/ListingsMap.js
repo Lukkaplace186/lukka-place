@@ -33,6 +33,7 @@ import {
 } from '@/lib/mapViewport';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
+import { rememberListings } from '@/lib/mapListingCache';
 
 /**
  * The /listings map, Rightmove / Zillow style: every listing matching the
@@ -345,12 +346,16 @@ export default function ListingsMap({
     const seq = ++selectSeqRef.current;
     const local = page?.find((listing) => sameId(listing.id, id));
     if (local) {
+      // The phone's card row reads this cache, so the tapped card draws at
+      // once instead of re-asking for a row the page already holds.
+      rememberListings([local]);
       select(local);
       return;
     }
     try {
       const response = await fetch(`/api/listings?ids=${encodeURIComponent(id)}`);
       const body = await response.json();
+      rememberListings(body.data);
       if (seq !== selectSeqRef.current) return;
       // An empty answer means the listing was unpublished since the pins
       // were fetched — nothing to preview, rather than a card for a ghost.

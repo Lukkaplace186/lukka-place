@@ -1,17 +1,20 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Expand, ImageOff, LayoutGrid } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Expand, ImageOff, LayoutGrid, X } from 'lucide-react';
 import SafeImage from './SafeImage';
 import CardImageCarousel from './CardImageCarousel';
 import VideoPlayBadge from './VideoPlayBadge';
 import { isVideoPoster } from '@/lib/listingVideos';
 import { Badge } from './ListingBadges';
-import { Dialog, DialogContent, DialogTitle } from './ui/dialog';
+import { Dialog, DialogClose, DialogContent, DialogTitle } from './ui/dialog';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
 import { listingEventPayload, trackEvent } from '@/lib/analyticsClient';
 import { initialGalleryState, noteGalleryStep } from '@/lib/galleryEngagement';
+
+/** A finger travel this far (px) down the viewer closes it; sideways pages. */
+const SWIPE_CLOSE_PX = 70;
 
 /**
  * Detail-page gallery: web/Design's 2fr/1fr three-tile grid (one tall lead
@@ -123,6 +126,15 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
     },
     [total],
   );
+
+  // Pause before closing: Radix keeps the content mounted through its exit
+  // animation, and a video still playing there is heard after it is gone.
+  const videoRef = useRef(null);
+  const swipeRef = useRef(null);
+  const closeLightbox = useCallback(() => {
+    videoRef.current?.pause();
+    setLightboxIndex(null);
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -328,25 +340,75 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
         </div>
       </div>
 
-      <Dialog open={isOpen} onOpenChange={(next) => !next && setLightboxIndex(null)}>
+      <Dialog open={isOpen} onOpenChange={(next) => !next && closeLightbox()}>
+        {/* Full screen on a phone, with its own top bar: the dialog's stock ×
+            was a dark 32px icon on this dark frame, sitting under the native
+            video controls (iOS draws volume / PiP in the same corner), so a
+            visitor watching a video had no visible way out (reported
+            2026-10-23). The bar sits ABOVE the stage, never over the video.
+            z-[70]: the site header is z-[60] and painted over the top of
+            every z-50 dialog — exactly where a close button goes. */}
         <DialogContent
-          showCloseButton
-          className="max-w-[min(96vw,80rem)] gap-0 border-none bg-ink/95 p-0 sm:max-w-[min(96vw,80rem)]"
+          showCloseButton={false}
+          overlayClassName="z-[70] bg-black/70"
+          className="z-[70] flex max-w-[min(96vw,80rem)] flex-col gap-0 border-none bg-ink/95 p-0 sm:max-w-[min(96vw,80rem)] max-sm:inset-0 max-sm:h-dvh max-sm:w-screen max-sm:max-w-none max-sm:translate-x-0 max-sm:translate-y-0 max-sm:rounded-none max-sm:bg-black"
         >
           <DialogTitle className="sr-only">{alt}</DialogTitle>
 
-          <div className="relative flex h-[80vh] w-full items-center justify-center">
+          <div className="flex h-14 shrink-0 items-center justify-between px-3 pt-[env(safe-area-inset-top)] sm:absolute sm:inset-x-0 sm:top-0 sm:z-20">
+            <span className="u-tabular text-[0.8125rem] font-semibold text-white/85">
+              {total > 1 && isOpen ? `${lightboxIndex + 1} / ${total}` : ''}
+            </span>
+            <DialogClose asChild>
+              <button
+                type="button"
+                aria-label={t('listings.gallery.close')}
+                className="u-press flex h-11 w-11 items-center justify-center rounded-full bg-white text-ink shadow-md"
+              >
+                <X strokeWidth={2.25} className="h-5 w-5" />
+              </button>
+            </DialogClose>
+          </div>
+
+          {/* A tap on the bare stage around the video closes the viewer (the
+              phone layout has no backdrop left to tap), and so does a swipe
+              down anywhere on it. */}
+          <div
+            className="relative flex min-h-0 w-full flex-1 items-center justify-center max-sm:pb-[env(safe-area-inset-bottom)] sm:h-[80vh] sm:flex-none"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) closeLightbox();
+            }}
+            onTouchStart={(e) => {
+              const touch = e.touches[0];
+              swipeRef.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
+            }}
+            onTouchEnd={(e) => {
+              const start = swipeRef.current;
+              const touch = e.changedTouches[0];
+              swipeRef.current = null;
+              if (!start || !touch) return;
+              const dx = touch.clientX - start.x;
+              const dy = touch.clientY - start.y;
+              if (dy > SWIPE_CLOSE_PX && dy > Math.abs(dx) * 1.5) closeLightbox();
+              else if (total > 1 && !items[lightboxIndex]?.video && Math.abs(dx) > SWIPE_CLOSE_PX && Math.abs(dx) > Math.abs(dy) * 1.5) {
+                step(dx < 0 ? 1 : -1);
+              }
+            }}
+          >
             {isOpen && items[lightboxIndex]?.video ? (
               // Keyed by index so paging to another item stops this one.
               // autoPlay: the viewer only opens on the visitor's own tap.
+              // Its own size (max-h/max-w), not h-full w-full: the area
+              // around it stays a stage a tap can close.
               <video
+                ref={videoRef}
                 key={lightboxIndex}
                 src={items[lightboxIndex].video}
                 poster={items[lightboxIndex].src || undefined}
                 controls
                 autoPlay
                 playsInline
-                className="h-full w-full object-contain"
+                className="max-h-full max-w-full object-contain"
                 aria-label={t('listings.gallery.playVideo')}
               />
             ) : isOpen ? (
@@ -377,9 +439,6 @@ export default function PhotoGallery({ images, videos = [], alt, mobileActions =
                 >
                   <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
                 </button>
-                <span className="u-glass-royal u-tabular absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full px-3 py-1.5 text-[0.75rem] font-medium">
-                  {lightboxIndex + 1} / {total}
-                </span>
               </>
             ) : null}
           </div>

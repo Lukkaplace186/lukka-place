@@ -198,7 +198,14 @@
       "city": "City",
       "allCities": "All cities",
       "leaseLong": "Long term",
-      "leaseShort": "Short term"
+      "leaseShort": "Short term",
+      "shortTerm": "Short Stay",
+      "locationLabel": "Location",
+      "heroPlaceholder": "City, commune or neighbourhood",
+      "budgetLabel": "Budget",
+      "seeForSale": "See properties for sale",
+      "seeShortStays": "See available stays",
+      "shortHint": "Homes let by the night or by the week."
     },
     "value": {
       "verifiedTitle": "Reviewed Listings",

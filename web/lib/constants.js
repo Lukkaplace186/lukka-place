@@ -12,7 +12,7 @@ export const NO_PHOTO_URL = 'https://lukkaplace.com/assets/img/noimage.jpg';
 // Both the server count (app/(site)/page.js) and the client's default tab
 // (components/SearchBar.js) read these, so the two cannot drift apart again.
 export const HERO_DEFAULT_TAB = 'louer';
-export const HERO_TRANSACTION_BY_TAB = { louer: 'location', acheter: 'vente' };
+export const HERO_TRANSACTION_BY_TAB = { louer: 'location', courte: 'location', acheter: 'vente' };
 
 // Matches services/openai.js's PARCELLE_SUBTYPES in the engine repo exactly —
 // shared between SearchBar (homepage) and FilterBar (/listings).

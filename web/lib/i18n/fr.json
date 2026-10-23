@@ -198,7 +198,14 @@
       "city": "Ville",
       "allCities": "Toutes les villes",
       "leaseLong": "Longue durée",
-      "leaseShort": "Courte durée"
+      "leaseShort": "Courte durée",
+      "shortTerm": "Courte durée",
+      "locationLabel": "Lieu",
+      "heroPlaceholder": "Ville, commune ou quartier",
+      "budgetLabel": "Budget",
+      "seeForSale": "Voir les biens à vendre",
+      "seeShortStays": "Voir les logements disponibles",
+      "shortHint": "Logements loués à la nuit ou à la semaine."
     },
     "value": {
       "verifiedTitle": "Annonces relues",

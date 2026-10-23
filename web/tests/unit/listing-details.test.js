@@ -150,12 +150,15 @@ test('forms read the details from the fields, and a select left on "Non précis�
   assert.deepEqual(details.DETAIL_COLUMNS, engine.DETAIL_FIELDS, 'the same ten columns on both sides');
 });
 
-test('the hero search offers long / short term on the Rent tab and sends lease_term', async () => {
+test('the hero search has a Courte durée tab that sends lease_term=short', async () => {
   const { readFileSync } = await import('node:fs');
   const source = readFileSync(new URL('../../components/SearchBar.js', import.meta.url), 'utf8');
-  assert.ok(source.includes("lease_term: transactionType === 'location' ? leaseTerm : ''"), 'the search URL carries it, rentals only');
+  assert.ok(source.includes("{ value: 'courte', labelKey: 'home.search.shortTerm' }"), 'its own tab');
+  assert.ok(source.includes("const leaseTerm = isShortStay ? 'short' : ''"), 'short term on that tab only');
+  assert.ok(source.includes('lease_term: leaseTerm,'), 'the search URL carries it');
   assert.ok(source.includes("qs.set('lease_term', leaseTerm)"), 'the live count uses it');
-  assert.ok(source.includes("homeTab === 'louer' ?"), 'shown on the Rent tab only');
+  const constants = readFileSync(new URL('../../lib/constants.js', import.meta.url), 'utf8');
+  assert.ok(constants.includes("courte: 'location'"), 'a short stay is a rental');
 });
 
 test('Villa counts and filters the same listings: the category, villa plots, and older villas filed under Maison / Duplex', async () => {

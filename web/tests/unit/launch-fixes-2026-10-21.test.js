@@ -40,10 +40,12 @@ test('Kinshasa searches are unchanged', () => {
   assert.equal(parseSearchQuery('2 chambres bandal 800$').commune, 'Bandalungwa');
 });
 
-test('the hero search sends ?ville= from the city select and from the text', () => {
+// The hero's Ville select was removed on 2026-10-23 (the "Lieu" box takes a
+// city, commune or quartier); the city now comes from the text alone.
+test('the hero search sends ?ville= from the text', () => {
   const bar = read('components/SearchBar.js');
-  assert.match(bar, /id="hero-city"/);
-  assert.match(bar, /if \(ville\) qs\.set\('ville', ville\)/);
+  assert.doesNotMatch(bar, /id="hero-city"/);
+  assert.match(bar, /if \(parsed\.ville\) qs\.set\('ville', parsed\.ville\)/);
   assert.match(read('components/LocationAutocomplete.js'), /params\.set\('ville', parsed\.ville\)/);
 });
 
@@ -106,10 +108,10 @@ test('the results page passes the commune’s city to the picker, heading and su
   assert.doesNotMatch(header, /'Kinshasa'/);
 });
 
-test('the hero Ville select follows the place typed or tapped', () => {
+test('the hero location box mirrors the place typed or tapped', () => {
   const src = fs.readFileSync(new URL('../../components/SearchBar.js', import.meta.url), 'utf8');
-  assert.match(src, /onValueChange=\{onLocationChange\}/);
-  assert.match(src, /onChange=\{\(e\) => onCityChange\(e\.target\.value\)\}/);
+  assert.match(src, /onValueChange=\{setLocation\}/);
+  assert.doesNotMatch(src, /onCityChange/);
 });
 
 test('searchCityOf reads a commune-only link as that commune’s city', async () => {

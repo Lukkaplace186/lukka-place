@@ -1,37 +1,32 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Search, MapPin, ChevronDown, Building2, Wallet, Landmark } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import LocationAutocomplete from './LocationAutocomplete';
 import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB, ICON_STROKE_WIDTH } from '@/lib/constants';
 import { parseSearchQuery } from '@/lib/searchParser';
 import { understoodChips } from '@/lib/searchUnderstood';
 import { useT } from '@/lib/i18n/client';
 import { facetLabel, groupTypeFacets } from '@/lib/commercialSpaces';
-import { CITIES, DEFAULT_CITY, cityOfCommune } from '@/lib/cities';
-import { LEASE_TERM_OPTIONS } from '@/lib/leaseTerm';
 
 /**
  * The hero search panel — a white card floating over the hero photograph,
- * in four explicit tiers, top to bottom:
+ * in four tiers, top to bottom (2026-10-23 redesign, from the owner's
+ * mock-ups):
  *
- *   1. a segmented Louer / Acheter pill toggle
- *   2. ONE field block with hairline dividers: location on its own row,
- *      then Type de bien | Budget max side by side — a 2-column grid at
- *      every width, phones included, not a mobile stack
- *   3. the primary Rechercher CTA, full width on mobile, carrying the real
- *      live result count for whatever is currently staged
+ *   1. a segmented Louer / Courte durée / Acheter toggle
+ *   2. labelled boxes: "Lieu" on its own row (a city, commune or quartier —
+ *      lib/searchParser.js reads the city out of the text, which is why the
+ *      separate "Ville" select is gone), then Type de bien | Budget side by
+ *      side. Courte durée shows a one-line explanation instead of the pair.
+ *   3. the primary CTA, full width; on Louer it carries the live count
  *   4. a scrollable row of commune quick-pills that fill the location field
- *      in one tap
  *
- * WHY THE FIELDS ARE FUSED INTO ONE BLOCK: they were three separate
- * bordered boxes in a `sm:flex-row` with visible labels above each. That
- * reads as a form to complete before anything happens. Fusing them into a
- * single divided block (the pattern Airbnb/Booking/Zillow all converged
- * on) makes the whole thing read as one control with one action, which is
- * what a hero search is. The visible labels are gone with it — every field
- * carries its icon + placeholder, and the accessible name survives on
- * `aria-label`, so nothing is lost to a screen reader.
+ * COURTE DURÉE HAS NO DATES / VOYAGEURS FIELDS, deliberately. The mock-up
+ * has them, but no listing carries an availability calendar or a guest
+ * capacity, so both would be inputs that filter nothing — a fake control.
+ * The tab is `lease_term=short` (a rent quoted per day or week). Add the two
+ * fields when the data behind them exists.
  *
  * PALETTE: the brief specified `slate-*` / `primary` Tailwind classes.
  * Those are deliberately mapped onto this app's own tokens instead — the
@@ -66,6 +61,7 @@ import { LEASE_TERM_OPTIONS } from '@/lib/leaseTerm';
  */
 const HOME_TABS = [
   { value: 'louer', labelKey: 'home.search.rent' },
+  { value: 'courte', labelKey: 'home.search.shortTerm' },
   { value: 'acheter', labelKey: 'home.search.buy' },
 ];
 
@@ -108,50 +104,22 @@ function buildBudgetMaxOptions(t) {
 const COUNT_DEBOUNCE_MS = 350;
 
 
-/**
- * One row inside the fused field block. `focus-within` paints the whole
- * row, not just the input, so the active section is what highlights — and
- * it does it with an INSET ring rather than an outer `box-shadow`, because
- * the block is `overflow-hidden` (that's what clips the dividers to the
- * rounded corners) and an outer ring would be sliced off at the block's
- * own edge.
+/*
+ * Separate labelled boxes (2026-10-23 redesign), not the fused divided block
+ * this used to be: a visible label above each box and no leading icons, so on
+ * a 375px phone both selects get their whole width. A native <select> shows
+ * the chosen option's own text, which is why the budget steps read
+ * "Max 1 500 $" — short enough for a half-width box.
  */
-const ROW_BASE =
-  'relative flex min-h-12 min-w-0 items-center gap-2.5 bg-transparent px-3.5 transition-colors ' +
-  'focus-within:z-10 focus-within:bg-surface focus-within:shadow-[inset_0_0_0_2px_var(--blue)]';
+const FIELD_BOX =
+  'relative flex min-h-[3.25rem] min-w-0 items-center gap-2 rounded-xl border border-ink-25 bg-surface px-4 transition-colors ' +
+  'focus-within:border-blue focus-within:shadow-[0_0_0_3px_var(--blue-tint)]';
 
-/**
- * The two paired cells split the width the location row gets to itself, so
- * they are the ones with a real width budget — and it was measured in a
- * browser at 320px, not estimated. Two things came out of it:
- *
- *   - Below `sm` the cells shed their leading icon and tighten to 10px
- *     padding / 6px gaps / 14px type. With the icon in, the select gets
- *     ~45px of a 320px viewport and every label clips to "Tou…"; without
- *     it, ~84px, which fits everything at rest and most selected values.
- *     A whole label and no icon beats an icon and no label.
- *   - The resting labels are "Tous types" / "Tous prix". "Tous budgets"
- *     was the first wording and needs 91px against that 84px — it clipped
- *     to "Tous budget…" on the narrowest phones.
- *
- * A long SELECTED value ("Appartement (27)") still truncates on a ~375px
- * phone. That is inherent to two dropdowns side by side at that width,
- * which is the layout that was asked for, and it is the acceptable half of
- * the trade: the visitor just chose that option, where the resting labels
- * are what everyone reads. A native <select> renders the chosen option's
- * own text, so an option list's copy IS the closed control's copy — which
- * is also why the steps are "Max 1 500 $" rather than "Jusqu'à 1 500 $".
- */
-const CELL_BASE =
-  'relative flex min-h-12 min-w-0 items-center gap-1.5 bg-transparent px-2.5 transition-colors ' +
-  'focus-within:z-10 focus-within:bg-surface focus-within:shadow-[inset_0_0_0_2px_var(--blue)] ' +
-  'sm:gap-2.5 sm:px-3.5';
+const FIELD_LABEL = 'mb-2 block text-[0.9375rem] font-bold text-ink';
 
-const CELL_ICON = 'hidden h-4 w-4 shrink-0 text-ink-45 sm:block';
-
-const CELL_SELECT =
-  'min-w-0 flex-1 cursor-pointer truncate appearance-none bg-transparent py-3 text-[0.875rem] ' +
-  'font-medium text-ink focus:outline-none sm:pr-1 sm:text-[0.9375rem]';
+const FIELD_SELECT =
+  'min-w-0 flex-1 cursor-pointer truncate appearance-none bg-transparent py-3 text-[0.9375rem] ' +
+  'text-ink focus:outline-none';
 
 export default function SearchBar({ propertyTypes = [], communes = [], initialCount = null }) {
   const t = useT();
@@ -160,11 +128,6 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
   const [homeTab, setHomeTab] = useState(HERO_DEFAULT_TAB);
   const [propertyType, setPropertyType] = useState('');
   const [budgetMax, setBudgetMax] = useState('');
-  // Longue / courte durée (lib/leaseTerm.js) — Rent tab only.
-  const [leaseTerm, setLeaseTerm] = useState('');
-  // The city searched (?ville=). A city or another city's commune typed in the
-  // box wins over it (lib/searchParser.js), as typed text wins over every select.
-  const [ville, setVille] = useState('');
   // Mirrors the location field's text. LocationAutocomplete still owns the
   // input itself; this is the copy the quick-pill tint and the live count
   // read, kept in step through its `onValueChange`/`setQuery` pair.
@@ -172,13 +135,19 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
   const locationRef = useRef(null);
 
   const transactionType = HERO_TRANSACTION_BY_TAB[homeTab] || '';
+  const isShortStay = homeTab === 'courte';
+  // Louer stays every rent, as before the third tab; Courte durée is the
+  // rents quoted per day or week (lib/leaseTerm.js). Type and budget are not
+  // offered there, so they are not sent either.
+  const leaseTerm = isShortStay ? 'short' : '';
+  const stagedType = isShortStay ? '' : propertyType;
+  const stagedBudget = isShortStay ? '' : budgetMax;
 
   const extraParams = {
     transaction_type: transactionType,
-    property_type: propertyType,
-    price_max: budgetMax,
-    lease_term: transactionType === 'location' ? leaseTerm : '',
-    ville,
+    property_type: stagedType,
+    price_max: stagedBudget,
+    lease_term: leaseTerm,
   };
 
   // A pill is lit only while the field literally still holds that commune's
@@ -186,37 +155,12 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
   // trimmed + case-insensitive so "gombe " still counts as Gombe.
   const normalizedLocation = location.trim().toLowerCase();
 
-  // The Ville select follows the place in the box (2026-10-21): tapping the
-  // "Lubumbashi" chip or typing "Kampemba" shows Lubumbashi, a Kinshasa place
-  // shows Kinshasa — the same city the search will run in, since typed text
-  // wins over the select (lib/searchParser.js, LocationAutocomplete).
-  function cityOfText(text) {
-    if (String(text || '').trim().length < 3) return null;
-    const parsed = parseSearchQuery(text);
-    if (parsed.ville) return parsed.ville;
-    return parsed.commune ? cityOfCommune(parsed.commune) || DEFAULT_CITY : null;
-  }
-
-  function onLocationChange(text) {
-    setLocation(text);
-    const city = cityOfText(text);
-    if (city) setVille(city);
-  }
-
-  // Picking another city clears a place of a different city from the box,
-  // so the select and the text never point at two cities.
-  function onCityChange(next) {
-    setVille(next);
-    const typed = cityOfText(location);
-    if (next && typed && typed !== next) locationRef.current?.setQuery('');
-  }
-
   // ---- Live result count -------------------------------------------------
   // Real `/api/listings/count` (the same endpoint FilterBar's Prix popover
   // uses — same parseListingsSearchParams, same getListings, same approved
   // filter), never a client-side guess. `initialCount` is the server's own
-  // unfiltered total so the button ships with a real number in its first
-  // paint instead of flashing a placeholder.
+  // total for the default tab so the button ships with a real number in its
+  // first paint instead of flashing a placeholder.
   const [count, setCount] = useState(initialCount);
   // Alternatives the results page would show when the exact count is zero
   // (the count endpoint's `suggested`) — see lib/listings.js relaxSearch.
@@ -233,16 +177,14 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
     const timer = setTimeout(() => {
       const qs = new URLSearchParams();
       if (transactionType) qs.set('transaction_type', transactionType);
-      if (propertyType) qs.set('property_type', propertyType);
-      if (budgetMax) qs.set('price_max', budgetMax);
-      if (transactionType === 'location' && leaseTerm) qs.set('lease_term', leaseTerm);
-      if (ville) qs.set('ville', ville);
+      if (stagedType) qs.set('property_type', stagedType);
+      if (stagedBudget) qs.set('price_max', stagedBudget);
+      if (leaseTerm) qs.set('lease_term', leaseTerm);
 
       // Parsed exactly the way submitting parses it (LocationAutocomplete's
       // submitFreeText -> applyParsedFilters), and in the same precedence:
       // what was typed wins over the selects, so the count describes the
-      // page the button actually navigates to rather than a different set
-      // of filters that happen to be easier to assemble here.
+      // page the button actually navigates to.
       const parsed = parseSearchQuery(location);
       if (parsed.reference) qs.set('reference', parsed.reference);
       if (parsed.transaction_type) qs.set('transaction_type', parsed.transaction_type);
@@ -282,7 +224,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
       clearTimeout(timer);
       controller.abort();
     };
-  }, [transactionType, propertyType, budgetMax, leaseTerm, ville, location]);
+  }, [transactionType, stagedType, stagedBudget, leaseTerm, location]);
 
   // What the parser takes from the typed text, read back as chips — so a
   // visitor sees that "Gombe" and "2 chambres" were understood before they
@@ -303,17 +245,25 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
     locationRef.current?.submit();
   }
 
+  // The button wording follows the mock-ups: the live count on Louer, a
+  // fixed call to action on the other two tabs. A zero-result search still
+  // says what it will really show (suggestions) on every tab.
+  let ctaLabel;
+  if (count === 0 && suggested > 0) ctaLabel = t('home.search.seeSuggestions', { count: suggested });
+  else if (homeTab === 'acheter') ctaLabel = t('home.search.seeForSale');
+  else if (isShortStay) ctaLabel = t('home.search.seeShortStays');
+  else if (count != null && count > 0) ctaLabel = t('home.search.seeCount', { count });
+  else ctaLabel = t('home.search.submit');
+
   return (
-    // Solid white over the photo, not the frosted `bg-surface/90` this
-    // carried before: the fused field block below is itself a tinted
-    // sunken surface, and that figure/ground reading needs an opaque card
-    // behind it — through 10% of a photograph it just muddies.
     <div className="overflow-hidden rounded-3xl border border-line bg-surface p-4 u-shadow-panel sm:p-5">
       {/* --- 1. Intent toggle ------------------------------------------- */}
       <div
         role="tablist"
         aria-label={t('home.search.transactionType')}
-        className="mb-4 flex w-full rounded-full bg-canvas-alt p-1 sm:inline-flex sm:w-auto"
+        // Widths follow the labels (flex-auto), not three equal columns:
+        // "Courte durée" does not fit a third of a 375px card.
+        className="mb-5 flex w-full gap-1 rounded-2xl bg-canvas-alt p-1 sm:inline-flex sm:w-auto"
       >
         {HOME_TABS.map(({ value, labelKey }) => {
           const on = homeTab === value;
@@ -327,20 +277,15 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
               // (a stray typed value shouldn't carry from one transaction
               // context into another), which empties the input without
               // going through `onValueChange` — so the mirror has to be
-              // cleared by hand. Caught in a browser, not by a test: the
-              // pill stayed lit and the live count kept filtering on a
-              // commune the now-empty field no longer held.
+              // cleared by hand, or a pill stays lit and the live count keeps
+              // filtering on a commune the now-empty field no longer holds.
               onClick={() => {
                 setHomeTab(value);
                 setLocation('');
-                if (value !== 'louer') setLeaseTerm('');
               }}
-              // 48px, not the 44px a segmented control usually gets: the
-              // brief sets one floor for every interactive control in this
-              // panel and the toggle is no exception.
-              className={`u-press min-h-11 flex-1 rounded-full px-6 text-[0.9375rem] font-semibold transition-colors sm:min-h-12 sm:flex-none ${
+              className={`u-press min-h-12 flex-auto whitespace-nowrap rounded-xl px-3 text-[0.9375rem] font-semibold transition-colors sm:px-6 ${
                 on
-                  ? 'bg-surface text-blue-deep shadow-[var(--shadow-card)]'
+                  ? 'bg-surface text-ink shadow-[var(--shadow-card)]'
                   : 'text-ink-45 hover:text-ink'
               }`}
             >
@@ -350,149 +295,96 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
         })}
       </div>
 
-      {/* Durée — Toutes / Longue durée (bail au mois) / Courte durée (à la
-          journée ou à la semaine). Rent only: a sale has no lease. */}
-      {homeTab === 'louer' ? (
-        <div role="group" aria-label={t('listings.leaseTerm.label')} className="-mt-1 mb-4 flex flex-wrap items-center gap-1.5">
-          <span className="mr-1 text-[0.8125rem] font-semibold text-ink-70">{t('listings.leaseTerm.label')}</span>
-          {LEASE_TERM_OPTIONS.map((option) => {
-            const on = leaseTerm === option.value;
-            return (
-              <button
-                key={option.value || 'any'}
-                type="button"
-                aria-pressed={on}
-                onClick={() => setLeaseTerm(option.value)}
-                className={`u-press inline-flex min-h-9 items-center rounded-full border px-3.5 text-[0.8125rem] font-semibold transition-colors ${
-                  on ? 'border-blue bg-blue-tint text-blue-deep' : 'border-line bg-surface text-ink-70 hover:border-ink-25'
-                }`}
-              >
-                {t(option.labelKey)}
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
-
-      {/* --- 2. Fused field block ---------------------------------------- */}
-      {/* `overflow-hidden` is what clips the dividers into the rounded
-          corners; every row inside compensates with an inset focus ring
-          (ROW_BASE) so nothing focus-related gets sliced by it. */}
-      <div className="divide-y divide-line overflow-hidden rounded-2xl border border-ink-25 bg-canvas-alt/60">
-        <LocationAutocomplete
-          // Remounts on tab change so a stray typed value doesn't linger
-          // from one transaction context into another.
-          key={homeTab}
-          ref={locationRef}
-          id="hero-location"
-          variant="hero"
-          ariaLabel="Commune, quartier ou référence"
-          placeholder={t('home.search.locationPlaceholder')}
-          extraParams={extraParams}
-          onValueChange={onLocationChange}
-          // The CTA is a full-width button on its own tier below, so this
-          // renders no button of its own and is submitted through the ref.
-          showButton={false}
-          // LocationAutocomplete paints its leading icon `text-ink-25`,
-          // which the token file reserves for "placeholder, disabled —
-          // decorative only". Next to the two ink-45 icons on the row
-          // below it reads as a rendering fault rather than a lighter
-          // weight, so it's lifted to match — scoped to this instance
-          // rather than changed in the shared component, which FilterBar
-          // also renders.
-          className={`${ROW_BASE} [&_svg]:text-ink-45`}
-          rowClassName="flex w-full min-w-0 items-center gap-2.5"
-          inputClassName="min-w-0 flex-1 bg-transparent py-3 text-[0.9375rem] text-ink placeholder:text-ink-35 focus:outline-none"
-          icon={MapPin}
-          showIcon
-        />
-
-        {/* Two columns at EVERY width — the brief is explicit that these
-            sit side by side on mobile too, not stacked. `min-w-0` on both
-            cells plus `truncate` on the select is what keeps a long
-            selected label ("Appartement (27)") clipping inside its cell
-            instead of forcing the grid — and the page — wider than a
-            320px viewport. */}
-        <div className={`${CELL_BASE} border-b border-line`}>
-          <Landmark strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className={CELL_ICON} />
-          <select
-            id="hero-city"
-            aria-label={t('home.search.city')}
-            value={ville}
-            onChange={(e) => onCityChange(e.target.value)}
-            className={CELL_SELECT}
-          >
-            <option value="">{t('home.search.allCities')}</option>
-            {[...CITIES]
-              .sort((a, b) => (a.name === DEFAULT_CITY ? -1 : b.name === DEFAULT_CITY ? 1 : a.name.localeCompare(b.name, 'fr')))
-              .map((city) => (
-                <option key={city.name} value={city.name}>{city.name}</option>
-              ))}
-          </select>
-          <ChevronDown strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className="pointer-events-none h-4 w-4 shrink-0 text-ink-45" />
+      {/* --- 2. Labelled fields ------------------------------------------ */}
+      <div className={`grid grid-cols-2 gap-x-3 gap-y-4 ${isShortStay ? '' : 'lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]'}`}>
+        <div className="col-span-2 lg:col-span-1">
+          <label htmlFor="hero-location" className={FIELD_LABEL}>
+            {t('home.search.locationLabel')}
+          </label>
+          <LocationAutocomplete
+            // Remounts on tab change so a stray typed value doesn't linger
+            // from one transaction context into another.
+            key={homeTab}
+            ref={locationRef}
+            id="hero-location"
+            variant="hero"
+            ariaLabel={t('home.search.locationLabel')}
+            placeholder={t('home.search.heroPlaceholder')}
+            extraParams={extraParams}
+            onValueChange={setLocation}
+            // The CTA is a full-width button on its own tier below, so this
+            // renders no button of its own and is submitted through the ref.
+            showButton={false}
+            className={FIELD_BOX}
+            rowClassName="flex w-full min-w-0 items-center gap-2.5"
+            inputClassName="min-w-0 flex-1 bg-transparent py-3 text-[0.9375rem] text-ink placeholder:text-ink-35 focus:outline-none"
+          />
         </div>
 
-        <div className="grid grid-cols-2 divide-x divide-line">
-          <div className={CELL_BASE}>
-            <Building2 strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className={CELL_ICON} />
-            <select
-              id="hero-type"
-              aria-label={t('home.search.propertyType')}
-              value={propertyType}
-              onChange={(e) => setPropertyType(e.target.value)}
-              // `appearance-none` drops the native arrow on every engine
-              // so the single lucide chevron below is the only indicator.
-              className={CELL_SELECT}
-            >
-              <option value="">{t('home.search.allTypes')}</option>
-              {(() => {
-                // Homes, then offices / shops / warehouses under their own
-                // heading, so commercial space reads as a section of the
-                // catalogue rather than three odd entries in a list of homes.
-                const { residential, commercial } = groupTypeFacets(propertyTypes);
-                const option = (facet) => (
-                  <option key={facet.value} value={facet.value}>
-                    {facetLabel(facet, t)} ({facet.count})
-                  </option>
-                );
-                if (!commercial.length) return residential.map(option);
-                return (
-                  <>
-                    {residential.length ? <optgroup label={t('listings.commercial.group.residential')}>{residential.map(option)}</optgroup> : null}
-                    <optgroup label={t('listings.commercial.group.commercial')}>{commercial.map(option)}</optgroup>
-                  </>
-                );
-              })()}
-            </select>
-            <ChevronDown
-              strokeWidth={ICON_STROKE_WIDTH}
-              aria-hidden="true"
-              className="pointer-events-none h-4 w-4 shrink-0 text-ink-45"
-            />
-          </div>
+        {isShortStay ? (
+          <p className="col-span-2 -mt-1 text-[0.875rem] text-ink-45">{t('home.search.shortHint')}</p>
+        ) : (
+          <>
+            <div className="min-w-0">
+              <label htmlFor="hero-type" className={FIELD_LABEL}>
+                {t('home.search.propertyType')}
+              </label>
+              <div className={FIELD_BOX}>
+                <select
+                  id="hero-type"
+                  value={propertyType}
+                  onChange={(e) => setPropertyType(e.target.value)}
+                  // `appearance-none` drops the native arrow on every engine
+                  // so the single lucide chevron below is the only indicator.
+                  className={FIELD_SELECT}
+                >
+                  <option value="">{t('home.search.allTypes')}</option>
+                  {(() => {
+                    // Homes, then offices / shops / warehouses under their own
+                    // heading, so commercial space reads as a section of the
+                    // catalogue rather than three odd entries in a list of homes.
+                    const { residential, commercial } = groupTypeFacets(propertyTypes);
+                    const option = (facet) => (
+                      <option key={facet.value} value={facet.value}>
+                        {facetLabel(facet, t)} ({facet.count})
+                      </option>
+                    );
+                    if (!commercial.length) return residential.map(option);
+                    return (
+                      <>
+                        {residential.length ? <optgroup label={t('listings.commercial.group.residential')}>{residential.map(option)}</optgroup> : null}
+                        <optgroup label={t('listings.commercial.group.commercial')}>{commercial.map(option)}</optgroup>
+                      </>
+                    );
+                  })()}
+                </select>
+                <ChevronDown strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className="pointer-events-none h-4 w-4 shrink-0 text-ink-45" />
+              </div>
+            </div>
 
-          <div className={CELL_BASE}>
-            <Wallet strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className={CELL_ICON} />
-            <select
-              id="hero-budget"
-              aria-label={t('home.search.budget')}
-              value={budgetMax}
-              onChange={(e) => setBudgetMax(e.target.value)}
-              className={CELL_SELECT}
-            >
-              {budgetMaxOptions.map(({ value, label }) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-            <ChevronDown
-              strokeWidth={ICON_STROKE_WIDTH}
-              aria-hidden="true"
-              className="pointer-events-none h-4 w-4 shrink-0 text-ink-45"
-            />
-          </div>
-        </div>
+            <div className="min-w-0">
+              <label htmlFor="hero-budget" className={FIELD_LABEL}>
+                {t('home.search.budgetLabel')}
+              </label>
+              <div className={FIELD_BOX}>
+                <select
+                  id="hero-budget"
+                  aria-label={t('home.search.budget')}
+                  value={budgetMax}
+                  onChange={(e) => setBudgetMax(e.target.value)}
+                  className={FIELD_SELECT}
+                >
+                  {budgetMaxOptions.map(({ value, label }) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className="pointer-events-none h-4 w-4 shrink-0 text-ink-45" />
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {understood.length > 0 ? (
@@ -510,40 +402,31 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
       <button
         type="button"
         onClick={submit}
-        className="u-press u-btn-primary mt-4 inline-flex h-[3.25rem] w-full items-center justify-center gap-2 rounded-2xl bg-blue px-6 text-[1rem] font-semibold text-white"
+        className="u-press u-btn-primary mt-5 inline-flex h-14 w-full items-center justify-center rounded-xl bg-blue-deep px-6 text-[1.0625rem] font-bold text-white"
       >
-        <Search strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className="h-5 w-5" />
-        {/* "Voir 47 biens": the count IS the label once it is known (it
-            always is on first paint — the homepage passes the real total).
-            Always mounted, so the live region exists before its text does —
+        {/* Always mounted, so the live region exists before its text does —
             a region that appears at the same moment as its content is not
             reliably announced. */}
         <span className="u-tabular" aria-live="polite">
-          {count === 0 && suggested > 0
-            ? t('home.search.seeSuggestions', { count: suggested })
-            : count != null && count > 0
-              ? t('home.search.seeCount', { count })
-              : t('home.search.submit')}
+          {ctaLabel}
         </span>
       </button>
 
       {/* --- 4. Quick pills ------------------------------------------------ */}
       {communes.length > 0 ? (
-        <div className="mt-4">
+        <div className="mt-5">
           <span id="hero-quick-communes" className="u-eyebrow mb-2 block">
             {t('home.search.popularCommunes')}
           </span>
-          {/* -mx-4/px-4 lets the row bleed to the card's true edge so the
-              first/last chip isn't visually inset, while overflow-x-auto +
-              no-scrollbar keeps the swipe contained to this row — no
-              page-level horizontal overflow, which is the <375px
-              requirement. */}
+          {/* -mx-4/px-4 lets the row bleed to the card's true edge, while
+              overflow-x-auto + no-scrollbar keeps the swipe contained to this
+              row — no page-level horizontal overflow. */}
           <div
             role="group"
             aria-labelledby="hero-quick-communes"
             className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4 sm:-mx-5 sm:px-5"
           >
-            {communes.map(({ commune, count: communeCount }) => {
+            {communes.map(({ commune }) => {
               const on = normalizedLocation === commune.trim().toLowerCase();
               return (
                 <button
@@ -551,23 +434,13 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
                   type="button"
                   aria-pressed={on}
                   onClick={() => applyCommune(commune)}
-                  className={`u-press flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-4 text-[0.8125rem] transition-colors ${
+                  className={`u-press flex min-h-11 shrink-0 items-center rounded-full border px-4 text-[0.9375rem] transition-colors ${
                     on
                       ? 'border-blue bg-blue-tint font-semibold text-blue-deep'
-                      : 'border-transparent bg-canvas-alt font-medium text-ink-70 hover:bg-canvas-deep'
+                      : 'border-ink-25 bg-surface font-medium text-ink hover:border-ink-45'
                   }`}
                 >
-                  <MapPin
-                    strokeWidth={ICON_STROKE_WIDTH}
-                    aria-hidden="true"
-                    className="h-3.5 w-3.5 shrink-0"
-                  />
                   {commune}
-                  {/* The real approved-listing count, same figure the
-                      commune row carried before this — never decorative. */}
-                  <span className={`u-tabular ${on ? 'text-blue' : 'text-ink-35'}`}>
-                    {communeCount}
-                  </span>
                 </button>
               );
             })}

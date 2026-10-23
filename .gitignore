@@ -58,3 +58,6 @@ scripts/*.report.json
 # scripts/backfill-photo-enhance.js dry-run previews and rollback maps
 photo-enhance-samples/
 backfill-photo-enhance-*.json
+
+# Marketing videos and posters (~620 MB) live outside git
+/marketing/

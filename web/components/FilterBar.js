@@ -26,6 +26,7 @@ import { cn } from '@/lib/utils';
 import { MAP_BOUNDS_PARAMS } from '@/lib/mapViewport';
 import { UTILITY_FILTERS, UTILITY_FILTER_KEYS } from '@/lib/utilityTags';
 import { LEASE_TERM_OPTIONS } from '@/lib/leaseTerm';
+import { frNumber } from '@/lib/format';
 
 const UTILITY_ICONS = { zap: Zap, droplets: Droplets, shield: Shield, route: Route };
 const LEASE_ICONS = { long: CalendarRange, short: CalendarClock };
@@ -566,7 +567,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
               />
               <div className="mt-1.5 flex items-center justify-between text-[0.6875rem] text-ink-45">
                 <span>0 $</span>
-                <span>{PRICE_SLIDER_MAX.toLocaleString('fr-FR')} $+</span>
+                <span>{frNumber(PRICE_SLIDER_MAX)} $+</span>
               </div>
 
               <button

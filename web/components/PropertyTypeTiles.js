@@ -50,8 +50,8 @@ export default async function PropertyTypeTiles({ propertyTypes = [] }) {
   if (types.length < 2) return null;
   return (
     <section className="bg-canvas pb-8 pt-2 sm:pb-12">
-      <div className="mx-auto max-w-[1240px] px-4 sm:px-6 lg:px-8">
-        <h2 className="u-title-section mb-4 text-ink sm:mb-5">{t('home.types.title')}</h2>
+      <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8">
+        <h2 className="u-title-storefront mb-4 text-ink sm:mb-5">{t('home.types.title')}</h2>
         <ul className="u-stagger grid grid-cols-3 gap-2.5 sm:gap-4 lg:grid-cols-[repeat(auto-fit,minmax(14rem,1fr))]">
           {types.map(({ value, label, count }) => {
             const Icon = iconFor(value);

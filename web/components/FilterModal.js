@@ -6,6 +6,7 @@ import AdvancedFilterFields from './AdvancedFilterFields';
 import { useT } from '@/lib/i18n/client';
 import { facetLabel, groupTypeFacets } from '@/lib/commercialSpaces';
 import { LEASE_TERM_OPTIONS } from '@/lib/leaseTerm';
+import { frNumber } from '@/lib/format';
 
 /** The chips, in this order (owner decision 2026-10-22); every other type is in the dropdown. */
 const PRIMARY_TYPE_VALUES = ['parcelle', 'appartement', 'maison', 'villa', 'terrain'];
@@ -163,7 +164,7 @@ export default function FilterModal({
                 className={numberInputClass}
               />
             </div>
-            <p className="text-xs text-ink-45">Jusqu&rsquo;à {priceSliderMax.toLocaleString('fr-FR')} $ dans le catalogue actuel.</p>
+            <p className="text-xs text-ink-45">Jusqu&rsquo;à {frNumber(priceSliderMax)} $ dans le catalogue actuel.</p>
           </Section>
 
           <Section label={t('listings.filters.bedrooms')}>

@@ -2746,13 +2746,7 @@ From an owner walkthrough on a phone. Engine migration
     condition for alerting them), `visit_sent=team` otherwise
     (`enquiry.sentTeam`, `account.agenda.sentTeam`). It used to say "sent to
     the agent" for a listing with no agent at all.
-  - **Serif headings are CAPITALS**, by one rule in `app/globals.css`
-    (`.u-title-hero/-page/-section` and any `h1–h3.font-display`):
-    `text-transform: uppercase` + 0.035em tracking. The dictionary strings are
-    unchanged (the heading-capitalization rules still apply to them). A heading
-    that is DATA — a person's or project's name, a listing title, a number —
-    carries `normal-case`; add it to any new one. The sans hero headline on the
-    homepage and `.u-title-card` are not affected.
+  - **Serif headings were CAPITALS** until 2026-10-24 (see "Post-launch polish" at the end of this file — they are sentence case again).
 
 ## Site settings, bulk delete, sales cleanup, FlexPaie (2026-10-18)
 
@@ -3131,3 +3125,28 @@ From two phone reports (iPhone, 4G). Tests: `tests/unit/gallery-close-map-card.t
   already next/image with `sizes` and q75; there is no blur placeholder
   because no row carries a blurDataURL, and inventing one per photo would
   cost a server pass for a few hundred bytes of saving.
+
+## Post-launch polish (2026-10-24)
+
+From the post-launch design review. Tests: `tests/unit/format.test.js`.
+
+- **Prices group with U+00A0, never U+202F.** Intl's fr-FR separator is the
+  narrow no-break space, which Plus Jakarta Sans draws at almost no width, so
+  cards read "1000000 $". `frNumber` (lib/format.js) is the one formatter;
+  `formatPriceParts`, `formatPriceCdfParts`, `formatCdfCompact` and the public
+  filter / rate labels use it. Use it for any new visible number rather than
+  `toLocaleString('fr-FR')` (admin and portal screens still have ~40 raw calls).
+- **One container width on the storefront: `max-w-[1600px]`** with
+  `px-4 sm:px-6 lg:px-8`, the header's. Hero, search card, type tiles,
+  "Notre approche", CommuneShortcuts and the projects strip were on 1240px /
+  7xl, so the left edge jumped between sections.
+- **WhatsApp is green everywhere a visitor sees it**: EnquiryCard's
+  "Contacter par WhatsApp" and MobileListingBar now match the cards
+  (`bg-green`, hover `green-deep`, the WhatsApp glyph). Known: white on
+  `--green` is 2.87:1, below AA for text — true of every green button.
+- **Serif titles are sentence case** (owner decision, reversing 2026-10-10's
+  capitals): the uppercase rule in globals.css is gone. Storefront section
+  titles use `.u-title-storefront` (24 → 30px): SectionHeading,
+  PropertyTypeTiles, ValueProposition ("Notre approche" was a sans eyebrow,
+  now a title like the others) and NewProjectsStrip. Dashboards keep
+  `.u-title-section` at 22px.

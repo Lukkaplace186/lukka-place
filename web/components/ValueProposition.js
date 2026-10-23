@@ -66,14 +66,14 @@ export default async function ValueProposition() {
        card bottom to hairline was 32px, hairline to label 24px, with the
        carousel's own 16px scrollbar padding inside that again. */
     <section className="bg-canvas pt-4 pb-11 shadow-[0_1px_0_var(--line)_inset] sm:pt-7 sm:pb-20">
-      <div className="mx-auto max-w-[1240px] px-4 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8">
         {/* The eyebrow IS the header. It previously sat above a serif title
             ("Ce qui change, concrètement" / "What actually changes") that
             restated the same promise the three numbered props then make in
             full — a label, a paraphrase of the section, and the section
             itself, in that order. The label is kept because it names the
             section in the page outline; the paraphrase is gone. */}
-        <h2 className="u-reveal-in-view u-eyebrow u-eyebrow-section mb-5 sm:mb-9">{t('home.value.eyebrow')}</h2>
+        <h2 className="u-reveal-in-view u-title-storefront mb-5 text-ink sm:mb-8">{t('home.value.eyebrow')}</h2>
 
         {/* Three numbered cards (2026-10-06 storefront upgrade, the same card
             language as the portals): the three promises read as steps a

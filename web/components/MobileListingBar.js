@@ -1,6 +1,7 @@
 'use client';
 
-import { MessageCircle, CalendarClock, Phone } from 'lucide-react';
+import { CalendarClock, Phone } from 'lucide-react';
+import { WhatsAppIcon } from './WhatsAppCTA';
 import Price from './Price';
 import { OPEN_VISIT_EVENT } from './EnquiryCard';
 import { resolveWhatsAppRouting } from '@/lib/leadRouting';
@@ -96,7 +97,7 @@ export default function MobileListingBar({ listing }) {
             onClick={() => trackLeadClick(listing, routingType)}
             className="u-press u-focus-ring inline-flex shrink-0 items-center gap-1.5 rounded-full border border-transparent bg-green px-3.5 py-2.5 text-[0.8125rem] font-semibold text-white transition-colors hover:bg-green-deep"
           >
-            <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+            <WhatsAppIcon className="h-4 w-4" />
             {t('common.shared.whatsapp')}
           </a>
         ) : null}

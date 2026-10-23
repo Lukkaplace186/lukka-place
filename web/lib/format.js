@@ -15,6 +15,21 @@ import { rentPeriodLabel } from './leaseTerm';
 // or 'mois' both render the existing "/ mois" text (a one-time total rent
 // figure is still effectively described the same way here).
 /**
+ * A French-grouped number ("1 000 000") with ordinary no-break spaces.
+ *
+ * Intl's fr-FR grouping separator is the NARROW no-break space (U+202F), and
+ * Plus Jakarta Sans draws that glyph at almost no width, so "1 000 000 $"
+ * rendered as "1000000 $" on every card. U+00A0 keeps the figure on one line
+ * and is a visible space in the site font.
+ */
+const NARROW_NBSP = new RegExp(String.fromCharCode(0x202f), 'g');
+const NBSP = String.fromCharCode(0xa0);
+
+export function frNumber(value, options) {
+  return Number(value).toLocaleString('fr-FR', options).replace(NARROW_NBSP, NBSP);
+}
+
+/**
  * What every price formatter here renders when there is no real figure to
  * show. The standard French property-listing phrase for exactly this, so it
  * reads as an intentional state rather than a broken one.
@@ -62,7 +77,7 @@ export function usablePrice(price) {
 export function formatPriceParts(price, purpose, pricePeriod) {
   const usable = usablePrice(price);
   if (usable === null) return { amount: PRICE_ON_REQUEST, period: null };
-  const amount = `${usable.toLocaleString('fr-FR')} $`;
+  const amount = `${frNumber(usable)} $`;
   if (purpose !== 'rent') return { amount, period: null };
   return { amount, period: rentPeriodLabel(pricePeriod) };
 }
@@ -91,7 +106,7 @@ export function formatPrice(price, purpose, pricePeriod) {
 export function formatPriceCdfParts(price, purpose, pricePeriod) {
   const usable = usablePrice(price);
   if (usable === null) return { amount: PRICE_ON_REQUEST, period: null };
-  const amount = `${usable.toLocaleString('fr-FR')} FC`;
+  const amount = `${frNumber(usable)} FC`;
   if (purpose !== 'rent') return { amount, period: null };
   return { amount, period: rentPeriodLabel(pricePeriod) };
 }
@@ -124,7 +139,7 @@ const CDF_COMPACT_FORMATTER = new Intl.NumberFormat('fr-FR', { notation: 'compac
 
 export function formatCdfCompact(cdf) {
   const amount = Number(cdf);
-  return Number.isFinite(amount) ? CDF_COMPACT_FORMATTER.format(amount) : null;
+  return Number.isFinite(amount) ? CDF_COMPACT_FORMATTER.format(amount).replace(NARROW_NBSP, NBSP) : null;
 }
 
 const RELATIVE_FR = new Intl.RelativeTimeFormat('fr-FR', { numeric: 'auto' });

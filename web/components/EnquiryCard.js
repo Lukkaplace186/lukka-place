@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { MessageCircle, Phone, CalendarClock } from 'lucide-react';
+import { Phone, CalendarClock } from 'lucide-react';
+import { WhatsAppIcon } from './WhatsAppCTA';
 import FavoriteButton from './FavoriteButton';
 import { trackCallClick, trackLeadClick } from '@/lib/analyticsClient';
 import { resolveWhatsAppRouting } from '@/lib/leadRouting';
@@ -204,9 +205,9 @@ export default function EnquiryCard({ listing, visitSent, visitError, saveShare 
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => trackLeadClick(listing, routingType)}
-            className="u-press u-btn-primary inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue px-5 py-3 text-sm font-semibold text-white"
+            className="u-press inline-flex w-full items-center justify-center gap-2 rounded-lg bg-green px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-deep"
           >
-            <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
+            <WhatsAppIcon className="h-[1.125rem] w-[1.125rem]" />
             {t('enquiry.contactWhatsApp')}
           </a>
         ) : (

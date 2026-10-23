@@ -23,7 +23,7 @@ export default function SectionHeading({ eyebrow, title, lead, href, linkLabel =
             than Tailwind ones, so there is nothing for tailwind-merge to
             resolve between them and plain concatenation is correct here. */}
         {eyebrow && <p className={`u-eyebrow mb-3 ${eyebrowClassName}`}>{eyebrow}</p>}
-        <h2 className="font-display text-[1.375rem] font-normal leading-[1.2] tracking-[0.1px] text-ink sm:text-2xl">
+        <h2 className="u-title-storefront text-ink">
           {title}
         </h2>
         {lead && <p className="u-body mt-3 text-ink-45">{lead}</p>}

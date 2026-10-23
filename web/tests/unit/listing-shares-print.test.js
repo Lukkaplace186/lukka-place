@@ -21,6 +21,7 @@ import { buildMandateCaption, buildMandateReport, reportWindow } from '@/lib/mar
 import { buildReportOps } from '@/lib/marketing/layout';
 import { buildPrintSheet, entryCostLines, keyFactRows, sheetHighlights, specStrip, SHEET_MAX_HIGHLIGHTS } from '@/lib/marketing/printSheet';
 import { getPrintExtras } from '@/lib/marketing/printSheetData';
+import { frNumber } from '@/lib/format';
 
 /**
  * Statut du jour, share recording (listing_shares), the landlord report's
@@ -224,7 +225,7 @@ test('a map link only for a real coordinate', () => {
 test('entry costs stay three separate lines, never summed, and unstated ones are left out', () => {
   const lines = entryCostLines({ purpose: 'rent', price: 500, price_period: 'mois', deposit_months: 3, advance_months: 1, commission_months: 1 });
   assert.deepEqual(lines.map((l) => [l.key, l.value, l.amount]), [
-    ['deposit', '3 mois', `${(1500).toLocaleString('fr-FR')} $`],
+    ['deposit', '3 mois', `${frNumber(1500)} $`],
     ['advance', '1 mois', '500 $'],
     ['commission', '1 mois', '500 $'],
   ]);

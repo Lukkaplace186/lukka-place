@@ -52,8 +52,9 @@ module.exports = {
       // Reads the brokers' WhatsApp groups as a linked device of the annonces
       // SIM and posts listings to the engine (group-reader/README.md). Also a
       // single fork: two instances on one auth state would kick each other
-      // off WhatsApp. Exits 2 when logged out — PM2 restarts it and it prints
-      // a QR nobody scans, so check its log after any "LOGGED OUT".
+      // off WhatsApp. Exits 2 when logged out, and stop_exit_codes keeps PM2
+      // from restarting it: on 2026-10-22 it re-tried a dead login 188 times.
+      // Relink by hand (group-reader/README.md), then start it again.
       name: 'lukka-group-reader',
       script: 'index.js',
       cwd: `${__dirname}/group-reader`,
@@ -66,6 +67,7 @@ module.exports = {
       min_uptime: '30s',
       max_restarts: 10,
       restart_delay: 15000,
+      stop_exit_codes: [2],
       // Lets SIGTERM flush the open batches (index.js waits up to 25s).
       kill_timeout: 30000,
 

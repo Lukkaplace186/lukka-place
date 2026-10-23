@@ -59,9 +59,19 @@ export default async function AdminAgentsPage({ searchParams }) {
 
   return (
     <div className="flex flex-col gap-5">
-      <div>
-        <h1 className="u-title-page text-ink">{t('admin.agents.title')}</h1>
-        <p className="u-micro mt-1 text-ink-45">{t(scope ? 'admin.agents.subtitleSales' : 'admin.agents.subtitle')}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="u-title-page text-ink">{t('admin.agents.title')}</h1>
+          <p className="u-micro mt-1 text-ink-45">{t(scope ? 'admin.agents.subtitleSales' : 'admin.agents.subtitle')}</p>
+        </div>
+        {can(session?.role, 'agents.manage') ? (
+          <Link
+            href="/admin/agents/nouveau"
+            className="u-btn-primary u-press inline-flex h-10 items-center gap-1.5 rounded-lg px-4 text-sm font-bold"
+          >
+            + {t('admin.agentCreate.title')}
+          </Link>
+        ) : null}
       </div>
 
       {list ? (

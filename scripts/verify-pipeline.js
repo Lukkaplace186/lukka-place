@@ -12527,6 +12527,198 @@ console.log('\n2. services/openai.js');
     });
   }
 
+  console.log('\n66. Agent accounts created or verified by an admin, with no code');
+
+  {
+    const accounts66 = require('../services/adminAgentAccounts');
+    const onboarding66 = require('../services/agentOnboarding');
+    const postgres66 = require('../services/postgres');
+    const crypto66 = require('crypto');
+    const saved66 = { configured: postgres66.isConfigured, pool: postgres66.getPool, link: postgres66.linkListingsToAgent };
+
+    // A small in-memory `agents` table behind the fake pool: only the
+    // statements these two paths issue.
+    const agents66 = [];
+    const locks66 = [];
+    const digitsOf = (p) => String(p || '').replace(/\D/g, '');
+    const client66 = {
+      async query(sql, params = []) {
+        if (/^(BEGIN|COMMIT|ROLLBACK)/.test(sql)) return { rows: [] };
+        if (/pg_advisory_xact_lock/.test(sql)) { locks66.push(params[0]); return { rows: [] }; }
+        if (/SELECT id FROM agents\s+WHERE regexp_replace[\s\S]*id <> \$2/.test(sql)) {
+          return { rows: agents66.filter((a) => digitsOf(a.phone) === params[0] && a.id !== params[1] && a.phone_verified_at && !a.deleted_at) };
+        }
+        if (/SELECT id FROM agents WHERE regexp_replace/.test(sql)) {
+          return { rows: agents66.filter((a) => digitsOf(a.phone) === params[0]).slice(0, 1) };
+        }
+        if (/FROM agents WHERE id = \$1 FOR UPDATE/.test(sql)) {
+          const a = agents66.find((row) => row.id === params[0]);
+          return { rows: a ? [{ ...a, has_password: Boolean(a.password_hash) }] : [] };
+        }
+        if (/INSERT INTO agents/.test(sql)) {
+          const row = {
+            id: 500 + agents66.length, username: params[0], phone: params[1], agency_name: params[2],
+            activation_token_hash: params[3], phone_verified_at: 'NOW', onboarding_source: params[5],
+          };
+          agents66.push(row);
+          return { rows: [{ id: row.id }] };
+        }
+        if (/UPDATE agents SET primary_communes/.test(sql)) {
+          Object.assign(agents66.find((a) => a.id === params[1]), { primary_communes: params[0], serviced_communes: params[0] });
+          return { rowCount: 1 };
+        }
+        if (/UPDATE agents\s+SET phone_verified_at = COALESCE[\s\S]*activation_token_hash/.test(sql)) {
+          const a = agents66.find((row) => row.id === params[2]);
+          a.phone_verified_at = a.phone_verified_at || 'NOW';
+          a.activation_token_hash = params[0];
+          return { rowCount: 1 };
+        }
+        if (/UPDATE agents SET phone_verified_at = NOW\(\)/.test(sql)) {
+          agents66.find((row) => row.id === params[0]).phone_verified_at = 'NOW';
+          return { rowCount: 1 };
+        }
+        if (/agent_infos/.test(sql)) {
+          if (/INSERT/.test(sql)) agents66.find((a) => a.id === Number(params[0])).info = { first: params[2], last: params[3] };
+          return { rows: [], rowCount: 0 };
+        }
+        throw new Error(`unexpected SQL in §66: ${sql.slice(0, 80)}`);
+      },
+      release() {},
+    };
+    const linkCalls66 = [];
+    postgres66.isConfigured = () => true;
+    postgres66.getPool = () => ({ connect: async () => client66 });
+    // The real linkListingsToAgent re-resolves the agent through
+    // resolveAgentId's verified gate; the fake applies the same rule.
+    postgres66.linkListingsToAgent = async (ids, waId) => {
+      linkCalls66.push({ ids, waId });
+      const agent = agents66.find((a) => digitsOf(a.phone) === waId && a.phone_verified_at && !a.deleted_at);
+      return agent ? { agentId: agent.id, linkedIds: ids } : { agentId: null, linkedIds: [] };
+    };
+
+    const BROKER66 = '243899066066';
+    const group66 = dbService.insertListing(
+      { is_listing: true, property_type: 'appartement', commune: 'Limete', price: 600 },
+      BROKER66,
+      { wamid: 'wamid.GROUP66' },
+    );
+    dbService.db.prepare('UPDATE listings SET remote_property_id = 990660 WHERE id = ?').run(group66.id);
+
+    async function refusal(promise) {
+      try { await promise; } catch (err) { return err.code; }
+      return null;
+    }
+
+    try {
+      await checkAsync('the business numbers, a malformed phone and a missing name are refused before any write', async () => {
+        assert.strictEqual(await refusal(accounts66.createAgentByAdmin({ phone: '243976321848', firstName: 'X' })), 'phone-ours');
+        assert.strictEqual(await refusal(accounts66.createAgentByAdmin({ phone: '+243 846 962 654', firstName: 'X' })), 'phone-ours');
+        assert.strictEqual(await refusal(accounts66.createAgentByAdmin({ phone: '12345', firstName: 'X' })), 'phone-invalid');
+        assert.strictEqual(await refusal(accounts66.createAgentByAdmin({ phone: '1234567890123456', firstName: 'X' })), 'phone-invalid');
+        assert.strictEqual(await refusal(accounts66.createAgentByAdmin({ phone: BROKER66, firstName: '  ' })), 'name-required');
+        assert.strictEqual(agents66.length, 0);
+      });
+
+      let created66;
+      await checkAsync('"Créer un agent" makes a verified account marked admin, with names and communes', async () => {
+        created66 = await accounts66.createAgentByAdmin({
+          phone: `+${BROKER66}`, firstName: 'Patrick', lastName: 'Mbala', agencyName: 'Immo Limete', primaryCommunes: ['Limete', 'Lemba'],
+        });
+        const row = agents66.find((a) => a.id === created66.agentId);
+        assert.strictEqual(row.phone, BROKER66);
+        assert.strictEqual(row.phone_verified_at, 'NOW');
+        assert.strictEqual(row.onboarding_source, 'admin');
+        assert.strictEqual(row.agency_name, 'Immo Limete');
+        assert.deepStrictEqual(row.primary_communes, ['Limete', 'Lemba']);
+        assert.deepStrictEqual(row.info, { first: 'Patrick', last: 'Mbala' });
+        assert.deepStrictEqual(locks66, [`agent-phone:${BROKER66}`], 'the create takes the per-number lock');
+      });
+
+      check('the activation link is the onboarding magic link, and only its hash is stored', () => {
+        const url = new URL(created66.link);
+        assert.strictEqual(url.pathname, '/compte/agent/activer');
+        assert.strictEqual(url.searchParams.get('phone'), BROKER66);
+        const token = url.searchParams.get('token');
+        assert.match(token, /^[0-9a-f]{64}$/);
+        const row = agents66.find((a) => a.id === created66.agentId);
+        assert.strictEqual(row.activation_token_hash, crypto66.createHash('sha256').update(token).digest('hex'));
+      });
+
+      check('the number\'s group capture is claimed in Postgres and in SQLite', () => {
+        assert.deepStrictEqual(linkCalls66[0], { ids: [990660], waId: BROKER66 });
+        assert.deepStrictEqual(created66.claimed.linkedIds, [990660]);
+        assert.strictEqual(dbService.getListing(group66.id).agent_id, created66.agentId);
+      });
+
+      await checkAsync('a number that already has an account is refused, soft-deleted included', async () => {
+        assert.strictEqual(await refusal(accounts66.createAgentByAdmin({ phone: BROKER66, firstName: 'Autre' })), 'phone-taken');
+        agents66.push({ id: 777, phone: '243811066777', deleted_at: '2026-10-18', phone_verified_at: null });
+        assert.strictEqual(await refusal(accounts66.createAgentByAdmin({ phone: '243811066777', firstName: 'Autre' })), 'phone-taken');
+        assert.strictEqual(agents66.filter((a) => digitsOf(a.phone) === BROKER66).length, 1);
+      });
+
+      await checkAsync('"Vérifier le numéro" verifies an unverified account and links its listings', async () => {
+        agents66.push({ id: 778, phone: '243822066778', phone_verified_at: null, password_hash: null });
+        const lone = dbService.insertListing({ is_listing: true, property_type: 'villa', commune: 'Gombe' }, '243822066778', { wamid: 'wamid.V66' });
+        const result = await accounts66.verifyAgentByAdmin(778);
+        assert.strictEqual(agents66.find((a) => a.id === 778).phone_verified_at, 'NOW');
+        assert.strictEqual(result.alreadyVerified, false);
+        assert.ok(result.link && result.link.includes('phone=243822066778'), 'no password yet → an activation link');
+        assert.strictEqual(dbService.getListing(lone.id).agent_id, 778);
+      });
+
+      await checkAsync('the profile checkbox (issueLink: false) verifies and claims but never replaces an activation token', async () => {
+        agents66.push({ id: 783, phone: '243855066783', phone_verified_at: null, password_hash: null, activation_token_hash: 'onboarding-link' });
+        const result = await accounts66.verifyAgentByAdmin(783, { issueLink: false });
+        assert.strictEqual(result.link, null);
+        assert.strictEqual(agents66.find((a) => a.id === 783).phone_verified_at, 'NOW');
+        assert.strictEqual(agents66.find((a) => a.id === 783).activation_token_hash, 'onboarding-link', 'the unopened link still works');
+        const routes = fs.readFileSync(path.join(__dirname, '..', 'routes', 'admin.js'), 'utf8');
+        assert.match(routes, /issueLink: req\.body\?\.issue_link !== false/);
+      });
+
+      await checkAsync('an account that already has a password keeps it: verified, no link', async () => {
+        agents66.push({ id: 779, phone: '243833066779', phone_verified_at: null, password_hash: 'scrypt$x' });
+        const result = await accounts66.verifyAgentByAdmin(779);
+        assert.strictEqual(result.link, null);
+        assert.strictEqual(agents66.find((a) => a.id === 779).phone_verified_at, 'NOW');
+        assert.strictEqual(agents66.find((a) => a.id === 779).activation_token_hash, undefined);
+      });
+
+      await checkAsync('verify refuses a deleted account, one of our numbers, and a number verified on another account', async () => {
+        assert.strictEqual(await refusal(accounts66.verifyAgentByAdmin(777)), 'not-found');
+        assert.strictEqual(await refusal(accounts66.verifyAgentByAdmin(424242)), 'not-found');
+        agents66.push({ id: 780, phone: '243976321848', phone_verified_at: null });
+        assert.strictEqual(await refusal(accounts66.verifyAgentByAdmin(780)), 'phone-ours');
+        agents66.push({ id: 781, phone: `+${BROKER66}`, phone_verified_at: null });
+        assert.strictEqual(await refusal(accounts66.verifyAgentByAdmin(781)), 'phone-verified-elsewhere');
+        assert.strictEqual(agents66.find((a) => a.id === 781).phone_verified_at, null);
+      });
+
+      await checkAsync('WhatsApp onboarding still writes onboarding_source whatsapp and never refuses', async () => {
+        const result = await onboarding66.upsertAgentFromWhatsApp({ waId: '243844066782', fullName: 'Jean Kabeya', agencyName: null });
+        const row = agents66.find((a) => a.id === result.agentId);
+        assert.strictEqual(row.onboarding_source, 'whatsapp');
+        assert.deepStrictEqual(row.info, { first: 'Jean', last: 'Kabeya' });
+      });
+
+      check('the two actions exist only behind requireApiKey', () => {
+        const routes = fs.readFileSync(path.join(__dirname, '..', 'routes', 'admin.js'), 'utf8');
+        assert.match(routes, /router\.post\('\/agents\/admin-create'/);
+        assert.match(routes, /router\.post\('\/agents\/:id\/admin-verify'/);
+        const index = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
+        assert.match(index, /app\.use\('\/admin', requireApiKey, adminRoutes\)/);
+        for (const file of ['index.js', path.join('routes', 'webhook.js')]) {
+          assert.ok(!fs.readFileSync(path.join(__dirname, '..', file), 'utf8').includes('adminAgentAccounts'), `${file} must not reach it`);
+        }
+      });
+    } finally {
+      postgres66.isConfigured = saved66.configured;
+      postgres66.getPool = saved66.pool;
+      postgres66.linkListingsToAgent = saved66.link;
+    }
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

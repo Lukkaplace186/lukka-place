@@ -45,6 +45,20 @@ function loadEnv() {
 loadEnv();
 
 const LIST_GROUPS = process.argv.includes('--list-groups');
+// --pair=<number>: link with WhatsApp's 8-character code instead of a QR, for
+// when the annonces phone cannot point its camera at this screen. Never the
+// business numbers — they must not be linked to an unofficial client.
+const BUSINESS_NUMBERS = new Set(['243976321848', '243846962654']);
+const PAIR_ARG = process.argv.find((a) => a.startsWith('--pair='));
+const PAIR_PHONE = PAIR_ARG ? PAIR_ARG.slice('--pair='.length).replace(/\D/g, '') : '';
+if (PAIR_ARG && !/^\d{7,15}$/.test(PAIR_PHONE)) {
+  console.error('[group-reader] --pair needs the full number with country code, e.g. --pair=243847724604');
+  process.exit(1);
+}
+if (BUSINESS_NUMBERS.has(PAIR_PHONE)) {
+  console.error(`[group-reader] refusing to pair ${PAIR_PHONE}: it is a Lukka Place business number. Use the annonces SIM.`);
+  process.exit(1);
+}
 const AUTH_DIR = process.env.GROUP_READER_AUTH_DIR || '/var/data/group-reader-auth';
 const QR_PNG = process.env.GROUP_READER_QR_PNG || path.join(AUTH_DIR, 'link-qr.png');
 const STATE_FILE = process.env.GROUP_READER_STATE_FILE || '/var/data/group-reader-forwarded.json';
@@ -172,12 +186,26 @@ async function main() {
       cachedGroupMetadata: async () => undefined,
     });
     const current = sock;
+    let pairingRequested = false;
 
     current.ev.on('creds.update', saveCreds);
 
     current.ev.on('connection.update', async (update) => {
       const { connection, lastDisconnect, qr } = update;
-      if (qr) {
+      if (qr && PAIR_PHONE) {
+        if (pairingRequested) return;
+        pairingRequested = true;
+        try {
+          const code = await current.requestPairingCode(PAIR_PHONE);
+          const shown = String(code).replace(/^(.{4})(.{4})$/, '$1-$2');
+          console.log(`[group-reader] Pairing code for +${PAIR_PHONE}:\n\n    ${shown}\n`);
+          console.log('[group-reader] On that phone: WhatsApp → Appareils connectés → Connecter un appareil →');
+          console.log('[group-reader] « Connecter avec un numéro de téléphone » and type the code. It expires in a few minutes;');
+          console.log('[group-reader] a new one is printed here when it does.');
+        } catch (err) {
+          console.error(`[group-reader] pairing code request failed: ${err.message}`);
+        }
+      } else if (qr) {
         console.log('[group-reader] Link the ANNONCES SIM: WhatsApp → Appareils connectés → Connecter un appareil, then scan:');
         console.log(await QRCode.toString(qr, { type: 'terminal', small: true }));
         await QRCode.toFile(QR_PNG, qr, { width: 512 }).catch(() => {});

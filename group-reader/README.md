@@ -78,6 +78,16 @@ terminal can't show it, `scp` the PNG at `$GROUP_READER_QR_PNG` to your
 computer and scan that. The QR changes about every 20 seconds, and the PNG is
 rewritten each time.
 
+**No camera on this screen?** Link with an 8-character code instead:
+
+```bash
+node index.js --list-groups --pair=243847724604
+```
+
+On the annonces phone, go to **Appareils connectés** → **Connecter un appareil** →
+**Connecter avec un numéro de téléphone** and type the code that is printed.
+The business numbers are refused.
+
 ### 2. Choose the groups
 
 Once linked, `--list-groups` prints every group the SIM is a member of and
@@ -155,8 +165,9 @@ The reader reconnects by itself, with backoff from 5 s up to 5 min.
   be using the same login.
 - **Logged out** (the device was unlinked on the phone, or WhatsApp banned or
   logged out the number): it logs a loud `LOGGED OUT` banner and **exits with
-  code 2**. PM2 restarts it, and it then prints a QR that nobody scans. Group
-  listings stop arriving until someone relinks:
+  code 2**. `stop_exit_codes: [2]` in `ecosystem.config.js` keeps PM2 from
+  restarting it, because restarting only re-tries a dead login. Group listings
+  stop arriving until someone relinks:
 
   ```bash
   pm2 stop lukka-group-reader

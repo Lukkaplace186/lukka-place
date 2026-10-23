@@ -2891,6 +2891,40 @@ Tests: `tests/unit/launch-fixes-2026-10-21.test.js`; engine §60.
   reaches an agent who wrote to the business number in the last 24 h, and the
   toast says "envoyé", never "reçu".
 
+## "Créer un agent" and "Vérifier le numéro" — the team vouches (2026-10-23)
+
+`app/admin/agents/nouveau/`, `app/admin/agents/createAgentActions.js`,
+`app/admin/agents/ActivationLinkPanel.js`, `[id]/AdminVerifyAgentButton.js`,
+`lib/adminAgentCreate.js`. Engine half: CLAUDE.md, "Agents created or verified
+by an admin". Tests: `tests/unit/admin-agent-create.test.js`, engine §66.
+
+- **No code from the phone.** An admin with `agents.manage` creates a verified
+  account (first / last name, agency, `PhoneField` number through lib/phone.js,
+  communes from the list the action re-reads) or verifies an existing one from
+  its page. This skips proof of ownership on purpose: the number goes on the
+  agent's listings and receives their enquiries. Admin console only — the test
+  walks `(site)`, `(portfolio)` and `api` to keep it that way.
+- **The engine writes the row** (WhatsApp onboarding's own upsert,
+  `onboarding_source = 'admin'`) and claims the number's listings, group
+  captures included. No agents INSERT here.
+- **Refused**: a number with any account (soft-deleted included; the error
+  links to it), the two business numbers, a malformed number, no first name;
+  verify also refuses a number already verified on another live account.
+- **Who vouched**: audit `agent.admin_create` / `agent.admin_verify` and a note
+  on the agent's timeline naming the admin (`actorLabel`). Nothing on `agents`
+  names them.
+- **Activation link**: shown once in `ActivationLinkPanel` with Copier and
+  "Envoyer depuis mon WhatsApp" (a wa.me link that opens the admin's own
+  WhatsApp, text typed in). Nothing is sent by Lukka Place. Verify returns no
+  link when the account already has a password.
+- **The profile's "Numéro vérifié" checkbox** grants through the same engine
+  verify (`adminVerifyAgent(id, { issueLink: false })`) before anything on the
+  form is saved: same refusals (our numbers, a number verified on another
+  live account), same listing claim, same audit + note (`via:
+  'profile-checkbox'`). It issues no link — the admin sees none there, and a
+  new token would void an onboarding link the agent has not opened. The
+  profile save itself only ever revokes.
+
 ## Agent ratings — "Notez l'agent" (2026-10-18)
 
 Engine half and rules: root CLAUDE.md, "Notez l'agent". The engine

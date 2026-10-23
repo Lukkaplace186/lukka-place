@@ -1625,6 +1625,48 @@ router.post('/agents/claim-listings', async (req, res) => {
   }
 });
 
+/**
+ * Agent accounts the team creates or verifies from the console, with no code
+ * from the agent's phone (services/adminAgentAccounts.js has why, and why
+ * this must stay behind requireApiKey). The console audits who did it.
+ */
+function adminAgentFailure(res, err, label) {
+  const { ERROR_STATUS } = require('../services/adminAgentAccounts');
+  const status = ERROR_STATUS[err.code];
+  if (status) {
+    return res.status(status).json({ success: false, code: err.code, error: err.message, agentId: err.agentId ?? null });
+  }
+  console.error(`[admin] ${label} failed: ${err.message}`);
+  return res.status(500).json({ success: false, error: err.message });
+}
+
+router.post('/agents/admin-create', async (req, res) => {
+  const body = req.body || {};
+  try {
+    const result = await require('../services/adminAgentAccounts').createAgentByAdmin({
+      phone: body.phone,
+      firstName: body.first_name,
+      lastName: body.last_name,
+      agencyName: body.agency_name,
+      primaryCommunes: Array.isArray(body.primary_communes) ? body.primary_communes : [],
+    });
+    return res.status(201).json({ success: true, ...result });
+  } catch (err) {
+    return adminAgentFailure(res, err, 'agents/admin-create');
+  }
+});
+
+router.post('/agents/:id/admin-verify', async (req, res) => {
+  try {
+    const result = await require('../services/adminAgentAccounts').verifyAgentByAdmin(req.params.id, {
+      issueLink: req.body?.issue_link !== false,
+    });
+    return res.json({ success: true, ...result });
+  } catch (err) {
+    return adminAgentFailure(res, err, `agents/${req.params.id}/admin-verify`);
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Asking-price changes from web/ — one writer for both stores
 // ---------------------------------------------------------------------------

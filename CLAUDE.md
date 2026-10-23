@@ -786,6 +786,47 @@ brings them in. `services/groupRelay.js` is the one path for both ways in:
   WhatsApp") naming the group, the poster and the relay. The owners'
   "annonce à valider" alert fires as for any listing. §62.
 
+### Agents created or verified by an admin — no code (2026-10-23)
+
+`services/adminAgentAccounts.js`, behind `POST /admin/agents/admin-create`
+and `POST /admin/agents/:id/admin-verify` (requireApiKey; web's console is the
+only caller, web/CLAUDE.md has the pages). A third way a number becomes a
+verified agent, beside the reverse code and WhatsApp onboarding: **the team
+vouches for it.** Built for the group-capture brokers above, whose listings
+stay unattributed until their number is verified, and for any agent the team
+signs up in person.
+
+- **Deliberately skips proof of ownership.** `phone_verified_at` is the gate
+  `resolveAgentId`, `identifySender` and web's lead routing share — setting it
+  publishes the number on the agent's listings and routes their enquiries to
+  it. Never reachable from a public path or from `routes/webhook.js` (§66
+  checks the source).
+- **Create** reuses `agentOnboarding.upsertAgentFromWhatsApp`, with
+  `source: 'admin'` (`onboarding_source = 'admin'`, the record of who vouched;
+  no admin id is stored on `agents`), separate first/last names, communes as
+  `primary_communes` = `serviced_communes`, and `refuseExisting`: any row with
+  that number, soft-deleted included, refuses (409 `phone-taken`), under a
+  per-number advisory lock. The WhatsApp path is unchanged ('whatsapp', never
+  refuses).
+- **Refused numbers**: not 7–15 digits; 243976321848 / 243846962654 (fixed in
+  the module) plus `groupRelay.ownNumbers()` (desk, relay SIM, business env).
+- **Verify** (existing account): sets `phone_verified_at`; refused for a
+  deleted account and when another live verified account holds the number
+  (`resolveAgentId` would pick one arbitrarily). An activation token is issued
+  only when the account has no password — a password and its sessions are kept
+  — and never with `issue_link: false` (the profile checkbox, which also
+  verifies through here).
+- **Claim**: `postgres.linkListingsToAgent` over the number's
+  `remote_property_id`s (the onboarding claim: fills NULL `properties.agent_id`
+  only, through resolveAgentId's gate), then `db.attributeListingsForWaId`
+  stamps SQLite `listings.agent_id`. No full re-sync: `agent_id` is the field
+  that changes. A capture not yet in Postgres (draft, no photo) is attributed
+  at its first sync. Best-effort; the account exists either way.
+- **The activation link** (`agentOnboarding.activationLink`, the onboarding
+  magic link, only the SHA-256 stored) is returned to the console and sent by
+  nobody: the admin copies it or opens their own WhatsApp with it.
+- §66 of verify-pipeline.
+
 ### Plan listing limit on WhatsApp
 
 `services/listingQuota.js`, called in `routes/webhook.js`'s draft-confirmation

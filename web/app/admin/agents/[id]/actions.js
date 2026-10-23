@@ -13,6 +13,9 @@ import {
 } from '@/lib/agents';
 import { adminSetAccountPassword } from '@/lib/adminPasswordReset';
 import { updateAgentIdentity } from '@/lib/agencies';
+import { adminVerifyAgent } from '@/lib/adminApi';
+import { adminAgentRefusal } from '@/lib/adminAgentCreate';
+import { recordAgentVouch } from '@/lib/adminAgentVouch';
 import { getT } from '@/lib/i18n/server';
 
 function revalidateAgent(agentId) {
@@ -39,6 +42,23 @@ export async function adminSaveAgentAction(agentId, validCommunes, formData) {
     const serviced = formData.getAll('serviced_communes').map(String).filter((c) => valid.has(c));
     const status = Number.parseInt(formData.get('status'), 10);
     const phoneVerified = formData.get('phone_verified') === 'on';
+    const before = await getAgentById(agentId);
+    if (!before) return { ok: false, error: t('errors.agentNotFound') };
+
+    // Ticking "Numéro vérifié" is the same vouch as "Vérifier le numéro"
+    // (../createAgentActions.js), so it goes through the same engine path
+    // first: one of our numbers, or a number already verified on another
+    // account, is refused before anything on this form is saved, and the
+    // number's listings are claimed. No activation link from here — the admin
+    // would never see it, and it would void one the agent has not opened yet.
+    let vouch = null;
+    if (phoneVerified && !before.phone_verified_at) {
+      try {
+        vouch = await adminVerifyAgent(agentId, { issueLink: false });
+      } catch (err) {
+        return { ok: false, error: adminAgentRefusal(t, err) };
+      }
+    }
 
     const ok = await adminUpdateAgent(agentId, {
       agencyName: String(formData.get('agency_name') || '').trim().slice(0, 160) || null,
@@ -46,10 +66,19 @@ export async function adminSaveAgentAction(agentId, validCommunes, formData) {
       status: [0, 1].includes(status) ? status : undefined,
       primaryCommunes: primary,
       servicedCommunes: [...new Set([...serviced, ...primary])],
-      phoneVerified,
+      // Granting happened above (or the number was already verified); this
+      // save only ever revokes.
+      phoneVerified: phoneVerified ? undefined : false,
     });
 
     if (!ok) return { ok: false, error: t('errors.agentNotFound') };
+
+    if (vouch) {
+      await recordAgentVouch(session, agentId, {
+        created: false,
+        details: { phone: vouch.phone, via: 'profile-checkbox', claimed: vouch.claimed?.linkedIds?.length ?? 0 },
+      });
+    }
 
     // The person's name lives on agent_infos and every listing, card and admin
     // table joins it live, so a correction here shows everywhere at once.
@@ -59,7 +88,6 @@ export async function adminSaveAgentAction(agentId, validCommunes, formData) {
     if (formData.has('first_name') || formData.has('last_name')) {
       const firstName = String(formData.get('first_name') || '').trim().slice(0, 80) || null;
       const lastName = String(formData.get('last_name') || '').trim().slice(0, 80) || null;
-      const before = await getAgentById(agentId);
       if ((before?.first_name || null) !== firstName || (before?.last_name || null) !== lastName) {
         await updateAgentIdentity(agentId, { firstName, lastName });
         nameChanged = true;

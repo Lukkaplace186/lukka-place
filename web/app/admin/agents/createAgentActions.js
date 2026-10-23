@@ -2,11 +2,10 @@
 
 import { revalidatePath } from 'next/cache';
 import { requireAdmin } from '@/lib/adminSession';
-import { recordAudit, actorLabel } from '@/lib/adminAudit';
-import { addNote } from '@/lib/adminNotes';
+import { recordAgentVouch } from '@/lib/adminAgentVouch';
 import { adminCreateAgent, adminVerifyAgent } from '@/lib/adminApi';
 import { getLocationHierarchyWithFallback } from '@/lib/locations';
-import { ADMIN_AGENT_ERROR_KEYS, adminVerificationNote, parseAdminAgentForm } from '@/lib/adminAgentCreate';
+import { ADMIN_AGENT_ERROR_KEYS, adminAgentRefusal, parseAdminAgentForm } from '@/lib/adminAgentCreate';
 import { getT } from '@/lib/i18n/server';
 
 /**
@@ -17,26 +16,6 @@ import { getT } from '@/lib/i18n/server';
  * listings and routes enquiries to it — who vouched is recorded twice: the
  * audit log and a note on the agent's timeline.
  */
-
-function refusal(t, err) {
-  const key = ADMIN_AGENT_ERROR_KEYS[err?.code];
-  if (key) return t(key, { id: err.agentId ?? '' });
-  return err?.message || t('errors.actionFailed');
-}
-
-async function recordVouch(session, agentId, { created, details }) {
-  await recordAudit(session, {
-    action: created ? 'agent.admin_create' : 'agent.admin_verify',
-    entityType: 'agent',
-    entityId: agentId,
-    details,
-  });
-  try {
-    await addNote(session, 'agent', agentId, adminVerificationNote({ created, actor: actorLabel(session) }));
-  } catch (err) {
-    console.error(`[admin/agents] note for #${agentId} failed: ${err.message}`);
-  }
-}
 
 export async function adminCreateAgentAction(formData) {
   const t = await getT();
@@ -58,10 +37,10 @@ export async function adminCreateAgentAction(formData) {
     result = await adminCreateAgent(values);
   } catch (err) {
     if (!ADMIN_AGENT_ERROR_KEYS[err.code]) console.error(`[admin/agents] create ${values.phone} failed: ${err.message}`);
-    return { ok: false, error: refusal(t, err), existingAgentId: err.code === 'phone-taken' ? err.agentId ?? null : null };
+    return { ok: false, error: adminAgentRefusal(t, err), existingAgentId: err.code === 'phone-taken' ? err.agentId ?? null : null };
   }
 
-  await recordVouch(session, result.agentId, {
+  await recordAgentVouch(session, result.agentId, {
     created: true,
     details: { phone: result.phone, communes: values.primaryCommunes, claimed: result.claimed?.linkedIds?.length ?? 0 },
   });
@@ -93,10 +72,10 @@ export async function adminVerifyAgentAction(agentId) {
     result = await adminVerifyAgent(id);
   } catch (err) {
     if (!ADMIN_AGENT_ERROR_KEYS[err.code]) console.error(`[admin/agents] verify #${id} failed: ${err.message}`);
-    return { ok: false, error: refusal(t, err) };
+    return { ok: false, error: adminAgentRefusal(t, err) };
   }
 
-  await recordVouch(session, id, {
+  await recordAgentVouch(session, id, {
     created: false,
     details: { phone: result.phone, alreadyVerified: result.alreadyVerified, claimed: result.claimed?.linkedIds?.length ?? 0 },
   });

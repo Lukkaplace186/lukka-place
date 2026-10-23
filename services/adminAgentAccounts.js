@@ -140,9 +140,13 @@ async function createAgentByAdmin({ phone, firstName, lastName = null, agencyNam
  * Refused when another live, verified account holds the same number:
  * resolveAgentId would then pick one of the two arbitrarily.
  *
+ * `issueLink: false` is the profile's "Numéro vérifié" checkbox: same checks
+ * and claim, but no new token — the admin sees no link there, and a fresh
+ * token would silently void an onboarding link the agent has not opened yet.
+ *
  * @returns {Promise<{agentId: number, phone: string, alreadyVerified: boolean, link: string|null, claimed: object}>}
  */
-async function verifyAgentByAdmin(agentId) {
+async function verifyAgentByAdmin(agentId, { issueLink = true } = {}) {
   const id = Number.parseInt(agentId, 10);
   if (!Number.isFinite(id)) throw new AdminAgentError('not-found', 'agent id is required');
   if (!postgres.isConfigured()) throw new AdminAgentError('postgres-unavailable', 'Postgres is not configured');
@@ -176,7 +180,7 @@ async function verifyAgentByAdmin(agentId) {
     }
 
     alreadyVerified = Boolean(agent.phone_verified_at);
-    if (!agent.has_password) {
+    if (issueLink && !agent.has_password) {
       token = require('crypto').randomBytes(32).toString('hex');
       const expiresAt = new Date(Date.now() + onboarding.ACTIVATION_TTL_HOURS * 60 * 60 * 1000);
       await client.query(

@@ -813,7 +813,9 @@ signs up in person.
 - **Verify** (existing account): sets `phone_verified_at`; refused for a
   deleted account and when another live verified account holds the number
   (`resolveAgentId` would pick one arbitrarily). An activation token is issued
-  only when the account has no password — a password and its sessions are kept.
+  only when the account has no password — a password and its sessions are kept
+  — and never with `issue_link: false` (the profile checkbox, which also
+  verifies through here).
 - **Claim**: `postgres.linkListingsToAgent` over the number's
   `remote_property_id`s (the onboarding claim: fills NULL `properties.agent_id`
   only, through resolveAgentId's gate), then `db.attributeListingsForWaId`

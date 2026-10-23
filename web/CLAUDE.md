@@ -2914,9 +2914,13 @@ by an admin". Tests: `tests/unit/admin-agent-create.test.js`, engine §66.
   "Envoyer depuis mon WhatsApp" (a wa.me link that opens the admin's own
   WhatsApp, text typed in). Nothing is sent by Lukka Place. Verify returns no
   link when the account already has a password.
-- **The profile's "Numéro vérifié" checkbox** now claims the number's listings
-  too when it grants verification (it used to wait for each listing's next
-  sync). It still does not refuse the business numbers — use the button.
+- **The profile's "Numéro vérifié" checkbox** grants through the same engine
+  verify (`adminVerifyAgent(id, { issueLink: false })`) before anything on the
+  form is saved: same refusals (our numbers, a number verified on another
+  live account), same listing claim, same audit + note (`via:
+  'profile-checkbox'`). It issues no link — the admin sees none there, and a
+  new token would void an onboarding link the agent has not opened. The
+  profile save itself only ever revokes.
 
 ## Agent ratings — "Notez l'agent" (2026-10-18)
 

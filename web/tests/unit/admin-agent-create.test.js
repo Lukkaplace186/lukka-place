@@ -13,6 +13,7 @@ import {
   activationShareHref,
   activationShareText,
   adminVerificationNote,
+  adminAgentRefusal,
 } from '../../lib/adminAgentCreate.js';
 
 const root = path.resolve(import.meta.dirname, '..', '..');
@@ -91,8 +92,12 @@ test('both actions need agents.manage, audit, note, and go through the engine (r
   assert.match(actions, /export async function adminCreateAgentAction[\s\S]*?requireAdmin\('agents\.manage'\)/);
   assert.match(actions, /export async function adminVerifyAgentAction[\s\S]*?requireAdmin\('agents\.manage'\)/);
   assert.match(actions, /getLocationHierarchyWithFallback\(\{ city: 'all' \}\)[\s\S]*?parseAdminAgentForm\(formData, communes\)/);
-  assert.match(actions, /action: created \? 'agent\.admin_create' : 'agent\.admin_verify'/);
-  assert.match(actions, /addNote\(session, 'agent', agentId/);
+  assert.match(actions, /recordAgentVouch\(session, result\.agentId, \{\s*created: true/);
+  assert.match(actions, /recordAgentVouch\(session, id, \{\s*created: false/);
+  const vouch = read('lib/adminAgentVouch.js');
+  assert.match(vouch, /^import 'server-only';/);
+  assert.match(vouch, /action: created \? 'agent\.admin_create' : 'agent\.admin_verify'/);
+  assert.match(vouch, /addNote\(session, 'agent', agentId/);
   // No second agents INSERT on the web side: the engine's onboarding path writes the row.
   assert.doesNotMatch(actions, /INSERT INTO agents/);
   const api = read('lib/adminApi.js');
@@ -120,7 +125,21 @@ test('the pages show the buttons only to agents.manage, and never on a public pa
   }
 });
 
-test('ticking "Numéro vérifié" on the profile claims the number\'s listings too', () => {
+test('ticking "Numéro vérifié" goes through the same engine checks, before anything is saved, with no new link', () => {
   const actions = read('app/admin/agents/[id]/actions.js');
-  assert.match(actions, /phoneVerified && before && !before\.phone_verified_at && before\.phone[\s\S]*?claimListingsForPhone\(/);
+  // The engine verify (refusals + claim) runs first, and a refusal returns
+  // before adminUpdateAgent writes any field of the form.
+  assert.match(actions, /if \(phoneVerified && !before\.phone_verified_at\) \{[\s\S]*?adminVerifyAgent\(agentId, \{ issueLink: false \}\)[\s\S]*?return \{ ok: false, error: adminAgentRefusal\(t, err\) \}[\s\S]*?await adminUpdateAgent\(/);
+  // The profile save itself can only revoke; granting is the engine's.
+  assert.match(actions, /phoneVerified: phoneVerified \? undefined : false/);
+  assert.match(actions, /recordAgentVouch\(session, agentId, \{[\s\S]*?via: 'profile-checkbox'/);
+  assert.match(read('lib/adminApi.js'), /body: JSON\.stringify\(\{ issue_link: issueLink \}\)/);
+});
+
+test('an engine refusal is worded by its code, anything else keeps its message', () => {
+  const t = (key, vars) => `${key}|${vars?.id ?? ''}`;
+  assert.equal(adminAgentRefusal(t, { code: 'phone-verified-elsewhere', agentId: 12 }), 'admin.agentCreate.errorVerifiedElsewhere|12');
+  assert.equal(adminAgentRefusal(t, { code: 'phone-ours' }), 'admin.agentCreate.errorOurs|');
+  assert.equal(adminAgentRefusal(t, { message: 'boom' }), 'boom');
+  assert.equal(adminAgentRefusal(t, null), 'errors.actionFailed|');
 });

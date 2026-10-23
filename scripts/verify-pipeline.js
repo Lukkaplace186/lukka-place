@@ -12667,6 +12667,16 @@ console.log('\n2. services/openai.js');
         assert.strictEqual(dbService.getListing(lone.id).agent_id, 778);
       });
 
+      await checkAsync('the profile checkbox (issueLink: false) verifies and claims but never replaces an activation token', async () => {
+        agents66.push({ id: 783, phone: '243855066783', phone_verified_at: null, password_hash: null, activation_token_hash: 'onboarding-link' });
+        const result = await accounts66.verifyAgentByAdmin(783, { issueLink: false });
+        assert.strictEqual(result.link, null);
+        assert.strictEqual(agents66.find((a) => a.id === 783).phone_verified_at, 'NOW');
+        assert.strictEqual(agents66.find((a) => a.id === 783).activation_token_hash, 'onboarding-link', 'the unopened link still works');
+        const routes = fs.readFileSync(path.join(__dirname, '..', 'routes', 'admin.js'), 'utf8');
+        assert.match(routes, /issueLink: req\.body\?\.issue_link !== false/);
+      });
+
       await checkAsync('an account that already has a password keeps it: verified, no link', async () => {
         agents66.push({ id: 779, phone: '243833066779', phone_verified_at: null, password_hash: 'scrypt$x' });
         const result = await accounts66.verifyAgentByAdmin(779);

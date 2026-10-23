@@ -25,6 +25,13 @@ export const ADMIN_AGENT_ERROR_KEYS = {
   'postgres-unavailable': 'admin.agentCreate.errorUnavailable',
 };
 
+/** An engine refusal in the console's words; anything else keeps its message. */
+export function adminAgentRefusal(t, err) {
+  const key = ADMIN_AGENT_ERROR_KEYS[err?.code];
+  if (key) return t(key, { id: err.agentId ?? '' });
+  return err?.message || t('errors.actionFailed');
+}
+
 /**
  * Reads the create form. The phone goes through lib/phone.js with the country
  * PhoneField posts (7–15 digits); communes are kept only when they are in

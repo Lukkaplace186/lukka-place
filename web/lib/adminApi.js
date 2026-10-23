@@ -509,8 +509,11 @@ export async function adminCreateAgent({ phone, firstName, lastName, agencyName,
  * only when the account has no password yet.
  * @returns {Promise<{agentId: number, phone: string, alreadyVerified: boolean, link: string|null, claimed: object}>}
  */
-export async function adminVerifyAgent(agentId) {
-  return engineFetch(`/admin/agents/${encodeURIComponent(agentId)}/admin-verify`, { method: 'POST', body: '{}' });
+export async function adminVerifyAgent(agentId, { issueLink = true } = {}) {
+  return engineFetch(`/admin/agents/${encodeURIComponent(agentId)}/admin-verify`, {
+    method: 'POST',
+    body: JSON.stringify({ issue_link: issueLink }),
+  });
 }
 
 /**

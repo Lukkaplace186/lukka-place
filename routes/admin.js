@@ -1658,7 +1658,9 @@ router.post('/agents/admin-create', async (req, res) => {
 
 router.post('/agents/:id/admin-verify', async (req, res) => {
   try {
-    const result = await require('../services/adminAgentAccounts').verifyAgentByAdmin(req.params.id);
+    const result = await require('../services/adminAgentAccounts').verifyAgentByAdmin(req.params.id, {
+      issueLink: req.body?.issue_link !== false,
+    });
     return res.json({ success: true, ...result });
   } catch (err) {
     return adminAgentFailure(res, err, `agents/${req.params.id}/admin-verify`);

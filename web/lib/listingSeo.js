@@ -3,7 +3,7 @@ import { SITE_URL } from './constants';
 import { formatPrice, usablePrice } from './format';
 import { hasArea, listingImages, typeLabel } from './listingView';
 import { seoPath } from './seoPages';
-import { DEFAULT_CITY, cityOfListing, communeLabel, provinceOfCity } from './cities';
+import { DEFAULT_CITY, cityOfCommune, cityOfListing, communeLabel, provinceOfCity } from './cities';
 
 // UN/CEFACT codes for the rent's unit; a short-term rent is per day / week.
 const SCHEMA_UNIT_CODES = { an: 'ANN', mois: 'MON', jour: 'DAY', semaine: 'WEE' };
@@ -86,7 +86,12 @@ const SCHEMA_TYPES = { appartement: 'Apartment', maison: 'House', duplex: 'House
 export function communeHref(listing) {
   if (!listing.commune) return null;
   const transaction = listing.purpose === 'sale' ? 'vente' : listing.purpose === 'rent' ? 'location' : null;
-  return (transaction && seoPath({ transaction, commune: listing.commune })) || `/listings?commune=${encodeURIComponent(listing.commune)}`;
+  // A commune of another city has no page of its own; its city's page is the
+  // nearest landing page ("Kampemba" → /location/lubumbashi).
+  const otherCity = cityOfCommune(listing.commune);
+  return (transaction && (seoPath({ transaction, commune: listing.commune })
+      || (otherCity && otherCity !== DEFAULT_CITY ? seoPath({ transaction, city: otherCity }) : null)))
+    || `/listings?commune=${encodeURIComponent(listing.commune)}`;
 }
 
 /**

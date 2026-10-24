@@ -168,10 +168,13 @@ export default async function ListingDetailPage({ params, searchParams }) {
     ? t('listings.transaction.rent')
     : listing.purpose === 'sale' ? t('listings.transaction.sale') : null;
   const kindLabel = typeLabel(listing, t);
-  const kicker = [
-    [kindLabel, purposeLabel ? purposeLabel.toLowerCase() : null].filter(Boolean).join(' '),
-    ...specItems(listing, t).filter((s) => s.key === 'beds' || s.key === 'bath').map((s) => `${s.value} ${s.label}`),
-  ].filter(Boolean).join(' · ');
+  // "Appartement à louer" — leads the h1 (see there); the kicker above the
+  // price keeps the room counts.
+  const kindAndPurpose = [kindLabel, purposeLabel ? purposeLabel.toLowerCase() : null].filter(Boolean).join(' ');
+  const kicker = specItems(listing, t)
+    .filter((s) => s.key === 'beds' || s.key === 'bath')
+    .map((s) => `${s.value} ${s.label}`)
+    .join(' · ');
 
   // Up to 5 here rather than a card's 2 — the detail page has a dedicated
   // "Équipements" section with room for the full matched set.
@@ -278,10 +281,9 @@ export default async function ListingDetailPage({ params, searchParams }) {
             {/* Price leads the page — the design's single loudest number,
                 above the title rather than tucked into the enquiry panel. */}
             <div className="flex flex-col gap-2.5">
-              {/* What the property IS, before what it costs — "Appartement à
-                  louer · 2 ch · 2 sdb". The h1 below is the place, so without
-                  this line a phone's first screen said where and how much but
-                  never what. KeyFacts still carries the full grid. */}
+              {/* Room counts before the price — "2 ch · 2 sdb". What the
+                  property IS ("Appartement à louer") moved into the h1 below
+                  on 2026-10-24. KeyFacts still carries the full grid. */}
               {kicker ? (
                 <p className="text-[0.8125rem] font-semibold uppercase tracking-[0.06em] text-blue">{kicker}</p>
               ) : null}
@@ -323,9 +325,21 @@ export default async function ListingDetailPage({ params, searchParams }) {
                   the page's identity — it still carries the <title>, the
                   OpenGraph title and the breadcrumb's final crumb (see
                   generateMetadata above), so search engines and shared links
-                  keep the descriptive phrasing. */}
+                  keep the descriptive phrasing.
+
+                  Since 2026-10-24 the heading opens with what the property is
+                  and the transaction — "Appartement à louer — Yolo Nord I,
+                  Kalamu" — because the h1 is the strongest on-page signal
+                  search engines read, and "Yolo Nord I, Kalamu" alone matched
+                  nobody's search for an apartment to rent. */}
               <h1 className="text-xl font-medium leading-snug tracking-normal text-ink sm:text-2xl">
-                {where || listing.title}
+                {kindAndPurpose && where ? (
+                  <>
+                    <span className="font-semibold">{kindAndPurpose}</span>
+                    {' — '}
+                    {where}
+                  </>
+                ) : where || listing.title}
               </h1>
 
               {addressDetail ? (

@@ -9,7 +9,7 @@ export const NO_PHOTO_URL = 'https://lukkaplace.com/assets/img/noimage.jpg';
 // filters say "location", and the button over-reports until the visitor
 // touches something. Caught on production: the CTA read "31 biens" (30
 // rentals + 1 sale) under an active Louer tab whose real count is 30.
-// Both the server count (app/(site)/page.js) and the client's default tab
+// Both the server count (app/(site)/(home)/page.js) and the client's default tab
 // (components/SearchBar.js) read these, so the two cannot drift apart again.
 export const HERO_DEFAULT_TAB = 'louer';
 export const HERO_TRANSACTION_BY_TAB = { louer: 'location', courte: 'location', acheter: 'vente' };

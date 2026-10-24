@@ -657,8 +657,10 @@ loading or error boundary anywhere outside the client portal and `/admin`.
   lighter, never darker (root CLAUDE.md, "Listing photo auto-correction");
   the engine carries an identical copy for WhatsApp photos.
 - **Slow and failed requests.**
-  - `loading.js` exists at `(site)/`, `(site)/listings/[id]/`, `compte/agent/`
-    and `(portfolio)/`, using `components/RouteSkeletons.js`.
+  - `loading.js` exists per section of `(site)/` (re-exporting
+    `(site)/_shared/SiteLoading.js` — never one `(site)/loading.js` again, see
+    "Real 404s" below), `(site)/listings/[id]/`, `compte/agent/` and
+    `(portfolio)/`, using `components/RouteSkeletons.js`.
   - Each sits at a segment root, so a search-param change inside a page
     (`/listings` filters, `?tab=`) does not flash the skeleton or remount the
     map.
@@ -1914,8 +1916,8 @@ From a 375px walk of home → /listings → a listing on production. Desktop
   plus en ligne" + three live listings — the dead link people actually hit is
   a listing shared weeks ago), `app/(site)/not-found.js`, and `app/not-found.js`
   for unmatched URLs (outside the site header, so it carries the wordmark).
-  Before, all three were Next's default English page. The listing one answers
-  200 with `noindex` (streamed under `loading.js`), unmatched URLs 404.
+  Before, all three were Next's default English page. Since 2026-10-24 all of
+  them answer a real 404 (see "Real 404s" below).
 - **Empty search state**: "Retirer la limite de prix" chip, and the last
   hardcoded French string there moved to `listings.empty.allIn`.
 - **Hydration #418 does not reproduce** on the live home, listings or listing
@@ -2053,7 +2055,7 @@ anywhere. `tests/unit/seo-pages.test.js`.
   footer icons' links and the Organization `sameAs`. `NEXT_PUBLIC_*` are
   inlined at build time — rebuild after setting them.
 - Not done, deliberately: English URLs (locale is a cookie, so Google only
-  sees French — the /en migration is `lib/i18n/config.js`'s note), and keeping
+  sees French — plan in `docs/seo-english-pages-plan.md`), and keeping
   sold listings indexable (would need a read outside `APPROVED_FILTER`; the
   listing 404 page already offers live alternatives).
 
@@ -3191,3 +3193,41 @@ Owner requests from phone screenshots. Tests: `tests/unit/budget-steps.test.js`,
   quartier". Typed text still wins over the dropdown, and the dropdown follows
   it (typing "Kampemba" or tapping the Lubumbashi chip selects Lubumbashi);
   picking another city clears a place of a different city from the box.
+
+## Real 404s, city landing pages, SEO links (2026-10-24)
+
+From an SEO audit: Google had indexed nothing, and the site gave it reasons to
+distrust what it found. Tests: `tests/unit/real-404.test.js`,
+`tests/unit/seo-pages.test.js`.
+
+- **A dead listing or unknown landing path is a real 404.** A `loading.js` is
+  a Suspense boundary; once its skeleton has streamed, the status is 200 and a
+  `notFound()` below it can only add `noindex` — a soft 404. One
+  `(site)/loading.js` sat over every public page, so `/listings/293` (offline),
+  `/listings/99999` and `/location/xyz` all answered 200. Now:
+  - each section of `(site)` has its own `loading.js` re-exporting
+    `(site)/_shared/SiteLoading.js`;
+  - the home page and the `/listings` results moved into route groups
+    (`(home)/page.js`, `listings/(search)/(results)/page.js`, URLs unchanged)
+    so their boundary still sits above the segment whose key changes with
+    search params — filters still do not flash the skeleton;
+  - `listings/[id]/layout.js` (`publicListingExists`: same gate and joins as
+    `getListingById`, no columns — prefetches run it) and
+    `location|vente/[[...slug]]/layout.js` (`parseSeoSegments`, pure) call
+    `notFound()` ABOVE their own `loading.js`.
+  Don't add a `loading.js` above those three again.
+  `guides/[slug]`, `projets/[slug]` and `rapport/[token]` still sit under a
+  section skeleton (200 + noindex when missing).
+- **Other cities have landing pages**: `/location/lubumbashi`,
+  `/vente/terrains/goma` (`SEO_CITIES`, `cityFromSlug`; Kinshasa has none of
+  its own — the roots are Kinshasa). `seoPath` takes `city`, a commune winning
+  over it; `/listings?transaction_type=location&ville=Goma` names it as
+  canonical (indexable), a bare `?ville=Goma` stays noindex. Facets are split by city
+  (`facetCity`: the commune's city, else Kinshasa), so Kinshasa's pages no
+  longer count or link other cities' listings. A city-level page lists "Dans
+  d'autres villes". The sitemap adds a city page once it has a listing; a
+  listing in another city's commune crumbs to its city page.
+- **Louer / Acheter go to `/location` and `/vente`** (Header, portfolio
+  header, homepage tiles, listings sidebar), not `/listings?transaction_type=`.
+- **The listing h1 opens with type and transaction**: "Appartement à louer —
+  Yolo Nord I, Kalamu"; the blue kicker above the price keeps the room counts.

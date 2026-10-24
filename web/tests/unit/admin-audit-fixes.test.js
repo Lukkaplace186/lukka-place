@@ -112,7 +112,7 @@ test('hero text is trimmed, optional and bounded; a bad stored value falls back 
 test('the homepage reads the hero on each request and never breaks without it', () => {
   const settings = read('../../lib/cmsSettings.js');
   assert.ok(/export async function getHeroSettings\(\) \{\s+try \{/.test(settings), 'getHeroSettings swallows a missing table');
-  assert.ok(read('../../app/(site)/page.js').includes('image={heroImage}'));
+  assert.ok(read('../../app/(site)/(home)/page.js').includes('image={heroImage}'));
   assert.ok(read('../../components/Hero.js').includes('image?.imageUrl ?'), 'the built-in photo stays the fallback');
 });
 

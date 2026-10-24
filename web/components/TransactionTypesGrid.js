@@ -10,14 +10,14 @@ const CARDS = [
     titleKey: 'home.transactions.rentTitle',
     bodyKey: 'home.transactions.rentBody',
     ctaKey: 'listings.sidebar.propertiesToRent',
-    href: '/listings?transaction_type=location',
+    href: '/location',
   },
   {
     icon: Home,
     titleKey: 'home.transactions.buyTitle',
     bodyKey: 'home.transactions.buyBody',
     ctaKey: 'home.transactions.buyCta',
-    href: '/listings?transaction_type=vente',
+    href: '/vente',
   },
   {
     icon: Megaphone,

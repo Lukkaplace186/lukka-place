@@ -63,10 +63,10 @@ export default async function PortfolioLayout({ children }) {
               <Wordmark />
 
               <nav className="flex items-center gap-5 text-sm font-semibold text-ink-70 sm:gap-7">
-                <Link href="/listings?transaction_type=vente" className="hidden hover:text-ink sm:block">
+                <Link href="/vente" className="hidden hover:text-ink sm:block">
                   Acheter
                 </Link>
-                <Link href="/listings?transaction_type=location" className="hidden hover:text-ink sm:block">
+                <Link href="/location" className="hidden hover:text-ink sm:block">
                   Louer
                 </Link>
                 <Link href="/agents" className="hidden hover:text-ink sm:block">

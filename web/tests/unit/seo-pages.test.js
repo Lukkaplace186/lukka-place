@@ -4,6 +4,9 @@ import fr from '../../lib/i18n/fr.json' with { type: 'json' };
 import { createTranslator } from '../../lib/i18n/translate.js';
 import {
   SEO_COMMUNES,
+  SEO_CITIES,
+  SEO_PROPERTY_TYPES,
+  cityFromSlug,
   communeSlug,
   communeFromSlug,
   jsonLdString,
@@ -31,7 +34,7 @@ test('every commune has a unique slug that round-trips', () => {
 test('route segments parse into exactly the four accepted shapes', () => {
   assert.deepEqual(
     { ...parseSeoSegments('location', []) },
-    { transaction: 'location', transactionType: 'location', purpose: 'rent', typeSlug: null, propertyType: null, commune: null },
+    { transaction: 'location', transactionType: 'location', purpose: 'rent', typeSlug: null, propertyType: null, commune: null, city: null },
   );
   assert.equal(parseSeoSegments('location', ['gombe']).commune, 'Gombe');
   assert.equal(parseSeoSegments('vente', ['terrains']).propertyType, 'terrain');
@@ -106,6 +109,56 @@ test('the sitemap lists only landing pages that have listings, plus the two root
     '/vente/lemba',
     '/vente/terrains',
     '/vente/terrains/lemba',
+  ]);
+});
+
+test('every other city has a landing page whose slug collides with nothing', () => {
+  assert.ok(SEO_CITIES.includes('Lubumbashi'));
+  assert.ok(!SEO_CITIES.includes('Kinshasa'), '/location and /vente already are Kinshasa');
+  const taken = new Set([...Object.keys(SEO_PROPERTY_TYPES), ...SEO_COMMUNES.map(communeSlug)]);
+  for (const city of SEO_CITIES) {
+    const path = seoPath({ transaction: 'location', city });
+    const slug = path.split('/')[2];
+    assert.ok(!taken.has(slug), `${city} slug ${slug} collides`);
+    assert.equal(cityFromSlug(slug), city);
+    assert.equal(parseSeoSegments('location', [slug]).city, city);
+  }
+  assert.equal(cityFromSlug('kinshasa'), null);
+  assert.equal(seoPath({ transaction: 'location', city: 'Kinshasa' }), '/location');
+
+  const typed = parseSeoSegments('vente', ['terrains', 'mbuji-mayi']);
+  assert.equal(typed.propertyType, 'terrain');
+  assert.equal(typed.city, 'Mbuji-Mayi');
+  assert.equal(typed.commune, null);
+  assert.equal(seoPath(typed), '/vente/terrains/mbuji-mayi');
+  assert.equal(parseSeoSegments('location', ['lubumbashi', 'appartements']), null, 'type comes first');
+  // A commune wins over a city: only Kinshasa's communes have pages.
+  assert.equal(seoPath({ transaction: 'location', commune: 'Gombe', city: 'Goma' }), '/location/gombe');
+});
+
+test('?ville= canonicalises onto the city page, never onto Kinshasa’s', () => {
+  assert.equal(seoPathForParams({ transaction_type: 'location', ville: 'Lubumbashi' }), '/location/lubumbashi');
+  assert.equal(seoPathForParams({ transaction_type: 'vente', ville: 'goma', property_type: 'terrain' }), '/vente/terrains/goma');
+  assert.equal(seoPathForParams({ transaction_type: 'location', ville: 'Kinshasa', commune: 'Gombe' }), '/location/gombe');
+  assert.equal(seoPathForParams({ transaction_type: 'location', ville: 'Goma', commune: 'Gombe' }), null);
+  assert.equal(seoPathForParams({ transaction_type: 'location', ville: 'Atlantis' }), null);
+  assert.equal(
+    listingsHrefFor({ transactionType: 'location', ville: 'Goma' }),
+    '/listings?transaction_type=location&ville=Goma',
+  );
+});
+
+test('the sitemap lists another city once it has a listing, and keeps it off Kinshasa’s pages', () => {
+  const paths = landingPathsFromFacets([
+    { commune: 'Kampemba', purpose: 'rent', propertyType: 'appartement', count: 2 },
+    { commune: 'Karisimbi', purpose: 'sale', propertyType: 'mystery', count: 1 },
+  ]).sort();
+  assert.deepEqual(paths, [
+    '/location',
+    '/location/appartements/lubumbashi',
+    '/location/lubumbashi',
+    '/vente',
+    '/vente/goma',
   ]);
 });
 

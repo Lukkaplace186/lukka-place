@@ -5705,6 +5705,7 @@
     "otherTypes": "Other Properties {transaction} in {place}",
     "otherTransaction": "See Also",
     "nearbyCommunes": "Nearby communes with listings",
+    "otherCities": "In Other Cities",
     "faqTitle": "Frequently Asked Questions",
     "faqPriceQ": "What do {headingLower} cost?",
     "faqPriceA": "Listings online show prices from {min} to {max}.",

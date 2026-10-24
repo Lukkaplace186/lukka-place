@@ -73,8 +73,10 @@ export async function generateMetadata({ searchParams }) {
       description,
       openGraph: { title, description, type: 'website', images: [{ url: CITY_SHARE_IMAGE, width: 1200, height: 630, alt: title }] },
       twitter: { card: 'summary_large_image', title, description, images: [CITY_SHARE_IMAGE] },
-      alternates: { canonical: `/listings?ville=${encodeURIComponent(city)}` },
-      robots: { index: false, follow: true },
+      // A city's landing page (/location/lubumbashi) is the canonical when
+      // the filters match one exactly, like a Kinshasa commune's.
+      alternates: { canonical: landing || `/listings?ville=${encodeURIComponent(city)}` },
+      robots: landing ? undefined : { index: false, follow: true },
     };
   }
   return {

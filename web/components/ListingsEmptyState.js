@@ -121,7 +121,7 @@ export default function ListingsEmptyState({ popularCommunes = [], params = {}, 
       {popularCommunes.length > 0 ? (
         <>
           {/* Nearest first, with the distance, when a commune was searched
-              (app/(site)/listings/page.js communesByDistance) — "the closest
+              (app/(site)/listings/(search)/(results)/page.js communesByDistance) — "the closest
               places that do have something" rather than the busiest ones
               across town. */}
           <p className="u-eyebrow mt-8 mb-3">

@@ -2,7 +2,7 @@ import { parseBounds } from './mapViewport';
 
 /**
  * Maps /listings-style query params onto lib/listings.js's `getListings()`
- * options shape. Extracted out of app/(site)/listings/page.js so
+ * options shape. Extracted out of app/(site)/listings/(search)/(results)/page.js so
  * /compte/alertes can re-run a saved search's exact criteria through the
  * same real query function without a second copy of this mapping.
  *

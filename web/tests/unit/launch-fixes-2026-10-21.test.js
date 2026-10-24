@@ -99,7 +99,7 @@ test('a card line names the listing’s own city, never Kinshasa after Lubumbash
 });
 
 test('the results page passes the commune’s city to the picker, heading and suggestions', () => {
-  const page = fs.readFileSync(new URL('../../app/(site)/listings/page.js', import.meta.url), 'utf8');
+  const page = fs.readFileSync(new URL('../../app/(site)/listings/(search)/(results)/page.js', import.meta.url), 'utf8');
   assert.match(page, /const searchCity = searchCityOf\(filters\)/);
   assert.match(page, /searchCity,\r?\n/);
   assert.match(page, /city=\{searchCity\}/);

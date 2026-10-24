@@ -11,7 +11,7 @@ import { useT } from '@/lib/i18n/client';
 /**
  * Sticky top bar for the mobile fullscreen map — the map-mode replacement
  * for FilterBar (hidden on mobile while isMapView, see
- * app/(site)/listings/page.js), real search + a real filter trigger. A
+ * app/(site)/listings/(search)/(results)/page.js), real search + a real filter trigger. A
  * normal in-flow element (`shrink-0` in ListingsSplitView's flex-column map
  * wrapper), not an absolutely-positioned overlay floating over the map —
  * that's what lets the map canvas below it fill the rest of the viewport

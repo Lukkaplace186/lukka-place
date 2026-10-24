@@ -5705,6 +5705,7 @@
     "otherTypes": "Autres biens {transaction} à {place}",
     "otherTransaction": "Voir aussi",
     "nearbyCommunes": "Communes proches avec des annonces",
+    "otherCities": "Dans d'autres villes",
     "faqTitle": "Questions fréquentes",
     "faqPriceQ": "Quels sont les prix des {headingLower} ?",
     "faqPriceA": "Les annonces en ligne affichent des prix de {min} à {max}.",

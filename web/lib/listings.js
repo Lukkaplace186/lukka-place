@@ -1508,6 +1508,30 @@ export async function getPopularCommunes(limit = 6) {
   return rows.map((r) => ({ commune: r.commune, count: Number.parseInt(r.count, 10) }));
 }
 
+/**
+ * Whether a listing page exists: the same public gate and the same three
+ * inner joins as getListingById, so the two never disagree, but no columns.
+ * Called by app/(site)/listings/[id]/layout.js ABOVE the page's loading.js,
+ * which is what lets a dead listing answer a real 404 instead of a streamed
+ * 200 + noindex. Cheap on purpose: prefetching a listing card runs it too.
+ */
+export async function publicListingExists(id) {
+  const numericId = Number.parseInt(id, 10);
+  if (!Number.isFinite(numericId)) return false;
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT 1
+     FROM properties p
+     JOIN property_contents pc ON pc.property_id = p.id AND pc.language_id = ${CONTENT_LANGUAGE_ID}
+     JOIN property_categories cat ON cat.id = p.category_id
+     JOIN property_category_contents catc ON catc.category_id = cat.id AND catc.language_id = ${CATEGORY_LANGUAGE_ID}
+     WHERE p.id = $1 AND ${APPROVED_FILTER}
+     LIMIT 1`,
+    [numericId],
+  );
+  return rows.length > 0;
+}
+
 export async function getListingById(id) {
   const numericId = Number.parseInt(id, 10);
   if (!Number.isFinite(numericId)) return null;

@@ -3183,3 +3183,11 @@ Owner requests from phone screenshots. Tests: `tests/unit/budget-steps.test.js`,
     last sign-in). The row menu's "Voir l'historique de connexion" (and a tap
     on the cell) opens the last 100 attempts with IP and a short device label —
     `agents.manage` only, since it shows IP addresses.
+- **The hero's Ville dropdown is back** (2026-10-24, owner: picking is easier
+  than typing for most visitors). `#hero-city` lists every city, Kinshasa
+  first, and starts on Kinshasa — no "Toutes les villes", because a search
+  with no city runs in Kinshasa (`searchCityOf`), so that option would have
+  meant Kinshasa under another name. The text box below is now "Commune ou
+  quartier". Typed text still wins over the dropdown, and the dropdown follows
+  it (typing "Kampemba" or tapping the Lubumbashi chip selects Lubumbashi);
+  picking another city clears a place of a different city from the box.

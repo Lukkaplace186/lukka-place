@@ -10,6 +10,7 @@ import { useT } from '@/lib/i18n/client';
 import { facetLabel, groupTypeFacets } from '@/lib/commercialSpaces';
 import { budgetOptions, budgetParams } from '@/lib/budgetSteps';
 import { frNumber } from '@/lib/format';
+import { CITIES, DEFAULT_CITY, cityOfCommune } from '@/lib/cities';
 
 /**
  * The hero search panel — a white card floating over the hero photograph,
@@ -17,10 +18,11 @@ import { frNumber } from '@/lib/format';
  * mock-ups):
  *
  *   1. a segmented Louer / Courte durée / Acheter toggle
- *   2. labelled boxes: "Lieu" on its own row (a city, commune or quartier —
- *      lib/searchParser.js reads the city out of the text, which is why the
- *      separate "Ville" select is gone), then Type de bien | Budget side by
- *      side. Courte durée shows a one-line explanation instead of the pair.
+ *   2. labelled boxes: "Ville" (a dropdown, back on 2026-10-24 at the
+ *      owner's request — picking is easier than typing for most visitors),
+ *      "Commune ou quartier" (free text), "Type de bien", then Budget
+ *      Min | Max. Courte durée shows a one-line explanation instead of type
+ *      and budget.
  *   3. the primary CTA, full width; on Louer it carries the live count
  *   4. a scrollable row of commune quick-pills that fill the location field
  *
@@ -84,6 +86,13 @@ function budgetLabels(t) {
   return { format, labels };
 }
 
+// Kinshasa first, then alphabetical. There is no "Toutes les villes": a
+// search with no city runs in Kinshasa (lib/listings.js, searchCityOf), so
+// that option would have shown Kinshasa only under another name.
+const CITY_OPTIONS = [...CITIES]
+  .map((city) => city.name)
+  .sort((a, b) => (a === DEFAULT_CITY ? -1 : b === DEFAULT_CITY ? 1 : a.localeCompare(b, 'fr')));
+
 const COUNT_DEBOUNCE_MS = 350;
 
 
@@ -110,6 +119,9 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
   const [propertyType, setPropertyType] = useState('');
   const [budgetMin, setBudgetMin] = useState('');
   const [budgetMax, setBudgetMax] = useState('');
+  // The city searched (?ville=). A city, or another city's commune, typed in
+  // the box wins over it (lib/searchParser.js), and the select follows it.
+  const [ville, setVille] = useState(DEFAULT_CITY);
   // Mirrors the location field's text. LocationAutocomplete still owns the
   // input itself; this is the copy the quick-pill tint and the live count
   // read, kept in step through its `onValueChange`/`setQuery` pair.
@@ -140,12 +152,37 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
     price_min: stagedMin,
     price_max: stagedMax,
     lease_term: leaseTerm,
+    ville,
   };
 
   // A pill is lit only while the field literally still holds that commune's
   // name — see LocationAutocomplete's `onValueChange` note. Comparison is
   // trimmed + case-insensitive so "gombe " still counts as Gombe.
   const normalizedLocation = location.trim().toLowerCase();
+
+  // The Ville select follows the place in the box: tapping the "Lubumbashi"
+  // chip or typing "Kampemba" shows Lubumbashi, a Kinshasa place shows
+  // Kinshasa — the city the search will actually run in.
+  function cityOfText(text) {
+    if (String(text || '').trim().length < 3) return null;
+    const parsed = parseSearchQuery(text);
+    if (parsed.ville) return parsed.ville;
+    return parsed.commune ? cityOfCommune(parsed.commune) || DEFAULT_CITY : null;
+  }
+
+  function onLocationChange(text) {
+    setLocation(text);
+    const city = cityOfText(text);
+    if (city) setVille(city);
+  }
+
+  // Picking another city clears a place of a different city from the box,
+  // so the select and the text never point at two cities.
+  function onCityChange(next) {
+    setVille(next);
+    const typed = cityOfText(location);
+    if (next && typed && typed !== next) locationRef.current?.setQuery('');
+  }
 
   // ---- Live result count -------------------------------------------------
   // Real `/api/listings/count` (the same endpoint FilterBar's Prix popover
@@ -173,6 +210,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
       if (stagedMin) qs.set('price_min', stagedMin);
       if (stagedMax) qs.set('price_max', stagedMax);
       if (leaseTerm) qs.set('lease_term', leaseTerm);
+      if (ville) qs.set('ville', ville);
 
       // Parsed exactly the way submitting parses it (LocationAutocomplete's
       // submitFreeText -> applyParsedFilters), and in the same precedence:
@@ -217,7 +255,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
       clearTimeout(timer);
       controller.abort();
     };
-  }, [transactionType, stagedType, stagedMin, stagedMax, leaseTerm, location]);
+  }, [transactionType, stagedType, stagedMin, stagedMax, leaseTerm, ville, location]);
 
   // What the parser takes from the typed text, read back as chips — so a
   // visitor sees that "Gombe" and "2 chambres" were understood before they
@@ -300,8 +338,27 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
       </div>
 
       {/* --- 2. Labelled fields ------------------------------------------ */}
-      <div className={`grid grid-cols-2 gap-x-3 gap-y-4 ${isShortStay ? '' : 'lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1.5fr)]'}`}>
-        <div className="col-span-2 lg:col-span-1">
+      <div className={`grid grid-cols-2 gap-x-3 gap-y-4 ${isShortStay ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]' : 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1.5fr)]'}`}>
+        <div className="col-span-2 min-w-0 lg:col-span-1">
+          <label htmlFor="hero-city" className={FIELD_LABEL}>
+            {t('home.search.city')}
+          </label>
+          <div className={FIELD_BOX}>
+            <select
+              id="hero-city"
+              value={ville}
+              onChange={(e) => onCityChange(e.target.value)}
+              className={FIELD_SELECT}
+            >
+              {CITY_OPTIONS.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+            <ChevronDown strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className="pointer-events-none h-4 w-4 shrink-0 text-ink-45" />
+          </div>
+        </div>
+
+        <div className="col-span-2 min-w-0 lg:col-span-1">
           <label htmlFor="hero-location" className={FIELD_LABEL}>
             {t('home.search.locationLabel')}
           </label>
@@ -315,7 +372,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
             ariaLabel={t('home.search.locationLabel')}
             placeholder={t('home.search.heroPlaceholder')}
             extraParams={extraParams}
-            onValueChange={setLocation}
+            onValueChange={onLocationChange}
             // The CTA is a full-width button on its own tier below, so this
             // renders no button of its own and is submitted through the ref.
             showButton={false}

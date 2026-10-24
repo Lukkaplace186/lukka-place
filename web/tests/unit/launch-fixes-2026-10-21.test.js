@@ -42,9 +42,11 @@ test('Kinshasa searches are unchanged', () => {
 
 // The hero's Ville select was removed on 2026-10-23 (the "Lieu" box takes a
 // city, commune or quartier); the city now comes from the text alone.
-test('the hero search sends ?ville= from the text', () => {
+// The Ville dropdown came back on 2026-10-24 (owner request); typed text still wins over it.
+test('the hero search sends ?ville= from the dropdown and from the text', () => {
   const bar = read('components/SearchBar.js');
-  assert.doesNotMatch(bar, /id="hero-city"/);
+  assert.match(bar, /id="hero-city"/);
+  assert.match(bar, /if \(ville\) qs\.set\('ville', ville\)/);
   assert.match(bar, /if \(parsed\.ville\) qs\.set\('ville', parsed\.ville\)/);
   assert.match(read('components/LocationAutocomplete.js'), /params\.set\('ville', parsed\.ville\)/);
 });
@@ -110,8 +112,10 @@ test('the results page passes the commune’s city to the picker, heading and su
 
 test('the hero location box mirrors the place typed or tapped', () => {
   const src = fs.readFileSync(new URL('../../components/SearchBar.js', import.meta.url), 'utf8');
-  assert.match(src, /onValueChange=\{setLocation\}/);
-  assert.doesNotMatch(src, /onCityChange/);
+  assert.match(src, /onValueChange=\{onLocationChange\}/);
+  // The dropdown follows the place typed or tapped; a new city clears a place of another city.
+  assert.match(src, /function onLocationChange\(text\)/);
+  assert.match(src, /function onCityChange\(next\)/);
 });
 
 test('searchCityOf reads a commune-only link as that commune’s city', async () => {

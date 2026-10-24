@@ -1,0 +1,333 @@
+{
+ "_about": "The non-null points of the engine's kinshasa_quartier_points.json (scripts/geocode-quartiers.js), keyed \"<commune>|<placeKey(name)>\". Never edit by hand; tests/unit/quartier-points.test.js compares the two.",
+ "points": {
+  "Bandalungwa|adoula": {
+   "lat": -4.345798,
+   "lng": 15.282864
+  },
+  "Bandalungwa|bisengo": {
+   "lat": -4.34839,
+   "lng": 15.276535
+  },
+  "Bandalungwa|makelele": {
+   "lat": -4.338445,
+   "lng": 15.276535
+  },
+  "Barumbu|kasai": {
+   "lat": -4.318603,
+   "lng": 15.328456
+  },
+  "Barumbu|ndolo": {
+   "lat": -4.322882,
+   "lng": 15.330761
+  },
+  "Gombe|croix rouge": {
+   "lat": -4.309206,
+   "lng": 15.28908
+  },
+  "Gombe|gare": {
+   "lat": -4.301601,
+   "lng": 15.31682
+  },
+  "Gombe|golf": {
+   "lat": -4.313874,
+   "lng": 15.297394
+  },
+  "Gombe|socimat": {
+   "lat": -4.32172,
+   "lng": 15.27609
+  },
+  "Kasa-Vubu|anciens combattants": {
+   "lat": -4.344568,
+   "lng": 15.308134
+  },
+  "Kasa-Vubu|assossa": {
+   "lat": -4.34871,
+   "lng": 15.30196
+  },
+  "Kasa-Vubu|lodja": {
+   "lat": -4.336679,
+   "lng": 15.313762
+  },
+  "Kimbanseke|17 mai": {
+   "lat": -4.410305,
+   "lng": 15.408272
+  },
+  "Kimbanseke|bamboma": {
+   "lat": -4.430896,
+   "lng": 15.37606
+  },
+  "Kimbanseke|biyela": {
+   "lat": -4.441633,
+   "lng": 15.398022
+  },
+  "Kimbanseke|kingasani": {
+   "lat": -4.410243,
+   "lng": 15.411201
+  },
+  "Kimbanseke|kutu": {
+   "lat": -4.423367,
+   "lng": 15.378988
+  },
+  "Kimbanseke|mangana": {
+   "lat": -4.435751,
+   "lng": 15.381917
+  },
+  "Kimbanseke|maviokele": {
+   "lat": -4.410101,
+   "lng": 15.388505
+  },
+  "Kimbanseke|mikondo": {
+   "lat": -4.407384,
+   "lng": 15.428774
+  },
+  "Kimbanseke|ngampani": {
+   "lat": -4.40757,
+   "lng": 15.419987
+  },
+  "Kimbanseke|nsanga": {
+   "lat": -4.403151,
+   "lng": 15.39363
+  },
+  "Kimbanseke|sakombi": {
+   "lat": -4.45377,
+   "lng": 15.412665
+  },
+  "Kisenso|bikanga": {
+   "lat": -4.410255,
+   "lng": 15.354092
+  },
+  "Kisenso|kisenso gare": {
+   "lat": -4.422392,
+   "lng": 15.354785
+  },
+  "Kisenso|mission": {
+   "lat": -4.409378,
+   "lng": 15.342352
+  },
+  "Kisenso|ngomba": {
+   "lat": -4.396795,
+   "lng": 15.340927
+  },
+  "Kisenso|paix": {
+   "lat": -4.40289,
+   "lng": 15.354284
+  },
+  "Lemba|echangeur": {
+   "lat": -4.374398,
+   "lng": 15.344778
+  },
+  "Lemba|ecole": {
+   "lat": -4.391096,
+   "lng": 15.327029
+  },
+  "Lemba|foire": {
+   "lat": -4.377119,
+   "lng": 15.337403
+  },
+  "Lemba|livulu": {
+   "lat": -4.404537,
+   "lng": 15.316579
+  },
+  "Lemba|mbanza lemba": {
+   "lat": -4.423022,
+   "lng": 15.319016
+  },
+  "Lemba|salongo": {
+   "lat": -4.398438,
+   "lng": 15.3219
+  },
+  "Limete|agricole": {
+   "lat": -4.367274,
+   "lng": 15.322684
+  },
+  "Limete|kingabwa": {
+   "lat": -4.340183,
+   "lng": 15.347445
+  },
+  "Limete|ndanu": {
+   "lat": -4.369491,
+   "lng": 15.359142
+  },
+  "Maluku|menkao": {
+   "lat": -4.188417,
+   "lng": 15.698446
+  },
+  "Masina|boba": {
+   "lat": -4.387561,
+   "lng": 15.380578
+  },
+  "Masina|mapela": {
+   "lat": -4.385051,
+   "lng": 15.394152
+  },
+  "Masina|sans fil": {
+   "lat": -4.376282,
+   "lng": 15.370204
+  },
+  "Mont-Ngafula|kimbondo": {
+   "lat": -4.46477,
+   "lng": 15.223074
+  },
+  "Mont-Ngafula|kimwenza": {
+   "lat": -4.471086,
+   "lng": 15.301411
+  },
+  "Mont-Ngafula|lutendele": {
+   "lat": -4.381686,
+   "lng": 15.19436
+  },
+  "Mont-Ngafula|mama mobutu": {
+   "lat": -4.440438,
+   "lng": 15.255802
+  },
+  "Mont-Ngafula|masanga mbila": {
+   "lat": -4.434712,
+   "lng": 15.278026
+  },
+  "Mont-Ngafula|matadi mayo": {
+   "lat": -4.467114,
+   "lng": 15.253107
+  },
+  "Mont-Ngafula|mitendi": {
+   "lat": -4.49935,
+   "lng": 15.203392
+  },
+  "Nsele|badara": {
+   "lat": -4.413789,
+   "lng": 15.439105
+  },
+  "Nsele|mikondo": {
+   "lat": -4.407384,
+   "lng": 15.428774
+  },
+  "Ngaliema|binza ozone": {
+   "lat": -4.349153,
+   "lng": 15.231361
+  },
+  "Ngaliema|binza pigeon": {
+   "lat": -4.389463,
+   "lng": 15.275072
+  },
+  "Ngaliema|djelo binza": {
+   "lat": -4.406946,
+   "lng": 15.272146
+  },
+  "Ngaliema|joli parc": {
+   "lat": -4.349328,
+   "lng": 15.261172
+  },
+  "Ngaliema|lukunga": {
+   "lat": -4.362833,
+   "lng": 15.216266
+  },
+  "Ngaliema|macampagne": {
+   "lat": -4.353786,
+   "lng": 15.256052
+  },
+  "Ngaliema|mfinda": {
+   "lat": -4.353897,
+   "lng": 15.233695
+  },
+  "Ngaliema|meteo": {
+   "lat": -4.36161,
+   "lng": 15.238497
+  },
+  "Ngaliema|upn": {
+   "lat": -4.405487,
+   "lng": 15.256932
+  },
+  "Selembao|badiadingi": {
+   "lat": -4.431242,
+   "lng": 15.258116
+  },
+  "Selembao|cite verte": {
+   "lat": -4.437711,
+   "lng": 15.259709
+  },
+  "Selembao|ngafani": {
+   "lat": -4.403195,
+   "lng": 15.291616
+  },
+  "Ngaliema|gb": {
+   "lat": -4.329448,
+   "lng": 15.274759
+  },
+  "Ngaliema|binza": {
+   "lat": -4.35,
+   "lng": 15.233333
+  },
+  "Ngaliema|ma campagne": {
+   "lat": -4.353786,
+   "lng": 15.256052
+  },
+  "Ngaliema|binza upn": {
+   "lat": -4.413568,
+   "lng": 15.253126
+  },
+  "Ngaliema|binza meteo": {
+   "lat": -4.36161,
+   "lng": 15.238497
+  },
+  "Ngaliema|delvaux": {
+   "lat": -4.378052,
+   "lng": 15.258651
+  },
+  "Ngaliema|ozone": {
+   "lat": -4.347696,
+   "lng": 15.237916
+  },
+  "Ngaliema|pigeon": {
+   "lat": -4.395475,
+   "lng": 15.265484
+  },
+  "Ngaliema|mimosas": {
+   "lat": -4.336296,
+   "lng": 15.224167
+  },
+  "Ngaliema|mimosa": {
+   "lat": -4.338195,
+   "lng": 15.219712
+  },
+  "Ngaliema|kinsuka": {
+   "lat": -4.339708,
+   "lng": 15.215093
+  },
+  "Lemba|righini": {
+   "lat": -4.394252,
+   "lng": 15.31385
+  },
+  "Bandalungwa|moulaert": {
+   "lat": -4.349884,
+   "lng": 15.29071
+  },
+  "Kalamu|matonge": {
+   "lat": -4.340085,
+   "lng": 15.317509
+  },
+  "Kalamu|yolo": {
+   "lat": -4.352454,
+   "lng": 15.320436
+  },
+  "Kalamu|victoire": {
+   "lat": -4.34127,
+   "lng": 15.314823
+  },
+  "Kasa-Vubu|victoire": {
+   "lat": -4.339726,
+   "lng": 15.312898
+  },
+  "Barumbu|funa": {
+   "lat": -4.330376,
+   "lng": 15.323652
+  },
+  "Limete|funa": {
+   "lat": -4.338588,
+   "lng": 15.329649
+  },
+  "Kasa-Vubu|saio": {
+   "lat": -4.341377,
+   "lng": 15.299674
+  }
+ }
+}

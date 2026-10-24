@@ -8150,6 +8150,25 @@ console.log('\n2. services/openai.js');
     return { asked, request };
   }
 
+  /** Stands in for Places API (New) text search: textQuery -> places, or 'DENIED'. */
+  function fakePlaces(answers) {
+    const asked = [];
+    const placesRequest = async (url, body) => {
+      asked.push({ text: body.textQuery, box: body.locationRestriction || null });
+      const hit = answers[body.textQuery];
+      if (hit === 'DENIED') return { error: { code: 403, status: 'PERMISSION_DENIED', message: 'not enabled' } };
+      return {
+        places: (hit || []).map(([name, lat, lng, types = ['point_of_interest', 'establishment']]) => ({
+          displayName: { text: name }, location: { latitude: lat, longitude: lng }, types,
+        })),
+      };
+    };
+    return { asked, placesRequest };
+  }
+  const noPlaces = fakePlaces({}).placesRequest;
+  const BOX_QUERY = 'Lemba, Kinshasa, RD Congo';
+  const cascadeAsked = (google) => google.asked.filter((q) => q !== BOX_QUERY);
+
   /** A pg client that answers the coordinate read and records every statement. */
   function fakeCoordinateDb(existing) {
     const statements = [];
@@ -8185,19 +8204,19 @@ console.log('\n2. services/openai.js');
       'Demiap, Righini, Lemba, Kinshasa, RD Congo': { lat: -4.39, lng: 15.33, vague: true },
       'Righini, Lemba, Kinshasa, RD Congo': { lat: -4.401, lng: 15.312 },
     });
-    const point = await geocoding.geocodeListingRow(geoRow, { apiKey: 'k', request: google.request });
+    const point = await geocoding.geocodeListingRow(geoRow, { apiKey: 'k', request: google.request, placesRequest: noPlaces, ignoreTable: true });
     assert.deepStrictEqual([point.lat, point.lng, point.query], [-4.401, 15.312, 'Righini, Lemba, Kinshasa, RD Congo']);
-    assert.strictEqual(google.asked.length, 2);
+    assert.strictEqual(cascadeAsked(google).length, 2);
   });
   await checkAsync('a refused key throws instead of cascading to a vaguer query', async () => {
     const google = fakeGoogle({ 'Demiap, Righini, Lemba, Kinshasa, RD Congo': 'DENIED' });
-    await assert.rejects(() => geocoding.geocodeListingRow(geoRow, { apiKey: 'k', request: google.request }), /REQUEST_DENIED/);
-    assert.strictEqual(google.asked.length, 1);
+    await assert.rejects(() => geocoding.geocodeListingRow(geoRow, { apiKey: 'k', request: google.request, placesRequest: noPlaces, ignoreTable: true }), /REQUEST_DENIED/);
+    assert.strictEqual(cascadeAsked(google).length, 1);
   });
   await checkAsync('blank coordinates are filled, and the UPDATE re-checks they are still blank', async () => {
     const google = fakeGoogle({ 'Demiap, Righini, Lemba, Kinshasa, RD Congo': { lat: -4.4, lng: 15.31 } });
     const db = fakeCoordinateDb({ latitude: '', longitude: null });
-    const result = await geocoding.storeListingCoordinates(db, 42, geoRow, { apiKey: 'k', request: google.request });
+    const result = await geocoding.storeListingCoordinates(db, 42, geoRow, { apiKey: 'k', request: google.request, placesRequest: noPlaces, ignoreTable: true });
     assert.strictEqual(result.status, 'geocoded');
     const update = db.statements.find((s) => /^UPDATE properties/.test(s.sql));
     assert.ok(update, 'expected an UPDATE');
@@ -8220,10 +8239,117 @@ console.log('\n2. services/openai.js');
   });
   await checkAsync('an unresolvable listing stays blank rather than getting a guessed point', async () => {
     const db = fakeCoordinateDb({ latitude: null, longitude: null });
-    const result = await geocoding.storeListingCoordinates(db, 42, geoRow, { apiKey: 'k', request: fakeGoogle({}).request });
+    const result = await geocoding.storeListingCoordinates(db, 42, geoRow, { apiKey: 'k', request: fakeGoogle({}).request, placesRequest: noPlaces, ignoreTable: true });
     assert.strictEqual(result.status, 'unresolved');
     assert.ok(!db.statements.some((s) => /^UPDATE/.test(s.sql)));
   });
+  // #387, 2026-10-24: "GB / Hôtel Diplomate", Ngaliema was stored by Joli
+  // Parc because the Geocoding API answered with a hotel NAMED "GB". Names
+  // are now checked (Places), businesses from the Geocoding API refused.
+  function fakeGoogleWithBox(extra = {}) {
+    const asked = [];
+    const request = async (url) => {
+      const address = new URL(url).searchParams.get('address');
+      asked.push(address);
+      if (address === 'Ngaliema, Kinshasa, RD Congo') {
+        return {
+          status: 'OK',
+          results: [{
+            types: ['sublocality_level_1', 'sublocality', 'political'],
+            geometry: {
+              location: { lat: -4.37, lng: 15.25 },
+              location_type: 'APPROXIMATE',
+              viewport: { southwest: { lat: -4.45, lng: 15.17 }, northeast: { lat: -4.31, lng: 15.29 } },
+            },
+          }],
+        };
+      }
+      return extra[address] || { status: 'ZERO_RESULTS', results: [] };
+    };
+    return { asked, request };
+  }
+  const row387 = { quartier: 'GB / Hôtel Diplomate', commune: 'Ngaliema' };
+  const gbBusinesses = [
+    ['Kin Marché GB', -4.32987, 15.27277], ['NEW LIFE STYLE GB', -4.32672, 15.27574],
+    ['Maison Galaxy GB', -4.32394, 15.27748], ['Boss-tech Ngaliema-GB', -4.32592, 15.27523],
+    ['GB', -4.34885, 15.25276, ['hotel', 'lodging']],
+  ];
+
+  check('location text is split into quartier and landmark terms', () => {
+    assert.deepStrictEqual(geocoding.splitLocationText('GB / Hôtel Diplomate'), ['GB', 'Hôtel Diplomate']);
+    const terms = geocoding.locationTerms(row387);
+    assert.deepStrictEqual(terms.places.map((p) => p.text), ['GB']);
+    assert.deepStrictEqual(terms.landmarks.map((l) => l.text), ['Hôtel Diplomate']);
+    assert.deepStrictEqual(geocoding.buildGeocodeQueries(row387), [
+      'Hôtel Diplomate, GB, Ngaliema, Kinshasa, RD Congo',
+      'GB, Ngaliema, Kinshasa, RD Congo',
+    ]);
+    // The quartier field is the quartier; a landmark in the reference comes first.
+    const both = geocoding.locationTerms({ quartier: 'Joli Parc', reference: 'Ma Campagne, Clinique Raphaël', commune: 'Ngaliema' });
+    assert.deepStrictEqual(both.places.map((p) => p.text), ['Joli Parc', 'Ma Campagne']);
+    assert.deepStrictEqual(both.landmarks.map((l) => l.text), ['Clinique Raphaël']);
+  });
+  check('a returned place counts only when its NAME carries the term', () => {
+    assert.strictEqual(geocoding.nameMatches('Hôtel Diplomate', 'DIPLOMATE'), true);
+    assert.strictEqual(geocoding.nameMatches('GB', 'Kin Marché GB'), true);
+    assert.strictEqual(geocoding.nameMatches('GB', 'Gombe'), false);
+    assert.strictEqual(geocoding.nameMatches('Zone A', 'MOBILE ZONE'), false);
+    assert.strictEqual(geocoding.nameMatches('Mushi', 'ISIPA Mushie'), false);
+    assert.strictEqual(geocoding.nameMatches('Av. Kasavubu', 'Avenue Kasa-Vubu'), true);
+    assert.strictEqual(geocoding.nameMatches('Derrière Hôpital Akram', 'Hôpital Akram'), true);
+    assert.strictEqual(geocoding.nameMatches('SUPER MARCHÉ GALAXY DE SUKA MUR MBINZA OZONE', 'Super Marché Galaxy Ozone'), true);
+    assert.strictEqual(geocoding.nameMatches('Golf météo 1', 'Golf météo'), false);
+  });
+  await checkAsync('#387: the landmark nearest the quartier\'s own point wins, never a business named like the quartier', async () => {
+    const places = fakePlaces({
+      'GB, Ngaliema, Kinshasa': [...gbBusinesses, ['Ngaliema', -4.37138, 15.25344, ['sublocality_level_1', 'political']]],
+      'Hôtel Diplomate, Ngaliema, Kinshasa': [
+        ['GB', -4.34885, 15.25276, ['hotel', 'lodging']],
+        ['Hôtel diplomate', -4.33565, 15.26178, ['hotel', 'lodging']],
+        ['DIPLOMATE', -4.33085, 15.27176, ['hotel', 'lodging']],
+      ],
+    });
+    const point = await geocoding.geocodeListingRow(row387, { apiKey: 'k', request: fakeGoogleWithBox().request, placesRequest: places.placesRequest, ignoreTable: true });
+    assert.deepStrictEqual([point.lat, point.lng, point.how, point.matched], [-4.33085, 15.27176, 'landmark', 'DIPLOMATE']);
+    assert.ok(places.asked.every((a) => a.box), 'every Places search is restricted to the commune');
+  });
+  await checkAsync('a quartier nobody mapped is the median of >=3 places carrying its name that agree', async () => {
+    const places = fakePlaces({ 'GB, Ngaliema, Kinshasa': gbBusinesses });
+    const point = await geocoding.geocodeListingRow({ quartier: 'GB', commune: 'Ngaliema' }, { apiKey: 'k', request: fakeGoogleWithBox().request, placesRequest: places.placesRequest, ignoreTable: true });
+    assert.strictEqual(point.how, 'cluster');
+    assert.ok(geocoding.distanceKm(point, { lat: -4.3267, lng: 15.2752 }) < 0.3, 'the hotel called "GB" by Joli Parc is left out');
+  });
+  await checkAsync('two places of one name far apart, with no quartier to choose by, give no point', async () => {
+    const places = fakePlaces({ 'Golf Météo, Lubumbashi': [['Golf météo', -11.62485, 27.41776], ['Golf météo', -11.65083, 27.42478]] });
+    const point = await geocoding.geocodeListingRow({ quartier: 'Golf Météo', commune: 'Lubumbashi' }, { apiKey: 'k', request: fakeGoogle({}).request, placesRequest: places.placesRequest, ignoreTable: true });
+    assert.strictEqual(point, null);
+  });
+  await checkAsync('the Geocoding fallback refuses a business it cannot name-check', async () => {
+    const hotel = { status: 'OK', results: [{ types: ['establishment', 'lodging', 'point_of_interest'], geometry: { location: { lat: -4.34885, lng: 15.25276 }, location_type: 'ROOFTOP' } }] };
+    const google = fakeGoogleWithBox({ 'GB, Ngaliema, Kinshasa, RD Congo': hotel });
+    const point = await geocoding.geocodeListingRow({ quartier: 'GB', commune: 'Ngaliema' }, { apiKey: 'k', request: google.request, placesRequest: noPlaces, ignoreTable: true });
+    assert.strictEqual(point, null);
+    assert.ok(google.asked.includes('GB, Ngaliema, Kinshasa, RD Congo'));
+  });
+  await checkAsync('a refused Places key throws rather than falling back', async () => {
+    const places = fakePlaces({ 'GB, Ngaliema, Kinshasa': 'DENIED' });
+    await assert.rejects(
+      () => geocoding.geocodeListingRow({ quartier: 'GB', commune: 'Ngaliema' }, { apiKey: 'k', request: fakeGoogleWithBox().request, placesRequest: places.placesRequest, ignoreTable: true }),
+      /PERMISSION_DENIED/,
+    );
+  });
+  check('kinshasa_quartier_points.json, when present, holds only points inside Kinshasa or null', () => {
+    const fsQ = require('fs');
+    const file = require('path').join(__dirname, '..', 'kinshasa_quartier_points.json');
+    if (!fsQ.existsSync(file)) return;
+    const { points } = JSON.parse(fsQ.readFileSync(file, 'utf8'));
+    for (const [key, point] of Object.entries(points)) {
+      assert.match(key, /^[^|]+\|[a-z0-9 ]+$/, key);
+      if (point === null) continue;
+      assert.ok(point.lat > -4.95 && point.lat < -3.9 && point.lng > 15.0 && point.lng < 16.6, `${key} outside Kinshasa`);
+    }
+  });
+
   check('a correction that moves the listing clears its pin; one that fixes the price or the casing does not', () => {
     const before = { quartier: 'Righini', commune: 'Lemba', reference: 'Demiap' };
     assert.strictEqual(geocoding.locationInputsChanged(before, { ...before, quartier: 'Salongo' }), true);

@@ -27,7 +27,7 @@ const CSS = `
   -webkit-print-color-adjust: exact; print-color-adjust: exact;
 }
 .lp-sheet * { box-sizing: border-box; }
-.lp-serif { font-family: var(--font-dmserif), Georgia, serif; font-weight: 400; }
+.lp-serif { font-family: var(--font-jakarta), system-ui, sans-serif; font-weight: 700; letter-spacing: -0.015em; }
 .lp-tab { font-variant-numeric: tabular-nums; }
 .lp-photo { display: block; width: 100%; height: 100%; object-fit: cover; background: var(--canvas-deep); }
 .lp-pill { display: inline-block; background: var(--blue); color: #fff; font-weight: 800; letter-spacing: .12em; border-radius: 1cqw; }

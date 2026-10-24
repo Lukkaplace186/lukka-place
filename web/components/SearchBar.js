@@ -8,6 +8,8 @@ import { parseSearchQuery } from '@/lib/searchParser';
 import { understoodChips } from '@/lib/searchUnderstood';
 import { useT } from '@/lib/i18n/client';
 import { facetLabel, groupTypeFacets } from '@/lib/commercialSpaces';
+import { budgetOptions, budgetParams } from '@/lib/budgetSteps';
+import { frNumber } from '@/lib/format';
 
 /**
  * The hero search panel — a white card floating over the hero photograph,
@@ -39,21 +41,19 @@ import { facetLabel, groupTypeFacets } from '@/lib/commercialSpaces';
  * Elevation uses `.u-shadow-panel`, the token that exists for precisely
  * this panel, rather than a generic `shadow-xl`.
  *
- * BUDGET IS A CEILING AGAIN. This field was a min/max Popover; the brief
- * asks for a single "Budget max" dropdown and that's what it is now. A
- * price *floor* is not lost — FilterBar's own Prix pill on /listings still
- * offers min and max, which is where someone refines rather than starts.
- * A plain native `<select>` is safe here in a way it was not inside that
- * Popover: the documented iOS Safari misplacement came from Radix's
- * Popper applying a CSS `transform` to the panel, and nothing on this
- * card's ancestor chain carries one.
+ * BUDGET IS A RANGE (2026-10-24, owner request: "from $200 to $300, not
+ * just max"): two native `<select>`s, Min and Max, side by side under one
+ * "Budget" label, with the steps in lib/budgetSteps.js (rent to 10 000 $ +,
+ * sale on its own scale). Native selects, not a Popover: the documented iOS
+ * Safari misplacement came from Radix's Popper applying a CSS `transform`
+ * to the panel, and nothing on this card's ancestor chain carries one.
  *
  * `propertyTypes` and `communes` are both real and DB-derived
  * (`getPropertyTypeFacets()` / `getPopularCommunes()`, from the homepage's
  * own server component), so neither the type dropdown nor a quick-pill
- * ever offers something with zero results behind it. `BUDGET_MAX_OPTIONS`
- * is a small fixed set of round steps — a filter-UI convenience, not a
- * claim about the data — feeding the same `price_max` param FilterBar
+ * ever offers something with zero results behind it. The budget steps are
+ * a fixed set of round figures — a filter-UI convenience, not a claim about
+ * the data — feeding the same `price_min` / `price_max` params FilterBar
  * already submits.
  *
  * Placeholder copy says "référence" (never "repère"), per the root
@@ -68,37 +68,20 @@ const HOME_TABS = [
 // Both live in lib/constants.js because the homepage's server component
 // needs the same mapping to scope `initialCount` to the tab this opens on.
 
-// Tiered steps, not one flat increment across the whole range: renters
-// under $1,000 are genuinely sensitive to $100-200 gaps ($700 vs $800 is a
-// real different bracket of listing), where $2k+ listings don't need that
-// resolution — a single $500 step for the whole scale either buries the
-// low end in too-coarse buckets or makes the high end an unusably long
-// list. 100-1 000 by 100, 1 250-2 000 by 250, 2 500-5 000 by 500.
-const PRICE_STEP_VALUES = [
-  ...Array.from({ length: 10 }, (_, i) => (i + 1) * 100), // 100, 200, ..., 1 000
-  1250, 1500, 1750, 2000,
-  2500, 3000, 3500, 4000, 4500, 5000,
-];
-
 /*
- * Built per-render now rather than as a module constant, because both the
- * label AND the thousands separator are language-dependent ("Max 1 500 $" vs
- * "Max $1,500"). The 24-entry array is cheap to rebuild and is memoised at
- * the call site; a module-level constant would freeze both in French.
+ * Built per language: the words AND the thousands separator differ
+ * ("Min 1 500 $" vs "Min $1,500"). Memoised at the call site.
  */
-function buildBudgetMaxOptions(t) {
-  const numberLocale = t.locale === 'en' ? 'en-GB' : 'fr-FR';
-  return [
-    { value: '', label: t('home.search.allPrices') },
-    ...PRICE_STEP_VALUES.map((amount) => ({
-      value: String(amount),
-      // "Max X" throughout, the last step included. "5 000 $ et +" would be
-      // a lie in a *ceiling* field — it reads as a floor — and the longer
-      // "Jusqu'à X $" does not survive the 2-column cell at 320px, where a
-      // native <select> shows the selected option's own text verbatim.
-      label: t('home.search.budgetMax', { amount: amount.toLocaleString(numberLocale) }),
-    })),
-  ];
+function budgetLabels(t) {
+  const format = (amount) => (t.locale === 'en' ? amount.toLocaleString('en-GB') : frNumber(amount));
+  const labels = {
+    minAny: t('home.search.budgetMinAny'),
+    maxAny: t('home.search.budgetMaxAny'),
+    min: (amount) => t('home.search.budgetMin', { amount }),
+    max: (amount) => t('home.search.budgetMax', { amount }),
+    over: (amount) => t('home.search.budgetOver', { amount }),
+  };
+  return { format, labels };
 }
 
 const COUNT_DEBOUNCE_MS = 350;
@@ -123,10 +106,9 @@ const FIELD_SELECT =
 
 export default function SearchBar({ propertyTypes = [], communes = [], initialCount = null }) {
   const t = useT();
-  // Rebuilt only when the language changes — see buildBudgetMaxOptions.
-  const budgetMaxOptions = useMemo(() => buildBudgetMaxOptions(t), [t]);
   const [homeTab, setHomeTab] = useState(HERO_DEFAULT_TAB);
   const [propertyType, setPropertyType] = useState('');
+  const [budgetMin, setBudgetMin] = useState('');
   const [budgetMax, setBudgetMax] = useState('');
   // Mirrors the location field's text. LocationAutocomplete still owns the
   // input itself; this is the copy the quick-pill tint and the live count
@@ -141,12 +123,22 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
   // offered there, so they are not sent either.
   const leaseTerm = isShortStay ? 'short' : '';
   const stagedType = isShortStay ? '' : propertyType;
-  const stagedBudget = isShortStay ? '' : budgetMax;
+  const staged = isShortStay ? { price_min: '', price_max: '' } : budgetParams(budgetMin, budgetMax);
+  const stagedMin = staged.price_min;
+  const stagedMax = staged.price_max;
+  // Rebuilt when the language, the scale (rent / sale) or a chosen bound
+  // changes: a bound disables the options on the other side that would
+  // contradict it.
+  const { minOptions, maxOptions } = useMemo(() => {
+    const { format, labels } = budgetLabels(t);
+    return budgetOptions(transactionType, { min: budgetMin, max: budgetMax }, format, labels);
+  }, [t, transactionType, budgetMin, budgetMax]);
 
   const extraParams = {
     transaction_type: transactionType,
     property_type: stagedType,
-    price_max: stagedBudget,
+    price_min: stagedMin,
+    price_max: stagedMax,
     lease_term: leaseTerm,
   };
 
@@ -178,7 +170,8 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
       const qs = new URLSearchParams();
       if (transactionType) qs.set('transaction_type', transactionType);
       if (stagedType) qs.set('property_type', stagedType);
-      if (stagedBudget) qs.set('price_max', stagedBudget);
+      if (stagedMin) qs.set('price_min', stagedMin);
+      if (stagedMax) qs.set('price_max', stagedMax);
       if (leaseTerm) qs.set('lease_term', leaseTerm);
 
       // Parsed exactly the way submitting parses it (LocationAutocomplete's
@@ -224,7 +217,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
       clearTimeout(timer);
       controller.abort();
     };
-  }, [transactionType, stagedType, stagedBudget, leaseTerm, location]);
+  }, [transactionType, stagedType, stagedMin, stagedMax, leaseTerm, location]);
 
   // What the parser takes from the typed text, read back as chips — so a
   // visitor sees that "Gombe" and "2 chambres" were understood before they
@@ -285,6 +278,10 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
                 if (value === homeTab) return;
                 setHomeTab(value);
                 setLocation('');
+                // Rent and sale have different scales: a $500 floor means
+                // nothing under Acheter.
+                setBudgetMin('');
+                setBudgetMax('');
                 // The previous tab's count describes other listings; the
                 // effect fetches this tab's own.
                 setCount(null);
@@ -303,7 +300,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
       </div>
 
       {/* --- 2. Labelled fields ------------------------------------------ */}
-      <div className={`grid grid-cols-2 gap-x-3 gap-y-4 ${isShortStay ? '' : 'lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]'}`}>
+      <div className={`grid grid-cols-2 gap-x-3 gap-y-4 ${isShortStay ? '' : 'lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1.5fr)]'}`}>
         <div className="col-span-2 lg:col-span-1">
           <label htmlFor="hero-location" className={FIELD_LABEL}>
             {t('home.search.locationLabel')}
@@ -332,7 +329,9 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
           <p className="col-span-2 -mt-1 text-[0.875rem] text-ink-45">{t('home.search.shortHint')}</p>
         ) : (
           <>
-            <div className="min-w-0">
+            {/* Full width on a phone: the budget below needs both columns
+                for its Min | Max pair. */}
+            <div className="col-span-2 min-w-0 lg:col-span-1">
               <label htmlFor="hero-type" className={FIELD_LABEL}>
                 {t('home.search.propertyType')}
               </label>
@@ -369,25 +368,43 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
               </div>
             </div>
 
-            <div className="min-w-0">
-              <label htmlFor="hero-budget" className={FIELD_LABEL}>
+            <div role="group" aria-labelledby="hero-budget-label" className="col-span-2 min-w-0 lg:col-span-1">
+              <span id="hero-budget-label" className={FIELD_LABEL}>
                 {t('home.search.budgetLabel')}
-              </label>
-              <div className={FIELD_BOX}>
-                <select
-                  id="hero-budget"
-                  aria-label={t('home.search.budget')}
-                  value={budgetMax}
-                  onChange={(e) => setBudgetMax(e.target.value)}
-                  className={FIELD_SELECT}
-                >
-                  {budgetMaxOptions.map(({ value, label }) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className="pointer-events-none h-4 w-4 shrink-0 text-ink-45" />
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                <div className={FIELD_BOX}>
+                  <select
+                    id="hero-budget-min"
+                    aria-label={t('home.search.budgetMinAria')}
+                    value={budgetMin}
+                    onChange={(e) => setBudgetMin(e.target.value)}
+                    className={FIELD_SELECT}
+                  >
+                    {minOptions.map(({ value, label, disabled }) => (
+                      <option key={value} value={value} disabled={disabled}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className="pointer-events-none h-4 w-4 shrink-0 text-ink-45" />
+                </div>
+                <div className={FIELD_BOX}>
+                  <select
+                    id="hero-budget-max"
+                    aria-label={t('home.search.budgetMaxAria')}
+                    value={budgetMax}
+                    onChange={(e) => setBudgetMax(e.target.value)}
+                    className={FIELD_SELECT}
+                  >
+                    {maxOptions.map(({ value, label, disabled }) => (
+                      <option key={value} value={value} disabled={disabled}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className="pointer-events-none h-4 w-4 shrink-0 text-ink-45" />
+                </div>
               </div>
             </div>
           </>
@@ -397,9 +414,9 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
       {understood.length > 0 ? (
         <p className="u-reveal mt-3 flex flex-wrap items-center gap-1.5 text-[0.75rem] text-ink-45" aria-live="polite">
           {t('home.search.understood')}
-          {understood.map((chip) => (
-            <span key={chip.key} className="inline-flex h-6 items-center rounded-full bg-ink px-2.5 text-[0.75rem] font-bold text-white">
-              {chip.label}
+          {understood.map(({ key, label }) => (
+            <span key={key} className="inline-flex h-6 items-center rounded-full bg-ink px-2.5 text-[0.75rem] font-bold text-white">
+              {label}
             </span>
           ))}
         </p>

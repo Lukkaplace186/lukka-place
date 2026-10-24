@@ -7,6 +7,7 @@ import { establishAgentSession } from '@/lib/agentSession';
 import { establishCustomerSession } from '@/lib/customerSession';
 import { getVerifyAttempt, clearVerifyAttemptCookie } from '@/lib/verifyAttempt';
 import { consumeVerifiedChallenge } from '@/lib/whatsappVerify';
+import { recordAgentLoginAttempt } from '@/lib/agentLoginLog';
 
 function safeNext(nextParam, fallback) {
   const next = String(nextParam || '');
@@ -28,6 +29,7 @@ export async function checkWhatsAppVerificationAction(nextParam) {
 
   if (attempt.role === 'agent') {
     await consumeAgentOtp(attempt.id);
+    await recordAgentLoginAttempt(attempt.id, 'whatsapp_verified');
     const { rows } = await getPool().query('SELECT token_version FROM agents WHERE id = $1', [attempt.id]);
     await clearVerifyAttemptCookie();
     await establishAgentSession({ id: attempt.id, tokenVersion: rows[0]?.token_version });

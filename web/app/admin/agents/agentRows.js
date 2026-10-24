@@ -1,3 +1,5 @@
+import { formatRelative } from '@/lib/format';
+
 /**
  * Shapes `listAgentsForAdmin` rows into the plain, pre-formatted props the
  * client AgentsTable renders — no Date objects cross the server/client
@@ -12,7 +14,35 @@ function formatDay(value) {
   return new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Africa/Kinshasa' }).format(date);
 }
 
-export function toAgentTableRows(rows = []) {
+const KINSHASA_TIME = new Intl.DateTimeFormat('fr-FR', {
+  day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Africa/Kinshasa',
+});
+
+/** "24 oct., 06:15" in Kinshasa time, whatever the server's own zone. */
+export function formatKinshasaTime(value) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : KINSHASA_TIME.format(date);
+}
+
+/**
+ * The "Dernière connexion" cell, pre-formatted (lib/agentLoginLog.js
+ * getLoginSummaries). null = no attempt on record.
+ */
+export function loginCell(summary, locale = 'fr') {
+  if (!summary) return null;
+  return {
+    lastOutcome: summary.lastOutcome,
+    lastAt: formatKinshasaTime(summary.lastAttemptAt),
+    lastAgo: formatRelative(summary.lastAttemptAt instanceof Date ? summary.lastAttemptAt : new Date(summary.lastAttemptAt), locale),
+    signedInAt: formatKinshasaTime(summary.lastSignedInAt),
+    failures: summary.failuresSinceSignIn,
+    lastFailureAt: formatKinshasaTime(summary.lastFailureAt),
+    pendingVerification: summary.pendingVerification,
+  };
+}
+
+export function toAgentTableRows(rows = [], loginSummaries = null, locale = 'fr') {
   return rows.map((agent) => ({
     id: Number(agent.id),
     name: agent.display_name,
@@ -32,5 +62,8 @@ export function toAgentTableRows(rows = []) {
     status: agent.status,
     branchId: agent.branch_id != null ? Number(agent.branch_id) : null,
     branchName: agent.branch_name || null,
+    // undefined = this page did not load sign-in history (the column is not
+    // drawn); null = loaded, nothing on record.
+    login: loginSummaries ? loginCell(loginSummaries.get(Number(agent.id)), locale) : undefined,
   }));
 }

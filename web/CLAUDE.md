@@ -3150,3 +3150,36 @@ From the post-launch design review. Tests: `tests/unit/format.test.js`.
   PropertyTypeTiles, ValueProposition ("Notre approche" was a sans eyebrow,
   now a title like the others) and NewProjectsStrip. Dashboards keep
   `.u-title-section` at 22px.
+
+## Budget range, one font, agent sign-in history (2026-10-24, later)
+
+Owner requests from phone screenshots. Tests: `tests/unit/budget-steps.test.js`,
+`tests/unit/agent-login-log.test.js`.
+
+- **Hero budget is Min | Max** (`components/SearchBar.js`, steps and rules in
+  `lib/budgetSteps.js`): rent steps $100 to $1,000 by 100, then 1,250 / 1,500
+  / 2,000 / 2,500 / 3,000 / 4,000, every $1,000 to $10,000, then "10 000 $ +"
+  (as a max it sends NO price_max; as a min it is 10,000). A sale has its own
+  scale (10k → 1M): a $10k ceiling meant nothing for a $380,000 house. A bound
+  disables the contradicting options on the other side; a min above the max
+  drops the max. Same `price_min` / `price_max` params as FilterBar. On a phone
+  "Type de bien" is full width and Min | Max share the next row.
+- **One font family.** Every title on all four surfaces is Plus Jakarta Sans,
+  bold; DM Serif Display is no longer loaded (`app/layout.js`).
+  `--font-display` / `--font-heading` resolve to the sans so old classes keep
+  working; the 26 `font-display` class uses became `font-bold`; `.u-title-*`
+  are sans 700 (hero 28→36px, page 22→28, section 20, storefront 22→26); the
+  print sheets' `.lp-serif` too. Supersedes the "accent serif" notes above.
+- **Agent sign-in attempts** (`agent_login_attempts`, engine
+  `migrations/20261024_agent_login_attempts.sql`; `lib/agentLoginLog.js`
+  reads/writes, `lib/agentLoginRules.js` pure). Recorded from the password
+  login (success / wrong_password / locked / verify_required), the code page
+  (wrong_code / expired_code / code_verified), the reverse WhatsApp check
+  (whatsapp_verified) and activation (activated), with IP and user agent. Only
+  existing accounts; a number with no account is not stored. Never throws into
+  the login; nothing recorded before the migration (42P01).
+  - `/admin/agents` and `/admin/agencies/[id]`: a "Dernière connexion" column
+    (relative time, Kinshasa time on hover, last outcome, failures since the
+    last sign-in). The row menu's "Voir l'historique de connexion" (and a tap
+    on the cell) opens the last 100 attempts with IP and a short device label —
+    `agents.manage` only, since it shows IP addresses.

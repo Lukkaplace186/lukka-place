@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { BadgeCheck, BellRing, Building2, MoreHorizontal, PauseCircle, PlayCircle, ScanEye, Settings2, Trash2 } from 'lucide-react';
+import { BadgeCheck, BellRing, Building2, History, MoreHorizontal, PauseCircle, PlayCircle, ScanEye, Settings2, Trash2 } from 'lucide-react';
 import { useToast } from '@/components/Toast';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -22,6 +22,7 @@ import { ImpersonateDialog } from '../ImpersonateButton';
 import DeleteAgentDialog from './DeleteAgentDialog';
 import { sendVerificationReminderAction } from './verificationReminderActions';
 import { BulkDeleteButton, useBulkDelete } from '../BulkDelete';
+import { getAgentLoginHistoryAction } from './loginHistoryActions';
 
 const BUTTON =
   'u-press u-micro-strong inline-flex h-8 items-center gap-1.5 rounded-md border border-line bg-surface px-2.5 text-ink transition-colors hover:border-blue disabled:opacity-50';
@@ -52,6 +53,23 @@ export default function AgentsTable({
   const [impersonating, setImpersonating] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const bulkDelete = useBulkDelete('agent', { onDeleted: () => setSelected(new Set()) });
+  // { agent, loading, rows, available, error } while the history dialog is open.
+  const [history, setHistory] = useState(null);
+  // Drawn only when the page loaded sign-in history (row.login !== undefined).
+  const showLogin = rows.some((row) => row.login !== undefined);
+
+  async function openHistory(agent) {
+    setHistory({ agent, loading: true, rows: [] });
+    let result;
+    try {
+      result = await getAgentLoginHistoryAction(agent.id);
+    } catch (err) {
+      result = { ok: false, error: err.message };
+    }
+    setHistory((current) => (current?.agent.id === agent.id
+      ? { agent, loading: false, rows: result.rows || [], available: result.available, error: result.ok ? null : result.error }
+      : current));
+  }
 
   const pageIds = useMemo(() => rows.map((row) => row.id), [rows]);
   const allSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
@@ -145,7 +163,7 @@ export default function AgentsTable({
         </div>
       ) : null}
 
-      <TableFrame minWidth="76rem" footer={footer} busy={pending}>
+      <TableFrame minWidth={showLogin ? "86rem" : "76rem"} footer={footer} busy={pending}>
         <thead>
           <tr>
             {selectable ? (
@@ -165,13 +183,14 @@ export default function AgentsTable({
             <th className={TH_STICKY}>{t('admin.agents.territory')}</th>
             <th className={TH_STICKY_RIGHT}>{t('admin.agents.listings')}</th>
             <th className={TH_STICKY}>{t('admin.agents.package')}</th>
+            {showLogin ? <th className={TH_STICKY}>{t('admin.agents.lastLogin')}</th> : null}
             <th className={TH_STICKY}>{t('admin.agents.status')}</th>
             <th className={TH_STICKY} aria-label={t('admin.table.moreActions')} />
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 ? (
-            <EmptyRow colSpan={selectable ? 9 : 8}>{t('admin.agents.empty')}</EmptyRow>
+            <EmptyRow colSpan={8 + (selectable ? 1 : 0) + (showLogin ? 1 : 0)}>{t('admin.agents.empty')}</EmptyRow>
           ) : (
             rows.map((agent) => (
               <tr key={agent.id} className={`${TR_DENSE} ${selected.has(agent.id) ? 'bg-blue-tint/40' : ''}`}>
@@ -231,6 +250,11 @@ export default function AgentsTable({
                     <span className="text-ink-35">{t('admin.agents.noActiveSubscription')}</span>
                   )}
                 </td>
+                {showLogin ? (
+                  <td className={TD_DENSE}>
+                    <LoginCell login={agent.login} t={t} onOpen={canManage ? () => openHistory(agent) : null} />
+                  </td>
+                ) : null}
                 <td className={TD_DENSE}>
                   {agent.status === 1 ? <Chip tone="success">{t('admin.agents.statusActive')}</Chip> : <Chip tone="neutral">{t('admin.agents.statusSuspended')}</Chip>}
                 </td>
@@ -253,6 +277,10 @@ export default function AgentsTable({
                           <DropdownMenuItem onSelect={() => { setVendorId(agent.vendorId ? String(agent.vendorId) : ''); setVendorDialog(agent); }}>
                             <Building2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
                             {t('admin.agents.changeAgency')}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onSelect={() => openHistory(agent)}>
+                            <History strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                            {t('admin.agents.loginHistory')}
                           </DropdownMenuItem>
                           <DropdownMenuItem onSelect={() => run(() => sendVerificationReminderAction(agent.id))}>
                             <BellRing strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
@@ -306,6 +334,49 @@ export default function AgentsTable({
 
       {canDelete ? <DeleteAgentDialog agent={deleting} onClose={() => setDeleting(null)} /> : null}
 
+      <Dialog open={Boolean(history)} onOpenChange={(open) => { if (!open) setHistory(null); }}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{t('admin.agents.loginHistoryTitle')}</DialogTitle>
+            <DialogDescription>
+              {history?.agent.name}{history?.agent.phone ? ` · +${history.agent.phone}` : ''} — {t('admin.agents.loginHistoryHint')}
+            </DialogDescription>
+          </DialogHeader>
+          {history?.loading ? (
+            <p className="u-micro text-ink-45">{t('admin.agents.loginHistoryLoading')}</p>
+          ) : history?.error ? (
+            <p className="u-micro text-danger">{history.error}</p>
+          ) : history && history.available === false ? (
+            <p className="u-micro text-ink-45">{t('admin.agents.loginHistoryUnavailable')}</p>
+          ) : history && history.rows.length === 0 ? (
+            <p className="u-micro text-ink-45">{t('admin.agents.loginNever')}</p>
+          ) : history ? (
+            <div className="max-h-[60vh] overflow-y-auto rounded-lg border border-line">
+              <table className="w-full text-left">
+                <thead className="sticky top-0 bg-surface">
+                  <tr className="u-micro-strong text-ink-45">
+                    <th className="px-3 py-2">{t('admin.agents.loginColTime')}</th>
+                    <th className="px-3 py-2">{t('admin.agents.loginColResult')}</th>
+                    <th className="px-3 py-2">{t('admin.agents.loginColIp')}</th>
+                    <th className="px-3 py-2">{t('admin.agents.loginColDevice')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.rows.map((row) => (
+                    <tr key={row.id} className="u-micro border-t border-line">
+                      <td className="u-tabular whitespace-nowrap px-3 py-2 text-ink">{row.at}</td>
+                      <td className="px-3 py-2"><Chip tone={OUTCOME_TONE[row.outcome] || 'neutral'}>{t(`admin.agents.loginOutcome.${row.outcome}`)}</Chip></td>
+                      <td className="u-tabular px-3 py-2 text-ink-70">{row.ip || '—'}</td>
+                      <td className="px-3 py-2 text-ink-70">{row.device || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={Boolean(vendorDialog)} onOpenChange={(open) => { if (!open) setVendorDialog(null); }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
@@ -344,5 +415,49 @@ export default function AgentsTable({
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+const OUTCOME_TONE = {
+  success: 'success',
+  code_verified: 'success',
+  whatsapp_verified: 'success',
+  activated: 'success',
+  verify_required: 'warning',
+  wrong_password: 'danger',
+  wrong_code: 'danger',
+  expired_code: 'warning',
+  locked: 'danger',
+};
+
+/**
+ * "Dernière connexion": when the agent last tried, how it ended, and the
+ * failures since their last sign-in. A tap opens the full history.
+ */
+function LoginCell({ login, t, onOpen }) {
+  if (!login) return <span className="text-ink-35">{t('admin.agents.loginNever')}</span>;
+  const tone = OUTCOME_TONE[login.lastOutcome];
+  const body = (
+    <>
+      <div className="flex items-center gap-1.5 text-ink">
+        <span
+          aria-hidden="true"
+          className={`h-2 w-2 shrink-0 rounded-full ${tone === 'success' ? 'bg-success' : tone === 'danger' ? 'bg-danger' : 'bg-warning'}`}
+        />
+        <span title={login.lastAt || undefined}>{login.lastAgo}</span>
+      </div>
+      <div className="text-ink-45">{t(`admin.agents.loginOutcome.${login.lastOutcome}`)}</div>
+      {login.failures > 0 ? (
+        <div className="mt-1">
+          <Chip tone="danger">{t('admin.agents.loginFailures', { count: login.failures, time: login.lastFailureAt || '' })}</Chip>
+        </div>
+      ) : null}
+    </>
+  );
+  if (!onOpen) return body;
+  return (
+    <button type="button" onClick={onOpen} className="block text-left hover:underline" aria-label={t('admin.agents.loginHistory')}>
+      {body}
+    </button>
   );
 }

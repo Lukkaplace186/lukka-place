@@ -237,8 +237,10 @@
   --color-danger-tint: var(--danger-50);
 
   --font-sans: var(--font-jakarta);
-  --font-display: var(--font-dmserif);
-  --font-heading: var(--font-dmserif);
+  /* One family (2026-10-24, owner: "all the headers … the same font as
+     'Type de bien'"). The two names stay so existing classes resolve. */
+  --font-display: var(--font-jakarta);
+  --font-heading: var(--font-jakarta);
 
   --color-border: var(--border);
   --color-input: var(--input);
@@ -305,12 +307,8 @@
        they read as dense/black next to the reference. */
     letter-spacing: 0.1px;
   }
-  /* DM Serif Display is an accent face: hero headline, section titles,
-     editorial copy only. Never UI, never data. Its default leading reads
-     cramped at display sizes, so headings set it explicitly. */
-  .font-display {
-    font-optical-sizing: auto;
-  }
+  /* `font-display` is the sans now (see --font-display). Weight and
+     tracking come from each heading's own classes. */
 }
 
 /*
@@ -715,41 +713,33 @@
    *   /admin        ZERO uses of `font-display` anywhere — every heading
    *                 sans-bold, at `text-xl` / `text-[1.3125rem]` / `text-sm`
    *
-   * Two families, one hierarchy, applied identically everywhere:
-   *
-   *   DM Serif Display  page titles and section titles ONLY. This is the
-   *                     luxury voice; it is what makes an admin console
-   *                     read as part of the same product as the storefront.
-   *                     Regular weight only — the face has no bold cut.
-   *   Plus Jakarta Sans everything else: card headings, labels, data,
-   *                     body, buttons, meta.
+   * One family since 2026-10-24: Plus Jakarta Sans for every title, label,
+   * figure and line of body copy, on all four surfaces. Hierarchy is size
+   * and weight only. (DM Serif Display carried page and section titles
+   * until the owner found it clashed with the labels beside it.)
    *
    * Use these utilities instead of writing a new arbitrary `text-[...]`.
    * A one-off size is how the four dialects happened in the first place.
    */
 
-  /* Serif titles are sentence case, as the dictionary writes them. They were
-     set in CAPITALS from 2026-10-10 to 2026-10-24; the post-launch design
-     review found a display serif in capitals read as an old newspaper beside
-     the rounded sans, and the owner chose sentence case. The `normal-case`
-     classes on data headings (names, listing titles) are now no-ops, kept so
-     they can stay put. */
+  /* Titles are sentence case, as the dictionary writes them (they were set
+     in CAPITALS from 2026-10-10 to 2026-10-24). The `normal-case` classes
+     on data headings (names, listing titles) are no-ops, kept in place. */
 
   /* Hero title — the h1 at the top of a full-width page that is meant to
      feel editorial rather than operational (the Espace Client portal, the
      saved-search and request pages). One tier above .u-title-page, which is
      the dense dashboard-header equivalent. */
   .u-title-hero {
-    font-family: var(--font-display), Georgia, 'Times New Roman', serif;
-    font-size: 2rem;
-    line-height: 1.12;
-    font-weight: 400;
-    letter-spacing: -0.018em;
-    font-optical-sizing: auto;
+    font-family: var(--font-sans), system-ui, sans-serif;
+    font-size: 1.75rem;
+    line-height: 1.15;
+    font-weight: 700;
+    letter-spacing: -0.02em;
   }
   @media (min-width: 640px) {
     .u-title-hero {
-      font-size: 2.5rem;
+      font-size: 2.25rem;
     }
   }
 
@@ -758,51 +748,45 @@
      plus the header's search and bell pushed the agent dashboard wider than a
      375px screen. */
   .u-title-page {
-    font-family: var(--font-display), Georgia, 'Times New Roman', serif;
+    font-family: var(--font-sans), system-ui, sans-serif;
     font-size: 1.375rem;
-    line-height: 1.15;
-    font-weight: 400;
-    letter-spacing: -0.01em;
-    font-optical-sizing: auto;
+    line-height: 1.2;
+    font-weight: 700;
+    letter-spacing: -0.015em;
   }
   @media (min-width: 640px) {
     .u-title-page {
-      font-size: 1.875rem;
+      font-size: 1.75rem;
     }
   }
 
   /* Section title — a major band within a page (a panel group, a form
      section, the heading above a table). */
   .u-title-section {
-    font-family: var(--font-display), Georgia, 'Times New Roman', serif;
-    font-size: 1.375rem;
-    line-height: 1.25;
-    font-weight: 400;
-    letter-spacing: -0.008em;
-    font-optical-sizing: auto;
+    font-family: var(--font-sans), system-ui, sans-serif;
+    font-size: 1.25rem;
+    line-height: 1.3;
+    font-weight: 700;
+    letter-spacing: -0.01em;
   }
 
   /* The storefront's section titles ("Sélection de la semaine", "Notre
-     approche"…) — one step larger than a dashboard band, since in sentence
-     case the serif needs the size to carry the section. SectionHeading and
+     approche"…) — one step larger than a dashboard band. SectionHeading and
      the homepage sections use it; dashboards keep .u-title-section. */
   .u-title-storefront {
-    font-family: var(--font-display), Georgia, 'Times New Roman', serif;
-    font-size: 1.5rem;
-    line-height: 1.2;
-    font-weight: 400;
-    letter-spacing: -0.008em;
-    font-optical-sizing: auto;
+    font-family: var(--font-sans), system-ui, sans-serif;
+    font-size: 1.375rem;
+    line-height: 1.25;
+    font-weight: 700;
+    letter-spacing: -0.015em;
   }
   @media (min-width: 640px) {
     .u-title-storefront {
-      font-size: 1.875rem;
+      font-size: 1.625rem;
     }
   }
 
-  /* Card title — the heading inside a single card/panel. Sans, not serif:
-     at 17px a display serif reads as decoration rather than structure, and
-     a dashboard has far too many of these for the serif to stay special. */
+  /* Card title — the heading inside a single card/panel. */
   .u-title-card {
     font-size: 1.0625rem;
     line-height: 1.4;

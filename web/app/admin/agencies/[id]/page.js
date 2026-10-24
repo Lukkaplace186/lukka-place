@@ -19,6 +19,7 @@ import EntityTimeline from '../../EntityTimeline';
 import Pagination from '../../table/Pagination';
 import AgentsTable from '../../agents/AgentsTable';
 import { toAgentTableRows } from '../../agents/agentRows';
+import { getLoginSummaries } from '@/lib/agentLoginLog';
 import AgencyBulkActions from './AgencyBulkActions';
 import RenameAgencyForm from './RenameAgencyForm';
 import BranchesPanel from './BranchesPanel';
@@ -56,6 +57,7 @@ export default async function AdminAgencyDetailPage({ params, searchParams }) {
     getLocationHierarchySafe(),
   ]);
   const agents = agentsResult.status === 'fulfilled' ? agentsResult.value : { total: 0, rows: [] };
+  const loginSummaries = await getLoginSummaries(agents.rows.map((row) => row.id));
   const billing = billingResult.status === 'fulfilled' ? billingResult.value : [];
   const branches = branchesResult.status === 'fulfilled' ? branchesResult.value : null;
 
@@ -111,7 +113,7 @@ export default async function AdminAgencyDetailPage({ params, searchParams }) {
               ) : null}
             </div>
             <AgentsTable
-              rows={toAgentTableRows(agents.rows)}
+              rows={toAgentTableRows(agents.rows, loginSummaries, t.locale)}
               vendors={(vendorsResult.status === 'fulfilled' ? vendorsResult.value : []).map((vendor) => ({ id: vendor.id, username: vendor.name }))}
               canImpersonate={can(session?.role, 'accounts.impersonate')}
               canManage={canManageAgents}

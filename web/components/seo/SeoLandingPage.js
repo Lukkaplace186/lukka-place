@@ -265,7 +265,7 @@ export default async function SeoLandingPage({ transaction, params }) {
         <Breadcrumb className="mb-5" items={crumbs} />
 
         <header className="flex flex-col gap-3">
-          <h1 className="font-display text-[1.875rem] font-normal leading-[1.15] tracking-[-0.01em] text-ink sm:text-[2.5rem]">
+          <h1 className="font-bold text-[1.875rem] leading-[1.15] tracking-[-0.01em] text-ink sm:text-[2.5rem]">
             {heading}
           </h1>
           <p className="max-w-3xl text-[1.0625rem] leading-relaxed text-ink-45">

@@ -172,15 +172,19 @@
       "locationPlaceholder": "Commune / Neighbourhood (e.g. Gombe, Ngaliema)",
       "propertyType": "Property type",
       "allTypes": "All types",
-      "budget": "Maximum budget",
       "budgetMax": "Max ${amount}",
+      "budgetMinAny": "Min",
+      "budgetMaxAny": "Max",
+      "budgetMin": "Min ${amount}",
+      "budgetOver": "${amount}+",
+      "budgetMinAria": "Minimum budget",
+      "budgetMaxAria": "Maximum budget",
       "submit": "Search",
       "suggestedCount": {
         "one": "{count} suggestion",
         "other": "{count} suggestions"
       },
       "popularCommunes": "Popular Communes",
-      "allPrices": "Any price",
       "understood": "We understood:",
       "near": "Near {place}",
       "bedsMin": {
@@ -3382,7 +3386,33 @@
       "reminderSent": "Verification reminder sent on WhatsApp (received if the agent wrote to us in the last 24 hours).",
       "reminderNoPhone": "This agent has no valid number.",
       "reminderFailed": "The reminder could not be sent.",
-      "subtitleSales": "The agents you brought to Lukka Place — through your code or your assignment."
+      "subtitleSales": "The agents you brought to Lukka Place — through your code or your assignment.",
+      "lastLogin": "Last Login",
+      "loginNever": "No attempt on record",
+      "loginFailures": {
+        "one": "1 failure (last: {time})",
+        "other": "{count} failures (last: {time})"
+      },
+      "loginHistory": "View Login History",
+      "loginHistoryTitle": "Login History",
+      "loginHistoryHint": "Last 100 attempts, Kinshasa time.",
+      "loginHistoryLoading": "Loading…",
+      "loginHistoryUnavailable": "History is not available yet (migration not applied).",
+      "loginColTime": "Date and Time",
+      "loginColResult": "Result",
+      "loginColIp": "IP Address",
+      "loginColDevice": "Device",
+      "loginOutcome": {
+        "success": "Signed in",
+        "wrong_password": "Wrong password",
+        "locked": "Locked (too many tries)",
+        "verify_required": "Number verification pending",
+        "wrong_code": "Wrong code",
+        "expired_code": "Code expired",
+        "code_verified": "Signed in with a code",
+        "whatsapp_verified": "Signed in via WhatsApp",
+        "activated": "Account activated"
+      }
     },
     "actions": {
       "approve": "Approve",

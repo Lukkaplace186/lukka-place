@@ -13,6 +13,7 @@ import TableToolbar from '../table/TableToolbar';
 import ServerViewTools from '../table/ServerViewTools';
 import AgentsTable from './AgentsTable';
 import { toAgentTableRows } from './agentRows';
+import { getLoginSummaries } from '@/lib/agentLoginLog';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,6 +57,8 @@ export default async function AdminAgentsPage({ searchParams }) {
   const list = listResult.status === 'fulfilled' ? listResult.value : null;
   const vendors = vendorsResult.status === 'fulfilled' ? vendorsResult.value : [];
   const duplicates = duplicatesResult.status === 'fulfilled' ? duplicatesResult.value : [];
+  // Sign-in history for the agents on this page only (never throws).
+  const loginSummaries = await getLoginSummaries((list?.rows || []).map((row) => row.id));
 
   return (
     <div className="flex flex-col gap-5">
@@ -147,7 +150,7 @@ export default async function AdminAgentsPage({ searchParams }) {
       ) : null}
 
       <AgentsTable
-        rows={toAgentTableRows(list?.rows)}
+        rows={toAgentTableRows(list?.rows, loginSummaries, t.locale)}
         vendors={vendors.map((vendor) => ({ id: vendor.id, username: vendor.name }))}
         canImpersonate={can(session?.role, 'accounts.impersonate')}
         canDelete={can(session?.role, 'agents.delete')}

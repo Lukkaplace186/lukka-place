@@ -172,15 +172,19 @@
       "locationPlaceholder": "Commune / Quartier (ex : Gombe, Ngaliema)",
       "propertyType": "Type de bien",
       "allTypes": "Tous types",
-      "budget": "Budget maximum",
       "budgetMax": "Max {amount} $",
+      "budgetMinAny": "Min",
+      "budgetMaxAny": "Max",
+      "budgetMin": "Min {amount} $",
+      "budgetOver": "{amount} $ +",
+      "budgetMinAria": "Budget minimum",
+      "budgetMaxAria": "Budget maximum",
       "submit": "Rechercher",
       "suggestedCount": {
         "one": "{count} suggestion",
         "other": "{count} suggestions"
       },
       "popularCommunes": "Communes populaires",
-      "allPrices": "Tous prix",
       "understood": "Nous avons compris :",
       "near": "Près de {place}",
       "bedsMin": {
@@ -3382,7 +3386,33 @@
       "reminderSent": "Rappel de vérification envoyé sur WhatsApp (reçu si l’agent nous a écrit dans les dernières 24 h).",
       "reminderNoPhone": "Cet agent n’a pas de numéro valide.",
       "reminderFailed": "Le rappel n’a pas pu être envoyé.",
-      "subtitleSales": "Les agents que vous avez fait venir sur Lukka Place — par votre code ou votre attribution."
+      "subtitleSales": "Les agents que vous avez fait venir sur Lukka Place — par votre code ou votre attribution.",
+      "lastLogin": "Dernière connexion",
+      "loginNever": "Aucune tentative enregistrée",
+      "loginFailures": {
+        "one": "1 échec (dernier : {time})",
+        "other": "{count} échecs (dernier : {time})"
+      },
+      "loginHistory": "Voir l'historique de connexion",
+      "loginHistoryTitle": "Historique de connexion",
+      "loginHistoryHint": "100 dernières tentatives, heure de Kinshasa.",
+      "loginHistoryLoading": "Chargement…",
+      "loginHistoryUnavailable": "L'historique n'est pas encore disponible (migration non appliquée).",
+      "loginColTime": "Date et heure",
+      "loginColResult": "Résultat",
+      "loginColIp": "Adresse IP",
+      "loginColDevice": "Appareil",
+      "loginOutcome": {
+        "success": "Connecté",
+        "wrong_password": "Mot de passe incorrect",
+        "locked": "Compte bloqué (trop d’essais)",
+        "verify_required": "Vérification du numéro en attente",
+        "wrong_code": "Code incorrect",
+        "expired_code": "Code expiré",
+        "code_verified": "Connecté par code",
+        "whatsapp_verified": "Connecté par WhatsApp",
+        "activated": "Compte activé"
+      }
     },
     "actions": {
       "approve": "Approuver",

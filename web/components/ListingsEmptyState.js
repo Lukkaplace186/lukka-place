@@ -61,7 +61,7 @@ export default function ListingsEmptyState({ popularCommunes = [], params = {}, 
         <SearchX strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
       </span>
 
-      <h2 className="font-display text-xl font-normal tracking-[-0.01em] text-ink">{t('listings.empty.title')}</h2>
+      <h2 className="font-bold text-xl tracking-[-0.01em] text-ink">{t('listings.empty.title')}</h2>
       <p className="mx-auto mt-2 max-w-sm text-[0.875rem] leading-relaxed text-ink-45">
         {commune ? (
           // ['1','3','5'] km having all failed (getListings()'s radius ladder

@@ -5,6 +5,7 @@ import { normalizeStoredPhone } from '@/lib/phone';
 import { hashPassword } from '@/lib/agentAuth';
 import { establishAgentSession } from '@/lib/agentSession';
 import { consumeAgentActivationToken } from '@/lib/agents';
+import { recordAgentLoginAttempt } from '@/lib/agentLoginLog';
 
 /**
  * Redeems the single-use activation token the WhatsApp intake bot sent
@@ -42,6 +43,7 @@ export async function activateAgentAction(formData) {
   });
   if (!agent) redirect(`${back}&error=invalid`);
 
+  await recordAgentLoginAttempt(agent.id, 'activated');
   await establishAgentSession({ id: agent.id, tokenVersion: agent.token_version });
   redirect('/compte/agent');
 }

@@ -31,7 +31,7 @@ export default async function CurrencyBridge() {
         <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:gap-16">
           <div>
             <p className="u-eyebrow mb-4 text-blue-tint">{t('home.currencyBridge.eyebrow')}</p>
-            <h2 className="font-display text-[1.75rem] font-normal leading-[1.12] tracking-[-0.02em] text-white sm:text-[2.25rem]">
+            <h2 className="font-bold text-[1.75rem] leading-[1.12] tracking-[-0.02em] text-white sm:text-[2.25rem]">
               Investir à Kinshasa, depuis n&apos;importe où
             </h2>
             <p className="mt-4 max-w-xl text-[0.9375rem] leading-relaxed text-white/70">

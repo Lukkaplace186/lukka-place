@@ -28,7 +28,7 @@ export default async function TrustSection() {
       <div className="flex flex-col gap-10 rounded-lg border border-line bg-surface px-6 py-10 sm:px-10 sm:py-12 lg:flex-row lg:items-center lg:gap-16 lg:px-14">
         <div className="flex-1">
           <p className="u-eyebrow mb-4">{t('home.trustHeading')}</p>
-          <h2 className="font-display text-[1.75rem] font-normal leading-[1.12] tracking-[-0.02em] text-ink sm:text-[2.25rem]">
+          <h2 className="font-bold text-[1.75rem] leading-[1.12] tracking-[-0.02em] text-ink sm:text-[2.25rem]">
             {t('home.trust.oneTeam')}
           </h2>
           <p className="mt-4 max-w-2xl text-[0.9375rem] leading-relaxed text-ink-45">

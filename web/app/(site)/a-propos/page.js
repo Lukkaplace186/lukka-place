@@ -88,7 +88,7 @@ export default async function AboutPage() {
         <div className="mx-auto flex max-w-[1600px] flex-col px-4 pb-8 pt-5 sm:px-6 sm:pb-14 sm:pt-8 lg:min-h-[38rem] lg:justify-center lg:px-8 lg:py-16">
           <Breadcrumb items={[{ label: t('breadcrumb.home'), href: '/' }, { label: t('about.eyebrow') }]} />
           <p className="u-eyebrow mt-5 sm:mt-8 lg:mt-14">{t('about.heroKicker')}</p>
-          <h1 className="mt-2 max-w-2xl sm:mt-4 font-display text-[1.875rem] font-normal leading-[1.1] text-ink sm:text-[2.75rem] lg:max-w-[40%] lg:text-[2.75rem] xl:text-[3.25rem]">
+          <h1 className="mt-2 max-w-2xl sm:mt-4 font-bold text-[1.875rem] leading-[1.1] text-ink sm:text-[2.75rem] lg:max-w-[40%] lg:text-[2.75rem] xl:text-[3.25rem]">
             <Accented text={t('about.heroTitle')} accent={t('about.heroAccent')} className="text-blue" />
           </h1>
           <p className="mt-3 max-w-xl text-[1.0625rem] sm:mt-6 leading-relaxed text-ink-70 sm:text-lg lg:max-w-[36%]">{t('about.heroLead')}</p>
@@ -113,7 +113,7 @@ export default async function AboutPage() {
       <section className="mx-auto grid max-w-[1600px] items-center gap-6 px-4 py-10 sm:gap-10 sm:px-6 sm:py-28 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:gap-16 lg:px-8">
         <div>
           <p className="u-eyebrow mb-2 sm:mb-4">{t('about.visionEyebrow')}</p>
-          <h2 className="font-display text-[1.625rem] font-normal leading-[1.15] text-ink sm:text-[2.25rem]">
+          <h2 className="font-bold text-[1.625rem] leading-[1.15] text-ink sm:text-[2.25rem]">
             <Accented text={t('about.visionTitle')} accent={t('about.visionAccent')} className="text-blue" />
           </h2>
           <div className="u-body mt-3 flex max-w-xl flex-col gap-3 text-ink-70 sm:mt-6">
@@ -143,7 +143,7 @@ export default async function AboutPage() {
       <section className="bg-canvas-alt py-10 sm:py-28">
         <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8">
           <p className="u-eyebrow mb-2 sm:mb-3">{t('about.changeEyebrow')}</p>
-          <h2 className="font-display text-[1.75rem] font-normal leading-[1.15] tracking-[-0.01em] text-ink sm:text-[2.25rem]">
+          <h2 className="font-bold text-[1.75rem] leading-[1.15] tracking-[-0.01em] text-ink sm:text-[2.25rem]">
             {t('about.changeTitle')}
           </h2>
           <div className="mt-5 grid gap-3 sm:mt-10 sm:gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -163,7 +163,7 @@ export default async function AboutPage() {
         <div className="mx-auto flex max-w-[1600px] flex-col gap-5 px-4 py-10 sm:px-6 sm:py-16 lg:flex-row lg:items-center lg:justify-between lg:px-8">
           <div className="max-w-2xl">
             <p className="u-eyebrow !text-white/75">{t('about.startEyebrow')}</p>
-            <h2 className="mt-2 font-display text-[1.75rem] font-normal leading-[1.15] tracking-[-0.01em] sm:text-[2.25rem]">
+            <h2 className="mt-2 font-bold text-[1.75rem] leading-[1.15] tracking-[-0.01em] sm:text-[2.25rem]">
               {t('about.startTitle')}
             </h2>
             <p className="mt-3 text-[0.9375rem] leading-relaxed text-white/85 sm:text-base">{t('about.startBody')}</p>
@@ -190,7 +190,7 @@ export default async function AboutPage() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div className="max-w-2xl">
             <p className="u-eyebrow mb-2 sm:mb-3">{t('about.agentsEyebrow')}</p>
-            <h2 className="font-display text-[1.75rem] font-normal leading-[1.15] tracking-[-0.01em] text-ink sm:text-[2.25rem]">
+            <h2 className="font-bold text-[1.75rem] leading-[1.15] tracking-[-0.01em] text-ink sm:text-[2.25rem]">
               {t('about.agentsTitle')}
             </h2>
           </div>
@@ -205,7 +205,7 @@ export default async function AboutPage() {
         <ol className="mt-5 grid gap-3 sm:mt-10 sm:gap-4 md:grid-cols-3">
           {steps.map(({ icon: Icon, title, body }, i) => (
             <li key={title} className="relative rounded-2xl border border-line bg-surface p-5 sm:p-8">
-              <span className="u-tabular font-display text-[2.5rem] leading-none text-blue/25">{String(i + 1).padStart(2, '0')}</span>
+              <span className="u-tabular font-bold text-[2.5rem] leading-none text-blue/25">{String(i + 1).padStart(2, '0')}</span>
               <Icon size={22} strokeWidth={1.5} aria-hidden="true" className="absolute right-5 top-6 text-blue sm:right-8 sm:top-9" />
               <h3 className="u-title-card mt-2 text-ink sm:mt-4">{title}</h3>
               <p className="u-body mt-2 text-ink-70">{body}</p>

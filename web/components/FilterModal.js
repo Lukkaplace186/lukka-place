@@ -125,7 +125,7 @@ export default function FilterModal({
         className="flex flex-col gap-0 rounded-t-none border-line bg-surface p-0 data-[side=bottom]:h-[100dvh] sm:data-[side=bottom]:h-[92vh] sm:rounded-t-xl lg:hidden"
       >
         <SheetHeader className="border-b border-line">
-          <SheetTitle className="font-display text-xl font-normal tracking-[-0.01em]">{t('listings.filters.title')}</SheetTitle>
+          <SheetTitle className="font-bold text-xl tracking-[-0.01em]">{t('listings.filters.title')}</SheetTitle>
         </SheetHeader>
 
         <div className="flex flex-1 flex-col gap-6 overflow-y-auto overscroll-contain px-4 pb-10 pt-5">

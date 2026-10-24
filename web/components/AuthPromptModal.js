@@ -64,7 +64,7 @@ export default function AuthPromptModal({ open, onClose, trigger, next }) {
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
       <DialogContent className="gap-5 p-6">
-        <DialogTitle className="text-left font-display text-lg font-normal leading-snug tracking-[-0.01em] text-ink">
+        <DialogTitle className="text-left font-bold text-lg leading-snug tracking-[-0.01em] text-ink">
           {t(TITLE_KEYS[trigger] || TITLE_KEYS.save)}
         </DialogTitle>
 

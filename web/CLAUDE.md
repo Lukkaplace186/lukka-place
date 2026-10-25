@@ -3186,10 +3186,26 @@ Owner requests from phone screenshots. Tests: `tests/unit/budget-steps.test.js`,
     on the cell) opens the last 100 attempts with IP and a short device label —
     `agents.manage` only, since it shows IP addresses.
 - **The hero's Ville dropdown is back** (2026-10-24, owner: picking is easier
-  than typing for most visitors). `#hero-city` lists every city, Kinshasa
-  first, and starts on Kinshasa — no "Toutes les villes", because a search
-  with no city runs in Kinshasa (`searchCityOf`), so that option would have
-  meant Kinshasa under another name. The text box below is now "Commune ou
+  than typing for most visitors). `#hero-city` starts on Kinshasa and lists,
+  in the owner's order, Kinshasa, "Toutes les villes", Lubumbashi, Goma,
+  Bukavu, Kisangani, Kolwezi, Matadi, Mbuji-Mayi (`HERO_CITY_ORDER`; a city
+  typed in the box that the list leaves out is still shown). **"Toutes les
+  villes" is a real nationwide search**: `ville=toutes` (`ALL_CITIES`,
+  `isAllCities`, lib/cities.js) makes `searchCityOf` return null and
+  `buildFilters` add no city clause — unless a commune is named, which places
+  the search in its city. No `ville` is still Kinshasa, so no existing link
+  changed. `publicVille` passes it through; the results heading reads "Biens
+  à louer en RDC" (`listings.results.headingNational`); /listings'
+  `CityPicker` offers it too; it is never a landing-page canonical (noindex).
+- **`/listings?city=…&location=…` are accepted aliases** (owner, same day:
+  "accept both"), 308-redirected by middleware.js onto the real params
+  (`lib/searchAliases.js`, pure): `city` → `ville` (Kinshasa → none, "toutes"
+  / "Toutes les villes" → `toutes`, unknown → dropped), `location` → read by
+  the search box's own parser (commune / quartier / landmark; words that name
+  no place → `q`), read with the city name inside another city. An explicit
+  `ville` / `commune` wins over its alias. The hero itself still emits
+  `ville` / `commune` — saved searches, alerts and canonicals use them.
+  `tests/unit/hero-city-search.test.js`. The text box below is now "Commune ou
   quartier". Typed text still wins over the dropdown, and the dropdown follows
   it (typing "Kampemba" or tapping the Lubumbashi chip selects Lubumbashi);
   picking another city clears a place of a different city from the box.

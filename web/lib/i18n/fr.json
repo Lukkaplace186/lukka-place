@@ -434,6 +434,7 @@
       "citywideFrom": "Rayon élargi à toute la ville depuis {place}.",
       "communeWideFrom": "Rayon élargi à {commune} entière depuis {quartier}.",
       "areaHeading": "{subject} {transaction} dans la zone de la carte",
+      "headingNational": "{subject} {transaction} en RDC",
       "mapAreaNote": "Les biens visibles sur la carte",
       "clearArea": "Effacer la zone",
       "emptyAreaTitle": "Aucun bien dans cette zone",
@@ -805,7 +806,8 @@
       }
     },
     "city": {
-      "label": "Ville"
+      "label": "Ville",
+      "all": "Toutes les villes"
     },
     "leaseTerm": {
       "label": "Durée de location",

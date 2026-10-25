@@ -434,6 +434,7 @@
       "citywideFrom": "Radius widened to the whole city from {place}.",
       "communeWideFrom": "Radius widened to all of {commune} from {quartier}.",
       "areaHeading": "{subject} {transaction} in the Map Area",
+      "headingNational": "{subject} {transaction} in the DRC",
       "mapAreaNote": "The properties visible on the map",
       "clearArea": "Clear map area",
       "emptyAreaTitle": "No Properties in This Area",
@@ -805,7 +806,8 @@
       }
     },
     "city": {
-      "label": "City"
+      "label": "City",
+      "all": "All cities"
     },
     "leaseTerm": {
       "label": "Rental term",

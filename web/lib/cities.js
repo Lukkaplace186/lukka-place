@@ -15,6 +15,18 @@ import data from './data/cities.json';
 export const DEFAULT_CITY = 'Kinshasa';
 
 /**
+ * `?ville=toutes` — every city at once (hero "Toutes les villes",
+ * 2026-10-24). A search with no `ville` still runs in Kinshasa; this value is
+ * the only way to drop the city filter, so every existing link is unchanged.
+ */
+export const ALL_CITIES = 'toutes';
+
+/** Whether a `ville` value asks for every city ("toutes", any case). */
+export function isAllCities(ville) {
+  return String(ville || '').trim().toLowerCase() === ALL_CITIES;
+}
+
+/**
  * A city becomes public (city picker, ?ville=) from this many live listings.
  * 0 since 2026-10-20 (owner decision, the same day as launch): every city is
  * offered at once, empty ones included, so visitors and agents see the whole
@@ -120,7 +132,8 @@ export function groupCommunesByCity(keys = []) {
 
 /**
  * The city a listings search runs in: `ville` when it names a real city, else
- * the first searched commune's city, else Kinshasa (lib/listings.js
+ * the first searched commune's city, else Kinshasa — or null, every city, for
+ * `ville=toutes` with no commune (lib/listings.js
  * buildFilters). Whether that city is PUBLIC yet is the page's question
  * (lib/publicCities.js), not this one's.
  */
@@ -128,6 +141,9 @@ export function searchCityOf({ ville = null, commune = null, communes = null } =
   const asked = findCity(ville);
   if (asked) return asked.name;
   const first = [commune, ...(Array.isArray(communes) ? communes : [])].find(Boolean);
+  // "Toutes les villes" is no city at all — unless a commune was named, which
+  // places the search in that commune's city like any other.
+  if (isAllCities(ville)) return cityOfCommune(first) || null;
   return cityOfCommune(first) || DEFAULT_CITY;
 }
 

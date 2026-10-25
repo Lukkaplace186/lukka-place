@@ -10,7 +10,7 @@ import { useT } from '@/lib/i18n/client';
 import { facetLabel, groupTypeFacets } from '@/lib/commercialSpaces';
 import { budgetOptions, budgetParams } from '@/lib/budgetSteps';
 import { frNumber } from '@/lib/format';
-import { CITIES, DEFAULT_CITY, cityOfCommune } from '@/lib/cities';
+import { ALL_CITIES, CITIES, DEFAULT_CITY, cityOfCommune } from '@/lib/cities';
 
 /**
  * The hero search panel — a white card floating over the hero photograph,
@@ -86,12 +86,18 @@ function budgetLabels(t) {
   return { format, labels };
 }
 
-// Kinshasa first, then alphabetical. There is no "Toutes les villes": a
-// search with no city runs in Kinshasa (lib/listings.js, searchCityOf), so
-// that option would have shown Kinshasa only under another name.
-const CITY_OPTIONS = [...CITIES]
-  .map((city) => city.name)
-  .sort((a, b) => (a === DEFAULT_CITY ? -1 : b === DEFAULT_CITY ? 1 : a.localeCompare(b, 'fr')));
+// The hero's own list and order (owner, 2026-10-24): Kinshasa (the
+// default), "Toutes les villes" — a real nationwide search, ville=toutes
+// (lib/cities.js ALL_CITIES) — then the cities with the most demand. Likasi,
+// Kananga, Boma and Muanda are left out here only; /listings' city picker
+// and the search box still know them. A name not in lib/cities.js is dropped
+// rather than offered as a search that matches nothing.
+const HERO_CITY_ORDER = ['Lubumbashi', 'Goma', 'Bukavu', 'Kisangani', 'Kolwezi', 'Matadi', 'Mbuji-Mayi'];
+const CITY_OPTIONS = [
+  DEFAULT_CITY,
+  ALL_CITIES,
+  ...HERO_CITY_ORDER.filter((name) => CITIES.some((c) => c.name === name)),
+];
 
 const COUNT_DEBOUNCE_MS = 350;
 
@@ -177,11 +183,12 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
   }
 
   // Picking another city clears a place of a different city from the box,
-  // so the select and the text never point at two cities.
+  // so the select and the text never point at two cities. "Toutes les villes"
+  // keeps it: a commune typed there still narrows the search to it.
   function onCityChange(next) {
     setVille(next);
     const typed = cityOfText(location);
-    if (next && typed && typed !== next) locationRef.current?.setQuery('');
+    if (next && next !== ALL_CITIES && typed && typed !== next) locationRef.current?.setQuery('');
   }
 
   // ---- Live result count -------------------------------------------------
@@ -350,8 +357,10 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
               onChange={(e) => onCityChange(e.target.value)}
               className={FIELD_SELECT}
             >
-              {CITY_OPTIONS.map((name) => (
-                <option key={name} value={name}>{name}</option>
+              {/* A city typed in the box that the list leaves out (Likasi…)
+                  is still shown as the city searched. */}
+              {(CITY_OPTIONS.includes(ville) ? CITY_OPTIONS : [...CITY_OPTIONS, ville]).map((name) => (
+                <option key={name} value={name}>{name === ALL_CITIES ? t('home.search.allCities') : name}</option>
               ))}
             </select>
             <ChevronDown strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className="pointer-events-none h-4 w-4 shrink-0 text-ink-45" />

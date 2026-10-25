@@ -48,6 +48,8 @@ function buildHeading({ t, city = DEFAULT_CITY, commune, communes, quartier, tra
   if (mapArea) return t('listings.results.areaHeading', { subject, transaction });
   // Nearest alternatives are not "in" the place searched — they are near it.
   if (relaxation?.nearby) return t('listings.results.headingNear', { subject, transaction, place: communePlace || place });
+  // "Toutes les villes" with no commune: the page passes city = null.
+  if (!place) return t('listings.results.headingNational', { subject, transaction });
   return t('listings.results.heading', { subject, transaction, place });
 }
 

@@ -3,6 +3,7 @@ import { isValidSessionToken, ADMIN_SESSION_COOKIE } from '@/lib/adminAuth';
 import { isValidCustomerSessionToken, CUSTOMER_SESSION_COOKIE } from '@/lib/customerAuth';
 import { isValidAgentSessionToken, AGENT_SESSION_COOKIE, AGENT_LOGGED_IN_FLAG_COOKIE, AGENT_SESSION_TTL_SECONDS } from '@/lib/agentAuth';
 import { IMPERSONATION_COOKIE, impersonationDecision } from '@/lib/impersonationToken';
+import { normaliseSearchAliases } from '@/lib/searchAliases';
 
 /**
  * Gates /admin/* (team password), /compte/agent/* (agent self-service
@@ -28,6 +29,11 @@ export const config = {
       source: '/((?!_next/static|_next/image|favicon\\.ico).*)',
       has: [{ type: 'cookie', key: 'lukka_impersonation' }],
     },
+    // /listings?city=…&location=… — aliases redirected onto the real
+    // ville / commune params (lib/searchAliases.js). Only URLs carrying one
+    // reach the proxy; ordinary searches never do.
+    { source: '/listings', has: [{ type: 'query', key: 'city' }] },
+    { source: '/listings', has: [{ type: 'query', key: 'location' }] },
   ],
   runtime: 'nodejs',
 };
@@ -111,6 +117,15 @@ export function middleware(request) {
   }
   if (impersonation === 'exit') {
     return NextResponse.redirect(new URL('/admin/impersonation/exit', request.url));
+  }
+
+  if (pathname === '/listings') {
+    const normalised = normaliseSearchAliases(request.nextUrl.searchParams);
+    if (normalised !== null) {
+      const target = request.nextUrl.clone();
+      target.search = normalised;
+      return NextResponse.redirect(target, 308);
+    }
   }
 
   if (pathname.startsWith('/admin')) {

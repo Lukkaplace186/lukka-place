@@ -15,7 +15,7 @@ import {
 import { getLocationHierarchySafe } from '@/lib/locations';
 import { parseListingsSearchParams } from '@/lib/searchQuery';
 import { getPublicCities, publicVille } from '@/lib/publicCities';
-import { DEFAULT_CITY, searchCityOf } from '@/lib/cities';
+import { DEFAULT_CITY, isAllCities, searchCityOf } from '@/lib/cities';
 import { PROPERTY_TYPE_PLURAL_KEYS } from '@/lib/constants';
 import { getT } from '@/lib/i18n/server';
 import { MAP_BOUNDS_PARAMS } from '@/lib/mapViewport';
@@ -65,7 +65,9 @@ export async function generateMetadata({ searchParams }) {
   // nested openGraph object rather than merging it, so the card carries its
   // own image (the same one app/layout.js uses).
   const city = await publicVille(Array.isArray(params.ville) ? params.ville[0] : params.ville);
-  if (city) {
+  // "Toutes les villes" (ville=toutes) takes the generic branch: noindex, as
+  // any filtered search that matches no landing page.
+  if (city && !isAllCities(city)) {
     const title = t('site.cityMetaTitle', { city });
     const description = t('site.cityMetaDescription', { city });
     return {

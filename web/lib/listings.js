@@ -794,8 +794,10 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
   // in it. An explicit id list or an agent's portfolio is not a feed and is
   // never narrowed. Matched by name through the Laravel taxonomy, and a
   // Kinshasa row that predates city_id (NULL) still counts as Kinshasa.
+  // `ville=toutes` with no commune names no city: every city's listings.
   if (!(Array.isArray(ids) && ids.length) && !Number.isFinite(Number.parseInt(agentId, 10))) {
-    where.push(cityClause(searchCityOf({ ville, commune, communes }), params));
+    const city = searchCityOf({ ville, commune, communes });
+    if (city) where.push(cityClause(city, params));
   }
 
   return { whereClause: where.join(' AND '), params };

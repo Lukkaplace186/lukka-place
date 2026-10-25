@@ -3,13 +3,17 @@
  *
  * Rent steps are the owner's list (2026-10-24): $100 steps to $1,000, then
  * 1,250 / 1,500 / 2,000 / 2,500 / 3,000 / 4,000, then every $1,000 to
- * $10,000, then "10 000 $ +". A sale has its own scale — a $10k ceiling
- * means nothing for a $380,000 house.
+ * $10,000, then "10 000 $ +". Both dropdowns use them (Louer and Courte
+ * durée alike).
  *
- * "10 000 $ +" is the top of the list on both sides. As a minimum it is the
- * figure itself (10 000 and more). As a maximum it means "no ceiling", so it
- * carries its own value (OVER) and sends no price_max at all: a max of
- * 10 000 would hide the listings the label promises.
+ * Sale steps are the owner's list too (2026-10-25), and the two sides
+ * differ: Min from 10 000 to 1 000 000, Max from 25 000 to 1 000 000, then
+ * "1 000 000 $ +". A $10k ceiling meant nothing for a $380,000 house.
+ *
+ * The top of each list reads "N $ +". As a minimum it is the figure itself
+ * (N and more). As a maximum it means "no ceiling", so it carries its own
+ * value (OVER) and sends no price_max at all: a max of N would hide the
+ * listings the label promises.
  *
  * Pure, so the rules are testable (tests/unit/budget-steps.test.js).
  */
@@ -19,16 +23,34 @@ export const RENT_BUDGET_STEPS = [
   5000, 6000, 7000, 8000, 9000, 10000,
 ];
 
-export const SALE_BUDGET_STEPS = [
-  10000, 25000, 50000, 75000, 100000, 150000, 200000, 300000,
+export const SALE_MIN_STEPS = [
+  10000, 25000, 50000, 75000, 100000, 150000, 200000, 250000, 300000,
+  400000, 500000, 750000, 1000000,
+];
+
+export const SALE_MAX_STEPS = [
+  25000, 50000, 75000, 100000, 150000, 200000, 250000, 300000,
   400000, 500000, 750000, 1000000,
 ];
 
 /** The "N $ +" option's value in the Max dropdown: no ceiling. */
 export const OVER = 'over';
 
+/**
+ * The hero's Acheter tab sends `vente` (lib/constants.js
+ * HERO_TRANSACTION_BY_TAB); `sale` is the listings' own purpose word. Both
+ * mean the sale scale. Checking only `sale` is the bug that showed rent
+ * steps under Acheter (2026-10-25).
+ */
+export function isSale(transactionType) {
+  return transactionType === 'vente' || transactionType === 'sale';
+}
+
+/** { min, max } step lists for a transaction. */
 export function budgetSteps(transactionType) {
-  return transactionType === 'sale' ? SALE_BUDGET_STEPS : RENT_BUDGET_STEPS;
+  return isSale(transactionType)
+    ? { min: SALE_MIN_STEPS, max: SALE_MAX_STEPS }
+    : { min: RENT_BUDGET_STEPS, max: RENT_BUDGET_STEPS };
 }
 
 /**
@@ -53,26 +75,27 @@ export function budgetParams(min, max) {
  */
 export function budgetOptions(transactionType, { min = '', max = '' } = {}, format, labels) {
   const steps = budgetSteps(transactionType);
-  const top = steps[steps.length - 1];
+  const minTop = steps.min[steps.min.length - 1];
+  const maxTop = steps.max[steps.max.length - 1];
   const lo = min === '' ? null : Number(min);
   const hi = max === '' || max === OVER ? null : Number(max);
 
   const minOptions = [
     { value: '', label: labels.minAny },
-    ...steps.map((amount) => ({
+    ...steps.min.map((amount) => ({
       value: String(amount),
-      label: amount === top ? labels.over(format(amount)) : labels.min(format(amount)),
+      label: amount === minTop ? labels.over(format(amount)) : labels.min(format(amount)),
       disabled: hi != null && amount > hi,
     })),
   ];
   const maxOptions = [
     { value: '', label: labels.maxAny },
-    ...steps.map((amount) => ({
+    ...steps.max.map((amount) => ({
       value: String(amount),
       label: labels.max(format(amount)),
       disabled: lo != null && amount < lo,
     })),
-    { value: OVER, label: labels.over(format(top)) },
+    { value: OVER, label: labels.over(format(maxTop)) },
   ];
   return { minOptions, maxOptions };
 }

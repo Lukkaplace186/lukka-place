@@ -275,7 +275,7 @@ test('per-listing totals fall back to raw events when the rollup is stale or mis
 test('shared links carry a per-channel utm_source, and the untagged URL stays clean', () => {
   assert.equal(listingPublicUrl(305), 'https://lukkaplace.com/listings/305');
   assert.equal(listingPublicUrl(305, { source: SHARE_SOURCES.image }), 'https://lukkaplace.com/listings/305?utm_source=wa_status');
-  assert.deepEqual(Object.values(SHARE_SOURCES), ['wa_status', 'wa_message', 'partage_agent']);
+  assert.deepEqual(Object.values(SHARE_SOURCES), ['wa_status', 'wa_message', 'partage_agent', 'reseaux_sociaux']);
   for (const label of Object.values(SHARE_SOURCES)) assert.match(label, /^[a-z_]+$/);
 });
 

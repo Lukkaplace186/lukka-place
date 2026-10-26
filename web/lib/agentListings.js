@@ -2,6 +2,8 @@ import 'server-only';
 import { applyPriceChange } from './enginePrice';
 import { getPool } from './db';
 import { DEFAULT_CITY, cityOfCommune, communeLabel } from './cities';
+import { normaliseRentPeriod } from './leaseTerm';
+import { DETAILS_SQL, DETAIL_COLUMNS, normaliseListingDetails } from './listingDetails';
 
 /**
  * Manual listing creation from the agent self-service dashboard
@@ -148,7 +150,7 @@ const EXTRA_LISTING_COLUMNS = [
   'parent_building_id', 'building_name', 'latitude', 'longitude', 'price_period',
 ];
 
-export async function createListing({ agentId, vendorId, category, title, description, commune, price, purpose, beds, bath, area = null, quartier = null, reference = null, extra = null, client: existingClient = null }) {
+export async function createListing({ agentId, vendorId, category, title, description, commune, price, purpose, beds, bath, area = null, quartier = null, reference = null, rentPeriod = null, extra = null, client: existingClient = null }) {
   const pool = getPool();
   // With an existing client the caller owns the transaction (several units
   // created as one); otherwise this is its own transaction, as before.
@@ -181,7 +183,9 @@ export async function createListing({ agentId, vendorId, category, title, descri
       // The listing's own "référence" — a landmark agents and customers name
       // the place by, or an agency code. Same column the WhatsApp intake fills.
       reference,
-      price_period: purpose === 'rent' ? 'mois' : null,
+      price_period: purpose === 'rent' ? normaliseRentPeriod(rentPeriod) || 'mois' : null,
+      // ↑ A rent is monthly unless the agent chose another period — 'jour' /
+      // 'semaine' is a short-term rental (lib/leaseTerm.js).
       status: 1,
       approve_status: 0,
     };
@@ -296,6 +300,7 @@ export async function getOwnListingForEdit(agentId, propertyId) {
   const { rows } = await pool.query(
     `SELECT p.id, p.price, p.purpose, p.beds, p.bath, p.area, p.quartier, p.units_count,
             p.parcelle_subtype, p.reference, p.price_period, p.deposit_months,
+            p.advance_months, p.commission_months,
             p.category_id, p.approve_status, p.listing_status, p.featured_image, p.sold_price,
             p.currency, p.price_original,
             COALESCE(to_jsonb(p) -> 'utilities', '[]'::jsonb) AS utilities,
@@ -307,6 +312,11 @@ export async function getOwnListingForEdit(agentId, propertyId) {
                'road_frontage', j -> 'road_frontage', 'truck_access', j -> 'truck_access')
              FROM (SELECT to_jsonb(p) AS j) spec) AS commercial_specs,
             cat.type AS category_type,
+            -- Practical details (lib/listingDetails.js) and the French
+            -- category name, which decides which of them the editor shows.
+            ${DETAILS_SQL} AS listing_details,
+            (SELECT LOWER(cc.name) FROM property_category_contents cc
+              WHERE cc.category_id = p.category_id AND cc.language_id = 26 LIMIT 1) AS category_name_fr,
             pc.title, pc.description, pc.address,
             (
               SELECT COALESCE(array_agg(pa.amenity_id ORDER BY pa.amenity_id), ARRAY[]::bigint[])
@@ -352,7 +362,8 @@ export async function getOwnListingForEdit(agentId, propertyId) {
  * the row first.
  *
  * Three tables move together, so this runs in one transaction:
- *   properties          price, beds, bath, area, quartier, units_count, deposit_months
+ *   properties          price, beds, bath, area, quartier, units_count, deposit_months,
+ *                       advance_months, commission_months (left as they are when undefined)
  *   property_contents   title, description, address (address is derived from
  *                       quartier + commune, matching createListing's own
  *                       `[commune, 'Kinshasa']` convention)
@@ -367,7 +378,7 @@ export async function getOwnListingForEdit(agentId, propertyId) {
  */
 export async function updateListing(agentId, propertyId, {
   title, description, commune, price, priceOriginal, currency, beds, bath, area, quartier,
-  unitsCount, depositMonths, amenityIds, reference = null,
+  unitsCount, depositMonths, advanceMonths, commissionMonths, amenityIds, reference = null, rentPeriod = null,
 }) {
   // A changed price goes through the engine first so its SQLite copy agrees
   // (lib/enginePrice.js); an unchanged one never calls it. Throws
@@ -391,9 +402,16 @@ export async function updateListing(agentId, propertyId, {
     const { rowCount } = await client.query(
       `UPDATE properties
        SET price = $1, price_original = $2, currency = $3, beds = $4, bath = $5, area = $6,
-           quartier = $7, units_count = $8, deposit_months = $9, reference = $12, updated_at = NOW()
+           quartier = $7, units_count = $8, deposit_months = $9, reference = $12,
+           -- Only a rent has a period, and only a stated one replaces it.
+           price_period = CASE WHEN purpose = 'rent' AND $13::text IS NOT NULL THEN $13::text ELSE price_period END,
+           -- The three entry costs are separate facts (CLAUDE.md, "3 + 1 + 1").
+           advance_months = CASE WHEN $14::boolean THEN $15::int ELSE advance_months END,
+           commission_months = CASE WHEN $16::boolean THEN $17::int ELSE commission_months END,
+           updated_at = NOW()
        WHERE id = $10 AND agent_id = $11`,
-      [price, priceOriginal, currency, beds, bath, area, quartier, unitsCount, depositMonths, propertyId, agentId, reference],
+      [price, priceOriginal, currency, beds, bath, area, quartier, unitsCount, depositMonths, propertyId, agentId, reference, normaliseRentPeriod(rentPeriod),
+        advanceMonths !== undefined, advanceMonths ?? null, commissionMonths !== undefined, commissionMonths ?? null],
     );
     if (rowCount === 0) {
       await client.query('ROLLBACK');
@@ -475,9 +493,14 @@ export async function setListingGallery(propertyId, urls) {
         [propertyId, url],
       );
     }
+    // No photo left: the first video's cover frame (lib/listingVideos.js)
+    // stays the card image before the "no photo" placeholder does.
     await client.query(
-      'UPDATE properties SET featured_image = $1, updated_at = NOW() WHERE id = $2',
-      [urls[0] || NO_PHOTO_URL, propertyId],
+      `UPDATE properties
+       SET featured_image = COALESCE($1, NULLIF(to_jsonb(properties) -> 'videos' -> 0 ->> 'poster', ''), $3),
+           updated_at = NOW()
+       WHERE id = $2`,
+      [urls[0] || null, propertyId, NO_PHOTO_URL],
     );
     await client.query('COMMIT');
   } catch (err) {
@@ -767,6 +790,42 @@ export async function setListingCommercialSpecs(agentId, propertyId, specs) {
        WHERE id = $5 AND agent_id = $6
          AND EXISTS (SELECT 1 FROM property_categories c WHERE c.id = properties.category_id AND LOWER(c.type) = 'commercial')`,
       [specs.office_count, specs.floor_level, specs.road_frontage, specs.truck_access, Number(propertyId), Number(agentId)],
+    );
+    return rowCount > 0 ? 'saved' : 'not_found';
+  } catch (err) {
+    if (err?.code === '42703') return 'unavailable';
+    throw err;
+  }
+}
+
+/**
+ * The practical details of an agent's own listing (lib/listingDetails.js),
+ * all ten written at once so a cleared field is stored as NULL. Gated here on
+ * the row's REAL category and purpose, never the form's: a flat never stores
+ * a plot size, a rent never a payment plan. Ownership is in both statements.
+ * 'unavailable' before the engine's migrations/20261022_listing_details.sql.
+ *
+ * @returns {Promise<'saved'|'not_found'|'unavailable'>}
+ */
+export async function setListingDetails(agentId, propertyId, raw) {
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT p.purpose, cat.type AS category_type,
+            (SELECT LOWER(cc.name) FROM property_category_contents cc
+              WHERE cc.category_id = p.category_id AND cc.language_id = 26 LIMIT 1) AS category_name
+     FROM properties p LEFT JOIN property_categories cat ON cat.id = p.category_id
+     WHERE p.id = $1 AND p.agent_id = $2`,
+    [Number(propertyId), Number(agentId)],
+  );
+  if (!rows.length) return 'not_found';
+  const details = normaliseListingDetails(raw, {
+    categoryName: rows[0].category_name, categoryType: rows[0].category_type, purpose: rows[0].purpose,
+  });
+  try {
+    const { rowCount } = await pool.query(
+      `UPDATE properties SET ${DETAIL_COLUMNS.map((c, i) => `${c} = $${i + 1}`).join(', ')}, updated_at = NOW()
+       WHERE id = $${DETAIL_COLUMNS.length + 1} AND agent_id = $${DETAIL_COLUMNS.length + 2}`,
+      [...DETAIL_COLUMNS.map((c) => details[c]), Number(propertyId), Number(agentId)],
     );
     return rowCount > 0 ? 'saved' : 'not_found';
   } catch (err) {

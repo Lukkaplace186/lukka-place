@@ -10,25 +10,7 @@ import { listingImages, specItems, typeLabel, feedLocationLine } from '@/lib/lis
 import { formatDistance, listingDistanceKm } from '@/lib/landmarks';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
-
-/** Listing details per tab, by id — a swipe back never refetches. */
-const detailCache = new Map();
-const FETCH_BATCH = 20;
-
-async function loadListings(ids) {
-  const missing = ids.filter((id) => !detailCache.has(id));
-  for (let i = 0; i < missing.length; i += FETCH_BATCH) {
-    const batch = missing.slice(i, i + FETCH_BATCH);
-    const response = await fetch(`/api/listings?ids=${batch.map(encodeURIComponent).join(',')}`);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const body = await response.json();
-    const found = new Map((body.data || []).map((row) => [String(row.id), row]));
-    // An id the API no longer returns was unpublished since the pins were
-    // fetched: remembered as null, so it is skipped rather than re-asked.
-    for (const id of batch) detailCache.set(id, found.get(id) || null);
-  }
-  return ids.map((id) => detailCache.get(id)).filter(Boolean);
-}
+import { cachedListings, loadListings } from '@/lib/mapListingCache';
 
 /**
  * The phone map's swipeable cards (Airbnb / Zillow pattern). Tapping a pin
@@ -55,13 +37,20 @@ export default function MapCardCarousel({ ids, selectedId, onSettle, onClose, ne
   const cardRefs = useRef(new Map());
   // True once the visitor has touched the row since the last pin tap.
   const userRef = useRef(false);
-  const [listings, setListings] = useState(() => ids.map((id) => detailCache.get(id)).filter(Boolean));
+  // The tapped listing is usually cached already (ListingsMap remembers it),
+  // so its card draws on the first frame; the rest arrive batch by batch.
+  const [listings, setListings] = useState(() => cachedListings(ids));
   const [failed, setFailed] = useState(false);
   const idsKey = ids.join(',');
 
   useEffect(() => {
     let cancelled = false;
-    loadListings(ids)
+    loadListings(ids, {
+      first: selectedId,
+      onBatch: (rows) => {
+        if (!cancelled) setListings(rows);
+      },
+    })
       .then((rows) => {
         if (!cancelled) setListings(rows);
       })
@@ -72,7 +61,8 @@ export default function MapCardCarousel({ ids, selectedId, onSettle, onClose, ne
     return () => {
       cancelled = true;
     };
-    // `ids` is represented by idsKey.
+    // `ids` is represented by idsKey; `selectedId` only orders the first
+    // fetch, so a later pin tap must not restart it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idsKey]);
 
@@ -160,11 +150,12 @@ export default function MapCardCarousel({ ids, selectedId, onSettle, onClose, ne
         ) : null}
         {ordered.map((listing) => {
           const id = String(listing.id);
+          const active = id === String(selectedId);
           return (
             <MapCard
               key={id}
               listing={listing}
-              active={id === String(selectedId)}
+              active={active}
               near={near}
               cardRef={(node) => {
                 if (node) cardRefs.current.set(id, node);
@@ -206,7 +197,16 @@ function MapCard({ listing, active, near, cardRef }) {
       <div className="relative h-36 w-full shrink-0 overflow-hidden bg-canvas-deep">
         <Link href={href} className="absolute inset-0 block" aria-label={listing.title || t('listings.map.viewDetails')}>
           {images.length > 0 ? (
-            <CardImageCarousel images={images} alt={listing.title || ''} sizes="(min-width: 640px) 24rem, 84vw" onIndexChange={setPhotoIndex} />
+            // The tapped card's cover is fetched at once, at high priority;
+            // the shimmer under it shows the frame is loading, not empty.
+            <CardImageCarousel
+              images={images}
+              alt={listing.title || ''}
+              sizes="(min-width: 640px) 24rem, 84vw"
+              priority={active}
+              loadingShimmer
+              onIndexChange={setPhotoIndex}
+            />
           ) : null}
         </Link>
         {images.length > 1 ? (

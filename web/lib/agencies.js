@@ -21,16 +21,27 @@ export async function getAgentProfile(id) {
   const agent = await getAgentById(id);
   if (!agent) return null;
 
+  // The agent's own description (agent_infos.details) wins; the agency's
+  // (vendor_infos.details) is the fallback for bios saved before 2026-10-23,
+  // when the form wrote there. A NULL own description falls back, an empty
+  // string does not — that is how "I cleared mine" stays cleared.
   const pool = getPool();
   const { rows } = await pool.query(
-    `SELECT details FROM vendor_infos
-     WHERE vendor_id = $1
-     ORDER BY (language_id = 20) DESC, language_id
-     LIMIT 1`,
-    [agent.vendor_id],
+    `SELECT
+       (SELECT details FROM agent_infos
+         WHERE agent_id = $1 AND details IS NOT NULL
+         ORDER BY (language_id = 20) DESC, language_id
+         LIMIT 1) AS own_details,
+       (SELECT details FROM vendor_infos
+         WHERE vendor_id = $2
+         ORDER BY (language_id = 20) DESC, language_id
+         LIMIT 1) AS vendor_details`,
+    [agent.id, agent.vendor_id || null],
   );
+  const own = rows[0]?.own_details;
+  const bio = own != null ? own : rows[0]?.vendor_details;
 
-  return { ...agent, bio: rows[0]?.details || null };
+  return { ...agent, bio: bio || null };
 }
 
 /**
@@ -116,7 +127,7 @@ export function agentContactName(agent) {
  */
 const FRENCH_LANGUAGE_ID = 20;
 
-export async function updateAgentIdentity(agentId, { firstName, lastName, bio, vendorId, agencyName }) {
+export async function updateAgentIdentity(agentId, { firstName, lastName, bio, agencyName }) {
   const pool = getPool();
 
   // `undefined` leaves the agency name as it is; an empty string clears it.
@@ -127,35 +138,29 @@ export async function updateAgentIdentity(agentId, { firstName, lastName, bio, v
     ]);
   }
 
+  // The description is the AGENT's (agent_infos.details), not the agency's.
+  // It used to be written to vendor_infos only when the agent had a vendor —
+  // and every self-signup account starts with vendor_id NULL, so their
+  // description was silently dropped while the form said "Enregistré"; two
+  // agents of one agency also overwrote each other's. `undefined` (signup,
+  // admin name edit) leaves it as it is; '' is a deliberate clear, kept as ''
+  // so getAgentProfile does not fall back to an old agency text.
+  const writeBio = bio !== undefined;
+  const bioValue = writeBio ? String(bio || '').trim().slice(0, 2000) : null;
+
   const { rowCount: infoUpdated } = await pool.query(
-    `UPDATE agent_infos SET first_name = $1, last_name = $2, updated_at = NOW()
+    `UPDATE agent_infos SET first_name = $1, last_name = $2,
+            details = CASE WHEN $5 THEN $6 ELSE details END,
+            updated_at = NOW()
      WHERE agent_id = $3 AND language_id = $4`,
-    [firstName || null, lastName || null, agentId, FRENCH_LANGUAGE_ID],
+    [firstName || null, lastName || null, agentId, FRENCH_LANGUAGE_ID, writeBio, bioValue],
   );
   if (infoUpdated === 0) {
     await pool.query(
-      `INSERT INTO agent_infos (agent_id, language_id, first_name, last_name, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, NOW(), NOW())`,
-      [agentId, FRENCH_LANGUAGE_ID, firstName || null, lastName || null],
+      `INSERT INTO agent_infos (agent_id, language_id, first_name, last_name, details, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, NOW(), NOW())`,
+      [agentId, FRENCH_LANGUAGE_ID, firstName || null, lastName || null, writeBio ? bioValue : null],
     );
-  }
-
-  // The bio is read from vendor_infos.details (see getAgentProfile), so it
-  // is written back to exactly that column — not agent_infos.details, which
-  // also exists but is never read by this app and would strand the value.
-  if (vendorId) {
-    const { rowCount: bioUpdated } = await pool.query(
-      `UPDATE vendor_infos SET details = $1, updated_at = NOW()
-       WHERE vendor_id = $2 AND language_id = $3`,
-      [bio || null, vendorId, FRENCH_LANGUAGE_ID],
-    );
-    if (bioUpdated === 0) {
-      await pool.query(
-        `INSERT INTO vendor_infos (vendor_id, language_id, details, created_at, updated_at)
-         VALUES ($1, $2, $3, NOW(), NOW())`,
-        [vendorId, FRENCH_LANGUAGE_ID, bio || null],
-      );
-    }
   }
 }
 

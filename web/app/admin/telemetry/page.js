@@ -6,6 +6,7 @@ import { ROUTING_TYPE_LABEL_KEYS } from '@/lib/adminLabels';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { buildHref, firstParam, parsePage } from '@/lib/adminPagination';
 import { getT } from '@/lib/i18n/server';
+import { getSalesScope } from '@/lib/salesScope';
 import { Chip, ErrorNote, ROUTING_TONE, Stat, formatKinshasa } from '../LeadRoutingUI';
 import Pagination from '../table/Pagination';
 import { EmptyRow, TD_DENSE, TH_STICKY, TR_DENSE, TableFrame } from '../table/TableFrame';
@@ -65,13 +66,18 @@ export default async function AdminLeadAnalyticsPage({ searchParams }) {
     ['days', 'tp', 'ts', 'np', 'ns', 'cp', 'cs'].map((key) => [key, firstParam(raw[key]) || undefined]),
   );
 
+  // A sales rep (lib/salesScope.js) sees only taps on listings of the agents
+  // they brought in, and none of the platform-wide engine sections.
+  const scope = await getSalesScope();
+  const repId = scope ? scope.repId : null;
+  const none = Promise.resolve(null);
   const [totalsR, communesR, analyticsR, clicksR, awaitingR, checkinsR] = await Promise.allSettled([
-    getLeadClickTotals({ days }),
-    getLeadClicksByCommune({ days }),
-    getLeadAnalytics({ days }),
-    getLeadClicksPage({ limit: taps.limit, offset: taps.offset }),
-    listViewingFeed({ view: 'awaiting_agent', limit: nudges.limit, offset: nudges.offset }),
-    listViewingFeed({ view: 'checkins', limit: checkins.limit, offset: checkins.offset }),
+    getLeadClickTotals({ days, repId }),
+    getLeadClicksByCommune({ days, repId }),
+    scope ? none : getLeadAnalytics({ days }),
+    getLeadClicksPage({ limit: taps.limit, offset: taps.offset, repId }),
+    scope ? none : listViewingFeed({ view: 'awaiting_agent', limit: nudges.limit, offset: nudges.offset }),
+    scope ? none : listViewingFeed({ view: 'checkins', limit: checkins.limit, offset: checkins.offset }),
   ]);
   const totals = settled(totalsR);
   const communes = settled(communesR);
@@ -100,7 +106,7 @@ export default async function AdminLeadAnalyticsPage({ searchParams }) {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="u-title-page text-ink">{t('admin.telemetry.title')}</h1>
-          <p className="u-micro mt-1 text-ink-45">{t('admin.telemetry.subtitle')}</p>
+          <p className="u-micro mt-1 text-ink-45">{t(scope ? 'admin.telemetry.subtitleSales' : 'admin.telemetry.subtitle')}</p>
         </div>
         <div className="flex items-center gap-1.5">
           {WINDOWS.map((value) => (
@@ -121,6 +127,7 @@ export default async function AdminLeadAnalyticsPage({ searchParams }) {
         <ErrorNote>{t('admin.telemetry.databaseError', { error: totals.error || communes.error || clicks.error })}</ErrorNote>
       ) : null}
 
+      {scope ? null : (
       <div className="grid gap-3 lg:grid-cols-3">
         <div className="u-card flex flex-col gap-2 rounded-card bg-surface p-5">
           <div className="flex items-center justify-between gap-2">
@@ -205,6 +212,7 @@ export default async function AdminLeadAnalyticsPage({ searchParams }) {
           ) : null}
         </div>
       </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label={t('admin.telemetry.clicks', { days })} value={totals.value?.total ?? '—'} />
@@ -263,6 +271,7 @@ export default async function AdminLeadAnalyticsPage({ searchParams }) {
         </TableFrame>
       </section>
 
+      {scope ? null : (<>
       <section className="flex flex-col gap-2">
         <div>
           <h2 className="u-title-card text-ink">{t('admin.telemetry.nudgeTitle')}</h2>
@@ -353,6 +362,7 @@ export default async function AdminLeadAnalyticsPage({ searchParams }) {
           </tbody>
         </TableFrame>
       </section>
+      </>)}
     </div>
   );
 }

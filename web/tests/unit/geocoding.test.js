@@ -165,13 +165,15 @@ test('a commune-only match is not accepted as an address match', async () => {
   // Google answers OK for "…, Lemba, Kinshasa" with the commune outline. Taking
   // that would scatter pins onto slightly different "approximate" guesses; the
   // verified centroid is both more honest and what makes co-location work.
+  // Kemi has no checked point in lib/data/quartier-points.json, so the
+  // commune centre is what is left (Righini, which has one, would land there).
   const geocoder = fakeGeocoder({
-    'Quelque part, Righini, Lemba, Kinshasa, RD Congo': { lat: -4.39, lng: 15.33, vague: true },
-    'Righini, Lemba, Kinshasa, RD Congo': { lat: -4.39, lng: 15.33, vague: true },
+    'Quelque part, Kemi, Lemba, Kinshasa, RD Congo': { lat: -4.39, lng: 15.33, vague: true },
+    'Kemi, Lemba, Kinshasa, RD Congo': { lat: -4.39, lng: 15.33, vague: true },
   });
 
   const base = await resolveListingBase({
-    listing: { id: 'a3', address: 'Quelque part', quartier: 'Righini', commune: 'Lemba' },
+    listing: { id: 'a3', address: 'Quelque part', quartier: 'Kemi', commune: 'Lemba' },
     geocoder,
   });
 

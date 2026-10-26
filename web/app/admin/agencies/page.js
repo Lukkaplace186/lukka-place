@@ -10,6 +10,7 @@ import { EmptyRow, TD_DENSE, TD_DENSE_RIGHT, TH_STICKY, TH_STICKY_RIGHT, TR_DENS
 import { WhatsAppLink } from '../ContactCell';
 import { can } from '@/lib/adminRoles';
 import { getAdminSession } from '@/lib/adminSession';
+import { getSalesScope } from '@/lib/salesScope';
 import { AgencyBulkBar, AgencySelectAll, AgencySelectBox, AgencySelectionProvider } from './AgencySelection';
 
 /** Stored with or without a leading "+"; shown with exactly one. */
@@ -48,7 +49,9 @@ export default async function AdminAgenciesPage({ searchParams }) {
   let list = null;
   let loadError = null;
   try {
-    list = await listAgenciesForAdmin({ ...filters, sort: filters.sort || 'name', limit, offset });
+    // A sales rep sees only the agencies of the agents they brought in.
+    const scope = await getSalesScope();
+    list = await listAgenciesForAdmin({ ...filters, sort: filters.sort || 'name', limit, offset, repId: scope ? scope.repId : null });
   } catch (err) {
     loadError = err.message;
   }

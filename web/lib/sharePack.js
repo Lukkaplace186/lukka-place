@@ -64,7 +64,7 @@ const packKey = (listingId) => `listing:${Number(listingId)}`;
 
 /**
  * @param {number} listingId
- * @param {{kit: object, photos: Blob[], logo: Blob|null, mark: Blob|null, markLight?: Blob|null}} record
+ * @param {{kit: object, photos: Blob[], logo: Blob|null, mark: Blob|null, markLight?: Blob|null, wordmark?: Blob|null}} record
  */
 export async function saveSharePack(listingId, record) {
   try {
@@ -137,13 +137,14 @@ async function downloadBlob(url, signal) {
  * the pack lists spares and the layout adapts to however many arrived.
  */
 export async function fetchPackImages(pack, { signal } = {}) {
-  const [photos, logo, mark, markLight] = await Promise.all([
+  const [photos, logo, mark, markLight, wordmark] = await Promise.all([
     Promise.all((pack.photos || []).map((url) => fetchBlob(url, signal))),
     fetchBlob(pack.agent?.logo, signal),
     fetchBlob(pack.mark, signal),
     fetchBlob(pack.markLight, signal),
+    fetchBlob(pack.wordmark, signal),
   ]);
-  return { photos: photos.filter(Boolean), logo, mark, markLight };
+  return { photos: photos.filter(Boolean), logo, mark, markLight, wordmark };
 }
 
 export function packTimestamp(kit) {

@@ -1,6 +1,10 @@
 import Link from 'next/link';
 import { getAgentPerformance } from '@/lib/adminApi';
 import { getT } from '@/lib/i18n/server';
+import { can } from '@/lib/adminRoles';
+import { getAdminSession } from '@/lib/adminSession';
+import { getRepAgentIds, getSalesScope } from '@/lib/salesScope';
+import { scopeAgentPerformance } from '@/lib/agentPerformanceScope';
 import {
   Chip, ErrorNote, Panel, Stat, TD, TD_RIGHT, TH, TH_RIGHT, formatLatency, formatRate,
 } from '../LeadRoutingUI';
@@ -35,8 +39,13 @@ export default async function AgentPerformancePage({ searchParams }) {
 
   let data = null;
   let loadError = null;
+  // A sales rep sees only the agents they brought in; only routing.manage
+  // may flip an agent's direct routing.
+  const [scope, session] = await Promise.all([getSalesScope(), getAdminSession()]);
+  const canRoute = can(session?.role, 'routing.manage');
   try {
     data = await getAgentPerformance({ days });
+    if (scope) data = scopeAgentPerformance(data, await getRepAgentIds(scope.repId));
   } catch (err) {
     loadError = err.message;
   }
@@ -115,8 +124,12 @@ export default async function AgentPerformancePage({ searchParams }) {
                   )}
                 </td>
                 <td className={TD}>
-                  {agent.phoneVerified ? (
+                  {agent.phoneVerified && canRoute ? (
                     <RoutingToggle agentId={agent.agentId} agentName={agent.name} enabled={agent.directRoutingEnabled} />
+                  ) : agent.phoneVerified ? (
+                    <Chip tone={agent.directRoutingEnabled ? 'success' : 'neutral'}>
+                      {t(agent.directRoutingEnabled ? 'admin.agentPerformance.direct' : 'admin.agentPerformance.central')}
+                    </Chip>
                   ) : (
                     <span className="text-ink-45">{t('admin.agentPerformance.unverifiedRouting')}</span>
                   )}

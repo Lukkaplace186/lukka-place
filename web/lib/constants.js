@@ -9,10 +9,10 @@ export const NO_PHOTO_URL = 'https://lukkaplace.com/assets/img/noimage.jpg';
 // filters say "location", and the button over-reports until the visitor
 // touches something. Caught on production: the CTA read "31 biens" (30
 // rentals + 1 sale) under an active Louer tab whose real count is 30.
-// Both the server count (app/(site)/page.js) and the client's default tab
+// Both the server count (app/(site)/(home)/page.js) and the client's default tab
 // (components/SearchBar.js) read these, so the two cannot drift apart again.
 export const HERO_DEFAULT_TAB = 'louer';
-export const HERO_TRANSACTION_BY_TAB = { louer: 'location', acheter: 'vente' };
+export const HERO_TRANSACTION_BY_TAB = { louer: 'location', courte: 'location', acheter: 'vente' };
 
 // Matches services/openai.js's PARCELLE_SUBTYPES in the engine repo exactly —
 // shared between SearchBar (homepage) and FilterBar (/listings).
@@ -65,13 +65,23 @@ export const PROPERTY_TYPE_PLURAL_KEYS = {
   maison: 'listings.typePlurals.maison',
   duplex: 'listings.typePlurals.duplex',
   terrain: 'listings.typePlurals.terrain',
-  batiment: 'listings.typePlurals.batiment',
+  immeuble: 'listings.typePlurals.immeuble',
+  villa: 'listings.typePlurals.villa',
+  concession: 'listings.typePlurals.concession',
+  // 2026-10-22 categories: facet value (lowercased name) and search code.
+  studio: 'listings.typePlurals.studio',
+  'chambre / annexe': 'listings.typePlurals.chambre',
+  chambre: 'listings.typePlurals.chambre',
+  'ferme / terrain agricole': 'listings.typePlurals.ferme',
+  ferme: 'listings.typePlurals.ferme',
   boutique: 'listings.typePlurals.boutique',
   entrepot: 'listings.typePlurals.entrepot',
   // The facet value is the category name lowercased, accent kept
-  // ("entrepôt", "bâtiment") — the unaccented keys above never matched it.
+  // ("entrepôt") — the unaccented key above never matched it. "bâtiment"
+  // is Immeuble's name before 2026-10-22 and in links already shared.
   'entrepôt': 'listings.typePlurals.entrepot',
-  'bâtiment': 'listings.typePlurals.batiment',
+  'bâtiment': 'listings.typePlurals.immeuble',
+  batiment: 'listings.typePlurals.immeuble',
   bureau: 'listings.typePlurals.bureau',
   // lib/commercialSpaces.js's COMMERCIAL_FILTER_VALUE: every commercial category.
   commercial: 'listings.typePlurals.commercial',
@@ -125,6 +135,13 @@ export const AMENITY_GROUPS = [
     ],
   },
   {
+    titleKey: 'listings.amenityGroups.comfort',
+    options: [
+      { key: 'pool', labelKey: 'listings.amenities.pool' },
+      { key: 'gym', labelKey: 'listings.amenities.gym' },
+    ],
+  },
+  {
     titleKey: 'listings.amenityGroups.rentalTerms',
     options: [
       { key: 'ac', labelKey: 'listings.amenities.ac' },
@@ -154,6 +171,8 @@ export const AMENITY_KEYWORDS = {
   parking: ['parking', 'garage'],
   ac: ['climatisation', 'climatisé', 'climatise', 'climatiseur'],
   furnished: ['meublé', 'meuble', 'meublée', 'meublee'],
+  pool: ['piscine'],
+  gym: ['salle de sport', 'salle de gym', 'gym', 'fitness'],
   // Substring of `furnished`'s own keywords ("meublé" sits inside
   // "semi-meublé"), so a semi-furnished listing legitimately matches both —
   // real overlap, not a bug: the text genuinely contains both claims.

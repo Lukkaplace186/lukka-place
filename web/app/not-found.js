@@ -8,7 +8,7 @@ import NotFoundView from '@/components/NotFoundView';
  */
 export default function NotFound() {
   return (
-    <div className="min-h-screen bg-canvas">
+    <div className="min-h-screen bg-page">
       <div className="border-b border-line px-4 py-4 sm:px-6 lg:px-8">
         <Wordmark />
       </div>

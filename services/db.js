@@ -11,6 +11,8 @@
 
 const { normaliseUtilities } = require('./utilities');
 const { normaliseCommercialSpecs, isCommercialType, COMMERCIAL_SPEC_FIELDS } = require('./commercial');
+const { normaliseListingDetails, DETAIL_FIELDS, BOOLEAN_DETAIL_FIELDS } = require('./listingDetails');
+const { MAX_LISTING_PHOTOS, MAX_LISTING_VIDEOS, mergeCapped } = require('./listingMedia');
 const crypto = require('crypto');
 const path = require('path');
 const Database = require('better-sqlite3');
@@ -116,6 +118,21 @@ const EXTENDED_COLUMNS = [
   ['floor_level', 'INTEGER'],
   ['road_frontage', 'INTEGER'],
   ['truck_access', 'INTEGER'],
+  // Practical details (services/listingDetails.js) — NULL unless stated.
+  // Booleans as 0 / 1 / NULL. plot_area_m2 is derived from plot_dimensions.
+  ['households_count', 'INTEGER'],
+  ['landlord_on_site', 'INTEGER'],
+  // toilet_location / shower_location were added and dropped the same day
+  // (2026-10-22); a database that has them keeps two unused columns.
+  ['has_generator', 'INTEGER'],
+  ['has_pool', 'INTEGER'],
+  ['has_gym', 'INTEGER'],
+  ['has_solar', 'INTEGER'],
+  ['electricity_meter', 'TEXT'],
+  ['plot_dimensions', 'TEXT'],
+  ['plot_area_m2', 'REAL'],
+  ['installments_available', 'INTEGER'],
+  ['installment_terms', 'TEXT'],
   ['summary_fr', 'TEXT'],
   ['missing_fields', 'TEXT'],
   // Complete aiParser output, so no future field is ever lost to the schema.
@@ -124,6 +141,9 @@ const EXTENDED_COLUMNS = [
   // same pattern as amenities/missing_fields. Populated once the images survive
   // the Chakra download; a caption-only listing simply has an empty array.
   ['photos', 'TEXT'],
+  // Web paths of downloaded videos (services/listingMedia.js), JSON array like
+  // `photos`. A listing needs one photo OR one video before it can publish.
+  ['videos', 'TEXT'],
   // Multi-turn confirmation state: a freshly extracted listing starts here and
   // waits for the agent to reply 'OK'/'Oui' before it counts as published. See
   // findLatestPendingListing / publishListing / applyListingCorrection below.
@@ -345,6 +365,24 @@ function toJsonText(value) {
  * listing's property_type (services/commercial.js): a residential listing
  * stores NULL in all four whatever the extraction returned.
  */
+/**
+ * The practical-detail columns for an insert (services/listingDetails.js),
+ * gated on the listing's kind. `furnished` keeps its own column above.
+ */
+function detailColumns(listingData) {
+  const details = normaliseListingDetails(listingData, {
+    propertyType: listingData.property_type ?? null,
+    parcelleSubtype: listingData.parcelle_subtype ?? null,
+    transactionType: listingData.transaction_type ?? null,
+  });
+  const out = {};
+  for (const field of DETAIL_FIELDS) {
+    if (field === 'furnished') continue;
+    out[field] = BOOLEAN_DETAIL_FIELDS.includes(field) ? toSqliteBool(details[field]) : details[field];
+  }
+  return out;
+}
+
 function commercialColumns(listingData) {
   const specs = normaliseCommercialSpecs(listingData, listingData.property_type ?? null);
   return {
@@ -388,6 +426,7 @@ const insertListingStmt = db.prepare(`
  * @param {string} [senderInfo.status]    Defaults to 'pending_confirmation' — every
  *        new listing waits for the agent's 'OK' before it counts as published.
  * @param {string[]} [senderInfo.photos]  Web paths of downloaded photos (services/mediaStorage.js).
+ * @param {string[]} [senderInfo.videos]  Web paths of downloaded videos (mediaStorage.persistVideos).
  * @param {number} [senderInfo.agentId]   Supabase `agents.id` when the sender is a
  *        recognised, phone-verified agent. Usually set after the fact by
  *        attributeListingToAgent() instead — the recognition lookup is a
@@ -398,8 +437,10 @@ const insertListingStmt = db.prepare(`
  */
 function saveListing(listingData, senderInfo = {}) {
   const {
-    waId, wamid, groupWamids, agentName, rawText, status, photos, agentId, parentBuildingId,
+    waId, wamid, groupWamids, agentName, rawText, status, photos, videos, agentId, parentBuildingId,
   } = senderInfo;
+  const keptPhotos = mergeCapped([], Array.isArray(photos) ? photos : [], MAX_LISTING_PHOTOS);
+  const keptVideos = mergeCapped([], Array.isArray(videos) ? videos : [], MAX_LISTING_VIDEOS);
 
   if (!waId) {
     throw new Error('saveListing requires senderInfo.waId');
@@ -442,11 +483,13 @@ function saveListing(listingData, senderInfo = {}) {
       features: toJsonText(listingData.features),
       utilities: toJsonText(normaliseUtilities(listingData.utilities)),
       ...commercialColumns(listingData),
+      ...detailColumns(listingData),
       summary_fr: toNullable(listingData.summary_fr),
       missing_fields: toJsonText(listingData.missing_fields),
       parsed_json: toJsonText(listingData),
       status: toNullable(status) || 'pending_confirmation',
-      photos: toJsonText(Array.isArray(photos) && photos.length ? photos : undefined),
+      photos: toJsonText(keptPhotos.length ? keptPhotos : undefined),
+      videos: toJsonText(keptVideos.length ? keptVideos : undefined),
       mysql_property_id: null,
       // Set only once services/postgres.js confirms the sync — see publishListing.
       remote_property_id: null,
@@ -515,6 +558,7 @@ function insertListing(extractedData, senderPhone, extra = {}) {
     rawText: extra.rawText,
     status: extra.status,
     photos: extra.photos,
+    videos: extra.videos,
     agentId: extra.agentId,
   });
 }
@@ -544,6 +588,23 @@ function attributeListingToAgent(id, agentId) {
     .run(numericAgentId, id);
 
   return info.changes > 0;
+}
+
+/**
+ * The SQLite half of claiming a number's listings for its agent
+ * (services/adminAgentAccounts.js): every row filed under this wa_id that no
+ * agent holds yet. Same fill-a-blank rule as attributeListingToAgent, so a
+ * listing already attributed never moves. Group captures are filed under the
+ * poster's number, so they are claimed here too.
+ *
+ * @returns {number} rows stamped
+ */
+function attributeListingsForWaId(waId, agentId) {
+  const numericAgentId = toInteger(agentId);
+  if (!waId || numericAgentId == null) return 0;
+  return db
+    .prepare('UPDATE listings SET agent_id = ? WHERE wa_id = ? AND agent_id IS NULL')
+    .run(numericAgentId, String(waId)).changes;
 }
 
 /**
@@ -596,8 +657,12 @@ function findLatestPendingListing(waId) {
   return parseRow(
     db
       .prepare(
+        // A post captured in a WhatsApp group is filed under its poster's
+        // number, but they never sent it to us: it is never "their draft",
+        // or their next message would be read as a correction of it.
         `SELECT * FROM listings
          WHERE wa_id = ? AND status = 'pending_confirmation'
+           AND COALESCE(CASE WHEN json_valid(parsed_json) THEN json_extract(parsed_json, '$.source') END, '') <> 'whatsapp-group'
          ORDER BY id DESC
          LIMIT 1`,
       )
@@ -634,6 +699,11 @@ function publishListing(id) {
           // A new row in the approval queue: tell the owners, with the link
           // (services/moderationAlerts.js). Never on a re-sync.
           if (firstSync) require('./moderationAlerts').alertForEngineRow(row, remotePropertyId);
+          // A post captured in a WhatsApp group: where it came from and who
+          // posted it, as a console note for the moderator (services/groupRelay.js).
+          if (firstSync && row.parsed_json?.source === 'whatsapp-group') {
+            require('./groupRelay').addSourceNote(row, remotePropertyId);
+          }
         }
       })
       .catch((err) => {
@@ -655,6 +725,8 @@ const CORRECTABLE_FIELDS = [
   'commission_months', 'bedrooms', 'bathrooms',
   'surface_area_sqm', 'units_count', 'furnished', 'amenities', 'features', 'utilities', 'reference',
   'office_count', 'floor_level', 'road_frontage', 'truck_access',
+  'households_count', 'landlord_on_site', 'electricity_meter', 'has_generator', 'has_pool', 'has_gym', 'has_solar',
+  'plot_dimensions', 'installments_available', 'installment_terms',
   'summary_fr', 'missing_fields',
 ];
 
@@ -675,6 +747,16 @@ const CORRECTABLE_COERCERS = {
   floor_level: (value) => normaliseCommercialSpecs({ floor_level: value }).floor_level,
   road_frontage: (value) => toSqliteBool(normaliseCommercialSpecs({ road_frontage: value }).road_frontage),
   truck_access: (value) => toSqliteBool(normaliseCommercialSpecs({ truck_access: value }).truck_access),
+  households_count: (value) => normaliseListingDetails({ households_count: value }).households_count,
+  landlord_on_site: (value) => toSqliteBool(normaliseListingDetails({ landlord_on_site: value }).landlord_on_site),
+  has_generator: (value) => toSqliteBool(normaliseListingDetails({ has_generator: value }).has_generator),
+  has_pool: (value) => toSqliteBool(normaliseListingDetails({ has_pool: value }).has_pool),
+  has_gym: (value) => toSqliteBool(normaliseListingDetails({ has_gym: value }).has_gym),
+  has_solar: (value) => toSqliteBool(normaliseListingDetails({ has_solar: value }).has_solar),
+  electricity_meter: (value) => normaliseListingDetails({ electricity_meter: value }).electricity_meter,
+  plot_dimensions: (value) => normaliseListingDetails({ plot_dimensions: value }).plot_dimensions,
+  installments_available: (value) => toSqliteBool(normaliseListingDetails({ installments_available: value }).installments_available),
+  installment_terms: (value) => normaliseListingDetails({ installment_terms: value }).installment_terms,
   missing_fields: toJsonText,
 };
 
@@ -692,9 +774,10 @@ const CORRECTABLE_COERCERS = {
  *                                    group_wamids so a redelivery is recognised.
  * @param {string[]} [newPhotos]     Web paths of any newly downloaded photos —
  *                                    appended to the existing set, never replacing it.
+ * @param {string[]} [newVideos]     Same for videos.
  * @returns {Object} The updated, parsed row.
  */
-function applyListingCorrection(id, extractedData, rawText, extraWamids = [], newPhotos = []) {
+function applyListingCorrection(id, extractedData, rawText, extraWamids = [], newPhotos = [], newVideos = []) {
   const existing = getListing(id);
   if (!existing) {
     throw new Error(`applyListingCorrection: listing #${id} not found`);
@@ -710,9 +793,14 @@ function applyListingCorrection(id, extractedData, rawText, extraWamids = [], ne
     const coerced = coerce(value);
     // An out-of-range commercial spec ("étage 400") is dropped, not written
     // over the value on file as NULL.
-    if (coerced === null && COMMERCIAL_SPEC_FIELDS.includes(field)) continue;
+    if (coerced === null && (COMMERCIAL_SPEC_FIELDS.includes(field) || DETAIL_FIELDS.includes(field))) continue;
     sets.push(`${field} = @${field}`);
     params[field] = coerced;
+  }
+  // The plot's area follows its dimensions, never the model.
+  if (params.plot_dimensions !== undefined) {
+    sets.push('plot_area_m2 = @plot_area_m2');
+    params.plot_area_m2 = normaliseListingDetails({ plot_dimensions: params.plot_dimensions }).plot_area_m2;
   }
 
   // A correction that turns a shop into an apartment leaves no shop specs
@@ -739,10 +827,16 @@ function applyListingCorrection(id, extractedData, rawText, extraWamids = [], ne
     params.group_wamids = toJsonText(mergedGroupWamids);
   }
 
-  const mergedPhotos = [...(existing.photos || []), ...newPhotos.filter(Boolean)];
+  // Capped (services/listingMedia.js): photos past the 20th are not kept.
+  const mergedPhotos = mergeCapped(existing.photos, newPhotos, MAX_LISTING_PHOTOS);
   if (mergedPhotos.length) {
     sets.push('photos = @photos');
     params.photos = toJsonText(mergedPhotos);
+  }
+  const mergedVideos = mergeCapped(existing.videos, newVideos, MAX_LISTING_VIDEOS);
+  if (mergedVideos.length > (existing.videos || []).length) {
+    sets.push('videos = @videos');
+    params.videos = toJsonText(mergedVideos);
   }
 
   if (extractedData) {
@@ -790,6 +884,7 @@ function findRecentPublishedListing(waId, windowMs = CORRECTION_WINDOW_MS) {
       .prepare(
         `SELECT * FROM listings
          WHERE wa_id = ? AND status = 'published' AND created_at >= ?
+           AND COALESCE(CASE WHEN json_valid(parsed_json) THEN json_extract(parsed_json, '$.source') END, '') <> 'whatsapp-group'
          ORDER BY id DESC
          LIMIT 1`,
       )
@@ -860,6 +955,9 @@ const BUILDING_SHARED_FIELDS = [
   // A building's road and truck access are true of every unit in it; a
   // unit's floor and office count are its own and are not copied.
   'road_frontage', 'truck_access',
+  // The compound and the sale terms belong to the address too.
+  'landlord_on_site', 'electricity_meter', 'has_generator', 'has_pool', 'has_gym', 'has_solar', 'plot_dimensions', 'plot_area_m2',
+  'installments_available', 'installment_terms',
 ];
 
 /** Per-unit fields, read off one entry of `units`. */
@@ -918,6 +1016,8 @@ function expandAndPublishListing(id) {
   // Unrelated properties get their own photos when the burst lined up (see
   // photosByProperty); otherwise, as for a building, every photo goes to every unit.
   const photoGroups = photosByProperty(parsed, draft.photos || [], units.length);
+  // Videos follow the same rule with their own blocks (`video_blocks`).
+  const videoGroups = photosByProperty(parsed, draft.videos || [], units.length, 'video_blocks', { requireEach: false });
 
   // Everything below is one transaction: a building that half-published would
   // leave orphan units on the storefront with no sibling to group them with.
@@ -926,6 +1026,9 @@ function expandAndPublishListing(id) {
     applyListingCorrection(id, unitPatch(units[0], parsed), null, [], []);
     if (photoGroups) {
       db.prepare('UPDATE listings SET photos = ? WHERE id = ?').run(JSON.stringify(photoGroups[0]), id);
+    }
+    if (videoGroups) {
+      db.prepare('UPDATE listings SET videos = ? WHERE id = ?').run(JSON.stringify(videoGroups[0]), id);
     }
     if (parentBuildingId) {
       db.prepare('UPDATE listings SET parent_building_id = ? WHERE id = ?').run(parentBuildingId, id);
@@ -968,6 +1071,7 @@ function expandAndPublishListing(id) {
         // Photos of the building are photos of every unit in it; separate
         // properties take their own block when one was found.
         photos: photoGroups ? photoGroups[offset + 1] : draft.photos || [],
+        videos: videoGroups ? videoGroups[offset + 1] : draft.videos || [],
         agentId: draft.agent_id,
         parentBuildingId,
       });
@@ -995,9 +1099,10 @@ function expandAndPublishListing(id) {
  * property with at least one photo, and the draft still holding exactly the
  * photos that were recorded (a photo added by a correction has no block).
  * Anything else → null, and every property keeps every photo, as before.
+ * Videos use the same rule, read from `video_blocks`.
  */
-function photosByProperty(parsed, photos, unitCount) {
-  const blocks = parsed?.photo_blocks;
+function photosByProperty(parsed, photos, unitCount, blocksKey = 'photo_blocks', { requireEach = true } = {}) {
+  const blocks = parsed?.[blocksKey];
   if (!parsed?.is_multi_property || !Array.isArray(blocks) || !Array.isArray(photos)) return null;
   if (blocks.length !== photos.length || unitCount < 2) return null;
   const groups = Array.from({ length: unitCount }, () => []);
@@ -1006,7 +1111,9 @@ function photosByProperty(parsed, photos, unitCount) {
     if (!Number.isInteger(block) || block < 0 || block >= unitCount) return null;
     groups[block].push(photos[i]);
   }
-  return groups.every((group) => group.length > 0) ? groups : null;
+  // A property with no video of its own is normal; one with no photo means
+  // the blocks did not line up.
+  return !requireEach || groups.every((group) => group.length > 0) ? groups : null;
 }
 
 /** One unit's own values, falling back to the building-level extraction. */
@@ -1049,8 +1156,12 @@ function parseRow(row) {
     utilities: fromJsonText(row.utilities, []),
     road_frontage: row.road_frontage === null || row.road_frontage === undefined ? null : Boolean(row.road_frontage),
     truck_access: row.truck_access === null || row.truck_access === undefined ? null : Boolean(row.truck_access),
+    landlord_on_site: row.landlord_on_site === null || row.landlord_on_site === undefined ? null : Boolean(row.landlord_on_site),
+    installments_available: row.installments_available === null || row.installments_available === undefined ? null : Boolean(row.installments_available),
+    ...Object.fromEntries(['has_generator', 'has_pool', 'has_gym', 'has_solar'].map((f) => [f, row[f] === null || row[f] === undefined ? null : Boolean(row[f])])),
     missing_fields: fromJsonText(row.missing_fields, []),
     photos: fromJsonText(row.photos, []),
+    videos: fromJsonText(row.videos, []),
     group_wamids: fromJsonText(row.group_wamids, []),
     parsed_json: fromJsonText(row.parsed_json, null),
   };
@@ -3884,6 +3995,13 @@ function getEngineHealth() {
       listings24h: count("SELECT COUNT(*) AS n FROM listings WHERE created_at >= datetime('now', '-1 day')"),
       leads24h: count("SELECT COUNT(*) AS n FROM leads WHERE created_at >= datetime('now', '-1 day')"),
     },
+    // The WhatsApp group reader (group-reader/, services/groupRelay.js): on
+    // only when GROUP_READER_ENABLED is set, so an engine without it never
+    // alerts on a silence it should not expect.
+    groupReader: {
+      enabled: /^(1|on|true|yes)$/i.test(String(process.env.GROUP_READER_ENABLED || '')),
+      lastIngestAt: getEngineMarker('group_reader_ingest'),
+    },
     failures: {
       failedPushes24h: count("SELECT COUNT(*) AS n FROM lead_matches WHERE status = 'FAILED' AND created_at >= datetime('now', '-1 day')"),
       slaEscalations24h: count("SELECT COUNT(*) AS n FROM viewing_requests WHERE sla_alerted_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-1 day')"),
@@ -4027,8 +4145,61 @@ function close() {
   db.close();
 }
 
+// ---------------------------------------------------------------------------
+// Console deletion of visits and prospects (2026-10-21)
+// ---------------------------------------------------------------------------
+
+/**
+ * Remove one visit request and what hangs off it here: the open WhatsApp
+ * questions about it (pending_agent_actions / pending_customer_actions, whose
+ * foreign keys would refuse the delete). The lead it came from stays — a
+ * prospect is more than one visit. Postgres rows keyed by its id
+ * (agent_performance_logs, agent_reviews) are left as history; nothing joins
+ * them back to a missing visit. Returns the row as it was, or null.
+ */
+function deleteViewingRequest(id) {
+  const numericId = Number.parseInt(id, 10);
+  if (!Number.isInteger(numericId)) return null;
+  return db.transaction(() => {
+    const row = db.prepare('SELECT * FROM viewing_requests WHERE id = ?').get(numericId);
+    if (!row) return null;
+    db.prepare('DELETE FROM pending_agent_actions WHERE viewing_request_id = ?').run(numericId);
+    db.prepare('DELETE FROM pending_customer_actions WHERE viewing_request_id = ?').run(numericId);
+    db.prepare('DELETE FROM viewing_requests WHERE id = ?').run(numericId);
+    return row;
+  })();
+}
+
+/**
+ * Remove a prospect (lead) and everything that exists only because of it: its
+ * visit requests (and their open questions), the agencies it was pushed to
+ * (lead_matches) and their proposals (lead_proposals). One transaction, so a
+ * failure leaves the lead whole. The conversation it came from stays: it is
+ * the customer's transcript, not this request's. Returns { lead, visits }.
+ */
+function deleteLead(id) {
+  const numericId = Number.parseInt(id, 10);
+  if (!Number.isInteger(numericId)) return null;
+  return db.transaction(() => {
+    const lead = db.prepare('SELECT * FROM leads WHERE id = ?').get(numericId);
+    if (!lead) return null;
+    const visitIds = db.prepare('SELECT id FROM viewing_requests WHERE lead_id = ?').all(numericId).map((r) => r.id);
+    for (const visitId of visitIds) {
+      db.prepare('DELETE FROM pending_agent_actions WHERE viewing_request_id = ?').run(visitId);
+      db.prepare('DELETE FROM pending_customer_actions WHERE viewing_request_id = ?').run(visitId);
+    }
+    db.prepare('DELETE FROM viewing_requests WHERE lead_id = ?').run(numericId);
+    db.prepare('DELETE FROM lead_proposals WHERE lead_id = ?').run(numericId);
+    db.prepare('DELETE FROM lead_matches WHERE lead_id = ?').run(numericId);
+    db.prepare('DELETE FROM leads WHERE id = ?').run(numericId);
+    return { lead, visits: visitIds.length };
+  })();
+}
+
 module.exports = {
   db,
+  deleteViewingRequest,
+  deleteLead,
   countViewingRequestsByPropertyDay,
   saveListing,
   insertListing,
@@ -4049,6 +4220,7 @@ module.exports = {
   getListing,
   getListingByRemotePropertyId,
   getRemotePropertyIdsForWaId,
+  attributeListingsForWaId,
   getReferralCapture,
   recordReferralCapture,
   countListings,

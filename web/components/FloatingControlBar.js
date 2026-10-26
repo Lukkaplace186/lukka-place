@@ -20,7 +20,7 @@ import SaveSearchButton from './SaveSearchButton';
  * `hasResults` false (an empty search) leaves only Alerte: there is nothing
  * to map or sort, and an alert is exactly what an empty search wants.
  *
- * List-mode only (`!isMapView` — see app/(site)/listings/page.js): the
+ * List-mode only (`!isMapView` — see app/(site)/listings/(search)/(results)/page.js): the
  * mobile fullscreen map already has its own bottom-center floating control
  * at this exact position (MobileMapBar.js's "← Liste" button).
  *

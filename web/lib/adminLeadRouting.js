@@ -1,6 +1,15 @@
 import 'server-only';
 import { getPool } from './db';
 import { AGENCY_NAME_EXPR, AGENT_INFOS_JOIN } from './listings';
+import { repAgentCondition } from './salesScopeSql';
+
+/**
+ * A sales rep's view of the tap log (lib/salesScope.js): only taps on listings
+ * whose agent the rep brought in. `param` is the rep id's placeholder.
+ */
+export function repClickCondition(alias, param) {
+  return `EXISTS (SELECT 1 FROM properties sp WHERE sp.id = ${alias}.listing_id AND ${repAgentCondition('sp.agent_id', param)})`;
+}
 
 /**
  * Postgres reads and the one write behind the direct-to-agent admin pages.
@@ -144,8 +153,17 @@ export const LEAD_CLICKS_PAGE_SQL = `
    LIMIT $1 OFFSET $2
 `;
 
-export async function getLeadClicksPage({ limit = 25, offset = 0 } = {}) {
+export async function getLeadClicksPage({ limit = 25, offset = 0, repId = null } = {}) {
   const pool = getPool();
+  if (repId != null) {
+    const rep = Number(repId) || 0;
+    const [{ rows: countRows }, { rows }] = await Promise.all([
+      pool.query(`SELECT COUNT(*)::int AS total FROM whatsapp_clicks wc WHERE ${repClickCondition('wc', '$1')}`, [rep]),
+      pool.query(LEAD_CLICKS_PAGE_SQL.replace('ORDER BY', `WHERE ${repClickCondition('wc', '$3')}
+   ORDER BY`), [limit, offset, rep]),
+    ]);
+    return { total: countRows[0]?.total ?? 0, rows };
+  }
   const [{ rows: countRows }, { rows }] = await Promise.all([
     pool.query('SELECT COUNT(*)::int AS total FROM whatsapp_clicks'),
     pool.query(LEAD_CLICKS_PAGE_SQL, [limit, offset]),
@@ -158,22 +176,25 @@ export async function getLeadClicksPage({ limit = 25, offset = 0 } = {}) {
  * the tap recorded; a tap with none is counted apart (`untagged`) rather than
  * dropped, so the ranking never hides how much of the traffic it covers.
  */
-export async function getLeadClicksByCommune({ days = 30 } = {}) {
+export async function getLeadClicksByCommune({ days = 30, repId = null } = {}) {
   const pool = getPool();
+  const scoped = repId != null;
+  const scope = scoped ? ` AND ${repClickCondition('wc', '$2')}` : '';
+  const params = scoped ? [days, Number(repId) || 0] : [days];
   const [{ rows }, { rows: untaggedRows }] = await Promise.all([
     pool.query(
       `SELECT commune, COUNT(*)::int AS taps
-         FROM whatsapp_clicks
-        WHERE created_at >= NOW() - make_interval(days => $1::int) AND commune IS NOT NULL AND commune <> ''
+         FROM whatsapp_clicks wc
+        WHERE created_at >= NOW() - make_interval(days => $1::int) AND commune IS NOT NULL AND commune <> ''${scope}
         GROUP BY commune
         ORDER BY taps DESC, commune
         LIMIT 10`,
-      [days],
+      params,
     ),
     pool.query(
-      `SELECT COUNT(*)::int AS n FROM whatsapp_clicks
-        WHERE created_at >= NOW() - make_interval(days => $1::int) AND (commune IS NULL OR commune = '')`,
-      [days],
+      `SELECT COUNT(*)::int AS n FROM whatsapp_clicks wc
+        WHERE created_at >= NOW() - make_interval(days => $1::int) AND (commune IS NULL OR commune = '')${scope}`,
+      params,
     ),
   ]);
   return { rows, untagged: untaggedRows[0]?.n ?? 0 };
@@ -184,13 +205,14 @@ export async function getLeadClicksByCommune({ days = 30 } = {}) {
  * before routing was tracked — reported as its own bucket, never folded into
  * either real one.
  */
-export async function getLeadClickTotals({ days = 30 } = {}) {
+export async function getLeadClickTotals({ days = 30, repId = null } = {}) {
+  const scoped = repId != null;
   const { rows } = await getPool().query(
     `SELECT routing_type, COUNT(*)::int AS total
-       FROM whatsapp_clicks
-      WHERE created_at >= NOW() - make_interval(days => $1::int)
+       FROM whatsapp_clicks wc
+      WHERE created_at >= NOW() - make_interval(days => $1::int)${scoped ? ` AND ${repClickCondition('wc', '$2')}` : ''}
       GROUP BY routing_type`,
-    [days],
+    scoped ? [days, Number(repId) || 0] : [days],
   );
   const totals = { DIRECT_WA: 0, CENTRAL_FALLBACK: 0, UNKNOWN: 0 };
   for (const row of rows) {

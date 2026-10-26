@@ -119,6 +119,78 @@ export async function saveSalesPlan(id, values) {
   return { id: Number(rows[0].id) };
 }
 
+/**
+ * Deletes a plan. Reps on it are left with no plan (FK SET NULL) and earn
+ * nothing new until given one; ledger lines keep their amounts — each one
+ * snapshotted its rate when it was earned — and only lose the plan link.
+ * @returns {Promise<{reps: number}|{errorKey: string}>}
+ */
+export async function deleteSalesPlan(id) {
+  const { rows } = await getPool().query(
+    `WITH gone AS (DELETE FROM sales_commission_plans WHERE id = $1 RETURNING id)
+     SELECT (SELECT COUNT(*)::int FROM gone) AS deleted,
+            (SELECT COUNT(*)::int FROM sales_reps WHERE plan_id = $1 AND removed_at IS NULL) AS reps`,
+    [id],
+  );
+  if (!rows[0]?.deleted) return { errorKey: 'admin.sales.plans.notFound' };
+  return { reps: rows[0].reps };
+}
+
+/**
+ * Takes a rep off the team. Refused while they have pending or approved
+ * lines (pay or void them first — money owed is never dropped silently).
+ * A rep with no history at all is deleted; anyone else keeps their row for
+ * the ledger, set inactive (their referral code stops working), unlinked from
+ * their console account, with every active assignment ended.
+ * @returns {Promise<{deleted: boolean}|{errorKey: string}>}
+ */
+export async function removeSalesRep(id, { adminId = null } = {}) {
+  const client = await getPool().connect();
+  try {
+    await client.query('BEGIN');
+    const rep = await client.query('SELECT id FROM sales_reps WHERE id = $1 AND removed_at IS NULL FOR UPDATE', [id]);
+    if (!rep.rows[0]) {
+      await client.query('ROLLBACK');
+      return { errorKey: 'admin.sales.reps.notFound' };
+    }
+    const unpaid = await client.query("SELECT COUNT(*)::int AS n FROM sales_commissions WHERE rep_id = $1 AND status IN ('pending', 'approved')", [id]);
+    if (unpaid.rows[0].n > 0) {
+      await client.query('ROLLBACK');
+      return { errorKey: 'admin.sales.reps.removeUnpaid' };
+    }
+    const history = await client.query(
+      `SELECT EXISTS (SELECT 1 FROM sales_commissions WHERE rep_id = $1)
+          OR EXISTS (SELECT 1 FROM sales_payouts WHERE rep_id = $1)
+          OR EXISTS (SELECT 1 FROM sales_agent_attributions WHERE rep_id = $1)
+          OR EXISTS (SELECT 1 FROM sales_listing_credits WHERE rep_id = $1)
+          OR EXISTS (SELECT 1 FROM sales_referral_clicks WHERE rep_id = $1)
+          OR EXISTS (SELECT 1 FROM sales_referral_refusals WHERE rep_id = $1)
+          OR EXISTS (SELECT 1 FROM sales_attribution_changes WHERE from_rep_id = $1 OR to_rep_id = $1)
+          OR EXISTS (SELECT 1 FROM sales_account_assignments WHERE rep_id = $1) AS has_history`,
+      [id],
+    );
+    let deleted = false;
+    if (!history.rows[0].has_history) {
+      await client.query('DELETE FROM sales_account_assignments WHERE rep_id = $1', [id]);
+      await client.query('DELETE FROM sales_reps WHERE id = $1', [id]);
+      deleted = true;
+    } else {
+      await client.query('UPDATE sales_account_assignments SET ended_at = NOW(), ended_by = $2 WHERE rep_id = $1 AND ended_at IS NULL', [id, adminId]);
+      await client.query(
+        "UPDATE sales_reps SET status = 'inactive', admin_user_id = NULL, removed_at = NOW(), removed_by = $2, updated_at = NOW() WHERE id = $1",
+        [id, adminId],
+      );
+    }
+    await client.query('COMMIT');
+    return { deleted };
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Reps and their performance
 // ---------------------------------------------------------------------------
@@ -188,7 +260,8 @@ export async function listSalesReps({ from = null, to = new Date().toISOString()
      LEFT JOIN accounts ac ON ac.rep_id = r.id
      LEFT JOIN onboarded ob ON ob.rep_id = r.id
      LEFT JOIN live lv ON lv.rep_id = r.id
-     WHERE ($3::bigint IS NULL OR r.id = $3)
+     -- A removed rep leaves the team list; their own page (by id) still opens.
+     WHERE ($3::bigint IS NULL OR r.id = $3) AND ($3::bigint IS NOT NULL OR r.removed_at IS NULL)
      ORDER BY (r.status = 'active') DESC, LOWER(r.full_name), r.id`,
     [from, to, repId],
   );

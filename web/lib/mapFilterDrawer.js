@@ -1,7 +1,7 @@
 /**
  * Lets the mobile fullscreen map's floating "Filtres" button open the same
  * FilterModal FilterBar.js already owns, without lifting that open state
- * through app/(site)/listings/page.js — which can't hold client state, it's
+ * through app/(site)/listings/(search)/(results)/page.js — which can't hold client state, it's
  * an async Server Component. A plain window CustomEvent, same idea as
  * lib/searchHistory.js's write-then-broadcast pattern already used for
  * cross-component sync in this app: one real, shared piece of UI state

@@ -21,6 +21,7 @@ import { buildMandateCaption, buildMandateReport, reportWindow } from '@/lib/mar
 import { buildReportOps } from '@/lib/marketing/layout';
 import { buildPrintSheet, entryCostLines, keyFactRows, sheetHighlights, specStrip, SHEET_MAX_HIGHLIGHTS } from '@/lib/marketing/printSheet';
 import { getPrintExtras } from '@/lib/marketing/printSheetData';
+import { frNumber } from '@/lib/format';
 
 /**
  * Statut du jour, share recording (listing_shares), the landlord report's
@@ -70,8 +71,8 @@ test('the migration CHECK constraints list exactly the channels and formats the 
     const m = sql.match(new RegExp(`${column}\\s+IN \\(([^)]*)\\)`));
     return m[1].match(/'([a-z_]+)'/g).map((s) => s.slice(1, -1)).sort();
   };
-  // Both CHECKs were replaced by a later migration; that one is the truth.
-  const later = readFileSync(path.join(ROOT, '..', 'migrations', '20260929_listing_share_formats.sql'), 'utf8');
+  // Both CHECKs were replaced by later migrations; the latest is the truth.
+  const later = readFileSync(path.join(ROOT, '..', 'migrations', '20261026_listing_share_feed_format.sql'), 'utf8');
   const listLater = (column) => later.match(new RegExp(`${column} IN \\(([^)]*)\\)`))[1].match(/'([a-z_]+)'/g).map((s) => s.slice(1, -1)).sort();
   assert.deepEqual(listLater('channel'), [...SHARE_CHANNELS].sort());
   assert.deepEqual(listLater('format'), [...SHARE_FORMATS].sort());
@@ -224,7 +225,7 @@ test('a map link only for a real coordinate', () => {
 test('entry costs stay three separate lines, never summed, and unstated ones are left out', () => {
   const lines = entryCostLines({ purpose: 'rent', price: 500, price_period: 'mois', deposit_months: 3, advance_months: 1, commission_months: 1 });
   assert.deepEqual(lines.map((l) => [l.key, l.value, l.amount]), [
-    ['deposit', '3 mois', `${(1500).toLocaleString('fr-FR')} $`],
+    ['deposit', '3 mois', `${frNumber(1500)} $`],
     ['advance', '1 mois', '500 $'],
     ['commission', '1 mois', '500 $'],
   ]);
@@ -327,8 +328,8 @@ test('the one-page sheet keeps points forts and equipment as two lists within on
 
 test('shares record after the share, fire-and-forget, and never for the landlord report', () => {
   const quick = readFileSync(path.join(ROOT, 'components/ListingQuickShare.js'), 'utf8');
-  assert.match(quick, /recordListingSharesAction\(\{ listingIds: \[listing\.id\], channel, format \}\)\.catch\(\(\) => \{\}\)/);
-  assert.match(quick, /await navigator\.share\(\{ files: \[file\], text: imageCaption \}\);\s*record\('kit_share', FORMAT\)/);
+  assert.match(quick, /recordListingSharesAction\(\{ listingIds: \[listing\.id\], channel, format: recordFormat \}\)\.catch\(\(\) => \{\}\)/);
+  assert.match(quick, /await navigator\.share\(\{ files: \[file\], text: imageCaption \}\);\s*record\('kit_share', format\)/);
   assert.doesNotMatch(quick, /await recordListingSharesAction/);
   // The documents & reports dialog records nothing: a report goes to the owner, not the market.
   const kit = readFileSync(path.join(ROOT, 'components/AgentListingShareKit.js'), 'utf8');

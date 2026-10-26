@@ -25,6 +25,8 @@ import PropertyDescription from '@/components/listings/PropertyDescription';
 import AvailabilityConfirmedBadge from '@/components/listings/AvailabilityConfirmedBadge';
 import MarketMedianLine from '@/components/listings/MarketMedianLine';
 import UtilityBadges from '@/components/listings/UtilityBadges';
+import PracticalDetails from '@/components/listings/PracticalDetails';
+import { listingVideos } from '@/lib/listingVideos';
 import ListingSectionNav from '@/components/listings/ListingSectionNav';
 import ProjectUnitStrip from '@/components/projects/ProjectUnitStrip';
 import JsonLd from '@/components/seo/JsonLd';
@@ -39,10 +41,13 @@ const getListingById = cache(readListingById);
  * `openGraph`/`twitter` here are what WhatsApp's own link-preview crawler
  * reads when a visitor shares this URL — the platform's core discovery
  * channel had zero rich-preview support before this (bare link, no photo,
- * no price). Uses the listing's own real first photo (already resolved via
- * listingImages(), no new query) and real formatted price — never a
- * placeholder image or invented copy. `metadataBase` on the root layout is
- * what lets this image URL resolve to an absolute one.
+ * no price). Real formatted price, real facts — never invented copy.
+ *
+ * The IMAGE is not set here: ./opengraph-image.js and ./twitter-image.js draw
+ * the listing's preview card (cover photo, price, specs, heading) and Next
+ * puts them in the <head> ahead of anything this returns (2026-10-26; it was
+ * the bare cover photo). `metadataBase` on the root layout makes their URLs
+ * absolute.
  */
 export async function generateMetadata({ params }) {
   const { id } = await params;
@@ -57,7 +62,6 @@ export async function generateMetadata({ params }) {
   const description = listingMetaDescription(listing, t);
   const priceText = formatPrice(listing.price, listing.purpose, listing.price_period);
   const ogTitle = `${priceText} — ${listing.title}`;
-  const image = listingImages(listing)[0];
 
   return {
     title,
@@ -69,13 +73,12 @@ export async function generateMetadata({ params }) {
       title: ogTitle,
       description,
       type: 'website',
-      images: image ? [{ url: image }] : undefined,
     },
     twitter: {
-      card: image ? 'summary_large_image' : 'summary',
+      // The card always exists, photo or not (no photo draws the royal panel).
+      card: 'summary_large_image',
       title: ogTitle,
       description,
-      images: image ? [image] : undefined,
     },
   };
 }
@@ -166,10 +169,13 @@ export default async function ListingDetailPage({ params, searchParams }) {
     ? t('listings.transaction.rent')
     : listing.purpose === 'sale' ? t('listings.transaction.sale') : null;
   const kindLabel = typeLabel(listing, t);
-  const kicker = [
-    [kindLabel, purposeLabel ? purposeLabel.toLowerCase() : null].filter(Boolean).join(' '),
-    ...specItems(listing, t).filter((s) => s.key === 'beds' || s.key === 'bath').map((s) => `${s.value} ${s.label}`),
-  ].filter(Boolean).join(' · ');
+  // "Appartement à louer" — leads the h1 (see there); the kicker above the
+  // price keeps the room counts.
+  const kindAndPurpose = [kindLabel, purposeLabel ? purposeLabel.toLowerCase() : null].filter(Boolean).join(' ');
+  const kicker = specItems(listing, t)
+    .filter((s) => s.key === 'beds' || s.key === 'bath')
+    .map((s) => `${s.value} ${s.label}`)
+    .join(' · ');
 
   // Up to 5 here rather than a card's 2 — the detail page has a dedicated
   // "Équipements" section with room for the full matched set.
@@ -251,8 +257,10 @@ export default async function ListingDetailPage({ params, searchParams }) {
             `.u-lift` elevation and hairline — see that component's doc
             comment for why the gallery is a deliberate, scoped departure
             from this app's usual `.u-card` hairline-only treatment. */}
+        {/* The agent's videos play in the gallery itself (lib/listingVideos.js). */}
         <PhotoGallery
           images={images}
+          videos={listingVideos(listing)}
           alt={listing.title}
           verifiedAt={listing.verified_at}
           eventListing={{ id: listing.id, price: listing.price, commune: listing.commune }}
@@ -274,10 +282,9 @@ export default async function ListingDetailPage({ params, searchParams }) {
             {/* Price leads the page — the design's single loudest number,
                 above the title rather than tucked into the enquiry panel. */}
             <div className="flex flex-col gap-2.5">
-              {/* What the property IS, before what it costs — "Appartement à
-                  louer · 2 ch · 2 sdb". The h1 below is the place, so without
-                  this line a phone's first screen said where and how much but
-                  never what. KeyFacts still carries the full grid. */}
+              {/* Room counts before the price — "2 ch · 2 sdb". What the
+                  property IS ("Appartement à louer") moved into the h1 below
+                  on 2026-10-24. KeyFacts still carries the full grid. */}
               {kicker ? (
                 <p className="text-[0.8125rem] font-semibold uppercase tracking-[0.06em] text-blue">{kicker}</p>
               ) : null}
@@ -319,9 +326,21 @@ export default async function ListingDetailPage({ params, searchParams }) {
                   the page's identity — it still carries the <title>, the
                   OpenGraph title and the breadcrumb's final crumb (see
                   generateMetadata above), so search engines and shared links
-                  keep the descriptive phrasing. */}
+                  keep the descriptive phrasing.
+
+                  Since 2026-10-24 the heading opens with what the property is
+                  and the transaction — "Appartement à louer — Yolo Nord I,
+                  Kalamu" — because the h1 is the strongest on-page signal
+                  search engines read, and "Yolo Nord I, Kalamu" alone matched
+                  nobody's search for an apartment to rent. */}
               <h1 className="text-xl font-medium leading-snug tracking-normal text-ink sm:text-2xl">
-                {where || listing.title}
+                {kindAndPurpose && where ? (
+                  <>
+                    <span className="font-semibold">{kindAndPurpose}</span>
+                    {' — '}
+                    {where}
+                  </>
+                ) : where || listing.title}
               </h1>
 
               {addressDetail ? (
@@ -353,6 +372,10 @@ export default async function ListingDetailPage({ params, searchParams }) {
 
             {/* Power, water, security, access — as the agent declared them. */}
             <UtilityBadges utilities={listing.utilities} />
+
+            {/* Meublé, the parcelle's households, toilet / shower, meter, plot
+                size and price per m², paiement échelonné — as declared. */}
+            <PracticalDetails listing={listing} />
 
             {/* Streams in: a like-for-like median of live listings in the
                 commune, only from 5 comparables up (MarketMedianLine). */}

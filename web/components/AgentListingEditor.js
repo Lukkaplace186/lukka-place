@@ -17,7 +17,10 @@ import { shrinkPhotos } from '@/lib/photoShrink';
 import AgentPhotoSorter from './AgentPhotoSorter';
 import { UTILITY_FILTERS, UTILITY_FILTER_KEYS, normaliseUtilities, utilityLabelKey } from '@/lib/utilityTags';
 import CommercialSpecFields from './CommercialSpecFields';
+import ListingDetailFields, { applyDetailsToForm } from './ListingDetailFields';
+import { detailSections, detailsOf } from '@/lib/listingDetails';
 import { commercialSpecsOf, isCommercial } from '@/lib/commercialSpaces';
+import { RENT_PERIOD_OPTIONS, normaliseRentPeriod, rentPeriodLabel } from '@/lib/leaseTerm';
 import CommuneOptions from './CommuneOptions';
 
 const FIELD_CLASS =
@@ -177,6 +180,8 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
     // the form holds their whole current state (an unticked box is "not
     // stated"), and the server only writes them when the category is one.
     if (commercial) formData.set('commercial_touched', '1');
+    // The details fieldset always holds the whole current state.
+    formData.set('details_touched', '1');
     formData.delete('utilities');
     formData.set('utilities_touched', utilitiesTouched ? '1' : '0');
     if (utilitiesTouched) for (const code of utilities) formData.append('utilities', code);
@@ -229,6 +234,8 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
   }
 
   const isRent = listing.purpose === 'rent';
+  // Per month, or per day / week for a short-term rental (lib/leaseTerm.js).
+  const [rentPeriod, setRentPeriod] = useState(normaliseRentPeriod(listing.price_period) || 'mois');
 
   /**
    * Same reasoning as CreateListingDialog's own handleParsed: only the
@@ -257,6 +264,9 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
     if (mapped.bath) form.elements.bath.value = mapped.bath;
     if (mapped.unitsCount) form.elements.units_count.value = mapped.unitsCount;
     if (mapped.depositMonths) form.elements.deposit_months.value = mapped.depositMonths;
+    if (mapped.advanceMonths) form.elements.advance_months.value = mapped.advanceMonths;
+    if (mapped.commissionMonths) form.elements.commission_months.value = mapped.commissionMonths;
+    applyDetailsToForm(form, mapped.details);
     if (commercial) {
       if (mapped.officeCount != null) form.elements.office_count.value = mapped.officeCount;
       if (mapped.floorLevel != null) form.elements.floor_level.value = String(mapped.floorLevel);
@@ -319,7 +329,7 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label htmlFor="price" className={LABEL_CLASS}>
-              Prix{isRent ? ' / mois' : ''}
+              Prix{isRent ? ` ${rentPeriodLabel(rentPeriod)}` : ''}
             </label>
             <div className="flex items-stretch gap-2">
               <input
@@ -387,13 +397,32 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
               name="area"
               type="number"
               min="0"
-              step="1"
+              step="0.01"
+              inputMode="decimal"
               defaultValue={Number(listing.area) > 0 ? listing.area : ''}
               placeholder={t('agent.editor.notSpecified')}
               className={FIELD_CLASS}
             />
           </div>
         </div>
+
+        {isRent ? (
+          <div>
+            <label htmlFor="rent_period" className={LABEL_CLASS}>{t('agent.editor.rentPeriodLabel')}</label>
+            <select
+              id="rent_period"
+              name="rent_period"
+              value={rentPeriod}
+              onChange={(e) => setRentPeriod(e.target.value)}
+              className={FIELD_CLASS}
+            >
+              {RENT_PERIOD_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{t(option.labelKey)}</option>
+              ))}
+            </select>
+            <p className={HINT_CLASS}>{t('agent.editor.rentPeriodHint')}</p>
+          </div>
+        ) : null}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {/* An office, shop or warehouse has no bedrooms (the field is not
@@ -435,6 +464,30 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
               className={FIELD_CLASS}
             />
           </div>
+          <div>
+            <label htmlFor="advance_months" className={LABEL_CLASS}>Loyer d&apos;avance (mois)</label>
+            <input
+              id="advance_months"
+              name="advance_months"
+              type="number"
+              min="0"
+              step="1"
+              defaultValue={listing.advance_months ?? ''}
+              className={FIELD_CLASS}
+            />
+          </div>
+          <div>
+            <label htmlFor="commission_months" className={LABEL_CLASS}>Commission (mois)</label>
+            <input
+              id="commission_months"
+              name="commission_months"
+              type="number"
+              min="0"
+              step="1"
+              defaultValue={listing.commission_months ?? ''}
+              className={FIELD_CLASS}
+            />
+          </div>
         </div>
 
         {commercial ? (
@@ -446,6 +499,15 @@ export default function AgentListingEditor({ listing, communes, cdfRate, ameniti
             />
           </div>
         ) : null}
+
+        <div id="details">
+          <ListingDetailFields
+            defaults={detailsOf(listing)}
+            sections={detailSections({ categoryName: listing.category_name_fr, categoryType: listing.category_type, purpose: listing.purpose })}
+            fieldClass={FIELD_CLASS}
+            labelClass={LABEL_CLASS}
+          />
+        </div>
       </div>
 
       <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-4 sm:p-6">

@@ -27,6 +27,7 @@ const CATEGORY_LANGUAGE_ID = 26;
 const FLYER_SELECT = `SELECT p.id, p.price, p.purpose, p.price_period, p.beds, p.bath, p.area, p.units_count,
             p.quartier, p.parcelle_subtype, p.reference, p.deposit_months, p.advance_months,
             p.commission_months, p.featured_image, p.status, p.approve_status, p.listing_status, p.created_at,
+            p.verified_at,
             pc.title, catc.name AS category_name,
             -- The agent's own brand for the flyer's logo slot. The phone is
             -- only printed under the same rule the public listing page uses
@@ -59,6 +60,25 @@ export async function getFlyerListing(agentId, propertyId) {
     `${FLYER_SELECT}
      WHERE p.id = $2 AND p.agent_id = $3`,
     [CONTENT_LANGUAGE_ID, Number(propertyId), Number(agentId), CATEGORY_LANGUAGE_ID],
+  );
+  return rows[0] || null;
+}
+
+/**
+ * The same row for ANY listing, for Lukka Place's own social posts
+ * (app/admin/listings/shareActions.js, behind requireAdmin). No ownership
+ * clause on purpose — the team may advertise every agent's listing — and no
+ * public gate here either: the kit's shareBlocker() refuses anything that is
+ * not live, exactly as it does for an agent.
+ */
+export async function getFlyerListingForTeam(propertyId) {
+  if (!Number.isSafeInteger(Number(propertyId)) || Number(propertyId) <= 0) return null;
+  const { rows } = await getPool().query(
+    // FLYER_SELECT numbers the category language $4; with no agent parameter
+    // here it is the third one.
+    `${FLYER_SELECT.replace('$4', '$3')}
+     WHERE p.id = $2`,
+    [CONTENT_LANGUAGE_ID, Number(propertyId), CATEGORY_LANGUAGE_ID],
   );
   return rows[0] || null;
 }
@@ -149,3 +169,5 @@ export function agentBrandFields(listing) {
  */
 export const PLATFORM_MARK_PATH = '/brand/icon-dark.png';
 export const PLATFORM_MARK_LIGHT_PATH = '/brand/icon-light.png';
+/** The whole logo in white (components/Brand.js's `?v=2`, so a phone fetches the current art). */
+export const PLATFORM_WORDMARK_PATH = '/brand/logo-dark.png?v=2';

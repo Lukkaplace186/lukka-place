@@ -61,7 +61,7 @@ const textOp = (ops, text) => texts(ops).find((op) => op.text === text);
 test('formats are native sizes, not 2×, and the export budget is 150 KB', () => {
   assert.deepEqual(
     FORMAT_KEYS.map((k) => [FORMATS[k].width, FORMATS[k].height]),
-    [[1080, 1080], [1080, 1920], [1200, 675]],
+    [[1080, 1080], [1080, 1920], [1200, 675], [1080, 1350]],
   );
   assert.deepEqual([REPORT_FORMAT.width, REPORT_FORMAT.height], [1080, 1080]);
   assert.equal(EXPORT_BYTE_BUDGET, 150 * 1024);
@@ -202,7 +202,8 @@ test('the gold badge is drawn only when the pack carries one', () => {
   assert.ok(!plain.some((op) => op.fill === COLORS.gold));
   assert.ok(!plain.some((op) => op.type === 'icon' && op.name === 'check'));
 
-  for (const format of FORMAT_KEYS) {
+  // The formats with a contact bar; the 4:5 feed card names no agent tier.
+  for (const format of ['square', 'story', 'landscape']) {
     const { ops } = buildFlyerOps({ ...PACK, agent: { ...PACK.agent, badge: 'Agent vérifié' } }, format, env());
     assert.ok(ops.some((op) => op.type === 'rect' && op.fill === COLORS.gold), `${format}: gold pill`);
     assert.equal(textOp(ops, 'Agent vérifié').color, COLORS.ink, `${format}: ink on gold, not white`);
@@ -361,17 +362,20 @@ test('Documents et rapports: the A4 sheet and the owner report, no poster, no gr
 
 test('Partager sur WhatsApp sends the listing card with its caption, the text link one tap away', () => {
   const quick = readFileSync(path.join(process.cwd(), 'components/ListingQuickShare.js'), 'utf8');
-  assert.match(quick, /prepareListingCard\(listing\)/);
-  assert.match(quick, /const FORMAT = 'square'/);
+  // The square by default; the 4:5 feed card is the dialog's other format.
+  assert.match(quick, /prepareListingCard\(listing, format, \{ audience \}\)/);
+  assert.match(quick, /const formats = team \? \['feed'\] : FORMATS;/);
+  assert.match(quick, /useState\(formats\[0\]\)/);
   const cache = readFileSync(path.join(process.cwd(), 'lib/listingCardCache.js'), 'utf8');
-  assert.match(cache, /renderFlyer\(kit\.pack, 'square', decoded, family\)/);
+  assert.match(cache, /renderFlyer\(kit\.pack, format, decoded, family\)/);
+  assert.match(cache, /export function prepareListingCard\(listing, format = 'square', \{ audience = 'agent' \} = \{\}\)/);
   // Warm-up respects the data plan: never on Data Saver or 2G, capped per page.
   assert.match(cache, /if \(connection\.saveData\) return false;/);
   assert.match(cache, /const WARM_LIMIT = 6;/);
   assert.match(quick, /navigator\.share\(\{ files: \[file\], text: imageCaption \}\)/);
   assert.match(quick, /buildWhatsAppShareLink\(textCaption\)/);
   // Recorded with values listing_shares' CHECKs already allow.
-  assert.match(quick, /record\('kit_share', FORMAT\)/);
+  assert.match(quick, /record\('kit_share', format\)/);
   assert.match(quick, /record\('menu_whatsapp', 'text'\)/);
   const button = readFileSync(path.join(process.cwd(), 'components/AgentListingWhatsAppButton.js'), 'utf8');
   assert.match(button, /<ListingQuickShare /);

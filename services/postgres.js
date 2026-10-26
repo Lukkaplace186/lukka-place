@@ -40,8 +40,9 @@
 
 const { normaliseUtilities } = require('./utilities');
 const { normaliseCommercialSpecs } = require('./commercial');
+const { normaliseListingDetails } = require('./listingDetails');
 const { Pool } = require('pg');
-const { uploadListingPhotos } = require('./supabaseStorage');
+const { uploadListingPhotos, uploadListingVideos } = require('./supabaseStorage');
 const { resolveCommune, resolveQuartier } = require('./locations');
 const { cityOfCommune, communeLabel, resolveCity, DEFAULT_CITY } = require('./cities');
 const { storeListingCoordinates, locationInputsChanged } = require('./geocoding');
@@ -180,31 +181,44 @@ async function loadTaxonomy(client) {
 /**
  * Our property_type -> nearest-fit French category name. Unlike the earlier
  * MySQL attempt, this schema has a dedicated Entrepôt/Warehouse category, so
- * 'entrepot' gets an exact match instead of falling back to Bâtiment.
+ * 'entrepot' gets an exact match instead of falling back to Immeuble.
  *
- * A list is tried in order: 'bureau' has its own category since
- * migrations/20261019_commercial_spaces.sql, and falls back to Bâtiment
- * (commercial too) on a database where that migration has not run. The
- * taxonomy is cached per process, so the engine needs a restart after it.
+ * A list is tried in order, newest category first, so a database where its
+ * migration has not run still files the listing somewhere sensible:
+ * 'bureau' (20261019_commercial_spaces.sql) falls back to Immeuble; 'villa'
+ * and 'concession' (20261022_property_types_immeuble_villa_concession.sql)
+ * to Maison and Terrain; and Immeuble is still found under its old name
+ * "Bâtiment". The taxonomy is cached per process, so the engine needs a
+ * restart after either migration.
  */
 const CATEGORY_FALLBACK_FR = {
   appartement: 'appartement',
-  studio: 'appartement',
-  villa: 'maison',
+  studio: ['studio', 'appartement'],
+  chambre: ['chambre / annexe', 'appartement'],
+  villa: ['villa', 'maison'],
   maison: 'maison',
   duplex: 'duplex',
   chambre_salon: 'appartement',
   parcelle: 'terrain',
   terrain: 'terrain',
-  bureau: ['bureau', 'batiment'],
+  concession: ['concession', 'terrain'],
+  ferme: ['ferme / terrain agricole', 'terrain'],
+  bureau: ['bureau', 'immeuble', 'batiment'],
   boutique: 'boutique',
   entrepot: 'entrepot',
-  immeuble: 'batiment',
+  immeuble: ['immeuble', 'batiment'],
   autre: 'appartement',
 };
 
-function resolveCategory(propertyType, categories) {
-  const wanted = [].concat(CATEGORY_FALLBACK_FR[propertyType] || CATEGORY_FALLBACK_FR.autre);
+/**
+ * A parcelle whose sub-type is a villa is filed under Villa once that
+ * category exists; before, and for every other sub-type, a parcelle stays
+ * on Terrain as it always has.
+ */
+function resolveCategory(propertyType, categories, parcelleSubtype = null) {
+  const wanted = propertyType === 'parcelle' && parcelleSubtype === 'villa'
+    ? ['villa', 'terrain']
+    : [].concat(CATEGORY_FALLBACK_FR[propertyType] || CATEGORY_FALLBACK_FR.autre);
   for (const name of wanted) {
     const match = categories.get(normaliseText(name));
     if (match) return match;
@@ -232,6 +246,9 @@ const PROPERTY_TYPE_LABELS_FR = {
   chambre_salon: 'Chambre salon',
   parcelle: 'Parcelle',
   terrain: 'Terrain',
+  concession: 'Concession',
+  ferme: 'Ferme',
+  chambre: 'Chambre',
   bureau: 'Bureau',
   boutique: 'Boutique',
   entrepot: 'Entrepôt',
@@ -365,7 +382,7 @@ async function linkListingsToAgent(remotePropertyIds, waId) {
  */
 function buildPropertyValues(row, { category, location, agentId = null }) {
   const purpose = row.transaction_type === 'vente' ? 'sale' : 'rent';
-  const area = Number.isFinite(row.surface_area_sqm) ? String(Math.round(row.surface_area_sqm)) : '0';
+  const area = Number.isFinite(row.surface_area_sqm) ? String(Math.round(row.surface_area_sqm * 100) / 100) : '0';
 
   return {
     vendor_id: 0,
@@ -871,7 +888,7 @@ async function syncListingToPostgres(row) {
   const client = await getPool().connect();
   try {
     const { categories, location } = await loadTaxonomy(client);
-    const category = resolveCategory(row.property_type, categories);
+    const category = resolveCategory(row.property_type, categories, row.parcelle_subtype);
     const agentId = await resolveAgentId(client, row.wa_id);
     const hasPhotos = Array.isArray(row.photos) && row.photos.length > 0;
 
@@ -979,6 +996,30 @@ async function syncListingToPostgres(row) {
           await client.query('ROLLBACK TO SAVEPOINT lukka_commercial');
           if (err?.code !== '42703') throw err;
           console.warn(`[postgres] commercial columns missing — specs for #${propertyId} not synced (run migrations/20261019_commercial_spaces.sql)`);
+        }
+      }
+
+      // Practical details (services/listingDetails.js), same posture: INSERT
+      // only, only what was stated, in a SAVEPOINT tolerant of the columns'
+      // absence (before migrations/20261022_listing_details.sql).
+      const details = normaliseListingDetails(row, {
+        propertyType: row.property_type ?? null,
+        parcelleSubtype: row.parcelle_subtype ?? null,
+        transactionType: row.transaction_type ?? null,
+      });
+      const statedDetails = Object.entries(details).filter(([, value]) => value !== null);
+      if (statedDetails.length) {
+        await client.query('SAVEPOINT lukka_details');
+        try {
+          await client.query(
+            `UPDATE properties SET ${statedDetails.map(([field], i) => `${field} = $${i + 1}`).join(', ')} WHERE id = $${statedDetails.length + 1}`,
+            [...statedDetails.map(([, value]) => value), propertyId],
+          );
+          await client.query('RELEASE SAVEPOINT lukka_details');
+        } catch (err) {
+          await client.query('ROLLBACK TO SAVEPOINT lukka_details');
+          if (err?.code !== '42703') throw err;
+          console.warn(`[postgres] detail columns missing — details for #${propertyId} not synced (run migrations/20261022_listing_details.sql)`);
         }
       }
     }
@@ -1092,11 +1133,40 @@ async function syncListingToPostgres(row) {
       }
     }
 
+    // Videos (services/listingMedia.js): `properties.videos` jsonb,
+    // [{url, poster}], written only when this listing has videos — never
+    // cleared from here. With no photo, the first cover frame is the card
+    // image, so a video-only listing is not shown as "no image". Before
+    // migrations/20261021_listing_videos.sql the UPDATE fails with 42703;
+    // logged, and the rest of the sync stands.
+    let uploadedVideos = [];
+    if (Array.isArray(row.videos) && row.videos.length) {
+      uploadedVideos = await uploadListingVideos(row.videos, propertyId).catch((err) => {
+        console.warn(`[postgres] video upload failed for listing #${row.id}: ${err.message}`);
+        return [];
+      });
+      if (uploadedVideos.length) {
+        try {
+          await client.query('UPDATE properties SET videos = $1::jsonb, updated_at = NOW() WHERE id = $2', [
+            JSON.stringify(uploadedVideos),
+            propertyId,
+          ]);
+        } catch (err) {
+          console.warn(`[postgres] properties.videos not written for #${propertyId} (${err.code || err.message}) — run migrations/20261021_listing_videos.sql`);
+        }
+        const cover = uploadedVideos.find((video) => video.poster)?.poster;
+        if (!uploadedUrls.length && cover) {
+          await client.query('UPDATE properties SET featured_image = $1, updated_at = NOW() WHERE id = $2', [cover, propertyId]);
+        }
+      }
+    }
+
     console.log(
       `[postgres] listing #${row.id} -> properties#${propertyId} (${wasInsert ? 'inserted' : 'updated'}), ` +
         `vendor_id=0, approve_status=pending, category=${category.id}, ` +
         `commune=${communeAmenityId ? `amenity#${communeAmenityId}` : 'unmatched'}, ` +
-        `photos=${uploadedUrls.length}${hasPhotos && !uploadedUrls.length ? ' (upload failed or unconfigured — using noimage.jpg placeholder)' : ''}`,
+        `photos=${uploadedUrls.length}${hasPhotos && !uploadedUrls.length ? ' (upload failed or unconfigured — using noimage.jpg placeholder)' : ''}` +
+        (uploadedVideos.length ? `, videos=${uploadedVideos.length}` : ''),
     );
 
     return propertyId;

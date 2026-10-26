@@ -30,6 +30,40 @@
 
 import { COLOCATION_EPSILON_DEG } from './mapPinSpread';
 import { CITIES, DEFAULT_CITY, cityOfCommune, communeLabel } from './cities';
+import QUARTIER_POINTS_DATA from './data/quartier-points.json';
+
+const QUARTIER_POINTS = QUARTIER_POINTS_DATA.points || {};
+const ROMAN = { 1: 'i', 2: 'ii', 3: 'iii', 4: 'iv' };
+
+/** The engine's `placeKey` (services/locations.js), byte for byte: the table's key. */
+export function quartierKey(text) {
+  return String(text || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .trim()
+    .replace(/[-'’/.,;:()_]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b([1-4])\b/g, (digit) => ROMAN[digit]);
+}
+
+/**
+ * A checked point for one of the listing's quartier terms ("GB / Hôtel
+ * Diplomate" → "GB"), from the engine's quartier table: a neighbourhood whose
+ * name Google returned, or the median of ≥3 places carrying the name, inside
+ * the commune (services/geocoding.js). Null when the table has none.
+ */
+export function quartierPoint(listing) {
+  const commune = inferListingCommune(listing);
+  if (!commune) return null;
+  const terms = String(listing?.quartier || '').split(/\s*(?:[/|;()[\]–—,]|\s-\s)\s*/);
+  for (const term of terms) {
+    const hit = QUARTIER_POINTS[`${commune}|${quartierKey(term)}`];
+    if (hit) return { lat: hit.lat, lng: hit.lng };
+  }
+  return null;
+}
 
 /**
  * Real, Google-verified centroids for all 24 Kinshasa communes — fetched
@@ -312,7 +346,7 @@ const resolutionCache = new Map();
  * @param {Object} params
  * @param {Object} params.listing Real listing row (id, address, quartier, commune, reference, ...).
  * @param {google.maps.Geocoder} params.geocoder
- * @returns {Promise<{lat: number, lng: number, source: 'existing'|'geocoded'|'commune_fallback', precise: boolean, query: string|null}|null>}
+ * @returns {Promise<{lat: number, lng: number, source: 'existing'|'geocoded'|'quartier'|'commune_fallback', precise: boolean, query: string|null}|null>}
  */
 export async function resolveListingBase({ listing, geocoder }) {
   // Forward-compatible: if a listing ever does carry real coordinates (the
@@ -335,6 +369,12 @@ export async function resolveListingBase({ listing, geocoder }) {
       resolutionCache.set(query, resolved);
     }
     if (resolved) return { ...resolved, query };
+  }
+
+  // The quartier's checked point, before the commune's centre.
+  const quartier = quartierPoint(listing);
+  if (quartier) {
+    return { lat: quartier.lat, lng: quartier.lng, source: 'quartier', precise: false, query: null };
   }
 
   // No query landed on a real place — fall back to the commune's own real,
@@ -472,7 +512,13 @@ export function inferListingCommune(listing) {
 function geocodeOneQuery(geocoder, query) {
   return new Promise((resolve) => {
     geocoder.geocode({ address: query, region: 'cd' }, (results, status) => {
-      if (status === 'OK' && results?.[0] && isPreciseResult(results[0])) {
+      // A business answer matched a NAME the Geocoding API does not return, so
+      // it cannot be checked: "GB / Hôtel Diplomate, Ngaliema" came back as a
+      // hotel called "GB" by Joli Parc (#387). The engine checks names through
+      // the Places API at publish time; here such an answer is refused.
+      const types = results?.[0]?.types || [];
+      const business = types.includes('establishment') || types.includes('point_of_interest');
+      if (status === 'OK' && results?.[0] && !business && isPreciseResult(results[0])) {
         const loc = results[0].geometry.location;
         resolve({ lat: loc.lat(), lng: loc.lng(), source: 'geocoded', precise: true });
         return;

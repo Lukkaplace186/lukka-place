@@ -2,6 +2,7 @@ import 'server-only';
 import { getPool } from './db';
 import { NOT_TEST_LISTING_SQL } from './marketExclusions';
 import { getMandateCounts } from './marketing/mandateReport';
+import { monthlyEquivalent } from './leaseTerm';
 
 /**
  * One listing's funnel — what the agent's listing page
@@ -185,7 +186,7 @@ export function daysOnMarket(listing, now = new Date()) {
 export function comparableAmount(listing) {
   const price = Number(listing?.price);
   if (!Number.isFinite(price) || price <= 0) return null;
-  return listing.purpose === 'rent' && listing.price_period === 'an' ? price / 12 : price;
+  return monthlyEquivalent(price, listing.purpose, listing.price_period);
 }
 
 /**
@@ -196,11 +197,12 @@ export function comparableAmount(listing) {
  */
 export const MARKET_POSITION_SQL = `
   WITH comps AS (
-    SELECT CASE WHEN p.purpose = 'rent' AND p.price_period = 'an' THEN p.price / 12.0 ELSE p.price END AS amount,
+    SELECT CASE WHEN p.purpose = 'rent' AND p.price_period IN ('jour', 'semaine') THEN NULL WHEN p.purpose = 'rent' AND p.price_period = 'an' THEN p.price / 12.0 ELSE p.price END AS amount,
            p.category_id, p.beds
       FROM properties p
      WHERE p.status = 1 AND p.approve_status = 1 AND p.price > 0
        AND p.purpose = $1 AND p.id <> $2
+       AND COALESCE(p.price_period, '') NOT IN ('jour', 'semaine')
        AND ${NOT_TEST_LISTING_SQL}
        AND EXISTS (SELECT 1 FROM property_amenities pa
                      JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = ${CONTENT_LANGUAGE_ID}

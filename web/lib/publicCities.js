@@ -1,7 +1,7 @@
 import 'server-only';
 import { getPool } from './db';
 import { memo } from './memo';
-import { CITIES, DEFAULT_CITY, MIN_PUBLIC_CITY_LISTINGS, findCity } from './cities';
+import { ALL_CITIES, CITIES, DEFAULT_CITY, MIN_PUBLIC_CITY_LISTINGS, findCity, isAllCities } from './cities';
 
 /**
  * Which cities the storefront shows: Kinshasa always, and any other city with
@@ -37,8 +37,12 @@ export async function getPublicCities() {
   });
 }
 
-/** `?ville=` only when it names a public city; anything else is no city (= Kinshasa). */
+/**
+ * `?ville=` only when it names a public city, or `toutes` (every city);
+ * anything else is no city (= Kinshasa).
+ */
 export async function publicVille(ville) {
+  if (isAllCities(ville)) return ALL_CITIES;
   const city = findCity(ville);
   if (!city || city.name === DEFAULT_CITY) return null;
   const visible = await getPublicCities();

@@ -103,7 +103,7 @@ const LISTING_SCHEMA = {
       nullable: true,
       enum: [
         'appartement', 'studio', 'villa', 'maison', 'duplex', 'chambre_salon',
-        'parcelle', 'terrain', 'bureau', 'boutique', 'entrepot', 'immeuble', 'autre',
+        'parcelle', 'terrain', 'concession', 'ferme', 'chambre', 'bureau', 'boutique', 'entrepot', 'immeuble', 'autre',
       ],
     },
     commune: { type: Type.STRING, nullable: true, description: 'Commune de Kinshasa, orthographe normalisée.' },
@@ -115,8 +115,8 @@ const LISTING_SCHEMA = {
     price_period: {
       type: Type.STRING,
       nullable: true,
-      enum: ['mois', 'an', 'total'],
-      description: '"mois" pour un loyer mensuel, "total" pour un prix de vente.',
+      enum: ['mois', 'an', 'jour', 'semaine', 'total'],
+      description: '"mois" pour un loyer mensuel, "jour" / "semaine" pour une location courte durée, "total" pour un prix de vente.',
     },
     deposit_months: { type: Type.INTEGER, nullable: true, description: 'Mois de garantie locative SEULE — premier nombre de la notation "3 + 1 + 1", jamais leur somme.' },
     advance_months: { type: Type.INTEGER, nullable: true, description: 'Mois de loyer d\'avance — deuxième nombre de la notation "3 + 1 + 1".' },

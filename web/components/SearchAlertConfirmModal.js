@@ -26,7 +26,7 @@ export default function SearchAlertConfirmModal({ open, onClose, onConfirm, tags
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
       <DialogContent className="gap-5 p-6">
-        <DialogTitle className="flex items-center gap-2 text-left font-display text-lg font-normal leading-snug tracking-[-0.01em] text-ink">
+        <DialogTitle className="flex items-center gap-2 text-left font-bold text-lg leading-snug tracking-[-0.01em] text-ink">
           <Bell strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5 text-blue" />
           {t('listings.alert.createForSearch')}
         </DialogTitle>

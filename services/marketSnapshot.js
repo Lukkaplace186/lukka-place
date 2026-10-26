@@ -35,6 +35,7 @@
 
 const postgres = require('./postgres');
 const { db } = require('./db');
+const { shortTermSql } = require('./leaseTerm');
 
 const JOB_NAME = 'market-snapshot';
 const CONTENT_LANGUAGE_ID = 20;
@@ -84,8 +85,12 @@ const SUPPLY_SQL = `
     SELECT p.id, p.purpose, COALESCE(p.category_id, 0)::int AS category_id,
            ${BEDS_BUCKET_SQL('p.beds')} AS beds_bucket,
            ${COMMUNE_EXPR} AS commune,
-           CASE WHEN p.purpose = 'rent' AND p.price_period = 'an' THEN p.price / 12.0 ELSE p.price END AS ask,
-           CASE WHEN p.purpose = 'rent' AND p.price_period = 'an' THEN p.sold_price / 12.0 ELSE p.sold_price END AS achieved,
+           -- A short-term rent (per day / week, services/leaseTerm.js) is not a
+           -- monthly figure and never enters a monthly median.
+           CASE WHEN ${shortTermSql('p')} THEN NULL
+                WHEN p.purpose = 'rent' AND p.price_period = 'an' THEN p.price / 12.0 ELSE p.price END AS ask,
+           CASE WHEN ${shortTermSql('p')} THEN NULL
+                WHEN p.purpose = 'rent' AND p.price_period = 'an' THEN p.sold_price / 12.0 ELSE p.sold_price END AS achieved,
            NULLIF(regexp_replace(COALESCE(p.area::text, ''), '[^0-9.]', '', 'g'), '')::numeric AS area,
            p.price, p.status, p.approve_status, p.listing_status, p.created_at, p.sold_at, p.archived_at
       FROM properties p

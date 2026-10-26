@@ -16,10 +16,11 @@ import { FORMATS, REPORT_FORMAT } from './formats';
  *     'pin', 'bed', 'bath', 'area', 'door'.
  *
  * Image keys: 'photo:0'..'photo:2', 'logo' (the agent's), 'mark' (the white
- * Lukka Place roofline, for a blue ground) and 'markLight' (the blue + green
- * one, for the white contact bar). The caller says which of them actually
- * loaded (`photoCount`, `hasLogo`, `hasMark`, `hasMarkLight`), and the layout
- * adapts rather than drawing an empty frame.
+ * Lukka Place roofline, for a blue ground), 'markLight' (the blue + green
+ * one, for the white contact bar) and 'wordmark' (the whole white logo, on
+ * the feed card's photo). The caller says which of them actually loaded
+ * (`photoCount`, `hasLogo`, `hasMark`, `hasMarkLight`, `hasWordmark`), and the
+ * layout adapts rather than drawing an empty frame.
  *
  * `measure(text, { size, weight, letterSpacing })` returns a width in pixels.
  * The renderer passes the real canvas measurement; tests pass an estimate.
@@ -50,6 +51,9 @@ export const COLORS = Object.freeze({
   inkSoft: '#2c3444',
   muted: '#5c6679',
   line: '#e2e6ef',
+  // The feed card's light chips and its panel text (design system porcelain / ink-800).
+  porcelain: '#f2f5fb',
+  inkDeep: '#111a2e',
 });
 
 /** The lift under the white elements on the blue ground. */
@@ -314,7 +318,10 @@ function chipItems(pack) {
  * `rows` (default 1): the 9:16 has the height for a second row, so a chip
  * that does not fit moves down rather than being shortened or left out.
  */
-function specChips(pack, { x, top, width, size, iconSize, padX, h, gap, iconGap, rows = 1 }, measure) {
+const CHIPS_ON_ROYAL = Object.freeze({ fill: 'rgba(255,255,255,0.14)', icon: COLORS.white, text: COLORS.white });
+const CHIPS_ON_WHITE = Object.freeze({ fill: COLORS.porcelain, icon: COLORS.royal, text: COLORS.inkDeep });
+
+function specChips(pack, { x, top, width, size, iconSize, padX, h, gap, iconGap, rows = 1, colors = CHIPS_ON_ROYAL }, measure) {
   const ops = [];
   let cursor = x;
   let rowTop = top;
@@ -338,13 +345,13 @@ function specChips(pack, { x, top, width, size, iconSize, padX, h, gap, iconGap,
       item = { ...item, text };
     }
     if (cursor + w > x + width) continue;
-    ops.push({ type: 'rect', x: cursor, y: rowTop, w, h, fill: 'rgba(255,255,255,0.14)', radius: h / 2 });
+    ops.push({ type: 'rect', x: cursor, y: rowTop, w, h, fill: colors.fill, radius: h / 2 });
     let textX = cursor + padX;
     if (item.icon) {
-      ops.push({ type: 'icon', name: item.icon, x: textX, y: rowTop + (h - iconSize) / 2, size: iconSize, color: COLORS.white });
+      ops.push({ type: 'icon', name: item.icon, x: textX, y: rowTop + (h - iconSize) / 2, size: iconSize, color: colors.icon });
       textX += iconSize + iconGap;
     }
-    ops.push({ type: 'text', text: item.text, x: textX, y: rowTop + (h - lineBox(size)) / 2 + baselineOffset(size), size, weight: 700, color: COLORS.white, align: 'left' });
+    ops.push({ type: 'text', text: item.text, x: textX, y: rowTop + (h - lineBox(size)) / 2 + baselineOffset(size), size, weight: 700, color: colors.text, align: 'left' });
     cursor += w + gap;
   }
   return { ops, bottom: ops.length ? rowTop + h : top, drawn: ops.length > 0 };
@@ -642,12 +649,171 @@ function landscapeFlyer(pack, { measure, photoCount, hasLogo, hasMark, hasMarkLi
   return { width: W, height: H, ops };
 }
 
-const FLYERS = { square: squareFlyer, story: storyFlyer, landscape: landscapeFlyer };
+/** "lukkaplace.com/listings/387" — the listing's address as printed on the feed card. */
+export function feedListingPath(pack) {
+  const id = Number(pack.listingId);
+  return Number.isSafeInteger(id) && id > 0 ? `lukkaplace.com/listings/${id}` : 'lukkaplace.com';
+}
+
+/** "Appartement à louer": the type, then the purpose in words; the place when neither is known. */
+export function feedHeading(pack) {
+  const purpose = pack.purposeLabel ? pack.purposeLabel.toLowerCase() : '';
+  return [pack.typeText, purpose].filter(Boolean).join(' ') || pack.place || 'Lukka Place';
+}
+
+/**
+ * "Carte feed social" (2026-10-26), 4:5 for the Instagram and Facebook feeds,
+ * from the design canvas: the cover photo full width over the top 900px, the
+ * price on a royal badge top-left and the white Lukka Place wordmark top-right,
+ * then a white panel (heading, place, light chips) and a royal band saying how
+ * to reach the agent.
+ *
+ * One photo, not tiles: a feed post is seen small, and one photo reads where
+ * three would be stamps. "N photos" on it is the listing's real count.
+ *
+ * "Vérifié par Lukka Place" only when the team verified the PROPERTY
+ * (`properties.verified_at`, the pack's `verified`) — never the agent's tier,
+ * which the gold badge on the other formats already carries.
+ *
+ * The band always leads back to the platform (product direction 2026-10-26:
+ * the company posts this card, and when an agent posts it, it must bring
+ * people back to Lukka Place): "Voir ce bien sur Lukka Place" and the
+ * listing's own address, typed out because Instagram does not open a link in
+ * a caption. No agent number on it — the listing page shows the agent's
+ * contact under its own verified + routing rule, and the visit request there
+ * is the path we can measure. The square card, sent on WhatsApp, keeps the
+ * agent's number as before.
+ */
+function feedFlyer(pack, { measure, photoCount, hasWordmark, hasMarkLight }) {
+  const { width: W, height: H } = FORMATS.feed;
+  const M = 56;
+  const PHOTO_H = 900;
+  const BAND_H = 160;
+  const bandY = H - BAND_H;
+  const ops = [{ type: 'rect', x: 0, y: 0, w: W, h: H, fill: COLORS.white }];
+
+  if (photoCount > 0) ops.push({ type: 'image', key: 'photo:0', x: 0, y: 0, w: W, h: PHOTO_H, fit: 'cover' });
+  else ops.push({ type: 'rect', x: 0, y: 0, w: W, h: PHOTO_H, fill: COLORS.royalDeep });
+  // Under the badge and the wordmark, so both read on a bright ceiling.
+  ops.push({ type: 'rect', x: 0, y: 0, w: W, h: 340, gradient: ['rgba(11,17,32,0.58)', 'rgba(11,17,32,0)'] });
+
+  const LOGO_W = 240;
+  const LOGO_H = 76;
+  const logoX = W - M - LOGO_W;
+  if (hasWordmark) {
+    ops.push({ type: 'image', key: 'wordmark', x: logoX, y: 66, w: LOGO_W, h: LOGO_H, fit: 'contain' });
+  } else {
+    ops.push({ type: 'text', text: 'Lukka Place', x: W - M, y: 66 + baselineOffset(40, 1) + (LOGO_H - 40) / 2, size: 40, weight: 800, color: COLORS.white, align: 'right' });
+  }
+
+  // The price badge, as wide as its content and never into the wordmark.
+  const padX = 36;
+  const maxInner = logoX - 32 - M - padX * 2;
+  const labelStyle = { size: 22, weight: 800, letterSpacing: 3 };
+  const label = [pack.purposeLabel, pack.typeText ? pack.typeText.toUpperCase() : null].filter(Boolean).join(' · ');
+  const [labelLine] = label ? wrapText(label, maxInner, labelStyle, 1, measure) : [];
+  const amount = displayAmount(pack.amount);
+  const periodOf = (size) => Math.round(size * 0.385);
+  const priceWidth = (size) => measure(amount, { size, weight: 800 })
+    + (pack.period ? 14 + measure(pack.period, { size: periodOf(size), weight: 600 }) : 0);
+  const priceSize = [104, 92, 80, 68, 56].find((size) => priceWidth(size) <= maxInner) || 56;
+  const labelH = labelLine ? lineBox(22, 1) + 14 : 0;
+  const innerW = Math.max(labelLine ? measure(labelLine, labelStyle) : 0, priceWidth(priceSize));
+  const badgeH = 26 + labelH + lineBox(priceSize, 1) + 30;
+  ops.push({ type: 'rect', x: M, y: M, w: innerW + padX * 2, h: badgeH, fill: COLORS.royal, radius: 24, shadow: { color: 'rgba(12,29,80,0.6)', blur: 60, y: 24 } });
+  let ty = M + 26;
+  if (labelLine) {
+    ops.push({ type: 'text', text: labelLine, x: M + padX, y: ty + baselineOffset(22, 1), size: 22, weight: 800, color: 'rgba(255,255,255,0.84)', align: 'left', letterSpacing: 3 });
+    ty += labelH;
+  }
+  const priceBaseline = ty + baselineOffset(priceSize, 1);
+  ops.push({ type: 'text', text: amount, x: M + padX, y: priceBaseline, size: priceSize, weight: 800, color: COLORS.white, align: 'left' });
+  if (pack.period) {
+    ops.push({
+      type: 'text', text: pack.period, x: M + padX + measure(amount, { size: priceSize, weight: 800 }) + 14, y: priceBaseline,
+      size: periodOf(priceSize), weight: 600, color: 'rgba(255,255,255,0.84)', align: 'left',
+    });
+  }
+
+  // Capsules along the bottom of the photo.
+  const pillSize = 26;
+  const pillH = lineBox(pillSize) + 28;
+  const pillY = PHOTO_H - 48 - pillH;
+  if (pack.verified) {
+    const text = 'Vérifié par Lukka Place';
+    const w = 48 + 30 + 12 + measure(text, { size: pillSize, weight: 700 });
+    ops.push(
+      { type: 'rect', x: M, y: pillY, w, h: pillH, fill: COLORS.white, radius: pillH / 2, shadow: { color: 'rgba(16,26,46,0.25)', blur: 16, y: 6 } },
+      { type: 'icon', name: 'badgeCheck', x: M + 24, y: pillY + (pillH - 30) / 2, size: 30, color: COLORS.royal },
+      { type: 'text', text, x: M + 24 + 30 + 12, y: pillY + 14 + baselineOffset(pillSize), size: pillSize, weight: 700, color: COLORS.royalDeep, align: 'left' },
+    );
+  }
+  const total = Number(pack.photoTotal);
+  if (photoCount > 0 && Number.isFinite(total) && total > 1) {
+    const text = `${total} photos`;
+    const w = 44 + 26 + 10 + measure(text, { size: 24, weight: 700 });
+    const x = W - M - w;
+    const h = lineBox(24) + 28;
+    const y = PHOTO_H - 48 - h;
+    ops.push(
+      { type: 'rect', x, y, w, h, fill: 'rgba(12,29,80,0.62)', radius: h / 2 },
+      { type: 'icon', name: 'image', x: x + 22, y: y + (h - 26) / 2, size: 26, color: COLORS.white },
+      { type: 'text', text, x: x + 22 + 26 + 10, y: y + 14 + baselineOffset(24), size: 24, weight: 700, color: COLORS.white, align: 'left' },
+    );
+  }
+
+  // The panel: heading, place, chips.
+  const textW = W - M * 2;
+  let y = PHOTO_H + 42;
+  const [heading] = wrapText(feedHeading(pack), textW, { size: 52, weight: 700 }, 1, measure);
+  ops.push({ type: 'text', text: heading, x: M, y: y + baselineOffset(52, 1.08), size: 52, weight: 700, color: COLORS.ink, align: 'left' });
+  y += lineBox(52, 1.08) + 18;
+  if (pack.place) {
+    const rowH = Math.max(38, lineBox(34));
+    const [line] = wrapText(pack.place, textW - 50, { size: 34, weight: 600 }, 1, measure);
+    ops.push(
+      { type: 'icon', name: 'pin', x: M, y: y + (rowH - 38) / 2, size: 38, color: COLORS.royal },
+      { type: 'text', text: line, x: M + 50, y: y + (rowH - lineBox(34)) / 2 + baselineOffset(34), size: 34, weight: 600, color: COLORS.inkSoft, align: 'left' },
+    );
+    y += rowH;
+  }
+  ops.push(...specChips(pack, {
+    x: M, top: y + 24, width: textW, size: 27, iconSize: 32, padX: 22, h: 60, gap: 16, iconGap: 12, colors: CHIPS_ON_WHITE,
+  }, measure).ops);
+
+  // The band: the way back to the listing on the platform. A white disc with
+  // the colour roofline when the pack carries it.
+  ops.push({ type: 'rect', x: 0, y: bandY, w: W, h: BAND_H, fill: COLORS.royalDeep });
+  let tx = M;
+  if (hasMarkLight) {
+    const C = 76;
+    const cy = bandY + (BAND_H - C) / 2;
+    const mw = C * 0.7;
+    ops.push(
+      { type: 'rect', x: M, y: cy, w: C, h: C, fill: COLORS.white, radius: C / 2 },
+      { type: 'image', key: 'markLight', x: M + (C - mw) / 2, y: cy + (C - mw / 2) / 2, w: mw, h: mw / 2, fit: 'contain' },
+    );
+    tx = M + C + 26;
+  }
+  const tw = W - M - tx;
+  const [line1] = wrapText('Voir ce bien sur Lukka Place', tw, { size: 36, weight: 700 }, 1, measure);
+  const [line2] = wrapText(`${feedListingPath(pack)} · visite et contact de l’agent`, tw, { size: 25, weight: 500 }, 1, measure);
+  const blockH = lineBox(36, 1.1) + 10 + lineBox(25, 1.2);
+  const top = bandY + (BAND_H - blockH) / 2;
+  ops.push(
+    { type: 'text', text: line1, x: tx, y: top + baselineOffset(36, 1.1), size: 36, weight: 700, color: COLORS.white, align: 'left' },
+    { type: 'text', text: line2, x: tx, y: top + lineBox(36, 1.1) + 10 + baselineOffset(25, 1.2), size: 25, weight: 500, color: 'rgba(255,255,255,0.86)', align: 'left' },
+  );
+  return { width: W, height: H, ops };
+}
+
+const FLYERS = { square: squareFlyer, story: storyFlyer, landscape: landscapeFlyer, feed: feedFlyer };
 
 /**
  * @param {object} pack  See lib/marketing/sharePackData.js buildFlyerPack.
- * @param {'square'|'story'|'landscape'} formatKey
- * @param {{measure: Function, photoCount: number, hasLogo: boolean, hasMark: boolean, hasMarkLight?: boolean}} env
+ * @param {'square'|'story'|'landscape'|'feed'} formatKey
+ * @param {{measure: Function, photoCount: number, hasLogo: boolean, hasMark: boolean, hasMarkLight?: boolean,
+ *          hasWordmark?: boolean}} env
  */
 export function buildFlyerOps(pack, formatKey, env) {
   const flyer = FLYERS[formatKey];
@@ -658,6 +824,7 @@ export function buildFlyerOps(pack, formatKey, env) {
     hasLogo: Boolean(env.hasLogo),
     hasMark: Boolean(env.hasMark),
     hasMarkLight: Boolean(env.hasMarkLight),
+    hasWordmark: Boolean(env.hasWordmark),
   });
 }
 

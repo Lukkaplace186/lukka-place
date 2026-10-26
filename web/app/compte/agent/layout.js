@@ -86,7 +86,7 @@ export default async function AgentDashboardLayout({ children }) {
 
   return (
     <I18nProvider locale={locale} messages={messages}>
-      <div className="flex min-h-screen bg-canvas-alt">
+      <div className="flex min-h-screen bg-page">
         <AgentKeyboardShortcuts />
         <AgentSidebar
           agentName={name}

@@ -27,6 +27,7 @@ const chakra = require('./chakra');
 const deskAlert = require('./deskAlert');
 const { db } = require('./db');
 const { normaliseOpsNumber, opsNumber } = require('./opsDesk');
+const { periodSuffix } = require('./leaseTerm');
 
 const SITE_URL = () => (process.env.PUBLIC_SITE_URL || 'https://lukkaplace.com').replace(/\/+$/, '');
 
@@ -61,7 +62,7 @@ function priceLine({ price, currency, purpose, pricePeriod }) {
   const formatted = Math.round(amount).toLocaleString('fr-FR').replace(/ | /g, ' ');
   const unit = String(currency || 'USD').toUpperCase() === 'CDF' ? 'FC' : '$';
   const isRent = /^(rent|location|louer|à louer)$/i.test(String(purpose || ''));
-  const period = !isRent ? '' : /an|year/i.test(String(pricePeriod || '')) ? ' / an' : ' / mois';
+  const period = !isRent ? '' : /^(an|year)$/i.test(String(pricePeriod || '')) ? ' / an' : periodSuffix(pricePeriod);
   return `${formatted} ${unit}${period}`;
 }
 

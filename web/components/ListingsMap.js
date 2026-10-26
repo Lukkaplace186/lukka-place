@@ -19,6 +19,7 @@ import {
   FETCH_DEBOUNCE_MS,
   KINSHASA_DEFAULT_VIEW,
   boundsContain,
+  cityResultsView,
   defaultViewForCity,
   inCoveredArea,
   boundsToQuery,
@@ -32,6 +33,7 @@ import {
 } from '@/lib/mapViewport';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
+import { rememberListings } from '@/lib/mapListingCache';
 
 /**
  * The /listings map, Rightmove / Zillow style: every listing matching the
@@ -189,14 +191,15 @@ async function viewForTarget(geocoder, target) {
 }
 
 /** Last resort when a named place resolves to nothing at all: the box around what matches it. */
-async function fetchExtent(filterQuery) {
+async function fetchExtent(filterQuery, { pad = true } = {}) {
   try {
     const qs = new URLSearchParams(filterQuery);
     qs.set('extent', '1');
     const response = await fetch(`/api/listings/map?${qs}`);
     if (!response.ok) return null;
     const body = await response.json();
-    return body.extent ? padBounds(body.extent, 0.08) : null;
+    if (!body.extent) return null;
+    return pad ? padBounds(body.extent, 0.08) : body.extent;
   } catch (err) {
     console.error('[ListingsMap] extent fetch failed', err);
     return null;
@@ -207,6 +210,25 @@ async function fetchExtent(filterQuery) {
 function viewKey(map) {
   const center = map.getCenter();
   return center ? `${map.getZoom()}:${center.lat().toFixed(5)}:${center.lng().toFixed(5)}` : null;
+}
+
+/**
+ * Resolves once the map has stopped moving: its next `idle`, or after
+ * `timeoutMs` when nothing was moving (no `idle` comes then). Counting pins
+ * before this read a view still in flight — "0 biens dans cette zone" on a
+ * city switch.
+ */
+function settled(map, timeoutMs = 800) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      listener.remove();
+      resolve();
+    }, timeoutMs);
+    const listener = google.maps.event.addListenerOnce(map, 'idle', () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
 }
 
 function showView(map, { center, zoom }) {
@@ -324,12 +346,16 @@ export default function ListingsMap({
     const seq = ++selectSeqRef.current;
     const local = page?.find((listing) => sameId(listing.id, id));
     if (local) {
+      // The phone's card row reads this cache, so the tapped card draws at
+      // once instead of re-asking for a row the page already holds.
+      rememberListings([local]);
       select(local);
       return;
     }
     try {
       const response = await fetch(`/api/listings?ids=${encodeURIComponent(id)}`);
       const body = await response.json();
+      rememberListings(body.data);
       if (seq !== selectSeqRef.current) return;
       // An empty answer means the listing was unpublished since the pins
       // were fetched — nothing to preview, rather than a card for a ghost.
@@ -624,7 +650,14 @@ export default function ListingsMap({
     const req = requestRef.current;
     const firstRun = req.filterQuery === null;
     const target = locationTarget(new URLSearchParams(filterQuery));
-    const targetKey = target ? `${target.commune}|${target.quartier || ''}|${target.near || ''}` : '';
+    // The city is part of the place: Kinshasa → Lubumbashi with no commune
+    // named is a new place, and the map flies to the new city's centre. Left
+    // out, the switch read as "same place, other filters" and the map stayed
+    // on the previous city.
+    const ville = new URLSearchParams(filterQuery).get('ville') || '';
+    const targetKey = target
+      ? `${ville}|${target.commune}|${target.quartier || ''}|${target.near || ''}`
+      : `${ville}|`;
     const areaCleared = hadUrlAreaRef.current && !hasUrlArea;
     hadUrlAreaRef.current = hasUrlArea;
     const placeChanged = firstRun || areaCleared || targetKey !== req.targetKey;
@@ -654,24 +687,32 @@ export default function ListingsMap({
       return undefined;
     }
 
-    // No place named: the Kinshasa core. On first load the map is already
-    // there; after a place is cleared, this brings it back — flying, so the
+    // No place named: the city's own view — Kinshasa's core, or another
+    // city framed on its matching listings (lib/mapViewport.js
+    // cityResultsView). On first load the map moves there before any pin is
+    // counted; after a city switch or a cleared place it flies, so the
     // visitor sees where they came from (lib/mapFly.js).
     if (!target) {
-      if (firstRun) {
-        fitTo(mapRef.current, null, { home: homeViewRef.current });
-        areaRef.current = { baseline: viewKey(mapRef.current), reported: null };
-        scheduleFetch();
-        return undefined;
-      }
       let cancelledHome = false;
       req.positioning = true;
-      flyTo(mapRef.current, homeViewRef.current).then(() => {
+      (async () => {
+        const map = mapRef.current;
+        const ville = new URLSearchParams(filterQuery).get('ville');
+        const extent = ville ? await fetchExtent(filterQuery, { pad: false }) : null;
+        if (cancelledHome) return;
+        const div = map.getDiv();
+        const view = cityResultsView(ville, extent, { width: div?.clientWidth, height: div?.clientHeight })
+          || homeViewRef.current;
+        if (firstRun) showView(map, view);
+        else if (!(await flyTo(map, view)) || cancelledHome) return;
+        // The flight's last pan is not awaited by flyTo: count and fetch only
+        // on the view the map really settled on.
+        await settled(map);
         if (cancelledHome) return;
         req.positioning = false;
-        areaRef.current = { baseline: viewKey(mapRef.current), reported: null };
-        scheduleFetch();
-      });
+        areaRef.current = { baseline: viewKey(map), reported: null };
+        fetchMarkers({ force: true });
+      })();
       return () => {
         cancelledHome = true;
         req.positioning = false;
@@ -690,6 +731,8 @@ export default function ListingsMap({
         // place — there is nowhere to fly from.
         if (firstRun) showView(mapRef.current, placeView);
         else if (!(await flyTo(mapRef.current, placeView)) || cancelled) return;
+        await settled(mapRef.current);
+        if (cancelled) return;
         req.positioning = false;
         areaRef.current = { baseline: viewKey(mapRef.current), reported: null };
       } else {

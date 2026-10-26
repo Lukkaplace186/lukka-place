@@ -68,13 +68,13 @@ test('a tier no longer met voids unpaid lines and only flags paid ones', () => {
   assert.ok(!flagging.includes("status = 'void'"), 'a paid line is never voided by a query');
 });
 
-test('the quality line is once per rep, from checked credits, with the thresholds passed in', async () => {
+test('the quality line is once per rep, from agents aged 30 days, with the thresholds passed in', async () => {
   const sql = normalizeSql(QUALITY_LINE_SQL);
   assert.ok(sql.includes("'quality:' || q.rep_id") && sql.includes('DO NOTHING'));
   assert.ok(sql.includes('q.checked >= $1::int AND q.valid >= $2::numeric * q.checked'), 'a ratio parameter must not be inferred as an integer');
   await runLaunchSteps({ query: async (text, values) => { calls.push({ sql: normalizeSql(text), values }); return { rowCount: 0, rows: [] }; } });
   const quality = calls.find((c) => c.sql.includes("'quality:'"));
-  assert.deepEqual(quality.values, [15, 0.8, 25]);
+  assert.deepEqual(quality.values, [5, 0.8, 25]);
   const milestones = calls.find((c) => c.sql.includes("'acq:'"));
   assert.deepEqual(milestones.values, [[5, 10, 15, 20, 30, 40, 50], [15, 20, 25, 30, 60, 70, 80], [10, 25, 50, 100], [5, 10, 20, 45]]);
 });

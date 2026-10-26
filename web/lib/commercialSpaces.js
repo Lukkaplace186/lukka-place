@@ -4,7 +4,7 @@
  * the agent's create / edit forms.
  *
  * "Commercial" is the category's own `property_categories.type`
- * ('commercial' for Bureau, Boutique, Entrepôt, Bâtiment) — not a list of
+ * ('commercial' for Bureau, Boutique, Entrepôt, Immeuble) — not a list of
  * names kept here, so a category the back-office adds later is commercial
  * the moment it is typed so.
  *

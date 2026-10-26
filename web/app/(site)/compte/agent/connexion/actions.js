@@ -13,6 +13,7 @@ import { verifyPasswordAgainstHash, burnConstantTime, MAX_FAILED_LOGIN_ATTEMPTS,
 import { establishAgentSession } from '@/lib/agentSession';
 import { setVerifyAttemptCookie } from '@/lib/verifyAttempt';
 import { otpBypassEnabled, logOtpBypass } from '@/lib/otpBypass';
+import { recordAgentLoginAttempt } from '@/lib/agentLoginLog';
 
 function safeNext(nextParam) {
   const next = String(nextParam || '/compte/agent');
@@ -39,6 +40,7 @@ export async function agentLoginAction(formData) {
   }
 
   if (agent.locked_until && new Date(agent.locked_until) > new Date()) {
+    await recordAgentLoginAttempt(agent.id, 'locked');
     redirect(`/compte/agent/connexion?error=locked&next=${encodeURIComponent(next)}`);
   }
 
@@ -46,10 +48,14 @@ export async function agentLoginAction(formData) {
     const failedCount = agent.failed_login_count + 1;
     const shouldLock = failedCount >= MAX_FAILED_LOGIN_ATTEMPTS;
     await recordAgentFailedLogin(agent.id, { lockUntil: shouldLock ? new Date(Date.now() + LOCKOUT_MS) : null });
+    await recordAgentLoginAttempt(agent.id, 'wrong_password');
     redirect(`/compte/agent/connexion?error=${shouldLock ? 'locked' : '1'}&next=${encodeURIComponent(next)}`);
   }
 
   await clearAgentFailedLogins(agent.id);
+  // Signed in now, or sent on to prove the number first (the console shows
+  // the second as "vérification en attente").
+  await recordAgentLoginAttempt(agent.id, agent.phone_verified_at ? 'success' : 'verify_required');
 
   if (!agent.phone_verified_at && otpBypassEnabled()) {
     // No code is sent, but the number is still proven: the verify page asks

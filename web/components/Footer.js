@@ -237,7 +237,7 @@ export default async function Footer() {
         <div className="border-y border-white/15 bg-blue">
           <div className="mx-auto flex max-w-[1600px] flex-wrap items-center justify-between gap-6 px-4 py-9 sm:px-6 sm:py-12 lg:px-8 lg:py-16">
             <div className="min-w-0 max-w-[40rem]">
-              <p className="font-display text-[1.375rem] leading-[1.2] tracking-[0.1px] text-white sm:text-2xl">
+              <p className="font-bold text-[1.375rem] leading-[1.2] tracking-[0.1px] text-white sm:text-2xl">
                 {t('footer.partnerBand.title')}
               </p>
               <p className="mt-2.5 text-[1.0625rem] leading-[1.56] text-white/80">

@@ -40,6 +40,17 @@ export const LINE_ICONS = Object.freeze({
     'M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z',
     'M7.5 7.5h.01',
   ],
+  // lucide "badge-check" — "Vérifié par Lukka Place" on the feed card.
+  badgeCheck: [
+    'M3.85 8.62a4 4 0 0 1 4.78-4.77 4 4 0 0 1 6.74 0 4 4 0 0 1 4.78 4.78 4 4 0 0 1 0 6.74 4 4 0 0 1-4.77 4.78 4 4 0 0 1-6.75 0 4 4 0 0 1-4.78-4.77 4 4 0 0 1 0-6.76Z',
+    'm9 12 2 2 4-4',
+  ],
+  // lucide "image" — the feed card's photo count. Its rect and circle written as paths.
+  image: [
+    'M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z',
+    'M11 9a2 2 0 1 1-4 0a2 2 0 1 1 4 0',
+    'm21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21',
+  ],
 });
 
 export const LINE_ICON_STROKE_WIDTH = 2.25;

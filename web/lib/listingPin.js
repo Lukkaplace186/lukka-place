@@ -1,9 +1,10 @@
 import { resolveMarkerPosition } from './mapViewport';
 
 /**
- * The detail page's single listing point (components/ListingPinMap.js):
- * Rightmove-style, a round navy point with a symbol for what the property
- * is, the commune under it, and a pale disc for the approximate zone.
+ * The detail page's map (components/ListingPinMap.js): only the approximate
+ * zone, a pale circle around the listing's jittered point (2026-10-23, owner's
+ * choice). A navy point with a type symbol, then an irregular zone with a
+ * white type badge, came before it; both are gone.
  *
  * A comparison map (this listing big, similar listings nearby small) was
  * tried on 2026-09-28 and reverted the same day on product direction: the
@@ -30,38 +31,8 @@ export function storedPosition(listing) {
 }
 
 /**
- * Which symbol the pin carries: 'apartment' for a unit in a building,
- * 'land' for a bare plot (Terrain Nu), 'house' for everything else — a
- * parcelle (Villa, Maison Type Locataire) or a Maison.
- */
-export function pinKind(listing) {
-  if (listing?.parcelle_subtype === 'terrain_nu') return 'land';
-  if (listing?.parcelle_subtype) return 'house';
-  const category = String(listing?.category_name || '').toLowerCase();
-  if (category.includes('appartement') || category.includes('studio')) return 'apartment';
-  if (category.includes('terrain')) return 'land';
-  return 'house';
-}
-
-const SVG_OPEN =
-  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
-
-/** Lucide's Building2, House and LandPlot outlines, as static markup for the map point. */
-export const PIN_ICONS = {
-  apartment: `${SVG_OPEN}<path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></svg>`,
-  house: `${SVG_OPEN}<path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`,
-  land: `${SVG_OPEN}<path d="m12 8 6-3-6-3v10"/><path d="m8 11.99-5.5 3.14a1 1 0 0 0 0 1.74l8.5 4.86a2 2 0 0 0 2 0l8.5-4.86a1 1 0 0 0 0-1.74L16 12"/><path d="m6.49 12.85 11.02 6.3"/><path d="M17.51 12.85 6.5 19.15"/></svg>`,
-};
-
-/**
- * Radius of the pale "approximate zone" disc, in metres. Wider than the
+ * Radius of the pale "approximate zone" circle, in metres. Wider than the
  * privacy jitter (lib/geocoding.js, at most 400 m), so the listing's real
- * spot is always inside the disc drawn around its jittered point.
+ * spot is always inside the circle drawn around its jittered point.
  */
 export const PRIVACY_RADIUS_M = 500;
-
-/** The pill under the point: the commune, else the quartier, else nothing. */
-export function pointLabel(listing) {
-  const text = String(listing?.commune || listing?.quartier || '').trim();
-  return text || null;
-}

@@ -8,6 +8,9 @@ import { AMENITY_GROUPS, AMENITY_KEYWORDS, DEPOSIT_RANGE_OPTIONS } from './const
 import { keywordTokens } from './searchKeywords';
 import { UTILITY_FILTERS } from './utilityTags';
 import { COMMERCIAL_FILTER_VALUE } from './commercialSpaces';
+import { VIDEOS_SQL } from './listingVideos';
+import { longTermSql, normaliseLeaseTerm, shortTermSql } from './leaseTerm';
+import { DETAILS_SQL, PLOT_M2_SQL, plotBounds } from './listingDetails';
 
 /**
  * Every read against `properties` filters on this — no exceptions. There is
@@ -258,6 +261,10 @@ const SELECT_FIELDS = `
   -- Kinshasa utility codes the agent stated (lib/utilityTags.js); a jsonb
   -- array, [] before the migration or when none were stated.
   COALESCE(to_jsonb(p) -> 'utilities', '[]'::jsonb) AS utilities,
+  -- Practical details (lib/listingDetails.js): furnished, households, landlord,
+  -- toilet / shower, meter, plot size, instalments — one jsonb, nulls before
+  -- the engine migration.
+  ${DETAILS_SQL} AS listing_details,
   pc.description,
   a.id AS agent_id, a.image AS agency_logo_url, ${AGENCY_NAME_EXPR},
   -- DIRECT-TO-AGENT ROUTING. The agent's number reaches a public page only
@@ -415,7 +422,63 @@ function communeListOf({ commune, communes } = {}) {
  *     path has parcelle_subtype set. Filtering on parcelle_subtype is the
  *     precise match for "this is a parcelle listing".
  */
-function buildFilters({ transactionType, propertyType, parcelleSubtype, commune, communes, quartier, radius, near, reference, priceMin, priceMax, bedsMin, bathMin, depositMax, depositRange, amenities, search, excludeId, agentId, ids, ville }) {
+/**
+ * Property-type filter values that match more than one stored name.
+ * Immeuble was "Bâtiment" until 2026-10-22 (engine migration
+ * 20261022_property_types_immeuble_villa_concession.sql), and old links,
+ * saved searches and alerts still carry "bâtiment". A villa is either the
+ * Villa category or a parcelle the engine sub-typed villa — before that
+ * category existed, the only kind there was.
+ */
+/** "Plus de filtres" amenity keys backed by a practical-detail column too. */
+const AMENITY_DETAIL_COLUMNS = { generator: 'has_generator', solar: 'has_solar', pool: 'has_pool', gym: 'has_gym' };
+
+const CATEGORY_ALIASES = {
+  // 2026-10-22: Studio, Chambre / Annexe and Ferme / Terrain
+  // agricole became categories. A studio filed under Appartement before then
+  // still says so in its title.
+  studio: { names: ['studio'], titleWord: 'studio', titleCategories: ['appartement'] },
+  chambre: { names: ['chambre / annexe'] },
+  annexe: { names: ['chambre / annexe'] },
+  ferme: { names: ['ferme / terrain agricole'] },
+  immeuble: { names: ['immeuble', 'bâtiment'] },
+  'bâtiment': { names: ['immeuble', 'bâtiment'] },
+  batiment: { names: ['immeuble', 'bâtiment'] },
+  // Before 2026-10-22 the engine filed every WhatsApp villa under Maison
+  // (one sits under Duplex, "Villa duplex"); their titles still say so.
+  villa: { names: ['villa'], parcelleSubtype: 'villa', titleWord: 'villa', titleCategories: ['maison', 'duplex'] },
+};
+
+/**
+ * The WHERE fragment for a CATEGORY_ALIASES key, pushing its params. One
+ * definition for the filter and for the facet count, so "Villa 5" opens
+ * exactly five listings. Needs `catc`, `pc` and `p`.
+ */
+/** One city's listings, by name; a Kinshasa row that predates city_id (NULL) counts as Kinshasa. */
+function cityClause(city, params) {
+  params.push(city);
+  const nullClause = city === DEFAULT_CITY ? ' OR p.city_id IS NULL' : '';
+  return `(p.city_id IN (SELECT city_id FROM property_city_contents WHERE LOWER(name) = LOWER($${params.length}))${nullClause})`;
+}
+
+function categoryAliasClause(key, params) {
+  const { names, parcelleSubtype: aliasSubtype, titleWord, titleCategories = [] } = CATEGORY_ALIASES[key];
+  params.push(names);
+  let clause = `LOWER(catc.name) = ANY($${params.length})`;
+  if (titleWord) {
+    params.push(titleCategories);
+    const categoriesIdx = params.length;
+    params.push(`\\y${escapeRegex(titleWord)}`);
+    clause = `${clause} OR (LOWER(catc.name) = ANY($${categoriesIdx}) AND pc.title ~* $${params.length})`;
+  }
+  if (aliasSubtype) {
+    params.push(aliasSubtype);
+    clause = `${clause} OR p.parcelle_subtype = $${params.length}`;
+  }
+  return `(${clause})`;
+}
+
+function buildFilters({ transactionType, propertyType, parcelleSubtype, commune, communes, quartier, radius, near, reference, priceMin, priceMax, bedsMin, bathMin, depositMax, depositRange, leaseTerm, plotMin, plotMax, amenities, search, excludeId, agentId, ids, ville }) {
   const where = [APPROVED_FILTER];
   const params = [];
 
@@ -424,6 +487,24 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
   if (purpose) {
     params.push(purpose);
     where.push(`p.purpose = $${params.length}`);
+  }
+
+  // "Durée" — courte durée (priced per day / week) or longue durée, the
+  // standard (lib/leaseTerm.js). Either one implies a rental.
+  const term = normaliseLeaseTerm(leaseTerm);
+  if (term) where.push(term === 'short' ? shortTermSql('p') : longTermSql('p'));
+
+  // Taille du terrain, in m² (lib/listingDetails.js): the stated plot, else
+  // the area of a listing whose category IS land. A listing with no known
+  // size never matches a size filter.
+  const plot = plotBounds(plotMin, plotMax);
+  if (plot.plotMin) {
+    params.push(plot.plotMin);
+    where.push(`${PLOT_M2_SQL} >= $${params.length}`);
+  }
+  if (plot.plotMax) {
+    params.push(plot.plotMax);
+    where.push(`${PLOT_M2_SQL} <= $${params.length}`);
   }
 
   const minPrice = Number.parseFloat(priceMin);
@@ -546,6 +627,19 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
         params.push(`\\y${escapeRegex(keyword)}`);
         return keywordTextMatch(params.length);
       });
+      // Meublé: the agent's stated `furnished` (lib/listingDetails.js) OR the
+      // words, for the many listings that predate the column. A listing the
+      // agent marked unfurnished is left out even if its text says "meublé".
+      if (key === 'furnished') {
+        where.push(`(to_jsonb(p) ->> 'furnished' = 'true' OR (COALESCE(to_jsonb(p) ->> 'furnished', '') <> 'false' AND (${group.join(' OR ')})))`);
+        continue;
+      }
+      // Generator, solar, pool, gym: the agent's ticked box OR the words.
+      const column = AMENITY_DETAIL_COLUMNS[key];
+      if (column) {
+        where.push(`(to_jsonb(p) ->> '${column}' = 'true' OR ${group.join(' OR ')})`);
+        continue;
+      }
       where.push(`(${group.join(' OR ')})`);
     }
   }
@@ -560,6 +654,8 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
     // Offices, shops, warehouses, buildings — every category the back-office
     // types 'commercial' (lib/commercialSpaces.js), not a list of names.
     where.push(`LOWER(cat.type) = 'commercial'`);
+  } else if (propertyType && CATEGORY_ALIASES[propertyType.toLowerCase()]) {
+    where.push(categoryAliasClause(propertyType.toLowerCase(), params));
   } else if (propertyType) {
     // Case-insensitive on purpose: the live rows are 'Appartement' and
     // 'Maison' (capitalised), while this comparison used to be hardcoded to
@@ -698,11 +794,10 @@ function buildFilters({ transactionType, propertyType, parcelleSubtype, commune,
   // in it. An explicit id list or an agent's portfolio is not a feed and is
   // never narrowed. Matched by name through the Laravel taxonomy, and a
   // Kinshasa row that predates city_id (NULL) still counts as Kinshasa.
+  // `ville=toutes` with no commune names no city: every city's listings.
   if (!(Array.isArray(ids) && ids.length) && !Number.isFinite(Number.parseInt(agentId, 10))) {
     const city = searchCityOf({ ville, commune, communes });
-    params.push(city);
-    const nullClause = city === DEFAULT_CITY ? ' OR p.city_id IS NULL' : '';
-    where.push(`(p.city_id IN (SELECT city_id FROM property_city_contents WHERE LOWER(name) = LOWER($${params.length}))${nullClause})`);
+    if (city) where.push(cityClause(city, params));
   }
 
   return { whereClause: where.join(' AND '), params };
@@ -1415,6 +1510,30 @@ export async function getPopularCommunes(limit = 6) {
   return rows.map((r) => ({ commune: r.commune, count: Number.parseInt(r.count, 10) }));
 }
 
+/**
+ * Whether a listing page exists: the same public gate and the same three
+ * inner joins as getListingById, so the two never disagree, but no columns.
+ * Called by app/(site)/listings/[id]/layout.js ABOVE the page's loading.js,
+ * which is what lets a dead listing answer a real 404 instead of a streamed
+ * 200 + noindex. Cheap on purpose: prefetching a listing card runs it too.
+ */
+export async function publicListingExists(id) {
+  const numericId = Number.parseInt(id, 10);
+  if (!Number.isFinite(numericId)) return false;
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT 1
+     FROM properties p
+     JOIN property_contents pc ON pc.property_id = p.id AND pc.language_id = ${CONTENT_LANGUAGE_ID}
+     JOIN property_categories cat ON cat.id = p.category_id
+     JOIN property_category_contents catc ON catc.category_id = cat.id AND catc.language_id = ${CATEGORY_LANGUAGE_ID}
+     WHERE p.id = $1 AND ${APPROVED_FILTER}
+     LIMIT 1`,
+    [numericId],
+  );
+  return rows.length > 0;
+}
+
 export async function getListingById(id) {
   const numericId = Number.parseInt(id, 10);
   if (!Number.isFinite(numericId)) return null;
@@ -1430,7 +1549,8 @@ export async function getListingById(id) {
     `SELECT ${SELECT_FIELDS},
        (to_jsonb(p) ->> 'availability_confirmed_at') AS availability_confirmed_at,
        (to_jsonb(p) ->> 'development_id') AS development_id,
-       (to_jsonb(p) ->> 'unit_label') AS unit_label
+       (to_jsonb(p) ->> 'unit_label') AS unit_label,
+       ${VIDEOS_SQL} AS videos
      ${FROM_JOINS}
      WHERE p.id = $1 AND ${APPROVED_FILTER}`,
     [numericId],
@@ -1488,6 +1608,7 @@ const MODERATION_SELECT_FIELDS = `
      'road_frontage', j -> 'road_frontage', 'truck_access', j -> 'truck_access')
    FROM (SELECT to_jsonb(p) AS j) spec) AS commercial_specs,
   cat.type AS category_type,
+  ${DETAILS_SQL} AS listing_details,
   (pc.id IS NULL) AS missing_content,
   (catc.id IS NULL) AS missing_category,
   a.id AS agent_id, a.image AS agency_logo_url, ${AGENCY_NAME_EXPR}, a.phone AS agent_phone,
@@ -1649,22 +1770,32 @@ export async function getSimilarListings(id, limit = 6) {
   return rows;
 }
 
-export async function getPropertyTypeFacets() {
+export async function getPropertyTypeFacets({ city = null } = {}) {
   const pool = getPool();
 
-  const [categories, parcelle] = await Promise.all([
+  // With a city, the counts are that city's — the same rule the /listings
+  // feed applies (cityClause), so a chip's number is the page it opens. With
+  // none (the homepage, whose search starts on "Toutes les villes"), national.
+  const cityParams = [];
+  const cityWhere = city ? ` AND ${cityClause(city, cityParams)}` : '';
+  const villaParams = [...cityParams];
+  const villaClause = categoryAliasClause('villa', villaParams);
+  const [categories, parcelle, villa] = await Promise.all([
     pool.query(
       `SELECT catc.name AS label, LOWER(MIN(cat.type)) AS category_type, COUNT(*) AS n
        ${FROM_JOINS}
-       WHERE ${APPROVED_FILTER}
+       WHERE ${APPROVED_FILTER}${cityWhere}
        GROUP BY catc.name
        ORDER BY n DESC, label ASC`,
+      cityParams,
     ),
     pool.query(
       `SELECT COUNT(*) AS n
        ${FROM_JOINS}
-       WHERE ${APPROVED_FILTER} AND p.parcelle_subtype IS NOT NULL`,
+       WHERE ${APPROVED_FILTER}${cityWhere} AND p.parcelle_subtype IS NOT NULL`,
+      cityParams,
     ),
+    pool.query(`SELECT COUNT(*) AS n ${FROM_JOINS} WHERE ${APPROVED_FILTER}${cityWhere} AND ${villaClause}`, villaParams),
   ]);
 
   const facets = categories.rows.map((r) => ({
@@ -1691,6 +1822,14 @@ export async function getPropertyTypeFacets() {
     });
   }
 
+  // Villa: the Villa category plus the villas filed before it existed
+  // (CATEGORY_ALIASES) — an overlay like Parcelle, so it can re-count a
+  // Maison. Replaces the bare category row, which would undercount.
+  const villaCount = Number.parseInt(villa.rows[0]?.n ?? 0, 10);
+  const villaRow = facets.findIndex((f) => f.value === 'villa');
+  if (villaRow !== -1) facets.splice(villaRow, 1);
+  if (villaCount > 0) facets.push({ value: 'villa', label: 'Villa', count: villaCount, group: 'residential', overlay: true });
+
   const parcelleCount = Number.parseInt(parcelle.rows[0].n, 10);
   if (parcelleCount > 0) {
     facets.unshift({ value: 'parcelle', label: 'Parcelle', count: parcelleCount });
@@ -1714,7 +1853,7 @@ export async function getPropertyTypeFacets() {
  */
 export async function getListingStats(options = {}) {
   const { whereClause, params } = buildFilters(options);
-  const priced = `p.price > 0 AND (p.purpose <> 'rent' OR p.price_period IS DISTINCT FROM 'an')`;
+  const priced = `p.price > 0 AND (p.purpose <> 'rent' OR p.price_period IS DISTINCT FROM 'an') AND COALESCE(p.price_period, '') NOT IN ('jour', 'semaine')`;
   const pool = getPool();
   const [{ rows }, { rows: quartierRows }] = await Promise.all([
     pool.query(

@@ -35,7 +35,9 @@ import {
   findRecentOwnDuplicate,
   setListingUtilities,
   setListingCommercialSpecs,
+  setListingDetails,
 } from '@/lib/agentListings';
+import { listingDetailsFromForm } from '@/lib/listingDetails';
 import { commercialSpecsFromForm, isCommercial } from '@/lib/commercialSpaces';
 import { getCdfRate } from '@/lib/currencyRate';
 import { convertCdfToUsd } from '@/lib/format';
@@ -53,6 +55,7 @@ import { LEAD_STATUSES } from '@/lib/adminLabels';
 import { currentQuotaPeriodStart, resolveLeadQuota } from '@/lib/leadQuota';
 import { createPlanChangeRequest, getPurchasablePackages } from '@/lib/subscriptions';
 import { getT } from '@/lib/i18n/server';
+import { normaliseArea } from '@/lib/listingView';
 import { getListingQuota } from '@/lib/listingQuota';
 import { quotaRefusal } from '@/lib/listingQuotaRules';
 import { AGENT_SETTABLE_VIEWING_STATUSES, canAgentSetStatus } from '@/lib/viewingActions';
@@ -334,6 +337,8 @@ export async function createListingAction(validCommunes, validCategories, formDa
   const title = String(formData.get('title') || '').trim().slice(0, 150);
   const description = String(formData.get('description') || '').trim().slice(0, 4000);
   const purpose = String(formData.get('purpose') || '');
+  // Per month (the standard), or per day / week for a short-term rental.
+  const rentPeriod = String(formData.get('rent_period') || '');
   const commune = String(formData.get('commune') || '');
   const categoryId = Number.parseInt(formData.get('category_id'), 10);
   const price = Number.parseFloat(formData.get('price'));
@@ -346,7 +351,7 @@ export async function createListingAction(validCommunes, validCategories, formDa
   // (see hasArea() in lib/listingView.js), so an unknown surface must stay
   // empty, not become a zero.
   const areaRaw = formData.get('area');
-  const area = areaRaw ? Number.parseInt(areaRaw, 10) : null;
+  const area = normaliseArea(areaRaw);
   const quartier = String(formData.get('quartier') || '').trim() || null;
   const reference = String(formData.get('reference') || '').trim().slice(0, 120) || null;
   const photos = formData.getAll('photos').filter((f) => f && typeof f !== 'string' && f.size > 0);
@@ -401,6 +406,7 @@ export async function createListingAction(validCommunes, validCategories, formDa
     area,
     quartier,
     reference,
+    rentPeriod,
   });
 
   if (commercialSpecs && Object.values(commercialSpecs).some((value) => value !== null)) {
@@ -409,6 +415,18 @@ export async function createListingAction(validCommunes, validCategories, formDa
       if (saved === 'unavailable') console.warn(`[compte/agent] commercial specs for #${propertyId} not saved — columns missing`);
     } catch (err) {
       console.error(`[compte/agent] commercial specs for #${propertyId}: ${err.message}`);
+    }
+  }
+
+  // Practical details (lib/listingDetails.js) — only what the agent stated;
+  // the setter re-gates them on the category and purpose just written.
+  const details = listingDetailsFromForm(formData);
+  if (Object.values(details).some((value) => value !== null)) {
+    try {
+      const saved = await setListingDetails(agentId, propertyId, details);
+      if (saved === 'unavailable') console.warn(`[compte/agent] details for #${propertyId} not saved — columns missing`);
+    } catch (err) {
+      console.error(`[compte/agent] details for #${propertyId}: ${err.message}`);
     }
   }
 
@@ -615,8 +633,8 @@ export async function replyToLeadAction(leadId, formData) {
  * The design's "Identité de l'agence" card, saving for real.
  *
  * Writes only the two fields this app actually reads back and renders on the
- * public storefront — the display name (agent_infos) and the presentation
- * text (vendor_infos.details) — through lib/agencies.js's
+ * public storefront — the display name and the presentation text (both on
+ * the agent's own agent_infos row) — through lib/agencies.js's
  * updateAgentIdentity, which handles the UPDATE-then-INSERT those
  * constraint-less per-language tables require.
  *
@@ -632,7 +650,8 @@ export async function updateAgentIdentityAction(formData) {
 
   const firstName = String(formData.get('first_name') || '').trim().slice(0, 120);
   const lastName = String(formData.get('last_name') || '').trim().slice(0, 120);
-  const bio = String(formData.get('bio') || '').trim().slice(0, 2000);
+  // Absent (a form rendered before the field existed) leaves it untouched.
+  const bio = formData.has('bio') ? String(formData.get('bio') || '').trim().slice(0, 2000) : undefined;
   // Absent (a form rendered before the field existed) leaves it untouched.
   const agencyName = formData.has('agency_name') ? String(formData.get('agency_name') || '').trim().slice(0, 160) : undefined;
 
@@ -641,7 +660,7 @@ export async function updateAgentIdentityAction(formData) {
   const agent = await getAgentProfile(agentId);
   if (!agent) throw new Error('Not authenticated');
 
-  await updateAgentIdentity(agentId, { firstName, lastName, bio, vendorId: agent.vendor_id, agencyName });
+  await updateAgentIdentity(agentId, { firstName, lastName, bio, agencyName });
 
   revalidatePath('/compte/agent/parametres');
   revalidatePath('/compte/agent');
@@ -886,8 +905,11 @@ export async function updateListingAction(propertyId, validCommunes, formData) {
   const bath = optionalInt('bath');
   const unitsCount = optionalInt('units_count');
   const depositMonths = optionalInt('deposit_months');
+  // Absent from the form → undefined, so the column is left as it is.
+  const advanceMonths = formData.get('advance_months') === null ? undefined : optionalInt('advance_months');
+  const commissionMonths = formData.get('commission_months') === null ? undefined : optionalInt('commission_months');
   const areaRaw = formData.get('area');
-  const areaNumber = String(areaRaw ?? '').trim() === '' ? null : Number.parseFloat(areaRaw);
+  const areaNumber = normaliseArea(areaRaw);
 
   if (!title) return { ok: false, error: t('errors.titleRequired') };
   if (description.length < 15) return { ok: false, error: t('errors.descriptionTooShort') };
@@ -899,6 +921,8 @@ export async function updateListingAction(propertyId, validCommunes, formData) {
     [bath, 'errors.fieldBathrooms'],
     [unitsCount, 'errors.fieldDoors'],
     [depositMonths, 'errors.fieldDepositMonths'],
+    [advanceMonths ?? null, 'errors.fieldAdvanceMonths'],
+    [commissionMonths ?? null, 'errors.fieldCommissionMonths'],
   ]) {
     if (value !== null && (!Number.isFinite(value) || value < 0)) {
       return { ok: false, error: t('errors.invalidCount', { field: t(fieldKey) }) };
@@ -970,7 +994,8 @@ export async function updateListingAction(propertyId, validCommunes, formData) {
   try {
     owned = await updateListing(agentId, propertyId, {
       title, description, commune, price, priceOriginal, currency, beds, bath, area, quartier,
-      unitsCount, depositMonths, amenityIds, reference,
+      unitsCount, depositMonths, advanceMonths, commissionMonths, amenityIds, reference,
+      rentPeriod: String(formData.get('rent_period') || ''),
     });
   } catch (err) {
     if (err instanceof PriceSyncError) return { ok: false, error: t('errors.priceSyncUnavailable') };
@@ -988,6 +1013,17 @@ export async function updateListingAction(propertyId, validCommunes, formData) {
       if (saved === 'unavailable') console.warn(`[compte/agent] commercial specs for #${propertyId} not saved — columns missing`);
     } catch (err) {
       console.error(`[compte/agent] commercial specs for #${propertyId}: ${err.message}`);
+    }
+  }
+
+  // The editor always sends the whole details fieldset (an empty select is
+  // "not stated"), so a cleared field is cleared.
+  if (formData.get('details_touched') === '1') {
+    try {
+      const saved = await setListingDetails(agentId, propertyId, listingDetailsFromForm(formData));
+      if (saved === 'unavailable') console.warn(`[compte/agent] details for #${propertyId} not saved — columns missing`);
+    } catch (err) {
+      console.error(`[compte/agent] details for #${propertyId}: ${err.message}`);
     }
   }
 

@@ -35,6 +35,7 @@ async function engineFetch(path, options = {}) {
   if (!res.ok) {
     const error = new Error(body?.error || `${options.method || 'GET'} ${path} failed: ${res.status}`);
     error.status = res.status;
+    if (body?.code) error.code = body.code;
     throw error;
   }
   return body;
@@ -485,6 +486,37 @@ export async function claimListingsForPhone(phone) {
 }
 
 /**
+ * "Créer un agent" (console only): a verified account with no code from the
+ * phone, its listings claimed, and a single-use activation link returned —
+ * nothing is sent. A refusal carries `error.code` (lib/adminAgentCreate.js).
+ * @returns {Promise<{agentId: number, phone: string, link: string, claimed: {linkedIds: number[], localStamped: number}}>}
+ */
+export async function adminCreateAgent({ phone, firstName, lastName, agencyName, primaryCommunes }) {
+  return engineFetch('/admin/agents/admin-create', {
+    method: 'POST',
+    body: JSON.stringify({
+      phone,
+      first_name: firstName,
+      last_name: lastName,
+      agency_name: agencyName,
+      primary_communes: primaryCommunes,
+    }),
+  });
+}
+
+/**
+ * "Vérifier le numéro" on an existing account (console only). `link` is set
+ * only when the account has no password yet.
+ * @returns {Promise<{agentId: number, phone: string, alreadyVerified: boolean, link: string|null, claimed: object}>}
+ */
+export async function adminVerifyAgent(agentId, { issueLink = true } = {}) {
+  return engineFetch(`/admin/agents/${encodeURIComponent(agentId)}/admin-verify`, {
+    method: 'POST',
+    body: JSON.stringify({ issue_link: issueLink }),
+  });
+}
+
+/**
  * Smart Paste (agent dashboard) — sends raw pasted listing text to the
  * engine's Sonnet/GPT-backed extractor (POST /admin/parse-listing) and gets
  * back structured fields + a clean generated description. Mapping those
@@ -709,4 +741,14 @@ export async function setEnginePrice(propertyId, { price, priceOriginal, currenc
   });
   const body = await res.json().catch(() => null);
   return { status: res.status, body };
+}
+
+/** Console "Supprimer" on a prospect: the lead, its visits, matches and proposals (engine db.deleteLead). */
+export async function deleteLeadRecord(id) {
+  return engineFetch(`/admin/leads/${encodeURIComponent(id)}`, { method: 'DELETE' });
+}
+
+/** Console "Supprimer" on a visit request; the prospect stays (engine db.deleteViewingRequest). */
+export async function deleteViewingRequestRecord(id) {
+  return engineFetch(`/admin/viewing-requests/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }

@@ -37,7 +37,7 @@ export default async function AgentPortfolioBanner({ liveCount, profileUrl, prof
           <div className="text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-white/70">
             {t('agent.portfolio.yourPublicPortfolio')}
           </div>
-          <p className="font-display mt-1.5 text-[1.5rem] leading-[1.15] sm:text-[1.75rem]">
+          <p className="font-bold mt-1.5 text-[1.5rem] leading-[1.15] sm:text-[1.75rem]">
             {liveCount === 0 ? t('agent.portfolio.pageReady') : t('agent.portfolio.shareHeadline', { count: liveCount })}
           </p>
           <a

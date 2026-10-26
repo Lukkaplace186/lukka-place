@@ -5,6 +5,7 @@ import { useT } from '@/lib/i18n/client';
 import { ChevronRight } from 'lucide-react';
 import SortDropdown from './SortDropdown';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { DEFAULT_CITY, communeLabel } from '@/lib/cities';
 
 /**
  * Results header — breadcrumb, real result count and sort, following the
@@ -23,16 +24,19 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  * `${subject} ${label} à ${place}` concatenation hardcodes the French
  * preposition into the structure itself.
  */
-function buildHeading({ t, commune, communes, quartier, transactionType, propertyTypeLabel, citywide, communeWide, mapArea, relaxation }) {
+function buildHeading({ t, city = DEFAULT_CITY, commune, communes, quartier, transactionType, propertyTypeLabel, citywide, communeWide, mapArea, relaxation }) {
   const subject = propertyTypeLabel || t('listings.results.subjectFallback');
   // Place names are real data and are never translated. Several communes
   // ("Gombe ou Ngaliema") are all named — the search covers every one.
-  const communePlace = Array.isArray(communes) && communes.length > 1 ? communes.join(', ') : commune;
+  // A suffixed key ("Kalamu (Boma)") reads as its plain name; with no place,
+  // the city searched (`ville` or the commune's city), never Kinshasa by default.
+  const communePlace =
+    Array.isArray(communes) && communes.length > 1 ? communes.map(communeLabel).join(', ') : commune ? communeLabel(commune) : commune;
   const place = citywide
-    ? 'Kinshasa'
+    ? city
     : communeWide || relaxation?.quartierWidened
       ? communePlace
-      : quartier || communePlace || 'Kinshasa';
+      : quartier || communePlace || city;
   const transaction =
     transactionType === 'location'
       ? t('search.label.toRent')
@@ -44,6 +48,8 @@ function buildHeading({ t, commune, communes, quartier, transactionType, propert
   if (mapArea) return t('listings.results.areaHeading', { subject, transaction });
   // Nearest alternatives are not "in" the place searched — they are near it.
   if (relaxation?.nearby) return t('listings.results.headingNear', { subject, transaction, place: communePlace || place });
+  // "Toutes les villes" with no commune: the page passes city = null.
+  if (!place) return t('listings.results.headingNational', { subject, transaction });
   return t('listings.results.heading', { subject, transaction, place });
 }
 
@@ -89,6 +95,7 @@ export default function ResultsHeader({
   total,
   commune,
   communes = null,
+  city = DEFAULT_CITY,
   quartier,
   transactionType,
   propertyTypeLabel,
@@ -119,6 +126,7 @@ export default function ResultsHeader({
   const t = useT();
   const heading = buildHeading({
     t,
+    city,
     commune,
     communes,
     quartier,
@@ -135,7 +143,7 @@ export default function ResultsHeader({
     { label: t('breadcrumb.home'), href: '/' },
     { label: t('breadcrumb.listings'), href: '/listings' },
   ];
-  if (commune) crumbs.push({ label: commune, href: `/listings?commune=${encodeURIComponent(commune)}` });
+  if (commune) crumbs.push({ label: communeLabel(commune), href: `/listings?commune=${encodeURIComponent(commune)}` });
 
   return (
     // mb-2, not the previous mb-5, below lg — "tight top block, first card

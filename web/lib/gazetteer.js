@@ -62,7 +62,7 @@ function spaced(value) {
 const FUZZY_STOPWORDS = new Set([
   'chambre', 'chambres', 'salon', 'salons', 'petit', 'petite', 'petits', 'petites', 'grand', 'grande', 'grands',
   'grandes', 'cite', 'mont', 'maison', 'maisons', 'appartement', 'appartements', 'appart', 'apparts', 'studio',
-  'studios', 'villa', 'villas', 'terrain', 'terrains', 'parcelle', 'parcelles', 'duplex', 'immeuble', 'bureau',
+  'studios', 'villa', 'villas', 'terrain', 'terrains', 'parcelle', 'parcelles', 'duplex', 'immeuble', 'immeubles', 'concession', 'concessions', 'bureau',
   'bureaux', 'magasin', 'depot', 'entrepot', 'avec', 'pour', 'dans', 'louer', 'vendre', 'vente', 'location',
   'achat', 'acheter', 'prix', 'budget', 'dollars', 'moins', 'entre', 'sous', 'quartier', 'commune', 'avenue',
   'route', 'place', 'rond', 'point', 'marche', 'pont', 'port', 'hopital', 'ecole', 'eglise', 'universite',

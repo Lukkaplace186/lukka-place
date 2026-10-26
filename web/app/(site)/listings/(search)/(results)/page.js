@@ -15,6 +15,7 @@ import {
 import { getLocationHierarchySafe } from '@/lib/locations';
 import { parseListingsSearchParams } from '@/lib/searchQuery';
 import { getPublicCities, publicVille } from '@/lib/publicCities';
+import { DEFAULT_CITY, isAllCities, searchCityOf } from '@/lib/cities';
 import { PROPERTY_TYPE_PLURAL_KEYS } from '@/lib/constants';
 import { getT } from '@/lib/i18n/server';
 import { MAP_BOUNDS_PARAMS } from '@/lib/mapViewport';
@@ -27,7 +28,7 @@ import { landmarkPoint, listingDistanceKm } from '@/lib/landmarks';
 /** Filters worth logging as "a search" (sort/view/page are not). */
 const SEARCH_LOG_KEYS = [
   'transaction_type', 'commune', 'communes', 'quartier', 'radius', 'property_type', 'parcelle_subtype',
-  'price_min', 'price_max', 'beds_min', 'bath_min', 'deposit_max', 'deposit_range', 'amenities', 'q', 'reference',
+  'price_min', 'price_max', 'beds_min', 'bath_min', 'deposit_max', 'deposit_range', 'lease_term', 'plot_min', 'plot_max', 'amenities', 'q', 'reference',
 ];
 
 /**
@@ -64,7 +65,9 @@ export async function generateMetadata({ searchParams }) {
   // nested openGraph object rather than merging it, so the card carries its
   // own image (the same one app/layout.js uses).
   const city = await publicVille(Array.isArray(params.ville) ? params.ville[0] : params.ville);
-  if (city) {
+  // "Toutes les villes" (ville=toutes) takes the generic branch: noindex, as
+  // any filtered search that matches no landing page.
+  if (city && !isAllCities(city)) {
     const title = t('site.cityMetaTitle', { city });
     const description = t('site.cityMetaDescription', { city });
     return {
@@ -72,8 +75,10 @@ export async function generateMetadata({ searchParams }) {
       description,
       openGraph: { title, description, type: 'website', images: [{ url: CITY_SHARE_IMAGE, width: 1200, height: 630, alt: title }] },
       twitter: { card: 'summary_large_image', title, description, images: [CITY_SHARE_IMAGE] },
-      alternates: { canonical: `/listings?ville=${encodeURIComponent(city)}` },
-      robots: { index: false, follow: true },
+      // A city's landing page (/location/lubumbashi) is the canonical when
+      // the filters match one exactly, like a Kinshasa commune's.
+      alternates: { canonical: landing || `/listings?ville=${encodeURIComponent(city)}` },
+      robots: landing ? undefined : { index: false, follow: true },
     };
   }
   return {
@@ -98,6 +103,11 @@ export default async function ListingsPage({ searchParams }) {
   // shows Kinshasa, as it does for every link without one.
   filters.ville = await publicVille(filters.ville);
   const publicCities = await getPublicCities();
+  // The city the results are in: `ville`, else the searched commune's city
+  // (lib/listings.js buildFilters reads it the same way). A commune link such
+  // as the homepage's "Lubumbashi" chip carries no `ville`, and the picker,
+  // heading and suggestions must still say Lubumbashi, not Kinshasa.
+  const searchCity = searchCityOf(filters);
 
   // The hierarchy comes from the engine and only feeds the filter bar, so a
   // failure there degrades the filters rather than 500-ing a page whose
@@ -121,7 +131,8 @@ export default async function ListingsPage({ searchParams }) {
     cachedCommuneShowcase(24),
     cachedPriceRange(),
   ]);
-  const propertyTypes = await cachedPropertyTypeFacets();
+  // The searched city's counts: the feed below is that one city.
+  const propertyTypes = await cachedPropertyTypeFacets(searchCity);
 
   // "Près de UPN": each card says how far it is from the landmark, from the
   // listing's own stored point only (lib/landmarks.js).
@@ -220,6 +231,7 @@ export default async function ListingsPage({ searchParams }) {
           cities={publicCities}
           defaults={{
             ville: filters.ville,
+            searchCity,
             transactionType: params.transaction_type,
             commune: params.commune,
             communes: params.communes,
@@ -233,6 +245,9 @@ export default async function ListingsPage({ searchParams }) {
             bathMin: params.bath_min,
             depositMax: params.deposit_max,
             depositRange: params.deposit_range,
+            leaseTerm: params.lease_term,
+            plotMin: params.plot_min,
+            plotMax: params.plot_max,
             // Same comma-separated-string -> array parsing as lib/searchQuery.js's
             // parseListingsSearchParams (kept in step with it manually since this
             // object is FilterBar's *initial client state* seed, not the query
@@ -264,6 +279,7 @@ export default async function ListingsPage({ searchParams }) {
             total={total}
             commune={params.commune}
             communes={filters.communes}
+            city={searchCity}
             quartier={params.quartier}
             transactionType={params.transaction_type}
             propertyTypeLabel={propertyTypeLabel}
@@ -285,7 +301,7 @@ export default async function ListingsPage({ searchParams }) {
         {count === 0 && !mapArea ? (
           <ListingsEmptyState
             // Inside another city (?ville=), Kinshasa's communes are no suggestion.
-            popularCommunes={filters.ville ? [] : nearbyCommunes}
+            popularCommunes={searchCity !== DEFAULT_CITY ? [] : nearbyCommunes}
             params={params}
             propertyTypeLabel={propertyTypeLabel}
           />

@@ -3,7 +3,7 @@
 import { useMemo, useState, useTransition } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { BadgeCheck, Building2, MoreHorizontal, PauseCircle, PlayCircle, ScanEye, Settings2, Trash2 } from 'lucide-react';
+import { BadgeCheck, BellRing, Building2, History, MoreHorizontal, PauseCircle, PlayCircle, ScanEye, Settings2, Trash2 } from 'lucide-react';
 import { useToast } from '@/components/Toast';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -20,7 +20,9 @@ import { bulkUpdateAgentStatusAction } from './bulkActions';
 import { assignBranchAction } from '../agencies/[id]/branchActions';
 import { ImpersonateDialog } from '../ImpersonateButton';
 import DeleteAgentDialog from './DeleteAgentDialog';
+import { sendVerificationReminderAction } from './verificationReminderActions';
 import { BulkDeleteButton, useBulkDelete } from '../BulkDelete';
+import { getAgentLoginHistoryAction } from './loginHistoryActions';
 
 const BUTTON =
   'u-press u-micro-strong inline-flex h-8 items-center gap-1.5 rounded-md border border-line bg-surface px-2.5 text-ink transition-colors hover:border-blue disabled:opacity-50';
@@ -38,7 +40,9 @@ const BUTTON =
  * `branchContext` ({vendorId, branches}) is passed on an agency's own page and
  * adds "move to branch" to the bulk bar — branches only exist within an agency.
  */
-export default function AgentsTable({ rows, vendors, footer, branchContext = null, canImpersonate = false, canDelete = false, sharedSession = false }) {
+export default function AgentsTable({
+  rows, vendors, footer, branchContext = null, canImpersonate = false, canDelete = false, canManage = true, sharedSession = false,
+}) {
   const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
@@ -49,9 +53,29 @@ export default function AgentsTable({ rows, vendors, footer, branchContext = nul
   const [impersonating, setImpersonating] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const bulkDelete = useBulkDelete('agent', { onDeleted: () => setSelected(new Set()) });
+  // { agent, loading, rows, available, error } while the history dialog is open.
+  const [history, setHistory] = useState(null);
+  // Drawn only when the page loaded sign-in history (row.login !== undefined).
+  const showLogin = rows.some((row) => row.login !== undefined);
+
+  async function openHistory(agent) {
+    setHistory({ agent, loading: true, rows: [] });
+    let result;
+    try {
+      result = await getAgentLoginHistoryAction(agent.id);
+    } catch (err) {
+      result = { ok: false, error: err.message };
+    }
+    setHistory((current) => (current?.agent.id === agent.id
+      ? { agent, loading: false, rows: result.rows || [], available: result.available, error: result.ok ? null : result.error }
+      : current));
+  }
 
   const pageIds = useMemo(() => rows.map((row) => row.id), [rows]);
   const allSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+  // Without agents.manage (a sales rep) nothing here acts on an agent: no
+  // selection, no status, agency or reminder actions — only "open".
+  const selectable = canManage || canDelete;
 
   function toggle(id) {
     setSelected((current) => {
@@ -101,19 +125,23 @@ export default function AgentsTable({ rows, vendors, footer, branchContext = nul
   return (
     <div className="flex flex-col gap-2">
       {bulkDelete.dialog}
-      {selected.size > 0 ? (
+      {selectable && selected.size > 0 ? (
         <div className="u-card sticky top-2 z-20 flex flex-wrap items-center gap-2 rounded-card bg-ink px-4 py-2 text-white">
           <span className="u-micro-strong">{t('admin.agents.selectedCount', { count: selected.size })}</span>
-          <button type="button" disabled={pending} onClick={() => bulk(1)} className="u-press u-micro-strong inline-flex h-8 items-center gap-1.5 rounded-md bg-white/15 px-2.5 hover:bg-white/25">
-            <PlayCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-            {t('admin.agents.bulkActivate')}
-          </button>
-          <button type="button" disabled={pending} onClick={() => bulk(0)} className="u-press u-micro-strong inline-flex h-8 items-center gap-1.5 rounded-md bg-white/15 px-2.5 hover:bg-white/25">
-            <PauseCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-            {t('admin.agents.bulkSuspend')}
-          </button>
+          {canManage ? (
+            <>
+              <button type="button" disabled={pending} onClick={() => bulk(1)} className="u-press u-micro-strong inline-flex h-8 items-center gap-1.5 rounded-md bg-white/15 px-2.5 hover:bg-white/25">
+                <PlayCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                {t('admin.agents.bulkActivate')}
+              </button>
+              <button type="button" disabled={pending} onClick={() => bulk(0)} className="u-press u-micro-strong inline-flex h-8 items-center gap-1.5 rounded-md bg-white/15 px-2.5 hover:bg-white/25">
+                <PauseCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                {t('admin.agents.bulkSuspend')}
+              </button>
+            </>
+          ) : null}
           {canDelete ? <BulkDeleteButton disabled={pending || bulkDelete.pending} onClick={() => bulkDelete.request(selected)} /> : null}
-          {branchContext ? (
+          {branchContext && canManage ? (
             <select
               aria-label={t('admin.branches.moveTo')}
               value=""
@@ -135,43 +163,48 @@ export default function AgentsTable({ rows, vendors, footer, branchContext = nul
         </div>
       ) : null}
 
-      <TableFrame minWidth="76rem" footer={footer} busy={pending}>
+      <TableFrame minWidth={showLogin ? "86rem" : "76rem"} footer={footer} busy={pending}>
         <thead>
           <tr>
-            <th className={`${TH_STICKY} w-8`}>
-              <input
-                type="checkbox"
-                aria-label={t('admin.agents.selectPage')}
-                checked={allSelected}
-                onChange={() => setSelected(allSelected ? new Set() : new Set(pageIds))}
-                className="h-4 w-4 accent-blue"
-              />
-            </th>
+            {selectable ? (
+              <th className={`${TH_STICKY} w-8`}>
+                <input
+                  type="checkbox"
+                  aria-label={t('admin.agents.selectPage')}
+                  checked={allSelected}
+                  onChange={() => setSelected(allSelected ? new Set() : new Set(pageIds))}
+                  className="h-4 w-4 accent-blue"
+                />
+              </th>
+            ) : null}
             <th className={TH_STICKY}>{t('admin.agents.name')}</th>
             <th className={TH_STICKY}>{t('admin.agents.phone')}</th>
             <th className={TH_STICKY}>{t('admin.agents.agency')}</th>
             <th className={TH_STICKY}>{t('admin.agents.territory')}</th>
             <th className={TH_STICKY_RIGHT}>{t('admin.agents.listings')}</th>
             <th className={TH_STICKY}>{t('admin.agents.package')}</th>
+            {showLogin ? <th className={TH_STICKY}>{t('admin.agents.lastLogin')}</th> : null}
             <th className={TH_STICKY}>{t('admin.agents.status')}</th>
             <th className={TH_STICKY} aria-label={t('admin.table.moreActions')} />
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 ? (
-            <EmptyRow colSpan={9}>{t('admin.agents.empty')}</EmptyRow>
+            <EmptyRow colSpan={8 + (selectable ? 1 : 0) + (showLogin ? 1 : 0)}>{t('admin.agents.empty')}</EmptyRow>
           ) : (
             rows.map((agent) => (
               <tr key={agent.id} className={`${TR_DENSE} ${selected.has(agent.id) ? 'bg-blue-tint/40' : ''}`}>
-                <td className={TD_DENSE}>
-                  <input
-                    type="checkbox"
-                    aria-label={t('admin.agents.selectAgent', { name: agent.name })}
-                    checked={selected.has(agent.id)}
-                    onChange={() => toggle(agent.id)}
-                    className="h-4 w-4 accent-blue"
-                  />
-                </td>
+                {selectable ? (
+                  <td className={TD_DENSE}>
+                    <input
+                      type="checkbox"
+                      aria-label={t('admin.agents.selectAgent', { name: agent.name })}
+                      checked={selected.has(agent.id)}
+                      onChange={() => toggle(agent.id)}
+                      className="h-4 w-4 accent-blue"
+                    />
+                  </td>
+                ) : null}
                 <td className={TD_DENSE}>
                   <Link href={`/admin/agents/${agent.id}`} className="flex items-center gap-1 font-semibold text-ink hover:text-blue-deep hover:underline">
                     <span className="max-w-[14rem] truncate">{agent.name}</span>
@@ -217,6 +250,11 @@ export default function AgentsTable({ rows, vendors, footer, branchContext = nul
                     <span className="text-ink-35">{t('admin.agents.noActiveSubscription')}</span>
                   )}
                 </td>
+                {showLogin ? (
+                  <td className={TD_DENSE}>
+                    <LoginCell login={agent.login} t={t} onOpen={canManage ? () => openHistory(agent) : null} />
+                  </td>
+                ) : null}
                 <td className={TD_DENSE}>
                   {agent.status === 1 ? <Chip tone="success">{t('admin.agents.statusActive')}</Chip> : <Chip tone="neutral">{t('admin.agents.statusSuspended')}</Chip>}
                 </td>
@@ -234,18 +272,30 @@ export default function AgentsTable({ rows, vendors, footer, branchContext = nul
                           {t('admin.agents.manage')}
                         </Link>
                       </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => { setVendorId(agent.vendorId ? String(agent.vendorId) : ''); setVendorDialog(agent); }}>
-                        <Building2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-                        {t('admin.agents.changeAgency')}
-                      </DropdownMenuItem>
+                      {canManage ? (
+                        <>
+                          <DropdownMenuItem onSelect={() => { setVendorId(agent.vendorId ? String(agent.vendorId) : ''); setVendorDialog(agent); }}>
+                            <Building2 strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                            {t('admin.agents.changeAgency')}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onSelect={() => openHistory(agent)}>
+                            <History strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                            {t('admin.agents.loginHistory')}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onSelect={() => run(() => sendVerificationReminderAction(agent.id))}>
+                            <BellRing strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                            {t('admin.agents.remindVerify')}
+                          </DropdownMenuItem>
+                        </>
+                      ) : null}
                       {canImpersonate ? (
                         <DropdownMenuItem onSelect={() => setImpersonating(agent)}>
                           <ScanEye strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
                           {t('admin.impersonation.button')}
                         </DropdownMenuItem>
                       ) : null}
-                      <DropdownMenuSeparator />
-                      {agent.status === 1 ? (
+                      {canManage || canDelete ? <DropdownMenuSeparator /> : null}
+                      {!canManage ? null : agent.status === 1 ? (
                         <DropdownMenuItem onSelect={() => setStatus(agent.id, 0)}>
                           <PauseCircle strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
                           {t('admin.agents.suspend')}
@@ -283,6 +333,49 @@ export default function AgentsTable({ rows, vendors, footer, branchContext = nul
       ) : null}
 
       {canDelete ? <DeleteAgentDialog agent={deleting} onClose={() => setDeleting(null)} /> : null}
+
+      <Dialog open={Boolean(history)} onOpenChange={(open) => { if (!open) setHistory(null); }}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{t('admin.agents.loginHistoryTitle')}</DialogTitle>
+            <DialogDescription>
+              {history?.agent.name}{history?.agent.phone ? ` · +${history.agent.phone}` : ''} — {t('admin.agents.loginHistoryHint')}
+            </DialogDescription>
+          </DialogHeader>
+          {history?.loading ? (
+            <p className="u-micro text-ink-45">{t('admin.agents.loginHistoryLoading')}</p>
+          ) : history?.error ? (
+            <p className="u-micro text-danger">{history.error}</p>
+          ) : history && history.available === false ? (
+            <p className="u-micro text-ink-45">{t('admin.agents.loginHistoryUnavailable')}</p>
+          ) : history && history.rows.length === 0 ? (
+            <p className="u-micro text-ink-45">{t('admin.agents.loginNever')}</p>
+          ) : history ? (
+            <div className="max-h-[60vh] overflow-y-auto rounded-lg border border-line">
+              <table className="w-full text-left">
+                <thead className="sticky top-0 bg-surface">
+                  <tr className="u-micro-strong text-ink-45">
+                    <th className="px-3 py-2">{t('admin.agents.loginColTime')}</th>
+                    <th className="px-3 py-2">{t('admin.agents.loginColResult')}</th>
+                    <th className="px-3 py-2">{t('admin.agents.loginColIp')}</th>
+                    <th className="px-3 py-2">{t('admin.agents.loginColDevice')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {history.rows.map((row) => (
+                    <tr key={row.id} className="u-micro border-t border-line">
+                      <td className="u-tabular whitespace-nowrap px-3 py-2 text-ink">{row.at}</td>
+                      <td className="px-3 py-2"><Chip tone={OUTCOME_TONE[row.outcome] || 'neutral'}>{t(`admin.agents.loginOutcome.${row.outcome}`)}</Chip></td>
+                      <td className="u-tabular px-3 py-2 text-ink-70">{row.ip || '—'}</td>
+                      <td className="px-3 py-2 text-ink-70">{row.device || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={Boolean(vendorDialog)} onOpenChange={(open) => { if (!open) setVendorDialog(null); }}>
         <DialogContent className="sm:max-w-sm">
@@ -322,5 +415,49 @@ export default function AgentsTable({ rows, vendors, footer, branchContext = nul
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+const OUTCOME_TONE = {
+  success: 'success',
+  code_verified: 'success',
+  whatsapp_verified: 'success',
+  activated: 'success',
+  verify_required: 'warning',
+  wrong_password: 'danger',
+  wrong_code: 'danger',
+  expired_code: 'warning',
+  locked: 'danger',
+};
+
+/**
+ * "Dernière connexion": when the agent last tried, how it ended, and the
+ * failures since their last sign-in. A tap opens the full history.
+ */
+function LoginCell({ login, t, onOpen }) {
+  if (!login) return <span className="text-ink-35">{t('admin.agents.loginNever')}</span>;
+  const tone = OUTCOME_TONE[login.lastOutcome];
+  const body = (
+    <>
+      <div className="flex items-center gap-1.5 text-ink">
+        <span
+          aria-hidden="true"
+          className={`h-2 w-2 shrink-0 rounded-full ${tone === 'success' ? 'bg-success' : tone === 'danger' ? 'bg-danger' : 'bg-warning'}`}
+        />
+        <span title={login.lastAt || undefined}>{login.lastAgo}</span>
+      </div>
+      <div className="text-ink-45">{t(`admin.agents.loginOutcome.${login.lastOutcome}`)}</div>
+      {login.failures > 0 ? (
+        <div className="mt-1">
+          <Chip tone="danger">{t('admin.agents.loginFailures', { count: login.failures, time: login.lastFailureAt || '' })}</Chip>
+        </div>
+      ) : null}
+    </>
+  );
+  if (!onOpen) return body;
+  return (
+    <button type="button" onClick={onOpen} className="block text-left hover:underline" aria-label={t('admin.agents.loginHistory')}>
+      {body}
+    </button>
   );
 }

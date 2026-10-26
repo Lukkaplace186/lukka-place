@@ -11,6 +11,7 @@
 
 const { UTILITY_CODES } = require('./utilities');
 const { isCommercialType, normaliseCommercialSpecs } = require('./commercial');
+const { normaliseListingDetails } = require('./listingDetails');
 const OpenAI = require('openai');
 
 const { LOCATIONS, KINSHASA_COMMUNES } = require('./locations');
@@ -59,7 +60,7 @@ const OTHER_CITIES_BLOCK = CITY_NAMES.filter((name) => name !== DEFAULT_CITY)
 
 const PROPERTY_TYPES = [
   'appartement', 'studio', 'villa', 'maison', 'duplex', 'chambre_salon',
-  'parcelle', 'terrain', 'bureau', 'boutique', 'entrepot', 'immeuble', 'autre',
+  'parcelle', 'terrain', 'concession', 'ferme', 'chambre', 'bureau', 'boutique', 'entrepot', 'immeuble', 'autre',
 ];
 
 /**
@@ -88,6 +89,7 @@ CONTEXTE MONÉTAIRE
 - À Kinshasa, loyers et prix de vente sont presque toujours cotés en dollars américains. "$", "usd", "dollars" => USD. "FC", "CDF", "francs" => CDF.
 - Si aucune devise n'est indiquée et que le montant est plausible en USD, utilise USD.
 - Sépare le loyer mensuel du prix de vente : "500$/mois" => price 500, price_period "mois". Une vente => price_period "total".
+- LOCATION COURTE DURÉE : une chambre, un studio ou un appartement loué à la journée ou à la nuit ("50$/jour", "40$ la nuitée", "location journalière") => price_period "jour" ; à la semaine => price_period "semaine". Le loyer est alors ce prix par jour / par semaine, jamais converti en mois. Sans cette mention explicite, une location est de longue durée (price_period "mois", ou "an" si le loyer est annuel).
 - Une caution ("garantie", "3 mois de caution") n'est PAS le loyer : mets-la dans deposit_months.
 
 CONDITIONS D'ENTRÉE — NOTATION "3 + 1 + 1" (convention immobilière de Kinshasa)
@@ -130,6 +132,9 @@ CLASSIFICATION DU TYPE DE BIEN — RÈGLES SPÉCIFIQUES À KINSHASA
    - NE classe JAMAIS une annonce comme "appartement" uniquement parce qu'une superficie (m²) ou plusieurs pièces/portes sont mentionnées — ce sont des signaux de parcelle, pas d'appartement.
    - Sous-types autorisés (champ parcelle_subtype, rempli UNIQUEMENT si property_type = "parcelle", sinon null) : "maison_type_locataire" (maison à portes multiples, locative), "villa", "terrain_nu" (terrain non bâti). Laisse null si le message ne permet pas de trancher.
 
+1bis. CONCESSION
+   - Si le message emploie le mot "concession" pour le bien lui-même (une grande propriété clôturée vendue ou louée d'un seul tenant, souvent plusieurs bâtiments, jardin, mesurée en ares ou en hectares), classe property_type comme "concession", jamais "parcelle" ni "terrain". parcelle_subtype reste null. "Concession" au sens d'un droit (concession minière, forestière, funéraire) n'est pas un bien immobilier à louer : n'en déduis rien.
+
 2. APPARTEMENT
    - Classe property_type comme "appartement" UNIQUEMENT si le message décrit explicitement un logement individuel dans un immeuble à étages ou une résidence collective (ex. "Appartement au 2ème étage", "Immeuble").
 
@@ -144,6 +149,20 @@ CLASSIFICATION DU TYPE DE BIEN — RÈGLES SPÉCIFIQUES À KINSHASA
    - road_frontage : true seulement si le message dit que le local donne sur la route — "au bord de la route", "façade sur boulevard", "sur grande artère", "vitrine sur rue", "en bordure de l'avenue". null sinon (jamais false par défaut).
    - truck_access : true seulement si le message dit qu'un camion peut accéder ou décharger — "accès camion", "accès gros porteurs", "poids lourds", "quai de chargement". null sinon.
    - Ces quatre champs (office_count, floor_level, road_frontage, truck_access) restent null pour TOUT bien résidentiel.
+
+2ter. STUDIO, CHAMBRE, FERME
+   - "studio" : un logement d'une seule pièce principale (avec ou sans cuisine / douche) => property_type "studio".
+   - "chambre" : UNE chambre, une annexe ou une dépendance louée seule ("chambre à louer", "annexe", "dépendance"). "chambre salon" reste "chambre_salon".
+   - "ferme" : une ferme, un terrain agricole, un champ, un élevage ("concession agricole"), souvent à Maluku, Mont-Ngafula ou Kasangulu. Jamais "terrain" ni "concession".
+
+2quater. VIE DANS LA PARCELLE ET DÉTAILS PRATIQUES — uniquement ce que le message affirme, sinon null
+   - households_count : le nombre de ménages qui partagent la parcelle ("parcelle de 3 ménages", "vous serez 4 ménages") ; "seul dans la parcelle" = 1.
+   - landlord_on_site : true pour "bailleur sur place", "le propriétaire habite la parcelle" ; false pour "le bailleur n'habite pas là". null sinon.
+   - has_generator / has_pool / has_gym / has_solar : true seulement quand le message cite "groupe électrogène" (ou "générateur"), "piscine", "salle de sport" / "gym" / "fitness", "panneaux solaires". Jamais false : un équipement non cité reste null.
+   - electricity_meter : "prepaye" pour "Cash Power", "compteur prépayé" ; "individuel" pour "compteur individuel" sans autre précision ; "partage" pour "compteur partagé", "compteur commun".
+   - furnished : true pour "meublé", false pour "non meublé" / "vide". "semi-meublé" reste null.
+   - plot_dimensions : la taille du TERRAIN recopiée telle qu'écrite ("15/20", "20x30", "5 ares", "1 ha", "600 m²"). Ne fais aucun calcul : la surface est calculée ensuite. Jamais la taille d'une pièce ou d'un appartement.
+   - installments_available / installment_terms (vente uniquement) : true si le message propose un paiement échelonné, en tranches, des facilités de paiement ; installment_terms reprend les conditions avec les mots de l'agent.
 
 3. DIMENSIONS ET UNITÉS
    - "X Portes" / "Type Locataire" : mets X dans units_count. Cela signale une parcelle locative à revenus (plusieurs logements loués séparément), pas un appartement unique.
@@ -199,7 +218,7 @@ DISPONIBILITÉ — "c'est loué" / "c'est vendu"
 - Si le message annonce que le bien en contexte n'est plus disponible ("c'est loué", "eza loué déjà", "vendu", "le bien est parti", "plus disponible"), renseigne listing_status_update : 'loue' pour une location conclue, 'vendu' pour une vente conclue, 'disponible' si l'agent revient en arrière.
 - Dans ce cas is_listing = false et is_correction = false : ce n'est pas une modification de la fiche, c'est un changement de disponibilité.
 - N'invente jamais ce champ à partir d'un simple mot comme "location" ou "à vendre" dans une annonce ordinaire : il ne s'agit que d'une transaction CONCLUE sur un bien déjà en ligne.
-- PHOTO OBLIGATOIRE : si le brouillon indique photos_count = 0 et que l'agent essaie de confirmer ("OK", "publiez", "c'est bon"), positionne is_confirmed à false et indique dans whatsapp_reply qu'il manque une photo — l'annonce ne peut pas être publiée sans au moins une photo du bien. Reste chaleureux : le bien est bien enregistré, il ne manque que la photo.
+- PHOTO OU VIDÉO OBLIGATOIRE : photos_count compte les photos ET les vidéos du brouillon. S'il vaut 0 et que l'agent essaie de confirmer ("OK", "publiez", "c'est bon"), positionne is_confirmed à false et indique dans whatsapp_reply qu'il manque une photo ou une vidéo — l'annonce ne peut pas être publiée sans au moins une photo ou une vidéo du bien. Reste chaleureux : le bien est bien enregistré, il ne manque que le visuel.
 
 CONFIRMATION (champ is_confirmed)
 - is_confirmed = true UNIQUEMENT si un BROUILLON EN COURS est fourni ET que le message exprime un accord pour publier SANS apporter la moindre information nouvelle ou modifiée ("c'est bon, publiez", "parfait merci", "oui vous pouvez publier", "rien à changer").
@@ -294,6 +313,7 @@ const RESPONSE_FORMAT = {
             'advance_months', 'commission_months',
             'bedrooms', 'bathrooms', 'surface_area_sqm', 'units_count', 'furnished',
             'office_count', 'floor_level', 'road_frontage', 'truck_access',
+            'households_count', 'landlord_on_site', 'electricity_meter', 'has_generator', 'has_pool', 'has_gym', 'has_solar', 'plot_dimensions', 'installments_available', 'installment_terms',
             'amenities', 'features', 'utilities', 'reference', 'agent_name', 'agency_name', 'summary_fr',
             'missing_fields', 'confidence',
             'is_multi_unit', 'is_multi_property', 'building_name', 'units',
@@ -335,7 +355,7 @@ const RESPONSE_FORMAT = {
               description: 'Loyer mensuel si location, prix total si vente.',
             },
             currency: { type: ['string', 'null'], enum: ['USD', 'CDF', 'EUR', null] },
-            price_period: { type: ['string', 'null'], enum: ['mois', 'an', 'total', null] },
+            price_period: { type: ['string', 'null'], enum: ['mois', 'an', 'jour', 'semaine', 'total', null] },
             deposit_months: {
               type: ['integer', 'null'],
               description: "Mois de garantie locative SEULE (caution restituable). Dans la notation \"3 + 1 + 1\", c'est le premier nombre — jamais la somme.",
@@ -377,6 +397,37 @@ const RESPONSE_FORMAT = {
               description: 'Nombre de portes/logements ("X Portes", "Type Locataire") — parcelle locative à revenus.',
             },
             furnished: { type: ['boolean', 'null'] },
+            // Practical details (services/listingDetails.js) — what the message
+            // states, re-gated on the kind of property after the call.
+            households_count: {
+              type: ['integer', 'null'],
+              description: 'Nombre de ménages qui partagent la parcelle ("3 ménages", "seul dans la parcelle" = 1). null sinon.',
+            },
+            landlord_on_site: {
+              type: ['boolean', 'null'],
+              description: 'true si le bailleur habite la parcelle, false si le message dit qu\'il n\'y habite pas. null sinon.',
+            },
+            has_generator: { type: ['boolean', 'null'], description: 'true si le message cite un groupe électrogène. null sinon.' },
+            has_pool: { type: ['boolean', 'null'], description: 'true si le message cite une piscine. null sinon.' },
+            has_gym: { type: ['boolean', 'null'], description: 'true si le message cite une salle de sport / gym. null sinon.' },
+            has_solar: { type: ['boolean', 'null'], description: 'true si le message cite des panneaux solaires. null sinon.' },
+            electricity_meter: {
+              type: ['string', 'null'],
+              enum: ['prepaye', 'individuel', 'partage', null],
+              description: '"Cash Power" / compteur prépayé = prepaye ; compteur individuel = individuel ; compteur partagé / commun = partage.',
+            },
+            plot_dimensions: {
+              type: ['string', 'null'],
+              description: 'Taille du TERRAIN telle qu\'écrite ("15/20", "20 x 30 m", "5 ares", "1 ha", "600 m²"). Jamais la taille d\'une pièce. null sinon.',
+            },
+            installments_available: {
+              type: ['boolean', 'null'],
+              description: 'Vente uniquement : true si le message parle de paiement échelonné / en tranches / facilités de paiement. null sinon.',
+            },
+            installment_terms: {
+              type: ['string', 'null'],
+              description: 'Les conditions du paiement échelonné avec les mots de l\'agent ("30 % à la signature, le reste en 12 mois"). null sinon.',
+            },
             amenities: {
               type: 'array',
               items: { type: 'string' },
@@ -467,7 +518,7 @@ const RESPONSE_FORMAT = {
                   bedrooms: { type: ['integer', 'null'] },
                   bathrooms: { type: ['integer', 'null'] },
                   price: { type: ['number', 'null'], description: 'Prix de CETTE typologie.' },
-                  price_period: { type: ['string', 'null'], enum: ['mois', 'an', 'total', null] },
+                  price_period: { type: ['string', 'null'], enum: ['mois', 'an', 'jour', 'semaine', 'total', null] },
                   surface_area_sqm: { type: ['number', 'null'] },
                   floor: {
                     type: ['string', 'null'],
@@ -513,9 +564,10 @@ const SUPPORTED_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'ima
  * Cap on images per request. Each one costs tokens, and an agent dumping a
  * 30-photo album would otherwise turn one listing into a very expensive call.
  */
-// Matches web/app/compte/agent/actions.js's MAX_LISTING_PHOTOS (10). The two
-// channels must agree: at 8 here, an agent who could upload 10 photos on the
-// web silently lost 2 of them by sending the same listing over WhatsApp.
+// How many photos the MODEL reads — not how many are kept. Since 2026-10-21 a
+// listing keeps up to 20 photos on both channels (services/listingMedia.js,
+// web/lib/uploadLimits.mjs); extraction needs a few, and every photo here
+// costs tokens, so the model still reads the first 10 and every one is stored.
 const MAX_IMAGES = Number.parseInt(process.env.OPENAI_MAX_IMAGES, 10) || 10;
 
 /**
@@ -597,6 +649,13 @@ function normaliseCommercialExtraction(extracted) {
   const type = extracted.property_type ?? null;
   const specs = normaliseCommercialSpecs(extracted, type === null ? undefined : type);
   Object.assign(extracted, specs);
+  // Practical details (services/listingDetails.js): plot_area_m2 is computed
+  // from the agent's own words here, never taken from the model.
+  Object.assign(extracted, normaliseListingDetails(extracted, type === null ? undefined : {
+    propertyType: type,
+    parcelleSubtype: extracted.parcelle_subtype ?? null,
+    transactionType: extracted.transaction_type ?? null,
+  }));
   if (isCommercialType(type)) {
     // An office count read as bedrooms is the mistake this guards against.
     extracted.bedrooms = null;
@@ -616,6 +675,9 @@ const DRAFT_CONTEXT_FIELDS = [
   'price', 'currency', 'price_period', 'deposit_months', 'advance_months',
   'commission_months', 'bedrooms', 'bathrooms', 'surface_area_sqm', 'units_count',
   'furnished', 'office_count', 'floor_level', 'road_frontage', 'truck_access',
+  'households_count', 'landlord_on_site', 'electricity_meter',
+  'has_generator', 'has_pool', 'has_gym', 'has_solar',
+  'plot_dimensions', 'installments_available', 'installment_terms',
   'amenities', 'features', 'utilities', 'reference', 'agent_name', 'summary_fr',
 ];
 
@@ -643,7 +705,7 @@ function draftContextFromListing(row) {
     const value = row[field];
     if (value === undefined || value === null || value === '') continue;
     // SQLite has no boolean — 0/1 would read as a quantity to the model.
-    draft[field] = field === 'furnished' ? Boolean(value) : value;
+    draft[field] = ['furnished', 'landlord_on_site', 'installments_available', 'has_generator', 'has_pool', 'has_gym', 'has_solar'].includes(field) ? Boolean(value) : value;
   }
 
   // agency_name has no column of its own; it only ever lives in the stored
@@ -654,7 +716,9 @@ function draftContextFromListing(row) {
   // The model cannot refuse a confirmation for a missing photo unless it knows
   // whether one exists. Always present (including 0) — an absent key would read
   // as "unknown" rather than "none", which is the case that must be refused.
-  draft.photos_count = Array.isArray(row.photos) ? row.photos.length : 0;
+  // Photos AND videos: either one makes a listing publishable (services/listingMedia.js).
+  draft.photos_count = (Array.isArray(row.photos) ? row.photos.length : 0)
+    + (Array.isArray(row.videos) ? row.videos.length : 0);
 
   // A published listing is corrected, never "published" again — the model has
   // to know which it is or it will keep asking an agent to reply OK to a
@@ -933,8 +997,8 @@ const BUYER_TOOLS = [
           transaction_type: { type: 'string', enum: ['location', 'vente'] },
           property_type: {
             type: 'string',
-            enum: ['appartement', 'parcelle', 'commercial', 'bureau', 'boutique', 'entrepot'],
-            description: "'commercial' = tout local professionnel (bureaux, boutiques, entrepôts) ; bureau / boutique / entrepot pour un seul type.",
+            enum: ['appartement', 'studio', 'chambre', 'parcelle', 'villa', 'concession', 'ferme', 'commercial', 'bureau', 'boutique', 'entrepot', 'immeuble'],
+            description: "'commercial' = tout local professionnel (bureaux, boutiques, entrepôts, immeubles) ; un type précis sinon. 'chambre' = une chambre / annexe louée seule ; 'ferme' = ferme ou terrain agricole.",
           },
           city: {
             type: 'string',
@@ -946,6 +1010,11 @@ const BUYER_TOOLS = [
           price_min: { type: 'number' },
           price_max: { type: 'number' },
           bedrooms: { type: 'integer', description: 'Nombre minimum de chambres.' },
+          lease_term: {
+            type: 'string',
+            enum: ['short', 'long'],
+            description: "Location seulement. 'short' = courte durée (à la journée / à la semaine), 'long' = bail classique au mois. À omettre si le client ne le précise pas.",
+          },
         },
         additionalProperties: false,
       },
@@ -1036,6 +1105,7 @@ async function executeSearchProperties(args = {}) {
     priceMin: args.price_min,
     priceMax: args.price_max,
     bedsMin: args.bedrooms,
+    leaseTerm: args.lease_term,
     limit: 5,
   });
 
@@ -1051,6 +1121,8 @@ async function executeSearchProperties(args = {}) {
       title: p.title,
       price: p.price,
       currency: 'USD',
+      // 'jour' / 'semaine' = a short-term rental: the price is per day / week.
+      price_period: p.price_period || null,
       transaction: p.purpose === 'rent' ? 'location' : 'vente',
       commune: p.commune || null,
       quartier: p.quartier || null,
@@ -1338,6 +1410,7 @@ CONTEXTE LINGUISTIQUE ET MONÉTAIRE — mêmes règles que pour l'intake WhatsAp
 - Texte en français, lingala, ou mélange des deux. "pièces" = total des pièces, PAS les chambres. "chambre salon" = 1 chambre.
 - Loyers et prix sont presque toujours en dollars ; "$"/"usd"/"dollars" => USD, "FC"/"CDF"/"francs" => CDF. Sans devise indiquée et montant plausible en USD, utilise USD.
 - Sépare le loyer mensuel du prix de vente : "$/mois" => price_period "mois" ; une vente => price_period "total".
+- Location courte durée, à la journée / à la nuit => price_period "jour" ; à la semaine => "semaine" (jamais converti en mois). Sans mention explicite, une location est de longue durée.
 
 CONDITIONS D'ENTRÉE — NOTATION "3 + 1 + 1" (convention de Kinshasa), IDENTIQUE à l'intake WhatsApp :
 - Ces nombres sont des POSTES DISTINCTS. Ne les additionne JAMAIS — "3 + 1 + 1" ne veut PAS dire 5 mois.
@@ -1354,9 +1427,11 @@ ${LOCATIONS_BLOCK}
 - Un code/numéro de référence explicite ("Réf:", "Référence:") va dans "reference", distinct du quartier.
 
 CLASSIFICATION DU TYPE DE BIEN — mêmes règles que l'intake WhatsApp :
-1. PARCELLE : dimensions de terrain, propriété clôturée, "Maison Type Locataire" ou "Portes" => property_type "parcelle". Sous-type (parcelle_subtype, uniquement si property_type = "parcelle") : "maison_type_locataire", "villa", "terrain_nu". NE classe JAMAIS "appartement" uniquement à cause d'une superficie ou de plusieurs pièces/portes.
+1. PARCELLE : dimensions de terrain, propriété clôturée, "Maison Type Locataire" ou "Portes" => property_type "parcelle". Sous-type (parcelle_subtype, uniquement si property_type = "parcelle") : "maison_type_locataire", "villa", "terrain_nu". NE classe JAMAIS "appartement" uniquement à cause d'une superficie ou de plusieurs pièces/portes. Le mot "concession" pour le bien lui-même (grande propriété clôturée d'un seul tenant, en ares ou hectares) => "concession", jamais "parcelle".
 2. APPARTEMENT : uniquement si le message décrit explicitement un logement dans un immeuble à étages ou une résidence collective.
 3. "X Portes" / "Type Locataire" => units_count = X.
+3bis. AUTRES TYPES : "studio" (une pièce principale) ; "chambre" (une chambre, annexe ou dépendance louée seule) ; "ferme" (ferme, terrain agricole, champ).
+3ter. DÉTAILS PRATIQUES, uniquement s'ils sont écrits : households_count (ménages dans la parcelle), landlord_on_site, has_generator / has_pool / has_gym / has_solar (true seulement si cité), electricity_meter ("prepaye" = Cash Power, "individuel", "partage"), plot_dimensions (taille du terrain recopiée telle qu'écrite, sans calcul), installments_available / installment_terms (paiement échelonné d'une vente, avec les mots de l'agent).
 4. LOCAL COMMERCIAL : "bureau(x) à louer", "espace de bureaux", "plateau" => "bureau" ; "boutique", "magasin", "local commercial", "showroom" => "boutique" ; "entrepôt", "dépôt" (le local), "hangar" => "entrepot" ; un immeuble entier => "immeuble". Un "bureau" cité comme pièce d'une maison ne change pas le type. Pour un local commercial : bedrooms = null ; office_count = nombre de pièces de bureau ; floor_level = 0 pour rez-de-chaussée, 1 pour 1er étage, -1 pour sous-sol ; road_frontage = true seulement si le texte dit qu'il donne sur la route ; truck_access = true seulement si un camion peut y accéder. Sinon null — et toujours null pour un bien résidentiel.
 
 RÈGLES D'EXTRACTION
@@ -1388,6 +1463,7 @@ const LISTING_FORM_RESPONSE_FORMAT = {
         'deposit_months', 'advance_months', 'commission_months', 'bedrooms', 'bathrooms',
         'surface_area_sqm', 'units_count', 'furnished',
         'office_count', 'floor_level', 'road_frontage', 'truck_access',
+        'households_count', 'landlord_on_site', 'electricity_meter', 'has_generator', 'has_pool', 'has_gym', 'has_solar', 'plot_dimensions', 'installments_available', 'installment_terms',
         'description_fr', 'confidence',
       ],
       properties: {
@@ -1400,7 +1476,7 @@ const LISTING_FORM_RESPONSE_FORMAT = {
         reference: { type: ['string', 'null'] },
         price: { type: ['number', 'null'] },
         currency: { type: ['string', 'null'], enum: ['USD', 'CDF', 'EUR', null] },
-        price_period: { type: ['string', 'null'], enum: ['mois', 'an', 'total', null] },
+        price_period: { type: ['string', 'null'], enum: ['mois', 'an', 'jour', 'semaine', 'total', null] },
         deposit_months: { type: ['integer', 'null'] },
         advance_months: { type: ['integer', 'null'] },
         commission_months: { type: ['integer', 'null'] },
@@ -1413,6 +1489,16 @@ const LISTING_FORM_RESPONSE_FORMAT = {
         floor_level: { type: ['integer', 'null'] },
         road_frontage: { type: ['boolean', 'null'] },
         truck_access: { type: ['boolean', 'null'] },
+        households_count: { type: ['integer', 'null'] },
+        landlord_on_site: { type: ['boolean', 'null'] },
+        has_generator: { type: ['boolean', 'null'] },
+        has_pool: { type: ['boolean', 'null'] },
+        has_gym: { type: ['boolean', 'null'] },
+        has_solar: { type: ['boolean', 'null'] },
+        electricity_meter: { type: ['string', 'null'], enum: ['prepaye', 'individuel', 'partage', null] },
+        plot_dimensions: { type: ['string', 'null'], description: 'Taille du terrain telle qu\'écrite ("15/20", "5 ares"), sans calcul.' },
+        installments_available: { type: ['boolean', 'null'] },
+        installment_terms: { type: ['string', 'null'] },
         description_fr: {
           type: 'string',
           description: 'Prose fluide de 2-4 phrases (pas de liste à puces, pas de titre séparé), casse normale, sans emoji ni astérisque. Chaque fait mentionné doit être explicitement présent dans le texte source — jamais une supposition.',

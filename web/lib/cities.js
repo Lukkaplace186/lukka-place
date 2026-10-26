@@ -15,6 +15,18 @@ import data from './data/cities.json';
 export const DEFAULT_CITY = 'Kinshasa';
 
 /**
+ * `?ville=toutes` — every city at once (hero "Toutes les villes",
+ * 2026-10-24). A search with no `ville` still runs in Kinshasa; this value is
+ * the only way to drop the city filter, so every existing link is unchanged.
+ */
+export const ALL_CITIES = 'toutes';
+
+/** Whether a `ville` value asks for every city ("toutes", any case). */
+export function isAllCities(ville) {
+  return String(ville || '').trim().toLowerCase() === ALL_CITIES;
+}
+
+/**
  * A city becomes public (city picker, ?ville=) from this many live listings.
  * 0 since 2026-10-20 (owner decision, the same day as launch): every city is
  * offered at once, empty ones included, so visitors and agents see the whole
@@ -120,7 +132,8 @@ export function groupCommunesByCity(keys = []) {
 
 /**
  * The city a listings search runs in: `ville` when it names a real city, else
- * the first searched commune's city, else Kinshasa (lib/listings.js
+ * the first searched commune's city, else Kinshasa — or null, every city, for
+ * `ville=toutes` with no commune (lib/listings.js
  * buildFilters). Whether that city is PUBLIC yet is the page's question
  * (lib/publicCities.js), not this one's.
  */
@@ -128,6 +141,9 @@ export function searchCityOf({ ville = null, commune = null, communes = null } =
   const asked = findCity(ville);
   if (asked) return asked.name;
   const first = [commune, ...(Array.isArray(communes) ? communes : [])].find(Boolean);
+  // "Toutes les villes" is no city at all — unless a commune was named, which
+  // places the search in that commune's city like any other.
+  if (isAllCities(ville)) return cityOfCommune(first) || null;
   return cityOfCommune(first) || DEFAULT_CITY;
 }
 
@@ -161,4 +177,47 @@ export function cityOfListing(listing) {
 /** The province a city is in ("Haut-Katanga"), or null. */
 export function provinceOfCity(name) {
   return findCity(name)?.province || null;
+}
+
+/**
+ * A city named in search text (2026-10-21) — its whole name ("Lubumbashi",
+ * "Mbuji-Mayi"), or a word of 4+ letters it starts with, as typed in the live
+ * search box ("lubum"). Kinshasa is not looked for: it is the default, and
+ * "Kinshasa" in Kinshasa search text is the city every address ends with.
+ * Returns { city, matchedText } or null. Exists because Kinshasa has
+ * quartiers named after cities (Lubumbashi in Kasa-Vubu, Goma in Ndjili), and
+ * without it "lubum" searched Kasa-Vubu.
+ */
+export function findCityMention(text) {
+  const folded = ` ${fold(text)} `;
+  for (const city of CITIES) {
+    if (city.name === DEFAULT_CITY) continue;
+    const name = fold(city.name);
+    if (folded.includes(` ${name} `)) return { city, matchedText: city.name };
+  }
+  const words = folded.trim().split(' ').filter((w) => w.length >= 4);
+  for (const word of words) {
+    const hits = CITIES.filter((city) => city.name !== DEFAULT_CITY && fold(city.name).replace(/ /g, '').startsWith(word));
+    if (hits.length === 1) return { city: hits[0], matchedText: word };
+  }
+  return null;
+}
+
+/**
+ * A commune of `cityName` named in the text (whole words, accents and case
+ * ignored), or of any city other than Kinshasa when no city is given.
+ * Returns { key, city, matchedText } or null.
+ */
+export function findCommuneInCity(text, cityName = null) {
+  const folded = ` ${fold(text)} `;
+  const pool = CITIES.filter((city) => (cityName ? city.name === cityName : city.name !== DEFAULT_CITY));
+  for (const city of pool) {
+    for (const commune of city.communes) {
+      const label = fold(communeLabel(commune.key));
+      if (label && label !== fold(city.name) && folded.includes(` ${label} `)) {
+        return { key: commune.key, city: city.name, matchedText: communeLabel(commune.key) };
+      }
+    }
+  }
+  return null;
 }

@@ -48,11 +48,12 @@ const PUBLISHED_CTE = `
   WITH published AS (
     SELECT
       ${COMMUNE_EXPR} AS commune,
-      CASE WHEN p.purpose = 'rent' AND p.price_period = 'an' THEN p.price / 12.0 ELSE p.price END AS amount
+      CASE WHEN p.purpose = 'rent' AND p.price_period IN ('jour', 'semaine') THEN NULL WHEN p.purpose = 'rent' AND p.price_period = 'an' THEN p.price / 12.0 ELSE p.price END AS amount
     FROM properties p
     WHERE p.status = 1 AND p.approve_status = 1
       AND p.purpose = $1
       AND p.price > 0
+      AND COALESCE(p.price_period, '') NOT IN ('jour', 'semaine')
       AND ${NOT_TEST_LISTING_SQL}
   )
 `;

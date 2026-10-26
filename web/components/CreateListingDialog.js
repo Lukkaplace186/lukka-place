@@ -11,6 +11,8 @@ import { OPEN_CREATE_LISTING_EVENT, OPEN_CREATE_LISTING_STORAGE_KEY } from '@/li
 import { useT } from '@/lib/i18n/client';
 import SmartPasteSection from './SmartPasteSection';
 import CommercialSpecFields from './CommercialSpecFields';
+import ListingDetailFields, { applyDetailsToForm } from './ListingDetailFields';
+import { detailSections } from '@/lib/listingDetails';
 import { isCommercial } from '@/lib/commercialSpaces';
 import { buildFormValuesFromParsed } from '@/lib/smartPaste';
 import { validatePhotoSelection } from '@/lib/uploadLimits.mjs';
@@ -18,6 +20,7 @@ import { deleteDraft, fieldsFromForm, isEmptyDraft, loadDraft, looksOffline, sav
 import { shrinkPhotos } from '@/lib/photoShrink';
 import { UPGRADE_PATH, announceListingQuota } from '@/lib/listingQuotaRules';
 import CommuneOptions from './CommuneOptions';
+import { RENT_PERIOD_OPTIONS } from '@/lib/leaseTerm';
 
 const FIELD_CLASS =
   'u-focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink placeholder:text-ink-35';
@@ -29,6 +32,8 @@ const AUTOSAVE_DELAY_MS = 700;
 const DRAFT_FIELDS = [
   'title', 'reference', 'purpose', 'category_id', 'commune', 'price', 'beds', 'bath', 'area', 'quartier', 'description',
   'office_count', 'floor_level', 'road_frontage', 'truck_access',
+  'furnished', 'households_count', 'landlord_on_site', 'electricity_meter',
+  'has_generator', 'has_pool', 'has_gym', 'has_solar',
 ];
 
 /**
@@ -100,9 +105,12 @@ export default function CreateListingDialog({ communes, categories, draftKey = n
   // The select is uncontrolled and also filled by drafts and smart paste,
   // which fire no change event, so every one of those paths calls this.
   const [categoryId, setCategoryId] = useState('');
-  const commercialCategory = isCommercial(categories.find((c) => c.id === Number(categoryId)));
+  const [purposeValue, setPurposeValue] = useState('');
+  const pickedCategory = categories.find((c) => c.id === Number(categoryId));
+  const commercialCategory = isCommercial(pickedCategory);
   function syncCategory() {
     setCategoryId(formRef.current?.elements?.category_id?.value ?? '');
+    setPurposeValue(formRef.current?.elements?.purpose?.value ?? '');
   }
   // True once the stored draft (if any) has been applied to the open form, so
   // an autosave can never overwrite a real draft with the still-empty form.
@@ -390,6 +398,7 @@ export default function CreateListingDialog({ communes, categories, draftKey = n
     if (mapped.floorLevel != null) form.elements.floor_level.value = String(mapped.floorLevel);
     if (mapped.roadFrontage) form.elements.road_frontage.checked = true;
     if (mapped.truckAccess) form.elements.truck_access.checked = true;
+    applyDetailsToForm(form, mapped.details);
     syncCategory();
     scheduleAutosave();
   }
@@ -549,7 +558,7 @@ export default function CreateListingDialog({ communes, categories, draftKey = n
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="purpose" className={LABEL_CLASS}>{t('common.shared.transaction')}</label>
-              <select id="purpose" name="purpose" required defaultValue="" className={FIELD_CLASS}>
+              <select id="purpose" name="purpose" required defaultValue="" onChange={syncCategory} className={FIELD_CLASS}>
                 <option value="" disabled>{t('common.shared.choose')}</option>
                 <option value="rent">{t('common.shared.rentVerb')}</option>
                 <option value="sale">{t('common.shared.sellVerb')}</option>
@@ -591,6 +600,18 @@ export default function CreateListingDialog({ communes, categories, draftKey = n
             </div>
           </div>
 
+          {/* A rent per month (the standard) or per day / week — a room or
+              flat let short term (lib/leaseTerm.js). Ignored on a sale. */}
+          <div>
+            <label htmlFor="rent_period" className={LABEL_CLASS}>{t('agent.editor.rentPeriodLabel')}</label>
+            <select id="rent_period" name="rent_period" defaultValue="mois" className={FIELD_CLASS}>
+              {RENT_PERIOD_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{t(option.labelKey)}</option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-ink-35">{t('agent.editor.rentPeriodHint')}</p>
+          </div>
+
           {/* An office, shop or warehouse has no bedrooms: the bedroom field
               gives way to the commercial specs, and bathrooms read as toilets. */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -608,6 +629,12 @@ export default function CreateListingDialog({ communes, categories, draftKey = n
 
           <CommercialSpecFields hidden={!commercialCategory} fieldClass={FIELD_CLASS} labelClass={LABEL_CLASS} />
 
+          <ListingDetailFields
+            sections={detailSections({ categoryName: pickedCategory?.name, categoryType: pickedCategory?.type, purpose: purposeValue })}
+            fieldClass={FIELD_CLASS}
+            labelClass={LABEL_CLASS}
+          />
+
           {/* Surface and quartier were the two fields the WhatsApp intake
               captured and this form did not, so a listing typed here was
               permanently thinner than the same listing sent by message:
@@ -617,7 +644,7 @@ export default function CreateListingDialog({ communes, categories, draftKey = n
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label htmlFor="area" className={LABEL_CLASS}>Superficie (m²)</label>
-              <input id="area" name="area" type="number" min="1" step="1" className={FIELD_CLASS} />
+              <input id="area" name="area" type="number" min="0.01" step="0.01" inputMode="decimal" className={FIELD_CLASS} />
             </div>
             <div>
               <label htmlFor="quartier" className={LABEL_CLASS}>{t('listings.filters.quartier')}</label>

@@ -7,6 +7,10 @@ import { getListingsByIds } from '@/lib/listings';
 import { LEAD_STATUSES, LEAD_STATUS_LABEL_KEYS } from '@/lib/adminLabels';
 import { updateLeadStatusAction, assignLeadAction, redispatchLeadAction } from '../../actions';
 import { getT } from '@/lib/i18n/server';
+import DeleteRecordButton from '../../DeleteRecordButton';
+import { deleteLeadAction } from '../../recordDeleteActions';
+import { getAdminSession } from '@/lib/adminSession';
+import { can } from '@/lib/adminRoles';
 
 function formatDateTime(value) {
   if (!value) return '—';
@@ -36,6 +40,7 @@ const REQUEST_LABELS = [
  */
 export default async function AdminLeadDetailPage({ params }) {
   const t = await getT();
+  const canDeleteLeads = can((await getAdminSession())?.role, 'leads.delete');
   const { id: idParam } = await params;
   const id = Number.parseInt(idParam, 10);
   if (!Number.isFinite(id)) notFound();
@@ -94,6 +99,15 @@ export default async function AdminLeadDetailPage({ params }) {
             {lead.wa_id} · Demande #{lead.id} · Créée le {formatDateTime(lead.created_at)}
           </p>
         </div>
+        {canDeleteLeads ? (
+          <DeleteRecordButton
+            action={deleteLeadAction.bind(null, lead.id)}
+            label={t('admin.records.deleteLead')}
+            title={t('admin.records.deleteLeadTitle')}
+            body={t('admin.records.deleteLeadBody')}
+            redirectTo="/admin/leads"
+          />
+        ) : null}
         <span className="rounded-full bg-blue-tint px-2.5 py-1 text-xs font-medium text-blue-deep">
           {LEAD_STATUS_LABEL_KEYS[lead.status] ? t(LEAD_STATUS_LABEL_KEYS[lead.status]) : lead.status}
         </span>

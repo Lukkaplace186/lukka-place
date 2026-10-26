@@ -31,8 +31,9 @@ export async function generateMetadata() {
  * here reaches a public visitor's payload.
  */
 // `errors` too: the console's client-side actions fall back to its generic
-// "action failed" copy when a server action throws.
-const ADMIN_NAMESPACES = ['admin', 'status', 'listings', 'errors'];
+// "action failed" copy when a server action throws. `agent` for the share
+// dialog the listing page reuses (ListingQuickShare, "Carte réseaux sociaux").
+const ADMIN_NAMESPACES = ['admin', 'status', 'listings', 'errors', 'agent'];
 
 const PUBLIC_PATHS = ['/admin/login', '/admin/activate'];
 
@@ -72,7 +73,7 @@ export default async function AdminLayout({ children }) {
   return (
     <I18nProvider locale={locale} messages={messages}>
       <ToastProvider>
-      <div className="flex min-h-screen bg-canvas-alt print:bg-white">
+      <div className="flex min-h-screen bg-page print:bg-white">
         <div className="hidden lg:flex print:hidden">
           <AdminSidebar role={session.role} hiddenTabs={hiddenAdminTabs} />
         </div>

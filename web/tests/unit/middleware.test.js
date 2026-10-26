@@ -32,6 +32,9 @@ test('the matcher covers exactly the private realms, plus everything for a "view
     '/admin/:path*',
     '/compte/:path*',
     { source: '/((?!_next/static|_next/image|favicon\\.ico).*)', has: [{ type: 'cookie', key: 'lukka_impersonation' }] },
+    // /listings only when it carries a ?city= / ?location= alias (lib/searchAliases.js).
+    { source: '/listings', has: [{ type: 'query', key: 'city' }] },
+    { source: '/listings', has: [{ type: 'query', key: 'location' }] },
   ]);
   assert.equal(config.runtime, 'nodejs', 'node:crypto primitives require the Node runtime, not Edge');
 });

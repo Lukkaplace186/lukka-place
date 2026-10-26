@@ -1,3 +1,5 @@
+import { rentPeriodLabel } from './leaseTerm';
+
 // Canonical price formatter — was copy-pasted identically across
 // ListingCard.js, ListingCardVertical.js, FeaturedListingCard.js, and
 // PropertyMap.js's InfoWindow. Consolidated here so lib/whatsapp.js can
@@ -8,9 +10,25 @@
 // services/db.js/openai.js in the engine repo, 'mois'|'an'|'total'|null)
 // is optional and only refines a `rent`-purpose listing's suffix: absent,
 // it defaults to the previous "/ mois" assumption (every rent listing
-// synced before this field existed); 'an' renders "/ an" instead; 'total'
+// synced before this field existed); 'an' renders "/ an" instead; a
+// short-term rent renders "/ jour" or "/ semaine" (lib/leaseTerm.js); 'total'
 // or 'mois' both render the existing "/ mois" text (a one-time total rent
 // figure is still effectively described the same way here).
+/**
+ * A French-grouped number ("1 000 000") with ordinary no-break spaces.
+ *
+ * Intl's fr-FR grouping separator is the NARROW no-break space (U+202F), and
+ * Plus Jakarta Sans draws that glyph at almost no width, so "1 000 000 $"
+ * rendered as "1000000 $" on every card. U+00A0 keeps the figure on one line
+ * and is a visible space in the site font.
+ */
+const NARROW_NBSP = new RegExp(String.fromCharCode(0x202f), 'g');
+const NBSP = String.fromCharCode(0xa0);
+
+export function frNumber(value, options) {
+  return Number(value).toLocaleString('fr-FR', options).replace(NARROW_NBSP, NBSP);
+}
+
 /**
  * What every price formatter here renders when there is no real figure to
  * show. The standard French property-listing phrase for exactly this, so it
@@ -59,9 +77,9 @@ export function usablePrice(price) {
 export function formatPriceParts(price, purpose, pricePeriod) {
   const usable = usablePrice(price);
   if (usable === null) return { amount: PRICE_ON_REQUEST, period: null };
-  const amount = `${usable.toLocaleString('fr-FR')} $`;
+  const amount = `${frNumber(usable)} $`;
   if (purpose !== 'rent') return { amount, period: null };
-  return { amount, period: pricePeriod === 'an' ? '/ an' : '/ mois' };
+  return { amount, period: rentPeriodLabel(pricePeriod) };
 }
 
 export function formatPrice(price, purpose, pricePeriod) {
@@ -88,9 +106,9 @@ export function formatPrice(price, purpose, pricePeriod) {
 export function formatPriceCdfParts(price, purpose, pricePeriod) {
   const usable = usablePrice(price);
   if (usable === null) return { amount: PRICE_ON_REQUEST, period: null };
-  const amount = `${usable.toLocaleString('fr-FR')} FC`;
+  const amount = `${frNumber(usable)} FC`;
   if (purpose !== 'rent') return { amount, period: null };
-  return { amount, period: pricePeriod === 'an' ? '/ an' : '/ mois' };
+  return { amount, period: rentPeriodLabel(pricePeriod) };
 }
 
 export function formatPriceCdf(price, purpose, pricePeriod) {
@@ -121,7 +139,7 @@ const CDF_COMPACT_FORMATTER = new Intl.NumberFormat('fr-FR', { notation: 'compac
 
 export function formatCdfCompact(cdf) {
   const amount = Number(cdf);
-  return Number.isFinite(amount) ? CDF_COMPACT_FORMATTER.format(amount) : null;
+  return Number.isFinite(amount) ? CDF_COMPACT_FORMATTER.format(amount).replace(NARROW_NBSP, NBSP) : null;
 }
 
 const RELATIVE_FR = new Intl.RelativeTimeFormat('fr-FR', { numeric: 'auto' });

@@ -1,0 +1,796 @@
+{
+ "_about": "Checked points for Kinshasa quartiers and aliases, keyed \"<commune>|<placeKey(name)>\". Built by scripts/geocode-quartiers.js through services/geocoding.js lookupPlaceTerm (Places API: a name-matching neighbourhood, or the median of >=3 name-matching places within 1.5 km, inside the commune). null = looked, nothing trustworthy. Never edit by hand; web/lib/data/quartier-points.json is a copy.",
+ "built_at": "2026-10-24",
+ "points": {
+  "Bandalungwa|adoula": {
+   "lat": -4.345798,
+   "lng": 15.282864,
+   "how": "neighborhood"
+  },
+  "Bandalungwa|bisengo": {
+   "lat": -4.34839,
+   "lng": 15.276535,
+   "how": "neighborhood"
+  },
+  "Bandalungwa|kasa vubu": null,
+  "Bandalungwa|lubundi": null,
+  "Bandalungwa|lumumba": null,
+  "Bandalungwa|makelele": {
+   "lat": -4.338445,
+   "lng": 15.276535,
+   "how": "neighborhood"
+  },
+  "Bandalungwa|molaert": null,
+  "Bandalungwa|tshibangu": null,
+  "Barumbu|bitshaku tshaku": null,
+  "Barumbu|funa i": null,
+  "Barumbu|funa ii": null,
+  "Barumbu|kapinga bapu": null,
+  "Barumbu|kasai": {
+   "lat": -4.318603,
+   "lng": 15.328456,
+   "how": "cluster",
+   "size": 3
+  },
+  "Barumbu|libulu": null,
+  "Barumbu|mozindo": null,
+  "Barumbu|ndolo": {
+   "lat": -4.322882,
+   "lng": 15.330761,
+   "how": "cluster",
+   "size": 10
+  },
+  "Barumbu|tshimanga": null,
+  "Bumbu|dibaya": null,
+  "Bumbu|kasai": null,
+  "Bumbu|kwango": null,
+  "Bumbu|lieutenant mbaki": null,
+  "Bumbu|lokoro": null,
+  "Bumbu|lukenie": null,
+  "Bumbu|mai ndombe": null,
+  "Bumbu|mbandaka": null,
+  "Bumbu|matadi": null,
+  "Bumbu|mfimi": null,
+  "Bumbu|mongala": null,
+  "Bumbu|ntomba": null,
+  "Bumbu|ubangi": null,
+  "Gombe|batetela": null,
+  "Gombe|cliniques": null,
+  "Gombe|commerce": null,
+  "Gombe|croix rouge": {
+   "lat": -4.309206,
+   "lng": 15.28908,
+   "how": "cluster",
+   "size": 3
+  },
+  "Gombe|fleuve": null,
+  "Gombe|gare": {
+   "lat": -4.301601,
+   "lng": 15.31682,
+   "how": "cluster",
+   "size": 15
+  },
+  "Gombe|golf": {
+   "lat": -4.313874,
+   "lng": 15.297394,
+   "how": "cluster",
+   "size": 5
+  },
+  "Gombe|haut commandement": null,
+  "Gombe|lemera": null,
+  "Gombe|revolution": null,
+  "Gombe|socimat": {
+   "lat": -4.32172,
+   "lng": 15.27609,
+   "how": "neighborhood"
+  },
+  "Kalamu|immocongo": null,
+  "Kalamu|kauka i": null,
+  "Kalamu|kauka ii": null,
+  "Kalamu|kauka iii": null,
+  "Kalamu|kimbangu i": null,
+  "Kalamu|kimbangu ii": null,
+  "Kalamu|kimbangu iii": null,
+  "Kalamu|matonge i": null,
+  "Kalamu|matonge ii": null,
+  "Kalamu|matonge iii": null,
+  "Kalamu|pinzi": null,
+  "Kalamu|yolo nord i": null,
+  "Kalamu|yolo nord ii": null,
+  "Kalamu|yolo nord iii": null,
+  "Kalamu|yolo sud i": null,
+  "Kalamu|yolo sud ii": null,
+  "Kalamu|yolo sud iii": null,
+  "Kalamu|yolo sud iv": null,
+  "Kasa-Vubu|anciens combattants": {
+   "lat": -4.344568,
+   "lng": 15.308134,
+   "how": "cluster",
+   "size": 3
+  },
+  "Kasa-Vubu|assossa": {
+   "lat": -4.34871,
+   "lng": 15.30196,
+   "how": "cluster",
+   "size": 5
+  },
+  "Kasa-Vubu|katanga": null,
+  "Kasa-Vubu|lodja": {
+   "lat": -4.336679,
+   "lng": 15.313762,
+   "how": "cluster",
+   "size": 3
+  },
+  "Kasa-Vubu|lubumbashi": null,
+  "Kasa-Vubu|onl": null,
+  "Kasa-Vubu|salongo": null,
+  "Kimbanseke|17 mai": {
+   "lat": -4.410305,
+   "lng": 15.408272,
+   "how": "neighborhood"
+  },
+  "Kimbanseke|bahumbu": null,
+  "Kimbanseke|bamboma": {
+   "lat": -4.430896,
+   "lng": 15.37606,
+   "how": "neighborhood"
+  },
+  "Kimbanseke|batumona": null,
+  "Kimbanseke|bikuku": null,
+  "Kimbanseke|biyela": {
+   "lat": -4.441633,
+   "lng": 15.398022,
+   "how": "neighborhood"
+  },
+  "Kimbanseke|boma": null,
+  "Kimbanseke|disasi": null,
+  "Kimbanseke|esanga": null,
+  "Kimbanseke|kabila": null,
+  "Kimbanseke|kakudji": null,
+  "Kimbanseke|kamba mulumba": null,
+  "Kimbanseke|kamboko": null,
+  "Kimbanseke|kasa vubu": null,
+  "Kimbanseke|kayolo": null,
+  "Kimbanseke|kikimi": null,
+  "Kimbanseke|kimbunda": null,
+  "Kimbanseke|kingasani": {
+   "lat": -4.410243,
+   "lng": 15.411201,
+   "how": "neighborhood"
+  },
+  "Kimbanseke|kisantu": null,
+  "Kimbanseke|kutu": {
+   "lat": -4.423367,
+   "lng": 15.378988,
+   "how": "neighborhood"
+  },
+  "Kimbanseke|luebo": null,
+  "Kimbanseke|mabinda": null,
+  "Kimbanseke|malonda": null,
+  "Kimbanseke|mangana": {
+   "lat": -4.435751,
+   "lng": 15.381917,
+   "how": "neighborhood"
+  },
+  "Kimbanseke|maviokele": {
+   "lat": -4.410101,
+   "lng": 15.388505,
+   "how": "neighborhood"
+  },
+  "Kimbanseke|mayengele": null,
+  "Kimbanseke|mbemba fundu": null,
+  "Kimbanseke|mbuala": null,
+  "Kimbanseke|mfumu nketo": null,
+  "Kimbanseke|mikondo": {
+   "lat": -4.407384,
+   "lng": 15.428774,
+   "how": "neighborhood"
+  },
+  "Kimbanseke|mokali": null,
+  "Kimbanseke|mulie": null,
+  "Kimbanseke|munkonka": null,
+  "Kimbanseke|ngamazita": null,
+  "Kimbanseke|ngamayama": null,
+  "Kimbanseke|ngampani": {
+   "lat": -4.40757,
+   "lng": 15.419987,
+   "how": "neighborhood"
+  },
+  "Kimbanseke|ngandu": null,
+  "Kimbanseke|ngiesi": null,
+  "Kimbanseke|nsanga": {
+   "lat": -4.403151,
+   "lng": 15.39363,
+   "how": "neighborhood"
+  },
+  "Kimbanseke|nsumabua": null,
+  "Kimbanseke|pandanzila": null,
+  "Kimbanseke|pierre fokom": null,
+  "Kimbanseke|revolution": null,
+  "Kimbanseke|sakombi": {
+   "lat": -4.45377,
+   "lng": 15.412665,
+   "how": "neighborhood"
+  },
+  "Kimbanseke|salongo": null,
+  "Kimbanseke|way way": null,
+  "Kinshasa|aketi": null,
+  "Kinshasa|boyoma": null,
+  "Kinshasa|djalo": null,
+  "Kinshasa|madimba": null,
+  "Kinshasa|mongala": null,
+  "Kinshasa|ngbaka": null,
+  "Kinshasa|pende": null,
+  "Kintambo|itimbiri": null,
+  "Kintambo|kilimani": null,
+  "Kintambo|lisala": null,
+  "Kintambo|lubudi luka": null,
+  "Kintambo|lubudi nganda": null,
+  "Kintambo|salongo": null,
+  "Kintambo|tshinkela": null,
+  "Kintambo|wenze": null,
+  "Kisenso|17 mai": null,
+  "Kisenso|amba": null,
+  "Kisenso|bikanga": {
+   "lat": -4.410255,
+   "lng": 15.354092,
+   "how": "cluster",
+   "size": 5
+  },
+  "Kisenso|dingi dingi": null,
+  "Kisenso|kabila": null,
+  "Kisenso|kitomesa": null,
+  "Kisenso|kisenso gare": {
+   "lat": -4.422392,
+   "lng": 15.354785,
+   "how": "cluster",
+   "size": 3
+  },
+  "Kisenso|kumbu": null,
+  "Kisenso|liberation": null,
+  "Kisenso|mbuku": null,
+  "Kisenso|mission": {
+   "lat": -4.409378,
+   "lng": 15.342352,
+   "how": "cluster",
+   "size": 3
+  },
+  "Kisenso|mujinga": null,
+  "Kisenso|ngomba": {
+   "lat": -4.396795,
+   "lng": 15.340927,
+   "how": "neighborhood"
+  },
+  "Kisenso|nsola": null,
+  "Kisenso|paix": {
+   "lat": -4.40289,
+   "lng": 15.354284,
+   "how": "cluster",
+   "size": 3
+  },
+  "Kisenso|regideso": null,
+  "Kisenso|revolution": null,
+  "Lemba|camp bumba": null,
+  "Lemba|camp kabila": null,
+  "Lemba|commercial": null,
+  "Lemba|echangeur": {
+   "lat": -4.374398,
+   "lng": 15.344778,
+   "how": "cluster",
+   "size": 7
+  },
+  "Lemba|ecole": {
+   "lat": -4.391096,
+   "lng": 15.327029,
+   "how": "cluster",
+   "size": 4
+  },
+  "Lemba|foire": {
+   "lat": -4.377119,
+   "lng": 15.337403,
+   "how": "cluster",
+   "size": 4
+  },
+  "Lemba|gombele": null,
+  "Lemba|kemi": null,
+  "Lemba|kimpwanza": null,
+  "Lemba|livulu": {
+   "lat": -4.404537,
+   "lng": 15.316579,
+   "how": "cluster",
+   "size": 8
+  },
+  "Lemba|mandrandele": null,
+  "Lemba|masano": null,
+  "Lemba|mbanza lemba": {
+   "lat": -4.423022,
+   "lng": 15.319016,
+   "how": "cluster",
+   "size": 7
+  },
+  "Lemba|molo": null,
+  "Lemba|salongo": {
+   "lat": -4.398438,
+   "lng": 15.3219,
+   "how": "neighborhood"
+  },
+  "Limete|agricole": {
+   "lat": -4.367274,
+   "lng": 15.322684,
+   "how": "cluster",
+   "size": 3
+  },
+  "Limete|general masiala": null,
+  "Limete|industriel": null,
+  "Limete|kingabwa": {
+   "lat": -4.340183,
+   "lng": 15.347445,
+   "how": "cluster",
+   "size": 11
+  },
+  "Limete|mateba": null,
+  "Limete|mayulu": null,
+  "Limete|mbamu": null,
+  "Limete|mfumu mvula": null,
+  "Limete|mombele": null,
+  "Limete|mososo": null,
+  "Limete|ndanu": {
+   "lat": -4.369491,
+   "lng": 15.359142,
+   "how": "cluster",
+   "size": 3
+  },
+  "Limete|nzadi": null,
+  "Limete|residentiel": null,
+  "Limete|salongo": null,
+  "Lingwala|30 juin": null,
+  "Lingwala|camp lufungula": null,
+  "Lingwala|cneci": null,
+  "Lingwala|la voix du peuple": null,
+  "Lingwala|lokole": null,
+  "Lingwala|ngunda lokombe": null,
+  "Lingwala|pakadjuma": null,
+  "Lingwala|singa mopepe": null,
+  "Lingwala|wenze": null,
+  "Makala|bahumbu": null,
+  "Makala|bagata": null,
+  "Makala|bolima": null,
+  "Makala|kabila": null,
+  "Makala|kisantu": null,
+  "Makala|kwango": null,
+  "Makala|lemba village": null,
+  "Makala|mabulu i": null,
+  "Makala|mabulu ii": null,
+  "Makala|mawanga": null,
+  "Makala|malala": null,
+  "Makala|m fidi": null,
+  "Makala|mikasi": null,
+  "Makala|salongo": null,
+  "Makala|selo": null,
+  "Makala|tampa": null,
+  "Makala|uele": null,
+  "Makala|wamba": null,
+  "Maluku|bu": null,
+  "Maluku|dumi": null,
+  "Maluku|kikimi": null,
+  "Maluku|kimpoko": null,
+  "Maluku|kingakati": null,
+  "Maluku|kingunu": null,
+  "Maluku|kinzono": null,
+  "Maluku|maluku": null,
+  "Maluku|mai ndombe": null,
+  "Maluku|mangengenge": null,
+  "Maluku|mbankana": null,
+  "Maluku|menkao": {
+   "lat": -4.188417,
+   "lng": 15.698446,
+   "how": "neighborhood"
+  },
+  "Maluku|monaco": null,
+  "Maluku|mongata": null,
+  "Maluku|mwe": null,
+  "Maluku|ngana": null,
+  "Maluku|nguma": null,
+  "Maluku|yosso": null,
+  "Maluku|you": null,
+  "Masina|abattoir": null,
+  "Masina|boba": {
+   "lat": -4.387561,
+   "lng": 15.380578,
+   "how": "cluster",
+   "size": 3
+  },
+  "Masina|congo": null,
+  "Masina|efoloko": null,
+  "Masina|imbali": null,
+  "Masina|kasai": null,
+  "Masina|kimbangu": null,
+  "Masina|kivu": null,
+  "Masina|lokari": null,
+  "Masina|lubambu": null,
+  "Masina|mafuta kizola": null,
+  "Masina|mandiangu": null,
+  "Masina|mapela": {
+   "lat": -4.385051,
+   "lng": 15.394152,
+   "how": "cluster",
+   "size": 9
+  },
+  "Masina|matadi": null,
+  "Masina|mfumu nsuka": null,
+  "Masina|nzuzi wa mbombo": null,
+  "Masina|pelende": null,
+  "Masina|sans fil": {
+   "lat": -4.376282,
+   "lng": 15.370204,
+   "how": "neighborhood"
+  },
+  "Masina|television": null,
+  "Masina|tshangu": null,
+  "Masina|tshuenge": null,
+  "Matete|dondo": null,
+  "Matete|loeka": null,
+  "Matete|lubefu": null,
+  "Matete|lumumba": null,
+  "Matete|lukunga": null,
+  "Matete|lunionzo": null,
+  "Matete|malemba": null,
+  "Matete|maziba": null,
+  "Matete|mbom ipoku": null,
+  "Matete|sankuru": null,
+  "Matete|sumbuka": null,
+  "Matete|totaka": null,
+  "Matete|vivi": null,
+  "Mont-Ngafula|cpa mushie": null,
+  "Mont-Ngafula|kimbondo": {
+   "lat": -4.46477,
+   "lng": 15.223074,
+   "how": "cluster",
+   "size": 6
+  },
+  "Mont-Ngafula|kimbuala": null,
+  "Mont-Ngafula|kimwenza": {
+   "lat": -4.471086,
+   "lng": 15.301411,
+   "how": "neighborhood"
+  },
+  "Mont-Ngafula|kindele": null,
+  "Mont-Ngafula|lutendele": {
+   "lat": -4.381686,
+   "lng": 15.19436,
+   "how": "cluster",
+   "size": 6
+  },
+  "Mont-Ngafula|mama mobutu": {
+   "lat": -4.440438,
+   "lng": 15.255802,
+   "how": "cluster",
+   "size": 4
+  },
+  "Mont-Ngafula|mama yemo": null,
+  "Mont-Ngafula|masanga mbila": {
+   "lat": -4.434712,
+   "lng": 15.278026,
+   "how": "cluster",
+   "size": 5
+  },
+  "Mont-Ngafula|masumu": null,
+  "Mont-Ngafula|matadi kibala": null,
+  "Mont-Ngafula|matadi mayo": {
+   "lat": -4.467114,
+   "lng": 15.253107,
+   "how": "cluster",
+   "size": 5
+  },
+  "Mont-Ngafula|mazamba": null,
+  "Mont-Ngafula|mbuki": null,
+  "Mont-Ngafula|mitendi": {
+   "lat": -4.49935,
+   "lng": 15.203392,
+   "how": "neighborhood"
+  },
+  "Mont-Ngafula|musangu": null,
+  "Mont-Ngafula|ndjili kilambu": null,
+  "Mont-Ngafula|ngansele": null,
+  "Mont-Ngafula|plateau": null,
+  "Mont-Ngafula|vunda manenga": null,
+  "Ndjili|bandundu": null,
+  "Ndjili|bilombe": null,
+  "Ndjili|equateur": null,
+  "Ndjili|goma": null,
+  "Ndjili|inga": null,
+  "Ndjili|kasai": null,
+  "Ndjili|katanga": null,
+  "Ndjili|kivu": null,
+  "Ndjili|makasi": null,
+  "Ndjili|mongala": null,
+  "Ndjili|oriental": null,
+  "Ndjili|ubangi": null,
+  "Ndjili|tshuapa": null,
+  "Nsele|badara": {
+   "lat": -4.413789,
+   "lng": 15.439105,
+   "how": "cluster",
+   "size": 4
+  },
+  "Nsele|bahumbu i": null,
+  "Nsele|bahumbu ii": null,
+  "Nsele|bibwa i": null,
+  "Nsele|bibwa ii": null,
+  "Nsele|buma": null,
+  "Nsele|dingi dingi": null,
+  "Nsele|domaine": null,
+  "Nsele|kikimi": null,
+  "Nsele|kindobo": null,
+  "Nsele|maba": null,
+  "Nsele|mangenge": null,
+  "Nsele|mibu": null,
+  "Nsele|mikala i": null,
+  "Nsele|mikala ii": null,
+  "Nsele|mikondo": {
+   "lat": -4.407384,
+   "lng": 15.428774,
+   "how": "neighborhood"
+  },
+  "Nsele|mikonga i": null,
+  "Nsele|mikonga ii": null,
+  "Nsele|mobanse": null,
+  "Nsele|mpasa i": null,
+  "Nsele|mpasa ii": null,
+  "Nsele|munke": null,
+  "Nsele|ngampama": null,
+  "Nsele|ngina": null,
+  "Nsele|pecheurs": null,
+  "Nsele|sicotra": null,
+  "Nsele|talangai": null,
+  "Ngaba|baoba": null,
+  "Ngaba|bulambemba": null,
+  "Ngaba|luyi": null,
+  "Ngaba|mateba": null,
+  "Ngaba|mukulwa": null,
+  "Ngaba|mpila": null,
+  "Ngaliema|anciens combattants": null,
+  "Ngaliema|bangu": null,
+  "Ngaliema|basoko": null,
+  "Ngaliema|binza delvaux": null,
+  "Ngaliema|binza ozone": {
+   "lat": -4.349153,
+   "lng": 15.231361,
+   "how": "cluster",
+   "size": 4
+  },
+  "Ngaliema|binza pigeon": {
+   "lat": -4.389463,
+   "lng": 15.275072,
+   "how": "neighborhood"
+  },
+  "Ngaliema|bumba": null,
+  "Ngaliema|congo": null,
+  "Ngaliema|djelo binza": {
+   "lat": -4.406946,
+   "lng": 15.272146,
+   "how": "neighborhood"
+  },
+  "Ngaliema|ipn": null,
+  "Ngaliema|joli parc": {
+   "lat": -4.349328,
+   "lng": 15.261172,
+   "how": "neighborhood"
+  },
+  "Ngaliema|kimpe": null,
+  "Ngaliema|kinkenda": null,
+  "Ngaliema|kinsuka pecheurs": null,
+  "Ngaliema|lonzo": null,
+  "Ngaliema|lubudi": null,
+  "Ngaliema|lukunga": {
+   "lat": -4.362833,
+   "lng": 15.216266,
+   "how": "cluster",
+   "size": 6
+  },
+  "Ngaliema|macampagne": {
+   "lat": -4.353786,
+   "lng": 15.256052,
+   "how": "neighborhood"
+  },
+  "Ngaliema|mama yemo": null,
+  "Ngaliema|manenga": null,
+  "Ngaliema|mfinda": {
+   "lat": -4.353897,
+   "lng": 15.233695,
+   "how": "cluster",
+   "size": 3
+  },
+  "Ngaliema|monganga": null,
+  "Ngaliema|mont fleury": null,
+  "Ngaliema|meteo": {
+   "lat": -4.36161,
+   "lng": 15.238497,
+   "how": "neighborhood"
+  },
+  "Ngaliema|musey": null,
+  "Ngaliema|ngomba kikusa": null,
+  "Ngaliema|punda": null,
+  "Ngaliema|upn": {
+   "lat": -4.405487,
+   "lng": 15.256932,
+   "how": "cluster",
+   "size": 9
+  },
+  "Ngiri-Ngiri|24 novembre": null,
+  "Ngiri-Ngiri|assossa": null,
+  "Ngiri-Ngiri|diangenda": null,
+  "Ngiri-Ngiri|diomi": null,
+  "Ngiri-Ngiri|elengesa": null,
+  "Ngiri-Ngiri|khartoum": null,
+  "Ngiri-Ngiri|peti peti": null,
+  "Ngiri-Ngiri|saio": null,
+  "Selembao|badiadingi": {
+   "lat": -4.431242,
+   "lng": 15.258116,
+   "how": "cluster",
+   "size": 5
+  },
+  "Selembao|cite verte": {
+   "lat": -4.437711,
+   "lng": 15.259709,
+   "how": "neighborhood"
+  },
+  "Selembao|herady": null,
+  "Selembao|inga": null,
+  "Selembao|kalunga": null,
+  "Selembao|konde": null,
+  "Selembao|liberation": null,
+  "Selembao|lubudi": null,
+  "Selembao|madiata": null,
+  "Selembao|mbala": null,
+  "Selembao|molende": null,
+  "Selembao|muana tunu": null,
+  "Selembao|ndobe": null,
+  "Selembao|ngafani": {
+   "lat": -4.403195,
+   "lng": 15.291616,
+   "how": "cluster",
+   "size": 4
+  },
+  "Selembao|nkinga": null,
+  "Selembao|nkombe": null,
+  "Selembao|nkulu": null,
+  "Selembao|pululu mbambu": null,
+  "Ngaliema|gb": {
+   "lat": -4.329448,
+   "lng": 15.274759,
+   "how": "cluster",
+   "size": 10
+  },
+  "Ngaliema|binza": {
+   "lat": -4.35,
+   "lng": 15.233333,
+   "how": "neighborhood"
+  },
+  "Ngaliema|binza ma campagne": null,
+  "Ngaliema|ma campagne": {
+   "lat": -4.353786,
+   "lng": 15.256052,
+   "how": "neighborhood"
+  },
+  "Ngaliema|binza upn": {
+   "lat": -4.413568,
+   "lng": 15.253126,
+   "how": "neighborhood"
+  },
+  "Ngaliema|binza ipn": null,
+  "Ngaliema|binza meteo": {
+   "lat": -4.36161,
+   "lng": 15.238497,
+   "how": "neighborhood"
+  },
+  "Ngaliema|delvaux": {
+   "lat": -4.378052,
+   "lng": 15.258651,
+   "how": "cluster",
+   "size": 15
+  },
+  "Ngaliema|ozone": {
+   "lat": -4.347696,
+   "lng": 15.237916,
+   "how": "cluster",
+   "size": 9
+  },
+  "Ngaliema|pigeon": {
+   "lat": -4.395475,
+   "lng": 15.265484,
+   "how": "cluster",
+   "size": 9
+  },
+  "Ngaliema|mimosas": {
+   "lat": -4.336296,
+   "lng": 15.224167,
+   "how": "cluster",
+   "size": 13
+  },
+  "Ngaliema|mimosa": {
+   "lat": -4.338195,
+   "lng": 15.219712,
+   "how": "cluster",
+   "size": 5
+  },
+  "Ngaliema|mimoza": null,
+  "Ngaliema|kinsuka": {
+   "lat": -4.339708,
+   "lng": 15.215093,
+   "how": "neighborhood"
+  },
+  "Mont-Ngafula|kinsuka": null,
+  "Lemba|righini": {
+   "lat": -4.394252,
+   "lng": 15.31385,
+   "how": "neighborhood"
+  },
+  "Lemba|terre jaune": null,
+  "Lemba|madrandele": null,
+  "Lemba|tadi": null,
+  "Lemba|djaga": null,
+  "Lemba|malolo": null,
+  "Kasa-Vubu|kimpwanza": null,
+  "Lemba|kimpwaza": null,
+  "Kasa-Vubu|kimpwaza": null,
+  "Bandalungwa|synkin": null,
+  "Bandalungwa|max horn": null,
+  "Bandalungwa|moelart": null,
+  "Bandalungwa|moulaert": {
+   "lat": -4.349884,
+   "lng": 15.29071,
+   "how": "cluster",
+   "size": 7
+  },
+  "Kalamu|matonge": {
+   "lat": -4.340085,
+   "lng": 15.317509,
+   "how": "neighborhood"
+  },
+  "Kalamu|yolo": {
+   "lat": -4.352454,
+   "lng": 15.320436,
+   "how": "neighborhood"
+  },
+  "Kalamu|camp pinzi": null,
+  "Kalamu|immo congo": null,
+  "Kalamu|20 mai": null,
+  "Kalamu|victoire": {
+   "lat": -4.34127,
+   "lng": 15.314823,
+   "how": "cluster",
+   "size": 9
+  },
+  "Kasa-Vubu|victoire": {
+   "lat": -4.339726,
+   "lng": 15.312898,
+   "how": "cluster",
+   "size": 6
+  },
+  "Kinshasa|zando": null,
+  "Barumbu|funa": {
+   "lat": -4.330376,
+   "lng": 15.323652,
+   "how": "cluster",
+   "size": 5
+  },
+  "Limete|funa": {
+   "lat": -4.338588,
+   "lng": 15.329649,
+   "how": "cluster",
+   "size": 6
+  },
+  "Kasa-Vubu|saio": {
+   "lat": -4.341377,
+   "lng": 15.299674,
+   "how": "cluster",
+   "size": 4
+  },
+  "Gombe|huilerie": null,
+  "Gombe|huileries": null,
+  "Lingwala|24 novembre": null
+ },
+ "checked_at": "2026-10-24"
+}

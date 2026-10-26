@@ -8,6 +8,9 @@ export const FORMATS = Object.freeze({
   square: Object.freeze({ key: 'square', width: 1080, height: 1080 }),
   story: Object.freeze({ key: 'story', width: 1080, height: 1920 }),
   landscape: Object.freeze({ key: 'landscape', width: 1200, height: 675 }),
+  // 4:5, the tallest a photo post can be in the Instagram and Facebook feeds
+  // (2026-10-26, "Carte feed social"). ListingQuickShare offers it beside the square.
+  feed: Object.freeze({ key: 'feed', width: 1080, height: 1350 }),
 });
 
 export const FORMAT_KEYS = Object.freeze(Object.keys(FORMATS));

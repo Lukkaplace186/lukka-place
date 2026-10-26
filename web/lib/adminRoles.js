@@ -26,6 +26,10 @@ export const PERMISSIONS = {
   'leads.view': ['owner', 'moderator', 'support', 'analyst'],
   'customers.view': ['owner', 'support'],
   'billing.view': ['owner', 'finance'],
+  // Network-wide reads a field rep has no business in: market figures and the
+  // agents' identity documents (Verifications). Everyone else with analytics.view.
+  'market.view': ['owner', 'moderator', 'support', 'finance', 'analyst'],
+  'verifications.view': ['owner', 'moderator', 'support', 'finance', 'analyst'],
   // Acting
   'listings.moderate': ['owner', 'moderator'],
   'listings.edit': ['owner', 'moderator'],
@@ -38,7 +42,12 @@ export const PERMISSIONS = {
   'agents.delete': ['owner'],
   // Bulk "Supprimer la sélection" on the approval queue: a soft delete with undo (lib/adminSoftDelete.js).
   'listings.delete': ['owner'],
+  // Permanent: engine SQLite rows, no undo (app/admin/recordDeleteActions.js).
+  'leads.delete': ['owner'],
+  'viewings.delete': ['owner'],
   'customers.manage': ['owner', 'support'],
+  // Permanent: the customer account with its favourites and alerts (FK cascade).
+  'customers.delete': ['owner'],
   'leads.manage': ['owner', 'moderator', 'support'],
   'conversations.reply': ['owner', 'support'],
   'viewings.manage': ['owner', 'support'],
@@ -46,6 +55,8 @@ export const PERMISSIONS = {
   // A `sales` user sees only the rep record linked to their own account.
   'sales.view': ['owner', 'finance', 'sales'],
   'sales.manage': ['owner', 'finance'],
+  // Removing a commission plan or a rep from the team.
+  'sales.delete': ['owner'],
   // "View as" an agent or customer — read-only, reasoned, logged (lib/impersonation.js).
   'accounts.impersonate': ['owner', 'support'],
   'routing.manage': ['owner'],
@@ -93,12 +104,14 @@ export const SECTION_PERMISSIONS = {
   '/admin/leads': 'leads.view',
   '/admin/matching': 'analytics.view',
   '/admin/viewings': 'leads.view',
-  '/admin/market-data': 'analytics.view',
+  '/admin/market-data': 'market.view',
   '/admin/benchmarks': 'analytics.view',
   '/admin/telemetry': 'analytics.view',
   '/admin/agents': 'agents.view',
   '/admin/agencies': 'agents.view',
   '/admin/customers': 'customers.view',
+  // Pasting Facebook group posts adds agent prospects (lib/facebookProspects.js).
+  '/admin/prospects': 'agents.manage',
   '/admin/subscriptions': 'billing.view',
   '/admin/billing': 'billing.view',
   '/admin/sales': 'sales.view',
@@ -112,7 +125,7 @@ export const SECTION_PERMISSIONS = {
   '/admin/export': 'data.export',
   // Opening the queue is agents.view; approving, rejecting, opening a document
   // and setting a level are agents.manage (enforced in each action/route).
-  '/admin/verifications': 'agents.view',
+  '/admin/verifications': 'verifications.view',
   // Reading ratings is agents.view; publishing or refusing a comment is
   // listings.moderate (app/admin/agent-reviews/actions.js).
   '/admin/agent-reviews': 'agents.view',

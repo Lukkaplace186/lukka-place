@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Briefcase, Building2, House, Store, Warehouse } from 'lucide-react';
+import { BedSingle, Briefcase, Building, Building2, Fence, House, Store, Tractor, Warehouse } from 'lucide-react';
 import { ApartmentIcon, LandIcon } from './icons/PropertyTypeIcons';
 import { getT } from '@/lib/i18n/server';
 import { COMMERCIAL_FILTER_VALUE, groupTypeFacets } from '@/lib/commercialSpaces';
@@ -19,12 +19,16 @@ import { COMMERCIAL_FILTER_VALUE, groupTypeFacets } from '@/lib/commercialSpaces
  * homes. A lone commercial type keeps its own name.
  */
 const ICONS = [
+  [/ferme|agricole/, Tractor],
   [/appart|studio|duplex|penthouse/, ApartmentIcon],
+  [/chambre|annexe/, BedSingle],
   [/terrain|parcelle/, LandIcon],
   [/^commercial$/, Building2],
   [/bureau/, Briefcase],
   [/boutique|commerce/, Store],
-  [/entrep|d[eé]p[oô]t|b[aâ]timent/, Warehouse],
+  [/entrep|d[eé]p[oô]t/, Warehouse],
+  [/immeuble|b[aâ]timent/, Building],
+  [/concession/, Fence],
 ];
 
 function iconFor(value) {
@@ -46,8 +50,8 @@ export default async function PropertyTypeTiles({ propertyTypes = [] }) {
   if (types.length < 2) return null;
   return (
     <section className="bg-canvas pb-8 pt-2 sm:pb-12">
-      <div className="mx-auto max-w-[1240px] px-4 sm:px-6 lg:px-8">
-        <h2 className="u-title-section mb-4 text-ink sm:mb-5">{t('home.types.title')}</h2>
+      <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8">
+        <h2 className="u-title-storefront mb-4 text-ink sm:mb-5">{t('home.types.title')}</h2>
         <ul className="u-stagger grid grid-cols-3 gap-2.5 sm:gap-4 lg:grid-cols-[repeat(auto-fit,minmax(14rem,1fr))]">
           {types.map(({ value, label, count }) => {
             const Icon = iconFor(value);

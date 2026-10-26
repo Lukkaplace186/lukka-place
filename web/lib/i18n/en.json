@@ -172,15 +172,19 @@
       "locationPlaceholder": "Commune / Neighbourhood (e.g. Gombe, Ngaliema)",
       "propertyType": "Property type",
       "allTypes": "All types",
-      "budget": "Maximum budget",
       "budgetMax": "Max ${amount}",
+      "budgetMinAny": "Min",
+      "budgetMaxAny": "Max",
+      "budgetMin": "Min ${amount}",
+      "budgetOver": "${amount}+",
+      "budgetMinAria": "Minimum budget",
+      "budgetMaxAria": "Maximum budget",
       "submit": "Search",
       "suggestedCount": {
         "one": "{count} suggestion",
         "other": "{count} suggestions"
       },
       "popularCommunes": "Popular Communes",
-      "allPrices": "Any price",
       "understood": "We understood:",
       "near": "Near {place}",
       "bedsMin": {
@@ -194,7 +198,18 @@
       "seeSuggestions": {
         "one": "See {count} suggestion",
         "other": "See {count} suggestions"
-      }
+      },
+      "city": "City",
+      "allCities": "All cities",
+      "leaseLong": "Long term",
+      "leaseShort": "Short term",
+      "shortTerm": "Short Stay",
+      "locationLabel": "Commune or Neighbourhood",
+      "heroPlaceholder": "e.g. Gombe, Ngaliema, Kintambo",
+      "budgetLabel": "Budget",
+      "seeForSale": "See properties for sale",
+      "seeShortStays": "See available stays",
+      "shortHint": "Homes let by the night or by the week."
     },
     "value": {
       "verifiedTitle": "Reviewed Listings",
@@ -360,7 +375,16 @@
       "searchButton": "Search",
       "depositRangeChip": "Upfront {value}",
       "depositRangeLabel": "Upfront payment",
-      "depositRangeHint": "Total due before moving in, as the listing states it: deposit + rent in advance + agency commission."
+      "depositRangeHint": "Total due before moving in, as the listing states it: deposit + rent in advance + agency commission.",
+      "otherTypes": "Other property types",
+      "otherTypesPlaceholder": "Studio, duplex, office…",
+      "typeChip": {
+        "parcelle": "Plot",
+        "appartement": "Apartment",
+        "maison": "House",
+        "villa": "Villa",
+        "terrain": "Land"
+      }
     },
     "sort": {
       "complete": "Complete listings first",
@@ -410,6 +434,7 @@
       "citywideFrom": "Radius widened to the whole city from {place}.",
       "communeWideFrom": "Radius widened to all of {commune} from {quartier}.",
       "areaHeading": "{subject} {transaction} in the Map Area",
+      "headingNational": "{subject} {transaction} in the DRC",
       "mapAreaNote": "The properties visible on the map",
       "clearArea": "Clear map area",
       "emptyAreaTitle": "No Properties in This Area",
@@ -516,7 +541,8 @@
       "energyWater": "Power & Water",
       "accessSecurity": "Access & Security",
       "rentalTerms": "Rental terms",
-      "paymentTerms": "Payment Terms"
+      "paymentTerms": "Payment Terms",
+      "comfort": "Comfort"
     },
     "amenities": {
       "generator": "Generator",
@@ -528,7 +554,9 @@
       "parking": "Off-street parking",
       "ac": "Air conditioning",
       "furnished": "Furnished",
-      "semi_furnished": "Part furnished"
+      "semi_furnished": "Part furnished",
+      "pool": "Swimming pool",
+      "gym": "Gym"
     },
     "depositMax": {
       "1": "1 month",
@@ -544,11 +572,16 @@
       "maison": "Houses",
       "duplex": "Duplexes",
       "terrain": "Land",
-      "batiment": "Buildings",
+      "immeuble": "Buildings",
+      "villa": "Villas",
+      "concession": "Compounds",
       "boutique": "Shops",
       "entrepot": "Warehouses",
       "bureau": "Offices",
-      "commercial": "Commercial Spaces"
+      "commercial": "Commercial Spaces",
+      "studio": "Studios",
+      "chambre": "Rooms & Annexes",
+      "ferme": "Farms & Farmland"
     },
     "chips": {
       "near": "Near {place}",
@@ -599,9 +632,11 @@
       "noPhotos": "No photos for this listing",
       "verified": "Verified listing",
       "enlargePhoto": "Enlarge photo {n}",
+      "playVideo": "Play video",
       "previousPhoto": "Previous photo",
       "nextPhoto": "Next photo",
       "allPhotos": "All photos",
+      "close": "Close",
       "seeAllCount": {
         "one": "See the Photo",
         "other": "See All {count} Photos"
@@ -622,6 +657,7 @@
       "viewDetails": "View details →",
       "closePreview": "Close preview",
       "loadError": "The map could not load. Please try again later.",
+      "zoneApprox": "Approximate area",
       "updating": "Updating the map…",
       "inArea": {
         "one": "{count} property in this area",
@@ -770,7 +806,70 @@
       }
     },
     "city": {
-      "label": "City"
+      "label": "City",
+      "all": "All cities"
+    },
+    "leaseTerm": {
+      "label": "Rental term",
+      "any": "Any",
+      "long": "Long term",
+      "short": "Short term",
+      "hint": "Long term: a standard monthly lease. Short term: a room, studio or flat let by the day or the week."
+    },
+    "details": {
+      "title": "Practical Details",
+      "declared": "Stated by the agent",
+      "furnished": "Furnished",
+      "unfurnished": "Unfurnished",
+      "households": "Households sharing the compound: {count}",
+      "landlordOn": "Landlord lives on site",
+      "landlordOff": "Landlord lives elsewhere",
+      "meter": {
+        "prepaye": "Prepaid meter (Cash Power)",
+        "individuel": "Individual meter",
+        "partage": "Shared meter"
+      },
+      "plot": "Plot: {size}",
+      "perM2": "per m²",
+      "installments": "Payment in instalments possible",
+      "installmentTerms": "Terms: {terms}",
+      "filter": {
+        "plotLabel": "Plot size (m²)",
+        "plotHint": "1 are = 100 m² · 1 ha = 10,000 m²",
+        "plotMin": "Min m²",
+        "plotMax": "Max m²",
+        "chipMin": "Plot ≥ {min} m²",
+        "chipMax": "Plot ≤ {max} m²",
+        "chipRange": "Plot {min}–{max} m²"
+      },
+      "form": {
+        "legend": "Practical details",
+        "notStated": "Not stated",
+        "yes": "Yes",
+        "no": "No",
+        "furnished": "Furnished?",
+        "furnishedYes": "Furnished",
+        "furnishedNo": "Unfurnished",
+        "households": "Households sharing the compound",
+        "landlord": "Does the landlord live there?",
+        "meter": "Electricity meter",
+        "meterPrepaye": "Cash Power (prepaid, individual)",
+        "meterIndividuel": "Individual",
+        "meterPartage": "Shared",
+        "plot": "Plot size",
+        "plotPlaceholder": "e.g. 15/20, 20x30, 5 ares, 1 ha",
+        "plotComputed": "= {size}",
+        "plotUnreadable": "Size not recognised: write e.g. 15/20, 20x30 or 5 ares.",
+        "installments": "Payment in instalments possible",
+        "installmentTerms": "Payment terms (your words)",
+        "installmentPlaceholder": "e.g. 30% on signing, the rest over 12 months",
+        "hint": "Leave “Not stated” when the listing does not say.",
+        "equipment": "Equipment",
+        "generator": "Generator",
+        "pool": "Swimming pool",
+        "gym": "Gym",
+        "solar": "Solar panels"
+      }
     }
   },
   "enquiry": {
@@ -879,7 +978,9 @@
       "depositMax": "Deposit up to {count} months",
       "reference": "Ref. {reference}",
       "query": "“{query}”",
-      "depositRange": "Upfront {value}"
+      "depositRange": "Upfront {value}",
+      "leaseLong": "Long term",
+      "leaseShort": "Short term (by the day)"
     }
   },
   "agent": {
@@ -1227,7 +1328,7 @@
       "movePhotoLeft": "Move photo left",
       "movePhotoRight": "Move photo right",
       "removePhoto": "Remove this photo",
-      "photoHint": "JPEG, PNG or WebP — 5 MB max per photo, 10 photos max.",
+      "photoHint": "JPEG, PNG or WebP — 10 MB max per photo, 20 photos max.",
       "savedWithPhotoWarning": "Changes saved, but some photos could not be uploaded.",
       "savedAndPublished": "Changes saved and published.",
       "searchFiltersHint": "that the search filters analyse.",
@@ -1257,7 +1358,15 @@
       "photoPosition": "Photo {n} — hold to move, tap for options",
       "photoOrderHint": "{count}/10 · hold a photo to move it",
       "utilities": "Power, Water, Security, Access",
-      "utilitiesHint": "Only tick what is true: customers filter on it, and the listing shows “Declared by the agent”."
+      "utilitiesHint": "Only tick what is true: customers filter on it, and the listing shows “Declared by the agent”.",
+      "rentPeriodLabel": "Rental term",
+      "rentPeriodHint": "Rentals only. Short term: a room, studio or flat let by the day or the week.",
+      "rentPeriod": {
+        "mois": "Long term — rent per month",
+        "jour": "Short term — price per day",
+        "semaine": "Short term — price per week",
+        "an": "Long term — rent per year"
+      }
     },
     "portfolio": {
       "toRent": "To rent",
@@ -2326,7 +2435,20 @@
       "download": "Download the image",
       "textOnly": "Send the text only",
       "hint": "The text is copied at the same time: if WhatsApp does not show it under the image, paste it.",
-      "imageFailed": "The image could not be prepared. You can send the text instead."
+      "imageFailed": "The image could not be prepared. You can send the text instead.",
+      "formatLabel": "Card format",
+      "formats": {
+        "square": "Square · WhatsApp",
+        "feed": "4:5 · Instagram, Facebook"
+      },
+      "titleFeed": "Social Share Card",
+      "descriptionFeed": "For the Instagram, Facebook or TikTok feed: the image at 1080 × 1350, with its caption. It leads back to the listing on Lukka Place.",
+      "descriptionTeam": "For Lukka Place’s own pages (Instagram, Facebook, TikTok): the image at 1080 × 1350 and its caption, both leading to the listing on the site.",
+      "shareFeed": "Share the image",
+      "downloadShort": "Download",
+      "copyCaption": "Copy the caption",
+      "captionCopiedShort": "Caption copied",
+      "hintFeed": "The caption is copied at the same time: paste it under the photo. On Instagram the link does not open with a tap."
     },
     "inbox": {
       "filterLabel": "Filter requests",
@@ -3030,7 +3152,8 @@
       "projects": "New developments",
       "demand": "Demand",
       "settings": "Site Settings",
-      "agentReviews": "Agent Reviews"
+      "agentReviews": "Agent Reviews",
+      "facebookProspects": "Facebook Prospects"
     },
     "login": {
       "intro": "Restricted to the Lukka Place team.",
@@ -3077,7 +3200,14 @@
       "publishNow": "Publish now (same checks as “Approve”)",
       "deleteOne": "Delete listing",
       "addPhotos": "Add photos",
-      "photosAdded": "{count} photo(s) added."
+      "photosAdded": "{count} photo(s) added.",
+      "agentTitle": "Agent",
+      "noAgent": "No agent: Lukka Place’s central number is shown.",
+      "assignAgent": "Assign to this agent",
+      "removeAgent": "Remove the agent",
+      "agentAssigned": "Listing assigned to the agent.",
+      "agentRemoved": "Agent removed from the listing.",
+      "agentUnchanged": "No change."
     },
     "leads": {
       "title": "Leads",
@@ -3265,7 +3395,39 @@
       "duplicatesTitle": "{count} Potential Duplicates",
       "sortBy": "Sort by",
       "loadError": "Agents could not be loaded: {error}",
-      "delete": "Delete"
+      "delete": "Delete",
+      "remindVerify": "Remind to verify",
+      "reminderHint": "Sends the agent a WhatsApp reminder. It only arrives if the agent wrote to Lukka Place in the last 24 hours.",
+      "reminderSent": "Verification reminder sent on WhatsApp (received if the agent wrote to us in the last 24 hours).",
+      "reminderNoPhone": "This agent has no valid number.",
+      "reminderFailed": "The reminder could not be sent.",
+      "subtitleSales": "The agents you brought to Lukka Place — through your code or your assignment.",
+      "lastLogin": "Last Login",
+      "loginNever": "No attempt on record",
+      "loginFailures": {
+        "one": "1 failure (last: {time})",
+        "other": "{count} failures (last: {time})"
+      },
+      "loginHistory": "View Login History",
+      "loginHistoryTitle": "Login History",
+      "loginHistoryHint": "Last 100 attempts, Kinshasa time.",
+      "loginHistoryLoading": "Loading…",
+      "loginHistoryUnavailable": "History is not available yet (migration not applied).",
+      "loginColTime": "Date and Time",
+      "loginColResult": "Result",
+      "loginColIp": "IP Address",
+      "loginColDevice": "Device",
+      "loginOutcome": {
+        "success": "Signed in",
+        "wrong_password": "Wrong password",
+        "locked": "Locked (too many tries)",
+        "verify_required": "Number verification pending",
+        "wrong_code": "Wrong code",
+        "expired_code": "Code expired",
+        "code_verified": "Signed in with a code",
+        "whatsapp_verified": "Signed in via WhatsApp",
+        "activated": "Account activated"
+      }
     },
     "actions": {
       "approve": "Approve",
@@ -3299,6 +3461,7 @@
       "finalPrice": "Agreed final price (USD)",
       "transactionDate": "Transaction date",
       "backToListings": "Back to listings",
+      "socialCard": "Social media card",
       "hidden": "Hidden",
       "suspended": "Listing suspended — removed from the public site.",
       "putBackOnline": "Listing back online.",
@@ -3599,7 +3762,11 @@
       "colLastLogin": "Last login",
       "colActions": "Actions",
       "viewingsCount": "{count} viewings",
-      "noPassword": "No password"
+      "noPassword": "No password",
+      "delete": "Delete account",
+      "deleteTitle": "Delete This Customer Account?",
+      "deleteBody": "The account, its saved listings and alerts are deleted for good and the person is signed out. Their requests and visits stay in Leads and Viewings.",
+      "deleted": "Customer account deleted."
     },
     "benchmarks": {
       "title": "Benchmark Pricing",
@@ -3842,7 +4009,8 @@
         "templateLeadMatch": "Agency alert template",
         "templateViewing": "Viewing request template",
         "templateOtp": "OTP template"
-      }
+      },
+      "subtitleSales": "WhatsApp taps on listings of the agents you brought in."
     },
     "table": {
       "all": "All",
@@ -3912,7 +4080,12 @@
       "noAgencyName": "no agency name",
       "contactUnverified": "number not verified",
       "moreAgents": "+{count} other agent(s)",
-      "noAgentYet": "No agent yet"
+      "noAgentYet": "No agent yet",
+      "rename": "Rename agency",
+      "renameSave": "Save",
+      "renameInvalid": "Enter a real agency name (at least 2 characters, not a number).",
+      "renamed": "Name saved for {count} agent(s) of the agency.",
+      "renamedButLogin": "Name saved for {count} agent(s). The console still shows the old back-office login “{login}”."
     },
     "agentProfile": {
       "tabs": "Agent sections",
@@ -4072,6 +4245,11 @@
       "saved": "Photos updated.",
       "hint": "Reorder, choose the cover or remove photos. New photos are added by the agent.",
       "foreignUrl": "Only photos already on this listing can be kept."
+    },
+    "videos": {
+      "title": "Videos",
+      "count": "{count} videos",
+      "hint": "Sent by the agent on WhatsApp. One photo or one video is enough to publish."
     },
     "queues": {
       "title": "Work Queues",
@@ -4406,7 +4584,13 @@
         "referralCodeEditHint": "A code that has already brought in an agent can no longer change.",
         "codeInvalid": "A referral code is 3 to 10 letters followed by 2 digits, e.g. JEAN01.",
         "codeTaken": "Another rep already uses this referral code.",
-        "codeLocked": "This code has already brought in an agent and is part of their record: it can no longer change."
+        "codeLocked": "This code has already brought in an agent and is part of their record: it can no longer change.",
+        "remove": "Remove from team",
+        "removeTitle": "Remove This Rep from the Team?",
+        "removeBody": "Their agents are no longer assigned to them, their referral code stops working and their console account is unlinked. Their commission and payout history is kept.",
+        "removeUnpaid": "This rep still has pending or approved commissions. Pay or void them first.",
+        "deleted": "Rep deleted.",
+        "removed": "Rep removed from the team. Their history is kept."
       },
       "plans": {
         "link": "Commission plans",
@@ -4448,8 +4632,12 @@
         "launchTitle": "Launch Policy Tiers",
         "launchAcquisition": "Qualified agents (cumulative totals): 5 = $15, 10 = $35, 15 = $60, 20 = $90, 30 = $150, 40 = $220, 50 = $300.",
         "launchAdditional": "Confirmed listings above 3 per qualified agent: 10 = $5, 25 = $15, 50 = $35, 100 = $80.",
-        "launchQuality": "+$25 once, when at least 80% of credited listings are still valid 30 days after confirmation (at least 15 checked).",
-        "launchQualified": "A qualified agent: verified number, a name, at least 3 confirmed listings, not rejected. Only validated agents count towards what is payable."
+        "launchQuality": "+$25 once, when at least 80% of the agents brought in more than 30 days ago are still active: account active and at least one listing online (at least 5 agents).",
+        "launchQualified": "A qualified agent: verified number, a name, at least 3 confirmed listings, not rejected. Only validated agents count towards what is payable.",
+        "delete": "Delete plan",
+        "deleteTitle": "Delete This Plan?",
+        "deleteBody": "{count} rep(s) on this plan will have none and earn nothing new until given one. Commissions already calculated keep their amounts.",
+        "deleted": "Plan deleted. {count} rep(s) left without a plan."
       },
       "accounts": {
         "title": "Agents",
@@ -4569,9 +4757,9 @@
         "quality": {
           "title": "30-Day Quality Bonus",
           "earned": "Earned · {amount}",
-          "passing": "Passing: at least {ratio}% valid ({valid}/{checked})",
-          "failing": "Below {ratio}%: {valid}/{checked} valid on day 30",
-          "maturing": "{count} listing(s) not yet 30 days old · tested from {min} checked listings ({days} days)"
+          "passing": "Passing: at least {ratio}% active ({valid}/{checked})",
+          "failing": "Below {ratio}%: {valid}/{checked} agents active after 30 days",
+          "maturing": "{count} agent(s) brought in less than 30 days ago · tested from {min} agents ({days} days)"
         },
         "referral": {
           "code": "Referral code",
@@ -4657,7 +4845,7 @@
         "ledger": {
           "milestoneDetail": "Tier reached: {count} validated qualified agents",
           "listingBonusDetail": "Tier reached: {count} additional listings",
-          "qualityDetail": "{ratio}% of credited listings valid on day 30",
+          "qualityDetail": "{ratio}% of agents brought in still active after 30 days",
           "voidBelowThreshold": "Tier no longer met"
         },
         "fortnight": {
@@ -5220,6 +5408,92 @@
       "approved": "Comment published.",
       "rejected": "Comment rejected.",
       "failed": "Could not do that. Try again."
+    },
+    "records": {
+      "deleteLead": "Delete",
+      "deleteLeadTitle": "Delete This Prospect?",
+      "deleteLeadBody": "The request, its visits and the agencies it was sent to are deleted for good. Nobody is told.",
+      "leadDeleted": "Prospect deleted ({count} visit(s) with it).",
+      "deleteViewing": "Delete",
+      "deleteViewingTitle": "Delete This Visit?",
+      "deleteViewingBody": "The visit request is deleted for good; the prospect stays. Nobody is told.",
+      "viewingDeleted": "Visit deleted.",
+      "notFound": "Not found: already deleted?"
+    },
+    "agentCreate": {
+      "title": "Create an Agent",
+      "subtitle": "An agent account verified by the team, usable at once: no code is asked of the number.",
+      "warning": "You are vouching for this number: it will be shown on the agent’s listings and receive their enquiries. Listings already sent from this number (WhatsApp groups included) are attached to the account. Nothing is sent automatically.",
+      "firstName": "First name",
+      "lastName": "Last name",
+      "agency": "Agency",
+      "phone": "Agent’s WhatsApp number",
+      "phoneHint": "International format: pick the country, then the number.",
+      "submit": "Create and verify",
+      "creating": "Creating…",
+      "another": "Create another agent",
+      "verifiedDone": "Account verified for {phone}.",
+      "claimed": "{count} listing(s) attached to this account.",
+      "claimFailed": "Existing listings could not be attached now; they will be at their next sync.",
+      "linkHint": "Single-use activation link (sets the password), shown once. Send it to the agent:",
+      "copy": "Copy link",
+      "copied": "Copied",
+      "sendFromMyWhatsApp": "Send from my WhatsApp",
+      "noLinkHasPassword": "This agent already has a password, so no link was created. “Reset access” sends one if needed.",
+      "openAgent": "Open agent #{id}",
+      "verify": "Verify the number",
+      "verifying": "Verifying…",
+      "verifyHint": "Verify this number without a code, on the team’s word, and attach its listings.",
+      "verifyConfirm": "Verify {phone} without a code? The number will be shown on this agent’s listings and receive their enquiries.",
+      "errorPhone": "Invalid number: 7 to 15 digits in international format.",
+      "errorOurs": "That is a Lukka Place number, not an agent’s.",
+      "errorName": "First name is required.",
+      "errorTaken": "This number already has an agent account (#{id}), possibly deleted.",
+      "errorVerifiedElsewhere": "This number is already verified on another account (#{id}).",
+      "errorUnavailable": "Database unavailable, try again."
+    },
+    "facebookProspects": {
+      "title": "Paste a Post",
+      "subtitle": "Paste a post or comments from a Facebook group you belong to: the Congolese numbers found become agent prospects to invite. Nobody is contacted from this page.",
+      "postText": "Post text",
+      "postTextPlaceholder": "Paste the text of the post or comments here…",
+      "detected": {
+        "one": "{count} number detected:",
+        "other": "{count} numbers detected:"
+      },
+      "noneDetected": "No Congolese number found in this text.",
+      "groupName": "Group",
+      "authorName": "Author",
+      "postUrl": "Post link",
+      "submit": "Save the numbers",
+      "saving": "Saving…",
+      "saved": {
+        "one": "{count} new prospect saved.",
+        "other": "{count} new prospects saved."
+      },
+      "skip": {
+        "ours": "a Lukka Place number, ignored",
+        "agent": "already has an agent account",
+        "already_prospect": "already on the list (seen once more)"
+      },
+      "errorEmpty": "Paste the post’s text first.",
+      "errorTooLong": "Text too long ({max} characters at most): paste it in several goes.",
+      "errorUrl": "The link must start with https:// or http://.",
+      "errorUnavailable": "The prospects table does not exist yet: migration 20261023_facebook_prospects.sql must be applied.",
+      "recentTitle": "Latest Prospects",
+      "pendingTotal": {
+        "one": "{count} to invite",
+        "other": "{count} to invite"
+      },
+      "seenCount": "seen {count} times",
+      "openPost": "View post",
+      "empty": "No prospects yet.",
+      "status": {
+        "pending_invite": "To invite",
+        "invited": "Invited",
+        "registered": "Signed up",
+        "declined": "Declined"
+      }
     }
   },
   "errors": {
@@ -5282,6 +5556,8 @@
     "fieldBathrooms": "bathrooms",
     "fieldDoors": "doors",
     "fieldDepositMonths": "deposit months",
+    "fieldAdvanceMonths": "advance months",
+    "fieldCommissionMonths": "commission months",
     "agentNoWhatsApp": "This agent has no WhatsApp number on record.",
     "sendFailedShort": "Sending failed.",
     "actionFailed": "The action failed.",
@@ -5445,6 +5721,7 @@
     "otherTypes": "Other Properties {transaction} in {place}",
     "otherTransaction": "See Also",
     "nearbyCommunes": "Nearby communes with listings",
+    "otherCities": "In Other Cities",
     "faqTitle": "Frequently Asked Questions",
     "faqPriceQ": "What do {headingLower} cost?",
     "faqPriceA": "Listings online show prices from {min} to {max}.",

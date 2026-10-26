@@ -163,6 +163,6 @@ test('the site speaks for the whole DRC, and a city search is titled for its cit
     assert.match(dict.site.cityMetaTitle, /\{city\}/);
   }
   assert.match(read('app/manifest.js'), /partout en RDC/);
-  const page = read('app/(site)/listings/page.js');
+  const page = read('app/(site)/listings/(search)/(results)/page.js');
   assert.match(page, /t\('site\.cityMetaTitle', \{ city \}\)/);
 });

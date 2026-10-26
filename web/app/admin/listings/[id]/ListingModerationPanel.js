@@ -200,6 +200,32 @@ export default function ListingModerationPanel({ listingId, info, canModerate, c
         ) : null}
         <p className="u-micro text-ink-45">{t('admin.photos.hint')}</p>
       </section>
+
+      {/* Videos the agent sent on WhatsApp (lib/listingVideos.js). Watched
+          here before approving — a video-only listing has nothing else. */}
+      {info.videos?.length ? (
+        <section className="u-card flex flex-col gap-3 rounded-card bg-surface p-5">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="u-title-card text-ink">{t('admin.videos.title')}</h2>
+            <span className="u-micro text-ink-45">{t('admin.videos.count', { count: info.videos.length })}</span>
+          </div>
+          <ul className="flex flex-col gap-2">
+            {info.videos.map((video) => (
+              <li key={video.url}>
+                <video
+                  className="aspect-video w-full rounded-md bg-ink object-contain"
+                  controls
+                  playsInline
+                  preload="metadata"
+                  poster={video.poster || undefined}
+                  src={video.url}
+                />
+              </li>
+            ))}
+          </ul>
+          <p className="u-micro text-ink-45">{t('admin.videos.hint')}</p>
+        </section>
+      ) : null}
     </div>
   );
 }

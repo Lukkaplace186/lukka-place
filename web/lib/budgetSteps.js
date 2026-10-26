@@ -1,0 +1,101 @@
+/**
+ * Price steps for the homepage search card's Budget Min / Max dropdowns.
+ *
+ * Rent steps are the owner's list (2026-10-24): $100 steps to $1,000, then
+ * 1,250 / 1,500 / 2,000 / 2,500 / 3,000 / 4,000, then every $1,000 to
+ * $10,000, then "10 000 $ +". Both dropdowns use them (Louer and Courte
+ * durée alike).
+ *
+ * Sale steps are the owner's list too (2026-10-25), and the two sides
+ * differ: Min from 10 000 to 1 000 000, Max from 25 000 to 1 000 000, then
+ * "1 000 000 $ +". A $10k ceiling meant nothing for a $380,000 house.
+ *
+ * The top of each list reads "N $ +". As a minimum it is the figure itself
+ * (N and more). As a maximum it means "no ceiling", so it carries its own
+ * value (OVER) and sends no price_max at all: a max of N would hide the
+ * listings the label promises.
+ *
+ * Pure, so the rules are testable (tests/unit/budget-steps.test.js).
+ */
+export const RENT_BUDGET_STEPS = [
+  100, 200, 300, 400, 500, 600, 700, 800, 900, 1000,
+  1250, 1500, 2000, 2500, 3000, 4000,
+  5000, 6000, 7000, 8000, 9000, 10000,
+];
+
+export const SALE_MIN_STEPS = [
+  10000, 25000, 50000, 75000, 100000, 150000, 200000, 250000, 300000,
+  400000, 500000, 750000, 1000000,
+];
+
+export const SALE_MAX_STEPS = [
+  25000, 50000, 75000, 100000, 150000, 200000, 250000, 300000,
+  400000, 500000, 750000, 1000000,
+];
+
+/** The "N $ +" option's value in the Max dropdown: no ceiling. */
+export const OVER = 'over';
+
+/**
+ * The hero's Acheter tab sends `vente` (lib/constants.js
+ * HERO_TRANSACTION_BY_TAB); `sale` is the listings' own purpose word. Both
+ * mean the sale scale. Checking only `sale` is the bug that showed rent
+ * steps under Acheter (2026-10-25).
+ */
+export function isSale(transactionType) {
+  return transactionType === 'vente' || transactionType === 'sale';
+}
+
+/** { min, max } step lists for a transaction. */
+export function budgetSteps(transactionType) {
+  return isSale(transactionType)
+    ? { min: SALE_MIN_STEPS, max: SALE_MAX_STEPS }
+    : { min: RENT_BUDGET_STEPS, max: RENT_BUDGET_STEPS };
+}
+
+/**
+ * The price_min / price_max the two dropdowns stand for. '' is "not set".
+ * A min above the max is not sent as a contradiction: the max is dropped.
+ */
+export function budgetParams(min, max) {
+  const lo = min === '' || min == null ? null : Number(min);
+  const hi = max === '' || max == null || max === OVER ? null : Number(max);
+  return {
+    price_min: lo != null && Number.isFinite(lo) ? String(lo) : '',
+    price_max: hi != null && Number.isFinite(hi) && (lo == null || hi >= lo) ? String(hi) : '',
+  };
+}
+
+/**
+ * Options for both dropdowns. `format(amount)` renders a figure in the
+ * reader's language ("1 500", "1,500"); `labels` holds the translated words:
+ * { minAny, maxAny, min(amount), max(amount), over(amount) }.
+ * A max option below the chosen min (and a min above the chosen max) is
+ * disabled rather than hidden, so the list does not jump while scrolling.
+ */
+export function budgetOptions(transactionType, { min = '', max = '' } = {}, format, labels) {
+  const steps = budgetSteps(transactionType);
+  const minTop = steps.min[steps.min.length - 1];
+  const maxTop = steps.max[steps.max.length - 1];
+  const lo = min === '' ? null : Number(min);
+  const hi = max === '' || max === OVER ? null : Number(max);
+
+  const minOptions = [
+    { value: '', label: labels.minAny },
+    ...steps.min.map((amount) => ({
+      value: String(amount),
+      label: amount === minTop ? labels.over(format(amount)) : labels.min(format(amount)),
+      disabled: hi != null && amount > hi,
+    })),
+  ];
+  const maxOptions = [
+    { value: '', label: labels.maxAny },
+    ...steps.max.map((amount) => ({
+      value: String(amount),
+      label: labels.max(format(amount)),
+      disabled: lo != null && amount < lo,
+    })),
+    { value: OVER, label: labels.over(format(maxTop)) },
+  ];
+  return { minOptions, maxOptions };
+}

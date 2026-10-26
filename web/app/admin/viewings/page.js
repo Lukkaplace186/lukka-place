@@ -16,6 +16,10 @@ import Pagination from '../table/Pagination';
 import TableToolbar from '../table/TableToolbar';
 import { EmptyRow, TD_DENSE, TH_STICKY, TR_DENSE, TableFrame } from '../table/TableFrame';
 import ViewingRowActions from './ViewingRowActions';
+import DeleteRecordButton from '../DeleteRecordButton';
+import { deleteViewingAction } from '../recordDeleteActions';
+import { getAdminSession } from '@/lib/adminSession';
+import { can } from '@/lib/adminRoles';
 import { AgentContact, WhatsAppLink } from '../ContactCell';
 import ServerViewTools from '../table/ServerViewTools';
 import { NewItemsNotice } from '../LiveQueueCounts';
@@ -48,6 +52,7 @@ const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
  */
 export default async function AdminViewingsPage({ searchParams }) {
   const t = await getT();
+  const canDeleteViewings = can((await getAdminSession())?.role, 'viewings.delete');
   const raw = (await searchParams) || {};
   const statusParam = firstParam(raw.status);
   const filters = {
@@ -292,6 +297,17 @@ export default async function AdminViewingsPage({ searchParams }) {
                       canNudge={row.routing_type === 'DIRECT_WA' && ['PENDING', 'RESCHEDULED'].includes(row.status)}
                       canCancel={CANCELLABLE.includes(row.status)}
                     />
+                    {canDeleteViewings ? (
+                      <div className="mt-1.5">
+                        <DeleteRecordButton
+                          compact
+                          action={deleteViewingAction.bind(null, row.id)}
+                          label={t('admin.records.deleteViewing')}
+                          title={t('admin.records.deleteViewingTitle')}
+                          body={t('admin.records.deleteViewingBody')}
+                        />
+                      </div>
+                    ) : null}
                   </td>
                 </tr>
               );

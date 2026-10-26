@@ -64,7 +64,12 @@ function CommuneGrid({ name, communes, selected, disabled = new Set() }) {
   );
 }
 
-export default function AgentAdminPanel({ agent, communes, listingCount }) {
+/**
+ * `readOnly` (a role without agents.manage, such as a sales rep): the identity
+ * card is shown disabled, with no save, password or portfolio-transfer
+ * controls. The server actions refuse those roles anyway.
+ */
+export default function AgentAdminPanel({ agent, communes, listingCount, readOnly = false }) {
   const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
@@ -108,6 +113,7 @@ export default function AgentAdminPanel({ agent, communes, listingCount }) {
       <form id="profil" onSubmit={handleSave} className="u-card flex scroll-mt-24 flex-col gap-5 rounded-card bg-surface p-6">
         <h2 className="u-title-card text-ink">{t('admin.agentPanel.identityAndTerritory')}</h2>
 
+        <fieldset disabled={readOnly} className="contents">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <span className={LABEL}>{t('admin.agentPanel.firstName')}</span>
@@ -179,18 +185,23 @@ export default function AgentAdminPanel({ agent, communes, listingCount }) {
           </p>
         </div>
 
-        <div>
-          <button
-            type="submit"
-            disabled={pending}
-            className="u-btn-primary u-press inline-flex h-10 items-center gap-2 rounded-lg bg-blue px-4 text-[0.8125rem] font-bold text-white disabled:opacity-60"
-          >
-            <Save strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-            {pending ? 'Enregistrement…' : t('common.actions.save')}
-          </button>
-        </div>
+        </fieldset>
+
+        {readOnly ? null : (
+          <div>
+            <button
+              type="submit"
+              disabled={pending}
+              className="u-btn-primary u-press inline-flex h-10 items-center gap-2 rounded-lg bg-blue px-4 text-[0.8125rem] font-bold text-white disabled:opacity-60"
+            >
+              <Save strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+              {pending ? 'Enregistrement…' : t('common.actions.save')}
+            </button>
+          </div>
+        )}
       </form>
 
+      {readOnly ? null : (<>
       <div className="u-card flex flex-col gap-4 rounded-card bg-surface p-6">
         <h2 className="u-title-card text-ink">{t('admin.agentPanel.accessAndSecurity')}</h2>
         <div className="u-micro grid gap-2 text-ink-70 sm:grid-cols-2">
@@ -296,6 +307,7 @@ export default function AgentAdminPanel({ agent, communes, listingCount }) {
           </button>
         </div>
       </form>
+      </>)}
     </div>
   );
 }

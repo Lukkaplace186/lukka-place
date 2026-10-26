@@ -229,7 +229,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
                     <AgentAvatar src={agent.image} alt={name} />
                   </div>
                 ) : initial ? (
-                  <span className="font-display text-[1.375rem] leading-none text-white/85">{initial}</span>
+                  <span className="font-bold text-[1.375rem] leading-none text-white/85">{initial}</span>
                 ) : (
                   <Building2 strokeWidth={1.5} className="h-6 w-6 text-white/65" />
                 )}
@@ -245,7 +245,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
                   </span>
                 ) : null}
 
-                <h1 className="normal-case font-display text-[2rem] font-normal leading-[1.06] tracking-tight text-white sm:text-[2.75rem]">
+                <h1 className="normal-case font-bold text-[2rem] leading-[1.06] tracking-tight text-white sm:text-[2.75rem]">
                   {headingName}
                 </h1>
                 {contactName ? (
@@ -352,7 +352,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
           <section className="mb-12 flex flex-col gap-5">
             <div>
               <span className="u-eyebrow">{t('projects.profile.eyebrow')}</span>
-              <h2 className="font-display mt-1.5 text-[2rem] font-normal tracking-[-0.01em] text-ink sm:text-[2.375rem]">
+              <h2 className="font-bold mt-1.5 text-[2rem] tracking-[-0.01em] text-ink sm:text-[2.375rem]">
                 {t('projects.profile.title')}
               </h2>
             </div>
@@ -366,7 +366,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
             <div className="flex flex-wrap items-end justify-between gap-6">
               <div>
                 <span className="u-eyebrow">Portfolio</span>
-                <h2 className="font-display mt-1.5 text-[2rem] font-normal tracking-[-0.01em] text-ink sm:text-[2.375rem]">
+                <h2 className="font-bold mt-1.5 text-[2rem] tracking-[-0.01em] text-ink sm:text-[2.375rem]">
                   Biens disponibles aujourd&apos;hui
                 </h2>
               </div>
@@ -418,7 +418,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
               <section id="avis" className="mt-12 flex scroll-mt-24 flex-col gap-4">
                 <div>
                   <span className="u-eyebrow">{t('agent.portfolio.reviewsEyebrow')}</span>
-                  <h2 className="font-display mt-1.5 text-[2rem] font-normal tracking-[-0.01em] text-ink sm:text-[2.375rem]">
+                  <h2 className="font-bold mt-1.5 text-[2rem] tracking-[-0.01em] text-ink sm:text-[2.375rem]">
                     {t('agent.portfolio.reviewsTitle')}
                   </h2>
                   <p className="u-tabular mt-2 flex items-center gap-1.5 text-base font-bold text-ink">

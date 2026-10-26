@@ -114,7 +114,7 @@ test('landing pages: /location/bureaux and /location/locaux-commerciaux, never c
   assert.ok(OVERLAY_PROPERTY_TYPES.has(COMMERCIAL_FILTER_VALUE));
   const paths = landingPathsFromFacets([{ commune: 'Gombe', purpose: 'rent', propertyType: COMMERCIAL_FILTER_VALUE, count: 2 }]);
   assert.ok(paths.includes('/location/locaux-commerciaux/gombe'));
-  for (const value of ['bureau', COMMERCIAL_FILTER_VALUE, 'entrepôt', 'bâtiment']) {
+  for (const value of ['bureau', COMMERCIAL_FILTER_VALUE, 'entrepôt', 'immeuble', 'bâtiment', 'villa', 'concession']) {
     assert.ok(PROPERTY_TYPE_PLURAL_KEYS[value], `results heading for ${value}`);
   }
 });
@@ -141,7 +141,9 @@ test('smart paste maps a pasted office onto the Bureau category and its specs', 
     { id: 44, name: 'Bureau', type: 'commercial' },
   ];
   assert.equal(matchCategoryId(categories, 'bureau'), 44);
-  assert.equal(matchCategoryId(categories, 'immeuble'), 38, '"immeuble" is the Bâtiment category');
+  assert.equal(matchCategoryId(categories, 'immeuble'), 38, '"immeuble" finds the building category under its old name');
+  assert.equal(matchCategoryId([{ id: 38, name: 'Immeuble', type: 'commercial' }], 'immeuble'), 38, 'and under its new one');
+  assert.equal(matchCategoryId([{ id: 46, name: 'Concession', type: 'residential' }], 'concession'), 46);
   const mapped = buildFormValuesFromParsed(
     { property_type: 'bureau', office_count: 4, floor_level: 1, road_frontage: true, truck_access: null },
     { communes: [], categories, rawText: '' },

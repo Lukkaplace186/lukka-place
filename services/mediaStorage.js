@@ -57,7 +57,30 @@ function persistImages(images, key) {
   return paths;
 }
 
+/**
+ * Write downloaded videos next to the photos, named `<key>-v<i>.<ext>` so a
+ * burst's photos and videos never collide and a redelivery overwrites.
+ *
+ * @param {Array<{buffer: Buffer, mimeType: string}>} videos  chakra.downloadVideo results.
+ * @param {string} key
+ * @returns {string[]} Web paths ('/uploads/listings/<key>-v0.mp4').
+ */
+function persistVideos(videos, key) {
+  if (!videos || videos.length === 0) return [];
+  const { VIDEO_EXTENSION_BY_MIME } = require('./listingMedia');
+  const safeKey = sanitiseKey(key);
+  const dir = path.join(UPLOADS_ROOT, LISTINGS_SUBDIR);
+  fs.mkdirSync(dir, { recursive: true });
+  return videos.map((video, index) => {
+    const ext = VIDEO_EXTENSION_BY_MIME[video.mimeType] || 'mp4';
+    const filename = `${safeKey}-v${index}.${ext}`;
+    fs.writeFileSync(path.join(dir, filename), video.buffer);
+    return `/uploads/${LISTINGS_SUBDIR}/${filename}`;
+  });
+}
+
 module.exports = {
   persistImages,
+  persistVideos,
   UPLOADS_ROOT,
 };

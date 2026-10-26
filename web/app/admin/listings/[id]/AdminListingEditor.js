@@ -8,6 +8,8 @@ import { useToast } from '@/components/Toast';
 import { adminUpdateListingAction, adminSetListingVisibleAction } from './actions';
 import { useT } from '@/lib/i18n/client';
 import CommuneOptions from '@/components/CommuneOptions';
+import ListingDetailFields from '@/components/ListingDetailFields';
+import { detailSections, detailsOf } from '@/lib/listingDetails';
 
 const FIELD =
   'u-focus-ring h-10 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink';
@@ -176,6 +178,7 @@ export default function AdminListingEditor({ listing, communes, categories }) {
               name="area"
               type="number"
               min="0"
+              step="0.01"
               // '0' is this column's stored "unknown" — shown as blank so a
               // moderator never reads it as a real measurement, and cleared
               // back to NULL on save.
@@ -198,6 +201,24 @@ export default function AdminListingEditor({ listing, communes, categories }) {
               type="number"
               min="0"
               defaultValue={listing.deposit_months ?? ''}
+              className={FIELD}
+            />
+          </Field>
+          <Field label="Loyer d'avance (mois)">
+            <input
+              name="advance_months"
+              type="number"
+              min="0"
+              defaultValue={listing.advance_months ?? ''}
+              className={FIELD}
+            />
+          </Field>
+          <Field label="Commission (mois)">
+            <input
+              name="commission_months"
+              type="number"
+              min="0"
+              defaultValue={listing.commission_months ?? ''}
               className={FIELD}
             />
           </Field>
@@ -236,9 +257,14 @@ export default function AdminListingEditor({ listing, communes, categories }) {
           <Field label={t('admin.moderation.periodicity')}>
             <select name="price_period" defaultValue={listing.price_period || ''} className={FIELD}>
               <option value="">{t('admin.actions.none')}</option>
-              <option value="month">Par mois</option>
-              <option value="year">Par an</option>
-              <option value="day">Par jour</option>
+              {/* The stored vocabulary (lib/leaseTerm.js): 'jour' / 'semaine'
+                  make it a short-term rental. It used to post 'month' /
+                  'year' / 'day', which nothing else reads. */}
+              <option value="mois">Par mois</option>
+              <option value="an">Par an</option>
+              <option value="jour">Par jour (courte durée)</option>
+              <option value="semaine">Par semaine (courte durée)</option>
+              <option value="total">Prix total (vente)</option>
             </select>
           </Field>
           <Field label={t('admin.moderation.marketStatus')}>
@@ -284,6 +310,16 @@ export default function AdminListingEditor({ listing, communes, categories }) {
             </div>
           </div>
         )}
+      </section>
+
+      <section id="details" className="u-card rounded-card bg-surface p-6">
+        <input type="hidden" name="details_touched" value="1" />
+        <ListingDetailFields
+          defaults={detailsOf(listing)}
+          sections={detailSections({ categoryName: listing.category_name, categoryType: listing.category_type, purpose: listing.purpose })}
+          fieldClass={FIELD}
+          labelClass={LABEL}
+        />
       </section>
 
       <div className="sticky bottom-4 flex flex-wrap items-center gap-3 rounded-card bg-ink px-5 py-3.5">

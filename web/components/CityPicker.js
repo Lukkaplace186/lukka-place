@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from 'next/navigation';
 import { MapPin } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
-import { DEFAULT_CITY } from '@/lib/cities';
+import { ALL_CITIES, DEFAULT_CITY, isAllCities } from '@/lib/cities';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 
 /**
@@ -22,7 +22,8 @@ export default function CityPicker({ cities = [], current = null, className = ''
   const searchParams = useSearchParams();
   if (cities.length < 2) return null;
 
-  const value = cities.some((c) => c.name === current) ? current : DEFAULT_CITY;
+  // `current` is the city searched, or "toutes" (every city, 2026-10-24).
+  const value = isAllCities(current) ? ALL_CITIES : cities.some((c) => c.name === current) ? current : DEFAULT_CITY;
 
   function onChange(event) {
     const next = new URLSearchParams(searchParams?.toString() || '');
@@ -45,6 +46,7 @@ export default function CityPicker({ cities = [], current = null, className = ''
         {cities.map((city) => (
           <option key={city.name} value={city.name}>{city.name}</option>
         ))}
+        <option value={ALL_CITIES}>{t('listings.city.all')}</option>
       </select>
     </label>
   );

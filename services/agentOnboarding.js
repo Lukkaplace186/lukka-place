@@ -51,6 +51,7 @@ const db = require('./db');
 const chakra = require('./chakra');
 const { getPool, isConfigured } = require('./postgres');
 const salesReferral = require('./salesReferral');
+const { hasVisualMedia } = require('./listingMedia');
 
 const SITE_URL = (process.env.PUBLIC_SITE_URL || 'https://lukkaplace.com').replace(/\/+$/, '');
 
@@ -250,6 +251,11 @@ function recognitionNote({ firstName } = {}, listing = {}, photoCount = 0) {
     .join('\n');
 }
 
+/** The single-use magic link that sets the account's first password. */
+function activationLink(waId, token) {
+  return `${SITE_URL}/compte/agent/activer?phone=${encodeURIComponent(normalisePhone(waId))}&token=${token}`;
+}
+
 function hashToken(token) {
   return crypto.createHash('sha256').update(String(token)).digest('hex');
 }
@@ -266,15 +272,34 @@ function hashToken(token) {
  *
  * @returns {Promise<{agentId: number, token: string, created: boolean}>}
  */
-async function upsertAgentFromWhatsApp({ waId, fullName, agencyName }) {
+async function upsertAgentFromWhatsApp({
+  waId,
+  fullName,
+  agencyName,
+  firstName = null,
+  lastName = null,
+  source = 'whatsapp',
+  refuseExisting = false,
+  primaryCommunes = null,
+}) {
   const digits = normalisePhone(waId);
   const token = crypto.randomBytes(32).toString('hex');
   const expiresAt = new Date(Date.now() + ACTIVATION_TTL_HOURS * 60 * 60 * 1000);
 
-  const client = await getPool().connect();
+  // Through the module, not the destructured binding, so a test can hand it a
+  // fake pool (scripts/verify-pipeline.js §66).
+  const client = await require('./postgres').getPool().connect();
   try {
     await client.query('BEGIN');
 
+    // An admin creating an account (services/adminAgentAccounts.js) must not
+    // race a second creation of the same number into two rows: agents.phone
+    // has no unique constraint.
+    if (refuseExisting) {
+      await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [`agent-phone:${digits}`]);
+    }
+
+    // Soft-deleted rows are found too: a deleted account still owns its number.
     const { rows: existing } = await client.query(
       `SELECT id FROM agents WHERE regexp_replace(phone, '\\D', '', 'g') = $1 LIMIT 1`,
       [digits],
@@ -282,6 +307,13 @@ async function upsertAgentFromWhatsApp({ waId, fullName, agencyName }) {
 
     let agentId;
     let created = false;
+
+    if (existing.length && refuseExisting) {
+      const err = new Error(`phone ${digits} already belongs to agent #${existing[0].id}`);
+      err.code = 'phone-taken';
+      err.agentId = Number(existing[0].id);
+      throw err;
+    }
 
     if (existing.length) {
       agentId = existing[0].id;
@@ -309,17 +341,28 @@ async function upsertAgentFromWhatsApp({ waId, fullName, agencyName }) {
         `INSERT INTO agents
            (username, phone, status, agency_name, phone_verified_at, onboarding_source,
             activation_token_hash, activation_expires_at, created_at, updated_at)
-         VALUES ($1, $2, 1, $3, NOW(), 'whatsapp', $4, $5, NOW(), NOW())
+         VALUES ($1, $2, 1, $3, NOW(), $6, $4, $5, NOW(), NOW())
          RETURNING id`,
-        [fullName || digits, digits, agencyName || null, hashToken(token), expiresAt],
+        [fullName || digits, digits, agencyName || null, hashToken(token), expiresAt, source],
       );
       agentId = idRows[0].id;
       created = true;
+      // Territory, when an admin's form named it. A specialty is also
+      // coverage, the same union web's adminSaveAgentAction applies.
+      if (Array.isArray(primaryCommunes) && primaryCommunes.length) {
+        await client.query(
+          'UPDATE agents SET primary_communes = $1, serviced_communes = $1 WHERE id = $2',
+          [primaryCommunes, agentId],
+        );
+      }
     }
 
-    if (fullName) {
-      const [firstName, ...rest] = fullName.split(/\s+/);
-      const lastName = rest.join(' ') || null;
+    if (fullName || firstName) {
+      // An admin types first and last name apart; a WhatsApp reply is one
+      // string, split on its first space.
+      const [head, ...rest] = firstName ? [firstName] : fullName.split(/\s+/);
+      const infoFirst = head;
+      const infoLast = firstName ? lastName || null : rest.join(' ') || null;
       // agent_infos has no unique constraint on (agent_id, language_id) —
       // verified against the live schema — so ON CONFLICT has nothing to
       // target. UPDATE-then-INSERT, same as web/lib/agencies.js's
@@ -327,13 +370,13 @@ async function upsertAgentFromWhatsApp({ waId, fullName, agencyName }) {
       const { rowCount } = await client.query(
         `UPDATE agent_infos SET first_name = COALESCE(first_name, $1), last_name = COALESCE(last_name, $2), updated_at = NOW()
          WHERE agent_id = $3 AND language_id = $4`,
-        [firstName, lastName, agentId, CONTENT_LANGUAGE_ID],
+        [infoFirst, infoLast, agentId, CONTENT_LANGUAGE_ID],
       );
       if (rowCount === 0) {
         await client.query(
           `INSERT INTO agent_infos (agent_id, language_id, first_name, last_name, created_at, updated_at)
            VALUES ($1, $2, $3, $4, NOW(), NOW())`,
-          [agentId, CONTENT_LANGUAGE_ID, firstName, lastName],
+          [agentId, CONTENT_LANGUAGE_ID, infoFirst, infoLast],
         );
       }
     }
@@ -412,8 +455,8 @@ function activationMessage({ fullName, link, listingQueued, photoNeeded }) {
     // Without this the registration reply is silent about the listing, and the
     // agent is left assuming it went live.
     lines.push(
-      '⚠️ *Photo obligatoire* : votre bien est bien enregistré, mais il ne peut pas être publié sans photo. ' +
-        'Envoyez au moins une photo du bien pour finaliser sa publication. 📸',
+      '⚠️ *Photo ou vidéo obligatoire* : votre bien est bien enregistré, mais il ne peut pas être publié sans photo ni vidéo. ' +
+        'Envoyez au moins une photo ou une vidéo du bien pour finaliser sa publication. 📸',
     );
     lines.push('');
   }
@@ -522,6 +565,13 @@ function startOnboarding(waId, listing, photoCount) {
  * @returns {Promise<{handled: boolean, reason?: string}>}
  */
 async function completeOnboarding(waId, text, { pendingListingId = null } = {}) {
+  // A property offer is never a name. "OFFRE DE LOCATION IMMOBILIERE … 1500$"
+  // was stored as an agent's full name on 2026-10-20 because the model had
+  // called the listing a non-listing; whatever the model says, a reply that
+  // names a property and a price goes back to intake (services/listingBoundary.js).
+  if (require('./listingBoundary').standsAloneAsListing(text)) {
+    return { handled: false, reason: 'looks-like-listing' };
+  }
   // "Jean Kabeya, Agence Horizon, code parrainage JEAN01": the code was already
   // captured by the webhook; it is not part of the agency's name.
   const parsed = parseNameReply(salesReferral.stripReferralPhrase(text));
@@ -557,9 +607,9 @@ async function completeOnboarding(waId, text, { pendingListingId = null } = {}) 
       const listing = db.getListing(pendingListingId);
       if (!listing) {
         console.warn(`[onboarding] listing #${pendingListingId} vanished before publication`);
-      } else if (!(listing.photos || []).length) {
+      } else if (!hasVisualMedia(listing)) {
         photoNeeded = true;
-        console.log(`[onboarding] listing #${pendingListingId} left pending — no photo`);
+        console.log(`[onboarding] listing #${pendingListingId} left pending — no photo or video`);
       } else {
         db.publishListing(pendingListingId);
         listingQueued = true;
@@ -585,7 +635,7 @@ async function completeOnboarding(waId, text, { pendingListingId = null } = {}) 
     console.warn(`[onboarding] retroactive claim failed for ${waId}: ${err.message}`);
   }
 
-  const link = `${SITE_URL}/compte/agent/activer?phone=${encodeURIComponent(normalisePhone(waId))}&token=${token}`;
+  const link = activationLink(waId, token);
   await chakra.sendWhatsAppMessage(
     waId,
     activationMessage({ fullName: parsed.fullName, link, listingQueued, photoNeeded }),
@@ -612,6 +662,8 @@ module.exports = {
   findAgentByPhone,
   displayFirstName,
   upsertAgentFromWhatsApp,
+  activationLink,
+  normalisePhone,
   hashToken,
   MAX_ASKS,
   ACTIVATION_TTL_HOURS,

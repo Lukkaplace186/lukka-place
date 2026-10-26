@@ -1446,6 +1446,15 @@ web/CLAUDE.md, "Visit booking, both agendas…", has the pages. Engine half:
   time) is sent by `agentDigest.deliverDigest` when the agent has a CONFIRMED
   visit today; the rest of the digest follows as text only when it says
   anything beyond those visits.
+- **Monday's numbers as a template (2026-10-26).** `AGENT_WEEKLY_TEMPLATE`
+  (`bilan_hebdo_agent`, UTILITY, fr, submitted the same day, intake account:
+  first name, week start "19 octobre", views, WhatsApp clicks, most-viewed
+  listing, to-do joined with " · " — whole items only, within Meta's 200
+  characters; static button → /compte/agent). Sent by `deliverDigest` on a
+  Monday with views, and it is then the whole message (no day template, no
+  text). Unset, no views or refused → the digest exactly as before. The 14
+  "sent" weekly digests of 2026-10-26 were session messages, most outside
+  the 24h window. §-test next to the day template's.
 - **Where they live (measured 2026-10-14):** the four new templates are on
   the INTAKE number's account (from the notifications number Meta answers
   #132001) and all four have a PICTURE header (without one, #132012). So

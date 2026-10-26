@@ -77,6 +77,7 @@ for (const key of [
   'AGENT_LEAD_MATCH_TEMPLATE', 'LISTING_AVAILABILITY_TEMPLATE', 'VISIT_RECEIPT_TEMPLATE',
   'VIEWING_DESK_TEMPLATE', 'VIEWING_CONFIRMED_TEMPLATE', 'VIEWING_PROPOSAL_TEMPLATE', 'VIEWING_UNAVAILABLE_TEMPLATE',
   'VIEWING_TEMPLATES_WITH_LINK', 'VIEWING_TEMPLATES_FROM_SENDER', 'VIEWING_TEMPLATES_WITH_IMAGE', 'AGENT_DAY_TEMPLATE',
+  'AGENT_WEEKLY_TEMPLATE',
 ]) {
   process.env[key] = '';
 }
@@ -872,6 +873,64 @@ console.log('\n2. services/openai.js');
       assert.match(texts[0], /2 visites aujourd'hui/, 'a refused template falls back to the full text');
     } finally {
       process.env.AGENT_DAY_TEMPLATE = before;
+    }
+  });
+
+  await checkAsync('with AGENT_WEEKLY_TEMPLATE set, Monday\'s numbers go as the template alone; no views, unset or refused → the usual digest', async () => {
+    const digest = require('../services/agentDigest');
+    const before = process.env.AGENT_WEEKLY_TEMPLATE;
+    const monday = new Date('2026-10-26T07:00:00Z');
+    const agent = { first_name: 'Marie', to_confirm: 2, in_review: 0 };
+    const counts = { pendingVisits: 1 };
+    const weekly = {
+      views: 120,
+      clicks: 9,
+      top: { id: 310, title: 'Appartement à Kintambo', views: 80 },
+      listings: [{ id: 310, title: 'Appartement à Kintambo', views: 80, clicks: 6, calls: null, visits: null }],
+    };
+    const texts = [];
+    const weeklies = [];
+    const opts = {
+      now: monday,
+      send: async (to, text) => texts.push(text),
+      sendTemplate: async () => { throw new Error('day template must not be used'); },
+      sendWeekly: async (to, name, params) => weeklies.push({ to, name, params }),
+    };
+    try {
+      process.env.AGENT_WEEKLY_TEMPLATE = '';
+      assert.strictEqual(await digest.deliverDigest('243811000001', agent, counts, weekly, [], opts), 'session', 'unset: the text, as before');
+      assert.strictEqual(weeklies.length, 0);
+
+      process.env.AGENT_WEEKLY_TEMPLATE = 'bilan_hebdo_agent';
+      texts.length = 0;
+      assert.strictEqual(await digest.deliverDigest('243811000001', agent, counts, weekly, [], opts), 'weekly-template');
+      assert.deepStrictEqual(weeklies[0], {
+        to: '243811000001',
+        name: 'bilan_hebdo_agent',
+        params: [
+          'Marie', '19 octobre', '120', '9', 'Appartement à Kintambo (80 vues)',
+          '1 demande de visite attend votre réponse · 2 biens à confirmer (« toujours disponible ? »)',
+        ],
+      });
+      assert.strictEqual(texts.length, 0, 'the template is the whole Monday message');
+      for (const value of weeklies[0].params) assert.ok(value && value.length <= 200 && !/\n/.test(value), `valid Meta variable: ${value}`);
+
+      const params = digest.weeklyTemplateParams({ first_name: '' }, {}, weekly, Array(3).fill('Résidence Lumière des Grands Lacs de Kinshasa'), monday);
+      assert.strictEqual(params[0], 'partenaire');
+      assert.ok(params[5].length <= 200 && params[5].endsWith(' · …'), 'a long to-do keeps whole items and marks the rest');
+      assert.strictEqual(digest.weeklyTemplateParams(agent, {}, { ...weekly, top: null }, [], monday)[4], 'aucune cette semaine');
+      assert.strictEqual(digest.weeklyTemplateParams({ first_name: 'X' }, {}, weekly, [], monday)[5], 'rien en attente');
+      assert.strictEqual(digest.weekStartLabel(new Date('2026-12-08T07:00:00Z')), '1er décembre');
+
+      assert.strictEqual(await digest.deliverDigest('243811000001', agent, counts, { ...weekly, views: 0 }, [], opts), 'session', 'no views: no weekly template');
+      assert.strictEqual(digest.weeklyTemplateParams(agent, counts, null, [], monday), null, 'not Monday (no weekly stats): no weekly template');
+
+      texts.length = 0;
+      const refused = { ...opts, sendWeekly: async () => { throw new Error('132001'); } };
+      assert.strictEqual(await digest.deliverDigest('243811000001', agent, counts, weekly, [], refused), 'session');
+      assert.match(texts[0], /La semaine dernière : 120 vues/, 'a refused template falls back to the full weekly text');
+    } finally {
+      process.env.AGENT_WEEKLY_TEMPLATE = before;
     }
   });
   const result = await openaiService.parseMessage('Villa a louer Ngaliema 4 chambres 2500$/mois', {

@@ -49,6 +49,7 @@ export const ADMIN_NAV_GROUPS = [
       { href: '/admin/benchmarks', labelKey: 'admin.nav.agentPerformance', icon: 'Gauge' },
       { href: '/admin/market-data', labelKey: 'admin.nav.marketData', icon: 'TrendingDown' },
       { href: '/admin/demande', labelKey: 'admin.nav.demand', icon: 'Target' },
+      { href: '/admin/investisseurs', labelKey: 'admin.nav.investors', icon: 'Presentation' },
     ],
   },
   {

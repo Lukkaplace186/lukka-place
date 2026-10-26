@@ -3296,3 +3296,51 @@ From the "Social & Open Graph Share Cards" design canvas. Tests:
   until it runs, a feed share records nothing and the share itself works.
 - Not built: a visitor-facing "Générer la carte" on the public listing page,
   and a 9:16 option in the dialog (the layout has one).
+
+## Dashboard: WhatsApp clicks, split (2026-10-26)
+
+`/admin/dashboard` (`ClickBreakdown.js`, `lib/analytics.js` `getWhatsAppClickTotals`
+/ `getWhatsAppClickBreakdown`). Tests: `tests/unit/dashboard-click-breakdown.test.js`.
+
+- **Period chips** `?periode=7|30|90|tout` (default 30) drive the whole Trafic band.
+- **The headline counts people** (`peopleSql`: `viewer_kind` visitor or NULL, device
+  not bot); the hint gives distinct people, the change against the previous
+  window of the same length, and how many taps were left out (team, agents on
+  their own listing, bots). The conversion rate is people over people.
+- **Splits**, all people only except Audience: audience, where the tap went
+  (direct agent / central), which button, source, type + purpose, price band
+  (USD; yearly rent ÷ 12; short-term apart), commune, top listings with
+  clicks ÷ page views (can pass 100 %: a card tap never opens the page), and a
+  12-week trend.
+- `viewer_kind`, `visitor_id`, `routing_type`, `placement` are read through
+  `to_jsonb`, so nothing 42703s before their migrations.
+- **Which button** (`whatsapp_clicks.placement`: card / listing_page /
+  listing_mobile_bar) needs engine `migrations/20261026_whatsapp_click_placement.sql`;
+  until it runs the INSERT retries without it. Older taps show "Avant le suivi".
+
+## Investor metrics — `/admin/investisseurs` (2026-10-26)
+
+`lib/investorMetrics.js` (SQL + pure helpers), `app/admin/investisseurs/page.js`,
+monthly CSV `GET /admin/export/investors` (`data.export`, audited). Page is
+`market.view` (every role but sales), "Analyses" group, printable.
+Tests: `tests/unit/investor-metrics.test.js`.
+
+- **Starts at launch.** Production was reset for launch (every listing id ≥ 314,
+  first created 2026-10-20). `launch` = the first non-test listing's
+  `created_at`; monthly tables start in its month and every figure — monthly
+  and rolling (demand, response, acquisition: 90 days, shortened) — is bounded
+  at that instant. Pre-launch traffic was testing on listings that no longer exist.
+- **People only** (`peopleSql`, which now also drops `source = 'localhost'`:
+  the local dev server writes to production — this changed the dashboard too).
+  No test agency (`NOT_TEST_LISTING_SQL`, `agents.is_test`), no deleted row.
+- **Nothing unmeasured is 0**: a median needs `MIN_SAMPLE` (5) values, a
+  month with no rolled-up day has no visit-request count, a missing table
+  (42P01) makes its section "non disponible".
+- Sections: funnel by month (visitors, listing views, searches + no-result,
+  WhatsApp, calls, visit requests, recorded closes), liquidity (share of live
+  listings contacted in 30 days, time to first contact, days on market,
+  achieved vs asking), supply, unmet demand (search_events with 0 exact
+  results), retention (returning visitors, agents publishing again within 30
+  days), agent response (agent_performance_logs), acquisition by source, and
+  when each measurement began.
+- Not built: cost per lead (no ad-spend record), cohort charts.

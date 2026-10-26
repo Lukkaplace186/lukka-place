@@ -94,7 +94,7 @@ export default function MobileListingBar({ listing }) {
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={() => trackLeadClick(listing, routingType)}
+            onClick={() => trackLeadClick(listing, routingType, 'listing_mobile_bar')}
             className="u-press u-focus-ring inline-flex shrink-0 items-center gap-1.5 rounded-full border border-transparent bg-green px-3.5 py-2.5 text-[0.8125rem] font-semibold text-white transition-colors hover:bg-green-deep"
           >
             <WhatsAppIcon className="h-4 w-4" />

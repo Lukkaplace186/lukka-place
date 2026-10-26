@@ -56,6 +56,7 @@ export async function POST(request) {
       visitorId: visitorIdFrom(request, body?.visitorId),
       viewerKind,
       agentId,
+      placement: typeof body?.placement === 'string' ? body.placement : null,
     });
   } catch (err) {
     console.error(`[api/telemetry/lead-click] insert failed: ${err.message}`);

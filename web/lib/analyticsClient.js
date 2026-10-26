@@ -196,12 +196,15 @@ export function listingEventPayload(listing) {
  *
  * @param {Object} listing
  * @param {'DIRECT_WA'|'CENTRAL_FALLBACK'} routingType
+ * @param {'card'|'listing_page'|'listing_mobile_bar'} [placement] which button
+ *   was tapped (lib/leadClicks.js LEAD_CLICK_PLACEMENTS).
  */
-export function trackLeadClick(listing, routingType) {
+export function trackLeadClick(listing, routingType, placement) {
   beacon('/api/telemetry/lead-click', {
     event: 'whatsapp_cta_clicked',
     ...listingEventPayload(listing),
     routingType,
+    placement,
   });
 }
 

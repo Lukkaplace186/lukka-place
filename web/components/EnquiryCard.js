@@ -204,7 +204,7 @@ export default function EnquiryCard({ listing, visitSent, visitError, saveShare 
             href={whatsappHref}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={() => trackLeadClick(listing, routingType)}
+            onClick={() => trackLeadClick(listing, routingType, 'listing_page')}
             className="u-press inline-flex w-full items-center justify-center gap-2 rounded-lg bg-green px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-deep"
           >
             <WhatsAppIcon className="h-[1.125rem] w-[1.125rem]" />

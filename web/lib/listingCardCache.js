@@ -1,6 +1,7 @@
 'use client';
 
 import { getSharePackAction } from '@/app/compte/agent/shareActions';
+import { getTeamSharePackAction } from '@/app/admin/listings/shareActions';
 import { fetchPackImages, loadSharePack, prefetchPackPhotos, saveSharePack } from '@/lib/sharePack';
 import { expectedPackPhotoUrls } from '@/lib/marketing/sharePackData';
 import { decodeAssets, loadRenderFont, renderFlyer } from '@/components/marketing/CanvasRenderer';
@@ -35,22 +36,29 @@ import { decodeAssets, loadRenderFont, renderFlyer } from '@/components/marketin
  * 4:5 "Carte feed social" ListingQuickShare offers beside it. Both formats
  * draw from ONE kit per listing version (kitCache), so switching to 4:5 costs
  * a redraw — tens of milliseconds — not a second pack request and download.
+ *
+ * `audience: 'team'` is Lukka Place drawing a card for its own pages, from
+ * /admin/listings/[id]: the kit comes from the admin action (any agent's live
+ * listing, the company's utm_source), and nothing is read from or written to
+ * this phone's offline copies, which are an agent's own listings.
  */
 
 const CARD_TTL_MS = 5 * 60 * 1000;
 const cache = new Map();
 const kitCache = new Map();
 
-export function listingCardKey(listing, format = 'square') {
-  return [listing.id, listing.price, listing.title, listing.featured_image, listing.updated_at, format].map((v) => v ?? '').join('|');
+export function listingCardKey(listing, format = 'square', audience = 'agent') {
+  return [listing.id, listing.price, listing.title, listing.featured_image, listing.updated_at, format, audience]
+    .map((v) => v ?? '')
+    .join('|');
 }
 
 /** The kit for a listing version, shared by every format; failures are not kept. */
-function cachedKit(listing) {
-  const key = listingCardKey(listing, '');
+function cachedKit(listing, audience) {
+  const key = listingCardKey(listing, '', audience);
   const hit = kitCache.get(key);
   if (hit && Date.now() - hit.at < CARD_TTL_MS) return hit.promise;
-  const promise = loadKit(listing).then((result) => {
+  const promise = loadKit(listing, audience).then((result) => {
     if (!result.kit) kitCache.delete(key);
     return result;
   });
@@ -58,23 +66,25 @@ function cachedKit(listing) {
   return promise;
 }
 
-async function loadKit(listing) {
+async function loadKit(listing, audience) {
   const listingId = listing.id;
+  const team = audience === 'team';
   // The photos start now, beside the pack request rather than after it.
   prefetchPackPhotos(expectedPackPhotoUrls(listing));
   let result = null;
   try {
-    result = await getSharePackAction(listingId);
+    result = await (team ? getTeamSharePackAction : getSharePackAction)(listingId);
   } catch {
     result = null; // unreachable — try the copy this phone stored
   }
   if (result?.ok) {
     const blobs = await fetchPackImages(result.pack);
-    if (blobs.photos.length || !result.pack.photos.length) saveSharePack(listingId, { kit: result, ...blobs });
+    if (!team && (blobs.photos.length || !result.pack.photos.length)) saveSharePack(listingId, { kit: result, ...blobs });
     return { kit: result, blobs };
   }
   // "Not yours" / gone: never papered over with a stored copy.
   if (result) return { kit: null, blobs: null, refused: true };
+  if (team) return { kit: null, blobs: null };
   const stored = await loadSharePack(listingId);
   if (!stored) return { kit: null, blobs: null };
   return {
@@ -89,8 +99,8 @@ async function loadKit(listing) {
   };
 }
 
-async function draw(listing, format) {
-  const { kit, blobs, refused } = await cachedKit(listing);
+async function draw(listing, format, audience) {
+  const { kit, blobs, refused } = await cachedKit(listing, audience);
   if (refused || !kit) return { status: 'failed', kit: null };
   if (!kit.shareable) return { status: 'blocked', kit };
   let assets = null;
@@ -106,11 +116,11 @@ async function draw(listing, format) {
   }
 }
 
-export function prepareListingCard(listing, format = 'square') {
-  const key = listingCardKey(listing, format);
+export function prepareListingCard(listing, format = 'square', { audience = 'agent' } = {}) {
+  const key = listingCardKey(listing, format, audience);
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < CARD_TTL_MS) return hit.promise;
-  const promise = draw(listing, format).then((result) => {
+  const promise = draw(listing, format, audience).then((result) => {
     if (result.status !== 'ready') cache.delete(key);
     return result;
   });

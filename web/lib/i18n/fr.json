@@ -2442,7 +2442,8 @@
         "feed": "4:5 · Instagram, Facebook"
       },
       "titleFeed": "Carte de partage social",
-      "descriptionFeed": "Pour le fil Instagram, Facebook ou TikTok : l’image en 1080 × 1350, avec sa légende.",
+      "descriptionFeed": "Pour le fil Instagram, Facebook ou TikTok : l’image en 1080 × 1350, avec sa légende. Elle renvoie vers l’annonce sur Lukka Place.",
+      "descriptionTeam": "Pour les pages Lukka Place (Instagram, Facebook, TikTok) : l’image en 1080 × 1350 et sa légende, qui renvoient vers l’annonce sur le site.",
       "shareFeed": "Partager l’image",
       "downloadShort": "Télécharger",
       "copyCaption": "Copier la légende",
@@ -3460,6 +3461,7 @@
       "finalPrice": "Prix final convenu (USD)",
       "transactionDate": "Date de la transaction",
       "backToListings": "Retour aux annonces",
+      "socialCard": "Carte réseaux sociaux",
       "hidden": "Masquée",
       "suspended": "Annonce suspendue — retirée du site public.",
       "putBackOnline": "Annonce remise en ligne.",

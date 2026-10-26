@@ -1,11 +1,10 @@
 'use server';
 
 import { getCurrentAgentId } from '@/lib/agentSession';
-import {
-  agentBrandFields, getFlyerListing, getFlyerListings, frenchTypeText, PLATFORM_MARK_PATH, PLATFORM_MARK_LIGHT_PATH, PLATFORM_WORDMARK_PATH,
-} from '@/lib/listingFlyer';
+import { agentBrandFields, getFlyerListing, getFlyerListings, frenchTypeText, PLATFORM_MARK_PATH } from '@/lib/listingFlyer';
 import { SHARE_SOURCES, agentContactPhone, buildListingSocialCopy, listingPublicUrl, shareBlocker } from '@/lib/listingShareCopy';
-import { buildFlyerPack, optimisableImageSrc, optimisedImageUrl, LOGO_WIDTH } from '@/lib/marketing/sharePackData';
+import { optimisableImageSrc, optimisedImageUrl, LOGO_WIDTH } from '@/lib/marketing/sharePackData';
+import { buildShareKit } from '@/lib/marketing/shareKit';
 import { allTimeWindow, buildMandateCaption, buildMandateReport } from '@/lib/marketing/mandateReportCopy';
 import { getMandateCounts } from '@/lib/marketing/mandateReport';
 import { listingImages } from '@/lib/listingView';
@@ -37,12 +36,8 @@ async function ownedListing(listingId) {
  * connection.
  *
  * Built server-side so the French dictionary (for the parcelle sub-type label)
- * never ships to the browser just to write one caption.
- *
- * One caption per way out of the kit (`copies.image` / `.whatsapp` / `.copy` /
- * `.social`), identical except for the link's utm_source — see SHARE_SOURCES —
- * and for `.social`, the feed card's caption, which is written for Instagram
- * and Facebook (no WhatsApp *bold*, hashtags at the end).
+ * never ships to the browser just to write one caption. The kit itself is
+ * lib/marketing/shareKit.js, shared with the team's own share action.
  *
  * @returns {Promise<{ok: true, shareable: boolean, blocker: string|null, url: string, copy: string,
  *                    copies: Record<keyof SHARE_SOURCES, string>, pack: object}
@@ -52,42 +47,6 @@ export async function getSharePackAction(listingId) {
   const { listing, error } = await ownedListing(listingId);
   if (error) return error;
   return buildShareKit(listing);
-}
-
-function buildShareKit(listing) {
-  const blocker = shareBlocker(listing);
-  const typeText = frenchTypeText(listing);
-  const contactPhone = agentContactPhone(listing);
-  const brand = agentBrandFields(listing);
-  const copies = Object.fromEntries(
-    Object.entries(SHARE_SOURCES).map(([channel, source]) => [
-      channel,
-      buildListingSocialCopy(listing, {
-        typeText,
-        contactPhone,
-        contactName: brand.name,
-        url: listingPublicUrl(listing.id, { source }),
-        style: channel === 'social' ? 'social' : 'whatsapp',
-      }),
-    ]),
-  );
-  return {
-    ok: true,
-    shareable: !blocker,
-    blocker,
-    url: listingPublicUrl(listing.id),
-    copy: copies.copy,
-    copies,
-    pack: buildFlyerPack(listing, {
-      typeText,
-      brand,
-      supabaseHost: supabaseHost(),
-      markPath: PLATFORM_MARK_PATH,
-      markLightPath: PLATFORM_MARK_LIGHT_PATH,
-      wordmarkPath: PLATFORM_WORDMARK_PATH,
-      fetchedAt: new Date().toISOString(),
-    }),
-  };
 }
 
 /**

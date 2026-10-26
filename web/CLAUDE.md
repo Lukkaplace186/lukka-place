@@ -3273,12 +3273,24 @@ From the "Social & Open Graph Share Cards" design canvas. Tests:
   (`listingCardCache` caches the kit per listing version, then each format), so
   switching is a redraw, not a second download. One cover photo, the royal
   price badge, the white wordmark (pack field `wordmark`, `/brand/logo-dark.png?v=2`),
-  heading / place / light chips, and a royal band: "Contactez l’agent sur
-  WhatsApp" + number only under `agentContactPhone`, otherwise "Retrouvez ce
-  bien sur Lukka Place". The property badge is the pack's `verified`
-  (`properties.verified_at`, now in `FLYER_SELECT`), never the agent's tier.
-  Its caption is `copies.social` (`buildListingSocialCopy` `style: 'social'`:
-  no `*bold*`, hashtags from real fields, utm_source `reseaux_sociaux`).
+  heading / place / light chips, and a royal band that always leads back to
+  the platform: "Voir ce bien sur Lukka Place" + "lukkaplace.com/listings/387"
+  typed out (Instagram does not open caption links). **No agent number on the
+  4:5 or in its caption**, for agents and team alike (product direction: a
+  social post brings people back to Lukka Place, where the agent's contact and
+  the visit request are). The square sent on WhatsApp keeps the agent's number.
+  The property badge is the pack's `verified` (`properties.verified_at`, now
+  in `FLYER_SELECT`), never the agent's tier. Its caption is `copies.social`
+  (`buildListingSocialCopy` `style: 'social'`: no `*bold*`, no contact line,
+  hashtags from real fields, utm_source `reseaux_sociaux`).
+- **The company posts it too**: "Carte réseaux sociaux" on `/admin/listings/[id]`
+  (`TeamSocialCardButton`, live listings only) opens the same dialog with
+  `audience="team"` — 4:5 only, the kit from `app/admin/listings/shareActions.js`
+  (`requireAdmin('listings.view')`, `getFlyerListingForTeam`: any agent's
+  listing, no ownership clause), caption utm_source `lukka_reseaux`
+  (`TEAM_SOCIAL_SOURCE`), nothing written to `listing_shares` or this phone's
+  offline packs. The kit builder is `lib/marketing/shareKit.js`, shared with
+  the agent action. `/admin` now ships the `agent` dictionary namespace for it.
 - **Recorded** as `kit_share` / `kit_download` × `feed` and `kit_copy` × text.
   `feed` needs the engine migration `20261026_listing_share_feed_format.sql`;
   until it runs, a feed share records nothing and the share itself works.

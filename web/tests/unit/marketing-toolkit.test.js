@@ -363,11 +363,12 @@ test('Documents et rapports: the A4 sheet and the owner report, no poster, no gr
 test('Partager sur WhatsApp sends the listing card with its caption, the text link one tap away', () => {
   const quick = readFileSync(path.join(process.cwd(), 'components/ListingQuickShare.js'), 'utf8');
   // The square by default; the 4:5 feed card is the dialog's other format.
-  assert.match(quick, /prepareListingCard\(listing, format\)/);
-  assert.match(quick, /useState\('square'\)/);
+  assert.match(quick, /prepareListingCard\(listing, format, \{ audience \}\)/);
+  assert.match(quick, /const formats = team \? \['feed'\] : FORMATS;/);
+  assert.match(quick, /useState\(formats\[0\]\)/);
   const cache = readFileSync(path.join(process.cwd(), 'lib/listingCardCache.js'), 'utf8');
   assert.match(cache, /renderFlyer\(kit\.pack, format, decoded, family\)/);
-  assert.match(cache, /export function prepareListingCard\(listing, format = 'square'\)/);
+  assert.match(cache, /export function prepareListingCard\(listing, format = 'square', \{ audience = 'agent' \} = \{\}\)/);
   // Warm-up respects the data plan: never on Data Saver or 2G, capped per page.
   assert.match(cache, /if \(connection\.saveData\) return false;/);
   assert.match(cache, /const WARM_LIMIT = 6;/);

@@ -9,6 +9,8 @@ import AdminListingEditor from './AdminListingEditor';
 import ListingModerationPanel from './ListingModerationPanel';
 import DeleteListingButton from '../DeleteListingButton';
 import ListingAgentCard from './ListingAgentCard';
+import TeamSocialCardButton from './TeamSocialCardButton';
+import { shareBlocker } from '@/lib/listingShareCopy';
 import { getAgentNamesByIds } from '@/lib/agents';
 import { getListingModerationInfo } from '@/lib/moderationQueue';
 import { listEntityAudit } from '@/lib/adminAudit';
@@ -131,6 +133,22 @@ export default async function AdminListingEditPage({ params }) {
               <ExternalLink strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
             </Link>
           )}
+          {/* The company's own social post of this listing; live listings only,
+              since the card leads to the public page. */}
+          {!shareBlocker(listing) ? (
+            <TeamSocialCardButton
+              listing={{
+                id: listing.id,
+                title: listing.title,
+                price: listing.price,
+                purpose: listing.purpose,
+                price_period: listing.price_period,
+                featured_image: listing.featured_image,
+                gallery: listing.gallery,
+                updated_at: listing.updated_at,
+              }}
+            />
+          ) : null}
         </div>
       </div>
 

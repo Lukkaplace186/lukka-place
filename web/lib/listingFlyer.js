@@ -65,6 +65,25 @@ export async function getFlyerListing(agentId, propertyId) {
 }
 
 /**
+ * The same row for ANY listing, for Lukka Place's own social posts
+ * (app/admin/listings/shareActions.js, behind requireAdmin). No ownership
+ * clause on purpose — the team may advertise every agent's listing — and no
+ * public gate here either: the kit's shareBlocker() refuses anything that is
+ * not live, exactly as it does for an agent.
+ */
+export async function getFlyerListingForTeam(propertyId) {
+  if (!Number.isSafeInteger(Number(propertyId)) || Number(propertyId) <= 0) return null;
+  const { rows } = await getPool().query(
+    // FLYER_SELECT numbers the category language $4; with no agent parameter
+    // here it is the third one.
+    `${FLYER_SELECT.replace('$4', '$3')}
+     WHERE p.id = $2`,
+    [CONTENT_LANGUAGE_ID, Number(propertyId), CATEGORY_LANGUAGE_ID],
+  );
+  return rows[0] || null;
+}
+
+/**
  * The same rows for several of the agent's own listings in ONE query (Mes
  * biens' direct WhatsApp buttons). Same ownership clause; an id that is not
  * theirs simply returns no row.

@@ -2442,7 +2442,8 @@
         "feed": "4:5 · Instagram, Facebook"
       },
       "titleFeed": "Social Share Card",
-      "descriptionFeed": "For the Instagram, Facebook or TikTok feed: the image at 1080 × 1350, with its caption.",
+      "descriptionFeed": "For the Instagram, Facebook or TikTok feed: the image at 1080 × 1350, with its caption. It leads back to the listing on Lukka Place.",
+      "descriptionTeam": "For Lukka Place’s own pages (Instagram, Facebook, TikTok): the image at 1080 × 1350 and its caption, both leading to the listing on the site.",
       "shareFeed": "Share the image",
       "downloadShort": "Download",
       "copyCaption": "Copy the caption",
@@ -3460,6 +3461,7 @@
       "finalPrice": "Agreed final price (USD)",
       "transactionDate": "Transaction date",
       "backToListings": "Back to listings",
+      "socialCard": "Social media card",
       "hidden": "Hidden",
       "suspended": "Listing suspended — removed from the public site.",
       "putBackOnline": "Listing back online.",

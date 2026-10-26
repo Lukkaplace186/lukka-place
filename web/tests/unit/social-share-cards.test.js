@@ -6,10 +6,10 @@ import { createTranslator } from '@/lib/i18n/translate';
 import fr from '@/lib/i18n/fr.json' with { type: 'json' };
 import { OG_HEADING_MAX, OG_SIZE, clipHeading, ogCardModel } from '@/lib/listingOgCard';
 import { FORMATS } from '@/lib/marketing/formats';
-import { COLORS, buildFlyerOps, feedHeading } from '@/lib/marketing/layout';
+import { COLORS, buildFlyerOps, feedHeading, feedListingPath } from '@/lib/marketing/layout';
 import { buildFlyerPack } from '@/lib/marketing/sharePackData';
 import { LINE_ICONS } from '@/lib/marketing/icons';
-import { SHARE_SOURCES, buildListingSocialCopy, socialHashtags } from '@/lib/listingShareCopy';
+import { SHARE_SOURCES, TEAM_SOCIAL_SOURCE, buildListingSocialCopy, socialHashtags } from '@/lib/listingShareCopy';
 import { CHANNEL_FORMATS, SHARE_FORMATS, normaliseShareRecord } from '@/lib/listingShareRules';
 
 /**
@@ -178,14 +178,19 @@ test('feed: "Vérifié par Lukka Place" only for a verified property; "N photos"
   assert.ok(LINE_ICONS.badgeCheck && LINE_ICONS.image);
 });
 
-test('feed: the band names the agent only with a number the page would publish', () => {
-  const none = buildFlyerOps(PACK, 'feed', env()).ops;
-  assert.ok(textOp(none, 'Retrouvez ce bien sur Lukka Place'));
-  assert.ok(!none.some((op) => op.type === 'icon' && op.name === 'whatsapp'));
-  const reachable = buildFlyerOps({ ...PACK, agent: { ...PACK.agent, phone: '+243 812 345 678' } }, 'feed', env()).ops;
-  assert.ok(textOp(reachable, 'Contactez l’agent sur WhatsApp'));
-  assert.ok(textOp(reachable, '+243 812 345 678 · lukkaplace.com'));
-  assert.ok(reachable.some((op) => op.type === 'icon' && op.name === 'whatsapp'));
+test('feed: the band always leads back to the listing on lukkaplace.com, never to the agent’s number', () => {
+  for (const pack of [PACK, { ...PACK, agent: { ...PACK.agent, phone: '+243 812 345 678' } }]) {
+    const { ops } = buildFlyerOps(pack, 'feed', env({ hasMarkLight: true }));
+    assert.ok(textOp(ops, 'Voir ce bien sur Lukka Place'));
+    assert.ok(textOp(ops, 'lukkaplace.com/listings/387 · visite et contact de l’agent'));
+    assert.ok(!texts(ops).some((op) => op.text.includes('812 345 678')), 'no agent number on the feed card');
+    assert.ok(!ops.some((op) => op.type === 'icon' && op.name === 'whatsapp'));
+    assert.ok(ops.some((op) => op.type === 'image' && op.key === 'markLight' && op.y > 1190), 'the roofline in the band');
+  }
+  assert.equal(feedListingPath({ listingId: 'x' }), 'lukkaplace.com');
+  // The square, sent on WhatsApp, keeps the agent's number.
+  const square = buildFlyerOps({ ...PACK, agent: { ...PACK.agent, phone: '+243 812 345 678' } }, 'square', env()).ops;
+  assert.ok(textOp(square, '+243 812 345 678'));
 });
 
 test('the share pack carries the wordmark and the property verification', () => {
@@ -205,22 +210,66 @@ test('the share pack carries the wordmark and the property verification', () => 
 
 test('social caption: no WhatsApp *bold*, the same facts, hashtags from real fields only', () => {
   const url = 'https://lukkaplace.com/listings/387?utm_source=reseaux_sociaux';
-  const social = buildListingSocialCopy(LISTING, { typeText: 'Appartement', url, style: 'social' });
+  const social = buildListingSocialCopy(LISTING, {
+    typeText: 'Appartement', url, style: 'social', contactPhone: '+243 812 345 678', contactName: 'Agence Test',
+  });
   assert.doesNotMatch(social, /\*/);
+  assert.doesNotMatch(social, /812 345 678|Agence Test/, 'a social post sends people to the platform, not to a number');
+  assert.match(social, /Photos, visite et contact de l’agent sur Lukka Place ↓\nhttps:\/\/lukkaplace\.com\/listings\/387/);
   assert.match(social, /^À LOUER · Appartement\n1\s800 \$ \/ mois\n📍 GB \/ Hôtel Diplomate, Ngaliema/);
   assert.match(social, /▸ Garantie 3 mois/);
   assert.ok(social.endsWith('#Kinshasa #Ngaliema #AppartementÀLouer #LukkaPlace'), social);
   assert.ok(social.includes(url));
 
-  const whatsapp = buildListingSocialCopy(LISTING, { typeText: 'Appartement', url });
+  const whatsapp = buildListingSocialCopy(LISTING, { typeText: 'Appartement', url, contactPhone: '+243 812 345 678', contactName: 'Agence Test' });
   assert.match(whatsapp, /^\*À LOUER\* · Appartement/, 'the WhatsApp caption is unchanged');
+  assert.match(whatsapp, /\*Agence Test\* · \+243 812 345 678/, 'and keeps the agent');
   assert.doesNotMatch(whatsapp, /#/);
 
   assert.deepEqual(socialHashtags({ ...LISTING, commune: 'Mont-Ngafula', purpose: 'sale' }, { typeText: 'Terrain' }),
     ['#Kinshasa', '#MontNgafula', '#TerrainÀVendre', '#LukkaPlace']);
   assert.deepEqual(socialHashtags({ purpose: null, commune: null }), ['#Kinshasa', '#LukkaPlace']);
   assert.equal(SHARE_SOURCES.social, 'reseaux_sociaux');
-  assert.match(read('app/compte/agent/shareActions.js'), /style: channel === 'social' \? 'social' : 'whatsapp'/);
+  assert.equal(TEAM_SOCIAL_SOURCE, 'lukka_reseaux');
+  const kit = read('lib/marketing/shareKit.js');
+  assert.match(kit, /style: channel === 'social' \? 'social' : 'whatsapp'/);
+  assert.match(kit, /channel === 'social' && audience === 'team' \? TEAM_SOCIAL_SOURCE : source/);
+  assert.match(read('app/compte/agent/shareActions.js'), /return buildShareKit\(listing\);/);
+});
+
+// ---------------------------------------------------------------------------
+// The team's own posts
+// ---------------------------------------------------------------------------
+
+test('team: any agent’s live listing, behind requireAdmin, nothing recorded, the 4:5 only', () => {
+  const action = read('app/admin/listings/shareActions.js');
+  assert.match(action, /^'use server';/);
+  assert.match(action, /await requireAdmin\('listings\.view'\)/);
+  assert.match(action, /buildShareKit\(listing, \{ audience: 'team' \}\)/);
+  assert.doesNotMatch(action, /recordListingShares/);
+  const flyer = read('lib/listingFlyer.js');
+  const team = flyer.slice(flyer.indexOf('export async function getFlyerListingForTeam'), flyer.indexOf('export async function getFlyerListings'));
+  assert.match(team, /WHERE p\.id = \$2`/);
+  assert.doesNotMatch(team, /agent_id = \$3/, 'no ownership clause for the team');
+
+  const cache = read('lib/listingCardCache.js');
+  assert.match(cache, /\(team \? getTeamSharePackAction : getSharePackAction\)\(listingId\)/);
+  assert.match(cache, /if \(!team && \(blobs\.photos\.length/, 'the team never writes this phone’s offline copies');
+  assert.match(cache, /if \(team\) return \{ kit: null, blobs: null \};/, '…nor reads them');
+
+  const quick = read('components/ListingQuickShare.js');
+  assert.match(quick, /const formats = team \? \['feed'\] : FORMATS;/);
+  assert.match(quick, /if \(team\) return;\s*recordListingSharesAction/);
+
+  const page = read('app/admin/listings/[id]/page.js');
+  assert.match(page, /\{!shareBlocker\(listing\) \? \(\s*<TeamSocialCardButton/);
+  assert.match(read('app/admin/listings/[id]/TeamSocialCardButton.js'), /audience="team"/);
+  assert.match(read('app/admin/layout.js'), /const ADMIN_NAMESPACES = \[[^\]]*'agent'\]/);
+  const en = JSON.parse(read('lib/i18n/en.json'));
+  for (const messages of [fr, en]) {
+    assert.ok(messages.admin.moderation.socialCard);
+    assert.ok(messages.agent.quickShare.descriptionTeam);
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -240,7 +289,7 @@ test('a feed share or download is recorded as `feed`, and the migration allows i
 test('the quick-share dialog offers the square and the 4:5, with every label in both dictionaries', () => {
   const component = read('components/ListingQuickShare.js');
   assert.match(component, /const FORMATS = \['square', 'feed'\]/);
-  assert.match(component, /prepareListingCard\(listing, format\)/);
+  assert.match(component, /prepareListingCard\(listing, format, \{ audience \}\)/);
   assert.match(component, /kit\?\.copies\?\.social/);
   const en = JSON.parse(read('lib/i18n/en.json'));
   for (const messages of [fr, en]) {

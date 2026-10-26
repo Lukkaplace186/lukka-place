@@ -649,6 +649,12 @@ function landscapeFlyer(pack, { measure, photoCount, hasLogo, hasMark, hasMarkLi
   return { width: W, height: H, ops };
 }
 
+/** "lukkaplace.com/listings/387" — the listing's address as printed on the feed card. */
+export function feedListingPath(pack) {
+  const id = Number(pack.listingId);
+  return Number.isSafeInteger(id) && id > 0 ? `lukkaplace.com/listings/${id}` : 'lukkaplace.com';
+}
+
 /** "Appartement à louer": the type, then the purpose in words; the place when neither is known. */
 export function feedHeading(pack) {
   const purpose = pack.purposeLabel ? pack.purposeLabel.toLowerCase() : '';
@@ -669,12 +675,16 @@ export function feedHeading(pack) {
  * (`properties.verified_at`, the pack's `verified`) — never the agent's tier,
  * which the gold badge on the other formats already carries.
  *
- * The band never promises what the listing page will not do: with the agent's
- * number (the same verified + routing rule the page applies) it says to write
- * to the agent; without one it points at lukkaplace.com, where the visit
- * request and the central number take over.
+ * The band always leads back to the platform (product direction 2026-10-26:
+ * the company posts this card, and when an agent posts it, it must bring
+ * people back to Lukka Place): "Voir ce bien sur Lukka Place" and the
+ * listing's own address, typed out because Instagram does not open a link in
+ * a caption. No agent number on it — the listing page shows the agent's
+ * contact under its own verified + routing rule, and the visit request there
+ * is the path we can measure. The square card, sent on WhatsApp, keeps the
+ * agent's number as before.
  */
-function feedFlyer(pack, { measure, photoCount, hasWordmark }) {
+function feedFlyer(pack, { measure, photoCount, hasWordmark, hasMarkLight }) {
   const { width: W, height: H } = FORMATS.feed;
   const M = 56;
   const PHOTO_H = 900;
@@ -771,22 +781,23 @@ function feedFlyer(pack, { measure, photoCount, hasWordmark }) {
     x: M, top: y + 24, width: textW, size: 27, iconSize: 32, padX: 22, h: 60, gap: 16, iconGap: 12, colors: CHIPS_ON_WHITE,
   }, measure).ops);
 
-  // The band.
+  // The band: the way back to the listing on the platform. A white disc with
+  // the colour roofline when the pack carries it.
   ops.push({ type: 'rect', x: 0, y: bandY, w: W, h: BAND_H, fill: COLORS.royalDeep });
-  const phone = pack.agent?.phone || null;
   let tx = M;
-  if (phone) {
+  if (hasMarkLight) {
     const C = 76;
     const cy = bandY + (BAND_H - C) / 2;
+    const mw = C * 0.7;
     ops.push(
       { type: 'rect', x: M, y: cy, w: C, h: C, fill: COLORS.white, radius: C / 2 },
-      { type: 'icon', name: 'whatsapp', x: M + 19, y: cy + 19, size: 38, color: COLORS.whatsapp },
+      { type: 'image', key: 'markLight', x: M + (C - mw) / 2, y: cy + (C - mw / 2) / 2, w: mw, h: mw / 2, fit: 'contain' },
     );
     tx = M + C + 26;
   }
   const tw = W - M - tx;
-  const [line1] = wrapText(phone ? 'Contactez l’agent sur WhatsApp' : 'Retrouvez ce bien sur Lukka Place', tw, { size: 36, weight: 700 }, 1, measure);
-  const [line2] = wrapText(phone ? `${phone} · lukkaplace.com` : 'Photos, visite et contact sur lukkaplace.com', tw, { size: 25, weight: 500 }, 1, measure);
+  const [line1] = wrapText('Voir ce bien sur Lukka Place', tw, { size: 36, weight: 700 }, 1, measure);
+  const [line2] = wrapText(`${feedListingPath(pack)} · visite et contact de l’agent`, tw, { size: 25, weight: 500 }, 1, measure);
   const blockH = lineBox(36, 1.1) + 10 + lineBox(25, 1.2);
   const top = bandY + (BAND_H - blockH) / 2;
   ops.push(

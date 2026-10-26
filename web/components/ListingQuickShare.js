@@ -50,14 +50,22 @@ const FORMATS = ['square', 'feed'];
  * migrations/20261026_listing_share_feed_format.sql; until it runs, a feed
  * share records nothing and the share itself is unaffected.
  *
+ * `audience="team"` is the same dialog on /admin/listings/[id], where Lukka
+ * Place makes the card for its own pages (TeamSocialCardButton): the 4:5 only,
+ * drawn from the team's kit (any agent's live listing, the company's
+ * utm_source), and nothing recorded in listing_shares, which counts what
+ * agents did with their own listings.
+ *
  * Mounted as a SIBLING of the actions menu (AgentListingActionsMenu), never
  * inside a menu item: Radix unmounts the menu content on close, which would
  * take the dialog with it.
  */
-export default function ListingQuickShare({ listing, caption, open, onOpenChange }) {
+export default function ListingQuickShare({ listing, caption, open, onOpenChange, audience = 'agent' }) {
   const t = useT();
   const { showToast } = useToast();
-  const [format, setFormat] = useState('square');
+  const team = audience === 'team';
+  const formats = team ? ['feed'] : FORMATS;
+  const [format, setFormat] = useState(formats[0]);
   const [state, setState] = useState({ status: 'idle' }); // idle (drawing) | ready | failed
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -70,7 +78,7 @@ export default function ListingQuickShare({ listing, caption, open, onOpenChange
     // The square is usually already drawn: the share button warms it when it
     // scrolls into view, the row menu when it opens (lib/listingCardCache.js).
     // The 4:5 is drawn on demand from the same kit.
-    prepareListingCard(listing, format).then((result) => {
+    prepareListingCard(listing, format, { audience }).then((result) => {
       if (cancelled) return;
       if (result.status !== 'ready') {
         setState({ status: 'failed', kit: result.kit });
@@ -83,7 +91,7 @@ export default function ListingQuickShare({ listing, caption, open, onOpenChange
     return () => {
       cancelled = true;
     };
-  }, [open, listing, format]);
+  }, [open, listing, format, audience]);
 
   useEffect(
     () => () => {
@@ -109,8 +117,10 @@ export default function ListingQuickShare({ listing, caption, open, onOpenChange
   const file = state.status === 'ready' ? new File([state.blob], formatFileName(listing.id, format), { type: 'image/jpeg' }) : null;
   const canShareFile = Boolean(file && typeof navigator !== 'undefined' && navigator.canShare?.({ files: [file] }));
 
-  const record = (channel, recordFormat) =>
+  const record = (channel, recordFormat) => {
+    if (team) return;
     recordListingSharesAction({ listingIds: [listing.id], channel, format: recordFormat }).catch(() => {});
+  };
 
   function copyCaption() {
     if (!imageCaption) return Promise.resolve(false);
@@ -178,7 +188,7 @@ export default function ListingQuickShare({ listing, caption, open, onOpenChange
     if (!next) {
       setState({ status: 'idle' });
       setCopied(false);
-      setFormat('square');
+      setFormat(formats[0]);
     }
     onOpenChange(next);
   }
@@ -200,24 +210,28 @@ export default function ListingQuickShare({ listing, caption, open, onOpenChange
       <DialogContent className="max-h-[92dvh] gap-3 overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))] sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>{feed ? t('agent.quickShare.titleFeed') : t('agent.quickShare.title')}</DialogTitle>
-          <DialogDescription>{feed ? t('agent.quickShare.descriptionFeed') : t('agent.quickShare.description')}</DialogDescription>
+          <DialogDescription>
+            {team ? t('agent.quickShare.descriptionTeam') : feed ? t('agent.quickShare.descriptionFeed') : t('agent.quickShare.description')}
+          </DialogDescription>
         </DialogHeader>
 
-        <div role="group" aria-label={t('agent.quickShare.formatLabel')} className="grid grid-cols-2 gap-1 rounded-xl bg-canvas-alt p-1">
-          {FORMATS.map((key) => (
-            <button
-              key={key}
-              type="button"
-              aria-pressed={format === key}
-              onClick={() => chooseFormat(key)}
-              className={`min-h-11 rounded-lg px-2 text-[0.8125rem] font-bold transition-colors ${
-                format === key ? 'bg-surface text-ink shadow-sm' : 'text-ink-70 hover:text-ink'
-              }`}
-            >
-              {t(`agent.quickShare.formats.${key}`)}
-            </button>
-          ))}
-        </div>
+        {formats.length > 1 ? (
+          <div role="group" aria-label={t('agent.quickShare.formatLabel')} className="grid grid-cols-2 gap-1 rounded-xl bg-canvas-alt p-1">
+            {formats.map((key) => (
+              <button
+                key={key}
+                type="button"
+                aria-pressed={format === key}
+                onClick={() => chooseFormat(key)}
+                className={`min-h-11 rounded-lg px-2 text-[0.8125rem] font-bold transition-colors ${
+                  format === key ? 'bg-surface text-ink shadow-sm' : 'text-ink-70 hover:text-ink'
+                }`}
+              >
+                {t(`agent.quickShare.formats.${key}`)}
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         <div
           className={`mx-auto w-full overflow-hidden rounded-xl bg-blue ${feed ? 'aspect-[4/5] max-w-[15.5rem]' : 'aspect-square max-w-[19rem]'}`}

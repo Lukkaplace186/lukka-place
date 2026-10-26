@@ -38,7 +38,10 @@ import { cityOfListing, communeLabel } from './cities';
  *          contactName?: string|null, style?: 'whatsapp'|'social'}} [options]
  *   typeText is resolved by the caller (typeLabel with a French translator).
  *   `style: 'social'` is the feed card's caption (Instagram, Facebook): the
- *   same lines without the *…* and with socialHashtags() at the end.
+ *   same lines without the *…*, WITHOUT the agent's number, ending on the
+ *   listing's link on Lukka Place and socialHashtags(). A social post — the
+ *   team's or an agent's — sends people back to the platform, where the
+ *   visit request and the agent's contact are (product direction 2026-10-26).
  */
 export function buildListingSocialCopy(listing, { typeText = null, url = null, contactPhone = null, contactName = null, style = 'whatsapp' } = {}) {
   const lines = [];
@@ -72,12 +75,12 @@ export function buildListingSocialCopy(listing, { typeText = null, url = null, c
   // Only a number the public listing page would itself publish — see
   // agentContactPhone. An agent sharing their own listing usually wants to be
   // called directly; a caption is not the place to leak an unverified number.
-  if (contactPhone) {
+  if (contactPhone && !social) {
     const name = typeof contactName === 'string' && contactName.trim() ? contactName.trim() : 'Contact';
     lines.push('', `${bold(name)} · ${contactPhone}`);
   }
 
-  if (url) lines.push('', 'Photos et visite ↓', url);
+  if (url) lines.push('', social ? 'Photos, visite et contact de l’agent sur Lukka Place ↓' : 'Photos et visite ↓', url);
 
   if (social) {
     const tags = socialHashtags(listing, { typeText });
@@ -183,6 +186,13 @@ export const SHARE_SOURCES = Object.freeze({
   // The feed card's caption (Instagram, Facebook), ListingQuickShare's 4:5.
   social: 'reseaux_sociaux',
 });
+
+/**
+ * The same feed caption when Lukka Place posts it on its own pages
+ * (/admin/listings/[id], lib/marketing/shareKit.js audience 'team'), so the
+ * company's posts and the agents' read as two sources.
+ */
+export const TEAM_SOCIAL_SOURCE = 'lukka_reseaux';
 
 /**
  * `medium` / `campaign` are optional and only appended after a source. Only

@@ -1289,6 +1289,13 @@ alert job itself), no inbound WhatsApp traffic for `OPS_ALERT_SILENCE_HOURS`
   messages verify an account someone else opened on their number. Needs no
   Meta template. `AUTH_OTP_BYPASS=1` now means "send no code, verify this way"
   instead of "skip proof" (which let anyone claim an agency's listings).
+  **A "Code Lukka Place" message that matches nothing is answered, never sent
+  to intake** (2026-10-26: a customer's account was on her +243 number, her
+  WhatsApp on a +33 one, and every code got the agent how-to reply). The
+  code is open for another number → the reply names both numbers' last four
+  digits and the signup link for that role; no open code → "plus valable,
+  nouveau code sur le site". Only the prefilled wording triggers it — a bare
+  6-digit price still falls through.
 - **Agent morning digest** (`services/agentDigest.js`, job
   `agent-daily-digest`, `AGENT_DIGEST_HOUR` default 8 Kinshasa): pending and
   today's visits, new customer requests, listings to confirm, listings in

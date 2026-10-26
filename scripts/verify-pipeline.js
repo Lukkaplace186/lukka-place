@@ -782,6 +782,45 @@ console.log('\n2. services/openai.js');
       Object.assign(pgModule, saved);
     }
   });
+  await checkAsync('a verification code from the wrong number, or an expired one, is explained — never read as intake', async () => {
+    const pgModule = require('../services/postgres');
+    const challenges = require('../services/phoneChallenges');
+    const saved = { isConfigured: pgModule.isConfigured, getPool: pgModule.getPool };
+    const seen = [];
+    pgModule.isConfigured = () => true;
+    pgModule.getPool = () => ({
+      query: async (sql, params) => {
+        seen.push({ sql, params });
+        if (/^\s*UPDATE/.test(sql)) return { rows: [] };
+        return { rows: params[0].includes('436353') ? [{ phone: '243894879145', role: 'customer' }] : [] };
+      },
+    });
+    try {
+      const wrong = await challenges.matchPhoneChallenge({ from: '33656707007', text: 'Code Lukka Place : 436353' });
+      assert.strictEqual(wrong.handled, true);
+      assert.match(wrong.reply, /se terminant par 9145/);
+      assert.match(wrong.reply, /se termine par 7007/);
+      assert.match(wrong.reply, /compte\/inscription$/);
+      assert.doesNotMatch(wrong.reply, /894879145/, 'only the last four digits are named');
+      assert.deepStrictEqual(seen[1].params, [['436353'], '33656707007']);
+      assert.match(seen[1].sql, /phone <> \$2/);
+      assert.match(seen[1].sql, /expires_at > NOW\(\)/);
+
+      const agent = challenges.wrongNumberReply({ challengePhone: '243812345678', senderPhone: '243899999999', role: 'agent' });
+      assert.match(agent, /compte\/agent\/inscription$/);
+
+      const expired = await challenges.matchPhoneChallenge({ from: '243812345678', text: 'Code Lukka Place : 111111' });
+      assert.strictEqual(expired.handled, true);
+      assert.strictEqual(expired.reply, challenges.EXPIRED_REPLY);
+
+      seen.length = 0;
+      const price = await challenges.matchPhoneChallenge({ from: '243812345678', text: 'Villa 436353$ à vendre' });
+      assert.strictEqual(price.handled, false, 'a 6-digit price is never explained as a code');
+      assert.strictEqual(seen.length, 1, 'and costs no second query');
+    } finally {
+      Object.assign(pgModule, saved);
+    }
+  });
   await checkAsync('auto-approval only ever promotes a trusted agent’s complete, pending listing', async () => {
     const pgModule = require('../services/postgres');
     const auto = require('../services/trustedAutoApprove');

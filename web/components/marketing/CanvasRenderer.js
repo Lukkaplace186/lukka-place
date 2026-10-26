@@ -64,12 +64,13 @@ async function decode(blob) {
  * Decodes once, so switching format does not decode three photos again.
  * A photo that fails to decode is dropped and the next one moves up.
  */
-export async function decodeAssets({ photos = [], logo = null, mark = null, markLight = null }) {
-  const [decodedPhotos, decodedLogo, decodedMark, decodedMarkLight] = await Promise.all([
+export async function decodeAssets({ photos = [], logo = null, mark = null, markLight = null, wordmark = null }) {
+  const [decodedPhotos, decodedLogo, decodedMark, decodedMarkLight, decodedWordmark] = await Promise.all([
     Promise.all(photos.map(decode)),
     decode(logo),
     decode(mark),
     decode(markLight),
+    decode(wordmark),
   ]);
   const images = {};
   decodedPhotos.filter(Boolean).slice(0, 3).forEach((bitmap, i) => {
@@ -78,12 +79,14 @@ export async function decodeAssets({ photos = [], logo = null, mark = null, mark
   if (decodedLogo) images.logo = decodedLogo;
   if (decodedMark) images.mark = decodedMark;
   if (decodedMarkLight) images.markLight = decodedMarkLight;
+  if (decodedWordmark) images.wordmark = decodedWordmark;
   return {
     images,
     photoCount: decodedPhotos.filter(Boolean).slice(0, 3).length,
     hasLogo: Boolean(decodedLogo),
     hasMark: Boolean(decodedMark),
     hasMarkLight: Boolean(decodedMarkLight),
+    hasWordmark: Boolean(decodedWordmark),
   };
 }
 
@@ -281,14 +284,19 @@ async function render(build, family, images, markName) {
 
 /**
  * @param {object} pack  Share pack.
- * @param {'square'|'story'|'landscape'} formatKey
- * @param {{images, photoCount, hasLogo, hasMark}} assets  From decodeAssets.
+ * @param {'square'|'story'|'landscape'|'feed'} formatKey
+ * @param {{images, photoCount, hasLogo, hasMark, hasMarkLight, hasWordmark}} assets  From decodeAssets.
  * @param {string} family  From loadRenderFont.
  */
 export function renderFlyer(pack, formatKey, assets, family) {
   return render(
     (measure) => buildFlyerOps(pack, formatKey, {
-      measure, photoCount: assets.photoCount, hasLogo: assets.hasLogo, hasMark: assets.hasMark, hasMarkLight: assets.hasMarkLight,
+      measure,
+      photoCount: assets.photoCount,
+      hasLogo: assets.hasLogo,
+      hasMark: assets.hasMark,
+      hasMarkLight: assets.hasMarkLight,
+      hasWordmark: assets.hasWordmark,
     }),
     family,
     assets.images,

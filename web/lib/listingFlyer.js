@@ -27,6 +27,7 @@ const CATEGORY_LANGUAGE_ID = 26;
 const FLYER_SELECT = `SELECT p.id, p.price, p.purpose, p.price_period, p.beds, p.bath, p.area, p.units_count,
             p.quartier, p.parcelle_subtype, p.reference, p.deposit_months, p.advance_months,
             p.commission_months, p.featured_image, p.status, p.approve_status, p.listing_status, p.created_at,
+            p.verified_at,
             pc.title, catc.name AS category_name,
             -- The agent's own brand for the flyer's logo slot. The phone is
             -- only printed under the same rule the public listing page uses
@@ -149,3 +150,5 @@ export function agentBrandFields(listing) {
  */
 export const PLATFORM_MARK_PATH = '/brand/icon-dark.png';
 export const PLATFORM_MARK_LIGHT_PATH = '/brand/icon-light.png';
+/** The whole logo in white (components/Brand.js's `?v=2`, so a phone fetches the current art). */
+export const PLATFORM_WORDMARK_PATH = '/brand/logo-dark.png?v=2';

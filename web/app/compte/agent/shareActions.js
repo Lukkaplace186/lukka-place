@@ -1,7 +1,9 @@
 'use server';
 
 import { getCurrentAgentId } from '@/lib/agentSession';
-import { agentBrandFields, getFlyerListing, getFlyerListings, frenchTypeText, PLATFORM_MARK_PATH, PLATFORM_MARK_LIGHT_PATH } from '@/lib/listingFlyer';
+import {
+  agentBrandFields, getFlyerListing, getFlyerListings, frenchTypeText, PLATFORM_MARK_PATH, PLATFORM_MARK_LIGHT_PATH, PLATFORM_WORDMARK_PATH,
+} from '@/lib/listingFlyer';
 import { SHARE_SOURCES, agentContactPhone, buildListingSocialCopy, listingPublicUrl, shareBlocker } from '@/lib/listingShareCopy';
 import { buildFlyerPack, optimisableImageSrc, optimisedImageUrl, LOGO_WIDTH } from '@/lib/marketing/sharePackData';
 import { allTimeWindow, buildMandateCaption, buildMandateReport } from '@/lib/marketing/mandateReportCopy';
@@ -37,8 +39,10 @@ async function ownedListing(listingId) {
  * Built server-side so the French dictionary (for the parcelle sub-type label)
  * never ships to the browser just to write one caption.
  *
- * One caption per way out of the kit (`copies.image` / `.whatsapp` / `.copy`),
- * identical except for the link's utm_source — see SHARE_SOURCES.
+ * One caption per way out of the kit (`copies.image` / `.whatsapp` / `.copy` /
+ * `.social`), identical except for the link's utm_source — see SHARE_SOURCES —
+ * and for `.social`, the feed card's caption, which is written for Instagram
+ * and Facebook (no WhatsApp *bold*, hashtags at the end).
  *
  * @returns {Promise<{ok: true, shareable: boolean, blocker: string|null, url: string, copy: string,
  *                    copies: Record<keyof SHARE_SOURCES, string>, pack: object}
@@ -58,7 +62,13 @@ function buildShareKit(listing) {
   const copies = Object.fromEntries(
     Object.entries(SHARE_SOURCES).map(([channel, source]) => [
       channel,
-      buildListingSocialCopy(listing, { typeText, contactPhone, contactName: brand.name, url: listingPublicUrl(listing.id, { source }) }),
+      buildListingSocialCopy(listing, {
+        typeText,
+        contactPhone,
+        contactName: brand.name,
+        url: listingPublicUrl(listing.id, { source }),
+        style: channel === 'social' ? 'social' : 'whatsapp',
+      }),
     ]),
   );
   return {
@@ -74,6 +84,7 @@ function buildShareKit(listing) {
       supabaseHost: supabaseHost(),
       markPath: PLATFORM_MARK_PATH,
       markLightPath: PLATFORM_MARK_LIGHT_PATH,
+      wordmarkPath: PLATFORM_WORDMARK_PATH,
       fetchedAt: new Date().toISOString(),
     }),
   };

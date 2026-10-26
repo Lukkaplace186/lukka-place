@@ -2435,7 +2435,19 @@
       "download": "Download the image",
       "textOnly": "Send the text only",
       "hint": "The text is copied at the same time: if WhatsApp does not show it under the image, paste it.",
-      "imageFailed": "The image could not be prepared. You can send the text instead."
+      "imageFailed": "The image could not be prepared. You can send the text instead.",
+      "formatLabel": "Card format",
+      "formats": {
+        "square": "Square · WhatsApp",
+        "feed": "4:5 · Instagram, Facebook"
+      },
+      "titleFeed": "Social Share Card",
+      "descriptionFeed": "For the Instagram, Facebook or TikTok feed: the image at 1080 × 1350, with its caption.",
+      "shareFeed": "Share the image",
+      "downloadShort": "Download",
+      "copyCaption": "Copy the caption",
+      "captionCopiedShort": "Caption copied",
+      "hintFeed": "The caption is copied at the same time: paste it under the photo. On Instagram the link does not open with a tap."
     },
     "inbox": {
       "filterLabel": "Filter requests",

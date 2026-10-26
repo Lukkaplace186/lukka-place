@@ -41,10 +41,13 @@ const getListingById = cache(readListingById);
  * `openGraph`/`twitter` here are what WhatsApp's own link-preview crawler
  * reads when a visitor shares this URL — the platform's core discovery
  * channel had zero rich-preview support before this (bare link, no photo,
- * no price). Uses the listing's own real first photo (already resolved via
- * listingImages(), no new query) and real formatted price — never a
- * placeholder image or invented copy. `metadataBase` on the root layout is
- * what lets this image URL resolve to an absolute one.
+ * no price). Real formatted price, real facts — never invented copy.
+ *
+ * The IMAGE is not set here: ./opengraph-image.js and ./twitter-image.js draw
+ * the listing's preview card (cover photo, price, specs, heading) and Next
+ * puts them in the <head> ahead of anything this returns (2026-10-26; it was
+ * the bare cover photo). `metadataBase` on the root layout makes their URLs
+ * absolute.
  */
 export async function generateMetadata({ params }) {
   const { id } = await params;
@@ -59,7 +62,6 @@ export async function generateMetadata({ params }) {
   const description = listingMetaDescription(listing, t);
   const priceText = formatPrice(listing.price, listing.purpose, listing.price_period);
   const ogTitle = `${priceText} — ${listing.title}`;
-  const image = listingImages(listing)[0];
 
   return {
     title,
@@ -71,13 +73,12 @@ export async function generateMetadata({ params }) {
       title: ogTitle,
       description,
       type: 'website',
-      images: image ? [{ url: image }] : undefined,
     },
     twitter: {
-      card: image ? 'summary_large_image' : 'summary',
+      // The card always exists, photo or not (no photo draws the royal panel).
+      card: 'summary_large_image',
       title: ogTitle,
       description,
-      images: image ? [image] : undefined,
     },
   };
 }

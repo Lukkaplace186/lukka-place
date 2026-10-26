@@ -89,9 +89,9 @@ export function purposeLabel(purpose) {
  * @param {object} listing  A lib/listingFlyer.js getFlyerListing row.
  * @param {{typeText: string|null, brand: {name, initials, phone, badge},
  *          supabaseHost?: string|null, markPath: string, markLightPath?: string|null,
- *          fetchedAt: string}} options
+ *          wordmarkPath?: string|null, fetchedAt: string}} options
  */
-export function buildFlyerPack(listing, { typeText, brand, supabaseHost = null, markPath, markLightPath = null, fetchedAt }) {
+export function buildFlyerPack(listing, { typeText, brand, supabaseHost = null, markPath, markLightPath = null, wordmarkPath = null, fetchedAt }) {
   const { amount, period } = formatPriceParts(listing.price, listing.purpose, listing.price_period);
   const place = placeLabel(listing);
   // Exactly the three the card shows (2026-10-06 speed pass — it used to send
@@ -127,6 +127,11 @@ export function buildFlyerPack(listing, { typeText, brand, supabaseHost = null, 
     photos,
     mark: markPath,
     markLight: markLightPath,
+    // The whole white logo, for the feed card's photo (lib/marketing/layout.js).
+    wordmark: wordmarkPath,
+    // The team checked this PROPERTY (`properties.verified_at`): the feed
+    // card's "Vérifié par Lukka Place". Not the agent's tier (agent.badge).
+    verified: Boolean(listing.verified_at),
     agent: {
       name: brand?.name || null,
       initials: brand?.initials || null,

@@ -2435,7 +2435,19 @@
       "download": "Télécharger l’image",
       "textOnly": "Envoyer le texte seulement",
       "hint": "Le texte est copié en même temps : si WhatsApp ne l’affiche pas sous l’image, collez-le.",
-      "imageFailed": "L’image n’a pas pu être préparée. Vous pouvez envoyer le texte."
+      "imageFailed": "L’image n’a pas pu être préparée. Vous pouvez envoyer le texte.",
+      "formatLabel": "Format de la carte",
+      "formats": {
+        "square": "Carré · WhatsApp",
+        "feed": "4:5 · Instagram, Facebook"
+      },
+      "titleFeed": "Carte de partage social",
+      "descriptionFeed": "Pour le fil Instagram, Facebook ou TikTok : l’image en 1080 × 1350, avec sa légende.",
+      "shareFeed": "Partager l’image",
+      "downloadShort": "Télécharger",
+      "copyCaption": "Copier la légende",
+      "captionCopiedShort": "Légende copiée",
+      "hintFeed": "La légende est copiée en même temps : collez-la sous la photo. Sur Instagram, le lien ne s’ouvre pas d’un tap."
     },
     "inbox": {
       "filterLabel": "Filtrer les demandes",

@@ -3247,3 +3247,40 @@ distrust what it found. Tests: `tests/unit/real-404.test.js`,
   header, homepage tiles, listings sidebar), not `/listings?transaction_type=`.
 - **The listing h1 opens with type and transaction**: "Appartement à louer —
   Yolo Nord I, Kalamu"; the blue kicker above the price keeps the room counts.
+
+## Link preview card and the 4:5 feed card (2026-10-26)
+
+From the "Social & Open Graph Share Cards" design canvas. Tests:
+`tests/unit/social-share-cards.test.js`.
+
+- **og:image is drawn per listing** (`app/(site)/listings/[id]/opengraph-image.js`,
+  `twitter-image.js` re-uses it). It replaced the bare cover photo:
+  full-bleed cover, white logo top-left, a dark capsule with price + type + two
+  counts in the CENTRE (a chat thumbnail keeps the middle 630×630), a white box
+  with the page's own h1 and "Vérifié par Lukka Place" only on `verified_at`.
+  What it says is `lib/listingOgCard.js` (pure, French always); photo / logo /
+  fonts / PNG→JPEG are `lib/listingOgImage.js`. Plus Jakarta Sans is fetched as
+  TTF from Google Fonts once per process (satori reads no woff2), and the PNG
+  is re-encoded to a ~60–80 KB JPEG with sharp, since WhatsApp drops heavy
+  preview images. Same public gate as the page (`getListingById`): anything
+  not live answers 404. `generateMetadata` no longer sets `images` — the file
+  wins anyway, and two sources would disagree. The routes build as dynamic
+  (ƒ); the response carries `Cache-Control: public, max-age=600`. WhatsApp
+  keeps its own copy of a preview it already fetched.
+- **4:5 "Carte feed social"** (`FORMATS.feed`, 1080×1350, `feedFlyer` in
+  `lib/marketing/layout.js`): a Carré | 4:5 switch in `ListingQuickShare`
+  (Mes biens' "Partager sur WhatsApp"), drawn from the SAME kit as the square
+  (`listingCardCache` caches the kit per listing version, then each format), so
+  switching is a redraw, not a second download. One cover photo, the royal
+  price badge, the white wordmark (pack field `wordmark`, `/brand/logo-dark.png?v=2`),
+  heading / place / light chips, and a royal band: "Contactez l’agent sur
+  WhatsApp" + number only under `agentContactPhone`, otherwise "Retrouvez ce
+  bien sur Lukka Place". The property badge is the pack's `verified`
+  (`properties.verified_at`, now in `FLYER_SELECT`), never the agent's tier.
+  Its caption is `copies.social` (`buildListingSocialCopy` `style: 'social'`:
+  no `*bold*`, hashtags from real fields, utm_source `reseaux_sociaux`).
+- **Recorded** as `kit_share` / `kit_download` × `feed` and `kit_copy` × text.
+  `feed` needs the engine migration `20261026_listing_share_feed_format.sql`;
+  until it runs, a feed share records nothing and the share itself works.
+- Not built: a visitor-facing "Générer la carte" on the public listing page,
+  and a 9:16 option in the dialog (the layout has one).

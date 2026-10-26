@@ -2489,14 +2489,11 @@
     },
     "directory": {
       "lead": "Trouvez un agent par nom, ville ou commune, et contactez-le directement sur WhatsApp.",
-      "searchLabel": "Nom de l'agent ou de l'agence",
-      "searchPlaceholder": "Nom de l'agent ou de l'agence",
+      "searchLabel": "Nom d'agent, quartier ou référence",
+      "searchPlaceholder": "Nom, quartier ou référence (ex. Righini, UPN)",
       "searchButton": "Rechercher",
       "city": "Ville",
       "allCities": "Toutes les villes",
-      "commune": "Commune",
-      "allCommunes": "Toutes les communes",
-      "pickCityFirst": "Choisissez une ville",
       "sort": "Trier par",
       "sortListings": "Plus d'annonces",
       "sortRating": "Mieux notés",
@@ -2531,7 +2528,26 @@
         "other": "Voir ses {count} biens"
       },
       "whatsappAria": "Écrire à {name} sur WhatsApp",
-      "callAria": "Appeler {name}"
+      "callAria": "Appeler {name}",
+      "placeRead": "« {text} » : agents à {communes}.",
+      "searchAsName": "Chercher « {text} » parmi les noms",
+      "communesLabel": "Communes (jusqu’à {max})",
+      "noCommunes": "Aucune commune avec des agents pour ces filtres.",
+      "moreCommunes": {
+        "one": "Voir {count} autre commune",
+        "other": "Voir les {count} autres communes"
+      },
+      "communesMax": "{max} communes au maximum : retirez-en une pour en ajouter une autre.",
+      "addCommune": "Ajouter {commune} ({count} agents)",
+      "removeCommune": "Retirer {commune}",
+      "nearMe": "Autour de moi",
+      "nearMeLocating": "Localisation…",
+      "nearMeDenied": "Autorisez la localisation dans votre navigateur, ou choisissez une commune.",
+      "nearMeFailed": "Impossible de vous localiser pour le moment. Choisissez une commune.",
+      "nearMeOutside": "Vous semblez hors des villes couvertes. Choisissez une ville ou une commune.",
+      "nearMeUnavailable": "Votre navigateur ne permet pas la localisation. Choisissez une commune.",
+      "nearMeResult": "Les communes les plus proches de vous. Votre position n’est pas enregistrée.",
+      "communeOf": "Commune de {name}"
     }
   },
   "status": {

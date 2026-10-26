@@ -1,17 +1,20 @@
 import Link from 'next/link';
-import { Search, Phone, Star, MapPin, BadgeCheck, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Phone, Star, MapPin, BadgeCheck, ChevronLeft, ChevronRight, X } from 'lucide-react';
 import AgentAvatar from '@/components/AgentAvatar';
 import AgentVerificationBadge from '@/components/AgentVerificationBadge';
-import { getAgentDirectory } from '@/lib/agentDirectory';
+import { getAgentDirectory, getCommuneCounts } from '@/lib/agentDirectory';
 import {
   DIRECTORY_PAGE_SIZE,
   directoryAgentName,
   directoryCityNames,
   directoryHref,
   hasDirectoryFilters,
+  MAX_DIRECTORY_COMMUNES,
   parseDirectoryParams,
+  toggleCommuneHref,
 } from '@/lib/agentDirectoryRules';
-import { communeLabel, communesOfCity } from '@/lib/cities';
+import { DEFAULT_CITY, cityOfCommune, communeLabel } from '@/lib/cities';
+import { COMMUNE_CENTROIDS } from '@/lib/geocoding';
 import { publicRatingSummary, formatAverage } from '@/lib/agentReviews';
 import { agencyInitials } from '@/lib/agentIdentity';
 import { buildWhatsAppLink } from '@/lib/whatsapp';
@@ -20,6 +23,10 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { getLocale, getT } from '@/lib/i18n/server';
 import DirectorySelect from './DirectorySelect';
+import NearMeButton from './NearMeButton';
+
+/** Commune chips shown before "Voir toutes les communes". */
+const CHIPS_VISIBLE = 12;
 
 // French whatever the visitor's language: the agent reads it.
 const CONTACT_MESSAGE =
@@ -55,16 +62,36 @@ export default async function AgentsDirectoryPage({ searchParams }) {
   const t = await getT();
   const locale = await getLocale();
   const params = parseDirectoryParams(await searchParams);
-  const { agents, total, failed } = await getAgentDirectory(params);
+  const [{ agents, total, failed }, counts] = await Promise.all([getAgentDirectory(params), getCommuneCounts(params)]);
   const pageCount = Math.max(1, Math.ceil(total / DIRECTORY_PAGE_SIZE));
+
+  // Chips: the chosen communes first (always shown, even at 0), then the
+  // busiest. A commune with no agent is never offered.
+  const countByKey = new Map(counts.map((c) => [c.key, c.count]));
+  const chosen = params.communes.map((key) => ({ key, count: countByKey.get(key) ?? 0 }));
+  const others = counts.filter((c) => !params.communes.includes(c.key));
+  const room = Math.max(0, CHIPS_VISIBLE - chosen.length);
+  const visibleChips = [...chosen, ...others.slice(0, room)];
+  const moreChips = others.slice(room);
+  // A commune named like its city (Kinshasa's own commune) says so, or the
+  // chip reads as the whole city.
+  const chipLabel = (key) => {
+    const label = communeLabel(key) === cityOfCommune(key) ? t('agent.directory.communeOf', { name: communeLabel(key) }) : communeLabel(key);
+    return !params.ville && cityOfCommune(key) !== DEFAULT_CITY ? `${label} · ${cityOfCommune(key)}` : label;
+  };
+
+  // "Autour de moi": commune centres for the browser, and the filters to keep.
+  const centres = Object.entries(COMMUNE_CENTROIDS)
+    .filter(([key, point]) => cityOfCommune(key) && point)
+    .map(([key, point]) => ({ key, lat: point.lat, lng: point.lng }));
+  const keep = new URLSearchParams();
+  if (params.offre) keep.set('offre', params.offre);
+  if (params.verifies) keep.set('verifies', '1');
+  if (params.tri !== 'listings') keep.set('tri', params.tri);
 
   const cityOptions = [
     { value: '', label: t('agent.directory.allCities') },
     ...directoryCityNames().map((name) => ({ value: name, label: name })),
-  ];
-  const communeOptions = [
-    { value: '', label: params.ville ? t('agent.directory.allCommunes') : t('agent.directory.pickCityFirst') },
-    ...(params.ville ? communesOfCity(params.ville).map((key) => ({ value: key, label: communeLabel(key) })) : []),
   ];
   const sortOptions = [
     { value: 'listings', label: t('agent.directory.sortListings') },
@@ -87,6 +114,9 @@ export default async function AgentsDirectoryPage({ searchParams }) {
       <form action="/agents" method="get" role="search" className="rounded-card border border-line bg-white p-3 sm:p-4">
         {params.offre ? <input type="hidden" name="offre" value={params.offre} /> : null}
         {params.verifies ? <input type="hidden" name="verifies" value="1" /> : null}
+        {/* Chosen by chip or "Autour de moi": kept when the menus or the box
+            submit. A typed place is re-read from the box itself instead. */}
+        {params.communes.length && !params.place ? <input type="hidden" name="communes" value={params.communes.join(',')} /> : null}
 
         <div className="flex gap-2">
           <label className="relative min-w-0 flex-1">
@@ -112,18 +142,64 @@ export default async function AgentsDirectoryPage({ searchParams }) {
           </button>
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-          <DirectorySelect name="ville" label={t('agent.directory.city')} defaultValue={params.ville || ''} options={cityOptions} clears={['commune']} />
+        {params.place ? (
+          <p className="mt-2 rounded-lg bg-blue-tint px-3 py-2 text-[0.8125rem] text-ink-70">
+            {t('agent.directory.placeRead', { text: params.q, communes: params.communes.map(communeLabel).join(', ') || params.ville })}{' '}
+            <Link href={directoryHref(params, { nom: true, communes: [], ville: null })} className="font-semibold text-blue-deep underline">
+              {t('agent.directory.searchAsName', { text: params.q })}
+            </Link>
+          </p>
+        ) : null}
+
+        <div className="mt-3 grid grid-cols-2 gap-2">
           <DirectorySelect
-            name="commune"
-            label={t('agent.directory.commune')}
-            defaultValue={params.commune || ''}
-            options={communeOptions}
-            disabled={!params.ville}
+            name="ville"
+            label={t('agent.directory.city')}
+            defaultValue={params.ville || ''}
+            options={cityOptions}
+            clears={params.place ? ['communes', 'q'] : ['communes']}
           />
-          <div className="col-span-2 sm:col-span-1">
-            <DirectorySelect name="tri" label={t('agent.directory.sort')} defaultValue={params.tri} options={sortOptions} />
+          <DirectorySelect name="tri" label={t('agent.directory.sort')} defaultValue={params.tri} options={sortOptions} />
+        </div>
+
+        <div className="mt-3">
+          <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+            <span className="u-micro-strong text-ink-70">{t('agent.directory.communesLabel', { max: MAX_DIRECTORY_COMMUNES })}</span>
+            <NearMeButton
+              centres={centres}
+              keep={keep.toString()}
+              labels={{
+                button: t('agent.directory.nearMe'),
+                locating: t('agent.directory.nearMeLocating'),
+                denied: t('agent.directory.nearMeDenied'),
+                failed: t('agent.directory.nearMeFailed'),
+                outside: t('agent.directory.nearMeOutside'),
+                unavailable: t('agent.directory.nearMeUnavailable'),
+              }}
+            />
           </div>
+          {params.pres ? <p className="mb-1.5 text-xs text-ink-45">{t('agent.directory.nearMeResult')}</p> : null}
+          {visibleChips.length > 0 ? (
+            <div className="no-scrollbar -mx-3 flex gap-2 overflow-x-auto px-3 pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+              {visibleChips.map((chip) => (
+                <CommuneChip key={chip.key} chip={chip} label={chipLabel(chip.key)} params={params} t={t} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-ink-45">{t('agent.directory.noCommunes')}</p>
+          )}
+          {moreChips.length > 0 ? (
+            <details className="mt-2">
+              <summary className="cursor-pointer text-[0.8125rem] font-semibold text-blue-deep">
+                {t('agent.directory.moreCommunes', { count: moreChips.length })}
+              </summary>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {moreChips.map((chip) => (
+                  <CommuneChip key={chip.key} chip={chip} label={chipLabel(chip.key)} params={params} t={t} />
+                ))}
+              </div>
+            </details>
+          ) : null}
         </div>
 
         <div className="-mx-1 mt-3 flex flex-wrap items-center gap-2 px-1">
@@ -204,6 +280,47 @@ export default async function AgentsDirectoryPage({ searchParams }) {
         </nav>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * One commune: a link that adds it to the search or, once chosen, removes it.
+ * Past the five-commune cap an unchosen chip is shown inert.
+ */
+function CommuneChip({ chip, label, params, t }) {
+  const selected = params.communes.includes(chip.key);
+  const href = toggleCommuneHref(params, chip.key);
+  const body = (
+    <>
+      {label}
+      <span className={cn('u-tabular text-[0.75rem]', selected ? 'text-white/80' : 'text-ink-45')}>{chip.count}</span>
+      {selected ? <X className="h-3.5 w-3.5" strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" /> : null}
+    </>
+  );
+  const className = cn(
+    'inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 text-[0.8125rem] font-semibold',
+    selected ? 'border-blue bg-blue text-white' : 'border-line bg-white text-ink-70',
+  );
+  if (!href) {
+    return (
+      <span className={cn(className, 'opacity-50')} title={t('agent.directory.communesMax', { max: MAX_DIRECTORY_COMMUNES })}>
+        {body}
+      </span>
+    );
+  }
+  return (
+    <Link
+      href={href}
+      aria-pressed={selected}
+      aria-label={
+        selected
+          ? t('agent.directory.removeCommune', { commune: label })
+          : t('agent.directory.addCommune', { commune: label, count: chip.count })
+      }
+      className={cn(className, 'u-press')}
+    >
+      {body}
+    </Link>
   );
 }
 

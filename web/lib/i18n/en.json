@@ -2489,14 +2489,11 @@
     },
     "directory": {
       "lead": "Find an agent by name, city or commune, and contact them directly on WhatsApp.",
-      "searchLabel": "Agent or agency name",
-      "searchPlaceholder": "Agent or agency name",
+      "searchLabel": "Agent name, neighbourhood or landmark",
+      "searchPlaceholder": "Name, neighbourhood or landmark (e.g. Righini, UPN)",
       "searchButton": "Search",
       "city": "City",
       "allCities": "All cities",
-      "commune": "Commune",
-      "allCommunes": "All communes",
-      "pickCityFirst": "Choose a city",
       "sort": "Sort by",
       "sortListings": "Most listings",
       "sortRating": "Best rated",
@@ -2531,7 +2528,26 @@
         "other": "View their {count} listings"
       },
       "whatsappAria": "Message {name} on WhatsApp",
-      "callAria": "Call {name}"
+      "callAria": "Call {name}",
+      "placeRead": "“{text}”: agents in {communes}.",
+      "searchAsName": "Search “{text}” in agent names",
+      "communesLabel": "Communes (up to {max})",
+      "noCommunes": "No commune has agents for these filters.",
+      "moreCommunes": {
+        "one": "Show {count} more commune",
+        "other": "Show {count} more communes"
+      },
+      "communesMax": "{max} communes at most: remove one to add another.",
+      "addCommune": "Add {commune} ({count} agents)",
+      "removeCommune": "Remove {commune}",
+      "nearMe": "Near me",
+      "nearMeLocating": "Locating…",
+      "nearMeDenied": "Allow location in your browser, or choose a commune.",
+      "nearMeFailed": "We couldn’t find your location just now. Choose a commune.",
+      "nearMeOutside": "You seem to be outside the cities we cover. Choose a city or a commune.",
+      "nearMeUnavailable": "Your browser can’t share your location. Choose a commune.",
+      "nearMeResult": "The communes nearest to you. Your position is not stored.",
+      "communeOf": "{name} commune"
     }
   },
   "status": {

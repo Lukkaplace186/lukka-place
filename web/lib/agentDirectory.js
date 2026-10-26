@@ -1,9 +1,9 @@
 import 'server-only';
 import { getPool } from './db';
 import { vendorNameSql } from './vendorName';
-import { communesOfCity } from './cities';
+import { CITIES, communesOfCity } from './cities';
 import { MIN_PUBLIC_REVIEWS } from './agentReviews';
-import { DIRECTORY_PAGE_SIZE, foldSearchText } from './agentDirectoryRules';
+import { DIRECTORY_PAGE_SIZE, foldSearchText, nameQuery } from './agentDirectoryRules';
 
 /**
  * Public agent directory (/agents). One page of agents per request, filtered
@@ -51,12 +51,25 @@ const ORDER_BY = {
   recent: 'live.latest_at DESC NULLS LAST, a.id',
 };
 
-/** Exported for the SQL-text test. */
-export function buildDirectoryQuery(params, { withRatings = true } = {}) {
-  const values = [];
+/**
+ * The communes a search narrows to: the chosen ones, else every commune of
+ * the chosen city, else none (the whole country).
+ */
+function searchedCommunes(params) {
+  if (params.communes?.length) return params.communes;
+  return params.ville ? communesOfCity(params.ville) : [];
+}
+
+/**
+ * The WHERE every directory read shares: active, not deleted, the name search
+ * (unless the text was read as a place), rent/sale, the verified tier — and
+ * the communes, unless `withCommunes` is false (the chip counts, which must
+ * count every commune whatever is chosen). Pushes its parameters onto `values`.
+ */
+function directoryWhere(params, values, { withCommunes = true } = {}) {
   const where = ['a.status = 1', 'a.deleted_at IS NULL'];
 
-  const term = likeTerm(params.q);
+  const term = likeTerm(nameQuery(params));
   if (term) {
     values.push(term);
     const n = values.length;
@@ -65,9 +78,9 @@ export function buildDirectoryQuery(params, { withRatings = true } = {}) {
       OR ${fold(vendorNameSql('v'))} LIKE $${n})`);
   }
 
-  // A commune narrows to that commune; a city alone, to any of its communes.
-  // An agent matches by the communes they declared OR by a live listing there.
-  const communes = params.commune ? [params.commune] : params.ville ? communesOfCity(params.ville) : [];
+  // An agent matches a commune by the communes they declared OR by a live
+  // listing there; several communes are an OR.
+  const communes = withCommunes ? searchedCommunes(params) : [];
   if (communes.length > 0) {
     values.push(communes);
     const n = values.length;
@@ -79,6 +92,35 @@ export function buildDirectoryQuery(params, { withRatings = true } = {}) {
   if (params.offre === 'location') where.push('live.rent_count > 0');
   if (params.offre === 'vente') where.push('live.sale_count > 0');
   if (params.verifies) where.push(VERIFIED_SQL);
+  return where;
+}
+
+/** Every listed agent is one with at least one live listing. */
+const LIVE_CTE = `live AS (
+      SELECT p.agent_id,
+             COUNT(*)::int AS live_count,
+             (COUNT(*) FILTER (WHERE p.purpose = '${PURPOSE.location}'))::int AS rent_count,
+             (COUNT(*) FILTER (WHERE p.purpose = '${PURPOSE.vente}'))::int AS sale_count,
+             MAX(p.created_at) AS latest_at
+        FROM properties p
+       WHERE p.status = 1 AND p.approve_status = 1 AND p.agent_id IS NOT NULL
+       GROUP BY p.agent_id
+    )`;
+
+const AGENT_JOINS = `FROM agents a
+      JOIN live ON live.agent_id = a.id
+      LEFT JOIN vendors v ON v.id = a.vendor_id
+      LEFT JOIN LATERAL (
+        SELECT first_name, last_name FROM agent_infos
+         WHERE agent_id = a.id
+         ORDER BY (language_id = ${CONTENT_LANGUAGE_ID}) DESC, language_id
+         LIMIT 1
+      ) ai ON true`;
+
+/** Exported for the SQL-text test. */
+export function buildDirectoryQuery(params, { withRatings = true } = {}) {
+  const values = [];
+  const where = directoryWhere(params, values);
 
   const ratingJoin = withRatings
     ? `LEFT JOIN LATERAL (
@@ -97,16 +139,7 @@ export function buildDirectoryQuery(params, { withRatings = true } = {}) {
   // verification_level goes through jsonb (lib/agents.js does the same) so
   // the page works on a database without that column.
   const sql = `
-    WITH live AS (
-      SELECT p.agent_id,
-             COUNT(*)::int AS live_count,
-             (COUNT(*) FILTER (WHERE p.purpose = '${PURPOSE.location}'))::int AS rent_count,
-             (COUNT(*) FILTER (WHERE p.purpose = '${PURPOSE.vente}'))::int AS sale_count,
-             MAX(p.created_at) AS latest_at
-        FROM properties p
-       WHERE p.status = 1 AND p.approve_status = 1 AND p.agent_id IS NOT NULL
-       GROUP BY p.agent_id
-    )
+    WITH ${LIVE_CTE}
     SELECT a.id, a.image, a.agency_name, a.primary_communes, a.serviced_communes,
            ${vendorNameSql('v')} AS vendor_name,
            to_jsonb(a) ->> 'verification_level' AS verification_level,
@@ -115,15 +148,7 @@ export function buildDirectoryQuery(params, { withRatings = true } = {}) {
            live.live_count, live.rent_count, live.sale_count,
            r.review_count, r.average_stars,
            COUNT(*) OVER ()::int AS total_count
-      FROM agents a
-      JOIN live ON live.agent_id = a.id
-      LEFT JOIN vendors v ON v.id = a.vendor_id
-      LEFT JOIN LATERAL (
-        SELECT first_name, last_name FROM agent_infos
-         WHERE agent_id = a.id
-         ORDER BY (language_id = ${CONTENT_LANGUAGE_ID}) DESC, language_id
-         LIMIT 1
-      ) ai ON true
+      ${AGENT_JOINS}
       ${ratingJoin}
      WHERE ${where.join(' AND ')}
      ORDER BY ${order}
@@ -156,5 +181,62 @@ export async function getAgentDirectory(params) {
     }
     console.error(`[agentDirectory] ${err.message}`);
     return { agents: [], total: 0, failed: true };
+  }
+}
+
+/**
+ * How many listed agents each commune has, for the one-tap chips — every
+ * commune of the chosen city (or of every city), whatever communes are chosen,
+ * and with the other filters applied, so a chip's number is what tapping it
+ * shows. An agent counts in a commune they declared or have a live listing in.
+ * Exported for the SQL-text test.
+ */
+export function buildCommuneCountsQuery(params) {
+  const values = [];
+  const where = directoryWhere(params, values, { withCommunes: false });
+  values.push(params.ville ? communesOfCity(params.ville) : allCommuneKeys());
+  const keys = values.length;
+  const sql = `
+    WITH ${LIVE_CTE},
+    eligible AS (
+      SELECT a.id, a.primary_communes, a.serviced_communes
+      ${AGENT_JOINS}
+      WHERE ${where.join(' AND ')}
+    ),
+    pairs AS (
+      SELECT e.id, unnest(COALESCE(e.primary_communes, '{}') || COALESCE(e.serviced_communes, '{}')) AS commune
+        FROM eligible e
+      UNION
+      SELECT e.id, ac.name AS commune
+        FROM eligible e
+        JOIN properties lp ON lp.agent_id = e.id AND lp.status = 1 AND lp.approve_status = 1
+        JOIN property_amenities pa ON pa.property_id = lp.id
+        JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = ${CONTENT_LANGUAGE_ID}
+       WHERE pa.amenity_id IN (SELECT amenity_id FROM location_communes)
+    )
+    SELECT commune, COUNT(DISTINCT id)::int AS agent_count
+      FROM pairs
+     WHERE commune = ANY($${keys}::text[])
+     GROUP BY commune
+     ORDER BY agent_count DESC, commune`;
+  return { sql, values };
+}
+
+function allCommuneKeys() {
+  return CITIES.flatMap((city) => city.communes.map((c) => c.key));
+}
+
+/**
+ * `[{ key, count }]`, busiest first, communes with no agent left out. Never
+ * throws: without counts the page simply shows no chips.
+ */
+export async function getCommuneCounts(params) {
+  try {
+    const { sql, values } = buildCommuneCountsQuery(params);
+    const { rows } = await getPool().query(sql, values);
+    return rows.map((row) => ({ key: row.commune, count: row.agent_count }));
+  } catch (err) {
+    console.error(`[agentDirectory] commune counts unavailable: ${err.message}`);
+    return [];
   }
 }

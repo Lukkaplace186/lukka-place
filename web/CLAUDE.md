@@ -3303,10 +3303,32 @@ From the "Social & Open Graph Share Cards" design canvas. Tests:
 `lib/agentDirectoryRules.js`), "Agents" in the header and the phone drawer.
 Tests: `tests/unit/agent-directory.test.js`.
 
-- **Search and filters are URL params on a GET form** (`q`, `ville`, `commune`,
-  `offre` location|vente, `verifies=1`, `tri` listings|rating|recent, `page`):
-  one server render per search, usable before hydration on 3G, shareable. The
-  two selects submit on change (`DirectorySelect.js`, the only client code).
+- **Search and filters are URL params on a GET form** (`q`, `nom=1`, `ville`,
+  `communes` (comma list, ≤ 5; the old single `commune` still reads),
+  `pres=1`, `offre` location|vente, `verifies=1`, `tri` listings|rating|recent,
+  `page`): one server render per search, usable before hydration on 3G,
+  shareable. Client code: the two selects that submit on change
+  (`DirectorySelect.js`) and "Autour de moi" (`NearMeButton.js`).
+- **Area is picked by one-tap commune chips** (2026-10-26), busiest first, each
+  with its agent count (`getCommuneCounts`: the other filters applied, the
+  chosen communes not, so a chip's number is what tapping it adds). A commune
+  with no agent is never offered; the chosen ones always show, first. Twelve
+  visible, the rest under "Voir les N autres communes" (`<details>`, no JS).
+  Several communes are an OR. Kinshasa's own commune reads "Commune de
+  Kinshasa" so it is not taken for the city.
+- **The box reads a place** (`resolvePlaceQuery`): a city, any city's commune,
+  or a Kinshasa quartier / alias / landmark from the gazetteer ("Righini" →
+  Lemba, "près de l'UPN" → Ngaliema; Salongo → every commune that has one),
+  but only when nothing else is left in the text ("Agence Matonge" stays a
+  name search). It then replaces the menus' area and is not also a name
+  filter; a note says what was understood and links to `nom=1` to search the
+  text as a name. `agentDirectoryRules.js` imports the gazetteer — keep it out
+  of client components.
+- **"Autour de moi"**: on tap only, `navigator.geolocation` → the nearest
+  commune centres (`lib/nearestCommunes.js`, no imports, runs in the browser;
+  the nearest plus up to two within 1.6× its distance, nothing beyond 15 km)
+  → `?communes=…&pres=1`. Coordinates never leave the phone or reach the URL.
+  Centres are `COMMUNE_CENTROIDS`, passed as props.
 - **One SQL page of 24** with `COUNT(*) OVER ()`; it replaced
   `getPublicAgents()`, which loaded every agent. Listed: active, not deleted,
   ≥ 1 live listing. A commune matches the agent's declared communes OR a live

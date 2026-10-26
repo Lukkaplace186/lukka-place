@@ -363,34 +363,6 @@ export async function bulkUpdateAgentStatus(ids, status) {
   return rowCount ?? 0;
 }
 
-/**
- * Public agent directory (web/app/(site)/agents/page.js) — active agents
- * with at least one real listing behind them, matching this app's own
- * no-empty-directory-entry convention (same reasoning as ExploreCommunes.js
- * only showing a commune tile once a real listing exists there).
- * listing_count is a correlated scalar subquery in AGENT_FIELDS, not an
- * aggregate over this query's own rows, so the >0 filter happens in JS
- * after the fetch rather than a SQL HAVING clause — real agent counts are
- * small (tens, not thousands; see admin/dashboard's own "Agents actifs"
- * stat), so this stays simple instead of restructuring the query.
- *
- * Filters and orders on `live_listing_count`, NOT `listing_count`. The
- * latter counts every property row attributed to the agent regardless of
- * moderation state, while the storefront this links to
- * (lib/agencies.js -> getListings) applies the full approved filter — so an
- * agent whose listings were all pending or rejected appeared in the
- * directory and led to a completely empty page. No agent triggers that
- * today, which is exactly why it needed pinning rather than leaving until it
- * broke in front of a visitor.
- */
-export async function getPublicAgents() {
-  const pool = getPool();
-  const { rows } = await pool.query(
-    `SELECT ${AGENT_FIELDS} ${AGENT_JOINS} WHERE a.status = 1 ORDER BY live_listing_count DESC NULLS LAST`,
-  );
-  return rows.filter((r) => r.live_listing_count > 0);
-}
-
 export async function getAgentById(id) {
   const numericId = Number.parseInt(id, 10);
   if (!Number.isFinite(numericId)) return null;

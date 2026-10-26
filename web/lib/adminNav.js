@@ -58,6 +58,7 @@ export const ADMIN_NAV_GROUPS = [
       { href: '/admin/team', labelKey: 'admin.nav.team', icon: 'UsersRound' },
       { href: '/admin/audit', labelKey: 'admin.nav.audit', icon: 'ScrollText' },
       { href: '/admin/cms', labelKey: 'admin.nav.cms', icon: 'Settings' },
+      { href: '/admin/blog', labelKey: 'admin.nav.blog', icon: 'Newspaper' },
       { href: '/admin/settings', labelKey: 'admin.nav.settings', icon: 'SlidersHorizontal' },
     ],
   },

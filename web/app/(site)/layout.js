@@ -68,7 +68,7 @@ export default async function SiteLayout({ children }) {
         <FavoriteResumeHandler />
         <AccountLimitNotice />
         <VisitCartMount />
-        <Header hiddenHrefs={features.publicProjects ? [] : ['/projets']} />
+        <Header hiddenHrefs={[...(features.publicProjects ? [] : ['/projets']), ...(features.publicBlog ? [] : ['/guides'])]} />
         <SiteShell>
           {/* min-h-0 alongside flex-1: a flex item's default min-height is
               `auto` (its content size), not 0 — the standard real fix for the

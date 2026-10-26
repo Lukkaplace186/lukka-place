@@ -84,11 +84,16 @@ export function mergeSocialLinks(fromSettings, fromEnv) {
  *                       home strip, the map's projects pill, the sitemap,
  *                       /projets and /promoteurs
  *   agentProjects       agent portal: the projects card + /compte/agent/projets
+ *   publicBlog          public site: Guides & Actualités — the posts written
+ *                       on /admin/blog, the menu link, the posts in the
+ *                       sitemap. Off: /guides shows only the code guides
+ *                       (lib/guides.js), as it did before the blog existed.
  */
 export const FEATURE_FLAGS = [
   { key: 'agentSubscriptions', surface: 'agent', default: false },
   { key: 'agentProjects', surface: 'agent', default: true },
   { key: 'publicProjects', surface: 'public', default: true },
+  { key: 'publicBlog', surface: 'public', default: false },
 ];
 
 /** Never hideable: hiding the page that un-hides things would lock the team out. */
@@ -98,7 +103,7 @@ export const UNHIDEABLE_ADMIN_TABS = ['/admin/settings'];
  * @param {object|null} stored the `site.features` value
  * @param {string[]} [knownAdminTabs] hrefs the console sidebar has; a stored
  *   href that is not one of them (a renamed page) is dropped.
- * @returns {{agentSubscriptions: boolean, agentProjects: boolean, publicProjects: boolean, hiddenAdminTabs: string[]}}
+ * @returns {{agentSubscriptions: boolean, agentProjects: boolean, publicProjects: boolean, publicBlog: boolean, hiddenAdminTabs: string[]}}
  */
 export function featuresFromStored(stored, knownAdminTabs = null) {
   const value = stored && typeof stored === 'object' ? stored : {};

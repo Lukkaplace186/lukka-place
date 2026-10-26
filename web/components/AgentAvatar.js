@@ -22,7 +22,7 @@ import { Monogram } from './Brand';
  * that already-failed-before-hydration case; onError stays for a failure
  * that happens after mount (a real network blip, a since-deleted file).
  */
-export default function AgentAvatar({ src, alt }) {
+export default function AgentAvatar({ src, alt, loading }) {
   const [failed, setFailed] = useState(false);
   const imgRef = useRef(null);
 
@@ -47,6 +47,8 @@ export default function AgentAvatar({ src, alt }) {
       src={src}
       alt={alt}
       onError={() => setFailed(true)}
+      loading={loading}
+      decoding="async"
       className="h-full w-full object-cover"
     />
   );

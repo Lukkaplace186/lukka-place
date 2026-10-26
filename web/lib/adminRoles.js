@@ -61,6 +61,8 @@ export const PERMISSIONS = {
   'accounts.impersonate': ['owner', 'support'],
   'routing.manage': ['owner'],
   'cms.manage': ['owner'],
+  // Guides & Actualités (/admin/blog): write, publish, delete posts.
+  'blog.manage': ['owner', 'moderator'],
   'data.export': ['owner', 'finance', 'analyst'],
   'notes.write': ['owner', 'moderator', 'support', 'finance'],
   // Administration
@@ -118,6 +120,7 @@ export const SECTION_PERMISSIONS = {
   '/admin/sales/attribution': 'sales.manage',
   '/admin/impersonation': 'audit.view',
   '/admin/cms': 'cms.manage',
+  '/admin/blog': 'blog.manage',
   '/admin/settings': 'cms.manage',
   '/admin/team': 'team.manage',
   '/admin/audit': 'audit.view',

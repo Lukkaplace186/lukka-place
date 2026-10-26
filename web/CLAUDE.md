@@ -1269,8 +1269,7 @@ namespace; the two i18n tests above exist because of that.
   everywhere. Setup: run that migration, then
   `node web/scripts/setup-verification-bucket.js --write`.
 - **Known, not fixed here:** the agent dashboard layout still fails when the
-  engine is unreachable (`listLeads` throws; confirmed locally), `/agents`
-  (`getPublicAgents`) loads every agent unpaginated, Mes biens filters an
+  engine is unreachable (`listLeads` throws; confirmed locally), Mes biens filters an
   unbounded listing array in memory, and `createListingAction` takes its
   commune/category allow-lists as arguments from the client.
 
@@ -3232,8 +3231,9 @@ distrust what it found. Tests: `tests/unit/real-404.test.js`,
     `location|vente/[[...slug]]/layout.js` (`parseSeoSegments`, pure) call
     `notFound()` ABOVE their own `loading.js`.
   Don't add a `loading.js` above those three again.
-  `guides/[slug]`, `projets/[slug]` and `rapport/[token]` still sit under a
-  section skeleton (200 + noindex when missing).
+  `guides/[slug]` checks in its own layout too since 2026-10-26 (the index
+  moved to `guides/(index)/`); `projets/[slug]` and `rapport/[token]` still
+  sit under a section skeleton (200 + noindex when missing).
 - **Other cities have landing pages**: `/location/lubumbashi`,
   `/vente/terrains/goma` (`SEO_CITIES`, `cityFromSlug`; Kinshasa has none of
   its own — the roots are Kinshasa). `seoPath` takes `city`, a commune winning
@@ -3296,3 +3296,65 @@ From the "Social & Open Graph Share Cards" design canvas. Tests:
   until it runs, a feed share records nothing and the share itself works.
 - Not built: a visitor-facing "Générer la carte" on the public listing page,
   and a 9:16 option in the dialog (the layout has one).
+
+## Agent directory — the "Agents" tab (2026-10-26)
+
+`/agents` (`app/(portfolio)/agents/page.js`, SQL `lib/agentDirectory.js`, pure
+`lib/agentDirectoryRules.js`), "Agents" in the header and the phone drawer.
+Tests: `tests/unit/agent-directory.test.js`.
+
+- **Search and filters are URL params on a GET form** (`q`, `ville`, `commune`,
+  `offre` location|vente, `verifies=1`, `tri` listings|rating|recent, `page`):
+  one server render per search, usable before hydration on 3G, shareable. The
+  two selects submit on change (`DirectorySelect.js`, the only client code).
+- **One SQL page of 24** with `COUNT(*) OVER ()`; it replaced
+  `getPublicAgents()`, which loaded every agent. Listed: active, not deleted,
+  ≥ 1 live listing. A commune matches the agent's declared communes OR a live
+  listing tagged there; a city, any of its communes. Search is accent-folded
+  (`translate()` in SQL, `foldSearchText` on the term) and `%`/`_`-escaped.
+- **WhatsApp / Appeler only under the listing page's rule** (verified number,
+  direct routing on), selected in SQL as `contact_phone`. Names never use
+  `agents.username` or the "Agence #id" console placeholder.
+- Every filtered or paged copy is `noindex, follow`, canonical `/agents`.
+- "Vérifiés" filters on the document-reviewed tier, which no agent holds yet.
+
+## Guides & Actualités — the blog behind `publicBlog` (2026-10-26)
+
+Posts written at `/admin/blog` (`blog.manage`: owner, moderator), shown on
+`/guides` once `/admin/settings` › "Guides & Actualités (blog)" is on.
+**Off by default.** Engine migration `migrations/20261026_blog_posts.sql`
+(new table, RLS on, anon revoked) — **applied to production 2026-10-26**;
+checked end to end the same day (draft #1 created, previewed, 404 in public,
+deleted — the soft-deleted row is still in the table).
+Tests: `tests/unit/blog.test.js`.
+
+- **Off = exactly the old `/guides`**: the four code guides (`lib/guides.js`),
+  no menu link, no posts in the sitemap, a post's URL is a 404. On: posts join
+  the guides, newest first, with Tout / Guides / Actualités (`?categorie=`,
+  noindex), a "Guides & Actualités" header/drawer link, posts in the sitemap.
+  A post whose slug equals a guide's replaces that guide (`mergeArticles`), so
+  a guide can be edited from the console without a deploy.
+- **Public = `PUBLIC_POST_FILTER`** (`lib/blog.js`): published AND
+  `published_at <= NOW()` AND not deleted. A future date is a scheduled post;
+  no job publishes it. Every public read is `[]`/null on 42P01.
+- **Real 404**: `guides/[slug]/layout.js` checks `getPublicArticle` above the
+  segment's skeleton; the index lives in `guides/(index)/` with its own.
+- **No HTML anywhere.** The body is a textarea in a small format parsed by
+  `parseBody` (`## titre`, `- point`, `1. étape`, blank line = paragraph,
+  `[texte](/chemin)` or https links only) into the same blocks the code guides
+  use, rendered by `components/blog/ArticleBody.js` as text.
+- **Linked to the listings**: a post can name a transaction, a commune and a
+  type; the article ends with three live listings (`getListings`, public gate)
+  and a button to the matching landing page (`postListingsHref`: `seoPath`,
+  else `/listings?…`). Types are the landing pages' list, communes
+  `lib/cities.js`.
+- **English is optional and all-or-nothing** (title + body); an English reader
+  sees it when present, otherwise the French with the "rédigé en français" note.
+- **Cover**: upload only (a typed URL is never trusted), resized to 1600 px
+  JPEG under `cms/blog/` in the listing bucket; alt text required with it.
+- Every write is audited (`blog.create|update|unpublish|delete`, body length,
+  never the text). Delete is soft and frees the slug. Preview at
+  `/admin/blog/[id]/apercu` whatever the state or the switch.
+- Not built: a WhatsApp share preview image per post (the cover is og:image
+  when set), comments, authors' names on articles.
+

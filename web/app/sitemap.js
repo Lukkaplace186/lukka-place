@@ -4,6 +4,7 @@ import { GUIDES } from '@/lib/guides';
 import { landingPathsFromFacets } from '@/lib/seoPages';
 import { getSitemapProjects } from '@/lib/developments';
 import { getFeatureFlags } from '@/lib/siteSettings';
+import { listPublicPostSlugs } from '@/lib/blog';
 
 const PROJECT_PAGES = ['/projets', '/promoteurs'];
 
@@ -19,7 +20,7 @@ export default async function sitemap() {
   const base = SITE_URL.replace(/\/+$/, '');
   const now = new Date();
   // Projets neufs switched off on /admin/settings: none of its pages are listed.
-  const { publicProjects } = await getFeatureFlags();
+  const { publicProjects, publicBlog } = await getFeatureFlags();
   const pages = ['', '/listings', '/projets', '/promoteurs', '/agents', '/guides', '/a-propos', '/contact']
     .filter((path) => publicProjects || !PROJECT_PAGES.includes(path))
     .map((path) => ({
@@ -30,7 +31,7 @@ export default async function sitemap() {
   }));
 
   // A sitemap that fails to build must still list the pages it can.
-  const [listings, facets, projects] = await Promise.all([
+  const [listings, facets, projects, posts] = await Promise.all([
     getSitemapListings().catch((err) => {
       console.error('[sitemap] listings unavailable', err);
       return [];
@@ -43,7 +44,10 @@ export default async function sitemap() {
       console.error('[sitemap] projects unavailable', err);
       return [];
     }),
+    // Guides & Actualités posts only while the blog is on (never throws).
+    publicBlog ? listPublicPostSlugs() : Promise.resolve([]),
   ]);
+  const guideSlugs = new Set(GUIDES.map((g) => g.slug));
 
   return [
     ...pages,
@@ -57,6 +61,13 @@ export default async function sitemap() {
     ...GUIDES.map((g) => ({
       url: `${base}/guides/${g.slug}`,
       lastModified: new Date(g.updated),
+      changeFrequency: 'monthly',
+      priority: 0.6,
+    })),
+    // A post with a guide's slug replaces that guide: one URL, listed once.
+    ...posts.filter(({ slug }) => !guideSlugs.has(slug)).map(({ slug, updated_at: updatedAt }) => ({
+      url: `${base}/guides/${slug}`,
+      lastModified: updatedAt ? new Date(updatedAt) : now,
       changeFrequency: 'monthly',
       priority: 0.6,
     })),

@@ -1504,6 +1504,9 @@ async function sendModerationTemplate(status, to, propertyId, listing, reason) {
       bodyParams,
       ...(status === 'approved' ? { urlButton: String(propertyId) } : {}),
     });
+    // Accepted by Chakra, not proof of delivery — but without it a working
+    // template left no trace at all (only failures were logged).
+    console.log(`[admin] moderation ${status} template '${name}' for property #${propertyId} accepted for ${to}`);
     return true;
   } catch (err) {
     console.warn(`[admin] moderation ${status} template '${name}' for property #${propertyId} failed, sending text: ${err.message}`);

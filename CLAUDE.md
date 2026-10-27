@@ -1461,7 +1461,10 @@ web/CLAUDE.md, "Visit booking, both agendas…", has the pages. Engine half:
   Monday with views, and it is then the whole message (no day template, no
   text). Unset, no views or refused → the digest exactly as before. The 14
   "sent" weekly digests of 2026-10-26 were session messages, most outside
-  the 24h window. §-test next to the day template's.
+  the 24h window. §-test next to the day template's. Switched on 2026-10-27
+  and put **on hold the same day** (owner, until customer traction):
+  `AGENT_WEEKLY_DIGEST=off` in production makes Monday an ordinary day — no
+  weekly numbers, no stale-project nudge; the template name is commented out.
 - **Where they live (measured 2026-10-14):** the four new templates are on
   the INTAKE number's account (from the notifications number Meta answers
   #132001) and all four have a PICTURE header (without one, #132012). So

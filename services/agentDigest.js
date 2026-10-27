@@ -70,6 +70,16 @@ function kinshasaDay(now = new Date()) {
   return new Date(now.getTime() + 60 * 60 * 1000).toISOString().slice(0, 10);
 }
 
+/**
+ * `AGENT_WEEKLY_DIGEST=off` stops Monday's numbers (views, clicks, stale
+ * projects): Monday becomes an ordinary day, and an agent with nothing else
+ * to say gets nothing. Read at call time. On hold since 2026-10-27 (owner:
+ * "until we get traction with customers").
+ */
+function weeklyDigestEnabled() {
+  return String(process.env.AGENT_WEEKLY_DIGEST || '').trim().toLowerCase() !== 'off';
+}
+
 /** Monday in Kinshasa — the day the weekly numbers ride along. */
 function isKinshasaMonday(now = new Date()) {
   return new Date(now.getTime() + 60 * 60 * 1000).getUTCDay() === 1;
@@ -464,7 +474,7 @@ async function runAgentDigest({
 } = {}) {
   if (!pg.isConfigured()) return { skipped: 'postgres not configured' };
   const day = kinshasaDay(now);
-  const weeklyDay = isKinshasaMonday(now);
+  const weeklyDay = isKinshasaMonday(now) && weeklyDigestEnabled();
 
   const agents = await loadAgents();
   const counts = engineCounts(now);

@@ -77,7 +77,7 @@ for (const key of [
   'AGENT_LEAD_MATCH_TEMPLATE', 'LISTING_AVAILABILITY_TEMPLATE', 'VISIT_RECEIPT_TEMPLATE',
   'VIEWING_DESK_TEMPLATE', 'VIEWING_CONFIRMED_TEMPLATE', 'VIEWING_PROPOSAL_TEMPLATE', 'VIEWING_UNAVAILABLE_TEMPLATE',
   'VIEWING_TEMPLATES_WITH_LINK', 'VIEWING_TEMPLATES_FROM_SENDER', 'VIEWING_TEMPLATES_WITH_IMAGE', 'AGENT_DAY_TEMPLATE',
-  'AGENT_WEEKLY_TEMPLATE',
+  'AGENT_WEEKLY_TEMPLATE', 'AGENT_WEEKLY_DIGEST',
 ]) {
   process.env[key] = '';
 }
@@ -970,6 +970,44 @@ console.log('\n2. services/openai.js');
       assert.match(texts[0], /La semaine dernière : 120 vues/, 'a refused template falls back to the full weekly text');
     } finally {
       process.env.AGENT_WEEKLY_TEMPLATE = before;
+    }
+  });
+
+  await checkAsync('AGENT_WEEKLY_DIGEST=off: Monday is an ordinary day — no weekly numbers are read or sent', async () => {
+    const pgModule = require('../services/postgres');
+    const digest = require('../services/agentDigest');
+    const saved = { isConfigured: pgModule.isConfigured, getPool: pgModule.getPool };
+    const before = process.env.AGENT_WEEKLY_DIGEST;
+    const queries = [];
+    pgModule.isConfigured = () => true;
+    pgModule.getPool = () => ({
+      query: async (sql) => {
+        queries.push(sql);
+        if (/FROM agents a/.test(sql)) {
+          return { rows: [{ id: 9101, phone: '243811009101', first_name: 'Paul', live: 2, to_confirm: 0, in_review: 0 }] };
+        }
+        if (/FROM listing_stats_daily/.test(sql)) {
+          return { rows: [{ agent_id: 9101, id: 501, title: 'Studio à Gombe', views: 40, clicks: 3, calls: 1, visits: 0 }] };
+        }
+        return { rows: [] };
+      },
+    });
+    const outbox = [];
+    const send = async (to, text) => outbox.push({ to, text });
+    try {
+      process.env.AGENT_WEEKLY_DIGEST = 'off';
+      const off = await digest.runAgentDigest({ now: new Date('2026-11-02T07:05:00Z'), send });
+      assert.strictEqual(off.weekly, false);
+      assert.strictEqual(outbox.length, 0, 'views were all Paul had: nothing is sent');
+      assert.ok(!queries.some((sql) => /FROM listing_stats_daily|FROM developments/.test(sql)), 'weekly stats are not even read');
+
+      process.env.AGENT_WEEKLY_DIGEST = '';
+      const on = await digest.runAgentDigest({ now: new Date('2026-11-09T07:05:00Z'), send });
+      assert.strictEqual(on.weekly, true);
+      assert.match(outbox[0].text, /La semaine dernière : 40 vues/, 'unset: Monday as before');
+    } finally {
+      process.env.AGENT_WEEKLY_DIGEST = before;
+      Object.assign(pgModule, saved);
     }
   });
   const result = await openaiService.parseMessage('Villa a louer Ngaliema 4 chambres 2500$/mois', {

@@ -40,13 +40,15 @@ export default function FiltersDrawer({
     setBathMin?.('');
     setDepositRange?.('');
     setAmenities?.([]);
+    setters.setPlotMin?.('');
+    setters.setPlotMax?.('');
   }
 
   return (
     <Sheet open={open} onOpenChange={(next) => !next && onClose()}>
       <SheetContent side="bottom" className="max-h-[85vh] rounded-t-xl border-line bg-surface">
         <SheetHeader className="border-b border-line">
-          <SheetTitle className="font-display text-xl font-normal tracking-[-0.01em]">{t('listings.filters.moreFilters')}</SheetTitle>
+          <SheetTitle className="font-bold text-xl tracking-[-0.01em]">{t('listings.filters.moreFilters')}</SheetTitle>
         </SheetHeader>
 
         <div className="flex flex-col gap-6 overflow-y-auto px-4 py-5">

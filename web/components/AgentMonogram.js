@@ -75,7 +75,7 @@ export default function AgentMonogram({ logoUrl, name, className = '', textClass
   if (initials) {
     return (
       <span className={cn(frame, 'bg-blue-tint')} aria-hidden="true">
-        <span className={cn('font-display leading-none text-blue-deep', textClassName)}>{initials}</span>
+        <span className={cn('font-bold leading-none text-blue-deep', textClassName)}>{initials}</span>
       </span>
     );
   }

@@ -4,23 +4,25 @@ import { useEffect, useRef, useState } from 'react';
 import { setOptions, importLibrary } from '@googlemaps/js-api-loader';
 import { baseMapOptions } from '@/lib/mapBase';
 import { placeResolvedListings } from '@/lib/geocoding';
-import { PIN_ICONS, pinKind, pointLabel, PRIVACY_RADIUS_M } from '@/lib/listingPin';
+import { PRIVACY_RADIUS_M } from '@/lib/listingPin';
 import { useT } from '@/lib/i18n/client';
+import { Info } from 'lucide-react';
+import { ICON_STROKE_WIDTH } from '@/lib/constants';
 
 const MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 /** The listing's immediate neighbourhood — streets and quartier names readable. */
 export const LISTING_MAP_ZOOM = 14;
 
 /**
- * The detail page's map (2026-09-28), Rightmove-style: one round navy point
- * with a symbol for the property type (lib/listingPin.js), a soft pulse, the
- * commune on a small pill under it, and a pale disc of PRIVACY_RADIUS_M — the
- * approximate zone. No price on the map: the page shows it above and in the
- * bottom bar. Zoom 14, centred on the point.
+ * The detail page's map (2026-10-23, owner's choice): only the approximate
+ * zone, a pale circle of PRIVACY_RADIUS_M, and a "Zone approximative" chip
+ * in the corner. No pin, no symbol, no label: nothing that claims a spot.
+ * No price either — the page shows it above and in the bottom bar. Zoom 14,
+ * centred on the circle.
  *
- * The point is the same privacy-jittered point the listing has on /listings
+ * The centre is the same privacy-jittered point the listing has on /listings
  * (placeResolvedListings, seeded by the id; 200–400 m from the stored
- * coordinate), and the disc is wider than that jitter, so the real spot is
+ * coordinate), and the circle is wider than that jitter, so the real spot is
  * always inside it. `position` is the stored coordinate; the caller only
  * mounts this component when it has one.
  */
@@ -35,8 +37,7 @@ export default function ListingPinMap({ listing, position }) {
       return undefined;
     }
     let cancelled = false;
-    let overlay = null;
-    let circle = null;
+    let zone = null;
     setOptions({ key: MAPS_API_KEY, v: 'weekly' });
 
     importLibrary('maps')
@@ -52,8 +53,9 @@ export default function ListingPinMap({ listing, position }) {
           center: point,
           zoom: LISTING_MAP_ZOOM,
         });
-        // The approximate zone, under everything.
-        circle = new google.maps.Circle({
+        // The approximate zone. Colours are the earlier navy, kept on product
+        // direction; the Maps API cannot read CSS variables.
+        zone = new google.maps.Circle({
           map,
           center: point,
           radius: PRIVACY_RADIUS_M,
@@ -64,39 +66,6 @@ export default function ListingPinMap({ listing, position }) {
           fillOpacity: 0.1,
           clickable: false,
         });
-
-        class PointOverlay extends google.maps.OverlayView {
-          onAdd() {
-            this.el = document.createElement('div');
-            this.el.className = 'lkp-point';
-            const pulse = document.createElement('span');
-            pulse.className = 'lkp-point__pulse';
-            const dot = document.createElement('span');
-            dot.className = 'lkp-point__dot';
-            dot.setAttribute('role', 'img');
-            dot.setAttribute('aria-label', listing.title || '');
-            dot.innerHTML = PIN_ICONS[pinKind(listing)];
-            this.el.append(pulse, dot);
-            const text = pointLabel(listing);
-            if (text) {
-              const label = document.createElement('span');
-              label.className = 'lkp-point__label';
-              label.textContent = text;
-              this.el.append(label);
-            }
-            this.getPanes().overlayLayer.appendChild(this.el);
-          }
-          draw() {
-            const at = this.getProjection()?.fromLatLngToDivPixel(new google.maps.LatLng(point.lat, point.lng));
-            if (at && this.el) this.el.style.transform = `translate3d(${at.x.toFixed(1)}px, ${at.y.toFixed(1)}px, 0)`;
-          }
-          onRemove() {
-            this.el?.remove();
-            this.el = null;
-          }
-        }
-        overlay = new PointOverlay();
-        overlay.setMap(map);
         setStatus('ready');
       })
       .catch((err) => {
@@ -106,14 +75,20 @@ export default function ListingPinMap({ listing, position }) {
 
     return () => {
       cancelled = true;
-      overlay?.setMap(null);
-      circle?.setMap(null);
+      zone?.setMap(null);
     };
   }, [listing, position]);
 
   return (
     <div className="relative h-full w-full overflow-hidden">
       <div ref={mapElementRef} className="h-full w-full" />
+      {status === 'ready' ? (
+        // Bottom-left would cover Google's logo, which must stay visible.
+        <span className="pointer-events-none absolute left-3 top-3 z-10 inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-[0.75rem] font-semibold text-ink shadow-sm">
+          <Info strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5 text-blue" aria-hidden="true" />
+          {t('listings.map.zoneApprox')}
+        </span>
+      ) : null}
       {status === 'loading' ? (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-canvas-alt text-sm text-ink-45">
           {t('listings.map.loading')}

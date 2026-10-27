@@ -5,6 +5,7 @@ import {
   LISTING_EVENT_TYPES,
   RECORD_LISTING_EVENT_LEGACY_SQL,
   RECORD_LISTING_EVENT_SQL,
+  RECORD_PAGE_VIEW_CAMPAIGN_SQL,
   RECORD_PAGE_VIEW_LEGACY_SQL,
   RECORD_PAGE_VIEW_SQL,
   cleanVisitorId,
@@ -125,11 +126,12 @@ test('a listing page view stores its listing id, visitor and viewer kind, the ow
     path: '/listings/310', commune: 'Kintambo', device: 'mobile', source: 'direct', visitorId: 'visitor-0001', viewerKind: 'agent', agentId: 7,
   });
   assert.equal(written, true);
-  assert.equal(pool.calls[0].sql, squash(RECORD_PAGE_VIEW_SQL));
+  // With its campaign since 2026-10-27 (growth-attribution.test.js has the tiers).
+  assert.equal(pool.calls[0].sql, squash(RECORD_PAGE_VIEW_CAMPAIGN_SQL));
   assert.ok(!/NOT EXISTS/.test(pool.calls[0].sql), 'nobody is filtered out');
   // A signed-in agent on their OWN listing is stored as `owner`, decided in SQL.
   assert.match(pool.calls[0].sql, /CASE WHEN \$7::text = 'agent' AND EXISTS \(SELECT 1 FROM properties WHERE id = \$5::bigint AND agent_id = \$8::bigint\) THEN 'owner' ELSE \$7::text END/);
-  assert.deepEqual(pool.calls[0].values, ['/listings/310', 'Kintambo', 'mobile', 'direct', 310, 'visitor-0001', 'agent', 7]);
+  assert.deepEqual(pool.calls[0].values.slice(0, 8), ['/listings/310', 'Kintambo', 'mobile', 'direct', 310, 'visitor-0001', 'agent', 7]);
 });
 
 test('an unknown viewer kind is stored as a visitor, never as free text', async () => {
@@ -148,15 +150,15 @@ test('a non-listing path is still a view, with no listing id', async () => {
 });
 
 test('before the migration a page view is retried without the new columns — never lost', async () => {
-  const pool = recordingPool({ failWith: '42703' });
+  const pool = recordingPool({ failWith: '42703', failTimes: 2 });
   const written = await recordPageView(pool, {
     path: '/listings/310', device: 'mobile', source: 'direct', visitorId: 'visitor-0001', viewerKind: 'bot',
   });
   assert.equal(written, true);
-  assert.equal(pool.calls.length, 2);
-  assert.equal(pool.calls[1].sql, squash(RECORD_PAGE_VIEW_LEGACY_SQL));
-  assert.ok(!/visitor_id|listing_id|viewer_kind/.test(pool.calls[1].sql), 'legacy insert names no new column');
-  assert.deepEqual(pool.calls[1].values, ['/listings/310', null, 'mobile', 'direct']);
+  assert.equal(pool.calls.length, 3);
+  assert.equal(pool.calls[2].sql, squash(RECORD_PAGE_VIEW_LEGACY_SQL));
+  assert.ok(!/visitor_id|listing_id|viewer_kind/.test(pool.calls[2].sql), 'legacy insert names no new column');
+  assert.deepEqual(pool.calls[2].values, ['/listings/310', null, 'mobile', 'direct']);
 });
 
 test('any other database error is not swallowed', async () => {

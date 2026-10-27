@@ -2,6 +2,8 @@
 
 import { useEffect } from 'react';
 import { trackEvent } from '@/lib/analyticsClient';
+import { adEvent } from '@/lib/adEvents';
+import { NUDGE_EVENT } from '@/lib/signupNudgeRules';
 
 const SESSION_KEY = 'lukka_tracked_searches';
 const MAX_REMEMBERED = 50;
@@ -30,7 +32,10 @@ export default function SearchTracker({ search }) {
     }
     if (seen.includes(key)) return;
 
-    trackEvent('search', JSON.parse(key));
+    const search = JSON.parse(key);
+    trackEvent('search', search);
+    adEvent('Search', { searchString: [search.q, ...(search.communes || [])].filter(Boolean).join(' ').slice(0, 120) || undefined });
+    if (search.resultCount === 0) window.dispatchEvent(new CustomEvent(NUDGE_EVENT, { detail: { reason: 'no_results' } }));
     try {
       window.sessionStorage.setItem(SESSION_KEY, JSON.stringify([...seen, key].slice(-MAX_REMEMBERED)));
     } catch {

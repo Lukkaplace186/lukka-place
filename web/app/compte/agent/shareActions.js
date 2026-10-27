@@ -1,14 +1,16 @@
 'use server';
 
 import { getCurrentAgentId } from '@/lib/agentSession';
-import { agentBrandFields, getFlyerListing, getFlyerListings, frenchTypeText, PLATFORM_MARK_PATH, PLATFORM_MARK_LIGHT_PATH } from '@/lib/listingFlyer';
+import { agentBrandFields, getFlyerListing, getFlyerListings, frenchTypeText, PLATFORM_MARK_PATH } from '@/lib/listingFlyer';
 import { SHARE_SOURCES, agentContactPhone, buildListingSocialCopy, listingPublicUrl, shareBlocker } from '@/lib/listingShareCopy';
-import { buildFlyerPack, optimisableImageSrc, optimisedImageUrl, LOGO_WIDTH } from '@/lib/marketing/sharePackData';
+import { optimisableImageSrc, optimisedImageUrl, LOGO_WIDTH } from '@/lib/marketing/sharePackData';
+import { buildShareKit } from '@/lib/marketing/shareKit';
 import { allTimeWindow, buildMandateCaption, buildMandateReport } from '@/lib/marketing/mandateReportCopy';
 import { getMandateCounts } from '@/lib/marketing/mandateReport';
 import { listingImages } from '@/lib/listingView';
 import { getListingShareCount, recordListingShares } from '@/lib/listingShares';
 import { MAX_IDS_PER_RECORD, normaliseShareRecord } from '@/lib/listingShareRules';
+import { ensureAgentPartnerCode } from '@/lib/partners';
 
 function supabaseHost() {
   try {
@@ -23,7 +25,7 @@ async function ownedListing(listingId) {
   if (!agentId) return { error: { ok: false, reason: 'auth' } };
   const listing = await getFlyerListing(agentId, Number.parseInt(listingId, 10));
   if (!listing) return { error: { ok: false, reason: 'not_found' } };
-  return { listing };
+  return { listing, agentId };
 }
 
 /**
@@ -35,48 +37,17 @@ async function ownedListing(listingId) {
  * connection.
  *
  * Built server-side so the French dictionary (for the parcelle sub-type label)
- * never ships to the browser just to write one caption.
- *
- * One caption per way out of the kit (`copies.image` / `.whatsapp` / `.copy`),
- * identical except for the link's utm_source — see SHARE_SOURCES.
+ * never ships to the browser just to write one caption. The kit itself is
+ * lib/marketing/shareKit.js, shared with the team's own share action.
  *
  * @returns {Promise<{ok: true, shareable: boolean, blocker: string|null, url: string, copy: string,
  *                    copies: Record<keyof SHARE_SOURCES, string>, pack: object}
  *                  |{ok: false, reason: 'auth'|'not_found'}>}
  */
 export async function getSharePackAction(listingId) {
-  const { listing, error } = await ownedListing(listingId);
+  const { listing, agentId, error } = await ownedListing(listingId);
   if (error) return error;
-  return buildShareKit(listing);
-}
-
-function buildShareKit(listing) {
-  const blocker = shareBlocker(listing);
-  const typeText = frenchTypeText(listing);
-  const contactPhone = agentContactPhone(listing);
-  const brand = agentBrandFields(listing);
-  const copies = Object.fromEntries(
-    Object.entries(SHARE_SOURCES).map(([channel, source]) => [
-      channel,
-      buildListingSocialCopy(listing, { typeText, contactPhone, contactName: brand.name, url: listingPublicUrl(listing.id, { source }) }),
-    ]),
-  );
-  return {
-    ok: true,
-    shareable: !blocker,
-    blocker,
-    url: listingPublicUrl(listing.id),
-    copy: copies.copy,
-    copies,
-    pack: buildFlyerPack(listing, {
-      typeText,
-      brand,
-      supabaseHost: supabaseHost(),
-      markPath: PLATFORM_MARK_PATH,
-      markLightPath: PLATFORM_MARK_LIGHT_PATH,
-      fetchedAt: new Date().toISOString(),
-    }),
-  };
+  return buildShareKit(listing, { refCode: await ensureAgentPartnerCode(agentId) });
 }
 
 /**
@@ -95,11 +66,12 @@ export async function getStatusPacksAction(listingIds) {
     .slice(0, MAX_IDS_PER_RECORD);
   if (!ids.length) return { ok: false, reason: 'invalid' };
 
+  const refCode = await ensureAgentPartnerCode(agentId);
   const kits = [];
   for (const id of ids) {
     const listing = await getFlyerListing(agentId, id);
     if (!listing) continue;
-    const kit = buildShareKit(listing);
+    const kit = buildShareKit(listing, { refCode });
     if (kit.shareable) kits.push(kit);
   }
   return { ok: true, kits };
@@ -126,7 +98,7 @@ export async function getWhatsAppCaptionsAction(listingIds) {
   if (!agentId) return { ok: false, reason: 'auth' };
   const ids = (Array.isArray(listingIds) ? listingIds : []).slice(0, MAX_CAPTION_IDS);
   try {
-    const rows = await getFlyerListings(agentId, ids);
+    const [rows, refCode] = await Promise.all([getFlyerListings(agentId, ids), ensureAgentPartnerCode(agentId)]);
     const captions = {};
     for (const listing of rows) {
       if (shareBlocker(listing)) continue;
@@ -134,7 +106,7 @@ export async function getWhatsAppCaptionsAction(listingIds) {
         typeText: frenchTypeText(listing),
         contactPhone: agentContactPhone(listing),
         contactName: agentBrandFields(listing).name,
-        url: listingPublicUrl(listing.id, { source: SHARE_SOURCES.whatsapp }),
+        url: listingPublicUrl(listing.id, { source: SHARE_SOURCES.whatsapp, ref: refCode }),
       });
     }
     return { ok: true, captions };
@@ -184,7 +156,7 @@ export async function recordListingSharesAction(input) {
  *                  |{ok: false, reason: 'auth'|'not_found'|'failed'}>}
  */
 export async function getMandateReportAction(listingId) {
-  const { listing, error } = await ownedListing(listingId);
+  const { listing, agentId, error } = await ownedListing(listingId);
   if (error) return error;
 
   try {
@@ -205,7 +177,7 @@ export async function getMandateReportAction(listingId) {
     return {
       ok: true,
       report,
-      caption: buildMandateCaption(listing, report, counts),
+      caption: buildMandateCaption(listing, report, counts, { refCode: await ensureAgentPartnerCode(agentId) }),
       // Drawn at 212px on the card; the 384px variant is plenty.
       photo: cover ? optimisedImageUrl(cover, LOGO_WIDTH) : null,
       mark: PLATFORM_MARK_PATH,

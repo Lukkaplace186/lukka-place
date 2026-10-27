@@ -2,6 +2,7 @@ import { usablePrice } from '@/lib/format';
 import { PARCELLE_SUBTYPES, AMENITY_KEYWORDS } from './constants';
 import { abbreviationVariants } from './textVariants';
 import { placeLabel } from './placeLabel';
+import { cityOfListing } from './cities';
 import { commercialSpecsOf, isCommercial } from './commercialSpaces';
 
 /**
@@ -181,6 +182,27 @@ export function hasArea(area) {
 }
 
 /**
+ * A surface as stored: up to two decimals ("12.5", "250.75"), never a long
+ * float tail. null for blank, NaN for something that is not a positive number
+ * (the caller reports it). The column is TEXT, so no schema change was needed
+ * to accept decimals (2026-10-21) — only the forms rounded them away.
+ */
+export function normaliseArea(raw) {
+  const text = String(raw ?? '').trim().replace(',', '.');
+  if (!text) return null;
+  const value = Number.parseFloat(text);
+  if (!Number.isFinite(value) || value <= 0) return Number.NaN;
+  return Math.round(value * 100) / 100;
+}
+
+/** "12,5", "250,75", "300" — French decimals, no trailing zeros. */
+export function formatArea(area) {
+  const value = Number(area);
+  if (!(value > 0)) return '';
+  return value.toLocaleString('fr-FR', { maximumFractionDigits: 2 }).replace(/[  ]/g, ' ');
+}
+
+/**
  * The three SEPARATE costs behind Kinshasa's "Garantie : 3 + 1 + 1" — the
  * refundable deposit, the rent paid in advance, and the agency commission, in
  * that order. They are stored apart on purpose: summing them overstates the
@@ -201,13 +223,8 @@ export function hasArea(area) {
  * not a notation anyone writes, and a placeholder would state something the
  * listing does not.
  *
- * TODAY THIS ALWAYS RETURNS A DEPOSIT-ONLY RESULT on the storefront:
- * `properties` carries `deposit_months` and nothing else (verified directly
- * against the live schema), so `advance_months`/`commission_months` arrive
- * undefined. The engine already parses and stores all three in SQLite; they
- * need an ALTER TABLE plus a `syncListingToPostgres` change before this can
- * render the full breakdown. Nothing here has to change when that lands —
- * only lib/listings.js's SELECT_FIELDS.
+ * All three are `properties` columns, written by the engine's sync and by
+ * both listing editors (admin and agent), each as its own field.
  */
 export function entryTerms(listing) {
   const deposit = monthsValue(listing?.deposit_months);
@@ -267,7 +284,7 @@ export function specItems(listing, t) {
   // with no number on any listing whose bathroom count was never recorded
   // — confirmed live on the homepage's "Derniers biens publiés" cards.
   if (Number(listing.bath) > 0) items.push({ key: 'bath', value: listing.bath, label: label('bath', 'sdb') });
-  if (hasArea(listing.area)) items.push({ key: 'area', value: listing.area, label: label('area', 'm²') });
+  if (hasArea(listing.area)) items.push({ key: 'area', value: formatArea(listing.area), label: label('area', 'm²') });
   if (Number(listing.units_count) > 0) {
     items.push({ key: 'units', value: listing.units_count, label: label('units', 'portes') });
   }
@@ -312,19 +329,22 @@ export function locationLine(listing) {
  * in — the structured branch above matches that ordering on purpose rather
  * than disagreeing with its own fallback.
  *
- * The structured branch also ends in ", Kinshasa" now, matching the
- * fallback's own trailing city — every listing on this platform genuinely
- * is in Kinshasa (there is no other city here), so this is a true constant,
- * not an invented one, and it's what lets the two branches read as one
- * consistent hierarchy instead of the fallback alone naming the city. Same
- * dedup guard as the fallback: a commune literally named "Kinshasa" does
- * not get a second one appended.
+ * The structured branch also ends in the listing's city, matching the
+ * fallback's own trailing city — Kinshasa, or since 2026-10-20 the city the
+ * listing is in (cityOfListing), never Kinshasa appended to a Lubumbashi
+ * house. Same dedup guard as the fallback: a commune named like its city
+ * ("Kinshasa", "Lubumbashi") does not get a second one appended.
  */
 export function feedLocationLine(listing) {
   const place = placeLabel(listing);
   if (place) {
-    if (listing.commune && /^kinshasa$/i.test(listing.commune.trim())) return place;
-    return `${place}, Kinshasa`;
+    // The listing's own city closes the line (2026-10-21): "Golf Malela,
+    // Lubumbashi" was printed "Golf Malela, Lubumbashi, Kinshasa". placeLabel
+    // already ends with the city outside Kinshasa; it is added only when the
+    // line does not end with it yet (Kinshasa, or a city with no commune).
+    const city = cityOfListing(listing);
+    const last = place.split(',').pop().trim().toLowerCase();
+    return last === city.toLowerCase() ? place : `${place}, ${city}`;
   }
   if (!listing.address) return null;
   const deduped = listing.address.replace(/,\s*Kinshasa\s*,\s*Kinshasa$/i, ', Kinshasa');

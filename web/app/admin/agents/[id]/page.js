@@ -16,10 +16,13 @@ import { listNotes } from '@/lib/adminNotes';
 import { can } from '@/lib/adminRoles';
 import { LEVEL_LABEL_KEYS, isVerifiedLevel } from '@/lib/verificationLevels';
 import { getAdminSession } from '@/lib/adminSession';
+import { agentInScope, getSalesScope } from '@/lib/salesScope';
 import { getT } from '@/lib/i18n/server';
 import AgentAdminPanel from './AgentAdminPanel';
 import AgentRepControl from './AgentRepControl';
 import AgentDeleteButton from './AgentDeleteButton';
+import VerificationReminderButton from './VerificationReminderButton';
+import AdminVerifyAgentButton from './AdminVerifyAgentButton';
 import ImpersonateButton from '../../ImpersonateButton';
 import { getAgentSalesAssignment, listActiveRepOptions } from '@/lib/sales';
 import { getAgentAttribution } from '@/lib/salesLaunch';
@@ -79,6 +82,9 @@ export default async function AdminAgentDetailPage({ params, searchParams }) {
   const agent = await getAgentForAdmin(id);
   if (!agent) notFound();
   const session = await getAdminSession();
+  // A sales rep opens only the agents they brought in; any other id is the
+  // same 404 as a missing one.
+  if (!(await agentInScope(await getSalesScope(), agent.id))) notFound();
   const base = `/admin/agents/${agent.id}`;
   const canManageSales = can(session?.role, 'sales.manage');
   const [salesAssignment, repOptions, attribution] = await Promise.all([
@@ -99,7 +105,7 @@ export default async function AdminAgentDetailPage({ params, searchParams }) {
     ]);
     content = (
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:items-start">
-        <AgentAdminPanel agent={agent} communes={communes} listingCount={agent.listing_count} />
+        <AgentAdminPanel agent={agent} communes={communes} listingCount={agent.listing_count} readOnly={!can(session?.role, 'agents.manage')} />
         <div className="u-card flex flex-col gap-3 rounded-card bg-surface p-6">
           <h2 className="u-title-card text-ink">{t('admin.agentPanel.subscriptionHistory')}</h2>
           {billing.length === 0 ? (
@@ -319,6 +325,10 @@ export default async function AdminAgentDetailPage({ params, searchParams }) {
               <Pencil strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
               {t('admin.agentPanel.editProfile')}
             </Link>
+          ) : null}
+          {can(session?.role, 'agents.manage') ? <VerificationReminderButton agentId={agent.id} /> : null}
+          {can(session?.role, 'agents.manage') && !agent.phone_verified_at && !agent.deleted_at ? (
+            <AdminVerifyAgentButton agentId={agent.id} phone={agent.phone} />
           ) : null}
           {can(session?.role, 'agents.delete') ? <AgentDeleteButton agentId={agent.id} agentName={displayName} /> : null}
           {can(session?.role, 'accounts.impersonate') ? (

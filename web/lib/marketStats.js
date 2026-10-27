@@ -37,7 +37,7 @@ export const PRICE_BUCKETS = {
   sale: [0, 25000, 50000, 100000, 150000, 250000, 500000, 1000000],
 };
 
-const COMMUNE_EXPR = `(
+export const COMMUNE_EXPR = `(
   SELECT ac.name FROM property_amenities pa
   JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = 20
   WHERE pa.property_id = p.id AND pa.amenity_id IN (SELECT amenity_id FROM location_communes)
@@ -48,11 +48,12 @@ const PUBLISHED_CTE = `
   WITH published AS (
     SELECT
       ${COMMUNE_EXPR} AS commune,
-      CASE WHEN p.purpose = 'rent' AND p.price_period = 'an' THEN p.price / 12.0 ELSE p.price END AS amount
+      CASE WHEN p.purpose = 'rent' AND p.price_period IN ('jour', 'semaine') THEN NULL WHEN p.purpose = 'rent' AND p.price_period = 'an' THEN p.price / 12.0 ELSE p.price END AS amount
     FROM properties p
     WHERE p.status = 1 AND p.approve_status = 1
       AND p.purpose = $1
       AND p.price > 0
+      AND COALESCE(p.price_period, '') NOT IN ('jour', 'semaine')
       AND ${NOT_TEST_LISTING_SQL}
   )
 `;

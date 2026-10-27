@@ -659,6 +659,20 @@ router.get('/leads/:id', (req, res) => {
   return res.json({ success: true, lead });
 });
 
+// Console "Supprimer" on a prospect: the lead, its visit requests, matches and
+// proposals (db.deleteLead, one transaction). 404 for an unknown id.
+router.delete('/leads/:id', (req, res) => {
+  try {
+    const removed = db.deleteLead(req.params.id);
+    if (!removed) return res.status(404).json({ success: false, error: 'Lead not found.' });
+    console.log(`[admin] lead #${req.params.id} deleted (${removed.visits} visit request(s) with it)`);
+    return res.json({ success: true, visits: removed.visits });
+  } catch (err) {
+    console.error(`[admin] DELETE /leads/${req.params.id} failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Lead could not be deleted.' });
+  }
+});
+
 router.patch('/leads/:id', (req, res) => {
   const id = Number.parseInt(req.params.id, 10);
   const existingLead = Number.isFinite(id) ? db.getLead(id) : null;
@@ -1076,6 +1090,20 @@ function resolveScheduledAt(raw, request = null) {
   return resolveScheduledAtInput(raw, new Date(), { utcOffset: utcOffsetForCommune(request?.commune || null) });
 }
 
+// Console "Supprimer" on a visit request (db.deleteViewingRequest): the row and
+// its open WhatsApp questions; the prospect stays. Nobody is messaged.
+router.delete('/viewing-requests/:id', (req, res) => {
+  try {
+    const removed = db.deleteViewingRequest(req.params.id);
+    if (!removed) return res.status(404).json({ success: false, error: 'Viewing request not found.' });
+    console.log(`[admin] viewing request #${req.params.id} deleted`);
+    return res.json({ success: true, leadId: removed.lead_id ?? null });
+  } catch (err) {
+    console.error(`[admin] DELETE /viewing-requests/${req.params.id} failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Viewing request could not be deleted.' });
+  }
+});
+
 router.patch('/viewing-requests/:id', (req, res) => {
   const id = Number.parseInt(req.params.id, 10);
   if (!Number.isFinite(id) || !db.getViewingRequest(id)) {
@@ -1476,6 +1504,9 @@ async function sendModerationTemplate(status, to, propertyId, listing, reason) {
       bodyParams,
       ...(status === 'approved' ? { urlButton: String(propertyId) } : {}),
     });
+    // Accepted by Chakra, not proof of delivery — but without it a working
+    // template left no trace at all (only failures were logged).
+    console.log(`[admin] moderation ${status} template '${name}' for property #${propertyId} accepted for ${to}`);
     return true;
   } catch (err) {
     console.warn(`[admin] moderation ${status} template '${name}' for property #${propertyId} failed, sending text: ${err.message}`);
@@ -1516,8 +1547,18 @@ router.post('/properties/:remotePropertyId/notify', async (req, res) => {
 
   // A WhatsApp submission is found through SQLite; a listing typed on the
   // website has no row here, so its own (phone-verified) agent is told instead.
-  const listing = db.getListingByRemotePropertyId(remotePropertyId)
-    || moderationListingFromRepository(await propertyRepository.getModerationRecipient(remotePropertyId));
+  let listing = db.getListingByRemotePropertyId(remotePropertyId);
+  // A post captured in a WhatsApp group (services/groupRelay.js): its poster
+  // never sent it to us, so "votre annonce a été validée" to the number the
+  // engine filed it under would come from a stranger. The verdict goes to the
+  // agent a moderator attached (phone-verified), or to nobody.
+  const groupCapture = listing?.parsed_json?.source === 'whatsapp-group';
+  if (!listing || groupCapture) {
+    listing = moderationListingFromRepository(await propertyRepository.getModerationRecipient(remotePropertyId));
+  }
+  if (!listing && groupCapture) {
+    return res.status(200).json({ success: true, queued: false, skipped: 'group-capture' });
+  }
   if (!listing) {
     return res.status(404).json({ success: false, error: 'No submitter or verified agent found for this property.' });
   }
@@ -1584,6 +1625,48 @@ router.post('/agents/claim-listings', async (req, res) => {
   } catch (err) {
     console.error(`[admin] claim-listings failed for ${waId}: ${err.message}`);
     return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * Agent accounts the team creates or verifies from the console, with no code
+ * from the agent's phone (services/adminAgentAccounts.js has why, and why
+ * this must stay behind requireApiKey). The console audits who did it.
+ */
+function adminAgentFailure(res, err, label) {
+  const { ERROR_STATUS } = require('../services/adminAgentAccounts');
+  const status = ERROR_STATUS[err.code];
+  if (status) {
+    return res.status(status).json({ success: false, code: err.code, error: err.message, agentId: err.agentId ?? null });
+  }
+  console.error(`[admin] ${label} failed: ${err.message}`);
+  return res.status(500).json({ success: false, error: err.message });
+}
+
+router.post('/agents/admin-create', async (req, res) => {
+  const body = req.body || {};
+  try {
+    const result = await require('../services/adminAgentAccounts').createAgentByAdmin({
+      phone: body.phone,
+      firstName: body.first_name,
+      lastName: body.last_name,
+      agencyName: body.agency_name,
+      primaryCommunes: Array.isArray(body.primary_communes) ? body.primary_communes : [],
+    });
+    return res.status(201).json({ success: true, ...result });
+  } catch (err) {
+    return adminAgentFailure(res, err, 'agents/admin-create');
+  }
+});
+
+router.post('/agents/:id/admin-verify', async (req, res) => {
+  try {
+    const result = await require('../services/adminAgentAccounts').verifyAgentByAdmin(req.params.id, {
+      issueLink: req.body?.issue_link !== false,
+    });
+    return res.json({ success: true, ...result });
+  } catch (err) {
+    return adminAgentFailure(res, err, `agents/${req.params.id}/admin-verify`);
   }
 });
 

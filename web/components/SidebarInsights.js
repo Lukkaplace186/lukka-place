@@ -4,9 +4,9 @@ import Link from 'next/link';
 import { useT } from '@/lib/i18n/client';
 
 const RELATED_SEARCHES = [
-  { labelKey: 'listings.sidebar.apartmentsKinshasa', href: '/listings?property_type=appartement' },
-  { labelKey: 'listings.sidebar.plotsForSale', href: '/listings?property_type=parcelle&transaction_type=vente' },
-  { labelKey: 'listings.sidebar.propertiesToRent', href: '/listings?transaction_type=location' },
+  { labelKey: 'listings.sidebar.apartmentsKinshasa', href: '/location/appartements' },
+  { labelKey: 'listings.sidebar.plotsForSale', href: '/vente/parcelles' },
+  { labelKey: 'listings.sidebar.propertiesToRent', href: '/location' },
   { labelKey: 'listings.sidebar.typeLocataireHouses', href: '/listings?property_type=parcelle&parcelle_subtype=maison_type_locataire' },
 ];
 

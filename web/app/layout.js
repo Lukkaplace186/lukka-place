@@ -1,4 +1,4 @@
-import { Plus_Jakarta_Sans, DM_Serif_Display } from 'next/font/google';
+import { Plus_Jakarta_Sans } from 'next/font/google';
 import Script from 'next/script';
 import './globals.css';
 import { SITE_URL } from '@/lib/constants';
@@ -11,25 +11,14 @@ import ServiceWorkerRegister from '@/components/ServiceWorkerRegister';
 import WebVitals from '@/components/WebVitals';
 
 /*
- * Two families, sans-led — matches web/Design's "WhiteBlue Royal" system
- * exactly (both are its named brand-font stand-ins, not a substitution on
- * this app's part: see web/Design/_ds/.../readme.md's "Fonts" section).
+ * One family. Plus Jakarta Sans carries every title, label, price and line
+ * of body copy; hierarchy is size and weight only. Subset to the five
+ * weights the type scale uses (400/500/600/700/800) rather than shipping the
+ * whole variable range over mobile data.
  *
- * Plus Jakarta Sans is the workhorse: the hero headline, all UI, filters,
- * prices, card data and body copy. Its warm, rounded geometric character
- * (matching the Zoopla-style reference) replaces Inter here — same
- * sans-led role, still entirely weight/size driven for hierarchy, and
- * still has proper tabular numerals for a grid of prices. Subset to the
- * five weights the type scale actually uses (400/500/600/700/800) rather
- * than shipping the whole variable-weight range over mobile data.
- *
- * DM Serif Display is an accent only — the hero headline, section titles,
- * /a-propos, the detail-page description heading — regular weight only
- * (the face has no bold cut; setting it heavier would fake a weight that
- * doesn't exist). It is what keeps the site from looking like every other
- * portal. It is never used for UI or data. Replaces Fraunces, which served
- * the same accent role under the previous "Prestige White" pass but isn't
- * the face this design system specifies.
+ * DM Serif Display set page and section titles until 2026-10-24, when the
+ * owner found it clashed with the sans labels beside it; it is no longer
+ * loaded, which also saves every visitor its font file.
  */
 const plusJakartaSans = Plus_Jakarta_Sans({
   variable: '--font-jakarta',
@@ -38,15 +27,6 @@ const plusJakartaSans = Plus_Jakarta_Sans({
   display: 'swap',
 });
 
-const dmSerifDisplay = DM_Serif_Display({
-  variable: '--font-dmserif',
-  subsets: ['latin'],
-  weight: '400',
-  // Normal only: nothing sets the serif in italic, and the italic cut was a
-  // ~20 KB font file every visitor downloaded.
-  style: ['normal'],
-  display: 'swap',
-});
 
 
 // Real brand asset: public/brand/logo-dark.png (the client-supplied white
@@ -165,7 +145,7 @@ export default async function RootLayout({ children }) {
   const { locale, messages } = await getI18n(CHROME_NAMESPACES);
 
   return (
-    <html lang={locale} className={`${plusJakartaSans.variable} ${dmSerifDisplay.variable} h-full`}>
+    <html lang={locale} className={`${plusJakartaSans.variable} h-full`}>
       <body className="min-h-full">
         {/*
          * Must run before React's first commit, and hydration is one. Browser

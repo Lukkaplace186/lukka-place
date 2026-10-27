@@ -129,7 +129,7 @@ export function buildMandateReport(listing, counts, { typeText, brand, window, s
   };
 }
 
-export function buildMandateCaption(listing, report, counts) {
+export function buildMandateCaption(listing, report, counts, { refCode = null } = {}) {
   const lines = [`📊 *Rapport de diffusion* — ${report.periodText}`, `🏠 ${report.title}`];
   if (report.priceText) lines.push(`💰 ${report.priceText}`);
   lines.push('');
@@ -145,7 +145,7 @@ export function buildMandateCaption(listing, report, counts) {
   }
   if (report.shareText) lines.push(`📣 ${report.shareText} par l’agent depuis Lukka Place`);
   lines.push('', `${report.live ? '✅' : '⏸️'} Statut : ${report.statusText.charAt(0).toLowerCase()}${report.statusText.slice(1)}`);
-  if (report.live) lines.push(`👉 ${listingPublicUrl(listing.id, { source: REPORT_UTM_SOURCE })}`);
+  if (report.live) lines.push(`👉 ${listingPublicUrl(listing.id, { source: REPORT_UTM_SOURCE, ref: refCode })}`);
   lines.push(
     '',
     'ℹ️ Ce que ces chiffres comptent : les ouvertures de la page de l’annonce sur lukkaplace.com (toutes, y compris celles de l’agent et des outils automatiques), les appuis sur son bouton WhatsApp, les mises en favori et les demandes de visite reçues via Lukka Place.',

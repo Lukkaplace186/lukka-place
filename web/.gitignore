@@ -45,3 +45,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .scratch/
+
+# Prospect exports (npm run export:leads) hold phone numbers
+/exports/

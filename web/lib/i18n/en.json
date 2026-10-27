@@ -130,7 +130,9 @@
     "findPrompt": "Still looking?",
     "findLead": "Tell us what you're looking for and we'll pass your request to Lukka Place's partner agencies.",
     "findCta": "Find it for me",
-    "projects": "New Homes"
+    "projects": "New Homes",
+    "agents": "Agents",
+    "blog": "Guides & News"
   },
   "footer": {
     "columns": {
@@ -147,7 +149,8 @@
       "contact": "Contact",
       "guides": "Guides",
       "projects": "New Developments & Land",
-      "developers": "For Developers"
+      "developers": "For Developers",
+      "privacy": "Privacy"
     },
     "partnerBand": {
       "title": "Are You an Estate Agent or Agency?",
@@ -157,7 +160,14 @@
     "tagline": "Apartments, villas and plots, to rent or to buy, across the DRC.",
     "disclaimer": "Lukka Place is a property listings platform in the DRC. The information provided in listings is published under the responsibility of the advertisers. Lukka Place does not provide direct financial brokerage services and facilitates introductions via listing reference.",
     "copyright": "© {year} Lukka Place.",
-    "whatsappGreeting": "Hello, I'm contacting you from lukkaplace.com."
+    "whatsappGreeting": "Hello, I'm contacting you from lukkaplace.com.",
+    "consent": {
+      "title": "Ad Measurement",
+      "text": "We use Meta and TikTok measurement tools to learn which ads brought you here. Nothing is sent without your consent.",
+      "more": "Learn more",
+      "refuse": "Refuse",
+      "accept": "Accept"
+    }
   },
   "home": {
     "hero": {
@@ -172,15 +182,19 @@
       "locationPlaceholder": "Commune / Neighbourhood (e.g. Gombe, Ngaliema)",
       "propertyType": "Property type",
       "allTypes": "All types",
-      "budget": "Maximum budget",
       "budgetMax": "Max ${amount}",
+      "budgetMinAny": "Min",
+      "budgetMaxAny": "Max",
+      "budgetMin": "Min ${amount}",
+      "budgetOver": "${amount}+",
+      "budgetMinAria": "Minimum budget",
+      "budgetMaxAria": "Maximum budget",
       "submit": "Search",
       "suggestedCount": {
         "one": "{count} suggestion",
         "other": "{count} suggestions"
       },
       "popularCommunes": "Popular Communes",
-      "allPrices": "Any price",
       "understood": "We understood:",
       "near": "Near {place}",
       "bedsMin": {
@@ -194,7 +208,18 @@
       "seeSuggestions": {
         "one": "See {count} suggestion",
         "other": "See {count} suggestions"
-      }
+      },
+      "city": "City",
+      "allCities": "All cities",
+      "leaseLong": "Long term",
+      "leaseShort": "Short term",
+      "shortTerm": "Short Stay",
+      "locationLabel": "Commune or Neighbourhood",
+      "heroPlaceholder": "e.g. Gombe, Ngaliema, Kintambo",
+      "budgetLabel": "Budget",
+      "seeForSale": "See properties for sale",
+      "seeShortStays": "See available stays",
+      "shortHint": "Homes let by the night or by the week."
     },
     "value": {
       "verifiedTitle": "Reviewed Listings",
@@ -247,6 +272,59 @@
         "one": "{count} listing",
         "other": "{count} listings"
       }
+    },
+    "daily": {
+      "eyebrow": "Every Day",
+      "title": "Listing of the Day",
+      "lead": "One listing picked every day among the live ones.",
+      "share": "Share the listing of the day",
+      "open": "See the listing",
+      "none": "No listing of the day yet."
+    },
+    "collections": {
+      "title": "Collections",
+      "villas": "The Most Beautiful Villas",
+      "under300": "Under $300 a Month",
+      "pool": "With a Pool",
+      "shortStay": "Short Stays",
+      "fresh": "New This Week",
+      "seeAll": "See the full search"
+    },
+    "discovery": {
+      "prices": "How much does it cost?",
+      "pricesHint": "{count} median rents by commune",
+      "videos": "Video tours",
+      "videosHint": "Listings on video, to swipe through",
+      "index": "Lukka Index",
+      "indexHint": "The month's rents, commune by commune"
+    },
+    "prices": {
+      "indexTitle": "How Much Does a Home Cost?",
+      "indexLead": "Median monthly asking rents, from live listings — only where at least {n} comparable listings exist.",
+      "none": "Not enough listings yet to publish a median rent.",
+      "question": "How Much Is a {beds}-Bedroom Rental in {commune}?",
+      "perMonth": "/ month",
+      "answer": "Median asking rent: ${median} a month, over {n} live listings.",
+      "range": "Half the listings sit between ${p25} and ${p75}.",
+      "method": "Asking prices (not closing prices), long-term rentals, yearly rents brought to a month, public listings only.",
+      "see": "See the {n} listings",
+      "questionOne": "How Much Is a 1-Bedroom Rental in {commune}?"
+    },
+    "videos": {
+      "title": "Video Tours",
+      "open": "See the listing",
+      "sound": "Turn sound on"
+    },
+    "index": {
+      "title": "Lukka Index",
+      "lead": "The median asking rent by commune, every month, from public listings (at least {n} listings per commune).",
+      "none": "The index will be published as soon as the first monthly readings are in.",
+      "month": "{month} reading",
+      "commune": "Commune",
+      "median": "Median rent",
+      "change": "Over a month",
+      "download": "Download the image",
+      "method": "Asking prices, every type together; a change is only computed when the month before also had at least {n} listings."
     }
   },
   "about": {
@@ -360,7 +438,16 @@
       "searchButton": "Search",
       "depositRangeChip": "Upfront {value}",
       "depositRangeLabel": "Upfront payment",
-      "depositRangeHint": "Total due before moving in, as the listing states it: deposit + rent in advance + agency commission."
+      "depositRangeHint": "Total due before moving in, as the listing states it: deposit + rent in advance + agency commission.",
+      "otherTypes": "Other property types",
+      "otherTypesPlaceholder": "Studio, duplex, office…",
+      "typeChip": {
+        "parcelle": "Plot",
+        "appartement": "Apartment",
+        "maison": "House",
+        "villa": "Villa",
+        "terrain": "Land"
+      }
     },
     "sort": {
       "complete": "Complete listings first",
@@ -410,6 +497,7 @@
       "citywideFrom": "Radius widened to the whole city from {place}.",
       "communeWideFrom": "Radius widened to all of {commune} from {quartier}.",
       "areaHeading": "{subject} {transaction} in the Map Area",
+      "headingNational": "{subject} {transaction} in the DRC",
       "mapAreaNote": "The properties visible on the map",
       "clearArea": "Clear map area",
       "emptyAreaTitle": "No Properties in This Area",
@@ -516,7 +604,8 @@
       "energyWater": "Power & Water",
       "accessSecurity": "Access & Security",
       "rentalTerms": "Rental terms",
-      "paymentTerms": "Payment Terms"
+      "paymentTerms": "Payment Terms",
+      "comfort": "Comfort"
     },
     "amenities": {
       "generator": "Generator",
@@ -528,7 +617,9 @@
       "parking": "Off-street parking",
       "ac": "Air conditioning",
       "furnished": "Furnished",
-      "semi_furnished": "Part furnished"
+      "semi_furnished": "Part furnished",
+      "pool": "Swimming pool",
+      "gym": "Gym"
     },
     "depositMax": {
       "1": "1 month",
@@ -544,11 +635,16 @@
       "maison": "Houses",
       "duplex": "Duplexes",
       "terrain": "Land",
-      "batiment": "Buildings",
+      "immeuble": "Buildings",
+      "villa": "Villas",
+      "concession": "Compounds",
       "boutique": "Shops",
       "entrepot": "Warehouses",
       "bureau": "Offices",
-      "commercial": "Commercial Spaces"
+      "commercial": "Commercial Spaces",
+      "studio": "Studios",
+      "chambre": "Rooms & Annexes",
+      "ferme": "Farms & Farmland"
     },
     "chips": {
       "near": "Near {place}",
@@ -599,9 +695,11 @@
       "noPhotos": "No photos for this listing",
       "verified": "Verified listing",
       "enlargePhoto": "Enlarge photo {n}",
+      "playVideo": "Play video",
       "previousPhoto": "Previous photo",
       "nextPhoto": "Next photo",
       "allPhotos": "All photos",
+      "close": "Close",
       "seeAllCount": {
         "one": "See the Photo",
         "other": "See All {count} Photos"
@@ -622,6 +720,7 @@
       "viewDetails": "View details →",
       "closePreview": "Close preview",
       "loadError": "The map could not load. Please try again later.",
+      "zoneApprox": "Approximate area",
       "updating": "Updating the map…",
       "inArea": {
         "one": "{count} property in this area",
@@ -770,7 +869,70 @@
       }
     },
     "city": {
-      "label": "City"
+      "label": "City",
+      "all": "All cities"
+    },
+    "leaseTerm": {
+      "label": "Rental term",
+      "any": "Any",
+      "long": "Long term",
+      "short": "Short term",
+      "hint": "Long term: a standard monthly lease. Short term: a room, studio or flat let by the day or the week."
+    },
+    "details": {
+      "title": "Practical Details",
+      "declared": "Stated by the agent",
+      "furnished": "Furnished",
+      "unfurnished": "Unfurnished",
+      "households": "Households sharing the compound: {count}",
+      "landlordOn": "Landlord lives on site",
+      "landlordOff": "Landlord lives elsewhere",
+      "meter": {
+        "prepaye": "Prepaid meter (Cash Power)",
+        "individuel": "Individual meter",
+        "partage": "Shared meter"
+      },
+      "plot": "Plot: {size}",
+      "perM2": "per m²",
+      "installments": "Payment in instalments possible",
+      "installmentTerms": "Terms: {terms}",
+      "filter": {
+        "plotLabel": "Plot size (m²)",
+        "plotHint": "1 are = 100 m² · 1 ha = 10,000 m²",
+        "plotMin": "Min m²",
+        "plotMax": "Max m²",
+        "chipMin": "Plot ≥ {min} m²",
+        "chipMax": "Plot ≤ {max} m²",
+        "chipRange": "Plot {min}–{max} m²"
+      },
+      "form": {
+        "legend": "Practical details",
+        "notStated": "Not stated",
+        "yes": "Yes",
+        "no": "No",
+        "furnished": "Furnished?",
+        "furnishedYes": "Furnished",
+        "furnishedNo": "Unfurnished",
+        "households": "Households sharing the compound",
+        "landlord": "Does the landlord live there?",
+        "meter": "Electricity meter",
+        "meterPrepaye": "Cash Power (prepaid, individual)",
+        "meterIndividuel": "Individual",
+        "meterPartage": "Shared",
+        "plot": "Plot size",
+        "plotPlaceholder": "e.g. 15/20, 20x30, 5 ares, 1 ha",
+        "plotComputed": "= {size}",
+        "plotUnreadable": "Size not recognised: write e.g. 15/20, 20x30 or 5 ares.",
+        "installments": "Payment in instalments possible",
+        "installmentTerms": "Payment terms (your words)",
+        "installmentPlaceholder": "e.g. 30% on signing, the rest over 12 months",
+        "hint": "Leave “Not stated” when the listing does not say.",
+        "equipment": "Equipment",
+        "generator": "Generator",
+        "pool": "Swimming pool",
+        "gym": "Gym",
+        "solar": "Solar panels"
+      }
     }
   },
   "enquiry": {
@@ -879,7 +1041,9 @@
       "depositMax": "Deposit up to {count} months",
       "reference": "Ref. {reference}",
       "query": "“{query}”",
-      "depositRange": "Upfront {value}"
+      "depositRange": "Upfront {value}",
+      "leaseLong": "Long term",
+      "leaseShort": "Short term (by the day)"
     }
   },
   "agent": {
@@ -1227,7 +1391,7 @@
       "movePhotoLeft": "Move photo left",
       "movePhotoRight": "Move photo right",
       "removePhoto": "Remove this photo",
-      "photoHint": "JPEG, PNG or WebP — 5 MB max per photo, 10 photos max.",
+      "photoHint": "JPEG, PNG or WebP — 10 MB max per photo, 20 photos max.",
       "savedWithPhotoWarning": "Changes saved, but some photos could not be uploaded.",
       "savedAndPublished": "Changes saved and published.",
       "searchFiltersHint": "that the search filters analyse.",
@@ -1257,7 +1421,15 @@
       "photoPosition": "Photo {n} — hold to move, tap for options",
       "photoOrderHint": "{count}/10 · hold a photo to move it",
       "utilities": "Power, Water, Security, Access",
-      "utilitiesHint": "Only tick what is true: customers filter on it, and the listing shows “Declared by the agent”."
+      "utilitiesHint": "Only tick what is true: customers filter on it, and the listing shows “Declared by the agent”.",
+      "rentPeriodLabel": "Rental term",
+      "rentPeriodHint": "Rentals only. Short term: a room, studio or flat let by the day or the week.",
+      "rentPeriod": {
+        "mois": "Long term — rent per month",
+        "jour": "Short term — price per day",
+        "semaine": "Short term — price per week",
+        "an": "Long term — rent per year"
+      }
     },
     "portfolio": {
       "toRent": "To rent",
@@ -1273,7 +1445,6 @@
       "contactUnavailable": "Contact details unavailable",
       "noListingsYet": "This agent has no properties online yet. Send them your search using the form.",
       "directoryTitle": "Estate Agents in the DRC",
-      "directoryLead": "verified listings.",
       "directoryEmpty": "No active agents at the moment.",
       "directoryMetaTitle": "Agents — Lukka Place",
       "directoryMetaDescription": "Estate agents active across the DRC — Kinshasa, Lubumbashi, Goma and more — with real listings published on Lukka Place.",
@@ -2326,7 +2497,20 @@
       "download": "Download the image",
       "textOnly": "Send the text only",
       "hint": "The text is copied at the same time: if WhatsApp does not show it under the image, paste it.",
-      "imageFailed": "The image could not be prepared. You can send the text instead."
+      "imageFailed": "The image could not be prepared. You can send the text instead.",
+      "formatLabel": "Card format",
+      "formats": {
+        "square": "Square · WhatsApp",
+        "feed": "4:5 · Instagram, Facebook"
+      },
+      "titleFeed": "Social Share Card",
+      "descriptionFeed": "For the Instagram, Facebook or TikTok feed: the image at 1080 × 1350, with its caption. It leads back to the listing on Lukka Place.",
+      "descriptionTeam": "For Lukka Place’s own pages (Instagram, Facebook, TikTok): the image at 1080 × 1350 and its caption, both leading to the listing on the site.",
+      "shareFeed": "Share the image",
+      "downloadShort": "Download",
+      "copyCaption": "Copy the caption",
+      "captionCopiedShort": "Caption copied",
+      "hintFeed": "The caption is copied at the same time: paste it under the photo. On Instagram the link does not open with a tap."
     },
     "inbox": {
       "filterLabel": "Filter requests",
@@ -2363,6 +2547,88 @@
         "upTo": "Up to {max} $",
         "from": "From {min} $"
       }
+    },
+    "referrals": {
+      "title": "My Referrals",
+      "lead": "Every customer who creates an account with your link or your code is counted here. Listings you share from Lukka Place already carry your code.",
+      "clicks": "Clicks",
+      "last30": "{n} in 30 days",
+      "accounts": "Accounts created",
+      "verified": "Numbers verified",
+      "yourCode": "Your code:",
+      "copy": "Copy link",
+      "share": "Share",
+      "qr": "QR code",
+      "hint": "Only new customer accounts are counted, never your own.",
+      "activated": "Customers activated",
+      "waiting": "Waiting:",
+      "approved": "Approved:",
+      "paid": "Paid:",
+      "recent": "Latest customers",
+      "someone": "Customer",
+      "rule": "{amount} per activated customer: number verified and one real action (listing saved, alert or visit) within {days} days. Paid by mobile money after checks."
+    },
+    "directory": {
+      "lead": "Find an agent by name, city or commune, and contact them directly on WhatsApp.",
+      "searchLabel": "Agent name, neighbourhood or landmark",
+      "searchPlaceholder": "Name, neighbourhood or landmark (e.g. Righini, UPN)",
+      "searchButton": "Search",
+      "city": "City",
+      "allCities": "All cities",
+      "sort": "Sort by",
+      "sortListings": "Most listings",
+      "sortRating": "Best rated",
+      "sortRecent": "Newest listing",
+      "offerAll": "All",
+      "offerRent": "Rent",
+      "offerSale": "Sale",
+      "verifiedOnly": "Verified",
+      "count": {
+        "one": "{count} agent",
+        "other": "{count} agents"
+      },
+      "clear": "Clear filters",
+      "noMatch": "No agent matches this search.",
+      "unavailable": "The directory is temporarily unavailable. Try again in a moment.",
+      "findForMeLead": "Tell us what you are looking for: we pass your request on to our partner agencies.",
+      "pagination": "Directory pages",
+      "previous": "Previous",
+      "next": "Next",
+      "pageOf": "Page {page} of {pages}",
+      "unnamed": "Lukka Place agent",
+      "rentCount": {
+        "one": "{count} to rent",
+        "other": "{count} to rent"
+      },
+      "saleCount": {
+        "one": "{count} for sale",
+        "other": "{count} for sale"
+      },
+      "viewListings": {
+        "one": "View their listing",
+        "other": "View their {count} listings"
+      },
+      "whatsappAria": "Message {name} on WhatsApp",
+      "callAria": "Call {name}",
+      "placeRead": "“{text}”: agents in {communes}.",
+      "searchAsName": "Search “{text}” in agent names",
+      "communesLabel": "Communes (up to {max})",
+      "noCommunes": "No commune has agents for these filters.",
+      "moreCommunes": {
+        "one": "Show {count} more commune",
+        "other": "Show {count} more communes"
+      },
+      "communesMax": "{max} communes at most: remove one to add another.",
+      "addCommune": "Add {commune} ({count} agents)",
+      "removeCommune": "Remove {commune}",
+      "nearMe": "Near me",
+      "nearMeLocating": "Locating…",
+      "nearMeDenied": "Allow location in your browser, or choose a commune.",
+      "nearMeFailed": "We couldn’t find your location just now. Choose a commune.",
+      "nearMeOutside": "You seem to be outside the cities we cover. Choose a city or a commune.",
+      "nearMeUnavailable": "Your browser can’t share your location. Choose a commune.",
+      "nearMeResult": "The communes nearest to you. Your position is not stored.",
+      "communeOf": "{name} commune"
     }
   },
   "status": {
@@ -2981,6 +3247,10 @@
         "visits": "Viewings",
         "requests": "Searches"
       }
+    },
+    "founder": {
+      "badge": "Founding member",
+      "member": "You are member no. {n}"
     }
   },
   "admin": {
@@ -3029,8 +3299,14 @@
       },
       "projects": "New developments",
       "demand": "Demand",
+      "investors": "Investors",
       "settings": "Site Settings",
-      "agentReviews": "Agent Reviews"
+      "agentReviews": "Agent Reviews",
+      "facebookProspects": "Facebook Prospects",
+      "partners": "Partners",
+      "links": "Campaign Links",
+      "growth": "Growth",
+      "blog": "Guides & News"
     },
     "login": {
       "intro": "Restricted to the Lukka Place team.",
@@ -3066,7 +3342,208 @@
       "pageViews": "Page views",
       "conversionRate": "Conversion rate (listings)",
       "excludesBots": "Excludes bots and views from before tracking",
-      "direct": "Direct"
+      "direct": "Direct",
+      "period": "Period",
+      "periods": {
+        "7": "7 days",
+        "30": "30 days",
+        "90": "90 days",
+        "tout": "All time"
+      },
+      "whatsappPeople": "WhatsApp clicks (people)",
+      "hintVisitors": "{count} distinct people",
+      "hintDelta": "{delta} vs previous period",
+      "hintExcluded": "{count} excluded (team, agents, bots)",
+      "conversionPeople": "People only, on listing pages",
+      "clicks": {
+        "sectionTitle": "WhatsApp Clicks — Breakdown",
+        "note": "Every table counts people only. The team, agents on their own listings and bots appear only under “Audience”.",
+        "peopleNote": "“People” = distinct visitors, measured since 29 September 2026; older clicks carry no identifier.",
+        "seeEach": "See every click",
+        "audienceTitle": "Audience",
+        "audienceNote": "Every click, including those that are not customers.",
+        "routingTitle": "Where the Click Went",
+        "placementTitle": "Button Tapped",
+        "placementNote": "Recorded since 26 October 2026.",
+        "sourceTitle": "Click Sources",
+        "typeTitle": "Property Type",
+        "communeTitle": "Most Contacted Communes",
+        "priceTitle": "Price Band",
+        "priceNote": "Rents per month (a yearly rent ÷ 12), US dollars only.",
+        "listingsTitle": "Most Contacted Listings",
+        "listingsNote": "Conversion = clicks ÷ page views. A tap on a listing card (list, map) does not open the page, so the ratio can exceed 100%.",
+        "weeklyTitle": "Clicks per Week",
+        "weeklyNote": "Last 12 weeks, people only, whatever period is selected.",
+        "weekOf": "Week of {date}",
+        "colKey": "Detail",
+        "colClicks": "Clicks",
+        "colPeople": "People",
+        "colShare": "Share",
+        "colListing": "Listing",
+        "colViews": "Views",
+        "colRate": "Conversion",
+        "unknown": "Not stated",
+        "listingNumber": "Listing #{id}",
+        "kind": {
+          "visitor": "Visitors",
+          "avant_suivi": "Before detailed tracking (visitors)",
+          "owner": "Agent on their own listing",
+          "agent": "Other signed-in agents",
+          "staff": "Lukka Place team",
+          "bot": "Bots and link previews",
+          "prefetch": "Browser prefetches"
+        },
+        "routing": {
+          "DIRECT_WA": "Straight to the agent",
+          "CENTRAL_FALLBACK": "Lukka Place central number",
+          "inconnu": "Before tracking"
+        },
+        "placement": {
+          "card": "Listing card (list, map, home)",
+          "listing_page": "Listing page",
+          "listing_mobile_bar": "Bottom bar (phone)",
+          "inconnu": "Before tracking"
+        },
+        "purpose": {
+          "rent": "for rent",
+          "sale": "for sale"
+        },
+        "band": {
+          "rent_lt300": "Rent < $300",
+          "rent_300_600": "Rent $300–600",
+          "rent_600_1000": "Rent $600–1,000",
+          "rent_1000_2000": "Rent $1,000–2,000",
+          "rent_gte2000": "Rent ≥ $2,000",
+          "rent_short": "Short stay (day / week)",
+          "sale_lt25k": "Sale < $25,000",
+          "sale_25_50k": "Sale $25,000–50,000",
+          "sale_50_100k": "Sale $50,000–100,000",
+          "sale_100_250k": "Sale $100,000–250,000",
+          "sale_gte250k": "Sale ≥ $250,000",
+          "unknown": "No price or not in dollars"
+        }
+      }
+    },
+    "investors": {
+      "title": "Investor Metrics",
+      "intro": "The platform’s numbers the way an investor asks for them. People only: the team, agents on their own listings, bots and test agencies are excluded. A median is given only from {min} values; “—” means not measured or not enough data yet, never zero.",
+      "generatedOn": "Data as of {date}.",
+      "print": "Print",
+      "exportCsv": "Export by month (CSV)",
+      "loadFailed": "This section could not be loaded: {message}",
+      "notMeasured": "Not measured yet: the tracking table for it does not exist yet.",
+      "notYet": "not yet",
+      "anyCommune": "Whole city",
+      "anyType": "All types",
+      "unknownSource": "Not recorded",
+      "tiles": {
+        "liveListings": "Live listings",
+        "liveListingsHint": "published by {agents} agents",
+        "verifiedAgents": "Verified agents",
+        "verifiedAgentsHint": "of {active} active agents",
+        "leadRate": "Listings contacted (30 d)",
+        "leadRateHint": "{withLead} of {count} live listings",
+        "zeroResults": "Searches with no result",
+        "zeroResultsHint": "{count} searches over {days} days"
+      },
+      "funnelTitle": "Monthly Funnel",
+      "funnelDefinition": "From visit to transaction, month by month (UTC calendar months; the launch month starts at launch, the current month is partial). Visitors = distinct browser ids. Contact = a WhatsApp or call tap on a listing.",
+      "funnelTableTitle": "By Month Since Launch",
+      "funnelNote": "Visit requests come from the engine’s daily rollup; “—” for a month it does not cover. Transactions are sales and rentals recorded with their price and date.",
+      "liquidityTitle": "Liquidity",
+      "liquidityDefinition": "How fast a listing finds a taker. The contact rate covers every live listing; medians need at least {min} values.",
+      "liquidity": {
+        "leadRateHint": "{withLead} of {count} listings contacted in 30 days; {mature} have been live 30 days or more ({matureRate} contacted)",
+        "daysToLead": "Days to first contact (median)",
+        "daysToLeadHint": "{withLead} of {count} listings published since tracking began were contacted",
+        "daysOnMarket": "Days on market (median)",
+        "closesHint": "{count} transactions recorded",
+        "priceGap": "Achieved vs asking price (median)",
+        "priceGapHint": "over {count} transactions with a recorded price"
+      },
+      "supplyTitle": "Supply",
+      "supplyDefinition": "Listings approved by moderation and registered agents, excluding test agencies and deleted accounts.",
+      "supplyTableTitle": "Growth by Month",
+      "supply": {
+        "activeAgents": "Active agents",
+        "cities": "Cities with listings",
+        "communes": "Communes with listings"
+      },
+      "demandTitle": "Unmet Demand",
+      "demandDefinition": "What visitors searched for over {days} days without finding a single matching listing, before any widening of the search.",
+      "demand": {
+        "searches": "Searches",
+        "searchers": "People who searched",
+        "zeroSearches": "Searches with no result",
+        "zeroSearchers": "People with no result"
+      },
+      "unmetTableTitle": "Most Frequent Searches with No Result",
+      "purpose": {
+        "rent": "Rent",
+        "sale": "Buy",
+        "any": "Rent or buy"
+      },
+      "retentionTitle": "Retention",
+      "retentionDefinition": "Visitors: of those first seen that month, how many came back on another day. Agents: of those who published their first listing that month, how many published another within 30 days.",
+      "visitorReturnTitle": "Returning Visitors",
+      "agentRepeatTitle": "Agents Who Publish Again",
+      "retentionNote": "A recent month has had less time to come back; * = the 30-day window has not closed yet.",
+      "responseTitle": "Agent Responsiveness",
+      "responseDefinition": "Visit requests passed to an agent over {days} days, and how long they took to answer. The median and the share under {minutes} minutes need at least {min} timed answers.",
+      "response": {
+        "requests": "Requests passed on",
+        "answerRate": "Answer rate",
+        "answeredHint": "{count} requests were answered",
+        "median": "Response time (median)",
+        "fast": "Answered within {minutes} min"
+      },
+      "acquisitionTitle": "Acquisition by Channel",
+      "acquisitionDefinition": "Visitors, page views and WhatsApp taps over {days} days, by recorded source (referring domain or utm_source tag).",
+      "acquisitionTableTitle": "Source",
+      "acquisitionNote": "Navigation within the site is recorded as direct: only the landing page carries the real source. Cost per contact will be added once ad spend is recorded.",
+      "sinceTitle": "When Each Measurement Began",
+      "sinceDefinition": "Nothing is reconstructed before these dates.",
+      "since": {
+        "views": "Page views",
+        "whatsapp": "WhatsApp taps",
+        "visitors": "Distinct visitors",
+        "searches": "Searches",
+        "rollup": "Visit requests per listing",
+        "launch": "Launch (first listing published)"
+      },
+      "col": {
+        "month": "Month",
+        "visitors": "Visitors",
+        "listingViews": "Listing views",
+        "views": "Page views",
+        "searches": "Searches",
+        "zeroResults": "No result",
+        "whatsapp": "WhatsApp taps",
+        "calls": "Calls",
+        "visitRequests": "Visit requests",
+        "closes": "Transactions",
+        "newListings": "New listings",
+        "cumulativeListings": "Listings to date",
+        "newAgents": "New agents",
+        "verifiedAgents": "Verified agents (to date)",
+        "commune": "Commune",
+        "purpose": "Looking to",
+        "type": "Property type",
+        "searchers": "People",
+        "medianBudget": "Median budget",
+        "newVisitors": "New visitors",
+        "returned": "Came back",
+        "rate": "Rate",
+        "newPublishers": "New publishing agents",
+        "publishedAgain": "Published again",
+        "source": "Source",
+        "tapsPerView": "Taps / page view"
+      },
+      "sinceLaunch": "Launch: {date} — nothing earlier is counted.",
+      "units": {
+        "hours": "{n} h",
+        "days": "{n} d"
+      }
     },
     "listings": {
       "title": "Property Approvals",
@@ -3077,7 +3554,14 @@
       "publishNow": "Publish now (same checks as “Approve”)",
       "deleteOne": "Delete listing",
       "addPhotos": "Add photos",
-      "photosAdded": "{count} photo(s) added."
+      "photosAdded": "{count} photo(s) added.",
+      "agentTitle": "Agent",
+      "noAgent": "No agent: Lukka Place’s central number is shown.",
+      "assignAgent": "Assign to this agent",
+      "removeAgent": "Remove the agent",
+      "agentAssigned": "Listing assigned to the agent.",
+      "agentRemoved": "Agent removed from the listing.",
+      "agentUnchanged": "No change."
     },
     "leads": {
       "title": "Leads",
@@ -3265,7 +3749,39 @@
       "duplicatesTitle": "{count} Potential Duplicates",
       "sortBy": "Sort by",
       "loadError": "Agents could not be loaded: {error}",
-      "delete": "Delete"
+      "delete": "Delete",
+      "remindVerify": "Remind to verify",
+      "reminderHint": "Sends the agent a WhatsApp reminder. It only arrives if the agent wrote to Lukka Place in the last 24 hours.",
+      "reminderSent": "Verification reminder sent on WhatsApp (received if the agent wrote to us in the last 24 hours).",
+      "reminderNoPhone": "This agent has no valid number.",
+      "reminderFailed": "The reminder could not be sent.",
+      "subtitleSales": "The agents you brought to Lukka Place — through your code or your assignment.",
+      "lastLogin": "Last Login",
+      "loginNever": "No attempt on record",
+      "loginFailures": {
+        "one": "1 failure (last: {time})",
+        "other": "{count} failures (last: {time})"
+      },
+      "loginHistory": "View Login History",
+      "loginHistoryTitle": "Login History",
+      "loginHistoryHint": "Last 100 attempts, Kinshasa time.",
+      "loginHistoryLoading": "Loading…",
+      "loginHistoryUnavailable": "History is not available yet (migration not applied).",
+      "loginColTime": "Date and Time",
+      "loginColResult": "Result",
+      "loginColIp": "IP Address",
+      "loginColDevice": "Device",
+      "loginOutcome": {
+        "success": "Signed in",
+        "wrong_password": "Wrong password",
+        "locked": "Locked (too many tries)",
+        "verify_required": "Number verification pending",
+        "wrong_code": "Wrong code",
+        "expired_code": "Code expired",
+        "code_verified": "Signed in with a code",
+        "whatsapp_verified": "Signed in via WhatsApp",
+        "activated": "Account activated"
+      }
     },
     "actions": {
       "approve": "Approve",
@@ -3299,6 +3815,7 @@
       "finalPrice": "Agreed final price (USD)",
       "transactionDate": "Transaction date",
       "backToListings": "Back to listings",
+      "socialCard": "Social media card",
       "hidden": "Hidden",
       "suspended": "Listing suspended — removed from the public site.",
       "putBackOnline": "Listing back online.",
@@ -3599,7 +4116,11 @@
       "colLastLogin": "Last login",
       "colActions": "Actions",
       "viewingsCount": "{count} viewings",
-      "noPassword": "No password"
+      "noPassword": "No password",
+      "delete": "Delete account",
+      "deleteTitle": "Delete This Customer Account?",
+      "deleteBody": "The account, its saved listings and alerts are deleted for good and the person is signed out. Their requests and visits stay in Leads and Viewings.",
+      "deleted": "Customer account deleted."
     },
     "benchmarks": {
       "title": "Benchmark Pricing",
@@ -3842,7 +4363,8 @@
         "templateLeadMatch": "Agency alert template",
         "templateViewing": "Viewing request template",
         "templateOtp": "OTP template"
-      }
+      },
+      "subtitleSales": "WhatsApp taps on listings of the agents you brought in."
     },
     "table": {
       "all": "All",
@@ -3912,7 +4434,12 @@
       "noAgencyName": "no agency name",
       "contactUnverified": "number not verified",
       "moreAgents": "+{count} other agent(s)",
-      "noAgentYet": "No agent yet"
+      "noAgentYet": "No agent yet",
+      "rename": "Rename agency",
+      "renameSave": "Save",
+      "renameInvalid": "Enter a real agency name (at least 2 characters, not a number).",
+      "renamed": "Name saved for {count} agent(s) of the agency.",
+      "renamedButLogin": "Name saved for {count} agent(s). The console still shows the old back-office login “{login}”."
     },
     "agentProfile": {
       "tabs": "Agent sections",
@@ -4072,6 +4599,11 @@
       "saved": "Photos updated.",
       "hint": "Reorder, choose the cover or remove photos. New photos are added by the agent.",
       "foreignUrl": "Only photos already on this listing can be kept."
+    },
+    "videos": {
+      "title": "Videos",
+      "count": "{count} videos",
+      "hint": "Sent by the agent on WhatsApp. One photo or one video is enough to publish."
     },
     "queues": {
       "title": "Work Queues",
@@ -4406,7 +4938,13 @@
         "referralCodeEditHint": "A code that has already brought in an agent can no longer change.",
         "codeInvalid": "A referral code is 3 to 10 letters followed by 2 digits, e.g. JEAN01.",
         "codeTaken": "Another rep already uses this referral code.",
-        "codeLocked": "This code has already brought in an agent and is part of their record: it can no longer change."
+        "codeLocked": "This code has already brought in an agent and is part of their record: it can no longer change.",
+        "remove": "Remove from team",
+        "removeTitle": "Remove This Rep from the Team?",
+        "removeBody": "Their agents are no longer assigned to them, their referral code stops working and their console account is unlinked. Their commission and payout history is kept.",
+        "removeUnpaid": "This rep still has pending or approved commissions. Pay or void them first.",
+        "deleted": "Rep deleted.",
+        "removed": "Rep removed from the team. Their history is kept."
       },
       "plans": {
         "link": "Commission plans",
@@ -4448,8 +4986,12 @@
         "launchTitle": "Launch Policy Tiers",
         "launchAcquisition": "Qualified agents (cumulative totals): 5 = $15, 10 = $35, 15 = $60, 20 = $90, 30 = $150, 40 = $220, 50 = $300.",
         "launchAdditional": "Confirmed listings above 3 per qualified agent: 10 = $5, 25 = $15, 50 = $35, 100 = $80.",
-        "launchQuality": "+$25 once, when at least 80% of credited listings are still valid 30 days after confirmation (at least 15 checked).",
-        "launchQualified": "A qualified agent: verified number, a name, at least 3 confirmed listings, not rejected. Only validated agents count towards what is payable."
+        "launchQuality": "+$25 once, when at least 80% of the agents brought in more than 30 days ago are still active: account active and at least one listing online (at least 5 agents).",
+        "launchQualified": "A qualified agent: verified number, a name, at least 3 confirmed listings, not rejected. Only validated agents count towards what is payable.",
+        "delete": "Delete plan",
+        "deleteTitle": "Delete This Plan?",
+        "deleteBody": "{count} rep(s) on this plan will have none and earn nothing new until given one. Commissions already calculated keep their amounts.",
+        "deleted": "Plan deleted. {count} rep(s) left without a plan."
       },
       "accounts": {
         "title": "Agents",
@@ -4569,9 +5111,9 @@
         "quality": {
           "title": "30-Day Quality Bonus",
           "earned": "Earned · {amount}",
-          "passing": "Passing: at least {ratio}% valid ({valid}/{checked})",
-          "failing": "Below {ratio}%: {valid}/{checked} valid on day 30",
-          "maturing": "{count} listing(s) not yet 30 days old · tested from {min} checked listings ({days} days)"
+          "passing": "Passing: at least {ratio}% active ({valid}/{checked})",
+          "failing": "Below {ratio}%: {valid}/{checked} agents active after 30 days",
+          "maturing": "{count} agent(s) brought in less than 30 days ago · tested from {min} agents ({days} days)"
         },
         "referral": {
           "code": "Referral code",
@@ -4657,7 +5199,7 @@
         "ledger": {
           "milestoneDetail": "Tier reached: {count} validated qualified agents",
           "listingBonusDetail": "Tier reached: {count} additional listings",
-          "qualityDetail": "{ratio}% of credited listings valid on day 30",
+          "qualityDetail": "{ratio}% of agents brought in still active after 30 days",
           "voidBelowThreshold": "Tier no longer met"
         },
         "fortnight": {
@@ -5175,7 +5717,27 @@
         "agentProjects": "New Developments",
         "agentProjectsHint": "The dashboard’s “My projects” card and the developers’ project pages. Hidden: their addresses send back to the dashboard.",
         "publicProjects": "New Developments (New)",
-        "publicProjectsHint": "“New” in the menu, the footer links, the home page’s “New projects” strip, the projects bubble on the map, the sitemap, /projets and /promoteurs. Hidden: these addresses send to the listings."
+        "publicProjectsHint": "“New” in the menu, the footer links, the home page’s “New projects” strip, the projects bubble on the map, the sitemap, /projets and /promoteurs. Hidden: these addresses send to the listings.",
+        "publicBlog": "Guides & News (blog)",
+        "publicBlogHint": "Articles written in Admin › Guides & News, the menu link and their place in the sitemap. Hidden: /guides shows only the four original guides, as before."
+      },
+      "growth": {
+        "title": "Growth",
+        "lead": "Meta and TikTok pixel ids (public by nature) and the \"Founding member\" cutoff date. Empty = the server environment's value, or nothing.",
+        "errors": {
+          "meta": "The Meta Pixel id is a number of 10 to 20 digits.",
+          "tiktok": "The TikTok Pixel id has 10 to 32 letters and digits.",
+          "cutoff": "Invalid date.",
+          "failed": "Saving failed."
+        },
+        "meta": "Meta Pixel (Facebook, Instagram)",
+        "tiktok": "TikTok Pixel",
+        "cutoff": "Founding member before",
+        "serverMeta": "Meta server events: {state}",
+        "serverTiktok": "TikTok server events: {state}",
+        "on": "on",
+        "off": "not configured",
+        "tokensHint": "The access tokens (META_CAPI_TOKEN, TIKTOK_EVENTS_TOKEN) are set only in the server environment, never here."
       }
     },
     "softDelete": {
@@ -5220,6 +5782,507 @@
       "approved": "Comment published.",
       "rejected": "Comment rejected.",
       "failed": "Could not do that. Try again."
+    },
+    "records": {
+      "deleteLead": "Delete",
+      "deleteLeadTitle": "Delete This Prospect?",
+      "deleteLeadBody": "The request, its visits and the agencies it was sent to are deleted for good. Nobody is told.",
+      "leadDeleted": "Prospect deleted ({count} visit(s) with it).",
+      "deleteViewing": "Delete",
+      "deleteViewingTitle": "Delete This Visit?",
+      "deleteViewingBody": "The visit request is deleted for good; the prospect stays. Nobody is told.",
+      "viewingDeleted": "Visit deleted.",
+      "notFound": "Not found: already deleted?"
+    },
+    "agentCreate": {
+      "title": "Create an Agent",
+      "subtitle": "An agent account verified by the team, usable at once: no code is asked of the number.",
+      "warning": "You are vouching for this number: it will be shown on the agent’s listings and receive their enquiries. Listings already sent from this number (WhatsApp groups included) are attached to the account. Nothing is sent automatically.",
+      "firstName": "First name",
+      "lastName": "Last name",
+      "agency": "Agency",
+      "phone": "Agent’s WhatsApp number",
+      "phoneHint": "International format: pick the country, then the number.",
+      "submit": "Create and verify",
+      "creating": "Creating…",
+      "another": "Create another agent",
+      "verifiedDone": "Account verified for {phone}.",
+      "claimed": "{count} listing(s) attached to this account.",
+      "claimFailed": "Existing listings could not be attached now; they will be at their next sync.",
+      "linkHint": "Single-use activation link (sets the password), shown once. Send it to the agent:",
+      "copy": "Copy link",
+      "copied": "Copied",
+      "sendFromMyWhatsApp": "Send from my WhatsApp",
+      "noLinkHasPassword": "This agent already has a password, so no link was created. “Reset access” sends one if needed.",
+      "openAgent": "Open agent #{id}",
+      "verify": "Verify the number",
+      "verifying": "Verifying…",
+      "verifyHint": "Verify this number without a code, on the team’s word, and attach its listings.",
+      "verifyConfirm": "Verify {phone} without a code? The number will be shown on this agent’s listings and receive their enquiries.",
+      "errorPhone": "Invalid number: 7 to 15 digits in international format.",
+      "errorOurs": "That is a Lukka Place number, not an agent’s.",
+      "errorName": "First name is required.",
+      "errorTaken": "This number already has an agent account (#{id}), possibly deleted.",
+      "errorVerifiedElsewhere": "This number is already verified on another account (#{id}).",
+      "errorUnavailable": "Database unavailable, try again."
+    },
+    "facebookProspects": {
+      "title": "Paste a Post",
+      "subtitle": "Paste a post or comments from a Facebook group you belong to: the Congolese numbers found become agent prospects to invite. Nobody is contacted from this page.",
+      "postText": "Post text",
+      "postTextPlaceholder": "Paste the text of the post or comments here…",
+      "detected": {
+        "one": "{count} number detected:",
+        "other": "{count} numbers detected:"
+      },
+      "noneDetected": "No Congolese number found in this text.",
+      "groupName": "Group",
+      "authorName": "Author",
+      "postUrl": "Post link",
+      "submit": "Save the numbers",
+      "saving": "Saving…",
+      "saved": {
+        "one": "{count} new prospect saved.",
+        "other": "{count} new prospects saved."
+      },
+      "skip": {
+        "ours": "a Lukka Place number, ignored",
+        "agent": "already has an agent account",
+        "already_prospect": "already on the list (seen once more)"
+      },
+      "errorEmpty": "Paste the post’s text first.",
+      "errorTooLong": "Text too long ({max} characters at most): paste it in several goes.",
+      "errorUrl": "The link must start with https:// or http://.",
+      "errorUnavailable": "The prospects table does not exist yet: migration 20261023_facebook_prospects.sql must be applied.",
+      "recentTitle": "Latest Prospects",
+      "pendingTotal": {
+        "one": "{count} to invite",
+        "other": "{count} to invite"
+      },
+      "seenCount": "seen {count} times",
+      "openPost": "View post",
+      "empty": "No prospects yet.",
+      "status": {
+        "pending_invite": "To invite",
+        "invited": "Invited",
+        "registered": "Signed up",
+        "declined": "Declined"
+      }
+    },
+    "partners": {
+      "title": "Partners",
+      "lead": "Everyone who brings people with a code of their own — TikTok creators, campaigns, agents — and what each actually delivered over the period.",
+      "linkBuilder": "Create a Campaign Link",
+      "new": "New Partner",
+      "types": {
+        "creator": "Creators",
+        "campaign": "Campaigns",
+        "agent": "Agents",
+        "creatorOne": "Creator",
+        "campaignOne": "Campaign",
+        "agentOne": "Agent"
+      },
+      "period": "Period",
+      "days": "{n} days",
+      "allTime": "All time",
+      "search": "Name, code or handle",
+      "searchButton": "Search",
+      "unavailable": "Partner tracking is not switched on yet: migration 20261027_growth_attribution.sql must be run.",
+      "col": {
+        "partner": "Partner",
+        "clicks": "Clicks",
+        "visitors": "Visitors",
+        "viewers": "Viewed a listing",
+        "listingViews": "Listings viewed",
+        "whatsapp": "WhatsApp",
+        "accounts": "Accounts",
+        "verified": "Verified",
+        "cost": "Cost / account"
+      },
+      "empty": "No partner of this type yet.",
+      "emptyAgents": "No agent has a code yet: it is created the first time an agent shares a listing.",
+      "inactive": "Switched off",
+      "definitions": "Clicks: openings of a partner's link (one per connection per hour). Visitors: different people. Viewed a listing, listings viewed and WhatsApp: what those visitors did AFTER their click (team and bots excluded). Accounts: accounts created with this code. Verified: number confirmed on WhatsApp. Cost / account: the per-account fee, or a flat fee divided by every verified account. Visit requests are not counted here.",
+      "form": {
+        "kind": "Type",
+        "name": "Name",
+        "handle": "Handle (e.g. @nadia.kin)",
+        "code": "Code",
+        "codeHint": "Leave empty to make one from the name (NADIA01). 3–10 letters then 2 digits.",
+        "fee": "Fee",
+        "currency": "Currency",
+        "basis": "Basis",
+        "basisFlat": "Flat fee",
+        "basisPerSignup": "Per account",
+        "notes": "Internal notes",
+        "create": "Create Partner",
+        "codeLocked": "The code {code} never changes: it is already printed and shared."
+      },
+      "flash": {
+        "created": "Partner created.",
+        "saved": "Changes saved.",
+        "activated": "Code switched back on.",
+        "deactivated": "Code switched off: its links no longer credit anyone.",
+        "codeTaken": "This code already belongs to a partner or a sales rep.",
+        "codeNeeded": "No code can be made from this name: type one.",
+        "invalidName": "A name is required.",
+        "invalidKind": "Choose Creator or Campaign.",
+        "invalidCode": "Code format: 3–10 letters then 2 digits (NADIA01).",
+        "invalidFee": "Invalid fee amount.",
+        "failed": "That did not work. Try again.",
+        "statsSaved": "Week figures saved.",
+        "invalidWeek": "Pick a date in the week.",
+        "invalidFigures": "Figures must be whole numbers."
+      },
+      "agentProfile": "Open the agent's profile",
+      "deactivate": "Switch Code Off",
+      "activate": "Switch Code Back On",
+      "funnel": "Results",
+      "noFee": "No fee recorded",
+      "daily": "Clicks per Day (Last 30 Days)",
+      "noClicks": "No clicks in the last 30 days.",
+      "accounts": "Accounts Brought In",
+      "acc": {
+        "account": "Account",
+        "type": "Type",
+        "verified": "Number verified",
+        "via": "Came through",
+        "date": "Date",
+        "empty": "No account has been created with this code yet.",
+        "sameConnection": "{n} accounts from the same connection",
+        "agent": "Agent",
+        "customer": "Customer",
+        "yes": "Yes",
+        "no": "No"
+      },
+      "via": {
+        "link": "Link",
+        "qr": "QR code",
+        "param": "Shared link",
+        "form_code": "Typed code"
+      },
+      "edit": "Edit",
+      "toolkit": {
+        "copied": "Copied",
+        "copy": "Copy",
+        "code": "Code",
+        "bioLink": "Bio link",
+        "bioHint": "Opens the homepage and remembers the partner for 30 days.",
+        "inviteLink": "Invite page",
+        "inviteHint": "\"Create your free account — invited by …\", with a signup button.",
+        "listingLink": "Link to a listing (one video, one post)",
+        "listingPlaceholder": "Listing number",
+        "listingHint": "One link per video: each click is counted for this partner and opens the listing directly.",
+        "shareWhatsApp": "Send on WhatsApp",
+        "shareText": "Here is your Lukka Place link to share: {link}",
+        "qrAlt": "QR code for partner {code}"
+      },
+      "agentReferrals": "Agent referrals",
+      "social": {
+        "title": "TikTok Figures per Week",
+        "lead": "Copied from the creator's screenshots (TikTok does not send them to us). Beside them: the same week's clicks and accounts on Lukka Place.",
+        "week": "Week of",
+        "posts": "Videos",
+        "views": "Views",
+        "likes": "Likes",
+        "followers": "Followers gained",
+        "empty": "No week entered yet."
+      }
+    },
+    "links": {
+      "title": "Campaign Links",
+      "lead": "A link and its QR code for every ad, post, flyer or radio spot, so each campaign reaches the dashboard under one name.",
+      "destination": "Destination",
+      "destinationPlaceholder": "Empty = homepage, or a listing number, or /location/gombe",
+      "destinationHint": "A lukkaplace.com page: leave empty for the homepage, type a listing number or a path, or paste an address on the site.",
+      "source": "Source",
+      "medium": "Format",
+      "none": "— None —",
+      "campaign": "Campaign",
+      "content": "Content",
+      "contentPlaceholder": "e.g. video_3, poster_gombe",
+      "ref": "Partner code (optional)",
+      "refHint": "Credits accounts created from it to this partner.",
+      "build": "Create Link",
+      "result": "Your Link",
+      "resultHint": "Nothing is stored here: the tags travel in the link and are counted when someone opens it.",
+      "qrAlt": "QR code for the link",
+      "downloadQr": "Download QR code",
+      "partnersNote": "To follow a creator or an agent with figures of their own, give them a partner code:",
+      "partnersLink": "Partners",
+      "copied": "Copied",
+      "copy": "Copy",
+      "errors": {
+        "destination": "This destination is not a lukkaplace.com page.",
+        "source": "Choose a source from the list.",
+        "medium": "Choose a format from the list."
+      },
+      "sources": {
+        "facebook": "Facebook",
+        "instagram": "Instagram",
+        "tiktok": "TikTok",
+        "whatsapp": "WhatsApp",
+        "youtube": "YouTube",
+        "google": "Google",
+        "influencer": "Creator / influencer",
+        "agent": "Agent",
+        "radio": "Radio",
+        "tv": "Television",
+        "flyer": "Flyer",
+        "affiche": "Poster",
+        "sms": "SMS",
+        "email": "Email",
+        "evenement": "Event"
+      },
+      "mediums": {
+        "paid": "Paid ad",
+        "organic": "Free post",
+        "bio": "Bio link",
+        "story": "Story / Status",
+        "post": "Post",
+        "video": "Video",
+        "qr": "QR code",
+        "message": "Message",
+        "partner": "Partner"
+      }
+    },
+    "referrals": {
+      "title": "Agent Referrals",
+      "lead": "{amount} per activated customer: number verified and one real action (listing saved, alert or visit request) within {days} days. Each credit waits {hold} days before it can be approved. Flags are facts to check: none voids a credit by itself.",
+      "export": "Export (CSV)",
+      "sync": "Calculate credits",
+      "announce": "Announce the programme to agents",
+      "unavailable": "Credits are not switched on yet: migration 20261028_referral_credits_and_growth.sql must be run.",
+      "search": "Agent, agency or code",
+      "select": "Select",
+      "col": {
+        "agent": "Agent",
+        "accounts": "Accounts",
+        "activated": "Activated",
+        "holding": "Waiting (7 d)",
+        "approvable": "To approve",
+        "approved": "Approved",
+        "paid": "Paid",
+        "flags": "Flags"
+      },
+      "empty": "No agent has brought a customer yet.",
+      "seeCredits": "See their credits",
+      "flags": {
+        "burst": "Several accounts, same connection",
+        "low_activation": "Few accounts activated",
+        "clawback": "{n} to recover",
+        "clawbackOne": "To recover"
+      },
+      "approve": "Approve ready credits",
+      "method": "Payment",
+      "reference": "Reference",
+      "methods": {
+        "mobile_money": "Mobile money",
+        "cash": "Cash",
+        "bank": "Bank transfer"
+      },
+      "pay": "Pay approved credits",
+      "bulkHint": "Tick agents (or none for \"Approve\" on all). Only credits past their {hold}-day wait are approved; \"Pay\" pays the ticked agents' already approved credits.",
+      "creditsTitle": "Credits",
+      "tabs": {
+        "approvable": "To approve",
+        "holding": "Waiting",
+        "approved": "Approved",
+        "paid": "Paid",
+        "void": "Voided",
+        "clawback": "To recover"
+      },
+      "allAgents": "All agents",
+      "cr": {
+        "customer": "Customer",
+        "agent": "Agent",
+        "activation": "Activated by",
+        "status": "Status",
+        "dates": "Dates",
+        "qualified": "Activated {date}",
+        "approvableAt": "Approvable {date}",
+        "paidAt": "Paid {date}"
+      },
+      "noCredits": "No credit in this list.",
+      "activation": {
+        "favorite": "Listing saved",
+        "alert": "Alert created",
+        "visit": "Visit request"
+      },
+      "status": {
+        "pending": "Waiting",
+        "approved": "Approved",
+        "paid": "Paid",
+        "void": "Voided"
+      },
+      "auto": {
+        "agent_number": "An agent's number",
+        "number_already_credited": "Number already credited",
+        "account_deleted": "Account deleted"
+      },
+      "voidReason": "Reason (5 characters min.)",
+      "flagClawback": "Flag to recover",
+      "void": "Void",
+      "flash": {
+        "synced": "{n} new credit(s).",
+        "approved": "{n} credit(s) approved.",
+        "paid": "{n} credit(s) paid.",
+        "voided": "Credit voided.",
+        "clawback_flagged": "Paid credit flagged to recover.",
+        "announced": "Message accepted for {n} agent(s), refused for {refused}. {left} agent(s) still to tell.",
+        "failed": "That did not work. Try again.",
+        "reason": "Give a reason (5 characters minimum).",
+        "pick": "Tick at least one agent.",
+        "unavailable": "Credits are not switched on yet (migration)."
+      }
+    },
+    "growth": {
+      "title": "Growth",
+      "lead": "Customer accounts per day and by channel, new agents, visitors, and cost per account for paid channels (spend entered below). Accounts created before tracking are \"Unknown\".",
+      "flash": {
+        "spend_saved": "Spend saved.",
+        "picked": "Listing of the day picked.",
+        "spend_invalid": "Invalid spend.",
+        "pick_invalid": "This number is not a live listing.",
+        "failed": "That did not work."
+      },
+      "accounts": "Customer accounts",
+      "verified": "Numbers verified",
+      "agents": "New agents",
+      "visitorDays": "Visitors (per day, added up)",
+      "visitorDaysHint": "Someone who came back two days counts twice.",
+      "viewsPerVisitor": "Listings viewed per visitor",
+      "perDay": "Customer Accounts per Day",
+      "byChannel": "By Channel",
+      "channel": "Channel",
+      "costPerAccount": "Cost per verified account",
+      "noSpend": "No spend entered",
+      "channelsHint": "Channel = a partner's code, else the last source (ad, social, search…), else the first.",
+      "channels": {
+        "meta_ads": "Meta ads",
+        "tiktok_ads": "TikTok ads",
+        "createurs": "Creators",
+        "agents": "Agents",
+        "campagnes": "Campaigns",
+        "reseaux": "Social media (free)",
+        "recherche": "Search (Google…)",
+        "whatsapp_inscription": "WhatsApp signup",
+        "direct": "Direct",
+        "autre": "Other",
+        "inconnu": "Unknown (before tracking)"
+      },
+      "spendTitle": "Ad Spend per Week",
+      "week": "Week of",
+      "amount": "Amount",
+      "spendChannels": {
+        "meta_ads": "Meta (Facebook, Instagram)",
+        "tiktok_ads": "TikTok",
+        "google_ads": "Google",
+        "other_paid": "Other (paid)"
+      },
+      "noSpendYet": "No spend entered yet.",
+      "dailyTitle": "Listing of the Day",
+      "dailyPicked": "(picked by the team)",
+      "dailyAuto": "(automatic draw)",
+      "dailyNone": "No listing meets the conditions today.",
+      "dailyHint": "A live listing with at least 3 photos, the same all day. Type a listing number to pick today's; the 4:5 card is made from the listing's page.",
+      "dailyPick": "Pick"
+    },
+    "blog": {
+      "title": "Guides & News",
+      "lead": "Articles published on /guides. An article with the same link as an existing guide replaces it.",
+      "new": "New Article",
+      "blogOff": "The blog is hidden: no article appears on the site, and /guides shows only the four original guides.",
+      "blogOn": "The blog is visible: published articles appear on /guides and in the menu.",
+      "settingsLink": "Settings › Tabs and sections",
+      "missingTable": "The blog_posts table does not exist yet: run the 20261026_blog_posts.sql migration.",
+      "searchPlaceholder": "Title or link",
+      "colTitle": "Title",
+      "colCategory": "Category",
+      "colState": "Status",
+      "colPublished": "Publication",
+      "colUpdated": "Edited",
+      "empty": "No articles yet.",
+      "noMatch": "No article matches.",
+      "deleted": "Article deleted.",
+      "created": "Article created.",
+      "saved": "Saved.",
+      "unpublishedDone": "The article is back to draft.",
+      "state": {
+        "draft": "Draft",
+        "scheduled": "Scheduled",
+        "published": "Published"
+      },
+      "categoryGuide": "Guide",
+      "categoryNews": "News",
+      "preview": "Preview",
+      "viewLive": "View on the site",
+      "backToEditor": "Back to the editor",
+      "readingTime": "{minutes} min read",
+      "previewListings": "Below the article: three matching live listings and a link to",
+      "sectionText": "Text (French)",
+      "titleFr": "Title",
+      "slug": "Article Link",
+      "slugHint": "lukkaplace.com/guides/{slug} — lowercase letters, digits and hyphens.",
+      "category": "Category",
+      "summaryFr": "Summary",
+      "summaryHint": "One or two sentences: shown in the list and in WhatsApp / Google previews.",
+      "bodyFr": "Article",
+      "formatHelpTitle": "Formatting",
+      "formatHelp": "A blank line separates paragraphs.\n## Section heading\n- a bullet point\n1. a numbered step\n[link text](/location/appartements/gombe) — a link to a page of the site or an https address.",
+      "sectionCover": "Cover Image",
+      "cover": "Image",
+      "replaceCover": "Replace the Image",
+      "removeCover": "Remove the image",
+      "coverHint": "JPEG, PNG or WebP, 10 MB max. Resized to 1600 px. Optional: without an image the article stays light.",
+      "coverAlt": "Image Description",
+      "coverAltHint": "What the photo shows, for screen readers and Google. Required with an image.",
+      "sectionAbout": "Related Listings",
+      "aboutHint": "Optional. Below the article, three matching live listings and a button to the page of those listings.",
+      "purpose": "Transaction",
+      "purposeRent": "Rent",
+      "purposeSale": "Sale",
+      "commune": "Commune",
+      "propertyType": "Property Type",
+      "none": "—",
+      "sectionEnglish": "English Version (Optional)",
+      "englishHint": "Shown to visitors reading the site in English. Without it they see the French version.",
+      "titleEn": "Title (English)",
+      "summaryEn": "Summary (English)",
+      "bodyEn": "Article (English)",
+      "sectionPublish": "Publication",
+      "statusDraft": "Draft",
+      "statusPublish": "Publish",
+      "publishedAt": "Publication Date (Kinshasa Time)",
+      "publishedAtHint": "Empty: now. A future date schedules the article.",
+      "visibilityNote": "Nothing appears on the site while the blog is hidden in the settings.",
+      "save": "Save",
+      "saving": "Saving…",
+      "unpublish": "Back to Draft",
+      "delete": "Delete",
+      "deleteConfirm": "The article disappears from the site and from this list. Its link becomes free again.",
+      "deleteYes": "Delete the Article",
+      "errors": {
+        "titleRequired": "The title is required.",
+        "titleTooLong": "The title is over 200 characters.",
+        "summaryTooLong": "The summary is over 400 characters.",
+        "bodyTooLong": "The article is too long.",
+        "bodyRequired": "A published article needs a text.",
+        "englishTooLong": "The English version is over the allowed length.",
+        "englishIncomplete": "The English version needs a title and a text, or must stay empty.",
+        "badSlug": "The link may only contain lowercase letters, digits and hyphens.",
+        "slugTaken": "Another article already uses this link.",
+        "badCategory": "Unknown category.",
+        "badDate": "Invalid publication date.",
+        "badCover": "Invalid image.",
+        "altTooLong": "The image description is over 200 characters.",
+        "altRequired": "Describe the image in a few words.",
+        "badCommune": "Unknown commune.",
+        "badType": "Unknown property type.",
+        "coverType": "The image must be JPEG, PNG or WebP.",
+        "coverSize": "The image is over {max} MB.",
+        "gone": "This article no longer exists."
+      }
     }
   },
   "errors": {
@@ -5282,6 +6345,8 @@
     "fieldBathrooms": "bathrooms",
     "fieldDoors": "doors",
     "fieldDepositMonths": "deposit months",
+    "fieldAdvanceMonths": "advance months",
+    "fieldCommissionMonths": "commission months",
     "agentNoWhatsApp": "This agent has no WhatsApp number on record.",
     "sendFailedShort": "Sending failed.",
     "actionFailed": "The action failed.",
@@ -5322,7 +6387,8 @@
       "locked": "Too many attempts — try again in 15 minutes.",
       "expiredAttempt": "That verification expired — please sign up again.",
       "referralUnknown": "We don’t recognise that referral code. Check it with your sales rep, or leave the field empty to sign up without one.",
-      "agencyNameRequired": "Enter your agency or trading name."
+      "agencyNameRequired": "Enter your agency or trading name.",
+      "partnerCodeUnknown": "This referral code does not exist. Correct it or leave the field empty."
     },
     "activate": {
       "expiredBody": "This activation link is no longer valid — it may already have been used, or it has passed its expiry. Your properties are still saved: only dashboard access is pending.",
@@ -5371,7 +6437,7 @@
       "now": "Resend the code"
     },
     "referralCode": "Referral code (optional)",
-    "referralCodeHint": "If a Lukka Place sales rep introduced you, enter their code, e.g. JEAN01.",
+    "referralCodeHint": "If a Lukka Place sales rep, an agent or a creator introduced you, enter their code, e.g. JEAN01.",
     "whatsappVerify": {
       "intro": "Send this code from the WhatsApp account of {phone}. That is what proves the number is yours.",
       "send": "Send the code on WhatsApp",
@@ -5382,6 +6448,48 @@
       "restart": "Start again",
       "noNumber": "WhatsApp verification is not available right now. Please contact the Lukka Place team.",
       "haveCode": "Received a code by message? Enter it here."
+    },
+    "partnerCode": "Referral code (optional)",
+    "partnerCodeHint": "If an agent or a creator invited you, enter their code, e.g. MARIE01.",
+    "invite": {
+      "metaTitle": "Invitation — Lukka Place",
+      "invitedBy": "Invited by {name}",
+      "title": "Create Your Free Account",
+      "lead": "Find a home to rent or a property to buy in the DRC, and get new listings before anyone else.",
+      "cta": "Create My Free Account",
+      "free": "Free, in under a minute. Your number is confirmed on WhatsApp.",
+      "benefitAlertsTitle": "WhatsApp Alerts",
+      "benefitAlertsText": "New listings that match your search, as soon as they are published.",
+      "benefitFavoritesTitle": "Your Favourites",
+      "benefitFavoritesText": "Keep the listings you like and find them on all your devices.",
+      "benefitVisitsTitle": "Online Visits",
+      "benefitVisitsText": "Pick a time and the agent confirms the visit.",
+      "listingsTitle": "Their Listings Online",
+      "browse": "See all listings"
+    },
+    "nudge": {
+      "favorites": "Don't lose your favourites",
+      "listing_viewed": "Hear about new listings first",
+      "no_results": "Nothing yet? Get told when there is",
+      "text": "Create a free account: your favourites on all your devices, and new listings on WhatsApp.",
+      "cta": "Create my account",
+      "close": "Close"
+    },
+    "whatsappSignup": {
+      "cta": "Create my account on WhatsApp",
+      "hint": "One message, already written: WhatsApp confirms your number.",
+      "or": "or with a password"
+    },
+    "activateCustomer": {
+      "metaTitle": "Choose My Password — Lukka Place",
+      "title": "Choose Your Password",
+      "lead": "Your account was created on WhatsApp. Choose a password to sign in on the website.",
+      "confirm": "Confirm the password",
+      "submit": "Open my account",
+      "errors": {
+        "invalid": "This link is no longer valid. Send \"Inscription Lukka Place\" on WhatsApp again.",
+        "mismatch": "The two passwords do not match."
+      }
     }
   },
   "updates": {
@@ -5445,6 +6553,7 @@
     "otherTypes": "Other Properties {transaction} in {place}",
     "otherTransaction": "See Also",
     "nearbyCommunes": "Nearby communes with listings",
+    "otherCities": "In Other Cities",
     "faqTitle": "Frequently Asked Questions",
     "faqPriceQ": "What do {headingLower} cost?",
     "faqPriceA": "Listings online show prices from {min} to {max}.",
@@ -5488,7 +6597,21 @@
     "updated": "Updated {date}",
     "related": "More Guides",
     "searchCta": "See listings",
-    "frenchOnly": "This guide is written in French."
+    "frenchOnly": "This guide is written in French.",
+    "blogTitle": "Guides & News",
+    "blogLead": "Practical advice and property news from the DRC: rent, buy and invest with confidence.",
+    "blogBreadcrumb": "Guides & News",
+    "tabsLabel": "Categories",
+    "tabAll": "All",
+    "tabGuides": "Guides",
+    "tabNews": "News",
+    "categoryGuide": "Guide",
+    "categoryNews": "News",
+    "readingTime": "{minutes} min read",
+    "empty": "No articles in this category yet.",
+    "seeListings": "See listings online",
+    "relatedListings": "Listings Online Right Now",
+    "shareWhatsApp": "Share on WhatsApp"
   },
   "projects": {
     "meta": {

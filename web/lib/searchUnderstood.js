@@ -8,6 +8,11 @@
  * Pure, so tests/unit/storefront-upgrade.test.js can pin it. `t` is the
  * caller's translator.
  */
+import { communeLabel } from './cities';
+
+// Types whose code is not a readable word.
+const TYPE_LABELS = { chambre: 'Chambre / annexe', ferme: 'Ferme / terrain agricole', terrain_nu: 'Terrain' };
+
 export function understoodChips(parsed, t) {
   if (!parsed) return [];
   const chips = [];
@@ -15,14 +20,22 @@ export function understoodChips(parsed, t) {
   if (parsed.transaction_type === 'vente') chips.push({ key: 'tx', label: t('home.search.buy') });
   if (parsed.property_type) {
     const type = parsed.parcelle_subtype || parsed.property_type;
-    chips.push({ key: 'type', label: type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, ' ') });
+    const label = TYPE_LABELS[type] || type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, ' ');
+    chips.push({ key: 'type', label });
+  }
+  if (parsed.amenities?.includes('furnished')) chips.push({ key: 'furnished', label: t('listings.amenities.furnished') });
+  if (parsed.plot_min != null) {
+    chips.push({ key: 'plot', label: t('listings.details.filter.chipMin', { min: Number(parsed.plot_min).toLocaleString(t.locale === 'en' ? 'en-GB' : 'fr-FR') }) });
   }
   if (parsed.near) chips.push({ key: 'near', label: t('home.search.near', { place: parsed.near }) });
   else if (parsed.commune) {
     const places = parsed.communes?.length > 1 ? parsed.communes : [parsed.commune];
-    chips.push({ key: 'place', label: [parsed.quartier, ...places].filter(Boolean).join(', ') });
+    chips.push({ key: 'place', label: [parsed.quartier, ...places.map(communeLabel), parsed.ville].filter(Boolean).join(', ') });
+  } else if (parsed.ville) {
+    chips.push({ key: 'place', label: parsed.ville });
   }
   if (parsed.beds_min != null) chips.push({ key: 'beds', label: t('home.search.bedsMin', { count: parsed.beds_min }) });
+  if (parsed.lease_term) chips.push({ key: 'lease', label: t(parsed.lease_term === 'short' ? 'home.search.leaseShort' : 'home.search.leaseLong') });
   const money = (n) => Number(n).toLocaleString(t.locale === 'en' ? 'en-GB' : 'fr-FR');
   if (parsed.price_min != null && parsed.price_max != null) {
     chips.push({ key: 'price', label: `${money(parsed.price_min)} – ${money(parsed.price_max)} $` });

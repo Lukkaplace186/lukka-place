@@ -1,4 +1,5 @@
 import { KINSHASA_COMMUNE_CENTROIDS } from './geocoding';
+import { CITIES, DEFAULT_CITY, cityOfCommune, findCity } from './cities';
 
 /**
  * The search-engine landing pages: /location, /vente and below them one page
@@ -22,7 +23,7 @@ export const SEO_TRANSACTIONS = {
 
 /**
  * URL slug → the `property_type` value getListings filters on (the category
- * name lowercased — "Bâtiment" keeps its accent there) and the plural label
+ * name lowercased — "Entrepôt" keeps its accent there) and the plural label
  * key. Plural slugs, because that is what people type: "appartements à louer".
  */
 export const SEO_PROPERTY_TYPES = {
@@ -30,10 +31,18 @@ export const SEO_PROPERTY_TYPES = {
   maisons: { propertyType: 'maison', pluralKey: 'listings.typePlurals.maison' },
   terrains: { propertyType: 'terrain', pluralKey: 'listings.typePlurals.terrain' },
   parcelles: { propertyType: 'parcelle', pluralKey: 'listings.typePlurals.parcelle' },
+  villas: { propertyType: 'villa', pluralKey: 'listings.typePlurals.villa' },
+  concessions: { propertyType: 'concession', pluralKey: 'listings.typePlurals.concession' },
+  // propertyType is the facet value (lowercased category name), so facet
+  // counts link to these pages.
+  studios: { propertyType: 'studio', pluralKey: 'listings.typePlurals.studio' },
+  chambres: { propertyType: 'chambre / annexe', pluralKey: 'listings.typePlurals.chambre' },
+  fermes: { propertyType: 'ferme / terrain agricole', pluralKey: 'listings.typePlurals.ferme' },
   duplex: { propertyType: 'duplex', pluralKey: 'listings.typePlurals.duplex' },
   penthouses: { propertyType: 'penthouse', pluralKey: 'seo.penthouses' },
   boutiques: { propertyType: 'boutique', pluralKey: 'listings.typePlurals.boutique' },
-  batiments: { propertyType: 'bâtiment', pluralKey: 'listings.typePlurals.batiment' },
+  // Was /batiments until 2026-10-22 (category renamed); next.config.mjs redirects it.
+  immeubles: { propertyType: 'immeuble', pluralKey: 'listings.typePlurals.immeuble' },
   entrepots: { propertyType: 'entrepôt', pluralKey: 'listings.typePlurals.entrepot' },
   bureaux: { propertyType: 'bureau', pluralKey: 'listings.typePlurals.bureau' },
   // Every commercial category at once (lib/commercialSpaces.js) — the page
@@ -73,6 +82,30 @@ export function communeSlug(commune) {
 
 const COMMUNE_BY_SLUG = Object.fromEntries(SEO_COMMUNES.map((c) => [communeSlug(c), c]));
 
+/**
+ * The other cities, one landing page each: /location/lubumbashi,
+ * /vente/terrains/goma. Kinshasa has none of its own — /location and /vente
+ * already ARE Kinshasa (a feed with no city runs there, lib/cities.js
+ * searchCityOf). City slugs come from lib/data/cities.json and cannot collide
+ * with a type or a Kinshasa commune slug (tests/unit/seo-pages.test.js).
+ */
+export const SEO_CITIES = CITIES.filter((c) => c.name !== DEFAULT_CITY).map((c) => c.name);
+const CITY_BY_SLUG = Object.fromEntries(CITIES.filter((c) => c.name !== DEFAULT_CITY).map((c) => [c.slug, c.name]));
+const SLUG_BY_CITY = Object.fromEntries(Object.entries(CITY_BY_SLUG).map(([slug, name]) => [name, slug]));
+
+/** Canonical city name for a landing slug ("mbuji-mayi" → "Mbuji-Mayi"), or null. Never Kinshasa. */
+export function cityFromSlug(slug) {
+  return CITY_BY_SLUG[String(slug || '').toLowerCase()] || null;
+}
+
+/**
+ * The city a getSeoFacets row counts in: its commune's city, else Kinshasa —
+ * the same default a feed with no city uses.
+ */
+export function facetCity(facet) {
+  return cityOfCommune(facet?.commune) || DEFAULT_CITY;
+}
+
 /** Canonical commune name for a slug, or null. */
 export function communeFromSlug(slug) {
   return COMMUNE_BY_SLUG[String(slug || '').toLowerCase()] || null;
@@ -90,6 +123,8 @@ export function typeSlugFor(propertyType) {
  *   [commune]         → one commune
  *   [type]            → one type, city-wide
  *   [type, commune]   → one type in one commune
+ *   [city]            → another city (SEO_CITIES), all types
+ *   [type, city]      → one type in another city
  * Type and commune slugs cannot collide: no commune is named like a type.
  */
 export function parseSeoSegments(transaction, segments = []) {
@@ -98,28 +133,34 @@ export function parseSeoSegments(transaction, segments = []) {
   const parts = (segments || []).map((s) => decodeURIComponent(String(s)).toLowerCase());
   if (parts.length > 2) return null;
 
-  const base = { transaction, transactionType: tx.transactionType, purpose: tx.purpose, typeSlug: null, propertyType: null, commune: null };
+  const base = { transaction, transactionType: tx.transactionType, purpose: tx.purpose, typeSlug: null, propertyType: null, commune: null, city: null };
   if (parts.length === 0) return base;
 
   if (parts.length === 1) {
     const [only] = parts;
     if (SEO_PROPERTY_TYPES[only]) return { ...base, typeSlug: only, propertyType: SEO_PROPERTY_TYPES[only].propertyType };
     const commune = communeFromSlug(only);
-    return commune ? { ...base, commune } : null;
+    if (commune) return { ...base, commune };
+    const city = cityFromSlug(only);
+    return city ? { ...base, city } : null;
   }
 
-  const [typeSlug, communePart] = parts;
+  const [typeSlug, placePart] = parts;
   const type = SEO_PROPERTY_TYPES[typeSlug];
-  const commune = communeFromSlug(communePart);
-  if (!type || !commune) return null;
-  return { ...base, typeSlug, propertyType: type.propertyType, commune };
+  if (!type) return null;
+  const typed = { ...base, typeSlug, propertyType: type.propertyType };
+  const commune = communeFromSlug(placePart);
+  if (commune) return { ...typed, commune };
+  const city = cityFromSlug(placePart);
+  return city ? { ...typed, city } : null;
 }
 
 /**
- * The path for a transaction + optional type + optional commune, or null when
- * the transaction or type has no landing page.
+ * The path for a transaction + optional type + optional commune or city, or
+ * null when there is no such landing page. A commune wins over a city (only
+ * Kinshasa's communes have pages); Kinshasa as a city is the root itself.
  */
-export function seoPath({ transaction, propertyType = null, commune = null }) {
+export function seoPath({ transaction, propertyType = null, commune = null, city = null }) {
   if (!SEO_TRANSACTIONS[transaction]) return null;
   const parts = [`/${transaction}`];
   if (propertyType) {
@@ -130,12 +171,15 @@ export function seoPath({ transaction, propertyType = null, commune = null }) {
   if (commune) {
     if (!COMMUNE_BY_SLUG[communeSlug(commune)]) return null;
     parts.push(communeSlug(commune));
+  } else if (city && city !== DEFAULT_CITY) {
+    if (!SLUG_BY_CITY[city]) return null;
+    parts.push(SLUG_BY_CITY[city]);
   }
   return parts.join('/');
 }
 
 /** /listings params that may be present and still map onto a landing page. */
-const LANDING_KEYS = new Set(['transaction_type', 'commune', 'property_type']);
+const LANDING_KEYS = new Set(['transaction_type', 'commune', 'property_type', 'ville']);
 /** Params that never change which listings a page shows. */
 const NEUTRAL_KEYS = new Set(['sort', 'view', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'fbclid', 'gclid']);
 
@@ -158,13 +202,19 @@ export function seoPathForParams(params = {}) {
   if (!SEO_TRANSACTIONS[transaction]) return null;
   const commune = pick('commune') ? SEO_COMMUNES.find((c) => c === pick('commune')) : null;
   if (pick('commune') && !commune) return null;
-  return seoPath({ transaction, propertyType: pick('property_type') || null, commune });
+  // ?ville=Lubumbashi is the Lubumbashi page; ?ville=Kinshasa adds nothing
+  // (the root is Kinshasa). A Kinshasa commune under another city matches no page.
+  const city = pick('ville') ? findCity(pick('ville'))?.name || null : null;
+  if (pick('ville') && !city) return null;
+  if (commune && city && city !== DEFAULT_CITY) return null;
+  return seoPath({ transaction, propertyType: pick('property_type') || null, commune, city: commune ? null : city });
 }
 
 /**
  * Landing paths with at least one approved listing, from getSeoFacets rows —
  * the sitemap lists these and nothing else, so Google is never sent to an
- * empty page. The two city-wide roots are always included.
+ * empty page. The two Kinshasa roots are always included; another city's pages
+ * (whole city, and per type) only once that city has a listing of that kind.
  */
 export function landingPathsFromFacets(facets) {
   const paths = new Set();
@@ -173,6 +223,12 @@ export function landingPathsFromFacets(facets) {
     for (const f of facets) {
       if (f.purpose !== purpose || f.count <= 0) continue;
       const typed = typeSlugFor(f.propertyType) ? f.propertyType : null;
+      const city = facetCity(f);
+      if (city !== DEFAULT_CITY) {
+        paths.add(seoPath({ transaction, city }));
+        if (typed) paths.add(seoPath({ transaction, propertyType: typed, city }));
+        continue;
+      }
       if (typed) paths.add(seoPath({ transaction, propertyType: typed }));
       if (f.commune) {
         paths.add(seoPath({ transaction, commune: f.commune }));
@@ -185,9 +241,10 @@ export function landingPathsFromFacets(facets) {
 }
 
 /** The /listings URL with the same filters — "affiner / voir sur la carte". */
-export function listingsHrefFor({ transactionType, propertyType, commune }) {
+export function listingsHrefFor({ transactionType, propertyType, commune, ville = null }) {
   const qs = new URLSearchParams();
   if (transactionType) qs.set('transaction_type', transactionType);
+  if (ville) qs.set('ville', ville);
   if (commune) qs.set('commune', commune);
   if (propertyType) qs.set('property_type', propertyType);
   const s = qs.toString();

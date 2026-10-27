@@ -1,5 +1,7 @@
 import Header from '@/components/Header';
-import { getFeatureFlags } from '@/lib/siteSettings';
+import { getFeatureFlags, getGrowthSettings } from '@/lib/siteSettings';
+import AdTracking from '@/components/AdTracking';
+import SignupNudge from '@/components/SignupNudge';
 import SiteShell from '@/components/SiteShell';
 import Footer from '@/components/Footer';
 import FavoriteResumeHandler from '@/components/FavoriteResumeHandler';
@@ -60,7 +62,7 @@ const SITE_NAMESPACES = [
 export default async function SiteLayout({ children }) {
   const rate = await getCdfRate();
   const { locale, messages } = await getI18n(SITE_NAMESPACES);
-  const features = await getFeatureFlags();
+  const [features, growth] = await Promise.all([getFeatureFlags(), getGrowthSettings()]);
 
   return (
     <I18nProvider locale={locale} messages={messages}>
@@ -68,7 +70,7 @@ export default async function SiteLayout({ children }) {
         <FavoriteResumeHandler />
         <AccountLimitNotice />
         <VisitCartMount />
-        <Header hiddenHrefs={features.publicProjects ? [] : ['/projets']} />
+        <Header hiddenHrefs={[...(features.publicProjects ? [] : ['/projets']), ...(features.publicBlog ? [] : ['/guides'])]} />
         <SiteShell>
           {/* min-h-0 alongside flex-1: a flex item's default min-height is
               `auto` (its content size), not 0 — the standard real fix for the
@@ -81,6 +83,10 @@ export default async function SiteLayout({ children }) {
           <Footer />
         </SiteShell>
         <ImpersonationBanner />
+        {/* Meta / TikTok pixels, and the consent banner in Europe (lib/adTrackingRules.js). */}
+        <AdTracking metaPixelId={growth.metaPixelId} tiktokPixelId={growth.tiktokPixelId} />
+        {/* "Créez un compte…" at the right moments (growth plan item 24). */}
+        <SignupNudge />
       </CurrencyRateProvider>
     </I18nProvider>
   );

@@ -30,6 +30,21 @@ export const RECORD_LEAD_CLICK_SQL = `
           (SELECT agent_id FROM properties WHERE id = $1::bigint), $7::text, ${viewerKindSql('$8', '$1', '$9')})
 `;
 
+/**
+ * Which button was tapped (migrations/20261026_whatsapp_click_placement.sql):
+ * a listing card's WhatsApp action (feed, rails, map cards), the listing
+ * page's enquiry card, or the phone's bottom bar on a listing page. Used only
+ * when the client named one; before the migration the INSERT falls back to
+ * RECORD_LEAD_CLICK_SQL, then to the legacy one.
+ */
+export const LEAD_CLICK_PLACEMENTS = ['card', 'listing_page', 'listing_mobile_bar'];
+
+export const RECORD_LEAD_CLICK_PLACEMENT_SQL = `
+  INSERT INTO whatsapp_clicks (listing_id, commune, device, source, price, routing_type, agent_id, visitor_id, viewer_kind, placement)
+  VALUES ($1::bigint, $2::text, $3::text, $4::text, $5::numeric, $6::text,
+          (SELECT agent_id FROM properties WHERE id = $1::bigint), $7::text, ${viewerKindSql('$8', '$1', '$9')}, $10::text)
+`;
+
 export const RECORD_LEAD_CLICK_LEGACY_SQL = `
   INSERT INTO whatsapp_clicks (listing_id, commune, device, source, price, routing_type, agent_id)
   VALUES ($1::bigint, $2::text, $3::text, $4::text, $5::numeric, $6::text,
@@ -40,19 +55,30 @@ export const RECORD_LEAD_CLICK_LEGACY_SQL = `
  * @param {import('pg').Pool} pool
  * @param {{listingId: number, commune: string|null, device: string|null, source: string|null,
  *          price: number|null, routingType: 'DIRECT_WA'|'CENTRAL_FALLBACK',
- *          visitorId?: string|null, viewerKind?: string, agentId?: number|null}} click
+ *          visitorId?: string|null, viewerKind?: string, agentId?: number|null,
+ *          placement?: string|null}} click — an unknown placement is stored as none.
  * @returns {Promise<boolean>} whether a row was written.
  */
 export async function recordLeadClick(pool, {
   listingId, commune, device, source, price, routingType, visitorId = null, viewerKind = 'visitor', agentId = null,
+  placement = null,
 }) {
   if (!LEAD_CLICK_ROUTING_TYPES.includes(routingType)) {
     throw new Error(`recordLeadClick: unknown routing type '${routingType}'`);
   }
   const base = [listingId, commune || null, device, source, price, routingType];
+  const kind = VIEWER_KINDS.includes(viewerKind) ? viewerKind : 'visitor';
+  const tracked = [...base, visitorId || null, kind, agentId || null];
+  if (LEAD_CLICK_PLACEMENTS.includes(placement)) {
+    try {
+      const result = await pool.query(RECORD_LEAD_CLICK_PLACEMENT_SQL, [...tracked, placement]);
+      return result.rowCount > 0;
+    } catch (err) {
+      if (err?.code !== '42703') throw err;
+    }
+  }
   try {
-    const kind = VIEWER_KINDS.includes(viewerKind) ? viewerKind : 'visitor';
-    const result = await pool.query(RECORD_LEAD_CLICK_SQL, [...base, visitorId || null, kind, agentId || null]);
+    const result = await pool.query(RECORD_LEAD_CLICK_SQL, tracked);
     return result.rowCount > 0;
   } catch (err) {
     if (err?.code !== '42703') throw err;

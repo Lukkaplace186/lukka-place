@@ -18,7 +18,7 @@ export default function PageShell({ eyebrow, title, lead, breadcrumb, align = 'l
 
       <header className={centered ? 'text-center' : ''}>
         {eyebrow ? <p className="u-eyebrow mb-4">{eyebrow}</p> : null}
-        <h1 className="font-display text-[2rem] font-normal leading-[1.12] tracking-[-0.02em] text-ink sm:text-[2.5rem]">
+        <h1 className="font-bold text-[2rem] leading-[1.12] tracking-[-0.02em] text-ink sm:text-[2.5rem]">
           {title}
         </h1>
         {lead ? <p className="mt-4 text-[1.0625rem] leading-relaxed text-ink-45">{lead}</p> : null}

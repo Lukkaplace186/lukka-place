@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { entryCostBreakdown } from '@/lib/listingView';
-import { formatPriceParts } from '@/lib/format';
+import { formatPriceParts, frNumber } from '@/lib/format';
 
 /**
  * "3 + 1 + 1" is complete information for an agent and nearly none for a
@@ -147,5 +147,5 @@ test('entry-cost amounts are formatted WITHOUT a "/ mois" suffix', () => {
   // monthly charge five times the actual rent, which is what shipped once.
   assert.equal(formatPriceParts(1500, 'rent', 'total').period, '/ mois');
   assert.equal(formatPriceParts(1500, 'oneOff').period, null);
-  assert.equal(formatPriceParts(1500, 'oneOff').amount, '1 500 $');
+  assert.equal(formatPriceParts(1500, 'oneOff').amount, `${frNumber(1500)} $`);
 });

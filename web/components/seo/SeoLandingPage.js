@@ -13,10 +13,13 @@ import { SITE_URL, ICON_STROKE_WIDTH } from '@/lib/constants';
 import { KINSHASA_COMMUNE_CENTROIDS } from '@/lib/geocoding';
 import { distanceKm } from '@/lib/mapViewport';
 import { GUIDES } from '@/lib/guides';
+import { DEFAULT_CITY, provinceOfCity } from '@/lib/cities';
 import {
   SEO_PROPERTY_TYPES,
   OVERLAY_PROPERTY_TYPES,
   SEO_TRANSACTIONS,
+  SEO_CITIES,
+  facetCity,
   listingsHrefFor,
   parseSeoSegments,
   seoPath,
@@ -32,7 +35,7 @@ const base = SITE_URL.replace(/\/+$/, '');
 function labels(page, t) {
   const type = page.typeSlug ? t(SEO_PROPERTY_TYPES[page.typeSlug].pluralKey) : t('seo.allTypes');
   const transaction = t(SEO_TRANSACTIONS[page.transaction].labelKey);
-  const place = page.commune ? (page.commune === 'Kinshasa' ? t('seo.communeKinshasa') : page.commune) : t('seo.city');
+  const place = page.commune ? (page.commune === 'Kinshasa' ? t('seo.communeKinshasa') : page.commune) : page.city || t('seo.city');
   const heading = t('seo.heading', { type, transaction, place });
   const lowerType = type.charAt(0).toLowerCase() + type.slice(1);
   const headingLower = t('seo.headingLower', { type: lowerType, transaction, place });
@@ -46,7 +49,8 @@ function labels(page, t) {
 const loadPage = cache(async (transaction, slugKey) => {
   const page = parseSeoSegments(transaction, slugKey ? slugKey.split('/') : []);
   if (!page) return null;
-  const filters = { transactionType: page.transactionType, propertyType: page.propertyType, commune: page.commune };
+  // ville only on another city's page: without it a feed runs in Kinshasa.
+  const filters = { transactionType: page.transactionType, propertyType: page.propertyType, commune: page.commune, ville: page.city };
   const [stats, results, facets] = await Promise.all([
     getListingStats(filters),
     getListings({ ...filters, limit: PAGE_LISTINGS, sort: 'complete' }),
@@ -80,6 +84,11 @@ export async function seoLandingMetadata(transaction, params) {
     robots: total > 0 ? undefined : { index: false, follow: true },
     openGraph: { title: heading, description, url: path, type: 'website' },
   };
+}
+
+/** Facet rows of one purpose, every city. */
+function samePurposeAllCities(facets, purpose) {
+  return facets.filter((f) => f.purpose === purpose);
 }
 
 /** Group facet rows by one key, summing counts. */
@@ -142,7 +151,11 @@ export default async function SeoLandingPage({ transaction, params }) {
   // the Bureau / Boutique / Entrepôt rows), so they are left out of any
   // all-types total.
   const matchesType = (f, propertyType) => (propertyType ? f.propertyType === propertyType : !OVERLAY_PROPERTY_TYPES.has(f.propertyType));
-  const samePurpose = facets.filter((f) => f.purpose === purpose);
+  // Only this page's city counts: Lubumbashi's appartements are not links
+  // from Kinshasa's page, nor part of its totals.
+  const pageCity = page.city || DEFAULT_CITY;
+  const cityFacets = facets.filter((f) => facetCity(f) === pageCity);
+  const samePurpose = cityFacets.filter((f) => f.purpose === purpose);
   const sameType = samePurpose.filter((f) => matchesType(f, page.propertyType));
 
   const communeCounts = sumBy(sameType, 'commune').filter((c) => c.value !== page.commune);
@@ -165,26 +178,40 @@ export default async function SeoLandingPage({ transaction, params }) {
     .filter((f) => f.value !== page.propertyType && typeSlugFor(f.value))
     .sort((a, b) => b.count - a.count)
     .map((f) => ({
-      href: seoPath({ transaction, propertyType: f.value, commune: page.commune }),
+      href: seoPath({ transaction, propertyType: f.value, commune: page.commune, city: page.city }),
       label: t(SEO_PROPERTY_TYPES[typeSlugFor(f.value)].pluralKey),
       count: f.count,
     }));
   if (page.propertyType) {
-    typeLinks.unshift({ href: seoPath({ transaction, commune: page.commune }), label: t('seo.allTypes') });
+    typeLinks.unshift({ href: seoPath({ transaction, commune: page.commune, city: page.city }), label: t('seo.allTypes') });
   }
 
   const otherTransaction = transaction === 'location' ? 'vente' : 'location';
   const otherPurpose = SEO_TRANSACTIONS[otherTransaction].purpose;
-  const otherCount = facets
+  const otherCount = cityFacets
     .filter((f) => f.purpose === otherPurpose && (!page.commune || f.commune === page.commune) && matchesType(f, page.propertyType))
     .reduce((sum, f) => sum + f.count, 0);
   const seeAlso = otherCount > 0
     ? [{
-        href: seoPath({ transaction: otherTransaction, propertyType: page.propertyType, commune: page.commune }),
+        href: seoPath({ transaction: otherTransaction, propertyType: page.propertyType, commune: page.commune, city: page.city }),
         label: t('seo.heading', { type, transaction: t(SEO_TRANSACTIONS[otherTransaction].labelKey), place }),
         count: otherCount,
       }]
     : [];
+
+  // Other cities with listings of this kind, for a page that names no
+  // commune — the link that lets a crawler reach /location/lubumbashi from
+  // /location, and a Lubumbashi visitor back to Kinshasa.
+  const cityLinks = page.commune
+    ? []
+    : sumBy(
+        samePurposeAllCities(facets, purpose).filter((f) => matchesType(f, page.propertyType)).map((f) => ({ ...f, city: facetCity(f) })),
+        'city',
+      )
+        .filter((c) => c.value !== pageCity && (c.value === DEFAULT_CITY || SEO_CITIES.includes(c.value)))
+        .sort((a, b) => b.count - a.count || a.value.localeCompare(b.value))
+        .map((c) => ({ href: seoPath({ transaction, propertyType: page.propertyType, city: c.value }), label: c.value, count: c.count }))
+        .filter((l) => l.href);
 
   // ---- figures ----
   const showMedian = Boolean(page.propertyType) && stats.pricedCount >= MIN_MEDIAN_SAMPLE && stats.priceMedian != null;
@@ -217,8 +244,14 @@ export default async function SeoLandingPage({ transaction, params }) {
     { label: t('breadcrumb.home'), href: '/' },
     { label: transaction === 'location' ? t('seo.breadcrumbRent') : t('seo.breadcrumbSale'), href: `/${transaction}` },
   ];
-  if (page.propertyType) crumbs.push({ label: type, href: seoPath({ transaction, propertyType: page.propertyType }) });
-  if (page.commune) crumbs.push({ label: place, href: path });
+  if (page.city) {
+    // Home > Louer > Lubumbashi > Appartements: the city is the wider page.
+    crumbs.push({ label: place, href: seoPath({ transaction, city: page.city }) });
+    if (page.propertyType) crumbs.push({ label: type, href: path });
+  } else {
+    if (page.propertyType) crumbs.push({ label: type, href: seoPath({ transaction, propertyType: page.propertyType }) });
+    if (page.commune) crumbs.push({ label: place, href: path });
+  }
   crumbs[crumbs.length - 1] = { label: crumbs[crumbs.length - 1].label };
 
   const refineHref = listingsHrefFor(filters);
@@ -242,7 +275,9 @@ export default async function SeoLandingPage({ transaction, params }) {
         name: heading,
         url: `${base}${path}`,
         inLanguage: t.locale === 'en' ? 'en' : 'fr',
-        about: { '@type': 'Place', name: page.commune ? `${page.commune}, Kinshasa` : 'Kinshasa', address: { '@type': 'PostalAddress', addressLocality: page.commune || 'Kinshasa', addressRegion: 'Kinshasa', addressCountry: 'CD' } },
+        about: page.city
+          ? { '@type': 'Place', name: page.city, address: { '@type': 'PostalAddress', addressLocality: page.city, addressRegion: provinceOfCity(page.city) || undefined, addressCountry: 'CD' } }
+          : { '@type': 'Place', name: page.commune ? `${page.commune}, Kinshasa` : 'Kinshasa', address: { '@type': 'PostalAddress', addressLocality: page.commune || 'Kinshasa', addressRegion: 'Kinshasa', addressCountry: 'CD' } },
         mainEntity: listings.length
           ? {
               '@type': 'ItemList',
@@ -265,7 +300,7 @@ export default async function SeoLandingPage({ transaction, params }) {
         <Breadcrumb className="mb-5" items={crumbs} />
 
         <header className="flex flex-col gap-3">
-          <h1 className="font-display text-[1.875rem] font-normal leading-[1.15] tracking-[-0.01em] text-ink sm:text-[2.5rem]">
+          <h1 className="font-bold text-[1.875rem] leading-[1.15] tracking-[-0.01em] text-ink sm:text-[2.5rem]">
             {heading}
           </h1>
           <p className="max-w-3xl text-[1.0625rem] leading-relaxed text-ink-45">
@@ -349,6 +384,7 @@ export default async function SeoLandingPage({ transaction, params }) {
             <LinkList title={stats.total === 0 && page.commune ? t('seo.nearbyCommunes') : t('seo.otherCommunes')} links={communeLinks} />
             <LinkList title={t('seo.otherTypes', { transaction: txLabel, place })} links={typeLinks.filter((l) => l.href)} />
             <LinkList title={t('seo.otherTransaction')} links={seeAlso.filter((l) => l.href)} />
+            <LinkList title={t('seo.otherCities')} links={cityLinks} />
             {guides.length ? (
               <section className="flex flex-col gap-3">
                 <h2 className="u-h2 text-ink">{t('seo.guidesTitle')}</h2>

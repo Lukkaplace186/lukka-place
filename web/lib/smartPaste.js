@@ -61,19 +61,22 @@ const CATEGORY_HINTS_BY_SUBTYPE = {
 
 const CATEGORY_HINTS_BY_TYPE = {
   appartement: 'appartement',
-  studio: 'appartement',
+  studio: ['studio', 'appartement'],
+  chambre: ['annexe', 'appartement'],
   duplex: 'appartement',
   chambre_salon: 'appartement',
   villa: 'villa',
   maison: 'maison',
   parcelle: 'maison',
   terrain: 'terrain',
+  concession: 'concession',
+  ferme: ['ferme', 'terrain'],
   bureau: 'bureau',
   boutique: 'boutique',
   entrepot: 'entrepot',
-  // The database's whole-building category is "Bâtiment" (normalised
-  // "batiment"); "immeuble" matched nothing.
-  immeuble: 'batiment',
+  // The whole-building category is "Immeuble" since 2026-10-22, "Bâtiment"
+  // before: both are tried, in that order.
+  immeuble: ['immeuble', 'batiment'],
 };
 
 /**
@@ -86,8 +89,11 @@ const CATEGORY_HINTS_BY_TYPE = {
 export function matchCategoryId(categories, propertyType, parcelleSubtype) {
   const hint = CATEGORY_HINTS_BY_SUBTYPE[parcelleSubtype] || CATEGORY_HINTS_BY_TYPE[propertyType];
   if (!hint) return null;
-  const match = categories.find((c) => normalize(c.name).includes(hint));
-  return match ? match.id : null;
+  for (const wanted of [].concat(hint)) {
+    const match = categories.find((c) => normalize(c.name).includes(wanted));
+    if (match) return match.id;
+  }
+  return null;
 }
 
 /**
@@ -178,15 +184,32 @@ export function buildFormValuesFromParsed(extracted, { communes, categories = []
     currency: extracted.price != null ? (extracted.currency === 'CDF' ? 'CDF' : 'USD') : null,
     beds: extracted.bedrooms != null ? String(extracted.bedrooms) : '',
     bath: extracted.bathrooms != null ? String(extracted.bathrooms) : '',
-    area: extracted.surface_area_sqm != null ? String(Math.round(extracted.surface_area_sqm)) : '',
+    area: extracted.surface_area_sqm != null ? String(Math.round(extracted.surface_area_sqm * 100) / 100) : '',
     unitsCount: extracted.units_count != null ? String(extracted.units_count) : '',
     depositMonths: extracted.deposit_months != null ? String(extracted.deposit_months) : '',
+    advanceMonths: extracted.advance_months != null ? String(extracted.advance_months) : '',
+    commissionMonths: extracted.commission_months != null ? String(extracted.commission_months) : '',
     // Commercial-space specs (lib/commercialSpaces.js) — the engine already
     // nulls them for a home; only a stated "yes" ticks a box.
     officeCount: Number.isInteger(extracted.office_count) ? String(extracted.office_count) : null,
     floorLevel: Number.isInteger(extracted.floor_level) ? extracted.floor_level : null,
     roadFrontage: extracted.road_frontage === true,
     truckAccess: extracted.truck_access === true,
+    // Practical details (lib/listingDetails.js), raw: ListingDetailFields'
+    // applyDetailsToForm writes only what was stated.
+    details: {
+      furnished: extracted.furnished ?? null,
+      households_count: extracted.households_count ?? null,
+      landlord_on_site: extracted.landlord_on_site ?? null,
+      has_generator: extracted.has_generator ?? null,
+      has_pool: extracted.has_pool ?? null,
+      has_gym: extracted.has_gym ?? null,
+      has_solar: extracted.has_solar ?? null,
+      electricity_meter: extracted.electricity_meter ?? null,
+      plot_dimensions: extracted.plot_dimensions ?? null,
+      installments_available: extracted.installments_available ?? null,
+      installment_terms: extracted.installment_terms ?? null,
+    },
     amenityIds,
     description: cleanDescription(extracted.description_fr),
   };

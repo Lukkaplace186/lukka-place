@@ -3,6 +3,8 @@ import { isValidSessionToken, ADMIN_SESSION_COOKIE } from '@/lib/adminAuth';
 import { isValidCustomerSessionToken, CUSTOMER_SESSION_COOKIE } from '@/lib/customerAuth';
 import { isValidAgentSessionToken, AGENT_SESSION_COOKIE, AGENT_LOGGED_IN_FLAG_COOKIE, AGENT_SESSION_TTL_SECONDS } from '@/lib/agentAuth';
 import { IMPERSONATION_COOKIE, impersonationDecision } from '@/lib/impersonationToken';
+import { normaliseSearchAliases } from '@/lib/searchAliases';
+import { refParamApplies, searchWithoutRef } from '@/lib/partnerRules';
 
 /**
  * Gates /admin/* (team password), /compte/agent/* (agent self-service
@@ -28,6 +30,18 @@ export const config = {
       source: '/((?!_next/static|_next/image|favicon\\.ico).*)',
       has: [{ type: 'cookie', key: 'lukka_impersonation' }],
     },
+    // /listings?city=…&location=… — aliases redirected onto the real
+    // ville / commune params (lib/searchAliases.js). Only URLs carrying one
+    // reach the proxy; ordinary searches never do.
+    { source: '/listings', has: [{ type: 'query', key: 'city' }] },
+    { source: '/listings', has: [{ type: 'query', key: 'location' }] },
+    // `?ref=CODE` on any page — a partner's code (lib/partnerRules.js), sent
+    // through /go so the click is counted and the code remembered. Only URLs
+    // carrying one reach the proxy.
+    {
+      source: '/((?!_next/static|_next/image|favicon\\.ico|api/|go/|r/).*)',
+      has: [{ type: 'query', key: 'ref' }],
+    },
   ],
   runtime: 'nodejs',
 };
@@ -43,6 +57,9 @@ const PUBLIC_COMPTE_PATHS = new Set([
   '/compte/connexion',
   '/compte/inscription',
   '/compte/inscription/verifier',
+  // A customer account created on WhatsApp sets its first password here,
+  // before any session exists; guarded by the single-use token in its URL.
+  '/compte/activer',
 ]);
 const PUBLIC_AGENT_PATHS = new Set([
   '/compte/agent/connexion',
@@ -111,6 +128,27 @@ export function middleware(request) {
   }
   if (impersonation === 'exit') {
     return NextResponse.redirect(new URL('/admin/impersonation/exit', request.url));
+  }
+
+  // A partner code on any page: counted and remembered by /go, which lands
+  // back on this page without it. Agent signup keeps its own `?ref=` (a sales
+  // rep's code that prefills the form).
+  if (request.method === 'GET' && request.nextUrl.searchParams?.has('ref') && refParamApplies(pathname)) {
+    const code = request.nextUrl.searchParams.get('ref') || '';
+    const back = `${pathname}${searchWithoutRef(search)}`;
+    const target = new URL(`/go/${encodeURIComponent(code.slice(0, 40)) || '-'}`, request.url);
+    target.searchParams.set('via', 'param');
+    target.searchParams.set('to', back);
+    return NextResponse.redirect(target, 307);
+  }
+
+  if (pathname === '/listings') {
+    const normalised = normaliseSearchAliases(request.nextUrl.searchParams);
+    if (normalised !== null) {
+      const target = request.nextUrl.clone();
+      target.search = normalised;
+      return NextResponse.redirect(target, 308);
+    }
   }
 
   if (pathname.startsWith('/admin')) {

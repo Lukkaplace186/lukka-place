@@ -117,6 +117,23 @@ function evaluateHealth(health, { now = Date.now(), postgres = null } = {}) {
     alerts.push({ key: 'traffic:silent', severity: 'warning', message });
   }
 
+  // The group reader is a separate process on an unofficial WhatsApp client:
+  // a ban, a logged-out session or a WhatsApp update stops it in silence.
+  // Nothing reaching the engine for GROUP_READER_SILENCE_HOURS is the only
+  // signal of that; it starts counting at the first post the reader sent.
+  if (health?.groupReader?.enabled) {
+    const lastIngest = toInstant(health.groupReader.lastIngestAt);
+    const readerHours = positiveEnv('GROUP_READER_SILENCE_HOURS', 12);
+    if (lastIngest && now - lastIngest.getTime() > readerHours * HOUR_MS) {
+      const hours = Math.floor((now - lastIngest.getTime()) / HOUR_MS);
+      alerts.push({
+        key: 'group-reader:silent',
+        severity: 'warning',
+        message: `Le lecteur de groupes WhatsApp n'a rien transmis depuis ${hours} h. Vérifier « pm2 logs lukka-group-reader » : session déconnectée ou numéro bloqué.`,
+      });
+    }
+  }
+
   const failedPushes = Number(health?.failures?.failedPushes24h) || 0;
   if (failedPushes >= positiveEnv('OPS_ALERT_FAILED_PUSHES', 3)) {
     alerts.push({

@@ -18,10 +18,11 @@
  *   recorded, not retried the same day.
  * - **"STOP RÉSUMÉ"** opts an agent out (`agent_digest_optouts`, handled in
  *   routes/webhook.js before anything else reads the message).
- * - **Delivery.** A session message: without an approved template
- *   (AGENT_DIGEST_TEMPLATE, unset) it reaches agents who messaged the business
- *   number in the last 24 hours — the same rule as every other outbound
- *   message (root CLAUDE.md, "Outbound WhatsApp"). The log counts refusals.
+ * - **Delivery.** A session message, which reaches only agents who messaged
+ *   the business number in the last 24 hours (root CLAUDE.md, "Outbound
+ *   WhatsApp"), except where a template is configured: AGENT_DAY_TEMPLATE for
+ *   a day with visits, AGENT_WEEKLY_TEMPLATE for Monday's numbers. The log
+ *   counts refusals by Chakra, not by Meta.
  */
 
 const pg = require('./postgres');
@@ -67,6 +68,16 @@ function digits(value) {
 /** YYYY-MM-DD of `now` in Kinshasa (UTC+1, no DST). */
 function kinshasaDay(now = new Date()) {
   return new Date(now.getTime() + 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+/**
+ * `AGENT_WEEKLY_DIGEST=off` stops Monday's numbers (views, clicks, stale
+ * projects): Monday becomes an ordinary day, and an agent with nothing else
+ * to say gets nothing. Read at call time. On hold since 2026-10-27 (owner:
+ * "until we get traction with customers").
+ */
+function weeklyDigestEnabled() {
+  return String(process.env.AGENT_WEEKLY_DIGEST || '').trim().toLowerCase() !== 'off';
 }
 
 /** Monday in Kinshasa — the day the weekly numbers ride along. */
@@ -265,25 +276,31 @@ function kinshasaTime(iso, utcOffset = 1) {
  * @param {{pendingVisits?: number, visitsToday?: string[], newRequests?: number}} counts
  * @param {{views: number, clicks: number, top: {title: string, views: number}|null}|null} weekly
  */
-function composeDigest(agent, counts = {}, weekly = null, stale = []) {
-  const lines = [];
+/** The day's to-do items, without bullets — shared by the text and the weekly template. */
+function todoItems(agent, counts = {}, stale = []) {
+  const items = [];
   const pending = counts.pendingVisits || 0;
   const today = counts.visitsToday || [];
   const requests = counts.newRequests || 0;
   const toConfirm = Number(agent.to_confirm) || 0;
   const inReview = Number(agent.in_review) || 0;
 
-  if (pending) lines.push(`• ${plural(pending, 'demande de visite attend', 'demandes de visite attendent')} votre réponse`);
+  if (pending) items.push(`${plural(pending, 'demande de visite attend', 'demandes de visite attendent')} votre réponse`);
   if (today.length) {
     const times = today.map((iso, i) => kinshasaTime(iso, counts.visitOffsets?.[i])).filter(Boolean);
-    lines.push(`• ${plural(today.length, 'visite', 'visites')} aujourd'hui${times.length ? ` (${times.join(', ')})` : ''}`);
+    items.push(`${plural(today.length, 'visite', 'visites')} aujourd'hui${times.length ? ` (${times.join(', ')})` : ''}`);
   }
-  if (requests) lines.push(`• ${plural(requests, 'nouvelle demande client', 'nouvelles demandes clients')} dans vos communes`);
-  if (toConfirm) lines.push(`• ${plural(toConfirm, 'bien à confirmer', 'biens à confirmer')} (« toujours disponible ? »)`);
-  if (inReview) lines.push(`• ${plural(inReview, 'annonce en cours de relecture', 'annonces en cours de relecture')} par notre équipe`);
+  if (requests) items.push(`${plural(requests, 'nouvelle demande client', 'nouvelles demandes clients')} dans vos communes`);
+  if (toConfirm) items.push(`${plural(toConfirm, 'bien à confirmer', 'biens à confirmer')} (« toujours disponible ? »)`);
+  if (inReview) items.push(`${plural(inReview, 'annonce en cours de relecture', 'annonces en cours de relecture')} par notre équipe`);
   for (const name of (stale || []).slice(0, 3)) {
-    lines.push(`• ${name} : aucune photo de chantier depuis ${PROJECT_STALE_DAYS} jours — ajoutez-en une pour rassurer les acheteurs`);
+    items.push(`${name} : aucune photo de chantier depuis ${PROJECT_STALE_DAYS} jours — ajoutez-en une pour rassurer les acheteurs`);
   }
+  return items;
+}
+
+function composeDigest(agent, counts = {}, weekly = null, stale = []) {
+  const lines = todoItems(agent, counts, stale).map((item) => `• ${item}`);
 
   const weeklyLines = [];
   if (weekly && weekly.views > 0) {
@@ -340,15 +357,94 @@ async function sendDayTemplate(phone, name, bodyParams) {
   });
 }
 
+// The Monday report as a TEMPLATE (2026-10-26), for the same reason: the
+// weekly numbers reached only agents who had written to us in 24h (14
+// "sent" on 2026-10-26, most of them refused by Meta). Submitted as
+// `bilan_hebdo_agent` (UTILITY, fr, no header, footer "Répondez STOP RÉSUMÉ
+// pour ne plus recevoir ce message.", STATIC URL button "Voir mon espace" →
+// /compte/agent):
+//   "Bonjour {{1}}, voici le bilan de vos annonces sur Lukka Place pour la
+//    semaine du {{2}} :\n\nVues : {{3}}\nClics WhatsApp : {{4}}\nAnnonce la
+//    plus vue : {{5}}\n\nÀ faire : {{6}}\n\nOuvrez votre espace agent pour le
+//    détail de chaque annonce."
+// When accepted it IS the Monday message: the to-do list rides in {{6}} and
+// the per-listing lines are behind the button. Unset by default, read at call
+// time; unset or refused → the day template / text exactly as before.
+const weeklyTemplateName = () => (process.env.AGENT_WEEKLY_TEMPLATE || '').trim() || null;
+
+const FRENCH_MONTHS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+
+/** "19 octobre" / "1er décembre" — the first day of the 7 counted (weeklyStats: CURRENT_DATE - 7). */
+function weekStartLabel(now = new Date()) {
+  const start = new Date(`${kinshasaDay(now)}T00:00:00Z`);
+  start.setUTCDate(start.getUTCDate() - 7);
+  const day = start.getUTCDate();
+  return `${day === 1 ? '1er' : day} ${FRENCH_MONTHS[start.getUTCMonth()]}`;
+}
+
+/** A Meta variable holds 200 characters: keep whole items, mark what was left out. */
+const TODO_MAX = 200;
+function todoSummary(items) {
+  if (!items.length) return 'rien en attente';
+  const kept = [];
+  for (const item of items) {
+    const next = [...kept, item].join(' · ');
+    if (next.length > TODO_MAX - 4) break;
+    kept.push(item);
+  }
+  if (!kept.length) return `${items[0].slice(0, TODO_MAX - 1)}…`;
+  return kept.length < items.length ? `${kept.join(' · ')} · …` : kept.join(' · ');
+}
+
+/** Body values for the weekly template, or null when there were no views to report. */
+function weeklyTemplateParams(agent, counts = {}, weekly = null, stale = [], now = new Date()) {
+  if (!weekly || !(weekly.views > 0)) return null;
+  const { templateValue } = require('./viewingNotifications');
+  const top = weekly.top && weekly.top.views > 0
+    ? `${String(weekly.top.title || `Annonce n° ${weekly.top.id}`).trim()} (${plural(weekly.top.views, 'vue', 'vues')})`
+    : null;
+  return [
+    templateValue(agent.first_name, 'partenaire'),
+    weekStartLabel(now),
+    String(weekly.views),
+    String(weekly.clicks || 0),
+    templateValue(top, 'aucune cette semaine'),
+    templateValue(todoSummary(todoItems(agent, counts, stale)), 'rien en attente'),
+  ];
+}
+
+async function sendWeeklyTemplate(phone, name, bodyParams) {
+  const { templateOptions } = require('./viewingNotifications');
+  return chakra.sendTemplate(phone, name, {
+    languageCode: process.env.AGENT_WEEKLY_TEMPLATE_LANG || 'fr',
+    bodyParams,
+    ...templateOptions(name),
+  });
+}
+
 /**
- * Send one agent their morning: the day template when there are visits today
- * and one is configured, then the text when it says anything more. Throws when
- * nothing at all was accepted.
+ * Send one agent their morning. Monday with views: the weekly template when
+ * one is configured, and nothing else. Otherwise the day template when there
+ * are visits today and one is configured, then the text when it says anything
+ * more. Throws when nothing at all was accepted.
  */
 async function deliverDigest(phone, agent, counts = {}, weekly = null, stale = [], {
   send = chakra.sendWhatsAppMessage,
   sendTemplate = sendDayTemplate,
+  sendWeekly = sendWeeklyTemplate,
+  now = new Date(),
 } = {}) {
+  const weeklyName = weeklyTemplateName();
+  const weeklyParams = weeklyName ? weeklyTemplateParams(agent, counts, weekly, stale, now) : null;
+  if (weeklyParams) {
+    try {
+      await sendWeekly(phone, weeklyName, weeklyParams);
+      return 'weekly-template';
+    } catch (err) {
+      console.warn(`[digest] weekly template '${weeklyName}' failed for ${phone}, sending the usual digest: ${err.message}`);
+    }
+  }
+
   const message = composeDigest(agent, counts, weekly, stale);
   const name = dayTemplateName();
   const params = name ? dayTemplateParams(agent, counts) : null;
@@ -370,10 +466,15 @@ async function deliverDigest(phone, agent, counts = {}, weekly = null, stale = [
   return 'session';
 }
 
-async function runAgentDigest({ now = new Date(), send = chakra.sendWhatsAppMessage, sendTemplate = sendDayTemplate } = {}) {
+async function runAgentDigest({
+  now = new Date(),
+  send = chakra.sendWhatsAppMessage,
+  sendTemplate = sendDayTemplate,
+  sendWeekly = sendWeeklyTemplate,
+} = {}) {
   if (!pg.isConfigured()) return { skipped: 'postgres not configured' };
   const day = kinshasaDay(now);
-  const weeklyDay = isKinshasaMonday(now);
+  const weeklyDay = isKinshasaMonday(now) && weeklyDigestEnabled();
 
   const agents = await loadAgents();
   const counts = engineCounts(now);
@@ -397,7 +498,7 @@ async function runAgentDigest({ now = new Date(), send = chakra.sendWhatsAppMess
     }
     if (claim.run(id, day, weeklyDay ? 1 : 0).changes === 0) continue;
     try {
-      await deliverDigest(phone, agent, counts.get(id) || {}, weekly.get(id) || null, stale.get(id) || [], { send, sendTemplate });
+      await deliverDigest(phone, agent, counts.get(id) || {}, weekly.get(id) || null, stale.get(id) || [], { send, sendTemplate, sendWeekly, now });
       settle.run('SENT', null, id, day);
       sent += 1;
     } catch (err) {
@@ -430,6 +531,8 @@ const agentDigestJob = { name: JOB_NAME, shouldRun: digestDue, run: () => runAge
 module.exports = {
   deliverDigest,
   dayTemplateParams,
+  weeklyTemplateParams,
+  weekStartLabel,
   agentDigestJob,
   loadAgents,
   weeklyStats,

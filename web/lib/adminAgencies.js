@@ -1,6 +1,7 @@
 import 'server-only';
 import { getPool } from './db';
 import { vendorNameSql } from './vendorName';
+import { repAgentCondition } from './salesScopeSql';
 
 /**
  * Agencies (`vendors`) for the admin console. At 30k agents the team manages
@@ -57,24 +58,30 @@ const AGENCY_JOINS = `
   ) pc ON true
 `;
 
-export async function listAgenciesForAdmin({ q, plan, sort = 'name', limit = 25, offset = 0 } = {}) {
+export async function listAgenciesForAdmin({ q, plan, sort = 'name', limit = 25, offset = 0, repId = null } = {}) {
   const params = [];
   // Soft-deleted agencies (lib/adminSoftDelete.js) leave the list.
   const where = ['v.deleted_at IS NULL'];
+  // A sales rep's console (lib/salesScope.js): agencies of the agents they brought in.
+  if (repId != null) {
+    params.push(Number(repId) || 0);
+    where.push(`EXISTS (SELECT 1 FROM agents ra WHERE ra.vendor_id = v.id AND ra.deleted_at IS NULL
+      AND ${repAgentCondition('ra.id', `$${params.length}`)})`);
+  }
   const term = String(q || '').trim();
   if (term) {
     params.push(`%${term.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
     const n = params.length;
     const digits = term.replace(/\D/g, '');
     params.push(digits.length >= 3 ? `%${digits}%` : '');
-    where.push(`(v.username ILIKE ${n}
+    where.push(`(v.username ILIKE $${n}
       OR EXISTS (
         SELECT 1 FROM agents an LEFT JOIN agent_infos ain ON ain.agent_id = an.id
         WHERE an.vendor_id = v.id
-          AND (an.agency_name ILIKE ${n} OR CONCAT_WS(' ', ain.first_name, ain.last_name) ILIKE ${n}
-               OR (${n + 1} <> '' AND COALESCE(an.phone, '') LIKE ${n + 1}))
+          AND (an.agency_name ILIKE $${n} OR CONCAT_WS(' ', ain.first_name, ain.last_name) ILIKE $${n}
+               OR ($${n + 1} <> '' AND COALESCE(an.phone, '') LIKE $${n + 1}))
       )
-      OR COALESCE(v.email, '') ILIKE ${n} OR (${n + 1} <> '' AND COALESCE(v.phone, '') LIKE ${n + 1}))`);
+      OR COALESCE(v.email, '') ILIKE $${n} OR ($${n + 1} <> '' AND COALESCE(v.phone, '') LIKE $${n + 1}))`);
   }
   if (plan === 'active') where.push('m.expire_date IS NOT NULL');
   if (plan === 'none') where.push('m.expire_date IS NULL');

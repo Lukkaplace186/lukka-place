@@ -56,20 +56,29 @@ const DRAWER_ROW = 'rounded-md transition-colors duration-75 hover:bg-canvas-alt
  * that directory lives instead.
  *
  * No active-state underline here, unlike the mockup: two of these four
- * destinations are distinguished only by a query string
+ * destinations used to be distinguished only by a query string
  * (?transaction_type=...), and reading that from a layout-level client
  * component means useSearchParams(), which drags every statically rendered
  * route under this layout into a Suspense bailout (see web/CLAUDE.md).
  * Hover colour only, rather than an underline that would be right on two
  * links and silently wrong on the other two.
  */
+// Louer / Acheter open the /location and /vente landing pages (2026-10-24,
+// SEO): the links every page carries are the strongest internal links a site
+// has, and /listings?transaction_type=… only names those pages as canonical.
+// Both landing pages lead on to the full search and the map.
 const PRIMARY_LINKS = [
-  { href: '/listings?transaction_type=location', labelKey: 'nav.rent' },
-  { href: '/listings?transaction_type=vente', labelKey: 'nav.buy' },
+  { href: '/location', labelKey: 'nav.rent' },
+  { href: '/vente', labelKey: 'nav.buy' },
   // New developments and land in lots — their own hub and map (/projets).
   { href: '/projets', labelKey: 'nav.projects' },
-  // À propos took Agences' place on 2026-10-07 (product direction), in the
-  // bar and the drawer alike; the agency directory stays in the footer.
+  // The agent directory (search by name, city, commune) came back on
+  // 2026-10-26 as "Agents", beside À propos, which took Agences' place on
+  // 2026-10-07 — in the bar and the drawer alike.
+  { href: '/agents', labelKey: 'nav.agents' },
+  // Guides & Actualités, only while /admin/settings' publicBlog is on
+  // (app/(site)/layout.js hides it otherwise).
+  { href: '/guides', labelKey: 'nav.blog' },
   { href: '/a-propos', labelKey: 'nav.about' },
 ];
 

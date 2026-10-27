@@ -5,6 +5,7 @@ import { hrefWithoutKeys, hrefWithoutAmenity } from '@/lib/urlParams';
 import { MAP_BOUNDS_PARAMS, parseBounds } from '@/lib/mapViewport';
 import { getT } from '@/lib/i18n/server';
 import { UTILITY_FILTERS } from '@/lib/utilityTags';
+import { LEASE_TERM_OPTIONS } from '@/lib/leaseTerm';
 
 const AMENITY_LABEL_KEYS = Object.fromEntries(
   [
@@ -125,6 +126,21 @@ export default async function ActiveFilterChips({ params = {}, propertyTypeLabel
       label: t('listings.filters.depositRangeChip', { value: t(depositRange.labelKey) }),
       href: hrefWithoutKeys(params, 'deposit_range'),
     });
+  }
+
+  const leaseTerm = LEASE_TERM_OPTIONS.find((o) => o.value && o.value === params.lease_term);
+  if (leaseTerm) {
+    chips.push({ key: 'lease_term', label: t(leaseTerm.labelKey), href: hrefWithoutKeys(params, 'lease_term') });
+  }
+
+  if (params.plot_min || params.plot_max) {
+    const fmt = (v) => Number(v).toLocaleString(t.locale === 'en' ? 'en-GB' : 'fr-FR');
+    const label = params.plot_min && params.plot_max
+      ? t('listings.details.filter.chipRange', { min: fmt(params.plot_min), max: fmt(params.plot_max) })
+      : params.plot_min
+        ? t('listings.details.filter.chipMin', { min: fmt(params.plot_min) })
+        : t('listings.details.filter.chipMax', { max: fmt(params.plot_max) });
+    chips.push({ key: 'plot', label, href: hrefWithoutKeys(params, ['plot_min', 'plot_max']) });
   }
 
   const activeAmenities = params.amenities ? params.amenities.split(',').filter(Boolean) : [];

@@ -3,6 +3,7 @@ import { ArrowLeftRight } from 'lucide-react';
 import { getCdfRate } from '@/lib/currencyRate';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { getT } from '@/lib/i18n/server';
+import { frNumber } from '@/lib/format';
 
 /**
  * Diaspora block — makes the USD/CDF switch a headline feature rather than a
@@ -30,7 +31,7 @@ export default async function CurrencyBridge() {
         <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:gap-16">
           <div>
             <p className="u-eyebrow mb-4 text-blue-tint">{t('home.currencyBridge.eyebrow')}</p>
-            <h2 className="font-display text-[1.75rem] font-normal leading-[1.12] tracking-[-0.02em] text-white sm:text-[2.25rem]">
+            <h2 className="font-bold text-[1.75rem] leading-[1.12] tracking-[-0.02em] text-white sm:text-[2.25rem]">
               Investir à Kinshasa, depuis n&apos;importe où
             </h2>
             <p className="mt-4 max-w-xl text-[0.9375rem] leading-relaxed text-white/70">
@@ -65,7 +66,7 @@ export default async function CurrencyBridge() {
             <p className="mt-6 flex flex-wrap items-baseline gap-x-3 text-white">
               <span className="u-tabular text-2xl font-bold">1 USD</span>
               <span className="text-white/40">=</span>
-              <span className="u-tabular text-2xl font-bold">{cdfPerUsd.toLocaleString('fr-FR')} FC</span>
+              <span className="u-tabular text-2xl font-bold">{frNumber(cdfPerUsd)} FC</span>
             </p>
 
             <p className="mt-4 text-[0.8125rem] leading-relaxed text-white/50">

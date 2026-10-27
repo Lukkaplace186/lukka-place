@@ -22,6 +22,7 @@ import AgentProfileGapsBanner from '@/components/AgentProfileGapsBanner';
 import { getAgentProfileGaps } from '@/lib/completeness';
 import { AgentSectionSkeleton } from '@/components/RouteSkeletons';
 import AgentProjectsCard from '@/components/projects/AgentProjectsCard';
+import AgentReferralCard from '@/components/AgentReferralCard';
 
 const RANGE_OPTIONS = Object.entries(VIEW_RANGES).map(([value, { label }]) => ({ value, label }));
 
@@ -91,6 +92,7 @@ export default async function AgentOverviewPage({ searchParams }) {
           liveCount={listings.filter(isLiveListing).length}
           profileUrl={`${SITE_URL}/agents/${agent.id}`}
           profilePath={`/agents/${agent.id}`}
+          agentId={agent.id}
         />
 
         <Suspense fallback={<AgentSectionSkeleton className="h-[16.5rem] lg:h-36" />}>
@@ -98,6 +100,11 @@ export default async function AgentOverviewPage({ searchParams }) {
         </Suspense>
 
         <AgentTodayPanel todo={todo} listingById={listingById} />
+
+        {/* "Mes parrainages": the invite link and what the agent's code brought. */}
+        <Suspense fallback={null}>
+          <AgentReferralCard agentId={agentId} />
+        </Suspense>
 
         {/* Only for a developer with at least one project (/projets). */}
         <Suspense fallback={null}>

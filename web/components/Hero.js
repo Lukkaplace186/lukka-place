@@ -99,7 +99,7 @@ export default function Hero({ propertyTypes = [], communes = [], initialCount =
           </span>
         ) : null}
 
-        <div className="relative z-10 mx-auto w-full max-w-[1240px] px-4 sm:px-6 lg:px-8">
+        <div className="relative z-10 mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8">
           <div className="max-w-[41rem]">
             {/* White type straight on the photograph, per an explicit
                 product decision to keep the sky completely unobstructed.
@@ -141,7 +141,7 @@ export default function Hero({ propertyTypes = [], communes = [], initialCount =
           SearchBar). On a phone the band is shorter (19.5rem, was 26rem) and
           the overlap deeper, so the search card starts in the top half of the
           screen instead of at the fold (2026-10-06 storefront upgrade). */}
-      <div style={{ '--u-delay': '160ms', '--u-lift-from': '24px' }} className="u-lift-in relative z-20 mx-auto -mt-[5.5rem] w-full sm:-mt-16 max-w-[1240px] px-4 sm:px-6 lg:-mt-[5.75rem] lg:px-8">
+      <div style={{ '--u-delay': '160ms', '--u-lift-from': '24px' }} className="u-lift-in relative z-20 mx-auto -mt-[5.5rem] w-full sm:-mt-16 max-w-[1600px] px-4 sm:px-6 lg:-mt-[5.75rem] lg:px-8">
         <SearchBar propertyTypes={propertyTypes} communes={communes} initialCount={initialCount} />
       </div>
     </>

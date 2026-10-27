@@ -8,6 +8,7 @@ import { useToast } from '@/components/Toast';
 import { useT } from '@/lib/i18n/client';
 import CommuneOptions from '@/components/CommuneOptions';
 import AgentPicker from '../../AgentPicker';
+import ListingDetailFields from '@/components/ListingDetailFields';
 import { adminCreateListingAction } from '../createActions';
 
 const FIELD = 'u-focus-ring h-10 w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink';
@@ -111,7 +112,7 @@ export default function AdminCreateListingForm({ communes, categories, canPublis
             <input name="bath" type="number" min="0" className={FIELD} />
           </Field>
           <Field label="Surface (m²)">
-            <input name="area" type="number" min="1" className={FIELD} />
+            <input name="area" type="number" min="0.01" step="0.01" inputMode="decimal" className={FIELD} />
           </Field>
         </div>
       </section>
@@ -131,8 +132,10 @@ export default function AdminCreateListingForm({ communes, categories, canPublis
           <Field label={t('admin.moderation.periodicity')}>
             <select name="price_period" defaultValue="" className={FIELD}>
               <option value="">{t('admin.actions.none')}</option>
-              <option value="month">Par mois</option>
-              <option value="year">Par an</option>
+              <option value="mois">Par mois</option>
+              <option value="an">Par an</option>
+              <option value="jour">Par jour (courte durée)</option>
+              <option value="semaine">Par semaine (courte durée)</option>
             </select>
           </Field>
         </div>
@@ -163,6 +166,10 @@ export default function AdminCreateListingForm({ communes, categories, canPublis
             <span className="u-micro text-ink-70">{t('admin.listings.publishNow')}</span>
           </label>
         ) : null}
+      </section>
+
+      <section className="u-card rounded-card bg-surface p-6">
+        <ListingDetailFields fieldClass={FIELD} labelClass={LABEL} />
       </section>
 
       {error ? (

@@ -666,8 +666,50 @@ async function downloadMediaRaw(mediaId) {
   }
 }
 
+/**
+ * Download an inbound video (services/listingMedia.js). Same two routes as a
+ * photo — the webhook's URL through Chakra's attachment proxy, then the media
+ * id — but raw bytes, a longer timeout (a 16 MB clip is not a 300 KB photo)
+ * and a video check instead of the image one.
+ *
+ * @param {{id?: string, url?: string, mimeType?: string}} ref
+ * @returns {Promise<{buffer: Buffer, mimeType: string, sizeBytes: number}>}
+ */
+async function downloadVideo(ref) {
+  const { sniffVideoMime, MAX_VIDEO_BYTES } = require('./listingMedia');
+  const token = requireEnv('CHAKRA_ACCESS_TOKEN');
+  const targets = [];
+  const mid = ref?.url ? extractMid(ref.url) : null;
+  if (mid) targets.push({ url: mediaAttachmentUrl(mid), auth: process.env.CHAKRA_MEDIA_TOKEN || token });
+  if (ref?.id) targets.push({ url: mediaUrl(ref.id), auth: token });
+  if (!targets.length) throw new Error('downloadVideo requires a media id or url');
+
+  let lastError = null;
+  for (const target of targets) {
+    try {
+      const response = await axios.get(target.url, {
+        headers: { Authorization: `Bearer ${target.auth}` },
+        responseType: 'arraybuffer',
+        timeout: 120000,
+        maxContentLength: MAX_VIDEO_BYTES,
+        beforeRedirect: (options) => {
+          delete options.headers.Authorization;
+        },
+      });
+      const buffer = Buffer.from(response.data);
+      const mimeType = sniffVideoMime(buffer);
+      if (!mimeType) throw new Error('response is not a recognised video');
+      return { buffer, mimeType, sizeBytes: buffer.length };
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw new Error(`downloadVideo ${ref.id || 'url'}: ${lastError?.message || 'failed'}`);
+}
+
 module.exports = {
   sendWhatsAppMessage,
+  downloadVideo,
   safeText,
   sendTemplate,
   sendInteractiveButtons,

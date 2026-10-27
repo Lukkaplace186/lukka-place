@@ -6,6 +6,10 @@ import { getAgentContactsByIds } from '@/lib/agents';
 import { firstParam, parsePage } from '@/lib/adminPagination';
 import { updateLeadStatusAction, assignLeadAction } from '../actions';
 import { getT } from '@/lib/i18n/server';
+import DeleteRecordButton from '../DeleteRecordButton';
+import { deleteLeadAction } from '../recordDeleteActions';
+import { getAdminSession } from '@/lib/adminSession';
+import { can } from '@/lib/adminRoles';
 import AgentPicker from '../AgentPicker';
 import { AgentContact, WhatsAppLink } from '../ContactCell';
 import { Chip, ErrorNote } from '../LeadRoutingUI';
@@ -59,6 +63,7 @@ const ASSIGNMENT_FILTERS = ['unassigned'];
  */
 export default async function AdminLeadsPage({ searchParams }) {
   const t = await getT();
+  const canDeleteLeads = can((await getAdminSession())?.role, 'leads.delete');
   const raw = (await searchParams) || {};
   const status = LEAD_STATUSES.includes(firstParam(raw.status)) ? firstParam(raw.status) : undefined;
   const q = String(firstParam(raw.q) || '').trim().slice(0, 100) || undefined;
@@ -244,9 +249,20 @@ export default async function AdminLeadsPage({ searchParams }) {
                   </form>
                 </td>
                 <td className={`${TD_DENSE} whitespace-nowrap`}>
-                  <Link href={`/admin/leads/${lead.id}`} className="u-micro-strong text-blue-deep hover:underline">
-                    {t('admin.leads.viewDetail')}
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    <Link href={`/admin/leads/${lead.id}`} className="u-micro-strong text-blue-deep hover:underline">
+                      {t('admin.leads.viewDetail')}
+                    </Link>
+                    {canDeleteLeads ? (
+                      <DeleteRecordButton
+                        compact
+                        action={deleteLeadAction.bind(null, lead.id)}
+                        label={t('admin.records.deleteLead')}
+                        title={t('admin.records.deleteLeadTitle')}
+                        body={t('admin.records.deleteLeadBody')}
+                      />
+                    ) : null}
+                  </div>
                 </td>
               </tr>
             );

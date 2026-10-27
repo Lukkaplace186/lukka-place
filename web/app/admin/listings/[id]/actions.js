@@ -4,14 +4,16 @@ import { PriceSyncError } from '@/lib/enginePrice';
 import { revalidatePath } from 'next/cache';
 import { requireAdmin } from '@/lib/adminSession';
 import { recordAudit } from '@/lib/adminAudit';
-import { adminUpdateListing, adminSetListingVisible, getListingForAdmin } from '@/lib/adminListings';
+import { adminUpdateListing, adminSetListingVisible, adminSetListingDetails, getListingForAdmin } from '@/lib/adminListings';
+import { listingDetailsFromForm } from '@/lib/listingDetails';
 import { setListingGallery } from '@/lib/agentListings';
 import { getT } from '@/lib/i18n/server';
+import { normaliseArea } from '@/lib/listingView';
 
 const LISTING_STATUSES = ['active', 'under_offer', 'closed'];
 const PURPOSES = ['rent', 'sale'];
 const CURRENCIES = ['USD', 'CDF'];
-const PRICE_PERIODS = ['month', 'year', 'day', ''];
+const PRICE_PERIODS = ['mois', 'an', 'jour', 'semaine', 'total', ''];
 
 /** '' -> null, so clearing a field in the form genuinely clears the column. */
 function text(formData, name, max = 300) {
@@ -83,6 +85,13 @@ export async function adminUpdateListingAction(propertyId, validCommunes, validC
       return { ok: false, error: t('errors.invalidTransactionDate') };
     }
 
+    // properties.area is TEXT NOT NULL and '0' is its "not stated" (hasArea()).
+    // A blank field used to be written as NULL, which Postgres refused, so a
+    // listing with no surface could not be saved at all (#326, 2026-10-20).
+    const areaRaw = formData.get('area');
+    const areaValue = areaRaw === null ? undefined : normaliseArea(areaRaw);
+    if (Number.isNaN(areaValue)) return { ok: false, error: t('errors.invalidArea') };
+
     const before = await getListingForAdmin(propertyId);
     const patch = {
       title: text(formData, 'title', 150),
@@ -99,13 +108,11 @@ export async function adminUpdateListingAction(propertyId, validCommunes, validC
       priceOriginal: decimal(formData, 'price_original'),
       beds: int(formData, 'beds'),
       bath: int(formData, 'bath'),
-      // `area` is TEXT storing '0' for unknown — a cleared field becomes NULL, not '0'.
-      area: (() => {
-        const value = int(formData, 'area');
-        return value === undefined ? undefined : value == null ? null : String(value);
-      })(),
+      area: areaValue === undefined ? undefined : areaValue == null ? '0' : String(areaValue),
       unitsCount: int(formData, 'units_count'),
       depositMonths: int(formData, 'deposit_months'),
+      advanceMonths: int(formData, 'advance_months'),
+      commissionMonths: int(formData, 'commission_months'),
       listingStatus: listingStatus || undefined,
       soldPrice: listingStatus === 'closed' ? soldPrice : null,
       soldAt: listingStatus === 'closed' ? soldAt : null,
@@ -120,6 +127,17 @@ export async function adminUpdateListingAction(propertyId, validCommunes, validC
       throw err;
     }
     if (!updated) return { ok: false, error: t('errors.listingNotFound') };
+
+    // Practical details (lib/listingDetails.js): the editor always sends the
+    // whole fieldset, gated again on the category and purpose just saved.
+    if (formData.get('details_touched') === '1') {
+      try {
+        const saved = await adminSetListingDetails(propertyId, listingDetailsFromForm(formData));
+        if (saved === 'unavailable') console.warn(`[admin/listings] details for #${propertyId} not saved — columns missing`);
+      } catch (err) {
+        console.error(`[admin/listings] details for #${propertyId}: ${err.message}`);
+      }
+    }
 
     // Record which fields actually changed, with before/after for the ones an
     // audit is most often asked about (price, commune, status, sold figures).

@@ -6,6 +6,7 @@ import { consumeAgentOtp, sendAgentOtp } from '@/lib/agents';
 import { verifyOtp } from '@/lib/agentAuth';
 import { establishAgentSession } from '@/lib/agentSession';
 import { getVerifyAttempt, setVerifyAttemptCookie, clearVerifyAttemptCookie } from '@/lib/verifyAttempt';
+import { recordAgentLoginAttempt } from '@/lib/agentLoginLog';
 
 function safeNext(nextParam) {
   const next = String(nextParam || '/compte/agent');
@@ -47,10 +48,12 @@ export async function agentVerifyOtpAction(formData) {
   const valid = !expired && verifyOtp(code, agent.otp_code_hash);
 
   if (!valid) {
+    await recordAgentLoginAttempt(agent.id, expired ? 'expired_code' : 'wrong_code');
     redirect(backTo(next, `&error=${expired ? 'expired' : '1'}`));
   }
 
   await consumeAgentOtp(agent.id);
+  await recordAgentLoginAttempt(agent.id, 'code_verified');
   await clearVerifyAttemptCookie();
   await establishAgentSession({ id: agent.id, tokenVersion: agent.token_version });
 

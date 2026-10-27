@@ -57,20 +57,20 @@ export default async function PortfolioLayout({ children }) {
   return (
     <I18nProvider locale={locale} messages={messages}>
       <CurrencyRateProvider rate={rate}>
-        <div className="flex min-h-screen flex-col bg-canvas">
+        <div className="flex min-h-screen flex-col bg-page">
           <header className="sticky top-0 z-30 border-b border-line bg-surface">
             <div className="mx-auto flex h-[4.75rem] max-w-[77.5rem] items-center justify-between gap-6 px-4 sm:px-6">
               <Wordmark />
 
               <nav className="flex items-center gap-5 text-sm font-semibold text-ink-70 sm:gap-7">
-                <Link href="/listings?transaction_type=vente" className="hidden hover:text-ink sm:block">
+                <Link href="/vente" className="hidden hover:text-ink sm:block">
                   Acheter
                 </Link>
-                <Link href="/listings?transaction_type=location" className="hidden hover:text-ink sm:block">
+                <Link href="/location" className="hidden hover:text-ink sm:block">
                   Louer
                 </Link>
                 <Link href="/agents" className="hidden hover:text-ink sm:block">
-                  {t('nav.agencies')}
+                  {t('nav.agents')}
                 </Link>
                 {publishHref && (
                   <a

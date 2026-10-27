@@ -83,12 +83,21 @@ test('paid at 5 agents, reaching 10 leaves only the $20 difference to pay', () =
 // 30-day quality bonus
 // ---------------------------------------------------------------------------
 
-test('quality needs at least 15 checked listings and 80% of them valid', () => {
-  assert.equal(qualityResult({ checked: 14, valid: 14 }).passed, false, '1 of 1 cannot earn it');
-  assert.equal(qualityResult({ checked: 14, valid: 14 }).eligible, false);
-  assert.equal(qualityResult({ checked: 15, valid: 12 }).passed, true, 'exactly 80%');
-  assert.equal(qualityResult({ checked: 15, valid: 11 }).passed, false);
-  assert.equal(qualityResult({ checked: 15, valid: 99 }).valid, 15, 'valid never exceeds checked');
+test('quality needs at least 5 agents brought in 30+ days ago and 80% of them still active', () => {
+  assert.equal(qualityResult({ checked: 4, valid: 4 }).passed, false, '1 of 1 cannot earn it');
+  assert.equal(qualityResult({ checked: 4, valid: 4 }).eligible, false);
+  assert.equal(qualityResult({ checked: 5, valid: 4 }).passed, true, 'exactly 80%');
+  assert.equal(qualityResult({ checked: 10, valid: 7 }).passed, false);
+  assert.equal(qualityResult({ checked: 5, valid: 99 }).valid, 5, 'valid never exceeds checked');
+});
+
+test('the quality test counts agents (active account + a live listing), not listings', async () => {
+  const { QUALITY_LINE_SQL } = await import('@/lib/salesLaunch');
+  assert.match(QUALITY_LINE_SQL, /FROM sales_agent_attributions att JOIN agents a/);
+  assert.match(QUALITY_LINE_SQL, /a.status = 1 AND a.deleted_at IS NULL/);
+  assert.match(QUALITY_LINE_SQL, /lp.status = 1 AND lp.approve_status = 1/);
+  assert.ok(QUALITY_LINE_SQL.includes("attributed_at <= NOW() - INTERVAL '30 days'"));
+  assert.doesNotMatch(QUALITY_LINE_SQL, /sales_listing_credits/);
 });
 
 test('the quality bonus already on the ledger keeps counting even if the ratio later dips', () => {

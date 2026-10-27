@@ -18,16 +18,19 @@
  *   - several places at once ("Gombe ou Ngaliema"), all searched;
  *   - "Kinshasa" meaning the city, not the commune of that name.
  *
- * Deliberately does NOT try to extract "meublé"/"piscine"/"forage" into a
- * structured filter: there is no `furnished` or amenity column on the public
- * `properties` table to filter against. Words like that are left in
+ * "meublé" becomes the Meublé filter (amenities=furnished, which reads the
+ * `furnished` column or the words — lib/listings.js), and a land size ("5
+ * ares", "20x30", "1 ha", "600 m²") becomes plot_min. Other equipment words
+ * ("piscine", "forage") have no column on `properties`, so they are left in
  * `keywords` and reach the description search in lib/listings.js, which
  * matches each word on its own and drops them — saying so — when they would
  * empty the page. Filler ("pas cher", "near", "svp") is removed here, by
  * lib/searchKeywords.js, the same list the server applies.
  */
 import { findLocationMention } from './gazetteer';
+import { findCityMention, findCommuneInCity, DEFAULT_CITY } from './cities';
 import { cleanKeywords } from './searchKeywords';
+import { parsePlotArea } from './listingDetails';
 
 /** Most places one search may name — same ceiling as a customer request
  *  (MAX_REQUEST_COMMUNES) and the engine's leadCommunes. */
@@ -134,6 +137,12 @@ const BEDS_PATTERN = re(
   `(?:^|\\s)${COUNT}\\s*(?:chambres?|chambr|chbres?|chbrs?|chb|ch\\.?|bedrooms?|beds?|bd|br|basuku|sukus?|cukus?)\\b`,
 );
 // Lingala puts the number after the noun: "basuku mibale".
+// Short-term rentals (by the day / night / week) vs longue durée — lib/leaseTerm.js.
+// "à la journée", "par nuit", "50$/jour", "courte durée"; "longue durée".
+const LEASE_SHORT_PATTERN = re(
+  `(?:(?:^|\\s)(?:courte?\\s+dur[ée]e|court\\s+terme|(?:[àa]|par)\\s+la\\s+(?:journ[ée]e|nuit[ée]e|nuit|semaine)|par\\s+(?:jour|nuit[ée]e|nuit|semaine)|journali[eè]re?|short[\\s-]?term|per\\s+(?:day|night|week)|daily)|\\/\\s*(?:jour|nuit))(?=\\s|$|[.,!?])`,
+);
+const LEASE_LONG_PATTERN = re(`(?:^|\\s)(?:longue?\\s+dur[ée]e|long\\s+terme|long[\\s-]?term)(?=\\s|$|[.,!?])`);
 const BEDS_LINGALA_PATTERN = re(`\\b(?:basuku|suku)\\s+(moko|mibale|misato|minei|mitano)\\b`);
 // "3 pièces" = 3 rooms counting the living room, i.e. 2 bedrooms.
 const PIECES_PATTERN = re(`(?:^|\\s)${COUNT}\\s*(?:pi[eè]ces?|pcs?)\\b`);
@@ -163,14 +172,26 @@ const TRANSACTION_TYPE_PATTERNS = [
   [/\bkosomba\b/i, 'vente'],
 ];
 
-// Mapped only to real, currently-queryable values: "appartement" and
-// "maison" are the live categories; "villa"/"terrain" exist as
-// PARCELLE_SUBTYPES (lib/constants.js), never as a top-level property_type.
+// Mapped only to real, currently-queryable values. "villa" is the Villa
+// category OR a parcelle sub-typed villa (lib/listings.js CATEGORY_ALIASES);
+// "terrain" is still the parcelle sub-type; "immeuble" and "concession" are
+// categories since 2026-10-22.
 // `ap+ar?t\w*` covers appartement, appart, apparts, apartment, apartement and
 // the typo "appartemnt"; `ap+t` covers apt/appt.
+// A land size as agents and searchers write it (lib/listingDetails.js parses it).
+const PLOT_SIZE_PATTERN = /\b\d+(?:[.,]\d+)?\s*(?:ha|hectares?|ares?)\b|\b\d{1,4}(?:[.,]\d+)?\s*(?:m\s*)?(?:x|sur|par)\s*\d{1,4}(?:[.,]\d+)?\s*m?\b|\b\d[\d\s.]*\s*(?:m²|m2)(?!\w)/i;
+// No \b after "é": in a JS regex é is not a word character.
+const FURNISHED_PATTERN = /\bmeubl(?:ées?|ees?|és?|es?)(?![a-zà-ÿ])|\bfurnished\b/i;
+
 const PROPERTY_TYPE_PATTERNS = [
-  [/\b(?:ap+ar?t\w*|ap+ts?|flats?|studios?)\b/i, { property_type: 'appartement' }],
-  [/\bvillas?\b/i, { property_type: 'parcelle', parcelle_subtype: 'villa' }],
+  [/\bstudios?\b/i, { property_type: 'studio' }],
+  [/\b(?:ap+ar?t\w*|ap+ts?|flats?)\b/i, { property_type: 'appartement' }],
+  [/\bvillas?\b/i, { property_type: 'villa' }],
+  // Before "terrain": a "terrain agricole" is a farm.
+  [/\b(?:fermes?|terrains?\s+agricoles?|champs?\s+agricoles?)\b/i, { property_type: 'ferme' }],
+  [/\b(?:annexes?|d[ée]pendances?|chambres?\s+(?:simples?|seules?|individuelles?|[àa]\s+louer))\b/i, { property_type: 'chambre' }],
+  [/\bconcessions?\b/i, { property_type: 'concession' }],
+  [/\b(?:immeubles?|buildings?)\b/i, { property_type: 'immeuble' }],
   [/\b(?:terrains?|plots?|land|lopango)\b/i, { property_type: 'parcelle', parcelle_subtype: 'terrain_nu' }],
   [/\b(?:maisons?|maisonnettes?|houses?|homes?|ndako|ndaku)\b/i, { property_type: 'maison' }],
 ];
@@ -210,6 +231,9 @@ export function escapeRegExp(value) {
  *   price_max: number|undefined,
  *   beds_min: number|undefined,
  *   bath_min: number|undefined,
+ *   lease_term: ('short'|'long')|undefined,
+ *   plot_min: number|undefined,     land size in m² ("5 ares" → 500)
+ *   amenities: ['furnished']|undefined,
  *   commune: string|undefined,
  *   communes: string[]|undefined,
  *   quartier: string|undefined,
@@ -240,6 +264,23 @@ export function parseSearchQuery(text) {
     result.reference = build(m);
     take(m, 'reference');
     break;
+  }
+
+  // --- Land size (before prices, so "600 m²" is never read as $600) ---------
+  const plot = remaining.match(PLOT_SIZE_PATTERN);
+  if (plot) {
+    const m2 = parsePlotArea(plot[0]);
+    if (m2) {
+      result.plot_min = m2;
+      take(plot, 'plot_min');
+    }
+  }
+
+  // --- Meublé ("non meublé" and "semi-meublé" are not a request for furnished)
+  const furnished = remaining.match(FURNISHED_PATTERN);
+  if (furnished && !/(?:non|semi)[\s-]*$/i.test(remaining.slice(0, furnished.index))) {
+    result.amenities = ['furnished'];
+    take(furnished, 'amenities');
   }
 
   // --- Rooms (before prices, so "2 chambres 1 500$" is 2 rooms and $1,500) --
@@ -274,6 +315,14 @@ export function parseSearchQuery(text) {
     const n = countValue(bath[1]);
     if (n != null && n > 0) result.bath_min = n;
     take(bath, 'bath_min');
+  }
+
+  // --- Lease term (before prices, so "50$/jour" leaves "50$") ----------------
+  const leaseShort = remaining.match(LEASE_SHORT_PATTERN);
+  const leaseLong = leaseShort ? null : remaining.match(LEASE_LONG_PATTERN);
+  if (leaseShort || leaseLong) {
+    result.lease_term = leaseShort ? 'short' : 'long';
+    take(leaseShort || leaseLong, 'lease_term');
   }
 
   // --- Price ----------------------------------------------------------------
@@ -345,6 +394,8 @@ export function parseSearchQuery(text) {
     take(m, 'transaction_type');
     break;
   }
+  // A lease term only exists on a rental.
+  if (result.lease_term && !result.transaction_type) result.transaction_type = 'location';
 
   for (const [pattern, values] of PROPERTY_TYPE_PATTERNS) {
     const m = remaining.match(pattern);
@@ -364,6 +415,32 @@ export function parseSearchQuery(text) {
   // too since 2026-09-24: it becomes `near` (a km radius around its real
   // point, lib/landmarks.js), not keywords. As keywords it was a text filter
   // almost no listing matched, which emptied the map and the list.
+  // --- City (2026-10-21) ------------------------------------------------------
+  // Before Kinshasa's places: Kinshasa has quartiers named after other cities
+  // (Lubumbashi in Kasa-Vubu, Goma in Ndjili), so "lubum" read as Kasa-Vubu.
+  // A named city — or a commune only another city has ("Kampemba") — sets
+  // `ville`, and then only that city's communes are matched: the gazetteer
+  // below is Kinshasa's and is not consulted at all.
+  const cityMention = findCityMention(remaining);
+  const otherCommune = findCommuneInCity(remaining, cityMention ? cityMention.city.name : null);
+  if (cityMention || otherCommune) {
+    result.ville = cityMention ? cityMention.city.name : otherCommune.city;
+    if (cityMention) {
+      const name = escapeRegExp(cityMention.matchedText).replace(/[\s-]+/g, '[\\s-]+');
+      const m = remaining.match(new RegExp(`(?:(?:^|\\s)${PREPOSITIONS}\\s+)?(?<![a-zà-ÿ])${name}[a-zà-ÿ-]*`, 'i'));
+      if (m) take(m, 'ville');
+    }
+    if (otherCommune) {
+      result.commune = otherCommune.key;
+      const m = remaining.match(new RegExp(escapeRegExp(otherCommune.matchedText).replace(/[\s-]+/g, '[\\s-]+'), 'i'));
+      if (m) take(m, 'commune');
+    }
+    if (result.ville === DEFAULT_CITY) delete result.ville;
+    result.keywords = cleanKeywords(remaining);
+    result.spans = spans;
+    return result;
+  }
+
   let lookIn = remaining;
   const places = [];
   const placeSpans = [];

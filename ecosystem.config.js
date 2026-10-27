@@ -48,5 +48,39 @@ module.exports = {
       merge_logs: true,
       time: true,
     },
+    {
+      // Reads the brokers' WhatsApp groups as a linked device of the annonces
+      // SIM and posts listings to the engine (group-reader/README.md). Also a
+      // single fork: two instances on one auth state would kick each other
+      // off WhatsApp. Exits 2 when logged out, and stop_exit_codes keeps PM2
+      // from restarting it: on 2026-10-22 it re-tried a dead login 188 times.
+      // Relink by hand (group-reader/README.md), then start it again.
+      name: 'lukka-group-reader',
+      script: 'index.js',
+      cwd: `${__dirname}/group-reader`,
+
+      instances: 1,
+      exec_mode: 'fork',
+      watch: false,
+
+      autorestart: true,
+      min_uptime: '30s',
+      max_restarts: 10,
+      restart_delay: 15000,
+      stop_exit_codes: [2],
+      // Lets SIGTERM flush the open batches (index.js waits up to 25s).
+      kill_timeout: 30000,
+
+      max_memory_restart: '300M',
+
+      env: {
+        NODE_ENV: 'production',
+      },
+
+      out_file: './logs/group-reader-out.log',
+      error_file: './logs/group-reader-error.log',
+      merge_logs: true,
+      time: true,
+    },
   ],
 };

@@ -18,11 +18,11 @@ export default async function NewProjectsStrip() {
   if (!projects.length) return null;
   const t = await getT();
   return (
-    <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+    <section className="mx-auto max-w-[1600px] px-4 py-10 sm:px-6 lg:px-8">
       <div className="mb-5 flex items-end justify-between gap-4">
         <div>
           <p className="u-eyebrow text-blue-deep">{t('projects.home.eyebrow')}</p>
-          <h2 className="u-title-section text-ink">{t('projects.home.title')}</h2>
+          <h2 className="u-title-storefront text-ink">{t('projects.home.title')}</h2>
         </div>
         <Link href="/projets" className="shrink-0 text-sm font-semibold text-blue-deep hover:underline">{t('projects.home.all')}</Link>
       </div>

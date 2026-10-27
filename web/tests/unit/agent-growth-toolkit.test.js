@@ -275,15 +275,17 @@ test('per-listing totals fall back to raw events when the rollup is stale or mis
 test('shared links carry a per-channel utm_source, and the untagged URL stays clean', () => {
   assert.equal(listingPublicUrl(305), 'https://lukkaplace.com/listings/305');
   assert.equal(listingPublicUrl(305, { source: SHARE_SOURCES.image }), 'https://lukkaplace.com/listings/305?utm_source=wa_status');
-  assert.deepEqual(Object.values(SHARE_SOURCES), ['wa_status', 'wa_message', 'partage_agent']);
+  assert.deepEqual(Object.values(SHARE_SOURCES), ['wa_status', 'wa_message', 'partage_agent', 'reseaux_sociaux']);
   for (const label of Object.values(SHARE_SOURCES)) assert.match(label, /^[a-z_]+$/);
 });
 
-test('the beacon forwards the landing utm_source — the endpoints accepted it but nothing sent it', () => {
+test('the beacon forwards the session attribution — the endpoints accepted it but nothing sent it', () => {
   const client = readFileSync(path.join(process.cwd(), 'lib/analyticsClient.js'), 'utf8');
-  // One shared beacon() sends it, and both endpoints go through that beacon.
-  assert.equal(client.match(/utmSource: landingUtmSource\(\)/g)?.length, 1);
-  assert.match(client, /function beacon\(url, body\)[\s\S]*utmSource: landingUtmSource\(\)/);
+  // One shared beacon() sends it (lib/attribution.js since 2026-10-27: the
+  // whole campaign, kept for the session), and both endpoints go through it.
+  assert.equal(client.match(/\.\.\.attributionFields\(\)/g)?.length, 1);
+  assert.match(client, /function beacon\(url, body\)[\s\S]*\.\.\.attributionFields\(\)/);
+  assert.match(client, /utmSource: attribution\.source \|\| sourceOf\(attribution\)/);
   assert.match(client, /beacon\('\/api\/track'/);
   assert.match(client, /beacon\('\/api\/telemetry\/lead-click'/);
 });

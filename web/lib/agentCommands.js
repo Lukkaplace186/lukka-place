@@ -5,6 +5,7 @@ import { agentContactPhone, buildListingSocialCopy, listingPublicUrl, shareBlock
 import { recordListingShares } from './listingShares';
 import { formatPrice } from './format';
 import { SITE_URL } from './constants';
+import { ensureAgentPartnerCode } from './partners';
 
 /**
  * The replies to an agent's WhatsApp commands (`!mesbiens`, `!share 310`),
@@ -30,13 +31,13 @@ export const AGENT_LIVE_LISTINGS_SQL = `
 `;
 
 /** Pure: the "!mesbiens" reply from rows. */
-export function mesBiensText(rows, total = rows.length) {
+export function mesBiensText(rows, total = rows.length, { refCode = null } = {}) {
   if (!rows.length) {
     return `Vous n’avez aucune annonce en ligne pour le moment.\nAjoutez-en une : ${SITE_URL}/compte/agent/biens`;
   }
   const lines = rows.map((row) => {
     const price = formatPrice(row.price, row.purpose, row.price_period);
-    return `• n° ${row.id} — ${row.title}${price ? ` — ${price}` : ''}\n  ${listingPublicUrl(row.id, { source: COMMAND_SOURCE })}`;
+    return `• n° ${row.id} — ${row.title}${price ? ` — ${price}` : ''}\n  ${listingPublicUrl(row.id, { source: COMMAND_SOURCE, ref: refCode })}`;
   });
   const more = total > rows.length ? `\n…et d’autres dans Mes biens : ${SITE_URL}/compte/agent/biens` : `\nMes biens : ${SITE_URL}/compte/agent/biens`;
   return [
@@ -70,8 +71,11 @@ export async function runAgentCommand({ agentId, command, listingId = null }) {
   if (command === 'aide') return { ok: true, text: HELP_TEXT };
 
   if (command === 'mesbiens') {
-    const { rows } = await getPool().query(AGENT_LIVE_LISTINGS_SQL, [agentId, MES_BIENS_MAX + 1]);
-    return { ok: true, text: mesBiensText(rows.slice(0, MES_BIENS_MAX), rows.length) };
+    const [{ rows }, refCode] = await Promise.all([
+      getPool().query(AGENT_LIVE_LISTINGS_SQL, [agentId, MES_BIENS_MAX + 1]),
+      ensureAgentPartnerCode(agentId),
+    ]);
+    return { ok: true, text: mesBiensText(rows.slice(0, MES_BIENS_MAX), rows.length, { refCode }) };
   }
 
   if (command === 'share') {
@@ -89,7 +93,7 @@ export async function runAgentCommand({ agentId, command, listingId = null }) {
       typeText: frenchTypeText(listing),
       contactPhone: agentContactPhone(listing),
       contactName: agentBrandFields(listing).name,
-      url: listingPublicUrl(listing.id, { source: COMMAND_SOURCE }),
+      url: listingPublicUrl(listing.id, { source: COMMAND_SOURCE, ref: await ensureAgentPartnerCode(agentId) }),
     });
     const recorded = (await recordListingShares(agentId, { ids: [listing.id], channel: 'wa_command', format: 'text' })) > 0;
     return { ok: true, text: caption, recorded };

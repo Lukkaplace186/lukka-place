@@ -82,7 +82,7 @@ export function PillFieldLabel({ children }) {
  * every existing desktop caller is unaffected since `size` defaults to the
  * original `sm` sizing.
  */
-export function PillOption({ selected, size = 'sm', children, ...props }) {
+export function PillOption({ selected, size = 'sm', children, className = '', ...props }) {
   return (
     <button
       type="button"
@@ -91,7 +91,7 @@ export function PillOption({ selected, size = 'sm', children, ...props }) {
         size === 'lg' ? 'px-5 py-3 text-[0.9375rem]' : 'px-3 py-1.5 text-[0.8125rem]'
       } ${
         selected ? 'border-blue bg-blue text-white' : 'border-line bg-surface text-ink-70 hover:border-ink-25 hover:text-ink'
-      }`}
+      } ${className}`}
       {...props}
     >
       {children}

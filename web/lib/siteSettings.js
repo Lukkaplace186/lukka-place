@@ -8,6 +8,7 @@ import {
   featuresFromStored,
   socialLinksFromStored,
 } from './siteSettingsRules';
+import { GROWTH_SETTING_KEY, growthSettingsFromStored } from './growthSettingsRules';
 
 /**
  * Social links and feature flags, two `cms_settings` rows edited from
@@ -36,7 +37,7 @@ export async function getSocialLinks() {
   }
 }
 
-/** @returns {Promise<{agentSubscriptions: boolean, agentProjects: boolean, publicProjects: boolean, hiddenAdminTabs: string[]}>} */
+/** @returns {Promise<{agentSubscriptions: boolean, agentProjects: boolean, publicProjects: boolean, publicBlog: boolean, hiddenAdminTabs: string[]}>} */
 export async function getFeatureFlags() {
   try {
     return await memo(`${MEMO_PREFIX}features`, TTL_MS, async () => featuresFromStored((await readValue(FEATURES_SETTING_KEY))?.value, ADMIN_NAV_HREFS));
@@ -70,3 +71,34 @@ async function save(key, value, updatedBy) {
 
 export const saveSocialLinks = (links, updatedBy) => save(SOCIAL_SETTING_KEY, links, updatedBy);
 export const saveFeatureFlags = (flags, updatedBy) => save(FEATURES_SETTING_KEY, flags, updatedBy);
+
+// ---------------------------------------------------------------------------
+// Launch campaign: pixel ids and the founder cutoff (lib/growthSettingsRules.js)
+// ---------------------------------------------------------------------------
+
+/** @returns {Promise<{metaPixelId: string|null, tiktokPixelId: string|null, founderCutoff: string}>} */
+export async function getGrowthSettings() {
+  try {
+    return await memo(`${MEMO_PREFIX}growth`, TTL_MS, async () => growthSettingsFromStored((await readValue(GROWTH_SETTING_KEY))?.value, process.env));
+  } catch (err) {
+    console.error(`[site-settings] growth settings unavailable: ${err.message}`);
+    return growthSettingsFromStored(null, process.env);
+  }
+}
+
+/** The stored row only (no env fallback) plus who changed it — for the console form. */
+export async function getGrowthSettingsForAdmin() {
+  const row = await readValue(GROWTH_SETTING_KEY);
+  return {
+    stored: growthSettingsFromStored(row?.value, {}),
+    effective: growthSettingsFromStored(row?.value, process.env),
+    serverEvents: {
+      meta: Boolean(process.env.META_CAPI_TOKEN),
+      tiktok: Boolean(process.env.TIKTOK_EVENTS_TOKEN),
+    },
+    updatedAt: row?.updated_at || null,
+    updatedBy: row?.updated_by || null,
+  };
+}
+
+export const saveGrowthSettings = (value, updatedBy) => save(GROWTH_SETTING_KEY, value, updatedBy);

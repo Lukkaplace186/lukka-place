@@ -3,7 +3,10 @@ import { SITE_URL } from './constants';
 import { formatPrice, usablePrice } from './format';
 import { hasArea, listingImages, typeLabel } from './listingView';
 import { seoPath } from './seoPages';
-import { DEFAULT_CITY, cityOfListing, communeLabel, provinceOfCity } from './cities';
+import { DEFAULT_CITY, cityOfCommune, cityOfListing, communeLabel, provinceOfCity } from './cities';
+
+// UN/CEFACT codes for the rent's unit; a short-term rent is per day / week.
+const SCHEMA_UNIT_CODES = { an: 'ANN', mois: 'MON', jour: 'DAY', semaine: 'WEE' };
 
 /**
  * What a search result says about one listing — its <title>, meta
@@ -77,13 +80,18 @@ function absolute(src) {
   }
 }
 
-const SCHEMA_TYPES = { appartement: 'Apartment', maison: 'House', duplex: 'House', penthouse: 'Apartment', villa: 'House' };
+const SCHEMA_TYPES = { appartement: 'Apartment', maison: 'House', duplex: 'House', penthouse: 'Apartment', villa: 'House', concession: 'House', studio: 'Apartment' };
 
 /** Where the listing's commune crumb points: its landing page when there is one. */
 export function communeHref(listing) {
   if (!listing.commune) return null;
   const transaction = listing.purpose === 'sale' ? 'vente' : listing.purpose === 'rent' ? 'location' : null;
-  return (transaction && seoPath({ transaction, commune: listing.commune })) || `/listings?commune=${encodeURIComponent(listing.commune)}`;
+  // A commune of another city has no page of its own; its city's page is the
+  // nearest landing page ("Kampemba" → /location/lubumbashi).
+  const otherCity = cityOfCommune(listing.commune);
+  return (transaction && (seoPath({ transaction, commune: listing.commune })
+      || (otherCity && otherCity !== DEFAULT_CITY ? seoPath({ transaction, city: otherCity }) : null)))
+    || `/listings?commune=${encodeURIComponent(listing.commune)}`;
 }
 
 /**
@@ -121,7 +129,7 @@ export function listingJsonLd(listing, t) {
         availability: 'https://schema.org/InStock',
         businessFunction: listing.purpose === 'rent' ? 'http://purl.org/goodrelations/v1#LeaseOut' : 'http://purl.org/goodrelations/v1#Sell',
         ...(listing.purpose === 'rent'
-          ? { priceSpecification: { '@type': 'UnitPriceSpecification', price, priceCurrency: 'USD', unitCode: listing.price_period === 'an' ? 'ANN' : 'MON' } }
+          ? { priceSpecification: { '@type': 'UnitPriceSpecification', price, priceCurrency: 'USD', unitCode: SCHEMA_UNIT_CODES[listing.price_period] || 'MON' } }
           : {}),
       }
     : undefined;

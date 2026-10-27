@@ -77,6 +77,7 @@ for (const key of [
   'AGENT_LEAD_MATCH_TEMPLATE', 'LISTING_AVAILABILITY_TEMPLATE', 'VISIT_RECEIPT_TEMPLATE',
   'VIEWING_DESK_TEMPLATE', 'VIEWING_CONFIRMED_TEMPLATE', 'VIEWING_PROPOSAL_TEMPLATE', 'VIEWING_UNAVAILABLE_TEMPLATE',
   'VIEWING_TEMPLATES_WITH_LINK', 'VIEWING_TEMPLATES_FROM_SENDER', 'VIEWING_TEMPLATES_WITH_IMAGE', 'AGENT_DAY_TEMPLATE',
+  'AGENT_WEEKLY_TEMPLATE', 'AGENT_WEEKLY_DIGEST',
 ]) {
   process.env[key] = '';
 }
@@ -781,6 +782,45 @@ console.log('\n2. services/openai.js');
       Object.assign(pgModule, saved);
     }
   });
+  await checkAsync('a verification code from the wrong number, or an expired one, is explained — never read as intake', async () => {
+    const pgModule = require('../services/postgres');
+    const challenges = require('../services/phoneChallenges');
+    const saved = { isConfigured: pgModule.isConfigured, getPool: pgModule.getPool };
+    const seen = [];
+    pgModule.isConfigured = () => true;
+    pgModule.getPool = () => ({
+      query: async (sql, params) => {
+        seen.push({ sql, params });
+        if (/^\s*UPDATE/.test(sql)) return { rows: [] };
+        return { rows: params[0].includes('436353') ? [{ phone: '243894879145', role: 'customer' }] : [] };
+      },
+    });
+    try {
+      const wrong = await challenges.matchPhoneChallenge({ from: '33656707007', text: 'Code Lukka Place : 436353' });
+      assert.strictEqual(wrong.handled, true);
+      assert.match(wrong.reply, /se terminant par 9145/);
+      assert.match(wrong.reply, /se termine par 7007/);
+      assert.match(wrong.reply, /compte\/inscription$/);
+      assert.doesNotMatch(wrong.reply, /894879145/, 'only the last four digits are named');
+      assert.deepStrictEqual(seen[1].params, [['436353'], '33656707007']);
+      assert.match(seen[1].sql, /phone <> \$2/);
+      assert.match(seen[1].sql, /expires_at > NOW\(\)/);
+
+      const agent = challenges.wrongNumberReply({ challengePhone: '243812345678', senderPhone: '243899999999', role: 'agent' });
+      assert.match(agent, /compte\/agent\/inscription$/);
+
+      const expired = await challenges.matchPhoneChallenge({ from: '243812345678', text: 'Code Lukka Place : 111111' });
+      assert.strictEqual(expired.handled, true);
+      assert.strictEqual(expired.reply, challenges.EXPIRED_REPLY);
+
+      seen.length = 0;
+      const price = await challenges.matchPhoneChallenge({ from: '243812345678', text: 'Villa 436353$ à vendre' });
+      assert.strictEqual(price.handled, false, 'a 6-digit price is never explained as a code');
+      assert.strictEqual(seen.length, 1, 'and costs no second query');
+    } finally {
+      Object.assign(pgModule, saved);
+    }
+  });
   await checkAsync('auto-approval only ever promotes a trusted agent’s complete, pending listing', async () => {
     const pgModule = require('../services/postgres');
     const auto = require('../services/trustedAutoApprove');
@@ -872,6 +912,102 @@ console.log('\n2. services/openai.js');
       assert.match(texts[0], /2 visites aujourd'hui/, 'a refused template falls back to the full text');
     } finally {
       process.env.AGENT_DAY_TEMPLATE = before;
+    }
+  });
+
+  await checkAsync('with AGENT_WEEKLY_TEMPLATE set, Monday\'s numbers go as the template alone; no views, unset or refused → the usual digest', async () => {
+    const digest = require('../services/agentDigest');
+    const before = process.env.AGENT_WEEKLY_TEMPLATE;
+    const monday = new Date('2026-10-26T07:00:00Z');
+    const agent = { first_name: 'Marie', to_confirm: 2, in_review: 0 };
+    const counts = { pendingVisits: 1 };
+    const weekly = {
+      views: 120,
+      clicks: 9,
+      top: { id: 310, title: 'Appartement à Kintambo', views: 80 },
+      listings: [{ id: 310, title: 'Appartement à Kintambo', views: 80, clicks: 6, calls: null, visits: null }],
+    };
+    const texts = [];
+    const weeklies = [];
+    const opts = {
+      now: monday,
+      send: async (to, text) => texts.push(text),
+      sendTemplate: async () => { throw new Error('day template must not be used'); },
+      sendWeekly: async (to, name, params) => weeklies.push({ to, name, params }),
+    };
+    try {
+      process.env.AGENT_WEEKLY_TEMPLATE = '';
+      assert.strictEqual(await digest.deliverDigest('243811000001', agent, counts, weekly, [], opts), 'session', 'unset: the text, as before');
+      assert.strictEqual(weeklies.length, 0);
+
+      process.env.AGENT_WEEKLY_TEMPLATE = 'bilan_hebdo_agent';
+      texts.length = 0;
+      assert.strictEqual(await digest.deliverDigest('243811000001', agent, counts, weekly, [], opts), 'weekly-template');
+      assert.deepStrictEqual(weeklies[0], {
+        to: '243811000001',
+        name: 'bilan_hebdo_agent',
+        params: [
+          'Marie', '19 octobre', '120', '9', 'Appartement à Kintambo (80 vues)',
+          '1 demande de visite attend votre réponse · 2 biens à confirmer (« toujours disponible ? »)',
+        ],
+      });
+      assert.strictEqual(texts.length, 0, 'the template is the whole Monday message');
+      for (const value of weeklies[0].params) assert.ok(value && value.length <= 200 && !/\n/.test(value), `valid Meta variable: ${value}`);
+
+      const params = digest.weeklyTemplateParams({ first_name: '' }, {}, weekly, Array(3).fill('Résidence Lumière des Grands Lacs de Kinshasa'), monday);
+      assert.strictEqual(params[0], 'partenaire');
+      assert.ok(params[5].length <= 200 && params[5].endsWith(' · …'), 'a long to-do keeps whole items and marks the rest');
+      assert.strictEqual(digest.weeklyTemplateParams(agent, {}, { ...weekly, top: null }, [], monday)[4], 'aucune cette semaine');
+      assert.strictEqual(digest.weeklyTemplateParams({ first_name: 'X' }, {}, weekly, [], monday)[5], 'rien en attente');
+      assert.strictEqual(digest.weekStartLabel(new Date('2026-12-08T07:00:00Z')), '1er décembre');
+
+      assert.strictEqual(await digest.deliverDigest('243811000001', agent, counts, { ...weekly, views: 0 }, [], opts), 'session', 'no views: no weekly template');
+      assert.strictEqual(digest.weeklyTemplateParams(agent, counts, null, [], monday), null, 'not Monday (no weekly stats): no weekly template');
+
+      texts.length = 0;
+      const refused = { ...opts, sendWeekly: async () => { throw new Error('132001'); } };
+      assert.strictEqual(await digest.deliverDigest('243811000001', agent, counts, weekly, [], refused), 'session');
+      assert.match(texts[0], /La semaine dernière : 120 vues/, 'a refused template falls back to the full weekly text');
+    } finally {
+      process.env.AGENT_WEEKLY_TEMPLATE = before;
+    }
+  });
+
+  await checkAsync('AGENT_WEEKLY_DIGEST=off: Monday is an ordinary day — no weekly numbers are read or sent', async () => {
+    const pgModule = require('../services/postgres');
+    const digest = require('../services/agentDigest');
+    const saved = { isConfigured: pgModule.isConfigured, getPool: pgModule.getPool };
+    const before = process.env.AGENT_WEEKLY_DIGEST;
+    const queries = [];
+    pgModule.isConfigured = () => true;
+    pgModule.getPool = () => ({
+      query: async (sql) => {
+        queries.push(sql);
+        if (/FROM agents a/.test(sql)) {
+          return { rows: [{ id: 9101, phone: '243811009101', first_name: 'Paul', live: 2, to_confirm: 0, in_review: 0 }] };
+        }
+        if (/FROM listing_stats_daily/.test(sql)) {
+          return { rows: [{ agent_id: 9101, id: 501, title: 'Studio à Gombe', views: 40, clicks: 3, calls: 1, visits: 0 }] };
+        }
+        return { rows: [] };
+      },
+    });
+    const outbox = [];
+    const send = async (to, text) => outbox.push({ to, text });
+    try {
+      process.env.AGENT_WEEKLY_DIGEST = 'off';
+      const off = await digest.runAgentDigest({ now: new Date('2026-11-02T07:05:00Z'), send });
+      assert.strictEqual(off.weekly, false);
+      assert.strictEqual(outbox.length, 0, 'views were all Paul had: nothing is sent');
+      assert.ok(!queries.some((sql) => /FROM listing_stats_daily|FROM developments/.test(sql)), 'weekly stats are not even read');
+
+      process.env.AGENT_WEEKLY_DIGEST = '';
+      const on = await digest.runAgentDigest({ now: new Date('2026-11-09T07:05:00Z'), send });
+      assert.strictEqual(on.weekly, true);
+      assert.match(outbox[0].text, /La semaine dernière : 40 vues/, 'unset: Monday as before');
+    } finally {
+      process.env.AGENT_WEEKLY_DIGEST = before;
+      Object.assign(pgModule, saved);
     }
   });
   const result = await openaiService.parseMessage('Villa a louer Ngaliema 4 chambres 2500$/mois', {
@@ -1584,7 +1720,7 @@ console.log('\n2. services/openai.js');
       { category: fakeCategory, location: fakeLocation },
     );
     assert.strictEqual(values.purpose, 'sale');
-    assert.strictEqual(values.area, '95');
+    assert.strictEqual(values.area, '95.4'); // decimals kept since 2026-10-21
     assert.strictEqual(values.quartier, 'Kimwenza');
     assert.strictEqual(values.category_id, 34);
     assert.strictEqual(values.city_id, 2);
@@ -1787,14 +1923,16 @@ console.log('\n2. services/openai.js');
     assert.deepStrictEqual(extractInboundMessages({ foo: 'bar' }), []);
   });
 
-  check('a video message is captured (not silently dropped) and flagged unsupported', () => {
+  check('a video message is captured as media (listing videos, 2026-10-21), with its caption', () => {
     const out = extractInboundMessages({
       entry: [{ changes: [{ value: { messages: [
-        { from: '243810000000', id: 'wamid.VID', type: 'video', video: { id: 'v1', mime_type: 'video/mp4' } },
+        { from: '243810000000', id: 'wamid.VID', type: 'video', video: { id: 'v1', mime_type: 'video/mp4', caption: 'Villa Gombe 3000$' } },
       ] } }] }],
     });
-    assert.strictEqual(out.length, 1, 'video message should still be collected for a fallback reply');
-    assert.strictEqual(webhookRouter.isUnsupportedType(out[0]), true);
+    assert.strictEqual(out.length, 1);
+    assert.strictEqual(webhookRouter.isUnsupportedType(out[0]), false);
+    assert.deepStrictEqual(out[0].media, [{ id: 'v1', url: null, mimeType: 'video/mp4' }]);
+    assert.strictEqual(out[0].text, 'Villa Gombe 3000$');
   });
   check('a text message is never flagged unsupported', () => {
     const out = extractInboundMessages({
@@ -2745,7 +2883,8 @@ console.log('\n2. services/openai.js');
   });
 
   // -------------------------------------------------------------------------
-  // 6a2. Unsupported media types get a friendly reply, not a silent drop
+  // 6a2. A video with no caption that cannot be fetched: "renvoyez", never
+  // silence (videos are kept since 2026-10-21 — §63 covers the stored path)
   // -------------------------------------------------------------------------
 
   console.log('\n6a2. POST /webhook unsupported media reply');
@@ -2765,14 +2904,16 @@ console.log('\n2. services/openai.js');
   await settle(200);
 
   check('acknowledges the video message with 200', () => assert.strictEqual(vidStatus, 200));
-  check('a video message never reaches gpt-4o or the DB', () => {
+  check('a captionless video never reaches gpt-4o or the DB', () => {
     assert.strictEqual(openaiCalls.length, vidAiBefore);
     assert.strictEqual(dbService.countListings(), vidRowsBefore);
   });
-  check('the agent gets the unsupported-format reply, not silence', () => {
-    assert.strictEqual(httpCalls.length, 1);
-    assert.strictEqual(httpCalls[0].data.to, '243870000000');
-    assert.strictEqual(httpCalls[0].data.text.body, webhookRouter.UNSUPPORTED_MEDIA_REPLY);
+  check('a video that cannot be fetched (not a video) is answered with "renvoyez", not silence', () => {
+    // (any earlier reply is the "un instant" ack every media burst gets)
+    const replies = httpCalls.filter((c) => c.method === 'post' && c.data?.text?.body);
+    const last = replies[replies.length - 1];
+    assert.strictEqual(last.data.to, '243870000000');
+    assert.strictEqual(last.data.text.body, webhookRouter.VIDEO_DOWNLOAD_FAILED_REPLY);
   });
 
   const rowsBefore = dbService.countListings();
@@ -3612,7 +3753,7 @@ console.log('\n2. services/openai.js');
   check('the agent is told a photo is required, in the exact agreed wording', () => {
     assert.strictEqual(httpCalls.length, 1);
     assert.strictEqual(httpCalls[0].data.text.body, webhookRouter.PHOTO_REQUIRED_REPLY);
-    assert.ok(httpCalls[0].data.text.body.includes('Photo obligatoire'));
+    assert.ok(httpCalls[0].data.text.body.includes('Photo ou vidéo obligatoire'));
   });
   check('refusing costs no model call — the regex path is still free', () =>
     assert.strictEqual(openaiCalls.length - aiBeforeNoPhotoOk, 0));
@@ -3633,7 +3774,7 @@ console.log('\n2. services/openai.js');
   check('the draft context reports photos_count so the model can refuse too', () =>
     assert.ok(photoCtxCall.messages[1].content.includes('"photos_count":0')));
   check('the prompt carries the mandatory-photo rule', () =>
-    assert.ok(openaiService.SYSTEM_PROMPT.includes('PHOTO OBLIGATOIRE')));
+    assert.ok(openaiService.SYSTEM_PROMPT.includes('PHOTO OU VIDÉO OBLIGATOIRE')));
 
   // Sending the photo unblocks it — the draft was never lost.
   httpCalls.length = 0;
@@ -6927,8 +7068,8 @@ console.log('\n2. services/openai.js');
   check('the alert sweep, both speed-to-lead sweeps, the ops alert sweep, the analytics rollup and the commission run are registered', () => {
     const names = sched.JOBS.map((j) => j.name);
     assert.deepStrictEqual(names, [
-      'search-alerts', 'viewing-sla', 'viewing-checkin', 'viewing-agent-done', 'ops-health-alerts', 'listing-stats-rollup', 'trusted-auto-approve', 'agent-daily-digest',
-      'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions', 'sqlite-backup',
+      'search-alerts', 'viewing-sla', 'viewing-checkin', 'viewing-agent-done', 'ops-health-alerts', 'listing-stats-rollup', 'draft-auto-submit', 'trusted-auto-approve', 'agent-daily-digest',
+      'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions', 'growth-daily', 'sqlite-backup',
     ]);
   });
 
@@ -8145,6 +8286,25 @@ console.log('\n2. services/openai.js');
     return { asked, request };
   }
 
+  /** Stands in for Places API (New) text search: textQuery -> places, or 'DENIED'. */
+  function fakePlaces(answers) {
+    const asked = [];
+    const placesRequest = async (url, body) => {
+      asked.push({ text: body.textQuery, box: body.locationRestriction || null });
+      const hit = answers[body.textQuery];
+      if (hit === 'DENIED') return { error: { code: 403, status: 'PERMISSION_DENIED', message: 'not enabled' } };
+      return {
+        places: (hit || []).map(([name, lat, lng, types = ['point_of_interest', 'establishment']]) => ({
+          displayName: { text: name }, location: { latitude: lat, longitude: lng }, types,
+        })),
+      };
+    };
+    return { asked, placesRequest };
+  }
+  const noPlaces = fakePlaces({}).placesRequest;
+  const BOX_QUERY = 'Lemba, Kinshasa, RD Congo';
+  const cascadeAsked = (google) => google.asked.filter((q) => q !== BOX_QUERY);
+
   /** A pg client that answers the coordinate read and records every statement. */
   function fakeCoordinateDb(existing) {
     const statements = [];
@@ -8180,19 +8340,19 @@ console.log('\n2. services/openai.js');
       'Demiap, Righini, Lemba, Kinshasa, RD Congo': { lat: -4.39, lng: 15.33, vague: true },
       'Righini, Lemba, Kinshasa, RD Congo': { lat: -4.401, lng: 15.312 },
     });
-    const point = await geocoding.geocodeListingRow(geoRow, { apiKey: 'k', request: google.request });
+    const point = await geocoding.geocodeListingRow(geoRow, { apiKey: 'k', request: google.request, placesRequest: noPlaces, ignoreTable: true });
     assert.deepStrictEqual([point.lat, point.lng, point.query], [-4.401, 15.312, 'Righini, Lemba, Kinshasa, RD Congo']);
-    assert.strictEqual(google.asked.length, 2);
+    assert.strictEqual(cascadeAsked(google).length, 2);
   });
   await checkAsync('a refused key throws instead of cascading to a vaguer query', async () => {
     const google = fakeGoogle({ 'Demiap, Righini, Lemba, Kinshasa, RD Congo': 'DENIED' });
-    await assert.rejects(() => geocoding.geocodeListingRow(geoRow, { apiKey: 'k', request: google.request }), /REQUEST_DENIED/);
-    assert.strictEqual(google.asked.length, 1);
+    await assert.rejects(() => geocoding.geocodeListingRow(geoRow, { apiKey: 'k', request: google.request, placesRequest: noPlaces, ignoreTable: true }), /REQUEST_DENIED/);
+    assert.strictEqual(cascadeAsked(google).length, 1);
   });
   await checkAsync('blank coordinates are filled, and the UPDATE re-checks they are still blank', async () => {
     const google = fakeGoogle({ 'Demiap, Righini, Lemba, Kinshasa, RD Congo': { lat: -4.4, lng: 15.31 } });
     const db = fakeCoordinateDb({ latitude: '', longitude: null });
-    const result = await geocoding.storeListingCoordinates(db, 42, geoRow, { apiKey: 'k', request: google.request });
+    const result = await geocoding.storeListingCoordinates(db, 42, geoRow, { apiKey: 'k', request: google.request, placesRequest: noPlaces, ignoreTable: true });
     assert.strictEqual(result.status, 'geocoded');
     const update = db.statements.find((s) => /^UPDATE properties/.test(s.sql));
     assert.ok(update, 'expected an UPDATE');
@@ -8215,10 +8375,117 @@ console.log('\n2. services/openai.js');
   });
   await checkAsync('an unresolvable listing stays blank rather than getting a guessed point', async () => {
     const db = fakeCoordinateDb({ latitude: null, longitude: null });
-    const result = await geocoding.storeListingCoordinates(db, 42, geoRow, { apiKey: 'k', request: fakeGoogle({}).request });
+    const result = await geocoding.storeListingCoordinates(db, 42, geoRow, { apiKey: 'k', request: fakeGoogle({}).request, placesRequest: noPlaces, ignoreTable: true });
     assert.strictEqual(result.status, 'unresolved');
     assert.ok(!db.statements.some((s) => /^UPDATE/.test(s.sql)));
   });
+  // #387, 2026-10-24: "GB / Hôtel Diplomate", Ngaliema was stored by Joli
+  // Parc because the Geocoding API answered with a hotel NAMED "GB". Names
+  // are now checked (Places), businesses from the Geocoding API refused.
+  function fakeGoogleWithBox(extra = {}) {
+    const asked = [];
+    const request = async (url) => {
+      const address = new URL(url).searchParams.get('address');
+      asked.push(address);
+      if (address === 'Ngaliema, Kinshasa, RD Congo') {
+        return {
+          status: 'OK',
+          results: [{
+            types: ['sublocality_level_1', 'sublocality', 'political'],
+            geometry: {
+              location: { lat: -4.37, lng: 15.25 },
+              location_type: 'APPROXIMATE',
+              viewport: { southwest: { lat: -4.45, lng: 15.17 }, northeast: { lat: -4.31, lng: 15.29 } },
+            },
+          }],
+        };
+      }
+      return extra[address] || { status: 'ZERO_RESULTS', results: [] };
+    };
+    return { asked, request };
+  }
+  const row387 = { quartier: 'GB / Hôtel Diplomate', commune: 'Ngaliema' };
+  const gbBusinesses = [
+    ['Kin Marché GB', -4.32987, 15.27277], ['NEW LIFE STYLE GB', -4.32672, 15.27574],
+    ['Maison Galaxy GB', -4.32394, 15.27748], ['Boss-tech Ngaliema-GB', -4.32592, 15.27523],
+    ['GB', -4.34885, 15.25276, ['hotel', 'lodging']],
+  ];
+
+  check('location text is split into quartier and landmark terms', () => {
+    assert.deepStrictEqual(geocoding.splitLocationText('GB / Hôtel Diplomate'), ['GB', 'Hôtel Diplomate']);
+    const terms = geocoding.locationTerms(row387);
+    assert.deepStrictEqual(terms.places.map((p) => p.text), ['GB']);
+    assert.deepStrictEqual(terms.landmarks.map((l) => l.text), ['Hôtel Diplomate']);
+    assert.deepStrictEqual(geocoding.buildGeocodeQueries(row387), [
+      'Hôtel Diplomate, GB, Ngaliema, Kinshasa, RD Congo',
+      'GB, Ngaliema, Kinshasa, RD Congo',
+    ]);
+    // The quartier field is the quartier; a landmark in the reference comes first.
+    const both = geocoding.locationTerms({ quartier: 'Joli Parc', reference: 'Ma Campagne, Clinique Raphaël', commune: 'Ngaliema' });
+    assert.deepStrictEqual(both.places.map((p) => p.text), ['Joli Parc', 'Ma Campagne']);
+    assert.deepStrictEqual(both.landmarks.map((l) => l.text), ['Clinique Raphaël']);
+  });
+  check('a returned place counts only when its NAME carries the term', () => {
+    assert.strictEqual(geocoding.nameMatches('Hôtel Diplomate', 'DIPLOMATE'), true);
+    assert.strictEqual(geocoding.nameMatches('GB', 'Kin Marché GB'), true);
+    assert.strictEqual(geocoding.nameMatches('GB', 'Gombe'), false);
+    assert.strictEqual(geocoding.nameMatches('Zone A', 'MOBILE ZONE'), false);
+    assert.strictEqual(geocoding.nameMatches('Mushi', 'ISIPA Mushie'), false);
+    assert.strictEqual(geocoding.nameMatches('Av. Kasavubu', 'Avenue Kasa-Vubu'), true);
+    assert.strictEqual(geocoding.nameMatches('Derrière Hôpital Akram', 'Hôpital Akram'), true);
+    assert.strictEqual(geocoding.nameMatches('SUPER MARCHÉ GALAXY DE SUKA MUR MBINZA OZONE', 'Super Marché Galaxy Ozone'), true);
+    assert.strictEqual(geocoding.nameMatches('Golf météo 1', 'Golf météo'), false);
+  });
+  await checkAsync('#387: the landmark nearest the quartier\'s own point wins, never a business named like the quartier', async () => {
+    const places = fakePlaces({
+      'GB, Ngaliema, Kinshasa': [...gbBusinesses, ['Ngaliema', -4.37138, 15.25344, ['sublocality_level_1', 'political']]],
+      'Hôtel Diplomate, Ngaliema, Kinshasa': [
+        ['GB', -4.34885, 15.25276, ['hotel', 'lodging']],
+        ['Hôtel diplomate', -4.33565, 15.26178, ['hotel', 'lodging']],
+        ['DIPLOMATE', -4.33085, 15.27176, ['hotel', 'lodging']],
+      ],
+    });
+    const point = await geocoding.geocodeListingRow(row387, { apiKey: 'k', request: fakeGoogleWithBox().request, placesRequest: places.placesRequest, ignoreTable: true });
+    assert.deepStrictEqual([point.lat, point.lng, point.how, point.matched], [-4.33085, 15.27176, 'landmark', 'DIPLOMATE']);
+    assert.ok(places.asked.every((a) => a.box), 'every Places search is restricted to the commune');
+  });
+  await checkAsync('a quartier nobody mapped is the median of >=3 places carrying its name that agree', async () => {
+    const places = fakePlaces({ 'GB, Ngaliema, Kinshasa': gbBusinesses });
+    const point = await geocoding.geocodeListingRow({ quartier: 'GB', commune: 'Ngaliema' }, { apiKey: 'k', request: fakeGoogleWithBox().request, placesRequest: places.placesRequest, ignoreTable: true });
+    assert.strictEqual(point.how, 'cluster');
+    assert.ok(geocoding.distanceKm(point, { lat: -4.3267, lng: 15.2752 }) < 0.3, 'the hotel called "GB" by Joli Parc is left out');
+  });
+  await checkAsync('two places of one name far apart, with no quartier to choose by, give no point', async () => {
+    const places = fakePlaces({ 'Golf Météo, Lubumbashi': [['Golf météo', -11.62485, 27.41776], ['Golf météo', -11.65083, 27.42478]] });
+    const point = await geocoding.geocodeListingRow({ quartier: 'Golf Météo', commune: 'Lubumbashi' }, { apiKey: 'k', request: fakeGoogle({}).request, placesRequest: places.placesRequest, ignoreTable: true });
+    assert.strictEqual(point, null);
+  });
+  await checkAsync('the Geocoding fallback refuses a business it cannot name-check', async () => {
+    const hotel = { status: 'OK', results: [{ types: ['establishment', 'lodging', 'point_of_interest'], geometry: { location: { lat: -4.34885, lng: 15.25276 }, location_type: 'ROOFTOP' } }] };
+    const google = fakeGoogleWithBox({ 'GB, Ngaliema, Kinshasa, RD Congo': hotel });
+    const point = await geocoding.geocodeListingRow({ quartier: 'GB', commune: 'Ngaliema' }, { apiKey: 'k', request: google.request, placesRequest: noPlaces, ignoreTable: true });
+    assert.strictEqual(point, null);
+    assert.ok(google.asked.includes('GB, Ngaliema, Kinshasa, RD Congo'));
+  });
+  await checkAsync('a refused Places key throws rather than falling back', async () => {
+    const places = fakePlaces({ 'GB, Ngaliema, Kinshasa': 'DENIED' });
+    await assert.rejects(
+      () => geocoding.geocodeListingRow({ quartier: 'GB', commune: 'Ngaliema' }, { apiKey: 'k', request: fakeGoogleWithBox().request, placesRequest: places.placesRequest, ignoreTable: true }),
+      /PERMISSION_DENIED/,
+    );
+  });
+  check('kinshasa_quartier_points.json, when present, holds only points inside Kinshasa or null', () => {
+    const fsQ = require('fs');
+    const file = require('path').join(__dirname, '..', 'kinshasa_quartier_points.json');
+    if (!fsQ.existsSync(file)) return;
+    const { points } = JSON.parse(fsQ.readFileSync(file, 'utf8'));
+    for (const [key, point] of Object.entries(points)) {
+      assert.match(key, /^[^|]+\|[a-z0-9 ]+$/, key);
+      if (point === null) continue;
+      assert.ok(point.lat > -4.95 && point.lat < -3.9 && point.lng > 15.0 && point.lng < 16.6, `${key} outside Kinshasa`);
+    }
+  });
+
   check('a correction that moves the listing clears its pin; one that fixes the price or the casing does not', () => {
     const before = { quartier: 'Righini', commune: 'Lemba', reference: 'Demiap' };
     assert.strictEqual(geocoding.locationInputsChanged(before, { ...before, quartier: 'Salongo' }), true);
@@ -8628,7 +8895,7 @@ console.log('\n2. services/openai.js');
       ['INSERT INTO sales_agent_attributions', [{ agent_id: 501 }]],
     ]);
     const result = await salesReferral.attributeNewAgentInTransaction(client, { agentId: 501, waId: REFERRED });
-    assert.deepStrictEqual(result, { attributed: true, repId: 7 });
+    assert.deepStrictEqual(result, { attributed: true, repId: 7, code: 'JEAN01' });
     const insert = client.seen.find((q) => q.sql.startsWith('INSERT INTO sales_agent_attributions'));
     assert.ok(insert.sql.includes("'whatsapp_code'") && insert.sql.includes('ON CONFLICT (agent_id) DO NOTHING'));
     assert.deepStrictEqual(insert.values, [501, 7, 'JEAN01']);
@@ -11244,6 +11511,29 @@ console.log('\n2. services/openai.js');
     assert.match(source, /PAS « dépôt de garantie »/);
   });
 
+  check('Immeuble, Villa and Concession: their own categories, old ones before the 2026-10-22 migration', () => {
+    const after = new Map([
+      ['immeuble', { id: 38, type: 'commercial' }], ['villa', { id: 45, type: 'residential' }],
+      ['concession', { id: 46, type: 'residential' }], ['maison', { id: 36, type: 'residential' }],
+      ['terrain', { id: 42, type: 'residential' }], ['bureau', { id: 44, type: 'commercial' }],
+    ]);
+    assert.strictEqual(postgresService.resolveCategory('immeuble', after).id, 38);
+    assert.strictEqual(postgresService.resolveCategory('villa', after).id, 45);
+    assert.strictEqual(postgresService.resolveCategory('concession', after).id, 46);
+    assert.strictEqual(postgresService.resolveCategory('parcelle', after, 'villa').id, 45, 'a villa parcelle is a Villa');
+    assert.strictEqual(postgresService.resolveCategory('parcelle', after, 'terrain_nu').id, 42);
+    assert.strictEqual(postgresService.resolveCategory('parcelle', after).id, 42);
+    // Before: "Bâtiment" is the building category, no Villa / Concession.
+    assert.strictEqual(postgresService.resolveCategory('immeuble', fakeCategories).id, 38);
+    assert.strictEqual(postgresService.resolveCategory('concession', fakeCategories).id, 42);
+    assert.strictEqual(postgresService.resolveCategory('parcelle', fakeCategories, 'villa').id, 42);
+    const repoSource = fs.readFileSync(path.join(__dirname, '..', 'services', 'propertyRepository.js'), 'utf8');
+    assert.ok(repoSource.includes("immeuble: ['immeuble', 'bâtiment']"), 'buyer search still finds Immeuble under its old name');
+    const prompt = fs.readFileSync(path.join(__dirname, '..', 'services', 'openai.js'), 'utf8');
+    assert.match(prompt, /'terrain', 'concession', /, 'concession is an extraction type');
+    assert.match(prompt, /CONCESSION/);
+  });
+
   check('a "bureau" lands on the Bureau category, or on Bâtiment before the migration', () => {
     const withOffice = new Map([['bureau', { id: 44, type: 'commercial' }], ['batiment', { id: 38, type: 'commercial' }]]);
     const without = new Map([['batiment', { id: 38, type: 'commercial' }], ['appartement', { id: 34, type: 'residential' }]]);
@@ -11310,7 +11600,7 @@ console.log('\n2. services/openai.js');
     const source = fs.readFileSync(path.join(__dirname, '..', 'services', 'propertyRepository.js'), 'utf8');
     assert.match(source, /propertyType === 'commercial'[\s\S]{0,200}LOWER\(cat\.type\) = 'commercial'/);
     const tool = fs.readFileSync(path.join(__dirname, '..', 'services', 'openai.js'), 'utf8');
-    assert.ok(tool.includes("enum: ['appartement', 'parcelle', 'commercial', 'bureau', 'boutique', 'entrepot']"));
+    assert.ok(tool.includes("enum: ['appartement', 'studio', 'chambre', 'parcelle', 'villa', 'concession', 'ferme', 'commercial', 'bureau', 'boutique', 'entrepot', 'immeuble']"));
   });
 
   check('web keeps the same specs and bounds', () => {
@@ -11778,6 +12068,1026 @@ console.log('\n2. services/openai.js');
     // A building (multi-unit) always shares its photos.
     assert.strictEqual(dbService.photosByProperty({ is_multi_unit: true, photo_blocks: [0, 0, 1] }, photos, 2), null);
   });
+
+  // ===========================================================================
+  // 60. Console deletes of prospects and visits; surface decimals (2026-10-21)
+  // ===========================================================================
+
+  console.log('\n60. Deleting a prospect or a visit; surface keeps its decimals');
+
+  {
+    const CUSTOMER60 = '243810006060';
+    const lead60 = dbService.createLead({ wa_id: CUSTOMER60, name: 'Client 60', source: 'listing-visit-request', property_id: 6060 });
+    const visitA60 = dbService.createViewingRequest({ leadId: lead60.id, propertyId: 6060, requestedTime: 'samedi 10h' });
+    const visitB60 = dbService.createViewingRequest({ leadId: lead60.id, propertyId: 6061, requestedTime: 'dimanche 11h' });
+    dbService.setPendingAgentAction({ waId: '243810006061', kind: 'VIEWING_RESPONSE', viewingRequestId: visitA60.id });
+    dbService.recordLeadMatch({ leadId: lead60.id, agentId: 6060 });
+
+    const unknown60 = await adminRequest('DELETE', '/admin/viewing-requests/9999060');
+    check('deleting an unknown visit is a 404, not a 500', () => assert.strictEqual(unknown60.status, 404));
+
+    const visitDel60 = await adminRequest('DELETE', `/admin/viewing-requests/${visitA60.id}`);
+    check('a visit with an open WhatsApp question is deleted, the prospect stays', () => {
+      assert.strictEqual(visitDel60.status, 200);
+      assert.strictEqual(visitDel60.body.leadId, lead60.id);
+      assert.strictEqual(dbService.db.prepare('SELECT COUNT(*) n FROM viewing_requests WHERE id = ?').get(visitA60.id).n, 0);
+      assert.strictEqual(dbService.db.prepare('SELECT COUNT(*) n FROM pending_agent_actions WHERE viewing_request_id = ?').get(visitA60.id).n, 0);
+      assert.ok(dbService.db.prepare('SELECT id FROM leads WHERE id = ?').get(lead60.id));
+    });
+
+    const leadDel60 = await adminRequest('DELETE', `/admin/leads/${lead60.id}`);
+    check('a prospect is deleted with its remaining visits and agency matches', () => {
+      assert.strictEqual(leadDel60.status, 200);
+      assert.strictEqual(leadDel60.body.visits, 1);
+      for (const [table, column, id] of [['leads', 'id', lead60.id], ['viewing_requests', 'id', visitB60.id], ['lead_matches', 'lead_id', lead60.id]]) {
+        assert.strictEqual(dbService.db.prepare(`SELECT COUNT(*) n FROM ${table} WHERE ${column} = ?`).get(id).n, 0, table);
+      }
+    });
+
+    const again60 = await adminRequest('DELETE', `/admin/leads/${lead60.id}`);
+    check('deleting the same prospect twice is a 404', () => assert.strictEqual(again60.status, 404));
+
+    check('a surface read by the model keeps up to two decimals when published', () => {
+      const values = postgresService.buildPropertyValues(
+        { property_type: 'appartement', transaction_type: 'location', surface_area_sqm: 250.756 },
+        { category: { id: 34, type: 'residential' }, location: { countryId: 1, cityId: 2 } },
+      );
+      assert.strictEqual(values.area, '250.76');
+    });
+  }
+
+  // ===========================================================================
+  // 61. A new listing is never a correction; unconfirmed drafts reach
+  //     moderation (2026-10-21)
+  // ===========================================================================
+
+  console.log('\n61. New-listing boundary, onboarding guard, draft auto-submit');
+
+  {
+    const boundary61 = require('../services/listingBoundary');
+    const OFFER61 = 'OFFRE DE LOCATION IMMOBILIERE Nous mettons en location un complexe de plusieurs appartements, '
+      + 'composé de 3 chambres à coucher avec installations sanitaires, à Limete. Loyer : 1.500 $ par mois';
+
+    check('a property offer with a price stands alone; edits, names and greetings do not', () => {
+      assert.ok(boundary61.standsAloneAsListing(OFFER61));
+      assert.ok(boundary61.standsAloneAsListing('Appartement à louer Kintambo 2 chambres 500$'));
+      for (const text of ['non 1100$', '4 chambres', "c'est à Limete", 'Jean Kabeya, Agence Horizon', 'Bonjour, merci beaucoup']) {
+        assert.ok(!boundary61.standsAloneAsListing(text), text);
+      }
+    });
+    check('correction wording is recognised', () => {
+      for (const text of ['pas 3+1+1 mais 2+1+1', "non c'est une villa à 1500$", '1100$ au lieu de 1200$', 'plutôt 900$']) {
+        assert.ok(boundary61.readsAsCorrection(text), text);
+      }
+      assert.ok(!boundary61.readsAsCorrection(OFFER61));
+      assert.ok(!boundary61.readsAsCorrection('Villa à louer, pas de commission, 1200$'));
+    });
+    check('prices are read with thousands separators', () => {
+      assert.deepStrictEqual(boundary61.pricesIn('Loyer : 1.500 $ par mois'), [1500]);
+      assert.deepStrictEqual(boundary61.pricesIn('Prix 85 000 USD'), [85000]);
+      assert.deepStrictEqual(boundary61.pricesIn('$1100/mois'), [1100]);
+    });
+
+    const draft61 = { property_type: 'villa', commune: 'Ngaliema', price: 1200 };
+    check('photos + a listing of its own → new listing; the same property re-sent → not', () => {
+      assert.strictEqual(boundary61.newListingReason({ text: OFFER61, photoCount: 8, context: draft61 }).reason, 'photos-and-own-listing');
+      assert.strictEqual(boundary61.newListingReason({ text: 'Villa Ngaliema 1200$ voici les photos', photoCount: 3, context: draft61 }), null);
+      assert.strictEqual(boundary61.newListingReason({ text: 'voici les photos, le prix est 1200$', photoCount: 3, context: draft61 }), null, 'names no property');
+    });
+    check('text only: a differing price, type or commune makes a new listing only when long and called a listing', () => {
+      const r = boundary61.newListingReason({ text: OFFER61, photoCount: 0, intent: 'listing', context: draft61 });
+      assert.strictEqual(r.reason, 'core-fields-differ');
+      assert.deepStrictEqual(r.differences.sort(), ['commune', 'price'], 'appartements + complexe name two kinds: type is not compared');
+      assert.deepStrictEqual(boundary61.coreDifferences('Appartement à louer à Ngaliema, 1200 USD', draft61), ['property_type']);
+      assert.strictEqual(boundary61.newListingReason({ text: OFFER61, photoCount: 0, intent: 'question', context: draft61 }), null);
+      assert.strictEqual(boundary61.newListingReason({ text: OFFER61, intent: 'listing', context: null }).reason, 'own-listing');
+      assert.strictEqual(boundary61.newListingReason({ text: 'je cherche un appartement à 500 USD', intent: 'buyer_request', context: null }), null);
+      assert.strictEqual(boundary61.newListingReason({ text: 'Appartement Limete 800 USD', photoCount: 0, intent: 'listing', context: draft61 }), null, 'too short to be a description');
+      assert.strictEqual(boundary61.newListingReason({ text: "non c'est un appartement à Limete, le loyer est 800 USD par mois, garantie 3 mois et 1 mois d'avance", intent: 'listing', context: draft61 }), null, 'correction wording');
+    });
+
+    await checkAsync('a listing sent as the answer to "your name?" is never stored as the name', async () => {
+      const result = await onboarding.completeOnboarding('243850006101', OFFER61);
+      assert.deepStrictEqual(result, { handled: false, reason: 'looks-like-listing' });
+    });
+
+    // --- End to end: a second property with photos while a draft is pending.
+    const S61 = '243850006102';
+    const seed61 = dbService.insertListing(
+      { is_listing: true, transaction_type: 'location', property_type: 'villa', commune: 'Ngaliema', quartier: 'Macampagne', price: 1200, currency: 'USD' },
+      S61,
+      { wamid: 'wamid.S61SEED', rawText: 'Villa Macampagne 3ch 1200 USD/mois', photos: ['/uploads/listings/s61seed.jpg'] },
+    );
+    const rows61 = dbService.countListings();
+    const calls61 = openaiCalls.length;
+    completionQueue.push(
+      // Correction mode: the model folds the new property into the draft…
+      intakeCompletion({ is_listing: false, is_correction: true, commune: 'Limete', price: 1500 }, 'Mise à jour ✅'),
+      // …and the re-read without the draft sees it for what it is.
+      intakeCompletion({ is_listing: true, property_type: 'appartement', commune: 'Limete', quartier: null, price: 1500, bedrooms: 3 }, 'Voici votre annonce.'),
+    );
+    await post('/webhook', inboundImage('wamid.S61A', 'media_61a', OFFER61, S61));
+    await settle(700);
+
+    check('the second property becomes its own row, with its own photo', () => {
+      assert.strictEqual(dbService.countListings(), rows61 + 1);
+      const fresh = dbService.findLatestPendingListing(S61);
+      assert.notStrictEqual(fresh.id, seed61.id);
+      assert.strictEqual(fresh.property_type, 'appartement');
+      assert.strictEqual(fresh.price, 1500);
+      assert.strictEqual(fresh.photos.length, 1);
+    });
+    check('the earlier draft is untouched — price, place and photos', () => {
+      const old = dbService.getListing(seed61.id);
+      assert.strictEqual(old.price, 1200);
+      assert.strictEqual(old.commune, 'Ngaliema');
+      assert.deepStrictEqual(old.photos, ['/uploads/listings/s61seed.jpg']);
+      assert.ok(!old.raw_text.includes('OFFRE DE LOCATION'));
+    });
+    check('the re-read is made WITHOUT the draft in context', () => {
+      assert.strictEqual(openaiCalls.length - calls61, 2);
+      const reread = openaiCalls[openaiCalls.length - 1];
+      assert.ok(!reread.messages.some((m) => m.role === 'system' && m.content.includes('annonce déjà enregistrée')));
+    });
+
+    // --- A plain correction with a photo still corrects.
+    const fresh61 = dbService.findLatestPendingListing(S61);
+    const rowsBeforeEdit61 = dbService.countListings();
+    const callsBeforeEdit61 = openaiCalls.length;
+    completionQueue.push(intakeCompletion({ is_listing: false, is_correction: true, property_type: 'appartement', commune: 'Limete', price: 1400 }, "C'est noté ✅"));
+    await post('/webhook', inboundImage('wamid.S61B', 'media_61b', 'le loyer est 1400 USD, voici une autre photo', S61));
+    await settle(700);
+    check('"le loyer est 1400 USD" + a photo is still a correction of the draft, with one model call', () => {
+      assert.strictEqual(dbService.countListings(), rowsBeforeEdit61);
+      assert.strictEqual(openaiCalls.length - callsBeforeEdit61, 1);
+      const row = dbService.getListing(fresh61.id);
+      assert.strictEqual(row.price, 1400);
+      assert.strictEqual(row.photos.length, 2);
+    });
+
+    // --- Mid-onboarding, no draft: the listing is stored, not taken as a name.
+    const S61N = '243850006103';
+    onboarding.startOnboarding(S61N, {}, 0);
+    const rowsN61 = dbService.countListings();
+    completionQueue.push(intakeCompletion({ is_listing: false, intent: 'listing', commune: 'Limete', price: 1500 }, '…'));
+    await post('/webhook', inbound('wamid.S61N', OFFER61, S61N));
+    await settle(500);
+    check('with the name question open, a property offer is stored as a listing', () => {
+      assert.strictEqual(dbService.countListings(), rowsN61 + 1);
+      assert.ok(dbService.findLatestPendingListing(S61N));
+      assert.strictEqual(onboarding.getSession(S61N).state, 'AWAITING_NAME', 'the question stays open');
+    });
+
+    // --- Point 3: drafts nobody confirmed go to moderation.
+    const auto61 = require('../services/draftAutoSubmit');
+    const savedHours61 = process.env.DRAFT_AUTO_SUBMIT_HOURS;
+    process.env.DRAFT_AUTO_SUBMIT_HOURS = '3';
+    try {
+      const mk = (wamid, photos, hoursAgo) => {
+        const { id } = dbService.insertListing(
+          { is_listing: true, property_type: 'appartement', commune: 'Lemba', price: 300, currency: 'USD' },
+          '243850006104',
+          { wamid, rawText: 'Appartement Lemba 300 USD', photos },
+        );
+        dbService.db.prepare(`UPDATE listings SET created_at = datetime('now', ?) WHERE id = ?`).run(`-${hoursAgo} hours`, id);
+        return id;
+      };
+      // Older drafts from earlier sections must not decide this test.
+      dbService.db.prepare(`UPDATE listings SET created_at = datetime('now') WHERE status = 'pending_confirmation'`).run();
+      const old61 = mk('wamid.S61OLD', ['/uploads/listings/s61old.jpg'], 4);
+      const noPhoto61 = mk('wamid.S61NOPHOTO', [], 5);
+      const young61 = mk('wamid.S61YOUNG', ['/uploads/listings/s61young.jpg'], 1);
+
+      check('the job is registered and due when an old draft with a photo waits', () => {
+        assert.ok(require('../services/scheduler').JOBS.some((j) => j.name === 'draft-auto-submit'));
+        assert.strictEqual(auto61.autoSubmitDue(), true);
+      });
+
+      const full = await auto61.runDraftAutoSubmit({ checkQuota: async () => ({ blocked: true, used: 5, limit: 5 }) });
+      check('a full plan leaves the draft pending, and it is not re-asked every minute', () => {
+        assert.deepStrictEqual(full.overQuota, [old61]);
+        assert.strictEqual(dbService.getListing(old61).status, 'pending_confirmation');
+        assert.strictEqual(auto61.autoSubmitDue(), false);
+      });
+
+      dbService.db.prepare(`UPDATE listings SET parsed_json = json_remove(parsed_json, '$.auto_submit_blocked_at') WHERE id = ?`).run(old61);
+      const done = await auto61.runDraftAutoSubmit({ checkQuota: async () => null });
+      check('after the timeout, a draft with a photo is published to the moderation queue and stamped', () => {
+        assert.deepStrictEqual(done.submitted, [old61]);
+        const row = dbService.getListing(old61);
+        assert.strictEqual(row.status, 'published');
+        assert.ok(row.parsed_json.auto_submitted_at);
+      });
+      check('a draft with no photo, or younger than the timeout, stays pending', () => {
+        assert.strictEqual(dbService.getListing(noPhoto61).status, 'pending_confirmation');
+        assert.strictEqual(dbService.getListing(young61).status, 'pending_confirmation');
+        assert.strictEqual(auto61.autoSubmitDue(), false);
+      });
+      check('DRAFT_AUTO_SUBMIT_HOURS=off disables it', () => {
+        process.env.DRAFT_AUTO_SUBMIT_HOURS = 'off';
+        assert.strictEqual(auto61.autoSubmitHours(), 0);
+        assert.strictEqual(auto61.autoSubmitDue(), false);
+      });
+    } finally {
+      if (savedHours61 === undefined) delete process.env.DRAFT_AUTO_SUBMIT_HOURS;
+      else process.env.DRAFT_AUTO_SUBMIT_HOURS = savedHours61;
+    }
+  }
+
+  // ===========================================================================
+  // 62. Listings captured from WhatsApp groups — relay and reader (2026-10-21)
+  // ===========================================================================
+
+  console.log('\n62. WhatsApp group capture: relay number and group reader');
+
+  {
+    const relay62 = require('../services/groupRelay');
+    const opsAlerts62 = require('../services/opsAlerts');
+    const repo62 = require('../services/propertyRepository');
+    const RELAY62 = '243850006201';
+    const POSTER62 = '243999384203';
+    const savedRelay62 = process.env.RELAY_NUMBERS;
+    process.env.RELAY_NUMBERS = '0850006201';
+    const sendsTo = (to) => httpCalls.filter((c) => c.method === 'post' && c.data?.to === to);
+    const textOf = (call) => call.data?.text?.body || '';
+
+    try {
+      check('relay numbers are read in any written form', () => {
+        assert.ok(relay62.isRelaySender(RELAY62));
+        assert.ok(!relay62.isRelaySender('243850006299'));
+      });
+      check('a burst is cut into posts: leading photos join the first, "Agent : …" names the poster', () => {
+        const { posts } = relay62.splitBurst([
+          { text: '', media: [{ id: 'p0' }], wamid: 'w0' },
+          { text: 'Agent : 0812 345 678', wamid: 'w1' },
+          { text: 'Maison à louer Limete 270$', media: [{ id: 'p1' }], wamid: 'w2' },
+          { text: '', media: [{ id: 'p2' }], wamid: 'w3' },
+          { text: 'Appartement Gombe 900$', wamid: 'w4' },
+        ]);
+        assert.strictEqual(posts.length, 2);
+        assert.deepStrictEqual(posts[0].refs.map((r) => r.id), ['p0', 'p1', 'p2']);
+        assert.strictEqual(posts[0].posterPhone, '243812345678');
+        assert.deepStrictEqual(posts[1].refs, []);
+        assert.strictEqual(posts[1].posterPhone, '243812345678', 'the agent line covers the posts after it');
+      });
+      check('phone numbers written in a post are read; our own numbers never are', () => {
+        assert.deepStrictEqual(relay62.phonesIn('Contact : +243 999 384 203 ou 0976321848'), [POSTER62]);
+      });
+
+      const TEXT_A = 'Prince immo tout kin vous suggère une maison basse 3 familles dans la parcelle à Limete 4ème rue, '
+        + 'référence école Aurore. 2 chambres, 1 salon. Loyer : 270$, Garantie : 5+1. Contact : +243 999 384 203';
+      const TEXT_B = 'Appartement à louer à Gombe, 3 chambres, 2 salles de bain, climatisé, loyer 1200$ par mois, garantie 3 mois.';
+      const TEXT_C = 'Villa à vendre à Ngaliema, Macampagne, 4 chambres, piscine, terrain de 20x30, prix 350.000$ à discuter.';
+
+      const rows62 = dbService.countListings();
+      const calls62 = openaiCalls.length;
+      httpCalls.length = 0;
+      completionQueue.push(
+        intakeCompletion({ is_listing: true, property_type: 'parcelle', commune: 'Limete', quartier: null, price: 270, bedrooms: 2 }, '…'),
+        intakeCompletion({ is_listing: true, property_type: 'appartement', commune: 'Gombe', quartier: null, price: 1200, bedrooms: 3 }, '…'),
+        intakeCompletion({ is_listing: true, transaction_type: 'vente', property_type: 'villa', commune: 'Ngaliema', price: 350000, bedrooms: 4 }, '…'),
+      );
+      await post('/webhook', inbound('wamid.R62A', TEXT_A, RELAY62));
+      await post('/webhook', inboundImage('wamid.R62A1', 'media_62a', null, RELAY62));
+      await post('/webhook', inbound('wamid.R62B', TEXT_B, RELAY62));
+      await post('/webhook', inboundImage('wamid.R62B1', 'media_62b', null, RELAY62));
+      await post('/webhook', inbound('wamid.R62C', TEXT_C, RELAY62));
+      await post('/webhook', inboundImage('wamid.R62C1', 'media_62c', null, RELAY62));
+      await settle(1200);
+
+      const fresh62 = dbService.db.prepare('SELECT id FROM listings WHERE id > (SELECT MAX(id) - 3 FROM listings) ORDER BY id').all()
+        .map(({ id }) => dbService.getListing(id));
+      check('three forwarded posts become three listings in the approval queue, no "OK" asked', () => {
+        assert.strictEqual(dbService.countListings(), rows62 + 3);
+        assert.deepStrictEqual(fresh62.map((r) => r.status), ['published', 'published', 'published']);
+        assert.deepStrictEqual(fresh62.map((r) => r.commune), ['Limete', 'Gombe', 'Ngaliema']);
+        assert.deepStrictEqual(fresh62.map((r) => r.photos.length), [1, 1, 1], 'each post keeps its own photo');
+        assert.ok(fresh62.every((r) => r.parsed_json.source === 'whatsapp-group' && r.parsed_json.source_via === 'relay'));
+      });
+      check('the poster\'s number in the text is recorded and files the listing; no number → the relay', () => {
+        assert.strictEqual(fresh62[0].parsed_json.poster_phone, POSTER62);
+        assert.strictEqual(fresh62[0].wa_id, POSTER62);
+        assert.strictEqual(fresh62[1].parsed_json.poster_phone, null);
+        assert.strictEqual(fresh62[1].wa_id, RELAY62);
+      });
+      check('each post is read alone, never with a draft in context', () => {
+        assert.strictEqual(openaiCalls.length - calls62, 3);
+        for (const call of openaiCalls.slice(calls62)) {
+          assert.ok(!call.messages.some((m) => m.role === 'system' && m.content.includes('annonce déjà enregistrée')));
+        }
+      });
+      check('exactly one message is sent — the receipt, to the relay; never to the poster', () => {
+        assert.strictEqual(sendsTo(POSTER62).length, 0);
+        const toRelay = sendsTo(RELAY62).filter((c) => c.data?.type === 'text');
+        assert.strictEqual(toRelay.length, 1);
+        assert.match(textOf(toRelay[0]), /3 annonces envoyées en modération/);
+        assert.match(textOf(toRelay[0]), new RegExp(`n° ${fresh62[2].id}`));
+      });
+      check('a group capture is never the poster\'s draft or recent listing', () => {
+        assert.strictEqual(dbService.findRecentPublishedListing(POSTER62), undefined);
+      });
+
+      // The same post forwarded again, from another group.
+      const rowsDup62 = dbService.countListings();
+      const callsDup62 = openaiCalls.length;
+      httpCalls.length = 0;
+      await post('/webhook', inbound('wamid.R62A-again', TEXT_A, RELAY62));
+      await settle(600);
+      check('the same post forwarded again is not stored twice, and costs no model call', () => {
+        assert.strictEqual(dbService.countListings(), rowsDup62);
+        assert.strictEqual(openaiCalls.length, callsDup62);
+        assert.match(textOf(sendsTo(RELAY62)[0] || {}), new RegExp(`Déjà reçue : n° ${fresh62[0].id}`));
+      });
+
+      // A text-only post, its agent named on the line before.
+      httpCalls.length = 0;
+      completionQueue.push(intakeCompletion({ is_listing: true, transaction_type: 'vente', property_type: 'parcelle', commune: 'Kimbanseke', price: 12000 }, '…'));
+      await post('/webhook', inbound('wamid.R62D0', 'Agent : 0812 345 678', RELAY62));
+      await post('/webhook', inbound('wamid.R62D', 'Terrain à vendre à Kimbanseke, 15/20m, prix 12.000$, documents en ordre, accès facile par la route.', RELAY62));
+      await settle(700);
+      const draft62 = dbService.db.prepare("SELECT id FROM listings WHERE wa_id = '243812345678' ORDER BY id DESC LIMIT 1").get();
+      check('a post with no photo stays a draft, named in the receipt; it is nobody\'s pending draft', () => {
+        assert.ok(draft62);
+        assert.strictEqual(dbService.getListing(draft62.id).status, 'pending_confirmation');
+        assert.match(textOf(sendsTo(RELAY62)[0] || {}), /Sans photo/);
+        assert.strictEqual(dbService.findLatestPendingListing('243812345678'), undefined);
+      });
+
+      // The group reader's endpoint.
+      fs.mkdirSync(path.join(UPLOADS, 'listings'), { recursive: true });
+      fs.writeFileSync(path.join(UPLOADS, 'listings', 'grp_test62-0.jpg'), REAL_JPEG_BYTES);
+      const readerBody = {
+        groupJid: '120363000000000062@g.us',
+        groupName: 'Groupe Prince immo tout kin',
+        posterPhone: '243999384204',
+        posterName: '~Prince Immo Tout Kin',
+        text: 'Studio à louer à Bandalungwa, 1 chambre, douche intérieure, loyer 150$ par mois, garantie 3 mois.',
+        photos: ['/uploads/listings/grp_test62-0.jpg', '/uploads/../../etc/passwd'],
+        wamids: ['grpmsg-62-1'],
+      };
+      const noKey62 = await new Promise((resolve) => {
+        const payload = JSON.stringify(readerBody);
+        const req = http.request({ host: 'localhost', port: 3200, path: '/internal/group-posts', method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) } },
+        (res) => { res.resume(); res.on('end', () => resolve(res.statusCode)); });
+        req.end(payload);
+      });
+      check('the reader endpoint refuses a call without the API key', () => assert.strictEqual(noKey62, 401));
+
+      httpCalls.length = 0;
+      completionQueue.push(intakeCompletion({ is_listing: true, property_type: 'appartement', commune: 'Bandalungwa', quartier: null, price: 150, bedrooms: 1 }, '…'));
+      const reader62 = await adminRequest('POST', '/internal/group-posts', readerBody);
+      check('a reader post is stored and sent to moderation, filed under its author, with nothing sent', () => {
+        assert.strictEqual(reader62.status, 200);
+        assert.strictEqual(reader62.body.outcome, 'stored');
+        const row = dbService.getListing(reader62.body.listingId);
+        assert.strictEqual(row.status, 'published');
+        assert.strictEqual(row.wa_id, '243999384204');
+        assert.strictEqual(row.parsed_json.source_via, 'reader');
+        assert.strictEqual(row.parsed_json.group_name, 'Groupe Prince immo tout kin');
+        assert.deepStrictEqual(row.photos, ['/uploads/listings/grp_test62-0.jpg'], 'a path outside the uploads is ignored');
+        assert.strictEqual(httpCalls.filter((c) => c.method === 'post' && c.data?.type === 'text').length, 0);
+        assert.ok(dbService.getEngineHealth().groupReader.lastIngestAt);
+      });
+      check('the reader\'s photo reaches the vision model', () => {
+        const parts = openaiCalls[openaiCalls.length - 1].messages.at(-1).content;
+        assert.ok(parts.some((p) => p.type === 'image_url'));
+      });
+      const again62 = await adminRequest('POST', '/internal/group-posts', { ...readerBody, wamids: ['grpmsg-62-2'] });
+      check('the same reader post twice is a duplicate', () => {
+        assert.strictEqual(again62.body.outcome, 'duplicate');
+        assert.strictEqual(again62.body.listingId, reader62.body.listingId);
+      });
+
+      // Moderation verdict: never to a group poster.
+      dbService.db.prepare('UPDATE listings SET remote_property_id = 990620 WHERE id = ?').run(fresh62[0].id);
+      const savedRecipient62 = repo62.getModerationRecipient;
+      repo62.getModerationRecipient = async () => null;
+      try {
+        httpCalls.length = 0;
+        const verdict62 = await adminRequest('POST', '/admin/properties/990620/notify', { status: 'approved' });
+        await settle(200);
+        check('the "annonce validée" message is not sent to a group poster with no attached agent', () => {
+          assert.strictEqual(verdict62.status, 200);
+          assert.strictEqual(verdict62.body.skipped, 'group-capture');
+          assert.strictEqual(sendsTo(POSTER62).length, 0);
+        });
+      } finally {
+        repo62.getModerationRecipient = savedRecipient62;
+      }
+
+      await checkAsync('the moderator\'s note names the group, the poster and the relay', async () => {
+        const queries = [];
+        const ok = await relay62.addSourceNote(fresh62[0], 990620, { pool: { query: async (sql, params) => queries.push({ sql, params }) } });
+        assert.strictEqual(ok, true);
+        assert.match(queries[0].sql, /INSERT INTO console_admin_notes/);
+        assert.strictEqual(queries[0].params[0], '990620');
+        assert.match(queries[0].params[1], /\+243 999 384 203/);
+        assert.match(queries[0].params[1], /relais \+243 850 006 201/);
+        assert.strictEqual(await relay62.addSourceNote({ parsed_json: { source: null } }, 1, { pool: { query: async () => {} } }), false, 'only group captures get one');
+      });
+
+      check('the reader alerts after 12 h of silence, only while enabled', () => {
+        const base = { jobs: [], traffic: {}, failures: { failedPushes24h: 0 } };
+        const now = Date.parse('2026-10-21T20:00:00Z');
+        const keys = (groupReader) => opsAlerts62.evaluateHealth({ ...base, groupReader }, { now }).map((a) => a.key);
+        assert.deepStrictEqual(keys({ enabled: true, lastIngestAt: '2026-10-21T07:00:00Z' }), ['group-reader:silent']);
+        assert.deepStrictEqual(keys({ enabled: true, lastIngestAt: '2026-10-21T18:00:00Z' }), []);
+        assert.deepStrictEqual(keys({ enabled: false, lastIngestAt: '2026-10-20T07:00:00Z' }), []);
+        assert.deepStrictEqual(keys({ enabled: true, lastIngestAt: null }), [], 'nothing expected before the first post');
+      });
+    } finally {
+      if (savedRelay62 === undefined) delete process.env.RELAY_NUMBERS;
+      else process.env.RELAY_NUMBERS = savedRelay62;
+    }
+  }
+
+  // ===========================================================================
+  // 63. Listing videos and the 20-photo cap (2026-10-21)
+  // ===========================================================================
+
+  console.log('\n63. Listing videos and the 20-photo cap');
+
+  {
+    const media63 = require('../services/listingMedia');
+    const FAKE_MP4 = Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from('ftypmp42'), Buffer.alloc(32)]);
+    const sendsTo = (to) => httpCalls.filter((c) => c.method === 'post' && c.data?.to === to);
+    const textOf = (call) => call?.data?.text?.body || '';
+    function inboundVideo(wamid, mediaId, caption, from) {
+      const video = caption ? { id: mediaId, mime_type: 'video/mp4', caption } : { id: mediaId, mime_type: 'video/mp4' };
+      return {
+        object: 'whatsapp_business_account',
+        entry: [{ id: '1', changes: [{ field: 'messages', value: {
+          metadata: { phone_number_id: '987654321' },
+          contacts: [{ wa_id: from, profile: { name: 'Agent Vidéo' } }],
+          messages: [{ from, id: wamid, timestamp: '1', type: 'video', video }],
+        } }] }],
+      };
+    }
+
+    check('caps: 20 photos, 3 videos; a video is told from a photo by mime and by its bytes', () => {
+      assert.strictEqual(media63.MAX_LISTING_PHOTOS, 20);
+      assert.strictEqual(media63.MAX_LISTING_VIDEOS, 3);
+      assert.ok(media63.isVideoMime('video/mp4') && !media63.isVideoMime('image/jpeg'));
+      assert.strictEqual(media63.sniffVideoMime(FAKE_MP4), 'video/mp4');
+      assert.strictEqual(media63.sniffVideoMime(Buffer.from('<html>error</html>')), null);
+      assert.strictEqual(media63.sniffVideoMime(REAL_JPEG_BYTES), null);
+    });
+    const webLimits63 = path.join(__dirname, '..', 'web', 'lib', 'uploadLimits.mjs');
+    // The VPS engine dir has no web/ beside it; the check runs where it does.
+    if (fs.existsSync(webLimits63)) {
+      check('the web and the engine agree on 20 photos', () => {
+        assert.match(fs.readFileSync(webLimits63, 'utf8'), new RegExp(`export const MAX_LISTING_PHOTOS = ${media63.MAX_LISTING_PHOTOS};`));
+      });
+    }
+    check('one photo OR one video makes a listing publishable; neither does not', () => {
+      assert.ok(media63.hasVisualMedia({ photos: ['/a.jpg'], videos: [] }));
+      assert.ok(media63.hasVisualMedia({ photos: [], videos: ['/a.mp4'] }));
+      assert.ok(!media63.hasVisualMedia({ photos: [], videos: [] }));
+      assert.ok(!media63.hasVisualMedia({}));
+    });
+    check('db keeps at most 20 photos and 3 videos, on insert and on every correction', () => {
+      const photos = Array.from({ length: 25 }, (_, i) => `/uploads/listings/cap63-${i}.jpg`);
+      const { id } = dbService.insertListing({ is_listing: true, property_type: 'villa', commune: 'Gombe', price: 900 }, '243863000099', {
+        photos,
+        videos: ['/uploads/listings/cap63-v0.mp4', '/uploads/listings/cap63-v1.mp4'],
+      });
+      let row = dbService.getListing(id);
+      assert.strictEqual(row.photos.length, 20);
+      assert.deepStrictEqual(row.photos.slice(0, 2), photos.slice(0, 2), 'the first photos are the ones kept');
+      assert.strictEqual(row.videos.length, 2);
+      row = dbService.applyListingCorrection(id, null, null, [], ['/uploads/listings/cap63-extra.jpg'], [
+        '/uploads/listings/cap63-v1.mp4', '/uploads/listings/cap63-v2.mp4', '/uploads/listings/cap63-v3.mp4',
+      ]);
+      assert.strictEqual(row.photos.length, 20);
+      assert.deepStrictEqual(row.videos, ['/uploads/listings/cap63-v0.mp4', '/uploads/listings/cap63-v1.mp4', '/uploads/listings/cap63-v2.mp4']);
+    });
+    check('the intake card counts videos, and only says "aucune" with neither', () => {
+      const listingCard63 = require('../services/listingCard');
+      const card = listingCard63.renderListingCard({ property_type: 'villa', commune: 'Gombe', price: 900, photos: [], videos: ['/v.mp4'] });
+      assert.match(card, /\*Vidéos\* : 1/);
+      assert.ok(!card.includes('aucune'));
+      const full = listingCard63.renderListingCard({ property_type: 'villa', commune: 'Gombe', price: 900, photos: Array(20).fill('/p.jpg') });
+      assert.match(full, /\*Photos\* : 20 \(maximum 20\)/);
+    });
+    await checkAsync('a cover frame that cannot be cut is null, never a throw', async () => {
+      const junk = path.join(UPLOADS, 'listings', 'junk63.mp4');
+      fs.mkdirSync(path.dirname(junk), { recursive: true });
+      fs.writeFileSync(junk, Buffer.from('not a video'));
+      assert.strictEqual(await media63.posterForVideo(junk, { timeoutMs: 15000 }), null);
+    });
+
+    // End to end: a captioned video becomes a listing with no photo, and OK publishes it.
+    const FROM63 = '243863000001';
+    const savedBinary = mediaBinaryResponse;
+    const savedType = mediaContentType;
+    mediaBinaryResponse = FAKE_MP4;
+    mediaContentType = 'video/mp4';
+    try {
+      const rows63 = dbService.countListings();
+      const calls63 = openaiCalls.length;
+      httpCalls.length = 0;
+      completionQueue.push(intakeCompletion({ is_listing: true, property_type: 'villa', commune: 'Gombe', quartier: null, price: 2500 }, 'Annonce reçue !'));
+      await post('/webhook', inboundVideo('wamid.V63A', 'vid_63a', 'Villa à louer Gombe 4 chambres 2500$', FROM63));
+      await settle(1200);
+      const stored = dbService.findByWamid('wamid.V63A');
+      const row = stored && dbService.getListing(stored.id);
+      check('a video with its caption is stored as a listing: the video kept, no photo, the model read the text', () => {
+        assert.strictEqual(dbService.countListings(), rows63 + 1);
+        assert.strictEqual(row.photos.length, 0);
+        assert.strictEqual(row.videos.length, 1);
+        assert.match(row.videos[0], /^\/uploads\/listings\/.+-v0\.mp4$/);
+        assert.ok(fs.existsSync(path.join(UPLOADS, row.videos[0].replace(/^\/uploads\//, ''))));
+        assert.strictEqual(openaiCalls.length - calls63, 1);
+        const userContent = openaiCalls[openaiCalls.length - 1].messages[1].content;
+        assert.ok(!JSON.stringify(userContent).includes('video'), 'the video is never sent to the model');
+      });
+      check('the card the agent reads counts the video and asks for no photo', () => {
+        const reply = textOf(sendsTo(FROM63).filter((c) => /Vidéos/.test(textOf(c)))[0]);
+        assert.match(reply, /\*Vidéos\* : 1/);
+        assert.ok(!reply.includes('aucune'));
+      });
+
+      httpCalls.length = 0;
+      await post('/webhook', inboundVideo('wamid.V63B', 'vid_63b', null, FROM63));
+      await settle(1200);
+      check('a captionless video joins the draft awaiting OK, with no model call', () => {
+        assert.strictEqual(dbService.getListing(row.id).videos.length, 2);
+        assert.strictEqual(openaiCalls.length - calls63, 1);
+        assert.ok(sendsTo(FROM63).some((c) => /Vidéo ajoutée/.test(textOf(c))));
+      });
+
+      httpCalls.length = 0;
+      await post('/webhook', inbound('wamid.V63OK', 'OK', FROM63));
+      await settle(600);
+      check('"OK" publishes a video-only listing — a video satisfies the media rule', () => {
+        assert.strictEqual(dbService.getListing(row.id).status, 'published');
+        assert.ok(!sendsTo(FROM63).some((c) => textOf(c) === webhookRouter.PHOTO_REQUIRED_REPLY));
+      });
+
+      const FROM63B = '243863000002';
+      httpCalls.length = 0;
+      await post('/webhook', inboundVideo('wamid.V63C', 'vid_63c', null, FROM63B));
+      await settle(1200);
+      check('a captionless video with no draft asks for the description and stores nothing', () => {
+        assert.strictEqual(dbService.findByWamid('wamid.V63C'), undefined);
+        assert.strictEqual(textOf(sendsTo(FROM63B).slice(-1)[0]), webhookRouter.VIDEO_NEEDS_TEXT_REPLY);
+      });
+    } finally {
+      mediaBinaryResponse = savedBinary;
+      mediaContentType = savedType;
+    }
+
+    // 22 photos in one burst: 20 downloaded and kept, the model reads 10.
+    const FROM63C = '243863000003';
+    httpCalls.length = 0;
+    const calls63c = openaiCalls.length;
+    completionQueue.push(intakeCompletion({ is_listing: true, property_type: 'villa', commune: 'Gombe', quartier: null, price: 2600 }, 'Annonce reçue !'));
+    await post('/webhook', inbound('wamid.P63T', 'Villa à louer Gombe 5 chambres 2600$', FROM63C));
+    for (let i = 0; i < 22; i += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await post('/webhook', inboundImage(`wamid.P63-${i}`, `media_63_${i}`, null, FROM63C));
+    }
+    await settle(1500);
+    check('22 photos: 20 downloaded and kept, the model reads the first 10', () => {
+      const listing = dbService.getListing(dbService.findByWamid('wamid.P63T').id);
+      assert.strictEqual(listing.photos.length, 20);
+      assert.strictEqual(httpCalls.filter((c) => c.method === 'get' && /\/media\//.test(c.url)).length, 20);
+      assert.strictEqual(openaiCalls.length - calls63c, 1);
+      const parts = openaiCalls[openaiCalls.length - 1].messages[1].content;
+      assert.strictEqual(parts.filter((part) => part.type === 'image_url').length, 10);
+    });
+  }
+
+  // ===========================================================================
+  // 64. Short-term vs long-term rentals (2026-10-21) — services/leaseTerm.js
+  // ===========================================================================
+
+  console.log('\n64. Short-term vs long-term rentals');
+
+  {
+    const lease64 = require('../services/leaseTerm');
+    const openai64 = require('../services/openai');
+    const card64 = require('../services/listingCard');
+    const repo64 = require('../services/propertyRepository');
+
+    check('every extraction schema accepts a price per day or per week', () => {
+      const periods = JSON.stringify(openai64.RESPONSE_FORMAT).match(/"price_period":\{[^}]*\}/g) || [];
+      assert.ok(periods.length >= 2, 'listing + unit price_period');
+      for (const p of periods) assert.ok(p.includes('"jour"') && p.includes('"semaine"'), p);
+      assert.ok(JSON.stringify(openai64.LISTING_FORM_RESPONSE_FORMAT).includes('"semaine"'));
+      assert.ok(/LOCATION COURTE DURÉE/.test(openai64.SYSTEM_PROMPT), 'the prompt says when to use them');
+    });
+
+    check('the intake card and receipt say "/ jour", never "/ mois", for a short-term rent', () => {
+      const line = card64.listingSummaryLine({ property_type: 'studio', commune: 'Gombe', price: 40, price_period: 'jour', transaction_type: 'location' });
+      assert.ok(line.endsWith('40 $ / jour'), line);
+      assert.ok(card64.listingSummaryLine({ property_type: 'studio', commune: 'Gombe', price: 400, transaction_type: 'location' }).endsWith('/ mois'), 'long term is the default');
+      assert.strictEqual(lease64.periodSuffix('semaine'), ' / semaine');
+      assert.strictEqual(lease64.periodSuffix('jour', { sale: true }), '');
+    });
+
+    check('the buyer assistant can search short or long term only', () => {
+      const tool = openai64.BUYER_TOOLS.find((t) => t.function.name === 'search_properties');
+      assert.deepStrictEqual(tool.function.parameters.properties.lease_term.enum, ['short', 'long']);
+      const short = repo64.buildFilters({ leaseTerm: 'short' });
+      assert.ok(short.whereClause.includes("p.price_period IN ('jour', 'semaine')"), short.whereClause);
+      const long = repo64.buildFilters({ leaseTerm: 'long' });
+      assert.ok(long.whereClause.includes("COALESCE(p.price_period, 'mois') NOT IN ('jour', 'semaine')"));
+      assert.ok(!repo64.buildFilters({ leaseTerm: 'x' }).whereClause.includes('jour'), 'an unknown value filters nothing');
+    });
+  }
+
+  // ===========================================================================
+  // 65. Practical details and four more types (2026-10-22) — services/listingDetails.js
+  // ===========================================================================
+
+  console.log('\n65. Practical details and four more types');
+
+  {
+    const details65 = require('../services/listingDetails');
+    const openai65 = require('../services/openai');
+    const card65 = require('../services/listingCard');
+    const repo65 = require('../services/propertyRepository');
+
+    check('plot sizes are read the way agents write them, never from the model', () => {
+      for (const [text, m2] of details65.PLOT_AREA_FIXTURES) assert.strictEqual(details65.parsePlotArea(text), m2, text);
+      const extracted = { property_type: 'terrain', transaction_type: 'vente', plot_dimensions: '20x30', plot_area_m2: 9999 };
+      openai65.normaliseCommercialExtraction(extracted);
+      assert.strictEqual(extracted.plot_area_m2, 600, 'the model\'s own arithmetic is replaced');
+    });
+
+    check('every extraction schema asks for the details, and the prompt says how', () => {
+      const required = openai65.RESPONSE_FORMAT.json_schema.schema.properties.extracted_data.required;
+      for (const field of ['households_count', 'landlord_on_site', 'electricity_meter', 'has_generator', 'has_pool', 'has_gym', 'has_solar', 'plot_dimensions', 'installments_available', 'installment_terms']) {
+        assert.ok(required.includes(field), `listing schema: ${field}`);
+        assert.ok(openai65.LISTING_FORM_RESPONSE_FORMAT.json_schema.schema.required.includes(field), `form schema: ${field}`);
+      }
+      assert.match(openai65.SYSTEM_PROMPT, /VIE DANS LA PARCELLE/);
+      assert.match(openai65.SYSTEM_PROMPT, /Cash Power/);
+      for (const type of ['studio', 'chambre', 'ferme']) assert.ok(openai65.PROPERTY_TYPES.includes(type), type);
+      assert.ok(!openai65.PROPERTY_TYPES.includes('salle_de_fete'), 'Salle de fête was removed');
+      assert.ok(!JSON.stringify(openai65.RESPONSE_FORMAT).includes('toilet_location'), 'toilet / shower were removed');
+    });
+
+    check('a field the property cannot have is dropped, on insert and on correction', () => {
+      const id = (dbService.insertListing(
+        { is_listing: true, property_type: 'ferme', transaction_type: 'vente', commune: 'Maluku', price: 40000, plot_dimensions: '2 ha', households_count: 3, has_pool: true, installments_available: true, installment_terms: '30 % puis 12 mois' },
+        '243970006501', { rawText: 'Ferme 2 ha Maluku 40000$ payable en tranches' },
+      )).id;
+      let row = dbService.getListing(id);
+      assert.strictEqual(row.plot_area_m2, 20000);
+      assert.strictEqual(row.households_count, null, 'a farm has no households');
+      assert.strictEqual(row.has_pool, null, 'a farm has no pool');
+      assert.strictEqual(row.installments_available, true);
+      dbService.applyListingCorrection(id, { plot_dimensions: '5 ares' }, 'non 5 ares');
+      row = dbService.getListing(id);
+      assert.strictEqual(row.plot_area_m2, 500, 'the area follows the corrected dimensions');
+      const rent = (dbService.insertListing(
+        { is_listing: true, property_type: 'appartement', transaction_type: 'location', commune: 'Gombe', price: 800, plot_dimensions: '15/20', installments_available: true, furnished: true, has_generator: true, has_gym: false },
+        '243970006502', { rawText: 'Appartement meublé Gombe 800$, groupe électrogène' },
+      )).id;
+      const flat = dbService.getListing(rent);
+      assert.strictEqual(flat.plot_dimensions, null, 'a flat has no plot');
+      assert.strictEqual(flat.installments_available, null, 'a rent is not paid in instalments');
+      assert.strictEqual(flat.furnished, true);
+      assert.strictEqual(flat.has_generator, true);
+      assert.strictEqual(flat.has_gym, null, 'a "no" the agent may not have said is not stored');
+    });
+
+    check('the intake card shows what the agent stated about the parcelle', () => {
+      const text = card65.renderListingCard({
+        transaction_type: 'location', property_type: 'parcelle', parcelle_subtype: 'maison_type_locataire', commune: 'Lemba', price: 150,
+        furnished: false, households_count: 4, landlord_on_site: true, has_generator: true, has_pool: true,
+        electricity_meter: 'prepaye', plot_dimensions: '15/20', plot_area_m2: 300,
+      });
+      for (const line of ['*Meublé* : Non', '*Ménages dans la parcelle* : 4', '*Bailleur sur place* : Oui', '*Équipements du bien* : groupe électrogène, piscine', 'Cash Power', '*Terrain* : 15/20 (300 m² · 3 ares)']) {
+        assert.ok(text.includes(line), line);
+      }
+      assert.ok(!card65.renderListingCard({ property_type: 'appartement', price: 500 }).includes('Ménages'), 'nothing stated, nothing shown');
+    });
+
+    check('the sync writes the details on INSERT only, in a SAVEPOINT tolerant of missing columns', () => {
+      const source = fs.readFileSync(path.join(__dirname, '..', 'services', 'postgres.js'), 'utf8');
+      assert.match(source, /SAVEPOINT lukka_details[\s\S]{0,900}42703/);
+      assert.match(source, /ferme: \['ferme \/ terrain agricole', 'terrain'\]/);
+      assert.match(source, /studio: \['studio', 'appartement'\]/);
+      const cats = new Map([['studio', { id: 47 }], ['chambre / annexe', { id: 48 }], ['ferme / terrain agricole', { id: 50 }], ['appartement', { id: 34 }], ['terrain', { id: 42 }], ['boutique', { id: 40 }]]);
+      assert.strictEqual(postgresService.resolveCategory('studio', cats).id, 47);
+      assert.strictEqual(postgresService.resolveCategory('chambre', cats).id, 48);
+      assert.strictEqual(postgresService.resolveCategory('ferme', cats).id, 50);
+      const before = new Map([['appartement', { id: 34 }], ['terrain', { id: 42 }], ['boutique', { id: 40 }]]);
+      assert.strictEqual(postgresService.resolveCategory('ferme', before).id, 42, 'a farm is Terrain before the migration');
+      assert.strictEqual(postgresService.resolveCategory('chambre', before).id, 34);
+    });
+
+    check('the buyer assistant searches the new types', () => {
+      const ferme = repo65.buildFilters({ propertyType: 'ferme' });
+      assert.ok(ferme.params.some((p) => Array.isArray(p) && p.includes('ferme / terrain agricole')));
+      const web = path.join(__dirname, '..', 'web', 'lib', 'listingDetails.js');
+      if (fs.existsSync(web)) assert.ok(fs.readFileSync(web, 'utf8').includes("['5,30m sur 18m', 95.4]"), 'web keeps the same fixtures');
+    });
+  }
+
+  console.log('\n66. Agent accounts created or verified by an admin, with no code');
+
+  {
+    const accounts66 = require('../services/adminAgentAccounts');
+    const onboarding66 = require('../services/agentOnboarding');
+    const postgres66 = require('../services/postgres');
+    const crypto66 = require('crypto');
+    const saved66 = { configured: postgres66.isConfigured, pool: postgres66.getPool, link: postgres66.linkListingsToAgent };
+
+    // A small in-memory `agents` table behind the fake pool: only the
+    // statements these two paths issue.
+    const agents66 = [];
+    const locks66 = [];
+    const acquisitions66 = [];
+    const digitsOf = (p) => String(p || '').replace(/\D/g, '');
+    const client66 = {
+      async query(sql, params = []) {
+        if (/^(BEGIN|COMMIT|ROLLBACK)/.test(sql)) return { rows: [] };
+        if (/^(SAVEPOINT|RELEASE SAVEPOINT) account_acquisition/.test(sql)) return { rows: [] };
+        if (/INSERT INTO account_acquisitions/.test(sql)) {
+          acquisitions66.push({ agentId: params[0], channel: params[1], refCode: params[2] });
+          return { rows: [], rowCount: 1 };
+        }
+        if (/pg_advisory_xact_lock/.test(sql)) { locks66.push(params[0]); return { rows: [] }; }
+        if (/SELECT id FROM agents\s+WHERE regexp_replace[\s\S]*id <> \$2/.test(sql)) {
+          return { rows: agents66.filter((a) => digitsOf(a.phone) === params[0] && a.id !== params[1] && a.phone_verified_at && !a.deleted_at) };
+        }
+        if (/SELECT id FROM agents WHERE regexp_replace/.test(sql)) {
+          return { rows: agents66.filter((a) => digitsOf(a.phone) === params[0]).slice(0, 1) };
+        }
+        if (/FROM agents WHERE id = \$1 FOR UPDATE/.test(sql)) {
+          const a = agents66.find((row) => row.id === params[0]);
+          return { rows: a ? [{ ...a, has_password: Boolean(a.password_hash) }] : [] };
+        }
+        if (/INSERT INTO agents/.test(sql)) {
+          const row = {
+            id: 500 + agents66.length, username: params[0], phone: params[1], agency_name: params[2],
+            activation_token_hash: params[3], phone_verified_at: 'NOW', onboarding_source: params[5],
+          };
+          agents66.push(row);
+          return { rows: [{ id: row.id }] };
+        }
+        if (/UPDATE agents SET primary_communes/.test(sql)) {
+          Object.assign(agents66.find((a) => a.id === params[1]), { primary_communes: params[0], serviced_communes: params[0] });
+          return { rowCount: 1 };
+        }
+        if (/UPDATE agents\s+SET phone_verified_at = COALESCE[\s\S]*activation_token_hash/.test(sql)) {
+          const a = agents66.find((row) => row.id === params[2]);
+          a.phone_verified_at = a.phone_verified_at || 'NOW';
+          a.activation_token_hash = params[0];
+          return { rowCount: 1 };
+        }
+        if (/UPDATE agents SET phone_verified_at = NOW\(\)/.test(sql)) {
+          agents66.find((row) => row.id === params[0]).phone_verified_at = 'NOW';
+          return { rowCount: 1 };
+        }
+        if (/agent_infos/.test(sql)) {
+          if (/INSERT/.test(sql)) agents66.find((a) => a.id === Number(params[0])).info = { first: params[2], last: params[3] };
+          return { rows: [], rowCount: 0 };
+        }
+        throw new Error(`unexpected SQL in §66: ${sql.slice(0, 80)}`);
+      },
+      release() {},
+    };
+    const linkCalls66 = [];
+    postgres66.isConfigured = () => true;
+    postgres66.getPool = () => ({ connect: async () => client66 });
+    // The real linkListingsToAgent re-resolves the agent through
+    // resolveAgentId's verified gate; the fake applies the same rule.
+    postgres66.linkListingsToAgent = async (ids, waId) => {
+      linkCalls66.push({ ids, waId });
+      const agent = agents66.find((a) => digitsOf(a.phone) === waId && a.phone_verified_at && !a.deleted_at);
+      return agent ? { agentId: agent.id, linkedIds: ids } : { agentId: null, linkedIds: [] };
+    };
+
+    const BROKER66 = '243899066066';
+    const group66 = dbService.insertListing(
+      { is_listing: true, property_type: 'appartement', commune: 'Limete', price: 600 },
+      BROKER66,
+      { wamid: 'wamid.GROUP66' },
+    );
+    dbService.db.prepare('UPDATE listings SET remote_property_id = 990660 WHERE id = ?').run(group66.id);
+
+    async function refusal(promise) {
+      try { await promise; } catch (err) { return err.code; }
+      return null;
+    }
+
+    try {
+      await checkAsync('the business numbers, a malformed phone and a missing name are refused before any write', async () => {
+        assert.strictEqual(await refusal(accounts66.createAgentByAdmin({ phone: '243976321848', firstName: 'X' })), 'phone-ours');
+        assert.strictEqual(await refusal(accounts66.createAgentByAdmin({ phone: '+243 846 962 654', firstName: 'X' })), 'phone-ours');
+        assert.strictEqual(await refusal(accounts66.createAgentByAdmin({ phone: '12345', firstName: 'X' })), 'phone-invalid');
+        assert.strictEqual(await refusal(accounts66.createAgentByAdmin({ phone: '1234567890123456', firstName: 'X' })), 'phone-invalid');
+        assert.strictEqual(await refusal(accounts66.createAgentByAdmin({ phone: BROKER66, firstName: '  ' })), 'name-required');
+        assert.strictEqual(agents66.length, 0);
+      });
+
+      let created66;
+      await checkAsync('"Créer un agent" makes a verified account marked admin, with names and communes', async () => {
+        created66 = await accounts66.createAgentByAdmin({
+          phone: `+${BROKER66}`, firstName: 'Patrick', lastName: 'Mbala', agencyName: 'Immo Limete', primaryCommunes: ['Limete', 'Lemba'],
+        });
+        const row = agents66.find((a) => a.id === created66.agentId);
+        assert.strictEqual(row.phone, BROKER66);
+        assert.strictEqual(row.phone_verified_at, 'NOW');
+        assert.strictEqual(row.onboarding_source, 'admin');
+        assert.strictEqual(row.agency_name, 'Immo Limete');
+        assert.deepStrictEqual(row.primary_communes, ['Limete', 'Lemba']);
+        assert.deepStrictEqual(row.info, { first: 'Patrick', last: 'Mbala' });
+        assert.deepStrictEqual(locks66, [`agent-phone:${BROKER66}`], 'the create takes the per-number lock');
+      });
+
+      check('the activation link is the onboarding magic link, and only its hash is stored', () => {
+        const url = new URL(created66.link);
+        assert.strictEqual(url.pathname, '/compte/agent/activer');
+        assert.strictEqual(url.searchParams.get('phone'), BROKER66);
+        const token = url.searchParams.get('token');
+        assert.match(token, /^[0-9a-f]{64}$/);
+        const row = agents66.find((a) => a.id === created66.agentId);
+        assert.strictEqual(row.activation_token_hash, crypto66.createHash('sha256').update(token).digest('hex'));
+      });
+
+      check('the number\'s group capture is claimed in Postgres and in SQLite', () => {
+        assert.deepStrictEqual(linkCalls66[0], { ids: [990660], waId: BROKER66 });
+        assert.deepStrictEqual(created66.claimed.linkedIds, [990660]);
+        assert.strictEqual(dbService.getListing(group66.id).agent_id, created66.agentId);
+      });
+
+      await checkAsync('a number that already has an account is refused, soft-deleted included', async () => {
+        assert.strictEqual(await refusal(accounts66.createAgentByAdmin({ phone: BROKER66, firstName: 'Autre' })), 'phone-taken');
+        agents66.push({ id: 777, phone: '243811066777', deleted_at: '2026-10-18', phone_verified_at: null });
+        assert.strictEqual(await refusal(accounts66.createAgentByAdmin({ phone: '243811066777', firstName: 'Autre' })), 'phone-taken');
+        assert.strictEqual(agents66.filter((a) => digitsOf(a.phone) === BROKER66).length, 1);
+      });
+
+      await checkAsync('"Vérifier le numéro" verifies an unverified account and links its listings', async () => {
+        agents66.push({ id: 778, phone: '243822066778', phone_verified_at: null, password_hash: null });
+        const lone = dbService.insertListing({ is_listing: true, property_type: 'villa', commune: 'Gombe' }, '243822066778', { wamid: 'wamid.V66' });
+        const result = await accounts66.verifyAgentByAdmin(778);
+        assert.strictEqual(agents66.find((a) => a.id === 778).phone_verified_at, 'NOW');
+        assert.strictEqual(result.alreadyVerified, false);
+        assert.ok(result.link && result.link.includes('phone=243822066778'), 'no password yet → an activation link');
+        assert.strictEqual(dbService.getListing(lone.id).agent_id, 778);
+      });
+
+      await checkAsync('the profile checkbox (issueLink: false) verifies and claims but never replaces an activation token', async () => {
+        agents66.push({ id: 783, phone: '243855066783', phone_verified_at: null, password_hash: null, activation_token_hash: 'onboarding-link' });
+        const result = await accounts66.verifyAgentByAdmin(783, { issueLink: false });
+        assert.strictEqual(result.link, null);
+        assert.strictEqual(agents66.find((a) => a.id === 783).phone_verified_at, 'NOW');
+        assert.strictEqual(agents66.find((a) => a.id === 783).activation_token_hash, 'onboarding-link', 'the unopened link still works');
+        const routes = fs.readFileSync(path.join(__dirname, '..', 'routes', 'admin.js'), 'utf8');
+        assert.match(routes, /issueLink: req\.body\?\.issue_link !== false/);
+      });
+
+      await checkAsync('an account that already has a password keeps it: verified, no link', async () => {
+        agents66.push({ id: 779, phone: '243833066779', phone_verified_at: null, password_hash: 'scrypt$x' });
+        const result = await accounts66.verifyAgentByAdmin(779);
+        assert.strictEqual(result.link, null);
+        assert.strictEqual(agents66.find((a) => a.id === 779).phone_verified_at, 'NOW');
+        assert.strictEqual(agents66.find((a) => a.id === 779).activation_token_hash, undefined);
+      });
+
+      await checkAsync('verify refuses a deleted account, one of our numbers, and a number verified on another account', async () => {
+        assert.strictEqual(await refusal(accounts66.verifyAgentByAdmin(777)), 'not-found');
+        assert.strictEqual(await refusal(accounts66.verifyAgentByAdmin(424242)), 'not-found');
+        agents66.push({ id: 780, phone: '243976321848', phone_verified_at: null });
+        assert.strictEqual(await refusal(accounts66.verifyAgentByAdmin(780)), 'phone-ours');
+        agents66.push({ id: 781, phone: `+${BROKER66}`, phone_verified_at: null });
+        assert.strictEqual(await refusal(accounts66.verifyAgentByAdmin(781)), 'phone-verified-elsewhere');
+        assert.strictEqual(agents66.find((a) => a.id === 781).phone_verified_at, null);
+      });
+
+      await checkAsync('WhatsApp onboarding still writes onboarding_source whatsapp and never refuses', async () => {
+        const result = await onboarding66.upsertAgentFromWhatsApp({ waId: '243844066782', fullName: 'Jean Kabeya', agencyName: null });
+        const row = agents66.find((a) => a.id === result.agentId);
+        assert.strictEqual(row.onboarding_source, 'whatsapp');
+        assert.deepStrictEqual(row.info, { first: 'Jean', last: 'Kabeya' });
+      });
+
+      check('each account created here records where it came from: whatsapp or admin (account_acquisitions)', () => {
+        const channels = new Set(acquisitions66.map((a) => a.channel));
+        assert.ok(channels.has('whatsapp'), 'the WhatsApp onboarding account');
+        assert.ok(channels.has('admin'), 'the console-created account');
+        assert.ok(acquisitions66.every((a) => a.refCode === null), 'no rep code was sent from these numbers');
+        const acquisition = require('../services/accountAcquisition');
+        assert.strictEqual(acquisition.channelFor('admin'), 'admin');
+        assert.strictEqual(acquisition.channelFor('anything'), 'whatsapp');
+        assert.match(acquisition.RECORD_SQL, /ON CONFLICT \(account_type, account_id\) DO NOTHING/);
+      });
+
+      check('the two actions exist only behind requireApiKey', () => {
+        const routes = fs.readFileSync(path.join(__dirname, '..', 'routes', 'admin.js'), 'utf8');
+        assert.match(routes, /router\.post\('\/agents\/admin-create'/);
+        assert.match(routes, /router\.post\('\/agents\/:id\/admin-verify'/);
+        const index = fs.readFileSync(path.join(__dirname, '..', 'index.js'), 'utf8');
+        assert.match(index, /app\.use\('\/admin', requireApiKey, adminRoutes\)/);
+        for (const file of ['index.js', path.join('routes', 'webhook.js')]) {
+          assert.ok(!fs.readFileSync(path.join(__dirname, '..', file), 'utf8').includes('adminAgentAccounts'), `${file} must not reach it`);
+        }
+      });
+    } finally {
+      postgres66.isConfigured = saved66.configured;
+      postgres66.getPool = saved66.pool;
+      postgres66.linkListingsToAgent = saved66.link;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // §67 Growth launch (2026-10-27): customer signup on WhatsApp, the morning run
+  // ---------------------------------------------------------------------------
+  console.log('\n§67 Customer signup on WhatsApp and the growth morning run');
+  {
+    const customerOnboarding = require('../services/customerOnboarding');
+    const growthDaily = require('../services/growthDaily');
+
+    check('only the pre-typed wording is a signup; the code is read, "parrainage" is never matched', () => {
+      assert.strictEqual(customerOnboarding.isSignupMessage('Inscription Lukka Place'), true);
+      assert.strictEqual(customerOnboarding.isSignupMessage('  inscription sur Lukka Place — Code : NADIA01'), true);
+      assert.strictEqual(customerOnboarding.isSignupMessage('Bonjour, inscription Lukka Place'), false);
+      assert.strictEqual(customerOnboarding.isSignupMessage('Appartement à louer Gombe, inscription Lukka Place'), false);
+      assert.strictEqual(customerOnboarding.codeIn('Inscription Lukka Place — Code : nadia01'), 'NADIA01');
+      assert.strictEqual(customerOnboarding.codeIn('Inscription Lukka Place'), null);
+      const webhook = fs.readFileSync(path.join(__dirname, '..', 'routes', 'webhook.js'), 'utf8');
+      assert.ok(webhook.indexOf('handleCustomerSignupMessage') < webhook.indexOf('salesReferral.handleReferralMessage'),
+        'the signup branch runs before the sales referral one');
+    });
+
+    // A fake Postgres client holding the statements this path issues.
+    function fakePool67({ existing = false, partner = null } = {}) {
+      const seen = [];
+      const client = {
+        async query(sql, params = []) {
+          seen.push({ sql: sql.replace(/\s+/g, ' ').trim(), params });
+          if (/^SELECT id FROM customers WHERE phone/.test(sql)) return { rows: existing ? [{ id: 77 }] : [] };
+          if (/INSERT INTO customers/.test(sql)) return { rows: [{ id: 501 }] };
+          if (/FROM partners p LEFT JOIN agents/.test(sql.replace(/\s+/g, ' '))) return { rows: partner ? [partner] : [] };
+          return { rows: [], rowCount: 1 };
+        },
+        release() {},
+      };
+      return { seen, pool: { connect: async () => client } };
+    }
+
+    await checkAsync('a new number gets a verified account, a hashed single-use link, the partner credit and its acquisition row', async () => {
+      const { seen, pool } = fakePool67({ partner: { id: 4, code: 'NADIA01', kind: 'creator', agent_phone: null } });
+      const result = await customerOnboarding.createCustomerFromWhatsApp({ waId: '+243 899 067 001', code: 'NADIA01' }, pool);
+      assert.strictEqual(result.created, true);
+      assert.strictEqual(result.partnerCode, 'NADIA01');
+      const insert = seen.find((q) => q.sql.startsWith('INSERT INTO customers'));
+      assert.strictEqual(insert.params[0], '243899067001');
+      assert.match(insert.sql, /phone_verified_at, activation_token_hash/);
+      assert.notStrictEqual(insert.params[1], result.token, 'only the hash is stored');
+      assert.strictEqual(insert.params[1], require('crypto').createHash('sha256').update(result.token).digest('hex'));
+      assert.ok(seen.some((q) => /INSERT INTO partner_conversions/.test(q.sql) && q.params[0] === 4));
+      assert.ok(seen.some((q) => /INSERT INTO account_acquisitions/.test(q.sql) && /'whatsapp'/.test(q.sql)));
+      assert.ok(seen.some((q) => q.sql === 'COMMIT'));
+    });
+
+    await checkAsync('an agent\'s own code never credits their own number; an existing account is only pointed to its login', async () => {
+      const own = fakePool67({ partner: { id: 5, code: 'MARIE01', kind: 'agent', agent_phone: '243899067002' } });
+      const result = await customerOnboarding.createCustomerFromWhatsApp({ waId: '243899067002', code: 'MARIE01' }, own.pool);
+      assert.strictEqual(result.partnerCode, null);
+      assert.ok(!own.seen.some((q) => /INSERT INTO partner_conversions/.test(q.sql)));
+
+      const again = fakePool67({ existing: true });
+      const replies = [];
+      const handled = await customerOnboarding.handleCustomerSignupMessage(
+        { from: '243899067003', text: 'Inscription Lukka Place' },
+        { pool: again.pool, send: async (to, text) => { replies.push(text); } },
+      );
+      assert.strictEqual(handled.handled, true);
+      assert.ok(!again.seen.some((q) => q.sql.startsWith('INSERT INTO customers')));
+      assert.match(replies[0], /déjà un compte/);
+    });
+
+    await checkAsync('the morning run asks web, sends the summary to the owners, and fails when the credits failed', async () => {
+      const savedSecret = process.env.CRON_SECRET;
+      process.env.CRON_SECRET = 'test-secret';
+      try {
+        const sent = [];
+        const fetchImpl = async (url, options) => {
+          assert.match(url, /\/api\/cron\/growth-daily$/);
+          assert.strictEqual(options.headers.Authorization, 'Bearer test-secret');
+          return { ok: true, json: async () => ({ ok: true, credits: { credited: 2 }, summary: { text: 'Lukka Place — hier' } }) };
+        };
+        const result = await growthDaily.run({ fetchImpl, send: async (to, text) => { sent.push([to, text]); }, recipients: () => ['243800000001', '243800000002'] });
+        assert.strictEqual(result.sent, 2);
+        assert.strictEqual(sent[0][1], 'Lukka Place — hier');
+
+        const failing = async () => ({ ok: true, json: async () => ({ ok: false, creditsError: 'boom', summary: { text: 'x' } }) });
+        await assert.rejects(() => growthDaily.run({ fetchImpl: failing, send: async () => {}, recipients: () => [] }), /referral credits failed/);
+      } finally {
+        if (savedSecret === undefined) delete process.env.CRON_SECRET;
+        else process.env.CRON_SECRET = savedSecret;
+      }
+    });
+  }
 
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);

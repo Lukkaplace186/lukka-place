@@ -56,7 +56,7 @@ export default async function ExploreCommunes({ communes = [] }) {
               )}
 
               <div className="relative z-10 p-4 sm:p-5">
-                <h3 className="font-display text-xl leading-tight tracking-[-0.01em] text-white sm:text-2xl">{commune}</h3>
+                <h3 className="font-bold text-xl leading-tight tracking-[-0.01em] text-white sm:text-2xl">{commune}</h3>
                 <p className="mt-1 text-[0.8125rem] text-white/70">
                   <span className="u-tabular font-semibold text-white">{count}</span>{' '}
                   {count === 1 ? 'bien disponible' : 'biens disponibles'}

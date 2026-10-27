@@ -9,6 +9,7 @@ import { listModerationQueue } from '@/lib/moderationQueue';
 import { listAgenciesForAdmin } from '@/lib/adminAgencies';
 import { listMembershipsForAdmin } from '@/lib/adminBilling';
 import { listConversations, listLeadMatches, listViewingFeed } from '@/lib/adminApi';
+import { getInvestorMonthlyRows } from '@/lib/investorMetrics';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,6 +43,22 @@ async function collect(fetchPage) {
 const iso = (value) => (value ? new Date(value).toISOString() : '');
 
 const DATASETS = {
+  // /admin/investisseurs' data-room file: one row per month, nulls left empty
+  // (not measured), never written as 0.
+  investors: {
+    permission: 'data.export',
+    fetch: () => getInvestorMonthlyRows(),
+    columns: [
+      ['month', (r) => r.month], ['visitors', (r) => r.visitors], ['page_views', (r) => r.pageViews],
+      ['listing_views', (r) => r.listingViews], ['searches', (r) => r.searches], ['searches_no_result', (r) => r.zeroResults],
+      ['whatsapp_taps', (r) => r.whatsapp], ['call_taps', (r) => r.calls], ['visit_requests', (r) => r.visitRequests],
+      ['transactions_recorded', (r) => r.closes], ['new_listings', (r) => r.newListings],
+      ['listings_to_date', (r) => r.cumulativeListings], ['new_agents', (r) => r.newAgents],
+      ['verified_agents_to_date', (r) => r.verifiedAgents], ['new_visitors', (r) => r.newVisitors],
+      ['returning_visitors', (r) => r.returningVisitors], ['new_publishing_agents', (r) => r.newPublishers],
+      ['published_again_30d', (r) => r.publishedAgain30d],
+    ],
+  },
   agents: {
     permission: 'data.export',
     fetch: (p) => collect(({ limit, offset, cursor }) => listAgentsForAdmin({ q: p.get('q'), verified: p.get('verified'), status: p.get('status'), sort: p.get('sort') || 'newest', limit, offset, cursor })),

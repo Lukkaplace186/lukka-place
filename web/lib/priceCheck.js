@@ -32,13 +32,14 @@ const COMMUNE_OF_P = `(
 /** $1 purpose, $2 commune, $3 category_id, $4 beds, $5 price (monthly for rent). */
 export const COMPARABLES_SQL = `
   WITH comps AS (
-    SELECT CASE WHEN p.purpose = 'rent' AND p.price_period = 'an' THEN p.price / 12.0 ELSE p.price END AS amount,
+    SELECT CASE WHEN p.purpose = 'rent' AND p.price_period IN ('jour', 'semaine') THEN NULL WHEN p.purpose = 'rent' AND p.price_period = 'an' THEN p.price / 12.0 ELSE p.price END AS amount,
            ${AREA_M2_SQL} AS area,
            p.category_id, p.beds
       FROM properties p
      WHERE p.status = 1 AND p.approve_status = 1 AND p.price > 0
        AND COALESCE(p.listing_status, 'active') = 'active'
        AND p.purpose = $1 AND ${COMMUNE_OF_P} = $2
+       AND COALESCE(p.price_period, '') NOT IN ('jour', 'semaine')
        AND ${NOT_TEST_LISTING_SQL}
   ),
   levels AS (
@@ -61,7 +62,7 @@ export const COMPARABLES_SQL = `
 export const CLOSES_SQL = `
   SELECT count(*)::int AS n,
          PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY
-           CASE WHEN p.purpose = 'rent' AND p.price_period = 'an' THEN p.sold_price / 12.0 ELSE p.sold_price END)::float AS median_achieved,
+           CASE WHEN p.purpose = 'rent' AND p.price_period IN ('jour', 'semaine') THEN NULL WHEN p.purpose = 'rent' AND p.price_period = 'an' THEN p.sold_price / 12.0 ELSE p.sold_price END)::float AS median_achieved,
          PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY (p.sold_at - p.created_at::date))::float AS median_days
     FROM properties p
    WHERE p.approve_status = 1 AND p.listing_status = 'closed' AND p.sold_price > 0

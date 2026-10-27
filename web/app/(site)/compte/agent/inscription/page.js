@@ -4,6 +4,7 @@ import { agentSignupAction } from './actions';
 import { normaliseReferralCode } from '@/lib/launchCommission';
 import { findRepByReferralCode } from '@/lib/salesLaunch';
 import { REFERRAL_COOKIE, parseReferralCookie } from '@/lib/salesReferral';
+import { partnerCodePrefill } from '@/lib/partnerPrefill';
 import PhoneField from '@/components/PhoneField';
 import { phoneFieldLabels } from '@/lib/phoneFieldLabels';
 import { getRequestCountry } from '@/lib/requestCountry';
@@ -49,6 +50,10 @@ async function referralPrefill(refParam) {
       console.error(`[agent-signup] referral lookup failed: ${err.message}`);
     }
   }
+  // Else the partner whose link brought this browser (lp_ref): the same field
+  // takes either kind of code.
+  const partner = await partnerCodePrefill(null);
+  if (partner) return partner;
   return normaliseReferralCode(refParam) || '';
 }
 

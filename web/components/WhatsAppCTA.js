@@ -73,7 +73,7 @@ export default function WhatsAppCTA({ listing, variant = 'compact' }) {
   function handleClick(e) {
     e.preventDefault();
     e.stopPropagation();
-    trackLeadClick(listing, routingType);
+    trackLeadClick(listing, routingType, 'card');
     window.open(href, '_blank', 'noopener,noreferrer');
   }
 

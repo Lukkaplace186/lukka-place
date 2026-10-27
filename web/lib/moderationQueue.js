@@ -2,6 +2,8 @@ import 'server-only';
 import { getPool } from './db';
 import { keysetClause, pageCursors } from './adminPagination';
 import { BLOCKING_FLAGS, EXTRACTION_FAILURE_MARKERS, MODERATION_QUEUE_STATUSES } from './moderation';
+import { VIDEOS_SQL, VIDEO_COUNT_SQL, isVideoPoster, listingVideos } from './listingVideos';
+import { monthlyEquivalent } from './leaseTerm';
 
 /**
  * The listing moderation queue — one server page at a time, with quality flags.
@@ -143,6 +145,7 @@ function buildBase({ status, q, commune, purpose, agentId, availabilityChecks = 
              pc.title, pc.description,
              ${COMMUNE_OF_P} AS commune,
              (SELECT COUNT(*)::int FROM property_slider_images si WHERE si.property_id = p.id) AS photo_count,
+             ${VIDEO_COUNT_SQL} AS video_count,
              (a.phone_verified_at IS NOT NULL) AS agent_verified,
              ${availabilityChecks ? AVAILABILITY_UNANSWERED_SQL : 'false'} AS availability_unanswered,
              a.phone AS agent_phone,
@@ -159,7 +162,8 @@ function buildBase({ status, q, commune, purpose, agentId, availabilityChecks = 
     ),
     flagged AS (
       SELECT b.*,
-        (b.photo_count = 0 AND (COALESCE(b.featured_image, '') = '' OR b.featured_image LIKE '%noimage%')) AS f_no_photos,
+        -- A video counts as media (lib/listingVideos.js): a video-only listing is not "no photos".
+        (b.photo_count = 0 AND b.video_count = 0 AND (COALESCE(b.featured_image, '') = '' OR b.featured_image LIKE '%noimage%')) AS f_no_photos,
         (b.photo_count BETWEEN 1 AND 2) AS f_few_photos,
         (b.commune IS NULL) AS f_missing_commune,
         (b.price IS NULL OR b.price <= 0) AS f_missing_price,
@@ -200,9 +204,10 @@ async function getCommuneMedians() {
   const { rows } = await getPool().query(`
     WITH pub AS (
       SELECT p.purpose, ${COMMUNE_OF_P} AS commune,
-             CASE WHEN p.purpose = 'rent' AND p.price_period = 'an' THEN p.price / 12.0 ELSE p.price END AS amount
+             CASE WHEN p.purpose = 'rent' AND p.price_period IN ('jour', 'semaine') THEN NULL WHEN p.purpose = 'rent' AND p.price_period = 'an' THEN p.price / 12.0 ELSE p.price END AS amount
       FROM properties p
       WHERE p.status = 1 AND p.approve_status = 1 AND p.price > 0
+        AND COALESCE(p.price_period, '') NOT IN ('jour', 'semaine')
     )
     SELECT purpose, commune, COUNT(*)::int AS n,
            PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY amount)::float AS median
@@ -219,7 +224,7 @@ export const OUTLIER_RATIO = 3;
 
 function toRow(row, medians) {
   const flags = Object.keys(FLAG_SQL).filter((flag) => row[`f_${flag}`]);
-  const amount = row.price == null ? null : Number(row.price) / (row.purpose === 'rent' && row.price_period === 'an' ? 12 : 1);
+  const amount = row.price == null ? null : monthlyEquivalent(Number(row.price), row.purpose, row.price_period);
   const median = row.commune ? medians.get(`${row.purpose}|${row.commune}`) : null;
   let outlier = null;
   if (amount && median && median.n >= OUTLIER_MIN_SAMPLE && median.median > 0) {
@@ -238,6 +243,7 @@ function toRow(row, medians) {
     purpose: row.purpose,
     featuredImage: row.featured_image,
     photoCount: row.photo_count,
+    videoCount: Number(row.video_count) || 0,
     commune: row.commune,
     quartier: row.quartier,
     beds: row.beds,
@@ -324,7 +330,7 @@ export async function getModerationCounts() {
 export async function getListingModerationInfo(propertyId) {
   const { rows } = await getPool().query(
     `SELECT p.id, p.approve_status, p.status, p.moderation_reason_code, p.moderation_note, p.moderated_at,
-            mu.full_name AS moderated_by_name, p.featured_image,
+            mu.full_name AS moderated_by_name, p.featured_image, ${VIDEOS_SQL} AS videos,
             COALESCE((SELECT array_agg(si.image ORDER BY si.id) FROM property_slider_images si WHERE si.property_id = p.id), ARRAY[]::text[]) AS gallery
      FROM properties p
      LEFT JOIN console_admin_users mu ON mu.id = p.moderated_by
@@ -341,6 +347,9 @@ export async function getListingModerationInfo(propertyId) {
     note: row.moderation_note,
     moderatedAt: row.moderated_at ? new Date(row.moderated_at).toISOString() : null,
     moderatedByName: row.moderated_by_name,
-    photos: [...new Set([row.featured_image, ...(row.gallery || [])].filter((src) => src && !String(src).includes('noimage')))],
+    // A video's cover frame (featured_image of a video-only listing) is not
+    // a photo: it is left out so saving the gallery never turns it into one.
+    photos: [...new Set([row.featured_image, ...(row.gallery || [])].filter((src) => src && !String(src).includes('noimage') && !isVideoPoster(src)))],
+    videos: listingVideos(row),
   };
 }

@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import SafeImage from './SafeImage';
+import VideoPlayBadge from './VideoPlayBadge';
+import { isVideoPoster } from '@/lib/listingVideos';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useSaveData } from '@/lib/useSaveData';
 import { useT } from '@/lib/i18n/client';
@@ -88,9 +90,14 @@ const DOT_WINDOW = 5;
  * canvas-alt placeholder that still carries the real flex-shrink-0/w-full
  * sizing, so the scroller's snap points and scrollWidth stay correct
  * either way.
+ *
+ * `loadingShimmer` (the phone map's cards only) sweeps a light band across
+ * each slide until its photo paints over it, so a slow 4G photo reads as
+ * loading rather than as a card with no picture. Off elsewhere: a feed of
+ * animated slots costs a low-end phone frames for nothing once cached.
  */
 export default function CardImageCarousel({
-  images, alt, sizes = '(min-width: 1024px) 22rem, 100vw', onIndexChange, priority = false,
+  images, alt, sizes = '(min-width: 1024px) 22rem, 100vw', onIndexChange, priority = false, loadingShimmer = false,
 }) {
   const t = useT();
   const [index, setIndex] = useState(0);
@@ -205,7 +212,7 @@ export default function CardImageCarousel({
         {images.map((src, i) => (
           // `overflow-hidden` keeps the hover zoom below inside its own slide;
           // without it the NEXT slide's scaled photo paints over this one's edge.
-          <div key={`${src}-${i}`} className="relative h-full w-full flex-shrink-0 snap-center snap-always overflow-hidden">
+          <div key={`${src}-${i}`} className={`relative h-full w-full flex-shrink-0 snap-center snap-always overflow-hidden${loadingShimmer ? ' lkp-shimmer' : ''}`}>
             {loaded.has(i) ? (
               <SafeImage
                 src={src}
@@ -220,6 +227,8 @@ export default function CardImageCarousel({
                 className="object-cover contrast-[1.03] brightness-[1.02] saturate-[1.04] transition-transform duration-500 ease-out motion-safe:group-hover:scale-[1.04]"
               />
             ) : null}
+            {/* A video's cover frame is not a photo: it says it plays. */}
+            {isVideoPoster(src) ? <VideoPlayBadge size={sizes === '100vw' ? 'md' : 'sm'} /> : null}
           </div>
         ))}
       </div>

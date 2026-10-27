@@ -23,7 +23,7 @@ import {
  */
 const TTL_MS = 60_000;
 
-export const cachedPropertyTypeFacets = () => memo('facets', TTL_MS, () => getPropertyTypeFacets());
+export const cachedPropertyTypeFacets = (city = null) => memo(`facets:${city || ''}`, TTL_MS, () => getPropertyTypeFacets({ city }));
 
 export const cachedPopularCommunes = (limit = 6) => memo(`communes:${limit}`, TTL_MS, () => getPopularCommunes(limit));
 

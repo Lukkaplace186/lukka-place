@@ -1,5 +1,8 @@
 'use client';
 
+import { attributionFromLocation, chooseSessionAttribution, sourceOf } from './attribution';
+import { adEvent } from './adEvents';
+
 /**
  * The one client-side event beacon. `lib/analytics.js` is the READ side and
  * is `server-only`; this is the write side, and the two must not be
@@ -131,7 +134,7 @@ function beacon(url, body) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          utmSource: landingUtmSource(),
+          ...attributionFields(),
           visitorId: getVisitorId(),
           ...(isAutomatedClient() ? { automated: true } : {}),
           ...body,
@@ -153,20 +156,43 @@ export function trackEvent(type, payload = {}) {
   beacon('/api/track', { type, ...payload });
 }
 
+const ATTRIBUTION_KEY = 'lp_attr';
+
 /**
- * The `utm_source` on the page's own URL, or undefined.
+ * Where this tab's visit came from (lib/attribution.js), kept for the session
+ * so every event carries the campaign that brought the visitor, not only the
+ * landing page's. A new tagged link replaces it.
  *
- * Both endpoints have always ACCEPTED `utmSource` (lib/requestContext.js), but
- * nothing sent it, and a beacon's Referer is the page itself — so every
- * visitor arriving from a tagged link an agent shared was stored as 'direct'.
- * Read here, once, rather than by each caller.
+ * `utmSource` is still sent for /api/track deployments older than the
+ * `attribution` field; the server prefers `attribution` when both arrive.
  */
-function landingUtmSource() {
+function sessionAttribution() {
   try {
-    return new URLSearchParams(window.location.search).get('utm_source') || undefined;
+    const current = attributionFromLocation(window.location.href, document.referrer);
+    let stored = null;
+    try {
+      stored = JSON.parse(window.sessionStorage.getItem(ATTRIBUTION_KEY) || 'null');
+    } catch {
+      stored = null;
+    }
+    const chosen = chooseSessionAttribution(current, stored);
+    if (chosen && chosen !== stored) {
+      try {
+        window.sessionStorage.setItem(ATTRIBUTION_KEY, JSON.stringify(chosen));
+      } catch {
+        // Private mode: this event still carries it.
+      }
+    }
+    return chosen;
   } catch {
-    return undefined;
+    return null;
   }
+}
+
+function attributionFields() {
+  const attribution = sessionAttribution();
+  if (!attribution) return {};
+  return { attribution, utmSource: attribution.source || sourceOf(attribution) };
 }
 
 /**
@@ -196,12 +222,16 @@ export function listingEventPayload(listing) {
  *
  * @param {Object} listing
  * @param {'DIRECT_WA'|'CENTRAL_FALLBACK'} routingType
+ * @param {'card'|'listing_page'|'listing_mobile_bar'} [placement] which button
+ *   was tapped (lib/leadClicks.js LEAD_CLICK_PLACEMENTS).
  */
-export function trackLeadClick(listing, routingType) {
+export function trackLeadClick(listing, routingType, placement) {
+  if (listing?.id != null) adEvent('Contact', { contentIds: [listing.id] });
   beacon('/api/telemetry/lead-click', {
     event: 'whatsapp_cta_clicked',
     ...listingEventPayload(listing),
     routingType,
+    placement,
   });
 }
 
@@ -211,6 +241,7 @@ export function trackLeadClick(listing, routingType) {
  * the call reached the agent directly, otherwise Lukka Place's central number.
  */
 export function trackCallClick(listing) {
+  if (listing?.id != null) adEvent('Contact', { contentIds: [listing.id] });
   trackEvent('call_click', {
     ...listingEventPayload(listing),
     routingType: listing?.agent_phone ? 'DIRECT' : 'CENTRAL',

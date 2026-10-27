@@ -3,6 +3,10 @@ import { analyticsDimensions } from '@/lib/requestContext';
 import { clientKey, rateLimited, usableAmount } from '@/lib/eventIngest';
 import {
   LISTING_EVENT_TYPES,
+  attributionFromBody,
+  eventSource,
+  partnerCodeFrom,
+  recordVisitorTouch,
   normaliseSearch,
   positiveId,
   recordListingEvent,
@@ -47,11 +51,13 @@ import {
  * time on purpose: a listing's price changes, and a saved-at-$1,100 event
  * must keep saying $1,100 after the agent drops it to $950.
  *
- * Device and traffic source are derived from request HEADERS, never from the
- * body — see lib/requestContext.js. The body stays the client's claim about
- * *what* it did; the headers are the browser's own account of *who* it is.
- * The visitor id prefers the `lp_vid` cookie over the body's copy for the
- * same reason.
+ * Device is derived from request HEADERS, never from the body — see
+ * lib/requestContext.js. The traffic source is the session's attribution the
+ * beacon carries (lib/attribution.js: the landing page's campaign tags, ad
+ * click id or external referrer), because the beacon's own Referer is our
+ * page; with none it is 'direct'. A page view also records the visit's full
+ * campaign and moves the visitor's first / last touch (lib/trackIngest.js).
+ * The visitor id prefers the `lp_vid` cookie over the body's copy.
  *
  * Rate limited per IP, one budget shared with /api/telemetry/lead-click
  * (lib/eventIngest.js). These figures are meant to be sold, which makes
@@ -73,8 +79,11 @@ export async function POST(request) {
     return Response.json({ success: false, error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const { type, path, commune, listingId, price, utmSource } = body || {};
-  const { device, source } = analyticsDimensions(request.headers, { utmSource });
+  const { type, path, commune, listingId, price } = body || {};
+  const attribution = attributionFromBody(body);
+  const headerDimensions = analyticsDimensions(request.headers);
+  const device = headerDimensions.device;
+  const source = eventSource(attribution, headerDimensions.source);
 
   const pool = getPool();
   const visitorId = visitorIdFrom(request, body?.visitorId);
@@ -85,7 +94,11 @@ export async function POST(request) {
   try {
     if (type === 'page_view') {
       if (!path) return Response.json({ success: false, error: 'path is required' }, { status: 400 });
-      recorded = await recordPageView(pool, { path, commune, device, source, visitorId, viewerKind, agentId });
+      const refCode = partnerCodeFrom(request);
+      recorded = await recordPageView(pool, {
+        path, commune, device, source, visitorId, viewerKind, agentId, attribution, refCode,
+      });
+      await recordVisitorTouch(pool, { visitorId, viewerKind, attribution, refCode });
     } else if (type === 'whatsapp_click') {
       await pool.query(
         'INSERT INTO whatsapp_clicks (listing_id, commune, device, source, price) VALUES ($1, $2, $3, $4, $5)',

@@ -1,4 +1,5 @@
 import { SITE_URL } from './constants';
+import { normaliseReferralCode } from './launchCommission';
 
 /**
  * Share recording and the print pages — the pure half (no DB, no DOM), so the
@@ -14,8 +15,9 @@ import { SITE_URL } from './constants';
  * is not a share of the listing (it goes to the owner, not the market).
  *
  * Channel and format are an allow-list, mirrored by the CHECK constraints in
- * migrations/20260929_listing_share_formats.sql, which replaced both CHECKs
- * first declared in 20260922_listing_shares.sql — change one, change the other.
+ * migrations/20261026_listing_share_feed_format.sql, the latest of the
+ * migrations that replaced both CHECKs first declared in
+ * 20260922_listing_shares.sql — change one, change the other.
  */
 
 /** channel → the formats it can carry. */
@@ -23,8 +25,9 @@ export const CHANNEL_FORMATS = Object.freeze({
   // `watermarked_photo`: one listing photo with the agent's band ("Photos
   // avec mon logo", removed 2026-10-06). Kept so the DB CHECK and old rows
   // still agree; nothing records it any more.
-  kit_share: Object.freeze(['square', 'story', 'landscape', 'watermarked_photo']),
-  kit_download: Object.freeze(['square', 'story', 'landscape', 'watermarked_photo']),
+  // `feed`: the 4:5 "Carte feed social" (ListingQuickShare, 2026-10-26).
+  kit_share: Object.freeze(['square', 'story', 'landscape', 'watermarked_photo', 'feed']),
+  kit_download: Object.freeze(['square', 'story', 'landscape', 'watermarked_photo', 'feed']),
   kit_whatsapp: Object.freeze(['text']),
   kit_copy: Object.freeze(['text']),
   menu_whatsapp: Object.freeze(['text']),
@@ -116,9 +119,10 @@ export const PRINT_MEDIA = Object.freeze({ poster: 'poster', fiche: 'fiche' });
  * lib/analyticsClient.js forwards into page_views.source; utm_medium tells a
  * poster from a sheet for anyone reading the raw URL.
  */
-export function printListingUrl(id, medium) {
+export function printListingUrl(id, medium, { ref = null } = {}) {
   const safeMedium = PRINT_MEDIA[medium] || PRINT_MEDIA.poster;
-  return `${SITE_URL}/listings/${Number(id)}?utm_source=print&utm_medium=${safeMedium}`;
+  const code = normaliseReferralCode(ref);
+  return `${SITE_URL}/listings/${Number(id)}?utm_source=print&utm_medium=${safeMedium}${code ? `&ref=${code}` : ''}`;
 }
 
 /**

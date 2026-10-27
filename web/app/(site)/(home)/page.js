@@ -1,0 +1,133 @@
+import Hero from '@/components/Hero';
+import { getHeroSettings } from '@/lib/cmsSettings';
+import FeaturedListings from '@/components/FeaturedListings';
+import SavedListings from '@/components/SavedListings';
+import ValueProposition from '@/components/ValueProposition';
+import PropertyTypeTiles from '@/components/PropertyTypeTiles';
+import RecentlyViewed from '@/components/RecentlyViewed';
+import NewProjectsStrip from '@/components/projects/NewProjectsStrip';
+import HomeDiscovery from '@/components/HomeDiscovery';
+import { cachedListingsTotal, cachedPopularCommunes, cachedPropertyTypeFacets } from '@/lib/listingsCached';
+import { getSavedHomeSection } from '@/lib/savedHome';
+import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB } from '@/lib/constants';
+import JsonLd from '@/components/seo/JsonLd';
+import { organizationSchema, websiteSchema } from '@/lib/seoSchema';
+
+/**
+ * The homepage, section for section as web/Design/Landing's "Lukka Place —
+ * Landing refondue" screen defines it: hero photograph, the floating search
+ * panel (which now carries the commune row, with real per-commune counts,
+ * as its own bottom tier),
+ * "Nouveautés vérifiées à Kinshasa" as two rows of four, and the "Notre
+ * approche" band — which is where the page ends, into the footer and its
+ * agency band.
+ *
+ * The refonte's three-item proof row ("Chaque annonce contrôlée par un
+ * humain avant publication" / "Une seule ligne WhatsApp..." / "Prix
+ * affichés tels quels...") is deliberately NOT built: it was cut on the
+ * client's own instruction. The mockup puts it directly under the search
+ * panel, in the gap left by the royal seller strip that moved down to the
+ * footer band; nothing replaces it, the commune row simply follows the
+ * panel. All three claims are still made — at length, and in the section
+ * that exists to make them — by ValueProposition below.
+ *
+ * Four sections were removed earlier, because the design carries none of
+ * them: ExploreCommunes ("Explorez par commune" / Quartiers),
+ * TransactionTypesGrid, CurrencyBridge, and TrustSection ("Qui est
+ * derrière" / "Une seule équipe, un seul numéro"). The components still
+ * exist and nothing else imports them — they are simply off the homepage.
+ *
+ * Three real, DB-derived values are threaded into the hero, none of them
+ * decorative:
+ *   - getPropertyTypeFacets() feeds the "Type de bien" select — options
+ *     with real counts, the same source FilterBar.js's own pill on
+ *     /listings uses, so the hero never offers a type with zero results.
+ *   - getPopularCommunes() feeds the panel's own commune quick-pills.
+ *   - getListings().total is the real approved-listing total behind the
+ *     "Rechercher (N biens)" CTA on first paint, scoped to the transaction
+ *     type the panel OPENS on (Louer -> location) rather than left
+ *     unfiltered. Unscoped it reported 31 (30 rentals + 1 sale) under an
+ *     active Louer tab whose real count is 30 — the button over-reported
+ *     until the visitor touched a control and the client refetch corrected
+ *     it. The tab and the mapping both come from lib/constants.js so the
+ *     server count and the client's default tab cannot drift. `limit: 1`
+ *     keeps the row payload minimal; the COUNT query getListings() runs
+ *     internally is unaffected by limit. From there the panel refetches
+ *     /api/listings/count as filters change — same endpoint, same query.
+ * The location field sources its own suggestions from
+ * /api/locations/autocomplete, so nothing needs threading through for it.
+ *
+ * **Mobile density pass.** The three sections below are unchanged in
+ * composition but not in rhythm: FeaturedListings and ValueProposition each
+ * carry a tighter mobile band (`sm:` restores the previous desktop values
+ * verbatim, so only narrow viewports move), and FeaturedListings lost its
+ * `lead` line, which restated its own title and eyebrow. The one duplicate
+ * deliberately left standing is the hero's subhead — "Annonces relues par notre équipe, prix
+ * affichés & contact direct sur WhatsApp." — against ValueProposition's
+ * three numbered props, which are the same three claims. That is a promise
+ * made once above the fold and then evidenced at length in the section that
+ * exists to evidence it, not a section repeating itself; cutting either one
+ * would leave the page either opening with no promise or closing with no
+ * argument. The rest of the reclaimed height comes from PropertyCard, which
+ * dropped its reserved two-line description block (see PropertyCard.js).
+ *
+ * **The second section is now personal when it can be.** For a signed-in
+ * visitor who has saved at least one property, "Sélection de la Semaine"
+ * (FeaturedListings) is replaced outright by their own "Biens Enregistrés"
+ * shelf — not stacked above it, since two eight-card listing
+ * sections back to back is the same page twice. The swap is decided by
+ * lib/savedHome.js's getSavedHomeSection(), which returns null for a
+ * signed-out visitor and for a signed-in one with an empty shelf — this
+ * page renders FeaturedListings in exactly those two cases. The decision is
+ * data rather than a nullable section so the choice can be made before the
+ * markup exists; there is no path where both appear or both vanish. See
+ * components/SavedListings.js for why the empty shelf falls back rather
+ * than rendering an empty personalised section.
+ *
+ * It joins the existing Promise.all rather than awaiting after it: the
+ * hero's three values and the visitor's shelf are independent reads, and
+ * serialising them would add a whole round trip to the signed-in homepage
+ * for nothing. Reading the session cookie costs no static rendering here —
+ * this route was already dynamic for the locale cookie alone (see
+ * lib/i18n/config.js).
+ *
+ * CommuneShortcuts is no longer rendered here. It was a row of commune
+ * pills sitting immediately under the search panel; the panel now carries
+ * that row itself, where a tap FILLS the search field instead of navigating
+ * straight to /listings — which is the more useful of the two, since it
+ * composes with the transaction/type/budget already staged above it rather
+ * than discarding them. Two visually identical commune rows stacked on top
+ * of each other was the alternative. The component still exists and nothing
+ * else imports it, same as the four other sections listed above.
+ */
+export async function generateMetadata() {
+  return { alternates: { canonical: '/' } };
+}
+
+export default async function HomePage() {
+  const [propertyTypes, communes, { total }, saved, heroImage] = await Promise.all([
+    // 60-second copies (lib/listingsCached.js): counts and facets, not results.
+    cachedPropertyTypeFacets(),
+    cachedPopularCommunes(8),
+    cachedListingsTotal(HERO_TRANSACTION_BY_TAB[HERO_DEFAULT_TAB]),
+    getSavedHomeSection(),
+    getHeroSettings(),
+  ]);
+
+  return (
+    <>
+      {/* Who Lukka Place is and the sitelinks search box — lib/seoSchema.js. */}
+      <JsonLd data={{ '@context': 'https://schema.org', '@graph': [organizationSchema(), websiteSchema()] }} />
+      <Hero propertyTypes={propertyTypes} communes={communes} initialCount={total} image={heroImage} />
+      {/* Returning visitors pick up where they left off; renders nothing on a first visit. */}
+      <RecentlyViewed />
+      {saved ? <SavedListings listings={saved.listings} firstName={saved.firstName} /> : <FeaturedListings />}
+      <NewProjectsStrip />
+      {/* Bien du jour, collections, prices, videos, the Lukka Index — only what has data behind it. */}
+      <HomeDiscovery />
+      {/* One tile per property type with listings, counts from the same facets as the hero dropdown. */}
+      <PropertyTypeTiles propertyTypes={propertyTypes} />
+      <ValueProposition />
+    </>
+  );
+}

@@ -22,7 +22,7 @@ export default async function AdminActivatePage({ searchParams }) {
   const errorKey = typeof params.error === 'string' && params.error.startsWith('admin.team.') ? params.error : null;
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-canvas-alt px-4">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-page px-4">
       <div className="u-lift w-full max-w-sm rounded-card border border-line bg-surface p-6 sm:p-8">
         <h1 className="u-title-section text-ink">{t('admin.activate.title')}</h1>
         {!invite ? (

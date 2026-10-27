@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { formatPrice, formatPriceCdf, convertCdfToUsd, usablePrice } from '@/lib/format';
+import { formatPrice, formatPriceCdf, formatCdfCompact, convertCdfToUsd, usablePrice, frNumber } from '@/lib/format';
 
 /**
  * F7. `properties.price` is nullable, and formatPrice did
@@ -76,4 +76,15 @@ test('a real price is unaffected by the guard', () => {
   assert.equal(usablePrice(1500), 1500);
   assert.equal(usablePrice('1500'), 1500);
   assert.equal(usablePrice(0.5), 0.5);
+});
+
+// Plus Jakarta Sans draws Intl's narrow no-break space (U+202F) at almost no
+// width, so prices read "1000000 $". Every price must group with U+00A0.
+test('prices group thousands with a visible no-break space, never U+202F', () => {
+  const NARROW = String.fromCharCode(0x202f);
+  const NBSP = String.fromCharCode(0xa0);
+  assert.equal(frNumber(1000000), ['1', '000', '000'].join(NBSP));
+  for (const text of [formatPrice(1000000, 'sale'), formatPrice(1800, 'rent'), formatPriceCdf(2300000, 'rent'), formatCdfCompact(2300000)]) {
+    assert.ok(!text.includes(NARROW), text);
+  }
 });

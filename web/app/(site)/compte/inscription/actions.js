@@ -13,6 +13,9 @@ import { hashPassword } from '@/lib/customerAuth';
 import { establishCustomerSession } from '@/lib/customerSession';
 import { setVerifyAttemptCookie } from '@/lib/verifyAttempt';
 import { otpBypassEnabled, logOtpBypass } from '@/lib/otpBypass';
+import { recordWebSignupAttribution } from '@/lib/accountAcquisition';
+import { normalisePartnerCode } from '@/lib/partnerRules';
+import { findActivePartnerByCode } from '@/lib/partners';
 
 function safeNext(nextParam) {
   const next = String(nextParam || '/compte/client');
@@ -64,7 +67,29 @@ export async function signupAction(formData) {
     redirect(`/compte/inscription?error=exists&next=${encodeURIComponent(next)}`);
   }
 
+  // The optional "Code de parrainage" (an agent's, a creator's): a code that
+  // is not a live partner's is sent back BEFORE the account exists, so the
+  // person can correct it or clear the field. A lookup that fails never
+  // blocks signup.
+  const typedCode = String(formData.get('partner_code') || '').trim().slice(0, 20);
+  if (typedCode) {
+    let known = null;
+    try {
+      known = normalisePartnerCode(typedCode) ? await findActivePartnerByCode(typedCode) : null;
+    } catch (err) {
+      console.error(`[customer-auth] partner code check failed, signing up without it: ${err.message}`);
+      known = true;
+    }
+    if (!known) {
+      redirect(`/compte/inscription?error=ref&next=${encodeURIComponent(next)}&code=${encodeURIComponent(typedCode)}`);
+    }
+  }
+
   const customer = await createCustomer({ phone, passwordHash: hashPassword(password), fullName });
+
+  // Where the account came from and which partner's link brought it
+  // (lib/accountAcquisition.js). Never throws.
+  await recordWebSignupAttribution({ accountType: 'customer', accountId: Number(customer.id), phone, typedCode: typedCode || null });
 
   // Merged now, before verification, deliberately: the row exists, the data
   // is the visitor's own device state, and losing it because a code was

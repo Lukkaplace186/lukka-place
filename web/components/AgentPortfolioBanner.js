@@ -4,6 +4,7 @@ import { buildWhatsAppShareLink } from '@/lib/whatsapp';
 import CopyLinkButton from './CopyLinkButton';
 import { WhatsAppIcon } from './WhatsAppCTA';
 import { getT } from '@/lib/i18n/server';
+import { ensureAgentPartnerCode } from '@/lib/partners';
 
 /**
  * The overview's share card (2026-10-05 redesign): the first thing on the
@@ -17,11 +18,17 @@ import { getT } from '@/lib/i18n/server';
  *
  * `liveCount` is the number of public listings — the same rule as the "En
  * ligne" chip on Mes biens, so the card and the list say the same number.
+ *
+ * The SHARED link carries the agent's partner code (`?ref=`, lib/partners.js),
+ * so a customer who signs up from it is credited to them; the chip keeps the
+ * clean address.
  */
 const SHARE_MESSAGE = 'Découvrez mes biens à Kinshasa sur Lukka Place : ';
 
-export default async function AgentPortfolioBanner({ liveCount, profileUrl, profilePath }) {
+export default async function AgentPortfolioBanner({ liveCount, profileUrl, profilePath, agentId = null }) {
   const t = await getT();
+  const refCode = agentId ? await ensureAgentPartnerCode(agentId) : null;
+  const sharedUrl = refCode ? `${profileUrl}?ref=${refCode}` : profileUrl;
   const displayUrl = profileUrl.replace(/^https?:\/\//, '');
   return (
     <section
@@ -37,7 +44,7 @@ export default async function AgentPortfolioBanner({ liveCount, profileUrl, prof
           <div className="text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-white/70">
             {t('agent.portfolio.yourPublicPortfolio')}
           </div>
-          <p className="font-display mt-1.5 text-[1.5rem] leading-[1.15] sm:text-[1.75rem]">
+          <p className="font-bold mt-1.5 text-[1.5rem] leading-[1.15] sm:text-[1.75rem]">
             {liveCount === 0 ? t('agent.portfolio.pageReady') : t('agent.portfolio.shareHeadline', { count: liveCount })}
           </p>
           <a
@@ -53,12 +60,12 @@ export default async function AgentPortfolioBanner({ liveCount, profileUrl, prof
 
         <div className="grid grid-cols-2 gap-2.5 sm:flex sm:flex-none">
           <CopyLinkButton
-            url={profileUrl}
+            url={sharedUrl}
             label={t('agent.portfolio.copyLink')}
             className="u-press inline-flex h-11 items-center justify-center gap-2 rounded-lg px-3 text-sm font-bold text-white ring-[1.5px] ring-inset ring-white/60 transition-colors hover:bg-white/10 sm:px-5"
           />
           <a
-            href={buildWhatsAppShareLink(SHARE_MESSAGE + profileUrl)}
+            href={buildWhatsAppShareLink(SHARE_MESSAGE + sharedUrl)}
             target="_blank"
             rel="noopener noreferrer"
             className="u-press inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-white px-3 text-sm font-bold text-blue-deep transition-shadow hover:shadow-md sm:px-5"

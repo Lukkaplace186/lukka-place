@@ -185,8 +185,9 @@ Real Google Maps rendering on `/listings` (`?view=map`, toggle button next to So
   - **The list pane is unchanged** — still paginated on the full filters, location included.
   - **Positions**: stored coordinates, else the commune centroid (flagged `approximate`), else no pin and counted `unlocated` — never a made-up point. `/listings` no longer geocodes listings in the browser at all; `PropertyMap`'s client cascade above now serves only the detail page. One compact pill states listings in view; its ⓘ button opens the breakdown (on a centroid, matching but unplaceable, truncated) rather than stacking three pills over a phone-sized map.
   - **Index**: `migrations/20260916_properties_geo_index.sql`, a partial expression index on `LAT_EXPR`/`LNG_EXPR` (`latitude`/`longitude` are TEXT, so a raw-column composite could not serve a numeric range). The planner needs the identical expression — `web/tests/unit/map-viewport.test.js` compares the two texts.
+- **Names are checked (2026-10-24, listing #387).** "GB / Hôtel Diplomate", Ngaliema was stored by Joli Parc: the Geocoding API answered with a ROOFTOP hotel NAMED "GB", and it returns no name to check. `services/geocoding.js` now splits the text into terms ("GB" | "Hôtel Diplomate"; a known quartier/alias of the commune is a place, other words a landmark) and resolves through the **Places API (New)** with the same server key: a landmark whose returned NAME carries the term, inside the commune's box, nearest the quartier's point (≤3 km) — or nothing when two matches disagree and there is no quartier to choose by; else the quartier's point from `kinshasa_quartier_points.json` (built by `scripts/geocode-quartiers.js`: a name-matching neighbourhood, or the median of ≥3 name-matching places within 1.5 km, checked to lie in the commune by reverse geocode; 82 of 415 names have one, the rest are null = looked, nothing trustworthy); only then the Geocoding cascade, which now refuses every business answer. Landmarks are never stripped from the query — they are the best signal there is; unchecked names were the bug. Web keeps a copy (`web/lib/data/quartier-points.json`, `tests/unit/quartier-points.test.js`) for the browser cascade, which refuses business answers too. `scripts/backfill-listing-coordinates.js --recompute [--write]` re-resolves stored points and only replaces one with a name-checked point (never a project unit or an admin-set pin). §30.
 - **Publish-time geocoding** (`services/geocoding.js`): after COMMIT, `syncListingToPostgres` fills blank `latitude`/`longitude` with the same landmark rule and precision check as the client cascade (a commune outline is refused, a key/quota refusal throws rather than cascading). Needs `GOOGLE_MAPS_SERVER_KEY` (IP-restricted; requests go out over IPv4 because the VPS is dual-stack). Never overwrites an existing coordinate; a correction that changes quartier, commune tag or landmark reference clears the old one first. Backfill: `node scripts/backfill-listing-coordinates.js [--write]`. §30 of verify-pipeline.
-- **Markers** (2026-09-23, "sleek map" pass): on `/listings`, HTML speech-bubble pills drawn by one `google.maps.OverlayView` (`web/lib/mapPinLayer.js`, styles `.lkp-pin` in `app/globals.css`) — the site font, CSS transitions, no Map ID, and off the deprecated `google.maps.Marker`. White with charcoal text and a stem whose tip is the coordinate; the active one (hovered card / open preview) royal blue; listings this browser opened (`lib/recentlyViewed.js`) or tapped greyed; `verified_at` a small check. **Every listing always shows its price**: no clustering, and the overlap-to-dot collapse tried the same day was removed on product direction ("the blue dots … I don't understand it"). Labels are the map's own format, `$750` / `$1.5k` / `$185k` / `$1.2M` (`compactPrice`), no "/m", "/an" kept for yearly rents. The detail page (2026-09-28) loads by itself near the viewport (Data Saver keeps the tap) and shows the one listing: with stored coordinates `ListingPinMap` at zoom 14, Rightmove-style: a round navy point with a type symbol (`lib/listingPin.js`), a pulse, the commune under it and a 500 m approximate-zone disc, no price — a comparison with nearby similar listings was tried and reverted the same day; without coordinates `PropertyMap`'s SVG `google.maps.Marker` tags (`lib/mapIcons.js`), same white/blue. Also: `cameraControl` off, "Autour de moi" (geolocation on tap, refused outside `KINSHASA_PROVINCE_ENVELOPE`), a 60s per-tab cache of marker answers, and the top pill is text only (no ⓘ) and hidden on a phone once settled — "Voir N biens" carries the count. Stacking: active on top, then higher price in front. Co-located pins are separated by the fan described above.
+- **Markers** (2026-09-23, "sleek map" pass): on `/listings`, HTML speech-bubble pills drawn by one `google.maps.OverlayView` (`web/lib/mapPinLayer.js`, styles `.lkp-pin` in `app/globals.css`) — the site font, CSS transitions, no Map ID, and off the deprecated `google.maps.Marker`. White with charcoal text and a stem whose tip is the coordinate; the active one (hovered card / open preview) royal blue; listings this browser opened (`lib/recentlyViewed.js`) or tapped greyed; `verified_at` a small check. **Every listing always shows its price**: no clustering, and the overlap-to-dot collapse tried the same day was removed on product direction ("the blue dots … I don't understand it"). Labels are the map's own format, `$750` / `$1.5k` / `$185k` / `$1.2M` (`compactPrice`), no "/m", "/an" kept for yearly rents. The detail page (2026-09-28) loads by itself near the viewport (Data Saver keeps the tap) and shows the one listing: with stored coordinates `ListingPinMap` at zoom 14 shows only a pale 500 m approximate-zone circle and a "Zone approximative" chip — no pin, symbol, label or price (2026-10-23, owner's choice; a navy point and then an irregular zone with a white type badge came before it); a comparison with nearby similar listings was tried and reverted on 2026-09-28; without coordinates `PropertyMap`'s SVG `google.maps.Marker` tags (`lib/mapIcons.js`), same white/blue. Also: `cameraControl` off, "Autour de moi" (geolocation on tap, refused outside `KINSHASA_PROVINCE_ENVELOPE`), a 60s per-tab cache of marker answers, and the top pill is text only (no ⓘ) and hidden on a phone once settled — "Voir N biens" carries the count. Stacking: active on top, then higher price in front. Co-located pins are separated by the fan described above.
 - **Known environment limitation, not a code bug**: this session's sandboxed test browser has no real GPU (WebGL reports available but the renderer is unaccelerated software — `"WebKit WebGL"` with no hardware string), which makes Google's Maps JS API silently fall back to `StaticMapService.GetMapImage` (a static, non-interactive image) instead of the normal vector-tile renderer, so full interactive rendering (pan/zoom/cluster click/InfoWindow) could not be visually confirmed in that pane. What **was** confirmed directly: all 8 real listings resolve to real coordinates (`console.log` per listing — 7 geocoded, 1 via the commune-fallback fix above, 0 unresolved), `google.maps.Marker` instances are genuinely created (its deprecation warning only fires on real construction), no JS errors anywhere in the pipeline, and lint is clean. **Verify the actual interactive experience (pan/zoom/clusters/popup clicks) in a real desktop browser** — it should Just Work there; the static-image fallback is specific to unaccelerated/headless environments.
 
 ## Viewing-Request Notifications
@@ -707,6 +708,126 @@ when blocks and properties line up exactly; otherwise every listing keeps every
 photo, as a building's units always do. §59. The web admin's agent page edits
 the person's first/last name (`updateAgentIdentity`); the phone stays locked.
 
+### A new listing is never a correction (2026-10-21)
+
+Measured on 2026-10-20: an agent posting listing after listing had complete
+properties (8 photos, a price) returned `is_listing: false` by the model in
+correction mode and merged into the previous draft, one into their NAME at
+onboarding. `services/listingBoundary.js` decides from THIS burst's own text
+(never the extraction, which in correction mode is the merged draft):
+
+- names a kind of property (or offer wording) AND states a price, and is
+  not worded as an edit ("pas X mais Y", "au lieu de", a leading "non"…);
+- with photos → a new listing, unless every core fact it states matches the
+  listing in context (the same property re-sent);
+- without photos → a new listing when the model said intent `listing`, the
+  text is ≥ 80 characters and price, kind of property or commune differs.
+  With nothing in context (only the name question open), `listing` suffices.
+
+A promoted burst is re-read WITHOUT the draft (one extra model call, only
+then) and stored as its own row. Short edits name no property or no price,
+so "non 1100$" still corrects. `completeOnboarding` also refuses a reply that
+stands alone as a listing (`looks-like-listing`). This applies to everyone:
+it replaces the literal "a changed price/commune/type is a new listing" ask,
+which would have turned "non c'est 1100$" into a second listing. §61.
+
+**Drafts nobody confirms reach moderation** (`services/draftAutoSubmit.js`,
+job `draft-auto-submit`): a `pending_confirmation` draft with ≥1 photo is
+published (into the approval queue, `approve_status = 0`) after
+`DRAFT_AUTO_SUBMIT_HOURS` (default 3, `off` disables), stamped
+`parsed_json.auto_submitted_at`, nothing sent to the agent. Same quota check
+as "OK"; a full plan leaves it pending and re-asks a day later. A draft with
+no photo stays pending (the photo rule holds on every publish path). §61.
+
+### Listings from WhatsApp groups — relay and reader (2026-10-21)
+
+**The Cloud API never delivers group messages**, not even for the business
+number while it sits in brokers' groups through the WhatsApp Business app
+(measured: 607 inbound messages in the log, none from a group). Most Kinshasa
+listings are posted in admin-only groups, so a second number — a dedicated
+SIM, a plain WhatsApp member of those groups, NEVER the business number —
+brings them in. `services/groupRelay.js` is the one path for both ways in:
+
+- **Relay** (`RELAY_NUMBERS`, read at call time): staff forward group posts
+  from that SIM to the intake number. `routes/webhook.js` hands the burst to
+  `handleRelayBurst` after the dedupe and BEFORE the pending-draft branch.
+  `splitBurst`: each text message opens a post, a photo joins the post it
+  follows, photos before any text join the first post, a lone "Agent :
+  0812…" line names the poster of the posts after it.
+- **Reader** (`group-reader/`, a Baileys linked device of the same SIM,
+  unofficial: the SIM can be banned): `POST /internal/group-posts`
+  (requireApiKey; `{groupJid, groupName, posterPhone, posterName, text,
+  photos: ['/uploads/listings/…'], wamids}`), 503 when extraction fails so it
+  retries. Sends nothing. `GROUP_READER_ENABLED` turns on the
+  `group-reader:silent` ops alert (`GROUP_READER_SILENCE_HOURS`, 12).
+- **Each post** is read alone (`parseMessage`, never with a draft), stored as
+  its own listing with `parsed_json.source = 'whatsapp-group'`
+  (+ `source_via`, `group_name`, `poster_phone`, `poster_name`, `relay_from`)
+  and published to the approval queue at once: no "OK", no onboarding, no
+  quota. No photo → kept as a draft (photo rule), named in the receipt.
+  Chatter is dropped only when the model says no listing AND the text names
+  no property + price AND there are no photos.
+- **Duplicates**: `listing_fingerprints` (SQLite, 30 days). A post with real
+  text (≥ 40 folded characters) is judged by its text alone — the same photos
+  with a new price are a new post; only a post with no such text falls back to
+  "every photo already seen". Same wamid → duplicate as usual.
+- **Who it is filed under**: `wa_id` = the poster's number (the reader's
+  participant, else a DRC number written in the post, never one of ours),
+  else the relay. Never attributed unless that number is a verified agent
+  (the usual sync gate), so a broker who verifies later claims them. Group
+  captures are excluded from `findLatestPendingListing` /
+  `findRecentPublishedListing`, so the poster's own next message is never a
+  correction of a group post.
+- **Nothing reaches the poster**: the moderation verdict
+  (`POST /admin/properties/:id/notify`) goes to the agent a moderator
+  attached (phone-verified), else nobody (`skipped: 'group-capture'`). The
+  relay phone gets one receipt per burst (sent / sans photo / déjà reçue).
+- **The moderator's context**: at the first sync `db.publishListing` writes a
+  `console_admin_notes` row (listing, `admin_user_id` NULL, "Capture groupe
+  WhatsApp") naming the group, the poster and the relay. The owners'
+  "annonce à valider" alert fires as for any listing. §62.
+
+### Agents created or verified by an admin — no code (2026-10-23)
+
+`services/adminAgentAccounts.js`, behind `POST /admin/agents/admin-create`
+and `POST /admin/agents/:id/admin-verify` (requireApiKey; web's console is the
+only caller, web/CLAUDE.md has the pages). A third way a number becomes a
+verified agent, beside the reverse code and WhatsApp onboarding: **the team
+vouches for it.** Built for the group-capture brokers above, whose listings
+stay unattributed until their number is verified, and for any agent the team
+signs up in person.
+
+- **Deliberately skips proof of ownership.** `phone_verified_at` is the gate
+  `resolveAgentId`, `identifySender` and web's lead routing share — setting it
+  publishes the number on the agent's listings and routes their enquiries to
+  it. Never reachable from a public path or from `routes/webhook.js` (§66
+  checks the source).
+- **Create** reuses `agentOnboarding.upsertAgentFromWhatsApp`, with
+  `source: 'admin'` (`onboarding_source = 'admin'`, the record of who vouched;
+  no admin id is stored on `agents`), separate first/last names, communes as
+  `primary_communes` = `serviced_communes`, and `refuseExisting`: any row with
+  that number, soft-deleted included, refuses (409 `phone-taken`), under a
+  per-number advisory lock. The WhatsApp path is unchanged ('whatsapp', never
+  refuses).
+- **Refused numbers**: not 7–15 digits; 243976321848 / 243846962654 (fixed in
+  the module) plus `groupRelay.ownNumbers()` (desk, relay SIM, business env).
+- **Verify** (existing account): sets `phone_verified_at`; refused for a
+  deleted account and when another live verified account holds the number
+  (`resolveAgentId` would pick one arbitrarily). An activation token is issued
+  only when the account has no password — a password and its sessions are kept
+  — and never with `issue_link: false` (the profile checkbox, which also
+  verifies through here).
+- **Claim**: `postgres.linkListingsToAgent` over the number's
+  `remote_property_id`s (the onboarding claim: fills NULL `properties.agent_id`
+  only, through resolveAgentId's gate), then `db.attributeListingsForWaId`
+  stamps SQLite `listings.agent_id`. No full re-sync: `agent_id` is the field
+  that changes. A capture not yet in Postgres (draft, no photo) is attributed
+  at its first sync. Best-effort; the account exists either way.
+- **The activation link** (`agentOnboarding.activationLink`, the onboarding
+  magic link, only the SHA-256 stored) is returned to the console and sent by
+  nobody: the admin copies it or opens their own WhatsApp with it.
+- §66 of verify-pipeline.
+
 ### Plan listing limit on WhatsApp
 
 `services/listingQuota.js`, called in `routes/webhook.js`'s draft-confirmation
@@ -1168,6 +1289,13 @@ alert job itself), no inbound WhatsApp traffic for `OPS_ALERT_SILENCE_HOURS`
   messages verify an account someone else opened on their number. Needs no
   Meta template. `AUTH_OTP_BYPASS=1` now means "send no code, verify this way"
   instead of "skip proof" (which let anyone claim an agency's listings).
+  **A "Code Lukka Place" message that matches nothing is answered, never sent
+  to intake** (2026-10-26: a customer's account was on her +243 number, her
+  WhatsApp on a +33 one, and every code got the agent how-to reply). The
+  code is open for another number → the reply names both numbers' last four
+  digits and the signup link for that role; no open code → "plus valable,
+  nouveau code sur le site". Only the prefilled wording triggers it — a bare
+  6-digit price still falls through.
 - **Agent morning digest** (`services/agentDigest.js`, job
   `agent-daily-digest`, `AGENT_DIGEST_HOUR` default 8 Kinshasa): pending and
   today's visits, new customer requests, listings to confirm, listings in
@@ -1186,7 +1314,7 @@ alert job itself), no inbound WhatsApp traffic for `OPS_ALERT_SILENCE_HOURS`
   `approve_status = 0`. With no verified-tier agent today, it approves nothing.
 - Scheduler order is now: search-alerts, viewing-sla, viewing-checkin,
   viewing-agent-done, ops-health-alerts, listing-stats-rollup,
-  trusted-auto-approve, agent-daily-digest, listing-availability-check,
+  draft-auto-submit, trusted-auto-approve, agent-daily-digest, listing-availability-check,
   market-snapshot, ops-desk-keepalive, sales-commissions, sqlite-backup
   (pinned in §24).
 
@@ -1325,6 +1453,18 @@ web/CLAUDE.md, "Visit booking, both agendas…", has the pages. Engine half:
   time) is sent by `agentDigest.deliverDigest` when the agent has a CONFIRMED
   visit today; the rest of the digest follows as text only when it says
   anything beyond those visits.
+- **Monday's numbers as a template (2026-10-26).** `AGENT_WEEKLY_TEMPLATE`
+  (`bilan_hebdo_agent`, UTILITY, fr, submitted the same day, intake account:
+  first name, week start "19 octobre", views, WhatsApp clicks, most-viewed
+  listing, to-do joined with " · " — whole items only, within Meta's 200
+  characters; static button → /compte/agent). Sent by `deliverDigest` on a
+  Monday with views, and it is then the whole message (no day template, no
+  text). Unset, no views or refused → the digest exactly as before. The 14
+  "sent" weekly digests of 2026-10-26 were session messages, most outside
+  the 24h window. §-test next to the day template's. Switched on 2026-10-27
+  and put **on hold the same day** (owner, until customer traction):
+  `AGENT_WEEKLY_DIGEST=off` in production makes Monday an ordinary day — no
+  weekly numbers, no stale-project nudge; the template name is commented out.
 - **Where they live (measured 2026-10-14):** the four new templates are on
   the INTAKE number's account (from the notifications number Meta answers
   #132001) and all four have a PICTURE header (without one, #132012). So
@@ -1452,6 +1592,56 @@ web is never asked. The reply is built by web (`POST /api/internal/agent-command
 Bearer `CRON_SECRET`, `WEB_BASE_URL`), so the caption is the share kit's own
 and ownership / public rules are checked there; web unreachable → "réessayez",
 never an engine-made caption. No model call, nothing stored in SQLite. §44.
+
+## Listing videos and 20 photos (2026-10-21)
+
+After launch, agents were seen sending videos with their photos; videos were
+answered "format pas encore pris en charge" and lost. `services/listingMedia.js`
+holds the rules. §63 of verify-pipeline.
+
+- **The publish rule is now one photo OR one video** (`hasVisualMedia`), on
+  every path that used to require a photo: "OK" and the conversational
+  confirmation (`PHOTO_REQUIRED_REPLY` now says "Photo ou vidéo obligatoire"),
+  onboarding's publish, `draftAutoSubmit` (its SQL counts `videos` too), group
+  relay captures, and the model's own refusal (`photos_count` in the draft
+  context counts photos + videos). Read "photo" as "photo or video" in the
+  older sections above.
+- **Caps**: 20 photos (`MAX_LISTING_PHOTOS`, same as web/lib/uploadLimits.mjs —
+  change one, change the other; §63 and web's listing-videos test compare),
+  3 videos (`MAX_LISTING_VIDEOS`). Applied in `db.js` on insert and on every
+  correction (`mergeCapped`, first ones kept), and on the refs BEFORE any
+  download. The vision model still reads the first `OPENAI_MAX_IMAGES` (10)
+  photos — cost; every photo is stored. The intake card says "(maximum 20)".
+- **Intake** (`routes/webhook.js`): `message.video` (caption included) is a
+  media ref with a video mime; `mediaRefs` is photos + videos (so every "burst
+  carries media" guard counts a video), `photoRefs` go to the model,
+  `videoRefs` are downloaded one at a time (`chakra.downloadVideo`: attachment
+  proxy then media id, 120 s, bytes must sniff as MP4/MOV/3GP/WebM,
+  `MAX_VIDEO_BYTES` 64 MB) and stored by `mediaStorage.persistVideos`
+  (`<key>-v<i>.mp4`). SQLite `listings.videos` (JSON, idempotent ALTER);
+  `applyListingCorrection`'s 6th argument appends videos; multi-property pastes
+  split videos by `video_blocks` like photos (a property with no video of its
+  own is fine). A video with no caption joins the pending draft (card with
+  "*Vidéos* : N", no model call); with no draft it gets `VIDEO_NEEDS_TEXT_REPLY`
+  (the model does not watch videos, so there is nothing to read); one that
+  cannot be fetched gets `VIDEO_DOWNLOAD_FAILED_REPLY`, never silence. The
+  relay passes `downloadVideos`; the group reader (Baileys) still sends photos
+  only.
+- **Publish** (`syncListingToPostgres`): after COMMIT, `uploadListingVideos`
+  puts each video in the listing bucket (`whatsapp_<hash>.<ext>`, no
+  enhancement) and, when ffmpeg can cut one, a cover frame
+  (`whatsapp_<hash>_poster.jpg`, ~1 s in). `properties.videos` jsonb
+  `[{url, poster}]` (`migrations/20261021_listing_videos.sql`; before it, a
+  logged 42703 and the sync stands). With no photo, the first cover is
+  `featured_image`, so a video-only listing is not a "no image" card and
+  `trustedAutoApprove`'s real-photo check is met. Laravel's single
+  `video_url` / `video_image` are left alone.
+- **ffmpeg**: `FFMPEG_PATH`, else the `ffmpeg-static` binary (new
+  dependency — its install script downloads the binary; on the VPS check
+  `node -e "console.log(require('ffmpeg-static'))"` points at a real file
+  after `npm install`, `npm approve-scripts ffmpeg-static` if npm blocked it),
+  else `ffmpeg` on PATH. None → no cover, the video still publishes.
+- Web half: web/CLAUDE.md, "Listing videos".
 
 ## Verification & Commands
 - **Verification Command**: Always run `npm run verify` before declaring a backend task complete.
@@ -1663,7 +1853,7 @@ and the CHECK of `migrations/20260929_listing_utilities.sql` (web's
 compared by both test suites), `migrations/20261019_commercial_spaces.sql`.
 
 - **"Commercial" is `property_categories.type = 'commercial'`**, the
-  back-office's own flag (Bureau, Boutique, Entrepôt, Bâtiment), never a list
+  back-office's own flag (Bureau, Boutique, Entrepôt, Immeuble), never a list
   of names. The migration adds the missing **Bureau / Office** category
   (no id sequence on that table: MAX + 1 under a lock, skipped when a French
   "Bureau" exists). Before it runs, a WhatsApp "bureau" still lands on
@@ -1756,3 +1946,119 @@ kinshasa_locations.json, untouched). §58 of verify-pipeline.
   the ~25 `BETWEEN 21 AND 44` queries, web listing creation's hardcoded
   Kinshasa city_id), commune centroids (geocode on the VPS), new cities hidden
   on the storefront until they have 3–5 approved listings (owner decision).
+
+## Short-term vs long-term rentals (2026-10-21)
+
+Some rooms, studios and furnished flats in Kinshasa are let by the day or the
+week. **No new column**: a rent quoted per day IS the short-term listing, so
+the fact lives in `price_period`, which now also takes `'jour'` and
+`'semaine'` beside `'mois'` / `'an'` / `'total'`. Long term is the standard
+and the default — a rent with no period, or a monthly / yearly one.
+`properties.price_period` is plain text with no CHECK, so nothing to migrate.
+
+- `services/leaseTerm.js` (duplicated in `web/lib/leaseTerm.js`, compared by
+  web's `lease-term.test.js`): `shortTermSql` / `longTermSql`, `periodSuffix`.
+- **Extraction** (both prompts and the Gemini parser): "50$/jour", "la nuitée",
+  "location journalière" → `jour`; "à la semaine" → `semaine`; never converted
+  to a monthly figure. Without that wording a rent is long term.
+- The intake card, publish receipt, availability check and moderation alert
+  print "/ jour" / "/ semaine". The buyer assistant's `search_properties` takes
+  `lease_term: 'short' | 'long'` (`propertyRepository.buildFilters`).
+- **A short-term rent never enters a monthly median** (`marketSnapshot`, and on
+  web every `price_period = 'an'` normalisation): its amount is NULL there,
+  never multiplied by a guessed occupancy.
+- §64 of verify-pipeline.
+
+## Property types: Immeuble, Villa, Concession (2026-10-22)
+
+`migrations/20261022_property_types_immeuble_villa_concession.sql`. Types are
+`property_categories` rows, not an ENUM, so every dropdown follows the table.
+
+- **Bâtiment (id 38) is renamed Immeuble** (French name + slug; English stays
+  "Building"). Same id, so nothing on `properties` moves. **Villa** and
+  **Concession** ("Compound" in English) are new residential categories,
+  ids MAX + 1 like Bureau's.
+- **Extraction**: `concession` joins PROPERTY_TYPES (both schemas, Gemini
+  parser too), with a prompt rule — the word "concession" for the property
+  itself (large walled plot sold or let whole, in ares / hectares), never a
+  mining / forest / burial concession. A concession is not asked for bedrooms.
+- **Publish** (`resolveCategory`): villa → Villa, else Maison; concession →
+  Concession, else Terrain; immeuble and bureau's fallback find the building
+  category under either name; a parcelle sub-typed villa → Villa, else Terrain
+  as before. Restart the engine after the migration (taxonomy cache).
+- **Buyer assistant**: `search_properties` takes villa, concession, immeuble
+  (`CATEGORY_NAME_BY_SEARCH_TYPE`, Immeuble also matched as "bâtiment").
+- Web half: web/CLAUDE.md, same heading. §53 of verify-pipeline.
+
+## Practical listing details and four more types (2026-10-22)
+
+`services/listingDetails.js`, `migrations/20261022_listing_details.sql`
+(web half: web/CLAUDE.md, same heading). §65 of verify-pipeline.
+
+- **Twelve nullable `properties` columns**, NULL = not stated: `furnished`
+  (extracted since launch, never synced until now), `households_count`
+  ("4 ménages dans la parcelle"), `landlord_on_site`, `has_generator` /
+  `has_pool` / `has_gym` / `has_solar` (true or NULL, never false — an
+  unticked box is "not stated"; `migrations/20261022_listing_equipment.sql`),
+  `electricity_meter`
+  ('prepaye' = Cash Power | 'individuel' | 'partage'), `plot_dimensions` (as
+  written: "15/20", "5 ares", "1 ha"), `plot_area_m2`, `installments_available`
+  / `installment_terms` (paiement échelonné, the agent's own words). Same
+  columns in SQLite `listings` (idempotent ALTER), correctable, inherited by
+  multi-unit expansion where they belong to the address.
+- **`plot_area_m2` is never the model's arithmetic**: the prompt says to copy
+  the size as written, and `parsePlotArea` computes it (ha > ares >
+  dimensions > m²) on extraction, insert and every correction. Duplicated in
+  web/lib/listingDetails.js; both suites run the same fixture table.
+- **Gated on the kind of property** (`normaliseListingDetails`): no
+  household facts on land or commercial space, no equipment on bare land, no plot on a flat /
+  studio / room / office / shop, no instalments on a rent. Applied after the
+  model, at insert, at correction (the draft's type decides) and at sync.
+- **Sync**: INSERT only, SAVEPOINT tolerant of 42703, same posture as utilities
+  and commercial specs — the agent's editor owns them after publication.
+- **Three categories** (residential): Studio, Chambre / Annexe, Ferme /
+  Terrain agricole. Extraction types `studio` (existed), `chambre`, `ferme`;
+  each falls back to Appartement / Appartement / Terrain before the
+  migration. Existing listings are not re-filed. The buyer assistant searches
+  all three.
+- **Removed the same day, on owner review**: toilet / shower location (columns
+  dropped — no row held one) and the "Salle de fête" category (deleted — no
+  row used it). SQLite keeps two unused toilet / shower columns.
+- The intake card prints every stated detail ("*Terrain* : 15/20 (300 m² · 3 ares)").
+
+
+## Where accounts come from — engine half (2026-10-27)
+
+`migrations/20261027_growth_attribution.sql` (Postgres: page-view campaign
+columns, `visitor_touches`, `partners` / `partner_clicks` /
+`partner_conversions`, `account_acquisitions`; one code namespace with
+`sales_reps.referral_code`, enforced by triggers). Web owns almost all of it —
+web/CLAUDE.md, "Where visitors and accounts come from". Engine side:
+`services/accountAcquisition.js`, called from `upsertAgentFromWhatsApp` for an
+account created there, in its own SAVEPOINT: `channel` whatsapp or admin, and
+the rep's code when `attributeNewAgentInTransaction` attributed one (it now
+returns `code`). A missing table records nothing; the account never depends
+on it. §66 checks both channels.
+
+## Growth launch — engine half (2026-10-27)
+
+web/CLAUDE.md, "Referral credits, ad tracking and the launch pages", has the
+model. Engine pieces:
+
+- **`services/customerOnboarding.js`**: "Inscription Lukka Place (— Code :
+  X)" creates a verified CUSTOMER in Postgres (one transaction, per-number
+  advisory lock), credits the code's partner (never an agent's own number),
+  writes `account_acquisitions` (channel whatsapp) and replies with a 72 h
+  single-use link to web `/compte/activer` (only the SHA-256 stored). Routed
+  in `routes/webhook.js` before the sales referral, with the listing-enquiry
+  guards (no draft, no media). Matches only the pre-typed start, never
+  "parrainage". An existing number is pointed to its login.
+- **`services/growthDaily.js`**: job `growth-daily` (registered before
+  `sqlite-backup`, pinned in §24), `GROWTH_DAILY_HOUR` (default 7 Kinshasa).
+  Web `POST /api/cron/growth-daily` writes the agents' referral credits and
+  returns yesterday's summary; the engine sends it to `ADMIN_ALERT_NUMBERS`
+  (else the desk) via `sendDeskAlert`. `GROWTH_DAILY_SUMMARY=off` keeps only
+  the credit run. A failed credit run fails the job (ops alerts report it).
+- `db.countLeadsByWaIds` also returns `firstViewingAt` (the credit rule's
+  "visit request" action).
+- §67 of verify-pipeline.

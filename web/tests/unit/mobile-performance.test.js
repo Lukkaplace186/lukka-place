@@ -145,7 +145,9 @@ test('customer visit answers are 44px tall', () => {
 
 test('slow routes show a skeleton and fail inside their own shell', () => {
   for (const file of [
-    'app/(site)/loading.js',
+    'app/(site)/_shared/SiteLoading.js',
+    'app/(site)/(home)/loading.js',
+    'app/(site)/listings/(search)/loading.js',
     'app/(site)/listings/[id]/loading.js',
     'app/compte/agent/loading.js',
     'app/(portfolio)/loading.js',

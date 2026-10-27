@@ -5,6 +5,7 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { firstParam, parseCursor, parsePage } from '@/lib/adminPagination';
 import { can } from '@/lib/adminRoles';
 import { getAdminSession } from '@/lib/adminSession';
+import { getSalesScope } from '@/lib/salesScope';
 import { getT } from '@/lib/i18n/server';
 import { ErrorNote, Stat } from '../LeadRoutingUI';
 import Pagination from '../table/Pagination';
@@ -12,6 +13,7 @@ import TableToolbar from '../table/TableToolbar';
 import ServerViewTools from '../table/ServerViewTools';
 import AgentsTable from './AgentsTable';
 import { toAgentTableRows } from './agentRows';
+import { getLoginSummaries } from '@/lib/agentLoginLog';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,20 +46,35 @@ export default async function AdminAgentsPage({ searchParams }) {
   const params = { ...filters, page: page > 1 ? String(page) : undefined, size: pageSize === 25 ? undefined : String(pageSize) };
 
   const session = await getAdminSession();
+  // A sales rep sees only the agents they brought in, and none of the
+  // network-wide tools (duplicates, bulk status, delete).
+  const scope = await getSalesScope();
   const [listResult, vendorsResult, duplicatesResult] = await Promise.allSettled([
-    listAgentsForAdmin({ ...filters, limit, offset, cursor: parseCursor(raw) }),
+    listAgentsForAdmin({ ...filters, limit, offset, cursor: parseCursor(raw), repId: scope ? scope.repId : null }),
     getVendors(),
-    findDuplicateAgents(),
+    scope ? Promise.resolve([]) : findDuplicateAgents(),
   ]);
   const list = listResult.status === 'fulfilled' ? listResult.value : null;
   const vendors = vendorsResult.status === 'fulfilled' ? vendorsResult.value : [];
   const duplicates = duplicatesResult.status === 'fulfilled' ? duplicatesResult.value : [];
+  // Sign-in history for the agents on this page only (never throws).
+  const loginSummaries = await getLoginSummaries((list?.rows || []).map((row) => row.id));
 
   return (
     <div className="flex flex-col gap-5">
-      <div>
-        <h1 className="u-title-page text-ink">{t('admin.agents.title')}</h1>
-        <p className="u-micro mt-1 text-ink-45">{t('admin.agents.subtitle')}</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="u-title-page text-ink">{t('admin.agents.title')}</h1>
+          <p className="u-micro mt-1 text-ink-45">{t(scope ? 'admin.agents.subtitleSales' : 'admin.agents.subtitle')}</p>
+        </div>
+        {can(session?.role, 'agents.manage') ? (
+          <Link
+            href="/admin/agents/nouveau"
+            className="u-btn-primary u-press inline-flex h-10 items-center gap-1.5 rounded-lg px-4 text-sm font-bold"
+          >
+            + {t('admin.agentCreate.title')}
+          </Link>
+        ) : null}
       </div>
 
       {list ? (
@@ -133,10 +150,11 @@ export default async function AdminAgentsPage({ searchParams }) {
       ) : null}
 
       <AgentsTable
-        rows={toAgentTableRows(list?.rows)}
+        rows={toAgentTableRows(list?.rows, loginSummaries, t.locale)}
         vendors={vendors.map((vendor) => ({ id: vendor.id, username: vendor.name }))}
         canImpersonate={can(session?.role, 'accounts.impersonate')}
         canDelete={can(session?.role, 'agents.delete')}
+        canManage={can(session?.role, 'agents.manage')}
         sharedSession={Boolean(session?.shared)}
         footer={list ? <Pagination pathname="/admin/agents" params={params} total={list.total} page={page} pageSize={pageSize} cursors={list.cursors} /> : null}
       />

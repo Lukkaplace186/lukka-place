@@ -81,7 +81,7 @@ export default function FavorisView() {
       <Breadcrumb className="mb-6" items={[{ label: t('breadcrumb.home'), href: '/' }, { label: t('nav.favorites') }]} />
 
       <header className="mb-10">
-        <h1 className="font-display text-[2rem] font-normal leading-[1.12] tracking-[-0.02em] text-ink sm:text-[2.5rem]">
+        <h1 className="font-bold text-[2rem] leading-[1.12] tracking-[-0.02em] text-ink sm:text-[2.5rem]">
           {t('account.favorites.title')}
         </h1>
         <p className="mt-3 text-[0.9375rem] leading-relaxed text-ink-45">

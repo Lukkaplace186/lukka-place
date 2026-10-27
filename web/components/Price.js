@@ -5,6 +5,7 @@ import { getCurrency, subscribeCurrency } from '@/lib/currencyPreference';
 import { convertToCdf } from '@/lib/currency';
 import { useCdfRate } from '@/lib/CurrencyRateContext';
 import { formatPriceParts, formatPriceCdfParts, formatCdfCompact } from '@/lib/format';
+import { rentPeriodLabel } from '@/lib/leaseTerm';
 
 /**
  * Drop-in replacement for a raw formatPrice(...) text node.
@@ -65,7 +66,7 @@ export default function Price({
 
   const cdfEstimate = convertToCdf(amount, cdfPerUsd);
   const cdfEstimateText = cdfEstimate != null ? formatCdfCompact(cdfEstimate) : null;
-  const cdfPeriod = purpose === 'rent' ? (pricePeriod === 'an' ? '/ an' : '/ mois') : null;
+  const cdfPeriod = purpose === 'rent' ? rentPeriodLabel(pricePeriod) : null;
 
   const tooltip = nativeIsCdf
     ? `Prix affiché en USD, converti au taux du ${updatedAt} — le prix réel est en FC`

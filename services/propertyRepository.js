@@ -28,6 +28,7 @@
  */
 
 const { Pool } = require('pg');
+const { shortTermSql, longTermSql, normaliseLeaseTerm } = require('./leaseTerm');
 
 const CONTENT_LANGUAGE_ID = 20;
 const CATEGORY_LANGUAGE_ID = 26;
@@ -64,7 +65,7 @@ const COMMUNE_SUBQUERY = `(
 ) AS commune`;
 
 const SELECT_FIELDS = `
-  p.id, p.price, p.purpose, p.beds, p.bath, p.area, p.quartier,
+  p.id, p.price, p.purpose, p.price_period, p.beds, p.bath, p.area, p.quartier,
   p.parcelle_subtype, p.units_count, p.reference, p.featured_image,
   p.created_at,
   pc.title, pc.slug, pc.address,
@@ -106,6 +107,23 @@ const AGENT_INFOS_JOIN = `
 
 const TRANSACTION_TYPE_TO_PURPOSE = { location: 'rent', vente: 'sale' };
 
+/**
+ * search_properties' single-category types → the lowercased French category
+ * names they match. Immeuble keeps its pre-2026-10-22 name "bâtiment" so a
+ * database where the rename migration has not run still answers.
+ */
+const CATEGORY_NAME_BY_SEARCH_TYPE = {
+  bureau: ['bureau'],
+  boutique: ['boutique'],
+  entrepot: ['entrepôt'],
+  immeuble: ['immeuble', 'bâtiment'],
+  villa: ['villa'],
+  concession: ['concession'],
+  studio: ['studio'],
+  chambre: ['chambre / annexe'],
+  ferme: ['ferme / terrain agricole'],
+};
+
 const SEARCH_LIMIT_DEFAULT = 8;
 const SEARCH_LIMIT_MAX = 20;
 
@@ -118,7 +136,7 @@ const SEARCH_LIMIT_MAX = 20;
  */
 function buildFilters({
   transactionType, propertyType, parcelleSubtype, commune, quartier, city,
-  priceMin, priceMax, bedsMin,
+  priceMin, priceMax, bedsMin, leaseTerm,
 } = {}) {
   const where = [APPROVED_FILTER];
   const params = [];
@@ -136,6 +154,11 @@ function buildFilters({
     params.push(purpose);
     where.push(`p.purpose = $${params.length}`);
   }
+
+  // Short term (by the day / week) or long term — services/leaseTerm.js.
+  // Either implies a rental.
+  const term = normaliseLeaseTerm(leaseTerm);
+  if (term) where.push(term === 'short' ? shortTermSql('p') : longTermSql('p'));
 
   const minPrice = Number.parseFloat(priceMin);
   if (Number.isFinite(minPrice)) {
@@ -167,9 +190,9 @@ function buildFilters({
     // Offices, shops, warehouses, whole buildings: the category's own type
     // (migrations/20261019_commercial_spaces.sql, services/commercial.js).
     where.push(`LOWER(cat.type) = 'commercial'`);
-  } else if (['bureau', 'boutique', 'entrepot'].includes(propertyType)) {
-    params.push({ bureau: 'bureau', boutique: 'boutique', entrepot: 'entrepôt' }[propertyType]);
-    where.push(`LOWER(catc.name) = $${params.length}`);
+  } else if (CATEGORY_NAME_BY_SEARCH_TYPE[propertyType]) {
+    params.push(CATEGORY_NAME_BY_SEARCH_TYPE[propertyType]);
+    where.push(`LOWER(catc.name) = ANY($${params.length})`);
   }
 
   if (commune) {

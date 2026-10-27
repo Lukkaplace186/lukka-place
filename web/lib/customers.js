@@ -568,3 +568,36 @@ export async function resolveCustomerSession(token) {
   if (!row || Number(row.token_version) !== verified.tokenVersion) return null;
   return verified.customerId;
 }
+
+// ---------------------------------------------------------------------------
+// Accounts created on WhatsApp (engine services/customerOnboarding.js): the
+// welcome message carries a single-use link where the customer sets a first
+// password. Only the token's SHA-256 is stored; redeeming clears it in the
+// same UPDATE that sets the password, so a replayed link changes nothing.
+// ---------------------------------------------------------------------------
+
+/** @returns {Promise<{id: number, token_version: number}|null>} */
+export async function consumeCustomerActivationToken({ phone, token, passwordHash }) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits || !token) return null;
+  const { createHash } = await import('node:crypto');
+  try {
+    const { rows } = await getPool().query(
+      `UPDATE customers
+          SET password_hash = $1,
+              activation_token_hash = NULL,
+              activation_expires_at = NULL,
+              phone_verified_at = COALESCE(phone_verified_at, NOW()),
+              token_version = token_version + 1
+        WHERE phone = $2
+          AND activation_token_hash = $3
+          AND activation_expires_at > NOW()
+        RETURNING id, token_version`,
+      [passwordHash, digits, createHash('sha256').update(String(token)).digest('hex')],
+    );
+    return rows[0] ? { id: Number(rows[0].id), token_version: rows[0].token_version } : null;
+  } catch (err) {
+    if (err?.code === '42703') return null;
+    throw err;
+  }
+}

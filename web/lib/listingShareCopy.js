@@ -1,8 +1,10 @@
 import { placeLabel } from '@/lib/placeLabel';
 import { formatPriceParts } from './format';
 import { formatPhoneDisplay } from './phone';
-import { entryTerms, hasArea } from './listingView';
+import { entryTerms, formatArea, hasArea } from './listingView';
 import { SITE_URL } from './constants';
+import { cityOfListing, communeLabel } from './cities';
+import { normaliseReferralCode } from './launchCommission';
 
 /**
  * The ready-to-paste text an agent posts with one of their listings — the
@@ -34,16 +36,23 @@ import { SITE_URL } from './constants';
  *   area/units_count/quartier/commune/reference/deposit_months/advance_months/
  *   commission_months.
  * @param {{typeText?: string|null, url?: string|null, contactPhone?: string|null,
- *          contactName?: string|null}} [options]
+ *          contactName?: string|null, style?: 'whatsapp'|'social'}} [options]
  *   typeText is resolved by the caller (typeLabel with a French translator).
+ *   `style: 'social'` is the feed card's caption (Instagram, Facebook): the
+ *   same lines without the *…*, WITHOUT the agent's number, ending on the
+ *   listing's link on Lukka Place and socialHashtags(). A social post — the
+ *   team's or an agent's — sends people back to the platform, where the
+ *   visit request and the agent's contact are (product direction 2026-10-26).
  */
-export function buildListingSocialCopy(listing, { typeText = null, url = null, contactPhone = null, contactName = null } = {}) {
+export function buildListingSocialCopy(listing, { typeText = null, url = null, contactPhone = null, contactName = null, style = 'whatsapp' } = {}) {
   const lines = [];
+  const social = style === 'social';
   // WhatsApp renders *…* as bold. Elsewhere (a Facebook group, a pasted SMS)
-  // the asterisks show literally — accepted deliberately, since WhatsApp is
-  // where this text is posted and the emphasis is what makes a Status legible
-  // at a glance.
-  const bold = (text) => `*${text}*`;
+  // the asterisks show literally — accepted deliberately for the WhatsApp
+  // captions, since that is where they are posted and the emphasis is what
+  // makes a Status legible at a glance. The feed caption goes to Instagram
+  // and Facebook, which have no such markup, so it carries none.
+  const bold = (text) => (social ? text : `*${text}*`);
 
   const purpose = listing.purpose === 'sale' ? 'À VENDRE' : listing.purpose === 'rent' ? 'À LOUER' : null;
   const head = [purpose ? bold(purpose) : null, typeText].filter(Boolean).join(' · ');
@@ -67,14 +76,52 @@ export function buildListingSocialCopy(listing, { typeText = null, url = null, c
   // Only a number the public listing page would itself publish — see
   // agentContactPhone. An agent sharing their own listing usually wants to be
   // called directly; a caption is not the place to leak an unverified number.
-  if (contactPhone) {
+  if (contactPhone && !social) {
     const name = typeof contactName === 'string' && contactName.trim() ? contactName.trim() : 'Contact';
     lines.push('', `${bold(name)} · ${contactPhone}`);
   }
 
-  if (url) lines.push('', 'Photos et visite ↓', url);
+  if (url) lines.push('', social ? 'Photos, visite et contact de l’agent sur Lukka Place ↓' : 'Photos et visite ↓', url);
+
+  if (social) {
+    const tags = socialHashtags(listing, { typeText });
+    if (tags.length) lines.push('', tags.join(' '));
+  }
 
   return lines.join('\n');
+}
+
+/** "Mont-Ngafula" → "MontNgafula", "à louer" → "ÀLouer". Letters and digits only. */
+function hashtagWord(text) {
+  return String(text || '')
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean)
+    .map((part) => part[0].toUpperCase() + part.slice(1))
+    .join('');
+}
+
+/**
+ * The feed caption's hashtags, from the listing's own fields only: its city,
+ * its commune, what it is and the transaction ("#AppartementÀLouer"), and
+ * #LukkaPlace. A field that is not known is left out, never guessed.
+ */
+export function socialHashtags(listing, { typeText = null } = {}) {
+  const purpose = listing.purpose === 'sale' ? 'à vendre' : listing.purpose === 'rent' ? 'à louer' : '';
+  const words = [
+    cityOfListing(listing),
+    listing.commune ? communeLabel(listing.commune) : null,
+    typeText ? `${typeText} ${purpose}` : null,
+    'Lukka Place',
+  ];
+  const seen = new Set();
+  const tags = [];
+  for (const word of words) {
+    const tag = hashtagWord(word);
+    if (!tag || seen.has(tag.toLowerCase())) continue;
+    seen.add(tag.toLowerCase());
+    tags.push(`#${tag}`);
+  }
+  return tags;
 }
 
 /**
@@ -117,7 +164,7 @@ export function roomSpecItems(listing) {
   if (beds > 0) items.push({ icon: 'bed', text: plural(beds, 'chambre', 'chambres') });
   const bath = Number(listing.bath);
   if (bath > 0) items.push({ icon: 'bath', text: plural(bath, 'salle de bain', 'salles de bain') });
-  if (hasArea(listing.area)) items.push({ icon: 'area', text: `${listing.area} m²` });
+  if (hasArea(listing.area)) items.push({ icon: 'area', text: `${formatArea(listing.area)} m²` });
   const units = Number(listing.units_count);
   if (listing.units_count != null && units > 0) items.push({ icon: 'door', text: plural(units, 'porte', 'portes') });
 
@@ -137,20 +184,35 @@ export const SHARE_SOURCES = Object.freeze({
   image: 'wa_status',
   whatsapp: 'wa_message',
   copy: 'partage_agent',
+  // The feed card's caption (Instagram, Facebook), ListingQuickShare's 4:5.
+  social: 'reseaux_sociaux',
 });
 
 /**
- * `medium` / `campaign` are optional and only appended after a source. Only
- * `utm_source` is recorded today (lib/analyticsClient.js forwards that one
- * label); the other two survive in the link for any later reader.
+ * The same feed caption when Lukka Place posts it on its own pages
+ * (/admin/listings/[id], lib/marketing/shareKit.js audience 'team'), so the
+ * company's posts and the agents' read as two sources.
  */
-export function listingPublicUrl(id, { source = null, medium = null, campaign = null } = {}) {
+export const TEAM_SOCIAL_SOURCE = 'lukka_reseaux';
+
+/**
+ * `medium` / `campaign` are optional and only appended after a source; all
+ * three are recorded (lib/attribution.js). `ref` is the sharing agent's own
+ * partner code (lib/partners.js ensureAgentPartnerCode): whoever opens the
+ * link and creates an account is credited to that agent. It goes last and is
+ * appended with or without a source.
+ */
+export function listingPublicUrl(id, { source = null, medium = null, campaign = null, ref = null } = {}) {
   const url = `${SITE_URL}/listings/${id}`;
-  if (!source) return url;
-  const parts = [`utm_source=${encodeURIComponent(source)}`];
-  if (medium) parts.push(`utm_medium=${encodeURIComponent(medium)}`);
-  if (campaign) parts.push(`utm_campaign=${encodeURIComponent(campaign)}`);
-  return `${url}?${parts.join('&')}`;
+  const parts = [];
+  if (source) {
+    parts.push(`utm_source=${encodeURIComponent(source)}`);
+    if (medium) parts.push(`utm_medium=${encodeURIComponent(medium)}`);
+    if (campaign) parts.push(`utm_campaign=${encodeURIComponent(campaign)}`);
+  }
+  const code = normaliseReferralCode(ref);
+  if (code) parts.push(`ref=${code}`);
+  return parts.length ? `${url}?${parts.join('&')}` : url;
 }
 
 /**

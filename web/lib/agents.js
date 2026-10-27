@@ -3,6 +3,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { getPool } from './db';
 import { keysetClause, pageCursors } from './adminPagination';
 import { vendorNameSql } from './vendorName';
+import { repAgentCondition } from './salesScopeSql';
 import { generateOtpCode, hashOtp, otpExpiresAt } from './agentAuth';
 import { sendWhatsAppMessage, claimListingsForPhone } from './adminApi';
 import { sendOtpViaWhatsApp, otpFallbackText } from './otpDelivery';
@@ -168,11 +169,19 @@ function agentSearchWhere(q, params) {
  */
 export async function listAgentsForAdmin({
   q, verified, status, vendorId, branchId, withBranch = false, sort = 'newest', limit = 25, offset = 0, cursor = null,
+  repId = null,
 } = {}) {
   const pool = getPool();
   const params = [];
   // Soft-deleted agents (lib/adminSoftDelete.js) leave every console list.
   const where = ['a.deleted_at IS NULL'];
+  // A sales rep's console (lib/salesScope.js): only the agents they brought in.
+  // Applied first so the summary below can reuse it as $1.
+  const scoped = repId != null;
+  if (scoped) {
+    params.push(Number(repId) || 0);
+    where.push(repAgentCondition('a.id', '$1'));
+  }
   const search = agentSearchWhere(q, params);
   if (search) where.push(search);
   if (verified === 'yes') where.push('a.phone_verified_at IS NOT NULL');
@@ -221,7 +230,8 @@ export async function listAgentsForAdmin({
       `SELECT COUNT(*)::int AS total,
               COUNT(*) FILTER (WHERE phone_verified_at IS NOT NULL)::int AS verified,
               COUNT(*) FILTER (WHERE status = 1)::int AS active
-       FROM agents WHERE deleted_at IS NULL`,
+       FROM agents a WHERE a.deleted_at IS NULL${scoped ? ` AND ${repAgentCondition('a.id', '$1')}` : ''}`,
+      scoped ? [params[0]] : [],
     ),
   ]);
   const rows = keyset.reverse ? [...pageResult.rows].reverse() : pageResult.rows;
@@ -242,10 +252,14 @@ export async function listAgentsForAdmin({
  * (verified number AND routing not switched off); the engine re-checks it on
  * every reassign, so this only keeps unusable names out of the list.
  */
-export async function searchAgentsForAdmin({ q, commune, routableOnly = false, activeOnly = false, excludeId, limit = 20 } = {}) {
+export async function searchAgentsForAdmin({ q, commune, routableOnly = false, activeOnly = false, excludeId, limit = 20, repId = null } = {}) {
   const pool = getPool();
   const params = [];
   const where = ['a.deleted_at IS NULL'];
+  if (repId != null) {
+    params.push(Number(repId) || 0);
+    where.push(repAgentCondition('a.id', `$${params.length}`));
+  }
   const search = agentSearchWhere(q, params);
   if (search) where.push(search);
   if (routableOnly) where.push('a.phone_verified_at IS NOT NULL AND a.direct_routing_enabled IS DISTINCT FROM false');
@@ -347,34 +361,6 @@ export async function bulkUpdateAgentStatus(ids, status) {
     [status, clean],
   );
   return rowCount ?? 0;
-}
-
-/**
- * Public agent directory (web/app/(site)/agents/page.js) — active agents
- * with at least one real listing behind them, matching this app's own
- * no-empty-directory-entry convention (same reasoning as ExploreCommunes.js
- * only showing a commune tile once a real listing exists there).
- * listing_count is a correlated scalar subquery in AGENT_FIELDS, not an
- * aggregate over this query's own rows, so the >0 filter happens in JS
- * after the fetch rather than a SQL HAVING clause — real agent counts are
- * small (tens, not thousands; see admin/dashboard's own "Agents actifs"
- * stat), so this stays simple instead of restructuring the query.
- *
- * Filters and orders on `live_listing_count`, NOT `listing_count`. The
- * latter counts every property row attributed to the agent regardless of
- * moderation state, while the storefront this links to
- * (lib/agencies.js -> getListings) applies the full approved filter — so an
- * agent whose listings were all pending or rejected appeared in the
- * directory and led to a completely empty page. No agent triggers that
- * today, which is exactly why it needed pinning rather than leaving until it
- * broke in front of a visitor.
- */
-export async function getPublicAgents() {
-  const pool = getPool();
-  const { rows } = await pool.query(
-    `SELECT ${AGENT_FIELDS} ${AGENT_JOINS} WHERE a.status = 1 ORDER BY live_listing_count DESC NULLS LAST`,
-  );
-  return rows.filter((r) => r.live_listing_count > 0);
 }
 
 export async function getAgentById(id) {

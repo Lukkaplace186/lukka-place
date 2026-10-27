@@ -8,6 +8,7 @@ import { getListingById } from '@/lib/listings';
 import { VISIT_CART_MAX, validatePickedSlot, dayClosed } from '@/lib/visitSlots';
 import { utcOffsetForListing } from '@/lib/cities';
 import { getT } from '@/lib/i18n/server';
+import { recordAdEventFromAction } from '@/lib/adServerContext';
 
 /**
  * "Mes visites" (components/VisitCartSheet.js): up to four listings, one slot
@@ -68,6 +69,15 @@ export async function submitVisitBatchAction(formData) {
     console.error(`[visit-batch] ${err.message}`);
     return { ok: false, error: t('enquiry.cart.errors.failed') };
   }
+
+  // One Schedule for the batch (lib/adServerContext.js): the browser copy is
+  // fired on the next page load, the server copy now.
+  await recordAdEventFromAction({
+    name: 'Schedule',
+    eventId: `visb-${Date.now().toString(36)}`,
+    phone,
+    params: { contentIds: checked.map(({ listing }) => String(listing.id)) },
+  });
 
   return {
     ok: true,

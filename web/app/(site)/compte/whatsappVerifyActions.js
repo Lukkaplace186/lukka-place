@@ -7,6 +7,8 @@ import { establishAgentSession } from '@/lib/agentSession';
 import { establishCustomerSession } from '@/lib/customerSession';
 import { getVerifyAttempt, clearVerifyAttemptCookie } from '@/lib/verifyAttempt';
 import { consumeVerifiedChallenge } from '@/lib/whatsappVerify';
+import { recordAgentLoginAttempt } from '@/lib/agentLoginLog';
+import { recordAdEventFromAction } from '@/lib/adServerContext';
 
 function safeNext(nextParam, fallback) {
   const next = String(nextParam || '');
@@ -28,6 +30,7 @@ export async function checkWhatsAppVerificationAction(nextParam) {
 
   if (attempt.role === 'agent') {
     await consumeAgentOtp(attempt.id);
+    await recordAgentLoginAttempt(attempt.id, 'whatsapp_verified');
     const { rows } = await getPool().query('SELECT token_version FROM agents WHERE id = $1', [attempt.id]);
     await clearVerifyAttemptCookie();
     await establishAgentSession({ id: attempt.id, tokenVersion: rows[0]?.token_version });
@@ -37,6 +40,8 @@ export async function checkWhatsAppVerificationAction(nextParam) {
 
   await consumeCustomerOtp(attempt.id);
   const customer = await getCustomerAuthById(attempt.id);
+  // A verified customer is the ad platforms' CompleteRegistration (lib/adServerContext.js).
+  await recordAdEventFromAction({ name: 'CompleteRegistration', eventId: `reg-c-${attempt.id}`, phone: customer?.phone || null });
   await clearVerifyAttemptCookie();
   await establishCustomerSession({ id: attempt.id, tokenVersion: customer?.token_version });
   return { status: 'verified', href: safeNext(nextParam, '/compte/client') };

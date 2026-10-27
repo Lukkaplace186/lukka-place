@@ -10,14 +10,14 @@ const CARDS = [
     titleKey: 'home.transactions.rentTitle',
     bodyKey: 'home.transactions.rentBody',
     ctaKey: 'listings.sidebar.propertiesToRent',
-    href: '/listings?transaction_type=location',
+    href: '/location',
   },
   {
     icon: Home,
     titleKey: 'home.transactions.buyTitle',
     bodyKey: 'home.transactions.buyBody',
     ctaKey: 'home.transactions.buyCta',
-    href: '/listings?transaction_type=vente',
+    href: '/vente',
   },
   {
     icon: Megaphone,
@@ -63,7 +63,7 @@ export default async function TransactionTypesGrid() {
           const inner = (
             <>
               <Icon strokeWidth={1.5} className="mb-5 h-7 w-7 text-blue" aria-hidden="true" />
-              <h3 className="font-display text-xl leading-tight tracking-[-0.01em] text-ink">{t(titleKey)}</h3>
+              <h3 className="font-bold text-xl leading-tight tracking-[-0.01em] text-ink">{t(titleKey)}</h3>
               <p className="mb-6 mt-2 text-[0.875rem] leading-relaxed text-ink-45">{t(bodyKey)}</p>
               <span className="mt-auto">{label}</span>
             </>

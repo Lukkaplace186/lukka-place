@@ -77,6 +77,62 @@ export function defaultViewForCity(villeOrParams) {
   return center ? { center, zoom: CITY_DEFAULT_ZOOM } : KINSHASA_DEFAULT_VIEW;
 }
 
+/** Web Mercator y in [0, 1] for a latitude, and back. */
+function mercatorY(lat) {
+  const sin = Math.min(Math.max(Math.sin((lat * Math.PI) / 180), -0.9999), 0.9999);
+  return 0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI);
+}
+function latFromMercatorY(y) {
+  return (Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) * 180) / Math.PI;
+}
+
+/**
+ * The centre + whole-number zoom that shows all of `bounds` in a map of
+ * `size` pixels, keeping `padding` px clear on every side (the count pill and
+ * the zoom buttons float over the edges). Pure — no Maps API — so the city
+ * switch can fly straight to it instead of landing and then re-fitting.
+ */
+export function viewForBounds(bounds, size, { padding = 48, minZoom = 11, maxZoom = 15 } = {}) {
+  if (!bounds) return null;
+  const width = Math.max(1, (size?.width || 360) - 2 * padding);
+  const height = Math.max(1, (size?.height || 360) - 2 * padding);
+  const yNorth = mercatorY(bounds.north);
+  const ySouth = mercatorY(bounds.south);
+  const dx = Math.max((bounds.east - bounds.west) / 360, 1e-9);
+  const dy = Math.max(ySouth - yNorth, 1e-9);
+  const fit = Math.floor(Math.log2(Math.min(width / (dx * 256), height / (dy * 256))));
+  const zoom = Math.min(maxZoom, Math.max(minZoom, fit));
+  return {
+    center: { lat: latFromMercatorY((yNorth + ySouth) / 2), lng: (bounds.east + bounds.west) / 2 },
+    zoom,
+  };
+}
+
+/**
+ * Where the map opens on a city other than Kinshasa: framed on that city's
+ * matching listings, so "Lubumbashi" shows all 11 rather than the 4 that
+ * happen to sit within a fixed zoom of the city centre. The extent is clipped
+ * to the city's own box first, so one bad coordinate cannot pull the view
+ * away, and the zoom never goes deeper than one step past the city view.
+ * Kinshasa keeps its fixed core view: a fit to its listings' extent zoomed a
+ * phone out to Brazzaville (see KINSHASA_DEFAULT_VIEW). null = use the
+ * city's default view.
+ */
+export function cityResultsView(ville, extent, size) {
+  const city = findCity(ville);
+  if (!city || city.name === DEFAULT_CITY || !extent) return null;
+  const envelope = cityEnvelope(city.name);
+  if (!envelope) return null;
+  const clipped = {
+    south: Math.max(extent.south, envelope.south),
+    north: Math.min(extent.north, envelope.north),
+    west: Math.max(extent.west, envelope.west),
+    east: Math.min(extent.east, envelope.east),
+  };
+  if (clipped.south > clipped.north || clipped.west > clipped.east) return null;
+  return viewForBounds(clipped, size, { maxZoom: CITY_DEFAULT_ZOOM + 1 });
+}
+
 /** The sanity box for a city's points: Kinshasa province, or the city's own. */
 export function envelopeForCity(name) {
   return (name && name !== DEFAULT_CITY && cityEnvelope(name)) || KINSHASA_PROVINCE_ENVELOPE;

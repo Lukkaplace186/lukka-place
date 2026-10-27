@@ -9,10 +9,11 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { useT } from '@/lib/i18n/client';
 import { Chip } from '../../LeadRoutingUI';
 import { EmptyRow, TD_DENSE, TD_DENSE_RIGHT, TH_STICKY, TH_STICKY_RIGHT, TR_DENSE, TableFrame } from '../../table/TableFrame';
-import { savePlanAction } from '../actions';
+import { deletePlanAction, savePlanAction } from '../actions';
+import DeleteRecordButton from '../../DeleteRecordButton';
 import { BUTTON, INPUT } from '../styles';
 
-export default function PlansManager({ plans, canManage }) {
+export default function PlansManager({ plans, canManage, canDelete = false }) {
   const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
@@ -88,9 +89,20 @@ export default function PlansManager({ plans, canManage }) {
               <td className={TD_DENSE_RIGHT}>{plan.reps}</td>
               {canManage ? (
                 <td className={TD_DENSE}>
-                  <button type="button" className="u-press inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-45 hover:bg-canvas-alt hover:text-ink" aria-label={t('admin.sales.plans.edit')} onClick={() => edit(plan)}>
-                    <Pencil strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button type="button" className="u-press inline-flex h-7 w-7 items-center justify-center rounded-md text-ink-45 hover:bg-canvas-alt hover:text-ink" aria-label={t('admin.sales.plans.edit')} onClick={() => edit(plan)}>
+                      <Pencil strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
+                    </button>
+                    {canDelete ? (
+                      <DeleteRecordButton
+                        compact
+                        action={deletePlanAction.bind(null, plan.id)}
+                        label={t('admin.sales.plans.delete')}
+                        title={t('admin.sales.plans.deleteTitle', { name: plan.name })}
+                        body={t('admin.sales.plans.deleteBody', { count: plan.reps })}
+                      />
+                    ) : null}
+                  </div>
                 </td>
               ) : null}
             </tr>

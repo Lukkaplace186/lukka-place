@@ -29,7 +29,10 @@ export const ADMIN_NAV_GROUPS = [
       { href: '/admin/verifications', labelKey: 'admin.nav.verifications', icon: 'ShieldCheck' },
       { href: '/admin/agent-reviews', labelKey: 'admin.nav.agentReviews', icon: 'Star' },
       { href: '/admin/sales', labelKey: 'admin.nav.sales', icon: 'HandCoins' },
+      { href: '/admin/partenaires', labelKey: 'admin.nav.partners', icon: 'Megaphone' },
+      { href: '/admin/liens', labelKey: 'admin.nav.links', icon: 'Link2' },
       { href: '/admin/customers', labelKey: 'admin.nav.customers', icon: 'Users' },
+      { href: '/admin/prospects/paste', labelKey: 'admin.nav.facebookProspects', icon: 'ClipboardPaste' },
     ],
   },
   {
@@ -48,6 +51,8 @@ export const ADMIN_NAV_GROUPS = [
       { href: '/admin/benchmarks', labelKey: 'admin.nav.agentPerformance', icon: 'Gauge' },
       { href: '/admin/market-data', labelKey: 'admin.nav.marketData', icon: 'TrendingDown' },
       { href: '/admin/demande', labelKey: 'admin.nav.demand', icon: 'Target' },
+      { href: '/admin/investisseurs', labelKey: 'admin.nav.investors', icon: 'Presentation' },
+      { href: '/admin/croissance', labelKey: 'admin.nav.growth', icon: 'TrendingUp' },
     ],
   },
   {
@@ -57,6 +62,7 @@ export const ADMIN_NAV_GROUPS = [
       { href: '/admin/team', labelKey: 'admin.nav.team', icon: 'UsersRound' },
       { href: '/admin/audit', labelKey: 'admin.nav.audit', icon: 'ScrollText' },
       { href: '/admin/cms', labelKey: 'admin.nav.cms', icon: 'Settings' },
+      { href: '/admin/blog', labelKey: 'admin.nav.blog', icon: 'Newspaper' },
       { href: '/admin/settings', labelKey: 'admin.nav.settings', icon: 'SlidersHorizontal' },
     ],
   },

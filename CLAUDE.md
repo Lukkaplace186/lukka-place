@@ -1551,6 +1551,14 @@ Place", +243 976 321 848), UTILITY, French. §54.
   (`propertyRepository.getModerationRecipient`, no public filter — the
   listing is pending or rejected). Neither → 404, nothing sent (2026-10-20,
   #314–#317 had reached nobody). §57.
+- **Text inside the 24 h window, template outside it** (2026-10-27, owner:
+  the template shows as "[annonce_en_ligne]" in Chakra's inbox and the old
+  text with its link was preferred). `services/sessionWindow.js` keeps each
+  number's last inbound message (`whatsapp_last_inbound`, written by the
+  webhook's inbound loop); `deliverModerationVerdict` sends the old text when
+  the agent wrote within 23 h (1 h margin), else the template, else the text.
+  No record = outside (the table started empty on 2026-10-27). Each accepted
+  template send is logged. §54.
 
 ## "Notez l'agent" — verified agent ratings (2026-10-18)
 

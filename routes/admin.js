@@ -17,6 +17,7 @@
 const express = require('express');
 const db = require('../services/db');
 const chakra = require('../services/chakra');
+const { insideSessionWindow } = require('../services/sessionWindow');
 const deskAlert = require('../services/deskAlert');
 const propertyRepository = require('../services/propertyRepository');
 const opsDesk = require('../services/opsDesk');
@@ -1566,8 +1567,7 @@ router.post('/properties/:remotePropertyId/notify', async (req, res) => {
   setImmediate(async () => {
     const reason = { code: req.body?.reason_code, note: req.body?.note };
     try {
-      if (await sendModerationTemplate(status, listing.wa_id, remotePropertyId, listing, reason)) return;
-      await chakra.sendWhatsAppMessage(listing.wa_id, buildMessage(remotePropertyId, reason));
+      await deliverModerationVerdict(status, listing, remotePropertyId, reason);
     } catch (err) {
       console.error(`[admin] moderation notify for property #${remotePropertyId} failed to send: ${err.message}`);
     }
@@ -1575,6 +1575,22 @@ router.post('/properties/:remotePropertyId/notify', async (req, res) => {
 
   return res.status(202).json({ success: true, queued: true });
 });
+
+/**
+ * The verdict as plain text while the agent's 24 h window is open (the
+ * message agents knew, with the link), the template only once it has closed —
+ * the text would be accepted and never arrive (services/sessionWindow.js).
+ * No template configured, or a refused one → the text, as before.
+ * @returns {Promise<'session'|'template'>}
+ */
+async function deliverModerationVerdict(status, listing, propertyId, reason = {}, now = new Date()) {
+  if (!insideSessionWindow(listing.wa_id, now)
+    && await sendModerationTemplate(status, listing.wa_id, propertyId, listing, reason)) {
+    return 'template';
+  }
+  await chakra.sendWhatsAppMessage(listing.wa_id, MODERATION_MESSAGES[status](propertyId, reason));
+  return 'session';
+}
 
 // ---------------------------------------------------------------------------
 // Agent listing attribution (web/)
@@ -1858,6 +1874,7 @@ module.exports = router;
 // Exposed for scripts/verify-pipeline.js — the agent-facing wording is a contract worth pinning.
 module.exports.MODERATION_MESSAGES = MODERATION_MESSAGES;
 module.exports.sendModerationTemplate = sendModerationTemplate;
+module.exports.deliverModerationVerdict = deliverModerationVerdict;
 module.exports.moderationListingSummary = moderationListingSummary;
 module.exports.moderationRejectionReason = moderationRejectionReason;
 module.exports.moderationListingFromRepository = moderationListingFromRepository;

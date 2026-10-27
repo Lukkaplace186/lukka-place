@@ -11727,6 +11727,40 @@ console.log('\n2. services/openai.js');
         assert.strictEqual(await admin54.sendModerationTemplate('approved', LISTING54.wa_id, 310, LISTING54, {}), false);
         templateFails54 = false;
       });
+      await checkAsync('the verdict is the text inside the agent\'s 24 h window, the template only outside it', async () => {
+        const window54 = require('../services/sessionWindow');
+        const now = new Date('2026-10-27T15:00:00Z');
+        const agent = { ...LISTING54, wa_id: '243810005401' };
+        sent54.length = 0;
+        assert.strictEqual(await admin54.deliverModerationVerdict('approved', agent, 311, {}, now), 'template', 'never wrote to us');
+        assert.strictEqual(sent54[0].kind, 'template');
+
+        window54.recordInbound(`+${agent.wa_id}`, new Date('2026-10-27T10:00:00Z'));
+        sent54.length = 0;
+        assert.strictEqual(await admin54.deliverModerationVerdict('approved', agent, 311, {}, now), 'session', 'wrote 5 h ago');
+        assert.deepStrictEqual(sent54.map((m) => m.kind), ['text']);
+        assert.match(sent54[0].text, /https:\/\/lukkaplace\.com\/listings\/311/);
+
+        window54.recordInbound(agent.wa_id, new Date('2026-10-26T08:00:00Z'));
+        assert.strictEqual(window54.lastInboundAt(agent.wa_id), '2026-10-27T10:00:00.000Z', 'an older delivery never moves the time back');
+        assert.strictEqual(window54.insideSessionWindow(agent.wa_id, new Date('2026-10-28T08:30:00Z')), true, '22 h 30 later');
+        assert.strictEqual(window54.insideSessionWindow(agent.wa_id, new Date('2026-10-28T09:30:00Z')), false, '23 h 30: inside the 1 h margin');
+
+        sent54.length = 0;
+        const later = new Date('2026-10-29T15:00:00Z');
+        templateFails54 = true;
+        assert.strictEqual(await admin54.deliverModerationVerdict('approved', agent, 311, {}, later), 'session', 'a refused template still sends the text');
+        templateFails54 = false;
+        delete process.env.LISTING_APPROVED_TEMPLATE;
+        assert.strictEqual(await admin54.deliverModerationVerdict('approved', agent, 311, {}, later), 'session', 'no template configured');
+        process.env.LISTING_APPROVED_TEMPLATE = 'annonce_en_ligne';
+      });
+      check('every inbound message the webhook reads opens the window', () => {
+        const src = fs.readFileSync(path.join(__dirname, '..', 'routes', 'webhook.js'), 'utf8');
+        const at = src.indexOf('recordInbound(message.from)');
+        assert.ok(at > src.indexOf('for (const message of messages)'), 'recorded in the inbound loop');
+        assert.ok(at < src.indexOf('if (isUnsupportedType(message))', at), 'before an unsupported type is turned away');
+      });
     } finally {
       chakra.sendWhatsAppMessage = saved54.text;
       chakra.sendTemplate = saved54.template;

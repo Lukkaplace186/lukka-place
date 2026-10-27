@@ -164,7 +164,7 @@ CREATE TABLE IF NOT EXISTS account_acquisitions (
 CREATE INDEX IF NOT EXISTS account_acquisitions_created_idx ON account_acquisitions (created_at);
 CREATE INDEX IF NOT EXISTS account_acquisitions_partner_idx ON account_acquisitions (partner_id) WHERE partner_id IS NOT NULL;
 
--- 5 (2026-10-28) ---------------------------------------------------------------
+-- 5 (2026-10-27) ---------------------------------------------------------------
 -- What a creator or campaign costs, for /admin/partenaires' cost per account:
 -- a flat fee for the deal, or an amount per account. NULL = not recorded.
 ALTER TABLE partners ADD COLUMN IF NOT EXISTS fee_amount numeric(12, 2) CHECK (fee_amount IS NULL OR fee_amount >= 0);

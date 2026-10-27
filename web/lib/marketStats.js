@@ -37,7 +37,7 @@ export const PRICE_BUCKETS = {
   sale: [0, 25000, 50000, 100000, 150000, 250000, 500000, 1000000],
 };
 
-const COMMUNE_EXPR = `(
+export const COMMUNE_EXPR = `(
   SELECT ac.name FROM property_amenities pa
   JOIN amenity_contents ac ON ac.amenity_id = pa.amenity_id AND ac.language_id = 20
   WHERE pa.property_id = p.id AND pa.amenity_id IN (SELECT amenity_id FROM location_communes)

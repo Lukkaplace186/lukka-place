@@ -2039,3 +2039,26 @@ account created there, in its own SAVEPOINT: `channel` whatsapp or admin, and
 the rep's code when `attributeNewAgentInTransaction` attributed one (it now
 returns `code`). A missing table records nothing; the account never depends
 on it. §66 checks both channels.
+
+## Growth launch — engine half (2026-10-27)
+
+web/CLAUDE.md, "Referral credits, ad tracking and the launch pages", has the
+model. Engine pieces:
+
+- **`services/customerOnboarding.js`**: "Inscription Lukka Place (— Code :
+  X)" creates a verified CUSTOMER in Postgres (one transaction, per-number
+  advisory lock), credits the code's partner (never an agent's own number),
+  writes `account_acquisitions` (channel whatsapp) and replies with a 72 h
+  single-use link to web `/compte/activer` (only the SHA-256 stored). Routed
+  in `routes/webhook.js` before the sales referral, with the listing-enquiry
+  guards (no draft, no media). Matches only the pre-typed start, never
+  "parrainage". An existing number is pointed to its login.
+- **`services/growthDaily.js`**: job `growth-daily` (registered before
+  `sqlite-backup`, pinned in §24), `GROWTH_DAILY_HOUR` (default 7 Kinshasa).
+  Web `POST /api/cron/growth-daily` writes the agents' referral credits and
+  returns yesterday's summary; the engine sends it to `ADMIN_ALERT_NUMBERS`
+  (else the desk) via `sendDeskAlert`. `GROWTH_DAILY_SUMMARY=off` keeps only
+  the credit run. A failed credit run fails the job (ops alerts report it).
+- `db.countLeadsByWaIds` also returns `firstViewingAt` (the credit rule's
+  "visit request" action).
+- §67 of verify-pipeline.

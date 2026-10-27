@@ -57,6 +57,9 @@ const PUBLIC_COMPTE_PATHS = new Set([
   '/compte/connexion',
   '/compte/inscription',
   '/compte/inscription/verifier',
+  // A customer account created on WhatsApp sets its first password here,
+  // before any session exists; guarded by the single-use token in its URL.
+  '/compte/activer',
 ]);
 const PUBLIC_AGENT_PATHS = new Set([
   '/compte/agent/connexion',

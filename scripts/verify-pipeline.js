@@ -7069,7 +7069,7 @@ console.log('\n2. services/openai.js');
     const names = sched.JOBS.map((j) => j.name);
     assert.deepStrictEqual(names, [
       'search-alerts', 'viewing-sla', 'viewing-checkin', 'viewing-agent-done', 'ops-health-alerts', 'listing-stats-rollup', 'draft-auto-submit', 'trusted-auto-approve', 'agent-daily-digest',
-      'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions', 'sqlite-backup',
+      'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions', 'growth-daily', 'sqlite-backup',
     ]);
   });
 
@@ -12996,6 +12996,97 @@ console.log('\n2. services/openai.js');
       postgres66.getPool = saved66.pool;
       postgres66.linkListingsToAgent = saved66.link;
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // §67 Growth launch (2026-10-27): customer signup on WhatsApp, the morning run
+  // ---------------------------------------------------------------------------
+  console.log('\n§67 Customer signup on WhatsApp and the growth morning run');
+  {
+    const customerOnboarding = require('../services/customerOnboarding');
+    const growthDaily = require('../services/growthDaily');
+
+    check('only the pre-typed wording is a signup; the code is read, "parrainage" is never matched', () => {
+      assert.strictEqual(customerOnboarding.isSignupMessage('Inscription Lukka Place'), true);
+      assert.strictEqual(customerOnboarding.isSignupMessage('  inscription sur Lukka Place — Code : NADIA01'), true);
+      assert.strictEqual(customerOnboarding.isSignupMessage('Bonjour, inscription Lukka Place'), false);
+      assert.strictEqual(customerOnboarding.isSignupMessage('Appartement à louer Gombe, inscription Lukka Place'), false);
+      assert.strictEqual(customerOnboarding.codeIn('Inscription Lukka Place — Code : nadia01'), 'NADIA01');
+      assert.strictEqual(customerOnboarding.codeIn('Inscription Lukka Place'), null);
+      const webhook = fs.readFileSync(path.join(__dirname, '..', 'routes', 'webhook.js'), 'utf8');
+      assert.ok(webhook.indexOf('handleCustomerSignupMessage') < webhook.indexOf('salesReferral.handleReferralMessage'),
+        'the signup branch runs before the sales referral one');
+    });
+
+    // A fake Postgres client holding the statements this path issues.
+    function fakePool67({ existing = false, partner = null } = {}) {
+      const seen = [];
+      const client = {
+        async query(sql, params = []) {
+          seen.push({ sql: sql.replace(/\s+/g, ' ').trim(), params });
+          if (/^SELECT id FROM customers WHERE phone/.test(sql)) return { rows: existing ? [{ id: 77 }] : [] };
+          if (/INSERT INTO customers/.test(sql)) return { rows: [{ id: 501 }] };
+          if (/FROM partners p LEFT JOIN agents/.test(sql.replace(/\s+/g, ' '))) return { rows: partner ? [partner] : [] };
+          return { rows: [], rowCount: 1 };
+        },
+        release() {},
+      };
+      return { seen, pool: { connect: async () => client } };
+    }
+
+    await checkAsync('a new number gets a verified account, a hashed single-use link, the partner credit and its acquisition row', async () => {
+      const { seen, pool } = fakePool67({ partner: { id: 4, code: 'NADIA01', kind: 'creator', agent_phone: null } });
+      const result = await customerOnboarding.createCustomerFromWhatsApp({ waId: '+243 899 067 001', code: 'NADIA01' }, pool);
+      assert.strictEqual(result.created, true);
+      assert.strictEqual(result.partnerCode, 'NADIA01');
+      const insert = seen.find((q) => q.sql.startsWith('INSERT INTO customers'));
+      assert.strictEqual(insert.params[0], '243899067001');
+      assert.match(insert.sql, /phone_verified_at, activation_token_hash/);
+      assert.notStrictEqual(insert.params[1], result.token, 'only the hash is stored');
+      assert.strictEqual(insert.params[1], require('crypto').createHash('sha256').update(result.token).digest('hex'));
+      assert.ok(seen.some((q) => /INSERT INTO partner_conversions/.test(q.sql) && q.params[0] === 4));
+      assert.ok(seen.some((q) => /INSERT INTO account_acquisitions/.test(q.sql) && /'whatsapp'/.test(q.sql)));
+      assert.ok(seen.some((q) => q.sql === 'COMMIT'));
+    });
+
+    await checkAsync('an agent\'s own code never credits their own number; an existing account is only pointed to its login', async () => {
+      const own = fakePool67({ partner: { id: 5, code: 'MARIE01', kind: 'agent', agent_phone: '243899067002' } });
+      const result = await customerOnboarding.createCustomerFromWhatsApp({ waId: '243899067002', code: 'MARIE01' }, own.pool);
+      assert.strictEqual(result.partnerCode, null);
+      assert.ok(!own.seen.some((q) => /INSERT INTO partner_conversions/.test(q.sql)));
+
+      const again = fakePool67({ existing: true });
+      const replies = [];
+      const handled = await customerOnboarding.handleCustomerSignupMessage(
+        { from: '243899067003', text: 'Inscription Lukka Place' },
+        { pool: again.pool, send: async (to, text) => { replies.push(text); } },
+      );
+      assert.strictEqual(handled.handled, true);
+      assert.ok(!again.seen.some((q) => q.sql.startsWith('INSERT INTO customers')));
+      assert.match(replies[0], /déjà un compte/);
+    });
+
+    await checkAsync('the morning run asks web, sends the summary to the owners, and fails when the credits failed', async () => {
+      const savedSecret = process.env.CRON_SECRET;
+      process.env.CRON_SECRET = 'test-secret';
+      try {
+        const sent = [];
+        const fetchImpl = async (url, options) => {
+          assert.match(url, /\/api\/cron\/growth-daily$/);
+          assert.strictEqual(options.headers.Authorization, 'Bearer test-secret');
+          return { ok: true, json: async () => ({ ok: true, credits: { credited: 2 }, summary: { text: 'Lukka Place — hier' } }) };
+        };
+        const result = await growthDaily.run({ fetchImpl, send: async (to, text) => { sent.push([to, text]); }, recipients: () => ['243800000001', '243800000002'] });
+        assert.strictEqual(result.sent, 2);
+        assert.strictEqual(sent[0][1], 'Lukka Place — hier');
+
+        const failing = async () => ({ ok: true, json: async () => ({ ok: false, creditsError: 'boom', summary: { text: 'x' } }) });
+        await assert.rejects(() => growthDaily.run({ fetchImpl: failing, send: async () => {}, recipients: () => [] }), /referral credits failed/);
+      } finally {
+        if (savedSecret === undefined) delete process.env.CRON_SECRET;
+        else process.env.CRON_SECRET = savedSecret;
+      }
+    });
   }
 
   console.log(`\n${'-'.repeat(60)}`);

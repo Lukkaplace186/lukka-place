@@ -1157,6 +1157,20 @@ async function processGroup(messages) {
       }
     }
 
+    // CUSTOMER SIGNUP — "Inscription Lukka Place (— Code : NADIA01)", the
+    // message the storefront's "Créer mon compte via WhatsApp" pre-types
+    // (services/customerOnboarding.js). Deterministic, before the model and
+    // before the sales referral below (whose wording is "parrainage", never
+    // matched here). Same guards as the listing enquiry: no draft, no media.
+    if (!pending && hasText && mediaRefs.length === 0 && pdfRefs.length === 0) {
+      try {
+        const signup = await require('../services/customerOnboarding').handleCustomerSignupMessage({ from, text, primaryWamid });
+        if (signup.handled) return;
+      } catch (err) {
+        console.error(`[customer-onboarding] handling a signup from ${from} failed: ${err.message}`);
+      }
+    }
+
     // SALES REFERRAL CODE — "… Code parrainage : JEAN01", the message a sales
     // rep's wa.me link pre-types. Deterministic, before the model, like the
     // listing enquiry above: the code is remembered for the account WhatsApp

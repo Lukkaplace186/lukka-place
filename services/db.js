@@ -2765,14 +2765,19 @@ function countLeadsByWaIds(waIds) {
       `SELECT l.wa_id,
               COUNT(DISTINCT l.id)  AS leads,
               COUNT(DISTINCT vr.id) AS viewings,
-              MAX(l.created_at)     AS last_lead_at
+              MAX(l.created_at)     AS last_lead_at,
+              MIN(vr.created_at)    AS first_viewing_at
        FROM leads l
        LEFT JOIN viewing_requests vr ON vr.lead_id = l.id
        WHERE l.wa_id IN (${placeholders})
        GROUP BY l.wa_id`,
     )
     .all(params);
-  return Object.fromEntries(rows.map((r) => [r.wa_id, { leads: r.leads, viewings: r.viewings, lastLeadAt: r.last_lead_at }]));
+  // firstViewingAt: the referral credit rule (web lib/referralRules.js) counts
+  // a visit request as the customer's "real action".
+  return Object.fromEntries(rows.map((r) => [r.wa_id, {
+    leads: r.leads, viewings: r.viewings, lastLeadAt: r.last_lead_at, firstViewingAt: r.first_viewing_at,
+  }]));
 }
 
 /**

@@ -16,6 +16,9 @@ const FLASH = {
   invalid_code_format: { tone: 'danger', key: 'admin.partners.flash.invalidCode' },
   invalid_fee: { tone: 'danger', key: 'admin.partners.flash.invalidFee' },
   failed: { tone: 'danger', key: 'admin.partners.flash.failed' },
+  stats_saved: { tone: 'success', key: 'admin.partners.flash.statsSaved' },
+  invalid_week: { tone: 'danger', key: 'admin.partners.flash.invalidWeek' },
+  invalid_figures: { tone: 'danger', key: 'admin.partners.flash.invalidFigures' },
 };
 
 export function flashFor(key) {

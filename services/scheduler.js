@@ -354,6 +354,15 @@ async function runSalesCommissions({ fetchImpl = fetch } = {}) {
 registerJob({ name: SALES_JOB_NAME, shouldRun: salesCommissionsDue, run: () => runSalesCommissions() });
 
 /**
+ * The launch morning run (services/growthDaily.js): the agents' referral
+ * credits on web, then yesterday's summary to the owners' phones.
+ */
+{
+  // eslint-disable-next-line global-require
+  registerJob(require('./growthDaily').growthDailyJob);
+}
+
+/**
  * Nightly SQLite snapshot (services/sqliteBackup.js): the backup API, an
  * integrity check, a copy in a private Supabase Storage bucket, 14 days kept.
  * A job rather than a crontab entry for the reason at the top of this file —

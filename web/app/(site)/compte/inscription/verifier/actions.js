@@ -5,6 +5,7 @@ import { getCustomerAuthById, consumeCustomerOtp, sendCustomerOtp } from '@/lib/
 import { verifyOtp } from '@/lib/authCrypto';
 import { establishCustomerSession } from '@/lib/customerSession';
 import { getVerifyAttempt, setVerifyAttemptCookie, clearVerifyAttemptCookie } from '@/lib/verifyAttempt';
+import { recordAdEventFromAction } from '@/lib/adServerContext';
 
 function safeNext(nextParam) {
   const next = String(nextParam || '/compte/client');
@@ -43,6 +44,7 @@ export async function customerVerifyOtpAction(formData) {
   }
 
   await consumeCustomerOtp(customer.id);
+  await recordAdEventFromAction({ name: 'CompleteRegistration', eventId: `reg-c-${customer.id}`, phone: customer.phone || null });
   await clearVerifyAttemptCookie();
   await establishCustomerSession({ id: customer.id, tokenVersion: customer.token_version });
 

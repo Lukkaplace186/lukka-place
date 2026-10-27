@@ -13,6 +13,8 @@ import { formatVisitDay, formatVisitTime } from '@/lib/visitAgenda';
 import { formatPhoneDisplay } from '@/lib/phone';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { getLocale, getT } from '@/lib/i18n/server';
+import { getFounderInfo } from '@/lib/founder';
+import { frNumber } from '@/lib/format';
 import VisitCard from './visites/VisitCard';
 import CustomerVisitActions from './visites/CustomerVisitActions';
 
@@ -36,6 +38,23 @@ function SectionHead({ title, href, linkLabel }) {
         </Link>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * "Membre fondateur — vous êtes le membre n° 1 284" (growth plan item 25,
+ * lib/founder.js). A plain member number after the cutoff; nothing when the
+ * database cannot answer.
+ */
+async function FounderLine({ customerId }) {
+  const info = await getFounderInfo(customerId);
+  if (!info) return null;
+  const t = await getT();
+  return (
+    <p className="mt-2 inline-flex items-center gap-2 text-[0.8125rem] text-ink-70">
+      {info.founder ? <span className="rounded-full bg-[#f59e0b] px-2.5 py-0.5 text-[0.6875rem] font-bold uppercase tracking-wide text-ink">{t('account.founder.badge')}</span> : null}
+      <span>{t('account.founder.member', { n: frNumber(info.memberNumber) })}</span>
+    </p>
   );
 }
 
@@ -234,6 +253,9 @@ export default async function EspaceClientHome({ searchParams }) {
             {t('account.portal.accountLinkedTo', { phone: formatPhoneDisplay(customer.phone) })}
           </p>
         ) : null}
+        <Suspense fallback={null}>
+          <FounderLine customerId={customerId} />
+        </Suspense>
       </div>
 
       <Suspense fallback={<InboxSkeleton />}>

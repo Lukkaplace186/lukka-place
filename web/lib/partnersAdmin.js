@@ -283,3 +283,53 @@ export async function setPartnerStatus(id, status) {
 }
 
 export { normalisePartnerCode };
+
+// ---------------------------------------------------------------------------
+// A creator's weekly TikTok figures, typed in from their screenshots
+// (growth plan item 20). TikTok gives us nothing automatically.
+// ---------------------------------------------------------------------------
+
+/** The last `weeks` weeks typed in for a partner, newest first; [] before the migration. */
+export async function listSocialStats(partnerId, { weeks = 12 } = {}) {
+  try {
+    const { rows } = await getPool().query(
+      `SELECT to_char(s.week_start, 'YYYY-MM-DD') AS week_start, s.posts, s.views, s.likes, s.followers_gained, s.notes, s.entered_by,
+              (SELECT COUNT(*) FROM partner_clicks c
+                WHERE c.partner_id = s.partner_id AND c.created_at >= s.week_start AND c.created_at < s.week_start + 7)::int AS clicks,
+              (SELECT COUNT(*) FROM partner_conversions c
+                WHERE c.partner_id = s.partner_id AND c.created_at >= s.week_start AND c.created_at < s.week_start + 7)::int AS accounts
+         FROM partner_social_stats s
+        WHERE s.partner_id = $1
+        ORDER BY s.week_start DESC
+        LIMIT $2`,
+      [partnerId, weeks],
+    );
+    return rows.map((row) => ({
+      weekStart: row.week_start,
+      posts: row.posts,
+      views: row.views,
+      likes: row.likes,
+      followersGained: row.followers_gained,
+      notes: row.notes,
+      enteredBy: row.entered_by,
+      clicks: Number(row.clicks),
+      accounts: Number(row.accounts),
+    }));
+  } catch (err) {
+    if (MISSING.has(err?.code)) return [];
+    throw err;
+  }
+}
+
+/** One week's figures; typing the same week again replaces it. */
+export async function upsertSocialStats({ partnerId, weekStart, posts, views, likes, followersGained, notes, by }) {
+  await getPool().query(
+    `INSERT INTO partner_social_stats (partner_id, week_start, posts, views, likes, followers_gained, notes, entered_by)
+     VALUES ($1, $2::date, $3, $4, $5, $6, $7, $8)
+     ON CONFLICT (partner_id, week_start) DO UPDATE
+       SET posts = EXCLUDED.posts, views = EXCLUDED.views, likes = EXCLUDED.likes,
+           followers_gained = EXCLUDED.followers_gained, notes = EXCLUDED.notes,
+           entered_by = EXCLUDED.entered_by, updated_at = NOW()`,
+    [partnerId, weekStart, posts, views, likes, followersGained, notes, by],
+  );
+}

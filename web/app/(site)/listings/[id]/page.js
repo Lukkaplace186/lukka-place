@@ -222,7 +222,7 @@ export default async function ListingDetailPage({ params, searchParams }) {
     // close to 96px, so this went up slightly rather than down to keep a
     // real margin above it.
     <div className="pb-28 lg:pb-0">
-      <ListingViewTracker path={`/listings/${listing.id}`} commune={listing.commune} listingId={listing.id} />
+      <ListingViewTracker path={`/listings/${listing.id}`} commune={listing.commune} listingId={listing.id} price={listing.price} />
       <JsonLd data={listingJsonLd(listing, t)} />
       <div className="mx-auto max-w-7xl px-4 sm:px-6 sm:pt-6 lg:px-8">
         {/* sm and up: breadcrumb left, Partager/Enregistrer right. On a

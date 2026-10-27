@@ -6,6 +6,7 @@ import ValueProposition from '@/components/ValueProposition';
 import PropertyTypeTiles from '@/components/PropertyTypeTiles';
 import RecentlyViewed from '@/components/RecentlyViewed';
 import NewProjectsStrip from '@/components/projects/NewProjectsStrip';
+import HomeDiscovery from '@/components/HomeDiscovery';
 import { cachedListingsTotal, cachedPopularCommunes, cachedPropertyTypeFacets } from '@/lib/listingsCached';
 import { getSavedHomeSection } from '@/lib/savedHome';
 import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB } from '@/lib/constants';
@@ -122,6 +123,8 @@ export default async function HomePage() {
       <RecentlyViewed />
       {saved ? <SavedListings listings={saved.listings} firstName={saved.firstName} /> : <FeaturedListings />}
       <NewProjectsStrip />
+      {/* Bien du jour, collections, prices, videos, the Lukka Index — only what has data behind it. */}
+      <HomeDiscovery />
       {/* One tile per property type with listings, counts from the same facets as the hero dropdown. */}
       <PropertyTypeTiles propertyTypes={propertyTypes} />
       <ValueProposition />

@@ -13,7 +13,7 @@ import { ADMIN_NAV_HREFS } from '@/lib/adminNav';
 import { calls, enqueue, reset } from '../support/fakePool.js';
 
 /**
- * Growth plan items 4, 11, 12, 16–19 (2026-10-28): the campaign link builder,
+ * Growth plan items 4, 11, 12, 16–19 (2026-10-27): the campaign link builder,
  * the invite page, the code field at signup, the agent's "Mes parrainages"
  * card and the partner console. web/CLAUDE.md, "Where visitors and accounts
  * come from".
@@ -171,11 +171,13 @@ test('agent signup takes a partner code in the same field, without checking it a
 
 // --- item 16: the agent's card -----------------------------------------------------------
 
-test('Mes parrainages counts customer accounts only and prints no amount', () => {
+test('Mes parrainages counts customer accounts only, and money only from the agent\'s own credits', () => {
   const sql = squash(AGENT_REFERRAL_STATS_SQL);
   assert.match(sql, /c\.account_type = 'customer'/);
   const card = read('components/AgentReferralCard.js');
-  assert.doesNotMatch(card, /\$|USD|dollar/);
+  // Amounts come from getAgentCreditSummary (lib/referralCredits.js), never typed in the card.
+  assert.match(card, /getAgentCreditSummary\(agentId\)/);
+  assert.match(card, /REFERRAL_CREDIT\.amount/);
   assert.match(read('app/compte/agent/page.js'), /<AgentReferralCard agentId=\{agentId\} \/>/);
   assert.match(read('components/AgentPortfolioBanner.js'), /\?ref=\$\{refCode\}/);
 });

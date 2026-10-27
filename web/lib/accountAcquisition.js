@@ -84,6 +84,9 @@ export async function recordWebSignupAttribution({ accountType, accountId, phone
     const headerList = await headers();
     const visitorId = cleanVisitorId(cookieStore.get(VISITOR_COOKIE)?.value);
     const carried = parsePartnerCookie(cookieStore.get(PARTNER_COOKIE)?.value);
+    // An account opened by the team, or while viewing the site as someone
+    // else, never credits a partner (lib/referralRules.js "never earns").
+    const teamBrowser = cookieStore.get('lp_staff')?.value === '1' || Boolean(cookieStore.get('lukka_impersonation')?.value);
 
     let partner = null;
     let via = carried?.via ?? null;
@@ -98,7 +101,9 @@ export async function recordWebSignupAttribution({ accountType, accountId, phone
     }
 
     let creditedPartnerId = null;
-    if (partner) {
+    if (partner && teamBrowser) {
+      console.log(`[acquisition] ${accountType} #${accountId}: created from a team browser, ${partner.code} not credited`);
+    } else if (partner) {
       const result = await recordPartnerConversion({
         partner,
         accountType,

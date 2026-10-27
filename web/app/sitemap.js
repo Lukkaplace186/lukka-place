@@ -4,6 +4,7 @@ import { GUIDES } from '@/lib/guides';
 import { landingPathsFromFacets } from '@/lib/seoPages';
 import { getSitemapProjects } from '@/lib/developments';
 import { getFeatureFlags } from '@/lib/siteSettings';
+import { getCollectionTiles, getLukkaIndex, getPriceGuides } from '@/lib/browseFeatures';
 
 const PROJECT_PAGES = ['/projets', '/promoteurs'];
 
@@ -30,7 +31,7 @@ export default async function sitemap() {
   }));
 
   // A sitemap that fails to build must still list the pages it can.
-  const [listings, facets, projects] = await Promise.all([
+  const [listings, facets, projects, priceGuides, collections, lukkaIndex] = await Promise.all([
     getSitemapListings().catch((err) => {
       console.error('[sitemap] listings unavailable', err);
       return [];
@@ -43,10 +44,21 @@ export default async function sitemap() {
       console.error('[sitemap] projects unavailable', err);
       return [];
     }),
+    // Growth plan items 27–31: only pages that exist (enough data behind them).
+    getPriceGuides(),
+    getCollectionTiles(),
+    getLukkaIndex(),
   ]);
+  const discovery = [
+    '/bien-du-jour', '/confidentialite',
+    ...(priceGuides.length ? ['/combien-coute', ...priceGuides.map((guide) => `/combien-coute/${guide.slug}`)] : []),
+    ...collections.map((tile) => `/collections/${tile.slug}`),
+    ...(lukkaIndex?.communes?.length ? ['/indice-lukka'] : []),
+  ];
 
   return [
     ...pages,
+    ...discovery.map((path) => ({ url: `${base}${path}`, lastModified: now, changeFrequency: 'daily', priority: 0.6 })),
     ...landingPathsFromFacets(facets).map((path) => ({
       url: `${base}${path}`,
       lastModified: now,

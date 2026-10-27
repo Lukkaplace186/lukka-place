@@ -6,7 +6,7 @@ import { can } from '@/lib/adminRoles';
 import { getAdminSession } from '@/lib/adminSession';
 import { buildHref, firstParam } from '@/lib/adminPagination';
 import { CLICK_PERIODS, parseClickPeriod } from '@/lib/analytics';
-import { getPartnerDailyClicks, getPartnerFunnel, listPartnerConversions } from '@/lib/partnersAdmin';
+import { getPartnerDailyClicks, getPartnerFunnel, listPartnerConversions, listSocialStats } from '@/lib/partnersAdmin';
 import { partnerLinks } from '@/lib/partnerRules';
 import { qrSvg } from '@/lib/marketing/printSheetData';
 import { SITE_URL, ICON_STROKE_WIDTH } from '@/lib/constants';
@@ -14,7 +14,7 @@ import { frNumber } from '@/lib/format';
 import { Chip, ErrorNote, Stat, formatKinshasa } from '../../LeadRoutingUI';
 import { EmptyRow, TD_DENSE, TH_STICKY, TR_DENSE, TableFrame } from '../../table/TableFrame';
 import { BUTTON, BUTTON_PRIMARY, INPUT } from '../../sales/styles';
-import { setPartnerStatusAction, updatePartnerAction } from '../actions';
+import { saveSocialStatsAction, setPartnerStatusAction, updatePartnerAction } from '../actions';
 import { FeeFields, flashFor, formatCost } from '../partnerUi';
 import PartnerToolkit from './PartnerToolkit';
 
@@ -55,10 +55,12 @@ export default async function AdminPartnerPage({ params, searchParams }) {
 
   const session = await getAdminSession();
   const canManage = can(session?.role, 'partners.manage');
-  const [conversions, daily, qr] = await Promise.all([
+  const canStats = can(session?.role, 'partners.stats');
+  const [conversions, daily, qr, social] = await Promise.all([
     listPartnerConversions(partner.id, { limit: 100 }).catch((err) => ({ error: err.message, rows: [], total: 0 })),
     getPartnerDailyClicks(partner.id, { days: 30 }).catch(() => []),
     qrSvg(partnerLinks(partner.code, { siteUrl: SITE_URL }).qr).catch(() => null),
+    partner.kind === 'creator' ? listSocialStats(partner.id).catch(() => []) : Promise.resolve([]),
   ]);
   const flash = flashFor(firstParam(raw.flash));
   const maxDaily = Math.max(1, ...daily.map((d) => d.clicks));
@@ -149,6 +151,62 @@ export default async function AdminPartnerPage({ params, searchParams }) {
           </ol>
         )}
       </section>
+
+      {partner.kind === 'creator' ? (
+        <section className="flex flex-col gap-2">
+          <h2 className="u-title-card text-ink">{t('admin.partners.social.title')}</h2>
+          <p className="u-micro max-w-[80ch] text-ink-45">{t('admin.partners.social.lead')}</p>
+          <TableFrame minWidth="52rem">
+            <thead>
+              <tr>
+                <th className={TH_STICKY}>{t('admin.partners.social.week')}</th>
+                <th className={`${TH_STICKY} text-right`}>{t('admin.partners.social.posts')}</th>
+                <th className={`${TH_STICKY} text-right`}>{t('admin.partners.social.views')}</th>
+                <th className={`${TH_STICKY} text-right`}>{t('admin.partners.social.likes')}</th>
+                <th className={`${TH_STICKY} text-right`}>{t('admin.partners.social.followers')}</th>
+                <th className={`${TH_STICKY} text-right`}>{t('admin.partners.col.clicks')}</th>
+                <th className={`${TH_STICKY} text-right`}>{t('admin.partners.col.accounts')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {social.length === 0 ? <EmptyRow colSpan={7}>{t('admin.partners.social.empty')}</EmptyRow> : null}
+              {social.map((week) => (
+                <tr key={week.weekStart} className={TR_DENSE}>
+                  <td className={TD_DENSE}>
+                    {week.weekStart}
+                    {week.notes ? <div className="text-ink-45">{week.notes}</div> : null}
+                  </td>
+                  {[week.posts, week.views, week.likes, week.followersGained, week.clicks, week.accounts].map((value, index) => (
+                    <td key={index} className={`${TD_DENSE} u-tabular text-right`}>{value == null ? '—' : frNumber(value)}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </TableFrame>
+          {canStats ? (
+            <form action={saveSocialStatsAction} className="u-card grid grid-cols-2 gap-2 rounded-card bg-surface p-3 sm:grid-cols-[repeat(6,minmax(0,1fr))]">
+              <input type="hidden" name="id" value={partner.id} />
+              <label className="u-micro-strong flex flex-col gap-1 text-ink-70">
+                {t('admin.partners.social.week')}
+                <input type="date" name="week" required className={INPUT} />
+              </label>
+              {['posts', 'views', 'likes', 'followers'].map((field) => (
+                <label key={field} className="u-micro-strong flex flex-col gap-1 text-ink-70">
+                  {t(`admin.partners.social.${field}`)}
+                  <input name={field} inputMode="numeric" className={INPUT} />
+                </label>
+              ))}
+              <div className="flex items-end">
+                <button type="submit" className={BUTTON_PRIMARY}>{t('common.actions.save')}</button>
+              </div>
+              <label className="u-micro-strong col-span-2 flex flex-col gap-1 text-ink-70 sm:col-span-6">
+                {t('admin.partners.form.notes')}
+                <input name="notes" maxLength={500} className={INPUT} />
+              </label>
+            </form>
+          ) : null}
+        </section>
+      ) : null}
 
       <section className="flex flex-col gap-2">
         <h2 className="u-title-card text-ink">

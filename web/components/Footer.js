@@ -87,6 +87,7 @@ const NAV_COLUMNS = [
       { labelKey: 'footer.links.about', href: '/a-propos' },
       { labelKey: 'footer.links.guides', href: '/guides' },
       { labelKey: 'footer.links.contact', href: '/contact' },
+      { labelKey: 'footer.links.privacy', href: '/confidentialite' },
     ],
   },
   /*

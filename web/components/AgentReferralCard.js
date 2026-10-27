@@ -2,6 +2,8 @@ import { Download, Gift } from 'lucide-react';
 import { ICON_STROKE_WIDTH, SITE_URL } from '@/lib/constants';
 import { getT } from '@/lib/i18n/server';
 import { getAgentReferralStats } from '@/lib/partners';
+import { getAgentCreditSummary } from '@/lib/referralCredits';
+import { ACTIVATION_WINDOW_DAYS, REFERRAL_CREDIT } from '@/lib/referralRules';
 import { partnerLinks } from '@/lib/partnerRules';
 import { buildWhatsAppShareLink } from '@/lib/whatsapp';
 import { frNumber } from '@/lib/format';
@@ -15,8 +17,10 @@ import { WhatsAppIcon } from './WhatsAppCTA';
  * rides on every listing they share (lib/listingShareCopy.js), so sharing as
  * usual already counts here.
  *
- * Counts only, on purpose: the reward rule is not decided yet, and a card that
- * printed an amount would be a promise. The invite message is French whatever
+ * Money (2026-10-27, owner decision): $1 per ACTIVATED customer
+ * (lib/referralRules.js — verified number + one real action within 14 days),
+ * shown as waiting / approved / paid from the agent's own credits, and the
+ * last customers by first name only. The invite message is French whatever
  * the dashboard language — the agent's customers read it.
  *
  * Renders nothing before the migration, or when the database cannot answer.
@@ -26,14 +30,16 @@ const INVITE_MESSAGE = 'Créez votre compte gratuit sur Lukka Place pour recevoi
 export default async function AgentReferralCard({ agentId }) {
   const stats = await getAgentReferralStats(agentId);
   if (!stats) return null;
+  const credits = await getAgentCreditSummary(agentId).catch(() => null);
   const t = await getT();
   const links = partnerLinks(stats.code, { siteUrl: SITE_URL });
 
   const figures = [
     { label: t('agent.referrals.clicks'), value: stats.clicks, hint: t('agent.referrals.last30', { n: frNumber(stats.clicks30d) }) },
     { label: t('agent.referrals.accounts'), value: stats.accounts },
-    { label: t('agent.referrals.verified'), value: stats.verified },
+    { label: t('agent.referrals.activated'), value: credits ? credits.activated : stats.verified },
   ];
+  const usd = (value) => `${frNumber(value)} $`;
 
   return (
     <section aria-labelledby="agent-referrals-title" className="u-card flex flex-col gap-4 rounded-card bg-surface p-4 sm:p-5">
@@ -56,6 +62,28 @@ export default async function AgentReferralCard({ agentId }) {
           </div>
         ))}
       </dl>
+
+      {credits ? (
+        <div className="flex flex-col gap-2 rounded-lg border border-line p-3">
+          <div className="flex flex-wrap gap-x-5 gap-y-1">
+            <span className="u-micro text-ink-70">{t('agent.referrals.waiting')} <strong className="u-tabular text-ink">{usd(credits.pendingUsd)}</strong></span>
+            <span className="u-micro text-ink-70">{t('agent.referrals.approved')} <strong className="u-tabular text-ink">{usd(credits.approvedUsd)}</strong></span>
+            <span className="u-micro text-ink-70">{t('agent.referrals.paid')} <strong className="u-tabular text-ink">{usd(credits.paidUsd)}</strong></span>
+          </div>
+          {credits.recent.length ? (
+            <ul className="flex flex-wrap gap-1.5" aria-label={t('agent.referrals.recent')}>
+              {credits.recent.map((entry, index) => (
+                <li key={`${entry.createdAt}-${index}`} className="u-micro rounded-full bg-canvas-alt px-2.5 py-1 text-ink-70">
+                  {entry.firstName || t('agent.referrals.someone')}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <p className="u-micro text-ink-45">
+            {t('agent.referrals.rule', { amount: usd(REFERRAL_CREDIT.amount), days: ACTIVATION_WINDOW_DAYS })}
+          </p>
+        </div>
+      ) : null}
 
       <div className="flex flex-col gap-2">
         <div className="u-micro text-ink-45">

@@ -9,6 +9,7 @@ import { normalisePartnerCode } from '@/lib/partnerRules';
 import { resolveCode } from '@/lib/partners';
 import { agentPublicName, getAgentListings, getAgentProfile } from '@/lib/agencies';
 import RememberInvite from './RememberInvite';
+import { whatsappSignupLink } from '@/lib/whatsappSignup';
 
 export const dynamic = 'force-dynamic';
 
@@ -83,6 +84,11 @@ export default async function InvitePage({ params }) {
         <a href={viaGo(code, '/compte/inscription')} className="u-btn-primary u-press inline-flex h-12 items-center justify-center rounded-lg bg-blue px-6 text-base font-bold text-white hover:bg-blue-deep">
           {t('auth.invite.cta')}
         </a>
+        {whatsappSignupLink(code) ? (
+          <a href={whatsappSignupLink(code)} target="_blank" rel="noopener noreferrer" className="u-micro-strong text-green-ink underline">
+            {t('auth.whatsappSignup.cta')}
+          </a>
+        ) : null}
         <p className="u-micro text-ink-45">{t('auth.invite.free')}</p>
       </section>
 

@@ -3456,6 +3456,118 @@ before it runs — every INSERT falls back on 42703 / 42P01). Tests:
   session only), and clicks / customer accounts / verified numbers. Counts
   only — no amount until the reward rule is decided. The overview banner's
   shared portfolio link now carries `?ref=` too.
-- **Not built yet** (growth plan): the $1 rule and ledger (13–15), Meta /
-  TikTok pixels and server events (5–6), consent (7), creators' TikTok
-  figures (20), the launch dashboard (21) and everything after.
+- Items 5–7, 13–25 and 27–31 are below ("Referral credits, ad tracking and
+  the launch pages"). Item 26 (customers inviting customers) is not built,
+  owner decision.
+
+## Referral credits, ad tracking and the launch pages (2026-10-27)
+
+Engine migration `migrations/20261028_referral_credits_and_growth.sql`, run
+AFTER `20261027_growth_attribution.sql`. Every read before it says "not
+switched on" (42P01) and the pages render. Tests:
+`tests/unit/growth-launch.test.js`; engine §24 (job order), §67.
+
+- **$1 per activated customer, agents only** (`lib/referralRules.js` is THE
+  rule, change it there; `lib/referralCredits.js` is the ledger). Owner
+  decision: a customer counts once their number is verified AND they saved a
+  listing, set an alert or requested a visit within 14 days (visit times come
+  from the engine's `GET /admin/leads/counts`, now with `firstViewingAt`). No
+  daily cap. Each credit waits 7 days (`approvable_at`) before it can be
+  approved. Creators and campaigns are paid by their recorded fee, never here.
+  - **Never earns**, written VOID with the reason: any agent's number
+    (`auto:agent_number`), a number that already earned a credit
+    (`auto:number_already_credited`, a live-credit unique index on the phone
+    hash). The agent's own number and accounts opened from a team browser
+    (`lp_staff` / impersonation) are refused earlier, in
+    `lib/accountAcquisition.js`.
+  - pending → approved (`partners.payout`: owner, finance, bulk) → paid (one
+    `partner_payouts` row per agent and currency, credits locked FOR UPDATE).
+    A deleted account voids an unpaid credit and FLAGS a paid one for
+    clawback; a person can do the same with a reason. No query ever takes
+    money back or deletes a credit.
+  - Flags (`referralFlags`): 3+ accounts from one connection in a day,
+    activation under 30 % once 5+ accounts have had their 14 days. Facts only.
+  - `/admin/partenaires/agents`: who brought whom, credits by state, approve,
+    pay (mobile money / cash / bank + reference), void, CSV export, and
+    "Annoncer le programme aux agents" (owner; `lib/referralAnnouncement.js`,
+    once per verified agent, 100 per press, a SESSION message: accepted is
+    not delivered).
+  - The run is the console's "Calculer les crédits" and the engine's morning
+    job (below). The agent's card shows waiting / approved / paid in USD and
+    the last customers by first name.
+- **Meta / TikTok pixels and server events** (items 5–6). Pixel ids on
+  `/admin/settings` → "Croissance" (`cms_settings` `site.growth`,
+  `lib/growthSettingsRules.js`), else `META_PIXEL_ID` / `TIKTOK_PIXEL_ID`.
+  Tokens ONLY in the server environment: `META_CAPI_TOKEN`,
+  `TIKTOK_EVENTS_TOKEN` (`lib/adServerEvents.js`, server-only; the console
+  shows only whether each is set). Nothing loads while both ids are empty.
+  - `components/AdTracking.js` (in `app/(site)/layout.js`) loads the pixels
+    (`lib/adPixelLoaders.js`), PageView per route. `lib/adEvents.js`:
+    ViewContent (ListingViewTracker), Search (SearchTracker), Contact
+    (trackLeadClick / trackCallClick), each with a server copy through
+    `POST /api/ad-event` under the SAME event id. CompleteRegistration (a
+    verified customer: both verify paths and `/compte/activer`) and Schedule
+    (a visit request, single and batch) are sent from the server action
+    (`lib/adServerContext.js` `recordAdEventFromAction`) and queued for the
+    browser in `lp_adq` under the same id. Phone and visitor id leave SHA-256;
+    `fbc` is rebuilt from the visitor's last `fbclid` touch, `ttclid` passed.
+  - **TikTok event names** (`TIKTOK_EVENT_NAME`) and the Graph API version
+    (`v21.0`) were written from the platforms' public docs without a live
+    account: check both in Events Manager after the first events.
+- **Consent** (item 7, `lib/adTrackingRules.js`): a browser on a European
+  time zone gets a banner (Accepter / Refuser, `lp_consent` 180 days); every
+  other browser is `na` and measured. No cookie = nothing sent, browser or
+  server. `/confidentialite` describes it (facts about this code only; have
+  it reviewed before treating it as the formal policy); linked from the
+  footer and the banner.
+- **Creators' TikTok figures** (item 20): a weekly form on the creator's page
+  (`partners.stats`: owner, moderator, support, analyst; stored under the
+  week's Monday, `partner_social_stats`) beside that week's clicks and
+  accounts.
+- **`/admin/croissance`** (item 21, `lib/growthDashboard.js`,
+  `lib/growthRules.js` `channelOf`): customer accounts per day and by
+  channel (partner → paid click → source → first source; "inconnu" before
+  tracking), verified, new agents, visitors (per day, added up), listings
+  viewed per visitor, weekly ad spend typed in (`ad_spend_weekly`) and cost
+  per verified account for Meta / TikTok. NO target (owner decision).
+- **Owners' morning WhatsApp** (item 22): engine job `growth-daily`
+  (`services/growthDaily.js`, `GROWTH_DAILY_HOUR` default 7 Kinshasa,
+  `GROWTH_DAILY_SUMMARY=off` keeps only the credit run) calls
+  `POST /api/cron/growth-daily` (credit run + yesterday's text) and sends the
+  text to `ADMIN_ALERT_NUMBERS` (else the desk), through the desk-alert
+  template when set.
+- **Signup on WhatsApp** (item 23): "Créer mon compte via WhatsApp" on
+  `/compte/inscription` and the invite page (`lib/whatsappSignup.js`,
+  "Inscription Lukka Place — Code : X"). The engine
+  (`services/customerOnboarding.js`, routed before the sales referral)
+  creates a VERIFIED customer (`signup_channel 'whatsapp'`, no usable
+  password until set), credits the code's partner, records the acquisition
+  and replies with a 72 h single-use link to `/compte/activer` (public in
+  middleware.js). An existing number gets its login link instead.
+- **Signup prompts** (item 24, `components/SignupNudge.js`,
+  `lib/signupNudgeRules.js`): 2nd saved listing, 3rd listing opened, a search
+  with no exact result. Once per tab session, never when signed in, a card
+  under the header (never at the bottom where the phone bars live), quiet on
+  listing pages, the map and /compte.
+- **Membre fondateur** (item 25, `lib/founder.js`): accounts created before
+  the cutoff (settings, default 2026-12-21, Kinshasa) get the badge on
+  Accueil; every account its member number, counted, never stored.
+- **Browse for fun** (items 27–31, `lib/browseFeatures.js`, homepage
+  `components/HomeDiscovery.js`, 60 s memo): `/bien-du-jour` (the team's
+  pick from `/admin/croissance`, else a daily md5 draw among live listings
+  with 3+ photos; its preview is `./opengraph-image.js`, the listing card),
+  `/combien-coute[/2-chambres-gombe]` (median long-term asking rent, 5+
+  listings, short stays out, yearly ÷ 12), `/collections/<slug>` (villas,
+  moins-de-300, avec-piscine, courte-duree, nouveaux: real searches,
+  nationwide, 3+ listings), `/videos` (3+ listings with a video, one per
+  screen), `/indice-lukka` (monthly snapshots, 5+ asks; the image at the
+  stable `/indice-lukka/image`). **Metadata image routes get hashed paths**
+  (`/listings/[id]/opengraph-image-ixmui2`): never link `…/opengraph-image`
+  directly. No loading.js above any of these pages: one with too little
+  behind it is a real 404. In the sitemap only when they exist.
+- **Deploy** (item 33): run `20261027_growth_attribution.sql` then
+  `20261028_referral_credits_and_growth.sql`; restart the engine (new job,
+  new webhook branch); deploy web. Then set the pixel ids on
+  `/admin/settings`, the two tokens in web's `.env.local` (+ restart), create
+  creators on `/admin/partenaires`, and press "Annoncer le programme" when
+  ready.

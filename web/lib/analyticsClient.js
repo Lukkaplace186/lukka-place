@@ -1,6 +1,7 @@
 'use client';
 
 import { attributionFromLocation, chooseSessionAttribution, sourceOf } from './attribution';
+import { adEvent } from './adEvents';
 
 /**
  * The one client-side event beacon. `lib/analytics.js` is the READ side and
@@ -225,6 +226,7 @@ export function listingEventPayload(listing) {
  *   was tapped (lib/leadClicks.js LEAD_CLICK_PLACEMENTS).
  */
 export function trackLeadClick(listing, routingType, placement) {
+  if (listing?.id != null) adEvent('Contact', { contentIds: [listing.id] });
   beacon('/api/telemetry/lead-click', {
     event: 'whatsapp_cta_clicked',
     ...listingEventPayload(listing),
@@ -239,6 +241,7 @@ export function trackLeadClick(listing, routingType, placement) {
  * the call reached the agent directly, otherwise Lukka Place's central number.
  */
 export function trackCallClick(listing) {
+  if (listing?.id != null) adEvent('Contact', { contentIds: [listing.id] });
   trackEvent('call_click', {
     ...listingEventPayload(listing),
     routingType: listing?.agent_phone ? 'DIRECT' : 'CENTRAL',

@@ -3,9 +3,10 @@
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { requireAdmin } from '@/lib/adminSession';
-import { recordAudit } from '@/lib/adminAudit';
+import { actorLabel, recordAudit } from '@/lib/adminAudit';
 import { parsePartnerForm } from '@/lib/partnerRules';
-import { PartnerInputError, createPartner, setPartnerStatus, updatePartner } from '@/lib/partnersAdmin';
+import { PartnerInputError, createPartner, setPartnerStatus, updatePartner, upsertSocialStats } from '@/lib/partnersAdmin';
+import { weekStart as mondayOf } from '@/lib/growthRules';
 
 const PATH = '/admin/partenaires';
 
@@ -99,4 +100,53 @@ export async function setPartnerStatusAction(formData) {
   revalidatePath(PATH);
   revalidatePath(back);
   redirect(withFlash(back, status === 'active' ? 'activated' : 'deactivated'));
+}
+
+const countField = (formData, name, { signed = false } = {}) => {
+  const text = String(formData.get(name) ?? '').replace(/[\s.]/g, '');
+  if (!text) return null;
+  const value = Number.parseInt(text, 10);
+  if (!Number.isSafeInteger(value) || (!signed && value < 0) || Math.abs(value) > 2e9) throw new Error(name);
+  return value;
+};
+
+/**
+ * A creator's TikTok figures for one week (growth plan item 20), typed from
+ * their screenshots: posts, views, likes, followers gained. Any day of the
+ * week is accepted and stored as its Monday; the same week typed again
+ * replaces it. partners.stats.
+ */
+export async function saveSocialStatsAction(formData) {
+  const session = await requireAdmin('partners.stats');
+  const id = Number.parseInt(formData.get('id'), 10);
+  if (!Number.isSafeInteger(id) || id <= 0) redirect(PATH);
+  const back = `${PATH}/${id}`;
+  const week = mondayOf(String(formData.get('week') || ''));
+  if (!week) redirect(withFlash(back, 'invalid_week'));
+  let figures;
+  try {
+    figures = {
+      posts: countField(formData, 'posts'),
+      views: countField(formData, 'views'),
+      likes: countField(formData, 'likes'),
+      followersGained: countField(formData, 'followers', { signed: true }),
+    };
+  } catch {
+    redirect(withFlash(back, 'invalid_figures'));
+  }
+  try {
+    await upsertSocialStats({
+      partnerId: id,
+      weekStart: week,
+      ...figures,
+      notes: String(formData.get('notes') || '').trim().slice(0, 500) || null,
+      by: actorLabel(session).slice(0, 120),
+    });
+  } catch (err) {
+    console.error(`[admin/partenaires] social stats #${id} failed: ${err.message}`);
+    redirect(withFlash(back, 'failed'));
+  }
+  await recordAudit(session, { action: 'partner.social_stats', entityType: 'partner', entityId: id, details: { week, ...figures } });
+  revalidatePath(back);
+  redirect(withFlash(back, 'stats_saved'));
 }

@@ -147,7 +147,8 @@
       "contact": "Contact",
       "guides": "Guides",
       "projects": "Projets neufs & terrains",
-      "developers": "Espace promoteurs"
+      "developers": "Espace promoteurs",
+      "privacy": "Confidentialité"
     },
     "partnerBand": {
       "title": "Vous êtes agent ou agence immobilière ?",
@@ -157,7 +158,14 @@
     "tagline": "Appartements, villas et parcelles, à louer ou à vendre, partout en RDC.",
     "disclaimer": "Lukka Place est une plateforme d'annonces immobilières en RDC. Les informations fournies sur les annonces sont établies sous la responsabilité des annonceurs. Lukka Place ne fournit pas de services de courtage financier direct et facilite la mise en relation via référence d'annonce.",
     "copyright": "© {year} Lukka Place.",
-    "whatsappGreeting": "Bonjour, je vous contacte depuis lukkaplace.com."
+    "whatsappGreeting": "Bonjour, je vous contacte depuis lukkaplace.com.",
+    "consent": {
+      "title": "Mesure publicitaire",
+      "text": "Nous utilisons les outils de mesure de Meta et TikTok pour savoir quelles publicités vous ont amené ici. Rien n'est envoyé sans votre accord.",
+      "more": "En savoir plus",
+      "refuse": "Refuser",
+      "accept": "Accepter"
+    }
   },
   "home": {
     "hero": {
@@ -262,6 +270,59 @@
         "one": "{count} annonce",
         "other": "{count} annonces"
       }
+    },
+    "daily": {
+      "eyebrow": "Chaque jour",
+      "title": "Bien du jour",
+      "lead": "Une annonce choisie chaque jour parmi les biens en ligne.",
+      "share": "Partager le bien du jour",
+      "open": "Voir l'annonce",
+      "none": "Pas de bien du jour pour l'instant."
+    },
+    "collections": {
+      "title": "Collections",
+      "villas": "Les plus belles villas",
+      "under300": "Moins de 300 $ par mois",
+      "pool": "Avec piscine",
+      "shortStay": "Courte durée",
+      "fresh": "Nouveaux cette semaine",
+      "seeAll": "Voir la recherche complète"
+    },
+    "discovery": {
+      "prices": "Combien coûte… ?",
+      "pricesHint": "{count} loyers médians par commune",
+      "videos": "Visites en vidéo",
+      "videosHint": "Les biens en vidéo, à faire défiler",
+      "index": "Indice Lukka",
+      "indexHint": "Les loyers du mois, commune par commune"
+    },
+    "prices": {
+      "indexTitle": "Combien coûte un logement ?",
+      "indexLead": "Loyers mensuels médians demandés, calculés sur les annonces en ligne — uniquement là où au moins {n} annonces comparables existent.",
+      "none": "Pas encore assez d’annonces pour publier un loyer médian.",
+      "question": "Combien coûte un {beds} chambres à {commune} ?",
+      "perMonth": "/ mois",
+      "answer": "Loyer médian demandé : {median} $ par mois, sur {n} annonces en ligne.",
+      "range": "La moitié des annonces se situe entre {p25} $ et {p75} $.",
+      "method": "Prix demandés (pas les prix conclus), location longue durée, loyers annuels ramenés au mois, annonces publiques uniquement.",
+      "see": "Voir les {n} annonces",
+      "questionOne": "Combien coûte un 1 chambre à {commune} ?"
+    },
+    "videos": {
+      "title": "Visites en vidéo",
+      "open": "Voir l'annonce",
+      "sound": "Activer le son"
+    },
+    "index": {
+      "title": "Indice Lukka",
+      "lead": "Le loyer médian demandé par commune, chaque mois, à partir des annonces publiques (au moins {n} annonces par commune).",
+      "none": "L'indice sera publié dès que les premiers relevés mensuels seront disponibles.",
+      "month": "Relevé de {month}",
+      "commune": "Commune",
+      "median": "Loyer médian",
+      "change": "Sur un mois",
+      "download": "Télécharger l'image",
+      "method": "Prix demandés, toutes catégories confondues ; une évolution n’est calculée que si le mois précédent comptait aussi au moins {n} annonces."
     }
   },
   "about": {
@@ -2497,7 +2558,14 @@
       "copy": "Copier le lien",
       "share": "Partager",
       "qr": "QR code",
-      "hint": "Seuls les nouveaux comptes clients sont comptés, jamais le vôtre."
+      "hint": "Seuls les nouveaux comptes clients sont comptés, jamais le vôtre.",
+      "activated": "Clients activés",
+      "waiting": "En attente :",
+      "approved": "Approuvé :",
+      "paid": "Payé :",
+      "recent": "Derniers clients",
+      "someone": "Client",
+      "rule": "{amount} par client activé : numéro vérifié et une vraie action (bien enregistré, alerte ou visite) dans les {days} jours. Paiement par mobile money après vérification."
     }
   },
   "status": {
@@ -3116,6 +3184,10 @@
         "visits": "Visites",
         "requests": "Recherches"
       }
+    },
+    "founder": {
+      "badge": "Membre fondateur",
+      "member": "Vous êtes le membre n° {n}"
     }
   },
   "admin": {
@@ -3169,7 +3241,8 @@
       "agentReviews": "Avis agents",
       "facebookProspects": "Prospects Facebook",
       "partners": "Partenaires",
-      "links": "Liens de campagne"
+      "links": "Liens de campagne",
+      "growth": "Croissance"
     },
     "login": {
       "intro": "Accès réservé à l'équipe Lukka Place.",
@@ -5581,6 +5654,24 @@
         "agentProjectsHint": "La carte « Mes projets » du tableau de bord et les pages de création de projet des promoteurs. Masqué : leurs adresses renvoient au tableau de bord.",
         "publicProjects": "Projets neufs (Neuf)",
         "publicProjectsHint": "« Neuf » dans le menu, les liens du pied de page, la bande « Nouveaux projets » de l’accueil, la bulle des projets sur la carte, le plan du site, /projets et /promoteurs. Masqué : ces adresses renvoient aux annonces."
+      },
+      "growth": {
+        "title": "Croissance",
+        "lead": "Identifiants des pixels Meta et TikTok (publics par nature) et date limite du badge « Membre fondateur ». Vide = la valeur de l'environnement serveur, ou rien.",
+        "errors": {
+          "meta": "L'identifiant Meta Pixel est un nombre de 10 à 20 chiffres.",
+          "tiktok": "L'identifiant TikTok Pixel contient 10 à 32 lettres et chiffres.",
+          "cutoff": "Date invalide.",
+          "failed": "L'enregistrement a échoué."
+        },
+        "meta": "Meta Pixel (Facebook, Instagram)",
+        "tiktok": "TikTok Pixel",
+        "cutoff": "Membre fondateur avant le",
+        "serverMeta": "Événements serveur Meta : {state}",
+        "serverTiktok": "Événements serveur TikTok : {state}",
+        "on": "activés",
+        "off": "non configurés",
+        "tokensHint": "Les jetons d'accès (META_CAPI_TOKEN, TIKTOK_EVENTS_TOKEN) se règlent uniquement dans l'environnement du serveur, jamais ici."
       }
     },
     "softDelete": {
@@ -5772,7 +5863,10 @@
         "invalidKind": "Choisissez Créateur ou Campagne.",
         "invalidCode": "Format du code : 3 à 10 lettres puis 2 chiffres (NADIA01).",
         "invalidFee": "Montant de rémunération invalide.",
-        "failed": "L'opération a échoué. Réessayez."
+        "failed": "L'opération a échoué. Réessayez.",
+        "statsSaved": "Chiffres de la semaine enregistrés.",
+        "invalidWeek": "Choisissez une date dans la semaine.",
+        "invalidFigures": "Les chiffres doivent être des nombres entiers."
       },
       "agentProfile": "Voir la fiche de l'agent",
       "deactivate": "Désactiver le code",
@@ -5816,6 +5910,17 @@
         "shareWhatsApp": "Envoyer sur WhatsApp",
         "shareText": "Voici votre lien Lukka Place à partager : {link}",
         "qrAlt": "QR code du partenaire {code}"
+      },
+      "agentReferrals": "Parrainages agents",
+      "social": {
+        "title": "Chiffres TikTok par semaine",
+        "lead": "Recopiés depuis les captures d'écran du créateur (TikTok ne nous les transmet pas). À côté : les clics et les comptes de la même semaine sur Lukka Place.",
+        "week": "Semaine du",
+        "posts": "Vidéos",
+        "views": "Vues",
+        "likes": "J'aime",
+        "followers": "Abonnés gagnés",
+        "empty": "Aucune semaine saisie pour le moment."
       }
     },
     "links": {
@@ -5874,6 +5979,148 @@
         "message": "Message",
         "partner": "Partenaire"
       }
+    },
+    "referrals": {
+      "title": "Parrainages agents",
+      "lead": "{amount} par client activé : numéro vérifié et une vraie action (bien enregistré, alerte ou demande de visite) dans les {days} jours. Chaque crédit attend {hold} jours avant de pouvoir être approuvé. Les signalements sont des faits à vérifier : aucun n'annule un crédit tout seul.",
+      "export": "Exporter (CSV)",
+      "sync": "Calculer les crédits",
+      "announce": "Annoncer le programme aux agents",
+      "unavailable": "Les crédits ne sont pas encore activés : la migration 20261028_referral_credits_and_growth.sql doit être exécutée.",
+      "search": "Agent, agence ou code",
+      "select": "Sélectionner",
+      "col": {
+        "agent": "Agent",
+        "accounts": "Comptes",
+        "activated": "Activés",
+        "holding": "En attente (7 j)",
+        "approvable": "À approuver",
+        "approved": "Approuvé",
+        "paid": "Payé",
+        "flags": "Signalements"
+      },
+      "empty": "Aucun agent n'a encore amené de client.",
+      "seeCredits": "Voir ses crédits",
+      "flags": {
+        "burst": "Plusieurs comptes, même connexion",
+        "low_activation": "Peu de comptes activés",
+        "clawback": "{n} à récupérer",
+        "clawbackOne": "À récupérer"
+      },
+      "approve": "Approuver les crédits prêts",
+      "method": "Paiement",
+      "reference": "Référence",
+      "methods": {
+        "mobile_money": "Mobile money",
+        "cash": "Espèces",
+        "bank": "Virement"
+      },
+      "pay": "Payer les crédits approuvés",
+      "bulkHint": "Cochez des agents (ou rien pour « Approuver » sur tous). Seuls les crédits passés {hold} jours d'attente sont approuvés ; « Payer » paie les crédits déjà approuvés des agents cochés.",
+      "creditsTitle": "Crédits",
+      "tabs": {
+        "approvable": "À approuver",
+        "holding": "En attente",
+        "approved": "Approuvés",
+        "paid": "Payés",
+        "void": "Annulés",
+        "clawback": "À récupérer"
+      },
+      "allAgents": "Tous les agents",
+      "cr": {
+        "customer": "Client",
+        "agent": "Agent",
+        "activation": "Activé par",
+        "status": "Statut",
+        "dates": "Dates",
+        "qualified": "Activé le {date}",
+        "approvableAt": "Approuvable le {date}",
+        "paidAt": "Payé le {date}"
+      },
+      "noCredits": "Aucun crédit dans cette liste.",
+      "activation": {
+        "favorite": "Bien enregistré",
+        "alert": "Alerte créée",
+        "visit": "Demande de visite"
+      },
+      "status": {
+        "pending": "En attente",
+        "approved": "Approuvé",
+        "paid": "Payé",
+        "void": "Annulé"
+      },
+      "auto": {
+        "agent_number": "Numéro d'un agent",
+        "number_already_credited": "Numéro déjà crédité",
+        "account_deleted": "Compte supprimé"
+      },
+      "voidReason": "Motif (5 caractères min.)",
+      "flagClawback": "Signaler à récupérer",
+      "void": "Annuler",
+      "flash": {
+        "synced": "{n} nouveau(x) crédit(s).",
+        "approved": "{n} crédit(s) approuvé(s).",
+        "paid": "{n} crédit(s) payé(s).",
+        "voided": "Crédit annulé.",
+        "clawback_flagged": "Crédit payé signalé à récupérer.",
+        "announced": "Message accepté pour {n} agent(s), refusé pour {refused}. Reste {left} agent(s) à prévenir.",
+        "failed": "L'opération a échoué. Réessayez.",
+        "reason": "Indiquez un motif (5 caractères minimum).",
+        "pick": "Cochez au moins un agent.",
+        "unavailable": "Les crédits ne sont pas encore activés (migration)."
+      }
+    },
+    "growth": {
+      "title": "Croissance",
+      "lead": "Comptes clients par jour et par canal, nouveaux agents, visiteurs, et coût par compte des canaux payants (dépenses saisies ci-dessous). Les comptes créés avant le suivi sont « Inconnu ».",
+      "flash": {
+        "spend_saved": "Dépense enregistrée.",
+        "picked": "Bien du jour choisi.",
+        "spend_invalid": "Dépense invalide.",
+        "pick_invalid": "Ce numéro n'est pas une annonce en ligne.",
+        "failed": "L'opération a échoué."
+      },
+      "accounts": "Comptes clients",
+      "verified": "Numéros vérifiés",
+      "agents": "Nouveaux agents",
+      "visitorDays": "Visiteurs (par jour, additionnés)",
+      "visitorDaysHint": "Une personne revenue deux jours compte deux fois.",
+      "viewsPerVisitor": "Biens vus par visiteur",
+      "perDay": "Comptes clients par jour",
+      "byChannel": "Par canal",
+      "channel": "Canal",
+      "costPerAccount": "Coût par compte vérifié",
+      "noSpend": "Aucune dépense saisie",
+      "channelsHint": "Canal = le code d'un partenaire, sinon la dernière source (publicité, réseau, recherche…), sinon la première.",
+      "channels": {
+        "meta_ads": "Publicité Meta",
+        "tiktok_ads": "Publicité TikTok",
+        "createurs": "Créateurs",
+        "agents": "Agents",
+        "campagnes": "Campagnes",
+        "reseaux": "Réseaux sociaux (gratuit)",
+        "recherche": "Recherche (Google…)",
+        "whatsapp_inscription": "Inscription WhatsApp",
+        "direct": "Direct",
+        "autre": "Autre",
+        "inconnu": "Inconnu (avant le suivi)"
+      },
+      "spendTitle": "Dépenses publicitaires par semaine",
+      "week": "Semaine du",
+      "amount": "Montant",
+      "spendChannels": {
+        "meta_ads": "Meta (Facebook, Instagram)",
+        "tiktok_ads": "TikTok",
+        "google_ads": "Google",
+        "other_paid": "Autre (payant)"
+      },
+      "noSpendYet": "Aucune dépense saisie pour le moment.",
+      "dailyTitle": "Bien du jour",
+      "dailyPicked": "(choisi par l’équipe)",
+      "dailyAuto": "(tirage automatique)",
+      "dailyNone": "Aucune annonce ne remplit les conditions aujourd’hui.",
+      "dailyHint": "Une annonce en ligne avec au moins 3 photos, la même toute la journée. Saisissez un numéro d'annonce pour choisir celle d'aujourd'hui ; la carte 4:5 se fait depuis la page de l'annonce.",
+      "dailyPick": "Choisir"
     }
   },
   "errors": {
@@ -6057,6 +6304,30 @@
       "benefitVisitsText": "Choisissez un créneau et l'agent vous confirme la visite.",
       "listingsTitle": "Ses biens en ligne",
       "browse": "Voir tous les biens"
+    },
+    "nudge": {
+      "favorites": "Ne perdez pas vos favoris",
+      "listing_viewed": "Soyez prévenu des nouveaux biens",
+      "no_results": "Rien pour le moment ? Soyez prévenu",
+      "text": "Créez un compte gratuit : vos favoris sur tous vos appareils, et les nouveaux biens sur WhatsApp.",
+      "cta": "Créer mon compte",
+      "close": "Fermer"
+    },
+    "whatsappSignup": {
+      "cta": "Créer mon compte via WhatsApp",
+      "hint": "Un seul message, déjà écrit : votre numéro est confirmé par WhatsApp.",
+      "or": "ou avec un mot de passe"
+    },
+    "activateCustomer": {
+      "metaTitle": "Choisir mon mot de passe — Lukka Place",
+      "title": "Choisissez votre mot de passe",
+      "lead": "Votre compte a été créé sur WhatsApp. Choisissez un mot de passe pour vous connecter au site.",
+      "confirm": "Confirmer le mot de passe",
+      "submit": "Ouvrir mon espace",
+      "errors": {
+        "invalid": "Ce lien n’est plus valable. Envoyez à nouveau « Inscription Lukka Place » sur WhatsApp.",
+        "mismatch": "Les deux mots de passe ne correspondent pas."
+      }
     }
   },
   "updates": {

@@ -52,6 +52,7 @@ export const ADMIN_NAV_GROUPS = [
       { href: '/admin/market-data', labelKey: 'admin.nav.marketData', icon: 'TrendingDown' },
       { href: '/admin/demande', labelKey: 'admin.nav.demand', icon: 'Target' },
       { href: '/admin/investisseurs', labelKey: 'admin.nav.investors', icon: 'Presentation' },
+      { href: '/admin/croissance', labelKey: 'admin.nav.growth', icon: 'TrendingUp' },
     ],
   },
   {

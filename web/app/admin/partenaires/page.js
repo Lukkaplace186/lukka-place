@@ -75,6 +75,7 @@ export default async function AdminPartnersPage({ searchParams }) {
           <p className="u-micro mt-1 max-w-[75ch] text-ink-45">{t('admin.partners.lead')}</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Link href="/admin/partenaires/agents" className={BUTTON}>{t('admin.partners.agentReferrals')}</Link>
           <Link href="/admin/liens" className={BUTTON}>{t('admin.partners.linkBuilder')}</Link>
           {canManage && !showForm ? (
             <Link href={buildHref(PATH, params, { new: '1' })} className={BUTTON_PRIMARY}>

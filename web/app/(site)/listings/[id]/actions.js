@@ -8,6 +8,7 @@ import { dayClosed, validatePickedSlot } from '@/lib/visitSlots';
 import { utcOffsetForListing } from '@/lib/cities';
 import { getListingAvailability } from '@/lib/agentAvailability';
 import { kinshasaDayKey } from '@/lib/visitAgenda';
+import { recordAdEventFromAction } from '@/lib/adServerContext';
 
 /**
  * Public "Demander une visite" form (EnquiryCard.js) — creates a real lead
@@ -69,6 +70,14 @@ export async function submitVisitRequestAction(propertyId, formData) {
     console.error(`[listings/${propertyId}] visit request failed: ${err.message}`);
     redirect(`${base}?visit_error=1`);
   }
+
+  // A visit request is the ad platforms' Schedule (lib/adServerContext.js).
+  await recordAdEventFromAction({
+    name: 'Schedule',
+    eventId: `vis-${listing.id}-${Date.now().toString(36)}`,
+    phone,
+    params: { contentIds: [String(listing.id)] },
+  });
 
   // `agent_phone` only reaches this row for a verified, routing-enabled agent
   // (lib/listings.js) — the same condition under which the engine alerts the

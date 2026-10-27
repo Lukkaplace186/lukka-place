@@ -63,8 +63,13 @@ export const PERMISSIONS = {
   // "View as" an agent or customer — read-only, reasoned, logged (lib/impersonation.js).
   'accounts.impersonate': ['owner', 'support'],
   'routing.manage': ['owner'],
-  // Creating a creator or campaign code, editing its fee, switching a code off.
+  // Creating a creator or campaign code, editing its fee, switching a code off,
+  // announcing the referral programme to every agent.
   'partners.manage': ['owner'],
+  // The agents' $1 credits: run, approve, pay, void (lib/referralCredits.js).
+  'partners.payout': ['owner', 'finance'],
+  // Typing a creator's weekly TikTok figures and the weekly ad spend.
+  'partners.stats': ['owner', 'moderator', 'support', 'analyst'],
   'cms.manage': ['owner'],
   'data.export': ['owner', 'finance', 'analyst'],
   'notes.write': ['owner', 'moderator', 'support', 'finance'],
@@ -137,6 +142,7 @@ export const SECTION_PERMISSIONS = {
   '/admin/agent-reviews': 'agents.view',
   '/admin/partenaires': 'partners.view',
   '/admin/liens': 'partners.view',
+  '/admin/croissance': 'partners.view',
 };
 
 export function sectionPermission(pathname) {

@@ -54,7 +54,8 @@ test('the kit: agentPage for an agent (with their id and code), none for the tea
   assert.match(kit, /const pageLabel = audience === 'agent' \? agentPageLabel\(agentId\) : null;/);
   assert.match(kit, /url: agentPageUrl\(agentId, \{ source: AGENT_BIO_SOURCE, ref \}\)/);
   assert.match(kit, /agentPage: channel === 'social' && agentPage \? agentPageUrl\(agentId, \{ source, ref \}\) : null/);
-  assert.match(kit, /\n    agentPage,\n/);
+  // \r?: a Windows checkout (core.autocrlf) or a VPS copy may hold CRLF.
+  assert.match(kit, /\r?\n    agentPage,\r?\n/);
   const actions = read('app/compte/agent/shareActions.js');
   assert.match(actions, /buildShareKit\(listing, \{ refCode: await ensureAgentPartnerCode\(agentId\), agentId \}\)/);
   assert.match(actions, /buildShareKit\(listing, \{ refCode, agentId \}\)/);

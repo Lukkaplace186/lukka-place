@@ -1,17 +1,10 @@
 import { NextResponse } from 'next/server';
 import { cookies, headers } from 'next/headers';
-import { randomUUID } from 'node:crypto';
-import { resolveCode, findActivePartnerByCode, recordPartnerClick } from '@/lib/partners';
-import {
-  PARTNER_COOKIE, PARTNER_COOKIE_MAX_AGE, destinationForRest, normalisePartnerCode, parsePartnerCookie,
-  partnerCookieValue, safeDestination, taggedDestination,
-} from '@/lib/partnerRules';
-import { VISITOR_COOKIE, cleanVisitorId } from '@/lib/trackIngest';
-import { clientIpFrom, hashReferralIp } from '@/lib/salesReferral';
+import { resolveCode } from '@/lib/partners';
+import { rememberPartnerVisit } from '@/lib/partnerVisit';
+import { destinationForRest, normalisePartnerCode, safeDestination, taggedDestination } from '@/lib/partnerRules';
 
 export const dynamic = 'force-dynamic';
-
-const VISITOR_MAX_AGE = 365 * 24 * 60 * 60;
 
 /**
  * A partner's tracked link (lib/partnerRules.js): `/go/NADIA01` → the
@@ -57,36 +50,13 @@ export async function GET(request, { params }) {
 
     if (resolved?.type === 'partner') {
       const { partner } = resolved;
-      const cookieStore = await cookies();
-      const secure = process.env.NODE_ENV === 'production';
-
-      let visitorId = cleanVisitorId(cookieStore.get(VISITOR_COOKIE)?.value);
-      if (!visitorId) {
-        visitorId = randomUUID();
-        cookieStore.set(VISITOR_COOKIE, visitorId, { path: '/', maxAge: VISITOR_MAX_AGE, sameSite: 'lax', secure, httpOnly: false });
-      }
-
-      const carried = parsePartnerCookie(cookieStore.get(PARTNER_COOKIE)?.value);
-      let keepCarried = false;
-      if (carried && carried.code !== partner.code) {
-        keepCarried = Boolean(await findActivePartnerByCode(carried.code));
-      }
-      if (!keepCarried && (!carried || carried.code !== partner.code)) {
-        cookieStore.set(PARTNER_COOKIE, partnerCookieValue(partner.code, via), {
-          path: '/', maxAge: PARTNER_COOKIE_MAX_AGE, sameSite: 'lax', secure, httpOnly: true,
-        });
-      }
-
-      const headerList = await headers();
-      await recordPartnerClick({
-        partnerId: partner.id,
+      await rememberPartnerVisit({
+        partner,
         via,
-        visitorId,
         landingPath: destination.split('?')[0],
-        ipHash: hashReferralIp(clientIpFrom(headerList)),
-        userAgent: headerList.get('user-agent'),
+        cookieStore: await cookies(),
+        headerList: await headers(),
       });
-
       destination = taggedDestination(destination, partner);
     }
   } catch (err) {

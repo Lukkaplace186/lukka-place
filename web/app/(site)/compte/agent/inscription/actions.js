@@ -13,6 +13,7 @@ import { establishAgentSession } from '@/lib/agentSession';
 import { setVerifyAttemptCookie } from '@/lib/verifyAttempt';
 import { otpBypassEnabled, logOtpBypass } from '@/lib/otpBypass';
 import { recordWebSignupAttribution } from '@/lib/accountAcquisition';
+import { findActivePartnerByCode } from '@/lib/partners';
 
 function safeNext(nextParam) {
   const next = String(nextParam || '/compte/agent');
@@ -68,8 +69,22 @@ export async function agentSignupAction(formData) {
   // The optional referral code (lib/salesLaunch.js, launch commission policy).
   // An unknown code is sent back BEFORE the account exists, so the agent can
   // correct it or clear the field; a lookup that fails never blocks signup.
-  let referral = null;
+  // The same field also takes a PARTNER's code (a creator's, another agent's —
+  // lib/partnerRules.js): one code namespace with the reps, so a code that is
+  // a live partner's is credited as that partner's referral and never
+  // checked against sales_reps.
+  let partnerCode = null;
   if (typedReferral) {
+    try {
+      const partner = await findActivePartnerByCode(typedReferral);
+      if (partner) partnerCode = partner.code;
+    } catch (err) {
+      console.error(`[agent-auth] partner code check failed: ${err.message}`);
+    }
+  }
+
+  let referral = null;
+  if (typedReferral && !partnerCode) {
     let check = null;
     try {
       check = await checkReferralForSignup({ code: typedReferral, phoneDigits: phone });
@@ -127,6 +142,7 @@ export async function agentSignupAction(formData) {
     accountId: Number(agent.id),
     phone,
     repCode: referral?.ok ? normaliseReferralCode(typedReferral) : null,
+    typedCode: partnerCode,
   });
 
   // Which account is being verified travels in a signed httpOnly cookie

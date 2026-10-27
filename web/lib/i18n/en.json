@@ -2485,6 +2485,19 @@
         "upTo": "Up to {max} $",
         "from": "From {min} $"
       }
+    },
+    "referrals": {
+      "title": "My Referrals",
+      "lead": "Every customer who creates an account with your link or your code is counted here. Listings you share from Lukka Place already carry your code.",
+      "clicks": "Clicks",
+      "last30": "{n} in 30 days",
+      "accounts": "Accounts created",
+      "verified": "Numbers verified",
+      "yourCode": "Your code:",
+      "copy": "Copy link",
+      "share": "Share",
+      "qr": "QR code",
+      "hint": "Only new customer accounts are counted, never your own."
     }
   },
   "status": {
@@ -3154,7 +3167,9 @@
       "investors": "Investors",
       "settings": "Site Settings",
       "agentReviews": "Agent Reviews",
-      "facebookProspects": "Facebook Prospects"
+      "facebookProspects": "Facebook Prospects",
+      "partners": "Partners",
+      "links": "Campaign Links"
     },
     "login": {
       "intro": "Restricted to the Lukka Place team.",
@@ -5696,6 +5711,169 @@
         "registered": "Signed up",
         "declined": "Declined"
       }
+    },
+    "partners": {
+      "title": "Partners",
+      "lead": "Everyone who brings people with a code of their own — TikTok creators, campaigns, agents — and what each actually delivered over the period.",
+      "linkBuilder": "Create a Campaign Link",
+      "new": "New Partner",
+      "types": {
+        "creator": "Creators",
+        "campaign": "Campaigns",
+        "agent": "Agents",
+        "creatorOne": "Creator",
+        "campaignOne": "Campaign",
+        "agentOne": "Agent"
+      },
+      "period": "Period",
+      "days": "{n} days",
+      "allTime": "All time",
+      "search": "Name, code or handle",
+      "searchButton": "Search",
+      "unavailable": "Partner tracking is not switched on yet: migration 20261027_growth_attribution.sql must be run.",
+      "col": {
+        "partner": "Partner",
+        "clicks": "Clicks",
+        "visitors": "Visitors",
+        "viewers": "Viewed a listing",
+        "listingViews": "Listings viewed",
+        "whatsapp": "WhatsApp",
+        "accounts": "Accounts",
+        "verified": "Verified",
+        "cost": "Cost / account"
+      },
+      "empty": "No partner of this type yet.",
+      "emptyAgents": "No agent has a code yet: it is created the first time an agent shares a listing.",
+      "inactive": "Switched off",
+      "definitions": "Clicks: openings of a partner's link (one per connection per hour). Visitors: different people. Viewed a listing, listings viewed and WhatsApp: what those visitors did AFTER their click (team and bots excluded). Accounts: accounts created with this code. Verified: number confirmed on WhatsApp. Cost / account: the per-account fee, or a flat fee divided by every verified account. Visit requests are not counted here.",
+      "form": {
+        "kind": "Type",
+        "name": "Name",
+        "handle": "Handle (e.g. @nadia.kin)",
+        "code": "Code",
+        "codeHint": "Leave empty to make one from the name (NADIA01). 3–10 letters then 2 digits.",
+        "fee": "Fee",
+        "currency": "Currency",
+        "basis": "Basis",
+        "basisFlat": "Flat fee",
+        "basisPerSignup": "Per account",
+        "notes": "Internal notes",
+        "create": "Create Partner",
+        "codeLocked": "The code {code} never changes: it is already printed and shared."
+      },
+      "flash": {
+        "created": "Partner created.",
+        "saved": "Changes saved.",
+        "activated": "Code switched back on.",
+        "deactivated": "Code switched off: its links no longer credit anyone.",
+        "codeTaken": "This code already belongs to a partner or a sales rep.",
+        "codeNeeded": "No code can be made from this name: type one.",
+        "invalidName": "A name is required.",
+        "invalidKind": "Choose Creator or Campaign.",
+        "invalidCode": "Code format: 3–10 letters then 2 digits (NADIA01).",
+        "invalidFee": "Invalid fee amount.",
+        "failed": "That did not work. Try again."
+      },
+      "agentProfile": "Open the agent's profile",
+      "deactivate": "Switch Code Off",
+      "activate": "Switch Code Back On",
+      "funnel": "Results",
+      "noFee": "No fee recorded",
+      "daily": "Clicks per Day (Last 30 Days)",
+      "noClicks": "No clicks in the last 30 days.",
+      "accounts": "Accounts Brought In",
+      "acc": {
+        "account": "Account",
+        "type": "Type",
+        "verified": "Number verified",
+        "via": "Came through",
+        "date": "Date",
+        "empty": "No account has been created with this code yet.",
+        "sameConnection": "{n} accounts from the same connection",
+        "agent": "Agent",
+        "customer": "Customer",
+        "yes": "Yes",
+        "no": "No"
+      },
+      "via": {
+        "link": "Link",
+        "qr": "QR code",
+        "param": "Shared link",
+        "form_code": "Typed code"
+      },
+      "edit": "Edit",
+      "toolkit": {
+        "copied": "Copied",
+        "copy": "Copy",
+        "code": "Code",
+        "bioLink": "Bio link",
+        "bioHint": "Opens the homepage and remembers the partner for 30 days.",
+        "inviteLink": "Invite page",
+        "inviteHint": "\"Create your free account — invited by …\", with a signup button.",
+        "listingLink": "Link to a listing (one video, one post)",
+        "listingPlaceholder": "Listing number",
+        "listingHint": "One link per video: each click is counted for this partner and opens the listing directly.",
+        "shareWhatsApp": "Send on WhatsApp",
+        "shareText": "Here is your Lukka Place link to share: {link}",
+        "qrAlt": "QR code for partner {code}"
+      }
+    },
+    "links": {
+      "title": "Campaign Links",
+      "lead": "A link and its QR code for every ad, post, flyer or radio spot, so each campaign reaches the dashboard under one name.",
+      "destination": "Destination",
+      "destinationPlaceholder": "Empty = homepage, or a listing number, or /location/gombe",
+      "destinationHint": "A lukkaplace.com page: leave empty for the homepage, type a listing number or a path, or paste an address on the site.",
+      "source": "Source",
+      "medium": "Format",
+      "none": "— None —",
+      "campaign": "Campaign",
+      "content": "Content",
+      "contentPlaceholder": "e.g. video_3, poster_gombe",
+      "ref": "Partner code (optional)",
+      "refHint": "Credits accounts created from it to this partner.",
+      "build": "Create Link",
+      "result": "Your Link",
+      "resultHint": "Nothing is stored here: the tags travel in the link and are counted when someone opens it.",
+      "qrAlt": "QR code for the link",
+      "downloadQr": "Download QR code",
+      "partnersNote": "To follow a creator or an agent with figures of their own, give them a partner code:",
+      "partnersLink": "Partners",
+      "copied": "Copied",
+      "copy": "Copy",
+      "errors": {
+        "destination": "This destination is not a lukkaplace.com page.",
+        "source": "Choose a source from the list.",
+        "medium": "Choose a format from the list."
+      },
+      "sources": {
+        "facebook": "Facebook",
+        "instagram": "Instagram",
+        "tiktok": "TikTok",
+        "whatsapp": "WhatsApp",
+        "youtube": "YouTube",
+        "google": "Google",
+        "influencer": "Creator / influencer",
+        "agent": "Agent",
+        "radio": "Radio",
+        "tv": "Television",
+        "flyer": "Flyer",
+        "affiche": "Poster",
+        "sms": "SMS",
+        "email": "Email",
+        "evenement": "Event"
+      },
+      "mediums": {
+        "paid": "Paid ad",
+        "organic": "Free post",
+        "bio": "Bio link",
+        "story": "Story / Status",
+        "post": "Post",
+        "video": "Video",
+        "qr": "QR code",
+        "message": "Message",
+        "partner": "Partner"
+      }
     }
   },
   "errors": {
@@ -5800,7 +5978,8 @@
       "locked": "Too many attempts — try again in 15 minutes.",
       "expiredAttempt": "That verification expired — please sign up again.",
       "referralUnknown": "We don’t recognise that referral code. Check it with your sales rep, or leave the field empty to sign up without one.",
-      "agencyNameRequired": "Enter your agency or trading name."
+      "agencyNameRequired": "Enter your agency or trading name.",
+      "partnerCodeUnknown": "This referral code does not exist. Correct it or leave the field empty."
     },
     "activate": {
       "expiredBody": "This activation link is no longer valid — it may already have been used, or it has passed its expiry. Your properties are still saved: only dashboard access is pending.",
@@ -5849,7 +6028,7 @@
       "now": "Resend the code"
     },
     "referralCode": "Referral code (optional)",
-    "referralCodeHint": "If a Lukka Place sales rep introduced you, enter their code, e.g. JEAN01.",
+    "referralCodeHint": "If a Lukka Place sales rep, an agent or a creator introduced you, enter their code, e.g. JEAN01.",
     "whatsappVerify": {
       "intro": "Send this code from the WhatsApp account of {phone}. That is what proves the number is yours.",
       "send": "Send the code on WhatsApp",
@@ -5860,6 +6039,24 @@
       "restart": "Start again",
       "noNumber": "WhatsApp verification is not available right now. Please contact the Lukka Place team.",
       "haveCode": "Received a code by message? Enter it here."
+    },
+    "partnerCode": "Referral code (optional)",
+    "partnerCodeHint": "If an agent or a creator invited you, enter their code, e.g. MARIE01.",
+    "invite": {
+      "metaTitle": "Invitation — Lukka Place",
+      "invitedBy": "Invited by {name}",
+      "title": "Create Your Free Account",
+      "lead": "Find a home to rent or a property to buy in the DRC, and get new listings before anyone else.",
+      "cta": "Create My Free Account",
+      "free": "Free, in under a minute. Your number is confirmed on WhatsApp.",
+      "benefitAlertsTitle": "WhatsApp Alerts",
+      "benefitAlertsText": "New listings that match your search, as soon as they are published.",
+      "benefitFavoritesTitle": "Your Favourites",
+      "benefitFavoritesText": "Keep the listings you like and find them on all your devices.",
+      "benefitVisitsTitle": "Online Visits",
+      "benefitVisitsText": "Pick a time and the agent confirms the visit.",
+      "listingsTitle": "Their Listings Online",
+      "browse": "See all listings"
     }
   },
   "updates": {

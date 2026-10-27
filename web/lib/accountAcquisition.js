@@ -2,7 +2,7 @@ import 'server-only';
 import { cookies, headers } from 'next/headers';
 import { getPool } from './db';
 import { VISITOR_COOKIE, cleanVisitorId } from './trackIngest';
-import { PARTNER_COOKIE, parsePartnerCookie } from './partnerRules';
+import { PARTNER_COOKIE, normalisePartnerCode, parsePartnerCookie } from './partnerRules';
 import { findActivePartnerByCode, recordPartnerConversion } from './partners';
 import { clientIpFrom, hashReferralIp } from './salesReferral';
 
@@ -71,11 +71,14 @@ export async function recordAccountAcquisition({
  * partner whose link this browser followed (`lp_ref`, first valid one wins)
  * and records where the account came from.
  *
- * @param {{accountType: 'customer'|'agent', accountId: number, phone: string|null, repCode?: string|null}} account
+ * @param {{accountType: 'customer'|'agent', accountId: number, phone: string|null,
+ *          repCode?: string|null, typedCode?: string|null}} account
  *   `repCode` — a sales rep's code the agent signup attributed, kept as the
  *   account's referral code when no partner code is carried.
+ *   `typedCode` — a partner code typed in the signup form (already checked by
+ *   the action): it is what the person chose, so it wins over the cookie.
  */
-export async function recordWebSignupAttribution({ accountType, accountId, phone = null, repCode = null }) {
+export async function recordWebSignupAttribution({ accountType, accountId, phone = null, repCode = null, typedCode = null }) {
   try {
     const cookieStore = await cookies();
     const headerList = await headers();
@@ -83,12 +86,15 @@ export async function recordWebSignupAttribution({ accountType, accountId, phone
     const carried = parsePartnerCookie(cookieStore.get(PARTNER_COOKIE)?.value);
 
     let partner = null;
-    if (carried) {
+    let via = carried?.via ?? null;
+    const wanted = normalisePartnerCode(typedCode) || carried?.code || null;
+    if (wanted) {
       try {
-        partner = await findActivePartnerByCode(carried.code);
+        partner = await findActivePartnerByCode(wanted);
       } catch (err) {
         console.error(`[acquisition] partner lookup failed: ${err.message}`);
       }
+      if (partner && carried?.code !== partner.code) via = 'form_code';
     }
 
     let creditedPartnerId = null;
@@ -98,7 +104,7 @@ export async function recordWebSignupAttribution({ accountType, accountId, phone
         accountType,
         accountId,
         accountPhone: phone,
-        via: carried.via,
+        via,
         visitorId,
         ipHash: hashReferralIp(clientIpFrom(headerList)),
       });

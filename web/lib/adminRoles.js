@@ -30,6 +30,9 @@ export const PERMISSIONS = {
   // agents' identity documents (Verifications). Everyone else with analytics.view.
   'market.view': ['owner', 'moderator', 'support', 'finance', 'analyst'],
   'verifications.view': ['owner', 'moderator', 'support', 'finance', 'analyst'],
+  // Partners (agents, creators, campaigns) and their funnels; the tagged-link
+  // builder. A field rep has their own rep page instead.
+  'partners.view': ['owner', 'moderator', 'support', 'finance', 'analyst'],
   // Acting
   'listings.moderate': ['owner', 'moderator'],
   'listings.edit': ['owner', 'moderator'],
@@ -60,6 +63,8 @@ export const PERMISSIONS = {
   // "View as" an agent or customer — read-only, reasoned, logged (lib/impersonation.js).
   'accounts.impersonate': ['owner', 'support'],
   'routing.manage': ['owner'],
+  // Creating a creator or campaign code, editing its fee, switching a code off.
+  'partners.manage': ['owner'],
   'cms.manage': ['owner'],
   'data.export': ['owner', 'finance', 'analyst'],
   'notes.write': ['owner', 'moderator', 'support', 'finance'],
@@ -130,6 +135,8 @@ export const SECTION_PERMISSIONS = {
   // Reading ratings is agents.view; publishing or refusing a comment is
   // listings.moderate (app/admin/agent-reviews/actions.js).
   '/admin/agent-reviews': 'agents.view',
+  '/admin/partenaires': 'partners.view',
+  '/admin/liens': 'partners.view',
 };
 
 export function sectionPermission(pathname) {

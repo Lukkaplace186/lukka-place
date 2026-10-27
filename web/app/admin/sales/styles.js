@@ -3,3 +3,7 @@
 // client reference, not a string.
 export const BUTTON = 'u-press u-micro-strong inline-flex h-9 items-center gap-1.5 rounded-lg border border-line bg-surface px-3 text-ink hover:border-blue disabled:opacity-50';
 export const INPUT = 'u-micro h-9 w-full rounded-lg border border-line bg-surface px-3 text-ink focus:border-blue focus:outline-none';
+// A filled primary action of the same size. Its own string rather than BUTTON
+// plus overrides: two background utilities in one class list are decided by
+// CSS source order, and bg-surface won (white text on white).
+export const BUTTON_PRIMARY = 'u-press u-micro-strong inline-flex h-9 items-center gap-1.5 rounded-lg border border-blue bg-blue px-3 text-white hover:bg-blue-deep disabled:opacity-50';

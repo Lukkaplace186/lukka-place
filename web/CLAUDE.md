@@ -3412,9 +3412,50 @@ before it runs — every INSERT falls back on 42703 / 42P01). Tests:
   own leads. The team's social kit carries no code.
 - Before the migration: no codes (links unchanged), nothing credited, page
   views fall back to the older INSERTs.
-- **Not built yet** (growth plan, later items): the $1 rule and ledger
-  (13–15), the agent "Mes parrainages" card (16), `/admin/partenaires` and
-  creator management (17–19), Meta / TikTok pixels and server events (5–6),
-  consent (7), the launch dashboard (21). Until 18 exists, a creator partner
-  is created with SQL (`INSERT INTO partners (kind, code, name, handle) VALUES
-  ('creator', 'NADIA01', 'Nadia', '@nadia')`).
+- **`/admin/partenaires`** (items 17–19, `lib/partnersAdmin.js`,
+  `partners.view` — every role but sales; `partners.manage` — owner — to
+  create a creator/campaign, edit its fee, switch any code off). Tabs
+  Créateurs / Campagnes / Agents, period 7/30/90/tout, one page of partners
+  side by side: clicks → visitors → viewed a listing → listings viewed →
+  WhatsApp taps (all AFTER the visitor's first click, people only) →
+  accounts → verified → cost per verified account (`costPerAccount`: a
+  per-account fee, or a flat fee over every verified account; null, never
+  "0 $"). Visit requests are not in it: they are engine SQLite rows with no
+  visitor id. The period cutoff is SQL (`NOW() - make_interval`), never
+  `Date.now()` in the page. `partners.fee_amount / fee_currency / fee_basis`
+  and the funnel indexes are in the same migration. The partner page has the
+  toolkit (code, bio link `/go/CODE`, invite page `/i/CODE`, a link per
+  listing `/go/CODE/387` — one per video — WhatsApp share, QR PNG/SVG from
+  `./qr/route.js`), clicks per day, and the accounts it brought with a
+  "N accounts from the same connection" chip from 3 (a fact, never a
+  verdict). A code never changes once created.
+- **`/admin/liens`** (item 4, `lib/campaignLinks.js`): a GET form that builds
+  a tagged link + QR for any ad, post, flyer or radio spot. Sources and
+  formats come from fixed lists (`CAMPAIGN_SOURCES` / `CAMPAIGN_MEDIUMS`) so
+  one campaign never splits into "Facebook" / "fb"; campaign and content are
+  folded (`normaliseTag`), campaign defaults to `lancement_dec`; destination
+  is home, a listing number, a path or a lukkaplace.com address — anything
+  else is refused. Optional partner code → `ref=`. Nothing is stored.
+- **`/i/<code>`** (item 11, `app/(site)/i/[code]`): "Créez votre compte
+  gratuit — invité par Marie" with an agent's real name and photo and up to
+  three live listings. `RememberInvite` calls `rememberInviteAction` from the
+  browser — the same `lib/partnerVisit.js` /go uses (cookie, visitor id,
+  click) — because a Server Component cannot set cookies and WhatsApp's
+  link-preview fetcher runs no JavaScript. The CTA goes through
+  `/go/CODE?to=/compte/inscription`. A rep's code → `/r/`; unknown → 404 (no
+  loading.js, so a real one).
+- **Code field at signup** (item 12): customer signup has an optional
+  "Code de parrainage", prefilled from `lp_ref` (`lib/partnerPrefill.js`); an
+  unknown code is sent back (`error=ref`) BEFORE the account exists; a typed
+  code wins over the cookie (`via 'form_code'`). Agent signup's existing
+  field takes a partner code as well as a rep's (one namespace): a live
+  partner's code skips the rep check entirely.
+- **"Mes parrainages"** (item 16, `components/AgentReferralCard.js`, on the
+  agent overview after À faire): the agent's code, invite link `/i/CODE`,
+  copy, WhatsApp share (French text), QR PNG (`/compte/agent/parrainage/qr`,
+  session only), and clicks / customer accounts / verified numbers. Counts
+  only — no amount until the reward rule is decided. The overview banner's
+  shared portfolio link now carries `?ref=` too.
+- **Not built yet** (growth plan): the $1 rule and ledger (13–15), Meta /
+  TikTok pixels and server events (5–6), consent (7), creators' TikTok
+  figures (20), the launch dashboard (21) and everything after.

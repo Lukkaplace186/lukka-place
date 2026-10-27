@@ -2485,6 +2485,19 @@
         "upTo": "Jusqu’à {max} $",
         "from": "À partir de {min} $"
       }
+    },
+    "referrals": {
+      "title": "Mes parrainages",
+      "lead": "Chaque client qui crée son compte avec votre lien ou votre code est compté ici. Vos biens partagés depuis Lukka Place portent déjà votre code.",
+      "clicks": "Clics",
+      "last30": "{n} sur 30 jours",
+      "accounts": "Comptes créés",
+      "verified": "Numéros vérifiés",
+      "yourCode": "Votre code :",
+      "copy": "Copier le lien",
+      "share": "Partager",
+      "qr": "QR code",
+      "hint": "Seuls les nouveaux comptes clients sont comptés, jamais le vôtre."
     }
   },
   "status": {
@@ -3154,7 +3167,9 @@
       "investors": "Investisseurs",
       "settings": "Paramètres du site",
       "agentReviews": "Avis agents",
-      "facebookProspects": "Prospects Facebook"
+      "facebookProspects": "Prospects Facebook",
+      "partners": "Partenaires",
+      "links": "Liens de campagne"
     },
     "login": {
       "intro": "Accès réservé à l'équipe Lukka Place.",
@@ -5696,6 +5711,169 @@
         "registered": "Inscrit",
         "declined": "Refusé"
       }
+    },
+    "partners": {
+      "title": "Partenaires",
+      "lead": "Tous ceux qui amènent du monde avec leur propre code — créateurs TikTok, campagnes, agents — et ce que chacun a vraiment apporté sur la période.",
+      "linkBuilder": "Créer un lien de campagne",
+      "new": "Nouveau partenaire",
+      "types": {
+        "creator": "Créateurs",
+        "campaign": "Campagnes",
+        "agent": "Agents",
+        "creatorOne": "Créateur",
+        "campaignOne": "Campagne",
+        "agentOne": "Agent"
+      },
+      "period": "Période",
+      "days": "{n} jours",
+      "allTime": "Depuis le début",
+      "search": "Nom, code ou compte",
+      "searchButton": "Rechercher",
+      "unavailable": "Le suivi des partenaires n'est pas encore activé : la migration 20261027_growth_attribution.sql doit être exécutée.",
+      "col": {
+        "partner": "Partenaire",
+        "clicks": "Clics",
+        "visitors": "Visiteurs",
+        "viewers": "Ont vu un bien",
+        "listingViews": "Biens vus",
+        "whatsapp": "WhatsApp",
+        "accounts": "Comptes",
+        "verified": "Vérifiés",
+        "cost": "Coût / compte"
+      },
+      "empty": "Aucun partenaire de ce type pour le moment.",
+      "emptyAgents": "Aucun agent n'a encore de code : il est créé la première fois qu'un agent partage un bien.",
+      "inactive": "Désactivé",
+      "definitions": "Clics : ouvertures d'un lien du partenaire (une par connexion et par heure). Visiteurs : personnes différentes. Ont vu un bien, biens vus et WhatsApp : ce que ces visiteurs ont fait APRÈS leur clic (équipe et robots exclus). Comptes : comptes créés avec ce code. Vérifiés : numéro confirmé par WhatsApp. Coût / compte : tarif par compte, ou forfait divisé par tous les comptes vérifiés. Les demandes de visite ne sont pas comptées ici.",
+      "form": {
+        "kind": "Type",
+        "name": "Nom",
+        "handle": "Compte (ex. @nadia.kin)",
+        "code": "Code",
+        "codeHint": "Laissez vide pour le créer à partir du nom (NADIA01). 3 à 10 lettres puis 2 chiffres.",
+        "fee": "Rémunération",
+        "currency": "Devise",
+        "basis": "Base",
+        "basisFlat": "Forfait",
+        "basisPerSignup": "Par compte",
+        "notes": "Notes internes",
+        "create": "Créer le partenaire",
+        "codeLocked": "Le code {code} ne change jamais : il est déjà imprimé et partagé."
+      },
+      "flash": {
+        "created": "Partenaire créé.",
+        "saved": "Modifications enregistrées.",
+        "activated": "Code réactivé.",
+        "deactivated": "Code désactivé : ses liens ne créditent plus personne.",
+        "codeTaken": "Ce code appartient déjà à un partenaire ou à un commercial.",
+        "codeNeeded": "Impossible de créer un code à partir de ce nom : saisissez-en un.",
+        "invalidName": "Le nom est obligatoire.",
+        "invalidKind": "Choisissez Créateur ou Campagne.",
+        "invalidCode": "Format du code : 3 à 10 lettres puis 2 chiffres (NADIA01).",
+        "invalidFee": "Montant de rémunération invalide.",
+        "failed": "L'opération a échoué. Réessayez."
+      },
+      "agentProfile": "Voir la fiche de l'agent",
+      "deactivate": "Désactiver le code",
+      "activate": "Réactiver le code",
+      "funnel": "Résultats",
+      "noFee": "Aucune rémunération enregistrée",
+      "daily": "Clics par jour (30 derniers jours)",
+      "noClicks": "Aucun clic sur les 30 derniers jours.",
+      "accounts": "Comptes amenés",
+      "acc": {
+        "account": "Compte",
+        "type": "Type",
+        "verified": "Numéro vérifié",
+        "via": "Arrivé par",
+        "date": "Date",
+        "empty": "Aucun compte créé avec ce code pour l'instant.",
+        "sameConnection": "{n} comptes depuis la même connexion",
+        "agent": "Agent",
+        "customer": "Client",
+        "yes": "Oui",
+        "no": "Non"
+      },
+      "via": {
+        "link": "Lien",
+        "qr": "QR code",
+        "param": "Lien partagé",
+        "form_code": "Code saisi"
+      },
+      "edit": "Modifier",
+      "toolkit": {
+        "copied": "Copié",
+        "copy": "Copier",
+        "code": "Code",
+        "bioLink": "Lien à mettre en bio",
+        "bioHint": "Ouvre la page d'accueil et retient le partenaire 30 jours.",
+        "inviteLink": "Page d'invitation",
+        "inviteHint": "« Créez votre compte gratuit — invité par … », avec un bouton d'inscription.",
+        "listingLink": "Lien vers un bien (une vidéo, une publication)",
+        "listingPlaceholder": "N° de l'annonce",
+        "listingHint": "Un lien par vidéo : chaque clic est compté pour ce partenaire, et ouvre directement le bien.",
+        "shareWhatsApp": "Envoyer sur WhatsApp",
+        "shareText": "Voici votre lien Lukka Place à partager : {link}",
+        "qrAlt": "QR code du partenaire {code}"
+      }
+    },
+    "links": {
+      "title": "Liens de campagne",
+      "lead": "Un lien et son QR code pour chaque publicité, publication, flyer ou passage radio, pour que chaque campagne arrive dans le tableau de bord sous un seul nom.",
+      "destination": "Destination",
+      "destinationPlaceholder": "Vide = page d'accueil, ou n° d'annonce, ou /location/gombe",
+      "destinationHint": "Une page de lukkaplace.com : laissez vide pour l'accueil, tapez un numéro d'annonce, un chemin ou collez une adresse du site.",
+      "source": "Source",
+      "medium": "Format",
+      "none": "— Aucun —",
+      "campaign": "Campagne",
+      "content": "Contenu",
+      "contentPlaceholder": "ex. video_3, affiche_gombe",
+      "ref": "Code partenaire (facultatif)",
+      "refHint": "Crédite les comptes créés à ce partenaire.",
+      "build": "Créer le lien",
+      "result": "Votre lien",
+      "resultHint": "Rien n'est enregistré ici : les étiquettes voyagent dans le lien et sont comptées quand quelqu'un l'ouvre.",
+      "qrAlt": "QR code du lien",
+      "downloadQr": "Télécharger le QR code",
+      "partnersNote": "Pour suivre un créateur ou un agent avec ses propres chiffres, donnez-lui un code partenaire :",
+      "partnersLink": "Partenaires",
+      "copied": "Copié",
+      "copy": "Copier",
+      "errors": {
+        "destination": "Cette destination n'est pas une page de lukkaplace.com.",
+        "source": "Choisissez une source dans la liste.",
+        "medium": "Choisissez un format dans la liste."
+      },
+      "sources": {
+        "facebook": "Facebook",
+        "instagram": "Instagram",
+        "tiktok": "TikTok",
+        "whatsapp": "WhatsApp",
+        "youtube": "YouTube",
+        "google": "Google",
+        "influencer": "Créateur / influenceur",
+        "agent": "Agent",
+        "radio": "Radio",
+        "tv": "Télévision",
+        "flyer": "Flyer",
+        "affiche": "Affiche",
+        "sms": "SMS",
+        "email": "E-mail",
+        "evenement": "Événement"
+      },
+      "mediums": {
+        "paid": "Publicité payante",
+        "organic": "Publication gratuite",
+        "bio": "Lien en bio",
+        "story": "Story / Statut",
+        "post": "Publication",
+        "video": "Vidéo",
+        "qr": "QR code",
+        "message": "Message",
+        "partner": "Partenaire"
+      }
     }
   },
   "errors": {
@@ -5800,7 +5978,8 @@
       "locked": "Trop de tentatives — réessayez dans 15 minutes.",
       "expiredAttempt": "Cette vérification a expiré — recommencez l’inscription.",
       "referralUnknown": "Nous ne reconnaissons pas ce code de parrainage. Vérifiez-le auprès de votre commercial, ou laissez le champ vide pour vous inscrire sans code.",
-      "agencyNameRequired": "Indiquez le nom de votre agence ou votre nom commercial."
+      "agencyNameRequired": "Indiquez le nom de votre agence ou votre nom commercial.",
+      "partnerCodeUnknown": "Ce code de parrainage n'existe pas. Corrigez-le ou laissez le champ vide."
     },
     "activate": {
       "expiredBody": "Ce lien d’activation n’est plus valable — il a peut-être déjà été utilisé, ou il a dépassé sa durée de validité. Vos biens restent enregistrés : seul l’accès au tableau de bord attend.",
@@ -5849,7 +6028,7 @@
       "now": "Renvoyer le code"
     },
     "referralCode": "Code de parrainage (facultatif)",
-    "referralCodeHint": "Si un commercial Lukka Place vous a présenté la plateforme, saisissez son code, par ex. JEAN01.",
+    "referralCodeHint": "Si un commercial Lukka Place, un agent ou un créateur vous a présenté la plateforme, saisissez son code, par ex. JEAN01.",
     "whatsappVerify": {
       "intro": "Envoyez ce code depuis le WhatsApp du {phone}. C’est ce qui prouve que le numéro est bien le vôtre.",
       "send": "Envoyer le code sur WhatsApp",
@@ -5860,6 +6039,24 @@
       "restart": "Recommencer",
       "noNumber": "La vérification WhatsApp n’est pas disponible pour le moment. Contactez l’équipe Lukka Place.",
       "haveCode": "Vous avez reçu un code par message ? Saisissez-le ici."
+    },
+    "partnerCode": "Code de parrainage (facultatif)",
+    "partnerCodeHint": "Si un agent ou un créateur vous a invité, saisissez son code, par ex. MARIE01.",
+    "invite": {
+      "metaTitle": "Invitation — Lukka Place",
+      "invitedBy": "Invité par {name}",
+      "title": "Créez votre compte gratuit",
+      "lead": "Trouvez un logement à louer ou un bien à acheter en RDC, et recevez les nouvelles annonces avant tout le monde.",
+      "cta": "Créer mon compte gratuit",
+      "free": "Gratuit, en moins d’une minute. Votre numéro est confirmé par WhatsApp.",
+      "benefitAlertsTitle": "Alertes WhatsApp",
+      "benefitAlertsText": "Les nouveaux biens qui correspondent à votre recherche, dès leur publication.",
+      "benefitFavoritesTitle": "Vos favoris",
+      "benefitFavoritesText": "Gardez les biens qui vous plaisent et retrouvez-les sur tous vos appareils.",
+      "benefitVisitsTitle": "Visites en ligne",
+      "benefitVisitsText": "Choisissez un créneau et l'agent vous confirme la visite.",
+      "listingsTitle": "Ses biens en ligne",
+      "browse": "Voir tous les biens"
     }
   },
   "updates": {

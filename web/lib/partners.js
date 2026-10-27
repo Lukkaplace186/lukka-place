@@ -192,3 +192,42 @@ export async function ensureAgentPartnerCode(agentId) {
     return null;
   }
 }
+
+export const AGENT_REFERRAL_STATS_SQL = `
+  SELECT
+    (SELECT COUNT(*) FROM partner_clicks WHERE partner_id = p.id)::int AS clicks,
+    (SELECT COUNT(*) FROM partner_clicks WHERE partner_id = p.id AND created_at >= NOW() - INTERVAL '30 days')::int AS clicks_30d,
+    (SELECT COUNT(*) FROM partner_conversions c WHERE c.partner_id = p.id AND c.account_type = 'customer')::int AS accounts,
+    (SELECT COUNT(*) FROM partner_conversions c JOIN customers cu ON cu.id = c.account_id
+      WHERE c.partner_id = p.id AND c.account_type = 'customer' AND cu.phone_verified_at IS NOT NULL)::int AS verified
+  FROM partners p
+  WHERE p.agent_id = $1
+`;
+
+/**
+ * The agent dashboard's "Mes parrainages" card: their code (created if
+ * missing) and what it has brought — clicks on their links, customer
+ * accounts, and how many of those verified their number. Counts only: the
+ * payment rule is not decided yet, so nothing here names an amount.
+ *
+ * @returns {Promise<{code: string, clicks: number, clicks30d: number, accounts: number, verified: number}|null>}
+ *   null before the migration or when the database is unreachable.
+ */
+export async function getAgentReferralStats(agentId) {
+  const code = await ensureAgentPartnerCode(agentId);
+  if (!code) return null;
+  try {
+    const { rows } = await getPool().query(AGENT_REFERRAL_STATS_SQL, [Number(agentId)]);
+    const row = rows[0] || {};
+    return {
+      code,
+      clicks: Number(row.clicks || 0),
+      clicks30d: Number(row.clicks_30d || 0),
+      accounts: Number(row.accounts || 0),
+      verified: Number(row.verified || 0),
+    };
+  } catch (err) {
+    if (err?.code !== MISSING_TABLE) console.error(`[partners] agent #${agentId} stats failed: ${err.message}`);
+    return null;
+  }
+}

@@ -13,6 +13,7 @@ const ERROR_MESSAGE_KEYS = {
   password: 'auth.errors.passwordMin8',
   exists: 'auth.errors.accountExists',
   expired_attempt: 'auth.errors.expiredAttempt',
+  ref: 'auth.errors.partnerCodeUnknown',
 };
 
 /**
@@ -26,6 +27,7 @@ export default function SignupForm({
   error,
   initialPhone = '',
   initialCountry = '',
+  partnerCode = '',
   // The phone hint is a KEY passed down rather than resolved here, because
   // whether a code is actually sent depends on a server-only flag
   // (lib/otpBypass.js) that a client component cannot read.
@@ -87,6 +89,24 @@ export default function SignupForm({
           className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
         />
         <p className="mt-1 text-xs text-ink-45">{t('auth.minEightChars')}</p>
+      </div>
+
+      <div>
+        <label htmlFor="partner_code" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
+          {t('auth.partnerCode')}
+        </label>
+        <input
+          id="partner_code"
+          type="text"
+          name="partner_code"
+          defaultValue={partnerCode}
+          maxLength={20}
+          autoCapitalize="characters"
+          autoComplete="off"
+          aria-describedby="partner_code_hint"
+          className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm uppercase text-ink"
+        />
+        <p id="partner_code_hint" className="mt-1 text-xs text-ink-45">{t('auth.partnerCodeHint')}</p>
       </div>
 
       {error && (

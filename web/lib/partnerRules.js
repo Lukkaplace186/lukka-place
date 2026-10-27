@@ -141,3 +141,65 @@ function idLetters(id) {
   } while (n > 0);
   return out.length < 1 ? 'A' : out;
 }
+
+/** Currencies and fee bases a creator or campaign deal is recorded in. */
+export const PARTNER_FEE_CURRENCIES = ['USD', 'CDF'];
+export const PARTNER_FEE_BASES = ['flat', 'per_signup'];
+
+/**
+ * What one verified account cost: a per-signup fee is itself; a flat fee is
+ * divided by every verified account the partner ever brought (the deal is
+ * not per period). Null when no fee is recorded, or a flat fee has brought
+ * no verified account yet — never "0 $".
+ *
+ * @returns {{amount: number, currency: string}|null}
+ */
+export function costPerAccount(fee, verifiedAll) {
+  if (!fee || !(fee.amount >= 0) || !PARTNER_FEE_CURRENCIES.includes(fee.currency)) return null;
+  if (fee.basis === 'per_signup') return { amount: fee.amount, currency: fee.currency };
+  if (fee.basis === 'flat' && verifiedAll > 0) return { amount: Math.round((fee.amount / verifiedAll) * 100) / 100, currency: fee.currency };
+  return null;
+}
+
+/**
+ * The console form's fields, checked. Throws a code (not a message) the page
+ * maps to its own copy.
+ *
+ * @returns {{kind, name, handle, notes, code, fee, status}}
+ */
+export function parsePartnerForm(fields, { creating = true } = {}) {
+  const get = (name) => String(fields?.[name] ?? '').trim();
+  const kind = get('kind');
+  if (creating && !['creator', 'campaign'].includes(kind)) throw new Error('kind');
+  const name = get('name').slice(0, 160);
+  if (!name) throw new Error('name');
+  const rawCode = get('code');
+  const code = rawCode ? normaliseReferralCode(rawCode) : null;
+  if (rawCode && !code) throw new Error('code_format');
+  const handle = get('handle').slice(0, 120) || null;
+  const notes = get('notes').slice(0, 2000) || null;
+  const amountText = get('fee_amount').replace(/\s/g, '').replace(',', '.');
+  let fee = null;
+  if (amountText) {
+    const amount = Number(amountText);
+    const currency = get('fee_currency') || 'USD';
+    const basis = get('fee_basis') || 'flat';
+    if (!Number.isFinite(amount) || amount < 0 || amount > 1e9) throw new Error('fee');
+    if (!PARTNER_FEE_CURRENCIES.includes(currency) || !PARTNER_FEE_BASES.includes(basis)) throw new Error('fee');
+    fee = { amount: Math.round(amount * 100) / 100, currency, basis };
+  }
+  const status = get('status') === 'inactive' ? 'inactive' : 'active';
+  return { kind, name, handle, notes, code, fee, status };
+}
+
+/** A partner's shareable links. `listingId` makes a per-video / per-post link. */
+export function partnerLinks(code, { siteUrl = 'https://lukkaplace.com', listingId = null } = {}) {
+  const base = `${siteUrl.replace(/\/+$/, '')}/go/${encodeURIComponent(code)}`;
+  const id = Number.parseInt(listingId, 10);
+  return {
+    home: base,
+    listing: Number.isSafeInteger(id) && id > 0 ? `${base}/${id}` : null,
+    invite: `${siteUrl.replace(/\/+$/, '')}/i/${encodeURIComponent(code)}`,
+    qr: `${base}?src=qr`,
+  };
+}

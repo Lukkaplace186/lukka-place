@@ -17,6 +17,7 @@
 --    triggers on both tables.
 -- 4. account_acquisitions: where each customer and agent account came from,
 --    written once when the account is created.
+-- 5. partners.fee_*: what a creator or campaign costs; funnel indexes.
 
 BEGIN;
 
@@ -162,6 +163,19 @@ CREATE TABLE IF NOT EXISTS account_acquisitions (
 );
 CREATE INDEX IF NOT EXISTS account_acquisitions_created_idx ON account_acquisitions (created_at);
 CREATE INDEX IF NOT EXISTS account_acquisitions_partner_idx ON account_acquisitions (partner_id) WHERE partner_id IS NOT NULL;
+
+-- 5 (2026-10-28) ---------------------------------------------------------------
+-- What a creator or campaign costs, for /admin/partenaires' cost per account:
+-- a flat fee for the deal, or an amount per account. NULL = not recorded.
+ALTER TABLE partners ADD COLUMN IF NOT EXISTS fee_amount numeric(12, 2) CHECK (fee_amount IS NULL OR fee_amount >= 0);
+ALTER TABLE partners ADD COLUMN IF NOT EXISTS fee_currency text CHECK (fee_currency IS NULL OR fee_currency IN ('USD', 'CDF'));
+ALTER TABLE partners ADD COLUMN IF NOT EXISTS fee_basis text CHECK (fee_basis IS NULL OR fee_basis IN ('flat', 'per_signup'));
+
+-- The partner funnel follows each clicked visitor into their later views and
+-- taps; without these it would scan both tables whole.
+CREATE INDEX IF NOT EXISTS page_views_visitor_created_idx ON page_views (visitor_id, created_at) WHERE visitor_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS whatsapp_clicks_visitor_created_idx ON whatsapp_clicks (visitor_id, created_at) WHERE visitor_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS partner_clicks_visitor_idx ON partner_clicks (partner_id, visitor_id) WHERE visitor_id IS NOT NULL;
 
 -- Closed to PostgREST, like every table since the RLS lockdown.
 ALTER TABLE visitor_touches      ENABLE ROW LEVEL SECURITY;

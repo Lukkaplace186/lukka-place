@@ -176,7 +176,7 @@ export const PUBLIC_ADDRESS_EXPR = `(CASE WHEN btrim(pc.address) ~* '^(n/?a|na|n
 const PUBLISHED_AT_EXPR = `GREATEST(p.created_at, COALESCE(NULLIF(to_jsonb(p) ->> 'moderated_at', '')::timestamptz, p.created_at))`;
 
 /** Days a listing carries the "Nouveau" badge after it went public. */
-export const FRESH_LISTING_DAYS = 7;
+export const FRESH_LISTING_DAYS = 3;
 /** Days a real price reduction stays flagged on the card. */
 export const PRICE_DROP_DAYS = 14;
 

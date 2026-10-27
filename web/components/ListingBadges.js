@@ -76,7 +76,7 @@ export function Badge({ tone = 'royal', children, className = '' }) {
  *
  * Beside it, at most ONE promotional stamp (`cardPromoBadge`, 2026-10-18, on
  * product direction): "Prix en baisse −N %" for a recorded reduction in the
- * last 14 days, else "Nouveau" for a listing public for under 7 days. Both
+ * last 14 days, else "Nouveau" for a listing public for under 3 days. Both
  * are decided in SQL (lib/listings.js) — one stamp per card so it still
  * reads as news, not decoration.
  */

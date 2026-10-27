@@ -75,7 +75,7 @@ test('switching Projets neufs off reaches every public and agent entry point', (
   assert.match(read('app/(site)/projets/layout.js'), /publicProjects\) redirect\('\/listings'\)/);
   assert.match(read('app/(site)/promoteurs/layout.js'), /publicProjects\) redirect\('\/listings'\)/);
   assert.match(read('app/compte/agent/projets/layout.js'), /agentProjects\) redirect\('\/compte\/agent'\)/);
-  assert.match(read('app/(site)/layout.js'), /hiddenHrefs=\{features\.publicProjects \? \[\] : \['\/projets'\]\}/);
+  assert.match(read('app/(site)/layout.js'), /hiddenHrefs=\{\[\.\.\.\(features\.publicProjects \? \[\] : \['\/projets'\]\)/);
   assert.match(read('components/Footer.js'), /\['\/projets', '\/promoteurs'\]/);
   assert.match(read('components/projects/NewProjectsStrip.js'), /publicProjects\) return null/);
   assert.match(read('components/projects/AgentProjectsCard.js'), /agentProjects\) return null/);

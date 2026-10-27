@@ -72,8 +72,13 @@ const PRIMARY_LINKS = [
   { href: '/vente', labelKey: 'nav.buy' },
   // New developments and land in lots — their own hub and map (/projets).
   { href: '/projets', labelKey: 'nav.projects' },
-  // À propos took Agences' place on 2026-10-07 (product direction), in the
-  // bar and the drawer alike; the agency directory stays in the footer.
+  // The agent directory (search by name, city, commune) came back on
+  // 2026-10-26 as "Agents", beside À propos, which took Agences' place on
+  // 2026-10-07 — in the bar and the drawer alike.
+  { href: '/agents', labelKey: 'nav.agents' },
+  // Guides & Actualités, only while /admin/settings' publicBlog is on
+  // (app/(site)/layout.js hides it otherwise).
+  { href: '/guides', labelKey: 'nav.blog' },
   { href: '/a-propos', labelKey: 'nav.about' },
 ];
 

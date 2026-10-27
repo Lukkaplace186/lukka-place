@@ -18,7 +18,7 @@ test('no loading.js sits over the whole public site', () => {
 });
 
 test('listing and landing pages check existence in a layout above their own skeleton', () => {
-  for (const dir of ['listings/[id]', 'location/[[...slug]]', 'vente/[[...slug]]']) {
+  for (const dir of ['listings/[id]', 'location/[[...slug]]', 'vente/[[...slug]]', 'guides/[slug]']) {
     const layout = read(`app/(site)/${dir}/layout.js`);
     assert.match(layout, /notFound\(\)/, `${dir}/layout.js must call notFound()`);
     assert.ok(fs.existsSync(path.join(SITE, dir, 'loading.js')), `${dir} keeps its skeleton below the check`);
@@ -34,7 +34,7 @@ test('publicListingExists applies the public gate and getListingById’s joins',
 });
 
 test('every other public section still has a skeleton', () => {
-  for (const dir of ['(home)', 'listings/(search)', 'a-propos', 'compte', 'contact', 'favoris', 'guides', 'messages', 'mises-a-jour', 'mot-de-passe-oublie', 'plan', 'projets', 'promoteurs', 'rapport']) {
+  for (const dir of ['(home)', 'listings/(search)', 'a-propos', 'compte', 'contact', 'favoris', 'guides/(index)', 'messages', 'mises-a-jour', 'mot-de-passe-oublie', 'plan', 'projets', 'promoteurs', 'rapport']) {
     assert.ok(fs.existsSync(path.join(SITE, dir, 'loading.js')), `${dir}/loading.js is missing`);
   }
   // The /listings results sit one group below their boundary, so a filter

@@ -3,9 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  BarChart3, Building2, CalendarClock, ClipboardPaste, HandCoins, ChartNoAxesCombined, CreditCard, FileText, Gauge, HeartPulse, Mail, Presentation, User, Users,
-  Building, Landmark, Link2, Megaphone, MessageCircle, Radar, ScrollText, Settings, ShieldCheck, SlidersHorizontal, Star, Target, TrendingDown, TrendingUp, UsersRound,
-} from 'lucide-react';
+  BarChart3, Building2, CalendarClock, ClipboardPaste, HandCoins, ChartNoAxesCombined, CreditCard, FileText, Gauge, HeartPulse, Mail, Newspaper, Presentation, User, Users,
+} from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { can, sectionPermission } from '@/lib/adminRoles';
 import { useT } from '@/lib/i18n/client';
@@ -35,7 +34,7 @@ import { ADMIN_NAV_GROUPS } from '@/lib/adminNav';
 // reads as five areas rather than one twenty-item column. A role only sees
 // the groups it has at least one section in.
 // The list itself lives in lib/adminNav.js (shared with /admin/settings).
-const ICONS = { BarChart3, Building, Building2, CalendarClock, ClipboardPaste, ChartNoAxesCombined, CreditCard, FileText, Gauge, HandCoins, HeartPulse, Landmark, Link2, Mail, Megaphone, MessageCircle, Presentation, Radar, ScrollText, Settings, ShieldCheck, SlidersHorizontal, Star, Target, TrendingDown, TrendingUp, User, Users, UsersRound };
+const ICONS = { BarChart3, Building, Building2, CalendarClock, ClipboardPaste, ChartNoAxesCombined, CreditCard, FileText, Gauge, HandCoins, HeartPulse, Landmark, Link2, Mail, Megaphone, MessageCircle, Newspaper, Presentation, Radar, ScrollText, Settings, ShieldCheck, SlidersHorizontal, Star, Target, TrendingDown, TrendingUp, User, Users, UsersRound };
 const NAV_GROUPS = ADMIN_NAV_GROUPS.map((group) => ({
   ...group,
   items: group.items.map((item) => ({ ...item, icon: ICONS[item.icon] })),

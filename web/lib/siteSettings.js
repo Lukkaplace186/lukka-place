@@ -37,7 +37,7 @@ export async function getSocialLinks() {
   }
 }
 
-/** @returns {Promise<{agentSubscriptions: boolean, agentProjects: boolean, publicProjects: boolean, hiddenAdminTabs: string[]}>} */
+/** @returns {Promise<{agentSubscriptions: boolean, agentProjects: boolean, publicProjects: boolean, publicBlog: boolean, hiddenAdminTabs: string[]}>} */
 export async function getFeatureFlags() {
   try {
     return await memo(`${MEMO_PREFIX}features`, TTL_MS, async () => featuresFromStored((await readValue(FEATURES_SETTING_KEY))?.value, ADMIN_NAV_HREFS));

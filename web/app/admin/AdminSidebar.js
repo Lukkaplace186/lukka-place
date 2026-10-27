@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   BarChart3, Building2, CalendarClock, ClipboardPaste, HandCoins, ChartNoAxesCombined, CreditCard, FileText, Gauge, HeartPulse, Mail, Newspaper, Presentation, User, Users,
-} from 'lucide-react';
+  Building, Landmark, Link2, Megaphone, MessageCircle, Radar, ScrollText, Settings, ShieldCheck, SlidersHorizontal, Star, Target, TrendingDown, TrendingUp, UsersRound,
+} from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { can, sectionPermission } from '@/lib/adminRoles';
 import { useT } from '@/lib/i18n/client';

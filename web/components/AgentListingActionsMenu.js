@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Archive, ArchiveRestore, BarChart3, CheckCircle2, CircleCheck, CircleDot, Copy, ExternalLink, Megaphone, MoreHorizontal, Pencil, RotateCcw, Trash2 } from 'lucide-react';
+import { Archive, ArchiveRestore, BarChart3, CheckCircle2, CircleCheck, CircleDot, Copy, ExternalLink, Megaphone, MoreHorizontal, Pencil, RotateCcw, Share2, Trash2 } from 'lucide-react';
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from '@/components/ui/sheet';
 import MarkListingSoldDialog from './MarkListingSoldDialog';
 import ListingQuickShare from './ListingQuickShare';
@@ -101,6 +101,13 @@ export default function AgentListingActionsMenu({ listing, isClosed, onStatusCha
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [shareKitOpen, setShareKitOpen] = useState(false);
   const [quickShareOpen, setQuickShareOpen] = useState(false);
+  // Which card the share dialog opens on: the WhatsApp square, or the 4:5
+  // feed card for "Publier sur les réseaux sociaux".
+  const [quickShareFormat, setQuickShareFormat] = useState('square');
+  const openQuickShare = (format) => {
+    setQuickShareFormat(format);
+    setQuickShareOpen(true);
+  };
   const [soldOpen, setSoldOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -225,7 +232,8 @@ export default function AgentListingActionsMenu({ listing, isClosed, onStatusCha
       },
     ],
     [
-      !shareBlocker(listing) && { key: 'whatsapp', whatsapp: true, label: t('agent.listings.shareWhatsApp'), onSelect: () => setQuickShareOpen(true) },
+      !shareBlocker(listing) && { key: 'whatsapp', whatsapp: true, label: t('agent.listings.shareWhatsApp'), onSelect: () => openQuickShare('square') },
+      !shareBlocker(listing) && { key: 'social', Icon: Share2, label: t('agent.listings.shareSocial'), onSelect: () => openQuickShare('feed') },
       { key: 'marketing', Icon: Megaphone, label: t('agent.share.menuItem'), onSelect: () => setShareKitOpen(true) },
     ],
     [
@@ -416,7 +424,14 @@ export default function AgentListingActionsMenu({ listing, isClosed, onStatusCha
       </Dialog>
 
       <AgentListingShareKit listingId={listing.id} blocker={shareBlocker(listing)} open={shareKitOpen} onOpenChange={setShareKitOpen} />
-      <ListingQuickShare listing={listing} caption={caption} open={quickShareOpen} onOpenChange={setQuickShareOpen} />
+      <ListingQuickShare
+        key={quickShareFormat}
+        listing={listing}
+        caption={caption}
+        open={quickShareOpen}
+        onOpenChange={setQuickShareOpen}
+        initialFormat={quickShareFormat}
+      />
     </>
   );
 }

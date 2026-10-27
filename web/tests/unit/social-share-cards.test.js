@@ -235,7 +235,7 @@ test('social caption: no WhatsApp *bold*, the same facts, hashtags from real fie
   assert.match(kit, /style: channel === 'social' \? 'social' : 'whatsapp'/);
   assert.match(kit, /channel === 'social' && audience === 'team' \? TEAM_SOCIAL_SOURCE : source/);
   // The agent's kit carries their partner code on every link; the team's none.
-  assert.match(read('app/compte/agent/shareActions.js'), /return buildShareKit\(listing, \{ refCode: await ensureAgentPartnerCode\(agentId\) \}\);/);
+  assert.match(read('app/compte/agent/shareActions.js'), /return buildShareKit\(listing, \{ refCode: await ensureAgentPartnerCode\(agentId\), agentId \}\);/);
   assert.match(kit, /const ref = audience === 'agent' \? refCode : null;/);
 });
 

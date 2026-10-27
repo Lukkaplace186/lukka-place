@@ -1,6 +1,9 @@
 import 'server-only';
 import { agentBrandFields, frenchTypeText, PLATFORM_MARK_PATH, PLATFORM_MARK_LIGHT_PATH, PLATFORM_WORDMARK_PATH } from '../listingFlyer';
-import { SHARE_SOURCES, TEAM_SOCIAL_SOURCE, agentContactPhone, buildListingSocialCopy, listingPublicUrl, shareBlocker } from '../listingShareCopy';
+import {
+  AGENT_BIO_SOURCE, SHARE_SOURCES, TEAM_SOCIAL_SOURCE, agentContactPhone, agentPageLabel, agentPageUrl, buildListingSocialCopy,
+  listingPublicUrl, shareBlocker,
+} from '../listingShareCopy';
 import { buildFlyerPack } from './sharePackData';
 
 function supabaseHost() {
@@ -34,11 +37,20 @@ function supabaseHost() {
  * lib/partners.js), so an account created from it is credited to them. The
  * team's kit carries none.
  *
+ * An agent's kit also carries `agentPage` (2026-10-27): their own page on
+ * Lukka Place, `/agents/<agentId>` with their code — the link for their
+ * Instagram / TikTok bio, and a "Tous mes biens" line in the social caption.
+ * The team's kit has none: a company post leads to the listing only.
+ *
  * @param {object} listing
- * @param {{audience?: 'agent'|'team', refCode?: string|null}} [options]
+ * @param {{audience?: 'agent'|'team', refCode?: string|null, agentId?: number|null}} [options]
  */
-export function buildShareKit(listing, { audience = 'agent', refCode = null } = {}) {
+export function buildShareKit(listing, { audience = 'agent', refCode = null, agentId = null } = {}) {
   const ref = audience === 'agent' ? refCode : null;
+  const pageLabel = audience === 'agent' ? agentPageLabel(agentId) : null;
+  const agentPage = pageLabel
+    ? { label: pageLabel, url: agentPageUrl(agentId, { source: AGENT_BIO_SOURCE, ref }) }
+    : null;
   const blocker = shareBlocker(listing);
   const typeText = frenchTypeText(listing);
   const contactPhone = agentContactPhone(listing);
@@ -53,6 +65,7 @@ export function buildShareKit(listing, { audience = 'agent', refCode = null } = 
         contactName: brand.name,
         url: listingPublicUrl(listing.id, { source: sourceFor(channel, source), ref }),
         style: channel === 'social' ? 'social' : 'whatsapp',
+        agentPage: channel === 'social' && agentPage ? agentPageUrl(agentId, { source, ref }) : null,
       }),
     ]),
   );
@@ -62,6 +75,7 @@ export function buildShareKit(listing, { audience = 'agent', refCode = null } = 
     shareable: !blocker,
     blocker,
     url: listingPublicUrl(listing.id, { ref }),
+    agentPage,
     copy: copies.copy,
     copies,
     pack: buildFlyerPack(listing, {

@@ -1136,6 +1136,7 @@
       "edit": "Modifier",
       "duplicate": "Dupliquer",
       "shareWhatsApp": "Partager sur WhatsApp",
+      "shareSocial": "Publier sur les réseaux sociaux",
       "relist": "Remettre en ligne",
       "deleteOne": "Supprimer ce bien ?",
       "relisted": "« {title} » remis en ligne.",
@@ -2510,7 +2511,12 @@
       "downloadShort": "Télécharger",
       "copyCaption": "Copier la légende",
       "captionCopiedShort": "Légende copiée",
-      "hintFeed": "La légende est copiée en même temps : collez-la sous la photo. Sur Instagram, le lien ne s’ouvre pas d’un tap."
+      "hintFeed": "La légende est copiée en même temps : collez-la sous la photo. Sur Instagram, le lien ne s’ouvre pas d’un tap.",
+      "myPageTitle": "Ma page Lukka Place",
+      "myPageHint": "Mettez ce lien dans votre bio Instagram ou TikTok : vos abonnés y trouvent tous vos biens et vous contactent.",
+      "myPageCopy": "Copier",
+      "myPageCopied": "Lien copié",
+      "myPageCopyFailed": "Le lien n’a pas pu être copié."
     },
     "inbox": {
       "filterLabel": "Filtrer les demandes",

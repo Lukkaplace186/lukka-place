@@ -43,8 +43,12 @@ import { normaliseReferralCode } from './launchCommission';
  *   listing's link on Lukka Place and socialHashtags(). A social post — the
  *   team's or an agent's — sends people back to the platform, where the
  *   visit request and the agent's contact are (product direction 2026-10-26).
+ *   `agentPage` (social only): the agent's own page, agentPageUrl() — a
+ *   "Tous mes biens sur Lukka Place" line after the listing's link.
  */
-export function buildListingSocialCopy(listing, { typeText = null, url = null, contactPhone = null, contactName = null, style = 'whatsapp' } = {}) {
+export function buildListingSocialCopy(listing, {
+  typeText = null, url = null, contactPhone = null, contactName = null, style = 'whatsapp', agentPage = null,
+} = {}) {
   const lines = [];
   const social = style === 'social';
   // WhatsApp renders *…* as bold. Elsewhere (a Facebook group, a pasted SMS)
@@ -82,6 +86,11 @@ export function buildListingSocialCopy(listing, { typeText = null, url = null, c
   }
 
   if (url) lines.push('', social ? 'Photos, visite et contact de l’agent sur Lukka Place ↓' : 'Photos et visite ↓', url);
+
+  // An agent's social post also names their own page on Lukka Place (all
+  // their listings, their contact under the site's rule), so a follower who
+  // wants more than this one property lands on the agent, still on the platform.
+  if (social && agentPage) lines.push('', 'Tous mes biens sur Lukka Place :', agentPage);
 
   if (social) {
     const tags = socialHashtags(listing, { typeText });
@@ -194,6 +203,36 @@ export const SHARE_SOURCES = Object.freeze({
  * company's posts and the agents' read as two sources.
  */
 export const TEAM_SOCIAL_SOURCE = 'lukka_reseaux';
+
+/**
+ * The agent's own page link as they put it in their Instagram / TikTok bio
+ * (the 4:5 dialog's "Ma page Lukka Place"): links in those captions do not
+ * open, so the bio is where followers tap through.
+ */
+export const AGENT_BIO_SOURCE = 'bio_agent';
+
+/**
+ * The agent's public page, `/agents/<id>` (app/(portfolio)/agents/[id]: every
+ * live listing of theirs, their contact under the listing page's rule), with
+ * the same `ref=` as their listing links so an account made from it is
+ * credited to them.
+ */
+export function agentPageUrl(agentId, { source = null, ref = null } = {}) {
+  const id = Number(agentId);
+  if (!Number.isSafeInteger(id) || id <= 0) return null;
+  const parts = [];
+  if (source) parts.push(`utm_source=${encodeURIComponent(source)}`);
+  const code = normaliseReferralCode(ref);
+  if (code) parts.push(`ref=${code}`);
+  const url = `${SITE_URL}/agents/${id}`;
+  return parts.length ? `${url}?${parts.join('&')}` : url;
+}
+
+/** "lukkaplace.com/agents/37" — the page as it is shown and typed. */
+export function agentPageLabel(agentId) {
+  const url = agentPageUrl(agentId);
+  return url ? url.replace(/^https?:\/\//, '') : null;
+}
 
 /**
  * `medium` / `campaign` are optional and only appended after a source; all

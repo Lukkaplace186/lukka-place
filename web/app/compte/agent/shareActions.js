@@ -47,7 +47,7 @@ async function ownedListing(listingId) {
 export async function getSharePackAction(listingId) {
   const { listing, agentId, error } = await ownedListing(listingId);
   if (error) return error;
-  return buildShareKit(listing, { refCode: await ensureAgentPartnerCode(agentId) });
+  return buildShareKit(listing, { refCode: await ensureAgentPartnerCode(agentId), agentId });
 }
 
 /**
@@ -71,7 +71,7 @@ export async function getStatusPacksAction(listingIds) {
   for (const id of ids) {
     const listing = await getFlyerListing(agentId, id);
     if (!listing) continue;
-    const kit = buildShareKit(listing, { refCode });
+    const kit = buildShareKit(listing, { refCode, agentId });
     if (kit.shareable) kits.push(kit);
   }
   return { ok: true, kits };

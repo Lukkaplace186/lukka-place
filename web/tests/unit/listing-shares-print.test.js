@@ -349,7 +349,7 @@ test('Mes biens: WhatsApp opens the listing card share from the card and the row
   assert.match(table, /caption=\{captions\[String\(listing\.id\)\]\}/);
   const menu = readFileSync(path.join(ROOT, 'components/AgentListingActionsMenu.js'), 'utf8');
   assert.match(menu, /!shareBlocker\(listing\) && \{ key: 'whatsapp'/);
-  assert.match(menu, /key: 'whatsapp', whatsapp: true, label: t\('agent\.listings\.shareWhatsApp'\), onSelect: \(\) => setQuickShareOpen\(true\)/);
+  assert.match(menu, /key: 'whatsapp', whatsapp: true, label: t\('agent\.listings\.shareWhatsApp'\), onSelect: \(\) => openQuickShare\('square'\)/);
   const flyer = readFileSync(path.join(ROOT, 'lib/listingFlyer.js'), 'utf8');
   assert.match(flyer, /WHERE p\.id = ANY\(\$2::bigint\[\]\) AND p\.agent_id = \$3/);
   const actions = readFileSync(path.join(ROOT, 'app/compte/agent/shareActions.js'), 'utf8');

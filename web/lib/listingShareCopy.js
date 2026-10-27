@@ -4,6 +4,7 @@ import { formatPhoneDisplay } from './phone';
 import { entryTerms, formatArea, hasArea } from './listingView';
 import { SITE_URL } from './constants';
 import { cityOfListing, communeLabel } from './cities';
+import { normaliseReferralCode } from './launchCommission';
 
 /**
  * The ready-to-paste text an agent posts with one of their listings — the
@@ -195,17 +196,23 @@ export const SHARE_SOURCES = Object.freeze({
 export const TEAM_SOCIAL_SOURCE = 'lukka_reseaux';
 
 /**
- * `medium` / `campaign` are optional and only appended after a source. Only
- * `utm_source` is recorded today (lib/analyticsClient.js forwards that one
- * label); the other two survive in the link for any later reader.
+ * `medium` / `campaign` are optional and only appended after a source; all
+ * three are recorded (lib/attribution.js). `ref` is the sharing agent's own
+ * partner code (lib/partners.js ensureAgentPartnerCode): whoever opens the
+ * link and creates an account is credited to that agent. It goes last and is
+ * appended with or without a source.
  */
-export function listingPublicUrl(id, { source = null, medium = null, campaign = null } = {}) {
+export function listingPublicUrl(id, { source = null, medium = null, campaign = null, ref = null } = {}) {
   const url = `${SITE_URL}/listings/${id}`;
-  if (!source) return url;
-  const parts = [`utm_source=${encodeURIComponent(source)}`];
-  if (medium) parts.push(`utm_medium=${encodeURIComponent(medium)}`);
-  if (campaign) parts.push(`utm_campaign=${encodeURIComponent(campaign)}`);
-  return `${url}?${parts.join('&')}`;
+  const parts = [];
+  if (source) {
+    parts.push(`utm_source=${encodeURIComponent(source)}`);
+    if (medium) parts.push(`utm_medium=${encodeURIComponent(medium)}`);
+    if (campaign) parts.push(`utm_campaign=${encodeURIComponent(campaign)}`);
+  }
+  const code = normaliseReferralCode(ref);
+  if (code) parts.push(`ref=${code}`);
+  return parts.length ? `${url}?${parts.join('&')}` : url;
 }
 
 /**

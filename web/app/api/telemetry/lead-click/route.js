@@ -2,15 +2,16 @@ import { getPool } from '@/lib/db';
 import { analyticsDimensions } from '@/lib/requestContext';
 import { clientKey, rateLimited, usableAmount } from '@/lib/eventIngest';
 import { recordLeadClick, LEAD_CLICK_ROUTING_TYPES } from '@/lib/leadClicks';
-import { signedInAgentIdFrom, viewerKindFor, visitorIdFrom } from '@/lib/trackIngest';
+import { attributionFromBody, eventSource, signedInAgentIdFrom, viewerKindFor, visitorIdFrom } from '@/lib/trackIngest';
 
 /**
  * POST /api/telemetry/lead-click — one tap on a listing's WhatsApp button,
  * fired by lib/analyticsClient.js's trackLeadClick (`whatsapp_cta_clicked`).
  *
  * Same trust posture as /api/track: unauthenticated, write-only, rate limited
- * per IP through the shared lib/eventIngest.js budget, device and source taken
- * from the request headers rather than the body, and every tap stored with its
+ * per IP through the shared lib/eventIngest.js budget, device taken from the
+ * request headers and source from the session's attribution (lib/attribution.js),
+ * and every tap stored with its
  * `viewer_kind` — the listing's own agent, the team and bots included
  * (lib/trackIngest.js). What this
  * adds is the routing the button took, which is the one thing /admin/telemetry
@@ -28,7 +29,7 @@ export async function POST(request) {
     return Response.json({ success: false, error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const { listingId, commune, price, routingType, utmSource } = body || {};
+  const { listingId, commune, price, routingType } = body || {};
   if (!LEAD_CLICK_ROUTING_TYPES.includes(routingType)) {
     return Response.json(
       { success: false, error: `routingType must be one of ${LEAD_CLICK_ROUTING_TYPES.join(', ')}` },
@@ -40,7 +41,9 @@ export async function POST(request) {
     return Response.json({ success: false, error: 'listingId is required' }, { status: 400 });
   }
 
-  const { device, source } = analyticsDimensions(request.headers, { utmSource });
+  const headerDimensions = analyticsDimensions(request.headers);
+  const device = headerDimensions.device;
+  const source = eventSource(attributionFromBody(body), headerDimensions.source);
   const agentId = signedInAgentIdFrom(request);
   const viewerKind = viewerKindFor(request, device, { automated: body?.automated === true, agentId });
 

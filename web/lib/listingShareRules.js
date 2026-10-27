@@ -1,4 +1,5 @@
 import { SITE_URL } from './constants';
+import { normaliseReferralCode } from './launchCommission';
 
 /**
  * Share recording and the print pages — the pure half (no DB, no DOM), so the
@@ -118,9 +119,10 @@ export const PRINT_MEDIA = Object.freeze({ poster: 'poster', fiche: 'fiche' });
  * lib/analyticsClient.js forwards into page_views.source; utm_medium tells a
  * poster from a sheet for anyone reading the raw URL.
  */
-export function printListingUrl(id, medium) {
+export function printListingUrl(id, medium, { ref = null } = {}) {
   const safeMedium = PRINT_MEDIA[medium] || PRINT_MEDIA.poster;
-  return `${SITE_URL}/listings/${Number(id)}?utm_source=print&utm_medium=${safeMedium}`;
+  const code = normaliseReferralCode(ref);
+  return `${SITE_URL}/listings/${Number(id)}?utm_source=print&utm_medium=${safeMedium}${code ? `&ref=${code}` : ''}`;
 }
 
 /**

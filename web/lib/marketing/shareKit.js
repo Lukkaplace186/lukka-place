@@ -30,10 +30,15 @@ function supabaseHost() {
  * Facebook: no WhatsApp *bold*, no agent number (it sends people back to the
  * listing on lukkaplace.com), hashtags at the end.
  *
+ * Every link in an agent's kit carries their partner code (`refCode`,
+ * lib/partners.js), so an account created from it is credited to them. The
+ * team's kit carries none.
+ *
  * @param {object} listing
- * @param {{audience?: 'agent'|'team'}} [options]
+ * @param {{audience?: 'agent'|'team', refCode?: string|null}} [options]
  */
-export function buildShareKit(listing, { audience = 'agent' } = {}) {
+export function buildShareKit(listing, { audience = 'agent', refCode = null } = {}) {
+  const ref = audience === 'agent' ? refCode : null;
   const blocker = shareBlocker(listing);
   const typeText = frenchTypeText(listing);
   const contactPhone = agentContactPhone(listing);
@@ -46,7 +51,7 @@ export function buildShareKit(listing, { audience = 'agent' } = {}) {
         typeText,
         contactPhone,
         contactName: brand.name,
-        url: listingPublicUrl(listing.id, { source: sourceFor(channel, source) }),
+        url: listingPublicUrl(listing.id, { source: sourceFor(channel, source), ref }),
         style: channel === 'social' ? 'social' : 'whatsapp',
       }),
     ]),
@@ -56,7 +61,7 @@ export function buildShareKit(listing, { audience = 'agent' } = {}) {
     audience,
     shareable: !blocker,
     blocker,
-    url: listingPublicUrl(listing.id),
+    url: listingPublicUrl(listing.id, { ref }),
     copy: copies.copy,
     copies,
     pack: buildFlyerPack(listing, {

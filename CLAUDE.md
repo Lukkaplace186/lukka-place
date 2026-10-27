@@ -2023,3 +2023,16 @@ and the default — a rent with no period, or a monthly / yearly one.
   row used it). SQLite keeps two unused toilet / shower columns.
 - The intake card prints every stated detail ("*Terrain* : 15/20 (300 m² · 3 ares)").
 
+
+## Where accounts come from — engine half (2026-10-27)
+
+`migrations/20261027_growth_attribution.sql` (Postgres: page-view campaign
+columns, `visitor_touches`, `partners` / `partner_clicks` /
+`partner_conversions`, `account_acquisitions`; one code namespace with
+`sales_reps.referral_code`, enforced by triggers). Web owns almost all of it —
+web/CLAUDE.md, "Where visitors and accounts come from". Engine side:
+`services/accountAcquisition.js`, called from `upsertAgentFromWhatsApp` for an
+account created there, in its own SAVEPOINT: `channel` whatsapp or admin, and
+the rep's code when `attributeNewAgentInTransaction` attributed one (it now
+returns `code`). A missing table records nothing; the account never depends
+on it. §66 checks both channels.

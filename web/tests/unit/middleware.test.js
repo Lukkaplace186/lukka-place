@@ -35,6 +35,8 @@ test('the matcher covers exactly the private realms, plus everything for a "view
     // /listings only when it carries a ?city= / ?location= alias (lib/searchAliases.js).
     { source: '/listings', has: [{ type: 'query', key: 'city' }] },
     { source: '/listings', has: [{ type: 'query', key: 'location' }] },
+    // ?ref=CODE on any page except the API, /go and /r (lib/partnerRules.js).
+    { source: '/((?!_next/static|_next/image|favicon\\.ico|api/|go/|r/).*)', has: [{ type: 'query', key: 'ref' }] },
   ]);
   assert.equal(config.runtime, 'nodejs', 'node:crypto primitives require the Node runtime, not Edge');
 });
@@ -138,4 +140,29 @@ test('an AGENT session must not open a customer portal page', () => {
 test('a garbage cookie is treated as no cookie', () => {
   const req = requestFor('/admin/dashboard', { cookies: { [ADMIN_SESSION_COOKIE]: 'not-a-token' } });
   assert.equal(outcome(middleware(req)).redirected, true);
+});
+
+function getRequest(pathname, search = '') {
+  return {
+    method: 'GET',
+    nextUrl: { pathname, search, searchParams: new URLSearchParams(search) },
+    url: `http://localhost:3002${pathname}${search}`,
+    cookies: { get: () => undefined },
+  };
+}
+
+test('?ref=CODE on a page goes through /go, which lands back on the page without it', () => {
+  const { location } = outcome(middleware(getRequest('/listings/387', '?utm_source=wa_status&ref=MARIE01')));
+  assert.equal(location.pathname, '/go/MARIE01');
+  assert.equal(location.searchParams.get('via'), 'param');
+  assert.equal(location.searchParams.get('to'), '/listings/387?utm_source=wa_status');
+});
+
+test('agent signup keeps its own ?ref= (a sales rep code that prefills the form)', () => {
+  assert.equal(outcome(middleware(getRequest('/compte/agent/inscription', '?ref=JEAN01'))).redirected, false);
+});
+
+test('a POST carrying ?ref= is never redirected', () => {
+  const req = { ...getRequest('/listings', '?ref=MARIE01'), method: 'POST' };
+  assert.equal(outcome(middleware(req)).redirected, false);
 });

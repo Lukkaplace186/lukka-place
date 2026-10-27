@@ -279,11 +279,13 @@ test('shared links carry a per-channel utm_source, and the untagged URL stays cl
   for (const label of Object.values(SHARE_SOURCES)) assert.match(label, /^[a-z_]+$/);
 });
 
-test('the beacon forwards the landing utm_source — the endpoints accepted it but nothing sent it', () => {
+test('the beacon forwards the session attribution — the endpoints accepted it but nothing sent it', () => {
   const client = readFileSync(path.join(process.cwd(), 'lib/analyticsClient.js'), 'utf8');
-  // One shared beacon() sends it, and both endpoints go through that beacon.
-  assert.equal(client.match(/utmSource: landingUtmSource\(\)/g)?.length, 1);
-  assert.match(client, /function beacon\(url, body\)[\s\S]*utmSource: landingUtmSource\(\)/);
+  // One shared beacon() sends it (lib/attribution.js since 2026-10-27: the
+  // whole campaign, kept for the session), and both endpoints go through it.
+  assert.equal(client.match(/\.\.\.attributionFields\(\)/g)?.length, 1);
+  assert.match(client, /function beacon\(url, body\)[\s\S]*\.\.\.attributionFields\(\)/);
+  assert.match(client, /utmSource: attribution\.source \|\| sourceOf\(attribution\)/);
   assert.match(client, /beacon\('\/api\/track'/);
   assert.match(client, /beacon\('\/api\/telemetry\/lead-click'/);
 });

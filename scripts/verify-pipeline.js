@@ -8857,7 +8857,7 @@ console.log('\n2. services/openai.js');
       ['INSERT INTO sales_agent_attributions', [{ agent_id: 501 }]],
     ]);
     const result = await salesReferral.attributeNewAgentInTransaction(client, { agentId: 501, waId: REFERRED });
-    assert.deepStrictEqual(result, { attributed: true, repId: 7 });
+    assert.deepStrictEqual(result, { attributed: true, repId: 7, code: 'JEAN01' });
     const insert = client.seen.find((q) => q.sql.startsWith('INSERT INTO sales_agent_attributions'));
     assert.ok(insert.sql.includes("'whatsapp_code'") && insert.sql.includes('ON CONFLICT (agent_id) DO NOTHING'));
     assert.deepStrictEqual(insert.values, [501, 7, 'JEAN01']);
@@ -12764,10 +12764,16 @@ console.log('\n2. services/openai.js');
     // statements these two paths issue.
     const agents66 = [];
     const locks66 = [];
+    const acquisitions66 = [];
     const digitsOf = (p) => String(p || '').replace(/\D/g, '');
     const client66 = {
       async query(sql, params = []) {
         if (/^(BEGIN|COMMIT|ROLLBACK)/.test(sql)) return { rows: [] };
+        if (/^(SAVEPOINT|RELEASE SAVEPOINT) account_acquisition/.test(sql)) return { rows: [] };
+        if (/INSERT INTO account_acquisitions/.test(sql)) {
+          acquisitions66.push({ agentId: params[0], channel: params[1], refCode: params[2] });
+          return { rows: [], rowCount: 1 };
+        }
         if (/pg_advisory_xact_lock/.test(sql)) { locks66.push(params[0]); return { rows: [] }; }
         if (/SELECT id FROM agents\s+WHERE regexp_replace[\s\S]*id <> \$2/.test(sql)) {
           return { rows: agents66.filter((a) => digitsOf(a.phone) === params[0] && a.id !== params[1] && a.phone_verified_at && !a.deleted_at) };
@@ -12924,6 +12930,17 @@ console.log('\n2. services/openai.js');
         const row = agents66.find((a) => a.id === result.agentId);
         assert.strictEqual(row.onboarding_source, 'whatsapp');
         assert.deepStrictEqual(row.info, { first: 'Jean', last: 'Kabeya' });
+      });
+
+      check('each account created here records where it came from: whatsapp or admin (account_acquisitions)', () => {
+        const channels = new Set(acquisitions66.map((a) => a.channel));
+        assert.ok(channels.has('whatsapp'), 'the WhatsApp onboarding account');
+        assert.ok(channels.has('admin'), 'the console-created account');
+        assert.ok(acquisitions66.every((a) => a.refCode === null), 'no rep code was sent from these numbers');
+        const acquisition = require('../services/accountAcquisition');
+        assert.strictEqual(acquisition.channelFor('admin'), 'admin');
+        assert.strictEqual(acquisition.channelFor('anything'), 'whatsapp');
+        assert.match(acquisition.RECORD_SQL, /ON CONFLICT \(account_type, account_id\) DO NOTHING/);
       });
 
       check('the two actions exist only behind requireApiKey', () => {

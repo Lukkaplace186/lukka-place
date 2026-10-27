@@ -13,6 +13,7 @@ import { hashPassword } from '@/lib/customerAuth';
 import { establishCustomerSession } from '@/lib/customerSession';
 import { setVerifyAttemptCookie } from '@/lib/verifyAttempt';
 import { otpBypassEnabled, logOtpBypass } from '@/lib/otpBypass';
+import { recordWebSignupAttribution } from '@/lib/accountAcquisition';
 
 function safeNext(nextParam) {
   const next = String(nextParam || '/compte/client');
@@ -65,6 +66,10 @@ export async function signupAction(formData) {
   }
 
   const customer = await createCustomer({ phone, passwordHash: hashPassword(password), fullName });
+
+  // Where the account came from and which partner's link brought it
+  // (lib/accountAcquisition.js). Never throws.
+  await recordWebSignupAttribution({ accountType: 'customer', accountId: Number(customer.id), phone });
 
   // Merged now, before verification, deliberately: the row exists, the data
   // is the visitor's own device state, and losing it because a code was

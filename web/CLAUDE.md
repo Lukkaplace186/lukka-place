@@ -3344,3 +3344,77 @@ Tests: `tests/unit/investor-metrics.test.js`.
   days), agent response (agent_performance_logs), acquisition by source, and
   when each measurement began.
 - Not built: cost per lead (no ad-spend record), cohort charts.
+
+## Where visitors and accounts come from — attribution and partner codes (2026-10-27)
+
+Growth plan items 1–3 and 8–10. Engine migration
+`migrations/20261027_growth_attribution.sql` (additive; web writes correctly
+before it runs — every INSERT falls back on 42703 / 42P01). Tests:
+`tests/unit/growth-attribution.test.js`, `middleware.test.js`; engine §34, §66.
+
+- **One session, one source** (`lib/attribution.js`, pure, client + server).
+  The beacon used to send only the current page's `utm_source`, and its own
+  Referer is lukkaplace.com, so everything after the landing page — and every
+  visit from Google or Facebook without tags — was stored as `direct`. The
+  browser now keeps the landing attribution in sessionStorage (`lp_attr`):
+  utm source / medium / campaign / content / term, the ad click id
+  (`fbclid` / `ttclid` / `gclid`), the external referrer host and the landing
+  path. Every beacon carries it as `attribution` (plus `utmSource` for old
+  servers); a new tagged link replaces it. `source` on page views, WhatsApp
+  taps, listing events and searches is `sourceOf(attribution)`: utm_source,
+  else the ad platform, else the referrer host, else `direct`. **Expect the
+  dashboard's source split to move**: sessions that were `direct` after their
+  first page now carry their campaign.
+- **`page_views` stores the full campaign** (`utm_medium`, `utm_campaign`,
+  `utm_content`, `utm_term`, `click_id_type`, `referrer_host`, `ref_code`).
+  The other event tables keep only `source`; a campaign for a tap or a search
+  comes from the visitor's touch (below), joined on `visitor_id`.
+- **`visitor_touches`**, one row per `lp_vid`, written on each page view for
+  `visitor` / `agent` viewers only: the FIRST source ever seen (never updated)
+  and the LAST touch — a campaign tag, an ad click or another site; a partner
+  cookie alone is not a touch. Untagged visits only move `last_seen_at`, at
+  most every 30 minutes. The click id is kept here (Meta / TikTok server
+  events will need it).
+- **`account_acquisitions`**, written ONCE when an account is created:
+  `lib/accountAcquisition.js` from both web signup actions (copies the
+  visitor's touch in the INSERT, so a later cookie change never moves it), and
+  the engine's `services/accountAcquisition.js` from `upsertAgentFromWhatsApp`
+  (`channel` whatsapp / admin, the rep's code when one was attributed; no
+  browser, so no campaign). Never throws into a signup.
+- **Partners** (`lib/partnerRules.js` pure, `lib/partners.js` SQL): agents,
+  creators and campaigns, each with a code in the sales-rep shape (MARIE01).
+  **One namespace with `sales_reps.referral_code`**, enforced by triggers on
+  both tables. `partner_clicks` (one per connection per partner per hour),
+  `partner_conversions` (one per account — first valid referral wins).
+  - **`/go/<code>`** (`app/go/[code]/[[...rest]]/route.js`): `/go/NADIA01` →
+    `/`, `/go/NADIA01/387` → `/listings/387`. Counts the click, mints `lp_vid`
+    when the browser has none (so click and visit share it), sets `lp_ref`
+    (30 days, httpOnly, not replaced while it names an active partner), and
+    lands tagged `utm_source=agent|influencer|campagne&utm_medium=partner&utm_content=<code>`
+    — unless the destination already has a utm_source (an agent's shared link
+    keeps `wa_status` etc.). A rep's code → `/r/<code>` as before; unknown →
+    lands untagged.
+  - **`?ref=CODE` on any page** → middleware.js 307s to
+    `/go/CODE?via=param&to=<page without ref>`. Not on
+    `/compte/agent/inscription` (its `?ref=` is a rep code prefilling the
+    form), `/go`, `/r`, `/api`, `/admin`; GET only. A rep code there is
+    ignored, never pulling a customer into agent signup.
+  - **Signup credits the partner** in `lp_ref` (customer and agent web
+    signup); never an agent's own number.
+- **Every agent has a code** (`ensureAgentPartnerCode`, created on first
+  need: first name, else agency name, else `LP` + id in letters), and it rides
+  as `ref=` (last param) on the links they share: the share kit's captions and
+  link (square, 4:5, text), Mes biens' WhatsApp captions, Statut du jour,
+  `!share` / `!mesbiens`, the print QR code (not the neutral sheet, which has
+  no QR) and the owner report caption. **Deliberately NOT on replies to
+  customers Lukka Place brought** — lead replies, alternatives, quick replies:
+  those people were ours, and crediting the agent for them would pay for our
+  own leads. The team's social kit carries no code.
+- Before the migration: no codes (links unchanged), nothing credited, page
+  views fall back to the older INSERTs.
+- **Not built yet** (growth plan, later items): the $1 rule and ledger
+  (13–15), the agent "Mes parrainages" card (16), `/admin/partenaires` and
+  creator management (17–19), Meta / TikTok pixels and server events (5–6),
+  consent (7), the launch dashboard (21). Until 18 exists, a creator partner
+  is created with SQL (`INSERT INTO partners (kind, code, name, handle) VALUES
+  ('creator', 'NADIA01', 'Nadia', '@nadia')`).

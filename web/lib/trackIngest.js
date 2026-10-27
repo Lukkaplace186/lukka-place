@@ -1,5 +1,7 @@
 import 'server-only';
 import { AGENT_SESSION_COOKIE, verifyAgentSessionToken } from './agentAuth';
+import { cleanAttribution, isTagged, sourceOf } from './attribution';
+import { PARTNER_COOKIE, parsePartnerCookie } from './partnerRules';
 
 /**
  * The write side of every storefront engagement event: page views, the
@@ -128,6 +130,17 @@ export function visitorIdFrom(request, bodyValue) {
 export const viewerKindSql = (kindParam, listingParam, agentParam) =>
   `CASE WHEN ${kindParam}::text = 'agent' AND EXISTS (SELECT 1 FROM properties WHERE id = ${listingParam}::bigint AND agent_id = ${agentParam}::bigint) THEN 'owner' ELSE ${kindParam}::text END`;
 
+/**
+ * The page view with its full campaign (migrations/20261027_growth_attribution.sql).
+ * Before that migration: RECORD_PAGE_VIEW_SQL, then the legacy one.
+ */
+export const RECORD_PAGE_VIEW_CAMPAIGN_SQL = `
+  INSERT INTO page_views (path, commune, device, source, listing_id, visitor_id, viewer_kind,
+                          utm_medium, utm_campaign, utm_content, utm_term, click_id_type, referrer_host, ref_code)
+  VALUES ($1::text, $2::text, $3::text, $4::text, $5::bigint, $6::text, ${viewerKindSql('$7', '$5', '$8')},
+          $9::text, $10::text, $11::text, $12::text, $13::text, $14::text, $15::text)
+`;
+
 export const RECORD_PAGE_VIEW_SQL = `
   INSERT INTO page_views (path, commune, device, source, listing_id, visitor_id, viewer_kind)
   VALUES ($1::text, $2::text, $3::text, $4::text, $5::bigint, $6::text, ${viewerKindSql('$7', '$5', '$8')})
@@ -155,27 +168,142 @@ export const RECORD_SEARCH_SQL = `
   VALUES ($1, $2, $3::text[], $4, $5, $6, $7, $8, $9::text[], $10, $11, $12, $13, $14)
 `;
 
-async function withLegacyFallback(pool, [sql, values], [legacySql, legacyValues]) {
-  try {
-    const result = await pool.query(sql, values);
-    return result.rowCount > 0;
-  } catch (err) {
-    if (err?.code !== MISSING_COLUMN) throw err;
-    const result = await pool.query(legacySql, legacyValues);
-    return result.rowCount > 0;
+/** Tries each [sql, values] in turn, moving on only when a column does not exist yet. */
+async function withLegacyFallback(pool, ...attempts) {
+  for (let i = 0; i < attempts.length; i += 1) {
+    const [sql, values] = attempts[i];
+    try {
+      const result = await pool.query(sql, values);
+      return result.rowCount > 0;
+    } catch (err) {
+      if (err?.code !== MISSING_COLUMN || i === attempts.length - 1) throw err;
+    }
   }
+  return false;
 }
 
 const kindOrVisitor = (kind) => (VIEWER_KINDS.includes(kind) ? kind : 'visitor');
 
 /** @returns {Promise<boolean>} whether a row was written. */
-export async function recordPageView(pool, { path, commune, device, source, visitorId, viewerKind, agentId }) {
+export async function recordPageView(pool, {
+  path, commune, device, source, visitorId, viewerKind, agentId, attribution = null, refCode = null,
+}) {
   const listingId = listingIdFromPath(path);
+  const tracked = [path, commune || null, device, source, listingId, visitorId || null, kindOrVisitor(viewerKind), agentId || null];
+  const a = attribution || {};
   return withLegacyFallback(
     pool,
-    [RECORD_PAGE_VIEW_SQL, [path, commune || null, device, source, listingId, visitorId || null, kindOrVisitor(viewerKind), agentId || null]],
+    [RECORD_PAGE_VIEW_CAMPAIGN_SQL, [...tracked, a.medium || null, a.campaign || null, a.content || null, a.term || null,
+      a.clickIdType || null, a.referrerHost || null, refCode || null]],
+    [RECORD_PAGE_VIEW_SQL, tracked],
     [RECORD_PAGE_VIEW_LEGACY_SQL, [path, commune || null, device, source]],
   );
+}
+
+// ---------------------------------------------------------------------------
+// Where the visit came from
+// ---------------------------------------------------------------------------
+
+/**
+ * The beacon's attribution (lib/attribution.js), or — from a page cached
+ * before the `attribution` field existed — its bare `utmSource`.
+ */
+export function attributionFromBody(body) {
+  const cleaned = cleanAttribution(body?.attribution);
+  if (cleaned) return cleaned;
+  return cleanAttribution({ source: typeof body?.utmSource === 'string' ? body.utmSource : null });
+}
+
+/**
+ * The stored `source` for an event: the session's campaign or referrer
+ * (sourceOf), else what the request headers say — which, for a beacon whose
+ * Referer is our own page, is 'direct'.
+ */
+export function eventSource(attribution, headerSource) {
+  return attribution ? sourceOf(attribution) : headerSource || 'direct';
+}
+
+/** The partner code this browser carries (`lp_ref`, set by /go), or null. */
+export function partnerCodeFrom(request) {
+  return parsePartnerCookie(cookieValue(request, PARTNER_COOKIE))?.code ?? null;
+}
+
+/** Who gets a touch recorded: people, not the team, crawlers or prefetches. */
+export const TOUCH_VIEWER_KINDS = ['visitor', 'agent'];
+
+/**
+ * One row per visitor id: the first source ever seen, written once, and the
+ * last TOUCH — a campaign tag, an ad click, another site sending them, or a
+ * partner code — replaced each time a different one arrives. A visit with no
+ * touch (a typed address, a bookmark) only moves `last_seen_at`, and only
+ * when the last one is half an hour old, so browsing a session does not write
+ * a row per page.
+ */
+export const UPSERT_VISITOR_TOUCH_SQL = `
+  INSERT INTO visitor_touches (
+    visitor_id,
+    first_source, first_medium, first_campaign, first_content, first_term, first_click_id, first_click_id_type,
+    first_referrer_host, first_landing_path, first_ref_code,
+    last_source, last_medium, last_campaign, last_content, last_term, last_click_id, last_click_id_type,
+    last_referrer_host, last_landing_path, last_ref_code
+  ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+  ON CONFLICT (visitor_id) DO UPDATE SET
+    last_source        = CASE WHEN $12::boolean THEN EXCLUDED.last_source        ELSE visitor_touches.last_source END,
+    last_medium        = CASE WHEN $12::boolean THEN EXCLUDED.last_medium        ELSE visitor_touches.last_medium END,
+    last_campaign      = CASE WHEN $12::boolean THEN EXCLUDED.last_campaign      ELSE visitor_touches.last_campaign END,
+    last_content       = CASE WHEN $12::boolean THEN EXCLUDED.last_content       ELSE visitor_touches.last_content END,
+    last_term          = CASE WHEN $12::boolean THEN EXCLUDED.last_term          ELSE visitor_touches.last_term END,
+    last_click_id      = CASE WHEN $12::boolean THEN EXCLUDED.last_click_id      ELSE visitor_touches.last_click_id END,
+    last_click_id_type = CASE WHEN $12::boolean THEN EXCLUDED.last_click_id_type ELSE visitor_touches.last_click_id_type END,
+    last_referrer_host = CASE WHEN $12::boolean THEN EXCLUDED.last_referrer_host ELSE visitor_touches.last_referrer_host END,
+    last_landing_path  = CASE WHEN $12::boolean THEN EXCLUDED.last_landing_path  ELSE visitor_touches.last_landing_path END,
+    last_ref_code      = CASE WHEN $12::boolean THEN EXCLUDED.last_ref_code      ELSE visitor_touches.last_ref_code END,
+    last_touch_at      = CASE WHEN $12::boolean THEN NOW()                       ELSE visitor_touches.last_touch_at END,
+    last_seen_at       = NOW()
+  WHERE ($12::boolean AND (
+           visitor_touches.last_source   IS DISTINCT FROM EXCLUDED.last_source
+        OR visitor_touches.last_campaign IS DISTINCT FROM EXCLUDED.last_campaign
+        OR visitor_touches.last_content  IS DISTINCT FROM EXCLUDED.last_content
+        OR visitor_touches.last_click_id IS DISTINCT FROM EXCLUDED.last_click_id
+        OR visitor_touches.last_ref_code IS DISTINCT FROM EXCLUDED.last_ref_code))
+     OR visitor_touches.last_seen_at < NOW() - INTERVAL '30 minutes'
+`;
+
+/**
+ * Records the visitor's touch. Never throws into the beacon: a missing table
+ * (before the migration) or a failed write leaves the page view recorded.
+ *
+ * @returns {Promise<boolean>} whether a row was written or moved.
+ */
+export async function recordVisitorTouch(pool, { visitorId, viewerKind, attribution = null, refCode = null }) {
+  const id = cleanVisitorId(visitorId);
+  if (!id || !TOUCH_VIEWER_KINDS.includes(viewerKind)) return false;
+  const a = attribution || {};
+  // A partner code alone is not a touch: the cookie lasts 30 days, and a later
+  // typed-address visit must not overwrite the campaign that brought them.
+  // /go always lands on a tagged URL, so a partner click IS tagged.
+  const touched = isTagged(a) || Boolean(a.referrerHost);
+  try {
+    const result = await pool.query(UPSERT_VISITOR_TOUCH_SQL, [
+      id,
+      sourceOf(attribution),
+      a.medium || null,
+      a.campaign || null,
+      a.content || null,
+      a.term || null,
+      a.clickId || null,
+      a.clickIdType || null,
+      a.referrerHost || null,
+      a.landingPath || null,
+      refCode || null,
+      touched,
+    ]);
+    return result.rowCount > 0;
+  } catch (err) {
+    if (err?.code === MISSING_TABLE) return false;
+    console.error(`[track] visitor touch failed: ${err.message}`);
+    return false;
+  }
 }
 
 /** @returns {Promise<boolean>} whether a row was written. */

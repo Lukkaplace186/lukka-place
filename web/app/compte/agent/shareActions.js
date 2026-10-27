@@ -10,6 +10,7 @@ import { getMandateCounts } from '@/lib/marketing/mandateReport';
 import { listingImages } from '@/lib/listingView';
 import { getListingShareCount, recordListingShares } from '@/lib/listingShares';
 import { MAX_IDS_PER_RECORD, normaliseShareRecord } from '@/lib/listingShareRules';
+import { ensureAgentPartnerCode } from '@/lib/partners';
 
 function supabaseHost() {
   try {
@@ -24,7 +25,7 @@ async function ownedListing(listingId) {
   if (!agentId) return { error: { ok: false, reason: 'auth' } };
   const listing = await getFlyerListing(agentId, Number.parseInt(listingId, 10));
   if (!listing) return { error: { ok: false, reason: 'not_found' } };
-  return { listing };
+  return { listing, agentId };
 }
 
 /**
@@ -44,9 +45,9 @@ async function ownedListing(listingId) {
  *                  |{ok: false, reason: 'auth'|'not_found'}>}
  */
 export async function getSharePackAction(listingId) {
-  const { listing, error } = await ownedListing(listingId);
+  const { listing, agentId, error } = await ownedListing(listingId);
   if (error) return error;
-  return buildShareKit(listing);
+  return buildShareKit(listing, { refCode: await ensureAgentPartnerCode(agentId) });
 }
 
 /**
@@ -65,11 +66,12 @@ export async function getStatusPacksAction(listingIds) {
     .slice(0, MAX_IDS_PER_RECORD);
   if (!ids.length) return { ok: false, reason: 'invalid' };
 
+  const refCode = await ensureAgentPartnerCode(agentId);
   const kits = [];
   for (const id of ids) {
     const listing = await getFlyerListing(agentId, id);
     if (!listing) continue;
-    const kit = buildShareKit(listing);
+    const kit = buildShareKit(listing, { refCode });
     if (kit.shareable) kits.push(kit);
   }
   return { ok: true, kits };
@@ -96,7 +98,7 @@ export async function getWhatsAppCaptionsAction(listingIds) {
   if (!agentId) return { ok: false, reason: 'auth' };
   const ids = (Array.isArray(listingIds) ? listingIds : []).slice(0, MAX_CAPTION_IDS);
   try {
-    const rows = await getFlyerListings(agentId, ids);
+    const [rows, refCode] = await Promise.all([getFlyerListings(agentId, ids), ensureAgentPartnerCode(agentId)]);
     const captions = {};
     for (const listing of rows) {
       if (shareBlocker(listing)) continue;
@@ -104,7 +106,7 @@ export async function getWhatsAppCaptionsAction(listingIds) {
         typeText: frenchTypeText(listing),
         contactPhone: agentContactPhone(listing),
         contactName: agentBrandFields(listing).name,
-        url: listingPublicUrl(listing.id, { source: SHARE_SOURCES.whatsapp }),
+        url: listingPublicUrl(listing.id, { source: SHARE_SOURCES.whatsapp, ref: refCode }),
       });
     }
     return { ok: true, captions };
@@ -154,7 +156,7 @@ export async function recordListingSharesAction(input) {
  *                  |{ok: false, reason: 'auth'|'not_found'|'failed'}>}
  */
 export async function getMandateReportAction(listingId) {
-  const { listing, error } = await ownedListing(listingId);
+  const { listing, agentId, error } = await ownedListing(listingId);
   if (error) return error;
 
   try {
@@ -175,7 +177,7 @@ export async function getMandateReportAction(listingId) {
     return {
       ok: true,
       report,
-      caption: buildMandateCaption(listing, report, counts),
+      caption: buildMandateCaption(listing, report, counts, { refCode: await ensureAgentPartnerCode(agentId) }),
       // Drawn at 212px on the card; the 384px variant is plenty.
       photo: cover ? optimisedImageUrl(cover, LOGO_WIDTH) : null,
       mark: PLATFORM_MARK_PATH,

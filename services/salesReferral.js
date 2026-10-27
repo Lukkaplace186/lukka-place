@@ -231,7 +231,7 @@ async function attributeNewAgentInTransaction(client, { agentId, waId }) {
     }
     await client.query('RELEASE SAVEPOINT sales_referral');
     console.log(`[sales-referral] agent #${agentId} attributed to rep #${rep.id} (${capture.referral_code})`);
-    return { attributed: inserted.rowCount > 0, repId: Number(rep.id) };
+    return { attributed: inserted.rowCount > 0, repId: Number(rep.id), code: capture.referral_code };
   } catch (err) {
     await client.query('ROLLBACK TO SAVEPOINT sales_referral').catch(() => {});
     console.error(`[sales-referral] attribution failed for agent #${agentId}: ${err.message}`);

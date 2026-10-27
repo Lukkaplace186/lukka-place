@@ -12,6 +12,7 @@ import { hashPassword } from '@/lib/agentAuth';
 import { establishAgentSession } from '@/lib/agentSession';
 import { setVerifyAttemptCookie } from '@/lib/verifyAttempt';
 import { otpBypassEnabled, logOtpBypass } from '@/lib/otpBypass';
+import { recordWebSignupAttribution } from '@/lib/accountAcquisition';
 
 function safeNext(nextParam) {
   const next = String(nextParam || '/compte/agent');
@@ -117,6 +118,16 @@ export async function agentSignupAction(formData) {
   } else if (referral?.reason === 'self_referral') {
     await recordReferralRefusal({ repId: referral.rep?.id ?? null, code: typedReferral, agentId: Number(agent.id), channel: 'web', reason: 'self_referral' });
   }
+
+  // Where the account came from (lib/accountAcquisition.js). A partner's link
+  // (a creator's, say) is credited here; a rep's code stays the rep's
+  // attribution above and is only noted as the account's referral code.
+  await recordWebSignupAttribution({
+    accountType: 'agent',
+    accountId: Number(agent.id),
+    phone,
+    repCode: referral?.ok ? normaliseReferralCode(typedReferral) : null,
+  });
 
   // Which account is being verified travels in a signed httpOnly cookie
   // rather than the `?agent=<id>` query param this flow used to key on —

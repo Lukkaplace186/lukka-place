@@ -130,9 +130,10 @@ const trimmed = (value) => (typeof value === 'string' ? value.trim() : '') || nu
  * @param {{features?: string[]|null, amenities?: string[], address?: string|null,
  *          latitude?: string|null, longitude?: string|null}} extras
  * @param {{typeText: string|null, brand: {name, phone}, supabaseHost?: string|null,
- *          medium: 'poster'|'fiche'}} options
+ *          medium: 'poster'|'fiche', refCode?: string|null}} options — refCode, the
+ *          agent's partner code, rides on the QR code's link.
  */
-export function buildPrintSheet(listing, extras, { typeText, brand, supabaseHost = null, medium }) {
+export function buildPrintSheet(listing, extras, { typeText, brand, supabaseHost = null, medium, refCode = null }) {
   const commune = trimmed(listing.commune);
   const quartier = trimmed(listing.quartier);
   const reference = trimmed(listing.reference);
@@ -175,7 +176,7 @@ export function buildPrintSheet(listing, extras, { typeText, brand, supabaseHost
     // Only a number the public listing page itself would publish (verified AND
     // direct routing on) — agentContactPhone, via agentBrandFields.
     agentPhone: brand?.phone || null,
-    url: printListingUrl(listing.id, medium),
+    url: printListingUrl(listing.id, medium, { ref: refCode }),
     displayUrl: `lukkaplace.com/listings/${Number(listing.id)}`,
   };
 }

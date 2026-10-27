@@ -385,7 +385,14 @@ async function upsertAgentFromWhatsApp({
     // permanent attribution — only for an account created right here, never
     // for one that already existed (services/salesReferral.js).
     if (created) {
-      await salesReferral.attributeNewAgentInTransaction(client, { agentId: Number(agentId), waId: digits });
+      const referral = await salesReferral.attributeNewAgentInTransaction(client, { agentId: Number(agentId), waId: digits });
+      // Where the account came from (services/accountAcquisition.js): the
+      // channel, and the rep's code when it was attributed. Own SAVEPOINT.
+      await require('./accountAcquisition').recordAgentAcquisitionInTransaction(client, {
+        agentId: Number(agentId),
+        source,
+        refCode: referral?.attributed ? referral.code || null : null,
+      });
     }
 
     await client.query('COMMIT');

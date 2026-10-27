@@ -3,6 +3,7 @@ import { agentBrandFields, frenchTypeText, getFlyerListing } from '../listingFly
 import { agentContactPhone, shareBlocker } from '../listingShareCopy';
 import { buildPrintSheet } from './printSheet';
 import { getPrintExtras, qrSvg } from './printSheetData';
+import { ensureAgentPartnerCode } from '../partners';
 
 /**
  * Everything the window poster and the technical sheet
@@ -24,7 +25,7 @@ export async function getPrintSheetData(agentId, propertyId, medium) {
   const phoneHidden = Boolean(listing.agent_phone_raw) && !agentContactPhone(listing);
   if (blocker) return { blocker, phoneHidden, sheet: null, qr: null };
 
-  const extras = await getPrintExtras(agentId, listing.id);
+  const [extras, refCode] = await Promise.all([getPrintExtras(agentId, listing.id), ensureAgentPartnerCode(agentId)]);
   let supabaseHost = null;
   try {
     supabaseHost = process.env.SUPABASE_URL ? new URL(process.env.SUPABASE_URL).host : null;
@@ -36,6 +37,9 @@ export async function getPrintSheetData(agentId, propertyId, medium) {
     brand: agentBrandFields(listing),
     supabaseHost,
     medium,
+    // The QR code carries the agent's partner code; the neutral sheet prints
+    // no QR at all (sheetVariant), so it never reaches a sheet handed on.
+    refCode,
   });
   return { blocker: null, phoneHidden, sheet, qr: await qrSvg(sheet.url) };
 }

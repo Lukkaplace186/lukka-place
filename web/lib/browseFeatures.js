@@ -2,6 +2,7 @@ import 'server-only';
 import { getPool } from './db';
 import { getListings, getListingsByIds } from './listings';
 import { NOT_TEST_LISTING_SQL } from './marketExclusions';
+import { VIDEO_COUNT_SQL } from './listingVideos';
 import { COMMUNE_EXPR } from './marketStats';
 import { communeSlug } from './seoPages';
 import { ALL_CITIES } from './cities';
@@ -211,8 +212,7 @@ export const VIDEO_LISTINGS_SQL = `
     FROM properties p
    WHERE p.status = 1 AND p.approve_status = 1
      AND COALESCE(p.listing_status, 'active') = 'active'
-     AND jsonb_typeof(to_jsonb(p) -> 'videos') = 'array'
-     AND jsonb_array_length(to_jsonb(p) -> 'videos') > 0
+     AND ${VIDEO_COUNT_SQL} > 0
      AND ${NOT_TEST_LISTING_SQL}
    ORDER BY p.created_at DESC
    LIMIT $1

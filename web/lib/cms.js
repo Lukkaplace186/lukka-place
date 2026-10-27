@@ -2,35 +2,17 @@ import 'server-only';
 import { getPool } from './db';
 
 /**
- * sliders/advertisements — real Laravel-schema tables, confirmed to hold a
- * genuine mix of real content (sliders' French rows, actively edited into
- * 2026) and untouched placeholder rows (advertisements' example.com URLs).
- * Every row is shown as-is, including the placeholder ones — curating them
- * out would itself be a form of misrepresenting what's actually there.
+ * advertisements — a real Laravel-schema table, shown on /admin/cms as-is
+ * (lib/cmsAdRules.js says what a row can and cannot tell us).
+ *
+ * The `sliders` reader and writer that used to live here are gone
+ * (2026-10-27): those rows held only the old Laravel storefront's hero
+ * taglines ("Search Congo's Largest Choice Homes", "Anywhere and Everywhere
+ * in Congo" and their French twins), and lukkaplace.com never rendered them —
+ * the homepage headline is home.hero.title in the dictionary. Removing the
+ * rows themselves is the engine's scripts/remove-legacy-slider-copy.js, dry
+ * run by default.
  */
-
-const LANGUAGE_LABELS = { 20: 'EN', 26: 'FR' };
-
-export function languageLabel(languageId) {
-  return LANGUAGE_LABELS[languageId] || `#${languageId}`;
-}
-
-export async function getSliders() {
-  const pool = getPool();
-  const { rows } = await pool.query(
-    'SELECT id, language_id, background_image, title, text FROM sliders ORDER BY language_id, id',
-  );
-  return rows;
-}
-
-export async function updateSlider(id, { title, text }) {
-  const pool = getPool();
-  await pool.query('UPDATE sliders SET title = $1, text = $2, updated_at = NOW() WHERE id = $3', [
-    title,
-    text,
-    id,
-  ]);
-}
 
 export async function getAdvertisements() {
   const pool = getPool();

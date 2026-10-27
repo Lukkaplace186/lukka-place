@@ -3,6 +3,8 @@ import Script from 'next/script';
 import './globals.css';
 import { SITE_URL } from '@/lib/constants';
 import { getI18n, getT } from '@/lib/i18n/server';
+import { getSeoSettings } from '@/lib/siteSettings';
+import { seoMetadata } from '@/lib/siteSettingsRules';
 import { I18nProvider } from '@/lib/i18n/client';
 import LocaleSync from '@/components/LocaleSync';
 import { TRANSLATION_DOM_GUARD_SCRIPT } from '@/lib/translationDomGuard';
@@ -45,12 +47,24 @@ const OG_IMAGE = '/og-image.png?v=2';
  * is evaluated once at module load with no access to the request's locale.
  * `openGraph.locale` follows the choice too, so a shared link previews in the
  * language the sharer was reading.
+ *
+ * The title, description and share image can be set on /admin/cms
+ * ("Optimisation SEO & Meta", cms_settings `site.seo`, lib/siteSettings.js);
+ * an empty field keeps the dictionary's text and the built-in card. These are
+ * the defaults only: a page's own generateMetadata (listings, landing pages,
+ * guides…) replaces them. getSeoSettings never throws.
  */
 export async function generateMetadata() {
   const t = await getT();
-  const SITE_TITLE = t('site.metaTitle');
-  const SITE_DESCRIPTION = t('site.metaDescription');
+  const seo = await getSeoSettings();
+  const defaults = seoMetadata(seo, t.locale, { title: t('site.metaTitle'), description: t('site.metaDescription') });
+  const SITE_TITLE = defaults.title;
+  const SITE_DESCRIPTION = defaults.description;
   const locale = t.locale === 'en' ? 'en_GB' : 'fr_CD';
+  // A console image's size is unknown, so it is announced without dimensions.
+  const ogImages = defaults.image
+    ? [{ url: defaults.image, alt: SITE_TITLE }]
+    : [{ url: OG_IMAGE, width: 1200, height: 630, alt: SITE_TITLE }];
 
   return {
     // Required for any relative openGraph/twitter image URL to resolve to an
@@ -70,7 +84,7 @@ export async function generateMetadata() {
       // 1200x630, Open Graph's own canonical card size — previously unset
       // entirely, so every link share (WhatsApp, iMessage, Slack, Facebook)
       // rendered with no image at all.
-      images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: SITE_TITLE }],
+      images: ogImages,
     },
     twitter: {
       // summary_large_image, not the previous 'summary' — that card type
@@ -80,7 +94,7 @@ export async function generateMetadata() {
       card: 'summary_large_image',
       title: SITE_TITLE,
       description: SITE_DESCRIPTION,
-      images: [OG_IMAGE],
+      images: [defaults.image || OG_IMAGE],
     },
     // app/favicon.ico and app/icon.png both exist now (both regenerated as
     // the new solid-blue tile — see the doc comment above), but confirmed

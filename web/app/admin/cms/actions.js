@@ -3,25 +3,25 @@
 import { revalidatePath } from 'next/cache';
 import { requireAdmin } from '@/lib/adminSession';
 import { actorLabel, recordAudit } from '@/lib/adminAudit';
-import { updateSlider, updateAdvertisement } from '@/lib/cms';
+import { updateAdvertisement } from '@/lib/cms';
+import { validateAdUrl } from '@/lib/cmsAdRules';
+import { saveSeoSettings } from '@/lib/siteSettings';
+import { validateSeoInput } from '@/lib/siteSettingsRules';
 import { setCdfRate } from '@/lib/currencyRate';
 import { clearHeroSettings, getHeroSettings, saveHeroSettings } from '@/lib/cmsSettings';
 import { HERO_MAX_UPLOAD_BYTES, HERO_UPLOAD_TYPES, allowedHeroUrl, validateHeroText } from '@/lib/cmsHeroRules';
 import { uploadCmsImage } from '@/lib/listingStorage';
 import { getT } from '@/lib/i18n/server';
 
-export async function updateSliderAction(sliderId, formData) {
-  const session = await requireAdmin('cms.manage');
-  const title = String(formData.get('title') || '');
-  const text = String(formData.get('text') || '');
-  await updateSlider(sliderId, { title, text });
-  await recordAudit(session, { action: 'cms.slider', entityType: 'cms', entityId: `slider:${sliderId}`, details: { title } });
-  revalidatePath('/admin/cms');
-}
-
+/**
+ * A banner's click-through URL. '' clears it; anything that is not an
+ * http(s) address is refused (lib/cmsAdRules.js validateAdUrl).
+ */
 export async function updateAdvertisementAction(adId, formData) {
   const session = await requireAdmin('cms.manage');
-  const url = String(formData.get('url') || '');
+  const check = validateAdUrl(formData.get('url'));
+  if (!check.ok) throw new Error((await getT())(`admin.cms.ads.errors.${check.error}`));
+  const url = check.value;
   await updateAdvertisement(adId, { url });
   await recordAudit(session, { action: 'cms.advertisement', entityType: 'cms', entityId: `ad:${adId}`, details: { url } });
   revalidatePath('/admin/cms');
@@ -98,6 +98,29 @@ export async function saveHeroAction(formData) {
     revalidatePath('/admin/cms');
     revalidatePath('/');
     return { ok: true, message: t('admin.cms.hero.saved'), hero };
+  } catch (err) {
+    return { ok: false, error: err.message || t('errors.actionFailed') };
+  }
+}
+
+/**
+ * "Optimisation SEO & Meta": the default site title, meta description (per
+ * language) and Open Graph image, stored as cms_settings `site.seo`. One bad
+ * field refuses the whole save and names it. Live on the next request: the
+ * memo is dropped on save and every layout is revalidated.
+ * @returns {Promise<{ok: true, message: string} | {ok: false, error: string, field?: string}>}
+ */
+export async function saveSeoSettingsAction(formData) {
+  const t = await getT();
+  try {
+    const session = await requireAdmin('cms.manage');
+    const check = validateSeoInput(formData);
+    if (!check.ok) return { ok: false, field: check.field, error: t(`admin.cms.seo.errors.${check.error}`) };
+    await saveSeoSettings(check.value, actorLabel(session).slice(0, 120));
+    await recordAudit(session, { action: 'cms.seo', entityType: 'cms', entityId: 'site.seo', details: check.value });
+    revalidatePath('/admin/cms');
+    revalidatePath('/', 'layout');
+    return { ok: true, message: t('admin.cms.seo.saved') };
   } catch (err) {
     return { ok: false, error: err.message || t('errors.actionFailed') };
   }

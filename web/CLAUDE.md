@@ -3314,9 +3314,10 @@ From the "Social & Open Graph Share Cards" design canvas. Tests:
   12-week trend.
 - `viewer_kind`, `visitor_id`, `routing_type`, `placement` are read through
   `to_jsonb`, so nothing 42703s before their migrations.
-- **Which button** (`whatsapp_clicks.placement`: card / listing_page /
-  listing_mobile_bar) needs engine `migrations/20261026_whatsapp_click_placement.sql`;
-  until it runs the INSERT retries without it. Older taps show "Avant le suivi".
+- **Which button** (`whatsapp_clicks.placement`) needs engine
+  `migrations/20261026_whatsapp_click_placement.sql`; until it runs the INSERT
+  retries without it. Older taps show "Avant le suivi". Values: see
+  "WhatsApp tap placement" below (2026-10-27).
 
 ## Investor metrics — `/admin/investisseurs` (2026-10-26)
 
@@ -3654,4 +3655,54 @@ Tests: `tests/unit/blog.test.js`.
   `/admin/blog/[id]/apercu` whatever the state or the switch.
 - Not built: a WhatsApp share preview image per post (the cover is og:image
   when set), comments, authors' names on articles.
+
+## WhatsApp tap placement, "Agences" in the menu, /admin/cms and SEO defaults (2026-10-27)
+
+Tests: `tests/unit/dashboard-click-breakdown.test.js`, `agent-directory.test.js`,
+`admin-cms.test.js`.
+
+- **`whatsapp_clicks.placement`** is one of `card` (WhatsAppCTA on a feed /
+  rail / list card), `listing_desktop` (EnquiryCard in the listing page's
+  desktop rail), `listing_mobile_bar` (MobileListingBar) or `map_card`
+  (WhatsAppCTA `placement="map_card"` — no map card renders a WhatsApp button
+  yet, so nothing writes it today). `lib/leadClicks.js` `leadClickPlacement`
+  turns anything else into NULL; the route never rejects a tap for it, and
+  the 42703 fallback is unchanged. **The phone copy of EnquiryCard (in the
+  page body, `lg:hidden`) sends no placement** — none of the four values
+  describes it, and the dashboard's "inconnu" row says "Avant le suivi ou non
+  précisé". `listing_page` (written 2026-10-26 → 27, both EnquiryCard copies)
+  stays valid in the CHECK for rows already stored and is not relabelled.
+  trackLeadClick still fires the ad `Contact` event and the session attribution.
+- **"Agences"** (`nav.agencies`) is the directory link (`/agents`, the real
+  route), last in PRIMARY_LINKS: right after À propos in the bar, and in the
+  drawer the row just above Favoris. It replaced the "Agents" entry, so there
+  is one directory link; the portfolio header says Agences too.
+- **Hero search**: already as specified before this pass (Ville defaults to
+  Kinshasa, lib/budgetSteps.js lists, Louer ↔ Acheter resets the budget).
+  Kept: the sale Max list starts at 25 000 (owner, 2026-10-25), and Courte
+  durée shows no budget — those rents are per day / week, a monthly scale
+  would filter them wrongly.
+- **/admin/cms**: the "Bannières d'accueil (sliders)" section and
+  `getSliders` / `updateSlider` are gone — those Laravel rows were only the old
+  template's taglines ("Search Congo's Largest Choice Homes"…), never rendered
+  by this site. Removing the rows is the engine's
+  `scripts/remove-legacy-slider-copy.js` (dry run by default; `--write` backs
+  them up to JSON, then deletes only the exact known taglines). The ad table
+  labels each row by the FORMAT it stores (`resolution_type` 1/2/3 =
+  300×250 / 300×600 / 728×90, `lib/cmsAdRules.js`) — no column names a page,
+  and no banner is shown on lukkaplace.com, so a page name would be invented.
+  A thumbnail appears only for an https image next/image may load; the
+  current rows hold bare Laravel file names that 404 everywhere, shown as
+  "Fichier … introuvable". URL inputs read `https://…`, buttons Enregistrer,
+  a URL must be http(s) or empty.
+- **"Optimisation SEO & Meta"** (/admin/cms, `cms.manage`): default title and
+  meta description per language, and the default Open Graph image (https or
+  a site path), stored as `cms_settings` `site.seo` through
+  `lib/siteSettings.js` (`getSeoSettings`, memoised 30 s, never throws). Rules
+  in `lib/siteSettingsRules.js` (`validateSeoInput`, `seoFromStored`,
+  `seoMetadata`). `app/layout.js`'s generateMetadata uses them; an empty field
+  keeps `site.metaTitle` / `site.metaDescription` and the built-in
+  og-image.png. Page metadata still wins: the root title is a plain string,
+  so any page title replaces it, and listing pages keep their own
+  opengraph-image. No row exists until someone saves the form.
 

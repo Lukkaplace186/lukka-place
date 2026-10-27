@@ -15,6 +15,7 @@ import {
   LEAD_CLICK_PLACEMENTS,
   RECORD_LEAD_CLICK_PLACEMENT_SQL,
   RECORD_LEAD_CLICK_SQL,
+  leadClickPlacement,
   recordLeadClick,
 } from '@/lib/leadClicks';
 import { getPool } from '@/lib/db';
@@ -109,25 +110,53 @@ test('the conversion rate divides people by people', async () => {
 });
 
 test('a tap records which button it came from, and falls back before the migration', async () => {
-  assert.deepEqual(LEAD_CLICK_PLACEMENTS, ['card', 'listing_page', 'listing_mobile_bar']);
+  assert.deepEqual(LEAD_CLICK_PLACEMENTS, ['card', 'listing_desktop', 'listing_mobile_bar', 'map_card']);
   const migration = readFileSync(new URL('../../../migrations/20261026_whatsapp_click_placement.sql', import.meta.url), 'utf8');
   for (const placement of LEAD_CLICK_PLACEMENTS) assert.ok(migration.includes(`'${placement}'`), placement);
+  assert.match(migration, /ADD COLUMN IF NOT EXISTS placement text/);
+  assert.match(migration, /DROP CONSTRAINT IF EXISTS whatsapp_clicks_placement_check/);
+  assert.ok(migration.includes("OR placement = 'listing_page'"), 'rows already written as listing_page stay valid');
+  assert.doesNotMatch(migration, /UPDATE\s+whatsapp_clicks/i, 'no stored row is relabelled');
 
   reset();
   await recordLeadClick(getPool(), { listingId: 7, routingType: 'DIRECT_WA', placement: 'listing_mobile_bar' });
   assert.equal(normalizeSql(calls[0].sql), normalizeSql(RECORD_LEAD_CLICK_PLACEMENT_SQL));
   assert.equal(calls[0].values.at(-1), 'listing_mobile_bar');
 
-  reset();
-  await recordLeadClick(getPool(), { listingId: 7, routingType: 'DIRECT_WA', placement: 'somewhere' });
-  assert.equal(normalizeSql(calls[0].sql), normalizeSql(RECORD_LEAD_CLICK_SQL), 'an unknown placement is stored as none');
-
-  for (const [file, placement] of [
-    ['components/WhatsAppCTA.js', 'card'],
-    ['components/EnquiryCard.js', 'listing_page'],
-    ['components/MobileListingBar.js', 'listing_mobile_bar'],
-  ]) {
-    const source = readFileSync(new URL(`../../${file}`, import.meta.url), 'utf8');
-    assert.match(source, new RegExp(`trackLeadClick\\(listing, routingType, '${placement}'\\)`), file);
+  for (const unknown of ['somewhere', 'listing_page', '', null, 42]) {
+    reset();
+    await recordLeadClick(getPool(), { listingId: 7, routingType: 'DIRECT_WA', placement: unknown });
+    assert.equal(normalizeSql(calls[0].sql), normalizeSql(RECORD_LEAD_CLICK_SQL), `${unknown} is stored as none`);
   }
+  assert.equal(leadClickPlacement('map_card'), 'map_card');
+  assert.equal(leadClickPlacement('nope'), null);
+
+  // Before the migration: the placement INSERT 42703s and the tap is still written.
+  const seen = [];
+  const oldDb = {
+    async query(sql) {
+      seen.push(normalizeSql(sql));
+      if (seen.length === 1) throw Object.assign(new Error('column "placement" does not exist'), { code: '42703' });
+      return { rowCount: 1, rows: [] };
+    },
+  };
+  assert.equal(await recordLeadClick(oldDb, { listingId: 7, routingType: 'DIRECT_WA', placement: 'card' }), true);
+  assert.deepEqual(seen, [normalizeSql(RECORD_LEAD_CLICK_PLACEMENT_SQL), normalizeSql(RECORD_LEAD_CLICK_SQL)]);
+
+  const route = readFileSync(new URL('../../app/api/telemetry/lead-click/route.js', import.meta.url), 'utf8');
+  assert.match(route, /placement: leadClickPlacement\(body\?\.placement\)/, 'the route never rejects a placement');
+
+  const client = readFileSync(new URL('../../lib/analyticsClient.js', import.meta.url), 'utf8');
+  const trackFn = client.slice(client.indexOf('export function trackLeadClick'), client.indexOf('export function trackCallClick'));
+  assert.match(trackFn, /adEvent\('Contact'/, 'the ad Contact event still fires');
+  assert.match(trackFn, /placement,/);
+
+  const cta = readFileSync(new URL('../../components/WhatsAppCTA.js', import.meta.url), 'utf8');
+  assert.match(cta, /placement = 'card'/);
+  assert.match(cta, /trackLeadClick\(listing, routingType, placement\)/);
+  const bar = readFileSync(new URL('../../components/MobileListingBar.js', import.meta.url), 'utf8');
+  assert.match(bar, /trackLeadClick\(listing, routingType, 'listing_mobile_bar'\)/);
+  const page = readFileSync(new URL('../../app/(site)/listings/[id]/page.js', import.meta.url), 'utf8');
+  assert.match(page, /<aside[\s\S]*<EnquiryCard [^>]*placement="listing_desktop"/, 'the desktop rail names itself');
+  assert.equal((page.match(/placement="listing_desktop"/g) || []).length, 1, 'the phone copy does not claim to be desktop');
 });

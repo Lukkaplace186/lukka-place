@@ -58,8 +58,11 @@ export function WhatsAppIcon(props) {
  * @param {Object} props
  * @param {Object} props.listing
  * @param {'compact'|'block'|'link'} [props.variant]
+ * @param {'card'|'map_card'} [props.placement] where the button sits, for the
+ *   tap log (lib/leadClicks.js) — 'map_card' inside the map's card carousel
+ *   or pin preview.
  */
-export default function WhatsAppCTA({ listing, variant = 'compact' }) {
+export default function WhatsAppCTA({ listing, variant = 'compact', placement = 'card' }) {
   const t = useT();
   // Verified agent directly, central number otherwise — lib/leadRouting.js.
   const { href, routingType } = resolveWhatsAppRouting(listing);
@@ -73,7 +76,7 @@ export default function WhatsAppCTA({ listing, variant = 'compact' }) {
   function handleClick(e) {
     e.preventDefault();
     e.stopPropagation();
-    trackLeadClick(listing, routingType, 'card');
+    trackLeadClick(listing, routingType, placement);
     window.open(href, '_blank', 'noopener,noreferrer');
   }
 

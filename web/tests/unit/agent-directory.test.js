@@ -1,6 +1,6 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { calls, enqueue, normalizeSql, reset } from '../support/fakePool.js';
@@ -195,11 +195,22 @@ test('getAgentDirectory returns the page and the window total', async () => {
   assert.equal(calls.length, 1);
 });
 
-test('menu carries Agents in the bar and the drawer', () => {
+test('menu carries Agences, directly under À propos, in the bar and the drawer', () => {
   const header = readFileSync(path.join(web, 'components/Header.js'), 'utf8');
-  assert.match(header, /\{ href: '\/agents', labelKey: 'nav\.agents' \}/);
-  for (const lang of ['fr', 'en']) {
-    const dict = JSON.parse(readFileSync(path.join(web, `lib/i18n/${lang}.json`), 'utf8'));
-    assert.equal(dict.nav.agents, 'Agents');
+  const primary = header.slice(header.indexOf('const PRIMARY_LINKS = ['), header.indexOf('];', header.indexOf('const PRIMARY_LINKS = [')));
+  const hrefs = [...primary.matchAll(/href: '([^']+)'/g)].map((m) => m[1]);
+  assert.deepEqual(hrefs.slice(-2), ['/a-propos', '/agents'], 'Agences is the link right after À propos');
+  assert.equal(hrefs.filter((h) => h === '/agents').length, 1, 'one directory link, not Agents and Agences');
+  assert.match(primary, /\{ href: '\/agents', labelKey: 'nav\.agencies' \}/);
+  assert.match(header, /const DRAWER_PRIMARY_LINKS = PRIMARY_LINKS;/, 'the drawer uses the same order');
+  // The drawer's second band opens with Favoris, so Agences sits just above it.
+  for (const list of ['DRAWER_GUEST_LINKS', 'DRAWER_ACCOUNT_LINKS']) {
+    const body = header.slice(header.indexOf(`const ${list} = [`));
+    assert.match(body, /^const \w+ = \[\s*\{ href: '\/favoris'/, list);
   }
+  assert.ok(existsSync(path.join(web, 'app/(portfolio)/agents/page.js')), '/agents is a real route');
+  const fr = JSON.parse(readFileSync(path.join(web, 'lib/i18n/fr.json'), 'utf8'));
+  const en = JSON.parse(readFileSync(path.join(web, 'lib/i18n/en.json'), 'utf8'));
+  assert.equal(fr.nav.agencies, 'Agences');
+  assert.equal(en.nav.agencies, 'Agencies');
 });

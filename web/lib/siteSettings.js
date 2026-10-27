@@ -4,8 +4,10 @@ import { forget, memo } from './memo';
 import { ADMIN_NAV_HREFS } from './adminNav';
 import {
   FEATURES_SETTING_KEY,
+  SEO_SETTING_KEY,
   SOCIAL_SETTING_KEY,
   featuresFromStored,
+  seoFromStored,
   socialLinksFromStored,
 } from './siteSettingsRules';
 import { GROWTH_SETTING_KEY, growthSettingsFromStored } from './growthSettingsRules';
@@ -102,3 +104,26 @@ export async function getGrowthSettingsForAdmin() {
 }
 
 export const saveGrowthSettings = (value, updatedBy) => save(GROWTH_SETTING_KEY, value, updatedBy);
+
+// ---------------------------------------------------------------------------
+// Default title, description and Open Graph image (/admin/cms, "Optimisation
+// SEO & Meta"), read by app/layout.js on every request.
+// ---------------------------------------------------------------------------
+
+/** @returns {Promise<ReturnType<typeof seoFromStored>|null>} null = use the dictionary defaults. */
+export async function getSeoSettings() {
+  try {
+    return await memo(`${MEMO_PREFIX}seo`, TTL_MS, async () => seoFromStored((await readValue(SEO_SETTING_KEY))?.value));
+  } catch (err) {
+    console.error(`[site-settings] SEO settings unavailable, using the dictionary defaults: ${err.message}`);
+    return null;
+  }
+}
+
+/** For the console form: the stored values plus who changed them. Throws, so the page can say so. */
+export async function getSeoSettingsForAdmin() {
+  const row = await readValue(SEO_SETTING_KEY);
+  return { seo: seoFromStored(row?.value), updatedAt: row?.updated_at || null, updatedBy: row?.updated_by || null };
+}
+
+export const saveSeoSettings = (value, updatedBy) => save(SEO_SETTING_KEY, value, updatedBy);

@@ -3399,10 +3399,12 @@
           "inconnu": "Avant le suivi"
         },
         "placement": {
-          "card": "Carte d’annonce (liste, carte, accueil)",
-          "listing_page": "Page de l’annonce",
+          "card": "Carte d’annonce (liste, accueil)",
+          "listing_page": "Page de l’annonce (avant le 27 oct.)",
+          "listing_desktop": "Carte de contact (ordinateur)",
+          "map_card": "Carte sur la carte (carrousel)",
           "listing_mobile_bar": "Barre du bas (téléphone)",
-          "inconnu": "Avant le suivi"
+          "inconnu": "Avant le suivi ou non précisé"
         },
         "purpose": {
           "rent": "à louer",
@@ -4036,9 +4038,8 @@
     },
     "cms": {
       "exchangeRate": "Taux de change (USD → CDF)",
-      "homeBanners": "Bannières d'accueil (sliders)",
-      "adBanners": "Bannières publicitaires (advertisements)",
-      "rateNote": "Taux manuel affiché sur le site public, jamais un flux de change en direct — voir web/CLAUDE.md. Modifier",
+      "adBanners": "Bannières publicitaires",
+      "rateNote": "Taux manuel affiché sur le site public, jamais un flux de change en direct — voir web/CLAUDE.md. Modifier cette valeur change immédiatement toutes les conversions « ≈ » affichées sur le site.",
       "hero": {
         "title": "Image d’accueil (hero)",
         "subtitle": "La photo derrière le titre de lukkaplace.com. Elle change pour chaque visiteur au prochain chargement de page — sans redéploiement.",
@@ -4063,6 +4064,54 @@
         "chooseImage": "Choisissez une image à téléverser ou collez son URL.",
         "altTooLong": "La description est limitée à 160 caractères.",
         "creditTooLong": "Le crédit est limité à 200 caractères."
+      },
+      "subtitle": "Ce que lukkaplace.com affiche par défaut : la photo d’accueil, le titre et la description pour les moteurs de recherche, le taux de change et les bannières publicitaires. Chaque modification est en ligne au prochain chargement de page, sans redéploiement.",
+      "rateLabel": "1 USD = ? CDF",
+      "rateUpdated": "Dernière mise à jour : {date}",
+      "ads": {
+        "note": "Les bannières du back-office Laravel, telles qu’enregistrées. Chacune n’indique que son format, pas une page : l’emplacement affiché est donc ce format. Aucune n’est affichée sur lukkaplace.com aujourd’hui.",
+        "placement": "Emplacement",
+        "image": "Image",
+        "views": "Vues",
+        "url": "URL",
+        "rowId": "Bannière n° {id}",
+        "imageAlt": "Bannière n° {id}",
+        "imageMissing": "Fichier « {file} » introuvable en ligne",
+        "noImage": "Aucune image",
+        "urlAria": "URL de la bannière n° {id}",
+        "format": {
+          "box": "Encart (rectangle) · {size}",
+          "sidebar": "Colonne latérale · {size}",
+          "leaderboard": "Bandeau horizontal · {size}",
+          "unknown": "Format inconnu (n° {n})"
+        },
+        "errors": {
+          "invalid": "Indiquez une adresse qui commence par https:// (ou laissez le champ vide).",
+          "too_long": "Cette adresse est trop longue (500 caractères au maximum)."
+        }
+      },
+      "seo": {
+        "heading": "Optimisation SEO & Meta",
+        "subtitle": "Le titre, la description et l’image que Google, WhatsApp et Facebook montrent pour lukkaplace.com. Champ vide : le texte actuel du site (affiché en gris) reste utilisé. Les annonces, les pages par commune et les guides gardent leurs propres titres.",
+        "language": {
+          "fr": "Français",
+          "en": "Anglais"
+        },
+        "siteNameLabel": "Titre du site par défaut",
+        "descriptionLabel": "Méta-description",
+        "counter": "{count} / {max} caractères",
+        "ogImageLabel": "Image Open Graph par défaut (URL)",
+        "ogImageHint": "Une adresse https:// ou un chemin du site (/og-image.png). Format conseillé : 1200 × 630 px. Champ vide : la carte Lukka Place actuelle.",
+        "saving": "Enregistrement…",
+        "saved": "Réglages SEO enregistrés. En ligne au prochain chargement de page.",
+        "unavailable": "Les réglages SEO n’ont pas pu être lus. Le site utilise ses textes par défaut.",
+        "errors": {
+          "title_too_long": "Le titre dépasse 70 caractères.",
+          "description_too_long": "La description dépasse 200 caractères.",
+          "image_invalid": "Cette adresse d’image n’est pas valide.",
+          "image_https": "L’image doit être servie en https://.",
+          "image_too_long": "Cette adresse d’image est trop longue (500 caractères au maximum)."
+        }
       }
     },
     "password": {

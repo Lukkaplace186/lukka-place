@@ -72,14 +72,15 @@ const PRIMARY_LINKS = [
   { href: '/vente', labelKey: 'nav.buy' },
   // New developments and land in lots — their own hub and map (/projets).
   { href: '/projets', labelKey: 'nav.projects' },
-  // The agent directory (search by name, city, commune) came back on
-  // 2026-10-26 as "Agents", beside À propos, which took Agences' place on
-  // 2026-10-07 — in the bar and the drawer alike.
-  { href: '/agents', labelKey: 'nav.agents' },
   // Guides & Actualités, only while /admin/settings' publicBlog is on
   // (app/(site)/layout.js hides it otherwise).
   { href: '/guides', labelKey: 'nav.blog' },
   { href: '/a-propos', labelKey: 'nav.about' },
+  // The agent directory (search by name, city, commune; app/(portfolio)/agents)
+  // as "Agences", directly under À propos (2026-10-27, owner) — last in the
+  // bar, and in the drawer the row just above Favoris. The route stays
+  // /agents: that is where the directory and every agent profile live.
+  { href: '/agents', labelKey: 'nav.agencies' },
 ];
 
 const DRAWER_PRIMARY_LINKS = PRIMARY_LINKS;

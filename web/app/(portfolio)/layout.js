@@ -70,7 +70,7 @@ export default async function PortfolioLayout({ children }) {
                   Louer
                 </Link>
                 <Link href="/agents" className="hidden hover:text-ink sm:block">
-                  {t('nav.agents')}
+                  {t('nav.agencies')}
                 </Link>
                 {publishHref && (
                   <a

@@ -125,7 +125,11 @@ function VisitRequestButton({ propertyId }) {
 // `saveShare={false}` on the phone copy of this card: the detail page already
 // puts Partager/Enregistrer on the photo and a heart in MobileListingBar, so a
 // third pair here was the same two actions again.
-export default function EnquiryCard({ listing, visitSent, visitError, saveShare = true }) {
+//
+// `placement` names the copy in the tap log (lib/leadClicks.js): the desktop
+// rail passes 'listing_desktop'; the phone copy passes none (no value in the
+// vocabulary describes it, and calling it the bottom bar would be false).
+export default function EnquiryCard({ listing, visitSent, visitError, saveShare = true, placement = null }) {
   const t = useT();
   const {
     id, title,
@@ -204,7 +208,7 @@ export default function EnquiryCard({ listing, visitSent, visitError, saveShare 
             href={whatsappHref}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={() => trackLeadClick(listing, routingType, 'listing_page')}
+            onClick={() => trackLeadClick(listing, routingType, placement ?? undefined)}
             className="u-press inline-flex w-full items-center justify-center gap-2 rounded-lg bg-green px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-green-deep"
           >
             <WhatsAppIcon className="h-[1.125rem] w-[1.125rem]" />

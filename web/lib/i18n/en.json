@@ -3399,10 +3399,12 @@
           "inconnu": "Before tracking"
         },
         "placement": {
-          "card": "Listing card (list, map, home)",
-          "listing_page": "Listing page",
+          "card": "Listing card (list, home)",
+          "listing_page": "Listing page (before 27 Oct)",
+          "listing_desktop": "Contact card (desktop)",
+          "map_card": "Card on the map (carousel)",
           "listing_mobile_bar": "Bottom bar (phone)",
-          "inconnu": "Before tracking"
+          "inconnu": "Before tracking or not recorded"
         },
         "purpose": {
           "rent": "for rent",
@@ -4036,9 +4038,8 @@
     },
     "cms": {
       "exchangeRate": "Exchange Rate (USD → CDF)",
-      "homeBanners": "Home Banners (Sliders)",
       "adBanners": "Advertising Banners",
-      "rateNote": "Manual rate shown on the public site, never a live exchange feed — see web/CLAUDE.md. Edit",
+      "rateNote": "A manual rate shown on the public site, never a live exchange feed — see web/CLAUDE.md. Changing this value immediately changes every “≈” conversion shown on the site.",
       "hero": {
         "title": "Homepage Hero Image",
         "subtitle": "The photograph behind the headline on lukkaplace.com. It changes for every visitor at their next page load — no deploy needed.",
@@ -4063,6 +4064,54 @@
         "chooseImage": "Choose a picture to upload or paste its URL.",
         "altTooLong": "The description is limited to 160 characters.",
         "creditTooLong": "The credit is limited to 200 characters."
+      },
+      "subtitle": "What lukkaplace.com shows by default: the homepage photo, the title and description for search engines, the exchange rate and the ad banners. Every change is live on the next page load, with no redeploy.",
+      "rateLabel": "1 USD = ? CDF",
+      "rateUpdated": "Last updated: {date}",
+      "ads": {
+        "note": "The Laravel back office’s banners, as stored. Each one records only its format, not a page, so the placement shown is that format. None of them is displayed on lukkaplace.com today.",
+        "placement": "Placement",
+        "image": "Image",
+        "views": "Views",
+        "url": "URL",
+        "rowId": "Banner #{id}",
+        "imageAlt": "Banner #{id}",
+        "imageMissing": "File “{file}” not found online",
+        "noImage": "No image",
+        "urlAria": "URL of banner #{id}",
+        "format": {
+          "box": "Box (rectangle) · {size}",
+          "sidebar": "Sidebar column · {size}",
+          "leaderboard": "Horizontal banner · {size}",
+          "unknown": "Unknown format (#{n})"
+        },
+        "errors": {
+          "invalid": "Enter an address starting with https:// (or leave the field empty).",
+          "too_long": "This address is too long (500 characters at most)."
+        }
+      },
+      "seo": {
+        "heading": "SEO & Meta Optimisation",
+        "subtitle": "The title, description and image Google, WhatsApp and Facebook show for lukkaplace.com. An empty field keeps the site’s current text (shown in grey). Listings, commune pages and guides keep their own titles.",
+        "language": {
+          "fr": "French",
+          "en": "English"
+        },
+        "siteNameLabel": "Default site title",
+        "descriptionLabel": "Meta description",
+        "counter": "{count} / {max} characters",
+        "ogImageLabel": "Default Open Graph image (URL)",
+        "ogImageHint": "An https:// address or a site path (/og-image.png). Recommended size: 1200 × 630 px. Empty: the current Lukka Place card.",
+        "saving": "Saving…",
+        "saved": "SEO settings saved. Live on the next page load.",
+        "unavailable": "The SEO settings could not be read. The site is using its default text.",
+        "errors": {
+          "title_too_long": "The title is longer than 70 characters.",
+          "description_too_long": "The description is longer than 200 characters.",
+          "image_invalid": "This image address is not valid.",
+          "image_https": "The image must be served over https://.",
+          "image_too_long": "This image address is too long (500 characters at most)."
+        }
       }
     },
     "password": {

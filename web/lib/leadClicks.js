@@ -32,12 +32,22 @@ export const RECORD_LEAD_CLICK_SQL = `
 
 /**
  * Which button was tapped (migrations/20261026_whatsapp_click_placement.sql):
- * a listing card's WhatsApp action (feed, rails, map cards), the listing
- * page's enquiry card, or the phone's bottom bar on a listing page. Used only
- * when the client named one; before the migration the INSERT falls back to
+ * a listing card's WhatsApp action (feed, rails, list pane), the listing
+ * page's enquiry card in the desktop rail, the phone's bottom bar on a
+ * listing page, or a card in the map's carousel / pin preview. Used only
+ * when the client named one of these; anything else is stored as none,
+ * never refused. Before the migration the INSERT falls back to
  * RECORD_LEAD_CLICK_SQL, then to the legacy one.
+ *
+ * 'listing_page' (written 2026-10-26 → 27) is still allowed by the
+ * migration's CHECK for rows already stored, but is no longer accepted here.
  */
-export const LEAD_CLICK_PLACEMENTS = ['card', 'listing_page', 'listing_mobile_bar'];
+export const LEAD_CLICK_PLACEMENTS = ['card', 'listing_desktop', 'listing_mobile_bar', 'map_card'];
+
+/** @returns {string|null} a known placement, else null. */
+export function leadClickPlacement(value) {
+  return LEAD_CLICK_PLACEMENTS.includes(value) ? value : null;
+}
 
 export const RECORD_LEAD_CLICK_PLACEMENT_SQL = `
   INSERT INTO whatsapp_clicks (listing_id, commune, device, source, price, routing_type, agent_id, visitor_id, viewer_kind, placement)
@@ -69,7 +79,7 @@ export async function recordLeadClick(pool, {
   const base = [listingId, commune || null, device, source, price, routingType];
   const kind = VIEWER_KINDS.includes(viewerKind) ? viewerKind : 'visitor';
   const tracked = [...base, visitorId || null, kind, agentId || null];
-  if (LEAD_CLICK_PLACEMENTS.includes(placement)) {
+  if (leadClickPlacement(placement)) {
     try {
       const result = await pool.query(RECORD_LEAD_CLICK_PLACEMENT_SQL, [...tracked, placement]);
       return result.rowCount > 0;

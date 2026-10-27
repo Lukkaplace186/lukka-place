@@ -1,7 +1,7 @@
 import { getPool } from '@/lib/db';
 import { analyticsDimensions } from '@/lib/requestContext';
 import { clientKey, rateLimited, usableAmount } from '@/lib/eventIngest';
-import { recordLeadClick, LEAD_CLICK_ROUTING_TYPES } from '@/lib/leadClicks';
+import { leadClickPlacement, recordLeadClick, LEAD_CLICK_ROUTING_TYPES } from '@/lib/leadClicks';
 import { attributionFromBody, eventSource, signedInAgentIdFrom, viewerKindFor, visitorIdFrom } from '@/lib/trackIngest';
 
 /**
@@ -59,7 +59,8 @@ export async function POST(request) {
       visitorId: visitorIdFrom(request, body?.visitorId),
       viewerKind,
       agentId,
-      placement: typeof body?.placement === 'string' ? body.placement : null,
+      // Optional; an unknown value is stored as none, never a 400.
+      placement: leadClickPlacement(body?.placement),
     });
   } catch (err) {
     console.error(`[api/telemetry/lead-click] insert failed: ${err.message}`);

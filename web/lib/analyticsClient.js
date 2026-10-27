@@ -222,8 +222,9 @@ export function listingEventPayload(listing) {
  *
  * @param {Object} listing
  * @param {'DIRECT_WA'|'CENTRAL_FALLBACK'} routingType
- * @param {'card'|'listing_page'|'listing_mobile_bar'} [placement] which button
- *   was tapped (lib/leadClicks.js LEAD_CLICK_PLACEMENTS).
+ * @param {'card'|'listing_desktop'|'listing_mobile_bar'|'map_card'} [placement]
+ *   which button was tapped (lib/leadClicks.js LEAD_CLICK_PLACEMENTS); the
+ *   server stores an unknown value as none.
  */
 export function trackLeadClick(listing, routingType, placement) {
   if (listing?.id != null) adEvent('Contact', { contentIds: [listing.id] });

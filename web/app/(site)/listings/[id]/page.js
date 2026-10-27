@@ -412,7 +412,7 @@ export default async function ListingDetailPage({ params, searchParams }) {
               it the item stretches to the row's full height and has no
               room left to stick within. top-24 clears the fixed header. */}
           <aside className="hidden w-full self-start lg:sticky lg:top-24 lg:flex lg:flex-col lg:space-y-4">
-            <EnquiryCard listing={listing} visitSent={visitSent} visitError={visitError} />
+            <EnquiryCard listing={listing} visitSent={visitSent} visitError={visitError} placement="listing_desktop" />
             <AgentProfileLink agentId={listing.agent_id} />
             <PricePanel listing={listing} />
           </aside>

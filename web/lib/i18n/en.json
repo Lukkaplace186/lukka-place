@@ -1136,6 +1136,7 @@
       "edit": "Edit",
       "duplicate": "Duplicate",
       "shareWhatsApp": "Share on WhatsApp",
+      "shareSocial": "Post on social media",
       "relist": "Put back online",
       "deleteOne": "Delete This Listing?",
       "relisted": "“{title}” is back online.",
@@ -2510,7 +2511,12 @@
       "downloadShort": "Download",
       "copyCaption": "Copy the caption",
       "captionCopiedShort": "Caption copied",
-      "hintFeed": "The caption is copied at the same time: paste it under the photo. On Instagram the link does not open with a tap."
+      "hintFeed": "The caption is copied at the same time: paste it under the photo. On Instagram the link does not open with a tap.",
+      "myPageTitle": "My Lukka Place Page",
+      "myPageHint": "Put this link in your Instagram or TikTok bio: your followers find all your listings there and contact you.",
+      "myPageCopy": "Copy",
+      "myPageCopied": "Link copied",
+      "myPageCopyFailed": "The link could not be copied."
     },
     "inbox": {
       "filterLabel": "Filter requests",

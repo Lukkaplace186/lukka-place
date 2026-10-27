@@ -365,7 +365,7 @@ test('Partager sur WhatsApp sends the listing card with its caption, the text li
   // The square by default; the 4:5 feed card is the dialog's other format.
   assert.match(quick, /prepareListingCard\(listing, format, \{ audience \}\)/);
   assert.match(quick, /const formats = team \? \['feed'\] : FORMATS;/);
-  assert.match(quick, /useState\(formats\[0\]\)/);
+  assert.match(quick, /useState\(startFormat\)/);
   const cache = readFileSync(path.join(process.cwd(), 'lib/listingCardCache.js'), 'utf8');
   assert.match(cache, /renderFlyer\(kit\.pack, format, decoded, family\)/);
   assert.match(cache, /export function prepareListingCard\(listing, format = 'square', \{ audience = 'agent' \} = \{\}\)/);
@@ -382,7 +382,7 @@ test('Partager sur WhatsApp sends the listing card with its caption, the text li
   assert.doesNotMatch(button, /<a\s/);
   const menu = readFileSync(path.join(process.cwd(), 'components/AgentListingActionsMenu.js'), 'utf8');
   // A sibling of the menu, never inside an item that unmounts on close.
-  assert.match(menu, /<ListingQuickShare listing=\{listing\} caption=\{caption\} open=\{quickShareOpen\}/);
+  assert.match(menu, /<ListingQuickShare\s+key=\{quickShareFormat\}\s+listing=\{listing\}\s+caption=\{caption\}\s+open=\{quickShareOpen\}/);
 });
 
 // ---------------------------------------------------------------------------

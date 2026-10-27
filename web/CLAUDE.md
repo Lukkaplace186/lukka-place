@@ -3283,6 +3283,16 @@ From the "Social & Open Graph Share Cards" design canvas. Tests:
   in `FLYER_SELECT`), never the agent's tier. Its caption is `copies.social`
   (`buildListingSocialCopy` `style: 'social'`: no `*bold*`, no contact line,
   hashtags from real fields, utm_source `reseaux_sociaux`).
+- **Agents post it from one tap, and it leads to their own page** (2026-10-27):
+  "Publier sur les réseaux sociaux" in the Mes biens row menu opens the
+  dialog on the 4:5 (`initialFormat="feed"`, live listings only). An agent's
+  kit carries `agentPage` (`buildShareKit` `agentId`, `agentPageUrl` /
+  `agentPageLabel`): `/agents/<id>` with their `ref=` code. The dialog shows
+  it as "Ma page Lukka Place" with a copy button for their Instagram / TikTok
+  bio (`utm_source=bio_agent`), and the social caption ends with "Tous mes
+  biens sur Lukka Place :" + the same page (`utm_source=reseaux_sociaux`),
+  after the listing's own link. The card itself still prints the listing's
+  address. The team's kit has no agent page. `tests/unit/agent-social-share.test.js`.
 - **The company posts it too**: "Carte réseaux sociaux" on `/admin/listings/[id]`
   (`TeamSocialCardButton`, live listings only) opens the same dialog with
   `audience="team"` — 4:5 only, the kit from `app/admin/listings/shareActions.js`

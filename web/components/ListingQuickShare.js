@@ -60,15 +60,18 @@ const FORMATS = ['square', 'feed'];
  * inside a menu item: Radix unmounts the menu content on close, which would
  * take the dialog with it.
  */
-export default function ListingQuickShare({ listing, caption, open, onOpenChange, audience = 'agent' }) {
+export default function ListingQuickShare({ listing, caption, open, onOpenChange, audience = 'agent', initialFormat = 'square' }) {
   const t = useT();
   const { showToast } = useToast();
   const team = audience === 'team';
   const formats = team ? ['feed'] : FORMATS;
-  const [format, setFormat] = useState(formats[0]);
+  // Mes biens' "Publier sur les réseaux sociaux" opens straight on the 4:5.
+  const startFormat = formats.includes(initialFormat) ? initialFormat : formats[0];
+  const [format, setFormat] = useState(startFormat);
   const [state, setState] = useState({ status: 'idle' }); // idle (drawing) | ready | failed
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [pageCopied, setPageCopied] = useState(false);
   const urlRef = useRef(null);
   const feed = format === 'feed';
 
@@ -170,6 +173,16 @@ export default function ListingQuickShare({ listing, caption, open, onOpenChange
     if (await copyCaption()) record('kit_copy', 'text');
   }
 
+  // The agent's own page, for their Instagram / TikTok bio (kit.agentPage).
+  function copyPageLink() {
+    const url = kit?.agentPage?.url;
+    if (!url) return;
+    navigator.clipboard
+      .writeText(url)
+      .then(() => setPageCopied(true))
+      .catch(() => showToast({ type: 'error', message: t('agent.quickShare.myPageCopyFailed') }));
+  }
+
   function chooseFormat(next) {
     if (next === format) return;
     setState({ status: 'idle' });
@@ -188,7 +201,8 @@ export default function ListingQuickShare({ listing, caption, open, onOpenChange
     if (!next) {
       setState({ status: 'idle' });
       setCopied(false);
-      setFormat(formats[0]);
+      setPageCopied(false);
+      setFormat(startFormat);
     }
     onOpenChange(next);
   }
@@ -290,6 +304,27 @@ export default function ListingQuickShare({ listing, caption, open, onOpenChange
             {copied ? t('agent.share.captionCopied') : feed ? t('agent.quickShare.hintFeed') : t('agent.quickShare.hint')}
           </p>
         </div>
+
+        {feed && !team && kit?.agentPage ? (
+          <div className="rounded-xl bg-canvas-alt p-3">
+            <p className="u-title-sub text-ink">{t('agent.quickShare.myPageTitle')}</p>
+            <p className="u-micro mt-0.5 text-ink-70">{t('agent.quickShare.myPageHint')}</p>
+            <div className="mt-2 flex items-center gap-2">
+              <a
+                href={kit.agentPage.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="u-micro-strong min-w-0 flex-1 truncate text-blue-deep hover:underline"
+              >
+                {kit.agentPage.label}
+              </a>
+              <button type="button" onClick={copyPageLink} className={`${secondary} min-h-10 shrink-0 bg-surface`}>
+                {pageCopied ? <Check className="h-4 w-4 shrink-0 text-green-ink" aria-hidden="true" /> : <Copy className="h-4 w-4 shrink-0" aria-hidden="true" />}
+                {pageCopied ? t('agent.quickShare.myPageCopied') : t('agent.quickShare.myPageCopy')}
+              </button>
+            </div>
+          </div>
+        ) : null}
       </DialogContent>
     </Dialog>
   );

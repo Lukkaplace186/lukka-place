@@ -2209,6 +2209,20 @@ and the code writes correctly before and after it runs). Write side is
   `share_click` (`ShareButton`, only a completed share of a `/listings/<id>`
   URL). None of them go near `whatsapp_clicks`, so the WhatsApp conversion rate
   is unchanged.
+- **Every public page is a `page_views` row since 2026-10-29**
+  (`components/SitePageViewTracker.js`, mounted in the `(site)` and
+  `(portfolio)` layouts). Before, only `/listings/<id>` was ever recorded, so
+  the home page, search, map and agent pages had no visitors and nothing
+  upstream of a listing could be measured (found in the week-1 funnel review:
+  133 listing viewers, no idea how many people reached the site).
+  `sitePageViewPath` skips a listing page (ListingViewTracker sends that row,
+  with its commune) and drops the query string: one row per pathname, so a
+  filter change is not a page. Readers that need LISTING views already filter
+  on `path LIKE '/listings/%'` / `listing_id`; `getConversionByDevice` was the
+  one that divided taps by every view and now filters too. Totals, devices,
+  sources and visitor counts are site-wide from that date, and
+  `getAgentProfileViews` (`/agents/<id>`) counts for the first time.
+  `tests/unit/site-page-views.test.js`.
 - **`search_events`**: one row per distinct committed /listings search per tab
   session (`components/SearchTracker.js`, page 1, not on a map area), with the
   EXACT match count — 0 when the page had to relax the search. This is the

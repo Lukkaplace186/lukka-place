@@ -5,6 +5,7 @@ import { Wordmark } from '@/components/Brand';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { I18nProvider } from '@/lib/i18n/client';
 import { getI18n } from '@/lib/i18n/server';
+import SitePageViewTracker from '@/components/SitePageViewTracker';
 
 /**
  * Chrome for the agent portfolio pages, cloned from web/Design's "Agent
@@ -100,6 +101,8 @@ export default async function PortfolioLayout({ children }) {
             </div>
           </footer>
         </div>
+        {/* /agents and /agents/:id — what getAgentProfileViews counts. */}
+        <SitePageViewTracker />
       </CurrencyRateProvider>
     </I18nProvider>
   );

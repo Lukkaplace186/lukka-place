@@ -1,6 +1,7 @@
 import Header from '@/components/Header';
 import { getFeatureFlags, getGrowthSettings } from '@/lib/siteSettings';
 import AdTracking from '@/components/AdTracking';
+import SitePageViewTracker from '@/components/SitePageViewTracker';
 import SignupNudge from '@/components/SignupNudge';
 import SiteShell from '@/components/SiteShell';
 import Footer from '@/components/Footer';
@@ -85,6 +86,8 @@ export default async function SiteLayout({ children }) {
         <ImpersonationBanner />
         {/* Meta / TikTok pixels, and the consent banner in Europe (lib/adTrackingRules.js). */}
         <AdTracking metaPixelId={growth.metaPixelId} tiktokPixelId={growth.tiktokPixelId} />
+        {/* Our own page_view on every page but a listing's (that one sends its own). */}
+        <SitePageViewTracker />
         {/* "Créez un compte…" at the right moments (growth plan item 24). */}
         <SignupNudge />
       </CurrencyRateProvider>

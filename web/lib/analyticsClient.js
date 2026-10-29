@@ -259,3 +259,16 @@ export function listingIdFromPath(pathOrUrl) {
     return null;
   }
 }
+
+/**
+ * The path SitePageViewTracker records for a page, or null when it must not
+ * record one. A listing detail page is left to ListingViewTracker, which
+ * sends the same row with the listing's commune: both would count it twice.
+ * Query strings are dropped — a filter change is not a new page.
+ */
+export function sitePageViewPath(pathname) {
+  const path = String(pathname || '').split(/[?#]/)[0];
+  if (!path.startsWith('/') || path.length > 300) return null;
+  if (listingIdFromPath(path) != null) return null;
+  return path;
+}

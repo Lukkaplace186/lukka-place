@@ -520,9 +520,13 @@ export async function getConversionByDevice({ sinceDays } = {}) {
   const pool = getPool();
   const { rows } = await pool.query(
     `WITH v AS (
+       -- Listing pages only: the WhatsApp button lives there, and since every
+       -- page records a view (SitePageViewTracker) a site-wide count would
+       -- dilute the rate with home and search visits that had no button.
        SELECT COALESCE(device, 'inconnu') AS device, count(*)::int AS views
        FROM page_views
-       WHERE $1::int IS NULL OR created_at >= NOW() - ($1 || ' days')::interval
+       WHERE path LIKE '/listings/%'
+         AND ($1::int IS NULL OR created_at >= NOW() - ($1 || ' days')::interval)
        GROUP BY 1
      ), c AS (
        SELECT COALESCE(device, 'inconnu') AS device, count(*)::int AS clicks

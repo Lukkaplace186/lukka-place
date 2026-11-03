@@ -2899,7 +2899,7 @@ Tests: `tests/unit/launch-fixes-2026-10-21.test.js`; engine §60.
   `DELETE /admin/viewing-requests/:id` (the visit + its open questions; the
   lead stays). Audited; nobody is messaged.
 - **Rappeler de vérifier** (agent page + agents table menu, `agents.manage`):
-  `lib/verificationReminder.js`'s text (owner's wording, "5 annonces"; the bonus was
+  `lib/verificationReminder.js`'s text (owner's wording; the bonus and the "5" were
   dropped 2026-11-03, bonuses no longer run)
   through the engine's `/admin/send-whatsapp`. A session message: it only
   reaches an agent who wrote to the business number in the last 24 h, and the

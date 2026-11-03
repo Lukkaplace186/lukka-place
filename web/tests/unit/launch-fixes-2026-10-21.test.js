@@ -74,6 +74,7 @@ test('the verification reminder names the agent only when there is a real first 
   assert.match(verificationReminderText('243810000000'), /^Bonjour ! /);
   assert.match(verificationReminderText(null), /Assistance : \+243 846 962 654$/);
   assert.doesNotMatch(verificationReminderText('Jean'), /bonus/i);
+  assert.match(verificationReminderText('Jean'), /Soumettez vos informations ou annonces pour/);
 });
 
 test('deleting visits and prospects is owner-only; reminders and agency renames need agents.manage', () => {

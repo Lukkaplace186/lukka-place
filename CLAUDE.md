@@ -1652,6 +1652,25 @@ holds the rules. §63 of verify-pipeline.
   else `ffmpeg` on PATH. None → no cover, the video still publishes.
 - Web half: web/CLAUDE.md, "Listing videos".
 
+## OpenAI cost (2026-11-03)
+
+- **Listing reading stays on gpt-4o** (intake, corrections, smart paste, buyer
+  assistant). gpt-4o-mini was measured against it (`scripts/eval-intake-models.js`,
+  real messages + hard cases): it merged a 3-listing paste into one, missed
+  "c'est déjà loué", filled listing fields from a buyer's search, invented
+  garantie months and put streets in `quartier`. It is no cheaper with photos
+  (~33x tokens per image). Only `priceExtraction` uses it (`OPENAI_TEXT_MODEL`),
+  because its answer must be a number literally in the text.
+- **Photos with a written listing (≥120 chars) go at `low` detail**
+  (`OPENAI_IMAGE_DETAIL_WITH_TEXT`): 8 photos ~8,400 → ~700 input tokens, same
+  extraction on the real photo listings. A short or absent caption (a flyer)
+  keeps `OPENAI_IMAGE_DETAIL`.
+- The ~13k-token system prompt + schema is already ~93% served from OpenAI's
+  prompt cache (measured); `prompt_cache_key` keeps it so. Output caps
+  (`max_completion_tokens`) are runaway guards sized for multi-property
+  pastes — never 500. Incoming text is not truncated: a long broadcast is
+  usually several listings, and cutting it drops them.
+
 ## Verification & Commands
 - **Verification Command**: Always run `npm run verify` before declaring a backend task complete.
 - **Test Coverage**: Do not touch schema fields without updating `scripts/verify-pipeline.js`.

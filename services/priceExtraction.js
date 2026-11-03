@@ -35,7 +35,10 @@
  * the bare-amount parser.
  */
 
-const MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
+// The cheap text model (services/openai.js): the answer is only kept when it
+// is one of the numbers literally in the text, so a weaker reading is refused,
+// never stored.
+const MODEL = process.env.OPENAI_TEXT_MODEL || 'gpt-4o-mini';
 
 /** Anything longer is a message, not an answer to "quel prix ?". */
 const MAX_ANSWER_LENGTH = 80;
@@ -133,6 +136,7 @@ async function extractPriceWithModel(text) {
   const completion = await getClient().chat.completions.create({
     model: MODEL,
     temperature: 0,
+    max_completion_tokens: 100,
     response_format: {
       type: 'json_schema',
       json_schema: {

@@ -17,7 +17,23 @@ const OpenAI = require('openai');
 const { LOCATIONS, KINSHASA_COMMUNES } = require('./locations');
 const { CITIES, CITY_NAMES, DEFAULT_CITY } = require('./cities');
 
+// Every listing-reading call stays on gpt-4o (2026-11-03). gpt-4o-mini was
+// measured against it on real intake messages and hard cases
+// (scripts/eval-intake-models.js): it merged a three-listing paste into one,
+// missed "c'est déjà loué", filled listing fields from a buyer's search,
+// invented garantie months (on a sale too) and put streets in `quartier`. It
+// is also no cheaper with photos — it bills each image at ~33x the tokens.
+// Only the closing-price reader, whose answer is checked against the text,
+// uses it (services/priceExtraction.js).
 const MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
+
+// Output ceilings: a runaway guard, not a budget — output is billed per token
+// generated, so a high cap costs nothing on a normal answer. The intake cap has
+// to fit a multi-property paste's units plus the reply; a low one (500) would
+// turn exactly those messages into "Model output was truncated".
+const INTAKE_MAX_OUTPUT_TOKENS = 6000;
+const FORM_MAX_OUTPUT_TOKENS = 2500;
+const BUYER_MAX_OUTPUT_TOKENS = 800;
 
 let client;
 
@@ -578,6 +594,18 @@ const MAX_IMAGES = Number.parseInt(process.env.OPENAI_MAX_IMAGES, 10) || 10;
 const IMAGE_DETAIL = process.env.OPENAI_IMAGE_DETAIL || 'auto';
 
 /**
+ * With a written listing, photos are read at 'low' detail (85 tokens each
+ * instead of up to ~1,100 at 'auto'): the facts are in the text, and the prompt
+ * already lets the text win over an image. Measured 2026-11-03 on real photo
+ * listings: same extraction, photos' share of the input down from ~8,400 to
+ * ~1,000 tokens for 8 photos — about 40% of a photo listing's cost. A short or
+ * absent caption means the photos ARE the listing (a flyer, a screenshot), so
+ * those keep IMAGE_DETAIL. OPENAI_IMAGE_DETAIL_WITH_TEXT=auto turns this off.
+ */
+const IMAGE_DETAIL_WITH_TEXT = process.env.OPENAI_IMAGE_DETAIL_WITH_TEXT || 'low';
+const WRITTEN_LISTING_MIN_CHARS = 120;
+
+/**
  * Turn one caller-supplied image into an `image_url` content part.
  *
  * Accepts, in order of preference:
@@ -817,6 +845,47 @@ function normaliseEntryCosts(extracted, rawText) {
 }
 
 /**
+ * One intake completion, validated. Throws on anything that cannot be used.
+ * @returns {Promise<{completion: Object, parsed: Object}>}
+ */
+async function completeIntake(model, messages) {
+  const completion = await getClient().chat.completions.create({
+    model,
+    // Extraction, not creative writing — keep it deterministic.
+    temperature: 0,
+    max_completion_tokens: INTAKE_MAX_OUTPUT_TOKENS,
+    // The system prompt and schema (~13k tokens) are identical on every call;
+    // one key keeps them on the same cache shard (cached input is half price).
+    prompt_cache_key: 'lukka-intake',
+    response_format: RESPONSE_FORMAT,
+    messages,
+  });
+
+  const choice = completion.choices?.[0];
+
+  // With strict Structured Outputs a schema-valid object is guaranteed *if* the
+  // model finished. It can still refuse, or stop early on max_tokens — in both
+  // cases `content` is unusable and must not be parsed blindly.
+  if (choice?.message?.refusal) {
+    throw new Error(`Model refused the request: ${choice.message.refusal}`);
+  }
+  if (choice?.finish_reason === 'length') {
+    throw new Error('Model output was truncated (finish_reason: length)');
+  }
+
+  const raw = choice?.message?.content;
+  if (!raw) {
+    throw new Error(`Model returned no content (finish_reason: ${choice?.finish_reason || 'unknown'})`);
+  }
+
+  try {
+    return { completion, parsed: JSON.parse(raw) };
+  } catch {
+    throw new Error(`Model returned non-JSON output: ${String(raw).slice(0, 200)}`);
+  }
+}
+
+/**
  * Extract a listing from one WhatsApp message: text, images, or both.
  *
  * @param {string} [text]              Raw message body / image caption.
@@ -826,6 +895,7 @@ function normaliseEntryCosts(extracted, rawText) {
  *        download returns.
  * @param {string} [options.senderPhone] Sender's number, passed as context only.
  * @param {string} [options.imageDetail] 'auto' | 'low' | 'high' for this call.
+ * @param {string} [options.model]       Override OPENAI_MODEL for this call (scripts/eval-intake-models.js).
  * @param {Object} [options.draft]     Listing already pending this sender's 'OK'
  *        (see draftContextFromListing). Its presence is what switches the model
  *        into correction mode; omit it and the request is byte-identical to a
@@ -834,7 +904,9 @@ function normaliseEntryCosts(extracted, rawText) {
  *        Earlier turns of the same submission, oldest first. Ignored without a draft.
  * @returns {Promise<{extracted_data: Object, whatsapp_reply: string, _meta: Object}>}
  */
-async function parseMessage(text, { senderPhone, images = [], imageDetail, draft = null, history = [] } = {}) {
+async function parseMessage(text, {
+  senderPhone, images = [], imageDetail, draft = null, history = [], model,
+} = {}) {
   const hasText = Boolean(text && String(text).trim());
   const suppliedImages = Array.isArray(images) ? images.filter(Boolean) : [];
 
@@ -852,7 +924,8 @@ async function parseMessage(text, { senderPhone, images = [], imageDetail, draft
     );
   }
 
-  const detail = imageDetail || IMAGE_DETAIL;
+  const writtenListing = hasText && String(text).trim().length >= WRITTEN_LISTING_MIN_CHARS;
+  const detail = imageDetail || (writtenListing ? IMAGE_DETAIL_WITH_TEXT : IMAGE_DETAIL);
 
   const promptText = [
     senderPhone ? `Expéditeur : ${senderPhone}` : null,
@@ -896,37 +969,8 @@ async function parseMessage(text, { senderPhone, images = [], imageDetail, draft
 
   messages.push({ role: 'user', content: userContent });
 
-  const completion = await getClient().chat.completions.create({
-    model: MODEL,
-    // Extraction, not creative writing — keep it deterministic.
-    temperature: 0,
-    response_format: RESPONSE_FORMAT,
-    messages,
-  });
-
-  const choice = completion.choices?.[0];
-
-  // With strict Structured Outputs a schema-valid object is guaranteed *if* the
-  // model finished. It can still refuse, or stop early on max_tokens — in both
-  // cases `content` is unusable and must not be parsed blindly.
-  if (choice?.message?.refusal) {
-    throw new Error(`Model refused the request: ${choice.message.refusal}`);
-  }
-  if (choice?.finish_reason === 'length') {
-    throw new Error('Model output was truncated (finish_reason: length)');
-  }
-
-  const raw = choice?.message?.content;
-  if (!raw) {
-    throw new Error(`Model returned no content (finish_reason: ${choice?.finish_reason || 'unknown'})`);
-  }
-
-  let parsed;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    throw new Error(`Model returned non-JSON output: ${String(raw).slice(0, 200)}`);
-  }
+  const { completion, parsed } = await completeIntake(model || MODEL, messages);
+  const choice = completion.choices[0];
 
   // The raw text wins on entry costs — see normaliseEntryCosts.
   normaliseEntryCosts(parsed.extracted_data, text);
@@ -936,7 +980,7 @@ async function parseMessage(text, { senderPhone, images = [], imageDetail, draft
     extracted_data: parsed.extracted_data,
     whatsapp_reply: parsed.whatsapp_reply,
     _meta: {
-      model: completion.model || MODEL,
+      model: completion.model || model || MODEL,
       usage: completion.usage || null,
       finish_reason: choice.finish_reason,
       imageCount: usedImages.length,
@@ -1350,6 +1394,8 @@ async function runBuyerTurn({
     const completion = await getClient().chat.completions.create({
       model: MODEL,
       temperature: 0.3,
+      max_completion_tokens: BUYER_MAX_OUTPUT_TOKENS,
+      prompt_cache_key: 'lukka-buyer',
       tools: BUYER_TOOLS,
       messages,
     });
@@ -1527,6 +1573,8 @@ async function parseListingTextForForm(rawText) {
   const completion = await getClient().chat.completions.create({
     model: MODEL,
     temperature: 0,
+    max_completion_tokens: FORM_MAX_OUTPUT_TOKENS,
+    prompt_cache_key: 'lukka-smart-paste',
     response_format: LISTING_FORM_RESPONSE_FORMAT,
     messages: [
       { role: 'system', content: LISTING_FORM_SYSTEM_PROMPT },

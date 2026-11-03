@@ -1120,8 +1120,21 @@ console.log('\n2. services/openai.js');
   });
   check('tells the model how many images are attached', () =>
     assert.ok(/2 image\(s\)/.test(imageParams.messages[1].content[0].text)));
-  check('sets a detail level on image parts', () =>
+  check('a short caption keeps the configured detail (the photos are the listing)', () =>
     assert.strictEqual(imageParts[0].image_url.detail, 'auto'));
+  check('intake caps output and keys the prompt cache', () => {
+    assert.strictEqual(imageParams.max_completion_tokens, 6000);
+    assert.strictEqual(imageParams.prompt_cache_key, 'lukka-intake');
+  });
+
+  await checkAsync('photos sent with a written listing are read at low detail', async () => {
+    await openaiService.parseMessage(
+      'Appartement 2 chambres à louer à Kintambo Jamaïque, salon, cuisine, 2 salles de bains, parking, 600$ par mois, garantie 3+1+1',
+      { images: [{ data: FAKE_JPEG_B64, mimeType: 'image/jpeg' }] },
+    );
+    const parts = openaiCalls[openaiCalls.length - 1].messages[1].content.filter((p) => p.type === 'image_url');
+    assert.strictEqual(parts[0].image_url.detail, 'low');
+  });
   check('reports image count in _meta', () => {
     assert.strictEqual(withImages._meta.imageCount, 2);
     assert.strictEqual(withImages._meta.imagesDropped, 0);

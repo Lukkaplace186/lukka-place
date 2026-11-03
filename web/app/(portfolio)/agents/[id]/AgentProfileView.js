@@ -9,6 +9,7 @@ import { Wordmark } from '@/components/Brand';
 import AgentAvatar from '@/components/AgentAvatar';
 import CardImageCarousel from '@/components/CardImageCarousel';
 import Price from '@/components/Price';
+import FavoriteButton from '@/components/FavoriteButton';
 import SpecItem from '@/components/SpecItem';
 import { Badge } from '@/components/ListingBadges';
 import { trackCallClick, trackLeadClick } from '@/lib/analyticsClient';
@@ -302,14 +303,26 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
                     tabIndex={0}
                     onClick={() => open(item)}
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(item); } }}
-                    className="flex cursor-pointer items-center gap-3.5 border-b border-line/60 py-4"
+                    className="flex cursor-pointer items-stretch gap-3.5 border-b border-line/60 py-4"
                   >
-                    <div className="relative h-28 w-28 flex-none overflow-hidden rounded-xl bg-canvas-alt">
+                    {/* The photo takes ~42% of the row (it was a 112px square
+                        beside a half-empty column), portrait so it runs the
+                        height of the text. The save heart sits on it, as on
+                        PropertyCard; the status badge heads the text column,
+                        since at this width it would run into the heart. */}
+                    <div className="relative aspect-[4/5] w-[42%] min-w-[8.75rem] max-w-[12rem] flex-none overflow-hidden rounded-xl bg-canvas-alt">
                       {item.photos.length ? (
-                        <CardImageCarousel images={item.photos} alt={item.title} sizes="112px" />
+                        <CardImageCarousel images={item.photos} alt={item.title} sizes="(min-width: 640px) 192px, 42vw" />
                       ) : null}
+                      {/* Its own click target: a tap on the heart must not open the sheet. */}
+                      <div className="absolute right-2 top-2 z-10" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                        <FavoriteButton listingId={item.id} price={item.price} commune={item.commune} />
+                      </div>
                     </div>
-                    <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                    <div className="flex min-w-0 flex-1 flex-col justify-center gap-1.5">
+                      {item.isNew || item.reserved ? (
+                        <div className="flex flex-wrap gap-1"><Badges item={item} labels={labels} /></div>
+                      ) : null}
                       <Price
                         amount={item.price}
                         purpose={item.purpose}
@@ -320,9 +333,6 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
                         className={CARD_PRICE_CLASS}
                         subtextClassName={ROW_FC_PILL_CLASS}
                       />
-                      {item.isNew || item.reserved ? (
-                        <div className="flex flex-wrap gap-1.5"><Badges item={item} labels={labels} /></div>
-                      ) : null}
                       {/* A real link, so the listing is crawlable and opens in a
                           new tab on a modified click; a plain tap opens the sheet. */}
                       <Link
@@ -331,13 +341,12 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
                           if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) { e.stopPropagation(); return; }
                           e.preventDefault();
                         }}
-                        className="truncate text-base font-medium leading-snug tracking-normal text-ink"
+                        className="line-clamp-2 text-base font-medium leading-snug tracking-normal text-ink"
                       >
                         {item.place || item.type}
                       </Link>
                       <TypeAndSpecs item={item} />
                     </div>
-                    <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem] flex-none text-ink-25" />
                   </div>
                 </li>
               ))}

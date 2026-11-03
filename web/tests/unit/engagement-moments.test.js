@@ -150,6 +150,15 @@ test('"Loué via Lukka Place": no price, the agent page link, the right word', (
   assert.match(kit, /listing\?\.listing_status !== 'closed'/);
 });
 
+test('the "Bravo" dialog keeps DialogContent fixed (a position class would override it)', () => {
+  // tailwind-merge keeps the LAST position utility: a "relative" passed to
+  // DialogContent replaced its "fixed", and the dialog opened below the fold.
+  const host = readFileSync(new URL('../../components/SoldShareHost.js', import.meta.url), 'utf8');
+  for (const [, cls] of host.matchAll(/<DialogContent className="([^"]*)"/g)) {
+    assert.doesNotMatch(cls, /(relative|absolute|static|sticky)/);
+  }
+});
+
 test('the new client pieces never read the clock during the server render', () => {
   for (const file of ['components/SavedSearchMatchBadge.js', 'components/NewSinceLastVisit.js']) {
     const source = readFileSync(new URL(`../../${file}`, import.meta.url), 'utf8');

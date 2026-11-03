@@ -45,7 +45,7 @@ export default function SoldShareHost() {
   return (
     <>
       <Dialog open={step === 'bravo'} onOpenChange={(next) => (next ? null : setStep(null))}>
-        <DialogContent className="relative overflow-hidden">
+        <DialogContent className="overflow-hidden">
           <Confetti className="left-1/2 top-10" />
           <div className="flex flex-col items-center gap-3 pt-2 text-center">
             <span className="u-pop grid h-14 w-14 place-items-center rounded-full bg-green-tint text-green-ink">

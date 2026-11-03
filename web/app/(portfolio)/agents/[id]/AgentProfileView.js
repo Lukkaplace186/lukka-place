@@ -189,12 +189,14 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
         </div>
       </div>
 
-      {/* Royal band: the Lukka Place logo and copy-link row, then the
-          agency's logo and name, and it ends right under the name (owner's
-          direction, 2026-11-03: the brand frames the agent, it does not take
-          the page over). On a phone it is the page's header: the layout's
-          white header is hidden there. Contact line, description, stats,
-          tabs and listings sit on the light ground below. */}
+      {/* Royal band: the Lukka Place logo and copy-link row, then ONE
+          identity row (agency logo beside name and contact line, the slim
+          bar's arrangement), and it ends there (owner's direction,
+          2026-11-03). The name and its contact person stay on one ground —
+          splitting them across the band's edge read as awkward — and no
+          row is a logo alone with empty blue beside it. On a phone the band
+          is the page's header: the layout's white header is hidden there.
+          Description, stats, tabs and listings sit on the light ground. */}
       <div className="bg-blue-deep text-white">
         <div className="mx-auto max-w-[40rem]">
           <div className="flex items-start justify-between px-4 pt-3.5">
@@ -209,25 +211,23 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
             </button>
           </div>
 
-          <div ref={headerRef} className="flex flex-col gap-3 px-5 pb-4 pt-4">
-            <div className="flex items-end gap-3.5">
-              {logo('h-20 w-20 rounded-2xl', 'shadow-sm ring-4 ring-white/15')}
-              {agent.verifiedLabel ? (
-                <span className="mb-1 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-[5px] text-[0.6875rem] font-bold uppercase tracking-[0.12em] text-white ring-1 ring-inset ring-white/25">
-                  <BadgeCheck strokeWidth={2.25} className="h-3.5 w-3.5" aria-hidden="true" />
-                  {agent.verifiedLabel}
-                </span>
-              ) : null}
+          <div ref={headerRef} className="flex items-center gap-3.5 px-5 pb-5 pt-4">
+            {logo('h-16 w-16 rounded-xl', 'shadow-sm ring-2 ring-white/20')}
+            <div className="min-w-0 flex-1">
+              <h1 className="flex items-center gap-1.5 text-[1.5rem] font-bold leading-[1.15] tracking-tight text-white">
+                <span className="min-w-0 break-words">{agent.name}</span>
+                {agent.verifiedLabel ? (
+                  <BadgeCheck strokeWidth={2.25} className="h-5 w-5 flex-none text-white" aria-label={agent.verifiedLabel} />
+                ) : null}
+              </h1>
+              {agent.subline ? <p className="mt-1 truncate text-[0.8125rem] text-white/75">{agent.subline}</p> : null}
             </div>
-            <h1 className="text-[1.875rem] font-bold leading-[1.1] tracking-tight text-white">{agent.name}</h1>
           </div>
         </div>
       </div>
 
       <div className="mx-auto max-w-[40rem]">
-        <div className="flex flex-col gap-3 px-5 pb-5 pt-3">
-          {agent.subline ? <p className="text-[0.8125rem] text-ink-45">{agent.subline}</p> : null}
-
+        <div className="flex flex-col gap-3 px-5 pb-5 pt-4">
           {agent.bio ? <p className="line-clamp-3 text-sm leading-relaxed text-ink-70">{agent.bio}</p> : null}
 
           <div className="flex flex-wrap items-center gap-2 text-[0.8125rem]">
@@ -376,18 +376,19 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
         {children}
       </div>
 
-      {/* Pinned contact bar, on the same royal ground as the header. */}
-      <div className="fixed inset-x-0 bottom-0 z-30 bg-blue-deep pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-4px_16px_rgba(12,29,80,0.18)]">
+      {/* Pinned contact bar: white with the royal WhatsApp button, so the
+          page is branded at the top and not boxed in by blue at both ends. */}
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line/60 bg-surface pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-4px_16px_rgba(12,29,80,0.08)]">
         <div className="mx-auto flex max-w-[40rem] items-center gap-3 px-4">
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-bold text-white">{agent.name}</div>
-            <div className="truncate text-xs text-white/70">{agent.barNote}</div>
+            <div className="truncate text-sm font-bold text-ink">{agent.name}</div>
+            <div className="truncate text-xs text-ink-45">{agent.barNote}</div>
           </div>
           {agent.telHref ? (
             <a
               href={agent.telHref}
               aria-label={labels.call}
-              className="u-press grid h-10 w-10 flex-none place-items-center rounded-lg text-white ring-[1.5px] ring-inset ring-white/60 transition-colors hover:bg-white/10"
+              className="u-press grid h-10 w-10 flex-none place-items-center rounded-lg text-ink ring-[1.5px] ring-inset ring-ink transition-colors hover:bg-ink hover:text-white"
             >
               <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
             </a>
@@ -397,7 +398,7 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
               href={agent.whatsappHref}
               target="_blank"
               rel="noopener noreferrer"
-              className="u-press flex h-10 flex-none items-center gap-2 rounded-lg bg-white px-4 text-sm font-bold text-blue-deep transition-colors hover:bg-blue-tint"
+              className="u-press flex h-10 flex-none items-center gap-2 rounded-lg bg-blue px-4 text-sm font-bold text-white transition-colors hover:bg-blue-deep"
             >
               <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
               WhatsApp

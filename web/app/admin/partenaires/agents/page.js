@@ -8,6 +8,7 @@ import { listAgentLedger, listCredits } from '@/lib/referralCredits';
 import { ACTIVATION_WINDOW_DAYS, HOLD_DAYS, REFERRAL_CREDIT } from '@/lib/referralRules';
 import { frNumber } from '@/lib/format';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { announcementTemplateName } from '@/lib/referralAnnouncement';
 import { Chip, ErrorNote, formatKinshasa } from '../../LeadRoutingUI';
 import Pagination from '../../table/Pagination';
 import { EmptyRow, TD_DENSE, TH_STICKY, TR_DENSE, TableFrame } from '../../table/TableFrame';
@@ -69,6 +70,7 @@ export default async function AdminAgentReferralsPage({ searchParams }) {
   const session = await getAdminSession();
   const canPay = can(session?.role, 'partners.payout');
   const canAnnounce = can(session?.role, 'partners.manage');
+  const announceTemplate = canAnnounce ? announcementTemplateName() : null;
 
   let ledger = null;
   let credits = [];
@@ -114,6 +116,13 @@ export default async function AdminAgentReferralsPage({ searchParams }) {
           ) : null}
         </div>
       </div>
+      {canAnnounce ? (
+        <p className="u-micro text-ink-70">
+          {announceTemplate
+            ? t('admin.referrals.announceViaTemplate', { name: announceTemplate })
+            : t('admin.referrals.announceViaSession')}
+        </p>
+      ) : null}
 
       {flashTone ? (
         <p className={`u-micro-strong rounded-lg px-3.5 py-2.5 ${flashTone === 'success' ? 'bg-success-tint text-success' : 'bg-danger-tint text-danger'}`} role={flashTone === 'success' ? 'status' : 'alert'}>

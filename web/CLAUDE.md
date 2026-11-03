@@ -3517,6 +3517,18 @@ switched on" (42P01) and the pages render. Tests:
     "Annoncer le programme aux agents" (owner; `lib/referralAnnouncement.js`,
     once per verified agent, 100 per press, a SESSION message: accepted is
     not delivered).
+  - **Beyond the 24 h window (2026-11-03).** `REFERRAL_ANNOUNCEMENT_TEMPLATE`
+    (web env, read at call time, unset by default) makes the button send that
+    approved template (body {{1}} first name or "cher partenaire", {{2}} the
+    code; the link is `https://lukkaplace.com/i/{{2}}`) and re-send ONCE to
+    every agent whose announcement went as a session message; a refused
+    template falls back to the text. Without it, the engine sends the text when
+    a verified agent writes in (`POST /api/internal/referral-announce`, root
+    CLAUDE.md "Growth launch"). `partner_program_announcements.channel`
+    (session / template / on_write, NULL = session) and `resent_at`
+    (`migrations/20261103_referral_announcement_channel.sql`). The page says
+    which of the two the button will do. Payouts every two weeks is stated in
+    the text and on the agent's card.
   - The run is the console's "Calculer les crédits" and the engine's morning
     job (below). The agent's card shows waiting / approved / paid in USD and
     the last customers by first name.

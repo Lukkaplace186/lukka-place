@@ -33,6 +33,8 @@ fs.rmSync(UPLOADS, { recursive: true, force: true });
 process.env.DB_PATH = DB;
 process.env.UPLOADS_DIR = UPLOADS;
 process.env.PORT = '3200';
+// The webhook's delayed referral announcement must not reach out during the suite (§68 turns it on).
+process.env.REFERRAL_ANNOUNCE_ON_WRITE = 'off';
 process.env.OPENAI_API_KEY = 'sk-test-not-real';
 process.env.OPENAI_MODEL = 'gpt-4o';
 process.env.CHAKRA_ACCESS_TOKEN = 'chakra-test-token';
@@ -13121,6 +13123,78 @@ console.log('\n2. services/openai.js');
         else process.env.CRON_SECRET = savedSecret;
       }
     });
+  }
+
+  // ---------------------------------------------------------------------------
+  // §68 Referral announcement when a verified agent writes in (2026-11-03)
+  // ---------------------------------------------------------------------------
+  console.log('\n§68 Referral announcement when a verified agent writes in');
+  {
+    const referralAnnounce = require('../services/referralAnnounce');
+    const savedOnWrite = process.env.REFERRAL_ANNOUNCE_ON_WRITE;
+    const savedSecret68 = process.env.CRON_SECRET;
+    process.env.REFERRAL_ANNOUNCE_ON_WRITE = '';
+    process.env.CRON_SECRET = 'test-secret';
+    const agent = async () => ({ registered: true, agentId: 41 });
+    try {
+      await checkAsync('a verified agent is passed to web with their previous message time, once', async () => {
+        referralAnnounce.resetReferralAnnounceCache();
+        const calls = [];
+        const fetchImpl = async (url, options) => {
+          calls.push([url, options]);
+          return { ok: true, json: async () => ({ status: 'sent' }) };
+        };
+        const first = await referralAnnounce.announceIfDue({ from: '243800000041', previousInboundAt: '2026-11-01T08:00:00.000Z', identify: agent, fetchImpl });
+        assert.strictEqual(first.status, 'sent');
+        assert.match(calls[0][0], /\/api\/internal\/referral-announce$/);
+        assert.strictEqual(calls[0][1].headers.Authorization, 'Bearer test-secret');
+        assert.deepStrictEqual(JSON.parse(calls[0][1].body), { agentId: 41, previousInboundAt: '2026-11-01T08:00:00.000Z' });
+        const again = await referralAnnounce.announceIfDue({ from: '243800000041', identify: agent, fetchImpl, now: Date.now() + 2 * referralAnnounce.RECHECK_MS });
+        assert.strictEqual(again.status, 'skipped', 'web said it is done: never asked again in this process');
+        assert.strictEqual(calls.length, 1);
+      });
+
+      await checkAsync('a sender who is not a verified agent, the desk / relay, or the switch off never reaches web', async () => {
+        referralAnnounce.resetReferralAnnounceCache();
+        let asked = 0;
+        const fetchImpl = async () => { asked += 1; return { ok: true, json: async () => ({ status: 'sent' }) }; };
+        const stranger = await referralAnnounce.announceIfDue({ from: '243800000042', identify: async () => ({ registered: false, agentId: null }), fetchImpl });
+        assert.strictEqual(stranger.status, 'not-an-agent');
+        const desk = await referralAnnounce.announceIfDue({ from: '243800000043', identify: agent, fetchImpl, isExcluded: () => true });
+        assert.strictEqual(desk.status, 'excluded');
+        process.env.REFERRAL_ANNOUNCE_ON_WRITE = 'off';
+        const off = await referralAnnounce.announceIfDue({ from: '243800000044', identify: agent, fetchImpl });
+        assert.strictEqual(off.status, 'off');
+        process.env.REFERRAL_ANNOUNCE_ON_WRITE = '';
+        assert.strictEqual(asked, 0);
+      });
+
+      await checkAsync('one check per number per 12 h while web is unreachable; a failure never throws', async () => {
+        referralAnnounce.resetReferralAnnounceCache();
+        const down = async () => { throw new Error('ECONNREFUSED'); };
+        const t0 = Date.now();
+        assert.strictEqual((await referralAnnounce.announceIfDue({ from: '243800000045', identify: agent, fetchImpl: down, now: t0 })).status, 'failed');
+        assert.strictEqual((await referralAnnounce.announceIfDue({ from: '243800000045', identify: agent, fetchImpl: down, now: t0 + 60_000 })).status, 'skipped');
+        assert.strictEqual((await referralAnnounce.announceIfDue({ from: '243800000045', identify: agent, fetchImpl: down, now: t0 + referralAnnounce.RECHECK_MS + 1 })).status, 'failed');
+      });
+
+      check('the webhook schedules it from the inbound loop, after reading the previous message time, and goes on', () => {
+        const source = fs.readFileSync(path.join(__dirname, '..', 'routes', 'webhook.js'), 'utf8');
+        const loop = source.slice(source.indexOf('for (const message of messages)'));
+        const prev = loop.indexOf('previousInboundAt = lastInboundAt(message.from)');
+        const record = loop.indexOf('recordInbound(message.from)');
+        const schedule = loop.indexOf('scheduleReferralAnnouncement(');
+        const enqueue = loop.indexOf('enqueueMessage(message)');
+        assert.ok(prev > 0 && prev < record, 'the previous time is read before it is overwritten');
+        assert.ok(schedule > record && schedule < enqueue, 'scheduled before the message is processed, never instead of it');
+        assert.ok(referralAnnounce.ANNOUNCE_DELAY_MS >= 30_000, 'it lands after the reply to what the agent sent');
+      });
+    } finally {
+      referralAnnounce.resetReferralAnnounceCache();
+      process.env.REFERRAL_ANNOUNCE_ON_WRITE = savedOnWrite;
+      if (savedSecret68 === undefined) delete process.env.CRON_SECRET;
+      else process.env.CRON_SECRET = savedSecret68;
+    }
   }
 
   console.log(`\n${'-'.repeat(60)}`);

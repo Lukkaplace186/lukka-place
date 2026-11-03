@@ -18,7 +18,10 @@ import { CREDIT_CANDIDATES_SQL, syncReferralCredits } from '@/lib/referralCredit
 import {
   AUTO_PICK_SQL, PRICE_GUIDES_SQL, VIDEO_LISTINGS_SQL, LUKKA_INDEX_SQL, COLLECTIONS, priceGuideSlug,
 } from '@/lib/browseFeatures';
-import { announcementText } from '@/lib/referralAnnouncement';
+import {
+  announcementText, announcementTemplateParams, shouldAnnounceOnWrite, ANNOUNCE_TARGETS_SQL,
+  ANNOUNCE_TEMPLATE_TARGETS_SQL, RECORD_ANNOUNCEMENT_SQL, TEMPLATE_NAME_FALLBACK,
+} from '@/lib/referralAnnouncement';
 import { calls, enqueue, reset } from '../support/fakePool.js';
 
 /**
@@ -292,4 +295,33 @@ test('the launch migration closes every new table and keeps one live credit per 
     assert.match(sql, new RegExp(`ALTER TABLE ${table}\\s+ENABLE ROW LEVEL SECURITY`), table);
   }
   assert.match(sql, /ALTER TABLE customers ADD COLUMN IF NOT EXISTS activation_token_hash text/);
+});
+
+// --- the announcement beyond the 24 h window (2026-11-03) --------------------------------
+
+test('the announcement re-sends only when the first one provably could not have landed', () => {
+  const sent = '2026-10-28T10:00:00.000Z';
+  const session = { accepted: true, channel: null, sent_at: sent, resent_at: null };
+  assert.equal(shouldAnnounceOnWrite(null, null), true, 'never announced');
+  assert.equal(shouldAnnounceOnWrite({ ...session, accepted: false }, null), true, 'refused before');
+  assert.equal(shouldAnnounceOnWrite(session, null), true, 'no message from them on record: the session text could not land');
+  assert.equal(shouldAnnounceOnWrite(session, '2026-10-26T09:00:00.000Z'), true, 'last wrote two days before it');
+  assert.equal(shouldAnnounceOnWrite(session, '2026-10-28T02:00:00.000Z'), false, 'wrote 8 h before it: it landed');
+  assert.equal(shouldAnnounceOnWrite(session, '2026-10-30T09:00:00.000Z'), false, 'wrote after it: unknown, no duplicate');
+  assert.equal(shouldAnnounceOnWrite({ ...session, resent_at: '2026-11-01T00:00:00Z' }, null), false, 'only one re-send');
+  assert.equal(shouldAnnounceOnWrite({ ...session, channel: 'template' }, null), false);
+  assert.equal(shouldAnnounceOnWrite({ ...session, channel: 'on_write' }, null), false);
+});
+
+test('the template reaches session-announced agents once; without one only the unannounced', () => {
+  assert.match(squash(ANNOUNCE_TARGETS_SQL), /NOT EXISTS \(SELECT 1 FROM partner_program_announcements pa WHERE pa\.agent_id = a\.id AND pa\.accepted\)/);
+  assert.match(squash(ANNOUNCE_TEMPLATE_TARGETS_SQL), /pa\.channel IN \('template', 'on_write'\) OR pa\.resent_at IS NOT NULL/);
+  for (const sql of [ANNOUNCE_TARGETS_SQL, ANNOUNCE_TEMPLATE_TARGETS_SQL]) {
+    assert.match(squash(sql), /a\.phone_verified_at IS NOT NULL/);
+    assert.match(squash(sql), /a\.deleted_at IS NULL/);
+  }
+  assert.match(squash(RECORD_ANNOUNCEMENT_SQL), /resent_at = CASE WHEN partner_program_announcements\.accepted THEN NOW\(\)/);
+  assert.deepEqual(announcementTemplateParams({ firstName: 'Charly', code: 'CHARLY01' }), ['Charly', 'CHARLY01']);
+  assert.deepEqual(announcementTemplateParams({ firstName: null, code: 'X01' }), [TEMPLATE_NAME_FALLBACK, 'X01'], 'a Meta variable is never empty');
+  assert.match(read('app/api/internal/referral-announce/route.js'), /timingSafeEqual/);
 });

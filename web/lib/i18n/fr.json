@@ -6107,6 +6107,8 @@
       "export": "Exporter (CSV)",
       "sync": "Calculer les crédits",
       "announce": "Annoncer le programme aux agents",
+      "announceViaTemplate": "Envoi par le modèle WhatsApp « {name} » : il atteint tous les agents, et renvoie une fois le message à ceux prévenus par un simple message.",
+      "announceViaSession": "Sans modèle WhatsApp approuvé, le message n’atteint que les agents qui nous ont écrit dans les dernières 24 h. Les autres le reçoivent automatiquement quand ils nous écrivent.",
       "unavailable": "Les crédits ne sont pas encore activés : la migration 20261028_referral_credits_and_growth.sql doit être exécutée.",
       "search": "Agent, agence ou code",
       "select": "Sélectionner",

@@ -6107,6 +6107,8 @@
       "export": "Export (CSV)",
       "sync": "Calculate credits",
       "announce": "Announce the programme to agents",
+      "announceViaTemplate": "Sent with the WhatsApp template “{name}”: it reaches every agent, and re-sends once to agents told by a plain message.",
+      "announceViaSession": "Without an approved WhatsApp template, the message only reaches agents who wrote to us in the last 24 hours. The others get it automatically when they write to us.",
       "unavailable": "Credits are not switched on yet: migration 20261028_referral_credits_and_growth.sql must be run.",
       "search": "Agent, agency or code",
       "select": "Select",

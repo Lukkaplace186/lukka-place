@@ -29,7 +29,8 @@ const {
   touchEngineMarker,
 } = require('../services/db');
 const chakra = require('../services/chakra');
-const { recordInbound } = require('../services/sessionWindow');
+const { recordInbound, lastInboundAt } = require('../services/sessionWindow');
+const { scheduleReferralAnnouncement } = require('../services/referralAnnounce');
 const { persistImages, persistVideos } = require('../services/mediaStorage');
 const listingMedia = require('../services/listingMedia');
 const { inferListingLocation, communeNamedIn, placeKey } = require('../services/locations');
@@ -1720,11 +1721,22 @@ router.post('/', verifyWebhookSecret, (req, res) => {
 
     // Opens (or keeps open) this number's 24 h window for plain texts —
     // services/sessionWindow.js. Best-effort: never blocks the message.
+    let previousInboundAt = null;
     try {
+      previousInboundAt = lastInboundAt(message.from);
       recordInbound(message.from);
     } catch (err) {
       console.warn(`[webhook] could not record the inbound time for ${message.from}: ${err.message}`);
     }
+
+    // The referral programme announcement, for a verified agent who has not
+    // had it (services/referralAnnounce.js). A delayed side effect: the
+    // message below is processed exactly as it would be without it.
+    scheduleReferralAnnouncement({
+      from: message.from,
+      previousInboundAt,
+      isExcluded: (waId) => opsDesk.isOpsSender(waId) || groupRelay.isRelaySender(waId),
+    });
 
     // Skip a known redelivery before it joins a group, so it never restarts a
     // debounce window for a listing that is already on file.

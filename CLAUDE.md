@@ -2070,3 +2070,14 @@ model. Engine pieces:
 - `db.countLeadsByWaIds` also returns `firstViewingAt` (the credit rule's
   "visit request" action).
 - §67 of verify-pipeline.
+- **The referral announcement when an agent writes in**
+  (`services/referralAnnounce.js`, 2026-11-03). The inbound loop reads the
+  number's previous message time, records the new one, then schedules a
+  check 45 s later — a side effect, the message is processed unchanged. For a
+  verified agent (identifySender), at most once per number per 12 h in this
+  process, never the desk or the relay, it asks web
+  (`POST /api/internal/referral-announce`, Bearer CRON_SECRET), which sends
+  the text to an agent never announced, or re-sends once when the earlier
+  session announcement could not have landed (no message from them in the
+  23 h before it). `REFERRAL_ANNOUNCE_ON_WRITE=off` disables. Run
+  `migrations/20261103_referral_announcement_channel.sql` first. §68.

@@ -797,6 +797,13 @@ function applyListingCorrection(id, extractedData, rawText, extraWamids = [], ne
     sets.push(`${field} = @${field}`);
     params[field] = coerced;
   }
+  // A landmark the location tidy moved out of the quartier into the reference
+  // (routes/webhook.js, services/locations.js tidyListingLocation) leaves the
+  // quartier empty — the one null a correction writes, and only when it says so.
+  if (extractedData?.quartier_cleared === true && !extractedData.quartier && existing.quartier) {
+    sets.push('quartier = @quartier');
+    params.quartier = null;
+  }
   // The plot's area follows its dimensions, never the model.
   if (params.plot_dimensions !== undefined) {
     sets.push('plot_area_m2 = @plot_area_m2');

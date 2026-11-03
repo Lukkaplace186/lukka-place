@@ -3897,7 +3897,12 @@
         "agent_unverified": "Agent number unverified",
         "no_agent": "No agent attached",
         "availability_unanswered": "Availability: 2 checks unanswered"
-      }
+      },
+      "quartierChoose": "— Choose a quartier —",
+      "quartierOther": "Other (type the name)…",
+      "quartierOtherPlaceholder": "Quartier or local place name (not a landmark)",
+      "quartierPickCommune": "Choose the commune first",
+      "quartierHint": "A landmark (town hall, church, avenue…) goes in Reference."
     },
     "subscriptions": {
       "lead": "Plans, assignment to agents and payment tracking.",

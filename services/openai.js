@@ -113,7 +113,8 @@ ${LOCATIONS_BLOCK}
 ${OTHER_CITIES_BLOCK}
 - Normalise la commune vers l'une de ces orthographes exactes ("gombé" => "Gombe", "Bandal" => "Bandalungwa", "Djili" => "Ndjili").
 - Normalise le quartier vers l'orthographe exacte listée pour SA commune ci-dessus ("Ma Campagne" => "Macampagne", "la gombe" => reste dans commune, pas quartier). Si le quartier mentionné n'apparaît dans aucune liste (nouveau lotissement, référence informelle type "Righini", "Pompage"), rapporte-le tel quel plutôt que d'inventer une correspondance.
-- La référence précise va dans "quartier", jamais dans "commune".
+- "quartier" reçoit un NOM DE LIEU seulement : un quartier de la liste, ou un lieu-dit tel qu'écrit (« GB », « Righini »). Jamais un point de référence ni un itinéraire : « Maison communale de Kintambo », « sur avenue X », « croisement… », « réf. maternité », « derrière l'église » vont dans "reference" (sauf si le message donne aussi un code d'annonce : alors reference garde le code). Quand le texte mêle les deux (« Mbiza pigeon réf. maternité »), mets le quartier de la liste dans quartier ("Binza Pigeon") et le point de référence dans reference. Aucun quartier nommé => quartier null : n'en devine jamais un d'après le point de référence.
+- Ni le quartier ni le point de référence ne vont dans "commune".
 - Ne déduis JAMAIS la commune à partir du quartier : si l'agent n'écrit pas la commune, mets commune à null. Le système la déduit lui-même, et demande à l'agent quand le même nom existe dans plusieurs communes (« Salongo », « Funa », « Saïo »).
 - Un lieu-dit ou une abréviation de lieu (« à GB », « vers Mimosas », « Matonge », « Righini ») va dans quartier, tel qu'écrit, même s'il n'est pas dans les listes.
 
@@ -166,7 +167,7 @@ CLASSIFICATION DU TYPE DE BIEN — RÈGLES SPÉCIFIQUES À KINSHASA
 
 3. DIMENSIONS ET UNITÉS
    - "X Portes" / "Type Locataire" : mets X dans units_count. Cela signale une parcelle locative à revenus (plusieurs logements loués séparément), pas un appartement unique.
-   - Une référence explicite dans le texte brut ("Réf:", "Référence:" suivi d'un code ou numéro) va dans le champ "reference" — un identifiant de l'annonce elle-même, à ne JAMAIS confondre avec le quartier ou toute autre référence de localisation (qui vont dans "quartier", voir LOCALISATION ci-dessus).
+   - Une référence explicite dans le texte brut ("Réf:", "Référence:" suivi d'un code ou numéro) va dans le champ "reference" — un identifiant de l'annonce elle-même, à ne JAMAIS confondre avec le quartier. Sans code d'annonce, "reference" reçoit le point de référence du lieu (voir LOCALISATION ci-dessus).
 
 POINTS FORTS (champ features) — LISTE À PUCES DU SITE
 - features alimente directement la section « Caractéristiques principales » de la fiche publique : elle est affichée telle quelle, sans reformulation ni filtrage en aval.
@@ -349,7 +350,7 @@ const RESPONSE_FORMAT = {
               type: ['string', 'null'],
               description: 'Commune, orthographe normalisée exactement comme listée (avec sa ville entre parenthèses si elle en a une).',
             },
-            quartier: { type: ['string', 'null'], description: 'Quartier ou référence précise, dans la liste de la commune si possible.' },
+            quartier: { type: ['string', 'null'], description: 'Nom du quartier (dans la liste de la commune si possible) ou lieu-dit. Jamais un point de référence ni une avenue : ceux-là vont dans reference.' },
             price: {
               type: ['number', 'null'],
               description: 'Loyer mensuel si location, prix total si vente.',
@@ -458,7 +459,7 @@ const RESPONSE_FORMAT = {
             },
             reference: {
               type: ['string', 'null'],
-              description: "Code/numéro de référence explicite de l'annonce (\"Réf:\", \"Référence:\"), distinct du quartier.",
+              description: "Code/numéro de référence explicite de l'annonce (\"Réf:\", \"Référence:\") ; sans code, le point de référence du lieu (maison communale, église, croisement…). Jamais le quartier.",
             },
             agent_name: {
               type: ['string', 'null'],
@@ -1423,8 +1424,8 @@ CONDITIONS D'ENTRÉE — NOTATION "3 + 1 + 1" (convention de Kinshasa), IDENTIQU
 
 LOCALISATION — mêmes 24 communes et orthographes normalisées que l'intake WhatsApp :
 ${LOCATIONS_BLOCK}
-- Normalise la commune vers l'une de ces orthographes exactes. La référence précise (nom de résidence, repère informel) va dans "quartier", jamais dans "commune".
-- Un code/numéro de référence explicite ("Réf:", "Référence:") va dans "reference", distinct du quartier.
+- Normalise la commune vers l'une de ces orthographes exactes. "quartier" reçoit un nom de quartier ou de lieu-dit seulement ; un point de référence ou une avenue (maison communale, église, croisement, nom de résidence) va dans "reference". Ni l'un ni l'autre ne va dans "commune".
+- Un code/numéro de référence explicite ("Réf:", "Référence:") va dans "reference", distinct du quartier ; il passe avant le point de référence.
 
 CLASSIFICATION DU TYPE DE BIEN — mêmes règles que l'intake WhatsApp :
 1. PARCELLE : dimensions de terrain, propriété clôturée, "Maison Type Locataire" ou "Portes" => property_type "parcelle". Sous-type (parcelle_subtype, uniquement si property_type = "parcelle") : "maison_type_locataire", "villa", "terrain_nu". NE classe JAMAIS "appartement" uniquement à cause d'une superficie ou de plusieurs pièces/portes. Le mot "concession" pour le bien lui-même (grande propriété clôturée d'un seul tenant, en ares ou hectares) => "concession", jamais "parcelle".

@@ -1531,10 +1531,12 @@ console.log('\n2. services/openai.js');
     assert.strictEqual(row.commune, 'Ngaliema');
     assert.strictEqual(row.quartier, 'Macampagne');
   });
-  check('normaliseRowLocation keeps an unmatched free-text quartier rather than nulling real data', () => {
+  check('normaliseRowLocation keeps unmatched free text, as the reference when it reads as a landmark', () => {
     const row = postgresService.normaliseRowLocation({ id: 1, commune: 'Ngaliema', quartier: 'Avenue Wembo, près du rond-point' });
     assert.strictEqual(row.commune, 'Ngaliema');
-    assert.strictEqual(row.quartier, 'Avenue Wembo, près du rond-point');
+    // Since §70 a landmark moves to the reference instead of standing as the quartier.
+    assert.strictEqual(row.quartier, null);
+    assert.strictEqual(row.reference, 'Avenue Wembo, près du rond-point');
   });
   check('normaliseRowLocation is a no-op pass-through when neither field is set', () => {
     const original = { id: 1, property_type: 'villa' };
@@ -10901,6 +10903,7 @@ console.log('\n2. services/openai.js');
   check('inferListingLocation fills the commune, keeps the agent’s own text unless it is an official quartier', () => {
     assert.deepStrictEqual(loc47.inferListingLocation({ quartier: 'GB' }), {
       commune: 'Ngaliema', quartier: 'GB', communeInferredFrom: 'GB', ambiguous: null, city: 'Kinshasa',
+      reference: null, locationTidied: null,
     });
     assert.strictEqual(loc47.inferListingLocation({ quartier: 'yolo sud 2' }).quartier, 'Yolo Sud II');
     assert.deepStrictEqual(loc47.inferListingLocation({ quartier: 'Funa' }).ambiguous, { name: 'Funa', communes: ['Barumbu', 'Limete'] });
@@ -13286,6 +13289,133 @@ console.log('\n2. services/openai.js');
       if (saved69.ops === undefined) delete process.env.OPS_WHATSAPP_NUMBER;
       else process.env.OPS_WHATSAPP_NUMBER = saved69.ops;
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // §70 The quartier keeps a quartier, the reference keeps the landmark (2026-11-03)
+  // ---------------------------------------------------------------------------
+  console.log('\n§70 The quartier keeps a quartier, the reference keeps the landmark');
+  {
+    const loc70 = require('../services/locations');
+    const tidy = (commune, quartier, reference) => {
+      const { quartier: q, reference: r, how } = loc70.tidyListingLocation({ commune, quartier, reference });
+      return { quartier: q, reference: r, how };
+    };
+
+    check('a landmark typed as the quartier moves to the reference (admin screenshot, Kintambo)', () => {
+      assert.deepStrictEqual(tidy('Kintambo', 'Maison communale de Kintambo, sur avenue', 'MAISON COMMUNALE'), {
+        quartier: null, reference: 'Maison communale de Kintambo, sur avenue', how: 'moved-to-reference',
+      });
+      assert.deepStrictEqual(tidy('Kintambo', 'Maison communale', null), {
+        quartier: null, reference: 'Maison communale', how: 'moved-to-reference',
+      });
+    });
+
+    check('a quartier named in the reference fills an empty quartier (admin screenshot, Ngaliema)', () => {
+      assert.deepStrictEqual(tidy('Ngaliema', null, 'Mbiza pigeon Référence maternité'), {
+        quartier: 'Binza Pigeon', reference: 'Mbiza pigeon Référence maternité', how: 'found-in-reference',
+      });
+    });
+
+    check('a phrase holding a quartier keeps the quartier and moves the whole phrase', () => {
+      assert.deepStrictEqual(tidy('Ngaliema', 'Binza Pigeon, réf. maternité', null), {
+        quartier: 'Binza Pigeon', reference: 'Binza Pigeon, réf. maternité', how: 'found-in-quartier',
+      });
+      // A different landmark already in the reference is kept beside it.
+      assert.strictEqual(tidy('Ngaliema', 'derrière église Pigeon', 'Station Total').reference, 'Station Total, derrière église Pigeon');
+    });
+
+    check('a listing code in the reference is never overwritten — the phrase stays put', () => {
+      assert.deepStrictEqual(tidy('Ngaliema', 'Binza Pigeon, réf. maternité', 'LKP-2026-0091'), {
+        quartier: 'Binza Pigeon, réf. maternité', reference: 'LKP-2026-0091', how: null,
+      });
+    });
+
+    check('only the stated commune is searched — never a citywide match', () => {
+      // Righini is Lemba's; read for Gombe it names nothing.
+      assert.strictEqual(tidy('Gombe', null, 'vers Righini').quartier, null);
+      assert.strictEqual(tidy('Lemba', null, 'vers Righini').quartier, 'Righini');
+      // Ordinary words and names after "avenue" are not quartiers inside a text.
+      assert.strictEqual(tidy('Kintambo', null, 'École petits lutins').quartier, null);
+      assert.strictEqual(tidy('Ngaliema', null, 'avenue Kalamu').quartier, null);
+      // Two different quartiers named: no pick.
+      assert.strictEqual(loc70.quartierNamedIn('entre Macampagne et Binza Pigeon', 'Ngaliema'), null);
+    });
+
+    check('a short name is canonicalised or kept as written, never moved', () => {
+      assert.strictEqual(tidy('Ngaliema', 'Pigeon', null).quartier, 'Binza Pigeon');
+      assert.strictEqual(tidy('Ngaliema', 'ma campagne', null).quartier, 'Macampagne');
+      assert.strictEqual(tidy('Ngaliema', 'Mont Fleury', null).quartier, 'Mont-Fleury');
+      assert.deepStrictEqual(tidy('Ngaliema', 'GB', null), { quartier: 'GB', reference: null, how: null });
+      // Not in Kintambo's official list and not a sourced alias: kept, not invented.
+      assert.deepStrictEqual(tidy('Kintambo', 'Jamaïque', null), { quartier: 'Jamaïque', reference: null, how: null });
+      // No commune: nothing to search within.
+      assert.deepStrictEqual(tidy(null, 'Maison communale', null), { quartier: 'Maison communale', reference: null, how: null });
+    });
+
+    check('inferListingLocation applies it after a commune is stated or deduced', () => {
+      const stated = loc70.inferListingLocation({ commune: 'Ngaliema', quartier: null, reference: 'Mbiza pigeon Référence maternité' });
+      assert.strictEqual(stated.quartier, 'Binza Pigeon');
+      assert.strictEqual(stated.locationTidied, 'found-in-reference');
+      const deduced = loc70.inferListingLocation({ quartier: 'Maison communale de Kintambo, sur avenue' });
+      assert.strictEqual(deduced.commune, 'Kintambo');
+      assert.strictEqual(deduced.quartier, null);
+      assert.strictEqual(deduced.reference, 'Maison communale de Kintambo, sur avenue');
+    });
+
+    check('a correction clears the quartier only when the tidy says so', () => {
+      const draft = dbService.insertListing(
+        {
+          intent: 'listing', transaction_type: 'location', property_type: 'appartement',
+          commune: 'Kintambo', quartier: 'Maison communale de Kintambo', price: 700, currency: 'USD',
+          missing_fields: [], confidence: 0.8,
+        },
+        '243810000770',
+        { wamid: 'wamid.TIDY70' },
+      );
+      dbService.applyListingCorrection(draft.id, { quartier: null, price: 650 }, '650$');
+      assert.strictEqual(dbService.getListing(draft.id).quartier, 'Maison communale de Kintambo');
+      dbService.applyListingCorrection(
+        draft.id,
+        { quartier: null, reference: 'Maison communale de Kintambo', quartier_cleared: true },
+        'ok',
+      );
+      const row = dbService.getListing(draft.id);
+      assert.strictEqual(row.quartier, null);
+      assert.strictEqual(row.reference, 'Maison communale de Kintambo');
+    });
+
+    check('the publish sync tidies the same way', () => {
+      const row = postgresService.normaliseRowLocation({ commune: 'ngaliema', quartier: null, reference: 'Mbiza pigeon réf maternité' });
+      assert.strictEqual(row.commune, 'Ngaliema');
+      assert.strictEqual(row.quartier, 'Binza Pigeon');
+    });
+
+    check('the backfill plans the same change, and nothing for a clean row', () => {
+      const { planRow } = require('./backfill-quartier-landmarks');
+      assert.deepStrictEqual(planRow({ commune: 'Kintambo', quartier: 'Maison communale de Kintambo, sur avenue', reference: 'MAISON COMMUNALE' }), {
+        how: 'moved-to-reference', quartier: null, reference: 'Maison communale de Kintambo, sur avenue',
+      });
+      assert.strictEqual(planRow({ commune: 'Ngaliema', quartier: 'Binza Pigeon', reference: 'Maternité' }), null);
+      // A close spelling is never written back over stored text.
+      assert.strictEqual(planRow({ commune: 'Mont-Ngafula', quartier: 'Mbudi', reference: null }), null);
+    });
+
+    check('a short official name counts inside a phrase; one place spelled twice is not stacked', () => {
+      assert.strictEqual(tidy('Ngaliema', 'Derrière l’Hôpital de la Borne, UPN', 'Hôpital Laborne').quartier, 'UPN');
+      assert.strictEqual(tidy('Limete', '14e Rue Industrielle', '14eme Rue industriel').reference, '14eme Rue industriel');
+    });
+
+    check('the prompt no longer sends landmarks to the quartier field', () => {
+      assert.ok(!openaiService.SYSTEM_PROMPT.includes('La référence précise va dans "quartier"'));
+      assert.match(openaiService.SYSTEM_PROMPT, /"quartier" reçoit un NOM DE LIEU seulement/);
+    });
+
+    check('the web admin editor picks the quartier from the commune\'s list', () => {
+      const editor = fs.readFileSync(path.join(__dirname, '..', 'web', 'app', 'admin', 'listings', '[id]', 'AdminListingEditor.js'), 'utf8');
+      assert.match(editor, /<QuartierPicker commune=\{commune\} locations=\{locations\}/);
+      assert.doesNotMatch(editor, /<input name="quartier"/);
+    });
   }
 
   console.log(`\n${'-'.repeat(60)}`);

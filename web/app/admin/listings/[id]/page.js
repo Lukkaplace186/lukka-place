@@ -63,7 +63,7 @@ export default async function AdminListingEditPage({ params }) {
   const listing = await getListingForAdmin(id);
   if (!listing) notFound();
 
-  const [{ communes }, categories, moderation, session, history] = await Promise.all([
+  const [{ communes, locations }, categories, moderation, session, history] = await Promise.all([
     getLocationHierarchyWithFallback({ city: 'all' }),
     getCategoriesForAdmin(),
     getListingModerationInfo(listing.id),
@@ -153,7 +153,7 @@ export default async function AdminListingEditPage({ params }) {
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
-        <AdminListingEditor listing={listing} communes={communes} categories={categories} />
+        <AdminListingEditor listing={listing} communes={communes} locations={locations} categories={categories} />
         {/* On a phone the decision and the photos come first: an owner opening
             the WhatsApp alert's link approves without scrolling past the whole
             editor. Side column from xl, as before. */}

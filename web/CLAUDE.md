@@ -148,6 +148,12 @@ Conflating any two of these is the bug that keeps recurring:
   listing, including the ~23 with no agent attached. Two modules with two
   explicit authority models beats one module with a "skip the ownership check"
   flag someone eventually passes from the wrong place.
+- **The quartier is picked, not typed** (2026-11-03, `components/QuartierPicker.js`):
+  a select of the chosen commune's quartiers (engine `GET /locations`), reset
+  when the commune changes, plus "Autre…" for a lieu-dit or a commune whose
+  list is partial. A stored value not in the list opens on "Autre…" with that
+  value, so saving the page never loses it. A landmark belongs in Référence —
+  root CLAUDE.md, "The quartier keeps a quartier".
 - **Granular override editing** (`/admin/listings/[id]`) is what the console was
   missing entirely: it previously offered exactly two verbs, Approuver and
   Rejeter, so a listing with a transposed price or a missing commune could only

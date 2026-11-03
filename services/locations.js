@@ -306,6 +306,8 @@ const STREET_WORDS = new Set(['av', 'ave', 'avenue', 'rue', 'bd', 'boulevard', '
 const PLACE_INDEX = new Map();
 /** keys that came from the alias file (short curated names like "GB" are allowed inside text). */
 const ALIAS_KEYS = new Set();
+/** alias key → the name as the alias file writes it ("gb" → "GB"), for storing it. */
+const ALIAS_NAMES = new Map();
 
 function indexPlace(key, commune, quartier) {
   if (!key) return;
@@ -339,6 +341,7 @@ const CONFIRMED_ALIASES = [
 for (const alias of CONFIRMED_ALIASES) {
   const key = placeKey(alias.name);
   ALIAS_KEYS.add(key);
+  if (!ALIAS_NAMES.has(key)) ALIAS_NAMES.set(key, alias.name);
   for (const raw of alias.communes || []) {
     const commune = COMMUNE_KEY_ALIASES[raw] || raw;
     if (!LOCATIONS[commune]) throw new Error(`quartier aliases: unknown commune "${raw}" for "${alias.name}"`);
@@ -514,20 +517,37 @@ function placeLabel({ quartier = null, commune = null, city = null } = {}) {
  *   stated city, else null (= Kinshasa, as every older row is).
  *
  * @param {{commune?: string|null, quartier?: string|null, reference?: string|null, city?: string|null}} location
- * @returns {{commune: string|null, quartier: string|null, city: string|null, communeInferredFrom: string|null,
+ * - With a commune (stated or deduced), tidyListingLocation keeps a landmark
+ *   out of the quartier and finds a quartier named in the reference;
+ *   `reference` is returned (changed or not) and `locationTidied` says how.
+ *
+ * @returns {{commune: string|null, quartier: string|null, reference: string|null, city: string|null,
+ *            communeInferredFrom: string|null, locationTidied: string|null,
  *            ambiguous: {name: string, communes: string[]}|null}}
  */
 function inferListingLocation({ commune = null, quartier = null, reference = null, city = null } = {}) {
   const statedCity = cities.resolveCity(city);
-  const done = (result) => ({ ...result, city: cities.cityOfCommune(result.commune) || statedCity || null });
+  // Once a commune is known, the quartier field keeps a quartier and the
+  // landmark goes to the reference (tidyListingLocation).
+  const done = (result) => {
+    const tidy = result.commune
+      ? tidyListingLocation({ commune: result.commune, quartier: result.quartier, reference })
+      : { quartier: result.quartier, reference, changed: false, how: null };
+    return {
+      ...result,
+      quartier: tidy.quartier,
+      reference: tidy.reference,
+      locationTidied: tidy.changed ? tidy.how : null,
+      city: cities.cityOfCommune(result.commune) || statedCity || null,
+    };
+  };
   if (commune) {
     const resolved = resolveCommune(commune, { city: statedCity })
       // A commune the stated city does not have: the commune is the more
       // specific of the two, so it wins ("Gombe" when the model read "Goma").
       || resolveCommune(commune)
       || commune;
-    const q = quartier ? resolveQuartier(quartier, resolved) || quartier : quartier;
-    return done({ commune: resolved, quartier: q, communeInferredFrom: null, ambiguous: null });
+    return done({ commune: resolved, quartier, communeInferredFrom: null, ambiguous: null });
   }
   for (const [field, text, allowFuzzy] of [['quartier', quartier, true], ['reference', reference, false]]) {
     if (!text) continue;
@@ -547,6 +567,159 @@ function inferListingLocation({ commune = null, quartier = null, reference = nul
   return done({ commune: null, quartier, communeInferredFrom: null, ambiguous: null });
 }
 
+// ---------------------------------------------------------------------------
+// Quartier vs landmark (2026-11-03)
+// ---------------------------------------------------------------------------
+//
+// Agents mix the two: "Maison communale de Kintambo, sur avenue" arrived as a
+// quartier, "Mbiza pigeon Référence maternité" as a reference with the
+// quartier left empty. Once the commune is known, tidyListingLocation keeps
+// the quartier field for a place name and the reference for the landmark.
+
+/** Words that make a text a landmark or directions, never a quartier's name. */
+const LANDMARK_KEY_WORDS = new Set([
+  'av', 'ave', 'avenue', 'rue', 'route', 'bd', 'boulevard', 'blvd', 'croisement', 'arret', 'ref', 'reference',
+  'maison', 'communale', 'eglise', 'marche', 'station', 'hopital', 'maternite', 'clinique', 'pharmacie',
+  'pres', 'vers', 'derriere', 'devant', 'face', 'cote', 'entree', 'sur', 'apres', 'avant', 'non', 'loin',
+  'immeuble', 'residence', 'hotel', 'universite', 'stade', 'rond', 'point', 'pont', 'entre',
+]);
+
+/**
+ * Is this text a landmark / directions rather than a quartier's name? Long
+ * (more than 25 characters or 3 words) or holding a direction word. Only asked
+ * of a text that is not already an official quartier or a known alias.
+ */
+function readsAsLandmark(text) {
+  const key = placeKey(text);
+  if (!key) return false;
+  const words = key.split(' ');
+  return key.length > 25 || words.length > 3 || words.some((word) => LANDMARK_KEY_WORDS.has(word));
+}
+
+/**
+ * Text with at least one real word (3+ letters, no digit) — a landmark, not a
+ * listing code like "LKP-2026-0091". The same rule as services/geocoding.js's
+ * isLandmarkReference (it imports this module, so it cannot be imported here):
+ * change one, change the other.
+ */
+const WORD_TOKEN = /^\p{L}[\p{L}'’-]*$/u;
+function readsAsWords(text) {
+  const value = String(text ?? '').trim();
+  if (value.length < 3) return false;
+  return value.split(/[\s,]+/).some((token) => WORD_TOKEN.test(token) && (token.match(/\p{L}/gu) || []).length >= 3);
+}
+
+/** What a PLACE_INDEX key names in `commune` as a storable quartier: the official one, else an alias's own spelling. */
+function quartierForKey(key, commune) {
+  const byCommune = PLACE_INDEX.get(key);
+  if (!byCommune || !byCommune.has(commune)) return null;
+  if (byCommune.get(commune)) return byCommune.get(commune);
+  // The commune's own name, or "Matonge" for Matonge I/II/III: not one quartier.
+  return ALIAS_NAMES.get(key) || null;
+}
+
+/**
+ * The quartier of `commune` that `text` names — the whole text, or one name
+ * inside it — or null. Only that commune's quartiers and aliases are looked
+ * for (never a citywide match: see resolveQuartier), with inferCommune's own
+ * guards (no ordinary-word names inside a text, nothing after "avenue").
+ * Two different quartiers named → null, never a pick.
+ *
+ * @returns {{quartier: string, whole: boolean} | null}
+ */
+function quartierNamedIn(text, commune) {
+  const key = placeKey(text);
+  if (!key || !commune || !LOCATIONS[commune]) return null;
+  const exact = LOCATIONS[commune].find((q) => placeKey(q) === key)
+    || (isKinshasa(commune) && LOCATIONS[commune].includes(QUARTIER_ALIASES[key]) ? QUARTIER_ALIASES[key] : null)
+    || quartierForKey(key, commune);
+  if (exact) return { quartier: exact, whole: true };
+
+  const tokens = key.split(' ');
+  const covered = new Array(tokens.length).fill(false);
+  const found = new Set();
+  for (let size = Math.min(5, tokens.length); size >= 1; size -= 1) {
+    for (let start = 0; start + size <= tokens.length; start += 1) {
+      if (covered.slice(start, start + size).some(Boolean)) continue;
+      const phrase = tokens.slice(start, start + size).join(' ');
+      if (!PLACE_INDEX.has(phrase)) continue;
+      if (start > 0 && STREET_WORDS.has(tokens[start - 1])) continue;
+      const quartier = quartierForKey(phrase, commune);
+      // Short names count when they are this commune's own ("UPN" in Ngaliema).
+      if (!ALIAS_KEYS.has(phrase) && (GENERIC_KEYS.has(phrase) || phrase.length < (quartier ? 3 : 4))) continue;
+      for (let i = start; i < start + size; i += 1) covered[i] = true;
+      if (quartier) found.add(quartier);
+    }
+  }
+  return found.size === 1 ? { quartier: [...found][0], whole: false } : null;
+}
+
+/**
+ * The reference once a landmark phrase joins it, or null when it cannot
+ * (the reference is the listing's own code — never overwritten).
+ */
+function referenceWithLandmark(reference, landmark) {
+  const ref = String(reference ?? '').trim();
+  if (!ref) return landmark;
+  if (!readsAsWords(ref)) return null;
+  const refKey = placeKey(ref);
+  const landmarkKey = placeKey(landmark);
+  if (refKey.includes(landmarkKey)) return ref;
+  if (landmarkKey.includes(refKey)) return landmark;
+  // The same place spelled twice ("14eme Rue industriel" / "14e Rue Industrielle"): keep the reference.
+  if (levenshtein(refKey, landmarkKey) <= Math.floor(Math.max(refKey.length, landmarkKey.length) * 0.3)) return ref;
+  return `${ref}, ${landmark}`;
+}
+
+/**
+ * Keep the quartier field for a quartier, once the commune is known.
+ *
+ * - The quartier is an official quartier or alias of the commune (exactly,
+ *   or a close spelling) → its canonical spelling.
+ * - It reads as a landmark ("Maison communale de Kintambo, sur avenue") →
+ *   the phrase moves to the reference (merged with a landmark already there,
+ *   never over a listing code) and the quartier becomes the one the phrase
+ *   names in that commune, else empty. With a code in the reference the
+ *   phrase stays where it is: nothing is ever dropped.
+ * - It is a short unknown name ("Righini", a new lotissement) → kept as written.
+ * - It is empty → the reference is searched for a quartier of the commune.
+ *
+ * @returns {{quartier: string|null, reference: string|null, changed: boolean, how: string|null}}
+ */
+function tidyListingLocation({ commune = null, quartier = null, reference = null } = {}) {
+  const q = String(quartier ?? '').replace(/\s+/g, ' ').trim() || null;
+  const ref = String(reference ?? '').replace(/\s+/g, ' ').trim() || null;
+  const unchanged = { quartier: quartier ?? null, reference: reference ?? null, changed: false, how: null };
+  if (!commune || !LOCATIONS[commune]) return unchanged;
+  const result = (next, how) => {
+    const changed = (next.quartier || null) !== q || (next.reference || null) !== ref;
+    return changed ? { ...next, changed, how } : unchanged;
+  };
+
+  if (q) {
+    const named = quartierNamedIn(q, commune);
+    if (named?.whole) return result({ quartier: named.quartier, reference: ref }, 'canonical');
+    if (!readsAsLandmark(q)) {
+      // A close spelling within the commune (resolveQuartier's rule, as
+      // before) — flagged apart: a backfill does not apply it on its own.
+      const close = resolveQuartier(q, commune);
+      return close ? result({ quartier: close, reference: ref }, 'close-spelling') : unchanged;
+    }
+    const merged = referenceWithLandmark(ref, q);
+    if (merged === null) return unchanged;
+    return result(
+      { quartier: named ? named.quartier : null, reference: merged },
+      named ? 'found-in-quartier' : 'moved-to-reference',
+    );
+  }
+
+  if (ref && readsAsWords(ref)) {
+    const named = quartierNamedIn(ref, commune);
+    if (named) return result({ quartier: named.quartier, reference: ref }, 'found-in-reference');
+  }
+  return unchanged;
+}
+
 module.exports = {
   LOCATIONS,
   COMMUNES,
@@ -556,6 +729,10 @@ module.exports = {
   resolveQuartier,
   inferCommune,
   inferListingLocation,
+  tidyListingLocation,
+  quartierNamedIn,
+  readsAsLandmark,
+  readsAsWords,
   communeNamedIn,
   placeLabel,
   placeKey,

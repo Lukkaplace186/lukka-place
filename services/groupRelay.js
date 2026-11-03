@@ -250,6 +250,10 @@ async function ingestPost(post, { via, relayFrom, groupName, groupJid, label }) 
   extracted.city = located.city;
   if (located.commune) extracted.commune = located.commune;
   if (located.quartier) extracted.quartier = located.quartier;
+  if (located.locationTidied) {
+    extracted.quartier = located.quartier;
+    extracted.reference = located.reference;
+  }
   if (located.communeInferredFrom) extracted.commune_inferred_from = located.communeInferredFrom;
 
   Object.assign(extracted, {

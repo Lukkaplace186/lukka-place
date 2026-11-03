@@ -43,7 +43,7 @@ const { normaliseCommercialSpecs } = require('./commercial');
 const { normaliseListingDetails } = require('./listingDetails');
 const { Pool } = require('pg');
 const { uploadListingPhotos, uploadListingVideos } = require('./supabaseStorage');
-const { resolveCommune, resolveQuartier } = require('./locations');
+const { resolveCommune, resolveQuartier, tidyListingLocation, LOCATIONS } = require('./locations');
 const { cityOfCommune, communeLabel, resolveCity, DEFAULT_CITY } = require('./cities');
 const { storeListingCoordinates, locationInputsChanged } = require('./geocoding');
 
@@ -560,6 +560,12 @@ function normaliseRowLocation(row) {
   const resolvedCommune = row.commune
     ? resolveCommune(row.commune, { city }) || resolveCommune(row.commune) || row.commune
     : row.commune;
+  if (resolvedCommune && LOCATIONS[resolvedCommune]) {
+    // A landmark stays out of the quartier; a quartier named in the reference
+    // fills an empty one (services/locations.js tidyListingLocation).
+    const tidy = tidyListingLocation({ commune: resolvedCommune, quartier: row.quartier, reference: row.reference });
+    return { ...row, commune: resolvedCommune, quartier: tidy.quartier, reference: tidy.reference };
+  }
   const resolvedQuartier = row.quartier
     ? resolveQuartier(row.quartier, resolvedCommune) || row.quartier
     : row.quartier;

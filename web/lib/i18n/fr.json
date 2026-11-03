@@ -3897,7 +3897,12 @@
         "agent_unverified": "Numéro de l’agent non vérifié",
         "no_agent": "Aucun agent rattaché",
         "availability_unanswered": "Disponibilité : 2 questions sans réponse"
-      }
+      },
+      "quartierChoose": "— Choisir un quartier —",
+      "quartierOther": "Autre (saisir le nom)…",
+      "quartierOtherPlaceholder": "Nom du quartier ou lieu-dit (pas un point de référence)",
+      "quartierPickCommune": "Choisissez d'abord la commune",
+      "quartierHint": "Un point de référence (maison communale, église, avenue…) va dans Référence."
     },
     "subscriptions": {
       "lead": "Forfaits, attribution aux agents et suivi des paiements.",

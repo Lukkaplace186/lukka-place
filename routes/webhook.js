@@ -1402,6 +1402,15 @@ async function processGroup(messages) {
       extracted.city = located.city;
       if (located.commune) extracted.commune = located.commune;
       if (located.quartier) extracted.quartier = located.quartier;
+      if (located.locationTidied) {
+        // A landmark kept out of the quartier, or a quartier found in the
+        // reference (services/locations.js tidyListingLocation). A quartier it
+        // emptied must reach a correction too, which skips nulls otherwise.
+        extracted.quartier = located.quartier;
+        extracted.reference = located.reference;
+        extracted.quartier_cleared = !located.quartier;
+        console.log(`[location] ${label} — ${located.locationTidied}: quartier "${located.quartier || ''}", reference "${located.reference || ''}"`);
+      }
       if (located.communeInferredFrom) {
         extracted.commune_inferred_from = located.communeInferredFrom;
         console.log(`[location] ${label} — commune ${located.commune} deduced from "${located.communeInferredFrom}"`);

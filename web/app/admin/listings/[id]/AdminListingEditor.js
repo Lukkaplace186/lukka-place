@@ -8,6 +8,7 @@ import { useToast } from '@/components/Toast';
 import { adminUpdateListingAction, adminSetListingVisibleAction } from './actions';
 import { useT } from '@/lib/i18n/client';
 import CommuneOptions from '@/components/CommuneOptions';
+import QuartierPicker from '@/components/QuartierPicker';
 import ListingDetailFields from '@/components/ListingDetailFields';
 import { detailSections, detailsOf } from '@/lib/listingDetails';
 
@@ -44,12 +45,13 @@ function Field({ label, children, span = 1 }) {
  * which is the single most common thing they need to do and was impossible
  * before this page existed.
  */
-export default function AdminListingEditor({ listing, communes, categories }) {
+export default function AdminListingEditor({ listing, communes, locations = {}, categories }) {
   const t = useT();
   const router = useRouter();
   const { showToast } = useToast();
   const [pending, startTransition] = useTransition();
   const [status, setStatus] = useState(listing.listing_status || 'active');
+  const [commune, setCommune] = useState(listing.commune || '');
 
   const isVisible = Number(listing.status) === 1;
   const categoryIds = categories.map((c) => c.id);
@@ -109,13 +111,13 @@ export default function AdminListingEditor({ listing, communes, categories }) {
         <h2 className="u-title-card mb-4 text-ink">{t('common.shared.location')}</h2>
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label="Commune">
-            <select name="commune" defaultValue={listing.commune || ''} className={FIELD}>
+            <select name="commune" value={commune} onChange={(event) => setCommune(event.target.value)} className={FIELD}>
               <option value="">{t('admin.actions.none')}</option>
               <CommuneOptions communes={communes} />
             </select>
           </Field>
           <Field label={t('listings.filters.quartier')}>
-            <input name="quartier" defaultValue={listing.quartier || ''} className={FIELD} />
+            <QuartierPicker commune={commune} locations={locations} defaultValue={listing.quartier || ''} className={FIELD} />
           </Field>
           <Field label={t('admin.moderation.reference2')}>
             <input name="reference" defaultValue={listing.reference || ''} className={FIELD} />

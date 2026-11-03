@@ -112,6 +112,7 @@ test('only finance and the owner pay; the programme announcement is session text
   const text = announcementText({ firstName: 'Marie', inviteLink: 'https://lukkaplace.com/i/MARIE01' });
   assert.match(text, /1 \$ pour chaque client/);
   assert.match(text, /14 jours/);
+  assert.match(text, /toutes les deux semaines/);
   assert.match(text, /https:\/\/lukkaplace\.com\/i\/MARIE01/);
   assert.match(read('lib/accountAcquisition.js'), /lp_staff[\s\S]*lukka_impersonation/, 'a team browser never credits a partner');
 });

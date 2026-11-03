@@ -25,6 +25,7 @@ export function announcementText({ firstName, inviteLink }) {
     `Bonjour${firstName ? ` ${firstName}` : ''} !`,
     '',
     'Nouveau sur Lukka Place : gagnez *1 $ pour chaque client* qui crée son compte avec votre lien et l’utilise (il enregistre un bien, crée une alerte ou demande une visite dans les 14 jours).',
+    'Vos gains sont payés toutes les deux semaines par mobile money.',
     '',
     `Votre lien d’invitation : ${inviteLink}`,
     'Les biens que vous partagez depuis Lukka Place portent déjà votre code.',

@@ -2572,7 +2572,7 @@
       "paid": "Payé :",
       "recent": "Derniers clients",
       "someone": "Client",
-      "rule": "{amount} par client activé : numéro vérifié et une vraie action (bien enregistré, alerte ou visite) dans les {days} jours. Paiement par mobile money après vérification."
+      "rule": "{amount} par client activé : numéro vérifié et une vraie action (bien enregistré, alerte ou visite) dans les {days} jours. Paiement toutes les deux semaines par mobile money, après vérification."
     },
     "directory": {
       "lead": "Trouvez un agent par nom, ville ou commune, et contactez-le directement sur WhatsApp.",

@@ -26,9 +26,11 @@ import { recordAdEventFromAction } from '@/lib/adServerContext';
  * id, even a crafted one.
  *
  * `return_to=visites` (the saved-listings board) answers on the customer's own
- * agenda instead of the listing page: that is where the request now is. Any
- * other value is ignored — the destination is one of two fixed paths, never
- * something read out of the form.
+ * agenda instead of the listing page: that is where the request now is.
+ * `return_to=/agents/<id>` (the agent profile's listing sheet) answers on that
+ * profile, which shows the same confirmation. Only that exact shape — digits
+ * after `/agents/` — is accepted, so it can never point off-site. Any other
+ * value is ignored.
  */
 export async function submitVisitRequestAction(propertyId, formData) {
   const name = String(formData.get('name') || '').trim().slice(0, 120);
@@ -37,7 +39,10 @@ export async function submitVisitRequestAction(propertyId, formData) {
   // French phrase is derived from it here, never trusted from the form. A page
   // cached before the picker shipped still posts free text, which is kept.
   const pickedRaw = String(formData.get('preferred_slot_at') || '').trim();
-  const base = formData.get('return_to') === 'visites' ? '/compte/client/visites' : `/listings/${propertyId}`;
+  const returnTo = String(formData.get('return_to') || '');
+  const base = returnTo === 'visites'
+    ? '/compte/client/visites'
+    : /^\/agents\/\d{1,12}$/.test(returnTo) ? returnTo : `/listings/${propertyId}`;
 
   if (!phone) redirect(`${base}?visit_error=phone`);
 

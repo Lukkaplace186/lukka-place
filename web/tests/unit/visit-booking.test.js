@@ -136,7 +136,15 @@ test('every surface books through the one dialog, and a blocked day is refused s
   assert.match(read('components/EnquiryCard.js'), /<VisitRequestDialog propertyId=\{propertyId\} open=\{open\}/);
 
   const action = read('app/(site)/listings/[id]/actions.js');
-  assert.match(action, /formData\.get\('return_to'\) === 'visites' \? '\/compte\/client\/visites' : `\/listings\/\$\{propertyId\}`/, 'two fixed destinations, never a path from the form');
+  // Three destinations: the agenda, an agent profile (the profile's listing
+  // sheet), else the listing. The profile path is taken from the form only
+  // when it is exactly /agents/<digits> — anchored, so never off-site.
+  assert.match(action, /returnTo === 'visites'\s*\? '\/compte\/client\/visites'\s*: \/\^\\\/agents\\\/\\d\{1,12\}\$\/\.test\(returnTo\) \? returnTo : `\/listings\/\$\{propertyId\}`/, 'agenda, an anchored /agents/<id>, or the listing');
+  const agentPath = /^\/agents\/\d{1,12}$/;
+  for (const bad of ['//evil.com', '/agents/1/../../x', 'https://evil.com/agents/1', '/agents/1?x=1', '/agents/abc']) {
+    assert.ok(!agentPath.test(bad), `${bad} is not an accepted return path`);
+  }
+  assert.match(read('app/(portfolio)/agents/[id]/AgentProfileView.js'), /<VisitRequestDialog[\s\S]*returnTo=\{profilePath\}/, 'the agent profile opens the same dialog');
   assert.match(action, /dayClosed\(kinshasaDayKey\(picked\.iso\), await getListingAvailability\(listing\.id\)\)/);
   assert.match(read('app/(site)/listings/visitBatchActions.js'), /dayClosed\(kinshasaDayKey\(slot\.iso\), await getListingAvailability\(listing\.id\)\)/);
 });

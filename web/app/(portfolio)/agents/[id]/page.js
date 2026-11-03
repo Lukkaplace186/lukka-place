@@ -13,6 +13,7 @@ import { listingImages, typeLabel, specItems, feedLocationLine, descriptionSnipp
 import { placeLabel } from '@/lib/placeLabel';
 import { isVerifiedLevel, LEVEL_LABEL_KEYS } from '@/lib/verificationLevels';
 import { formatPhoneDisplay, telHref } from '@/lib/phone';
+import { formatPrice } from '@/lib/format';
 import { SITE_URL, ICON_STROKE_WIDTH } from '@/lib/constants';
 import JsonLd from '@/components/seo/JsonLd';
 import { DEFAULT_CITY, cityOfCommune, communeLabel } from '@/lib/cities';
@@ -136,6 +137,15 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
       waHref: routing.href,
       routingType: routing.routingType,
       similarHref: whatsappTo(similarMessage),
+      // What "Ajouter à mes visites" stores (components/AddToVisitCartButton.js),
+      // built as the listing page's EnquiryCard builds it.
+      cart: {
+        id: listing.id,
+        title: listing.title,
+        image: listingImages(listing)[0] || null,
+        place: feedLocationLine(listing),
+        priceLabel: formatPrice(listing.price, listing.purpose, listing.price_period),
+      },
     };
   }
 
@@ -188,7 +198,21 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
     copyLink: t('agent.portfolio.copyLink'),
     logo: t('agent.portfolio.logo'),
     contactUnavailable: t('agent.portfolio.contactUnavailable'),
+    requestVisit: t('enquiry.requestViewing'),
   };
+
+  // The visit dialog returns here (submitVisitRequestAction's return_to) with
+  // the listing page's own outcome codes and wording (EnquiryCard).
+  const VISIT_ERROR_KEYS = { phone: 'enquiry.errors.phone', time: 'enquiry.errors.time', closed: 'enquiry.errors.closed' };
+  const visitSent = typeof sp.visit_sent === 'string' ? sp.visit_sent : null;
+  const visitError = typeof sp.visit_error === 'string' ? sp.visit_error : null;
+  const visitNotice = visitSent || visitError
+    ? {
+        sent: visitSent ? t(visitSent === 'team' ? 'enquiry.sentTeam' : 'enquiry.sent') : null,
+        track: t('enquiry.trackVisit'),
+        error: visitError ? t(VISIT_ERROR_KEYS[visitError] || 'enquiry.errors.failed') : null,
+      }
+    : null;
 
   // RealEstateAgent structured data — only facts the page itself shows; no
   // phone (it has its own verification rule) and no name when the agent has
@@ -213,7 +237,15 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
   return (
     <>
       <JsonLd data={agentJsonLd} />
-      <AgentProfileView agent={view} tabs={tabs} initialTab={initialTab} labels={labels} profileUrl={profileUrl}>
+      <AgentProfileView
+        agent={view}
+        tabs={tabs}
+        initialTab={initialTab}
+        labels={labels}
+        profileUrl={profileUrl}
+        profilePath={`/agents/${agent.id}`}
+        visitNotice={visitNotice}
+      >
         {projects.length ? (
           <section className="flex flex-col gap-4 border-t border-line/60 px-5 pt-8">
             <div>

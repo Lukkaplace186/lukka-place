@@ -6,6 +6,7 @@ import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { I18nProvider } from '@/lib/i18n/client';
 import { getI18n } from '@/lib/i18n/server';
 import SitePageViewTracker from '@/components/SitePageViewTracker';
+import VisitCartMount from '@/components/VisitCartMount';
 import PortfolioHeaderShell, { PortfolioFooterShell } from './PortfolioHeaderShell';
 
 /**
@@ -40,6 +41,9 @@ import PortfolioHeaderShell, { PortfolioFooterShell } from './PortfolioHeaderShe
  *   auth     — FavoriteButton opens AuthPromptModal for a signed-out
  *              visitor, and its PhoneField labels come from
  *              lib/phoneFieldLabels.js resolved client-side.
+ *   enquiry  — the agent profile's listing sheet opens the listing page's
+ *              visit dialog (VisitRequestDialog) and "Mes visites"
+ *              (AddToVisitCartButton, VisitCartSheet).
  *
  * This layout mounted no provider at all until now, which is exactly the
  * failure tests/unit/i18n-namespaces.test.js was written to catch — but that
@@ -47,7 +51,7 @@ import PortfolioHeaderShell, { PortfolioFooterShell } from './PortfolioHeaderShe
  * it, so a public page shipped raw `listings.facts.bathrooms` dot-paths to
  * real visitors. The test now discovers layouts from the filesystem instead.
  */
-const PORTFOLIO_NAMESPACES = ['listings', 'account', 'auth'];
+const PORTFOLIO_NAMESPACES = ['listings', 'account', 'auth', 'enquiry'];
 
 export default async function PortfolioLayout({ children }) {
   const { locale, messages, t } = await getI18n(PORTFOLIO_NAMESPACES);
@@ -104,6 +108,9 @@ export default async function PortfolioLayout({ children }) {
         </div>
         {/* /agents and /agents/:id — what getAgentProfileViews counts. */}
         <SitePageViewTracker />
+        {/* "Mes visites" (lib/visitCart.js): the agent profile's listing sheet
+            adds to it, so its pill and sheet are mounted here as in (site). */}
+        <VisitCartMount />
       </CurrencyRateProvider>
     </I18nProvider>
   );

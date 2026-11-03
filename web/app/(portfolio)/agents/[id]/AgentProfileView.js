@@ -3,13 +3,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
-  ArrowUpDown, BadgeCheck, Bell, ChevronDown, ChevronRight, ChevronUp, Link2, MessageCircle, Phone, Sparkles, Star, X,
+  ArrowUpDown, BadgeCheck, Bell, CalendarClock, ChevronDown, ChevronRight, ChevronUp, Link2, MessageCircle, Phone, Sparkles, Star, X,
 } from 'lucide-react';
 import { Wordmark } from '@/components/Brand';
 import AgentAvatar from '@/components/AgentAvatar';
 import CardImageCarousel from '@/components/CardImageCarousel';
 import Price from '@/components/Price';
 import FavoriteButton from '@/components/FavoriteButton';
+import VisitRequestDialog from '@/components/VisitRequestDialog';
+import AddToVisitCartButton from '@/components/AddToVisitCartButton';
 import SpecItem from '@/components/SpecItem';
 import { Badge } from '@/components/ListingBadges';
 import { trackCallClick, trackLeadClick } from '@/lib/analyticsClient';
@@ -82,7 +84,7 @@ function TypeAndSpecs({ item }) {
   );
 }
 
-export default function AgentProfileView({ agent, tabs, initialTab, labels, profileUrl, children }) {
+export default function AgentProfileView({ agent, tabs, initialTab, labels, profileUrl, profilePath, visitNotice, children }) {
   const [tab, setTab] = useState(initialTab);
   const [sort, setSort] = useState('recent');
   const [communesOpen, setCommunesOpen] = useState(false);
@@ -90,6 +92,9 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
   const [selectedId, setSelectedId] = useState(null);
   const [photoIndex, setPhotoIndex] = useState(0);
   const [toast, setToast] = useState(false);
+  // The listing the visit dialog is open for. Kept apart from the sheet's
+  // selection so the dialog can stay open over (or after) the sheet.
+  const [visitFor, setVisitFor] = useState(null);
   const headerRef = useRef(null);
   const toastTimer = useRef(null);
 
@@ -108,9 +113,11 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
   }, []);
 
   // While the sheet is open: Escape closes it and the page behind stays put.
+  // While the visit dialog is open over it, Escape is the dialog's (Radix):
+  // closing both at once would drop the visitor back on the list.
   useEffect(() => {
     if (!selected) return undefined;
-    const onKey = (e) => { if (e.key === 'Escape') setSelectedId(null); };
+    const onKey = (e) => { if (e.key === 'Escape' && !document.querySelector('[role="dialog"][data-state="open"]')) setSelectedId(null); };
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     window.addEventListener('keydown', onKey);
@@ -225,6 +232,22 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
 
       <div className="mx-auto max-w-[40rem]">
         <div className="flex flex-col gap-3 px-5 pb-5 pt-4">
+          {/* After "Demander une visite" from the sheet, the action returns
+              here with ?visit_sent / ?visit_error — the listing page's own
+              banners (EnquiryCard). */}
+          {visitNotice?.sent ? (
+            <div className="rounded-lg bg-success-tint px-3.5 py-2.5 text-[0.8125rem] text-success" role="status">
+              <p className="font-semibold">{visitNotice.sent}</p>
+              <Link href="/compte/client/visites" className="mt-1 inline-block font-semibold underline underline-offset-2">
+                {visitNotice.track}
+              </Link>
+            </div>
+          ) : null}
+          {visitNotice?.error ? (
+            <p className="rounded-lg bg-danger-tint px-3.5 py-2.5 text-[0.8125rem] font-semibold text-danger" role="alert">
+              {visitNotice.error}
+            </p>
+          ) : null}
           {agent.bio ? <p className="line-clamp-3 text-sm leading-relaxed text-ink-70">{agent.bio}</p> : null}
 
           <div className="flex flex-wrap items-center gap-2 text-[0.8125rem]">
@@ -411,7 +434,7 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
       <div
         onClick={() => setSelectedId(null)}
         aria-hidden="true"
-        className={`fixed inset-0 z-50 bg-[rgba(12,29,80,.42)] transition-opacity duration-300 ease-[cubic-bezier(.2,.7,.3,1)] ${
+        className={`fixed inset-0 z-[45] bg-[rgba(12,29,80,.42)] transition-opacity duration-300 ease-[cubic-bezier(.2,.7,.3,1)] ${
           selected ? 'opacity-100' : 'pointer-events-none opacity-0'
         }`}
       />
@@ -420,7 +443,7 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
         aria-modal="true"
         aria-label={selected ? `${selected.type} · ${selected.place || ''}` : undefined}
         aria-hidden={!selected}
-        className={`fixed inset-x-0 bottom-0 z-[51] mx-auto flex h-[88dvh] max-w-[32rem] flex-col rounded-t-[20px] bg-surface shadow-lg transition-transform duration-300 ease-[cubic-bezier(.2,.7,.3,1)] ${
+        className={`fixed inset-x-0 bottom-0 z-[46] mx-auto flex h-[88dvh] max-w-[32rem] flex-col rounded-t-[20px] bg-surface shadow-lg transition-transform duration-300 ease-[cubic-bezier(.2,.7,.3,1)] ${
           selected ? 'translate-y-0' : 'pointer-events-none translate-y-[102%]'
         }`}
       >
@@ -482,13 +505,19 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
                     {labels.reservedNote}
                   </p>
                 ) : null}
+                {/* "Mes visites": several of this agency's listings, one request
+                    (lib/visitCart.js) — the listing page's own button. */}
+                <div className="mt-3">
+                  <AddToVisitCartButton listing={selected.cart} />
+                </div>
                 <Link href={selected.href} className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-blue hover:underline">
                   {labels.viewListing}
                   <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />
                 </Link>
               </div>
             </div>
-            <div className={`grid flex-none gap-2.5 border-t border-line/60 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 ${agent.telHref ? 'grid-cols-[3.25rem_minmax(0,1fr)]' : 'grid-cols-1'}`}>
+            <div className="flex flex-none flex-col gap-2.5 border-t border-line/60 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3">
+            <div className={`grid gap-2.5 ${agent.telHref ? 'grid-cols-[3.25rem_minmax(0,1fr)]' : 'grid-cols-1'}`}>
               {agent.telHref ? (
                 <a
                   href={agent.telHref}
@@ -516,9 +545,33 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
                 </span>
               )}
             </div>
+            {/* The tracked path (root CLAUDE.md, "Dual contact policy"): a real
+                lead + viewing request, the agent alerted by the engine. The
+                listing page's own dialog; it comes back to this profile. Not
+                offered on a reserved listing — that visit is not on offer. */}
+            {selected.reserved ? null : (
+              <button
+                type="button"
+                onClick={() => setVisitFor(selected.id)}
+                className="u-press u-btn-secondary inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg text-sm font-semibold text-ink"
+              >
+                <CalendarClock strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
+                {labels.requestVisit}
+              </button>
+            )}
+            </div>
           </>
         ) : null}
       </div>
+
+      {visitFor != null ? (
+        <VisitRequestDialog
+          propertyId={visitFor}
+          open
+          onOpenChange={(value) => { if (!value) setVisitFor(null); }}
+          returnTo={profilePath}
+        />
+      ) : null}
 
       <div
         role="status"

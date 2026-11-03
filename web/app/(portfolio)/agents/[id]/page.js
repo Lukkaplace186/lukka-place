@@ -8,12 +8,10 @@ import { getAgentPublicRating, formatAverage } from '@/lib/agentReviews';
 import { getLocale, getT } from '@/lib/i18n/server';
 import { getAgentProfile, getAgentListings, agentContactName, agentPublicName } from '@/lib/agencies';
 import { buildWhatsAppLink, getCentralWhatsAppHref } from '@/lib/whatsapp';
-import { resolveWhatsAppRouting } from '@/lib/leadRouting';
-import { listingImages, typeLabel, specItems, feedLocationLine, descriptionSnippet } from '@/lib/listingView';
+import { listingImages, typeLabel, specItems, feedLocationLine } from '@/lib/listingView';
 import { placeLabel } from '@/lib/placeLabel';
 import { isVerifiedLevel, LEVEL_LABEL_KEYS } from '@/lib/verificationLevels';
 import { formatPhoneDisplay, telHref } from '@/lib/phone';
-import { formatPrice } from '@/lib/format';
 import { SITE_URL, ICON_STROKE_WIDTH } from '@/lib/constants';
 import JsonLd from '@/components/seo/JsonLd';
 import { DEFAULT_CITY, cityOfCommune, communeLabel } from '@/lib/cities';
@@ -24,8 +22,8 @@ const PROFILE_MESSAGE =
 // The design's two tabs (no "Tous", no "Parcelles"). `labelKey`, not `label`:
 // a module-level constant cannot hold translated text (components/navItems.js).
 const TABS = [
-  { key: 'location', labelKey: 'agent.portfolio.toRent', emptyKey: 'agent.portfolio.emptyTitleRent', seeking: 'à louer' },
-  { key: 'vente', labelKey: 'agent.portfolio.toSell', emptyKey: 'agent.portfolio.emptyTitleSale', seeking: 'à acheter' },
+  { key: 'location', labelKey: 'agent.portfolio.toRent', headingKey: 'agent.portfolio.headingRent', emptyKey: 'agent.portfolio.emptyTitleRent', seeking: 'à louer' },
+  { key: 'vente', labelKey: 'agent.portfolio.toSell', headingKey: 'agent.portfolio.headingSale', emptyKey: 'agent.portfolio.emptyTitleSale', seeking: 'à acheter' },
 ];
 
 // Rows per tab. The list is client-sorted (récents / prix), so it has to hold
@@ -97,6 +95,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
   const initial = /[A-ZÀ-Þ]/.test(initialChar || '') ? initialChar : null;
 
   const communes = agent.primary_communes || [];
+  const agentCities = [...new Set(communes.map((c) => cityOfCommune(c) || DEFAULT_CITY))];
   const profileUrl = `${SITE_URL}/agents/${agent.id}`;
 
   // Same three conditions as lib/listings.js's agent_phone.
@@ -110,18 +109,16 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
     .filter(Boolean)
     .join(' · ');
 
+  // A card is a link to the listing page (AgentProfileView), so only what the
+  // card shows is sent; contact and booking live on that page.
   function toItem(listing) {
-    const routing = resolveWhatsAppRouting(listing);
     const type = typeLabel(listing, t) || listing.title || '';
-    const place = placeLabel(listing) || feedLocationLine(listing);
-    const href = `/listings/${listing.id}`;
-    const similarMessage = `Bonjour, le bien ${type.toLowerCase()}${place ? ` à ${place}` : ''} est réservé. Avez-vous un bien similaire ? ${SITE_URL}${href}`;
     return {
       id: listing.id,
-      href,
+      href: `/listings/${listing.id}`,
       title: listing.title || type,
       type,
-      place,
+      place: placeLabel(listing) || feedLocationLine(listing),
       commune: listing.commune || null,
       price: listing.price,
       purpose: listing.purpose,
@@ -132,20 +129,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
       photos: listingImages(listing),
       isNew: Boolean(listing.is_fresh) && listing.listing_status !== 'under_offer',
       reserved: listing.listing_status === 'under_offer',
-      description: listing.description ? descriptionSnippet(listing.description, 900) : null,
       createdAt: listing.created_at ? new Date(listing.created_at).toISOString() : null,
-      waHref: routing.href,
-      routingType: routing.routingType,
-      similarHref: whatsappTo(similarMessage),
-      // What "Ajouter à mes visites" stores (components/AddToVisitCartButton.js),
-      // built as the listing page's EnquiryCard builds it.
-      cart: {
-        id: listing.id,
-        title: listing.title,
-        image: listingImages(listing)[0] || null,
-        place: feedLocationLine(listing),
-        priceLabel: formatPrice(listing.price, listing.purpose, listing.price_period),
-      },
     };
   }
 
@@ -154,8 +138,8 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
     return {
       key: entry.key,
       label: t(entry.labelKey),
+      heading: `${t(entry.headingKey)} (${items.length})`,
       items,
-      countLabel: t('agent.portfolio.listingCount', { count: items.length }),
       emptyTitle: t(entry.emptyKey),
       alertHref: whatsappTo(
         `Bonjour, je cherche un bien ${entry.seeking}. Pouvez-vous me prévenir quand un bien correspond ? (vu sur ${profileUrl})`,
@@ -174,7 +158,9 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
     rating: rating ? `${formatAverage(rating.average, locale)} (${t('agent.portfolio.reviewsCount', { count: rating.count })})` : null,
     telHref: routablePhone ? telHref(routablePhone) : null,
     whatsappHref: whatsappTo(PROFILE_MESSAGE),
-    barNote: routablePhone ? t('agent.portfolio.numberVerifiedBy') : t('agent.portfolio.viaLukka'),
+    // The header's address line: the office address when one is on file,
+    // else the city (or cities) the agent's communes are in.
+    locationLine: [agent.address, agent.city || agentCities.join(', ')].filter(Boolean).join(', ') || null,
   };
 
   const labels = {
@@ -189,35 +175,18 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
     emptyBody: t('agent.portfolio.emptyBody'),
     emptyCta: t('agent.portfolio.emptyCta'),
     call: t('agent.portfolio.call'),
-    askListing: t('agent.portfolio.askListing'),
-    askSimilar: t('agent.portfolio.askSimilar'),
-    reservedNote: t('agent.portfolio.reservedNote'),
-    viewListing: t('agent.portfolio.viewListing'),
-    close: t('agent.portfolio.close'),
+    readMore: t('agent.portfolio.readMore'),
+    readLess: t('agent.portfolio.readLess'),
+    communesLabel: t('agent.portfolio.communesLabel'),
     linkCopied: t('agent.portfolio.linkCopied'),
     copyLink: t('agent.portfolio.copyLink'),
     logo: t('agent.portfolio.logo'),
     contactUnavailable: t('agent.portfolio.contactUnavailable'),
-    requestVisit: t('enquiry.requestViewing'),
   };
-
-  // The visit dialog returns here (submitVisitRequestAction's return_to) with
-  // the listing page's own outcome codes and wording (EnquiryCard).
-  const VISIT_ERROR_KEYS = { phone: 'enquiry.errors.phone', time: 'enquiry.errors.time', closed: 'enquiry.errors.closed' };
-  const visitSent = typeof sp.visit_sent === 'string' ? sp.visit_sent : null;
-  const visitError = typeof sp.visit_error === 'string' ? sp.visit_error : null;
-  const visitNotice = visitSent || visitError
-    ? {
-        sent: visitSent ? t(visitSent === 'team' ? 'enquiry.sentTeam' : 'enquiry.sent') : null,
-        track: t('enquiry.trackVisit'),
-        error: visitError ? t(VISIT_ERROR_KEYS[visitError] || 'enquiry.errors.failed') : null,
-      }
-    : null;
 
   // RealEstateAgent structured data — only facts the page itself shows; no
   // phone (it has its own verification rule) and no name when the agent has
   // only a phone number for one.
-  const agentCities = [...new Set(communes.map((c) => cityOfCommune(c) || DEFAULT_CITY))];
   const agentJsonLd = hasRealName
     ? {
         '@context': 'https://schema.org',
@@ -243,8 +212,6 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
         initialTab={initialTab}
         labels={labels}
         profileUrl={profileUrl}
-        profilePath={`/agents/${agent.id}`}
-        visitNotice={visitNotice}
       >
         {projects.length ? (
           <section className="flex flex-col gap-4 border-t border-line/60 px-5 pt-8">

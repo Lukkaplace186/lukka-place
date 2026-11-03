@@ -1508,7 +1508,12 @@
       "linkCopied": "Link copied",
       "logo": "Logo",
       "viaLukka": "Through Lukka Place customer service",
-      "writtenEnquiry": "Or leave a written enquiry"
+      "writtenEnquiry": "Or leave a written enquiry",
+      "headingRent": "Properties to Rent",
+      "headingSale": "Properties for Sale",
+      "readMore": "Read more",
+      "readLess": "Show less",
+      "communesLabel": "Areas covered:"
     },
     "completion": {
       "nameLabel": "Name provided",

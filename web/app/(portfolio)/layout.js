@@ -7,7 +7,7 @@ import { I18nProvider } from '@/lib/i18n/client';
 import { getI18n } from '@/lib/i18n/server';
 import SitePageViewTracker from '@/components/SitePageViewTracker';
 import VisitCartMount from '@/components/VisitCartMount';
-import PortfolioHeaderShell, { PortfolioFooterShell } from './PortfolioHeaderShell';
+import PortfolioFooterShell from './PortfolioFooterShell';
 
 /**
  * Chrome for the agent portfolio pages, cloned from web/Design's "Agent
@@ -64,7 +64,7 @@ export default async function PortfolioLayout({ children }) {
     <I18nProvider locale={locale} messages={messages}>
       <CurrencyRateProvider rate={rate}>
         <div className="flex min-h-screen flex-col bg-page">
-          <PortfolioHeaderShell>
+          <header className="sticky top-0 z-30 border-b border-line bg-surface">
             <div className="mx-auto flex h-[4.75rem] max-w-[77.5rem] items-center justify-between gap-6 px-4 sm:px-6">
               <Wordmark />
 
@@ -90,7 +90,7 @@ export default async function PortfolioLayout({ children }) {
                 )}
               </nav>
             </div>
-          </PortfolioHeaderShell>
+          </header>
 
           <main className="flex-1">{children}</main>
 

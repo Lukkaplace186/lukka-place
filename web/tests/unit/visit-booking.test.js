@@ -143,9 +143,7 @@ test('every surface books through the one dialog, and a blocked day is refused s
   const agentPath = /^\/agents\/\d{1,12}$/;
   for (const bad of ['//evil.com', '/agents/1/../../x', 'https://evil.com/agents/1', '/agents/1?x=1', '/agents/abc']) {
     assert.ok(!agentPath.test(bad), `${bad} is not an accepted return path`);
-  }
-  assert.match(read('app/(portfolio)/agents/[id]/AgentProfileView.js'), /<VisitRequestDialog[\s\S]*returnTo=\{profilePath\}/, 'the agent profile opens the same dialog');
-  assert.match(action, /dayClosed\(kinshasaDayKey\(picked\.iso\), await getListingAvailability\(listing\.id\)\)/);
+  }  assert.match(action, /dayClosed\(kinshasaDayKey\(picked\.iso\), await getListingAvailability\(listing\.id\)\)/);
   assert.match(read('app/(site)/listings/visitBatchActions.js'), /dayClosed\(kinshasaDayKey\(slot\.iso\), await getListingAvailability\(listing\.id\)\)/);
 });
 

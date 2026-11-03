@@ -65,12 +65,21 @@ function Badges({ item, labels }) {
   );
 }
 
-/** One listing: a link to its page, photo first, PropertyCard's type. */
+/**
+ * One listing: a link to its page, photo first, PropertyCard's type. The
+ * photos still swipe: CardImageCarousel is a scroll strip, and a swipe is a
+ * scroll, not a click, so it never navigates.
+ *
+ * Press feedback is PropertyCard's, not `.u-press`: no shrink while the press
+ * is on the photo strip or a button. Scaling the strip's ancestor as a finger
+ * lands is how iOS Safari drops the swipe (CardImageCarousel's
+ * `data-card-photo`) — `.u-press` here made the photos un-swipeable on iPhone.
+ */
 function ListingCard({ item, labels }) {
   return (
     <Link
       href={item.href}
-      className="u-press group block overflow-hidden rounded-2xl border border-line/70 bg-surface shadow-sm transition-shadow hover:shadow-md"
+      className="group block overflow-hidden rounded-2xl border border-line/70 bg-surface shadow-sm transition-[box-shadow,scale] duration-150 hover:shadow-md [&:active:not(:has(button:active)):not(:has([data-card-photo]:active))]:scale-[0.985]"
     >
       <div className="relative aspect-[3/2] w-full overflow-hidden bg-canvas-alt">
         {item.photos.length ? (

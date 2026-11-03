@@ -731,6 +731,14 @@ stands alone as a listing (`looks-like-listing`). This applies to everyone:
 it replaces the literal "a changed price/commune/type is a new listing" ask,
 which would have turned "non c'est 1100$" into a second listing. §61.
 
+The "names a kind of property" half is a word list (`FAMILY_WORDS`, copied in
+`group-reader/lib/prefilter.js`). A word missing from it costs a whole
+listing: on 2026-11-01 "Plusieurs Morcellements … prix 700 000$" (land, never
+saying "terrain") arrived while the agent's apartment was in the 7-day
+correction window, the model called it a correction, the boundary saw no
+property, and it was stored nowhere. *morcellement(s)* / *lotissement(s)* now
+count as land on both sides.
+
 **Drafts nobody confirms reach moderation** (`services/draftAutoSubmit.js`,
 job `draft-auto-submit`): a `pending_confirmation` draft with ≥1 photo is
 published (into the approval queue, `approve_status = 0`) after

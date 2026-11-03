@@ -12199,6 +12199,28 @@ console.log('\n2. services/openai.js');
       assert.strictEqual(boundary61.newListingReason({ text: 'Appartement Limete 800 USD', photoCount: 0, intent: 'listing', context: draft61 }), null, 'too short to be a description');
       assert.strictEqual(boundary61.newListingReason({ text: "non c'est un appartement à Limete, le loyer est 800 USD par mois, garantie 3 mois et 1 mois d'avance", intent: 'listing', context: draft61 }), null, 'correction wording');
     });
+    check('a plot sold as "morcellements" is land, and a new listing beside a published apartment (2026-11-01)', () => {
+      // The real message: it never says "terrain", so it named no family and
+      // was folded into the agent's apartment #185 as a correction.
+      const MORCEL61 = '*🇨🇩🇨🇩Plusieurs Morcellements Sont disponible à la Kin Oasis Bandal.*\n'
+        + '*Emplacement : Impeccable pour tout projets immobiliers.*\n'
+        + '*Dimensions : 20m Sur 40m: prix  700 000$ à discuté*\n'
+        + '*Morcellement a Quatre (4) Parties :*\n'
+        + '*1ère Partie : 10m Sur 20m = 175.000$ à débattre*\n'
+        + '*2eme Parties : 20m Sur 20m = 350.000$ à débattre*\n'
+        + '*3 ème Partie : 8m Sur 20m = 150.000$ à débattre*\n'
+        + "*Documents disponibles : Certificat d'Enregistrement*";
+      assert.deepStrictEqual(boundary61.familiesIn(MORCEL61), ['terrain']);
+      assert.deepStrictEqual(boundary61.familiesIn('Lotissement à Mont-Ngafula, lots de 15/20 à 12 000$'), ['terrain']);
+      assert.ok(boundary61.standsAloneAsListing(MORCEL61));
+      const apartment61 = { property_type: 'appartement', commune: 'Kintambo', price: 1000 };
+      const r = boundary61.newListingReason({ text: MORCEL61, photoCount: 0, intent: 'listing', context: apartment61 });
+      assert.strictEqual(r && r.reason, 'core-fields-differ');
+      assert.ok(r.differences.includes('property_type') && r.differences.includes('price'), r.differences.join(','));
+      // The group reader's copy of the word list must agree.
+      const prefilter61 = require('../group-reader/lib/prefilter');
+      assert.ok(prefilter61.standsAloneAsListing(MORCEL61), 'group-reader prefilter drops a morcellement post');
+    });
 
     await checkAsync('a listing sent as the answer to "your name?" is never stored as the name', async () => {
       const result = await onboarding.completeOnboarding('243850006101', OFFER61);

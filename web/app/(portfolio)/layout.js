@@ -6,6 +6,7 @@ import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { I18nProvider } from '@/lib/i18n/client';
 import { getI18n } from '@/lib/i18n/server';
 import SitePageViewTracker from '@/components/SitePageViewTracker';
+import PortfolioHeaderShell, { PortfolioFooterShell } from './PortfolioHeaderShell';
 
 /**
  * Chrome for the agent portfolio pages, cloned from web/Design's "Agent
@@ -59,7 +60,7 @@ export default async function PortfolioLayout({ children }) {
     <I18nProvider locale={locale} messages={messages}>
       <CurrencyRateProvider rate={rate}>
         <div className="flex min-h-screen flex-col bg-page">
-          <header className="sticky top-0 z-30 border-b border-line bg-surface">
+          <PortfolioHeaderShell>
             <div className="mx-auto flex h-[4.75rem] max-w-[77.5rem] items-center justify-between gap-6 px-4 sm:px-6">
               <Wordmark />
 
@@ -85,11 +86,11 @@ export default async function PortfolioLayout({ children }) {
                 )}
               </nav>
             </div>
-          </header>
+          </PortfolioHeaderShell>
 
           <main className="flex-1">{children}</main>
 
-          <footer className="border-t border-line bg-canvas-alt py-8">
+          <PortfolioFooterShell>
             <div className="mx-auto flex max-w-[77.5rem] flex-wrap items-center justify-between gap-4 px-4 text-[0.8125rem] text-ink-45 sm:px-6">
               <span className="inline-flex items-center gap-2.5">
                 <Wordmark />
@@ -99,7 +100,7 @@ export default async function PortfolioLayout({ children }) {
                 {t('agent.portfolio.reportListing')}
               </Link>
             </div>
-          </footer>
+          </PortfolioFooterShell>
         </div>
         {/* /agents and /agents/:id — what getAgentProfileViews counts. */}
         <SitePageViewTracker />

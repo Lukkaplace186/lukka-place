@@ -1481,7 +1481,34 @@
       "reviewsEyebrow": "Avis clients",
       "reviewsTitle": "Ce qu’en disent les clients",
       "reviewsNote": "Notes laissées par des clients après une visite organisée via Lukka Place. Elles portent sur l’agent, pas sur les biens.",
-      "outOfFive": "sur 5"
+      "outOfFive": "sur 5",
+      "activeCount": {
+        "one": "{count} bien actif",
+        "other": "{count} biens actifs"
+      },
+      "listingCount": {
+        "one": "{count} bien",
+        "other": "{count} biens"
+      },
+      "sortRecent": "Récents",
+      "sortPriceAsc": "Prix croissant",
+      "sortPriceDesc": "Prix décroissant",
+      "newBadge": "Nouveau",
+      "reservedBadge": "Réservé",
+      "emptyTitleRent": "Aucun bien à louer pour le moment",
+      "emptyTitleSale": "Aucun bien à vendre pour le moment",
+      "emptyBody": "Écrivez à l'agence sur WhatsApp et elle vous prévient dès qu'un bien correspond.",
+      "emptyCta": "Être prévenu sur WhatsApp",
+      "call": "Appeler",
+      "askListing": "Demander ce bien sur WhatsApp",
+      "askSimilar": "Demander un bien similaire",
+      "reservedNote": "Ce bien est réservé. L'agence peut vous proposer un bien similaire.",
+      "viewListing": "Voir l'annonce complète",
+      "close": "Fermer",
+      "linkCopied": "Lien copié",
+      "logo": "Logo",
+      "viaLukka": "Via le service client Lukka Place",
+      "writtenEnquiry": "Ou laissez une demande écrite"
     },
     "completion": {
       "nameLabel": "Nom renseigné",

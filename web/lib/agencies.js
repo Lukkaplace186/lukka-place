@@ -35,13 +35,17 @@ export async function getAgentProfile(id) {
        (SELECT details FROM vendor_infos
          WHERE vendor_id = $2
          ORDER BY (language_id = 20) DESC, language_id
-         LIMIT 1) AS vendor_details`,
+         LIMIT 1) AS vendor_details,
+       -- The direct-routing switch (/admin/benchmarks), read here so the
+       -- profile applies the same rule as every listing CTA: the agent's
+       -- number is published only when verified AND routing is not off.
+       (SELECT direct_routing_enabled FROM agents WHERE id = $1) AS direct_routing_enabled`,
     [agent.id, agent.vendor_id || null],
   );
   const own = rows[0]?.own_details;
   const bio = own != null ? own : rows[0]?.vendor_details;
 
-  return { ...agent, bio: bio || null };
+  return { ...agent, bio: bio || null, direct_routing_enabled: rows[0]?.direct_routing_enabled ?? null };
 }
 
 /**

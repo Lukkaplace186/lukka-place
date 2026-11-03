@@ -1481,7 +1481,34 @@
       "reviewsEyebrow": "Customer Reviews",
       "reviewsTitle": "What Customers Say",
       "reviewsNote": "Ratings left by customers after a viewing arranged through Lukka Place. They are about the agent, not the properties.",
-      "outOfFive": "out of 5"
+      "outOfFive": "out of 5",
+      "activeCount": {
+        "one": "{count} active listing",
+        "other": "{count} active listings"
+      },
+      "listingCount": {
+        "one": "{count} listing",
+        "other": "{count} listings"
+      },
+      "sortRecent": "Newest",
+      "sortPriceAsc": "Price: low to high",
+      "sortPriceDesc": "Price: high to low",
+      "newBadge": "New",
+      "reservedBadge": "Reserved",
+      "emptyTitleRent": "Nothing to Rent Right Now",
+      "emptyTitleSale": "Nothing for Sale Right Now",
+      "emptyBody": "Message the agency on WhatsApp and they will let you know as soon as something matches.",
+      "emptyCta": "Get notified on WhatsApp",
+      "call": "Call",
+      "askListing": "Ask about this property on WhatsApp",
+      "askSimilar": "Ask for a similar property",
+      "reservedNote": "This property is reserved. The agency can suggest a similar one.",
+      "viewListing": "View the full listing",
+      "close": "Close",
+      "linkCopied": "Link copied",
+      "logo": "Logo",
+      "viaLukka": "Through Lukka Place customer service",
+      "writtenEnquiry": "Or leave a written enquiry"
     },
     "completion": {
       "nameLabel": "Name provided",

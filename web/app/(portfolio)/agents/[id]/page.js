@@ -1,50 +1,35 @@
 import { notFound } from 'next/navigation';
-import Link from 'next/link';
-import { BadgeCheck, Phone, Mail, MapPin, Building2, Star } from 'lucide-react';
-import AgentAvatar from '@/components/AgentAvatar';
-import AgentVerificationBadge from '@/components/AgentVerificationBadge';
-import PropertyCard from '@/components/PropertyCard';
-import ShareOnWhatsAppButton from '@/components/ShareOnWhatsAppButton';
-import VCardButton from '@/components/VCardButton';
-import CopyLinkButton from '@/components/CopyLinkButton';
-import CurrencyToggle from '@/components/CurrencyToggle';
+import { Star } from 'lucide-react';
 import InquiryForm from './InquiryForm';
+import AgentProfileView from './AgentProfileView';
 import ProjectCard from '@/components/projects/ProjectCard';
 import { getPublicProjects } from '@/lib/developments';
 import { getAgentPublicRating, formatAverage } from '@/lib/agentReviews';
-import { getLocale } from '@/lib/i18n/server';
+import { getLocale, getT } from '@/lib/i18n/server';
 import { getAgentProfile, getAgentListings, agentContactName, agentPublicName } from '@/lib/agencies';
 import { buildWhatsAppLink, getCentralWhatsAppHref } from '@/lib/whatsapp';
+import { resolveWhatsAppRouting } from '@/lib/leadRouting';
+import { listingImages, typeLabel, specItems, feedLocationLine, descriptionSnippet } from '@/lib/listingView';
+import { placeLabel } from '@/lib/placeLabel';
+import { isVerifiedLevel, LEVEL_LABEL_KEYS } from '@/lib/verificationLevels';
 import { formatPhoneDisplay, telHref } from '@/lib/phone';
 import { SITE_URL, ICON_STROKE_WIDTH } from '@/lib/constants';
-import { getT } from '@/lib/i18n/server';
 import JsonLd from '@/components/seo/JsonLd';
-import { DEFAULT_CITY, cityOfCommune, communeLabel, communeOptionText } from '@/lib/cities';
+import { DEFAULT_CITY, cityOfCommune, communeLabel } from '@/lib/cities';
 
 const PROFILE_MESSAGE =
   "Bonjour, j'ai vu votre profil sur Lukka Place et j'aimerais en savoir plus sur vos biens.";
 
-// Only the two transaction tabs — no "Tous" (the tab row itself covers
-// everything the portfolio has) and no "Parcelles" (a property-type facet,
-// not a transaction type; it doesn't belong beside À louer/À vendre).
-// `labelKey`, not `label` — a module-level constant cannot hold translated
-// text (see components/navItems.js).
+// The design's two tabs (no "Tous", no "Parcelles"). `labelKey`, not `label`:
+// a module-level constant cannot hold translated text (components/navItems.js).
 const TABS = [
-  { key: 'location', labelKey: 'agent.portfolio.toRent' },
-  { key: 'vente', labelKey: 'agent.portfolio.toSell' },
+  { key: 'location', labelKey: 'agent.portfolio.toRent', emptyKey: 'agent.portfolio.emptyTitleRent', seeking: 'à louer' },
+  { key: 'vente', labelKey: 'agent.portfolio.toSell', emptyKey: 'agent.portfolio.emptyTitleSale', seeking: 'à acheter' },
 ];
 
-/** Local to this page — /agents/[id] base, not /listings like lib/urlParams.js's helpers. */
-function hrefWithParam(id, params, key, value) {
-  const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(params || {})) {
-    if (v == null || v === '' || k === key) continue;
-    qs.set(k, Array.isArray(v) ? v[0] : v);
-  }
-  if (value != null) qs.set(key, value);
-  const s = qs.toString();
-  return s ? `/agents/${id}?${s}` : `/agents/${id}`;
-}
+// Rows per tab. The list is client-sorted (récents / prix), so it has to hold
+// the whole portfolio rather than one page of it; 60 covers every agency today.
+const LISTINGS_PER_TAB = 60;
 
 export async function generateMetadata({ params }) {
   const { id } = await params;
@@ -56,26 +41,22 @@ export async function generateMetadata({ params }) {
 }
 
 /**
- * The public agency storefront, in an editorial-luxury register: an ink
- * hero where a serif agency name carries the page, a meta line and a quiet
- * verified chip instead of a shouted phone number, the portfolio in the
- * main column, and a pinned contact rail beside it.
+ * The public agency profile, built from Claude Design's "Agent Profile
+ * Mobile" 5a (2026-11-03) — layout and interactions live in
+ * AgentProfileView.js; this file decides every fact it shows.
  *
- * It lives in the (portfolio) route group, not (site), specifically so the
- * fixed left icon rail and bottom nav do NOT render here.
+ * It lives in the (portfolio) route group, not (site), so the site header's
+ * search chrome does not render here.
  *
- * Two deliberate restraints, both about not saying more than the data
- * supports:
- *  - There is no "response time" stat. Nothing measures it. The hero's
- *    second figure is the real commune count, and it disappears rather
- *    than printing a zero.
- *  - `metaLine` and the verified chip are assembled segment by segment
- *    from real columns; an agent with nothing to put in a slot gets no
- *    slot, not a plausible-sounding placeholder.
- *
- * Exactly two WhatsApp actions exist on the page — the hero's primary and
- * the rail's — and the share controls are icon-only in the hero rather
- * than a separate full-width strip.
+ * Restraints, all about not saying more than the data supports:
+ *  - The agent's number (call button, contact line, WhatsApp) is published
+ *    only under the listing pages' rule — phone verified AND direct routing
+ *    not switched off. Otherwise WhatsApp goes to Lukka Place's central
+ *    number and there is no call button.
+ *  - "Nouveau" is the database's is_fresh, "Réservé" is listing_status
+ *    under_offer. No response-time line: nothing measures it.
+ *  - A row's WhatsApp message is the storefront's own (lib/leadRouting.js),
+ *    so the engine still recognises the enquiry by its listing link.
  */
 export default async function AgentStorefrontPage({ params, searchParams }) {
   const t = await getT();
@@ -85,80 +66,134 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
   const agent = await getAgentProfile(id);
   if (!agent) notFound();
 
-  const tab = TABS.some((entry) => entry.key === sp.tab) ? sp.tab : TABS[0].key;
-  const q = typeof sp.q === 'string' ? sp.q : '';
+  // Both tabs at once: the segmented control shows each tab's count and
+  // switches without a round trip. Projects and ratings never take the
+  // profile down.
+  const [rentals, sales, projects, rating, locale] = await Promise.all([
+    getAgentListings(agent.id, { transactionType: 'location', limit: LISTINGS_PER_TAB }),
+    getAgentListings(agent.id, { transactionType: 'vente', limit: LISTINGS_PER_TAB }),
+    getPublicProjects({ agentId: agent.id }).catch((err) => {
+      console.error(`[agents/${agent.id}] projects unavailable: ${err.message}`);
+      return [];
+    }),
+    getAgentPublicRating(agent.id),
+    getLocale(),
+  ]);
 
-  const listings = await getAgentListings(agent.id, {
-    transactionType: tab,
-    commune: sp.commune,
-    search: q || undefined,
-  });
+  // A shared ?tab= wins; otherwise open on À louer unless it is empty and
+  // À vendre is not, so a sales-only agency does not greet with an empty list.
+  const initialTab = TABS.some((entry) => entry.key === sp.tab)
+    ? sp.tab
+    : rentals.data.length === 0 && sales.data.length > 0 ? 'vente' : TABS[0].key;
 
-  const filteredListings = listings.data;
-
-  // The developer's published projects (/projets). Never lets a projects
-  // failure take the profile down.
-  const projects = await getPublicProjects({ agentId: agent.id }).catch((err) => {
-    console.error(`[agents/${agent.id}] projects unavailable: ${err.message}`);
-    return [];
-  });
-
-  // Verified customer ratings of the agent (lib/agentReviews.js): null until
-  // MIN_PUBLIC_REVIEWS exist, so nothing is printed rather than a thin average.
-  const [rating, locale] = await Promise.all([getAgentPublicRating(agent.id), getLocale()]);
-
-  // The agency / trade name when the agent gave one, else their own name.
+  // The agency / trade name when the agent gave one, else their own name. An
+  // agent with no name yet has `username` = their phone digits (createAgent):
+  // shown formatted, and then the phone is not repeated in the contact line.
   const name = agentPublicName(agent) || '—';
-  const contactName = agentContactName(agent);
-  // An agent who signed up through this app and hasn't set a name yet has
-  // `username` = their own phone digits (see createAgent), which renders as a
-  // raw 12-digit string in the hero's 52px serif. Format it as a phone number
-  // for display only — agentDisplayName itself stays untouched because it is
-  // also the `assigned_agent` matching key on leads, and reformatting that
-  // would orphan every lead already filed under the old string.
-  const headingName = /^\d{9,15}$/.test(name) ? formatPhoneDisplay(name) : name;
-
-  // True only when the agent has actually set a name. When they haven't, the
-  // heading falls back to their phone number — and in that case the phone
-  // must NOT also be repeated in the verified chip below it, which would put
-  // the same 12 digits on screen twice.
   const hasRealName = name !== '—' && !/^\d{9,15}$/.test(name);
-
-  // Monogram for the avatar when there is no uploaded logo. Only a real
-  // letter is used — the first character of a phone-number fallback is a
-  // digit, which reads as a stray number rather than a mark.
+  const headingName = hasRealName ? name : /^\d{9,15}$/.test(name) ? formatPhoneDisplay(name) : name;
   const initialChar = hasRealName ? headingName.trim().charAt(0).toUpperCase() : null;
   const initial = /[A-ZÀ-Þ]/.test(initialChar || '') ? initialChar : null;
 
   const communes = agent.primary_communes || [];
+  const profileUrl = `${SITE_URL}/agents/${agent.id}`;
 
-  // Every segment is a real fact about this agent, and any segment without
-  // backing data is simply not emitted rather than being padded with a
-  // plausible-looking default. "Agence partenaire · Vérifiée" used to open
-  // this line for EVERY agent (the first segment unconditionally, the second
-  // on phone_verified_at). Both now mean something specific — a reviewed
-  // RCCM, reviewed identity documents — and are carried by the badge above
-  // the line, only when a team member actually approved them.
-  const agentCities = [...new Set(communes.map((c) => cityOfCommune(c) || DEFAULT_CITY))];
-  const metaLine = [
-    // One commune → "Kampemba · Lubumbashi"; several → their city (or cities).
-    agent.city || (communes.length === 1 ? communeOptionText(communes[0]) : communes.length > 1 ? agentCities.join(', ') : null),
-  ]
+  // Same three conditions as lib/listings.js's agent_phone.
+  const routablePhone = agent.phone && agent.phone_verified_at && agent.direct_routing_enabled !== false
+    ? String(agent.phone).replace(/\D/g, '')
+    : null;
+  const whatsappTo = (message) => (routablePhone ? buildWhatsAppLink(routablePhone, message) : getCentralWhatsAppHref(message));
+
+  const contactName = agentContactName(agent);
+  const subline = [contactName, routablePhone && hasRealName ? formatPhoneDisplay(routablePhone) : null]
     .filter(Boolean)
     .join(' · ');
 
-  const profileUrl = `${SITE_URL}/agents/${agent.id}`;
-  const shareMessage = `Bonjour, voici mes annonces sur Lukka Place : ${profileUrl}`;
+  function toItem(listing) {
+    const routing = resolveWhatsAppRouting(listing);
+    const type = typeLabel(listing, t) || listing.title || '';
+    const place = placeLabel(listing) || feedLocationLine(listing);
+    const href = `/listings/${listing.id}`;
+    const similarMessage = `Bonjour, le bien ${type.toLowerCase()}${place ? ` à ${place}` : ''} est réservé. Avez-vous un bien similaire ? ${SITE_URL}${href}`;
+    return {
+      id: listing.id,
+      href,
+      title: listing.title || type,
+      type,
+      place,
+      commune: listing.commune || null,
+      price: listing.price,
+      purpose: listing.purpose,
+      pricePeriod: listing.price_period,
+      currency: listing.currency || 'USD',
+      priceOriginal: listing.price_original ?? null,
+      specList: specItems(listing, t).map(({ key, value, label }) => ({ key, value, label })),
+      photos: listingImages(listing),
+      isNew: Boolean(listing.is_fresh) && listing.listing_status !== 'under_offer',
+      reserved: listing.listing_status === 'under_offer',
+      description: listing.description ? descriptionSnippet(listing.description, 900) : null,
+      createdAt: listing.created_at ? new Date(listing.created_at).toISOString() : null,
+      waHref: routing.href,
+      routingType: routing.routingType,
+      similarHref: whatsappTo(similarMessage),
+    };
+  }
 
-  // A real per-agent number when one exists, otherwise Lukka Place's own
-  // central number — same precedence WhatsAppCTA/EnquiryCard already use.
-  const whatsappHref = agent.phone
-    ? buildWhatsAppLink(agent.phone, PROFILE_MESSAGE)
-    : getCentralWhatsAppHref(PROFILE_MESSAGE);
+  const tabs = TABS.map((entry, index) => {
+    const items = (index === 0 ? rentals : sales).data.map(toItem);
+    return {
+      key: entry.key,
+      label: t(entry.labelKey),
+      items,
+      countLabel: t('agent.portfolio.listingCount', { count: items.length }),
+      emptyTitle: t(entry.emptyKey),
+      alertHref: whatsappTo(
+        `Bonjour, je cherche un bien ${entry.seeking}. Pouvez-vous me prévenir quand un bien correspond ? (vu sur ${profileUrl})`,
+      ),
+    };
+  });
+
+  const view = {
+    name: headingName,
+    initial,
+    image: agent.image || null,
+    bio: agent.bio || null,
+    subline: subline || null,
+    communes: communes.map((c) => communeLabel(c)),
+    verifiedLabel: isVerifiedLevel(agent.verification_level) ? t(LEVEL_LABEL_KEYS[agent.verification_level]) : null,
+    rating: rating ? `${formatAverage(rating.average, locale)} (${t('agent.portfolio.reviewsCount', { count: rating.count })})` : null,
+    telHref: routablePhone ? telHref(routablePhone) : null,
+    whatsappHref: whatsappTo(PROFILE_MESSAGE),
+    barNote: routablePhone ? t('agent.portfolio.numberVerifiedBy') : t('agent.portfolio.viaLukka'),
+  };
+
+  const labels = {
+    activeCount: t('agent.portfolio.activeCount', { count: agent.live_listing_count ?? rentals.data.length + sales.data.length }),
+    sorts: {
+      recent: t('agent.portfolio.sortRecent'),
+      priceAsc: t('agent.portfolio.sortPriceAsc'),
+      priceDesc: t('agent.portfolio.sortPriceDesc'),
+    },
+    newBadge: t('agent.portfolio.newBadge'),
+    reservedBadge: t('agent.portfolio.reservedBadge'),
+    emptyBody: t('agent.portfolio.emptyBody'),
+    emptyCta: t('agent.portfolio.emptyCta'),
+    call: t('agent.portfolio.call'),
+    askListing: t('agent.portfolio.askListing'),
+    askSimilar: t('agent.portfolio.askSimilar'),
+    reservedNote: t('agent.portfolio.reservedNote'),
+    viewListing: t('agent.portfolio.viewListing'),
+    close: t('agent.portfolio.close'),
+    linkCopied: t('agent.portfolio.linkCopied'),
+    copyLink: t('agent.portfolio.copyLink'),
+    logo: t('agent.portfolio.logo'),
+    contactUnavailable: t('agent.portfolio.contactUnavailable'),
+  };
 
   // RealEstateAgent structured data — only facts the page itself shows; no
   // phone (it has its own verification rule) and no name when the agent has
   // only a phone number for one.
+  const agentCities = [...new Set(communes.map((c) => cityOfCommune(c) || DEFAULT_CITY))];
   const agentJsonLd = hasRealName
     ? {
         '@context': 'https://schema.org',
@@ -176,374 +211,67 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
     : null;
 
   return (
-    <div>
+    <>
       <JsonLd data={agentJsonLd} />
-      {/*
-        Editorial hero on the site's royal ground (`bg-blue-deep`, royal-700)
-        — the same field the rest of Lukka Place uses, so this page reads as
-        part of the site rather than a separate dark microsite. The editorial
-        treatment is carried by the serif name, the quiet meta line and the
-        demoted phone chip, not by the background colour.
-
-        Muted text sits a step brighter here than it would on a near-black
-        ground: royal-700 is a lighter field, so the same white/45 that was
-        legible on ink washes out on royal.
-      */}
-      <section className="bg-blue-deep text-white">
-        <div className="mx-auto max-w-[77.5rem] px-4 py-9 sm:px-6 sm:py-11">
-          {/* Minimal share bar, folded into the hero — this replaces the
-              full-width chalk "Partagez ce portfolio" strip that used to sit
-              between the hero and the portfolio. Bigger, higher-contrast
-              controls than a purely decorative icon pair — these are real,
-              frequently-used actions. */}
-          <div className="mb-8 flex items-center justify-between gap-4">
-            <span className="truncate text-[0.8125rem] font-medium text-white/80">{profileUrl}</span>
-            <div className="flex flex-none items-center gap-2">
-              <CopyLinkButton
-                url={profileUrl}
-                label=""
-                ariaLabel={t('listings.share.copyPortfolioLink')}
-                iconClassName="h-5 w-5"
-                className="u-press grid h-11 w-11 place-items-center rounded-full bg-white/[0.08] text-white ring-1 ring-inset ring-white/25 transition-colors hover:bg-white/[0.16]"
-              />
-              <ShareOnWhatsAppButton
-                url={profileUrl}
-                title={name}
-                message={shareMessage}
-                iconOnly
-                label={t('agent.portfolio.share')}
-                iconClassName="h-5 w-5"
-                className="u-press grid h-11 w-11 place-items-center rounded-full bg-white/[0.08] text-white ring-1 ring-inset ring-white/25 transition-colors hover:bg-white/[0.16]"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 items-end gap-10 lg:grid-cols-[minmax(0,1fr)_17rem]">
-            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:gap-6">
-              {/* Refined circular avatar with a hairline ring, replacing the
-                  square logo tile — sized down from the original hero so the
-                  banner reads less like a full-bleed cover photo. */}
-              <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full bg-white/[0.08] p-1 text-center ring-1 ring-white/25 sm:h-[4.5rem] sm:w-[4.5rem]">
-                {agent.image ? (
-                  <div className="h-full w-full overflow-hidden rounded-full">
-                    <AgentAvatar src={agent.image} alt={name} />
-                  </div>
-                ) : initial ? (
-                  <span className="font-bold text-[1.375rem] leading-none text-white/85">{initial}</span>
-                ) : (
-                  <Building2 strokeWidth={1.5} className="h-6 w-6 text-white/65" />
-                )}
-              </div>
-
-              <div className="flex min-w-0 flex-col gap-3.5">
-                {/* Meta line, assembled only from parts that are actually
-                    true for this agent — no segment is printed as filler. */}
-                <AgentVerificationBadge level={agent.verification_level} t={t} tone="onDark" />
-                {metaLine ? (
-                  <span className="text-[0.6875rem] font-bold uppercase tracking-[0.18em] text-white/85">
-                    {metaLine}
-                  </span>
-                ) : null}
-
-                <h1 className="normal-case font-bold text-[2rem] leading-[1.06] tracking-tight text-white sm:text-[2.75rem]">
-                  {headingName}
-                </h1>
-                {contactName ? (
-                  <p className="text-[0.9375rem] text-white/85">{t('agent.portfolio.contactPerson', { name: contactName })}</p>
-                ) : null}
-
-                {/* The phone is a quiet verified chip now, not the headline. */}
-                {agent.phone && hasRealName && (
-                  <span className="inline-flex w-fit items-center gap-2 rounded-full bg-white/[0.1] py-1.5 pl-3 pr-3.5 text-[0.8125rem] ring-1 ring-inset ring-white/25">
-                    {agent.phone_verified_at && (
-                      <BadgeCheck strokeWidth={2.25} className="h-4 w-4 shrink-0 text-white/90" />
-                    )}
-                    <span className="u-tabular font-semibold text-white">{formatPhoneDisplay(agent.phone)}</span>
-                    {agent.phone_verified_at && <span className="text-white/70">{t('agent.portfolio.verified')}</span>}
-                  </span>
-                )}
-
-                {agent.bio && (
-                  <p className="max-w-[52ch] text-[0.9375rem] leading-[1.7] text-white/85">{agent.bio}</p>
-                )}
-
-                {communes.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-2">
-                    {communes.map((commune) => (
-                      <Link
-                        key={commune}
-                        href={hrefWithParam(agent.id, sp, 'commune', sp.commune === commune ? null : commune)}
-                        className={`inline-flex items-center rounded-full px-3 py-1.5 text-[0.8125rem] font-medium transition-colors ${
-                          sp.commune === commune
-                            ? 'bg-white text-blue-deep'
-                            : 'text-white/85 ring-1 ring-inset ring-white/25 hover:bg-white/15 hover:text-white'
-                        }`}
-                      >
-                        {commune}
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex flex-col gap-4">
-              {/* The single primary action in the hero. The sticky rail
-                  carries the other one; there is no third. */}
-              {whatsappHref ? (
-                <a
-                  href={whatsappHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="u-press flex h-12 items-center justify-center gap-2.5 rounded-lg bg-white text-[0.9375rem] font-bold text-blue-deep transition-transform hover:-translate-y-0.5"
-                >
-                  <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
-                  Contacter l&apos;agence
-                </a>
-              ) : (
-                <span className="flex h-12 items-center justify-center rounded-lg px-4 text-center text-[0.8125rem] text-white/80 ring-1 ring-inset ring-white/25">
-                  {t('agent.portfolio.contactUnavailable')}
-                </span>
-              )}
-
-              <div className="flex gap-8 border-t border-white/15 pt-4">
-                <div>
-                  <div className="u-tabular text-[1.625rem] font-extrabold leading-none tracking-[-0.02em] text-white">
-                    {agent.live_listing_count}
-                  </div>
-                  <div className="mt-1.5 text-[0.8125rem] font-medium text-white/80">
-                    bien{agent.live_listing_count === 1 ? '' : 's'} actif{agent.live_listing_count === 1 ? '' : 's'}
-                  </div>
-                </div>
-                {rating ? (
-                  <a href="#avis" className="u-press">
-                    <div className="u-tabular flex items-center gap-1.5 text-[1.625rem] font-extrabold leading-none tracking-[-0.02em] text-white">
-                      {formatAverage(rating.average, locale)}
-                      <Star strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5 fill-warning text-warning" aria-hidden="true" />
-                    </div>
-                    <div className="mt-1.5 text-[0.8125rem] font-medium text-white/80">
-                      {t('agent.portfolio.reviewsCount', { count: rating.count })}
-                    </div>
-                  </a>
-                ) : null}
-                {communes.length > 0 && (
-                  <div>
-                    <div className="u-tabular text-[1.625rem] font-extrabold leading-none tracking-[-0.02em] text-white">
-                      {communes.length}
-                    </div>
-                    <div className="mt-1.5 text-[0.8125rem] font-medium text-white/80">
-                      commune{communes.length === 1 ? '' : 's'} couverte{communes.length === 1 ? '' : 's'}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Rightmove-style split: the portfolio scrolls in the main column
-          while the contact rail stays pinned beside it. `lg:items-start` is
-          what makes the sticky child work at all — the grid's default
-          `stretch` would make the aside full-height, leaving it nothing to
-          stick within. */}
-      <div className="mx-auto max-w-[77.5rem] px-4 pb-14 pt-8 sm:px-6 sm:pb-16 sm:pt-9">
+      <AgentProfileView agent={view} tabs={tabs} initialTab={initialTab} labels={labels} profileUrl={profileUrl}>
         {projects.length ? (
-          <section className="mb-12 flex flex-col gap-5">
+          <section className="flex flex-col gap-4 border-t border-line/60 px-5 pt-8">
             <div>
               <span className="u-eyebrow">{t('projects.profile.eyebrow')}</span>
-              <h2 className="font-bold mt-1.5 text-[2rem] tracking-[-0.01em] text-ink sm:text-[2.375rem]">
-                {t('projects.profile.title')}
-              </h2>
+              <h2 className="u-title-section mt-1.5 text-ink">{t('projects.profile.title')}</h2>
             </div>
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-5 sm:grid-cols-2">
               {projects.map((project) => <ProjectCard key={project.id} project={project} />)}
             </div>
           </section>
         ) : null}
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-12">
-          <section>
-            <div className="flex flex-wrap items-end justify-between gap-6">
-              <div>
-                <span className="u-eyebrow">Portfolio</span>
-                <h2 className="font-bold mt-1.5 text-[2rem] tracking-[-0.01em] text-ink sm:text-[2.375rem]">
-                  Biens disponibles aujourd&apos;hui
-                </h2>
-              </div>
 
-              {/* The design puts exactly one control on this row: "Devise USD / FC".
-                  No search field — the tabs are the filter. */}
-              <div className="flex items-center gap-3">
-                <span className="text-[0.8125rem] text-ink-45">{t('admin.subscriptions.currency')}</span>
-                <CurrencyToggle longLabels />
-              </div>
+        {rating ? (
+          <section id="avis" className="mt-8 flex scroll-mt-24 flex-col gap-4 border-t border-line/60 px-5 pt-8">
+            <div>
+              <span className="u-eyebrow">{t('agent.portfolio.reviewsEyebrow')}</span>
+              <h2 className="u-title-section mt-1.5 text-ink">{t('agent.portfolio.reviewsTitle')}</h2>
+              <p className="u-tabular mt-2 flex items-center gap-1.5 text-base font-bold text-ink">
+                <Star strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5 fill-warning text-warning" aria-hidden="true" />
+                {formatAverage(rating.average, locale)} {t('agent.portfolio.outOfFive')} · {t('agent.portfolio.reviewsCount', { count: rating.count })}
+              </p>
+              <p className="mt-1 text-[0.8125rem] text-ink-45">{t('agent.portfolio.reviewsNote')}</p>
             </div>
-
-            {/* Rightmove-style tab row: a bold, clearly underlined active tab
-                against a quiet inactive one — bumped from a 1.5px hairline
-                to a real 3px bar so the active state reads at a glance,
-                per the reference screenshot. */}
-            <div className="no-scrollbar mt-6 flex gap-8 overflow-x-auto border-b border-line/60">
-              {TABS.map(({ key, labelKey }) => (
-                <Link
-                  key={key}
-                  href={hrefWithParam(agent.id, sp, 'tab', key)}
-                  aria-current={tab === key ? 'page' : undefined}
-                  className={`-mb-px whitespace-nowrap border-b-[3px] px-0.5 pb-3 pt-2 text-[0.9375rem] transition-colors ${
-                    tab === key
-                      ? 'border-ink font-bold text-ink'
-                      : 'border-transparent font-medium text-ink-45 hover:border-line hover:text-ink-70'
-                  }`}
-                >
-                  {t(labelKey)}
-                </Link>
-              ))}
-            </div>
-
-            {filteredListings.length === 0 ? (
-              <div className="mt-8 rounded-card border border-dashed border-line bg-surface p-12 text-center text-sm text-ink-45">
-                {agent.live_listing_count === 0
-                  ? t('agent.portfolio.noListingsYet')
-                  : 'Aucune annonce ne correspond à ces filtres.'}
-              </div>
-            ) : (
-              <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2">
-                {filteredListings.map((listing) => (
-                  <PropertyCard key={listing.id} listing={listing} />
+            {rating.comments.length ? (
+              <ul className="grid gap-3">
+                {rating.comments.map((review) => (
+                  <li key={review.id} className="rounded-card border border-line/60 bg-surface p-4">
+                    <p className="flex gap-0.5" aria-label={`${review.stars}/5`}>
+                      {[1, 2, 3, 4, 5].map((value) => (
+                        <Star
+                          key={value}
+                          strokeWidth={ICON_STROKE_WIDTH}
+                          className={value <= review.stars ? 'h-4 w-4 fill-warning text-warning' : 'h-4 w-4 text-ink-25'}
+                          aria-hidden="true"
+                        />
+                      ))}
+                    </p>
+                    <p className="mt-2 text-sm leading-relaxed text-ink">{review.comment}</p>
+                  </li>
                 ))}
-              </div>
-            )}
-
-            {rating ? (
-              <section id="avis" className="mt-12 flex scroll-mt-24 flex-col gap-4">
-                <div>
-                  <span className="u-eyebrow">{t('agent.portfolio.reviewsEyebrow')}</span>
-                  <h2 className="font-bold mt-1.5 text-[2rem] tracking-[-0.01em] text-ink sm:text-[2.375rem]">
-                    {t('agent.portfolio.reviewsTitle')}
-                  </h2>
-                  <p className="u-tabular mt-2 flex items-center gap-1.5 text-base font-bold text-ink">
-                    <Star strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5 fill-warning text-warning" aria-hidden="true" />
-                    {formatAverage(rating.average, locale)} {t('agent.portfolio.outOfFive')} · {t('agent.portfolio.reviewsCount', { count: rating.count })}
-                  </p>
-                  <p className="mt-1 max-w-[60ch] text-[0.8125rem] text-ink-45">{t('agent.portfolio.reviewsNote')}</p>
-                </div>
-                {rating.comments.length ? (
-                  <ul className="grid gap-3 sm:grid-cols-2">
-                    {rating.comments.map((review) => (
-                      <li key={review.id} className="rounded-card border border-line/60 bg-surface p-4">
-                        <p className="flex gap-0.5" aria-label={`${review.stars}/5`}>
-                          {[1, 2, 3, 4, 5].map((value) => (
-                            <Star
-                              key={value}
-                              strokeWidth={ICON_STROKE_WIDTH}
-                              className={value <= review.stars ? 'h-4 w-4 fill-warning text-warning' : 'h-4 w-4 text-ink-25'}
-                              aria-hidden="true"
-                            />
-                          ))}
-                        </p>
-                        <p className="mt-2 text-sm leading-relaxed text-ink">{review.comment}</p>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </section>
+              </ul>
             ) : null}
           </section>
+        ) : null}
 
-          {/* Pinned contact rail. `top` clears the 76px sticky header plus a
-              gutter. Deliberately NO internal `overflow-y-auto` / `max-h`
-              here: that combination gives the rail its own independent
-              scroll position, so scrolling the page back up does not bring
-              the WhatsApp button back into view — it stays scrolled out of
-              sight inside its own clipped box until the rail's internal
-              scroll is separately reset. A plain sticky block has no such
-              state to get stuck in. */}
-          <aside className="flex flex-col gap-3 lg:sticky lg:top-[6.5rem]">
-            <div className="flex flex-col gap-2.5 rounded-card border border-line/60 bg-surface p-4">
-              {whatsappHref ? (
-                <a
-                  href={whatsappHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="u-btn-primary u-press inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-blue text-sm font-bold text-white"
-                >
-                  <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
-                  {t('account.favorites.contactWhatsApp')}
-                </a>
-              ) : (
-                <span className="inline-flex h-12 items-center justify-center rounded-lg border border-dashed border-line px-4 text-center text-[0.8125rem] text-ink-45">
-                  {t('agent.portfolio.contactUnavailable')}
-                </span>
-              )}
-
-              {agent.phone && (
-                <a
-                  href={telHref(agent.phone)}
-                  className="u-btn-secondary u-press inline-flex h-12 items-center justify-center gap-2 rounded-lg text-sm font-bold text-ink"
-                >
-                  Appeler l&apos;agent
-                </a>
-              )}
-
-              <div className="flex flex-col gap-3 border-t border-line/60 pt-3">
-                {agent.phone && (
-                  <div className="flex items-start gap-2.5">
-                    <Phone strokeWidth={ICON_STROKE_WIDTH} className="mt-0.5 h-4 w-4 shrink-0 text-blue" />
-                    <div className="min-w-0">
-                      <div className="u-tabular text-[0.875rem] font-bold text-ink">
-                        {formatPhoneDisplay(agent.phone)}
-                      </div>
-                      <div className="text-xs text-ink-45">
-                        {agent.phone_verified_at ? t('agent.portfolio.numberVerifiedBy') : t('admin.leads.whatsapp')}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {agent.email && (
-                  <div className="flex items-start gap-2.5">
-                    <Mail strokeWidth={ICON_STROKE_WIDTH} className="mt-0.5 h-4 w-4 shrink-0 text-blue" />
-                    <div className="min-w-0">
-                      <a
-                        href={`mailto:${agent.email}`}
-                        className="block truncate text-[0.875rem] font-bold text-ink hover:underline"
-                      >
-                        {agent.email}
-                      </a>
-                      <div className="text-xs text-ink-45">Par e-mail</div>
-                    </div>
-                  </div>
-                )}
-
-                {(agent.address || communes.length > 0) && (
-                  <div className="flex items-start gap-2.5">
-                    <MapPin strokeWidth={ICON_STROKE_WIDTH} className="mt-0.5 h-4 w-4 shrink-0 text-blue" />
-                    <div className="min-w-0">
-                      <div className="text-[0.875rem] font-bold text-ink">
-                        {agent.address ? [agent.address, agent.city].filter(Boolean).join(', ') : communes.join(', ')}
-                      </div>
-                      <div className="text-xs text-ink-45">{agent.address ? 'Bureau' : t('agent.settings.communesTitle')}</div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {agent.phone && (
-                <div className="border-t border-line/60 pt-3">
-                  <VCardButton name={name} phone={agent.phone} email={agent.email} />
-                </div>
-              )}
-            </div>
-
-            <InquiryForm
-              agentId={agent.id}
-              agentName={name}
-              sent={sp.inquiry_sent === '1'}
-              error={sp.inquiry_error}
-            />
-          </aside>
-        </div>
-      </div>
-    </div>
+        {/* The written enquiry stays (it creates a tracked lead and alerts
+            the agent — root CLAUDE.md "Profile enquiries"), folded away so
+            WhatsApp remains the one-gesture contact the design asks for. */}
+        <details
+          className="mx-5 mt-8 rounded-card border border-line/60 bg-surface p-4"
+          open={sp.inquiry_sent === '1' || Boolean(sp.inquiry_error)}
+        >
+          <summary className="cursor-pointer text-sm font-semibold text-ink">{t('agent.portfolio.writtenEnquiry')}</summary>
+          <div className="mt-3">
+            <InquiryForm agentId={agent.id} agentName={name} sent={sp.inquiry_sent === '1'} error={sp.inquiry_error} />
+          </div>
+        </details>
+      </AgentProfileView>
+    </>
   );
 }

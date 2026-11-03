@@ -416,8 +416,9 @@ check('system prompt forbids summing "3 + 1 + 1" into deposit_months', () => {
 });
 check('every entry-cost line says WHO receives the money', () => {
   // A tenant reading the card must know which part goes to the landlord,
-  // which part comes back, and which part is the agency's fee.
-  const prompt = openaiService.SYSTEM_PROMPT;
+  // which part comes back, and which part is the agency's fee. The card is
+  // rendered from the stored row (services/listingCard.js), not by the model.
+  const prompt = require('fs').readFileSync(require('path').join(__dirname, '..', 'services', 'listingCard.js'), 'utf8');
   for (const needle of [
     'Payable au Bailleur',
     'Retenu par le Bailleur',
@@ -548,14 +549,21 @@ check('a bare month count that is not an entry cost is not rewritten', () => {
   );
   assert.strictEqual(lease.deposit_months, null);
 });
-check('the WhatsApp reply template shows the three entry costs on their own lines', () => {
-  const prompt = openaiService.SYSTEM_PROMPT;
+check('the WhatsApp card shows the three entry costs on their own lines', () => {
   // "*Garantie*" must carry deposit_months alone — the agent-facing half of
-  // the same bug, where the confirmation read back "Garantie : 5 mois".
-  assert.ok(prompt.includes('*Garantie* : {deposit_months} mois'));
-  assert.ok(prompt.includes("*Loyer d'avance* : {advance_months} mois"));
-  assert.ok(prompt.includes("*Commission d'agence* : {commission_months} mois"));
-  assert.ok(prompt.includes("*Total à prévoir à l'entrée*"));
+  // the same bug, where the confirmation read back "Garantie : 5 mois". The
+  // card is drawn from the stored row (services/listingCard.js); the model
+  // only writes the greeting above it, so the prompt carries no card template
+  // (2026-11-03: ~200 output tokens, ~2 s, saved per reply).
+  const card = require('../services/listingCard').renderListingCard({
+    transaction_type: 'location', property_type: 'appartement', price: 750, currency: 'USD',
+    price_period: 'mois', deposit_months: 3, advance_months: 1, commission_months: 1,
+  });
+  assert.match(card, /\*Garantie\* : 3 mois/);
+  assert.match(card, /\*Loyer d'avance\* : 1 mois/);
+  assert.match(card, /\*Commission d'agence\* : 1 mois/);
+  assert.match(card, /\*Total à prévoir à l'entrée\* : 5 mois/);
+  assert.ok(!openaiService.SYSTEM_PROMPT.includes('{deposit_months} mois'), 'the model must not write the card');
 });
 
 check('system prompt carries the chaos-tolerance and correction-loop rules', () => {
@@ -3486,6 +3494,16 @@ console.log('\n2. services/openai.js');
   check('GROUP_IDLE_MS=0 processes immediately without buffering', () => {
     assert.strictEqual(openaiCalls.length - aiBeforeImg, 1);
     assert.strictEqual(dbService.countListings() - rowsBeforeImg, 1);
+  });
+  // An "OK" to a pending draft is answered at once, not after the idle wait.
+  process.env.GROUP_IDLE_MS = '5000';
+  httpCalls.length = 0;
+  aiBeforeImg = openaiCalls.length;
+  await post('/webhook', inbound('wamid.OK1', 'OK'));
+  await settle(400);
+  check('an OK to a draft skips the burst wait and makes no model call', () => {
+    assert.strictEqual(httpCalls.filter((c) => c.method === 'post').length, 1, 'no reply within 400ms of a 5s idle window');
+    assert.strictEqual(openaiCalls.length, aiBeforeImg);
   });
   process.env.GROUP_IDLE_MS = '120';
 

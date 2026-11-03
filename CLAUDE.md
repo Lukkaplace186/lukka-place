@@ -1670,6 +1670,13 @@ holds the rules. §63 of verify-pipeline.
   (`max_completion_tokens`) are runaway guards sized for multi-property
   pastes — never 500. Incoming text is not truncated: a long broadcast is
   usually several listings, and cutting it drops them.
+- **Reply speed.** The model writes only the greeting above a single
+  listing's card ("Merci, c'est corrigé. Voici la fiche mise à jour :" for a
+  correction) — never the card itself, which `listingCard` draws from the row
+  and used to replace anyway. ~550 → ~340 output tokens, 1–2 s sooner per
+  reply; extraction unchanged (it is emitted before the reply). Multi-unit /
+  multi-property recaps are still the model's. An "OK" to a draft is flushed
+  from the burst buffer at once instead of after `GROUP_IDLE_MS` (8 s).
 
 ## Verification & Commands
 - **Verification Command**: Always run `npm run verify` before declaring a backend task complete.

@@ -675,6 +675,14 @@ function enqueueMessage(message) {
 
   group.messages.push(message);
 
+  // An "OK" to a draft is a complete answer: nothing more is coming for it,
+  // and it publishes without a model call, so the idle wait was the whole of
+  // its delay. Anything buffered before it (photos sent with the OK) goes too.
+  if (!message.media?.length && isAffirmative(message.text) && findLatestPendingListing(key)) {
+    flushSender(key, 'confirmation');
+    return undefined;
+  }
+
   if (group.idleTimer) {
     clearTimeout(group.idleTimer);
   }

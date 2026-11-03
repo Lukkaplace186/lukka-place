@@ -784,6 +784,41 @@ console.log('\n2. services/openai.js');
       Object.assign(pgModule, saved);
     }
   });
+  await checkAsync('a matched code verifies the account itself — the browser tab need not come back (2026-11-03)', async () => {
+    const pgModule = require('../services/postgres');
+    const challenges = require('../services/phoneChallenges');
+    const saved = { isConfigured: pgModule.isConfigured, getPool: pgModule.getPool, linkListingsToAgent: pgModule.linkListingsToAgent };
+    const seen = [];
+    pgModule.isConfigured = () => true;
+    pgModule.linkListingsToAgent = async () => ({ agentId: 102, linkedIds: [] });
+    pgModule.getPool = () => ({
+      query: async (sql, params) => {
+        seen.push({ sql, params });
+        if (/phone_verification_challenges/.test(sql)) return { rows: [{ id: 72, role: 'agent', account_id: '102' }] };
+        return { rows: [{ id: 102 }] };
+      },
+    });
+    try {
+      const hit = await challenges.matchPhoneChallenge({ from: '243979560860', text: 'Code Lukka Place : 482913' });
+      assert.strictEqual(hit.handled, true);
+      assert.match(seen[0].sql, /RETURNING id, role, account_id/);
+      const apply = seen[1];
+      assert.match(apply.sql, /UPDATE agents/);
+      assert.match(apply.sql, /phone_verified_at = COALESCE\(phone_verified_at, NOW\(\)\)/);
+      assert.match(apply.sql, /regexp_replace\(phone, '\\D', '', 'g'\) = \$2/, 'the account must still hold the number');
+      assert.match(apply.sql, /deleted_at IS NULL/);
+      assert.deepStrictEqual(apply.params, [102, '243979560860']);
+      assert.doesNotMatch(apply.sql, /consumed_at/, 'the web poll still consumes it and opens the session');
+
+      seen.length = 0;
+      assert.strictEqual(await challenges.applyVerification({ role: 'customer', accountId: 35, phone: '243834291205' }), true);
+      assert.match(seen[0].sql, /UPDATE customers/);
+      assert.doesNotMatch(seen[0].sql, /deleted_at/);
+      assert.strictEqual(await challenges.applyVerification({ role: 'admin', accountId: 1, phone: '243' }), false);
+    } finally {
+      Object.assign(pgModule, saved);
+    }
+  });
   await checkAsync('a verification code from the wrong number, or an expired one, is explained — never read as intake', async () => {
     const pgModule = require('../services/postgres');
     const challenges = require('../services/phoneChallenges');

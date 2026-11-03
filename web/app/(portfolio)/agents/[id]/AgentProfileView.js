@@ -188,74 +188,81 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
         </div>
       </div>
 
-      {/* Royal band. On a phone it is the page's header (the layout's white
-          header is hidden there), so it carries the Lukka Place logo. */}
-      <div className="bg-blue-deep">
-        <div className="mx-auto flex h-[5.75rem] max-w-[40rem] items-start justify-between px-4 pt-3.5">
-          <Wordmark inverted className="lg:invisible" />
-          <button
-            type="button"
-            onClick={copyLink}
-            className="u-press inline-flex h-8 items-center gap-1.5 rounded-full bg-white/[0.14] px-3 text-xs font-semibold text-white transition-colors hover:bg-white/[0.22]"
-          >
-            <Link2 strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
-            {labels.copyLink}
-          </button>
-        </div>
-      </div>
+      {/* Royal band, the brand's ground for everything about the agent: the
+          Lukka Place logo and copy-link row, then logo, name, contact line,
+          description and the stats pills (owner's direction, 2026-11-03 — it
+          used to stop above the logo). On a phone it is the page's header:
+          the layout's white header is hidden there. The tabs and listings
+          stay on the light ground below. */}
+      <div className="bg-blue-deep text-white">
+        <div className="mx-auto max-w-[40rem]">
+          <div className="flex items-start justify-between px-4 pt-3.5">
+            <Wordmark inverted className="lg:invisible" />
+            <button
+              type="button"
+              onClick={copyLink}
+              className="u-press inline-flex h-8 items-center gap-1.5 rounded-full bg-white/[0.14] px-3 text-xs font-semibold text-white transition-colors hover:bg-white/[0.22]"
+            >
+              <Link2 strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
+              {labels.copyLink}
+            </button>
+          </div>
 
-      <div className="mx-auto max-w-[40rem]">
-        <div ref={headerRef} className="flex flex-col gap-3 px-5 pb-5">
-          <div className="-mt-11 flex items-end gap-3.5">
-            {logo('h-[6.5rem] w-[6.5rem] rounded-2xl', 'shadow-sm ring-4 ring-white')}
-            {agent.verifiedLabel ? (
-              <span className="mb-1.5 inline-flex items-center gap-1.5 rounded-full bg-blue-tint px-2.5 py-[5px] text-[0.6875rem] font-bold uppercase tracking-[0.12em] text-blue-deep">
-                <BadgeCheck strokeWidth={2.25} className="h-3.5 w-3.5" aria-hidden="true" />
-                {agent.verifiedLabel}
+          <div ref={headerRef} className="flex flex-col gap-3 px-5 pb-6 pt-5">
+            <div className="flex items-end gap-3.5">
+              {logo('h-[6.5rem] w-[6.5rem] rounded-2xl', 'shadow-sm ring-4 ring-white/15')}
+              {agent.verifiedLabel ? (
+                <span className="mb-1.5 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-[5px] text-[0.6875rem] font-bold uppercase tracking-[0.12em] text-white ring-1 ring-inset ring-white/25">
+                  <BadgeCheck strokeWidth={2.25} className="h-3.5 w-3.5" aria-hidden="true" />
+                  {agent.verifiedLabel}
+                </span>
+              ) : null}
+            </div>
+
+            <div>
+              <h1 className="text-[1.875rem] font-bold leading-[1.1] tracking-tight text-white">{agent.name}</h1>
+              {agent.subline ? <p className="mt-1 text-[0.8125rem] text-white/75">{agent.subline}</p> : null}
+            </div>
+
+            {agent.bio ? <p className="line-clamp-3 text-sm leading-relaxed text-white/85">{agent.bio}</p> : null}
+
+            <div className="flex flex-wrap items-center gap-2 text-[0.8125rem]">
+              <span className="rounded-full bg-white/10 px-3 py-1.5 font-bold text-white ring-1 ring-inset ring-white/20">
+                {labels.activeCount}
               </span>
-            ) : null}
-          </div>
-
-          <div>
-            <h1 className="text-[1.875rem] font-bold leading-[1.1] tracking-tight text-ink">{agent.name}</h1>
-            {agent.subline ? <p className="mt-1 text-[0.8125rem] text-ink-45">{agent.subline}</p> : null}
-          </div>
-
-          {agent.bio ? <p className="line-clamp-3 text-sm leading-relaxed text-ink-70">{agent.bio}</p> : null}
-
-          <div className="flex flex-wrap items-center gap-1.5 text-[0.8125rem] text-ink-70">
-            <span className="font-bold text-ink">{labels.activeCount}</span>
-            {agent.rating ? (
-              <>
-                <span className="text-ink-25">·</span>
-                <a href="#avis" className="inline-flex items-center gap-1 font-semibold text-ink hover:underline">
+              {agent.rating ? (
+                <a
+                  href="#avis"
+                  className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1.5 font-semibold text-white ring-1 ring-inset ring-white/20 hover:bg-white/[0.18]"
+                >
                   <Star strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5 fill-warning text-warning" aria-hidden="true" />
                   {agent.rating}
                 </a>
-              </>
-            ) : null}
-            {communesSummary ? (
-              <>
-                <span className="text-ink-25">·</span>
+              ) : null}
+              {communesSummary ? (
                 <button
                   type="button"
                   onClick={() => setCommunesOpen((v) => !v)}
                   aria-expanded={communesOpen}
-                  className="inline-flex items-center gap-1 font-semibold text-blue"
+                  className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1.5 font-semibold text-white ring-1 ring-inset ring-white/20 hover:bg-white/[0.18]"
                 >
                   {communesSummary}
                   {communesOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                 </button>
-              </>
+              ) : null}
+            </div>
+            {communesOpen ? (
+              <div className="rounded-[10px] bg-white/10 px-3 py-2.5 text-[0.8125rem] leading-relaxed text-white/85">
+                {communes.join(', ')}
+              </div>
             ) : null}
           </div>
-          {communesOpen ? (
-            <div className="rounded-[10px] bg-canvas-alt px-3 py-2.5 text-[0.8125rem] leading-relaxed text-ink-70">
-              {communes.join(', ')}
-            </div>
-          ) : null}
+        </div>
+      </div>
 
-          <div className="mt-1.5 flex rounded-full bg-canvas-alt p-1 ring-1 ring-inset ring-line/60" role="tablist">
+      <div className="mx-auto max-w-[40rem]">
+        <div className="px-5 pb-5 pt-5">
+          <div className="flex rounded-full bg-canvas-alt p-1 ring-1 ring-inset ring-line/60" role="tablist">
             {tabs.map((entry) => {
               const active = entry.key === current.key;
               return (
@@ -362,18 +369,18 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
         {children}
       </div>
 
-      {/* Pinned contact bar. */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-line/60 bg-surface pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3">
+      {/* Pinned contact bar, on the same royal ground as the header. */}
+      <div className="fixed inset-x-0 bottom-0 z-30 bg-blue-deep pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-4px_16px_rgba(12,29,80,0.18)]">
         <div className="mx-auto flex max-w-[40rem] items-center gap-3 px-4">
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-bold text-ink">{agent.name}</div>
-            <div className="truncate text-xs text-ink-45">{agent.barNote}</div>
+            <div className="truncate text-sm font-bold text-white">{agent.name}</div>
+            <div className="truncate text-xs text-white/70">{agent.barNote}</div>
           </div>
           {agent.telHref ? (
             <a
               href={agent.telHref}
               aria-label={labels.call}
-              className="u-press grid h-12 w-12 flex-none place-items-center rounded-lg text-ink ring-[1.5px] ring-inset ring-ink transition-colors hover:bg-ink hover:text-white"
+              className="u-press grid h-12 w-12 flex-none place-items-center rounded-lg text-white ring-[1.5px] ring-inset ring-white/60 transition-colors hover:bg-white/10"
             >
               <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5" />
             </a>
@@ -383,7 +390,7 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
               href={agent.whatsappHref}
               target="_blank"
               rel="noopener noreferrer"
-              className="u-press flex h-12 flex-none items-center gap-2 rounded-lg bg-blue px-[1.125rem] text-sm font-bold text-white transition-colors hover:bg-blue-deep"
+              className="u-press flex h-12 flex-none items-center gap-2 rounded-lg bg-white px-[1.125rem] text-sm font-bold text-blue-deep transition-colors hover:bg-blue-tint"
             >
               <MessageCircle strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
               WhatsApp

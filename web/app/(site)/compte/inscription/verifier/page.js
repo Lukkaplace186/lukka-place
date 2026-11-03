@@ -7,7 +7,7 @@ import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { getT } from '@/lib/i18n/server';
 import WhatsAppVerifyPanel from '@/components/WhatsAppVerifyPanel';
 import { ensureChallenge, whatsappVerifyHref } from '@/lib/whatsappVerify';
-import { otpBypassEnabled } from '@/lib/otpBypass';
+import { customerOtpBypassEnabled } from '@/lib/otpBypass';
 
 // generateMetadata, not a static object: a static export cannot see the
 // request locale — see app/(site)/a-propos/page.js.
@@ -45,15 +45,21 @@ export default async function CustomerVerifyOtpPage({ searchParams }) {
   // reaches us, while a sent code needs a Meta template that may not exist.
   // With AUTH_OTP_BYPASS=1 it is the only way — no code is sent, and nothing
   // is verified until the number itself has spoken (lib/whatsappVerify.js).
-  const codeless = otpBypassEnabled();
+  const codeless = customerOtpBypassEnabled();
+  const error = typeof params.error === 'string' ? params.error : null;
+  // With a sent code (lib/otpBypass.js customerOtpBypassEnabled) the customer
+  // types what we sent; the reverse proof is only offered when the send
+  // failed, as a way out rather than a second, competing instruction.
+  const offerReverse = codeless || error === 'send_failed';
   let challenge = null;
-  try {
-    challenge = await ensureChallenge(attempt);
-  } catch (err) {
-    console.error(`[verify] could not open a WhatsApp challenge for ${attempt.role} #${attempt.id}: ${err.message}`);
+  if (offerReverse) {
+    try {
+      challenge = await ensureChallenge(attempt);
+    } catch (err) {
+      console.error(`[verify] could not open a WhatsApp challenge for ${attempt.role} #${attempt.id}: ${err.message}`);
+    }
   }
 
-  const error = typeof params.error === 'string' ? params.error : null;
   const sent = params.sent === '1';
   const next = typeof params.next === 'string' ? params.next : '/compte/client';
   const whatsappHref = getCentralWhatsAppHref(t('auth.forgot.whatsappCodeHelp'));

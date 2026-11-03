@@ -25,6 +25,8 @@ import AgentProjectsCard from '@/components/projects/AgentProjectsCard';
 import AgentReferralCard from '@/components/AgentReferralCard';
 import AgentMilestoneCelebration from '@/components/AgentMilestoneCelebration';
 import { getAgentMilestones } from '@/lib/agentMilestones';
+import { getAgentFounderInfo } from '@/lib/founder';
+import { frNumber } from '@/lib/format';
 
 const RANGE_OPTIONS = Object.entries(VIEW_RANGES).map(([value, { label }]) => ({ value, label }));
 
@@ -95,6 +97,10 @@ export default async function AgentOverviewPage({ searchParams }) {
           <OverviewProfileGaps agent={agent} />
         </Suspense>
 
+        <Suspense fallback={null}>
+          <OverviewFounderLine agentId={agentId} />
+        </Suspense>
+
         <AgentPortfolioBanner
           liveCount={listings.filter(isLiveListing).length}
           profileUrl={`${SITE_URL}/agents/${agent.id}`}
@@ -123,6 +129,23 @@ export default async function AgentOverviewPage({ searchParams }) {
         </Suspense>
       </div>
     </>
+  );
+}
+
+/**
+ * "Membre fondateur · Vous êtes le commissionnaire n° 34" (lib/founder.js).
+ * Agents only — the customer portal no longer shows it. A plain number after
+ * the cutoff; nothing when the database cannot answer.
+ */
+async function OverviewFounderLine({ agentId }) {
+  const info = await getAgentFounderInfo(agentId);
+  if (!info) return null;
+  const t = await getT();
+  return (
+    <p className="-mt-1 flex flex-wrap items-center gap-2 text-[0.8125rem] text-ink-70 sm:-mt-2">
+      {info.founder ? <span className="rounded-full bg-[#f59e0b] px-2.5 py-0.5 text-[0.6875rem] font-bold uppercase tracking-wide text-ink">{t('agent.founder.badge')}</span> : null}
+      <span>{t('agent.founder.member', { n: frNumber(info.memberNumber) })}</span>
+    </p>
   );
 }
 

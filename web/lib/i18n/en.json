@@ -2706,6 +2706,10 @@
       "shareLet": "Share “Let via Lukka Place”",
       "shareSold": "Share “Sold via Lukka Place”",
       "later": "Later"
+    },
+    "founder": {
+      "badge": "Founding member",
+      "member": "You are agent no. {n}"
     }
   },
   "status": {
@@ -3333,10 +3337,6 @@
         "visits": "Viewings",
         "requests": "Searches"
       }
-    },
-    "founder": {
-      "badge": "Founding member",
-      "member": "You are member no. {n}"
     }
   },
   "admin": {
@@ -6530,7 +6530,8 @@
       "expiredAttempt": "That verification expired — please sign up again.",
       "referralUnknown": "We don’t recognise that referral code. Check it with your sales rep, or leave the field empty to sign up without one.",
       "agencyNameRequired": "Enter your agency or trading name.",
-      "partnerCodeUnknown": "This referral code does not exist. Correct it or leave the field empty."
+      "partnerCodeUnknown": "This referral code does not exist. Correct it or leave the field empty.",
+      "fullNameRequired": "Enter your first and last name."
     },
     "activate": {
       "expiredBody": "This activation link is no longer valid — it may already have been used, or it has passed its expiry. Your properties are still saved: only dashboard access is pending.",
@@ -6555,11 +6556,12 @@
       "codeNotReceived": "Code not received? Try again via WhatsApp"
     },
     "signup": {
-      "codeWillBeSent": "A verification code will be sent to this number on WhatsApp.",
+      "codeWillBeSent": "You will receive a 6-digit confirmation code on your WhatsApp.",
       "receiveCode": "Get my code",
       "noCodeNeeded": "Right after this, you’ll confirm this number by sending us a code from its WhatsApp.",
       "agencyName": "Agency / trading name",
-      "contactName": "Agent / main contact name"
+      "contactName": "Agent / main contact name",
+      "fullName": "Full name"
     },
     "createMyAccount": "Create my account",
     "passwordReset": "Password reset — log in with your new password.",

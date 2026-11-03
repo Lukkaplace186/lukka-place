@@ -821,6 +821,18 @@ so the restart is enough.
 Not affected, and still OTP-gated: `/mot-de-passe-oublie` (self-service
 password reset). Use the admin reset below instead while the template is down.
 
+**Customers are no longer governed by it (2026-11-04, owner decision).**
+`customerOtpBypassEnabled()` is true only when the flag is on AND no
+`AGENT_OTP_TEMPLATE` is configured. With the template set (production since
+`agent_auth_otp` started being accepted, 2026-11-03), customer signup and the
+login of an unverified customer SEND a 6-digit code and the verify page asks
+for it; the reverse WhatsApp proof appears only after `error=send_failed`.
+Agents still follow `AUTH_OTP_BYPASS`. The same day the customer form's name
+became required ("Nom et prénom", refused before the account exists), and
+"Membre fondateur" moved to the agent overview (`getAgentFounderInfo`, rank
+among live non-test agent accounts) — customers no longer see it.
+`tests/unit/customer-signup-code.test.js`.
+
 ## Admin password reset — `lib/adminPasswordReset.js`
 
 An admin can set any agent's or customer's password directly, from

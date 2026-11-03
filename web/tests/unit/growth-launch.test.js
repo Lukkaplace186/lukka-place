@@ -251,10 +251,14 @@ test('the signup prompt: thresholds, once per session, quiet where the bottom ed
   assert.match(read('components/SignupNudge.js'), /lukka_logged_in\|lukka_agent_logged_in/);
 });
 
-test('the founder number is counted, never stored', () => {
+test('the founder number is counted, never stored — and it is the agents\' badge', () => {
   const founder = read('lib/founder.js');
-  assert.match(founder, /COUNT\(\*\) FROM customers c2/);
+  assert.match(founder, /COUNT\(\*\) FROM agents a2/);
+  assert.match(founder, /a2\.deleted_at IS NULL/);
   assert.match(founder, /AT TIME ZONE 'Africa\/Kinshasa'/);
+  assert.doesNotMatch(founder, /FROM customers/, 'customers are not founding members (owner decision, 2026-11-04)');
+  assert.match(read('app/compte/agent/page.js'), /getAgentFounderInfo/);
+  assert.doesNotMatch(read('app/(site)/compte/client/page.js'), /founder/i);
 });
 
 // --- 27–31: public data only, and nothing thin ------------------------------------------

@@ -3,7 +3,7 @@ import { signupAction } from './actions';
 import SignupForm from './SignupForm';
 import { getRequestCountry } from '@/lib/requestCountry';
 import { getT } from '@/lib/i18n/server';
-import { otpBypassEnabled } from '@/lib/otpBypass';
+import { customerOtpBypassEnabled } from '@/lib/otpBypass';
 import { partnerCodePrefill } from '@/lib/partnerPrefill';
 import { whatsappSignupLink } from '@/lib/whatsappSignup';
 import { WhatsAppIcon } from '@/components/WhatsAppCTA';
@@ -64,7 +64,7 @@ export default async function CustomerSignupPage({ searchParams }) {
           initialPhone={initialPhone}
           initialCountry={initialCountry}
           partnerCode={partnerCode}
-          phoneHintKey={otpBypassEnabled() ? 'auth.signup.noCodeNeeded' : 'auth.signup.codeWillBeSent'}
+          phoneHintKey={customerOtpBypassEnabled() ? 'auth.signup.noCodeNeeded' : 'auth.signup.codeWillBeSent'}
         />
 
         <p className="mt-5 text-center text-sm text-ink-45">

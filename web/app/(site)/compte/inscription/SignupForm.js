@@ -9,6 +9,7 @@ import { useLocale, useT } from '@/lib/i18n/client';
 // Keys, not text: a module-level constant is evaluated once at import,
 // where `t` does not exist — see components/navItems.js.
 const ERROR_MESSAGE_KEYS = {
+  name: 'auth.errors.fullNameRequired',
   phone: 'auth.errors.phoneInvalid',
   password: 'auth.errors.passwordMin8',
   exists: 'auth.errors.accountExists',
@@ -52,13 +53,16 @@ export default function SignupForm({
 
       <div>
         <label htmlFor="fullName" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-ink-45">
-          {t('enquiry.nameOptional')}
+          {t('auth.signup.fullName')}
         </label>
         <input
           id="fullName"
           type="text"
           name="fullName"
           autoComplete="name"
+          required
+          minLength={2}
+          maxLength={120}
           className="u-focus-ring w-full rounded-md border border-line bg-white px-3 py-2 text-sm text-ink"
         />
       </div>

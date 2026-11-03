@@ -27,6 +27,19 @@ export function otpBypassEnabled() {
 }
 
 /**
+ * Customers get a SENT code whenever an OTP template is configured, whatever
+ * AUTH_OTP_BYPASS says (owner decision, 2026-11-04: "Lukka Place sends the
+ * code, the customer types it"). The flag still governs agents. Without a
+ * template a session message never reaches a first-time customer, so the
+ * customer flow falls back to the reverse WhatsApp proof exactly as before.
+ * The template name is read the way lib/otpDelivery.js reads it.
+ */
+export function customerOtpBypassEnabled() {
+  const templateConfigured = Boolean(String(process.env.AGENT_OTP_TEMPLATE || '').trim());
+  return otpBypassEnabled() && !templateConfigured;
+}
+
+/**
  * One log line per bypassed verification, so the server log says exactly how
  * many accounts were created without a verified number while this was on.
  * Silence here would make the window impossible to audit afterwards.

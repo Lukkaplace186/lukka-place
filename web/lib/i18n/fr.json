@@ -2706,6 +2706,10 @@
       "shareLet": "Partager « Loué via Lukka Place »",
       "shareSold": "Partager « Vendu via Lukka Place »",
       "later": "Plus tard"
+    },
+    "founder": {
+      "badge": "Membre fondateur",
+      "member": "Vous êtes le commissionnaire n° {n}"
     }
   },
   "status": {
@@ -3333,10 +3337,6 @@
         "visits": "Visites",
         "requests": "Recherches"
       }
-    },
-    "founder": {
-      "badge": "Membre fondateur",
-      "member": "Vous êtes le membre n° {n}"
     }
   },
   "admin": {
@@ -6530,7 +6530,8 @@
       "expiredAttempt": "Cette vérification a expiré — recommencez l’inscription.",
       "referralUnknown": "Nous ne reconnaissons pas ce code de parrainage. Vérifiez-le auprès de votre commercial, ou laissez le champ vide pour vous inscrire sans code.",
       "agencyNameRequired": "Indiquez le nom de votre agence ou votre nom commercial.",
-      "partnerCodeUnknown": "Ce code de parrainage n'existe pas. Corrigez-le ou laissez le champ vide."
+      "partnerCodeUnknown": "Ce code de parrainage n'existe pas. Corrigez-le ou laissez le champ vide.",
+      "fullNameRequired": "Indiquez votre nom et prénom."
     },
     "activate": {
       "expiredBody": "Ce lien d’activation n’est plus valable — il a peut-être déjà été utilisé, ou il a dépassé sa durée de validité. Vos biens restent enregistrés : seul l’accès au tableau de bord attend.",
@@ -6555,11 +6556,12 @@
       "codeNotReceived": "Code non reçu ? Réessayer via WhatsApp"
     },
     "signup": {
-      "codeWillBeSent": "Un code de vérification sera envoyé sur WhatsApp à ce numéro.",
+      "codeWillBeSent": "Vous recevrez un code de confirmation à 6 chiffres sur votre WhatsApp.",
       "receiveCode": "Recevoir mon code",
       "noCodeNeeded": "Juste après, vous confirmerez ce numéro en nous envoyant un code depuis son WhatsApp.",
       "agencyName": "Nom de l’agence / nom commercial",
-      "contactName": "Nom de l’agent / contact principal"
+      "contactName": "Nom de l’agent / contact principal",
+      "fullName": "Nom et prénom"
     },
     "createMyAccount": "Créer mon compte",
     "passwordReset": "Mot de passe réinitialisé — connectez-vous avec votre nouveau mot de passe.",

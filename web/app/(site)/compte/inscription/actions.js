@@ -12,7 +12,7 @@ import {
 import { hashPassword } from '@/lib/customerAuth';
 import { establishCustomerSession } from '@/lib/customerSession';
 import { setVerifyAttemptCookie } from '@/lib/verifyAttempt';
-import { otpBypassEnabled, logOtpBypass } from '@/lib/otpBypass';
+import { customerOtpBypassEnabled, logOtpBypass } from '@/lib/otpBypass';
 import { recordWebSignupAttribution } from '@/lib/accountAcquisition';
 import { normalisePartnerCode } from '@/lib/partnerRules';
 import { findActivePartnerByCode } from '@/lib/partners';
@@ -51,6 +51,12 @@ export async function signupAction(formData) {
   const password = String(formData.get('password') || '');
   const fullName = String(formData.get('fullName') || '').trim();
   const phone = phoneFromForm(formData);
+
+  // A name is required (owner decision, 2026-11-04): agents call the
+  // customer back, and "Bonjour," with no name is how a lead goes cold.
+  if (fullName.length < 2) {
+    redirect(`/compte/inscription?error=name&next=${encodeURIComponent(next)}`);
+  }
 
   if (!phone) {
     redirect(`/compte/inscription?error=phone&next=${encodeURIComponent(next)}`);
@@ -109,7 +115,7 @@ export async function signupAction(formData) {
 
   // AUTH_OTP_BYPASS=1: no code is sent; the verify page proves the number by
   // a WhatsApp message from it instead (lib/whatsappVerify.js).
-  if (otpBypassEnabled()) {
+  if (customerOtpBypassEnabled()) {
     logOtpBypass('customer-auth', { id: customer.id, phone });
     redirect(verifyUrl);
   }

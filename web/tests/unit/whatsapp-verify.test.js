@@ -20,7 +20,9 @@ const ENTRY_POINTS = [
 test('no bypass branch verifies a number or opens a session by itself', () => {
   for (const file of ENTRY_POINTS) {
     const src = read(file);
-    const branch = src.slice(src.indexOf('otpBypassEnabled())'), src.indexOf('otpBypassEnabled())') + 900);
+    const at = src.search(/[oO]tpBypassEnabled\(\)\)/);
+    assert.ok(at > 0, `${file}: has a bypass branch`);
+    const branch = src.slice(at, at + 900);
     const body = branch.slice(0, branch.indexOf('\n  }') + 4);
     assert.doesNotMatch(body, /consume(Agent|Customer)Otp/, `${file}: bypass must not mark the number verified`);
     assert.doesNotMatch(body, /establish(Agent|Customer)Session/, `${file}: bypass must not open a session`);

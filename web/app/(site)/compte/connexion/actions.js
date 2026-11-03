@@ -18,7 +18,7 @@ import {
 } from '@/lib/customerAuth';
 import { establishCustomerSession } from '@/lib/customerSession';
 import { setVerifyAttemptCookie } from '@/lib/verifyAttempt';
-import { otpBypassEnabled, logOtpBypass } from '@/lib/otpBypass';
+import { customerOtpBypassEnabled, logOtpBypass } from '@/lib/otpBypass';
 
 function safeNext(nextParam) {
   const next = String(nextParam || '/compte/client');
@@ -85,7 +85,7 @@ export async function loginAction(formData) {
   // deliberately backfills nobody, because nobody proved those numbers).
   // Both are the same one-time step, and it is the same step an agent with
   // an unverified account already goes through.
-  if (!customer.phone_verified_at && otpBypassEnabled()) {
+  if (!customer.phone_verified_at && customerOtpBypassEnabled()) {
     // No code is sent; the verify page proves the number by a WhatsApp
     // message from it (lib/whatsappVerify.js).
     logOtpBypass('customer-auth', { id: customer.id, phone });

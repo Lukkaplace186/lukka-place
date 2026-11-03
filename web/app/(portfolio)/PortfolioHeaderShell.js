@@ -27,7 +27,7 @@ export default function PortfolioHeaderShell({ children }) {
 export function PortfolioFooterShell({ children }) {
   const onProfile = useOnProfile();
   return (
-    <footer className={`border-t border-line bg-canvas-alt pt-8 ${onProfile ? 'pb-32' : 'pb-8'}`}>
+    <footer className={`border-t border-line bg-canvas-alt pt-8 ${onProfile ? 'pb-24' : 'pb-8'}`}>
       {children}
     </footer>
   );

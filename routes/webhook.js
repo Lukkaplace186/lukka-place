@@ -1626,6 +1626,11 @@ async function processGroup(messages) {
             intakeSuffix = prompt;
             suffixKind = 'registration';
           }
+        } else if (onboarding.unverifiedAccountNote(identity.agent)) {
+          // An account exists on this number but was never verified: say so
+          // and how to fix it, instead of a reply that ignores the account.
+          intakeSuffix = onboarding.unverifiedAccountNote(identity.agent);
+          suffixKind = 'unverified';
         }
       } catch (err) {
         console.warn(`[intake] sender recognition failed for ${from}: ${err.message}`);

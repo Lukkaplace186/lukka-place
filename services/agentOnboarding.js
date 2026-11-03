@@ -251,6 +251,36 @@ function recognitionNote({ firstName } = {}, listing = {}, photoCount = 0) {
     .join('\n');
 }
 
+/**
+ * For a sender whose number matches an agent account that was never
+ * verified (opened on the website, code never sent). Their listing is stored
+ * and still publishes on "OK", but nothing is attributed to an account nobody
+ * proved they own, and the WhatsApp onboarding cannot run either — the
+ * account exists. Before this they were told nothing, so to them the system
+ * simply did not recognise them (2026-11-03, agent #103, who had also opened a
+ * customer account and verified that one instead).
+ *
+ * Only the password holder can open a verification code (login), and only
+ * the phone holder can send it, which is why this points at the login page
+ * rather than verifying the account from this message (root CLAUDE.md, "Why
+ * the phone_verified_at gate is the same one twice"). Verifying claims every
+ * listing already sent from the number (web lib/agents.js).
+ *
+ * @param {Object|null} agent A row from findAgentByPhone().
+ * @returns {string|null} null when the sender is not in that state.
+ */
+function unverifiedAccountNote(agent) {
+  if (!agent || agent.phone_verified_at || agent.deleted_at) return null;
+  const lines = [
+    '⚠️ Votre compte agent Lukka Place sur ce numéro n’est pas encore vérifié, donc ce bien n’est pas encore lié à votre compte.',
+    agent.password_hash
+      ? `Pour le vérifier : connectez-vous sur ${SITE_URL}/compte/agent/connexion, puis envoyez-nous depuis ce WhatsApp le code affiché.`
+      : `Pour le vérifier, contactez-nous au +243 846 962 654.`,
+    'Une fois vérifié, tous les biens envoyés depuis ce numéro rejoignent votre compte.',
+  ];
+  return lines.join('\n');
+}
+
 /** The single-use magic link that sets the account's first password. */
 function activationLink(waId, token) {
   return `${SITE_URL}/compte/agent/activer?phone=${encodeURIComponent(normalisePhone(waId))}&token=${token}`;
@@ -657,6 +687,7 @@ module.exports = {
   identifySender,
   senderIdentityFrom,
   recognitionNote,
+  unverifiedAccountNote,
   shouldOnboard,
   startOnboarding,
   completeOnboarding,

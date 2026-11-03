@@ -372,7 +372,7 @@ async function getAgentContactById(agentId) {
   try {
     const { rows } = await getPool().query(
       `SELECT a.id AS agent_id, a.phone AS agent_phone, a.phone_verified_at,
-              a.direct_routing_enabled, ${AGENT_NAME_EXPR}
+              a.direct_routing_enabled, a.deleted_at IS NOT NULL AS deleted, ${AGENT_NAME_EXPR}
          FROM agents a
          ${AGENT_INFOS_JOIN}
         WHERE a.id = $1`,

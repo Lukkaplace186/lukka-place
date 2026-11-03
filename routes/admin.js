@@ -24,6 +24,7 @@ const opsDesk = require('../services/opsDesk');
 const { STATES } = require('../services/conversationState');
 const { dispatchLead, dispatchLeadInBackground } = require('../services/leadDispatch');
 const { handleProjectEnquiry } = require('../services/projectEnquiry');
+const agentProfileEnquiry = require('../services/agentProfileEnquiry');
 const {
   normaliseLeadCommunes,
   leadCommunes,
@@ -340,10 +341,15 @@ router.post('/leads', (req, res) => {
     price_min: priceMin,
     price_max: priceMax,
     bedrooms,
+    // The agent a profile enquiry is addressed to (web's agents/[id] form).
+    agent_id: agentIdRaw,
   } = req.body || {};
   if (!waId) {
     return res.status(400).json({ success: false, error: 'wa_id is required.' });
   }
+  const profileAgentId = Number.parseInt(agentIdRaw, 10);
+  const isProfileEnquiry = (source || 'agent-profile-inquiry') === agentProfileEnquiry.SOURCE
+    && Number.isFinite(profileAgentId) && profileAgentId > 0;
 
   const requestedCommunes = normaliseLeadCommunes(communesRaw, commune);
 
@@ -377,6 +383,13 @@ router.post('/leads', (req, res) => {
     // sends, and a dispatch failure must never turn a successfully-saved
     // request into a 400. See services/leadDispatch.js's failure posture.
     dispatchLeadInBackground(lead);
+
+    // A profile enquiry names one agent and no commune, so the dispatch above
+    // skips it; this tells that agent and the desk instead
+    // (services/agentProfileEnquiry.js).
+    if (isProfileEnquiry) {
+      agentProfileEnquiry.notifyAgentProfileEnquiryInBackground({ lead, agentId: profileAgentId });
+    }
 
     return res.status(201).json({ success: true, lead });
   } catch (err) {

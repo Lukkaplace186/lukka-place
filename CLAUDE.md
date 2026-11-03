@@ -2081,3 +2081,26 @@ model. Engine pieces:
   session announcement could not have landed (no message from them in the
   23 h before it). `REFERRAL_ANNOUNCE_ON_WRITE=off` disables. Run
   `migrations/20261103_referral_announcement_channel.sql` first. §68.
+
+## Profile enquiries and unverified agents (2026-11-03)
+
+- **"Demandez ce bien à cet agent"** (web `agents/[id]` form) now sends
+  `agent_id`, and `POST /admin/leads` hands a `agent-profile-inquiry` lead to
+  `services/agentProfileEnquiry.js`. Before, the lead named no commune, so
+  `leadDispatch` skipped it and nobody was told (lead #21 sat unseen from
+  2026-10-25). The lead is assigned to that agent (their Demandes inbox), the
+  agent is alerted only through `directRoutingBlocker` (and not when the
+  account is deleted), and the desk always gets a copy that says whether the
+  agent was reached — and, when the agent has not written to us in 24 h
+  (`sessionWindow`), that the session message probably did not land. Same
+  recipient rule as listing and project enquiries: never the ranked agencies.
+- **Unverified agent sending a listing**: `identifySender` still attributes
+  nothing and `shouldOnboard` still stays quiet, but the intake reply now
+  carries `agentOnboarding.unverifiedAccountNote` — "compte pas encore
+  vérifié", log in at /compte/agent/connexion and send the code shown (or the
+  support number when the account has no password). Never verified from the
+  message itself: only the password holder can open a code. Measured
+  2026-11-03: agent #103 opened an agent account, never sent its code, then
+  opened and verified a customer account on the same number; the two
+  accounts are independent and WhatsApp intake never reads `customers`.
+- §69 of verify-pipeline.

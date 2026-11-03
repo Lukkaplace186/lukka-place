@@ -51,6 +51,7 @@ export async function submitInquiryAction(agentId, formData) {
       waId: phone,
       name: name || null,
       source: 'agent-profile-inquiry',
+      agentId: agent.id,
       propertyId: null,
       assignedAgent: agentName || null,
       requirementsSummary: summary || null,

@@ -13197,6 +13197,97 @@ console.log('\n2. services/openai.js');
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // §69 Profile enquiries reach the agent; unverified agents are told (2026-11-03)
+  // ---------------------------------------------------------------------------
+  console.log('\n§69 Profile enquiries reach the agent; unverified agents are told');
+  {
+    const profileEnquiry = require('../services/agentProfileEnquiry');
+    const repo69 = require('../services/propertyRepository');
+    const chakra69 = require('../services/chakra');
+    const onboarding69 = require('../services/agentOnboarding');
+    const saved69 = { agent: repo69.getAgentContactById, text: chakra69.sendWhatsAppMessage, ops: process.env.OPS_WHATSAPP_NUMBER };
+    const sent69 = [];
+    chakra69.sendWhatsAppMessage = async (to, body) => { sent69.push({ to, body }); return {}; };
+    process.env.OPS_WHATSAPP_NUMBER = '243846962654';
+    const verified = {
+      agent_id: 60, agent_name: 'Immo Kin', agent_phone: '243906500060', phone_verified_at: '2026-10-01', direct_routing_enabled: true, deleted: false,
+    };
+    const lead69 = () => dbService.createLead({
+      wa_id: '243895000069', name: 'Client Test', source: 'agent-profile-inquiry', assigned_agent: 'Immo Kin',
+      requirements_summary: 'Type : Appartement\nBudget : 500 $\nJe cherche à Gombe',
+    });
+    try {
+      await checkAsync('a verified agent is alerted, the lead is assigned to them, and the desk gets a copy', async () => {
+        sent69.length = 0;
+        repo69.getAgentContactById = async () => verified;
+        const lead = lead69();
+        const result = await profileEnquiry.notifyAgentProfileEnquiry({ lead, agentId: 60 });
+        assert.strictEqual(result.agentNotified, true);
+        assert.strictEqual(result.opsNotified, true);
+        assert.strictEqual(dbService.getLead(lead.id).agent_id, 60, 'in the agent\'s Demandes inbox');
+        const toAgent = sent69.find((m) => m.to === '243906500060');
+        assert.ok(toAgent, 'the agent was messaged');
+        assert.match(toAgent.body, /\+243895000069/);
+        assert.match(toAgent.body, /Je cherche à Gombe/);
+        assert.match(toAgent.body, new RegExp(`/compte/agent/demandes\\?lead=${lead.id}`));
+        const desk = sent69.find((m) => m.to === '243846962654');
+        assert.match(desk.body, /ne nous a pas écrit depuis 24 h/, 'no inbound on record: the desk is told it probably did not land');
+      });
+
+      await checkAsync('inside the 24 h window the desk is told the agent was alerted', async () => {
+        sent69.length = 0;
+        repo69.getAgentContactById = async () => verified;
+        require('../services/sessionWindow').recordInbound('243906500060');
+        await profileEnquiry.notifyAgentProfileEnquiry({ lead: lead69(), agentId: 60 });
+        assert.match(sent69.find((m) => m.to === '243846962654').body, /Agent prévenu sur WhatsApp/);
+      });
+
+      await checkAsync('an unverified, routing-off or deleted agent is never messaged; the desk is told to act', async () => {
+        for (const contact of [
+          { ...verified, phone_verified_at: null },
+          { ...verified, direct_routing_enabled: false },
+          { ...verified, deleted: true },
+          null,
+        ]) {
+          sent69.length = 0;
+          repo69.getAgentContactById = async () => contact;
+          const result = await profileEnquiry.notifyAgentProfileEnquiry({ lead: lead69(), agentId: 60 });
+          assert.strictEqual(result.agentNotified, false);
+          assert.ok(!sent69.some((m) => m.to === '243906500060'));
+          assert.match(sent69.find((m) => m.to === '243846962654').body, /Agent NON prévenu/);
+        }
+      });
+
+      check('POST /leads hands a profile enquiry with an agent_id to the notifier, and web sends the id', () => {
+        const admin = fs.readFileSync(path.join(__dirname, '..', 'routes', 'admin.js'), 'utf8');
+        const route = admin.slice(admin.indexOf("router.post('/leads'"), admin.indexOf("router.get('/leads/open'"));
+        assert.match(route, /agent_id: agentIdRaw/);
+        assert.match(route, /notifyAgentProfileEnquiryInBackground\(\{ lead, agentId: profileAgentId \}\)/);
+        const web = fs.readFileSync(path.join(__dirname, '..', 'web', 'app', '(portfolio)', 'agents', '[id]', 'actions.js'), 'utf8');
+        assert.match(web, /agentId: agent\.id/);
+      });
+
+      check('an unverified agent account gets a note pointing at login, never a verification by message', () => {
+        const withPassword = onboarding69.unverifiedAccountNote({ id: 103, phone_verified_at: null, password_hash: 'x' });
+        assert.match(withPassword, /pas encore vérifié/);
+        assert.match(withPassword, /\/compte\/agent\/connexion/);
+        assert.match(onboarding69.unverifiedAccountNote({ id: 103, phone_verified_at: null, password_hash: null }), /\+243 846 962 654/);
+        assert.strictEqual(onboarding69.unverifiedAccountNote({ id: 1, phone_verified_at: '2026-01-01' }), null);
+        assert.strictEqual(onboarding69.unverifiedAccountNote({ id: 1, phone_verified_at: null, deleted_at: '2026-10-18' }), null);
+        assert.strictEqual(onboarding69.unverifiedAccountNote(null), null);
+        assert.strictEqual(onboarding69.senderIdentityFrom({ id: 103, phone_verified_at: null }).registered, false, 'still nothing attributed');
+        const webhook = fs.readFileSync(path.join(__dirname, '..', 'routes', 'webhook.js'), 'utf8');
+        assert.match(webhook, /suffixKind = 'unverified'/);
+      });
+    } finally {
+      repo69.getAgentContactById = saved69.agent;
+      chakra69.sendWhatsAppMessage = saved69.text;
+      if (saved69.ops === undefined) delete process.env.OPS_WHATSAPP_NUMBER;
+      else process.env.OPS_WHATSAPP_NUMBER = saved69.ops;
+    }
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

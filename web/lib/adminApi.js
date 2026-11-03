@@ -359,12 +359,15 @@ export async function moderateAgentReview(id, commentStatus) {
  */
 export async function createLead({
   waId, name, source, propertyId, assignedAgent, requirementsSummary,
-  transactionType, commune, communes, priceMin, priceMax, bedrooms,
+  transactionType, commune, communes, priceMin, priceMax, bedrooms, agentId,
 }) {
   return engineFetch('/admin/leads', {
     method: 'POST',
     body: JSON.stringify({
       wa_id: waId,
+      // The profile's agent: the engine alerts them and the desk
+      // (services/agentProfileEnquiry.js, engine repo).
+      agent_id: agentId,
       name,
       source,
       property_id: propertyId,

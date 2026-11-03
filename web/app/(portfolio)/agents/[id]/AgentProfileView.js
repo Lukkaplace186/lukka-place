@@ -56,9 +56,6 @@ function sortItems(items, sort) {
 // PropertyCard's price and FC pill, verbatim.
 const CARD_PRICE_CLASS = 'u-tabular text-xl font-semibold leading-tight tracking-normal text-ink';
 const CARD_FC_PILL_CLASS = 'ml-2 inline-block rounded-md bg-canvas-alt px-2 py-0.5 align-middle text-[0.75rem] font-normal leading-normal tracking-normal text-ink-45';
-// Same pill on its own line: a row's text column is too narrow to hold it
-// beside the price, where it wrapped indented by its ml-2.
-const ROW_FC_PILL_CLASS = 'mt-1 block w-fit rounded-md bg-canvas-alt px-2 py-0.5 text-[0.75rem] font-normal leading-normal tracking-normal text-ink-45';
 
 function Badges({ item, labels }) {
   return (
@@ -172,7 +169,7 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
   );
 
   return (
-    <div className="pb-10">
+    <div className="overflow-x-clip pb-10">
       {/* Slim bar: logo + name only (design round 4), once the header is gone. */}
       <div
         aria-hidden={!slim}
@@ -303,26 +300,29 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
                     tabIndex={0}
                     onClick={() => open(item)}
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(item); } }}
-                    className="flex cursor-pointer items-stretch gap-3.5 border-b border-line/60 py-4"
+                    className="flex cursor-pointer flex-col gap-3 border-b border-line/60 py-5"
                   >
-                    {/* The photo takes ~42% of the row (it was a 112px square
-                        beside a half-empty column), portrait so it runs the
-                        height of the text. The save heart sits on it, as on
-                        PropertyCard; the status badge heads the text column,
-                        since at this width it would run into the heart. */}
-                    <div className="relative aspect-[4/5] w-[42%] min-w-[8.75rem] max-w-[12rem] flex-none overflow-hidden rounded-xl bg-canvas-alt">
+                    {/* Full-width photo, details below (owner's direction,
+                        2026-11-03: the side thumbnail read as squashed). 4:3,
+                        the sheet's own ratio. The save heart sits on it as on
+                        PropertyCard (status badge top-left, heart top-right,
+                        price with the inline FC pill below); the heart's
+                        wrapper is its own click target so a tap on it never
+                        opens the sheet. */}
+                    <div className="relative aspect-[4/3] w-full overflow-hidden rounded-xl bg-canvas-alt">
                       {item.photos.length ? (
-                        <CardImageCarousel images={item.photos} alt={item.title} sizes="(min-width: 640px) 192px, 42vw" />
+                        <CardImageCarousel images={item.photos} alt={item.title} sizes="(min-width: 640px) 600px, 100vw" />
                       ) : null}
-                      {/* Its own click target: a tap on the heart must not open the sheet. */}
-                      <div className="absolute right-2 top-2 z-10" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                      {item.isNew || item.reserved ? (
+                        <div className="pointer-events-none absolute left-3 top-3 z-10 flex flex-wrap gap-1.5">
+                          <Badges item={item} labels={labels} />
+                        </div>
+                      ) : null}
+                      <div className="absolute right-3 top-3 z-10" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                         <FavoriteButton listingId={item.id} price={item.price} commune={item.commune} />
                       </div>
                     </div>
-                    <div className="flex min-w-0 flex-1 flex-col justify-center gap-1.5">
-                      {item.isNew || item.reserved ? (
-                        <div className="flex flex-wrap gap-1"><Badges item={item} labels={labels} /></div>
-                      ) : null}
+                    <div className="@container flex min-w-0 flex-col gap-1">
                       <Price
                         amount={item.price}
                         purpose={item.purpose}
@@ -330,8 +330,8 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
                         currency={item.currency}
                         priceOriginal={item.priceOriginal}
                         showSubtext
-                        className={CARD_PRICE_CLASS}
-                        subtextClassName={ROW_FC_PILL_CLASS}
+                        className={`${CARD_PRICE_CLASS} @[19rem]:text-2xl`}
+                        subtextClassName={CARD_FC_PILL_CLASS}
                       />
                       {/* A real link, so the listing is crawlable and opens in a
                           new tab on a modified click; a plain tap opens the sheet. */}
@@ -341,7 +341,7 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
                           if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) { e.stopPropagation(); return; }
                           e.preventDefault();
                         }}
-                        className="line-clamp-2 text-base font-medium leading-snug tracking-normal text-ink"
+                        className="mt-0.5 truncate text-base font-medium leading-snug tracking-normal text-ink"
                       >
                         {item.place || item.type}
                       </Link>

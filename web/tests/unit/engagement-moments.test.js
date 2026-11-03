@@ -165,3 +165,16 @@ test('the new client pieces never read the clock during the server render', () =
     assert.match(source, /'use client'/);
   }
 });
+
+test('the listing page median line stays hidden until 1,000 live listings, site-wide', async () => {
+  const source = readFileSync(new URL('../../components/listings/MarketMedianLine.js', import.meta.url), 'utf8');
+  assert.match(source, /MARKET_MEDIAN_MIN_LIVE_LISTINGS = 1000/);
+  // The gate runs before the comparables query, so a hidden line costs nothing.
+  assert.ok(source.indexOf('MARKET_MEDIAN_MIN_LIVE_LISTINGS) return null') < source.indexOf('getMarketPosition(listing)'));
+  const { countLiveListings } = await import('@/lib/listings');
+  enqueue([{ n: 42 }]);
+  assert.equal(await countLiveListings(), 42);
+  const sql = calls.at(-1).sql;
+  assert.match(sql, /p\.status = 1 AND p\.approve_status = 1/);
+  assert.doesNotMatch(sql, /city_id/, 'every city counts toward the threshold');
+});

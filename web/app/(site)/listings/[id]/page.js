@@ -378,7 +378,8 @@ export default async function ListingDetailPage({ params, searchParams }) {
             <PracticalDetails listing={listing} />
 
             {/* Streams in: a like-for-like median of live listings in the
-                commune, only from 5 comparables up (MarketMedianLine). */}
+                commune, only from 5 comparables up — and nothing at all
+                until the site has 1,000 live listings (MarketMedianLine). */}
             <Suspense fallback={null}>
               <MarketMedianLine listing={listing} />
             </Suspense>

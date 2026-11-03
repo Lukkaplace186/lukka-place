@@ -2321,7 +2321,7 @@ and the code writes correctly before and after it runs). Write side is
 - **`AREA_M2_SQL`** (`lib/marketExclusions.js`): an area counts only when it is
   a plain number (optionally m / m2 / m²). The price check used to strip
   letters, reading "12x20" as 1 220 m².
-- **Listing page median line** (`components/listings/MarketMedianLine.js`,
+- **Listing page median line — HIDDEN until the site has 1,000 live listings** (2026-11-03, owner: too few comparables for a trustworthy figure; `MARKET_MEDIAN_MIN_LIVE_LISTINGS`, all cities, `countLiveListings`, memo 60 s; it returns by itself, no deploy). As built: (`components/listings/MarketMedianLine.js`,
   streamed under Suspense): "Loyer médian demandé à Kintambo (appartement) :
   750 $ / mois — 7 annonces comparables en ligne", from the agent hub's
   `getMarketPosition` (listing excluded, test agents excluded). Only the

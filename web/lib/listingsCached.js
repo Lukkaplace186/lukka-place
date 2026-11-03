@@ -1,6 +1,7 @@
 import 'server-only';
 import { memo } from './memo';
 import {
+  countLiveListings,
   getCommuneShowcase,
   getListings,
   getPopularCommunes,
@@ -37,6 +38,9 @@ export const cachedListingsTotal = (transactionType) =>
     const { total } = await getListings({ limit: 1, transactionType });
     return { total };
   });
+
+/** Every public listing, all cities (MarketMedianLine's threshold). */
+export const cachedLiveListingsCount = () => memo('live-count', TTL_MS, () => countLiveListings());
 
 /** "Sélection de la semaine" — the eight newest-by-default-sort public cards. */
 export const cachedFeaturedListings = () =>

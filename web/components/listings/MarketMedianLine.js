@@ -6,6 +6,15 @@ import { formatPrice } from '@/lib/format';
 import { typeLabel } from '@/lib/listingView';
 import { communeHref } from '@/lib/listingSeo';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
+import { cachedLiveListingsCount } from '@/lib/listingsCached';
+
+/**
+ * Hidden until the whole site has this many live listings (owner decision,
+ * 2026-11-03): with a few hundred, a commune's "median" rests on a handful
+ * of asks and reads as a market figure it is not. It comes back by itself
+ * once the catalogue reaches the threshold — nothing to deploy.
+ */
+export const MARKET_MEDIAN_MIN_LIVE_LISTINGS = 1000;
 
 /**
  * "Loyer médian demandé à Limete (appartement, 2 chambres) : 1 200 $ / mois —
@@ -21,6 +30,8 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  * Nothing renders otherwise, and a failed read renders nothing.
  */
 export default async function MarketMedianLine({ listing }) {
+  const live = await cachedLiveListingsCount().catch(() => 0);
+  if (live < MARKET_MEDIAN_MIN_LIVE_LISTINGS) return null;
   const position = await getMarketPosition(listing).catch(() => null);
   if (!position || position.median == null || !['beds', 'type'].includes(position.scope)) return null;
   const t = await getT();

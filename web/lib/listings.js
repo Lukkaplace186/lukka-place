@@ -1243,6 +1243,15 @@ export async function getSitemapListings(limit = 45000) {
 }
 
 /**
+ * Every public listing, all cities — the site-wide size of the catalogue.
+ * (getListings' total is one city's: no `ville` means Kinshasa.)
+ */
+export async function countLiveListings() {
+  const { rows } = await getPool().query(`SELECT COUNT(*)::int AS n FROM properties p WHERE ${APPROVED_FILTER}`);
+  return rows[0]?.n || 0;
+}
+
+/**
  * Approved listings that became public since `since`, newest first — the only
  * candidates the saved-search alert sweep considers (lib/searchAlertSweep.js).
  *

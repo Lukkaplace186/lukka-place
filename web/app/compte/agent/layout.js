@@ -7,6 +7,7 @@ import AgentSidebar from '@/components/AgentSidebar';
 import AgentKeyboardShortcuts from '@/components/AgentKeyboardShortcuts';
 import { ToastProvider } from '@/components/Toast';
 import ListingLimitDialog from '@/components/ListingLimitDialog';
+import SoldShareHost from '@/components/SoldShareHost';
 import { getFeatureFlags } from '@/lib/siteSettings';
 import ImpersonationBanner from '@/components/ImpersonationBanner';
 import { agentLogoutAction } from './actions';
@@ -99,6 +100,8 @@ export default async function AgentDashboardLayout({ children }) {
         />
         <ToastProvider>
           <div className="flex min-w-0 flex-1 flex-col pb-16 lg:pb-0">{children}</div>
+          {/* Inside the provider: the share dialog it opens shows toasts. */}
+          <SoldShareHost />
         </ToastProvider>
         <ListingLimitDialog subscriptionsEnabled={features.agentSubscriptions} />
         <ImpersonationBanner />

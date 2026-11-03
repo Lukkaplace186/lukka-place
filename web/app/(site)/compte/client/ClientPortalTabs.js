@@ -44,6 +44,9 @@ export const PORTAL_TABS = [
     labelKey: 'account.portal.nav.saved',
     icon: Heart,
     countKey: 'savedTotal',
+    // A green dot: a saved listing dropped in price since this device last
+    // opened the tab (layout.js, lib/favoritePriceDrops.js).
+    dotKey: 'priceDrops',
     match: (p) => p.startsWith('/compte/client/favoris') || p.startsWith('/compte/client/alertes'),
   },
   {
@@ -57,6 +60,17 @@ export const PORTAL_TABS = [
   { href: '/compte/client/parametres', labelKey: 'account.portal.nav.profile', icon: UserRound, match: (p) => p.startsWith('/compte/client/parametres') },
 ];
 
+/** A small pulsing green dot with a spoken label (the dot alone says nothing to a screen reader). */
+function PriceDropDot({ label, className = '' }) {
+  return (
+    <span className={cn('relative inline-flex h-2.5 w-2.5', className)} title={label}>
+      <span aria-hidden="true" className="u-dot-ping absolute inline-flex h-2.5 w-2.5 rounded-full bg-success opacity-60" />
+      <span aria-hidden="true" className="relative inline-flex h-2.5 w-2.5 rounded-full bg-success ring-2 ring-surface" />
+      <span className="sr-only">{label}</span>
+    </span>
+  );
+}
+
 export default function ClientPortalTabs({ counts = {} }) {
   const t = useT();
   const pathname = usePathname() || '';
@@ -66,9 +80,10 @@ export default function ClientPortalTabs({ counts = {} }) {
       {/* Desktop: the sticky strip under the fixed h-16 site header. */}
       <div className="sticky top-16 z-20 hidden border-y border-line bg-surface lg:block">
         <nav aria-label={t('account.portal.title')} className="mx-auto flex max-w-[77.5rem] gap-1.5 px-8">
-          {PORTAL_TABS.map(({ href, labelKey, icon: Icon, countKey, match }) => {
+          {PORTAL_TABS.map(({ href, labelKey, icon: Icon, countKey, dotKey, match }) => {
             const active = match(pathname);
             const count = countKey ? counts[countKey] : null;
+            const dot = dotKey ? counts[dotKey] > 0 : false;
             return (
               <Link
                 key={href}
@@ -81,6 +96,7 @@ export default function ClientPortalTabs({ counts = {} }) {
               >
                 <Icon strokeWidth={ICON_STROKE_WIDTH} className={cn('h-[1.125rem] w-[1.125rem]', active ? 'text-blue' : 'text-ink-35')} aria-hidden="true" />
                 {t(labelKey)}
+                {dot ? <PriceDropDot label={t('account.portal.nav.priceDropDot')} /> : null}
                 {count ? (
                   <span className="u-tabular inline-flex min-w-5 justify-center rounded-full bg-canvas-deep px-1.5 py-0.5 text-[0.6875rem] font-bold text-ink-70">
                     {count}
@@ -98,9 +114,10 @@ export default function ClientPortalTabs({ counts = {} }) {
         aria-label={t('account.portal.title')}
         className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] lg:hidden"
       >
-        {PORTAL_TABS.map(({ href, labelKey, icon: Icon, countKey, match }) => {
+        {PORTAL_TABS.map(({ href, labelKey, icon: Icon, countKey, dotKey, match }) => {
           const active = match(pathname);
           const count = countKey ? counts[countKey] : null;
+          const dot = dotKey ? counts[dotKey] > 0 : false;
           return (
             <Link
               key={href}
@@ -114,6 +131,7 @@ export default function ClientPortalTabs({ counts = {} }) {
               {active && <span aria-hidden="true" className="absolute inset-x-[28%] top-0 h-[3px] rounded-b-[3px] bg-blue" />}
               <span className="relative">
                 <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-[1.375rem] w-[1.375rem]" aria-hidden="true" />
+                {dot ? <PriceDropDot label={t('account.portal.nav.priceDropDot')} className="absolute -left-1 -top-0.5" /> : null}
                 {count ? (
                   <span className="u-tabular absolute -right-3 -top-1.5 grid h-[1.125rem] min-w-[1.125rem] place-items-center rounded-full bg-canvas-deep px-[5px] text-[0.65625rem] font-extrabold text-ink-70 ring-2 ring-surface">
                     {count}

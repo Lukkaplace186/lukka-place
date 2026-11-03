@@ -1,6 +1,6 @@
 'use client';
 
-import { getSharePackAction } from '@/app/compte/agent/shareActions';
+import { getSharePackAction, getSoldSharePackAction } from '@/app/compte/agent/shareActions';
 import { getTeamSharePackAction } from '@/app/admin/listings/shareActions';
 import { fetchPackImages, loadSharePack, prefetchPackPhotos, saveSharePack } from '@/lib/sharePack';
 import { expectedPackPhotoUrls } from '@/lib/marketing/sharePackData';
@@ -69,22 +69,27 @@ function cachedKit(listing, audience) {
 async function loadKit(listing, audience) {
   const listingId = listing.id;
   const team = audience === 'team';
+  // 'sold': the "Loué via Lukka Place" card (lib/marketing/soldShareKit.js).
+  // Like the team's kit it is never stored for offline use: it is made once,
+  // online, right after the agent marked the listing.
+  const sold = audience === 'sold';
   // The photos start now, beside the pack request rather than after it.
   prefetchPackPhotos(expectedPackPhotoUrls(listing));
   let result = null;
   try {
-    result = await (team ? getTeamSharePackAction : getSharePackAction)(listingId);
+    result = sold ? await getSoldSharePackAction(listingId) : await (team ? getTeamSharePackAction : getSharePackAction)(listingId);
   } catch {
     result = null; // unreachable — try the copy this phone stored
   }
   if (result?.ok) {
     const blobs = await fetchPackImages(result.pack);
-    if (!team && (blobs.photos.length || !result.pack.photos.length)) saveSharePack(listingId, { kit: result, ...blobs });
+    if (!team && (blobs.photos.length || !result.pack.photos.length) && !sold) saveSharePack(listingId, { kit: result, ...blobs });
     return { kit: result, blobs };
   }
   // "Not yours" / gone: never papered over with a stored copy.
   if (result) return { kit: null, blobs: null, refused: true };
   if (team) return { kit: null, blobs: null };
+  if (sold) return { kit: null, blobs: null };
   const stored = await loadSharePack(listingId);
   if (!stored) return { kit: null, blobs: null };
   return {

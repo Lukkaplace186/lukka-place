@@ -5,6 +5,7 @@ import { agentBrandFields, getFlyerListing, getFlyerListings, frenchTypeText, PL
 import { SHARE_SOURCES, agentContactPhone, buildListingSocialCopy, listingPublicUrl, shareBlocker } from '@/lib/listingShareCopy';
 import { optimisableImageSrc, optimisedImageUrl, LOGO_WIDTH } from '@/lib/marketing/sharePackData';
 import { buildShareKit } from '@/lib/marketing/shareKit';
+import { buildSoldShareKit } from '@/lib/marketing/soldShareKit';
 import { allTimeWindow, buildMandateCaption, buildMandateReport } from '@/lib/marketing/mandateReportCopy';
 import { getMandateCounts } from '@/lib/marketing/mandateReport';
 import { listingImages } from '@/lib/listingView';
@@ -48,6 +49,17 @@ export async function getSharePackAction(listingId) {
   const { listing, agentId, error } = await ownedListing(listingId);
   if (error) return error;
   return buildShareKit(listing, { refCode: await ensureAgentPartnerCode(agentId), agentId });
+}
+
+/**
+ * "Loué via Lukka Place" — the card for one of the agent's own listings they
+ * have just marked let / sold (lib/marketing/soldShareKit.js). Same ownership
+ * query as the listing kit; a listing that is not closed is not shareable.
+ */
+export async function getSoldSharePackAction(listingId) {
+  const { listing, agentId, error } = await ownedListing(listingId);
+  if (error) return error;
+  return buildSoldShareKit(listing, { refCode: await ensureAgentPartnerCode(agentId), agentId });
 }
 
 /**

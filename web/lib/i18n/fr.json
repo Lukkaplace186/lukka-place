@@ -933,6 +933,17 @@
         "gym": "Salle de sport",
         "solar": "Panneaux solaires"
       }
+    },
+    "match": {
+      "savedSearch": "{percent} % correspond à votre recherche"
+    },
+    "newSince": {
+      "title": {
+        "one": "{count} nouveau bien depuis votre dernière visite",
+        "other": "{count} nouveaux biens depuis votre dernière visite"
+      },
+      "cta": "Voir",
+      "dismiss": "Masquer"
     }
   },
   "enquiry": {
@@ -2635,6 +2646,39 @@
       "nearMeUnavailable": "Votre navigateur ne permet pas la localisation. Choisissez une commune.",
       "nearMeResult": "Les communes les plus proches de vous. Votre position n’est pas enregistrée.",
       "communeOf": "Commune de {name}"
+    },
+    "milestones": {
+      "dismiss": "Fermer",
+      "firstView": {
+        "title": "🎉 Votre annonce a été vue pour la première fois !",
+        "body": "Des clients découvrent vos biens sur Lukka Place. Plus de photos, plus de vues : complétez vos annonces.",
+        "cta": "Voir mes biens"
+      },
+      "firstTap": {
+        "title": "🎉 Un premier client vous a écrit sur WhatsApp !",
+        "body": "Un visiteur a appuyé sur WhatsApp depuis votre annonce. Répondez vite : le client choisit souvent l’agent qui répond le premier.",
+        "cta": "Voir mes biens"
+      },
+      "firstVisit": {
+        "title": "🎉 Votre première demande de visite !",
+        "body": "Confirmez l’heure dans Demandes : le client la reçoit aussitôt.",
+        "cta": "Répondre à la demande"
+      },
+      "firstDeal": {
+        "title": "🎉 Votre premier bien conclu sur Lukka Place !",
+        "body": "Bravo. Une affaire conclue, c’est la meilleure publicité : partagez-la avec vos clients.",
+        "cta": "Voir mes biens conclus"
+      }
+    },
+    "soldShare": {
+      "title": "Partagez la bonne nouvelle",
+      "description": "Votre carte « via Lukka Place », sans le prix. Le lien mène à votre page d’agent.",
+      "bravoLet": "Bravo, c’est loué !",
+      "bravoSold": "Bravo, c’est vendu !",
+      "bravoBody": "Une affaire conclue, c’est la meilleure preuve de votre sérieux. Montrez-la à vos clients.",
+      "shareLet": "Partager « Loué via Lukka Place »",
+      "shareSold": "Partager « Vendu via Lukka Place »",
+      "later": "Plus tard"
     }
   },
   "status": {
@@ -2734,7 +2778,8 @@
         "visits": "Visites",
         "requests": "Demandes",
         "profile": "Profil",
-        "activity": "Activité"
+        "activity": "Activité",
+        "priceDropDot": "Baisse de prix sur un bien enregistré"
       }
     },
     "limits": {
@@ -3184,7 +3229,15 @@
         "done": "Merci, votre note est enregistrée.",
         "yours": "Votre note pour l’agent : {stars}/5",
         "failed": "La note n’a pas pu être enregistrée. Réessayez dans quelques minutes."
-      }
+      },
+      "countdown": {
+        "minutes": "Dans {count} min",
+        "hours": "Dans {count} h",
+        "today": "Aujourd’hui",
+        "tomorrow": "Demain",
+        "days": "Dans {count} jours"
+      },
+      "meetWith": "Votre visite avec"
     },
     "home": {
       "metaTitle": "Accueil — Espace client Lukka Place",

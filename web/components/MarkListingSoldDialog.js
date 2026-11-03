@@ -9,6 +9,7 @@ import { markListingSoldAction } from '@/app/compte/agent/actions';
 import { useToast } from './Toast';
 import { actionFailureToast } from '@/lib/actionFailure';
 import { useT } from '@/lib/i18n/client';
+import { announceSoldShare } from './SoldShareHost';
 
 /**
  * The only path to listing_status = 'closed' (see actions.js's
@@ -66,6 +67,11 @@ export default function MarkListingSoldDialog({ propertyId, purpose, title, rend
       showToast({ type: 'success', message: `« ${title} » marqué comme ${verb}.` });
       setOpen(false);
       router.refresh();
+      // "Bravo !" + the "Loué via Lukka Place" card, from the host the agent
+      // layout mounts once (SoldShareHost) — this dialog's row may leave the
+      // list as soon as the listing is closed, and would take a dialog of its
+      // own with it.
+      announceSoldShare({ id: propertyId, title, purpose });
     });
   }
 

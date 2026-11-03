@@ -2,6 +2,7 @@ import FilterBar from '@/components/FilterBar';
 import ActiveFilterChips from '@/components/ActiveFilterChips';
 import ListingsSplitView from '@/components/ListingsSplitView';
 import ResultsHeader from '@/components/ResultsHeader';
+import NewSinceLastVisit from '@/components/NewSinceLastVisit';
 import ListingsEmptyState from '@/components/ListingsEmptyState';
 import FloatingControlBar from '@/components/FloatingControlBar';
 import SearchTracker from '@/components/SearchTracker';
@@ -275,6 +276,9 @@ export default async function ListingsPage({ searchParams }) {
           close to the top of the screen; desktop keeps its own spacing. */}
       <div className="mx-auto max-w-[1600px] px-4 pb-28 pt-3 sm:px-6 sm:pt-6 lg:px-8 lg:pb-8">
         <div className={isMapView ? 'hidden lg:block' : ''}>
+          {/* "N nouveaux biens depuis votre dernière visite" — client-only,
+              nothing on a first visit or when nothing is new. */}
+          <NewSinceLastVisit className="mb-3 sm:mb-4" />
           <ResultsHeader
             total={total}
             commune={params.commune}

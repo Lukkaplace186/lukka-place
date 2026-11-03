@@ -139,6 +139,30 @@ export function slotPhraseFr(value, { utcOffset = KINSHASA_UTC_OFFSET_HOURS } = 
   return `${DAY_NAMES_FR[s.getUTCDay()]} ${s.getUTCDate()} ${MONTH_NAMES_FR[s.getUTCMonth()]} à ${hh}h${mm}`;
 }
 
+/**
+ * How far off a confirmed visit is, for the countdown chip on the customer's
+ * visit card: under an hour → minutes, under 6 h → hours, then by Kinshasa
+ * calendar day (today / tomorrow / in N days). Null once it has started, or
+ * more than 30 days away.
+ *
+ * @returns {{kind: 'minutes'|'hours'|'today'|'tomorrow'|'days', count?: number}|null}
+ */
+export function visitCountdown(at, now = new Date()) {
+  const date = toDate(at);
+  const current = toDate(now);
+  if (!date || !current) return null;
+  const ms = date.getTime() - current.getTime();
+  if (ms <= 0) return null;
+  if (ms < 3600 * 1000) return { kind: 'minutes', count: Math.max(1, Math.round(ms / 60000)) };
+  if (ms < 6 * 3600 * 1000) return { kind: 'hours', count: Math.round(ms / 3600000) };
+  const days = Math.round(
+    (Date.parse(kinshasaDayKey(date)) - Date.parse(kinshasaDayKey(current))) / (24 * 3600 * 1000),
+  );
+  if (days <= 0) return { kind: 'today' };
+  if (days === 1) return { kind: 'tomorrow' };
+  return days <= 30 ? { kind: 'days', count: days } : null;
+}
+
 /** Display helpers, always in Kinshasa time. `locale` is 'fr' | 'en'. */
 function intlLocale(locale) {
   return locale === 'en' ? 'en-GB' : 'fr-FR';

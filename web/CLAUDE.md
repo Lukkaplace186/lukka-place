@@ -3748,3 +3748,48 @@ Tests: `tests/unit/dashboard-click-breakdown.test.js`, `agent-directory.test.js`
   so any page title replaces it, and listing pages keep their own
   opengraph-image. No row exists until someone saves the form.
 
+
+## Engagement moments (2026-11-03)
+
+Six small rewards, each built on a fact we already record. Tests:
+`tests/unit/engagement-moments.test.js`.
+
+- **"92 % correspond à votre recherche"** under a card's price
+  (`components/SavedSearchMatchBadge.js`, rules `lib/savedSearchMatch.js`):
+  signed-in customers with a saved search only, after hydration. Purpose,
+  commune(s) and an exactly comparable type are gates (outside them: no
+  badge, never a low number); the score is `agentMatching.matchPercent`'s
+  budget plus bedrooms as a minimum; best saved search wins; shown from 70 %.
+  Saved queries are read directly (not through `lib/searchQuery.js`, which
+  would pull the map code into every card).
+- **Price drops on saved listings**: `lib/favoritePriceDrops.js` (cut = the
+  card badge's rule, `PRICE_DROP_LATERAL` in lib/listings.js; 1–50 %; made
+  AFTER the save; public, active). WhatsApp from the daily `search-alerts`
+  cron, first chunk only (`lib/favoritePriceDropSweep.js`): one message per
+  customer, ≤5 cuts, verified and not-opted-out numbers, recorded in
+  `customer_price_drop_notifications` (engine
+  `migrations/20261103_favorite_price_drop_notifications.sql`) only after the
+  send was accepted. Session message — the 24 h window applies. The
+  Enregistrés tab shows a green dot while a cut is newer than this device's
+  `lp_fav_seen` cookie (`lib/favoriteSeen.js`), cleared by opening the tab.
+- **"N nouveaux biens depuis votre dernière visite"** on /listings and
+  Accueil (`components/NewSinceLastVisit.js`, `lib/visitStamps.js`): a gap
+  of 30 min starts a new visit; both stamps in localStorage only;
+  `GET /api/listings/new-since?since=` counts through getListings with the
+  alert sweep's "published since", and the link opens exactly those ids.
+- **Confirmed visit card** (`visites/VisitCard.js`): countdown chip
+  (`visitAgenda.visitCountdown`, Kinshasa days), a shine across the green
+  band, the agent's face (`AgentMonogram`: their logo, else initials)
+  and a full-width "Ajouter à mon agenda".
+- **Agent firsts** (`components/AgentMilestoneCelebration.js`,
+  `lib/agentMilestones.js`, `lib/agentMilestoneRules.js`): first visitor
+  view, first WhatsApp tap, first visit request, first deal — confetti card on
+  the overview once per device, only when reached in the last 14 days, the
+  most important one when several are new.
+- **"Loué / Vendu via Lukka Place"** (`lib/marketing/soldShareKit.js`,
+  `components/SoldShareHost.js` in the agent layout): after
+  MarkListingSoldDialog succeeds, "Bravo !" then the listing's own card with
+  "Loué via Lukka Place" WHERE THE PRICE WAS — no price (the asking price
+  would read as the deal price; `sold_price` is the landlord's business) —
+  captions linking to the agent's page (the closed listing's page is gone).
+  Never stored offline, nothing recorded in `listing_shares`.

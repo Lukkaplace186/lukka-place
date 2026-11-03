@@ -1,10 +1,11 @@
 import Link from 'next/link';
 import { CalendarCheck, CalendarClock, CalendarPlus, CalendarX, History, Hourglass, Phone } from 'lucide-react';
 import SafeImage from '@/components/SafeImage';
+import AgentMonogram from '@/components/AgentMonogram';
 import { WhatsAppIcon } from '@/components/WhatsAppCTA';
 import { customerToAgentMessage } from '@/lib/customerAgenda';
 import { needsAgentRating, needsCheckin, proposalExpired, proposedSlotAt } from '@/lib/clientPortalView';
-import { formatVisitDay, formatVisitTime } from '@/lib/visitAgenda';
+import { formatVisitDay, formatVisitTime, visitCountdown } from '@/lib/visitAgenda';
 import { buildWhatsAppLink, getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { displayableAgencyName } from '@/lib/agentIdentity';
 import { listingImages, feedLocationLine } from '@/lib/listingView';
@@ -65,6 +66,28 @@ function bandFor(visit, { past, expired, locale, t, now }) {
 
 const BTN = 'u-press inline-flex min-h-11 items-center justify-center gap-2 rounded-[0.625rem] px-4 text-sm font-bold';
 
+/** "Demain", "Dans 3 h", "Dans 4 jours" — see lib/visitAgenda.js visitCountdown. */
+function countdownLabel(countdown, t) {
+  if (!countdown) return null;
+  return t(`account.agenda.countdown.${countdown.kind}`, countdown.count != null ? { count: countdown.count } : undefined);
+}
+
+/**
+ * The agent the customer is meeting: AgentMonogram, the one circular agent
+ * mark (their uploaded logo, else their initials). Only on a confirmed
+ * visit, where "who will I meet" is the next question.
+ */
+function AgentFace({ name, logoUrl, t }) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <AgentMonogram logoUrl={logoUrl} name={name} className="h-9 w-9 flex-none" textClassName="text-[0.8125rem]" />
+      <p className="min-w-0 truncate text-[0.8125rem] text-ink-70">
+        {t('account.agenda.meetWith')} <span className="font-bold text-ink">{name}</span>
+      </p>
+    </div>
+  );
+}
+
 /**
  * One visit, shared by Visites and Accueil's "Prochaine visite". A server
  * component: every action inside it is the existing client control
@@ -92,17 +115,26 @@ export default function VisitCard({ visit, t, locale, past = false, compact = fa
   const meta = listing
     ? [formatPrice(listing.price, listing.purpose, listing.price_period), agentName || feedLocationLine(listing)].filter(Boolean).join(' · ')
     : null;
+  // A confirmed visit with a real agreed time reads as an event: a countdown
+  // chip, a shine across the green band, the agent's face, one-tap calendar.
+  const celebrate = visit.tone === 'confirmed' && open && Boolean(visit.at);
+  const countdown = celebrate ? countdownLabel(visitCountdown(visit.at, now), t) : null;
   const checkin = needsCheckin(visit, now);
   const rating = needsAgentRating(visit);
 
   return (
     <article className="overflow-hidden rounded-card bg-surface shadow-[var(--hairline),var(--shadow-card)]">
-      <div className={cn('flex items-center gap-3 px-4 py-3.5', look.tone)}>
-        <BandIcon strokeWidth={ICON_STROKE_WIDTH} className={cn('h-6 w-6 flex-none', look.iconTone)} aria-hidden="true" />
-        <div className="min-w-0">
+      <div className={cn('flex items-center gap-3 px-4 py-3.5', look.tone, celebrate && 'u-shine')}>
+        <BandIcon strokeWidth={ICON_STROKE_WIDTH} className={cn('h-6 w-6 flex-none', look.iconTone, celebrate && 'u-pop')} aria-hidden="true" />
+        <div className="min-w-0 flex-1">
           <p className="u-tabular truncate text-base font-extrabold text-ink">{band.main}</p>
           <p className={cn('text-[0.78125rem] font-semibold', look.note)}>{band.note}</p>
         </div>
+        {countdown ? (
+          <span className="u-tabular shrink-0 rounded-full bg-success px-2.5 py-1 text-[0.75rem] font-extrabold text-white shadow-sm">
+            {countdown}
+          </span>
+        ) : null}
       </div>
 
       <div className="flex flex-col gap-3 px-4 pb-4 pt-3">
@@ -128,6 +160,7 @@ export default function VisitCard({ visit, t, locale, past = false, compact = fa
 
         {visit.tone === 'confirmed' && open ? (
           <>
+            {agentName ? <AgentFace name={agentName} logoUrl={listing?.agency_logo_url || null} t={t} /> : null}
             <div className="flex gap-2">
               {whatsappHref ? (
                 <a href={whatsappHref} target="_blank" rel="noopener noreferrer" className={cn(BTN, 'flex-1 bg-green-ink text-white')}>
@@ -141,17 +174,16 @@ export default function VisitCard({ visit, t, locale, past = false, compact = fa
                   {t('account.agenda.callShort')}
                 </a>
               ) : null}
-              {visit.at ? (
-                <a
-                  href={`/compte/client/visites/${visit.id}/agenda.ics`}
-                  aria-label={t('account.agenda.addToCalendar')}
-                  title={t('account.agenda.addToCalendar')}
-                  className={cn(BTN, 'w-11 flex-none px-0 text-ink shadow-[inset_0_0_0_1.5px_var(--ink-25)]')}
-                >
-                  <CalendarPlus strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" aria-hidden="true" />
-                </a>
-              ) : null}
             </div>
+            {visit.at ? (
+              <a
+                href={`/compte/client/visites/${visit.id}/agenda.ics`}
+                className={cn(BTN, 'w-full bg-blue-tint text-blue-deep')}
+              >
+                <CalendarPlus strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" aria-hidden="true" />
+                {t('account.agenda.addToCalendar')}
+              </a>
+            ) : null}
             {compact ? null : (
               <div className="-ml-2.5 flex">
                 <CustomerVisitActions viewingId={visit.id} status={visit.status} />

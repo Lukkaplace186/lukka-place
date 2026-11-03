@@ -393,6 +393,59 @@
   .u-heart-burst {
     display: none;
   }
+  /* A light sweeping once across a confirmed visit's green band (the
+     customer's visit card). Off under reduced motion: the band is plain. */
+  @keyframes u-shine {
+    from { translate: -100% 0; }
+    to { translate: 100% 0; }
+  }
+  .u-shine {
+    position: relative;
+    overflow: hidden;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .u-shine::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(110deg, transparent 30%, rgb(255 255 255 / 0.6) 50%, transparent 70%);
+      animation: u-shine 1.4s 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+  }
+  /* Confetti from one point (the agent's first-milestone card). Each <i>
+     flies out along --confetti-angle; `transform` on purpose, as in
+     .u-heart-burst (rotate-then-translate). Nothing under reduced motion. */
+  @keyframes u-confetti {
+    0% { opacity: 1; transform: rotate(var(--confetti-angle)) translateY(0) rotate(0deg); }
+    100% { opacity: 0; transform: rotate(var(--confetti-angle)) translateY(calc(-1 * var(--confetti-distance, 80px))) rotate(220deg); }
+  }
+  .u-confetti {
+    display: none;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .u-confetti {
+      display: block;
+    }
+    .u-confetti > i {
+      position: absolute;
+      width: 7px;
+      height: 11px;
+      margin: -5px 0 0 -3px;
+      border-radius: 2px;
+      animation: u-confetti 1.3s 0.15s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+  }
+  /* A soft ping behind a status dot (the Espace Client's "price dropped" dot
+     on Enregistrés). No animation under reduced motion: the dot stays. */
+  @keyframes u-dot-ping {
+    75%, 100% { transform: scale(2.2); opacity: 0; }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .u-dot-ping {
+      animation: u-dot-ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
+    }
+  }
   @media (prefers-reduced-motion: no-preference) {
     .u-heart-burst {
       display: block;

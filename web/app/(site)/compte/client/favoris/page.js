@@ -1,5 +1,9 @@
 import { Suspense } from 'react';
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
+import InboxSeenMarker from '@/components/InboxSeenMarker';
+import { countUnseenFavoritePriceDrops } from '@/lib/favoritePriceDrops';
+import { FAVORITES_SEEN_COOKIE, favoritesSeenAt, favoritesSeenStamp } from '@/lib/favoriteSeen';
 import { Heart } from 'lucide-react';
 import { PortalEmpty } from '@/components/ClientPortalUI';
 import { PortalBoardSkeleton } from '@/components/PortalSkeleton';
@@ -117,13 +121,24 @@ export default async function SavedPage({ searchParams }) {
   const params = await searchParams;
   const view = params?.tab === 'alertes' ? 'alertes' : 'favoris';
 
-  const [favoriteIds, savedSearches] = await Promise.all([
+  const cookieStore = await cookies();
+  const [favoriteIds, savedSearches, unseenPriceDrops] = await Promise.all([
     listFavoriteIds(customerId),
     listSavedSearches(customerId),
+    view === 'favoris'
+      ? countUnseenFavoritePriceDrops(customerId, favoritesSeenAt(cookieStore.get(FAVORITES_SEEN_COOKIE)?.value))
+      : 0,
   ]);
+  // Opening the saved listings clears the tab's price-drop dot (refreshing
+  // once, only when the dot was showing). The cards themselves keep their
+  // "Prix en baisse" badge for the cut's 14 days.
+  const renderedAt = favoritesSeenStamp();
 
   return (
     <div>
+      {view === 'favoris' ? (
+        <InboxSeenMarker cookieName={FAVORITES_SEEN_COOKIE} seenAt={renderedAt} badge={unseenPriceDrops} />
+      ) : null}
       <h1 className="u-title-page mb-4 text-ink sm:mb-6">{t('account.portal.nav.saved')}</h1>
       <SavedSubTabs
         view={view}

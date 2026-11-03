@@ -9,6 +9,8 @@ import {
 } from '@/lib/searchAlerts';
 import { sendWhatsAppTemplate, sendWhatsAppMessage } from '@/lib/adminApi';
 import { runAlertSweepChunk } from '@/lib/searchAlertSweep';
+import { getUnnotifiedFavoritePriceDrops, recordFavoritePriceDropsNotified } from '@/lib/favoritePriceDrops';
+import { runFavoritePriceDropSweep } from '@/lib/favoritePriceDropSweep';
 
 /**
  * Proactive WhatsApp alert sweep, ONE CHUNK per call — see
@@ -60,12 +62,38 @@ export async function POST(request) {
     await sendWhatsAppMessage(phone, text);
   }
 
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://lukkaplace.com';
+
+  // Price cuts on SAVED listings (lib/favoritePriceDropSweep.js) ride the same
+  // daily call, once: on the first chunk only. Its own failure (e.g. before
+  // migrations/20261103_favorite_price_drop_notifications.sql has run) is
+  // reported and never stops the saved-search alerts below.
+  let priceDrops = null;
+  if (!Number.isFinite(parsedCursor) || parsedCursor === 0) {
+    try {
+      priceDrops = await runFavoritePriceDropSweep({
+        siteUrl,
+        deps: {
+          getDrops: () => getUnnotifiedFavoritePriceDrops(),
+          send: (phone, text) => sendWhatsAppMessage(phone, text),
+          recordNotified: recordFavoritePriceDropsNotified,
+        },
+      });
+      for (const { customerId, error } of priceDrops.errors) {
+        console.error(`[search-alerts] price-drop message to customer #${customerId} failed: ${error}`);
+      }
+    } catch (err) {
+      console.error(`[search-alerts] price-drop sweep failed: ${err.message}`);
+      priceDrops = { error: err.message };
+    }
+  }
+
   const result = await runAlertSweepChunk({
     cursor: Number.isFinite(parsedCursor) ? parsedCursor : 0,
     // Absolute, because this goes into a WhatsApp message. Falls back to the
     // production origin rather than localhost: a localhost link in a
     // customer's WhatsApp is worse than no alert at all.
-    siteUrl: process.env.NEXT_PUBLIC_SITE_URL || 'https://lukkaplace.com',
+    siteUrl,
     deps: {
       getRecentListings: getRecentListingIds,
       getDueSearches: getSavedSearchesDueForAlerts,
@@ -82,5 +110,5 @@ export async function POST(request) {
   }
   for (const warning of result.warnings) console.warn(`[search-alerts] ${warning}`);
 
-  return NextResponse.json(result);
+  return NextResponse.json(priceDrops ? { ...result, priceDrops } : result);
 }

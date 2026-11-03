@@ -1,4 +1,5 @@
 import { Suspense } from 'react';
+import NewSinceLastVisit from '@/components/NewSinceLastVisit';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Bell, ChevronRight, Heart, Map as MapIcon, Search, ShieldCheck, Target } from 'lucide-react';
@@ -257,6 +258,9 @@ export default async function EspaceClientHome({ searchParams }) {
           <FounderLine customerId={customerId} />
         </Suspense>
       </div>
+
+      {/* "N nouveaux biens depuis votre dernière visite" (client-only). */}
+      <NewSinceLastVisit />
 
       <Suspense fallback={<InboxSkeleton />}>
         <InboxSection customerId={customerId} counts={counts} />

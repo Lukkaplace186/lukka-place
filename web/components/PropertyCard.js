@@ -16,6 +16,7 @@ import Price from './Price';
 import SpecItem, { SpecCell } from './SpecItem';
 import { useT } from '@/lib/i18n/client';
 import { CardBadges, AmenityTag } from './ListingBadges';
+import SavedSearchMatchBadge from './SavedSearchMatchBadge';
 import {
   listingImages, formatFreshness, specItems, typeLabel, feedLocationLine, matchedAmenities,
 } from '@/lib/listingView';
@@ -278,6 +279,11 @@ export default function PropertyCard({
             subtextClassName="ml-2 inline-block rounded-md bg-canvas-alt px-2 py-0.5 align-middle text-[0.75rem] font-normal leading-normal tracking-normal text-ink-45"
           />
         </div>
+
+        {/* "92 % correspond à votre recherche": signed-in customers with a
+            saved search only, and only when the listing is inside it
+            (lib/savedSearchMatch.js). Renders nothing for everyone else. */}
+        <SavedSearchMatchBadge listing={listing} className="-mt-1 self-start" />
 
         {/* ---------------- Zone 3: location, specs, agency ---------------- */}
         {/* The card's title, in everything but name — this app has no separate

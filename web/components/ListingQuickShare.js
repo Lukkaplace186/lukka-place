@@ -64,6 +64,10 @@ export default function ListingQuickShare({ listing, caption, open, onOpenChange
   const t = useT();
   const { showToast } = useToast();
   const team = audience === 'team';
+  // 'sold': the "Loué via Lukka Place" card, opened from MarkListingSoldDialog.
+  // Nothing is recorded in listing_shares (it counts shares of LIVE listings,
+  // and refuses a closed one anyway) and there is no text-only link.
+  const sold = audience === 'sold';
   const formats = team ? ['feed'] : FORMATS;
   // Mes biens' "Publier sur les réseaux sociaux" opens straight on the 4:5.
   const startFormat = formats.includes(initialFormat) ? initialFormat : formats[0];
@@ -121,6 +125,7 @@ export default function ListingQuickShare({ listing, caption, open, onOpenChange
   const canShareFile = Boolean(file && typeof navigator !== 'undefined' && navigator.canShare?.({ files: [file] }));
 
   const record = (channel, recordFormat) => {
+    if (sold) return;
     if (team) return;
     recordListingSharesAction({ listingIds: [listing.id], channel, format: recordFormat }).catch(() => {});
   };
@@ -223,9 +228,11 @@ export default function ListingQuickShare({ listing, caption, open, onOpenChange
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-h-[92dvh] gap-3 overflow-y-auto pb-[max(1rem,env(safe-area-inset-bottom))] sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>{feed ? t('agent.quickShare.titleFeed') : t('agent.quickShare.title')}</DialogTitle>
+          <DialogTitle>{sold ? t('agent.soldShare.title') : feed ? t('agent.quickShare.titleFeed') : t('agent.quickShare.title')}</DialogTitle>
           <DialogDescription>
-            {team ? t('agent.quickShare.descriptionTeam') : feed ? t('agent.quickShare.descriptionFeed') : t('agent.quickShare.description')}
+            {sold
+              ? t('agent.soldShare.description')
+              : team ? t('agent.quickShare.descriptionTeam') : feed ? t('agent.quickShare.descriptionFeed') : t('agent.quickShare.description')}
           </DialogDescription>
         </DialogHeader>
 
@@ -273,7 +280,7 @@ export default function ListingQuickShare({ listing, caption, open, onOpenChange
               {t('agent.quickShare.download')}
             </button>
           ))}
-          {feed ? (
+          {feed || sold ? (
             <div className={`grid gap-2 ${canShareFile ? 'grid-cols-2' : 'grid-cols-1'}`}>
               {canShareFile ? (
                 <button type="button" onClick={download} className={secondary}>

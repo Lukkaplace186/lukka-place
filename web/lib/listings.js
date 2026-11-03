@@ -193,14 +193,11 @@ export const PRICE_DROP_DAYS = 14;
  * published_at bound. Computed in SQL with the database clock so the server
  * HTML and the hydrated page always agree (see LISTING_TIME_ZONE).
  */
-const PRICE_DROP_FROM_EXPR = `(
-  SELECT CASE WHEN x.prev_price > x.price AND x.price = p.price
-               AND x.prev_currency IS NOT DISTINCT FROM x.currency
-               AND x.prev_purpose IS NOT DISTINCT FROM x.purpose
-               AND x.prev_period IS NOT DISTINCT FROM x.price_period
-              THEN x.prev_price END
-    FROM (
-      SELECT h.price, h.currency, h.purpose, h.price_period,
+// The listing's most recent price change and the price before it (one row,
+// or none). Shared by the card badge below and by PRICE_DROP_LATERAL, which
+// also needs the change's date.
+const LAST_PRICE_CHANGE_SQL = `
+      SELECT h.price, h.currency, h.purpose, h.price_period, h.changed_at,
              prev.price AS prev_price, prev.currency AS prev_currency,
              prev.purpose AS prev_purpose, prev.price_period AS prev_period
         FROM property_price_history h
@@ -216,9 +213,30 @@ const PRICE_DROP_FROM_EXPR = `(
          AND h.changed_at >= NOW() - interval '${PRICE_DROP_DAYS} days'
          AND h.changed_at > ${PUBLISHED_AT_EXPR}
        ORDER BY h.changed_at DESC, h.id DESC
-       LIMIT 1
-    ) x
+       LIMIT 1`;
+
+// That change counts as a cut: lower, same currency / purpose / period, and
+// the row still carries the reduced price.
+const IS_PRICE_CUT_SQL = `x.prev_price > x.price AND x.price = p.price
+               AND x.prev_currency IS NOT DISTINCT FROM x.currency
+               AND x.prev_purpose IS NOT DISTINCT FROM x.purpose
+               AND x.prev_period IS NOT DISTINCT FROM x.price_period`;
+
+const PRICE_DROP_FROM_EXPR = `(
+  SELECT CASE WHEN ${IS_PRICE_CUT_SQL} THEN x.prev_price END
+    FROM (${LAST_PRICE_CHANGE_SQL}) x
 )`;
+
+/**
+ * Same rule as PRICE_DROP_FROM_EXPR as a join for a query on `properties p`:
+ * `pd.price_drop_from` and `pd.price_drop_at` (when the cut was recorded),
+ * NULL when there is no current cut. Used by lib/favoritePriceDrops.js.
+ */
+export const PRICE_DROP_LATERAL = `LEFT JOIN LATERAL (
+  SELECT x.prev_price AS price_drop_from, x.changed_at AS price_drop_at
+    FROM (${LAST_PRICE_CHANGE_SQL}) x
+   WHERE ${IS_PRICE_CUT_SQL}
+) pd ON true`;
 
 const SELECT_FIELDS = `
   p.id, p.price, p.purpose, p.beds, p.bath, p.area, p.quartier,

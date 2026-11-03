@@ -1,4 +1,7 @@
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
+import { countUnseenFavoritePriceDrops } from '@/lib/favoritePriceDrops';
+import { FAVORITES_SEEN_COOKIE, favoritesSeenAt } from '@/lib/favoriteSeen';
 import { getPortalCustomer, getPortalCounts } from '@/lib/customerPortal';
 import { ToastProvider } from '@/components/Toast';
 import ClientPortalTabs from './ClientPortalTabs';
@@ -35,11 +38,17 @@ export default async function ClientPortalLayout({ children }) {
   if (!session) redirect('/compte/connexion?next=/compte/client');
 
   const { customerId } = session;
-  const counts = await getPortalCounts(customerId);
+  const cookieStore = await cookies();
+  const [counts, priceDrops] = await Promise.all([
+    getPortalCounts(customerId),
+    // The dot on Enregistrés: a saved listing got cheaper since this device
+    // last opened that tab. Never throws (0 on any failure).
+    countUnseenFavoritePriceDrops(customerId, favoritesSeenAt(cookieStore.get(FAVORITES_SEEN_COOKIE)?.value)),
+  ]);
   // Favoris+Alertes collapsed into one tab (ClientPortalTabs.js), so its nav
   // pill shows the combined total rather than picking just one of the two
   // real per-metric counts getPortalCounts() already returns.
-  const tabCounts = { ...counts, savedTotal: counts.favorites + counts.alerts };
+  const tabCounts = { ...counts, savedTotal: counts.favorites + counts.alerts, priceDrops };
 
   return (
     // Ground is canvas-warm, the portal's own fill. The greeting that sat

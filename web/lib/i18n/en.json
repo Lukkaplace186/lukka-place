@@ -933,6 +933,17 @@
         "gym": "Gym",
         "solar": "Solar panels"
       }
+    },
+    "match": {
+      "savedSearch": "{percent}% match with your search"
+    },
+    "newSince": {
+      "title": {
+        "one": "{count} new listing since your last visit",
+        "other": "{count} new listings since your last visit"
+      },
+      "cta": "View",
+      "dismiss": "Dismiss"
     }
   },
   "enquiry": {
@@ -2635,6 +2646,39 @@
       "nearMeUnavailable": "Your browser can’t share your location. Choose a commune.",
       "nearMeResult": "The communes nearest to you. Your position is not stored.",
       "communeOf": "{name} commune"
+    },
+    "milestones": {
+      "dismiss": "Close",
+      "firstView": {
+        "title": "🎉 Your Listing Has Its First View!",
+        "body": "Customers are discovering your properties on Lukka Place. More photos mean more views: complete your listings.",
+        "cta": "See my listings"
+      },
+      "firstTap": {
+        "title": "🎉 Your First Customer Message on WhatsApp!",
+        "body": "A visitor tapped WhatsApp on your listing. Reply fast: customers often pick the agent who answers first.",
+        "cta": "See my listings"
+      },
+      "firstVisit": {
+        "title": "🎉 Your First Viewing Request!",
+        "body": "Confirm the time in Requests: the customer receives it straight away.",
+        "cta": "Answer the request"
+      },
+      "firstDeal": {
+        "title": "🎉 Your First Deal on Lukka Place!",
+        "body": "Well done. A closed deal is the best advert there is: share it with your customers.",
+        "cta": "See my closed listings"
+      }
+    },
+    "soldShare": {
+      "title": "Share the Good News",
+      "description": "Your “via Lukka Place” card, without the price. The link leads to your agent page.",
+      "bravoLet": "Well Done, It’s Let!",
+      "bravoSold": "Well Done, It’s Sold!",
+      "bravoBody": "A closed deal is the best proof of your work. Show it to your customers.",
+      "shareLet": "Share “Let via Lukka Place”",
+      "shareSold": "Share “Sold via Lukka Place”",
+      "later": "Later"
     }
   },
   "status": {
@@ -2734,7 +2778,8 @@
         "visits": "Viewings",
         "requests": "Requests",
         "profile": "Profile",
-        "activity": "Activity"
+        "activity": "Activity",
+        "priceDropDot": "Price cut on a saved listing"
       }
     },
     "limits": {
@@ -3184,7 +3229,15 @@
         "done": "Thank you, your rating is saved.",
         "yours": "Your rating for the agent: {stars}/5",
         "failed": "Your rating could not be saved. Please try again in a few minutes."
-      }
+      },
+      "countdown": {
+        "minutes": "In {count} min",
+        "hours": "In {count} h",
+        "today": "Today",
+        "tomorrow": "Tomorrow",
+        "days": "In {count} days"
+      },
+      "meetWith": "Your visit with"
     },
     "home": {
       "metaTitle": "Home — Lukka Place Customer Area",

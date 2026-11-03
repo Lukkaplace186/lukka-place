@@ -23,6 +23,8 @@ import { getAgentProfileGaps } from '@/lib/completeness';
 import { AgentSectionSkeleton } from '@/components/RouteSkeletons';
 import AgentProjectsCard from '@/components/projects/AgentProjectsCard';
 import AgentReferralCard from '@/components/AgentReferralCard';
+import AgentMilestoneCelebration from '@/components/AgentMilestoneCelebration';
+import { getAgentMilestones } from '@/lib/agentMilestones';
 
 const RANGE_OPTIONS = Object.entries(VIEW_RANGES).map(([value, { label }]) => ({ value, label }));
 
@@ -84,6 +86,11 @@ export default async function AgentOverviewPage({ searchParams }) {
       <div className="flex flex-col gap-4 px-3 py-4 sm:gap-6 sm:px-8 sm:py-7">
         <AgentVisitReminderBanner visits={todo.todayVisits} listingById={listingById} />
 
+        {/* "🎉 Votre première demande de visite !" — once per first, only while recent. */}
+        <Suspense fallback={null}>
+          <OverviewMilestones agentId={agentId} propertyIds={propertyIds} />
+        </Suspense>
+
         <Suspense fallback={null}>
           <OverviewProfileGaps agent={agent} />
         </Suspense>
@@ -117,6 +124,11 @@ export default async function AgentOverviewPage({ searchParams }) {
       </div>
     </>
   );
+}
+
+async function OverviewMilestones({ agentId, propertyIds }) {
+  const milestones = await getAgentMilestones(propertyIds);
+  return milestones.length ? <AgentMilestoneCelebration agentId={agentId} milestones={milestones} /> : null;
 }
 
 async function OverviewCreateAction({ agentId }) {

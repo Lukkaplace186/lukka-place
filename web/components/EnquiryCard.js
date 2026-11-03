@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { Phone, CalendarClock } from 'lucide-react';
+import { Phone, CalendarClock, ChevronRight } from 'lucide-react';
 import { WhatsAppIcon } from './WhatsAppCTA';
 import FavoriteButton from './FavoriteButton';
 import { trackCallClick, trackLeadClick } from '@/lib/analyticsClient';
@@ -150,24 +150,44 @@ export default function EnquiryCard({ listing, visitSent, visitError, saveShare 
   const { href: whatsappHref, routingType } = resolveWhatsAppRouting(listing);
   const displayName = agentName || 'Lukka Place';
   const qualifier = agentName ? 'Agent partenaire' : 'Équipe Lukka Place';
+  // The logo and name open the agent's public profile — where people expect
+  // a tap on an agency's logo to go. Only for a real, named agent: the
+  // "Lukka Place" fallback has no profile to open.
+  const profileHref = agentName && listing.agent_id ? `/agents/${listing.agent_id}` : null;
 
   return (
     <div
       className="u-reveal u-lift flex flex-col gap-[1.125rem] rounded-card border border-line bg-surface p-6"
     >
-      <div className="flex items-center gap-3.5">
-        <AgentMonogram
-          logoUrl={agencyLogoUrl}
-          name={agentName}
-          className="h-[3.25rem] w-[3.25rem]"
-          textClassName="text-[1.125rem]"
-        />
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="truncate text-[0.875rem] font-bold text-ink">{displayName}</span>
-          <span className="text-[0.8125rem] text-ink-45">{qualifier}</span>
-          {agentName ? <AgentVerificationBadge level={listing.agent_verification_level} t={t} className="mt-1" /> : null}
-        </div>
-      </div>
+      {(() => {
+        const header = (
+          <>
+            <AgentMonogram
+              logoUrl={agencyLogoUrl}
+              name={agentName}
+              className="h-[3.25rem] w-[3.25rem]"
+              textClassName="text-[1.125rem]"
+            />
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className={`truncate text-[0.875rem] font-bold text-ink ${profileHref ? 'group-hover:underline group-hover:underline-offset-2' : ''}`}>{displayName}</span>
+              <span className="text-[0.8125rem] text-ink-45">{qualifier}</span>
+              {agentName ? <AgentVerificationBadge level={listing.agent_verification_level} t={t} className="mt-1" /> : null}
+            </div>
+          </>
+        );
+        return profileHref ? (
+          <Link
+            href={profileHref}
+            aria-label={`${displayName} — ${t('listings.detail.viewAgentProfile')}`}
+            className="u-press group -m-2 flex items-center gap-3.5 rounded-xl p-2 transition-colors hover:bg-canvas-alt"
+          >
+            {header}
+            <ChevronRight strokeWidth={ICON_STROKE_WIDTH} className="h-5 w-5 flex-none text-ink-45 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+          </Link>
+        ) : (
+          <div className="flex items-center gap-3.5">{header}</div>
+        );
+      })()}
 
       <div className="h-px bg-line" />
 

@@ -52,6 +52,7 @@ const chakra = require('./chakra');
 const { getPool, isConfigured } = require('./postgres');
 const salesReferral = require('./salesReferral');
 const { hasVisualMedia } = require('./listingMedia');
+const agentNumbers = require('./agentNumbers');
 
 const SITE_URL = (process.env.PUBLIC_SITE_URL || 'https://lukkaplace.com').replace(/\/+$/, '');
 
@@ -109,7 +110,10 @@ function normalisePhone(waId) {
  * greeting them by name cost one round trip between them rather than two.
  */
 async function findAgentByPhone(waId) {
-  if (!isConfigured()) return null;
+  // Read through the module at call time (as upsertAgentFromWhatsApp does) so
+  // §68's fake pool reaches the real lookup.
+  const postgres = require('./postgres');
+  if (!postgres.isConfigured()) return null;
   const digits = normalisePhone(waId);
   if (!digits) return null;
   // first_name lives in agent_infos, not agents — and is read as a correlated
@@ -117,13 +121,22 @@ async function findAgentByPhone(waId) {
   // constraint on (agent_id, language_id) (verified against the live schema,
   // see upsertAgentFromWhatsApp below), so a join could fan one agent out into
   // several rows and leave LIMIT 1 picking an arbitrary one.
-  const { rows } = await getPool().query(
+  //
+  // A number the team linked to an agent (services/agentNumbers.js) answers
+  // for that agent too. Order: a live account whose own phone it is, then a
+  // live account it is linked to, then anything — a soft-deleted owner still
+  // stops a second registration of its number. 2026-11-03: agent #50 sent
+  // from a number whose only owner was their own deleted first attempt (#49).
+  const pool = postgres.getPool();
+  const extra = await agentNumbers.extraNumbersAvailable(pool);
+  const { rows } = await pool.query(
     `SELECT id, username, phone, status, password_hash, phone_verified_at, agency_name,
             (SELECT ai.first_name FROM agent_infos ai
               WHERE ai.agent_id = agents.id AND ai.language_id = $2 AND ai.first_name IS NOT NULL
               LIMIT 1) AS first_name, deleted_at
      FROM agents
-     WHERE regexp_replace(phone, '\\D', '', 'g') = $1
+     WHERE ${agentNumbers.numberMatchSql('', '$1', extra)}
+     ${extra ? "ORDER BY (deleted_at IS NULL AND regexp_replace(phone, '\\D', '', 'g') = $1) DESC, (deleted_at IS NULL) DESC, id" : ''}
      LIMIT 1`,
     [digits, CONTENT_LANGUAGE_ID],
   );
@@ -153,7 +166,7 @@ async function findAgentByPhone(waId) {
  */
 async function identifySender(waId) {
   const unknown = { registered: false, agentId: null, firstName: null, agent: null };
-  if (!isConfigured()) return unknown;
+  if (!require('./postgres').isConfigured()) return unknown;
 
   try {
     const agent = await findAgentByPhone(waId);
@@ -161,7 +174,8 @@ async function identifySender(waId) {
 
     if (agent && !identity.registered) {
       console.log(
-        `[recognition] ${waId} matches agent #${agent.id}, but that number is unverified — no attribution`,
+        `[recognition] ${waId} matches agent #${agent.id}, but that account is ` +
+          `${agent.deleted_at ? 'deleted' : 'unverified'} — no attribution`,
       );
     }
 

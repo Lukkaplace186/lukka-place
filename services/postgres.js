@@ -46,6 +46,7 @@ const { uploadListingPhotos, uploadListingVideos } = require('./supabaseStorage'
 const { resolveCommune, resolveQuartier } = require('./locations');
 const { cityOfCommune, communeLabel, resolveCity, DEFAULT_CITY } = require('./cities');
 const { storeListingCoordinates, locationInputsChanged } = require('./geocoding');
+const agentNumbers = require('./agentNumbers');
 
 // The site's own "no photo" asset — used verbatim so a WhatsApp listing with
 // no successfully-downloaded image looks exactly like any other unphotographed
@@ -310,11 +311,16 @@ async function resolveAgentId(client, waId) {
   // claiming listings is a real, currently-reachable state, not a theoretical
   // one. Verification is the only signal we have that the holder of that
   // number actually asked for the account.
+  //
+  // A number the team linked to the agent (services/agentNumbers.js) counts
+  // too; the account whose own phone it is wins. The gates stay on the agent.
+  const extra = await agentNumbers.extraNumbersAvailable(client);
   const { rows } = await client.query(
     `SELECT id FROM agents
-     WHERE regexp_replace(phone, '\\D', '', 'g') = $1
+     WHERE ${agentNumbers.numberMatchSql('', '$1', extra)}
        AND phone_verified_at IS NOT NULL
        AND deleted_at IS NULL
+     ${extra ? `ORDER BY ${agentNumbers.ownNumberFirstSql('', '$1', true)}id` : ''}
      LIMIT 1`,
     [digitsOnly],
   );

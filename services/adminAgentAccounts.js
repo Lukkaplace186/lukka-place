@@ -50,8 +50,12 @@ const ERROR_STATUS = {
   'name-required': 400,
   'phone-taken': 409,
   'phone-verified-elsewhere': 409,
+  // Extra WhatsApp numbers (services/agentNumbers.js).
+  'phone-own': 409,
+  'phone-linked': 409,
   'not-found': 404,
   'postgres-unavailable': 503,
+  'numbers-unavailable': 503,
 };
 
 /**

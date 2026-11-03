@@ -836,6 +836,37 @@ signs up in person.
   nobody: the admin copies it or opens their own WhatsApp with it.
 - §66 of verify-pipeline.
 
+### An agent's other WhatsApp numbers (2026-11-03)
+
+`services/agentNumbers.js`, Postgres `agent_whatsapp_numbers`
+(`migrations/20261103_agent_whatsapp_numbers.sql`). Agent #50 (Ayang
+services) holds +243 974 585 309 but WhatsApps every listing from
++243 910 314 309, whose only `agents` row was their own deleted first attempt
+(#49, the name-fold bug of 2026-10-20). Attribution matched the sender against
+`agents.phone` alone, so 15 listings arrived unattributed and were assigned by
+hand.
+
+- **The team links the number** on the console's agent page ("Numéros
+  WhatsApp d'envoi", `agents.manage`, audited + timeline note) →
+  `POST/DELETE /admin/agents/:id/whatsapp-numbers` (requireApiKey). Like
+  admin-verify, nobody proves the number: the team vouches. Linking claims the
+  listings already filed under it (`claimListingsForNumber`); unlinking moves
+  nothing back.
+- **The three lookups accept it**: `identifySender` (greeting, attribution
+  stamp, no onboarding ask), `resolveAgentId` (publish-time `agent_id`, and
+  the claim), the WhatsApp quota. The account's own phone wins when both
+  match, and every gate (`phone_verified_at`, `deleted_at`) is still the
+  AGENT's. Not covered on purpose: the number is never public, never dialled
+  by a CTA and never sent alerts (`agents.phone` stays that), and button taps
+  are authorised against the number the alert went to.
+- **Refused**: the agent's own phone, any live agent's phone, ours, one
+  already linked (UNIQUE), a deleted agent. A number held only by a deleted
+  account is allowed — that was this case.
+- **Before the migration** nothing 42P01s: `extraNumbersAvailable` asks
+  `to_regclass` (a yes is cached for the process, a no for a minute) and the
+  old phone-only SQL runs; the console says the migration is missing.
+- §68 of verify-pipeline; `web/tests/unit/agent-whatsapp-numbers.test.js`.
+
 ### Plan listing limit on WhatsApp
 
 `services/listingQuota.js`, called in `routes/webhook.js`'s draft-confirmation

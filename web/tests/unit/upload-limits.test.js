@@ -49,6 +49,16 @@ test('the transport ceiling carries the whole advertised photo budget', () => {
   );
 });
 
+/**
+ * middleware.js matches /compte/* and /admin/*, and the proxy buffers a
+ * request body up to its own ceiling (10 MB unset) before the Server Action
+ * reads it. A body over that ceiling arrived truncated and failed as
+ * "Unexpected end of form" — production, 2026-11-03.
+ */
+test('the proxy carries the same body the Server Action accepts', () => {
+  assert.equal(nextConfig.experimental?.proxyClientMaxBodySize, SERVER_ACTION_BODY_SIZE_LIMIT_BYTES);
+});
+
 test('a single photo can never on its own exceed the total budget', () => {
   assert.ok(MAX_LISTING_PHOTO_BYTES <= MAX_UPLOAD_TOTAL_BYTES,
     'otherwise one accepted photo would be refused by the total, which is unexplainable to an agent');

@@ -24,6 +24,14 @@ const nextConfig = {
     serverActions: {
       bodySizeLimit: SERVER_ACTION_BODY_SIZE_LIMIT_BYTES,
     },
+    // middleware.js runs on /compte/* and /admin/*, so every Server Action
+    // posted there passes through the proxy first, and the proxy buffers the
+    // body up to its OWN ceiling — 10 MB by default. A larger body was cut
+    // at 10 MB and the action then failed to parse it ("Request body
+    // exceeded 10MB for /compte/agent/biens" followed by "Unexpected end of
+    // form", seven times on 2026-11-03), while the photo budget above
+    // promised 40 MB. Same constant, so the two ceilings cannot disagree.
+    proxyClientMaxBodySize: SERVER_ACTION_BODY_SIZE_LIMIT_BYTES,
     // Keep a page the visitor just saw in the in-memory router cache for 30s
     // (Next 15+ defaults this to 0). Every route here is dynamic (the locale
     // cookie), so without it going Vue → Demandes → Vue on the agent tab bar

@@ -167,9 +167,14 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
   const bioLong = (agent.bio || '').length > BIO_CLAMP_CHARS;
 
   return (
-    <div className="overflow-x-clip pb-10">
-      {/* Header: white, the agency's logo centred, then who and where. */}
-      <div className="mx-auto max-w-[40rem] px-5 pt-4">
+    // The page sits on the cool mist ground (canvas-deep) with a faint brand
+    // blue wash at the top, not stark white (owner's direction, 2026-11-04);
+    // the agency's details and every listing are white cards on it.
+    <div className="relative overflow-x-clip bg-canvas-deep pb-10">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-blue-tint to-transparent" />
+      <div className="relative mx-auto max-w-[40rem] px-4 pt-4">
+        {/* Header card: the agency's logo centred, then who and where. */}
+        <div className="rounded-2xl border border-line/70 bg-surface px-5 pb-5 pt-3 shadow-sm">
         <div className="flex justify-end">
           <button
             type="button"
@@ -253,11 +258,13 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
               type="button"
               onClick={() => setCommunesOpen((v) => !v)}
               aria-expanded={communesOpen}
-              className="inline-flex items-center gap-1 text-[0.8125rem] text-ink-70"
+              className="text-left text-[0.8125rem] leading-relaxed text-ink-70"
             >
-              <span className="font-semibold text-ink">{labels.communesLabel}</span>
-              <span className="font-semibold text-blue-deep">{communesSummary}</span>
-              {communesOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+              <span className="font-semibold text-ink">{labels.communesLabel}</span>{' '}
+              <span className="font-semibold text-blue-deep">{communesSummary}</span>{' '}
+              {communesOpen
+                ? <ChevronUp className="inline-block h-3.5 w-3.5 align-[-0.15em]" />
+                : <ChevronDown className="inline-block h-3.5 w-3.5 align-[-0.15em]" />}
             </button>
             {communesOpen ? (
               <div className="mt-2 rounded-[10px] bg-canvas-alt px-3 py-2.5 text-[0.8125rem] leading-relaxed text-ink-70">
@@ -267,7 +274,9 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
           </div>
         ) : null}
 
-        <div className="mt-6 flex rounded-full bg-canvas-alt p-1 ring-1 ring-inset ring-line/60" role="tablist">
+        </div>
+
+        <div className="mt-5 flex rounded-full bg-blue-tint p-1 ring-1 ring-inset ring-blue/10" role="tablist">
           {tabs.map((entry) => {
             const active = entry.key === current.key;
             return (
@@ -278,7 +287,7 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
                 aria-selected={active}
                 onClick={() => pickTab(entry.key)}
                 className={`h-10 flex-1 rounded-full text-sm font-bold transition-colors ${
-                  active ? 'bg-surface text-ink shadow-sm' : 'text-ink-45'
+                  active ? 'bg-surface text-ink shadow-sm' : 'text-ink-70'
                 }`}
               >
                 {entry.label} ({entry.items.length})
@@ -288,7 +297,7 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
         </div>
       </div>
 
-      <div className="mx-auto max-w-[40rem]">
+      <div className="relative mx-auto max-w-[40rem]">
         {items.length ? (
           <>
             <div className="flex items-center justify-between px-5 pb-3 pt-5">

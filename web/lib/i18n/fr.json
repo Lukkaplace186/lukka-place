@@ -311,7 +311,11 @@
       "question": "Combien coûte un {beds} chambres à {commune} ?",
       "perMonth": "/ mois",
       "answer": "Loyer médian demandé : {median} $ par mois, sur {n} annonces.",
-      "sources": "Dont {lukka} sur Lukka Place et {market} relevées ailleurs.",
+      "sources": {
+        "one": "Dont {lukka} sur Lukka Place et {count} relevée ailleurs.",
+        "other": "Dont {lukka} sur Lukka Place et {count} relevées ailleurs."
+      },
+      "sourcesMarketOnly": "Toutes relevées ailleurs : aucune n’est encore publiée sur Lukka Place.",
       "sourcesLukkaOnly": "Toutes publiées sur Lukka Place.",
       "sourceList": "Relevées sur : {list}.",
       "cardCount": "{n} annonces",
@@ -319,7 +323,10 @@
       "sourceOther": "autre source",
       "range": "La moitié des annonces se situe entre {p25} $ et {p75} $.",
       "method": "Prix demandés (pas les prix conclus), location longue durée, hors meublés, loyers annuels ramenés au mois. Les annonces relevées ailleurs datent de moins d'un an et étaient encore en ligne ces 60 derniers jours ; une même annonce vue sur plusieurs sites n'est comptée qu'une fois. Aucune n'est reproduite ici.",
-      "see": "Voir les {n} annonces sur Lukka Place",
+      "see": {
+        "one": "Voir l’annonce sur Lukka Place",
+        "other": "Voir les {count} annonces sur Lukka Place"
+      },
       "questionOne": "Combien coûte un 1 chambre à {commune} ?"
     },
     "videos": {

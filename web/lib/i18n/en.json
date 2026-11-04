@@ -311,7 +311,11 @@
       "question": "How Much Is a {beds}-Bedroom Rental in {commune}?",
       "perMonth": "/ month",
       "answer": "Median asking rent: ${median} a month, over {n} listings.",
-      "sources": "Of which {lukka} on Lukka Place and {market} seen elsewhere.",
+      "sources": {
+        "one": "Of which {lukka} on Lukka Place and {count} seen elsewhere.",
+        "other": "Of which {lukka} on Lukka Place and {count} seen elsewhere."
+      },
+      "sourcesMarketOnly": "All seen elsewhere: none is published on Lukka Place yet.",
       "sourcesLukkaOnly": "All published on Lukka Place.",
       "sourceList": "Seen on: {list}.",
       "cardCount": "{n} listings",
@@ -319,7 +323,10 @@
       "sourceOther": "another source",
       "range": "Half the listings sit between ${p25} and ${p75}.",
       "method": "Asking prices (not closing prices), long-term rentals, furnished homes left out, yearly rents brought to a month. Listings seen elsewhere are under a year old and were still online in the last 60 days; one listing seen on several sites is counted once. None is reproduced here.",
-      "see": "See the {n} listings on Lukka Place",
+      "see": {
+        "one": "See the listing on Lukka Place",
+        "other": "See the {count} listings on Lukka Place"
+      },
       "questionOne": "How Much Is a 1-Bedroom Rental in {commune}?"
     },
     "videos": {

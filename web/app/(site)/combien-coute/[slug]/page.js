@@ -57,9 +57,11 @@ export default async function PriceGuidePage({ params }) {
       <p className="u-body mt-2 text-ink-70">{t('home.prices.answer', { median: frNumber(guide.median), n: guide.listings })}</p>
       <p className="u-body mt-2 text-ink-70">{t('home.prices.range', { p25: frNumber(guide.p25), p75: frNumber(guide.p75) })}</p>
       <p className="u-body mt-2 text-ink-70">
-        {market > 0
-          ? t('home.prices.sources', { lukka: guide.lukkaListings, market })
-          : t('home.prices.sourcesLukkaOnly')}
+        {market === 0
+          ? t('home.prices.sourcesLukkaOnly')
+          : guide.lukkaListings === 0
+            ? t('home.prices.sourcesMarketOnly')
+            : t('home.prices.sources', { lukka: guide.lukkaListings, count: market })}
         {sourceList ? ` ${t('home.prices.sourceList', { list: sourceList })}` : ''}
       </p>
       <p className="u-micro mt-4 text-ink-45">{t('home.prices.method')}</p>
@@ -68,7 +70,7 @@ export default async function PriceGuidePage({ params }) {
             advert seen elsewhere — so the button counts those. */}
         {guide.lukkaListings > 0 ? (
           <Link href={searchHref} className="u-btn-primary u-press inline-flex h-11 items-center rounded-lg bg-blue px-5 text-sm font-bold text-white">
-            {t('home.prices.see', { n: guide.lukkaListings })}
+            {t('home.prices.see', { count: guide.lukkaListings })}
           </Link>
         ) : null}
         <ShareOnWhatsAppButton url={`${SITE_URL}/combien-coute/${guide.slug}`} message={`${question} ${frNumber(guide.median)} $ / mois — Lukka Place`} />

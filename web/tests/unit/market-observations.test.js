@@ -158,3 +158,18 @@ test('entering and excluding observations is a permission of its own', () => {
   assert.equal((actions.match(/requireAdmin\('market\.manage'\)/g) || []).length, 3);
   assert.match(actions, /recordAudit/);
 });
+
+test('the guide page counts in the singular when there is one (no "Voir les 1 annonces")', async () => {
+  const { createTranslator } = await import('@/lib/i18n/translate');
+  const read = (lang) => JSON.parse(readFileSync(path.join(process.cwd(), `lib/i18n/${lang}.json`), 'utf8'));
+  const fr = createTranslator({ locale: 'fr', messages: read('fr') });
+  const en = createTranslator({ locale: 'en', messages: read('en') });
+  assert.equal(fr('home.prices.see', { count: 1 }), 'Voir l’annonce sur Lukka Place');
+  assert.equal(fr('home.prices.see', { count: 20 }), 'Voir les 20 annonces sur Lukka Place');
+  assert.equal(en('home.prices.see', { count: 1 }), 'See the listing on Lukka Place');
+  assert.equal(fr('home.prices.sources', { lukka: 5, count: 1 }), 'Dont 5 sur Lukka Place et 1 relevée ailleurs.');
+  assert.equal(fr('home.prices.sources', { lukka: 20, count: 115 }), 'Dont 20 sur Lukka Place et 115 relevées ailleurs.');
+  const page = readFileSync(path.join(process.cwd(), 'app/(site)/combien-coute/[slug]/page.js'), 'utf8');
+  assert.match(page, /t\('home\.prices\.see', \{ count: guide\.lukkaListings \}\)/);
+  assert.match(page, /sourcesMarketOnly/, 'no "Dont 0 sur Lukka Place"');
+});

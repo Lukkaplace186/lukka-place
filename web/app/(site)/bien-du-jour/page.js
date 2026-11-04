@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import PropertyCard from '@/components/PropertyCard';
 import ShareOnWhatsAppButton from '@/components/ShareOnWhatsAppButton';
 import { getT } from '@/lib/i18n/server';
@@ -14,7 +15,13 @@ export const dynamic = 'force-dynamic';
  * ./opengraph-image.js. The 4:5 post for social media is the
  * team's "Carte réseaux sociaux" on /admin/listings/<id>.
  */
+// Switched off on 2026-11-04 (owner): no plan for how the listing is chosen.
+// Flip to true to bring the page back (and re-add it to app/sitemap.js and
+// components/HomeDiscovery.js).
+const LISTING_OF_THE_DAY_ENABLED = false;
+
 export async function generateMetadata() {
+  if (!LISTING_OF_THE_DAY_ENABLED) return { robots: { index: false } };
   const t = await getT();
   // The preview image is ./opengraph-image.js (today's listing card).
   return {
@@ -25,6 +32,7 @@ export async function generateMetadata() {
 }
 
 export default async function ListingOfTheDayPage() {
+  if (!LISTING_OF_THE_DAY_ENABLED) notFound();
   const t = await getT();
   const daily = await getListingOfTheDay();
   return (

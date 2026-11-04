@@ -1,24 +1,27 @@
 import Link from 'next/link';
-import { ChevronRight, Film, LineChart, Sparkles, Tag } from 'lucide-react';
-import PropertyCard from '@/components/PropertyCard';
+import { Film, LineChart, Tag } from 'lucide-react';
 import SafeImage from '@/components/SafeImage';
 import { getT } from '@/lib/i18n/server';
 import { listingImages } from '@/lib/listingView';
-import { getCollectionTiles, getListingOfTheDay, getPriceGuides, getVideoListings, getLukkaIndex } from '@/lib/browseFeatures';
+import { getCollectionTiles, getPriceGuides, getVideoListings, getLukkaIndex } from '@/lib/browseFeatures';
 import { memo } from '@/lib/memo';
 
 /**
  * Reasons to browse when nobody is looking for a place yet (growth plan items
- * 27–31), on the homepage: the listing of the day, the themed collections,
+ * 28–31), on the homepage: the themed collections,
  * and links to the price guides, the video feed and the Lukka Index — each
  * shown only when it has something real behind it. One 60-second in-process
  * copy (lib/memo.js), like the homepage's other counts: these are a handful
  * of aggregate reads, not search results.
+ *
+ * "Bien du jour" (item 27) was removed from here on 2026-11-04, owner's call:
+ * an unweighted daily draw with no plan behind it. /bien-du-jour answers 404
+ * and is out of the sitemap; lib/browseFeatures.js getListingOfTheDay and the
+ * /admin/croissance pick are kept for when it comes back.
  */
 export default async function HomeDiscovery() {
   const t = await getT();
-  const [daily, tiles, guides, videos, index] = await memo('home-discovery', 60_000, () => Promise.all([
-    getListingOfTheDay(),
+  const [tiles, guides, videos, index] = await memo('home-discovery', 60_000, () => Promise.all([
     getCollectionTiles(),
     getPriceGuides(),
     getVideoListings({ limit: 3 }),
@@ -31,31 +34,11 @@ export default async function HomeDiscovery() {
     index?.communes?.length ? { href: '/indice-lukka', icon: LineChart, label: t('home.discovery.index'), hint: t('home.discovery.indexHint') } : null,
   ].filter(Boolean);
 
-  if (!daily && !tiles.length && !links.length) return null;
+  if (!tiles.length && !links.length) return null;
 
   return (
     <section className="bg-canvas pb-8 pt-2 sm:pb-12">
       <div className="mx-auto flex max-w-[1600px] flex-col gap-8 px-4 sm:px-6 lg:px-8">
-        {daily ? (
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:items-center">
-            <div>
-              <p className="u-eyebrow inline-flex items-center gap-1.5 text-blue-deep">
-                <Sparkles strokeWidth={1.75} className="h-4 w-4" aria-hidden="true" />
-                {t('home.daily.eyebrow')}
-              </p>
-              <h2 className="u-title-storefront mt-1 text-ink">{t('home.daily.title')}</h2>
-              <p className="u-body mt-2 text-ink-70">{t('home.daily.lead')}</p>
-              <Link href="/bien-du-jour" className="u-micro-strong mt-3 inline-flex items-center gap-1 text-blue-deep hover:underline">
-                {t('home.daily.share')}
-                <ChevronRight strokeWidth={1.75} className="h-4 w-4" aria-hidden="true" />
-              </Link>
-            </div>
-            <div className="max-w-md">
-              <PropertyCard listing={daily.listing} />
-            </div>
-          </div>
-        ) : null}
-
         {tiles.length ? (
           <div>
             <h2 className="u-title-storefront mb-4 text-ink">{t('home.collections.title')}</h2>

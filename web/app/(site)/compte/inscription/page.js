@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Check } from 'lucide-react';
 import { signupAction } from './actions';
 import SignupForm from './SignupForm';
 import { getRequestCountry } from '@/lib/requestCountry';
@@ -37,7 +38,18 @@ export default async function CustomerSignupPage({ searchParams }) {
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm rounded-card border border-line bg-surface p-6 u-lift sm:p-8">
         <h1 className="u-title-section text-ink">{t('common.actions.signup')}</h1>
-        <p className="mt-1 text-sm text-ink-45">
+        {/* What the account is for — three things it already does: the daily
+            search-alerts sweep, account favourites, and the price-drop
+            WhatsApp on saved listings (lib/favoritePriceDrops.js). */}
+        <ul className="mt-3 flex flex-col gap-2">
+          {['alerts', 'favorites', 'priceDrops'].map((key) => (
+            <li key={key} className="flex items-start gap-2 text-[0.875rem] leading-snug text-ink">
+              <Check strokeWidth={2.5} aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-green-deep" />
+              {t(`auth.signupBenefits.${key}`)}
+            </li>
+          ))}
+        </ul>
+        <p className="mt-3 text-sm text-ink-45">
           {t('auth.signupKeepsLocal')}
         </p>
 

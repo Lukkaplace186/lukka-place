@@ -1,6 +1,7 @@
 'use client';
 
 import { getImageProps } from 'next/image';
+import Link from 'next/link';
 import SearchBar from './SearchBar';
 import heroSunlit from '../Hero/hero-sunlit.jpg';
 import { useT } from '@/lib/i18n/client';
@@ -78,7 +79,7 @@ function HeroPicture({ src, alt, blur = false }) {
   );
 }
 
-export default function Hero({ propertyTypes = [], communes = [], initialCount = null, image = null }) {
+export default function Hero({ propertyTypes = [], communes = [], initialCount = null, image = null, weeklyNew = 0 }) {
   const t = useT();
 
   return (
@@ -132,6 +133,23 @@ export default function Hero({ propertyTypes = [], communes = [], initialCount =
             <p style={{ '--u-delay': '90ms' }} className="u-lift-in mt-3 max-w-md text-sm font-bold text-white [text-shadow:0_1px_3px_rgb(0_0_0_/_0.8),0_4px_16px_rgb(0_0_0_/_0.6)] sm:text-base md:max-w-lg">
               {t('home.hero.subtitle')}
             </p>
+
+            {/* The site is alive: listings that went public in the last 7
+                days (lib/listings.js countListingsPublishedSince), only from
+                1 — never a padded or rounded-up number. */}
+            {weeklyNew > 0 ? (
+              <Link
+                href="/listings"
+                style={{ '--u-delay': '140ms' }}
+                className="u-lift-in u-press mt-3 inline-flex min-h-8 items-center gap-2 rounded-full bg-ink/70 px-3 text-[0.8125rem] font-semibold text-white backdrop-blur-sm sm:mt-4 sm:min-h-9 sm:text-[0.875rem]"
+              >
+                <span aria-hidden="true" className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green opacity-60 motion-reduce:hidden" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-green" />
+                </span>
+                {t('home.hero.weeklyNew', { count: weeklyNew })}
+              </Link>
+            ) : null}
           </div>
         </div>
       </section>

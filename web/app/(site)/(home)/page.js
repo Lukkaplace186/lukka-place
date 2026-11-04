@@ -7,7 +7,8 @@ import PropertyTypeTiles from '@/components/PropertyTypeTiles';
 import RecentlyViewed from '@/components/RecentlyViewed';
 import NewProjectsStrip from '@/components/projects/NewProjectsStrip';
 import HomeDiscovery from '@/components/HomeDiscovery';
-import { cachedListingsTotal, cachedPopularCommunes, cachedPropertyTypeFacets } from '@/lib/listingsCached';
+import HomeAlertBand from '@/components/HomeAlertBand';
+import { cachedListingsTotal, cachedPopularCommunes, cachedPropertyTypeFacets, cachedWeeklyNewCount } from '@/lib/listingsCached';
 import { getSavedHomeSection } from '@/lib/savedHome';
 import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB } from '@/lib/constants';
 import JsonLd from '@/components/seo/JsonLd';
@@ -91,6 +92,14 @@ import { organizationSchema, websiteSchema } from '@/lib/seoSchema';
  * this route was already dynamic for the locale cookie alone (see
  * lib/i18n/config.js).
  *
+ * **Landing pass (2026-11-04).** On a phone the search card folds Ville,
+ * Type and Budget behind "Plus de critères" (SearchBar.js), so "Voir N
+ * biens" and the first listing photos come up the screen; the hero carries
+ * "N nouveaux biens en 7 jours" (a real count, nothing at 0); and
+ * HomeAlertBand, after the listings, says what an account is for (a WhatsApp
+ * alert on commune + budget, signup keeping the search) beside the
+ * no-account "Trouver pour moi". web/CLAUDE.md, "Landing pass".
+ *
  * CommuneShortcuts is no longer rendered here. It was a row of commune
  * pills sitting immediately under the search panel; the panel now carries
  * that row itself, where a tap FILLS the search field instead of navigating
@@ -105,23 +114,27 @@ export async function generateMetadata() {
 }
 
 export default async function HomePage() {
-  const [propertyTypes, communes, { total }, saved, heroImage] = await Promise.all([
+  const [propertyTypes, communes, { total }, saved, heroImage, weeklyNew] = await Promise.all([
     // 60-second copies (lib/listingsCached.js): counts and facets, not results.
     cachedPropertyTypeFacets(),
     cachedPopularCommunes(8),
     cachedListingsTotal(HERO_TRANSACTION_BY_TAB[HERO_DEFAULT_TAB]),
     getSavedHomeSection(),
     getHeroSettings(),
+    // "N nouveaux biens cette semaine" on the hero; a failed count shows nothing.
+    cachedWeeklyNewCount().catch(() => 0),
   ]);
 
   return (
     <>
       {/* Who Lukka Place is and the sitelinks search box — lib/seoSchema.js. */}
       <JsonLd data={{ '@context': 'https://schema.org', '@graph': [organizationSchema(), websiteSchema()] }} />
-      <Hero propertyTypes={propertyTypes} communes={communes} initialCount={total} image={heroImage} />
+      <Hero propertyTypes={propertyTypes} communes={communes} initialCount={total} image={heroImage} weeklyNew={weeklyNew} />
       {/* Returning visitors pick up where they left off; renders nothing on a first visit. */}
       <RecentlyViewed />
       {saved ? <SavedListings listings={saved.listings} firstName={saved.firstName} /> : <FeaturedListings />}
+      {/* Why an account is worth having (an alert) and the no-account request. */}
+      <HomeAlertBand />
       <NewProjectsStrip />
       {/* Bien du jour, collections, prices, videos, the Lukka Index — only what has data behind it. */}
       <HomeDiscovery />

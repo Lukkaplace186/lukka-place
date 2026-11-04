@@ -31,6 +31,8 @@ import { listingVideos } from '@/lib/listingVideos';
 import ListingSectionNav from '@/components/listings/ListingSectionNav';
 import ProjectUnitStrip from '@/components/projects/ProjectUnitStrip';
 import JsonLd from '@/components/seo/JsonLd';
+import { similarAlertQuery, transactionTypeOfPurpose } from '@/lib/similarSearch';
+import SimilarAlertButton from '@/components/SimilarAlertButton';
 import { communeHref, listingJsonLd, listingMetaDescription, listingMetaTitle } from '@/lib/listingSeo';
 
 // generateMetadata and the page both read the listing; per-request dedupe so
@@ -201,14 +203,20 @@ export default async function ListingDetailPage({ params, searchParams }) {
   let relatedMode = 'similar';
   let widened = false;
 
+  // The fallbacks keep rent with rent and sale with sale, like the
+  // similarity rail (lib/similarSearch.js).
+  const transactionType = transactionTypeOfPurpose(listing.purpose);
+  // "M'alerter des biens similaires" — null when the listing states too
+  // little to search on (lib/similarSearch.js).
+  const alertQuery = similarAlertQuery(listing);
   if (related.length === 0) {
     relatedMode = 'commune';
     if (listing.commune) {
-      const { data } = await getListings({ commune: listing.commune, excludeId: listing.id, limit: 6 });
+      const { data } = await getListings({ commune: listing.commune, transactionType, excludeId: listing.id, limit: 6 });
       related = data;
     }
     if (related.length === 0) {
-      const { data } = await getListings({ excludeId: listing.id, limit: 6 });
+      const { data } = await getListings({ transactionType, excludeId: listing.id, limit: 6 });
       related = data;
       widened = Boolean(listing.commune);
     }
@@ -396,6 +404,7 @@ export default async function ListingDetailPage({ params, searchParams }) {
               <EnquiryCard listing={listing} visitSent={visitSent} visitError={visitError} saveShare={false} />
               <AgentProfileLink agentId={listing.agent_id} />
               <PricePanel listing={listing} />
+              <SimilarAlertButton query={alertQuery} />
             </div>
 
             {/* Key features first, description under it — see
@@ -423,12 +432,19 @@ export default async function ListingDetailPage({ params, searchParams }) {
             <EnquiryCard listing={listing} visitSent={visitSent} visitError={visitError} placement="listing_desktop" />
             <AgentProfileLink agentId={listing.agent_id} />
             <PricePanel listing={listing} />
+            <SimilarAlertButton query={alertQuery} />
           </aside>
         </div>
       </div>
 
       <div className="mt-16">
-        <RelatedListings listings={related} commune={listing.commune} widened={widened} mode={relatedMode} />
+        <RelatedListings
+          listings={related}
+          commune={listing.commune}
+          widened={widened}
+          mode={relatedMode}
+          footer={<SimilarAlertButton query={alertQuery} variant="inline" />}
+        />
       </div>
 
       <RecentlyViewed excludeId={listing.id} />

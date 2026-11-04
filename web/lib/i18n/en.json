@@ -173,7 +173,11 @@
     "hero": {
       "title": "Apartments. Villas. Plots. Agencies.",
       "subtitle": "Across the DRC: Kinshasa, Lubumbashi, Goma, Bukavu, Kisangani and more. Reviewed listings, stated prices and direct contact on WhatsApp.",
-      "photoCredit": "Photo by kaysha on Unsplash"
+      "photoCredit": "Photo by kaysha on Unsplash",
+      "weeklyNew": {
+        "one": "{count} new property in 7 days",
+        "other": "{count} new properties in 7 days"
+      }
     },
     "search": {
       "rent": "Rent",
@@ -219,7 +223,9 @@
       "budgetLabel": "Budget",
       "seeForSale": "See properties for sale",
       "seeShortStays": "See available stays",
-      "shortHint": "Homes let by the night or by the week."
+      "shortHint": "Homes let by the night or by the week.",
+      "moreCriteria": "More filters",
+      "fewerCriteria": "Fewer filters"
     },
     "value": {
       "verifiedTitle": "Reviewed Listings",
@@ -325,6 +331,21 @@
       "change": "Over a month",
       "download": "Download the image",
       "method": "Asking prices, every type together; a change is only computed when the month before also had at least {n} listings."
+    },
+    "alertBand": {
+      "heading": "Never Miss the Right Property",
+      "alertTitle": "WhatsApp Alert",
+      "alertLead": "Be told on WhatsApp when a new property matches. Free, with an account.",
+      "commune": "Commune",
+      "communePlaceholder": "Choose a commune",
+      "withListings": "With listings",
+      "otherCommunes": "Other communes",
+      "budget": "Maximum budget",
+      "button": "Create my alert",
+      "pickCommune": "Choose a commune to create the alert.",
+      "requestTitle": "Find It for Me",
+      "requestLead": "No account needed: describe what you are looking for and we pass your request to the commune's agencies.",
+      "requestButton": "Describe my search"
     }
   },
   "about": {
@@ -777,7 +798,8 @@
       "created": "Alert created",
       "createForSearch": "Create an Alert for This Search",
       "short": "Alert",
-      "shortOn": "Alert on"
+      "shortOn": "Alert on",
+      "createdSee": "Alert created — see properties"
     },
     "authPrompt": {
       "save": "Log in or create an account to save this search",
@@ -991,6 +1013,12 @@
         "send": "The request could not be sent. Please try again in a moment."
       },
       "jump": "Or tell us what you need: we pass it on to agencies ↓"
+    },
+    "similarAlert": {
+      "title": "Not Quite Right?",
+      "lead": "Get new properties like this one on WhatsApp.",
+      "button": "Alert me about similar properties",
+      "inlineLead": "Nothing quite right? Be told when a similar property is listed."
     }
   },
   "enquiry": {
@@ -6845,6 +6873,11 @@
         "invalid": "This link is no longer valid. Send \"Inscription Lukka Place\" on WhatsApp again.",
         "mismatch": "The two passwords do not match."
       }
+    },
+    "signupBenefits": {
+      "alerts": "A WhatsApp alert when a new property matches your search",
+      "favorites": "Your saved properties on every device",
+      "priceDrops": "A message when a saved property's price drops"
     }
   },
   "updates": {

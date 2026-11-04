@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, SlidersHorizontal } from 'lucide-react';
 import LocationAutocomplete from './LocationAutocomplete';
 import { HERO_DEFAULT_TAB, HERO_TRANSACTION_BY_TAB, ICON_STROKE_WIDTH } from '@/lib/constants';
 import { parseSearchQuery } from '@/lib/searchParser';
@@ -74,7 +74,7 @@ const HOME_TABS = [
  * Built per language: the words AND the thousands separator differ
  * ("Min 1 500 $" vs "Min $1,500"). Memoised at the call site.
  */
-function budgetLabels(t) {
+export function budgetLabels(t) {
   const format = (amount) => (t.locale === 'en' ? amount.toLocaleString('en-GB') : frNumber(amount));
   const labels = {
     minAny: t('home.search.budgetMinAny'),
@@ -132,6 +132,11 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
   // input itself; this is the copy the quick-pill tint and the live count
   // read, kept in step through its `onValueChange`/`setQuery` pair.
   const [location, setLocation] = useState('');
+  // Phones only: Ville, Type and Budget fold behind "Plus de critères" so
+  // the button and the first listings reach the first screen (2026-11-04:
+  // the full card pushed "Voir N biens" to 835px on a 812px phone and the
+  // first listing photo to ~1,066px). From `sm` up every field shows.
+  const [moreOpen, setMoreOpen] = useState(false);
   const locationRef = useRef(null);
 
   const transactionType = HERO_TRANSACTION_BY_TAB[homeTab] || '';
@@ -288,6 +293,10 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
   // total never shows under Acheter), or when nothing matches, the tab's own
   // call to action stands in; a zero-result search says it will show
   // suggestions when there are some.
+  // Criteria set in the folded fields, so a closed fold never hides a choice.
+  const foldedActive = [ville !== DEFAULT_CITY, Boolean(propertyType), Boolean(budgetMin), Boolean(budgetMax)].filter(Boolean).length;
+  const folded = moreOpen ? '' : 'max-sm:hidden';
+
   let ctaLabel;
   if (count === 0 && suggested > 0) ctaLabel = t('home.search.seeSuggestions', { count: suggested });
   else if (count != null && count > 0) ctaLabel = t('home.search.seeCount', { count });
@@ -303,7 +312,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
         aria-label={t('home.search.transactionType')}
         // Widths follow the labels (flex-auto), not three equal columns:
         // "Courte durée" does not fit a third of a 375px card.
-        className="mb-5 flex w-full gap-1 rounded-2xl bg-canvas-alt p-1 sm:inline-flex sm:w-auto"
+        className="mb-4 flex w-full gap-1 rounded-2xl bg-canvas-alt p-1 sm:mb-5 sm:inline-flex sm:w-auto"
       >
         {HOME_TABS.map(({ value, labelKey }) => {
           const on = homeTab === value;
@@ -346,7 +355,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
 
       {/* --- 2. Labelled fields ------------------------------------------ */}
       <div className={`grid grid-cols-2 gap-x-3 gap-y-4 ${isShortStay ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]' : 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1.5fr)]'}`}>
-        <div className="col-span-2 min-w-0 lg:col-span-1">
+        <div className={`col-span-2 min-w-0 lg:col-span-1 ${folded}`}>
           <label htmlFor="hero-city" className={FIELD_LABEL}>
             {t('home.search.city')}
           </label>
@@ -397,7 +406,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
           <>
             {/* Full width on a phone: the budget below needs both columns
                 for its Min | Max pair. */}
-            <div className="col-span-2 min-w-0 lg:col-span-1">
+            <div className={`col-span-2 min-w-0 lg:col-span-1 ${folded}`}>
               <label htmlFor="hero-type" className={FIELD_LABEL}>
                 {t('home.search.propertyType')}
               </label>
@@ -434,7 +443,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
               </div>
             </div>
 
-            <div role="group" aria-labelledby="hero-budget-label" className="col-span-2 min-w-0 lg:col-span-1">
+            <div role="group" aria-labelledby="hero-budget-label" className={`col-span-2 min-w-0 lg:col-span-1 ${folded}`}>
               <span id="hero-budget-label" className={FIELD_LABEL}>
                 {t('home.search.budgetLabel')}
               </span>
@@ -477,6 +486,23 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
         )}
       </div>
 
+      {/* Phones only (see `moreOpen`). */}
+      <button
+        type="button"
+        aria-expanded={moreOpen}
+        aria-controls="hero-city hero-type hero-budget-min hero-budget-max"
+        onClick={() => setMoreOpen((open) => !open)}
+        className="u-press mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg px-1 text-[0.9375rem] font-semibold text-blue-deep sm:hidden"
+      >
+        <SlidersHorizontal strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className="h-4 w-4" />
+        {moreOpen ? t('home.search.fewerCriteria') : t('home.search.moreCriteria')}
+        {!moreOpen && foldedActive > 0 ? (
+          <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-blue-deep px-1.5 text-[0.75rem] font-bold text-white">
+            {foldedActive}
+          </span>
+        ) : null}
+      </button>
+
       {understood.length > 0 ? (
         <p className="u-reveal mt-3 flex flex-wrap items-center gap-1.5 text-[0.75rem] text-ink-45" aria-live="polite">
           {t('home.search.understood')}
@@ -492,7 +518,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
       <button
         type="button"
         onClick={submit}
-        className="u-press u-btn-primary mt-5 inline-flex h-14 w-full items-center justify-center rounded-xl bg-blue-deep px-6 text-[1.0625rem] font-bold text-white"
+        className="u-press u-btn-primary mt-3 inline-flex h-14 w-full sm:mt-5 items-center justify-center rounded-xl bg-blue-deep px-6 text-[1.0625rem] font-bold text-white"
       >
         {/* Always mounted, so the live region exists before its text does —
             a region that appears at the same moment as its content is not
@@ -504,7 +530,7 @@ export default function SearchBar({ propertyTypes = [], communes = [], initialCo
 
       {/* --- 4. Quick pills ------------------------------------------------ */}
       {communes.length > 0 ? (
-        <div className="mt-5">
+        <div className="mt-4 sm:mt-5">
           <span id="hero-quick-communes" className="u-eyebrow mb-2 block">
             {t('home.search.popularCommunes')}
           </span>

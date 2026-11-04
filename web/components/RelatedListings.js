@@ -29,7 +29,7 @@ import { getT } from '@/lib/i18n/server';
 // briefly called useT() without a 'use client' directive, which is a
 // request-time "t is not defined"/client-reference throw rather than a build
 // error — /listings/[id] is dynamic, so `next build` never executes it.
-export default async function RelatedListings({ listings, commune, widened = false, mode = 'commune' }) {
+export default async function RelatedListings({ listings, commune, widened = false, mode = 'commune', footer = null }) {
   const t = await getT();
   if (!listings || listings.length === 0) return null;
 
@@ -63,6 +63,8 @@ export default async function RelatedListings({ listings, commune, widened = fal
             </div>
           ))}
         </div>
+        {/* The listing page's "M'alerter des biens similaires" (SimilarAlertButton). */}
+        {footer}
       </div>
     </section>
   );

@@ -11,6 +11,7 @@ import { COMMERCIAL_FILTER_VALUE } from './commercialSpaces';
 import { VIDEOS_SQL } from './listingVideos';
 import { longTermSql, normaliseLeaseTerm, shortTermSql } from './leaseTerm';
 import { DETAILS_SQL, PLOT_M2_SQL, plotBounds } from './listingDetails';
+import { SIMILAR_PRICE_HIGH, SIMILAR_PRICE_LOW } from './similarSearch';
 
 /**
  * Every read against `properties` filters on this — no exceptions. There is
@@ -1252,6 +1253,26 @@ export async function countLiveListings() {
 }
 
 /**
+ * How many listings went public in the last `days` days, nationwide — the
+ * homepage's "N nouveaux biens cette semaine" (components/Hero.js). Published
+ * means what the "Nouveau" badge and the alert sweep mean: the later of
+ * creation and approval, under the public gate. A count, never padded.
+ *
+ * @param {number} [days=7]
+ * @returns {Promise<number>}
+ */
+export async function countListingsPublishedSince(days = 7) {
+  const span = Math.min(Math.max(Number.parseInt(days, 10) || 7, 1), 90);
+  const pool = getPool();
+  const { rows } = await pool.query(
+    `SELECT COUNT(*) AS n FROM properties p
+      WHERE ${APPROVED_FILTER} AND ${PUBLISHED_AT_EXPR} >= NOW() - make_interval(days => $1)`,
+    [span],
+  );
+  return Number.parseInt(rows[0]?.n ?? 0, 10) || 0;
+}
+
+/**
  * Approved listings that became public since `since`, newest first — the only
  * candidates the saved-search alert sweep considers (lib/searchAlertSweep.js).
  *
@@ -1785,14 +1806,25 @@ export async function getSimilarListings(id, limit = 6) {
   const numericId = Number.parseInt(id, 10);
   if (!Number.isFinite(numericId)) return [];
 
+  // Same rent / sale, same rent period, price within the band of
+  // lib/similarSearch.js — text similarity ranks only what passes those.
+  // Before, an $800 / month flat showed a $1,000,000 building for sale
+  // (listing 653). A listing with no price keeps the purpose rule only.
   const pool = getPool();
   const { rows } = await pool.query(
-    `SELECT ${SELECT_FIELDS} ${FROM_JOINS}
+    `WITH src AS (SELECT embedding, purpose, price, price_period FROM properties WHERE id = $1)
+     SELECT ${SELECT_FIELDS} ${FROM_JOINS}
+     CROSS JOIN src
      WHERE ${APPROVED_FILTER} AND p.id <> $1 AND p.embedding IS NOT NULL
-       AND (SELECT embedding FROM properties WHERE id = $1) IS NOT NULL
-     ORDER BY p.embedding <=> (SELECT embedding FROM properties WHERE id = $1)
+       AND src.embedding IS NOT NULL
+       AND p.purpose IS NOT DISTINCT FROM src.purpose
+       AND (src.purpose IS DISTINCT FROM 'rent'
+            OR COALESCE(NULLIF(p.price_period, ''), 'mois') = COALESCE(NULLIF(src.price_period, ''), 'mois'))
+       AND (COALESCE(src.price, 0) <= 0
+            OR p.price BETWEEN src.price * $3 AND src.price * $4)
+     ORDER BY p.embedding <=> src.embedding
      LIMIT $2`,
-    [numericId, limit],
+    [numericId, limit, SIMILAR_PRICE_LOW, SIMILAR_PRICE_HIGH],
   );
   return rows;
 }

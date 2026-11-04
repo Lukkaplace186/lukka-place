@@ -1,6 +1,7 @@
 import 'server-only';
 import { memo } from './memo';
 import {
+  countListingsPublishedSince,
   countLiveListings,
   getCommuneShowcase,
   getListings,
@@ -51,3 +52,6 @@ export const cachedFeaturedListings = () =>
 
 /** Landing-page link graph, footer and sitemap: counts only, a minute old at most. */
 export const cachedSeoFacets = () => memo('seo-facets', TTL_MS, () => getSeoFacets());
+
+/** The homepage's "N nouveaux biens cette semaine" (components/Hero.js). */
+export const cachedWeeklyNewCount = () => memo('weekly-new', TTL_MS, () => countListingsPublishedSince(7));

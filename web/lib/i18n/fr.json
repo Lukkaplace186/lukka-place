@@ -173,7 +173,11 @@
     "hero": {
       "title": "Appartements. Villas. Terrains. Agences.",
       "subtitle": "Partout en RDC : Kinshasa, Lubumbashi, Goma, Bukavu, Kisangani et plus. Annonces relues, prix affichés et contact direct sur WhatsApp.",
-      "photoCredit": "Photo par kaysha sur Unsplash"
+      "photoCredit": "Photo par kaysha sur Unsplash",
+      "weeklyNew": {
+        "one": "{count} nouveau bien en 7 jours",
+        "other": "{count} nouveaux biens en 7 jours"
+      }
     },
     "search": {
       "rent": "Louer",
@@ -219,7 +223,9 @@
       "budgetLabel": "Budget",
       "seeForSale": "Voir les biens à vendre",
       "seeShortStays": "Voir les logements disponibles",
-      "shortHint": "Logements loués à la nuit ou à la semaine."
+      "shortHint": "Logements loués à la nuit ou à la semaine.",
+      "moreCriteria": "Plus de critères",
+      "fewerCriteria": "Moins de critères"
     },
     "value": {
       "verifiedTitle": "Annonces relues",
@@ -325,6 +331,21 @@
       "change": "Sur un mois",
       "download": "Télécharger l'image",
       "method": "Prix demandés, toutes catégories confondues ; une évolution n’est calculée que si le mois précédent comptait aussi au moins {n} annonces."
+    },
+    "alertBand": {
+      "heading": "Ne ratez plus le bon bien",
+      "alertTitle": "Alerte WhatsApp",
+      "alertLead": "Soyez prévenu sur WhatsApp quand un nouveau bien correspond. Gratuit, avec un compte.",
+      "commune": "Commune",
+      "communePlaceholder": "Choisir une commune",
+      "withListings": "Avec des annonces",
+      "otherCommunes": "Autres communes",
+      "budget": "Budget maximum",
+      "button": "Créer mon alerte",
+      "pickCommune": "Choisissez une commune pour créer l'alerte.",
+      "requestTitle": "Trouver pour moi",
+      "requestLead": "Pas besoin de compte : décrivez ce que vous cherchez, nous transmettons votre demande aux agences de la commune.",
+      "requestButton": "Décrire ma recherche"
     }
   },
   "about": {
@@ -777,7 +798,8 @@
       "created": "Alerte créée",
       "createForSearch": "Créer une alerte pour cette recherche",
       "short": "Alerte",
-      "shortOn": "Alerte active"
+      "shortOn": "Alerte active",
+      "createdSee": "Alerte créée — voir les biens"
     },
     "authPrompt": {
       "save": "Se connecter ou créer un compte pour enregistrer la recherche",
@@ -991,6 +1013,12 @@
         "send": "La demande n’a pas pu être envoyée. Réessayez dans un instant."
       },
       "jump": "Ou décrivez ce que vous cherchez : nous transmettons aux agences ↓"
+    },
+    "similarAlert": {
+      "title": "Pas tout à fait ça ?",
+      "lead": "Recevez sur WhatsApp les nouveaux biens qui ressemblent à celui-ci.",
+      "button": "M'alerter des biens similaires",
+      "inlineLead": "Rien qui vous convienne ? Soyez prévenu quand un bien similaire est publié."
     }
   },
   "enquiry": {
@@ -6845,6 +6873,11 @@
         "invalid": "Ce lien n’est plus valable. Envoyez à nouveau « Inscription Lukka Place » sur WhatsApp.",
         "mismatch": "Les deux mots de passe ne correspondent pas."
       }
+    },
+    "signupBenefits": {
+      "alerts": "Une alerte WhatsApp quand un nouveau bien correspond à votre recherche",
+      "favorites": "Vos favoris sur tous vos appareils",
+      "priceDrops": "Un message quand le prix d'un bien enregistré baisse"
     }
   },
   "updates": {

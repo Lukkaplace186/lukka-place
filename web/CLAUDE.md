@@ -3952,3 +3952,38 @@ Tests: `tests/unit/conversion-features.test.js`.
   accounts; the request above is the no-account way to be told), and
   Click-to-WhatsApp ads (an ads setting; the buyer assistant answers
   `buyer_request` messages but has never handled live traffic).
+
+## Landing pass: folded phone search, alerts from the homepage and the listing (2026-11-04)
+
+From a 375×812 walk of the live site: "Voir N biens" ended at 835px, the first
+listing photo at ~1,066px, and nothing on the homepage said what an account
+is for. Tests: `tests/unit/landing-conversion.test.js`.
+
+- **Phone search card** (`SearchBar.js`): Ville, Type and Budget fold behind
+  "Plus de critères" below `sm` (`max-sm:hidden`), with a count of criteria
+  set in the fold; from `sm` every field shows as before.
+- **"N nouveaux biens en 7 jours"** on the hero (`countListingsPublishedSince`,
+  public gate, published = the "Nouveau" badge's rule; 60 s cache
+  `cachedWeeklyNewCount`). Nationwide, nothing at 0, never rounded up.
+- **HomeAlertBand** after the listings: a WhatsApp alert on Louer/Acheter +
+  a Kinshasa commune (those with listings first, real counts) + an optional
+  maximum budget (`lib/homeAlert.js`), and a link to /trouver-pour-moi.
+- **QueryAlertButton** saves a given /listings query from any page: signed in
+  → SearchAlertConfirmModal then `saveSearch` (href `/listings?query`, the
+  same record as saving from /listings); a guest → AuthPromptModal with
+  `next=/listings?query&lkp_auth_return=alert`, which SaveSearchButton's pill
+  (always mounted on /listings) resumes once the session is real.
+- **"M'alerter des biens similaires"** on the listing page
+  (`SimilarAlertButton`, beside the contact card and under the similar rail):
+  `lib/similarSearch.js` `similarAlertQuery` — same rent/sale, commune, type
+  (lowercased category name), bedrooms as a floor, price 70–130 % (none for a
+  yearly rent; a daily/weekly one is `lease_term=short`). Nothing when the
+  listing states no commune, type, bedrooms or price.
+- **"Biens similaires" fix**: `getSimilarListings` ranked by embedding alone,
+  so an $800/month flat showed a $1,000,000 building for sale (listing 653).
+  It now keeps the purpose, the rent period and the same 70–130 % band; the
+  commune and citywide fallbacks keep the purpose.
+- **Signup page** lists what the account does (alerts, favourites on every
+  device, price drops on saved listings) above "Vos favoris… seront conservés".
+- **SignupNudge on /listings** docks above the phone's Carte | Trier | Alerte
+  pill (lower-right from `lg`): under the header it covered the search box.

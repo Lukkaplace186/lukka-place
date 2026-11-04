@@ -29,10 +29,11 @@ function alreadyShown() {
 /**
  * "Créez un compte pour être prévenu des nouveaux biens" (growth plan item
  * 24), at the moments lib/signupNudgeRules.js names. A slim card fixed under
- * the header — not at the bottom, where a phone already carries the visit
- * cart, the map pills or a listing's contact bar — so it never stacks on
- * them. Once per tab session; nothing for a signed-in visitor. The link
- * carries `next` back to the page.
+ * the header — except on /listings, where the top is the search box and
+ * filters, so it docks above the Carte | Trier | Alerte pill instead (see
+ * `position` below). The map and a listing's page, whose bottoms are taken,
+ * never show it. Once per tab session; nothing for a signed-in visitor. The
+ * link carries `next` back to the page.
  *
  * The listing page itself is quiet (its contact bar), so "a third listing
  * opened" shows on the next page that allows it.
@@ -73,9 +74,18 @@ export default function SignupNudge() {
 
   if (!reason) return null;
   const next = encodeURIComponent(pathname || '/');
+  // On /listings the top of the screen IS the search box and filters, which
+  // this card covered on an empty search (2026-11-04). There it docks at the
+  // bottom instead: above the phone's Carte | Trier | Alerte pill
+  // (FloatingControlBar, bottom-6), and in the lower-right corner from lg,
+  // where that pill does not exist. Elsewhere it stays under the header.
+  const onResults = String(pathname || '').startsWith('/listings');
+  const position = onResults
+    ? 'inset-x-3 bottom-[5.5rem] mx-auto max-w-xl lg:inset-x-auto lg:bottom-6 lg:right-6 lg:max-w-sm'
+    : 'inset-x-3 top-[4.5rem] mx-auto max-w-xl';
 
   return (
-    <div className="fixed inset-x-3 top-[4.5rem] z-[55] mx-auto flex max-w-xl items-start gap-3 rounded-card border border-line bg-surface p-3 shadow-lg" role="status">
+    <div className={`fixed z-[55] flex items-start gap-3 rounded-card border border-line bg-surface p-3 shadow-lg ${position}`} role="status">
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-tint text-blue-deep">
         <Bell strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" aria-hidden="true" />
       </span>

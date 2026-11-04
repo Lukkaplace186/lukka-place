@@ -2,30 +2,50 @@
  * Which price guides the homepage's market section shows (HomeMarketBand,
  * 2026-11-04). Pure, so the choice is tested without a database.
  *
- * Up to `max` communes, those with the most compared listings first, keeping
- * only bedroom counts 1–4 and only communes with at least two of them — one
- * bar is not a comparison. Every figure is a published guide passed through
- * unchanged (same MIN_PRICE_SAMPLE floor as /combien-coute); nothing is
- * averaged, interpolated or filled in.
+ * Every commune with at least one published guide for 1–4 bedrooms, those
+ * with the most compared listings first, up to `max`. A commune with a
+ * single bedroom count shows one bar — still a real median. Every figure is
+ * a published guide passed through unchanged (same MIN_PRICE_SAMPLE floor as
+ * /combien-coute); nothing is averaged, interpolated or filled in.
  *
- * @param {{commune: string, beds: number, median: number, listings: number, slug: string}[]} guides
+ * Each row also carries what the guide page itself shows: the middle half of
+ * the asking rents (p25–p75) and how many of the compared listings are
+ * public on Lukka Place.
+ *
+ * @param {{commune: string, beds: number, median: number, p25: number, p75: number, listings: number, lukkaListings: number, slug: string}[]} guides
  */
-export function marketCommunes(guides, { max = 4, label = (commune) => commune } = {}) {
+export function marketCommunes(guides, { max = 12, label = (commune) => commune } = {}) {
   const byCommune = new Map();
   for (const guide of guides || []) {
     if (!(guide.beds >= 1 && guide.beds <= 4)) continue;
     const entry = byCommune.get(guide.commune) || { commune: guide.commune, total: 0, rows: [] };
     entry.total += guide.listings;
-    entry.rows.push({ beds: guide.beds, median: guide.median, listings: guide.listings, slug: guide.slug });
+    entry.rows.push({
+      beds: guide.beds,
+      median: guide.median,
+      p25: guide.p25 ?? null,
+      p75: guide.p75 ?? null,
+      listings: guide.listings,
+      lukkaListings: guide.lukkaListings ?? 0,
+      slug: guide.slug,
+    });
     byCommune.set(guide.commune, entry);
   }
   return [...byCommune.values()]
-    .filter((entry) => entry.rows.length >= 2)
-    .sort((a, b) => b.total - a.total)
+    .sort((a, b) => b.total - a.total || a.commune.localeCompare(b.commune, 'fr'))
     .slice(0, max)
     .map((entry) => ({
       commune: entry.commune,
       label: label(entry.commune),
       rows: entry.rows.sort((a, b) => a.beds - b.beds),
     }));
+}
+
+/**
+ * /listings for a guide's commune and bedroom count — the same search the
+ * guide page's own button opens. /listings filters on a minimum bedroom
+ * count only, so the link carries no count of its own.
+ */
+export function guideSearchHref(commune, beds) {
+  return `/listings?transaction_type=location&commune=${encodeURIComponent(commune)}&beds_min=${beds}&lease_term=long`;
 }

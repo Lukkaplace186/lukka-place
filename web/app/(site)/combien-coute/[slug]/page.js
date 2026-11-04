@@ -7,6 +7,7 @@ import { communeLabel } from '@/lib/cities';
 import { SITE_URL } from '@/lib/constants';
 import { getPriceGuide, priceQuestion } from '@/lib/browseFeatures';
 import { SOURCE_NAMES } from '@/lib/marketObservationRules';
+import { guideSearchHref } from '@/lib/homeMarket';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,7 +38,8 @@ export default async function PriceGuidePage({ params }) {
   const t = await getT();
   const commune = communeLabel(guide.commune);
   const question = priceQuestion(t, { beds: guide.beds, commune });
-  const searchHref = `/listings?transaction_type=location&commune=${encodeURIComponent(guide.commune)}&beds_min=${guide.beds}&lease_term=long`;
+  // The homepage's market band opens the same search (lib/homeMarket.js).
+  const searchHref = guideSearchHref(guide.commune, guide.beds);
   const market = Math.max(0, guide.listings - guide.lukkaListings);
   // Per-source counts are before de-duplication, so they are named, not summed.
   const sourceList = Object.entries(guide.sources || {})

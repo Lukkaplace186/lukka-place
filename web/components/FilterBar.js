@@ -651,16 +651,17 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
             "Équipements & conditions"); they still ride in `amenities`.
             Hidden once the bar condenses on scroll, and on a sale search. */}
         {!condensed && showLeaseTerm ? (
-          <div className="mt-2">
+          <div className="mt-2 grid grid-cols-[minmax(0,1fr)_8rem] gap-2 lg:block">
             {/* Durée du bail first: longue durée is the standard, courte durée
                 is a room or flat let by the day / week (lib/leaseTerm.js).
                 Tapping the selected one clears it. */}
             {showLeaseTerm ? (
-              <div className="grid grid-cols-[minmax(0,1fr)_8rem] gap-2 lg:flex" role="group" aria-label={t('listings.leaseTerm.label')}>
-                {/* Phone: the same columns as the row above — Longue durée
-                    under the search box, Courte durée under Filtres (both
-                    w-32 = 8rem), same gap-2 — so the edges line up
-                    (2026-11-04, owner). */}
+              <div className="grid grid-cols-2 gap-2 lg:flex" role="group" aria-label={t('listings.leaseTerm.label')}>
+                {/* Phone: both chips side by side in the search box's column
+                    (the outer grid repeats the row above: 1fr + Filtres' 8rem),
+                    so the space under Filtres stays empty (2026-11-04, owner).
+                    Compact text-xs, no icon below lg, so "Courte durée" fits
+                    half of a 360px phone's search column. */}
                 {LEASE_TERM_OPTIONS.filter((o) => o.value).map((option) => {
                   const on = leaseTerm === option.value;
                   const Icon = LEASE_ICONS[option.value];
@@ -671,11 +672,11 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
                       aria-pressed={on}
                       onClick={() => apply(setLeaseTerm)(on ? '' : option.value)}
                       className={cn(
-                        'u-press inline-flex min-h-10 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 text-[0.8125rem] font-semibold transition-colors lg:min-h-9 lg:shrink-0 lg:px-3',
+                        'u-press inline-flex min-h-9 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-1.5 text-xs font-semibold transition-colors lg:shrink-0 lg:px-3 lg:py-0 lg:text-[0.8125rem]',
                         on ? 'border-blue bg-blue-tint text-blue-deep' : 'border-line bg-surface text-ink-70 hover:border-ink-25',
                       )}
                     >
-                      <Icon strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" aria-hidden="true" />
+                      <Icon strokeWidth={ICON_STROKE_WIDTH} className="hidden h-3.5 w-3.5 lg:block" aria-hidden="true" />
                       {t(option.labelKey)}
                     </button>
                   );

@@ -484,7 +484,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
           <button
             type="button"
             onClick={() => setFilterModalOpen(true)}
-            className={`u-press inline-flex h-12 shrink-0 items-center gap-2 whitespace-nowrap rounded-xl border-[1.5px] px-3.5 text-[0.9375rem] font-semibold transition-colors lg:hidden ${
+            className={`u-press inline-flex h-12 w-32 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-xl border-[1.5px] px-3 text-[0.9375rem] font-semibold transition-colors lg:hidden ${
               mobileFilterCount > 0
                 ? 'border-blue bg-blue-tint text-blue-deep'
                 : 'border-ink-35 bg-surface text-ink'
@@ -654,7 +654,11 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
                 is a room or flat let by the day / week (lib/leaseTerm.js).
                 Tapping the selected one clears it. */}
             {showLeaseTerm ? (
-              <div className="grid grid-cols-2 gap-2 lg:flex" role="group" aria-label={t('listings.leaseTerm.label')}>
+              <div className="grid grid-cols-[minmax(0,1fr)_8rem] gap-2 lg:flex" role="group" aria-label={t('listings.leaseTerm.label')}>
+                {/* Phone: the same columns as the row above — Longue durée
+                    under the search box, Courte durée under Filtres (both
+                    w-32 = 8rem), same gap-2 — so the edges line up
+                    (2026-11-04, owner). */}
                 {LEASE_TERM_OPTIONS.filter((o) => o.value).map((option) => {
                   const on = leaseTerm === option.value;
                   const Icon = LEASE_ICONS[option.value];
@@ -665,7 +669,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
                       aria-pressed={on}
                       onClick={() => apply(setLeaseTerm)(on ? '' : option.value)}
                       className={cn(
-                        'u-press inline-flex min-h-10 items-center justify-center gap-1.5 rounded-full border px-3 text-[0.8125rem] font-semibold transition-colors lg:min-h-9 lg:shrink-0',
+                        'u-press inline-flex min-h-10 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 text-[0.8125rem] font-semibold transition-colors lg:min-h-9 lg:shrink-0 lg:px-3',
                         on ? 'border-blue bg-blue-tint text-blue-deep' : 'border-line bg-surface text-ink-70 hover:border-ink-25',
                       )}
                     >

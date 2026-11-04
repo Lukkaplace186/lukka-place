@@ -2236,3 +2236,8 @@ All four are on the INTAKE account, French, set in the engine `.env`:
   lead id), else the text. A listing enquiry now records its lead before the
   alert so the button has an id. The profile enquiry's desk warning only fires
   when the alert still went as text outside the window. §73.
+- **All four were approved with a PICTURE header** — a send without it is
+  #132012. `TEMPLATES_WITH_IMAGE` (comma list, read at call time) names them,
+  and `chakra.sendTemplate` adds `TEMPLATE_HEADER_IMAGE` (else
+  `VIEWING_REQUEST_TEMPLATE_IMAGE`) to any listed template whose caller passed
+  no image, so every caller is covered. Live-tested 2026-11-04 to the desk.

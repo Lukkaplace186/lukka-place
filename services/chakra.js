@@ -106,6 +106,23 @@ function decodeErrorData(data) {
  * reply: the 400 left an agent with no answer at all. Control characters other
  * than tab/newline and unpaired surrogate halves go too; nothing visible does.
  */
+/**
+ * The picture for a template approved with an IMAGE header, when the caller
+ * did not pass one. `TEMPLATES_WITH_IMAGE` (comma-separated names, read at
+ * call time) lists them; Meta answers #132012 to a send without the header.
+ * Every agent and desk template approved on 2026-11-03 carries one, and
+ * listing them here covers every caller at once. The viewing templates keep
+ * passing their own image (VIEWING_TEMPLATES_WITH_IMAGE).
+ */
+function defaultHeaderImage(templateName) {
+  const names = String(process.env.TEMPLATES_WITH_IMAGE || '')
+    .split(',')
+    .map((name) => name.trim())
+    .filter(Boolean);
+  if (!names.includes(templateName)) return undefined;
+  return process.env.TEMPLATE_HEADER_IMAGE || process.env.VIEWING_REQUEST_TEMPLATE_IMAGE || undefined;
+}
+
 function safeText(value) {
   return String(value ?? '')
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
@@ -218,6 +235,7 @@ async function sendTemplate(
   { languageCode = 'fr', bodyParams = [], otpCode, buttons, headerImage, sender, urlButton } = {},
 ) {
   const to = String(toPhone).replace(/^\+/, '');
+  if (headerImage === undefined) headerImage = defaultHeaderImage(templateName);
 
   const template = { name: templateName, language: { code: languageCode } };
   if (bodyParams.length) {
@@ -711,6 +729,7 @@ module.exports = {
   sendWhatsAppMessage,
   downloadVideo,
   safeText,
+  defaultHeaderImage,
   sendTemplate,
   sendInteractiveButtons,
   templateConfigured,

@@ -10,10 +10,10 @@
  */
 
 /** Every source the table's CHECK accepts, in display order. */
-export const MARKET_SOURCES = ['whatsapp_group', 'smartimmo', 'imcongo', 'immo24', 'alain_realty', 'facebook', 'zwandako', 'other'];
+export const MARKET_SOURCES = ['whatsapp_group', 'smartimmo', 'mediacongo', 'imcongo', 'immo24', 'alain_realty', 'facebook', 'zwandako', 'other'];
 
 /** Collected by the engine every night. */
-export const COLLECTED_SOURCES = ['whatsapp_group', 'immo24', 'imcongo', 'alain_realty', 'smartimmo'];
+export const COLLECTED_SOURCES = ['whatsapp_group', 'immo24', 'imcongo', 'alain_realty', 'smartimmo', 'mediacongo'];
 
 /** Entered by hand from /admin/market-data/marche — their terms forbid automated collection. */
 export const MANUAL_SOURCES = ['facebook', 'zwandako', 'other'];
@@ -23,6 +23,7 @@ export const SOURCE_NAMES = {
   lukka: 'Lukka Place',
   whatsapp_group: 'Groupes WhatsApp',
   smartimmo: 'SmartImmo',
+  mediacongo: 'MediaCongo',
   imcongo: 'IMCongo',
   immo24: 'Immo24',
   alain_realty: 'Alain Realty',
@@ -34,6 +35,7 @@ export const SOURCE_NAMES = {
 /** Source home pages, for the method note. */
 export const SOURCE_URLS = {
   smartimmo: 'https://www.smartimmo-app.com',
+  mediacongo: 'https://www.mediacongo.net',
   imcongo: 'https://www.imcongo.com',
   immo24: 'https://immo24.cd',
   alain_realty: 'https://alain-realty.net',

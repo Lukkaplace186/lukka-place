@@ -2181,7 +2181,14 @@ minimum; the market is mostly posted elsewhere. §72 of verify-pipeline.
   authorised on 2026-11-04), `immo24` (public WP REST
   feed), `imcongo` (6 result pages, Crawl-delay 10; terms forbid reproduction,
   nothing is reproduced), `alain_realty` (sitemap + pages), `smartimmo`
-  (sitemap + schema.org; the UUIDv7 id dates the advert). **Hand-entered only**
+  (sitemap + schema.org; the UUIDv7 id dates the advert), `mediacongo`
+  (added later on 2026-11-04: the property classifieds' list pages back to
+  COLLECT_SINCE, ~110 pages, Crawl-delay 10; an advert page only for a
+  rental or an unclear title, for the bedroom count — its first
+  "annonce_data" block is an HTML comment and is ignored; mostly sales, ~1 in
+  8 is a rental; same terms position as IMCongo;
+  `migrations/20261104_market_source_mediacongo.sql` widens the source CHECK).
+  **Hand-entered only**
   (web form): `facebook` (Meta forbids automated collection) and `zwandako`
   (its terms forbid robots — ~8,000 adverts in its public feed; written
   permission would change that). keur-immo.com blocks bots. The Africanvestor

@@ -13675,6 +13675,95 @@ console.log('\n2. services/openai.js');
       assert.match(imcongo72.listUrl(4, 'rent'), /congo-a-louer-recherche-4___0_100_KINSHASA/);
     });
 
+    const mediacongo72 = require('../services/marketSources/mediacongo');
+    const mcItem = (ref, title, where, date, price) => `<!-- START ANNONCE ITEM -->
+      <a class="annonce_item " href="annonce-mediacongo-${ref}_immobilier_vente_location_x.html">
+      <div class="annonce_for_text"><h2>${title}</h2>
+      <span class="annonceref">Référence : <strong>AN1&nbsp;${ref}</strong></span>
+      <span class="where"> ${where} </span> <span class="views"> 26 vues </span><br>
+      <span class="publie">Publié le ${date}</span></div>
+      <div class="annonce_price">${price}</div></a>`;
+
+    check('MediaCongo: a list item gives reference, commune, post date and price', () => {
+      const html = [
+        mcItem('397754', 'NGALIEMA/BINZA PIGEON : 3 APPARTEMENTS DISPONIBLES', 'KINSHASA  - Ngaliema', '02.11.2026', '1 300&nbsp;$'),
+        mcItem('397753', 'VILLA À VENDRE À GOMBE', 'KINSHASA  - Gombe', '02.11.2026', '2 500 000&nbsp;$'),
+        mcItem('397700', 'MAISON A LOUER', 'BOMA  - Kalamu', '01.11.2026', '400&nbsp;$'),
+      ].join('\n');
+      const items = mediacongo72.parseListPage(html);
+      assert.deepStrictEqual(
+        items.map((i) => [i.ref, i.city, i.commune, i.postedAt.slice(0, 10), i.price, i.currency]),
+        [['397754', 'kinshasa', 'Ngaliema', '2026-11-02', 1300, 'USD'], ['397753', 'kinshasa', 'Gombe', '2026-11-02', 2500000, 'USD'], ['397700', 'boma', 'Kalamu', '2026-11-01', 400, 'USD']],
+      );
+      assert.match(items[0].url, /^https:\/\/www\.mediacongo\.net\/annonce-mediacongo-397754_/);
+      // A sale is stored from the list; outside Kinshasa the commune is never read as Kinshasa's.
+      const sale = market72.normaliseObservation({ ...mediacongo72.toObservation(items[1]), source: 'mediacongo' });
+      assert.deepStrictEqual([sale.purpose, sale.price_period, sale.commune, sale.excluded_reason], ['sale', 'total', 'Gombe', null]);
+      const boma = mediacongo72.toObservation(items[2]);
+      assert.strictEqual(boma.commune, null);
+      assert.strictEqual(boma.place_text, null);
+    });
+
+    check('MediaCongo: the advert\'s Type field decides the kind, not a "parcelle" in its title (397762)', () => {
+      const [item] = mediacongo72.parseListPage(mcItem('397762', 'NGALIEMA/PIGEON : Des Appartements de 3 chambres dans une parcelle avec lot de concession', 'KINSHASA - Ngaliema', '02.11.2026', '1 000&nbsp;$'));
+      const page = '<div class="annonce_data"><div class="annonce_data_type">Offre :</div><div class="annonce_data_value">Location</div></div>'
+        + '<div class="annonce_data"><div class="annonce_data_type">Type :</div><div class="annonce_data_value">Appartement</div></div>'
+        + '<div class="annonce_data"><div class="annonce_data_type">Chambre(s) :</div><div class="annonce_data_value">3</div></div>';
+      const row = market72.normaliseObservation({ ...mediacongo72.toObservation(item, page), source: 'mediacongo' });
+      assert.deepStrictEqual([row.purpose, row.property_kind, row.beds, row.monthly_usd], ['rent', 'appartement', 3, 1000]);
+    });
+
+    check('MediaCongo: the advert page\'s live fields win, never the commented-out block', () => {
+      const [item] = mediacongo72.parseListPage(mcItem('397754', 'NGALIEMA/BINZA PIGEON : 3 APPARTEMENTS DISPONIBLES', 'KINSHASA  - Ngaliema', '02.11.2026', '1 300&nbsp;$'));
+      const page = `<!-- START ÀNNONCE DATA
+        <div class="for_annonce_data">
+        <div class="annonce_data"><div class="annonce_data_type">Type d’offre :</div><div class="annonce_data_value"> Vente</div></div>
+        <div class="annonce_data"><div class="annonce_data_type">Nombre de chambres :</div><div class="annonce_data_value">4</div></div>
+        </div>
+        <!-- END ÀNNONCE DATA -->
+        <div class="for_annonce_data">
+        <div class="annonce_data"><div class="annonce_data_type">Offre :</div><div class="annonce_data_value"> Location </div></div>
+        <div class="annonce_data"><div class="annonce_data_type">Type :</div><div class="annonce_data_value"> Appartement </div></div>
+        <div class="annonce_data"><div class="annonce_data_type">Chambre(s) :</div><div class="annonce_data_value"> 3 </div></div>
+        </div>
+        <script type="application/ld+json">{"@type":"Product","description":"Loyer: 1300$ garantie 4+1","offers":{"@type":"Offer","priceCurrency":"USD","price":"1300.00"}}</script>`;
+      const raw = mediacongo72.toObservation(item, page);
+      assert.deepStrictEqual([raw.purpose, raw.beds, raw.price, raw.price_period], ['rent', 3, 1300, 'mois']);
+      const row = market72.normaliseObservation({ ...raw, source: 'mediacongo' });
+      assert.deepStrictEqual([row.property_kind, row.beds, row.monthly_usd, row.commune, row.excluded_reason], ['appartement', 3, 1300, 'Ngaliema', null]);
+      assert.strictEqual(mediacongo72.postedAt('Publié le 31.12.2025'), '2025-12-31T12:00:00.000Z');
+      assert.match(mediacongo72.listUrl(2), /categories-cat-114_immobilier_vente_location-page-2\.html$/);
+    });
+
+    await checkAsync('MediaCongo: walks back to 2026, reads advert pages for rentals only, marks known adverts seen', async () => {
+      const pages = {
+        1: [mcItem('3', 'APPARTEMENT A LOUER', 'KINSHASA - Limete', '04.11.2026', '500&nbsp;$'),
+          mcItem('2', 'PARCELLE À VENDRE', 'KINSHASA - Lemba', '03.11.2026', '90 000&nbsp;$'),
+          mcItem('1', 'STUDIO A LOUER', 'KINSHASA - Gombe', '02.11.2026', '700&nbsp;$')].join(''),
+        2: [mcItem('0', 'MAISON A LOUER', 'KINSHASA - Kalamu', '01.01.2026', '450&nbsp;$'),
+          mcItem('-', 'X', 'KINSHASA - Kalamu', '31.12.2025', '1&nbsp;$')].join(''),
+        3: mcItem('9', 'VIEILLE ANNONCE A LOUER', 'KINSHASA - Kalamu', '30.12.2025', '300&nbsp;$'),
+        4: mcItem('8', 'NEVER READ', 'KINSHASA - Kalamu', '01.06.2025', '300&nbsp;$'),
+      };
+      const fetched = [];
+      const fetcher = {
+        requests: 0,
+        async text(url) {
+          fetched.push(url);
+          const page = /page-(\d+)\.html$/.exec(url)?.[1] || (/categories-cat-114/.test(url) ? '1' : null);
+          if (page) return pages[page] || '';
+          return '<div class="annonce_data"><div class="annonce_data_type">Offre :</div><div class="annonce_data_value">Location</div></div><div class="annonce_data"><div class="annonce_data_type">Chambre(s) :</div><div class="annonce_data_value">2</div></div>';
+        },
+      };
+      const result = await mediacongo72.collect({ since: '2026-01-01T00:00:00Z', knownRefs: new Set(['1']), fetcher });
+      assert.ok(!fetched.some((u) => /page-4/.test(u)), 'stops one page past the last 2026 advert');
+      assert.ok(fetched.some((u) => /page-3/.test(u)));
+      assert.deepStrictEqual(result.stillListed, ['1']);
+      assert.deepStrictEqual(result.observations.map((o) => o.source_ref).sort(), ['0', '2', '3']);
+      assert.ok(!fetched.some((u) => /annonce-mediacongo-2_/.test(u)), 'a sale is stored from the list');
+      assert.strictEqual(result.observations.find((o) => o.source_ref === '3').beds, 2);
+    });
+
     check('Alain Realty: status, price, bedrooms and place come from the advert page', () => {
       const html = `<body class="single-property postid-17973"><h1 class="rh_page__title">APPARTEMENT 2 CHAMBRES NON MEUBLÉE À LOUER</h1>
         <p class="rh_page__property_address"> Gombe, Kinshasa, Democratic Republic of the Congo </p>
@@ -13750,7 +13839,7 @@ console.log('\n2. services/openai.js');
       }
       const src = fs.readFileSync(path.join(__dirname, '..', 'services', 'marketObservations.js'), 'utf8');
       assert.match(src, /run: async \(\) => startCollectionInBackground\(\)/, 'a collection never holds the scheduler tick');
-      assert.deepStrictEqual(market72.COLLECTED_SOURCES, ['whatsapp_group', 'immo24', 'imcongo', 'alain_realty', 'smartimmo']);
+      assert.deepStrictEqual(market72.COLLECTED_SOURCES, ['whatsapp_group', 'immo24', 'imcongo', 'alain_realty', 'smartimmo', 'mediacongo']);
       assert.ok(!market72.COLLECTED_SOURCES.includes('zwandako') && !market72.COLLECTED_SOURCES.includes('facebook'),
         'their terms forbid automated collection: entered by hand only');
     });
@@ -13760,7 +13849,10 @@ console.log('\n2. services/openai.js');
       assert.match(sql, /CREATE TABLE IF NOT EXISTS market_observations/);
       assert.match(sql, /UNIQUE \(source, source_ref\)/);
       assert.match(sql, /REVOKE ALL ON market_observations FROM anon, authenticated/);
-      for (const source of market72.SOURCES) assert.ok(sql.includes(`'${source}'`), `CHECK lists ${source}`);
+      // MediaCongo widened the CHECK later; that migration restates the whole list.
+      const widened = fs.readFileSync(path.join(__dirname, '..', 'migrations', '20261104_market_source_mediacongo.sql'), 'utf8');
+      assert.match(widened, /DROP CONSTRAINT IF EXISTS market_observations_source_check/);
+      for (const source of market72.SOURCES) assert.ok(widened.includes(`'${source}'`), `CHECK lists ${source}`);
     });
   }
 
@@ -13814,6 +13906,23 @@ console.log('\n2. services/openai.js');
         process.env.AGENT_ENQUIRY_TEMPLATE = 'nouvelle_demande_agent';
         sent73.length = 0;
         assert.strictEqual((await alert73.sendAgentEnquiryAlert('243906500075', 'texte', { ...details, leadId: null })).via, 'session');
+      });
+
+      check('a template listed in TEMPLATES_WITH_IMAGE gets the header picture; others and explicit images are untouched', () => {
+        const before = { list: process.env.TEMPLATES_WITH_IMAGE, img: process.env.TEMPLATE_HEADER_IMAGE };
+        process.env.TEMPLATES_WITH_IMAGE = 'alerte_bureau, nouvelle_demande_agent';
+        process.env.TEMPLATE_HEADER_IMAGE = 'https://lukkaplace.com/og-image.png';
+        try {
+          assert.strictEqual(saved73.template === chakra73.sendTemplate, false, 'sendTemplate is stubbed here; the helper is tested directly');
+          assert.strictEqual(chakra73.defaultHeaderImage('nouvelle_demande_agent'), 'https://lukkaplace.com/og-image.png');
+          assert.strictEqual(chakra73.defaultHeaderImage('annonce_en_ligne'), undefined);
+          const src = fs.readFileSync(path.join(__dirname, '..', 'services', 'chakra.js'), 'utf8');
+          assert.match(src, /if \(headerImage === undefined\) headerImage = defaultHeaderImage\(templateName\);/,
+            'only when the caller passed no image');
+        } finally {
+          if (before.list === undefined) delete process.env.TEMPLATES_WITH_IMAGE; else process.env.TEMPLATES_WITH_IMAGE = before.list;
+          if (before.img === undefined) delete process.env.TEMPLATE_HEADER_IMAGE; else process.env.TEMPLATE_HEADER_IMAGE = before.img;
+        }
       });
 
       check('all three enquiry alerts go through it, and a listing enquiry records its lead first', () => {

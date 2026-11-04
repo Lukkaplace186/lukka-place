@@ -141,7 +141,8 @@ test('a pasted post prefills from the engine extraction without inventing a comm
 
 test('web and engine agree on the sources, the kinds and the migration', () => {
   const engine = read('services/marketObservations.js');
-  const migration = read('migrations/20261104_market_observations.sql');
+  // The CHECK was widened for MediaCongo by a later migration, which restates the full list.
+  const migration = read('migrations/20261104_market_source_mediacongo.sql');
   for (const source of MARKET_SOURCES) {
     assert.ok(engine.includes(`'${source}'`), `engine knows ${source}`);
     assert.ok(migration.includes(`'${source}'`), `migration CHECK lists ${source}`);

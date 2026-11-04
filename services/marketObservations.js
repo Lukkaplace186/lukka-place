@@ -26,6 +26,13 @@
  *   - alain_realty    alain-realty.net, sitemap + property pages.
  *   - smartimmo       smartimmo-app.com, sitemap + each listing's schema.org
  *                     data. The id is a UUIDv7, i.e. carries its post date.
+ *   - mediacongo      mediacongo.net property classifieds (added 2026-11-04,
+ *                     owner request): list pages back to COLLECT_SINCE, the
+ *                     advert page only for rentals / unclear titles. robots
+ *                     Crawl-delay 10, no Disallow. Terms forbid reproducing
+ *                     content without authorisation — same position as
+ *                     IMCongo: facts into a median, nothing shown. Mostly
+ *                     sales (~1 in 8 is a rental).
  *   entered by hand from /admin/market-data (web), never collected:
  *   - facebook        Meta's terms forbid automated collection.
  *   - zwandako        its terms forbid robots ("surveiller ou copier … à
@@ -66,8 +73,8 @@ const JOB_NAME = 'market-observations';
 const COLLECT_SINCE = '2026-01-01T00:00:00Z';
 const MIN_GAP_MS = 20 * 60 * 60 * 1000;
 
-const SOURCES = ['whatsapp_group', 'immo24', 'imcongo', 'alain_realty', 'smartimmo', 'facebook', 'zwandako', 'other'];
-const COLLECTED_SOURCES = ['whatsapp_group', 'immo24', 'imcongo', 'alain_realty', 'smartimmo'];
+const SOURCES = ['whatsapp_group', 'immo24', 'imcongo', 'alain_realty', 'smartimmo', 'mediacongo', 'facebook', 'zwandako', 'other'];
+const COLLECTED_SOURCES = ['whatsapp_group', 'immo24', 'imcongo', 'alain_realty', 'smartimmo', 'mediacongo'];
 const MANUAL_SOURCES = ['facebook', 'zwandako', 'other'];
 
 /** Kinds the price guide counts. Everything else is stored but not in a rent median. */
@@ -326,6 +333,7 @@ function collectorFor(source) {
     imcongo: () => require('./marketSources/imcongo'),
     alain_realty: () => require('./marketSources/alainRealty'),
     smartimmo: () => require('./marketSources/smartimmo'),
+    mediacongo: () => require('./marketSources/mediacongo'),
   };
   if (!map[source]) throw new Error(`no collector for '${source}'`);
   return map[source]();

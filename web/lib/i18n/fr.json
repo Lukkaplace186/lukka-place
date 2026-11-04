@@ -395,7 +395,12 @@
         "one": "dont {count} sur Lukka Place",
         "other": "dont {count} sur Lukka Place"
       },
-      "seeListings": "Voir les annonces à {commune}"
+      "seeListings": "Voir les annonces à {commune}",
+      "alertButton": "M'alerter à {price} $ ou moins",
+      "alertHint": {
+        "one": "Une alerte WhatsApp gratuite dès qu'un 1 chambre à {commune} est publié à ce prix ou moins.",
+        "other": "Une alerte WhatsApp gratuite dès qu'un {count} chambres à {commune} est publié à ce prix ou moins."
+      }
     }
   },
   "about": {

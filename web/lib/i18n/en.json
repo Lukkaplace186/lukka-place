@@ -395,7 +395,12 @@
         "one": "{count} on Lukka Place",
         "other": "{count} on Lukka Place"
       },
-      "seeListings": "See Listings in {commune}"
+      "seeListings": "See Listings in {commune}",
+      "alertButton": "Alert Me at {price} $ or Less",
+      "alertHint": {
+        "one": "A free WhatsApp alert as soon as a 1-bedroom in {commune} is listed at this price or less.",
+        "other": "A free WhatsApp alert as soon as a {count}-bedroom in {commune} is listed at this price or less."
+      }
     }
   },
   "about": {

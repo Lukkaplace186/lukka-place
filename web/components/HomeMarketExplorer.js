@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { useT } from '@/lib/i18n/client';
 import { frNumber } from '@/lib/format';
-import { guideSearchHref } from '@/lib/homeMarket';
+import { guideAlertQuery, guideSearchHref } from '@/lib/homeMarket';
+import QueryAlertButton from './QueryAlertButton';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 
 /**
@@ -16,9 +17,12 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
  * only scaled against the commune's own largest median, never smoothed or
  * filled in.
  *
- * The headline leads two ways: "Voir le détail" (the guide's own page) and
- * "Voir les annonces à …" (the same /listings search that page opens), shown
- * only when Lukka Place has public listings in that guide.
+ * The headline leads three ways: "Voir le détail" (the guide's own page);
+ * "M'alerter à 550 $ ou moins", a WhatsApp alert on the guide's search
+ * capped at its median (QueryAlertButton: signup that keeps the search for a
+ * guest, a confirmation when signed in); and "Voir les annonces à …" (the
+ * same /listings search the guide page opens), shown only when Lukka Place
+ * has public listings in that guide.
  *
  * @param {{communes: {commune: string, label: string, rows: {beds: number, median: number, p25: number|null, p75: number|null, listings: number, lukkaListings: number, slug: string}[]}[], note: string}} props
  */
@@ -92,15 +96,27 @@ export default function HomeMarketExplorer({ communes, note }) {
             <ArrowRight strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className="h-3.5 w-3.5" />
           </Link>
         </p>
-        {selected.lukkaListings > 0 ? (
-          <Link
-            href={guideSearchHref(current.commune, selected.beds)}
-            className="u-press u-btn-primary mt-3 inline-flex min-h-11 items-center justify-center gap-2 self-start rounded-lg bg-blue-deep px-5 text-[0.9375rem] font-semibold text-white"
-          >
-            {t('home.market.seeListings', { commune: current.label })}
-            <ArrowRight strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className="h-4 w-4" />
-          </Link>
-        ) : null}
+        <div className="mt-3 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
+          {/* The price alert: this guide's search capped at its median
+              (lib/homeMarket.js guideAlertQuery), saved like any alert. */}
+          <QueryAlertButton
+            query={guideAlertQuery(current.commune, selected.beds, selected.median)}
+            label={t('home.market.alertButton', { price: frNumber(selected.median) })}
+            className="px-5"
+          />
+          {selected.lukkaListings > 0 ? (
+            <Link
+              href={guideSearchHref(current.commune, selected.beds)}
+              className="u-press inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-ink-25 bg-surface px-5 text-[0.9375rem] font-semibold text-ink transition-colors hover:border-ink-45"
+            >
+              {t('home.market.seeListings', { commune: current.label })}
+              <ArrowRight strokeWidth={ICON_STROKE_WIDTH} aria-hidden="true" className="h-4 w-4" />
+            </Link>
+          ) : null}
+        </div>
+        <p className="text-[0.8125rem] leading-relaxed text-ink-45">
+          {t('home.market.alertHint', { count: selected.beds, commune: current.label })}
+        </p>
       </div>
 
       <div className="lg:col-start-2 lg:row-span-2 lg:row-start-2 lg:self-end">

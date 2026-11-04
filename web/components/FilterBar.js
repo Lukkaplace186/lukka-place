@@ -472,8 +472,10 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
             showIcon
             showClear
             recentSearches={recentSearches}
-            className="flex min-h-12 min-w-0 flex-1 items-center rounded-xl border-[1.5px] border-ink-35 bg-surface px-3.5 transition-[border-color,box-shadow] focus-within:border-blue focus-within:shadow-[0_0_0_3px_var(--blue-tint)] lg:min-h-0 lg:min-w-[15rem] lg:rounded-lg lg:border-2 lg:border-line lg:px-4 lg:py-2.5"
-            rowClassName="flex w-full min-w-0 items-center gap-2.5"
+            className="flex min-h-12 min-w-0 flex-1 items-center rounded-xl border-[1.5px] border-ink-35 bg-surface px-3 transition-[border-color,box-shadow] focus-within:border-blue focus-within:shadow-[0_0_0_3px_var(--blue-tint)] lg:min-h-0 lg:min-w-[15rem] lg:rounded-lg lg:border-2 lg:border-line lg:px-4 lg:py-2.5"
+            // The magnifier is drawn from lg only: on a phone its 26px were
+            // what cut the placeholder off (Zoopla's field has none either).
+            rowClassName="flex w-full min-w-0 items-center gap-2.5 [&>svg:first-child]:hidden lg:[&>svg:first-child]:block"
             inputClassName="bg-transparent py-2.5 font-medium text-ink placeholder:font-normal placeholder:text-ink-45 focus:outline-none lg:py-0"
           />
 

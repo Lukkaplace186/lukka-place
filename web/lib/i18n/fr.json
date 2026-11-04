@@ -394,7 +394,7 @@
   "listings": {
     "filters": {
       "title": "Filtres",
-      "searchPlaceholder": "Commune ou quartier…",
+      "searchPlaceholder": "Commune, quartier…",
       "commune": "Commune",
       "quartier": "Quartier",
       "propertyType": "Type de bien",

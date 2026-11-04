@@ -7,7 +7,6 @@ import { findRepByReferralCode } from '@/lib/salesLaunch';
 import { REFERRAL_COOKIE, parseReferralCookie } from '@/lib/salesReferral';
 import { partnerCodePrefill } from '@/lib/partnerPrefill';
 import { agentWhatsappSignupLink } from '@/lib/whatsappSignup';
-import { countLiveListings } from '@/lib/listings';
 import PhoneField from '@/components/PhoneField';
 import SignupFunnelTracker from '@/components/SignupFunnelTracker';
 import { WhatsAppIcon } from '@/components/WhatsAppCTA';
@@ -40,9 +39,6 @@ const ERROR_MESSAGE_KEYS = {
   otp_failed: 'auth.errors.otpFailed',
   ref: 'auth.errors.referralUnknown',
 };
-
-/** The live-listing count only reads as a reason to join from a few up. */
-const MIN_LIVE_LISTINGS_SHOWN = 10;
 
 /** 16px on a phone (a smaller input makes iOS zoom on focus), 44px tall. */
 const INPUT_CLASS = 'u-focus-ring h-11 w-full rounded-md border border-line bg-white px-3 text-base text-ink sm:text-sm';
@@ -87,15 +83,6 @@ async function repCodeForWhatsapp(code) {
   }
 }
 
-async function liveListingCount() {
-  try {
-    return await countLiveListings();
-  } catch (err) {
-    console.error(`[agent-signup] live listing count failed: ${err.message}`);
-    return 0;
-  }
-}
-
 /**
  * Agent signup. Reworked 2026-11-04 after the 29–30 October campaign sent
  * 4,215 phone visitors here and 2 reached the code step: the page opened on a
@@ -119,20 +106,16 @@ export default async function AgentSignupPage({ searchParams }) {
   // because the flag is server-only.
   const bypassing = otpBypassEnabled();
   const referralCode = await referralPrefill(typeof params.ref === 'string' ? params.ref : null);
-  const [whatsappRepCode, liveCount] = await Promise.all([repCodeForWhatsapp(referralCode), liveListingCount()]);
+  const whatsappRepCode = await repCodeForWhatsapp(referralCode);
   const whatsappHref = agentWhatsappSignupLink(whatsappRepCode);
   // A code already carried (link, cookie, ?ref=) stays in sight; otherwise the
   // field folds away behind "J'ai un code de parrainage", and an error about
   // the code reopens it.
   const referralOpen = Boolean(referralCode) || error === 'ref';
 
-  const pitch = [
-    t('auth.agentSignup.pitchFree'),
-    t('auth.agentSignup.pitchLeads'),
-    liveCount >= MIN_LIVE_LISTINGS_SHOWN
-      ? t('auth.agentSignup.pitchLive', { count: liveCount.toLocaleString(locale === 'en' ? 'en-US' : 'fr-FR') })
-      : null,
-  ].filter(Boolean);
+  // The live-listing count ("279 biens déjà en ligne") was removed on the
+  // owner's request, 2026-11-04.
+  const pitch = [t('auth.agentSignup.pitchFree'), t('auth.agentSignup.pitchLeads')];
 
   return (
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-4 py-6">

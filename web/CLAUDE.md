@@ -3879,8 +3879,8 @@ the usual daily rate. The page was a bare five-field form opening on
 "Nom de l'agence". Now (`app/(site)/compte/agent/inscription/page.js`):
 
 - **Why join, above the form**: "2 mois gratuits" (the engine's SIGNUP_REPLY
-  claim, no new one), customers write on your WhatsApp, and the real live
-  listing count (`countLiveListings`, shown from 10).
+  claim, no new one) and customers write on your WhatsApp. A live-listing
+  count was shown too and removed the same day on the owner's request.
 - **"S'inscrire sur WhatsApp" first** (`agentWhatsappSignupLink`,
   lib/whatsappSignup.js): opens the intake number with a message the engine
   answers without a model call — SIGNUP_REPLY ("send your first listing"),

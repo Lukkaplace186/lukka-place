@@ -93,8 +93,10 @@ test('both dictionaries carry the new agent signup copy with matching placeholde
   const fr = JSON.parse(read('../../lib/i18n/fr.json')).auth.agentSignup;
   const en = JSON.parse(read('../../lib/i18n/en.json')).auth.agentSignup;
   assert.deepEqual(Object.keys(fr), Object.keys(en));
-  assert.match(fr.pitchLive, /\{count\}/);
-  assert.match(en.pitchLive, /\{count\}/);
+  // No live-listing count on the page (owner, 2026-11-04).
+  assert.equal(fr.pitchLive, undefined);
+  assert.equal(en.pitchLive, undefined);
+  assert.doesNotMatch(read('../../app/(site)/compte/agent/inscription/page.js'), /countLiveListings|pitchLive/);
   // Same claim as the engine's WhatsApp reply, never a new one.
   assert.match(quickReplies.SIGNUP_REPLY, /2 mois gratuits/);
   assert.match(fr.pitchFree, /2 mois gratuits/);

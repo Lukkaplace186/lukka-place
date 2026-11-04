@@ -117,7 +117,7 @@ export function homeVisitInbox(groups, now = new Date()) {
  * an enquiry about one project or one listing, a visit request. They stay on
  * Demandes; they are not "where your search stands".
  */
-export const NON_SEARCH_LEAD_SOURCES = ['developer-application', 'project-enquiry', 'listing-visit-request', 'listing-whatsapp-enquiry'];
+export const NON_SEARCH_LEAD_SOURCES = ['developer-application', 'project-enquiry', 'listing-visit-request', 'listing-whatsapp-enquiry', 'team-introduction'];
 
 /**
  * The customer's own "Trouver pour moi" requests (no listing behind them, no

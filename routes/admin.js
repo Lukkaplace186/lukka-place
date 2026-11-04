@@ -25,6 +25,7 @@ const { STATES } = require('../services/conversationState');
 const { dispatchLead, dispatchLeadInBackground } = require('../services/leadDispatch');
 const { handleProjectEnquiry } = require('../services/projectEnquiry');
 const agentProfileEnquiry = require('../services/agentProfileEnquiry');
+const teamIntroduction = require('../services/teamIntroduction');
 const {
   normaliseLeadCommunes,
   leadCommunes,
@@ -505,6 +506,37 @@ router.get('/lead-analytics', (req, res) => {
   } catch (err) {
     console.error(`[admin] GET /lead-analytics failed: ${err.message}`);
     return res.status(500).json({ success: false, error: 'Could not read lead analytics.' });
+  }
+});
+
+/**
+ * /admin/interactions — every customer → agent interaction this engine
+ * recorded in the window (enquiries, profile and project requests, visit
+ * requests, desk introductions). The storefront taps live in Postgres; web
+ * adds them and attributes the listing-only rows (db.getInteractionCounts).
+ */
+router.get('/interaction-counts', (req, res) => {
+  const { window, since } = windowStart(req.query.days);
+  try {
+    return res.json({ success: true, days: window, ...db.getInteractionCounts({ since }) });
+  } catch (err) {
+    console.error(`[admin] GET /interaction-counts failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not read interaction counts.' });
+  }
+});
+
+/**
+ * "Mise en relation" — the desk records that it put a customer in touch with
+ * an agent outside the site (services/teamIntroduction.js). Sends nothing.
+ */
+router.post('/team-introductions', (req, res) => {
+  try {
+    const result = teamIntroduction.recordIntroduction(req.body || {});
+    if (!result.ok) return res.status(400).json({ success: false, error: result.error, code: result.error });
+    return res.status(201).json({ success: true, lead: result.lead });
+  } catch (err) {
+    console.error(`[admin] POST /team-introductions failed: ${err.message}`);
+    return res.status(500).json({ success: false, error: 'Could not record the introduction.' });
   }
 });
 

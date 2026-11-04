@@ -601,6 +601,39 @@ export async function getLeadAnalytics({ days = 30 } = {}) {
   return engineFetch(`/admin/lead-analytics?days=${encodeURIComponent(days)}`);
 }
 
+/**
+ * The engine half of /admin/interactions (engine db.getInteractionCounts):
+ * enquiries, profile / project requests, visit requests and desk
+ * introductions in the window, grouped by agent and listing.
+ */
+export async function getInteractionCounts({ days = 30 } = {}) {
+  return engineFetch(`/admin/interaction-counts?days=${encodeURIComponent(days)}`);
+}
+
+/**
+ * Record a desk "mise en relation" (engine services/teamIntroduction.js): a
+ * lead in the agent's Demandes inbox. Sends nothing to anybody.
+ * @returns {Promise<{lead: Object}>}
+ */
+export async function recordTeamIntroduction({
+  waId, name, agentId, assignedAgent, propertyId, channel, note, recordedBy, agentContacted,
+}) {
+  return engineFetch('/admin/team-introductions', {
+    method: 'POST',
+    body: JSON.stringify({
+      wa_id: waId,
+      name,
+      agent_id: agentId,
+      assigned_agent: assignedAgent,
+      property_id: propertyId,
+      channel,
+      note,
+      recorded_by: recordedBy,
+      agent_contacted: Boolean(agentContacted),
+    }),
+  });
+}
+
 /** Which agencies a request was pushed to, and whether each was reached. */
 export async function getLeadMatches(leadId) {
   return engineFetch(`/admin/leads/${leadId}/matches`);

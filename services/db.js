@@ -1726,6 +1726,11 @@ const LEADS_EXTENDED_COLUMNS = [
   // (services/projectEnquiry.js). Postgres developments.id; no FK across
   // databases. NULL on every other kind of lead.
   ['development_id', 'INTEGER'],
+  // A 'team-introduction' lead (services/teamIntroduction.js): how the desk
+  // put the customer in touch with the agent (phone | whatsapp | in_person |
+  // other) and which console user recorded it. NULL on every other lead.
+  ['contact_channel', 'TEXT'],
+  ['recorded_by', 'TEXT'],
 ];
 
 function migrateLeads() {
@@ -2106,7 +2111,7 @@ function getRecentMessages(conversationId, limit = 10) {
 const LEAD_FIELDS = [
   'conversation_id', 'wa_id', 'name', 'source', 'property_id', 'transaction_type',
   'commune', 'quartier', 'price_min', 'price_max', 'bedrooms', 'requirements_summary',
-  'status', 'assigned_agent', 'communes', 'development_id',
+  'status', 'assigned_agent', 'communes', 'development_id', 'contact_channel', 'recorded_by',
 ];
 
 /**
@@ -2127,6 +2132,71 @@ function createLead(data = {}) {
     .run({ ...Object.fromEntries(fields.map((f) => [f, data[f]])), status: data.status || 'NEW' });
 
   return getLead(Number(info.lastInsertRowid));
+}
+
+/**
+ * A desk "mise en relation" (services/teamIntroduction.js): the lead and its
+ * agent assignment in one transaction, so it is never in nobody's inbox.
+ */
+function recordTeamIntroductionLead({ agentId, assignedAgent, ...data }) {
+  return db.transaction(() => {
+    const lead = createLead(data);
+    return assignLead(lead.id, { agentId, assignedAgent });
+  })();
+}
+
+/**
+ * Lead sources that are one customer reaching one agent (or the desk putting
+ * them in touch). Not the "Trouver pour moi" / buyer-assistant requests,
+ * which are pushed to several agencies (lead_matches), not addressed to one,
+ * and not 'listing-visit-request', which is counted through its
+ * viewing_requests row instead.
+ */
+const INTERACTION_LEAD_SOURCES = [
+  'listing-whatsapp-enquiry', 'agent-profile-inquiry', 'project-enquiry', 'team-introduction',
+];
+
+/**
+ * The engine half of /admin/interactions: every customer → agent interaction
+ * this database holds since `since`, grouped by what the web side needs to
+ * attribute it (an agent id when the row names one, else the listing, whose
+ * agent web reads from Postgres). `contacted` counts the rows the agent (or
+ * the desk) moved past NEW.
+ */
+function getInteractionCounts({ since }) {
+  const p = { since };
+  const leads = db
+    .prepare(
+      `SELECT source, agent_id, property_id, COUNT(*) AS n,
+              SUM(CASE WHEN status <> 'NEW' THEN 1 ELSE 0 END) AS contacted
+         FROM leads
+        WHERE created_at >= datetime(@since)
+          AND source IN (${INTERACTION_LEAD_SOURCES.map((s) => `'${s}'`).join(', ')})
+        GROUP BY source, agent_id, property_id`,
+    )
+    .all(p);
+  const viewings = db
+    .prepare(
+      `SELECT COALESCE(vr.agent_id, l.agent_id) AS agent_id,
+              COALESCE(vr.property_id, l.property_id) AS property_id,
+              COUNT(*) AS n,
+              SUM(CASE WHEN vr.first_response_at IS NOT NULL THEN 1 ELSE 0 END) AS contacted
+         FROM viewing_requests vr
+         LEFT JOIN leads l ON l.id = vr.lead_id
+        WHERE vr.created_at >= datetime(@since)
+        GROUP BY COALESCE(vr.agent_id, l.agent_id), COALESCE(vr.property_id, l.property_id)`,
+    )
+    .all(p);
+  const num = (v) => (v == null ? null : Number(v));
+  return {
+    since,
+    leads: leads.map((r) => ({
+      source: r.source, agentId: num(r.agent_id), propertyId: num(r.property_id), count: r.n, contacted: r.contacted || 0,
+    })),
+    viewings: viewings.map((r) => ({
+      agentId: num(r.agent_id), propertyId: num(r.property_id), count: r.n, contacted: r.contacted || 0,
+    })),
+  };
 }
 
 function getLead(id) {
@@ -4268,6 +4338,9 @@ module.exports = {
   LEAD_MATCH_STATUS_FILTERS,
   countLeadsByWaIds,
   getLeadAnalytics,
+  getInteractionCounts,
+  INTERACTION_LEAD_SOURCES,
+  recordTeamIntroductionLead,
   VIEWING_FEED_VIEWS,
   setViewingCommuneIfMissing,
   getWorkQueueCounts,

@@ -2138,3 +2138,27 @@ model. Engine pieces:
   opened and verified a customer account on the same number; the two
   accounts are independent and WhatsApp intake never reads `customers`.
 - §69 of verify-pipeline.
+
+## Customer → agent interactions, counted (2026-11-04)
+
+Reported 2026-11-04: a customer reached a commissionnaire from the site, the
+desk phoned him, and he WhatsApped the customer from his own phone. None of it
+existed on our side: a chat between two personal numbers is invisible to this
+system by construction, so it is only ever counted if somebody records it.
+
+- **"Mise en relation"** (`services/teamIntroduction.js`,
+  `POST /admin/team-introductions`): a `leads` row, source
+  `'team-introduction'`, assigned to the agent (`db.recordTeamIntroductionLead`,
+  one transaction) so it sits in their Demandes inbox, where they mark it
+  CONTACTED. New lead columns `contact_channel` (phone | whatsapp | in_person |
+  other) and `recorded_by` (idempotent ALTER). Status CONTACTED when the desk
+  says the agent already reached the customer, else NEW. No commune, so
+  `leadDispatch` never pushes it; nothing is sent to anybody.
+- **`GET /admin/interaction-counts?days=`** (`db.getInteractionCounts`): the
+  engine half of web's `/admin/interactions` — `INTERACTION_LEAD_SOURCES`
+  (listing WhatsApp enquiries, profile and project requests, introductions)
+  and viewing requests, grouped by agent and listing; `contacted` = moved past
+  NEW (viewings: `first_response_at`). Not "Trouver pour moi" searches (several
+  agencies) and not `listing-visit-request` leads (counted once, through their
+  viewing request). Web adds the storefront taps and names the agents.
+- §71 of verify-pipeline.

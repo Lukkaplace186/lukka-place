@@ -248,6 +248,16 @@ export default async function AdminLeadDetailPage({ params }) {
                 <dt className="text-xs text-ink-45">{t('admin.leads.source')}</dt>
                 <dd className="text-ink">{lead.source}</dd>
               </div>
+              {/* A desk "mise en relation" (/admin/interactions): how, and who recorded it. */}
+              {lead.contact_channel ? (
+                <div>
+                  <dt className="text-xs text-ink-45">{t('admin.interactions.form.channel')}</dt>
+                  <dd className="text-ink">
+                    {t(`admin.interactions.channel.${lead.contact_channel}`)}
+                    {lead.recorded_by ? ` · ${lead.recorded_by}` : ''}
+                  </dd>
+                </div>
+              ) : null}
             </dl>
           </div>
 

@@ -3847,3 +3847,25 @@ wait and are credited only if the campaign is restarted. On 2026-11-04 the
 only agent credit on record was already void.
 Creators' and campaigns' codes are not affected.
 Tests: `tests/unit/referral-campaign-switch.test.js`.
+
+## Interactions clients → agents (`/admin/interactions`, 2026-11-04)
+
+One number for "how many times did customers reach an agent", and one row per
+agent. `lib/interactionCounts.js` (pure: the channels and what counts),
+`lib/agentInteractions.js` (Postgres taps + the engine's
+`GET /admin/interaction-counts`, read independently so one store being down
+leaves the other's channels on the page with an `ErrorNote`).
+
+- **Counted**: visitors' direct WhatsApp taps and "Appeler l'agent" taps
+  (`viewer_kind = 'visitor'`), messages to our number from a listing, visit
+  requests, profile and project requests, and the desk's "mises en relation".
+  A tap proves the button was pressed, not that a conversation followed; the
+  page says so. Central-number taps are shown beside the total, not in it (a
+  sent message is already counted as an enquiry). An engine row that names only
+  a listing is attributed to that listing's agent; none → "Sans agent attribué".
+- **"Enregistrer une mise en relation"** (`leads.manage`,
+  `app/admin/interactions/actions.js`): the desk records a customer it put in
+  touch with an agent outside the site. Engine side: root CLAUDE.md, same
+  heading. The lead detail page shows how and who recorded it;
+  `NON_SEARCH_LEAD_SOURCES` keeps it off the customer's own searches.
+- `tests/unit/interaction-counts.test.js`.

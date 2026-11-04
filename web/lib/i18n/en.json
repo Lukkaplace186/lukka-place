@@ -3400,7 +3400,8 @@
       "links": "Campaign Links",
       "growth": "Growth",
       "blog": "Guides & News",
-      "campaign": "Campaign"
+      "campaign": "Campaign",
+      "interactions": "Interactions"
     },
     "login": {
       "intro": "Restricted to the Lukka Place team.",
@@ -6473,6 +6474,84 @@
         "campaignStarted": "Campaign restarted.",
         "campaignStopped": "Campaign stopped: no more programme messages go out.",
         "failed": "The change could not be saved. Try again."
+      }
+    },
+    "interactions": {
+      "title": "Customer → Agent Interactions",
+      "subtitle": "Every time a customer contacted an agent or commissionnaire through Lukka Place, across every channel.",
+      "engineError": "The engine did not answer ({error}): requests, visits and introductions are missing below.",
+      "databaseError": "Could not read taps ({error}): WhatsApp and calls are missing below.",
+      "totalTitle": "Interactions in {days} Days",
+      "totalHelp": "Sum of the channels beside it. A tap proves the customer opened WhatsApp or the call to the agent, not that a conversation followed. Taps to Lukka Place’s central number are not counted: when the customer sends the message, it is already counted under “Messages to Lukka Place”. Only visitors count (never the agent themselves, the team or a bot).",
+      "agentsReached": "{count} agents contacted",
+      "answered": "{contacted} of {total} requests marked handled by the agent or the team",
+      "central": "Also: {whatsapp} WhatsApp taps and {call} calls to Lukka Place’s central number.",
+      "channels": {
+        "whatsappDirect": "Direct WhatsApp",
+        "callDirect": "Calls",
+        "whatsappEnquiry": "Messages to Lukka Place",
+        "visitRequest": "Visit requests",
+        "profileEnquiry": "Profile requests",
+        "projectEnquiry": "Project requests",
+        "teamIntroduction": "Introductions"
+      },
+      "channelHelp": {
+        "whatsappDirect": "Taps on the agent’s WhatsApp button",
+        "callDirect": "Taps on “Call the agent”",
+        "whatsappEnquiry": "Received on our number from a listing",
+        "visitRequest": "“Request a visit” and the WhatsApp assistant",
+        "profileEnquiry": "Form on the agent’s page",
+        "projectEnquiry": "Requests about a new development",
+        "teamIntroduction": "Recorded by the team"
+      },
+      "short": {
+        "whatsappDirect": "WhatsApp",
+        "callDirect": "Calls",
+        "whatsappEnquiry": "Messages",
+        "visitRequest": "Visits",
+        "profileEnquiry": "Profile",
+        "projectEnquiry": "Projects",
+        "teamIntroduction": "Team"
+      },
+      "perAgentTitle": "Per Agent",
+      "perAgentNote": "Agents who received at least one interaction in the period, most contacted first.",
+      "agent": "Agent",
+      "total": "Total",
+      "agentFallback": "Agent #{id}",
+      "noAgent": "No agent attributed",
+      "empty": "No interaction recorded in {days} days.",
+      "moreAgents": "{count} more agents are not shown (they are included in the totals).",
+      "notCounted": "Not counted here: “Find it for me” searches, which are sent to several agencies (see Matching), and exchanges between a customer and an agent on their own phones, unless recorded as an introduction.",
+      "channel": {
+        "phone": "Team called the agent",
+        "whatsapp": "Team WhatsApped the agent",
+        "in_person": "In person",
+        "other": "Other"
+      },
+      "form": {
+        "title": "Record an Introduction",
+        "subtitle": "When the team puts a customer in touch with an agent outside the site (for example a call to the commissionnaire). The request lands in the agent’s Requests inbox, where they can mark it handled. No message is sent.",
+        "customerPhone": "Customer’s number",
+        "customerName": "Customer’s name (optional)",
+        "agent": "Agent or commissionnaire",
+        "agentPlaceholder": "Search for an agent…",
+        "listing": "Listing no. (optional)",
+        "channel": "How",
+        "note": "Note (optional)",
+        "notePlaceholder": "What the customer is looking for, what was agreed…",
+        "agentContacted": "The agent has already contacted the customer",
+        "submit": "Save",
+        "saving": "Saving…",
+        "saved": "Introduction recorded.",
+        "openLead": "Open request #{id}",
+        "errors": {
+          "phone": "Invalid customer number.",
+          "agent": "Pick an existing agent.",
+          "channel": "Pick how the introduction was made.",
+          "listing": "The listing number must be a number.",
+          "listingMissing": "No listing no. {id}.",
+          "engine": "Could not save: {error}"
+        }
       }
     }
   },

@@ -13491,6 +13491,73 @@ console.log('\n2. services/openai.js');
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // §71 Customer → agent interactions: desk introductions and the counts (2026-11-04)
+  // ---------------------------------------------------------------------------
+  console.log('\n§71 Customer → agent interactions: desk introductions and the counts');
+  {
+    const intro71 = require('../services/teamIntroduction');
+    const since71 = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const before71 = dbService.getInteractionCounts({ since: since71 });
+    const total71 = (c) => [...c.leads, ...c.viewings].reduce((sum, r) => sum + r.count, 0);
+
+    check('a desk introduction is a lead in the agent\'s inbox, never dispatched, with how and who', () => {
+      const result = intro71.recordIntroduction({
+        wa_id: '+243 895 000 071', name: 'Client 71', agent_id: '71', assigned_agent: 'Commissionnaire 71',
+        property_id: '310', channel: 'phone', note: 'Appelé par le bureau', recorded_by: 'Desk', agent_contacted: true,
+      });
+      assert.strictEqual(result.ok, true);
+      const lead = dbService.getLead(result.lead.id);
+      assert.strictEqual(lead.source, 'team-introduction');
+      assert.strictEqual(lead.wa_id, '243895000071');
+      assert.strictEqual(lead.agent_id, 71);
+      assert.strictEqual(lead.assigned_agent, 'Commissionnaire 71');
+      assert.strictEqual(lead.property_id, 310);
+      assert.strictEqual(lead.contact_channel, 'phone');
+      assert.strictEqual(lead.recorded_by, 'Desk');
+      assert.strictEqual(lead.status, 'CONTACTED', 'the team knows the agent already reached the customer');
+      assert.strictEqual(lead.commune, null, 'no commune: leadDispatch never pushes it to other agencies');
+    });
+
+    check('without "already contacted" it waits at NEW for the agent to mark it', () => {
+      const result = intro71.recordIntroduction({ wa_id: '243895000072', agent_id: 71, channel: 'whatsapp' });
+      assert.strictEqual(result.ok, true);
+      assert.strictEqual(result.lead.status, 'NEW');
+      assert.strictEqual(result.lead.property_id, null);
+    });
+
+    check('a bad phone, no agent, a bad listing id or an unknown channel is refused', () => {
+      assert.strictEqual(intro71.recordIntroduction({ wa_id: '12', agent_id: 71, channel: 'phone' }).error, 'invalid-phone');
+      assert.strictEqual(intro71.recordIntroduction({ wa_id: '243895000073', channel: 'phone' }).error, 'agent-required');
+      assert.strictEqual(intro71.recordIntroduction({ wa_id: '243895000073', agent_id: 71, property_id: 'abc', channel: 'phone' }).error, 'invalid-property');
+      assert.strictEqual(intro71.recordIntroduction({ wa_id: '243895000073', agent_id: 71, channel: 'sms' }).error, 'invalid-channel');
+    });
+
+    check('the counts hold introductions, enquiries and visit requests, but not multi-agency searches', () => {
+      dbService.createLead({ wa_id: '243895000074', source: 'listing-whatsapp-enquiry', property_id: 293 });
+      dbService.createLead({ wa_id: '243895000075', source: 'site', commune: 'Gombe' });
+      const visitLead = dbService.createLead({ wa_id: '243895000076', source: 'listing-visit-request', property_id: 294 });
+      const vr = dbService.createViewingRequest({ leadId: visitLead.id, propertyId: 294, requestedTime: 'demain' });
+      dbService.setViewingRouting(vr.id, { agentId: 72, routingType: 'DIRECT_WA' });
+
+      const after = dbService.getInteractionCounts({ since: since71 });
+      assert.strictEqual(total71(after) - total71(before71), 4, '2 introductions + 1 enquiry + 1 visit; the "site" search is not one');
+      const intro = after.leads.filter((r) => r.source === 'team-introduction' && r.agentId === 71);
+      assert.strictEqual(intro.reduce((s, r) => s + r.count, 0), 2);
+      assert.strictEqual(intro.reduce((s, r) => s + r.contacted, 0), 1);
+      assert.ok(after.leads.some((r) => r.source === 'listing-whatsapp-enquiry' && r.propertyId === 293 && r.agentId === null),
+        'a listing-only row keeps its listing so web can find the agent');
+      assert.ok(after.viewings.some((r) => r.agentId === 72 && r.propertyId === 294));
+      assert.ok(!after.leads.some((r) => r.source === 'listing-visit-request'), 'a visit is counted once, through viewing_requests');
+    });
+
+    check('the routes are mounted', () => {
+      const src = fs.readFileSync(path.join(__dirname, '..', 'routes', 'admin.js'), 'utf8');
+      assert.match(src, /router\.get\('\/interaction-counts'/);
+      assert.match(src, /router\.post\('\/team-introductions'/);
+    });
+  }
+
   console.log(`\n${'-'.repeat(60)}`);
   console.log(`${passed} passed, ${failed} failed`);
   console.log(`${'-'.repeat(60)}`);

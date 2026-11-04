@@ -3400,7 +3400,8 @@
       "links": "Liens de campagne",
       "growth": "Croissance",
       "blog": "Guides & Actualités",
-      "campaign": "Campagne"
+      "campaign": "Campagne",
+      "interactions": "Interactions"
     },
     "login": {
       "intro": "Accès réservé à l'équipe Lukka Place.",
@@ -6473,6 +6474,84 @@
         "campaignStarted": "Campagne relancée.",
         "campaignStopped": "Campagne arrêtée : plus aucun message du programme ne part.",
         "failed": "Le changement n’a pas pu être enregistré. Réessayez."
+      }
+    },
+    "interactions": {
+      "title": "Interactions clients → agents",
+      "subtitle": "Chaque fois qu’un client a contacté un agent ou un commissionnaire via Lukka Place, tous canaux confondus.",
+      "engineError": "Le moteur n’a pas répondu ({error}) : demandes, visites et mises en relation manquent ci-dessous.",
+      "databaseError": "Lecture des taps impossible ({error}) : WhatsApp et appels manquent ci-dessous.",
+      "totalTitle": "Interactions sur {days} jours",
+      "totalHelp": "Somme des canaux ci-contre. Un tap prouve que le client a ouvert WhatsApp ou l’appel vers l’agent, pas qu’une conversation a suivi. Les taps vers le numéro central de Lukka Place ne sont pas comptés : quand le client envoie le message, il est déjà compté dans « Messages à Lukka Place ». Seuls les visiteurs comptent (jamais l’agent lui-même, l’équipe ou un robot).",
+      "agentsReached": "{count} agents contactés",
+      "answered": "{contacted} demandes sur {total} marquées traitées par l’agent ou l’équipe",
+      "central": "En plus : {whatsapp} taps WhatsApp et {call} appels vers le numéro central de Lukka Place.",
+      "channels": {
+        "whatsappDirect": "WhatsApp direct",
+        "callDirect": "Appels",
+        "whatsappEnquiry": "Messages à Lukka Place",
+        "visitRequest": "Demandes de visite",
+        "profileEnquiry": "Demandes via profil",
+        "projectEnquiry": "Demandes projet",
+        "teamIntroduction": "Mises en relation"
+      },
+      "channelHelp": {
+        "whatsappDirect": "Taps sur le bouton WhatsApp de l’agent",
+        "callDirect": "Taps sur « Appeler l’agent »",
+        "whatsappEnquiry": "Reçus sur notre numéro depuis une annonce",
+        "visitRequest": "« Demander une visite » et assistant WhatsApp",
+        "profileEnquiry": "Formulaire de la page de l’agent",
+        "projectEnquiry": "Demandes sur un projet neuf",
+        "teamIntroduction": "Enregistrées par l’équipe"
+      },
+      "short": {
+        "whatsappDirect": "WhatsApp",
+        "callDirect": "Appels",
+        "whatsappEnquiry": "Messages",
+        "visitRequest": "Visites",
+        "profileEnquiry": "Profil",
+        "projectEnquiry": "Projets",
+        "teamIntroduction": "Équipe"
+      },
+      "perAgentTitle": "Par agent",
+      "perAgentNote": "Les agents qui ont reçu au moins une interaction sur la période, du plus sollicité au moins sollicité.",
+      "agent": "Agent",
+      "total": "Total",
+      "agentFallback": "Agent #{id}",
+      "noAgent": "Sans agent attribué",
+      "empty": "Aucune interaction enregistrée sur {days} jours.",
+      "moreAgents": "{count} autres agents ne sont pas affichés (ils sont inclus dans les totaux).",
+      "notCounted": "Non comptés ici : les recherches « Trouver pour moi », envoyées à plusieurs agences (voir Matching), et les échanges entre un client et un agent sur leurs propres téléphones, sauf s’ils sont enregistrés comme mise en relation.",
+      "channel": {
+        "phone": "Appel de l’équipe à l’agent",
+        "whatsapp": "WhatsApp de l’équipe à l’agent",
+        "in_person": "En personne",
+        "other": "Autre"
+      },
+      "form": {
+        "title": "Enregistrer une mise en relation",
+        "subtitle": "Quand l’équipe met un client en contact avec un agent hors du site (par exemple un appel au commissionnaire). La demande arrive dans la boîte Demandes de l’agent, qui peut la marquer traitée. Aucun message n’est envoyé.",
+        "customerPhone": "Numéro du client",
+        "customerName": "Nom du client (facultatif)",
+        "agent": "Agent ou commissionnaire",
+        "agentPlaceholder": "Rechercher un agent…",
+        "listing": "N° d’annonce (facultatif)",
+        "channel": "Comment",
+        "note": "Note (facultatif)",
+        "notePlaceholder": "Ce que cherche le client, ce qui a été convenu…",
+        "agentContacted": "L’agent a déjà contacté le client",
+        "submit": "Enregistrer",
+        "saving": "Enregistrement…",
+        "saved": "Mise en relation enregistrée.",
+        "openLead": "Voir la demande #{id}",
+        "errors": {
+          "phone": "Numéro du client invalide.",
+          "agent": "Choisissez un agent existant.",
+          "channel": "Choisissez comment la mise en relation a été faite.",
+          "listing": "Le n° d’annonce doit être un nombre.",
+          "listingMissing": "Aucune annonce n° {id}.",
+          "engine": "Enregistrement impossible : {error}"
+        }
       }
     }
   },

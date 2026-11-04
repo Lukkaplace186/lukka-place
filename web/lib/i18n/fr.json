@@ -6282,7 +6282,17 @@
         "failed": "L'opération a échoué. Réessayez.",
         "reason": "Indiquez un motif (5 caractères minimum).",
         "pick": "Cochez au moins un agent.",
-        "unavailable": "Les crédits ne sont pas encore activés (migration)."
+        "unavailable": "Les crédits ne sont pas encore activés (migration).",
+        "campaignStarted": "Campagne relancée.",
+        "campaignStopped": "Campagne arrêtée : plus aucun message du programme ne part.",
+        "paused": "La campagne est arrêtée : rien n’a été envoyé."
+      },
+      "campaign": {
+        "active": "Campagne d’annonce aux agents : active. Le message du programme part avec le bouton « Annoncer » et quand un agent nous écrit.",
+        "stopped": "Campagne d’annonce aux agents : arrêtée. Aucun message du programme n’est envoyé aux agents. Les liens et les crédits de parrainage continuent de fonctionner.",
+        "changed": "Dernier changement : {by}.",
+        "stop": "Arrêter la campagne",
+        "start": "Relancer la campagne"
       }
     },
     "growth": {

@@ -6,6 +6,7 @@ import { requireAdmin } from '@/lib/adminSession';
 import { recordAudit, actorLabel } from '@/lib/adminAudit';
 import { approveCredits, payApprovedCredits, syncReferralCredits, voidCredit } from '@/lib/referralCredits';
 import { announceReferralProgram } from '@/lib/referralAnnouncement';
+import { saveReferralCampaign } from '@/lib/siteSettings';
 
 const PATH = '/admin/partenaires/agents';
 
@@ -99,5 +100,24 @@ export async function announceProgramAction(formData) {
   }
   await recordAudit(session, { action: 'referrals.announce', details: result });
   revalidatePath(PATH);
+  if (result.paused) redirect(back(formData, 'paused'));
   redirect(back(formData, result.available ? 'announced' : 'unavailable', { n: result.accepted, refused: result.refused, left: result.remaining }));
+}
+
+/**
+ * Stop or restart the announcement campaign: the console button and the send
+ * when an agent writes in both read this switch. Sends nothing itself.
+ */
+export async function setReferralCampaignAction(formData) {
+  const session = await requireAdmin('partners.manage');
+  const active = formData.get('active') === '1';
+  try {
+    await saveReferralCampaign(active, actorLabel(session).slice(0, 120));
+  } catch (err) {
+    console.error(`[admin/referrals] campaign switch failed: ${err.message}`);
+    redirect(back(formData, 'failed'));
+  }
+  await recordAudit(session, { action: active ? 'referrals.campaign_start' : 'referrals.campaign_stop', entityType: 'cms', entityId: 'growth.referral_campaign' });
+  revalidatePath(PATH);
+  redirect(back(formData, active ? 'campaignStarted' : 'campaignStopped'));
 }

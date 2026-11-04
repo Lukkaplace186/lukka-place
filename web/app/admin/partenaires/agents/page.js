@@ -9,12 +9,13 @@ import { ACTIVATION_WINDOW_DAYS, HOLD_DAYS, REFERRAL_CREDIT } from '@/lib/referr
 import { frNumber } from '@/lib/format';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { announcementTemplateName } from '@/lib/referralAnnouncement';
+import { getReferralCampaign } from '@/lib/siteSettings';
 import { Chip, ErrorNote, formatKinshasa } from '../../LeadRoutingUI';
 import Pagination from '../../table/Pagination';
 import { EmptyRow, TD_DENSE, TH_STICKY, TR_DENSE, TableFrame } from '../../table/TableFrame';
 import { BUTTON, BUTTON_PRIMARY, INPUT } from '../../sales/styles';
 import {
-  announceProgramAction, approveCreditsAction, payCreditsAction, syncCreditsAction, voidCreditAction,
+  announceProgramAction, approveCreditsAction, payCreditsAction, setReferralCampaignAction, syncCreditsAction, voidCreditAction,
 } from './actions';
 
 export const dynamic = 'force-dynamic';
@@ -39,7 +40,7 @@ const STATUS_TONE = { pending: 'warning', approved: 'blue', paid: 'success', voi
 
 const FLASH = {
   synced: 'success', approved: 'success', paid: 'success', voided: 'success', clawback_flagged: 'success',
-  announced: 'success', failed: 'danger', reason: 'danger', pick: 'danger', unavailable: 'danger',
+  announced: 'success', campaignStarted: 'success', campaignStopped: 'success', paused: 'danger', failed: 'danger', reason: 'danger', pick: 'danger', unavailable: 'danger',
 };
 
 const TH_NUM = `${TH_STICKY} text-right`;
@@ -71,6 +72,7 @@ export default async function AdminAgentReferralsPage({ searchParams }) {
   const canPay = can(session?.role, 'partners.payout');
   const canAnnounce = can(session?.role, 'partners.manage');
   const announceTemplate = canAnnounce ? announcementTemplateName() : null;
+  const campaign = await getReferralCampaign();
 
   let ledger = null;
   let credits = [];
@@ -108,15 +110,31 @@ export default async function AdminAgentReferralsPage({ searchParams }) {
               <button type="submit" className={BUTTON}>{t('admin.referrals.sync')}</button>
             </form>
           ) : null}
-          {canAnnounce ? (
+          {canAnnounce && campaign.active ? (
             <form action={announceProgramAction}>
               <input type="hidden" name="return_to" value={returnTo} />
               <button type="submit" className={BUTTON}>{t('admin.referrals.announce')}</button>
             </form>
           ) : null}
+          {canAnnounce ? (
+            <form action={setReferralCampaignAction}>
+              <input type="hidden" name="return_to" value={returnTo} />
+              <input type="hidden" name="active" value={campaign.active ? '0' : '1'} />
+              <button type="submit" className={BUTTON}>
+                {t(campaign.active ? 'admin.referrals.campaign.stop' : 'admin.referrals.campaign.start')}
+              </button>
+            </form>
+          ) : null}
         </div>
       </div>
-      {canAnnounce ? (
+      <p
+        className={`u-micro-strong rounded-lg px-3.5 py-2.5 ${campaign.active ? 'bg-success-tint text-success' : 'bg-canvas-alt text-ink-70'}`}
+        role="status"
+      >
+        {t(campaign.active ? 'admin.referrals.campaign.active' : 'admin.referrals.campaign.stopped')}
+        {campaign.updatedAt ? ` ${t('admin.referrals.campaign.changed', { by: campaign.updatedBy || '—' })}` : ''}
+      </p>
+      {canAnnounce && campaign.active ? (
         <p className="u-micro text-ink-70">
           {announceTemplate
             ? t('admin.referrals.announceViaTemplate', { name: announceTemplate })

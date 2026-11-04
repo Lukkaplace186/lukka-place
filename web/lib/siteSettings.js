@@ -127,3 +127,28 @@ export async function getSeoSettingsForAdmin() {
 }
 
 export const saveSeoSettings = (value, updatedBy) => save(SEO_SETTING_KEY, value, updatedBy);
+
+// ---------------------------------------------------------------------------
+// The referral announcement campaign (/admin/partenaires/agents): whether the
+// programme message may go out at all — the console's "Annoncer" button AND
+// the send when an agent writes in (lib/referralAnnouncement.js). Stopped on
+// 2026-11-04 (owner: agents read it as THEM having to sign up). No row reads
+// as STOPPED, and so does a failed read: an unreadable switch never sends.
+// ---------------------------------------------------------------------------
+
+export const REFERRAL_CAMPAIGN_KEY = 'growth.referral_campaign';
+
+/** @returns {Promise<{active: boolean, updatedAt: string|null, updatedBy: string|null}>} */
+export async function getReferralCampaign() {
+  try {
+    return await memo(`${MEMO_PREFIX}referral-campaign`, TTL_MS, async () => {
+      const row = await readValue(REFERRAL_CAMPAIGN_KEY);
+      return { active: row?.value?.active === true, updatedAt: row?.updated_at || null, updatedBy: row?.updated_by || null };
+    });
+  } catch (err) {
+    console.error(`[site-settings] referral campaign switch unreadable, treated as stopped: ${err.message}`);
+    return { active: false, updatedAt: null, updatedBy: null };
+  }
+}
+
+export const saveReferralCampaign = (active, updatedBy) => save(REFERRAL_CAMPAIGN_KEY, { active: active === true }, updatedBy);

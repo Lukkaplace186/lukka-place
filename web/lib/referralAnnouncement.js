@@ -4,6 +4,7 @@ import { sendWhatsAppMessage, sendWhatsAppTemplate } from './adminApi';
 import { ensureAgentPartnerCode } from './partners';
 import { partnerLinks } from './partnerRules';
 import { SITE_URL } from './constants';
+import { getReferralCampaign } from './siteSettings';
 
 /**
  * The WhatsApp telling each verified agent about the referral programme
@@ -28,6 +29,10 @@ import { SITE_URL } from './constants';
  * send was accepted or not; `channel` says how it went (session / template /
  * on_write, NULL on rows from before the column = session). The console says
  * "accepted", never "received". French whatever the console language.
+ *
+ * Both ways out stop while the campaign switch is off (lib/siteSettings.js
+ * getReferralCampaign, /admin/partenaires/agents): nothing is sent and nothing
+ * is recorded, so turning it back on reaches the same agents as before.
  */
 
 export const ANNOUNCE_BATCH = 100;
@@ -144,10 +149,11 @@ async function sendTo(agent, { template, onWrite = false }) {
   return { accepted: ok, channel };
 }
 
-/** The console button. @returns {Promise<{available: boolean, template: string|null, accepted: number, refused: number, remaining: number}>} */
+/** The console button. @returns {Promise<{available: boolean, paused?: boolean, template: string|null, accepted: number, refused: number, remaining: number}>} */
 export async function announceReferralProgram() {
   const pool = getPool();
   const template = announcementTemplateName();
+  if (!(await getReferralCampaign()).active) return { available: true, paused: true, template, accepted: 0, refused: 0, remaining: 0 };
   const targetsSql = template ? ANNOUNCE_TEMPLATE_TARGETS_SQL : ANNOUNCE_TARGETS_SQL;
   let targets;
   try {
@@ -195,9 +201,10 @@ export const ON_WRITE_AGENT_SQL = `
 
 /**
  * The engine's call when a verified agent writes in.
- * @returns {Promise<{status: 'sent'|'refused'|'already'|'not-eligible'|'unavailable'}>}
+ * @returns {Promise<{status: 'sent'|'refused'|'already'|'not-eligible'|'unavailable'|'paused'}>}
  */
 export async function announceOnWrite({ agentId, previousInboundAt = null }) {
+  if (!(await getReferralCampaign()).active) return { status: 'paused' };
   const pool = getPool();
   let agent;
   let row;

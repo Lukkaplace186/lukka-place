@@ -6282,7 +6282,17 @@
         "failed": "That did not work. Try again.",
         "reason": "Give a reason (5 characters minimum).",
         "pick": "Tick at least one agent.",
-        "unavailable": "Credits are not switched on yet (migration)."
+        "unavailable": "Credits are not switched on yet (migration).",
+        "campaignStarted": "Campaign restarted.",
+        "campaignStopped": "Campaign stopped: no more programme messages go out.",
+        "paused": "The campaign is stopped: nothing was sent."
+      },
+      "campaign": {
+        "active": "Agent announcement campaign: active. The programme message goes out with the “Announce” button and when an agent writes to us.",
+        "stopped": "Agent announcement campaign: stopped. No programme message is sent to agents. Referral links and credits keep working.",
+        "changed": "Last change: {by}.",
+        "stop": "Stop the Campaign",
+        "start": "Restart the Campaign"
       }
     },
     "growth": {

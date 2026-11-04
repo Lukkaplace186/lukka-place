@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { guideAlertQuery, guideSearchHref, marketCommunes } from '@/lib/homeMarket';
+import { guideSearchHref, marketCommunes } from '@/lib/homeMarket';
 import fr from '@/lib/i18n/fr.json' with { type: 'json' };
 import en from '@/lib/i18n/en.json' with { type: 'json' };
 
@@ -38,25 +38,16 @@ test('each bar carries the guide page\'s own range and Lukka Place count, never 
   assert.equal(bare.rows[0].lukkaListings, 0);
 });
 
-test('the listings button opens the same search as the guide page', () => {
+test('the guide page opens its listings search through the shared helper', () => {
   assert.equal(guideSearchHref('Kasa-Vubu', 2), '/listings?transaction_type=location&commune=Kasa-Vubu&beds_min=2&lease_term=long');
   assert.match(read('../../app/(site)/combien-coute/[slug]/page.js'), /guideSearchHref\(guide\.commune, guide\.beds\)/);
-  const explorer = read('../../components/HomeMarketExplorer.js');
-  assert.match(explorer, /selected\.lukkaListings > 0 \?/, 'no button when Lukka Place has nothing to show');
-  assert.match(explorer, /selected\.p25 < selected\.p75/, 'no "entre X et X" range');
 });
 
-test('the price alert is the guide\'s own search capped at its median', () => {
-  const query = guideAlertQuery('Limete', 2, 550);
-  assert.equal(query, 'transaction_type=location&commune=Limete&beds_min=2&lease_term=long&price_max=550');
-  // The saved alert opens the same results page as "Voir les annonces", capped.
-  assert.equal(`/listings?${query}`, `${guideSearchHref('Limete', 2)}&price_max=550`);
-  assert.match(guideAlertQuery('Kasa-Vubu', 3, 999.6), /commune=Kasa-Vubu&.*price_max=1000$/);
-  for (const bad of [['', 2, 550], ['Limete', 0, 550], ['Limete', 2, 0], ['Limete', 2, null]]) {
-    assert.equal(guideAlertQuery(...bad), null, JSON.stringify(bad));
-  }
+test('the market headline runs straight into the chart: no alert or listings buttons (owner, 2026-11-04)', () => {
   const explorer = read('../../components/HomeMarketExplorer.js');
-  assert.match(explorer, /<QueryAlertButton\s+query=\{guideAlertQuery\(current\.commune, selected\.beds, selected\.median\)\}/);
+  assert.doesNotMatch(explorer, /QueryAlertButton|guideSearchHref|alertHint|seeListings/);
+  assert.match(explorer, /href=\{`\/combien-coute\/\$\{selected\.slug\}`\}/, '"Voir le détail" stays');
+  assert.match(explorer, /selected\.p25 < selected\.p75/, 'no "entre X et X" range');
 });
 
 test('the market section shows nothing it was not given', () => {
@@ -102,8 +93,8 @@ test('every new homepage string exists in French and English', () => {
   for (const dict of [fr, en]) {
     for (const key of ['lead', 'open', 'close']) assert.ok(dict.home.alertBand[key], `alertBand.${key}`);
     assert.ok(dict.home.explore.title);
-    for (const key of ['title', 'note', 'communes', 'detail', 'seeListings', 'alertButton']) assert.ok(dict.home.market[key], `market.${key}`);
-    for (const key of ['statLabel', 'statCount', 'barLabel', 'bedsShort', 'onLukka', 'alertHint']) {
+    for (const key of ['title', 'note', 'communes', 'detail']) assert.ok(dict.home.market[key], `market.${key}`);
+    for (const key of ['statLabel', 'statCount', 'barLabel', 'bedsShort', 'onLukka']) {
       assert.ok(dict.home.market[key].one && dict.home.market[key].other, `market.${key}`);
     }
     assert.ok(dict.home.value.aboutLink);

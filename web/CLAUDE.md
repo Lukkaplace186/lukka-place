@@ -4043,10 +4043,11 @@ Decluttered from an approved mockup; the hero and search panel are unchanged.
 - **Le marché locatif en chiffres** (`HomeMarketBand`, `HomeMarketExplorer`,
   `lib/homeMarket.js`): the published price guides — every commune with a
   guide for 1–4 bedrooms, busiest first, up to 12 — as tappable bars; the
-  middle half (p25–p75), "dont N sur Lukka Place" and a "Voir les annonces à …"
-  button (`guideSearchHref`, the guide page's own search; no count on it,
-  since /listings filters `beds_min` only). Communes across the top, figure
-  left, chart right on a desktop. The Lukka Index panel beside it was removed the same day
+  middle half (p25–p75), "dont N sur Lukka Place" and "Voir le détail".
+  No buttons between the figure and the chart: a price alert and a "Voir les
+  annonces à …" button were tried and removed the same day (owner: the alert
+  band already offers the alert). Communes across the top, figure left,
+  chart right on a desktop. The Lukka Index panel beside it was removed the same day
   (owner: not needed for now); its `home.market.index*` strings are unused.
   /indice-lukka is unchanged.
 - **Notre approche**: three unboxed points with icons, shorter copy (same

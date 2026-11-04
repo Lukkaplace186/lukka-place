@@ -42,26 +42,10 @@ export function marketCommunes(guides, { max = 12, label = (commune) => commune 
 }
 
 /**
- * /listings for a guide's commune and bedroom count — the same search the
- * guide page's own button opens. /listings filters on a minimum bedroom
- * count only, so the link carries no count of its own.
+ * /listings for a guide's commune and bedroom count — the search the guide
+ * page's own button opens (app/(site)/combien-coute/[slug]). /listings
+ * filters on a minimum bedroom count only, so the link carries no count.
  */
 export function guideSearchHref(commune, beds) {
-  return `/listings?${guideSearchQuery(commune, beds)}`;
-}
-
-function guideSearchQuery(commune, beds) {
-  return `transaction_type=location&commune=${encodeURIComponent(commune)}&beds_min=${beds}&lease_term=long`;
-}
-
-/**
- * The price alert under the market chart: the guide's own search capped at
- * its median rent — "a 2-bedroom in Limete at 550 $ or less". It is an
- * ordinary saved search (QueryAlertButton → the daily WhatsApp sweep), with
- * the /listings param names, so the alert and its results page agree.
- */
-export function guideAlertQuery(commune, beds, median) {
-  const cap = Math.round(Number(median));
-  if (!commune || !(beds >= 1) || !(cap > 0)) return null;
-  return `${guideSearchQuery(commune, beds)}&price_max=${cap}`;
+  return `/listings?transaction_type=location&commune=${encodeURIComponent(commune)}&beds_min=${beds}&lease_term=long`;
 }

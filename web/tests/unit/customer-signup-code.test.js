@@ -72,3 +72,17 @@ test('the name is required, in the form and in the action', () => {
   assert.equal(fr.auth.signup.fullName, 'Nom et prénom');
   assert.match(fr.auth.signup.codeWillBeSent, /6 chiffres/);
 });
+
+test('the WhatsApp proof names the Lukka Place number the code goes to', () => {
+  const panel = read('components/WhatsAppVerifyPanel.js');
+  assert.match(panel, /auth\.whatsappVerify\.introTo', \{ phone: maskedPhone, business: businessNumber \}/);
+  for (const page of ['app/(site)/compte/inscription/verifier/page.js', 'app/(site)/compte/agent/inscription/verifier/page.js']) {
+    assert.match(read(page), /businessNumber=\{whatsappVerifyNumber\(\)\}/, page);
+  }
+  assert.match(read('lib/whatsappVerify.js'), /NEXT_PUBLIC_WHATSAPP_NUMBER[\s\S]*formatPhoneDisplay/);
+  for (const l of ['fr', 'en']) {
+    const j = JSON.parse(read(`lib/i18n/${l}.json`));
+    assert.match(j.auth.whatsappVerify.introTo, /\{business\}/);
+    assert.match(j.auth.whatsappVerify.introTo, /\{phone\}/);
+  }
+});

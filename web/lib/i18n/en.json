@@ -6597,7 +6597,8 @@
       "restart": "Start again",
       "noNumber": "WhatsApp verification is not available right now. Please contact the Lukka Place team.",
       "haveCode": "Received a code by message? Enter it here.",
-      "noCodeFallback": "No code? Confirm your number from WhatsApp instead:"
+      "noCodeFallback": "No code? Confirm your number from WhatsApp instead:",
+      "introTo": "Send this code to {business} (Lukka Place) from the WhatsApp account of {phone}. That is what proves the number is yours."
     },
     "partnerCode": "Referral code (optional)",
     "partnerCodeHint": "If an agent or a creator invited you, enter their code, e.g. MARIE01.",

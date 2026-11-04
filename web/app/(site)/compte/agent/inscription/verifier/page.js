@@ -6,7 +6,7 @@ import { getVerifyAttempt, maskPhone } from '@/lib/verifyAttempt';
 import { getCentralWhatsAppHref } from '@/lib/whatsapp';
 import { getT } from '@/lib/i18n/server';
 import WhatsAppVerifyPanel from '@/components/WhatsAppVerifyPanel';
-import { ensureChallenge, whatsappVerifyHref } from '@/lib/whatsappVerify';
+import { ensureChallenge, whatsappVerifyHref, whatsappVerifyNumber } from '@/lib/whatsappVerify';
 import { otpBypassEnabled } from '@/lib/otpBypass';
 
 // generateMetadata, not a static object: a static export cannot see the
@@ -65,6 +65,7 @@ export default async function AgentVerifyOtpPage({ searchParams }) {
             code={challenge.code}
             href={whatsappVerifyHref(challenge.code)}
             maskedPhone={maskPhone(attempt.phone)}
+            businessNumber={whatsappVerifyNumber()}
             next={next}
             restartHref="/compte/agent/inscription"
           />

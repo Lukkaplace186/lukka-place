@@ -18,7 +18,7 @@ const POLL_MS = 3000;
  * again — on a phone the person leaves for WhatsApp and comes back, and that
  * return is exactly when the answer is ready.
  */
-export default function WhatsAppVerifyPanel({ code, href, maskedPhone, next, restartHref }) {
+export default function WhatsAppVerifyPanel({ code, href, maskedPhone, businessNumber, next, restartHref }) {
   const t = useT();
   const router = useRouter();
   const [status, setStatus] = useState('pending');
@@ -65,7 +65,11 @@ export default function WhatsAppVerifyPanel({ code, href, maskedPhone, next, res
 
   return (
     <div className="mt-5">
-      <p className="text-sm text-ink-70">{t('auth.whatsappVerify.intro', { phone: maskedPhone })}</p>
+      <p className="text-sm text-ink-70">
+        {businessNumber
+          ? t('auth.whatsappVerify.introTo', { phone: maskedPhone, business: businessNumber })
+          : t('auth.whatsappVerify.intro', { phone: maskedPhone })}
+      </p>
       <p className="u-tabular mt-4 rounded-md border border-line bg-canvas px-3 py-3 text-center text-2xl font-bold tracking-[0.35em] text-ink">
         {code}
       </p>

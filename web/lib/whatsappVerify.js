@@ -1,6 +1,7 @@
 import 'server-only';
 import { randomInt } from 'node:crypto';
 import { getPool } from './db';
+import { formatPhoneDisplay } from './phone';
 
 /**
  * "Vérifier via WhatsApp" — reverse phone verification.
@@ -77,6 +78,17 @@ export async function consumeVerifiedChallenge({ role, id, phone }) {
     [role, id, digits(phone)],
   );
   return rows.length > 0;
+}
+
+/**
+ * The Lukka Place number the code must be sent TO, for display ("+243 97 632
+ * 1848"), or null when none is configured. Shown beside the code so a person
+ * whose wa.me link did not open — or who types the message by hand — knows
+ * where it goes (owner report, 2026-11-04).
+ */
+export function whatsappVerifyNumber() {
+  const number = digits(process.env.NEXT_PUBLIC_WHATSAPP_NUMBER);
+  return number ? formatPhoneDisplay(number) : null;
 }
 
 /** The wa.me link that sends the code, or null when no central number is configured. */

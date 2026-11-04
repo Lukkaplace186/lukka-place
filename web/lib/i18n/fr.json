@@ -394,7 +394,7 @@
   "listings": {
     "filters": {
       "title": "Filtres",
-      "searchPlaceholder": "Commune, quartier, référence…",
+      "searchPlaceholder": "Commune ou quartier…",
       "commune": "Commune",
       "quartier": "Quartier",
       "propertyType": "Type de bien",
@@ -870,7 +870,8 @@
     },
     "city": {
       "label": "Ville",
-      "all": "Toutes les villes"
+      "all": "Toutes les villes",
+      "searchIn": "Recherche dans :"
     },
     "leaseTerm": {
       "label": "Durée de location",

@@ -394,7 +394,7 @@
   "listings": {
     "filters": {
       "title": "Filters",
-      "searchPlaceholder": "Commune, neighbourhood, reference…",
+      "searchPlaceholder": "Commune or area…",
       "commune": "Commune",
       "quartier": "Neighbourhood",
       "propertyType": "Property type",
@@ -870,7 +870,8 @@
     },
     "city": {
       "label": "City",
-      "all": "All cities"
+      "all": "All cities",
+      "searchIn": "Searching in:"
     },
     "leaseTerm": {
       "label": "Rental term",

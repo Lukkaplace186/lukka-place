@@ -433,11 +433,19 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
             second horizontally-scrolling mobile row underneath the input;
             replaced with a real Rightmove/Zoopla-style single row now that
             mobile no longer shows the pills at all. */}
-        {/* Phone: the search box has its own full-width row and the city
-            picker + Filtres sit under it (2026-11-04, owner report: on one
-            row the box was ~70px wide, too small to read what was typed or
-            the suggestions). From lg it is one row again. */}
-        <div className="flex w-full flex-wrap items-center gap-2 lg:flex-nowrap lg:gap-3">
+        {/* Phone (2026-11-04, owner direction: Zoopla's bar): the city is one
+            quiet line above, "Recherche dans : Kinshasa ⌄" — we are not in
+            every city yet, so it stays visible — and the row below is only
+            the search box and Filtres, same 48px height. The suggestion panel
+            spans the screen whatever the box's width (LocationAutocomplete).
+            From lg the boxed city picker sits in the row as before. */}
+        <CityPicker
+          variant="inline"
+          cities={cities}
+          current={defaults.searchCity || defaults.ville}
+          className="-ml-1.5 mb-1.5 lg:hidden"
+        />
+        <div className="flex w-full items-center gap-2 lg:gap-3">
           {/* preserveParams: this box does its own client-side navigation
               (see LocationAutocomplete) rather than participating in this
               form's hidden-input/requestSubmit machinery — picking a
@@ -460,7 +468,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
               app's own `--blue` focus token rather than a literal dark
               slate-900 border, matching `.u-focus-ring`'s established
               focus colour used everywhere else a field gets one. */}
-          <CityPicker cities={cities} current={defaults.searchCity || defaults.ville} className="order-2 min-w-0 flex-1 lg:order-none lg:flex-none" />
+          <CityPicker cities={cities} current={defaults.searchCity || defaults.ville} className="hidden lg:flex" />
           <LocationAutocomplete
             preserveParams
             initialValue={defaults.search || defaults.near || searchedPlaceLabel(defaults)}
@@ -469,8 +477,9 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
             showIcon
             showClear
             recentSearches={recentSearches}
-            className="order-1 min-w-0 flex-1 basis-full rounded-lg border-2 border-line bg-surface px-4 py-2.5 transition-colors focus-within:border-blue lg:order-none lg:basis-auto lg:min-w-[15rem]"
-            inputClassName="font-medium"
+            className="flex min-h-12 min-w-0 flex-1 items-center rounded-xl border-[1.5px] border-ink-35 bg-surface px-3.5 transition-[border-color,box-shadow] focus-within:border-blue focus-within:shadow-[0_0_0_3px_var(--blue-tint)] lg:min-h-0 lg:min-w-[15rem] lg:rounded-lg lg:border-2 lg:border-line lg:px-4 lg:py-2.5"
+            rowClassName="flex w-full min-w-0 items-center gap-2.5"
+            inputClassName="bg-transparent py-2.5 font-medium text-ink placeholder:font-normal placeholder:text-ink-45 focus:outline-none lg:py-0"
           />
 
           {/* Mobile-only single filter entry point — replaces the pill row
@@ -480,10 +489,10 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
           <button
             type="button"
             onClick={() => setFilterModalOpen(true)}
-            className={`u-press order-3 inline-flex h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border-2 px-4 text-[0.8125rem] font-semibold transition-colors lg:hidden ${
+            className={`u-press inline-flex h-12 shrink-0 items-center gap-2 whitespace-nowrap rounded-xl border-[1.5px] px-3.5 text-[0.9375rem] font-semibold transition-colors lg:hidden ${
               mobileFilterCount > 0
                 ? 'border-blue bg-blue-tint text-blue-deep'
-                : 'border-line bg-surface text-ink-70'
+                : 'border-ink-35 bg-surface text-ink'
             }`}
           >
             <SlidersHorizontal strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4" />

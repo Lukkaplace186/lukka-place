@@ -79,7 +79,7 @@ function ListingCard({ item, labels }) {
   return (
     <Link
       href={item.href}
-      className="group block h-full overflow-hidden rounded-2xl border border-line/70 bg-surface shadow-sm transition-[box-shadow,scale] duration-150 hover:shadow-md [&:active:not(:has(button:active)):not(:has([data-card-photo]:active))]:scale-[0.985]"
+      className="group block h-full overflow-hidden rounded-2xl border border-line/70 bg-surface shadow-sm transition-[box-shadow,scale,border-color] duration-150 hover:border-blue/30 hover:shadow-md [&:active:not(:has(button:active)):not(:has([data-card-photo]:active))]:scale-[0.985]"
     >
       <div className="relative aspect-[3/2] w-full overflow-hidden bg-canvas-alt">
         {item.photos.length ? (
@@ -167,15 +167,18 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
   const bioLong = (agent.bio || '').length > BIO_CLAMP_CHARS;
 
   return (
-    // A compact white header strip (logo beside name, one line of contact,
-    // one row of stats), then the listings on the mist ground (owner's
-    // direction, 2026-11-04: the centred-logo card read as amateurish).
-    <div className="overflow-x-clip bg-canvas-deep pb-10">
+    // A brand-blue cover strip with the agency's logo straddling its edge,
+    // then a compact white header (name, contact, one row of stats), then the
+    // listings on a soft blue ground (owner's direction, 2026-11-04: the
+    // all-white page lacked the brand's blue; a blue block down to the name
+    // had read as awkward, so the blue is a cover, not the header itself).
+    <div className="overflow-x-clip bg-blue-tint/60 pb-10">
       <div className="border-b border-line/70 bg-surface">
-        <div className="mx-auto max-w-[40rem] px-4 pt-5 md:max-w-3xl lg:max-w-[77.5rem] lg:px-6 lg:pt-8">
-          <div className="flex items-center gap-3.5 lg:gap-6">
+        <div aria-hidden="true" className="h-20 bg-gradient-to-br from-blue-900 via-blue-deep to-blue lg:h-32" />
+        <div className="mx-auto max-w-[40rem] px-4 md:max-w-3xl lg:max-w-[77.5rem] lg:px-6">
+          <div className="flex items-start gap-3.5 lg:gap-6">
             <div
-              className={`grid h-16 w-16 flex-none place-items-center overflow-hidden rounded-xl ring-1 ring-line/60 lg:h-24 lg:w-24 lg:rounded-2xl ${
+              className={`-mt-8 grid h-16 w-16 flex-none place-items-center overflow-hidden rounded-xl shadow-md ring-4 ring-surface lg:-mt-12 lg:h-24 lg:w-24 lg:rounded-2xl ${
                 agent.image ? 'bg-surface' : 'bg-gradient-to-br from-blue-900 to-blue'
               }`}
             >
@@ -187,7 +190,7 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
                 <Building2 strokeWidth={1.75} className="h-6 w-6 text-white/85" aria-hidden="true" />
               )}
             </div>
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1 pt-2.5 lg:pt-4">
               <h1 className="flex items-center gap-1.5 text-xl font-bold leading-tight tracking-tight text-ink lg:text-[1.875rem]">
                 <span className="line-clamp-2 min-w-0 break-words">{agent.name}</span>
                 {agent.verifiedLabel ? (
@@ -204,7 +207,7 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
             </div>
             {/* From a laptop up the contact actions sit in the header, where a
                 desktop visitor looks for them; the pinned bar is a phone pattern. */}
-            <div className="hidden flex-none items-center gap-3 lg:flex">
+            <div className="hidden flex-none items-center gap-3 pt-4 lg:flex">
               {agent.whatsappHref ? (
                 <a
                   href={agent.whatsappHref}
@@ -219,7 +222,7 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
               {agent.telHref ? (
                 <a
                   href={agent.telHref}
-                  className="u-press inline-flex h-11 items-center gap-2 rounded-xl px-5 text-sm font-bold text-blue-deep ring-[1.5px] ring-inset ring-blue-deep transition-colors hover:bg-blue-tint"
+                  className="u-press inline-flex h-11 items-center gap-2 rounded-xl bg-blue px-5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-blue-deep"
                 >
                   <Phone strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
                   {labels.call}
@@ -230,9 +233,9 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
 
           <div className="mt-3.5 flex items-center gap-2 lg:mt-5">
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 text-xs">
-              <span className="rounded-full bg-canvas-deep px-2.5 py-1 font-semibold text-ink-70">{labels.activeCount}</span>
+              <span className="rounded-full bg-blue-tint px-2.5 py-1 font-semibold text-blue-deep">{labels.activeCount}</span>
               {agent.rating ? (
-                <a href="#avis" className="inline-flex items-center gap-1 rounded-full bg-canvas-deep px-2.5 py-1 font-semibold text-ink-70 hover:text-ink">
+                <a href="#avis" className="inline-flex items-center gap-1 rounded-full bg-blue-tint px-2.5 py-1 font-semibold text-blue-deep hover:text-blue-900">
                   <Star strokeWidth={ICON_STROKE_WIDTH} className="h-3 w-3 fill-warning text-warning" aria-hidden="true" />
                   {agent.rating}
                 </a>
@@ -243,7 +246,7 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
                   onClick={() => setCommunesOpen((v) => !v)}
                   aria-expanded={communesOpen}
                   aria-label={`${labels.communesLabel} ${communes.join(', ')}`}
-                  className="inline-flex max-w-full items-center gap-1 rounded-full bg-canvas-deep px-2.5 py-1 font-semibold text-ink-70 hover:text-ink"
+                  className="inline-flex max-w-full items-center gap-1 rounded-full bg-blue-tint px-2.5 py-1 font-semibold text-blue-deep hover:text-blue-900"
                 >
                   <span className="truncate">{communesSummary}</span>
                   {communesOpen ? <ChevronUp className="h-3 w-3 flex-none" /> : <ChevronDown className="h-3 w-3 flex-none" />}
@@ -255,7 +258,7 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
               onClick={copyLink}
               aria-label={labels.copyLink}
               title={labels.copyLink}
-              className="u-press grid h-9 w-9 flex-none place-items-center rounded-full text-ink-70 transition-colors hover:bg-canvas-deep hover:text-ink"
+              className="u-press grid h-9 w-9 flex-none place-items-center rounded-full text-blue-deep transition-colors hover:bg-blue-tint"
             >
               <Link2 strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
             </button>
@@ -315,7 +318,7 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
               <button
                 type="button"
                 onClick={() => setSort((s) => SORTS[(SORTS.indexOf(s) + 1) % SORTS.length])}
-                className="u-press inline-flex h-[2.125rem] items-center gap-1.5 rounded-full bg-surface px-3 text-[0.8125rem] font-semibold text-ink ring-1 ring-inset ring-line hover:bg-canvas-alt"
+                className="u-press inline-flex h-[2.125rem] items-center gap-1.5 rounded-full bg-surface px-3 text-[0.8125rem] font-semibold text-blue-deep ring-1 ring-inset ring-blue/20 hover:bg-blue-tint"
               >
                 <ArrowUpDown strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
                 {labels.sorts[sort]}

@@ -6596,7 +6596,8 @@
       "expired": "This verification has expired.",
       "restart": "Start again",
       "noNumber": "WhatsApp verification is not available right now. Please contact the Lukka Place team.",
-      "haveCode": "Received a code by message? Enter it here."
+      "haveCode": "Received a code by message? Enter it here.",
+      "noCodeFallback": "No code? Confirm your number from WhatsApp instead:"
     },
     "partnerCode": "Referral code (optional)",
     "partnerCodeHint": "If an agent or a creator invited you, enter their code, e.g. MARIE01.",

@@ -832,7 +832,12 @@ Chakra accepted all three, none arrived (one had written to us a minute
 before), and Chakra forwards no receipt to say why. Check the template in
 WhatsApp Manager (Authentication, fr, Copy-code button, intake account) and
 see one arrive on a number that never wrote to us before setting the flag.
-Agents still follow `AUTH_OTP_BYPASS`. The same day the customer form's name
+Agents still follow `AUTH_OTP_BYPASS`. Switched on again the same day at the
+owner's request, safely: the verify page now ALWAYS opens the WhatsApp
+challenge — first when no code was sent or the send failed, otherwise under
+the code box as "Code pas reçu ? Confirmez plutôt votre numéro depuis
+WhatsApp" — so a template that is accepted but never delivered can no longer
+strand a customer. The same day the customer form's name
 became required ("Nom et prénom", refused before the account exists), and
 "Membre fondateur" moved to the agent overview (`getAgentFounderInfo`, rank
 among live non-test agent accounts) — customers no longer see it.

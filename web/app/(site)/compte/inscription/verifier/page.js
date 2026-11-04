@@ -48,17 +48,26 @@ export default async function CustomerVerifyOtpPage({ searchParams }) {
   const codeless = customerOtpBypassEnabled();
   const error = typeof params.error === 'string' ? params.error : null;
   // With a sent code (lib/otpBypass.js customerOtpBypassEnabled) the customer
-  // types what we sent; the reverse proof is only offered when the send
-  // failed, as a way out rather than a second, competing instruction.
-  const offerReverse = codeless || error === 'send_failed';
+  // types what we sent, and the reverse proof waits UNDER the code box as the
+  // way out when the code does not arrive (2026-11-04: Chakra accepts a
+  // template it cannot prove was delivered, so a customer must never depend
+  // on it alone). It comes first only when no code was sent or the send failed.
+  const reverseFirst = codeless || error === 'send_failed';
   let challenge = null;
-  if (offerReverse) {
-    try {
-      challenge = await ensureChallenge(attempt);
-    } catch (err) {
-      console.error(`[verify] could not open a WhatsApp challenge for ${attempt.role} #${attempt.id}: ${err.message}`);
-    }
+  try {
+    challenge = await ensureChallenge(attempt);
+  } catch (err) {
+    console.error(`[verify] could not open a WhatsApp challenge for ${attempt.role} #${attempt.id}: ${err.message}`);
   }
+  const reversePanel = challenge ? (
+    <WhatsAppVerifyPanel
+      code={challenge.code}
+      href={whatsappVerifyHref(challenge.code)}
+      maskedPhone={maskPhone(attempt.phone)}
+      next={typeof params.next === 'string' ? params.next : '/compte/client'}
+      restartHref="/compte/inscription"
+    />
+  ) : null;
 
   const sent = params.sent === '1';
   const next = typeof params.next === 'string' ? params.next : '/compte/client';
@@ -68,22 +77,14 @@ export default async function CustomerVerifyOtpPage({ searchParams }) {
     <div className="flex min-h-[70vh] flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm rounded-card border border-line bg-surface p-6 u-lift sm:p-8">
         <h1 className="u-title-section text-ink">{t('auth.numberVerification')}</h1>
-        {challenge ? (
-          <WhatsAppVerifyPanel
-            code={challenge.code}
-            href={whatsappVerifyHref(challenge.code)}
-            maskedPhone={maskPhone(attempt.phone)}
-            next={next}
-            restartHref="/compte/inscription"
-          />
-        ) : codeless ? (
+        {reverseFirst ? (reversePanel || (codeless ? (
           <p className="mt-4 text-sm text-red-600" role="alert">{t('auth.whatsappVerify.noNumber')}</p>
-        ) : null}
+        ) : null)) : null}
 
         {codeless ? null : (
         <>
         <p className="mt-6 text-sm text-ink-45">
-          {challenge ? t('auth.whatsappVerify.haveCode') : t('auth.codeSentTo', { phone: maskPhone(attempt.phone) })}
+          {reverseFirst && challenge ? t('auth.whatsappVerify.haveCode') : t('auth.codeSentTo', { phone: maskPhone(attempt.phone) })}
           {sent ? ` ${t('auth.newCodeSent')}` : ''}
         </p>
 
@@ -140,6 +141,13 @@ export default async function CustomerVerifyOtpPage({ searchParams }) {
             {t('auth.forgot.contactSupport')}
           </a>
         )}
+
+        {!reverseFirst && reversePanel ? (
+          <div className="mt-6 border-t border-line pt-4">
+            <p className="text-sm font-semibold text-ink">{t('auth.whatsappVerify.noCodeFallback')}</p>
+            {reversePanel}
+          </div>
+        ) : null}
 
         </>
         )}

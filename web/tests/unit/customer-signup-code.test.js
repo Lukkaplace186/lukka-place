@@ -50,10 +50,15 @@ test('every customer entry point reads the customer rule, never the agents\' fla
   }
 });
 
-test('the verify page offers the reverse proof only without a sent code or after a failed send', () => {
+test('the verify page always keeps the WhatsApp proof: first without a sent code, under the code box with one', () => {
   const page = read('app/(site)/compte/inscription/verifier/page.js');
-  assert.match(page, /offerReverse = codeless \|\| error === 'send_failed'/);
-  assert.match(page, /if \(offerReverse\)[\s\S]*ensureChallenge\(attempt\)/);
+  assert.match(page, /reverseFirst = codeless \|\| error === 'send_failed'/);
+  assert.doesNotMatch(page, /if \(offerReverse\)/, 'the challenge is opened whatever the mode');
+  const form = page.indexOf('customerVerifyOtpAction} className');
+  const fallback = page.indexOf("t('auth.whatsappVerify.noCodeFallback')");
+  assert.ok(form > 0 && fallback > form, 'with a sent code, the WhatsApp proof sits below the code box');
+  const fr = JSON.parse(read('lib/i18n/fr.json'));
+  assert.match(fr.auth.whatsappVerify.noCodeFallback, /WhatsApp/);
 });
 
 test('the name is required, in the form and in the action', () => {

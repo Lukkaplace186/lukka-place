@@ -22,8 +22,8 @@ const PROFILE_MESSAGE =
 // The design's two tabs (no "Tous", no "Parcelles"). `labelKey`, not `label`:
 // a module-level constant cannot hold translated text (components/navItems.js).
 const TABS = [
-  { key: 'location', labelKey: 'agent.portfolio.toRent', headingKey: 'agent.portfolio.headingRent', emptyKey: 'agent.portfolio.emptyTitleRent', seeking: 'à louer' },
-  { key: 'vente', labelKey: 'agent.portfolio.toSell', headingKey: 'agent.portfolio.headingSale', emptyKey: 'agent.portfolio.emptyTitleSale', seeking: 'à acheter' },
+  { key: 'location', labelKey: 'agent.portfolio.toRent', emptyKey: 'agent.portfolio.emptyTitleRent', seeking: 'à louer' },
+  { key: 'vente', labelKey: 'agent.portfolio.toSell', emptyKey: 'agent.portfolio.emptyTitleSale', seeking: 'à acheter' },
 ];
 
 // Rows per tab. The list is client-sorted (récents / prix), so it has to hold
@@ -138,7 +138,7 @@ export default async function AgentStorefrontPage({ params, searchParams }) {
     return {
       key: entry.key,
       label: t(entry.labelKey),
-      heading: `${t(entry.headingKey)} (${items.length})`,
+      countLabel: t('agent.portfolio.listingCount', { count: items.length }),
       items,
       emptyTitle: t(entry.emptyKey),
       alertHref: whatsappTo(

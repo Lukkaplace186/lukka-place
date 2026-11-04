@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowUpDown, BadgeCheck, Bell, ChevronDown, ChevronUp, Link2, MapPin, MessageCircle, Phone, Sparkles, Star } from 'lucide-react';
+import { ArrowUpDown, BadgeCheck, Bell, Building2, ChevronDown, ChevronUp, Link2, MapPin, MessageCircle, Phone, Sparkles, Star } from 'lucide-react';
 import AgentAvatar from '@/components/AgentAvatar';
 import CardImageCarousel from '@/components/CardImageCarousel';
 import Price from '@/components/Price';
@@ -167,141 +167,127 @@ export default function AgentProfileView({ agent, tabs, initialTab, labels, prof
   const bioLong = (agent.bio || '').length > BIO_CLAMP_CHARS;
 
   return (
-    // The page sits on the cool mist ground (canvas-deep) with a faint brand
-    // blue wash at the top, not stark white (owner's direction, 2026-11-04);
-    // the agency's details and every listing are white cards on it.
-    <div className="relative overflow-x-clip bg-canvas-deep pb-10">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 h-64 bg-gradient-to-b from-blue-tint to-transparent" />
-      <div className="relative mx-auto max-w-[40rem] px-4 pt-4">
-        {/* Header card: the agency's logo centred, then who and where. */}
-        <div className="rounded-2xl border border-line/70 bg-surface px-5 pb-5 pt-3 shadow-sm">
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={copyLink}
-            className="u-press inline-flex h-8 items-center gap-1.5 rounded-full bg-canvas-alt px-3 text-xs font-semibold text-ink ring-1 ring-inset ring-line/60 transition-colors hover:bg-surface"
-          >
-            <Link2 strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5" />
-            {labels.copyLink}
-          </button>
-        </div>
-
-        <div className="mt-2 flex justify-center">
-          <div className="grid h-28 w-28 place-items-center overflow-hidden rounded-2xl bg-canvas-alt shadow-sm ring-1 ring-line/70">
-            {agent.image ? (
-              <AgentAvatar src={agent.image} alt={agent.name} />
-            ) : agent.initial ? (
-              <span className="text-[2.25rem] font-bold leading-none text-ink-45">{agent.initial}</span>
-            ) : (
-              <span className="text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-ink-45">{labels.logo}</span>
-            )}
-          </div>
-        </div>
-
-        <h1 className="mt-5 flex items-center gap-1.5 text-[1.625rem] font-bold leading-[1.15] tracking-tight text-ink">
-          <span className="min-w-0 break-words">{agent.name}</span>
-          {agent.verifiedLabel ? (
-            <BadgeCheck strokeWidth={2.25} className="h-5 w-5 flex-none text-blue" aria-label={agent.verifiedLabel} />
-          ) : null}
-        </h1>
-        {agent.locationLine ? (
-          <p className="mt-1.5 flex items-start gap-1.5 text-[0.9375rem] text-ink-70">
-            <MapPin strokeWidth={ICON_STROKE_WIDTH} className="mt-0.5 h-4 w-4 flex-none text-ink-45" aria-hidden="true" />
-            {agent.locationLine}
-          </p>
-        ) : null}
-
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-[0.8125rem]">
-          {agent.verifiedLabel ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-blue-tint px-3 py-1.5 font-semibold text-blue-deep">
-              <BadgeCheck strokeWidth={2.25} className="h-3.5 w-3.5" aria-hidden="true" />
-              {agent.verifiedLabel}
-            </span>
-          ) : null}
-          <span className="rounded-full bg-canvas-alt px-3 py-1.5 font-semibold text-ink ring-1 ring-inset ring-line/60">
-            {labels.activeCount}
-          </span>
-          {agent.rating ? (
-            <a
-              href="#avis"
-              className="inline-flex items-center gap-1 rounded-full bg-canvas-alt px-3 py-1.5 font-semibold text-ink ring-1 ring-inset ring-line/60 hover:bg-surface"
+    // A compact white header strip (logo beside name, one line of contact,
+    // one row of stats), then the listings on the mist ground (owner's
+    // direction, 2026-11-04: the centred-logo card read as amateurish).
+    <div className="overflow-x-clip bg-canvas-deep pb-10">
+      <div className="border-b border-line/70 bg-surface">
+        <div className="mx-auto max-w-[40rem] px-4 pt-5">
+          <div className="flex items-center gap-3.5">
+            <div
+              className={`grid h-16 w-16 flex-none place-items-center overflow-hidden rounded-xl ring-1 ring-line/60 ${
+                agent.image ? 'bg-surface' : 'bg-gradient-to-br from-blue-900 to-blue'
+              }`}
             >
-              <Star strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5 fill-warning text-warning" aria-hidden="true" />
-              {agent.rating}
-            </a>
-          ) : null}
-        </div>
-
-        {agent.subline ? <p className="mt-4 text-[0.9375rem] font-bold text-ink">{agent.subline}</p> : null}
-
-        {agent.bio ? (
-          <div className="mt-1.5">
-            <p className={`whitespace-pre-line text-[0.9375rem] leading-relaxed text-ink-70 ${bioLong && !bioOpen ? 'line-clamp-3' : ''}`}>
-              {agent.bio}
-            </p>
-            {bioLong ? (
-              <button
-                type="button"
-                onClick={() => setBioOpen((v) => !v)}
-                aria-expanded={bioOpen}
-                className="mt-1 text-[0.9375rem] font-semibold text-blue underline-offset-2 hover:underline"
-              >
-                {bioOpen ? labels.readLess : labels.readMore}
-              </button>
-            ) : null}
+              {agent.image ? (
+                <AgentAvatar src={agent.image} alt={agent.name} />
+              ) : agent.initial ? (
+                <span className="text-xl font-bold leading-none text-white">{agent.initial}</span>
+              ) : (
+                <Building2 strokeWidth={1.75} className="h-6 w-6 text-white/85" aria-hidden="true" />
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <h1 className="flex items-center gap-1.5 text-xl font-bold leading-tight tracking-tight text-ink">
+                <span className="line-clamp-2 min-w-0 break-words">{agent.name}</span>
+                {agent.verifiedLabel ? (
+                  <BadgeCheck strokeWidth={2.25} className="h-[1.125rem] w-[1.125rem] flex-none text-blue" aria-label={agent.verifiedLabel} />
+                ) : null}
+              </h1>
+              {agent.subline ? <p className="mt-0.5 truncate text-[0.8125rem] font-medium text-ink-70">{agent.subline}</p> : null}
+              {agent.locationLine ? (
+                <p className="mt-0.5 flex items-center gap-1 text-[0.8125rem] text-ink-45">
+                  <MapPin strokeWidth={ICON_STROKE_WIDTH} className="h-3.5 w-3.5 flex-none" aria-hidden="true" />
+                  <span className="truncate">{agent.locationLine}</span>
+                </p>
+              ) : null}
+            </div>
           </div>
-        ) : null}
 
-        {communesSummary ? (
-          <div className="mt-3">
+          <div className="mt-3.5 flex items-center gap-2">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 text-xs">
+              <span className="rounded-full bg-canvas-deep px-2.5 py-1 font-semibold text-ink-70">{labels.activeCount}</span>
+              {agent.rating ? (
+                <a href="#avis" className="inline-flex items-center gap-1 rounded-full bg-canvas-deep px-2.5 py-1 font-semibold text-ink-70 hover:text-ink">
+                  <Star strokeWidth={ICON_STROKE_WIDTH} className="h-3 w-3 fill-warning text-warning" aria-hidden="true" />
+                  {agent.rating}
+                </a>
+              ) : null}
+              {communesSummary ? (
+                <button
+                  type="button"
+                  onClick={() => setCommunesOpen((v) => !v)}
+                  aria-expanded={communesOpen}
+                  aria-label={`${labels.communesLabel} ${communes.join(', ')}`}
+                  className="inline-flex max-w-full items-center gap-1 rounded-full bg-canvas-deep px-2.5 py-1 font-semibold text-ink-70 hover:text-ink"
+                >
+                  <span className="truncate">{communesSummary}</span>
+                  {communesOpen ? <ChevronUp className="h-3 w-3 flex-none" /> : <ChevronDown className="h-3 w-3 flex-none" />}
+                </button>
+              ) : null}
+            </div>
             <button
               type="button"
-              onClick={() => setCommunesOpen((v) => !v)}
-              aria-expanded={communesOpen}
-              className="text-left text-[0.8125rem] leading-relaxed text-ink-70"
+              onClick={copyLink}
+              aria-label={labels.copyLink}
+              title={labels.copyLink}
+              className="u-press grid h-9 w-9 flex-none place-items-center rounded-full text-ink-70 transition-colors hover:bg-canvas-deep hover:text-ink"
             >
-              <span className="font-semibold text-ink">{labels.communesLabel}</span>{' '}
-              <span className="font-semibold text-blue-deep">{communesSummary}</span>{' '}
-              {communesOpen
-                ? <ChevronUp className="inline-block h-3.5 w-3.5 align-[-0.15em]" />
-                : <ChevronDown className="inline-block h-3.5 w-3.5 align-[-0.15em]" />}
+              <Link2 strokeWidth={ICON_STROKE_WIDTH} className="h-[1.125rem] w-[1.125rem]" />
             </button>
-            {communesOpen ? (
-              <div className="mt-2 rounded-[10px] bg-canvas-alt px-3 py-2.5 text-[0.8125rem] leading-relaxed text-ink-70">
-                {communes.join(', ')}
-              </div>
-            ) : null}
           </div>
-        ) : null}
+          {communesOpen ? (
+            <p className="mt-2 text-[0.8125rem] leading-relaxed text-ink-70">
+              <span className="font-semibold text-ink">{labels.communesLabel}</span> {communes.join(', ')}
+            </p>
+          ) : null}
 
-        </div>
+          {agent.bio ? (
+            <div className="mt-3">
+              <p className={`whitespace-pre-line text-sm leading-relaxed text-ink-70 ${bioLong && !bioOpen ? 'line-clamp-2' : ''}`}>
+                {agent.bio}
+              </p>
+              {bioLong ? (
+                <button
+                  type="button"
+                  onClick={() => setBioOpen((v) => !v)}
+                  aria-expanded={bioOpen}
+                  className="mt-0.5 text-sm font-semibold text-blue underline-offset-2 hover:underline"
+                >
+                  {bioOpen ? labels.readLess : labels.readMore}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
 
-        <div className="mt-5 flex rounded-full bg-blue-tint p-1 ring-1 ring-inset ring-blue/10" role="tablist">
-          {tabs.map((entry) => {
-            const active = entry.key === current.key;
-            return (
-              <button
-                key={entry.key}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => pickTab(entry.key)}
-                className={`h-10 flex-1 rounded-full text-sm font-bold transition-colors ${
-                  active ? 'bg-surface text-ink shadow-sm' : 'text-ink-70'
-                }`}
-              >
-                {entry.label} ({entry.items.length})
-              </button>
-            );
-          })}
+          {/* Underlined tabs on the strip's bottom edge, flush with the feed. */}
+          <div className="mt-3 flex gap-6" role="tablist">
+            {tabs.map((entry) => {
+              const active = entry.key === current.key;
+              return (
+                <button
+                  key={entry.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => pickTab(entry.key)}
+                  className={`-mb-px border-b-2 pb-3 pt-2 text-sm font-semibold transition-colors ${
+                    active ? 'border-blue text-ink' : 'border-transparent text-ink-45 hover:text-ink-70'
+                  }`}
+                >
+                  {entry.label} <span className="u-tabular font-medium text-ink-45">({entry.items.length})</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      <div className="relative mx-auto max-w-[40rem]">
+      <div className="mx-auto max-w-[40rem]">
         {items.length ? (
           <>
             <div className="flex items-center justify-between px-5 pb-3 pt-5">
-              <h2 className="text-base font-bold text-ink">{current.heading}</h2>
+              <h2 className="text-[0.8125rem] font-medium text-ink-45">{current.countLabel}</h2>
               <button
                 type="button"
                 onClick={() => setSort((s) => SORTS[(SORTS.indexOf(s) + 1) % SORTS.length])}

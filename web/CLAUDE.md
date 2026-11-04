@@ -3987,3 +3987,36 @@ is for. Tests: `tests/unit/landing-conversion.test.js`.
   device, price drops on saved listings) above "Vos favoris… seront conservés".
 - **SignupNudge on /listings** docks above the phone's Carte | Trier | Alerte
   pill (lower-right from `lg`): under the header it covered the search box.
+
+## Market observations in the price guide (2026-11-04)
+
+Engine root CLAUDE.md, "Market observations", has the sources and the
+collection. Web half: `lib/marketGuide.js` (SQL), `lib/marketObservationRules.js`
+(pure: sources, kinds, hand-entry validation), `/admin/market-data/marche`.
+`tests/unit/market-observations.test.js`.
+
+- **`/combien-coute` blends two kinds of asking price**: our public listings
+  (the `status = 1 AND approve_status = 1` gate, unchanged) and
+  `market_observations` that are clean, a home (RESIDENTIAL_KINDS), 1–5
+  bedrooms, under 365 days old and seen online in the last 60. Both sides
+  leave furnished homes out (a separate expat market). Before the migration
+  the guide falls back to Lukka listings only (42P01/42703); any other error
+  is not hidden.
+- **De-duplication**: a published group capture is the Lukka listing (skipped
+  while that listing is public; never counted once rejected or deleted); the
+  same rounded price in a commune × bedrooms seen on several sources counts as
+  MAX of the per-source counts, never the sum.
+- **The page says where the numbers come from**: "{n} annonces", "Dont {lukka}
+  sur Lukka Place et {market} relevées ailleurs", the source names (per-source
+  counts are before de-duplication, so they are named, not printed). "Voir les
+  N annonces" counts Lukka listings only — the search never shows an advert
+  seen elsewhere — and is hidden when there are none.
+- **Admin** (`market.view` to read, new `market.manage` — owner, moderator,
+  analyst — to write): source health, Lukka vs market by commune × bedrooms
+  (a median only from 5 listings per side), the Africanvestor page as a
+  published estimate (figures read from the page itself; a search summary had
+  quoted different ones), hand entry for Facebook / Zwandako (paste → the
+  engine's `POST /admin/parse-listing` prefills → a person checks and saves;
+  the pasted text is not kept; a link is required except for Facebook), and
+  the list with exclude (`manual:<code>`) / restore. An automatic exclusion
+  cannot be restored.

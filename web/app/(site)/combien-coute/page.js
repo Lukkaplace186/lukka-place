@@ -13,8 +13,9 @@ export async function generateMetadata() {
 
 /**
  * "Combien coûte… ?" (growth plan item 28): every commune × bedroom count with
- * at least MIN_PRICE_SAMPLE live long-term rentals, from public listings only
- * (lib/browseFeatures.js). A pair with fewer listings has no page.
+ * at least MIN_PRICE_SAMPLE long-term rentals — Lukka Place's public listings
+ * plus asking prices seen elsewhere in 2026 (lib/marketGuide.js). A pair with
+ * fewer listings has no page.
  */
 export default async function PriceGuidesIndex() {
   const t = await getT();
@@ -30,8 +31,11 @@ export default async function PriceGuidesIndex() {
           {guides.map((guide) => (
             <li key={guide.slug}>
               <Link href={`/combien-coute/${guide.slug}`} className="u-press flex items-center justify-between gap-3 rounded-card bg-surface p-4 shadow-[var(--hairline),var(--shadow-card)]">
-                <span className="text-[0.9375rem] font-bold text-ink">
-                  {priceQuestion(t, { beds: guide.beds, commune: communeLabel(guide.commune) })}
+                <span className="flex min-w-0 flex-col">
+                  <span className="text-[0.9375rem] font-bold text-ink">
+                    {priceQuestion(t, { beds: guide.beds, commune: communeLabel(guide.commune) })}
+                  </span>
+                  <span className="u-micro text-ink-45">{t('home.prices.cardCount', { n: guide.listings })}</span>
                 </span>
                 <span className="u-tabular shrink-0 text-[0.9375rem] font-bold text-blue-deep">{frNumber(guide.median)} $</span>
               </Link>

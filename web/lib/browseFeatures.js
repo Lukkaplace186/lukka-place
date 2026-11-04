@@ -3,8 +3,8 @@ import { getPool } from './db';
 import { getListings, getListingsByIds } from './listings';
 import { NOT_TEST_LISTING_SQL } from './marketExclusions';
 import { VIDEO_COUNT_SQL } from './listingVideos';
-import { COMMUNE_EXPR } from './marketStats';
 import { communeSlug } from './seoPages';
+import { BLENDED_GUIDES_SQL, queryPriceGuides } from './marketGuide';
 import { ALL_CITIES } from './cities';
 
 /**
@@ -93,32 +93,14 @@ export async function setListingOfTheDay({ day, propertyId, by }) {
 // ---------------------------------------------------------------------------
 
 /**
- * Monthly asking rents of public LONG-TERM rentals per commune and bedroom
- * count (1–5), with the quartiles. Yearly rents ÷ 12, short-term rents left
- * out, `price > 0` only, test agencies out — exactly lib/marketStats.js's
- * rules. Only groups with MIN_PRICE_SAMPLE listings are returned.
+ * Monthly asking rents of LONG-TERM rentals per commune and bedroom count
+ * (1–5), with the quartiles: Lukka Place's public listings blended with the
+ * asking prices seen elsewhere in 2026 (lib/marketGuide.js has the rules and
+ * the de-duplication). Yearly rents ÷ 12, short-term rents and furnished
+ * homes left out, `price > 0` only, test agencies out. Only groups with
+ * MIN_PRICE_SAMPLE listings after de-duplication are returned.
  */
-export const PRICE_GUIDES_SQL = `
-  WITH rents AS (
-    SELECT ${COMMUNE_EXPR} AS commune, p.beds,
-           CASE WHEN p.price_period = 'an' THEN p.price / 12.0 ELSE p.price END AS amount
-      FROM properties p
-     WHERE p.status = 1 AND p.approve_status = 1
-       AND p.purpose = 'rent' AND p.price > 0
-       AND COALESCE(p.price_period, '') NOT IN ('jour', 'semaine')
-       AND p.beds BETWEEN 1 AND 5
-       AND ${NOT_TEST_LISTING_SQL}
-  )
-  SELECT commune, beds::int AS beds, COUNT(*)::int AS listings,
-         PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY amount)::float AS median,
-         PERCENTILE_CONT(0.25) WITHIN GROUP (ORDER BY amount)::float AS p25,
-         PERCENTILE_CONT(0.75) WITHIN GROUP (ORDER BY amount)::float AS p75
-    FROM rents
-   WHERE commune IS NOT NULL
-   GROUP BY commune, beds
-  HAVING COUNT(*) >= $1
-   ORDER BY COUNT(*) DESC, commune, beds
-`;
+export const PRICE_GUIDES_SQL = BLENDED_GUIDES_SQL;
 
 /** `2-chambres-gombe` ↔ { beds: 2, commune: 'Gombe' }. */
 export function priceGuideSlug({ beds, commune }) {
@@ -134,11 +116,15 @@ export function priceQuestion(t, { beds, commune }) {
 
 export async function getPriceGuides() {
   try {
-    const { rows } = await getPool().query(PRICE_GUIDES_SQL, [MIN_PRICE_SAMPLE]);
+    const rows = await queryPriceGuides(MIN_PRICE_SAMPLE);
     return rows.map((row) => ({
       commune: row.commune,
       beds: row.beds,
       listings: row.listings,
+      // Of `listings`, how many are Lukka Place's own (the "see the
+      // listings" link shows only those); the rest were seen elsewhere.
+      lukkaListings: row.lukka_listings ?? row.listings,
+      sources: row.sources || {},
       median: Math.round(row.median),
       p25: Math.round(row.p25),
       p75: Math.round(row.p75),

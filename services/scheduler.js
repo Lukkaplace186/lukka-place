@@ -363,6 +363,17 @@ registerJob({ name: SALES_JOB_NAME, shouldRun: salesCommissionsDue, run: () => r
 }
 
 /**
+ * Market observations (services/marketObservations.js): asking prices from
+ * our WhatsApp group captures and four listing sites, nightly at 2h Kinshasa.
+ * Started in the background — a collection is tens of minutes of spaced
+ * requests and must not hold the jobs behind it in this tick.
+ */
+{
+  // eslint-disable-next-line global-require
+  registerJob(require('./marketObservations').marketObservationsJob);
+}
+
+/**
  * Nightly SQLite snapshot (services/sqliteBackup.js): the backup API, an
  * integrity check, a copy in a private Supabase Storage bucket, 14 days kept.
  * A job rather than a crontab entry for the reason at the top of this file —

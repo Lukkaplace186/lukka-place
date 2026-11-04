@@ -1,7 +1,7 @@
 # Lukka Place - System Rules & Architecture
 
 ## System Architecture & Data Flow
-- **Intake Engine** (Node.js/Express, this repo): Captures raw listings via WhatsApp, parses attributes using GPT-4o (`services/openai.js`), and stores them locally in SQLite (`services/db.js`). This is a staging/intake queue, not public data — never read it as a source for the public storefront.
+- **Intake Engine** (Node.js/Express, this repo): Captures raw listings via WhatsApp, parses attributes using GPT-4o (`services/openai.js`), and stores them locally in SQLite (`services/db.js`). This is a staging/intake queue, not public data — never read it as a source for the public storefront. One exception, owner decision 2026-11-04: the PRICES of WhatsApp group captures feed the price guide's medians as market observations (never a listing, never a page) — see "Market observations" below.
 - **Admin Panel** (Laravel): Operates on admin.lukkaplace.com as our back-office CMS for human moderation and approval. External to this repo — do not build a competing property-moderation admin here. A separate, narrower admin surface for WhatsApp conversations/leads (see "WhatsApp Property-Search Assistant" below) is in scope for this repo; property moderation itself is not.
 - **Database** (Supabase / Postgres): The single source of truth for approved, public listings. `services/postgres.js` (`syncListingToPostgres`) is the write path, used when an agent's listing is published. `services/propertyRepository.js` is a **read-only** path, added for the WhatsApp search assistant's `search_properties`/`get_property` tools — every query there applies the same approval filter below and never bypasses it. The Next.js storefront still queries Supabase itself, independently.
 - **Public Storefront** (Next.js): Lives on lukkaplace.com and queries Supabase directly for listings.
@@ -2162,3 +2162,52 @@ system by construction, so it is only ever counted if somebody records it.
   agencies) and not `listing-visit-request` leads (counted once, through their
   viewing request). Web adds the storefront taps and names the agents.
 - §71 of verify-pipeline.
+
+## Market observations — asking prices from outside Lukka Place (2026-11-04)
+
+`services/marketObservations.js` + `services/marketSources/*`, Postgres
+`market_observations` / `market_source_runs`
+(`migrations/20261104_market_observations.sql`). Feeds web's price guide
+(`/combien-coute`, web `lib/marketGuide.js`) and `/admin/market-data/marche`.
+Our ~175 live rentals left most commune × bedroom pairs below the 5-listing
+minimum; the market is mostly posted elsewhere. §72 of verify-pipeline.
+
+- **Facts only.** Price, period, bedrooms, kind, furnished, commune, the
+  source's id and link (+ a ≤200-char title for the admin list). No photo,
+  description or phone. Nothing is ever shown as a listing.
+- **Sources, chosen by their terms of use (read 2026-11-04):**
+  collected nightly — `whatsapp_group` (our own group captures from SQLite,
+  never `EXCLUDED_GROUP_JIDS`: Vitesse maximale 5/5), `immo24` (public WP REST
+  feed), `imcongo` (6 result pages, Crawl-delay 10; terms forbid reproduction,
+  nothing is reproduced), `alain_realty` (sitemap + pages), `smartimmo`
+  (sitemap + schema.org; the UUIDv7 id dates the advert). **Hand-entered only**
+  (web form): `facebook` (Meta forbids automated collection) and `zwandako`
+  (its terms forbid robots — ~8,000 adverts in its public feed; written
+  permission would change that). keur-immo.com blocks bots. The Africanvestor
+  page is a published ESTIMATE (web `lib/data/published-rent-estimates.json`),
+  never in a median.
+- **Politeness** (`marketSources/http.js`): one request at a time per site,
+  ≥3 s apart or the site's Crawl-delay, robots.txt read at run time and obeyed
+  (`ROBOTS_DISALLOWED`), identifying User-Agent, no cookies.
+- **Cleaning** (`normaliseObservation`): only adverts posted since
+  `COLLECT_SINCE` (2026-01-01) where the source dates them; francs, day/week
+  rates, a rent outside 30–20,000 $/month or a sale outside 1k–20M $ are KEPT
+  with `excluded_reason` (SmartImmo carries "210 000 USD / mois" on sales);
+  "0 chambres" on a house is unknown; communes through `locations.js`
+  (`resolvePlace`, unique answers only). A team member's exclusion is
+  `manual:<code>` and survives every refresh.
+- **Job `market-observations`** (before sqlite-backup), 2h Kinshasa
+  (`MARKET_COLLECT_HOUR`), `MARKET_COLLECTION=off` disables. It STARTS the
+  collection in the background and returns — tens of minutes of spaced
+  requests must not hold the scheduler tick; an in-process flag stops a second
+  run. SmartImmo reads at most `MARKET_MAX_DETAIL_FETCHES` (600) new adverts a
+  night, so its ~1,080-advert backlog drains in two nights; adverts already
+  stored are only marked seen. One source failing never stops the others and
+  shows on the admin page (`market_source_runs.last_error`).
+- **First run / one source**: `node scripts/collect-market-observations.js
+  [--source imcongo] [--max 1200] [--write]` (dry run by default) on the VPS,
+  after the migration.
+- **Never counted twice** (web side): a published group capture is counted as
+  the Lukka listing while public, not at all once rejected/deleted; the same
+  rounded price in one commune × bedrooms on several sources counts as the
+  most any one source shows.

@@ -7146,7 +7146,7 @@ console.log('\n2. services/openai.js');
     const names = sched.JOBS.map((j) => j.name);
     assert.deepStrictEqual(names, [
       'search-alerts', 'viewing-sla', 'viewing-checkin', 'viewing-agent-done', 'ops-health-alerts', 'listing-stats-rollup', 'draft-auto-submit', 'trusted-auto-approve', 'agent-daily-digest',
-      'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions', 'growth-daily', 'sqlite-backup',
+      'listing-availability-check', 'market-snapshot', 'ops-desk-keepalive', 'sales-commissions', 'growth-daily', 'market-observations', 'sqlite-backup',
     ]);
   });
 
@@ -13555,6 +13555,204 @@ console.log('\n2. services/openai.js');
       const src = fs.readFileSync(path.join(__dirname, '..', 'routes', 'admin.js'), 'utf8');
       assert.match(src, /router\.get\('\/interaction-counts'/);
       assert.match(src, /router\.post\('\/team-introductions'/);
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // §72 Market observations: asking prices from outside our own listings (2026-11-04)
+  // ---------------------------------------------------------------------------
+  console.log('\n§72 Market observations: group captures and listing sites');
+  {
+    const market72 = require('../services/marketObservations');
+    const http72 = require('../services/marketSources/http');
+    const text72 = require('../services/marketSources/text');
+    const imcongo72 = require('../services/marketSources/imcongo');
+    const alain72 = require('../services/marketSources/alainRealty');
+    const smart72 = require('../services/marketSources/smartimmo');
+    const immo72 = require('../services/marketSources/immo24');
+    const group72 = require('../services/marketSources/whatsappGroup');
+
+    check('robots.txt: the * group is read, Crawl-delay is honoured, the longest rule wins and Allow wins a tie', () => {
+      const rules = http72.parseRobots('User-agent: Bytespider\nDisallow: /\n\nUser-agent: *\nCrawl-delay: 10\nDisallow: /wp-admin/\nAllow: /wp-admin/admin-ajax.php\nDisallow: /*?add-to-cart=\n');
+      assert.strictEqual(rules.crawlDelayMs, 10000);
+      assert.strictEqual(http72.robotsAllows(rules, '/bien/x/'), true, 'Bytespider\'s Disallow: / is not ours');
+      assert.strictEqual(http72.robotsAllows(rules, '/wp-admin/edit.php'), false);
+      assert.strictEqual(http72.robotsAllows(rules, '/wp-admin/admin-ajax.php'), true);
+      assert.strictEqual(http72.robotsAllows(rules, '/shop/?add-to-cart=3'), false);
+    });
+
+    await checkAsync('the fetcher never requests a disallowed path and spaces requests by the site\'s Crawl-delay', async () => {
+      const requested = [];
+      const waits = [];
+      const fetcher = http72.createFetcher({
+        minIntervalMs: 3000,
+        sleepImpl: async (ms) => { waits.push(ms); },
+        fetchImpl: async (url, init) => {
+          requested.push(url);
+          assert.match(init.headers['User-Agent'], /LukkaPlaceMarketBot/);
+          const body = url.endsWith('/robots.txt') ? 'User-agent: *\nCrawl-delay: 10\nDisallow: /private/' : '<html>ok</html>';
+          return new Response(body, { status: 200 });
+        },
+      });
+      await fetcher.text('https://example.test/list');
+      await assert.rejects(() => fetcher.text('https://example.test/private/x'), (err) => err.code === 'ROBOTS_DISALLOWED');
+      await fetcher.text('https://example.test/list2');
+      assert.deepStrictEqual(requested, ['https://example.test/robots.txt', 'https://example.test/list', 'https://example.test/list2']);
+      assert.ok(waits.length >= 1 && waits.every((ms) => ms > 3000 && ms <= 10000), `waits follow the 10 s Crawl-delay: ${waits}`);
+    });
+
+    check('amounts, periods, furnished and purpose are read the way Kinshasa adverts write them', () => {
+      assert.strictEqual(text72.parseAmount('2 000'), 2000);
+      assert.strictEqual(text72.parseAmount('$4,000'), 4000);
+      assert.strictEqual(text72.parseAmount('3.500'), 3500);
+      assert.strictEqual(text72.parseAmount('210000.00'), 210000);
+      assert.strictEqual(text72.periodFromText('/ mois'), 'mois');
+      assert.strictEqual(text72.periodFromText('200 $ / jour'), 'jour');
+      assert.strictEqual(text72.periodFromText('12 000 $ par an'), 'an');
+      assert.strictEqual(text72.isFurnished('Appartement 2 chambres non meublée'), false);
+      assert.strictEqual(text72.isFurnished('Bel appartement meublé'), true);
+      assert.strictEqual(text72.isFurnished('Appartement'), null);
+      assert.strictEqual(text72.purposeFromText('biens immobiliers à louer'), 'rent');
+      assert.strictEqual(text72.purposeFromText('À louer et à vendre'), null, 'both → not guessed');
+    });
+
+    check('kinds: non-residential words win, so "appartement ou bureau" is never a home', () => {
+      assert.strictEqual(market72.kindFromText('Appartement ou bureau 3 chambres'), 'bureau');
+      assert.strictEqual(market72.kindFromText('Maison Unifamiliale'), 'maison');
+      assert.strictEqual(market72.kindFromText('Appartment'), 'appartement');
+      assert.strictEqual(market72.kindFromText('House Maison à louer à Limete'), 'maison');
+      assert.strictEqual(market72.kindFromText('Villa à louer'), 'villa');
+      assert.strictEqual(market72.kindFromText('Concession Portuaire'), 'terrain');
+      assert.strictEqual(market72.kindFromText('dépôt de garantie 3 mois'), null, '"dépôt" is a deposit here, not a warehouse');
+    });
+
+    check('places resolve through services/locations.js, unique answers only', () => {
+      assert.strictEqual(market72.resolvePlace('Kinshasa - Limete'), 'Limete');
+      assert.strictEqual(market72.resolvePlace('Gombe, Kinshasa, Democratic Republic of the Congo'), 'Gombe');
+      assert.strictEqual(market72.resolvePlace('GB'), 'Ngaliema', 'the owner-confirmed alias');
+      assert.strictEqual(market72.resolvePlace('Quelque part près du fleuve'), null, 'never guessed');
+      assert.strictEqual(market72.resolvePlace('Funa'), null, 'a name in two communes is not picked');
+    });
+
+    check('cleaning: francs, short stays and impossible rents are kept but excluded; yearly rents are monthly', () => {
+      const base = { source: 'imcongo', source_ref: 'x', purpose: 'rent', property_kind: 'appartement', beds: 2, commune: 'Limete' };
+      assert.strictEqual(market72.normaliseObservation({ ...base, price: 1200, price_period: 'an' }).monthly_usd, 100);
+      assert.strictEqual(market72.normaliseObservation({ ...base, price: 200, price_period: 'jour' }).excluded_reason, 'short_stay');
+      assert.strictEqual(market72.normaliseObservation({ ...base, price: 900000, currency: 'FC' }).excluded_reason, 'currency_cdf');
+      assert.strictEqual(market72.normaliseObservation({ ...base, price: 210000 }).excluded_reason, 'price_out_of_range');
+      assert.strictEqual(market72.normaliseObservation({ ...base, price: 10 }).excluded_reason, 'price_out_of_range');
+      const ok = market72.normaliseObservation({ ...base, price: 650, beds: null });
+      assert.strictEqual(ok.excluded_reason, null);
+      assert.strictEqual(ok.monthly_usd, 650);
+      assert.strictEqual(ok.beds, null, 'an unknown bedroom count stays unknown, never 0');
+      assert.strictEqual(market72.normaliseObservation({ ...base, property_kind: 'maison', price: 630, beds: 0 }).beds, null, '"0 chambres" on a house is a blank field');
+      assert.strictEqual(market72.normaliseObservation({ ...base, property_kind: 'studio', price: 300, beds: 0 }).beds, 0);
+      assert.strictEqual(ok.commune, 'Limete');
+      assert.strictEqual(ok.city, 'Kinshasa');
+      assert.throws(() => market72.normaliseObservation({ ...base, source: 'zillow' }), /unknown market source/);
+    });
+
+    check('a refresh keeps an exclusion a team member made by hand', () => {
+      assert.match(market72.UPSERT_SQL, /ON CONFLICT \(source, source_ref\) DO UPDATE/);
+      assert.match(market72.UPSERT_SQL, /excluded_reason LIKE 'manual:%'/);
+      assert.match(market72.UPSERT_SQL, /posted_at = COALESCE\(market_observations\.posted_at/);
+    });
+
+    check('IMCongo: one result page gives price, period, bedrooms, commune and reference per advert', () => {
+      const html = `<div><span>A louer</span><span>200 $ / jour</span><span>3 chambre(s)</span>
+        <a href="immo-congo-900_appartement_meuble_a_louer_kinshasa_ngaliema-immo-fr.html">Appartement Meublé - Quartier Basoko</a>
+        <span>N° de référence: 900</span><span>3 chambre(s)</span><span>Kinshasa - Ngaliema</span><span>Voir</span></div>
+        <div><span>A louer</span><span>2 000 $ / mois</span><span>3 chambre(s)</span>
+        <a href="immo-congo-901_appartement_a_louer_kinshasa_limete-immo-fr.html">Appartement - Quartier Résidentiel</a>
+        <span>N° de référence: 901</span><span>3 chambre(s)</span><span>Kinshasa - Limete</span><span>Voir</span></div>`;
+      const rows = imcongo72.parseListPage(html, { kind: 'appartement', purpose: 'rent' });
+      assert.strictEqual(rows.length, 2);
+      assert.deepStrictEqual(
+        rows.map((r) => [r.source_ref, r.price, r.price_period, r.beds, r.commune, r.furnished]),
+        [['900', 200, 'jour', 3, 'Ngaliema', true], ['901', 2000, 'mois', 3, 'Limete', null]],
+      );
+      assert.match(rows[1].source_url, /^https:\/\/www\.imcongo\.com\/immo-congo-901_/);
+      assert.match(imcongo72.listUrl(4, 'rent'), /congo-a-louer-recherche-4___0_100_KINSHASA/);
+    });
+
+    check('Alain Realty: status, price, bedrooms and place come from the advert page', () => {
+      const html = `<body class="single-property postid-17973"><h1 class="rh_page__title">APPARTEMENT 2 CHAMBRES NON MEUBLÉE À LOUER</h1>
+        <p class="rh_page__property_address"> Gombe, Kinshasa, Democratic Republic of the Congo </p>
+        <div class="rh_page__property_price"><p class="status"> biens immobiliers à louer </p><p class="price "> $4,000 / mois </p></div>
+        <div class="rh_property__meta prop_bedrooms"><span class="rh_meta_titles">Chambres</span><div><svg><path d="M1 2"/></svg><span class="figure"> 2 </span></div></div></body>`;
+      const raw = alain72.parsePropertyPage(html, { url: 'https://alain-realty.net/bien/x/', lastmod: '2026-09-19T19:05:41+00:00' });
+      const row = market72.normaliseObservation({ ...raw, source: 'alain_realty' });
+      assert.deepStrictEqual([row.source_ref, row.purpose, row.property_kind, row.beds, row.monthly_usd, row.commune, row.furnished], ['17973', 'rent', 'appartement', 2, 4000, 'Gombe', false]);
+      const map = alain72.parseSitemap('<url><loc>https://alain-realty.net/bien/a/</loc><lastmod>2026-10-01</lastmod></url><url><loc>https://alain-realty.net/bien/</loc></url>');
+      assert.deepStrictEqual(map.map((e) => e.url), ['https://alain-realty.net/bien/a/'], 'the archive page is not an advert');
+    });
+
+    check('SmartImmo: the UUIDv7 dates an advert; schema.org data gives the rest', () => {
+      assert.strictEqual(smart72.uuidV7Time('01a1a71c-10e1-7a40-8764-d95ed494eb7e').slice(0, 4), '2026');
+      assert.strictEqual(smart72.uuidV7Time('3f2504e0-4f89-41d3-9a0c-0305e82c3301'), null, 'a v4 uuid has no date');
+      const entries = smart72.parseSitemap(`<loc>https://www.smartimmo-app.com/fr/annonce/maison-limete-kinshasa-5-chambres-01a1a71c-10e1-7a40-8764-d95ed494eb7e</loc>
+        <loc>https://www.smartimmo-app.com/en/annonce/maison-limete-kinshasa-5-chambres-01a1a71c-10e1-7a40-8764-d95ed494eb7e</loc>`);
+      assert.strictEqual(entries.length, 1, 'the English twin is the same advert');
+      assert.strictEqual(entries[0].slugKind, 'maison');
+      const ld = { '@context': 'https://schema.org', '@graph': [{ '@type': 'Apartment', name: 'Appartement à louer à Lemba, Kinshasa', description: 'Appartement • 2 chambre(s) • Prix : 450.00 USD / mois.', address: { addressLocality: 'Kinshasa', addressRegion: 'Lemba' }, numberOfBedrooms: 2, offers: { price: '450.00', priceCurrency: 'USD' } }] };
+      const raw = smart72.parseListingPage(`<script type="application/ld+json">${JSON.stringify(ld)}</script>`, entries[0]);
+      const row = market72.normaliseObservation({ ...raw, source: 'smartimmo' });
+      assert.deepStrictEqual([row.purpose, row.property_kind, row.beds, row.monthly_usd, row.commune], ['rent', 'appartement', 2, 450, 'Lemba']);
+      assert.strictEqual(smart72.parseListingPage('<html></html>', entries[0]), null);
+    });
+
+    check('Immo24: the REST item maps through its taxonomies; "visites tous les jours" is not a day rate', () => {
+      const tax = { property_status: { 28: 'A Louer' }, property_type: { 16: 'Appartment' }, property_city: { 36: 'Kinshasa' }, property_area: { 106: 'Gombe' } };
+      const raw = immo72.toObservation({
+        id: 17870, date_gmt: '2026-11-02T09:15:11', link: 'https://immo24.cd/property/x/',
+        title: { rendered: 'À louer à Kinshasa-Gombé Appartement 3 Chb' },
+        content: { rendered: '<p>Appartement Meublé, visites tous les jours.</p><p>Prix : 3500$ le mois</p>' },
+        property_status: [28], property_type: [16], property_city: [36], property_area: [106],
+        property_meta: { fave_property_price: ['3500'], fave_property_bedrooms: ['3'] },
+      }, tax);
+      const row = market72.normaliseObservation({ ...raw, source: 'immo24' });
+      assert.deepStrictEqual([row.source_ref, row.purpose, row.property_kind, row.beds, row.monthly_usd, row.commune, row.furnished, row.excluded_reason],
+        ['17870', 'rent', 'appartement', 3, 3500, 'Gombe', true, null]);
+      assert.strictEqual(row.posted_at, '2026-11-02T09:15:11.000Z');
+    });
+
+    await checkAsync('group captures: every capture with a price, never one from an unauthorised group', async () => {
+      const insert = dbService.db.prepare(`INSERT INTO listings (wa_id, transaction_type, property_type, commune, quartier, price, currency, price_period, bedrooms, furnished, remote_property_id, parsed_json, created_at)
+        VALUES (@wa, @t, @type, @commune, @q, @price, 'USD', @period, @beds, @furn, @remote, @json, '2026-11-01 10:00:00')`);
+      const ok = insert.run({ wa: '243999384203', t: 'location', type: 'appartement', commune: 'Limete', q: 'Industriel', price: 450, period: 'mois', beds: 2, furn: 0, remote: 662, json: JSON.stringify({ source: 'whatsapp-group', group_jid: '120363344702370143@g.us' }) }).lastInsertRowid;
+      const banned = insert.run({ wa: '243834915639', t: 'location', type: 'appartement', commune: 'Gombe', q: null, price: 900, period: 'mois', beds: 2, furn: null, remote: null, json: JSON.stringify({ source: 'whatsapp-group', group_jid: market72.EXCLUDED_GROUP_JIDS[0] }) }).lastInsertRowid;
+      const own = insert.run({ wa: '243810000000', t: 'location', type: 'appartement', commune: 'Gombe', q: null, price: 900, period: 'mois', beds: 2, furn: null, remote: null, json: JSON.stringify({ source: 'whatsapp' }) }).lastInsertRowid;
+      const { observations } = await group72.collect({ since: '2026-01-01T00:00:00Z' });
+      const refs = observations.map((o) => o.source_ref);
+      assert.ok(refs.includes(`listing:${ok}`));
+      assert.ok(!refs.includes(`listing:${banned}`), 'Vitesse maximale 5/5 is never read');
+      assert.ok(!refs.includes(`listing:${own}`), 'an agent\'s own WhatsApp listing is not a group capture');
+      const row = market72.normaliseObservation({ ...observations.find((o) => o.source_ref === `listing:${ok}`), source: 'whatsapp_group' });
+      assert.deepStrictEqual([row.property_id, row.purpose, row.property_kind, row.beds, row.monthly_usd, row.commune, row.furnished], [662, 'rent', 'appartement', 2, 450, 'Limete', false]);
+      assert.strictEqual(group72.kindOf({ property_type: 'parcelle', parcelle_subtype: 'Maison Type Locataire', bedrooms: 2 }), 'maison');
+      assert.strictEqual(group72.kindOf({ property_type: 'parcelle', parcelle_subtype: 'Terrain Nu' }), 'terrain');
+    });
+
+    check('the nightly job is registered, starts in the background and can be switched off', () => {
+      assert.ok(sched.JOBS.some((j) => j.name === market72.JOB_NAME));
+      const before = process.env.MARKET_COLLECTION;
+      process.env.MARKET_COLLECTION = 'off';
+      try { assert.strictEqual(market72.collectionDue(new Date('2026-11-05T01:30:00Z')), false); } finally {
+        if (before === undefined) delete process.env.MARKET_COLLECTION; else process.env.MARKET_COLLECTION = before;
+      }
+      const src = fs.readFileSync(path.join(__dirname, '..', 'services', 'marketObservations.js'), 'utf8');
+      assert.match(src, /run: async \(\) => startCollectionInBackground\(\)/, 'a collection never holds the scheduler tick');
+      assert.deepStrictEqual(market72.COLLECTED_SOURCES, ['whatsapp_group', 'immo24', 'imcongo', 'alain_realty', 'smartimmo']);
+      assert.ok(!market72.COLLECTED_SOURCES.includes('zwandako') && !market72.COLLECTED_SOURCES.includes('facebook'),
+        'their terms forbid automated collection: entered by hand only');
+    });
+
+    check('the migration creates both tables closed to PostgREST', () => {
+      const sql = fs.readFileSync(path.join(__dirname, '..', 'migrations', '20261104_market_observations.sql'), 'utf8');
+      assert.match(sql, /CREATE TABLE IF NOT EXISTS market_observations/);
+      assert.match(sql, /UNIQUE \(source, source_ref\)/);
+      assert.match(sql, /REVOKE ALL ON market_observations FROM anon, authenticated/);
+      for (const source of market72.SOURCES) assert.ok(sql.includes(`'${source}'`), `CHECK lists ${source}`);
     });
   }
 

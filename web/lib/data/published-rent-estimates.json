@@ -1,0 +1,61 @@
+{
+  "_note": "Third-party published rent ESTIMATES, shown on /admin/market-data/marche next to our measured medians. Never part of a median: no sample size, no method we can check. Figures copied as printed (USD), checked by reading the page itself, not a search summary — on 2026-11-04 a search summary quoted different figures for the same page.",
+  "estimates": [
+    {
+      "id": "africanvestor-kinshasa-rents-2026",
+      "publisher": "The Africanvestor",
+      "title": "Updated Rents in Kinshasa (2026)",
+      "url": "https://theafricanvestor.com/blogs/news/kinshasa-rents",
+      "aliases": [
+        "https://theafricanvestor.com/blogs/news/average-rent-kinshasa"
+      ],
+      "publishedOn": "2026-09-21",
+      "retrievedOn": "2026-11-04",
+      "caveats": [
+        "Aucun nombre d'annonces n'est donné.",
+        "La page cite Immo24 (agence surtout présente à la Gombe, majoritairement en meublé) parmi ses sources.",
+        "Moyennes des loyers d'« appartements formels », meublés et non meublés confondus."
+      ],
+      "citywide": [
+        {
+          "beds": 0,
+          "label": "Studio",
+          "average": 900,
+          "low": 300,
+          "high": 1400
+        },
+        {
+          "beds": 1,
+          "label": "1 chambre",
+          "average": 1350,
+          "low": 700,
+          "high": 2000
+        },
+        {
+          "beds": 2,
+          "label": "2 chambres",
+          "average": 2200,
+          "low": 1300,
+          "high": 3200
+        }
+      ],
+      "communes": [
+        {
+          "commune": "Gombe",
+          "average": 3000,
+          "scope": "Gombe"
+        },
+        {
+          "commune": "Ngaliema",
+          "average": 2500,
+          "scope": "Ngaliema « prime »"
+        },
+        {
+          "commune": "Limete",
+          "average": 2000,
+          "scope": "Limete Résidentiel"
+        }
+      ]
+    }
+  ]
+}

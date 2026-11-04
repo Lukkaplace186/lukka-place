@@ -29,6 +29,9 @@ export const PERMISSIONS = {
   // Network-wide reads a field rep has no business in: market figures and the
   // agents' identity documents (Verifications). Everyone else with analytics.view.
   'market.view': ['owner', 'moderator', 'support', 'finance', 'analyst'],
+  // /admin/market-data/marche: enter an advert read on Facebook / Zwandako,
+  // exclude or restore an observation from the price guide.
+  'market.manage': ['owner', 'moderator', 'analyst'],
   'verifications.view': ['owner', 'moderator', 'support', 'finance', 'analyst'],
   // Partners (agents, creators, campaigns) and their funnels; the tagged-link
   // builder. A field rep has their own rep page instead.

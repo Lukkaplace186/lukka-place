@@ -132,7 +132,7 @@ function findAmountCandidates(text) {
 async function extractPriceWithModel(text) {
   // Lazy: services/openai.js requires viewingNotifications, which requires
   // this module — a top-level require would load a half-built openai.js.
-  const { getClient } = require('./openai');
+  const { getClient, logCallCost } = require('./openai');
   const completion = await getClient().chat.completions.create({
     model: MODEL,
     temperature: 0,
@@ -165,6 +165,7 @@ async function extractPriceWithModel(text) {
       { role: 'user', content: String(text) },
     ],
   });
+  logCallCost('closing-price', completion, MODEL);
   const content = completion.choices?.[0]?.message?.content;
   return content ? JSON.parse(content) : null;
 }

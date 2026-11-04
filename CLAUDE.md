@@ -1677,6 +1677,13 @@ holds the rules. §63 of verify-pipeline.
   reply; extraction unchanged (it is emitted before the reply). Multi-unit /
   multi-property recaps are still the model's. An "OK" to a draft is flushed
   from the burst buffer at once instead of after `GROUP_IDLE_MS` (8 s).
+- **Every model call logs its cost** (2026-11-04): `[ai-cost] <kind> <model>
+  in= cached= (N%) out= cost=Xc` from the usage the API returned
+  (`openai.callCost`, prices in `PRICES_PER_MILLION` — update them when
+  OpenAI's change; an unknown model logs `cost=?`). Kinds: intake, buyer,
+  smart-paste, closing-price. `grep "\[ai-cost\]" logs/pm2-out.log` gives
+  the real cost per listing and the cache hit rate. Embeddings and voice
+  notes are not logged (fractions of a cent).
 
 ## Verification & Commands
 - **Verification Command**: Always run `npm run verify` before declaring a backend task complete.

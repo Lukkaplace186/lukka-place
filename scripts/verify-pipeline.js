@@ -1130,6 +1130,13 @@ console.log('\n2. services/openai.js');
     assert.ok(/2 image\(s\)/.test(imageParams.messages[1].content[0].text)));
   check('a short caption keeps the configured detail (the photos are the listing)', () =>
     assert.strictEqual(imageParts[0].image_url.detail, 'auto'));
+  check('[ai-cost] prices a call from the usage the API returned', () => {
+    const usage = { prompt_tokens: 14283, prompt_tokens_details: { cached_tokens: 13056 }, completion_tokens: 615 };
+    assert.strictEqual(openaiService.callCost('gpt-4o-2024-08-06', usage).usd.toFixed(6), '0.025538');
+    // "gpt-4o-mini" must not be priced as gpt-4o, whose name it starts with.
+    assert.strictEqual(openaiService.callCost('gpt-4o-mini-2024-07-18', usage).usd.toFixed(6), '0.001532');
+    assert.strictEqual(openaiService.callCost('some-new-model', usage).usd, null, 'an unknown model is never guessed');
+  });
   check('intake caps output and keys the prompt cache', () => {
     assert.strictEqual(imageParams.max_completion_tokens, 6000);
     assert.strictEqual(imageParams.prompt_cache_key, 'lukka-intake');

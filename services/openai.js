@@ -53,6 +53,45 @@ function getClient() {
 }
 
 /**
+ * US$ per million tokens: [input, cached input, output]. Most specific name
+ * first — the API answers with a dated id ("gpt-4o-2024-08-06").
+ * openai.com/api/pricing, 2026-11-04; an unknown model logs tokens only.
+ */
+const PRICES_PER_MILLION = [
+  ['gpt-4o-mini', [0.15, 0.075, 0.6]],
+  ['gpt-4o', [2.5, 1.25, 10]],
+];
+
+/**
+ * What one call cost, from the usage the API returned — never estimated.
+ * @returns {{input: number, cached: number, output: number, usd: number|null}}
+ */
+function callCost(model, usage) {
+  const input = usage?.prompt_tokens || 0;
+  const cached = usage?.prompt_tokens_details?.cached_tokens || 0;
+  const output = usage?.completion_tokens || 0;
+  const price = PRICES_PER_MILLION.find(([name]) => String(model || '').startsWith(name))?.[1];
+  const usd = price
+    ? ((input - cached) * price[0] + cached * price[1] + output * price[2]) / 1e6
+    : null;
+  return { input, cached, output, usd };
+}
+
+/**
+ * One log line per model call, so a week of pm2 logs gives the real cost per
+ * listing and the real cache hit rate (2026-11-04): grep "[ai-cost]".
+ */
+function logCallCost(kind, completion, fallbackModel) {
+  const model = completion?.model || fallbackModel;
+  const { input, cached, output, usd } = callCost(model, completion?.usage);
+  const cachePct = input ? Math.round((cached / input) * 100) : 0;
+  console.log(
+    `[ai-cost] ${kind} ${model} in=${input} cached=${cached} (${cachePct}%) out=${output}`
+      + (usd === null ? ' cost=?' : ` cost=${(usd * 100).toFixed(2)}c`),
+  );
+}
+
+/**
  * Commune -> quartier hierarchy per city (services/cities.js), rendered
  * compactly so the model can normalise both the commune AND the finer quartier
  * spellings agents actually type ("gombé", "Bandal", "Djili", "Ma Campagne").
@@ -832,6 +871,7 @@ async function completeIntake(model, messages) {
     response_format: RESPONSE_FORMAT,
     messages,
   });
+  logCallCost('intake', completion, model);
 
   const choice = completion.choices?.[0];
 
@@ -1371,6 +1411,7 @@ async function runBuyerTurn({
       tools: BUYER_TOOLS,
       messages,
     });
+    logCallCost('buyer', completion, MODEL);
 
     const choice = completion.choices?.[0];
     if (choice?.message?.refusal) {
@@ -1553,6 +1594,7 @@ async function parseListingTextForForm(rawText) {
       { role: 'user', content: `--- TEXTE COLLÉ ---\n${text}\n--- FIN ---` },
     ],
   });
+  logCallCost('smart-paste', completion, MODEL);
 
   const choice = completion.choices?.[0];
   if (choice?.message?.refusal) {
@@ -1596,6 +1638,8 @@ module.exports = {
   // (same OPENAI_API_KEY, same lazy-throw-if-missing behaviour) for
   // embedding calls rather than a second client implementation.
   getClient,
+  callCost,
+  logCallCost,
   SYSTEM_PROMPT,
   RESPONSE_FORMAT,
   KINSHASA_COMMUNES,

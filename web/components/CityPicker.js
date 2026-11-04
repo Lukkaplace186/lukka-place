@@ -41,7 +41,7 @@ export default function CityPicker({ cities = [], current = null, className = ''
       <select
         value={value}
         onChange={onChange}
-        className="h-11 appearance-none rounded-lg border-2 border-line bg-surface pl-9 pr-8 text-sm font-semibold text-ink transition-colors focus:border-blue focus:outline-none"
+        className="h-11 w-full appearance-none rounded-lg border-2 border-line bg-surface pl-9 pr-8 text-sm font-semibold text-ink transition-colors focus:border-blue focus:outline-none"
       >
         {cities.map((city) => (
           <option key={city.name} value={city.name}>{city.name}</option>

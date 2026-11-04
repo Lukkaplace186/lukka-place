@@ -425,7 +425,13 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
       if (!el) return;
       const rect = el.getBoundingClientRect();
       const gap = 8;
-      const spaceBelow = window.innerHeight - rect.bottom - gap;
+      // The VISUAL viewport, not innerHeight: with the phone keyboard up
+      // (iOS), innerHeight still counts the area under the keyboard, so the
+      // panel was sized to run behind it.
+      const vv = window.visualViewport;
+      const viewBottom = vv ? vv.offsetTop + vv.height : window.innerHeight;
+      const viewWidth = vv ? vv.width : window.innerWidth;
+      const spaceBelow = viewBottom - rect.bottom - gap;
       const spaceAbove = rect.top - gap;
 
       // The panel's *intended* height (matches the max-h-[300px]/
@@ -442,9 +448,17 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
       const placeAbove = spaceBelow < Math.min(desiredMaxHeight, MIN_SPACE_FOR_BELOW) && spaceAbove > spaceBelow;
       const available = placeAbove ? spaceAbove : spaceBelow;
 
+      // Never narrower than the screen allows (2026-11-04, owner report): on
+      // /listings' phone bar the box was ~70px wide and so was the panel —
+      // one truncated row. At least min(viewport − 2 × 12px, 420px) wide,
+      // kept inside the viewport.
+      const edge = 12;
+      const width = Math.max(rect.width, Math.min(viewWidth - edge * 2, 420));
+      const left = Math.min(Math.max(rect.left, edge), Math.max(edge, viewWidth - edge - width));
+
       setPosition({
-        left: rect.left,
-        width: rect.width,
+        left,
+        width,
         placement: placeAbove ? 'above' : 'below',
         top: placeAbove ? undefined : rect.bottom + gap,
         bottom: placeAbove ? window.innerHeight - rect.top + gap : undefined,
@@ -455,9 +469,11 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
     updatePosition();
     window.addEventListener('scroll', updatePosition, { capture: true, passive: true });
     window.addEventListener('resize', updatePosition);
+    window.visualViewport?.addEventListener('resize', updatePosition);
     return () => {
       window.removeEventListener('scroll', updatePosition, { capture: true });
       window.removeEventListener('resize', updatePosition);
+      window.visualViewport?.removeEventListener('resize', updatePosition);
     };
   }, [open]);
 
@@ -792,7 +808,7 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
                           type="button"
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={() => submitFreeText(item)}
-                          className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-[0.875rem] text-ink-70 transition-colors hover:bg-canvas-alt"
+                          className="flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-[0.9375rem] sm:min-h-0 sm:text-[0.875rem] text-ink-70 transition-colors hover:bg-canvas-alt"
                         >
                           <Clock strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0 text-ink-45" />
                           <span className="min-w-0 flex-1 truncate">{item}</span>
@@ -807,7 +823,7 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => submitFreeText(suggestion)}
-                      className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-[0.875rem] text-ink-70 transition-colors hover:bg-canvas-alt"
+                      className="flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-[0.9375rem] sm:min-h-0 sm:text-[0.875rem] text-ink-70 transition-colors hover:bg-canvas-alt"
                     >
                       <SlidersHorizontal strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0 text-ink-45" />
                       <span className="min-w-0 flex-1 truncate">{suggestion}</span>
@@ -834,7 +850,7 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
                             setOpen(false);
                             router.push(entry.href);
                           }}
-                          className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-[0.875rem] text-ink-70 transition-colors hover:bg-canvas-alt"
+                          className="flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-[0.9375rem] sm:min-h-0 sm:text-[0.875rem] text-ink-70 transition-colors hover:bg-canvas-alt"
                         >
                           <Clock strokeWidth={ICON_STROKE_WIDTH} className="h-4 w-4 shrink-0 text-ink-45" />
                           <span className="min-w-0 flex-1 truncate">{entry.label}</span>
@@ -856,7 +872,7 @@ const LocationAutocompleteCore = forwardRef(function LocationAutocompleteCore({
                         onMouseEnter={() => setActiveIndex(i)}
                         onClick={() => navigateTo(result)}
                         className={cn(
-                          'flex w-full items-center gap-3 px-4 py-2.5 text-left text-[0.875rem] transition-colors',
+                          'flex min-h-11 w-full items-center gap-3 px-4 py-2.5 text-left text-[0.9375rem] sm:min-h-0 sm:text-[0.875rem] transition-colors',
                           active ? 'bg-blue-tint text-blue-deep' : 'text-ink-70 hover:bg-canvas-alt',
                         )}
                       >

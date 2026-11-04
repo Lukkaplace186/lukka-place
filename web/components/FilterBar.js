@@ -433,7 +433,11 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
             second horizontally-scrolling mobile row underneath the input;
             replaced with a real Rightmove/Zoopla-style single row now that
             mobile no longer shows the pills at all. */}
-        <div className="flex w-full items-center gap-2 lg:gap-3">
+        {/* Phone: the search box has its own full-width row and the city
+            picker + Filtres sit under it (2026-11-04, owner report: on one
+            row the box was ~70px wide, too small to read what was typed or
+            the suggestions). From lg it is one row again. */}
+        <div className="flex w-full flex-wrap items-center gap-2 lg:flex-nowrap lg:gap-3">
           {/* preserveParams: this box does its own client-side navigation
               (see LocationAutocomplete) rather than participating in this
               form's hidden-input/requestSubmit machinery — picking a
@@ -456,7 +460,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
               app's own `--blue` focus token rather than a literal dark
               slate-900 border, matching `.u-focus-ring`'s established
               focus colour used everywhere else a field gets one. */}
-          <CityPicker cities={cities} current={defaults.searchCity || defaults.ville} />
+          <CityPicker cities={cities} current={defaults.searchCity || defaults.ville} className="order-2 min-w-0 flex-1 lg:order-none lg:flex-none" />
           <LocationAutocomplete
             preserveParams
             initialValue={defaults.search || defaults.near || searchedPlaceLabel(defaults)}
@@ -465,7 +469,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
             showIcon
             showClear
             recentSearches={recentSearches}
-            className="min-w-0 flex-1 rounded-lg border-2 border-line bg-surface px-4 py-2 transition-colors focus-within:border-blue lg:min-w-[15rem] lg:py-2.5"
+            className="order-1 min-w-0 flex-1 basis-full rounded-lg border-2 border-line bg-surface px-4 py-2.5 transition-colors focus-within:border-blue lg:order-none lg:basis-auto lg:min-w-[15rem]"
             inputClassName="font-medium"
           />
 
@@ -476,7 +480,7 @@ export default function FilterBar({ locations, propertyTypes = [], initialTotal,
           <button
             type="button"
             onClick={() => setFilterModalOpen(true)}
-            className={`u-press inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border-2 px-4 py-2 text-[0.8125rem] font-semibold transition-colors lg:hidden ${
+            className={`u-press order-3 inline-flex h-11 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg border-2 px-4 text-[0.8125rem] font-semibold transition-colors lg:hidden ${
               mobileFilterCount > 0
                 ? 'border-blue bg-blue-tint text-blue-deep'
                 : 'border-line bg-surface text-ink-70'

@@ -5,6 +5,8 @@ import { SearchX } from 'lucide-react';
 import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import { hrefWithoutKeys, hrefWithParam } from '@/lib/urlParams';
 import { useT } from '@/lib/i18n/client';
+import GuestRequestForm from './GuestRequestForm';
+import { guestRequestPrefill } from '@/lib/guestRequestRules';
 
 // Each entry takes the translator so the chip reads in the visitor's own
 // language; `property_type` passes its value straight through because it is
@@ -30,7 +32,7 @@ const RELAXABLE_LABEL = {
  * active filter lets a visitor try each independently rather than only
  * the blunt "clear everything" reset.
  */
-export default function ListingsEmptyState({ popularCommunes = [], params = {}, propertyTypeLabel }) {
+export default function ListingsEmptyState({ popularCommunes = [], params = {}, propertyTypeLabel, communes = [] }) {
   const t = useT();
   const commune = params.commune;
   const quartier = params.quartier;
@@ -79,6 +81,14 @@ export default function ListingsEmptyState({ popularCommunes = [], params = {}, 
           t('listings.empty.generic')
         )}
       </p>
+
+      {/* The request form sits at the bottom, under the relaxations; on a
+          phone that is several screens down, so say up front that it exists. */}
+      {communes.length > 0 ? (
+        <a href="#trouver-pour-moi" className="mt-3 inline-block text-sm font-semibold text-blue-deep hover:underline">
+          {t('listings.guestRequest.jump')}
+        </a>
+      ) : null}
 
       {commune || relaxable.length > 0 ? (
         <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
@@ -151,20 +161,30 @@ export default function ListingsEmptyState({ popularCommunes = [], params = {}, 
         >
           {t('listings.empty.seeAll')}
         </Link>
-        {/* Real, working manual-request form (RequestForm.js) — reachable
-            only from here (0 results) and from the dedicated dashboard tab
-            it actually lives on, never duplicated onto the normal results
-            toolbar where a real saved-search alert already covers the case
-            of "keep watching this search". /compte/client/* already
-            redirects a guest to sign in first (see that route's layout.js),
-            so this link needs no auth check of its own. */}
-        <Link
-          href="/compte/client/demandes"
-          className="inline-flex items-center rounded-full border border-line bg-surface px-6 py-2.5 text-sm font-semibold text-ink-70 transition-colors hover:border-blue hover:text-blue-deep"
-        >
-          {t('listings.empty.findForMe')}
-        </Link>
       </div>
+
+      {/* The request without an account (lib/guestRequestRules.js). This
+          used to be a "Trouver pour moi" link to /compte/client/demandes,
+          which sends a guest to sign in first — a wall for exactly the
+          visitor whose search just found nothing. Prefilled from that search. */}
+      {communes.length > 0 ? (
+        <section id="trouver-pour-moi" className="mx-auto mt-10 max-w-sm border-t border-line pt-8">
+          <h3 className="u-title-card text-ink">{t('listings.guestRequest.title')}</h3>
+          <p className="mt-1 mb-5 text-sm text-ink-45">{t('listings.guestRequest.lead')}</p>
+          <GuestRequestForm communes={communes} prefill={guestRequestPrefill(params, communes)} />
+        </section>
+      ) : (
+        // Outside Kinshasa the form has no commune list to offer: the signed-in
+        // request form, which takes any city's communes, as before.
+        <div className="mt-3 flex justify-center">
+          <Link
+            href="/compte/client/demandes"
+            className="inline-flex items-center rounded-full border border-line bg-surface px-6 py-2.5 text-sm font-semibold text-ink-70 transition-colors hover:border-blue hover:text-blue-deep"
+          >
+            {t('listings.empty.findForMe')}
+          </Link>
+        </div>
+      )}
     </div>
   );
 }

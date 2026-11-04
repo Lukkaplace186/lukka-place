@@ -33,7 +33,8 @@ export function metaPayload({ name, eventId, eventTime, url, user, params }) {
   if (user.fbp) userData.fbp = user.fbp;
   if (user.fbc) userData.fbc = user.fbc;
   const custom = {};
-  if (params?.contentIds?.length) { custom.content_ids = params.contentIds; custom.content_type = 'product'; }
+  if (params?.contentIds?.length) { custom.content_ids = params.contentIds.map(String); custom.content_type = 'home_listing'; }
+  // Same as the browser copy: the home listings catalogue's item type.
   if (params?.value != null && params?.currency) { custom.value = params.value; custom.currency = params.currency; }
   if (params?.searchString) custom.search_string = params.searchString;
   return {

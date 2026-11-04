@@ -308,6 +308,8 @@ export default async function ListingsPage({ searchParams }) {
             popularCommunes={searchCity !== DEFAULT_CITY ? [] : nearbyCommunes}
             params={params}
             propertyTypeLabel={propertyTypeLabel}
+            // The no-account request form's commune list (Kinshasa's, like the filters).
+            communes={searchCity !== DEFAULT_CITY ? [] : communes}
           />
         ) : (
           <ListingsSplitView

@@ -23,6 +23,7 @@ import { ICON_STROKE_WIDTH } from '@/lib/constants';
 import ListingViewTracker from '@/components/ListingViewTracker';
 import PropertyDescription from '@/components/listings/PropertyDescription';
 import AvailabilityConfirmedBadge from '@/components/listings/AvailabilityConfirmedBadge';
+import ListingInterestLine from '@/components/listings/ListingInterestLine';
 import MarketMedianLine from '@/components/listings/MarketMedianLine';
 import UtilityBadges from '@/components/listings/UtilityBadges';
 import PracticalDetails from '@/components/listings/PracticalDetails';
@@ -353,6 +354,12 @@ export default async function ListingDetailPage({ params, searchParams }) {
               {/* The agent's own weekly "still available" answer — only a
                   real one, at most 30 days old; nothing otherwise. */}
               <AvailabilityConfirmedBadge confirmedAt={listing.availability_confirmed_at} />
+
+              {/* Real distinct visitors in the last 7 days, from 1 up;
+                  streamed in so the count never delays the page. */}
+              <Suspense fallback={null}>
+                <ListingInterestLine listingId={listing.id} />
+              </Suspense>
             </div>
 
             {/* One card, two halves: the facts grid, then what is due at

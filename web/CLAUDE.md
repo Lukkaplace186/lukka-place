@@ -3904,3 +3904,51 @@ the usual daily rate. The page was a bare five-field form opening on
 - Not done: the password still comes before verification, and the Meta pixel
   / CAPI token are not set (`/admin/settings` → Croissance), so a campaign
   cannot optimise for registrations yet.
+
+## Conversion pass: request without an account, viewer count, Meta catalogue (2026-11-04)
+
+Tests: `tests/unit/conversion-features.test.js`.
+
+- **"Trouver pour moi" without an account** (`lib/guestRequestRules.js`,
+  `components/GuestRequestForm.js`, action `app/(site)/trouver-pour-moi/actions.js`).
+  An empty search used to link to /compte/client/demandes, which sends a
+  guest to sign in. It now shows the form at the bottom of
+  `ListingsEmptyState` (a jump link near the top), prefilled from the search,
+  and the same form lives at **/trouver-pour-moi** (prefill with the
+  /listings param names, so an ad can open on "2 chambres à Gombe"). Fields:
+  louer/acheter, commune (server allow-list, Kinshasa), type, chambres,
+  budget, name, WhatsApp number. It creates the lead through the same
+  `createLead` / POST /admin/leads as the signed-in form, `source:
+  'guest-search-request'`, so the engine pushes it to the commune's agencies.
+  - **The number is the visitor's claim, not a proven one** — the summary says
+    "numéro non vérifié". Guards before the lead: a honeypot (`website`),
+    the phone check, validation, 5/hour per connection and 2/day per number
+    (in process, one PM2 fork). Nothing is ever sent to that number by us.
+  - The "sent" copy promises only what is true: the commune's agencies
+    receive it, and one with a match will write.
+  - Outside Kinshasa (no commune list) the old signed-in link stays.
+  - A Meta/TikTok **Lead** event (`AD_EVENTS`, TikTok "SubmitForm") is sent
+    from the action under `lead-g-<id>`; `form: 'request'` funnel steps go to
+    `[signup-funnel]`.
+- **"N personnes ont consulté ce bien ces 7 derniers jours"**
+  (`lib/listingInterest.js`, `components/listings/ListingInterestLine.js`,
+  under the availability badge, in its own Suspense). Distinct `visitor_id`,
+  visitors only (no owner, agents, team, bots, prefetch). Shown as counted
+  from 1 ("1 personne a consulté…", plural object), nothing at 0 — the owner
+  chose real numbers over the first version's 5-person minimum. Never padded.
+- **Meta home listings catalogue** at **/feeds/meta-home-listings.csv**
+  (`lib/metaHomeListingsFeed.js`). Public listings, active, residential, a USD
+  price (monthly for a rent; day / week / year rents left out), ≥1 usable
+  photo, a point rounded to 2 decimals (~1 km; stored point else commune
+  centroid). 232 of 277 live listings on 2026-11-04. A failure is a 503,
+  never an empty feed. Column names follow Meta's public spec, unverified
+  against a live catalogue: check the first upload's diagnostics.
+  Meta pixel/CAPI events with listing ids now say `content_type:
+  'home_listing'` (was 'product') so retargeting matches the catalogue.
+  **Setup** (not done): Commerce Manager → new Home listings catalogue →
+  scheduled feed with that URL → connect the pixel; needs the pixel id on
+  /admin/settings → Croissance first.
+- Not built: alerts without an account (saved searches belong to customer
+  accounts; the request above is the no-account way to be told), and
+  Click-to-WhatsApp ads (an ads setting; the buyer assistant answers
+  `buyer_request` messages but has never handled live traffic).

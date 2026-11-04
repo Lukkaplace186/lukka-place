@@ -22,7 +22,8 @@ import { attributionFromBody, eventSource, viewerKindFor, visitorIdFrom, signedI
  * a log line is never free text somebody chose.
  */
 
-export const SIGNUP_FORMS = new Set(['agent']);
+// 'request' = the no-account "Trouver pour moi" form (components/GuestRequestForm.js).
+export const SIGNUP_FORMS = new Set(['agent', 'request']);
 export const SIGNUP_STEPS = new Set(['form_start', 'submit', 'whatsapp_tap', 'referral_open']);
 const TAG_RE = /^[A-Za-z0-9._-]{1,64}$/;
 

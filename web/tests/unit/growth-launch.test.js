@@ -137,7 +137,7 @@ test('Europe is asked first; Kinshasa is not; no cookie means nothing is sent', 
 });
 
 test('the server copy takes known events only, a same-site URL, and four bounded params', () => {
-  assert.deepEqual(SERVER_AD_EVENTS, ['ViewContent', 'Search', 'Contact', 'CompleteRegistration', 'Schedule']);
+  assert.deepEqual(SERVER_AD_EVENTS, ['ViewContent', 'Search', 'Contact', 'CompleteRegistration', 'Schedule', 'Lead']);
   assert.equal(cleanAdEvent({ name: 'PageView', eventId: 'pv-12345' }), null);
   assert.equal(cleanAdEvent({ name: 'Contact', eventId: 'bad id' }), null);
   const event = cleanAdEvent({

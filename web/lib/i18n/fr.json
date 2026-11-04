@@ -683,6 +683,10 @@
         "costs": "Coûts",
         "features": "Caractéristiques",
         "location": "Emplacement"
+      },
+      "recentViewers": {
+        "one": "{count} personne a consulté ce bien ces 7 derniers jours",
+        "other": "{count} personnes ont consulté ce bien ces 7 derniers jours"
       }
     },
     "sidebar": {
@@ -946,6 +950,47 @@
       },
       "cta": "Voir",
       "dismiss": "Masquer"
+    },
+    "guestRequest": {
+      "metaTitle": "Trouver pour moi — Lukka Place",
+      "title": "Décrivez ce que vous cherchez",
+      "lead": "Pas besoin de compte : laissez votre numéro WhatsApp, nous transmettons votre demande aux agences partenaires de la commune.",
+      "transaction": "Je veux",
+      "rent": "Louer",
+      "buy": "Acheter",
+      "commune": "Commune",
+      "communePlaceholder": "Choisir une commune",
+      "type": "Type de bien",
+      "bedrooms": "Chambres",
+      "any": "Peu importe",
+      "types": {
+        "appartement": "Appartement",
+        "maison": "Maison",
+        "studio": "Studio",
+        "chambre": "Chambre",
+        "terrain": "Terrain",
+        "bureau": "Bureau / commerce"
+      },
+      "budgetRent": "Budget maximum par mois ($, facultatif)",
+      "budgetBuy": "Budget maximum ($, facultatif)",
+      "name": "Votre nom (facultatif)",
+      "phone": "Votre numéro WhatsApp",
+      "submit": "Envoyer ma demande",
+      "sending": "Envoi…",
+      "privacy": "Votre numéro est transmis aux agences qui reçoivent votre demande et à l’équipe Lukka Place, et à personne d’autre.",
+      "sentTitle": "Demande envoyée",
+      "sentBody": "Les agences partenaires qui couvrent {commune} la reçoivent. Si l’une d’elles a un bien qui correspond, elle vous écrira sur WhatsApp au numéro finissant par {last4}.",
+      "sentBodyShort": "Votre demande a bien été reçue.",
+      "another": "Faire une autre demande",
+      "errors": {
+        "transaction": "Choisissez louer ou acheter.",
+        "commune": "Choisissez une commune dans la liste.",
+        "budget": "Indiquez le budget en chiffres, par exemple 500.",
+        "phone": "Ce numéro WhatsApp n’est pas valide. Vérifiez le pays et le numéro.",
+        "limit": "Vous avez déjà envoyé plusieurs demandes. Réessayez plus tard.",
+        "send": "La demande n’a pas pu être envoyée. Réessayez dans un instant."
+      },
+      "jump": "Ou décrivez ce que vous cherchez : nous transmettons aux agences ↓"
     }
   },
   "enquiry": {

@@ -32,7 +32,9 @@ export function dispatchAdEvent(name, params = {}, eventId = newEventId(), { ser
   const ads = window.__lpAds || {};
   if (ads.state !== 'on' || !consentAllowsAds(readCookie(CONSENT_COOKIE))) return;
   const metaParams = {};
-  if (params.contentIds?.length) { metaParams.content_ids = params.contentIds; metaParams.content_type = 'product'; }
+  if (params.contentIds?.length) { metaParams.content_ids = params.contentIds.map(String); metaParams.content_type = 'home_listing'; }
+  // 'home_listing', not 'product': Meta matches these ids against the home
+  // listings catalogue (lib/metaHomeListingsFeed.js, home_listing_id = listing id).
   if (params.value != null && params.currency) { metaParams.value = params.value; metaParams.currency = params.currency; }
   if (params.searchString) metaParams.search_string = params.searchString;
   try {

@@ -4,7 +4,8 @@
  *
  * EVENTS: PageView (browser only — every page), ViewContent (a listing page),
  * Search, Contact (a WhatsApp or call tap), CompleteRegistration (a customer
- * whose number was just verified), Schedule (a visit request). Every event
+ * whose number was just verified), Schedule (a visit request), Lead (a request
+ * left without an account, /trouver-pour-moi). Every event
  * but PageView is also sent from our server (Meta Conversions API, TikTok
  * Events API) under the SAME event id, so each platform counts it once.
  *
@@ -23,7 +24,7 @@ export const CONSENT_MAX_AGE = 180 * 24 * 60 * 60;
 /** Server-queued browser events (`[{n, id, p}]`), drained by the page on its next load. */
 export const AD_QUEUE_COOKIE = 'lp_adq';
 
-export const AD_EVENTS = ['PageView', 'ViewContent', 'Search', 'Contact', 'CompleteRegistration', 'Schedule'];
+export const AD_EVENTS = ['PageView', 'ViewContent', 'Search', 'Contact', 'CompleteRegistration', 'Schedule', 'Lead'];
 export const SERVER_AD_EVENTS = AD_EVENTS.filter((name) => name !== 'PageView');
 
 /**
@@ -38,6 +39,8 @@ export const TIKTOK_EVENT_NAME = {
   Contact: 'Contact',
   CompleteRegistration: 'CompleteRegistration',
   Schedule: 'Schedule',
+  // A request left without an account (/trouver-pour-moi); TikTok's standard name.
+  Lead: 'SubmitForm',
 };
 
 const EUROPEAN_ATLANTIC = new Set(['Atlantic/Canary', 'Atlantic/Madeira', 'Atlantic/Azores', 'Atlantic/Faroe', 'Atlantic/Reykjavik']);

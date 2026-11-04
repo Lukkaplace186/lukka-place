@@ -683,6 +683,10 @@
         "costs": "Costs",
         "features": "Features",
         "location": "Location"
+      },
+      "recentViewers": {
+        "one": "{count} person viewed this property in the last 7 days",
+        "other": "{count} people viewed this property in the last 7 days"
       }
     },
     "sidebar": {
@@ -946,6 +950,47 @@
       },
       "cta": "View",
       "dismiss": "Dismiss"
+    },
+    "guestRequest": {
+      "metaTitle": "Find It for Me — Lukka Place",
+      "title": "Describe What You’re Looking For",
+      "lead": "No account needed: leave your WhatsApp number and we pass your request to our partner agencies in that commune.",
+      "transaction": "I want to",
+      "rent": "Rent",
+      "buy": "Buy",
+      "commune": "Commune",
+      "communePlaceholder": "Choose a commune",
+      "type": "Property type",
+      "bedrooms": "Bedrooms",
+      "any": "Any",
+      "types": {
+        "appartement": "Apartment",
+        "maison": "House",
+        "studio": "Studio",
+        "chambre": "Room",
+        "terrain": "Land",
+        "bureau": "Office / shop"
+      },
+      "budgetRent": "Maximum monthly budget ($, optional)",
+      "budgetBuy": "Maximum budget ($, optional)",
+      "name": "Your name (optional)",
+      "phone": "Your WhatsApp number",
+      "submit": "Send my request",
+      "sending": "Sending…",
+      "privacy": "Your number goes to the agencies that receive your request and to the Lukka Place team, and to nobody else.",
+      "sentTitle": "Request Sent",
+      "sentBody": "Our partner agencies covering {commune} receive it. If one of them has a matching property, they will message you on WhatsApp at the number ending {last4}.",
+      "sentBodyShort": "Your request has been received.",
+      "another": "Make another request",
+      "errors": {
+        "transaction": "Choose rent or buy.",
+        "commune": "Choose a commune from the list.",
+        "budget": "Enter the budget in figures, for example 500.",
+        "phone": "This WhatsApp number is not valid. Check the country and the number.",
+        "limit": "You have already sent several requests. Please try again later.",
+        "send": "The request could not be sent. Please try again in a moment."
+      },
+      "jump": "Or tell us what you need: we pass it on to agencies ↓"
     }
   },
   "enquiry": {
